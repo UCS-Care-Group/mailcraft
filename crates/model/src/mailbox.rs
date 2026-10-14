@@ -14,6 +14,8 @@ const MAX_DEPTH: usize = 32;
 const MAX_ID: Id = 1 << 53;
 /// Most changes waiting for the mail server that a file may hold ([`Mailbox::pending`]).
 const MAX_PENDING: usize = 100_000;
+/// Most changes to folders waiting for the mail server that a file may hold ([`Mailbox::folder_changes`]).
+const MAX_FOLDER_CHANGES: usize = 10_000;
 /// Most folders one account's Favorites from its server hold ([`Mailbox::server_favorites`]).
 const MAX_SERVER_FAVORITES: usize = crate::remote::MAX_FAVORITES;
 
@@ -86,10 +88,23 @@ pub struct Folder {
     pub uid_validity: u32,
     #[serde(skip_serializing_if = "is_zero")]
     pub uid_seen: u32,
+    /// How the server's mailbox stood when it was last read, for the next synchronisation to
+    /// do no more than it has to. A file that holds something else in its place reads as nothing
+    /// known, which costs one full read.
+    #[serde(skip_serializing_if = "crate::sync::FolderMark::is_empty", deserialize_with = "crate::sync::lenient_or_default")]
+    pub mark: crate::sync::FolderMark,
+    /// The server's mailbox keeps no keywords of the owner's choosing (Exchange Online): the
+    /// categories of its messages stay here, and the server isn't asked to keep them.
+    #[serde(skip_serializing_if = "is_false")]
+    pub no_keywords: bool,
 }
 
 fn is_zero(n: &u32) -> bool {
     *n == 0
+}
+
+fn is_false(b: &bool) -> bool {
+    !*b
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -170,6 +185,15 @@ pub struct Account {
     /// then, and a file that says something else in its place reads as not said.
     #[serde(skip_serializing_if = "FavoritesSource::is_unset", deserialize_with = "crate::sync::lenient_or_default")]
     pub favorites_source: FavoritesSource,
+    /// For a shared mailbox (support@, a team's mailbox) that its owner opens with the Full
+    /// Access an administrator gave them: the owner's own account, which signs in with Microsoft.
+    /// The shared mailbox has its own folders and mail here, and no sign-in of its own: it is
+    /// read over IMAP with the owner's access token in the owner's name (SASL XOAUTH2 with the
+    /// shared mailbox's address as the user), and mail from it goes out through SMTP signed in as
+    /// the owner, which takes the Send As right ([`Account::is_shared`]). Its servers and sign-in
+    /// are the owner's account's, whatever is written here.
+    #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
+    pub shared_of: Option<Id>,
 }
 
 /// How the folders an account's owner keeps under Favorites in Outlook are read from its server,
@@ -279,6 +303,11 @@ impl Account {
         crate::Address::new(self.display_name.clone(), self.email.clone())
     }
 
+    /// Whether it is a shared mailbox opened through another account ([`Account::shared_of`]).
+    pub fn is_shared(&self) -> bool {
+        self.shared_of.is_some()
+    }
+
     /// The name the servers know the owner by: the login name, or else the address.
     pub fn login(&self) -> &str {
         let user = self.username.trim();
@@ -376,6 +405,47 @@ impl Pending {
     }
 }
 
+/// A change made here to a folder of an account with a mail server, which the server is yet to
+/// be told ([`crate::sync::FolderOp`]). What the folder is to become is read off the folder
+/// itself when the server is told, so that a folder renamed twice is renamed there once.
+///
+/// Only what the owner did is listed: what a synchronisation brings (a folder the server made,
+/// renamed or no longer has) never is.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum FolderChange {
+    /// The folder was made here, and is to have a mailbox on the server.
+    Create { account: Id, folder: Id },
+    /// The folder, which follows the server's mailbox `from`, was renamed or moved here (deleted
+    /// into Deleted Items too). `parent` is the folder it lay in when that was first done: while
+    /// it still lies there, the mailbox stays where it is on the server and only its name changes.
+    Rename {
+        account: Id,
+        folder: Id,
+        from: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        parent: Option<Id>,
+    },
+    /// The folder that followed the server's mailbox `remote` was deleted for good here.
+    Delete { account: Id, remote: String },
+}
+
+impl FolderChange {
+    pub fn account(&self) -> Id {
+        match self {
+            FolderChange::Create { account, .. } | FolderChange::Rename { account, .. } | FolderChange::Delete { account, .. } => *account,
+        }
+    }
+
+    /// The local folder it is about; `None` for a deletion (the folder is gone).
+    pub fn folder(&self) -> Option<Id> {
+        match self {
+            FolderChange::Create { folder, .. } | FolderChange::Rename { folder, .. } => Some(*folder),
+            FolderChange::Delete { .. } => None,
+        }
+    }
+}
+
 /// The Favorites of an account as its server lists them (the folders Outlook shows under
 /// Favorites): the mailbox's own folders for them, in the server's order. While an account has
 /// such a list, the folder pane can show it in place of the favourites that are marked here
@@ -437,6 +507,10 @@ pub struct Mailbox {
     /// Moves and deletions the mail server is yet to be told, oldest first.
     #[serde(skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::sync::lenient_list")]
     pub pending: Vec<Pending>,
+    /// Folders made, renamed, moved and deleted here that the mail server is yet to be told,
+    /// oldest first.
+    #[serde(skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::sync::lenient_list")]
+    pub folder_changes: Vec<FolderChange>,
     /// Changes made here to events of calendars that a server keeps, which that server is yet
     /// to be told, oldest first ([`crate::remote::EventChange`]).
     #[serde(skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::sync::lenient_list")]
@@ -458,6 +532,19 @@ pub struct Mailbox {
     /// zone has the times rewritten first ([`Mailbox::rebase`]).
     #[serde(skip_serializing_if = "String::is_empty")]
     pub zone: String,
+    /// Saved searches the folder pane shows under Search Folders ([`crate::SearchFolder`]).
+    #[serde(skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::sync::lenient_list")]
+    pub search_folders: Vec<crate::SearchFolder>,
+    /// The Quick Steps of the Home tab, in their order ([`crate::QuickStep`]).
+    #[serde(skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::sync::lenient_list")]
+    pub quick_steps: Vec<crate::QuickStep>,
+    /// Contact groups ([`crate::ContactGroup`]).
+    #[serde(skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::sync::lenient_list")]
+    pub contact_groups: Vec<crate::ContactGroup>,
+    /// Certificates and OpenPGP public keys: the owner's own, the people they write to, the
+    /// roots they trust ([`crate::security::StoredKey`]). Never a private key.
+    #[serde(skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::sync::lenient_list")]
+    pub keys: Vec<crate::security::StoredKey>,
     next_id: Id,
 }
 
@@ -476,10 +563,15 @@ impl Default for Mailbox {
             rules: Vec::new(),
             signatures: Vec::new(),
             pending: Vec::new(),
+            folder_changes: Vec::new(),
             event_changes: Vec::new(),
             event_checks: Vec::new(),
             favorites_from_server: Vec::new(),
             zone: String::new(),
+            search_folders: Vec::new(),
+            quick_steps: Vec::new(),
+            contact_groups: Vec::new(),
+            keys: Vec::new(),
             next_id: 1,
         }
     }
@@ -550,19 +642,48 @@ impl Mailbox {
 
     /// Remove an account with its folders and messages. Its server isn't told anything: what
     /// was still waiting to be pushed there is dropped.
+    ///
+    /// The shared mailboxes opened through it ([`Account::shared_of`]) go with it: without it
+    /// nothing signs them in.
     pub fn remove_account(&mut self, id: Id) -> Result<(), ModelError> {
-        let before = self.accounts.len();
-        self.accounts.retain(|a| a.id != id);
-        if self.accounts.len() == before {
+        if self.account(id).is_none() {
             return Err(not_found("account", id));
         }
-        self.folders.retain(|f| f.account != id);
-        self.messages.retain(|_, m| m.account != id);
-        self.pending.retain(|p| p.account() != id);
-        self.event_changes.retain(|change| change.account != id);
-        self.event_checks.retain(|check| check.account != id);
-        self.favorites_from_server.retain(|list| list.account != id);
+        let going: HashSet<Id> = self.accounts.iter().filter(|a| a.id == id || a.shared_of == Some(id)).map(|a| a.id).collect();
+        self.accounts.retain(|a| !going.contains(&a.id));
+        self.folders.retain(|f| !going.contains(&f.account));
+        self.messages.retain(|_, m| !going.contains(&m.account));
+        self.pending.retain(|p| !going.contains(&p.account()));
+        self.folder_changes.retain(|c| !going.contains(&c.account()));
+        self.event_changes.retain(|change| !going.contains(&change.account));
+        self.event_checks.retain(|check| !going.contains(&check.account));
+        self.favorites_from_server.retain(|list| !going.contains(&list.account));
         Ok(())
+    }
+
+    /// The shared mailboxes opened through `account` ([`Account::shared_of`]), in the order
+    /// they were added.
+    pub fn shared_mailboxes(&self, account: Id) -> Vec<&Account> {
+        self.accounts.iter().filter(|a| a.shared_of == Some(account) && a.id != account).collect()
+    }
+
+    /// The accounts in the order the folder pane lists them: each one, then the shared
+    /// mailboxes opened through it, as Outlook lists them. A shared mailbox whose account is not
+    /// in the mailbox, or is itself a shared one (a file from elsewhere), comes in its own place.
+    pub fn accounts_in_pane_order(&self) -> Vec<&Account> {
+        let opens = |id: Id| self.accounts.iter().any(|a| a.id == id && !a.is_shared());
+        let mut out: Vec<&Account> = Vec::with_capacity(self.accounts.len());
+        for a in &self.accounts {
+            match a.shared_of {
+                Some(parent) if parent != a.id && opens(parent) => {}
+                Some(_) => out.push(a),
+                None => {
+                    out.push(a);
+                    out.extend(self.shared_mailboxes(a.id));
+                }
+            }
+        }
+        out
     }
 
     // ---- favourites ----
@@ -759,9 +880,10 @@ impl Mailbox {
     /// Delete a folder the user made: it moves into Deleted Items with its messages; a folder
     /// already there is removed for good. Returns `true` when it was removed permanently.
     ///
-    /// None of this is pushed to a mail server (a mailbox there stays, and comes back as a
-    /// folder with the next synchronisation); the changes still waiting to be pushed that
-    /// mention a removed folder are dropped with it.
+    /// A move into Deleted Items reaches the server once the caller notes it
+    /// ([`Mailbox::note_folder_moved`]). A folder removed for good that had mailboxes on the
+    /// server has their deletion noted here ([`FolderChange::Delete`], the innermost first); the
+    /// changes still waiting to be pushed that mention a removed folder are dropped with it.
     pub fn delete_folder(&mut self, id: Id) -> Result<bool, ModelError> {
         let f = self.folder(id).ok_or(not_found("folder", id))?.clone();
         if f.kind != FolderKind::Custom {
@@ -785,20 +907,114 @@ impl Mailbox {
                 Ok(false)
             }
             _ => {
-                let gone = self.subtree(id);
-                let remotes: Vec<String> =
-                    self.folders.iter().filter(|f| gone.contains(&f.id) && !f.remote.is_empty()).map(|f| f.remote.clone()).collect();
-                self.folders.retain(|f| !gone.contains(&f.id));
-                self.messages.retain(|_, m| !gone.contains(&m.folder));
-                for list in &mut self.favorites_from_server {
-                    list.folders.retain(|folder| !gone.contains(folder));
+                let mut remotes = self.remove_subtree(id);
+                if self.account(f.account).is_some_and(|a| a.kind == AccountKind::Imap) {
+                    // The innermost first: a server may keep the name of a mailbox that still
+                    // has mailboxes inside it.
+                    remotes.sort_by_key(|remote| std::cmp::Reverse(remote.chars().count()));
+                    for remote in remotes {
+                        if self.folder_changes.len() < MAX_FOLDER_CHANGES {
+                            self.folder_changes.push(FolderChange::Delete { account: f.account, remote });
+                        }
+                    }
                 }
-                self.pending.retain(|p| {
-                    let into = matches!(p, Pending::Move { to, .. } if gone.contains(to));
-                    let out_of = p.account() == f.account && remotes.iter().any(|remote| remote == p.source().0);
-                    !into && !out_of
-                });
                 Ok(true)
+            }
+        }
+    }
+
+    /// Remove a folder and everything in it without a word to the server: for a synchronisation
+    /// taking out what the server no longer has. Standard folders stay. The changes still
+    /// waiting to be pushed that mention it are dropped with it.
+    pub fn forget_folder(&mut self, id: Id) -> Result<(), ModelError> {
+        let f = self.folder(id).ok_or(not_found("folder", id))?;
+        if f.kind != FolderKind::Custom {
+            return Err(invalid(format!("{} can't be removed", f.name)));
+        }
+        self.remove_subtree(id);
+        Ok(())
+    }
+
+    /// Take out a folder, the folders inside it and their messages, with whatever waits to be
+    /// pushed about them. Returns the server paths they followed.
+    fn remove_subtree(&mut self, id: Id) -> Vec<String> {
+        let account = self.folder(id).map_or(0, |f| f.account);
+        let gone = self.subtree(id);
+        let remotes: Vec<String> = self.folders.iter().filter(|f| gone.contains(&f.id) && !f.remote.is_empty()).map(|f| f.remote.clone()).collect();
+        self.folders.retain(|f| !gone.contains(&f.id));
+        let messages: Vec<Id> = self.messages.values().filter(|m| gone.contains(&m.folder)).map(|m| m.id).collect();
+        for message in messages {
+            let _ = self.forget_message(message);
+        }
+        for list in &mut self.favorites_from_server {
+            list.folders.retain(|folder| !gone.contains(folder));
+        }
+        self.pending.retain(|p| {
+            let into = matches!(p, Pending::Move { to, .. } if gone.contains(to));
+            let out_of = p.account() == account && remotes.iter().any(|remote| remote == p.source().0);
+            !into && !out_of
+        });
+        self.folder_changes.retain(|c| c.folder().is_none_or(|folder| !gone.contains(&folder)));
+        remotes
+    }
+
+    /// Note that the owner made folder `id` here: an account with a mail server is to have a
+    /// mailbox for it there.
+    pub fn note_folder_made(&mut self, id: Id) {
+        let Some(f) = self.folder(id) else { return };
+        let account = f.account;
+        let served = self.account(account).is_some_and(|a| a.kind == AccountKind::Imap);
+        if served
+            && f.remote.is_empty()
+            && self.folder_changes.len() < MAX_FOLDER_CHANGES
+            && !self.folder_changes.iter().any(|c| c.folder() == Some(id))
+        {
+            self.folder_changes.push(FolderChange::Create { account, folder: id });
+        }
+    }
+
+    /// Note that the owner renamed or moved folder `id` here (into Deleted Items too), and that
+    /// its mailbox on the server is to follow. `parent` is the folder it lay in before. A folder
+    /// whose mailbox is still to be made is made where it is now; one that has a change waiting
+    /// keeps it, and goes where it is when the server is told.
+    pub fn note_folder_moved(&mut self, id: Id, parent: Option<Id>) {
+        let Some(f) = self.folder(id) else { return };
+        let (account, from) = (f.account, f.remote.clone());
+        if from.is_empty() || f.kind != FolderKind::Custom || self.folder_changes.iter().any(|c| c.folder() == Some(id)) {
+            return;
+        }
+        if self.account(account).is_some_and(|a| a.kind == AccountKind::Imap) && self.folder_changes.len() < MAX_FOLDER_CHANGES {
+            self.folder_changes.push(FolderChange::Rename { account, folder: id, from, parent });
+        }
+    }
+
+    /// The server took on a rename: what `account` knew as `from` is `to` now, and so are the
+    /// mailboxes inside it (`delimiter` parts the levels). Folders, and the changes still to be
+    /// pushed, name the mailboxes by their new paths.
+    pub fn remote_renamed(&mut self, account: Id, from: &str, to: &str, delimiter: &str) {
+        let moved = |path: &str| crate::sync::renamed_path(path, from, to, delimiter);
+        if to.is_empty() {
+            return;
+        }
+        for f in self.folders.iter_mut().filter(|f| f.account == account) {
+            if let Some(path) = moved(&f.remote) {
+                f.remote = path;
+            }
+        }
+        for p in self.pending.iter_mut().filter(|p| p.account() == account) {
+            let (Pending::Move { from, .. } | Pending::Delete { from, .. }) = p;
+            if let Some(path) = moved(from) {
+                *from = path;
+            }
+        }
+        for c in self.folder_changes.iter_mut().filter(|c| c.account() == account) {
+            match c {
+                FolderChange::Rename { from, .. } | FolderChange::Delete { remote: from, .. } => {
+                    if let Some(path) = moved(from) {
+                        *from = path;
+                    }
+                }
+                FolderChange::Create { .. } => {}
             }
         }
     }
@@ -936,6 +1152,40 @@ impl Mailbox {
             }
         }
         self.forget_message(id)
+    }
+
+    /// Put `m` in the place of message `id` (a draft saved again): it keeps the id, and is a
+    /// message the server doesn't have yet. The server's copy of the one it replaces, when there
+    /// is one, is deleted there ([`Pending::Delete`]) once the new one has gone up: the next
+    /// synchronisation puts the new one there first, then takes the old one away by its UID.
+    pub fn replace_message(&mut self, id: Id, mut m: Message) -> Result<(), ModelError> {
+        let (was_in, account, uid) = {
+            let old = self.message(id).ok_or(not_found("message", id))?;
+            (old.folder, old.account, old.uid)
+        };
+        if self.folder(m.folder).is_none() {
+            return Err(not_found("folder", m.folder));
+        }
+        match self.waiting_move(id).and_then(|at| self.pending.get_mut(at)) {
+            // On its way somewhere on the server: the copy there goes, wherever it is now.
+            Some(op) => {
+                if let Pending::Move { account, from, uid, .. } = &mut *op {
+                    let delete = Pending::Delete { account: *account, from: std::mem::take(from), uid: *uid };
+                    *op = delete;
+                }
+            }
+            None => {
+                let from = self.folder(was_in).filter(|f| f.account == account && !f.remote.is_empty()).map(|f| f.remote.clone());
+                if let (Some(from), true) = (from, uid != 0) {
+                    self.pending.push(Pending::Delete { account, from, uid });
+                }
+            }
+        }
+        m.id = id;
+        m.account = self.folder(m.folder).map_or(account, |f| f.account);
+        (m.uid, m.synced, m.synced_categories) = (0, None, Vec::new());
+        *self.message_mut(id)? = m;
+        Ok(())
     }
 
     /// Remove a message without a word to the server: for a synchronisation taking out what the
@@ -1200,6 +1450,9 @@ impl Mailbox {
             .chain(self.folders.iter().map(|f| f.id))
             .chain(self.calendars.iter().map(|c| c.id))
             .chain(self.rules.iter().map(|r| r.id))
+            .chain(self.search_folders.iter().map(|f| f.id))
+            .chain(self.quick_steps.iter().map(|q| q.id))
+            .chain(self.contact_groups.iter().map(|g| g.id))
             .filter(sane)
             .max()
             .unwrap_or(0);
@@ -1347,7 +1600,7 @@ impl Mailbox {
         if untied > 0 {
             fixed.push(format!("{untied} message(s) untied from the mail server's copy"));
         }
-        let dropped = self.repair_pending(&on_server);
+        let dropped = self.repair_pending(&on_server) + self.repair_folder_changes();
         if dropped > 0 {
             fixed.push(format!("{dropped} change(s) waiting for the mail server dropped"));
         }
@@ -1373,8 +1626,135 @@ impl Mailbox {
         if after != before {
             fixed.push("the Favorites kept from a mail server corrected".into());
         }
+        if self.repair_organizers() > 0 {
+            fixed.push("search folders, Quick Steps or contact groups corrected".into());
+        }
         self.next_id = self.next_id.max(1);
         fixed
+    }
+
+    /// Search folders, Quick Steps and contact groups as a file may hold them: no more than
+    /// [`crate::MAX_SAVED`] of each, named, with ids of their own (a search folder's never one a
+    /// folder has, since the folder in view may be either), pointing only at what exists.
+    /// Returns how many things were corrected.
+    fn repair_organizers(&mut self) -> usize {
+        let mut n = 0;
+        let mut seen: HashSet<Id> = self.folders.iter().map(|f| f.id).collect();
+        let accounts: HashSet<Id> = self.accounts.iter().map(|a| a.id).collect();
+        let folders: HashSet<Id> = self.folders.iter().map(|f| f.id).collect();
+        for list_len in [self.search_folders.len(), self.quick_steps.len(), self.contact_groups.len()] {
+            n += list_len.saturating_sub(crate::MAX_SAVED);
+        }
+        self.search_folders.truncate(crate::MAX_SAVED);
+        self.quick_steps.truncate(crate::MAX_SAVED);
+        self.contact_groups.truncate(crate::MAX_SAVED);
+        // Keys: no more than so many, and one of each.
+        n += self.keys.len().saturating_sub(crate::security::MAX_KEYS);
+        self.keys.truncate(crate::security::MAX_KEYS);
+        let mut prints = HashSet::new();
+        let before = self.keys.len();
+        self.keys.retain(|k| !k.fingerprint.is_empty() && prints.insert((k.scheme, k.fingerprint.clone())));
+        n += before - self.keys.len();
+        let mut fresh = |id: &mut Id, seen: &mut HashSet<Id>, next: &mut Id| {
+            if *id == 0 || *id > MAX_ID || !seen.insert(*id) {
+                *id = *next;
+                *next = next.saturating_add(1);
+                seen.insert(*id);
+                n += 1;
+            }
+        };
+        let next = &mut self.next_id;
+        for f in &mut self.search_folders {
+            fresh(&mut f.id, &mut seen, next);
+        }
+        for q in &mut self.quick_steps {
+            fresh(&mut q.id, &mut seen, next);
+        }
+        for g in &mut self.contact_groups {
+            fresh(&mut g.id, &mut seen, next);
+        }
+        for f in &mut self.search_folders {
+            let name = clean_name(&f.name).unwrap_or_else(|| "Search Folder".into());
+            let query = crate::SearchFolder::clean_query(&f.query);
+            let account = f.account.filter(|a| accounts.contains(a));
+            if (&name, &query, account) != (&f.name, &f.query, f.account) {
+                (f.name, f.query, f.account) = (name, query, account);
+                n += 1;
+            }
+        }
+        for q in &mut self.quick_steps {
+            let name = clean_name(&q.name).unwrap_or_else(|| "Quick Step".into());
+            let before = q.actions.len();
+            q.actions.truncate(crate::MAX_STEP_ACTIONS);
+            q.actions.retain(|a| match a {
+                crate::StepAction::MoveTo(f) | crate::StepAction::CopyTo(f) => folders.contains(f),
+                crate::StepAction::Categorize(c) => clean_name(c).is_some(),
+                _ => true,
+            });
+            if name != q.name || q.actions.len() != before {
+                q.name = name;
+                n += 1;
+            }
+        }
+        for g in &mut self.contact_groups {
+            let name = clean_name(&g.name).unwrap_or_else(|| "Contact Group".into());
+            let before = g.members.len();
+            let members = std::mem::take(&mut g.members);
+            for mut m in members {
+                if m.contact.is_some_and(|c| !self.contacts.contains_key(&c)) {
+                    m.contact = None;
+                }
+                g.add(m);
+            }
+            if name != g.name || g.members.len() != before {
+                g.name = name;
+                n += 1;
+            }
+        }
+        n
+    }
+
+    /// Let go of the folder changes that have nothing left to do: a folder made here that has its
+    /// mailbox on the server by now (a message moved into it made it), a renamed one that follows
+    /// no mailbox any more (the server no longer had it). Returns how many went.
+    pub fn settle_folder_changes(&mut self) -> usize {
+        self.repair_folder_changes()
+    }
+
+    /// Keep of [`Mailbox::folder_changes`] only what could have been noted here, one change a
+    /// folder at most, and no more than [`MAX_FOLDER_CHANGES`]. Returns how many went.
+    fn repair_folder_changes(&mut self) -> usize {
+        let before = self.folder_changes.len();
+        let mut kept: Vec<FolderChange> = Vec::new();
+        for change in std::mem::take(&mut self.folder_changes) {
+            if kept.len() >= MAX_FOLDER_CHANGES {
+                break;
+            }
+            let account = change.account();
+            if !self.account(account).is_some_and(|a| a.kind == AccountKind::Imap) {
+                continue;
+            }
+            let fits = match &change {
+                FolderChange::Create { folder, .. } => {
+                    self.folder(*folder).is_some_and(|f| f.account == account && f.kind == FolderKind::Custom && f.remote.is_empty())
+                }
+                FolderChange::Rename { folder, from, parent, .. } => {
+                    self.folder(*folder)
+                        .is_some_and(|f| f.account == account && f.kind == FolderKind::Custom && !from.is_empty() && f.remote == *from)
+                        && parent.is_none_or(|p| self.folder(p).is_some_and(|p| p.account == account))
+                }
+                // Not one a folder here still follows.
+                FolderChange::Delete { remote, .. } => {
+                    !remote.is_empty() && !self.folders.iter().any(|f| f.account == account && f.remote == *remote)
+                }
+            };
+            let twice = change.folder().is_some_and(|folder| kept.iter().any(|c| c.folder() == Some(folder)));
+            if fits && !twice && !kept.contains(&change) {
+                kept.push(change);
+            }
+        }
+        self.folder_changes = kept;
+        before - self.folder_changes.len()
     }
 
     /// Keep of [`Mailbox::pending`] only what could have been noted here, and no more than

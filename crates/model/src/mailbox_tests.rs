@@ -552,3 +552,89 @@ fn removing_an_account_takes_its_mail() {
     assert!(mb.remove_account(second).is_err());
     assert!(mb.account(account).is_some());
 }
+
+/// A mailbox whose account has a mail server, with "Projects" (and "Apollo" inside it) following
+/// mailboxes there, and Deleted Items following the server's.
+fn served() -> (Mailbox, Id, Id, Id) {
+    let mut mb = Mailbox::default();
+    let account = mb.add_account(Account { email: "ada@example.org".into(), kind: AccountKind::Imap, ..Default::default() });
+    let deleted = mb.folder_of_kind(account, FolderKind::Deleted).unwrap();
+    mb.folder_mut(deleted).unwrap().remote = "Deleted Items".into();
+    let projects = mb.add_folder(account, None, "Projects").unwrap();
+    let apollo = mb.add_folder(account, Some(projects), "Apollo").unwrap();
+    mb.folder_mut(projects).unwrap().remote = "Projects".into();
+    mb.folder_mut(apollo).unwrap().remote = "Projects/Apollo".into();
+    (mb, account, projects, apollo)
+}
+
+#[test]
+fn what_the_owner_does_to_folders_is_noted_for_the_server_once() {
+    let (mut mb, account, projects, _) = served();
+    let made = mb.add_folder(account, None, "New").unwrap();
+    mb.note_folder_made(made);
+    mb.note_folder_made(made);
+    // Renamed, then moved: one change, from where the server has it.
+    mb.rename_folder(projects, "Plans").unwrap();
+    mb.note_folder_moved(projects, None);
+    mb.move_folder(projects, Some(made)).unwrap();
+    mb.note_folder_moved(projects, None);
+    assert_eq!(
+        mb.folder_changes,
+        [FolderChange::Create { account, folder: made }, FolderChange::Rename { account, folder: projects, from: "Projects".into(), parent: None }]
+    );
+    assert!(mb.clone().repair().is_empty());
+    // Deleted for good: its mailboxes go, the innermost first, and its own change with it.
+    let deleted = mb.folder_of_kind(account, FolderKind::Deleted).unwrap();
+    mb.move_folder(projects, Some(deleted)).unwrap();
+    assert!(mb.delete_folder(projects).unwrap());
+    assert_eq!(
+        mb.folder_changes,
+        [
+            FolderChange::Create { account, folder: made },
+            FolderChange::Delete { account, remote: "Projects/Apollo".into() },
+            FolderChange::Delete { account, remote: "Projects".into() },
+        ]
+    );
+    // Nothing is noted for a folder of an account without a server.
+    let (mut local, local_account) = mailbox();
+    let f = local.add_folder(local_account, None, "Mine").unwrap();
+    local.note_folder_made(f);
+    assert!(local.delete_folder(f).is_ok() && local.folder_changes.is_empty());
+}
+
+#[test]
+fn a_folder_forgotten_takes_its_messages_and_changes_and_tells_nobody() {
+    let (mut mb, account, projects, apollo) = served();
+    let m = mb.add_message(Message { folder: apollo, uid: 4, ..Default::default() }).unwrap();
+    mb.pending.push(Pending::Delete { account, from: "Projects/Apollo".into(), uid: 9 });
+    mb.note_folder_moved(apollo, Some(projects));
+    mb.forget_folder(projects).unwrap();
+    assert!(mb.folder(projects).is_none() && mb.folder(apollo).is_none() && mb.message(m).is_none());
+    assert!(mb.pending.is_empty() && mb.folder_changes.is_empty());
+    let inbox = mb.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    assert!(mb.forget_folder(inbox).is_err() && mb.forget_folder(999).is_err());
+}
+
+#[test]
+fn a_rename_on_the_server_renames_what_lies_inside_and_what_waits() {
+    let (mut mb, account, projects, apollo) = served();
+    mb.pending.push(Pending::Delete { account, from: "Projects/Apollo".into(), uid: 9 });
+    mb.folder_changes.push(FolderChange::Rename { account, folder: apollo, from: "Projects/Apollo".into(), parent: Some(projects) });
+    let other = mb.add_folder(account, None, "Projects2").unwrap();
+    mb.folder_mut(other).unwrap().remote = "Projects2".into();
+    mb.remote_renamed(account, "Projects", "Deleted Items/Projects", "/");
+    let remote = |id| mb.folder(id).unwrap().remote.clone();
+    assert_eq!(
+        (remote(projects), remote(apollo), remote(other)),
+        ("Deleted Items/Projects".into(), "Deleted Items/Projects/Apollo".into(), "Projects2".into())
+    );
+    assert_eq!(mb.pending[0].source(), ("Deleted Items/Projects/Apollo", 9));
+    assert!(matches!(&mb.folder_changes[0], FolderChange::Rename { from, .. } if from == "Deleted Items/Projects/Apollo"));
+    // A file that asks the server to change folders it never had is put right.
+    mb.folder_changes.push(FolderChange::Rename { account, folder: 999, from: "INBOX".into(), parent: None });
+    mb.folder_changes.push(FolderChange::Delete { account, remote: "Projects2".into() });
+    mb.folder_changes.push(FolderChange::Create { account: 12345, folder: other });
+    let fixed = mb.repair();
+    assert_eq!(fixed.len(), 1, "{fixed:?}");
+    assert_eq!(mb.folder_changes.len(), 1);
+}
