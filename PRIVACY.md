@@ -16,9 +16,21 @@ does not check for updates by itself.
   to, as with any mail program.
 - **Passwords and sign-in tokens** are kept in memory while the program runs. When you let the
   program remember a sign-in, the password or the refresh token goes to your operating system's
-  credential store (Windows Credential Manager, the macOS keychain) and nowhere else: not into
-  the mailbox file, the settings, a log or a command line. On Linux nothing is remembered yet:
-  you sign in each time the program starts.
+  credential store (Windows Credential Manager, the macOS keychain, and on Linux and BSD the
+  Secret Service: GNOME Keyring, KWallet or KeePassXC) and nowhere else: not into the mailbox
+  file, the settings, a log or a command line. Where no credential store is running, nothing is
+  remembered: you sign in each time the program starts, and File › Options says so.
+- **Private keys for signed and encrypted mail** (an S/MIME digital ID, an OpenPGP key) that you
+  import are kept the same way: in the operating system's credential store when sign-ins are
+  remembered, otherwise only while the program runs. A passphrase is used once, to open the
+  file, and kept nowhere. Certificates and public keys (yours, and those of people who sent you
+  signed mail, unless you turn that off) are kept in the mailbox. An encrypted message stays
+  encrypted on disk; what it says is worked out while it is on screen. Signatures are checked on
+  your computer: no certificate authority, revocation list or key server is asked about them.
+- **Notifications** for new mail and reminders are shown by your operating system while
+  MailCraft's window is not in front. One for new mail says how many messages came, and names
+  the newest one's sender and subject only if you turn that on in File › Options; a reminder
+  says its subject and time. None holds a message's text. You can turn them off there.
 - **Pictures you asked to download** are kept on your computer for up to 30 days so they are not
   asked for again; File › Options shows how many and clears them.
 

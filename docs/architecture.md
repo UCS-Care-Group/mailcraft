@@ -1,6 +1,6 @@
 # MailCraft architecture
 
-> **Last reviewed:** 2026-10-11 · **Last updated:** 2026-10-13 · **Change:** minor (a second way of reading the Favorites of Outlook: `net`'s `ews`, `Account::favorites_source`, the choice in `ui-egui`'s `favorites_sync`) · **Target:** Microsoft Outlook (Microsoft 365)
+> **Last reviewed:** 2026-10-11 · **Last updated:** 2026-10-14 · **Change:** minor (formatted composing: `model::rich`, `mime::rich`, the `format.*` commands, spelling; right-to-left text: `html::bidi`; the mailbox file's format 3, a log of records; the `crypto` crate at L2: S/MIME and OpenPGP; `engine::security`; earlier: the `msg` crate: Outlook `.msg` files come in through `file.import`; printing: the `print` crate at L2, `cmd/print.rs`, `Services::print`; uploads and IDLE) · **Target:** Microsoft Outlook (Microsoft 365)
 
 How MailCraft is built today. Rules for working in the code are in [`AGENTS.md`](../AGENTS.md). The
 shape — layers, "everything is a command", the swappable egui front end, the control channel, MCP,
@@ -8,9 +8,9 @@ shape — layers, "everything is a command", the swappable egui front end, the c
 
 ## Layers
 
-13 crates, 3 apps and `xtask` (`cargo xtask stats` prints lines and tests per crate). Layering is
+15 crates, 3 apps and `xtask` (`cargo xtask stats` prints lines and tests per crate). Layering is
 enforced by `cargo xtask layers`: a crate may only depend on crates in lower layers (one exception
-inside L3: `net` drives `proto`), and nothing below L6 depends on egui, eframe, winit or rfd.
+inside L3: `net` drives `proto`; and inside L2: `msg` uses `mime`), and nothing below L6 depends on egui, eframe, winit or rfd.
 
 | Layer | Crate | Job |
 |---|---|---|
@@ -21,6 +21,9 @@ inside L3: `net` drives `proto`), and nothing below L6 depends on egui, eframe, 
 | L2 | `mime` | RFC 5322 / MIME reader and writer (`.eml`), encoded words, RFC 2231 parameters, charsets, mbox |
 | L2 | `ical` | iCalendar reader and writer: events, to-dos, recurrence rules, alarms, attendees |
 | L2 | `vcard` | vCard 2.1/3.0/4.0 reader, 3.0 writer |
+| L2 | `msg` | Outlook `.msg` reader: a bounded Compound File Binary reader ([MS-CFB]), the message's properties ([MS-OXMSG]), compressed RTF and the HTML it encapsulates ([MS-OXRTFCP], [MS-OXRTFEX]); attached messages become `.eml` attachments through `mime` |
+| L2 | `crypto` | Signed and encrypted mail, on bytes: S/MIME (CMS `SignedData` and `EnvelopedData` over X.509, a BER-to-DER normaliser, chain checking up to roots the owner trusts) and OpenPGP (rPGP: detached and inline signatures, PGP/MIME encryption); key files (certificates, PKCS#12 read from RFC 7292 by our own bounded reader, PKCS#8, OpenPGP keys). No MIME here (`mime::secure` splits and wraps the parts); private keys in memory only, wiped on drop |
+| L2 | `print` | Printing: a message in Memo Style (from `html`'s display blocks), the calendar (Daily, Work Week, Weekly, Monthly), contacts as cards and tasks as a table, laid out as pages of positioned text, lines, boxes and pictures (`Document`); the same pages as a PDF with the bundled fonts embedded as subsets (`pdf`). The window's Print Preview paints the `Document`; the engine's `file.print` writes the PDF and the desktop host hands it to the system |
 | L3 | `proto` | IMAP4rev1 and SMTP clients over any `Read + Write` stream (no sockets, so they test against scripted transcripts and build for wasm) |
 | L3 | `net` | TCP + TLS (rustls), sending through SMTP, two-way IMAP synchronisation, OAuth sign-in, MX lookup, Microsoft Graph (`graph`), and Outlook's Favorites through Exchange Web Services (`ews`, read-only); empty on wasm |
 | L4 | `engine` | `Session` (mailbox, selection, view, the message being written, undo), the **command registry** (`cmd/*.rs`), the message list (`list.rs`), the Outlook feature catalog (`catalog.rs`), the sample mailbox, file dispatch (`io.rs`) |
@@ -34,7 +37,7 @@ inside L3: `net` drives `proto`), and nothing below L6 depends on egui, eframe, 
 
 1. **Open:** the desktop app reads `<settings>/mailbox.mailcraft` (JSON) through `engine::io`;
    `Mailbox::repair` makes whatever the file held consistent. The browser reads the same JSON from
-   its storage. Other files (`.eml`, `.mbox`, `.ics`, `.vcf`) come in through `file.import`.
+   its storage. Other files (`.eml`, `.msg`, `.mbox`, `.ics`, `.vcf`) come in through `file.import`.
 2. **Act:** every user-visible action is a command id run through `Session::run` (ribbon,
    shortcuts, command search, CLI, control channel and MCP all dispatch by id). `Session::run`
    snapshots the mailbox for undo — items are `Arc`-shared, so a snapshot copies pointers, not mail —
@@ -66,12 +69,20 @@ inside L3: `net` drives `proto`), and nothing below L6 depends on egui, eframe, 
   clock, and only stamped. Everything that converts goes through `mailcraft_model::zoned`.
 - **Conversations are grouped by topic** (the subject without `RE:`/`FW:` prefixes) within an
   account, as the incumbent does, not by `References` chains.
-- **A mailbox file, and its content beside it.** On the desktop `mailbox.mailcraft` is JSON holding
-  everything but content; bodies and attachments over a kilobyte are write-once files named by
-  their SHA-256 in `mailbox.mailcraft.blobs/` (`crates/engine/src/store.rs`). A save after a read
-  mark writes a few megabytes on a background thread, atomically; a self-contained single file is
-  still what the browser, exports and `file.saveAs` use. Everything is in memory while the app
-  runs, which is the next limit (see `docs/gaps.md`).
+- **A mailbox file, and its content beside it.** On the desktop `mailbox.mailcraft` holds
+  everything but content as a log of records (format 3, `crates/engine/src/store_index.rs`): the
+  rest of the mailbox, and one record per message, contact, event or task; bodies and attachments
+  over a kilobyte are write-once files named by their SHA-256 in `mailbox.mailcraft.blobs/`
+  (`crates/engine/src/store.rs`). A save appends the records of what changed and a commit in one
+  flushed write, on a background thread: a read mark costs a few hundred bytes however large the
+  mailbox. What was last written is remembered item by item (its fingerprint, and a weak pointer
+  to the copy in memory that it is), so a save looks only at items whose copy changed; when the
+  appended records outgrow the mailbox, the file is written whole to a temporary file and renamed
+  over. Opening reads records to the last commit and parses items on several threads; formats 1
+  and 2 (JSON) are still read and become format 3 at the first changed save, the old file kept
+  beside it. A self-contained single file is still what the browser, exports and `file.saveAs`
+  use. Every message's text and attachments are still in memory while the app runs, which is the
+  next limit (see `docs/gaps.md`).
 - **A Send/Receive arrives in pieces.** `mailcraft_net::sync_with` emits what was sent, what the
   server was told, then mail folder by folder (the Inbox first, newest first, fifty at a time),
   each piece safe to apply by itself (`apply_sync_part`), so mail shows while the rest is on its
@@ -108,6 +119,28 @@ inside L3: `net` drives `proto`), and nothing below L6 depends on egui, eframe, 
   (`FavoritesSource::EWS_ENDS`): from that day by the session's clock the engine refuses it and
   nothing is asked of it. Everything after the download is shared: `sync.applyFavorites`, the
   pane, the timing, and falling back to the favourites kept here.
+- **Shared mailboxes are accounts that sign in as their owner.** A mailbox of Microsoft 365 that
+  the owner has Full Access to (`support@`) is an account of its own in the mailbox
+  (`Account::shared_of` names the owner's account): its own folders, mail and synchronisation
+  state, its own heading in the folder pane right after its owner's (`Mailbox::accounts_in_pane_order`)
+  and its own From address. It keeps no sign-in: `cmd/shared.rs` (`account.addShared`,
+  `account.removeShared`) adds and closes one, and `sync_request` hands the host the owner's
+  servers and Microsoft sign-in under the shared mailbox's address (`shared::signed_in_as`),
+  with `SyncRequest::send_login` naming the owner for SMTP. The host brings the owner's access
+  token (`MailApp::tokens` of the owner), so IMAP is XOAUTH2 with the shared address as the user,
+  and mail from it goes out through SMTP as the owner with the shared address as the sender
+  (the Send As right). Nothing goes through Graph for it and no permission beyond a sign-in's is
+  asked for; a server's refusal (no Full Access, no Send As) is said in those words
+  (`crates/net/src/shared.rs`).
+- **What is made here goes up, and new mail is heard of at once.** `sync_request` lists
+  `SyncRequest::uploads`: drafts, copies and imported mail in a folder the server keeps that it
+  has no UID for. The host sends each with UID COPY when the server already has the message,
+  else APPEND, after a `UID SEARCH HEADER Message-ID` so a run cut short never puts it there
+  twice; the UID comes back in APPENDUID/COPYUID. Categories travel as IMAP keywords
+  (`sync::category_keyword`), merged three ways like flags. Beside the runs, the desktop host
+  keeps one more connection IDLE on each account's Inbox (`crates/net/src/idle.rs`,
+  `Services::idle`, `crates/ui-egui/src/inbox_watch.rs`); news only queues a run, so the engine
+  still does no I/O.
 - **A server's "yes" to a calendar change is checked.** A change made here is noted
   (`Mailbox::event_changes`), sent by the host, and then noted once more as something to be seen
   (`Mailbox::event_checks`): the downloads that follow have to show the event as it was sent.
@@ -130,12 +163,29 @@ inside L3: `net` drives `proto`), and nothing below L6 depends on egui, eframe, 
 - **Signing in on the provider's page.** Microsoft accounts use OAuth 2.0 (authorization code with
   PKCE, a loopback redirect, the system's browser) and XOAUTH2. The engine only knows that an
   account signs in that way (`Account::oauth`); the host with sockets does it and hands tokens in.
-- **Plain-text composing.** Rich text needs an editor component the project does not have yet.
+- **Formatted composing is plain text plus styles.** The body of a message being written stays
+  one string (`Compose::body`: a paragraph per line, a picture as one U+FFFC); its look is
+  `Compose::styles` (`model::rich::Styles`: runs of characters with a `CharStyle`, one
+  `ParaStyle` per line), which every edit follows (`Styles::edit` from the old text to the new,
+  `Styles::splice` for exact insertions) and which is fitted to the text again before use. The
+  `format.*` commands act on character ranges (the editor reports its selection with
+  `compose.select`). `mime::rich` writes it as simple inline-styled HTML plus its plain-text twin,
+  and reads display blocks back into it, which is how a draft reopens (its own HTML round-trips
+  exactly) and how an HTML message is quoted in a reply (only what the blocks carry survives).
+  The egui editor is a `TextEdit` with its own layouter (`ui-egui/src/compose_editor.rs`): each
+  paragraph laid out in its own width, moved in and aligned, then joined with `Galley::concat`;
+  list markers, lines and pictures are painted over it. Spelling: `engine::spell`, the SCOWL
+  word list in `assets/dictionaries/`.
+- **Right-to-left text without a bidi engine in egui.** `html::bidi` finds a paragraph's
+  direction from its first strong letter and puts a line in drawn order (a reduced UBA). The
+  reading pane wraps such a paragraph itself, orders each line, and hands egui's shaper runs of
+  Hebrew or Arabic letters in written order (HarfBuzz turns each such run round by itself);
+  `TextItem::order` takes a copy back to the written order. Print sets those lines from the right.
 
 ## Testing and gates
 
 - Unit tests in every crate; property tests feeding arbitrary bytes to the readers (`mime`,
-  `ical`, `vcard`, `proto`) and round-tripping what the writers produce; in-process fake IMAP and
+  `msg`, `ical`, `vcard`, `proto`) and round-tripping what the writers produce; in-process fake IMAP and
   SMTP servers on loopback for `net`; `engine/src/tests.rs::hostile_params_never_panic` runs every
   command with junk params; an MCP acceptance test drives a realistic triage through the protocol.
 - `cargo xtask ci`: fmt, clippy `-D warnings`, tests, asset attribution, layering, wasm build.
@@ -154,3 +204,10 @@ inside L3: `net` drives `proto`), and nothing below L6 depends on egui, eframe, 
 | 2026-10-12 | minor | Time zones (M3.5): `time::Zone`, the mailbox's zone stamp and how stored times are read |
 | 2026-10-13 | minor | The Favorites of Outlook (M4.2): `graph::favorites` in `net`, the server's list in the mailbox, `favorites_sync` in the front end |
 | 2026-10-13 | minor | The owner chooses how they are read (M4.3): `ews` in `net` (Exchange Web Services, until 1 April 2027), `Account::favorites_source`, the choice and its job in the front end |
+| 2026-10-13 | minor | Shared mailboxes (gap 5): `Account::shared_of`, `account.addShared` / `account.removeShared`, the owner's sign-in for IMAP and SMTP, `SyncRequest::send_login` |
+| 2026-10-14 | minor | Signing and encryption (gap 16): the L2 `crypto` crate (S/MIME, OpenPGP, key files, chains), `mime::secure` (detecting, splitting and wrapping `multipart/signed`, `application/pkcs7-mime`, `multipart/encrypted`), `engine::security` (the reading pane's security view, protecting what goes out, private keys in memory), `cmd/security.rs`, `Mailbox::keys` (public keys only) |
+| 2026-10-14 | minor | Outlook `.msg` files (gap 12): the L2 `msg` crate (Compound File Binary, the message's properties, compressed and encapsulating RTF), `io::Format::Msg` |
+| 2026-10-14 | minor | Printing (gap 15): the `print` crate (L2) lays out and writes PDFs; `file.print`; File › Print with its preview; `Services::print` |
+| 2026-10-14 | minor | Two-way sync: uploads (APPEND/UID COPY), categories as keywords, the IDLE watch beside the runs |
+| 2026-10-14 | minor | The mailbox file as a log of records a save appends to (gap 8, `store_index.rs`) |
+| 2026-10-14 | minor | Formatted composing (gap 7): `model::rich`, `mime::rich`, `cmd/format.rs`, `engine::spell`, the compose editor; right-to-left text (gap 6): `html::bidi` |
