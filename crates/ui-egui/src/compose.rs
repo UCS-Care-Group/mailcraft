@@ -225,7 +225,15 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
             ui.painter().rect_filled(pick.expand2(vec2(4.0, 0.0)), 4.0, t.hover);
         }
         paint_clipped(ui.painter(), pos2(pick.min.x, pick.center().y), pick.width(), &format!("{current} ▾"), regular(13.0), t.text);
-        let accounts: Vec<(u64, String)> = app.session.mailbox.accounts.iter().map(|a| (a.id, a.address().full())).collect();
+        // Each account, then the shared mailboxes it opens: mail from one goes out as that
+        // mailbox, which its server allows to an owner with the Send As right.
+        let accounts: Vec<(u64, String)> = app
+            .session
+            .mailbox
+            .accounts_in_pane_order()
+            .into_iter()
+            .map(|a| (a.id, if a.is_shared() { format!("{} ({})", a.address().full(), tl!("shared mailbox")) } else { a.address().full() }))
+            .collect();
         egui::Popup::menu(&resp).show(|ui| {
             for (id, label) in accounts {
                 if ui.selectable_label(id == c.account, label).clicked() {
@@ -238,7 +246,7 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
     }
     let hint = tl!("Names or addresses, separated by ;");
     for (key, label, text, show) in
-        [("to", "To", &c.to, true), ("cc", "Cc", &c.cc, true), ("bcc", "Bcc", &c.bcc, !c.bcc.is_empty() || app.compose_bcc)]
+        [("to", tn!("To"), &c.to, true), ("cc", tn!("Cc"), &c.cc, true), ("bcc", tn!("Bcc"), &c.bcc, !c.bcc.is_empty() || app.compose_bcc)]
     {
         if !show {
             continue;
@@ -262,12 +270,20 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
         }
     }
 
-    // Attachments, each with a way to take it off again.
-    if !c.attachments.is_empty() {
+    // Attachments, each with a way to take it off again (not the pictures shown in the text).
+    let shown: Vec<String> = if c.html {
+        let mut styles = c.styles.clone();
+        styles.normalize(&c.body);
+        styles.pictures().map(str::to_string).collect()
+    } else {
+        Vec::new()
+    };
+    let listed = |a: &mailcraft_engine::model::Attachment| !(a.inline && !a.content_id.is_empty() && shown.contains(&a.content_id));
+    if c.attachments.iter().any(listed) {
         egui::Frame::NONE.inner_margin(egui::Margin { left: 16, right: 12, top: 6, bottom: 6 }).show(ui, |ui| {
             ui.horizontal_wrapped(|ui| {
                 ui.spacing_mut().item_spacing = vec2(6.0, 6.0);
-                for (i, a) in c.attachments.iter().enumerate() {
+                for (i, a) in c.attachments.iter().enumerate().filter(|(_, a)| listed(a)) {
                     let label = format!("{}  ({})", a.name, a.size_label());
                     let w = ui.ctx().fonts_mut(|f| f.layout_no_wrap(label.clone(), regular(12.0), t.text).size().x).min(260.0);
                     let (r, _) = ui.allocate_exact_size(vec2(w + 52.0, 26.0), Sense::hover());
@@ -296,30 +312,13 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
         ui.painter().line_segment([pos2(r.min.x + 16.0, r.min.y), pos2(r.max.x - 12.0, r.min.y)], Stroke::new(1.0, t.border));
     }
 
-    // The body takes what is left.
-    let mut body = c.body.clone();
+    // The formatting bar, then the body takes what is left.
+    crate::compose_editor::format_bar(app, ui, &c);
+    let r = ui.available_rect_before_wrap();
+    ui.painter().line_segment([pos2(r.min.x + 16.0, r.min.y), pos2(r.max.x - 12.0, r.min.y)], Stroke::new(1.0, t.border));
     egui::ScrollArea::vertical().auto_shrink([false, false]).id_salt("compose_body").show(ui, |ui| {
         egui::Frame::NONE.inner_margin(egui::Margin { left: 16, right: 16, top: 10, bottom: 16 }).show(ui, |ui| {
-            let rows = ((ui.available_height() / 19.0) as usize).max(8);
-            let edit = egui::TextEdit::multiline(&mut body)
-                .id(ui.id().with("compose_body_edit"))
-                .frame(egui::Frame::NONE)
-                .font(regular(13.0))
-                .desired_width(f32::INFINITY)
-                .desired_rows(rows)
-                .hint_text(tl!("Write your message"));
-            let resp = ui.add(edit);
-            if fresh && !focus_to {
-                resp.request_focus();
-                // The caret goes to the top, above the quoted original.
-                if let Some(mut state) = egui::TextEdit::load_state(ui.ctx(), resp.id) {
-                    state.cursor.set_char_range(Some(egui::text::CCursorRange::one(egui::text::CCursor::new(0))));
-                    state.store(ui.ctx(), resp.id);
-                }
-            }
-            if resp.changed() {
-                let _ = app.execute("compose.set", json!({"body": body}));
-            }
+            crate::compose_editor::body(app, ui, &c, fresh && !focus_to);
         });
     });
     let _ = semibold;

@@ -18,6 +18,7 @@
 //! [`MAX_TABLE_DEPTH`], [`MAX_CELLS`]), and the work is linear in the input.
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
+pub mod bidi;
 mod blocks;
 #[doc(hidden)]
 pub mod corpus;

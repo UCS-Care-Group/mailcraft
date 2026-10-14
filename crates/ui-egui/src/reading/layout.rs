@@ -18,6 +18,7 @@ use std::sync::Arc;
 
 use egui::text::{LayoutJob, TextFormat, TextWrapping};
 use egui::{Color32, Rect, Stroke, Vec2, pos2, vec2};
+use mailcraft_html::bidi::{self, Direction};
 use mailcraft_html::{Align, Block, BlockKind, Cell, Length, Marker, Sides, Span, Table};
 use mailcraft_model::Message;
 
@@ -60,6 +61,8 @@ const MIN_WIDTH: f32 = 40.0;
 /// What is in a table cell is given at least this much room, and a column is at least this wide
 /// inside its padding: a column of single digits does not squeeze its neighbours' words apart.
 const MIN_CELL: f32 = 24.0;
+/// The tallest row of a data table whose cells are centred in it, in points.
+const MAX_CENTRED_ROW: f32 = 600.0;
 /// The widest anything is measured to be.
 const WIDE: f32 = 4000.0;
 /// Text up to this long is measured exactly when columns are sized; longer text is estimated.
@@ -163,6 +166,47 @@ pub struct TextItem {
     pub join: Join,
     /// What a copy that starts at its beginning writes in front of it: a list item's marker.
     pub lead: String,
+    /// Text that runs right to left is laid out as it is drawn (`job`), and selected and
+    /// copied as it was written (`logical`; `chars` counts its characters): for each character
+    /// of `job`, where it is in the text as written (`u32::MAX` for a line break put in where a
+    /// line was wrapped).
+    pub order: Option<Arc<[u32]>>,
+    /// The text as written, when `order` is there.
+    pub logical: Option<Arc<str>>,
+}
+
+impl TextItem {
+    /// The text a selection counts in and a copy takes from: as it was written.
+    pub fn written_text(&self) -> &str {
+        self.logical.as_deref().unwrap_or(&self.job.text)
+    }
+
+    /// The characters `part` of the text as written.
+    pub fn written(&self, part: Range<usize>) -> String {
+        super::select::char_slice(self.written_text(), part.start, part.end).to_string()
+    }
+
+    /// Where a place in `job` (a drawn character) is in the text as written.
+    pub fn written_at(&self, drawn: usize) -> usize {
+        match &self.order {
+            None => drawn,
+            Some(order) => match order.get(drawn) {
+                Some(i) if *i != u32::MAX => *i as usize,
+                // A line break that was put in, or the end: the end of what was drawn before.
+                _ => order.get(..drawn.min(order.len())).unwrap_or(&[]).iter().rev().find(|i| **i != u32::MAX).map_or(0, |i| *i as usize + 1),
+            },
+        }
+    }
+
+    /// The stretch of `job` that shows the characters `part` of the text as written (from the
+    /// first drawn of them to the last).
+    pub fn drawn_range(&self, part: Range<usize>) -> Range<usize> {
+        let Some(order) = &self.order else { return part };
+        let mut drawn = order.iter().enumerate().filter(|(_, i)| **i != u32::MAX && part.contains(&(**i as usize))).map(|(v, _)| v);
+        let Some(first) = drawn.next() else { return 0..0 };
+        let last = drawn.next_back().unwrap_or(first);
+        first..last + 1
+    }
 }
 
 /// A picture: one of the message's own, or one from the web that the owner asked for.
@@ -643,8 +687,104 @@ fn list_indent(kind: &BlockKind, width: f32) -> f32 {
     }
 }
 
+/// A paragraph that runs right to left, laid out as it is drawn: wrapped where `job` wraps at its
+/// width, each line put in the order it is drawn ([`bidi::visual_order`]), the lines one under
+/// the other. With it, where each drawn character is in the text as written (`u32::MAX` for a
+/// line break that was put in) and the links where they are drawn.
+fn right_to_left(cx: &mut Cx<'_>, job: &LayoutJob, links: &[(Range<usize>, Arc<str>)]) -> (LayoutJob, Vec<u32>, Vec<(Range<usize>, Arc<str>)>) {
+    let chars: Vec<char> = job.text.chars().collect();
+    // The section each character is in.
+    let mut section_of: Vec<usize> = Vec::with_capacity(chars.len());
+    for (index, section) in job.sections.iter().enumerate() {
+        let count = job.text.get(section.byte_range.start.0..section.byte_range.end.0).map_or(0, |t| t.chars().count());
+        section_of.extend(std::iter::repeat_n(index, count));
+    }
+    let format_at =
+        |i: usize| section_of.get(i).and_then(|s| job.sections.get(*s)).or(job.sections.last()).map(|s| s.format.clone()).unwrap_or_default();
+    // The lines, as character ranges: broken where the text breaks itself, and between words
+    // where a line would be wider than the room. (Not from egui's own wrapping of the text: it
+    // counts more glyphs than characters in right-to-left runs.)
+    let room = job.wrap.max_width;
+    let mut lines: Vec<(Range<usize>, bool)> = Vec::new();
+    let mut start = 0usize;
+    let mut used = 0.0f32;
+    let mut i = 0usize;
+    while i < chars.len() {
+        if chars.get(i) == Some(&'\n') {
+            lines.push((start..i, true));
+            i += 1;
+            start = i;
+            used = 0.0;
+            continue;
+        }
+        // A word and the spaces after it.
+        let from = i;
+        while i < chars.len() && chars.get(i).is_some_and(|c| !c.is_whitespace()) {
+            i += 1;
+        }
+        let word_end = i;
+        while i < chars.len() && chars.get(i).is_some_and(|c| c.is_whitespace() && *c != '\n') {
+            i += 1;
+        }
+        let measure = |cx: &mut Cx<'_>, to: usize| -> f32 {
+            let text: String = chars.get(from..to).unwrap_or(&[]).iter().collect();
+            if text.is_empty() {
+                return 0.0;
+            }
+            let probe = LayoutJob {
+                wrap: TextWrapping { max_width: f32::INFINITY, ..TextWrapping::default() },
+                ..LayoutJob::single_section(text, format_at(from))
+            };
+            cx.measure(probe).size().x
+        };
+        let word = measure(cx, word_end);
+        if used > 0.0 && used + word > room {
+            lines.push((start..from, false));
+            start = from;
+            used = 0.0;
+        }
+        used += measure(cx, i);
+    }
+    lines.push((start..chars.len(), false));
+    let mut out =
+        LayoutJob { wrap: TextWrapping { max_width: f32::INFINITY, ..TextWrapping::default() }, halign: job.halign, ..LayoutJob::default() };
+    let mut order: Vec<u32> = Vec::with_capacity(chars.len() + lines.len());
+    let count = lines.len();
+    for (n, (range, own_break)) in lines.into_iter().enumerate() {
+        let line: String = chars.get(range.clone()).unwrap_or(&[]).iter().collect();
+        let (drawn, map) = bidi::visual_order(&line, Direction::Rtl);
+        // egui's shaper turns each run of Hebrew or Arabic letters round itself.
+        let (drawn, map) = bidi::for_shaper(&drawn, &map);
+        let mut buf = [0u8; 4];
+        for (c, i) in drawn.chars().zip(map) {
+            let written = range.start + i;
+            out.append(c.encode_utf8(&mut buf), 0.0, format_at(written));
+            order.push(u32::try_from(written).unwrap_or(u32::MAX));
+        }
+        if n + 1 < count {
+            out.append("\n", 0.0, format_at(range.end.saturating_sub(1)));
+            order.push(if own_break { u32::try_from(range.end).unwrap_or(u32::MAX) } else { u32::MAX });
+        }
+    }
+    // The links, where their characters are drawn.
+    let mut drawn_links: Vec<(Range<usize>, Arc<str>)> = Vec::new();
+    for (v, written) in order.iter().enumerate() {
+        let link = links.iter().find(|(r, _)| r.contains(&(*written as usize))).map(|(_, url)| url.clone());
+        match (drawn_links.last_mut(), link) {
+            (Some((r, url)), Some(link)) if r.end == v && Arc::ptr_eq(url, &link) => r.end = v + 1,
+            (_, Some(link)) => drawn_links.push((v..v + 1, link)),
+            _ => {}
+        }
+    }
+    (out, order, drawn_links)
+}
+
 /// Lay out a paragraph, a heading, a list item or preformatted text; its bottom.
 fn text(cx: &mut Cx<'_>, block: &Block, x: f32, y: f32, width: f32, paper: Paper) -> f32 {
+    // Text that runs right to left (by its first letter) sits against the right edge, its list
+    // markers on the right.
+    let rtl = !matches!(block.kind, BlockKind::Preformatted) && block.spans.iter().find_map(|s| bidi::direction(&s.text)) == Some(Direction::Rtl);
+    let align = if rtl && block.align == Align::Left { Align::Right } else { block.align };
     let mut indent = list_indent(&block.kind, width);
     let left = x;
     // A long marker (item 4294967295 of a list) makes room for itself rather than hang out of the list.
@@ -655,16 +795,23 @@ fn text(cx: &mut Cx<'_>, block: &Block, x: f32, y: f32, width: f32, paper: Paper
         let wide = cx.ctx.fonts_mut(|f| f.layout_no_wrap(label, regular(size), Color32::WHITE).size().x) + 10.0;
         indent = indent.max(wide).min((width - MIN_WIDTH * 1.5).max(0.0));
     }
-    let (x, width) = (x + indent, (width - indent).max(MIN_CELL.min(width)));
+    let (x, width) = if rtl { (x, (width - indent).max(MIN_CELL.min(width))) } else { (x + indent, (width - indent).max(MIN_CELL.min(width))) };
     let quoted = block.quote > 0;
     let mut y = y;
     // Whether a piece of the block has been pushed: the next one goes on in its paragraph.
     let mut begun = false;
     for (n, (piece, glue)) in cut(&block.spans).iter().enumerate() {
-        let (job, links, chars) = text_job(&cx.t, piece, &block.kind, paper, quoted, width, block.align);
+        let (job, links, chars) = text_job(&cx.t, piece, &block.kind, paper, quoted, width, align);
         if chars == 0 {
             continue;
         }
+        let (job, links, chars, order, logical) = if rtl {
+            let logical: Arc<str> = Arc::from(job.text.as_str());
+            let (drawn, order, links) = right_to_left(cx, &job, &links);
+            (drawn, links, chars, Some(Arc::from(order)), Some(logical))
+        } else {
+            (job, links, chars, None, None)
+        };
         let galley = cx.measure(job.clone());
         let height = galley.size().y;
         if n == 0
@@ -674,9 +821,13 @@ fn text(cx: &mut Cx<'_>, block: &Block, x: f32, y: f32, width: f32, paper: Paper
             let first = piece.first();
             let size = first.and_then(|s| s.size).map_or(BASE_SIZE, f32::from);
             let ink = paper.ink(&cx.t, first.and_then(|s| s.color).filter(|_| first.is_some_and(|s| s.link.is_none())), false, quoted);
-            list_marker(cx, marker, *depth, pos2(x, y), left, row, size, ink, paper.fill);
+            if rtl {
+                list_marker_right(cx, marker, *depth, pos2(x + width, y), x + width + indent, row, size, ink, paper.fill);
+            } else {
+                list_marker(cx, marker, *depth, pos2(x, y), left, row, size, ink, paper.fill);
+            }
         }
-        let anchor = match block.align {
+        let anchor = match align {
             Align::Left => 0.0,
             Align::Center => width / 2.0,
             Align::Right => width,
@@ -687,7 +838,17 @@ fn text(cx: &mut Cx<'_>, block: &Block, x: f32, y: f32, width: f32, paper: Paper
             _ => String::new(),
         };
         begun = true;
-        let item = TextItem { job: Arc::new(job), anchor, links, paper: paper.fill, chars: u32::try_from(chars).unwrap_or(u32::MAX), join, lead };
+        let item = TextItem {
+            job: Arc::new(job),
+            anchor,
+            links,
+            paper: paper.fill,
+            chars: u32::try_from(chars).unwrap_or(u32::MAX),
+            join,
+            lead,
+            order,
+            logical,
+        };
         cx.push_seg(Rect::from_min_size(pos2(x, y), vec2(width, height)), ItemKind::Text(item));
         cx.work += chars;
         cx.stats.texts += 1;
@@ -739,7 +900,50 @@ fn list_marker(cx: &mut Cx<'_>, marker: &Marker, depth: u8, at: egui::Pos2, left
     let galley = cx.measure(job.clone());
     let rect = Rect::from_min_size(pos2((at.x - 6.0 - galley.size().x).max(left), at.y), galley.size());
     // Not a text of the message: it is not selected, and a copy writes it with its item.
-    let number = TextItem { job: Arc::new(job), anchor: 0.0, links: Vec::new(), paper, chars: 0, join: Join::default(), lead: String::new() };
+    let number = TextItem {
+        job: Arc::new(job),
+        anchor: 0.0,
+        links: Vec::new(),
+        paper,
+        chars: 0,
+        join: Join::default(),
+        lead: String::new(),
+        order: None,
+        logical: None,
+    };
+    cx.push(rect, ItemKind::Text(number));
+}
+
+/// The same for a list item that runs right to left, whose text ends at `at` (its right edge):
+/// the marker on its right, never further right than `right`.
+#[allow(clippy::too_many_arguments)]
+fn list_marker_right(cx: &mut Cx<'_>, marker: &Marker, depth: u8, at: egui::Pos2, right: f32, row: f32, size: f32, ink: Color32, paper: Color32) {
+    let Some(label) = marker_label(marker) else {
+        if matches!(marker, Marker::Bullet) {
+            let r = (size * 0.19).clamp(2.0, 4.0);
+            let center = pos2((at.x + 11.0).min(right - r), at.y + row / 2.0);
+            cx.push(Rect::from_center_size(center, Vec2::splat(r * 2.0)), ItemKind::Bullet { depth, color: ink });
+        }
+        return;
+    };
+    // `1.` reads `.1` from the right.
+    let label: String = bidi::visual_order(&label, Direction::Rtl).0;
+    let format = TextFormat { font_id: regular(size), color: ink, line_height: Some((size * LINE).round()), ..TextFormat::default() };
+    let job = LayoutJob { wrap: TextWrapping { max_width: f32::INFINITY, ..TextWrapping::default() }, ..LayoutJob::single_section(label, format) };
+    let galley = cx.measure(job.clone());
+    let left = (at.x + 6.0).min(right - galley.size().x);
+    let rect = Rect::from_min_size(pos2(left, at.y), galley.size());
+    let number = TextItem {
+        job: Arc::new(job),
+        anchor: 0.0,
+        links: Vec::new(),
+        paper,
+        chars: 0,
+        join: Join::default(),
+        lead: String::new(),
+        order: None,
+        logical: None,
+    };
     cx.push(rect, ItemKind::Text(number));
 }
 
@@ -1346,6 +1550,8 @@ fn table_block(cx: &mut Cx<'_>, table: &Table, align: Align, x: f32, y: f32, roo
     let mut tops = Vec::with_capacity(grid.rows);
     let mut bottoms: Vec<f32> = Vec::with_capacity(grid.rows);
     let mut done: Vec<(usize, Option<usize>, Paper, f32)> = Vec::with_capacity(grid.cells.len());
+    // The cells of the row being laid out: which, the items they pushed, and their bottom.
+    let mut row_items: Vec<(usize, Range<usize>, f32)> = Vec::new();
     let mut next = 0;
     let mut top = y;
     for row in 0..grid.rows {
@@ -1359,7 +1565,9 @@ fn table_block(cx: &mut Cx<'_>, table: &Table, align: Align, x: f32, y: f32, roo
             let (inside, own) = cell_paper(cx, table, placed.cell, around);
             let slot = own.then(|| cx.slot());
             let width = (right - left - pad.x * 2.0).max(MIN_CELL.min(right - left));
+            let first_item = cx.items.len();
             let bottom = flow(cx, &placed.cell.blocks, left + pad.x.min((right - left) / 2.0), top + pad.y, width, inside, depth + 1) + pad.y;
+            row_items.push((next, first_item..cx.items.len(), bottom));
             done.push((next, slot, inside, bottom));
             next += 1;
         }
@@ -1368,6 +1576,24 @@ fn table_block(cx: &mut Cx<'_>, table: &Table, align: Align, x: f32, y: f32, roo
             .iter()
             .filter_map(|(index, _, _, bottom)| grid.cells.get(*index).filter(|p| p.row + p.rows - 1 == row).map(|_| *bottom))
             .fold(top, f32::max);
+        // A cell of a data table holds its content in the middle of the row's height, as a
+        // `<td>` does when nothing says otherwise. (A layout table's cells stay at the top: they
+        // are mostly written `valign="top"`, which is not read.)
+        // A row taller than a screen keeps them at the top, where they can be found.
+        if !table.layout && bottom - top <= MAX_CENTRED_ROW {
+            for (index, items, cell_bottom) in row_items.drain(..) {
+                let single = grid.cells.get(index).is_some_and(|p| p.rows == 1);
+                let dy = ((bottom - cell_bottom) / 2.0).floor();
+                if single && dy > 0.0 {
+                    for item in cx.items.get_mut(items).into_iter().flatten() {
+                        if item.rect.is_finite() {
+                            item.rect = item.rect.translate(vec2(0.0, dy));
+                        }
+                    }
+                }
+            }
+        }
+        row_items.clear();
         bottoms.push(bottom);
         top = bottom + gap.y;
     }

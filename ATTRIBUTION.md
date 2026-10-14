@@ -36,3 +36,6 @@ Generated-in-code art is original and has no file to list: the UI icon set (`cra
 | `assets/fonts/OFL-Inter.txt` | (licence text) | upstream project | — |  |
 | `assets/fonts/OFL-SourceSans3.txt` | (licence text) | upstream project | — |  |
 | `assets/fonts/OFL-JetBrainsMono.txt` | (licence text) | upstream project | — |  |
+| `assets/dictionaries/en-US.words` | Kevin Atkinson and the authors of the lists SCOWL is made from (12Dicts, Moby Words, the UK English Wordlist, WordNet, Ispell's VARCON lists, the Census name lists, the Jargon File lists) | SCOWL 2020.12.07, American English size 50, as the `wamerican` package of Debian/Ubuntu ships it (http://wordlist.aspell.net/) | SCOWL licence (permissive: use, modify, redistribute with the notices kept), with the WordNet 1.6 and Ispell (BSD-style) notices; public domain parts (`assets/dictionaries/SCOWL-LICENSE.txt`) | The spelling check's word list (`crates/engine/src/spell.rs`). Modified: possessives dropped, lower-cased, de-duplicated and front-coded (`assets/dictionaries/README.md`) |
+| `assets/dictionaries/SCOWL-LICENSE.txt` | (licence text) | the `wamerican` package's copyright file | — |  |
+| `assets/dictionaries/README.md` | MailCraft contributors | written for this project | MIT OR Apache-2.0 | Where the word list comes from and how it was changed |

@@ -54,11 +54,28 @@ fn export_name(app: &MailApp, id: &str, params: &Value) -> Option<String> {
             "ics",
         ),
         "file.exportContacts" => "contacts.vcf".to_string(),
+        "security.export" => {
+            let fp = params.get("fingerprint").and_then(Value::as_str)?;
+            let k = s.mailbox.keys.iter().find(|k| k.fingerprint.eq_ignore_ascii_case(fp))?;
+            let stem = if k.name.is_empty() { k.fingerprint.clone() } else { k.name.clone() };
+            let ext = match (k.scheme, params.get("format").and_then(Value::as_str)) {
+                (mailcraft_model::security::KeyScheme::OpenPgp, _) => "asc",
+                (_, Some("der")) => "cer",
+                _ => "pem",
+            };
+            clean(&stem, ext)
+        }
+        "file.print" => mailcraft_engine::cmd::print::suggested_name(s, params),
         "mail.saveAttachment" => {
             let index = params.get("index").and_then(Value::as_u64)? as usize;
             let id = params.get("id").and_then(Value::as_u64).or(s.sel.focus())?;
             // Only the file's own name, cleaned: a message can name its attachment anything.
-            let name = s.mailbox.message(id)?.attachments.get(index)?.name.clone();
+            let opened =
+                s.cached_security_view(id).and_then(|view| view.opened.as_ref().and_then(|(_, files)| files.get(index).map(|a| a.name.clone())));
+            let name = match opened {
+                Some(name) => name,
+                None => s.mailbox.message(id)?.attachments.get(index)?.name.clone(),
+            };
             let leaf = name.rsplit(['/', '\\']).next().unwrap_or("").to_string();
             match leaf.rsplit_once('.') {
                 Some((stem, ext)) if !ext.is_empty() && ext.len() <= 8 && ext.chars().all(char::is_alphanumeric) => clean(stem, ext),
@@ -78,6 +95,7 @@ pub(crate) fn intercept(app: &mut MailApp, id: &str, params: &Value) -> Option<R
             "file.open" => Some("mailbox"),
             "file.import" => Some("import"),
             "compose.attach" if app.session.compose.is_some() => Some("attach"),
+            "insert.picture" if app.session.compose.is_some() => Some("picture"),
             _ => None,
         };
         if let Some(purpose) = purpose {
@@ -180,6 +198,11 @@ fn opened_path(app: &mut MailApp, purpose: &str, path: &str) -> Result<Value, St
     let r = match purpose {
         "mailbox" => app.run("file.open", json!({"path": path})),
         "attach" => app.run("compose.attach", json!({"path": path})),
+        "key" => {
+            crate::trust_center::import(app, json!({"path": path}));
+            return Ok(json!({"key": path}));
+        }
+        "picture" => app.run("insert.picture", json!({"path": path})),
         _ => app.run("file.import", json!({"path": path})),
     };
     if r.is_ok() {
@@ -252,6 +275,11 @@ pub(crate) fn drain_inbox(app: &mut MailApp) {
         let r = match purpose.as_str() {
             "mailbox" => app.run("file.open", json!({"name": name, "data": data})),
             "attach" => app.run("compose.attach", json!({"name": name, "data": data})),
+            "key" => {
+                crate::trust_center::import(app, json!({"name": name, "data": data}));
+                continue;
+            }
+            "picture" => app.run("insert.picture", json!({"name": name, "data": data})),
             _ => app.run("file.import", json!({"name": name, "data": data})),
         };
         if r.is_ok() {
