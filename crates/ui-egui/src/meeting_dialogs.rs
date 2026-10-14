@@ -49,13 +49,17 @@ fn shown_name(name: &str, email: &str) -> String {
 fn when_text(start: DateTime, end: DateTime, all_day: bool, twelve: bool) -> String {
     if all_day {
         let last = end.add_minutes(-1).date.max(start.date);
-        return if last == start.date { start.date.long() } else { format!("{} – {}", start.date.long(), last.long()) };
+        return if last == start.date {
+            crate::i18n::date_long(start.date)
+        } else {
+            format!("{} – {}", crate::i18n::date_long(start.date), crate::i18n::date_long(last))
+        };
     }
     let (from, to) = (start.time_short(twelve), end.time_short(twelve));
     if start.date == end.date {
-        format!("{} {from} – {to}", start.date.long())
+        format!("{} {from} – {to}", crate::i18n::date_long(start.date))
     } else {
-        format!("{} {from} – {} {to}", start.date.long(), end.date.long())
+        format!("{} {from} – {} {to}", crate::i18n::date_long(start.date), crate::i18n::date_long(end.date))
     }
 }
 
@@ -233,7 +237,7 @@ impl ProposeTime {
         ui.add(egui::Label::new(egui::RichText::new(about).font(semibold(12.5))).wrap());
         ui.label(egui::RichText::new(crate::i18n::fmt(tl!("It is now on {when}."), &[("when", &self.current)])).color(t.text_dim));
         if let Some(day) = self.occurrence {
-            let one = crate::i18n::fmt(tl!("This is about the occurrence on {day} only."), &[("day", &day.long())]);
+            let one = crate::i18n::fmt(tl!("This is about the occurrence on {day} only."), &[("day", &crate::i18n::date_long(day))]);
             ui.label(egui::RichText::new(one).color(t.text_dim));
         }
         ui.add_space(2.0);
@@ -320,7 +324,7 @@ fn day_strip(app: &MailApp, ui: &Ui, rect: Rect, day: Date, span: Option<(DateTi
     let p = ui.painter().with_clip_rect(rect.intersect(ui.clip_rect()));
     p.rect(rect, 4.0, t.surface, Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
     let head = Rect::from_min_max(rect.min, pos2(rect.max.x, rect.min.y + 20.0));
-    let label = format!("{}: {}", tl!("Your calendar"), day.long());
+    let label = format!("{}: {}", tl!("Your calendar"), crate::i18n::date_long(day));
     paint_clipped(&p, pos2(head.min.x + 8.0, head.center().y), head.width() - 16.0, &label, semibold(11.0), t.text_dim);
     p.line_segment([pos2(rect.min.x, head.max.y), pos2(rect.max.x, head.max.y)], Stroke::new(1.0, t.border));
     let grid = Rect::from_min_max(pos2(rect.min.x, head.max.y), rect.max);

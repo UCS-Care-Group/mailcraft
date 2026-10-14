@@ -399,6 +399,8 @@ struct EventBuilder {
     rsvp: (usize, usize),
     /// The link to join an online meeting by, with what it is held with.
     join: Option<OnlineMeeting>,
+    /// `SEQUENCE`: how often the organizer changed it.
+    sequence: Option<u32>,
 }
 
 /// What `PRIORITY` says of how much something matters: 1 to 4 much, 6 to 9 little.
@@ -485,6 +487,13 @@ impl EventBuilder {
                 })
             }
             "X-MICROSOFT-DISALLOW-COUNTER" => self.no_counter = keyword(&line.value) == "TRUE",
+            // A count that isn't a plain number of at most nine digits is no count.
+            "SEQUENCE" => {
+                let digits = line.value.trim();
+                if self.sequence.is_none() && !digits.is_empty() && digits.len() <= 9 && digits.bytes().all(|b| b.is_ascii_digit()) {
+                    self.sequence = digits.parse::<u32>().ok();
+                }
+            }
             // The link to join by: an `https` address, or it is no link. (Whatever else a file
             // says of a meeting online, a dial-in number or a `conf:` address, is not read.)
             "X-MICROSOFT-SKYPETEAMSMEETINGURL" => {
@@ -584,6 +593,7 @@ impl EventBuilder {
                 allow_proposals: !self.no_counter,
             },
             online: self.join,
+            sequence: self.sequence.unwrap_or(0),
             ..Default::default()
         };
         if let Some((begins, ends)) = instants {
@@ -623,6 +633,8 @@ struct TodoBuilder {
     importance: Importance,
     categories: Vec<String>,
     alarms: Vec<Trigger>,
+    /// `RRULE`: how the task comes back.
+    rule: Option<String>,
 }
 
 impl TodoBuilder {
@@ -647,6 +659,11 @@ impl TodoBuilder {
                 }
             }
             "CATEGORIES" => add_categories(&mut self.categories, &line.value),
+            "RRULE" => {
+                if self.rule.is_none() && rrule::parse_rrule(&line.value).is_some() {
+                    self.rule = Some(prefix(line.value.trim(), 4096).to_string());
+                }
+            }
             "DTSTAMP" => {
                 self.stamp = self.stamp.or_else(|| When::parse(&line.value));
                 seen = false;
@@ -689,6 +706,7 @@ impl TodoBuilder {
             reminder,
             message: None,
             uid: self.uid.unwrap_or_default().trim().to_string(),
+            recurrence: self.rule.and_then(|rule| rrule::parse_with(&rule, Some(offset_at))),
         })
     }
 }

@@ -140,6 +140,12 @@ pub(crate) struct Info {
     event: Option<Id>,
     /// The owner organizes the meeting.
     mine: bool,
+    /// An answer to a meeting the owner organizes on this computer, which can be taken into its
+    /// list of people (`calendar.takeReply`), and whether it is in it already.
+    trackable: bool,
+    tracked: bool,
+    /// A proposal the owner can turn down by mail (`calendar.declineProposal`).
+    declinable: bool,
 }
 
 /// The time a message proposes, as the engine writes it.
@@ -199,11 +205,19 @@ impl When {
         let (first, last) = (self.start.date, self.end.date);
         if self.all_day {
             let last = self.end.add_minutes(-1).date.max(first);
-            let days = if last == first { first.long() } else { format!("{} – {}", first.long(), last.long()) };
+            let days = if last == first {
+                crate::i18n::date_long(first)
+            } else {
+                format!("{} – {}", crate::i18n::date_long(first), crate::i18n::date_long(last))
+            };
             return format!("{days} ({})", tl!("all day"));
         }
         let (from, to) = (self.start.time_short(twelve_hour), self.end.time_short(twelve_hour));
-        if first == last { format!("{} {from} – {to}", first.long()) } else { format!("{} {from} – {} {to}", first.long(), last.long()) }
+        if first == last {
+            format!("{} {from} – {to}", crate::i18n::date_long(first))
+        } else {
+            format!("{} {from} – {} {to}", crate::i18n::date_long(first), crate::i18n::date_long(last))
+        }
     }
 }
 
@@ -215,6 +229,8 @@ struct Store {
     infos: Vec<Kept>,
     /// The calendar was asked for on behalf of a message: how often, and when last (milliseconds).
     asked: Vec<(Id, u32, f64)>,
+    /// Answers that were taken into their meeting when they were shown (once each).
+    taken: Vec<Id>,
 }
 
 struct Kept {
@@ -401,6 +417,9 @@ pub(crate) fn ui_command(app: &mut MailApp, id: &str, p: &Value) -> Option<Resul
 /// are the dialogs'); `Some(None)` when there is nothing to ask: the command says what is to be
 /// sent already, or nothing can be.
 pub(crate) fn question(app: &mut MailApp, id: &str, params: &Value) -> Option<Option<Question>> {
+    if id == "calendar.declineProposal" {
+        return Some(decline_question(app, params));
+    }
     if id != "calendar.respond" {
         return None;
     }
@@ -428,6 +447,52 @@ pub(crate) fn question(app: &mut MailApp, id: &str, params: &Value) -> Option<Op
     }))
 }
 
+/// What turning down a proposal is asked first: it writes to the one who proposed it.
+fn decline_question(app: &mut MailApp, params: &Value) -> Option<Question> {
+    if params.get("send").is_some_and(|value| !value.is_null()) {
+        return None;
+    }
+    let info = params.get("message").and_then(Value::as_u64).and_then(|message| engine_says(app, message))?;
+    if !info.declinable {
+        return None;
+    }
+    let name = info.reply.as_ref().map(|who| who.name.trim().chars().take(80).collect::<String>()).filter(|who| !who.is_empty());
+    let name = name.unwrap_or_else(|| tl!("Somebody").to_string());
+    let text = crate::i18n::fmt(
+        tl!("{name} will be told by mail that the meeting stays as it is. It goes from your Outbox at the next Send/Receive."),
+        &[("name", &name)],
+    );
+    Some(Question {
+        title: tl!("Decline This Proposal?").to_string(),
+        text,
+        action: tl!("Decline Proposal").to_string(),
+        with: json!({"send": true}),
+        more: Vec::new(),
+        note: Some(("comment", String::new(), tl!("A note to go with it (optional)").to_string())),
+    })
+}
+
+/// An answer to a meeting the owner organizes on this computer is taken into the meeting when it
+/// is shown, as Outlook updates its tracking: once for each message, and never again when that
+/// was refused (the command says why in the status bar).
+fn take_in(app: &mut MailApp, ctx: &egui::Context, message: Id, info: &Info) {
+    if !info.trackable || info.tracked {
+        return;
+    }
+    let store = Store::of(ctx);
+    {
+        let mut store = store.lock().unwrap_or_else(|e| e.into_inner());
+        if store.taken.contains(&message) {
+            return;
+        }
+        if store.taken.len() >= 500 {
+            store.taken.remove(0);
+        }
+        store.taken.push(message);
+    }
+    let _ = app.run("calendar.takeReply", json!({"message": message}));
+}
+
 // ---- the bar ----
 
 /// What in the bar can be pointed at.
@@ -443,6 +508,8 @@ enum Part {
     /// Accept Proposal and View All Proposals, on a message that proposes another time.
     AcceptProposal,
     Proposals,
+    /// Decline Proposal, for a meeting the owner organizes by mail.
+    DeclineProposal,
 }
 
 /// The name `ui.inspect` and `ui.click` know a part of the bar by, in the reading pane and in a
@@ -474,6 +541,8 @@ fn hit_kind(place: Place, part: Part) -> &'static str {
         Part::AcceptProposal => "windowInvitationAcceptProposal",
         Part::Proposals if pane => "invitationProposals",
         Part::Proposals => "windowInvitationProposals",
+        Part::DeclineProposal if pane => "invitationDeclineProposal",
+        Part::DeclineProposal => "windowInvitationDeclineProposal",
     }
 }
 
@@ -604,7 +673,7 @@ fn headlines(app: &MailApp, info: &Info) -> Vec<(&'static str, String, bool)> {
     match info.kind.as_str() {
         "request" => {
             if let Some(answer) = &info.answered {
-                let at = answer.at.map(|at| mailcraft_time::header_label(at, app.session.offset_at(at), app.session.prefs.twelve_hour));
+                let at = answer.at.map(|at| crate::i18n::header_label(at, app.session.offset_at(at), app.session.prefs.twelve_hour));
                 let (icon, on, plain) = match answer.response {
                     Said::Accepted => ("accept", tl!("Accepted on {when}"), tl!("You accepted this meeting.")),
                     Said::Tentative => ("tentative", tl!("Tentatively accepted on {when}"), tl!("You tentatively accepted this meeting.")),
@@ -669,9 +738,9 @@ fn run(app: &mut MailApp, ui: &Ui, command: &str, params: Value) {
 fn answers(app: &mut MailApp, ui: &mut Ui, t: &Tokens, message: Id, info: &Info, place: Place, native: bool) {
     let given = info.answered.as_ref().map(|answer| answer.response);
     for (said, icon, label, code) in [
-        (Said::Accepted, "accept", "Accept", "accept"),
-        (Said::Tentative, "tentative", "Tentative", "tentative"),
-        (Said::Declined, "decline", "Decline", "decline"),
+        (Said::Accepted, "accept", tn!("Accept"), "accept"),
+        (Said::Tentative, "tentative", tn!("Tentative"), "tentative"),
+        (Said::Declined, "decline", tn!("Decline"), "decline"),
     ] {
         let (main, more) = button(ui, t, icon, tl!(label), given == Some(said), true);
         let tip = if info.can_send {
@@ -699,9 +768,9 @@ fn answers(app: &mut MailApp, ui: &mut Ui, t: &Tokens, message: Id, info: &Info,
                     ui.close();
                 }
             };
-            item(ui, "Write a Note with the Response…", info.can_send, json!({}));
-            item(ui, "Send the Response Now", info.can_send, json!({"send": true}));
-            item(ui, "Don't Send a Response", true, json!({"send": false}));
+            item(ui, tn!("Write a Note with the Response…"), info.can_send, json!({}));
+            item(ui, tn!("Send the Response Now"), info.can_send, json!({"send": true}));
+            item(ui, tn!("Don't Send a Response"), true, json!({"send": false}));
         });
         if let Some(with) = chosen {
             let mut params = json!({"message": message, "response": code});
@@ -743,6 +812,16 @@ fn proposal_buttons(app: &mut MailApp, ui: &mut Ui, t: &Tokens, message: Id, inf
             ui.ctx().send_viewport_cmd_to(egui::ViewportId::ROOT, egui::ViewportCommand::Focus);
         }
     }
+    if info.declinable {
+        let (decline, _) = button(ui, t, "decline", tl!("Decline Proposal"), false, false);
+        let decline = decline.on_hover_text(tl!("Tell them by mail that the meeting stays as it is. You are asked first."));
+        if !native {
+            app.hit.add(hit_kind(place, Part::DeclineProposal), message, decline.rect);
+        }
+        if decline.clicked() {
+            run(app, ui, "calendar.declineProposal", json!({"message": message}));
+        }
+    }
     if info.proposals > 1 {
         let (all, _) = button(ui, t, "proposeTime", tl!("View All Proposals"), false, false);
         let all = all.on_hover_text(tl!("Every other time that was proposed for this meeting."));
@@ -762,7 +841,7 @@ fn day_strip(ui: &Ui, rect: Rect, info: &Info, when: &When, t: &Tokens, twelve_h
     p.rect(rect, 4.0, t.surface, Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
     // The day, and under it the hours from the one before the meeting.
     let head = Rect::from_min_max(rect.min, pos2(rect.max.x, rect.min.y + 20.0));
-    let day = format!("{}, {} {}", when.start.date.weekday().name(), mailcraft_time::month_name(when.start.date.month), when.start.date.day);
+    let day = format!("{}, {}", tl!(when.start.date.weekday().name()), crate::i18n::day_month_full(when.start.date));
     paint_clipped(&p, pos2(head.min.x + 8.0, head.center().y), head.width() - 16.0, &day, semibold(11.0), t.text_dim);
     p.line_segment([pos2(rect.min.x, head.max.y), pos2(rect.max.x, head.max.y)], Stroke::new(1.0, t.border));
     let grid = Rect::from_min_max(pos2(rect.min.x, head.max.y), rect.max);
@@ -857,6 +936,7 @@ pub(super) fn bar(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Place
     if waiting && findable && !declined {
         let _ = look_for(app, &ctx, m.id, &info, false);
     }
+    take_in(app, &ctx, m.id, &info);
     let top = ui.available_rect_before_wrap();
     // In a pane with little room the body comes first: what the meeting is, in a line or two.
     let (compact, tight) = (top.height() < 380.0, top.height() < 230.0);

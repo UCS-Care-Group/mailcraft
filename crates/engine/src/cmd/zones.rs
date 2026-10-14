@@ -29,7 +29,7 @@ pub fn specs() -> Vec<CommandSpec> {
             .params(r#"{"query"?: string, "limit"?: number, "id"?: number, "used"?: zone} — the time zones to choose from, the computer's own first, then the ones chosen lately, then west to east: {"zones": [{"id" (the name to give `startZone`, `endZone` and `view.timeZone`), "label", "place", "offset": "UTC-05:00" (now), "minutes", "windows"?: what Windows and Microsoft 365 call it}], "system", "shown" (the zone the calendar is shown in), "recent": [id]}; "query" narrows the list to the zones called like that (any zone of the IANA database can be found by name); with "id": that event's own zones too ({"event": {"startZone", "endZone", "ownTime"?: its times by its own clock}}); "used" notes a zone as chosen lately. An event's zones are set with `calendar.edit`"#),
         CommandSpec::new("view.timeZone", "Time Zone", "File › Options", time_zone)
             .pure()
-            .params(r#"{"zone"?: zone | null (null: this computer's own, followed when it changes), "label"?: string, "second"?: zone | null (a second zone in the calendar's time bar; null: none), "secondLabel"?: string} — the time zone the calendar is shown in. Every timed event stays at its instant and is shown by the new clock; whole-day events stay on their days. Answers {"zone", "label", "follows": bool, "offset", "second": zone | null, "secondLabel", "system"}"#),
+            .params(r#"{"zone"?: zone | null (null: this computer's own, followed when it changes), "label"?: string, "second"?: zone | null (a second zone in the calendar's time bar; null: none), "secondLabel"?: string, "third"?: zone | null (a third zone in the time bar, left of the second; null: none), "thirdLabel"?: string} — the time zone the calendar is shown in. Every timed event stays at its instant and is shown by the new clock; whole-day events stay on their days. Answers {"zone", "label", "follows": bool, "offset", "second": zone | null, "secondLabel", "third": zone | null, "thirdLabel", "system", "systemName" (what the computer's own zone is called in words)}"#),
     ]
 }
 
@@ -131,7 +131,7 @@ fn label(v: &Value, key: &str) -> Option<String> {
 
 fn time_zone(s: &mut Session, v: &Value) -> CmdResult {
     // Everything is read before anything is set: a bad name changes nothing.
-    let (zone, second) = (named(v, "zone")?, named(v, "second")?);
+    let (zone, second, third) = (named(v, "zone")?, named(v, "second")?, named(v, "third")?);
     if let Some(zone) = zone {
         s.prefs.time_zone = zone.map(Zone::id).unwrap_or_default();
         if let Some(zone) = zone {
@@ -144,8 +144,17 @@ fn time_zone(s: &mut Session, v: &Value) -> CmdResult {
             note_used(s, second);
         }
     }
+    if let Some(third) = third {
+        s.prefs.third_zone = third.map(Zone::id).unwrap_or_default();
+        if let Some(third) = third {
+            note_used(s, third);
+        }
+    }
     if let Some(text) = label(v, "label") {
         s.prefs.zone_label = text;
+    }
+    if let Some(text) = label(v, "thirdLabel") {
+        s.prefs.third_zone_label = text;
     }
     if let Some(text) = label(v, "secondLabel") {
         s.prefs.second_zone_label = text;
@@ -159,6 +168,24 @@ pub fn second_zone(s: &Session) -> Option<Zone> {
     Zone::named(&s.prefs.second_zone).filter(|zone| !zone.is_local())
 }
 
+/// The third zone of the time bar, when the options name one that is known.
+pub fn third_zone(s: &Session) -> Option<Zone> {
+    Zone::named(&s.prefs.third_zone).filter(|zone| !zone.is_local())
+}
+
+/// The zones the time bar shows beside the calendar's own, as its columns are from the left: the
+/// third, then the second; each with the label the owner gave it (empty for none).
+pub fn extra_zones(s: &Session) -> Vec<(Zone, String)> {
+    let mut zones = Vec::with_capacity(2);
+    if let Some(third) = third_zone(s) {
+        zones.push((third, s.prefs.third_zone_label.clone()));
+    }
+    if let Some(second) = second_zone(s) {
+        zones.push((second, s.prefs.second_zone_label.clone()));
+    }
+    zones
+}
+
 /// What the time bar calls a zone: the label the owner gave it, else the zone's own.
 pub fn bar_label(zone: Zone, given: &str) -> String {
     let given = given.trim();
@@ -170,7 +197,8 @@ fn shown_json(s: &Session) -> Value {
     json!({
         "zone": zone.id(), "label": bar_label(zone, &s.prefs.zone_label), "follows": Zone::named(&s.prefs.time_zone).is_none(),
         "offset": zone.offset_label(now), "second": second_zone(s).map(Zone::id), "secondLabel": second_zone(s).map(|zone| bar_label(zone, &s.prefs.second_zone_label)),
-        "system": s.system_zone().id(),
+        "third": third_zone(s).map(Zone::id), "thirdLabel": third_zone(s).map(|zone| bar_label(zone, &s.prefs.third_zone_label)),
+        "system": s.system_zone().id(), "systemName": s.system_zone().long_name(now),
     })
 }
 
@@ -449,7 +477,8 @@ mod tests {
         let shown = s.run("view.timeZone", &json!({})).unwrap();
         assert_eq!(
             shown,
-            json!({"zone": "America/Chicago", "label": "Central Time", "follows": true, "offset": "UTC-05:00", "second": null, "secondLabel": null, "system": "America/Chicago"})
+            json!({"zone": "America/Chicago", "label": "Central Time", "follows": true, "offset": "UTC-05:00", "second": null, "secondLabel": null,
+                "third": null, "thirdLabel": null, "system": "America/Chicago", "systemName": "(UTC-05:00) Central Time — Chicago, Americas"})
         );
         // Shown in Berlin: lunch is at seven in the evening there, the holiday is on its day.
         let shown = s.run("view.timeZone", &json!({"zone": "W. Europe Standard Time", "label": "Office", "second": "Asia/Tokyo"})).unwrap();
@@ -462,6 +491,14 @@ mod tests {
             (Some("Asia/Tokyo"), Some("Tokyo Time"), Some("America/Chicago"))
         );
         assert_eq!((s.zone(), s.mailbox.zone.as_str()), (zone("Europe/Berlin"), "Europe/Berlin"));
+        // A third zone, left of the second in the time bar.
+        let shown = s.run("view.timeZone", &json!({"third": "America/Los_Angeles", "thirdLabel": "Coast\u{7}"})).unwrap();
+        assert_eq!((shown["third"].as_str(), shown["thirdLabel"].as_str()), (Some("America/Los_Angeles"), Some("Coast")));
+        let extra: Vec<String> = super::extra_zones(&s).into_iter().map(|(zone, _)| zone.id()).collect();
+        assert_eq!(extra, ["America/Los_Angeles", "Asia/Tokyo"]);
+        assert!(s.run("view.timeZone", &json!({"third": "Nowhere"})).is_err());
+        s.run("view.timeZone", &json!({"third": null})).unwrap();
+        assert!(super::third_zone(&s).is_none() && super::extra_zones(&s).len() == 1);
         assert_eq!((event(&s, id).start, event(&s, id).end), (at(2026, 10, 13, 19, 0), at(2026, 10, 13, 20, 0)));
         assert_eq!((event(&s, day).start, event(&s, day).all_day), (at(2026, 10, 14, 0, 0), true));
         // "Today" and "now" are Berlin's.

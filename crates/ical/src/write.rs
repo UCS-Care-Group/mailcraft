@@ -136,15 +136,45 @@ fn is_blank(address: &Address) -> bool {
     address.name.trim().is_empty() && address.email.trim().is_empty()
 }
 
+/// A `UID` as the reader makes it for one occurrence of a series (`<uid>#<recurrence-id>`), in
+/// its two parts; a `UID` that is anything else is all `UID`. Only a `RECURRENCE-ID` as this
+/// program writes and reads one counts: a date (`20261026`), a time (`20261026T140000`) or a time
+/// in UTC (`20261026T140000Z`).
+pub(crate) fn split_uid(uid: &str) -> (&str, Option<&str>) {
+    let Some((series, written)) = uid.rsplit_once('#') else { return (uid, None) };
+    let digits = |part: Option<&str>| part.is_some_and(|part| part.bytes().all(|b| b.is_ascii_digit()));
+    let fits = match written.len() {
+        8 => digits(Some(written)),
+        15 | 16 => {
+            digits(written.get(..8))
+                && written.as_bytes().get(8) == Some(&b'T')
+                && digits(written.get(9..15))
+                && matches!(written.get(15..), Some("" | "Z"))
+        }
+        _ => false,
+    };
+    if fits && !series.trim().is_empty() { (series, Some(written)) } else { (uid, None) }
+}
+
 fn write_event(out: &mut String, e: &Event, stamp: &str, zone: Option<Zone>) {
     fold(out, "BEGIN:VEVENT");
-    let uid = e.uid.trim();
+    let (uid, instance) = split_uid(e.uid.trim());
     if uid.is_empty() {
         text(out, "UID", &format!("mailcraft-{}@mailcraft.local", e.id));
     } else {
         text(out, "UID", uid);
     }
+    // One occurrence of a series, as the reader hands it over (`<uid>#<recurrence-id>`): the
+    // series' `UID` and the occurrence it stands for.
+    match instance {
+        Some(day) if day.len() == 8 => fold(out, &format!("RECURRENCE-ID;VALUE=DATE:{day}")),
+        Some(at) => fold(out, &format!("RECURRENCE-ID:{at}")),
+        None => {}
+    }
     fold(out, &format!("DTSTAMP:{stamp}"));
+    if e.sequence > 0 {
+        fold(out, &format!("SEQUENCE:{}", e.sequence));
+    }
     let start = valid_time(e.start);
     let end = valid_time(e.end).max(start);
     // In its zones, when the zone the calendar is shown in is known; the times as they are
@@ -278,11 +308,17 @@ fn write_task(out: &mut String, t: &Task, stamp: &str) {
     if !t.notes.is_empty() {
         text(out, "DESCRIPTION", &t.notes);
     }
-    if let Some(start) = t.start {
+    // A task that repeats has a start, which its rule counts from (RFC 5545 asks for one): its
+    // due day when it has no other.
+    let anchor = t.start.or(t.due).filter(|_| t.recurrence.is_some());
+    if let Some(start) = t.start.or(anchor) {
         fold(out, &format!("DTSTART;VALUE=DATE:{}", format_date(start)));
     }
     if let Some(due) = t.due {
         fold(out, &format!("DUE;VALUE=DATE:{}", format_date(due)));
+    }
+    if let (Some(rule), Some(start)) = (&t.recurrence, anchor.and_then(|day| mailcraft_time::DateTime::new(day, 0, 0, 0))) {
+        fold(out, &format!("RRULE:{}", crate::rrule::format_for(rule, start, true)));
     }
     match t.completed {
         Some(at) => {
@@ -546,6 +582,7 @@ mod tests {
             reminder: Some(at(2026, 10, 15, 16, 0).to_timestamp(0)),
             message: Some(77),
             uid: "task-1@example.org".into(),
+            recurrence: None,
         };
         assert_eq!(
             task_lines(&done).get(3..19).unwrap(),

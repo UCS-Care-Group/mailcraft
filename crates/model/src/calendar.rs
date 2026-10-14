@@ -563,6 +563,16 @@ pub struct Event {
     /// Its server keeps files with it, which are not kept here.
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub has_attachments: bool,
+    /// iCalendar `SEQUENCE` (RFC 5545 §3.8.7.4): how often the organizer has sent the meeting
+    /// again with a change people have to hear of. A meeting the owner organizes by mail counts
+    /// it up with every update or cancellation it sends (RFC 5546 §2.1.4); one that came by mail
+    /// keeps the organizer's, so that an older message is told from a newer one.
+    #[serde(skip_serializing_if = "is_zero")]
+    pub sequence: u32,
+}
+
+fn is_zero(n: &u32) -> bool {
+    *n == 0
 }
 
 impl Event {

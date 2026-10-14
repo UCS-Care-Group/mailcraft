@@ -28,6 +28,10 @@ const LAST_INSTANT: Timestamp = 253_402_207_200;
 const MAX_TRANSITIONS: usize = 600;
 /// For how many seconds [`Zone::system`] goes by what the system said last.
 const SYSTEM_KEPT: i64 = 5;
+/// What [`Zone::system`] was told last, and when: 0 for nothing yet, 1 for no name, or a zone's
+/// place in the list of names and 2.
+static SYSTEM_SAID: AtomicU32 = AtomicU32::new(0);
+static SYSTEM_ASKED: AtomicI64 = AtomicI64::new(i64::MIN);
 
 /// The names UTC goes by.
 const UTC_NAMES: [&str; 12] =
@@ -278,32 +282,32 @@ impl Zone {
     }
 
     /// This computer's zone (the browser's, on the web): the zone of the database the system
-    /// names, or [`Zone::LOCAL`] when it names none that is known. Asked anew each time; the
-    /// system is looked at again every few minutes, so a zone that changes while the program
-    /// runs is noticed.
+    /// names, or [`Zone::LOCAL`] when it names none that is known. What the system said is kept
+    /// for a few seconds ([`SYSTEM_KEPT`]), and then asked again where that is cheap (the `TZ`
+    /// variable, the link `/etc/localtime` is on Linux, macOS and the BSDs, the browser's own
+    /// setting): a zone that changes while the program runs is noticed within seconds there. On
+    /// Windows the database's own look at the system is used, which it keeps for some minutes;
+    /// [`Zone::refresh_system`] looks past it, and a front end calls that when its window comes
+    /// back to the front or the computer wakes.
     pub fn system() -> Zone {
-        // Asked for with every message of a list and every frame of a window: what the system
-        // said is kept for a few seconds.
-        static KEPT: AtomicU32 = AtomicU32::new(0);
-        static ASKED: AtomicI64 = AtomicI64::new(i64::MIN);
+        // Asked for with every message of a list and every frame of a window.
         let now = crate::now();
-        let kept = KEPT.load(Ordering::Relaxed);
-        if kept != 0 && (0..SYSTEM_KEPT).contains(&now.saturating_sub(ASKED.load(Ordering::Relaxed))) {
-            // (What was kept is 1 for no name, or a zone's place in the list of names and 2.)
+        let kept = SYSTEM_SAID.load(Ordering::Relaxed);
+        if kept != 0 && (0..SYSTEM_KEPT).contains(&now.saturating_sub(SYSTEM_ASKED.load(Ordering::Relaxed))) {
             return u16::try_from(kept.saturating_sub(2)).ok().filter(|_| kept >= 2).map_or(Zone::LOCAL, |index| Zone(Kind::Named(index)));
         }
-        let zone = match jiff::tz::TimeZone::try_system() {
-            Ok(zone) => zone.iana_name().and_then(Zone::named).unwrap_or(Zone::LOCAL),
-            Err(_) => Zone::LOCAL,
-        };
-        // UTC and offsets are not kept: they are rare for a computer, and cheap to find again.
-        if let Kind::Named(index) = zone.0 {
-            KEPT.store(u32::from(index) + 2, Ordering::Relaxed);
-            ASKED.store(now, Ordering::Relaxed);
-        } else if zone.is_local() {
-            KEPT.store(1, Ordering::Relaxed);
-            ASKED.store(now, Ordering::Relaxed);
-        }
+        let zone = system_named(false).unwrap_or_else(system_of_database);
+        keep_system(zone, now);
+        zone
+    }
+
+    /// This computer's zone, asked of the system now, past every cache (Windows' included, where
+    /// that means asking the system's `tzutil`, without a window): for the moment the program's
+    /// window comes back to the front or the computer wakes, when it may have been carried to
+    /// another zone. [`Zone::system`] says the same from then on.
+    pub fn refresh_system() -> Zone {
+        let zone = system_named(true).unwrap_or_else(system_of_database);
+        keep_system(zone, crate::now());
         zone
     }
 
@@ -395,6 +399,68 @@ impl Zone {
             }
             _ => String::new(),
         }
+    }
+
+    /// What the zone is called in full, for a list to choose from or a tooltip:
+    /// `(UTC-05:00) Eastern Time — New York, Americas`, `(UTC+01:00) West Europe Time — Berlin,
+    /// Europe`, `(UTC-05:00) Indianapolis — Indiana, Americas`. Made of the zone's identifiers
+    /// alone: Windows' name for it with its abbreviations spelled out (and the place where it is
+    /// an acronym that says nothing to a reader), and the place and part of the world the
+    /// database names it after. Nothing of any program's own list of zone names.
+    pub fn long_name(self, instant: Timestamp) -> String {
+        let offset = self.offset_label(instant);
+        let label = self.readable_label();
+        let (place, around) = match self.0 {
+            Kind::Named(index) => places(db().name(index)),
+            _ => (String::new(), Vec::new()),
+        };
+        let mut said = format!("({offset}) {label}");
+        let mut more: Vec<String> = Vec::new();
+        if !place.is_empty() && !label.contains(&place) {
+            more.push(place);
+        }
+        more.extend(around);
+        if label == offset || (self.0 != Kind::Local && label.is_empty()) {
+            said = format!("({offset})");
+        }
+        if !more.is_empty() {
+            said = format!("{said} — {}", more.join(", "));
+        }
+        said
+    }
+
+    /// [`Zone::label`] with the abbreviations of Windows' names spelled out (`W. Europe Time` is
+    /// `West Europe Time`, `SA Pacific Time` is `South America Pacific Time`); a name made of an
+    /// acronym that says nothing to a reader (`GTB Time`) is the place's (`Bucharest Time`).
+    pub fn readable_label(self) -> String {
+        let label = self.label();
+        if self.windows_name().is_none() || self.0 == Kind::Fixed(0) {
+            return label;
+        }
+        let words: Vec<&str> = label.split(' ').collect();
+        let opaque = words.iter().any(|word| word.len() >= 3 && word.chars().all(|c| c.is_ascii_uppercase()) && !matches!(*word, "UTC" | "AUS"));
+        if opaque {
+            let place = self.place();
+            if !place.is_empty() {
+                return format!("{place} Time");
+            }
+        }
+        words
+            .iter()
+            .map(|word| match *word {
+                "W." => "West",
+                "E." => "East",
+                "N." => "North",
+                "S." => "South",
+                "SE" => "Southeast",
+                "NE" => "Northeast",
+                "SA" => "South America",
+                "AUS" => "Australia",
+                "Cen." => "Central",
+                other => other,
+            })
+            .collect::<Vec<_>>()
+            .join(" ")
     }
 
     /// `UTC-05:00`, `UTC+05:45`, `UTC`: how far the zone is from UTC at an instant.
@@ -505,6 +571,100 @@ fn offset_text(seconds: i64) -> String {
     format!("UTC{sign}{:02}:{:02}", minutes.abs() / 60, minutes.abs() % 60)
 }
 
+/// The place a zone of the database is named after, and what its name says around it (a state,
+/// the part of the world), in words: `America/Indiana/Indianapolis` is `Indianapolis` in
+/// `Indiana, Americas`. Nothing for `Etc/…`.
+fn places(name: &str) -> (String, Vec<String>) {
+    if name.starts_with("Etc/") || !name.contains('/') {
+        return (String::new(), Vec::new());
+    }
+    let parts: Vec<String> = name.split('/').take(4).map(|part| part.replace('_', " ")).collect();
+    let Some((place, rest)) = parts.split_last() else { return (String::new(), Vec::new()) };
+    let mut around: Vec<String> = rest.iter().skip(1).rev().cloned().collect();
+    let world = match rest.first().map(String::as_str) {
+        Some("America") => "Americas",
+        Some("Indian") => "Indian Ocean",
+        Some("Atlantic") => "Atlantic Ocean",
+        Some("Pacific") => "Pacific Ocean",
+        Some(other) => other,
+        None => "",
+    };
+    if !world.is_empty() && world != place {
+        around.push(world.to_string());
+    }
+    (place.clone(), around)
+}
+
+/// Keep what the system said of its zone, as of `now`. UTC and offsets are not kept: they are
+/// rare for a computer, and cheap to find again.
+fn keep_system(zone: Zone, now: Timestamp) {
+    if let Kind::Named(index) = zone.0 {
+        SYSTEM_SAID.store(u32::from(index) + 2, Ordering::Relaxed);
+        SYSTEM_ASKED.store(now, Ordering::Relaxed);
+    } else if zone.is_local() {
+        SYSTEM_SAID.store(1, Ordering::Relaxed);
+        SYSTEM_ASKED.store(now, Ordering::Relaxed);
+    }
+}
+
+/// The system's zone as the database sees it (which keeps it for some minutes).
+fn system_of_database() -> Zone {
+    match jiff::tz::TimeZone::try_system() {
+        Ok(zone) => zone.iana_name().and_then(Zone::named).unwrap_or(Zone::LOCAL),
+        Err(_) => Zone::LOCAL,
+    }
+}
+
+/// The zone a name the system gives is (`Europe/Berlin`, `:Europe/Berlin`, a path that ends in
+/// `zoneinfo/Europe/Berlin`); `None` for anything else.
+fn zone_of_system_name(name: &str) -> Option<Zone> {
+    let name = name.trim().trim_start_matches(':');
+    if name.is_empty() || name.len() > 4 * MAX_ZONE_NAME {
+        return None;
+    }
+    let name = name.rsplit_once("zoneinfo/").map_or(name, |(_, rest)| rest);
+    Zone::named(name).filter(|zone| !zone.is_local())
+}
+
+/// The system's zone, asked of the system itself where that is cheap and needs no cache: the
+/// `TZ` variable; the link `/etc/localtime` is (Linux, macOS, the BSDs); the browser's setting.
+/// With `thorough`, on Windows also its `tzutil` (a program run without a window), which is too
+/// slow for every few seconds. `None` when none of that says a zone that is known.
+fn system_named(thorough: bool) -> Option<Zone> {
+    if let Some(zone) = std::env::var("TZ").ok().as_deref().and_then(zone_of_system_name) {
+        return Some(zone);
+    }
+    #[cfg(all(unix, not(target_arch = "wasm32")))]
+    {
+        let _ = thorough;
+        let link = std::fs::read_link("/etc/localtime").ok()?;
+        zone_of_system_name(&link.to_string_lossy())
+    }
+    #[cfg(target_arch = "wasm32")]
+    {
+        let _ = thorough;
+        let options = js_sys::Intl::DateTimeFormat::new(&js_sys::Array::new(), &js_sys::Object::new()).resolved_options();
+        let named = js_sys::Reflect::get(&options, &"timeZone".into()).ok()?.as_string()?;
+        zone_of_system_name(&named)
+    }
+    #[cfg(windows)]
+    {
+        if !thorough {
+            return None;
+        }
+        use std::os::windows::process::CommandExt;
+        // (CREATE_NO_WINDOW: no console flashes up.)
+        let out = std::process::Command::new("tzutil").arg("/g").creation_flags(0x0800_0000).output().ok()?;
+        let said = String::from_utf8_lossy(out.stdout.get(..out.stdout.len().min(256))?).into_owned();
+        zone_of_system_name(&said)
+    }
+    #[cfg(not(any(unix, windows, target_arch = "wasm32")))]
+    {
+        let _ = thorough;
+        None
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -520,6 +680,47 @@ mod tests {
 
     fn utc(y: i32, m: u8, d: u8, h: u8, min: u8) -> Timestamp {
         at(y, m, d, h, min).to_timestamp(0)
+    }
+
+    #[test]
+    fn long_names_are_made_of_the_identifiers_and_read_as_words() {
+        let october = utc(2026, 10, 12, 12, 0);
+        assert_eq!(zone("America/New_York").long_name(october), "(UTC-04:00) Eastern Time — New York, Americas");
+        assert_eq!(zone("Europe/Berlin").long_name(october), "(UTC+02:00) West Europe Time — Berlin, Europe");
+        assert_eq!(zone("America/Bogota").readable_label(), "South America Pacific Time");
+        assert_eq!(zone("America/Indiana/Indianapolis").long_name(october), "(UTC-04:00) US Eastern Time — Indianapolis, Indiana, Americas");
+        // A zone Windows has no name for is its place; an acronym is the place's time.
+        assert_eq!(zone("America/Detroit").long_name(october), "(UTC-04:00) Detroit — Americas");
+        assert_eq!(zone("Europe/Bucharest").readable_label(), "Bucharest Time");
+        assert_eq!(zone("Asia/Kolkata").long_name(october), "(UTC+05:30) India Time — Kolkata, Asia");
+        assert_eq!(zone("Indian/Maldives").long_name(october).split(" — ").nth(1), Some("Indian Ocean"));
+        // UTC, an offset, and the computer's zone without a name.
+        assert_eq!(Zone::UTC.long_name(october), "(UTC)");
+        assert_eq!(Zone::fixed(330).unwrap().long_name(october), "(UTC+05:30)");
+        assert_eq!(zone("Etc/GMT+12").long_name(october), "(UTC-12:00) Dateline Time");
+        assert!(Zone::LOCAL.long_name(october).ends_with("Local Time"));
+        // Every zone there is has one, of one line.
+        for zone in Zone::choices() {
+            let name = zone.long_name(october);
+            assert!(name.starts_with("(UTC") && !name.chars().any(char::is_control) && name.len() < 140, "{name}");
+        }
+    }
+
+    #[test]
+    fn what_the_system_calls_its_zone_is_read_as_a_name_or_not_at_all() {
+        assert_eq!(zone_of_system_name("Europe/Berlin"), Some(zone("Europe/Berlin")));
+        assert_eq!(zone_of_system_name(":America/New_York\\n"), Zone::named("America/New_York\\n").or(None));
+        assert_eq!(zone_of_system_name(" :Asia/Tokyo "), Some(zone("Asia/Tokyo")));
+        assert_eq!(zone_of_system_name("../usr/share/zoneinfo/Europe/Paris"), Some(zone("Europe/Paris")));
+        assert_eq!(zone_of_system_name("/var/db/timezone/zoneinfo/Australia/Sydney"), Some(zone("Australia/Sydney")));
+        assert_eq!(zone_of_system_name("Eastern Standard Time\\r\\n".trim_end_matches("\\r\\n")), Some(zone("America/New_York")));
+        for nonsense in ["", ":", "/etc/localtime", "EST5EDT,M3.2.0,M11.1.0x", "zoneinfo/", "Nowhere/Never"] {
+            assert_eq!(zone_of_system_name(nonsense), None, "{nonsense}");
+        }
+        assert_eq!(zone_of_system_name(&"a/".repeat(10_000)), None);
+        // Asked past every cache, the system's zone is what it is asked for afterwards too.
+        let fresh = Zone::refresh_system();
+        assert_eq!(Zone::system(), fresh);
     }
 
     #[test]

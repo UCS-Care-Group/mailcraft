@@ -185,12 +185,18 @@ fn change(s: &mut Session, v: &Value, command: &str) -> Result<Event, CmdError> 
     let e = as_changed(&before, command, v)?;
     online_fits(s, &e, Some(&before))?;
     let send = may_change(s, v, &before, &e)?;
+    // A meeting the owner organizes on this computer: the people hear of it by mail, when that
+    // is said to be meant.
+    let mail = kept_by(s, &before).is_none() && e != before && super::mails(s, v, &before, &e)?;
     *s.mailbox.event_mut(before.id)? = e.clone();
     super::changed(s, &before)?;
     if send {
         remote::approve_mail(&mut s.mailbox, before.origin.account, before.id, &before.origin.id, "");
     }
-    Ok(e)
+    if mail {
+        super::imip::after_change(s, &before, "")?;
+    }
+    Ok(s.mailbox.event(before.id).cloned().unwrap_or(e))
 }
 
 fn importance(s: &mut Session, v: &Value) -> CmdResult {

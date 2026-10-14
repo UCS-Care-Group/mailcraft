@@ -19,7 +19,7 @@ use mailcraft_engine::cmd::calendar_extra::{DEFAULT_TIME_SCALE, MAX_DAYS, TIME_S
 use mailcraft_engine::cmd::calendar_settings::{self, MAX_PANES};
 use mailcraft_engine::cmd::view::calendar_range;
 use mailcraft_model::{Event, Freq, Id, Importance, Occurrence, Recurrence, Response as Reply, ShowAs};
-use mailcraft_time::{Date, DateTime, Weekday, month_name, month_short};
+use mailcraft_time::{Date, DateTime, Weekday};
 use serde_json::{Value, json};
 
 use crate::theme::{Tokens, c32, medium, paint_clipped, regular, semibold};
@@ -503,21 +503,10 @@ pub(crate) fn last_day(start: DateTime, end: DateTime) -> Date {
 /// The title of the header strip: `October 14, 2026`, `October 11 – 17, 2026`,
 /// `September 28 – October 4, 2026`, `October 2026`.
 pub(crate) fn range_title(view: CalView, date: Date, from: Date, to: Date) -> String {
-    let month = |d: Date| tl!(month_name(d.month));
     match view {
-        CalView::Month => format!("{} {}", month(date), date.year),
+        CalView::Month => crate::i18n::month_year(date.year, date.month),
         // (The Day view names its day, or its days when it shows several.)
-        CalView::Day | CalView::Week | CalView::WorkWeek => {
-            if from.year != to.year {
-                format!("{} {}, {} – {} {}, {}", month(from), from.day, from.year, month(to), to.day, to.year)
-            } else if from.month != to.month {
-                format!("{} {} – {} {}, {}", month(from), from.day, month(to), to.day, to.year)
-            } else if from.day != to.day {
-                format!("{} {} – {}, {}", month(from), from.day, to.day, to.year)
-            } else {
-                format!("{} {}, {}", month(from), from.day, from.year)
-            }
-        }
+        CalView::Day | CalView::Week | CalView::WorkWeek => crate::i18n::date_range(from, to),
     }
 }
 
@@ -937,7 +926,7 @@ impl Blocks {
 fn side_pane(app: &mut MailApp, ui: &mut Ui) {
     let t = Tokens::get(ui.ctx());
     let width = if app.ui.folder_pane_width.is_finite() { app.ui.folder_pane_width.clamp(200.0, 360.0) } else { 230.0 };
-    let panel = egui::Panel::left("calendar_side")
+    let panel = crate::i18n::start_panel("calendar_side")
         .default_size(width)
         .size_range(200.0..=360.0)
         .resizable(true)
@@ -1044,7 +1033,7 @@ fn date_navigator(app: &mut MailApp, ui: &mut Ui, months: usize) {
         // Its name; over the first of them, the arrows.
         let (r, _) = ui.allocate_exact_size(vec2(width, MINI_TITLE_H), Sense::hover());
         if m == 0 {
-            for (i, (icon, tip, by)) in [("next", "Next Month", 1), ("previous", "Previous Month", -1)].into_iter().enumerate() {
+            for (i, (icon, tip, by)) in [("next", tn!("Next Month"), 1), ("previous", tn!("Previous Month"), -1)].into_iter().enumerate() {
                 let br = Rect::from_center_size(pos2(r.max.x - pad - 12.0 - i as f32 * 26.0, r.center().y), vec2(24.0, 24.0));
                 let resp = ui.interact(br, ui.id().with(("mini_step", by)), Sense::click());
                 app.hit.add("miniStep", if by > 0 { 1 } else { 0 }, br);
@@ -1057,7 +1046,7 @@ fn date_navigator(app: &mut MailApp, ui: &mut Ui, months: usize) {
                 }
             }
         }
-        let title = format!("{} {}", tl!(month_name(month.month)), month.year);
+        let title = crate::i18n::month_year(month.year, month.month);
         let title_w = if m == 0 { width - 2.0 * pad - 64.0 } else { width - 2.0 * pad };
         paint_clipped(ui.painter(), pos2(x0 + 5.0, r.center().y), title_w.max(0.0), &title, semibold(13.0), t.text);
         if let Ok(id) = u64::try_from(month.to_days()) {
@@ -1346,14 +1335,14 @@ fn group_heading(app: &mut MailApp, ui: &mut Ui, t: &Tokens, n: usize, group: &L
 fn calendar_menu(ui: &mut Ui, app: &mut MailApp, row: &CalendarRow, several: bool) {
     use crate::widgets::{mi, mi_check};
     ui.set_min_width(210.0);
-    mi(ui, app, "Show Only This Calendar", "calendar.showOnly", json!({"id": row.id}));
+    mi(ui, app, tn!("Show Only This Calendar"), "calendar.showOnly", json!({"id": row.id}));
     if row.visible && several {
-        mi_check(ui, app, "Overlay", row.overlaid, "view.overlay", json!({"calendar": row.id}));
+        mi_check(ui, app, tn!("Overlay"), row.overlaid, "view.overlay", json!({"calendar": row.id}));
     }
     ui.separator();
     ui.menu_button(tl!("Colour"), |ui| {
         // Whatever the calendar's own colour is (its server's, for a calendar a server keeps).
-        mi_check(ui, app, "Automatic", row.own_color.is_none(), "calendar.color", json!({"id": row.id, "color": null}));
+        mi_check(ui, app, tn!("Automatic"), row.own_color.is_none(), "calendar.color", json!({"id": row.id, "color": null}));
         ui.separator();
         for (name, rgb) in calendar_settings::CALENDAR_COLORS {
             let label = format!("       {}", tl!(name));
@@ -1541,7 +1530,7 @@ fn connect_notice(app: &mut MailApp, ui: &mut Ui) {
 
 /// What a calendar that is kept on this computer says of itself, beside a calendar that the
 /// account's server keeps: on its block, and in the list of calendars.
-pub(crate) const LOCAL_ONLY: &str = "Only on this computer: not in your Outlook calendar";
+pub(crate) const LOCAL_ONLY: &str = tn!("Only on this computer: not in your Outlook calendar");
 /// Height of that line under a calendar's row in the list.
 const LOCAL_LINE_H: f32 = 30.0;
 
@@ -1620,12 +1609,12 @@ fn header(app: &mut MailApp, ui: &mut Ui) {
     };
     p.rect(tr, 4.0, fill, Stroke::new(1.0, t.border_strong), StrokeKind::Inside);
     p.text(tr.center(), Align2::CENTER_CENTER, label, medium(12.0), t.text);
-    if resp.on_hover_text(app.session.today().long()).clicked() {
+    if resp.on_hover_text(crate::i18n::date_long(app.session.today())).clicked() {
         let _ = app.run("view.today", json!({}));
     }
 
     let mut x = tr.max.x + 8.0;
-    for (icon, tip, command) in [("previous", "Back", "view.previous"), ("next", "Forward", "view.next")] {
+    for (icon, tip, command) in [("previous", tn!("Back"), "view.previous"), ("next", tn!("Forward"), "view.next")] {
         let br = Rect::from_min_size(pos2(x, top), vec2(28.0, height));
         let resp = ui.interact(br, ui.id().with(command), Sense::click());
         if resp.hovered() {
@@ -1902,7 +1891,7 @@ fn paint_chip(p: &Painter, rect: Rect, item: &Item, t: &Tokens, twelve: bool, se
 fn when_label(item: &Item, twelve: bool) -> String {
     let (start, end) = (item.occ.start, item.occ.end);
     let last = item.last_day();
-    let day = |d: Date| format!("{}, {} {}", tl!(d.weekday().short()), tl!(month_short(d.month)), d.day);
+    let day = |d: Date| format!("{}, {}", tl!(d.weekday().short()), crate::i18n::day_month(d));
     if item.ev.all_day {
         if last == start.date {
             format!("{} · {}", day(start.date), tl!("All day"))
@@ -2048,7 +2037,7 @@ fn event_input(app: &mut MailApp, resp: Response, item: &Item, tips: bool) {
     resp.context_menu(|ui| {
         ui.set_min_width(200.0);
         use crate::widgets::{mi, mi_check};
-        mi(ui, app, "Open", "calendar.edit", json!({}));
+        mi(ui, app, tn!("Open"), "calendar.edit", json!({}));
         if invited {
             ui.separator();
             for (label, code, answer) in
@@ -2073,13 +2062,13 @@ fn event_input(app: &mut MailApp, resp: Response, item: &Item, tips: bool) {
                 ui.close();
             }
         }
-        mi(ui, app, "Forward…", "calendar.forward", json!({"id": id}));
+        mi(ui, app, tn!("Forward…"), "calendar.forward", json!({"id": id}));
         if repeats {
-            mi(ui, app, "Forward This Occurrence…", "calendar.forward", json!({"id": id, "scope": "occurrence", "occurrence": day}));
+            mi(ui, app, tn!("Forward This Occurrence…"), "calendar.forward", json!({"id": id, "scope": "occurrence", "occurrence": day}));
         }
-        mi(ui, app, "Delete", "calendar.delete", json!({"id": id}));
+        mi(ui, app, tn!("Delete"), "calendar.delete", json!({"id": id}));
         if repeats {
-            mi(ui, app, "Delete This Occurrence", "calendar.delete", json!({"id": id, "occurrence": day}));
+            mi(ui, app, tn!("Delete This Occurrence"), "calendar.delete", json!({"id": id, "occurrence": day}));
         }
         if !others.is_empty() {
             ui.menu_button(tl!("Move to Calendar"), |ui| {
@@ -2094,14 +2083,14 @@ fn event_input(app: &mut MailApp, resp: Response, item: &Item, tips: bool) {
                 mi_check(ui, app, s.label(), s == show_as, "calendar.showAs", json!({"id": id, "value": s.code()}));
             }
         });
-        mi_check(ui, app, "Private", private, "calendar.private", json!({"id": id}));
+        mi_check(ui, app, tn!("Private"), private, "calendar.private", json!({"id": id}));
         ui.menu_button(tl!("Importance"), |ui| {
             for (label, value) in [("High", Importance::High), ("Normal", Importance::Normal), ("Low", Importance::Low)] {
                 mi_check(ui, app, label, importance == value, "calendar.importance", json!({"id": id, "value": value.code()}));
             }
         });
         ui.separator();
-        mi(ui, app, "Save as iCalendar…", "file.exportCalendar", json!({"id": id}));
+        mi(ui, app, tn!("Save as iCalendar…"), "file.exportCalendar", json!({"id": id}));
     });
     if tips {
         let twelve = app.session.prefs.twelve_hour;
@@ -3049,7 +3038,7 @@ fn time_grid(app: &mut MailApp, ui: &mut Ui, frame: &mut Frame, from: Date, to: 
     let days = days_of(from, to, i64::from(MAX_DAYS));
     let n = days.len();
     let full = ui.available_rect_before_wrap();
-    // (A second time zone has a column of its own in the time bar, left of the first.)
+    // (A second and a third time zone have a column each in the time bar, left of the first.)
     let gutter = GUTTER_W + second_zone_width(app);
     let blocks = Blocks::of(full.min.x + gutter, full.width() - gutter, n, panes.len());
     let count = blocks.count;
@@ -3116,11 +3105,12 @@ fn time_grid(app: &mut MailApp, ui: &mut Ui, frame: &mut Frame, from: Date, to: 
     hour_grid(app, ui, &g, frame, &mut segs);
 }
 
-/// How wide the second time zone's column of the time bar is; nothing without one.
+/// How wide the column of each other time zone of the time bar is (a second, a third).
 const SECOND_ZONE_W: f32 = 52.0;
 
+/// How wide the columns of the other zones of the time bar are together; nothing without any.
 fn second_zone_width(app: &MailApp) -> f32 {
-    if mailcraft_engine::cmd::zones::second_zone(&app.session).is_some() { SECOND_ZONE_W } else { 0.0 }
+    SECOND_ZONE_W * mailcraft_engine::cmd::zones::extra_zones(&app.session).len() as f32
 }
 
 /// The instant the time bar's zones are compared at: noon of the first day in view (a week in
@@ -3132,16 +3122,16 @@ fn bar_instant(app: &MailApp, g: &Grid) -> mailcraft_time::Timestamp {
 
 /// What the time bar says over its hours (`area`: the bar's part of the days' headings): the
 /// zone the calendar is shown in, when that is worth saying (the owner chose it, gave it a
-/// name, or has a second zone beside it), and the second zone over its own column. Hovering one
-/// says which zone it is.
+/// name, or has another zone beside it), and each other zone (a third, then a second) over its
+/// own column. Hovering one says which zone it is, by its long name.
 fn zone_labels(app: &mut MailApp, ui: &mut Ui, g: &Grid, area: Rect) {
     let t = g.t;
-    let prefs = &app.session.prefs;
-    let second = mailcraft_engine::cmd::zones::second_zone(&app.session);
+    let prefs = app.session.prefs.clone();
+    let extra = mailcraft_engine::cmd::zones::extra_zones(&app.session);
     let shown = app.session.zone();
-    let worth = second.is_some() || !prefs.zone_label.trim().is_empty() || mailcraft_time::Zone::named(&prefs.time_zone).is_some();
+    let worth = !extra.is_empty() || !prefs.zone_label.trim().is_empty() || mailcraft_time::Zone::named(&prefs.time_zone).is_some();
     let at = bar_instant(app, g);
-    let split = area.min.x + if second.is_some() { SECOND_ZONE_W } else { 0.0 };
+    let split = area.min.x + SECOND_ZONE_W * extra.len() as f32;
     let mut label = |zone: mailcraft_time::Zone, given: &str, cell: Rect, key: u64| {
         let text = crate::zones::bar_label(zone, given, at);
         let p = ui.painter().with_clip_rect(cell.intersect(ui.clip_rect()));
@@ -3149,8 +3139,12 @@ fn zone_labels(app: &mut MailApp, ui: &mut Ui, g: &Grid, area: Rect) {
         app.hit.add("zoneLabel", key, cell);
         ui.interact(cell, ui.id().with(("zone_label", key)), Sense::hover()).on_hover_text(crate::zones::row(zone, at));
     };
-    if let Some(second) = second {
-        label(second, &prefs.second_zone_label, Rect::from_min_max(area.min, pos2(split, area.max.y)), 2);
+    // (Keyed 3 for the third and 2 for the second, as `ui.inspect` finds them.)
+    let keys: Vec<u64> =
+        if extra.len() == 2 { vec![3, 2] } else { vec![if mailcraft_engine::cmd::zones::second_zone(&app.session).is_some() { 2 } else { 3 }] };
+    for (i, ((zone, given), key)) in extra.iter().zip(keys).enumerate() {
+        let left = area.min.x + SECOND_ZONE_W * i as f32;
+        label(*zone, given, Rect::from_min_max(pos2(left, area.min.y), pos2(left + SECOND_ZONE_W, area.max.y)), key);
     }
     if worth && !shown.is_local() {
         label(shown, &prefs.zone_label, Rect::from_min_max(pos2(split, area.min.y), area.max), 1);
@@ -3418,11 +3412,13 @@ fn hour_grid(app: &mut MailApp, ui: &mut Ui, g: &Grid, frame: &mut Frame, segs: 
     // The working hours in effect: the mailbox's own, or the ones of the local options.
     let work = calendar_settings::work_hours(&app.session);
     let (work_start, work_end) = (work.start.clamp(0, DAY_MINUTES), work.end.clamp(0, DAY_MINUTES));
-    // The second time zone of the time bar: how many minutes its clock is ahead of the calendar's.
-    let ahead = mailcraft_engine::cmd::zones::second_zone(&app.session).map(|zone| {
+    // The other time zones of the time bar, left to right: how many minutes each one's clock is
+    // ahead of the calendar's.
+    let aheads: Vec<i64> = {
         let at = bar_instant(app, g);
-        i64::from(zone.offset_at(at)) - i64::from(app.session.offset_at(at))
-    });
+        let here = i64::from(app.session.offset_at(at));
+        mailcraft_engine::cmd::zones::extra_zones(&app.session).iter().map(|(zone, _)| i64::from(zone.offset_at(at)) - here).collect()
+    };
 
     // The first time, and when the view or the time scale changes, the working day starts near
     // the top.
@@ -3477,14 +3473,17 @@ fn hour_grid(app: &mut MailApp, ui: &mut Ui, g: &Grid, frame: &mut Frame, segs: 
                     && hour < 24
                 {
                     paint_hour(&p, pos2(left - 8.0, y + 2.0), hour, g.twelve, &t);
-                    // The same moment by the second zone's clock, in its own column.
-                    if let Some(ahead) = ahead {
-                        paint_clock(&p, pos2(rect.min.x + SECOND_ZONE_W - 8.0, y + 2.0), (minute + ahead).rem_euclid(DAY_MINUTES), g.twelve, &t);
+                    // The same moment by each other zone's clock, in its own column.
+                    for (i, ahead) in aheads.iter().enumerate() {
+                        let right = rect.min.x + SECOND_ZONE_W * (i + 1) as f32 - 8.0;
+                        paint_clock(&p, pos2(right, y + 2.0), (minute + ahead).rem_euclid(DAY_MINUTES), g.twelve, &t);
                     }
                 }
             }
-            if k == 0 && ahead.is_some() {
-                p.vline(rect.min.x + SECOND_ZONE_W, rect.y_range(), Stroke::new(1.0, t.border.linear_multiply(0.6)));
+            if k == 0 {
+                for i in 0..aheads.len() {
+                    p.vline(rect.min.x + SECOND_ZONE_W * (i + 1) as f32, rect.y_range(), Stroke::new(1.0, t.border.linear_multiply(0.6)));
+                }
             }
             // At an hour a row, the half hours still show, faintly.
             if scale.slot >= 60 {
@@ -3660,12 +3659,12 @@ pub(crate) fn time_scale_menu(ui: &mut Ui, app: &mut MailApp) {
     let current = time_scale(&app.session);
     for minutes in TIME_SCALES {
         let label = match minutes {
-            60 => "60 Minutes",
-            30 => "30 Minutes",
-            15 => "15 Minutes",
-            10 => "10 Minutes",
-            6 => "6 Minutes",
-            _ => "5 Minutes",
+            60 => tn!("60 Minutes"),
+            30 => tn!("30 Minutes"),
+            15 => tn!("15 Minutes"),
+            10 => tn!("10 Minutes"),
+            6 => tn!("6 Minutes"),
+            _ => tn!("5 Minutes"),
         };
         crate::widgets::mi_check(ui, app, label, minutes == current, "view.timeScale", json!({"minutes": minutes}));
     }
@@ -3673,7 +3672,7 @@ pub(crate) fn time_scale_menu(ui: &mut Ui, app: &mut MailApp) {
 
 /// `Wed, Oct 14`, or `Oct 14 – Oct 16` for more days than one.
 fn days_label(first: Date, last: Date) -> String {
-    let day = |d: Date| format!("{} {}", tl!(month_short(d.month)), d.day);
+    let day = crate::i18n::day_month;
     if last > first { format!("{} – {}", day(first), day(last)) } else { format!("{}, {}", tl!(first.weekday().short()), day(first)) }
 }
 
@@ -3889,7 +3888,7 @@ fn drop_menu(app: &mut MailApp, ui: &Ui, zones: &Zones, items: &[Item]) {
     let area = egui::Area::new(id).order(egui::Order::Foreground).fixed_pos(ask.pos).constrain(true).show(&ctx, |ui| {
         egui::Frame::popup(ui.style()).show(ui, |ui| {
             ui.spacing_mut().item_spacing = vec2(0.0, 1.0);
-            for (n, (label, deed)) in [("Move", Some(false)), ("Copy", Some(true)), ("Cancel", None)].into_iter().enumerate() {
+            for (n, (label, deed)) in [(tn!("Move"), Some(false)), (tn!("Copy"), Some(true)), (tn!("Cancel"), None)].into_iter().enumerate() {
                 if deed.is_none() {
                     ui.separator();
                 }
@@ -4045,7 +4044,7 @@ fn month_grid(app: &mut MailApp, ui: &mut Ui, frame: &mut Frame, from: Date, to:
                 p.vline(cell.min.x, cell.y_range(), Stroke::new(1.0, t.border));
                 p.hline(cell.x_range(), cell.max.y - 0.5, Stroke::new(1.0, t.border));
                 // The first of a month says which month.
-                let label = if day.day == 1 { format!("{} {}", tl!(month_short(day.month)), day.day) } else { day.day.to_string() };
+                let label = if day.day == 1 { crate::i18n::day_month(day) } else { day.day.to_string() };
                 let font = if is_today || day.day == 1 { semibold(11.5) } else { regular(11.5) };
                 let inset = if cell.width() >= 44.0 { 9.0 } else { 4.0 };
                 let at = pos2(cell.min.x + inset, cell.min.y + NUM_H / 2.0 + 1.0);

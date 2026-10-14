@@ -63,19 +63,19 @@ pub(super) fn specs() -> Vec<CommandSpec> {
 }
 
 /// What a message invites to, calls off, or answers.
-struct Invitation {
-    message: Id,
-    account: Id,
+pub(super) struct Invitation {
+    pub(super) message: Id,
+    pub(super) account: Id,
     /// `REQUEST`, `CANCEL`, …; empty when the part doesn't say.
-    method: String,
+    pub(super) method: String,
     /// The meeting as the message has it, cut to size. Its `uid` is the meeting's own, also when
     /// the message is about one occurrence of a series.
-    event: Event,
+    pub(super) event: Event,
     /// For one occurrence of a series: how the message names it (`RECURRENCE-ID`, as written)
     /// and the day of the series it stands for, here.
-    instance: Option<(String, Date)>,
+    pub(super) instance: Option<(String, Date)>,
     /// `SEQUENCE`: how often the organizer has changed the meeting.
-    sequence: u32,
+    pub(super) sequence: u32,
     /// Which attachment of the message it was read from.
     part: usize,
     /// What there is to say about how its times were read: a time zone nobody knows.
@@ -100,7 +100,7 @@ fn one_line(text: &str, max: usize) -> String {
 }
 
 /// A person named by a message, cut to size.
-fn person(who: &Address) -> Address {
+pub(super) fn person(who: &Address) -> Address {
     let email: String = who.email.trim().chars().filter(|c| !c.is_control() && !c.is_whitespace()).take(320).collect();
     Address { name: one_line(&who.name, 200), email }
 }
@@ -180,7 +180,7 @@ fn tidy(mut event: Event, offset_at: &dyn Fn(Timestamp) -> i32) -> (Event, Optio
 }
 
 /// The meeting the message named in `v` (or the selected one) carries.
-fn read(s: &Session, v: &Value) -> Result<Invitation, CmdError> {
+pub(super) fn read(s: &Session, v: &Value) -> Result<Invitation, CmdError> {
     let id = p::id(v, "message").or(s.sel.focus()).ok_or_else(|| fail("select a message first"))?;
     let message = s.mailbox.message(id).ok_or_else(|| fail(format!("no message with id {id}")))?;
     let calendar = |part: &(usize, &Attachment)| {
@@ -212,7 +212,7 @@ fn read(s: &Session, v: &Value) -> Result<Invitation, CmdError> {
 
 /// What on the calendar a message is about.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum About {
+pub(super) enum About {
     /// Nothing that is there.
     Nothing,
     /// An event: a meeting, a whole series, or one occurrence that is an event of its own.
@@ -223,7 +223,7 @@ enum About {
 
 impl About {
     /// The event that is acted on: the meeting, or the series of the occurrence.
-    fn event(self) -> Option<Id> {
+    pub(super) fn event(self) -> Option<Id> {
         match self {
             About::Nothing => None,
             About::Event(id) | About::Occurrence(id, _) => Some(id),
@@ -247,7 +247,7 @@ fn with_uid<'a>(s: &'a Session, uid: &str, account: Id) -> Vec<&'a Event> {
 
 /// The event of the calendar that a message is about: the one with its `UID`; for one occurrence
 /// of a series, the event that occurrence has become, or else the series on that day.
-fn about(s: &Session, invitation: &Invitation) -> About {
+pub(super) fn about(s: &Session, invitation: &Invitation) -> About {
     let found = with_uid(s, &invitation.event.uid, invitation.account);
     let Some((written, day)) = &invitation.instance else {
         return found.first().map_or(About::Nothing, |event| About::Event(event.id));
@@ -610,6 +610,16 @@ fn invitation(s: &mut Session, v: &Value) -> CmdResult {
     // For a message that proposes another time: the time it proposes, as the message has it.
     told["proposed"] = json!((kind == "counter").then(|| json!({"start": invitation.event.start.iso(), "end": invitation.event.end.iso()})));
     told["proposals"] = json!(proposals);
+    // An answer to a meeting the owner organizes on this computer: whether it can be taken into
+    // the meeting (`calendar.takeReply`), and whether it is in it already.
+    let (trackable, tracked) = super::tracking::reply_state(s, &invitation, about);
+    told["trackable"] = json!(trackable);
+    told["tracked"] = json!(tracked);
+    // A meeting the owner organizes by mail: a proposal can be turned down
+    // (`calendar.declineProposal`).
+    told["declinable"] = json!(
+        kind == "counter" && on_calendar.is_some_and(|there| remote::keeper(&s.mailbox, &there.origin).is_none() && super::imip::by_mail(s, there))
+    );
     Ok(told)
 }
 
@@ -644,7 +654,7 @@ pub(super) fn counter(s: &Session, v: &Value) -> Result<Option<Counter>, CmdErro
 /// Who a message that proposes another time is from: the one of the people it lists that it
 /// was sent by; its sender, when it lists somebody else or nobody; and whoever it lists first
 /// when nothing says who sent it.
-fn proposer(s: &Session, invitation: &Invitation) -> Address {
+pub(super) fn proposer(s: &Session, invitation: &Invitation) -> Address {
     let sender = s.mailbox.message(invitation.message).map(|message| person(&message.from)).unwrap_or_default();
     let sent_by = |who: &&Attendee| !sender.email.is_empty() && who.address.email.trim().eq_ignore_ascii_case(sender.email.trim());
     match invitation.event.attendees.iter().find(sent_by) {

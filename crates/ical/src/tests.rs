@@ -368,6 +368,7 @@ fn task() -> impl Strategy<Value = Task> {
         reminder,
         message,
         uid,
+        recurrence: None,
     })
 }
 
@@ -548,5 +549,77 @@ fn a_calendar_cut_anywhere_never_panics() {
     for (cut, _) in text.char_indices().step_by(7) {
         survives(&text[..cut]);
         survives(&text[cut..]);
+    }
+}
+
+/// The methods of iTIP (RFC 5546 §1.4) that meetings by mail use.
+const ITIP_METHODS: [&str; 8] = ["PUBLISH", "REQUEST", "REPLY", "ADD", "CANCEL", "REFRESH", "COUNTER", "DECLINECOUNTER"];
+
+#[test]
+fn every_itip_method_and_the_sequence_round_trip() {
+    let meeting = Event {
+        uid: "planning@example.org".into(),
+        title: "Planning".into(),
+        start: at(2026, 10, 12, 9, 0),
+        end: at(2026, 10, 12, 10, 0),
+        organizer: Some(Address::new("Nadia Okafor", "nadia.okafor@example.org")),
+        attendees: vec![Attendee { address: Address::new("Tomas", "tomas@example.org"), optional: false, response: Response::Tentative }],
+        sequence: 3,
+        ..Default::default()
+    };
+    for method in ITIP_METHODS {
+        let text = write(&[&meeting], &[], &WriteOptions { method: method.into(), now: 1_760_000_000 });
+        assert!(text.contains(&format!("\r\nMETHOD:{method}\r\n")), "{text}");
+        assert!(text.contains("\r\nSEQUENCE:3\r\n"), "{text}");
+        let back = parse(&text, &|_| 0);
+        assert_eq!(back.method, method);
+        assert_eq!(back.events, vec![meeting.clone()]);
+    }
+    // A first version says no sequence (0 is what none means).
+    let first = Event { sequence: 0, ..meeting.clone() };
+    assert!(!write(&[&first], &[], &options()).contains("SEQUENCE"));
+    // What isn't a plain count is none; the first count is the one.
+    let read = |lines: &str| parse(&format!("BEGIN:VEVENT\r\nUID:x\r\nDTSTART:20261012T090000Z\r\n{lines}END:VEVENT\r\n"), &|_| 0).events[0].sequence;
+    assert_eq!(read("SEQUENCE:7\r\nSEQUENCE:9\r\n"), 7);
+    for nonsense in ["SEQUENCE:-1\r\n", "SEQUENCE:1e3\r\n", "SEQUENCE:99999999999\r\n", "SEQUENCE:\r\n", "SEQUENCE: 4 5\r\n"] {
+        assert_eq!(read(nonsense), 0, "{nonsense}");
+    }
+}
+
+#[test]
+fn one_occurrence_is_written_as_its_series_and_the_occurrence_it_stands_for() {
+    let base = Event { title: "Stand-up".into(), start: at(2026, 10, 20, 10, 0), end: at(2026, 10, 20, 10, 30), ..Default::default() };
+    for (uid, lines) in [
+        ("s@example.org#20261019T140000Z", "UID:s@example.org\r\nRECURRENCE-ID:20261019T140000Z\r\n"),
+        ("s@example.org#20261019T140000", "UID:s@example.org\r\nRECURRENCE-ID:20261019T140000\r\n"),
+        ("s@example.org#20261019", "UID:s@example.org\r\nRECURRENCE-ID;VALUE=DATE:20261019\r\n"),
+    ] {
+        let text = write(&[&Event { uid: uid.into(), ..base.clone() }], &[], &options());
+        assert!(text.contains(lines), "{text}");
+        assert_eq!(parse(&text, &|_| 0).events[0].uid, uid);
+    }
+    // Anything else after a `#` is part of the `UID`.
+    for uid in ["s@example.org#", "#20261019", "a#b", "s#2026101", "s#20261019T1400", "s#20261019X140000", "s#20261019T140000ZZ"] {
+        let text = write(&[&Event { uid: uid.into(), ..base.clone() }], &[], &options());
+        assert!(!text.contains("RECURRENCE-ID"), "{uid}: {text}");
+        assert_eq!(parse(&text, &|_| 0).events[0].uid, uid);
+    }
+}
+
+proptest! {
+    #[test]
+    fn any_meeting_by_mail_round_trips(events in proptest::collection::vec(event(), 1..3), sequence in 0u32..1_000_000_000, method in 0usize..ITIP_METHODS.len()) {
+        let events: Vec<Event> = events.into_iter().map(|e| Event { sequence, ..e }).collect();
+        let text = write(&events.iter().collect::<Vec<_>>(), &[], &WriteOptions { method: ITIP_METHODS[method].into(), now: 0 });
+        let back = parse(&text, &|ts| if ts % 2 == 0 { -480 } else { 345 });
+        prop_assert_eq!(back.method.as_str(), ITIP_METHODS[method]);
+        prop_assert_eq!(back.events, events.iter().map(as_read).collect::<Vec<_>>());
+    }
+
+    #[test]
+    fn any_method_line_and_sequence_never_panic(method in "\\PC{0,40}", sequence in "\\PC{0,40}") {
+        let text = format!("BEGIN:VCALENDAR\r\nMETHOD:{method}\r\nBEGIN:VEVENT\r\nUID:x\r\nSEQUENCE:{sequence}\r\nDTSTART:20261012T090000Z\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n");
+        let file = survives(&text);
+        prop_assert!(file.method.len() <= 64);
     }
 }

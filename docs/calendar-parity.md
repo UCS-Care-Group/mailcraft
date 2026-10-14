@@ -1,6 +1,6 @@
 # Calendar: matching Outlook
 
-Status: working list, 2026-10-12 (seventh revision: the fourth wave is in; sixth: time zones; fifth: a change that doesn't reach the server can't go unnoticed). The owner's bar for the
+Status: working list, 2026-10-14 (eighth revision: meetings by mail for accounts without a server calendar, the Scheduling Assistant over several days with AutoPick, a third time zone, long zone names; seventh: the fourth wave is in; sixth: time zones; fifth: a change that doesn't reach the server can't go unnoticed). The owner's bar for the
 calendar is "behaves exactly like Outlook"; this is the list that bar is checked against.
 Behaviour is written down from using Outlook for Windows (classic) as a black box; nothing of it
 is copied but how it behaves.
@@ -22,8 +22,8 @@ server; what has met the real Microsoft 365 service is only what the owner has u
 | Half-hour time scale by default; 60, 15, 10, 6 and 5 minutes on request | Done (right-click the time bar, View › Time Scale, or File › Options); no minute labels at the fine scales yet |
 | Working hours lighter than the rest, from the owner's settings (start, end, days) | Done: the mailbox's own (days, start, end; asked for once an hour, and it takes the permission to read mailbox settings) for the shading, Work Week's days and Home/End, the local options until they come and whenever File › Options › "Use my own working hours" is ticked. The hours are those of the zone the mailbox keeps them in, shown by the clock the calendar is shown by (a mailbox in Pacific time that works 8 to 5 is shaded 11 to 8 on a calendar in New York); a zone this program doesn't know leaves them as written. The first day of the week stays a local option: the mailbox's settings as Microsoft Graph gives them don't have it |
 | A line at the present time | Done |
-| A time zone for the calendar, with a label over the time bar; a second time zone beside it | Done: File › Options › Calendar › Time zones (`view.timeZone`). The calendar is shown in this computer's zone and follows it, or in one that is chosen; "Today", the line at the present time, reminders and working hours go by it. A second zone adds a column of its hours to the time bar, each column under its label (the zone's short name, `UTC-5`, unless one is typed). One second zone, where Outlook now takes two |
-| The computer is carried to another time zone | Done: every appointment stays at its moment and is read by the new clock; an all-day item stays on its day (Outlook moves it, so that it straddles two days); a series goes on repeating at the clock time of the zone it was made in; reminders come up at the same moments; nothing is sent to the server for it. Noticed while the program runs (within a few minutes) and when it starts |
+| A time zone for the calendar, with a label over the time bar; a second time zone beside it | Done: File › Options › Calendar › Time zones (`view.timeZone`). The calendar is shown in this computer's zone and follows it, or in one that is chosen; "Today", the line at the present time, reminders and working hours go by it. A second zone adds a column of its hours to the time bar, and a third one another left of it, each column under its label (the zone's short name, `UTC-5`, unless one is typed); hovering a label names the zone in full |
+| The computer is carried to another time zone | Done: every appointment stays at its moment and is read by the new clock; an all-day item stays on its day (Outlook moves it, so that it straddles two days); a series goes on repeating at the clock time of the zone it was made in; reminders come up at the same moments; nothing is sent to the server for it. Noticed while the program runs (within seconds on Linux, macOS, the BSDs and in the browser, which are asked again every few seconds without a cache; at once on every system when the window comes back to the front or the computer wakes; otherwise within minutes on Windows) and when it starts |
 | Week numbers (option) | Done (ISO weeks) |
 | Several calendars side by side or overlaid, each in its colour, under My Calendars / Other Calendars / shared | Done for the account's own: the list by group (the account's own first, its other groups, Other Calendars, On this computer), each group folding; every ticked calendar in a block of its own with its tab, in Day, Work Week, Week and Month; the arrow on a tab (or View › Overlay) lays calendars over one another, the one in front solid and the others dimmer, a click on a tab bringing it to the front; View › Side-by-Side stands them apart. Right-click a calendar: Show Only This Calendar, Overlay, Colour. A calendar that can only be read says so and takes no new items. Eight blocks at most (the calendars beyond share the last). Later: shared and other people's calendars, Schedule view |
 | The calendar clicked in the list is the one new items go to | Done (the account's own calendar unless another is picked); and what is picked, typed or dropped in a calendar's block is that calendar's, which is then the one being worked in |
@@ -59,8 +59,8 @@ server; what has met the real Microsoft 365 service is only what the owner has u
 | Reminder choices from "none" and "0 minutes" to "2 weeks" | Done |
 | Time zones for start and end | Done: **Time Zones** in the command bar shows a zone beside Start and beside End, each a list to type in (this computer's zone first, the ones used lately next, then one per zone Windows names, every other zone of the IANA database by typing; each with its offset now). Changing a zone keeps the clock time and moves the moment, as in Outlook; a time typed beside a zone is that zone's clock time. An item with zones of its own opens with them showing; an all-day item has none. In the grid everything is at its moment by the calendar's clock, and the tooltip and a meeting request say the item's own time too: `9:00 AM – 10:00 AM (Eastern Time)`; its window shows its zones. A series made in another zone repeats at its clock time there, across both zones' daylight-saving changes. Microsoft 365 keeps the zones (`start` and `end` said in them, read back from `originalStartTimeZone`, `originalEndTimeZone` and `recurrenceTimeZone`), and so does `.ics` (`TZID` with a `VTIMEZONE`) |
 | Rich-text body, attachments, inline pictures | Later (plain text) |
-| Meeting: required and optional attendees with names checked against contacts; Send | Done: on a Microsoft 365 calendar Send creates the meeting there and the server mails the invitations; "Don't Send" keeps it on this computer. Updates and cancellations are sent the same way, each after a question |
-| Scheduling Assistant: everyone's free/busy on a grid; Room Finder | Done for one day: a row per person, busy / tentative / out of office / working elsewhere / no information, and the meeting's time as a band to move and stretch. Next: several days, AutoPick; Later: rooms |
+| Meeting: required and optional attendees with names checked against contacts; Send | Done: on a Microsoft 365 calendar Send creates the meeting there and the server mails the invitations; "Don't Send" keeps it on this computer. Updates and cancellations are sent the same way, each after a question. For an account without a server calendar (plain IMAP and SMTP) a meeting in a calendar on this computer goes as mail from the Outbox, after the same question with "Don't Send" beside it: an iCalendar request (RFC 5546, RFC 6047) to the people (required in To, optional in Cc), from the account the owner organizes it from; an update to everybody with the next `SEQUENCE` (answers asked again when the time moved), a cancellation to whoever is taken off it, to everybody when it is deleted or cancelled (Cancel Meeting), and one occurrence of a series by itself (`RECURRENCE-ID`). Their answers come back as mail and are taken into the meeting's list of people when the answer is shown (only from the person it answers for, only for somebody invited, not for an older version of the meeting); Tracking lists who answered what |
+| Scheduling Assistant: everyone's free/busy on a grid; AutoPick; Room Finder | Done over one, three (the default), five or seven days in one grid: a row per person, busy / tentative / out of office / working elsewhere / no information, each midnight named, the working hours of each working day lighter, and the meeting's time as a band to move and stretch across the days. AutoPick Next moves it to the next time in the days shown when nobody is busy, tentative or out of office, within the working hours (`calendar.scheduling` suggests such times to a script too). Rooms are not offered: Microsoft Graph lists rooms only with the Place.Read.All permission, which the program doesn't ask for (the owner's decision) |
 | Teams meeting button | Done on a meeting in a Microsoft 365 calendar: Teams Meeting in the window's bar (and `calendar.teamsMeeting`); the service makes the meeting when it is sent, and the link to join by comes back with it. The window then shows the link as it is, with Join and Copy Link; the item's menu, the ribbon and the reminder window have Join. Only an `https` link is kept or opened, and only on the owner's click. Once the service has made a meeting online it stays so (the service's rule), which the button says. An account that can't make one (a personal one, a calendar that doesn't allow Teams) is told so before, where the service says which calendars can, and otherwise after: the meeting is made without, and that is said. Not offered for a calendar on this computer. Outlook's "Don't Host Online" setting and the dial-in details are not there |
 | Tracking: who accepted, declined, tentatively accepted | Done, kept current with every download |
 | Response options: request responses, allow new time proposals | Done: Response Options in a meeting's bar, both on unless switched off; kept in the mailbox, sent to Microsoft 365 and read back, and in iCalendar files (`RSVP`, `X-MICROSOFT-DISALLOW-COUNTER`). Somebody else's meeting has none: they are its organizer's to say. Whether other times may be proposed goes to the service with a new meeting; its reference doesn't list that among what can be changed afterwards, so a change to it on a meeting that is already there may be refused: the save is then sent once more without it, so everything else in it holds (and the people invited get one update, not two), that option alone is put back, and the owner is told in one line. The option stays usable: the service may take it |
@@ -74,7 +74,7 @@ server; what has met the real Microsoft 365 service is only what the owner has u
 | Updates and cancellations from the organizer change or remove the item | Done for what comes down from Microsoft 365; a cancellation in mail offers Remove from Calendar (it is not removed by itself) |
 | Respond from the calendar item itself | Done |
 | Propose New Time | Done, from the meeting request in the mail, the item's menu and the ribbon: a dialog with the proposed start and end, the owner's own calendar on that day with the proposal in it, a note, and "Tentative and Propose" / "Decline and Propose", which are what sends (no key does). It says who is written to. On Microsoft 365 the answer goes with the proposed time (the service refuses one the organizer doesn't allow, which is put back and said); for an account whose calendar is kept here it goes from the Outbox as an iCalendar counter-proposal. Outlook opens the Scheduling Assistant's grid for this; here it is the one day |
-| The organizer sees a proposal: Accept Proposal, View All Proposals | Done: a message that proposes another time says what is proposed and offers Accept Proposal, which opens the meeting with that time in its fields, to be sent as an update through the usual question (nothing is changed or sent by opening it); View All Proposals when several are known, as a list (Microsoft 365 says who proposed what with the meeting). The meeting's own window says how many proposed. Outlook shows the proposals as rows of the scheduling grid |
+| The organizer sees a proposal: Accept Proposal, Decline Proposal, View All Proposals | Done: a message that proposes another time says what is proposed and offers Accept Proposal, which opens the meeting with that time in its fields, to be sent as an update through the usual question (nothing is changed or sent by opening it); View All Proposals when several are known, as a list (Microsoft 365 says who proposed what with the meeting). The meeting's own window says how many proposed. For a meeting organized by mail the proposal is kept with the meeting, and Decline Proposal answers it with an iCalendar `DECLINECOUNTER` after a question; Microsoft 365 has no way to decline a proposal by itself, so it isn't offered there. Outlook shows the proposals as rows of the scheduling grid |
 | Forward a meeting or an appointment | Done, from the item's menu, the ribbon and the window's bar: a small dialog with who it goes to and a note, which says who Send writes to and sends from Send alone. Microsoft 365 forwards it (and tells the organizer when the owner is an invitee, as the service does); an item on this computer goes as mail from the Outbox with the item as an iCalendar file. One occurrence of a series can be forwarded by itself. Outlook opens a message window for this; attachments can't be added here |
 | Reply to all attendees with mail | Next |
 
@@ -118,14 +118,17 @@ server; what has met the real Microsoft 365 service is only what the owner has u
    from the mailbox.
 4. **Done 2026-10-12** (M3.4): Teams meetings, importance and response options; Propose New
    Time and, for the organizer, the proposals with Accept Proposal; forwarding a meeting; moving
-   appointments between the calendars of an account. **Next** of this wave: the Scheduling
-   Assistant over several days.
+   appointments between the calendars of an account. **Done 2026-10-14**: the Scheduling
+   Assistant over several days with AutoPick; meetings by mail for accounts without a server
+   calendar (requests, updates, cancellations, answers taken in, proposals declined).
 5. **Later**: rich bodies and attachments in items, rooms, shared calendars,
    Schedule view, notifications in the background.
 6. **Done 2026-10-12** (M3.5, ahead of its wave): time zones. A zone database for every build;
    every stored time a moment; invitations and items from other zones at the right time here;
    zones of an item's own in its window, kept by Microsoft 365 and in `.ics`; a zone for the
-   calendar and a second one in the time bar; a computer that travels.
+   calendar and a second one in the time bar; a computer that travels. **Done 2026-10-14**: a
+   third zone in the time bar, long zone names, a change of the computer's zone noticed at once
+   when the window comes back to the front or the computer wakes.
 
 ## Known differences from Outlook in what is done
 
@@ -144,9 +147,12 @@ server; what has met the real Microsoft 365 service is only what the owner has u
 - The questions about mail to attendees come up in the main window, not in the item's own.
 - After declining on a Microsoft 365 account the item is gone from the server, so the answer can't
   be changed from the message.
-- Time zones are called by shorter names than Outlook's: `Eastern Time` for what Windows calls
-  Eastern Standard Time and Outlook lists as "(UTC-05:00) Eastern Time (US & Canada)"; a zone
-  Windows has no name for goes by its place (`Kathmandu`). They are made from the identifiers the zones have (Windows' and the IANA database's), not from Outlook's list.
+- Time zones are called by our own names, made from the identifiers the zones have (Windows'
+  and the IANA database's), not from Outlook's list: `Eastern Time` in a line, and in a list to
+  choose from or a tooltip a long name, `(UTC-05:00) Eastern Time — New York, Americas`, with
+  Windows' abbreviations spelled out (`West Europe Time`) and an acronym that says nothing to a
+  reader replaced by the place (`Bucharest Time`). Outlook lists "(UTC-05:00) Eastern Time (US &
+  Canada)"; a zone Windows has no name for goes by its place (`Kathmandu`).
 - The rules of the zones come with the program (the IANA database, built in), on every system
   and in the browser the same; Outlook takes them from Windows. A zone whose rules a government
   changes is right here after an update of MailCraft, not of Windows.
@@ -186,6 +192,14 @@ server; what has met the real Microsoft 365 service is only what the owner has u
 - Propose New Time shows the owner's own day beside the new time, not the other attendees' free
   and busy times.
 - Forwarding a meeting takes the people and a note; there is no message to write beyond it.
+- A meeting organized by mail: an answer is taken into the meeting when its message is shown, not
+  when it arrives (Outlook processes answers as they come in). An answer for one occurrence of a
+  series is not kept per occurrence: the series' list stays as it was. Whether the people may
+  propose another time travels as `X-MICROSOFT-DISALLOW-COUNTER` (RFC 5546 has no property for
+  it), whether they are asked to answer as each attendee's standard `RSVP`. A meeting that never
+  went by mail asks "Send This Invitation?" again at its next change.
+- The Scheduling Assistant shows up to seven days from the meeting's, and AutoPick looks in the
+  days shown only; Outlook's grid scrolls on without end and AutoPick searches ahead.
 - Turning Request Responses off doesn't change what Accept, Tentative and Decline offer the guest.
 - The join link is named by the provider the server names, not by where the link leads; the
   link's real destination is shown beside it, and only an `https` link is opened.
@@ -225,4 +239,5 @@ item's original zone when another program made the item.
 | 2026-10-12 | The second wave is in: the grid (resize, copy, keys, navigator, time scales), series as series with the question, meetings and answers through Microsoft 365, every calendar, categories, several appointment windows; a list of known differences |
 | 2026-10-12 | Of the third wave: the calendar list by group, calendars side by side and overlaid, working hours from the mailbox, a reminder opening its occurrence; calendars other than the account's own arrive unticked |
 | 2026-10-12 | The fourth wave is in (M3.4): Teams meetings, importance, response options, Propose New Time, forwarding, moving appointments between calendars; the known differences that came with them |
+| 2026-10-14 | Meetings by mail for accounts without a server calendar (requests, updates, cancellations, answers taken into the meeting, proposals declined, Cancel Meeting, Tracking); the Scheduling Assistant over several days with AutoPick; a third time zone; long zone names; a change of zone noticed at once on coming back to the front or waking; the known differences that came with them |
 | 2026-10-12 | Time zones (M3.5): the calendar's zone and a second one, zones of an item's own in its window, on Microsoft 365 and in `.ics`, working hours in the mailbox's zone, a computer that travels; the known differences that came with them |

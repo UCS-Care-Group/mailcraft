@@ -1,11 +1,14 @@
 //! The Scheduling Assistant: the second page of a meeting's window, as Outlook has it.
 //!
 //! A row for everybody (the organizer first, then the people who are required and the ones who
-//! are optional) over the day the meeting is on, with the working hours lighter than the rest
+//! are optional) over the days from the one the meeting is on (one, three, five or seven of them,
+//! as the owner chooses above the grid), with the working hours lighter than the rest
 //! and each person's time that is taken as a bar: busy, tentative, out of office, working
 //! elsewhere. Where the server has nothing to say of somebody, their row is hatched. The
 //! meeting's own time lies across all rows as a band that can be moved, and made longer or
-//! shorter by its edges: the form's start and end follow.
+//! shorter by its edges: the form's start and end follow. AutoPick moves it to the next time in
+//! the days shown when nobody is busy, tentative or out of office, within the working hours
+//! (`mailcraft_engine::cmd::calendar::next_free`, which `calendar.scheduling` uses too).
 //!
 //! The organizer's row is the owner's own calendar, as this mailbox has it. Everybody else's
 //! comes from the account's server: the engine's `calendar.freeBusy` says what to ask, a host
@@ -31,8 +34,11 @@ use crate::{MailApp, now_ms};
 /// nothing, and how long an answer is good for while the page stays in view (milliseconds).
 pub(crate) const RETRY_MS: f64 = 30_000.0;
 pub(crate) const REFRESH_MS: f64 = 300_000.0;
-/// Most days and people that are remembered at a time.
-const MAX_KNOWN: usize = 8;
+/// Most stretches of days and people that are remembered at a time.
+const MAX_KNOWN: usize = 16;
+/// How many days the grid shows unless the owner chose otherwise, and what can be chosen.
+pub(crate) const DEFAULT_DAYS: u8 = 3;
+const DAY_CHOICES: [u8; 4] = [1, 3, 5, 7];
 /// Most people of one kind (required, optional) the page has a row for.
 const MAX_ROWS: usize = 500;
 
@@ -88,12 +94,14 @@ pub(crate) struct Day {
     pub unknown: String,
 }
 
-/// Whose time is looked at, and on which day.
+/// Whose time is looked at, and on which days.
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct Key {
     /// The account whose server is asked; 0 when there is none to ask.
     account: Id,
+    /// The first day, and how many from it.
     day: Date,
+    days: u8,
     /// Their addresses, in lower case, each once, in order.
     people: Vec<String>,
 }
@@ -136,18 +144,31 @@ fn address_key(email: &str) -> Option<String> {
     Address::new("", email).is_valid().then(|| email.to_lowercase())
 }
 
-/// A day as `calendar.freeBusy` takes it, and the midnight after it.
-fn stretch(day: Date) -> (String, String) {
-    (format!("{}T00:00", day.iso()), format!("{}T00:00", day.add_days(1).iso()))
+/// `days` days from `day` as `calendar.freeBusy` takes them: the first midnight and the last.
+fn stretch(day: Date, days: u8) -> (String, String) {
+    (format!("{}T00:00", day.iso()), format!("{}T00:00", day.add_days(i64::from(days.max(1))).iso()))
+}
+
+/// The minutes in `days` days.
+fn span_of(days: u8) -> u32 {
+    DAY.saturating_mul(u32::from(days.clamp(1, 7)))
+}
+
+/// [`days_of_span`] for one day.
+#[cfg(test)]
+fn days_of(answer: &Value, day: Date) -> Vec<(String, Day)> {
+    days_of_span(answer, day, 1)
 }
 
 /// What `calendar.freeBusy` made of a server's answer, as days: for each of `people`, the
-/// stretches of `day` that are taken, cut to the day, in order. Whatever doesn't read is left out.
-fn days_of(answer: &Value, day: Date) -> Vec<(String, Day)> {
+/// stretches of the `days` days from `day` that are taken (in minutes from its midnight), cut to
+/// those days, in order. Whatever doesn't read is left out.
+fn days_of_span(answer: &Value, day: Date, days: u8) -> Vec<(String, Day)> {
     let midnight = DateTime::at_midnight(day);
+    let total = i64::from(span_of(days));
     let minute = |v: Option<&Value>| -> Option<u32> {
         let (at, _) = mailcraft_time::parse_iso(v?.as_str()?)?;
-        u32::try_from(midnight.minutes_until(at).clamp(0, i64::from(DAY))).ok()
+        u32::try_from(midnight.minutes_until(at).clamp(0, total)).ok()
     };
     let people = answer.get("people").and_then(Value::as_array).map(Vec::as_slice).unwrap_or_default();
     people
@@ -177,8 +198,15 @@ impl MailApp {
     /// When `people` are free and busy on `day`, as far as that is known, for a meeting in
     /// `calendar`. The account's server is asked when that is due: only the Scheduling
     /// Assistant looks, and only while its page is in view.
+    #[cfg(test)]
     pub(crate) fn free_busy(&mut self, calendar: Id, people: &[String], day: Date) -> Look {
         self.free_busy_at(calendar, people, day, now_ms())
+    }
+
+    /// [`free_busy_span_at`](Self::free_busy_span_at) for one day.
+    #[cfg(test)]
+    pub(crate) fn free_busy_at(&mut self, calendar: Id, people: &[String], day: Date, now: f64) -> Look {
+        self.free_busy_span_at(calendar, people, day, 1, now)
     }
 
     /// The account whose server keeps `calendar`, when it is one that can be asked about other
@@ -202,8 +230,10 @@ impl MailApp {
         Ok(account.clone())
     }
 
-    /// [`free_busy`](Self::free_busy) at `now` (milliseconds).
-    pub(crate) fn free_busy_at(&mut self, calendar: Id, people: &[String], day: Date, now: f64) -> Look {
+    /// When `people` are free and busy on the `days` days from `day`, as far as that is known,
+    /// at `now` (milliseconds): the account's server is asked about all of them at once when that
+    /// is due.
+    pub(crate) fn free_busy_span_at(&mut self, calendar: Id, people: &[String], day: Date, days: u8, now: f64) -> Look {
         let mut asked: Vec<String> = Vec::new();
         for email in people.iter().filter_map(|email| address_key(email)) {
             if asked.len() < MAX_SCHEDULES && !asked.contains(&email) {
@@ -214,7 +244,7 @@ impl MailApp {
             return Look::default();
         }
         let account = self.free_busy_account(calendar);
-        let key = Key { account: account.as_ref().map_or(0, |a| a.id), day, people: asked };
+        let key = Key { account: account.as_ref().map_or(0, |a| a.id), day, days: days.clamp(1, 7), people: asked };
         let known = self.free_busy.known.iter().find(|known| known.key == key);
         let mut look = Look {
             people: known.map(|known| known.people.clone()).unwrap_or_default(),
@@ -242,7 +272,7 @@ impl MailApp {
         let access = self.graph_tokens.get(&account.id).filter(|t| t.fresh(mailcraft_time::now())).map(|t| t.access.clone()).unwrap_or_default();
         let kept = self.tokens.get(&account.id).map(|t| t.refresh.clone()).filter(|r| !r.is_empty());
         let refresh = kept.or_else(|| self.remembered("refresh", &account.email)).unwrap_or_default();
-        let (from, to) = stretch(day);
+        let (from, to) = stretch(day, key.days);
         // The engine says what to ask.
         let ask = self
             .session
@@ -333,16 +363,16 @@ impl MailApp {
 
     /// What `calendar.freeBusy` makes of a server's answer for `key`.
     fn digest_free_busy(&mut self, key: &Key, schedule: &FreeBusy) -> Result<Vec<(String, Day)>, String> {
-        let (from, to) = stretch(key.day);
+        let (from, to) = stretch(key.day, key.days);
         let taken = self.session.run("calendar.freeBusy", &json!({"people": key.people, "from": from, "to": to, "result": schedule}));
-        taken.map(|answer| days_of(&answer, key.day)).map_err(|e| e.to_string())
+        taken.map(|answer| days_of_span(&answer, key.day, key.days)).map_err(|e| e.to_string())
     }
 
     /// An answer about people's time that didn't come from the host: a script hands it in
     /// (`ui.eventWindow` with `freeBusy`), as a stand-in for the server. It is taken in as a
     /// host's answer is, for the same people and day, and how many of them it said something of
     /// is answered.
-    pub(crate) fn free_busy_stand_in(&mut self, calendar: Id, people: &[String], day: Date, schedule: &Value) -> Result<usize, String> {
+    pub(crate) fn free_busy_stand_in(&mut self, calendar: Id, people: &[String], (day, days): (Date, u8), schedule: &Value) -> Result<usize, String> {
         let schedule: FreeBusy = serde_json::from_value(schedule.clone())
             .map_err(|e| format!("`freeBusy`: {}", e.to_string().chars().filter(|c| !c.is_control()).take(200).collect::<String>()))?;
         let mut asked: Vec<String> = Vec::new();
@@ -354,7 +384,7 @@ impl MailApp {
         if asked.is_empty() {
             return Err(tl!("Nobody with an address is invited").to_string());
         }
-        let key = Key { account: self.free_busy_account(calendar).map_or(0, |a| a.id), day, people: asked };
+        let key = Key { account: self.free_busy_account(calendar).map_or(0, |a| a.id), day, days: days.clamp(1, 7), people: asked };
         let people = self.digest_free_busy(&key, &schedule)?;
         let said = people.iter().filter(|(_, day)| day.unknown.is_empty()).count();
         // (A question that is out for the same people is overtaken by this.)
@@ -376,8 +406,11 @@ pub(crate) struct Meeting {
     pub event: Option<Id>,
     pub required: Vec<Address>,
     pub optional: Vec<Address>,
-    /// The day the grid shows: the one the meeting starts on.
+    /// The day the meeting starts on.
     pub day: Date,
+    /// The days the grid shows: the first, and how many ([`View::frame`]).
+    pub from: Date,
+    pub days: u8,
     /// When it starts and ends; `None` while the fields don't say.
     pub span: Option<(DateTime, DateTime)>,
     pub all_day: bool,
@@ -401,6 +434,15 @@ struct Drag {
     end: i64,
 }
 
+/// Where the grid begins and how many days it shows, as a window's assistant has it.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct Frame {
+    /// The first day shown; `None` until the grid was drawn.
+    first: Option<Date>,
+    /// How many days the owner chose; 0 for [`DEFAULT_DAYS`].
+    days: u8,
+}
+
 /// What the page drew the last time, for `ui.eventWindow` and the tests.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(crate) struct Drawn {
@@ -413,6 +455,10 @@ pub(crate) struct Drawn {
     pub bars: usize,
     pub pending: bool,
     pub note: String,
+    /// How many days the grid shows.
+    pub days: u8,
+    /// What AutoPick last said when it found no time (empty when it found one).
+    pub picked: String,
 }
 
 /// The Scheduling Assistant's own state in a window.
@@ -421,10 +467,35 @@ pub(crate) struct View {
     /// The grid was scrolled to the working day once.
     placed: bool,
     drag: Option<Drag>,
-    /// The owner's own day, as of a state of the mailbox: its number, the day, the event that is
-    /// left out, and the stretches.
-    own: Option<(u64, Date, Option<Id>, Vec<(u32, u32, ShowAs)>)>,
+    /// The owner's own days, as of a state of the mailbox: its number, the first day and how
+    /// many, the event that is left out, and the stretches.
+    own: Option<(u64, Date, u8, Option<Id>, Vec<(u32, u32, ShowAs)>)>,
+    frame: Frame,
+    /// Where the grid is to be scrolled to (points from its left), once.
+    scroll_to: Option<f32>,
     pub drawn: Drawn,
+}
+
+impl View {
+    /// How many days the grid shows.
+    pub(crate) fn days(&self) -> u8 {
+        if self.frame.days == 0 { DEFAULT_DAYS } else { self.frame.days.clamp(1, 7) }
+    }
+
+    /// Show `days` days (1 to 7).
+    pub(crate) fn set_days(&mut self, days: u8) {
+        self.frame.days = days.clamp(1, 7);
+        self.placed = false;
+    }
+
+    /// The days the grid shows for a meeting that starts on `day`: the first, and how many. The
+    /// grid stays where it is while the meeting is moved within it, and goes with the meeting
+    /// when it is moved out of it.
+    pub(crate) fn frame(&self, day: Date) -> (Date, u8) {
+        let days = self.days();
+        let first = self.frame.first.filter(|first| day >= *first && day < first.add_days(i64::from(days))).unwrap_or(day);
+        (first, days)
+    }
 }
 
 /// A row of the grid.
@@ -455,10 +526,12 @@ fn weight(show_as: ShowAs) -> u8 {
     }
 }
 
-/// The owner's own day: what the calendars of this mailbox have on `day` that takes time, cut
-/// to the day, without the meeting itself.
-fn own_day(app: &MailApp, day: Date, without: Option<Id>) -> Vec<(u32, u32, ShowAs)> {
+/// The owner's own days: what the calendars of this mailbox have on the `days` days from `day`
+/// that takes time (in minutes from its midnight), cut to those days, without the meeting itself.
+fn own_day(app: &MailApp, day: Date, days: u8, without: Option<Id>) -> Vec<(u32, u32, ShowAs)> {
     let midnight = DateTime::at_midnight(day);
+    let total = i64::from(span_of(days));
+    let last = day.add_days(i64::from(days.clamp(1, 7)) - 1);
     let mailbox = &app.session.mailbox;
     // (A series by another zone's clock is wherever that clock puts it on this day.)
     let here = |instant: mailcraft_time::Timestamp| app.session.offset_at(instant);
@@ -466,11 +539,11 @@ fn own_day(app: &MailApp, day: Date, without: Option<Id>) -> Vec<(u32, u32, Show
         .events
         .values()
         .filter(|e| Some(e.id) != without && !e.cancelled && e.show_as != ShowAs::Free)
-        .flat_map(|e| e.occurrences_in(day, day, &here).into_iter().map(move |o| (o, e.show_as)))
+        .flat_map(|e| e.occurrences_in(day, last, &here).into_iter().map(move |o| (o, e.show_as)))
         .take(2_000)
         .filter_map(|(o, show_as)| {
-            let from = u32::try_from(midnight.minutes_until(o.start).clamp(0, i64::from(DAY))).ok()?;
-            let to = u32::try_from(midnight.minutes_until(o.end).clamp(0, i64::from(DAY))).ok()?;
+            let from = u32::try_from(midnight.minutes_until(o.start).clamp(0, total)).ok()?;
+            let to = u32::try_from(midnight.minutes_until(o.end).clamp(0, total)).ok()?;
             (to > from).then_some((from, to, show_as))
         })
         .collect();
@@ -522,10 +595,15 @@ fn snapped(minute: i64) -> i64 {
     ((minute as f64 / SNAP as f64).round() as i64).saturating_mul(SNAP)
 }
 
-/// Where a drag has the meeting now: `delta` minutes from where it was taken hold of. The
-/// meeting stays within the day and keeps a length.
+/// [`dragged_in`] for a grid of one day.
+#[cfg(test)]
 fn dragged(drag: &Drag, delta: i64) -> (i64, i64) {
-    let day = i64::from(DAY);
+    dragged_in(drag, delta, i64::from(DAY))
+}
+
+/// Where a drag has the meeting now: `delta` minutes from where it was taken hold of. The
+/// meeting stays within the `day` minutes the grid shows and keeps a length.
+fn dragged_in(drag: &Drag, delta: i64, day: i64) -> (i64, i64) {
     let length = drag.end.saturating_sub(drag.start).max(0);
     match drag.hold {
         Hold::Move => {
@@ -576,7 +654,7 @@ fn people_of(app: &MailApp, meeting: &Meeting) -> (Address, Vec<(u8, Address)>) 
 pub(crate) fn stand_in(app: &mut MailApp, meeting: &Meeting, schedule: &Value) -> Result<usize, String> {
     let (_, invited) = people_of(app, meeting);
     let asked: Vec<String> = invited.iter().filter_map(|(_, who)| address_key(&who.email)).collect();
-    app.free_busy_stand_in(meeting.calendar, &asked, meeting.day, schedule)
+    app.free_busy_stand_in(meeting.calendar, &asked, (meeting.from, meeting.days), schedule)
 }
 
 /// Lay the page out in `height` points of `ui`, for the window numbered `window`. When the
@@ -584,14 +662,18 @@ pub(crate) fn stand_in(app: &mut MailApp, meeting: &Meeting, schedule: &Value) -
 pub(crate) fn show(app: &mut MailApp, ui: &mut Ui, view: &mut View, meeting: &Meeting, window: u64, height: f32) -> Option<(DateTime, DateTime)> {
     let t = Tokens::get(ui.ctx());
     let twelve = app.session.prefs.twelve_hour;
-    let midnight = DateTime::at_midnight(meeting.day);
+    // The days shown: from where the grid is (the meeting's day, until it is moved past them).
+    let (first, days) = view.frame(meeting.day);
+    view.frame.first = Some(first);
+    let total = span_of(days);
+    let midnight = DateTime::at_midnight(first);
     let (owner, invited) = people_of(app, meeting);
     let asked: Vec<String> = invited.iter().filter_map(|(_, who)| address_key(&who.email)).collect();
-    let look = app.free_busy(meeting.calendar, &asked, meeting.day);
-    // The owner's own day, looked up once for a state of the mailbox.
+    let look = app.free_busy_span_at(meeting.calendar, &asked, first, days, now_ms());
+    // The owner's own days, looked up once for a state of the mailbox.
     let rev = app.session.rev();
-    if !view.own.as_ref().is_some_and(|(at, day, without, _)| (*at, *day, *without) == (rev, meeting.day, meeting.event)) {
-        view.own = Some((rev, meeting.day, meeting.event, own_day(app, meeting.day, meeting.event)));
+    if !view.own.as_ref().is_some_and(|(at, day, n, without, _)| (*at, *day, *n, *without) == (rev, first, days, meeting.event)) {
+        view.own = Some((rev, first, days, meeting.event, own_day(app, first, days, meeting.event)));
     }
     let own = view.own.as_ref().map(|(.., busy)| busy.clone()).unwrap_or_default();
     let mut rows: Vec<Row> = Vec::with_capacity(invited.len() + 2);
@@ -632,26 +714,82 @@ pub(crate) fn show(app: &mut MailApp, ui: &mut Ui, view: &mut View, meeting: &Me
         bars: rows.iter().filter(|row| row.kind >= 1).filter_map(|row| row.day.as_ref()).map(|day| day.busy.len()).sum(),
         pending: look.pending,
         note: look.note.clone(),
+        days,
+        picked: view.drawn.picked.clone(),
     };
     if look.pending {
         // (The host wakes the window when the answer is there; this is for a host that doesn't.)
         ui.ctx().request_repaint_after(std::time::Duration::from_millis(250));
     }
 
-    // The meeting's own time, in minutes of the day shown.
+    // The meeting's own time, in minutes from the first midnight shown.
     let span = meeting.span.map(|(start, end)| (midnight.minutes_until(start), midnight.minutes_until(end))).filter(|(start, end)| end >= start);
     let prefs = &app.session.prefs;
-    let working = prefs.work_days.contains(&meeting.day.weekday());
     let (work_start, work_end) = (u32::from(prefs.work_start.min(24)) * 60, u32::from(prefs.work_end.min(24)) * 60);
-    let legend_h = 44.0;
-    let grid_h = (height - legend_h).max(HEAD_H + 2.0 * ROW_H);
-    let content = vec2(NAME_W + f32::from(DAY as u16) * MINUTE_W, HEAD_H + rows.len() as f32 * ROW_H);
+    let working: Vec<bool> = (0..days).map(|d| prefs.work_days.contains(&first.add_days(i64::from(d)).weekday())).collect();
     let mut moved = None;
-    let mut area = egui::ScrollArea::both().id_salt(("scheduling", window)).max_height(grid_h).auto_shrink([false, false]);
-    if !std::mem::replace(&mut view.placed, true) {
+
+    // How many days, and AutoPick: the next time in them that suits everybody.
+    ui.horizontal(|ui| {
+        ui.spacing_mut().item_spacing.x = 4.0;
+        ui.label(egui::RichText::new(tl!("Show")).size(12.0).color(t.text_dim));
+        for n in DAY_CHOICES {
+            let label = if n == 1 { tl!("1 day").to_string() } else { crate::i18n::fmt(tl!("{n} days"), &[("n", &n.to_string())]) };
+            let chosen = ui.selectable_label(days == n, egui::RichText::new(label).size(12.0));
+            app.hit.add(DAY_HITS[usize::from(n / 2).min(DAY_HITS.len() - 1)], window, chosen.rect);
+            if chosen.clicked() && days != n {
+                view.set_days(n);
+            }
+        }
+        ui.add_space(12.0);
+        let can_pick = span.is_some() && !meeting.all_day;
+        let pick = ui
+            .add_enabled(can_pick, egui::Button::new(egui::RichText::new(tl!("AutoPick Next")).size(12.0)))
+            .on_hover_text(tl!("Move the meeting to the next time in these days when everybody is free, within your working hours."));
+        app.hit.add("schedulingAutoPick", window, pick.rect);
+        if pick.clicked()
+            && let Some((start, end)) = span
+        {
+            let at = |minute: u32| midnight.add_minutes(i64::from(minute));
+            let takes = |show_as: &ShowAs| matches!(show_as, ShowAs::Busy | ShowAs::Tentative | ShowAs::OutOfOffice);
+            let taken: Vec<(DateTime, DateTime)> = rows
+                .iter()
+                .filter(|row| row.kind >= 1)
+                .filter_map(|row| row.day.as_ref())
+                .flat_map(|day| day.busy.iter().filter(|(_, _, show_as)| takes(show_as)).map(|(from, to, _)| (at(*from), at(*to))))
+                .take(20_000)
+                .collect();
+            let week = mailcraft_engine::cmd::calendar::WorkWeek::of(&app.session);
+            let length = (end - start).max(SNAP);
+            let after = midnight.add_minutes(start.saturating_add(SNAP));
+            let found = mailcraft_engine::cmd::calendar::next_free(&taken, after, length, &week, midnight.add_minutes(i64::from(total)));
+            view.drawn.picked = match found {
+                Some(begins) => {
+                    let from = midnight.minutes_until(begins);
+                    moved = Some((from, from + length));
+                    // (It may be on another day: the grid shows it there.)
+                    let x = (from - 60).clamp(0, i64::from(total)) as f32 * MINUTE_W;
+                    view.scroll_to = Some(x);
+                    String::new()
+                }
+                None => tl!("No time in these days suits everybody: show more days, or move the meeting yourself.").to_string(),
+            };
+        }
+        if !view.drawn.picked.is_empty() {
+            ui.label(egui::RichText::new(view.drawn.picked.as_str()).size(11.5).color(t.text_dim));
+        }
+    });
+
+    let legend_h = 44.0 + 26.0;
+    let grid_h = (height - legend_h).max(HEAD_H + 2.0 * ROW_H);
+    let content = vec2(NAME_W + total as f32 * MINUTE_W, HEAD_H + rows.len() as f32 * ROW_H);
+    let mut area = egui::ScrollArea::both().id_salt(("scheduling", window, days)).max_height(grid_h).auto_shrink([false, false]);
+    if let Some(x) = view.scroll_to.take() {
+        area = area.horizontal_scroll_offset(x);
+    } else if !std::mem::replace(&mut view.placed, true) {
         // To begin with: the working day, or the meeting when that starts before it.
-        let first = span.map_or(i64::from(work_start), |(start, _)| start.min(i64::from(work_start)));
-        area = area.horizontal_scroll_offset(((first - 60).clamp(0, i64::from(DAY)) as f32) * MINUTE_W);
+        let first = span.map_or(i64::from(work_start), |(start, _)| if start < i64::from(DAY) { start.min(i64::from(work_start)) } else { start });
+        area = area.horizontal_scroll_offset(((first - 60).clamp(0, i64::from(total)) as f32) * MINUTE_W);
     }
     let frame = egui::Frame::NONE.stroke(Stroke::new(1.0, t.border)).corner_radius(4.0);
     frame.show(ui, |ui| {
@@ -666,23 +804,32 @@ pub(crate) fn show(app: &mut MailApp, ui: &mut Ui, view: &mut View, meeting: &Me
             let x_of = |minute: f32| canvas.min.x + NAME_W + minute * MINUTE_W;
             let row_y = |row: usize| canvas.min.y + HEAD_H + row as f32 * ROW_H;
             let painter = ui.painter().with_clip_rect(grid);
-            // The hours outside the working day are darker.
+            // The hours outside the working day are darker, on every day shown.
             painter.rect_filled(grid, 0.0, t.off_hours);
-            if working && work_end > work_start {
-                let hours = Rect::from_min_max(pos2(x_of(work_start as f32), grid.min.y), pos2(x_of(work_end as f32), grid.max.y));
-                painter.rect_filled(hours, 0.0, t.surface);
+            for (d, works) in working.iter().enumerate() {
+                let base = (d as u32 * DAY) as f32;
+                if *works && work_end > work_start {
+                    let hours = Rect::from_min_max(pos2(x_of(base + work_start as f32), grid.min.y), pos2(x_of(base + work_end as f32), grid.max.y));
+                    painter.rect_filled(hours, 0.0, t.surface);
+                }
             }
-            for half in 0..=48u16 {
-                let x = (x_of(f32::from(half) * 30.0)).floor() + 0.5;
+            let halves = u32::from(days) * 48;
+            for half in 0..=halves {
+                let x = (x_of(half as f32 * 30.0)).floor() + 0.5;
                 if x >= grid.min.x - 1.0 && x <= grid.max.x + 1.0 {
-                    let color = if half % 2 == 0 { t.border_strong } else { t.border };
-                    painter.line_segment([pos2(x, grid.min.y), pos2(x, grid.max.y)], Stroke::new(1.0, color));
+                    // (Midnight between two days is drawn stronger.)
+                    let (color, width) = match (half % 48 == 0 && half > 0, half % 2 == 0) {
+                        (true, _) => (t.text_dim, 1.5),
+                        (_, true) => (t.border_strong, 1.0),
+                        _ => (t.border, 1.0),
+                    };
+                    painter.line_segment([pos2(x, grid.min.y), pos2(x, grid.max.y)], Stroke::new(width, color));
                 }
             }
             // The rows in view, and no others.
-            let first = (((seen.min.y - canvas.min.y) / ROW_H).floor().max(0.0) as usize).min(rows.len());
+            let first_row = (((seen.min.y - canvas.min.y) / ROW_H).floor().max(0.0) as usize).min(rows.len());
             let count = ((seen.height() / ROW_H).ceil() as usize).saturating_add(2);
-            for (i, row) in rows.iter().enumerate().skip(first).take(count) {
+            for (i, row) in rows.iter().enumerate().skip(first_row).take(count) {
                 let y = row_y(i);
                 let lane = Rect::from_min_max(pos2(grid.min.x, y), pos2(grid.max.x, y + ROW_H));
                 painter.line_segment([pos2(grid.min.x, y + ROW_H - 0.5), pos2(grid.max.x, y + ROW_H - 0.5)], Stroke::new(1.0, t.border));
@@ -695,7 +842,7 @@ pub(crate) fn show(app: &mut MailApp, ui: &mut Ui, view: &mut View, meeting: &Me
                             }
                         }
                     }
-                    // Nothing is known of this person's day.
+                    // Nothing is known of this person's days.
                     None => hatch(&painter, lane.shrink2(vec2(0.0, 4.0)), t.border_strong, 7.0),
                 }
             }
@@ -703,16 +850,17 @@ pub(crate) fn show(app: &mut MailApp, ui: &mut Ui, view: &mut View, meeting: &Me
             let (pointer, pressed_at) = ui.input(|i| (i.pointer.interact_pos(), i.pointer.press_origin()));
             let ground = ui.interact(grid, ui.id().with(("scheduling_grid", window)), Sense::click());
             app.hit.add("schedulingGrid", window, grid);
+            let whole = i64::from(total);
             if let (true, Some(at), Some((start, end)), false) = (ground.clicked(), pointer, span, meeting.all_day) {
-                let length = (end - start).clamp(0, i64::from(DAY));
+                let length = (end - start).clamp(0, whole);
                 let minute = ((at.x - x_of(0.0)) / MINUTE_W) as i64;
-                let to = ((minute.div_euclid(SNAP)) * SNAP).clamp(0, i64::from(DAY) - length);
+                let to = ((minute.div_euclid(SNAP)) * SNAP).clamp(0, whole - length);
                 moved = Some((to, to + length));
             }
             // The meeting's own time: a band across everybody, with an edge to take hold of at
             // its start and at its end.
             if let Some((start, end)) = span {
-                let (from, to) = (start.clamp(0, i64::from(DAY)) as f32, end.clamp(0, i64::from(DAY)) as f32);
+                let (from, to) = (start.clamp(0, whole) as f32, end.clamp(0, whole) as f32);
                 let band = Rect::from_min_max(pos2(x_of(from), grid.min.y), pos2(x_of(to).max(x_of(from) + 2.0), grid.max.y));
                 painter.rect_filled(band, 0.0, t.accent.linear_multiply(if t.dark { 0.28 } else { 0.16 }));
                 painter.line_segment([band.left_top(), band.left_bottom()], Stroke::new(2.0, t.green));
@@ -727,8 +875,8 @@ pub(crate) fn show(app: &mut MailApp, ui: &mut Ui, view: &mut View, meeting: &Me
                         (Hold::End, edge(band.max.x), "schedulingEnd"),
                     ];
                     for (hold, rect, kind) in parts {
-                        // (A meeting that runs past the day has no end here to take hold of.)
-                        if !rect.is_positive() || (hold == Hold::End && end > i64::from(DAY)) {
+                        // (A meeting that runs past the days shown has no end here to take hold of.)
+                        if !rect.is_positive() || (hold == Hold::End && end > whole) {
                             continue;
                         }
                         let part = ui.interact(rect, ui.id().with(("scheduling_band", window, kind)), Sense::drag());
@@ -744,7 +892,7 @@ pub(crate) fn show(app: &mut MailApp, ui: &mut Ui, view: &mut View, meeting: &Me
                         if part.dragged()
                             && let (Some(drag), Some(at)) = (view.drag.filter(|drag| drag.hold == hold), pointer)
                         {
-                            let now = dragged(&drag, ((at.x - drag.grabbed) / MINUTE_W) as i64);
+                            let now = dragged_in(&drag, ((at.x - drag.grabbed) / MINUTE_W) as i64, whole);
                             if now != (start, end) {
                                 moved = Some(now);
                             }
@@ -756,15 +904,24 @@ pub(crate) fn show(app: &mut MailApp, ui: &mut Ui, view: &mut View, meeting: &Me
                     }
                 }
             }
-            // The hours, over the rows as they scroll under them.
+            // The hours, over the rows as they scroll under them; each midnight names its day.
             let head = Rect::from_min_max(pos2(seen.min.x + NAME_W, seen.min.y), pos2(seen.max.x, seen.min.y + HEAD_H));
             let hours = ui.painter().with_clip_rect(head);
             hours.rect_filled(head, 0.0, t.panel);
             hours.line_segment([head.left_bottom(), head.right_bottom()], Stroke::new(1.0, t.border_strong));
-            for hour in 0..24u8 {
-                let x = x_of(f32::from(hour) * 60.0);
-                if x + 60.0 >= head.min.x && x <= head.max.x {
-                    hours.text(pos2(x + 5.0, head.center().y), Align2::LEFT_CENTER, time_short(hour, 0, twelve), regular(11.5), t.text_dim);
+            for d in 0..days {
+                let date = first.add_days(i64::from(d));
+                for hour in 0..24u8 {
+                    let x = x_of((u32::from(d) * DAY) as f32 + f32::from(hour) * 60.0);
+                    if x + 60.0 < head.min.x || x > head.max.x {
+                        continue;
+                    }
+                    if hour == 0 {
+                        let name = format!("{} {}", tl!(date.weekday().short()), date.day);
+                        hours.text(pos2(x + 5.0, head.center().y), Align2::LEFT_CENTER, name, semibold(11.5), t.text);
+                    } else {
+                        hours.text(pos2(x + 5.0, head.center().y), Align2::LEFT_CENTER, time_short(hour, 0, twelve), regular(11.5), t.text_dim);
+                    }
                 }
             }
             // The names, over the grid as it scrolls under them.
@@ -773,7 +930,7 @@ pub(crate) fn show(app: &mut MailApp, ui: &mut Ui, view: &mut View, meeting: &Me
             column.rect_filled(names, 0.0, t.panel);
             column.line_segment([names.right_top(), names.right_bottom()], Stroke::new(1.0, t.border_strong));
             let below = ui.painter().with_clip_rect(Rect::from_min_max(pos2(names.min.x, names.min.y + HEAD_H), names.max));
-            for (i, row) in rows.iter().enumerate().skip(first).take(count) {
+            for (i, row) in rows.iter().enumerate().skip(first_row).take(count) {
                 let y = row_y(i);
                 let cell = Rect::from_min_max(pos2(names.min.x, y), pos2(names.max.x, y + ROW_H));
                 below.line_segment([pos2(cell.min.x, cell.max.y - 0.5), pos2(cell.max.x, cell.max.y - 0.5)], Stroke::new(1.0, t.border));
@@ -798,25 +955,30 @@ pub(crate) fn show(app: &mut MailApp, ui: &mut Ui, view: &mut View, meeting: &Me
                     ui.interact(visible, ui.id().with(("scheduling_name", window, i)), Sense::hover()).on_hover_text(row.detail.as_str());
                 }
             }
-            // The corner: the day that is shown.
+            // The corner: the days that are shown.
             let corner = Rect::from_min_max(seen.min, pos2(seen.min.x + NAME_W, seen.min.y + HEAD_H));
             let top = ui.painter().with_clip_rect(corner);
             top.rect_filled(corner, 0.0, t.panel);
             top.line_segment([corner.left_bottom(), corner.right_bottom()], Stroke::new(1.0, t.border_strong));
             top.line_segment([corner.right_top(), corner.right_bottom()], Stroke::new(1.0, t.border_strong));
-            let day = format!("{}, {}", tl!(meeting.day.weekday().short()), meeting.day.medium());
-            paint_clipped(&top, pos2(corner.min.x + 10.0, corner.center().y), NAME_W - 16.0, &day, semibold(12.0), t.text);
+            let last = first.add_days(i64::from(days) - 1);
+            let shown = if days == 1 {
+                format!("{}, {}", tl!(first.weekday().short()), crate::i18n::date_medium(first))
+            } else {
+                format!("{} – {}", crate::i18n::date_medium(first), crate::i18n::date_medium(last))
+            };
+            paint_clipped(&top, pos2(corner.min.x + 10.0, corner.center().y), NAME_W - 16.0, &shown, semibold(12.0), t.text);
         });
     });
     // What the bars mean, and what there is to say about where they come from.
     ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing.x = 6.0;
         let entries: [(Option<ShowAs>, &str); 5] = [
-            (Some(ShowAs::Busy), "Busy"),
-            (Some(ShowAs::Tentative), "Tentative"),
-            (Some(ShowAs::OutOfOffice), "Out of Office"),
-            (Some(ShowAs::WorkingElsewhere), "Working Elsewhere"),
-            (None, "No information"),
+            (Some(ShowAs::Busy), tn!("Busy")),
+            (Some(ShowAs::Tentative), tn!("Tentative")),
+            (Some(ShowAs::OutOfOffice), tn!("Out of Office")),
+            (Some(ShowAs::WorkingElsewhere), tn!("Working Elsewhere")),
+            (None, tn!("No information")),
         ];
         for (show_as, label) in entries {
             let (swatch, _) = ui.allocate_exact_size(vec2(22.0, 12.0), Sense::hover());
@@ -850,6 +1012,9 @@ pub(crate) fn show(app: &mut MailApp, ui: &mut Ui, view: &mut View, meeting: &Me
     }
     moved.map(|(start, end)| (midnight.add_minutes(start), midnight.add_minutes(end)))
 }
+
+/// The names `ui.inspect` and `ui.click` know the choices of days by: 1, 3, 5 and 7.
+const DAY_HITS: [&str; 4] = ["schedulingDays1", "schedulingDays3", "schedulingDays5", "schedulingDays7"];
 
 #[cfg(test)]
 mod tests {
@@ -1078,6 +1243,8 @@ mod tests {
             required: vec![Address::new("Maya Okafor", "maya@lumen.example"), Address::new("", "bob")],
             optional: vec![Address::new("", "avery@mail.example"), Address::new("", "Maya@lumen.example")],
             day: day.add_days(2),
+            from: day.add_days(2),
+            days: 1,
             span: None,
             all_day: false,
         };

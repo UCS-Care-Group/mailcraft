@@ -19,10 +19,10 @@ pub(crate) fn short(zone: Zone, now: Timestamp) -> String {
     if zone.is_local() { tl!("This computer's time").to_string() } else { format!("({}) {}", zone.offset_label(now), tl!(&zone.label())) }
 }
 
-/// `(UTC-05:00) Central Time · Chicago`: a zone as a row of the list.
+/// `(UTC-05:00) Central Time — Chicago, Americas`: a zone as a row of the list, by its long name
+/// ([`Zone::long_name`]: our own words, made of the zone's identifiers).
 pub(crate) fn row(zone: Zone, now: Timestamp) -> String {
-    let (label, place) = (zone.label(), zone.place());
-    if place.is_empty() || label.contains(&place) { short(zone, now) } else { format!("{} · {place}", short(zone, now)) }
+    if zone.is_local() { short(zone, now) } else { zone.long_name(now) }
 }
 
 /// A drop-down that shows the zone `current` and lists the zones to choose from, the computer's
@@ -92,10 +92,10 @@ mod tests {
         let now = 1_791_817_200;
         let zone = |name: &str| Zone::named(name).unwrap();
         assert_eq!(short(zone("America/Chicago"), now), "(UTC-05:00) Central Time");
-        assert_eq!(row(zone("America/Chicago"), now), "(UTC-05:00) Central Time · Chicago");
-        assert_eq!(row(zone("Asia/Tokyo"), now), "(UTC+09:00) Tokyo Time");
-        assert_eq!(row(zone("America/Detroit"), now), "(UTC-04:00) Detroit");
-        assert_eq!(row(Zone::UTC, now), "(UTC) UTC");
+        assert_eq!(row(zone("America/Chicago"), now), "(UTC-05:00) Central Time — Chicago, Americas");
+        assert_eq!(row(zone("Asia/Tokyo"), now), "(UTC+09:00) Tokyo Time — Asia");
+        assert_eq!(row(zone("America/Detroit"), now), "(UTC-04:00) Detroit — Americas");
+        assert_eq!(row(Zone::UTC, now), "(UTC)");
         assert_eq!(short(Zone::LOCAL, now), "This computer's time");
         assert_eq!(bar_label(zone("America/Chicago"), "", now), "UTC-5");
         assert_eq!(bar_label(zone("Asia/Kolkata"), "", now), "UTC+5:30");

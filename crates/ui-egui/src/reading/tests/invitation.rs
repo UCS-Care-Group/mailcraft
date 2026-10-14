@@ -645,6 +645,9 @@ fn the_calendar_button_shows_the_day_and_the_option_files_the_request_away() {
     // Turned on in File › Options: the next one goes to Deleted Items, and is not deleted for good.
     harness.state_mut().execute("ui.backstage", json!({"value": true, "page": "options"})).unwrap();
     harness.run_steps(3);
+    // (Options is a long page: brought into view first, wherever it is on it.)
+    harness.get_by_label("Delete meeting requests from the Inbox after responding").scroll_to_me();
+    harness.run_steps(3);
     harness.get_by_label("Delete meeting requests from the Inbox after responding").click();
     harness.run_steps(3);
     assert!(harness.state().session.prefs.delete_answered_requests && harness.state().prefs().options.delete_answered_requests);
@@ -1036,6 +1039,9 @@ fn a_message_that_proposes_another_time_offers_to_take_it_up() {
     // Saved from there, it is at the proposed time.
     let window = open[0]["id"].as_u64().unwrap();
     harness.state_mut().execute("ui.eventWindow", json!({"window": window, "do": "saveAndClose"})).unwrap();
+    harness.run_steps(6);
+    // (Organized on this computer: the update would go by mail, which is asked first.)
+    answer(&mut harness, "Save without Sending");
     harness.run_steps(6);
     let now = harness.state().session.mailbox.event(planning).cloned().unwrap();
     assert_eq!(

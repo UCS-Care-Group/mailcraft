@@ -7,15 +7,23 @@ use serde_json::{Value, json};
 use super::{bad, done, fail, needs_message, remote};
 use crate::{CmdError, CmdResult, CommandSpec, Module, Session, p};
 
+mod imip;
+#[cfg(test)]
+mod imip_tests;
 mod invitation;
 mod meeting;
+mod scheduling;
+mod tracking;
 
 pub use meeting::teams_refusal;
+pub use scheduling::{WorkWeek, next_free};
 
 pub fn specs() -> Vec<CommandSpec> {
     let mut specs = own_specs();
     specs.extend(invitation::specs());
     specs.extend(meeting::specs());
+    specs.extend(tracking::specs());
+    specs.extend(scheduling::specs());
     specs
 }
 
@@ -182,6 +190,20 @@ fn may_send(v: &Value, people: usize, doing: &str) -> Result<bool, CmdError> {
     }
 }
 
+/// For a change to an event kept on this computer (`before` as it was, `e` as it will be):
+/// whether the people invited to it are to hear of the change by mail. Only when the owner
+/// organizes it and said `"send": true`; refused when it can't be sent from here.
+fn mails(s: &Session, v: &Value, before: &Event, e: &Event) -> Result<bool, CmdError> {
+    if p::bool(v, "send") != Some(true) || !(imip::by_mail(s, before) || imip::by_mail(s, e)) {
+        return Ok(false);
+    }
+    let probe = if e.attendees.is_empty() { before } else { e };
+    match imip::refusal(s, probe) {
+        Some(why) => Err(fail(why)),
+        None => Ok(true),
+    }
+}
+
 /// The note that goes with a cancellation or an answer: lines of text, not too long.
 fn comment(v: &Value) -> String {
     let words = p::str(v, "comment").unwrap_or("");
@@ -244,7 +266,7 @@ pub(crate) fn next_color(mailbox: &mailcraft_model::Mailbox) -> Rgb {
     COLORS.get(mailbox.calendars.len() % COLORS.len()).copied().unwrap_or_default()
 }
 
-fn parse_recurrence(v: &Value) -> Result<Recurrence, CmdError> {
+pub(crate) fn parse_recurrence(v: &Value) -> Result<Recurrence, CmdError> {
     let freq = Freq::parse(p::req_str(v, "freq")?).ok_or_else(|| bad("`freq` is daily, weekly, monthly or yearly"))?;
     let mut by_day = Vec::new();
     for d in p::strings(v, "byDay").unwrap_or_default() {
@@ -439,6 +461,12 @@ fn create(s: &mut Session, v: &Value, meeting: bool) -> CmdResult {
     if kept_here {
         e.online = None;
     }
+    // A meeting in a calendar on this computer goes to the people invited as mail from the
+    // Outbox, when that is said to be meant (and only then).
+    let by_mail = !served(s, e.calendar) && !e.attendees.is_empty() && p::bool(v, "send") == Some(true);
+    if by_mail && let Some(why) = imip::refusal(s, &e) {
+        return Err(fail(why));
+    }
     meeting::online_fits(s, &e, None)?;
     let id = s.mailbox.add_event(e)?;
     // In a calendar that a server keeps: the server is to have it too.
@@ -447,9 +475,14 @@ fn create(s: &mut Session, v: &Value, meeting: bool) -> CmdResult {
         let account = s.mailbox.event(id).map_or(0, |e| e.origin.account);
         remote::approve_mail(&mut s.mailbox, account, id, "", "");
     }
+    let mailed = if by_mail { Some(imip::send(s, id, imip::Kind::Invite, None, &[], &comment(v))?) } else { None };
     s.sel.event = Some(id);
     s.sel.event_day = s.mailbox.event(id).map(|e| e.start.date);
-    Ok(if kept_here { json!({"id": id, "keptHere": true}) } else { json!({"id": id}) })
+    Ok(match mailed {
+        Some(people) => json!({"id": id, "byMail": true, "mailed": people}),
+        None if kept_here => json!({"id": id, "keptHere": true}),
+        None => json!({"id": id}),
+    })
 }
 
 fn new(s: &mut Session, v: &Value) -> CmdResult {
@@ -539,13 +572,31 @@ fn change_one(s: &mut Session, v: &Value, series: &Event, day: Date, changed: Ev
         return Ok(json!({"id": series.id}));
     }
     let send = if kept { may_change(s, v, &was, &one)? } else { false };
+    // A meeting the owner organizes on this computer: that occurrence is sent as itself, named
+    // by its series and the time it had (RFC 5546 §3.2.2, `RECURRENCE-ID`).
+    let mail = !kept && mails(s, v, series, &one)?;
+    let moved_in_time = imip::rescheduled(&was, &one);
     s.mailbox.event_mut(series.id)?.exceptions.push(day);
+    if !kept && imip::by_mail(s, series) && !series.uid.trim().is_empty() {
+        one.uid = format!("{}#{}", series.uid.trim(), imip::recurrence_id(s, series, day));
+    }
     let id = s.mailbox.add_event(one)?;
     if kept {
         remote::note_occurrence_changed(s, series, day, id, Event { id, ..was }, send)?;
     }
     s.sel.event = Some(id);
     s.sel.event_day = s.mailbox.event(id).map(|e| e.start.date);
+    if mail {
+        if series.uid.trim().is_empty() {
+            // (Never sent before: the series gets its name now, and the occurrence with it.)
+            let uid = imip::ensure_uid(s, series.id)?;
+            let rid = imip::recurrence_id(s, series, day);
+            s.mailbox.event_mut(id)?.uid = format!("{uid}#{rid}");
+        }
+        imip::count_up(s, id, moved_in_time)?;
+        let told = imip::send(s, id, imip::Kind::Update, None, &[], &comment(v))?;
+        return Ok(json!({"id": id, "series": series.id, "occurrence": day.iso(), "byMail": true, "mailed": told}));
+    }
     Ok(json!({"id": id, "series": series.id, "occurrence": day.iso()}))
 }
 
@@ -584,11 +635,19 @@ pub fn mail_of(s: &Session, id: &str, v: &Value) -> Option<Mail> {
         let mut e = Event::default();
         apply(s, &mut e, v).ok()?;
         let calendar = if e.calendar == 0 { current_calendar(s) } else { e.calendar };
-        return (served(s, calendar) && !e.attendees.is_empty()).then_some(Mail::Invitation(e.attendees.len()));
+        e.calendar = calendar;
+        // (In a calendar on this computer: by mail, from an account that can send it.)
+        let sent = served(s, calendar) || imip::refusal(s, &e).is_none();
+        return (sent && !e.attendees.is_empty()).then_some(Mail::Invitation(e.attendees.len()));
     }
     let before = s.mailbox.event(p::id(v, "id").or(s.sel.event)?)?.clone();
     let one = part(s, &before, v).ok()?;
     if id == "calendar.delete" {
+        if kept_by(s, &before).is_none() {
+            // A meeting the owner organized by mail (one that went has a `UID`).
+            let sent = !before.uid.trim().is_empty() && imip::refusal(s, &before).is_none();
+            return sent.then_some(Mail::Cancellation(before.attendees.len()));
+        }
         // (One that isn't on the server yet has invited nobody yet.)
         let people = if before.origin.id.is_empty() || p::bool(v, "decline") == Some(true) { 0 } else { invited(s, &before) };
         return (people > 0).then_some(Mail::Cancellation(people));
@@ -602,8 +661,22 @@ pub fn mail_of(s: &Session, id: &str, v: &Value) -> Option<Mail> {
     };
     if kept_by(s, &before).is_none() {
         // One of the mailbox's own that goes into a server's calendar.
-        let arrives = e.calendar != before.calendar && served(s, e.calendar) && !e.attendees.is_empty();
-        return arrives.then_some(Mail::Invitation(e.attendees.len()));
+        if e.calendar != before.calendar && served(s, e.calendar) {
+            return (!e.attendees.is_empty()).then_some(Mail::Invitation(e.attendees.len()));
+        }
+        // A meeting the owner organizes here, by mail.
+        let probe = if e.attendees.is_empty() { &before } else { &e };
+        if !(imip::by_mail(s, &before) || imip::by_mail(s, &e)) || imip::refusal(s, probe).is_some() {
+            return None;
+        }
+        let seen = remote::seen_by_others(&remote::changed_fields(&before, &e, &remote::offset_of(s)));
+        if !seen {
+            return None;
+        }
+        if before.uid.trim().is_empty() {
+            return (!e.attendees.is_empty()).then_some(Mail::Invitation(e.attendees.len()));
+        }
+        return Some(Mail::Update(before.attendees.len().max(e.attendees.len())));
     }
     if before.origin.guest {
         return None;
@@ -611,6 +684,19 @@ pub fn mail_of(s: &Session, id: &str, v: &Value) -> Option<Mail> {
     let people = before.attendees.len().max(e.attendees.len());
     let seen = remote::seen_by_others(&remote::changed_fields(&before, &e, &remote::offset_of(s)));
     (people > 0 && seen).then_some(Mail::Update(people))
+}
+
+/// Whether the mail [`mail_of`] says the command would send goes as messages from the Outbox of
+/// one of the owner's accounts (a meeting kept on this computer, organized by mail), rather than
+/// from an account's server. For whoever asks the owner first: the words differ.
+pub fn mail_by_outbox(s: &Session, id: &str, v: &Value) -> bool {
+    if matches!(id, "calendar.new" | "calendar.newMeeting") {
+        let calendar = p::id(v, "calendar").filter(|c| s.mailbox.calendar(*c).is_some()).unwrap_or_else(|| current_calendar(s));
+        return !served(s, calendar);
+    }
+    let Some(before) = p::id(v, "id").or(s.sel.event).and_then(|id| s.mailbox.event(id)) else { return false };
+    let into = p::id(v, "calendar").filter(|c| id == "calendar.edit" && *c != before.calendar);
+    kept_by(s, before).is_none() && !into.is_some_and(|c| served(s, c))
 }
 
 fn edit(s: &mut Session, v: &Value) -> CmdResult {
@@ -648,7 +734,14 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
             e.organizer = s.mailbox.calendar(e.calendar).and_then(|c| remote::keeper(&s.mailbox, &c.origin)).map(|a| a.address()).or(e.organizer);
         }
     }
+    // A meeting the owner organizes on this computer: the people hear of the change by mail,
+    // when that is said to be meant.
+    let mail = kept.is_none() && !(moved && served(s, e.calendar)) && mails(s, v, &before, &e)?;
     *s.mailbox.event_mut(id)? = e;
+    if mail {
+        let told = imip::after_change(s, &before, &comment(v))?;
+        return Ok(json!({"id": id, "byMail": true, "mailed": told}));
+    }
     match kept {
         Some(_) => changed(s, &before)?,
         // One of the mailbox's own that was put into a server's calendar is that server's now.
@@ -682,12 +775,17 @@ fn move_event(s: &mut Session, v: &Value) -> CmdResult {
         return change_one(s, v, &before, day, e);
     }
     let send = may_change(s, v, &before, &e)?;
+    let mail = kept_by(s, &before).is_none() && mails(s, v, &before, &e)?;
     *s.mailbox.event_mut(id)? = e;
     changed(s, &before)?;
     if send {
         remote::approve_mail(&mut s.mailbox, before.origin.account, id, &before.origin.id, "");
     }
     s.sel.event_day = Some(start.date);
+    if mail {
+        let told = imip::after_change(s, &before, &comment(v))?;
+        return Ok(json!({"id": id, "byMail": true, "mailed": told}));
+    }
     Ok(json!({"id": id}))
 }
 
@@ -704,6 +802,10 @@ fn delete(s: &mut Session, v: &Value) -> CmdResult {
     // Somebody else's meeting can be declined rather than only taken out of the calendar.
     let decline = p::bool(v, "decline") == Some(true) && kept && before.origin.guest && !before.origin.id.is_empty();
     let (tell, note) = (p::bool(v, "send") == Some(true), comment(v));
+    // A meeting the owner organizes on this computer, which went by mail: the people are told
+    // by mail that it is cancelled, when that is said to be meant. (One that never went has
+    // invited nobody.)
+    let mail = !kept && !before.uid.trim().is_empty() && mails(s, v, &before, &before)?;
     if let Part::One(day) = part(s, &before, v)? {
         if before.exceptions.contains(&day) {
             return Ok(json!({"id": id, "occurrence": day.iso()}));
@@ -717,6 +819,12 @@ fn delete(s: &mut Session, v: &Value) -> CmdResult {
         // (A series that isn't on the server yet has invited nobody yet.)
         let people = if before.origin.id.is_empty() { 0 } else { invited(s, &before) };
         let send = if decline { tell } else { may_send(v, people, TELLS_CANCEL)? };
+        if mail {
+            imip::count_up(s, id, false)?;
+            let told = imip::send(s, id, imip::Kind::Cancel, Some(day), &[], &note)?;
+            s.mailbox.event_mut(id)?.exceptions.push(day);
+            return Ok(json!({"id": id, "occurrence": day.iso(), "byMail": true, "mailed": told}));
+        }
         s.mailbox.event_mut(id)?.exceptions.push(day);
         // Its server is to delete (or decline) that occurrence too; a series that isn't there
         // yet arrives without it.
@@ -729,7 +837,19 @@ fn delete(s: &mut Session, v: &Value) -> CmdResult {
     // (A meeting that isn't on the server yet has invited nobody yet: it just doesn't go.)
     let people = if before.origin.id.is_empty() { 0 } else { invited(s, &before) };
     let send = if decline { tell } else { may_send(v, people, TELLS_CANCEL)? };
+    let mailed = if mail {
+        imip::count_up(s, id, false)?;
+        Some(imip::send(s, id, imip::Kind::Cancel, None, &[], &note)?)
+    } else {
+        None
+    };
     s.mailbox.remove_event(id)?;
+    if let Some(told) = mailed {
+        if s.sel.event == Some(id) {
+            (s.sel.event, s.sel.event_day) = (None, None);
+        }
+        return Ok(json!({"deleted": id, "byMail": true, "mailed": told}));
+    }
     if decline {
         remote::note_responded(&mut s.mailbox, &before, Response::Declined, send, &note)?;
     } else {
@@ -931,10 +1051,15 @@ fn private(s: &mut Session, v: &Value) -> CmdResult {
     let private = p::bool(v, "value").unwrap_or(!before.private);
     // A meeting the owner organizes is private for everyone invited: they are told.
     let send = may_change(s, v, &before, &Event { private, ..before.clone() })?;
+    let mail = kept_by(s, &before).is_none() && private != before.private && mails(s, v, &before, &before)?;
     s.mailbox.event_mut(id)?.private = private;
     changed(s, &before)?;
     if send {
         remote::approve_mail(&mut s.mailbox, before.origin.account, id, &before.origin.id, "");
+    }
+    if mail {
+        let told = imip::after_change(s, &before, "")?;
+        return Ok(json!({"id": id, "private": private, "byMail": true, "mailed": told}));
     }
     Ok(json!({"id": id, "private": private}))
 }
