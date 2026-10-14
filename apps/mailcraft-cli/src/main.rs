@@ -19,13 +19,14 @@ USAGE:
                                                 messages, newest first (JSON)
   mailcraft-cli show <mailbox> <id>             one message in full (JSON)
   mailcraft-cli import <mailbox> <file>... [--folder PATH]
-                                                bring .eml, .mbox, .ics and .vcf files into a
+                                                bring .eml, .msg, .mbox, .ics and .vcf files into a
                                                 mailbox (made if it doesn't exist) and save it
   mailcraft-cli export <mailbox> <out> [--folder PATH] [--id N]
                                                 by extension: .mbox (a folder), .eml (message --id),
                                                 .ics (the calendar), .vcf (the contacts),
                                                 .mailcraft (everything, in one file)
   mailcraft-cli convert <in> <out>              between .mailcraft, .eml, .mbox, .ics and .vcf
+                                                (and from Outlook's .msg)
   mailcraft-cli run [--file F | --sample] --cmd 'id={json}' [--cmd ...] [--save OUT] [--print]
                                                 run commands headlessly, then save
   mailcraft-cli sync <mailbox> [--account EMAIL]
@@ -357,7 +358,9 @@ fn run(args: &[String]) -> Result<(), Failure> {
                                 )
                             };
                             let cancel = std::sync::atomic::AtomicBool::new(false);
-                            mailcraft_net::oauth::sign_in(&oauth, &request.account.email, &open, &cancel).map_err(|e| format!("sync: {e}"))?.access
+                            // A shared mailbox is opened with its owner's sign-in: the owner signs in.
+                            let who = if request.send_login.is_empty() { request.account.email.clone() } else { request.send_login.clone() };
+                            mailcraft_net::oauth::sign_in(&oauth, &who, &open, &cancel).map_err(|e| format!("sync: {e}"))?.access
                         }
                     };
                 }
@@ -531,7 +534,7 @@ mod tests {
         let kept = file("kept.mailcraft");
         run(&strings(&["import", &kept, &eml])).unwrap();
         assert!(std::path::Path::new(&format!("{kept}.blobs")).is_dir());
-        assert!(!std::fs::read_to_string(&kept).unwrap().contains("Line 150 of a long message"));
+        assert!(!String::from_utf8_lossy(&std::fs::read(&kept).unwrap()).contains("Line 150 of a long message"));
         let s = open(&kept).unwrap();
         let wrote = long.replace("\r\n", "\n");
         let text = |s: &Session| s.mailbox.messages.values().next().unwrap().body.text.replace("\r\n", "\n");

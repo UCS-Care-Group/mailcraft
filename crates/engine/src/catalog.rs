@@ -29,6 +29,7 @@ File|Backstage|Mailbox Cleanup|file.cleanup
 File|Backstage|Rules and Alerts|rules.list
 File|Backstage|Open Data File|file.openDataFile
 File|Backstage|Open Shared Calendar|calendar.openShared
+File|Backstage|Open Shared Mailbox|account.addShared
 File|Backstage|Office Account|file.account
 Quick Access|Toolbar|Send/Receive All Folders|sync.request
 Quick Access|Toolbar|Undo|edit.undo

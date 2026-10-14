@@ -9,8 +9,13 @@ use crate::theme::{Tokens, regular, semibold};
 use crate::{MailApp, icons};
 
 /// The pages: code, label, icon.
-pub const PAGES: &[(&str, &str, &str)] =
-    &[("info", "Info", "info"), ("open", "Open & Export", "import"), ("options", "Options", "options"), ("about", "About", "help")];
+pub const PAGES: &[(&str, &str, &str)] = &[
+    ("info", tn!("Info"), "info"),
+    ("open", tn!("Open & Export"), "import"),
+    ("print", tn!("Print"), "print"),
+    ("options", tn!("Options"), "options"),
+    ("about", tn!("About"), "help"),
+];
 
 pub fn show(app: &mut MailApp, ui: &mut Ui) {
     let t = Tokens::get(ui.ctx());
@@ -18,9 +23,12 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
     // The column of pages: the accent with its ink on a light window; in the dark a neutral
     // column, where the accent only marks the page in view.
     let (column, ink) = if t.dark { (t.panel, t.text) } else { (t.accent, t.on_accent) };
-    egui::Panel::left("backstage_nav").exact_size(210.0).resizable(false).show_separator_line(false).frame(egui::Frame::NONE.fill(column)).show(
-        ui,
-        |ui| {
+    crate::i18n::start_panel("backstage_nav")
+        .exact_size(210.0)
+        .resizable(false)
+        .show_separator_line(false)
+        .frame(egui::Frame::NONE.fill(column))
+        .show(ui, |ui| {
             ui.spacing_mut().item_spacing = vec2(0.0, 2.0);
             ui.add_space(top + 10.0);
             // Back to the mailbox.
@@ -55,8 +63,7 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
                     let _ = app.run("ui.backstage", json!({"value": true, "page": code}));
                 }
             }
-        },
-    );
+        });
     egui::CentralPanel::default()
         .frame(egui::Frame::NONE.fill(t.surface).inner_margin(egui::Margin { left: 36, right: 36, top: 24, bottom: 24 }))
         .show(ui, |ui| {
@@ -66,6 +73,7 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
                 ui.spacing_mut().item_spacing = vec2(8.0, 8.0);
                 match app.ui.backstage_page.as_str() {
                     "open" => open(app, ui, &t),
+                    "print" => crate::print::page(app, ui, &t),
                     "options" => options(app, ui, &t),
                     "about" => about(app, ui, &t),
                     _ => info(app, ui, &t),
@@ -97,8 +105,13 @@ fn tile(ui: &mut Ui, icon: &str, title: &str, detail: &str, t: &Tokens) -> bool 
 fn info(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     heading(ui, tl!("Info"), t);
     section(ui, tl!("Accounts"), t);
-    let accounts = app.session.mailbox.accounts.clone();
+    // Each account, then the shared mailboxes it opens.
+    let accounts: Vec<mailcraft_model::Account> = app.session.mailbox.accounts_in_pane_order().into_iter().cloned().collect();
     for a in &accounts {
+        if a.is_shared() {
+            shared_card(app, ui, a, t);
+            continue;
+        }
         let (r, _) = ui.allocate_exact_size(vec2(ui.available_width().min(560.0), 58.0), Sense::hover());
         ui.painter().rect(r, 6.0, t.panel, Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
         crate::widgets::avatar(ui, pos2(r.min.x + 30.0, r.center().y), 17.0, &a.address());
@@ -123,15 +136,6 @@ fn info(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
             }
         };
         crate::theme::paint_clipped(ui.painter(), pos2(r.min.x + 58.0, r.min.y + 39.0), r.width() - 240.0, &detail, regular(11.5), t.text_dim);
-        // Sending, calendar and contacts through Microsoft wait for the owner's say-so.
-        if app.graph_consent_needed(a.id) {
-            let link = ui.link(tl!("Connect calendar and contacts")).on_hover_text(tl!(
-                "Sign in once more to let MailCraft send through Microsoft and show your calendar and contacts. Mail works without it."
-            ));
-            if link.clicked() {
-                let _ = app.run("ui.connectMicrosoft", json!({"account": a.id}));
-            }
-        }
         if !a.email.is_empty() {
             let br = Rect::from_min_size(pos2(r.max.x - 168.0, r.center().y - 13.0), vec2(74.0, 26.0));
             if ui.put(br, egui::Button::new(tl!("Settings"))).on_hover_text(tl!("Change this account's name, servers and sign-in")).clicked() {
@@ -142,6 +146,28 @@ fn info(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
             let br = Rect::from_min_size(pos2(r.max.x - 86.0, r.center().y - 13.0), vec2(74.0, 26.0));
             if ui.put(br, egui::Button::new(tl!("Remove"))).on_hover_text(tl!("Remove this account and the mail kept for it here")).clicked() {
                 let _ = app.run("account.remove", json!({"id": a.id}));
+            }
+        }
+        // A widget put somewhere leaves egui's cursor under it, which is inside the card: the
+        // links go under the card, and what follows under them.
+        ui.advance_cursor_after_rect(r);
+        // Sending, calendar and contacts through Microsoft wait for the owner's say-so.
+        if app.graph_consent_needed(a.id) {
+            let link = ui.link(tl!("Connect calendar and contacts")).on_hover_text(tl!(
+                "Sign in once more to let MailCraft send through Microsoft and show your calendar and contacts. Mail works without it."
+            ));
+            if link.clicked() {
+                let _ = app.run("ui.connectMicrosoft", json!({"account": a.id}));
+            }
+        }
+        // A work or school account that signs in with Microsoft opens the shared mailboxes its
+        // owner has Full Access to, as Outlook does.
+        if mailcraft_engine::cmd::shared::opens_shared(&app.session, a.id) {
+            let link = ui.link(tl!("Add shared mailbox…")).on_hover_text(tl!(
+                "Open a mailbox you have Full Access to (support@, a team's mailbox) under this account, with its own folders. It uses this account's sign-in; sending from it takes the Send As right."
+            ));
+            if link.clicked() {
+                let _ = app.run("ui.dialog", json!({"name": "sharedMailbox", "account": a.id}));
             }
         }
     }
@@ -202,10 +228,34 @@ fn info(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     }
 }
 
+/// The card of a shared mailbox under the account it is opened through: whose sign-in it uses,
+/// and a way to close it. It has no settings of its own to change.
+fn shared_card(app: &mut MailApp, ui: &mut Ui, a: &mailcraft_model::Account, t: &Tokens) {
+    let (r, _) = ui.allocate_exact_size(vec2(ui.available_width().min(560.0), 58.0), Sense::hover());
+    // Set in a little, under its account.
+    let r = Rect::from_min_max(pos2(r.min.x + 24.0, r.min.y), r.max);
+    ui.painter().rect(r, 6.0, t.panel, Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
+    crate::widgets::avatar(ui, pos2(r.min.x + 30.0, r.center().y), 17.0, &a.address());
+    crate::theme::paint_clipped(ui.painter(), pos2(r.min.x + 58.0, r.min.y + 20.0), r.width() - 160.0, &a.address().full(), semibold(13.0), t.text);
+    let owner = a.shared_of.and_then(|id| app.session.mailbox.account(id)).map(|o| o.email.clone()).unwrap_or_default();
+    let detail = if owner.is_empty() {
+        tl!("Shared mailbox: the account it was opened through is gone").to_string()
+    } else {
+        crate::i18n::fmt(tl!("Shared mailbox, opened with the sign-in of {account}"), &[("account", &owner)])
+    };
+    crate::theme::paint_clipped(ui.painter(), pos2(r.min.x + 58.0, r.min.y + 39.0), r.width() - 160.0, &detail, regular(11.5), t.text_dim);
+    let br = Rect::from_min_size(pos2(r.max.x - 86.0, r.center().y - 13.0), vec2(74.0, 26.0));
+    if ui.put(br, egui::Button::new(tl!("Remove"))).on_hover_text(tl!("Close this shared mailbox and remove the mail kept for it here")).clicked() {
+        let _ = app.run("account.removeShared", json!({"id": a.id}));
+    }
+    // What follows goes under the card, not under the button put inside it.
+    ui.advance_cursor_after_rect(r);
+}
+
 fn open(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     heading(ui, tl!("Open & Export"), t);
     section(ui, tl!("Bring in"), t);
-    if tile(ui, "import", tl!("Import"), tl!("Messages (.eml, .mbox), calendars (.ics) and contacts (.vcf)"), t) {
+    if tile(ui, "import", tl!("Import"), tl!("Messages (.eml, .msg, .mbox), calendars (.ics) and contacts (.vcf)"), t) {
         let _ = app.run("ui.import", json!({}));
     }
     if tile(ui, "open", tl!("Open Mailbox File"), tl!("Replace what is open with a .mailcraft file"), t) {
@@ -246,10 +296,15 @@ fn open(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
 
 /// A labelled row: the label on the left, the control after it.
 fn row(ui: &mut Ui, label: &str, add: impl FnOnce(&mut Ui)) {
-    ui.horizontal(|ui| {
-        let (r, _) = ui.allocate_exact_size(vec2(210.0, 24.0), Sense::hover());
-        let t = Tokens::get(ui.ctx());
-        ui.painter().text(pos2(r.min.x, r.center().y), Align2::LEFT_CENTER, label, regular(12.5), t.text);
+    // (The labels' column is as wide as a long label needs, in a language with longer words;
+    // in a right-to-left language the row runs from the right.)
+    let t = Tokens::get(ui.ctx());
+    let width = crate::theme::text_width(ui.painter(), label, &regular(12.5), 0.0, t.text);
+    ui.allocate_ui_with_layout(vec2(ui.available_width(), 24.0), crate::i18n::row_layout(egui::Align::Center), |ui| {
+        let (r, _) = ui.allocate_exact_size(vec2((width + 12.0).max(210.0), 24.0), Sense::hover());
+        let (at, align) =
+            if crate::i18n::rtl() { (pos2(r.max.x, r.center().y), Align2::RIGHT_CENTER) } else { (pos2(r.min.x, r.center().y), Align2::LEFT_CENTER) };
+        ui.painter().text(at, align, label, regular(12.5), t.text);
         add(ui);
     });
 }
@@ -277,6 +332,27 @@ fn options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
             }
         });
     });
+    row(ui, tl!("Language"), |ui| {
+        use crate::i18n::{AUTO, Lang};
+        let cur = app.ui.language.clone();
+        let auto = cur.trim().eq_ignore_ascii_case(AUTO) || cur.trim().is_empty();
+        let named = if auto { None } else { Lang::from_code(&cur) };
+        let shown = match named {
+            Some(lang) => lang.native_name().to_string(),
+            None => crate::i18n::fmt(tl!("Use system setting ({language})"), &[("language", Lang::from_pref(AUTO).native_name())]),
+        };
+        egui::ComboBox::from_id_salt("opt_language").selected_text(shown).width(220.0).show_ui(ui, |ui| {
+            if ui.selectable_label(auto, tl!("Use system setting")).clicked() {
+                let _ = app.run("ui.language", json!({"value": AUTO}));
+            }
+            for lang in Lang::ALL {
+                if ui.selectable_label(named == Some(lang), lang.native_name()).clicked() {
+                    let _ = app.run("ui.language", json!({"value": lang.code()}));
+                }
+            }
+        });
+    });
+    ui.weak(tl!("Dates, times and numbers are written as the language's region writes them. Translations other than English were machine-written and want a native speaker's review."));
     let prefs = app.session.prefs.clone();
     let set = |app: &mut MailApp, params: serde_json::Value| {
         let _ = app.run("file.options", params);
@@ -289,6 +365,10 @@ fn options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     let mut quote = prefs.quote_on_reply;
     if ui.checkbox(&mut quote, tl!("Include the original message when replying")).changed() {
         set(app, json!({"quoteOnReply": quote}));
+    }
+    let mut plain = prefs.compose_plain;
+    if ui.checkbox(&mut plain, tl!("Write messages in plain text (no formatting or pictures)")).changed() {
+        set(app, json!({"composePlain": plain}));
     }
     row(ui, tl!("Preview lines in the message list"), |ui| {
         egui::ComboBox::from_id_salt("opt_preview").selected_text(prefs.preview_lines.to_string()).show_ui(ui, |ui| {
@@ -310,20 +390,42 @@ fn options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
                 }
             });
     });
+    row(ui, tl!("When a message asks for a read receipt"), |ui| {
+        use mailcraft_engine::ReceiptPolicy;
+        let label = |p: ReceiptPolicy| match p {
+            ReceiptPolicy::Ask => tl!("Ask each time"),
+            ReceiptPolicy::Always => tl!("Always send one"),
+            ReceiptPolicy::Never => tl!("Never send one"),
+        };
+        egui::ComboBox::from_id_salt("opt_receipts").selected_text(label(prefs.read_receipts)).show_ui(ui, |ui| {
+            for (p, code) in [(ReceiptPolicy::Ask, "ask"), (ReceiptPolicy::Always, "always"), (ReceiptPolicy::Never, "never")] {
+                if ui.selectable_label(p == prefs.read_receipts, label(p)).clicked() {
+                    set(app, json!({"readReceipts": code}));
+                }
+            }
+        });
+    });
     // (Whose Favorites the folder pane shows, for an account that signs in with Microsoft.)
     crate::favorites_sync::options(app, ui, t);
     section(ui, tl!("Pictures in mail"), t);
     crate::reading::remote::options(app, ui, t);
     section(ui, tl!("Accounts"), t);
     let mut remember = app.ui.remember_sign_in;
+    let can_remember = app.services.secrets.is_some();
     if ui
-        .checkbox(&mut remember, tl!("Remember passwords and sign-ins on this computer"))
+        .add_enabled(can_remember, egui::Checkbox::new(&mut remember, tl!("Remember passwords and sign-ins on this computer")))
         .on_hover_text(tl!(
             "Kept in the system's credential store, never in the mailbox or its settings. Without it you sign in again each time MailCraft starts."
         ))
         .changed()
     {
         let _ = app.run("ui.rememberSignIn", json!({"value": remember}));
+    }
+    if !can_remember {
+        // (On Linux and the BSDs: no Secret Service answered when MailCraft started.)
+        ui.weak(tl!(
+            "Remembering isn't available here: no credential store answered (on Linux and BSD, GNOME Keyring, KWallet or another Secret Service). You'll be asked to sign in each time MailCraft starts."
+        ));
     }
     row(ui, tl!("Microsoft application ID"), |ui| {
         // What Microsoft knows this installation by when an account signs in on its page; an
@@ -340,7 +442,7 @@ fn options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         let label = |n: u32| match n {
             0 => tl!("Only when I ask").to_string(),
             1 => tl!("Every minute").to_string(),
-            n => format!("{} {n} {}", tl!("Every"), tl!("minutes")),
+            n => crate::i18n::fmt(tl!("Every {n} minutes"), &[("n", &n.to_string())]),
         };
         egui::ComboBox::from_id_salt("opt_sync_minutes").selected_text(label(prefs.sync_minutes)).show_ui(ui, |ui| {
             for n in [1u32, 5, 15, 30, 60, 0] {
@@ -350,6 +452,10 @@ fn options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
             }
         });
     });
+    section(ui, tl!("Trust Center: signed and encrypted mail"), t);
+    crate::trust_center::options(app, ui, t);
+    section(ui, tl!("Notifications"), t);
+    crate::notify::options(app, ui);
     section(ui, tl!("Calendar"), t);
     let mut twelve = prefs.twelve_hour;
     if ui.checkbox(&mut twelve, tl!("Use a 12-hour clock (3:05 PM)")).changed() {
@@ -388,7 +494,7 @@ fn options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         let label = |m: Option<u32>| match m {
             None => tl!("None").to_string(),
             Some(0) => tl!("At start time").to_string(),
-            Some(m) => mailcraft_time::duration_label(i64::from(m)),
+            Some(m) => crate::i18n::duration(i64::from(m)),
         };
         egui::ComboBox::from_id_salt("opt_reminder").selected_text(label(prefs.default_reminder)).show_ui(ui, |ui| {
             for m in [None, Some(0u32), Some(5), Some(10), Some(15), Some(30), Some(60)] {
@@ -466,6 +572,30 @@ fn time_zones(app: &mut MailApp, ui: &mut Ui, prefs: &mailcraft_engine::Prefs) {
         }
         keep(ui, "opt_second_zone_query", query);
     });
+    // A third, as Outlook has it, once there is a second.
+    let third = mailcraft_engine::cmd::zones::third_zone(&app.session);
+    if second.is_some() || third.is_some() {
+        row(ui, tl!("Third time zone"), |ui| {
+            let mut shown = third.is_some();
+            if ui.checkbox(&mut shown, tl!("Show in the time bar")).changed() {
+                let zone = if shown { json!("UTC") } else { serde_json::Value::Null };
+                let _ = app.run("view.timeZone", json!({"third": zone}));
+            }
+            let Some(third) = third else { return };
+            if let Some(text) = label(ui, &prefs.third_zone_label) {
+                let _ = app.run("view.timeZone", json!({"thirdLabel": text}));
+            }
+            let mut query = typed(ui, "opt_third_zone_query");
+            if let Some(zone) = crate::zones::picker(ui, egui::Id::new("opt_third_zone"), &app.session, third, &mut query, 250.0) {
+                let _ = app.run("view.timeZone", json!({"third": zone.id()}));
+            }
+            keep(ui, "opt_third_zone_query", query);
+        });
+    }
+    // Which zone this computer is in, in full.
+    let system = app.session.system_zone();
+    let words = crate::i18n::fmt(tl!("This computer is in {zone}."), &[("zone", &system.long_name(app.session.now()))]);
+    ui.label(egui::RichText::new(words).size(12.0).color(Tokens::get(ui.ctx()).text_dim));
 }
 
 fn signatures(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
