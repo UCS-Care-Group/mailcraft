@@ -20,14 +20,37 @@ commands:
   assets          check that every icon/image/font/asset is attributed in ATTRIBUTION.md
   layers          enforce the crate dependency layering (docs/architecture.md)
   wasm            cargo check --target wasm32-unknown-unknown for the wasm-safe crates
-  ci              fmt --check, clippy -D warnings, test, assets, layers, wasm (stops at first failure)
+  audit           cargo audit: Cargo.lock against the RustSec advisory database
+                  (needs `cargo install cargo-audit --locked`)
+  ci              fmt --check, clippy -D warnings, test, assets, layers, wasm, audit
+                  (stops at first failure)
   stats [--exact] count tests and lines per crate (--exact: ask the test harness via `-- --list`)
   parity          recompute the Outlook feature-parity summary in docs/parity-checklist.md
   ico <out.ico> <in.png>...
                   pack square PNGs (<= 256 px) into a Windows .ico (see packaging/icons.sh)
   icon            draw the app icon (original artwork, in code) into assets/app-icon
+  i18n [lang] [--out FILE]
+                  list what the interface catalogs (assets/i18n) still lack, as pairs to fill in
   version [...]   show or set the workspace version
 ";
+
+/// `cargo xtask i18n [lang] [--out FILE]`: the report test of `mailcraft-ui-egui`'s catalogs
+/// (`i18n::keys::untranslated`), which reads the strings of the interface from its source.
+fn cmd_i18n(rest: &[&str]) -> Result<(), String> {
+    let mut c = cargo();
+    c.args(["test", "-q", "-p", "mailcraft-ui-egui", "--lib", "i18n::keys::untranslated", "--", "--ignored", "--nocapture"]);
+    let mut words = rest.iter();
+    while let Some(word) = words.next() {
+        if *word == "--out" {
+            let file = words.next().ok_or("--out needs a file")?;
+            let path = std::path::absolute(file).map_err(|e| format!("{file}: {e}"))?;
+            c.env("MAILCRAFT_I18N_OUT", path);
+        } else {
+            c.env("MAILCRAFT_I18N_LANG", word);
+        }
+    }
+    run(c, "cargo test i18n::keys::untranslated")
+}
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -36,11 +59,13 @@ fn main() -> ExitCode {
         Some("assets") => assets::run(&root()),
         Some("layers") => cmd_layers(),
         Some("wasm") => cmd_wasm(),
+        Some("audit") => cmd_audit(),
         Some("ci") => cmd_ci(),
         Some("stats") => stats::run(&root(), rest.contains(&"--exact")),
         Some("parity") => parity::run(&root()),
         Some("ico") => ico::run(&rest),
         Some("icon") => icon::run(&root()),
+        Some("i18n") => cmd_i18n(&rest),
         Some("version") => version::run(&root(), &rest),
         Some("-h" | "--help" | "help") | None => {
             print!("{USAGE}");
@@ -148,6 +173,18 @@ fn cmd_wasm() -> Result<(), String> {
     if failed == 0 { Ok(()) } else { Err(format!("{failed} crate(s) failed the wasm check")) }
 }
 
+/// Every crate in Cargo.lock against the RustSec advisory database: a known vulnerability fails;
+/// an unmaintained or yanked crate is reported as a warning.
+fn cmd_audit() -> Result<(), String> {
+    let installed = cargo().args(["audit", "--version"]).output().map(|o| o.status.success()).unwrap_or(false);
+    if !installed {
+        return Err("cargo-audit is not installed: run `cargo install cargo-audit --locked`".into());
+    }
+    let mut c = cargo();
+    c.arg("audit");
+    run(c, "cargo audit")
+}
+
 fn cmd_ci() -> Result<(), String> {
     type Step = (&'static str, Box<dyn Fn() -> Result<(), String>>);
     let steps: Vec<Step> = vec![
@@ -178,6 +215,7 @@ fn cmd_ci() -> Result<(), String> {
         ("assets", Box::new(|| assets::run(&root()))),
         ("layers", Box::new(cmd_layers)),
         ("wasm", Box::new(cmd_wasm)),
+        ("audit", Box::new(cmd_audit)),
     ];
     let mut done = Vec::new();
     for (name, f) in &steps {
