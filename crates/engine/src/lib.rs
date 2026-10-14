@@ -11,7 +11,9 @@ pub mod cmd;
 pub mod io;
 pub mod list;
 pub mod sample;
+pub mod security;
 mod session;
+pub mod spell;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod store;
 
@@ -21,8 +23,11 @@ use serde_json::Value;
 
 pub use mailcraft_html as html;
 pub use mailcraft_model as model;
+pub use mailcraft_print as print;
 pub use mailcraft_time as time;
-pub use session::{CalView, Clock, Compose, ComposeMode, Filter, Module, Pane, Prefs, Scope, Selection, Session, SortBy, TaskFilter, ViewState};
+pub use session::{
+    CalView, Clock, Compose, ComposeMode, Filter, Module, Pane, Prefs, ReceiptPolicy, Scope, Selection, Session, SortBy, TaskFilter, ViewState,
+};
 
 #[derive(Debug, thiserror::Error, Clone, PartialEq)]
 pub enum CmdError {
@@ -204,5 +209,9 @@ pub mod p {
     }
 }
 
+#[cfg(test)]
+mod msg_tests;
+#[cfg(test)]
+mod security_tests;
 #[cfg(test)]
 mod tests;

@@ -18,6 +18,8 @@ mod mailto;
 mod mbox;
 mod media;
 mod parse;
+pub mod rich;
+pub mod secure;
 mod transfer;
 mod words;
 mod write;
@@ -31,6 +33,14 @@ pub use media::media_type_for;
 pub use parse::parse;
 pub use words::{decode_words, encode_words};
 pub use write::write;
+
+/// Text from bytes in a named character set (a MIME `charset`, a WHATWG label or a name mail
+/// programs write). Never fails: what doesn't fit comes out as U+FFFD, and a name nobody knows is
+/// read as UTF-8. Missing or US-ASCII with bytes above 0x7F is read as UTF-8 when it is valid
+/// UTF-8, else as Windows-1252.
+pub fn decode_charset(bytes: &[u8], label: &str) -> String {
+    charset::decode(bytes, label)
+}
 
 /// How [`write()`] and [`write_mbox`] write a message.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]

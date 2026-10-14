@@ -1,0 +1,57 @@
+[package]
+name = "mailcraft-crypto"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "MailCraft signed and encrypted mail: S/MIME (CMS SignedData and EnvelopedData), OpenPGP (PGP/MIME and inline), certificates and keys, PKCS#12"
+
+[lints]
+workspace = true
+
+# Every crate here is pure Rust and MIT OR Apache-2.0 (RustCrypto's, rPGP's). The `rsa` crate has
+# an open advisory (RUSTSEC-2023-0071, timing of private-key operations observed over a network);
+# see `.cargo/audit.toml` for why it does not apply to a mail program decrypting on its owner's
+# own computer.
+[dependencies]
+thiserror = { workspace = true }
+base64 = { workspace = true }
+# OpenPGP (RFC 9580, 4880; PGP/MIME RFC 3156). No bzip2: a message packed that way is said to be
+# unreadable rather than read with one more decompressor.
+pgp = { version = "0.21", default-features = false }
+# S/MIME (RFC 8551) is CMS (RFC 5652) over X.509 certificates (RFC 5280).
+cms = { version = "0.2.3", features = ["builder", "std"] }
+x509-cert = { version = "0.2.5", features = ["std", "pem"] }
+der = { version = "0.7", features = ["std", "pem", "oid", "alloc"] }
+spki = { version = "0.7", features = ["std", "alloc"] }
+const-oid = { version = "0.9", features = ["db"] }
+rsa = { version = "0.9.10", features = ["sha2", "std"] }
+p256 = { version = "0.13", features = ["ecdsa", "pkcs8", "std"] }
+sha1 = { version = "0.10", features = ["oid"] }
+sha2 = { version = "0.10", features = ["oid"] }
+signature = { version = "2", features = ["std"] }
+pkcs8 = { version = "0.10", features = ["std", "pem", "encryption"] }
+pkcs1 = { version = "0.7", features = ["std", "pem"] }
+# PKCS#12 (RFC 7292): its structures and key derivation; the reading is ours (`p12.rs`).
+pkcs12 = { version = "0.1", features = ["kdf"] }
+pkcs5 = { version = "0.7", features = ["pbes2", "3des", "sha1-insecure"] }
+hmac = "0.12"
+aes = "0.8.4"
+cbc = { version = "0.1.2", features = ["std"] }
+des = "0.8"
+rc2 = "0.8"
+cipher = "0.4"
+rand = "0.8.6"
+rand_core = { version = "0.6", features = ["getrandom"] }
+zeroize = { workspace = true }
+
+# The browser has no system random source of its own: getrandom reads the page's.
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+pgp = { version = "0.21", default-features = false, features = ["wasm"] }
+getrandom02 = { package = "getrandom", version = "0.2", features = ["js"] }
+
+[dev-dependencies]
+proptest = { workspace = true }
+
+[features]
+# Keys and certificates made on the spot, for the tests of the crates above.
+testing = []

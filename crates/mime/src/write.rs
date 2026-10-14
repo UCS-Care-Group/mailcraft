@@ -113,6 +113,14 @@ pub fn write(message: &Message, opts: &WriteOptions) -> Vec<u8> {
         }
     }
     write_field(&mut out, "MIME-Version", "1.0");
+    if let Some(secured) = &message.secured {
+        // Signed or encrypted: the body goes exactly as it was made (or came).
+        out.extend_from_slice(&secured.raw);
+        if !secured.raw.ends_with(b"\r\n") {
+            out.extend_from_slice(b"\r\n");
+        }
+        return out;
+    }
     let body = body(message);
     for (name, value) in &body.fields {
         write_field(&mut out, name, value);
@@ -196,6 +204,14 @@ fn calendar_form(message: &Message) -> Option<(usize, String)> {
     })
 }
 
+/// A message's body and attachments as one MIME entity: content fields, an empty line, the
+/// content (what is signed or encrypted when it goes out).
+pub(crate) fn body_entity(message: &Message) -> Vec<u8> {
+    let mut entity = body(message).bytes();
+    entity.extend_from_slice(b"\r\n");
+    entity
+}
+
 /// The MIME structure of a message's body and attachments.
 fn body(message: &Message) -> Part {
     let mut counter = 0u32;
@@ -236,12 +252,24 @@ fn body(message: &Message) -> Part {
     }
     let mut root =
         if forms.len() > 1 { multipart("alternative", "", &forms, &mut counter) } else { forms.pop().unwrap_or_else(|| text_part("plain", "")) };
+    // A read receipt (RFC 8098) is a report: the words for people, then the notification for
+    // programs, in a `multipart/report` of its own kind.
+    let report = files.iter().any(|a| is_notification(a));
     if !files.is_empty() {
         let mut parts = vec![root];
         parts.extend(files.iter().map(|a| attachment_part(a)));
-        root = multipart("mixed", "", &parts, &mut counter);
+        root = if report {
+            multipart("report", " report-type=disposition-notification;", &parts, &mut counter)
+        } else {
+            multipart("mixed", "", &parts, &mut counter)
+        };
     }
     root
+}
+
+/// The machine-readable part of a read receipt (`message/disposition-notification`).
+fn is_notification(a: &Attachment) -> bool {
+    media::safe_media_type(&a.mime) == "message/disposition-notification"
 }
 
 fn text_part(subtype: &str, text: &str) -> Part {
@@ -254,6 +282,13 @@ fn text_part(subtype: &str, text: &str) -> Part {
 
 fn attachment_part(attachment: &Attachment) -> Part {
     let mime = media::safe_media_type(&attachment.mime);
+    // The notification of a read receipt is a few header-like lines, as they are.
+    if mime == "message/disposition-notification" && is_seven_bit_message(&attachment.data) {
+        return Part {
+            fields: vec![("Content-Type", mime), ("Content-Transfer-Encoding", "7bit".to_string())],
+            content: attachment.data.trim_ascii_end().to_vec(),
+        };
+    }
     let mut name = clean(&attachment.name);
     if name.is_empty() && (mime == "text/plain" || mime == "text/html") {
         // A text part without a name would be read as the body.
@@ -361,7 +396,7 @@ fn multipart(subtype: &str, params: &str, parts: &[Part], counter: &mut u32) -> 
 /// A boundary that occurs in none of the parts. It is an FNV-1a hash of the parts and a counter
 /// (which sets the multiparts of one message apart, and moves on when a part happens to hold the
 /// boundary), so the same content always gets the same boundary.
-fn boundary(children: &[Vec<u8>], counter: &mut u32) -> String {
+pub(crate) fn boundary(children: &[Vec<u8>], counter: &mut u32) -> String {
     const PRIME: u64 = 0x0000_0100_0000_01b3;
     let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
     for child in children {
@@ -508,6 +543,34 @@ mod tests {
         for gone in ["Fake", "leak@example.org", "text/evil", "9.9", "Bad", "X-Injected", "base64"] {
             assert!(!out.contains(gone), "{gone}");
         }
+    }
+
+    #[test]
+    fn a_read_receipt_is_a_disposition_notification_report() {
+        let notification =
+            b"Reporting-UA: MailCraft\r\nFinal-Recipient: rfc822;me@example.org\r\nDisposition: manual-action/MDN-sent-manually; displayed\r\n";
+        let m = Message {
+            from: Address::new("", "me@example.org"),
+            to: vec![Address::new("", "ada@example.org")],
+            subject: "Read: Plans".into(),
+            body: mailcraft_model::Body { text: "Your message was read.".into(), html: None },
+            attachments: vec![Attachment::new("", "message/disposition-notification", notification.to_vec())],
+            ..Default::default()
+        };
+        let out = String::from_utf8(write(&m, &WriteOptions::default())).unwrap();
+        assert!(out.contains("Content-Type: multipart/report; report-type=disposition-notification;"), "{out}");
+        assert!(
+            out.contains("Content-Type: message/disposition-notification\r\nContent-Transfer-Encoding: 7bit\r\n\r\nReporting-UA: MailCraft\r\n"),
+            "{out}"
+        );
+        assert!(out.contains("Disposition: manual-action/MDN-sent-manually; displayed\r\n--"), "{out}");
+        // Read back, the report keeps both parts.
+        let back = crate::parse(out.as_bytes());
+        assert!(back.body.text.contains("Your message was read."));
+        // A notification that isn't clean text goes as any file.
+        let odd = Message { attachments: vec![Attachment::new("", "message/disposition-notification", vec![0xFF, 0])], ..m };
+        let out = String::from_utf8(write(&odd, &WriteOptions::default())).unwrap();
+        assert!(out.contains("Content-Transfer-Encoding: base64"));
     }
 
     #[test]

@@ -16,8 +16,11 @@ mailcraft-time = { path = "crates/time" }
 mailcraft-model = { path = "crates/model" }
 mailcraft-html = { path = "crates/html" }
 mailcraft-mime = { path = "crates/mime" }
+mailcraft-crypto = { path = "crates/crypto" }
 mailcraft-ical = { path = "crates/ical" }
 mailcraft-vcard = { path = "crates/vcard" }
+mailcraft-msg = { path = "crates/msg" }
+mailcraft-print = { path = "crates/print" }
 mailcraft-proto = { path = "crates/proto" }
 mailcraft-net = { path = "crates/net" }
 mailcraft-engine = { path = "crates/engine" }
@@ -33,6 +36,12 @@ log = "0.4"
 proptest = "1"
 base64 = "0.22"
 getrandom = "0.3"
+# Wiping secrets (private keys, passphrases) from memory when they are dropped. Apache-2.0 OR MIT.
+zeroize = "1.8"
+# Text in the character sets mail arrives in beyond Latin (Japanese, Chinese, Korean, Cyrillic,
+# Central European, UTF-16...), by their WHATWG names: `mailcraft-mime`'s `charset`. (Apache-2.0
+# OR MIT) AND BSD-3-Clause (the index data), Rust throughout, builds for the browser.
+encoding_rs = "0.8"
 # Time zones: the IANA Time Zone Database compiled in (`tzdb-bundle-always`: the same rules on
 # every platform and in the browser) and the system's own zone. Unlicense OR MIT; the database is
 # in the public domain. Used by `mailcraft-time` only, which wraps it (`Zone`); calendar maths is
@@ -58,6 +67,12 @@ quick-xml = { version = "0.41", default-features = false }
 # images (screenshots, inline pictures). WebP for the pictures of mail that are kept as nothing
 # else on the web; its decoder (image-webp) is Rust all the way down, like the others here.
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp"] }
+
+# Printing (`mailcraft-print`): the font's measurements and outlines (ttf-parser, MIT OR
+# Apache-2.0, already in the tree under egui's text) and the pictures a message carries (png, MIT
+# OR Apache-2.0, already in the tree under `image`). Rust throughout; both build for the browser.
+ttf-parser = { version = "0.25", default-features = false, features = ["std"] }
+png = "0.18"
 
 # ui
 egui = "0.36"

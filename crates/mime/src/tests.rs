@@ -465,6 +465,11 @@ fn message() -> impl Strategy<Value = Message> {
             forwarded: true,
             flag_due: Some(1),
             synced: Some(mailcraft_model::sync::RemoteFlags { uid: 11, read: true, ..Default::default() }),
+            deliver_after: None,
+            receipt: Default::default(),
+            synced_categories: Vec::new(),
+            secured: None,
+            protect: Default::default(),
         },
     )
 }
@@ -584,5 +589,59 @@ proptest! {
         let second = parse(&write(&first, &opts));
         let third = parse(&write(&second, &opts));
         prop_assert_eq!(third, second);
+    }
+
+    #[test]
+    fn mime_soup_in_other_character_sets_parses(s in "(Content-Type: text/plain|; charset=|utf-16|shift_jis|iso-2022-jp|gb18030|big5|euc-kr|koi8-r|hz-gb-2312|\r\n|=\\?|\\?B\\?|\\?Q\\?|\\?=|; filename\\*=|''|%1B|%82|\x1b\\$B|\x1b\\(B|=1B|=82|x|\u{0}|\u{82}|\u{ff}| ){0,80}") {
+        let m = parse(s.as_bytes());
+        let _ = parse(&write(&m, &WriteOptions::default()));
+    }
+}
+
+/// Headers, a body and a file name in the character sets of Japanese, Korean, Chinese and Russian
+/// mail all come out as the text they are.
+#[test]
+fn character_sets_beyond_latin_in_headers_bodies_and_file_names() {
+    let mut raw: Vec<u8> = b"From: =?EUC-KR?B?x9Gxub7u?= <han@example.org>\r\n\
+To: someone@example.org\r\n\
+Subject: =?iso-2022-jp?Q?=1B$BF|K\\8l=1B(B?= =?KOI8-R?Q?=F0=D2=C9=D7=C5=D4?=\r\n\
+MIME-Version: 1.0\r\n\
+Content-Type: multipart/mixed; boundary=\"b\"\r\n\
+\r\n\
+--b\r\n\
+Content-Type: text/plain; charset=Shift_JIS\r\n\
+Content-Transfer-Encoding: 8bit\r\n\
+\r\n"
+        .to_vec();
+    raw.extend_from_slice(b"\x93\xFA\x96\x7B\x8C\xEA\r\n");
+    raw.extend_from_slice(
+        b"--b\r\n\
+Content-Type: text/plain\r\n\
+Content-Disposition: attachment; filename*=gb2312''%D6%D0%CE%C4.txt\r\n\
+\r\n\
+x\r\n\
+--b--\r\n",
+    );
+    let m = parse(&raw);
+    assert_eq!(m.from.name, "한국어");
+    assert_eq!(m.subject, "日本語Привет");
+    assert_eq!(m.body.text.trim_end(), "日本語");
+    assert_eq!(m.attachments.first().map(|a| a.name.as_str()), Some("中文.txt"));
+}
+
+/// A body in UTF-16, as some programs on Windows send it: base64, with or without a byte order mark.
+#[test]
+fn a_utf16_body_reads() {
+    use base64::Engine;
+    for bytes in [
+        [[0xFF, 0xFE].as_slice(), &"Grüße".encode_utf16().flat_map(u16::to_le_bytes).collect::<Vec<u8>>()].concat(),
+        "Grüße".encode_utf16().flat_map(u16::to_le_bytes).collect::<Vec<u8>>(),
+        "Grüße".encode_utf16().flat_map(u16::to_be_bytes).collect::<Vec<u8>>(),
+    ] {
+        let raw = format!(
+            "From: a@example.org\r\nContent-Type: text/plain; charset=\"utf-16\"\r\nContent-Transfer-Encoding: base64\r\n\r\n{}\r\n",
+            base64::engine::general_purpose::STANDARD.encode(&bytes)
+        );
+        assert_eq!(parse(raw.as_bytes()).body.text.trim_end(), "Grüße");
     }
 }

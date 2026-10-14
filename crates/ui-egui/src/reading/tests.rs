@@ -16,7 +16,7 @@ use serde_json::json;
 use super::Place;
 use super::colors::{MIN_CONTRAST, contrast};
 use super::images::Pictures;
-use super::layout::{Item, ItemKind, Laid, PIECE_CHARS, pieces};
+use super::layout::{Item, ItemKind, Laid, PIECE_CHARS, TextItem, pieces};
 use super::view::{Doc, FRAME_BUDGET};
 use crate::theme::{Appearance, Tokens};
 use crate::{MailApp, Services};
@@ -968,7 +968,7 @@ fn the_reading_pane_names_nothing_that_could_fetch() {
         }
         checked += 1;
     }
-    assert_eq!(checked, 8, "reading.rs, colors, images, invitation, layout, remote, select and view");
+    assert_eq!(checked, 9, "reading.rs, colors, images, invitation, layout, remote, security, select and view");
 }
 
 /// The symbols these files write as text have glyphs in the interface fonts (the check of the
@@ -3361,3 +3361,33 @@ fn the_selection_commands_take_anything_and_never_panic() {
 // ---- meetings that arrive as mail ----
 
 mod invitation;
+
+// ---- text that runs right to left ----
+
+#[test]
+fn right_to_left_text_sits_on_the_right_reads_from_the_right_and_copies_as_written() {
+    let long = "שלום ".repeat(40);
+    let html = format!("<p>תודה,<br>נועה</p><p>{long}</p><p>Left as it is.</p><ul><li>פריט</li></ul>");
+    let m = html_message(0, ("Noa", "noa@example.org"), "RTL", &html);
+    in_frame(false, |ctx| {
+        let laid = lay_out(ctx, &m, 420.0);
+        let texts: Vec<&TextItem> = laid.items.iter().filter_map(|i| if let ItemKind::Text(t) = &i.kind { Some(t) } else { None }).collect();
+        let thanks = texts.iter().find(|t| t.logical.as_deref().is_some_and(|l| l.starts_with("תודה"))).expect("the first paragraph");
+        // Its two lines stay in their order, each made ready for a shaper that turns words round.
+        let lines: Vec<&str> = thanks.job.text.split('\n').collect();
+        assert_eq!(lines, vec![",תודה", "נועה"], "{:?}", thanks.job.text);
+        assert_eq!(thanks.written(0..thanks.chars as usize), "תודה,\nנועה");
+        assert!(thanks.job.halign == egui::Align::RIGHT);
+        // A long paragraph is wrapped into lines of its own, and copies whole.
+        let wrapped = texts.iter().find(|t| t.logical.as_deref().is_some_and(|l| l.starts_with("שלום שלום"))).expect("the long paragraph");
+        assert!(wrapped.job.text.matches('\n').count() >= 2, "{:?}", wrapped.job.text);
+        assert_eq!(wrapped.written(0..wrapped.chars as usize).trim_end(), long.trim_end());
+        // Left-to-right text is untouched.
+        let left = texts.iter().find(|t| t.job.text.starts_with("Left")).expect("the English paragraph");
+        assert!(left.order.is_none() && left.job.halign == egui::Align::LEFT);
+        // The bullet of a right-to-left item is on its right.
+        let bullet = laid.items.iter().find(|i| matches!(i.kind, ItemKind::Bullet { .. })).expect("a bullet");
+        let item = laid.items.iter().find(|i| matches!(&i.kind, ItemKind::Text(t) if t.logical.as_deref() == Some("פריט"))).expect("the item");
+        assert!(bullet.rect.min.x >= item.rect.max.x - 1.0, "{:?} {:?}", bullet.rect, item.rect);
+    });
+}

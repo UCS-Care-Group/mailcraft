@@ -1,0 +1,12 @@
+# `cargo audit` (part of `cargo xtask ci`).
+[advisories]
+ignore = [
+    # RUSTSEC-2023-0071, "Marvin Attack": the `rsa` crate's private-key operations are not
+    # constant-time, so an attacker who can time many of them over a network may learn the key.
+    # No fixed version exists; the advisory itself says local use on an uncompromised computer is
+    # fine. MailCraft uses `rsa` (through `mailcraft-crypto`, and rPGP) only on its owner's own
+    # computer: to sign a message the owner sends and to decrypt a message the owner opens, once
+    # each, never as a service that answers others and never with timing anyone outside can see.
+    # It decrypts with blinding (`decrypt_blinded`). Revisit when RustCrypto/RSA#626 is fixed.
+    "RUSTSEC-2023-0071",
+]

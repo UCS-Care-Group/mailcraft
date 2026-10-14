@@ -15,6 +15,10 @@ mailcraft-html = { workspace = true }
 mailcraft-mime = { workspace = true }
 mailcraft-ical = { workspace = true }
 mailcraft-vcard = { workspace = true }
+mailcraft-msg = { workspace = true }
+mailcraft-print = { workspace = true }
+mailcraft-crypto = { workspace = true }
+zeroize = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
@@ -28,3 +32,7 @@ ring = { workspace = true }
 
 [dev-dependencies]
 proptest = { workspace = true }
+mailcraft-msg = { workspace = true, features = ["writer"] }
+mailcraft-crypto = { workspace = true, features = ["testing"] }
+pgp = { version = "0.21", default-features = false }
+rand = "0.8.6"

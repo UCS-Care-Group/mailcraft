@@ -21,11 +21,12 @@
 //! answer) says so in a bar between its header and its body, with the ways to answer it
 //! ([`invitation`]).
 
-mod colors;
-mod images;
+pub(crate) mod colors;
+pub(crate) mod images;
 mod invitation;
 mod layout;
 pub(crate) mod remote;
+mod security;
 mod select;
 #[cfg(test)]
 mod tests;
@@ -93,6 +94,17 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
 /// The reading pane shows the selected message with it, and a message window its own.
 pub fn show_message(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Place) {
     let ctx = ui.ctx().clone();
+    // A signed or encrypted message: what its signature comes to, and what it says once opened
+    // (kept in memory only).
+    let protection = app.session.security_view(m.id);
+    let opened;
+    let m = match protection.as_ref().filter(|v| v.opened.is_some()) {
+        Some(view) => {
+            opened = Arc::new(view.apply(m));
+            &opened
+        }
+        None => m,
+    };
     remote::tick(app, &ctx);
     select::begin(app, ui, m, place);
     let doc = view::doc_where(&ctx, m, place, remote::available(app));
@@ -101,6 +113,9 @@ pub fn show_message(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Pla
     let progress = if access == Access::Allowed { remote::want(app, &ctx, m, &doc) } else { remote::Progress::default() };
     ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
     header(app, ui, m, place, |app, ui, t| remote::line(app, ui, m, &doc, access, progress, place, t));
+    if let Some(view) = &protection {
+        security::bar(app, ui, m, view);
+    }
     // A meeting that came with the message: what it is, and the ways to answer it.
     invitation::bar(app, ui, m, place);
     // The body gets the part of the pane that can be seen, whatever was laid out above it: a
@@ -129,10 +144,10 @@ pub fn blocks_of(m: &Message) -> Vec<Block> {
 /// The actions on a message that is being read, as the pane's header and a message window's
 /// toolbar offer them: icon, label, command. The window adds its own to these.
 pub(crate) const ACTIONS: [(&str, &str, &str); 4] = [
-    ("reply", "Reply", "mail.reply"),
-    ("replyAll", "Reply All", "mail.replyAll"),
-    ("forward", "Forward", "mail.forward"),
-    ("delete", "Delete", "mail.delete"),
+    ("reply", tn!("Reply"), "mail.reply"),
+    ("replyAll", tn!("Reply All"), "mail.replyAll"),
+    ("forward", tn!("Forward"), "mail.forward"),
+    ("delete", tn!("Delete"), "mail.delete"),
 ];
 
 fn header(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Place, pictures: impl FnOnce(&mut MailApp, &mut Ui, &Tokens)) {
@@ -167,7 +182,7 @@ fn header(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Place, pictur
             crate::widgets::avatar(ui, r.center(), 17.0, &m.from);
             ui.vertical(|ui| {
                 ui.spacing_mut().item_spacing = vec2(0.0, 1.0);
-                let when = mailcraft_time::header_label(m.date, app.session.offset_at(m.date), app.session.prefs.twelve_hour);
+                let when = crate::i18n::header_label(m.date, app.session.offset_at(m.date), app.session.prefs.twelve_hour);
                 // The date first, at the right; the name and address get what is left, cut short
                 // when the pane is narrow rather than run under the date.
                 ui.horizontal(|ui| {
@@ -190,9 +205,9 @@ fn header(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Place, pictur
                         fields.add(ui, field, egui::Label::new(text).truncate());
                     }
                 };
-                line(ui, select::Field::To, "To:", &m.to);
-                line(ui, select::Field::Cc, "Cc:", &m.cc);
-                line(ui, select::Field::Bcc, "Bcc:", &m.bcc);
+                line(ui, select::Field::To, tn!("To:"), &m.to);
+                line(ui, select::Field::Cc, tn!("Cc:"), &m.cc);
+                line(ui, select::Field::Bcc, tn!("Bcc:"), &m.bcc);
             });
         });
         notes(app, ui, m, &t, pictures);
@@ -209,7 +224,7 @@ fn notes(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, t: &Tokens, pictures:
     let mut lines: Vec<(&str, String)> = Vec::new();
     match m.flag {
         FlagStatus::Flagged => {
-            let due = m.flag_due.map(|d| format!(" {} {}", tl!("Due"), app.session.local(d).date.medium())).unwrap_or_default();
+            let due = m.flag_due.map(|d| format!(" {} {}", tl!("Due"), crate::i18n::date_medium(app.session.local(d).date))).unwrap_or_default();
             lines.push(("flag", format!("{}{due}", tl!("Follow up."))));
         }
         FlagStatus::Complete => lines.push(("complete", tl!("Completed.").to_string())),
@@ -236,6 +251,38 @@ fn notes(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, t: &Tokens, pictures:
         });
     }
     pictures(app, ui, t);
+    // A message waiting in the Outbox for its time (Delay Delivery).
+    if let Some(at) = m.deliver_after.filter(|_| m.is_deferred(app.session.now())) {
+        let when = app.session.local(at);
+        let text = crate::i18n::fmt(
+            tl!("This message waits in the Outbox until {day} {time}."),
+            &[("day", &crate::i18n::date_medium(when.date)), ("time", &when.time_short(app.session.prefs.twelve_hour))],
+        );
+        ui.horizontal(|ui| {
+            let (r, _) = ui.allocate_exact_size(vec2(16.0, 16.0), Sense::hover());
+            icons::paint(ui.painter(), r.shrink(1.0), "clock", t.text_dim, t.accent);
+            ui.add(egui::Label::new(egui::RichText::new(text).font(regular(11.5)).color(t.text_dim)).wrap());
+        });
+    }
+    // The sender asked for a read receipt, and the owner chose to be asked (File › Options).
+    if mailcraft_engine::cmd::receipts::ask_in_reading_pane(&app.session, m) {
+        ui.horizontal_wrapped(|ui| {
+            let (r, _) = ui.allocate_exact_size(vec2(16.0, 16.0), Sense::hover());
+            icons::paint(ui.painter(), r.shrink(1.0), "info", t.text_dim, t.accent);
+            ui.label(egui::RichText::new(tl!("The sender asked to be told when you read this message.")).font(regular(11.5)).color(t.text_dim));
+            let id = m.id;
+            let send = ui.add(egui::Button::new(egui::RichText::new(tl!("Send Receipt")).font(regular(11.0))).small());
+            app.hit.add("readReceipt.send", id, send.rect);
+            if send.clicked() {
+                let _ = app.run("mail.readReceipt", json!({"id": id, "send": true}));
+            }
+            let skip = ui.add(egui::Button::new(egui::RichText::new(tl!("Don't Send")).font(regular(11.0))).small());
+            app.hit.add("readReceipt.decline", id, skip.rect);
+            if skip.clicked() {
+                let _ = app.run("mail.readReceipt", json!({"id": id, "send": false}));
+            }
+        });
+    }
     if !m.categories.is_empty() {
         let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), 20.0), Sense::hover());
         let mut x = r.min.x;
@@ -257,7 +304,7 @@ fn notes(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, t: &Tokens, pictures:
                 let label = format!(
                     "{} · {}",
                     other.from.display(),
-                    mailcraft_time::list_label(other.date, app.session.now(), app.session.offset_at(other.date), app.session.prefs.twelve_hour)
+                    crate::i18n::list_label(other.date, app.session.now(), app.session.offset_at(other.date), app.session.prefs.twelve_hour)
                 );
                 if ui.add_enabled(*id != m.id, egui::Button::new(egui::RichText::new(label).font(regular(11.0))).small()).clicked() {
                     let _ = app.run("mail.select", json!({"id": id}));
@@ -290,8 +337,8 @@ fn attachments(app: &mut MailApp, ui: &mut Ui, m: &Message, t: &Tokens) {
                 let _ = app.run("mail.saveAttachment", json!({"id": m.id, "index": index}));
             }
             resp.context_menu(|ui| {
-                crate::widgets::mi(ui, app, "Save As…", "mail.saveAttachment", json!({"id": m.id, "index": index}));
-                crate::widgets::mi(ui, app, "Remove Attachment", "mail.removeAttachment", json!({"id": m.id, "index": index}));
+                crate::widgets::mi(ui, app, tn!("Save As…"), "mail.saveAttachment", json!({"id": m.id, "index": index}));
+                crate::widgets::mi(ui, app, tn!("Remove Attachment"), "mail.removeAttachment", json!({"id": m.id, "index": index}));
             });
         }
     });

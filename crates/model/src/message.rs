@@ -91,6 +91,67 @@ pub fn size_label(bytes: u64) -> String {
     }
 }
 
+/// How a message is signed or encrypted (S/MIME, RFC 8551; OpenPGP, RFC 3156), as it came or as
+/// it goes out.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Protection {
+    /// `multipart/signed` with `application/pkcs7-signature`: readable, and signed.
+    SmimeSigned,
+    /// `application/pkcs7-mime; smime-type=signed-data`: signed, the content inside the signature.
+    SmimeSignedData,
+    /// `application/pkcs7-mime; smime-type=enveloped-data`: encrypted.
+    SmimeEncrypted,
+    /// `multipart/signed` with `application/pgp-signature`.
+    PgpSigned,
+    /// `multipart/encrypted` with `application/pgp-encrypted`.
+    PgpEncrypted,
+}
+
+impl Protection {
+    /// Whether the content can only be read once it is opened with a key (or the signature
+    /// unwrapped).
+    pub fn is_opaque(self) -> bool {
+        matches!(self, Protection::SmimeSignedData | Protection::SmimeEncrypted | Protection::PgpEncrypted)
+    }
+
+    pub fn is_encrypted(self) -> bool {
+        matches!(self, Protection::SmimeEncrypted | Protection::PgpEncrypted)
+    }
+
+    pub fn is_smime(self) -> bool {
+        matches!(self, Protection::SmimeSigned | Protection::SmimeSignedData | Protection::SmimeEncrypted)
+    }
+}
+
+/// The signed or encrypted body of a message exactly as it came (or as it was made to go out):
+/// its content fields and its content, so that a signature can be checked and an encrypted
+/// message opened at any time, and the message written out again unchanged. What is encrypted
+/// stays encrypted here; only the window, while it shows the message, holds what it says.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Secured {
+    pub kind: Protection,
+    /// The MIME entity: `Content-Type` (and `Content-Transfer-Encoding`) fields, an empty line,
+    /// the content; CRLF line ends.
+    #[serde(with = "crate::b64")]
+    pub raw: Arc<Vec<u8>>,
+}
+
+/// What the writer of a message asked for: sign it, encrypt it (kept with a draft).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Protect {
+    pub sign: bool,
+    pub encrypt: bool,
+}
+
+impl Protect {
+    pub fn is_none(&self) -> bool {
+        !self.sign && !self.encrypt
+    }
+}
+
 /// A message body. `text` is always there (readers derive it from the HTML when a message has no
 /// plain part); `html` is the original HTML when the message has one.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -157,6 +218,28 @@ pub struct Message {
     /// copy that comes down is matched to it by its Message-ID instead of being added.
     #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
     pub synced: Option<RemoteFlags>,
+    /// A message in the Outbox that is not to go before this time (Delay Delivery): a
+    /// synchronisation leaves it there until then.
+    #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
+    pub deliver_after: Option<Timestamp>,
+    /// What was done about the sender's request for a read receipt, when the message has one
+    /// ([`Message::receipt_to`]).
+    #[serde(skip_serializing_if = "crate::ReceiptAnswer::is_pending", deserialize_with = "crate::sync::lenient_or_default")]
+    pub receipt: crate::ReceiptAnswer,
+    /// The categories the server last had as keywords on the message under `uid`
+    /// ([`crate::sync::category_keyword`]): as last seen there, or as last pushed. A category
+    /// that differs was given or taken here and is still to be pushed; one that doesn't follows
+    /// the server. Only categories that can be keywords are ever in it.
+    #[serde(skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::sync::lenient_list")]
+    pub synced_categories: Vec<String>,
+    /// The body as it came signed or encrypted ([`Secured`]); `None` for an ordinary message.
+    /// For a signed message `body` and `attachments` are what it says; for an encrypted one they
+    /// are empty until it is opened, and opening it changes nothing here.
+    #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
+    pub secured: Option<Secured>,
+    /// A draft's Sign and Encrypt choices.
+    #[serde(skip_serializing_if = "Protect::is_none", deserialize_with = "crate::sync::lenient_or_default")]
+    pub protect: Protect,
 }
 
 fn is_zero(n: &u32) -> bool {
@@ -204,6 +287,23 @@ impl Message {
 
     pub fn has_category(&self, name: &str) -> bool {
         self.categories.iter().any(|c| c.eq_ignore_ascii_case(name))
+    }
+
+    /// A header field MailCraft doesn't model, by name (whatever its case).
+    pub fn header(&self, name: &str) -> Option<&str> {
+        self.headers.iter().find(|(n, _)| n.eq_ignore_ascii_case(name)).map(|(_, v)| v.as_str())
+    }
+
+    /// Where the sender asked a read receipt to go (`Disposition-Notification-To`, RFC 8098):
+    /// the first address of that field, when it is one.
+    pub fn receipt_to(&self) -> Option<Address> {
+        let field = self.header("Disposition-Notification-To")?;
+        Address::parse_list(field).into_iter().next().filter(Address::is_valid)
+    }
+
+    /// Whether it is still waiting in the Outbox for its time at `now` (Delay Delivery).
+    pub fn is_deferred(&self, now: Timestamp) -> bool {
+        self.deliver_after.is_some_and(|at| at > now)
     }
 }
 

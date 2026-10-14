@@ -38,7 +38,18 @@ pub fn when(m: &Message) -> Timestamp {
 /// list that draws the same rows again and again keeps what it was given.
 pub fn preview(m: &Message, max_chars: usize) -> String {
     let said = m.body.html.as_deref().map(|html| mailcraft_html::preview(html, max_chars)).unwrap_or_default();
-    if said.is_empty() { mailcraft_html::text_preview(&m.body.text, max_chars) } else { said }
+    let said = if said.is_empty() { mailcraft_html::text_preview(&m.body.text, max_chars) } else { said };
+    // What an encrypted message says shows once it is opened, never in the list.
+    match &m.secured {
+        Some(s) if said.is_empty() && s.kind.is_opaque() => {
+            if s.kind.is_encrypted() {
+                "Encrypted message".to_string()
+            } else {
+                "Signed message".to_string()
+            }
+        }
+        _ => said,
+    }
 }
 
 fn group_label(s: &Session, m: &Message) -> Option<String> {
@@ -62,8 +73,13 @@ fn group_label(s: &Session, m: &Message) -> Option<String> {
 
 pub fn rows(s: &Session) -> Vec<Row> {
     let mb = &s.mailbox;
-    let query = Query::parse(&s.view.search);
-    let everywhere = !query.is_empty() && s.view.scope == Scope::Everywhere;
+    // A search folder in view is its query over every folder, narrowed by the search box.
+    let saved = crate::cmd::search_folders::in_view(s);
+    let query = match saved {
+        Some(f) => Query::parse(&format!("{} {}", f.query, s.view.search)),
+        None => Query::parse(&s.view.search),
+    };
+    let everywhere = saved.is_some() || (!query.is_empty() && s.view.scope == Scope::Everywhere);
     // Deleted and junk mail stays out of a search of everything.
     let hidden: Vec<Id> = if everywhere {
         mb.folders.iter().filter(|f| matches!(f.kind, FolderKind::Deleted | FolderKind::Junk)).flat_map(|f| mb.subtree(f.id)).collect()
@@ -76,6 +92,7 @@ pub fn rows(s: &Session) -> Vec<Row> {
         .values()
         .map(|m| m.as_ref())
         .filter(|m| if everywhere { !hidden.contains(&m.folder) } else { m.folder == s.view.folder })
+        .filter(|m| saved.is_none_or(|f| f.account.is_none_or(|a| m.account == a)))
         .filter(|m| match s.view.filter {
             Filter::All => true,
             Filter::Unread => !m.read,

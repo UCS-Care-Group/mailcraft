@@ -436,7 +436,7 @@ pub fn paint(ui: &mut Ui, laid: &Laid, t: &Tokens, access: Access, mut state: Op
                     hover = Some(Hover { link: Some(link), note: None });
                 }
                 if let (Some(marks), Some(part)) = (&marks, part(text.chars as usize)) {
-                    marks.text(&mut galley, part);
+                    marks.text(&mut galley, text.drawn_range(part));
                 }
                 painter.galley(at, galley, t.text);
             }

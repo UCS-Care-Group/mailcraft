@@ -265,7 +265,7 @@ impl Surface for Laid {
 
     fn text(&self, seg: usize) -> Option<&str> {
         match self.segment(seg).map(|item| &item.kind) {
-            Some(ItemKind::Text(text)) => Some(&text.job.text),
+            Some(ItemKind::Text(text)) => Some(text.written_text()),
             _ => None,
         }
     }
@@ -277,7 +277,8 @@ impl Surface for Laid {
     fn write(&self, out: &mut String, seg: usize, part: Range<usize>, first: bool) -> bool {
         match self.segment(seg).map(|item| &item.kind) {
             Some(ItemKind::Text(text)) => {
-                let piece = char_slice(&text.job.text, part.start, part.end);
+                // Right-to-left text goes back into the order it was written in.
+                let piece = text.written(part.clone());
                 if piece.is_empty() {
                     return false;
                 }
@@ -288,7 +289,7 @@ impl Surface for Laid {
                 if part.start == 0 {
                     out.push_str(&text.lead);
                 }
-                out.push_str(piece);
+                out.push_str(&piece);
                 true
             }
             // A picture that is not shown is copied as what it says it shows, when it is whole
@@ -337,8 +338,9 @@ pub fn hit(ctx: &egui::Context, laid: &Laid, at: Pos2) -> Option<Hit> {
             // The laid-out text counts by its glyphs, and a script this system has no font for is
             // laid out with more of them than it has characters: neither count may pass the text's.
             let chars = text.chars as usize;
-            let nearest = galley.cursor_from_pos(from).index.0.min(chars);
-            let under = super::view::char_at(&galley, from).filter(|under| *under < chars);
+            // Right-to-left text is drawn in another order than it is selected in.
+            let nearest = text.written_at(galley.cursor_from_pos(from).index.0).min(chars);
+            let under = super::view::char_at(&galley, from).map(|v| text.written_at(v)).filter(|under| *under < chars);
             Some(Hit { point: Point { seg, at: nearest }, under })
         }
         ItemKind::Picture(_) | ItemKind::Placeholder(_) => {
@@ -886,15 +888,15 @@ pub(super) fn menu(ui: &mut Ui, can_copy: bool, body: bool, link: Option<&Arc<st
         ui.add_enabled(enabled, button).clicked()
     };
     let mut chosen = None;
-    if item(ui, can_copy, "Copy", "Mod+C") {
+    if item(ui, can_copy, tn!("Copy"), "Mod+C") {
         chosen = Some(Action::Copy);
     }
-    if body && item(ui, true, "Select All", "Mod+A") {
+    if body && item(ui, true, tn!("Select All"), "Mod+A") {
         chosen = Some(Action::SelectAll);
     }
     if let Some(url) = link {
         ui.separator();
-        if item(ui, true, "Copy Link Address", "") {
+        if item(ui, true, tn!("Copy Link Address"), "") {
             chosen = Some(Action::CopyLink(url.clone()));
         }
     }

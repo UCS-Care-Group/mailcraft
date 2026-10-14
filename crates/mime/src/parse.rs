@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use mailcraft_model::{Attachment, FlagStatus, Importance, Message};
+use mailcraft_model::{Attachment, FlagStatus, Importance, Message, Secured};
 
 use crate::header::{self, Headers, parse_params};
 use crate::words::decode_words;
@@ -46,8 +46,35 @@ pub fn parse(bytes: &[u8]) -> Message {
     let (headers, body) = header::split(bytes, true);
     let mut message = Message::default();
     read_headers(&headers, &mut message);
+    read_body(&headers, body, &mut message);
+    message
+}
+
+/// A MIME entity that came out of a signature or an encryption: only its body, attachments and
+/// protection are read; header fields in it that aren't about content are ignored, so that what
+/// was inside can't say the message is from somebody else.
+pub(crate) fn parse_entity(bytes: &[u8]) -> Message {
+    let (headers, body) = header::split(bytes, false);
+    let mut message = Message::default();
+    read_body(&headers, body, &mut message);
+    message
+}
+
+/// Media types of the signature part of a `multipart/signed`: not a file to show.
+const SIGNATURE_TYPES: [&str; 3] = ["application/pkcs7-signature", "application/x-pkcs7-signature", "application/pgp-signature"];
+
+fn read_body(headers: &Headers, body: &[u8], message: &mut Message) {
+    // A signed or encrypted message keeps its body as it came, for checking and opening.
+    let protection = crate::secure::protection(headers);
+    if let Some(kind) = protection {
+        message.secured = Some(Secured { kind, raw: crate::secure::entity(headers, body) });
+        if kind.is_opaque() {
+            // What it says is known once it is opened.
+            return;
+        }
+    }
     let mut walk = Walk::default();
-    walk.part(&headers, body, 0, Parent::None);
+    walk.part(headers, body, 0, Parent::None);
     message.body.text = match (walk.text, &walk.html) {
         (Some(text), Some(html)) if text.trim().is_empty() => mailcraft_html::to_text(html),
         (Some(text), _) => text,
@@ -56,7 +83,9 @@ pub fn parse(bytes: &[u8]) -> Message {
     };
     message.body.html = walk.html;
     message.attachments = walk.attachments;
-    message
+    if protection.is_some() {
+        message.attachments.retain(|a| !SIGNATURE_TYPES.contains(&a.mime.to_ascii_lowercase().as_str()));
+    }
 }
 
 fn read_headers(headers: &Headers, m: &mut Message) {
@@ -272,7 +301,7 @@ fn decode(body: &[u8], encoding: &str) -> Vec<u8> {
 /// The parts of a multipart body: what lies between `--boundary` lines, without the line break
 /// that belongs to the delimiter. The text before the first delimiter and after the closing
 /// `--boundary--` is ignored. A body that is cut short still gives its last part.
-fn split_multipart<'a>(body: &'a [u8], boundary: &str, max: usize) -> Vec<&'a [u8]> {
+pub(crate) fn split_multipart<'a>(body: &'a [u8], boundary: &str, max: usize) -> Vec<&'a [u8]> {
     let delimiter = [b"--", boundary.as_bytes()].concat();
     let mut parts = Vec::new();
     let mut start: Option<usize> = None;
