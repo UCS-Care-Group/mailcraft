@@ -1,0 +1,22 @@
+[package]
+name = "mailcraft-msg"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "MailCraft Outlook .msg files: a bounded Compound File Binary reader and the message inside it"
+
+[lints]
+workspace = true
+
+[features]
+# A small `.msg` writer for tests in the crates that import these files.
+writer = []
+
+[dependencies]
+mailcraft-model = { workspace = true }
+mailcraft-html = { workspace = true }
+mailcraft-mime = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+proptest = { workspace = true }

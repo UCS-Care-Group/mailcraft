@@ -87,7 +87,7 @@ pub fn tool_definitions() -> Value {
         tool(
             "import_file",
             "Import",
-            "Bring a file into the mailbox: messages (.eml, .mbox), a calendar (.ics) or contacts (.vcf).",
+            "Bring a file into the mailbox: messages (.eml, Outlook .msg, .mbox), a calendar (.ics) or contacts (.vcf).",
             obj(json!({"path": s("File path"), "folder": n("Folder id for messages (default: the folder in view)")}), &["path"]),
             false
         ),

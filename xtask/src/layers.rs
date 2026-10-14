@@ -40,6 +40,9 @@ pub const TABLE: &[(&str, Class)] = &[
     ("mime", Class::Layer(2)),
     ("ical", Class::Layer(2)),
     ("vcard", Class::Layer(2)),
+    ("msg", Class::Layer(2)),
+    ("crypto", Class::Layer(2)),
+    ("print", Class::Layer(2)),
     ("proto", Class::Layer(3)),
     ("net", Class::Layer(3)),
     ("engine", Class::Layer(4)),
@@ -54,8 +57,10 @@ pub const TABLE: &[(&str, Class)] = &[
 ];
 
 /// Explicit orderings *within* a layer (earlier may be used by later): the socket transport
-/// (`net`) drives the protocol state machines (`proto`).
-pub const INTRA_LAYER_ORDER: &[&[&str]] = &[&["proto", "net"]];
+/// (`net`) drives the protocol state machines (`proto`), and the Outlook `.msg` reader (`msg`)
+/// hands its messages' text to the MIME crate's character sets and writes attached messages as
+/// `.eml` (`mime`).
+pub const INTRA_LAYER_ORDER: &[&[&str]] = &[&["proto", "net"], &["mime", "msg"]];
 
 fn intra_layer_allowed(from: &str, to: &str) -> bool {
     let (from, to) = (short_name(from), short_name(to));

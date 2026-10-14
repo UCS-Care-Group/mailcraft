@@ -7,7 +7,7 @@ use mailcraft_ui_egui::{Inbox, MailApp, Services, UiState};
 use wasm_bindgen::JsCast as _;
 
 const MAILBOX_EXTS: &[&str] = &["mailcraft", "json"];
-const IMPORT_EXTS: &[&str] = &["eml", "mbox", "mbx", "ics", "ical", "vcf", "vcard"];
+const IMPORT_EXTS: &[&str] = &["eml", "msg", "mbox", "mbx", "ics", "ical", "vcf", "vcard"];
 const CANVAS_ID: &str = "mailcraft_canvas";
 const LOADING_ID: &str = "mailcraft_loading";
 /// Where the mailbox and the interface settings live in the browser's storage.
@@ -214,6 +214,7 @@ fn download(path: &str, bytes: &[u8]) -> Result<(), String> {
 fn mime_for(name: &str) -> &'static str {
     match name.rsplit('.').next().map(str::to_ascii_lowercase).as_deref() {
         Some("eml") => "message/rfc822",
+        Some("msg") => "application/vnd.ms-outlook",
         Some("mbox") => "application/mbox",
         Some("ics") => "text/calendar",
         Some("vcf") => "text/vcard",

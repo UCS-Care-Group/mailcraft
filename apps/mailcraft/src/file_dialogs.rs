@@ -73,11 +73,12 @@ fn open_filters(d: rfd::AsyncFileDialog, purpose: &str) -> rfd::AsyncFileDialog 
     match purpose {
         "mailbox" => d.add_filter("MailCraft mailbox", &["mailcraft", "json"]).add_filter("All files", &["*"]),
         "import" => d
-            .add_filter("Mail, calendar and contact files", &["eml", "mbox", "mbx", "ics", "ical", "vcf", "vcard"])
-            .add_filter("Messages", &["eml", "mbox", "mbx"])
+            .add_filter("Mail, calendar and contact files", &["eml", "msg", "mbox", "mbx", "ics", "ical", "vcf", "vcard"])
+            .add_filter("Messages", &["eml", "msg", "mbox", "mbx"])
             .add_filter("Calendars", &["ics", "ical"])
             .add_filter("Contacts", &["vcf", "vcard"])
             .add_filter("All files", &["*"]),
+        "picture" => d.add_filter("Pictures", &["png", "jpg", "jpeg", "gif", "webp"]).add_filter("All files", &["*"]),
         _ => d,
     }
 }

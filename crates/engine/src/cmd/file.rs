@@ -19,14 +19,14 @@ pub fn specs() -> Vec<CommandSpec> {
             .pure()
             .params(r#"{"path": string} — everything in one self-contained file; a copy, unless the mailbox wasn't kept anywhere yet"#),
         CommandSpec::new("file.import", "Import", "File › Open & Export", import)
-            .params(r#"{"path": string} | {"name": string, "data": base64}, "folder"?: number — .eml, .mbox, .ics, .vcf"#),
+            .params(r#"{"path": string} | {"name": string, "data": base64}, "folder"?: number — .eml, .msg, .mbox, .ics, .vcf"#),
         CommandSpec::new("file.exportMessage", "Save Message As", "File › Save As", export_message).pure().params(r#"{"id"?: number, "path"?: string} — one message as .eml"#),
         CommandSpec::new("file.exportFolder", "Export Folder", "File › Open & Export", export_folder).pure().params(r#"{"id"?: number, "path"?: string} — a folder's messages as .mbox"#),
         CommandSpec::new("file.exportCalendar", "Save Calendar", "File › Save Calendar", export_calendar).pure().params(r#"{"calendar"?: number, "id"?: number (one event), "path"?: string} — .ics"#),
         CommandSpec::new("file.exportContacts", "Export Contacts", "File › Open & Export", export_contacts).pure().params(r#"{"ids"?: [number], "path"?: string} — .vcf"#),
         CommandSpec::new("file.info", "Info", "File › Info", info).pure(),
         CommandSpec::new("file.options", "Options", "File", options).pure().params(
-            r#"{"twelveHour"?: bool, "weekStart"?: "sun"|"mon"|…, "workDays"?: ["mon",…], "workStart"?: 0-23, "workEnd"?: 1-24, "markReadOnOpen"?: bool, "defaultReminder"?: minutes | null, "quoteOnReply"?: bool, "previewLines"?: 0-3, "syncLimit"?: number, "syncMinutes"?: 0-1440 (0: only when asked)}"#,
+            r#"{"twelveHour"?: bool, "weekStart"?: "sun"|"mon"|…, "workDays"?: ["mon",…], "workStart"?: 0-23, "workEnd"?: 1-24, "markReadOnOpen"?: bool, "defaultReminder"?: minutes | null, "quoteOnReply"?: bool, "composePlain"?: bool (write messages as plain text rather than HTML), "previewLines"?: 0-3, "syncLimit"?: number, "syncMinutes"?: 0-1440 (0: only when asked), "readReceipts"?: "ask"|"always"|"never" (what to do when an opened message asks for a read receipt; default ask)}"#,
         ),
     ]
 }
@@ -284,6 +284,9 @@ fn options(s: &mut Session, v: &Value) -> CmdResult {
     if let Some(b) = p::bool(v, "quoteOnReply") {
         prefs.quote_on_reply = b;
     }
+    if let Some(b) = p::bool(v, "composePlain") {
+        prefs.compose_plain = b;
+    }
     if let Some(n) = p::u64(v, "previewLines") {
         prefs.preview_lines = n.min(3) as u8;
     }
@@ -292,6 +295,9 @@ fn options(s: &mut Session, v: &Value) -> CmdResult {
     }
     if let Some(n) = p::u64(v, "syncMinutes") {
         prefs.sync_minutes = n.min(1440) as u32;
+    }
+    if let Some(r) = p::str(v, "readReceipts") {
+        prefs.read_receipts = crate::session::parse_enum(r).ok_or_else(|| bad("`readReceipts` is ask, always or never"))?;
     }
     s.prefs = prefs;
     serde_json::to_value(&s.prefs).map_err(|e| fail(e.to_string()))

@@ -24,3 +24,5 @@ serde_json = { workspace = true }
 [dev-dependencies]
 # The fake mail servers of `crates/net` (included by path in `tests/two_way.rs`) speak base64.
 base64 = { workspace = true }
+# Outlook .msg fixtures made in code (`tests/msg.rs`).
+mailcraft-msg = { workspace = true, features = ["writer"] }
