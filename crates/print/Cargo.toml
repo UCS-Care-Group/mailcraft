@@ -1,0 +1,19 @@
+[package]
+name = "mailcraft-print"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "MailCraft printing: a message (Memo Style), a calendar, contacts and tasks laid out as pages, and those pages as a PDF"
+
+[lints]
+workspace = true
+
+[dependencies]
+mailcraft-time = { workspace = true }
+mailcraft-html = { workspace = true }
+ttf-parser = { workspace = true }
+png = { workspace = true }
+flate2 = { workspace = true }
+
+[dev-dependencies]
+proptest = { workspace = true }
