@@ -1,6 +1,6 @@
 //! Reading and writing files: the mailbox as one self-contained file, and the formats mail,
-//! calendars and contacts travel in (`.eml`, `.mbox`, `.ics`, `.vcf`). How a mailbox is kept on
-//! disk while it is worked on is `crate::store`.
+//! calendars and contacts travel in (`.eml`, Outlook's `.msg`, `.mbox`, `.ics`, `.vcf`). How a
+//! mailbox is kept on disk while it is worked on is `crate::store`.
 
 use mailcraft_model::{FolderKind, Id, Mailbox};
 use serde_json::{Value, json};
@@ -14,12 +14,22 @@ pub const MAX_FILE: u64 = 512 << 20;
 /// The mailbox file's extension.
 pub const MAILBOX_EXT: &str = "mailcraft";
 
+/// How a mailbox file in format 3 begins: the form a desktop program keeps it in, a log of
+/// records beside a folder of content (`crate::store`). One self-contained file is JSON.
+pub const INDEX_MAGIC: &[u8; 16] = b"MailCraft index\n";
+
+/// The message for a mailbox file that keeps its content in a folder beside it, read without it.
+const KEPT_BESIDE: &str = "this mailbox file keeps its messages' content in a folder beside it; open it where it is kept, or save it as one file first (File › Open & Export › Save Mailbox As)";
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Format {
-    /// A MailCraft mailbox (`.mailcraft`, JSON; kept on disk with a content folder beside it).
+    /// A MailCraft mailbox (`.mailcraft`: one JSON file, or a log of records with a content folder
+    /// beside it, `crate::store`).
     Mailbox,
     /// One Internet message.
     Eml,
+    /// One message saved from Outlook (a compound file).
+    Msg,
     /// Many messages in one file.
     Mbox,
     /// iCalendar events and to-dos.
@@ -33,6 +43,7 @@ impl Format {
         match name.rsplit_once('.').map(|(_, e)| e.to_ascii_lowercase()).as_deref() {
             Some("mailcraft" | "json") => Some(Format::Mailbox),
             Some("eml" | "msg822") => Some(Format::Eml),
+            Some("msg") => Some(Format::Msg),
             Some("mbox" | "mbx") => Some(Format::Mbox),
             Some("ics" | "ical" | "ifb" | "vcs") => Some(Format::Ics),
             Some("vcf" | "vcard") => Some(Format::Vcf),
@@ -40,9 +51,20 @@ impl Format {
         }
     }
 
-    /// The format by name, else by what the bytes start with.
+    /// The format by name, else by what the bytes start with. A compound file is an Outlook
+    /// message whatever it is called (none of the other formats starts like one), and a file
+    /// called `.msg` that isn't one is taken for what its bytes are, if they are anything.
     pub fn detect(name: &str, bytes: &[u8]) -> Option<Format> {
-        if let Some(f) = Format::from_extension(name) {
+        if mailcraft_msg::is_compound(bytes) {
+            return Some(Format::Msg);
+        }
+        if bytes.starts_with(INDEX_MAGIC) {
+            return Some(Format::Mailbox);
+        }
+        let by_name = Format::from_extension(name);
+        if let Some(f) = by_name
+            && f != Format::Msg
+        {
             return Some(f);
         }
         let head = String::from_utf8_lossy(bytes.get(..bytes.len().min(512)).unwrap_or(&[]))
@@ -64,7 +86,7 @@ impl Format {
         {
             Some(Format::Eml)
         } else {
-            None
+            by_name
         }
     }
 }
@@ -76,15 +98,13 @@ impl Format {
 /// (`crate::store`); the file alone isn't the mailbox, and is opened by path instead
 /// ([`open_path`]).
 pub fn read_mailbox(bytes: &[u8]) -> Result<Mailbox, String> {
+    if bytes.starts_with(INDEX_MAGIC) {
+        return Err(KEPT_BESIDE.into());
+    }
     let mut mb: Mailbox = serde_json::from_slice(bytes).map_err(|e| format!("this isn't a MailCraft mailbox ({e})"))?;
     match mb.version {
         0 | 1 => {}
-        2 => {
-            return Err(
-                "this mailbox file keeps its messages' content in a folder beside it; open it where it is kept, or save it as one file first (File › Open & Export › Save Mailbox As)"
-                    .into(),
-            );
-        }
+        2 => return Err(KEPT_BESIDE.into()),
         newer => return Err(format!("this mailbox was written by a newer MailCraft (format {newer})")),
     }
     for line in mb.repair() {
@@ -142,8 +162,12 @@ pub fn import(s: &mut Session, name: &str, bytes: &[u8], folder: Option<Id>) -> 
     let now = s.now();
     match format {
         Format::Mailbox => Err(bad(format!("{name} is a whole mailbox; open it with File › Open"))),
-        Format::Eml | Format::Mbox => {
-            let messages = if format == Format::Eml { vec![mailcraft_mime::parse(bytes)] } else { mailcraft_mime::parse_mbox(bytes) };
+        Format::Eml | Format::Msg | Format::Mbox => {
+            let messages = match format {
+                Format::Eml => vec![mailcraft_mime::parse(bytes)],
+                Format::Msg => vec![mailcraft_msg::parse(bytes).map_err(|e| fail(format!("{name}: {e}")))?],
+                _ => mailcraft_mime::parse_mbox(bytes),
+            };
             if messages.is_empty() {
                 return Err(fail(format!("{name} has no messages")));
             }
@@ -162,7 +186,12 @@ pub fn import(s: &mut Session, name: &str, bytes: &[u8], folder: Option<Id>) -> 
             if let Some(last) = ids.last() {
                 s.sel.messages = vec![*last];
             }
-            Ok(json!({"format": if format == Format::Eml { "eml" } else { "mbox" }, "messages": ids.len(), "ids": ids, "folder": folder}))
+            let format = match format {
+                Format::Eml => "eml",
+                Format::Msg => "msg",
+                _ => "mbox",
+            };
+            Ok(json!({"format": format, "messages": ids.len(), "ids": ids, "folder": folder}))
         }
         Format::Ics => {
             let text = String::from_utf8_lossy(bytes);

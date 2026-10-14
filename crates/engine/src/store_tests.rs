@@ -152,10 +152,11 @@ fn the_split_form_round_trips() {
     let saved = save(&path, &mb).unwrap();
     assert!(saved.bytes > 0 && saved.blobs > 0 && !saved.unchanged);
 
-    // The mailbox file is format 2 and holds no content; each content file is named by the
+    // The mailbox file is format 3 and holds no content; each content file is named by the
     // SHA-256 of what is in it, in the folder of its first two digits.
-    let head: Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
-    assert_eq!(head["version"], 2);
+    let head = fs::read(&path).unwrap();
+    assert_eq!((&head[..16], &head[16..24]), (&b"MailCraft index\n"[..], &[3u8, 0, 0, 0, 0, 0, 0, 0][..]));
+    assert!(saved.compacted && saved.bytes == head.len() as u64);
     let content: u64 = mb.messages.values().map(|m| m.size()).sum();
     assert!(saved.bytes < content / 4, "{} of {content}", saved.bytes);
     let blobs = files(&blob_dir(&path));
@@ -167,7 +168,7 @@ fn the_split_form_round_trips() {
         assert_eq!(file.parent().unwrap().file_name().unwrap().to_str().unwrap(), &name[..2]);
     }
     // What is small stays inside: 8 short texts, and the tiny attachment.
-    let text = fs::read_to_string(&path).unwrap();
+    let text = String::from_utf8_lossy(&head);
     assert!(text.contains("Short note 3.") && text.contains("\"data\":\"dGlueQ==\"") && !text.contains("Line 5 of message 1:"));
     // 16 long texts, 12 HTML bodies, 6 files and the shared one (once).
     assert_eq!(blobs.len(), 16 + 12 + 6 + 1);
@@ -285,9 +286,12 @@ fn an_old_single_file_opens_and_becomes_the_split_form_on_the_next_save() {
     assert!(saved.blobs > 0 && (saved.bytes as usize) < before.len() / 4);
     let reopened = open(&path).unwrap();
     assert!(reopened.split && reopened.mailbox == mb);
+    // The file as it was is kept beside it, whole.
+    assert_eq!(fs::read(tmp.0.join("mailbox.mailcraft.format1")).unwrap(), before);
     // The file alone is no longer the whole mailbox, and says so instead of opening empty.
     let alone = crate::io::read_mailbox(&fs::read(&path).unwrap()).unwrap_err();
     assert!(alone.contains("folder beside it"), "{alone}");
+    assert_eq!(crate::io::Format::detect("whatever", &fs::read(&path).unwrap()), Some(crate::io::Format::Mailbox));
     // A format from the future is refused in both.
     fs::write(&path, br#"{"version":3}"#).unwrap();
     assert!(open(&path).unwrap_err().contains("newer MailCraft"));
@@ -445,10 +449,15 @@ fn a_crash_leaves_the_old_state_or_the_new() {
 
     // A mailbox file cut short (written in place by something else) is refused, not opened as
     // an empty mailbox for the next save to write over.
+    // (Its first save is all of it: half of that is no save at all.)
     fs::write(&path, &old_file[..old_file.len() / 2]).unwrap();
-    assert!(open(&path).unwrap_err().contains("isn't a MailCraft mailbox"));
+    assert!(open(&path).unwrap_err().contains("no save in it was finished"));
     assert!(sweep(&path, Duration::ZERO).is_err());
     assert_eq!(files(&blob_dir(&path)).len(), swept.kept);
+    // The same of one self-contained file.
+    let single = crate::io::write_mailbox(&old).unwrap();
+    fs::write(&path, &single[..single.len() / 2]).unwrap();
+    assert!(open(&path).unwrap_err().contains("isn't a MailCraft mailbox"));
     fs::write(&path, &old_file).unwrap();
     assert!(open(&path).unwrap().mailbox == old);
 }
@@ -651,7 +660,8 @@ fn a_hostile_mailbox_file_names_nothing_outside_its_folder() {
             ..Default::default()
         })
         .unwrap();
-    save(&path, &mb).unwrap();
+    // A mailbox file of format 2, as the program before this one wrote it.
+    save_v2(&path, &mb);
     let good: Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
     let real = good["blobs"][id.to_string()]["text"][0].as_str().unwrap().to_string();
     let abs = tmp.0.join("secret").to_string_lossy().to_string();
@@ -677,9 +687,16 @@ fn a_hostile_mailbox_file_names_nothing_outside_its_folder() {
         for part in [m.body.text.as_bytes(), m.body.html.as_deref().unwrap_or("").as_bytes(), &m.attachments[0].data, &m.attachments[1].data] {
             assert!(part != secret.as_slice() && part.len() <= 6000, "attack {n}");
         }
-        // Saving what was opened is safe too, and writes nothing outside the folder.
-        save(&path, &opened.mailbox).unwrap();
+        // Saving what was opened is safe too, and writes nothing outside the folder but the
+        // file it takes the place of, kept.
+        let mut changed = opened.mailbox.clone();
+        changed.message_mut(id).unwrap().read ^= true;
+        save(&path, &changed).unwrap();
+        let kept = tmp.0.join("mailbox.mailcraft.format2");
+        assert_eq!(serde_json::from_slice::<Value>(&fs::read(&kept).unwrap()).unwrap(), bad, "attack {n}");
+        fs::remove_file(&kept).unwrap();
         assert_eq!(files(&tmp.0).iter().filter(|(f, _)| !f.starts_with(blob_dir(&path))).count(), 2, "attack {n}");
+        assert!(open(&path).unwrap().mailbox == changed, "attack {n}");
     }
     // `blobs` that isn't what it should be is a damaged file: refused, never guessed at.
     for junk in [json!(5), json!([1, 2]), json!({"1": 5}), json!({"1": {"text": "x"}}), json!({"1": {"attachments": {"a": 1}}}), json!({"x": {}})] {
@@ -821,11 +838,15 @@ fn of_two_saves_racing_the_newer_state_wins() {
             .collect();
         let reader = scope.spawn(|| {
             let mut seen = 0;
-            while !stop.load(Ordering::Relaxed) {
+            // At least one look, however late the reader gets a turn on a busy machine.
+            while seen == 0 || !stop.load(Ordering::Relaxed) {
                 // (Where a file being replaced can't be opened that instant, look again.)
                 let Ok(bytes) = fs::read(&path) else { continue };
-                let head: Head = serde_json::from_slice(&bytes).unwrap();
-                for wire in head.blobs.values() {
+                // Read as far as its last commit (an append may be under way).
+                let replayed = index::replay(&bytes[..], bytes.len() as u64).unwrap();
+                assert!(replayed.rest.is_some());
+                for item in replayed.items.values().filter(|item| !item.refs().is_empty()) {
+                    let wire: WireParts = serde_json::from_slice(item.refs()).unwrap();
                     for r in wire.text.iter().chain(&wire.html).chain(wire.attachments.iter().flatten()).filter_map(parse_ref) {
                         assert!(get(&blob_dir(&path), &r, &Folders::new()).is_some(), "{r:?}");
                     }
@@ -903,12 +924,15 @@ fn the_saver_writes_in_the_background_coalesces_and_flushes() {
     assert!(saver.reports().is_empty());
 
     // A state that gets to the disk after a newer one was written by somebody else (the Save
-    // command, quitting) is dropped rather than written over it.
+    // command, quitting) is dropped rather than written over it. The first save asked for a
+    // sweep, which takes the same lock: let it run first, or holding the file would keep the
+    // saver in the sweep and the write below would never start.
+    until(|| lock(&held.state).swept.is_some());
     let mut gate = lock(&held.state);
     saver.submit(&path, states[0].clone(), 6);
     until(|| lock(&saver.queue.jobs).writing.is_some());
     mb.message_mut(ids[0]).unwrap().read = true;
-    write_split(&mut gate, &path, &mb).unwrap();
+    write_index(&mut gate, &path, &mb).unwrap();
     gate.newest = next_seq();
     drop(gate);
     saver.flush();
@@ -1031,3 +1055,31 @@ fn replacing_a_mailbox_a_host_keeps_saved_writes_its_last_changes_first() {
     assert!(error.contains("couldn't be saved first"), "{error}");
     assert!(s.mailbox == kept && s.path.as_deref() == Some(home.as_path()));
 }
+
+/// The mailbox file of format 2 and its content files, as the program before format 3 wrote them:
+/// the mailbox as JSON, each message's content outside named under `blobs`.
+fn save_v2(path: &Path, mb: &Mailbox) {
+    let dir = blob_dir(path);
+    let mut hashes = HashMap::new();
+    let (mut messages, mut blobs) = (serde_json::Map::new(), serde_json::Map::new());
+    for (id, m) in &mb.messages {
+        let p = prepare(*id, m, None, &mut hashes).unwrap();
+        for (r, bytes) in p.parts.content(m) {
+            let _ = make_dir(&dir);
+            put(&dir, &r, bytes).unwrap();
+        }
+        messages.insert(id.to_string(), serde_json::from_slice(&p.json).unwrap());
+        if !p.refs.is_empty() {
+            blobs.insert(id.to_string(), serde_json::from_slice(&p.refs).unwrap());
+        }
+    }
+    let mut file = serde_json::to_value(mb).unwrap();
+    file["version"] = json!(2);
+    file["messages"] = Value::Object(messages);
+    file["blobs"] = Value::Object(blobs);
+    fs::write(path, serde_json::to_vec(&file).unwrap()).unwrap();
+}
+
+/// Format 3: the log of records.
+#[path = "store_index_tests.rs"]
+mod format3;

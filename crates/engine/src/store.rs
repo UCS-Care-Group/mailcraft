@@ -5,31 +5,43 @@
 //! message read. The mailbox a program works on is kept in two parts instead:
 //!
 //! ```text
-//! mailbox.mailcraft           the mailbox without its content (JSON, format 2): accounts, folders,
-//!                             every message's headers and flags, contacts, events, tasks, and under
-//!                             "blobs" the content each message keeps outside: [SHA-256, length]
+//! mailbox.mailcraft           the mailbox without its content (format 3, a log of records, see
+//!                             store_index.rs): accounts, folders, every message's headers and
+//!                             flags, contacts, events, tasks, and for each message the content it
+//!                             keeps outside: [SHA-256, length]
 //! mailbox.mailcraft.blobs/    the content, one file per distinct body or attachment
 //!     3f/3f2a…                named by the SHA-256 of its bytes (64 lowercase hex digits), in a
 //!                             folder named by the first two
 //! ```
 //!
 //! - **What moves out:** a body or an attachment of more than [`INLINE_MAX`] bytes. A content file
-//!   is written once and never changed, so a save after a message was read writes the mailbox file
-//!   and nothing else. The same file attached to ten messages is kept once (and shared in memory).
-//! - **Saving** ([`save`]) writes the content files that aren't there yet, then the mailbox file,
-//!   each to a temporary file beside it that is flushed and renamed over. A crash at any point
-//!   leaves the old mailbox file, which names only content that is still there, or the new one.
-//!   [`Saver`] does this on a thread of its own for a window that must not wait.
-//! - **Opening** ([`open`]) reads one self-contained file as before (it becomes this form the next
-//!   time it is saved) or this form. Everything read back is hostile: a content file is taken only
-//!   when it is a plain file of the length and SHA-256 the mailbox file names; names are 64 hex
-//!   digits or nothing; sizes are capped. Content that is missing or damaged never stops the
-//!   mailbox from opening: the message keeps everything else and says its text is unavailable,
-//!   and what the mailbox file said about it is written back unchanged, so content that turns up
-//!   again (a folder copied late) is found the next time.
+//!   is written once and never changed. The same file attached to ten messages is kept once (and
+//!   shared in memory).
+//! - **Saving** ([`save`]) writes the content files that aren't there yet, then appends to the
+//!   mailbox file a record for each message, contact, event or task that changed or went (and one
+//!   for the rest of the mailbox when that changed), closed by a commit, in one write flushed to
+//!   the disk: a save after a message was read appends a few hundred bytes, however large the
+//!   mailbox. A crash in the middle leaves records no commit closes, which are not read. When
+//!   what was appended outgrows the mailbox itself, the whole file is written again (compacted)
+//!   to a temporary file beside it, flushed and renamed over. [`Saver`] does all this on a thread
+//!   of its own for a window that must not wait.
+//! - **Opening** ([`open`]) reads one self-contained file (format 1), the JSON mailbox file of the
+//!   form before this one (format 2, with the same content folder), or this form. Either of the
+//!   first two becomes this form the first time a changed mailbox is saved, written whole and
+//!   renamed over (until then the old file is the mailbox), and the old file is kept beside it as
+//!   `mailbox.mailcraft.format1` or `.format2`. Everything read back is hostile: a content file is
+//!   taken only when it is a plain file of the length and SHA-256 the mailbox file names; names
+//!   are 64 hex digits or nothing; sizes are capped; a record counts only whole, with its
+//!   checksum, and closed by a commit. Bytes after the last commit (a save cut short, or damage)
+//!   are reported, and the file is kept aside as `mailbox.mailcraft.damaged-<time>` before it is
+//!   next written. Content that is missing or damaged never stops the mailbox from opening: the
+//!   message keeps everything else and says its text is unavailable, and what the mailbox file
+//!   said about it is written back unchanged, so content that turns up again (a folder copied
+//!   late) is found the next time.
 //! - **Sweeping** ([`sweep`]) removes content files the mailbox file no longer names, never one
 //!   written in the last few minutes: a save in flight has written its content before its mailbox
-//!   file names it.
+//!   file names it. Nothing is swept while a damaged mailbox file is kept aside: it may name
+//!   content the mailbox no longer does.
 //!
 //! Not in the browser, which has no folder to keep content in: there the mailbox stays one file.
 
@@ -41,10 +53,25 @@ use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, OnceLock, Weak};
 use std::time::{Duration, Instant, SystemTime};
 
-use mailcraft_model::{Id, Mailbox, Message};
-use serde::Deserialize;
+use mailcraft_model::{Contact, Event, Id, Mailbox, Message, Task};
+use serde::{Deserialize, Serialize};
 
 use crate::io::{BackgroundSave, MAX_FILE, SaveReport};
+
+#[path = "store_index.rs"]
+mod index;
+
+use index::{Coll, Fp, Key, Tail};
+
+/// Largest mailbox file read in this form (16 GB; the JSON forms stop at [`MAX_FILE`]).
+pub const MAX_INDEX: u64 = 16 << 30;
+
+/// Items of a mailbox file parsed at a time when it is opened.
+const OPEN_SLICE: usize = 16_384;
+
+/// What a mailbox file may carry beyond twice the mailbox it holds before it is compacted (less
+/// in tests, so that small mailboxes get there).
+const COMPACT_SLACK: u64 = if cfg!(test) { 256 << 10 } else { 16 << 20 };
 
 /// A body or an attachment up to this many bytes stays in the mailbox file.
 pub const INLINE_MAX: usize = 1024;
@@ -58,8 +85,12 @@ pub const MAX_CONTENT: u64 = 8 << 30;
 /// A content file nothing names is left alone for this long after it was written.
 pub const GRACE: Duration = Duration::from_secs(10 * 60);
 
-/// The mailbox file's format number in this form (one self-contained file is format 1).
+/// The format number of the JSON mailbox file with its content beside it, the form before this
+/// one (one self-contained file is format 1). Read, never written.
 pub const SPLIT_VERSION: u32 = 2;
+
+/// The format number of this form: a log of records ([`index`]).
+pub const INDEX_VERSION: u32 = index::VERSION;
 
 /// What a message says instead of text that couldn't be read back.
 pub const UNAVAILABLE: &str =
@@ -263,19 +294,32 @@ fn parse_ref(wire: &(String, u64)) -> Option<Ref> {
     Digest::parse(&wire.0).map(|hash| Ref { hash, len: wire.1 })
 }
 
+impl WireParts {
+    /// Every name given, parsed or not.
+    fn hashes(&self) -> impl Iterator<Item = Digest> + '_ {
+        self.text.iter().chain(&self.html).chain(self.attachments.iter().flatten()).filter_map(parse_ref).map(|r| r.hash)
+    }
+
+    /// The parts as named, all taken to be in memory (what couldn't be read is marked after).
+    fn parts(&self) -> Parts {
+        let one = |p: &Option<(String, u64)>| p.as_ref().and_then(parse_ref).map(|r| Part { r, held: true });
+        Parts { text: one(&self.text), html: one(&self.html), attachments: self.attachments.iter().map(one).collect() }
+    }
+}
+
 // ---- what is known about a mailbox file ----
 
 /// A mailbox file as this program last read or wrote it, to notice anybody else writing it.
 struct Stamp {
     len: u64,
     modified: Option<SystemTime>,
-    digest: Digest,
 }
 
 impl Stamp {
-    fn of(path: &Path, bytes: &[u8]) -> Option<Stamp> {
+    /// The file as it is now, if it is still `len` bytes long (what was read or written of it).
+    fn of(path: &Path, len: u64) -> Option<Stamp> {
         let meta = fs::metadata(path).ok()?;
-        (meta.len() == bytes.len() as u64).then(|| Stamp { len: meta.len(), modified: meta.modified().ok(), digest: Digest::of(bytes) })
+        (meta.len() == len).then(|| Stamp { len, modified: meta.modified().ok() })
     }
 
     /// The file is still the one this was taken of.
@@ -284,21 +328,93 @@ impl Stamp {
     }
 }
 
-/// A message as it was last written: what it comes to in the mailbox file, so that a message
-/// nobody touched since costs a lookup, not a hash of its attachments.
-struct Cached {
-    /// The message this was worked out from. While this is alive the allocation can't be reused
-    /// and the message in it can't change (changing a shared message makes a new one), so the
-    /// same address is the same message.
-    of: Weak<Message>,
-    json: Box<[u8]>,
+/// An item as the mailbox file has it, as last read or written here: so that an item nobody
+/// touched since costs a lookup, not its JSON.
+struct Entry<T> {
+    /// The item in memory that is what the record says. While this is alive the allocation can't
+    /// be reused and the item in it can't change in place (changing a shared item makes a new
+    /// one, and so does changing one only this points at besides), so the same address is the
+    /// same item. Dangling when that isn't known (a file the opening had to repair).
+    of: Weak<T>,
+    /// Its record's checksum: what the record says, in 16 bytes.
+    fp: Fp,
+    /// The bytes its record takes.
+    size: u64,
+}
+
+impl<T> Entry<T> {
+    fn is(&self, item: &Arc<T>) -> bool {
+        std::ptr::eq(self.of.as_ptr(), Arc::as_ptr(item))
+    }
+}
+
+/// A message as the mailbox file has it: as [`Entry`], and the content it names.
+struct Msg {
+    entry: Entry<Message>,
     parts: Parts,
-    /// `parts` as JSON; empty when the message keeps nothing outside.
-    refs: Box<[u8]>,
+}
+
+/// What the mailbox file in this form says, as last read or written here.
+struct Disk {
+    messages: BTreeMap<Id, Msg>,
+    contacts: BTreeMap<Id, Entry<Contact>>,
+    events: BTreeMap<Id, Entry<Event>>,
+    tasks: BTreeMap<Id, Entry<Task>>,
+    rest: (Fp, u64),
+    /// The bytes of the records that say what the mailbox is now (the rest and every item).
+    live: u64,
+    /// Where the last commit ends.
+    len: u64,
+    tail: Tail,
+}
+
+impl Disk {
+    fn new(rest: (Fp, u64)) -> Disk {
+        Disk {
+            messages: BTreeMap::new(),
+            contacts: BTreeMap::new(),
+            events: BTreeMap::new(),
+            tasks: BTreeMap::new(),
+            rest,
+            live: rest.1,
+            len: index::HEADER_LEN,
+            tail: Tail::Clean,
+        }
+    }
+
+    /// A save can be appended: the file ends where its last save did.
+    fn appendable(&self) -> bool {
+        self.tail == Tail::Clean
+    }
+
+    /// Whether the file has outgrown what it says, so that the next save writes it whole.
+    fn outgrown(&self) -> bool {
+        self.len > self.live.saturating_mul(2).saturating_add(COMPACT_SLACK)
+    }
+}
+
+/// Count `parts` among the content the file names.
+fn hold(live: &mut HashMap<Digest, u32>, parts: &Parts) {
+    for p in parts.all() {
+        let n = live.entry(p.r.hash).or_default();
+        *n = n.saturating_add(1);
+    }
+}
+
+/// No longer count `parts` among the content the file names.
+fn release(live: &mut HashMap<Digest, u32>, parts: &Parts) {
+    for p in parts.all() {
+        if let Some(n) = live.get_mut(&p.r.hash) {
+            *n = n.saturating_sub(1);
+            if *n == 0 {
+                live.remove(&p.r.hash);
+            }
+        }
+    }
 }
 
 /// A mailbox as it was opened, to know it again without keeping it: its messages by where they
-/// are in memory (a message that changes moves, see [`Cached`]), the rest by its SHA-256.
+/// are in memory (a message that changes moves, see [`Entry`]), the rest by its SHA-256.
 struct Loaded {
     messages: Vec<(Id, Weak<Message>)>,
     rest: Digest,
@@ -339,15 +455,19 @@ struct Lost {
 
 #[derive(Default)]
 struct State {
-    /// The content the mailbox file on disk names, as last read or written here. A sweep, by
-    /// this program or another, leaves these alone; anything else is written (or its time
-    /// renewed) before a mailbox file names it.
-    live: HashSet<Digest>,
+    /// The content the mailbox file on disk names, as last read or written here, and by how
+    /// many parts. A sweep, by this program or another, leaves these alone; anything else is
+    /// written (or its time renewed) before a mailbox file names it.
+    live: HashMap<Digest, u32>,
     stamp: Option<Stamp>,
     /// The mailbox as it was opened, until something else is saved: a mailbox nobody changed is
     /// not rewritten, whatever form its file has.
     loaded: Option<Loaded>,
-    cache: HashMap<usize, Cached>,
+    /// The file is in this form, and this is what it says (with `stamp`).
+    disk: Option<Disk>,
+    /// The file was opened in an earlier form (1 or 2): it is kept beside the new one when that
+    /// takes its place.
+    legacy: Option<u32>,
     /// The SHA-256 of attachments already worked out, by where their bytes are.
     hashes: HashMap<usize, (Weak<Vec<u8>>, Digest)>,
     /// What the mailbox file said about content that couldn't be read when it was opened.
@@ -426,28 +546,25 @@ fn rename_over(from: &Path, to: &Path) -> std::io::Result<()> {
 /// Write `bytes` to `path` so that a crash leaves what was there or all of the new file: into a
 /// temporary file beside it, flushed to the disk, then renamed over.
 pub fn write_atomic(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
-    let mut tries = 0;
-    let (tmp, mut file) = loop {
-        let tmp = temp_beside(path);
-        // A new file or nothing: never through something already there by that name.
-        let mut open = fs::OpenOptions::new();
-        open.write(true).create_new(true);
-        // Mail is private: nobody else on the machine reads it.
-        #[cfg(unix)]
-        std::os::unix::fs::OpenOptionsExt::mode(&mut open, 0o600);
-        match open.open(&tmp) {
-            Ok(file) => break (tmp, file),
-            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists && tries < 8 => tries += 1,
-            Err(e) => return Err(e),
-        }
-    };
-    let written = file.write_all(bytes).and_then(|()| file.sync_all());
-    drop(file);
-    if let Err(e) = written.and_then(|()| rename_over(&tmp, path)) {
-        let _ = fs::remove_file(&tmp);
-        return Err(e);
-    }
-    // The rename itself reaches the disk with its folder (where folders can be flushed).
+    let mut file = AtomicFile::create(path)?;
+    file.write_all(bytes)?;
+    file.commit()
+}
+
+/// A new file for its owner only, created where nothing is (never through something already
+/// there by that name).
+fn create_private(path: &Path) -> std::io::Result<fs::File> {
+    let mut open = fs::OpenOptions::new();
+    open.write(true).create_new(true);
+    // Mail is private: nobody else on the machine reads it.
+    #[cfg(unix)]
+    std::os::unix::fs::OpenOptionsExt::mode(&mut open, 0o600);
+    open.open(path)
+}
+
+/// Flush the folder `path` is in, so that a rename in it reaches the disk (where folders can be
+/// flushed).
+fn sync_dir_of(path: &Path) {
     #[cfg(unix)]
     {
         let dir = path.parent().filter(|d| !d.as_os_str().is_empty()).unwrap_or(Path::new("."));
@@ -455,7 +572,67 @@ pub fn write_atomic(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
             let _ = dir.sync_all();
         }
     }
-    Ok(())
+    #[cfg(not(unix))]
+    let _ = path;
+}
+
+/// A file written to a temporary file beside it and renamed over it when it is whole
+/// ([`AtomicFile::commit`]); dropped before that, the temporary file goes and nothing changed.
+struct AtomicFile {
+    tmp: PathBuf,
+    path: PathBuf,
+    out: Option<std::io::BufWriter<fs::File>>,
+}
+
+impl AtomicFile {
+    fn create(path: &Path) -> std::io::Result<AtomicFile> {
+        let mut tries = 0;
+        loop {
+            let tmp = temp_beside(path);
+            match create_private(&tmp) {
+                Ok(file) => {
+                    let out = Some(std::io::BufWriter::with_capacity(64 << 10, file));
+                    return Ok(AtomicFile { tmp, path: path.to_path_buf(), out });
+                }
+                Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists && tries < 8 => tries += 1,
+                Err(e) => return Err(e),
+            }
+        }
+    }
+
+    /// Flushed to the disk, then renamed over the file it stands for.
+    fn commit(mut self) -> std::io::Result<()> {
+        let out = self.out.take().ok_or_else(|| std::io::Error::other("written twice"))?;
+        let file = out.into_inner().map_err(|e| e.into_error())?;
+        file.sync_all()?;
+        drop(file);
+        rename_over(&self.tmp, &self.path)?;
+        sync_dir_of(&self.path);
+        Ok(())
+    }
+}
+
+impl std::io::Write for AtomicFile {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        self.out.as_mut().ok_or_else(|| std::io::Error::other("already written"))?.write(buf)
+    }
+
+    fn write_all(&mut self, buf: &[u8]) -> std::io::Result<()> {
+        self.out.as_mut().ok_or_else(|| std::io::Error::other("already written"))?.write_all(buf)
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        self.out.as_mut().map_or(Ok(()), |o| o.flush())
+    }
+}
+
+impl Drop for AtomicFile {
+    fn drop(&mut self) {
+        // Not renamed over: what was written goes (whether or not it was renamed, it is no
+        // longer under this name).
+        drop(self.out.take());
+        let _ = fs::remove_file(&self.tmp);
+    }
 }
 
 /// Make the folder `dir` (its parent is there), for its owner only.
@@ -611,31 +788,53 @@ pub struct Opened {
     pub split: bool,
     /// Bodies and attachments whose content file is missing or damaged.
     pub unavailable: usize,
+    /// Bytes at the end of the file that aren't a finished save (a save a crash cut short, or
+    /// damage). They are not read; the file is kept aside before it is next written.
+    pub unfinished: u64,
 }
 
 impl std::fmt::Debug for Opened {
     /// Without the mail itself.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Opened {{ messages: {}, split: {}, unavailable: {} }}", self.mailbox.messages.len(), self.split, self.unavailable)
+        write!(
+            f,
+            "Opened {{ messages: {}, split: {}, unavailable: {}, unfinished: {} }}",
+            self.mailbox.messages.len(),
+            self.split,
+            self.unavailable,
+            self.unfinished
+        )
     }
 }
 
-/// Open the mailbox file at `path`, in either form. Whatever the file and its content folder
-/// hold, the result is consistent (`Mailbox::repair`).
+/// Whether the file at `path` begins as a mailbox file in this form does.
+fn is_index(file: &Path) -> Result<bool, String> {
+    let mut head = [0u8; 16];
+    let mut f = fs::File::open(file).map_err(|e| e.to_string())?;
+    let got = index::fill(&mut f, &mut head).map_err(|e| e.to_string())?;
+    Ok(got == head.len() && &head == crate::io::INDEX_MAGIC)
+}
+
+/// Open the mailbox file at `path`, in any of its forms. Whatever the file and its content
+/// folder hold, the result is consistent (`Mailbox::repair`).
 pub fn open(path: &Path) -> Result<Opened, String> {
     let shared = shared(path);
     let mut st = lock(&shared.state);
     let show = path.display();
     let file = resolve(path);
     let len = fs::metadata(&file).map_err(|e| format!("{show}: {e}"))?.len();
+    // Whatever was known about this file was about another state of it.
+    *st = State { newest: st.newest, swept: st.swept, ..State::default() };
+    if is_index(&file).map_err(|e| format!("{show}: {e}"))? {
+        return open_index(&mut st, &file, len).map_err(|e| format!("{show}: {e}"));
+    }
     if len > MAX_FILE {
         return Err(format!("{show} is larger than {} MB", MAX_FILE >> 20));
     }
     let bytes = fs::read(&file).map_err(|e| format!("{show}: {e}"))?;
     let mut mailbox: Mailbox = serde_json::from_slice(&bytes).map_err(|e| format!("{show}: this isn't a MailCraft mailbox ({e})"))?;
-    // Whatever was known about this file was about another state of it.
-    *st = State { newest: st.newest, swept: st.swept, ..State::default() };
-    let (split, unavailable) = match mailbox.version {
+    let version = mailbox.version;
+    let (split, unavailable) = match version {
         0 | 1 => (false, 0),
         SPLIT_VERSION => {
             let head: Head = serde_json::from_slice(&bytes).map_err(|e| format!("{show}: this mailbox file is damaged ({e})"))?;
@@ -651,9 +850,165 @@ pub fn open(path: &Path) -> Result<Opened, String> {
     if unavailable > 0 {
         log::warn!("{show}: {unavailable} bodies or attachments are missing from {} or damaged", blob_dir(&file).display());
     }
-    st.stamp = Stamp::of(&file, &bytes);
+    st.stamp = Stamp::of(&file, bytes.len() as u64);
     st.loaded = Loaded::of(&mailbox);
-    Ok(Opened { mailbox, split, unavailable })
+    st.legacy = Some(version.max(1));
+    Ok(Opened { mailbox, split, unavailable, unfinished: 0 })
+}
+
+/// One item of a mailbox file in this form, read.
+enum Parsed {
+    Message(Arc<Message>, Option<WireParts>),
+    Contact(Arc<Contact>),
+    Event(Arc<Event>),
+    Task(Arc<Task>),
+}
+
+fn parse_item(key: &Key, item: &index::Item) -> Result<(Parsed, Fp), String> {
+    let damaged = |e: serde_json::Error| format!("this mailbox file is damaged (item {} of {:?}: {e})", key.1, key.0);
+    let fp = item.fp;
+    let parsed = match key.0 {
+        Coll::Message => {
+            let m: Message = serde_json::from_slice(item.json()).map_err(damaged)?;
+            let refs = item.refs();
+            let wire = if refs.is_empty() { None } else { Some(serde_json::from_slice::<WireParts>(refs).map_err(damaged)?) };
+            Parsed::Message(Arc::new(m), wire)
+        }
+        Coll::Contact => Parsed::Contact(Arc::new(serde_json::from_slice(item.json()).map_err(damaged)?)),
+        Coll::Event => Parsed::Event(Arc::new(serde_json::from_slice(item.json()).map_err(damaged)?)),
+        Coll::Task => Parsed::Task(Arc::new(serde_json::from_slice(item.json()).map_err(damaged)?)),
+    };
+    Ok((parsed, fp))
+}
+
+/// Open a mailbox file in this form, `len` bytes long.
+fn open_index(st: &mut State, file: &Path, len: u64) -> Result<Opened, String> {
+    if len > MAX_INDEX {
+        return Err(format!("the mailbox file is larger than {} GB", MAX_INDEX >> 30));
+    }
+    let f = fs::File::open(file).map_err(|e| e.to_string())?;
+    let replayed = index::replay(std::io::BufReader::with_capacity(1 << 20, f), len)?;
+    let (rest, rest_sum) = replayed.rest.ok_or("this mailbox file is damaged (it has no mailbox record)")?;
+    let mut mailbox: Mailbox = serde_json::from_slice(&rest).map_err(|e| format!("this mailbox file is damaged ({e})"))?;
+    let rest_fp = (rest_sum, index::FRAME + rest.len() as u64);
+    drop(rest);
+    // Items are their own records: whatever the rest says of them is no part of the mailbox.
+    mailbox.messages = BTreeMap::new();
+    mailbox.contacts = BTreeMap::new();
+    mailbox.events = BTreeMap::new();
+    mailbox.tasks = BTreeMap::new();
+
+    // Each item parsed on one of a few threads (JSON is most of what opening costs), a slice at a
+    // time from the lowest key, each slice's bytes let go once it is read: the file's bytes and
+    // the mailbox they become are never both whole in memory.
+    let mut items: Vec<(Key, index::Item)> = replayed.items.into_iter().collect();
+    items.sort_unstable_by_key(|(key, _)| std::cmp::Reverse(*key));
+    let mut records: Vec<(Key, Fp, u64)> = Vec::with_capacity(items.len());
+    let mut head = Head { version: INDEX_VERSION, blobs: BTreeMap::new() };
+    let (mut messages, mut contacts, mut events, mut tasks) = (Vec::new(), Vec::new(), Vec::new(), Vec::new());
+    while !items.is_empty() {
+        let mut slice = items.split_off(items.len().saturating_sub(OPEN_SLICE));
+        slice.reverse();
+        let parsed = fan_out(slice.len(), |i| slice.get(i).map(|(key, item)| (*key, item.size(), parse_item(key, item))));
+        drop(slice);
+        for one in parsed {
+            let Some(Some((key, size, result))) = one else { return Err("the mailbox file couldn't be read".into()) };
+            let (item, fp) = result?;
+            records.push((key, fp, size));
+            match item {
+                Parsed::Message(m, wire) => {
+                    if let Some(wire) = wire {
+                        head.blobs.insert(key.1, wire);
+                    }
+                    messages.push((key.1, m));
+                }
+                Parsed::Contact(c) => contacts.push((key.1, c)),
+                Parsed::Event(e) => events.push((key.1, e)),
+                Parsed::Task(t) => tasks.push((key.1, t)),
+            }
+        }
+    }
+    drop(items);
+    // Sorted by key: the maps are built in one go.
+    mailbox.messages = messages.into_iter().collect();
+    mailbox.contacts = contacts.into_iter().collect();
+    mailbox.events = events.into_iter().collect();
+    mailbox.tasks = tasks.into_iter().collect();
+
+    // What each message keeps outside, to know it again at the next save without working it out.
+    let mut parts: HashMap<Id, Parts> = head.blobs.iter().map(|(id, wire)| (*id, wire.parts())).collect();
+    let dir = blob_dir(file);
+    let unavailable = fill(st, &dir, &mut mailbox, head);
+    for (id, lost) in &st.missing {
+        let Some(p) = parts.get_mut(id) else { continue };
+        let slots = [(&mut p.text, lost.parts.text.is_some()), (&mut p.html, lost.parts.html.is_some())];
+        for (part, gone) in slots {
+            if let (Some(part), true) = (part, gone) {
+                part.held = false;
+            }
+        }
+        for (part, gone) in p.attachments.iter_mut().zip(&lost.parts.attachments) {
+            if let (Some(part), Some(_)) = (part, gone) {
+                part.held = false;
+            }
+        }
+    }
+    mailbox.version = 1;
+    let fixed = mailbox.repair();
+    for line in &fixed {
+        log::warn!("mailbox repaired: {line}");
+    }
+    let show = file.display();
+    if unavailable > 0 {
+        log::warn!("{show}: {unavailable} bodies or attachments are missing from {} or damaged", dir.display());
+    }
+    let unfinished = match replayed.tail {
+        Tail::Bytes(n) => {
+            log::warn!(
+                "{show}: the last {n} bytes aren't a finished save (one cut short, or damage); the file is kept aside before it is next written"
+            );
+            n
+        }
+        Tail::Clean | Tail::Zeros => 0,
+    };
+
+    // What the file says, item by item. Each is the item in memory, unless the repair changed
+    // something: then which is isn't known, each is worked out again at the next save, and what
+    // was fixed is written.
+    let mut disk = Disk::new(rest_fp);
+    (disk.len, disk.tail) = (replayed.good_len, replayed.tail);
+    let trusted = fixed.is_empty();
+    fn of<T>(map: &BTreeMap<Id, Arc<T>>, id: Id, trusted: bool) -> Weak<T> {
+        map.get(&id).filter(|_| trusted).map_or_else(Weak::new, Arc::downgrade)
+    }
+    for (key, fp, size) in records {
+        disk.live = disk.live.saturating_add(size);
+        let id = key.1;
+        match key.0 {
+            Coll::Message => {
+                let parts = parts.remove(&id).unwrap_or_default();
+                disk.messages.insert(id, Msg { entry: Entry { of: of(&mailbox.messages, id, trusted), fp, size }, parts });
+            }
+            Coll::Contact => {
+                disk.contacts.insert(id, Entry { of: of(&mailbox.contacts, id, trusted), fp, size });
+            }
+            Coll::Event => {
+                disk.events.insert(id, Entry { of: of(&mailbox.events, id, trusted), fp, size });
+            }
+            Coll::Task => {
+                disk.tasks.insert(id, Entry { of: of(&mailbox.tasks, id, trusted), fp, size });
+            }
+        }
+    }
+    // The content it names, counted by its parts.
+    st.live.clear();
+    for m in disk.messages.values() {
+        hold(&mut st.live, &m.parts);
+    }
+    st.stamp = Stamp::of(file, len);
+    st.disk = Some(disk);
+    st.loaded = Loaded::of(&mailbox);
+    Ok(Opened { mailbox, split: true, unavailable, unfinished })
 }
 
 /// What a mailbox file wants for one part of a message.
@@ -672,10 +1027,11 @@ fn fill(st: &mut State, dir: &Path, mailbox: &mut Mailbox, head: Head) -> usize 
     let mut slots: Vec<(Ref, u32)> = Vec::new();
     let mut index: HashMap<Ref, usize> = HashMap::new();
     let mut budget = MAX_CONTENT;
-    let mut want = |wire: &Option<(String, u64)>, wanted: bool, body: bool, live: &mut HashSet<Digest>| -> Option<Want> {
+    let mut want = |wire: &Option<(String, u64)>, wanted: bool, body: bool, live: &mut HashMap<Digest, u32>| -> Option<Want> {
         let wire = wire.as_ref()?;
         let Some(r) = parse_ref(wire) else { return Some(Want { r: None, slot: None }) };
-        live.insert(r.hash);
+        let n = live.entry(r.hash).or_default();
+        *n = n.saturating_add(1);
         if !wanted {
             return None;
         }
@@ -783,6 +1139,8 @@ pub struct Saved {
     pub blob_bytes: u64,
     /// Nothing was written: the file already holds this state, or a newer one.
     pub unchanged: bool,
+    /// The mailbox file was written whole, not appended to.
+    pub compacted: bool,
 }
 
 /// Save `mailbox` to the file at `path` and its content folder. An error leaves the file as it
@@ -797,7 +1155,7 @@ fn save_as_of(path: &Path, mailbox: &Mailbox, seq: u64) -> Result<Saved, String>
     if seq < st.newest {
         return Ok(Saved { unchanged: true, ..Saved::default() });
     }
-    let saved = write_split(&mut st, &resolve(path), mailbox).map_err(|e| format!("{}: {e}", path.display()))?;
+    let saved = write_index(&mut st, &resolve(path), mailbox).map_err(|e| format!("{}: {e}", path.display()))?;
     st.newest = seq;
     Ok(saved)
 }
@@ -817,7 +1175,7 @@ pub fn save_single(path: &Path, mailbox: &Mailbox) -> Result<u64, String> {
 
 /// What a message comes to in the mailbox file: itself without the content that goes outside,
 /// and the names of that content.
-fn prepare(m: &Arc<Message>, lost: Option<&Lost>, hashes: &mut HashMap<usize, (Weak<Vec<u8>>, Digest)>) -> Result<Cached, String> {
+fn prepare(id: Id, m: &Arc<Message>, lost: Option<&Lost>, hashes: &mut HashMap<usize, (Weak<Vec<u8>>, Digest)>) -> Result<Prepared, String> {
     let outside = |bytes: &[u8]| (bytes.len() > INLINE_MAX).then(|| Part { r: Ref::of(bytes), held: true });
     // Content that couldn't be read when the mailbox was opened keeps the name it had, as long
     // as this is that message and still shows what was put in the content's place: the notice
@@ -869,130 +1227,513 @@ fn prepare(m: &Arc<Message>, lost: Option<&Lost>, hashes: &mut HashMap<usize, (W
     }
     let json = serde_json::to_vec(&lean).map_err(|e| e.to_string())?;
     let refs = if parts.is_empty() { Vec::new() } else { parts.json().into_bytes() };
-    Ok(Cached { of: Arc::downgrade(m), json: json.into(), parts, refs: refs.into() })
+    let fp = index::put_fp((Coll::Message, id), &json, &refs).map_err(io_error)?;
+    Ok(Prepared { of: Arc::downgrade(m), fp, parts, json, refs })
 }
 
-fn write_split(st: &mut State, path: &Path, mailbox: &Mailbox) -> Result<Saved, String> {
+/// A message worked out ([`prepare`]): its record's JSON and content names, and what to remember
+/// of it.
+struct Prepared {
+    of: Weak<Message>,
+    fp: Fp,
+    parts: Parts,
+    json: Vec<u8>,
+    refs: Vec<u8>,
+}
+
+/// The mailbox without the items kept in records of their own, as its rest record has it.
+fn rest_json(mailbox: &Mailbox) -> Result<Vec<u8>, String> {
+    let mut out = Vec::new();
+    mailbox.serialize(Shell(&mut serde_json::Serializer::new(&mut out))).map_err(|e| e.to_string())?;
+    Ok(out)
+}
+
+/// The fields of a mailbox kept in records of their own.
+const ITEMS: [&str; 4] = ["messages", "contacts", "events", "tasks"];
+
+/// Writes a mailbox as the model does, with each field of [`ITEMS`] an empty map and this form's
+/// format number: what a copy without its items would come to, without copying the items (half a
+/// million of them, at every save).
+struct Shell<S>(S);
+
+/// The mailbox fields as [`Shell`] writes them.
+struct ShellStruct<S>(S);
+
+/// An empty map.
+struct Empty;
+
+impl Serialize for Empty {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        serde::ser::SerializeMap::end(s.serialize_map(Some(0))?)
+    }
+}
+
+fn not_a_mailbox<E: serde::ser::Error>() -> E {
+    E::custom("only a mailbox is written this way")
+}
+
+/// The methods of [`Shell`] for what isn't a struct: a mailbox is one.
+macro_rules! not_a_mailbox {
+    ($($name:ident($($arg:ty),*) -> $out:ty;)*) => {
+        $(fn $name(self, $(_: $arg),*) -> Result<$out, S::Error> { Err(not_a_mailbox()) })*
+    };
+}
+
+impl<S: serde::Serializer> serde::Serializer for Shell<S> {
+    type Ok = S::Ok;
+    type Error = S::Error;
+    type SerializeSeq = serde::ser::Impossible<S::Ok, S::Error>;
+    type SerializeTuple = serde::ser::Impossible<S::Ok, S::Error>;
+    type SerializeTupleStruct = serde::ser::Impossible<S::Ok, S::Error>;
+    type SerializeTupleVariant = serde::ser::Impossible<S::Ok, S::Error>;
+    type SerializeMap = serde::ser::Impossible<S::Ok, S::Error>;
+    type SerializeStruct = ShellStruct<S::SerializeStruct>;
+    type SerializeStructVariant = serde::ser::Impossible<S::Ok, S::Error>;
+
+    fn serialize_struct(self, name: &'static str, len: usize) -> Result<Self::SerializeStruct, S::Error> {
+        Ok(ShellStruct(self.0.serialize_struct(name, len)?))
+    }
+
+    not_a_mailbox! {
+        serialize_bool(bool) -> S::Ok;
+        serialize_i8(i8) -> S::Ok;
+        serialize_i16(i16) -> S::Ok;
+        serialize_i32(i32) -> S::Ok;
+        serialize_i64(i64) -> S::Ok;
+        serialize_u8(u8) -> S::Ok;
+        serialize_u16(u16) -> S::Ok;
+        serialize_u32(u32) -> S::Ok;
+        serialize_u64(u64) -> S::Ok;
+        serialize_f32(f32) -> S::Ok;
+        serialize_f64(f64) -> S::Ok;
+        serialize_char(char) -> S::Ok;
+        serialize_str(&str) -> S::Ok;
+        serialize_bytes(&[u8]) -> S::Ok;
+        serialize_none() -> S::Ok;
+        serialize_unit() -> S::Ok;
+        serialize_unit_struct(&'static str) -> S::Ok;
+        serialize_unit_variant(&'static str, u32, &'static str) -> S::Ok;
+        serialize_seq(Option<usize>) -> Self::SerializeSeq;
+        serialize_tuple(usize) -> Self::SerializeTuple;
+        serialize_tuple_struct(&'static str, usize) -> Self::SerializeTupleStruct;
+        serialize_tuple_variant(&'static str, u32, &'static str, usize) -> Self::SerializeTupleVariant;
+        serialize_map(Option<usize>) -> Self::SerializeMap;
+        serialize_struct_variant(&'static str, u32, &'static str, usize) -> Self::SerializeStructVariant;
+    }
+
+    fn serialize_some<T: ?Sized + Serialize>(self, _: &T) -> Result<S::Ok, S::Error> {
+        Err(not_a_mailbox())
+    }
+
+    fn serialize_newtype_struct<T: ?Sized + Serialize>(self, _: &'static str, _: &T) -> Result<S::Ok, S::Error> {
+        Err(not_a_mailbox())
+    }
+
+    fn serialize_newtype_variant<T: ?Sized + Serialize>(self, _: &'static str, _: u32, _: &'static str, _: &T) -> Result<S::Ok, S::Error> {
+        Err(not_a_mailbox())
+    }
+}
+
+impl<S: serde::ser::SerializeStruct> serde::ser::SerializeStruct for ShellStruct<S> {
+    type Ok = S::Ok;
+    type Error = S::Error;
+
+    fn serialize_field<T: ?Sized + Serialize>(&mut self, key: &'static str, value: &T) -> Result<(), S::Error> {
+        match key {
+            "version" => self.0.serialize_field(key, &INDEX_VERSION),
+            _ if ITEMS.contains(&key) => self.0.serialize_field(key, &Empty),
+            _ => self.0.serialize_field(key, value),
+        }
+    }
+
+    fn skip_field(&mut self, key: &'static str) -> Result<(), S::Error> {
+        self.0.skip_field(key)
+    }
+
+    fn end(self) -> Result<S::Ok, S::Error> {
+        self.0.end()
+    }
+}
+
+/// How the contacts, events or tasks differ from what the file says of them.
+struct Changes<T> {
+    /// Records to write: each item's entry once they are.
+    put: Vec<(Id, Entry<T>)>,
+    /// Items as the file says them, in another copy in memory.
+    relink: Vec<(Id, Weak<T>)>,
+    gone: Vec<Id>,
+}
+
+/// What a save appends, worked out against what the file says ([`delta`]).
+struct Delta<'m> {
+    /// The records and their commit, to append in one write.
+    group: Vec<u8>,
+    records: u32,
+    /// Content to write first.
+    wanted: HashMap<Ref, &'m [u8]>,
+    messages: Vec<(Id, Msg)>,
+    relink: Vec<(Id, Weak<Message>)>,
+    gone: Vec<Id>,
+    contacts: Changes<Contact>,
+    events: Changes<Event>,
+    tasks: Changes<Task>,
+    rest: Option<(Fp, u64)>,
+}
+
+fn io_error(e: std::io::Error) -> String {
+    e.to_string()
+}
+
+/// Walk `now` and `was` side by side, both in the order of their ids: `each` is given every item
+/// of `now` with what `was` has under its id. Returns the ids only `was` has, in order.
+fn walk<'a, 'b, A, B>(
+    now: &'a BTreeMap<Id, A>,
+    was: &'b BTreeMap<Id, B>,
+    mut each: impl FnMut(&'a Id, &'a A, Option<&'b B>) -> Result<(), String>,
+) -> Result<Vec<Id>, String> {
+    let mut old = was.iter().peekable();
+    let mut gone = Vec::new();
+    for (id, item) in now {
+        while let Some((before, _)) = old.next_if(|(other, _)| *other < id) {
+            gone.push(*before);
+        }
+        let same = old.next_if(|(other, _)| *other == id).map(|(_, b)| b);
+        each(id, item, same)?;
+    }
+    gone.extend(old.map(|(id, _)| *id));
+    Ok(gone)
+}
+
+/// Work out what `mailbox` changed since the file said `d`: an item that is the one the file
+/// says costs a step of a walk; any other is worked out and compared with what the file says.
+fn delta<'m>(st: &mut State, mailbox: &'m Mailbox, d: &Disk) -> Result<Delta<'m>, String> {
+    let mut group = Vec::new();
+    let mut records = 0u32;
+    let (mut wanted, mut messages, mut relink) = (HashMap::new(), Vec::new(), Vec::new());
+    let gone = walk(&mailbox.messages, &d.messages, |id, m, was| {
+        if was.is_some_and(|w| w.entry.is(m)) {
+            return Ok(());
+        }
+        let p = prepare(*id, m, st.missing.get(id), &mut st.hashes)?;
+        if was.is_some_and(|w| w.entry.fp == p.fp) {
+            relink.push((*id, p.of));
+            return Ok(());
+        }
+        for (r, bytes) in p.parts.content(m) {
+            if !st.live.contains_key(&r.hash) {
+                wanted.entry(r).or_insert(bytes);
+            }
+        }
+        let (size, _) = index::put(&mut group, (Coll::Message, *id), &p.json, &p.refs).map_err(io_error)?;
+        records = records.saturating_add(1);
+        messages.push((*id, Msg { entry: Entry { of: p.of, fp: p.fp, size }, parts: p.parts }));
+        Ok(())
+    })?;
+    for id in &gone {
+        index::delete(&mut group, (Coll::Message, *id)).map_err(io_error)?;
+        records = records.saturating_add(1);
+    }
+    let contacts = changes(&mailbox.contacts, Coll::Contact, &d.contacts, &mut group, &mut records)?;
+    let events = changes(&mailbox.events, Coll::Event, &d.events, &mut group, &mut records)?;
+    let tasks = changes(&mailbox.tasks, Coll::Task, &d.tasks, &mut group, &mut records)?;
+    let rest_json = rest_json(mailbox)?;
+    let fp = index::rest_fp(&rest_json).map_err(io_error)?;
+    let rest = if fp == d.rest.0 {
+        None
+    } else {
+        records = records.saturating_add(1);
+        Some((fp, index::rest(&mut group, &rest_json).map_err(io_error)?.0))
+    };
+    if records > 0 {
+        index::commit(&mut group, records).map_err(io_error)?;
+    }
+    Ok(Delta { group, records, wanted, messages, relink, gone, contacts, events, tasks, rest })
+}
+
+/// [`delta`] for the contacts, events or tasks.
+fn changes<T: Serialize>(
+    map: &BTreeMap<Id, Arc<T>>,
+    coll: Coll,
+    was: &BTreeMap<Id, Entry<T>>,
+    group: &mut Vec<u8>,
+    records: &mut u32,
+) -> Result<Changes<T>, String> {
+    let (mut put, mut relink) = (Vec::new(), Vec::new());
+    let gone = walk(map, was, |id, item, old| {
+        if old.is_some_and(|e| e.is(item)) {
+            return Ok(());
+        }
+        let json = serde_json::to_vec(&**item).map_err(|e| e.to_string())?;
+        let fp = index::put_fp((coll, *id), &json, b"").map_err(io_error)?;
+        if old.is_some_and(|e| e.fp == fp) {
+            relink.push((*id, Arc::downgrade(item)));
+            return Ok(());
+        }
+        let (size, _) = index::put(group, (coll, *id), &json, b"").map_err(io_error)?;
+        *records = records.saturating_add(1);
+        put.push((*id, Entry { of: Arc::downgrade(item), fp, size }));
+        Ok(())
+    })?;
+    for id in &gone {
+        index::delete(group, (coll, *id)).map_err(io_error)?;
+        *records = records.saturating_add(1);
+    }
+    Ok(Changes { put, relink, gone })
+}
+
+/// Make `d` say what the file says once `delta`'s records are written.
+fn apply(d: &mut Disk, live: &mut HashMap<Digest, u32>, delta: Delta<'_>) {
+    for (id, of) in delta.relink {
+        if let Some(m) = d.messages.get_mut(&id) {
+            m.entry.of = of;
+        }
+    }
+    for (id, m) in delta.messages {
+        hold(live, &m.parts);
+        d.live = d.live.saturating_add(m.entry.size);
+        if let Some(old) = d.messages.insert(id, m) {
+            release(live, &old.parts);
+            d.live = d.live.saturating_sub(old.entry.size);
+        }
+    }
+    for id in delta.gone {
+        if let Some(old) = d.messages.remove(&id) {
+            release(live, &old.parts);
+            d.live = d.live.saturating_sub(old.entry.size);
+        }
+    }
+    apply_changes(&mut d.contacts, &mut d.live, delta.contacts);
+    apply_changes(&mut d.events, &mut d.live, delta.events);
+    apply_changes(&mut d.tasks, &mut d.live, delta.tasks);
+    if let Some(rest) = delta.rest {
+        d.live = d.live.saturating_sub(d.rest.1).saturating_add(rest.1);
+        d.rest = rest;
+    }
+}
+
+fn apply_changes<T>(entries: &mut BTreeMap<Id, Entry<T>>, live: &mut u64, changes: Changes<T>) {
+    for (id, of) in changes.relink {
+        if let Some(e) = entries.get_mut(&id) {
+            e.of = of;
+        }
+    }
+    for (id, e) in changes.put {
+        *live = live.saturating_add(e.size);
+        if let Some(old) = entries.insert(id, e) {
+            *live = live.saturating_sub(old.size);
+        }
+    }
+    for id in changes.gone {
+        if let Some(old) = entries.remove(&id) {
+            *live = live.saturating_sub(old.size);
+        }
+    }
+}
+
+/// Write the content files `wanted` that aren't there yet into the folder beside `path`.
+fn write_content(path: &Path, wanted: &HashMap<Ref, &[u8]>, saved: &mut Saved) -> Result<(), String> {
+    if wanted.is_empty() {
+        return Ok(());
+    }
+    let wanted: Vec<(Ref, &[u8])> = wanted.iter().map(|(r, bytes)| (*r, *bytes)).collect();
+    // The folder beside the mailbox file, and no more: a mailbox isn't saved to a place that
+    // isn't there.
+    let dir = blob_dir(path);
+    if let Err(e) = make_dir(&dir)
+        && !dir.is_dir()
+    {
+        return Err(format!("{}: {e}", dir.display()));
+    }
+    let done = fan_out(wanted.len(), |i| wanted.get(i).map(|(r, bytes)| put(&dir, r, bytes)));
+    for (result, (r, _)) in done.into_iter().zip(&wanted) {
+        match result.flatten() {
+            Some(Ok(true)) => {
+                saved.blobs += 1;
+                saved.blob_bytes += r.len;
+            }
+            Some(Ok(false)) => {}
+            Some(Err(e)) => return Err(format!("content file {}: {e}", r.hash.hex())),
+            None => return Err("the content couldn't be written".into()),
+        }
+    }
+    Ok(())
+}
+
+/// Append `group` to the mailbox file at `path`, which must be `at` bytes long, flushed to the
+/// disk. A write that fails is taken back as far as it can be (what is left of it is closed by
+/// no commit, and isn't read).
+fn append(path: &Path, at: u64, group: &[u8]) -> std::io::Result<()> {
+    let mut f = fs::OpenOptions::new().append(true).open(path)?;
+    if f.metadata()?.len() != at {
+        return Err(std::io::Error::other("the mailbox file changed while it was being saved"));
+    }
+    let written = f.write_all(group).and_then(|()| f.sync_data());
+    if written.is_err() {
+        let _ = f.set_len(at).and_then(|()| f.sync_data());
+    }
+    written
+}
+
+/// Keep the file at `path` as it is under `<file>.<what>` (or `.<what>-2` and so on when that is
+/// taken) before it is written over: a second name for the same file where the system has them,
+/// a copy otherwise. Returns where it went.
+fn keep_aside(path: &Path, what: &str) -> std::io::Result<PathBuf> {
+    let name = path.file_name().map(|n| n.to_os_string()).unwrap_or_default();
+    for n in 1..=100 {
+        let mut aside = name.clone();
+        aside.push(if n == 1 { format!(".{what}") } else { format!(".{what}-{n}") });
+        let aside = path.with_file_name(aside);
+        if fs::symlink_metadata(&aside).is_ok() {
+            continue;
+        }
+        if fs::hard_link(path, &aside).is_err() {
+            let mut from = fs::File::open(path)?;
+            let mut to = create_private(&aside)?;
+            std::io::copy(&mut from, &mut to).and_then(|_| to.sync_all()).inspect_err(|_| {
+                let _ = fs::remove_file(&aside);
+            })?;
+        }
+        sync_dir_of(&aside);
+        return Ok(aside);
+    }
+    Err(std::io::Error::other("too many files kept aside already"))
+}
+
+fn write_index(st: &mut State, path: &Path, mailbox: &Mailbox) -> Result<Saved, String> {
     // Somebody else wrote the file since: what it names now is theirs to say, and what it named
     // before may be swept any time.
     let ours = st.stamp.as_ref().is_some_and(|s| s.still(path));
     if !ours {
         st.live.clear();
         st.stamp = None;
+        st.disk = None;
+        st.legacy = None;
     }
     if ours && st.loaded.as_ref().is_some_and(|loaded| loaded.is(mailbox)) {
         return Ok(Saved { unchanged: true, ..Saved::default() });
     }
     st.loaded = None;
-
-    // Each message: as it was last written when nobody touched it since, worked out otherwise.
-    let mut cache = HashMap::with_capacity(mailbox.messages.len());
-    let mut live: HashSet<Digest> = HashSet::new();
-    let mut wanted: HashMap<Ref, &[u8]> = HashMap::new();
-    let (mut messages, mut blobs) = (Vec::new(), Vec::new());
-    let mut failed = None;
-    for (id, m) in &mailbox.messages {
-        let key = Arc::as_ptr(m) as usize;
-        let known = st.cache.remove(&key).filter(|c| std::ptr::eq(c.of.as_ptr(), Arc::as_ptr(m)));
-        let entry = match known.map_or_else(|| prepare(m, st.missing.get(id), &mut st.hashes), Ok) {
-            Ok(entry) => entry,
-            Err(e) => {
-                failed = Some(e);
-                break;
-            }
-        };
-        if entry.parts.all().any(|p| p.held && !st.live.contains(&p.r.hash)) {
-            for (r, bytes) in entry.parts.content(m) {
-                if !st.live.contains(&r.hash) {
-                    wanted.entry(r).or_insert(bytes);
-                }
-            }
+    let prior = st.disk.take();
+    let damaged = matches!(prior, Some(Disk { tail: Tail::Bytes(_), .. }));
+    let Some(mut d) = prior.filter(Disk::appendable) else { return compact(st, path, mailbox, damaged) };
+    let mut delta = match delta(st, mailbox, &d) {
+        Ok(delta) => delta,
+        Err(e) => {
+            st.disk = Some(d);
+            return Err(e);
         }
-        live.extend(entry.parts.all().map(|p| p.r.hash));
-        for (out, value) in [(&mut messages, &entry.json), (&mut blobs, &entry.refs)] {
-            if !value.is_empty() {
-                if !out.is_empty() {
-                    out.push(b',');
-                }
-                out.extend_from_slice(format!("\"{id}\":").as_bytes());
-                out.extend_from_slice(value);
-            }
-        }
-        cache.insert(key, entry);
-    }
-    st.cache = cache;
-    st.hashes.retain(|_, (of, _)| of.strong_count() > 0);
-    if let Some(e) = failed {
-        return Err(e);
-    }
-
+    };
     // The content first: a mailbox file never names what isn't on disk yet.
     let mut saved = Saved::default();
-    let wanted: Vec<(Ref, &[u8])> = wanted.into_iter().collect();
-    if !wanted.is_empty() {
-        // The folder beside the mailbox file, and no more: a mailbox isn't saved to a place that
-        // isn't there.
-        let dir = blob_dir(path);
-        if let Err(e) = make_dir(&dir)
-            && !dir.is_dir()
-        {
-            return Err(format!("{}: {e}", dir.display()));
-        }
-        let done = fan_out(wanted.len(), |i| wanted.get(i).map(|(r, bytes)| put(&dir, r, bytes)));
-        for (result, (r, _)) in done.into_iter().zip(&wanted) {
-            match result.flatten() {
-                Some(Ok(true)) => {
-                    saved.blobs += 1;
-                    saved.blob_bytes += r.len;
-                }
-                Some(Ok(false)) => {}
-                Some(Err(e)) => return Err(format!("content file {}: {e}", r.hash.hex())),
-                None => return Err("the content couldn't be written".into()),
-            }
-        }
+    if let Err(e) = write_content(path, &delta.wanted, &mut saved) {
+        st.disk = Some(d);
+        return Err(e);
     }
-
-    // Everything but the messages as the model writes it, with the messages spliced in.
-    let mut shell = mailbox.clone();
-    shell.messages = BTreeMap::new();
-    shell.version = SPLIT_VERSION;
-    let serde_json::Value::Object(shell) = serde_json::to_value(&shell).map_err(|e| e.to_string())? else {
-        return Err("the mailbox didn't come out as expected".into());
-    };
-    // Never a file without its messages, or with two ideas of where the content is.
-    if !shell.contains_key("messages") || shell.contains_key("blobs") {
-        return Err("the mailbox didn't come out as expected".into());
-    }
-    let mut out = Vec::with_capacity(messages.len() + blobs.len() + 4096);
-    out.push(b'{');
-    for (key, value) in &shell {
-        serde_json::to_writer(&mut out, key).map_err(|e| e.to_string())?;
-        out.push(b':');
-        if key == "messages" {
-            out.push(b'{');
-            out.extend_from_slice(&messages);
-            out.push(b'}');
-        } else {
-            serde_json::to_writer(&mut out, value).map_err(|e| e.to_string())?;
-        }
-        out.push(b',');
-    }
-    out.extend_from_slice(b"\"blobs\":{");
-    out.extend_from_slice(&blobs);
-    out.extend_from_slice(b"}}");
-
-    // The file already says exactly this (a change that was undone, a save asked for twice).
-    let digest = Digest::of(&out);
-    if st.stamp.as_ref().is_some_and(|s| s.digest == digest && s.len == out.len() as u64) {
+    let group = std::mem::take(&mut delta.group);
+    let records = delta.records;
+    apply(&mut d, &mut st.live, delta);
+    if records == 0 {
+        st.disk = Some(d);
         saved.unchanged = saved.blobs == 0;
-        st.live = live;
         return Ok(saved);
     }
-    write_atomic(path, &out).map_err(|e| e.to_string())?;
-    st.stamp = fs::metadata(path).ok().map(|m| Stamp { len: m.len(), modified: m.modified().ok(), digest });
-    st.live = live;
-    saved.bytes = out.len() as u64;
+    // When what was appended outgrows what the file says, it is written whole instead.
+    d.len = d.len.saturating_add(group.len() as u64);
+    if d.outgrown() {
+        return compact(st, path, mailbox, false).map(|whole| Saved {
+            blobs: saved.blobs + whole.blobs,
+            blob_bytes: saved.blob_bytes + whole.blob_bytes,
+            ..whole
+        });
+    }
+    if let Err(e) = append(path, d.len.saturating_sub(group.len() as u64), &group) {
+        // What the file holds now is for the next save to find out: it writes it whole.
+        st.stamp = None;
+        return Err(e.to_string());
+    }
+    st.stamp = Stamp::of(path, d.len);
+    st.disk = Some(d);
+    saved.bytes = group.len() as u64;
     Ok(saved)
+}
+
+/// Write the mailbox file at `path` whole: the rest of the mailbox and every item, closed by one
+/// commit, to a temporary file renamed over once the content it names is on disk. A file that
+/// ends in what isn't a finished save (`damaged`) is kept aside first, unread bytes and all, or
+/// nothing is written; so is a file of an earlier form, the first time this form takes its place.
+fn compact(st: &mut State, path: &Path, mailbox: &Mailbox, damaged: bool) -> Result<Saved, String> {
+    let keep = if damaged {
+        let secs = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).map_or(0, |d| d.as_secs());
+        Some((format!("damaged-{secs}"), true))
+    } else {
+        st.legacy.map(|version| (format!("format{version}"), false))
+    };
+    let rest = rest_json(mailbox)?;
+    let mut out = AtomicFile::create(path).map_err(io_error)?;
+    out.write_all(&index::header()).map_err(io_error)?;
+    let (rest_size, rest_fp) = index::rest(&mut out, &rest).map_err(io_error)?;
+    let mut d = Disk::new((rest_fp, rest_size));
+    drop(rest);
+    let mut live = HashMap::new();
+    let mut wanted = HashMap::new();
+    let mut records: u32 = 1;
+    let too_many = || "the mailbox holds too many items to be saved".to_string();
+    for (id, m) in &mailbox.messages {
+        let p = prepare(*id, m, st.missing.get(id), &mut st.hashes)?;
+        for (r, bytes) in p.parts.content(m) {
+            if !st.live.contains_key(&r.hash) {
+                wanted.entry(r).or_insert(bytes);
+            }
+        }
+        let (size, _) = index::put(&mut out, (Coll::Message, *id), &p.json, &p.refs).map_err(io_error)?;
+        hold(&mut live, &p.parts);
+        d.live = d.live.saturating_add(size);
+        records = records.checked_add(1).ok_or_else(too_many)?;
+        d.messages.insert(*id, Msg { entry: Entry { of: p.of, fp: p.fp, size }, parts: p.parts });
+    }
+    compact_items(&mailbox.contacts, Coll::Contact, &mut out, &mut d.contacts, &mut d.live, &mut records)?;
+    compact_items(&mailbox.events, Coll::Event, &mut out, &mut d.events, &mut d.live, &mut records)?;
+    compact_items(&mailbox.tasks, Coll::Task, &mut out, &mut d.tasks, &mut d.live, &mut records)?;
+    let commit = index::commit(&mut out, records).map_err(io_error)?;
+    d.len = index::HEADER_LEN.saturating_add(d.live).saturating_add(commit);
+    // The content first: the file isn't the mailbox until it is renamed over.
+    let mut saved = Saved::default();
+    write_content(path, &wanted, &mut saved)?;
+    drop(wanted);
+    if let Some((what, needed)) = keep {
+        match keep_aside(path, &what) {
+            Ok(aside) => log::info!("the mailbox file as it was is kept as {}", aside.display()),
+            Err(e) if needed => return Err(format!("the mailbox file couldn't be kept aside before it is written again ({e})")),
+            Err(e) => log::warn!("the mailbox file as it was couldn't be kept aside ({e})"),
+        }
+    }
+    out.commit().map_err(io_error)?;
+    st.live = live;
+    st.stamp = Stamp::of(path, d.len);
+    st.legacy = None;
+    saved.bytes = d.len;
+    saved.compacted = true;
+    st.disk = Some(d);
+    Ok(saved)
+}
+
+/// Write each item of a collection's record for [`compact`].
+fn compact_items<T: Serialize>(
+    map: &BTreeMap<Id, Arc<T>>,
+    coll: Coll,
+    out: &mut impl std::io::Write,
+    entries: &mut BTreeMap<Id, Entry<T>>,
+    live: &mut u64,
+    records: &mut u32,
+) -> Result<(), String> {
+    for (id, item) in map {
+        let json = serde_json::to_vec(&**item).map_err(|e| e.to_string())?;
+        let (size, fp) = index::put(out, (coll, *id), &json, b"").map_err(io_error)?;
+        *live = live.saturating_add(size);
+        *records = records.checked_add(1).ok_or("the mailbox holds too many items to be saved")?;
+        entries.insert(*id, Entry { of: Arc::downgrade(item), fp, size });
+    }
+    Ok(())
 }
 
 // ---- sweeping ----
@@ -1008,9 +1749,29 @@ pub struct Swept {
 }
 
 /// The content the mailbox file at `path` names, read from the file itself. `None` when the file
-/// isn't in the form that keeps content outside.
+/// isn't in a form that keeps content outside, or when it ends in what isn't a finished save
+/// (which may name content the rest doesn't).
 fn named_by(path: &Path) -> Result<Option<HashSet<Digest>>, String> {
     let len = fs::metadata(path).map_err(|e| e.to_string())?.len();
+    if is_index(path)? {
+        if len > MAX_INDEX {
+            return Err("too large".into());
+        }
+        let replayed = index::replay(std::io::BufReader::with_capacity(1 << 20, fs::File::open(path).map_err(|e| e.to_string())?), len)?;
+        if matches!(replayed.tail, Tail::Bytes(_)) {
+            return Ok(None);
+        }
+        // Only a file that opens is believed about what it names.
+        serde_json::from_slice::<Mailbox>(&replayed.rest.as_ref().ok_or("no mailbox record")?.0).map_err(|e| e.to_string())?;
+        let items: Vec<(&Key, &index::Item)> = replayed.items.iter().collect();
+        let mut named = HashSet::new();
+        for parsed in fan_out(items.len(), |i| items.get(i).map(|(key, item)| parse_item(key, item))) {
+            if let (Parsed::Message(_, Some(wire)), _) = parsed.flatten().ok_or("the mailbox file couldn't be read")?? {
+                named.extend(wire.hashes());
+            }
+        }
+        return Ok(Some(named));
+    }
     if len > MAX_FILE {
         return Err("too large".into());
     }
@@ -1018,9 +1779,15 @@ fn named_by(path: &Path) -> Result<Option<HashSet<Digest>>, String> {
     if head.version != SPLIT_VERSION {
         return Ok(None);
     }
-    let all =
-        |w: &WireParts| w.text.iter().chain(&w.html).chain(w.attachments.iter().flatten()).filter_map(parse_ref).map(|r| r.hash).collect::<Vec<_>>();
-    Ok(Some(head.blobs.values().flat_map(all).collect()))
+    Ok(Some(head.blobs.values().flat_map(WireParts::hashes).collect()))
+}
+
+/// Whether a mailbox file is kept aside beside `file` because it was damaged.
+fn damaged_beside(file: &Path) -> bool {
+    let (Some(parent), Some(stem)) = (file.parent(), file.file_name().and_then(|n| n.to_str())) else { return false };
+    let parent = if parent.as_os_str().is_empty() { Path::new(".") } else { parent };
+    let prefix = format!("{stem}.damaged-");
+    fs::read_dir(parent).into_iter().flatten().flatten().take(MAX_ENTRIES).any(|e| e.file_name().to_str().is_some_and(|n| n.starts_with(&prefix)))
 }
 
 /// Remove the content files next to the mailbox file at `path` that it no longer names, and
@@ -1033,7 +1800,15 @@ pub fn sweep(path: &Path, grace: Duration) -> Result<Swept, String> {
     st.swept = Some(Instant::now());
     let file = resolve(path);
     let dir = blob_dir(&file);
-    let Some(named) = named_by(&file).map_err(|e| format!("{}: {e}", path.display()))? else { return Ok(Swept::default()) };
+    // What a damaged file kept aside names may be wanted back.
+    if damaged_beside(&file) {
+        log::info!("{}: not sweeping its content folder while a damaged mailbox file is kept beside it", path.display());
+        return Ok(Swept::default());
+    }
+    // The file as this program last read or wrote it names what it knows; otherwise it is read.
+    let known = st.disk.as_ref().is_some_and(Disk::appendable) && st.stamp.as_ref().is_some_and(|s| s.still(&file));
+    let named = if known { Some(st.live.keys().copied().collect()) } else { named_by(&file).map_err(|e| format!("{}: {e}", path.display()))? };
+    let Some(named) = named else { return Ok(Swept::default()) };
     let now = SystemTime::now();
     // A time in the future is no age at all.
     let old = |meta: &fs::Metadata| meta.modified().ok().and_then(|t| now.duration_since(t).ok()).is_some_and(|age| age >= grace);
@@ -1126,7 +1901,7 @@ struct Job {
     seq: u64,
 }
 
-enum Task {
+enum Work {
     Save(Box<Job>),
     Sweep(PathBuf),
 }
@@ -1207,20 +1982,20 @@ impl Queue {
                     if !jobs.waiting.is_empty() {
                         let job = jobs.waiting.remove(0);
                         jobs.writing = Some((job.path.clone(), job.rev));
-                        break Task::Save(Box::new(job));
+                        break Work::Save(Box::new(job));
                     }
                     self.idle.notify_all();
                     if jobs.closed {
                         return;
                     }
                     if let Some(path) = jobs.sweeps.pop() {
-                        break Task::Sweep(path);
+                        break Work::Sweep(path);
                     }
                     jobs = self.work.wait(jobs).unwrap_or_else(|e| e.into_inner());
                 }
             };
             match task {
-                Task::Save(job) => {
+                Work::Save(job) => {
                     let Job { path, mailbox, rev, seq } = *job;
                     // Never-crash: a panic in here is a save that failed, and the thread lives on.
                     let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| save_as_of(&path, &mailbox, seq)))
@@ -1236,7 +2011,7 @@ impl Queue {
                     drop(jobs);
                     (self.notify)();
                 }
-                Task::Sweep(path) => match std::panic::catch_unwind(|| sweep(&path, GRACE)) {
+                Work::Sweep(path) => match std::panic::catch_unwind(|| sweep(&path, GRACE)) {
                     Ok(Ok(swept)) if swept.removed > 0 => {
                         log::info!("{}: removed {} content file(s) nothing names any more ({} bytes)", path.display(), swept.removed, swept.bytes)
                     }
