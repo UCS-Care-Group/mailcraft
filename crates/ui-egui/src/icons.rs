@@ -392,6 +392,28 @@ pub fn paint(p: &Painter, r: Rect, name: &str, c: Color32, accent: Color32) {
             ]);
             pen.line_c(&[(8.5, 16.0), (10.0, 17.0), (11.5, 16.0)], a);
         }
+        // A seal: a round badge with two ribbon tails and a tick (signed mail).
+        "seal" | "sign" => {
+            pen.line_c(&[(7.6, 11.6), (6.2, 17.5), (8.4, 16.3), (9.4, 18.0), (10.0, 12.9)], a);
+            pen.line_c(&[(12.4, 11.6), (13.8, 17.5), (11.6, 16.3), (10.6, 18.0), (10.0, 12.9)], a);
+            pen.circle(10.0, 8.0, 5.2, c);
+            pen.check(10.0, 8.2, 0.7, c);
+        }
+        // A closed padlock with a key's bit beside it (encrypted mail).
+        "encrypt" => {
+            pen.rect(4.0, 9.0, 13.0, 16.5, c);
+            pen.arc(8.5, 9.0, 2.8, 180.0, 360.0, c);
+            pen.fcircle(8.5, 12.7, 1.1, a);
+            pen.circle(15.5, 6.0, 2.0, a);
+            pen.line_c(&[(15.5, 8.0), (15.5, 13.0)], a);
+            pen.line_c(&[(15.5, 11.0), (17.0, 11.0)], a);
+        }
+        // A triangle with an exclamation mark (a signature that needs a second look).
+        "warning" => {
+            pen.closed(&[(10.0, 3.0), (17.5, 16.5), (2.5, 16.5)], c);
+            pen.line_c(&[(10.0, 7.5), (10.0, 12.0)], a);
+            pen.fcircle(10.0, 14.2, 0.9, a);
+        }
         "private" | "lock" => {
             pen.rect(5.0, 9.0, 15.0, 16.5, c);
             pen.arc(10.0, 9.0, 3.2, 180.0, 360.0, c);
@@ -589,6 +611,117 @@ pub fn paint(p: &Painter, r: Rect, name: &str, c: Color32, accent: Color32) {
             pen.line(&[(6.5, 16.0), (13.5, 16.0)]);
             pen.frect(5.5, 6.5, 14.5, 10.5, soft);
         }
+        // Formatting text
+        "bold" => pen.text(10.0, 10.5, 15.0, "B", c, true),
+        "italic" => {
+            pen.line(&[(11.8, 4.0), (8.2, 16.0)]);
+            pen.line(&[(9.0, 4.0), (14.6, 4.0)]);
+            pen.line(&[(5.4, 16.0), (11.0, 16.0)]);
+        }
+        "underline" => {
+            pen.line(&[(6.0, 3.5), (6.0, 10.0)]);
+            pen.arc(10.0, 10.0, 4.0, 0.0, 180.0, c);
+            pen.line(&[(14.0, 3.5), (14.0, 10.0)]);
+            pen.line_c(&[(4.5, 17.0), (15.5, 17.0)], a);
+        }
+        "strike" => {
+            pen.text(10.0, 10.0, 14.0, "S", c, false);
+            pen.line_c(&[(3.5, 10.5), (16.5, 10.5)], a);
+        }
+        "fontSize" => {
+            pen.text(7.5, 11.0, 14.0, "A", c, false);
+            pen.text(15.0, 12.5, 9.0, "A", c, false);
+        }
+        "fontColor" => {
+            pen.text(10.0, 8.5, 13.0, "A", c, false);
+            pen.frect(3.5, 15.0, 16.5, 17.8, a);
+        }
+        "highlight" => {
+            pen.closed(&[(11.5, 3.0), (16.0, 7.5), (9.0, 14.5), (4.5, 10.0)], c);
+            pen.line(&[(4.5, 10.0), (3.0, 13.5), (5.5, 13.5), (6.8, 12.2)]);
+            pen.frect(3.0, 15.5, 17.0, 17.8, a);
+        }
+        "bullets" => {
+            for y in [5.0, 10.0, 15.0] {
+                pen.fcircle(4.5, y, 1.3, c);
+                pen.line(&[(8.0, y), (17.0, y)]);
+            }
+        }
+        "numbering" => {
+            for (y, n) in [(5.0, "1"), (10.0, "2"), (15.0, "3")] {
+                pen.text(4.5, y, 6.0, n, c, true);
+                pen.line(&[(8.0, y), (17.0, y)]);
+            }
+        }
+        "indent" | "outdent" => {
+            pen.line(&[(3.0, 4.0), (17.0, 4.0)]);
+            pen.line(&[(9.0, 8.0), (17.0, 8.0)]);
+            pen.line(&[(9.0, 12.0), (17.0, 12.0)]);
+            pen.line(&[(3.0, 16.0), (17.0, 16.0)]);
+            if name == "indent" {
+                pen.fill(&[(3.0, 7.0), (6.5, 10.0), (3.0, 13.0)], a);
+            } else {
+                pen.fill(&[(6.5, 7.0), (3.0, 10.0), (6.5, 13.0)], a);
+            }
+        }
+        "alignLeft" | "alignCenter" | "alignRight" => {
+            for (i, y) in [4.0f32, 8.0, 12.0, 16.0].into_iter().enumerate() {
+                let w = if i % 2 == 0 { 14.0 } else { 9.0 };
+                let x0 = match name {
+                    "alignLeft" => 3.0,
+                    "alignCenter" => 10.0 - w / 2.0,
+                    _ => 17.0 - w,
+                };
+                pen.line(&[(x0, y), (x0 + w, y)]);
+            }
+        }
+        "clearFormatting" => {
+            pen.text(8.5, 9.0, 13.0, "A", c, false);
+            pen.line_c(&[(12.0, 12.0), (17.0, 17.0)], red);
+            pen.line_c(&[(17.0, 12.0), (12.0, 17.0)], red);
+        }
+        "hyperlink" => {
+            pen.arc(7.0, 13.0, 3.2, 90.0, 270.0, c);
+            pen.line(&[(7.0, 9.8), (10.5, 9.8)]);
+            pen.line(&[(7.0, 16.2), (10.5, 16.2)]);
+            pen.arc(13.0, 7.0, 3.2, -90.0, 90.0, c);
+            pen.line(&[(13.0, 3.8), (9.5, 3.8)]);
+            pen.line(&[(13.0, 10.2), (9.5, 10.2)]);
+            pen.line_c(&[(7.5, 12.5), (12.5, 7.5)], a);
+        }
+        "picture" | "insertPicture" => {
+            pen.rect(2.5, 4.0, 17.5, 16.0, c);
+            pen.line(&[(4.5, 14.0), (8.5, 9.5), (11.5, 12.5), (13.5, 10.5), (16.0, 14.0)]);
+            pen.fcircle(13.5, 7.0, 1.4, a);
+        }
+        "rule" | "horizontalLine" => {
+            pen.line(&[(5.0, 4.5), (15.0, 4.5)]);
+            pen.line_c(&[(2.5, 10.0), (17.5, 10.0)], a);
+            pen.line(&[(5.0, 15.5), (15.0, 15.5)]);
+        }
+        "spelling" => {
+            pen.text(8.0, 7.0, 8.0, "abc", c, true);
+            pen.check(11.0, 13.5, 1.2, a);
+        }
+        "wordCount" => {
+            pen.text(10.0, 7.0, 8.0, "123", c, true);
+            pen.line(&[(4.0, 12.5), (16.0, 12.5)]);
+            pen.line(&[(4.0, 16.0), (12.0, 16.0)]);
+        }
+        "symbol" => pen.text(10.0, 10.5, 14.0, "\u{3a9}", c, false),
+        "dateTime" => {
+            pen.rect(3.0, 4.5, 13.0, 14.5, c);
+            pen.line(&[(3.0, 7.5), (13.0, 7.5)]);
+            pen.circle(13.5, 13.5, 4.0, a);
+            pen.line_c(&[(13.5, 11.5), (13.5, 13.5), (15.0, 14.5)], a);
+        }
+        "formatHtml" => pen.text(10.0, 10.5, 7.5, "HTML", c, true),
+        "fixedWidth" => pen.text(10.0, 10.0, 12.0, "{ }", c, true),
+        "formatPlain" => {
+            pen.line(&[(4.0, 5.0), (16.0, 5.0)]);
+            pen.line(&[(4.0, 10.0), (16.0, 10.0)]);
+            pen.line(&[(4.0, 15.0), (11.0, 15.0)]);
+        }
         "tick" => pen.check(10.0, 10.5, 1.5, c),
         // Anything else: a lettered tile, so a missing drawing is visible rather than empty.
         _ => {
@@ -711,6 +844,10 @@ pub const NAMES: &[&str] = &[
     "bell",
     "private",
     "lock",
+    "seal",
+    "sign",
+    "encrypt",
+    "warning",
     "recurrence",
     "repeat",
     "scheduling",
@@ -767,4 +904,31 @@ pub const NAMES: &[&str] = &[
     "server",
     "device",
     "tick",
+    "bold",
+    "italic",
+    "underline",
+    "strike",
+    "fontSize",
+    "fontColor",
+    "highlight",
+    "bullets",
+    "numbering",
+    "indent",
+    "outdent",
+    "alignLeft",
+    "alignCenter",
+    "alignRight",
+    "clearFormatting",
+    "hyperlink",
+    "picture",
+    "insertPicture",
+    "rule",
+    "horizontalLine",
+    "spelling",
+    "wordCount",
+    "symbol",
+    "dateTime",
+    "formatHtml",
+    "formatPlain",
+    "fixedWidth",
 ];

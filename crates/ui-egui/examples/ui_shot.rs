@@ -11,7 +11,8 @@
 //! sample mailbox, as of a fixed Wednesday afternoon so shots compare, unless the first line is
 //! `{"empty": true}`. The computer is in UTC unless a line says where it is (`{"zone":
 //! "America/Chicago"}`: the calendar is then shown in that zone, and `view.timeZone` can show it
-//! in another).
+//! in another). The window is in American English unless a line runs `ui.language` (`{"method":
+//! "ui.language", "params": {"value": "de"}}`).
 //!
 //! The window has no host: nothing in it can sign in, send or receive. A script that wants to
 //! look at what Add Account says about a sign-in on Microsoft's page gives it a stand-in for
@@ -176,6 +177,8 @@ fn main() {
     let services = if stood_in { stand_in(&host) } else { Services::default() };
     let mut app = MailApp::new(session, services).with_control(rx);
     app.autosave = false;
+    // In American English whatever the machine speaks, so shots compare; `ui.language` shows another.
+    app.ui.language = "en-US".into();
     // (With a host that answers, nothing is to happen by itself: what a shot shows, its script asked for.)
     app.auto_sync = !stood_in;
     let w = lines.iter().find_map(|l| l.get("width").and_then(|v| v.as_f64())).unwrap_or(1440.0) as f32;

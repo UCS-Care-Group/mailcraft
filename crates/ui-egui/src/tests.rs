@@ -20,7 +20,7 @@ fn first_message(app: &mut MailApp) -> u64 {
 }
 
 /// Lay out `frames` frames of the whole window at `size`.
-fn frames(app: MailApp, size: (f32, f32), frames: usize) -> MailApp {
+pub(crate) fn frames(app: MailApp, size: (f32, f32), frames: usize) -> MailApp {
     let mut harness = egui_kittest::Harness::builder().with_size(egui::vec2(size.0, size.1)).build_ui_state(
         |ui, app: &mut MailApp| {
             let ctx = ui.ctx().clone();
@@ -1448,4 +1448,173 @@ fn a_mailto_link_handed_to_the_program_starts_a_message() {
     let mut b = app();
     b.open_path("mailto.eml");
     assert!(b.session.compose.is_none());
+}
+
+/// With a host whose runs take changes as they go, a change made during a long download is
+/// handed to the run, once, and the run goes on; only a message to send still calls it off.
+#[test]
+fn a_change_made_during_a_long_download_is_handed_to_the_run() {
+    use std::sync::atomic::Ordering;
+    use std::sync::{Arc, Mutex, mpsc};
+
+    use mailcraft_model::sync::{FolderDelta, RemoteOp, SyncRequest, SyncResult};
+    use mailcraft_model::{Address, FolderKind, Message};
+
+    let asked: Arc<Mutex<Vec<usize>>> = Default::default();
+    let pipe: Arc<Mutex<Option<mpsc::Sender<SyncResult>>>> = Default::default();
+    let slot: Arc<Mutex<Option<SyncRequest>>> = Default::default();
+    let mut a = app();
+    let (asked2, pipe2) = (asked.clone(), pipe.clone());
+    a.services.sync = Some(Box::new(move |req: SyncRequest| {
+        asked2.lock().unwrap().push(req.ops.len());
+        let (tx, rx) = mpsc::channel();
+        *pipe2.lock().unwrap() = Some(tx);
+        rx
+    }));
+    a.services.sync_updates = Some(slot.clone());
+    let id =
+        a.execute("account.add", json!({"email": "avery@mail.example", "incoming": {"host": "imap.mail.example"}})).unwrap()["id"].as_u64().unwrap();
+    a.passwords.insert(id, "pw".into());
+    let inbox = a.session.mailbox.folder_of_kind(id, FolderKind::Inbox).unwrap();
+    let mail =
+        |uid: u32| Message { uid, subject: format!("Message {uid}"), from: Address::new("", "x@example.org"), date: NOW, ..Default::default() };
+    let piece = |uids: &[u32], seen: u32, partial: bool| SyncResult {
+        account: id,
+        partial,
+        folders: vec![FolderDelta {
+            id: Some(inbox),
+            remote: "INBOX".into(),
+            kind: FolderKind::Inbox,
+            uid_validity: 7,
+            uid_seen: seen,
+            new: uids.iter().map(|u| mail(*u)).collect(),
+            ..Default::default()
+        }],
+        ..Default::default()
+    };
+    let send = |p: SyncResult| pipe.lock().unwrap().as_ref().unwrap().send(p).unwrap();
+    let look = |a: &mut MailApp| {
+        a.last_auto_sync = crate::now_ms();
+        a.push_checked = 0.0;
+        a.poll_sync();
+        a.auto_sync();
+    };
+    let handed = |slot: &Arc<Mutex<Option<SyncRequest>>>| slot.lock().unwrap().as_ref().map(|r| r.ops.clone());
+
+    a.execute("ui.sync", json!({"account": id})).unwrap();
+    // Pieces that only bring news are taken in together.
+    send(piece(&[2], 1, true));
+    send(piece(&[3], 1, true));
+    send(piece(&[4], 1, true));
+    look(&mut a);
+    assert_eq!(a.session.mailbox.count(inbox), 3);
+    let ids: Vec<_> = a.session.mailbox.messages_in(inbox).map(|m| m.id).collect();
+
+    // The owner marks a message read: the run is handed the change, and goes on.
+    a.execute("mail.markRead", json!({"ids": [ids[0]]})).unwrap();
+    look(&mut a);
+    assert!(a.syncing() && !a.services.sync_cancel.load(Ordering::Relaxed));
+    let first = handed(&slot).unwrap();
+    assert!(matches!(first.as_slice(), [RemoteOp::Flags { read: Some(true), .. }]), "{first:?}");
+    let request = slot.lock().unwrap().clone().unwrap();
+    assert!(request.push_only && request.outbox.is_empty() && request.password.is_empty());
+    // Not taken yet: nothing more is put there, and nothing twice.
+    a.execute("mail.markRead", json!({"ids": [ids[1]]})).unwrap();
+    look(&mut a);
+    assert_eq!(handed(&slot), Some(first.clone()));
+    // Taken by the run: the next look hands over what is new since, and only that.
+    slot.lock().unwrap().take();
+    look(&mut a);
+    let second = handed(&slot).unwrap();
+    assert!(second.len() == 1 && second[0] != first[0], "{second:?}");
+    slot.lock().unwrap().take();
+    look(&mut a);
+    assert_eq!(handed(&slot), None);
+
+    // A message to send calls the run off: the next one sends it first.
+    let outbox = a.session.mailbox.folder_of_kind(id, FolderKind::Outbox).unwrap();
+    a.session.mailbox.move_message(ids[2], outbox).unwrap();
+    look(&mut a);
+    assert!(a.services.sync_cancel.load(Ordering::Relaxed));
+    // The run ends: nothing stays in the slot for the next one.
+    *slot.lock().unwrap() = Some(SyncRequest::default());
+    send(SyncResult { account: id, stopped: true, ..Default::default() });
+    look(&mut a);
+    assert!(slot.lock().unwrap().is_none());
+    look(&mut a);
+    assert_eq!(asked.lock().unwrap().len(), 2, "{:?}", asked.lock().unwrap());
+}
+
+#[test]
+fn the_body_is_written_with_formatting_and_mod_b_makes_what_is_typed_next_bold() {
+    let mut a = app();
+    a.execute("mail.new", json!({"to": "ada@example.org"})).unwrap();
+    let mut harness = window(a);
+    harness.run_steps(3);
+    let compose = |h: &egui_kittest::Harness<'static, MailApp>| h.state().session.compose.clone().unwrap();
+    // A message with somebody to go to has the keyboard in its body, the caret at the top.
+    harness.event(egui::Event::Text("Hello".into()));
+    harness.run_steps(3);
+    assert!(compose(&harness).body.starts_with("Hello"));
+    assert_eq!(compose(&harness).selection, Some((5, 5)), "the editor says where the caret is");
+    for pressed in [true, false] {
+        harness.event(egui::Event::Key { key: egui::Key::B, physical_key: None, pressed, repeat: false, modifiers: egui::Modifiers::COMMAND });
+        harness.step();
+    }
+    harness.run_steps(2);
+    assert_eq!(crate::keys::resolve(harness.state(), "Mod+B"), Some("format.bold"));
+    assert!(compose(&harness).typing.as_ref().is_some_and(|t| t.bold), "{:?} {:?}", compose(&harness).typing, compose(&harness).selection);
+    harness.event(egui::Event::Text(" there".into()));
+    harness.run_steps(3);
+    let c = compose(&harness);
+    assert!(c.body.starts_with("Hello there"));
+    assert!(c.styles.every(5..11, |s| s.bold) && !c.styles.every(0..5, |s| s.bold));
+    // Lists, alignment, lines, right-to-left text and plain text all lay out, narrow and wide.
+    let session = std::mem::replace(&mut harness.state_mut().session, Session::empty());
+    let mut a = MailApp::new(session, Services::default());
+    a.autosave = false;
+    a.execute("format.bullets", json!({"start": 0, "end": 3})).unwrap();
+    a.execute("format.align", json!({"align": "center", "start": 0})).unwrap();
+    a.execute("insert.rule", json!({"at": 0})).unwrap();
+    a.execute("compose.set", json!({"body": "שלום\nworld"})).unwrap();
+    let a = frames(a, (1280.0, 800.0), 3);
+    let mut a = frames(a, (360.0, 640.0), 3);
+    a.execute("compose.formatPlain", json!({})).unwrap();
+    let _ = frames(a, (1280.0, 800.0), 3);
+}
+
+#[test]
+fn coming_back_to_the_front_or_waking_asks_the_system_about_its_zone_at_once() {
+    let mut a = app();
+    // Frames that follow one another, in front: nothing to ask.
+    assert!(!a.zone_wake(true, 1_000.0));
+    assert!(!a.zone_wake(true, 1_016.0));
+    // Behind another window, and back in front: asked.
+    assert!(!a.zone_wake(false, 5_000.0));
+    assert!(a.zone_wake(true, 5_016.0));
+    assert!(!a.zone_wake(true, 5_032.0));
+    // A frame after a long gap (the computer slept): asked, focused or not.
+    assert!(a.zone_wake(true, 5_032.0 + 61_000.0));
+    assert!(a.zone_wake(false, 5_032.0 + 200_000.0));
+}
+
+#[test]
+fn a_meeting_kept_here_is_asked_about_as_mail_from_the_outbox() {
+    let mut a = app();
+    a.execute("account.add", json!({"email": "ada@example.org", "name": "Ada", "incoming": {"host": "imap.example.org"}})).unwrap();
+    let local = a.session.mailbox.calendars.iter().find(|c| c.origin.is_local()).map(|c| c.id).unwrap();
+    let params = json!({"title": "Review", "calendar": local, "attendees": "bo@example.org"});
+    let ask = crate::dialogs::confirmation(&a, "calendar.newMeeting", &params).expect("asked");
+    assert_eq!((ask.title.as_str(), ask.action.as_str()), ("Send This Invitation?", "Send"));
+    assert!(ask.text.contains("Outbox") && ask.more.iter().any(|(label, with)| label == "Don't Send" && with["send"] == false), "{}", ask.text);
+    // Made and sent: an update asks too, with a way of saving without sending.
+    let made = a.execute("calendar.newMeeting", json!({"title": "Review", "calendar": local, "attendees": "bo@example.org", "send": true})).unwrap();
+    let id = made["id"].as_u64().unwrap();
+    let ask = crate::dialogs::confirmation(&a, "calendar.move", &json!({"id": id, "start": "2026-10-20T09:00"})).expect("asked");
+    assert_eq!(ask.action, "Send Update");
+    assert!(ask.more.iter().any(|(label, _)| label == "Save without Sending"));
+    let ask = crate::dialogs::confirmation(&a, "calendar.delete", &json!({"id": id})).expect("asked");
+    assert_eq!(ask.action, "Send Cancellation");
+    // Said already: nothing is asked.
+    assert!(crate::dialogs::confirmation(&a, "calendar.delete", &json!({"id": id, "send": false})).is_none());
 }

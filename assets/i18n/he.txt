@@ -1,0 +1,4414 @@
+# MailCraft interface text: עברית.
+# Machine-written from MailCraft's English; wants review by a native speaker.
+@language he
+@name עברית
+@direction rtl
+
+Finish signing in first (your browser is waiting)
+= יש לסיים קודם את הכניסה (הדפדפן ממתין)
+
+No sign-in with Microsoft is under way
+= אין כניסה עם Microsoft שמתבצעת כעת
+
+I'm an administrator: approve it for my organisation
+= אני מנהל מערכת: לאשר עבור הארגון שלי
+
+Copy a message for my administrator
+= העתקת הודעה למנהל המערכת שלי
+
+{provider}'s sign-in page is open in your browser
+= דף הכניסה של {provider} פתוח בדפדפן
+
+If that page says you need admin approval
+= אם הדף אומר שנדרש אישור מנהל
+
+More about this
+= מידע נוסף
+
+Trouble on that page? Sign in for mail only
+= בעיה בדף? כניסה לדואר בלבד
+
+Cancel
+= ביטול
+
+Open the page again
+= פתיחת הדף שוב
+
+Closed the page? This opens Microsoft's sign-in page afresh.
+= הדף נסגר? פעולה זו פותחת מחדש את דף הכניסה של Microsoft.
+
+Signing in didn't work
+= הכניסה לא הצליחה
+
+If that page said you need admin approval
+= אם הדף אמר שנדרש אישור מנהל
+
+My organisation has to approve MailCraft first: what to do
+= הארגון שלי צריך לאשר את MailCraft קודם: מה לעשות
+
+Try again
+= ניסיון חוזר
+
+Set up manually
+= הגדרה ידנית
+
+Mail only
+= דואר בלבד
+
+Sign in again, asking for mail alone
+= כניסה מחדש, לדואר בלבד
+
+Your organisation has to approve MailCraft first
+= הארגון שלך צריך לאשר את MailCraft קודם
+
+Microsoft answered: {words}
+= תשובת Microsoft: {words}
+
+Microsoft's page said so.
+= כך נאמר בדף של Microsoft.
+
+What to do next
+= מה עושים עכשיו
+
+Sign in again, once an administrator has approved
+= כניסה מחדש, לאחר שמנהל מערכת אישר
+
+Not now
+= לא עכשיו
+
+Closes this window. Nothing is kept.
+= סוגר את החלון. דבר לא נשמר.
+
+Microsoft's approval page is open in your browser
+= דף האישור של Microsoft פתוח בדפדפן
+
+Microsoft 365
+= Microsoft 365
+
+Outlook.com
+= Outlook.com
+
+Google
+= Google
+
+Yahoo
+= Yahoo
+
+iCloud
+= iCloud
+
+Other (IMAP)
+= אחר (IMAP)
+
+This device only
+= במכשיר זה בלבד
+
+Work or school mail
+= דואר עבודה או לימודים
+
+Also Hotmail, Live and MSN
+= גם Hotmail, Live ו-MSN
+
+Gmail and Google Workspace
+= Gmail ו-Google Workspace
+
+Yahoo Mail
+= Yahoo Mail
+
+icloud.com, me.com and mac.com
+= icloud.com, me.com ו-mac.com
+
+Any other mail server
+= כל שרת דואר אחר
+
+A mailbox kept here, with no mail server
+= תיבת דואר שנשמרת כאן, ללא שרת דואר
+
+Account Settings
+= הגדרות חשבון
+
+Approval Needed
+= נדרש אישור
+
+Add Account
+= הוספת חשבון
+
+Type the name of the incoming mail server
+= יש להקליד את שם שרת הדואר הנכנס
+
+A port is a number from 1 to 65535
+= יציאה היא מספר בין 1 ל-65535
+
+"{address}" isn't an e-mail address
+= "{address}" אינה כתובת דואר אלקטרוני
+
+An application ID is letters, digits, dots and dashes
+= מזהה יישום מורכב מאותיות, ספרות, נקודות ומקפים
+
+Check the account's settings
+= יש לבדוק את הגדרות החשבון
+
+The account couldn't be added
+= לא ניתן היה להוסיף את החשבון
+
+Checking the account stopped unexpectedly
+= בדיקת החשבון נעצרה באופן בלתי צפוי
+
+Finding your account settings…
+= מחפש את הגדרות החשבון…
+
+Checking the account…
+= בודק את החשבון…
+
+Signing in to {server}
+= נכנס אל {server}
+
+Add an account
+= הוספת חשבון
+
+Email address
+= כתובת דואר אלקטרוני
+
+you@example.org
+= you@example.org
+
+Advanced options
+= אפשרויות מתקדמות
+
+Let me set up my account manually
+= אגדיר את החשבון בעצמי
+
+Your name
+= השם שלך
+
+As the people you write to see it
+= כפי שהנמענים שלך רואים אותו
+
+Connect
+= התחברות
+
+Choose the kind of account
+= בחירת סוג החשבון
+
+Back
+= חזרה
+
+Microsoft needs an application ID
+= Microsoft דורשת מזהה יישום
+
+Application (client) ID
+= מזהה יישום (לקוח)
+
+Continue
+= המשך
+
+Sign in to your account
+= כניסה לחשבון שלך
+
+{service} account
+= חשבון {service}
+
+Change account settings
+= שינוי הגדרות החשבון
+
+Show Outlook's Favorites?
+= להציג את המועדפים של Outlook?
+
+{address} is set up, and nothing of that waits on this.
+= {address} הוגדר, ושום דבר מזה אינו תלוי בכך.
+
+Press Send/Receive to download your mail.
+= יש ללחוץ על שליחה/קבלה כדי להוריד את הדואר.
+
+{address} is set up
+= {address} הוגדר
+
+Done
+= סיום
+
+Add another account
+= הוספת חשבון נוסף
+
+Signs in on the {provider} page in your browser
+= כניסה בדף של {provider} בדפדפן
+
+On this device only: no mail server
+= במכשיר זה בלבד: ללא שרת דואר
+
+Signs in with a password
+= כניסה עם סיסמה
+
+Leave empty to keep the one in use
+= יש להשאיר ריק כדי לשמור על הקיים
+
+The one in File › Options
+= זה שבקובץ › אפשרויות
+
+Tenant
+= דייר (Tenant)
+
+Save
+= שמירה
+
+Password
+= סיסמה
+
+User name
+= שם משתמש
+
+Usually the whole address
+= בדרך כלל הכתובת המלאה
+
+Incoming mail (IMAP)
+= דואר נכנס (IMAP)
+
+Outgoing mail (SMTP)
+= דואר יוצא (SMTP)
+
+None
+= ללא
+
+The server's name
+= שם השרת
+
+The port; leave it empty for the usual one
+= היציאה; יש להשאיר ריק עבור הרגילה
+
+Microsoft's page came back without signing you in
+= הדף של Microsoft חזר בלי שנכנסת
+
+Nothing came back from Microsoft's sign-in page
+= דבר לא חזר מדף הכניסה של Microsoft
+
+MailCraft couldn't open your browser
+= MailCraft לא הצליחה לפתוח את הדפדפן
+
+The approval didn't go through.
+= האישור לא עבר.
+
+Microsoft's approval page is open in your browser…
+= דף האישור של Microsoft פתוח בדפדפן…
+
+Waiting for the approval stopped unexpectedly
+= ההמתנה לאישור נעצרה באופן בלתי צפוי
+
+Your organisation has approved MailCraft
+= הארגון שלך אישר את MailCraft
+
+This account doesn't sign in with Microsoft
+= חשבון זה אינו נכנס עם Microsoft
+
+Info
+= מידע
+
+Open & Export
+= פתיחה וייצוא
+
+Print
+= הדפסה
+
+Options
+= אפשרויות
+
+About
+= אודות
+
+Accounts
+= חשבונות
+
+Local mailbox
+= תיבת דואר מקומית
+
+ (not encrypted)
+=  (לא מוצפן)
+
+no incoming server
+= אין שרת נכנס
+
+no outgoing server
+= אין שרת יוצא
+
+Signs in with
+= כניסה באמצעות
+
+Settings
+= הגדרות
+
+Change this account's name, servers and sign-in
+= שינוי השם, השרתים והכניסה של חשבון זה
+
+Remove
+= הסרה
+
+Remove this account and the mail kept for it here
+= הסרת חשבון זה והדואר שנשמר עבורו כאן
+
+Connect calendar and contacts
+= חיבור לוח שנה ואנשי קשר
+
+Add shared mailbox…
+= הוספת תיבת דואר משותפת…
+
+Calendar
+= לוח שנה
+
+Checking: the report comes in a moment…
+= בודק: הדוח יגיע בעוד רגע…
+
+Check Calendar Connection
+= בדיקת החיבור ללוח השנה
+
+Mailbox
+= תיבת דואר
+
+{n} messages
+= {n} הודעות
+
+{n} unread
+= {n} לא נקראו
+
+{n} contacts
+= {n} אנשי קשר
+
+{n} events
+= {n} אירועים
+
+{n} tasks
+= {n} משימות
+
+Kept in {path}, saved as you go.
+= נשמר ב-{path}, תוך כדי עבודה.
+
+Not kept anywhere yet: use Open & Export › Save Mailbox As.
+= עדיין לא נשמר: יש להשתמש בפתיחה וייצוא › שמירת תיבת הדואר בשם.
+
+Rules and Categories
+= כללים וקטגוריות
+
+Manage Rules
+= ניהול כללים
+
+What happens to mail as it arrives
+= מה קורה לדואר כשהוא מגיע
+
+Categories
+= קטגוריות
+
+Names and colours for sorting mail, events, people and tasks
+= שמות וצבעים למיון דואר, אירועים, אנשים ומשימות
+
+Shared mailbox: the account it was opened through is gone
+= תיבת דואר משותפת: החשבון שדרכו נפתחה אינו קיים עוד
+
+Shared mailbox, opened with the sign-in of {account}
+= תיבת דואר משותפת, נפתחה עם הכניסה של {account}
+
+Bring in
+= הבאה פנימה
+
+Import
+= ייבוא
+
+Open Mailbox File
+= פתיחת קובץ תיבת דואר
+
+Replace what is open with a .mailcraft file
+= החלפת מה שפתוח בקובץ .mailcraft
+
+Save out
+= שמירה החוצה
+
+Save Mailbox As
+= שמירת תיבת הדואר בשם
+
+Everything here in one .mailcraft file
+= כל מה שכאן בקובץ .mailcraft אחד
+
+Export Folder
+= ייצוא תיקייה
+
+The messages of the folder in view, as .mbox
+= ההודעות של התיקייה המוצגת, כ-.mbox
+
+Save Calendar
+= שמירת לוח השנה
+
+Every event and task, as .ics
+= כל אירוע ומשימה, כ-.ics
+
+Export Contacts
+= ייצוא אנשי קשר
+
+Every contact, as .vcf
+= כל איש קשר, כ-.vcf
+
+Start over
+= התחלה מחדש
+
+Sample Mailbox
+= תיבת דואר לדוגמה
+
+Invented mail, meetings, people and tasks to try things on
+= דואר, פגישות, אנשים ומשימות בדויים לניסיון
+
+Empty Mailbox
+= תיבת דואר ריקה
+
+Nothing in it: replaces what is open here
+= ריקה: מחליפה את מה שפתוח כאן
+
+Recent
+= אחרונים
+
+General
+= כללי
+
+Interface theme
+= ערכת נושא לממשק
+
+Interface size
+= גודל הממשק
+
+Mail
+= דואר
+
+Mark a message as read when it is opened in the reading pane
+= סימון הודעה כנקראה כשהיא נפתחת בחלונית הקריאה
+
+Include the original message when replying
+= הכללת ההודעה המקורית בעת מענה
+
+Write messages in plain text (no formatting or pictures)
+= כתיבת הודעות בטקסט פשוט (ללא עיצוב או תמונות)
+
+Preview lines in the message list
+= שורות תצוגה מקדימה ברשימת ההודעות
+
+Messages to download per folder
+= הודעות להורדה בכל תיקייה
+
+All
+= הכול
+
+When a message asks for a read receipt
+= כשהודעה מבקשת אישור קריאה
+
+Ask each time
+= לשאול בכל פעם
+
+Always send one
+= לשלוח תמיד
+
+Never send one
+= לא לשלוח אף פעם
+
+Pictures in mail
+= תמונות בדואר
+
+Remember passwords and sign-ins on this computer
+= לזכור סיסמאות וכניסות במחשב זה
+
+Microsoft application ID
+= מזהה יישום של Microsoft
+
+The one this build came with
+= זה שהגיע עם גרסה זו
+
+Needed for Outlook.com and Microsoft 365 accounts
+= נדרש לחשבונות Outlook.com ו-Microsoft 365
+
+Send and receive automatically
+= שליחה וקבלה אוטומטית
+
+Only when I ask
+= רק כשאני מבקש
+
+Every minute
+= כל דקה
+
+Every
+= כל
+
+minutes
+= דקות
+
+Trust Center: signed and encrypted mail
+= מרכז האמון: דואר חתום ומוצפן
+
+Notifications
+= התראות
+
+Use a 12-hour clock (3:05 PM)
+= שימוש בשעון של 12 שעות (3:05 PM)
+
+Week starts on
+= השבוע מתחיל ביום
+
+Working hours
+= שעות עבודה
+
+Reminder for new appointments
+= תזכורת לפגישות חדשות
+
+At start time
+= בשעת ההתחלה
+
+Time scale
+= קנה מידה של זמן
+
+{n} minutes
+= {n} דקות
+
+Show week numbers in the Month view and the date navigator
+= הצגת מספרי שבועות בתצוגת החודש ובנווט התאריכים
+
+Signatures
+= חתימות
+
+Label
+= תווית
+
+Time zone
+= אזור זמן
+
+This computer's, wherever it goes
+= של מחשב זה, לאן שהוא הולך
+
+Second time zone
+= אזור זמן שני
+
+Show in the time bar
+= הצגה בסרגל הזמן
+
+Third time zone
+= אזור זמן שלישי
+
+This computer is in {zone}.
+= מחשב זה נמצא ב-{zone}.
+
+(used for new messages)
+= (משמש להודעות חדשות)
+
+Use for new messages
+= שימוש להודעות חדשות
+
+Delete
+= מחיקה
+
+New Signature
+= חתימה חדשה
+
+Initial contributor: {name}
+= תורם ראשוני: {name}
+
+About MailCraft
+= אודות MailCraft
+
+Version {version}
+= גרסה {version}
+
+Contributors
+= תורמים
+
+What it is made of
+= ממה זה עשוי
+
+Your mail stays yours
+= הדואר שלך נשאר שלך
+
+Scripts and agents
+= סקריפטים וסוכנים
+
+Search Commands
+= חיפוש פקודות
+
+This build can't reach the account's calendar.
+= גרסה זו אינה יכולה להגיע ללוח השנה של החשבון.
+
+The calendar is being updated already.
+= לוח השנה כבר מתעדכן.
+
+The calendar changes couldn't be taken in
+= לא ניתן היה לקלוט את השינויים בלוח השנה
+
+the server couldn't be reached
+= לא ניתן היה להגיע לשרת
+
+The calendar couldn't be taken in
+= לא ניתן היה לקלוט את לוח השנה
+
+The calendar connection is being checked already.
+= החיבור ללוח השנה כבר נבדק.
+
+No account signs in with Microsoft
+= אין חשבון שנכנס עם Microsoft
+
+The calendar is being updated: try again in a moment.
+= לוח השנה מתעדכן: יש לנסות שוב בעוד רגע.
+
+Checking the calendar connection…
+= בודק את החיבור ללוח השנה…
+
+the check stopped unexpectedly
+= הבדיקה נעצרה באופן בלתי צפוי
+
+The calendar connection couldn't be checked:
+= לא ניתן היה לבדוק את החיבור ללוח השנה:
+
+no answer
+= אין תשובה
+
+the server answered
+= השרת ענה
+
+OK
+= אישור
+
+FAILED
+= נכשל
+
+The calendar connection works
+= החיבור ללוח השנה פועל
+
+Calendar Connection Check
+= בדיקת חיבור ללוח השנה
+
+The list of calendars couldn't be taken in
+= לא ניתן היה לקלוט את רשימת לוחות השנה
+
+The categories couldn't be taken in
+= לא ניתן היה לקלוט את הקטגוריות
+
+(No title)
+= (ללא כותרת)
+
+Next Month
+= החודש הבא
+
+Previous Month
+= החודש הקודם
+
+Show this week
+= הצגת השבוע הזה
+
+Say which group of calendars (`group`: its heading)
+= יש לציין איזו קבוצת לוחות שנה (`group`: הכותרת שלה)
+
+Show the calendars of this group
+= הצגת לוחות השנה של קבוצה זו
+
+Fold the calendars of this group away
+= קיפול לוחות השנה של קבוצה זו
+
+Show Only This Calendar
+= הצגת לוח שנה זה בלבד
+
+Overlay
+= שכבת על
+
+Colour
+= צבע
+
+Automatic
+= אוטומטי
+
+Connect to show your category colours and working hours
+= יש להתחבר כדי להציג את צבעי הקטגוריות ושעות העבודה
+
+This calendar can only be read: new items can't go to it
+= לוח שנה זה לקריאה בלבד: לא ניתן להוסיף אליו פריטים
+
+New items go to the calendar that is picked here
+= פריטים חדשים נוספים ללוח השנה שנבחר כאן
+
+Use my own working hours
+= שימוש בשעות העבודה שלי
+
+Your mailbox has:
+= בתיבת הדואר שלך יש:
+
+Only on this computer: not in your Outlook calendar
+= במחשב זה בלבד: לא בלוח השנה שלך ב-Outlook
+
+Move to My Account's Calendar
+= העברה ללוח השנה של החשבון שלי
+
+Today
+= היום
+
+Forward
+= העברה הלאה
+
+All day
+= כל היום
+
+1 attendee
+= משתתף אחד
+
+{n} attendees
+= {n} משתתפים
+
+Organizer: {name}
+= מארגן: {name}
+
+Cancelled
+= בוטל
+
+Private
+= פרטי
+
+High importance
+= חשיבות גבוהה
+
+Low importance
+= חשיבות נמוכה
+
+Teams meeting
+= פגישת Teams
+
+Online meeting
+= פגישה מקוונת
+
+Open
+= פתיחה
+
+Propose New Time…
+= הצעת מועד חדש…
+
+Join {service} Meeting
+= הצטרפות לפגישת {service}
+
+Forward…
+= העברה הלאה…
+
+Forward This Occurrence…
+= העברת מופע זה הלאה…
+
+Delete This Occurrence
+= מחיקת מופע זה
+
+Move to Calendar
+= העברה ללוח שנה
+
+Show As
+= הצגה כ
+
+Importance
+= חשיבות
+
+Save as iCalendar…
+= שמירה כ-iCalendar…
+
++{n} more
+= +{n} נוספים
+
+Pick a time in the calendar first, then paste
+= יש לבחור קודם שעה בלוח השנה ואז להדביק
+
+Lay this calendar over the others
+= הנחת לוח שנה זה מעל האחרים
+
+Stand this calendar beside the others
+= הצבת לוח שנה זה לצד האחרים
+
+Hide this calendar
+= הסתרת לוח שנה זה
+
+This calendar can only be read
+= לוח שנה זה לקריאה בלבד
+
+AM
+= AM
+
+PM
+= PM
+
+60 Minutes
+= 60 דקות
+
+30 Minutes
+= 30 דקות
+
+15 Minutes
+= 15 דקות
+
+10 Minutes
+= 10 דקות
+
+6 Minutes
+= 6 דקות
+
+5 Minutes
+= 5 דקות
+
+Move
+= העברה
+
+Copy
+= העתקה
+
+Search people
+= חיפוש אנשים
+
+Search mail
+= חיפוש דואר
+
+Search mail (try from:, has:attachment, is:unread)
+= חיפוש דואר (נסו from:, has:attachment, is:unread)
+
+All Mailboxes
+= כל תיבות הדואר
+
+Current Folder
+= התיקייה הנוכחית
+
+Sending and receiving…
+= שולח ומקבל…
+
+Send/Receive All Folders
+= שליחה/קבלה של כל התיקיות
+
+Undo {what}
+= ביטול {what}
+
+Redo {what}
+= ביצוע מחדש {what}
+
+No account yet: File › Add Account
+= אין עדיין חשבון: קובץ › הוספת חשבון
+
+{n} item
+= פריט {n}
+
+{n} items
+= {n} פריטים
+
+Unread: {n}
+= לא נקראו: {n}
+
+{n} selected
+= {n} נבחרו
+
+{n} event in view
+= אירוע {n} בתצוגה
+
+{n} events in view
+= {n} אירועים בתצוגה
+
+{n} contact
+= איש קשר {n}
+
+{n} open task
+= משימה פתוחה {n}
+
+{n} open tasks
+= {n} משימות פתוחות
+
+Reading pane off
+= חלונית הקריאה כבויה
+
+Reading pane at the bottom
+= חלונית הקריאה בתחתית
+
+Reading pane on the right
+= חלונית הקריאה מימין
+
+Send/Receive problems
+= בעיות בשליחה/קבלה
+
+Stop this Send/Receive; what has arrived stays
+= עצירת שליחה/קבלה זו; מה שהגיע נשאר
+
+This mailbox is on this device only
+= תיבת דואר זו נמצאת במכשיר זה בלבד
+
+New message
+= הודעה חדשה
+
+Reply
+= השב
+
+Reply all
+= השב לכולם
+
+Draft
+= טיוטה
+
+Send
+= שליחה
+
+Attach
+= צירוף
+
+Save draft
+= שמירת טיוטה
+
+Discard
+= מחיקת הטיוטה
+
+Close (the draft stays as last saved)
+= סגירה (הטיוטה נשארת כפי שנשמרה לאחרונה)
+
+Not saved
+= לא נשמר
+
+Saved to Drafts
+= נשמר בטיוטות
+
+From
+= מאת
+
+shared mailbox
+= תיבת דואר משותפת
+
+Names or addresses, separated by ;
+= שמות או כתובות, מופרדים ב-;
+
+To
+= אל
+
+Cc
+= עותק
+
+Bcc
+= עותק מוסתר
+
+Subject
+= נושא
+
+Dark red
+= אדום כהה
+
+Red
+= אדום
+
+Orange
+= כתום
+
+Gold
+= זהב
+
+Green
+= ירוק
+
+Teal
+= כחול-ירקרק
+
+Blue
+= כחול
+
+Navy
+= כחול כהה
+
+Purple
+= סגול
+
+Grey
+= אפור
+
+Yellow
+= צהוב
+
+Pink
+= ורוד
+
+Write your message
+= כתיבת ההודעה שלך
+
+No suggestions
+= אין הצעות
+
+Plain text
+= טקסט פשוט
+
+Switch to HTML
+= מעבר ל-HTML
+
+Write with formatting and pictures
+= כתיבה עם עיצוב ותמונות
+
+Spelling (F7)
+= איות (F7)
+
+Bold
+= מודגש
+
+Italic
+= נטוי
+
+Underline
+= קו תחתון
+
+Strikethrough
+= קו חוצה
+
+Normal
+= רגיל
+
+Font Size
+= גודל גופן
+
+Larger
+= גדול יותר
+
+Smaller
+= קטן יותר
+
+Fixed-width font
+= גופן ברוחב קבוע
+
+Font Color
+= צבע גופן
+
+Text Highlight Color
+= צבע הדגשת טקסט
+
+No color
+= ללא צבע
+
+Bullets
+= תבליטים
+
+Numbering
+= מספור
+
+Decrease Indent
+= הקטנת הזחה
+
+Increase Indent
+= הגדלת הזחה
+
+Align Left
+= יישור לשמאל
+
+Center
+= מרכז
+
+Align Right
+= יישור לימין
+
+Link
+= קישור
+
+Pictures
+= תמונות
+
+Horizontal Line
+= קו אופקי
+
+Clear All Formatting
+= ניקוי כל העיצוב
+
+Plain Text (the formatting goes)
+= טקסט פשוט (העיצוב יוסר)
+
+Address
+= כתובת
+
+Insert
+= הוספה
+
+Remove Link
+= הסרת קישור
+
+Send/Receive Problems
+= בעיות בשליחה/קבלה
+
+They are removed from the mail server too.
+= הם יוסרו גם משרת הדואר.
+
+This message will be deleted for good.
+= הודעה זו תימחק לצמיתות.
+
+messages will be deleted for good.
+= הודעות יימחקו לצמיתות.
+
+Delete for Good
+= מחיקה לצמיתות
+
+Everything in
+= כל מה שנמצא ב
+
+will be deleted for good.
+= יימחק לצמיתות.
+
+Empty Folder
+= ריקון תיקייה
+
+Empty
+= ריקון
+
+The folder
+= התיקייה
+
+and everything in it will be deleted.
+= וכל מה שבה יימחקו.
+
+Delete Folder
+= מחיקת תיקייה
+
+and the mail kept for it on this device will be removed.
+= והדואר שנשמר עבורו במכשיר זה יוסרו.
+
+Mail on the server is not touched.
+= הדואר שבשרת לא ישתנה.
+
+So will the shared mailboxes opened with it:
+= כך גם תיבות הדואר המשותפות שנפתחו באמצעותו:
+
+Remove Account
+= הסרת חשבון
+
+Remove Shared Mailbox
+= הסרת תיבת דואר משותפת
+
+Check Now
+= בדיקה עכשיו
+
+1 item is
+= פריט אחד
+
+{n} items are
+= {n} פריטים
+
+Move to Your Account's Calendar
+= העברה ללוח השנה של החשבון שלך
+
+Move All and Send Invitations
+= העברת הכול ושליחת הזמנות
+
+Move the Appointments Only
+= העברת הפגישות בלבד
+
+1 person is invited to this meeting.
+= אדם אחד מוזמן לפגישה זו.
+
+{n} people are invited to this meeting.
+= {n} אנשים מוזמנים לפגישה זו.
+
+A note to go with it (optional)
+= הערה מצורפת (אופציונלי)
+
+Don't Send, Keep on This Computer
+= לא לשלוח, לשמור במחשב זה
+
+Send This Invitation?
+= לשלוח הזמנה זו?
+
+Delete Recurring Item
+= מחיקת פריט חוזר
+
+Move Recurring Item
+= העברת פריט חוזר
+
+Respond to Recurring Item
+= מענה לפריט חוזר
+
+Open Recurring Item
+= פתיחת פריט חוזר
+
+Change Recurring Item
+= שינוי פריט חוזר
+
+Just This One
+= רק זה
+
+The Entire Series
+= כל הסדרה
+
+Change This Meeting?
+= לשנות פגישה זו?
+
+Send Update
+= שליחת עדכון
+
+Cancel This Meeting?
+= לבטל פגישה זו?
+
+Send Cancellation
+= שליחת ביטול
+
+Somebody else
+= מישהו אחר
+
+{name} organizes this meeting; you are invited to it.
+= {name} מארגן/ת פגישה זו; הוזמנת אליה.
+
+Send a Response?
+= לשלוח תגובה?
+
+Send the Response Now
+= שליחת התגובה עכשיו
+
+Don't Send a Response
+= לא לשלוח תגובה
+
+Delete Your Copy of This Meeting?
+= למחוק את העותק שלך של פגישה זו?
+
+Delete My Copy
+= מחיקת העותק שלי
+
+Decline and Tell the Organizer
+= דחייה והודעה למארגן
+
+Decline without Telling
+= דחייה בלי להודיע
+
+Change Your Copy of This Meeting?
+= לשנות את העותק שלך של פגישה זו?
+
+Don't Send
+= לא לשלוח
+
+Save without Sending
+= שמירה בלי לשלוח
+
+Delete without Sending
+= מחיקה בלי לשלוח
+
+Type what you want to do
+= מה ברצונך לעשות?
+
+No command matches.
+= אין פקודה מתאימה.
+
+New Folder
+= תיקייה חדשה
+
+Rename Folder
+= שינוי שם תיקייה
+
+the top level
+= הרמה העליונה
+
+In {place}
+= ב-{place}
+
+Folder name
+= שם התיקייה
+
+Go to Date
+= מעבר לתאריך
+
+Date (YYYY-MM-DD)
+= תאריך (YYYY-MM-DD)
+
+Go
+= מעבר
+
+Sign In
+= כניסה
+
+Password for {account}
+= סיסמה עבור {account}
+
+Send/Receive
+= שליחה/קבלה
+
+Add Shared Mailbox
+= הוספת תיבת דואר משותפת
+
+The address of a mailbox {account} has Full Access to
+= כתובת של תיבת דואר שיש ל-{account} גישה מלאה אליה
+
+support@example.org
+= support@example.org
+
+Add
+= הוספה
+
+Close
+= סגירה
+
+Copy all of it
+= העתקת הכול
+
+Unsaved Message
+= הודעה שלא נשמרה
+
+The message you are writing has changes that aren't saved.
+= בהודעה שבכתיבה יש שינויים שלא נשמרו.
+
+Save Draft
+= שמירת טיוטה
+
+This item has changes that aren't saved. Save them?
+= בפריט זה יש שינויים שלא נשמרו. לשמור אותם?
+
+"{name}" has changes that aren't saved. Save them?
+= ב-"{name}" יש שינויים שלא נשמרו. לשמור אותם?
+
+Unsaved Changes
+= שינויים שלא נשמרו
+
+Don't Save
+= לא לשמור
+
+Microsoft Graph
+= Microsoft Graph
+
+Exchange Web Services
+= Exchange Web Services
+
+MailCraft keeps its own Favorites.
+= MailCraft שומרת מועדפים משלה.
+
+Outlook's Favorites
+= המועדפים של Outlook
+
+Your organisation's administrator has to approve this once
+= מנהל המערכת בארגון שלך צריך לאשר זאת פעם אחת
+
+Not allowed by your organisation
+= אסור על ידי הארגון שלך
+
+Not available for this account
+= לא זמין עבור חשבון זה
+
+Your organisation doesn't allow Exchange Web Services
+= הארגון שלך אינו מתיר את Exchange Web Services
+
+Microsoft has switched Exchange Web Services off
+= Microsoft כיבתה את Exchange Web Services
+
+Use Exchange Web Services instead
+= שימוש ב-Exchange Web Services במקום
+
+Use Microsoft Graph instead
+= שימוש ב-Microsoft Graph במקום
+
+Show Outlook's Favorites
+= הצגת המועדפים של Outlook
+
+`source` is graph, ews or none
+= `source` הוא graph, ews או none
+
+This build can't reach the account's server.
+= גרסה זו אינה יכולה להגיע לשרת החשבון.
+
+This build can't make a link for an administrator.
+= גרסה זו אינה יכולה ליצור קישור עבור מנהל מערכת.
+
+`answer.folders` is a list of {path, kind}
+= `answer.folders` היא רשימה של {path, kind}
+
+Outlook's Favorites are switched off in File › Options
+= המועדפים של Outlook כבויים בקובץ › אפשרויות
+
+Show the Favorites from Outlook in the folder pane
+= הצגת המועדפים מ-Outlook בחלונית התיקיות
+
+Connect Outlook's Favorites
+= חיבור המועדפים של Outlook
+
+Downloaded {name}
+= {name} הורד
+
+A file dialog is already open.
+= תיבת דו-שיח של קבצים כבר פתוחה.
+
+File dialogs aren't available here
+= תיבות דו-שיח של קבצים אינן זמינות כאן
+
+Saved {name}
+= {name} נשמר
+
+Rules
+= כללים
+
+YYYY-MM-DD
+= YYYY-MM-DD
+
+The day before
+= היום הקודם
+
+The day after
+= היום הבא
+
+Pick a time
+= בחירת שעה
+
+Use YYYY-MM-DD
+= יש להשתמש ב-YYYY-MM-DD
+
+No categories yet
+= אין עדיין קטגוריות
+
+More commands
+= פקודות נוספות
+
+first
+= ראשון
+
+second
+= שני
+
+third
+= שלישי
+
+fourth
+= רביעי
+
+fifth
+= חמישי
+
+last
+= אחרון
+
+Daily
+= יומי
+
+Weekly
+= שבועי
+
+Monthly
+= חודשי
+
+Yearly
+= שנתי
+
+day
+= יום
+
+days
+= ימים
+
+week
+= שבוע
+
+weeks
+= שבועות
+
+month
+= חודש
+
+months
+= חודשים
+
+year
+= שנה
+
+years
+= שנים
+
+The start and the end need a time
+= להתחלה ולסיום נדרשת שעה
+
+The range needs a day to start on
+= לטווח נדרש יום התחלה
+
+The range needs a day to end by
+= לטווח נדרש יום סיום
+
+No day fits this pattern
+= אין יום שמתאים לתבנית זו
+
+Appointment Recurrence
+= חזרה של פגישה
+
+Time
+= שעה
+
+Start
+= התחלה
+
+End
+= סיום
+
+Pattern
+= תבנית
+
+Repeats
+= חוזר
+
+Range
+= טווח
+
+Starts
+= מתחיל
+
+Ends
+= מסתיים
+
+No end date
+= ללא תאריך סיום
+
+After
+= אחרי
+
+time
+= פעם
+
+times
+= פעמים
+
+By
+= עד
+
+{rule}, from {day}
+= {rule}, החל מ-{day}
+
+Remove Recurrence
+= הסרת חזרה
+
+Every weekday
+= כל יום חול
+
+Only on
+= רק ב
+
+on
+= ב
+
+Day
+= יום
+
+of every
+= בכל
+
+The
+= ה
+
+On
+= ב
+
+On the
+= ב
+
+of
+= של
+
+New Appointment
+= פגישה חדשה
+
+New Meeting
+= ישיבה חדשה
+
+Appointment
+= פגישה
+
+Meeting
+= ישיבה
+
+Give it a title first
+= יש לתת לו כותרת קודם
+
+The start and the end need a date and a time
+= להתחלה ולסיום נדרשים תאריך ושעה
+
+The series needs a day to end by
+= לסדרה נדרש יום סיום
+
+Save & Close
+= שמירה וסגירה
+
+Cancel Meeting
+= ביטול ישיבה
+
+Scheduling Assistant
+= עוזר התזמון
+
+Reminder
+= תזכורת
+
+Recurrence
+= חזרה
+
+Time Zones
+= אזורי זמן
+
+Categorize
+= סיווג
+
+High Importance
+= חשיבות גבוהה
+
+Low Importance
+= חשיבות נמוכה
+
+Teams Meeting
+= ישיבת Teams
+
+Response Options
+= אפשרויות תגובה
+
+Check Names
+= בדיקת שמות
+
+Cancel Invitation
+= ביטול הזמנה
+
+Invite Attendees
+= הזמנת משתתפים
+
+Clear All Categories
+= ניקוי כל הקטגוריות
+
+Request Responses
+= בקשת תגובות
+
+Allow New Time Proposals
+= התרת הצעות למועד חדש
+
+Title
+= כותרת
+
+Required
+= נדרש
+
+Optional
+= אופציונלי
+
+Location
+= מיקום
+
+Join
+= הצטרפות
+
+Copy Link
+= העתקת קישור
+
+The account's server hasn't given it a link to join by yet.
+= שרת החשבון עדיין לא נתן לה קישור להצטרפות.
+
+Proposals
+= הצעות
+
+1 person proposed another time.
+= אדם אחד הציע מועד אחר.
+
+{n} people proposed another time.
+= {n} אנשים הציעו מועד אחר.
+
+View All Proposals…
+= הצגת כל ההצעות…
+
+One of a series: {rule}
+= אחד מסדרה: {rule}
+
+Change…
+= שינוי…
+
+Make it repeat…
+= הגדרת חזרה…
+
+Show as
+= הצגה כ
+
+Time zones
+= אזורי זמן
+
+Remove attendees
+= הסרת משתתפים
+
+Invite attendees
+= הזמנת משתתפים
+
+Description
+= תיאור
+
+Nobody, or more than one of your contacts, matches: {names}
+= אף אחד, או יותר מאחד מאנשי הקשר שלך, מתאים: {names}
+
+Name somebody to invite first
+= יש לציין קודם את מי להזמין
+
+Work
+= עבודה
+
+Home
+= בית
+
+Other
+= אחר
+
+Mobile
+= נייד
+
+Fax
+= פקס
+
+Contact
+= איש קשר
+
+New Contact
+= איש קשר חדש
+
+First name
+= שם פרטי
+
+Last name
+= שם משפחה
+
+Shown as First Last when empty
+= מוצג כשם פרטי ומשפחה כשריק
+
+Display name
+= שם תצוגה
+
+Company
+= חברה
+
+Job title
+= תפקיד
+
+Department
+= מחלקה
+
+E-mail
+= דואר אלקטרוני
+
+Add another e-mail address
+= הוספת כתובת דואר אלקטרוני נוספת
+
+Phone
+= טלפון
+
+Add another phone number
+= הוספת מספר טלפון נוסף
+
+Street
+= רחוב
+
+City
+= עיר
+
+State or region
+= מדינה או אזור
+
+Postal code
+= מיקוד
+
+Country
+= ארץ
+
+Website
+= אתר אינטרנט
+
+Birthday
+= יום הולדת
+
+Favorite
+= מועדף
+
+Notes
+= הערות
+
+Tomorrow
+= מחר
+
+Next week
+= בשבוע הבא
+
+Task
+= משימה
+
+New Task
+= משימה חדשה
+
+Due date
+= תאריך יעד
+
+Start date
+= תאריך התחלה
+
+Low
+= נמוכה
+
+High
+= גבוהה
+
+Completed
+= הושלמה
+
+Change the colour
+= שינוי הצבע
+
+Delete this category
+= מחיקת קטגוריה זו
+
+New category
+= קטגוריה חדשה
+
+From contains
+= השולח מכיל
+
+Sent to
+= נשלח אל
+
+Subject contains
+= הנושא מכיל
+
+Body contains
+= גוף ההודעה מכיל
+
+Has an attachment
+= יש קובץ מצורף
+
+Importance is
+= החשיבות היא
+
+Move to folder
+= העברה לתיקייה
+
+Flag
+= סימון בדגל
+
+Mark as read
+= סימון כנקרא
+
+Set importance
+= קביעת חשיבות
+
+Run this rule on mail as it arrives
+= הפעלת כלל זה על דואר כשהוא מגיע
+
+Delete this rule
+= מחיקת כלל זה
+
+Run every rule that is switched on over {folder}
+= הפעלת כל כלל פעיל על {folder}
+
+Run Rules Now
+= הפעלת הכללים עכשיו
+
+1 message matched
+= הודעה אחת תאמה
+
+{n} messages matched
+= {n} הודעות תאמו
+
+New rule
+= כלל חדש
+
+Name
+= שם
+
+When
+= כאשר
+
+and
+= וגם
+
+Text to look for
+= טקסט לחיפוש
+
+Remove this condition
+= הסרת תנאי זה
+
++ condition
+= + תנאי
+
+All the conditions must hold
+= כל התנאים חייבים להתקיים
+
+Do
+= פעולה
+
+Choose a folder
+= בחירת תיקייה
+
+Choose a category
+= בחירת קטגוריה
+
+Remove this action
+= הסרת פעולה זו
+
++ action
+= + פעולה
+
+Stop processing more rules
+= הפסקת עיבוד כללים נוספים
+
+Add Rule
+= הוספת כלל
+
+A rule needs a name, and something to look for.
+= לכלל נדרשים שם ומשהו לחפש.
+
+{n} minute
+= דקה {n}
+
+{n} hour
+= שעה {n}
+
+{n} hours
+= {n} שעות
+
+{h} h {m} min
+= {h} שע׳ {m} דק׳
+
+{n} day
+= יום {n}
+
+{n} days
+= {n} ימים
+
+An application ID is letters, digits and dashes
+= מזהה יישום מורכב מאותיות, ספרות ומקפים
+
+Say which reminder (`event` and `occurrence`), or `all`
+= יש לציין איזו תזכורת (`event` ו-`occurrence`), או `all`
+
+`minutes` is 1 to 10080
+= `minutes` הוא בין 1 ל-10080
+
+No Send/Receive is running
+= אין שליחה/קבלה פעילה
+
+Stopping…
+= עוצר…
+
+Sign-in cancelled
+= הכניסה בוטלה
+
+Nobody is signing in
+= אף אחד אינו נכנס
+
+No misspelt words.
+= אין מילים שגויות.
+
+{count} misspelt: “{word}”, perhaps {near}
+= {count} שגויות: “{word}”, אולי {near}
+
+Sign in on the page that opened in your browser…
+= יש להיכנס בדף שנפתח בדפדפן…
+
+Renewing the sign-in…
+= מחדש את הכניסה…
+
+Send/Receive is already running
+= שליחה/קבלה כבר פועלת
+
+Updating the calendar and contacts…
+= מעדכן את לוח השנה ואנשי הקשר…
+
+Sending…
+= שולח…
+
+This build can't connect to mail servers
+= גרסה זו אינה יכולה להתחבר לשרתי דואר
+
+Sending your changes…
+= שולח את השינויים שלך…
+
+The contacts couldn't be taken in
+= לא ניתן היה לקלוט את אנשי הקשר
+
+Signing in stopped unexpectedly
+= הכניסה נעצרה באופן בלתי צפוי
+
+Signing in brought nothing back
+= הכניסה לא החזירה דבר
+
+You signed in as
+= נכנסת בתור
+
+but this account is
+= אבל חשבון זה הוא
+
+Send/Receive stopped unexpectedly
+= שליחה/קבלה נעצרה באופן בלתי צפוי
+
+Couldn't save the mailbox: {error}
+= לא ניתן היה לשמור את תיבת הדואר: {error}
+
+In the Outbox: it is on its way
+= בתיבת הדואר היוצא: היא בדרך
+
+part of a message
+= חלק מהודעה
+
+parts of messages
+= חלקי הודעות
+
+couldn't be read from the mailbox's content folder
+= לא ניתן היה לקרוא מתיקיית התוכן של תיבת הדואר
+
+Sent
+= נשלח
+
+Draft saved
+= הטיוטה נשמרה
+
+message changed
+= הודעה השתנתה
+
+messages changed
+= הודעות השתנו
+
+message
+= הודעה
+
+messages
+= הודעות
+
+event
+= אירוע
+
+events
+= אירועים
+
+task
+= משימה
+
+tasks
+= משימות
+
+contact
+= איש קשר
+
+contacts
+= אנשי קשר
+
+Imported {what}
+= יובאו {what}
+
+Already in your contacts
+= כבר באנשי הקשר שלך
+
+message removed
+= הודעה הוסרה
+
+messages removed
+= הודעות הוסרו
+
+item
+= פריט
+
+items
+= פריטים
+
+moved to your account's calendar
+= הועברו ללוח השנה של החשבון שלך
+
+was
+= היה
+
+were
+= היו
+
+there already
+= כבר שם
+
+stays
+= נשאר
+
+stay
+= נשארים
+
+on this computer
+= במחשב זה
+
+1 message
+= הודעה אחת
+
+Appointments
+= פגישות
+
+Nothing in the next seven days
+= אין דבר בשבעת הימים הקרובים
+
+Tasks
+= משימות
+
+Nothing to do
+= אין מה לעשות
+
+Mark Complete
+= סימון כהושלם
+
+By Date
+= לפי תאריך
+
+By From
+= לפי שולח
+
+By Subject
+= לפי נושא
+
+By Size
+= לפי גודל
+
+By Importance
+= לפי חשיבות
+
+Newest on top
+= החדשים למעלה
+
+Oldest on top
+= הישנים למעלה
+
+A on top
+= א׳ למעלה
+
+Z on top
+= ת׳ למעלה
+
+Largest on top
+= הגדולים למעלה
+
+Smallest on top
+= הקטנים למעלה
+
+High on top
+= גבוהה למעלה
+
+Low on top
+= נמוכה למעלה
+
+Reverse Sort
+= היפוך המיון
+
+Show as Conversations
+= הצגה כשיחות
+
+Nothing matches the search.
+= אין התאמות לחיפוש.
+
+Nothing matches this filter.
+= אין התאמות למסנן זה.
+
+Nothing here yet.
+= אין כאן עדיין דבר.
+
+Mark as unread
+= סימון כלא נקרא
+
+Clear flag
+= ניקוי דגל
+
+Flag for follow-up
+= סימון בדגל למעקב
+
+(no recipients)
+= (ללא נמענים)
+
+[Draft]
+= [טיוטה]
+
+(no subject)
+= (ללא נושא)
+
+Open Draft
+= פתיחת טיוטה
+
+Open in a Window
+= פתיחה בחלון
+
+Reply All
+= השב לכולם
+
+Archive
+= ארכיון
+
+Not Junk
+= לא זבל
+
+Junk
+= זבל
+
+Add to Tasks
+= הוספה למשימות
+
+Add Sender to Contacts
+= הוספת השולח לאנשי הקשר
+
+Find Related Messages
+= חיפוש הודעות קשורות
+
+Save Message As…
+= שמירת ההודעה בשם…
+
+Somebody
+= מישהו
+
+The organizer can't be written to from this account.
+= לא ניתן לכתוב למארגן מחשבון זה.
+
+{name} organizes "{title}".
+= {name} מארגן/ת את "{title}".
+
+It is now on {when}.
+= כעת היא ב-{when}.
+
+This is about the occurrence on {day} only.
+= מדובר במופע של {day} בלבד.
+
+Proposed start
+= התחלה מוצעת
+
+Proposed end
+= סיום מוצע
+
+A note to the organizer (optional)
+= הערה למארגן (אופציונלי)
+
+The proposed end has to be after the proposed start.
+= הסיום המוצע צריך להיות אחרי ההתחלה המוצעת.
+
+Decline and Propose
+= דחייה והצעת מועד
+
+Tentative and Propose
+= טנטטיבי והצעת מועד
+
+Another time was proposed to {name}
+= מועד אחר הוצע ל-{name}
+
+Your calendar
+= לוח השנה שלך
+
+Proposed time
+= מועד מוצע
+
+and {n} more
+= ועוד {n}
+
+Send writes to: {people}.
+= השליחה כותבת אל: {people}.
+
+Not an e-mail address: {names}
+= אינה כתובת דואר אלקטרוני: {names}
+
+The account's server forwards it.
+= שרת החשבון מעביר אותה.
+
+Forwarded to 1 person
+= הועבר לאדם אחד
+
+Forwarded to {n} people
+= הועבר ל-{n} אנשים
+
+The meeting these proposals are for isn't on your calendar.
+= הישיבה שעבורה הוצעו המועדים אינה בלוח השנה שלך.
+
+Nobody has proposed another time.
+= אף אחד לא הציע מועד אחר.
+
+Accept Proposal
+= קבלת ההצעה
+
+Only the meeting's organizer can change its time.
+= רק מארגן הישיבה יכול לשנות את המועד שלה.
+
+Propose New Time
+= הצעת מועד חדש
+
+Proposed Times
+= מועדים מוצעים
+
+Select a meeting first
+= יש לבחור ישיבה קודם
+
+This meeting's link isn't one that can be opened.
+= לא ניתן לפתוח את הקישור של ישיבה זו.
+
+The window isn't up yet.
+= החלון עדיין לא עלה.
+
+New Folder…
+= תיקייה חדשה…
+
+Rename Folder…
+= שינוי שם תיקייה…
+
+Mark All as Read
+= סימון הכול כנקרא
+
+Favorites Are Set in Outlook
+= המועדפים נקבעים ב-Outlook
+
+Customize This Search Folder…
+= התאמה אישית של תיקיית חיפוש זו…
+
+Delete Search Folder
+= מחיקת תיקיית חיפוש
+
+New Search Folder…
+= תיקיית חיפוש חדשה…
+
+Read the Favorites from Outlook again now
+= קריאת המועדפים מ-Outlook שוב עכשיו
+
+Hide the folder pane
+= הסתרת חלונית התיקיות
+
+Show the folder pane
+= הצגת חלונית התיקיות
+
+Favorites
+= מועדפים
+
+Search Folders
+= תיקיות חיפוש
+
+1 new message
+= הודעה חדשה אחת
+
+{n} new messages
+= {n} הודעות חדשות
+
+{n} more reminders
+= עוד {n} תזכורות
+
+Show a notification for new mail and reminders
+= הצגת התראה על דואר חדש ותזכורות
+
+Include the sender and subject of the newest message
+= הכללת השולח והנושא של ההודעה החדשה ביותר
+
+This version of MailCraft can't show notifications here.
+= גרסה זו של MailCraft אינה יכולה להציג כאן התראות.
+
+Customize Search Folder
+= התאמה אישית של תיקיית חיפוש
+
+New Search Folder
+= תיקיית חיפוש חדשה
+
+Edit Quick Step
+= עריכת צעד מהיר
+
+New Quick Step
+= צעד מהיר חדש
+
+Manage Quick Steps
+= ניהול צעדים מהירים
+
+Contact Group
+= קבוצת אנשי קשר
+
+New Contact Group
+= קבוצת אנשי קשר חדשה
+
+Delay Delivery
+= השהיית מסירה
+
+Unread mail
+= דואר שלא נקרא
+
+Mail flagged for follow up
+= דואר שסומן בדגל למעקב
+
+Important mail
+= דואר חשוב
+
+Mail with attachments
+= דואר עם קבצים מצורפים
+
+Categorized mail
+= דואר מסווג
+
+Large mail
+= דואר גדול
+
+Mail from specific people
+= דואר מאנשים מסוימים
+
+A search of my own
+= חיפוש משלי
+
+Show mail that is:
+= הצגת דואר שהוא:
+
+Larger than (KB)
+= גדול מ-(KB)
+
+Category
+= קטגוריה
+
+Any category
+= כל קטגוריה
+
+Search for
+= חיפוש
+
+After what it shows
+= אחרי מה שהוא מציג
+
+Look in
+= חיפוש ב
+
+Every account
+= כל חשבון
+
+Copy to folder
+= העתקה לתיקייה
+
+Mark complete
+= סימון כהושלם
+
+Clear categories
+= ניקוי קטגוריות
+
+What the button says
+= מה כתוב על הלחצן
+
+Actions, in order:
+= פעולות, לפי הסדר:
+
+To (optional)
+= אל (אופציונלי)
+
+Add Action
+= הוספת פעולה
+
+No Quick Steps yet
+= אין עדיין צעדים מהירים
+
+Edit
+= עריכה
+
+Move up
+= העברה למעלה
+
+Move down
+= העברה למטה
+
+New Quick Step…
+= צעד מהיר חדש…
+
+"{text}" isn't an e-mail address
+= "{text}" אינה כתובת דואר אלקטרוני
+
+Members ({n})
+= חברים ({n})
+
+No members yet
+= אין עדיין חברים
+
+Remove from the group
+= הסרה מהקבוצה
+
+Add addresses, separated by ;
+= הוספת כתובות, מופרדות ב-;
+
+Add from Contacts…
+= הוספה מאנשי הקשר…
+
+Do not deliver before:
+= לא למסור לפני:
+
+Date
+= תאריך
+
+The message waits in the Outbox until then.
+= ההודעה ממתינה בתיבת הדואר היוצא עד אז.
+
+Send at once instead
+= שליחה מיד במקום
+
+Contact Groups
+= קבוצות אנשי קשר
+
+{n} members
+= {n} חברים
+
+Email the group
+= שליחת דואר לקבוצה
+
+(no name)
+= (ללא שם)
+
+Main
+= ראשי
+
+{n} of {total}
+= {n} מתוך {total}
+
+People
+= אנשים
+
+Nobody matches the search
+= אף אחד אינו מתאים לחיפוש
+
+No contacts yet
+= אין עדיין אנשי קשר
+
+Email
+= דואר אלקטרוני
+
+Export…
+= ייצוא…
+
+Select a contact to see the details
+= יש לבחור איש קשר כדי לראות את הפרטים
+
+Remove from Favorites
+= הסרה מהמועדפים
+
+Add to Favorites
+= הוספה למועדפים
+
+Write to {address}
+= כתיבה אל {address}
+
+Websites
+= אתרי אינטרנט
+
+Turns {age} today
+= בן/בת {age} היום
+
+Turns {age} on {date}
+= בן/בת {age} ב-{date}
+
+Recent mail
+= דואר אחרון
+
+Sent {name} to the printer
+= {name} נשלח למדפסת
+
+Downloaded {name}: print it from there
+= {name} הורד: יש להדפיס משם
+
+Message (Memo Style)
+= הודעה (סגנון תזכיר)
+
+Contacts (Card Style)
+= אנשי קשר (סגנון כרטיס)
+
+Tasks (Table Style)
+= משימות (סגנון טבלה)
+
+Daily Style
+= סגנון יומי
+
+Work Week Style
+= סגנון שבוע עבודה
+
+Weekly Style
+= סגנון שבועי
+
+Monthly Style
+= סגנון חודשי
+
+Style
+= סגנון
+
+Days
+= ימים
+
+from YYYY-MM-DD
+= מ-YYYY-MM-DD
+
+to YYYY-MM-DD
+= עד YYYY-MM-DD
+
+Paper
+= נייר
+
+Download PDF to Print
+= הורדת PDF להדפסה
+
+Save as PDF…
+= שמירה כ-PDF…
+
+Print Preview: 1 page
+= תצוגה מקדימה: עמוד אחד
+
+Print Preview: {n} pages
+= תצוגה מקדימה: {n} עמודים
+
+the download failed
+= ההורדה נכשלה
+
+the server sent nothing
+= השרת לא שלח דבר
+
+it is too large to show
+= היא גדולה מכדי להציג
+
+it is damaged, or larger than can be shown
+= היא פגומה, או גדולה ממה שאפשר להציג
+
+it is a kind of picture that can't be shown here
+= זה סוג תמונה שלא ניתן להציג כאן
+
+it is a drawing of a kind that isn't shown (SVG)
+= זה ציור מסוג שאינו מוצג (SVG)
+
+the server sent a web page instead of a picture
+= השרת שלח דף אינטרנט במקום תמונה
+
+what the server sent is not a picture
+= מה שהשרת שלח אינו תמונה
+
+all day
+= כל היום
+
+This invitation doesn't say when the meeting is.
+= הזמנה זו אינה מציינת מתי הישיבה.
+
+Select a message first
+= יש לבחור הודעה קודם
+
+This message carries no invitation.
+= הודעה זו אינה נושאת הזמנה.
+
+Decline This Proposal?
+= לדחות הצעה זו?
+
+Decline Proposal
+= דחיית ההצעה
+
+more ways to answer
+= דרכים נוספות לענות
+
+(no title)
+= (ללא כותרת)
+
+Accepted on {when}
+= התקבלה ב-{when}
+
+You accepted this meeting.
+= קיבלת ישיבה זו.
+
+Tentatively accepted on {when}
+= התקבלה באופן טנטטיבי ב-{when}
+
+You tentatively accepted this meeting.
+= קיבלת ישיבה זו באופן טנטטיבי.
+
+Declined on {when}
+= נדחתה ב-{when}
+
+You declined this meeting.
+= דחית ישיבה זו.
+
+You organize this meeting: there is nothing to answer.
+= אתה מארגן ישיבה זו: אין מה לענות.
+
+This meeting is over.
+= ישיבה זו הסתיימה.
+
+The organizer has changed this meeting.
+= המארגן שינה ישיבה זו.
+
+You haven't answered this invitation yet.
+= עדיין לא ענית להזמנה זו.
+
+This is about one occurrence of a series.
+= מדובר במופע אחד מתוך סדרה.
+
+This meeting was called off by its organizer.
+= ישיבה זו בוטלה על ידי המארגן.
+
+It is not on your calendar.
+= היא אינה בלוח השנה שלך.
+
+{name} accepted this meeting.
+= {name} קיבל/ה ישיבה זו.
+
+{name} tentatively accepted this meeting.
+= {name} קיבל/ה ישיבה זו באופן טנטטיבי.
+
+{name} declined this meeting.
+= {name} דחה/תה ישיבה זו.
+
+{name} answered this invitation.
+= {name} ענה/תה להזמנה זו.
+
+{name} proposes another time for this meeting.
+= {name} מציע/ה מועד אחר לישיבה זו.
+
+Accept
+= קבלה
+
+Tentative
+= טנטטיבי
+
+Decline
+= דחייה
+
+Write a Note with the Response…
+= כתיבת הערה עם התגובה…
+
+View All Proposals
+= הצגת כל ההצעות
+
+Every other time that was proposed for this meeting.
+= כל מועד אחר שהוצע לישיבה זו.
+
+This meeting
+= ישיבה זו
+
+Looking for this meeting on your calendar…
+= מחפש ישיבה זו בלוח השנה שלך…
+
+Look Again
+= חיפוש שוב
+
+Remove from Calendar
+= הסרה מלוח השנה
+
+Calendar…
+= לוח שנה…
+
+Show the day of this meeting in the calendar.
+= הצגת יום הישיבה בלוח השנה.
+
+Proposed
+= מוצע
+
+Where
+= היכן
+
+Organizer
+= מארגן
+
+Nothing else is on your calendar at that time.
+= אין דבר אחר בלוח השנה שלך בשעה זו.
+
+At the same time:
+= באותה שעה:
+
+Right before or after:
+= מיד לפני או אחרי:
+
+Delete meeting requests from the Inbox after responding
+= מחיקת בקשות לישיבה מתיבת הדואר הנכנס לאחר מענה
+
+Picture
+= תמונה
+
+the download stopped before it was done
+= ההורדה נעצרה לפני שהסתיימה
+
+it took too long
+= זה לקח יותר מדי זמן
+
+Pictures not shown.
+= התמונות אינן מוצגות.
+
+Pictures not downloaded.
+= התמונות לא הורדו.
+
+Downloading pictures…
+= מוריד תמונות…
+
+{n} of {total} so far.
+= {n} מתוך {total} עד כה.
+
+A picture couldn't be downloaded.
+= לא ניתן היה להוריד תמונה.
+
+Point at it to see why.
+= יש להצביע עליה כדי לראות מדוע.
+
+{n} pictures couldn't be downloaded.
+= לא ניתן היה להוריד {n} תמונות.
+
+Point at one to see why.
+= יש להצביע על אחת כדי לראות מדוע.
+
+Ask once more for the pictures that couldn't be downloaded.
+= בקשה נוספת לתמונות שלא ניתן היה להוריד.
+
+Download pictures
+= הורדת תמונות
+
+Always download pictures from {sender}
+= תמיד להוריד תמונות מ-{sender}
+
+Always from @{domain}
+= תמיד מ-@{domain}
+
+Download pictures in mail automatically
+= הורדה אוטומטית של תמונות בדואר
+
+This build can't download pictures: they stay placeholders.
+= גרסה זו אינה יכולה להוריד תמונות: הן נשארות ממלאי מקום.
+
+Pictures are always downloaded from:
+= תמונות מורדות תמיד מ:
+
+Ask before downloading this sender's pictures again
+= לשאול לפני הורדת תמונות משולח זה שוב
+
+everybody at @{domain}
+= כולם ב-@{domain}
+
+No downloaded pictures are kept on this computer.
+= לא נשמרות במחשב זה תמונות שהורדו.
+
+One downloaded picture is kept on this computer ({size}).
+= תמונה אחת שהורדה נשמרת במחשב זה ({size}).
+
+{n} downloaded pictures are kept on this computer ({size}).
+= {n} תמונות שהורדו נשמרות במחשב זה ({size}).
+
+Clear
+= ניקוי
+
+This build can't download pictures
+= גרסה זו אינה יכולה להוריד תמונות
+
+That is not a domain
+= זה אינו דומיין
+
+The list of domains is full: remove some in File › Options
+= רשימת הדומיינים מלאה: יש להסיר כמה בקובץ › אפשרויות
+
+That is not a sender's address
+= זו אינה כתובת של שולח
+
+The list of senders is full: remove some in File › Options
+= רשימת השולחים מלאה: יש להסיר כמה בקובץ › אפשרויות
+
+Signed and verified
+= חתום ומאומת
+
+Encrypted
+= מוצפן
+
+Signed by someone else
+= חתום על ידי מישהו אחר
+
+Signed, signer not verified
+= חתום, החותם לא אומת
+
+Signature not checked
+= החתימה לא נבדקה
+
+Invalid signature
+= חתימה לא תקפה
+
+Encrypted, can't be opened
+= מוצפן, לא ניתן לפתוח
+
+fingerprint
+= טביעת אצבע
+
+signed
+= חתום
+
+Trust This Signer
+= מתן אמון בחותם זה
+
+Add Sender's Certificate
+= הוספת האישור של השולח
+
+Select All
+= בחירת הכול
+
+Copy Link Address
+= העתקת כתובת הקישור
+
+Select some text first
+= יש לבחור טקסט קודם
+
+No message is being read there
+= לא נקראת שם הודעה
+
+That is not a link's address
+= זו אינה כתובת של קישור
+
+This message has no text.
+= בהודעה זו אין טקסט.
+
+This picture is missing from the message, or can't be shown.
+= תמונה זו חסרה בהודעה, או שלא ניתן להציגה.
+
+This picture couldn't be downloaded: {why}.
+= לא ניתן היה להוריד תמונה זו: {why}.
+
+This picture was downloaded, but can't be shown.
+= תמונה זו הורדה, אך לא ניתן להציגה.
+
+Select an item to read
+= יש לבחור פריט לקריאה
+
+{n} items selected
+= {n} פריטים נבחרו
+
+To:
+= אל:
+
+Cc:
+= עותק:
+
+Bcc:
+= עותק מוסתר:
+
+Due
+= יעד
+
+Follow up.
+= מעקב.
+
+Completed.
+= הושלם.
+
+This message was sent with High importance.
+= הודעה זו נשלחה בחשיבות גבוהה.
+
+This message was sent with Low importance.
+= הודעה זו נשלחה בחשיבות נמוכה.
+
+You replied to this message.
+= השבת להודעה זו.
+
+You forwarded this message.
+= העברת הלאה הודעה זו.
+
+This message waits in the Outbox until {day} {time}.
+= הודעה זו ממתינה בתיבת הדואר היוצא עד {day} {time}.
+
+The sender asked to be told when you read this message.
+= השולח ביקש לקבל הודעה כשתקרא/י הודעה זו.
+
+Send Receipt
+= שליחת אישור
+
+{n} messages in this conversation:
+= {n} הודעות בשיחה זו:
+
+Save {name}
+= שמירת {name}
+
+Save As…
+= שמירה בשם…
+
+Remove Attachment
+= הסרת קובץ מצורף
+
+now
+= עכשיו
+
+hours
+= שעות
+
+1 Reminder
+= תזכורת אחת
+
+Reminders
+= תזכורות
+
+No reminders are due.
+= אין תזכורות שהגיע מועדן.
+
+Dismiss
+= ביטול
+
+Snooze
+= נודניק
+
+Remind me again later
+= להזכיר לי שוב מאוחר יותר
+
+Dismiss All
+= ביטול הכול
+
+1 hour
+= שעה אחת
+
+1 day
+= יום אחד
+
+Move to Junk Email
+= העברה לדואר זבל
+
+New
+= חדש
+
+New\nEmail
+= דואר\nחדש
+
+New\nItems
+= פריטים\nחדשים
+
+New Items
+= פריטים חדשים
+
+Permanently Delete
+= מחיקה לצמיתות
+
+Respond
+= מענה
+
+Reply\nAll
+= השב\nלכולם
+
+Reply with Meeting
+= מענה בישיבה
+
+Add Sender
+= הוספת שולח
+
+Add to Contacts
+= הוספה לאנשי הקשר
+
+Move to Folder
+= העברה לתיקייה
+
+Quick Steps
+= צעדים מהירים
+
+Quick\nSteps
+= צעדים\nמהירים
+
+Tags
+= תגיות
+
+Unread/\nRead
+= לא נקרא/\nנקרא
+
+Follow\nUp
+= מעקב
+
+Follow Up
+= מעקב
+
+Pin
+= הצמדה
+
+Pin to the top of the list
+= הצמדה לראש הרשימה
+
+Find
+= חיפוש
+
+Filter\nEmail
+= סינון\nדואר
+
+Filter Email
+= סינון דואר
+
+Related
+= קשורים
+
+Send/Receive\nAll Folders
+= שליחה/קבלה\nכל התיקיות
+
+New\nAppointment
+= פגישה\nחדשה
+
+New\nMeeting
+= ישיבה\nחדשה
+
+Go To
+= מעבר אל
+
+Next 7\nDays
+= 7 הימים\nהבאים
+
+Arrange
+= סידור
+
+Work\nWeek
+= שבוע\nעבודה
+
+Week
+= שבוע
+
+Month
+= חודש
+
+Join Online Meeting
+= הצטרפות לישיבה מקוונת
+
+Share
+= שיתוף
+
+Save\nCalendar
+= שמירת\nלוח השנה
+
+New\nContact
+= איש קשר\nחדש
+
+New Contact\nGroup
+= קבוצת אנשי\nקשר חדשה
+
+Communicate
+= תקשורת
+
+Actions
+= פעולות
+
+Edit\nContact
+= עריכת\nאיש קשר
+
+Export\nContacts
+= ייצוא\nאנשי קשר
+
+New\nTask
+= משימה\nחדשה
+
+Manage Task
+= ניהול משימה
+
+Mark\nComplete
+= סימון\nכהושלם
+
+Edit\nTask
+= עריכת\nמשימה
+
+Current View
+= תצוגה נוכחית
+
+Filter
+= סינון
+
+Filter Tasks
+= סינון משימות
+
+Names
+= שמות
+
+Check\nNames
+= בדיקת\nשמות
+
+Basic Text
+= טקסט בסיסי
+
+Clear Formatting
+= ניקוי עיצוב
+
+Include
+= הכללה
+
+Attach\nFile
+= צירוף\nקובץ
+
+Signature
+= חתימה
+
+Encrypt
+= הצפנה
+
+Sign
+= חתימה דיגיטלית
+
+Read Receipt
+= אישור קריאה
+
+Request a Read Receipt
+= בקשת אישור קריאה
+
+Delivery Receipt
+= אישור מסירה
+
+Request a Delivery Receipt
+= בקשת אישור מסירה
+
+Do not deliver before…
+= לא למסור לפני…
+
+Save\nDraft
+= שמירת\nטיוטה
+
+Send & Receive
+= שליחה וקבלה
+
+Add\nAccount
+= הוספת\nחשבון
+
+Account\nSettings
+= הגדרות\nחשבון
+
+New\nFolder
+= תיקייה\nחדשה
+
+New Search\nFolder
+= תיקיית חיפוש\nחדשה
+
+Rename\nFolder
+= שינוי שם\nתיקייה
+
+Move\nFolder
+= העברת\nתיקייה
+
+Move Folder
+= העברת תיקייה
+
+Delete\nFolder
+= מחיקת\nתיקייה
+
+Clean Up
+= ניקוי
+
+Mark All\nas Read
+= סימון הכול\nכנקרא
+
+Run Rules\nNow
+= הפעלת הכללים\nעכשיו
+
+Empty\nFolder
+= ריקון\nתיקייה
+
+Export
+= ייצוא
+
+Export\nFolder
+= ייצוא\nתיקייה
+
+Time\nScale
+= קנה מידה\nשל זמן
+
+Time Scale
+= קנה מידה של זמן
+
+Side-by-\nSide
+= זה לצד\nזה
+
+Layout
+= פריסה
+
+Folder\nPane
+= חלונית\nתיקיות
+
+Reading\nPane
+= חלונית\nקריאה
+
+Reading Pane
+= חלונית קריאה
+
+To-Do\nBar
+= סרגל\nמשימות
+
+Ribbon\nLayout
+= פריסת\nרצועת הכלים
+
+Ribbon Layout
+= פריסת רצועת הכלים
+
+Messages
+= הודעות
+
+Show as\nConversations
+= הצגה\nכשיחות
+
+Message\nPreview
+= תצוגה מקדימה\nשל הודעה
+
+Message Preview
+= תצוגה מקדימה של הודעה
+
+Arrangement
+= סידור
+
+Arrange\nBy
+= סידור\nלפי
+
+Arrange By
+= סידור לפי
+
+Reverse\nSort
+= היפוך\nהמיון
+
+Window
+= חלון
+
+Theme
+= ערכת נושא
+
+Interface Theme
+= ערכת נושא לממשק
+
+Reminders\nWindow
+= חלון\nתזכורות
+
+Reset\nView
+= איפוס\nתצוגה
+
+Help
+= עזרה
+
+Search\nCommands
+= חיפוש\nפקודות
+
+About\nMailCraft
+= אודות\nMailCraft
+
+All Categories…
+= כל הקטגוריות…
+
+Email Message
+= הודעת דואר אלקטרוני
+
+Folder…
+= תיקייה…
+
+Copy to Folder
+= העתקה לתיקייה
+
+Always Move Messages From This Sender
+= תמיד להעביר הודעות משולח זה
+
+Manage Rules…
+= ניהול כללים…
+
+No Date
+= ללא תאריך
+
+Clear Flag
+= ניקוי דגל
+
+No signatures yet
+= אין עדיין חתימות
+
+Signatures…
+= חתימות…
+
+Top Level
+= רמה עליונה
+
+Reply and Delete
+= השב ומחק
+
+Manage Quick Steps…
+= ניהול צעדים מהירים…
+
+Doesn't Repeat
+= אינו חוזר
+
+Search commands
+= חיפוש פקודות
+
+Sign in with Send/Receive to see when other people are busy.
+= יש להיכנס עם שליחה/קבלה כדי לראות מתי אחרים עסוקים.
+
+Asking about other people's time stopped unexpectedly
+= השאלה על זמנם של אחרים נעצרה באופן בלתי צפוי
+
+The server didn't say when other people are busy
+= השרת לא אמר מתי אחרים עסוקים
+
+Nobody with an address is invited
+= לא הוזמן אף אחד עם כתובת
+
+You
+= את/ה
+
+Organizer: your own calendar
+= מארגן: לוח השנה שלך
+
+Asking the server…
+= שואל את השרת…
+
+No information
+= אין מידע
+
+Not an address
+= אינה כתובת
+
+All Attendees
+= כל המשתתפים
+
+Show
+= הצגה
+
+AutoPick Next
+= בחירה אוטומטית של הבא
+
+Busy
+= עסוק
+
+Out of Office
+= מחוץ למשרד
+
+Working Elsewhere
+= עובד ממקום אחר
+
+Asking the server when everybody is free…
+= שואל את השרת מתי כולם פנויים…
+
+Overdue
+= באיחור
+
+This Week
+= השבוע
+
+Later
+= מאוחר יותר
+
+Completed on {date}
+= הושלמה ב-{date}
+
+No due date
+= ללא תאריך יעד
+
+Overdue: was due {when}
+= באיחור: היעד היה {when}
+
+Due {when}
+= יעד: {when}
+
+My Tasks
+= המשימות שלי
+
+No completed tasks yet.
+= עדיין אין משימות שהושלמו.
+
+Nothing to do here.
+= אין כאן מה לעשות.
+
+Add a task due today
+= הוספת משימה ליום זה
+
+Add a task
+= הוספת משימה
+
+Mark Incomplete
+= סימון כלא הושלם
+
+Details
+= פרטים
+
+Message
+= הודעה
+
+From {name}
+= מאת {name}
+
+Open the message
+= פתיחת ההודעה
+
+Light
+= בהיר
+
+Dark
+= כהה
+
+Use system setting
+= שימוש בהגדרת המערכת
+
+Imported {n} certificate(s) or key(s), with your private key
+= יובאו {n} אישורים או מפתחות, עם המפתח הפרטי שלך
+
+Imported {n} certificate(s) or key(s)
+= יובאו {n} אישורים או מפתחות
+
+Keep the certificates and keys that signed messages bring
+= שמירת האישורים והמפתחות שמגיעים עם הודעות חתומות
+
+Sign new messages
+= חתימה על הודעות חדשות
+
+Encrypt new messages
+= הצפנת הודעות חדשות
+
+Sign and encrypt with
+= חתימה והצפנה באמצעות
+
+S/MIME
+= S/MIME
+
+OpenPGP
+= OpenPGP
+
+Whichever fits (S/MIME first)
+= מה שמתאים (S/MIME קודם)
+
+Import…
+= ייבוא…
+
+Yours
+= שלך
+
+Yours (private key not here)
+= שלך (המפתח הפרטי אינו כאן)
+
+Trusted
+= מהימן
+
+Certificate authority
+= רשות אישורים
+
+From a signed message
+= מהודעה חתומה
+
+Expired
+= פג תוקף
+
+until
+= עד
+
+issued by
+= הונפק על ידי
+
+Don't Trust
+= לא לתת אמון
+
+Trust
+= מתן אמון
+
+"{name}" is protected by a passphrase.
+= "{name}" מוגן בביטוי סיסמה.
+
+That passphrase isn't the file's.
+= ביטוי סיסמה זה אינו של הקובץ.
+
+Passphrase
+= ביטוי סיסמה
+
+Not available: {reason}
+= לא זמין: {reason}
+
+Too many windows are open: close one first
+= פתוחים יותר מדי חלונות: יש לסגור אחד קודם
+
+That can't be opened in a window of its own
+= לא ניתן לפתוח זאת בחלון נפרד
+
+No appointment is open in a window of its own
+= אין פגישה פתוחה בחלון נפרד
+
+Only a meeting you organize has a Scheduling Assistant
+= רק לישיבה שאת/ה מארגן/ת יש עוזר תזמון
+
+Mark Unread
+= סימון כלא נקרא
+
+Mark Read
+= סימון כנקרא
+
+This computer's time
+= השעה של מחשב זה
+
+Search time zones
+= חיפוש אזורי זמן
+
+No time zone is called that
+= אין אזור זמן בשם זה
+
+New Mailbox
+= תיבת דואר חדשה
+
+File
+= קובץ
+
+Open Mailbox
+= פתיחת תיבת דואר
+
+Save Mailbox
+= שמירת תיבת הדואר
+
+Save Message As
+= שמירת ההודעה בשם
+
+Save As
+= שמירה בשם
+
+Undo
+= ביטול פעולה
+
+Quick Access
+= גישה מהירה
+
+nothing to undo
+= אין מה לבטל
+
+Redo
+= ביצוע מחדש
+
+nothing to redo
+= אין מה לבצע מחדש
+
+Select Message
+= בחירת הודעה
+
+Folder
+= תיקייה
+
+Next Message
+= ההודעה הבאה
+
+Previous Message
+= ההודעה הקודמת
+
+Get Message
+= קבלת הודעה
+
+List Messages
+= רשימת הודעות
+
+select a message first
+= יש לבחור הודעה קודם
+
+Mark as Read
+= סימון כנקרא
+
+Mark as Unread
+= סימון כלא נקרא
+
+Unread/ Read
+= לא נקרא/ נקרא
+
+Flag Message
+= סימון הודעה בדגל
+
+Block Sender
+= חסימת שולח
+
+Save Attachment
+= שמירת קובץ מצורף
+
+Attachments
+= קבצים מצורפים
+
+New Email
+= דואר חדש
+
+Edit Message
+= עריכת הודעה
+
+no message is being written
+= לא נכתבת הודעה
+
+Attach File
+= צירוף קובץ
+
+Suggest Recipients
+= הצעת נמענים
+
+More Options
+= אפשרויות נוספות
+
+Tracking
+= מעקב
+
+Close Message
+= סגירת הודעה
+
+Select Text
+= בחירת טקסט
+
+HTML
+= HTML
+
+Format Text
+= עיצוב טקסט
+
+Format
+= עיצוב
+
+Plain Text
+= טקסט פשוט
+
+Font
+= גופן
+
+Paragraph
+= פסקה
+
+Align Text
+= יישור טקסט
+
+Links
+= קישורים
+
+Illustrations
+= איורים
+
+Symbols
+= סמלים
+
+Date & Time
+= תאריך ושעה
+
+Text
+= טקסט
+
+Symbol
+= סמל
+
+Editing
+= עריכה
+
+Replace
+= החלפה
+
+Word Count
+= ספירת מילים
+
+Review
+= סקירה
+
+Proofing
+= הגהה
+
+Spelling & Grammar
+= איות ודקדוק
+
+Go to Folder
+= מעבר לתיקייה
+
+List Folders
+= רשימת תיקיות
+
+Favorites from Outlook
+= מועדפים מ-Outlook
+
+the folder is already empty
+= התיקייה כבר ריקה
+
+Reminders Window
+= חלון תזכורות
+
+View
+= תצוגה
+
+Navigation
+= ניווט
+
+Folder Pane
+= חלונית תיקיות
+
+To-Do Bar
+= סרגל משימות
+
+Search
+= חיפוש
+
+Close Search
+= סגירת החיפוש
+
+Work Week
+= שבוע עבודה
+
+Reset View
+= איפוס תצוגה
+
+Inspect View
+= בדיקת התצוגה
+
+Free and Busy Times
+= זמנים פנויים ועסוקים
+
+Attendees
+= משתתפים
+
+Edit Event
+= עריכת אירוע
+
+select an appointment first
+= יש לבחור פגישה קודם
+
+Move Event
+= העברת אירוע
+
+Select Event
+= בחירת אירוע
+
+Get Event
+= קבלת אירוע
+
+List Events
+= רשימת אירועים
+
+Add Calendar
+= הוספת לוח שנה
+
+Manage Calendars
+= ניהול לוחות שנה
+
+Delete Calendar
+= מחיקת לוח שנה
+
+Show Calendar
+= הצגת לוח שנה
+
+Move to the Account's Calendar
+= העברה ללוח השנה של החשבון
+
+Work in Calendar
+= עבודה בלוח השנה
+
+Read Invitation
+= קריאת הזמנה
+
+Show in Calendar
+= הצגה בלוח השנה
+
+Delete Meeting Requests after Responding
+= מחיקת בקשות לישיבה לאחר מענה
+
+Record Response
+= רישום תגובה
+
+Copy Event
+= העתקת אירוע
+
+Number of Days
+= מספר ימים
+
+Next 7 Days
+= 7 הימים הבאים
+
+Week Numbers
+= מספרי שבועות
+
+List Calendars
+= רשימת לוחות שנה
+
+Calendar Colour
+= צבע לוח השנה
+
+Side-by-Side
+= זה לצד זה
+
+Bring Calendar to Front
+= הבאת לוח השנה לחזית
+
+Working Hours
+= שעות עבודה
+
+Apply Downloaded Mailbox Settings
+= החלת הגדרות תיבת הדואר שהורדו
+
+Send / Receive
+= שליחה / קבלה
+
+Time Zone
+= אזור זמן
+
+Edit Contact
+= עריכת איש קשר
+
+select a contact first
+= יש לבחור איש קשר קודם
+
+Select Contact
+= בחירת איש קשר
+
+Get Contact
+= קבלת איש קשר
+
+List Contacts
+= רשימת אנשי קשר
+
+Search People
+= חיפוש אנשים
+
+Edit Contact Group
+= עריכת קבוצת אנשי קשר
+
+there are no contact groups
+= אין קבוצות אנשי קשר
+
+Add Members
+= הוספת חברים
+
+Members
+= חברים
+
+Remove Member
+= הסרת חבר
+
+Delete Group
+= מחיקת קבוצה
+
+Open Contact Group
+= פתיחת קבוצת אנשי קשר
+
+Email Group
+= שליחת דואר לקבוצה
+
+Export Contact Groups
+= ייצוא קבוצות אנשי קשר
+
+Edit Task
+= עריכת משימה
+
+select a task first
+= יש לבחור משימה קודם
+
+Select Task
+= בחירת משימה
+
+Get Task
+= קבלת משימה
+
+List Tasks
+= רשימת משימות
+
+Create Rule
+= יצירת כלל
+
+Delete Rule
+= מחיקת כלל
+
+Enable Rule
+= הפעלת כלל
+
+Always Move Messages From
+= תמיד להעביר הודעות מ
+
+Send Read Receipt
+= שליחת אישור קריאה
+
+Create Quick Step
+= יצירת צעד מהיר
+
+there are no Quick Steps
+= אין צעדים מהירים
+
+Delete Quick Step
+= מחיקת צעד מהיר
+
+Move Quick Step
+= העברת צעד מהיר
+
+Run Quick Step
+= הפעלת צעד מהיר
+
+Customize This Search Folder
+= התאמה אישית של תיקיית חיפוש זו
+
+there are no search folders
+= אין תיקיות חיפוש
+
+New Category
+= קטגוריה חדשה
+
+Rename Category
+= שינוי שם קטגוריה
+
+Delete Category
+= מחיקת קטגוריה
+
+All Categories
+= כל הקטגוריות
+
+List Accounts
+= רשימת חשבונות
+
+Where Outlook's Favorites Come From
+= מאין מגיעים המועדפים של Outlook
+
+Suggest Account Settings
+= הצעת הגדרות חשבון
+
+Delete Signature
+= מחיקת חתימה
+
+Apply Send/Receive
+= החלת שליחה/קבלה
+
+no shared mailbox is open
+= אין תיבת דואר משותפת פתוחה
+
+Calendar Changes to Send
+= שינויים בלוח השנה לשליחה
+
+Apply Sent Calendar Changes
+= החלת שינויי לוח השנה שנשלחו
+
+Apply Downloaded Calendar
+= החלת לוח השנה שהורד
+
+Apply Downloaded Contacts
+= החלת אנשי הקשר שהורדו
+
+Apply Downloaded Calendar List
+= החלת רשימת לוחות השנה שהורדה
+
+Apply Downloaded Categories
+= החלת הקטגוריות שהורדו
+
+Apply Downloaded Favorites
+= החלת המועדפים שהורדו
+
+Forget Downloaded Calendar and Contacts
+= שכחת לוח השנה ואנשי הקשר שהורדו
+
+Certificates and Keys
+= אישורים ומפתחות
+
+Trust Center
+= מרכז האמון
+
+Import Certificate or Key
+= ייבוא אישור או מפתח
+
+Export Certificate or Key
+= ייצוא אישור או מפתח
+
+Remove Certificate or Key
+= הסרת אישור או מפתח
+
+Trust Certificate or Key
+= מתן אמון באישור או במפתח
+
+Message Security
+= אבטחת הודעות
+
+Security
+= אבטחה
+
+Email Security Options
+= אפשרויות אבטחת דואר אלקטרוני
+
+Show Ribbon Tab
+= הצגת כרטיסייה ברצועת הכלים
+
+Ribbon
+= רצועת הכלים
+
+Collapse the Ribbon
+= כיווץ רצועת הכלים
+
+Open Dialog
+= פתיחת תיבת דו-שיח
+
+Close Dialog
+= סגירת תיבת דו-שיח
+
+Interface Size
+= גודל הממשק
+
+Cancel Sign-In
+= ביטול הכניסה
+
+Cancel Send/Receive
+= ביטול שליחה/קבלה
+
+Connect Calendar and Contacts
+= חיבור לוח שנה ואנשי קשר
+
+Choose How Outlook's Favorites Are Read
+= בחירת אופן קריאת המועדפים של Outlook
+
+Copy a Link for Your Administrator
+= העתקת קישור למנהל המערכת שלך
+
+What to Do When Your Organisation Has to Approve MailCraft
+= מה עושים כשהארגון שלך צריך לאשר את MailCraft
+
+Copy a Message for My Administrator
+= העתקת הודעה למנהל המערכת שלי
+
+I'm an Administrator: Approve MailCraft for My Organisation
+= אני מנהל מערכת: אישור MailCraft עבור הארגון שלי
+
+Try Signing In Again
+= ניסיון כניסה חוזר
+
+Dismiss Reminder
+= ביטול תזכורת
+
+Snooze Reminders
+= דחיית תזכורות
+
+Microsoft Application ID
+= מזהה יישום של Microsoft
+
+Remember Passwords and Sign-Ins
+= זכירת סיסמאות וכניסות
+
+Show Notifications
+= הצגת התראות
+
+Sender and Subject in Notifications
+= שולח ונושא בהתראות
+
+Insert Picture
+= הוספת תמונה
+
+Check Spelling
+= בדיקת איות
+
+Expand or Collapse Folder
+= הרחבה או כיווץ של תיקייה
+
+Open in a Window of Its Own
+= פתיחה בחלון נפרד
+
+Close Window
+= סגירת חלון
+
+Appointment Window
+= חלון פגישה
+
+Download Pictures
+= הורדת תמונות
+
+Always Download Pictures from Sender
+= תמיד להוריד תמונות מהשולח
+
+Download Pictures in Mail Automatically
+= הורדה אוטומטית של תמונות בדואר
+
+Try Downloading Pictures Again
+= ניסיון חוזר להוריד תמונות
+
+Clear Downloaded Pictures
+= ניקוי תמונות שהורדו
+
+Copy Selected Text
+= העתקת הטקסט שנבחר
+
+Select All Text in Message
+= בחירת כל הטקסט בהודעה
+
+Expand or Collapse Calendar Group
+= הרחבה או כיווץ של קבוצת לוחות שנה
+
+Look for This Meeting on the Calendar
+= חיפוש ישיבה זו בלוח השנה
+
+January
+= ינואר
+
+Jan
+= ינו׳
+
+February
+= פברואר
+
+Feb
+= פבר׳
+
+March
+= מרץ
+
+Mar
+= מרץ
+
+April
+= אפריל
+
+Apr
+= אפר׳
+
+May
+= מאי
+
+June
+= יוני
+
+Jun
+= יוני
+
+July
+= יולי
+
+Jul
+= יולי
+
+August
+= אוגוסט
+
+Aug
+= אוג׳
+
+September
+= ספטמבר
+
+Sep
+= ספט׳
+
+October
+= אוקטובר
+
+Oct
+= אוק׳
+
+November
+= נובמבר
+
+Nov
+= נוב׳
+
+December
+= דצמבר
+
+Dec
+= דצמ׳
+
+Monday
+= יום שני
+
+Mon
+= ב׳
+
+Tuesday
+= יום שלישי
+
+Tue
+= ג׳
+
+Wednesday
+= יום רביעי
+
+Wed
+= ד׳
+
+Thursday
+= יום חמישי
+
+Thu
+= ה׳
+
+Friday
+= יום שישי
+
+Fri
+= ו׳
+
+Saturday
+= יום שבת
+
+Sat
+= ש׳
+
+Sunday
+= יום ראשון
+
+Sun
+= א׳
+
+Upcoming
+= בקרוב
+
+Yesterday
+= אתמול
+
+Last Week
+= בשבוע שעבר
+
+Two Weeks Ago
+= לפני שבועיים
+
+Three Weeks Ago
+= לפני שלושה שבועות
+
+Last Month
+= בחודש שעבר
+
+Older
+= ישן יותר
+
+Size
+= גודל
+
+Unread
+= לא נקרא
+
+Flagged
+= מסומן בדגל
+
+Has Attachments
+= יש קבצים מצורפים
+
+To Me
+= אליי
+
+Active
+= פעיל
+
+Free
+= פנוי
+
+No response
+= אין תגובה
+
+Accepted
+= התקבל
+
+Declined
+= נדחה
+
+Teams
+= Teams
+
+Skype for Business
+= Skype for Business
+
+Skype
+= Skype
+
+Online
+= מקוון
+
+Gray
+= אפור
+
+Brown
+= חום
+
+No date
+= ללא תאריך
+
+# added with the language setting
+Language
+= שפה
+
+Use system setting ({language})
+= שימוש בהגדרת המערכת ({language})
+
+Every {n} minutes
+= כל {n} דקות
+
+in {n} minute
+= בעוד {n} דקה
+
+{n} minute ago
+= לפני {n} דקה
+
+in {n} minutes
+= בעוד {n} דקות
+
+{n} minutes ago
+= לפני {n} דקות
+
+in {n} hours
+= בעוד {n} שעות
+
+{n} hours ago
+= לפני {n} שעות
+
+in {n} days
+= בעוד {n} ימים
+
+{n} days ago
+= לפני {n} ימים
+
+Interface Language
+= שפת הממשק
+
+
+# handed up by the engine
+Pinned
+= מוצמדים
+
+Encrypted message
+= הודעה מוצפנת
+
+Signed message
+= הודעה חתומה
+
+On this computer
+= במחשב זה
+
+My Calendars
+= לוחות השנה שלי
+
+Other Calendars
+= לוחות שנה אחרים
+
+
+# the folders every account has
+Inbox
+= דואר נכנס
+
+Drafts
+= טיוטות
+
+Sent Items
+= פריטים שנשלחו
+
+Deleted Items
+= פריטים שנמחקו
+
+Junk Email
+= דואר זבל
+
+Outbox
+= דואר יוצא
+
+ribbon tab|Home
+= בית

@@ -62,13 +62,13 @@ const LOOK_MS: f64 = 5_000.0;
 /// at all; this kind of account has no such permission. The host answers a
 /// [`crate::SignInRequest`] that has `favorites` or `ews` with exactly one of these as its
 /// error, and the pane shows it (in the interface language).
-pub const NEEDS_APPROVAL: &str = "Your organisation's administrator has to approve this once";
-pub const REFUSED_BY_ORGANISATION: &str = "Not allowed by your organisation";
-pub const REFUSED_FOR_ACCOUNT: &str = "Not available for this account";
+pub const NEEDS_APPROVAL: &str = tn!("Your organisation's administrator has to approve this once");
+pub const REFUSED_BY_ORGANISATION: &str = tn!("Not allowed by your organisation");
+pub const REFUSED_FOR_ACCOUNT: &str = tn!("Not available for this account");
 /// What the pane says of Exchange Web Services when the organisation doesn't allow it, and
 /// when Microsoft has switched it off.
-pub const EWS_NOT_ALLOWED: &str = "Your organisation doesn't allow Exchange Web Services";
-pub const EWS_SWITCHED_OFF: &str = "Microsoft has switched Exchange Web Services off";
+pub const EWS_NOT_ALLOWED: &str = tn!("Your organisation doesn't allow Exchange Web Services");
+pub const EWS_SWITCHED_OFF: &str = tn!("Microsoft has switched Exchange Web Services off");
 
 /// What the pane says under the Favorites heading, when there is something to say.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -114,10 +114,10 @@ impl Step {
     /// What the link says.
     pub(crate) fn label(self) -> &'static str {
         match self {
-            Step::CopyMessage => "Copy a message for my administrator",
-            Step::Help => "What to do next",
-            Step::Use(FavoritesSource::Ews) => "Use Exchange Web Services instead",
-            Step::Use(_) => "Use Microsoft Graph instead",
+            Step::CopyMessage => tn!("Copy a message for my administrator"),
+            Step::Help => tn!("What to do next"),
+            Step::Use(FavoritesSource::Ews) => tn!("Use Exchange Web Services instead"),
+            Step::Use(_) => tn!("Use Microsoft Graph instead"),
         }
     }
 
@@ -125,16 +125,22 @@ impl Step {
     pub(crate) fn about(self) -> &'static str {
         match self {
             Step::CopyMessage => {
-                "Copies a short message with the address of Microsoft's page where an administrator of your organisation approves MailCraft, once for everybody. Nothing is sent: paste it into mail or chat yourself."
+                tn!(
+                    "Copies a short message with the address of Microsoft's page where an administrator of your organisation approves MailCraft, once for everybody. Nothing is sent: paste it into mail or chat yourself."
+                )
             }
             Step::Help => {
-                "Says what you and your organisation's administrator can do, and lets an administrator approve MailCraft on Microsoft's page from here."
+                tn!(
+                    "Says what you and your organisation's administrator can do, and lets an administrator approve MailCraft on Microsoft's page from here."
+                )
             }
             Step::Use(FavoritesSource::Ews) => {
-                "Reads Outlook's Favorites through Exchange Web Services, an older way that Microsoft switches off on 1 April 2027. It works where your organisation lets you approve it yourself; elsewhere it needs an administrator too."
+                tn!(
+                    "Reads Outlook's Favorites through Exchange Web Services, an older way that Microsoft switches off on 1 April 2027. It works where your organisation lets you approve it yourself; elsewhere it needs an administrator too."
+                )
             }
             Step::Use(_) => {
-                "Reads Outlook's Favorites through Microsoft Graph. It lasts; in an organisation an administrator has to approve it once."
+                tn!("Reads Outlook's Favorites through Microsoft Graph. It lasts; in an organisation an administrator has to approve it once.")
             }
         }
     }
@@ -156,7 +162,7 @@ impl Note {
     /// What the line says (to be put into the interface language).
     pub(crate) fn text(&self) -> &str {
         match self {
-            Note::Offer => "Show Outlook's Favorites",
+            Note::Offer => tn!("Show Outlook's Favorites"),
             Note::Approval(_) => NEEDS_APPROVAL,
             Note::Blocked => EWS_NOT_ALLOWED,
             Note::Ended => EWS_SWITCHED_OFF,

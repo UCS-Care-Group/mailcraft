@@ -99,7 +99,7 @@ pub fn combo(m: Modifiers, key: &str) -> String {
 /// Mail, a contact in People, a task in Tasks).
 fn module_of(id: &str) -> Option<Module> {
     match id.split('.').next()? {
-        "mail" | "folder" | "compose" => Some(Module::Mail),
+        "mail" | "folder" | "compose" | "format" => Some(Module::Mail),
         "calendar" => Some(Module::Calendar),
         "people" => Some(Module::People),
         "tasks" => Some(Module::Tasks),
@@ -114,8 +114,9 @@ pub fn resolve(app: &MailApp, key: &str) -> Option<&'static str> {
     let bound = |c: &&mailcraft_engine::CommandSpec| !c.shortcut.is_empty() && c.shortcut.split(" / ").any(|k| k.eq_ignore_ascii_case(key));
     let fits = |c: &&mailcraft_engine::CommandSpec| module_of(c.id).is_none_or(|m| m == module);
     let mut hits: Vec<&mailcraft_engine::CommandSpec> = app.session.registry.all().iter().filter(bound).filter(fits).collect();
-    // While writing, the Message commands win (Mod+S saves the draft); otherwise they are out.
-    hits.sort_by_key(|c| c.id.starts_with("compose.") != composing);
+    // While writing, the Message commands win (Mod+S saves the draft, Mod+U underlines);
+    // otherwise they are out.
+    hits.sort_by_key(|c| (c.id.starts_with("compose.") || c.id.starts_with("format.")) != composing);
     hits.into_iter().find(|c| (c.enabled)(&app.session).is_none()).map(|c| c.id)
 }
 
@@ -192,6 +193,10 @@ pub fn global_shortcuts(app: &mut MailApp, ctx: &egui::Context) {
                 "sync.request" => "ui.sync",
                 // The search box takes the keyboard.
                 "view.search" => "ui.focusSearch",
+                // Print shows its page and preview first.
+                "file.print" => "ui.print",
+                // The spelling check shows what it found.
+                "review.spelling" => "ui.spelling",
                 other => other,
             };
             let _ = app.run(id, json!({}));

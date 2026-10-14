@@ -24,21 +24,27 @@ pub const WIDTH: f32 = 480.0;
 pub(crate) fn words(source: FavoritesSource) -> (&'static str, &'static str) {
     match source {
         FavoritesSource::Graph => (
-            "Microsoft Graph",
-            "The lasting way. In an organisation, an administrator has to approve it once; if they have approved MailCraft already, nothing more is needed.",
+            tn!("Microsoft Graph"),
+            tn!(
+                "The lasting way. In an organisation, an administrator has to approve it once; if they have approved MailCraft already, nothing more is needed."
+            ),
         ),
         FavoritesSource::Ews => (
-            "Exchange Web Services",
-            "An older way that Microsoft switches off on 1 April 2027. It works where your organisation lets you approve it yourself; elsewhere it needs an administrator too.",
+            tn!("Exchange Web Services"),
+            tn!(
+                "An older way that Microsoft switches off on 1 April 2027. It works where your organisation lets you approve it yourself; elsewhere it needs an administrator too."
+            ),
         ),
-        FavoritesSource::None | FavoritesSource::Unset => ("Not now", "MailCraft keeps its own Favorites."),
+        FavoritesSource::None | FavoritesSource::Unset => (tn!("Not now"), tn!("MailCraft keeps its own Favorites.")),
     }
 }
 
 /// What is said above the choice, wherever it is put.
-pub(crate) const ABOUT: &str = "MailCraft can show the folders you keep under Favorites in Outlook, in the same order. They are only read, never changed. Choose how they are read:";
+pub(crate) const ABOUT: &str = tn!(
+    "MailCraft can show the folders you keep under Favorites in Outlook, in the same order. They are only read, never changed. Choose how they are read:"
+);
 /// And under it.
-pub(crate) const AFTER: &str = "Your mail works the same whichever you choose, and you can change this later in File › Options.";
+pub(crate) const AFTER: &str = tn!("Your mail works the same whichever you choose, and you can change this later in File › Options.");
 
 /// The ways the owner of `account` may choose from today, in the order they are shown.
 pub(crate) fn offered(app: &MailApp, account: Id) -> Vec<FavoritesSource> {

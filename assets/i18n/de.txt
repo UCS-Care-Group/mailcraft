@@ -1,0 +1,5011 @@
+# MailCraft interface text: Deutsch.
+# Machine-written from MailCraft's English; wants review by a native speaker.
+@language de
+@name Deutsch
+@direction ltr
+
+# account_setup/help.rs
+Your organisation lets only an administrator approve a new program. Nothing is wrong with your account or your password, and there is nothing to wait for here.
+= Ihre Organisation lässt nur einen Administrator ein neues Programm genehmigen. Mit Ihrem Konto und Ihrem Kennwort ist alles in Ordnung, und hier gibt es nichts abzuwarten.
+
+Your organisation lets only an administrator approve a new program, and none has approved MailCraft yet. Nothing is wrong with your account or your password.
+= Ihre Organisation lässt nur einen Administrator ein neues Programm genehmigen, und noch keiner hat MailCraft genehmigt. Mit Ihrem Konto und Ihrem Kennwort ist alles in Ordnung.
+
+Your organisation then lets only an administrator approve a new program. Nothing is wrong with your account or your password.
+= Ihre Organisation lässt dann nur einen Administrator ein neues Programm genehmigen. Mit Ihrem Konto und Ihrem Kennwort ist alles in Ordnung.
+
+You came back from Microsoft's page without having signed in: you said no there, or the page sent you back.
+= Sie sind von der Seite von Microsoft zurückgekommen, ohne angemeldet zu sein: Sie haben dort abgelehnt, oder die Seite hat Sie zurückgeschickt.
+
+The page was closed, or five minutes went by before the sign-in was finished.
+= Die Seite wurde geschlossen, oder es vergingen fünf Minuten, bevor die Anmeldung abgeschlossen war.
+
+Signing in happens on Microsoft's page in a web browser, and none could be started on this computer. Check that it has a default browser, then try again.
+= Die Anmeldung erfolgt auf der Seite von Microsoft in einem Webbrowser, und auf diesem Computer ließ sich keiner starten. Prüfen Sie, ob ein Standardbrowser eingerichtet ist, und versuchen Sie es dann erneut.
+
+First you sign in at Microsoft. Then, once your mail works, you choose how Outlook's Favorites are shown.
+= Zuerst melden Sie sich bei Microsoft an. Sobald Ihre E-Mail funktioniert, wählen Sie, wie die Favoriten von Outlook angezeigt werden.
+
+Finish signing in first (your browser is waiting)
+= Schließen Sie zuerst die Anmeldung ab (Ihr Browser wartet)
+
+No sign-in with Microsoft is under way
+= Es läuft keine Anmeldung bei Microsoft
+
+I'm an administrator: approve it for my organisation
+= Ich bin Administrator: für meine Organisation genehmigen
+
+Opens Microsoft's approval page in your browser. Sign in there with an administrator account and accept; MailCraft carries on by itself.
+= Öffnet die Genehmigungsseite von Microsoft in Ihrem Browser. Melden Sie sich dort mit einem Administratorkonto an und stimmen Sie zu; MailCraft macht dann von selbst weiter.
+
+Copy a message for my administrator
+= Nachricht für meinen Administrator kopieren
+
+A short note with the link to that page, to paste into mail or chat. MailCraft sends nothing itself.
+= Eine kurze Notiz mit dem Link zu dieser Seite, zum Einfügen in eine E-Mail oder einen Chat. MailCraft selbst sendet nichts.
+
+Your organisation has approved MailCraft. Now sign in with your own account.
+= Ihre Organisation hat MailCraft genehmigt. Melden Sie sich jetzt mit Ihrem eigenen Konto an.
+
+{provider}'s sign-in page is open in your browser
+= Die Anmeldeseite von {provider} ist in Ihrem Browser geöffnet
+
+Sign in there as {address}. This window carries on by itself once you have.
+= Melden Sie sich dort als {address} an. Dieses Fenster macht danach von selbst weiter.
+
+If that page says you need admin approval
+= Falls diese Seite sagt, dass Sie eine Administratorgenehmigung brauchen
+
+More about this
+= Mehr dazu
+
+Asks for mail alone, without the calendar and contacts, which can be connected later
+= Fragt nur nach E-Mail, ohne Kalender und Kontakte, die später verbunden werden können
+
+Trouble on that page? Sign in for mail only
+= Probleme auf dieser Seite? Nur für E-Mail anmelden
+
+Cancel
+= Abbrechen
+
+Open the page again
+= Seite erneut öffnen
+
+Closed the page? This opens Microsoft's sign-in page afresh.
+= Seite geschlossen? Damit wird die Anmeldeseite von Microsoft neu geöffnet.
+
+Signing in didn't work
+= Die Anmeldung hat nicht funktioniert
+
+If that page said you need admin approval
+= Falls diese Seite sagte, dass Sie eine Administratorgenehmigung brauchen
+
+My organisation has to approve MailCraft first: what to do
+= Meine Organisation muss MailCraft zuerst genehmigen: was tun
+
+Try again
+= Erneut versuchen
+
+Set up manually
+= Manuell einrichten
+
+Mail only
+= Nur E-Mail
+
+Sign in again, asking for mail alone
+= Erneut anmelden, nur für E-Mail
+
+Your organisation has to approve MailCraft first
+= Ihre Organisation muss MailCraft zuerst genehmigen
+
+Microsoft answered: {words}
+= Antwort von Microsoft: {words}
+
+Microsoft's page said so.
+= Das hat die Seite von Microsoft gemeldet.
+
+What to do next
+= Wie es weitergeht
+
+If you have an administrator account of your own, the first choice lets you sign in with it on Microsoft's page.
+= Wenn Sie selbst ein Administratorkonto haben, können Sie sich mit der ersten Möglichkeit damit auf der Seite von Microsoft anmelden.
+
+Once an administrator has approved, try again: the sign-in then goes through.
+= Sobald ein Administrator genehmigt hat, versuchen Sie es erneut: Dann klappt die Anmeldung.
+
+Sign in again, once an administrator has approved
+= Erneut anmelden, sobald ein Administrator genehmigt hat
+
+Not now
+= Nicht jetzt
+
+Closes this window. Nothing is kept.
+= Schließt dieses Fenster. Es wird nichts gespeichert.
+
+Microsoft's approval page is open in your browser
+= Die Genehmigungsseite von Microsoft ist in Ihrem Browser geöffnet
+
+Sign in there with an administrator account and accept. This window carries on by itself.
+= Melden Sie sich dort mit einem Administratorkonto an und stimmen Sie zu. Dieses Fenster macht von selbst weiter.
+
+If that page says the account is not an administrator, press Cancel here and copy the message for an administrator instead.
+= Falls diese Seite meldet, dass das Konto kein Administrator ist, klicken Sie hier auf „Abbrechen“ und kopieren Sie stattdessen die Nachricht für einen Administrator.
+
+# account_setup.rs
+Microsoft 365
+= Microsoft 365
+
+Outlook.com
+= Outlook.com
+
+Google
+= Google
+
+Yahoo
+= Yahoo
+
+iCloud
+= iCloud
+
+Other (IMAP)
+= Andere (IMAP)
+
+This device only
+= Nur dieses Gerät
+
+Work or school mail
+= Geschäfts- oder Schul-E-Mail
+
+Also Hotmail, Live and MSN
+= Auch Hotmail, Live und MSN
+
+Gmail and Google Workspace
+= Gmail und Google Workspace
+
+Yahoo Mail
+= Yahoo Mail
+
+icloud.com, me.com and mac.com
+= icloud.com, me.com und mac.com
+
+Any other mail server
+= Jeder andere Mailserver
+
+A mailbox kept here, with no mail server
+= Ein hier gespeichertes Postfach, ohne Mailserver
+
+Account Settings
+= Kontoeinstellungen
+
+Approval Needed
+= Genehmigung erforderlich
+
+Add Account
+= Konto hinzufügen
+
+Type the name of the incoming mail server
+= Geben Sie den Namen des Posteingangsservers ein
+
+The incoming mail server isn't a host name (letters, digits, dots and dashes)
+= Der Posteingangsserver ist kein Hostname (Buchstaben, Ziffern, Punkte und Bindestriche)
+
+The outgoing mail server isn't a host name (letters, digits, dots and dashes)
+= Der Postausgangsserver ist kein Hostname (Buchstaben, Ziffern, Punkte und Bindestriche)
+
+A port is a number from 1 to 65535
+= Ein Port ist eine Zahl von 1 bis 65535
+
+An application ID and a tenant are letters, digits, dots and dashes
+= Eine Anwendungs-ID und ein Mandant bestehen aus Buchstaben, Ziffern, Punkten und Bindestrichen
+
+"{address}" isn't an e-mail address
+= „{address}“ ist keine E-Mail-Adresse
+
+An application ID is letters, digits, dots and dashes
+= Eine Anwendungs-ID besteht aus Buchstaben, Ziffern, Punkten und Bindestrichen
+
+Check the account's settings
+= Prüfen Sie die Einstellungen des Kontos
+
+The account couldn't be added
+= Das Konto konnte nicht hinzugefügt werden
+
+Checking the account stopped unexpectedly
+= Die Prüfung des Kontos wurde unerwartet beendet
+
+Finding your account settings…
+= Kontoeinstellungen werden gesucht…
+
+Checking the account…
+= Konto wird geprüft…
+
+Signing in to {server}
+= Anmeldung bei {server}
+
+Add an account
+= Ein Konto hinzufügen
+
+Type your address. MailCraft finds your mail servers and how you sign in.
+= Geben Sie Ihre Adresse ein. MailCraft findet Ihre Mailserver und die Art der Anmeldung.
+
+Email address
+= E-Mail-Adresse
+
+you@example.org
+= you@example.org
+
+Advanced options
+= Erweiterte Optionen
+
+Let me set up my account manually
+= Konto manuell einrichten
+
+Your name
+= Ihr Name
+
+As the people you write to see it
+= So, wie ihn Ihre Empfänger sehen
+
+Connect
+= Verbinden
+
+Choose the kind of account
+= Kontotyp wählen
+
+Back
+= Zurück
+
+Microsoft needs an application ID
+= Microsoft benötigt eine Anwendungs-ID
+
+Microsoft only lets a registered application show its sign-in page, and this build of MailCraft has no registration of its own yet.
+= Microsoft zeigt seine Anmeldeseite nur registrierten Anwendungen, und dieser Build von MailCraft hat noch keine eigene Registrierung.
+
+If you have one, paste its application (client) ID here. It comes from a Microsoft Entra app registration: a public client with the redirect URI http://localhost, for accounts in any directory and personal accounts.
+= Wenn Sie eine haben, fügen Sie hier ihre Anwendungs-ID (Client-ID) ein. Sie stammt aus einer App-Registrierung in Microsoft Entra: ein öffentlicher Client mit dem Umleitungs-URI http://localhost, für Konten in jedem Verzeichnis und persönliche Konten.
+
+Application (client) ID
+= Anwendungs-ID (Client-ID)
+
+It is an identifier, not a secret. MailCraft keeps it in its settings (File › Options).
+= Sie ist eine Kennung, kein Geheimnis. MailCraft speichert sie in seinen Einstellungen (Datei › Optionen).
+
+Continue
+= Weiter
+
+Sign in to your account
+= Bei Ihrem Konto anmelden
+
+{service} account
+= {service}-Konto
+
+MailCraft couldn't find the settings for this address. Check the servers below before you connect.
+= MailCraft konnte die Einstellungen für diese Adresse nicht finden. Prüfen Sie die Server unten, bevor Sie verbinden.
+
+This build can't connect to mail servers. The account can still be added.
+= Dieser Build kann keine Verbindung zu Mailservern herstellen. Das Konto kann trotzdem hinzugefügt werden.
+
+Change account settings
+= Kontoeinstellungen ändern
+
+Show Outlook's Favorites?
+= Favoriten von Outlook anzeigen?
+
+{address} is set up, and nothing of that waits on this.
+= {address} ist eingerichtet, und nichts davon hängt hiervon ab.
+
+Your mail is downloading now. The first time can take a few minutes.
+= Ihre E-Mails werden jetzt heruntergeladen. Beim ersten Mal kann das einige Minuten dauern.
+
+Press Send/Receive to download your mail.
+= Klicken Sie auf „Senden/Empfangen“, um Ihre E-Mails herunterzuladen.
+
+This build can't connect to mail servers, so the settings were kept without being tried. Bring mail in with File › Import, or use the desktop app.
+= Dieser Build kann keine Verbindung zu Mailservern herstellen, daher wurden die Einstellungen ohne Test gespeichert. Holen Sie E-Mails über Datei › Importieren herein, oder verwenden Sie die Desktop-App.
+
+It is on this device only: nothing is sent to or fetched from a server.
+= Es befindet sich nur auf diesem Gerät: Nichts wird an einen Server gesendet oder von dort abgerufen.
+
+{address} is set up
+= {address} ist eingerichtet
+
+Done
+= Fertig
+
+Add another account
+= Weiteres Konto hinzufügen
+
+Signs in on the {provider} page in your browser
+= Anmeldung auf der Seite von {provider} in Ihrem Browser
+
+On this device only: no mail server
+= Nur auf diesem Gerät: kein Mailserver
+
+Signs in with a password
+= Anmeldung mit einem Kennwort
+
+Leave empty to keep the one in use
+= Leer lassen, um das aktuelle beizubehalten
+
+The one in File › Options
+= Die aus Datei › Optionen
+
+Tenant
+= Mandant
+
+Save
+= Speichern
+
+Password
+= Kennwort
+
+User name
+= Benutzername
+
+Usually the whole address
+= Meist die vollständige Adresse
+
+Incoming mail (IMAP)
+= Posteingang (IMAP)
+
+Outgoing mail (SMTP)
+= Postausgang (SMTP)
+
+Once it has worked, your system's credential store keeps it for next time. It is never written to the mailbox.
+= Sobald es funktioniert hat, speichert der Anmeldedatenspeicher Ihres Systems es für das nächste Mal. Es wird nie ins Postfach geschrieben.
+
+MailCraft keeps it in memory until you close the app. It is never written to disk.
+= MailCraft behält es im Arbeitsspeicher, bis Sie die App schließen. Es wird nie auf die Festplatte geschrieben.
+
+None
+= Keine
+
+The server's name
+= Der Name des Servers
+
+The port; leave it empty for the usual one
+= Der Port; leer lassen für den üblichen
+
+# approval.rs
+Microsoft's page came back without signing you in
+= Die Seite von Microsoft kam zurück, ohne Sie anzumelden
+
+Nothing came back from Microsoft's sign-in page
+= Von der Anmeldeseite von Microsoft kam nichts zurück
+
+MailCraft couldn't open your browser
+= MailCraft konnte Ihren Browser nicht öffnen
+
+The account that signed in on Microsoft's page is not an administrator of your organisation, so it could not approve MailCraft. Copy the message for an administrator instead.
+= Das Konto, das sich auf der Seite von Microsoft angemeldet hat, ist kein Administrator Ihrer Organisation und konnte MailCraft daher nicht genehmigen. Kopieren Sie stattdessen die Nachricht für einen Administrator.
+
+Microsoft's page came back without the approval: it was declined there, or left before it was given.
+= Die Seite von Microsoft kam ohne Genehmigung zurück: Sie wurde dort abgelehnt, oder die Seite wurde verlassen, bevor sie erteilt war.
+
+Nothing came back from Microsoft's approval page: it was closed, or five minutes went by before the approval was given.
+= Von der Genehmigungsseite von Microsoft kam nichts zurück: Sie wurde geschlossen, oder es vergingen fünf Minuten, bevor die Genehmigung erteilt war.
+
+MailCraft couldn't open your browser for Microsoft's approval page. Copy the message instead: the link in it opens the same page.
+= MailCraft konnte Ihren Browser für die Genehmigungsseite von Microsoft nicht öffnen. Kopieren Sie stattdessen die Nachricht: Der Link darin öffnet dieselbe Seite.
+
+The approval didn't go through.
+= Die Genehmigung ist nicht durchgegangen.
+
+Hello,\n\nI would like to use MailCraft with my work account. MailCraft is an open-source mail and calendar program that runs on my own computer. Our organisation lets only an administrator approve a new program, so it needs your approval once, for the whole organisation. Microsoft's page for that is here:\n\n{link}\n\nAfter you approve, your browser may show a page that can't be reached. That is expected: it is an address on your own computer, where nothing is listening, and the approval has been given by then.\n\nThank you
+= Hallo,\n\nich möchte MailCraft mit meinem Arbeitskonto verwenden. MailCraft ist ein Open-Source-Programm für E-Mail und Kalender, das auf meinem eigenen Computer läuft. Unsere Organisation lässt nur einen Administrator ein neues Programm genehmigen, daher braucht es einmalig Ihre Genehmigung für die ganze Organisation. Die Seite von Microsoft dafür ist hier:\n\n{link}\n\nNach der Genehmigung zeigt Ihr Browser vielleicht eine Seite, die nicht erreichbar ist. Das ist so gewollt: Es ist eine Adresse auf Ihrem eigenen Computer, an der nichts lauscht, und die Genehmigung ist dann bereits erteilt.\n\nVielen Dank
+
+The message is on the clipboard: paste it into mail or chat for your organisation's administrator
+= Die Nachricht ist in der Zwischenablage: Fügen Sie sie in eine E-Mail oder einen Chat an den Administrator Ihrer Organisation ein
+
+This build can't open Microsoft's approval page. Copy the message for an administrator instead.
+= Dieser Build kann die Genehmigungsseite von Microsoft nicht öffnen. Kopieren Sie stattdessen die Nachricht für einen Administrator.
+
+Microsoft's approval page is open in your browser…
+= Die Genehmigungsseite von Microsoft ist in Ihrem Browser geöffnet…
+
+Waiting for the approval stopped unexpectedly
+= Das Warten auf die Genehmigung wurde unerwartet beendet
+
+Your organisation has approved MailCraft
+= Ihre Organisation hat MailCraft genehmigt
+
+This account doesn't sign in with Microsoft
+= Dieses Konto meldet sich nicht bei Microsoft an
+
+# backstage.rs
+Info
+= Informationen
+
+Open & Export
+= Öffnen und Exportieren
+
+Print
+= Drucken
+
+Options
+= Optionen
+
+About
+= Info
+
+Accounts
+= Konten
+
+Local mailbox
+= Lokales Postfach
+
+ (not encrypted)
+=  (nicht verschlüsselt)
+
+no incoming server
+= kein Posteingangsserver
+
+no outgoing server
+= kein Postausgangsserver
+
+Signs in with
+= Anmeldung mit
+
+Settings
+= Einstellungen
+
+Change this account's name, servers and sign-in
+= Namen, Server und Anmeldung dieses Kontos ändern
+
+Remove
+= Entfernen
+
+Remove this account and the mail kept for it here
+= Dieses Konto und die hier dafür gespeicherten E-Mails entfernen
+
+Connect calendar and contacts
+= Kalender und Kontakte verbinden
+
+Sign in once more to let MailCraft send through Microsoft and show your calendar and contacts. Mail works without it.
+= Melden Sie sich noch einmal an, damit MailCraft über Microsoft senden und Ihren Kalender und Ihre Kontakte anzeigen kann. E-Mail funktioniert auch ohne.
+
+Add shared mailbox…
+= Freigegebenes Postfach hinzufügen…
+
+Open a mailbox you have Full Access to (support@, a team's mailbox) under this account, with its own folders. It uses this account's sign-in; sending from it takes the Send As right.
+= Öffnen Sie ein Postfach, auf das Sie Vollzugriff haben (support@, das Postfach eines Teams), unter diesem Konto, mit eigenen Ordnern. Es verwendet die Anmeldung dieses Kontos; zum Senden daraus ist das Recht „Senden als“ nötig.
+
+Type your e-mail address and MailCraft finds the rest: Microsoft 365, Outlook.com, Google and other providers, or a mailbox on this device only
+= Geben Sie Ihre E-Mail-Adresse ein, und MailCraft findet den Rest: Microsoft 365, Outlook.com, Google und andere Anbieter, oder ein Postfach nur auf diesem Gerät
+
+Calendar
+= Kalender
+
+Checking: the report comes in a moment…
+= Wird geprüft: Der Bericht kommt gleich…
+
+Makes one test appointment a year from today in your account's calendar, changes it and deletes it again, and shows what the server answered
+= Erstellt einen Testtermin heute in einem Jahr im Kalender Ihres Kontos, ändert und löscht ihn wieder und zeigt, was der Server geantwortet hat
+
+Check Calendar Connection
+= Kalenderverbindung prüfen
+
+Mailbox
+= Postfach
+
+{n} messages
+= {n} Nachrichten
+
+{n} unread
+= {n} ungelesen
+
+{n} contacts
+= {n} Kontakte
+
+{n} events
+= {n} Termine
+
+{n} tasks
+= {n} Aufgaben
+
+Kept in {path}, saved as you go.
+= Gespeichert in {path}, laufend gesichert.
+
+Kept in this browser's storage, saved as you go. Use Open & Export to keep a copy as a file.
+= Im Speicher dieses Browsers, laufend gesichert. Mit „Öffnen und Exportieren“ können Sie eine Kopie als Datei sichern.
+
+Not kept anywhere yet: use Open & Export › Save Mailbox As.
+= Noch nirgends gespeichert: Verwenden Sie Öffnen und Exportieren › Postfach speichern unter.
+
+Rules and Categories
+= Regeln und Kategorien
+
+Manage Rules
+= Regeln verwalten
+
+What happens to mail as it arrives
+= Was mit eingehenden E-Mails geschieht
+
+Categories
+= Kategorien
+
+Names and colours for sorting mail, events, people and tasks
+= Namen und Farben zum Ordnen von E-Mails, Terminen, Personen und Aufgaben
+
+Shared mailbox: the account it was opened through is gone
+= Freigegebenes Postfach: Das Konto, über das es geöffnet wurde, ist nicht mehr da
+
+Shared mailbox, opened with the sign-in of {account}
+= Freigegebenes Postfach, geöffnet mit der Anmeldung von {account}
+
+Close this shared mailbox and remove the mail kept for it here
+= Dieses freigegebene Postfach schließen und die hier dafür gespeicherten E-Mails entfernen
+
+Bring in
+= Hereinholen
+
+Import
+= Importieren
+
+Messages (.eml, .msg, .mbox), calendars (.ics) and contacts (.vcf)
+= Nachrichten (.eml, .msg, .mbox), Kalender (.ics) und Kontakte (.vcf)
+
+Open Mailbox File
+= Postfachdatei öffnen
+
+Replace what is open with a .mailcraft file
+= Das Geöffnete durch eine .mailcraft-Datei ersetzen
+
+Save out
+= Sichern
+
+Save Mailbox As
+= Postfach speichern unter
+
+Everything here in one .mailcraft file
+= Alles hier in einer .mailcraft-Datei
+
+Export Folder
+= Ordner exportieren
+
+The messages of the folder in view, as .mbox
+= Die Nachrichten des angezeigten Ordners, als .mbox
+
+Save Calendar
+= Kalender speichern
+
+Every event and task, as .ics
+= Alle Termine und Aufgaben, als .ics
+
+Export Contacts
+= Kontakte exportieren
+
+Every contact, as .vcf
+= Alle Kontakte, als .vcf
+
+Start over
+= Neu beginnen
+
+Sample Mailbox
+= Beispielpostfach
+
+Invented mail, meetings, people and tasks to try things on
+= Erfundene E-Mails, Besprechungen, Personen und Aufgaben zum Ausprobieren
+
+Empty Mailbox
+= Leeres Postfach
+
+Nothing in it: replaces what is open here
+= Nichts darin: ersetzt, was hier geöffnet ist
+
+Recent
+= Zuletzt verwendet
+
+General
+= Allgemein
+
+Interface theme
+= Design der Oberfläche
+
+Interface size
+= Größe der Oberfläche
+
+Mail
+= E-Mail
+
+Mark a message as read when it is opened in the reading pane
+= Nachricht als gelesen markieren, wenn sie im Lesebereich geöffnet wird
+
+Include the original message when replying
+= Beim Antworten die ursprüngliche Nachricht einfügen
+
+Write messages in plain text (no formatting or pictures)
+= Nachrichten als Nur-Text verfassen (ohne Formatierung oder Bilder)
+
+Preview lines in the message list
+= Vorschauzeilen in der Nachrichtenliste
+
+Messages to download per folder
+= Herunterzuladende Nachrichten pro Ordner
+
+All
+= Alle
+
+When a message asks for a read receipt
+= Wenn eine Nachricht eine Lesebestätigung anfordert
+
+Ask each time
+= Jedes Mal fragen
+
+Always send one
+= Immer senden
+
+Never send one
+= Nie senden
+
+Pictures in mail
+= Bilder in E-Mails
+
+Remember passwords and sign-ins on this computer
+= Kennwörter und Anmeldungen auf diesem Computer speichern
+
+Kept in the system's credential store, never in the mailbox or its settings. Without it you sign in again each time MailCraft starts.
+= Im Anmeldedatenspeicher des Systems, nie im Postfach oder in dessen Einstellungen. Ohne diese Option melden Sie sich bei jedem Start von MailCraft erneut an.
+
+Remembering isn't available here: no credential store answered (on Linux and BSD, GNOME Keyring, KWallet or another Secret Service). You'll be asked to sign in each time MailCraft starts.
+= Speichern ist hier nicht verfügbar: Kein Anmeldedatenspeicher hat geantwortet (unter Linux und BSD GNOME Keyring, KWallet oder ein anderer Secret Service). Sie werden bei jedem Start von MailCraft zur Anmeldung aufgefordert.
+
+Microsoft application ID
+= Microsoft-Anwendungs-ID
+
+The one this build came with
+= Die mit diesem Build gelieferte
+
+Needed for Outlook.com and Microsoft 365 accounts
+= Erforderlich für Konten von Outlook.com und Microsoft 365
+
+Send and receive automatically
+= Automatisch senden und empfangen
+
+Only when I ask
+= Nur auf Anforderung
+
+Every minute
+= Jede Minute
+
+Every
+= Alle
+
+minutes
+= Minuten
+
+Trust Center: signed and encrypted mail
+= Trust Center: signierte und verschlüsselte E-Mails
+
+Notifications
+= Benachrichtigungen
+
+Use a 12-hour clock (3:05 PM)
+= 12-Stunden-Format verwenden (3:05 PM)
+
+Week starts on
+= Woche beginnt am
+
+Working hours
+= Arbeitszeit
+
+Reminder for new appointments
+= Erinnerung für neue Termine
+
+At start time
+= Zur Startzeit
+
+Time scale
+= Zeitraster
+
+{n} minutes
+= {n} Minuten
+
+Show week numbers in the Month view and the date navigator
+= Kalenderwochen in der Monatsansicht und im Datumsnavigator anzeigen
+
+Signatures
+= Signaturen
+
+Label
+= Bezeichnung
+
+Time zone
+= Zeitzone
+
+This computer's, wherever it goes
+= Die dieses Computers, wo immer er ist
+
+Second time zone
+= Zweite Zeitzone
+
+Show in the time bar
+= In der Zeitleiste anzeigen
+
+Third time zone
+= Dritte Zeitzone
+
+This computer is in {zone}.
+= Dieser Computer befindet sich in {zone}.
+
+(used for new messages)
+= (für neue Nachrichten verwendet)
+
+Use for new messages
+= Für neue Nachrichten verwenden
+
+Delete
+= Löschen
+
+New Signature
+= Neue Signatur
+
+Initial contributor: {name}
+= Erster Mitwirkender: {name}
+
+About MailCraft
+= Über MailCraft
+
+Version {version}
+= Version {version}
+
+Mail, calendar, people and tasks, written from scratch in Rust. It runs natively on macOS, Windows, Linux and BSD, and in the browser.
+= E-Mail, Kalender, Personen und Aufgaben, von Grund auf in Rust geschrieben. Läuft nativ unter macOS, Windows, Linux und BSD sowie im Browser.
+
+Open source under the MIT License or the Apache License 2.0, at your option.
+= Open Source unter der MIT-Lizenz oder der Apache-Lizenz 2.0, nach Ihrer Wahl.
+
+Contributors
+= Mitwirkende
+
+What it is made of
+= Woraus es besteht
+
+The interface fonts are Inter, Source Sans 3 and JetBrains Mono (SIL Open Font License 1.1). Every icon is drawn in code and is original work. No artwork, fonts or text from other mail programs are included.
+= Die Schriften der Oberfläche sind Inter, Source Sans 3 und JetBrains Mono (SIL Open Font License 1.1). Jedes Symbol wird im Code gezeichnet und ist ein Originalwerk. Es sind keine Grafiken, Schriften oder Texte aus anderen Mailprogrammen enthalten.
+
+Your mail stays yours
+= Ihre E-Mails bleiben Ihre
+
+Messages are shown without running anything in them, and the pictures a message keeps on the web are downloaded only when you ask. Passwords are kept in memory only while the app is open.
+= Nachrichten werden angezeigt, ohne etwas darin auszuführen, und Bilder, die eine Nachricht im Web hat, werden nur auf Ihren Wunsch heruntergeladen. Kennwörter bleiben nur im Arbeitsspeicher, solange die App geöffnet ist.
+
+Scripts and agents
+= Skripte und Agenten
+
+Everything the interface does is a command: {commands} of them, covering {percent}% of the feature catalog. The command line, the control channel and the MCP server run the same commands.
+= Alles, was die Oberfläche tut, ist ein Befehl: {commands} davon, die {percent} % des Funktionskatalogs abdecken. Die Befehlszeile, der Steuerkanal und der MCP-Server führen dieselben Befehle aus.
+
+Search Commands
+= Befehle suchen
+
+# calendar_sync.rs
+This build can't reach the account's calendar.
+= Dieser Build kann den Kalender des Kontos nicht erreichen.
+
+The calendar is being updated already.
+= Der Kalender wird bereits aktualisiert.
+
+Calendar and contacts need your permission: File › Info › Connect calendar and contacts
+= Kalender und Kontakte benötigen Ihre Erlaubnis: Datei › Informationen › Kalender und Kontakte verbinden
+
+This account's calendar can't be asked yet: Send/Receive signs it in first.
+= Der Kalender dieses Kontos kann noch nicht abgefragt werden: „Senden/Empfangen“ meldet ihn zuerst an.
+
+Changing the calendar needs your permission: File › Info › Connect calendar and contacts
+= Zum Ändern des Kalenders ist Ihre Erlaubnis nötig: Datei › Informationen › Kalender und Kontakte verbinden
+
+The calendar changes couldn't be taken in
+= Die Kalenderänderungen konnten nicht übernommen werden
+
+the server couldn't be reached
+= der Server war nicht erreichbar
+
+A calendar change couldn't be sent yet and will be tried again
+= Eine Kalenderänderung konnte noch nicht gesendet werden und wird erneut versucht
+
+The calendar couldn't be taken in
+= Der Kalender konnte nicht übernommen werden
+
+Saved on this computer only: this item is not in your Outlook calendar
+= Nur auf diesem Computer gespeichert: Dieses Element ist nicht in Ihrem Outlook-Kalender
+
+This makes, changes and deletes a test appointment in the account's real calendar. Say that this is meant with "confirmed": true.
+= Damit wird ein Testtermin im echten Kalender des Kontos erstellt, geändert und gelöscht. Bestätigen Sie, dass dies gewollt ist, mit "confirmed": true.
+
+The calendar connection is being checked already.
+= Die Kalenderverbindung wird bereits geprüft.
+
+No account signs in with Microsoft
+= Kein Konto meldet sich bei Microsoft an
+
+The calendar is being updated: try again in a moment.
+= Der Kalender wird gerade aktualisiert: Versuchen Sie es gleich noch einmal.
+
+Checking the calendar connection…
+= Kalenderverbindung wird geprüft…
+
+the check stopped unexpectedly
+= die Prüfung wurde unerwartet beendet
+
+The calendar connection couldn't be checked:
+= Die Kalenderverbindung konnte nicht geprüft werden:
+
+The calendar connection works: what was sent arrived, and the server has it as it was sent.
+= Die Kalenderverbindung funktioniert: Was gesendet wurde, ist angekommen, und der Server hat es so, wie es gesendet wurde.
+
+Something did not go through, or did not arrive as it was sent. The steps below say what.
+= Etwas ist nicht durchgegangen oder nicht so angekommen, wie es gesendet wurde. Die Schritte unten zeigen, was.
+
+no answer
+= keine Antwort
+
+the server answered
+= der Server antwortete
+
+OK
+= OK
+
+FAILED
+= FEHLER
+
+The test appointment is gone again. Nothing else in the calendar was read or changed.
+= Der Testtermin ist wieder entfernt. Sonst wurde im Kalender nichts gelesen oder geändert.
+
+The test appointment ("MailCraft connection check", a year from today) could not be deleted: please delete it in the calendar. Nothing else was read or changed.
+= Der Testtermin („MailCraft connection check“, heute in einem Jahr) konnte nicht gelöscht werden: Bitte löschen Sie ihn im Kalender. Sonst wurde nichts gelesen oder geändert.
+
+The calendar connection works
+= Die Kalenderverbindung funktioniert
+
+The calendar connection check found a problem: see its report
+= Die Prüfung der Kalenderverbindung hat ein Problem gefunden: siehe Bericht
+
+Calendar Connection Check
+= Prüfung der Kalenderverbindung
+
+The list of calendars couldn't be taken in
+= Die Liste der Kalender konnte nicht übernommen werden
+
+The categories couldn't be taken in
+= Die Kategorien konnten nicht übernommen werden
+
+# calendar_view.rs
+(No title)
+= (Kein Titel)
+
+Next Month
+= Nächster Monat
+
+Previous Month
+= Vorheriger Monat
+
+Show this week
+= Diese Woche anzeigen
+
+Say which group of calendars (`group`: its heading)
+= Geben Sie an, welche Kalendergruppe (`group`: ihre Überschrift)
+
+Items in this calendar are kept on this computer and nowhere else. Above the calendar you can move them to your account's calendar.
+= Elemente in diesem Kalender werden auf diesem Computer gespeichert und nirgends sonst. Über dem Kalender können Sie sie in den Kalender Ihres Kontos verschieben.
+
+Show the calendars of this group
+= Die Kalender dieser Gruppe anzeigen
+
+Fold the calendars of this group away
+= Die Kalender dieser Gruppe einklappen
+
+Show Only This Calendar
+= Nur diesen Kalender anzeigen
+
+Overlay
+= Überlagern
+
+Colour
+= Farbe
+
+Automatic
+= Automatisch
+
+Connect to show your category colours and working hours
+= Verbinden, um Ihre Kategoriefarben und Arbeitszeiten anzuzeigen
+
+Sign in once more, so that MailCraft may read the categories and the working hours your mailbox has. Your calendar works as it is.
+= Melden Sie sich noch einmal an, damit MailCraft die Kategorien und Arbeitszeiten Ihres Postfachs lesen darf. Ihr Kalender funktioniert auch so.
+
+This calendar can only be read: new items can't go to it
+= Dieser Kalender kann nur gelesen werden: Neue Elemente können nicht hinein
+
+New items go to the calendar that is picked here
+= Neue Elemente kommen in den hier gewählten Kalender
+
+Without this, the calendar uses the working hours your Microsoft 365 mailbox has, once MailCraft may read them. The ones above are used until then.
+= Ohne diese Option verwendet der Kalender die Arbeitszeiten Ihres Microsoft 365-Postfachs, sobald MailCraft sie lesen darf. Bis dahin gelten die oben angegebenen.
+
+Use my own working hours
+= Eigene Arbeitszeiten verwenden
+
+Your mailbox has:
+= Ihr Postfach hat:
+
+This calendar isn't connected to your account yet. What changes elsewhere doesn't show here, and what you change here stays on this computer.
+= Dieser Kalender ist noch nicht mit Ihrem Konto verbunden. Änderungen an anderer Stelle erscheinen hier nicht, und was Sie hier ändern, bleibt auf diesem Computer.
+
+Sign in once more, so that MailCraft may show and change your calendar
+= Melden Sie sich noch einmal an, damit MailCraft Ihren Kalender anzeigen und ändern darf
+
+Only on this computer: not in your Outlook calendar
+= Nur auf diesem Computer: nicht in Ihrem Outlook-Kalender
+
+Move to My Account's Calendar
+= In den Kalender meines Kontos verschieben
+
+1 item here is only on this computer: not in your Outlook calendar. A change to it stays here.
+= 1 Element hier ist nur auf diesem Computer: nicht in Ihrem Outlook-Kalender. Eine Änderung daran bleibt hier.
+
+{n} items here are only on this computer: not in your Outlook calendar. A change to one of them stays here.
+= {n} Elemente hier sind nur auf diesem Computer: nicht in Ihrem Outlook-Kalender. Eine Änderung an einem davon bleibt hier.
+
+Put them into the calendar of your account, where Outlook and your other devices have them too. You are asked first.
+= In den Kalender Ihres Kontos übernehmen, wo Outlook und Ihre anderen Geräte sie auch haben. Sie werden vorher gefragt.
+
+Today
+= Heute
+
+Forward
+= Weiterleiten
+
+All day
+= Ganztägig
+
+1 attendee
+= 1 Teilnehmer
+
+{n} attendees
+= {n} Teilnehmer
+
+Organizer: {name}
+= Organisator: {name}
+
+Cancelled
+= Abgesagt
+
+Private
+= Privat
+
+High importance
+= Hohe Wichtigkeit
+
+Low importance
+= Niedrige Wichtigkeit
+
+Teams meeting
+= Teams-Besprechung
+
+Online meeting
+= Onlinebesprechung
+
+Open
+= Öffnen
+
+Propose New Time…
+= Neue Zeit vorschlagen…
+
+Join {service} Meeting
+= An {service}-Besprechung teilnehmen
+
+Forward…
+= Weiterleiten…
+
+Forward This Occurrence…
+= Dieses Vorkommen weiterleiten…
+
+Delete This Occurrence
+= Dieses Vorkommen löschen
+
+Move to Calendar
+= In Kalender verschieben
+
+Show As
+= Anzeigen als
+
+Importance
+= Wichtigkeit
+
+Save as iCalendar…
+= Als iCalendar speichern…
+
++{n} more
+= +{n} weitere
+
+An item that repeats can't be taken to another calendar this way. Hold Ctrl to copy this occurrence there, or use Move to Calendar in its menu for the whole series.
+= Ein wiederkehrendes Element kann auf diese Weise nicht in einen anderen Kalender gebracht werden. Halten Sie Strg gedrückt, um dieses Vorkommen dorthin zu kopieren, oder verwenden Sie „In Kalender verschieben“ in seinem Menü für die ganze Serie.
+
+Pick a time in the calendar first, then paste
+= Wählen Sie zuerst eine Zeit im Kalender, dann fügen Sie ein
+
+Lay this calendar over the others
+= Diesen Kalender über die anderen legen
+
+Stand this calendar beside the others
+= Diesen Kalender neben die anderen stellen
+
+Hide this calendar
+= Diesen Kalender ausblenden
+
+This calendar can only be read
+= Dieser Kalender kann nur gelesen werden
+
+AM
+= AM
+
+PM
+= PM
+
+60 Minutes
+= 60 Minuten
+
+30 Minutes
+= 30 Minuten
+
+15 Minutes
+= 15 Minuten
+
+10 Minutes
+= 10 Minuten
+
+6 Minutes
+= 6 Minuten
+
+5 Minutes
+= 5 Minuten
+
+Move
+= Verschieben
+
+Copy
+= Kopieren
+
+# chrome.rs
+Search people
+= Personen suchen
+
+Search mail
+= E-Mail durchsuchen
+
+Search mail (try from:, has:attachment, is:unread)
+= E-Mail durchsuchen (z. B. from:, has:attachment, is:unread)
+
+All Mailboxes
+= Alle Postfächer
+
+Current Folder
+= Aktueller Ordner
+
+Sending and receiving…
+= Senden und Empfangen…
+
+Send/Receive All Folders
+= Alle Ordner senden/empfangen
+
+Undo {what}
+= {what} rückgängig machen
+
+Redo {what}
+= {what} wiederholen
+
+No account yet: File › Add Account
+= Noch kein Konto: Datei › Konto hinzufügen
+
+{n} item
+= {n} Element
+
+{n} items
+= {n} Elemente
+
+Unread: {n}
+= Ungelesen: {n}
+
+{n} selected
+= {n} ausgewählt
+
+{n} event in view
+= {n} Termin in der Ansicht
+
+{n} events in view
+= {n} Termine in der Ansicht
+
+{n} contact
+= {n} Kontakt
+
+{n} open task
+= {n} offene Aufgabe
+
+{n} open tasks
+= {n} offene Aufgaben
+
+Reading pane off
+= Lesebereich aus
+
+Reading pane at the bottom
+= Lesebereich unten
+
+Reading pane on the right
+= Lesebereich rechts
+
+Send/Receive problems
+= Probleme beim Senden/Empfangen
+
+Stop this Send/Receive; what has arrived stays
+= Dieses Senden/Empfangen stoppen; Eingetroffenes bleibt
+
+This mailbox is on this device only
+= Dieses Postfach befindet sich nur auf diesem Gerät
+
+Add a mail server account in File › Add Account to send and receive.
+= Fügen Sie unter Datei › Konto hinzufügen ein Mailserver-Konto hinzu, um zu senden und zu empfangen.
+
+# compose.rs
+New message
+= Neue Nachricht
+
+Reply
+= Antworten
+
+Reply all
+= Allen antworten
+
+Draft
+= Entwurf
+
+Send
+= Senden
+
+Attach
+= Anfügen
+
+Save draft
+= Entwurf speichern
+
+Discard
+= Verwerfen
+
+Close (the draft stays as last saved)
+= Schließen (der Entwurf bleibt wie zuletzt gespeichert)
+
+Not saved
+= Nicht gespeichert
+
+Saved to Drafts
+= In „Entwürfe“ gespeichert
+
+From
+= Von
+
+shared mailbox
+= freigegebenes Postfach
+
+Names or addresses, separated by ;
+= Namen oder Adressen, getrennt durch ;
+
+To
+= An
+
+Cc
+= Cc
+
+Bcc
+= Bcc
+
+Subject
+= Betreff
+
+# compose_editor.rs
+Dark red
+= Dunkelrot
+
+Red
+= Rot
+
+Orange
+= Orange
+
+Gold
+= Gold
+
+Green
+= Grün
+
+Teal
+= Blaugrün
+
+Blue
+= Blau
+
+Navy
+= Marineblau
+
+Purple
+= Lila
+
+Grey
+= Grau
+
+Yellow
+= Gelb
+
+Pink
+= Rosa
+
+Write your message
+= Verfassen Sie Ihre Nachricht
+
+No suggestions
+= Keine Vorschläge
+
+Plain text
+= Nur-Text
+
+Switch to HTML
+= Zu HTML wechseln
+
+Write with formatting and pictures
+= Mit Formatierung und Bildern schreiben
+
+Spelling (F7)
+= Rechtschreibung (F7)
+
+Bold
+= Fett
+
+Italic
+= Kursiv
+
+Underline
+= Unterstrichen
+
+Strikethrough
+= Durchgestrichen
+
+Normal
+= Normal
+
+Font Size
+= Schriftgröße
+
+Larger
+= Größer
+
+Smaller
+= Kleiner
+
+Fixed-width font
+= Schrift mit fester Breite
+
+Font Color
+= Schriftfarbe
+
+Text Highlight Color
+= Texthervorhebungsfarbe
+
+No color
+= Keine Farbe
+
+Bullets
+= Aufzählungszeichen
+
+Numbering
+= Nummerierung
+
+Decrease Indent
+= Einzug verkleinern
+
+Increase Indent
+= Einzug vergrößern
+
+Align Left
+= Linksbündig
+
+Center
+= Zentriert
+
+Align Right
+= Rechtsbündig
+
+Link
+= Link
+
+Pictures
+= Bilder
+
+Horizontal Line
+= Horizontale Linie
+
+Clear All Formatting
+= Alle Formatierungen löschen
+
+Plain Text (the formatting goes)
+= Nur-Text (die Formatierung geht verloren)
+
+Address
+= Adresse
+
+Insert
+= Einfügen
+
+Remove Link
+= Link entfernen
+
+# dialogs.rs
+Send/Receive Problems
+= Probleme beim Senden/Empfangen
+
+They are removed from the mail server too.
+= Sie werden auch vom Mailserver entfernt.
+
+This message will be deleted for good.
+= Diese Nachricht wird endgültig gelöscht.
+
+messages will be deleted for good.
+= Nachrichten werden endgültig gelöscht.
+
+It is removed from the mail server too, and that can't be undone.
+= Sie wird auch vom Mailserver entfernt, und das kann nicht rückgängig gemacht werden.
+
+They are removed from the mail server too, and that can't be undone.
+= Sie werden auch vom Mailserver entfernt, und das kann nicht rückgängig gemacht werden.
+
+Delete for Good
+= Endgültig löschen
+
+Everything in
+= Alles in
+
+will be deleted for good.
+= wird endgültig gelöscht.
+
+Empty Folder
+= Ordner leeren
+
+Empty
+= Leeren
+
+The folder
+= Der Ordner
+
+and everything in it will be deleted.
+= und sein gesamter Inhalt werden gelöscht.
+
+Delete Folder
+= Ordner löschen
+
+and the mail kept for it on this device will be removed.
+= und die dafür auf diesem Gerät gespeicherten E-Mails werden entfernt.
+
+Mail on the server is not touched.
+= E-Mails auf dem Server bleiben unberührt.
+
+So will the shared mailboxes opened with it:
+= Ebenso die damit geöffneten freigegebenen Postfächer:
+
+Remove Account
+= Konto entfernen
+
+will be closed, and the mail kept for it on this device removed.
+= wird geschlossen, und die dafür auf diesem Gerät gespeicherten E-Mails werden entfernt.
+
+Remove Shared Mailbox
+= Freigegebenes Postfach entfernen
+
+MailCraft will make one appointment called "MailCraft connection check" in the calendar of {account}, a year from today. It reads it back, changes its time twice (the second time said in this computer's time zone), reads it back each time, and deletes it again. Nothing else in your calendar is read or changed, nobody is invited or written to, and no reminder is set. Afterwards you see what the server answered at each step, and whether what was sent is what the server has.
+= MailCraft erstellt im Kalender von {account} einen Termin namens „MailCraft connection check“, heute in einem Jahr. Es liest ihn zurück, ändert seine Zeit zweimal (beim zweiten Mal in der Zeitzone dieses Computers angegeben), liest ihn jedes Mal zurück und löscht ihn wieder. Sonst wird in Ihrem Kalender nichts gelesen oder geändert, niemand wird eingeladen oder angeschrieben, und es wird keine Erinnerung gesetzt. Danach sehen Sie, was der Server bei jedem Schritt geantwortet hat und ob das Gesendete dem entspricht, was der Server hat.
+
+Check Now
+= Jetzt prüfen
+
+1 item is
+= 1 Element ist
+
+{n} items are
+= {n} Elemente sind
+
+only on this computer, and not in your Outlook calendar. Moving them puts them into your account's calendar, where Outlook and your other devices have them too.
+= nur auf diesem Computer und nicht in Ihrem Outlook-Kalender. Beim Verschieben kommen sie in den Kalender Ihres Kontos, wo Outlook und Ihre anderen Geräte sie auch haben.
+
+One that is there already (the same title at the same time) is not made a second time: the copy on this computer goes.
+= Ein Element, das schon dort ist (gleicher Titel zur gleichen Zeit), wird nicht ein zweites Mal angelegt: Die Kopie auf diesem Computer entfällt.
+
+Move to Your Account's Calendar
+= In den Kalender Ihres Kontos verschieben
+
+1 of them is a meeting with people invited: moving it makes the account's server send them the invitation by mail.
+= 1 davon ist eine Besprechung mit eingeladenen Personen: Beim Verschieben sendet der Server des Kontos ihnen die Einladung per E-Mail.
+
+{n} of them are meetings with people invited: moving those makes the account's server send them the invitations by mail.
+= {n} davon sind Besprechungen mit eingeladenen Personen: Beim Verschieben sendet der Server des Kontos ihnen die Einladungen per E-Mail.
+
+Move All and Send Invitations
+= Alle verschieben und Einladungen senden
+
+Move the Appointments Only
+= Nur die Termine verschieben
+
+1 person is invited to this meeting.
+= 1 Person ist zu dieser Besprechung eingeladen.
+
+{n} people are invited to this meeting.
+= {n} Personen sind zu dieser Besprechung eingeladen.
+
+A note to go with it (optional)
+= Eine Notiz dazu (optional)
+
+Send the invitation to them? The account's server sends it by mail as soon as the meeting is saved.
+= Die Einladung an sie senden? Der Server des Kontos sendet sie per E-Mail, sobald die Besprechung gespeichert ist.
+
+Don't Send, Keep on This Computer
+= Nicht senden, auf diesem Computer behalten
+
+Send This Invitation?
+= Diese Einladung senden?
+
+Delete Recurring Item
+= Wiederkehrendes Element löschen
+
+Move Recurring Item
+= Wiederkehrendes Element verschieben
+
+Respond to Recurring Item
+= Auf wiederkehrendes Element antworten
+
+Open Recurring Item
+= Wiederkehrendes Element öffnen
+
+Change Recurring Item
+= Wiederkehrendes Element ändern
+
+"{name}" is one of a series. Do you mean just the one on {day}, or the entire series?
+= „{name}“ gehört zu einer Serie. Meinen Sie nur das Vorkommen am {day} oder die ganze Serie?
+
+Just This One
+= Nur dieses
+
+The Entire Series
+= Die ganze Serie
+
+Send the invitation to them? The account's server sends it by mail once the meeting is in its calendar.
+= Die Einladung an sie senden? Der Server des Kontos sendet sie per E-Mail, sobald die Besprechung in seinem Kalender ist.
+
+Send the update to them? The account's server sends them the change by mail.
+= Die Aktualisierung an sie senden? Der Server des Kontos sendet ihnen die Änderung per E-Mail.
+
+Change This Meeting?
+= Diese Besprechung ändern?
+
+Send Update
+= Aktualisierung senden
+
+Send the cancellation to them? Deleting it cancels the meeting: the account's server tells them so by mail.
+= Die Absage an sie senden? Beim Löschen wird die Besprechung abgesagt: Der Server des Kontos teilt es ihnen per E-Mail mit.
+
+Cancel This Meeting?
+= Diese Besprechung absagen?
+
+Send Cancellation
+= Absage senden
+
+Somebody else
+= Jemand anderes
+
+{name} organizes this meeting; you are invited to it.
+= {name} organisiert diese Besprechung; Sie sind dazu eingeladen.
+
+Send your answer to the organizer? You can write a note to go with it.
+= Ihre Antwort an den Organisator senden? Sie können eine Notiz dazuschreiben.
+
+Send a Response?
+= Antwort senden?
+
+Send the Response Now
+= Antwort jetzt senden
+
+Don't Send a Response
+= Keine Antwort senden
+
+Deleting it takes it out of your calendar only. The organizer is not told that you won't come, and the other people invited still have the meeting. An update from the organizer can put it back. Declining it tells the organizer, if you choose.
+= Beim Löschen wird sie nur aus Ihrem Kalender entfernt. Der Organisator erfährt nicht, dass Sie nicht kommen, und die anderen Eingeladenen haben die Besprechung weiterhin. Eine Aktualisierung des Organisators kann sie zurückbringen. Wenn Sie ablehnen, wird der Organisator auf Wunsch benachrichtigt.
+
+Delete Your Copy of This Meeting?
+= Ihre Kopie dieser Besprechung löschen?
+
+Delete My Copy
+= Meine Kopie löschen
+
+Decline and Tell the Organizer
+= Ablehnen und Organisator benachrichtigen
+
+Decline without Telling
+= Ablehnen ohne Benachrichtigung
+
+What you change is changed in your calendar only. The organizer and the other people invited are not told and still have the meeting as it was, so you could miss it. An update from the organizer can replace your change.
+= Was Sie ändern, wird nur in Ihrem Kalender geändert. Der Organisator und die anderen Eingeladenen erfahren es nicht und haben die Besprechung weiterhin wie zuvor, sodass Sie sie verpassen könnten. Eine Aktualisierung des Organisators kann Ihre Änderung ersetzen.
+
+Change Your Copy of This Meeting?
+= Ihre Kopie dieser Besprechung ändern?
+
+Send the invitation to them? It goes by mail from your Outbox at the next Send/Receive, and their answers come back to you.
+= Die Einladung an sie senden? Sie geht beim nächsten Senden/Empfangen per E-Mail aus Ihrem Postausgang, und die Antworten kommen zu Ihnen zurück.
+
+Don't Send
+= Nicht senden
+
+Send the update to them? It goes by mail from your Outbox at the next Send/Receive.
+= Die Aktualisierung an sie senden? Sie geht beim nächsten Senden/Empfangen per E-Mail aus Ihrem Postausgang.
+
+Save without Sending
+= Ohne Senden speichern
+
+Send the cancellation to them? It goes by mail from your Outbox at the next Send/Receive.
+= Die Absage an sie senden? Sie geht beim nächsten Senden/Empfangen per E-Mail aus Ihrem Postausgang.
+
+Delete without Sending
+= Ohne Senden löschen
+
+Type what you want to do
+= Geben Sie ein, was Sie tun möchten
+
+No command matches.
+= Kein Befehl passt.
+
+New Folder
+= Neuer Ordner
+
+Rename Folder
+= Ordner umbenennen
+
+the top level
+= die oberste Ebene
+
+In {place}
+= In {place}
+
+Folder name
+= Ordnername
+
+Go to Date
+= Gehe zu Datum
+
+Date (YYYY-MM-DD)
+= Datum (JJJJ-MM-TT)
+
+Go
+= Los
+
+Sign In
+= Anmelden
+
+Password for {account}
+= Kennwort für {account}
+
+Send/Receive
+= Senden/Empfangen
+
+Add Shared Mailbox
+= Freigegebenes Postfach hinzufügen
+
+The address of a mailbox {account} has Full Access to
+= Die Adresse eines Postfachs, auf das {account} Vollzugriff hat
+
+support@example.org
+= support@example.org
+
+It opens with your own sign-in, under its own heading in the folder pane, and you can send from it when you have the Send As right. An administrator of your organisation gives both rights; MailCraft asks Microsoft for nothing more.
+= Es öffnet sich mit Ihrer eigenen Anmeldung unter einer eigenen Überschrift im Ordnerbereich, und Sie können daraus senden, wenn Sie das Recht „Senden als“ haben. Beide Rechte vergibt ein Administrator Ihrer Organisation; MailCraft fragt Microsoft nach nichts weiter.
+
+Add
+= Hinzufügen
+
+Close
+= Schließen
+
+Copy all of it
+= Alles kopieren
+
+Unsaved Message
+= Nicht gespeicherte Nachricht
+
+The message you are writing has changes that aren't saved.
+= Die Nachricht, die Sie schreiben, hat nicht gespeicherte Änderungen.
+
+Save Draft
+= Entwurf speichern
+
+Mail, calendar, people and tasks, written from scratch in Rust.
+= E-Mail, Kalender, Personen und Aufgaben, von Grund auf in Rust geschrieben.
+
+Open source under the MIT License or the Apache License 2.0, at your option. The interface fonts are Inter, Source Sans 3 and JetBrains Mono (SIL Open Font License). Every icon is drawn in code.
+= Open Source unter der MIT-Lizenz oder der Apache-Lizenz 2.0, nach Ihrer Wahl. Die Schriften der Oberfläche sind Inter, Source Sans 3 und JetBrains Mono (SIL Open Font License). Jedes Symbol wird im Code gezeichnet.
+
+{commands} commands; {percent}% of the feature catalog has one.
+= {commands} Befehle; {percent} % des Funktionskatalogs haben einen.
+
+This item has changes that aren't saved. Save them?
+= Dieses Element hat nicht gespeicherte Änderungen. Speichern?
+
+"{name}" has changes that aren't saved. Save them?
+= „{name}“ hat nicht gespeicherte Änderungen. Speichern?
+
+Unsaved Changes
+= Nicht gespeicherte Änderungen
+
+Don't Save
+= Nicht speichern
+
+# favorites_sync/choice.rs
+Microsoft Graph
+= Microsoft Graph
+
+The lasting way. In an organisation, an administrator has to approve it once; if they have approved MailCraft already, nothing more is needed.
+= Der dauerhafte Weg. In einer Organisation muss ein Administrator ihn einmal genehmigen; hat er MailCraft bereits genehmigt, ist nichts weiter nötig.
+
+Exchange Web Services
+= Exchange Web Services
+
+An older way that Microsoft switches off on 1 April 2027. It works where your organisation lets you approve it yourself; elsewhere it needs an administrator too.
+= Ein älterer Weg, den Microsoft am 1. April 2027 abschaltet. Er funktioniert, wo Ihre Organisation Sie selbst zustimmen lässt; andernfalls braucht auch er einen Administrator.
+
+MailCraft keeps its own Favorites.
+= MailCraft verwaltet eigene Favoriten.
+
+MailCraft can show the folders you keep under Favorites in Outlook, in the same order. They are only read, never changed. Choose how they are read:
+= MailCraft kann die Ordner anzeigen, die Sie in Outlook unter Favoriten haben, in derselben Reihenfolge. Sie werden nur gelesen, nie geändert. Wählen Sie, wie sie gelesen werden:
+
+Your mail works the same whichever you choose, and you can change this later in File › Options.
+= Ihre E-Mail funktioniert gleich, egal was Sie wählen, und Sie können es später unter Datei › Optionen ändern.
+
+Outlook's Favorites
+= Favoriten von Outlook
+
+# favorites_sync.rs
+Your organisation's administrator has to approve this once
+= Der Administrator Ihrer Organisation muss dies einmal genehmigen
+
+Not allowed by your organisation
+= Von Ihrer Organisation nicht erlaubt
+
+Not available for this account
+= Für dieses Konto nicht verfügbar
+
+Your organisation doesn't allow Exchange Web Services
+= Ihre Organisation erlaubt Exchange Web Services nicht
+
+Microsoft has switched Exchange Web Services off
+= Microsoft hat Exchange Web Services abgeschaltet
+
+Use Exchange Web Services instead
+= Stattdessen Exchange Web Services verwenden
+
+Use Microsoft Graph instead
+= Stattdessen Microsoft Graph verwenden
+
+Copies a short message with the address of Microsoft's page where an administrator of your organisation approves MailCraft, once for everybody. Nothing is sent: paste it into mail or chat yourself.
+= Kopiert eine kurze Nachricht mit der Adresse der Seite von Microsoft, auf der ein Administrator Ihrer Organisation MailCraft einmal für alle genehmigt. Es wird nichts gesendet: Fügen Sie sie selbst in eine E-Mail oder einen Chat ein.
+
+Says what you and your organisation's administrator can do, and lets an administrator approve MailCraft on Microsoft's page from here.
+= Erklärt, was Sie und der Administrator Ihrer Organisation tun können, und lässt einen Administrator MailCraft von hier aus auf der Seite von Microsoft genehmigen.
+
+Reads Outlook's Favorites through Exchange Web Services, an older way that Microsoft switches off on 1 April 2027. It works where your organisation lets you approve it yourself; elsewhere it needs an administrator too.
+= Liest die Favoriten von Outlook über Exchange Web Services, einen älteren Weg, den Microsoft am 1. April 2027 abschaltet. Er funktioniert, wo Ihre Organisation Sie selbst zustimmen lässt; andernfalls braucht auch er einen Administrator.
+
+Reads Outlook's Favorites through Microsoft Graph. It lasts; in an organisation an administrator has to approve it once.
+= Liest die Favoriten von Outlook über Microsoft Graph. Dieser Weg bleibt; in einer Organisation muss ein Administrator ihn einmal genehmigen.
+
+Show Outlook's Favorites
+= Favoriten von Outlook anzeigen
+
+`source` is graph, ews or none
+= `source` ist graph, ews oder none
+
+This build can't reach the account's server.
+= Dieser Build kann den Server des Kontos nicht erreichen.
+
+This build can't make a link for an administrator.
+= Dieser Build kann keinen Link für einen Administrator erstellen.
+
+The link is on the clipboard: send it to your organisation's administrator
+= Der Link ist in der Zwischenablage: Senden Sie ihn an den Administrator Ihrer Organisation
+
+`answer.outcome` is read, missing, notPermitted, refused, approval, blocked or failed
+= `answer.outcome` ist read, missing, notPermitted, refused, approval, blocked oder failed
+
+`answer.folders` is a list of {path, kind}
+= `answer.folders` ist eine Liste von {path, kind}
+
+Outlook's Favorites are switched off in File › Options
+= Die Favoriten von Outlook sind unter Datei › Optionen ausgeschaltet
+
+For an account that signs in with Microsoft: the folders you keep under Favorites in Outlook, in the same order. They are read from the server and never changed there. Without this, the favourites you mark in MailCraft are shown.
+= Für ein Konto, das sich bei Microsoft anmeldet: die Ordner, die Sie in Outlook unter Favoriten haben, in derselben Reihenfolge. Sie werden vom Server gelesen und dort nie geändert. Ohne diese Option werden die Favoriten angezeigt, die Sie in MailCraft markieren.
+
+Show the Favorites from Outlook in the folder pane
+= Favoriten von Outlook im Ordnerbereich anzeigen
+
+Connect Outlook's Favorites
+= Favoriten von Outlook verbinden
+
+Sign in with Microsoft once more to let MailCraft read the folders you keep under Favorites in Outlook. They are only read, never changed, and everything else stays as it is.
+= Melden Sie sich noch einmal bei Microsoft an, damit MailCraft die Ordner lesen darf, die Sie in Outlook unter Favoriten haben. Sie werden nur gelesen, nie geändert, und alles andere bleibt, wie es ist.
+
+# files.rs
+Downloaded {name}
+= {name} heruntergeladen
+
+A file dialog is already open.
+= Ein Dateidialog ist bereits geöffnet.
+
+File dialogs aren't available here
+= Dateidialoge sind hier nicht verfügbar
+
+Saved {name}
+= {name} gespeichert
+
+# forms.rs
+Rules
+= Regeln
+
+YYYY-MM-DD
+= JJJJ-MM-TT
+
+The day before
+= Am Tag davor
+
+The day after
+= Am Tag danach
+
+Pick a time
+= Zeit wählen
+
+Use YYYY-MM-DD
+= JJJJ-MM-TT verwenden
+
+No categories yet
+= Noch keine Kategorien
+
+More commands
+= Weitere Befehle
+
+first
+= ersten
+
+second
+= zweiten
+
+third
+= dritten
+
+fourth
+= vierten
+
+fifth
+= fünften
+
+last
+= letzten
+
+Daily
+= Täglich
+
+Weekly
+= Wöchentlich
+
+Monthly
+= Monatlich
+
+Yearly
+= Jährlich
+
+day
+= Tag
+
+days
+= Tage
+
+week
+= Woche
+
+weeks
+= Wochen
+
+month
+= Monat
+
+months
+= Monate
+
+year
+= Jahr
+
+years
+= Jahre
+
+The start and the end need a time
+= Beginn und Ende brauchen eine Uhrzeit
+
+The range needs a day to start on
+= Der Zeitraum braucht einen Anfangstag
+
+The range needs a day to end by
+= Der Zeitraum braucht einen Endtag
+
+No day fits this pattern
+= Kein Tag passt zu diesem Muster
+
+Appointment Recurrence
+= Terminserie
+
+Time
+= Zeit
+
+Start
+= Beginn
+
+End
+= Ende
+
+Pattern
+= Muster
+
+Repeats
+= Wiederholung
+
+Range
+= Zeitraum
+
+Starts
+= Beginnt
+
+Ends
+= Endet
+
+No end date
+= Kein Enddatum
+
+After
+= Nach
+
+time
+= Vorkommen
+
+times
+= Vorkommen
+
+By
+= Bis
+
+{rule}, from {day}
+= {rule}, ab {day}
+
+Remove Recurrence
+= Serie entfernen
+
+Every weekday
+= Jeden Werktag
+
+Only on
+= Nur am
+
+on
+= am
+
+Day
+= Tag
+
+of every
+= alle
+
+The
+= Am
+
+On
+= Am
+
+On the
+= Am
+
+of
+= im
+
+New Appointment
+= Neuer Termin
+
+New Meeting
+= Neue Besprechung
+
+Appointment
+= Termin
+
+Meeting
+= Besprechung
+
+Give it a title first
+= Geben Sie zuerst einen Titel ein
+
+The start and the end need a date and a time
+= Beginn und Ende brauchen ein Datum und eine Uhrzeit
+
+The series needs a day to end by
+= Die Serie braucht einen Endtag
+
+Save & Close
+= Speichern und schließen
+
+Cancel Meeting
+= Besprechung absagen
+
+Scheduling Assistant
+= Terminplanungs-Assistent
+
+Reminder
+= Erinnerung
+
+Recurrence
+= Serie
+
+Time Zones
+= Zeitzonen
+
+Categorize
+= Kategorisieren
+
+High Importance
+= Hohe Wichtigkeit
+
+Low Importance
+= Niedrige Wichtigkeit
+
+The account's server has made this a Teams meeting, and it stays one
+= Der Server des Kontos hat daraus eine Teams-Besprechung gemacht, und das bleibt sie
+
+Teams Meeting
+= Teams-Besprechung
+
+Response Options
+= Antwortoptionen
+
+Check Names
+= Namen überprüfen
+
+Cancel Invitation
+= Einladung zurückziehen
+
+Invite Attendees
+= Teilnehmer einladen
+
+Clear All Categories
+= Alle Kategorien entfernen
+
+Request Responses
+= Antworten anfordern
+
+Allow New Time Proposals
+= Neue Zeitvorschläge zulassen
+
+Title
+= Titel
+
+Required
+= Erforderlich
+
+Optional
+= Optional
+
+Location
+= Ort
+
+Join
+= Teilnehmen
+
+Copy Link
+= Link kopieren
+
+The account's server hasn't given it a link to join by yet.
+= Der Server des Kontos hat noch keinen Link zur Teilnahme geliefert.
+
+The account's server makes it when the meeting is sent; the link to join by comes back with it.
+= Der Server des Kontos erstellt ihn, wenn die Besprechung gesendet wird; der Link zur Teilnahme kommt damit zurück.
+
+Proposals
+= Vorschläge
+
+1 person proposed another time.
+= 1 Person hat eine andere Zeit vorgeschlagen.
+
+{n} people proposed another time.
+= {n} Personen haben eine andere Zeit vorgeschlagen.
+
+View All Proposals…
+= Alle Vorschläge anzeigen…
+
+One of a series: {rule}
+= Teil einer Serie: {rule}
+
+Change…
+= Ändern…
+
+Make it repeat…
+= Wiederholen lassen…
+
+Show as
+= Anzeigen als
+
+Time zones
+= Zeitzonen
+
+Remove attendees
+= Teilnehmer entfernen
+
+Invite attendees
+= Teilnehmer einladen
+
+Description
+= Beschreibung
+
+Nobody, or more than one of your contacts, matches: {names}
+= Niemand oder mehr als einer Ihrer Kontakte passt: {names}
+
+Name somebody to invite first
+= Nennen Sie zuerst jemanden zum Einladen
+
+Kept on this computer only: invitations and repeating events aren't sent to the server yet
+= Nur auf diesem Computer gespeichert: Einladungen und wiederkehrende Termine werden noch nicht an den Server gesendet
+
+Work
+= Geschäftlich
+
+Home
+= Privat
+
+Other
+= Andere
+
+Mobile
+= Mobil
+
+Fax
+= Fax
+
+Contact
+= Kontakt
+
+New Contact
+= Neuer Kontakt
+
+First name
+= Vorname
+
+Last name
+= Nachname
+
+Shown as First Last when empty
+= Wenn leer, als Vorname Nachname angezeigt
+
+Display name
+= Anzeigename
+
+Company
+= Firma
+
+Job title
+= Position
+
+Department
+= Abteilung
+
+E-mail
+= E-Mail
+
+Add another e-mail address
+= Weitere E-Mail-Adresse hinzufügen
+
+Phone
+= Telefon
+
+Add another phone number
+= Weitere Telefonnummer hinzufügen
+
+Street
+= Straße
+
+City
+= Ort
+
+State or region
+= Bundesland oder Region
+
+Postal code
+= Postleitzahl
+
+Country
+= Land
+
+Website
+= Website
+
+Birthday
+= Geburtstag
+
+Favorite
+= Favorit
+
+Notes
+= Notizen
+
+Tomorrow
+= Morgen
+
+Next week
+= Nächste Woche
+
+Task
+= Aufgabe
+
+New Task
+= Neue Aufgabe
+
+Due date
+= Fälligkeitsdatum
+
+Start date
+= Startdatum
+
+Low
+= Niedrig
+
+High
+= Hoch
+
+Completed
+= Erledigt
+
+Change the colour
+= Farbe ändern
+
+Delete this category
+= Diese Kategorie löschen
+
+New category
+= Neue Kategorie
+
+From contains
+= Von enthält
+
+Sent to
+= Gesendet an
+
+Subject contains
+= Betreff enthält
+
+Body contains
+= Text enthält
+
+Has an attachment
+= Hat eine Anlage
+
+Importance is
+= Wichtigkeit ist
+
+Move to folder
+= In Ordner verschieben
+
+Flag
+= Kennzeichnen
+
+Mark as read
+= Als gelesen markieren
+
+Set importance
+= Wichtigkeit festlegen
+
+Run this rule on mail as it arrives
+= Diese Regel auf eingehende E-Mails anwenden
+
+Delete this rule
+= Diese Regel löschen
+
+No rules yet. A rule files, flags or deletes mail as it arrives.
+= Noch keine Regeln. Eine Regel legt E-Mails ab, kennzeichnet oder löscht sie, wenn sie eintreffen.
+
+Run every rule that is switched on over {folder}
+= Alle eingeschalteten Regeln auf {folder} anwenden
+
+Run Rules Now
+= Regeln jetzt ausführen
+
+1 message matched
+= 1 Nachricht passte
+
+{n} messages matched
+= {n} Nachrichten passten
+
+New rule
+= Neue Regel
+
+Name
+= Name
+
+When
+= Wenn
+
+and
+= und
+
+Text to look for
+= Zu suchender Text
+
+Remove this condition
+= Diese Bedingung entfernen
+
++ condition
+= + Bedingung
+
+All the conditions must hold
+= Alle Bedingungen müssen zutreffen
+
+Do
+= Dann
+
+Choose a folder
+= Ordner wählen
+
+Choose a category
+= Kategorie wählen
+
+Remove this action
+= Diese Aktion entfernen
+
++ action
+= + Aktion
+
+Stop processing more rules
+= Keine weiteren Regeln verarbeiten
+
+Add Rule
+= Regel hinzufügen
+
+A rule needs a name, and something to look for.
+= Eine Regel braucht einen Namen und etwas, wonach gesucht wird.
+
+# i18n.rs
+{n} minute
+= {n} Minute
+
+{n} hour
+= {n} Stunde
+
+{n} hours
+= {n} Stunden
+
+{h} h {m} min
+= {h} Std. {m} Min.
+
+{n} day
+= {n} Tag
+
+{n} days
+= {n} Tage
+
+# lib.rs
+An application ID is letters, digits and dashes
+= Eine Anwendungs-ID besteht aus Buchstaben, Ziffern und Bindestrichen
+
+Say which reminder (`event` and `occurrence`), or `all`
+= Geben Sie an, welche Erinnerung (`event` und `occurrence`), oder `all`
+
+`minutes` is 1 to 10080
+= `minutes` liegt zwischen 1 und 10080
+
+No Send/Receive is running
+= Es läuft kein Senden/Empfangen
+
+Stopping…
+= Wird gestoppt…
+
+Sign-in cancelled
+= Anmeldung abgebrochen
+
+Nobody is signing in
+= Es meldet sich niemand an
+
+No misspelt words.
+= Keine falsch geschriebenen Wörter.
+
+{count} misspelt: “{word}” (right-click a word underlined in red for suggestions)
+= {count} falsch geschrieben: „{word}“ (rechtsklicken Sie auf ein rot unterstrichenes Wort für Vorschläge)
+
+{count} misspelt: “{word}”, perhaps {near}
+= {count} falsch geschrieben: „{word}“, vielleicht {near}
+
+This build can't sign in to this kind of account. Use the desktop app.
+= Dieser Build kann sich bei dieser Art von Konto nicht anmelden. Verwenden Sie die Desktop-App.
+
+Sign in on the page that opened in your browser…
+= Melden Sie sich auf der Seite an, die sich in Ihrem Browser geöffnet hat…
+
+Renewing the sign-in…
+= Anmeldung wird erneuert…
+
+Send/Receive is already running
+= Senden/Empfangen läuft bereits
+
+This build can't connect to mail servers (a browser can't open mail connections). Use the desktop app, or bring mail in with File › Import.
+= Dieser Build kann keine Verbindung zu Mailservern herstellen (ein Browser kann keine Mailverbindungen öffnen). Verwenden Sie die Desktop-App, oder holen Sie E-Mails über Datei › Importieren herein.
+
+No account is connected to a mail server (File › Add Account)
+= Kein Konto ist mit einem Mailserver verbunden (Datei › Konto hinzufügen)
+
+Updating the calendar and contacts…
+= Kalender und Kontakte werden aktualisiert…
+
+Sending…
+= Wird gesendet…
+
+This build can't connect to mail servers
+= Dieser Build kann keine Verbindung zu Mailservern herstellen
+
+Sending your changes…
+= Ihre Änderungen werden gesendet…
+
+The contacts couldn't be taken in
+= Die Kontakte konnten nicht übernommen werden
+
+Signing in stopped unexpectedly
+= Die Anmeldung wurde unerwartet beendet
+
+Signing in brought nothing back
+= Die Anmeldung hat nichts zurückgeliefert
+
+You signed in as
+= Sie haben sich angemeldet als
+
+but this account is
+= aber dieses Konto ist
+
+Send/Receive stopped unexpectedly
+= Senden/Empfangen wurde unerwartet beendet
+
+Couldn't save the mailbox: {error}
+= Das Postfach konnte nicht gespeichert werden: {error}
+
+In the Outbox: it is on its way
+= Im Postausgang: Sie ist unterwegs
+
+part of a message
+= Teil einer Nachricht
+
+parts of messages
+= Teile von Nachrichten
+
+couldn't be read from the mailbox's content folder
+= konnte nicht aus dem Inhaltsordner des Postfachs gelesen werden
+
+Sent
+= Gesendet
+
+Draft saved
+= Entwurf gespeichert
+
+message changed
+= Nachricht geändert
+
+messages changed
+= Nachrichten geändert
+
+message
+= Nachricht
+
+messages
+= Nachrichten
+
+event
+= Termin
+
+events
+= Termine
+
+task
+= Aufgabe
+
+tasks
+= Aufgaben
+
+contact
+= Kontakt
+
+contacts
+= Kontakte
+
+Imported {what}
+= {what} importiert
+
+Already in your contacts
+= Bereits in Ihren Kontakten
+
+message removed
+= Nachricht entfernt
+
+messages removed
+= Nachrichten entfernt
+
+Moving it to the other calendar: the account's server makes it there, then takes it out of this one
+= Wird in den anderen Kalender verschoben: Der Server des Kontos legt es dort an und nimmt es dann aus diesem heraus
+
+item
+= Element
+
+items
+= Elemente
+
+moved to your account's calendar
+= in den Kalender Ihres Kontos verschoben
+
+was
+= war
+
+were
+= waren
+
+there already
+= bereits dort
+
+stays
+= bleibt
+
+stay
+= bleiben
+
+on this computer
+= auf diesem Computer
+
+# mail_view.rs
+1 message
+= 1 Nachricht
+
+Appointments
+= Termine
+
+Nothing in the next seven days
+= Nichts in den nächsten sieben Tagen
+
+Tasks
+= Aufgaben
+
+Nothing to do
+= Nichts zu tun
+
+Mark Complete
+= Als erledigt markieren
+
+By Date
+= Nach Datum
+
+By From
+= Nach Absender
+
+By Subject
+= Nach Betreff
+
+By Size
+= Nach Größe
+
+By Importance
+= Nach Wichtigkeit
+
+Newest on top
+= Neueste oben
+
+Oldest on top
+= Älteste oben
+
+A on top
+= A oben
+
+Z on top
+= Z oben
+
+Largest on top
+= Größte oben
+
+Smallest on top
+= Kleinste oben
+
+High on top
+= Hoch oben
+
+Low on top
+= Niedrig oben
+
+Reverse Sort
+= Sortierung umkehren
+
+Show as Conversations
+= Als Unterhaltungen anzeigen
+
+Nothing matches the search.
+= Nichts passt zur Suche.
+
+Nothing matches this filter.
+= Nichts passt zu diesem Filter.
+
+Nothing here yet.
+= Hier ist noch nichts.
+
+Mark as unread
+= Als ungelesen markieren
+
+Clear flag
+= Kennzeichnung löschen
+
+Flag for follow-up
+= Zur Nachverfolgung kennzeichnen
+
+(no recipients)
+= (keine Empfänger)
+
+[Draft]
+= [Entwurf]
+
+(no subject)
+= (kein Betreff)
+
+Open Draft
+= Entwurf öffnen
+
+Open in a Window
+= In einem Fenster öffnen
+
+Reply All
+= Allen antworten
+
+Archive
+= Archivieren
+
+Not Junk
+= Kein Junk
+
+Junk
+= Junk
+
+Add to Tasks
+= Zu Aufgaben hinzufügen
+
+Add Sender to Contacts
+= Absender zu Kontakten hinzufügen
+
+Find Related Messages
+= Verwandte Nachrichten suchen
+
+Save Message As…
+= Nachricht speichern unter…
+
+# meeting_dialogs.rs
+Somebody
+= Jemand
+
+This invitation can't be answered from here, so no other time can be proposed for it.
+= Auf diese Einladung kann von hier aus nicht geantwortet werden, daher kann keine andere Zeit vorgeschlagen werden.
+
+The organizer can't be written to from this account.
+= Dem Organisator kann von diesem Konto aus nicht geschrieben werden.
+
+The organizer of this meeting doesn't take proposals of another time.
+= Der Organisator dieser Besprechung nimmt keine Vorschläge für eine andere Zeit an.
+
+Another time can be proposed for a meeting that the account's server keeps, or from the invitation in the mail.
+= Eine andere Zeit kann für eine Besprechung vorgeschlagen werden, die der Server des Kontos verwaltet, oder über die Einladung in der E-Mail.
+
+You organize this meeting, so there is nobody to propose another time to.
+= Sie organisieren diese Besprechung, daher gibt es niemanden, dem Sie eine andere Zeit vorschlagen könnten.
+
+{name} organizes "{title}".
+= {name} organisiert „{title}“.
+
+It is now on {when}.
+= Sie ist jetzt am {when}.
+
+This is about the occurrence on {day} only.
+= Dies betrifft nur das Vorkommen am {day}.
+
+Proposed start
+= Vorgeschlagener Beginn
+
+Proposed end
+= Vorgeschlagenes Ende
+
+A note to the organizer (optional)
+= Eine Notiz an den Organisator (optional)
+
+Either button writes to {name}: your answer, and the time you propose.
+= Beide Schaltflächen schreiben an {name}: Ihre Antwort und die von Ihnen vorgeschlagene Zeit.
+
+The proposed end has to be after the proposed start.
+= Das vorgeschlagene Ende muss nach dem vorgeschlagenen Beginn liegen.
+
+Decline and Propose
+= Ablehnen und vorschlagen
+
+Tentative and Propose
+= Mit Vorbehalt und vorschlagen
+
+Another time was proposed to {name}
+= {name} wurde eine andere Zeit vorgeschlagen
+
+Your calendar
+= Ihr Kalender
+
+Proposed time
+= Vorgeschlagene Zeit
+
+Name who it is to go to. Nobody is written to until you press Send.
+= Geben Sie an, an wen es gehen soll. Niemand wird angeschrieben, bevor Sie auf „Senden“ klicken.
+
+and {n} more
+= und {n} weitere
+
+Send writes to: {people}.
+= „Senden“ schreibt an: {people}.
+
+Not an e-mail address: {names}
+= Keine E-Mail-Adresse: {names}
+
+The account's server forwards it, and tells the meeting's organizer that you did.
+= Der Server des Kontos leitet es weiter und teilt dem Organisator der Besprechung mit, dass Sie das getan haben.
+
+The account's server forwards it.
+= Der Server des Kontos leitet es weiter.
+
+It goes as mail from the Outbox at the next Send/Receive, with the item attached as an iCalendar file.
+= Es geht beim nächsten Senden/Empfangen als E-Mail aus dem Postausgang, mit dem Element als iCalendar-Datei im Anhang.
+
+Forwarded to 1 person
+= An 1 Person weitergeleitet
+
+Forwarded to {n} people
+= An {n} Personen weitergeleitet
+
+The meeting these proposals are for isn't on your calendar.
+= Die Besprechung, für die diese Vorschläge gelten, ist nicht in Ihrem Kalender.
+
+Nobody has proposed another time.
+= Niemand hat eine andere Zeit vorgeschlagen.
+
+Accept Proposal
+= Vorschlag annehmen
+
+Only the meeting's organizer can change its time.
+= Nur der Organisator der Besprechung kann ihre Zeit ändern.
+
+Accepting a proposal opens the meeting with that time filled in. Nothing is sent until you send the update there.
+= Beim Annehmen eines Vorschlags öffnet sich die Besprechung mit dieser Zeit. Es wird nichts gesendet, bis Sie dort die Aktualisierung senden.
+
+Propose New Time
+= Neue Zeit vorschlagen
+
+Proposed Times
+= Vorgeschlagene Zeiten
+
+Select a meeting first
+= Wählen Sie zuerst eine Besprechung aus
+
+This meeting's link isn't one that can be opened.
+= Der Link dieser Besprechung kann nicht geöffnet werden.
+
+The window isn't up yet.
+= Das Fenster ist noch nicht bereit.
+
+# nav.rs
+New Folder…
+= Neuer Ordner…
+
+Rename Folder…
+= Ordner umbenennen…
+
+Mark All as Read
+= Alle als gelesen markieren
+
+Favorites Are Set in Outlook
+= Favoriten werden in Outlook festgelegt
+
+Customize This Search Folder…
+= Diesen Suchordner anpassen…
+
+Delete Search Folder
+= Suchordner löschen
+
+New Search Folder…
+= Neuer Suchordner…
+
+Your organisation keeps this permission for its administrators to give. Once one of them has approved it, choose it again here. Until then the Favorites kept in MailCraft are shown.
+= Ihre Organisation behält sich vor, dass nur Administratoren diese Berechtigung erteilen. Sobald einer davon sie genehmigt hat, wählen Sie sie hier erneut. Bis dahin werden die in MailCraft verwalteten Favoriten angezeigt.
+
+The server turned MailCraft away: your organisation has switched Exchange Web Services off, or lets only the programs on its own list use it. The Favorites kept in MailCraft are shown.
+= Der Server hat MailCraft abgewiesen: Ihre Organisation hat Exchange Web Services abgeschaltet oder lässt nur Programme auf ihrer eigenen Liste zu. Die in MailCraft verwalteten Favoriten werden angezeigt.
+
+Microsoft switched Exchange Web Services off for everybody on 1 April 2027. The Favorites kept in MailCraft are shown.
+= Microsoft hat Exchange Web Services am 1. April 2027 für alle abgeschaltet. Die in MailCraft verwalteten Favoriten werden angezeigt.
+
+Choose how MailCraft reads the folders you keep under Favorites in Outlook. They are only read, never changed, and everything else stays as it is.
+= Wählen Sie, wie MailCraft die Ordner liest, die Sie in Outlook unter Favoriten haben. Sie werden nur gelesen, nie geändert, und alles andere bleibt, wie es ist.
+
+Outlook's Favorites can't be shown for this account, so the ones kept in MailCraft are. File › Options can ask again.
+= Die Favoriten von Outlook können für dieses Konto nicht angezeigt werden, daher werden die in MailCraft verwalteten angezeigt. Unter Datei › Optionen kann erneut gefragt werden.
+
+Read the Favorites from Outlook again now
+= Favoriten jetzt erneut aus Outlook lesen
+
+Hide the folder pane
+= Ordnerbereich ausblenden
+
+Show the folder pane
+= Ordnerbereich anzeigen
+
+Favorites
+= Favoriten
+
+Search Folders
+= Suchordner
+
+# notify.rs
+1 new message
+= 1 neue Nachricht
+
+{n} new messages
+= {n} neue Nachrichten
+
+{n} more reminders
+= {n} weitere Erinnerungen
+
+Show a notification for new mail and reminders
+= Benachrichtigung bei neuen E-Mails und Erinnerungen anzeigen
+
+Only while MailCraft's window isn't in front. A notification for new mail says how many messages came.
+= Nur wenn das Fenster von MailCraft nicht im Vordergrund ist. Eine Benachrichtigung über neue E-Mails nennt die Anzahl der eingegangenen Nachrichten.
+
+Include the sender and subject of the newest message
+= Absender und Betreff der neuesten Nachricht anzeigen
+
+Notifications can show on a locked screen and over whatever is on yours. The message's text is never shown.
+= Benachrichtigungen können auf einem gesperrten Bildschirm und über allem erscheinen, was auf Ihrem gerade zu sehen ist. Der Text der Nachricht wird nie angezeigt.
+
+This version of MailCraft can't show notifications here.
+= Diese Version von MailCraft kann hier keine Benachrichtigungen anzeigen.
+
+# organize_forms.rs
+Customize Search Folder
+= Suchordner anpassen
+
+New Search Folder
+= Neuer Suchordner
+
+Edit Quick Step
+= QuickStep bearbeiten
+
+New Quick Step
+= Neuer QuickStep
+
+Manage Quick Steps
+= QuickSteps verwalten
+
+Contact Group
+= Kontaktgruppe
+
+New Contact Group
+= Neue Kontaktgruppe
+
+Delay Delivery
+= Übermittlung verzögern
+
+Unread mail
+= Ungelesene E-Mails
+
+Mail flagged for follow up
+= Zur Nachverfolgung gekennzeichnete E-Mails
+
+Important mail
+= Wichtige E-Mails
+
+Mail with attachments
+= E-Mails mit Anlagen
+
+Categorized mail
+= Kategorisierte E-Mails
+
+Large mail
+= Große E-Mails
+
+Mail from specific people
+= E-Mails von bestimmten Personen
+
+A search of my own
+= Eine eigene Suche
+
+Show mail that is:
+= E-Mails anzeigen, die:
+
+Larger than (KB)
+= Größer als (KB)
+
+Category
+= Kategorie
+
+Any category
+= Beliebige Kategorie
+
+Search for
+= Suchen nach
+
+Words, "phrases", from:, to:, subject:, category:, has:attachment, is:unread, is:flagged, larger:, before:, after:
+= Wörter, "Ausdrücke", from:, to:, subject:, category:, has:attachment, is:unread, is:flagged, larger:, before:, after:
+
+After what it shows
+= Nach dem, was er anzeigt
+
+Look in
+= Suchen in
+
+Every account
+= Allen Konten
+
+Copy to folder
+= In Ordner kopieren
+
+Mark complete
+= Als erledigt markieren
+
+Clear categories
+= Kategorien löschen
+
+What the button says
+= Beschriftung der Schaltfläche
+
+Actions, in order:
+= Aktionen, der Reihe nach:
+
+To (optional)
+= An (optional)
+
+Add Action
+= Aktion hinzufügen
+
+No Quick Steps yet
+= Noch keine QuickSteps
+
+Edit
+= Bearbeiten
+
+Move up
+= Nach oben
+
+Move down
+= Nach unten
+
+New Quick Step…
+= Neuer QuickStep…
+
+"{text}" isn't an e-mail address
+= „{text}“ ist keine E-Mail-Adresse
+
+Members ({n})
+= Mitglieder ({n})
+
+No members yet
+= Noch keine Mitglieder
+
+Remove from the group
+= Aus der Gruppe entfernen
+
+Add addresses, separated by ;
+= Adressen hinzufügen, getrennt durch ;
+
+Add from Contacts…
+= Aus Kontakten hinzufügen…
+
+Do not deliver before:
+= Nicht zustellen vor:
+
+Date
+= Datum
+
+The message waits in the Outbox until then.
+= Die Nachricht wartet bis dahin im Postausgang.
+
+Send at once instead
+= Stattdessen sofort senden
+
+# people_view.rs
+Contact Groups
+= Kontaktgruppen
+
+{n} members
+= {n} Mitglieder
+
+Email the group
+= E-Mail an die Gruppe
+
+(no name)
+= (kein Name)
+
+Main
+= Haupt
+
+{n} of {total}
+= {n} von {total}
+
+People
+= Personen
+
+Nobody matches the search
+= Niemand passt zur Suche
+
+No contacts yet
+= Noch keine Kontakte
+
+Email
+= E-Mail
+
+Export…
+= Exportieren…
+
+Select a contact to see the details
+= Wählen Sie einen Kontakt aus, um die Details zu sehen
+
+Remove from Favorites
+= Aus Favoriten entfernen
+
+Add to Favorites
+= Zu Favoriten hinzufügen
+
+Write to {address}
+= An {address} schreiben
+
+Websites
+= Websites
+
+Turns {age} today
+= Wird heute {age}
+
+Turns {age} on {date}
+= Wird am {date} {age}
+
+Recent mail
+= Letzte E-Mails
+
+# print.rs
+Sent {name} to the printer
+= {name} an den Drucker gesendet
+
+Downloaded {name}: print it from there
+= {name} heruntergeladen: Drucken Sie es von dort aus
+
+There's no printer here; Save as PDF writes the print to a file
+= Hier gibt es keinen Drucker; „Als PDF speichern“ schreibt den Ausdruck in eine Datei
+
+Message (Memo Style)
+= Nachricht (Memoformat)
+
+Contacts (Card Style)
+= Kontakte (Kartenformat)
+
+Tasks (Table Style)
+= Aufgaben (Tabellenformat)
+
+Daily Style
+= Tagesformat
+
+Work Week Style
+= Arbeitswochenformat
+
+Weekly Style
+= Wochenformat
+
+Monthly Style
+= Monatsformat
+
+Style
+= Format
+
+Days
+= Tage
+
+from YYYY-MM-DD
+= von JJJJ-MM-TT
+
+to YYYY-MM-DD
+= bis JJJJ-MM-TT
+
+Paper
+= Papier
+
+Download PDF to Print
+= PDF zum Drucken herunterladen
+
+Save as PDF…
+= Als PDF speichern…
+
+Print Preview: 1 page
+= Seitenansicht: 1 Seite
+
+Print Preview: {n} pages
+= Seitenansicht: {n} Seiten
+
+# reading/images.rs
+the download failed
+= der Download ist fehlgeschlagen
+
+the server sent nothing
+= der Server hat nichts gesendet
+
+it is too large to show
+= es ist zu groß für die Anzeige
+
+it is a kind of picture that can't be shown here (AVIF or HEIC)
+= es ist eine Bildart, die hier nicht angezeigt werden kann (AVIF oder HEIC)
+
+it is damaged, or larger than can be shown
+= es ist beschädigt oder größer, als angezeigt werden kann
+
+it is a kind of picture that can't be shown here
+= es ist eine Bildart, die hier nicht angezeigt werden kann
+
+it is a drawing of a kind that isn't shown (SVG)
+= es ist eine Zeichnung einer Art, die nicht angezeigt wird (SVG)
+
+the server sent a web page instead of a picture
+= der Server hat eine Webseite statt eines Bildes gesendet
+
+what the server sent is not a picture
+= was der Server gesendet hat, ist kein Bild
+
+# reading/invitation.rs
+all day
+= ganztägig
+
+This invitation doesn't say when the meeting is.
+= Diese Einladung sagt nicht, wann die Besprechung ist.
+
+The day of this meeting is not one the account's calendar can be asked about.
+= Nach dem Tag dieser Besprechung kann der Kalender des Kontos nicht gefragt werden.
+
+Select a message first
+= Wählen Sie zuerst eine Nachricht aus
+
+This message carries no invitation.
+= Diese Nachricht enthält keine Einladung.
+
+{name} will be told by mail that the meeting stays as it is. It goes from your Outbox at the next Send/Receive.
+= {name} wird per E-Mail mitgeteilt, dass die Besprechung bleibt, wie sie ist. Sie geht beim nächsten Senden/Empfangen aus Ihrem Postausgang.
+
+Decline This Proposal?
+= Diesen Vorschlag ablehnen?
+
+Decline Proposal
+= Vorschlag ablehnen
+
+more ways to answer
+= weitere Antwortmöglichkeiten
+
+(no title)
+= (kein Titel)
+
+Accepted on {when}
+= Zugesagt am {when}
+
+You accepted this meeting.
+= Sie haben diese Besprechung zugesagt.
+
+Tentatively accepted on {when}
+= Mit Vorbehalt zugesagt am {when}
+
+You tentatively accepted this meeting.
+= Sie haben diese Besprechung mit Vorbehalt zugesagt.
+
+Declined on {when}
+= Abgelehnt am {when}
+
+You declined this meeting.
+= Sie haben diese Besprechung abgelehnt.
+
+You organize this meeting: there is nothing to answer.
+= Sie organisieren diese Besprechung: Es gibt nichts zu beantworten.
+
+This meeting is over.
+= Diese Besprechung ist vorbei.
+
+This meeting is in a calendar that can't be changed from here.
+= Diese Besprechung ist in einem Kalender, der von hier aus nicht geändert werden kann.
+
+This invitation doesn't say which meeting it is about, so it can't be answered.
+= Diese Einladung sagt nicht, um welche Besprechung es geht, daher kann sie nicht beantwortet werden.
+
+The organizer has changed this meeting.
+= Der Organisator hat diese Besprechung geändert.
+
+You haven't answered this invitation yet.
+= Sie haben diese Einladung noch nicht beantwortet.
+
+This is about one occurrence of a series.
+= Dies betrifft ein Vorkommen einer Serie.
+
+This meeting was called off by its organizer.
+= Diese Besprechung wurde vom Organisator abgesagt.
+
+This message didn't come from the address of the meeting's organizer.
+= Diese Nachricht kam nicht von der Adresse des Organisators der Besprechung.
+
+It is not on your calendar.
+= Sie ist nicht in Ihrem Kalender.
+
+{name} accepted this meeting.
+= {name} hat diese Besprechung zugesagt.
+
+{name} tentatively accepted this meeting.
+= {name} hat diese Besprechung mit Vorbehalt zugesagt.
+
+{name} declined this meeting.
+= {name} hat diese Besprechung abgelehnt.
+
+{name} answered this invitation.
+= {name} hat diese Einladung beantwortet.
+
+{name} proposes another time for this meeting.
+= {name} schlägt eine andere Zeit für diese Besprechung vor.
+
+Accept
+= Zusagen
+
+Tentative
+= Mit Vorbehalt
+
+Decline
+= Ablehnen
+
+Answer the invitation. You are asked whether to tell the organizer.
+= Die Einladung beantworten. Sie werden gefragt, ob der Organisator benachrichtigt werden soll.
+
+Answer the invitation in your calendar. The organizer can't be written to from this account.
+= Die Einladung in Ihrem Kalender beantworten. Dem Organisator kann von diesem Konto aus nicht geschrieben werden.
+
+Write a Note with the Response…
+= Notiz zur Antwort schreiben…
+
+Propose another time to the organizer, with a tentative answer or a decline. Nothing is sent until you say so there.
+= Dem Organisator eine andere Zeit vorschlagen, mit Zusage unter Vorbehalt oder Ablehnung. Es wird nichts gesendet, bis Sie es dort bestätigen.
+
+Open the meeting with the proposed time filled in. Nothing is sent until you send the update there.
+= Die Besprechung mit der vorgeschlagenen Zeit öffnen. Es wird nichts gesendet, bis Sie dort die Aktualisierung senden.
+
+Tell them by mail that the meeting stays as it is. You are asked first.
+= Per E-Mail mitteilen, dass die Besprechung bleibt, wie sie ist. Sie werden vorher gefragt.
+
+View All Proposals
+= Alle Vorschläge anzeigen
+
+Every other time that was proposed for this meeting.
+= Alle anderen Zeiten, die für diese Besprechung vorgeschlagen wurden.
+
+This meeting
+= Diese Besprechung
+
+Looking for this meeting on your calendar…
+= Diese Besprechung wird in Ihrem Kalender gesucht…
+
+It is no longer on your calendar, so the answer can't be changed from here.
+= Sie ist nicht mehr in Ihrem Kalender, daher kann die Antwort von hier aus nicht geändert werden.
+
+This meeting isn't on your calendar here yet. It can be answered as soon as it shows there.
+= Diese Besprechung ist hier noch nicht in Ihrem Kalender. Sie kann beantwortet werden, sobald sie dort erscheint.
+
+Look Again
+= Erneut suchen
+
+Ask the account's server for the calendar round this meeting now.
+= Den Server des Kontos jetzt nach dem Kalender rund um diese Besprechung fragen.
+
+Remove from Calendar
+= Aus Kalender entfernen
+
+Take the meeting that was called off out of your calendar. Nobody is written to.
+= Die abgesagte Besprechung aus Ihrem Kalender entfernen. Niemand wird angeschrieben.
+
+Calendar…
+= Kalender…
+
+Show the day of this meeting in the calendar.
+= Den Tag dieser Besprechung im Kalender anzeigen.
+
+Proposed
+= Vorgeschlagen
+
+Where
+= Wo
+
+Organizer
+= Organisator
+
+Nothing else is on your calendar at that time.
+= Zu dieser Zeit steht nichts anderes in Ihrem Kalender.
+
+At the same time:
+= Zur gleichen Zeit:
+
+Right before or after:
+= Direkt davor oder danach:
+
+After you accept, tentatively accept or decline a meeting request in the mail, or take a cancelled meeting out of your calendar, the message goes to Deleted Items. Left off, it stays where it is and says what you answered.
+= Nachdem Sie eine Besprechungsanfrage in der E-Mail zugesagt, mit Vorbehalt zugesagt oder abgelehnt oder eine abgesagte Besprechung aus Ihrem Kalender entfernt haben, kommt die Nachricht in „Gelöschte Elemente“. Ist dies aus, bleibt sie, wo sie ist, und zeigt Ihre Antwort.
+
+Delete meeting requests from the Inbox after responding
+= Besprechungsanfragen nach dem Antworten aus dem Posteingang löschen
+
+# reading/layout.rs
+Picture
+= Bild
+
+# reading/remote.rs
+the download stopped before it was done
+= der Download wurde vor dem Ende abgebrochen
+
+it took too long
+= es hat zu lange gedauert
+
+Pictures not shown.
+= Bilder nicht angezeigt.
+
+This message has pictures on the web. This build can't download them.
+= Diese Nachricht hat Bilder im Web. Dieser Build kann sie nicht herunterladen.
+
+Pictures not downloaded.
+= Bilder nicht heruntergeladen.
+
+They are on the web, and fetching them would tell the sender that you opened this message.
+= Sie liegen im Web, und sie abzurufen würde dem Absender verraten, dass Sie diese Nachricht geöffnet haben.
+
+Downloading pictures…
+= Bilder werden heruntergeladen…
+
+{n} of {total} so far.
+= Bisher {n} von {total}.
+
+A picture couldn't be downloaded.
+= Ein Bild konnte nicht heruntergeladen werden.
+
+Point at it to see why.
+= Zeigen Sie darauf, um den Grund zu sehen.
+
+{n} pictures couldn't be downloaded.
+= {n} Bilder konnten nicht heruntergeladen werden.
+
+Point at one to see why.
+= Zeigen Sie auf eines, um den Grund zu sehen.
+
+Ask once more for the pictures that couldn't be downloaded.
+= Die Bilder, die nicht heruntergeladen werden konnten, erneut anfordern.
+
+Download pictures
+= Bilder herunterladen
+
+Show this message's pictures, this once. Whoever sent it can then tell that you opened it.
+= Die Bilder dieser Nachricht dieses eine Mal anzeigen. Der Absender kann dann erkennen, dass Sie sie geöffnet haben.
+
+Always download pictures from {sender}
+= Bilder von {sender} immer herunterladen
+
+Remembered in the settings; File › Options lists the senders and takes them off again.
+= In den Einstellungen gespeichert; unter Datei › Optionen sind die Absender aufgelistet und lassen sich wieder entfernen.
+
+Always from @{domain}
+= Immer von @{domain}
+
+Always download pictures from everybody whose address ends this way. Remembered in the settings; File › Options lists the domains and takes them off again.
+= Bilder von allen, deren Adresse so endet, immer herunterladen. In den Einstellungen gespeichert; unter Datei › Optionen sind die Domänen aufgelistet und lassen sich wieder entfernen.
+
+A picture on the web tells its sender that you opened the message, and when. Left off, pictures are downloaded only for the messages, senders and domains you say.
+= Ein Bild im Web verrät seinem Absender, dass und wann Sie die Nachricht geöffnet haben. Ist dies aus, werden Bilder nur für die Nachrichten, Absender und Domänen heruntergeladen, die Sie angeben.
+
+Download pictures in mail automatically
+= Bilder in E-Mails automatisch herunterladen
+
+This build can't download pictures: they stay placeholders.
+= Dieser Build kann keine Bilder herunterladen: Sie bleiben Platzhalter.
+
+No senders are remembered. "Always download pictures from" above a message adds its sender or its sender's domain here.
+= Es sind keine Absender gespeichert. „Bilder immer herunterladen von“ über einer Nachricht fügt deren Absender oder dessen Domäne hier hinzu.
+
+Pictures are always downloaded from:
+= Bilder werden immer heruntergeladen von:
+
+Ask before downloading this sender's pictures again
+= Vor dem Herunterladen von Bildern dieses Absenders wieder fragen
+
+Ask before downloading pictures from this domain's senders again
+= Vor dem Herunterladen von Bildern von Absendern dieser Domäne wieder fragen
+
+everybody at @{domain}
+= alle unter @{domain}
+
+No downloaded pictures are kept on this computer.
+= Auf diesem Computer sind keine heruntergeladenen Bilder gespeichert.
+
+One downloaded picture is kept on this computer ({size}).
+= Ein heruntergeladenes Bild ist auf diesem Computer gespeichert ({size}).
+
+{n} downloaded pictures are kept on this computer ({size}).
+= {n} heruntergeladene Bilder sind auf diesem Computer gespeichert ({size}).
+
+A picture you asked for is kept for a month, so that reading the message again doesn't ask its sender's server again. Nothing kept is ever run, and it is checked like a new download before it is shown.
+= Ein angefordertes Bild wird einen Monat lang aufbewahrt, damit beim erneuten Lesen der Nachricht nicht wieder beim Server des Absenders angefragt wird. Nichts Gespeichertes wird je ausgeführt, und es wird vor dem Anzeigen wie ein neuer Download geprüft.
+
+Clear
+= Leeren
+
+Forget the pictures that are kept; they are downloaded again when you ask.
+= Die gespeicherten Bilder verwerfen; sie werden auf Anforderung erneut heruntergeladen.
+
+This build can't download pictures
+= Dieser Build kann keine Bilder herunterladen
+
+That is not a domain
+= Das ist keine Domäne
+
+The list of domains is full: remove some in File › Options
+= Die Liste der Domänen ist voll: Entfernen Sie einige unter Datei › Optionen
+
+That is not a sender's address
+= Das ist keine Absenderadresse
+
+The list of senders is full: remove some in File › Options
+= Die Liste der Absender ist voll: Entfernen Sie einige unter Datei › Optionen
+
+# reading/security.rs
+Signed and verified
+= Signiert und überprüft
+
+Encrypted
+= Verschlüsselt
+
+Signed by someone else
+= Von jemand anderem signiert
+
+Signed, signer not verified
+= Signiert, Signierer nicht überprüft
+
+Signature not checked
+= Signatur nicht geprüft
+
+Invalid signature
+= Ungültige Signatur
+
+Encrypted, can't be opened
+= Verschlüsselt, kann nicht geöffnet werden
+
+fingerprint
+= Fingerabdruck
+
+signed
+= signiert
+
+Vouch for this certificate or key from now on: do this only once you have checked its fingerprint with its holder.
+= Ab jetzt für dieses Zertifikat oder diesen Schlüssel bürgen: Tun Sie das erst, wenn Sie den Fingerabdruck mit dem Inhaber abgeglichen haben.
+
+Trust This Signer
+= Diesem Signierer vertrauen
+
+Add Sender's Certificate
+= Zertifikat des Absenders hinzufügen
+
+# reading/select.rs
+Select All
+= Alles auswählen
+
+Copy Link Address
+= Linkadresse kopieren
+
+Select some text first
+= Wählen Sie zuerst Text aus
+
+No message is being read there
+= Dort wird keine Nachricht gelesen
+
+That is not a link's address
+= Das ist keine Linkadresse
+
+# reading/view.rs
+This message has no text.
+= Diese Nachricht hat keinen Text.
+
+This picture is missing from the message, or can't be shown.
+= Dieses Bild fehlt in der Nachricht oder kann nicht angezeigt werden.
+
+This picture is on the web. This build can't download pictures.
+= Dieses Bild liegt im Web. Dieser Build kann keine Bilder herunterladen.
+
+This picture is on the web. It is not downloaded unless you ask.
+= Dieses Bild liegt im Web. Es wird nur auf Ihren Wunsch heruntergeladen.
+
+This picture couldn't be downloaded: {why}.
+= Dieses Bild konnte nicht heruntergeladen werden: {why}.
+
+This picture was downloaded, but can't be shown.
+= Dieses Bild wurde heruntergeladen, kann aber nicht angezeigt werden.
+
+This picture is on its way, or was left out: a message gets only so many.
+= Dieses Bild ist unterwegs oder wurde ausgelassen: Eine Nachricht bekommt nur eine begrenzte Anzahl.
+
+# reading.rs
+Select an item to read
+= Element zum Lesen auswählen
+
+{n} items selected
+= {n} Elemente ausgewählt
+
+To:
+= An:
+
+Cc:
+= Cc:
+
+Bcc:
+= Bcc:
+
+Due
+= Fällig
+
+Follow up.
+= Nachverfolgen.
+
+Completed.
+= Erledigt.
+
+This message was sent with High importance.
+= Diese Nachricht wurde mit hoher Wichtigkeit gesendet.
+
+This message was sent with Low importance.
+= Diese Nachricht wurde mit niedriger Wichtigkeit gesendet.
+
+You replied to this message.
+= Sie haben auf diese Nachricht geantwortet.
+
+You forwarded this message.
+= Sie haben diese Nachricht weitergeleitet.
+
+This message waits in the Outbox until {day} {time}.
+= Diese Nachricht wartet bis {day} {time} im Postausgang.
+
+The sender asked to be told when you read this message.
+= Der Absender möchte benachrichtigt werden, wenn Sie diese Nachricht lesen.
+
+Send Receipt
+= Bestätigung senden
+
+{n} messages in this conversation:
+= {n} Nachrichten in dieser Unterhaltung:
+
+Save {name}
+= {name} speichern
+
+Save As…
+= Speichern unter…
+
+Remove Attachment
+= Anlage entfernen
+
+# reminders.rs
+now
+= jetzt
+
+hours
+= Stunden
+
+1 Reminder
+= 1 Erinnerung
+
+Reminders
+= Erinnerungen
+
+No reminders are due.
+= Keine Erinnerungen fällig.
+
+Dismiss
+= Schließen
+
+Snooze
+= Erneut erinnern
+
+Remind me again later
+= Später erneut erinnern
+
+Dismiss All
+= Alle schließen
+
+1 hour
+= 1 Stunde
+
+1 day
+= 1 Tag
+
+# ribbon.rs
+Move to Junk Email
+= In Junk-E-Mail verschieben
+
+New
+= Neu
+
+New\nEmail
+= Neue\nE-Mail
+
+New\nItems
+= Neue\nElemente
+
+New Items
+= Neue Elemente
+
+Permanently Delete
+= Endgültig löschen
+
+Respond
+= Antworten
+
+Reply\nAll
+= Allen\nantworten
+
+Reply with Meeting
+= Mit Besprechung antworten
+
+Add Sender
+= Absender hinzufügen
+
+Add to Contacts
+= Zu Kontakten hinzufügen
+
+Move to Folder
+= In Ordner verschieben
+
+Quick Steps
+= QuickSteps
+
+Quick\nSteps
+= Quick-\nSteps
+
+Tags
+= Kategorien
+
+Unread/\nRead
+= Ungelesen/\nGelesen
+
+Follow\nUp
+= Nach-\nverfolgen
+
+Follow Up
+= Nachverfolgen
+
+Pin
+= Anheften
+
+Pin to the top of the list
+= Oben in der Liste anheften
+
+Find
+= Suchen
+
+Filter\nEmail
+= E-Mail\nfiltern
+
+Filter Email
+= E-Mail filtern
+
+Related
+= Verwandt
+
+Send/Receive\nAll Folders
+= Alle Ordner\nsenden/empfangen
+
+New\nAppointment
+= Neuer\nTermin
+
+New\nMeeting
+= Neue\nBesprechung
+
+Go To
+= Gehe zu
+
+Next 7\nDays
+= Nächste\n7 Tage
+
+Arrange
+= Anordnen
+
+Work\nWeek
+= Arbeits-\nwoche
+
+Week
+= Woche
+
+Month
+= Monat
+
+Join Online Meeting
+= An Onlinebesprechung teilnehmen
+
+Share
+= Teilen
+
+Save\nCalendar
+= Kalender\nspeichern
+
+New\nContact
+= Neuer\nKontakt
+
+New Contact\nGroup
+= Neue Kontakt-\ngruppe
+
+Communicate
+= Kommunizieren
+
+Actions
+= Aktionen
+
+Edit\nContact
+= Kontakt\nbearbeiten
+
+Export\nContacts
+= Kontakte\nexportieren
+
+New\nTask
+= Neue\nAufgabe
+
+Manage Task
+= Aufgabe verwalten
+
+Mark\nComplete
+= Als\nerledigt
+
+Edit\nTask
+= Aufgabe\nbearbeiten
+
+Current View
+= Aktuelle Ansicht
+
+Filter
+= Filter
+
+Filter Tasks
+= Aufgaben filtern
+
+Names
+= Namen
+
+Check\nNames
+= Namen\nüberprüfen
+
+Basic Text
+= Basistext
+
+Clear Formatting
+= Formatierung löschen
+
+Include
+= Einschließen
+
+Attach\nFile
+= Datei\nanfügen
+
+Signature
+= Signatur
+
+Encrypt
+= Verschlüsseln
+
+Encrypt the message so only its recipients can read it (S/MIME or OpenPGP)
+= Nachricht verschlüsseln, sodass nur die Empfänger sie lesen können (S/MIME oder OpenPGP)
+
+Sign
+= Signieren
+
+Sign the message so its recipients can tell it is from you and unchanged
+= Nachricht signieren, damit die Empfänger erkennen, dass sie von Ihnen stammt und unverändert ist
+
+Read Receipt
+= Lesebestätigung
+
+Request a Read Receipt
+= Lesebestätigung anfordern
+
+Delivery Receipt
+= Übermittlungsbestätigung
+
+Request a Delivery Receipt
+= Übermittlungsbestätigung anfordern
+
+Do not deliver before…
+= Nicht zustellen vor…
+
+Save\nDraft
+= Entwurf\nspeichern
+
+Send & Receive
+= Senden und Empfangen
+
+Add\nAccount
+= Konto\nhinzufügen
+
+Account\nSettings
+= Konto-\neinstellungen
+
+New\nFolder
+= Neuer\nOrdner
+
+New Search\nFolder
+= Neuer Such-\nordner
+
+Rename\nFolder
+= Ordner\numbenennen
+
+Move\nFolder
+= Ordner\nverschieben
+
+Move Folder
+= Ordner verschieben
+
+Delete\nFolder
+= Ordner\nlöschen
+
+Clean Up
+= Aufräumen
+
+Mark All\nas Read
+= Alle als\ngelesen
+
+Run Rules\nNow
+= Regeln jetzt\nausführen
+
+Empty\nFolder
+= Ordner\nleeren
+
+Export
+= Exportieren
+
+Export\nFolder
+= Ordner\nexportieren
+
+Time\nScale
+= Zeit-\nraster
+
+Time Scale
+= Zeitraster
+
+Side-by-\nSide
+= Neben-\neinander
+
+Layout
+= Layout
+
+Folder\nPane
+= Ordner-\nbereich
+
+Reading\nPane
+= Lese-\nbereich
+
+Reading Pane
+= Lesebereich
+
+To-Do\nBar
+= Aufgaben-\nleiste
+
+Ribbon\nLayout
+= Menüband-\nlayout
+
+Ribbon Layout
+= Menübandlayout
+
+Messages
+= Nachrichten
+
+Show as\nConversations
+= Als Unter-\nhaltungen
+
+Message\nPreview
+= Nachrichten-\nvorschau
+
+Message Preview
+= Nachrichtenvorschau
+
+Arrangement
+= Anordnung
+
+Arrange\nBy
+= Anordnen\nnach
+
+Arrange By
+= Anordnen nach
+
+Reverse\nSort
+= Sortierung\numkehren
+
+Window
+= Fenster
+
+Theme
+= Design
+
+Interface Theme
+= Design der Oberfläche
+
+Reminders\nWindow
+= Erinnerungs-\nfenster
+
+Reset\nView
+= Ansicht\nzurücksetzen
+
+Help
+= Hilfe
+
+Search\nCommands
+= Befehle\nsuchen
+
+About\nMailCraft
+= Über\nMailCraft
+
+MailCraft is open source (MIT or Apache-2.0). Every button here runs a command that scripts and agents can run too: see Search Commands.
+= MailCraft ist Open Source (MIT oder Apache-2.0). Jede Schaltfläche hier führt einen Befehl aus, den auch Skripte und Agenten ausführen können: siehe „Befehle suchen“.
+
+All Categories…
+= Alle Kategorien…
+
+Email Message
+= E-Mail-Nachricht
+
+Folder…
+= Ordner…
+
+Copy to Folder
+= In Ordner kopieren
+
+Always Move Messages From This Sender
+= Nachrichten von diesem Absender immer verschieben
+
+Manage Rules…
+= Regeln verwalten…
+
+No Date
+= Kein Datum
+
+Clear Flag
+= Kennzeichnung löschen
+
+No signatures yet
+= Noch keine Signaturen
+
+Signatures…
+= Signaturen…
+
+Top Level
+= Oberste Ebene
+
+Reply and Delete
+= Antworten und löschen
+
+Manage Quick Steps…
+= QuickSteps verwalten…
+
+Doesn't Repeat
+= Keine Wiederholung
+
+Search commands
+= Befehle suchen
+
+# scheduling.rs
+This meeting's calendar is kept on this computer, which can't tell when other people are busy: only your own calendar is shown.
+= Der Kalender dieser Besprechung wird auf diesem Computer verwaltet, der nicht wissen kann, wann andere beschäftigt sind: Nur Ihr eigener Kalender wird angezeigt.
+
+This build can't ask a server when other people are busy: only your own calendar is shown.
+= Dieser Build kann keinen Server fragen, wann andere beschäftigt sind: Nur Ihr eigener Kalender wird angezeigt.
+
+Seeing when other people are busy needs your permission: File › Info › Connect calendar and contacts
+= Um zu sehen, wann andere beschäftigt sind, ist Ihre Erlaubnis nötig: Datei › Informationen › Kalender und Kontakte verbinden
+
+Sign in with Send/Receive to see when other people are busy.
+= Melden Sie sich mit „Senden/Empfangen“ an, um zu sehen, wann andere beschäftigt sind.
+
+Asking about other people's time stopped unexpectedly
+= Die Abfrage der Zeiten anderer wurde unerwartet beendet
+
+The server didn't say when other people are busy
+= Der Server hat nicht mitgeteilt, wann andere beschäftigt sind
+
+Nobody with an address is invited
+= Niemand mit einer Adresse ist eingeladen
+
+You
+= Sie
+
+Organizer: your own calendar
+= Organisator: Ihr eigener Kalender
+
+Asking the server…
+= Server wird gefragt…
+
+No information
+= Keine Informationen
+
+Not an address
+= Keine Adresse
+
+All Attendees
+= Alle Teilnehmer
+
+Show
+= Anzeigen
+
+AutoPick Next
+= Nächste automatisch wählen
+
+Move the meeting to the next time in these days when everybody is free, within your working hours.
+= Die Besprechung auf die nächste Zeit in diesen Tagen verschieben, zu der alle frei sind, innerhalb Ihrer Arbeitszeit.
+
+No time in these days suits everybody: show more days, or move the meeting yourself.
+= Keine Zeit in diesen Tagen passt allen: Zeigen Sie mehr Tage an oder verschieben Sie die Besprechung selbst.
+
+Busy
+= Beschäftigt
+
+Out of Office
+= Abwesend
+
+Working Elsewhere
+= Anderswo tätig
+
+Asking the server when everybody is free…
+= Server wird gefragt, wann alle frei sind…
+
+Name the people to invite on the Appointment page: their time shows here.
+= Nennen Sie die einzuladenden Personen auf der Seite „Termin“: Ihre Zeiten erscheinen hier.
+
+# tasks_view.rs
+Overdue
+= Überfällig
+
+This Week
+= Diese Woche
+
+Later
+= Später
+
+Completed on {date}
+= Erledigt am {date}
+
+No due date
+= Kein Fälligkeitsdatum
+
+Overdue: was due {when}
+= Überfällig: war fällig {when}
+
+Due {when}
+= Fällig {when}
+
+My Tasks
+= Meine Aufgaben
+
+No completed tasks yet.
+= Noch keine erledigten Aufgaben.
+
+Nothing to do here.
+= Hier ist nichts zu tun.
+
+Add a task due today
+= Aufgabe hinzufügen, heute fällig
+
+Add a task
+= Aufgabe hinzufügen
+
+Mark Incomplete
+= Als nicht erledigt markieren
+
+Details
+= Details
+
+Message
+= Nachricht
+
+From {name}
+= Von {name}
+
+Open the message
+= Nachricht öffnen
+
+# theme.rs
+Light
+= Hell
+
+Dark
+= Dunkel
+
+Use system setting
+= Systemeinstellung verwenden
+
+# trust_center.rs
+Imported {n} certificate(s) or key(s), with your private key
+= {n} Zertifikat(e) oder Schlüssel importiert, mit Ihrem privaten Schlüssel
+
+Imported {n} certificate(s) or key(s)
+= {n} Zertifikat(e) oder Schlüssel importiert
+
+Keep the certificates and keys that signed messages bring
+= Zertifikate und Schlüssel aus signierten Nachrichten behalten
+
+So that mail to their senders can be encrypted. Only public keys are kept.
+= Damit E-Mails an deren Absender verschlüsselt werden können. Nur öffentliche Schlüssel werden behalten.
+
+Sign new messages
+= Neue Nachrichten signieren
+
+Encrypt new messages
+= Neue Nachrichten verschlüsseln
+
+Sign and encrypt with
+= Signieren und verschlüsseln mit
+
+S/MIME
+= S/MIME
+
+OpenPGP
+= OpenPGP
+
+Whichever fits (S/MIME first)
+= Was passt (zuerst S/MIME)
+
+Import…
+= Importieren…
+
+A certificate (.cer, .crt, .pem), your digital ID with its private key (.p12, .pfx) or OpenPGP keys (.asc)
+= Ein Zertifikat (.cer, .crt, .pem), Ihre digitale ID mit privatem Schlüssel (.p12, .pfx) oder OpenPGP-Schlüssel (.asc)
+
+Private keys you import are kept for this session only: import them again next time, or have sign-ins remembered (above) where a credential store is available.
+= Importierte private Schlüssel werden nur für diese Sitzung behalten: Importieren Sie sie beim nächsten Mal erneut, oder lassen Sie Anmeldungen speichern (oben), wo ein Anmeldedatenspeicher verfügbar ist.
+
+No certificates or keys yet. Import your own to sign and to read encrypted mail; your correspondents' come with their signed messages.
+= Noch keine Zertifikate oder Schlüssel. Importieren Sie Ihre eigenen, um zu signieren und verschlüsselte E-Mails zu lesen; die Ihrer Korrespondenzpartner kommen mit deren signierten Nachrichten.
+
+Yours
+= Ihre
+
+Yours (private key not here)
+= Ihre (privater Schlüssel nicht hier)
+
+Trusted
+= Vertrauenswürdig
+
+Certificate authority
+= Zertifizierungsstelle
+
+From a signed message
+= Aus einer signierten Nachricht
+
+Expired
+= Abgelaufen
+
+until
+= bis
+
+issued by
+= ausgestellt von
+
+Don't Trust
+= Nicht vertrauen
+
+Trust
+= Vertrauen
+
+A trusted root verifies everybody it issued a certificate to; a trusted OpenPGP key verifies its holder's signatures. Trust only what you checked.
+= Ein vertrauenswürdiger Stamm bestätigt jeden, dem er ein Zertifikat ausgestellt hat; ein vertrauenswürdiger OpenPGP-Schlüssel bestätigt die Signaturen seines Inhabers. Vertrauen Sie nur, was Sie geprüft haben.
+
+Save the public certificate or key, to give to others. The private key never leaves.
+= Das öffentliche Zertifikat oder den öffentlichen Schlüssel speichern, um es an andere weiterzugeben. Der private Schlüssel verlässt nie das Gerät.
+
+"{name}" is protected by a passphrase.
+= „{name}“ ist durch eine Passphrase geschützt.
+
+That passphrase isn't the file's.
+= Diese Passphrase passt nicht zur Datei.
+
+Passphrase
+= Passphrase
+
+# widgets.rs
+Not available: {reason}
+= Nicht verfügbar: {reason}
+
+# windows.rs
+Too many windows are open: close one first
+= Zu viele Fenster geöffnet: Schließen Sie zuerst eines
+
+That can't be opened in a window of its own
+= Das kann nicht in einem eigenen Fenster geöffnet werden
+
+No appointment is open in a window of its own
+= Kein Termin ist in einem eigenen Fenster geöffnet
+
+Only a meeting you organize has a Scheduling Assistant
+= Nur eine Besprechung, die Sie organisieren, hat einen Terminplanungs-Assistenten
+
+Say what to open: `message` or `event` by its id, or `new` ("appointment" or "meeting")
+= Geben Sie an, was geöffnet werden soll: `message` oder `event` mit seiner ID, oder `new` ("appointment" oder "meeting")
+
+Mark Unread
+= Als ungelesen markieren
+
+Mark Read
+= Als gelesen markieren
+
+# zones.rs
+This computer's time
+= Zeit dieses Computers
+
+Search time zones
+= Zeitzonen suchen
+
+No time zone is called that
+= Keine Zeitzone heißt so
+
+# engine
+New Mailbox
+= Neues Postfach
+
+File
+= Datei
+
+Open Mailbox
+= Postfach öffnen
+
+Save Mailbox
+= Postfach speichern
+
+Save Message As
+= Nachricht speichern unter
+
+Save As
+= Speichern unter
+
+Undo
+= Rückgängig
+
+Quick Access
+= Schnellzugriff
+
+nothing to undo
+= nichts rückgängig zu machen
+
+Redo
+= Wiederholen
+
+nothing to redo
+= nichts zu wiederholen
+
+Select Message
+= Nachricht auswählen
+
+Folder
+= Ordner
+
+Next Message
+= Nächste Nachricht
+
+Previous Message
+= Vorherige Nachricht
+
+Get Message
+= Nachricht abrufen
+
+List Messages
+= Nachrichten auflisten
+
+select a message first
+= wählen Sie zuerst eine Nachricht aus
+
+Mark as Read
+= Als gelesen markieren
+
+Mark as Unread
+= Als ungelesen markieren
+
+Unread/ Read
+= Ungelesen/ Gelesen
+
+Flag Message
+= Nachricht kennzeichnen
+
+Block Sender
+= Absender blockieren
+
+Save Attachment
+= Anlage speichern
+
+Attachments
+= Anlagen
+
+New Email
+= Neue E-Mail
+
+Edit Message
+= Nachricht bearbeiten
+
+no message is being written
+= es wird keine Nachricht geschrieben
+
+Attach File
+= Datei anfügen
+
+Suggest Recipients
+= Empfänger vorschlagen
+
+More Options
+= Weitere Optionen
+
+Tracking
+= Nachverfolgung
+
+Close Message
+= Nachricht schließen
+
+Select Text
+= Text auswählen
+
+HTML
+= HTML
+
+Format Text
+= Text formatieren
+
+Format
+= Format
+
+Plain Text
+= Nur-Text
+
+Font
+= Schriftart
+
+Paragraph
+= Absatz
+
+Align Text
+= Text ausrichten
+
+Links
+= Links
+
+Illustrations
+= Illustrationen
+
+Symbols
+= Symbole
+
+Date & Time
+= Datum und Uhrzeit
+
+Text
+= Text
+
+Symbol
+= Symbol
+
+Editing
+= Bearbeiten
+
+Replace
+= Ersetzen
+
+Word Count
+= Wörter zählen
+
+Review
+= Überprüfen
+
+Proofing
+= Dokumentprüfung
+
+Spelling & Grammar
+= Rechtschreibung und Grammatik
+
+Go to Folder
+= Gehe zu Ordner
+
+List Folders
+= Ordner auflisten
+
+Favorites from Outlook
+= Favoriten aus Outlook
+
+the folder is already empty
+= der Ordner ist bereits leer
+
+Reminders Window
+= Erinnerungsfenster
+
+View
+= Ansicht
+
+Navigation
+= Navigation
+
+Folder Pane
+= Ordnerbereich
+
+To-Do Bar
+= Aufgabenleiste
+
+Search
+= Suchen
+
+Close Search
+= Suche schließen
+
+Work Week
+= Arbeitswoche
+
+Reset View
+= Ansicht zurücksetzen
+
+Inspect View
+= Ansicht untersuchen
+
+Free and Busy Times
+= Frei/Gebucht-Zeiten
+
+Attendees
+= Teilnehmer
+
+Edit Event
+= Termin bearbeiten
+
+select an appointment first
+= wählen Sie zuerst einen Termin aus
+
+Move Event
+= Termin verschieben
+
+Select Event
+= Termin auswählen
+
+Get Event
+= Termin abrufen
+
+List Events
+= Termine auflisten
+
+Add Calendar
+= Kalender hinzufügen
+
+Manage Calendars
+= Kalender verwalten
+
+Delete Calendar
+= Kalender löschen
+
+Show Calendar
+= Kalender anzeigen
+
+Move to the Account's Calendar
+= In den Kalender des Kontos verschieben
+
+Work in Calendar
+= Im Kalender arbeiten
+
+Read Invitation
+= Einladung lesen
+
+Show in Calendar
+= Im Kalender anzeigen
+
+Delete Meeting Requests after Responding
+= Besprechungsanfragen nach dem Antworten löschen
+
+Record Response
+= Antwort festhalten
+
+Copy Event
+= Termin kopieren
+
+Number of Days
+= Anzahl der Tage
+
+Next 7 Days
+= Nächste 7 Tage
+
+Week Numbers
+= Kalenderwochen
+
+List Calendars
+= Kalender auflisten
+
+Calendar Colour
+= Kalenderfarbe
+
+Side-by-Side
+= Nebeneinander
+
+Bring Calendar to Front
+= Kalender in den Vordergrund
+
+Working Hours
+= Arbeitszeit
+
+Apply Downloaded Mailbox Settings
+= Heruntergeladene Postfacheinstellungen übernehmen
+
+Send / Receive
+= Senden / Empfangen
+
+Time Zone
+= Zeitzone
+
+Edit Contact
+= Kontakt bearbeiten
+
+select a contact first
+= wählen Sie zuerst einen Kontakt aus
+
+Select Contact
+= Kontakt auswählen
+
+Get Contact
+= Kontakt abrufen
+
+List Contacts
+= Kontakte auflisten
+
+Search People
+= Personen suchen
+
+Edit Contact Group
+= Kontaktgruppe bearbeiten
+
+there are no contact groups
+= es gibt keine Kontaktgruppen
+
+Add Members
+= Mitglieder hinzufügen
+
+Members
+= Mitglieder
+
+Remove Member
+= Mitglied entfernen
+
+Delete Group
+= Gruppe löschen
+
+Open Contact Group
+= Kontaktgruppe öffnen
+
+Email Group
+= E-Mail an Gruppe
+
+Export Contact Groups
+= Kontaktgruppen exportieren
+
+Edit Task
+= Aufgabe bearbeiten
+
+select a task first
+= wählen Sie zuerst eine Aufgabe aus
+
+Select Task
+= Aufgabe auswählen
+
+Get Task
+= Aufgabe abrufen
+
+List Tasks
+= Aufgaben auflisten
+
+Create Rule
+= Regel erstellen
+
+Delete Rule
+= Regel löschen
+
+Enable Rule
+= Regel aktivieren
+
+Always Move Messages From
+= Nachrichten immer verschieben von
+
+Send Read Receipt
+= Lesebestätigung senden
+
+Create Quick Step
+= QuickStep erstellen
+
+there are no Quick Steps
+= es gibt keine QuickSteps
+
+Delete Quick Step
+= QuickStep löschen
+
+Move Quick Step
+= QuickStep verschieben
+
+Run Quick Step
+= QuickStep ausführen
+
+Customize This Search Folder
+= Diesen Suchordner anpassen
+
+there are no search folders
+= es gibt keine Suchordner
+
+New Category
+= Neue Kategorie
+
+Rename Category
+= Kategorie umbenennen
+
+Delete Category
+= Kategorie löschen
+
+All Categories
+= Alle Kategorien
+
+List Accounts
+= Konten auflisten
+
+Where Outlook's Favorites Come From
+= Herkunft der Favoriten von Outlook
+
+Suggest Account Settings
+= Kontoeinstellungen vorschlagen
+
+Delete Signature
+= Signatur löschen
+
+no account is connected to a mail server (File › Add Account)
+= kein Konto ist mit einem Mailserver verbunden (Datei › Konto hinzufügen)
+
+Apply Send/Receive
+= Senden/Empfangen übernehmen
+
+shared mailboxes open under an account that signs in with Microsoft at work or school (File › Add Account)
+= freigegebene Postfächer werden unter einem Konto geöffnet, das sich bei Microsoft mit einem Geschäfts- oder Schulkonto anmeldet (Datei › Konto hinzufügen)
+
+no shared mailbox is open
+= kein freigegebenes Postfach ist geöffnet
+
+Calendar Changes to Send
+= Zu sendende Kalenderänderungen
+
+Apply Sent Calendar Changes
+= Gesendete Kalenderänderungen übernehmen
+
+Apply Downloaded Calendar
+= Heruntergeladenen Kalender übernehmen
+
+Apply Downloaded Contacts
+= Heruntergeladene Kontakte übernehmen
+
+Apply Downloaded Calendar List
+= Heruntergeladene Kalenderliste übernehmen
+
+Apply Downloaded Categories
+= Heruntergeladene Kategorien übernehmen
+
+Apply Downloaded Favorites
+= Heruntergeladene Favoriten übernehmen
+
+Forget Downloaded Calendar and Contacts
+= Heruntergeladene Kalender und Kontakte verwerfen
+
+Certificates and Keys
+= Zertifikate und Schlüssel
+
+Trust Center
+= Trust Center
+
+Import Certificate or Key
+= Zertifikat oder Schlüssel importieren
+
+Export Certificate or Key
+= Zertifikat oder Schlüssel exportieren
+
+Remove Certificate or Key
+= Zertifikat oder Schlüssel entfernen
+
+Trust Certificate or Key
+= Zertifikat oder Schlüssel vertrauen
+
+Message Security
+= Nachrichtensicherheit
+
+Security
+= Sicherheit
+
+Email Security Options
+= E-Mail-Sicherheitsoptionen
+
+Show Ribbon Tab
+= Menüband-Registerkarte anzeigen
+
+Ribbon
+= Menüband
+
+Collapse the Ribbon
+= Menüband reduzieren
+
+Open Dialog
+= Dialog öffnen
+
+Close Dialog
+= Dialog schließen
+
+Interface Size
+= Größe der Oberfläche
+
+Cancel Sign-In
+= Anmeldung abbrechen
+
+Cancel Send/Receive
+= Senden/Empfangen abbrechen
+
+Connect Calendar and Contacts
+= Kalender und Kontakte verbinden
+
+Choose How Outlook's Favorites Are Read
+= Wählen, wie die Favoriten von Outlook gelesen werden
+
+Copy a Link for Your Administrator
+= Link für Ihren Administrator kopieren
+
+What to Do When Your Organisation Has to Approve MailCraft
+= Was tun, wenn Ihre Organisation MailCraft genehmigen muss
+
+Copy a Message for My Administrator
+= Nachricht für meinen Administrator kopieren
+
+I'm an Administrator: Approve MailCraft for My Organisation
+= Ich bin Administrator: MailCraft für meine Organisation genehmigen
+
+Try Signing In Again
+= Erneut anmelden
+
+Dismiss Reminder
+= Erinnerung schließen
+
+Snooze Reminders
+= Erinnerungen zurückstellen
+
+Microsoft Application ID
+= Microsoft-Anwendungs-ID
+
+Remember Passwords and Sign-Ins
+= Kennwörter und Anmeldungen speichern
+
+Show Notifications
+= Benachrichtigungen anzeigen
+
+Sender and Subject in Notifications
+= Absender und Betreff in Benachrichtigungen
+
+Insert Picture
+= Bild einfügen
+
+Check Spelling
+= Rechtschreibung prüfen
+
+Expand or Collapse Folder
+= Ordner erweitern oder reduzieren
+
+Open in a Window of Its Own
+= In eigenem Fenster öffnen
+
+Close Window
+= Fenster schließen
+
+Appointment Window
+= Terminfenster
+
+Download Pictures
+= Bilder herunterladen
+
+Always Download Pictures from Sender
+= Bilder von Absender immer herunterladen
+
+Download Pictures in Mail Automatically
+= Bilder in E-Mails automatisch herunterladen
+
+Try Downloading Pictures Again
+= Bilder erneut herunterladen
+
+Clear Downloaded Pictures
+= Heruntergeladene Bilder löschen
+
+Copy Selected Text
+= Ausgewählten Text kopieren
+
+Select All Text in Message
+= Gesamten Text der Nachricht auswählen
+
+Expand or Collapse Calendar Group
+= Kalendergruppe erweitern oder reduzieren
+
+Look for This Meeting on the Calendar
+= Diese Besprechung im Kalender suchen
+
+January
+= Januar
+
+Jan
+= Jan.
+
+February
+= Februar
+
+Feb
+= Feb.
+
+March
+= März
+
+Mar
+= März
+
+April
+= April
+
+Apr
+= Apr.
+
+May
+= Mai
+
+June
+= Juni
+
+Jun
+= Juni
+
+July
+= Juli
+
+Jul
+= Juli
+
+August
+= August
+
+Aug
+= Aug.
+
+September
+= September
+
+Sep
+= Sep.
+
+October
+= Oktober
+
+Oct
+= Okt.
+
+November
+= November
+
+Nov
+= Nov.
+
+December
+= Dezember
+
+Dec
+= Dez.
+
+Monday
+= Montag
+
+Mon
+= Mo
+
+Tuesday
+= Dienstag
+
+Tue
+= Di
+
+Wednesday
+= Mittwoch
+
+Wed
+= Mi
+
+Thursday
+= Donnerstag
+
+Thu
+= Do
+
+Friday
+= Freitag
+
+Fri
+= Fr
+
+Saturday
+= Samstag
+
+Sat
+= Sa
+
+Sunday
+= Sonntag
+
+Sun
+= So
+
+Upcoming
+= Demnächst
+
+Yesterday
+= Gestern
+
+Last Week
+= Letzte Woche
+
+Two Weeks Ago
+= Vor zwei Wochen
+
+Three Weeks Ago
+= Vor drei Wochen
+
+Last Month
+= Letzter Monat
+
+Older
+= Älter
+
+Size
+= Größe
+
+Unread
+= Ungelesen
+
+Flagged
+= Gekennzeichnet
+
+Has Attachments
+= Mit Anlagen
+
+To Me
+= An mich
+
+Active
+= Aktiv
+
+Free
+= Frei
+
+No response
+= Keine Antwort
+
+Accepted
+= Zugesagt
+
+Declined
+= Abgelehnt
+
+Teams
+= Teams
+
+Skype for Business
+= Skype for Business
+
+Skype
+= Skype
+
+Online
+= Online
+
+Microsoft accounts sign in on Microsoft's own page; no password is typed here.
+= Microsoft-Konten melden sich auf der Seite von Microsoft an; hier wird kein Kennwort eingegeben.
+
+This provider wants an app password (made in the account's security settings), not the everyday one.
+= Dieser Anbieter verlangt ein App-Kennwort (erstellt in den Sicherheitseinstellungen des Kontos), nicht das normale.
+
+Gray
+= Grau
+
+Brown
+= Braun
+
+No date
+= Kein Datum
+
+
+# added with the language setting
+Language
+= Sprache
+
+Use system setting ({language})
+= Systemeinstellung verwenden ({language})
+
+Dates, times and numbers are written as the language's region writes them. Translations other than English were machine-written and want a native speaker's review.
+= Datum, Uhrzeit und Zahlen werden so geschrieben, wie es in der Region der Sprache üblich ist. Die Übersetzungen außer Englisch wurden maschinell erstellt und sollten von Muttersprachlern geprüft werden.
+
+Every {n} minutes
+= Alle {n} Minuten
+
+in {n} minute
+= in {n} Minute
+
+{n} minute ago
+= vor {n} Minute
+
+in {n} minutes
+= in {n} Minuten
+
+{n} minutes ago
+= vor {n} Minuten
+
+in {n} hours
+= in {n} Stunden
+
+{n} hours ago
+= vor {n} Stunden
+
+in {n} days
+= in {n} Tagen
+
+{n} days ago
+= vor {n} Tagen
+
+Interface Language
+= Sprache der Oberfläche
+
+
+# handed up by the engine
+Pinned
+= Angeheftet
+
+Encrypted message
+= Verschlüsselte Nachricht
+
+Signed message
+= Signierte Nachricht
+
+On this computer
+= Auf diesem Computer
+
+My Calendars
+= Meine Kalender
+
+Other Calendars
+= Weitere Kalender
+
+
+# the folders every account has
+Inbox
+= Posteingang
+
+Drafts
+= Entwürfe
+
+Sent Items
+= Gesendete Elemente
+
+Deleted Items
+= Gelöschte Elemente
+
+Junk Email
+= Junk-E-Mail
+
+Outbox
+= Postausgang
+
+ribbon tab|Home
+= Start

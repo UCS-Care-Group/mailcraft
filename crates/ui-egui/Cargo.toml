@@ -17,12 +17,20 @@ egui = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 log = { workspace = true }
+zeroize = { workspace = true }
 # Window screenshots for the control channel are saved as PNG.
 image = { workspace = true }
+# The locale the system asks for (the interface language and how dates are written): the
+# system's settings on Windows and macOS, LANG and friends on Unix. MIT OR Apache-2.0, no
+# dependencies of its own on the desktop.
+sys-locale = "0.3"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 # The browser clock (the std clocks panic on wasm32).
 js-sys = "0.3"
+# In the browser the locale is `navigator.language`.
+sys-locale = { version = "0.3", features = ["js"] }
 
 [dev-dependencies]
+proptest = { workspace = true }
 egui_kittest = { workspace = true, features = ["wgpu", "snapshot"] }

@@ -7,7 +7,7 @@
 
 use egui::{Align2, Rect, Sense, Shape, Stroke, Ui, pos2, vec2};
 use mailcraft_engine::{CalView, Filter, Module, Pane, SortBy, TaskFilter};
-use mailcraft_model::{FolderKind, Id, Importance};
+use mailcraft_model::{FolderKind, Freq, Id, Importance};
 use serde_json::{Value, json};
 
 use crate::theme::{Tokens, medium, paint_clipped, regular, semibold};
@@ -130,6 +130,8 @@ pub(crate) enum Menu {
     Theme,
     RibbonLayout,
     TimeScale,
+    QuickSteps,
+    TaskRecurrence,
 }
 
 /// How a control is drawn in the classic layout.
@@ -291,62 +293,64 @@ fn no() -> Value {
 fn home_mail(app: &MailApp) -> Tab {
     let in_junk = app.session.mailbox.folder(app.session.view.folder).is_some_and(|f| f.kind == FolderKind::Junk);
     let junk = if in_junk {
-        Item::small("notJunk", "Not Junk", "Not Junk", "mail.notJunk", no())
+        Item::small("notJunk", tn!("Not Junk"), tn!("Not Junk"), "mail.notJunk", no())
     } else {
-        Item::small("junk", "Junk", "Move to Junk Email", "mail.junk", no())
+        Item::small("junk", tn!("Junk"), tn!("Move to Junk Email"), "mail.junk", no())
     };
     let pinned = app.session.focused_message().is_some_and(|m| m.pinned);
     Tab::of(vec![
         g(
-            "New",
+            tn!("New"),
             vec![
-                Item::big("newMail", "New\nEmail", "mail.new", no()).at(0, 1),
-                Item::big_menu("newItems", "plus", "New\nItems", "New Items", Menu::NewItems).under("mail.new"),
+                Item::big("newMail", tn!("New\nEmail"), "mail.new", no()).at(0, 1),
+                Item::big_menu("newItems", "plus", tn!("New\nItems"), tn!("New Items"), Menu::NewItems).under("mail.new"),
             ],
         ),
         g(
-            "Delete",
+            tn!("Delete"),
             vec![
-                Item::big("delete", "Delete", "mail.delete", no()).at(1, 1).plain(),
-                Item::big("archive", "Archive", "mail.archive", no()).at(1, 2).plain(),
+                Item::big("delete", tn!("Delete"), "mail.delete", no()).at(1, 1).plain(),
+                Item::big("archive", tn!("Archive"), "mail.archive", no()).at(1, 2).plain(),
                 junk.under("mail.delete"),
-                Item::small("deletePermanently", "Delete for Good", "Permanently Delete", "mail.deletePermanently", no()).under("mail.delete"),
+                Item::small("deletePermanently", tn!("Delete for Good"), tn!("Permanently Delete"), "mail.deletePermanently", no())
+                    .under("mail.delete"),
             ],
         ),
         g(
-            "Respond",
+            tn!("Respond"),
             vec![
-                Item::big("reply", "Reply", "mail.reply", no()).at(2, 1).plain(),
-                Item::big("replyAll", "Reply\nAll", "mail.replyAll", no()).at(2, 2).plain(),
-                Item::big("forward", "Forward", "mail.forward", no()).at(2, 2).plain(),
-                Item::small("meeting", "Meeting", "Reply with Meeting", "calendar.fromMessage", no()).at(5, 6),
-                Item::small("newContact", "Add Sender", "Add to Contacts", "people.fromMessage", no()).at(5, 7),
+                Item::big("reply", tn!("Reply"), "mail.reply", no()).at(2, 1).plain(),
+                Item::big("replyAll", tn!("Reply\nAll"), "mail.replyAll", no()).at(2, 2).plain(),
+                Item::big("forward", tn!("Forward"), "mail.forward", no()).at(2, 2).plain(),
+                Item::small("meeting", tn!("Meeting"), tn!("Reply with Meeting"), "calendar.fromMessage", no()).at(5, 6),
+                Item::small("newContact", tn!("Add Sender"), tn!("Add to Contacts"), "people.fromMessage", no()).at(5, 7),
             ],
         ),
         g(
-            "Move",
+            tn!("Move"),
             vec![
-                Item::big_menu("moveMessages", "move", "Move", "Move to Folder", Menu::MoveMessages).at(1, 2).plain(),
-                Item::big_menu("rules", "rules", "Rules", "Rules", Menu::Rules).at(4, 4),
+                Item::big_menu("moveMessages", "move", tn!("Move"), tn!("Move to Folder"), Menu::MoveMessages).at(1, 2).plain(),
+                Item::big_menu("rules", "rules", tn!("Rules"), tn!("Rules"), Menu::Rules).at(4, 4),
+            ],
+        ),
+        g(tn!("Quick Steps"), vec![Item::big_menu("quickSteps", "tick", tn!("Quick\nSteps"), tn!("Quick Steps"), Menu::QuickSteps).at(5, 6)]),
+        g(
+            tn!("Tags"),
+            vec![
+                Item::big("toggleRead", tn!("Unread/\nRead"), "mail.toggleRead", no()).at(3, 3),
+                Item::big_menu("categorize", "categorize", tn!("Categorize"), tn!("Categorize"), Menu::CategorizeMail).at(3, 3).plain(),
+                Item::big_menu("followUp", "flag", tn!("Follow\nUp"), tn!("Follow Up"), Menu::FollowUp).at(3, 3).plain(),
+                Item::small("pin", tn!("Pin"), tn!("Pin to the top of the list"), "mail.pin", no()).checked(pinned).at(5, 5),
             ],
         ),
         g(
-            "Tags",
+            tn!("Find"),
             vec![
-                Item::big("toggleRead", "Unread/\nRead", "mail.toggleRead", no()).at(3, 3),
-                Item::big_menu("categorize", "categorize", "Categorize", "Categorize", Menu::CategorizeMail).at(3, 3).plain(),
-                Item::big_menu("followUp", "flag", "Follow\nUp", "Follow Up", Menu::FollowUp).at(3, 3).plain(),
-                Item::small("pin", "Pin", "Pin to the top of the list", "mail.pin", no()).checked(pinned).at(5, 5),
+                Item::big_menu("filter", "filter", tn!("Filter\nEmail"), tn!("Filter Email"), Menu::FilterMail).at(4, 4),
+                Item::small("findRelated", tn!("Related"), tn!("Find Related Messages"), "mail.findRelated", no()).at(5, 7),
             ],
         ),
-        g(
-            "Find",
-            vec![
-                Item::big_menu("filter", "filter", "Filter\nEmail", "Filter Email", Menu::FilterMail).at(4, 4),
-                Item::small("findRelated", "Related", "Find Related Messages", "mail.findRelated", no()).at(5, 7),
-            ],
-        ),
-        g("Send/Receive", vec![Item::big("sync", "Send/Receive\nAll Folders", "ui.sync", no()).at(5, 5)]),
+        g(tn!("Send/Receive"), vec![Item::big("sync", tn!("Send/Receive\nAll Folders"), "ui.sync", no()).at(5, 5)]),
     ])
 }
 
@@ -361,31 +365,31 @@ fn home_calendar(app: &MailApp) -> Tab {
     // to somebody else's meeting | the rest.
     let mut groups = vec![
         g(
-            "New",
+            tn!("New"),
             vec![
-                Item::big("newAppointment", "New\nAppointment", "calendar.new", no()).at(0, 1),
-                Item::big("newMeeting", "New\nMeeting", "calendar.newMeeting", no()).at(0, 3),
-                Item::big_menu("newItems", "plus", "New\nItems", "New Items", Menu::NewItems).under("calendar.new"),
+                Item::big("newAppointment", tn!("New\nAppointment"), "calendar.new", no()).at(0, 1),
+                Item::big("newMeeting", tn!("New\nMeeting"), "calendar.newMeeting", no()).at(0, 3),
+                Item::big_menu("newItems", "plus", tn!("New\nItems"), tn!("New Items"), Menu::NewItems).under("calendar.new"),
             ],
         ),
         g(
-            "Go To",
+            tn!("Go To"),
             vec![
-                Item::big("today", "Today", "view.today", no()).at(1, 3),
-                Item::big("week", "Next 7\nDays", "view.next7Days", no()).at(1, 4),
+                Item::big("today", tn!("Today"), "view.today", no()).at(1, 3),
+                Item::big("week", tn!("Next 7\nDays"), "view.next7Days", no()).at(1, 4),
                 // (Back and Forward are in the calendar's own header: in the row they are under Today.)
-                Item::small("previous", "Back", "Back", "view.previous", no()).under("view.today"),
-                Item::small("next", "Forward", "Forward", "view.next", no()).under("view.today"),
-                Item::small("calendar", "Go to Date", "Go to Date", "view.goToDate", no()).under("view.today"),
+                Item::small("previous", tn!("Back"), tn!("Back"), "view.previous", no()).under("view.today"),
+                Item::small("next", tn!("Forward"), tn!("Forward"), "view.next", no()).under("view.today"),
+                Item::small("calendar", tn!("Go to Date"), tn!("Go to Date"), "view.goToDate", no()).under("view.today"),
             ],
         ),
         g(
-            "Arrange",
+            tn!("Arrange"),
             vec![
-                Item::big("day", "Day", "view.day", no()).checked(cur == CalView::Day).at(2, 2),
-                Item::big("workWeek", "Work\nWeek", "view.workWeek", no()).checked(cur == CalView::WorkWeek).at(2, 2),
-                Item::big("week", "Week", "view.week", no()).checked(cur == CalView::Week).at(2, 2),
-                Item::big("month", "Month", "view.month", no()).checked(cur == CalView::Month).at(2, 2),
+                Item::big("day", tn!("Day"), "view.day", no()).checked(cur == CalView::Day).at(2, 2),
+                Item::big("workWeek", tn!("Work\nWeek"), "view.workWeek", no()).checked(cur == CalView::WorkWeek).at(2, 2),
+                Item::big("week", tn!("Week"), "view.week", no()).checked(cur == CalView::Week).at(2, 2),
+                Item::big("month", tn!("Month"), "view.month", no()).checked(cur == CalView::Month).at(2, 2),
             ],
         ),
     ];
@@ -396,29 +400,29 @@ fn home_calendar(app: &MailApp) -> Tab {
         let (high, low) = (event.importance == Importance::High, event.importance == Importance::Low);
         let matters = |on: bool, value: &str| json!({"value": if on { "normal" } else { value }});
         let mut items = vec![
-            Item::big("edit", "Open", "calendar.edit", no()).at(3, 5),
-            Item::big("delete", "Delete", "calendar.delete", no()).at(3, 5).plain(),
-            Item::small("forward", "Forward", "Forward", "calendar.forward", no()).at(3, 7).plain(),
-            Item::small_menu("showAs", "showAs", "Show As", "Show As", Menu::ShowAs).at(3, 6),
-            Item::small_menu("reminder", "reminder", "Reminder", "Reminder", Menu::Reminder).at(3, 6),
-            Item::small("private", "Private", "Private", "calendar.private", no()).checked(private).at(3, 6),
-            Item::small("importanceHigh", "High Importance", "High Importance", "calendar.importance", matters(high, "high"))
+            Item::big("edit", tn!("Open"), "calendar.edit", no()).at(3, 5),
+            Item::big("delete", tn!("Delete"), "calendar.delete", no()).at(3, 5).plain(),
+            Item::small("forward", tn!("Forward"), tn!("Forward"), "calendar.forward", no()).at(3, 7).plain(),
+            Item::small_menu("showAs", "showAs", tn!("Show As"), tn!("Show As"), Menu::ShowAs).at(3, 6),
+            Item::small_menu("reminder", "reminder", tn!("Reminder"), tn!("Reminder"), Menu::Reminder).at(3, 6),
+            Item::small("private", tn!("Private"), tn!("Private"), "calendar.private", no()).checked(private).at(3, 6),
+            Item::small("importanceHigh", tn!("High Importance"), tn!("High Importance"), "calendar.importance", matters(high, "high"))
                 .key("calendar.importanceHigh")
                 .checked(high)
                 .at(3, 7)
                 .plain(),
-            Item::small("importanceLow", "Low Importance", "Low Importance", "calendar.importance", matters(low, "low"))
+            Item::small("importanceLow", tn!("Low Importance"), tn!("Low Importance"), "calendar.importance", matters(low, "low"))
                 .key("calendar.importanceLow")
                 .checked(low)
                 .at(3, 7)
                 .plain(),
-            Item::big_menu("categorize", "categorize", "Categorize", "Categorize", Menu::CategorizeEvent).at(3, 5).plain(),
+            Item::big_menu("categorize", "categorize", tn!("Categorize"), tn!("Categorize"), Menu::CategorizeEvent).at(3, 5).plain(),
         ];
         // An online meeting that has a link to join by.
         if event.join_link().is_some() {
-            items.insert(2, Item::small("joinMeeting", "Join", "Join Online Meeting", "ui.joinMeeting", no()).at(3, 4));
+            items.insert(2, Item::small("joinMeeting", tn!("Join"), tn!("Join Online Meeting"), "ui.joinMeeting", no()).at(3, 4));
         }
-        groups.push(g("Appointment", items));
+        groups.push(g(tn!("Appointment"), items));
         if crate::calendar_view::invitation(app, event).0 {
             let mut answers = vec![
                 respond("accept", "Accept", "calendar.accept", "accepted"),
@@ -429,12 +433,12 @@ fn home_calendar(app: &MailApp) -> Tab {
             // its organizer takes proposals.
             let kept = mailcraft_engine::cmd::remote::keeper(&app.session.mailbox, &event.origin).is_some();
             if kept && event.origin.guest && event.response_options.allow_proposals {
-                answers.push(Item::small("proposeTime", "Propose New Time", "Propose New Time", "calendar.propose", no()).at(4, 5));
+                answers.push(Item::small("proposeTime", tn!("Propose New Time"), tn!("Propose New Time"), "calendar.propose", no()).at(4, 5));
             }
-            groups.push(g("Respond", answers));
+            groups.push(g(tn!("Respond"), answers));
         }
     }
-    groups.push(g("Share", vec![Item::big("export", "Save\nCalendar", "file.exportCalendar", no()).at(5, 6)]));
+    groups.push(g(tn!("Share"), vec![Item::big("export", tn!("Save\nCalendar"), "file.exportCalendar", no()).at(5, 6)]));
     Tab::of(groups)
 }
 
@@ -442,27 +446,28 @@ fn home_people(app: &MailApp) -> Tab {
     let favorite = app.session.sel.contact.and_then(|id| app.session.mailbox.contact(id)).is_some_and(|c| c.favorite);
     Tab::of(vec![
         g(
-            "New",
+            tn!("New"),
             vec![
-                Item::big("newContact", "New\nContact", "people.new", no()).at(0, 1),
-                Item::big_menu("newItems", "plus", "New\nItems", "New Items", Menu::NewItems).under("people.new"),
+                Item::big("newContact", tn!("New\nContact"), "people.new", no()).at(0, 1),
+                Item::big("people", tn!("New Contact\nGroup"), "people.newGroup", no()).at(0, 2),
+                Item::big_menu("newItems", "plus", tn!("New\nItems"), tn!("New Items"), Menu::NewItems).under("people.new"),
             ],
         ),
-        g("Delete", vec![Item::big("delete", "Delete", "people.delete", no()).at(1, 2).plain()]),
-        g("Communicate", vec![Item::big("mail", "Email", "people.email", no()).at(2, 2)]),
+        g(tn!("Delete"), vec![Item::big("delete", tn!("Delete"), "people.delete", no()).at(1, 2).plain()]),
+        g(tn!("Communicate"), vec![Item::big("mail", tn!("Email"), "people.email", no()).at(2, 2)]),
         g(
-            "Actions",
+            tn!("Actions"),
             vec![
-                Item::big("edit", "Edit\nContact", "people.edit", no()).at(3, 2),
-                Item::big(if favorite { "starOn" } else { "star" }, "Favorite", "people.favorite", no()).checked(favorite).at(3, 3),
-                Item::big_menu("categorize", "categorize", "Categorize", "Categorize", Menu::CategorizeContact).at(3, 3).plain(),
+                Item::big("edit", tn!("Edit\nContact"), "people.edit", no()).at(3, 2),
+                Item::big(if favorite { "starOn" } else { "star" }, tn!("Favorite"), "people.favorite", no()).checked(favorite).at(3, 3),
+                Item::big_menu("categorize", "categorize", tn!("Categorize"), tn!("Categorize"), Menu::CategorizeContact).at(3, 3).plain(),
             ],
         ),
         g(
-            "Share",
+            tn!("Share"),
             vec![
-                Item::big("export", "Export\nContacts", "file.exportContacts", no()).at(4, 5),
-                Item::big("import", "Import", "ui.import", no()).at(4, 5),
+                Item::big("export", tn!("Export\nContacts"), "file.exportContacts", no()).at(4, 5),
+                Item::big("import", tn!("Import"), "ui.import", no()).at(4, 5),
             ],
         ),
     ])
@@ -471,6 +476,7 @@ fn home_people(app: &MailApp) -> Tab {
 fn home_tasks(app: &MailApp) -> Tab {
     let task = app.session.sel.task.and_then(|id| app.session.mailbox.task(id));
     let done = task.is_some_and(|x| x.is_complete());
+    let repeats = task.is_some_and(|x| x.recurrence.is_some());
     let importance = task.map(|x| x.importance);
     let today = app.session.today();
     let to_friday = (4 - i64::from(today.weekday().index())).max(0);
@@ -481,24 +487,25 @@ fn home_tasks(app: &MailApp) -> Tab {
     };
     Tab::of(vec![
         g(
-            "New",
+            tn!("New"),
             vec![
-                Item::big("newTask", "New\nTask", "tasks.new", no()).at(0, 1),
-                Item::big_menu("newItems", "plus", "New\nItems", "New Items", Menu::NewItems).under("tasks.new"),
+                Item::big("newTask", tn!("New\nTask"), "tasks.new", no()).at(0, 1),
+                Item::big_menu("newItems", "plus", tn!("New\nItems"), tn!("New Items"), Menu::NewItems).under("tasks.new"),
             ],
         ),
-        g("Delete", vec![Item::big("delete", "Delete", "tasks.delete", no()).at(1, 2).plain()]),
+        g(tn!("Delete"), vec![Item::big("delete", tn!("Delete"), "tasks.delete", no()).at(1, 2).plain()]),
         g(
-            "Manage Task",
+            tn!("Manage Task"),
             vec![
-                Item::big("complete", "Mark\nComplete", "tasks.complete", no()).checked(done).at(2, 2),
-                Item::big("edit", "Edit\nTask", "tasks.edit", no()).at(2, 3),
+                Item::big("complete", tn!("Mark\nComplete"), "tasks.complete", no()).checked(done).at(2, 2),
+                Item::big("edit", tn!("Edit\nTask"), "tasks.edit", no()).at(2, 3),
+                Item::big_menu("recurrence", "recurrence", tn!("Recurrence"), tn!("Recurrence"), Menu::TaskRecurrence).checked(repeats).at(2, 4),
             ],
         ),
         g(
-            "Follow Up",
+            tn!("Follow Up"),
             vec![
-                Item::gather("followUp", "flag", "Follow Up").at(3, 3).plain(),
+                Item::gather("followUp", "flag", tn!("Follow Up")).at(3, 3).plain(),
                 due("flag", "Today", "Due today", "tasks.due.today", json!(today.iso())),
                 due("flag", "Tomorrow", "Due tomorrow", "tasks.due.tomorrow", json!(today.add_days(1).iso())),
                 due("flag", "This Week", "Due this week", "tasks.due.thisWeek", json!(today.add_days(to_friday).iso())),
@@ -507,46 +514,95 @@ fn home_tasks(app: &MailApp) -> Tab {
             ],
         ),
         g(
-            "Tags",
+            tn!("Tags"),
             vec![
-                Item::big_menu("categorize", "categorize", "Categorize", "Categorize", Menu::CategorizeTask).at(3, 4).plain(),
+                Item::big_menu("categorize", "categorize", tn!("Categorize"), tn!("Categorize"), Menu::CategorizeTask).at(3, 4).plain(),
                 weight("highImportance", "High Importance", "tasks.importance.high", Importance::High, "high"),
                 weight("lowImportance", "Low Importance", "tasks.importance.low", Importance::Low, "low"),
             ],
         ),
-        g("Current View", vec![Item::big_menu("filter", "filter", "Filter", "Filter Tasks", Menu::FilterTasks).at(4, 4)]),
+        g(tn!("Current View"), vec![Item::big_menu("filter", "filter", tn!("Filter"), tn!("Filter Tasks"), Menu::FilterTasks).at(4, 4)]),
     ])
 }
 
 fn message(app: &MailApp) -> Tab {
     let importance = app.session.compose.as_ref().map(|c| c.importance);
+    let (read_receipt, delivery_receipt, delayed) =
+        app.session.compose.as_ref().map_or((false, false, false), |c| (c.read_receipt, c.delivery_receipt, c.deliver_after.is_some()));
+    let (sign, encrypt) = app.session.compose.as_ref().map_or((false, false), |c| (c.sign, c.encrypt));
+    let format = app.session.compose.as_ref().map(mailcraft_engine::cmd::format::state).unwrap_or_default();
     Tab::of(vec![
-        g("Send", vec![Item::big("send", "Send", "compose.send", no()).at(0, 1)]),
-        g("Names", vec![Item::big("checkNames", "Check\nNames", "compose.checkNames", no()).at(2, 4)]),
+        g(tn!("Send"), vec![Item::big("send", tn!("Send"), "compose.send", no()).at(0, 1)]),
+        g(tn!("Names"), vec![Item::big("checkNames", tn!("Check\nNames"), "compose.checkNames", no()).at(2, 4)]),
         g(
-            "Include",
+            tn!("Basic Text"),
             vec![
-                Item::big("attach", "Attach\nFile", "ui.attach", no()).at(1, 2),
-                Item::big_menu("signature", "signature", "Signature", "Signature", Menu::Signature).at(1, 3),
+                Item::small("bold", tn!("Bold"), tn!("Bold"), "format.bold", no()).checked(format.bold).at(1, 5).plain(),
+                Item::small("italic", tn!("Italic"), tn!("Italic"), "format.italic", no()).checked(format.italic).at(1, 5).plain(),
+                Item::small("underline", tn!("Underline"), tn!("Underline"), "format.underline", no()).checked(format.underline).at(1, 5).plain(),
+                Item::small("bullets", tn!("Bullets"), tn!("Bullets"), "format.bullets", no()).checked(format.bullets).at(1, 6).plain(),
+                Item::small("numbering", tn!("Numbering"), tn!("Numbering"), "format.numbering", no()).checked(format.numbering).at(1, 6).plain(),
+                Item::small("clearFormatting", tn!("Clear Formatting"), tn!("Clear All Formatting"), "format.clear", no()).at(1, 7).plain(),
             ],
         ),
         g(
-            "Tags",
+            tn!("Include"),
             vec![
-                Item::small("highImportance", "High Importance", "High Importance", "compose.highImportance", no())
+                Item::big("attach", tn!("Attach\nFile"), "ui.attach", no()).at(1, 2),
+                Item::big("picture", tn!("Pictures"), "ui.insertPicture", no()).at(1, 4),
+                Item::big_menu("signature", "signature", tn!("Signature"), tn!("Signature"), Menu::Signature).at(1, 3),
+            ],
+        ),
+        g(
+            tn!("Tags"),
+            vec![
+                Item::small("highImportance", tn!("High Importance"), tn!("High Importance"), "compose.highImportance", no())
                     .checked(importance == Some(Importance::High))
                     .at(3, 4),
-                Item::small("lowImportance", "Low Importance", "Low Importance", "compose.lowImportance", no())
+                Item::small("lowImportance", tn!("Low Importance"), tn!("Low Importance"), "compose.lowImportance", no())
                     .checked(importance == Some(Importance::Low))
                     .at(3, 4),
             ],
         ),
         g(
-            "Draft",
+            tn!("Encrypt"),
             vec![
-                Item::big("saveDraft", "Save\nDraft", "compose.saveDraft", no()).at(4, 2),
-                Item::big("discard", "Discard", "compose.discard", no()).at(4, 3).plain(),
-                Item::big("close", "Close", "compose.close", no()).at(4, 3),
+                Item::small(
+                    "encrypt",
+                    tn!("Encrypt"),
+                    tn!("Encrypt the message so only its recipients can read it (S/MIME or OpenPGP)"),
+                    "compose.encrypt",
+                    no(),
+                )
+                .checked(encrypt)
+                .at(3, 5),
+                Item::small(
+                    "sign",
+                    tn!("Sign"),
+                    tn!("Sign the message so its recipients can tell it is from you and unchanged"),
+                    "compose.sign",
+                    no(),
+                )
+                .checked(sign)
+                .at(3, 5),
+            ],
+        ),
+        g(
+            tn!("Options"),
+            vec![
+                Item::small("check", tn!("Read Receipt"), tn!("Request a Read Receipt"), "compose.readReceipt", no()).checked(read_receipt).at(3, 6),
+                Item::small("sent", tn!("Delivery Receipt"), tn!("Request a Delivery Receipt"), "compose.deliveryReceipt", no())
+                    .checked(delivery_receipt)
+                    .at(3, 6),
+                Item::small("clock", tn!("Delay Delivery"), tn!("Do not deliver before…"), "compose.delay", no()).checked(delayed).at(3, 6),
+            ],
+        ),
+        g(
+            tn!("Draft"),
+            vec![
+                Item::big("saveDraft", tn!("Save\nDraft"), "compose.saveDraft", no()).at(4, 2),
+                Item::big("discard", tn!("Discard"), "compose.discard", no()).at(4, 3).plain(),
+                Item::big("close", tn!("Close"), "compose.close", no()).at(4, 3),
             ],
         ),
     ])
@@ -562,12 +618,14 @@ fn send_receive(app: &MailApp) -> Tab {
     };
     Tab {
         groups: vec![
-            g("Send & Receive", vec![Item::big("sync", "Send/Receive\nAll Folders", "ui.sync", no()).at(0, 1)]),
+            g(tn!("Send & Receive"), vec![Item::big("sync", tn!("Send/Receive\nAll Folders"), "ui.sync", no()).at(0, 1)]),
             g(
-                "Accounts",
+                tn!("Accounts"),
                 vec![
-                    Item::big("account", "Add\nAccount", "ui.dialog", json!({"name": "account"})).key("account.add").at(1, 2),
-                    Item::big("info", "Account\nSettings", "ui.backstage", json!({"value": true, "page": "info"})).key("account.settings").at(1, 2),
+                    Item::big("account", tn!("Add\nAccount"), "ui.dialog", json!({"name": "account"})).key("account.add").at(1, 2),
+                    Item::big("info", tn!("Account\nSettings"), "ui.backstage", json!({"value": true, "page": "info"}))
+                        .key("account.settings")
+                        .at(1, 2),
                 ],
             ),
         ],
@@ -580,25 +638,31 @@ fn folder(app: &MailApp) -> Tab {
     // (As the folder pane lists it: by Outlook's own list where an account has one.)
     let favorite = mailcraft_engine::cmd::folder::favorites(&app.session).contains(&app.session.view.folder);
     Tab::of(vec![
-        g("New", vec![Item::big("folderNew", "New\nFolder", "folder.new", no()).at(0, 1)]),
         g(
-            "Actions",
+            tn!("New"),
             vec![
-                Item::big("rename", "Rename\nFolder", "folder.rename", no()).at(1, 2),
-                Item::big_menu("moveFolder", "move", "Move\nFolder", "Move Folder", Menu::MoveFolder).at(1, 2),
-                Item::big("delete", "Delete\nFolder", "folder.delete", no()).at(1, 2),
+                Item::big("folderNew", tn!("New\nFolder"), "folder.new", no()).at(0, 1),
+                Item::big("search", tn!("New Search\nFolder"), "folder.newSearchFolder", no()).at(0, 2),
             ],
         ),
         g(
-            "Clean Up",
+            tn!("Actions"),
             vec![
-                Item::big("markAllRead", "Mark All\nas Read", "mail.markAllRead", no()).at(2, 3),
-                Item::big("rules", "Run Rules\nNow", "rules.run", no()).at(2, 4),
-                Item::big("empty", "Empty\nFolder", "folder.empty", no()).at(2, 4),
+                Item::big("rename", tn!("Rename\nFolder"), "folder.rename", no()).at(1, 2),
+                Item::big_menu("moveFolder", "move", tn!("Move\nFolder"), tn!("Move Folder"), Menu::MoveFolder).at(1, 2),
+                Item::big("delete", tn!("Delete\nFolder"), "folder.delete", no()).at(1, 2),
             ],
         ),
         g(
-            "Favorites",
+            tn!("Clean Up"),
+            vec![
+                Item::big("markAllRead", tn!("Mark All\nas Read"), "mail.markAllRead", no()).at(2, 3),
+                Item::big("rules", tn!("Run Rules\nNow"), "rules.run", no()).at(2, 4),
+                Item::big("empty", tn!("Empty\nFolder"), "folder.empty", no()).at(2, 4),
+            ],
+        ),
+        g(
+            tn!("Favorites"),
             vec![
                 Item::big(
                     if favorite { "starOn" } else { "star" },
@@ -611,10 +675,10 @@ fn folder(app: &MailApp) -> Tab {
             ],
         ),
         g(
-            "Export",
+            tn!("Export"),
             vec![
-                Item::big("export", "Export\nFolder", "file.exportFolder", no()).at(4, 5),
-                Item::big("import", "Import", "ui.import", no()).at(4, 5),
+                Item::big("export", tn!("Export\nFolder"), "file.exportFolder", no()).at(4, 5),
+                Item::big("import", tn!("Import"), "ui.import", no()).at(4, 5),
             ],
         ),
     ])
@@ -626,11 +690,11 @@ fn view(app: &MailApp) -> Tab {
     if v.module == Module::Calendar {
         // The calendar's own: what a row of its hours stands for, and whether the calendars that
         // are shown lie over one another or stand side by side.
-        let scale = Item::big_menu("timeScale", "clock", "Time\nScale", "Time Scale", Menu::TimeScale).at(2, 3);
+        let scale = Item::big_menu("timeScale", "clock", tn!("Time\nScale"), tn!("Time Scale"), Menu::TimeScale).at(2, 3);
         let over = mailcraft_engine::cmd::calendar_settings::overlaid(&app.session);
-        let overlay = Item::big("copy", "Overlay", "view.overlay", no()).checked(over).at(2, 3);
-        let beside = Item::big("readingPane", "Side-by-\nSide", "view.sideBySide", no()).at(2, 3);
-        tab.groups.insert(tab.groups.len().min(3), g("Calendar", vec![scale, overlay, beside]));
+        let overlay = Item::big("copy", tn!("Overlay"), "view.overlay", no()).checked(over).at(2, 3);
+        let beside = Item::big("readingPane", tn!("Side-by-\nSide"), "view.sideBySide", no()).at(2, 3);
+        tab.groups.insert(tab.groups.len().min(3), g(tn!("Calendar"), vec![scale, overlay, beside]));
     }
     tab
 }
@@ -640,33 +704,34 @@ fn view_of_any(app: &MailApp) -> Tab {
     let v = &app.session.view;
     Tab::of(vec![
         g(
-            "Layout",
+            tn!("Layout"),
             vec![
-                Item::big("folderPane", "Folder\nPane", "view.folderPane", no()).checked(v.folder_pane).at(0, 1),
-                Item::big_menu("readingPane", "readingPane", "Reading\nPane", "Reading Pane", Menu::ReadingPane).at(0, 2),
-                Item::big_menu("ribbonLayout", "ribbon", "Ribbon\nLayout", "Ribbon Layout", Menu::RibbonLayout).at(3, 4),
+                Item::big("folderPane", tn!("Folder\nPane"), "view.folderPane", no()).checked(v.folder_pane).at(0, 1),
+                Item::big_menu("readingPane", "readingPane", tn!("Reading\nPane"), tn!("Reading Pane"), Menu::ReadingPane).at(0, 2),
+                Item::big("tasks", tn!("To-Do\nBar"), "view.todoBar", no()).checked(v.todo_bar).at(0, 3),
+                Item::big_menu("ribbonLayout", "ribbon", tn!("Ribbon\nLayout"), tn!("Ribbon Layout"), Menu::RibbonLayout).at(3, 4),
             ],
         ),
         g(
-            "Messages",
+            tn!("Messages"),
             vec![
-                Item::big("conversations", "Show as\nConversations", "view.conversations", no()).checked(v.conversations).at(1, 2),
-                Item::big_menu("preview", "previewLines", "Message\nPreview", "Message Preview", Menu::Preview).at(1, 3),
+                Item::big("conversations", tn!("Show as\nConversations"), "view.conversations", no()).checked(v.conversations).at(1, 2),
+                Item::big_menu("preview", "previewLines", tn!("Message\nPreview"), tn!("Message Preview"), Menu::Preview).at(1, 3),
             ],
         ),
         g(
-            "Arrangement",
+            tn!("Arrangement"),
             vec![
-                Item::big_menu("arrangeBy", "sort", "Arrange\nBy", "Arrange By", Menu::ArrangeBy).at(2, 2),
-                Item::big("reverseSort", "Reverse\nSort", "view.reverseSort", no()).at(2, 3),
+                Item::big_menu("arrangeBy", "sort", tn!("Arrange\nBy"), tn!("Arrange By"), Menu::ArrangeBy).at(2, 2),
+                Item::big("reverseSort", tn!("Reverse\nSort"), "view.reverseSort", no()).at(2, 3),
             ],
         ),
         g(
-            "Window",
+            tn!("Window"),
             vec![
-                Item::big_menu("theme", "theme", "Theme", "Interface Theme", Menu::Theme).at(3, 3),
-                Item::big("bell", "Reminders\nWindow", "view.reminders", no()).at(3, 4),
-                Item::big("reset", "Reset\nView", "view.reset", no()).at(3, 5),
+                Item::big_menu("theme", "theme", tn!("Theme"), tn!("Interface Theme"), Menu::Theme).at(3, 3),
+                Item::big("bell", tn!("Reminders\nWindow"), "view.reminders", no()).at(3, 4),
+                Item::big("reset", tn!("Reset\nView"), "view.reset", no()).at(3, 5),
             ],
         ),
     ])
@@ -675,13 +740,15 @@ fn view_of_any(app: &MailApp) -> Tab {
 fn help() -> Tab {
     Tab {
         groups: vec![g(
-            "Help",
+            tn!("Help"),
             vec![
-                Item::big("search", "Search\nCommands", "ui.dialog", json!({"name": "commands"})).key("help.commands").at(0, 1),
-                Item::big("about", "About\nMailCraft", "ui.dialog", json!({"name": "about"})).key("help.about").at(0, 2),
+                Item::big("search", tn!("Search\nCommands"), "ui.dialog", json!({"name": "commands"})).key("help.commands").at(0, 1),
+                Item::big("about", tn!("About\nMailCraft"), "ui.dialog", json!({"name": "about"})).key("help.about").at(0, 2),
             ],
         )],
-        note: "MailCraft is open source (MIT or Apache-2.0). Every button here runs a command that scripts and agents can run too: see Search Commands.",
+        note: tn!(
+            "MailCraft is open source (MIT or Apache-2.0). Every button here runs a command that scripts and agents can run too: see Search Commands."
+        ),
         note_width: 420.0,
     }
 }
@@ -734,7 +801,7 @@ pub fn category_menu(ui: &mut Ui, app: &mut MailApp, command: &str, has: impl Fn
     }
     if let Some(clear) = clear {
         ui.separator();
-        mi(ui, app, "Clear All Categories", clear, json!({}));
+        mi(ui, app, tn!("Clear All Categories"), clear, json!({}));
     }
     ui.separator();
     if ui.add(egui::Button::new(tl!("All Categories…")).min_size(vec2(190.0, 0.0))).clicked() {
@@ -744,13 +811,13 @@ pub fn category_menu(ui: &mut Ui, app: &mut MailApp, command: &str, has: impl Fn
 }
 
 fn new_items(ui: &mut Ui, app: &mut MailApp) {
-    mi(ui, app, "Email Message", "mail.new", json!({}));
-    mi(ui, app, "Appointment", "calendar.new", json!({}));
-    mi(ui, app, "Meeting", "calendar.newMeeting", json!({}));
-    mi(ui, app, "Contact", "people.new", json!({}));
-    mi(ui, app, "Task", "tasks.new", json!({}));
+    mi(ui, app, tn!("Email Message"), "mail.new", json!({}));
+    mi(ui, app, tn!("Appointment"), "calendar.new", json!({}));
+    mi(ui, app, tn!("Meeting"), "calendar.newMeeting", json!({}));
+    mi(ui, app, tn!("Contact"), "people.new", json!({}));
+    mi(ui, app, tn!("Task"), "tasks.new", json!({}));
     ui.separator();
-    mi(ui, app, "Folder…", "folder.new", json!({}));
+    mi(ui, app, tn!("Folder…"), "folder.new", json!({}));
 }
 
 /// A menu item that isn't a command of its own: `true` when it is chosen.
@@ -790,7 +857,7 @@ fn menu_contents(ui: &mut Ui, app: &mut MailApp, menu: Menu) {
                 });
                 ui.separator();
             }
-            mi(ui, app, "Run Rules Now", "rules.run", json!({}));
+            mi(ui, app, tn!("Run Rules Now"), "rules.run", json!({}));
             if plain_item(ui, tl!("Manage Rules…")) {
                 let _ = app.run("ui.dialog", json!({"name": "rules"}));
             }
@@ -811,12 +878,12 @@ fn menu_contents(ui: &mut Ui, app: &mut MailApp, menu: Menu) {
             for (label, days) in [("Today", 0), ("Tomorrow", 1), ("This Week", 4 - weekday), ("Next Week", 11 - weekday)] {
                 mi(ui, app, label, "mail.flag", json!({"due": today.add_days(days.max(0)).iso()}));
             }
-            mi(ui, app, "No Date", "mail.flag", json!({}));
+            mi(ui, app, tn!("No Date"), "mail.flag", json!({}));
             ui.separator();
-            mi(ui, app, "Mark Complete", "mail.complete", json!({}));
-            mi(ui, app, "Clear Flag", "mail.clearFlag", json!({}));
+            mi(ui, app, tn!("Mark Complete"), "mail.complete", json!({}));
+            mi(ui, app, tn!("Clear Flag"), "mail.clearFlag", json!({}));
             ui.separator();
-            mi(ui, app, "Add to Tasks", "tasks.fromMessage", json!({}));
+            mi(ui, app, tn!("Add to Tasks"), "tasks.fromMessage", json!({}));
         }
         Menu::FilterMail => {
             let filter = app.session.view.filter;
@@ -832,9 +899,9 @@ fn menu_contents(ui: &mut Ui, app: &mut MailApp, menu: Menu) {
         }
         Menu::Reminder => {
             let cur = app.session.sel.event.and_then(|id| app.session.mailbox.event(id)).and_then(|e| e.reminder_minutes);
-            mi_check(ui, app, "None", cur.is_none(), "calendar.reminder", json!({"minutes": null}));
+            mi_check(ui, app, tn!("None"), cur.is_none(), "calendar.reminder", json!({"minutes": null}));
             for m in [0u32, 5, 10, 15, 30, 60, 120, 1440] {
-                let label = if m == 0 { tl!("At start time").to_string() } else { mailcraft_time::duration_label(i64::from(m)) };
+                let label = if m == 0 { tl!("At start time").to_string() } else { crate::i18n::duration(i64::from(m)) };
                 mi_check(ui, app, &label, cur == Some(m), "calendar.reminder", json!({"minutes": m}));
             }
         }
@@ -921,6 +988,36 @@ fn menu_contents(ui: &mut Ui, app: &mut MailApp, menu: Menu) {
             }
         }
         Menu::TimeScale => crate::calendar_view::time_scale_menu(ui, app),
+        Menu::QuickSteps => {
+            let steps: Vec<(Id, String, String)> = app.session.mailbox.quick_steps.iter().map(|q| (q.id, q.name.clone(), q.describe())).collect();
+            let chosen = !app.session.sel.messages.is_empty();
+            for (id, name, text) in &steps {
+                let shown: String = name.chars().filter(|c| !c.is_control()).take(60).collect();
+                if ui.add_enabled(chosen, egui::Button::new(shown).min_size(vec2(190.0, 0.0))).on_hover_text(text.as_str()).clicked() {
+                    let _ = app.run("quickSteps.run", json!({"step": id}));
+                    ui.close();
+                }
+            }
+            if !steps.is_empty() {
+                ui.separator();
+            }
+            mi(ui, app, tn!("Reply and Delete"), "mail.replyAndDelete", json!({}));
+            ui.separator();
+            if plain_item(ui, tl!("New Quick Step…")) {
+                let _ = app.run("ui.dialog", json!({"name": "quickStep"}));
+            }
+            if plain_item(ui, tl!("Manage Quick Steps…")) {
+                let _ = app.run("ui.dialog", json!({"name": "quickSteps"}));
+            }
+        }
+        Menu::TaskRecurrence => {
+            let rule = app.session.sel.task.and_then(|id| app.session.mailbox.task(id)).and_then(|t| t.recurrence.clone());
+            let freq = rule.as_ref().filter(|r| r.interval <= 1 && r.by_day.is_empty() && r.nth.is_none()).map(|r| r.freq);
+            mi_check(ui, app, tn!("Doesn't Repeat"), rule.is_none(), "tasks.recurrence", json!({"recurrence": null}));
+            for (label, f) in [("Daily", Freq::Daily), ("Weekly", Freq::Weekly), ("Monthly", Freq::Monthly), ("Yearly", Freq::Yearly)] {
+                mi_check(ui, app, label, freq == Some(f), "tasks.recurrence", json!({"recurrence": {"freq": f.code()}}));
+            }
+        }
     }
 }
 
@@ -1309,10 +1406,10 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
         .show_separator_line(false)
         .frame(egui::Frame::NONE.fill(t.tab_strip).inner_margin(egui::Margin { left: 3, right: 10, top: 0, bottom: 0 }))
         .show(ui, |ui| {
-            ui.horizontal_centered(|ui| {
+            ui.with_layout(crate::i18n::row_layout(egui::Align::Center), |ui| {
                 ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
                 for tab in &tabs {
-                    let shown = tl!(tab);
+                    let shown = crate::i18n::tab(tab);
                     let active = app.ui.tab == *tab && !app.ui.backstage;
                     // As wide as its name in the heavier weight, so a tab keeps its place when chosen.
                     let text_w = ui.ctx().fonts_mut(|f| f.layout_no_wrap(shown.to_string(), semibold(TAB_SIZE), t.text).size().x);
@@ -1336,7 +1433,7 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
                         let _ = app.run("ui.collapseRibbon", json!({}));
                     }
                 }
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                ui.with_layout(crate::i18n::end_layout(egui::Align::Center), |ui| {
                     // Search every command by name ("Tell me").
                     if crate::widgets::icon_text_button(ui, "search", tl!("Search commands"), true).clicked() {
                         let _ = app.run("ui.dialog", json!({"name": "commands"}));
@@ -1370,6 +1467,8 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
             match mode {
                 Mode::Classic => {
                     egui::ScrollArea::horizontal().scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysHidden).show(ui, |ui| {
+                        // (Left to right in every language: a row that runs from the right has no
+                        // end to start from in a scrolling area.)
                         ui.horizontal_top(|ui| {
                             ui.spacing_mut().item_spacing = vec2(2.0, 2.0);
                             classic(app, ui, &t, &tab);
@@ -1603,7 +1702,7 @@ mod tests {
             let item = Item::big("mail", key, key, json!({})).at(section, rank);
             if plain { item.plain() } else { item }
         };
-        let tab = Tab::of(vec![g("All", vec![item("a", 0, 1, false), item("b", 1, 1, true), item("c", 1, 3, false), item("d", 2, 5, false)])]);
+        let tab = Tab::of(vec![g(tn!("All"), vec![item("a", 0, 1, false), item("b", 1, 1, true), item("c", 1, 3, false), item("d", 2, 5, false)])]);
         let buttons = row(&tab);
         let width = |_: usize, labelled: bool| if labelled { 100.0 } else { 40.0 };
         let at = |available: f32| plan(&buttons, &width, available);
@@ -1897,6 +1996,7 @@ mod tests {
                 ("Delete", vec!["Delete", "Archive", "Junk", "Delete for Good"]),
                 ("Respond", vec!["Reply", "Reply\nAll", "Forward", "Meeting", "Add Sender"]),
                 ("Move", vec!["Move", "Rules"]),
+                ("Quick Steps", vec!["Quick\nSteps"]),
                 ("Tags", vec!["Unread/\nRead", "Categorize", "Follow\nUp", "Pin"]),
                 ("Find", vec!["Filter\nEmail", "Related"]),
                 ("Send/Receive", vec!["Send/Receive\nAll Folders"]),

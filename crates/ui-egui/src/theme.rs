@@ -41,9 +41,9 @@ impl Appearance {
     /// The English label (translated with `tl!` where shown).
     pub fn label(self) -> &'static str {
         match self {
-            Appearance::Light => "Light",
-            Appearance::Dark => "Dark",
-            Appearance::System => "Use system setting",
+            Appearance::Light => tn!("Light"),
+            Appearance::Dark => tn!("Dark"),
+            Appearance::System => tn!("Use system setting"),
         }
     }
 
@@ -276,7 +276,26 @@ pub struct SystemFont {
     regular: Option<Arc<FontData>>,
     semibold: Option<Arc<FontData>>,
     bold: Option<Arc<FontData>>,
+    /// Faces of the system's for scripts the bundled fonts don't have (Hebrew, Arabic), tried
+    /// after every other face: mail in those languages is shown in them.
+    scripts: Vec<Arc<FontData>>,
 }
+
+/// Where systems other than Windows keep faces for Hebrew and Arabic (Windows has them in
+/// Segoe UI). Only read from the system; none is bundled.
+#[cfg(not(any(windows, target_arch = "wasm32")))]
+const SCRIPT_FACES: &[&str] = &[
+    "/usr/share/fonts/truetype/noto/NotoSansHebrew-Regular.ttf",
+    "/usr/share/fonts/truetype/noto/NotoSansArabic-Regular.ttf",
+    "/usr/share/fonts/noto/NotoSansHebrew-Regular.ttf",
+    "/usr/share/fonts/noto/NotoSansArabic-Regular.ttf",
+    "/usr/local/share/fonts/noto/NotoSansHebrew-Regular.ttf",
+    "/usr/local/share/fonts/noto/NotoSansArabic-Regular.ttf",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+    "/usr/share/fonts/TTF/DejaVuSans.ttf",
+    "/usr/local/share/fonts/dejavu/DejaVuSans.ttf",
+    "/System/Library/Fonts/Supplemental/Arial.ttf",
+];
 
 impl SystemFont {
     /// No system font: the bundled fonts alone.
@@ -302,7 +321,21 @@ impl SystemFont {
             .unwrap_or_default()
     }
 
-    #[cfg(not(windows))]
+    #[cfg(all(not(windows), not(target_arch = "wasm32")))]
+    fn read() -> Self {
+        let mut scripts: Vec<Arc<FontData>> = Vec::new();
+        for path in SCRIPT_FACES {
+            if scripts.len() >= 3 {
+                break;
+            }
+            if let Some(bytes) = read_font(std::path::Path::new(path), SYSTEM_FONT_CAP) {
+                scripts.push(Arc::new(FontData::from_owned(bytes)));
+            }
+        }
+        SystemFont { scripts, ..SystemFont::none() }
+    }
+
+    #[cfg(target_arch = "wasm32")]
     fn read() -> Self {
         SystemFont::none()
     }
@@ -315,7 +348,7 @@ impl SystemFont {
             read_font(&dir.join(file), SYSTEM_FONT_CAP).map(|bytes| Arc::new(FontData::from_owned(bytes).tweak(tweak)))
         };
         match face("segoeui.ttf") {
-            Some(regular) => SystemFont { regular: Some(regular), semibold: face("seguisb.ttf"), bold: face("segoeuib.ttf") },
+            Some(regular) => SystemFont { regular: Some(regular), semibold: face("seguisb.ttf"), bold: face("segoeuib.ttf"), scripts: Vec::new() },
             None => SystemFont::none(),
         }
     }
@@ -411,6 +444,11 @@ pub fn font_definitions_with(system: &SystemFont) -> FontDefinitions {
     // Symbols and emoji fall back to egui's defaults (kept after our faces).
     let mut fallback: Vec<String> = fonts.families.get(&FontFamily::Proportional).cloned().unwrap_or_default();
     fallback.push("SourceSans".into());
+    for (i, face) in system.scripts.iter().enumerate() {
+        let name = format!("SystemScript{i}");
+        fonts.font_data.insert(name.clone(), face.clone());
+        fallback.push(name);
+    }
     // A weight is the system's face of that weight, then the bundled face nearest to it, then
     // the regular faces for whatever glyph those two lack.
     let chain = |faces: &[Option<&str>]| -> Vec<String> {
@@ -432,8 +470,22 @@ pub fn font_definitions_with(system: &SystemFont) -> FontDefinitions {
     if let Some(m) = fonts.families.get_mut(&FontFamily::Monospace) {
         m.insert(0, "Mono".into());
     }
+    // Print Preview draws pages in the faces the PDF is set in, whatever the interface uses, so
+    // that lines fall where they fall on paper (`crate::print`).
+    for (family, face) in [(PRINT_REGULAR, "Inter"), (PRINT_BOLD, "InterSemiBold"), (PRINT_MONO, "Mono")] {
+        let mut faces = vec![face.to_string()];
+        if face != "Inter" {
+            faces.push("Inter".into());
+        }
+        fonts.families.insert(FontFamily::Name(family.into()), faces);
+    }
     fonts
 }
+
+/// The families Print Preview draws in: the faces of the printed page.
+pub const PRINT_REGULAR: &str = "printRegular";
+pub const PRINT_BOLD: &str = "printBold";
+pub const PRINT_MONO: &str = "printMono";
 
 pub fn medium(size: f32) -> FontId {
     FontId::new(size, FontFamily::Name("medium".into()))

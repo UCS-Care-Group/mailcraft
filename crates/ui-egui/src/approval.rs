@@ -39,11 +39,11 @@ use crate::forms::Form;
 pub const NEEDS_APPROVAL: &str = crate::favorites_sync::NEEDS_APPROVAL;
 /// The page came back with a no that was given on it. (Microsoft sends the same when the owner
 /// leaves the page that said an administrator has to approve.)
-pub const SIGN_IN_DECLINED: &str = "Microsoft's page came back without signing you in";
+pub const SIGN_IN_DECLINED: &str = tn!("Microsoft's page came back without signing you in");
 /// Nothing came back in the time that is waited: the page was closed, or left open.
-pub const SIGN_IN_TIMED_OUT: &str = "Nothing came back from Microsoft's sign-in page";
+pub const SIGN_IN_TIMED_OUT: &str = tn!("Nothing came back from Microsoft's sign-in page");
 /// No browser could be started for the page.
-pub const NO_BROWSER: &str = "MailCraft couldn't open your browser";
+pub const NO_BROWSER: &str = tn!("MailCraft couldn't open your browser");
 
 /// How a sign-in ended without tokens, as the window tells the ways apart.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -165,7 +165,9 @@ impl AdminConsentAnswer {
 /// The message an owner passes on to an administrator, around the address of Microsoft's page
 /// (`{link}`): what the program is, what is asked of them, and what they will see afterwards.
 /// Nothing of the owner is in it.
-const MESSAGE: &str = "Hello,\n\nI would like to use MailCraft with my work account. MailCraft is an open-source mail and calendar program that runs on my own computer. Our organisation lets only an administrator approve a new program, so it needs your approval once, for the whole organisation. Microsoft's page for that is here:\n\n{link}\n\nAfter you approve, your browser may show a page that can't be reached. That is expected: it is an address on your own computer, where nothing is listening, and the approval has been given by then.\n\nThank you";
+const MESSAGE: &str = tn!(
+    "Hello,\n\nI would like to use MailCraft with my work account. MailCraft is an open-source mail and calendar program that runs on my own computer. Our organisation lets only an administrator approve a new program, so it needs your approval once, for the whole organisation. Microsoft's page for that is here:\n\n{link}\n\nAfter you approve, your browser may show a page that can't be reached. That is expected: it is an address on your own computer, where nothing is listening, and the approval has been given by then.\n\nThank you"
+);
 
 /// [`MESSAGE`] with `link` in it, in the interface language.
 pub(crate) fn message(link: &str) -> String {

@@ -350,6 +350,8 @@ fn event_state(window: &Open) -> Value {
         let iso = |at: mailcraft_time::DateTime| at.iso();
         state["scheduling"] = json!({
             "day": meeting.day.iso(),
+            "from": meeting.from.iso(),
+            "days": meeting.days,
             "start": meeting.span.map(|(start, _)| iso(start)),
             "end": meeting.span.map(|(_, end)| iso(end)),
             "rows": drawn.rows,
@@ -386,6 +388,13 @@ fn event_window(app: &mut MailApp, p: &Value) -> Result<Value, String> {
         Some(v) => Some(v.as_bool().ok_or_else(|| "`recurrence` is true or false".to_string())?),
         None => None,
     };
+    // How many days the Scheduling Assistant shows (before a stand-in, which is for those days).
+    if let Some(days) = p.get("schedulingDays").filter(|v| !v.is_null()) {
+        let days = days.as_u64().filter(|n| (1..=7).contains(n)).ok_or_else(|| "`schedulingDays` is a number from 1 to 7".to_string())?;
+        if let Some(form) = app.windows.open.get_mut(at).and_then(|w| w.what.form_mut()).and_then(Form::event_mut) {
+            form.set_scheduling_days(u8::try_from(days).unwrap_or(1));
+        }
+    }
     if let Some(schedule) = p.get("freeBusy").filter(|v| !v.is_null()) {
         let meeting = app.windows.open.get(at).and_then(|w| w.what.form()).and_then(Form::event).map(|form| form.meeting());
         let Some(meeting) = meeting else { return Err(tl!("No appointment is open in a window of its own").to_string()) };
@@ -794,8 +803,9 @@ fn actions(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, own_keys: bool) -> 
     let flagged = m.flag == FlagStatus::Flagged;
     let mut row: Vec<(&str, &str, &'static str, Action, &'static str)> =
         crate::reading::ACTIONS.iter().map(|(icon, label, command)| (*icon, *label, *command, Action::Run(command), hit_kind(command))).collect();
-    row.push(("flag", if flagged { "Clear Flag" } else { "Flag" }, "mail.toggleFlag", Action::Flag, "windowFlag"));
-    let (icon, label, command) = if m.read { ("markUnread", "Mark Unread", "mail.markUnread") } else { ("markRead", "Mark Read", "mail.markRead") };
+    row.push(("flag", if flagged { tn!("Clear Flag") } else { tn!("Flag") }, "mail.toggleFlag", Action::Flag, "windowFlag"));
+    let (icon, label, command) =
+        if m.read { ("markUnread", tn!("Mark Unread"), "mail.markUnread") } else { ("markRead", tn!("Mark Read"), "mail.markRead") };
     row.push((icon, label, command, Action::Read, "windowUnread"));
     let mut asked = None;
     // The keys the main window has for these, when this window has the keyboard to itself.
@@ -1603,9 +1613,20 @@ mod tests {
         press(&mut harness, Key::Enter);
         assert!(typed(&harness, "Maya Okafor <maya@lumen.example>; "));
         assert_eq!((harness.state().windows.len(), harness.state().session.mailbox.events.len()), (1, count), "Enter took the name");
-        // Send makes the meeting and closes the window. (This calendar is on this computer:
-        // nobody is written to.)
+        // Send makes the meeting and closes the window. (This calendar is on this computer, and
+        // no account here can send mail: nobody is written to.)
         bar(&mut harness, w, "send");
+        harness.run_steps(3);
+        let outbox = harness
+            .state()
+            .session
+            .mailbox
+            .folders
+            .iter()
+            .filter(|f| f.kind == mailcraft_model::FolderKind::Outbox)
+            .map(|f| f.id)
+            .collect::<Vec<_>>();
+        assert!(outbox.iter().all(|f| harness.state().session.mailbox.count(*f) == 0), "nobody was written to");
         let made = event_named(&harness, "Roadmap").expect("the meeting was made");
         assert_eq!((made.attendees.len(), made.start.iso().as_str()), (1, "2026-10-16T10:00:00"));
         assert_eq!(made.attendees[0].address, mailcraft_model::Address::new("Maya Okafor", "maya@lumen.example"));
@@ -2097,18 +2118,19 @@ mod tests {
         // While the Appointment page is in view nobody is asked anything.
         harness.run_steps(10);
         assert!(asks.lock().unwrap().is_empty() && scheduling(&mut harness).is_null());
-        // The Scheduling Assistant: one question, for the day of the meeting and the people
-        // invited to it.
+        // The Scheduling Assistant: one question, for the three days from the meeting's and the
+        // people invited to it.
         bar(&mut harness, w, "scheduling");
         harness.run_steps(6);
         let midnight = NOW - 16 * 3600 + 86_400;
         let people: Vec<String> = ["maya@lumen.example", "tomas@lumen.example", "priya@lumen.example"].map(String::from).to_vec();
-        assert_eq!(*asks.lock().unwrap(), [FreeBusyAsk { people, from: midnight, to: midnight + 86_400 }]);
+        assert_eq!(*asks.lock().unwrap(), [FreeBusyAsk { people: people.clone(), from: midnight, to: midnight + 3 * 86_400 }]);
         let state = scheduling(&mut harness);
         assert_eq!(
             (&state["day"], &state["start"], &state["end"], &state["pending"], &state["note"]),
             (&json!("2026-10-15"), &json!("2026-10-15T10:00:00"), &json!("2026-10-15T11:00:00"), &json!(false), &json!(""))
         );
+        assert_eq!((&state["from"], &state["days"]), (&json!("2026-10-15"), &json!(3)));
         // A row for everybody together, the organizer, and each of the four; Maya's day is
         // known, the others' are not.
         assert_eq!((&state["rows"], &state["known"], &state["unknown"]), (&json!(6), &json!(1), &json!(3)));
@@ -2142,16 +2164,37 @@ mod tests {
         click(&mut harness, egui::pos2(band.min.x - 95.0, grid.min.y + 20.0), 1);
         let state = scheduling(&mut harness);
         assert_eq!((&state["start"], &state["end"]), (&json!("2026-10-15T08:00:00"), &json!("2026-10-15T08:30:00")));
-        // The same day and the same people: nothing more was asked for any of it.
+        // The same days and the same people: nothing more was asked for any of it.
         assert_eq!(asks.lock().unwrap().len(), 1);
+        // AutoPick: Maya is busy from one to two and away from four that day into the next; the
+        // next time after 8:00 that suits everybody it knows of, within working hours, is 8:30.
+        let pick = rect(&harness, "schedulingAutoPick");
+        click(&mut harness, pick.center(), 1);
+        harness.run_steps(3);
+        let state = scheduling(&mut harness);
+        assert_eq!((&state["start"], &state["end"]), (&json!("2026-10-15T08:30:00"), &json!("2026-10-15T09:00:00")), "{state}");
+        // One day only: asked again, for that day.
+        let one = rect(&harness, "schedulingDays1");
+        click(&mut harness, one.center(), 1);
+        harness.run_steps(6);
+        assert_eq!(scheduling(&mut harness)["days"], 1);
+        assert_eq!(asks.lock().unwrap().last().cloned(), Some(FreeBusyAsk { people, from: midnight, to: midnight + 86_400 }));
+        run(&mut harness, "ui.eventWindow", json!({"schedulingDays": 3}));
+        assert!(harness.state_mut().execute("ui.eventWindow", json!({"schedulingDays": 9})).is_err());
+        harness.run_steps(4);
+        let pick = rect(&harness, "schedulingAutoPick");
+        click(&mut harness, pick.center(), 1);
+        harness.run_steps(3);
+        let asked = asks.lock().unwrap().len();
         // On the Appointment page the fields say what the grid was told, and nobody is asked.
         bar(&mut harness, w, "appointment");
         let typed =
             |harness: &Harness, text: &str| harness.query_all_by_role(egui::accesskit::Role::TextInput).any(|n| n.value().as_deref() == Some(text));
-        assert!(typed(&harness, "8:00 AM") && typed(&harness, "8:30 AM"));
+        assert!(typed(&harness, "9:00 AM") && typed(&harness, "9:30 AM"));
+        assert_eq!(asks.lock().unwrap().len(), asked);
         assert!(windows(&mut harness)[0]["dirty"] == true && scheduling(&mut harness).is_null());
         harness.run_steps(40);
-        assert_eq!(asks.lock().unwrap().len(), 1);
+        assert_eq!(asks.lock().unwrap().len(), asked);
         run(&mut harness, "ui.closeWindow", json!({"all": true}));
 
         // A calendar on this computer has no server to ask: the owner's own day, and why.
@@ -2164,7 +2207,7 @@ mod tests {
         assert!(state["note"].as_str().unwrap().contains("kept on this computer"), "{state}");
         // (Five hundred of them have a row; the window stays quick.)
         assert_eq!((&state["rows"], &state["known"], &state["unknown"]), (&json!(502), &json!(0), &json!(500)));
-        assert_eq!(asks.lock().unwrap().len(), 1);
+        assert_eq!(asks.lock().unwrap().len(), asked);
         // A script stands in for the server, with whatever it likes: thousands of people,
         // stretches out of order and far outside the day.
         let stretches: Vec<Value> = (0..3_000i64)

@@ -42,14 +42,20 @@ pub(crate) enum Help {
     Again,
 }
 
-const WAITING_HELP: &str = "Your organisation lets only an administrator approve a new program. Nothing is wrong with your account or your password, and there is nothing to wait for here.";
-const WHY: &str = "Your organisation lets only an administrator approve a new program, and none has approved MailCraft yet. Nothing is wrong with your account or your password.";
+const WAITING_HELP: &str = tn!(
+    "Your organisation lets only an administrator approve a new program. Nothing is wrong with your account or your password, and there is nothing to wait for here."
+);
+const WHY: &str = tn!(
+    "Your organisation lets only an administrator approve a new program, and none has approved MailCraft yet. Nothing is wrong with your account or your password."
+);
 const ENDED_HELP: &str =
-    "Your organisation then lets only an administrator approve a new program. Nothing is wrong with your account or your password.";
-const DECLINED_HELP: &str = "You came back from Microsoft's page without having signed in: you said no there, or the page sent you back.";
-const TIMED_OUT_HELP: &str = "The page was closed, or five minutes went by before the sign-in was finished.";
-const NO_BROWSER_HELP: &str = "Signing in happens on Microsoft's page in a web browser, and none could be started on this computer. Check that it has a default browser, then try again.";
-const ORDER: &str = "First you sign in at Microsoft. Then, once your mail works, you choose how Outlook's Favorites are shown.";
+    tn!("Your organisation then lets only an administrator approve a new program. Nothing is wrong with your account or your password.");
+const DECLINED_HELP: &str = tn!("You came back from Microsoft's page without having signed in: you said no there, or the page sent you back.");
+const TIMED_OUT_HELP: &str = tn!("The page was closed, or five minutes went by before the sign-in was finished.");
+const NO_BROWSER_HELP: &str = tn!(
+    "Signing in happens on Microsoft's page in a web browser, and none could be started on this computer. Check that it has a default browser, then try again."
+);
+const ORDER: &str = tn!("First you sign in at Microsoft. Then, once your mail works, you choose how Outlook's Favorites are shown.");
 
 impl AccountSetup {
     /// The page that says what to do when its organisation has to approve MailCraft first, for
@@ -240,9 +246,9 @@ impl AccountSetup {
             ui,
             t,
             tl!("I'm an administrator: approve it for my organisation"),
-            about(
-                "Opens Microsoft's approval page in your browser. Sign in there with an administrator account and accept; MailCraft carries on by itself.",
-            ),
+            about(tn!(
+                "Opens Microsoft's approval page in your browser. Sign in there with an administrator account and accept; MailCraft carries on by itself."
+            )),
         );
         app.hit.add("approvalAdministrator", self.existing, administrator.rect);
         if administrator.clicked() {
@@ -252,7 +258,7 @@ impl AccountSetup {
             ui,
             t,
             tl!("Copy a message for my administrator"),
-            about("A short note with the link to that page, to paste into mail or chat. MailCraft sends nothing itself."),
+            about(tn!("A short note with the link to that page, to paste into mail or chat. MailCraft sends nothing itself.")),
         );
         app.hit.add("approvalCopyMessage", self.existing, copy.rect);
         if copy.clicked() {
@@ -334,7 +340,7 @@ impl AccountSetup {
             Some(SignInEnd::Declined) => (crate::approval::SIGN_IN_DECLINED, DECLINED_HELP),
             Some(SignInEnd::TimedOut) => (crate::approval::SIGN_IN_TIMED_OUT, TIMED_OUT_HELP),
             Some(SignInEnd::NoBrowser) => (crate::approval::NO_BROWSER, NO_BROWSER_HELP),
-            _ => ("Signing in didn't work", ""),
+            _ => (tn!("Signing in didn't work"), ""),
         };
         let may_need_approval = matches!(self.ended, Some(SignInEnd::Declined | SignInEnd::TimedOut));
         let (mut approval, mut step) = (false, None);

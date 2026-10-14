@@ -107,7 +107,7 @@ fn search_box(app: &mut MailApp, ui: &mut Ui, rect: Rect) {
     }
     ui.painter().text(scope_rect.center(), Align2::CENTER_CENTER, format!("{label} ▾"), TypeRung::Caption.regular(), t.text_dim);
     egui::Popup::menu(&sresp).show(|ui| {
-        for (name, code, on) in [("Current Folder", "folder", !everywhere), ("All Mailboxes", "everywhere", everywhere)] {
+        for (name, code, on) in [(tn!("Current Folder"), "folder", !everywhere), (tn!("All Mailboxes"), "everywhere", everywhere)] {
             if ui.selectable_label(on, tl!(name)).clicked() {
                 let query = app.session.view.search.clone();
                 let _ = app.execute("view.search", json!({"query": query, "scope": code}));
@@ -205,27 +205,27 @@ pub fn status_bar(app: &mut MailApp, ui: &mut Ui) {
                     Module::Mail => {
                         let shown = app.session.rows().len();
                         let folder = app.session.view.folder;
-                        st(ui, &n(shown, "{n} item", "{n} items"), t.text_dim);
+                        st(ui, &n(shown, tn!("{n} item"), tn!("{n} items")), t.text_dim);
                         let unread = app.session.mailbox.unread_count(folder);
                         if unread > 0 {
                             st(ui, &crate::i18n::fmt(tl!("Unread: {n}"), &[("n", &unread.to_string())]), t.text_dim);
                         }
                         let picked = app.session.sel.messages.len();
                         if picked > 1 {
-                            st(ui, &n(picked, "{n} selected", "{n} selected"), t.text_dim);
+                            st(ui, &n(picked, tn!("{n} selected"), tn!("{n} selected")), t.text_dim);
                         }
                     }
                     Module::Calendar => {
                         let (from, to) = mailcraft_engine::cmd::view::calendar_range(&app.session);
                         let count = mailcraft_engine::cmd::calendar::occurrences(&app.session, from, to).len();
-                        st(ui, &n(count, "{n} event in view", "{n} events in view"), t.text_dim);
+                        st(ui, &n(count, tn!("{n} event in view"), tn!("{n} events in view")), t.text_dim);
                     }
                     Module::People => {
-                        st(ui, &n(app.session.mailbox.contacts.len(), "{n} contact", "{n} contacts"), t.text_dim);
+                        st(ui, &n(app.session.mailbox.contacts.len(), tn!("{n} contact"), tn!("{n} contacts")), t.text_dim);
                     }
                     Module::Tasks => {
                         let open = app.session.mailbox.tasks.values().filter(|x| !x.is_complete()).count();
-                        st(ui, &n(open, "{n} open task", "{n} open tasks"), t.text_dim);
+                        st(ui, &n(open, tn!("{n} open task"), tn!("{n} open tasks")), t.text_dim);
                     }
                 }
                 if let Some((msg, at)) = &app.status_msg
@@ -240,9 +240,9 @@ pub fn status_bar(app: &mut MailApp, ui: &mut Ui) {
                     if app.session.view.module == Module::Mail {
                         let pane = app.session.view.reading_pane;
                         for (icon, value, on, tip) in [
-                            ("list", "off", pane == Pane::Off, "Reading pane off"),
-                            ("previewLines", "bottom", pane == Pane::Bottom, "Reading pane at the bottom"),
-                            ("readingPane", "right", pane == Pane::Right, "Reading pane on the right"),
+                            ("list", "off", pane == Pane::Off, tn!("Reading pane off")),
+                            ("previewLines", "bottom", pane == Pane::Bottom, tn!("Reading pane at the bottom")),
+                            ("readingPane", "right", pane == Pane::Right, tn!("Reading pane on the right")),
                         ] {
                             let (r, resp) = ui.allocate_exact_size(vec2(22.0, 20.0), Sense::click());
                             if on {

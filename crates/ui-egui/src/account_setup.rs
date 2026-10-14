@@ -110,25 +110,25 @@ impl Kind {
 
     fn title(self) -> &'static str {
         match self {
-            Kind::Microsoft365 => "Microsoft 365",
-            Kind::OutlookCom => "Outlook.com",
-            Kind::Google => "Google",
-            Kind::Yahoo => "Yahoo",
-            Kind::ICloud => "iCloud",
-            Kind::Other => "Other (IMAP)",
-            Kind::Local => "This device only",
+            Kind::Microsoft365 => tn!("Microsoft 365"),
+            Kind::OutlookCom => tn!("Outlook.com"),
+            Kind::Google => tn!("Google"),
+            Kind::Yahoo => tn!("Yahoo"),
+            Kind::ICloud => tn!("iCloud"),
+            Kind::Other => tn!("Other (IMAP)"),
+            Kind::Local => tn!("This device only"),
         }
     }
 
     fn detail(self) -> &'static str {
         match self {
-            Kind::Microsoft365 => "Work or school mail",
-            Kind::OutlookCom => "Also Hotmail, Live and MSN",
-            Kind::Google => "Gmail and Google Workspace",
-            Kind::Yahoo => "Yahoo Mail",
-            Kind::ICloud => "icloud.com, me.com and mac.com",
-            Kind::Other => "Any other mail server",
-            Kind::Local => "A mailbox kept here, with no mail server",
+            Kind::Microsoft365 => tn!("Work or school mail"),
+            Kind::OutlookCom => tn!("Also Hotmail, Live and MSN"),
+            Kind::Google => tn!("Gmail and Google Workspace"),
+            Kind::Yahoo => tn!("Yahoo Mail"),
+            Kind::ICloud => tn!("icloud.com, me.com and mac.com"),
+            Kind::Other => tn!("Any other mail server"),
+            Kind::Local => tn!("A mailbox kept here, with no mail server"),
         }
     }
 
@@ -673,19 +673,19 @@ impl AccountSetup {
         let (incoming, outgoing) = (&self.incoming, &self.outgoing);
         if incoming.host.trim().is_empty() {
             if connected {
-                return Some("Type the name of the incoming mail server");
+                return Some(tn!("Type the name of the incoming mail server"));
             }
         } else if !incoming.host_ok() {
-            return Some("The incoming mail server isn't a host name (letters, digits, dots and dashes)");
+            return Some(tn!("The incoming mail server isn't a host name (letters, digits, dots and dashes)"));
         }
         if !outgoing.host.trim().is_empty() && !outgoing.host_ok() {
-            return Some("The outgoing mail server isn't a host name (letters, digits, dots and dashes)");
+            return Some(tn!("The outgoing mail server isn't a host name (letters, digits, dots and dashes)"));
         }
         if incoming.port().is_none() || outgoing.port().is_none() {
-            return Some("A port is a number from 1 to 65535");
+            return Some(tn!("A port is a number from 1 to 65535"));
         }
         if self.edit.is_some() && self.oauth.is_some() && !(is_identifier(self.client_id.trim(), 200) && is_identifier(self.tenant.trim(), 64)) {
-            return Some("An application ID and a tenant are letters, digits, dots and dashes");
+            return Some(tn!("An application ID and a tenant are letters, digits, dots and dashes"));
         }
         None
     }

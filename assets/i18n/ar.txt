@@ -1,0 +1,4415 @@
+# MailCraft interface text: العربية.
+# Machine-written from MailCraft's English; wants review by a native speaker.
+@language ar
+@name العربية
+@direction rtl
+
+Finish signing in first (your browser is waiting)
+= أكمل تسجيل الدخول أولًا (المتصفح في انتظارك)
+
+No sign-in with Microsoft is under way
+= لا يوجد تسجيل دخول جارٍ عبر Microsoft
+
+I'm an administrator: approve it for my organisation
+= أنا مسؤول: وافِق عليه لمؤسستي
+
+Copy a message for my administrator
+= نسخ رسالة إلى المسؤول لديّ
+
+{provider}'s sign-in page is open in your browser
+= صفحة تسجيل الدخول لدى {provider} مفتوحة في المتصفح
+
+If that page says you need admin approval
+= إذا قالت تلك الصفحة إنك تحتاج إلى موافقة المسؤول
+
+More about this
+= المزيد عن هذا
+
+Trouble on that page? Sign in for mail only
+= مشكلة في تلك الصفحة؟ سجّل الدخول للبريد فقط
+
+Cancel
+= إلغاء
+
+Open the page again
+= فتح الصفحة مرة أخرى
+
+Closed the page? This opens Microsoft's sign-in page afresh.
+= أغلقت الصفحة؟ هذا يفتح صفحة تسجيل الدخول لدى Microsoft من جديد.
+
+Signing in didn't work
+= لم ينجح تسجيل الدخول
+
+If that page said you need admin approval
+= إذا قالت تلك الصفحة إنك تحتاج إلى موافقة المسؤول
+
+My organisation has to approve MailCraft first: what to do
+= يجب أن توافق مؤسستي على MailCraft أولًا: ماذا أفعل
+
+Try again
+= إعادة المحاولة
+
+Set up manually
+= الإعداد يدويًا
+
+Mail only
+= البريد فقط
+
+Sign in again, asking for mail alone
+= تسجيل الدخول مرة أخرى، مع طلب البريد وحده
+
+Your organisation has to approve MailCraft first
+= يجب أن توافق مؤسستك على MailCraft أولًا
+
+Microsoft answered: {words}
+= ردّت Microsoft: {words}
+
+Microsoft's page said so.
+= هذا ما قالته صفحة Microsoft.
+
+What to do next
+= ما الخطوة التالية
+
+Sign in again, once an administrator has approved
+= سجّل الدخول مرة أخرى بعد موافقة المسؤول
+
+Not now
+= ليس الآن
+
+Closes this window. Nothing is kept.
+= يغلق هذه النافذة. لا يُحفظ شيء.
+
+Microsoft's approval page is open in your browser
+= صفحة الموافقة لدى Microsoft مفتوحة في المتصفح
+
+Microsoft 365
+= Microsoft 365
+
+Outlook.com
+= Outlook.com
+
+Google
+= Google
+
+Yahoo
+= Yahoo
+
+iCloud
+= iCloud
+
+Other (IMAP)
+= غير ذلك (IMAP)
+
+This device only
+= هذا الجهاز فقط
+
+Work or school mail
+= بريد العمل أو المدرسة
+
+Also Hotmail, Live and MSN
+= وأيضًا Hotmail وLive وMSN
+
+Gmail and Google Workspace
+= Gmail وGoogle Workspace
+
+Yahoo Mail
+= Yahoo Mail
+
+icloud.com, me.com and mac.com
+= icloud.com وme.com وmac.com
+
+Any other mail server
+= أي خادم بريد آخر
+
+A mailbox kept here, with no mail server
+= صندوق بريد محفوظ هنا، دون خادم بريد
+
+Account Settings
+= إعدادات الحساب
+
+Approval Needed
+= مطلوب موافقة
+
+Add Account
+= إضافة حساب
+
+Type the name of the incoming mail server
+= اكتب اسم خادم البريد الوارد
+
+A port is a number from 1 to 65535
+= المنفذ رقم من 1 إلى 65535
+
+"{address}" isn't an e-mail address
+= "{address}" ليس عنوان بريد إلكتروني
+
+An application ID is letters, digits, dots and dashes
+= معرّف التطبيق يتكون من حروف وأرقام ونقاط وشرطات
+
+Check the account's settings
+= تحقق من إعدادات الحساب
+
+The account couldn't be added
+= تعذّرت إضافة الحساب
+
+Checking the account stopped unexpectedly
+= توقف التحقق من الحساب على نحو غير متوقع
+
+Finding your account settings…
+= جارٍ البحث عن إعدادات حسابك…
+
+Checking the account…
+= جارٍ التحقق من الحساب…
+
+Signing in to {server}
+= جارٍ تسجيل الدخول إلى {server}
+
+Add an account
+= إضافة حساب
+
+Email address
+= عنوان البريد الإلكتروني
+
+you@example.org
+= you@example.org
+
+Advanced options
+= خيارات متقدمة
+
+Let me set up my account manually
+= دعني أعدّ حسابي يدويًا
+
+Your name
+= اسمك
+
+As the people you write to see it
+= كما يراه من تراسلهم
+
+Connect
+= اتصال
+
+Choose the kind of account
+= اختر نوع الحساب
+
+Back
+= رجوع
+
+Microsoft needs an application ID
+= تحتاج Microsoft إلى معرّف تطبيق
+
+Application (client) ID
+= معرّف التطبيق (العميل)
+
+Continue
+= متابعة
+
+Sign in to your account
+= سجّل الدخول إلى حسابك
+
+{service} account
+= حساب {service}
+
+Change account settings
+= تغيير إعدادات الحساب
+
+Show Outlook's Favorites?
+= عرض المفضلة من Outlook؟
+
+{address} is set up, and nothing of that waits on this.
+= تم إعداد {address}، ولا شيء من ذلك ينتظر هذا.
+
+Press Send/Receive to download your mail.
+= اضغط إرسال/تلقي لتنزيل بريدك.
+
+{address} is set up
+= تم إعداد {address}
+
+Done
+= تم
+
+Add another account
+= إضافة حساب آخر
+
+Signs in on the {provider} page in your browser
+= يسجّل الدخول في صفحة {provider} في المتصفح
+
+On this device only: no mail server
+= على هذا الجهاز فقط: دون خادم بريد
+
+Signs in with a password
+= يسجّل الدخول بكلمة مرور
+
+Leave empty to keep the one in use
+= اتركه فارغًا للإبقاء على المستخدم حاليًا
+
+The one in File › Options
+= المحدد في ملف › خيارات
+
+Tenant
+= المستأجر
+
+Save
+= حفظ
+
+Password
+= كلمة المرور
+
+User name
+= اسم المستخدم
+
+Usually the whole address
+= عادةً العنوان كاملًا
+
+Incoming mail (IMAP)
+= البريد الوارد (IMAP)
+
+Outgoing mail (SMTP)
+= البريد الصادر (SMTP)
+
+None
+= بلا
+
+The server's name
+= اسم الخادم
+
+The port; leave it empty for the usual one
+= المنفذ؛ اتركه فارغًا للمنفذ المعتاد
+
+Microsoft's page came back without signing you in
+= عادت صفحة Microsoft دون تسجيل دخولك
+
+Nothing came back from Microsoft's sign-in page
+= لم يعُد شيء من صفحة تسجيل الدخول لدى Microsoft
+
+MailCraft couldn't open your browser
+= تعذّر على MailCraft فتح المتصفح
+
+The approval didn't go through.
+= لم تتم الموافقة.
+
+Microsoft's approval page is open in your browser…
+= صفحة الموافقة لدى Microsoft مفتوحة في المتصفح…
+
+Waiting for the approval stopped unexpectedly
+= توقف انتظار الموافقة على نحو غير متوقع
+
+Your organisation has approved MailCraft
+= وافقت مؤسستك على MailCraft
+
+This account doesn't sign in with Microsoft
+= هذا الحساب لا يسجّل الدخول عبر Microsoft
+
+Info
+= معلومات
+
+Open & Export
+= فتح وتصدير
+
+Print
+= طباعة
+
+Options
+= خيارات
+
+About
+= حول
+
+Accounts
+= الحسابات
+
+Local mailbox
+= صندوق بريد محلي
+
+ (not encrypted)
+=  (غير مشفّر)
+
+no incoming server
+= لا خادم وارد
+
+no outgoing server
+= لا خادم صادر
+
+Signs in with
+= يسجّل الدخول عبر
+
+Settings
+= الإعدادات
+
+Change this account's name, servers and sign-in
+= تغيير اسم هذا الحساب وخوادمه وتسجيل الدخول
+
+Remove
+= إزالة
+
+Remove this account and the mail kept for it here
+= إزالة هذا الحساب والبريد المحفوظ له هنا
+
+Connect calendar and contacts
+= ربط التقويم وجهات الاتصال
+
+Add shared mailbox…
+= إضافة صندوق بريد مشترك…
+
+Calendar
+= التقويم
+
+Checking: the report comes in a moment…
+= جارٍ التحقق: يصل التقرير بعد لحظة…
+
+Check Calendar Connection
+= التحقق من اتصال التقويم
+
+Mailbox
+= صندوق البريد
+
+{n} messages
+= {n} رسالة
+
+{n} unread
+= {n} غير مقروءة
+
+{n} contacts
+= {n} جهة اتصال
+
+{n} events
+= {n} حدث
+
+{n} tasks
+= {n} مهمة
+
+Kept in {path}, saved as you go.
+= محفوظ في {path}، ويُحفظ أثناء العمل.
+
+Not kept anywhere yet: use Open & Export › Save Mailbox As.
+= غير محفوظ في أي مكان بعد: استخدم فتح وتصدير › حفظ صندوق البريد باسم.
+
+Rules and Categories
+= القواعد والفئات
+
+Manage Rules
+= إدارة القواعد
+
+What happens to mail as it arrives
+= ما يحدث للبريد عند وصوله
+
+Categories
+= الفئات
+
+Names and colours for sorting mail, events, people and tasks
+= أسماء وألوان لفرز البريد والأحداث والأشخاص والمهام
+
+Shared mailbox: the account it was opened through is gone
+= صندوق بريد مشترك: الحساب الذي فُتح عبره لم يعد موجودًا
+
+Shared mailbox, opened with the sign-in of {account}
+= صندوق بريد مشترك، مفتوح بتسجيل دخول {account}
+
+Bring in
+= جلب
+
+Import
+= استيراد
+
+Open Mailbox File
+= فتح ملف صندوق بريد
+
+Replace what is open with a .mailcraft file
+= استبدال المفتوح بملف .mailcraft
+
+Save out
+= حفظ خارجي
+
+Save Mailbox As
+= حفظ صندوق البريد باسم
+
+Everything here in one .mailcraft file
+= كل ما هنا في ملف .mailcraft واحد
+
+Export Folder
+= تصدير المجلد
+
+The messages of the folder in view, as .mbox
+= رسائل المجلد المعروض، بصيغة .mbox
+
+Save Calendar
+= حفظ التقويم
+
+Every event and task, as .ics
+= كل حدث ومهمة، بصيغة .ics
+
+Export Contacts
+= تصدير جهات الاتصال
+
+Every contact, as .vcf
+= كل جهة اتصال، بصيغة .vcf
+
+Start over
+= البدء من جديد
+
+Sample Mailbox
+= صندوق بريد نموذجي
+
+Invented mail, meetings, people and tasks to try things on
+= بريد واجتماعات وأشخاص ومهام مختلَقة للتجربة
+
+Empty Mailbox
+= صندوق بريد فارغ
+
+Nothing in it: replaces what is open here
+= لا شيء فيه: يستبدل المفتوح هنا
+
+Recent
+= الأخيرة
+
+General
+= عام
+
+Interface theme
+= سمة الواجهة
+
+Interface size
+= حجم الواجهة
+
+Mail
+= البريد
+
+Mark a message as read when it is opened in the reading pane
+= وضع علامة مقروءة على الرسالة عند فتحها في جزء القراءة
+
+Include the original message when replying
+= تضمين الرسالة الأصلية عند الرد
+
+Write messages in plain text (no formatting or pictures)
+= كتابة الرسائل بنص عادي (دون تنسيق أو صور)
+
+Preview lines in the message list
+= أسطر المعاينة في قائمة الرسائل
+
+Messages to download per folder
+= عدد الرسائل المراد تنزيلها لكل مجلد
+
+All
+= الكل
+
+When a message asks for a read receipt
+= عندما تطلب رسالة إيصال قراءة
+
+Ask each time
+= السؤال في كل مرة
+
+Always send one
+= الإرسال دائمًا
+
+Never send one
+= عدم الإرسال أبدًا
+
+Pictures in mail
+= الصور في البريد
+
+Remember passwords and sign-ins on this computer
+= تذكّر كلمات المرور وتسجيلات الدخول على هذا الكمبيوتر
+
+Microsoft application ID
+= معرّف تطبيق Microsoft
+
+The one this build came with
+= المعرّف المرفق مع هذا الإصدار
+
+Needed for Outlook.com and Microsoft 365 accounts
+= مطلوب لحسابات Outlook.com وMicrosoft 365
+
+Send and receive automatically
+= الإرسال والتلقي تلقائيًا
+
+Only when I ask
+= فقط عندما أطلب
+
+Every minute
+= كل دقيقة
+
+Every
+= كل
+
+minutes
+= دقائق
+
+Trust Center: signed and encrypted mail
+= مركز الثقة: البريد الموقّع والمشفّر
+
+Notifications
+= الإشعارات
+
+Use a 12-hour clock (3:05 PM)
+= استخدام نظام 12 ساعة (3:05 م)
+
+Week starts on
+= يبدأ الأسبوع يوم
+
+Working hours
+= ساعات العمل
+
+Reminder for new appointments
+= التذكير للمواعيد الجديدة
+
+At start time
+= عند وقت البدء
+
+Time scale
+= المقياس الزمني
+
+{n} minutes
+= {n} دقيقة
+
+Show week numbers in the Month view and the date navigator
+= إظهار أرقام الأسابيع في عرض الشهر ومستكشف التاريخ
+
+Signatures
+= التواقيع
+
+Label
+= التسمية
+
+Time zone
+= المنطقة الزمنية
+
+This computer's, wherever it goes
+= منطقة هذا الكمبيوتر، أينما ذهب
+
+Second time zone
+= المنطقة الزمنية الثانية
+
+Show in the time bar
+= إظهار في شريط الوقت
+
+Third time zone
+= المنطقة الزمنية الثالثة
+
+This computer is in {zone}.
+= هذا الكمبيوتر في {zone}.
+
+(used for new messages)
+= (يُستخدم للرسائل الجديدة)
+
+Use for new messages
+= استخدام للرسائل الجديدة
+
+Delete
+= حذف
+
+New Signature
+= توقيع جديد
+
+Initial contributor: {name}
+= المساهم الأول: {name}
+
+About MailCraft
+= حول MailCraft
+
+Version {version}
+= الإصدار {version}
+
+Contributors
+= المساهمون
+
+What it is made of
+= مما يتكون
+
+Your mail stays yours
+= بريدك يبقى ملكك
+
+Scripts and agents
+= البرامج النصية والوكلاء
+
+Search Commands
+= البحث في الأوامر
+
+This build can't reach the account's calendar.
+= لا يستطيع هذا الإصدار الوصول إلى تقويم الحساب.
+
+The calendar is being updated already.
+= التقويم قيد التحديث بالفعل.
+
+The calendar changes couldn't be taken in
+= تعذّر استيعاب تغييرات التقويم
+
+the server couldn't be reached
+= تعذّر الوصول إلى الخادم
+
+The calendar couldn't be taken in
+= تعذّر استيعاب التقويم
+
+The calendar connection is being checked already.
+= اتصال التقويم قيد التحقق بالفعل.
+
+No account signs in with Microsoft
+= لا يوجد حساب يسجّل الدخول عبر Microsoft
+
+The calendar is being updated: try again in a moment.
+= التقويم قيد التحديث: أعد المحاولة بعد لحظة.
+
+Checking the calendar connection…
+= جارٍ التحقق من اتصال التقويم…
+
+the check stopped unexpectedly
+= توقف التحقق على نحو غير متوقع
+
+The calendar connection couldn't be checked:
+= تعذّر التحقق من اتصال التقويم:
+
+no answer
+= لا رد
+
+the server answered
+= أجاب الخادم
+
+OK
+= موافق
+
+FAILED
+= فشل
+
+The calendar connection works
+= اتصال التقويم يعمل
+
+Calendar Connection Check
+= التحقق من اتصال التقويم
+
+The list of calendars couldn't be taken in
+= تعذّر استيعاب قائمة التقويمات
+
+The categories couldn't be taken in
+= تعذّر استيعاب الفئات
+
+(No title)
+= (بلا عنوان)
+
+Next Month
+= الشهر التالي
+
+Previous Month
+= الشهر السابق
+
+Show this week
+= إظهار هذا الأسبوع
+
+Say which group of calendars (`group`: its heading)
+= حدّد مجموعة التقويمات (`group`: عنوانها)
+
+Show the calendars of this group
+= إظهار تقويمات هذه المجموعة
+
+Fold the calendars of this group away
+= طي تقويمات هذه المجموعة
+
+Show Only This Calendar
+= إظهار هذا التقويم فقط
+
+Overlay
+= تراكب
+
+Colour
+= اللون
+
+Automatic
+= تلقائي
+
+Connect to show your category colours and working hours
+= اتصل لإظهار ألوان فئاتك وساعات عملك
+
+This calendar can only be read: new items can't go to it
+= هذا التقويم للقراءة فقط: لا يمكن إضافة عناصر جديدة إليه
+
+New items go to the calendar that is picked here
+= تذهب العناصر الجديدة إلى التقويم المختار هنا
+
+Use my own working hours
+= استخدام ساعات عملي الخاصة
+
+Your mailbox has:
+= صندوق بريدك يحتوي على:
+
+Only on this computer: not in your Outlook calendar
+= على هذا الكمبيوتر فقط: ليس في تقويم Outlook
+
+Move to My Account's Calendar
+= نقل إلى تقويم حسابي
+
+Today
+= اليوم
+
+Forward
+= إعادة توجيه
+
+All day
+= طوال اليوم
+
+1 attendee
+= مشارك واحد
+
+{n} attendees
+= {n} مشاركين
+
+Organizer: {name}
+= المنظِّم: {name}
+
+Cancelled
+= ملغى
+
+Private
+= خاص
+
+High importance
+= أهمية عالية
+
+Low importance
+= أهمية منخفضة
+
+Teams meeting
+= اجتماع Teams
+
+Online meeting
+= اجتماع عبر الإنترنت
+
+Open
+= فتح
+
+Propose New Time…
+= اقتراح وقت جديد…
+
+Join {service} Meeting
+= الانضمام إلى اجتماع {service}
+
+Forward…
+= إعادة توجيه…
+
+Forward This Occurrence…
+= إعادة توجيه هذا التكرار…
+
+Delete This Occurrence
+= حذف هذا التكرار
+
+Move to Calendar
+= نقل إلى التقويم
+
+Show As
+= إظهار كـ
+
+Importance
+= الأهمية
+
+Save as iCalendar…
+= حفظ بصيغة iCalendar…
+
++{n} more
+= +{n} أخرى
+
+Pick a time in the calendar first, then paste
+= اختر وقتًا في التقويم أولًا، ثم الصق
+
+Lay this calendar over the others
+= وضع هذا التقويم فوق الآخرين
+
+Stand this calendar beside the others
+= وضع هذا التقويم بجانب الآخرين
+
+Hide this calendar
+= إخفاء هذا التقويم
+
+This calendar can only be read
+= هذا التقويم للقراءة فقط
+
+AM
+= ص
+
+PM
+= م
+
+60 Minutes
+= 60 دقيقة
+
+30 Minutes
+= 30 دقيقة
+
+15 Minutes
+= 15 دقيقة
+
+10 Minutes
+= 10 دقائق
+
+6 Minutes
+= 6 دقائق
+
+5 Minutes
+= 5 دقائق
+
+Move
+= نقل
+
+Copy
+= نسخ
+
+Search people
+= البحث عن أشخاص
+
+Search mail
+= البحث في البريد
+
+Search mail (try from:, has:attachment, is:unread)
+= البحث في البريد (جرّب from: وhas:attachment وis:unread)
+
+All Mailboxes
+= كل صناديق البريد
+
+Current Folder
+= المجلد الحالي
+
+Sending and receiving…
+= جارٍ الإرسال والتلقي…
+
+Send/Receive All Folders
+= إرسال/تلقي كل المجلدات
+
+Undo {what}
+= تراجع عن {what}
+
+Redo {what}
+= إعادة {what}
+
+No account yet: File › Add Account
+= لا يوجد حساب بعد: ملف › إضافة حساب
+
+{n} item
+= {n} عنصر
+
+{n} items
+= {n} عناصر
+
+Unread: {n}
+= غير المقروءة: {n}
+
+{n} selected
+= {n} محدد
+
+{n} event in view
+= {n} حدث معروض
+
+{n} events in view
+= {n} أحداث معروضة
+
+{n} contact
+= {n} جهة اتصال
+
+{n} open task
+= {n} مهمة مفتوحة
+
+{n} open tasks
+= {n} مهام مفتوحة
+
+Reading pane off
+= إيقاف جزء القراءة
+
+Reading pane at the bottom
+= جزء القراءة في الأسفل
+
+Reading pane on the right
+= جزء القراءة على اليمين
+
+Send/Receive problems
+= مشكلات الإرسال/التلقي
+
+Stop this Send/Receive; what has arrived stays
+= إيقاف هذا الإرسال/التلقي؛ يبقى ما وصل
+
+This mailbox is on this device only
+= صندوق البريد هذا على هذا الجهاز فقط
+
+New message
+= رسالة جديدة
+
+Reply
+= رد
+
+Reply all
+= رد على الكل
+
+Draft
+= مسودة
+
+Send
+= إرسال
+
+Attach
+= إرفاق
+
+Save draft
+= حفظ المسودة
+
+Discard
+= تجاهل
+
+Close (the draft stays as last saved)
+= إغلاق (تبقى المسودة كما حُفظت آخر مرة)
+
+Not saved
+= غير محفوظة
+
+Saved to Drafts
+= محفوظة في المسودات
+
+From
+= من
+
+shared mailbox
+= صندوق بريد مشترك
+
+Names or addresses, separated by ;
+= أسماء أو عناوين، تفصل بينها ;
+
+To
+= إلى
+
+Cc
+= نسخة
+
+Bcc
+= نسخة مخفية
+
+Subject
+= الموضوع
+
+Dark red
+= أحمر داكن
+
+Red
+= أحمر
+
+Orange
+= برتقالي
+
+Gold
+= ذهبي
+
+Green
+= أخضر
+
+Teal
+= أزرق مخضر
+
+Blue
+= أزرق
+
+Navy
+= كحلي
+
+Purple
+= بنفسجي
+
+Grey
+= رمادي
+
+Yellow
+= أصفر
+
+Pink
+= وردي
+
+Write your message
+= اكتب رسالتك
+
+No suggestions
+= لا توجد اقتراحات
+
+Plain text
+= نص عادي
+
+Switch to HTML
+= التبديل إلى HTML
+
+Write with formatting and pictures
+= الكتابة بالتنسيق والصور
+
+Spelling (F7)
+= التدقيق الإملائي (F7)
+
+Bold
+= غامق
+
+Italic
+= مائل
+
+Underline
+= تسطير
+
+Strikethrough
+= يتوسطه خط
+
+Normal
+= عادي
+
+Font Size
+= حجم الخط
+
+Larger
+= أكبر
+
+Smaller
+= أصغر
+
+Fixed-width font
+= خط ثابت العرض
+
+Font Color
+= لون الخط
+
+Text Highlight Color
+= لون تمييز النص
+
+No color
+= بلا لون
+
+Bullets
+= تعداد نقطي
+
+Numbering
+= ترقيم
+
+Decrease Indent
+= إنقاص المسافة البادئة
+
+Increase Indent
+= زيادة المسافة البادئة
+
+Align Left
+= محاذاة إلى اليسار
+
+Center
+= توسيط
+
+Align Right
+= محاذاة إلى اليمين
+
+Link
+= ارتباط
+
+Pictures
+= صور
+
+Horizontal Line
+= خط أفقي
+
+Clear All Formatting
+= مسح كل التنسيق
+
+Plain Text (the formatting goes)
+= نص عادي (يزول التنسيق)
+
+Address
+= العنوان
+
+Insert
+= إدراج
+
+Remove Link
+= إزالة الارتباط
+
+Send/Receive Problems
+= مشكلات الإرسال/التلقي
+
+They are removed from the mail server too.
+= وتُزال من خادم البريد أيضًا.
+
+This message will be deleted for good.
+= ستُحذف هذه الرسالة نهائيًا.
+
+messages will be deleted for good.
+= رسائل ستُحذف نهائيًا.
+
+Delete for Good
+= حذف نهائي
+
+Everything in
+= كل ما في
+
+will be deleted for good.
+= سيُحذف نهائيًا.
+
+Empty Folder
+= إفراغ المجلد
+
+Empty
+= إفراغ
+
+The folder
+= المجلد
+
+and everything in it will be deleted.
+= وكل ما فيه سيُحذف.
+
+Delete Folder
+= حذف المجلد
+
+and the mail kept for it on this device will be removed.
+= والبريد المحفوظ له على هذا الجهاز ستُزال.
+
+Mail on the server is not touched.
+= لا يُمس البريد الموجود على الخادم.
+
+So will the shared mailboxes opened with it:
+= وكذلك صناديق البريد المشتركة المفتوحة به:
+
+Remove Account
+= إزالة الحساب
+
+Remove Shared Mailbox
+= إزالة صندوق البريد المشترك
+
+Check Now
+= التحقق الآن
+
+1 item is
+= عنصر واحد
+
+{n} items are
+= {n} عناصر
+
+Move to Your Account's Calendar
+= نقل إلى تقويم حسابك
+
+Move All and Send Invitations
+= نقل الكل وإرسال الدعوات
+
+Move the Appointments Only
+= نقل المواعيد فقط
+
+1 person is invited to this meeting.
+= شخص واحد مدعو إلى هذا الاجتماع.
+
+{n} people are invited to this meeting.
+= {n} أشخاص مدعوون إلى هذا الاجتماع.
+
+A note to go with it (optional)
+= ملاحظة مرفقة (اختيارية)
+
+Don't Send, Keep on This Computer
+= عدم الإرسال، والإبقاء على هذا الكمبيوتر
+
+Send This Invitation?
+= إرسال هذه الدعوة؟
+
+Delete Recurring Item
+= حذف عنصر متكرر
+
+Move Recurring Item
+= نقل عنصر متكرر
+
+Respond to Recurring Item
+= الرد على عنصر متكرر
+
+Open Recurring Item
+= فتح عنصر متكرر
+
+Change Recurring Item
+= تغيير عنصر متكرر
+
+Just This One
+= هذا فقط
+
+The Entire Series
+= السلسلة بأكملها
+
+Change This Meeting?
+= تغيير هذا الاجتماع؟
+
+Send Update
+= إرسال تحديث
+
+Cancel This Meeting?
+= إلغاء هذا الاجتماع؟
+
+Send Cancellation
+= إرسال الإلغاء
+
+Somebody else
+= شخص آخر
+
+{name} organizes this meeting; you are invited to it.
+= {name} ينظّم هذا الاجتماع؛ وأنت مدعو إليه.
+
+Send a Response?
+= إرسال رد؟
+
+Send the Response Now
+= إرسال الرد الآن
+
+Don't Send a Response
+= عدم إرسال رد
+
+Delete Your Copy of This Meeting?
+= حذف نسختك من هذا الاجتماع؟
+
+Delete My Copy
+= حذف نسختي
+
+Decline and Tell the Organizer
+= الرفض وإبلاغ المنظِّم
+
+Decline without Telling
+= الرفض دون إبلاغ
+
+Change Your Copy of This Meeting?
+= تغيير نسختك من هذا الاجتماع؟
+
+Don't Send
+= عدم الإرسال
+
+Save without Sending
+= حفظ دون إرسال
+
+Delete without Sending
+= حذف دون إرسال
+
+Type what you want to do
+= اكتب ما تريد فعله
+
+No command matches.
+= لا يوجد أمر مطابق.
+
+New Folder
+= مجلد جديد
+
+Rename Folder
+= إعادة تسمية المجلد
+
+the top level
+= المستوى الأعلى
+
+In {place}
+= في {place}
+
+Folder name
+= اسم المجلد
+
+Go to Date
+= الانتقال إلى تاريخ
+
+Date (YYYY-MM-DD)
+= التاريخ (YYYY-MM-DD)
+
+Go
+= انتقال
+
+Sign In
+= تسجيل الدخول
+
+Password for {account}
+= كلمة المرور لـ {account}
+
+Send/Receive
+= إرسال/تلقي
+
+Add Shared Mailbox
+= إضافة صندوق بريد مشترك
+
+The address of a mailbox {account} has Full Access to
+= عنوان صندوق بريد لدى {account} حق الوصول الكامل إليه
+
+support@example.org
+= support@example.org
+
+Add
+= إضافة
+
+Close
+= إغلاق
+
+Copy all of it
+= نسخ الكل
+
+Unsaved Message
+= رسالة غير محفوظة
+
+The message you are writing has changes that aren't saved.
+= الرسالة التي تكتبها فيها تغييرات غير محفوظة.
+
+Save Draft
+= حفظ المسودة
+
+This item has changes that aren't saved. Save them?
+= في هذا العنصر تغييرات غير محفوظة. هل تريد حفظها؟
+
+"{name}" has changes that aren't saved. Save them?
+= في "{name}" تغييرات غير محفوظة. هل تريد حفظها؟
+
+Unsaved Changes
+= تغييرات غير محفوظة
+
+Don't Save
+= عدم الحفظ
+
+Microsoft Graph
+= Microsoft Graph
+
+Exchange Web Services
+= Exchange Web Services
+
+MailCraft keeps its own Favorites.
+= يحتفظ MailCraft بمفضلته الخاصة.
+
+Outlook's Favorites
+= المفضلة في Outlook
+
+Your organisation's administrator has to approve this once
+= يجب أن يوافق مسؤول مؤسستك على هذا مرة واحدة
+
+Not allowed by your organisation
+= غير مسموح به من مؤسستك
+
+Not available for this account
+= غير متاح لهذا الحساب
+
+Your organisation doesn't allow Exchange Web Services
+= مؤسستك لا تسمح بـ Exchange Web Services
+
+Microsoft has switched Exchange Web Services off
+= أوقفت Microsoft خدمة Exchange Web Services
+
+Use Exchange Web Services instead
+= استخدام Exchange Web Services بدلًا من ذلك
+
+Use Microsoft Graph instead
+= استخدام Microsoft Graph بدلًا من ذلك
+
+Show Outlook's Favorites
+= إظهار المفضلة من Outlook
+
+`source` is graph, ews or none
+= `source` هو graph أو ews أو none
+
+This build can't reach the account's server.
+= لا يستطيع هذا الإصدار الوصول إلى خادم الحساب.
+
+This build can't make a link for an administrator.
+= لا يستطيع هذا الإصدار إنشاء رابط للمسؤول.
+
+`answer.folders` is a list of {path, kind}
+= `answer.folders` قائمة من {path, kind}
+
+Outlook's Favorites are switched off in File › Options
+= المفضلة من Outlook متوقفة في ملف › خيارات
+
+Show the Favorites from Outlook in the folder pane
+= إظهار المفضلة من Outlook في جزء المجلدات
+
+Connect Outlook's Favorites
+= ربط المفضلة من Outlook
+
+Downloaded {name}
+= تم تنزيل {name}
+
+A file dialog is already open.
+= مربع حوار ملفات مفتوح بالفعل.
+
+File dialogs aren't available here
+= مربعات حوار الملفات غير متاحة هنا
+
+Saved {name}
+= تم حفظ {name}
+
+Rules
+= القواعد
+
+YYYY-MM-DD
+= YYYY-MM-DD
+
+The day before
+= اليوم السابق
+
+The day after
+= اليوم التالي
+
+Pick a time
+= اختر وقتًا
+
+Use YYYY-MM-DD
+= استخدم YYYY-MM-DD
+
+No categories yet
+= لا توجد فئات بعد
+
+More commands
+= مزيد من الأوامر
+
+first
+= الأول
+
+second
+= الثاني
+
+third
+= الثالث
+
+fourth
+= الرابع
+
+fifth
+= الخامس
+
+last
+= الأخير
+
+Daily
+= يوميًا
+
+Weekly
+= أسبوعيًا
+
+Monthly
+= شهريًا
+
+Yearly
+= سنويًا
+
+day
+= يوم
+
+days
+= أيام
+
+week
+= أسبوع
+
+weeks
+= أسابيع
+
+month
+= شهر
+
+months
+= أشهر
+
+year
+= سنة
+
+years
+= سنوات
+
+The start and the end need a time
+= يحتاج البدء والانتهاء إلى وقت
+
+The range needs a day to start on
+= يحتاج النطاق إلى يوم يبدأ فيه
+
+The range needs a day to end by
+= يحتاج النطاق إلى يوم ينتهي بحلوله
+
+No day fits this pattern
+= لا يوجد يوم يطابق هذا النمط
+
+Appointment Recurrence
+= تكرار الموعد
+
+Time
+= الوقت
+
+Start
+= البدء
+
+End
+= الانتهاء
+
+Pattern
+= النمط
+
+Repeats
+= يتكرر
+
+Range
+= النطاق
+
+Starts
+= يبدأ
+
+Ends
+= ينتهي
+
+No end date
+= بلا تاريخ انتهاء
+
+After
+= بعد
+
+time
+= مرة
+
+times
+= مرات
+
+By
+= بحلول
+
+{rule}, from {day}
+= {rule}، بدءًا من {day}
+
+Remove Recurrence
+= إزالة التكرار
+
+Every weekday
+= كل يوم عمل
+
+Only on
+= فقط في
+
+on
+= في
+
+Day
+= اليوم
+
+of every
+= من كل
+
+The
+= الـ
+
+On
+= في
+
+On the
+= في الـ
+
+of
+= من
+
+New Appointment
+= موعد جديد
+
+New Meeting
+= اجتماع جديد
+
+Appointment
+= موعد
+
+Meeting
+= اجتماع
+
+Give it a title first
+= أعطه عنوانًا أولًا
+
+The start and the end need a date and a time
+= يحتاج البدء والانتهاء إلى تاريخ ووقت
+
+The series needs a day to end by
+= تحتاج السلسلة إلى يوم تنتهي بحلوله
+
+Save & Close
+= حفظ وإغلاق
+
+Cancel Meeting
+= إلغاء الاجتماع
+
+Scheduling Assistant
+= مساعد الجدولة
+
+Reminder
+= تذكير
+
+Recurrence
+= التكرار
+
+Time Zones
+= المناطق الزمنية
+
+Categorize
+= تصنيف
+
+High Importance
+= أهمية عالية
+
+Low Importance
+= أهمية منخفضة
+
+Teams Meeting
+= اجتماع Teams
+
+Response Options
+= خيارات الرد
+
+Check Names
+= التحقق من الأسماء
+
+Cancel Invitation
+= إلغاء الدعوة
+
+Invite Attendees
+= دعوة مشاركين
+
+Clear All Categories
+= مسح كل الفئات
+
+Request Responses
+= طلب الردود
+
+Allow New Time Proposals
+= السماح باقتراح أوقات جديدة
+
+Title
+= العنوان
+
+Required
+= مطلوب
+
+Optional
+= اختياري
+
+Location
+= الموقع
+
+Join
+= انضمام
+
+Copy Link
+= نسخ الرابط
+
+The account's server hasn't given it a link to join by yet.
+= لم يمنحه خادم الحساب رابطًا للانضمام بعد.
+
+Proposals
+= الاقتراحات
+
+1 person proposed another time.
+= اقترح شخص واحد وقتًا آخر.
+
+{n} people proposed another time.
+= اقترح {n} أشخاص وقتًا آخر.
+
+View All Proposals…
+= عرض كل الاقتراحات…
+
+One of a series: {rule}
+= واحد من سلسلة: {rule}
+
+Change…
+= تغيير…
+
+Make it repeat…
+= جعله متكررًا…
+
+Show as
+= إظهار كـ
+
+Time zones
+= المناطق الزمنية
+
+Remove attendees
+= إزالة مشاركين
+
+Invite attendees
+= دعوة مشاركين
+
+Description
+= الوصف
+
+Nobody, or more than one of your contacts, matches: {names}
+= لا أحد، أو أكثر من جهة اتصال، يطابق: {names}
+
+Name somebody to invite first
+= حدّد شخصًا لدعوته أولًا
+
+Work
+= العمل
+
+Home
+= المنزل
+
+Other
+= أخرى
+
+Mobile
+= الجوال
+
+Fax
+= الفاكس
+
+Contact
+= جهة اتصال
+
+New Contact
+= جهة اتصال جديدة
+
+First name
+= الاسم الأول
+
+Last name
+= اسم العائلة
+
+Shown as First Last when empty
+= يُعرض كالاسم الأول ثم الأخير عند تركه فارغًا
+
+Display name
+= اسم العرض
+
+Company
+= الشركة
+
+Job title
+= المسمى الوظيفي
+
+Department
+= القسم
+
+E-mail
+= البريد الإلكتروني
+
+Add another e-mail address
+= إضافة عنوان بريد إلكتروني آخر
+
+Phone
+= الهاتف
+
+Add another phone number
+= إضافة رقم هاتف آخر
+
+Street
+= الشارع
+
+City
+= المدينة
+
+State or region
+= الولاية أو المنطقة
+
+Postal code
+= الرمز البريدي
+
+Country
+= البلد
+
+Website
+= موقع الويب
+
+Birthday
+= تاريخ الميلاد
+
+Favorite
+= مفضل
+
+Notes
+= ملاحظات
+
+Tomorrow
+= غدًا
+
+Next week
+= الأسبوع القادم
+
+Task
+= مهمة
+
+New Task
+= مهمة جديدة
+
+Due date
+= تاريخ الاستحقاق
+
+Start date
+= تاريخ البدء
+
+Low
+= منخفضة
+
+High
+= عالية
+
+Completed
+= مكتملة
+
+Change the colour
+= تغيير اللون
+
+Delete this category
+= حذف هذه الفئة
+
+New category
+= فئة جديدة
+
+From contains
+= المرسل يحتوي على
+
+Sent to
+= مرسلة إلى
+
+Subject contains
+= الموضوع يحتوي على
+
+Body contains
+= النص يحتوي على
+
+Has an attachment
+= تحتوي على مرفق
+
+Importance is
+= الأهمية هي
+
+Move to folder
+= نقل إلى مجلد
+
+Flag
+= وضع علامة
+
+Mark as read
+= وضع علامة مقروءة
+
+Set importance
+= تعيين الأهمية
+
+Run this rule on mail as it arrives
+= تشغيل هذه القاعدة على البريد عند وصوله
+
+Delete this rule
+= حذف هذه القاعدة
+
+Run every rule that is switched on over {folder}
+= تشغيل كل قاعدة مفعّلة على {folder}
+
+Run Rules Now
+= تشغيل القواعد الآن
+
+1 message matched
+= تطابقت رسالة واحدة
+
+{n} messages matched
+= تطابقت {n} رسائل
+
+New rule
+= قاعدة جديدة
+
+Name
+= الاسم
+
+When
+= عندما
+
+and
+= و
+
+Text to look for
+= النص المراد البحث عنه
+
+Remove this condition
+= إزالة هذا الشرط
+
++ condition
+= + شرط
+
+All the conditions must hold
+= يجب أن تتحقق كل الشروط
+
+Do
+= افعل
+
+Choose a folder
+= اختر مجلدًا
+
+Choose a category
+= اختر فئة
+
+Remove this action
+= إزالة هذا الإجراء
+
++ action
+= + إجراء
+
+Stop processing more rules
+= إيقاف معالجة مزيد من القواعد
+
+Add Rule
+= إضافة قاعدة
+
+A rule needs a name, and something to look for.
+= تحتاج القاعدة إلى اسم، وإلى شيء للبحث عنه.
+
+{n} minute
+= {n} دقيقة
+
+{n} hour
+= {n} ساعة
+
+{n} hours
+= {n} ساعات
+
+{h} h {m} min
+= {h} س {m} د
+
+{n} day
+= {n} يوم
+
+{n} days
+= {n} أيام
+
+An application ID is letters, digits and dashes
+= معرّف التطبيق يتكون من حروف وأرقام وشرطات
+
+Say which reminder (`event` and `occurrence`), or `all`
+= حدّد التذكير (`event` و`occurrence`)، أو `all`
+
+`minutes` is 1 to 10080
+= قيمة `minutes` من 1 إلى 10080
+
+No Send/Receive is running
+= لا يوجد إرسال/تلقٍّ قيد التشغيل
+
+Stopping…
+= جارٍ الإيقاف…
+
+Sign-in cancelled
+= أُلغي تسجيل الدخول
+
+Nobody is signing in
+= لا أحد يسجّل الدخول
+
+No misspelt words.
+= لا توجد كلمات بها أخطاء إملائية.
+
+{count} misspelt: “{word}”, perhaps {near}
+= {count} بها أخطاء: “{word}”، ربما {near}
+
+Sign in on the page that opened in your browser…
+= سجّل الدخول في الصفحة التي فُتحت في المتصفح…
+
+Renewing the sign-in…
+= جارٍ تجديد تسجيل الدخول…
+
+Send/Receive is already running
+= الإرسال/التلقي قيد التشغيل بالفعل
+
+Updating the calendar and contacts…
+= جارٍ تحديث التقويم وجهات الاتصال…
+
+Sending…
+= جارٍ الإرسال…
+
+This build can't connect to mail servers
+= لا يستطيع هذا الإصدار الاتصال بخوادم البريد
+
+Sending your changes…
+= جارٍ إرسال تغييراتك…
+
+The contacts couldn't be taken in
+= تعذّر استيعاب جهات الاتصال
+
+Signing in stopped unexpectedly
+= توقف تسجيل الدخول على نحو غير متوقع
+
+Signing in brought nothing back
+= لم يُرجع تسجيل الدخول شيئًا
+
+You signed in as
+= سجّلت الدخول باسم
+
+but this account is
+= لكن هذا الحساب هو
+
+Send/Receive stopped unexpectedly
+= توقف الإرسال/التلقي على نحو غير متوقع
+
+Couldn't save the mailbox: {error}
+= تعذّر حفظ صندوق البريد: {error}
+
+In the Outbox: it is on its way
+= في علبة الصادر: إنها في طريقها
+
+part of a message
+= جزء من رسالة
+
+parts of messages
+= أجزاء من رسائل
+
+couldn't be read from the mailbox's content folder
+= تعذّرت قراءتها من مجلد محتوى صندوق البريد
+
+Sent
+= تم الإرسال
+
+Draft saved
+= تم حفظ المسودة
+
+message changed
+= رسالة تغيّرت
+
+messages changed
+= رسائل تغيّرت
+
+message
+= رسالة
+
+messages
+= رسائل
+
+event
+= حدث
+
+events
+= أحداث
+
+task
+= مهمة
+
+tasks
+= مهام
+
+contact
+= جهة اتصال
+
+contacts
+= جهات اتصال
+
+Imported {what}
+= تم استيراد {what}
+
+Already in your contacts
+= موجودة بالفعل في جهات اتصالك
+
+message removed
+= رسالة أُزيلت
+
+messages removed
+= رسائل أُزيلت
+
+item
+= عنصر
+
+items
+= عناصر
+
+moved to your account's calendar
+= نُقلت إلى تقويم حسابك
+
+was
+= كان
+
+were
+= كانت
+
+there already
+= موجودة بالفعل
+
+stays
+= يبقى
+
+stay
+= تبقى
+
+on this computer
+= على هذا الكمبيوتر
+
+1 message
+= رسالة واحدة
+
+Appointments
+= المواعيد
+
+Nothing in the next seven days
+= لا شيء في الأيام السبعة القادمة
+
+Tasks
+= المهام
+
+Nothing to do
+= لا شيء للقيام به
+
+Mark Complete
+= وضع علامة مكتملة
+
+By Date
+= حسب التاريخ
+
+By From
+= حسب المرسل
+
+By Subject
+= حسب الموضوع
+
+By Size
+= حسب الحجم
+
+By Importance
+= حسب الأهمية
+
+Newest on top
+= الأحدث في الأعلى
+
+Oldest on top
+= الأقدم في الأعلى
+
+A on top
+= أ في الأعلى
+
+Z on top
+= ي في الأعلى
+
+Largest on top
+= الأكبر في الأعلى
+
+Smallest on top
+= الأصغر في الأعلى
+
+High on top
+= العالية في الأعلى
+
+Low on top
+= المنخفضة في الأعلى
+
+Reverse Sort
+= عكس الفرز
+
+Show as Conversations
+= العرض كمحادثات
+
+Nothing matches the search.
+= لا شيء يطابق البحث.
+
+Nothing matches this filter.
+= لا شيء يطابق عامل التصفية هذا.
+
+Nothing here yet.
+= لا شيء هنا بعد.
+
+Mark as unread
+= وضع علامة غير مقروءة
+
+Clear flag
+= مسح العلامة
+
+Flag for follow-up
+= وضع علامة للمتابعة
+
+(no recipients)
+= (بلا مستلمين)
+
+[Draft]
+= [مسودة]
+
+(no subject)
+= (بلا موضوع)
+
+Open Draft
+= فتح المسودة
+
+Open in a Window
+= فتح في نافذة
+
+Reply All
+= رد على الكل
+
+Archive
+= أرشفة
+
+Not Junk
+= ليست غير مرغوب فيها
+
+Junk
+= غير مرغوب فيه
+
+Add to Tasks
+= إضافة إلى المهام
+
+Add Sender to Contacts
+= إضافة المرسل إلى جهات الاتصال
+
+Find Related Messages
+= البحث عن رسائل ذات صلة
+
+Save Message As…
+= حفظ الرسالة باسم…
+
+Somebody
+= شخص ما
+
+The organizer can't be written to from this account.
+= لا يمكن مراسلة المنظِّم من هذا الحساب.
+
+{name} organizes "{title}".
+= {name} ينظّم "{title}".
+
+It is now on {when}.
+= موعده الآن {when}.
+
+This is about the occurrence on {day} only.
+= هذا يخص التكرار في {day} فقط.
+
+Proposed start
+= البدء المقترح
+
+Proposed end
+= الانتهاء المقترح
+
+A note to the organizer (optional)
+= ملاحظة إلى المنظِّم (اختيارية)
+
+The proposed end has to be after the proposed start.
+= يجب أن يكون الانتهاء المقترح بعد البدء المقترح.
+
+Decline and Propose
+= الرفض واقتراح وقت
+
+Tentative and Propose
+= القبول المبدئي واقتراح وقت
+
+Another time was proposed to {name}
+= اقتُرح وقت آخر على {name}
+
+Your calendar
+= تقويمك
+
+Proposed time
+= الوقت المقترح
+
+and {n} more
+= و{n} غيرهم
+
+Send writes to: {people}.
+= يرسل الإرسال إلى: {people}.
+
+Not an e-mail address: {names}
+= ليس عنوان بريد إلكتروني: {names}
+
+The account's server forwards it.
+= خادم الحساب يعيد توجيهها.
+
+Forwarded to 1 person
+= أُعيد توجيهها إلى شخص واحد
+
+Forwarded to {n} people
+= أُعيد توجيهها إلى {n} أشخاص
+
+The meeting these proposals are for isn't on your calendar.
+= الاجتماع الذي تخصه هذه الاقتراحات ليس في تقويمك.
+
+Nobody has proposed another time.
+= لم يقترح أحد وقتًا آخر.
+
+Accept Proposal
+= قبول الاقتراح
+
+Only the meeting's organizer can change its time.
+= منظِّم الاجتماع وحده يمكنه تغيير وقته.
+
+Propose New Time
+= اقتراح وقت جديد
+
+Proposed Times
+= الأوقات المقترحة
+
+Select a meeting first
+= حدّد اجتماعًا أولًا
+
+This meeting's link isn't one that can be opened.
+= رابط هذا الاجتماع ليس مما يمكن فتحه.
+
+The window isn't up yet.
+= النافذة لم تظهر بعد.
+
+New Folder…
+= مجلد جديد…
+
+Rename Folder…
+= إعادة تسمية المجلد…
+
+Mark All as Read
+= وضع علامة مقروءة على الكل
+
+Favorites Are Set in Outlook
+= المفضلة تُضبط في Outlook
+
+Customize This Search Folder…
+= تخصيص مجلد البحث هذا…
+
+Delete Search Folder
+= حذف مجلد البحث
+
+New Search Folder…
+= مجلد بحث جديد…
+
+Read the Favorites from Outlook again now
+= قراءة المفضلة من Outlook مرة أخرى الآن
+
+Hide the folder pane
+= إخفاء جزء المجلدات
+
+Show the folder pane
+= إظهار جزء المجلدات
+
+Favorites
+= المفضلة
+
+Search Folders
+= مجلدات البحث
+
+1 new message
+= رسالة جديدة واحدة
+
+{n} new messages
+= {n} رسائل جديدة
+
+{n} more reminders
+= {n} تذكيرات أخرى
+
+Show a notification for new mail and reminders
+= إظهار إشعار للبريد الجديد والتذكيرات
+
+Include the sender and subject of the newest message
+= تضمين المرسل وموضوع أحدث رسالة
+
+This version of MailCraft can't show notifications here.
+= لا يستطيع هذا الإصدار من MailCraft إظهار الإشعارات هنا.
+
+Customize Search Folder
+= تخصيص مجلد البحث
+
+New Search Folder
+= مجلد بحث جديد
+
+Edit Quick Step
+= تحرير خطوة سريعة
+
+New Quick Step
+= خطوة سريعة جديدة
+
+Manage Quick Steps
+= إدارة الخطوات السريعة
+
+Contact Group
+= مجموعة جهات اتصال
+
+New Contact Group
+= مجموعة جهات اتصال جديدة
+
+Delay Delivery
+= تأخير التسليم
+
+Unread mail
+= البريد غير المقروء
+
+Mail flagged for follow up
+= البريد الموضوع عليه علامة للمتابعة
+
+Important mail
+= البريد المهم
+
+Mail with attachments
+= البريد ذو المرفقات
+
+Categorized mail
+= البريد المصنّف
+
+Large mail
+= البريد الكبير
+
+Mail from specific people
+= البريد من أشخاص محددين
+
+A search of my own
+= بحث خاص بي
+
+Show mail that is:
+= إظهار البريد الذي:
+
+Larger than (KB)
+= أكبر من (KB)
+
+Category
+= الفئة
+
+Any category
+= أي فئة
+
+Search for
+= البحث عن
+
+After what it shows
+= بعد ما يعرضه
+
+Look in
+= البحث في
+
+Every account
+= كل الحسابات
+
+Copy to folder
+= نسخ إلى مجلد
+
+Mark complete
+= وضع علامة مكتملة
+
+Clear categories
+= مسح الفئات
+
+What the button says
+= ما يقوله الزر
+
+Actions, in order:
+= الإجراءات، بالترتيب:
+
+To (optional)
+= إلى (اختياري)
+
+Add Action
+= إضافة إجراء
+
+No Quick Steps yet
+= لا توجد خطوات سريعة بعد
+
+Edit
+= تحرير
+
+Move up
+= نقل لأعلى
+
+Move down
+= نقل لأسفل
+
+New Quick Step…
+= خطوة سريعة جديدة…
+
+"{text}" isn't an e-mail address
+= "{text}" ليس عنوان بريد إلكتروني
+
+Members ({n})
+= الأعضاء ({n})
+
+No members yet
+= لا يوجد أعضاء بعد
+
+Remove from the group
+= إزالة من المجموعة
+
+Add addresses, separated by ;
+= أضف عناوين، تفصل بينها ;
+
+Add from Contacts…
+= إضافة من جهات الاتصال…
+
+Do not deliver before:
+= عدم التسليم قبل:
+
+Date
+= التاريخ
+
+The message waits in the Outbox until then.
+= تنتظر الرسالة في علبة الصادر حتى ذلك الحين.
+
+Send at once instead
+= الإرسال فورًا بدلًا من ذلك
+
+Contact Groups
+= مجموعات جهات الاتصال
+
+{n} members
+= {n} أعضاء
+
+Email the group
+= مراسلة المجموعة
+
+(no name)
+= (بلا اسم)
+
+Main
+= رئيسي
+
+{n} of {total}
+= {n} من {total}
+
+People
+= الأشخاص
+
+Nobody matches the search
+= لا أحد يطابق البحث
+
+No contacts yet
+= لا توجد جهات اتصال بعد
+
+Email
+= بريد إلكتروني
+
+Export…
+= تصدير…
+
+Select a contact to see the details
+= حدّد جهة اتصال لرؤية التفاصيل
+
+Remove from Favorites
+= إزالة من المفضلة
+
+Add to Favorites
+= إضافة إلى المفضلة
+
+Write to {address}
+= الكتابة إلى {address}
+
+Websites
+= مواقع الويب
+
+Turns {age} today
+= يبلغ {age} اليوم
+
+Turns {age} on {date}
+= يبلغ {age} في {date}
+
+Recent mail
+= البريد الأخير
+
+Sent {name} to the printer
+= تم إرسال {name} إلى الطابعة
+
+Downloaded {name}: print it from there
+= تم تنزيل {name}: اطبعه من هناك
+
+Message (Memo Style)
+= رسالة (نمط المذكرة)
+
+Contacts (Card Style)
+= جهات الاتصال (نمط البطاقات)
+
+Tasks (Table Style)
+= المهام (نمط الجدول)
+
+Daily Style
+= النمط اليومي
+
+Work Week Style
+= نمط أسبوع العمل
+
+Weekly Style
+= النمط الأسبوعي
+
+Monthly Style
+= النمط الشهري
+
+Style
+= النمط
+
+Days
+= الأيام
+
+from YYYY-MM-DD
+= من YYYY-MM-DD
+
+to YYYY-MM-DD
+= إلى YYYY-MM-DD
+
+Paper
+= الورق
+
+Download PDF to Print
+= تنزيل PDF للطباعة
+
+Save as PDF…
+= حفظ بصيغة PDF…
+
+Print Preview: 1 page
+= معاينة الطباعة: صفحة واحدة
+
+Print Preview: {n} pages
+= معاينة الطباعة: {n} صفحات
+
+the download failed
+= فشل التنزيل
+
+the server sent nothing
+= لم يرسل الخادم شيئًا
+
+it is too large to show
+= كبيرة جدًا بحيث لا يمكن عرضها
+
+it is damaged, or larger than can be shown
+= تالفة، أو أكبر مما يمكن عرضه
+
+it is a kind of picture that can't be shown here
+= نوع من الصور لا يمكن عرضه هنا
+
+it is a drawing of a kind that isn't shown (SVG)
+= رسم من نوع لا يُعرض (SVG)
+
+the server sent a web page instead of a picture
+= أرسل الخادم صفحة ويب بدلًا من صورة
+
+what the server sent is not a picture
+= ما أرسله الخادم ليس صورة
+
+all day
+= طوال اليوم
+
+This invitation doesn't say when the meeting is.
+= لا تذكر هذه الدعوة موعد الاجتماع.
+
+Select a message first
+= حدّد رسالة أولًا
+
+This message carries no invitation.
+= لا تحمل هذه الرسالة دعوة.
+
+Decline This Proposal?
+= رفض هذا الاقتراح؟
+
+Decline Proposal
+= رفض الاقتراح
+
+more ways to answer
+= مزيد من طرق الرد
+
+(no title)
+= (بلا عنوان)
+
+Accepted on {when}
+= قُبل في {when}
+
+You accepted this meeting.
+= لقد قبلت هذا الاجتماع.
+
+Tentatively accepted on {when}
+= قُبل مبدئيًا في {when}
+
+You tentatively accepted this meeting.
+= لقد قبلت هذا الاجتماع مبدئيًا.
+
+Declined on {when}
+= رُفض في {when}
+
+You declined this meeting.
+= لقد رفضت هذا الاجتماع.
+
+You organize this meeting: there is nothing to answer.
+= أنت منظِّم هذا الاجتماع: لا يوجد ما ترد عليه.
+
+This meeting is over.
+= انتهى هذا الاجتماع.
+
+The organizer has changed this meeting.
+= غيّر المنظِّم هذا الاجتماع.
+
+You haven't answered this invitation yet.
+= لم ترد على هذه الدعوة بعد.
+
+This is about one occurrence of a series.
+= هذا يخص تكرارًا واحدًا من سلسلة.
+
+This meeting was called off by its organizer.
+= ألغى المنظِّم هذا الاجتماع.
+
+It is not on your calendar.
+= ليس في تقويمك.
+
+{name} accepted this meeting.
+= قبل {name} هذا الاجتماع.
+
+{name} tentatively accepted this meeting.
+= قبل {name} هذا الاجتماع مبدئيًا.
+
+{name} declined this meeting.
+= رفض {name} هذا الاجتماع.
+
+{name} answered this invitation.
+= ردّ {name} على هذه الدعوة.
+
+{name} proposes another time for this meeting.
+= يقترح {name} وقتًا آخر لهذا الاجتماع.
+
+Accept
+= قبول
+
+Tentative
+= مبدئي
+
+Decline
+= رفض
+
+Write a Note with the Response…
+= كتابة ملاحظة مع الرد…
+
+View All Proposals
+= عرض كل الاقتراحات
+
+Every other time that was proposed for this meeting.
+= كل وقت آخر اقتُرح لهذا الاجتماع.
+
+This meeting
+= هذا الاجتماع
+
+Looking for this meeting on your calendar…
+= جارٍ البحث عن هذا الاجتماع في تقويمك…
+
+Look Again
+= البحث مرة أخرى
+
+Remove from Calendar
+= إزالة من التقويم
+
+Calendar…
+= التقويم…
+
+Show the day of this meeting in the calendar.
+= إظهار يوم هذا الاجتماع في التقويم.
+
+Proposed
+= مقترح
+
+Where
+= المكان
+
+Organizer
+= المنظِّم
+
+Nothing else is on your calendar at that time.
+= لا شيء آخر في تقويمك في ذلك الوقت.
+
+At the same time:
+= في الوقت نفسه:
+
+Right before or after:
+= قبله أو بعده مباشرة:
+
+Delete meeting requests from the Inbox after responding
+= حذف طلبات الاجتماعات من علبة الوارد بعد الرد
+
+Picture
+= صورة
+
+the download stopped before it was done
+= توقف التنزيل قبل اكتماله
+
+it took too long
+= استغرق وقتًا طويلًا جدًا
+
+Pictures not shown.
+= الصور غير معروضة.
+
+Pictures not downloaded.
+= الصور غير منزّلة.
+
+Downloading pictures…
+= جارٍ تنزيل الصور…
+
+{n} of {total} so far.
+= {n} من {total} حتى الآن.
+
+A picture couldn't be downloaded.
+= تعذّر تنزيل صورة.
+
+Point at it to see why.
+= أشر إليها لمعرفة السبب.
+
+{n} pictures couldn't be downloaded.
+= تعذّر تنزيل {n} صور.
+
+Point at one to see why.
+= أشر إلى إحداها لمعرفة السبب.
+
+Ask once more for the pictures that couldn't be downloaded.
+= الطلب مرة أخرى للصور التي تعذّر تنزيلها.
+
+Download pictures
+= تنزيل الصور
+
+Always download pictures from {sender}
+= تنزيل الصور دائمًا من {sender}
+
+Always from @{domain}
+= دائمًا من @{domain}
+
+Download pictures in mail automatically
+= تنزيل الصور في البريد تلقائيًا
+
+This build can't download pictures: they stay placeholders.
+= لا يستطيع هذا الإصدار تنزيل الصور: تبقى عناصر نائبة.
+
+Pictures are always downloaded from:
+= تُنزَّل الصور دائمًا من:
+
+Ask before downloading this sender's pictures again
+= السؤال قبل تنزيل صور هذا المرسل مرة أخرى
+
+everybody at @{domain}
+= الجميع في @{domain}
+
+No downloaded pictures are kept on this computer.
+= لا توجد صور منزّلة محفوظة على هذا الكمبيوتر.
+
+One downloaded picture is kept on this computer ({size}).
+= صورة منزّلة واحدة محفوظة على هذا الكمبيوتر ({size}).
+
+{n} downloaded pictures are kept on this computer ({size}).
+= {n} صور منزّلة محفوظة على هذا الكمبيوتر ({size}).
+
+Clear
+= مسح
+
+This build can't download pictures
+= لا يستطيع هذا الإصدار تنزيل الصور
+
+That is not a domain
+= هذا ليس نطاقًا
+
+The list of domains is full: remove some in File › Options
+= قائمة النطاقات ممتلئة: أزل بعضها في ملف › خيارات
+
+That is not a sender's address
+= هذا ليس عنوان مرسل
+
+The list of senders is full: remove some in File › Options
+= قائمة المرسلين ممتلئة: أزل بعضهم في ملف › خيارات
+
+Signed and verified
+= موقّعة ومُتحقَّق منها
+
+Encrypted
+= مشفّرة
+
+Signed by someone else
+= موقّعة من شخص آخر
+
+Signed, signer not verified
+= موقّعة، الموقِّع غير مُتحقَّق منه
+
+Signature not checked
+= التوقيع غير مفحوص
+
+Invalid signature
+= توقيع غير صالح
+
+Encrypted, can't be opened
+= مشفّرة، يتعذّر فتحها
+
+fingerprint
+= البصمة
+
+signed
+= موقّعة
+
+Trust This Signer
+= الوثوق بهذا الموقِّع
+
+Add Sender's Certificate
+= إضافة شهادة المرسل
+
+Select All
+= تحديد الكل
+
+Copy Link Address
+= نسخ عنوان الرابط
+
+Select some text first
+= حدّد بعض النص أولًا
+
+No message is being read there
+= لا توجد رسالة قيد القراءة هناك
+
+That is not a link's address
+= هذا ليس عنوان رابط
+
+This message has no text.
+= لا تحتوي هذه الرسالة على نص.
+
+This picture is missing from the message, or can't be shown.
+= هذه الصورة مفقودة من الرسالة، أو يتعذّر عرضها.
+
+This picture couldn't be downloaded: {why}.
+= تعذّر تنزيل هذه الصورة: {why}.
+
+This picture was downloaded, but can't be shown.
+= نُزّلت هذه الصورة، لكن يتعذّر عرضها.
+
+Select an item to read
+= حدّد عنصرًا لقراءته
+
+{n} items selected
+= {n} عناصر محددة
+
+To:
+= إلى:
+
+Cc:
+= نسخة:
+
+Bcc:
+= نسخة مخفية:
+
+Due
+= الاستحقاق
+
+Follow up.
+= للمتابعة.
+
+Completed.
+= مكتملة.
+
+This message was sent with High importance.
+= أُرسلت هذه الرسالة بأهمية عالية.
+
+This message was sent with Low importance.
+= أُرسلت هذه الرسالة بأهمية منخفضة.
+
+You replied to this message.
+= لقد رددت على هذه الرسالة.
+
+You forwarded this message.
+= لقد أعدت توجيه هذه الرسالة.
+
+This message waits in the Outbox until {day} {time}.
+= تنتظر هذه الرسالة في علبة الصادر حتى {day} {time}.
+
+The sender asked to be told when you read this message.
+= طلب المرسل إبلاغه عند قراءتك لهذه الرسالة.
+
+Send Receipt
+= إرسال الإيصال
+
+{n} messages in this conversation:
+= {n} رسائل في هذه المحادثة:
+
+Save {name}
+= حفظ {name}
+
+Save As…
+= حفظ باسم…
+
+Remove Attachment
+= إزالة المرفق
+
+now
+= الآن
+
+hours
+= ساعات
+
+1 Reminder
+= تذكير واحد
+
+Reminders
+= التذكيرات
+
+No reminders are due.
+= لا توجد تذكيرات مستحقة.
+
+Dismiss
+= تجاهل
+
+Snooze
+= غفوة
+
+Remind me again later
+= ذكّرني لاحقًا
+
+Dismiss All
+= تجاهل الكل
+
+1 hour
+= ساعة واحدة
+
+1 day
+= يوم واحد
+
+Move to Junk Email
+= نقل إلى البريد غير المرغوب فيه
+
+New
+= جديد
+
+New\nEmail
+= بريد\nجديد
+
+New\nItems
+= عناصر\nجديدة
+
+New Items
+= عناصر جديدة
+
+Permanently Delete
+= حذف نهائي
+
+Respond
+= الرد
+
+Reply\nAll
+= رد على\nالكل
+
+Reply with Meeting
+= الرد باجتماع
+
+Add Sender
+= إضافة المرسل
+
+Add to Contacts
+= إضافة إلى جهات الاتصال
+
+Move to Folder
+= نقل إلى مجلد
+
+Quick Steps
+= الخطوات السريعة
+
+Quick\nSteps
+= الخطوات\nالسريعة
+
+Tags
+= العلامات
+
+Unread/\nRead
+= غير مقروءة/\nمقروءة
+
+Follow\nUp
+= للمتابعة
+
+Follow Up
+= المتابعة
+
+Pin
+= تثبيت
+
+Pin to the top of the list
+= التثبيت في أعلى القائمة
+
+Find
+= بحث
+
+Filter\nEmail
+= تصفية\nالبريد
+
+Filter Email
+= تصفية البريد
+
+Related
+= ذات صلة
+
+Send/Receive\nAll Folders
+= إرسال/تلقي\nكل المجلدات
+
+New\nAppointment
+= موعد\nجديد
+
+New\nMeeting
+= اجتماع\nجديد
+
+Go To
+= انتقال إلى
+
+Next 7\nDays
+= الأيام 7\nالقادمة
+
+Arrange
+= ترتيب
+
+Work\nWeek
+= أسبوع\nالعمل
+
+Week
+= أسبوع
+
+Month
+= شهر
+
+Join Online Meeting
+= الانضمام إلى اجتماع عبر الإنترنت
+
+Share
+= مشاركة
+
+Save\nCalendar
+= حفظ\nالتقويم
+
+New\nContact
+= جهة اتصال\nجديدة
+
+New Contact\nGroup
+= مجموعة جهات\nاتصال جديدة
+
+Communicate
+= التواصل
+
+Actions
+= الإجراءات
+
+Edit\nContact
+= تحرير\nجهة الاتصال
+
+Export\nContacts
+= تصدير\nجهات الاتصال
+
+New\nTask
+= مهمة\nجديدة
+
+Manage Task
+= إدارة المهمة
+
+Mark\nComplete
+= وضع علامة\nمكتملة
+
+Edit\nTask
+= تحرير\nالمهمة
+
+Current View
+= العرض الحالي
+
+Filter
+= تصفية
+
+Filter Tasks
+= تصفية المهام
+
+Names
+= الأسماء
+
+Check\nNames
+= التحقق من\nالأسماء
+
+Basic Text
+= النص الأساسي
+
+Clear Formatting
+= مسح التنسيق
+
+Include
+= تضمين
+
+Attach\nFile
+= إرفاق\nملف
+
+Signature
+= التوقيع
+
+Encrypt
+= تشفير
+
+Sign
+= توقيع
+
+Read Receipt
+= إيصال القراءة
+
+Request a Read Receipt
+= طلب إيصال قراءة
+
+Delivery Receipt
+= إيصال التسليم
+
+Request a Delivery Receipt
+= طلب إيصال تسليم
+
+Do not deliver before…
+= عدم التسليم قبل…
+
+Save\nDraft
+= حفظ\nالمسودة
+
+Send & Receive
+= إرسال وتلقي
+
+Add\nAccount
+= إضافة\nحساب
+
+Account\nSettings
+= إعدادات\nالحساب
+
+New\nFolder
+= مجلد\nجديد
+
+New Search\nFolder
+= مجلد بحث\nجديد
+
+Rename\nFolder
+= إعادة تسمية\nالمجلد
+
+Move\nFolder
+= نقل\nالمجلد
+
+Move Folder
+= نقل المجلد
+
+Delete\nFolder
+= حذف\nالمجلد
+
+Clean Up
+= تنظيف
+
+Mark All\nas Read
+= وضع علامة مقروءة\nعلى الكل
+
+Run Rules\nNow
+= تشغيل القواعد\nالآن
+
+Empty\nFolder
+= إفراغ\nالمجلد
+
+Export
+= تصدير
+
+Export\nFolder
+= تصدير\nالمجلد
+
+Time\nScale
+= المقياس\nالزمني
+
+Time Scale
+= المقياس الزمني
+
+Side-by-\nSide
+= جنبًا إلى\nجنب
+
+Layout
+= التخطيط
+
+Folder\nPane
+= جزء\nالمجلدات
+
+Reading\nPane
+= جزء\nالقراءة
+
+Reading Pane
+= جزء القراءة
+
+To-Do\nBar
+= شريط\nالمهام
+
+Ribbon\nLayout
+= تخطيط\nالشريط
+
+Ribbon Layout
+= تخطيط الشريط
+
+Messages
+= الرسائل
+
+Show as\nConversations
+= العرض\nكمحادثات
+
+Message\nPreview
+= معاينة\nالرسالة
+
+Message Preview
+= معاينة الرسالة
+
+Arrangement
+= الترتيب
+
+Arrange\nBy
+= ترتيب\nحسب
+
+Arrange By
+= ترتيب حسب
+
+Reverse\nSort
+= عكس\nالفرز
+
+Window
+= النافذة
+
+Theme
+= السمة
+
+Interface Theme
+= سمة الواجهة
+
+Reminders\nWindow
+= نافذة\nالتذكيرات
+
+Reset\nView
+= إعادة تعيين\nالعرض
+
+Help
+= تعليمات
+
+Search\nCommands
+= البحث في\nالأوامر
+
+About\nMailCraft
+= حول\nMailCraft
+
+All Categories…
+= كل الفئات…
+
+Email Message
+= رسالة بريد إلكتروني
+
+Folder…
+= مجلد…
+
+Copy to Folder
+= نسخ إلى مجلد
+
+Always Move Messages From This Sender
+= نقل الرسائل من هذا المرسل دائمًا
+
+Manage Rules…
+= إدارة القواعد…
+
+No Date
+= بلا تاريخ
+
+Clear Flag
+= مسح العلامة
+
+No signatures yet
+= لا توجد تواقيع بعد
+
+Signatures…
+= التواقيع…
+
+Top Level
+= المستوى الأعلى
+
+Reply and Delete
+= الرد والحذف
+
+Manage Quick Steps…
+= إدارة الخطوات السريعة…
+
+Doesn't Repeat
+= لا يتكرر
+
+Search commands
+= البحث في الأوامر
+
+Sign in with Send/Receive to see when other people are busy.
+= سجّل الدخول بالإرسال/التلقي لمعرفة متى يكون الآخرون مشغولين.
+
+Asking about other people's time stopped unexpectedly
+= توقف السؤال عن أوقات الآخرين على نحو غير متوقع
+
+The server didn't say when other people are busy
+= لم يذكر الخادم متى يكون الآخرون مشغولين
+
+Nobody with an address is invited
+= لم يُدعَ أحد له عنوان
+
+You
+= أنت
+
+Organizer: your own calendar
+= المنظِّم: تقويمك الخاص
+
+Asking the server…
+= جارٍ سؤال الخادم…
+
+No information
+= لا توجد معلومات
+
+Not an address
+= ليس عنوانًا
+
+All Attendees
+= كل المشاركين
+
+Show
+= إظهار
+
+AutoPick Next
+= الاختيار التلقائي للتالي
+
+Busy
+= مشغول
+
+Out of Office
+= خارج المكتب
+
+Working Elsewhere
+= يعمل في مكان آخر
+
+Asking the server when everybody is free…
+= جارٍ سؤال الخادم متى يكون الجميع متفرغين…
+
+Overdue
+= متأخرة
+
+This Week
+= هذا الأسبوع
+
+Later
+= لاحقًا
+
+Completed on {date}
+= اكتملت في {date}
+
+No due date
+= بلا تاريخ استحقاق
+
+Overdue: was due {when}
+= متأخرة: كان استحقاقها {when}
+
+Due {when}
+= الاستحقاق {when}
+
+My Tasks
+= مهامي
+
+No completed tasks yet.
+= لا توجد مهام مكتملة بعد.
+
+Nothing to do here.
+= لا شيء للقيام به هنا.
+
+Add a task due today
+= إضافة مهمة مستحقة اليوم
+
+Add a task
+= إضافة مهمة
+
+Mark Incomplete
+= وضع علامة غير مكتملة
+
+Details
+= التفاصيل
+
+Message
+= الرسالة
+
+From {name}
+= من {name}
+
+Open the message
+= فتح الرسالة
+
+Light
+= فاتح
+
+Dark
+= داكن
+
+Use system setting
+= استخدام إعداد النظام
+
+Imported {n} certificate(s) or key(s), with your private key
+= تم استيراد {n} شهادة أو مفتاح، مع مفتاحك الخاص
+
+Imported {n} certificate(s) or key(s)
+= تم استيراد {n} شهادة أو مفتاح
+
+Keep the certificates and keys that signed messages bring
+= الاحتفاظ بالشهادات والمفاتيح التي تحملها الرسائل الموقّعة
+
+Sign new messages
+= توقيع الرسائل الجديدة
+
+Encrypt new messages
+= تشفير الرسائل الجديدة
+
+Sign and encrypt with
+= التوقيع والتشفير باستخدام
+
+S/MIME
+= S/MIME
+
+OpenPGP
+= OpenPGP
+
+Whichever fits (S/MIME first)
+= أيهما يناسب (S/MIME أولًا)
+
+Import…
+= استيراد…
+
+Yours
+= خاصتك
+
+Yours (private key not here)
+= خاصتك (المفتاح الخاص ليس هنا)
+
+Trusted
+= موثوق
+
+Certificate authority
+= مرجع مصدق
+
+From a signed message
+= من رسالة موقّعة
+
+Expired
+= منتهية الصلاحية
+
+until
+= حتى
+
+issued by
+= صادرة عن
+
+Don't Trust
+= عدم الوثوق
+
+Trust
+= وثوق
+
+"{name}" is protected by a passphrase.
+= "{name}" محمي بعبارة مرور.
+
+That passphrase isn't the file's.
+= عبارة المرور هذه ليست عبارة الملف.
+
+Passphrase
+= عبارة المرور
+
+Not available: {reason}
+= غير متاح: {reason}
+
+Too many windows are open: close one first
+= النوافذ المفتوحة كثيرة جدًا: أغلق إحداها أولًا
+
+That can't be opened in a window of its own
+= لا يمكن فتح ذلك في نافذة مستقلة
+
+No appointment is open in a window of its own
+= لا يوجد موعد مفتوح في نافذة مستقلة
+
+Only a meeting you organize has a Scheduling Assistant
+= للاجتماع الذي تنظّمه فقط مساعد جدولة
+
+Mark Unread
+= وضع علامة غير مقروءة
+
+Mark Read
+= وضع علامة مقروءة
+
+This computer's time
+= وقت هذا الكمبيوتر
+
+Search time zones
+= البحث في المناطق الزمنية
+
+No time zone is called that
+= لا توجد منطقة زمنية بهذا الاسم
+
+New Mailbox
+= صندوق بريد جديد
+
+File
+= ملف
+
+Open Mailbox
+= فتح صندوق بريد
+
+Save Mailbox
+= حفظ صندوق البريد
+
+Save Message As
+= حفظ الرسالة باسم
+
+Save As
+= حفظ باسم
+
+Undo
+= تراجع
+
+Quick Access
+= الوصول السريع
+
+nothing to undo
+= لا شيء للتراجع عنه
+
+Redo
+= إعادة
+
+nothing to redo
+= لا شيء لإعادته
+
+Select Message
+= تحديد رسالة
+
+Folder
+= المجلد
+
+Next Message
+= الرسالة التالية
+
+Previous Message
+= الرسالة السابقة
+
+Get Message
+= جلب رسالة
+
+List Messages
+= سرد الرسائل
+
+select a message first
+= حدّد رسالة أولًا
+
+Mark as Read
+= وضع علامة مقروءة
+
+Mark as Unread
+= وضع علامة غير مقروءة
+
+Unread/ Read
+= غير مقروءة/ مقروءة
+
+Flag Message
+= وضع علامة على الرسالة
+
+Block Sender
+= حظر المرسل
+
+Save Attachment
+= حفظ المرفق
+
+Attachments
+= المرفقات
+
+New Email
+= بريد إلكتروني جديد
+
+Edit Message
+= تحرير الرسالة
+
+no message is being written
+= لا توجد رسالة قيد الكتابة
+
+Attach File
+= إرفاق ملف
+
+Suggest Recipients
+= اقتراح مستلمين
+
+More Options
+= مزيد من الخيارات
+
+Tracking
+= التتبع
+
+Close Message
+= إغلاق الرسالة
+
+Select Text
+= تحديد نص
+
+HTML
+= HTML
+
+Format Text
+= تنسيق النص
+
+Format
+= تنسيق
+
+Plain Text
+= نص عادي
+
+Font
+= الخط
+
+Paragraph
+= الفقرة
+
+Align Text
+= محاذاة النص
+
+Links
+= الارتباطات
+
+Illustrations
+= الرسومات
+
+Symbols
+= الرموز
+
+Date & Time
+= التاريخ والوقت
+
+Text
+= النص
+
+Symbol
+= رمز
+
+Editing
+= التحرير
+
+Replace
+= استبدال
+
+Word Count
+= عدد الكلمات
+
+Review
+= مراجعة
+
+Proofing
+= التدقيق
+
+Spelling & Grammar
+= الإملاء والنحو
+
+Go to Folder
+= الانتقال إلى مجلد
+
+List Folders
+= سرد المجلدات
+
+Favorites from Outlook
+= المفضلة من Outlook
+
+the folder is already empty
+= المجلد فارغ بالفعل
+
+Reminders Window
+= نافذة التذكيرات
+
+View
+= عرض
+
+Navigation
+= التنقل
+
+Folder Pane
+= جزء المجلدات
+
+To-Do Bar
+= شريط المهام
+
+Search
+= بحث
+
+Close Search
+= إغلاق البحث
+
+Work Week
+= أسبوع العمل
+
+Reset View
+= إعادة تعيين العرض
+
+Inspect View
+= فحص العرض
+
+Free and Busy Times
+= أوقات التفرغ والانشغال
+
+Attendees
+= المشاركون
+
+Edit Event
+= تحرير الحدث
+
+select an appointment first
+= حدّد موعدًا أولًا
+
+Move Event
+= نقل الحدث
+
+Select Event
+= تحديد حدث
+
+Get Event
+= جلب حدث
+
+List Events
+= سرد الأحداث
+
+Add Calendar
+= إضافة تقويم
+
+Manage Calendars
+= إدارة التقويمات
+
+Delete Calendar
+= حذف التقويم
+
+Show Calendar
+= إظهار التقويم
+
+Move to the Account's Calendar
+= نقل إلى تقويم الحساب
+
+Work in Calendar
+= العمل في التقويم
+
+Read Invitation
+= قراءة الدعوة
+
+Show in Calendar
+= إظهار في التقويم
+
+Delete Meeting Requests after Responding
+= حذف طلبات الاجتماعات بعد الرد
+
+Record Response
+= تسجيل الرد
+
+Copy Event
+= نسخ الحدث
+
+Number of Days
+= عدد الأيام
+
+Next 7 Days
+= الأيام 7 القادمة
+
+Week Numbers
+= أرقام الأسابيع
+
+List Calendars
+= سرد التقويمات
+
+Calendar Colour
+= لون التقويم
+
+Side-by-Side
+= جنبًا إلى جنب
+
+Bring Calendar to Front
+= إحضار التقويم إلى الأمام
+
+Working Hours
+= ساعات العمل
+
+Apply Downloaded Mailbox Settings
+= تطبيق إعدادات صندوق البريد المنزّلة
+
+Send / Receive
+= إرسال / تلقي
+
+Time Zone
+= المنطقة الزمنية
+
+Edit Contact
+= تحرير جهة الاتصال
+
+select a contact first
+= حدّد جهة اتصال أولًا
+
+Select Contact
+= تحديد جهة اتصال
+
+Get Contact
+= جلب جهة اتصال
+
+List Contacts
+= سرد جهات الاتصال
+
+Search People
+= البحث عن أشخاص
+
+Edit Contact Group
+= تحرير مجموعة جهات الاتصال
+
+there are no contact groups
+= لا توجد مجموعات جهات اتصال
+
+Add Members
+= إضافة أعضاء
+
+Members
+= الأعضاء
+
+Remove Member
+= إزالة عضو
+
+Delete Group
+= حذف المجموعة
+
+Open Contact Group
+= فتح مجموعة جهات الاتصال
+
+Email Group
+= مراسلة المجموعة
+
+Export Contact Groups
+= تصدير مجموعات جهات الاتصال
+
+Edit Task
+= تحرير المهمة
+
+select a task first
+= حدّد مهمة أولًا
+
+Select Task
+= تحديد مهمة
+
+Get Task
+= جلب مهمة
+
+List Tasks
+= سرد المهام
+
+Create Rule
+= إنشاء قاعدة
+
+Delete Rule
+= حذف القاعدة
+
+Enable Rule
+= تفعيل القاعدة
+
+Always Move Messages From
+= نقل الرسائل دائمًا من
+
+Send Read Receipt
+= إرسال إيصال القراءة
+
+Create Quick Step
+= إنشاء خطوة سريعة
+
+there are no Quick Steps
+= لا توجد خطوات سريعة
+
+Delete Quick Step
+= حذف الخطوة السريعة
+
+Move Quick Step
+= نقل الخطوة السريعة
+
+Run Quick Step
+= تشغيل الخطوة السريعة
+
+Customize This Search Folder
+= تخصيص مجلد البحث هذا
+
+there are no search folders
+= لا توجد مجلدات بحث
+
+New Category
+= فئة جديدة
+
+Rename Category
+= إعادة تسمية الفئة
+
+Delete Category
+= حذف الفئة
+
+All Categories
+= كل الفئات
+
+List Accounts
+= سرد الحسابات
+
+Where Outlook's Favorites Come From
+= من أين تأتي المفضلة من Outlook
+
+Suggest Account Settings
+= اقتراح إعدادات الحساب
+
+Delete Signature
+= حذف التوقيع
+
+Apply Send/Receive
+= تطبيق الإرسال/التلقي
+
+no shared mailbox is open
+= لا يوجد صندوق بريد مشترك مفتوح
+
+Calendar Changes to Send
+= تغييرات التقويم المراد إرسالها
+
+Apply Sent Calendar Changes
+= تطبيق تغييرات التقويم المرسلة
+
+Apply Downloaded Calendar
+= تطبيق التقويم المنزّل
+
+Apply Downloaded Contacts
+= تطبيق جهات الاتصال المنزّلة
+
+Apply Downloaded Calendar List
+= تطبيق قائمة التقويمات المنزّلة
+
+Apply Downloaded Categories
+= تطبيق الفئات المنزّلة
+
+Apply Downloaded Favorites
+= تطبيق المفضلة المنزّلة
+
+Forget Downloaded Calendar and Contacts
+= نسيان التقويم وجهات الاتصال المنزّلة
+
+Certificates and Keys
+= الشهادات والمفاتيح
+
+Trust Center
+= مركز الثقة
+
+Import Certificate or Key
+= استيراد شهادة أو مفتاح
+
+Export Certificate or Key
+= تصدير شهادة أو مفتاح
+
+Remove Certificate or Key
+= إزالة شهادة أو مفتاح
+
+Trust Certificate or Key
+= الوثوق بشهادة أو مفتاح
+
+Message Security
+= أمان الرسالة
+
+Security
+= الأمان
+
+Email Security Options
+= خيارات أمان البريد الإلكتروني
+
+Show Ribbon Tab
+= إظهار علامة تبويب الشريط
+
+Ribbon
+= الشريط
+
+Collapse the Ribbon
+= طي الشريط
+
+Open Dialog
+= فتح مربع الحوار
+
+Close Dialog
+= إغلاق مربع الحوار
+
+Interface Size
+= حجم الواجهة
+
+Cancel Sign-In
+= إلغاء تسجيل الدخول
+
+Cancel Send/Receive
+= إلغاء الإرسال/التلقي
+
+Connect Calendar and Contacts
+= ربط التقويم وجهات الاتصال
+
+Choose How Outlook's Favorites Are Read
+= اختيار طريقة قراءة المفضلة من Outlook
+
+Copy a Link for Your Administrator
+= نسخ رابط للمسؤول لديك
+
+What to Do When Your Organisation Has to Approve MailCraft
+= ماذا تفعل عندما يجب أن توافق مؤسستك على MailCraft
+
+Copy a Message for My Administrator
+= نسخ رسالة إلى المسؤول لديّ
+
+I'm an Administrator: Approve MailCraft for My Organisation
+= أنا مسؤول: الموافقة على MailCraft لمؤسستي
+
+Try Signing In Again
+= محاولة تسجيل الدخول مرة أخرى
+
+Dismiss Reminder
+= تجاهل التذكير
+
+Snooze Reminders
+= تأجيل التذكيرات
+
+Microsoft Application ID
+= معرّف تطبيق Microsoft
+
+Remember Passwords and Sign-Ins
+= تذكّر كلمات المرور وتسجيلات الدخول
+
+Show Notifications
+= إظهار الإشعارات
+
+Sender and Subject in Notifications
+= المرسل والموضوع في الإشعارات
+
+Insert Picture
+= إدراج صورة
+
+Check Spelling
+= التدقيق الإملائي
+
+Expand or Collapse Folder
+= توسيع المجلد أو طيّه
+
+Open in a Window of Its Own
+= فتح في نافذة مستقلة
+
+Close Window
+= إغلاق النافذة
+
+Appointment Window
+= نافذة الموعد
+
+Download Pictures
+= تنزيل الصور
+
+Always Download Pictures from Sender
+= تنزيل الصور دائمًا من المرسل
+
+Download Pictures in Mail Automatically
+= تنزيل الصور في البريد تلقائيًا
+
+Try Downloading Pictures Again
+= محاولة تنزيل الصور مرة أخرى
+
+Clear Downloaded Pictures
+= مسح الصور المنزّلة
+
+Copy Selected Text
+= نسخ النص المحدد
+
+Select All Text in Message
+= تحديد كل النص في الرسالة
+
+Expand or Collapse Calendar Group
+= توسيع مجموعة التقويمات أو طيّها
+
+Look for This Meeting on the Calendar
+= البحث عن هذا الاجتماع في التقويم
+
+January
+= يناير
+
+Jan
+= يناير
+
+February
+= فبراير
+
+Feb
+= فبراير
+
+March
+= مارس
+
+Mar
+= مارس
+
+April
+= أبريل
+
+Apr
+= أبريل
+
+May
+= مايو
+
+June
+= يونيو
+
+Jun
+= يونيو
+
+July
+= يوليو
+
+Jul
+= يوليو
+
+August
+= أغسطس
+
+Aug
+= أغسطس
+
+September
+= سبتمبر
+
+Sep
+= سبتمبر
+
+October
+= أكتوبر
+
+Oct
+= أكتوبر
+
+November
+= نوفمبر
+
+Nov
+= نوفمبر
+
+December
+= ديسمبر
+
+Dec
+= ديسمبر
+
+Monday
+= الاثنين
+
+Mon
+= الاثنين
+
+Tuesday
+= الثلاثاء
+
+Tue
+= الثلاثاء
+
+Wednesday
+= الأربعاء
+
+Wed
+= الأربعاء
+
+Thursday
+= الخميس
+
+Thu
+= الخميس
+
+Friday
+= الجمعة
+
+Fri
+= الجمعة
+
+Saturday
+= السبت
+
+Sat
+= السبت
+
+Sunday
+= الأحد
+
+Sun
+= الأحد
+
+Upcoming
+= القادمة
+
+Yesterday
+= أمس
+
+Last Week
+= الأسبوع الماضي
+
+Two Weeks Ago
+= قبل أسبوعين
+
+Three Weeks Ago
+= قبل ثلاثة أسابيع
+
+Last Month
+= الشهر الماضي
+
+Older
+= أقدم
+
+Size
+= الحجم
+
+Unread
+= غير مقروءة
+
+Flagged
+= عليها علامة
+
+Has Attachments
+= تحتوي على مرفقات
+
+To Me
+= إليّ
+
+Active
+= نشطة
+
+Free
+= متفرغ
+
+No response
+= لا رد
+
+Accepted
+= مقبول
+
+Declined
+= مرفوض
+
+Teams
+= Teams
+
+Skype for Business
+= Skype for Business
+
+Skype
+= Skype
+
+Online
+= عبر الإنترنت
+
+Gray
+= رمادي
+
+Brown
+= بني
+
+No date
+= بلا تاريخ
+
+
+# added with the language setting
+Language
+= اللغة
+
+Use system setting ({language})
+= استخدام إعداد النظام ({language})
+
+Every {n} minutes
+= كل {n} دقيقة
+
+in {n} minute
+= بعد {n} دقيقة
+
+{n} minute ago
+= منذ {n} دقيقة
+
+in {n} minutes
+= بعد {n} دقائق
+
+{n} minutes ago
+= منذ {n} دقائق
+
+in {n} hours
+= بعد {n} ساعات
+
+{n} hours ago
+= منذ {n} ساعات
+
+in {n} days
+= بعد {n} أيام
+
+{n} days ago
+= منذ {n} أيام
+
+Interface Language
+= لغة الواجهة
+
+
+# handed up by the engine
+Pinned
+= المثبتة
+
+Encrypted message
+= رسالة مشفرة
+
+Signed message
+= رسالة موقعة
+
+On this computer
+= على هذا الكمبيوتر
+
+My Calendars
+= تقويماتي
+
+Other Calendars
+= تقويمات أخرى
+
+
+# the folders every account has
+Inbox
+= البريد الوارد
+
+Drafts
+= المسودات
+
+Sent Items
+= العناصر المرسلة
+
+Deleted Items
+= العناصر المحذوفة
+
+Junk Email
+= البريد غير الهام
+
+Outbox
+= البريد الصادر
+
+ribbon tab|Home
+= الرئيسية
