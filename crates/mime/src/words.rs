@@ -11,8 +11,9 @@ const MAX_CHARSET: usize = 40;
 
 /// RFC 2047 encoded-words to text.
 ///
-/// Reads the `B` and `Q` encodings in UTF-8, US-ASCII, ISO-8859-1, ISO-8859-15 and Windows-1252;
-/// other character sets are read as UTF-8, with U+FFFD for what doesn't fit. White space between
+/// Reads the `B` and `Q` encodings in any character set `charset` knows (UTF-8, the Latin and
+/// Windows code pages, Japanese, Chinese, Korean, Cyrillic, UTF-16…); a character set nobody
+/// knows is read as UTF-8, with U+FFFD for what doesn't fit. White space between
 /// two encoded-words is dropped, as the RFC says. Words in a row that share a character set are
 /// decoded together, so a character split across two words still comes out whole. Anything that
 /// isn't a well-formed encoded-word is left as it is.
