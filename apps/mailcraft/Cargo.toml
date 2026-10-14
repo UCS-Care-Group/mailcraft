@@ -46,6 +46,18 @@ fmv-macos-events = "=0.1.0"
 # store (Windows Credential Manager, the macOS keychain), never to a file of ours.
 keyring = { version = "3.6", default-features = false, features = ["windows-native", "apple-native"] }
 
+[target.'cfg(any(target_os = "linux", target_os = "freebsd", target_os = "dragonfly", target_os = "netbsd", target_os = "openbsd"))'.dependencies]
+# GNOME on Wayland leaves the title bar's buttons to the program. Without this, winit (eframe's,
+# already in the tree; this only turns on a feature of it) draws them as plain squares with no
+# glyph; with it, sctk-adwaita draws GNOME's own close, maximize and minimize buttons in code.
+winit = { version = "0.30", default-features = false, features = ["wayland-csd-adwaita"] }
+# A password or sign-in the owner asks to be remembered goes to the Secret Service (GNOME Keyring,
+# KWallet, KeePassXC) over D-Bus. MIT OR Apache-2.0. Chosen over keyring's own Secret Service
+# backends: `sync-secret-service` links the C libdbus, and `async-secret-service` pulls zbus 4 in
+# beside the zbus 5 already in the tree (accesskit's). This is zbus 5, Rust throughout, its
+# encryption the RustCrypto crates.
+secret-service = { version = "5.1", features = ["rt-async-io-crypto-rust"] }
+
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 rfd = { workspace = true }
 # Waits for an `rfd::AsyncFileDialog` on a background thread (the dialogs don't block the UI);
@@ -57,3 +69,8 @@ getrandom = "0.3"
 # could be started (egui's own way of opening a link doesn't). Already in the tree: eframe's
 # `links` feature runs on it.
 webbrowser = "1.2"
+# The system's notifications for new mail and reminders: the freedesktop.org notification service
+# on Linux and the BSDs (zbus 5, Rust throughout, already in the tree), toasts on Windows
+# (tauri-winrt-notification), the Notification Center on macOS (mac-notification-sys). MIT OR
+# Apache-2.0.
+notify-rust = "4.18"

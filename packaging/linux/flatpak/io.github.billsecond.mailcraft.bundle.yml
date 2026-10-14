@@ -32,6 +32,11 @@ finish-args:
   # line, Open Recent, "Save" next to the original) work in the usual places.
   - --filesystem=xdg-documents
   - --filesystem=xdg-pictures
+  # Remembered passwords and sign-ins: the Secret Service (GNOME Keyring, KWallet) on the
+  # session bus. Without it MailCraft asks for the password at each start.
+  - --talk-name=org.freedesktop.secrets
+  # Notifications for new mail and reminders (the freedesktop notification service).
+  - --talk-name=org.freedesktop.Notifications
   # Deliberately not granted: network (the optional --control server listens on 127.0.0.1 in
   # the sandbox; `flatpak override --user --share=network io.github.billsecond.mailcraft` exposes it to
   # host agents) and home/host filesystem access.

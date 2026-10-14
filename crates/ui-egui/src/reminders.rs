@@ -42,13 +42,15 @@ fn key_of(r: &Reminder) -> String {
 
 /// `in 10 minutes`, `now`, `25 minutes ago`, `in 2 hours`, `3 days ago`.
 pub(crate) fn when(minutes: i64) -> String {
-    let (n, unit) = match minutes.unsigned_abs() {
+    let ahead = minutes > 0;
+    let (n, template) = match minutes.unsigned_abs() {
         0 => return tl!("now").to_string(),
-        m @ 1..=119 => (m, if m == 1 { tl!("minute") } else { tl!("minutes") }),
-        m @ 120..=2879 => (m / 60, tl!("hours")),
-        m => (m / 1440, tl!("days")),
+        1 => (1, if ahead { tn!("in {n} minute") } else { tn!("{n} minute ago") }),
+        m @ 2..=119 => (m, if ahead { tn!("in {n} minutes") } else { tn!("{n} minutes ago") }),
+        m @ 120..=2879 => (m / 60, if ahead { tn!("in {n} hours") } else { tn!("{n} hours ago") }),
+        m => (m / 1440, if ahead { tn!("in {n} days") } else { tn!("{n} days ago") }),
     };
-    if minutes > 0 { format!("{} {n} {unit}", tl!("in")) } else { format!("{n} {unit} {}", tl!("ago")) }
+    crate::i18n::fmt(tl!(template), &[("n", &n.to_string())])
 }
 
 /// Work out what is due, every few seconds and whenever the mailbox changed; ask for attention
@@ -59,15 +61,23 @@ pub fn tick(app: &mut MailApp, ctx: &egui::Context) {
     if now - app.reminders.looked < LOOK_EVERY && rev == app.reminders.looked_rev && app.reminders.looked != 0.0 {
         return;
     }
+    // What is due when the window opens is in front of the owner already: the system isn't
+    // asked to say it again.
+    let starting = app.reminders.looked == 0.0;
     app.reminders.looked = now;
     app.reminders.looked_rev = rev;
     refresh(app);
-    let mut fresh = false;
+    let mut fresh = Vec::new();
     for r in &app.reminders.showing {
-        fresh |= app.reminders.announced.insert(key_of(r));
+        if app.reminders.announced.insert(key_of(r)) {
+            fresh.push(r.clone());
+        }
     }
-    if fresh && !ctx.input(|i| i.focused) {
+    if !fresh.is_empty() && !ctx.input(|i| i.focused) {
         ctx.send_viewport_cmd(egui::ViewportCommand::RequestUserAttention(egui::UserAttentionType::Informational));
+    }
+    if !starting {
+        crate::notify::reminders(app, &fresh);
     }
     if !app.session.mailbox.events.is_empty() {
         ctx.request_repaint_after(std::time::Duration::from_millis(LOOK_EVERY as u64));
@@ -176,37 +186,43 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
                     crate::theme::paint_clipped(
                         ui.painter(),
                         egui::pos2(rect.min.x + 34.0, rect.min.y + 15.0),
-                        rect.width() - 130.0 - aside,
+                        rect.width() - 144.0 - aside,
                         name,
                         semibold(12.5),
                         t.text,
                     );
-                    let time = if r.all_day { r.start.date.medium() } else { format!("{} {}", r.start.date.medium(), r.start.time_short(twelve)) };
+                    let time = if r.all_day {
+                        crate::i18n::date_medium(r.start.date)
+                    } else {
+                        format!("{} {}", crate::i18n::date_medium(r.start.date), r.start.time_short(twelve))
+                    };
                     let detail = if r.location.trim().is_empty() { time } else { format!("{time} · {}", r.location) };
                     crate::theme::paint_clipped(
                         ui.painter(),
                         egui::pos2(rect.min.x + 34.0, rect.min.y + 32.0),
-                        rect.width() - 130.0 - aside,
+                        rect.width() - 144.0 - aside,
                         &detail,
                         regular(11.5),
                         t.text_dim,
                     );
                     let color = if r.minutes <= 0 { t.red } else { t.text_dim };
-                    let said = egui::pos2(rect.max.x - 78.0 - aside, rect.min.y + 15.0);
+                    let said = egui::pos2(rect.max.x - 92.0 - aside, rect.min.y + 15.0);
                     ui.painter().text(said, Align2::RIGHT_CENTER, when(r.minutes), regular(11.5), color);
-                    let button = egui::Rect::from_min_size(egui::pos2(rect.max.x - 70.0, rect.center().y - 12.0), vec2(64.0, 24.0));
+                    // (Wide enough for the word in the longer languages; a longer one is cut short, not wrapped.)
+                    let button = egui::Rect::from_min_size(egui::pos2(rect.max.x - 84.0, rect.center().y - 12.0), vec2(78.0, 24.0));
                     // The link is shown where it leads, and followed only on the click.
                     let mut pressed = false;
                     if let Some(link) = &join {
                         let place = egui::Rect::from_min_size(egui::pos2(button.min.x - aside, button.min.y), vec2(aside - 6.0, 24.0));
-                        let joins = ui.put(place, egui::Button::new(tl!("Join"))).on_hover_text(link.as_str());
+                        let joins =
+                            ui.put(place, egui::Button::new(tl!("Join")).wrap_mode(egui::TextWrapMode::Truncate)).on_hover_text(link.as_str());
                         app.hit.add("reminderJoin", r.event, joins.rect);
                         if joins.clicked() {
                             joined = Some(r.event);
                             pressed = true;
                         }
                     }
-                    if ui.put(button, egui::Button::new(tl!("Dismiss"))).clicked() {
+                    if ui.put(button, egui::Button::new(tl!("Dismiss")).wrap_mode(egui::TextWrapMode::Truncate)).clicked() {
                         dismissed = Some((r.event, r.start.iso()));
                     } else if resp.double_clicked() && !pressed {
                         opened = Some((r.event, r.start));

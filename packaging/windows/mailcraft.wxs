@@ -70,7 +70,12 @@
         <File Id="MailcraftExe" Source="$(var.BinDir)\mailcraft.exe" KeyPath="yes">
           <Shortcut Id="StartMenuShortcut" Directory="ProgramMenuFolder" Name="MailCraft"
               Description="MailCraft mail and calendar" WorkingDirectory="INSTALLFOLDER" Advertise="yes"
-              Icon="MailcraftIcon.ico" IconIndex="0" />
+              Icon="MailcraftIcon.ico" IconIndex="0">
+            <!-- Who MailCraft's notifications (new mail, reminders) come from: Windows shows a
+                 toast only for an application id that a Start Menu shortcut carries. The same id
+                 is in apps/mailcraft/src/notifications.rs. -->
+            <ShortcutProperty Key="System.AppUserModel.ID" Value="io.github.billsecond.mailcraft" />
+          </Shortcut>
         </File>
 
         <RegistryValue Root="HKLM" Key="Software\Microsoft\Windows\CurrentVersion\App Paths\mailcraft.exe" Value="[#MailcraftExe]" Type="string" />
