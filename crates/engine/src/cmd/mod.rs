@@ -11,10 +11,19 @@ pub mod edit;
 mod favorites_tests;
 pub mod file;
 pub mod folder;
+mod folder_sync;
+pub mod format;
+pub mod groups;
 pub mod mail;
 pub mod people;
+pub mod print;
+pub mod quick_steps;
+pub mod receipts;
 pub mod remote;
 pub mod rules;
+pub mod search_folders;
+pub mod security;
+pub mod shared;
 pub mod tasks;
 pub mod view;
 #[cfg(test)]
@@ -31,9 +40,11 @@ use crate::{CmdError, CmdResult, Registry, Session, p};
 pub fn registry() -> Registry {
     let mut v = Vec::new();
     v.extend(file::specs());
+    v.extend(print::specs());
     v.extend(edit::specs());
     v.extend(mail::specs());
     v.extend(compose::specs());
+    v.extend(format::specs());
     v.extend(folder::specs());
     v.extend(view::specs());
     v.extend(calendar::specs());
@@ -41,11 +52,17 @@ pub fn registry() -> Registry {
     v.extend(calendar_settings::specs());
     v.extend(zones::specs());
     v.extend(people::specs());
+    v.extend(groups::specs());
     v.extend(tasks::specs());
     v.extend(rules::specs());
+    v.extend(receipts::specs());
+    v.extend(quick_steps::specs());
+    v.extend(search_folders::specs());
     v.extend(category::specs());
     v.extend(account::specs());
+    v.extend(shared::specs());
     v.extend(remote::specs());
+    v.extend(security::specs());
     Registry::new(v)
 }
 

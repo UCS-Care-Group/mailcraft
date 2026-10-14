@@ -4,6 +4,7 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use mailcraft_model::rich::{CharStyle, Styles};
 use mailcraft_model::{Attachment, Id, Importance, Mailbox, Message};
 use mailcraft_time::{Date, DateTime, Timestamp, Weekday, Zone};
 use serde::de::DeserializeOwned;
@@ -216,6 +217,9 @@ pub struct ViewState {
     pub overlay_front: Id,
     pub people_search: String,
     pub task_filter: TaskFilter,
+    /// The To-Do Bar beside the mail: the days ahead and the tasks to do (`view.todoBar`).
+    #[serde(skip_serializing_if = "is_false")]
+    pub todo_bar: bool,
 }
 
 impl Default for ViewState {
@@ -239,6 +243,7 @@ impl Default for ViewState {
             overlay_front: 0,
             people_search: String::new(),
             task_filter: TaskFilter::Active,
+            todo_bar: false,
         }
     }
 }
@@ -254,6 +259,9 @@ pub struct Selection {
     /// The day of the selected occurrence, for an event that repeats.
     pub event_day: Option<Date>,
     pub task: Option<Id>,
+    /// The contact group that is open (`people.selectGroup`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub group: Option<Id>,
 }
 
 impl Selection {
@@ -290,13 +298,59 @@ pub struct Compose {
     pub cc: String,
     pub bcc: String,
     pub subject: String,
+    /// The text of the message. In HTML form its lines are its paragraphs and a picture is one
+    /// `PICTURE` character; `styles` says how it looks.
     pub body: String,
+    /// Written in HTML (Format Text › HTML), with the formatting in `styles`; otherwise plain
+    /// text.
+    #[serde(skip_serializing_if = "is_false")]
+    pub html: bool,
+    /// How the body looks, in HTML form (always fitted to it again before it is used).
+    #[serde(skip_serializing_if = "Styles::is_plain")]
+    pub styles: Styles,
+    /// The characters of the body that are selected (a caret where both are the same), as the
+    /// editor last said: what formatting acts on when a command doesn't say.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub selection: Option<(usize, usize)>,
+    /// The look chosen at the caret with nothing selected (Bold, then typing): the text typed
+    /// next takes it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub typing: Option<CharStyle>,
     pub attachments: Vec<Attachment>,
     pub importance: Importance,
     pub in_reply_to: String,
     pub references: Vec<String>,
     /// Changed since it was opened or last saved.
     pub dirty: bool,
+    /// Do not deliver before this time (Options › Delay Delivery): the message waits in the
+    /// Outbox until then.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub deliver_after: Option<Timestamp>,
+    /// Ask for a read receipt (`Disposition-Notification-To`).
+    #[serde(skip_serializing_if = "is_false")]
+    pub read_receipt: bool,
+    /// Ask for a delivery receipt (`Return-Receipt-To`).
+    #[serde(skip_serializing_if = "is_false")]
+    pub delivery_receipt: bool,
+    /// Sign it (Options › Encrypt › Sign): S/MIME or OpenPGP, with the owner's own key.
+    #[serde(skip_serializing_if = "is_false")]
+    pub sign: bool,
+    /// Encrypt it (Options › Encrypt › Encrypt), to every recipient's key and the owner's own.
+    #[serde(skip_serializing_if = "is_false")]
+    pub encrypt: bool,
+}
+
+/// What to do when a message that is opened asks for a read receipt (File › Options › Mail).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ReceiptPolicy {
+    /// Ask each time: the reading pane says so in a bar with Send and Don't Send.
+    #[default]
+    Ask,
+    /// Send one, without asking, where that is safe; ask where it isn't.
+    Always,
+    /// Never send one, and don't ask.
+    Never,
 }
 
 /// Preferences the engine acts on (File › Options); the front end saves them between runs.
@@ -316,6 +370,10 @@ pub struct Prefs {
     pub default_reminder: Option<u32>,
     /// Put the original message under a reply.
     pub quote_on_reply: bool,
+    /// Write new messages, replies and forwards as plain text rather than HTML (File › Options ›
+    /// Mail; each message can still be switched with Format Text › HTML or Plain Text).
+    #[serde(skip_serializing_if = "is_false")]
+    pub compose_plain: bool,
     /// Lines of body text under each message in the list (0–3).
     pub preview_lines: u8,
     /// Most messages one synchronisation downloads per folder (0: all).
@@ -351,16 +409,43 @@ pub struct Prefs {
     /// with `"second"`); empty for none.
     #[serde(skip_serializing_if = "String::is_empty")]
     pub second_zone: String,
+    /// A third time zone the time bar shows, left of the second (`view.timeZone` with
+    /// `"third"`); empty for none.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub third_zone: String,
     /// What the time bar calls the two zones, when the owner gave them names; else the zones'
     /// own.
     #[serde(skip_serializing_if = "String::is_empty")]
     pub zone_label: String,
     #[serde(skip_serializing_if = "String::is_empty")]
     pub second_zone_label: String,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub third_zone_label: String,
     /// The zones the owner chose lately, the latest first: a zone picker lists them after the
     /// computer's own.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub recent_zones: Vec<String>,
+    /// What to do about a request for a read receipt in a message that is opened.
+    #[serde(skip_serializing_if = "is_default")]
+    pub read_receipts: ReceiptPolicy,
+    /// Keep the certificates and keys that signed messages bring, so that mail to their senders
+    /// can be encrypted (File › Options › Trust Center). On unless the owner turns it off; only
+    /// public keys are kept.
+    pub collect_keys: bool,
+    /// New messages start with Sign on.
+    #[serde(skip_serializing_if = "is_false")]
+    pub sign_by_default: bool,
+    /// New messages start with Encrypt on.
+    #[serde(skip_serializing_if = "is_false")]
+    pub encrypt_by_default: bool,
+    /// Which kind to sign and encrypt with when both could be: `smime`, `openpgp`, or empty for
+    /// whichever the owner and the recipients have (S/MIME first).
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub security_format: String,
+}
+
+fn is_default<T: Default + PartialEq>(v: &T) -> bool {
+    *v == T::default()
 }
 
 impl Default for Prefs {
@@ -374,6 +459,7 @@ impl Default for Prefs {
             mark_read_on_open: true,
             default_reminder: Some(15),
             quote_on_reply: true,
+            compose_plain: false,
             preview_lines: 1,
             sync_limit: 500,
             sync_minutes: 5,
@@ -385,9 +471,16 @@ impl Default for Prefs {
             own_favorites: false,
             time_zone: String::new(),
             second_zone: String::new(),
+            third_zone: String::new(),
             zone_label: String::new(),
             second_zone_label: String::new(),
+            third_zone_label: String::new(),
             recent_zones: Vec::new(),
+            read_receipts: ReceiptPolicy::Ask,
+            collect_keys: true,
+            sign_by_default: false,
+            encrypt_by_default: false,
+            security_format: String::new(),
         }
     }
 }
@@ -433,8 +526,13 @@ pub struct Session {
     pub sync_status: String,
     history: Vec<Undo>,
     redo: Vec<Undo>,
+    /// Why there is nothing to undo, when the history was let go of for a change that can't
+    /// be undone on the mail server ([`Session::seal_history`]); `None` once there is again.
+    sealed: Option<&'static str>,
     rev: u64,
     list_cache: Option<(String, Arc<Vec<Row>>)>,
+    /// Private keys and opened messages, in memory for this session only ([`crate::security`]).
+    pub(crate) security: crate::security::SecurityState,
 }
 
 impl Session {
@@ -458,8 +556,10 @@ impl Session {
             sync_status: String::new(),
             history: Vec::new(),
             redo: Vec::new(),
+            sealed: None,
             rev: 0,
             list_cache: None,
+            security: Default::default(),
         };
         s.view.date = s.today();
         s.normalize();
@@ -593,7 +693,7 @@ impl Session {
 
     /// Keep the view and the selection pointing at things that exist.
     pub fn normalize(&mut self) {
-        if self.mailbox.folder(self.view.folder).is_none() {
+        if self.mailbox.folder(self.view.folder).is_none() && crate::cmd::search_folders::in_view(self).is_none() {
             self.view.folder = self.mailbox.inbox().unwrap_or(0);
         }
         let mb = &self.mailbox;
@@ -608,6 +708,9 @@ impl Session {
         }
         if self.sel.task.is_some_and(|t| mb.task(t).is_none()) {
             self.sel.task = None;
+        }
+        if self.sel.group.is_some_and(|g| !mb.contact_groups.iter().any(|x| x.id == g)) {
+            self.sel.group = None;
         }
         if let Some(c) = &mut self.compose
             && mb.account(c.account).is_none()
@@ -631,6 +734,7 @@ impl Session {
         self.mailbox = mailbox;
         self.history.clear();
         self.redo.clear();
+        self.sealed = None;
         self.sel = Selection::default();
         self.compose = None;
         self.view.folder = 0;
@@ -669,6 +773,33 @@ impl Session {
     pub fn forget_history(&mut self) {
         self.history.clear();
         self.redo.clear();
+    }
+
+    /// [`forget_history`](Self::forget_history) for a change that can't be undone on the mail
+    /// server (a message deleted for good there): Undo then says `why` instead of only that
+    /// there is nothing to undo, until something is done that can be.
+    pub fn seal_history(&mut self, why: &'static str) {
+        self.forget_history();
+        self.sealed = Some(why);
+    }
+
+    /// Why Undo can't go back past a change the mail server took on, when that is so.
+    pub fn sealed_history(&self) -> Option<&'static str> {
+        if self.history.is_empty() { self.sealed } else { None }
+    }
+
+    /// The mailboxes Undo and Redo would go back and forth to.
+    pub(crate) fn snapshots(&self) -> impl Iterator<Item = &Mailbox> {
+        self.history.iter().chain(&self.redo).map(|u| &u.mailbox)
+    }
+
+    /// Bring every mailbox Undo and Redo would go back and forth to up to what the mail server
+    /// took on since it was kept (a move it made, a message it now has), so that going back to
+    /// one of them asks the server for the opposite instead of losing track of what it has.
+    pub(crate) fn rebase_history(&mut self, mut rebase: impl FnMut(&mut Mailbox)) {
+        for u in self.history.iter_mut().chain(self.redo.iter_mut()) {
+            rebase(&mut u.mailbox);
+        }
     }
 
     fn swap(&mut self, u: Undo) -> Undo {
@@ -741,6 +872,7 @@ impl Session {
                     self.rev += 1;
                     if history {
                         self.dirty = true;
+                        self.sealed = None;
                         self.history.push(before);
                         if self.history.len() > MAX_HISTORY {
                             self.history.remove(0);

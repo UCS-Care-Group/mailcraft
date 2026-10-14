@@ -651,11 +651,18 @@ fn a_sync_result_lands_in_the_right_folders() {
             new: vec![mail(12, "Two again"), mail(13, "Three")],
             flags: vec![RemoteFlags { uid: 12, read: true, flagged: true, ..Default::default() }],
             removed: vec![11],
+            categories: Vec::new(),
+            mark: mailcraft_model::sync::FolderMark { uid_next: 14, exists: 2, quick_runs: 0, backfill: 0 },
         }],
         ..Default::default()
     };
     let r = run(&mut s, "sync.apply", json!({"result": second}));
     assert_eq!((r["new"].as_u64(), r["removed"].as_u64(), r["updated"].as_u64()), (Some(1), Some(1), Some(1)));
+    // How the server's mailbox stands is kept with the folder, and the next run is told.
+    let mark = s.mailbox.folder(inbox).unwrap().mark;
+    assert_eq!((mark.uid_next, mark.exists), (14, 2));
+    let asked = cmd::account::sync_request(&s, a).unwrap();
+    assert_eq!(asked.folders.iter().find(|f| f.id == inbox).map(|f| f.mark), Some(mark));
     // Receiving mail is not an undo step, and takes none away.
     assert!(step.is_some() && s.undo_label() == step);
     let mut got: Vec<(u32, bool, FlagStatus)> = s.mailbox.messages_in(inbox).map(|m| (m.uid, m.read, m.flag)).collect();
@@ -729,7 +736,7 @@ mod two_way {
     /// What a run read in one server mailbox: its new messages, and the flags of the ones known.
     fn news(id: Option<Id>, remote: &str, kind: FolderKind, uid_validity: u32, new: Vec<Message>, flags: Vec<RemoteFlags>) -> FolderDelta {
         let uid_seen = new.iter().map(|m| m.uid).chain(flags.iter().map(|f| f.uid)).max().unwrap_or(0);
-        FolderDelta { id, remote: remote.into(), kind, uid_validity, uid_seen, new, flags, removed: Vec::new() }
+        FolderDelta { id, remote: remote.into(), kind, uid_validity, uid_seen, new, flags, removed: Vec::new(), ..Default::default() }
     }
 
     fn has(uid: u32, read: bool, flagged: bool) -> RemoteFlags {
@@ -981,8 +988,18 @@ mod two_way {
         assert_eq!((s.mailbox.count(inbox), s.mailbox.count(archive), unpushed(&s, a)), (2, 2, 0));
         let req = request(&s, a);
         assert_eq!((known(&req, archive), req.ops.len()), (vec![1, 2], 0));
-        // What went to the server can't be taken back by an undo here.
-        assert!(!s.can_undo() && !s.can_redo());
+        // The server said where it put the message: an undo puts it back here, and asks the server
+        // to move it back from there.
+        assert!(s.can_undo());
+        let before_undo = s.mailbox.clone();
+        run(&mut s, "edit.undo", json!({}));
+        assert_eq!((state(&s, two).0, state(&s, two).1), (inbox, 0));
+        assert_eq!(
+            request(&s, a).ops,
+            [RemoteOp::Move { message: two, from: "Archive".into(), uid: 2, to: "INBOX".into(), to_folder: inbox, create: vec![] }]
+        );
+        run(&mut s, "edit.redo", json!({}));
+        assert_eq!(s.mailbox, before_undo);
 
         // Should a run bring the message down as well (it didn't know the UID was known): still once.
         let again = SyncResult {
@@ -1324,7 +1341,9 @@ mod two_way {
         assert_eq!((r["new"].as_u64(), r["matched"].as_u64(), s.mailbox.count(sent_items)), (Some(1), Some(1), 4));
         let m = s.mailbox.message(second).unwrap();
         assert_eq!((m.uid, m.message_id.as_str(), m.synced.map(|f| f.read)), (2, "PH0PR01MB0001@prod.outlook.example", Some(true)));
-        assert_eq!((state(&s, third).1, unpushed(&s, a)), (0, 0));
+        // The third's copy never came: the one here goes up with the next run.
+        assert_eq!((state(&s, third).1, unpushed(&s, a)), (0, 1));
+        assert_eq!(request(&s, a).uploads.iter().map(|u| (u.message.id, u.to.as_str())).collect::<Vec<_>>(), [(third, "Sent")]);
         // A result naming messages that aren't in the Outbox files nothing.
         let r = apply(&mut s, SyncResult { account: a, sent: vec![first, 424242], filed: vec![first], ..Default::default() });
         assert_eq!((r["sent"].as_u64(), state(&s, first).1), (Some(0), 1));
@@ -1428,7 +1447,7 @@ mod two_way {
         assert_eq!((request(&s, a).ops.len(), s.mailbox.pending.len()), (0, 0));
 
         // A deletion the owner took back while it was carried out: the server no longer has the
-        // message, so the one here is the only one. It stays, off the server.
+        // message, so the one here is the only one. It stays, and goes back up with the next run.
         let (mut s, a, inbox, _) = synced();
         let three = titled(&s, a, "Three");
         run(&mut s, "mail.deletePermanently", json!({"id": three}));
@@ -1442,7 +1461,8 @@ mod two_way {
         };
         apply(&mut s, gone);
         assert_eq!((state(&s, three).0, state(&s, three).1, s.mailbox.count(inbox)), (inbox, 0, 3));
-        assert_eq!((known(&request(&s, a), inbox), unpushed(&s, a)), (vec![1, 2], 0));
+        assert_eq!((known(&request(&s, a), inbox), unpushed(&s, a)), (vec![1, 2], 1));
+        assert_eq!(request(&s, a).uploads.iter().map(|u| (u.message.id, u.to.as_str())).collect::<Vec<_>>(), [(three, "INBOX")]);
     }
 
     #[test]
@@ -1605,10 +1625,11 @@ mod two_way {
         };
         apply(&mut s, nonsense);
         // The one entry that named the waiting move finished it, into a folder that isn't one:
-        // the message stays where its owner put it, off the server. Nothing else moved.
+        // the message stays where its owner put it, and is not put on the server a second
+        // time (the server has it, somewhere it didn't say). Nothing else moved.
         assert!(s.mailbox.pending.is_empty());
         let m = s.mailbox.message(two).unwrap();
-        assert_eq!((m.folder, m.uid, m.synced), (archive, 0, None));
+        assert_eq!((m.folder, m.uid, m.synced.map(|f| f.uid)), (archive, 0, Some(0)));
         assert_eq!((s.mailbox.messages.len(), &s.mailbox.folders, s.mailbox.count(inbox)), (before.messages.len(), &before.folders, 2));
         assert_eq!(unpushed(&s, a), 0);
 
@@ -1901,7 +1922,7 @@ fn parity_has_a_floor_that_only_rises() {
     let s = session();
     let p = catalog::parity(&s.registry);
     let percent = p["percent"].as_f64().unwrap();
-    assert!(percent >= 48.0, "catalog parity fell to {percent}%");
+    assert!(percent >= 65.0, "catalog parity fell to {percent}%");
     // Every catalog id is spelled like a command id.
     for f in catalog::features() {
         assert!(f.id.contains('.') && !f.id.contains(' '), "{}", f.id);
@@ -1925,6 +1946,10 @@ fn hostile_params_never_panic() {
         json!({"start": "9999-12-31T23:59", "end": "0001-01-01", "date": "9999-12-31", "due": "0000-00-00", "from": "9999-01-01", "to": "0001-01-01", "occurrence": "x", "minutes": 1e300, "reminder": -1}),
         json!({"title": "t", "start": "2026-10-14T10:00", "recurrence": {"freq": "daily", "interval": 4294967295u32, "count": 4294967295u32, "byDay": ["xx", 5], "nth": 99, "until": "0001-01-01"}}),
         json!({"data": "!!!!", "name": "../../etc/passwd", "path": "\u{0}", "mime": "\r\n"}),
+        json!({"start": 18446744073709551615u64, "end": 0, "at": 18446744073709551615u64, "size": 1e300, "color": "#zzzzzz", "url": "\u{0}javascript:x", "symbol": "\u{FFFC}\u{0}", "text": "", "with": "\u{FFFC}", "face": 5, "align": "\r\n"}),
+        json!({"start": 3, "end": 1, "size": "larger", "color": null, "url": "https://example.org", "text": "x\u{FFFC}\ny", "all": true, "with": "xx", "body": "a\u{FFFC}b\n\n\u{202e}c"}),
+        json!({"name": "p.gif", "data": "R0lGODlhAQABAAAAACw=", "at": 1}),
+        json!({"data": "0M8R4KGxGuEAAAAAAAAAAAAAAAAAAAAA", "name": "x.msg"}),
         json!({"result": {"account": 1, "folders": [{"id": 1, "remote": "\u{0}", "new": [{"uid": 1}, {"uid": 1}], "flags": [{"uid": 4294967295u32}], "removed": [0, 1]}], "sent": [0, 1, 2]}}),
         json!({"result": {
             "account": 1, "sent": [1, 2, 3], "filed": [1, 3, 18446744073709551615u64],

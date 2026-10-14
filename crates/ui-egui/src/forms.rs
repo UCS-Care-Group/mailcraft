@@ -25,6 +25,8 @@ pub enum Form {
     Categories(Box<categories::CategoriesForm>),
     /// The mail rules, and a builder for a new one.
     Rules(Box<rules::RulesForm>),
+    /// Search folders, Quick Steps, contact groups, Delay Delivery ([`crate::organize_forms`]).
+    Organize(Box<crate::organize_forms::OrganizeForm>),
 }
 
 impl Form {
@@ -44,7 +46,7 @@ impl Form {
             "account" => Form::Account(Box::new(account::AccountForm::open(app, params)?)),
             "categories" => Form::Categories(Box::new(categories::CategoriesForm::new(s))),
             "rules" => Form::Rules(Box::new(rules::RulesForm::new(s))),
-            _ => return None,
+            other => Form::Organize(Box::new(crate::organize_forms::OrganizeForm::open(other, app, params)?)),
         })
     }
 
@@ -57,6 +59,7 @@ impl Form {
             Form::Account(_) => "account",
             Form::Categories(_) => "categories",
             Form::Rules(_) => "rules",
+            Form::Organize(f) => f.name(),
         }
     }
 
@@ -69,6 +72,7 @@ impl Form {
             Form::Account(f) => f.title(),
             Form::Categories(_) => tl!("Categories").to_string(),
             Form::Rules(_) => tl!("Rules").to_string(),
+            Form::Organize(f) => f.title(),
         }
     }
 
@@ -80,6 +84,7 @@ impl Form {
             Form::Account(_) => crate::account_setup::WIDTH,
             Form::Categories(_) => 420.0,
             Form::Rules(_) => 620.0,
+            Form::Organize(f) => f.width(),
         }
     }
 
@@ -92,6 +97,7 @@ impl Form {
             Form::Account(f) => f.show(app, ui),
             Form::Categories(f) => f.show(app, ui),
             Form::Rules(f) => f.show(app, ui),
+            Form::Organize(f) => f.show(app, ui),
         }
     }
 
@@ -182,7 +188,7 @@ pub(crate) mod kit {
     use egui::{Align, Align2, Color32, CornerRadius, Key, Response, Sense, Stroke, StrokeKind, Ui, pos2, vec2};
     use mailcraft_engine::Session;
     use mailcraft_model::Category;
-    use mailcraft_time::{Date, duration_label, parse_time, time_short};
+    use mailcraft_time::{Date, parse_time, time_short};
     use serde_json::{Map, Value, json};
 
     use crate::theme::{Tokens, c32, paint_clipped, regular};
@@ -510,7 +516,7 @@ pub(crate) mod kit {
             Some(start) => (1..48u32)
                 .map(|k| start.saturating_add(30 * k))
                 .take_while(|m| *m < 24 * 60)
-                .map(|m| (m, format!("{} ({})", clock_text(m, twelve), duration_label(i64::from(m - start)))))
+                .map(|m| (m, format!("{} ({})", clock_text(m, twelve), crate::i18n::duration(i64::from(m - start)))))
                 .collect(),
             None => Vec::new(),
         };
@@ -1112,7 +1118,7 @@ mod event {
     use egui::{Ui, vec2};
     use mailcraft_engine::Session;
     use mailcraft_model::{Address, Freq, Id, Importance, Recurrence, ResponseOptions, ShowAs, format_list};
-    use mailcraft_time::{Date, DateTime, Weekday, Zone, duration_label, month_name, time_short};
+    use mailcraft_time::{Date, DateTime, Weekday, Zone, month_name, time_short};
     use serde_json::{Map, Value, json};
 
     use super::kit::{
@@ -1192,12 +1198,12 @@ mod event {
 
     fn ordinal(nth: i8) -> &'static str {
         match nth {
-            1 => "first",
-            2 => "second",
-            3 => "third",
-            4 => "fourth",
-            5 => "fifth",
-            _ => "last",
+            1 => tn!("first"),
+            2 => tn!("second"),
+            3 => tn!("third"),
+            4 => tn!("fourth"),
+            5 => tn!("fifth"),
+            _ => tn!("last"),
         }
     }
 
@@ -1322,30 +1328,30 @@ mod event {
         match minutes {
             None => tl!("None").to_string(),
             Some(0) => tl!("At start time").to_string(),
-            Some(m) => duration_label(i64::from(m)),
+            Some(m) => crate::i18n::duration(i64::from(m)),
         }
     }
 
     fn freq_label(freq: Freq) -> &'static str {
         match freq {
-            Freq::Daily => "Daily",
-            Freq::Weekly => "Weekly",
-            Freq::Monthly => "Monthly",
-            Freq::Yearly => "Yearly",
+            Freq::Daily => tn!("Daily"),
+            Freq::Weekly => tn!("Weekly"),
+            Freq::Monthly => tn!("Monthly"),
+            Freq::Yearly => tn!("Yearly"),
         }
     }
 
     /// `day` or `days` after "every N".
     fn unit(freq: Freq, interval: u32) -> &'static str {
         match (freq, interval == 1) {
-            (Freq::Daily, true) => "day",
-            (Freq::Daily, false) => "days",
-            (Freq::Weekly, true) => "week",
-            (Freq::Weekly, false) => "weeks",
-            (Freq::Monthly, true) => "month",
-            (Freq::Monthly, false) => "months",
-            (Freq::Yearly, true) => "year",
-            (Freq::Yearly, false) => "years",
+            (Freq::Daily, true) => tn!("day"),
+            (Freq::Daily, false) => tn!("days"),
+            (Freq::Weekly, true) => tn!("week"),
+            (Freq::Weekly, false) => tn!("weeks"),
+            (Freq::Monthly, true) => tn!("month"),
+            (Freq::Monthly, false) => tn!("months"),
+            (Freq::Yearly, true) => tn!("year"),
+            (Freq::Yearly, false) => tn!("years"),
         }
     }
 
@@ -1803,13 +1809,13 @@ mod event {
         fn wrong(&self) -> Option<&'static str> {
             let from = Date::parse_iso(&self.start);
             if !self.all_day && !(time_ok(&self.start_time, true) && time_ok(&self.end_time, true)) {
-                Some("The start and the end need a time")
+                Some(tn!("The start and the end need a time"))
             } else if from.is_none() {
-                Some("The range needs a day to start on")
+                Some(tn!("The range needs a day to start on"))
             } else if self.repeat.ends == Ends::Until && !date_ok(&self.repeat.until, true) {
-                Some("The range needs a day to end by")
+                Some(tn!("The range needs a day to end by"))
             } else if from.and_then(|from| self.first_day(from)).is_none() {
-                Some("No day fits this pattern")
+                Some(tn!("No day fits this pattern"))
             } else {
                 None
             }
@@ -1871,7 +1877,7 @@ mod event {
                                 if pass.time(ui, "recurrence_end_time", &mut self.end_time, true, after) {
                                     self.end_time_moved();
                                 }
-                                ui.label(egui::RichText::new(format!("· {}", duration_label(self.minutes))).color(t.text_dim));
+                                ui.label(egui::RichText::new(format!("· {}", crate::i18n::duration(self.minutes))).color(t.text_dim));
                             });
                         }
                         heading(ui, tl!("Pattern"));
@@ -1924,7 +1930,7 @@ mod event {
                             let words = if first == from {
                                 words
                             } else {
-                                crate::i18n::fmt(tl!("{rule}, from {day}"), &[("rule", &words), ("day", &first.medium())])
+                                crate::i18n::fmt(tl!("{rule}, from {day}"), &[("rule", &words), ("day", &crate::i18n::date_medium(first))])
                             };
                             ui.label(egui::RichText::new(words).color(t.text_dim));
                         }
@@ -2433,12 +2439,16 @@ mod event {
                 (true, Some((begins, ends)), Some(here)) => (ends >= begins).then(|| (here.wall(begins), here.wall(ends))),
                 _ => self.span(),
             };
+            let day = span.map_or_else(|| self.shown_day(), |(start, _)| start.date);
+            let (from, days) = self.assistant.frame(day);
             crate::scheduling::Meeting {
                 calendar: self.calendar,
                 event: self.id,
                 required: people(&self.required),
                 optional: people(&self.optional),
-                day: span.map_or_else(|| self.shown_day(), |(start, _)| start.date),
+                day,
+                from,
+                days,
                 span,
                 all_day: self.all_day,
             }
@@ -2447,6 +2457,11 @@ mod event {
         /// What the Scheduling Assistant drew the last time it was in view.
         pub(crate) fn scheduling(&self) -> &crate::scheduling::Drawn {
             &self.assistant.drawn
+        }
+
+        /// Show `days` days (1 to 7) in the Scheduling Assistant.
+        pub(crate) fn set_scheduling_days(&mut self, days: u8) {
+            self.assistant.set_days(days);
         }
 
         /// From when to when the fields say it is, as an event keeps it (whole days end at the
@@ -2612,13 +2627,13 @@ mod event {
             let (start, end) = (self.start()?, self.end()?);
             if self.all_day {
                 let days = start.date.days_until(end.date);
-                (days >= 0).then(|| duration_label((days + 1) * 24 * 60))
+                (days >= 0).then(|| crate::i18n::duration((days + 1) * 24 * 60))
             } else if self.two_clocks() {
                 let (begins, ends) = self.instants()?;
-                (ends >= begins).then(|| duration_label((ends - begins) / 60))
+                (ends >= begins).then(|| crate::i18n::duration((ends - begins) / 60))
             } else {
                 let minutes = start.minutes_until(end);
-                (minutes >= 0).then(|| duration_label(minutes))
+                (minutes >= 0).then(|| crate::i18n::duration(minutes))
             }
         }
 
@@ -2831,11 +2846,11 @@ mod event {
             let times = self.all_day || (time_ok(&self.start_time, true) && time_ok(&self.end_time, true));
             let until = self.repeat.freq.is_none() || self.repeat.ends != Ends::Until || date_ok(&self.repeat.until, true);
             if self.title.trim().is_empty() {
-                Some("Give it a title first")
+                Some(tn!("Give it a title first"))
             } else if !(date_ok(&self.start_date, true) && date_ok(&self.end_date, true) && times) {
-                Some("The start and the end need a date and a time")
+                Some(tn!("The start and the end need a date and a time"))
             } else if !until {
-                Some("The series needs a day to end by")
+                Some(tn!("The series needs a day to end by"))
             } else {
                 None
             }
@@ -2888,7 +2903,7 @@ mod event {
         fn recurrence_line(&self, twelve: bool) -> Option<String> {
             let start = self.series_start();
             let rule = self.repeat.rule(start)?;
-            let words = crate::i18n::fmt(tl!("{rule}, from {day}"), &[("rule", &rule.describe(start)), ("day", &start.medium())]);
+            let words = crate::i18n::fmt(tl!("{rule}, from {day}"), &[("rule", &rule.describe(start)), ("day", &crate::i18n::date_medium(start))]);
             match (self.all_day, parse_clock(&self.start_time), parse_clock(&self.end_time)) {
                 (false, Some((h, m)), Some((eh, em))) => Some(format!("{words}, {} – {}", time_short(h, m, twelve), time_short(eh, em, twelve))),
                 _ => Some(words),
@@ -3426,14 +3441,18 @@ mod event {
                     (command, params, if close { After::Close } else { After::Stay })
                 }
                 Act::Send { pressed } => {
-                    if let Some(missing) = self.missing().or((!self.invites() && !self.was_meeting).then_some("Name somebody to invite first")) {
+                    if let Some(missing) = self.missing().or((!self.invites() && !self.was_meeting).then_some(tn!("Name somebody to invite first"))) {
                         self.error = tl!(missing).to_string();
                         return Verdict::Stay;
                     }
                     let (command, mut params) = self.command();
                     // Send on a new meeting sends, as it does in Outlook: the button was
-                    // pressed for that. (A key asks first; and so does every update.)
+                    // pressed for that. (A key asks first; and so does every update.) A meeting
+                    // that can't be sent from here (on this computer, with no account that can
+                    // send mail) is only made.
+                    let sendable = mailcraft_engine::cmd::calendar::mail_of(&app.session, command, &params).is_some();
                     if pressed
+                        && sendable
                         && self.id.is_none()
                         && command == "calendar.newMeeting"
                         && let Some(fields) = params.as_object_mut()
@@ -5528,12 +5547,12 @@ mod rules {
 
         fn label(self) -> &'static str {
             match self {
-                When::From => "From contains",
-                When::To => "Sent to",
-                When::Subject => "Subject contains",
-                When::Body => "Body contains",
-                When::Attachment => "Has an attachment",
-                When::Importance => "Importance is",
+                When::From => tn!("From contains"),
+                When::To => tn!("Sent to"),
+                When::Subject => tn!("Subject contains"),
+                When::Body => tn!("Body contains"),
+                When::Attachment => tn!("Has an attachment"),
+                When::Importance => tn!("Importance is"),
             }
         }
 
@@ -5586,12 +5605,12 @@ mod rules {
 
         fn label(self) -> &'static str {
             match self {
-                Do::Move => "Move to folder",
-                Do::Categorize => "Categorize",
-                Do::Flag => "Flag",
-                Do::MarkRead => "Mark as read",
-                Do::SetImportance => "Set importance",
-                Do::Delete => "Delete",
+                Do::Move => tn!("Move to folder"),
+                Do::Categorize => tn!("Categorize"),
+                Do::Flag => tn!("Flag"),
+                Do::MarkRead => tn!("Mark as read"),
+                Do::SetImportance => tn!("Set importance"),
+                Do::Delete => tn!("Delete"),
             }
         }
     }
@@ -5608,9 +5627,9 @@ mod rules {
 
     fn importance_label(i: Importance) -> &'static str {
         match i {
-            Importance::Low => "Low",
-            Importance::Normal => "Normal",
-            Importance::High => "High",
+            Importance::Low => tn!("Low"),
+            Importance::Normal => tn!("Normal"),
+            Importance::High => tn!("High"),
         }
     }
 

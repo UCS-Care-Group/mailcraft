@@ -37,7 +37,7 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
     let frame = egui::Frame::NONE.fill(t.surface).stroke(Stroke::new(1.0, t.border));
     if let Some(task) = app.session.sel.task.and_then(|id| app.session.mailbox.tasks.get(&id).cloned()) {
         let max = (ui.available_width() - 320.0).max(260.0);
-        egui::Panel::right("task_details")
+        crate::i18n::end_panel("task_details")
             .default_size(340.0f32.min(max))
             .size_range(260.0..=max)
             .resizable(true)
@@ -80,13 +80,13 @@ impl Bucket {
 
     fn label(self) -> &'static str {
         match self {
-            Bucket::Overdue => "Overdue",
-            Bucket::Today => "Today",
-            Bucket::Tomorrow => "Tomorrow",
-            Bucket::ThisWeek => "This Week",
-            Bucket::Later => "Later",
-            Bucket::NoDate => "No Date",
-            Bucket::Completed => "Completed",
+            Bucket::Overdue => tn!("Overdue"),
+            Bucket::Today => tn!("Today"),
+            Bucket::Tomorrow => tn!("Tomorrow"),
+            Bucket::ThisWeek => tn!("This Week"),
+            Bucket::Later => tn!("Later"),
+            Bucket::NoDate => tn!("No Date"),
+            Bucket::Completed => tn!("Completed"),
         }
     }
 }
@@ -105,13 +105,11 @@ fn due_choices(today: Date) -> [(&'static str, Option<Date>); 5] {
 }
 
 /// When a task is due, as a row says it; empty without a due date.
-fn due_text(task: &Task, today: Date) -> String {
-    if task.due.is_none() {
-        return String::new();
-    }
+pub(crate) fn due_text(task: &Task, today: Date) -> String {
+    let Some(due) = task.due else { return String::new() };
     let label = task.due_label(today);
-    // Words (`Today`, `Friday`) are interface text; a date stays as it is.
-    if label.chars().any(|c| c.is_ascii_digit()) { label } else { tl!(&label).to_string() }
+    // Words (`Today`, `Friday`) are interface text; a date is written as the locale writes it.
+    if label.chars().any(|c| c.is_ascii_digit()) { crate::i18n::date_medium(due) } else { tl!(&label).to_string() }
 }
 
 /// The line under the title in the details pane, and whether it is a warning. `completed_on` is
@@ -119,7 +117,7 @@ fn due_text(task: &Task, today: Date) -> String {
 fn status_text(task: &Task, today: Date, completed_on: Option<Date>) -> (String, bool) {
     let fmt = crate::i18n::fmt;
     match (completed_on, task.due) {
-        (Some(day), _) => (fmt(tl!("Completed on {date}"), &[("date", &day.medium())]), false),
+        (Some(day), _) => (fmt(tl!("Completed on {date}"), &[("date", &crate::i18n::date_medium(day))]), false),
         (None, None) => (tl!("No due date").to_string(), false),
         (None, Some(_)) if task.is_overdue(today) => (fmt(tl!("Overdue: was due {when}"), &[("when", &due_text(task, today))]), true),
         (None, Some(_)) => (fmt(tl!("Due {when}"), &[("when", &due_text(task, today))]), false),
@@ -128,9 +126,9 @@ fn status_text(task: &Task, today: Date, completed_on: Option<Date>) -> (String,
 
 fn importance_label(importance: Importance) -> &'static str {
     match importance {
-        Importance::High => "High",
-        Importance::Normal => "Normal",
-        Importance::Low => "Low",
+        Importance::High => tn!("High"),
+        Importance::Normal => tn!("Normal"),
+        Importance::Low => tn!("Low"),
     }
 }
 
@@ -232,7 +230,7 @@ fn keyboard(app: &mut MailApp, ui: &Ui, layout: &Layout<Bucket>) {
 fn filter_pane(app: &mut MailApp, ui: &mut Ui, counts: &[usize; 5]) {
     let t = Tokens::get(ui.ctx());
     let frame = egui::Frame::NONE.fill(t.panel).stroke(Stroke::new(1.0, t.border));
-    egui::Panel::left("task_filters").default_size(200.0).size_range(160.0..=320.0).resizable(true).frame(frame).show(ui, |ui| {
+    crate::i18n::start_panel("task_filters").default_size(200.0).size_range(160.0..=320.0).resizable(true).frame(frame).show(ui, |ui| {
         ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
         ui.add_space(6.0);
         widgets::pane_heading(ui, tl!("My Tasks"));
@@ -482,7 +480,7 @@ fn task_menu(app: &mut MailApp, ui: &mut Ui, id: Id, done: bool, importance: Imp
     use widgets::{mi, mi_check};
     ui.set_min_width(200.0);
     mi(ui, app, if done { "Mark Incomplete" } else { "Mark Complete" }, "tasks.complete", json!({"id": id}));
-    mi(ui, app, "Edit", "tasks.edit", json!({}));
+    mi(ui, app, tn!("Edit"), "tasks.edit", json!({}));
     ui.separator();
     ui.menu_button(tl!("Due"), |ui| {
         for (label, due) in due_choices(today) {
@@ -503,7 +501,7 @@ fn task_menu(app: &mut MailApp, ui: &mut Ui, id: Id, done: bool, importance: Imp
         mi_check(ui, app, label, importance == value, "tasks.edit", json!({"id": id, "importance": value.code()}));
     }
     ui.separator();
-    mi(ui, app, "Delete", "tasks.delete", json!({"id": id}));
+    mi(ui, app, tn!("Delete"), "tasks.delete", json!({"id": id}));
 }
 
 // ---- the details pane ----
@@ -571,7 +569,7 @@ fn details(app: &mut MailApp, ui: &mut Ui, task: &Task) {
             detail(ui, importance_icon, tl!("Importance"), tl!(importance_label(task.importance)), t.text);
             let reminder = task.reminder.map(|at| {
                 let local = app.session.local(at);
-                format!("{} {}", local.date.medium(), local.time_short(app.session.prefs.twelve_hour))
+                format!("{} {}", crate::i18n::date_medium(local.date), local.time_short(app.session.prefs.twelve_hour))
             });
             detail(ui, "reminder", tl!("Reminder"), reminder.as_deref().unwrap_or(none), if reminder.is_some() { t.text } else { t.text_dim });
             if task.categories.is_empty() {

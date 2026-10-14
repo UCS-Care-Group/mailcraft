@@ -1,6 +1,6 @@
 //! Writing contacts as vCard 3.0.
 
-use mailcraft_model::Contact;
+use mailcraft_model::{Contact, ContactGroup};
 use mailcraft_time::Date;
 
 use crate::lines::fold;
@@ -18,6 +18,37 @@ pub fn write(contacts: &[&Contact]) -> String {
     let mut out = String::new();
     for contact in contacts {
         card(&mut out, contact);
+    }
+    out
+}
+
+/// Write contact groups as vCard 4.0 cards (RFC 6350 `KIND:group`), the version that has them:
+/// the group's name, one `MEMBER:mailto:` for each member, its notes and categories. A member
+/// whose address could not be a `mailto:` address is left out.
+pub fn write_groups(groups: &[&ContactGroup]) -> String {
+    let mut out = String::new();
+    for g in groups {
+        fold(&mut out, "BEGIN:VCARD");
+        fold(&mut out, "VERSION:4.0");
+        fold(&mut out, "KIND:group");
+        fold(&mut out, &format!("FN:{}", field(&g.name)));
+        optional(&mut out, "UID", &g.uid);
+        for m in &g.members {
+            let email = m.address.email.trim();
+            let plain = !email.is_empty() && email.contains('@') && email.chars().all(|c| c.is_ascii_graphic() && !",;\\<>\"".contains(c));
+            if plain {
+                fold(&mut out, &format!("MEMBER:mailto:{email}"));
+            }
+        }
+        let notes = escape(&multi(&g.notes));
+        if !notes.is_empty() {
+            fold(&mut out, &format!("NOTE:{notes}"));
+        }
+        let categories: Vec<String> = g.categories.iter().map(|c| field(c)).filter(|c| !c.is_empty()).collect();
+        if !categories.is_empty() {
+            fold(&mut out, &format!("CATEGORIES:{}", categories.join(",")));
+        }
+        fold(&mut out, "END:VCARD");
     }
     out
 }
@@ -186,6 +217,26 @@ mod tests {
             uid: "7f1c2f6e-0001-4a5b-9c3d-000000000042".into(),
             ..Default::default()
         }
+    }
+
+    #[test]
+    fn groups_are_vcard_4_with_members() {
+        use mailcraft_model::{Address, GroupMember};
+        let g = ContactGroup {
+            name: "Book club; Tuesdays".into(),
+            members: vec![
+                GroupMember { address: Address::new("Ada", "ada@example.org"), contact: None },
+                GroupMember { address: Address::new("", "bad, address@example.org"), contact: None },
+                GroupMember { address: Address::new("", "bob@example.org\r\nX-Evil: 1"), contact: None },
+            ],
+            notes: "Bring\nbooks".into(),
+            ..Default::default()
+        };
+        let out = write_groups(&[&g]);
+        assert_eq!(
+            out,
+            "BEGIN:VCARD\r\nVERSION:4.0\r\nKIND:group\r\nFN:Book club\\; Tuesdays\r\nMEMBER:mailto:ada@example.org\r\nNOTE:Bring\\nbooks\r\nEND:VCARD\r\n"
+        );
     }
 
     #[test]

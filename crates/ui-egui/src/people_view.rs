@@ -30,13 +30,41 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
     keyboard(app, ui, &layout);
     let frame = egui::Frame::NONE.fill(t.surface).stroke(Stroke::new(1.0, t.border));
     let max = (ui.available_width() - 320.0).max(260.0);
-    egui::Panel::left("people_list")
-        .default_size(320.0f32.min(max))
-        .size_range(240.0..=max)
-        .resizable(true)
-        .frame(frame)
-        .show(ui, |ui| list(app, ui, &layout));
+    crate::i18n::start_panel("people_list").default_size(320.0f32.min(max)).size_range(240.0..=max).resizable(true).frame(frame).show(ui, |ui| {
+        groups(app, ui);
+        list(app, ui, &layout)
+    });
     egui::CentralPanel::default().frame(egui::Frame::NONE.fill(t.surface)).show(ui, |ui| card(app, ui));
+}
+
+/// The contact groups, over the contacts: each opens to be edited, and a button writes to it.
+fn groups(app: &mut MailApp, ui: &mut Ui) {
+    let list: Vec<(Id, String, usize)> = {
+        let mut list: Vec<(Id, String, usize)> = app.session.mailbox.contact_groups.iter().map(|g| (g.id, g.name.clone(), g.members.len())).collect();
+        list.sort_by_cached_key(|(_, name, _)| name.to_lowercase());
+        list
+    };
+    if list.is_empty() {
+        return;
+    }
+    let t = Tokens::get(ui.ctx());
+    egui::Frame::NONE.inner_margin(egui::Margin { left: 12, right: 8, top: 8, bottom: 6 }).show(ui, |ui| {
+        ui.label(RichText::new(tl!("Contact Groups")).font(regular(12.0)).color(t.text_dim));
+        for (id, name, members) in list.iter().take(200) {
+            ui.horizontal(|ui| {
+                let text = format!("{}  ·  {}", one_line(name, 60), crate::i18n::fmt(tl!("{n} members"), &[("n", &members.to_string())]));
+                let open = ui.add(egui::Button::new(RichText::new(text).font(regular(12.5))).frame(false));
+                app.hit.add("contactGroup", *id, open.rect);
+                if open.clicked() {
+                    let _ = app.run("ui.dialog", serde_json::json!({"name": "editContactGroup", "id": id}));
+                }
+                if crate::widgets::icon_button(ui, "mail", tl!("Email the group"), 13.0, true).clicked() {
+                    let _ = app.run("people.emailGroup", serde_json::json!({"id": id}));
+                }
+            });
+        }
+    });
+    ui.separator();
 }
 
 // ---- the list's layout ----
@@ -251,7 +279,7 @@ fn role_line(c: &Contact) -> String {
 /// A label as the card shows it (`work` reads `Work`).
 fn label_text(label: &str) -> String {
     let label = label.trim();
-    for known in ["Work", "Home", "Mobile", "Other", "Main", "Fax"] {
+    for known in [tn!("Work"), tn!("Home"), tn!("Mobile"), tn!("Other"), tn!("Main"), tn!("Fax")] {
         if label.eq_ignore_ascii_case(known) {
             return tl!(known).to_string();
         }
@@ -285,8 +313,7 @@ fn web_target(raw: &str) -> Option<String> {
 
 /// `March 14, 1988`; the ISO form for a date whose month is out of range.
 fn birthday_text(day: Date) -> String {
-    let month = mailcraft_time::month_name(day.month);
-    if month.is_empty() { day.iso() } else { format!("{} {}, {}", tl!(month), day.day, day.year) }
+    if mailcraft_time::month_name(day.month).is_empty() { day.iso() } else { crate::i18n::date_full(day) }
 }
 
 /// The next time the birthday comes round (today counts) and the age reached then. `None` when
@@ -463,7 +490,7 @@ fn contact_row(app: &mut MailApp, ui: &mut Ui, id: Id, rect: Rect) {
             let _ = app.run("people.email", json!({"id": id}));
             ui.close();
         }
-        mi(ui, app, "Edit", "people.edit", json!({}));
+        mi(ui, app, tn!("Edit"), "people.edit", json!({}));
         ui.separator();
         mi(ui, app, if favorite { "Remove from Favorites" } else { "Add to Favorites" }, "people.favorite", json!({"id": id}));
         ui.menu_button(tl!("Categorize"), |ui| {
@@ -476,8 +503,8 @@ fn contact_row(app: &mut MailApp, ui: &mut Ui, id: Id, rect: Rect) {
             );
         });
         ui.separator();
-        mi(ui, app, "Export…", "file.exportContacts", json!({"ids": [id]}));
-        mi(ui, app, "Delete", "people.delete", json!({"id": id}));
+        mi(ui, app, tn!("Export…"), "file.exportContacts", json!({"ids": [id]}));
+        mi(ui, app, tn!("Delete"), "people.delete", json!({"id": id}));
     });
 }
 
@@ -672,7 +699,7 @@ fn card_birthday(app: &MailApp, ui: &mut Ui, c: &Contact) {
     let note = match next_birthday(birthday, today) {
         Some((next, age)) if next == today => crate::i18n::fmt(tl!("Turns {age} today"), &[("age", &age.to_string())]),
         Some((next, age)) => {
-            let on = format!("{} {}", tl!(mailcraft_time::month_name(next.month)), next.day);
+            let on = crate::i18n::day_month_full(next);
             crate::i18n::fmt(tl!("Turns {age} on {date}"), &[("age", &age.to_string()), ("date", &on)])
         }
         None => String::new(),
@@ -704,7 +731,7 @@ fn card_recent(app: &mut MailApp, ui: &mut Ui, c: &Contact) {
             t.text_dim,
             t.accent,
         );
-        let date = mailcraft_time::list_label(m.date, app.session.now(), app.session.offset_at(m.date), app.session.prefs.twelve_hour);
+        let date = crate::i18n::list_label(m.date, app.session.now(), app.session.offset_at(m.date), app.session.prefs.twelve_hour);
         let date_w = p.text(pos2(r.max.x - 8.0, r.center().y), Align2::RIGHT_CENTER, &date, regular(11.0), t.text_dim).width();
         let folder = app.session.mailbox.folder(m.folder).map(|f| one_line(&f.name, 60)).unwrap_or_default();
         let folder_w = text_width(ui, &folder, regular(11.0)).min(140.0);

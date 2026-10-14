@@ -39,6 +39,13 @@ pub enum Dialog {
         account: Id,
         password: String,
     },
+    /// Add shared mailbox: the address of a mailbox to open under `account` with its sign-in
+    /// (`account.addShared`). Nothing else is asked: no password, no server.
+    SharedMailbox {
+        account: Id,
+        address: String,
+        error: String,
+    },
     /// A message being written has unsaved changes and something wants to close it.
     DiscardDraft {
         then: String,
@@ -109,6 +116,7 @@ impl Dialog {
             Dialog::Folder { .. } => "folder",
             Dialog::GoToDate { .. } => "goToDate",
             Dialog::Password { .. } => "password",
+            Dialog::SharedMailbox { .. } => "sharedMailbox",
             Dialog::DiscardDraft { .. } => "discardDraft",
             Dialog::Confirm { .. } => "confirm",
             Dialog::Report { name, .. } => name,
@@ -141,6 +149,15 @@ impl Dialog {
             }
             "goToDate" => Dialog::GoToDate { text: app.session.view.date.iso(), error: String::new() },
             "password" => Dialog::Password { account: id("account")?, password: String::new() },
+            "sharedMailbox" => {
+                let account = id("account")
+                    .or_else(|| {
+                        app.session.mailbox.accounts.iter().map(|a| a.id).find(|a| mailcraft_engine::cmd::shared::opens_shared(&app.session, *a))
+                    })
+                    .filter(|a| mailcraft_engine::cmd::shared::opens_shared(&app.session, *a))?;
+                let address = params.get("address").and_then(Value::as_str).unwrap_or("").chars().take(254).collect();
+                Dialog::SharedMailbox { account, address, error: String::new() }
+            }
             "discardDraft" => Dialog::DiscardDraft { then: params.get("then").and_then(Value::as_str).unwrap_or("").to_string() },
             "about" => Dialog::About,
             "favoritesSource" => Dialog::Favorites(crate::favorites_sync::choice::ChoiceDialog::open(app, params)?),
@@ -226,13 +243,28 @@ pub fn confirmation(app: &MailApp, id: &str, params: &Value) -> Option<Question>
         }
         "account.remove" => {
             let a = mb.account(params.get("id").and_then(Value::as_u64)?)?;
-            let text = format!(
+            let mut text = format!(
                 "{} {} {}",
                 a.email,
                 tl!("and the mail kept for it on this device will be removed."),
                 tl!("Mail on the server is not touched.")
             );
+            // The shared mailboxes opened through it go too.
+            let shared: Vec<String> = mb.shared_mailboxes(a.id).iter().map(|s| s.email.clone()).collect();
+            if !shared.is_empty() {
+                text = format!("{text} {} {}", tl!("So will the shared mailboxes opened with it:"), shared.join(", "));
+            }
             question(tl!("Remove Account"), text, tl!("Remove"))
+        }
+        "account.removeShared" => {
+            let a = mb.account(params.get("id").and_then(Value::as_u64)?).filter(|a| a.is_shared())?;
+            let text = format!(
+                "{} {} {}",
+                a.email,
+                tl!("will be closed, and the mail kept for it on this device removed."),
+                tl!("Mail on the server is not touched.")
+            );
+            question(tl!("Remove Shared Mailbox"), text, tl!("Remove"))
         }
         // A check on the account's real calendar says exactly what it is about to do there.
         "ui.checkCalendar" => {
@@ -389,7 +421,12 @@ fn calendar_question(app: &MailApp, id: &str, params: &Value) -> Option<Question
     let mb = &app.session.mailbox;
     let has = |key: &str| params.get(key).is_some_and(|v| !v.is_null());
     let note_hint = tl!("A note to go with it (optional)");
+    // A meeting kept on this computer goes by mail from the Outbox, and only on the owner's yes:
+    // the same questions, in its own words, each with a way of not sending.
     if matches!(id, "calendar.new" | "calendar.newMeeting") {
+        if let Some(ask) = outbox_question(app, id, params) {
+            return Some(ask);
+        }
         // A new meeting in a calendar an account's server keeps: the server sends the invitations.
         let Some(Mail::Invitation(n)) = mail_of(&app.session, id, params).filter(|_| has("title") && !has("send")) else { return None };
         let text = format!(
@@ -433,7 +470,7 @@ fn calendar_question(app: &MailApp, id: &str, params: &Value) -> Option<Question
         let name: String = e.title.chars().filter(|c| !c.is_control()).take(80).collect();
         let text = crate::i18n::fmt(
             tl!("\"{name}\" is one of a series. Do you mean just the one on {day}, or the entire series?"),
-            &[("name", &name), ("day", &day.long())],
+            &[("name", &name), ("day", &crate::i18n::date_long(day))],
         );
         let one = json!({"scope": "occurrence", "occurrence": day.iso()});
         return Some(Question::new(title, text, tl!("Just This One"), one).or(tl!("The Entire Series"), json!({"scope": "series"})));
@@ -442,6 +479,9 @@ fn calendar_question(app: &MailApp, id: &str, params: &Value) -> Option<Question
         return None;
     }
     // 2. Mail to other people.
+    if let Some(ask) = outbox_question(app, id, params) {
+        return Some(ask);
+    }
     match mail_of(&app.session, id, params).filter(|_| !has("send")) {
         Some(Mail::Invitation(n)) => {
             let text = format!(
@@ -501,6 +541,43 @@ fn calendar_question(app: &MailApp, id: &str, params: &Value) -> Option<Question
         }
         _ => None,
     }
+}
+
+/// The question about mail that a meeting kept on this computer would send from the Outbox
+/// (invitations, an update, a cancellation), when the command doesn't say yet (`send`). Not
+/// sending is always one of the answers: nothing makes the mail necessary.
+fn outbox_question(app: &MailApp, id: &str, params: &Value) -> Option<Question> {
+    use mailcraft_engine::cmd::calendar::{Mail, mail_by_outbox, mail_of};
+    let has = |key: &str| params.get(key).is_some_and(|v| !v.is_null());
+    if has("send") || !mail_by_outbox(&app.session, id, params) {
+        return None;
+    }
+    if matches!(id, "calendar.new" | "calendar.newMeeting") && !has("title") {
+        return None;
+    }
+    let ask = match mail_of(&app.session, id, params)? {
+        Mail::Invitation(n) => {
+            let text = format!(
+                "{} {}",
+                invited_line(n),
+                tl!("Send the invitation to them? It goes by mail from your Outbox at the next Send/Receive, and their answers come back to you.")
+            );
+            Question::new(tl!("Send This Invitation?"), text, tl!("Send"), json!({"send": true})).or(tl!("Don't Send"), json!({"send": false}))
+        }
+        Mail::Update(n) => {
+            let text = format!("{} {}", invited_line(n), tl!("Send the update to them? It goes by mail from your Outbox at the next Send/Receive."));
+            Question::new(tl!("Change This Meeting?"), text, tl!("Send Update"), json!({"send": true}))
+                .or(tl!("Save without Sending"), json!({"send": false}))
+        }
+        Mail::Cancellation(n) => {
+            let text =
+                format!("{} {}", invited_line(n), tl!("Send the cancellation to them? It goes by mail from your Outbox at the next Send/Receive."));
+            Question::new(tl!("Cancel This Meeting?"), text, tl!("Send Cancellation"), json!({"send": true}))
+                .or(tl!("Delete without Sending"), json!({"send": false}))
+                .noted("comment", tl!("A note to go with it (optional)"))
+        }
+    };
+    Some(ask)
 }
 
 /// Whether a command is what an appointment's form saves: `calendar.edit` with everything the
@@ -566,6 +643,13 @@ pub fn input_dialog(id: &str, params: &Value) -> Option<&'static str> {
         "account.add" if !has("email") => Some("account"),
         "rules.list" => Some("rules"),
         "category.list" => Some("categories"),
+        "folder.newSearchFolder" if !has("template") => Some("newSearchFolder"),
+        "searchFolder.edit" if empty => Some("editSearchFolder"),
+        "quickSteps.new" if !has("name") => Some("quickStep"),
+        "quickSteps.manage" => Some("quickSteps"),
+        "people.newGroup" if !has("name") => Some("contactGroup"),
+        "people.editGroup" if empty => Some("editContactGroup"),
+        "compose.delay" if !has("at") => Some("delayDelivery"),
         _ => None,
     }
 }
@@ -841,6 +925,46 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
                     app.status(e);
                 }
                 close = true;
+            }
+        }
+        Dialog::SharedMailbox { account, address, error } => {
+            let who = app.session.mailbox.account(*account).map(|a| a.email.clone()).unwrap_or_default();
+            let mut submit = false;
+            let open = window(ctx, tl!("Add Shared Mailbox"), 420.0, |ui| {
+                ui.label(crate::i18n::fmt(tl!("The address of a mailbox {account} has Full Access to"), &[("account", &who)]));
+                let resp = ui.add(egui::TextEdit::singleline(address).hint_text(tl!("support@example.org")).desired_width(f32::INFINITY));
+                if !resp.has_focus() && error.is_empty() {
+                    resp.request_focus();
+                }
+                if !error.is_empty() {
+                    ui.label(egui::RichText::new(error.as_str()).color(t.red));
+                }
+                ui.label(
+                    egui::RichText::new(tl!(
+                        "It opens with your own sign-in, under its own heading in the folder pane, and you can send from it when you have the Send As right. An administrator of your organisation gives both rights; MailCraft asks Microsoft for nothing more."
+                    ))
+                    .color(t.text_dim)
+                    .size(11.0),
+                );
+                let ready = !address.trim().is_empty();
+                let (ok, cancel) = buttons(ui, tl!("Add"), ready);
+                submit = ok || (enter && ready);
+                close |= cancel;
+            });
+            close |= !open;
+            if submit {
+                match app.execute("account.addShared", json!({"account": account, "address": address.trim()})) {
+                    Ok(v) => {
+                        close = true;
+                        // The first Send/Receive shows whether the server lets the account in.
+                        if let Some(id) = v.get("id").and_then(Value::as_u64)
+                            && let Err(e) = app.execute("ui.sync", json!({"account": id}))
+                        {
+                            app.status(e);
+                        }
+                    }
+                    Err(e) => *error = e,
+                }
             }
         }
         Dialog::Report { title, lines, .. } => {

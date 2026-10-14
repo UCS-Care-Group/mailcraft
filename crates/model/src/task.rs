@@ -29,6 +29,10 @@ pub struct Task {
     /// iCalendar `UID` (VTODO).
     #[serde(skip_serializing_if = "String::is_empty")]
     pub uid: String,
+    /// How the task comes back: completing it makes the next one, due when the rule says
+    /// (`tasks.recurrence`).
+    #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
+    pub recurrence: Option<crate::Recurrence>,
 }
 
 impl Task {
@@ -39,6 +43,16 @@ impl Task {
     /// Due before `today` and not done.
     pub fn is_overdue(&self, today: Date) -> bool {
         !self.is_complete() && self.due.is_some_and(|d| d < today)
+    }
+
+    /// For a task that repeats: the day the next one is due, after `due` (or `start`, or
+    /// `today` for a task without dates), when the series goes on.
+    pub fn next_due(&self, today: Date) -> Option<Date> {
+        let rule = self.recurrence.as_ref()?;
+        let anchor = self.due.or(self.start).unwrap_or(today);
+        // The series is counted from where it began: the first due date is the anchor itself.
+        let next = rule.dates(anchor, anchor.add_days(1), anchor.add_days(366 * 30), &[]).into_iter().next()?;
+        Some(next)
     }
 
     /// `Today`, `Tomorrow`, `Overdue`, the weekday within a week, else the date; `No date`.

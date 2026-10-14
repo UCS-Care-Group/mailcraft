@@ -15,4 +15,4 @@ mod text;
 mod write;
 
 pub use read::parse;
-pub use write::write;
+pub use write::{write, write_groups};

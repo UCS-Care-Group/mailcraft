@@ -101,8 +101,10 @@ fn select(s: &mut Session, v: &Value) -> CmdResult {
         s.sel.messages = ids;
     }
     // Follow the message to its folder (a search result, a conversation member elsewhere).
+    // (A search folder shows mail of many folders, and stays.)
     if let Some(m) = s.sel.focus().and_then(|id| s.mailbox.message(id))
         && s.view.search.is_empty()
+        && super::search_folders::in_view(s).is_none()
         && m.folder != s.view.folder
     {
         s.view.folder = m.folder;
@@ -113,6 +115,12 @@ fn select(s: &mut Session, v: &Value) -> CmdResult {
 
 /// Reading a message marks it read (File › Options). Not an undo step: it follows the selection.
 fn mark_opened(s: &mut Session) {
+    // A request for a read receipt is answered as the owner chose (File › Options).
+    if s.sel.messages.len() == 1
+        && let Some(id) = s.sel.focus()
+    {
+        super::receipts::on_open(s, id);
+    }
     if !s.prefs.mark_read_on_open || s.sel.messages.len() != 1 {
         return;
     }
@@ -397,8 +405,15 @@ fn attachment_target(s: &Session, v: &Value) -> Result<(Id, usize), crate::CmdEr
 }
 
 fn save_attachment(s: &mut Session, v: &Value) -> CmdResult {
-    let (id, index) = attachment_target(s, v)?;
-    let a = s.mailbox.message(id).and_then(|m| m.attachments.get(index)).ok_or_else(|| fail("no such attachment"))?;
+    let id = p::id(v, "id").or(s.sel.focus()).ok_or_else(|| fail("select a message first"))?;
+    let index = p::u64(v, "index").ok_or_else(|| bad("`index` (number) is required"))? as usize;
+    // An encrypted message's files are the ones it has once opened (in memory only).
+    let opened = s.security_view(id).and_then(|view| view.opened.as_ref().map(|(_, files)| files.clone()));
+    let files = match opened {
+        Some(files) => files,
+        None => s.mailbox.message(id).ok_or_else(|| fail(format!("no message with id {id}")))?.attachments.clone(),
+    };
+    let a = files.get(index).ok_or_else(|| fail(format!("the message has no attachment {index}")))?;
     let (stem, ext) = match a.name.rsplit_once('.') {
         Some((stem, ext)) if !ext.is_empty() && ext.len() <= 8 && ext.chars().all(char::is_alphanumeric) => (stem, ext),
         _ => (a.name.as_str(), "bin"),

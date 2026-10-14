@@ -11,7 +11,7 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("folder.select", "Go to Folder", "Folder", select)
             .pure()
             .key("Mod+Y")
-            .params(r#"{"id": number} | {"kind": "inbox"|"drafts"|"sent"|"deleted"|"junk"|"archive"|"outbox", "account"?: number} | {"path": "Inbox/Projects"}"#),
+            .params(r#"{"id": number (a folder or a search folder)} | {"kind": "inbox"|"drafts"|"sent"|"deleted"|"junk"|"archive"|"outbox", "account"?: number} | {"path": "Inbox/Projects"}"#),
         CommandSpec::new("folder.list", "List Folders", "Folder", list).pure(),
         CommandSpec::new("folder.new", "New Folder", "Folder › New", new)
             .key("Mod+Shift+E")
@@ -116,6 +116,17 @@ fn by_path(s: &Session, account: Option<Id>, path: &str) -> Option<Id> {
 
 fn select(s: &mut Session, v: &Value) -> CmdResult {
     let account = p::id(v, "account");
+    if let Some(saved) = p::id(v, "id").and_then(|id| super::search_folders::find(s, id)).map(|f| f.id) {
+        // A search folder is chosen like a folder.
+        if s.view.folder != saved || s.view.module != Module::Mail {
+            s.view.folder = saved;
+            s.view.module = Module::Mail;
+            s.sel.messages.clear();
+        }
+        s.view.search.clear();
+        let messages = s.rows().len();
+        return Ok(json!({"folder": saved, "searchFolder": true, "messages": messages}));
+    }
     let id = if let Some(id) = p::id(v, "id") {
         s.mailbox.folder(id).map(|f| f.id).ok_or_else(|| fail(format!("no folder with id {id}")))?
     } else if let Some(kind) = p::str(v, "kind") {
@@ -186,12 +197,16 @@ fn new(s: &mut Session, v: &Value) -> CmdResult {
             .ok_or_else(|| fail("add an account first"))?,
     };
     let id = s.mailbox.add_folder(account, parent, name)?;
+    // An account with a mail server has it made there with the next synchronisation.
+    s.mailbox.note_folder_made(id);
     Ok(json!({"id": id, "path": s.mailbox.folder_path(id)}))
 }
 
 fn rename(s: &mut Session, v: &Value) -> CmdResult {
     let id = target(s, v)?;
+    let was_in = s.mailbox.folder(id).and_then(|f| f.parent);
     s.mailbox.rename_folder(id, p::req_str(v, "name")?)?;
+    s.mailbox.note_folder_moved(id, was_in);
     Ok(json!({"id": id, "path": s.mailbox.folder_path(id)}))
 }
 
@@ -202,7 +217,9 @@ fn move_folder(s: &mut Session, v: &Value) -> CmdResult {
         Some(_) => Some(p::req_id(v, "parent")?),
         None => return Err(bad("`parent` (a folder id, or null for the top level) is required")),
     };
+    let was_in = s.mailbox.folder(id).and_then(|f| f.parent);
     s.mailbox.move_folder(id, parent)?;
+    s.mailbox.note_folder_moved(id, was_in);
     Ok(json!({"id": id, "path": s.mailbox.folder_path(id)}))
 }
 
@@ -211,6 +228,11 @@ fn delete(s: &mut Session, v: &Value) -> CmdResult {
     let parent = s.mailbox.folder(id).and_then(|f| f.parent);
     let account = s.mailbox.folder(id).map(|f| f.account);
     let permanently = s.mailbox.delete_folder(id)?;
+    // Into Deleted Items on the server too, as Outlook does; a folder deleted for good there is
+    // noted by the mailbox itself.
+    if !permanently {
+        s.mailbox.note_folder_moved(id, parent);
+    }
     // The view goes to where the folder was.
     if s.view.folder == id || s.mailbox.folder(s.view.folder).is_none() {
         s.view.folder = parent

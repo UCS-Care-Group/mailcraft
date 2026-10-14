@@ -316,6 +316,27 @@ pub fn mailbox(now: Timestamp, offset: i32) -> Mailbox {
         actions: vec![Action::Categorize("Purple category".into())],
         stop: false,
     });
+    // Two Quick Steps, and the people of the Atlas project as a contact group.
+    let archive = b.folder(FolderKind::Archive);
+    let done = b.mb.alloc_id();
+    b.mb.quick_steps.push(mailcraft_model::QuickStep {
+        id: done,
+        name: "Done".into(),
+        actions: vec![mailcraft_model::StepAction::MarkRead, mailcraft_model::StepAction::MarkComplete, mailcraft_model::StepAction::MoveTo(archive)],
+    });
+    let filed = b.mb.alloc_id();
+    b.mb.quick_steps.push(mailcraft_model::QuickStep {
+        id: filed,
+        name: "File as Receipt".into(),
+        actions: vec![mailcraft_model::StepAction::MarkRead, mailcraft_model::StepAction::MoveTo(receipts)],
+    });
+    let mut team = mailcraft_model::ContactGroup { name: "Atlas team".into(), ..Default::default() };
+    for who in [MAYA, TOMAS, PRIYA] {
+        let contact = b.mb.contact_by_email(who.1).map(|c| c.id);
+        team.add(mailcraft_model::GroupMember { address: mailcraft_model::Address::new(who.0, who.1), contact });
+    }
+    team.id = b.mb.alloc_id();
+    b.mb.contact_groups.push(team);
     b.mb
 }
 

@@ -18,6 +18,9 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("view.tasks", "Tasks", "Navigation", tasks).pure().key("Mod+4"),
         CommandSpec::new("view.readingPane", "Reading Pane", "View › Layout", reading_pane).pure().params(r#"{"value": "right"|"bottom"|"off"}"#),
         CommandSpec::new("view.folderPane", "Folder Pane", "View › Layout", folder_pane).pure().params(TOGGLE),
+        CommandSpec::new("view.todoBar", "To-Do Bar", "View › Layout", todo_bar).pure().params(
+            r#"{"value"?: bool} (default: toggle) — answers {"value", "events": [{"event", "title", "start", "end", "allDay", "location"}] (the next seven days, today first), "tasks": [{"id", "title", "due", "overdue"}] (what is still to do, by due date)}"#,
+        ),
         CommandSpec::new("view.conversations", "Show as Conversations", "View › Messages", conversations).pure().params(TOGGLE),
         CommandSpec::new("view.sort", "Arrange By", "View › Arrangement", sort)
             .pure()
@@ -79,6 +82,47 @@ fn reading_pane(s: &mut Session, v: &Value) -> CmdResult {
 fn folder_pane(s: &mut Session, v: &Value) -> CmdResult {
     s.view.folder_pane = p::bool(v, "value").unwrap_or(!s.view.folder_pane);
     Ok(json!({"value": s.view.folder_pane}))
+}
+
+/// What the To-Do Bar shows: the appointments of the next seven days, in order (today's that
+/// are over left out), and at most `max_tasks` of the tasks still to do, by due date.
+pub fn todo_items(s: &Session, max_tasks: usize) -> (Vec<(mailcraft_model::Occurrence, String, String, bool)>, Vec<mailcraft_model::Id>) {
+    let now = s.local_now();
+    let today = now.date;
+    let last = today.add_days(6);
+    let mut events: Vec<(mailcraft_model::Occurrence, String, String, bool)> = Vec::new();
+    let shown: Vec<mailcraft_model::Id> = s.mailbox.calendars.iter().filter(|c| c.visible).map(|c| c.id).collect();
+    for e in s.mailbox.events.values().filter(|e| shown.is_empty() || shown.contains(&e.calendar)) {
+        for o in e.occurrences(today, last) {
+            if o.end > now || (e.all_day && o.end.date > today) {
+                events.push((o, e.title.clone(), e.location.clone(), e.all_day));
+            }
+            if events.len() >= 500 {
+                break;
+            }
+        }
+    }
+    events.sort_by(|a, b| a.0.start.cmp(&b.0.start).then(a.0.event.cmp(&b.0.event)));
+    events.truncate(100);
+    let mut tasks = super::tasks::sorted(s, TaskFilter::Active);
+    tasks.truncate(max_tasks);
+    (events, tasks)
+}
+
+fn todo_bar(s: &mut Session, v: &Value) -> CmdResult {
+    s.view.todo_bar = p::bool(v, "value").unwrap_or(!s.view.todo_bar);
+    let (events, tasks) = todo_items(s, 50);
+    let today = s.today();
+    let events: Vec<Value> = events
+        .iter()
+        .map(|(o, title, location, all_day)| json!({"event": o.event, "title": title, "start": o.start.iso(), "end": o.end.iso(), "allDay": all_day, "location": location}))
+        .collect();
+    let tasks: Vec<Value> = tasks
+        .iter()
+        .filter_map(|id| s.mailbox.task(*id))
+        .map(|t| json!({"id": t.id, "title": t.title, "due": t.due.map(|d| d.iso()), "overdue": t.is_overdue(today)}))
+        .collect();
+    Ok(json!({"value": s.view.todo_bar, "events": events, "tasks": tasks}))
 }
 
 fn conversations(s: &mut Session, v: &Value) -> CmdResult {

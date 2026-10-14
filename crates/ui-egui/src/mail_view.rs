@@ -40,6 +40,12 @@ const TAB_MIN: f32 = 22.0;
 const ROW_INSET: f32 = 2.0;
 /// How wide the read/unread switch at a row's left edge is.
 const READ_STRIP: f32 = 12.0;
+/// A row's quick actions (flag, delete) under the pointer: the button, and the icon in it.
+const QUICK_BUTTON: f32 = 24.0;
+const QUICK_ICON: f32 = 18.0;
+/// The marks on the sender's line (attachment, importance, flag…), and from one to the next.
+const MARK: f32 = 16.0;
+const MARK_PITCH: f32 = 20.0;
 /// Where a row's text starts, from the list's left edge.
 const TEXT_LEFT: f32 = 30.0;
 /// Rows end this far from the list's right edge: a gap, the scroll bar's lane, and its margin.
@@ -52,12 +58,15 @@ const SCROLL_HANDLE: f32 = 9.0;
 /// The ends of the lane, each with an arrow in it: the handle travels between them.
 const SCROLL_END: f32 = 19.0;
 /// The time ends this far from a row's right end. What is right of it is the flag's column.
-const TIME_RIGHT: f32 = 24.0;
+const TIME_RIGHT: f32 = 28.0;
 /// Sender, subject and preview end this far from a row's right end, where the time's column
 /// starts: every row's text stops at the same place, whatever its time.
 const TEXT_RIGHT: f32 = 98.0;
 /// The middle of the sender's capitals, from a row's top: they stand 15 below the line above.
 const SENDER_Y: f32 = 21.0;
+/// The middle of the marks and the quick actions on the sender's line, from a row's top: a little
+/// above the sender's capitals, so a button clears the time under it.
+const MARK_Y: f32 = SENDER_Y - 3.0;
 /// The middle of the subject's (and the time's) capitals, from a row's top.
 const SUBJECT_Y: f32 = 37.5;
 /// The top of the preview's first line box, from a row's top: its text ends 15 above the line
@@ -101,6 +110,9 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
         // Hidden: a narrow strip stays, with the button that brings the pane back.
         crate::nav::folder_pane_strip(app, ui);
     }
+    if app.session.view.todo_bar {
+        todo_bar(app, ui);
+    }
     let composing = app.session.compose.is_some();
     let pane = app.session.view.reading_pane;
     // The list takes the whole width when the reading pane is off, unless a message is being written.
@@ -119,7 +131,7 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
             .show(ui, |ui| list(app, ui));
     } else {
         let max = (ui.available_width() - 260.0).max(260.0);
-        let shown = egui::Panel::left("message_list")
+        let shown = crate::i18n::start_panel("message_list")
             .default_size(app.ui.list_width.min(max))
             .size_range(240.0..=max)
             .resizable(true)
@@ -133,6 +145,67 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
         } else {
             crate::reading::show(app, ui);
         }
+    });
+}
+
+/// The To-Do Bar down the right side: the appointments of the days ahead, then the tasks still
+/// to do. A click opens what was clicked in its module.
+fn todo_bar(app: &mut MailApp, ui: &mut Ui) {
+    let t = Tokens::get(ui.ctx());
+    let frame = egui::Frame::NONE.fill(t.panel).stroke(Stroke::new(1.0, t.border)).inner_margin(egui::Margin::same(10));
+    crate::i18n::end_panel("todo_bar").default_size(240.0).size_range(180.0..=360.0).resizable(true).frame(frame).show(ui, |ui| {
+        let (events, tasks) = mailcraft_engine::cmd::view::todo_items(&app.session, 30);
+        let today = app.session.today();
+        let twelve = app.session.prefs.twelve_hour;
+        egui::ScrollArea::vertical().auto_shrink([false, false]).id_salt("todo_bar_scroll").show(ui, |ui| {
+            ui.label(egui::RichText::new(tl!("Appointments")).strong());
+            if events.is_empty() {
+                ui.label(egui::RichText::new(tl!("Nothing in the next seven days")).color(t.text_dim).small());
+            }
+            let mut day = None;
+            for (o, title, location, all_day) in &events {
+                if day != Some(o.start.date) {
+                    day = Some(o.start.date);
+                    let label = if o.start.date == today { tl!("Today").to_string() } else { crate::i18n::date_medium(o.start.date) };
+                    ui.add_space(4.0);
+                    ui.label(egui::RichText::new(label).color(t.text_dim).small());
+                }
+                let when = if *all_day { tl!("All day").to_string() } else { o.start.time_short(twelve) };
+                let mut text = format!("{when}  {}", crate::people_view::one_line(title, 60));
+                if !location.trim().is_empty() {
+                    text.push_str(&format!(" · {}", crate::people_view::one_line(location, 40)));
+                }
+                let resp = ui.add(egui::Button::new(egui::RichText::new(text).size(12.0)).frame(false));
+                app.hit.add("todoEvent", o.event, resp.rect);
+                if resp.clicked() {
+                    let _ = app.run("view.calendar", json!({}));
+                    let _ = app.run("view.goToDate", json!({"date": o.start.date.iso()}));
+                    let _ = app.run("calendar.select", json!({"id": o.event}));
+                }
+            }
+            ui.add_space(10.0);
+            ui.label(egui::RichText::new(tl!("Tasks")).strong());
+            if tasks.is_empty() {
+                ui.label(egui::RichText::new(tl!("Nothing to do")).color(t.text_dim).small());
+            }
+            for id in tasks {
+                let Some(task) = app.session.mailbox.task(id) else { continue };
+                let late = task.is_overdue(today);
+                let text = format!("{}  ·  {}", crate::people_view::one_line(&task.title, 60), crate::tasks_view::due_text(task, today));
+                let color = if late { t.red } else { t.text };
+                ui.horizontal(|ui| {
+                    if ui.small_button("✓").on_hover_text(tl!("Mark Complete")).clicked() {
+                        let _ = app.run("tasks.complete", json!({"id": id, "value": true}));
+                    }
+                    let resp = ui.add(egui::Button::new(egui::RichText::new(text).size(12.0).color(color)).frame(false));
+                    app.hit.add("todoTask", id, resp.rect);
+                    if resp.clicked() {
+                        let _ = app.run("view.tasks", json!({}));
+                        let _ = app.run("tasks.select", json!({"id": id}));
+                    }
+                });
+            }
+        });
     });
 }
 
@@ -150,25 +223,25 @@ fn row_height(preview_lines: u8) -> f32 {
 /// What the arrangement is called in the list's header.
 fn sort_label(sort: SortBy) -> &'static str {
     match sort {
-        SortBy::Date => "By Date",
-        SortBy::From => "By From",
-        SortBy::Subject => "By Subject",
-        SortBy::Size => "By Size",
-        SortBy::Importance => "By Importance",
+        SortBy::Date => tn!("By Date"),
+        SortBy::From => tn!("By From"),
+        SortBy::Subject => tn!("By Subject"),
+        SortBy::Size => tn!("By Size"),
+        SortBy::Importance => tn!("By Importance"),
     }
 }
 
 /// What is on top of the list, for the arrow that turns it over.
 fn direction_label(sort: SortBy, descending: bool) -> &'static str {
     match (sort, descending) {
-        (SortBy::Date, true) => "Newest on top",
-        (SortBy::Date, false) => "Oldest on top",
-        (SortBy::From | SortBy::Subject, false) => "A on top",
-        (SortBy::From | SortBy::Subject, true) => "Z on top",
-        (SortBy::Size, true) => "Largest on top",
-        (SortBy::Size, false) => "Smallest on top",
-        (SortBy::Importance, true) => "High on top",
-        (SortBy::Importance, false) => "Low on top",
+        (SortBy::Date, true) => tn!("Newest on top"),
+        (SortBy::Date, false) => tn!("Oldest on top"),
+        (SortBy::From | SortBy::Subject, false) => tn!("A on top"),
+        (SortBy::From | SortBy::Subject, true) => tn!("Z on top"),
+        (SortBy::Size, true) => tn!("Largest on top"),
+        (SortBy::Size, false) => tn!("Smallest on top"),
+        (SortBy::Importance, true) => tn!("High on top"),
+        (SortBy::Importance, false) => tn!("Low on top"),
     }
 }
 
@@ -215,9 +288,9 @@ fn list_header(app: &mut MailApp, ui: &mut Ui) {
             crate::widgets::mi_check(ui, app, s.label(), s == sort, "view.sort", json!({"by": s}));
         }
         ui.separator();
-        crate::widgets::mi(ui, app, "Reverse Sort", "view.reverseSort", json!({}));
+        crate::widgets::mi(ui, app, tn!("Reverse Sort"), "view.reverseSort", json!({}));
         let conv = app.session.view.conversations;
-        crate::widgets::mi_check(ui, app, "Show as Conversations", conv, "view.conversations", json!({}));
+        crate::widgets::mi_check(ui, app, tn!("Show as Conversations"), conv, "view.conversations", json!({}));
         // The filters that have no tab of their own.
         ui.separator();
         for f in Filter::ALL {
@@ -524,13 +597,14 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect) {
         .on_hover_text(if unread { tl!("Mark as read") } else { tl!("Mark as unread") });
     app.hit.add("messageRead", row.id, strip);
     let line1 = rect.min.y + SENDER_Y;
+    let marks_y = rect.min.y + MARK_Y;
     let line2 = rect.min.y + SUBJECT_Y;
     // Quick actions on the row under the pointer, at the right of the sender's line: flag (where
     // a flagged message wears its flag) and delete. Like the read switch they sit on top of the
     // row and leave the selection alone.
     let over = ui.rect_contains_pointer(rect) && egui::DragAndDrop::payload::<MessageDrag>(ui.ctx()).is_none();
-    let flag_rect = Rect::from_center_size(pos2(rect.max.x - TIME_RIGHT / 2.0, line1), vec2(20.0, 20.0));
-    let delete_rect = flag_rect.translate(vec2(-22.0, 0.0));
+    let flag_rect = Rect::from_center_size(pos2(rect.max.x - TIME_RIGHT / 2.0, marks_y), vec2(QUICK_BUTTON, QUICK_BUTTON));
+    let delete_rect = flag_rect.translate(vec2(-(QUICK_BUTTON + 2.0), 0.0));
     let flagged = m.flag == FlagStatus::Flagged;
     let quick = over.then(|| {
         let delete = ui.interact(delete_rect, ui.id().with(("msg_delete", row.id)), Sense::click()).on_hover_text(tl!("Delete"));
@@ -591,11 +665,11 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect) {
             if resp.hovered() {
                 p.rect_filled(at, 4.0, t.pressed);
             }
-            icons::paint(p, at.shrink(3.0), icon, color, t.accent);
+            icons::paint(p, Rect::from_center_size(at.center(), vec2(QUICK_ICON, QUICK_ICON)), icon, color, t.accent);
         }
         x = delete_rect.min.x - 2.0;
     } else {
-        let flag = Rect::from_center_size(flag_rect.center(), vec2(12.0, 12.0));
+        let flag = Rect::from_center_size(flag_rect.center(), vec2(MARK, MARK));
         match m.flag {
             FlagStatus::Flagged => icons::paint(p, flag, "flag", t.icon, t.accent),
             FlagStatus::Complete => icons::paint(p, flag, "complete", t.icon, t.accent),
@@ -603,8 +677,8 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect) {
         }
     }
     let mut marker = |icon: &str, color: Color32| {
-        icons::paint(p, Rect::from_center_size(pos2(x - 6.0, line1), vec2(12.0, 12.0)), icon, color, t.accent);
-        x -= 15.0;
+        icons::paint(p, Rect::from_center_size(pos2(x - MARK / 2.0, marks_y), vec2(MARK, MARK)), icon, color, t.accent);
+        x -= MARK_PITCH;
     };
     // A meeting that came by mail wears its mark; its calendar part is not one of its files.
     let (meeting, files) = crate::reading::list_marks(&m);
@@ -612,7 +686,7 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect) {
         marker(meeting, t.icon);
     }
     if files {
-        marker("attach", t.text_dim);
+        marker("attach", t.icon);
     }
     match m.importance {
         Importance::High => marker("highImportance", t.icon),
@@ -638,7 +712,7 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect) {
 
     // The subject's line, with the time at its end.
     let date =
-        mailcraft_time::list_label(mailcraft_engine::list::when(&m), app.session.now(), app.session.offset_at(m.date), app.session.prefs.twelve_hour);
+        crate::i18n::list_label(mailcraft_engine::list::when(&m), app.session.now(), app.session.offset_at(m.date), app.session.prefs.twelve_hour);
     let (date_font, date_color) = if unread { (semibold(LIST_TEXT), t.accent_text) } else { (regular(LIST_TEXT), t.text) };
     let date_w = p.text(pos2(time_end, line2), Align2::RIGHT_CENTER, &date, date_font, date_color).width();
     let mut subject_end = text_end.min(time_end - date_w - 8.0);
@@ -729,15 +803,15 @@ fn clicks(app: &mut MailApp, ui: &Ui, resp: &egui::Response, id: Id, m: &Message
         ui.set_min_width(200.0);
         use crate::widgets::mi;
         if m.draft {
-            mi(ui, app, "Open Draft", "mail.editDraft", json!({}));
+            mi(ui, app, tn!("Open Draft"), "mail.editDraft", json!({}));
             ui.separator();
         } else {
-            mi(ui, app, "Open in a Window", "ui.openWindow", json!({"message": id}));
+            mi(ui, app, tn!("Open in a Window"), "ui.openWindow", json!({"message": id}));
             ui.separator();
         }
-        mi(ui, app, "Reply", "mail.reply", json!({}));
-        mi(ui, app, "Reply All", "mail.replyAll", json!({}));
-        mi(ui, app, "Forward", "mail.forward", json!({}));
+        mi(ui, app, tn!("Reply"), "mail.reply", json!({}));
+        mi(ui, app, tn!("Reply All"), "mail.replyAll", json!({}));
+        mi(ui, app, tn!("Forward"), "mail.forward", json!({}));
         ui.separator();
         mi(ui, app, if read { "Mark as Unread" } else { "Mark as Read" }, if read { "mail.markUnread" } else { "mail.markRead" }, json!({}));
         mi(ui, app, if flagged { "Clear Flag" } else { "Follow Up" }, if flagged { "mail.clearFlag" } else { "mail.flag" }, json!({}));
@@ -758,18 +832,18 @@ fn clicks(app: &mut MailApp, ui: &Ui, resp: &egui::Response, id: Id, m: &Message
                 let _ = app.run("mail.move", json!({"folder": folder}));
             });
         });
-        mi(ui, app, "Archive", "mail.archive", json!({}));
+        mi(ui, app, tn!("Archive"), "mail.archive", json!({}));
         if in_junk {
-            mi(ui, app, "Not Junk", "mail.notJunk", json!({}));
+            mi(ui, app, tn!("Not Junk"), "mail.notJunk", json!({}));
         } else {
-            mi(ui, app, "Junk", "mail.junk", json!({}));
+            mi(ui, app, tn!("Junk"), "mail.junk", json!({}));
         }
-        mi(ui, app, "Delete", "mail.delete", json!({}));
+        mi(ui, app, tn!("Delete"), "mail.delete", json!({}));
         ui.separator();
-        mi(ui, app, "Add to Tasks", "tasks.fromMessage", json!({}));
-        mi(ui, app, "Add Sender to Contacts", "people.fromMessage", json!({}));
-        mi(ui, app, "Find Related Messages", "mail.findRelated", json!({}));
-        mi(ui, app, "Save Message As…", "file.exportMessage", json!({}));
+        mi(ui, app, tn!("Add to Tasks"), "tasks.fromMessage", json!({}));
+        mi(ui, app, tn!("Add Sender to Contacts"), "people.fromMessage", json!({}));
+        mi(ui, app, tn!("Find Related Messages"), "mail.findRelated", json!({}));
+        mi(ui, app, tn!("Save Message As…"), "file.exportMessage", json!({}));
     });
 }
 
@@ -946,10 +1020,10 @@ mod tests {
         hover(&mut harness, rect.center());
         let (flag, delete) = (at(&harness, "messageFlag", row.id), at(&harness, "messageDelete", row.id));
         // The flag is in its own column at the row's end, delete before it, both on the sender's line.
-        assert!(flag.center().distance(pos2(rect.max.x - TIME_RIGHT / 2.0, rect.min.y + SENDER_Y)) < 0.01);
+        assert!(flag.center().distance(pos2(rect.max.x - TIME_RIGHT / 2.0, rect.min.y + MARK_Y)) < 0.01);
         assert_eq!(delete.center().y, flag.center().y);
         assert!(delete.max.x <= flag.min.x && delete.min.x > rect.max.x - TEXT_RIGHT, "the buttons keep out of the text's column");
-        assert!(flag.max.y < rect.min.y + SUBJECT_Y - 4.0, "and off the subject's line, where the time is");
+        assert!(flag.max.y < rect.min.y + SUBJECT_Y - 7.0, "and well off the subject's line, where the time is");
 
         // They do what they say, and the selection stays where it was.
         let selected = harness.state().session.sel.messages.clone();
