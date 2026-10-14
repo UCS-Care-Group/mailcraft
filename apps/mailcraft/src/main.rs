@@ -30,7 +30,9 @@ mod file_dialogs;
 #[cfg(any(target_os = "windows", test))]
 mod graphics;
 mod logging;
+mod notifications;
 mod picture_cache;
+mod printing;
 mod secrets;
 mod single_instance;
 
@@ -779,6 +781,76 @@ fn free_busy(request: FreeBusyRequest) -> FreeBusyResult {
     out
 }
 
+/// Most message bytes a Send/Receive keeps back while the window is behind; past that, the run
+/// waits for it.
+const HELD_BYTES: usize = 256 * 1024 * 1024;
+
+/// How the pieces of a Send/Receive get to the window: through a short channel, and while that is
+/// full, put together here when they only bring news ([`SyncResult::can_absorb`]), up to
+/// [`HELD_BYTES`]. The order things are taken in stays as the run did them.
+struct Forward {
+    tx: std::sync::mpsc::SyncSender<mailcraft_model::sync::SyncResult>,
+    held: Option<mailcraft_model::sync::SyncResult>,
+}
+
+impl Forward {
+    fn new(tx: std::sync::mpsc::SyncSender<mailcraft_model::sync::SyncResult>) -> Forward {
+        Forward { tx, held: None }
+    }
+
+    /// Pass a piece on. Returns `false` when nobody is listening any more.
+    fn send(&mut self, piece: mailcraft_model::sync::SyncResult) -> bool {
+        use std::sync::mpsc::TrySendError;
+        let piece = match self.held.take() {
+            Some(mut held) if held.can_absorb(&piece) => {
+                held.absorb(piece);
+                held
+            }
+            // What was held goes first, waiting for room if it must.
+            Some(held) => {
+                if self.tx.send(held).is_err() {
+                    return false;
+                }
+                piece
+            }
+            None => piece,
+        };
+        // The last piece always gets there.
+        if !piece.partial {
+            return self.tx.send(piece).is_ok();
+        }
+        match self.tx.try_send(piece) {
+            Ok(()) => true,
+            Err(TrySendError::Disconnected(_)) => false,
+            Err(TrySendError::Full(piece)) if held_bytes(&piece) > HELD_BYTES => self.tx.send(piece).is_ok(),
+            Err(TrySendError::Full(piece)) => {
+                self.held = Some(piece);
+                true
+            }
+        }
+    }
+
+    /// Pass on what is still held (the run ended without a last piece to carry it).
+    fn flush(&mut self) {
+        if let Some(held) = self.held.take() {
+            let _ = self.tx.send(held);
+        }
+    }
+}
+
+/// About how many bytes the messages of a piece take.
+fn held_bytes(piece: &mailcraft_model::sync::SyncResult) -> usize {
+    piece
+        .folders
+        .iter()
+        .flat_map(|f| &f.new)
+        .map(|m| {
+            let attached: usize = m.attachments.iter().map(|a| a.data.len()).fold(0, usize::saturating_add);
+            m.body.text.len().saturating_add(m.body.html.as_ref().map_or(0, String::len)).saturating_add(attached)
+        })
+        .fold(0, usize::saturating_add)
+}
+
 /// What the app needs from the system: native file dialogs, shown without blocking the window
 /// (`file_dialogs`); everything that opens a socket (Send/Receive, signing in, finding a domain's
 /// mail servers, checking an account), each on a background thread; and the credential store.
@@ -790,26 +862,41 @@ fn services(file_dialog: file_dialogs::Hook, ctx: egui::Context, kept_pictures: 
     let check_ctx = ctx.clone();
     let ews_ctx = ctx.clone();
     let approval_ctx = ctx.clone();
+    let idle_ctx = ctx.clone();
     let (sync_ctx, sign_in_ctx, graph_ctx, mx_ctx, test_ctx) = (ctx.clone(), ctx.clone(), ctx.clone(), ctx.clone(), ctx);
     let sync_cancel = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
     let cancel = sync_cancel.clone();
+    let sync_updates: std::sync::Arc<std::sync::Mutex<Option<mailcraft_model::sync::SyncRequest>>> = Default::default();
+    let updates = sync_updates.clone();
     Services {
         file_dialog: Some(file_dialog),
         // Mail arrives in pieces as the run goes (what was sent, then folder by folder), through a
-        // channel short enough that a busy window holds the run back instead of piling pieces up.
+        // short channel. While the window is behind (busy, or not drawn because it is out of
+        // sight), the pieces that only bring news are put together here instead of holding the
+        // download up ([`Forward`]); only so much is kept that way. Changes the owner makes while
+        // it runs come through `sync_updates` and go up on the run's own connection.
         sync: Some(Box::new(move |request| {
             use std::sync::atomic::Ordering;
             let (tx, rx) = std::sync::mpsc::sync_channel(8);
-            let (wake, cancel) = (sync_ctx.clone(), cancel.clone());
+            let (wake, cancel, updates) = (sync_ctx.clone(), cancel.clone(), updates.clone());
             cancel.store(false, Ordering::Relaxed);
             let spawned = std::thread::Builder::new().name("send/receive".into()).spawn(move || {
-                mailcraft_net::sync_with(&request, &cancel, &mut |piece| {
-                    // Nobody is listening any more (the window closed): stop.
-                    if tx.send(piece).is_err() {
-                        cancel.store(true, Ordering::Relaxed);
-                    }
-                    wake.request_repaint();
-                });
+                let mut forward = Forward::new(tx);
+                let mut more = || updates.lock().ok().and_then(|mut waiting| waiting.take());
+                mailcraft_net::sync_with_updates(
+                    &request,
+                    &cancel,
+                    &mut |piece| {
+                        // Nobody is listening any more (the window closed): stop.
+                        if !forward.send(piece) {
+                            cancel.store(true, Ordering::Relaxed);
+                        }
+                        wake.request_repaint();
+                    },
+                    &mut more,
+                );
+                forward.flush();
+                wake.request_repaint();
             });
             // A dropped sender reads as "stopped unexpectedly" in the app.
             if let Err(e) = spawned {
@@ -818,6 +905,11 @@ fn services(file_dialog: file_dialogs::Hook, ctx: egui::Context, kept_pictures: 
             rx
         })),
         sync_cancel,
+        sync_updates: Some(sync_updates),
+        // New mail heard of as it comes: one more connection waits on the Inbox of an account
+        // whose server can say so (IMAP IDLE), on a thread of its own, until the watch is dropped
+        // (the account goes, the app quits). What it hears wakes the window, which starts a run.
+        idle: Some(Box::new(move |request| inbox_watch(&idle_ctx, request))),
         sign_in: Some(Box::new(move |request| {
             let ctx = sign_in_ctx.clone();
             background(&sign_in_ctx, "sign-in", move || sign_in(&ctx, request))
@@ -854,9 +946,42 @@ fn services(file_dialog: file_dialogs::Hook, ctx: egui::Context, kept_pictures: 
             background(&approval_ctx, "admin consent", move || admin_consent(&ctx, request))
         })),
         secrets: secrets::store(),
+        // New mail and reminders, said by the system while the window is elsewhere.
+        notify: Some(notifications::hook()),
+        // File › Print: the PDF goes to the system's printing.
+        print: Some(printing::hook()),
         microsoft_client_id: microsoft_client_id(),
         ..Default::default()
     }
+}
+
+/// Wait on the Inbox of `request`'s account for news (`mailcraft_net::idle`), on a thread of its
+/// own, until the watch that comes back is dropped. Each piece of news goes through the watch's
+/// channel and wakes the window; so does the end of the watch, with why it ended.
+fn inbox_watch(ctx: &egui::Context, request: mailcraft_model::sync::SyncRequest) -> mailcraft_ui_egui::inbox_watch::InboxWatch {
+    use mailcraft_ui_egui::inbox_watch::{InboxWatch, WatchNews};
+    let (tx, rx) = std::sync::mpsc::channel();
+    let stop = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let (stopping, wake) = (stop.clone(), ctx.clone());
+    let spawned = std::thread::Builder::new().name("new mail".into()).spawn(move || {
+        let end = mailcraft_net::idle::watch_inbox(&request, &stopping, &mut || {
+            let _ = tx.send(WatchNews::Changed);
+            wake.request_repaint();
+        });
+        let news = match end {
+            mailcraft_net::idle::IdleEnd::Stopped => return,
+            mailcraft_net::idle::IdleEnd::NotOffered => WatchNews::NotOffered,
+            mailcraft_net::idle::IdleEnd::SignIn(_) => WatchNews::SignIn,
+            mailcraft_net::idle::IdleEnd::Unusable(why) => WatchNews::Ended(why),
+        };
+        let _ = tx.send(news);
+        wake.request_repaint();
+    });
+    // A watch that never began reads as one that ended: the timed runs bring the mail.
+    if let Err(e) = spawned {
+        log::warn!("couldn't wait for new mail: {e}");
+    }
+    InboxWatch { news: rx, stop }
 }
 
 /// Window, Dock and taskbar icon.
