@@ -1,6 +1,7 @@
 //! An IMAP4rev1 client (RFC 3501) with the commands a two-way synchronisation needs: reading
-//! mailboxes, and changing flags, moving, copying, removing and filing messages (UID MOVE of
-//! RFC 6851; UID EXPUNGE and the `COPYUID` answer of RFC 4315). Special-use mailbox flags
+//! mailboxes, and changing flags and keywords, moving, copying, removing and filing messages (UID
+//! MOVE of RFC 6851; UID EXPUNGE and the `COPYUID` and `APPENDUID` answers of RFC 4315), finding
+//! a message by its Message-ID (UID SEARCH), and waiting for news (IDLE, RFC 2177). Special-use mailbox flags
 //! (RFC 6154) come through in [`Mailbox::flags`] as the server wrote them. Signing in is LOGIN
 //! with a password, or AUTHENTICATE XOAUTH2 with an OAuth access token.
 //!
@@ -34,6 +35,8 @@ const MAX_QUOTED: usize = 1_000;
 const MAX_SET_UIDS: usize = 500;
 /// Longest set [`uid_sets`] writes, in characters.
 const MAX_SET_TEXT: usize = 800;
+/// Most UIDs a SEARCH answer is read for.
+const MAX_FOUND: usize = 1_000;
 
 /// An IMAP session on a stream.
 pub struct Imap<S> {
@@ -51,6 +54,10 @@ pub struct Imap<S> {
     copied: Vec<Option<Copied>>,
     /// LOGOUT was sent, so BYE is the answer we asked for.
     leaving: bool,
+    /// Where the last APPEND put its message, when the server said (`APPENDUID`).
+    appended: Option<(u32, u32)>,
+    /// The tag of the IDLE under way, between [`Imap::idle`] and [`Imap::idle_done`].
+    idling: Option<String>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -76,6 +83,30 @@ pub struct Selected {
     pub exists: u32,
     pub uid_validity: u32,
     pub uid_next: u32,
+    /// The flags the server keeps on the mailbox's messages for good (`PERMANENTFLAGS`), as
+    /// written; `\*` among them means any keyword can be made. `None` when the server didn't say,
+    /// which RFC 3501 asks to be taken as every flag.
+    pub permanent_flags: Option<Vec<String>>,
+}
+
+impl Selected {
+    /// Whether the server keeps keywords of the owner's choosing on the mailbox's messages: it
+    /// said it keeps any (`\*`), or it said nothing about what it keeps.
+    pub fn keeps_keywords(&self) -> bool {
+        self.permanent_flags.as_ref().is_none_or(|flags| flags.iter().any(|f| f == "\\*"))
+    }
+}
+
+/// What came while the server was waiting with news (IDLE).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum IdleNews {
+    /// Nothing, for as long as the stream waits for a read.
+    Quiet,
+    /// The mailbox changed: a message came (`EXISTS`, `RECENT`), went (`EXPUNGE`) or had its
+    /// flags changed (`FETCH`).
+    Changed,
+    /// Something else: a line of status, news about something else.
+    Other,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -334,6 +365,15 @@ fn copied_from(arg: &str) -> Option<Copied> {
     Some(Copied { uid_validity, uids: from.into_iter().zip(to).collect() })
 }
 
+/// From the text of an `APPENDUID` code: `<uidvalidity> <uid>`. `None` unless both are numbers
+/// other than zero and nothing else is there (a server that appended many names a set).
+fn appended_from(arg: &str) -> Option<(u32, u32)> {
+    let mut words = arg.split_whitespace();
+    let uid_validity = number(words.next()?).filter(|n| *n != 0)?;
+    let uid = number(words.next()?).filter(|n| *n != 0)?;
+    words.next().is_none().then_some((uid_validity, uid))
+}
+
 /// UIDs as message sets for commands (`4,7:9,12`), each with the UIDs it names: sorted, each UID
 /// once, consecutive numbers as ranges, and no set longer than one command should carry. A
 /// range only ever spans numbers that were asked for.
@@ -402,6 +442,8 @@ impl<S: Read + Write> Imap<S> {
             selected: Selected::default(),
             copied: Vec::new(),
             leaving: false,
+            appended: None,
+            idling: None,
         }
     }
 
@@ -583,6 +625,60 @@ impl<S: Read + Write> Imap<S> {
         self.fetch_one(uid, "(UID FLAGS INTERNALDATE BODY.PEEK[HEADER])", true)
     }
 
+    /// UID FETCH <set> (UID FLAGS INTERNALDATE BODY.PEEK[]), or with `header_only`
+    /// BODY.PEEK[HEADER]: many messages in one command, each handed to `on_message` as soon as
+    /// it has arrived, in the order the server sends them (as a rule, by UID upwards). The server
+    /// answers them one after the other without waiting to be asked again, which is what makes a
+    /// first download fast: one round trip for the lot instead of one per message.
+    ///
+    /// Only messages of the set are handed over, each once, and only with what was asked for (a
+    /// whole message in answer to a question about its header is not taken in, nor the other
+    /// way round). Flags or a date the server says of a message in a response of its own before
+    /// the one with the message go along with it. A message that doesn't come back is gone, or
+    /// kept back by the server: the caller tells which. When the command fails part way (it is
+    /// refused, the connection goes), what arrived before has been handed over all the same.
+    pub fn uid_fetch_messages(&mut self, set: &str, header_only: bool, on_message: &mut dyn FnMut(Fetched)) -> Result<(), ProtoError> {
+        let items = if header_only { "(UID FLAGS INTERNALDATE BODY.PEEK[HEADER])" } else { "(UID FLAGS INTERNALDATE BODY.PEEK[])" };
+        let command = Self::fetch(set, items)?;
+        // The set's messages one by one, when it names them so (`1:*` doesn't).
+        let wanted: Option<HashSet<u32>> = uids_of(set).map(|uids| uids.into_iter().collect());
+        let mut handed: HashSet<u32> = HashSet::new();
+        // What responses without the message said of it, for the one with the message.
+        let mut said: BTreeMap<u32, (Option<Vec<String>>, Option<String>)> = BTreeMap::new();
+        self.run(command, &mut |values| {
+            let Some(item) = Item::from(values) else { return };
+            let uid = item.uid;
+            if uid == 0 || wanted.as_ref().is_some_and(|wanted| !wanted.contains(&uid)) || handed.contains(&uid) {
+                return;
+            }
+            let asked_for = if header_only { item.header } else { item.body };
+            match asked_for {
+                Some(body) => {
+                    let (flags, date) = said.remove(&uid).unwrap_or_default();
+                    handed.insert(uid);
+                    on_message(Fetched {
+                        uid,
+                        flags: item.flags.or(flags).unwrap_or_default(),
+                        internal_date: item.internal_date.or(date),
+                        body: Some(body),
+                    });
+                }
+                // Kept for so many messages only: a server can't make this grow without end.
+                None if said.len() < MAX_SET_UIDS || said.contains_key(&uid) => {
+                    let entry = said.entry(uid).or_default();
+                    if item.flags.is_some() {
+                        entry.0 = item.flags;
+                    }
+                    if item.internal_date.is_some() {
+                        entry.1 = item.internal_date;
+                    }
+                }
+                None => {}
+            }
+        })?;
+        Ok(())
+    }
+
     /// One message with its flags and date, and either all of it or (`header_only`) its header.
     fn fetch_one(&mut self, uid: u32, items: &str, header_only: bool) -> Result<Option<Fetched>, ProtoError> {
         if uid == 0 {
@@ -681,13 +777,137 @@ impl<S: Read + Write> Imap<S> {
         self.run(Command::new("SUBSCRIBE").string(raw_name.as_bytes()), &mut ignore).map(|_| ())
     }
 
+    /// UNSUBSCRIBE <mailbox>: for a mailbox that is gone or has another name now.
+    pub fn unsubscribe(&mut self, raw_name: &str) -> Result<(), ProtoError> {
+        self.run(Command::new("UNSUBSCRIBE").string(raw_name.as_bytes()), &mut ignore).map(|_| ())
+    }
+
+    /// RENAME <mailbox> <new name> (RFC 3501 6.3.5): both names as the server wants them, as for
+    /// [`Imap::create`]. The mailboxes inside it go with it.
+    pub fn rename(&mut self, raw_from: &str, raw_to: &str) -> Result<(), ProtoError> {
+        self.run(Command::new("RENAME").string(raw_from.as_bytes()).string(raw_to.as_bytes()), &mut ignore).map(|_| ())
+    }
+
+    /// DELETE <mailbox> (RFC 3501 6.3.4): the mailbox and every message in it go for good.
+    pub fn delete(&mut self, raw_name: &str) -> Result<(), ProtoError> {
+        self.run(Command::new("DELETE").string(raw_name.as_bytes()), &mut ignore).map(|_| ())
+    }
+
     /// APPEND with a literal (handles the `+` continuation).
     pub fn append(&mut self, raw_name: &str, flags: &[&str], message: &[u8]) -> Result<(), ProtoError> {
+        self.append_uid(raw_name, flags, message).map(|_| ())
+    }
+
+    /// [`append`](Self::append), answering where the message went when the server says so
+    /// (`APPENDUID`, RFC 4315): the mailbox's `UIDVALIDITY` and the message's UID there.
+    pub fn append_uid(&mut self, raw_name: &str, flags: &[&str], message: &[u8]) -> Result<Option<(u32, u32)>, ProtoError> {
         let mut command = Command::new("APPEND").string(raw_name.as_bytes());
         if !flags.is_empty() {
             command = command.arg(&flag_list(flags)?);
         }
-        self.run(command.literal(message), &mut ignore).map(|_| ())
+        self.appended = None;
+        self.run(command.literal(message), &mut ignore)?;
+        Ok(self.appended.take())
+    }
+
+    /// UID SEARCH HEADER Message-ID <id>: the UIDs of the open mailbox's messages whose
+    /// Message-ID header has `message_id` in it (given with or without its angle brackets), at
+    /// most [`MAX_FOUND`] of them, in UID order. An id that can't be sent is refused unsent.
+    pub fn uid_search_message_id(&mut self, message_id: &str) -> Result<Vec<u32>, ProtoError> {
+        let id = message_id.trim().trim_start_matches('<').trim_end_matches('>').trim();
+        if id.is_empty() || id.len() > MAX_QUOTED || !id.bytes().all(|b| b.is_ascii_graphic()) {
+            return Err(ProtoError::Protocol("that Message-ID can't be searched for".into()));
+        }
+        let mut found: Vec<u32> = Vec::new();
+        self.run(Command::new("UID SEARCH HEADER Message-ID").string(id.as_bytes()), &mut |values| {
+            let mut values = values.into_iter();
+            if !values.next().is_some_and(|v| v.atom().is_some_and(|a| a.eq_ignore_ascii_case("SEARCH"))) {
+                return;
+            }
+            for value in values {
+                if found.len() >= MAX_FOUND {
+                    break;
+                }
+                if let Some(uid) = value.atom().and_then(number).filter(|uid| *uid != 0) {
+                    found.push(uid);
+                }
+            }
+        })?;
+        found.sort_unstable();
+        found.dedup();
+        Ok(found)
+    }
+
+    /// IDLE (RFC 2177): ask the server to say when the open mailbox changes, and wait for its
+    /// go-ahead. What it says then comes from [`idle_wait`](Self::idle_wait), and
+    /// [`idle_done`](Self::idle_done) ends it. Refused unsent unless the server has said `IDLE`.
+    pub fn idle(&mut self) -> Result<(), ProtoError> {
+        if !self.offers("IDLE") {
+            return Err(ProtoError::Protocol("the server can't wait with news (it doesn't offer IDLE)".into()));
+        }
+        if self.idling.is_some() {
+            return Err(ProtoError::Protocol("already waiting for news".into()));
+        }
+        let tag = self.tag();
+        log::trace!("C: {tag} IDLE");
+        self.wire.write(format!("{tag} IDLE\r\n").as_bytes())?;
+        self.wire.flush()?;
+        match self.read_until(&tag, true, &mut ignore)? {
+            None => {
+                self.idling = Some(tag);
+                Ok(())
+            }
+            // Ended before it began.
+            Some(line) if line.status == Status::Ok => Err(ProtoError::Protocol("the server ended the command early".into())),
+            Some(line) => Err(ProtoError::Rejected(self.refusal(&line))),
+        }
+    }
+
+    /// The next thing the server says while it waits with news: [`IdleNews::Quiet`] when the
+    /// stream's wait for a read ran out first (the caller sets how long that is), which leaves
+    /// the session as it was. A server that ends the session, or the IDLE, is an error.
+    pub fn idle_wait(&mut self) -> Result<IdleNews, ProtoError> {
+        let Some(tag) = self.idling.clone() else { return Err(ProtoError::Protocol("not waiting for news".into())) };
+        let Some(line) = self.wire.poll_line()? else { return Ok(IdleNews::Quiet) };
+        match self.response_from(line)? {
+            Response::Data(values) => {
+                self.note_data(&values);
+                let word = values.get(1).and_then(Value::atom).map(str::to_ascii_uppercase);
+                Ok(match word.as_deref() {
+                    Some("EXISTS" | "RECENT" | "EXPUNGE" | "FETCH") => IdleNews::Changed,
+                    _ => IdleNews::Other,
+                })
+            }
+            Response::Status { tag: None, line } if line.status == Status::Bye => {
+                self.idling = None;
+                Err(ProtoError::Io(format!("the server ended the session: {}", self.refusal(&line))))
+            }
+            Response::Status { tag: None, line } => {
+                self.note_status(&line);
+                Ok(IdleNews::Other)
+            }
+            Response::Status { tag: Some(answered), line } => {
+                self.idling = None;
+                if answered != tag {
+                    return Err(ProtoError::Protocol("the server answered a command that wasn't sent".into()));
+                }
+                Err(ProtoError::Protocol(format!("the server stopped waiting with news: {}", self.refusal(&line))))
+            }
+            Response::GoAhead => Err(ProtoError::Protocol("the server asked for more than the command had".into())),
+        }
+    }
+
+    /// DONE: end the IDLE under way, and read up to its answer. Nothing to do when none is.
+    pub fn idle_done(&mut self) -> Result<(), ProtoError> {
+        let Some(tag) = self.idling.take() else { return Ok(()) };
+        log::trace!("C: DONE");
+        self.wire.write(b"DONE\r\n")?;
+        self.wire.flush()?;
+        match self.read_until(&tag, false, &mut ignore)? {
+            Some(line) if line.status == Status::Ok => Ok(()),
+            Some(line) => Err(ProtoError::Rejected(self.refusal(&line))),
+            None => Err(ProtoError::Protocol("the server asked for more than the command had".into())),
+        }
     }
 
     /// LOGOUT. A server that hangs up without answering has logged us out all the same.
@@ -793,6 +1013,11 @@ impl<S: Read + Write> Imap<S> {
 
     fn read_response(&mut self) -> Result<Response, ProtoError> {
         let line = self.wire.read_line()?;
+        self.response_from(line)
+    }
+
+    /// The response that begins with `line` (read already), with the literals that follow it.
+    fn response_from(&mut self, line: Vec<u8>) -> Result<Response, ProtoError> {
         if log::log_enabled!(log::Level::Trace) {
             log::trace!("S: {}", self.secrets.hide(&String::from_utf8_lossy(&line)));
         }
@@ -853,6 +1078,11 @@ impl<S: Read + Write> Imap<S> {
             "UIDVALIDITY" => self.selected.uid_validity = line.arg.parse().unwrap_or(0),
             "UIDNEXT" => self.selected.uid_next = line.arg.parse().unwrap_or(0),
             "COPYUID" if self.copied.len() < 2 => self.copied.push(copied_from(&line.arg)),
+            "APPENDUID" => self.appended = appended_from(&line.arg),
+            "PERMANENTFLAGS" => {
+                let inner = line.arg.trim().trim_start_matches('(').trim_end_matches(')');
+                self.selected.permanent_flags = Some(inner.split_whitespace().take(MAX_FLAGS).map(str::to_string).collect());
+            }
             "CAPABILITY" => self.capabilities = Some(line.arg.split_whitespace().take(MAX_CAPABILITIES).map(str::to_ascii_uppercase).collect()),
             _ => {}
         }

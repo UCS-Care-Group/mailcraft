@@ -106,6 +106,29 @@ impl<'a> Stream<'a> {
         let _ = tcp.set_write_timeout(Some(FAREWELL_TIMEOUT));
     }
 
+    /// Wait for the server to speak up for as long as it takes (IDLE): no time limit on the
+    /// command under way, and each read gives up after `tick`, so that the one waiting can look
+    /// up between two reads (has the app quit, is it time to begin again).
+    pub(crate) fn wait_for_news(&mut self, tick: Duration) {
+        self.patience = Duration::MAX;
+        let tick = Some(tick.max(Duration::from_millis(1)));
+        let _ = self.tcp().set_read_timeout(tick);
+    }
+
+    /// Back to commands and their answers, waited for as usual.
+    pub(crate) fn back_to_work(&mut self) {
+        self.patience = COMMAND_TIMEOUT;
+        (self.since, self.moved) = (Instant::now(), 0);
+        let _ = self.tcp().set_read_timeout(Some(IO_TIMEOUT));
+    }
+
+    fn tcp(&self) -> &TcpStream {
+        match &self.io {
+            Io::Plain(tcp) => tcp,
+            Io::Tls(tls) => &tls.sock,
+        }
+    }
+
     /// What every read and write begins with: the flag, and the time the command has had.
     fn before(&mut self, writing: bool) -> std::io::Result<()> {
         if self.cancel.is_some_and(|cancel| cancel.load(Ordering::Relaxed)) {

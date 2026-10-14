@@ -180,6 +180,20 @@ pub(crate) struct ImapWorld {
     /// Every line received.
     pub(crate) log: Vec<String>,
     pub(crate) connections: usize,
+    /// How long every answer waits before it goes out: a server far away, or a busy one.
+    pub(crate) delay: Duration,
+    /// Connections open at this moment, and the most that ever were at once.
+    pub(crate) open_now: usize,
+    pub(crate) most_open: usize,
+    /// What a mailbox says it keeps for good when it is opened (`PERMANENTFLAGS`, without the
+    /// parentheses); `None`: it says nothing, which is every flag and keyword.
+    pub(crate) permanent_flags: Option<String>,
+    /// Know IDLE (RFC 2177), and say so.
+    pub(crate) idle: bool,
+    /// Lines to say, one after the other, to a client while it IDLEs (`* 5 EXISTS`).
+    pub(crate) idle_news: Vec<String>,
+    /// Clients IDLEing at this moment.
+    pub(crate) idling: usize,
 }
 
 impl ImapWorld {
@@ -190,7 +204,8 @@ impl ImapWorld {
         let starttls = if self.offer_starttls { " STARTTLS" } else { "" };
         let can_move = if self.can_move { " MOVE" } else { "" };
         let uidplus = if self.uidplus { " UIDPLUS" } else { "" };
-        format!("IMAP4rev1 SPECIAL-USE{xoauth2}{sasl_ir}{starttls}{can_move}{uidplus}")
+        let idle = if self.idle { " IDLE" } else { "" };
+        format!("IMAP4rev1 SPECIAL-USE{xoauth2}{sasl_ir}{starttls}{can_move}{uidplus}{idle}")
     }
 
     pub(crate) fn mailbox(&mut self, raw: &str) -> &mut FakeMailbox {
@@ -223,6 +238,9 @@ pub(crate) struct SmtpWorld {
     pub(crate) offer_starttls: bool,
     /// Recipients to answer 550 for.
     pub(crate) refuse: Vec<String>,
+    /// Senders (MAIL FROM) to answer 550 for, as Exchange Online does a sender the one signed in
+    /// may not send as.
+    pub(crate) refuse_from: Vec<String>,
     pub(crate) delivered: Vec<Delivery>,
     /// Every line received (not the messages).
     pub(crate) log: Vec<String>,
@@ -293,7 +311,7 @@ fn pretend_tls(out: &mut TcpStream, reader: &mut BufReader<TcpStream>, go_ahead:
 const REASONS: &str = "eyJzdGF0dXMiOiI0MDEifQ==";
 
 /// The user and the token of an XOAUTH2 response (`user=…^Aauth=Bearer …^A^A` in base64); empty when it isn't one.
-fn bearer(payload: &str) -> (String, String) {
+pub(crate) fn bearer(payload: &str) -> (String, String) {
     let decoded = base64::engine::general_purpose::STANDARD.decode(payload).unwrap_or_default();
     let decoded = String::from_utf8_lossy(&decoded).into_owned();
     let parts: Vec<&str> = decoded.split('\u{1}').collect();
@@ -352,10 +370,22 @@ fn serve_imap(stream: TcpStream, shared: Arc<Mutex<ImapWorld>>) {
     let greeting = {
         let mut world = shared.lock().unwrap();
         world.connections += 1;
+        world.open_now += 1;
+        world.most_open = world.most_open.max(world.open_now);
         // STARTTLS is only told to those who ask.
         format!("* OK [CAPABILITY {}] fake ready\r\n", world.capabilities().replace(" STARTTLS", ""))
     };
     let _ = out.write_all(greeting.as_bytes());
+    // However the connection ends, it is counted as closed.
+    struct Closed(Arc<Mutex<ImapWorld>>);
+    impl Drop for Closed {
+        fn drop(&mut self) {
+            if let Ok(mut world) = self.0.lock() {
+                world.open_now = world.open_now.saturating_sub(1);
+            }
+        }
+    }
+    let _closed = Closed(shared.clone());
     let mut signed_in = false;
     let mut open: Option<usize> = None;
     // The open mailbox was opened to be looked at only (EXAMINE).
@@ -445,6 +475,17 @@ fn serve_imap(stream: TcpStream, shared: Arc<Mutex<ImapWorld>>) {
                 let _ = out.write_all(format!("* BYE see you\r\n{tag} OK done\r\n").as_bytes());
                 return;
             }
+            "IDLE" if signed_in && world.idle => {
+                world.idling += 1;
+                drop(world);
+                let ended = idle(&mut out, &mut reader, &shared, tag);
+                let mut world = shared.lock().unwrap();
+                world.idling = world.idling.saturating_sub(1);
+                if !ended {
+                    return;
+                }
+                continue;
+            }
             _ if !signed_in => reply.extend(format!("{tag} BAD sign in first\r\n").bytes()),
             "LIST" => {
                 let delimiter = world.delimiter.unwrap_or('/');
@@ -468,6 +509,9 @@ fn serve_imap(stream: TcpStream, shared: Arc<Mutex<ImapWorld>>) {
                             .bytes(),
                         );
                         reply.extend(format!("* OK [UIDVALIDITY {}] UIDs valid\r\n* OK [UIDNEXT {next}] next\r\n", mailbox.uid_validity).bytes());
+                        if let Some(kept) = &world.permanent_flags {
+                            reply.extend(format!("* OK [PERMANENTFLAGS ({kept})] kept\r\n").bytes());
+                        }
                         reply.extend(format!("{tag} OK [{}] done\r\n", if read_only { "READ-ONLY" } else { "READ-WRITE" }).bytes());
                     }
                     None => reply.extend(format!("{tag} NO [NONEXISTENT] no such mailbox\r\n").bytes()),
@@ -494,6 +538,41 @@ fn serve_imap(stream: TcpStream, shared: Arc<Mutex<ImapWorld>>) {
                 let name = words(args).into_iter().next().unwrap_or_default();
                 world.subscribed.push(name);
                 reply.extend(format!("{tag} OK done\r\n").bytes());
+            }
+            "UNSUBSCRIBE" => {
+                let name = words(args).into_iter().next().unwrap_or_default();
+                world.subscribed.retain(|s| *s != name);
+                reply.extend(format!("{tag} OK done\r\n").bytes());
+            }
+            // The mailboxes inside it go with it (RFC 3501 6.3.5); its UIDs stay good.
+            "RENAME" => {
+                let given = words(args);
+                let (from, to) = (given.first().cloned().unwrap_or_default(), given.get(1).cloned().unwrap_or_default());
+                let delimiter = world.delimiter.unwrap_or('/');
+                let inside = format!("{from}{delimiter}");
+                if from.eq_ignore_ascii_case("INBOX") || !world.mailboxes.iter().any(|m| m.raw == from) {
+                    reply.extend(format!("{tag} NO [NONEXISTENT] no such mailbox\r\n").bytes());
+                } else if to.is_empty() || world.mailboxes.iter().any(|m| m.raw.eq_ignore_ascii_case(&to)) {
+                    reply.extend(format!("{tag} NO [ALREADYEXISTS] there is such a mailbox\r\n").bytes());
+                } else {
+                    for mailbox in &mut world.mailboxes {
+                        if mailbox.raw == from {
+                            mailbox.raw = to.clone();
+                        } else if let Some(rest) = mailbox.raw.strip_prefix(&inside) {
+                            mailbox.raw = format!("{to}{delimiter}{rest}");
+                        }
+                    }
+                    reply.extend(format!("{tag} OK renamed\r\n").bytes());
+                }
+            }
+            "DELETE" => {
+                let name = words(args).into_iter().next().unwrap_or_default();
+                if name.eq_ignore_ascii_case("INBOX") || !world.mailboxes.iter().any(|m| m.raw == name) {
+                    reply.extend(format!("{tag} NO [NONEXISTENT] no such mailbox\r\n").bytes());
+                } else {
+                    world.mailboxes.retain(|m| m.raw != name);
+                    reply.extend(format!("{tag} OK gone\r\n").bytes());
+                }
             }
             "APPEND" => {
                 // `"name" (flags) {size}`: the message follows the go-ahead.
@@ -529,6 +608,25 @@ fn serve_imap(stream: TcpStream, shared: Arc<Mutex<ImapWorld>>) {
                 }
                 None => reply.extend(format!("{tag} NO [READ-ONLY] nothing is open to be changed\r\n").bytes()),
             },
+            "UID" if args.to_ascii_uppercase().starts_with("SEARCH ") => {
+                // `SEARCH HEADER Message-ID "id"`: the messages whose Message-ID line has it.
+                let wanted = words(args).get(3).cloned().unwrap_or_default().to_ascii_lowercase();
+                let messages = open.and_then(|i| world.mailboxes.get(i)).map_or(&[][..], |m| &m.messages[..]);
+                let found: Vec<String> = messages
+                    .iter()
+                    .filter(|m| {
+                        String::from_utf8_lossy(&m.body)
+                            .lines()
+                            .take_while(|line| !line.is_empty())
+                            .any(|line| line.to_ascii_lowercase().starts_with("message-id:") && line.to_ascii_lowercase().contains(&wanted))
+                    })
+                    .map(|m| m.uid.to_string())
+                    .collect();
+                match open {
+                    Some(_) if !wanted.is_empty() => reply.extend(format!("* SEARCH {}\r\n{tag} OK done\r\n", found.join(" ")).bytes()),
+                    _ => reply.extend(format!("{tag} BAD what\r\n").bytes()),
+                }
+            }
             "UID" if !args.to_ascii_uppercase().starts_with("FETCH ") => {
                 let mut parts = args.splitn(3, ' ');
                 let (what, set, rest) = (parts.next().unwrap_or("").to_ascii_uppercase(), parts.next().unwrap_or(""), parts.next().unwrap_or(""));
@@ -600,6 +698,8 @@ fn serve_imap(stream: TcpStream, shared: Arc<Mutex<ImapWorld>>) {
                 for (index, message) in messages.iter().enumerate().filter(|(_, m)| in_set(set, m.uid)) {
                     let (seq, uid, flags) = (index + 1, message.uid, &message.flags);
                     if whole && world.hang_up_at_uid == Some(uid) {
+                        // What was answered before it went out first.
+                        let _ = out.write_all(&reply);
                         return;
                     }
                     if whole && world.cut_at_uid == Some(uid) {
@@ -636,7 +736,11 @@ fn serve_imap(stream: TcpStream, shared: Arc<Mutex<ImapWorld>>) {
             }
             _ => reply.extend(format!("{tag} BAD what\r\n").bytes()),
         }
+        let delay = world.delay;
         drop(world);
+        if !delay.is_zero() {
+            std::thread::sleep(delay);
+        }
         let written = match drip {
             Some(pause) => reply.iter().try_for_each(|byte| {
                 std::thread::sleep(pause);
@@ -648,6 +752,37 @@ fn serve_imap(stream: TcpStream, shared: Arc<Mutex<ImapWorld>>) {
             return;
         }
     }
+}
+
+/// Wait with news (IDLE) until the client says DONE: what the test puts in `idle_news` is said
+/// as it comes. Returns whether the session goes on.
+fn idle(out: &mut TcpStream, reader: &mut BufReader<TcpStream>, shared: &Arc<Mutex<ImapWorld>>, tag: &str) -> bool {
+    if out.write_all(b"+ idling\r\n").is_err() {
+        return false;
+    }
+    let _ = reader.get_ref().set_read_timeout(Some(Duration::from_millis(10)));
+    let mut partial = Vec::new();
+    let ended = loop {
+        let news = std::mem::take(&mut shared.lock().unwrap().idle_news);
+        if news.iter().any(|line| out.write_all(format!("{line}\r\n").as_bytes()).is_err()) {
+            break false;
+        }
+        match reader.read_until(b'\n', &mut partial) {
+            Ok(0) => break false,
+            Ok(_) if partial.ends_with(b"\n") => {
+                let line = String::from_utf8_lossy(&partial).trim_end_matches(['\r', '\n']).to_string();
+                partial.clear();
+                shared.lock().unwrap().log.push(line.clone());
+                let answer = if line.eq_ignore_ascii_case("DONE") { format!("{tag} OK idled\r\n") } else { format!("{tag} BAD say DONE\r\n") };
+                break out.write_all(answer.as_bytes()).is_ok();
+            }
+            Ok(_) => {}
+            Err(e) if matches!(e.kind(), std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut) => {}
+            Err(_) => break false,
+        }
+    };
+    let _ = reader.get_ref().set_read_timeout(None);
+    ended
 }
 
 /// The address between `<` and `>`.
@@ -738,6 +873,8 @@ fn serve_smtp(stream: TcpStream, shared: Arc<Mutex<SmtpWorld>>) {
         } else if upper.starts_with("MAIL FROM:") {
             if (world.auth || !world.token.is_empty()) && !signed_in {
                 "530 5.7.0 sign in first".to_string()
+            } else if world.refuse_from.contains(&path(&line)) {
+                "550 5.7.60 SMTP; Client does not have permissions to send as this sender".to_string()
             } else {
                 from = path(&line);
                 recipients.clear();

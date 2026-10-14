@@ -77,6 +77,7 @@ use crate::http::{self, Reply, Request, Url};
 /// Where Exchange Online answers Exchange Web Services.
 const ENDPOINT: &str = "https://outlook.office365.com/EWS/Exchange.asmx";
 /// The path of the service, on that host or on a stand-in's.
+#[cfg(any(test, feature = "stand-in"))]
 const PATH: &str = "/EWS/Exchange.asmx";
 /// The namespaces of a request, and the version of the schema it is written to (the newest the
 /// reference of `RequestServerVersion` names; everything asked for here is far older).

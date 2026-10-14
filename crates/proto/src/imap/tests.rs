@@ -280,11 +280,14 @@ fn opening_a_mailbox() {
     server += "+ go on\r\n* 3 EXISTS\r\n* OK [UIDVALIDITY 99999999999] too large to be one\r\nA0004 OK done\r\n";
     let mut s = Script::new(server);
     let mut imap = Imap::resume(&mut s);
-    assert_eq!(imap.select("Sent Items", true).unwrap(), Selected { exists: 172, uid_validity: 3_857_529_045, uid_next: 4392 });
-    assert_eq!(imap.select("INBOX", false).unwrap(), Selected { exists: 0, uid_validity: 7, uid_next: 0 });
+    assert_eq!(
+        imap.select("Sent Items", true).unwrap(),
+        Selected { exists: 172, uid_validity: 3_857_529_045, uid_next: 4392, permanent_flags: Some(vec![]) }
+    );
+    assert_eq!(imap.select("INBOX", false).unwrap(), Selected { exists: 0, uid_validity: 7, uid_next: 0, permanent_flags: None });
     assert_eq!(imap.select("Nowhere", true), Err(ProtoError::Rejected("[NONEXISTENT] no such mailbox".into())));
     // A name the server wrote in UTF-8 goes back as a literal.
-    assert_eq!(imap.select("Entwürfe", true).unwrap(), Selected { exists: 3, uid_validity: 0, uid_next: 0 });
+    assert_eq!(imap.select("Entwürfe", true).unwrap(), Selected { exists: 3, uid_validity: 0, uid_next: 0, permanent_flags: None });
     assert_eq!(s.sent(), "A0001 EXAMINE \"Sent Items\"\r\nA0002 SELECT \"INBOX\"\r\nA0003 EXAMINE \"Nowhere\"\r\nA0004 EXAMINE {9}\r\nEntwürfe\r\n");
 }
 
@@ -448,6 +451,54 @@ fn a_header_arrives_alone() {
     // A header as large as no header is: refused unread, like a message.
     let mut s = Script::new(format!("* 1 FETCH (UID 3 BODY[HEADER] {{{}}}\r\nxxxx", MAX_LITERAL + 1));
     assert!(matches!(Imap::resume(&mut s).uid_fetch_header(3), Err(ProtoError::Protocol(_))));
+}
+
+#[test]
+fn many_messages_come_in_one_command_each_as_it_arrives() {
+    let (one, two) = (b"Subject: One\r\n\r\nA0001 OK fake\r\n".as_slice(), b"Subject: Two\r\n\r\n".as_slice());
+    let mut server = b"* 1 FETCH (UID 4 FLAGS (\\Seen))\r\n".to_vec();
+    server.extend(with_literal("* 1 FETCH (UID 4 INTERNALDATE \"17-Jul-1996 02:44:25 -0700\" BODY[] ", one, ")\r\n"));
+    // Another message than those asked for, one said of twice, one with its header only, and
+    // news in between: none of it is handed over.
+    server.extend(with_literal("* 2 FETCH (UID 5 BODY[] ", b"stranger", ")\r\n"));
+    server.extend(b"* 3 EXISTS\r\n");
+    server.extend(with_literal("* 3 FETCH (UID 9 FLAGS (\\Flagged) BODY[] ", two, ")\r\n"));
+    server.extend(with_literal("* 3 FETCH (UID 9 BODY[] ", b"again", ")\r\n"));
+    server.extend(with_literal("* 4 FETCH (UID 7 BODY[HEADER] ", b"x", ")\r\n"));
+    server.extend(b"A0001 OK done\r\n");
+    let mut s = Script::new(server);
+    let mut got = Vec::new();
+    Imap::resume(&mut s).uid_fetch_messages("4,7,9", false, &mut |m| got.push(m)).unwrap();
+    assert_eq!(s.sent(), "A0001 UID FETCH 4,7,9 (UID FLAGS INTERNALDATE BODY.PEEK[])\r\n");
+    assert_eq!(
+        got,
+        [
+            Fetched { uid: 4, flags: vec!["\\Seen".into()], internal_date: Some("17-Jul-1996 02:44:25 -0700".into()), body: Some(one.to_vec()) },
+            Fetched { uid: 9, flags: vec!["\\Flagged".into()], internal_date: None, body: Some(two.to_vec()) },
+        ]
+    );
+    // Headers alike.
+    let mut s = Script::new(with_literal("* 1 FETCH (UID 3 BODY[HEADER] ", b"H: v\r\n\r\n", ")\r\nA0001 OK done\r\n"));
+    let mut got = Vec::new();
+    Imap::resume(&mut s).uid_fetch_messages("3", true, &mut |m| got.push(m.uid)).unwrap();
+    assert_eq!((got, s.sent()), (vec![3], "A0001 UID FETCH 3 (UID FLAGS INTERNALDATE BODY.PEEK[HEADER])\r\n".to_string()));
+    // Refused or cut off part way: what came first has been handed over.
+    let mut server = with_literal("* 1 FETCH (UID 3 BODY[] ", b"ok", ")\r\n");
+    server.extend(b"A0001 NO [SERVERBUG] can't read 4\r\n");
+    let mut s = Script::new(server);
+    let mut got = Vec::new();
+    let refused = Imap::resume(&mut s).uid_fetch_messages("3:4", false, &mut |m| got.push(m.uid));
+    assert_eq!((refused, got), (Err(ProtoError::Rejected("[SERVERBUG] can't read 4".into())), vec![3]));
+    let mut server = with_literal("* 1 FETCH (UID 3 BODY[] ", b"ok", ")\r\n");
+    server.extend(b"* 2 FETCH (UID 4 BODY[] {10}\r\nhalf");
+    let mut s = Script::new(server);
+    let mut got = Vec::new();
+    assert!(Imap::resume(&mut s).uid_fetch_messages("3:4", false, &mut |m| got.push(m.uid)).is_err());
+    assert_eq!(got, [3]);
+    // A set that is none is never sent.
+    let mut s = Script::new("");
+    assert!(matches!(Imap::resume(&mut s).uid_fetch_messages("1 2", false, &mut |_| {}), Err(ProtoError::Protocol(_))));
+    assert_eq!(s.sent(), "");
 }
 
 #[test]
@@ -672,6 +723,24 @@ fn mailboxes_are_made_and_subscribed_to() {
 }
 
 #[test]
+fn mailboxes_are_renamed_and_deleted() {
+    let mut s = Script::new("A0001 OK renamed\r\nA0002 NO [ALREADYEXISTS] there is one\r\nA0003 OK gone\r\nA0004 OK done\r\n");
+    let mut imap = Imap::resume(&mut s);
+    imap.rename("Projects", &format!("Deleted Items/{}", encode_utf7("Pläne \"neu\""))).unwrap();
+    assert_eq!(imap.rename("A", "B"), Err(ProtoError::Rejected("[ALREADYEXISTS] there is one".into())));
+    imap.delete("Deleted Items/Old").unwrap();
+    imap.unsubscribe("Deleted Items/Old").unwrap();
+    // A name with a NUL can't be sent at all, and a line break can't end the command.
+    assert!(matches!(imap.rename("a\0b", "c"), Err(ProtoError::Protocol(_))));
+    assert!(matches!(imap.delete("nul\0here"), Err(ProtoError::Protocol(_))));
+    assert_eq!(
+        s.sent(),
+        "A0001 RENAME \"Projects\" \"Deleted Items/Pl&AOQ-ne \\\"neu\\\"\"\r\nA0002 RENAME \"A\" \"B\"\r\nA0003 DELETE \"Deleted Items/Old\"\r\n\
+         A0004 UNSUBSCRIBE \"Deleted Items/Old\"\r\n"
+    );
+}
+
+#[test]
 fn uids_are_written_as_short_exact_sets() {
     let texts = |uids: &[u32]| uid_sets(uids).into_iter().map(|(text, _)| text).collect::<Vec<_>>();
     assert_eq!(texts(&[]), Vec::<String>::new());
@@ -711,6 +780,116 @@ fn appending_waits_for_the_go_ahead() {
     // "Done" before the message was sent can't be true.
     let mut s = Script::new("A0001 OK done already\r\n");
     assert!(matches!(Imap::resume(&mut s).append("Sent", &[], message), Err(ProtoError::Protocol(_))));
+}
+
+#[test]
+fn appending_says_where_the_message_went_when_the_server_does() {
+    let mut server = String::from("+ go\r\nA0001 OK [APPENDUID 38505 3955] done\r\n+ go\r\nA0002 OK done\r\n");
+    // Doubtful answers are no answers: a set, a zero, words.
+    for (n, doubtful) in ["38505 3955:3956", "0 7", "38505 0", "38505", "x 7", "38505 7 8"].iter().enumerate() {
+        server += &format!("+ go\r\nA{:04} OK [APPENDUID {doubtful}] done\r\n", n + 3);
+    }
+    let mut s = Script::new(server);
+    let mut imap = Imap::resume(&mut s);
+    assert_eq!(imap.append_uid("Drafts", &["\\Draft", "\\Seen"], b"x").unwrap(), Some((38505, 3955)));
+    // An answer is for its own command only.
+    assert_eq!(imap.append_uid("Drafts", &[], b"x").unwrap(), None);
+    for _ in 0..6 {
+        assert_eq!(imap.append_uid("Drafts", &[], b"x").unwrap(), None);
+    }
+    assert!(s.sent().starts_with("A0001 APPEND \"Drafts\" (\\Draft \\Seen) {1}\r\nx\r\n"));
+}
+
+#[test]
+fn what_a_mailbox_keeps_for_good() {
+    let server = "* OK [PERMANENTFLAGS (\\Seen \\Deleted \\*)] keywords too\r\nA0001 OK [READ-WRITE] done\r\n\
+                  * OK [PERMANENTFLAGS (\\Seen \\Answered \\Flagged \\Deleted \\Draft $MDNSent)] Permanent flags\r\nA0002 OK done\r\n\
+                  A0003 OK done\r\n";
+    let mut s = Script::new(server);
+    let mut imap = Imap::resume(&mut s);
+    let any = imap.select("INBOX", false).unwrap();
+    assert_eq!(any.permanent_flags.as_deref(), Some(&["\\Seen".to_string(), "\\Deleted".into(), "\\*".into()][..]));
+    assert!(any.keeps_keywords());
+    // Exchange: the system flags and one of its own, no keywords of the owner's.
+    assert!(!imap.select("INBOX", false).unwrap().keeps_keywords());
+    // A server that says nothing keeps everything (RFC 3501 7.1).
+    let quiet = imap.select("INBOX", false).unwrap();
+    assert!(quiet.permanent_flags.is_none() && quiet.keeps_keywords());
+}
+
+#[test]
+fn finding_a_message_by_its_id() {
+    let server = "* SEARCH 7 3 x 0 7\r\nA0001 OK done\r\n* SEARCH\r\nA0002 OK done\r\n* 4 EXISTS\r\nA0003 OK done\r\nA0004 NO can't\r\n";
+    let mut s = Script::new(server);
+    let mut imap = Imap::resume(&mut s);
+    assert_eq!(imap.uid_search_message_id("<mc.1@example.org>").unwrap(), [3, 7]);
+    assert_eq!(imap.uid_search_message_id("mc.2@example.org").unwrap(), Vec::<u32>::new());
+    assert_eq!(imap.uid_search_message_id("mc.3@example.org").unwrap(), Vec::<u32>::new());
+    assert!(matches!(imap.uid_search_message_id("mc.4@example.org"), Err(ProtoError::Rejected(_))));
+    assert_eq!(
+        s.sent(),
+        "A0001 UID SEARCH HEADER Message-ID \"mc.1@example.org\"\r\nA0002 UID SEARCH HEADER Message-ID \"mc.2@example.org\"\r\n\
+         A0003 UID SEARCH HEADER Message-ID \"mc.3@example.org\"\r\nA0004 UID SEARCH HEADER Message-ID \"mc.4@example.org\"\r\n"
+    );
+    // An id that would break the line, or isn't one, is never sent.
+    let mut s = Script::new("");
+    let mut imap = Imap::resume(&mut s);
+    for bad in ["", "<>", "a b@example.org", "a\r\nA0002 LOGOUT", "ä@example.org"] {
+        assert!(matches!(imap.uid_search_message_id(bad), Err(ProtoError::Protocol(_))), "{bad:?}");
+    }
+    assert_eq!(s.sent(), "");
+}
+
+#[test]
+fn waiting_with_news() {
+    let mut s = Script::pausing(&[
+        "+ idling\r\n",
+        "* 5 EXISTS\r\n* OK still here\r\n* 2 EXPUNGE\r\n* 3 FETCH (FLAGS (\\Seen))\r\n* 1 RECENT\r\n* 4 CAPABILITY IMAP4rev1\r\n",
+        "A0002 OK IDLE done\r\n",
+    ]);
+    let mut imap = Imap::resume(&mut s);
+    // Not without the server saying it can.
+    assert!(matches!(imap.idle(), Err(ProtoError::Protocol(_))));
+    assert!(matches!(imap.idle_wait(), Err(ProtoError::Protocol(_))));
+    imap.capabilities = Some(vec!["IDLE".into()]);
+    // (The first tag went to nothing: the refusal above sent nothing.)
+    imap.next_tag = 2;
+    imap.idle().unwrap();
+    assert_eq!(imap.idle_wait().unwrap(), IdleNews::Quiet);
+    let news: Vec<IdleNews> = (0..6).map(|_| imap.idle_wait().unwrap()).collect();
+    use IdleNews::{Changed, Other};
+    assert_eq!(news, [Changed, Other, Changed, Changed, Changed, Other]);
+    assert_eq!(imap.idle_wait().unwrap(), IdleNews::Quiet);
+    imap.idle_done().unwrap();
+    // Done is done: nothing more is sent for it.
+    imap.idle_done().unwrap();
+    assert_eq!(s.sent(), "A0002 IDLE\r\nDONE\r\n");
+
+    // A server that ends the session, or the IDLE on its own, ends the wait.
+    for (end, bye) in [("* BYE shutting down\r\n", true), ("A0001 OK enough\r\n", false), ("A0009 OK what\r\n", false)] {
+        let mut s = Script::new(format!("+ idling\r\n{end}"));
+        let mut imap = Imap::resume(&mut s);
+        imap.capabilities = Some(vec!["IDLE".into()]);
+        imap.idle().unwrap();
+        let e = imap.idle_wait().unwrap_err();
+        assert_eq!(matches!(e, ProtoError::Io(_)), bye, "{end:?}: {e:?}");
+        assert!(matches!(imap.idle_wait(), Err(ProtoError::Protocol(_))));
+    }
+    // Refused, or ended before it began.
+    for (answer, refused) in [("A0001 NO not now\r\n", true), ("A0001 OK done\r\n", false)] {
+        let mut s = Script::new(answer);
+        let mut imap = Imap::resume(&mut s);
+        imap.capabilities = Some(vec!["IDLE".into()]);
+        let e = imap.idle().unwrap_err();
+        assert_eq!(matches!(e, ProtoError::Rejected(_)), refused, "{answer:?}");
+    }
+    // A wait that runs out halfway through a line keeps what came of it.
+    let mut s = Script::pausing(&["+ idling\r\n* 7 EXI", "STS\r\n"]);
+    let mut imap = Imap::resume(&mut s);
+    imap.capabilities = Some(vec!["IDLE".into()]);
+    imap.idle().unwrap();
+    assert_eq!((imap.idle_wait().unwrap(), imap.idle_wait().unwrap()), (IdleNews::Quiet, IdleNews::Changed));
+    assert_eq!(imap.selected.exists, 7);
 }
 
 #[test]
@@ -810,6 +989,8 @@ fn drive(server: &[u8]) {
         let _ = imap.uid_fetch_sizes("1:*");
         let _ = imap.uid_fetch_message(1);
         let _ = imap.uid_fetch_header(1);
+        let _ = imap.uid_fetch_messages("1:3,7", false, &mut |_| {});
+        let _ = imap.uid_fetch_messages("1:*", true, &mut |_| {});
         let _ = imap.uid_store(1, true, &["\\Seen"]);
         let _ = imap.uid_store_set("1:3,7", false, &["\\Flagged"]);
         let _ = imap.uid_move("1:3", "Archive");
@@ -817,6 +998,9 @@ fn drive(server: &[u8]) {
         let _ = imap.uid_expunge("7");
         let _ = imap.create("Projects/New");
         let _ = imap.subscribe("Projects/New");
+        let _ = imap.rename("Projects/New", "Deleted Items/New");
+        let _ = imap.delete("Deleted Items/New");
+        let _ = imap.unsubscribe("Deleted Items/New");
         let _ = imap.append("Sent", &["\\Seen"], b"Subject: x\r\n\r\n");
         let _ = imap.logout();
     }
@@ -829,6 +1013,20 @@ fn drive(server: &[u8]) {
     let _ = imap.uid_copy("1", "Archive");
     let _ = imap.uid_expunge("1,3:5");
     let _ = imap.uid_store_set("2", true, &["\\Deleted"]);
+    let _ = imap.append_uid("Drafts", &["\\Draft"], b"Subject: x\r\n\r\n");
+    let _ = imap.uid_search_message_id("mc.1@example.org");
+    // Waiting with news, for as long as the server goes on talking.
+    let mut s = Script::new(server);
+    let mut imap = Imap::resume(&mut s);
+    imap.capabilities = Some(vec!["IDLE".into()]);
+    if imap.idle().is_ok() {
+        for _ in 0..50 {
+            if imap.idle_wait().is_err() {
+                break;
+            }
+        }
+        let _ = imap.idle_done();
+    }
     let mut s = Script::new(server);
     let mut imap = Imap::resume(&mut s);
     let _ = imap.uid_fetch_message(1);

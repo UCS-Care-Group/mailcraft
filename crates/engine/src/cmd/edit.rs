@@ -6,7 +6,9 @@ use crate::{CmdResult, CommandSpec, Session};
 
 pub fn specs() -> Vec<CommandSpec> {
     vec![
-        CommandSpec::new("edit.undo", "Undo", "Quick Access", undo).key("Mod+Z").when(|s| if s.can_undo() { None } else { Some("nothing to undo") }),
+        CommandSpec::new("edit.undo", "Undo", "Quick Access", undo)
+            .key("Mod+Z")
+            .when(|s| if s.can_undo() { None } else { Some(s.sealed_history().unwrap_or("nothing to undo")) }),
         CommandSpec::new("edit.redo", "Redo", "Quick Access", redo)
             .key("Mod+Y / Mod+Shift+Z")
             .when(|s| if s.can_redo() { None } else { Some("nothing to redo") }),

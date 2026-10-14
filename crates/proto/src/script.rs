@@ -10,13 +10,26 @@ pub(crate) struct Script {
     pos: usize,
     step: usize,
     trickle: bool,
+    /// Where a read waits in vain once (a server with nothing to say for a while).
+    pauses: Vec<usize>,
     pub(crate) written: Vec<u8>,
 }
 
 impl Script {
     /// Hands the bytes out 1–7 at a time.
     pub(crate) fn new(server: impl AsRef<[u8]>) -> Script {
-        Script { input: server.as_ref().to_vec(), pos: 0, step: 0, trickle: true, written: Vec::new() }
+        Script { input: server.as_ref().to_vec(), pos: 0, step: 0, trickle: true, pauses: Vec::new(), written: Vec::new() }
+    }
+
+    /// Says the parts one after the other, with a read that waits in vain between two of them.
+    pub(crate) fn pausing(parts: &[&str]) -> Script {
+        let mut script = Script::new(parts.concat());
+        let mut at = 0;
+        for part in parts.iter().take(parts.len().saturating_sub(1)) {
+            at += part.len();
+            script.pauses.push(at);
+        }
+        script
     }
 
     /// Hands out as much as each read asks for.
@@ -37,8 +50,16 @@ impl Script {
 
 impl Read for Script {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        if let Some(at) = self.pauses.iter().position(|p| *p == self.pos) {
+            self.pauses.remove(at);
+            return Err(Error::from(ErrorKind::WouldBlock));
+        }
         let left = &self.input[self.pos.min(self.input.len())..];
         let mut n = left.len().min(buf.len());
+        // A pause is not read past.
+        if let Some(next) = self.pauses.iter().filter(|p| **p > self.pos).min() {
+            n = n.min(next - self.pos);
+        }
         if self.trickle {
             n = n.min([3, 1, 7, 2, 5, 4, 6][self.step % 7]);
             self.step += 1;

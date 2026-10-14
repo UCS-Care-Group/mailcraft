@@ -10,7 +10,8 @@
 //! account has that IMAP and SMTP don't reach: sending where SMTP is switched off, the calendar,
 //! the contacts, and which folders the owner keeps under Favorites in Outlook. [`ews`] reads
 //! those Favorites through Exchange Web Services instead, for an account whose owner chose
-//! that way (it exists until 1 April 2027, and reads nothing else). All of them
+//! that way (it exists until 1 April 2027, and reads nothing else). [`idle`] keeps a connection
+//! waiting on the Inbox between two runs, so that new mail is heard of at once. All of them
 //! block, so a host calls them on a background thread; every connection has timeouts.
 //!
 //! A password or a token is only ever sent inside TLS, or to a server on this machine. It never
@@ -34,6 +35,8 @@ pub mod graph;
 #[cfg(not(target_arch = "wasm32"))]
 mod http;
 #[cfg(not(target_arch = "wasm32"))]
+pub mod idle;
+#[cfg(not(target_arch = "wasm32"))]
 mod kinds;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod oauth;
@@ -44,6 +47,8 @@ mod push;
 #[cfg(not(target_arch = "wasm32"))]
 mod send;
 #[cfg(not(target_arch = "wasm32"))]
+mod shared;
+#[cfg(not(target_arch = "wasm32"))]
 mod sync;
 #[cfg(not(target_arch = "wasm32"))]
 mod transport;
@@ -52,6 +57,9 @@ mod transport;
 #[cfg(test)]
 #[cfg(not(target_arch = "wasm32"))]
 mod fake;
+#[cfg(test)]
+#[cfg(not(target_arch = "wasm32"))]
+mod folder_tests;
 #[cfg(test)]
 #[cfg(not(target_arch = "wasm32"))]
 mod tests;
@@ -65,7 +73,7 @@ mod native {
 
     pub use crate::dns::{lookup_mx, lookup_mx_at};
     pub use crate::send::send;
-    pub use crate::sync::{sync, sync_with};
+    pub use crate::sync::{sync, sync_with, sync_with_updates};
 
     /// Whether this build can talk to mail servers.
     pub const AVAILABLE: bool = true;

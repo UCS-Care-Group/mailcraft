@@ -66,7 +66,11 @@ struct Rig {
 
 impl Rig {
     fn new(can_move: bool, uidplus: bool) -> Rig {
-        let imap = Fake::imap(world(can_move, uidplus));
+        Rig::with(world(can_move, uidplus))
+    }
+
+    fn with(world: ImapWorld) -> Rig {
+        let imap = Fake::imap(world);
         let smtp = Fake::smtp(SmtpWorld { user: "ada@example.org".into(), password: PASSWORD.into(), auth: true, ..Default::default() });
         let mut s = Session::at(Mailbox::with_local_account("", ""), 1_800_000_000, 0);
         let servers = json!({
@@ -482,4 +486,175 @@ fn a_run_called_off_at_any_point_is_finished_by_the_next() {
         assert!(totals.stopped && totals.new > 0 && totals.new < 60, "{totals:?}");
         assert!(r.s.sync_status.starts_with(&format!("Stopped ({} new messages, 1 sent) — ", totals.new)), "{}", r.s.sync_status);
     }
+}
+
+// ---- what is written here goes up: drafts, copies, imported mail, categories ----
+
+/// The server of [`world`] with a mailbox for drafts, and what else it can do.
+fn with_drafts(can_move: bool, uidplus: bool) -> ImapWorld {
+    let mut w = world(can_move, uidplus);
+    w.mailboxes.push(mailbox("Drafts", "\\HasNoChildren \\Drafts", 51, Vec::new()));
+    w
+}
+
+/// The subjects of the messages a server mailbox shows (not those marked as deleted), sorted.
+fn subjects(r: &Rig, raw: &str) -> Vec<String> {
+    let world = r.imap.world();
+    let mut found: Vec<String> = world
+        .mailboxes
+        .iter()
+        .find(|m| m.raw == raw)
+        .map(|m| {
+            m.messages
+                .iter()
+                .filter(|m| !m.has("\\Deleted"))
+                .filter_map(|m| String::from_utf8_lossy(&m.body).lines().find_map(|l| l.strip_prefix("Subject: ").map(str::to_string)))
+                .collect()
+        })
+        .unwrap_or_default();
+    found.sort();
+    found
+}
+
+#[test]
+fn a_draft_written_here_is_on_the_server_once_and_goes_when_it_is_sent() {
+    for (can_move, uidplus) in [(true, true), (false, false)] {
+        let what = format!("MOVE {can_move}, UIDPLUS {uidplus}");
+        let mut r = Rig::with(with_drafts(can_move, uidplus));
+        r.sync();
+        let drafts = r.folder(FolderKind::Drafts);
+        r.run("mail.new", json!({"to": "bob@example.org", "subject": "Plans", "body": "First go", "account": r.account}));
+        r.run("compose.saveDraft", json!({}));
+        assert_eq!(r.waiting(), 1, "{what}");
+        r.settled();
+        assert_eq!(subjects(&r, "Drafts"), ["Plans"], "{what}");
+        let on_server = r.server("Drafts");
+        assert!(on_server[0].1.contains("\\Draft") && on_server[0].1.contains("\\Seen"), "{what}: {on_server:?}");
+        let id = r.titled("Plans");
+        assert!(r.s.mailbox.message(id).is_some_and(|m| m.uid != 0 && m.folder == drafts), "{what}");
+
+        // Saved again: the server has the new one only (the old one marked as deleted where it
+        // can't be taken away by its UID alone).
+        r.run("mail.editDraft", json!({"id": id}));
+        r.run("compose.set", json!({"subject": "Plans, better", "body": "Second go"}));
+        r.run("compose.saveDraft", json!({}));
+        r.settled();
+        assert_eq!(subjects(&r, "Drafts"), ["Plans, better"], "{what}");
+        assert_eq!(r.s.mailbox.count(drafts), 1, "{what}");
+
+        // Sent: gone from the server's drafts, and filed as sent.
+        r.run("mail.editDraft", json!({"id": id}));
+        r.run("compose.send", json!({}));
+        r.settled();
+        assert_eq!((subjects(&r, "Drafts").len(), r.s.mailbox.count(drafts)), (0, 0), "{what}");
+        assert_eq!(subjects(&r, "Sent Items"), ["Plans, better"], "{what}");
+        assert_eq!(r.smtp.world().delivered.len(), 1, "{what}");
+        assert!(!r.imap.world().log.iter().any(|line| line.ends_with(" EXPUNGE") || line.ends_with(" CLOSE")));
+    }
+}
+
+#[test]
+fn copies_and_imported_mail_go_up_once() {
+    for (can_move, uidplus) in [(true, true), (false, false)] {
+        let what = format!("MOVE {can_move}, UIDPLUS {uidplus}");
+        let mut r = Rig::new(can_move, uidplus);
+        r.sync();
+        let (archive, inbox) = (r.folder(FolderKind::Archive), r.folder(FolderKind::Inbox));
+        // A copy of a message the server has: copied there, not sent up again.
+        let one = r.titled("One");
+        r.run("mail.copy", json!({"id": one, "folder": archive}));
+        assert_eq!(r.waiting(), 1);
+        let appends = r.imap.world().sent("APPEND");
+        r.settled();
+        assert_eq!(subjects(&r, "Archive"), ["Filed", "One"], "{what}");
+        let (copies, appended) = {
+            let world = r.imap.world();
+            (world.sent("UID COPY 1 \"Archive\""), world.sent("APPEND"))
+        };
+        assert_eq!((copies, appended), (1, appends), "{what}");
+        // Mail brought in from a file goes up to the folder it was brought into.
+        let eml = eml("From a file");
+        mailcraft_engine::io::import(&mut r.s, "file.eml", &eml, Some(archive)).unwrap();
+        assert_eq!(r.waiting(), 1);
+        r.settled();
+        assert_eq!(subjects(&r, "Archive"), ["Filed", "From a file", "One"], "{what}");
+        // The same file again, into the Inbox: copied there from where the server has it, once.
+        mailcraft_engine::io::import(&mut r.s, "file.eml", &eml, Some(inbox)).unwrap();
+        r.settled();
+        assert_eq!(subjects(&r, "INBOX").iter().filter(|s| *s == "From a file").count(), 1, "{what}");
+    }
+}
+
+#[test]
+fn categories_go_up_as_keywords_and_come_back_down() {
+    let mut r = Rig::new(true, true);
+    r.sync();
+    let (one, two) = (r.titled("One"), r.titled("Two"));
+    r.run("mail.categorize", json!({"category": "Red category", "ids": [one]}));
+    assert_eq!(r.waiting(), 1);
+    r.settled();
+    assert_eq!(r.server("INBOX")[0], (1, "\\Seen Red_category".to_string()));
+    // Taken away here: taken away there.
+    r.run("mail.categorize", json!({"category": "Red category", "value": false, "ids": [one]}));
+    r.settled();
+    assert_eq!(r.server("INBOX")[0], (1, "\\Seen".to_string()));
+    // Given elsewhere: here too, as a category of its own when there was none of that name.
+    r.imap.world().mailbox("INBOX").messages[1].flags = "Blue_category Project-X $Forwarded".into();
+    r.settled();
+    let m = r.s.mailbox.message(two).unwrap();
+    assert_eq!(m.categories, ["Blue category", "Project-X"]);
+    assert!(r.s.mailbox.categories.iter().any(|c| c.name == "Project-X"));
+    // Taken away elsewhere: taken away here.
+    r.imap.world().mailbox("INBOX").messages[1].flags = "Project-X".into();
+    r.settled();
+    assert_eq!(r.s.mailbox.message(two).unwrap().categories, ["Project-X"]);
+}
+
+#[test]
+fn a_server_that_keeps_no_keywords_keeps_categories_here_without_a_word() {
+    // As Exchange Online has it.
+    let mut w = world(true, true);
+    w.permanent_flags = Some("\\Seen \\Answered \\Flagged \\Deleted \\Draft $MDNSent".into());
+    let mut r = Rig::with(w);
+    r.sync();
+    let one = r.titled("One");
+    r.run("mail.categorize", json!({"category": "Red category", "ids": [one]}));
+    assert_eq!(r.waiting(), 1);
+    r.sync();
+    // Nothing was stored, nothing more waits, and the category stays here, run after run.
+    assert_eq!((r.waiting(), r.imap.world().sent("STORE")), (0, 0));
+    for _ in 0..2 {
+        r.sync();
+        assert_eq!(r.s.mailbox.message(one).unwrap().categories, ["Red category"]);
+    }
+    assert!(r.s.mailbox.folders.iter().any(|f| f.remote == "INBOX" && f.no_keywords));
+}
+
+#[test]
+fn a_move_the_server_made_can_be_undone_and_a_deletion_says_why_it_cannot() {
+    let mut r = Rig::new(true, true);
+    r.sync();
+    let (inbox, archive) = (r.folder(FolderKind::Inbox), r.folder(FolderKind::Archive));
+    let two = r.titled("Two");
+    r.run("mail.archive", json!({"id": two}));
+    r.sync();
+    assert_eq!(subjects(&r, "Archive"), ["Filed", "Two"]);
+    // The server said where it put it: Undo puts it back, there too.
+    assert!(r.s.can_undo());
+    r.run("edit.undo", json!({}));
+    assert_eq!(r.s.mailbox.message(two).map(|m| m.folder), Some(inbox));
+    assert_eq!(r.waiting(), 1);
+    r.settled();
+    assert_eq!(subjects(&r, "Archive"), ["Filed"]);
+    assert_eq!(subjects(&r, "INBOX"), ["Four", "One", "Three", "Two"]);
+    assert_eq!(r.s.mailbox.count(archive), 1);
+
+    // Deleted for good on the server: Undo says it can't, and changes nothing.
+    let three = r.titled("Three");
+    r.run("mail.deletePermanently", json!({"id": three}));
+    r.sync();
+    let refused = r.s.run("edit.undo", &json!({})).unwrap_err().to_string();
+    assert!(refused.contains("deleted for good on the mail server"), "{refused}");
+    assert!(r.s.mailbox.messages.values().all(|m| m.subject != "Three"));
+    r.settled();
 }

@@ -21,9 +21,12 @@ fn closed() -> ProtoError {
     ProtoError::Io("the server closed the connection".into())
 }
 
+/// What a read whose wait ran out fails with.
+const WAITED: &str = "the server took too long to answer";
+
 fn io_error(e: &std::io::Error) -> ProtoError {
     match e.kind() {
-        ErrorKind::TimedOut | ErrorKind::WouldBlock => ProtoError::Io("the server took too long to answer".into()),
+        ErrorKind::TimedOut | ErrorKind::WouldBlock => ProtoError::Io(WAITED.into()),
         ErrorKind::UnexpectedEof | ErrorKind::ConnectionAborted | ErrorKind::ConnectionReset | ErrorKind::BrokenPipe => closed(),
         _ => ProtoError::Io(crate::tidy(&e.to_string())),
     }
@@ -51,20 +54,35 @@ impl<S> Wire<S> {
 }
 
 impl<S: Read + Write> Wire<S> {
-    /// Read some more into the buffer; the end of the stream is an error.
-    fn fill(&mut self) -> Result<(), ProtoError> {
+    /// Read some more into the buffer; the end of the stream is an error. With `polled`, a read
+    /// whose wait ran out answers `false`, and what was read before stays where it is.
+    fn fill(&mut self, polled: bool) -> Result<bool, ProtoError> {
         if self.start > 0 {
             self.buf.drain(..self.start.min(self.buf.len()));
             self.start = 0;
         }
         let mut tmp = vec![0u8; CHUNK];
-        let n = read_some(&mut self.stream, &mut tmp)?;
+        let n = match read_some(&mut self.stream, &mut tmp) {
+            Ok(n) => n,
+            Err(ProtoError::Io(why)) if polled && why == WAITED => return Ok(false),
+            Err(e) => return Err(e),
+        };
         self.buf.extend_from_slice(tmp.get(..n).unwrap_or(&[]));
-        Ok(())
+        Ok(true)
     }
 
     /// The next line without its line ending (CRLF, or a bare LF).
     pub(crate) fn read_line(&mut self) -> Result<Vec<u8>, ProtoError> {
+        self.next_line(false)?.ok_or_else(|| ProtoError::Io(WAITED.into()))
+    }
+
+    /// The next line, like [`read_line`](Self::read_line), or `None` when the stream's wait for
+    /// a read runs out before the line is whole: what came of it so far is kept for the next call.
+    pub(crate) fn poll_line(&mut self) -> Result<Option<Vec<u8>>, ProtoError> {
+        self.next_line(true)
+    }
+
+    fn next_line(&mut self, polled: bool) -> Result<Option<Vec<u8>>, ProtoError> {
         // How much of the pending bytes has been searched for a line feed already.
         let mut scanned = 0usize;
         loop {
@@ -78,7 +96,7 @@ impl<S: Read + Write> Wire<S> {
                 }
                 let line = line.to_vec();
                 self.start = self.start.saturating_add(end).saturating_add(1);
-                return Ok(line);
+                return Ok(Some(line));
             }
             scanned = pending.len();
             // The limit is on the line itself; a CR may still come on top.
@@ -86,7 +104,9 @@ impl<S: Read + Write> Wire<S> {
                 return Err(too_long());
             }
             // Each round reads at least one byte, so this ends at the line feed, the cap or the end of the stream.
-            self.fill()?;
+            if !self.fill(polled)? {
+                return Ok(None);
+            }
         }
     }
 

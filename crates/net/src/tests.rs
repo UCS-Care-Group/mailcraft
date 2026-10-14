@@ -9,7 +9,7 @@ use mailcraft_model::{Account, AccountKind, Address, FlagStatus, FolderKind, Id,
 use mailcraft_proto::ProtoError;
 
 use crate::fake::{Fake, FakeImap, FakeMailbox, FakeMessage, FakeSmtp, ImapWorld, SmtpWorld};
-use crate::sync::{Host, Limits, sync_as, sync_within};
+use crate::sync::{Host, Limits, sync_as, sync_more_as, sync_within};
 use crate::transport::Patience;
 use crate::{NetError, send, sync, sync_with, test_account};
 
@@ -140,6 +140,7 @@ fn applied(before: &[FolderState], result: &SyncResult) -> Vec<FolderState> {
         folder.remote = delta.remote.clone();
         folder.uid_validity = delta.uid_validity;
         folder.uid_seen = if anew { delta.uid_seen } else { delta.uid_seen.max(folder.uid_seen) };
+        folder.mark = delta.mark;
         folder.known_uids.retain(|uid| !anew && !delta.removed.contains(uid));
         // (A message that came down to be matched with one already here has its UID now too.)
         folder.known_uids.extend(delta.new.iter().map(|m| m.uid));
@@ -161,7 +162,23 @@ fn inbox(world: &mut ImapWorld) -> &mut FakeMailbox {
 
 /// How many whole messages the server was asked for.
 fn downloads(imap: &FakeImap) -> usize {
+    imap.world().log.iter().filter(|line| line.contains("BODY.PEEK[]")).map(|line| named_in(line).len()).sum()
+}
+
+/// How many commands asked for whole messages.
+fn download_commands(imap: &FakeImap) -> usize {
     imap.world().log.iter().filter(|line| line.contains("BODY.PEEK[]")).count()
+}
+
+/// The UIDs a `UID FETCH <set> …` line names.
+fn named_in(line: &str) -> Vec<u32> {
+    let set = line.split_whitespace().skip_while(|word| *word != "FETCH").nth(1).unwrap_or("");
+    set.split(',')
+        .flat_map(|range| {
+            let (a, b) = range.split_once(':').unwrap_or((range, range));
+            a.parse::<u32>().unwrap()..=b.parse::<u32>().unwrap()
+        })
+        .collect()
 }
 
 #[test]
@@ -646,9 +663,12 @@ fn only_the_newest_are_downloaded_when_there_is_a_limit() {
     let result = sync(&request);
     assert_eq!(result.errors, Vec::<String>::new());
     let inbox = &result.folders[0];
-    assert_eq!((uids(&inbox.new), inbox.uid_seen), (vec![2, 5], 6));
-    // The older one is passed over for good.
+    assert_eq!((uids(&inbox.new), inbox.uid_seen, inbox.mark.backfill), (vec![2, 5], 6, 1));
+    // The older one is left for the next run, which brings it.
     request.folders = applied(&local_folders(), &result);
+    let next = sync(&request);
+    assert_eq!((uids(&next.folders[0].new), next.folders[0].uid_seen, next.folders[0].mark.backfill), (vec![1], 6, 0));
+    request.folders = applied(&request.folders, &next);
     assert_eq!(sync(&request).new_count(), 0);
 }
 
@@ -690,14 +710,15 @@ fn a_lost_connection_keeps_what_arrived() {
     let account = account(Some(&imap), None);
     let result = sync(&request(account.clone(), local_folders()));
     assert_eq!(result.errors, ["Couldn't download a message from \"INBOX\": connection problem: the server closed the connection"]);
-    // The newest came first; the rest, and the other folders, wait for the next run.
+    // What the server sent before it hung up is kept; the rest, and the other folders, wait for
+    // the next run. (The three are asked for together, and a server sends them oldest first.)
     assert_eq!(remotes(&result), ["INBOX"]);
-    assert_eq!((uids(&result.folders[0].new), result.folders[0].uid_seen), (vec![5], 0));
+    assert_eq!((uids(&result.folders[0].new), result.folders[0].uid_seen), (vec![1], 1));
 
     imap.world().hang_up_at_uid = None;
     let again = sync(&request(account, applied(&local_folders(), &result)));
     assert_eq!(again.errors, Vec::<String>::new());
-    assert_eq!((uids(&again.folders[0].new), again.folders[0].uid_seen), (vec![1, 2], 6));
+    assert_eq!((uids(&again.folders[0].new), again.folders[0].uid_seen), (vec![2, 5], 6));
     assert_eq!(remotes(&again), ["INBOX", "Sent Items", "Entwürfe", "Projects"]);
     assert_eq!(again.new_count(), 4);
 }
@@ -1641,10 +1662,13 @@ fn a_mailbox_arrives_in_pieces_the_inbox_first() {
 fn whatever_part_of_a_run_is_taken_in_the_next_run_brings_the_rest() {
     let imap = Fake::imap(large_world());
     let ada = account(Some(&imap), None);
-    // With every message wanted, and with the hundred newest of a mailbox.
+    // With every message wanted, and with the hundred newest of a mailbox; the runs after it
+    // want every message, and bring what the first one left for later too.
+    let everything = served(&imap, &LARGE);
+    let total: usize = everything.values().map(BTreeMap::len).sum();
+    let asking = |folders: Vec<FolderState>| request(ada.clone(), folders);
     for limit in [0, 100] {
-        let asking = |folders: Vec<FolderState>| SyncRequest { max_per_folder: limit, ..request(ada.clone(), folders) };
-        let all = pieces(&asking(local_folders()), batches_of(40));
+        let all = pieces(&SyncRequest { max_per_folder: limit, ..asking(local_folders()) }, batches_of(40));
         // What a run leaves that is taken in to the end.
         let mut through = Kept::new();
         all.iter().for_each(|piece| through.take(piece));
@@ -1662,8 +1686,8 @@ fn whatever_part_of_a_run_is_taken_in_the_next_run_brings_the_rest() {
             let rest = pieces(&asking(here.folders.clone()), batches_of(40));
             assert!(rest.iter().all(|piece| piece.errors.is_empty()), "after {taken} pieces");
             rest.iter().for_each(|piece| here.take(piece));
-            assert_eq!(here.mail(), expected, "after {taken} of {} pieces, limit {limit}", all.len());
-            assert_eq!(downloads(&imap) - asked_before, through.count() - had, "after {taken} pieces, limit {limit}");
+            assert_eq!(here.mail(), everything, "after {taken} of {} pieces, limit {limit}", all.len());
+            assert_eq!(downloads(&imap) - asked_before, total - had, "after {taken} pieces, limit {limit}");
             // Then all is as a run that went through left it: another one finds nothing to do.
             assert_eq!(
                 here.folders.iter().map(|f| (&f.remote, f.uid_seen)).collect::<Vec<_>>(),
@@ -1673,8 +1697,9 @@ fn whatever_part_of_a_run_is_taken_in_the_next_run_brings_the_rest() {
             assert_eq!(
                 (quiet.errors.len(), quiet.new_count(), quiet.folders.iter().map(|f| f.removed.len()).sum::<usize>()),
                 (0, 0, 0),
-                "after {taken} pieces"
+                "after {taken} pieces, limit {limit}"
             );
+            assert!(here.folders.iter().all(|f| f.mark.backfill == 0), "after {taken} pieces, limit {limit}");
         }
     }
 }
@@ -2002,7 +2027,8 @@ fn a_server_that_stops_answering_ends_the_run_with_an_error() {
     let ada = account(Some(&imap), None);
     let patient_for = |io: u64| impatient(Duration::from_millis(io), Duration::from_secs(60));
     let started = Instant::now();
-    let result = sync_within(&request(ada.clone(), local_folders()), patient_for(300));
+    // (One message to a command, to be silent at the second.)
+    let result = sync_within(&request(ada.clone(), local_folders()), Limits { fetch_messages: 1, ..patient_for(300) });
     assert!(started.elapsed() < Duration::from_secs(5), "{:?}", started.elapsed());
     assert_eq!(result.errors, ["Couldn't download a message from \"INBOX\": connection problem: the server took too long to answer"]);
     // What had arrived is kept; the rest, and the other folders, wait for the next run.
@@ -2059,19 +2085,20 @@ fn a_connection_that_drops_in_the_middle_of_a_message_keeps_what_arrived() {
     let mut result = SyncResult::default();
     all.iter().cloned().for_each(|piece| result.absorb(piece));
     assert_eq!(result.errors, ["Couldn't download a message from \"INBOX\": connection problem: the server closed the connection"]);
-    // The message that came whole was handed over before the connection went; half a message is none.
+    // The message that came whole before the connection went is kept (the three were asked for
+    // together, and came oldest first); half a message is none.
     assert_eq!(
         all.iter().map(|piece| piece.progress.as_str()).collect::<Vec<_>>(),
         ["Connecting to the mail server", "Found 4 folders", "Checking Inbox (1 of 4)", "Inbox: 1 of 3", ""]
     );
-    assert_eq!((uids(&all[3].folders[0].new), all[3].folders[0].uid_seen), (vec![5], 0));
+    assert_eq!((uids(&all[3].folders[0].new), all[3].folders[0].uid_seen), (vec![1], 0));
     assert_eq!(remotes(&result), ["INBOX"]);
-    assert_eq!((uids(&result.folders[0].new), result.folders[0].uid_seen), (vec![5], 0));
+    assert_eq!((uids(&result.folders[0].new), result.folders[0].uid_seen), (vec![1], 1));
 
     imap.world().cut_at_uid = None;
     let again = sync(&request(ada, applied(&local_folders(), &result)));
     assert_eq!(again.errors, Vec::<String>::new());
-    assert_eq!((uids(&again.folders[0].new), again.folders[0].uid_seen, again.new_count()), (vec![1, 2], 6, 4));
+    assert_eq!((uids(&again.folders[0].new), again.folders[0].uid_seen, again.new_count()), (vec![2, 5], 6, 4));
 }
 
 #[test]
@@ -2081,7 +2108,9 @@ fn a_message_the_server_keeps_back_is_asked_for_again() {
     let silent = ("UID FETCH 2 (UID FLAGS INTERNALDATE BODY.PEEK[])".to_string(), "{tag} OK done\r\n".to_string());
     imap.world().answers = vec![silent.clone()];
     let ada = account(Some(&imap), None);
-    let result = sync(&request(ada.clone(), local_folders()));
+    // (One message to a command, for the server to keep this one back.)
+    let one_by_one = Limits { fetch_messages: 1, ..Limits::kept_whole() };
+    let result = sync_within(&request(ada.clone(), local_folders()), one_by_one.clone());
     // It is still there, so it is not passed over: the mailbox is read up to below it.
     assert_eq!(result.errors, ["The server didn't hand over 1 message of \"INBOX\""]);
     assert_eq!((uids(&result.folders[0].new), result.folders[0].uid_seen, result.folders.len()), (vec![1, 5], 1, 4));
@@ -2093,7 +2122,7 @@ fn a_message_the_server_keeps_back_is_asked_for_again() {
     // One that went between the listing and the asking is gone, and nothing is said.
     let imap = Fake::imap(imap_world());
     imap.world().answers = vec![silent, ("UID FETCH 2 (UID FLAGS)".into(), "{tag} OK done\r\n".into())];
-    let result = sync(&request(account(Some(&imap), None), local_folders()));
+    let result = sync_within(&request(account(Some(&imap), None), local_folders()), one_by_one);
     assert_eq!((result.errors.len(), uids(&result.folders[0].new), result.folders[0].uid_seen), (0, vec![1, 5], 6));
 }
 
@@ -2221,4 +2250,203 @@ fn a_run_that_only_tells_brings_nothing_down() {
     assert_eq!(result.flagged.len(), 1, "the change went up");
     assert!(result.folders.is_empty(), "and nothing came down");
     assert_eq!(fetched(&imap), before, "no message was fetched");
+}
+
+/// Shared mailboxes, opened with their owner's token.
+mod shared;
+
+/// Drafts, copies and imported mail going up; categories as keywords; waiting on the Inbox.
+mod uploads;
+
+// ---- downloading fast ----
+
+/// An Inbox with `count` messages, and nothing else.
+fn big_inbox(count: u32) -> ImapWorld {
+    let many = (1..=count).map(|uid| message(uid, if uid % 2 == 0 { "\\Seen" } else { "" }, &format!("Mail {uid}"))).collect();
+    ImapWorld { user: "ada".into(), password: PASSWORD.into(), mailboxes: vec![mailbox("INBOX", "\\HasNoChildren", 11, many)], ..Default::default() }
+}
+
+#[test]
+fn many_messages_come_in_few_commands() {
+    let imap = Fake::imap(big_inbox(500));
+    // Every answer takes a while, as from a server far away: one command a message would show.
+    imap.world().delay = Duration::from_millis(2);
+    let ada = account(Some(&imap), None);
+    let all = pieces(&request(ada.clone(), local_folders()), batches_of(50));
+    let mut here = Kept::new();
+    all.iter().for_each(|piece| here.take(piece));
+    assert!(all.iter().all(|piece| piece.errors.is_empty()));
+    assert_eq!(here.mail(), served(&imap, &[("INBOX", "INBOX")]));
+    // Five hundred messages, each asked for once, in no more than ten commands.
+    assert_eq!(downloads(&imap), 500);
+    assert!(download_commands(&imap) <= 10, "{} commands", download_commands(&imap));
+    // Newest first, and the mailbox is said to be read only once the last of it is here.
+    let batches: Vec<_> = all.iter().flat_map(|piece| &piece.folders).filter(|f| f.remote == "INBOX").collect();
+    assert_eq!(uids(&batches[0].new), (451..=500).collect::<Vec<_>>());
+    assert!(batches.iter().rev().skip(1).all(|f| f.uid_seen == 0) && batches.last().unwrap().uid_seen == 500);
+    // Commands stay within what makes a batch: so many messages, or so many bytes.
+    let imap = Fake::imap(big_inbox(30));
+    let size = eml("Mail 10").len() as u64;
+    let whole = sync_within(&request(account(Some(&imap), None), local_folders()), Limits { fetch_bytes: size * 4, ..Limits::kept_whole() });
+    assert_eq!((whole.errors.len(), whole.new_count(), downloads(&imap)), (0, 30, 30));
+    assert!((8..=10).contains(&download_commands(&imap)), "{} commands", download_commands(&imap));
+}
+
+#[test]
+fn a_message_refused_among_many_holds_back_only_itself() {
+    let imap = Fake::imap(big_inbox(120));
+    // The server refuses the whole command for one message of it, and says nothing of the others.
+    imap.world().refuse = vec!["UID FETCH 71:120 (UID FLAGS INTERNALDATE BODY.PEEK[])".into(), "UID FETCH 77 (UID".into()];
+    let ada = account(Some(&imap), None);
+    let result = sync(&request(ada.clone(), local_folders()));
+    assert_eq!(result.errors, ["Couldn't download a message from \"INBOX\": the server said: [SERVERBUG] that can't be done"]);
+    // The others of that command came one by one; the next run asks for that one again.
+    let inbox = &result.folders[0];
+    assert_eq!((inbox.new.len(), inbox.uid_seen), (119, 76));
+    imap.world().refuse.clear();
+    let again = sync(&request(ada, applied(&local_folders(), &result)));
+    assert_eq!((again.errors.len(), uids(&again.folders[0].new), again.folders[0].uid_seen), (0, vec![77], 120));
+}
+
+#[test]
+fn changes_made_while_mail_comes_down_go_up_on_the_same_connection() {
+    let imap = Fake::imap(large_world());
+    let ada = account(Some(&imap), None);
+    let mut here = Kept::new();
+    here.take(&sync(&request(ada.clone(), local_folders())));
+    // New mail, enough for three commands.
+    inbox(&mut imap.world()).messages.extend((231..=350).map(|uid| message(uid, "", &format!("Mail {uid}"))));
+    let connections = imap.world().connections;
+    let scans = sent(&imap, "UID FETCH 1:* (UID FLAGS)");
+    // The owner reads a message of the Inbox and flags one of Projects while the run is under way.
+    let changes = SyncRequest {
+        ops: vec![flags("INBOX", 1, Some(true), None, None), flags("Projects", 2, None, Some(true), None)],
+        ..request(ada.clone(), here.folders.clone())
+    };
+    let mut asked = 0;
+    let mut more = || {
+        asked += 1;
+        // Asked before the Inbox and between its commands: the second time, the changes are there.
+        (asked == 2).then(|| changes.clone())
+    };
+    let mut all = Vec::new();
+    sync_more_as(
+        &request(ada.clone(), here.folders.clone()),
+        batches_of(50),
+        Host::default(),
+        &AtomicBool::new(false),
+        &mut |piece| all.push(piece),
+        Some(&mut more),
+    );
+    assert!(asked >= 3);
+    let mut together = SyncResult::default();
+    all.iter().cloned().for_each(|piece| together.absorb(piece));
+    assert_eq!(together.errors, Vec::<String>::new());
+    assert!(!together.stopped);
+    // They went up, and were said so, while the Inbox was still coming down.
+    let at = all.iter().position(|piece| !piece.flagged.is_empty()).unwrap();
+    assert_eq!(together.flagged.len(), 2);
+    assert!(all[..at].iter().any(|piece| piece.new_count() > 0) && all[at + 1..].iter().any(|piece| piece.new_count() > 0));
+    {
+        let mut world = imap.world();
+        assert!(inbox(&mut world).messages[0].has("\\Seen"));
+        assert!(world.mailbox("Projects").messages[1].has("\\Flagged"));
+        // One connection, and every mailbox looked into once: the Inbox read whole (it has new
+        // mail), the others only glanced at; the Inbox opened again after the changes.
+        assert_eq!(world.connections - connections, 1);
+        assert_eq!(world.sent("UID FETCH 1:* (UID FLAGS)") - scans, 1);
+        let last_session = world.log.iter().rev().take_while(|line| !line.contains("LOGIN"));
+        assert_eq!(last_session.filter(|line| line.contains("EXAMINE \"INBOX\"")).count(), 2);
+    }
+    all.iter().for_each(|piece| here.take(piece));
+    assert_eq!(here.mail(), served(&imap, &LARGE));
+    // What isn't for this account is not pushed there.
+    let stranger =
+        SyncRequest { ops: vec![flags("INBOX", 2, Some(true), None, None)], ..request(Account { id: 8, ..ada.clone() }, here.folders.clone()) };
+    let mut once = Some(stranger);
+    let mut more = || once.take();
+    let mut quiet = SyncResult::default();
+    sync_more_as(
+        &request(ada, here.folders.clone()),
+        batches_of(50),
+        Host::default(),
+        &AtomicBool::new(false),
+        &mut |piece| quiet.absorb(piece),
+        Some(&mut more),
+    );
+    assert!(quiet.flagged.is_empty() && !inbox(&mut imap.world()).messages[1].has("\\Seen"));
+}
+
+#[test]
+fn a_mailbox_that_did_not_change_is_only_glanced_at() {
+    let imap = Fake::imap(large_world());
+    let ada = account(Some(&imap), None);
+    let mut here = Kept::new();
+    here.take(&sync(&request(ada.clone(), local_folders())));
+    assert_eq!(here.folders.iter().filter(|f| f.mark.uid_next != 0).count(), 5);
+    let scans = || sent(&imap, "UID FETCH 1:* (UID FLAGS)");
+    let before = scans();
+    // The next runs ask for no listing of every message, nor for any message or size.
+    for run in 1..5 {
+        if run == 2 {
+            // Read and flagged on a phone meanwhile: the newest messages' flags are looked at.
+            inbox(&mut imap.world()).messages[229].flags = "\\Seen \\Flagged".into();
+        }
+        let (downloads_before, sizes_before) = (downloads(&imap), sent(&imap, "RFC822.SIZE"));
+        let result = sync(&request(ada.clone(), here.folders.clone()));
+        assert_eq!((result.errors.len(), result.new_count()), (0, 0), "run {run}");
+        assert_eq!((scans(), downloads(&imap), sent(&imap, "RFC822.SIZE")), (before, downloads_before, sizes_before), "run {run}");
+        if run == 2 {
+            let flags = &result.folders.iter().find(|f| f.remote == "INBOX").unwrap().flags;
+            assert!(flags.iter().any(|f| f.uid == 230 && f.read && f.flagged), "{flags:?}");
+        }
+        here.take(&result);
+        assert!(here.folders.iter().filter(|f| f.mark.uid_next != 0).all(|f| f.mark.quick_runs == run), "run {run}");
+    }
+    // Every few runs, every message's flags are read after all.
+    here.take(&sync(&request(ada.clone(), here.folders.clone())));
+    assert_eq!(scans(), before + 5);
+    assert!(here.folders.iter().all(|f| f.mark.quick_runs == 0));
+    // A mailbox that changed is read whole at once: a message came, or one went.
+    inbox(&mut imap.world()).messages.push(message(231, "", "Mail 231"));
+    imap.world().mailbox("Projects").messages.retain(|m| m.uid != 3);
+    let result = sync(&request(ada.clone(), here.folders.clone()));
+    assert_eq!(scans(), before + 7);
+    assert_eq!(uids(&result.folders.iter().find(|f| f.remote == "INBOX").unwrap().new), [231]);
+    assert_eq!(result.folders.iter().find(|f| f.remote == "Projects").unwrap().removed, [3]);
+    here.take(&result);
+    assert_eq!(here.mail(), served(&imap, &LARGE));
+    // And so is a mailbox that was made anew.
+    imap.world().mailbox("Archive").uid_validity = 72;
+    here.take(&sync(&request(ada, here.folders.clone())));
+    assert_eq!(scans(), before + 8);
+    assert_eq!(here.mail(), served(&imap, &LARGE));
+}
+
+#[test]
+fn older_mail_comes_in_later_runs_newest_first() {
+    let imap = Fake::imap(big_inbox(1_000));
+    let ada = account(Some(&imap), None);
+    let limited = |folders: Vec<FolderState>, limit: u32| SyncRequest { max_per_folder: limit, ..request(ada.clone(), folders) };
+    let inbox_of = |here: &Kept| here.folders.iter().find(|f| f.remote == "INBOX").cloned().unwrap();
+    let mut here = Kept::new();
+    here.take(&sync(&limited(local_folders(), 500)));
+    assert_eq!(here.mail()["INBOX"].keys().copied().collect::<Vec<_>>(), (501..=1_000).collect::<Vec<_>>());
+    assert_eq!((inbox_of(&here).uid_seen, inbox_of(&here).mark.backfill), (1_000, 500));
+    // New mail meanwhile comes first; the limit then takes the newest of the older ones.
+    inbox(&mut imap.world()).messages.extend((1_001..=1_010).map(|uid| message(uid, "", &format!("Mail {uid}"))));
+    let next = sync(&limited(here.folders.clone(), 100));
+    assert_eq!(uids(&next.folders[0].new), (411..=500).chain(1_001..=1_010).collect::<Vec<_>>());
+    here.take(&next);
+    assert_eq!((inbox_of(&here).uid_seen, inbox_of(&here).mark.backfill), (1_010, 410));
+    // Without a limit, the rest comes, newest first, and then nothing is left for later.
+    let asked_before = downloads(&imap);
+    let all = pieces(&limited(here.folders.clone(), 0), batches_of(100));
+    all.iter().for_each(|piece| here.take(piece));
+    assert_eq!(downloads(&imap) - asked_before, 410);
+    let first = all.iter().flat_map(|piece| &piece.folders).find(|f| !f.new.is_empty()).unwrap();
+    assert_eq!(uids(&first.new), (311..=410).collect::<Vec<_>>());
+    assert_eq!(here.mail(), served(&imap, &[("INBOX", "INBOX")]));
+    assert_eq!((inbox_of(&here).uid_seen, inbox_of(&here).mark.backfill), (1_010, 0));
+    assert_eq!(sync(&limited(here.folders.clone(), 0)).new_count(), 0);
 }

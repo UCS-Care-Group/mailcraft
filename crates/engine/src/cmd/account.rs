@@ -6,7 +6,10 @@
 
 use std::collections::{HashMap, HashSet};
 
-use mailcraft_model::sync::{Deleted, FlagsPushed, FolderDelta, FolderState, Moved, RemoteFlags, RemoteOp, SyncRequest, SyncResult, summary_line};
+use mailcraft_model::sync::{
+    CategoriesPushed, Deleted, FlagsPushed, FolderDelta, FolderState, Moved, RemoteCategories, RemoteFlags, RemoteOp, SyncRequest, SyncResult,
+    Upload, Uploaded, category_keyword, summary_line,
+};
 use mailcraft_model::{
     Account, AccountKind, Directory, FavoritesSource, FlagStatus, Folder, FolderKind, Id, Mailbox, Message, OAuth, OAuthProvider, Pending, Security,
     Server, Signature, clean_name,
@@ -313,6 +316,21 @@ fn add(s: &mut Session, v: &Value) -> CmdResult {
 fn edit(s: &mut Session, v: &Value) -> CmdResult {
     let id = p::req_id(v, "id")?;
     let mut a = s.mailbox.account(id).cloned().ok_or_else(|| fail(format!("no account with id {id}")))?;
+    if a.is_shared() {
+        // Its address, servers and sign-in are what it is opened by: only its names change.
+        if ["email", "username", "incoming", "outgoing", "auth", "provider", "clientId", "tenant", "directory"].iter().any(|k| v.get(*k).is_some()) {
+            return Err(fail(format!("{} is a shared mailbox: only its names change here (remove it and add it again for another)", a.email)));
+        }
+        let line = |k: &str| p::str(v, k).map(|t| t.replace(['\r', '\n'], " ").trim().chars().take(254).collect::<String>());
+        if let Some(n) = line("displayName") {
+            a.display_name = n;
+        }
+        if let Some(n) = line("name") {
+            a.name = if n.is_empty() { a.email.clone() } else { n };
+        }
+        *s.mailbox.account_mut(id)? = a;
+        return Ok(json!({"id": id}));
+    }
     apply_fields(&mut a, v)?;
     if s.mailbox.accounts.iter().any(|x| x.id != id && x.email.eq_ignore_ascii_case(&a.email)) {
         return Err(fail(format!("{} is already set up", a.email)));
@@ -323,7 +341,8 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
 
 fn remove(s: &mut Session, v: &Value) -> CmdResult {
     let id = p::req_id(v, "id")?;
-    if s.mailbox.accounts.len() <= 1 {
+    // The shared mailboxes opened through it go with it.
+    if s.mailbox.accounts.iter().all(|a| a.id == id || a.shared_of == Some(id)) {
         return Err(fail("the last account can't be removed"));
     }
     s.mailbox.remove_account(id)?;
@@ -336,7 +355,7 @@ fn list(s: &mut Session, _: &Value) -> CmdResult {
         .accounts
         .iter()
         .map(|a| {
-            json!({"id": a.id, "name": a.name, "email": a.email, "displayName": a.display_name, "kind": a.kind, "username": a.username, "incoming": a.incoming, "outgoing": a.outgoing, "signature": a.signature, "auth": if a.oauth.is_some() { "oauth2" } else { "password" }, "oauth": a.oauth, "favoritesSource": a.favorites_source.code()})
+            json!({"id": a.id, "name": a.name, "email": a.email, "displayName": a.display_name, "kind": a.kind, "username": a.username, "incoming": a.incoming, "outgoing": a.outgoing, "signature": a.signature, "auth": if a.oauth.is_some() { "oauth2" } else { "password" }, "oauth": a.oauth, "favoritesSource": a.favorites_source.code(), "sharedOf": a.shared_of})
         })
         .collect();
     Ok(json!({"accounts": accounts, "signatures": s.mailbox.signatures}))
@@ -378,6 +397,19 @@ fn signature_remove(s: &mut Session, v: &Value) -> CmdResult {
 const MAX_OPS: usize = 2_000;
 /// Most folders followed upwards from one that only exists here, to where the server has one.
 const MAX_LEVELS: usize = 64;
+/// Most messages one synchronisation is asked to put on the server; the rest goes up later.
+const MAX_UPLOADS: usize = 200;
+/// The largest message put on the server from here, by its size here.
+const MAX_UPLOAD: u64 = 25 * 1024 * 1024;
+/// The header a message kept without its text has (`mailcraft-net` writes it): what is here of
+/// it is not all of it, so it is never put on a server from here, only copied there.
+const NOT_DOWNLOADED: &str = "X-MailCraft-Not-Downloaded";
+/// Most categories a mailbox gets from what servers keep as keywords; past that, a keyword that
+/// is no category here is left out.
+const MAX_CATEGORIES: usize = 200;
+/// What Undo says once a change it would go back past can't be taken back on the mail server.
+pub const SEALED_BY_DELETE: &str = "a message was deleted for good on the mail server, which can't be undone";
+pub const SEALED_BY_SENDING: &str = "mail that was sent can't be called back";
 
 /// What a synchronisation of `account` should do: send the Outbox, push what was changed here
 /// since the server last heard (flags, moves, deletions), download what is new. The host adds
@@ -390,9 +422,16 @@ pub fn sync_request(s: &Session, account: Id) -> Result<SyncRequest, CmdError> {
     let outbox_folder = s.mailbox.folder_of_kind(account, FolderKind::Outbox);
     let mut known: HashMap<Id, Vec<u32>> = HashMap::new();
     let mut outbox = Vec::new();
+    let now = s.now();
     for m in s.mailbox.messages.values() {
-        if Some(m.folder) == outbox_folder {
-            outbox.push(m.as_ref().clone());
+        // A message whose delivery is delayed stays in the Outbox until its time; it then goes
+        // dated when it went.
+        if Some(m.folder) == outbox_folder && !m.is_deferred(now) {
+            let mut going = m.as_ref().clone();
+            if let Some(at) = going.deliver_after.take() {
+                going.date = going.date.max(at);
+            }
+            outbox.push(going);
         }
         if m.uid != 0 {
             known.entry(m.folder).or_default().push(m.uid);
@@ -410,10 +449,23 @@ pub fn sync_request(s: &Session, account: Id) -> Result<SyncRequest, CmdError> {
             uid_validity: f.uid_validity,
             uid_seen: f.uid_seen,
             known_uids: known.remove(&f.id).unwrap_or_default(),
+            mark: f.mark,
         })
         .collect();
     let (ops, _) = remote_ops(&s.mailbox, account, MAX_OPS);
-    Ok(SyncRequest { account: a.clone(), folders, outbox, max_per_folder: s.prefs.sync_limit, ops, ..Default::default() })
+    let (uploads, _) = uploads(&s.mailbox, account, MAX_UPLOADS);
+    let folder_ops = super::folder_sync::folder_ops(&s.mailbox, account);
+    // A shared mailbox signs in with its owner's account ([`super::shared`]).
+    let (a, send_login) = super::shared::signed_in_as(s, a)?;
+    Ok(SyncRequest { account: a, folders, outbox, max_per_folder: s.prefs.sync_limit, ops, folder_ops, send_login, uploads, ..Default::default() })
+}
+
+/// How many messages in the Outbox of `account` are to go now: all of them but those whose
+/// delivery is delayed to a time still to come.
+pub fn outbox_due(s: &Session, account: Id) -> usize {
+    let Some(outbox) = s.mailbox.folder_of_kind(account, FolderKind::Outbox) else { return 0 };
+    let now = s.now();
+    s.mailbox.messages_in(outbox).filter(|m| !m.is_deferred(now)).count()
 }
 
 /// How many changes made in `account` its server hasn't heard of yet: what a synchronisation
@@ -423,7 +475,82 @@ pub fn sync_request(s: &Session, account: Id) -> Result<SyncRequest, CmdError> {
 /// A change the server refused stays counted until it goes through, so a host must not answer
 /// a count that doesn't fall by trying again at once.
 pub fn unpushed(s: &Session, account: Id) -> usize {
-    remote_ops(&s.mailbox, account, 0).1
+    remote_ops(&s.mailbox, account, 0).1 + uploads(&s.mailbox, account, 0).1 + super::folder_sync::folder_ops(&s.mailbox, account).len()
+}
+
+/// Whether `m` is kept here without all of its text (it was too large to download).
+fn partly_here(m: &Message) -> bool {
+    m.headers.iter().any(|(name, _)| name.eq_ignore_ascii_case(NOT_DOWNLOADED))
+}
+
+/// The messages of `account` that are in a folder following a server mailbox and that the
+/// server doesn't have there yet ([`Upload`]): a draft written here, a copy, mail brought in
+/// from a file, a message moved here from another account. At most `limit` of them are spelled
+/// out; the number is of all there are.
+///
+/// Such a message has no UID and nothing the server was ever said to have of it
+/// ([`Message::synced`]), and no move waiting for it (it is on the server elsewhere and goes
+/// there by the move). One that the server has with the same content (the same Message-ID) in
+/// another of its mailboxes is copied from there. One that is only partly here is never put
+/// there from here, and one too large to be is left out.
+fn uploads(mb: &Mailbox, account: Id, limit: usize) -> (Vec<Upload>, usize) {
+    let folders: HashMap<Id, &Folder> =
+        mb.folders.iter().filter(|f| f.account == account && !f.remote.is_empty() && f.kind != FolderKind::Outbox).map(|f| (f.id, f)).collect();
+    let moving: HashSet<Id> = mb
+        .pending
+        .iter()
+        .filter_map(|p| match p {
+            Pending::Move { message, .. } => Some(*message),
+            Pending::Delete { .. } => None,
+        })
+        .collect();
+    let waiting: Vec<(&Message, &Folder)> = mb
+        .messages
+        .values()
+        .filter(|m| m.account == account && m.uid == 0 && m.synced.is_none() && !moving.contains(&m.id))
+        .filter_map(|m| folders.get(&m.folder).map(|f| (m.as_ref(), *f)))
+        .collect();
+    if waiting.is_empty() {
+        return (Vec::new(), 0);
+    }
+    // Where the server has a message by its Message-ID: the mailbox and the UID.
+    let mut on_server: HashMap<&str, (&str, u32)> = HashMap::new();
+    for m in mb.messages.values().filter(|m| m.account == account && m.uid != 0 && !m.message_id.is_empty()) {
+        if let Some(f) = folders.get(&m.folder).filter(|f| f.uid_validity != 0 && m.synced.is_some_and(|s| s.uid == m.uid)) {
+            on_server.entry(m.message_id.as_str()).or_insert((f.remote.as_str(), m.uid));
+        }
+    }
+    let (mut out, mut count) = (Vec::new(), 0usize);
+    for (m, folder) in waiting {
+        let source = on_server.get(m.message_id.as_str()).filter(|_| !m.message_id.is_empty()).filter(|(remote, _)| *remote != folder.remote);
+        let partial = partly_here(m);
+        if (partial && source.is_none()) || (!partial && m.size() > MAX_UPLOAD) {
+            continue;
+        }
+        count += 1;
+        if out.len() < limit {
+            let (copy_from, copy_uid) = source.map_or((String::new(), 0), |(remote, uid)| (remote.to_string(), *uid));
+            out.push(Upload { message: m.clone(), to: folder.remote.clone(), copy_from, copy_uid, copy_only: partial });
+        }
+    }
+    (out, count)
+}
+
+/// The categories of `names` that can go to a server as keywords, each once (by its keyword).
+fn keyword_categories(names: &[String]) -> Vec<&String> {
+    let mut seen: HashSet<String> = HashSet::new();
+    names.iter().filter(|name| category_keyword(name).is_some_and(|k| seen.insert(k.to_ascii_lowercase()))).collect()
+}
+
+/// The categories given to `m` here, and those taken away, since the server last had them
+/// ([`Message::synced_categories`]); `None` when it has what the server has.
+fn category_changes(m: &Message) -> Option<(Vec<String>, Vec<String>)> {
+    let key = |name: &String| category_keyword(name).map(|k| k.to_ascii_lowercase());
+    let here = keyword_categories(&m.categories);
+    let there = keyword_categories(&m.synced_categories);
+    let add: Vec<String> = here.iter().filter(|h| !there.iter().any(|t| key(t) == key(h))).map(|h| (*h).clone()).collect();
+    let remove: Vec<String> = there.iter().filter(|t| !here.iter().any(|h| key(h) == key(t))).map(|t| (*t).clone()).collect();
+    (!add.is_empty() || !remove.is_empty()).then_some((add, remove))
 }
 
 /// The flags of `m` that are not as the server has them (`base`), with what they are here; `None`
@@ -498,9 +625,16 @@ fn remote_ops(mb: &Mailbox, account: Id, limit: usize) -> (Vec<RemoteOp>, usize)
     }
     for m in mb.messages.values() {
         let Some(base) = m.synced.filter(|base| m.uid != 0 && base.uid == m.uid && m.account == account) else { continue };
-        let Some([read, flagged, answered]) = flag_changes(m, base) else { continue };
         let Some(folder) = folders.get(&m.folder).copied().filter(followed) else { continue };
-        note(&|| RemoteOp::Flags { folder: folder.remote.clone(), uid: m.uid, read, flagged, answered });
+        if let Some([read, flagged, answered]) = flag_changes(m, base) {
+            note(&|| RemoteOp::Flags { folder: folder.remote.clone(), uid: m.uid, read, flagged, answered });
+        }
+        // A mailbox that keeps no keywords of the owner's keeps the categories here.
+        if !folder.no_keywords
+            && let Some((add, remove)) = category_changes(m)
+        {
+            note(&|| RemoteOp::Categories { folder: folder.remote.clone(), uid: m.uid, add: add.clone(), remove: remove.clone() });
+        }
     }
     (ops, count)
 }
@@ -656,8 +790,12 @@ pub fn apply_sync_part(s: &mut Session, run: &mut SyncTotals, mut result: SyncRe
 /// Take in what a result has for the mailbox. Returns what that changed, and how many messages
 /// were sent.
 fn take_in_news(s: &mut Session, account: Id, result: &mut SyncResult) -> (Counts, usize) {
-    let told = !result.moved.is_empty() || !result.deleted.is_empty() || !result.sent.is_empty();
+    // Whether the undo history can be kept: see [`keep_history`]. Worked out before the mailbox
+    // takes the answer in, while what it had is still there to look at.
+    let history = keep_history(s, account, result);
     let mb = &mut s.mailbox;
+    // Folders first: what follows names the mailboxes as they are called now.
+    let folders_told = super::folder_sync::folders_pushed(mb, account, &result.folders_pushed);
     let sent = file_sent(mb, account, result);
     for made in &result.created {
         // A folder that only existed here has its mailbox on the server now.
@@ -669,12 +807,25 @@ fn take_in_news(s: &mut Session, account: Id, result: &mut SyncResult) -> (Count
             f.remote = made.remote.clone();
         }
     }
+    // A folder that follows a mailbox the server's whole list doesn't have is gone from there.
+    if result.listed_whole && !result.listed.is_empty() {
+        super::folder_sync::forget_unlisted(mb, account, &result.listed);
+    }
     let mut on_server = OnServer::of(mb, account);
     flags_pushed(mb, account, &on_server, &result.flagged);
     for moved in &result.moved {
         move_finished(mb, account, &mut on_server, moved);
     }
     deletes_finished(mb, account, &mut on_server, &result.deleted);
+    for up in &result.uploaded {
+        upload_finished(mb, account, &mut on_server, up);
+    }
+    categories_pushed(mb, &on_server, &result.categorized);
+    for remote in &result.keywords_refused {
+        for f in mb.folders.iter_mut().filter(|f| f.account == account && f.remote == *remote) {
+            f.no_keywords = true;
+        }
+    }
     on_server.expect(mb, account);
     adopt_listed(mb, account, &mut on_server, &result.listed);
     // Only what is really new counts as new: not the server's copy of a message that was here.
@@ -682,12 +833,214 @@ fn take_in_news(s: &mut Session, account: Id, result: &mut SyncResult) -> (Count
     for delta in std::mem::take(&mut result.folders) {
         take_in(mb, account, &mut on_server, delta, &mut counts);
     }
-    if told {
-        s.forget_history();
+    mb.settle_folder_changes();
+    match history {
+        _ if folders_told => s.forget_history(),
+        History::Keep => {}
+        History::Rebase => {
+            let (flagged, moved, uploaded, deleted) = (result.flagged.clone(), result.moved.clone(), result.uploaded.clone(), result.deleted.clone());
+            s.rebase_history(|mb| rebase(mb, account, &flagged, &moved, &uploaded, &deleted));
+        }
+        History::Forget => s.forget_history(),
+        History::Seal(why) => s.seal_history(why),
     }
     // Not through `run` when the host calls this, so say it here: the lists are out of date.
     s.mailbox_changed();
     (counts, sent)
+}
+
+/// What becomes of the undo history when an answer is taken in.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum History {
+    /// Nothing the server took on stands in its way (a read mark, a flag: undoing one is
+    /// overruled by the server's copy at the next run, or goes up with it).
+    Keep,
+    /// Every mailbox Undo would go back to is brought up to what the server did ([`rebase`]):
+    /// going back to one asks the server for the opposite.
+    Rebase,
+    /// Let go of: what the server did can't be followed in the mailboxes Undo would go back to.
+    Forget,
+    /// Let go of, and Undo says why: what the server did can't be undone there.
+    Seal(&'static str),
+}
+
+/// What becomes of the undo history once `result` is taken in ([`History`]).
+///
+/// - Mail that was sent can't be called back, and a message deleted for good is gone from the
+///   server: Undo says so. (The copy a draft saved again replaced is no such message: the draft
+///   lives on here, and going back to the one before puts that on the server again.)
+/// - A move the server said the new place of, and a message it has now, are followed in each of
+///   those mailboxes: an undo moves the message back on the server too, or takes away what was
+///   put there.
+/// - A move whose new place the server didn't say can't be followed: the history goes.
+fn keep_history(s: &Session, account: Id, result: &SyncResult) -> History {
+    if !result.sent.is_empty() {
+        return History::Seal(SEALED_BY_SENDING);
+    }
+    if !result.deleted.is_empty() {
+        // A message the server deleted that a mailbox Undo would go back to has, and that isn't
+        // here any more: deleted for good.
+        let by_remote: HashMap<&str, Id> =
+            s.mailbox.folders.iter().filter(|f| f.account == account && !f.remote.is_empty()).map(|f| (f.remote.as_str(), f.id)).collect();
+        let gone = s.snapshots().any(|mb| {
+            mb.messages.values().any(|m| {
+                m.account == account
+                    && m.uid != 0
+                    && result.deleted.iter().any(|d| d.uid == m.uid && by_remote.get(d.from.as_str()) == Some(&m.folder))
+                    && s.mailbox.message(m.id).is_none()
+            })
+        });
+        if gone {
+            return History::Seal(SEALED_BY_DELETE);
+        }
+    }
+    if result.moved.iter().any(|m| m.new_uid == 0 || m.uid_validity == 0) {
+        return History::Forget;
+    }
+    if result.moved.is_empty() && result.uploaded.is_empty() && result.deleted.is_empty() {
+        return History::Keep;
+    }
+    History::Rebase
+}
+
+/// Bring a mailbox Undo would go back to up to what the server did ([`History::Rebase`]): the
+/// moves it made, as if they had been made while it was the mailbox ([`move_finished`]), which
+/// asks the server to move back what is not where the server has it; the messages it has now
+/// ([`upload_finished`]), which takes away there what this mailbox doesn't have; and copies it
+/// deleted of messages this mailbox still has (a draft before it was saved again), which go up
+/// again when it is gone back to.
+fn rebase(mb: &mut Mailbox, account: Id, flagged: &[FlagsPushed], moved: &[Moved], uploaded: &[Uploaded], deleted: &[Deleted]) {
+    let mut on_server = OnServer::of(mb, account);
+    flags_pushed(mb, account, &on_server, flagged);
+    for m in moved {
+        move_finished(mb, account, &mut on_server, m);
+    }
+    for gone in deleted {
+        mb.pending.retain(|p| !(matches!(p, Pending::Delete { .. }) && p.account() == account && p.source() == (gone.from.as_str(), gone.uid)));
+        let here = on_server.by_remote.get(&gone.from).and_then(|folder| on_server.by_uid.remove(&(*folder, gone.uid)));
+        if let Some(Ok(m)) = here.map(|id| mb.message_mut(id)) {
+            (m.uid, m.synced, m.synced_categories) = (0, None, Vec::new());
+        }
+    }
+    for up in uploaded {
+        upload_finished(mb, account, &mut on_server, up);
+    }
+}
+
+/// A message the server has now ([`Uploaded`]). The message here gets its UID there, or, when
+/// the server didn't say, is marked as expected there, to be matched when its copy comes down.
+/// When the message here is another by now (a draft saved again meanwhile: another Message-ID),
+/// or is gone, or is elsewhere, the server's copy is not the message's: it is deleted there
+/// ([`Pending::Delete`]), and the message here goes up as it is now.
+fn upload_finished(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, up: &Uploaded) {
+    let Some((validity, remote)) = mb.folder(up.folder).filter(|f| f.account == account).map(|f| (f.uid_validity, f.remote.clone())) else { return };
+    // A UID that can be trusted is one of the mailbox's present life that no message here has.
+    let usable = up.uid != 0 && up.uid_validity != 0 && (validity == 0 || validity == up.uid_validity) && remote == up.to;
+    let free = usable && !on_server.by_uid.contains_key(&(up.folder, up.uid));
+    let same = mb.message(up.message).is_some_and(|m| {
+        m.account == account
+            && m.folder == up.folder
+            && m.uid == 0
+            && m.synced.is_none()
+            && remote == up.to
+            && (m.message_id == up.message_id || m.message_id.is_empty())
+    });
+    if !same {
+        if free {
+            mb.pending.push(Pending::Delete { account, from: up.to.clone(), uid: up.uid });
+        }
+        return;
+    }
+    let Ok(m) = mb.message_mut(up.message) else { return };
+    if m.message_id.is_empty() {
+        m.message_id = up.message_id.clone();
+    }
+    // A copy made on the server has the keywords of what it was copied from; one put there has none.
+    if !up.copied {
+        m.synced_categories.clear();
+    }
+    if free {
+        m.uid = up.uid;
+        m.synced = Some(up.flags.at(up.uid));
+        on_server.by_uid.insert((up.folder, up.uid), up.message);
+        if let Ok(f) = mb.folder_mut(up.folder)
+            && f.uid_validity == 0
+        {
+            f.uid_validity = up.uid_validity;
+        }
+    } else {
+        m.synced = Some(up.flags.at(0));
+    }
+}
+
+/// Changes of categories the server took on: they are what the server has now, whatever was
+/// changed here meanwhile (which then differs from it, and goes up next time).
+fn categories_pushed(mb: &mut Mailbox, on_server: &OnServer, pushed: &[CategoriesPushed]) {
+    for change in pushed {
+        let Some(id) = on_server.by_remote.get(&change.folder).and_then(|folder| on_server.by_uid.get(&(*folder, change.uid))).copied() else {
+            continue;
+        };
+        let Some(mut there) = mb.message(id).map(|m| m.synced_categories.clone()) else { continue };
+        there.retain(|name| !change.remove.iter().chain(&change.add).any(|other| other.eq_ignore_ascii_case(name)));
+        there.extend(change.add.iter().cloned());
+        if let Ok(m) = mb.message_mut(id) {
+            m.synced_categories = there;
+        }
+    }
+}
+
+/// The name of the mailbox's category `name` is, by its letters whatever their case; a name it
+/// has no category of becomes one (in a colour of the usual six), unless the mailbox has as
+/// many as it takes from servers. `None`: left out.
+fn category_named(mb: &mut Mailbox, name: &str) -> Option<String> {
+    if let Some(known) = mb.categories.iter().find(|c| c.name.eq_ignore_ascii_case(name)) {
+        return Some(known.name.clone());
+    }
+    if mb.categories.len() >= MAX_CATEGORIES {
+        return None;
+    }
+    let palette = [(0xD1, 0x3B, 0x3B), (0xE0, 0x7B, 0x1F), (0xD9, 0xA4, 0x0C), (0x2E, 0x8B, 0x57), (0x2F, 0x6F, 0xD0), (0x7E, 0x57, 0xC2)];
+    let (r, g, b) = palette.get(mb.categories.len() % palette.len()).copied().unwrap_or((0x80, 0x80, 0x80));
+    mb.categories.push(mailcraft_model::Category { name: name.to_string(), color: mailcraft_model::Rgb(r, g, b) });
+    Some(name.to_string())
+}
+
+/// The server's categories for a message (`theirs`), as the mailbox names them: each one it
+/// has a category of, and new ones made, as far as [`category_named`] goes.
+fn their_categories(mb: &mut Mailbox, theirs: &[String]) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for name in theirs.iter().take(mailcraft_model::sync::MAX_MESSAGE_KEYWORDS) {
+        if let Some(name) = category_named(mb, name)
+            && !out.iter().any(|known| known.eq_ignore_ascii_case(&name))
+        {
+            out.push(name);
+        }
+    }
+    out
+}
+
+/// Give message `id` the categories the server keeps as keywords on it (`theirs`), merged with
+/// what was changed here: when its categories that can be keywords are as the server last had
+/// them, they follow the server; otherwise they stay as they are here, to go up with the next
+/// run. Either way the server's are what it has from now on. Returns whether the owner sees a
+/// change.
+fn merge_categories(mb: &mut Mailbox, id: Id, theirs: &[String]) -> bool {
+    let theirs = their_categories(mb, theirs);
+    let Some(m) = mb.message(id) else { return false };
+    let unchanged_here = category_changes(m).is_none();
+    let mut categories = m.categories.clone();
+    if unchanged_here {
+        // The ones that can't be keywords are the mailbox's own, and stay.
+        categories.retain(|name| category_keyword(name).is_none());
+        categories.extend(theirs.iter().cloned());
+    }
+    let seen = categories != m.categories;
+    if (seen || m.synced_categories != theirs)
+        && let Ok(m) = mb.message_mut(id)
+    {
+        (m.categories, m.synced_categories) = (categories, theirs);
+    }
+    seen
 }
 
 /// What taking in a result changed.
@@ -835,6 +1188,16 @@ fn move_finished(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, moved:
         (Some(Pending::Move { message, synced, to, .. }), Some((from, uid))) => {
             mb.pending.push(Pending::Move { account, message, from, uid, synced: synced.map(|flags| flags.at(uid)), to });
         }
+        // Moved on meanwhile, to where the server didn't say: its copy there comes down as a
+        // message of its own, and this one is not put on the server a second time.
+        (Some(Pending::Move { message, synced, .. }), None) => {
+            if let Ok(m) = mb.message_mut(message)
+                && m.uid == 0
+                && m.synced.is_none()
+            {
+                m.synced = Some(synced.unwrap_or_else(|| RemoteFlags::of(m, 0)).at(0));
+            }
+        }
         // Deleted for good meanwhile: the next run deletes it where the server has it now.
         (Some(Pending::Delete { .. }), Some((from, uid))) => mb.pending.push(Pending::Delete { account, from, uid }),
         // Put back meanwhile: the next run moves it back on the server too.
@@ -942,6 +1305,7 @@ fn matched(mb: &mut Mailbox, on_server: &mut OnServer, folder: Id, theirs: &Mess
         m.message_id = theirs.message_id.clone();
     }
     merge_flags(mb, id, RemoteFlags::of(theirs, theirs.uid));
+    merge_categories(mb, id, &theirs.synced_categories);
     on_server.by_uid.insert((folder, theirs.uid), id);
     Some(id)
 }
@@ -960,9 +1324,9 @@ fn folder_for(mb: &mut Mailbox, account: Id, remote: &str, kind: FolderKind) -> 
 
 /// Give every folder of mail the server lists a folder here, in the same tree, before any of its
 /// mail has come: the standard folder of its kind when that follows no mailbox yet, else a new
-/// folder under the one its parent has here. A folder that is here already stays as it is,
-/// except one at the top whose place in the tree is now known (folders moved here are not moved
-/// on the server yet, so the server's tree is the one that holds).
+/// folder under the one its parent has here. A folder that is here already keeps its name; it
+/// moves to where the server has it, unless a change of the owner's to it is still to reach the
+/// server (folders moved here are moved there first, so the server's tree is the one that holds).
 fn adopt_listed(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, listed: &[mailcraft_model::sync::ListedFolder]) {
     // Parents before their children, however the server ordered them.
     let depth = |f: &mailcraft_model::sync::ListedFolder| {
@@ -988,9 +1352,11 @@ fn adopt_listed(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, listed:
                 {
                     let _ = mb.rename_folder(id, &name);
                 }
-                let at_top = mb.folder(id).is_some_and(|here| here.parent.is_none() && here.kind == FolderKind::Custom);
+                let waiting = mb.folder_changes.iter().any(|c| c.folder() == Some(id));
+                let elsewhere = mb.folder(id).is_some_and(|here| here.parent != parent && here.kind == FolderKind::Custom);
                 if let Some(p) = parent
-                    && at_top
+                    && elsewhere
+                    && !waiting
                     && !mb.subtree(id).contains(&p)
                 {
                     let _ = mb.move_folder(id, Some(p));
@@ -1063,9 +1429,14 @@ fn take_in(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, delta: Folde
             counts.removed += 1;
         }
     }
+    let mut categories: HashMap<u32, &RemoteCategories> = delta.categories.iter().map(|c| (c.uid, c)).collect();
     for theirs in &delta.flags {
-        if let Some(id) = on_server.by_uid.get(&(folder, theirs.uid)) {
-            counts.updated += usize::from(merge_flags(mb, *id, *theirs));
+        if let Some(id) = on_server.by_uid.get(&(folder, theirs.uid)).copied() {
+            let changed = merge_flags(mb, id, *theirs);
+            // A message the server keeps no keywords on has none of its categories there.
+            let keywords = categories.remove(&theirs.uid).map(|c| c.names.as_slice()).unwrap_or_default();
+            let recategorized = merge_categories(mb, id, keywords);
+            counts.updated += usize::from(changed || recategorized);
         }
     }
     let inbox = delta.kind == FolderKind::Inbox;
@@ -1082,6 +1453,13 @@ fn take_in(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, delta: Folde
         m.id = 0;
         m.folder = folder;
         m.synced = (uid != 0).then(|| RemoteFlags::of(&m, uid));
+        // Its categories from the server are the mailbox's, under the names it knows them by.
+        // (Those it took no category for are left out; what its header says stays.)
+        let keywords = std::mem::take(&mut m.synced_categories);
+        let theirs = their_categories(mb, &keywords);
+        m.categories.retain(|name| !keywords.iter().chain(&theirs).any(|k| k.eq_ignore_ascii_case(name)));
+        m.categories.extend(theirs.iter().cloned());
+        m.synced_categories = if uid != 0 { theirs } else { Vec::new() };
         let Ok(id) = mb.add_message(m) else { continue };
         if uid != 0 {
             on_server.by_uid.insert((folder, uid), id);
@@ -1098,6 +1476,8 @@ fn take_in(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, delta: Folde
     }
     if let Ok(f) = mb.folder_mut(folder) {
         f.uid_seen = if reset { delta.uid_seen } else { delta.uid_seen.max(old_seen) };
+        // How the mailbox stands is what the latest piece about it says.
+        f.mark = delta.mark;
     }
 }
 
