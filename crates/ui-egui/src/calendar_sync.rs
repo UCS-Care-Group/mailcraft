@@ -422,10 +422,12 @@ impl MailApp {
                 self.calendar.failures.remove(&account);
             }
         }
-        // "Not now" with a time: the next job waits exactly that long.
+        // "Not now" with a time: the next job waits that long, counted from when this one
+        // started (the clock the ticks go by; a wait that ends a moment early meets the same
+        // answer and waits again).
         match result.retry_after {
             Some(seconds) => {
-                self.calendar.retry_at.insert(account, now_ms() + f64::from(seconds.clamp(1, 86_400)) * 1_000.0);
+                self.calendar.retry_at.insert(account, started + f64::from(seconds.clamp(1, 86_400)) * 1_000.0);
             }
             None => {
                 self.calendar.retry_at.remove(&account);

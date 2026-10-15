@@ -2431,6 +2431,7 @@ impl MailApp {
                 if said {
                     self.keep_sync_problems(account, std::slice::from_ref(&busy));
                     self.sync_totals.errors.push(busy.clone());
+                    self.session.sync_status = busy.clone();
                 } else {
                     log::debug!("send/receive, account {account}: {busy} (job put off {seconds} s)");
                 }

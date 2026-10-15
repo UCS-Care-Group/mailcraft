@@ -2629,6 +2629,8 @@ fn a_look_at_the_inbox_alone_reads_it_and_nothing_else() {
 /// [`large_world`] with a folder under the Inbox.
 fn world_with_inbox_tree() -> ImapWorld {
     let mut world = large_world();
+    // (A server with UIDPLUS, as Exchange, Dovecot and Gmail are: a move leaves no ghost behind.)
+    world.uidplus = true;
     let many = |name: &str, count: u32| (1..=count).map(|uid| message(uid, "", &format!("{name} {uid}"))).collect();
     world.mailboxes.push(mailbox("INBOX/Receipts", "\\HasNoChildren", 81, many("Receipt", 3)));
     world.mailboxes.push(mailbox("Projects/Apollo", "\\HasNoChildren", 91, many("Apollo", 2)));
@@ -2724,7 +2726,16 @@ fn a_folder_that_did_not_change_is_asked_how_it_stands_and_not_opened() {
     // A server that won't answer STATUS has its folders opened as before.
     imap.world().refuse.push("STATUS".into());
     let examined = sent(&imap, "EXAMINE");
-    let result = sync(&request(ada, here.folders.clone()));
+    let result = sync(&request(ada.clone(), here.folders.clone()));
     assert!(result.errors.is_empty(), "{:?}", result.errors);
     assert_eq!(sent(&imap, "EXAMINE") - examined, 7);
+    here.take(&result);
+    // And so does one without UIDPLUS, which would keep what was moved out as a `\Deleted`
+    // ghost that STATUS counts: it is never asked.
+    imap.world().refuse.clear();
+    imap.world().uidplus = false;
+    let (status, examined) = (sent(&imap, "STATUS"), sent(&imap, "EXAMINE"));
+    let result = sync(&request(ada, here.folders.clone()));
+    assert!(result.errors.is_empty(), "{:?}", result.errors);
+    assert_eq!((sent(&imap, "STATUS") - status, sent(&imap, "EXAMINE") - examined), (0, 7));
 }

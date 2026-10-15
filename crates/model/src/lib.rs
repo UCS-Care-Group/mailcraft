@@ -35,7 +35,9 @@ pub use mailbox::{
     Security, Server, ServerFavorites, Signature,
 };
 pub use mailcraft_time as time;
-pub use message::{Attachment, Body, ContentRef, FlagStatus, Importance, KeptBody, Message, Protect, Protection, Secured, normalize_subject, text_hash};
+pub use message::{
+    Attachment, Body, ContentRef, FlagStatus, Importance, KeptBody, Message, Protect, Protection, Secured, normalize_subject, text_hash,
+};
 pub use organize::{
     ContactGroup, GroupMember, MAX_MEMBERS, MAX_SAVED, MAX_SEARCH_QUERY, MAX_STEP_ACTIONS, QuickStep, ReceiptAnswer, SearchFolder, StepAction,
 };

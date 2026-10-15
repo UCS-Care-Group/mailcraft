@@ -116,6 +116,41 @@ inside L3: `net` drives `proto`; and inside L2: `msg` uses `mime`), and nothing 
   each piece safe to apply by itself (`apply_sync_part`), so mail shows while the rest is on its
   way and a run that is cut short loses nothing: the UID bookkeeping only advances past what was
   handed over.
+- **Two jobs a round: the Inbox tree, then the rest.** `SyncRequest::scope` (`SyncScope`: `all`,
+  `inboxTree`, `rest`) says which folders a run reads; `SyncScope::covers(remote, kind)` is the
+  one rule both the engine and `mailcraft-net` apply (the Inbox by its kind or `INBOX`, and every
+  path below `INBOX` whatever parts the levels), so a folder is in one job and one only.
+  `sync_request_scoped` carries only the states of the folders in scope, plus those the changes
+  to push name (and the Inbox's for the folders job, which glances at it between two folders):
+  at 100,000 messages in 400 folders through Graph the whole request is 5.2 MB of JSON and the
+  Inbox job's 37 KB. The Outbox, the pushes and the folder list go with whichever job runs first.
+  The window (`crates/ui-egui/src/lib.rs`, `SyncJob`) runs a round as the Inbox job of every
+  mailbox (each account, then the shared mailboxes under it), and only when those are done the
+  folders job of each; the Inbox jobs also run by themselves every `inboxSeconds` (60; `ui.inboxSeconds`,
+  File › Options) while nothing else runs, word from IDLE is answered with an Inbox-tree look
+  (`inbox_only` + `inboxTree`), the folders round keeps its `syncMinutes` from the end of the
+  last, and Cancel ends the job and the round. The status bar says `Inbox: …` or `Folders: …`.
+- **A folder that didn't change isn't read.** Over IMAP, on a server with UIDPLUS (where a move
+  leaves no `\Deleted` ghost that STATUS would count), a folder other than the Inbox that was
+  read through is asked how it stands with `STATUS (MESSAGES UIDNEXT UIDVALIDITY)` and passed
+  over when the numbers are the mark's (`FolderMark`): a sweep of 400 unchanged folders is 400
+  STATUS lines and one EXAMINE (the Inbox, for its flags); every fifth run opens them all. Through
+  Graph the listing's `totalItemCount` and `unreadItemCount` (`FolderMark::exists`/`unread`,
+  written when a folder is read through) decide the same way, and the folder's delta round is
+  not asked for; every fifth run it is anyway (as much may have come in as went out), and a
+  folder a push just put a message into is read whatever its count. The marks-only piece goes
+  through the engine's `take_in_marks` fast path. Graph's `/me/mailFolders/delta` is documented
+  for folders added, deleted or removed, per level of the hierarchy, and not for a count that
+  changed, so the listing with counts (one request per level, fetched every run anyway) is what
+  is compared.
+- **"Not now" is honoured, not hammered.** `Graph::ask` asks once more after a 429 or 503 whose
+  `Retry-After` is 15 s or less (a cancellable wait); a longer one, or a second refusal, comes back
+  as `NetError::Busy { retry_after }`. A mail run that ends on it says `SyncResult::retry_after`
+  and `busy` instead of an error line: the window runs the same job again after exactly that
+  long (`MailApp::deferred`), says nothing of the first two in a row (`busy_streak`) and the third
+  in the status bar and the problems report. The calendar job's backoff uses `GraphResult::retry_after`
+  when the server gave one instead of the doubling patience, and the first jobs of an owner's
+  shared mailboxes start a second apart (`calendar_sync::STAGGER_MS`).
 - **Microsoft Graph beside the mail protocols.** For an account that signs in with Microsoft, the
   host first asks Graph to send the Outbox and, every quarter of an hour, for the calendar and
   contacts (`crates/net/src/graph.rs`); the engine merges them as server-kept, read-only items
@@ -240,3 +275,4 @@ inside L3: `net` drives `proto`; and inside L2: `msg` uses `mime`), and nothing 
 | 2026-10-14 | minor | The mailbox file as a log of records a save appends to (gap 8, `store_index.rs`) |
 | 2026-10-14 | minor | Formatted composing (gap 7): `model::rich`, `mime::rich`, `cmd/format.rs`, `engine::spell`, the compose editor; right-to-left text (gap 6): `html::bidi` |
 | 2026-10-14 | minor | Content on demand (gap 8): bodies within a memory budget, attachments and older bodies read from the content folder when wanted (`Session::content`, `io::ContentSource`, `store::fetch`), honest counts of what is missing |
+| 2026-10-14 | minor | Send/Receive in two jobs a round (`SyncScope`, `sync_request_scoped`, `SyncJob`), folders skipped by STATUS or by Graph's counts (`FolderMark::unread`), Graph's "not now" retried once and then honoured (`Graph::ask`, `SyncResult::retry_after`, `GraphResult::retry_after`), `ui.inboxSeconds` |

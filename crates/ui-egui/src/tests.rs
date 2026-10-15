@@ -1721,6 +1721,12 @@ fn a_round_is_the_inbox_jobs_of_every_mailbox_then_the_folders_and_the_inbox_job
         a.execute("account.add", json!({"email": "maya@mail.example", "incoming": {"host": "imap.mail.example"}})).unwrap()["id"].as_u64().unwrap();
     a.tokens.insert(owner, Tokens { access: "tok-1".into(), refresh: "ref".into(), expires_at: mailcraft_time::now() + 3600, ..Default::default() });
     a.passwords.insert(other, "pw".into());
+    // (A host that could sign the owner in again, as the desktop has: a job of the owner's may
+    // then start by itself. The token at hand is good, so it is never asked.)
+    a.services.sign_in = Some(Box::new(|_: crate::SignInRequest| {
+        let (_tx, rx) = mpsc::channel();
+        rx
+    }));
     let tick = |a: &mut MailApp| {
         for _ in 0..4 {
             a.poll_sync();
@@ -1730,6 +1736,8 @@ fn a_round_is_the_inbox_jobs_of_every_mailbox_then_the_folders_and_the_inbox_job
     let jobs = |runs: &Arc<Mutex<Vec<Started>>>| runs.lock().unwrap().iter().map(|(id, scope, look, _)| (*id, *scope, *look)).collect::<Vec<_>>();
     let finish = |runs: &Arc<Mutex<Vec<Started>>>, at: usize, piece: SyncResult| runs.lock().unwrap()[at].3.send(piece).unwrap();
     let done = |account: u64| SyncResult { account, email: String::new(), ..Default::default() };
+    // (The round by the clock is not due: it is the owner's that is looked at.)
+    a.last_auto_sync = crate::now_ms();
 
     // Send/Receive All Folders: the Inbox of the account, of its shared mailbox and of the other
     // account, each job once the one before is over; then the folders of each, in the same order.
@@ -1839,7 +1847,7 @@ fn a_round_is_the_inbox_jobs_of_every_mailbox_then_the_folders_and_the_inbox_job
     // A job that goes through ends the streak.
     finish(&runs, 13, done(owner));
     tick(&mut a);
-    assert!(a.busy_streak.get(&owner).is_none() && a.deferred.is_empty());
+    assert!(!a.busy_streak.contains_key(&owner) && a.deferred.is_empty());
 }
 
 /// The calendar's job waits exactly as long as the server said when it said "not now", and the
@@ -1857,12 +1865,16 @@ fn the_calendar_waits_as_long_as_the_server_said_and_shared_mailboxes_start_one_
     let (keep, busy) = (jobs.clone(), retry_after.clone());
     a.services.graph = Some(Box::new(move |request: crate::GraphRequest| {
         keep.lock().unwrap().push(request.account.id);
+        let not_now = *busy.lock().unwrap();
+        // (A calendar with nothing in it when the server answers; nothing at all when it is busy.)
+        let events = request.calendar.filter(|_| not_now.is_none()).map(|(from, to)| {
+            mailcraft_model::remote::EventsDownload { from, to, complete: true, ..Default::default() }.for_account(&request.account)
+        });
         let out = crate::GraphResult {
             account: request.account.id,
-            retry_after: *busy.lock().unwrap(),
-            errors: busy
-                .lock()
-                .unwrap()
+            retry_after: not_now,
+            events,
+            errors: not_now
                 .map(|s| vec![format!("Couldn't bring the calendar down: Microsoft Graph is busy; try again in {s} seconds")])
                 .unwrap_or_default(),
             ..Default::default()
@@ -1905,16 +1917,15 @@ fn the_calendar_waits_as_long_as_the_server_said_and_shared_mailboxes_start_one_
     frame(&mut a, t1);
     assert_eq!(jobs.lock().unwrap().last(), Some(&first));
     assert_eq!(a.calendar.failures.get(&first).map(|(n, _)| *n), Some(1));
-    let until = a.calendar.retry_at.get(&first).copied().expect("when to come back");
-    assert!(until - crate::now_ms() > 39_000.0 && until - crate::now_ms() <= 40_000.0);
+    assert_eq!(a.calendar.retry_at.get(&first).copied(), Some(t1 + 40_000.0));
     *retry_after.lock().unwrap() = None;
-    // (The clock the ticks are given is the test's; the wait is by the real one.)
     let before = jobs.lock().unwrap().len();
     a.calendar.checked.remove(&first);
     frame(&mut a, t1 + 35_000.0);
-    assert_eq!(jobs.lock().unwrap().len(), before, "not before the server said");
-    a.calendar.retry_at.insert(first, crate::now_ms() - 1.0);
-    frame(&mut a, t1 + 35_100.0);
+    frame(&mut a, t1 + 39_900.0);
+    assert_eq!(jobs.lock().unwrap().len(), before, "not before the server said, though the usual half minute is up");
+    frame(&mut a, t1 + 40_000.0);
+    assert_eq!(jobs.lock().unwrap().len(), before + 1);
     assert_eq!(jobs.lock().unwrap().last(), Some(&first));
-    assert!(a.calendar.retry_at.get(&first).is_none() && a.calendar.failures.get(&first).is_none());
+    assert!(!a.calendar.retry_at.contains_key(&first) && !a.calendar.failures.contains_key(&first), "{:?}", a.sync_problem_lines());
 }

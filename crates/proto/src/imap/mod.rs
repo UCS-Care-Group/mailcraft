@@ -500,7 +500,7 @@ impl<S: Read + Write> Imap<S> {
     }
 
     /// Whether the server has said it can do `capability` (upper-cased); `false` while it hasn't said anything.
-    fn offers(&self, capability: &str) -> bool {
+    pub fn offers(&self, capability: &str) -> bool {
         self.capabilities.as_ref().is_some_and(|caps| caps.iter().any(|c| c == capability))
     }
 

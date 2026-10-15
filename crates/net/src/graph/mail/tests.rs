@@ -585,7 +585,9 @@ fn a_shared_mailbox_is_read_and_changed_as_its_own_address() {
     }
     mirror.take(&result);
     // A change made here goes up to the shared mailbox, and the next round reads from where
-    // the last ended, by the address the stand-in named.
+    // the last ended, by the address the stand-in named. (A message came meanwhile: the
+    // Inbox's counts are not as they were, so its round is asked for.)
+    stand_in.state().add_message(&inbox, "Since then", T0 + 2);
     stand_in.state().requests.clear();
     let mut request = shared_request(&mirror);
     request.ops =
@@ -812,7 +814,7 @@ fn a_folder_whose_counts_are_as_the_listing_said_is_not_asked_for_its_round() {
     assert!(result.errors.is_empty(), "{:?}", result.errors);
     assert!(result.moved.len() == 1 && stand_in.state().message(&two).is_some_and(|m| m.folder == old));
     assert!(result.folders.iter().filter(|f| f.remote == "Old mail").any(|f| f.new.iter().any(|m| m.subject == "Two")));
-    assert!(rounds_asked(&stand_in) >= before + 1);
+    assert!(rounds_asked(&stand_in) > before);
 }
 
 #[test]

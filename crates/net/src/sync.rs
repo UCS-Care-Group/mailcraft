@@ -795,6 +795,11 @@ fn exchange<'a>(run: &mut Run<'a>, sent: &[Message], host: Host) -> Option<Imap<
             return None;
         }
     };
+    // (What the server can do decides how its mailboxes are looked at: asked once when it
+    // hasn't said.)
+    if !imap.offers("IMAP4REV1") {
+        let _ = imap.capabilities();
+    }
     let mailboxes = match imap.list() {
         Ok(list) => list,
         Err(e) => {
@@ -1407,15 +1412,19 @@ impl FolderSync<'_> {
 
     /// Whether the mailbox is as it was when it was last read through, by STATUS alone (`Ok(true)`:
     /// a piece that says so has gone out, and the mailbox is not opened), or has to be opened
-    /// (`Ok(false)`). Only a mailbox other than the Inbox that the mailbox here follows under the
-    /// same `UIDVALIDITY`, with nothing left for later, nothing just moved into it, no refused
-    /// message due to be asked for again and whose flags are not due to be read whole. `Err`
-    /// says whether the connection is still good after a STATUS the server wouldn't answer.
+    /// (`Ok(false)`). Only on a server with UIDPLUS (where a move leaves no `\Deleted` ghost that
+    /// STATUS would count), and only a mailbox other than the Inbox that the mailbox here follows
+    /// under the same `UIDVALIDITY`, with nothing left for later, nothing just moved into it, no
+    /// refused message due to be asked for again and whose flags are not due to be read whole.
+    /// `Err` says whether the connection is still good after a STATUS the server wouldn't answer.
     fn unchanged_by_status(&self, imap: &mut Imap<Stream<'_>>, run: &mut Run) -> Result<bool, bool> {
         let Some(state) = self.state else { return Ok(false) };
         let mark = &state.mark;
         let retry_due = !mark.skipped.is_empty() && mark.skip_runs.saturating_add(1) >= FULL_SCAN_EVERY;
+        // (A server without UIDPLUS keeps what was moved out marked `\Deleted` in the mailbox,
+        // which STATUS counts as still there: such a mailbox is opened, as before.)
         let worth_asking = self.kind != FolderKind::Inbox
+            && imap.offers("UIDPLUS")
             && state.uid_validity != 0
             && mark.uid_next != 0
             && mark.backfill == 0

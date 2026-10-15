@@ -37,17 +37,17 @@ pub(super) fn bar(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>) {
         ui.horizontal_wrapped(|ui| {
             let again = ui.button(tl!("Send Again")).on_hover_text(tl!("Goes with the next Send/Receive, as it is."));
             app.hit.add("holdSendAgain", m.id, again.rect);
-            if again.clicked() {
-                if let Err(e) = app.run("mail.resend", json!({"id": m.id})) {
-                    app.status(e.to_string());
-                }
+            if again.clicked()
+                && let Err(e) = app.run("mail.resend", json!({"id": m.id}))
+            {
+                app.status(e.to_string());
             }
             let open = ui.button(tl!("Open")).on_hover_text(tl!("Change the message before it goes."));
             app.hit.add("holdOpen", m.id, open.rect);
-            if open.clicked() {
-                if let Err(e) = app.run("mail.editDraft", json!({"id": m.id})) {
-                    app.status(e.to_string());
-                }
+            if open.clicked()
+                && let Err(e) = app.run("mail.editDraft", json!({"id": m.id}))
+            {
+                app.status(e.to_string());
             }
         });
     });
