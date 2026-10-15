@@ -9,9 +9,10 @@
 //!
 //! There is no CSS engine here. A short whitelist of presentational facts is read from inline
 //! `style` attributes and old-style attributes (`style.rs`): text and background colour, bold,
-//! italic, underline, strike, alignment, font size, whether something is hidden, and whether a
-//! paragraph has a margin or a table cell a border at all. `<style>` blocks are dropped and
-//! classes are never resolved.
+//! italic, underline, strike, alignment and centring, font size and line height, whether
+//! something is hidden, margins and padding, and the lines round a box (their width, style and
+//! colour) and its rounded corners, every size capped. `<style>` blocks are dropped and classes
+//! are never resolved.
 //!
 //! Every function takes any string, never panics, and is bounded: input over [`MAX_INPUT`] bytes is
 //! cut, nesting is capped, tables are capped ([`MAX_TABLE_ROWS`], [`MAX_TABLE_COLUMNS`],
@@ -65,6 +66,82 @@ pub const MIN_FONT_PX: u8 = 10;
 
 /// The largest font size a message can ask for, in CSS pixels.
 pub const MAX_FONT_PX: u8 = 32;
+
+/// The most room a message can ask for on one side of a box (padding, or a margin between
+/// blocks), in CSS pixels.
+pub const MAX_ROOM_PX: u8 = 64;
+
+/// The widest line a message can ask for round a box, in CSS pixels.
+pub const MAX_LINE_PX: u8 = 4;
+
+/// The roundest corner a message can ask for, in CSS pixels.
+pub const MAX_RADIUS_PX: u8 = 24;
+
+/// The least and most line height a message can ask for, in tenths of the font size.
+pub const MIN_LINE_HEIGHT: u8 = 10;
+pub const MAX_LINE_HEIGHT: u8 = 25;
+
+/// Room on each side of a box, in CSS pixels (0 to [`MAX_ROOM_PX`]).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct Edges {
+    pub top: u8,
+    pub right: u8,
+    pub bottom: u8,
+    pub left: u8,
+}
+
+impl Edges {
+    pub fn is_zero(&self) -> bool {
+        *self == Edges::default()
+    }
+}
+
+/// A line along one side of a box.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct Line {
+    /// In CSS pixels, 1 to [`MAX_LINE_PX`].
+    pub width: u8,
+    /// The colour the message asks for; a UI checks it against what it is drawn on.
+    pub color: Option<Rgb>,
+    /// Dashed or dotted rather than solid.
+    pub dashed: bool,
+}
+
+/// The lines along the sides of a box, where it has them.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct Lines {
+    pub top: Option<Line>,
+    pub right: Option<Line>,
+    pub bottom: Option<Line>,
+    pub left: Option<Line>,
+}
+
+impl Lines {
+    pub fn any(&self) -> bool {
+        self.top.is_some() || self.right.is_some() || self.bottom.is_some() || self.left.is_some()
+    }
+
+    /// The sides that have a line.
+    pub fn sides(&self) -> Sides {
+        Sides { top: self.top.is_some(), right: self.right.is_some(), bottom: self.bottom.is_some(), left: self.left.is_some() }
+    }
+}
+
+/// A run of text drawn as a box of its own: a link written as a button (a background, room
+/// round the text, rounded corners, lines along its sides).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct Chip {
+    pub padding: Edges,
+    /// In CSS pixels, 0 to [`MAX_RADIUS_PX`].
+    pub radius: u8,
+    /// The box's own colour, or that of the cell it stands in when it names none and asks for
+    /// room round its text (a button whose colour is on its cell).
+    pub background: Option<Rgb>,
+    /// The lines along its sides, where it has them: a frame all round, or one side only (a
+    /// line under a heading written as a link).
+    #[serde(default)]
+    pub lines: Lines,
+}
 
 /// A colour a message asks for (sRGB).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -125,6 +202,17 @@ pub struct Span {
     /// Font size in CSS pixels, [`MIN_FONT_PX`] to [`MAX_FONT_PX`]; `None` for the reader's own size.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub size: Option<u8>,
+    /// A link the message asks to show without an underline (`text-decoration: none`).
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub bare: bool,
+    /// The text is drawn as a box of its own (a button): the whole block when every piece of
+    /// its text asks for the same box ([`Block::chip`]), else a box in the line among the words.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub chip: Option<Chip>,
+}
+
+fn is_false(b: &bool) -> bool {
+    !*b
 }
 
 impl Span {
@@ -149,6 +237,8 @@ impl Span {
             && self.color == other.color
             && self.background == other.background
             && self.size == other.size
+            && self.bare == other.bare
+            && self.chip == other.chip
     }
 }
 
@@ -206,12 +296,45 @@ pub struct Block {
     /// block of its container.
     #[serde(default)]
     pub space: u8,
+    /// The room above the block the message asks for, in CSS pixels (margins, and the padding of
+    /// a box that was taken apart), at most [`MAX_ROOM_PX`]: at least this much stands between
+    /// it and the block above. `None` when it says nothing.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gap: Option<u8>,
+    /// The line height the message asks for, in tenths of the font size
+    /// ([`MIN_LINE_HEIGHT`] to [`MAX_LINE_HEIGHT`]); `None` for the reader's own.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub line_height: Option<u8>,
+    /// Room at the block's sides the message asks for, in CSS pixels (the side padding of a cell
+    /// that was taken apart), at most [`MAX_ROOM_PX`] each: the block is laid out that much in
+    /// from the left and the right of its container. Only `left` and `right` are ever set: the
+    /// room above is `gap`, and the room below is the next block's or its container's.
+    #[serde(default, skip_serializing_if = "Edges::is_zero")]
+    pub inset: Edges,
 }
 
 impl Block {
-    /// A block of `kind` with no quoting, alignment or gap.
+    /// A block of `kind` with no quoting, alignment, gap or inset.
     pub fn new(kind: BlockKind, spans: Vec<Span>) -> Block {
-        Block { kind, spans, quote: 0, align: Align::Left, space: 0 }
+        Block { kind, spans, quote: 0, align: Align::Left, space: 0, gap: None, line_height: None, inset: Edges::default() }
+    }
+
+    /// The box the whole block is drawn in, when every piece of its text asks for the same one
+    /// (a link written as a button, alone in its paragraph). Two buttons with a space between
+    /// them are two boxes, not one: the space is in neither.
+    pub fn chip(&self) -> Option<Chip> {
+        let blank = |s: &&Span| s.text.chars().all(is_blank);
+        let first = self.spans.iter().position(|s| !blank(&s))?;
+        let last = self.spans.iter().rposition(|s| !blank(&s))?;
+        let mut inside = self.spans.get(first..=last)?.iter();
+        let chip = inside.next()?.chip?;
+        inside.all(|s| s.chip == Some(chip)).then_some(chip)
+    }
+
+    /// Whether some of the block's text, not all, is drawn in a box of its own: a button among
+    /// words, or two buttons in a line.
+    pub fn has_inline_boxes(&self) -> bool {
+        self.chip().is_none() && self.spans.iter().any(|s| s.chip.is_some())
     }
 
     /// The block's text without formatting (not what is inside a table: see [`has_text`]).
@@ -235,6 +358,16 @@ pub struct Table {
     pub outline: bool,
     pub width: Option<Length>,
     pub background: Option<Rgb>,
+    /// The room in every cell that says none of its own (`cellpadding`), in CSS pixels.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub padding: Option<u8>,
+    /// The lines round the table the message describes, side by side (their width and colour);
+    /// `outline` says whether there is one all round at all.
+    #[serde(default)]
+    pub lines: Lines,
+    /// Rounded corners, in CSS pixels (0 to [`MAX_RADIUS_PX`]).
+    #[serde(default)]
+    pub radius: u8,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -252,14 +385,43 @@ pub struct Cell {
     pub rowspan: u16,
     pub background: Option<Rgb>,
     pub width: Option<Length>,
-    /// The sides the cell asks to have a line on. Whether, never how thick or what colour.
+    /// The sides the cell asks to have a line on.
     #[serde(default)]
     pub border: Sides,
+    /// Those lines, when the message says how they look (their width and colour).
+    #[serde(default)]
+    pub lines: Lines,
+    /// The room between the cell's edge and what is in it, when the message says.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub padding: Option<Edges>,
+    /// Rounded corners, in CSS pixels (0 to [`MAX_RADIUS_PX`]).
+    #[serde(default)]
+    pub radius: u8,
+    /// The room the last block in the cell asks for under itself (its margin below), in CSS
+    /// pixels up to [`MAX_ROOM_PX`]: the cell keeps it under what is in it, on top of its padding.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub after: u8,
+}
+
+fn is_zero(n: &u8) -> bool {
+    *n == 0
 }
 
 impl Default for Cell {
     fn default() -> Self {
-        Cell { blocks: Vec::new(), header: false, colspan: 1, rowspan: 1, background: None, width: None, border: Sides::default() }
+        Cell {
+            blocks: Vec::new(),
+            header: false,
+            colspan: 1,
+            rowspan: 1,
+            background: None,
+            width: None,
+            border: Sides::default(),
+            lines: Lines::default(),
+            padding: None,
+            radius: 0,
+            after: 0,
+        }
     }
 }
 

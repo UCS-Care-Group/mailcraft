@@ -14,8 +14,13 @@
 //! | font size | `font-size`, the size in `font` |
 //! | hidden | `display:none`, `visibility:hidden`, `opacity:0`, `max-height:0`, `max-width:0`, a zero `height` or `width` with `overflow:hidden` |
 //! | text too small to read | a font size of 2 pixels or less: the text at that size is not shown; what is inside at a size of its own is, and so are pictures, and so is the text of an element with a `class` or an `id` (or inside one that asks for the size and has one): its size is given in a style sheet, and style sheets are not read |
-//! | a margin or none | `margin`, `margin-top`, `margin-bottom`: only whether there is one to speak of (over 6 pixels) |
-//! | a border or none | `border` and its sides, `border-style`, `border-width`: only whether there is one |
+//! | a margin or none | `margin`, `margin-top`, `margin-bottom`: whether there is one to speak of (over 6 pixels) |
+//! | room between blocks | `margin`, `margin-top`, `margin-bottom` in pixels, points or `em`, up to 64 pixels |
+//! | centring | `margin-left` and `margin-right` (or `margin`) both `auto` |
+//! | padding | `padding` and its sides, in pixels, points or `em`, up to 64 pixels a side |
+//! | lines round a box | `border`, its sides, `border-width`, `border-style`, `border-color` and their sides: whether there is one, its width (1 to 4 pixels), solid or dashed, and its colour |
+//! | rounded corners | `border-radius` (its first length), up to 24 pixels |
+//! | line height | `line-height` as a number, a percentage, `em` or pixels, 1 to 2.5 times the font size |
 //! | Outlook's lists | `mso-list` (the level, and the marker text to replace) |
 //! | a picture's size | `width` and `height` in pixels, where its attributes give none |
 //!
@@ -79,6 +84,53 @@ impl Size {
     }
 }
 
+/// A margin: a length in CSS pixels, or `auto` (what centres a box between two of them).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) enum Margin {
+    Px(f32),
+    Auto,
+}
+
+/// How a line round a box is drawn.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum LineStyle {
+    /// `none` or `hidden`: no line.
+    None,
+    Solid,
+    /// Dashed or dotted.
+    Dashed,
+}
+
+/// What a message says of the line along one side of a box, before it is settled.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub(crate) struct LineSpec {
+    /// In CSS pixels, as asked (not capped: a thick line of the box's own colour is room).
+    pub width: Option<f32>,
+    pub style: Option<LineStyle>,
+    pub color: Option<Rgb>,
+}
+
+/// A line height before it is resolved against the font size.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) enum LineHeight {
+    /// Times the font size.
+    Scale(f32),
+    /// CSS pixels.
+    Px(f32),
+}
+
+impl LineHeight {
+    /// In tenths of a font size of `size` pixels, within what is readable.
+    pub fn tenths(self, size: Option<u8>) -> u8 {
+        let scale = match self {
+            LineHeight::Scale(n) => n,
+            LineHeight::Px(px) => px / size.map_or(BASE_FONT_PX, f32::from).max(1.0),
+        };
+        let tenths = if scale.is_finite() { (scale * 10.0).round() } else { 0.0 };
+        tenths.clamp(f32::from(crate::MIN_LINE_HEIGHT), f32::from(crate::MAX_LINE_HEIGHT)) as u8
+    }
+}
+
 /// What an Outlook list paragraph says about itself.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum MsoList {
@@ -106,6 +158,15 @@ pub(crate) struct Css {
     pub margin_bottom_zero: Option<bool>,
     /// Borders: top, right, bottom, left.
     pub borders: [bool; 4],
+    /// The same lines, as described: width, style, colour (top, right, bottom, left).
+    pub lines: [LineSpec; 4],
+    /// Padding, in CSS pixels (top, right, bottom, left), where given.
+    pub padding: [Option<f32>; 4],
+    /// Margins, where given in a length or `auto` (top, right, bottom, left).
+    pub margins: [Option<Margin>; 4],
+    /// Rounded corners, in CSS pixels.
+    pub radius: Option<f32>,
+    pub line_height: Option<LineHeight>,
     pub mso_list: Option<MsoList>,
     /// The width and height when given in absolute units, in CSS pixels (for telling a tracking
     /// pixel; never used to size anything).
@@ -184,12 +245,77 @@ impl Css {
                     let bottom = parts.get(2).copied().and_then(is_slight).or(if parts.len() < 3 { top } else { None });
                     css.margin_top_zero = top.or(css.margin_top_zero);
                     css.margin_bottom_zero = bottom.or(css.margin_bottom_zero);
+                    if let Some(sides) = four(&parts.iter().map(|p| margin(p)).collect::<Vec<_>>()) {
+                        css.margins = sides;
+                    }
                 }
-                "margin-top" | "margin-block-start" => css.margin_top_zero = is_slight(value).or(css.margin_top_zero),
-                "margin-bottom" | "margin-block-end" => css.margin_bottom_zero = is_slight(value).or(css.margin_bottom_zero),
+                "margin-top" | "margin-block-start" => {
+                    css.margin_top_zero = is_slight(value).or(css.margin_top_zero);
+                    css.margins[0] = margin(value).or(css.margins[0]);
+                }
+                "margin-bottom" | "margin-block-end" => {
+                    css.margin_bottom_zero = is_slight(value).or(css.margin_bottom_zero);
+                    css.margins[2] = margin(value).or(css.margins[2]);
+                }
+                "margin-left" | "margin-inline-start" => css.margins[3] = margin(value).or(css.margins[3]),
+                "margin-right" | "margin-inline-end" => css.margins[1] = margin(value).or(css.margins[1]),
+                "padding" => {
+                    let parts: Vec<Option<f32>> = tokens(value).take(4).map(room_px).collect();
+                    if let Some(sides) = four(&parts) {
+                        css.padding = sides;
+                    }
+                }
+                "padding-top" => css.padding[0] = room_px(value).or(css.padding[0]),
+                "padding-right" => css.padding[1] = room_px(value).or(css.padding[1]),
+                "padding-bottom" => css.padding[2] = room_px(value).or(css.padding[2]),
+                "padding-left" => css.padding[3] = room_px(value).or(css.padding[3]),
+                "border-color" => {
+                    let parts: Vec<Option<Rgb>> = tokens(value).take(4).map(color).collect();
+                    if let Some(sides) = four(&parts) {
+                        for (spec, c) in css.lines.iter_mut().zip(sides) {
+                            spec.color = c.or(spec.color);
+                        }
+                    }
+                }
+                "border-top-color" | "border-right-color" | "border-bottom-color" | "border-left-color" => {
+                    if let (Some(c), Some(spec)) = (color(value), css.lines.get_mut(side_of(&property))) {
+                        spec.color = Some(c);
+                    }
+                }
+                "border-top-width" | "border-right-width" | "border-bottom-width" | "border-left-width" => {
+                    if let (Some(w), Some(spec)) = (line_width(value), css.lines.get_mut(side_of(&property))) {
+                        spec.width = Some(w);
+                    }
+                }
+                "border-top-style" | "border-right-style" | "border-bottom-style" | "border-left-style" => {
+                    if let (Some(st), Some(spec)) = (line_style(value), css.lines.get_mut(side_of(&property))) {
+                        spec.style = Some(st);
+                    }
+                }
+                "border-radius" => css.radius = tokens(value).next().and_then(room_px).or(css.radius),
+                "line-height" => css.line_height = line_height(value).or(css.line_height),
                 "border" | "border-style" | "border-width" => {
                     if let Some(on) = has_border(value) {
                         css.borders = [on; 4];
+                    }
+                    match property.as_str() {
+                        "border" => css.lines = [line_spec(value); 4],
+                        "border-style" => {
+                            let parts: Vec<Option<LineStyle>> = tokens(value).take(4).map(line_style).collect();
+                            if let Some(sides) = four(&parts) {
+                                for (spec, st) in css.lines.iter_mut().zip(sides) {
+                                    spec.style = st.or(spec.style);
+                                }
+                            }
+                        }
+                        _ => {
+                            let parts: Vec<Option<f32>> = tokens(value).take(4).map(line_width).collect();
+                            if let Some(sides) = four(&parts) {
+                                for (spec, w) in css.lines.iter_mut().zip(sides) {
+                                    spec.width = w.or(spec.width);
+                                }
+                            }
+                        }
                     }
                 }
                 "border-top" | "border-right" | "border-bottom" | "border-left" => {
@@ -201,6 +327,9 @@ impl Css {
                     };
                     if let (Some(on), Some(slot)) = (has_border(value), css.borders.get_mut(side)) {
                         *slot = on;
+                    }
+                    if let Some(spec) = css.lines.get_mut(side) {
+                        *spec = line_spec(value);
                     }
                 }
                 "mso-list" => {
@@ -232,6 +361,147 @@ impl Css {
     /// Whether every side has a border.
     pub fn framed(&self) -> bool {
         self.borders.iter().all(|b| *b)
+    }
+
+    /// The line along side `side` (0 top, 1 right, 2 bottom, 3 left), as it is drawn: whether
+    /// there is one (as [`Css::borders`] says), its width in pixels as asked (1 when it says
+    /// none), whether it is dashed, and its colour.
+    pub fn line(&self, side: usize) -> Option<(f32, bool, Option<Rgb>)> {
+        if !self.borders.get(side).copied().unwrap_or(false) {
+            return None;
+        }
+        let spec = self.lines.get(side).copied().unwrap_or_default();
+        if spec.style == Some(LineStyle::None) {
+            return None;
+        }
+        let width = spec.width.unwrap_or(1.0);
+        if !width.is_finite() || width <= 0.0 {
+            return None;
+        }
+        Some((width, spec.style == Some(LineStyle::Dashed), spec.color))
+    }
+
+    /// The padding, in whole pixels within [`crate::MAX_ROOM_PX`]; `None` when none is given.
+    pub fn padding_px(&self) -> Option<crate::Edges> {
+        if self.padding.iter().all(Option::is_none) {
+            return None;
+        }
+        let px = |v: Option<f32>| clamp_room(v.unwrap_or(0.0));
+        let [top, right, bottom, left] = self.padding;
+        Some(crate::Edges { top: px(top), right: px(right), bottom: px(bottom), left: px(left) })
+    }
+
+    /// The margin above (0) or below (2), in whole pixels within [`crate::MAX_ROOM_PX`]; `None`
+    /// when it is not given as a length.
+    pub fn margin_px(&self, side: usize) -> Option<u8> {
+        match self.margins.get(side).copied().flatten()? {
+            Margin::Px(px) => Some(clamp_room(px)),
+            Margin::Auto => None,
+        }
+    }
+
+    /// Whether the box is centred between left and right margins that are both `auto`.
+    pub fn centred(&self) -> bool {
+        matches!(self.margins, [_, Some(Margin::Auto), _, Some(Margin::Auto)])
+    }
+
+    /// Rounded corners in whole pixels, within [`crate::MAX_RADIUS_PX`].
+    pub fn radius_px(&self) -> u8 {
+        self.radius.map_or(0, |r| if r.is_finite() { r.round().clamp(0.0, f32::from(crate::MAX_RADIUS_PX)) as u8 } else { 0 })
+    }
+}
+
+/// A number of pixels as room within [`crate::MAX_ROOM_PX`]: nothing for less than nothing.
+pub(crate) fn clamp_room(px: f32) -> u8 {
+    if px.is_finite() { px.round().clamp(0.0, f32::from(crate::MAX_ROOM_PX)) as u8 } else { 0 }
+}
+
+/// One to four values for the four sides, as CSS writes them (top, right, bottom, left).
+fn four<T: Copy>(values: &[T]) -> Option<[T; 4]> {
+    match *values {
+        [a] => Some([a, a, a, a]),
+        [a, b] => Some([a, b, a, b]),
+        [a, b, c] => Some([a, b, c, b]),
+        [a, b, c, d] => Some([a, b, c, d]),
+        _ => None,
+    }
+}
+
+/// The side a `border-<side>-…` property is about (0 top, 1 right, 2 bottom, 3 left).
+fn side_of(property: &str) -> usize {
+    if property.contains("-top") {
+        0
+    } else if property.contains("-right") {
+        1
+    } else if property.contains("-bottom") {
+        2
+    } else {
+        3
+    }
+}
+
+/// A length as room: pixels (or points and the like), or `em` against the usual font size; less
+/// than nothing is nothing. `None` for anything else (`auto`, a percentage).
+fn room_px(value: &str) -> Option<f32> {
+    let (n, unit) = dimension(value)?;
+    let px = match unit {
+        "em" | "rem" => n * BASE_FONT_PX,
+        _ => length_px(value)?,
+    };
+    px.is_finite().then_some(px.max(0.0))
+}
+
+/// A margin: a length, or `auto`.
+fn margin(value: &str) -> Option<Margin> {
+    if value.trim() == "auto" { Some(Margin::Auto) } else { room_px(value).map(Margin::Px) }
+}
+
+/// A line's width: a length, or `thin`, `medium`, `thick`.
+fn line_width(value: &str) -> Option<f32> {
+    match value.trim() {
+        "thin" => Some(1.0),
+        "medium" => Some(3.0),
+        "thick" => Some(5.0),
+        other => length_px(other).map(|px| px.max(0.0)),
+    }
+}
+
+/// A line's style: none, solid or dashed (the other drawn styles are solid here, `dotted` is dashed).
+fn line_style(value: &str) -> Option<LineStyle> {
+    match value.trim() {
+        "none" | "hidden" => Some(LineStyle::None),
+        "dashed" | "dotted" => Some(LineStyle::Dashed),
+        "solid" | "double" | "groove" | "ridge" | "inset" | "outset" => Some(LineStyle::Solid),
+        _ => None,
+    }
+}
+
+/// A `border` shorthand: its width, style and colour, in any order.
+fn line_spec(value: &str) -> LineSpec {
+    let mut spec = LineSpec::default();
+    for token in tokens(value).take(8) {
+        if let Some(st) = line_style(token) {
+            spec.style = Some(st);
+        } else if let Some(w) = line_width(token) {
+            spec.width = Some(w);
+        } else if let Some(c) = color(token) {
+            spec.color = Some(c);
+        }
+    }
+    spec
+}
+
+/// A `line-height` value; `normal` and anything unreadable give `None`.
+fn line_height(value: &str) -> Option<LineHeight> {
+    let (n, unit) = dimension(value)?;
+    if n <= 0.0 {
+        return None;
+    }
+    match unit {
+        "" => Some(LineHeight::Scale(n)),
+        "em" | "rem" => Some(LineHeight::Scale(n)),
+        "%" => Some(LineHeight::Scale(n / 100.0)),
+        _ => length_px(value).map(LineHeight::Px),
     }
 }
 
@@ -776,7 +1046,7 @@ mod tests {
     #[test]
     fn everything_else_is_ignored() {
         let css = Css::parse(
-            "position:absolute; left:-9999px; float:left; padding:40px; font-family:'Comic Sans MS'; line-height:0; \
+            "position:absolute; left:-9999px; float:left; font-family:'Comic Sans MS'; line-height:0; \
              background-image:url(https://tracker.example/p.gif); content:'x'; behavior:url(x.htc); width:50%; z-index:9; \
              transform:scale(9); animation:spin 1s; letter-spacing:4em; text-transform:uppercase",
         );
@@ -914,7 +1184,100 @@ mod tests {
         assert_eq!(Css::parse("font-family:'a;b';color:blue").color, Some(Rgb(0, 0, 255)));
     }
 
+    #[test]
+    fn padding_reads_one_to_four_values_capped() {
+        let pad = |style: &str| Css::parse(style).padding_px().map(|e| (e.top, e.right, e.bottom, e.left));
+        assert_eq!(pad("padding:32px"), Some((32, 32, 32, 32)));
+        assert_eq!(pad("padding:25px 0"), Some((25, 0, 25, 0)));
+        assert_eq!(pad("padding:1px 2px 3px"), Some((1, 2, 3, 2)));
+        assert_eq!(pad("padding:1px 2px 3px 4px"), Some((1, 2, 3, 4)));
+        assert_eq!(pad("padding:1em"), Some((13, 13, 13, 13)));
+        assert_eq!(pad("padding:12pt 0"), Some((16, 0, 16, 0)));
+        // Capped, never less than nothing, and what isn't a length says nothing.
+        assert_eq!(pad("padding:9999px"), Some((64, 64, 64, 64)));
+        assert_eq!(pad("padding:-20px"), Some((0, 0, 0, 0)));
+        assert_eq!(pad("padding:10%"), None);
+        assert_eq!(pad("padding:1px 2px 3px 4px 5px"), Some((1, 2, 3, 4)));
+        assert_eq!(pad("padding:auto; padding-top:8px"), Some((8, 0, 0, 0)));
+        assert_eq!(pad("color:red"), None);
+    }
+
+    #[test]
+    fn margins_give_room_and_auto_centres() {
+        let css = Css::parse("margin:30px auto");
+        assert_eq!((css.margin_px(0), css.margin_px(2), css.centred()), (Some(30), Some(30), true));
+        assert!(Css::parse("margin-left:auto;margin-right:auto").centred());
+        assert!(!Css::parse("margin-left:auto").centred());
+        assert!(!Css::parse("margin:0 auto 0 0").centred());
+        assert_eq!(Css::parse("margin-top:25px").margin_px(0), Some(25));
+        assert_eq!(Css::parse("margin-top:500px").margin_px(0), Some(64));
+        assert_eq!(Css::parse("margin-top:-8px").margin_px(0), Some(0));
+        assert_eq!(Css::parse("margin-top:auto").margin_px(0), None);
+        // (Whether there is a margin at all is read as before.)
+        assert_eq!(Css::parse("margin:0").margin_top_zero, Some(true));
+    }
+
+    #[test]
+    fn lines_have_a_width_a_style_and_a_colour() {
+        let css = Css::parse("border:1px solid #e8e5ef");
+        assert_eq!(css.line(0), Some((1.0, false, Some(Rgb(0xe8, 0xe5, 0xef)))));
+        assert_eq!(css.line(3), css.line(0));
+        let css = Css::parse("border-top:2px dashed red; border-bottom:none");
+        assert_eq!(css.line(0), Some((2.0, true, Some(Rgb(255, 0, 0)))));
+        assert_eq!((css.line(1), css.line(2)), (None, None));
+        // Width, style and colour by themselves, side by side.
+        let css = Css::parse("border-width:1px; border-color:#000 #fff; border-style:solid");
+        assert_eq!(css.line(1), Some((1.0, false, Some(Rgb(255, 255, 255)))));
+        assert_eq!(css.line(2).map(|l| l.2), Some(Some(Rgb(0, 0, 0))));
+        // A thick line is as thick as asked here (the builder caps it, or makes it room).
+        assert_eq!(Css::parse("border-left:18px solid #2d3748").line(3).map(|l| l.0), Some(18.0));
+        assert_eq!(Css::parse("border:thin solid").line(0).map(|l| l.0), Some(1.0));
+        assert_eq!(Css::parse("border:0").line(0), None);
+        assert_eq!(Css::parse("border-style:hidden; border-width:3px").line(0), None);
+        assert_eq!(Css::parse("border-top-color:blue").line(0), None, "a colour alone is no line");
+    }
+
+    #[test]
+    fn corners_and_line_heights_are_capped() {
+        assert_eq!(Css::parse("border-radius:4px").radius_px(), 4);
+        assert_eq!(Css::parse("border-radius:999px").radius_px(), crate::MAX_RADIUS_PX);
+        assert_eq!(Css::parse("border-radius:-3px").radius_px(), 0);
+        assert_eq!(Css::parse("border-radius:50%").radius_px(), 0);
+        let tenths = |style: &str, size: Option<u8>| Css::parse(style).line_height.map(|l| l.tenths(size));
+        assert_eq!(tenths("line-height:1.5", None), Some(15));
+        assert_eq!(tenths("line-height:1.5em", None), Some(15));
+        assert_eq!(tenths("line-height:150%", None), Some(15));
+        assert_eq!(tenths("line-height:24px", Some(16)), Some(15));
+        assert_eq!(tenths("line-height:9", None), Some(crate::MAX_LINE_HEIGHT));
+        assert_eq!(tenths("line-height:0.2", None), Some(crate::MIN_LINE_HEIGHT));
+        assert_eq!(tenths("line-height:normal", None), None);
+        assert_eq!(tenths("line-height:0", None), None);
+        assert_eq!(tenths("line-height:-2", None), None);
+        assert_eq!(tenths("line-height:9999999999999999999px", Some(10)), None);
+    }
+
     proptest::proptest! {
+        #[test]
+        fn new_whitelist_values_stay_within_their_caps(s in "((padding|padding-top|margin|margin-left|margin-right|border|border-top|border-width|border-color|border-style|border-radius|line-height) ?: ?[#a-z0-9.%() ,;:-]{0,24};?){0,10}") {
+            let css = Css::parse(&s);
+            if let Some(p) = css.padding_px() {
+                for side in [p.top, p.right, p.bottom, p.left] {
+                    proptest::prop_assert!(side <= crate::MAX_ROOM_PX);
+                }
+            }
+            for side in 0..4 {
+                if let Some((width, _, _)) = css.line(side) {
+                    proptest::prop_assert!(width.is_finite() && width > 0.0);
+                }
+            }
+            proptest::prop_assert!(css.radius_px() <= crate::MAX_RADIUS_PX);
+            proptest::prop_assert!(css.margin_px(0).unwrap_or(0) <= crate::MAX_ROOM_PX);
+            if let Some(l) = css.line_height {
+                let t = l.tenths(Some(16));
+                proptest::prop_assert!((crate::MIN_LINE_HEIGHT..=crate::MAX_LINE_HEIGHT).contains(&t));
+            }
+        }
+
         #[test]
         fn any_style_parses(s in proptest::prelude::any::<String>()) {
             let css = Css::parse(&s);

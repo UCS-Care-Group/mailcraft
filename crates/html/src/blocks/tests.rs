@@ -1001,9 +1001,25 @@ fn a_picture_takes_its_size_from_its_style_where_its_attributes_give_none() {
     assert_eq!(dump(r#"a<img src="https://t.example/o.gif" style="width:1px!important;height:1px!important">b"#), ["p|ab"]);
 }
 
+/// Room on every side within the cap.
+fn check_edges(edges: crate::Edges, context: &str) {
+    for side in [edges.top, edges.right, edges.bottom, edges.left] {
+        assert!(side <= crate::MAX_ROOM_PX, "{context}: {edges:?}");
+    }
+}
+
+/// Lines that are drawn are 1 to 4 pixels wide.
+fn check_lines(lines: &crate::Lines, context: &str) {
+    for line in [lines.top, lines.right, lines.bottom, lines.left].into_iter().flatten() {
+        assert!((1..=crate::MAX_LINE_PX).contains(&line.width), "{context}: {line:?}");
+    }
+}
+
 /// What holds of every block, whatever the input.
 pub(crate) fn check_block(block: &Block, context: &str) {
     assert!(block.space <= MAX_SPACE, "{context}: {block:?}");
+    assert!(block.gap.is_none_or(|g| g <= crate::MAX_ROOM_PX), "{context}: {block:?}");
+    assert!(block.line_height.is_none_or(|l| (crate::MIN_LINE_HEIGHT..=crate::MAX_LINE_HEIGHT).contains(&l)), "{context}: {block:?}");
     match &block.kind {
         BlockKind::Rule => assert!(block.spans.is_empty(), "{context}"),
         BlockKind::Image { src, link, .. } => {
@@ -1013,11 +1029,18 @@ pub(crate) fn check_block(block: &Block, context: &str) {
         BlockKind::Table(table) => {
             assert!(block.spans.is_empty() && !table.rows.is_empty(), "{context}: {block:?}");
             assert!(table.rows.len() <= MAX_TABLE_ROWS && usize::from(table.columns) <= MAX_TABLE_COLUMNS, "{context}");
+            assert!(table.radius <= crate::MAX_RADIUS_PX && table.padding.is_none_or(|p| p <= crate::MAX_ROOM_PX), "{context}");
+            check_lines(&table.lines, context);
             for row in &table.rows {
                 assert!(!row.cells.is_empty() && row.cells.len() <= MAX_TABLE_COLUMNS, "{context}: {block:?}");
                 for cell in &row.cells {
                     assert!((1..=MAX_TABLE_COLUMNS as u16).contains(&cell.colspan) && (1..=MAX_ROW_SPAN).contains(&cell.rowspan), "{context}");
                     assert_eq!(cell.blocks.first().map_or(0, |b| b.space), 0, "{context}: {block:?}");
+                    assert!(cell.radius <= crate::MAX_RADIUS_PX, "{context}");
+                    if let Some(padding) = cell.padding {
+                        check_edges(padding, context);
+                    }
+                    check_lines(&cell.lines, context);
                     for inner in &cell.blocks {
                         check_block(inner, context);
                     }
@@ -1030,6 +1053,12 @@ pub(crate) fn check_block(block: &Block, context: &str) {
         assert!(!span.text.is_empty(), "{context}: {block:?}");
         assert!(span.link.as_deref().is_none_or(is_safe_url), "{context}");
         assert!(span.size.is_none_or(|s| (MIN_FONT_PX..=MAX_FONT_PX).contains(&s)), "{context}: {span:?}");
+        assert!(!span.bare || span.link.is_some(), "{context}: {span:?}");
+        if let Some(chip) = span.chip {
+            check_edges(chip.padding, context);
+            assert!(chip.radius <= crate::MAX_RADIUS_PX, "{context}");
+            check_lines(&chip.lines, context);
+        }
         if let Some(next) = block.spans.get(i + 1) {
             assert!(!span.same_format(next), "{context}: unmerged spans in {block:?}");
         }
@@ -1057,6 +1086,15 @@ proptest::proptest! {
     }
 
     #[test]
+    fn boxes_of_any_size_parse_into_sane_blocks(s in "(<(div|p|span|td|table|tr|a|img)( (cellpadding|align)=\"(-?[0-9]{1,12}|center|x)\")?( style=\"((padding|padding-top|margin|margin-top|margin-left|margin-right|border|border-top|border-left|border-width|border-color|border-style|border-radius|line-height|background-color|display):(-?[0-9.]{1,14}(px|pt|em|%)?|auto|solid|dashed|none|#[0-9a-f]{6}|red|thick|inline-block|[0-9]px solid #[0-9a-f]{3})( -?[0-9]{1,6}px| auto){0,4};?){0,6}\")?( (src|href)=\"(cid:x|https://e.example/)\")?>|</(div|p|span|td|table|tr|a)>|[a-z ]{0,5}){0,60}") {
+        let blocks = parse(&s);
+        proptest::prop_assert!(table_depth(&blocks) <= MAX_TABLE_DEPTH);
+        for block in &blocks {
+            check_block(block, &s);
+        }
+    }
+
+    #[test]
     fn styled_soup_parses_into_sane_blocks(s in "(<(div|p|span|td|table|tr|a|font|img|blockquote)( style=\"((color|background|font-size|display|margin|border|border-left|border-top|text-align|mso-list|font-weight|max-height|width|height|overflow|opacity):(#[0-9a-f]{3}|red|none|0|1px|40px|200%|hidden|center|solid|ignore|l0 level2|bold);?){0,4}\")?( (src|href)=\"(cid:x|https://e.example/|x)\")?>|</(div|p|span|td|table|tr|a|font|blockquote)>|[a-z ]{0,5}){0,60}") {
         let blocks = parse(&s);
         proptest::prop_assert!(table_depth(&blocks) <= MAX_TABLE_DEPTH);
@@ -1064,4 +1102,243 @@ proptest::proptest! {
             check_block(block, &s);
         }
     }
+}
+
+// ---- room, lines, corners and buttons ----
+
+/// The only table of `html`, wherever it is.
+fn only_table(blocks: &[Block]) -> &Table {
+    blocks
+        .iter()
+        .find_map(|b| match &b.kind {
+            BlockKind::Table(t) => Some(t),
+            _ => None,
+        })
+        .expect("a table")
+}
+
+#[test]
+fn a_link_written_as_a_button_is_a_box_with_room_and_corners() {
+    // Room written as thick lines of the button's own colour, as some builders write it.
+    let html = r#"<table align="center" role="presentation"><tr><td align="center"><a href="https://e.example/go" style="border-radius:4px;color:#fff;display:inline-block;text-decoration:none;background-color:#2d3748;border-bottom:8px solid #2d3748;border-left:18px solid #2d3748;border-right:18px solid #2d3748;border-top:8px solid #2d3748">View</a></td></tr></table>"#;
+    let blocks = parse(html);
+    let button = blocks.iter().find(|b| b.text() == "View").expect("the button");
+    let chip = button.chip().expect("a box");
+    assert_eq!((chip.padding.top, chip.padding.right, chip.padding.bottom, chip.padding.left), (8, 18, 8, 18));
+    assert_eq!((chip.radius, chip.background, chip.lines.any()), (4, Some(Rgb(0x2d, 0x37, 0x48)), false));
+    assert_eq!(button.align, Align::Center);
+    assert!(button.spans.iter().all(|s| s.bare && s.link.is_some()));
+    // Room written as padding, and a line round it of another colour.
+    let blocks = parse(r#"<p><a href="https://e.example/" style="padding:10px 20px;border:2px solid #003366;color:#036">Read</a></p>"#);
+    let chip = blocks.first().and_then(Block::chip).expect("a box");
+    assert_eq!((chip.padding.top, chip.padding.left, chip.background), (10, 20, None));
+    assert_eq!(chip.lines.top.map(|l| (l.width, l.color)), Some((2, Some(Rgb(0, 0x33, 0x66)))));
+    assert_eq!(chip.lines.sides(), Sides::ALL);
+    // A link with only a colour behind it is no button.
+    assert!(parse(r#"<p><a href="https://e.example/" style="background:#ff0">here</a></p>"#)[0].chip().is_none());
+    // One among other words is a box in its line, not the box of its block.
+    let mixed = parse(r#"<p>Click <a href="https://e.example/" style="padding:8px;background:#036">here</a> now</p>"#);
+    assert!(mixed[0].chip().is_none() && mixed[0].has_inline_boxes());
+    assert_eq!(mixed[0].spans.iter().map(|s| s.chip.is_some()).collect::<Vec<_>>(), [false, true, false]);
+    // Two buttons with a space between them are two boxes, not one.
+    let two = parse(
+        r#"<td align="center"><a href="https://e.example/y" style="padding:8px 16px;background:#036;color:#fff">Yes</a>&nbsp;&nbsp;<a href="https://e.example/n" style="padding:8px 16px;background:#036;color:#fff">No</a></td>"#,
+    );
+    assert!(two[0].chip().is_none() && two[0].has_inline_boxes(), "{two:?}");
+    assert_eq!(two[0].align, Align::Center);
+    // A button after a bold run of its own text is one box still.
+    let bold = parse(r#"<p><a href="https://e.example/" style="padding:8px;background:#036;color:#fff"><b>View</b> it</a></p>"#);
+    assert!(bold[0].chip().is_some() && bold[0].spans.len() == 2);
+}
+
+#[test]
+fn a_button_takes_its_colour_from_its_cell_and_a_line_on_one_side_stays_on_that_side() {
+    // The colour on the cell, the room on the link (the pattern of the large newsletter).
+    let html = r##"<table role="presentation"><tr><td bgcolor="#e63946" style="border-radius:3px"><a href="https://e.example/" style="display:inline-block;padding:10px 22px;color:#ffffff;text-decoration:none">Read</a></td><td>after</td></tr></table>"##;
+    let blocks = parse(html);
+    let table = only_table(&blocks);
+    let button = table.rows[0].cells[0].blocks.first().expect("the button");
+    let chip = button.chip().expect("a box");
+    assert_eq!((chip.padding.top, chip.padding.left, chip.background, chip.radius), (10, 22, Some(Rgb(0xe6, 0x39, 0x46)), 3));
+    assert_eq!(table.rows[0].cells[0].background, Some(Rgb(0xe6, 0x39, 0x46)));
+    // Without room of its own, a link in a coloured cell is a link.
+    let plain = parse(r##"<table><tr><td bgcolor="#e63946"><a href="https://e.example/">Read</a></td><td>after</td></tr></table>"##);
+    assert!(only_table(&plain).rows[0].cells[0].blocks[0].chip().is_none());
+    // A line under a link with room above it: a box with that one line, not a frame.
+    let under =
+        parse(r#"<p><a href="https://e.example/" style="border-bottom:2px solid #036;padding-bottom:2px;text-decoration:none">Heading</a></p>"#);
+    let chip = under[0].chip().expect("a box");
+    assert_eq!(chip.lines.sides(), Sides { bottom: true, ..Sides::default() });
+    assert_eq!(chip.lines.bottom.map(|l| l.width), Some(2));
+    assert_eq!((chip.background, chip.padding.bottom, chip.padding.top), (None, 2, 0));
+}
+
+#[test]
+fn a_link_is_bare_only_where_the_message_says() {
+    let blocks = parse(
+        r#"<p><a href="https://e.example/" style="text-decoration:none">a</a> <a href="https://e.example/2">b</a></p><p style="text-decoration:none">c</p>"#,
+    );
+    let spans: Vec<(&str, bool)> = blocks.iter().flat_map(|b| &b.spans).map(|s| (s.text.trim(), s.bare)).filter(|(t, _)| !t.is_empty()).collect();
+    // (Text that is no link is never bare: there is nothing to underline.)
+    assert_eq!(spans, [("a", true), ("b", false), ("c", false)]);
+}
+
+#[test]
+fn pictures_are_centred_by_their_margins_and_by_a_table_that_centres_them() {
+    let img = |html: &str| parse(html).into_iter().find(|b| matches!(b.kind, BlockKind::Image { .. })).expect("a picture").align;
+    assert_eq!(img(r#"<img src="cid:a" style="display:block;margin:0 auto">"#), Align::Center);
+    assert_eq!(img(r#"<img src="cid:a" style="margin-left:auto;margin-right:auto">"#), Align::Center);
+    assert_eq!(img(r#"<img src="cid:a" align="center">"#), Align::Center);
+    assert_eq!(img(r#"<img src="cid:a" style="margin-left:auto">"#), Align::Left);
+    // A table that centres a picture and is taken apart leaves it in the middle.
+    assert_eq!(img(r#"<table align="center"><tr><td><img src="cid:a" width="50" height="80"></td></tr></table>"#), Align::Center);
+}
+
+#[test]
+fn a_line_above_a_table_and_its_padding_are_kept() {
+    let blocks = parse(
+        r#"<p>Regards</p><table width="100%" style="border-top:1px solid #e8e5ef;margin-top:25px;padding-top:25px"><tr><td><p>If you're having trouble</p></td></tr></table>"#,
+    );
+    let table = only_table(&blocks);
+    assert_eq!(table.lines.top.map(|l| (l.width, l.color)), Some((1, Some(Rgb(0xe8, 0xe5, 0xef)))));
+    assert!(table.lines.bottom.is_none() && !table.outline);
+    assert_eq!(table.rows[0].cells[0].padding.map(|p| p.top), Some(25));
+    // The margin above is room above the table.
+    let at = blocks.iter().position(|b| matches!(b.kind, BlockKind::Table(_))).expect("the table");
+    assert_eq!(blocks[at].gap, Some(25));
+}
+
+#[test]
+fn cells_keep_their_padding_lines_and_corners() {
+    let blocks = parse(
+        r#"<table cellpadding="6" style="border:1px solid #b5b5b5;border-radius:8px;background:#fff"><tr><td style="padding:32px;border-top:2px dashed #ccc;border-radius:30px">x</td><td>y</td></tr></table>"#,
+    );
+    let table = only_table(&blocks);
+    assert_eq!((table.padding, table.radius), (Some(6), 8));
+    assert_eq!(table.lines.left.map(|l| l.width), Some(1));
+    let (first, second) = (&table.rows[0].cells[0], &table.rows[0].cells[1]);
+    assert_eq!(first.padding.map(|p| (p.top, p.left)), Some((32, 32)));
+    assert_eq!(first.lines.top.map(|l| (l.width, l.dashed)), Some((2, true)));
+    assert_eq!(first.radius, crate::MAX_RADIUS_PX);
+    assert_eq!(second.padding, None);
+}
+
+#[test]
+fn margins_and_padding_are_room_between_blocks() {
+    let blocks = parse(r#"<p>a</p><div style="margin-top:30px">b</div><div style="padding:20px 0">c</div><p>d</p>"#);
+    let gaps: Vec<Option<u8>> = blocks.iter().map(|b| b.gap).collect();
+    assert_eq!(gaps, [None, Some(30), Some(20), Some(20)]);
+    // Capped, whatever is asked.
+    assert_eq!(parse(r#"<p>a</p><p style="margin-top:9000px">b</p>"#)[1].gap, Some(crate::MAX_ROOM_PX));
+}
+
+#[test]
+fn line_heights_are_read_against_the_size_of_the_text() {
+    let blocks =
+        parse(r#"<p style="font-size:16px;line-height:24px">a</p><p style="line-height:1.5em">b</p><p style="line-height:40">c</p><p>d</p>"#);
+    let heights: Vec<Option<u8>> = blocks.iter().map(|b| b.line_height).collect();
+    assert_eq!(heights, [Some(15), Some(15), Some(crate::MAX_LINE_HEIGHT), None]);
+}
+
+#[test]
+fn the_room_under_the_last_block_of_a_cell_is_the_cells() {
+    // Two rows of a plain table, each a paragraph with a margin below: the margin stands
+    // between them once the table is taken apart.
+    let blocks = parse(
+        r#"<table cellpadding="0"><tr><td><p style="margin:0 0 16px">A</p></td></tr><tr><td><p style="margin:0 0 16px">B</p></td></tr></table>"#,
+    );
+    assert_eq!(blocks.iter().map(|b| (b.text(), b.gap)).collect::<Vec<_>>(), [("A".to_string(), None), ("B".to_string(), Some(16))]);
+    // A cell that is kept keeps the room under its last block, on top of its padding.
+    let kept = parse(
+        r##"<table><tr><td bgcolor="#eeeeee" style="padding:10px"><p style="margin:0 0 16px">A</p><p style="margin:0 0 20px">B</p></td><td>x</td></tr></table>"##,
+    );
+    let cell = &only_table(&kept).rows[0].cells[0];
+    assert_eq!((cell.after, cell.padding.map(|p| p.bottom), cell.blocks[1].gap), (20, Some(10), Some(16)));
+    // So does a block with a background of its own.
+    let boxed = parse(r##"<div style="background:#eeeeee"><p style="margin:0 0 24px">A</p></div><p>after</p>"##);
+    assert_eq!(only_table(&boxed).rows[0].cells[0].after, 24);
+    // A margin above the first block of a cell is kept on that block, on top of the cell's padding.
+    let above = parse(
+        r#"<table><tr><td><p style="margin-top:20px">A</p></td></tr><tr><td style="padding-top:8px"><p style="margin-top:20px">B</p></td></tr></table>"#,
+    );
+    assert_eq!((above[0].gap, above[1].gap), (Some(20), Some(28)));
+    // Capped, whatever is asked.
+    let huge = parse(r##"<table><tr><td bgcolor="#eeeeee"><p style="margin-bottom:900px">A</p></td><td>x</td></tr></table>"##);
+    assert_eq!(only_table(&huge).rows[0].cells[0].after, crate::MAX_ROOM_PX);
+}
+
+#[test]
+fn headings_quotes_items_and_preformatted_text_have_margins_padding_and_boxes_like_any_block() {
+    // A heading's margins, where it names them; a paragraph's gap where it says nothing.
+    let blocks = parse(r#"<h1 style="margin:0 0 24px">Title</h1><p style="margin:0">Body</p>"#);
+    assert_eq!(blocks.iter().map(|b| (b.space, b.gap)).collect::<Vec<_>>(), [(0, None), (1, Some(24))]);
+    let none = parse(r#"<p style="margin:0">a</p><h1 style="margin:0">Title</h1><p style="margin:0">Body</p>"#);
+    assert_eq!(none.iter().map(|b| (b.space, b.gap)).collect::<Vec<_>>(), [(0, None), (0, None), (0, None)]);
+    assert_eq!(spaces("<p>a</p><h1>Title</h1><p>Body</p>"), [0, 1, 1]);
+    // A heading with a background and padding is a banner: a box, with the heading inside it
+    // in its own colour.
+    let banner = parse(r##"<h1 style="background:#1d3557;color:#fff;padding:20px">Title</h1><p>Body</p>"##);
+    let table = only_table(&banner);
+    let cell = &table.rows[0].cells[0];
+    assert_eq!((cell.background, cell.padding.map(|p| p.left)), (Some(Rgb(0x1d, 0x35, 0x57)), Some(20)));
+    assert_eq!(cell.blocks[0].kind, BlockKind::Heading(1));
+    assert_eq!((cell.blocks[0].spans[0].color, cell.blocks[0].spans[0].bold), (Some(Rgb(0xff, 0xff, 0xff)), true));
+    assert_eq!(banner[1].text(), "Body");
+    // So is a block of code with a background.
+    let code = parse(
+        r##"<pre style="background:#f4f4f4;padding:12px">let x = 1;
+let y = 2;</pre><p>after</p>"##,
+    );
+    let cell = &only_table(&code).rows[0].cells[0];
+    assert_eq!((cell.background, cell.padding.map(|p| p.top)), (Some(Rgb(0xf4, 0xf4, 0xf4)), Some(12)));
+    assert_eq!((cell.blocks[0].kind.clone(), cell.blocks[0].text()), (BlockKind::Preformatted, "let x = 1;\nlet y = 2;".to_string()));
+    assert_eq!(code[1].text(), "after");
+    // A list item's margin below is room before the next item; a quote's margins are its own.
+    let items = parse(r#"<ul><li style="margin-bottom:8px">a</li><li>b</li></ul>"#);
+    assert_eq!(items.iter().map(|b| b.gap).collect::<Vec<_>>(), [None, Some(8)]);
+    let quote = parse(r#"<p style="margin:0">a</p><blockquote style="margin:0 0 0 12px;padding:4px 0">q</blockquote><p style="margin:0">b</p>"#);
+    assert_eq!(quote.iter().map(|b| (b.quote, b.space, b.gap)).collect::<Vec<_>>(), [(0, 0, None), (1, 0, Some(4)), (0, 0, Some(4))]);
+    // A quote with a background is a box, quoted as a whole.
+    let shaded = parse(r##"<blockquote style="background:#f0f0f0;padding:8px">q</blockquote>"##);
+    assert_eq!((shaded[0].quote, only_table(&shaded).rows[0].cells[0].blocks[0].text()), (1, "q".to_string()));
+}
+
+#[test]
+fn a_rule_above_a_block_stands_under_its_margin_and_over_its_padding() {
+    let blocks = parse(r#"<p>a</p><p style="border-top:1px solid #ccc;margin-top:20px;padding-top:12px">b</p>"#);
+    let kinds: Vec<(bool, u8, Option<u8>)> = blocks.iter().map(|b| (b.kind == BlockKind::Rule, b.space, b.gap)).collect();
+    assert_eq!(kinds, [(false, 0, None), (true, 1, Some(20)), (false, 0, Some(12))]);
+    // And the rule under a block stands under its padding and over its margin.
+    let below = parse(r#"<p style="border-bottom:1px solid #ccc;margin-bottom:20px;padding-bottom:12px">a</p><p>b</p>"#);
+    let kinds: Vec<(bool, u8, Option<u8>)> = below.iter().map(|b| (b.kind == BlockKind::Rule, b.space, b.gap)).collect();
+    assert_eq!(kinds, [(false, 0, None), (true, 0, Some(12)), (false, 1, Some(20))]);
+}
+
+#[test]
+fn the_side_padding_of_a_cell_that_is_taken_apart_stays_at_the_sides_of_its_text() {
+    let html = r##"<table width="540" bgcolor="#ffffff"><tr><td><table width="100%"><tr><td style="padding:0 32px">long text that would otherwise run to the edges of the card</td></tr></table></td></tr></table>"##;
+    let blocks = parse(html);
+    let card = only_table(&blocks);
+    let text = &card.rows[0].cells[0].blocks[0];
+    assert_eq!((text.inset.left, text.inset.right, text.inset.top, text.gap), (32, 32, 0, None));
+    // Wrappers inside wrappers add their room up; `cellpadding` is room on every side.
+    let nested = parse(r#"<table cellpadding="6"><tr><td><table><tr><td style="padding:4px 10px">x</td></tr></table></td></tr></table>"#);
+    assert_eq!((nested[0].inset.left, nested[0].inset.right, nested[0].gap), (16, 16, Some(10)));
+    assert_eq!(dump(r#"<table cellpadding="6"><tr><td>only</td></tr></table>"#), ["p|only"]);
+    // Capped, whatever is asked.
+    let wide = parse(r#"<table><tr><td style="padding:0 9000px">x</td></tr></table>"#);
+    assert_eq!(wide[0].inset.left, crate::MAX_ROOM_PX);
+}
+
+#[test]
+fn text_in_a_centred_table_that_is_taken_apart_stays_in_the_middle() {
+    assert_eq!(dump(r#"<table align="center"><tr><td>&copy; 2026 Quillon</td></tr></table>"#), ["p.c|© 2026 Quillon"]);
+    assert_eq!(dump(r#"<table align="center" width="60%"><tr><td>note</td></tr></table>"#), ["p.c|note"]);
+    // A centred table as wide as the room centres nothing: its text stays where it was written.
+    assert_eq!(
+        dump(r#"<table align="center" width="100%"><tr><td>a long paragraph of body text</td></tr></table>"#),
+        ["p|a long paragraph of body text"]
+    );
+    // Text aligned by the cell keeps that.
+    assert_eq!(dump(r#"<table align="center"><tr><td align="right">r</td></tr></table>"#), ["p.r|r"]);
 }

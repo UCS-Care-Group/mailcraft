@@ -39,6 +39,15 @@ pub const SCREENSHOTS: &str = include_str!("../corpus/screenshots.html");
 /// a list inside it, and answer buttons.
 pub const CALENDAR: &str = include_str!("../corpus/calendar.html");
 
+/// A notice from a web application's mail template: a band of colour round a white card with a
+/// thin line and rounded corners, room inside it, a button written as a link with thick lines of
+/// its own colour, a line above the small print, and a light footer.
+pub const NOTIFICATION: &str = include_str!("../corpus/notification.html");
+
+/// An alarm service's alert: a framed card of centred rows, each with room above and below, a
+/// logo centred by its margins and an icon centred by a table round it.
+pub const ALERT: &str = include_str!("../corpus/alert.html");
+
 /// A plain-text thread: long lines, quotes three `>` deep, addresses, and a signature after `-- `.
 pub const PLAIN_THREAD: &str = include_str!("../corpus/plain_thread.txt");
 
@@ -83,6 +92,8 @@ pub fn messages() -> Vec<(&'static str, &'static str)> {
         ("screenshots", SCREENSHOTS),
         ("calendar notice", CALENDAR),
         ("built newsletter", BUILT_NEWSLETTER),
+        ("notification", NOTIFICATION),
+        ("alert", ALERT),
     ]
 }
 

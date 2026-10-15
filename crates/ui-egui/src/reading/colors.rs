@@ -175,6 +175,30 @@ impl Paper {
         if self.own { mix(self.fill, self.text(t, false), 0.28) } else { t.border_strong }
     }
 
+    /// The colour a line the message describes is drawn in on this paper: the one it asks for,
+    /// turned for the theme the way a background is (so a line keeps to the box it frames), or
+    /// the window's own line colour when it names none or what it names all but vanishes here.
+    /// `None` for a line of the very colour of what it lies on: the message meant it not to be
+    /// seen (the edge of a band in the band's own colour).
+    pub fn line_of(&self, t: &Tokens, asked: Option<Rgb>) -> Option<Color32> {
+        let Some(asked) = asked else { return Some(self.line(t)) };
+        let drawn = Paper::of(asked, t).fill;
+        let own = self.line(t);
+        match contrast(drawn, self.fill) {
+            c if c < 1.005 => None,
+            // In the dark theme a faint line fades out altogether: it is drawn at least as
+            // plainly as the window's own lines, in its own hue when that can be (its lightness
+            // turned over, as text's is), else in the window's line colour.
+            c if t.dark && c < contrast(own, self.fill) => {
+                let (h, s, l) = hsl(drawn);
+                let turned = from_hsl(h, s, 1.0 - l);
+                Some(if contrast(turned, self.fill) >= contrast(own, self.fill) { turned } else { own })
+            }
+            c if c >= 1.02 => Some(drawn),
+            _ => Some(own),
+        }
+    }
+
     /// The colour a run of text is painted in: the one it asks for when that can be read here,
     /// else that one adjusted; a link's or the text's own when it asks for none.
     pub fn ink(&self, t: &Tokens, asked: Option<Rgb>, link: bool, quoted: bool) -> Color32 {
@@ -308,5 +332,25 @@ mod tests {
             let near = |a: u8, b: u8| (i32::from(a) - i32::from(b)).abs() <= 1;
             assert!(near(back.r(), rgb(hex).r()) && near(back.g(), rgb(hex).g()) && near(back.b(), rgb(hex).b()), "{hex:06x} came back as {back:?}");
         }
+    }
+
+    #[test]
+    fn a_described_line_is_drawn_as_asked_unless_it_is_the_colour_it_lies_on() {
+        let (light, dark) = (Tokens::light(), Tokens::dark());
+        let white = Paper::of(Rgb(255, 255, 255), &light);
+        // As asked on a white page.
+        assert_eq!(white.line_of(&light, Some(Rgb(0xe8, 0xe5, 0xef))), Some(rgb(0xe8e5ef)));
+        // Of the very colour of the paper: not drawn; naming none: the paper's own line.
+        let band = Paper::of(Rgb(0xed, 0xf2, 0xf7), &light);
+        assert_eq!(band.line_of(&light, Some(Rgb(0xed, 0xf2, 0xf7))), None);
+        assert_eq!(band.line_of(&light, None), Some(band.line(&light)));
+        // In the dark theme a faint line is at least as plain as the window's own.
+        let card = Paper::of(Rgb(255, 255, 255), &dark);
+        let drawn = card.line_of(&dark, Some(Rgb(0xe8, 0xe5, 0xef))).expect("drawn");
+        assert!(contrast(drawn, card.fill) >= contrast(card.line(&dark), card.fill) - 0.01);
+        // A coloured line keeps its hue, made plain enough to see.
+        let red = card.line_of(&dark, Some(Rgb(200, 0, 0))).expect("drawn");
+        assert!(red.r() > red.g() && red.r() > red.b(), "{red:?}");
+        assert!(contrast(red, card.fill) >= contrast(card.line(&dark), card.fill) - 0.01);
     }
 }

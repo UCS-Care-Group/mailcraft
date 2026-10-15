@@ -543,7 +543,7 @@ fn asking_the_calendar_about_a_meeting_sends_nothing_and_waits_its_turn() {
     assert!(app.calendar_changes(account).is_some() && app.calendar_job_around(account, day).is_err());
     app.session.mailbox.event_changes.clear();
     // Nor while a Send/Receive is about to ask, nor before the owner has allowed the calendar.
-    app.sync_queue.push_back((account, true));
+    app.sync_queue.push_back(crate::SyncJob::new(account, true, mailcraft_model::sync::SyncScope::All));
     assert!(app.calendar_job_around(account, day).is_err());
     app.sync_queue.clear();
     app.graph_consent_needed.insert(account);

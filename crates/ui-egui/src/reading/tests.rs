@@ -184,6 +184,11 @@ pub(crate) fn corpus_messages() -> Vec<(&'static str, Message)> {
                 corpus::BUILT_NEWSLETTER,
             ),
         ),
+        (
+            "notification",
+            html_message(31, ("Harborview Portal", "no-reply@portal.harborview.example"), "Your October statement", corpus::NOTIFICATION),
+        ),
+        ("alert", html_message(32, ("Quillon Alerts", "alerts@quillon.example"), "Office: North Shop Door 4 was left open", corpus::ALERT)),
     ];
     // A file that is really attached, next to the pictures shown in place.
     if let Some((_, m)) = out.get_mut(4) {
@@ -3390,4 +3395,527 @@ fn right_to_left_text_sits_on_the_right_reads_from_the_right_and_copies_as_writt
         let item = laid.items.iter().find(|i| matches!(&i.kind, ItemKind::Text(t) if t.logical.as_deref() == Some("פריט"))).expect("the item");
         assert!(bullet.rect.min.x >= item.rect.max.x - 1.0, "{:?} {:?}", bullet.rect, item.rect);
     });
+}
+
+// ---- room, lines, corners and buttons ----
+
+/// The filled rectangles of a layout that are of `color`.
+fn fills_of(laid: &Laid, color: Color32) -> Vec<(egui::Rect, f32)> {
+    laid.items
+        .iter()
+        .filter_map(|i| match i.kind {
+            ItemKind::Fill { color: c, radius } if c == color => Some((i.rect, radius)),
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn a_link_written_as_a_button_is_a_rounded_box_round_its_text_in_the_middle() {
+    for dark in [false, true] {
+        in_frame(dark, |ctx| {
+            let t = Tokens::get(ctx);
+            let m = corpus_message("notification");
+            let laid = lay_out(ctx, &m, 820.0);
+            check(&laid, &t, "notification");
+            let text = find(&laid, "View statement");
+            let fill = super::colors::Paper::of(mailcraft_html::Rgb(0x2d, 0x37, 0x48), &t).fill;
+            let boxes = fills_of(&laid, fill);
+            let (rect, radius) = boxes.iter().copied().find(|(r, _)| r.contains_rect(text.rect)).expect("a box round the text");
+            // The room the message asks for round the text, and its corners.
+            assert!((text.rect.min.y - rect.min.y - 8.0).abs() < 0.6 && (rect.max.y - text.rect.max.y - 8.0).abs() < 0.6, "{rect:?} {:?}", text.rect);
+            assert!((text.rect.min.x - rect.min.x - 18.0).abs() < 0.6, "{rect:?} {:?}", text.rect);
+            assert_eq!(radius, 4.0);
+            // In the middle of the card: the card is 570 wide and in the middle of 820.
+            assert!((rect.center().x - 410.0).abs() < 2.0, "{rect:?}");
+            // Its text is not underlined, though it leads somewhere.
+            let ItemKind::Text(item) = &text.kind else { panic!() };
+            assert!(item.job.sections.iter().all(|s| s.format.underline == egui::Stroke::NONE));
+            assert!(!item.links.is_empty());
+        });
+    }
+}
+
+#[test]
+fn a_link_that_asks_for_no_underline_has_none_and_any_other_has_one() {
+    in_frame(false, |ctx| {
+        let m = html_message(
+            50,
+            ("A", "a@example.org"),
+            "Links",
+            r#"<p><a href="https://e.example/" style="text-decoration:none">Bare link</a></p><p><a href="https://e.example/">Plain link</a></p>"#,
+        );
+        let laid = lay_out(ctx, &m, 600.0);
+        let underline = |start: &str| match &find(&laid, start).kind {
+            ItemKind::Text(t) => t.job.sections.iter().any(|s| s.format.underline != egui::Stroke::NONE),
+            _ => panic!(),
+        };
+        assert!(!underline("Bare link") && underline("Plain link"));
+    });
+}
+
+#[test]
+fn a_cell_keeps_the_room_it_asks_for_and_a_table_its_line_above() {
+    in_frame(false, |ctx| {
+        let t = Tokens::get(ctx);
+        let m = corpus_message("notification");
+        let laid = lay_out(ctx, &m, 820.0);
+        // The card's text sits 32 in from its white.
+        let white = fills_of(&laid, Color32::WHITE);
+        let hello = find(&laid, "Hello!");
+        let (card, _) = white.iter().copied().find(|(r, _)| r.contains_rect(hello.rect)).expect("the card");
+        assert!(
+            (hello.rect.min.x - card.min.x - 32.0).abs() < 1.0 && (hello.rect.min.y - card.min.y - 32.0).abs() < 1.0,
+            "{card:?} {:?}",
+            hello.rect
+        );
+        // The line above the small print, in the colour asked for, with room under it.
+        let line = Color32::from_rgb(0xe8, 0xe5, 0xef);
+        let small = find(&laid, "If the");
+        let above = fills_of(&laid, line).into_iter().find(|(r, _)| r.height() <= 1.5 && r.max.y <= small.rect.min.y).expect("the line above");
+        assert!((small.rect.min.y - above.0.max.y - 25.0).abs() < 1.5, "{above:?} {:?}", small.rect);
+        // A band's edge in the band's own colour is not drawn at all.
+        assert!(fills_of(&laid, Color32::from_rgb(0xed, 0xf2, 0xf7)).iter().all(|(r, _)| r.height() > 2.0));
+        // The card's thin line round it, with its corners.
+        let outline = laid.items.iter().find(|i| matches!(i.kind, ItemKind::Outline { .. }) && (i.rect.width() - 570.0).abs() < 1.0);
+        assert!(matches!(outline.map(|o| &o.kind), Some(ItemKind::Outline { radius, width, .. }) if *radius == 2.0 && *width == 1.0), "{outline:?}");
+        let _ = t;
+    });
+}
+
+#[test]
+fn pictures_centred_by_their_margins_or_a_table_round_them_stand_in_the_middle() {
+    in_frame(false, |ctx| {
+        let m = corpus_message("alert");
+        let laid = lay_out(ctx, &m, 820.0);
+        check(&laid, &Tokens::get(ctx), "alert");
+        let pictures = shown_pictures(&laid);
+        assert_eq!(pictures.len(), 2, "{pictures:?}");
+        for picture in pictures {
+            assert!((picture.rect.center().x - 410.0).abs() < 2.0, "{:?}", picture.rect);
+        }
+        // Rows keep their room: the title stands well under the logo.
+        let title = find(&laid, "North Shop Door 4 Left Open");
+        let logo = shown_pictures(&laid)[0].rect;
+        assert!(title.rect.min.y - logo.max.y >= 13.0, "{logo:?} {:?}", title.rect);
+    });
+}
+
+#[test]
+fn a_line_height_the_message_asks_for_spaces_its_lines() {
+    in_frame(false, |ctx| {
+        let long = "word ".repeat(60);
+        let html = format!(r#"<p style="font-size:16px;line-height:32px">{long}</p><p style="font-size:16px">{long}</p>"#);
+        let m = html_message(51, ("A", "a@example.org"), "Lines", &html);
+        let laid = lay_out(ctx, &m, 300.0);
+        let texts: Vec<&Item> = laid.items.iter().filter(|i| matches!(i.kind, ItemKind::Text(_))).collect();
+        let rows = |item: &Item| match &item.kind {
+            ItemKind::Text(t) => ctx.fonts_mut(|f| f.layout_job((*t.job).clone())).rows.len() as f32,
+            _ => 1.0,
+        };
+        let pitch = |item: &Item| item.rect.height() / rows(item);
+        assert!((pitch(texts[0]) - 32.0).abs() < 1.0, "{}", pitch(texts[0]));
+        assert!(pitch(texts[1]) < 28.0, "{}", pitch(texts[1]));
+    });
+}
+
+// ---- room in cells, headings, boxes among words, and a wide pane ----
+
+/// The new patterns, in one message: rows with margins, a banner heading, a line under a link,
+/// a button among words and after bold text, two buttons in a line, a button coloured by its
+/// cell, a boxed block of code, and small print in a centred table without a width.
+const PATTERNS: &str = r##"<html><body style="margin:0;padding:0">
+<table width="100%" cellpadding="0" cellspacing="0" bgcolor="#f2f2f2"><tr><td align="center" style="padding:20px 0">
+<table width="560" cellpadding="0" cellspacing="0" bgcolor="#ffffff" style="border:1px solid #d0d0d0"><tr><td style="padding:0;text-align:left">
+<h1 style="background:#1d3557;color:#fff;padding:20px;margin:0 0 24px;font-size:22px">Banner heading</h1>
+<table width="100%" cellpadding="0" cellspacing="0"><tr><td style="padding:0 32px">
+<table cellpadding="0" cellspacing="0" width="100%">
+<tr><td><p style="margin:0 0 16px">Row one: a paragraph with room under it.</p></td></tr>
+<tr><td><p style="margin:0 0 16px">Row two: the same, so the room stands between the rows.</p></td></tr>
+<tr><td><p style="margin-top:20px;margin-bottom:0">Row three asks for room above itself.</p></td></tr>
+</table>
+<p style="margin:16px 0 8px"><a href="https://e.example/h" style="border-bottom:2px solid #003366;padding-bottom:2px;text-decoration:none;color:#003366;font-weight:bold">Underlined heading</a></p>
+<p style="margin:0 0 16px">Then <a href="https://e.example/v" style="display:inline-block;padding:8px 16px;background:#2d3748;color:#fff;border-radius:4px;text-decoration:none">View</a> or copy the link into your browser.</p>
+<p style="margin:0 0 16px"><a href="https://e.example/w" style="display:inline-block;padding:8px 16px;background:#2d3748;color:#fff;border-radius:4px;text-decoration:none"><b>Bold view</b></a> &rarr;</p>
+<pre style="background:#f4f4f4;padding:12px;margin:0 0 16px">let x = 1;
+let y = x + 1;</pre>
+</td></tr></table>
+<table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:8px 32px 24px">
+<a href="https://e.example/y" style="display:inline-block;padding:10px 22px;background:#1a73e8;color:#fff;border-radius:4px;text-decoration:none">Yes</a>&nbsp;&nbsp;<a href="https://e.example/n" style="display:inline-block;padding:10px 22px;border:1px solid #1a73e8;color:#1a73e8;border-radius:4px;text-decoration:none">No</a>
+</td></tr></table>
+<table cellpadding="0" cellspacing="0" style="margin:0 32px 24px"><tr><td bgcolor="#e63946" style="background-color:#e63946;border-radius:3px"><a href="https://e.example/r" style="display:inline-block;padding:10px 22px;font-weight:bold;color:#ffffff;text-decoration:none">Read story</a></td></tr></table>
+<table align="center" cellpadding="0" cellspacing="0" style="margin-bottom:24px"><tr><td style="color:#777;font-size:12px">&copy; 2026 Quillon</td></tr></table>
+</td></tr></table>
+</td></tr></table>
+</body></html>"##;
+
+fn patterns_message() -> Message {
+    html_message(60, ("Quillon", "no-reply@quillon.example"), "Patterns", PATTERNS)
+}
+
+/// The filled rectangle of `color` round `item`, with its corners.
+fn box_round(laid: &Laid, color: Color32, item: &Item) -> (egui::Rect, f32) {
+    fills_of(laid, color).into_iter().find(|(r, _)| r.contains_rect(item.rect)).unwrap_or_else(|| panic!("no box of {color:?} round {:?}", item.rect))
+}
+
+#[test]
+fn the_new_patterns_lay_out_in_both_themes_at_every_width() {
+    let m = patterns_message();
+    for dark in [false, true] {
+        in_frame(dark, |ctx| {
+            let t = Tokens::get(ctx);
+            for width in [1400.0, 860.0, 420.0, 180.0, 1.0] {
+                let laid = lay_out(ctx, &m, width);
+                check(&laid, &t, &format!("patterns at {width}"));
+                assert!(laid.stats.texts > 0 && laid.size.y > 10.0);
+            }
+        });
+    }
+}
+
+#[test]
+fn paragraph_margins_inside_cells_space_the_rows() {
+    in_frame(false, |ctx| {
+        let t = Tokens::get(ctx);
+        let laid = lay_out(ctx, &patterns_message(), 820.0);
+        check(&laid, &t, "patterns");
+        // Room under a row's paragraph stands between the rows, not the table's own gap.
+        let (one, two, three) = (find(&laid, "Row one"), find(&laid, "Row two"), find(&laid, "Row three"));
+        assert!((two.rect.min.y - one.rect.max.y - 16.0).abs() < 1.0, "{:?} {:?}", one.rect, two.rect);
+        // Room above the first thing in a cell is kept too.
+        assert!((three.rect.min.y - two.rect.max.y - 20.0).abs() < 1.0, "{:?} {:?}", two.rect, three.rect);
+        // In a cell that is kept, the room under its last block is the cell's: the colour runs on under the text.
+        let html = r##"<table><tr><td bgcolor="#eeeeee" style="padding:0"><p style="margin-top:20px;margin-bottom:0">Top</p><p style="margin:0 0 16px">Bottom</p></td><td>beside it, a second cell with words</td></tr></table>"##;
+        let m = html_message(61, ("A", "a@example.org"), "Cells", html);
+        let laid = lay_out(ctx, &m, 600.0);
+        let fill = super::colors::Paper::of(mailcraft_html::Rgb(0xee, 0xee, 0xee), &t).fill;
+        let (top, bottom) = (find(&laid, "Top"), find(&laid, "Bottom"));
+        let (cell, _) = box_round(&laid, fill, top);
+        assert!((top.rect.min.y - cell.min.y - 20.0).abs() < 1.0, "{cell:?} {:?}", top.rect);
+        assert!((cell.max.y - bottom.rect.max.y - 16.0).abs() < 1.0, "{cell:?} {:?}", bottom.rect);
+    });
+}
+
+#[test]
+fn headings_keep_their_margins_and_a_heading_with_a_background_is_a_banner() {
+    in_frame(false, |ctx| {
+        let t = Tokens::get(ctx);
+        let m = html_message(
+            62,
+            ("A", "a@example.org"),
+            "Headings",
+            r#"<h1 style="margin:0 0 24px">Spaced</h1><p style="margin:0">Under it</p><h1 style="margin:0">Tight</h1><p style="margin:0">Right under</p>"#,
+        );
+        let laid = lay_out(ctx, &m, 600.0);
+        check(&laid, &t, "headings");
+        let gap = |a: &str, b: &str| find(&laid, b).rect.min.y - find(&laid, a).rect.max.y;
+        assert!((gap("Spaced", "Under it") - 24.0).abs() < 1.0, "{}", gap("Spaced", "Under it"));
+        assert!(gap("Tight", "Right under") <= 4.5, "{}", gap("Tight", "Right under"));
+        // The first heading has no room above it that it did not ask for.
+        assert!(find(&laid, "Spaced").rect.min.y < 1.0);
+        // A banner: the heading's colour behind it, its padding round it, its own ink on it.
+        let laid = lay_out(ctx, &patterns_message(), 820.0);
+        let title = find(&laid, "Banner heading");
+        let fill = super::colors::Paper::of(mailcraft_html::Rgb(0x1d, 0x35, 0x57), &t).fill;
+        let (banner, _) = box_round(&laid, fill, title);
+        assert!(
+            (title.rect.min.y - banner.min.y - 20.0).abs() < 1.0 && (banner.max.y - title.rect.max.y - 20.0).abs() < 1.0,
+            "{banner:?} {:?}",
+            title.rect
+        );
+        assert!((title.rect.min.x - banner.min.x - 20.0).abs() < 1.0, "{banner:?} {:?}", title.rect);
+        let ItemKind::Text(text) = &title.kind else { panic!() };
+        assert_eq!(text.paper, fill);
+        assert!(text.job.sections.iter().all(|s| s.format.color != t.text), "the banner's text is in the window's ink");
+        // The room the banner asks for under itself.
+        assert!((find(&laid, "Row one").rect.min.y - banner.max.y - 24.0).abs() < 1.0);
+        // A block of code with a background is a box with its padding.
+        let code = find(&laid, "let x");
+        let shade = super::colors::Paper::of(mailcraft_html::Rgb(0xf4, 0xf4, 0xf4), &t).fill;
+        let (boxed, _) = box_round(&laid, shade, code);
+        assert!(
+            (code.rect.min.y - boxed.min.y - 12.0).abs() < 1.0 && (code.rect.min.x - boxed.min.x - 12.0).abs() < 1.0,
+            "{boxed:?} {:?}",
+            code.rect
+        );
+    });
+}
+
+#[test]
+fn the_side_padding_of_a_cell_taken_apart_keeps_its_text_in_from_the_card() {
+    in_frame(false, |ctx| {
+        let t = Tokens::get(ctx);
+        let laid = lay_out(ctx, &patterns_message(), 820.0);
+        check(&laid, &t, "patterns");
+        let one = find(&laid, "Row one");
+        let (card, _) = box_round(&laid, Color32::WHITE, one);
+        // The card is 560 wide; the text 32 in from its white on either side.
+        assert!((card.width() - 560.0).abs() < 1.5, "{card:?}");
+        assert!((one.rect.min.x - card.min.x - 32.0).abs() < 1.0, "{card:?} {:?}", one.rect);
+        assert!((card.max.x - one.rect.max.x - 32.0).abs() < 1.0, "{card:?} {:?}", one.rect);
+        // Words wrap at that width: the long line is no wider than the room between.
+        let two = find(&laid, "Row two");
+        assert!(two.rect.width() <= 560.0 - 64.0 + 0.5, "{:?}", two.rect);
+    });
+}
+
+#[test]
+fn text_in_a_centred_table_without_a_width_is_in_the_middle() {
+    in_frame(false, |ctx| {
+        let laid = lay_out(ctx, &patterns_message(), 820.0);
+        let small = find(&laid, "© 2026 Quillon");
+        let ItemKind::Text(text) = &small.kind else { panic!() };
+        assert_eq!(text.job.halign, egui::Align::Center);
+        let (card, _) = box_round(&laid, Color32::WHITE, small);
+        // Its origin, the middle of its text, is the middle of the card.
+        assert!((small.rect.min.x + text.anchor - card.center().x).abs() < 1.5, "{card:?} {:?} {}", small.rect, text.anchor);
+    });
+}
+
+#[test]
+fn a_button_among_words_and_two_buttons_in_a_line_are_boxes_of_their_own() {
+    for dark in [false, true] {
+        in_frame(dark, |ctx| {
+            let t = Tokens::get(ctx);
+            let laid = lay_out(ctx, &patterns_message(), 820.0);
+            check(&laid, &t, "patterns");
+            let dark_fill = super::colors::Paper::of(mailcraft_html::Rgb(0x2d, 0x37, 0x48), &t).fill;
+            // "Then [View] or copy the link…": three texts in one line, the box round the middle one.
+            let (then, view, after) = (find_exact(&laid, "Then"), find_exact(&laid, "View"), find(&laid, "or copy the link"));
+            let (boxed, radius) = box_round(&laid, dark_fill, view);
+            assert!(
+                (view.rect.min.x - boxed.min.x - 16.0).abs() < 0.6 && (view.rect.min.y - boxed.min.y - 8.0).abs() < 0.6,
+                "{boxed:?} {:?}",
+                view.rect
+            );
+            assert_eq!(radius, 4.0);
+            assert!(then.rect.max.x <= boxed.min.x && boxed.max.x <= after.rect.min.x, "{:?} {boxed:?} {:?}", then.rect, after.rect);
+            // A space stands between them, and the words are centred on the box's height.
+            assert!(boxed.min.x - then.rect.max.x >= 2.0 && after.rect.min.x - boxed.max.x >= 2.0);
+            assert!((then.rect.center().y - boxed.center().y).abs() < 1.5);
+            for (item, join) in [(view, &then), (after, &view)] {
+                let ItemKind::Text(text) = &item.kind else { panic!() };
+                assert!(text.join.cont && text.join.glue == Some(' '), "{:?} after {:?}", text.join, text_of(join));
+            }
+            // A button whose text is bold, then an arrow: one box, the arrow outside it.
+            let bold = find_exact(&laid, "Bold view");
+            let (boxed, _) = box_round(&laid, dark_fill, bold);
+            let arrow = find_exact(&laid, "→");
+            assert!(boxed.max.x <= arrow.rect.min.x && !boxed.contains_rect(arrow.rect));
+            // Yes and No side by side, each in its own box, in the middle of the card.
+            let (yes, no) = (find_exact(&laid, "Yes"), find_exact(&laid, "No"));
+            let blue = super::colors::Paper::of(mailcraft_html::Rgb(0x1a, 0x73, 0xe8), &t).fill;
+            let (yes_box, _) = box_round(&laid, blue, yes);
+            assert!((yes.rect.min.x - yes_box.min.x - 22.0).abs() < 0.6 && (yes.rect.min.y - yes_box.min.y - 10.0).abs() < 0.6);
+            let outline =
+                laid.items.iter().find(|i| matches!(i.kind, ItemKind::Outline { .. }) && i.rect.contains_rect(no.rect)).expect("a line round No");
+            assert!((no.rect.min.x - outline.rect.min.x - 22.0).abs() < 0.6, "{:?} {:?}", outline.rect, no.rect);
+            assert!(yes_box.max.x < outline.rect.min.x && (yes_box.min.y - outline.rect.min.y).abs() < 0.6);
+            let white = super::colors::Paper::of(mailcraft_html::Rgb(0xff, 0xff, 0xff), &t).fill;
+            let (card, _) = box_round(&laid, white, yes);
+            let middle = (yes_box.min.x + outline.rect.max.x) / 2.0;
+            assert!((middle - card.center().x).abs() < 2.0, "{yes_box:?} {:?} in {card:?}", outline.rect);
+            // No box of the button's colour hugs the glyphs without their room.
+            assert!(fills_of(&laid, dark_fill).iter().all(|(r, _)| r.height() >= 30.0), "{:?}", fills_of(&laid, dark_fill));
+        });
+    }
+}
+
+#[test]
+fn a_button_coloured_by_its_cell_has_the_room_it_asks_for_and_no_more() {
+    in_frame(false, |ctx| {
+        let t = Tokens::get(ctx);
+        let laid = lay_out(ctx, &patterns_message(), 820.0);
+        let read = find_exact(&laid, "Read story");
+        let red = super::colors::Paper::of(mailcraft_html::Rgb(0xe6, 0x39, 0x46), &t).fill;
+        // Every red box round the text is the button itself: 22 by 10 round the text, no more.
+        let boxes: Vec<egui::Rect> = fills_of(&laid, red).into_iter().filter(|(r, _)| r.contains_rect(read.rect)).map(|(r, _)| r).collect();
+        assert!(!boxes.is_empty());
+        // (The cell's own colour may be a point wider than the button: its column is measured
+        // with a point to spare.)
+        for b in &boxes {
+            assert!((read.rect.min.x - b.min.x - 22.0).abs() < 0.6 && (b.max.x - read.rect.max.x - 22.0).abs() < 1.6, "{b:?} {:?}", read.rect);
+            assert!((read.rect.min.y - b.min.y - 10.0).abs() < 0.6 && (b.max.y - read.rect.max.y - 10.0).abs() < 0.6, "{b:?} {:?}", read.rect);
+        }
+        let ItemKind::Text(text) = &read.kind else { panic!() };
+        assert_eq!(text.paper, red);
+        // The same pattern in the large newsletter.
+        let laid = lay_out(ctx, &large_newsletter(), 820.0);
+        let read = find(&laid, "Read story 1");
+        let (b, _) = box_round(&laid, red, read);
+        assert!((read.rect.min.x - b.min.x - 22.0).abs() < 0.6 && (read.rect.min.y - b.min.y - 10.0).abs() < 0.6, "{b:?} {:?}", read.rect);
+    });
+}
+
+#[test]
+fn a_line_on_one_side_of_a_link_is_drawn_on_that_side_only() {
+    in_frame(false, |ctx| {
+        let t = Tokens::get(ctx);
+        let laid = lay_out(ctx, &patterns_message(), 820.0);
+        let heading = find_exact(&laid, "Underlined heading");
+        // No frame round it...
+        assert!(
+            !laid.items.iter().any(|i| matches!(i.kind, ItemKind::Outline { .. }) && i.rect.contains_rect(heading.rect) && i.rect.width() < 400.0)
+        );
+        // ...but a 2-point line right under it, as wide as the text, in the colour asked for.
+        let color = super::colors::Paper::window(&t).line_of(&t, Some(mailcraft_html::Rgb(0, 0x33, 0x66))).expect("a line colour");
+        let under = fills_of(&laid, color)
+            .into_iter()
+            .find(|(r, _)| (r.height() - 2.0).abs() < 0.6 && r.min.y >= heading.rect.max.y && r.min.y <= heading.rect.max.y + 3.0)
+            .unwrap_or_else(|| panic!("no line under {:?}: {:?}", heading.rect, fills_of(&laid, color)));
+        assert!(
+            (under.0.min.x - heading.rect.min.x).abs() < 0.6 && (under.0.width() - heading.rect.width()).abs() < 1.0,
+            "{under:?} {:?}",
+            heading.rect
+        );
+        // Nothing of that colour stands above or beside the text.
+        assert!(fills_of(&laid, color).iter().all(|(r, _)| r.min.y >= heading.rect.max.y - 0.5 || !r.intersects(heading.rect.expand(3.0))));
+    });
+}
+
+#[test]
+fn a_padded_link_alone_in_a_centred_cell_is_a_button_in_the_middle() {
+    for dark in [false, true] {
+        in_frame(dark, |ctx| {
+            let t = Tokens::get(ctx);
+            let html = r##"<table width="100%" cellpadding="0" cellspacing="0" bgcolor="#f3f4f6"><tr><td align="center" style="padding:24px 0">
+<table width="520" cellpadding="0" cellspacing="0" bgcolor="#ffffff"><tr><td style="padding:32px;text-align:left">
+<p style="margin:0 0 20px">Your sign-in code is ready.</p>
+<table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:8px 0">
+<a href="https://e.example/open" style="display:inline-block;padding:12px 24px;background:#2563eb;color:#ffffff;border-radius:6px;text-decoration:none;font-weight:bold">Open the app</a>
+</td></tr></table>
+<p style="margin:20px 0 0">If you did not ask for this, ignore this message.</p>
+</td></tr></table></td></tr></table>"##;
+            let m = html_message(63, ("A", "a@example.org"), "Button", html);
+            let laid = lay_out(ctx, &m, 1000.0);
+            check(&laid, &t, "button");
+            let open = find_exact(&laid, "Open the app");
+            let blue = super::colors::Paper::of(mailcraft_html::Rgb(0x25, 0x63, 0xeb), &t).fill;
+            let (button, radius) = box_round(&laid, blue, open);
+            assert!(
+                (open.rect.min.x - button.min.x - 24.0).abs() < 0.6 && (button.max.x - open.rect.max.x - 24.0).abs() < 0.6,
+                "{button:?} {:?}",
+                open.rect
+            );
+            assert!(
+                (open.rect.min.y - button.min.y - 12.0).abs() < 0.6 && (button.max.y - open.rect.max.y - 12.0).abs() < 0.6,
+                "{button:?} {:?}",
+                open.rect
+            );
+            assert_eq!(radius, 6.0);
+            let white = super::colors::Paper::of(mailcraft_html::Rgb(0xff, 0xff, 0xff), &t).fill;
+            let (card, _) = box_round(&laid, white, open);
+            assert!((button.center().x - card.center().x).abs() < 1.5, "{button:?} in {card:?}");
+            assert!((card.width() - 520.0).abs() < 1.0 && (card.center().x - 500.0).abs() < 1.5, "{card:?}");
+            // The text before and after keeps its room from the button: the larger of the
+            // margin and the cell's padding on either side (the room a block asks for is the
+            // least that stands above it).
+            assert!(button.min.y - find(&laid, "Your sign-in").rect.max.y >= 20.0 - 0.5);
+            assert!(find(&laid, "If you did not").rect.min.y - button.max.y >= 20.0 - 0.5);
+            let ItemKind::Text(text) = &open.kind else { panic!() };
+            assert!(!text.links.is_empty() && text.job.sections.iter().all(|s| s.format.underline == egui::Stroke::NONE));
+        });
+    }
+}
+
+/// Run `f` in a `Ui` `size` points wide and high, inside a frame of a context with the
+/// interface's fonts and theme.
+fn in_ui<R>(dark: bool, size: egui::Vec2, f: impl FnOnce(&mut egui::Ui) -> R) -> R {
+    let ctx = egui::Context::default();
+    ctx.set_fonts(crate::theme::font_definitions());
+    crate::theme::apply(&ctx, if dark { Appearance::Dark } else { Appearance::Light });
+    ctx.run_ui(egui::RawInput::default(), |_| {}).drop_without_applying_deltas();
+    let mut out = None;
+    let mut f = Some(f);
+    ctx.run_ui(egui::RawInput::default(), |ui| {
+        if let Some(f) = f.take() {
+            let rect = egui::Rect::from_min_size(egui::pos2(100.0, 50.0), size);
+            out = Some(ui.scope_builder(egui::UiBuilder::new().max_rect(rect), |ui| f(ui)).inner);
+        }
+    })
+    .drop_without_applying_deltas();
+    out.unwrap()
+}
+
+#[test]
+fn the_body_stands_in_the_middle_of_a_pane_wider_than_it_was_laid_out_for() {
+    let m = corpus_message("notification");
+    for dark in [false, true] {
+        // A 1,400-point pane: the body is laid out at its widest and painted in the middle.
+        in_ui(dark, egui::vec2(1400.0, 800.0), |ui| {
+            let t = Tokens::get(ui.ctx());
+            let laid = lay_out(ui.ctx(), &m, super::MAX_BODY_WIDTH);
+            let left = ui.max_rect().min.x;
+            let (origin, _) = super::view::paint(ui, &laid, &t, super::remote::Access::Blocked, None);
+            assert_eq!(origin.x, left + (1400.0 - super::MAX_BODY_WIDTH) / 2.0);
+            assert_eq!(origin.y, ui.max_rect().min.y);
+            // And the card, 570 wide and centred in the body, is in the middle of the pane.
+            let hello = find(&laid, "Hello!");
+            let white = super::colors::Paper::of(mailcraft_html::Rgb(0xff, 0xff, 0xff), &t).fill;
+            let (card, _) = box_round(&laid, white, hello);
+            assert!((origin.x + card.center().x - (left + 700.0)).abs() < 1.5, "{card:?} from {origin:?}");
+            // The pane is used in full, so what is under the body is the body's too.
+            assert!(ui.min_rect().width() >= 1400.0 - 0.5);
+        });
+        // A pane as wide as the body, or narrower than its widest thing: no shift at all.
+        in_ui(dark, egui::vec2(600.0, 800.0), |ui| {
+            let t = Tokens::get(ui.ctx());
+            let laid = lay_out(ui.ctx(), &m, 600.0);
+            let (origin, _) = super::view::paint(ui, &laid, &t, super::remote::Access::Blocked, None);
+            assert_eq!(origin, ui.max_rect().min);
+            let wide = lay_out(ui.ctx(), &corpus_message("receipt"), 1000.0);
+            assert!(wide.size.x >= 1000.0);
+            let (origin, _) = super::view::paint(ui, &wide, &t, super::remote::Access::Blocked, None);
+            assert_eq!(origin.x, ui.max_rect().min.x);
+        });
+    }
+    // In the window: the reading pane of a wide window shows the body in its middle, and the
+    // places kept for pointing at things move with it.
+    let at = |window_width: f32| {
+        let (app, ids) = corpus_app(false);
+        let id = id_of(&ids, "notification");
+        let mut harness = window(app, (window_width, 900.0));
+        harness.state_mut().execute("mail.select", json!({"id": id})).unwrap();
+        harness.run_steps(4);
+        let ctx = harness.ctx.clone();
+        super::view::kept(&ctx, id, |laid, origin| (laid.width(), origin.x)).unwrap()
+    };
+    let (narrow_width, narrow_x) = at(1300.0);
+    let (wide_width, wide_x) = at(2100.0);
+    assert!(narrow_width < super::MAX_BODY_WIDTH, "{narrow_width}");
+    assert_eq!(wide_width, super::MAX_BODY_WIDTH);
+    // The pane grew by the 800 points the window did; the body stands in the middle of the room
+    // it does not need (the pane's width, inside its margins of 20, less the body's).
+    let shift = wide_x - narrow_x;
+    let expected = (narrow_width + 40.0 + 800.0 - 40.0 - super::MAX_BODY_WIDTH) / 2.0;
+    assert!((shift - expected).abs() <= 3.0, "shift {shift}, expected about {expected} (narrow {narrow_width} at {narrow_x}, wide at {wide_x})");
+}
+
+/// A message the server wouldn't send as the account is held: the reading pane says why, and
+/// "Send Again" lets it go with the next run (the hold is cleared and the bar goes).
+#[test]
+fn a_held_message_says_why_and_can_be_sent_again() {
+    let (mut app, ids) = corpus_app(false);
+    let id = id_of(&ids, "gmail reply");
+    let account = app.session.mailbox.message(id).map(|m| m.account).unwrap();
+    let outbox = app.session.mailbox.folder_of_kind(account, mailcraft_model::FolderKind::Outbox).expect("an Outbox");
+    {
+        let m = app.session.mailbox.message_mut(id).unwrap();
+        m.folder = outbox;
+        m.hold = Some("the server didn't let your account send as that mailbox".into());
+    }
+    app.execute("folder.select", json!({"id": outbox})).unwrap();
+    app.execute("mail.select", json!({"id": id})).unwrap();
+    let mut harness = window(app, (1200.0, 800.0));
+    let again = harness.state().hit.rect("holdSendAgain", id).expect("the hold bar with Send Again");
+    let pos = again.center();
+    harness.event(egui::Event::PointerMoved(pos));
+    harness.step();
+    for pressed in [true, false] {
+        harness.event(egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed, modifiers: egui::Modifiers::NONE });
+        harness.step();
+    }
+    harness.run_steps(3);
+    assert_eq!(harness.state().session.mailbox.message(id).and_then(|m| m.hold.clone()), None, "Send Again didn't clear the hold");
+    assert!(harness.state().hit.rect("holdSendAgain", id).is_none(), "the bar stayed after the hold was cleared");
 }

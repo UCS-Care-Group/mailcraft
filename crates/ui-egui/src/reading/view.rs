@@ -140,7 +140,8 @@ fn in_pieces(blocks: Vec<Block>) -> (Vec<Block>, Vec<Option<Glue>>) {
                 BlockKind::ListItem { depth, .. } if n > 0 => BlockKind::ListItem { marker: Marker::None, depth: *depth },
                 kind => kind.clone(),
             };
-            out.push(Block { kind, spans, quote: block.quote, align: block.align, space: if n == 0 { block.space } else { 0 } });
+            let (space, gap) = if n == 0 { (block.space, block.gap) } else { (0, None) };
+            out.push(Block { kind, spans, quote: block.quote, align: block.align, space, gap, line_height: block.line_height, inset: block.inset });
             cuts.push((n > 0).then_some(glue));
         }
     }
@@ -395,15 +396,21 @@ struct Hover {
 /// its links, and through its text when it selects (`state` is the selection of the place the
 /// layout is shown in). Where its top left is, and what its menu was asked to do.
 pub fn paint(ui: &mut Ui, laid: &Laid, t: &Tokens, access: Access, mut state: Option<&mut select::PlaceState>) -> (egui::Pos2, Option<Action>) {
-    let (area, _) = ui.allocate_exact_size(vec2(laid.size.x.max(1.0), laid.size.y.max(1.0)), Sense::hover());
-    let origin = area.min.to_vec2();
+    // The body takes the whole width of the pane, and stands in the middle of it when it was
+    // laid out narrower (a wide pane: the text is kept to a readable measure, and a card
+    // written for the middle of the page is in the middle of the pane).
+    let width = laid.size.x.max(1.0);
+    let (area, _) = ui.allocate_exact_size(vec2(width.max(ui.available_width()), laid.size.y.max(1.0)), Sense::hover());
+    let shift = ((area.width() - width) / 2.0).floor().max(0.0);
+    let top_left = pos2(area.min.x + shift, area.min.y);
+    let origin = top_left.to_vec2();
     let clip = ui.clip_rect();
     let ctx = ui.ctx().clone();
     // The pointer is sensed over all of the body that is in view, its margins and the room under
     // a short message too: a drag that selects begins and ends wherever the pointer happens to be.
     let response = ui.interact(clip, ui.id().with("body"), select::sense(ui));
     if let Some(state) = state.as_deref_mut() {
-        select::body(ui, &response, laid, area.min, state);
+        select::body(ui, &response, laid, top_left, state);
     }
     let selected = state.as_deref().and_then(|state| state.body_range(laid));
     let dragging = state.as_deref().is_some_and(|state| state.dragging_body());
@@ -425,8 +432,8 @@ pub fn paint(ui: &mut Ui, laid: &Laid, t: &Tokens, access: Access, mut state: Op
             ItemKind::Fill { color, radius } => {
                 painter.rect_filled(rect, *radius, *color);
             }
-            ItemKind::Outline { color } => {
-                painter.rect_stroke(rect, 0.0, Stroke::new(1.0, *color), egui::StrokeKind::Inside);
+            ItemKind::Outline { color, radius, width } => {
+                painter.rect_stroke(rect, *radius, Stroke::new(*width, *color), egui::StrokeKind::Inside);
             }
             ItemKind::Bullet { depth, color } => bullet(&painter, rect, *depth, *color),
             ItemKind::Text(text) => {
@@ -525,7 +532,7 @@ pub fn paint(ui: &mut Ui, laid: &Laid, t: &Tokens, access: Access, mut state: Op
     {
         ctx.open_url(egui::OpenUrl::new_tab(url.to_string()));
     }
-    (area.min, asked)
+    (top_left, asked)
 }
 
 /// The most characters of a link's address, and of a picture's description, that a tip shows.
