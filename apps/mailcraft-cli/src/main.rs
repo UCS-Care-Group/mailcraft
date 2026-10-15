@@ -343,6 +343,7 @@ fn run(args: &[String]) -> Result<(), Failure> {
                 // An account that signs in on its provider's page: a token that was handed in, or
                 // the sign-in itself, with the page's address printed for a browser.
                 Some(mut oauth) => {
+                    // (For an account whose mail is read through Microsoft Graph, a token for Graph.)
                     request.access_token = match std::env::var("MAILCRAFT_ACCESS_TOKEN") {
                         Ok(token) => token,
                         Err(_) => {
@@ -360,7 +361,28 @@ fn run(args: &[String]) -> Result<(), Failure> {
                             let cancel = std::sync::atomic::AtomicBool::new(false);
                             // A shared mailbox is opened with its owner's sign-in: the owner signs in.
                             let who = if request.send_login.is_empty() { request.account.email.clone() } else { request.send_login.clone() };
-                            mailcraft_net::oauth::sign_in(&oauth, &who, &open, &cancel).map_err(|e| format!("sync: {e}"))?.access
+                            if request.account.mail_source == mailcraft_model::MailSource::Graph {
+                                // Mail read through Microsoft Graph: the token is Graph's, for the mail too.
+                                mailcraft_net::oauth::sign_in_for_mail(&oauth, &who, &open, &cancel, false)
+                                    .map_err(|refusal| {
+                                        use mailcraft_net::oauth::FavoritesRefusal;
+                                        match refusal {
+                                            FavoritesRefusal::Approval => {
+                                                "sync: an administrator of the organisation has to approve MailCraft first".to_string()
+                                            }
+                                            FavoritesRefusal::Organisation => {
+                                                "sync: the organisation doesn't allow MailCraft to read mail through Microsoft Graph".to_string()
+                                            }
+                                            FavoritesRefusal::Account => {
+                                                "sync: this kind of account can't have its mail read through Microsoft Graph".to_string()
+                                            }
+                                            FavoritesRefusal::Other(e) => format!("sync: {e}"),
+                                        }
+                                    })?
+                                    .access
+                            } else {
+                                mailcraft_net::oauth::sign_in(&oauth, &who, &open, &cancel).map_err(|e| format!("sync: {e}"))?.access
+                            }
                         }
                     };
                 }

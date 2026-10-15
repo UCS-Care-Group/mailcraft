@@ -54,7 +54,7 @@ fn account(imap: &FakeImap) -> Account {
 
 fn folder(id: Id, remote: &str, kind: FolderKind, uid_validity: u32, known_uids: Vec<u32>) -> FolderState {
     let uid_seen = known_uids.iter().copied().max().unwrap_or(0);
-    FolderState { id, remote: remote.into(), kind, uid_validity, uid_seen, known_uids, mark: Default::default() }
+    FolderState { id, remote: remote.into(), kind, uid_validity, uid_seen, known_uids, mark: Default::default(), ..Default::default() }
 }
 
 /// The folders as a mailbox that is up to date with [`server`] has them.

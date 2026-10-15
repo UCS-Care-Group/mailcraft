@@ -177,6 +177,42 @@ mod native {
         NetError::Config(if who.is_empty() { "sign in to the account first".into() } else { format!("sign in to {who} first") })
     }
 
+    /// Why a shared mailbox couldn't be opened ([`check_shared`]).
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub enum SharedCheck {
+        /// The server didn't let the account in to it, or it has no Inbox to show the account:
+        /// opening it takes Full Access, which an administrator gives. What the server said.
+        NoAccess(String),
+        /// It couldn't be found out this time (the server couldn't be reached, say).
+        Failed(NetError),
+    }
+
+    /// Whether the account whose access token `token` is may open the shared mailbox `account`
+    /// (as [`mailcraft_model::Account::shared_of`] signs in to one: IMAP with the shared mailbox's
+    /// address as the user and the owner's token): signed in to, and its Inbox opened to read.
+    /// Nothing is changed and nothing is downloaded. The token never appears in the answer.
+    pub fn check_shared(account: &Account, token: &str) -> Result<(), SharedCheck> {
+        if account.incoming.is_none() {
+            return Err(SharedCheck::Failed(NetError::Config("the account has no incoming mail server".into())));
+        }
+        let mut imap = match crate::sync::open_imap(account, token) {
+            Ok(imap) => imap,
+            Err(e) => {
+                let e = e.without(token);
+                return Err(if e.is_refused_sign_in() { SharedCheck::NoAccess(e.to_string()) } else { SharedCheck::Failed(e) });
+            }
+        };
+        let opened = imap.select("INBOX", true);
+        let _ = imap.logout();
+        match opened {
+            Ok(_) => Ok(()),
+            Err(e @ (mailcraft_proto::ProtoError::Rejected(_) | mailcraft_proto::ProtoError::Auth(_))) => {
+                Err(SharedCheck::NoAccess(NetError::from(e).without(token).to_string()))
+            }
+            Err(e) => Err(SharedCheck::Failed(NetError::from(e).without(token))),
+        }
+    }
+
     /// Check that the account's servers accept the sign-in (IMAP login, then SMTP EHLO/AUTH when an outgoing server is set).
     ///
     /// `secret` is the account's password, or the access token of an account that signs in with

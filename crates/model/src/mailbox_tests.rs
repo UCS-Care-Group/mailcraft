@@ -361,10 +361,10 @@ fn deleting_mail_the_server_has_waits_to_be_pushed() {
     assert_eq!(mb.pending, [Pending::Move { account, message: a, from: "INBOX".into(), uid: 44, synced: Some(unread(44)), to: deleted }]);
     // And then for good, before the server heard of the move: deleted where the server has it.
     assert_eq!(mb.delete_message(a), Ok(true));
-    assert_eq!(mb.pending, [Pending::Delete { account, from: "INBOX".into(), uid: 44 }]);
+    assert_eq!(mb.pending, [Pending::Delete { account, from: "INBOX".into(), uid: 44, remote_id: String::new() }]);
     // For good straight away.
     mb.remove_message(b).unwrap();
-    assert_eq!(mb.pending.last(), Some(&Pending::Delete { account, from: "INBOX".into(), uid: 45 }));
+    assert_eq!(mb.pending.last(), Some(&Pending::Delete { account, from: "INBOX".into(), uid: 45, remote_id: String::new() }));
     // What a synchronisation takes out because the server no longer has it is not told back.
     mb.forget_message(c).unwrap();
     // A message that was never on the server is nobody's business.
@@ -519,8 +519,8 @@ fn repair_drops_nonsense_about_the_server() {
         mb.pending,
         [
             Pending::Move { account: 1, message: 16, from: "INBOX".into(), uid: 40, synced: None, to: 6 },
-            Pending::Delete { account: 1, from: "INBOX".into(), uid: 50 },
-            Pending::Delete { account: 2, from: "INBOX".into(), uid: 53 },
+            Pending::Delete { account: 1, from: "INBOX".into(), uid: 50, remote_id: String::new() },
+            Pending::Delete { account: 2, from: "INBOX".into(), uid: 53, remote_id: String::new() },
         ]
     );
     assert!(mb.repair().is_empty(), "{:?}", mb.clone().repair());
@@ -606,7 +606,7 @@ fn what_the_owner_does_to_folders_is_noted_for_the_server_once() {
 fn a_folder_forgotten_takes_its_messages_and_changes_and_tells_nobody() {
     let (mut mb, account, projects, apollo) = served();
     let m = mb.add_message(Message { folder: apollo, uid: 4, ..Default::default() }).unwrap();
-    mb.pending.push(Pending::Delete { account, from: "Projects/Apollo".into(), uid: 9 });
+    mb.pending.push(Pending::Delete { account, from: "Projects/Apollo".into(), uid: 9, remote_id: String::new() });
     mb.note_folder_moved(apollo, Some(projects));
     mb.forget_folder(projects).unwrap();
     assert!(mb.folder(projects).is_none() && mb.folder(apollo).is_none() && mb.message(m).is_none());
@@ -618,7 +618,7 @@ fn a_folder_forgotten_takes_its_messages_and_changes_and_tells_nobody() {
 #[test]
 fn a_rename_on_the_server_renames_what_lies_inside_and_what_waits() {
     let (mut mb, account, projects, apollo) = served();
-    mb.pending.push(Pending::Delete { account, from: "Projects/Apollo".into(), uid: 9 });
+    mb.pending.push(Pending::Delete { account, from: "Projects/Apollo".into(), uid: 9, remote_id: String::new() });
     mb.folder_changes.push(FolderChange::Rename { account, folder: apollo, from: "Projects/Apollo".into(), parent: Some(projects) });
     let other = mb.add_folder(account, None, "Projects2").unwrap();
     mb.folder_mut(other).unwrap().remote = "Projects2".into();

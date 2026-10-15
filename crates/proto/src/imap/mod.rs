@@ -58,6 +58,9 @@ pub struct Imap<S> {
     appended: Option<(u32, u32)>,
     /// The tag of the IDLE under way, between [`Imap::idle`] and [`Imap::idle_done`].
     idling: Option<String>,
+    /// The server has greeted: a line from it that is no IMAP response is now the end of the
+    /// session, not the wrong kind of server.
+    greeted: bool,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -76,6 +79,15 @@ impl Mailbox {
     pub fn has_flag(&self, flag: &str) -> bool {
         self.flags.iter().any(|f| f.eq_ignore_ascii_case(flag))
     }
+}
+
+/// How a mailbox stands, asked without opening it ([`Imap::status`]).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct MailboxStatus {
+    /// How many messages it has (`MESSAGES`).
+    pub exists: u32,
+    pub uid_next: u32,
+    pub uid_validity: u32,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -102,8 +114,9 @@ impl Selected {
 pub enum IdleNews {
     /// Nothing, for as long as the stream waits for a read.
     Quiet,
-    /// The mailbox changed: a message came (`EXISTS`, `RECENT`), went (`EXPUNGE`) or had its
-    /// flags changed (`FETCH`).
+    /// The mailbox has new or fewer messages: one came (`EXISTS`) or went (`EXPUNGE`). A flag
+    /// that changed (`FETCH`) or `RECENT` is [`IdleNews::Other`]: it is not what a watch on the
+    /// Inbox waits for, and the watcher's own changes come back that way.
     Changed,
     /// Something else: a line of status, news about something else.
     Other,
@@ -285,6 +298,30 @@ fn mailbox_from(values: Vec<Value>) -> Option<Mailbox> {
     Some(Mailbox { name: decode_utf7(&raw), raw, delimiter, flags: flags.into_iter().filter_map(Value::into_text).take(MAX_FLAGS).collect() })
 }
 
+/// `* STATUS <name> (MESSAGES 4 UIDNEXT 9 UIDVALIDITY 11)`: the numbers, in whatever order the
+/// server lists them; one it leaves out is 0. `None` for a line that isn't a STATUS.
+fn status_from(values: Vec<Value>) -> Option<MailboxStatus> {
+    let mut values = values.into_iter();
+    if !values.next()?.atom()?.eq_ignore_ascii_case("STATUS") {
+        return None;
+    }
+    let _name = values.next()?;
+    let Value::List(items) = values.next()? else { return None };
+    let mut status = MailboxStatus::default();
+    let mut items = items.into_iter();
+    while let Some(item) = items.next() {
+        let Some(name) = item.atom() else { continue };
+        let value = items.next().and_then(|v| v.number()).unwrap_or(0);
+        match name.to_ascii_uppercase().as_str() {
+            "MESSAGES" => status.exists = value,
+            "UIDNEXT" => status.uid_next = value,
+            "UIDVALIDITY" => status.uid_validity = value,
+            _ => {}
+        }
+    }
+    Some(status)
+}
+
 /// A message set: `1:*`, `5,9,12:20`.
 fn is_set(set: &str) -> bool {
     !set.is_empty() && set.len() <= MAX_QUOTED && set.bytes().all(|b| b.is_ascii_digit() || matches!(b, b':' | b',' | b'*'))
@@ -417,10 +454,12 @@ impl<S: Read + Write> Imap<S> {
     /// Read the greeting (`* OK` or `* PREAUTH`; `* BYE` is an error).
     pub fn connect(stream: S) -> Result<Self, ProtoError> {
         let mut imap = Self::resume(stream);
+        imap.greeted = false;
         match imap.read_response()? {
             Response::Status { tag: None, line } => match line.status {
                 Status::Ok | Status::Preauth => {
                     imap.authenticated = line.status == Status::Preauth;
+                    imap.greeted = true;
                     imap.note_status(&line);
                     Ok(imap)
                 }
@@ -444,6 +483,7 @@ impl<S: Read + Write> Imap<S> {
             leaving: false,
             appended: None,
             idling: None,
+            greeted: true,
         }
     }
 
@@ -568,6 +608,21 @@ impl<S: Read + Write> Imap<S> {
             }
         })?;
         Ok(out)
+    }
+
+    /// STATUS <mailbox> (MESSAGES UIDNEXT UIDVALIDITY): how the mailbox stands without opening
+    /// it, which costs the server far less than SELECT or EXAMINE, and leaves the open mailbox
+    /// as it is (RFC 3501 §6.3.10). A server that answers without the numbers gives zeros for
+    /// them; one that answers with no `STATUS` line at all is a protocol error.
+    pub fn status(&mut self, raw_name: &str) -> Result<MailboxStatus, ProtoError> {
+        let mut found: Option<MailboxStatus> = None;
+        let command = Command::new("STATUS").string(raw_name.as_bytes()).arg("(MESSAGES UIDNEXT UIDVALIDITY)");
+        self.run(command, &mut |values| {
+            if let Some(status) = status_from(values) {
+                found = Some(status);
+            }
+        })?;
+        found.ok_or_else(|| ProtoError::Protocol("the server answered STATUS without saying how the mailbox stands".into()))
     }
 
     /// EXAMINE (read-only) or SELECT.
@@ -874,7 +929,7 @@ impl<S: Read + Write> Imap<S> {
                 self.note_data(&values);
                 let word = values.get(1).and_then(Value::atom).map(str::to_ascii_uppercase);
                 Ok(match word.as_deref() {
-                    Some("EXISTS" | "RECENT" | "EXPUNGE" | "FETCH") => IdleNews::Changed,
+                    Some("EXISTS" | "EXPUNGE") => IdleNews::Changed,
                     _ => IdleNews::Other,
                 })
             }
@@ -1033,7 +1088,12 @@ impl<S: Read + Write> Imap<S> {
                 Some(status) if !tag.is_empty() && tag != "*" => {
                     Ok(Response::Status { tag: Some(tag.to_string()), line: StatusLine::new(status, rest) })
                 }
-                _ => Err(ProtoError::Protocol(format!("\"{}\" is not an IMAP response", tidy(&self.secrets.hide(&text))))),
+                // Before the greeting it is the wrong kind of server; after it, a server that has
+                // stopped speaking IMAP (Exchange Online writes a bare `Server Unavailable. 15`
+                // when it throttles, and hangs up): the session is over, and the connection is
+                // as good as lost, to be tried again later rather than command by command.
+                _ if !self.greeted => Err(ProtoError::Protocol(format!("\"{}\" is not an IMAP response", tidy(&self.secrets.hide(&text))))),
+                _ => Err(ProtoError::Io(format!("the server closed the connection ({})", tidy(&self.secrets.hide(&text))))),
             };
         };
         // `* OK …`, `* BYE …`: the rest is text for people, where `{5}` is no literal.

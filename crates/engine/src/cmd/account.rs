@@ -7,12 +7,12 @@
 use std::collections::{HashMap, HashSet};
 
 use mailcraft_model::sync::{
-    CategoriesPushed, Deleted, FlagsPushed, FolderDelta, FolderState, Moved, RemoteCategories, RemoteFlags, RemoteOp, SyncRequest, SyncResult,
-    Upload, Uploaded, category_keyword, summary_line,
+    CategoriesPushed, Deleted, FlagsPushed, FolderDelta, FolderState, Moved, RemoteCategories, RemoteFlags, RemoteId, RemoteOp, SyncRequest,
+    SyncResult, SyncScope, Upload, Uploaded, category_keyword, summary_line,
 };
 use mailcraft_model::{
-    Account, AccountKind, Directory, FavoritesSource, FlagStatus, Folder, FolderKind, Id, Mailbox, Message, OAuth, OAuthProvider, Pending, Security,
-    Server, Signature, clean_name,
+    Account, AccountKind, Directory, FavoritesSource, FlagStatus, Folder, FolderKind, Id, MailSource, Mailbox, Message, OAuth, OAuthProvider,
+    Pending, Security, Server, Signature, clean_name,
 };
 use serde_json::{Value, json};
 
@@ -27,6 +27,10 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("account.list", "List Accounts", "File › Info", list).pure(),
         CommandSpec::new("account.favoritesSource", "Where Outlook's Favorites Come From", "File › Options", favorites_source_command)
             .params(r#"{"account"?: number (default: the first account that signs in with Microsoft), "source"?: "graph" (Microsoft Graph: lasting; in an organisation an administrator may have to approve it once) | "ews" (Exchange Web Services: needs no administrator where the organisation still allows it; Microsoft switches it off on 1 April 2027, and it is refused from that day on by the session's clock, and for a personal Microsoft account) | "none" (not now: the Favorites marked here are the account's, and what was kept of the server's list goes), "directory"?: "organisation"|"personal" (which kind of Microsoft account it is, when the caller knows from the sign-in)} — how the folders the owner keeps under Favorites in Outlook are read for that account; only ever read, whichever it is. It sets the choice and nothing else: a host with sockets does the reading (`ui.favoritesSource` in the app). Without "source" nothing changes. Answers {"account", "source": "graph"|"ews"|"none"|null (null: never chosen, which is as it was before there was a choice: Microsoft Graph once the owner has agreed to it), "directory": "organisation"|"personal"|null, "offered": [string] (what may be chosen now), "ewsEnds": "2027-04-01", "ewsEnded": bool, "from": "server"|"mailbox"}"#),
+        CommandSpec::new("account.mailSource", "Read Mail Through", "File › Account Settings", mail_source_command)
+            // (It seals the undo history itself: nothing before it can be gone back to.)
+            .pure()
+            .params(r#"{"account"?: number (default: the first account that signs in with Microsoft), "source"?: "imap" | "graph" (Microsoft Graph for reading, changing and sending mail, for the account and the shared mailboxes opened through it; takes the permissions Mail.ReadWrite, Mail.ReadWrite.Shared and Mail.Send.Shared, which the owner is asked for on Microsoft's page and which an organisation may keep for its administrators to give), "discard"?: bool (switch even though changes made here haven't reached the server yet: they stay here and are not sent)} — how the account's mail is read from its server and how what is done to it here goes back. Switching keeps every message: the next Send/Receive matches what is here to the server's copies by their Message-ID instead of bringing them in twice. A shared mailbox follows the account it opens under and is refused here. Without "source" nothing changes. Answers {"account", "source": "imap"|"graph", "changed": bool, "discarded": number}"#),
         CommandSpec::new("account.preset", "Suggest Account Settings", "File › Info", preset)
             .pure()
             .params(r#"{"email": string, "provider"?: "microsoft", "service"?: "microsoft365"|"outlook.com"|"google"|"yahoo"|"icloud"|"fastmail"|"aol"|"zoho", "mx"?: [string] (the domain's mail exchangers, when the host looked them up)} — answers the servers and sign-in an address usually takes; changes nothing"#),
@@ -36,7 +40,7 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("sync.request", "Send/Receive All Folders", "Send / Receive", request)
             .pure()
             .key("F9")
-            .params(r#"{"account"?: number} — answers what a host should send and fetch"#)
+            .params(r#"{"account"?: number, "scope"?: "all" (default) | "inboxTree" (the Inbox and the folders under it: the short job that runs often) | "rest" (every other folder: the sweep that runs once the Inbox jobs of a round are done)} — answers what a host should send and fetch (a SyncRequest: with a scope, only the folders in it, and those the changes to push are about; the Outbox, the changes and the folder list go with whichever job runs first)"#)
             .when(has_server),
         CommandSpec::new("sync.apply", "Apply Send/Receive", "Send / Receive", apply).pure().params(r#"{"result": SyncResult}"#),
     ]
@@ -208,6 +212,65 @@ fn favorites_source_command(s: &mut Session, v: &Value) -> CmdResult {
     }))
 }
 
+/// What Undo says once an account's mail has been switched to another way of reading it.
+pub const SEALED_BY_SWITCH: &str = "the way an account's mail is read was changed, which can't be undone";
+
+/// `account.mailSource`: whether an account that signs in with Microsoft has its mail read over
+/// IMAP or through Microsoft Graph, and with it the shared mailboxes opened through it (they are
+/// read with its sign-in, the way it is). A message's number in its folder means something else
+/// each way, so a switch unties every message from the server's copy (keeping it, marked as
+/// known to be there: the next download matches it by its Message-ID), forgets how far each
+/// folder was read, and drops the changes waiting to be sent, which name messages the old way
+/// ([`Mailbox::switch_mail_source`]). Folder changes still to reach the server are by name, and
+/// stay.
+fn mail_source_command(s: &mut Session, v: &Value) -> CmdResult {
+    let named = match v.get("account") {
+        None | Some(Value::Null) => None,
+        Some(_) => Some(p::req_id(v, "account")?),
+    };
+    let account = match named {
+        Some(id) => s.mailbox.account(id).ok_or_else(|| fail(format!("no account with id {id}")))?,
+        None => s.mailbox.accounts.iter().find(|a| signs_in_with_microsoft(a)).ok_or_else(|| fail("No account signs in with Microsoft"))?,
+    };
+    if let Some(owner) = account.shared_of.filter(|owner| *owner != account.id) {
+        let owner = s.mailbox.account(owner).map_or_else(|| "the account it opens under".to_string(), |o| o.email.clone());
+        return Err(fail(format!(
+            "{} is a shared mailbox: its mail is read the way {owner} reads its own, which is chosen in that account's Account Settings",
+            account.email
+        )));
+    }
+    if !signs_in_with_microsoft(account) || account.kind != AccountKind::Imap {
+        return Err(fail("Only an account that signs in with Microsoft can have its mail read through Microsoft Graph"));
+    }
+    let id = account.id;
+    let before = account.mail_source;
+    let source = match v.get("source") {
+        None | Some(Value::Null) => None,
+        Some(_) => Some(p::str(v, "source").and_then(MailSource::parse).ok_or_else(|| bad("`source` is imap or graph"))?),
+    };
+    let mut discarded = 0;
+    let changed = source.is_some_and(|source| source != before);
+    if let Some(source) = source.filter(|_| changed) {
+        // The shared mailboxes opened through the account follow it ([`super::shared`]): what
+        // waits in them holds the switch as what waits in the account does.
+        let family: Vec<Id> = std::iter::once(id).chain(s.mailbox.shared_mailboxes(id).iter().map(|a| a.id)).collect();
+        let waiting: usize = family.iter().map(|a| remote_ops(&s.mailbox, *a, 0).1 + uploads(&s.mailbox, *a, 0).1).sum();
+        if waiting > 0 && !p::bool(v, "discard").unwrap_or(false) {
+            return Err(fail(format!(
+                "{waiting} change(s) made here haven't reached the server yet. Use Send/Receive first, or switch anyway and they stay here only"
+            )));
+        }
+        discarded = waiting;
+        for a in family {
+            s.mailbox.switch_mail_source(a, source);
+        }
+        s.seal_history(SEALED_BY_SWITCH);
+        s.mailbox_changed();
+    }
+    let source = s.mailbox.account(id).map_or(before, |a| a.mail_source);
+    Ok(json!({"account": id, "source": source.code(), "changed": changed, "discarded": discarded}))
+}
+
 /// The servers and sign-in an address usually takes. Nothing is looked up here: the answer comes
 /// from the address's domain, or from the domain's mail exchangers when a host that could ask the
 /// DNS passes them in (`mx`), which is how a company's own domain is known to be, say, Microsoft's.
@@ -335,7 +398,14 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
     if s.mailbox.accounts.iter().any(|x| x.id != id && x.email.eq_ignore_ascii_case(&a.email)) {
         return Err(fail(format!("{} is already set up", a.email)));
     }
+    let (incoming, outgoing) = (a.incoming.clone(), a.outgoing.clone());
     *s.mailbox.account_mut(id)? = a;
+    // The shared mailboxes opened through it are opened on its servers: Account Settings show
+    // them as they are now. (A run takes them from the account itself either way.)
+    for shared in s.mailbox.accounts.iter_mut().filter(|x| x.shared_of == Some(id)) {
+        shared.incoming = incoming.clone();
+        shared.outgoing = outgoing.clone();
+    }
     Ok(json!({"id": id}))
 }
 
@@ -355,7 +425,7 @@ fn list(s: &mut Session, _: &Value) -> CmdResult {
         .accounts
         .iter()
         .map(|a| {
-            json!({"id": a.id, "name": a.name, "email": a.email, "displayName": a.display_name, "kind": a.kind, "username": a.username, "incoming": a.incoming, "outgoing": a.outgoing, "signature": a.signature, "auth": if a.oauth.is_some() { "oauth2" } else { "password" }, "oauth": a.oauth, "favoritesSource": a.favorites_source.code(), "sharedOf": a.shared_of})
+            json!({"id": a.id, "name": a.name, "email": a.email, "displayName": a.display_name, "kind": a.kind, "username": a.username, "incoming": a.incoming, "outgoing": a.outgoing, "signature": a.signature, "auth": if a.oauth.is_some() { "oauth2" } else { "password" }, "oauth": a.oauth, "favoritesSource": a.favorites_source.code(), "mailSource": a.mail_source.code(), "sharedOf": a.shared_of})
         })
         .collect();
     Ok(json!({"accounts": accounts, "signatures": s.mailbox.signatures}))
@@ -415,18 +485,69 @@ pub const SEALED_BY_SENDING: &str = "mail that was sent can't be called back";
 /// since the server last heard (flags, moves, deletions), download what is new. The host adds
 /// the password.
 pub fn sync_request(s: &Session, account: Id) -> Result<SyncRequest, CmdError> {
+    sync_request_scoped(s, account, SyncScope::All)
+}
+
+/// [`sync_request`] for the folders of `scope` alone ([`SyncScope`]): the request carries the
+/// states of those folders, and of any other folder the changes to push are about (a move out
+/// of it, a draft into it); the Outbox and the changes go along whatever the scope. For the
+/// folders alone ([`SyncScope::Rest`]) the Inbox's own state goes too, for the look the host
+/// takes at the Inbox between two folders of a long run. At a hundred thousand messages this
+/// makes the Inbox job's request a small fraction of the whole one.
+pub fn sync_request_scoped(s: &Session, account: Id, scope: SyncScope) -> Result<SyncRequest, CmdError> {
+    let mut request = sync_request_all(s, account)?;
+    request.scope = scope;
+    if scope == SyncScope::All {
+        return Ok(request);
+    }
+    let mut named: HashSet<&str> = HashSet::new();
+    for op in &request.ops {
+        named.insert(op.mailbox());
+        if let RemoteOp::Move { to, .. } = op {
+            named.insert(to);
+        }
+    }
+    for up in &request.uploads {
+        named.insert(&up.to);
+        named.insert(&up.copy_from);
+    }
+    for op in &request.folder_ops {
+        match op {
+            mailcraft_model::sync::FolderOp::Create { parent, .. } => named.insert(parent),
+            mailcraft_model::sync::FolderOp::Rename { from, .. } => named.insert(from),
+            mailcraft_model::sync::FolderOp::Delete { remote } => named.insert(remote),
+        };
+    }
+    let folders = std::mem::take(&mut request.folders);
+    request.folders = folders
+        .into_iter()
+        .filter(|f| {
+            scope.covers(&f.remote, f.kind)
+                || (scope == SyncScope::Rest && f.kind == FolderKind::Inbox)
+                || (!f.remote.is_empty() && named.contains(f.remote.as_str()))
+        })
+        .collect();
+    Ok(request)
+}
+
+fn sync_request_all(s: &Session, account: Id) -> Result<SyncRequest, CmdError> {
     let a = s.mailbox.account(account).ok_or_else(|| fail(format!("no account with id {account}")))?;
     if a.kind != AccountKind::Imap {
         return Err(fail(format!("{} isn't connected to a mail server", a.name)));
     }
     let outbox_folder = s.mailbox.folder_of_kind(account, FolderKind::Outbox);
     let mut known: HashMap<Id, Vec<u32>> = HashMap::new();
+    // Through Microsoft Graph, the id each of them has there. (A shared mailbox is read the way
+    // its owner's account is.)
+    let graph = s.mailbox.mail_source_of(account) == MailSource::Graph;
+    let mut remote_ids: HashMap<Id, Vec<RemoteId>> = HashMap::new();
     let mut outbox = Vec::new();
     let now = s.now();
     for m in s.mailbox.messages.values() {
         // A message whose delivery is delayed stays in the Outbox until its time; it then goes
         // dated when it went.
-        if Some(m.folder) == outbox_folder && !m.is_deferred(now) {
+        // One the server refused to send as the account waits for the owner ([`Message::hold`]).
+        if Some(m.folder) == outbox_folder && !m.is_deferred(now) && m.hold.is_none() {
             let mut going = m.as_ref().clone();
             if let Some(at) = going.deliver_after.take() {
                 going.date = going.date.max(at);
@@ -435,6 +556,28 @@ pub fn sync_request(s: &Session, account: Id) -> Result<SyncRequest, CmdError> {
         }
         if m.uid != 0 {
             known.entry(m.folder).or_default().push(m.uid);
+            if graph && !m.remote_id.is_empty() {
+                remote_ids.entry(m.folder).or_default().push(RemoteId { uid: m.uid, id: m.remote_id.clone() });
+            }
+        }
+    }
+    // And of the server's copies that a change still to be pushed is about, which are no longer
+    // in that folder here (moved on, or deleted).
+    if graph {
+        let by_remote: HashMap<&str, Id> =
+            s.mailbox.folders.iter().filter(|f| f.account == account && !f.remote.is_empty()).map(|f| (f.remote.as_str(), f.id)).collect();
+        for pending in s.mailbox.pending.iter().filter(|p| p.account() == account) {
+            let id = match pending {
+                Pending::Move { message, .. } => s.mailbox.message(*message).map(|m| m.remote_id.clone()).unwrap_or_default(),
+                Pending::Delete { remote_id, .. } => remote_id.clone(),
+            };
+            let (from, uid) = pending.source();
+            if let Some(folder) = by_remote.get(from).filter(|_| !id.is_empty() && uid != 0) {
+                let ids = remote_ids.entry(*folder).or_default();
+                if !ids.iter().any(|r| r.uid == uid) {
+                    ids.push(RemoteId { uid, id });
+                }
+            }
         }
     }
     let folders = s
@@ -449,7 +592,9 @@ pub fn sync_request(s: &Session, account: Id) -> Result<SyncRequest, CmdError> {
             uid_validity: f.uid_validity,
             uid_seen: f.uid_seen,
             known_uids: known.remove(&f.id).unwrap_or_default(),
-            mark: f.mark,
+            mark: f.mark.clone(),
+            remote_ids: remote_ids.remove(&f.id).unwrap_or_default(),
+            delta: if graph { f.delta.clone() } else { String::new() },
         })
         .collect();
     let (ops, _) = remote_ops(&s.mailbox, account, MAX_OPS);
@@ -457,15 +602,41 @@ pub fn sync_request(s: &Session, account: Id) -> Result<SyncRequest, CmdError> {
     let folder_ops = super::folder_sync::folder_ops(&s.mailbox, account);
     // A shared mailbox signs in with its owner's account ([`super::shared`]).
     let (a, send_login) = super::shared::signed_in_as(s, a)?;
-    Ok(SyncRequest { account: a, folders, outbox, max_per_folder: s.prefs.sync_limit, ops, folder_ops, send_login, uploads, ..Default::default() })
+    // Whole messages go to the server: what the mailbox keeps outside memory is fetched first.
+    Ok(s.loaded_request(SyncRequest {
+        account: a,
+        folders,
+        outbox,
+        max_per_folder: s.prefs.sync_limit,
+        ops,
+        folder_ops,
+        send_login,
+        uploads,
+        ..Default::default()
+    }))
+}
+
+/// A look at the Inbox of `account` and the folders under it ([`SyncRequest::inbox_only`] with
+/// [`SyncScope::InboxTree`]): what they are known to have and how far each was read, and nothing
+/// to send or push. The host adds the secret.
+pub fn inbox_request(s: &Session, account: Id) -> Result<SyncRequest, CmdError> {
+    let mut request = sync_request_all(s, account)?;
+    request.outbox.clear();
+    request.ops.clear();
+    request.folder_ops.clear();
+    request.uploads.clear();
+    request.folders.retain(|f| SyncScope::InboxTree.covers(&f.remote, f.kind));
+    request.inbox_only = true;
+    request.scope = SyncScope::InboxTree;
+    Ok(request)
 }
 
 /// How many messages in the Outbox of `account` are to go now: all of them but those whose
-/// delivery is delayed to a time still to come.
+/// delivery is delayed to a time still to come, and those held for the owner ([`Message::hold`]).
 pub fn outbox_due(s: &Session, account: Id) -> usize {
     let Some(outbox) = s.mailbox.folder_of_kind(account, FolderKind::Outbox) else { return 0 };
     let now = s.now();
-    s.mailbox.messages_in(outbox).filter(|m| !m.is_deferred(now)).count()
+    s.mailbox.messages_in(outbox).filter(|m| !m.is_deferred(now) && m.hold.is_none()).count()
 }
 
 /// How many changes made in `account` its server hasn't heard of yet: what a synchronisation
@@ -479,7 +650,7 @@ pub fn unpushed(s: &Session, account: Id) -> usize {
 }
 
 /// Whether `m` is kept here without all of its text (it was too large to download).
-fn partly_here(m: &Message) -> bool {
+pub(crate) fn partly_here(m: &Message) -> bool {
     m.headers.iter().any(|(name, _)| name.eq_ignore_ascii_case(NOT_DOWNLOADED))
 }
 
@@ -494,8 +665,16 @@ fn partly_here(m: &Message) -> bool {
 /// another of its mailboxes is copied from there. One that is only partly here is never put
 /// there from here, and one too large to be is left out.
 fn uploads(mb: &Mailbox, account: Id, limit: usize) -> (Vec<Upload>, usize) {
-    let folders: HashMap<Id, &Folder> =
-        mb.folders.iter().filter(|f| f.account == account && !f.remote.is_empty() && f.kind != FolderKind::Outbox).map(|f| (f.id, f)).collect();
+    // Microsoft Graph makes a message from here only as a draft: it takes only drafts, and
+    // copies none.
+    let graph = mb.mail_source_of(account) == MailSource::Graph;
+    let folders: HashMap<Id, &Folder> = mb
+        .folders
+        .iter()
+        .filter(|f| f.account == account && !f.remote.is_empty() && f.kind != FolderKind::Outbox)
+        .filter(|f| !graph || f.kind == FolderKind::Drafts)
+        .map(|f| (f.id, f))
+        .collect();
     let moving: HashSet<Id> = mb
         .pending
         .iter()
@@ -522,7 +701,8 @@ fn uploads(mb: &Mailbox, account: Id, limit: usize) -> (Vec<Upload>, usize) {
     }
     let (mut out, mut count) = (Vec::new(), 0usize);
     for (m, folder) in waiting {
-        let source = on_server.get(m.message_id.as_str()).filter(|_| !m.message_id.is_empty()).filter(|(remote, _)| *remote != folder.remote);
+        let source =
+            on_server.get(m.message_id.as_str()).filter(|_| !m.message_id.is_empty() && !graph).filter(|(remote, _)| *remote != folder.remote);
         let partial = partly_here(m);
         if (partial && source.is_none()) || (!partial && m.size() > MAX_UPLOAD) {
             continue;
@@ -643,7 +823,11 @@ fn request(s: &mut Session, v: &Value) -> CmdResult {
     let account = p::id(v, "account")
         .or_else(|| s.mailbox.accounts.iter().find(|a| a.kind == AccountKind::Imap).map(|a| a.id))
         .ok_or_else(|| fail("no account is connected to a mail server"))?;
-    let req = sync_request(s, account)?;
+    let scope = match v.get("scope") {
+        None | Some(Value::Null) => SyncScope::All,
+        Some(_) => p::str(v, "scope").and_then(SyncScope::parse).ok_or_else(|| bad("`scope` is all, inboxTree or rest"))?,
+    };
+    let req = sync_request_scoped(s, account, scope)?;
     serde_json::to_value(&req).map_err(|e| fail(e.to_string()))
 }
 
@@ -721,6 +905,20 @@ impl SyncTotals {
             (true, _) => format!("Stopped ({line})"),
         }
     }
+
+    /// Add what another run came to (the jobs of one round, taken together).
+    pub fn absorb(&mut self, other: &SyncTotals) {
+        self.new = self.new.saturating_add(other.new);
+        self.sent = self.sent.saturating_add(other.sent);
+        self.removed = self.removed.saturating_add(other.removed);
+        self.updated = self.updated.saturating_add(other.updated);
+        self.matched = self.matched.saturating_add(other.matched);
+        self.pushed = self.pushed.saturating_add(other.pushed);
+        self.errors.extend(other.errors.iter().cloned());
+        self.errors.truncate(200);
+        self.stopped |= other.stopped;
+        self.finished = other.finished;
+    }
 }
 
 /// [`apply_sync`] for an answer that comes in pieces, as `mailcraft_net::sync_with` hands it
@@ -746,7 +944,15 @@ pub fn apply_sync_part(s: &mut Session, run: &mut SyncTotals, mut result: SyncRe
     }
     let (partial, stopped, progress) = (result.partial, result.stopped, result.progress.clone());
     let pushed = result.pushed_count();
-    let (counts, sent) = if result.has_news() { take_in_news(s, account, &mut result) } else { (Counts::default(), 0) };
+    let (counts, sent) = if !result.has_news() {
+        (Counts::default(), 0)
+    } else if marks_only(&result) && take_in_marks(&mut s.mailbox, account, &result) {
+        // Saved with the next save; nothing shown is worked out from a mark, so nothing is rebuilt.
+        s.dirty = true;
+        (Counts::default(), 0)
+    } else {
+        take_in_news(s, account, &mut result)
+    };
     run.new += counts.new;
     run.sent += sent;
     run.removed += counts.removed;
@@ -787,6 +993,57 @@ pub fn apply_sync_part(s: &mut Session, run: &mut SyncTotals, mut result: SyncRe
     }))
 }
 
+/// Whether `result` says no more than how mailboxes stand (how far each was read and its
+/// [`FolderMark`](mailcraft_model::sync::FolderMark)): the "Checking…" piece of a run for a
+/// mailbox with nothing new, changed or gone, which is most of them.
+fn marks_only(result: &SyncResult) -> bool {
+    result.listed.is_empty()
+        && result.sent.is_empty()
+        && result.held.is_empty()
+        && result.filed.is_empty()
+        && result.unfiled.is_empty()
+        && result.pushed_count() == 0
+        && result.folders_pushed.is_empty()
+        && result.keywords_refused.is_empty()
+        && result.folders.iter().all(|d| d.new.is_empty() && d.flags.is_empty() && d.removed.is_empty() && d.categories.is_empty())
+}
+
+/// Take in a piece that only says how mailboxes stand ([`marks_only`]): each folder's count and
+/// mark are written straight, with nothing worked out over the account's messages and no list
+/// rebuilt, since no message changed. Only for folders that already follow the mailbox spoken
+/// of, as they were; a mailbox made anew (another UIDVALIDITY) or one no folder follows yet is
+/// more than a mark, and the answer is `false` with nothing written: the piece goes the long way.
+fn take_in_marks(mb: &mut Mailbox, account: Id, result: &SyncResult) -> bool {
+    let mut writes: Vec<(Id, &FolderDelta)> = Vec::new();
+    for delta in result.folders.iter().filter(|d| !d.remote.is_empty()) {
+        let follower = mb.folders.iter().find(|f| f.account == account && f.remote == delta.remote).map(|f| f.id);
+        let folder = match (delta.id, follower) {
+            (Some(id), Some(follower)) if id == follower => id,
+            (None, Some(follower)) => follower,
+            _ => return false,
+        };
+        let Some(f) = mb.folder(folder) else { return false };
+        if f.uid_validity != 0 && delta.uid_validity != 0 && f.uid_validity != delta.uid_validity {
+            return false;
+        }
+        writes.push((folder, delta));
+    }
+    let graph = mb.mail_source_of(account) == MailSource::Graph;
+    for (folder, delta) in writes {
+        if let Ok(f) = mb.folder_mut(folder) {
+            if delta.uid_validity != 0 {
+                f.uid_validity = delta.uid_validity;
+            }
+            f.uid_seen = delta.uid_seen.max(f.uid_seen);
+            f.mark = delta.mark.clone();
+            if graph && !delta.delta.is_empty() {
+                f.delta = delta.delta.clone();
+            }
+        }
+    }
+    true
+}
+
 /// Take in what a result has for the mailbox. Returns what that changed, and how many messages
 /// were sent.
 fn take_in_news(s: &mut Session, account: Id, result: &mut SyncResult) -> (Counts, usize) {
@@ -811,7 +1068,9 @@ fn take_in_news(s: &mut Session, account: Id, result: &mut SyncResult) -> (Count
     if result.listed_whole && !result.listed.is_empty() {
         super::folder_sync::forget_unlisted(mb, account, &result.listed);
     }
-    let mut on_server = OnServer::of(mb, account);
+    hold_messages(mb, account, &result.held);
+    // A piece with nothing but mailboxes' news looks only at the messages of those mailboxes.
+    let mut on_server = if news_only(result) { OnServer::of_folders(mb, account, &result.folders) } else { OnServer::of(mb, account) };
     flags_pushed(mb, account, &on_server, &result.flagged);
     for moved in &result.moved {
         move_finished(mb, account, &mut on_server, moved);
@@ -947,7 +1206,7 @@ fn upload_finished(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, up: 
     });
     if !same {
         if free {
-            mb.pending.push(Pending::Delete { account, from: up.to.clone(), uid: up.uid });
+            mb.pending.push(Pending::Delete { account, from: up.to.clone(), uid: up.uid, remote_id: String::new() });
         }
         return;
     }
@@ -1065,18 +1324,47 @@ struct OnServer {
     /// Server copies a move or deletion made here is still waiting to be pushed for: they are
     /// not new mail, whatever a download says.
     leaving: HashSet<(Id, u32)>,
+    /// The folders this was worked out for, when not all of the account's ([`OnServer::of_folders`]).
+    only: Option<HashSet<Id>>,
 }
 
 impl OnServer {
     fn of(mb: &Mailbox, account: Id) -> OnServer {
         let by_uid = mb.messages.values().filter(|m| m.account == account && m.uid != 0).map(|m| ((m.folder, m.uid), m.id)).collect();
         let by_remote = mb.folders.iter().filter(|f| f.account == account && !f.remote.is_empty()).map(|f| (f.remote.clone(), f.id)).collect();
-        OnServer { by_uid, by_remote, expected: HashMap::new(), leaving: HashSet::new() }
+        OnServer { by_uid, by_remote, expected: HashMap::new(), leaving: HashSet::new(), only: None }
+    }
+
+    /// [`OnServer::of`] for the folders `deltas` speak of alone: what the other folders have is
+    /// not needed to take them in, and not worked out. A mailbox no folder follows yet (its
+    /// folder is found or made as it is taken in) wants everything known: [`OnServer::of`].
+    fn of_folders(mb: &Mailbox, account: Id, deltas: &[FolderDelta]) -> OnServer {
+        let by_remote: HashMap<String, Id> =
+            mb.folders.iter().filter(|f| f.account == account && !f.remote.is_empty()).map(|f| (f.remote.clone(), f.id)).collect();
+        let mut only: HashSet<Id> = HashSet::new();
+        for delta in deltas {
+            match delta.id.or_else(|| by_remote.get(&delta.remote).copied()) {
+                Some(id) => {
+                    only.insert(id);
+                }
+                None => return OnServer::of(mb, account),
+            }
+        }
+        let by_uid = mb
+            .messages
+            .values()
+            .filter(|m| m.account == account && m.uid != 0 && only.contains(&m.folder))
+            .map(|m| ((m.folder, m.uid), m.id))
+            .collect();
+        OnServer { by_uid, by_remote, expected: HashMap::new(), leaving: HashSet::new(), only: Some(only) }
     }
 
     /// Work out `expected` and `leaving`, once the finished changes are taken in.
     fn expect(&mut self, mb: &Mailbox, account: Id) {
-        for m in mb.messages.values().filter(|m| m.account == account && m.uid == 0 && m.synced.is_some()) {
+        let only = self.only.as_ref();
+        for m in
+            mb.messages.values().filter(|m| m.account == account && m.uid == 0 && m.synced.is_some() && only.is_none_or(|f| f.contains(&m.folder)))
+        {
             self.expected.entry(m.folder).or_default().push(m.id);
         }
         for pending in mb.pending.iter().filter(|p| p.account() == account) {
@@ -1084,6 +1372,36 @@ impl OnServer {
             if let Some(folder) = self.by_remote.get(from) {
                 self.leaving.insert((*folder, uid));
             }
+        }
+    }
+}
+
+/// Whether `result` brings mailboxes' news (new, changed and gone messages) and nothing that was
+/// done here (sent, pushed, listed, put on the server).
+fn news_only(result: &SyncResult) -> bool {
+    result.listed.is_empty()
+        && result.sent.is_empty()
+        && result.filed.is_empty()
+        && result.unfiled.is_empty()
+        && result.flagged.is_empty()
+        && result.moved.is_empty()
+        && result.deleted.is_empty()
+        && result.created.is_empty()
+        && result.uploaded.is_empty()
+        && result.categorized.is_empty()
+}
+
+/// Outbox messages the server refused to send as the account are held, with why
+/// ([`Message::hold`]): the next runs leave them, until the owner changes one or sends it again.
+fn hold_messages(mb: &mut Mailbox, account: Id, held: &[mailcraft_model::sync::HeldMessage]) {
+    let outbox = mb.folder_of_kind(account, FolderKind::Outbox);
+    for h in held {
+        if let Ok(m) = mb.message_mut(h.message)
+            && m.account == account
+            && Some(m.folder) == outbox
+        {
+            let why: String = h.why.chars().filter(|c| !c.is_control()).take(600).collect();
+            m.hold = Some(if why.is_empty() { "The server didn't send it".to_string() } else { why });
         }
     }
 }
@@ -1199,7 +1517,7 @@ fn move_finished(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, moved:
             }
         }
         // Deleted for good meanwhile: the next run deletes it where the server has it now.
-        (Some(Pending::Delete { .. }), Some((from, uid))) => mb.pending.push(Pending::Delete { account, from, uid }),
+        (Some(Pending::Delete { remote_id, .. }), Some((from, uid))) => mb.pending.push(Pending::Delete { account, from, uid, remote_id }),
         // Put back meanwhile: the next run moves it back on the server too.
         (None, Some((from, uid))) => {
             let back = on_server.by_remote.get(&moved.from).copied().filter(|folder| *folder != moved.to_folder);
@@ -1228,6 +1546,7 @@ fn deletes_finished(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, del
         if let Some(Ok(m)) = here.map(|id| mb.message_mut(id)) {
             m.uid = 0;
             m.synced = None;
+            m.remote_id.clear();
         }
     }
 }
@@ -1300,6 +1619,7 @@ fn matched(mb: &mut Mailbox, on_server: &mut OnServer, folder: Id, theirs: &Mess
     let id = expected.swap_remove(at);
     let m = mb.message_mut(id).ok()?;
     m.uid = theirs.uid;
+    m.remote_id = theirs.remote_id.clone();
     if !theirs.message_id.is_empty() {
         // The name the server knows it by, which a reply to it will carry.
         m.message_id = theirs.message_id.clone();
@@ -1430,9 +1750,15 @@ fn take_in(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, delta: Folde
         }
     }
     let mut categories: HashMap<u32, &RemoteCategories> = delta.categories.iter().map(|c| (c.uid, c)).collect();
+    // Microsoft Graph doesn't say whether a message was answered: that stays as it is here.
+    let graph = mb.mail_source_of(account) == MailSource::Graph;
     for theirs in &delta.flags {
         if let Some(id) = on_server.by_uid.get(&(folder, theirs.uid)).copied() {
-            let changed = merge_flags(mb, id, *theirs);
+            let mut theirs = *theirs;
+            if graph && let Some(m) = mb.message(id) {
+                theirs.answered = m.synced.map_or(m.answered, |synced| synced.answered);
+            }
+            let changed = merge_flags(mb, id, theirs);
             // A message the server keeps no keywords on has none of its categories there.
             let keywords = categories.remove(&theirs.uid).map(|c| c.names.as_slice()).unwrap_or_default();
             let recategorized = merge_categories(mb, id, keywords);
@@ -1444,6 +1770,14 @@ fn take_in(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, delta: Folde
         let uid = m.uid;
         // Here already, or on its way out of that mailbox by a change still to be pushed.
         if uid != 0 && (on_server.by_uid.contains_key(&(folder, uid)) || on_server.leaving.contains(&(folder, uid))) {
+            // Here by its header alone (the server wouldn't hand it over before), and whole now.
+            if let Some(id) = on_server.by_uid.get(&(folder, uid)).copied()
+                && !partly_here(&m)
+                && mb.message(id).is_some_and(partly_here)
+                && fill_in(mb, id, m)
+            {
+                counts.updated += 1;
+            }
             continue;
         }
         if matched(mb, on_server, folder, &m).is_some() {
@@ -1477,8 +1811,43 @@ fn take_in(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, delta: Folde
     if let Ok(f) = mb.folder_mut(folder) {
         f.uid_seen = if reset { delta.uid_seen } else { delta.uid_seen.max(old_seen) };
         // How the mailbox stands is what the latest piece about it says.
-        f.mark = delta.mark;
+        f.mark = delta.mark.clone();
+        if reset {
+            f.delta.clear();
+        }
+        // Through Microsoft Graph: where to ask next time, once the folder was read through.
+        if graph && !delta.delta.is_empty() {
+            f.delta = delta.delta;
+        }
     }
+}
+
+/// Put the text, files and headers of `whole`, the server's copy of message `id` come down whole
+/// at last, in the place of the header-only stub that stood for it. What is the mailbox's stays:
+/// its id, place, flags, categories, UID and what the server is known to hold of it.
+fn fill_in(mb: &mut Mailbox, id: Id, whole: Message) -> bool {
+    let Ok(m) = mb.message_mut(id) else { return false };
+    m.subject = whole.subject;
+    m.from = whole.from;
+    m.reply_to = whole.reply_to;
+    m.to = whole.to;
+    m.cc = whole.cc;
+    m.bcc = whole.bcc;
+    m.message_id = whole.message_id;
+    m.in_reply_to = whole.in_reply_to;
+    m.references = whole.references;
+    m.body = whole.body;
+    m.attachments = whole.attachments;
+    m.headers = whole.headers;
+    m.importance = whole.importance;
+    m.secured = whole.secured;
+    if whole.date != 0 {
+        m.date = whole.date;
+    }
+    if whole.received != 0 {
+        m.received = whole.received;
+    }
+    true
 }
 
 fn apply(s: &mut Session, v: &Value) -> CmdResult {

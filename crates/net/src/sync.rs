@@ -16,12 +16,15 @@
 //! instead of the run starting over; and mail a limit left out comes with later runs instead of
 //! never.
 
-use std::collections::{BTreeMap, BTreeSet, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
 use mailcraft_mime::WriteOptions;
-use mailcraft_model::sync::{FolderDelta, FolderMark, FolderState, RemoteCategories, RemoteFlags, SyncRequest, SyncResult, keyword_category};
+use mailcraft_model::sync::{
+    FolderDelta, FolderMark, FolderState, HeldMessage, MAX_SKIPPED, RemoteCategories, RemoteFlags, SyncRequest, SyncResult, SyncScope,
+    keyword_category,
+};
 use mailcraft_model::{Account, Body, FlagStatus, FolderKind, Id, Message, Security};
 use mailcraft_proto::ProtoError;
 use mailcraft_proto::imap::{Fetched, Imap, Mailbox, Selected, uid_sets};
@@ -32,6 +35,11 @@ use crate::send::{Envelope, dated, deliver, open_smtp_with};
 use crate::transport::{self, Patience, Service, Stream};
 use crate::{NetError, kinds, not_signed_in, scrub};
 
+/// How often a run that is busy with other mailboxes looks at the Inbox again (between two of
+/// them), so that new mail doesn't wait for the run's end.
+const INBOX_EVERY: Duration = Duration::from_secs(60);
+/// The same through Microsoft Graph, where a look costs one question.
+const INBOX_EVERY_GRAPH: Duration = Duration::from_secs(30);
 /// Most mailboxes read in one run.
 const MAX_FOLDERS: usize = 2_000;
 /// Most message bytes downloaded in one run whose answer is kept whole ([`sync`]); the rest
@@ -54,11 +62,11 @@ const FETCH_MESSAGES: usize = 50;
 const FETCH_BYTES: u64 = 8 * 1024 * 1024;
 /// A mailbox the server says is as it was ([`FolderMark`]) has the flags of all its messages read
 /// every this many runs; in between, only those of its newest ([`RECENT_FLAGS`]).
-const FULL_SCAN_EVERY: u32 = 5;
+pub(crate) const FULL_SCAN_EVERY: u32 = 5;
 const RECENT_FLAGS: usize = 200;
 /// The header a message kept without its text has, for a program to know it by: its size on
 /// the server, in bytes.
-const NOT_DOWNLOADED: &str = "X-MailCraft-Not-Downloaded";
+pub(crate) const NOT_DOWNLOADED: &str = "X-MailCraft-Not-Downloaded";
 
 /// How far one run goes, and how its answer is cut into pieces.
 #[derive(Clone, Debug)]
@@ -77,6 +85,10 @@ pub(crate) struct Limits {
     /// Most messages asked for in one command, and most bytes they may come to.
     pub(crate) fetch_messages: usize,
     pub(crate) fetch_bytes: u64,
+    /// How often a run busy with other mailboxes looks at the Inbox again: over IMAP between two
+    /// mailboxes, and through Microsoft Graph between two batches of messages too.
+    pub(crate) inbox_every: Duration,
+    pub(crate) inbox_every_graph: Duration,
     /// How long the servers are waited for.
     pub(crate) patience: Patience,
 }
@@ -94,6 +106,8 @@ impl Limits {
             batch_wait: BATCH_WAIT,
             fetch_messages: FETCH_MESSAGES,
             fetch_bytes: FETCH_BYTES,
+            inbox_every: INBOX_EVERY,
+            inbox_every_graph: INBOX_EVERY_GRAPH,
             patience: Patience::default(),
         }
     }
@@ -193,12 +207,33 @@ pub(crate) fn sync_more_as(
 ) {
     // (Out of the `Option`, so its lifetime can shrink to the run's.)
     let more = more.map(|more| -> &mut dyn FnMut() -> Option<SyncRequest> { more });
-    let mut run =
-        Run { request, limits, cancel, emit, out: blank(request), stopped: false, handed_over: Instant::now(), more, arrived: Arrived::new() };
-    let sent = send_outbox(&mut run);
+    let mut run = Run {
+        request,
+        limits,
+        cancel,
+        emit,
+        out: blank(request),
+        stopped: false,
+        handed_over: Instant::now(),
+        more,
+        arrived: Arrived::new(),
+        brought: HashMap::new(),
+        inbox_read: None,
+        retry_after: None,
+        busy: String::new(),
+        touched: HashSet::new(),
+    };
+    // An account whose mail is read through Microsoft Graph: all of it goes that way.
+    if request.account.mail_source == mailcraft_model::MailSource::Graph {
+        crate::graph::mail::exchange(&mut run);
+        run.finish();
+        return;
+    }
+    // (A look at the Inbox alone sends nothing and changes nothing.)
+    let sent = if request.inbox_only { Vec::new() } else { send_outbox(&mut run) };
     // Folders made, renamed, moved or deleted here first: the rest of the run reads the server
     // as they left it, and knows its mailboxes by their new names.
-    let reshaped = crate::push::folders(&mut run);
+    let reshaped = if request.inbox_only { None } else { crate::push::folders(&mut run) };
     let mut run = match &reshaped {
         Some(request) => Run { request, ..run },
         None => run,
@@ -233,6 +268,38 @@ pub(crate) struct Run<'a> {
     more: Option<&'a mut dyn FnMut() -> Option<SyncRequest>>,
     /// Messages that moves of this run put into mailboxes, for the download to take for known.
     arrived: Arrived,
+    /// What the pieces handed over so far brought of each mailbox, by its path: for reading one
+    /// again in the same run from where the run left it ([`Run::state_now`]).
+    brought: HashMap<String, Brought>,
+    /// When the Inbox was last read in this run: a run busy with other folders for long looks at
+    /// it again now and then ([`Run::inbox_due`]), so that new mail doesn't wait for the run's end.
+    pub(crate) inbox_read: Option<Instant>,
+    /// The server said "not now" and the run ended on it: how long it asked to be left alone for,
+    /// and its words ([`SyncResult::retry_after`]).
+    retry_after: Option<u32>,
+    busy: String,
+    /// Through Microsoft Graph: the folders (by path) that this run's pushes put messages into
+    /// (a move, a draft), whose listed counts are from before that: they are read whatever the
+    /// counts say.
+    pub(crate) touched: HashSet<String>,
+}
+
+/// What a run brought of one mailbox ([`Run::brought`]).
+#[derive(Default)]
+struct Brought {
+    uid_validity: u32,
+    uid_seen: u32,
+    new: Vec<(u32, String)>,
+    removed: Vec<u32>,
+    delta: String,
+    mark: FolderMark,
+}
+
+impl<'a> Run<'a> {
+    /// The flag that calls the run off.
+    pub(crate) fn cancel_flag(&self) -> &'a AtomicBool {
+        self.cancel
+    }
 }
 
 impl Run<'_> {
@@ -254,6 +321,8 @@ impl Run<'_> {
     fn finish(mut self) {
         let mut piece = std::mem::replace(&mut self.out, blank(self.request));
         piece.stopped = self.stopped;
+        piece.retry_after = self.retry_after;
+        piece.busy = std::mem::take(&mut self.busy);
         self.send(piece);
     }
 
@@ -262,24 +331,126 @@ impl Run<'_> {
         for line in &mut piece.errors {
             *line = scrub(&scrub(line, &self.request.password), &self.request.access_token);
         }
+        self.note_brought(&piece);
         (self.emit)(piece);
         self.handed_over = Instant::now();
     }
 
+    /// Keep count of what `piece` brings of each mailbox ([`Run::brought`]).
+    fn note_brought(&mut self, piece: &SyncResult) {
+        for folder in piece.folders.iter().filter(|f| !f.remote.is_empty()) {
+            // (Only so many mailboxes and messages are kept count of: past that, a mailbox is
+            // not read twice in a run.)
+            if self.brought.len() >= MAX_FOLDERS && !self.brought.contains_key(&folder.remote) {
+                continue;
+            }
+            let b = self.brought.entry(folder.remote.clone()).or_default();
+            if folder.uid_validity != 0 && folder.uid_validity != b.uid_validity {
+                // Another life of the mailbox: what was counted of the last one is no more.
+                *b = Brought { uid_validity: folder.uid_validity, ..Brought::default() };
+            }
+            b.uid_seen = b.uid_seen.max(folder.uid_seen);
+            if b.new.len() < MAX_RUN_MESSAGES {
+                b.new.extend(folder.new.iter().filter(|m| m.uid != 0).map(|m| (m.uid, m.remote_id.clone())));
+            }
+            b.removed.extend(folder.removed.iter().copied());
+            if !folder.delta.is_empty() {
+                b.delta.clone_from(&folder.delta);
+            }
+            if !folder.mark.is_empty() {
+                b.mark = folder.mark.clone();
+            }
+        }
+    }
+
+    /// The mailbox `state` is of, as the run has left it so far: what came and went in the pieces
+    /// handed over is in it, and so are how far it was read and where to ask next. For reading it
+    /// again in the same run. Hand the waiting piece over first, so that all of it counts.
+    pub(crate) fn state_now(&self, state: &FolderState) -> FolderState {
+        let mut now = state.clone();
+        let Some(b) = self.brought.get(&state.remote) else { return now };
+        if b.uid_validity != 0 && b.uid_validity != state.uid_validity {
+            // Read whole this run under another validity: only what it brought counts.
+            now.uid_validity = b.uid_validity;
+            now.known_uids.clear();
+            now.remote_ids.clear();
+            now.uid_seen = 0;
+        }
+        let gone: HashSet<u32> = b.removed.iter().copied().collect();
+        now.known_uids.retain(|uid| !gone.contains(uid));
+        now.remote_ids.retain(|r| !gone.contains(&r.uid));
+        for (uid, id) in b.new.iter().filter(|(uid, _)| !gone.contains(uid)) {
+            if !now.known_uids.contains(uid) {
+                now.known_uids.push(*uid);
+            }
+            if !id.is_empty() && !now.remote_ids.iter().any(|r| r.uid == *uid) {
+                now.remote_ids.push(mailcraft_model::sync::RemoteId { uid: *uid, id: id.clone() });
+            }
+        }
+        now.uid_seen = now.uid_seen.max(b.uid_seen);
+        if !b.delta.is_empty() {
+            now.delta.clone_from(&b.delta);
+        }
+        if !b.mark.is_empty() {
+            now.mark = b.mark.clone();
+        }
+        now
+    }
+
+    /// Whether the Inbox, read earlier in this run, is due another look: the run has been busy
+    /// with other folders for `every`.
+    pub(crate) fn inbox_due(&self, every: Duration) -> bool {
+        self.inbox_read.is_some_and(|at| at.elapsed() >= every)
+    }
+
+    /// Whether the messages waiting to be handed over have waited long enough.
+    pub(crate) fn batch_due(&self) -> bool {
+        self.handed_over.elapsed() >= self.limits.batch_wait
+    }
+
+    /// Changes made here since the run began, for this very account, when any wait
+    /// ([`sync_with_updates`]).
+    pub(crate) fn more_ops(&mut self) -> Option<SyncRequest> {
+        if self.cancelled() {
+            return None;
+        }
+        let request = (self.more.as_mut()?)()?;
+        let same =
+            request.account.id == self.request.account.id && request.account.email.trim().eq_ignore_ascii_case(self.request.account.email.trim());
+        (same && !request.ops.is_empty()).then_some(request)
+    }
+
     /// Note that something went wrong: `what`, and why. A command cut short because the run was
     /// called off is nothing to tell. Returns whether the connection is still good.
-    fn failed(&mut self, what: &str, error: &NetError) -> bool {
+    pub(crate) fn failed(&mut self, what: &str, error: &NetError) -> bool {
         if matches!(error, NetError::Proto(ProtoError::Io(why)) if why == transport::STOPPED) {
             self.stopped = true;
+        } else if let NetError::Busy { retry_after: Some(seconds), .. } = error {
+            // "Not now" with a time: said apart from the problems, with how long to wait, so
+            // that the host comes back then and need not tell the owner of the first few.
+            let seconds = (*seconds).max(1);
+            self.retry_after = Some(self.retry_after.map_or(seconds, |had| had.max(seconds)));
+            self.busy = scrub(&scrub(&format!("{what}: {error}"), &self.request.password), &self.request.access_token);
         } else {
             self.out.errors.push(format!("{what}: {error}"));
         }
         !error.is_fatal()
     }
+
+    /// Whether a server mailbox at `remote` for `kind` is one this run reads ([`SyncScope`]).
+    pub(crate) fn in_scope(&self, remote: &str, kind: FolderKind) -> bool {
+        self.request.scope.covers(remote, kind)
+    }
+
+    /// Whether the run is of the folders alone ([`SyncScope::Rest`]): the Inbox is not read in
+    /// its turn, only glanced at between two folders, from the state the request carries of it.
+    pub(crate) fn rest_only(&self) -> bool {
+        self.request.scope == SyncScope::Rest && !self.request.inbox_only
+    }
 }
 
 /// A message's subject for an error line: one line, not too long.
-fn subject_of(message: &Message) -> String {
+pub(crate) fn subject_of(message: &Message) -> String {
     let words: Vec<&str> = message.subject.split(|c: char| c.is_whitespace() || c.is_control()).filter(|w| !w.is_empty()).collect();
     let subject = words.join(" ");
     if subject.is_empty() {
@@ -299,7 +470,7 @@ pub(crate) fn label(remote: &str) -> String {
 }
 
 /// `1 message`, `3 messages`.
-fn messages(count: usize) -> String {
+pub(crate) fn messages(count: usize) -> String {
     format!("{count} message{}", if count == 1 { "" } else { "s" })
 }
 
@@ -332,8 +503,10 @@ fn send_outbox(run: &mut Run) -> Vec<Message> {
     smtp.get_mut().watch(None);
     // A copy of each is kept on the server: by the server itself, whatever becomes of the
     // connection to its incoming side, or put there once they have all gone. The mailbox is told
-    // with the message, so that it knows the copy for what it is even if it hears no more.
-    let filed_there = request.account.incoming.is_some();
+    // with the message, so that it knows the copy for what it is even if it hears no more. Not
+    // for a shared mailbox: the server files what the owner sends as it in the owner's Sent
+    // Items, and the copy in its own is put there afterwards, and said once it is ([`file_sent`]).
+    let filed_there = request.account.incoming.is_some() && !sends_as_shared(request);
     for (at, message) in request.outbox.iter().enumerate() {
         if run.cancelled() {
             break;
@@ -352,7 +525,13 @@ fn send_outbox(run: &mut Run) -> Vec<Message> {
             }
             Err(e) => {
                 let subject = subject_of(&message);
-                let line = crate::shared::sending_refused(request, &subject, &e).unwrap_or_else(|| format!("Couldn't send \"{subject}\": {e}"));
+                let refused = crate::shared::sending_refused(request, &subject, &e);
+                if refused.is_some() {
+                    // The right is given by an administrator, not by trying again every few
+                    // minutes: the message is held until the owner changes it or sends it again.
+                    run.out.held.push(HeldMessage { message: message.id, why: send_as_hold(request) });
+                }
+                let line = refused.unwrap_or_else(|| format!("Couldn't send \"{subject}\": {e}"));
                 run.out.errors.push(line);
                 // The rest waits for the next run when the connection is gone.
                 if e.is_fatal() {
@@ -364,6 +543,23 @@ fn send_outbox(run: &mut Run) -> Vec<Message> {
     smtp.get_mut().leave();
     let _ = smtp.quit();
     sent
+}
+
+/// Why a message from a shared mailbox is held when the server refused to send it as the mailbox
+/// ([`HeldMessage::why`], shown with the message).
+fn send_as_hold(request: &SyncRequest) -> String {
+    let address: String = request.account.email.trim().chars().filter(|c| !c.is_control()).take(254).collect();
+    format!(
+        "The server didn't let your account send as {address}: sending from it takes the Send As right on it, which an administrator of your organisation gives"
+    )
+}
+
+/// Whether the run sends from a shared mailbox signed in as its owner ([`SyncRequest::send_login`]):
+/// then a server that files what it sends files the copy in the owner's Sent Items, not the
+/// shared mailbox's, and the copy in the shared mailbox's is put there from here (Full Access
+/// allows it).
+fn sends_as_shared(request: &SyncRequest) -> bool {
+    request.account.is_shared() || !request.send_login.trim().is_empty()
 }
 
 /// What is known of an account's incoming server from its name.
@@ -389,27 +585,39 @@ impl Host {
 
 /// Put a copy of each message that was sent into the server's mailbox for sent mail, marked as
 /// read. The mailbox here was told to expect the copies when the messages went; a copy that
-/// didn't get there is said (`unfiled`). A server without a mailbox for sent mail gets none: the
-/// copy here is the one there is. Returns whether the connection is still good.
-fn file_sent(imap: &mut Imap<Stream<'_>>, plan: &[(&Mailbox, FolderKind)], sent: &[Message], result: &mut SyncResult) -> bool {
+/// didn't get there is said (`unfiled`). With `claim`, it wasn't told (a shared mailbox's copy,
+/// [`sends_as_shared`]), and is told of each copy once it is there (`filed`). A server without a
+/// mailbox for sent mail gets none: the copy here is the one there is. Returns whether the
+/// connection is still good.
+fn file_sent(imap: &mut Imap<Stream<'_>>, plan: &[(&Mailbox, FolderKind)], sent: &[Message], claim: bool, result: &mut SyncResult) -> bool {
     let Some((mailbox, _)) = plan.iter().find(|(_, kind)| *kind == FolderKind::Sent) else {
-        result.unfiled.extend(sent.iter().map(|m| m.id));
+        if !claim {
+            result.unfiled.extend(sent.iter().map(|m| m.id));
+        }
         return true;
     };
     for (at, message) in sent.iter().enumerate() {
         // The sender's own copy says who got a blind copy.
         let options = WriteOptions { include_bcc: true, offset_minutes: mailcraft_time::local_offset_minutes(message.date) };
-        if let Err(e) = imap.append(&mailbox.raw, &["\\Seen"], &mailcraft_mime::write(message, &options)) {
-            let e = NetError::from(e);
-            result.errors.push(format!("Couldn't keep a copy of \"{}\" on the server: {e}", subject_of(message)));
-            if e.is_fatal() {
-                // The connection went while the copy was on its way: it may have arrived all
-                // the same. Should it show, it is this message's, not another one. The ones
-                // after it never set out.
-                result.unfiled.extend(sent.iter().skip(at + 1).map(|m| m.id));
-                return false;
+        match imap.append(&mailbox.raw, &["\\Seen"], &mailcraft_mime::write(message, &options)) {
+            Ok(_) if claim => result.filed.push(message.id),
+            Ok(_) => {}
+            Err(e) => {
+                let e = NetError::from(e);
+                result.errors.push(format!("Couldn't keep a copy of \"{}\" on the server: {e}", subject_of(message)));
+                if e.is_fatal() {
+                    // The connection went while the copy was on its way: it may have arrived all
+                    // the same. Should it show, it is this message's, not another one. The ones
+                    // after it never set out.
+                    if !claim {
+                        result.unfiled.extend(sent.iter().skip(at + 1).map(|m| m.id));
+                    }
+                    return false;
+                }
+                if !claim {
+                    result.unfiled.push(message.id);
+                }
             }
-            result.unfiled.push(message.id);
         }
     }
     true
@@ -463,7 +671,7 @@ pub(crate) fn open_imap_with<'a>(
 /// What Exchange calls, in English, the folders of a mailbox that are no folders of mail to
 /// keep: where it has appointments, people, tasks, notes and the journal, mail on its way out,
 /// and its reports on synchronising with Outlook.
-const NOT_MAIL: [&str; 7] = ["calendar", "contacts", "tasks", "notes", "journal", "outbox", "sync issues"];
+pub(crate) const NOT_MAIL: [&str; 7] = ["calendar", "contacts", "tasks", "notes", "journal", "outbox", "sync issues"];
 /// How many of them a listing has at its top when it is an Exchange mailbox's.
 const EXCHANGE_SIGNS: usize = 3;
 /// What Exchange calls, in English, folders of mail that other servers call otherwise.
@@ -497,7 +705,7 @@ fn not_mail(mailbox: &Mailbox) -> bool {
 
 /// When a folder's turn comes: the Inbox, then sent mail and drafts, then where mail is kept,
 /// then where it is thrown away, then every other folder.
-fn turn(kind: FolderKind) -> u8 {
+pub(crate) fn turn(kind: FolderKind) -> u8 {
     match kind {
         FolderKind::Inbox => 0,
         FolderKind::Sent => 1,
@@ -562,8 +770,10 @@ fn exchange<'a>(run: &mut Run<'a>, sent: &[Message], host: Host) -> Option<Imap<
     let request = run.request;
     request.account.incoming.as_ref()?;
     // A message that went is seen through, also by a run that was called off since: its copy is
-    // kept on the server, and then nothing else is begun.
-    let owed: Vec<Id> = if host.files_sent { Vec::new() } else { sent.iter().map(|m| m.id).collect() };
+    // kept on the server, and then nothing else is begun. (What a shared mailbox's server filed
+    // by itself is the owner's copy: the shared mailbox's is put there from here.)
+    let shared = sends_as_shared(request);
+    let owed: Vec<Id> = if host.files_sent && !shared { Vec::new() } else { sent.iter().map(|m| m.id).collect() };
     if run.cancelled() && owed.is_empty() {
         return None;
     }
@@ -579,7 +789,9 @@ fn exchange<'a>(run: &mut Run<'a>, sent: &[Message], host: Host) -> Option<Imap<
                 }
             }
             // The copies that were to be kept there are not.
-            run.out.unfiled.extend(owed);
+            if !shared {
+                run.out.unfiled.extend(owed);
+            }
             return None;
         }
     };
@@ -587,25 +799,39 @@ fn exchange<'a>(run: &mut Run<'a>, sent: &[Message], host: Host) -> Option<Imap<
         Ok(list) => list,
         Err(e) => {
             let alive = run.failed("Couldn't read the list of folders", &e.into());
-            run.out.unfiled.extend(owed);
+            if !shared {
+                run.out.unfiled.extend(owed);
+            }
             return alive.then_some(imap);
         }
     };
     // Folders that already follow a server mailbox keep their job.
     let tied: Vec<(&str, FolderKind)> = request.folders.iter().filter(|f| !f.remote.is_empty()).map(|f| (f.remote.as_str(), f.kind)).collect();
-    let plan = planned(&mailboxes, &tied, host.microsoft);
-    if plan.len() > MAX_FOLDERS {
-        run.out.errors.push(format!("The server has {} folders; only the first {MAX_FOLDERS} were read", plan.len()));
+    // Every folder of mail, for the list and for filing what was sent; then the ones this run
+    // reads ([`SyncScope`]).
+    let whole_plan = planned(&mailboxes, &tied, host.microsoft);
+    let mut plan = whole_plan.clone();
+    if request.inbox_only && request.scope == SyncScope::All {
+        // The Inbox and nothing else: no list of folders is said, so nothing is taken for gone.
+        plan.retain(|(mailbox, kind)| *kind == FolderKind::Inbox || kinds::is_inbox(mailbox));
+        plan.truncate(1);
+    } else {
+        plan.retain(|(mailbox, kind)| run.in_scope(&kinds::remote_name(mailbox), *kind));
+    }
+    if whole_plan.len() > MAX_FOLDERS {
+        run.out.errors.push(format!("The server has {} folders; only the first {MAX_FOLDERS} were read", whole_plan.len()));
     }
     // The whole tree first: the folders are there to see before their mail is.
-    run.out.listed = listed(&plan);
-    // The whole list, when nothing was left out of it and the Inbox is there: only then is a
-    // folder that isn't in it gone from the server.
-    run.out.listed_whole = plan.len() <= MAX_FOLDERS && plan.iter().any(|(mailbox, _)| kinds::is_inbox(mailbox));
+    if !request.inbox_only {
+        run.out.listed = listed(&whole_plan);
+        // The whole list, when nothing was left out of it and the Inbox is there: only then is a
+        // folder that isn't in it gone from the server.
+        run.out.listed_whole = whole_plan.len() <= MAX_FOLDERS && whole_plan.iter().any(|(mailbox, _)| kinds::is_inbox(mailbox));
+    }
     if !run.out.listed.is_empty() {
         run.hand_over(format!(
             "Found {}",
-            if run.out.listed.len() == 1 { "1 folder".to_string() } else { format!("{} folders", plan.len().min(MAX_FOLDERS)) }
+            if run.out.listed.len() == 1 { "1 folder".to_string() } else { format!("{} folders", whole_plan.len().min(MAX_FOLDERS)) }
         ));
     }
     // First what the server doesn't know yet, so that what is read afterwards shows it. None of
@@ -614,7 +840,7 @@ fn exchange<'a>(run: &mut Run<'a>, sent: &[Message], host: Host) -> Option<Imap<
     imap.get_mut().watch(None);
     if !owed.is_empty() {
         run.hand_over("Keeping a copy of what was sent".into());
-        if !file_sent(&mut imap, &plan, sent, &mut run.out) {
+        if !file_sent(&mut imap, &whole_plan, sent, shared, &mut run.out) {
             return None;
         }
     }
@@ -637,6 +863,19 @@ fn exchange<'a>(run: &mut Run<'a>, sent: &[Message], host: Host) -> Option<Imap<
     // A local folder takes the news of one server mailbox only.
     let mut claimed: HashSet<Id> = HashSet::new();
     let count = plan.len().min(MAX_FOLDERS);
+    let max_new = request.max_per_folder as usize;
+    // The Inbox as the run began, for looking at it again while the run is busy with the others.
+    // A run of the folders alone doesn't read it in its turn, but glances at it all the same,
+    // from the state the request carries of it.
+    let mut inbox: Option<(&Mailbox, String, FolderState)> = None;
+    if run.rest_only()
+        && let Some((mailbox, kind)) = whole_plan.iter().find(|(_, kind)| *kind == FolderKind::Inbox)
+    {
+        let remote = kinds::remote_name(mailbox);
+        let state = state_for(request, &remote, *kind);
+        run.inbox_read = Some(Instant::now());
+        inbox = Some((mailbox, remote.clone(), FolderState { remote, kind: *kind, ..state.cloned().unwrap_or_default() }));
+    }
     for (at, (mailbox, kind)) in plan.into_iter().take(MAX_FOLDERS).enumerate() {
         if run.cancelled() {
             break;
@@ -650,12 +889,39 @@ fn exchange<'a>(run: &mut Run<'a>, sent: &[Message], host: Host) -> Option<Imap<
         if top_up(run, &mut imap, &mailboxes).is_err() {
             return None;
         }
+        // A run busy with other folders for long looks at the Inbox again: new mail doesn't wait.
+        if let Some((inbox_mailbox, inbox_remote, base)) = &inbox
+            && run.inbox_due(run.limits.inbox_every)
+            && !run.cancelled()
+        {
+            run.hand_over("Checking Inbox for new mail".into());
+            let now = run.state_now(base);
+            run.inbox_read = Some(Instant::now());
+            let glance = FolderSync {
+                mailbox: inbox_mailbox,
+                remote: inbox_remote.clone(),
+                kind: FolderKind::Inbox,
+                state: Some(&now),
+                max_new,
+                mailboxes: &mailboxes,
+                place: (1, count),
+            };
+            if !glance.run(&mut imap, run) {
+                return None;
+            }
+        }
         let state = state_for(request, &remote, kind).filter(|state| claimed.insert(state.id));
-        let folder =
-            FolderSync { mailbox, remote, kind, state, max_new: request.max_per_folder as usize, mailboxes: &mailboxes, place: (at + 1, count) };
+        let first_inbox = kind == FolderKind::Inbox && inbox.is_none();
+        // (Known by the mailbox's path, which a folder here that doesn't follow it yet hasn't got.)
+        let base = first_inbox.then(|| FolderState { remote: remote.clone(), kind, ..state.cloned().unwrap_or_default() });
+        let folder = FolderSync { mailbox, remote: remote.clone(), kind, state, max_new, mailboxes: &mailboxes, place: (at + 1, count) };
         if !folder.run(&mut imap, run) {
             // The connection is gone: the other mailboxes wait for the next run.
             return None;
+        }
+        if let Some(base) = base {
+            run.inbox_read = Some(Instant::now());
+            inbox = Some((mailbox, remote, base));
         }
     }
     top_up(run, &mut imap, &mailboxes).ok()?;
@@ -688,13 +954,13 @@ fn top_up<'a>(run: &mut Run<'a>, imap: &mut Imap<Stream<'a>>, mailboxes: &[Mailb
 }
 
 /// A size for a person to read: `100 MB`.
-fn megabytes(bytes: u64) -> String {
+pub(crate) fn megabytes(bytes: u64) -> String {
     format!("{} MB", bytes.div_ceil(1024 * 1024))
 }
 
 /// The request's folder for a server mailbox: the one already tied to that name, else, for a
 /// standard kind, the local folder of that kind that isn't tied to a mailbox yet.
-fn state_for<'a>(request: &'a SyncRequest, remote: &str, kind: FolderKind) -> Option<&'a FolderState> {
+pub(crate) fn state_for<'a>(request: &'a SyncRequest, remote: &str, kind: FolderKind) -> Option<&'a FolderState> {
     let by_name = request.folders.iter().find(|f| !f.remote.is_empty() && f.remote == remote);
     by_name.or_else(|| request.folders.iter().find(|f| kind != FolderKind::Custom && f.remote.is_empty() && f.kind == kind))
 }
@@ -780,6 +1046,25 @@ fn too_large(header: Fetched, size: u64, largest: u64) -> Message {
     message
 }
 
+/// What is kept of a message the server refused to hand over (`why`) when its header could be
+/// had: the header, and in place of its text a note that says so ([`NOT_DOWNLOADED`] marks it as
+/// only partly here, as a message too large to download is).
+fn refused_stub(header: Fetched, why: &NetError) -> Message {
+    let mut message = message_from(header);
+    message.attachments.clear();
+    message.body = Body {
+        text: format!(
+            "This message couldn't be downloaded: the server wouldn't hand it over ({why}).\n\n\
+             What is here comes from its header alone: who sent it, when, and what it is about. The message itself, \
+             with anything attached to it, is still on the server. Read it there with another mail program or on the web.\n"
+        ),
+        html: None,
+    };
+    message.headers.retain(|(name, _)| !name.eq_ignore_ascii_case(NOT_DOWNLOADED));
+    message.headers.push((NOT_DOWNLOADED.into(), "0".into()));
+    message
+}
+
 /// One server mailbox being synchronised.
 struct FolderSync<'a> {
     mailbox: &'a Mailbox,
@@ -804,9 +1089,11 @@ struct Arrivals {
     mark: FolderMark,
     /// The bytes of the messages waiting to be handed over.
     waiting: usize,
-    /// How many messages arrived, of how many wanted.
+    /// How many messages arrived, of how many wanted in this run; and how many more the run's
+    /// limit left for a later one.
     done: usize,
     total: usize,
+    more: usize,
     label: String,
 }
 
@@ -828,16 +1115,35 @@ impl Arrivals {
                 kind: self.delta.kind,
                 uid_validity: self.delta.uid_validity,
                 uid_seen: self.below,
-                mark: self.mark,
+                mark: self.mark.clone(),
                 ..Default::default()
             };
             let mut batch = std::mem::replace(&mut self.delta, rest);
             batch.new.sort_by_key(|m| m.uid);
             run.out.folders.push(batch);
-            run.hand_over(format!("{}: {} of {}", self.label, self.done, self.total));
+            run.hand_over(progress(&self.label, self.done, self.total, self.more));
             self.waiting = 0;
         }
     }
+}
+
+/// `Inbox: 12 of 500`, and when the run's limit left messages for a later run,
+/// `Inbox: 12 of 500 (4,500 more later)`: the count is this run's, not the folder's.
+pub(crate) fn progress(label: &str, done: usize, total: usize, more: usize) -> String {
+    if more == 0 { format!("{label}: {done} of {total}") } else { format!("{label}: {done} of {total} ({} more later)", grouped(more)) }
+}
+
+/// A count with thousands separators: `4,500`.
+fn grouped(count: usize) -> String {
+    let digits = count.to_string();
+    let mut out = String::with_capacity(digits.len() + digits.len() / 3);
+    for (at, digit) in digits.chars().enumerate() {
+        if at > 0 && (digits.len() - at).is_multiple_of(3) {
+            out.push(',');
+        }
+        out.push(digit);
+    }
+    out
 }
 
 impl FolderSync<'_> {
@@ -861,6 +1167,16 @@ impl FolderSync<'_> {
         let name = shown(&self.remote);
         let label = label(&self.remote);
         run.hand_over(format!("Checking {label} ({} of {})", self.place.0, self.place.1));
+        // A mailbox that was read through before is asked how it stands without being opened
+        // (STATUS, which costs the server next to nothing): as it was, there is nothing to
+        // bring and nothing gone, and it is passed over. The flags of its messages are read
+        // every few runs all the same, and the Inbox is always opened: a flag changed elsewhere
+        // shows there without that wait.
+        match self.unchanged_by_status(imap, run) {
+            Ok(true) => return true,
+            Ok(false) => {}
+            Err(alive) => return alive,
+        }
         let selected = match imap.select(&self.mailbox.raw, true) {
             Ok(selected) => selected,
             Err(e) => return run.failed(&format!("Couldn't open \"{name}\""), &e.into()),
@@ -877,7 +1193,10 @@ impl FolderSync<'_> {
             known.extend(arrived.iter().filter(|(validity, uid)| *validity == selected.uid_validity && *uid != 0).map(|(_, uid)| *uid));
         }
         let uid_seen = self.state.filter(|_| !reset).map_or(0, |s| s.uid_seen);
-        let mark = self.state.filter(|_| !reset).map_or_else(FolderMark::default, |s| s.mark);
+        let mark = self.state.filter(|_| !reset).map_or_else(FolderMark::default, |s| s.mark.clone());
+        // Messages the server refused to hand over before ([`FolderMark::skipped`]) are asked
+        // for again every few runs, in case it has come round.
+        let retry_due = !mark.skipped.is_empty() && mark.skip_runs.saturating_add(1) >= FULL_SCAN_EVERY;
         // Nothing came and nothing went since the mailbox was last read through.
         let unchanged = self.state.is_some_and(|s| s.uid_validity == selected.uid_validity)
             && selected.uid_next != 0
@@ -885,7 +1204,7 @@ impl FolderSync<'_> {
             && mark.exists == selected.exists
             && mark.backfill == 0
             && arrived.is_empty();
-        if unchanged && mark.quick_runs.saturating_add(1) < FULL_SCAN_EVERY {
+        if unchanged && !retry_due && mark.quick_runs.saturating_add(1) < FULL_SCAN_EVERY {
             return self.glance(imap, run, &selected, &known, uid_seen, mark);
         }
 
@@ -904,25 +1223,34 @@ impl FolderSync<'_> {
         // Messages marked as deleted are on their way out; like other mail programs, we don't show them.
         let present: BTreeMap<u32, &Fetched> = listed.iter().filter(|m| !has(&m.flags, "\\Deleted")).map(|m| (m.uid, m)).collect();
 
+        // What the server refused before and still has (what it no longer has is forgotten), and
+        // which of them are asked for again this run.
+        let mut skipped: Vec<u32> = mark.skipped.iter().copied().filter(|uid| present.contains_key(uid)).take(MAX_SKIPPED).collect();
+        let retried: Vec<u32> = if retry_due { skipped.clone() } else { Vec::new() };
         // What to download, in UID order: what is new, and what an earlier run left for later;
         // with a limit, the newest win and the rest is left for the next run.
         let older = mark.backfill.min(uid_seen);
-        let mut wanted: Vec<u32> = present.keys().copied().filter(|uid| (*uid > uid_seen || *uid <= older) && !known.contains(uid)).collect();
+        let mut wanted: Vec<u32> =
+            present.keys().copied().filter(|uid| ((*uid > uid_seen || *uid <= older) && !known.contains(uid)) || retried.contains(uid)).collect();
         let mut left_out = 0;
+        let mut more = 0;
         if self.max_new > 0 && wanted.len() > self.max_new {
             let cut = wanted.len() - self.max_new;
             left_out = wanted.get(cut.saturating_sub(1)).copied().unwrap_or(0);
             wanted.drain(..cut);
+            more = cut;
         }
         // How far the mailbox is read while messages are still to come, and the older ones that
         // are still to come.
         let below = wanted.first().map_or(uid_seen, |lowest| lowest.saturating_sub(1).max(uid_seen));
-        let older_wanted = wanted.iter().copied().filter(|uid| *uid <= below).max().unwrap_or(0);
-        let pending = FolderMark { backfill: left_out.max(older_wanted), ..Default::default() };
+        // (One asked for again is no message left for later: it is kept in mind by itself.)
+        let older_wanted = wanted.iter().copied().filter(|uid| *uid <= below && !retried.contains(uid)).max().unwrap_or(0);
+        let pending =
+            FolderMark { backfill: left_out.max(older_wanted), skipped: mark.skipped.clone(), skip_runs: mark.skip_runs, ..Default::default() };
         // What is said once, with the first piece: the flags of the messages already here, and
         // which of them are gone.
         let delta = FolderDelta {
-            id: self.state.map(|s| s.id),
+            id: self.state.map(|s| s.id).filter(|id| *id != 0),
             remote: self.remote.clone(),
             kind: self.kind,
             uid_validity: selected.uid_validity,
@@ -934,15 +1262,18 @@ impl FolderSync<'_> {
                 Some(state) if reset => state.known_uids.iter().copied().filter(|uid| *uid != 0).collect(),
                 _ => known.iter().copied().filter(|uid| !present.contains_key(uid)).collect(),
             },
-            mark: pending,
+            mark: pending.clone(),
+            delta: String::new(),
         };
         let mut alive = true;
         // What is wanted and hasn't arrived (yet): the next run asks for it again.
         let mut missing: BTreeSet<u32> = wanted.iter().copied().collect();
-        // Messages that were asked for and not handed over, without a word why.
+        // Messages that were asked for and not handed over, without a word why; and those the
+        // server refused when asked for on their own.
         let mut silent: Vec<u32> = Vec::new();
+        let mut refused: Vec<u32> = Vec::new();
         let sizes = self.sizes(imap, &wanted, run, &mut alive);
-        let mut arrivals = Arrivals { delta, below, mark: pending, waiting: 0, done: 0, total: wanted.len(), label: label.clone() };
+        let mut arrivals = Arrivals { delta, below, mark: pending, waiting: 0, done: 0, total: wanted.len(), more, label: label.clone() };
         // Newest first, so that when a run is cut short the latest mail is what is already here.
         let mut rest: &[u32] = &wanted;
         let mut first = true;
@@ -983,9 +1314,15 @@ impl FolderSync<'_> {
                 // Gone between the listing and now, as a rule (looked into below).
                 Ok(()) => silent.extend(unanswered),
                 // Refused, as a rule for one message of them: each of the others is asked for
-                // on its own, and the one it was is left for the next run.
-                Err(e) if !e.is_fatal() && unanswered.len() > 1 => {
-                    log::debug!("{name}: {} messages refused together, asked for one by one: {e}", unanswered.len());
+                // on its own. One the server refuses on its own too is one it won't hand over
+                // (a message Exchange can't render, say): the run passes it over and says so
+                // once with the others it didn't get, rather than stopping at it run after run.
+                Err(e) if !e.is_fatal() => {
+                    if unanswered.len() > 1 {
+                        log::debug!("{name}: {} messages refused together, asked for one by one: {e}", unanswered.len());
+                    } else {
+                        log::debug!("{name}: a message was refused: {e}");
+                    }
                     for uid in unanswered.into_iter().rev() {
                         if run.cancelled() {
                             break;
@@ -994,11 +1331,16 @@ impl FolderSync<'_> {
                         match fetch_set(imap, &[uid], large, &mut got) {
                             Ok(()) if got.is_empty() => silent.push(uid),
                             Ok(()) => got.into_iter().for_each(|fetched| self.arrived(fetched, large, &sizes, &mut missing, &mut arrivals, run)),
-                            Err(e) => {
-                                alive = run.failed(&format!("Couldn't download a message from \"{name}\""), &e);
-                                if !alive {
+                            Err(e) if !e.is_fatal() => {
+                                refused.push(uid);
+                                if !self.refused_alone(imap, uid, large, &e, &mut missing, &mut arrivals, run) {
+                                    alive = false;
                                     break;
                                 }
+                            }
+                            Err(e) => {
+                                alive = run.failed(&format!("Couldn't download a message from \"{name}\""), &e);
+                                break;
                             }
                         }
                     }
@@ -1006,31 +1348,49 @@ impl FolderSync<'_> {
                 Err(e) => alive = run.failed(&format!("Couldn't download a message from \"{name}\""), &e),
             }
         }
+        // Not handed over: what the server refused (said once: not again for one it refused
+        // before and was asked for again), and what it was silent about and still has.
+        let mut not_handed_over = refused.iter().filter(|uid| !mark.skipped.contains(uid)).count();
         if alive && !silent.is_empty() && !run.cancelled() {
             // A message the mailbox still has is not passed over for the server's silence.
             let kept_back = self.kept_back(imap, &silent, run, &mut alive);
-            if !kept_back.is_empty() {
-                run.out.errors.push(format!("The server didn't hand over {} of \"{name}\"", messages(kept_back.len())));
-            }
+            not_handed_over = not_handed_over.saturating_add(kept_back.len());
             for uid in silent.iter().filter(|uid| !kept_back.contains(uid)) {
                 missing.remove(uid);
             }
+        }
+        // A refused message is passed over by this run: the mailbox is read on past it, so that
+        // it doesn't hold the count below itself and bring an error line with every run. It is
+        // kept in mind, with those refused before, and asked for again every few runs; one that
+        // was asked for again and came at last is kept in mind no longer.
+        for uid in &refused {
+            missing.remove(uid);
+            if !skipped.contains(uid) && skipped.len() < MAX_SKIPPED {
+                skipped.push(*uid);
+            }
+        }
+        skipped.retain(|uid| !retried.contains(uid) || refused.contains(uid) || missing.contains(uid));
+        let skip_runs = if skipped.is_empty() || retry_due || not_handed_over > 0 { 0 } else { mark.skip_runs.saturating_add(1) };
+        if not_handed_over > 0 {
+            run.out.errors.push(format!("The server didn't hand over {} of \"{name}\"", messages(not_handed_over)));
         }
         let mut delta = arrivals.delta;
         // Read up to just below the lowest new message still to come; older ones still to come
         // are left for later with those the limit left out.
         let lowest_new = missing.iter().copied().find(|uid| *uid > below);
-        let older_missing = missing.iter().copied().filter(|uid| *uid <= below).max().unwrap_or(0);
+        let older_missing = missing.iter().copied().filter(|uid| *uid <= below && !retried.contains(uid)).max().unwrap_or(0);
         delta.uid_seen = match lowest_new {
             Some(lowest) => lowest.saturating_sub(1).max(below),
             None => highest.unwrap_or(uid_seen),
         };
         let backfill = left_out.max(older_missing);
         // Read through with nothing left to bring: the next run can tell whether anything changed.
-        delta.mark = if missing.is_empty() && backfill == 0 {
-            FolderMark { uid_next: selected.uid_next, exists: selected.exists, quick_runs: 0, backfill: 0 }
+        // (One asked for again that didn't come is left to the next asking, not to a backfill.)
+        let still_missing = missing.iter().any(|uid| !retried.contains(uid));
+        delta.mark = if !still_missing && backfill == 0 {
+            FolderMark { uid_next: selected.uid_next, exists: selected.exists, quick_runs: 0, backfill: 0, skipped, skip_runs, unread: 0 }
         } else {
-            FolderMark { backfill, ..Default::default() }
+            FolderMark { backfill, skipped, skip_runs, ..Default::default() }
         };
         delta.new.sort_by_key(|m| m.uid);
         log::debug!(
@@ -1043,6 +1403,102 @@ impl FolderSync<'_> {
         // It goes with the next piece: the next mailbox's first line, or the end of the run.
         run.out.folders.push(delta);
         alive
+    }
+
+    /// Whether the mailbox is as it was when it was last read through, by STATUS alone (`Ok(true)`:
+    /// a piece that says so has gone out, and the mailbox is not opened), or has to be opened
+    /// (`Ok(false)`). Only a mailbox other than the Inbox that the mailbox here follows under the
+    /// same `UIDVALIDITY`, with nothing left for later, nothing just moved into it, no refused
+    /// message due to be asked for again and whose flags are not due to be read whole. `Err`
+    /// says whether the connection is still good after a STATUS the server wouldn't answer.
+    fn unchanged_by_status(&self, imap: &mut Imap<Stream<'_>>, run: &mut Run) -> Result<bool, bool> {
+        let Some(state) = self.state else { return Ok(false) };
+        let mark = &state.mark;
+        let retry_due = !mark.skipped.is_empty() && mark.skip_runs.saturating_add(1) >= FULL_SCAN_EVERY;
+        let worth_asking = self.kind != FolderKind::Inbox
+            && state.uid_validity != 0
+            && mark.uid_next != 0
+            && mark.backfill == 0
+            && !retry_due
+            && mark.quick_runs.saturating_add(1) < FULL_SCAN_EVERY
+            && run.arrived.get(&self.remote).is_none_or(Vec::is_empty);
+        if !worth_asking {
+            return Ok(false);
+        }
+        let status = match imap.status(&self.mailbox.raw) {
+            Ok(status) => status,
+            // A server that won't say: the mailbox is opened as before.
+            Err(e) => {
+                let e = NetError::from(e);
+                if e.is_fatal() {
+                    return Err(run.failed(&format!("Couldn't read \"{}\"", shown(&self.remote)), &e));
+                }
+                return Ok(false);
+            }
+        };
+        let same =
+            status.uid_validity == state.uid_validity && status.uid_next != 0 && status.uid_next == mark.uid_next && status.exists == mark.exists;
+        if !same {
+            return Ok(false);
+        }
+        log::debug!("{}: as it was by STATUS, not opened", shown(&self.remote));
+        run.out.folders.push(FolderDelta {
+            id: Some(state.id).filter(|id| *id != 0),
+            remote: self.remote.clone(),
+            kind: self.kind,
+            uid_validity: state.uid_validity,
+            uid_seen: state.uid_seen,
+            mark: FolderMark {
+                quick_runs: mark.quick_runs.saturating_add(1),
+                skip_runs: if mark.skipped.is_empty() { 0 } else { mark.skip_runs.saturating_add(1) },
+                ..mark.clone()
+            },
+            ..Default::default()
+        });
+        Ok(true)
+    }
+
+    /// A message the server refused to hand over when asked for on its own (`why`): kept with
+    /// its header alone, when the server will hand that over, as a message that is only partly
+    /// here (like one too large to download, [`too_large`]), so that it is seen to exist; else
+    /// passed over. Either way the run reads on past it. Returns whether the connection is still
+    /// good.
+    #[allow(clippy::too_many_arguments)]
+    fn refused_alone(
+        &self,
+        imap: &mut Imap<Stream<'_>>,
+        uid: u32,
+        large: bool,
+        why: &NetError,
+        missing: &mut BTreeSet<u32>,
+        arrivals: &mut Arrivals,
+        run: &mut Run,
+    ) -> bool {
+        let name = shown(&self.remote);
+        if large {
+            // It was its header that was asked for, and refused.
+            log::debug!("{name}: a message's header was refused on its own; the message is passed over: {why}");
+            return true;
+        }
+        let mut header: Vec<Fetched> = Vec::new();
+        match fetch_set(imap, &[uid], true, &mut header) {
+            Ok(()) => {
+                let mut kept = false;
+                for fetched in header.into_iter().filter(|f| f.uid == uid) {
+                    if missing.remove(&uid) {
+                        arrivals.take(run, refused_stub(fetched, why), 0);
+                        kept = true;
+                    }
+                }
+                log::debug!("{name}: a message was refused on its own; {}: {why}", if kept { "its header is kept" } else { "it is passed over" });
+                true
+            }
+            Err(e) if !e.is_fatal() => {
+                log::debug!("{name}: a message and its header were refused on their own; the message is passed over: {e}");
+                true
+            }
+            Err(e) => run.failed(&format!("Couldn't download a message from \"{name}\""), &e),
+        }
     }
 
     /// Take in a message that arrived, if it is one that was wanted and still missing.
@@ -1108,7 +1564,7 @@ impl FolderSync<'_> {
         }
         log::debug!("{}: unchanged, {} flags read", shown(&self.remote), flags.len());
         run.out.folders.push(FolderDelta {
-            id: self.state.map(|s| s.id),
+            id: self.state.map(|s| s.id).filter(|id| *id != 0),
             remote: self.remote.clone(),
             kind: self.kind,
             uid_validity: selected.uid_validity,
@@ -1117,7 +1573,12 @@ impl FolderSync<'_> {
             flags,
             removed,
             categories,
-            mark: FolderMark { quick_runs: mark.quick_runs.saturating_add(1), ..mark },
+            mark: FolderMark {
+                quick_runs: mark.quick_runs.saturating_add(1),
+                skip_runs: if mark.skipped.is_empty() { 0 } else { mark.skip_runs.saturating_add(1) },
+                ..mark
+            },
+            delta: String::new(),
         });
         true
     }
@@ -1473,6 +1934,10 @@ mod tests {
         );
         assert_eq!((label("a\r\nb\u{7}"), label(&"é".repeat(100)).chars().count(), label("")), ("ab".to_string(), 40, String::new()));
         assert_eq!((messages(0), messages(1), messages(2)), ("0 messages".to_string(), "1 message".to_string(), "2 messages".to_string()));
+        // The count is this run's; what a limit left for later is said with it.
+        assert_eq!(progress("Inbox", 12, 500, 0), "Inbox: 12 of 500");
+        assert_eq!(progress("Inbox", 12, 500, 4_500), "Inbox: 12 of 500 (4,500 more later)");
+        assert_eq!((grouped(0), grouped(999), grouped(1_000), grouped(1_234_567)), ("0".into(), "999".into(), "1,000".into(), "1,234,567".into()));
     }
 
     proptest::proptest! {

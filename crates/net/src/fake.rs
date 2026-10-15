@@ -517,6 +517,24 @@ fn serve_imap(stream: TcpStream, shared: Arc<Mutex<ImapWorld>>) {
                     None => reply.extend(format!("{tag} NO [NONEXISTENT] no such mailbox\r\n").bytes()),
                 }
             }
+            "STATUS" => {
+                let name = words(args).into_iter().next().unwrap_or_default();
+                match world.mailboxes.iter().find(|m| m.raw == name && !m.refuse_open && !m.flags.contains("\\Noselect")) {
+                    Some(mailbox) => {
+                        let next = mailbox.next_uid.max(mailbox.messages.iter().map(|m| m.uid).max().unwrap_or(0) + 1);
+                        reply.extend(
+                            format!(
+                                "* STATUS {} (MESSAGES {} UIDNEXT {next} UIDVALIDITY {})\r\n{tag} OK done\r\n",
+                                quote(&mailbox.raw),
+                                mailbox.messages.len(),
+                                mailbox.uid_validity
+                            )
+                            .bytes(),
+                        );
+                    }
+                    None => reply.extend(format!("{tag} NO [NONEXISTENT] no such mailbox\r\n").bytes()),
+                }
+            }
             "CREATE" => {
                 let name = words(args).into_iter().next().unwrap_or_default();
                 if name.is_empty() || world.mailboxes.iter().any(|m| m.raw.eq_ignore_ascii_case(&name)) {

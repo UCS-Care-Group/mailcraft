@@ -27,6 +27,7 @@ mod favorites_choice_flow;
 #[cfg(test)]
 mod favorites_flow;
 mod file_dialogs;
+mod graph_sending;
 #[cfg(any(target_os = "windows", test))]
 mod graphics;
 mod logging;
@@ -35,6 +36,7 @@ mod picture_cache;
 mod printing;
 mod secrets;
 mod single_instance;
+mod system_theme;
 
 use std::path::PathBuf;
 
@@ -87,8 +89,11 @@ impl eframe::App for App {
         if self.0.quit_requested {
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
         }
+        system_theme::decorations(ctx);
     }
     fn raw_input_hook(&mut self, _ctx: &egui::Context, raw: &mut egui::RawInput) {
+        // Linux and the BSDs: the desktop's light or dark, which winit doesn't report.
+        system_theme::fill(raw);
         self.0.raw_input_hook(raw);
     }
     fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
@@ -231,6 +236,18 @@ fn open_in_browser(url: &str) -> bool {
     }
 }
 
+/// Whether the account whose access token `token` is may open the shared mailbox `account`, in
+/// the window's words.
+fn shared_access(account: &mailcraft_model::Account, token: &str) -> mailcraft_ui_egui::SharedAccess {
+    use mailcraft_net::SharedCheck;
+    use mailcraft_ui_egui::SharedAccess;
+    match mailcraft_net::check_shared(account, token) {
+        Ok(()) => SharedAccess::Allowed,
+        Err(SharedCheck::NoAccess(said)) => SharedAccess::NoAccess(said),
+        Err(SharedCheck::Failed(e)) => SharedAccess::Failed(e.to_string()),
+    }
+}
+
 /// Sign an account's owner in: quietly with what was kept from last time when there is any, on
 /// the provider's page in the system's browser otherwise.
 fn sign_in(ctx: &egui::Context, request: SignInRequest) -> Result<Tokens, String> {
@@ -263,6 +280,31 @@ fn sign_in_with(request: SignInRequest, open_page: &dyn Fn(&str) -> bool) -> Res
         }
     };
     let unopened = |said: String| if no_browser.load(Ordering::Relaxed) { NO_BROWSER.to_string() } else { said };
+    // The owner chose to read the account's mail through Microsoft Graph: whatever Graph is
+    // asked for of that account takes the mail's permission with it, so the page comes up for
+    // that beside what Graph was asked for before (and the Favorites' two, when those are what
+    // was asked). A no that is not the owner's to change is said in the words the window knows
+    // it by; nothing is asked a second time.
+    // The calendars of the shared mailboxes the owner opens: the page comes up for that
+    // permission beside what Graph was asked for before. Nothing is asked a second time.
+    if request.graph && request.shared_calendars {
+        let asked = mailcraft_net::oauth::sign_in_for_shared_calendars(&request.oauth, &request.email, &open, &request.cancel);
+        return asked.map_err(|refusal| unopened(favorites_refusal(refusal)));
+    }
+    if request.graph && request.mail_graph {
+        use mailcraft_net::oauth::FavoritesRefusal;
+        let asked = mailcraft_net::oauth::sign_in_for_mail(&request.oauth, &request.email, &open, &request.cancel, request.favorites);
+        // An organisation that keeps the Favorites' permission for its administrators doesn't
+        // hold the mail up: the page comes up once more, for the mail alone.
+        let asked = match asked {
+            Err(FavoritesRefusal::Approval) if request.favorites && !no_browser.load(Ordering::Relaxed) => {
+                log::info!("sign-in for mail through Graph, account {}: asked again without the Favorites", request.account);
+                mailcraft_net::oauth::sign_in_for_mail(&request.oauth, &request.email, &open, &request.cancel, false)
+            }
+            asked => asked,
+        };
+        return asked.map_err(|refusal| unopened(favorites_refusal(refusal)));
+    }
     // "Show Outlook's Favorites": the owner asked, so the page comes up, for what Microsoft Graph
     // was asked for before and the two permissions that reading the Favorites takes. A no that
     // is not the owner's to change is said in the words the window knows it by; nothing is
@@ -485,12 +527,58 @@ fn graph(request: GraphRequest) -> GraphResult {
 
 /// [`graph`], with the owner's time zone as `zone` (a name Microsoft Graph knows).
 fn graph_in(request: GraphRequest, zone: &str) -> GraphResult {
-    use mailcraft_net::oauth;
     // A token for everything Graph is asked for, and for reading the Favorites of Outlook when
     // the window wants that too (it stops wanting it for the day once it was told no).
-    graph_with(request, zone, &|settings, refresh, favorites| {
-        if favorites { oauth::refresh_graph_with_favorites(settings, refresh) } else { oauth::refresh_graph(settings, refresh) }
-    })
+    let account = request.account.clone();
+    // A shared mailbox's job that brings its calendar takes the shared calendars' permission;
+    // one that only sends from it takes no more than the owner's own sending.
+    let calendars = request.calendar.is_some() || request.directory || request.changes.is_some();
+    graph_with(request, zone, &|settings, refresh, favorites| renew_graph(&account, settings, refresh, favorites, calendars))
+}
+
+/// A token for Microsoft Graph for `account`, from its sign-in settings and refresh token: good
+/// for its mail too when its mail is read through Graph (and then only when the sign-in covers
+/// that: [`mailcraft_net::oauth::MAIL_NOT_COVERED`] otherwise), and for reading the Favorites of
+/// Outlook when `favorites` asks for that and the sign-in covers it.
+fn renew_graph(
+    account: &mailcraft_model::Account,
+    settings: &mailcraft_model::OAuth,
+    refresh: &str,
+    favorites: bool,
+    calendars: bool,
+) -> Result<mailcraft_net::oauth::GraphTokens, mailcraft_net::NetError> {
+    use mailcraft_net::oauth;
+    // A shared mailbox: the owner's token; good for the shared calendars when its calendar is
+    // wanted, otherwise for the mail when it is read through Graph (the request's account is the
+    // shared mailbox as the engine signs in as it, which carries the owner's way of reading:
+    // `mailcraft_engine::cmd::shared::signed_in_as`), and otherwise (sending from it) as the
+    // owner's own.
+    if account.shared_of.is_some() {
+        return if calendars {
+            oauth::refresh_graph_for_shared(settings, refresh)
+        } else if account.mail_source == mailcraft_model::MailSource::Graph {
+            oauth::refresh_graph_for_mail(settings, refresh, false)
+        } else {
+            oauth::refresh_graph(settings, refresh)
+        };
+    }
+    if account.mail_source == mailcraft_model::MailSource::Graph {
+        oauth::refresh_graph_for_mail(settings, refresh, favorites)
+    } else if favorites {
+        oauth::refresh_graph_with_favorites(settings, refresh)
+    } else {
+        oauth::refresh_graph(settings, refresh)
+    }
+}
+
+/// Whether `error` says the sign-in is good and doesn't cover the calendars of shared mailboxes.
+fn shared_not_covered(error: &mailcraft_net::NetError) -> bool {
+    matches!(error, mailcraft_net::NetError::ConsentNeeded(why) if why == mailcraft_net::oauth::SHARED_NOT_COVERED)
+}
+
+/// Whether `error` says the sign-in is good and doesn't cover reading mail through Graph.
+fn mail_not_covered(error: &mailcraft_net::NetError) -> bool {
+    matches!(error, mailcraft_net::NetError::ConsentNeeded(why) if why == mailcraft_net::oauth::MAIL_NOT_COVERED)
 }
 
 /// How a job gets a token for Microsoft Graph when the window handed it none: from the sign-in
@@ -523,6 +611,17 @@ fn graph_with(request: GraphRequest, zone: &str, renew: Renew<'_>) -> GraphResul
                 out.favorites_covered = request.favorites_scopes.then_some(got.covers_favorites);
                 out.tokens = Some(got.tokens);
             }
+            // The owner chose to read this account's mail through Graph and hasn't allowed it yet:
+            // nothing of Graph is done until they have (the mail run says what to do).
+            Err(e) if mail_not_covered(&e) => {
+                out.mail_consent_needed = true;
+                return out;
+            }
+            // A shared mailbox's calendar the owner hasn't allowed yet: said, and nothing asked.
+            Err(e) if shared_not_covered(&e) => {
+                out.shared_consent_needed = true;
+                return out;
+            }
             Err(e) if e.is_consent_needed() => {
                 out.consent_needed = true;
                 return out;
@@ -536,14 +635,54 @@ fn graph_with(request: GraphRequest, zone: &str, renew: Renew<'_>) -> GraphResul
         }
     }
     let mut refused = false;
+    // A shared mailbox's calendar is spoken of by its address, with the owner's token; nothing
+    // else of it goes through Graph (its mail goes through SMTP as its owner).
+    let mailbox = if request.account.shared_of.is_some() { request.account.email.trim().to_string() } else { String::new() };
+    let shared = !mailbox.is_empty();
+    // Not opened (no Full Access to it, or a token without the permission for shared calendars
+    // after all): said with the server's words, and nothing more is asked of it in this job.
+    let denied = |out: &mut GraphResult, e: &NetError| {
+        if let (true, NetError::Forbidden(why)) = (shared, e) {
+            out.shared_denied = true;
+            out.shared_denied_why = why.clone();
+            true
+        } else {
+            false
+        }
+    };
+    // "Not now" with a time: the window comes back then, not after its usual patience.
+    let not_now = |out: &mut GraphResult, e: &NetError| {
+        if let NetError::Busy { retry_after: Some(seconds), .. } = e {
+            out.retry_after = Some(out.retry_after.map_or(*seconds, |had| had.max(*seconds)));
+        }
+    };
     for message in &request.outbox {
         if refused {
             // The token stopped working part-way: the rest waits for the next run and a new one.
             out.held.push(message.id);
             continue;
         }
-        match graph::send(&access, message, &graph::SendOptions::default()) {
+        // From a shared mailbox: through the owner's own sending, with its address as the sender
+        // (the owner's Send As right on it is what Exchange checks). Not a message that form
+        // would send without a part of it (its signature, its thread): left to the mail run,
+        // which sends it whole through the mail server ([`graph_sending::goes_as_shared`]).
+        if shared && !graph_sending::goes_as_shared(message) {
+            continue;
+        }
+        let sent = if shared { graph::send_as(&access, message, &mailbox) } else { graph::send(&access, message, &graph::SendOptions::default()) };
+        match sent {
             Ok(()) => out.sent.push(message.id),
+            // The owner may not send as the shared mailbox: said so, and not tried another way
+            // (the mail server checks the same right). The window holds the message, with why,
+            // until the owner changes it or sends it again, rather than trying every few minutes.
+            Err(NetError::Forbidden(why)) if shared => {
+                out.held.push(message.id);
+                out.denied.push((message.id, graph_sending::send_as_hold(&mailbox)));
+                out.errors.push(format!(
+                    "Couldn't send \"{}\" from {mailbox}: the server didn't let your account send as that mailbox. Sending from it takes the Send As right on it, which an administrator of your organisation gives ({why})",
+                    message.subject.trim()
+                ));
+            }
             // Not allowed to send this way: the mail server gets its turn in this run.
             Err(NetError::Forbidden(_)) => {}
             Err(e) if e.is_refused_sign_in() => {
@@ -561,7 +700,7 @@ fn graph_with(request: GraphRequest, zone: &str, renew: Renew<'_>) -> GraphResul
     // comes down: what comes down then is what the server has after it.
     if let Some(changes) = request.changes.as_ref().filter(|changes| !changes.ops.is_empty() && !refused) {
         log::info!("calendar: {} changes go to the server", changes.ops.len());
-        let uploaded = graph::push_events(&access, changes, &graph::EventOptions { zone: zone.to_string() });
+        let uploaded = graph::push_events_of(&access, &mailbox, changes, &graph::EventOptions { zone: zone.to_string() });
         // What the server made of each change, for the log: the kind of change, what was sent
         // of it by name, and the answer, never what the event says.
         for outcome in &uploaded.outcomes {
@@ -579,10 +718,11 @@ fn graph_with(request: GraphRequest, zone: &str, renew: Renew<'_>) -> GraphResul
     // The series the mailbox expects in each calendar's stretch: asked about by name when the
     // stretch brings nothing of them.
     let expected = |calendar: &str| request.asks.iter().find(|ask| ask.calendar == calendar).map(|ask| ask.series.clone()).unwrap_or_default();
-    // Which calendars the account has, and in which groups: with the wide stretch.
+    // Which calendars the account has, and in which groups: with the wide stretch, or when the
+    // list is asked for by itself (a shared mailbox's job, which never brings the wide stretch).
     let mut others: Vec<String> = request.asks.iter().map(|ask| ask.calendar.clone()).filter(|calendar| !calendar.is_empty()).collect();
-    if request.directory && !refused {
-        match graph::calendars(&access) {
+    if (request.directory || request.calendars) && !refused {
+        match graph::calendars_of_mailbox(&access, &mailbox) {
             Ok(list) => {
                 // Every calendar there is comes with the wide stretch, known here already or not.
                 // (Not from a list that doesn't say which one is the main calendar: that one
@@ -596,13 +736,17 @@ fn graph_with(request: GraphRequest, zone: &str, renew: Renew<'_>) -> GraphResul
                 out.calendars = Some(list.for_account(&request.account));
             }
             Err(e) if e.is_refused_sign_in() => refused = true,
-            Err(e) => out.errors.push(format!("Couldn't bring the list of calendars down: {e}")),
+            Err(e) if denied(&mut out, &e) => refused = true,
+            Err(e) => {
+                not_now(&mut out, &e);
+                out.errors.push(format!("Couldn't bring the list of calendars down: {e}"));
+            }
         }
     }
     if let Some((from, to)) = stretch.filter(|_| !refused) {
         let main = graph::EventsQuery { calendar: String::new(), from, to, series: expected("") };
         let days = |instant: i64| mailcraft_time::DateTime::from_timestamp(instant, 0).date.iso();
-        match graph::events_in(&access, &main) {
+        match graph::events_in_of(&access, &mailbox, &main) {
             Ok(events) => {
                 log::info!(
                     "calendar: the main calendar came down: {} events from {} to {} (all of them: {})",
@@ -614,14 +758,18 @@ fn graph_with(request: GraphRequest, zone: &str, renew: Renew<'_>) -> GraphResul
                 out.events = Some(events.for_account(&request.account));
             }
             Err(e) if e.is_refused_sign_in() => refused = true,
-            Err(e) => out.errors.push(format!("Couldn't bring the calendar down: {e}")),
+            Err(e) if denied(&mut out, &e) => refused = true,
+            Err(e) => {
+                not_now(&mut out, &e);
+                out.errors.push(format!("Couldn't bring the calendar down: {e}"));
+            }
         }
         for calendar in others.iter().take(MAX_OTHER_CALENDARS) {
             if refused {
                 break;
             }
             let query = graph::EventsQuery { calendar: calendar.clone(), from, to, series: expected(calendar) };
-            match graph::events_in(&access, &query) {
+            match graph::events_in_of(&access, &mailbox, &query) {
                 Ok(events) => {
                     log::info!(
                         "calendar: calendar #{} came down: {} events (all of them: {})",
@@ -637,16 +785,19 @@ fn graph_with(request: GraphRequest, zone: &str, renew: Renew<'_>) -> GraphResul
             }
         }
     }
-    if request.directory && !refused {
+    if request.directory && !refused && !shared {
         match graph::contacts(&access) {
             Ok(contacts) => out.contacts = Some(contacts.for_account(&request.account)),
             Err(e) if e.is_refused_sign_in() => refused = true,
-            Err(e) => out.errors.push(format!("Couldn't bring the contacts down: {e}")),
+            Err(e) => {
+                not_now(&mut out, &e);
+                out.errors.push(format!("Couldn't bring the contacts down: {e}"));
+            }
         }
     }
     // The mailbox's own categories and their colours: an extra that an older sign-in doesn't
     // cover, and nothing to trouble the owner with when it can't be had.
-    if request.directory && !refused {
+    if request.directory && !refused && !shared {
         match graph::categories(&access) {
             Ok(categories) => out.categories = Some(categories.for_account(&request.account)),
             Err(NetError::Forbidden(_)) => out.extras_missing = true,
@@ -655,7 +806,7 @@ fn graph_with(request: GraphRequest, zone: &str, renew: Renew<'_>) -> GraphResul
         }
     }
     // The working hours the mailbox has set: an extra of the same kind, and only ever read.
-    if request.settings && !refused {
+    if request.settings && !refused && !shared {
         match graph::mailbox_settings(&access) {
             Ok(settings) => out.mailbox_hours = settings.working_hours.map(|hours| mailbox_hours(&request.account.email, hours)),
             Err(NetError::Forbidden(_)) => out.extras_missing = true,
@@ -665,7 +816,7 @@ fn graph_with(request: GraphRequest, zone: &str, renew: Renew<'_>) -> GraphResul
     }
     // The Favorites as Outlook has them: read, never written, and nothing to trouble the owner
     // with when they can't be had (the folder pane says what there is to say, in one line).
-    if request.favorites && !refused {
+    if request.favorites && !refused && !shared {
         let outcome = |outcome: FavoritesOutcome| Some(FavoritesDownload { outcome, ..Default::default() }.for_account(&request.account));
         if out.favorites_covered == Some(false) {
             // The sign-in doesn't cover it: the server isn't asked what it would only refuse.
@@ -704,24 +855,27 @@ fn check_calendar(request: CalendarCheckRequest) -> CalendarCheckResult {
 /// [`check_calendar`], with the owner's time zone as `zone` and how far east of UTC it is at an
 /// instant as `offset_at` (minutes).
 fn check_calendar_in(request: CalendarCheckRequest, zone: &str, offset_at: &dyn Fn(i64) -> i32) -> CalendarCheckResult {
-    use mailcraft_net::{graph, oauth};
+    use mailcraft_net::graph;
     let mut out = CalendarCheckResult { account: request.account.id, cleaned_up: true, ..Default::default() };
     let mut access = request.access.clone();
     if access.is_empty() {
-        match oauth::refresh_graph(&request.oauth, &request.refresh) {
+        match renew_graph(&request.account, &request.oauth, &request.refresh, false, true) {
             Ok(got) => {
                 access = got.tokens.access.clone();
                 out.tokens = Some(got.tokens);
             }
             Err(e) => {
-                out.consent_needed = e.is_consent_needed();
+                // (A sign-in that doesn't cover the calendars of shared mailboxes is good for
+                // everything else: not "Connect calendar and contacts", but "Allow…".)
+                out.consent_needed = e.is_consent_needed() && !shared_not_covered(&e);
                 out.token_refused = e.is_refused_sign_in();
                 out.error = format!("Couldn't sign in to Microsoft for the calendar: {e}");
                 return out;
             }
         }
     }
-    let check = graph::check_calendar(&access, mailcraft_time::now(), zone, offset_at);
+    // A shared mailbox's calendar is checked by its address, with the owner's token.
+    let check = graph::check_calendar_of(&access, &request.mailbox, mailcraft_time::now(), zone, offset_at);
     (out.ok, out.cleaned_up, out.token_refused) = (check.ok(), check.cleaned_up, check.token_refused);
     out.steps = check
         .steps
@@ -755,11 +909,11 @@ const MAX_OTHER_CALENDARS: usize = 20;
 /// question to Microsoft Graph, about when their time is taken and how, never by what. It
 /// reads; nothing is written, and nobody is told that it was asked.
 fn free_busy(request: FreeBusyRequest) -> FreeBusyResult {
-    use mailcraft_net::{graph, oauth};
+    use mailcraft_net::graph;
     let mut out = FreeBusyResult { account: request.account.id, ..Default::default() };
     let mut access = request.access.clone();
     if access.is_empty() {
-        match oauth::refresh_graph(&request.oauth, &request.refresh) {
+        match renew_graph(&request.account, &request.oauth, &request.refresh, false, true) {
             Ok(got) => {
                 access = got.tokens.access.clone();
                 out.tokens = Some(got.tokens);
@@ -863,6 +1017,7 @@ fn services(file_dialog: file_dialogs::Hook, ctx: egui::Context, kept_pictures: 
     let ews_ctx = ctx.clone();
     let approval_ctx = ctx.clone();
     let idle_ctx = ctx.clone();
+    let shared_ctx = ctx.clone();
     let (sync_ctx, sign_in_ctx, graph_ctx, mx_ctx, test_ctx) = (ctx.clone(), ctx.clone(), ctx.clone(), ctx.clone(), ctx);
     let sync_cancel = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
     let cancel = sync_cancel.clone();
@@ -879,6 +1034,23 @@ fn services(file_dialog: file_dialogs::Hook, ctx: egui::Context, kept_pictures: 
             use std::sync::atomic::Ordering;
             let (tx, rx) = std::sync::mpsc::sync_channel(8);
             let (wake, cancel, updates) = (sync_ctx.clone(), cancel.clone(), updates.clone());
+            // A look at an Inbox alone, beside a run of another account: it takes none of that
+            // run's changes and doesn't reset its "stop" (it heeds it all the same).
+            if request.inbox_only {
+                let spawned = std::thread::Builder::new().name("inbox look".into()).spawn(move || {
+                    let mut forward = Forward::new(tx);
+                    mailcraft_net::sync_with(&request, &cancel, &mut |piece| {
+                        let _ = forward.send(piece);
+                        wake.request_repaint();
+                    });
+                    forward.flush();
+                    wake.request_repaint();
+                });
+                if let Err(e) = spawned {
+                    log::error!("couldn't start a look at an Inbox: {e}");
+                }
+                return rx;
+            }
             cancel.store(false, Ordering::Relaxed);
             let spawned = std::thread::Builder::new().name("send/receive".into()).spawn(move || {
                 let mut forward = Forward::new(tx);
@@ -918,6 +1090,8 @@ fn services(file_dialog: file_dialogs::Hook, ctx: egui::Context, kept_pictures: 
         lookup_mx: Some(Box::new(move |domain| {
             background(&mx_ctx, "mail exchangers", move || mailcraft_net::lookup_mx(&domain).map_err(|e| e.to_string()))
         })),
+        // Before a shared mailbox is added: whether the server lets the account in to it.
+        check_shared: Some(Box::new(move |account, token| background(&shared_ctx, "shared mailbox check", move || shared_access(&account, &token)))),
         test_account: Some(Box::new(move |account, secret| {
             background(&test_ctx, "account check", move || mailcraft_net::test_account(&account, &secret).map_err(|e| e.to_string()))
         })),
@@ -999,7 +1173,8 @@ fn build_sha() -> &'static str {
 }
 
 /// The mailbox to start with, the file it is kept in (none for the sample, or without prefs) and
-/// how many bodies and attachments couldn't be read back from the content folder beside it.
+/// how many bodies and attachments are missing from the content folder beside it or damaged
+/// (what is merely left on disk, to be read when it is wanted, is no fault and is only logged).
 fn first_mailbox(sample: bool, chosen: Option<PathBuf>) -> (Mailbox, Option<PathBuf>, usize) {
     let now = mailcraft_time::now();
     if sample {
@@ -1016,7 +1191,17 @@ fn first_mailbox(sample: bool, chosen: Option<PathBuf>) -> (Mailbox, Option<Path
         return (Mailbox::with_local_account("", ""), Some(path), 0);
     }
     match mailcraft_engine::store::open(&path) {
-        Ok(opened) => (opened.mailbox, Some(path), opened.unavailable),
+        Ok(opened) => {
+            log::info!(
+                "{}: {} messages; {} bodies and attachments in memory, {} on disk until they are wanted, {} missing or damaged",
+                path.display(),
+                opened.mailbox.messages.len(),
+                opened.loaded,
+                opened.deferred,
+                opened.unavailable
+            );
+            (opened.mailbox, Some(path), opened.unavailable)
+        }
         Err(e) => {
             // Never write over a mailbox that couldn't be read: start empty, keep nothing, say why.
             log::error!("{e}");
@@ -1139,10 +1324,14 @@ fn main() -> eframe::Result {
         options,
         Box::new(move |cc| {
             let (mailbox, path, unavailable) = first_mailbox(sample, mailbox_path);
+            system_theme::start(&cc.egui_ctx);
             let (file_dialog, dialogs) = file_dialogs::hook(&cc.egui_ctx);
             let mut session = Session::new(mailbox);
             let kept = path.is_some();
             session.path = path;
+            // Attachments, and the bodies of older mail, are read from the content folder beside
+            // the mailbox file when something needs them (`Session::content`).
+            session.content_source = Some(std::sync::Arc::new(mailcraft_engine::store::Content));
             // A run that keeps its mailbox and its settings keeps downloaded pictures too.
             let kept_pictures = if kept && !sample && prefs_enabled() { keep_pictures() } else { None };
             let mut app = MailApp::new(session, services(file_dialog, cc.egui_ctx.clone(), kept_pictures));

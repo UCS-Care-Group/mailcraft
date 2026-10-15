@@ -1130,42 +1130,47 @@ impl FolderWork<'_> {
 
     /// The request as the rest of the run sees it.
     fn reshaped(&self) -> SyncRequest {
-        let mut request = self.request.clone();
-        request.folder_ops.clear();
-        let delimiter = self.delimiter_text();
-        let renames = &self.renames;
-        let rename = |path: &mut String| {
-            for (from, to) in renames {
-                if let Some(moved) = renamed_path(path, from, to, &delimiter) {
-                    *path = moved;
-                }
-            }
-        };
-        for folder in &mut request.folders {
-            rename(&mut folder.remote);
-            if folder.remote.is_empty()
-                && let Some((_, remote)) = self.created.iter().find(|(id, _)| *id == folder.id)
-            {
-                folder.remote = remote.clone();
-            }
-        }
-        for upload in &mut request.uploads {
-            rename(&mut upload.to);
-            rename(&mut upload.copy_from);
-        }
-        for op in &mut request.ops {
-            match op {
-                RemoteOp::Flags { folder, .. } => rename(folder),
-                RemoteOp::Move { from, to, .. } => {
-                    rename(from);
-                    rename(to);
-                }
-                RemoteOp::Delete { from, .. } => rename(from),
-                RemoteOp::Categories { folder, .. } => rename(folder),
-            }
-        }
-        request
+        reshape(self.request, &self.renames, &self.created, &self.delimiter_text())
     }
+}
+
+/// `request` as the rest of a run is to see it once folders were renamed (`renames`, from and
+/// to, names here, in order; `delimiter` parts the levels) and made (`created`: local folders
+/// that have a mailbox now, and its name here).
+pub(crate) fn reshape(request: &SyncRequest, renames: &[(String, String)], created: &[(Id, String)], delimiter: &str) -> SyncRequest {
+    let mut request = request.clone();
+    request.folder_ops.clear();
+    let rename = |path: &mut String| {
+        for (from, to) in renames {
+            if let Some(moved) = renamed_path(path, from, to, delimiter) {
+                *path = moved;
+            }
+        }
+    };
+    for folder in &mut request.folders {
+        rename(&mut folder.remote);
+        if folder.remote.is_empty()
+            && let Some((_, remote)) = created.iter().find(|(id, _)| *id == folder.id)
+        {
+            folder.remote = remote.clone();
+        }
+    }
+    for upload in &mut request.uploads {
+        rename(&mut upload.to);
+        rename(&mut upload.copy_from);
+    }
+    for op in &mut request.ops {
+        match op {
+            RemoteOp::Flags { folder, .. } => rename(folder),
+            RemoteOp::Move { from, to, .. } => {
+                rename(from);
+                rename(to);
+            }
+            RemoteOp::Delete { from, .. } => rename(from),
+            RemoteOp::Categories { folder, .. } => rename(folder),
+        }
+    }
+    request
 }
 
 /// A command the server didn't carry out: refused, or `Err` when the connection is gone.

@@ -279,8 +279,12 @@ fn news_on_the_inbox_asks_for_a_run() {
     // What isn't news of the Inbox asks for nothing.
     imap.world().idle_news = vec!["* OK still here".into()];
     std::thread::sleep(Duration::from_millis(100));
-    imap.world().idle_news = vec!["* 2 EXPUNGE".into(), "* 3 FETCH (FLAGS (\\Seen))".into()];
-    assert!(soon(|| w.news.load(Ordering::SeqCst) == 3));
+    // Mail gone is news; a flag that changed (the run's own marks come back this way) and
+    // RECENT are not: they would have the Inbox swept for nothing.
+    imap.world().idle_news = vec!["* 2 EXPUNGE".into(), "* 3 FETCH (FLAGS (\\Seen))".into(), "* 1 RECENT".into()];
+    assert!(soon(|| w.news.load(Ordering::SeqCst) == 2));
+    std::thread::sleep(Duration::from_millis(100));
+    assert_eq!(w.news.load(Ordering::SeqCst), 2);
     // Told to stop: it says DONE and goodbye.
     w.stop.store(true, Ordering::SeqCst);
     assert_eq!(w.end.join().unwrap(), IdleEnd::Stopped);

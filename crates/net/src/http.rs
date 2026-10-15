@@ -1,5 +1,6 @@
 //! The little of HTTP this crate needs: one request (a GET, a form POSTed, or any other with a
-//! body of text: [`request`]) over the crate's TLS connections, the answer read back within
+//! body of text: [`request`]) over the crate's TLS connections, or many one after the other on
+//! one connection that is kept open between them ([`Kept`]), the answer read back within
 //! limits, and the way text is written into URLs and forms. An OAuth sign-in trades its codes
 //! for tokens with it, the mail exchangers of a domain are looked up with it, and Microsoft
 //! Graph is asked with it.
@@ -38,6 +39,10 @@ const UPLOAD_CHUNK: usize = 64 * 1024;
 const MAX_PAIRS: usize = 64;
 /// What every request says of its sender: nothing about this machine.
 const USER_AGENT: &str = "MailCraft";
+/// Most requests one kept connection carries before it is closed and another one is opened, and
+/// the longest it is kept between two of them (servers close one that is quiet for long).
+const MAX_KEPT_USES: u32 = 500;
+const MAX_KEPT_IDLE: Duration = Duration::from_secs(50);
 /// Reads and writes interrupted in a row before giving up.
 const MAX_INTERRUPTS: u32 = 1_000;
 /// Longest text taken from a server into an error message.
@@ -227,8 +232,11 @@ fn nonsense(text: &str) -> NetError {
     NetError::Proto(ProtoError::Protocol(text.into()))
 }
 
+/// What a connection the server closed is called.
+const CLOSED: &str = "the server closed the connection";
+
 fn closed() -> NetError {
-    problem("the server closed the connection")
+    problem(CLOSED)
 }
 
 /// What an answer that didn't come in its time is called.
@@ -283,12 +291,84 @@ fn send(url: &Url, method: &str, headers: &[(&str, &str)], body: Option<&str>, p
 /// request going out and the answer coming back. Only a body too large to go up in that time
 /// at the slowest speed that is put up with gets more.
 pub(crate) fn request(url: &Url, request: &Request<'_>) -> Result<Reply, NetError> {
+    let mut stream = connect(url, request)?;
+    exchange(&mut stream, url, request, false).map(|(reply, _)| reply)
+}
+
+/// A connection to a web server kept open between requests (HTTP/1.1's persistent connections),
+/// so that many requests to it one after the other pay for one handshake rather than one each.
+/// It is only ever reused for the same host and port; one the server said it closes, one whose
+/// answer ran to the end of the connection, one that went wrong and one that was quiet for long
+/// is not reused. Dropping it closes the connection.
+#[derive(Default)]
+pub(crate) struct Kept {
+    open: Option<KeptConnection>,
+}
+
+struct KeptConnection {
+    host: String,
+    port: u16,
+    secure: bool,
+    stream: transport::Stream<'static>,
+    uses: u32,
+    since: Instant,
+}
+
+impl Kept {
+    /// [`request`] on the connection kept for `url`'s server, or on a new one that is kept after.
+    /// A kept connection the server closed while it was quiet (it is told by nothing coming back
+    /// at all) is replaced by a new one, once.
+    pub(crate) fn request(&mut self, url: &Url, request: &Request<'_>) -> Result<Reply, NetError> {
+        let same = |c: &KeptConnection| c.host == url.host && c.port == url.port && c.secure == url.secure;
+        let usable = |c: &KeptConnection| c.uses < MAX_KEPT_USES && c.since.elapsed() < MAX_KEPT_IDLE;
+        if let Some(mut kept) = self.open.take().filter(same).filter(usable) {
+            match exchange(&mut kept.stream, url, request, true) {
+                Ok((reply, again)) => {
+                    if again {
+                        kept.uses = kept.uses.saturating_add(1);
+                        kept.since = Instant::now();
+                        self.open = Some(kept);
+                    }
+                    return Ok(reply);
+                }
+                // Closed meanwhile: a new connection, below.
+                Err(e) if is_closed(&e) => log::debug!("{}: a kept connection was closed; opening another", url.host),
+                Err(e) => return Err(e),
+            }
+        }
+        let stream = connect(url, request)?;
+        let mut kept = KeptConnection { host: url.host.clone(), port: url.port, secure: url.secure, stream, uses: 1, since: Instant::now() };
+        let (reply, again) = exchange(&mut kept.stream, url, request, true)?;
+        if again {
+            self.open = Some(kept);
+        }
+        Ok(reply)
+    }
+}
+
+/// A connection to `url`'s server, within [`Request::patience`].
+fn connect(url: &Url, request: &Request<'_>) -> Result<transport::Stream<'static>, NetError> {
     let method = request.method;
     if method.is_empty() || method.len() > 10 || !method.bytes().all(|b| b.is_ascii_uppercase()) {
         return Err(NetError::Config("that is no way to ask a web server".into()));
     }
     let server = Server { host: url.host.clone(), port: url.port, security: if url.secure { Security::Tls } else { Security::None } };
-    let (mut stream, _) = transport::open_within(&server, Service::Http, request.patience, request.patience)?;
+    let (stream, _) = transport::open_within(&server, Service::Http, request.patience, request.patience)?;
+    Ok(stream)
+}
+
+/// Whether an error of a request on a kept connection says the server had closed it.
+fn is_closed(error: &NetError) -> bool {
+    matches!(error, NetError::Proto(ProtoError::Io(why)) if why == CLOSED)
+}
+
+/// One request on `stream` and its answer; with `keep`, asking the server to keep the connection
+/// open after, and saying whether it may be used again.
+fn exchange<S: Read + Write>(stream: &mut S, url: &Url, request: &Request<'_>, keep: bool) -> Result<(Reply, bool), NetError> {
+    let method = request.method;
+    if method.is_empty() || method.len() > 10 || !method.bytes().all(|b| b.is_ascii_uppercase()) {
+        return Err(NetError::Config("that is no way to ask a web server".into()));
+    }
     let started = Instant::now();
     let body = request.body.unwrap_or("");
     let allowance = Duration::from_secs(u64::try_from(body.len() / MIN_UPLOAD_RATE).unwrap_or(u64::MAX));
@@ -305,25 +385,25 @@ pub(crate) fn request(url: &Url, request: &Request<'_>) -> Result<Reply, NetErro
     if request.body.is_some() {
         head.push_str(&format!("Content-Length: {}\r\n", body.len()));
     }
-    head.push_str("Connection: close\r\n\r\n");
+    head.push_str(if keep { "Connection: keep-alive\r\n\r\n" } else { "Connection: close\r\n\r\n" });
     // A header or a body may carry secrets: nothing of the request is logged.
     if body.len() <= UPLOAD_CHUNK {
         head.push_str(body);
-        write_all(&mut stream, head.as_bytes())?;
+        write_all(stream, head.as_bytes())?;
     } else {
-        write_all(&mut stream, head.as_bytes())?;
+        write_all(stream, head.as_bytes())?;
         // A server that takes its time over every piece is not waited on for ever.
         for piece in body.as_bytes().chunks(UPLOAD_CHUNK) {
             if started.elapsed() >= patience {
                 return Err(too_slow());
             }
-            write_all(&mut stream, piece)?;
+            write_all(stream, piece)?;
         }
     }
     stream.flush().map_err(|e| io_problem(&e))?;
-    let reply = read_reply(&mut stream, started, patience, request.max_body.min(MAX_LARGE_BODY))?;
+    let (reply, again) = read_reply_kept(stream, started, patience, request.max_body.min(MAX_LARGE_BODY))?;
     log::debug!("{} answered {} ({} bytes)", url.host, reply.status, reply.body.len());
-    Ok(reply)
+    Ok((reply, keep && again))
 }
 
 /// Not `write_all`: that retries an interrupted write for ever.
@@ -445,6 +525,8 @@ struct Head {
     chunked: bool,
     retry_after: Option<String>,
     policy: Option<String>,
+    /// The server says it closes the connection after this answer (`Connection: close`).
+    close: bool,
 }
 
 /// [`read_reply`] with a body of no more than the usual size.
@@ -458,6 +540,13 @@ pub(crate) fn read_answer<R: Read>(stream: &mut R, started: Instant, patience: D
 /// the end of the stream (`max_body` bytes of it at most), and what the answer says of when to
 /// come back. It has `patience` from `started` to arrive.
 pub(crate) fn read_reply<R: Read>(stream: &mut R, started: Instant, patience: Duration, max_body: usize) -> Result<Reply, NetError> {
+    read_reply_kept(stream, started, patience, max_body).map(|(reply, _)| reply)
+}
+
+/// [`read_reply`], saying also whether the connection may carry another request: the answer's
+/// end was told by its length or its chunks, nothing came after it, and the server didn't say it
+/// closes the connection.
+fn read_reply_kept<R: Read>(stream: &mut R, started: Instant, patience: Duration, max_body: usize) -> Result<(Reply, bool), NetError> {
     let mut reader = Reader { stream, buf: Vec::new(), start: 0, ended: false, started, patience };
     let mut head = read_head(&mut reader)?;
     // "Go on" before the answer proper (100 Continue): never asked for, tolerated a few times.
@@ -467,6 +556,7 @@ pub(crate) fn read_reply<R: Read>(stream: &mut R, started: Instant, patience: Du
         }
         head = read_head(&mut reader)?;
     }
+    let mut delimited = true;
     let body = if matches!(head.status, 100..=199 | 204 | 304) {
         Vec::new()
     } else if head.chunked {
@@ -475,9 +565,11 @@ pub(crate) fn read_reply<R: Read>(stream: &mut R, started: Instant, patience: Du
         let length = usize::try_from(length).ok().filter(|n| *n <= max_body).ok_or_else(|| too_long(max_body))?;
         reader.take(length)?
     } else {
+        delimited = false;
         reader.rest(max_body)?
     };
-    Ok(Reply { status: head.status, body, retry_after: head.retry_after, policy: head.policy })
+    let again = delimited && !head.close && reader.pending().is_empty();
+    Ok((Reply { status: head.status, body, retry_after: head.retry_after, policy: head.policy }, again))
 }
 
 fn read_head<R: Read>(reader: &mut Reader<'_, R>) -> Result<Head, NetError> {
@@ -513,6 +605,8 @@ fn read_head<R: Read>(reader: &mut Reader<'_, R>) -> Result<Head, NetError> {
             head.retry_after = Some(tidy(value));
         } else if name.eq_ignore_ascii_case("x-ews-policy-reason") {
             head.policy = Some(tidy(value));
+        } else if name.eq_ignore_ascii_case("connection") {
+            head.close = value.split(',').any(|token| token.trim().eq_ignore_ascii_case("close"));
         }
     }
     Err(nonsense("the server's answer has too many headers"))
@@ -561,6 +655,84 @@ mod tests {
     use proptest::prelude::*;
 
     use super::*;
+
+    /// A web server on this machine that answers `answers` requests per connection, each with
+    /// `{"n": <its number>}`, and then closes it without a word. How many connections it took.
+    fn keeping_server(answers: usize, connections: usize) -> (u16, std::thread::JoinHandle<usize>) {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let handle = std::thread::spawn(move || {
+            let mut served = 0;
+            for _ in 0..connections {
+                let Ok((mut tcp, _)) = listener.accept() else { break };
+                served += 1;
+                tcp.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+                for n in 0..answers {
+                    // One request: up to its blank line (none of these have a body).
+                    let mut seen = Vec::new();
+                    let mut byte = [0u8; 1];
+                    while !seen.ends_with(b"\r\n\r\n") {
+                        match tcp.read(&mut byte) {
+                            Ok(1) => seen.push(byte[0]),
+                            _ => return served,
+                        }
+                    }
+                    let body = format!("{{\"n\":{n}}}");
+                    let answer = format!("HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n{body}", body.len());
+                    tcp.write_all(answer.as_bytes()).unwrap();
+                }
+            }
+            served
+        });
+        (port, handle)
+    }
+
+    fn get_on(kept: &mut Kept, port: u16) -> String {
+        let url = url(&format!("http://127.0.0.1:{port}/x"));
+        let reply = kept.request(&url, &Request { method: "GET", headers: &[], body: None, patience: Duration::from_secs(5), max_body: MAX_BODY });
+        String::from_utf8(reply.unwrap().body).unwrap()
+    }
+
+    #[test]
+    fn requests_one_after_the_other_share_one_kept_connection() {
+        let (port, server) = keeping_server(3, 1);
+        let mut kept = Kept::default();
+        let answers: Vec<String> = (0..3).map(|_| get_on(&mut kept, port)).collect();
+        assert_eq!(answers, [r#"{"n":0}"#, r#"{"n":1}"#, r#"{"n":2}"#]);
+        drop(kept);
+        assert_eq!(server.join().unwrap(), 1);
+    }
+
+    #[test]
+    fn a_kept_connection_the_server_closed_is_replaced_once() {
+        // One answer a connection, and then it is closed without saying so.
+        let (port, server) = keeping_server(1, 3);
+        let mut kept = Kept::default();
+        let answers: Vec<String> = (0..3).map(|_| get_on(&mut kept, port)).collect();
+        assert_eq!(answers, [r#"{"n":0}"#; 3]);
+        drop(kept);
+        assert_eq!(server.join().unwrap(), 3);
+    }
+
+    #[test]
+    fn a_server_that_says_it_closes_is_not_asked_again_on_that_connection() {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let server = std::thread::spawn(move || {
+            let mut served = 0;
+            for _ in 0..2 {
+                let (mut tcp, _) = listener.accept().unwrap();
+                served += 1;
+                let mut buf = [0u8; 1024];
+                let _ = tcp.read(&mut buf);
+                tcp.write_all(b"HTTP/1.1 200 OK\r\nConnection: close\r\nContent-Length: 2\r\n\r\nok").unwrap();
+            }
+            served
+        });
+        let mut kept = Kept::default();
+        assert_eq!((get_on(&mut kept, port), get_on(&mut kept, port)), ("ok".to_string(), "ok".to_string()));
+        assert_eq!(server.join().unwrap(), 2);
+    }
 
     fn url(text: &str) -> Url {
         Url::parse(text).unwrap()

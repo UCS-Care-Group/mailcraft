@@ -43,6 +43,26 @@ fn greetings() {
 }
 
 #[test]
+fn a_line_that_is_no_imap_response_after_the_greeting_ends_the_session() {
+    // Exchange Online, throttling, writes a bare line in the middle of a session and hangs up:
+    // the connection is over, to be tried again later, which is not the wrong kind of server.
+    let mut s = Script::new("* 1 FETCH (UID 1 FLAGS ())\r\nServer Unavailable. 15\r\n");
+    let mut imap = Imap::resume(&mut s);
+    let err = imap.uid_fetch_flags("1:*").unwrap_err();
+    assert_eq!(err, ProtoError::Io("the server closed the connection (Server Unavailable. 15)".into()));
+    assert_eq!(err.to_string(), "connection problem: the server closed the connection (Server Unavailable. 15)");
+    // Before it, the same line says the server isn't an IMAP server (`greetings` has the rest).
+    let mut s = Script::new("Server Unavailable. 15\r\n");
+    assert!(matches!(Imap::connect(&mut s), Err(ProtoError::Protocol(why)) if why.contains("is not an IMAP response")));
+    // A password the line throws back is hidden in it.
+    let mut s = Script::new("A0001 OK welcome\r\nno more for hunter2\r\n");
+    let mut imap = Imap::resume(&mut s);
+    imap.login("ada", "hunter2").unwrap();
+    let err = imap.uid_fetch_flags("1:*").unwrap_err();
+    assert!(matches!(&err, ProtoError::Io(why) if why.contains("***") && !why.contains("hunter2")), "{err:?}");
+}
+
+#[test]
 fn capabilities_are_upper_cased() {
     let mut s = Script::new(
         "* CAPABILITY IMAP4rev1 StartTLS special-use AUTH=PLAIN\r\nA0001 OK done\r\nA0002 OK [CAPABILITY IMAP4rev1 IDLE] done\r\nA0003 OK none\r\n",
@@ -289,6 +309,30 @@ fn opening_a_mailbox() {
     // A name the server wrote in UTF-8 goes back as a literal.
     assert_eq!(imap.select("Entwürfe", true).unwrap(), Selected { exists: 3, uid_validity: 0, uid_next: 0, permanent_flags: None });
     assert_eq!(s.sent(), "A0001 EXAMINE \"Sent Items\"\r\nA0002 SELECT \"INBOX\"\r\nA0003 EXAMINE \"Nowhere\"\r\nA0004 EXAMINE {9}\r\nEntwürfe\r\n");
+}
+
+#[test]
+fn asking_how_a_mailbox_stands_without_opening_it() {
+    let mut server = String::new();
+    server += "* STATUS \"Sent Items\" (MESSAGES 231 UIDNEXT 44292 UIDVALIDITY 3857529045)\r\nA0001 OK STATUS completed\r\n";
+    // In another order, with an item we didn't ask for and one missing; other news in between.
+    server += "* 3 EXISTS\r\n* STATUS INBOX (UNSEEN 2 UIDVALIDITY 7 MESSAGES 9)\r\nA0002 OK done\r\n";
+    server += "A0003 NO [NONEXISTENT] no such mailbox\r\n";
+    server += "* STATUS INBOX nonsense\r\nA0004 OK done\r\n";
+    server += "A0005 OK done without a word\r\n";
+    let mut s = Script::new(server);
+    let mut imap = Imap::resume(&mut s);
+    assert_eq!(imap.status("Sent Items").unwrap(), MailboxStatus { exists: 231, uid_next: 44292, uid_validity: 3_857_529_045 });
+    assert_eq!(imap.status("INBOX").unwrap(), MailboxStatus { exists: 9, uid_next: 0, uid_validity: 7 });
+    assert_eq!(imap.status("Nowhere"), Err(ProtoError::Rejected("[NONEXISTENT] no such mailbox".into())));
+    assert!(matches!(imap.status("INBOX"), Err(ProtoError::Protocol(_))));
+    assert!(matches!(imap.status("INBOX"), Err(ProtoError::Protocol(_))));
+    assert!(
+        s.sent()
+            .starts_with("A0001 STATUS \"Sent Items\" (MESSAGES UIDNEXT UIDVALIDITY)\r\nA0002 STATUS \"INBOX\" (MESSAGES UIDNEXT UIDVALIDITY)\r\n"),
+        "{}",
+        s.sent()
+    );
 }
 
 #[test]
@@ -858,7 +902,9 @@ fn waiting_with_news() {
     assert_eq!(imap.idle_wait().unwrap(), IdleNews::Quiet);
     let news: Vec<IdleNews> = (0..6).map(|_| imap.idle_wait().unwrap()).collect();
     use IdleNews::{Changed, Other};
-    assert_eq!(news, [Changed, Other, Changed, Changed, Changed, Other]);
+    // New mail and mail gone are news; a flag that changed (the watcher's own marks come back
+    // so) and RECENT are not.
+    assert_eq!(news, [Changed, Other, Changed, Other, Other, Other]);
     assert_eq!(imap.idle_wait().unwrap(), IdleNews::Quiet);
     imap.idle_done().unwrap();
     // Done is done: nothing more is sent for it.
@@ -947,9 +993,19 @@ fn tags_count_up_and_must_match() {
 
 #[test]
 fn junk_in_a_session_is_a_protocol_error() {
-    for junk in ["+ send more\r\n", "garbage\r\n", "A0001 FETCH x\r\n", "A0001 BYE\r\n", "A0001 PREAUTH hi\r\n", "\r\n", "A0001\r\n", " OK\r\n"] {
+    // IMAP that is wrong: a go-ahead nobody asked for, an answer to a command that wasn't sent.
+    for junk in ["+ send more\r\n", "A0001 BYE\r\n", "A0001 PREAUTH hi\r\n"] {
         let mut s = Script::new(junk);
         assert!(matches!(Imap::resume(&mut s).capabilities(), Err(ProtoError::Protocol(_))), "{junk:?}");
+    }
+    // A line that is no IMAP at all: the server has stopped speaking it, and the session is
+    // over (a connection error, for the host to try again later).
+    for junk in ["garbage\r\n", "A0001 FETCH x\r\n", "\r\n", "A0001\r\n", " OK\r\n"] {
+        let mut s = Script::new(junk);
+        assert!(
+            matches!(Imap::resume(&mut s).capabilities(), Err(ProtoError::Io(why)) if why.starts_with("the server closed the connection")),
+            "{junk:?}"
+        );
     }
     // Refusals keep the server's words; one without words still says something.
     let mut s = Script::new("A0001 NO\r\n");

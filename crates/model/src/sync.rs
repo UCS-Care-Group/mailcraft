@@ -23,6 +23,22 @@ pub struct FolderState {
     pub known_uids: Vec<u32>,
     /// How the server's mailbox stood when it was last read ([`FolderMark`]).
     pub mark: FolderMark,
+    /// Through Microsoft Graph ([`crate::MailSource::Graph`]): the id Graph knows each message
+    /// of `known_uids` by, where it is known.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub remote_ids: Vec<RemoteId>,
+    /// Through Microsoft Graph: where to ask what changed since the folder was last read through
+    /// ([`crate::Folder::delta`]); empty: it is read whole.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub delta: String,
+}
+
+/// A message's number here and the id Graph knows it by.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct RemoteId {
+    pub uid: u32,
+    pub id: String,
 }
 
 /// What a synchronisation notes about a server mailbox beyond how far it was read, so that the
@@ -36,7 +52,7 @@ pub struct FolderState {
 ///
 /// Messages left for later because a run takes only so many of a mailbox (the newest win) are
 /// below `backfill`: later runs bring them, newest first, as far as their limit allows.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct FolderMark {
     /// `UIDNEXT` of the mailbox when it was last read through; 0 while it isn't (the next run
@@ -53,11 +69,108 @@ pub struct FolderMark {
     /// 0: none.
     #[serde(skip_serializing_if = "is_zero")]
     pub backfill: u32,
+    /// Messages the server refused to hand over when asked for on their own (kept here by their
+    /// header alone, or not at all): passed over, and asked for again every few runs
+    /// (`skip_runs` counts them) in case the server has come round. At most [`MAX_SKIPPED`].
+    #[serde(skip_serializing_if = "Vec::is_empty", deserialize_with = "lenient_list")]
+    pub skipped: Vec<u32>,
+    /// Runs since the messages in `skipped` were last asked for.
+    #[serde(skip_serializing_if = "is_zero")]
+    pub skip_runs: u32,
+    /// Through Microsoft Graph: how many unread messages the folder had when it was last read
+    /// through (its `unreadItemCount`, beside `exists` for its `totalItemCount`). When the
+    /// listing says the same two numbers the next time, the folder's round is not asked for.
+    #[serde(skip_serializing_if = "is_zero", deserialize_with = "lenient_or_default")]
+    pub unread: u32,
 }
+
+/// Which folders a synchronisation reads ([`SyncRequest::scope`]). The Inbox and what lies in it
+/// are one job, every other folder another: the first is short and runs often, so that new mail
+/// shows without waiting for a sweep of hundreds of folders; the second runs when the first is
+/// done. Sending the Outbox, the changes made here and the list of folders go with whichever
+/// job runs first (both may carry them; the second finds nothing left to do).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum SyncScope {
+    /// Every folder, as one run.
+    #[default]
+    All,
+    /// The Inbox and every folder under it (`INBOX`, `INBOX/…`).
+    InboxTree,
+    /// Every folder that isn't the Inbox or under it.
+    Rest,
+}
+
+impl SyncScope {
+    pub fn is_all(&self) -> bool {
+        *self == SyncScope::All
+    }
+
+    /// The scope by its name in a command (`all`, `inboxTree`, `rest`), whatever the letter case.
+    pub fn parse(text: &str) -> Option<SyncScope> {
+        match text.trim().to_ascii_lowercase().as_str() {
+            "all" => Some(SyncScope::All),
+            "inboxtree" | "inbox_tree" | "inbox-tree" | "inbox" => Some(SyncScope::InboxTree),
+            "rest" | "folders" => Some(SyncScope::Rest),
+            _ => None,
+        }
+    }
+
+    pub fn code(&self) -> &'static str {
+        match self {
+            SyncScope::All => "all",
+            SyncScope::InboxTree => "inboxTree",
+            SyncScope::Rest => "rest",
+        }
+    }
+
+    /// Whether a server folder at `remote` (its path, as [`FolderState::remote`] has it) that is
+    /// for `kind` is read by a run of this scope. The Inbox tree is the Inbox itself (by its kind,
+    /// or `INBOX` under any letter case) and every path below `INBOX` whatever parts the levels
+    /// (`INBOX/Receipts`, `INBOX.Receipts`). The engine and the host both ask this, so that a
+    /// folder is in one job and one only.
+    pub fn covers(&self, remote: &str, kind: FolderKind) -> bool {
+        match self {
+            SyncScope::All => true,
+            SyncScope::InboxTree => in_inbox_tree(remote, kind),
+            SyncScope::Rest => !in_inbox_tree(remote, kind),
+        }
+    }
+}
+
+/// Whether `remote` is the Inbox or lies under it ([`SyncScope::covers`]).
+pub fn in_inbox_tree(remote: &str, kind: FolderKind) -> bool {
+    if kind == FolderKind::Inbox {
+        return true;
+    }
+    let Some(top) = remote.get(..5) else { return false };
+    if !top.eq_ignore_ascii_case("INBOX") {
+        return false;
+    }
+    let rest = remote.get(5..).unwrap_or_default();
+    // `INBOX` itself under another kind is somebody's own folder of that name on another
+    // server; what parts the levels is never a letter or a digit.
+    rest.chars().next().is_some_and(|c| !c.is_alphanumeric()) && rest.chars().nth(1).is_some()
+}
+
+/// Most messages a mailbox keeps in mind as refused by the server ([`FolderMark::skipped`]).
+pub const MAX_SKIPPED: usize = 64;
 
 impl FolderMark {
     pub fn is_empty(&self) -> bool {
         *self == FolderMark::default()
+    }
+
+    /// Note that the server refused `uid` (again); the oldest are forgotten past [`MAX_SKIPPED`].
+    pub fn skip(&mut self, uid: u32) {
+        if uid == 0 || self.skipped.contains(&uid) {
+            return;
+        }
+        self.skipped.push(uid);
+        if self.skipped.len() > MAX_SKIPPED {
+            let extra = self.skipped.len() - MAX_SKIPPED;
+            self.skipped.drain(..extra);
+        }
     }
 }
 
@@ -323,6 +436,15 @@ pub struct SyncRequest {
     /// put there before the `ops` are pushed.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub uploads: Vec<Upload>,
+    /// Only the Inbox is read: nothing is sent, nothing pushed, no folder changed and no other
+    /// folder looked at. For a look at an account's Inbox while another account's run is busy.
+    /// With a `scope` of [`SyncScope::InboxTree`], the folders under the Inbox are looked at too.
+    #[serde(skip_serializing_if = "is_false")]
+    pub inbox_only: bool,
+    /// Which folders the run reads ([`SyncScope`]); every folder unless said. `folders` carries
+    /// the states of the folders in scope (and of those the changes to push are about).
+    #[serde(skip_serializing_if = "SyncScope::is_all", deserialize_with = "lenient_or_default")]
+    pub scope: SyncScope,
 }
 
 impl SyncRequest {
@@ -500,6 +622,10 @@ pub struct FolderDelta {
     /// How the mailbox stands now ([`FolderMark`]): the last piece that speaks of it says.
     #[serde(skip_serializing_if = "FolderMark::is_empty")]
     pub mark: FolderMark,
+    /// Through Microsoft Graph: where to ask next time what changed in the folder
+    /// ([`FolderState::delta`]), once it was read through; empty: as it was.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub delta: String,
 }
 
 /// A folder of mail the server has, as its list names it ([`SyncResult::listed`]).
@@ -514,6 +640,15 @@ pub struct ListedFolder {
     pub parent: String,
     /// The last part of its name, as people read it.
     pub name: String,
+}
+
+/// An Outbox message the server refused to send as the account ([`SyncResult::held`]), and why,
+/// in one line for the owner.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct HeldMessage {
+    pub message: Id,
+    pub why: String,
 }
 
 /// A flag change the server took on ([`RemoteOp::Flags`]): the flags that were set or cleared.
@@ -599,6 +734,11 @@ pub struct SyncResult {
     pub listed_whole: bool,
     /// Ids of Outbox messages that were sent.
     pub sent: Vec<Id>,
+    /// Outbox messages the server refused to send as the account (the Send As right on a shared
+    /// mailbox, which an administrator gives): the mailbox holds each until the owner changes
+    /// it or sends it again ([`Message::hold`]), rather than trying every few minutes.
+    #[serde(skip_serializing_if = "Vec::is_empty", deserialize_with = "lenient_list")]
+    pub held: Vec<HeldMessage>,
     /// Those of `sent` that have a copy in the server's mailbox for sent mail, or will have: put
     /// there in this run, or filed by a server that keeps what it sends. The copy comes down with
     /// that mailbox, now or later.
@@ -648,6 +788,15 @@ pub struct SyncResult {
     /// The run was called off before it had done all there was to do (in the last piece).
     #[serde(skip_serializing_if = "is_false")]
     pub stopped: bool,
+    /// The server said "not now" (Microsoft Graph's 429 or 503, even after waiting) and the run
+    /// ended on that: how many seconds it asked to be left alone for. A host runs the same job
+    /// again after that long, not after its full interval. In the last piece.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub retry_after: Option<u32>,
+    /// With `retry_after`: what the server's refusal came to, in one line, kept apart from
+    /// `errors` so that a host can say nothing of the first few in a row.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub busy: String,
 }
 
 impl SyncResult {
@@ -667,6 +816,7 @@ impl SyncResult {
         !(self.folders.is_empty()
             && self.listed.is_empty()
             && self.sent.is_empty()
+            && self.held.is_empty()
             && self.filed.is_empty()
             && self.unfiled.is_empty()
             && self.pushed_count() == 0
@@ -680,12 +830,19 @@ impl SyncResult {
     pub fn absorb(&mut self, later: SyncResult) {
         (self.account, self.email) = (later.account, later.email);
         (self.partial, self.progress, self.stopped) = (later.partial, later.progress, later.stopped);
+        if later.retry_after.is_some() {
+            self.retry_after = later.retry_after;
+        }
+        if !later.busy.is_empty() {
+            self.busy = later.busy;
+        }
         if !later.listed.is_empty() {
             self.listed = later.listed;
             self.listed_whole = later.listed_whole;
         }
         self.folders_pushed.extend(later.folders_pushed);
         self.sent.extend(later.sent);
+        self.held.extend(later.held);
         // A copy that didn't get there after all is one that was never said to.
         self.filed.retain(|id| !later.unfiled.contains(id));
         self.filed.extend(later.filed);
@@ -704,7 +861,7 @@ impl SyncResult {
                     folder.id = folder.id.or(delta.id);
                     // The mailbox is read as far as the piece that got furthest says.
                     folder.uid_seen = folder.uid_seen.max(delta.uid_seen);
-                    folder.mark = delta.mark;
+                    folder.mark = delta.mark.clone();
                     folder.new.extend(delta.new);
                     folder.flags.extend(delta.flags);
                     folder.removed.extend(delta.removed);
@@ -725,6 +882,7 @@ impl SyncResult {
             && self.email == later.email
             && later.listed.is_empty()
             && later.sent.is_empty()
+            && later.held.is_empty()
             && later.filed.is_empty()
             && later.unfiled.is_empty()
             && later.pushed_count() == 0
@@ -926,7 +1084,7 @@ mod tests {
         // A folder's mark reads and writes as JSON, and an old file without it reads as none.
         let state: FolderState = serde_json::from_str(r#"{"id":1,"remote":"INBOX","uidSeen":3}"#).unwrap();
         assert!(state.mark.is_empty());
-        let marked = FolderState { mark: FolderMark { uid_next: 9, exists: 4, quick_runs: 1, backfill: 2 }, ..state };
+        let marked = FolderState { mark: FolderMark { uid_next: 9, exists: 4, quick_runs: 1, backfill: 2, ..Default::default() }, ..state };
         let json = serde_json::to_string(&marked).unwrap();
         assert!(json.contains(r#""mark":{"uidNext":9,"exists":4,"quickRuns":1,"backfill":2}"#), "{json}");
         assert_eq!(serde_json::from_str::<FolderState>(&json).unwrap(), marked);
@@ -972,6 +1130,96 @@ mod tests {
         let op = RemoteOp::Categories { folder: "INBOX".into(), uid: 2, add: vec!["Work".into()], remove: vec![] };
         assert_eq!(serde_json::to_string(&op).unwrap(), r#"{"categories":{"folder":"INBOX","uid":2,"add":["Work"]}}"#);
         assert_eq!(op.mailbox(), "INBOX");
+    }
+
+    #[test]
+    fn a_mark_keeps_what_the_server_refused_and_a_held_message_is_said_and_old_files_read_as_before() {
+        let mut mark = FolderMark { uid_next: 9, ..Default::default() };
+        mark.skip(0);
+        mark.skip(2);
+        mark.skip(2);
+        assert_eq!(mark.skipped, [2]);
+        for uid in 100..100 + MAX_SKIPPED as u32 {
+            mark.skip(uid);
+        }
+        assert_eq!(mark.skipped.len(), MAX_SKIPPED);
+        assert!(!mark.skipped.contains(&2), "the oldest goes first");
+        let json = serde_json::to_string(&FolderMark { skipped: vec![2], skip_runs: 3, ..Default::default() }).unwrap();
+        assert_eq!(json, r#"{"skipped":[2],"skipRuns":3}"#);
+        assert!(!serde_json::to_string(&FolderMark::default()).unwrap().contains("skipped"));
+        // An old file without them, and a file from elsewhere with nonsense in their place, read.
+        let old: FolderMark = serde_json::from_str(r#"{"uidNext":9,"exists":4}"#).unwrap();
+        assert!(old.skipped.is_empty() && old.skip_runs == 0 && old.uid_next == 9);
+        let odd: FolderMark = serde_json::from_str(r#"{"skipped":[2,"x",null,5]}"#).unwrap();
+        assert_eq!(odd.skipped, [2, 5]);
+        // A message the server wouldn't send as the account is said with why, and is news.
+        let result = SyncResult { held: vec![HeldMessage { message: 4, why: "No Send As".into() }], ..Default::default() };
+        assert!(result.has_news());
+        let json = serde_json::to_string(&result).unwrap();
+        assert!(json.contains(r#""held":[{"message":4,"why":"No Send As"}]"#), "{json}");
+        assert_eq!(serde_json::from_str::<SyncResult>(&json).unwrap(), result);
+        assert!(!serde_json::to_string(&SyncResult::default()).unwrap().contains("held"));
+        // A piece with one waits its turn like a piece with mail sent.
+        assert!(!SyncResult { partial: true, ..Default::default() }.can_absorb(&result));
+        let mut first = SyncResult { partial: true, ..Default::default() };
+        first.absorb(result.clone());
+        assert_eq!(first.held, result.held);
+        // A message's hold is written only when there is one; an old file, or an odd one, reads as none.
+        let m = Message { hold: Some("why".into()), ..Default::default() };
+        assert!(serde_json::to_string(&m).unwrap().contains(r#""hold":"why""#));
+        assert!(!serde_json::to_string(&Message::default()).unwrap().contains("hold"));
+        let m: Message = serde_json::from_str(r#"{"id":1,"hold":7}"#).unwrap();
+        assert!(m.hold.is_none());
+    }
+
+    #[test]
+    fn a_scope_says_which_folders_a_run_reads_and_old_requests_read_as_every_folder() {
+        use SyncScope::*;
+        for (remote, kind, inbox_tree) in [
+            ("INBOX", FolderKind::Inbox, true),
+            ("", FolderKind::Inbox, true),
+            ("Inbox", FolderKind::Inbox, true),
+            ("INBOX/Receipts", FolderKind::Custom, true),
+            ("INBOX.Receipts", FolderKind::Custom, true),
+            ("inbox/Receipts/2026", FolderKind::Custom, true),
+            ("INBOX/Sent", FolderKind::Sent, true),
+            ("INBOX", FolderKind::Custom, false),
+            ("Inbox", FolderKind::Custom, false),
+            ("INBOX2", FolderKind::Custom, false),
+            ("INBOX/", FolderKind::Custom, false),
+            ("Inboxes/2026", FolderKind::Custom, false),
+            ("Sent Items", FolderKind::Sent, false),
+            ("", FolderKind::Custom, false),
+            ("Receipts/INBOX", FolderKind::Custom, false),
+            ("é", FolderKind::Custom, false),
+        ] {
+            assert_eq!(InboxTree.covers(remote, kind), inbox_tree, "{remote} {kind:?}");
+            assert_eq!(Rest.covers(remote, kind), !inbox_tree, "{remote} {kind:?}");
+            assert!(All.covers(remote, kind));
+        }
+        assert_eq!(
+            (SyncScope::parse("inboxTree"), SyncScope::parse(" REST "), SyncScope::parse("all"), SyncScope::parse("x")),
+            (Some(InboxTree), Some(Rest), Some(All), None)
+        );
+        let json = serde_json::to_string(&SyncRequest { scope: InboxTree, ..Default::default() }).unwrap();
+        assert!(json.contains(r#""scope":"inboxTree""#), "{json}");
+        assert!(!serde_json::to_string(&SyncRequest::default()).unwrap().contains("scope"));
+        let old: SyncRequest = serde_json::from_str(r#"{"account":{"email":"a@example.org"},"folders":[]}"#).unwrap();
+        assert_eq!(old.scope, All);
+        let odd: SyncRequest = serde_json::from_str(r#"{"scope":"everything"}"#).unwrap();
+        assert_eq!(odd.scope, All);
+        // A mark's unread count is written only when there is one, and read leniently.
+        let mark = FolderMark { exists: 4, unread: 2, ..Default::default() };
+        assert_eq!(serde_json::to_string(&mark).unwrap(), r#"{"exists":4,"unread":2}"#);
+        let old: FolderMark = serde_json::from_str(r#"{"exists":4,"unread":"many"}"#).unwrap();
+        assert_eq!((old.exists, old.unread), (4, 0));
+        // "Not now" ends a run with how long to wait, which the pieces carry to the last.
+        let mut whole = SyncResult { partial: true, ..Default::default() };
+        whole.absorb(SyncResult { retry_after: Some(9), busy: "busy".into(), ..Default::default() });
+        assert_eq!((whole.retry_after, whole.busy.as_str(), whole.has_news()), (Some(9), "busy", false));
+        let json = serde_json::to_string(&whole).unwrap();
+        assert!(json.contains(r#""retryAfter":9,"busy":"busy""#), "{json}");
+        assert!(!serde_json::to_string(&SyncResult::default()).unwrap().contains("retryAfter"));
     }
 
     #[test]

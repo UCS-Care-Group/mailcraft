@@ -641,7 +641,8 @@ fn send_receive_runs_by_itself_without_asking_anybody() {
     settle(&mut a);
     assert!(a.dialog.is_none() && synced.lock().unwrap().is_empty() && sign_ins.lock().unwrap().is_empty());
 
-    // Asked for, every account gets its turn; the one without a password stops for it.
+    // Asked for, every account gets its turn (the Inbox jobs first, then the folders); the one
+    // without a password stops for it, once.
     a.passwords.insert(known, "pw".into());
     assert_eq!(a.execute("ui.sync", json!({})).unwrap()["account"], known);
     settle(&mut a);
@@ -651,13 +652,14 @@ fn send_receive_runs_by_itself_without_asking_anybody() {
     settle(&mut a);
     // The account that signs in on its provider's page was asked for too, so a page may open.
     assert_eq!(*sign_ins.lock().unwrap(), [(signed, false)]);
-    assert_eq!(*synced.lock().unwrap(), [known, signed]);
+    assert_eq!(*synced.lock().unwrap(), [known, signed, known, signed]);
+    assert!(a.dialog.is_none(), "the one without a password is not asked twice in a round");
 
     // The next round by itself: the two it can do quietly, and still no prompt for the third.
     synced.lock().unwrap().clear();
     a.last_auto_sync = 0.0;
     settle(&mut a);
-    assert_eq!(*synced.lock().unwrap(), [known, signed]);
+    assert_eq!(*synced.lock().unwrap(), [known, signed, known, signed]);
     assert!(a.dialog.is_none());
     // A sign-in that has run out is renewed quietly: no page is put in front of the owner.
     a.tokens.get_mut(&signed).unwrap().expires_at = 0;
@@ -1332,7 +1334,7 @@ fn mail_arrives_in_pieces_and_a_run_can_be_called_off() {
     a.execute("ui.sync", json!({"account": id})).unwrap();
     send(piece(&[6], 5, true, "Inbox: 1 of 3"));
     a.poll_sync();
-    a.sync_queue.push_back((id, true));
+    a.sync_queue.push_back(crate::SyncJob::new(id, true, mailcraft_model::sync::SyncScope::All));
     a.execute("ui.cancelSync", json!({})).unwrap();
     assert!(a.services.sync_cancel.load(Ordering::Relaxed) && a.sync_queue.is_empty());
     assert!(a.syncing(), "until the host has said it stopped");
@@ -1617,4 +1619,302 @@ fn a_meeting_kept_here_is_asked_about_as_mail_from_the_outbox() {
     assert_eq!(ask.action, "Send Cancellation");
     // Said already: nothing is asked.
     assert!(crate::dialogs::confirmation(&a, "calendar.delete", &json!({"id": id, "send": false})).is_none());
+}
+
+/// The next round by itself is counted from the end of the last one, not from when it was
+/// queued: a round that takes longer than the interval (hundreds of folders) isn't followed by
+/// another at once. And Cancel means stop: the next round waits its full interval from then.
+#[test]
+fn the_next_round_by_itself_waits_an_interval_after_the_last_ended_or_was_cancelled() {
+    use std::sync::{Arc, Mutex, mpsc};
+
+    use mailcraft_model::sync::{SyncRequest, SyncResult, SyncScope};
+
+    let runs: Arc<Mutex<Vec<(SyncScope, mpsc::Sender<SyncResult>)>>> = Default::default();
+    let mut a = app();
+    let keep = runs.clone();
+    a.services.sync = Some(Box::new(move |request: SyncRequest| {
+        // The run goes on until the test ends it.
+        let (tx, rx) = mpsc::channel();
+        keep.lock().unwrap().push((request.scope, tx));
+        rx
+    }));
+    let id =
+        a.execute("account.add", json!({"email": "avery@mail.example", "incoming": {"host": "imap.mail.example"}})).unwrap()["id"].as_u64().unwrap();
+    a.passwords.insert(id, "pw".into());
+    let tick = |a: &mut MailApp| {
+        for _ in 0..4 {
+            a.poll_sync();
+            a.auto_sync();
+        }
+    };
+    let ten_minutes_ago = |a: &mut MailApp| a.last_auto_sync = crate::now_ms() - 10.0 * 60_000.0;
+    let scopes = |runs: &Arc<Mutex<Vec<(SyncScope, mpsc::Sender<SyncResult>)>>>| runs.lock().unwrap().iter().map(|(s, _)| *s).collect::<Vec<_>>();
+    let done = SyncResult { account: id, email: "avery@mail.example".into(), ..Default::default() };
+    // The first round starts at once: the Inbox job, then (once that is done) the folders.
+    tick(&mut a);
+    assert_eq!(scopes(&runs), [SyncScope::InboxTree]);
+    assert!(a.auto_round && a.syncing());
+    runs.lock().unwrap()[0].1.send(done.clone()).unwrap();
+    tick(&mut a);
+    assert_eq!(scopes(&runs), [SyncScope::InboxTree, SyncScope::Rest]);
+    assert!(a.auto_round && a.syncing());
+    // It takes longer than the interval. When it ends, the next round isn't due yet.
+    ten_minutes_ago(&mut a);
+    runs.lock().unwrap()[1].1.send(done.clone()).unwrap();
+    tick(&mut a);
+    assert!(!a.syncing() && !a.auto_round);
+    assert_eq!(runs.lock().unwrap().len(), 2, "counted from the end of the round, not from its start");
+    assert!(crate::now_ms() - a.last_auto_sync < 60_000.0);
+    // An interval after the end, it is.
+    ten_minutes_ago(&mut a);
+    tick(&mut a);
+    assert_eq!(scopes(&runs)[2..], [SyncScope::InboxTree]);
+    // Cancelled: the rest of the round is called off, and the next waits its full interval.
+    ten_minutes_ago(&mut a);
+    a.execute("ui.cancelSync", json!({})).unwrap();
+    assert!(!a.auto_round && crate::now_ms() - a.last_auto_sync < 60_000.0);
+    runs.lock().unwrap()[2].1.send(SyncResult { stopped: true, ..done.clone() }).unwrap();
+    tick(&mut a);
+    assert_eq!(runs.lock().unwrap().len(), 3, "a cancel doesn't start the round over, nor go on to the folders");
+    // A round the owner asked for is not the clock's: it leaves the count as it was.
+    let was = a.last_auto_sync;
+    a.execute("ui.sync", json!({})).unwrap();
+    assert_eq!(scopes(&runs)[3..], [SyncScope::InboxTree]);
+    runs.lock().unwrap()[3].1.send(done.clone()).unwrap();
+    tick(&mut a);
+    assert_eq!(scopes(&runs)[3..], [SyncScope::InboxTree, SyncScope::Rest]);
+    runs.lock().unwrap()[4].1.send(done).unwrap();
+    tick(&mut a);
+    assert_eq!((a.last_auto_sync, runs.lock().unwrap().len(), a.syncing()), (was, 5, false));
+}
+
+/// A round is the Inbox job of every mailbox (the account, then the shared mailboxes under it),
+/// and only then the folders of each; the Inbox jobs run by themselves every `inboxSeconds`
+/// while nothing else does; a server's "not now" has the same job run again when it said, with
+/// nothing said of the first two; Cancel ends the round.
+#[test]
+fn a_round_is_the_inbox_jobs_of_every_mailbox_then_the_folders_and_the_inbox_jobs_repeat_between_rounds() {
+    use std::sync::{Arc, Mutex, mpsc};
+
+    use mailcraft_model::sync::{SyncRequest, SyncResult, SyncScope, Tokens};
+
+    type Started = (u64, SyncScope, bool, mpsc::Sender<SyncResult>);
+    let runs: Arc<Mutex<Vec<Started>>> = Default::default();
+    let mut a = app();
+    let keep = runs.clone();
+    a.services.sync = Some(Box::new(move |request: SyncRequest| {
+        let (tx, rx) = mpsc::channel();
+        keep.lock().unwrap().push((request.account.id, request.scope, request.inbox_only, tx));
+        rx
+    }));
+    let owner = a
+        .execute(
+            "account.add",
+            json!({"email": "avery@harbor.example", "incoming": {"host": "outlook.office365.com"}, "outgoing": {"host": "smtp.office365.com", "security": "starttls"}, "auth": "oauth2", "directory": "organisation"}),
+        )
+        .unwrap()["id"]
+        .as_u64()
+        .unwrap();
+    let shared = a.execute("account.addShared", json!({"account": owner, "address": "support@harbor.example"})).unwrap()["id"].as_u64().unwrap();
+    let other =
+        a.execute("account.add", json!({"email": "maya@mail.example", "incoming": {"host": "imap.mail.example"}})).unwrap()["id"].as_u64().unwrap();
+    a.tokens.insert(owner, Tokens { access: "tok-1".into(), refresh: "ref".into(), expires_at: mailcraft_time::now() + 3600, ..Default::default() });
+    a.passwords.insert(other, "pw".into());
+    let tick = |a: &mut MailApp| {
+        for _ in 0..4 {
+            a.poll_sync();
+            a.auto_sync();
+        }
+    };
+    let jobs = |runs: &Arc<Mutex<Vec<Started>>>| runs.lock().unwrap().iter().map(|(id, scope, look, _)| (*id, *scope, *look)).collect::<Vec<_>>();
+    let finish = |runs: &Arc<Mutex<Vec<Started>>>, at: usize, piece: SyncResult| runs.lock().unwrap()[at].3.send(piece).unwrap();
+    let done = |account: u64| SyncResult { account, email: String::new(), ..Default::default() };
+
+    // Send/Receive All Folders: the Inbox of the account, of its shared mailbox and of the other
+    // account, each job once the one before is over; then the folders of each, in the same order.
+    a.execute("ui.sync", json!({})).unwrap();
+    let mut expected = Vec::new();
+    for (at, (account, scope)) in [
+        (owner, SyncScope::InboxTree),
+        (shared, SyncScope::InboxTree),
+        (other, SyncScope::InboxTree),
+        (owner, SyncScope::Rest),
+        (shared, SyncScope::Rest),
+        (other, SyncScope::Rest),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        expected.push((account, scope, false));
+        assert_eq!(jobs(&runs), expected, "job {at}");
+        assert!(a.syncing());
+        // The status line says whose job it is.
+        let status = a.session.sync_status.clone();
+        let prefix = if scope == SyncScope::InboxTree { "Inbox:" } else { "Folders:" };
+        assert!(status.starts_with(prefix), "{status}");
+        finish(&runs, at, done(account));
+        tick(&mut a);
+    }
+    assert!(!a.syncing() && a.sync_queue.is_empty());
+    assert_eq!(runs.lock().unwrap().len(), 6);
+
+    // Between the rounds: nothing yet; an `inboxSeconds` after the last Inbox job, the Inbox
+    // jobs of every mailbox run by themselves, and no folders job with them.
+    a.last_auto_sync = crate::now_ms();
+    tick(&mut a);
+    assert_eq!(runs.lock().unwrap().len(), 6);
+    a.last_inbox_sync = crate::now_ms() - 61_000.0;
+    tick(&mut a);
+    assert_eq!(jobs(&runs)[6..], [(owner, SyncScope::InboxTree, false)]);
+    finish(&runs, 6, done(owner));
+    tick(&mut a);
+    finish(&runs, 7, done(shared));
+    tick(&mut a);
+    finish(&runs, 8, done(other));
+    tick(&mut a);
+    assert_eq!(jobs(&runs)[6..], [(owner, SyncScope::InboxTree, false), (shared, SyncScope::InboxTree, false), (other, SyncScope::InboxTree, false)]);
+    assert!(!a.syncing() && crate::now_ms() - a.last_inbox_sync < 10_000.0, "counted from the end of the last Inbox job");
+    tick(&mut a);
+    assert_eq!(runs.lock().unwrap().len(), 9, "not again before its time");
+    // Switched off: no Inbox jobs by themselves.
+    a.execute("ui.inboxSeconds", json!({"value": 0})).unwrap();
+    a.last_inbox_sync = crate::now_ms() - 61_000.0;
+    tick(&mut a);
+    assert_eq!(runs.lock().unwrap().len(), 9);
+    a.execute("ui.inboxSeconds", json!({"value": 60})).unwrap();
+    assert_eq!(a.session.prefs.inbox_seconds, 60);
+
+    // The round every `syncMinutes` starts with the Inbox jobs: an Inbox job due at the same
+    // moment is in it, not beside it.
+    a.last_auto_sync = crate::now_ms() - 10.0 * 60_000.0;
+    a.last_inbox_sync = crate::now_ms() - 61_000.0;
+    tick(&mut a);
+    assert_eq!(jobs(&runs)[9..], [(owner, SyncScope::InboxTree, false)]);
+    assert_eq!(a.sync_queue.len(), 5);
+    assert!(a.auto_round);
+    // Cancel ends the job and the rest of the round.
+    a.execute("ui.cancelSync", json!({})).unwrap();
+    assert!(a.sync_queue.is_empty());
+    finish(&runs, 9, SyncResult { stopped: true, ..done(owner) });
+    tick(&mut a);
+    assert!(!a.syncing() && runs.lock().unwrap().len() == 10);
+
+    // "Not now": the job is run again when the server said, not at the next round, and the
+    // first two in a row are not worth a word; the third is said.
+    a.last_auto_sync = crate::now_ms();
+    a.last_inbox_sync = crate::now_ms();
+    a.execute("ui.sync", json!({"account": owner, "scope": "inboxTree"})).unwrap();
+    assert_eq!(jobs(&runs)[10..], [(owner, SyncScope::InboxTree, false)]);
+    for n in 1..=3u32 {
+        let at = 9 + n as usize;
+        let busy = SyncResult {
+            retry_after: Some(9),
+            busy: "Couldn't read \"Inbox\": Microsoft Graph is busy; try again in 9 seconds".into(),
+            ..done(owner)
+        };
+        finish(&runs, at, busy);
+        tick(&mut a);
+        assert!(!a.syncing());
+        assert_eq!(a.busy_streak.get(&owner), Some(&n));
+        assert_eq!(a.deferred.len(), 1);
+        let (job, when) = a.deferred[0];
+        assert_eq!((job.account, job.scope), (owner, SyncScope::InboxTree));
+        assert!(when - crate::now_ms() > 8_000.0 && when - crate::now_ms() <= 9_000.0);
+        let said = a.status_msg.as_ref().map(|(text, _)| text.clone()).unwrap_or_default();
+        if n < 3 {
+            assert!(!said.contains("busy"), "{said}");
+            assert!(!a.has_sync_problems());
+        } else {
+            assert!(said.contains("busy"), "{said}");
+            assert!(a.has_sync_problems());
+        }
+        // Not before its time; then the same job again.
+        tick(&mut a);
+        assert_eq!(runs.lock().unwrap().len(), at + 1);
+        a.deferred[0].1 = crate::now_ms() - 1.0;
+        tick(&mut a);
+        assert_eq!(jobs(&runs)[at + 1..], [(owner, SyncScope::InboxTree, false)]);
+    }
+    // A job that goes through ends the streak.
+    finish(&runs, 13, done(owner));
+    tick(&mut a);
+    assert!(a.busy_streak.get(&owner).is_none() && a.deferred.is_empty());
+}
+
+/// The calendar's job waits exactly as long as the server said when it said "not now", and the
+/// first jobs of an owner's shared mailboxes start one after the other, not all in one second.
+#[test]
+fn the_calendar_waits_as_long_as_the_server_said_and_shared_mailboxes_start_one_after_another() {
+    use std::sync::{Arc, Mutex, mpsc};
+
+    use mailcraft_model::sync::Tokens;
+
+    let jobs: Arc<Mutex<Vec<u64>>> = Default::default();
+    let retry_after: Arc<Mutex<Option<u32>>> = Default::default();
+    let mut a = app();
+    a.auto_sync = true;
+    let (keep, busy) = (jobs.clone(), retry_after.clone());
+    a.services.graph = Some(Box::new(move |request: crate::GraphRequest| {
+        keep.lock().unwrap().push(request.account.id);
+        let out = crate::GraphResult {
+            account: request.account.id,
+            retry_after: *busy.lock().unwrap(),
+            errors: busy
+                .lock()
+                .unwrap()
+                .map(|s| vec![format!("Couldn't bring the calendar down: Microsoft Graph is busy; try again in {s} seconds")])
+                .unwrap_or_default(),
+            ..Default::default()
+        };
+        let (tx, rx) = mpsc::channel();
+        tx.send(out).unwrap();
+        rx
+    }));
+    let owner = a
+        .execute(
+            "account.add",
+            json!({"email": "avery@harbor.example", "incoming": {"host": "outlook.office365.com"}, "auth": "oauth2", "directory": "organisation"}),
+        )
+        .unwrap()["id"]
+        .as_u64()
+        .unwrap();
+    let first = a.execute("account.addShared", json!({"account": owner, "address": "support@harbor.example"})).unwrap()["id"].as_u64().unwrap();
+    let second = a.execute("account.addShared", json!({"account": owner, "address": "sales@harbor.example"})).unwrap()["id"].as_u64().unwrap();
+    a.tokens.insert(owner, Tokens { access: "tok-1".into(), refresh: "ref".into(), expires_at: mailcraft_time::now() + 3600, ..Default::default() });
+    let frame = |a: &mut MailApp, at: f64| {
+        a.calendar_tick_at(true, at);
+        a.poll_calendar();
+    };
+    let t0 = 1_000_000.0;
+    // The owner's job first; the shared mailboxes' first jobs a second apart from the first look.
+    frame(&mut a, t0);
+    frame(&mut a, t0 + 100.0);
+    frame(&mut a, t0 + 200.0);
+    assert_eq!(*jobs.lock().unwrap(), [owner]);
+    frame(&mut a, t0 + crate::calendar_sync::STAGGER_MS);
+    frame(&mut a, t0 + crate::calendar_sync::STAGGER_MS + 100.0);
+    assert_eq!(*jobs.lock().unwrap(), [owner, first]);
+    frame(&mut a, t0 + 2.0 * crate::calendar_sync::STAGGER_MS);
+    assert_eq!(*jobs.lock().unwrap(), [owner, first, second]);
+    // "Not now" with 40 seconds: the next job for that mailbox waits those 40 seconds, not the
+    // half minute that doubles.
+    *retry_after.lock().unwrap() = Some(40);
+    a.calendar.checked.remove(&first);
+    let t1 = t0 + 60_000.0;
+    frame(&mut a, t1);
+    assert_eq!(jobs.lock().unwrap().last(), Some(&first));
+    assert_eq!(a.calendar.failures.get(&first).map(|(n, _)| *n), Some(1));
+    let until = a.calendar.retry_at.get(&first).copied().expect("when to come back");
+    assert!(until - crate::now_ms() > 39_000.0 && until - crate::now_ms() <= 40_000.0);
+    *retry_after.lock().unwrap() = None;
+    // (The clock the ticks are given is the test's; the wait is by the real one.)
+    let before = jobs.lock().unwrap().len();
+    a.calendar.checked.remove(&first);
+    frame(&mut a, t1 + 35_000.0);
+    assert_eq!(jobs.lock().unwrap().len(), before, "not before the server said");
+    a.calendar.retry_at.insert(first, crate::now_ms() - 1.0);
+    frame(&mut a, t1 + 35_100.0);
+    assert_eq!(jobs.lock().unwrap().last(), Some(&first));
+    assert!(a.calendar.retry_at.get(&first).is_none() && a.calendar.failures.get(&first).is_none());
 }

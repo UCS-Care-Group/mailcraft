@@ -97,6 +97,12 @@ pub struct Folder {
     /// categories of its messages stay here, and the server isn't asked to keep them.
     #[serde(skip_serializing_if = "is_false")]
     pub no_keywords: bool,
+    /// For an account whose mail is read through Microsoft Graph ([`MailSource::Graph`]): the
+    /// address Graph gave for asking what changed in the folder since it was last read through
+    /// (its `@odata.deltaLink`); empty while it hasn't been, which makes the next run read it
+    /// whole. Graph's own state, not a secret.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub delta: String,
 }
 
 fn is_zero(n: &u32) -> bool {
@@ -185,6 +191,12 @@ pub struct Account {
     /// then, and a file that says something else in its place reads as not said.
     #[serde(skip_serializing_if = "FavoritesSource::is_unset", deserialize_with = "crate::sync::lenient_or_default")]
     pub favorites_source: FavoritesSource,
+    /// How the account's mail is read and changed on its server ([`MailSource`]): over IMAP, or,
+    /// for an account that signs in with Microsoft and whose owner chose it, through Microsoft
+    /// Graph. Nothing is written of it while it is IMAP, and a file that says something else in
+    /// its place reads as IMAP.
+    #[serde(skip_serializing_if = "MailSource::is_imap", deserialize_with = "crate::sync::lenient_or_default")]
+    pub mail_source: MailSource,
     /// For a shared mailbox (support@, a team's mailbox) that its owner opens with the Full
     /// Access an administrator gave them: the owner's own account, which signs in with Microsoft.
     /// The shared mailbox has its own folders and mail here, and no sign-in of its own: it is
@@ -244,6 +256,50 @@ impl FavoritesSource {
             FavoritesSource::Ews => Some("ews"),
         }
     }
+}
+
+/// How an account's mail is read from its server and how what is done to it here goes back
+/// there: the owner's choice, for an account that signs in with Microsoft
+/// (`account.mailSource`). Sending goes the same way.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum MailSource {
+    /// IMAP for reading, SMTP (or Graph, where SMTP is switched off) for sending.
+    #[default]
+    Imap,
+    /// Microsoft Graph for both (`Mail.ReadWrite` and `Mail.Send`): for an organisation that
+    /// switched IMAP off, and for what Graph keeps that IMAP doesn't (Outlook's categories).
+    Graph,
+}
+
+impl MailSource {
+    pub fn is_imap(&self) -> bool {
+        *self == MailSource::Imap
+    }
+
+    pub fn parse(s: &str) -> Option<MailSource> {
+        match s.trim().to_ascii_lowercase().as_str() {
+            "imap" => Some(MailSource::Imap),
+            "graph" => Some(MailSource::Graph),
+            _ => None,
+        }
+    }
+
+    /// What a command calls it.
+    pub fn code(self) -> &'static str {
+        match self {
+            MailSource::Imap => "imap",
+            MailSource::Graph => "graph",
+        }
+    }
+}
+
+/// What follows the Inbox's name in a server path whose first part is the Inbox, whatever case
+/// it is written in (`Inbox/Projects` → `/Projects`); `None` for any other path.
+fn inbox_rest(remote: &str) -> Option<&str> {
+    let end = remote.find('/').unwrap_or(remote.len());
+    let (first, rest) = remote.split_at(end);
+    first.eq_ignore_ascii_case("inbox").then_some(rest)
 }
 
 /// Which kind of Microsoft account signs in: one of an organisation (work or school), or a
@@ -386,8 +442,16 @@ pub enum Pending {
         synced: Option<RemoteFlags>,
         to: Id,
     },
-    /// The message that was `uid` in server mailbox `from` was deleted for good.
-    Delete { account: Id, from: String, uid: u32 },
+    /// The message that was `uid` in server mailbox `from` was deleted for good. `remote_id` is
+    /// the id Microsoft Graph knows it by, for an account whose mail is read that way (the
+    /// message is no longer here to say); empty otherwise.
+    Delete {
+        account: Id,
+        from: String,
+        uid: u32,
+        #[serde(default, skip_serializing_if = "String::is_empty")]
+        remote_id: String,
+    },
 }
 
 impl Pending {
@@ -665,6 +729,57 @@ impl Mailbox {
     /// they were added.
     pub fn shared_mailboxes(&self, account: Id) -> Vec<&Account> {
         self.accounts.iter().filter(|a| a.shared_of == Some(account) && a.id != account).collect()
+    }
+
+    /// How the mail of `account` is read from its server: its own choice, or, for a shared
+    /// mailbox, its owner's ([`MailSource`]; a shared mailbox is read with its owner's sign-in,
+    /// and the way the owner chose).
+    pub fn mail_source_of(&self, account: Id) -> MailSource {
+        let Some(a) = self.account(account) else { return MailSource::Imap };
+        match a.shared_of.filter(|owner| *owner != a.id).and_then(|owner| self.account(owner)) {
+            Some(owner) => owner.mail_source,
+            None => a.mail_source,
+        }
+    }
+
+    /// Read the mail of `account` another way ([`MailSource`]), untying it from the server's
+    /// copies: a message's number in its folder means something else each way, so every message
+    /// known to be on the server keeps its place here but forgets its number there (marked as
+    /// expected there, so the next download matches it by its Message-ID instead of bringing it
+    /// in twice), every folder forgets how far it was read, and the changes waiting to be sent,
+    /// which name messages the old way, are dropped. Folder changes still to reach the server
+    /// are by name, and stay.
+    pub fn switch_mail_source(&mut self, account: Id, source: MailSource) {
+        if let Ok(a) = self.account_mut(account) {
+            a.mail_source = source;
+        }
+        let mut followed = HashSet::new();
+        for f in self.folders.iter_mut().filter(|f| f.account == account) {
+            if !f.remote.is_empty() {
+                followed.insert(f.id);
+                // Both ways call the Inbox `INBOX`, and what lies in it by that name.
+                if let Some(rest) = inbox_rest(&f.remote) {
+                    f.remote = format!("INBOX{rest}");
+                }
+            }
+            f.uid_validity = 0;
+            f.uid_seen = 0;
+            f.mark = crate::sync::FolderMark::default();
+            f.no_keywords = false;
+            f.delta.clear();
+        }
+        let ids: Vec<Id> = self.messages.values().filter(|m| m.account == account && followed.contains(&m.folder)).map(|m| m.id).collect();
+        for id in ids {
+            let Ok(m) = self.message_mut(id) else { continue };
+            if m.uid != 0 || !m.remote_id.is_empty() {
+                // Known to be on the server, its number there not known: matched when it comes down.
+                let flags = m.synced.map_or_else(|| RemoteFlags::of(m, 0), |flags| flags.at(0));
+                m.synced = Some(flags);
+                m.uid = 0;
+                m.remote_id.clear();
+            }
+        }
+        self.pending.retain(|p| p.account() != account);
     }
 
     /// The accounts in the order the folder pane lists them: each one, then the shared
@@ -1086,9 +1201,16 @@ impl Mailbox {
             return Ok(());
         }
         let (was_in, uid, synced) = (m.folder, m.uid, m.synced);
+        let (other_account, remote_id) = (m.account != account, m.remote_id.clone());
+        // (Into an account on this device only, the server keeps its copy where it is.)
+        let to_a_server = self.account(account).is_some_and(|a| a.kind == AccountKind::Imap);
         let waiting = self.waiting_move(id);
         // What the message is to the server in its new folder: nothing, unless it is back.
         let (mut uid_there, mut synced_there, mut called_off) = (0, None, None);
+        // Moved to a folder of another account with a server (a shared mailbox and the account it
+        // is opened with): the server it leaves deletes its copy there, and the one it goes to is given it
+        // as a message of its own by the next synchronisation (an upload).
+        let mut leaving = None;
         match waiting.and_then(|at| self.pending.get_mut(at)) {
             Some(Pending::Move { account: owner, from, uid, synced, to, .. }) => {
                 if *owner == account && !remote.is_empty() && *from == remote {
@@ -1098,24 +1220,35 @@ impl Mailbox {
                     *to = folder;
                 } else {
                     called_off = waiting;
+                    if to_a_server {
+                        leaving = Some(Pending::Delete { account: *owner, from: from.clone(), uid: *uid, remote_id: remote_id.clone() });
+                    }
                 }
             }
-            _ => {
-                let from = self.folder(was_in).filter(|f| f.account == account && !f.remote.is_empty()).map(|f| f.remote.clone());
-                if let (Some(from), true) = (from, uid != 0) {
+            _ => match self.folder(was_in).filter(|f| !f.remote.is_empty()).map(|f| (f.account, f.remote.clone())) {
+                Some((owner, from)) if uid != 0 && owner == account => {
                     self.pending.push(Pending::Move { account, message: id, from, uid, synced, to: folder });
                 }
-            }
+                Some((owner, from)) if uid != 0 && to_a_server => {
+                    leaving = Some(Pending::Delete { account: owner, from, uid, remote_id: remote_id.clone() });
+                }
+                _ => {}
+            },
         }
         if let Some(at) = called_off.filter(|at| *at < self.pending.len()) {
             self.pending.remove(at);
         }
+        self.pending.extend(leaving);
         let m = self.message_mut(id)?;
         m.folder = folder;
         m.account = account;
         // The UID belonged to the old folder.
         m.uid = uid_there;
         m.synced = synced_there;
+        if other_account {
+            // (Graph's id is the other mailbox's.)
+            m.remote_id.clear();
+        }
         Ok(())
     }
 
@@ -1126,6 +1259,7 @@ impl Mailbox {
         copy.folder = folder;
         copy.uid = 0;
         copy.synced = None;
+        copy.remote_id.clear();
         self.add_message(copy)
     }
 
@@ -1133,21 +1267,21 @@ impl Mailbox {
     /// [`Pending::Delete`] tells the next synchronisation to delete it there too; a message with
     /// a move still waiting is deleted where the server has it.
     pub fn remove_message(&mut self, id: Id) -> Result<Message, ModelError> {
-        let (was_in, account, uid) = {
+        let (was_in, account, uid, remote_id) = {
             let m = self.message(id).ok_or(not_found("message", id))?;
-            (m.folder, m.account, m.uid)
+            (m.folder, m.account, m.uid, m.remote_id.clone())
         };
         match self.waiting_move(id).and_then(|at| self.pending.get_mut(at)) {
             Some(op) => {
                 if let Pending::Move { account, from, uid, .. } = &mut *op {
-                    let delete = Pending::Delete { account: *account, from: std::mem::take(from), uid: *uid };
+                    let delete = Pending::Delete { account: *account, from: std::mem::take(from), uid: *uid, remote_id: remote_id.clone() };
                     *op = delete;
                 }
             }
             None => {
                 let from = self.folder(was_in).filter(|f| f.account == account && !f.remote.is_empty()).map(|f| f.remote.clone());
                 if let (Some(from), true) = (from, uid != 0) {
-                    self.pending.push(Pending::Delete { account, from, uid });
+                    self.pending.push(Pending::Delete { account, from, uid, remote_id });
                 }
             }
         }
@@ -1159,9 +1293,9 @@ impl Mailbox {
     /// is one, is deleted there ([`Pending::Delete`]) once the new one has gone up: the next
     /// synchronisation puts the new one there first, then takes the old one away by its UID.
     pub fn replace_message(&mut self, id: Id, mut m: Message) -> Result<(), ModelError> {
-        let (was_in, account, uid) = {
+        let (was_in, account, uid, remote_id) = {
             let old = self.message(id).ok_or(not_found("message", id))?;
-            (old.folder, old.account, old.uid)
+            (old.folder, old.account, old.uid, old.remote_id.clone())
         };
         if self.folder(m.folder).is_none() {
             return Err(not_found("folder", m.folder));
@@ -1170,14 +1304,14 @@ impl Mailbox {
             // On its way somewhere on the server: the copy there goes, wherever it is now.
             Some(op) => {
                 if let Pending::Move { account, from, uid, .. } = &mut *op {
-                    let delete = Pending::Delete { account: *account, from: std::mem::take(from), uid: *uid };
+                    let delete = Pending::Delete { account: *account, from: std::mem::take(from), uid: *uid, remote_id: remote_id.clone() };
                     *op = delete;
                 }
             }
             None => {
                 let from = self.folder(was_in).filter(|f| f.account == account && !f.remote.is_empty()).map(|f| f.remote.clone());
                 if let (Some(from), true) = (from, uid != 0) {
-                    self.pending.push(Pending::Delete { account, from, uid });
+                    self.pending.push(Pending::Delete { account, from, uid, remote_id });
                 }
             }
         }
@@ -1628,6 +1762,21 @@ impl Mailbox {
         }
         if self.repair_organizers() > 0 {
             fixed.push("search folders, Quick Steps or contact groups corrected".into());
+        }
+        // A shared mailbox's mail is read the way its owner's is (a file from before the rule,
+        // or written by hand): it follows, untied from the server's copies as a switch unties.
+        let following: Vec<(Id, MailSource)> = self
+            .accounts
+            .iter()
+            .filter(|a| a.shared_of.is_some_and(|owner| owner != a.id))
+            .map(|a| (a.id, self.mail_source_of(a.id)))
+            .filter(|(id, source)| self.account(*id).is_some_and(|a| a.mail_source != *source))
+            .collect();
+        for (id, source) in &following {
+            self.switch_mail_source(*id, *source);
+        }
+        if !following.is_empty() {
+            fixed.push(format!("{} shared mailbox(es) now read the way the account they open under is", following.len()));
         }
         self.next_id = self.next_id.max(1);
         fixed
