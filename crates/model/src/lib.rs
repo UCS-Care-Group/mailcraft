@@ -31,11 +31,11 @@ pub use calendar::{
 };
 pub use contact::{Contact, Labeled, PostalAddress};
 pub use mailbox::{
-    Account, AccountKind, Category, Directory, FavoritesSource, Folder, FolderChange, FolderKind, Mailbox, OAuth, OAuthProvider, Pending, Security,
-    Server, ServerFavorites, Signature,
+    Account, AccountKind, Category, Directory, FavoritesSource, Folder, FolderChange, FolderKind, MailSource, Mailbox, OAuth, OAuthProvider, Pending,
+    Security, Server, ServerFavorites, Signature,
 };
 pub use mailcraft_time as time;
-pub use message::{Attachment, Body, FlagStatus, Importance, Message, Protect, Protection, Secured, normalize_subject};
+pub use message::{Attachment, Body, ContentRef, FlagStatus, Importance, KeptBody, Message, Protect, Protection, Secured, normalize_subject, text_hash};
 pub use organize::{
     ContactGroup, GroupMember, MAX_MEMBERS, MAX_SAVED, MAX_SEARCH_QUERY, MAX_STEP_ACTIONS, QuickStep, ReceiptAnswer, SearchFolder, StepAction,
 };

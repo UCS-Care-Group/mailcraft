@@ -1,6 +1,6 @@
 # MailCraft architecture
 
-> **Last reviewed:** 2026-10-11 · **Last updated:** 2026-10-14 · **Change:** minor (formatted composing: `model::rich`, `mime::rich`, the `format.*` commands, spelling; right-to-left text: `html::bidi`; the mailbox file's format 3, a log of records; the `crypto` crate at L2: S/MIME and OpenPGP; `engine::security`; earlier: the `msg` crate: Outlook `.msg` files come in through `file.import`; printing: the `print` crate at L2, `cmd/print.rs`, `Services::print`; uploads and IDLE) · **Target:** Microsoft Outlook (Microsoft 365)
+> **Last reviewed:** 2026-10-11 · **Last updated:** 2026-10-14 · **Change:** minor (content on demand: bodies within a memory budget, attachments and older bodies read when wanted; formatted composing: `model::rich`, `mime::rich`, the `format.*` commands, spelling; right-to-left text: `html::bidi`; the mailbox file's format 3, a log of records; the `crypto` crate at L2: S/MIME and OpenPGP; `engine::security`; earlier: the `msg` crate: Outlook `.msg` files come in through `file.import`; printing: the `print` crate at L2, `cmd/print.rs`, `Services::print`; uploads and IDLE) · **Target:** Microsoft Outlook (Microsoft 365)
 
 How MailCraft is built today. Rules for working in the code are in [`AGENTS.md`](../AGENTS.md). The
 shape — layers, "everything is a command", the swappable egui front end, the control channel, MCP,
@@ -81,8 +81,36 @@ inside L3: `net` drives `proto`; and inside L2: `msg` uses `mime`), and nothing 
   over. Opening reads records to the last commit and parses items on several threads; formats 1
   and 2 (JSON) are still read and become format 3 at the first changed save, the old file kept
   beside it. A self-contained single file is still what the browser, exports and `file.saveAs`
-  use. Every message's text and attachments are still in memory while the app runs, which is the
-  next limit (see `docs/gaps.md`).
+  use.
+- **What is in memory is what is read; the rest waits on disk.** Opening brings in every message's
+  headers and flags, and the bodies of the newest mail (by date, then id) up to a budget: the
+  smaller of 8 GB and a quarter of the machine's memory (`store::body_budget`; 2 GB when the
+  memory can't be read). Attachments, and the bodies beyond the budget, stay in the content
+  folder and are named on the message itself (`Attachment::kept`, `Message::kept`, a
+  `ContentRef` of SHA-256 and length, never written to a file: the mailbox file names content its
+  own way). They come in through one entry point, `Session::content(message, Part)`, and its
+  helpers (`load_for_display`, `loaded_message`, `loaded_mailbox`, `loaded_request`), backed by
+  `io::ContentSource`: the desktop host wires `store::Content`, which reads `<file>.blobs/` with
+  the same length-and-hash checks as opening and keeps what it fetched in a cache bounded by
+  bytes (512 MB); the browser keeps every mailbox in memory and never asks. What loads when: the
+  reading pane and a message window bring in the body, the `cid:` pictures the HTML shows and any
+  calendar part before the message is shown (in the same frame); forwarding, replying, editing a
+  draft, printing, exporting (`.eml`, `.mbox`), Save As (one file), saving to another place, and
+  the Send/Receive request (Outbox, uploads) take whole messages; opening or saving an attachment
+  fetches that one file. A search that reads text (a bare word, `body:`) first brings in the
+  bodies it lacks, newest first, for up to 2 s (`Session::search_time`), and the list says how
+  many older messages weren't searched (`Session::unsearched`). At opening, each part left on disk
+  is looked for (a stat, within 20 s), so that the status line and the log say "missing or
+  damaged" only for files that really are, while what is merely on disk is a debug line; a kept
+  body whose file turns out missing when wanted shows the same notice as before and isn't asked
+  again (`KeptBody::failed`). Saving writes a kept part's name back unchanged (a text written anew
+  drops the HTML that went with the old one), and refuses to save a mailbox where its content
+  isn't (opened from another file) rather than name content that isn't there. Undo is
+  unaffected: loading changes nothing the history tracks (`rev` stays; a `loads` counter keys the
+  list cache). With 134k content files (11 GB) the mailbox opens with everything named and only
+  the newest bodies read; the ignored test
+  `fifty_thousand_messages_with_two_gigabytes_of_content_open_under_a_small_budget` opens 50k
+  messages (2.1 GB) under a 256 MiB budget in about half a second.
 - **A Send/Receive arrives in pieces.** `mailcraft_net::sync_with` emits what was sent, what the
   server was told, then mail folder by folder (the Inbox first, newest first, fifty at a time),
   each piece safe to apply by itself (`apply_sync_part`), so mail shows while the rest is on its
@@ -211,3 +239,4 @@ inside L3: `net` drives `proto`; and inside L2: `msg` uses `mime`), and nothing 
 | 2026-10-14 | minor | Two-way sync: uploads (APPEND/UID COPY), categories as keywords, the IDLE watch beside the runs |
 | 2026-10-14 | minor | The mailbox file as a log of records a save appends to (gap 8, `store_index.rs`) |
 | 2026-10-14 | minor | Formatted composing (gap 7): `model::rich`, `mime::rich`, `cmd/format.rs`, `engine::spell`, the compose editor; right-to-left text (gap 6): `html::bidi` |
+| 2026-10-14 | minor | Content on demand (gap 8): bodies within a memory budget, attachments and older bodies read from the content folder when wanted (`Session::content`, `io::ContentSource`, `store::fetch`), honest counts of what is missing |

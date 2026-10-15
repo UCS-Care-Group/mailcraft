@@ -426,7 +426,7 @@ fn read_attachment(cfb: &Cfb, storage: usize, message: &Object, html: Option<&st
                 && (a.int(ATTACH_FLAGS).is_some_and(|f| f & 0x4 != 0)
                     || a.bool(ATTACHMENT_HIDDEN) == Some(true)
                     || html.is_some_and(|h| h.contains(&format!("cid:{content_id}"))));
-            Some(Attachment { name, mime, content_id, inline, data: Arc::new(data) })
+            Some(Attachment { name, mime, content_id, inline, data: Arc::new(data), kept: None })
         }
         // By reference, by web reference, an OLE object: nothing that is the file itself, and
         // nothing is fetched.

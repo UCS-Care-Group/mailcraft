@@ -166,6 +166,12 @@ impl Query {
         self.terms.is_empty()
     }
 
+    /// Whether any term reads a message's text (a bare word, or `body:`): such a search wants the
+    /// bodies of the messages it looks at in memory.
+    pub fn reads_bodies(&self) -> bool {
+        self.terms.iter().any(|t| matches!(t.kind, Kind::Text(_) | Kind::Body(_)))
+    }
+
     /// Whether `m` matches every term. Dates compare in a zone `offset_minutes` east of UTC.
     pub fn matches(&self, m: &Message, offset_minutes: i32) -> bool {
         let day = || DateTime::from_timestamp(m.date, offset_minutes).date;

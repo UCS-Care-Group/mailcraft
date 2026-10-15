@@ -437,6 +437,19 @@ fn list(app: &mut MailApp, ui: &mut Ui) {
     ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
     list_header(app, ui);
     let rows = app.session.rows();
+    // A search that reads the text of messages goes as far into older mail as its time allows,
+    // and says how far that was.
+    if app.session.unsearched > 0 && !app.session.view.search.trim().is_empty() {
+        let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), 22.0), Sense::hover());
+        ui.painter().rect_filled(r, 0.0, t.panel);
+        let n = app.session.unsearched;
+        let text = if n == 1 {
+            tl!("1 older message wasn't searched: its text isn't loaded yet").to_string()
+        } else {
+            crate::i18n::fmt(tl!("{n} older messages weren't searched: their text isn't loaded yet"), &[("n", &n.to_string())])
+        };
+        paint_clipped(ui.painter(), pos2(r.min.x + 10.0, r.min.y + 4.0), r.width() - 20.0, &text, regular(11.5), t.text_dim);
+    }
     if rows.is_empty() {
         let r = ui.available_rect_before_wrap();
         let msg = if !app.session.view.search.trim().is_empty() {
@@ -708,6 +721,12 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect) {
         let w = paint_clipped(p, pos2(left, line1), (who_end - left).max(0.0), tl!("[Draft]"), regular(SENDER_TEXT), t.red);
         who_x += w + 5.0;
     }
+    // A message the server wouldn't send as the account waits in the Outbox for the owner
+    // (`Message::hold`): changed or sent again, it goes.
+    if m.hold.is_some() {
+        let w = paint_clipped(p, pos2(who_x, line1), (who_end - who_x).max(0.0), tl!("[Not sent]"), regular(SENDER_TEXT), t.red);
+        who_x += w + 5.0;
+    }
     paint_clipped(p, pos2(who_x, line1), (who_end - who_x).max(0.0), &who, who_font, t.text);
 
     // The subject's line, with the time at its end.
@@ -828,8 +847,10 @@ fn clicks(app: &mut MailApp, ui: &Ui, resp: &egui::Response, id: Id, m: &Message
         });
         ui.separator();
         ui.menu_button(tl!("Move"), |ui| {
-            crate::ribbon::folder_menu(ui, app, |app, folder| {
-                let _ = app.run("mail.move", json!({"folder": folder}));
+            crate::ribbon::mailbox_folder_menu(ui, app, |app, folder| {
+                if let Err(e) = app.run("mail.move", json!({"folder": folder})) {
+                    app.status(e);
+                }
             });
         });
         mi(ui, app, tn!("Archive"), "mail.archive", json!({}));

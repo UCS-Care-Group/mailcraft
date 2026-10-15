@@ -26,8 +26,14 @@ pub use mailcraft_model as model;
 pub use mailcraft_print as print;
 pub use mailcraft_time as time;
 pub use session::{
-    CalView, Clock, Compose, ComposeMode, Filter, Module, Pane, Prefs, ReceiptPolicy, Scope, Selection, Session, SortBy, TaskFilter, ViewState,
+    CalView, Clock, Compose, ComposeMode, Filter, Module, Pane, Part, Prefs, ReceiptPolicy, Scope, Selection, Session, SortBy, TaskFilter, ViewState,
 };
+
+/// What a message says instead of text that couldn't be read back from where the mailbox keeps
+/// it (`store::UNAVAILABLE`; the same words in every build).
+pub fn store_placeholder() -> &'static str {
+    "[This message's text is unavailable: the file that keeps it is missing from the mailbox's content folder, or damaged.]"
+}
 
 #[derive(Debug, thiserror::Error, Clone, PartialEq)]
 pub enum CmdError {

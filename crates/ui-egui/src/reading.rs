@@ -22,6 +22,7 @@
 //! ([`invitation`]).
 
 pub(crate) mod colors;
+mod hold;
 pub(crate) mod images;
 mod invitation;
 mod layout;
@@ -63,6 +64,13 @@ pub enum Place {
 pub fn show(app: &mut MailApp, ui: &mut Ui) {
     let t = Tokens::get(ui.ctx());
     let picked = app.session.sel.messages.len();
+    // What showing it needs (its body, the pictures in it) is brought into memory first, when
+    // the mailbox keeps it on disk; the message then shows whole in this very frame.
+    if let Some(id) = app.session.sel.focus()
+        && app.session.needs_load_for_display(id)
+    {
+        let _ = app.session.load_for_display(id);
+    }
     let Some(m) = app.session.sel.focus().and_then(|id| app.session.mailbox.messages.get(&id).cloned()) else {
         let r = ui.available_rect_before_wrap();
         icons::paint(
@@ -94,6 +102,11 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
 /// The reading pane shows the selected message with it, and a message window its own.
 pub fn show_message(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Place) {
     let ctx = ui.ctx().clone();
+    // A window shows its own copy of the message: what the mailbox keeps on disk is brought in
+    // here, and the window takes the whole message up at its next frame.
+    if app.session.needs_load_for_display(m.id) {
+        let _ = app.session.load_for_display(m.id);
+    }
     // A signed or encrypted message: what its signature comes to, and what it says once opened
     // (kept in memory only).
     let protection = app.session.security_view(m.id);
@@ -116,6 +129,8 @@ pub fn show_message(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Pla
     if let Some(view) = &protection {
         security::bar(app, ui, m, view);
     }
+    // A message the server wouldn't send as the account: why, and the way to send it again.
+    hold::bar(app, ui, m);
     // A meeting that came with the message: what it is, and the ways to answer it.
     invitation::bar(app, ui, m, place);
     // The body gets the part of the pane that can be seen, whatever was laid out above it: a

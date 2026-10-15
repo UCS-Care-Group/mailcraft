@@ -651,6 +651,7 @@ mod tests {
                 content_id: "logo@example.org".into(),
                 inline: true,
                 data: std::sync::Arc::new(vec![0x89, b'P', b'N', b'G']),
+                kept: None,
             },
         ];
         let out = text(&m);

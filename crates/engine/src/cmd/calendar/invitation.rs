@@ -182,11 +182,16 @@ fn tidy(mut event: Event, offset_at: &dyn Fn(Timestamp) -> i32) -> (Event, Optio
 /// The meeting the message named in `v` (or the selected one) carries.
 pub(super) fn read(s: &Session, v: &Value) -> Result<Invitation, CmdError> {
     let id = p::id(v, "message").or(s.sel.focus()).ok_or_else(|| fail("select a message first"))?;
-    let message = s.mailbox.message(id).ok_or_else(|| fail(format!("no message with id {id}")))?;
-    let calendar = |part: &(usize, &Attachment)| {
-        let kind = part.1.mime.trim().to_ascii_lowercase();
-        kind.starts_with("text/calendar") || kind.starts_with("application/ics") || part.1.name.to_ascii_lowercase().ends_with(".ics")
+    if s.mailbox.message(id).is_none() {
+        return Err(fail(format!("no message with id {id}")));
+    }
+    let is_calendar = |part: &Attachment| {
+        let kind = part.mime.trim().to_ascii_lowercase();
+        kind.starts_with("text/calendar") || kind.starts_with("application/ics") || part.name.to_ascii_lowercase().ends_with(".ics")
     };
+    // With its calendar parts in memory, fetched from where the mailbox keeps them if need be.
+    let message = s.loaded_message_where(id, is_calendar)?;
+    let calendar = |part: &(usize, &Attachment)| is_calendar(part.1);
     let offset_at = remote::offset_of(s);
     for (index, part) in message.attachments.iter().enumerate().filter(calendar).take(MAX_PARTS).filter(|(_, part)| part.data.len() <= MAX_ICS) {
         let text = String::from_utf8_lossy(&part.data);

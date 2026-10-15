@@ -12,7 +12,7 @@ fn a(name: &str, email: &str) -> Address {
 }
 
 fn file(name: &str, mime: &str, data: &[u8]) -> Attachment {
-    Attachment { name: name.into(), mime: mime.into(), content_id: String::new(), inline: false, data: Arc::new(data.to_vec()) }
+    Attachment { name: name.into(), mime: mime.into(), content_id: String::new(), inline: false, data: Arc::new(data.to_vec()), kept: None }
 }
 
 fn picture(name: &str, mime: &str, content_id: &str, data: &[u8]) -> Attachment {
@@ -408,6 +408,7 @@ fn attachment() -> impl Strategy<Value = Attachment> {
         content_id,
         inline,
         data: Arc::new(data),
+        kept: None,
     })
 }
 
@@ -465,11 +466,14 @@ fn message() -> impl Strategy<Value = Message> {
             forwarded: true,
             flag_due: Some(1),
             synced: Some(mailcraft_model::sync::RemoteFlags { uid: 11, read: true, ..Default::default() }),
+            remote_id: String::new(),
             deliver_after: None,
             receipt: Default::default(),
             synced_categories: Vec::new(),
             secured: None,
             protect: Default::default(),
+            hold: None,
+            kept: None,
         },
     )
 }

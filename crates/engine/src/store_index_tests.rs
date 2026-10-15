@@ -38,18 +38,20 @@ fn a_mailbox_of_either_earlier_form_becomes_this_one_without_loss() {
             _ => save_v2(&path, &mb),
         }
         let before = fs::read(&path).unwrap();
-        let opened = open(&path).unwrap();
-        assert!(opened.mailbox == mb && opened.unavailable == 0 && opened.unfinished == 0, "form {form}");
+        let mut opened = open(&path).unwrap();
+        assert!(opened.unavailable == 0 && opened.unfinished == 0, "form {form}");
         assert_eq!(opened.split, form == 2);
         // Unchanged, it stays as it is.
         assert!(save(&path, &opened.mailbox).unwrap().unchanged);
         assert_eq!(fs::read(&path).unwrap(), before);
+        load(&path, &mut opened);
+        assert!(opened.mailbox == mb, "form {form}");
 
         // Stopped while the new file was being written: the old one is the mailbox, and what was
         // written of the new one is a temporary file nobody reads.
         let half = tmp.0.join(format!("mailbox.mailcraft.{}-2a-9.tmp", std::process::id()));
         fs::write(&half, index::header()).unwrap();
-        assert!(open(&path).unwrap().mailbox == mb, "form {form}");
+        assert!(whole(&path) == mb, "form {form}");
 
         // The first change saved writes this form whole, keeps the old file beside it, and the
         // mailbox reads back exactly.
@@ -61,8 +63,12 @@ fn a_mailbox_of_either_earlier_form_becomes_this_one_without_loss() {
         assert!(saved.compacted && !saved.unchanged, "form {form}");
         assert_eq!(fs::read(tmp.0.join(format!("mailbox.mailcraft.format{form}"))).unwrap(), before);
         assert!(fs::read(&path).unwrap().starts_with(crate::io::INDEX_MAGIC));
-        let back = open(&path).unwrap();
-        assert!(back.mailbox == changed && back.unavailable == 0 && back.split, "form {form}");
+        let mut back = open(&path).unwrap();
+        assert!(back.unavailable == 0 && back.split, "form {form}");
+        load(&path, &mut back);
+        let mut expect = mb.clone();
+        expect.message_mut(first).unwrap().flag = mailcraft_model::FlagStatus::Flagged;
+        assert!(back.mailbox == expect, "form {form}");
         if form == 1 {
             assert!(crate::io::read_mailbox(&before).unwrap() == mb);
         }
@@ -72,7 +78,7 @@ fn a_mailbox_of_either_earlier_form_becomes_this_one_without_loss() {
         let saved = save(&path, &more).unwrap();
         assert!(!saved.compacted && saved.bytes > 0 && saved.bytes < 2_000, "{saved:?}");
         assert_eq!(kept(&path, "format").len(), 1);
-        assert!(open(&path).unwrap().mailbox == more);
+        assert!(whole(&path) == more);
     }
 }
 
@@ -114,7 +120,7 @@ fn a_save_appends_what_changed_and_nothing_else() {
     let many = save(&path, &mb).unwrap();
     assert!(!many.compacted && many.blobs == 1 && many.bytes < 20_000, "{many:?}");
     assert!(peek(&path) == mb);
-    assert!(open(&path).unwrap().mailbox == mb);
+    assert!(whole(&path) == mb);
 
     // Saved again, the same state writes nothing; a change written and then undone is two.
     assert!(save(&path, &mb).unwrap().unchanged);
@@ -152,7 +158,7 @@ fn the_file_is_written_whole_again_when_what_was_appended_outgrows_it() {
         assert!(fs::metadata(&path).unwrap().len() <= 2 * whole + COMPACT_SLACK + (64 << 10));
     }
     assert!(appended > 300 && compacted > 2, "{appended} appended, {compacted} compacted");
-    assert!(open(&path).unwrap().mailbox == mb);
+    assert!(super::whole(&path) == mb);
     // A compacted file is one commit: every record in it says what the mailbox is.
     save_single(&path, &mb).unwrap();
     open(&path).unwrap();
@@ -184,7 +190,8 @@ fn a_save_cut_short_leaves_the_mailbox_as_the_last_finished_save_left_it() {
     assert_eq!(full.len() as u64, good.len() as u64 + saved.bytes);
     for cut in good.len()..full.len() {
         fs::write(&path, &full[..cut]).unwrap();
-        let opened = open(&path).unwrap();
+        let mut opened = open(&path).unwrap();
+        load(&path, &mut opened);
         assert!(opened.mailbox == finished, "cut at {cut}");
         assert_eq!(opened.unfinished, (cut - good.len()) as u64);
     }
@@ -197,7 +204,7 @@ fn a_save_cut_short_leaves_the_mailbox_as_the_last_finished_save_left_it() {
     let aside = kept(&path, "damaged-");
     assert_eq!(aside.len(), 1);
     assert_eq!(fs::read(&aside[0]).unwrap(), &full[..full.len() - 3]);
-    assert!(open(&path).unwrap().mailbox == mb && tail_of(&path) == Tail::Clean);
+    assert!(whole(&path) == mb && tail_of(&path) == Tail::Clean);
     // Nothing is swept while it is kept: it may name content the mailbox doesn't any more.
     let mut fewer = mb.clone();
     fewer.messages.retain(|_, m| m.attachments.is_empty());
@@ -208,7 +215,7 @@ fn a_save_cut_short_leaves_the_mailbox_as_the_last_finished_save_left_it() {
     assert_eq!(sweep(&path, GRACE).unwrap(), Swept::default());
     fs::remove_file(&aside[0]).unwrap();
     assert!(sweep(&path, GRACE).unwrap().removed > 0);
-    assert!(open(&path).unwrap().mailbox == fewer);
+    assert!(whole(&path) == fewer);
 }
 
 #[test]
@@ -226,13 +233,14 @@ fn zeros_after_the_last_save_are_no_save_and_damage_is_kept() {
     let mut zeros = good.clone();
     zeros.extend(vec![0u8; 5000]);
     fs::write(&path, &zeros).unwrap();
-    let opened = open(&path).unwrap();
+    let mut opened = open(&path).unwrap();
+    load(&path, &mut opened);
     assert!(opened.mailbox == mb && opened.unfinished == 0);
     assert_eq!(tail_of(&path), Tail::Zeros);
     // The next save can't append after them: it writes the file whole, and keeps nothing.
     mb.message_mut(ids[1]).unwrap().read = true;
     assert!(save(&path, &mb).unwrap().compacted);
-    assert!(kept(&path, "damaged-").is_empty() && open(&path).unwrap().mailbox == mb);
+    assert!(kept(&path, "damaged-").is_empty() && whole(&path) == mb);
 
     // A byte changed near the end: the mailbox opens as far as the damage, and the file is kept
     // aside before it is written again, never thrown away.

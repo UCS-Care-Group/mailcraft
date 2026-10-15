@@ -101,6 +101,18 @@ fn blob_file(path: &Path, bytes: &[u8]) -> PathBuf {
     blob_path(&blob_dir(path), &Digest::of(bytes)).unwrap().1
 }
 
+/// Everything of `opened` into memory, as the mailbox was before it was saved.
+fn load(path: &Path, opened: &mut Opened) {
+    load_all(path, &mut opened.mailbox).unwrap();
+}
+
+/// The mailbox at `path` with every part in memory: what was saved there.
+fn whole(path: &Path) -> Mailbox {
+    let mut opened = open(path).unwrap();
+    load(path, &mut opened);
+    opened.mailbox
+}
+
 fn first_with(mb: &Mailbox, test: impl Fn(&Message) -> bool) -> Id {
     mb.messages.values().find(|m| test(m)).map(|m| m.id).unwrap()
 }
@@ -181,8 +193,14 @@ fn the_split_form_round_trips() {
         assert_eq!((mode(&path), mode(&blobs[0].0), mode(&blob_dir(&path)), mode(blobs[0].0.parent().unwrap())), (0o600, 0o600, 0o700, 0o700));
     }
 
-    let opened = open(&path).unwrap();
+    let mut opened = open(&path).unwrap();
     assert!(opened.split && opened.unavailable == 0);
+    // Every attachment stays on disk until it is wanted, with its size known; the bodies, which
+    // fit the budget, are in memory.
+    assert_eq!(opened.deferred, 6 + 2);
+    assert!(opened.mailbox.messages.values().all(|m| !m.body_is_kept() && m.attachments.iter().all(|a| a.is_loaded() == (a.size() <= INLINE_MAX))));
+    assert_eq!(opened.mailbox.messages.values().map(|m| m.size()).sum::<u64>(), mb.messages.values().map(|m| m.size()).sum::<u64>());
+    load(&path, &mut opened);
     assert!(opened.mailbox == mb);
     // The file two messages carry is in memory once.
     let shared: Vec<_> = opened.mailbox.messages.values().flat_map(|m| &m.attachments).filter(|a| a.name == "shared.pdf").collect();
@@ -197,7 +215,7 @@ fn the_split_form_round_trips() {
     mb.messages.remove(&ids[2]);
     let again = save(&path, &mb).unwrap();
     assert_eq!(again.blobs, 2, "{again:?}");
-    assert!(open(&path).unwrap().mailbox == mb);
+    assert!(whole(&path) == mb);
     // Saving the same state again writes nothing at all.
     assert_eq!(save(&path, &mb).unwrap(), Saved { unchanged: true, ..Saved::default() });
 }
@@ -215,8 +233,9 @@ fn peek(path: &Path) -> Mailbox {
         fs::create_dir_all(to.parent().unwrap()).unwrap();
         fs::copy(&file, &to).unwrap();
     }
-    let opened = open(&copy).unwrap();
+    let mut opened = open(&copy).unwrap();
     assert_eq!(opened.unavailable, 0);
+    load(&copy, &mut opened);
     opened.mailbox
 }
 
@@ -284,7 +303,8 @@ fn an_old_single_file_opens_and_becomes_the_split_form_on_the_next_save() {
     mb.message_mut(id).unwrap().read = true;
     let saved = save(&path, &mb).unwrap();
     assert!(saved.blobs > 0 && (saved.bytes as usize) < before.len() / 4);
-    let reopened = open(&path).unwrap();
+    let mut reopened = open(&path).unwrap();
+    load(&path, &mut reopened);
     assert!(reopened.split && reopened.mailbox == mb);
     // The file as it was is kept beside it, whole.
     assert_eq!(fs::read(tmp.0.join("mailbox.mailcraft.format1")).unwrap(), before);
@@ -339,7 +359,7 @@ fn one_self_contained_file_still_works_everywhere() {
         let mut t = Session::empty();
         let r = t.run("file.open", &json!({"path": file})).unwrap();
         assert_eq!((r["messages"].as_u64(), r["unavailable"].as_u64()), (Some(12), Some(0)));
-        assert!(t.mailbox == s.mailbox && t.path.as_deref() == Some(file.as_path()));
+        assert!(t.loaded_mailbox().unwrap() == s.mailbox && t.path.as_deref() == Some(file.as_path()));
     }
     assert!(s.run("file.open", &json!({"path": tmp.0.join("nothing.mailcraft")})).is_err());
     assert!(s.run("file.open", &json!({"path": tmp.0.join("message.eml")})).unwrap_err().to_string().contains("File › Import"));
@@ -385,7 +405,7 @@ fn a_save_after_a_read_mark_writes_the_mailbox_file_and_nothing_else() {
     assert_eq!((&after, stamps(&after)), (&before, written));
     // Generous: it is hundreds of times quicker, and a second is far more than it ever takes.
     assert!(quickest < Duration::from_secs(1) && quickest < first_took, "{quickest:?} against {first_took:?}");
-    assert!(open(&path).unwrap().mailbox == mb);
+    assert!(whole(&path) == mb);
 
     // New mail costs its own content: one more message, one more content file.
     let file = Attachment::new("new.pdf", "application/pdf", noise(9_999, 300_000));
@@ -398,7 +418,7 @@ fn a_save_after_a_read_mark_writes_the_mailbox_file_and_nothing_else() {
         mb.move_message(id, archive).unwrap();
     }
     assert_eq!(save(&path, &mb).unwrap().blobs, 0);
-    assert!(open(&path).unwrap().mailbox == mb);
+    assert!(whole(&path) == mb);
 }
 
 #[test]
@@ -416,7 +436,8 @@ fn a_crash_leaves_the_old_state_or_the_new() {
     let stray = blob_dir(&path).join("ab").join(format!("{}.77-2e-1.tmp", "ab".repeat(32)));
     fs::create_dir_all(stray.parent().unwrap()).unwrap();
     fs::write(&stray, b"half a content file").unwrap();
-    let opened = open(&path).unwrap();
+    let mut opened = open(&path).unwrap();
+    load(&path, &mut opened);
     assert!(opened.mailbox == old && opened.unavailable == 0);
 
     // Stopped after the new content was written and before the mailbox file was renamed over:
@@ -431,9 +452,10 @@ fn a_crash_leaves_the_old_state_or_the_new() {
     })
     .unwrap();
     save(&path, &new).unwrap();
-    assert!(open(&path).unwrap().mailbox == new);
+    assert!(whole(&path) == new);
     fs::write(&path, &old_file).unwrap();
-    let opened = open(&path).unwrap();
+    let mut opened = open(&path).unwrap();
+    load(&path, &mut opened);
     assert!(opened.mailbox == old && opened.unavailable == 0);
     assert!(blob_file(&path, &extra).exists());
 
@@ -445,7 +467,7 @@ fn a_crash_leaves_the_old_state_or_the_new() {
     let swept = sweep(&path, GRACE).unwrap();
     assert_eq!(swept.removed, 3, "{swept:?}");
     assert!(!half.exists() && !stray.exists() && !blob_file(&path, &extra).exists());
-    assert!(open(&path).unwrap().mailbox == old);
+    assert!(whole(&path) == old);
 
     // A mailbox file cut short (written in place by something else) is refused, not opened as
     // an empty mailbox for the next save to write over.
@@ -459,7 +481,7 @@ fn a_crash_leaves_the_old_state_or_the_new() {
     fs::write(&path, &single[..single.len() / 2]).unwrap();
     assert!(open(&path).unwrap_err().contains("isn't a MailCraft mailbox"));
     fs::write(&path, &old_file).unwrap();
-    assert!(open(&path).unwrap().mailbox == old);
+    assert!(whole(&path) == old);
 }
 
 #[test]
@@ -472,20 +494,33 @@ fn a_missing_content_folder_never_stops_the_mailbox_from_opening() {
     fs::rename(blob_dir(&path), &away).unwrap();
 
     let opened = open(&path).unwrap();
-    assert_eq!(opened.unavailable, 8 + 6 + 3 + 2);
+    assert_eq!((opened.unavailable, opened.deferred, opened.loaded), (8 + 6 + 3 + 2, 0, 0));
     assert_eq!(opened.mailbox.messages.len(), 12);
     for (id, m) in &mb.messages {
         let got = opened.mailbox.message(*id).unwrap();
         // Everything that isn't content is there; text that was outside says it is unavailable,
-        // an attachment keeps its name and type with nothing in it.
+        // an attachment keeps its name, type and size with nothing in it.
         assert_eq!((&got.subject, &got.from, got.date, got.attachments.len()), (&m.subject, &m.from, m.date, m.attachments.len()));
         assert_eq!(got.body.text, if m.body.text.len() > INLINE_MAX { UNAVAILABLE } else { m.body.text.as_str() });
         assert_eq!(got.body.html, None);
+        assert_eq!(
+            got.kept.as_ref().is_some_and(|k| k.failed),
+            m.body.text.len() > INLINE_MAX || m.body.html.as_ref().is_some_and(|h| h.len() > INLINE_MAX)
+        );
         for (a, b) in got.attachments.iter().zip(&m.attachments) {
-            assert_eq!((&a.name, &a.mime), (&b.name, &b.mime));
+            assert_eq!((&a.name, &a.mime, a.size()), (&b.name, &b.mime, b.size()));
             assert_eq!(a.data.as_slice(), if b.data.len() > INLINE_MAX { &[][..] } else { b.data.as_slice() });
         }
     }
+    // Asked for, a part that isn't there says so, and the message isn't asked again.
+    let mut s = Session::new(opened.mailbox.clone());
+    s.path = Some(path.clone());
+    let with_file = first_with(&s.mailbox, |m| m.attachments.iter().any(|a| !a.is_loaded()));
+    let index = s.mailbox.message(with_file).unwrap().attachments.iter().position(|a| !a.is_loaded()).unwrap();
+    assert!(s.content(with_file, crate::Part::Attachment(index)).unwrap_err().to_string().contains("missing"));
+    let lost = first_with(&s.mailbox, |m| m.body.text == UNAVAILABLE);
+    assert!(!s.needs_load_for_display(lost) && s.load_for_display(lost) == Ok(false));
+
     // Working on (a message read, a save) keeps what the file said about the content, so the
     // folder turning up again brings everything back.
     let mut edited = opened.mailbox.clone();
@@ -495,21 +530,21 @@ fn a_missing_content_folder_never_stops_the_mailbox_from_opening() {
     // isn't put beside the new one. Its file, which nobody touched, is still its file.
     let rewritten = first_with(&edited, |m| m.subject == "Message 0");
     edited.message_mut(rewritten).unwrap().body.text = "Written anew.".into();
-    // And a message that merely has the number of one that lost content (another mailbox saved
-    // to this file) gets nothing of it.
-    let stranger = first_with(&edited, |m| m.subject == "Message 2");
-    edited.message_mut(stranger).unwrap().message_id = "somebody-else@mail.example.org".into();
+    // A message whose other fields change (its Message-ID, say) is still that message: what it
+    // carries about its content goes with it.
+    let renamed = first_with(&edited, |m| m.subject == "Message 2");
+    edited.message_mut(renamed).unwrap().message_id = "somebody-else@mail.example.org".into();
     let saved = save(&path, &edited).unwrap();
     assert!(saved.bytes > 0 && saved.blobs == 0 && !blob_dir(&path).exists());
     fs::rename(&away, blob_dir(&path)).unwrap();
-    let mut whole = mb.clone();
-    whole.message_mut(id).unwrap().read = true;
-    whole.message_mut(rewritten).unwrap().body = mailcraft_model::Body { text: "Written anew.".into(), html: None };
-    let other = whole.message_mut(stranger).unwrap();
-    other.message_id = "somebody-else@mail.example.org".into();
-    other.body = mailcraft_model::Body { text: UNAVAILABLE.into(), html: None };
-    let back = open(&path).unwrap();
-    assert!(back.unavailable == 0 && back.mailbox == whole);
+    let mut whole_again = mb.clone();
+    whole_again.message_mut(id).unwrap().read = true;
+    whole_again.message_mut(rewritten).unwrap().body = mailcraft_model::Body { text: "Written anew.".into(), html: None };
+    whole_again.message_mut(renamed).unwrap().message_id = "somebody-else@mail.example.org".into();
+    let mut back = open(&path).unwrap();
+    assert_eq!(back.unavailable, 0);
+    load(&path, &mut back);
+    assert!(back.mailbox == whole_again);
     assert!(!back.mailbox.message(rewritten).unwrap().attachments[0].data.is_empty());
 }
 
@@ -543,7 +578,7 @@ fn a_mailbox_kept_elsewhere_through_a_link_stays_there() {
     }
     // Opened and saved through the link, the mailbox file and its content are where the link
     // leads, and the link is still a link.
-    assert!(open(&path).unwrap().mailbox == mb);
+    assert!(whole(&path) == mb);
     let inbox = mb.inbox().unwrap();
     let extra = noise(61, 20_000);
     mb.add_message(Message {
@@ -555,7 +590,7 @@ fn a_mailbox_kept_elsewhere_through_a_link_stays_there() {
     assert_eq!(save(&path, &mb).unwrap().blobs, 1);
     assert!(fs::symlink_metadata(&path).unwrap().file_type().is_symlink() && !blob_dir(&path).exists());
     assert!(blob_file(&real, &extra).is_file());
-    assert!(open(&real).unwrap().mailbox == mb && open(&path).unwrap().mailbox == mb);
+    assert!(whole(&real) == mb && whole(&path) == mb);
     assert_eq!(sweep(&path, Duration::ZERO).unwrap().removed, 0);
     // One self-contained file written through the link lands there too.
     save_single(&path, &mb).unwrap();
@@ -608,11 +643,14 @@ fn a_hostile_content_folder_costs_only_the_content_it_spoiled() {
     let t = Instant::now();
     let opened = open(&path).unwrap();
     assert!(t.elapsed() < Duration::from_secs(20));
-    assert_eq!(opened.unavailable, 7);
+    // Six are seen to be missing by a look at the file; the one with other content under the
+    // right name and length is found out when it is read.
+    assert_eq!((opened.unavailable, opened.deferred), (6, 2));
     for (i, id) in ids.iter().enumerate() {
         let a = &opened.mailbox.message(*id).unwrap().attachments[0];
-        assert_eq!(a.name, format!("{i}.bin"));
-        assert_eq!(a.data.as_slice(), if i == 7 { content[7].as_slice() } else { &[][..] }, "attachment {i}");
+        assert_eq!((a.name.as_str(), a.data.as_slice(), a.size()), (format!("{i}.bin").as_str(), &[][..], content[i].len()));
+        let fetched = fetch(&path, &a.kept.unwrap());
+        assert_eq!(fetched.ok().as_deref().map(Vec::as_slice), if i == 7 { Some(content[7].as_slice()) } else { None }, "attachment {i}");
     }
     if !linked_file || !linked_dir {
         eprintln!("links can't be made here: file {linked_file}, folder {linked_dir} (those two read as missing instead)");
@@ -636,8 +674,9 @@ fn a_hostile_content_folder_costs_only_the_content_it_spoiled() {
     // What was spoiled stays named (it may come back), the rest round-trips, and a sweep takes
     // nothing that is named or isn't ours.
     let again = open(&path).unwrap();
-    assert_eq!(again.unavailable, 7);
-    assert_eq!(again.mailbox.messages.values().last().unwrap().attachments[0].data.as_slice(), fresh.as_slice());
+    assert_eq!(again.unavailable, 6);
+    let newest = &again.mailbox.messages.values().last().unwrap().attachments[0];
+    assert_eq!(fetch(&path, &newest.kept.unwrap()).unwrap().as_slice(), fresh.as_slice());
     sweep(&path, Duration::ZERO).unwrap();
     assert!(blob_dir(&path).join("README.txt").exists() && blob_dir(&path).join("zz").join("deeper").is_dir() && at(7).is_file());
     assert_eq!(fs::read(outside.join("copy")).unwrap(), content[4]);
@@ -772,13 +811,13 @@ fn a_sweep_takes_only_what_nothing_names_and_only_when_it_is_old() {
     age(&blob_file(&path, &dropped), Duration::from_secs(3600));
     assert_eq!(sweep(&path, GRACE).unwrap(), Swept { removed: 1, bytes: 30_000, kept: all - 1 });
     assert!(!blob_file(&path, &dropped).exists() && blob_file(&path, &kept).exists());
-    assert!(open(&path).unwrap().mailbox == mb);
+    assert!(whole(&path) == mb);
 
     // The message comes back (an undo): its content is written again from memory, though this
     // program had written it once already.
     let saved = save(&path, &with_it).unwrap();
     assert_eq!((saved.blobs, saved.blob_bytes), (1, 30_000));
-    assert!(open(&path).unwrap().mailbox == with_it);
+    assert!(whole(&path) == with_it);
     // Content that is there but unnamed and old gets its time renewed when a save names it
     // again, so a sweep that began before the save can't take it from under the new file.
     save(&path, &mb).unwrap();
@@ -819,7 +858,7 @@ fn of_two_saves_racing_the_newer_state_wins() {
     let (first, second) = (next_seq(), next_seq());
     assert!(save_as_of(&path, &new, second).unwrap().bytes > 0);
     assert!(save_as_of(&path, &old, first).unwrap().unchanged);
-    assert!(open(&path).unwrap().mailbox == new);
+    assert!(whole(&path) == new);
 
     // Two threads saving two states over and over, a third reading what is on disk the way
     // another program would (no lock): the mailbox file always parses and everything it names
@@ -862,7 +901,8 @@ fn of_two_saves_racing_the_newer_state_wins() {
         reader.join().unwrap()
     });
     assert!(seen > 0);
-    let last = open(&path).unwrap();
+    let mut last = open(&path).unwrap();
+    load(&path, &mut last);
     assert!(last.unavailable == 0 && (last.mailbox == old || last.mailbox == new));
     // No temporary file is left anywhere.
     assert!(files(&tmp.0).iter().all(|(f, _)| f.extension().is_none_or(|e| e != "tmp")));
@@ -920,7 +960,7 @@ fn the_saver_writes_in_the_background_coalesces_and_flushes() {
     let reports = saver.reports();
     assert_eq!(reports, [1, 5].map(|rev| SaveReport { path: path.clone(), rev, result: Ok(()) }));
     until(|| woken.load(Ordering::Relaxed) == 2);
-    assert!(open(&path).unwrap().mailbox == mb);
+    assert!(whole(&path) == mb);
     assert!(saver.reports().is_empty());
 
     // A state that gets to the disk after a newer one was written by somebody else (the Save
@@ -937,14 +977,14 @@ fn the_saver_writes_in_the_background_coalesces_and_flushes() {
     drop(gate);
     saver.flush();
     assert_eq!(saver.reports(), [SaveReport { path: path.clone(), rev: 6, result: Ok(()) }]);
-    assert!(open(&path).unwrap().mailbox == mb);
+    assert!(whole(&path) == mb);
     // Whichever of a save in the background and one in place comes first, the newer state stays.
     for rev in 7..12 {
         saver.submit(&path, states[(rev % 5) as usize].clone(), rev);
         mb.message_mut(ids[6]).unwrap().read ^= true;
         save(&path, &mb).unwrap();
         saver.flush();
-        assert!(open(&path).unwrap().mailbox == mb);
+        assert!(whole(&path) == mb);
     }
 
     // A sweep asked for runs when there is nothing to write, and the thread ends with the saver.
@@ -978,7 +1018,7 @@ fn a_save_that_fails_is_reported_leaves_the_file_and_works_when_tried_again() {
     let error = save(&path, &new).unwrap_err();
     assert!(error.contains("content file"), "{error}");
     assert_eq!(fs::read(&path).unwrap(), on_disk);
-    assert!(open(&path).unwrap().mailbox == old);
+    assert!(whole(&path) == old);
     // Through the saver: the window hears why, and the file is as it was.
     let saver = Saver::spawn(|| {}).unwrap();
     saver.submit(&path, new.clone(), 1);
@@ -991,7 +1031,7 @@ fn a_save_that_fails_is_reported_leaves_the_file_and_works_when_tried_again() {
     saver.submit(&path, new.clone(), 1);
     saver.flush();
     assert_eq!(saver.reports(), [SaveReport { path: path.clone(), rev: 1, result: Ok(()) }]);
-    assert!(open(&path).unwrap().mailbox == new);
+    assert!(whole(&path) == new);
     assert!(files(&tmp.0).iter().all(|(f, _)| f.extension().is_none_or(|e| e != "tmp")));
 
     // Nowhere to write at all: an error, and nothing appears.
@@ -1063,7 +1103,7 @@ fn save_v2(path: &Path, mb: &Mailbox) {
     let mut hashes = HashMap::new();
     let (mut messages, mut blobs) = (serde_json::Map::new(), serde_json::Map::new());
     for (id, m) in &mb.messages {
-        let p = prepare(*id, m, None, &mut hashes).unwrap();
+        let p = prepare(*id, m, &mut hashes).unwrap();
         for (r, bytes) in p.parts.content(m) {
             let _ = make_dir(&dir);
             put(&dir, &r, bytes).unwrap();
@@ -1078,6 +1118,360 @@ fn save_v2(path: &Path, mb: &Mailbox) {
     file["messages"] = Value::Object(messages);
     file["blobs"] = Value::Object(blobs);
     fs::write(path, serde_json::to_vec(&file).unwrap()).unwrap();
+}
+
+// ---- content that stays on disk ----
+
+/// The messages of `mb` newest first, as the budget is given out.
+fn newest_first(mb: &Mailbox) -> Vec<Id> {
+    let mut ids: Vec<(i64, Id)> = mb.messages.values().map(|m| (m.date, m.id)).collect();
+    ids.sort_unstable_by(|a, b| b.cmp(a));
+    ids.into_iter().map(|(_, id)| id).collect()
+}
+
+/// What the bodies of message `m` take outside the mailbox file.
+fn body_outside(m: &Message) -> u64 {
+    let part = |len: usize| if len > INLINE_MAX { len as u64 } else { 0 };
+    part(m.body.text.len()) + m.body.html.as_ref().map_or(0, |h| part(h.len()))
+}
+
+/// A budget that holds the bodies of the `n` newest messages of `mb` and no more.
+fn budget_for_newest(mb: &Mailbox, n: usize) -> u64 {
+    newest_first(mb).iter().take(n).map(|id| body_outside(mb.message(*id).unwrap())).sum()
+}
+
+/// Parts of `mb` kept outside the mailbox file: bodies and attachments over [`INLINE_MAX`].
+fn parts_outside(mb: &Mailbox) -> usize {
+    mb.messages
+        .values()
+        .map(|m| {
+            usize::from(m.body.text.len() > INLINE_MAX)
+                + usize::from(m.body.html.as_ref().is_some_and(|h| h.len() > INLINE_MAX))
+                + m.attachments.iter().filter(|a| a.data.len() > INLINE_MAX).count()
+        })
+        .sum()
+}
+
+/// A session on the mailbox at `path`, opened with a budget for the bodies of its `newest` messages.
+fn session_on(path: &Path, mb: &Mailbox, newest: usize) -> (Session, Opened) {
+    let opened = with_budget(budget_for_newest(mb, newest), || open(path).unwrap());
+    let mut s = Session::new(opened.mailbox.clone());
+    s.path = Some(path.to_path_buf());
+    (s, opened)
+}
+
+#[test]
+fn content_beyond_the_budget_stays_on_disk_and_comes_when_wanted() {
+    let tmp = Temp::new("budget");
+    let path = tmp.file();
+    let mb = mailbox(24);
+    save(&path, &mb).unwrap();
+    let before = files(&blob_dir(&path));
+    clear_cache();
+
+    let (mut s, opened) = session_on(&path, &mb, 6);
+    let order = newest_first(&mb);
+    // Every message is there with everything but its content; the six newest have their bodies,
+    // the older ones have their bodies named on them; every attachment waits on disk.
+    assert_eq!((opened.unavailable, opened.loaded + opened.deferred), (0, parts_outside(&mb)));
+    let body_parts =
+        |m: &Message| usize::from(m.body.text.len() > INLINE_MAX) + usize::from(m.body.html.as_ref().is_some_and(|h| h.len() > INLINE_MAX));
+    assert_eq!(opened.loaded, order.iter().take(6).map(|id| body_parts(mb.message(*id).unwrap())).sum::<usize>());
+    for (rank, id) in order.iter().enumerate() {
+        let (was, now) = (mb.message(*id).unwrap(), s.mailbox.message(*id).unwrap());
+        assert_eq!((&now.subject, &now.from, now.date, now.attachments.len()), (&was.subject, &was.from, was.date, was.attachments.len()));
+        assert_eq!(now.size(), was.size(), "message {id}");
+        if rank < 6 || body_outside(was) == 0 {
+            assert!(now.body == was.body && !now.body_is_kept(), "message {id} (rank {rank}) has its body");
+        } else {
+            // (A short text is in the mailbox file itself; its HTML waits.)
+            let text = if was.body.text.len() > INLINE_MAX { "" } else { was.body.text.as_str() };
+            assert!(now.body_is_kept() && now.body.text == text && now.body.html.is_none(), "message {id} (rank {rank}) waits");
+            assert_eq!(now.kept.as_ref().unwrap().len(), body_outside(was));
+        }
+        for (a, b) in now.attachments.iter().zip(&was.attachments) {
+            assert_eq!((a.is_loaded(), a.size()), (b.data.len() <= INLINE_MAX, b.data.len()));
+        }
+    }
+
+    // Asked for, a part comes as it was, whether a body or a file, and the same file once.
+    let oldest = *order.last().unwrap();
+    let was = mb.message(oldest).unwrap();
+    assert_eq!(s.content(oldest, crate::Part::Text).unwrap().as_slice(), was.body.text.as_bytes());
+    assert!(s.needs_load_for_display(oldest));
+    assert_eq!(s.load_for_display(oldest), Ok(true));
+    assert!(s.mailbox.message(oldest).unwrap().body == was.body && !s.needs_load_for_display(oldest));
+    let with_shared: Vec<Id> = mb.messages.values().filter(|m| m.attachments.iter().any(|a| a.name == "shared.pdf")).map(|m| m.id).collect();
+    let fetched: Vec<Arc<Vec<u8>>> = with_shared
+        .iter()
+        .map(|id| {
+            let i = s.mailbox.message(*id).unwrap().attachments.iter().position(|a| a.name == "shared.pdf").unwrap();
+            s.content(*id, crate::Part::Attachment(i)).unwrap()
+        })
+        .collect();
+    assert!(fetched.iter().all(|b| b.as_slice() == noise(7, 40_000).as_slice()) && Arc::ptr_eq(&fetched[0], &fetched[1]));
+    assert!(cached_bytes() >= 40_000);
+    // The whole of a message, in the mailbox itself.
+    let with_file = first_with(&mb, |m| m.attachments.iter().any(|a| a.data.len() > INLINE_MAX) && !order[..6].contains(&m.id));
+    assert_eq!(s.load_message(with_file), Ok(true));
+    assert!(s.mailbox.message(with_file).unwrap() == mb.message(with_file).unwrap());
+    assert_eq!(s.load_message(with_file), Ok(false));
+
+    // A file whose bytes aren't what its name says is refused, however right its length.
+    let victim = first_with(&mb, |m| m.attachments.iter().any(|a| a.name.starts_with("file-")) && m.id != with_file);
+    let data = &mb.message(victim).unwrap().attachments[0].data;
+    let file = blob_file(&path, data);
+    let mut spoiled = data.as_ref().clone();
+    spoiled[100] ^= 0x55;
+    fs::write(&file, &spoiled).unwrap();
+    let refused = s.content(victim, crate::Part::Attachment(0)).unwrap_err().to_string();
+    assert!(refused.contains("damaged"), "{refused}");
+    fs::write(&file, data.as_slice()).unwrap();
+
+    // Saved after all that, the file names the same content as before, writes none of it again,
+    // and a sweep takes nothing.
+    s.mailbox.message_mut(oldest).unwrap().read = true;
+    let saved = save(&path, &s.mailbox).unwrap();
+    assert!(saved.blobs == 0 && saved.bytes > 0, "{saved:?}");
+    assert_eq!(files(&blob_dir(&path)), before);
+    assert_eq!(sweep(&path, Duration::ZERO).unwrap().removed, 0);
+    let mut expect = mb.clone();
+    expect.message_mut(oldest).unwrap().read = true;
+    assert!(whole(&path) == expect);
+    // Opened with room for everything, the bodies are all there at once.
+    let roomy = with_budget(1 << 30, || open(&path).unwrap());
+    assert!(roomy.mailbox.messages.values().all(|m| !m.body_is_kept()));
+}
+
+#[test]
+fn what_is_missing_is_counted_and_what_is_merely_on_disk_is_not() {
+    let tmp = Temp::new("missing-few");
+    let path = tmp.file();
+    let mb = mailbox(24);
+    save(&path, &mb).unwrap();
+    clear_cache();
+    let order = newest_first(&mb);
+    // Two files and the text of an old message go missing.
+    let gone_files: Vec<Id> =
+        mb.messages.values().filter(|m| m.attachments.iter().any(|a| a.name.starts_with("file-"))).map(|m| m.id).take(2).collect();
+    for id in &gone_files {
+        fs::remove_file(blob_file(&path, &mb.message(*id).unwrap().attachments[0].data)).unwrap();
+    }
+    let old_text = *order.iter().rev().find(|id| mb.message(**id).unwrap().body.text.len() > INLINE_MAX).unwrap();
+    fs::remove_file(blob_file(&path, mb.message(old_text).unwrap().body.text.as_bytes())).unwrap();
+
+    let (mut s, opened) = session_on(&path, &mb, 3);
+    assert_eq!(opened.unavailable, 3);
+    assert_eq!(opened.loaded + opened.deferred + opened.unavailable, parts_outside(&mb));
+    // The text that is missing says so, and isn't asked for again; its HTML, if any, stays named.
+    let m = s.mailbox.message(old_text).unwrap();
+    assert_eq!(m.body.text, UNAVAILABLE);
+    assert!(m.kept.as_ref().is_some_and(|k| k.failed && k.text.is_some()) && !m.body_is_kept() && !s.needs_load_for_display(old_text));
+    // A missing file says so when it is wanted; one that is there comes.
+    let err = s.content(gone_files[0], crate::Part::Attachment(0)).unwrap_err().to_string();
+    assert!(err.contains("missing"), "{err}");
+    let there = first_with(&mb, |m| m.attachments.iter().any(|a| a.name.starts_with("file-")) && !gone_files.contains(&m.id));
+    assert_eq!(s.content(there, crate::Part::Attachment(0)).unwrap().as_slice(), mb.message(there).unwrap().attachments[0].data.as_slice());
+    // An old body that is there and wanted comes, and says so once it is missing.
+    let old_ok = *order.iter().rev().find(|id| **id != old_text && mb.message(**id).unwrap().body.text.len() > INLINE_MAX).unwrap();
+    fs::remove_file(blob_file(&path, mb.message(old_ok).unwrap().body.text.as_bytes())).unwrap();
+    let err = s.load_for_display(old_ok).unwrap_err().to_string();
+    assert!(err.contains("missing"), "{err}");
+    let m = s.mailbox.message(old_ok).unwrap();
+    assert!(m.body.text == UNAVAILABLE && m.kept.as_ref().is_some_and(|k| k.failed) && !s.needs_load_for_display(old_ok));
+    // Saved, everything the file named is named still: content that turns up again is found.
+    save(&path, &s.mailbox).unwrap();
+    let again = with_budget(budget_for_newest(&mb, 3), || open(&path).unwrap());
+    assert_eq!(again.unavailable, 4);
+}
+
+#[test]
+fn a_search_reads_the_bodies_it_lacks_newest_first_and_says_what_it_left() {
+    let tmp = Temp::new("search");
+    let path = tmp.file();
+    let mut mb = mailbox(24);
+    let order = newest_first(&mb);
+    let old = *order.iter().rev().find(|id| mb.message(**id).unwrap().body.text.len() > INLINE_MAX).unwrap();
+    let text = mb.message(old).unwrap().body.text.clone();
+    mb.message_mut(old).unwrap().body.text = format!("{text}The word zymurgy appears here only.\n");
+    save(&path, &mb).unwrap();
+    clear_cache();
+
+    let (mut s, _) = session_on(&path, &mb, 4);
+    let kept_bodies = s.mailbox.messages.values().filter(|m| m.body_is_kept()).count();
+    assert!(kept_bodies >= 8);
+    // Headers alone need nothing read; a word in the text brings the older bodies in.
+    s.view.search = "from:ada".into();
+    assert!(s.rows().len() == 24 && s.unsearched == 0);
+    assert_eq!(s.mailbox.messages.values().filter(|m| m.body_is_kept()).count(), kept_bodies);
+    s.view.search = "zymurgy".into();
+    let rows = s.rows();
+    assert_eq!((rows.len(), rows[0].id, s.unsearched), (1, old, 0));
+    assert!(s.mailbox.messages.values().all(|m| !m.body_is_kept()));
+
+    // Out of time, the search goes with what it has and says how much it didn't get to.
+    let (mut hurried, _) = session_on(&path, &mb, 4);
+    hurried.search_time = Duration::ZERO;
+    hurried.view.search = "zymurgy".into();
+    assert_eq!((hurried.rows().len(), hurried.unsearched), (0, kept_bodies));
+    // Given time again, it finishes.
+    hurried.search_time = Duration::from_secs(30);
+    hurried.view.search = "zymurgy ".into();
+    assert_eq!((hurried.rows().len(), hurried.unsearched), (1, 0));
+}
+
+#[test]
+fn forwarding_exporting_and_sending_carry_what_is_on_disk() {
+    let tmp = Temp::new("carry");
+    let path = tmp.file();
+    let mb = mailbox(24);
+    save(&path, &mb).unwrap();
+    clear_cache();
+    let (mut s, _) = session_on(&path, &mb, 2);
+    let order = newest_first(&mb);
+    let id = *order.iter().rev().find(|id| mb.message(**id).unwrap().attachments.iter().any(|a| a.data.len() > INLINE_MAX)).unwrap();
+    let was = mb.message(id).unwrap();
+    assert!(s.mailbox.message(id).unwrap().body_is_kept() && !s.mailbox.message(id).unwrap().is_loaded());
+
+    // Forwarded: the files go with it, and the quoted text is the text.
+    s.run("mail.forward", &json!({"id": id})).unwrap();
+    let c = s.compose.clone().unwrap();
+    assert_eq!(
+        c.attachments.iter().map(|a| a.data.as_slice()).collect::<Vec<_>>(),
+        was.attachments.iter().map(|a| a.data.as_slice()).collect::<Vec<_>>()
+    );
+    assert!(c.attachments.iter().all(Attachment::is_loaded) && c.body.contains("Line 5 of message"));
+    s.run("compose.discard", &json!({})).unwrap_or_default();
+
+    // Exported as .eml: the files are in it.
+    let eml = s.run("file.exportMessage", &json!({"id": id})).unwrap();
+    let parsed = mailcraft_mime::parse(&crate::cmd::base64_decode(eml["data"].as_str().unwrap()).unwrap());
+    assert_eq!(
+        parsed.attachments.iter().map(|a| a.data.as_slice()).collect::<Vec<_>>(),
+        was.attachments.iter().map(|a| a.data.as_slice()).collect::<Vec<_>>()
+    );
+    assert_eq!(parsed.body.text.trim(), was.body.text.trim());
+    // A folder as .mbox too.
+    let mbox = s.run("file.exportFolder", &json!({"id": was.folder})).unwrap();
+    let all = mailcraft_mime::parse_mbox(&crate::cmd::base64_decode(mbox["data"].as_str().unwrap()).unwrap());
+    assert_eq!(all.len(), 24);
+    assert!(all.iter().all(|m| m.attachments.iter().all(|a| !a.data.is_empty())));
+
+    // What goes to a server goes whole; a message whose file can't be read stays here.
+    let request = mailcraft_model::sync::SyncRequest {
+        outbox: vec![Message::clone(s.mailbox.message(id).unwrap())],
+        uploads: vec![mailcraft_model::sync::Upload {
+            message: Message::clone(s.mailbox.message(id).unwrap()),
+            to: "Drafts".into(),
+            copy_from: String::new(),
+            copy_uid: 0,
+            copy_only: false,
+        }],
+        ..Default::default()
+    };
+    let loaded = s.loaded_request(request.clone());
+    assert!(loaded.outbox[0].is_loaded() && loaded.uploads[0].message.is_loaded());
+    assert_eq!(loaded.outbox[0].attachments[0].data, was.attachments[0].data);
+    fs::remove_file(blob_file(&path, &was.attachments[0].data)).unwrap();
+    clear_cache();
+    let short = s.loaded_request(request);
+    assert!(short.outbox.is_empty() && short.uploads.is_empty());
+    fs::write(blob_file(&path, &was.attachments[0].data), was.attachments[0].data.as_slice()).unwrap();
+
+    // Saved as one file, or saved to another place, the mailbox takes everything along.
+    let single = tmp.0.join("single.mailcraft");
+    s.run("file.saveAs", &json!({"path": single})).unwrap();
+    assert!(crate::io::read_mailbox(&fs::read(&single).unwrap()).unwrap() == mb);
+    let other = tmp.0.join("elsewhere").join("mailbox.mailcraft");
+    fs::create_dir_all(other.parent().unwrap()).unwrap();
+    s.run("file.save", &json!({"path": other})).unwrap();
+    assert!(whole(&other) == mb && files(&blob_dir(&other)).len() == files(&blob_dir(&path)).len());
+    // The mailbox in memory still waits for most of its content: nothing was read for keeps.
+    assert!(s.mailbox.messages.values().any(|m| !m.is_loaded()));
+}
+
+#[test]
+fn a_mailbox_isn_t_saved_where_its_content_isn_t() {
+    let tmp = Temp::new("elsewhere");
+    let path = tmp.file();
+    let mb = mailbox(12);
+    save(&path, &mb).unwrap();
+    let opened = with_budget(1, || open(&path).unwrap());
+    for (id, was) in &mb.messages {
+        let whole_inside = body_outside(was) == 0 && was.attachments.iter().all(|a| a.size() <= INLINE_MAX);
+        assert_eq!(opened.mailbox.message(*id).unwrap().is_loaded(), whole_inside, "message {id}");
+    }
+    assert!(opened.mailbox.messages.values().any(|m| !m.is_loaded()));
+    let other = tmp.0.join("other.mailcraft");
+    let err = save(&other, &opened.mailbox).unwrap_err();
+    assert!(err.contains("opened from another mailbox"), "{err}");
+    assert!(!other.exists() && !blob_dir(&other).exists());
+    // Where it was opened it saves as it is.
+    let mut edited = opened.mailbox.clone();
+    let first = *edited.messages.keys().next().unwrap();
+    edited.message_mut(first).unwrap().read = true;
+    assert_eq!(save(&path, &edited).unwrap().blobs, 0);
+}
+
+/// `MAILCRAFT_BENCH_MESSAGES=50000 cargo test -p mailcraft-engine --release -- --ignored
+/// fifty_thousand_messages` (2 GB under the system's temporary folder while it runs).
+#[test]
+#[ignore = "builds 2 GB of mail; run by hand"]
+fn fifty_thousand_messages_with_two_gigabytes_of_content_open_under_a_small_budget() {
+    let messages: usize = std::env::var("MAILCRAFT_BENCH_MESSAGES").ok().and_then(|n| n.parse().ok()).unwrap_or(50_000);
+    let body_len = (2u64 << 30) / messages as u64;
+    let tmp = Temp::new("fifty-thousand");
+    let path = tmp.file();
+    let mut mb = Mailbox::with_local_account("Avery Quinn", "avery@example.org");
+    let inbox = mb.inbox().unwrap();
+    let t = Instant::now();
+    for i in 0..messages {
+        let mut text = format!("Message {i}.\n");
+        let line = format!("Line of message {i} with words that differ: {:x}\n", (i as u64).wrapping_mul(0x9E37_79B9_7F4A_7C15));
+        while (text.len() as u64) < body_len {
+            text.push_str(&line);
+        }
+        let m = Message {
+            folder: inbox,
+            subject: format!("Message {i}"),
+            from: Address::new("Ada Aldrin", "ada@example.org"),
+            to: vec![Address::new("Avery Quinn", "avery@example.org")],
+            date: 1_600_000_000 + i as i64 * 60,
+            body: mailcraft_model::Body { text, html: None },
+            ..Default::default()
+        };
+        mb.add_message(m).unwrap();
+    }
+    eprintln!("built {messages} messages of {body_len} bytes in {:?}", t.elapsed());
+    let t = Instant::now();
+    let saved = save(&path, &mb).unwrap();
+    eprintln!("saved: {saved:?} in {:?}", t.elapsed());
+    drop(mb);
+    let rss = || fs::read_to_string("/proc/self/statm").ok().and_then(|s| s.split_whitespace().nth(1)?.parse::<u64>().ok()).map(|pages| pages * 4096);
+    let before = rss();
+    let t = Instant::now();
+    let opened = with_budget(256 << 20, || open(&path).unwrap());
+    let took = t.elapsed();
+    let after = rss();
+    let in_memory: u64 = opened.mailbox.messages.values().map(|m| m.body.text.len() as u64).sum();
+    eprintln!(
+        "opened {} messages in {took:?}: {} bodies in memory ({in_memory} bytes), {} on disk, {} missing; RSS {:?} -> {:?}",
+        opened.mailbox.messages.len(),
+        opened.loaded,
+        opened.deferred,
+        opened.unavailable,
+        before,
+        after
+    );
+    assert_eq!(opened.mailbox.messages.len(), messages);
+    assert!(in_memory <= 256 << 20 && opened.loaded + opened.deferred == messages && opened.unavailable == 0);
+    assert!(took < Duration::from_secs(120), "{took:?}");
+    if let (Some(before), Some(after)) = (before, after) {
+        assert!(after.saturating_sub(before) < 1 << 30, "memory grew by {} bytes", after.saturating_sub(before));
+    }
+    // The newest have their bodies; the oldest wait.
+    let order = newest_first(&opened.mailbox);
+    assert!(!opened.mailbox.message(order[0]).unwrap().body_is_kept() && opened.mailbox.message(*order.last().unwrap()).unwrap().body_is_kept());
 }
 
 /// Format 3: the log of records.

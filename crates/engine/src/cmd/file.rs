@@ -99,9 +99,10 @@ fn open(s: &mut Session, v: &Value) -> CmdResult {
     }))
 }
 
-/// The mailbox as one self-contained file: what a caller without a place for files gets.
+/// The mailbox as one self-contained file: what a caller without a place for files gets. Every
+/// byte of it: what the mailbox keeps outside memory is fetched first.
 fn single_file(s: &Session) -> Result<Vec<u8>, crate::CmdError> {
-    crate::io::write_mailbox(&s.mailbox).map_err(fail)
+    crate::io::write_mailbox(&s.loaded_mailbox()?).map_err(fail)
 }
 
 /// Save where the mailbox is kept (or to `path`, which is where it is kept from then on): the
@@ -114,7 +115,14 @@ fn save(s: &mut Session, v: &Value) -> CmdResult {
     let Some(path) = path else { return deliver(v, &format!("mailbox.{MAILBOX_EXT}"), single_file(s)?) };
     #[cfg(not(target_arch = "wasm32"))]
     let r = {
-        let saved = crate::store::save(std::path::Path::new(&path), &s.mailbox).map_err(fail)?;
+        // Saved somewhere else than where it is kept, the mailbox takes everything along: the
+        // content folder there has none of what this one keeps.
+        let elsewhere = s.path.as_ref().is_none_or(|kept| kept.as_path() != std::path::Path::new(&path));
+        let saved = if elsewhere {
+            crate::store::save(std::path::Path::new(&path), &s.loaded_mailbox()?).map_err(fail)?
+        } else {
+            crate::store::save(std::path::Path::new(&path), &s.mailbox).map_err(fail)?
+        };
         json!({"path": path, "bytes": saved.bytes, "blobs": saved.blobs})
     };
     #[cfg(target_arch = "wasm32")]
@@ -134,7 +142,7 @@ fn save_as(s: &mut Session, v: &Value) -> CmdResult {
     let path = p::req_str(v, "path")?.to_string();
     #[cfg(not(target_arch = "wasm32"))]
     let r = {
-        let bytes = crate::store::save_single(std::path::Path::new(&path), &s.mailbox).map_err(fail)?;
+        let bytes = crate::store::save_single(std::path::Path::new(&path), &s.loaded_mailbox()?).map_err(fail)?;
         json!({"path": path, "bytes": bytes})
     };
     #[cfg(target_arch = "wasm32")]
@@ -154,18 +162,27 @@ fn import(s: &mut Session, v: &Value) -> CmdResult {
 
 fn export_message(s: &mut Session, v: &Value) -> CmdResult {
     let id = p::id(v, "id").or(s.sel.focus()).ok_or_else(|| fail("select a message first"))?;
-    let m = s.mailbox.message(id).ok_or_else(|| fail(format!("no message with id {id}")))?;
+    if s.mailbox.message(id).is_none() {
+        return Err(fail(format!("no message with id {id}")));
+    }
+    // Whole: what the mailbox keeps outside memory goes into the file.
+    let m = s.loaded_message(id)?;
     // A draft keeps its Bcc line; a sent or received message never had one to show.
     let opts = mailcraft_mime::WriteOptions { include_bcc: m.draft, offset_minutes: s.offset_at(m.date) };
     let name = file_name(if m.subject.trim().is_empty() { "message" } else { &m.subject }, "eml");
-    deliver(v, &name, mailcraft_mime::write(m, &opts))
+    deliver(v, &name, mailcraft_mime::write(&m, &opts))
 }
 
 fn export_folder(s: &mut Session, v: &Value) -> CmdResult {
     let id = p::id(v, "id").unwrap_or(s.view.folder);
     let folder = s.mailbox.folder(id).ok_or_else(|| fail(format!("no folder with id {id}")))?;
-    let mut messages: Vec<&mailcraft_model::Message> = s.mailbox.messages_in(id).map(|m| m.as_ref()).collect();
-    messages.sort_by_key(|m| (m.date, m.id));
+    // Each message whole: what the mailbox keeps outside memory goes into the file.
+    let mut whole: Vec<std::sync::Arc<mailcraft_model::Message>> = Vec::new();
+    for m in s.mailbox.messages_in(id) {
+        whole.push(s.loaded_message(m.id)?);
+    }
+    whole.sort_by_key(|m| (m.date, m.id));
+    let messages: Vec<&mailcraft_model::Message> = whole.iter().map(|m| m.as_ref()).collect();
     let opts = mailcraft_mime::WriteOptions { include_bcc: false, offset_minutes: s.offset_at(s.now()) };
     let bytes = mailcraft_mime::write_mbox(&messages, &opts);
     let r = deliver(v, &file_name(&folder.name, "mbox"), bytes)?;

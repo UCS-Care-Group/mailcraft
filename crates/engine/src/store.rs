@@ -34,10 +34,20 @@
 //!   are 64 hex digits or nothing; sizes are capped; a record counts only whole, with its
 //!   checksum, and closed by a commit. Bytes after the last commit (a save cut short, or damage)
 //!   are reported, and the file is kept aside as `mailbox.mailcraft.damaged-<time>` before it is
-//!   next written. Content that is missing or damaged never stops the mailbox from opening: the
-//!   message keeps everything else and says its text is unavailable, and what the mailbox file
-//!   said about it is written back unchanged, so content that turns up again (a folder copied
-//!   late) is found the next time.
+//!   next written.
+//! - **What comes into memory** ([`fill`]): every message's headers, and the bodies of the newest
+//!   mail (by date) up to a budget, the smaller of [`MAX_CONTENT`] and a quarter of the machine's
+//!   memory ([`body_budget`]). Attachments, and the bodies of older mail, stay on disk and are
+//!   named on the message ([`mailcraft_model::Attachment::kept`], [`Message::kept`]); they are
+//!   read when something needs them ([`fetch`], behind `Session::content`): a message shown,
+//!   searched, answered, printed, exported or sent, a file opened or saved. What is fetched is
+//!   kept for a while in a cache bounded by bytes ([`CACHE_MAX`]). Each part not loaded is looked
+//!   for on disk when the mailbox opens (a stat, within a time cap), so that what is missing is
+//!   told apart from what is merely not loaded: the first is reported, the second only noted.
+//!   Content that is missing or damaged never stops the mailbox from opening: the message keeps
+//!   everything else and says its text is unavailable, and what the mailbox file said about it
+//!   is written back unchanged, so content that turns up again (a folder copied late) is found
+//!   the next time.
 //! - **Sweeping** ([`sweep`]) removes content files the mailbox file no longer names, never one
 //!   written in the last few minutes: a save in flight has written its content before its mailbox
 //!   file names it. Nothing is swept while a damaged mailbox file is kept aside: it may name
@@ -53,10 +63,10 @@ use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, OnceLock, Weak};
 use std::time::{Duration, Instant, SystemTime};
 
-use mailcraft_model::{Contact, Event, Id, Mailbox, Message, Task};
+use mailcraft_model::{Contact, ContentRef, Event, Id, KeptBody, Mailbox, Message, Task};
 use serde::{Deserialize, Serialize};
 
-use crate::io::{BackgroundSave, MAX_FILE, SaveReport};
+use crate::io::{BackgroundSave, ContentSource, MAX_FILE, SaveReport};
 
 #[path = "store_index.rs"]
 mod index;
@@ -79,8 +89,22 @@ pub const INLINE_MAX: usize = 1024;
 /// Largest content file read.
 pub const MAX_BLOB: u64 = MAX_FILE;
 
-/// Most content one mailbox brings into memory (8 GB); what is beyond it opens as unavailable.
+/// Most content one mailbox brings into memory when it opens (8 GB), whatever the machine has;
+/// the bodies beyond it stay on disk until they are wanted ([`body_budget`]).
 pub const MAX_CONTENT: u64 = 8 << 30;
+
+/// What the bodies get when the machine's memory can't be read (2 GB).
+pub const FALLBACK_BUDGET: u64 = 2 << 30;
+
+/// Most bytes of fetched content kept in memory for the next time they are wanted (512 MB).
+pub const CACHE_MAX: u64 = 512 << 20;
+
+/// A fetched piece larger than this is handed over but not kept.
+const CACHE_ITEM_MAX: u64 = 64 << 20;
+
+/// How long opening a mailbox spends looking for the content it doesn't load, so as to tell what
+/// is missing from what is merely on disk; past it, the rest is taken to be on disk.
+const STAT_TIME: Duration = Duration::from_secs(20);
 
 /// A content file nothing names is left alone for this long after it was written.
 pub const GRACE: Duration = Duration::from_secs(10 * 60);
@@ -95,6 +119,12 @@ pub const INDEX_VERSION: u32 = index::VERSION;
 /// What a message says instead of text that couldn't be read back.
 pub const UNAVAILABLE: &str =
     "[This message's text is unavailable: the file that keeps it is missing from the mailbox's content folder, or damaged.]";
+
+#[cfg(test)]
+#[test]
+fn the_placeholder_is_the_one_the_session_writes() {
+    assert_eq!(UNAVAILABLE, crate::store_placeholder());
+}
 
 /// Attachments of one message kept outside the mailbox file; any after these stay inside it.
 const MAX_PARTS: usize = 4096;
@@ -188,12 +218,22 @@ impl Ref {
     }
 }
 
+impl Ref {
+    fn from_model(r: &ContentRef) -> Ref {
+        Ref { hash: Digest(r.sha256), len: r.len }
+    }
+
+    fn to_model(self) -> ContentRef {
+        ContentRef { sha256: self.hash.0, len: self.len }
+    }
+}
+
 /// One part of a message kept outside the mailbox file.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct Part {
     r: Ref,
-    /// Its bytes are in memory. Not so for content that couldn't be read when the mailbox was
-    /// opened: that keeps the name it had, and nothing can be written for it.
+    /// Its bytes are in memory. Not so for content left on disk when the mailbox was opened, or
+    /// that couldn't be read: that keeps the name it had, and nothing can be written for it.
     held: bool,
 }
 
@@ -440,19 +480,6 @@ impl Loaded {
     }
 }
 
-/// What the mailbox file said about content of one message that couldn't be read when it was
-/// opened, and enough about the message to know it again. Only that message gets those names
-/// back when it is saved, and only for what is still as it was opened: a draft written anew, or
-/// another mailbox saved to the same file, is new content.
-struct Lost {
-    parts: Parts,
-    message_id: String,
-    /// The SHA-256 of the message's text as it was opened.
-    text: Digest,
-    /// Its attachments' names.
-    files: Vec<String>,
-}
-
 #[derive(Default)]
 struct State {
     /// The content the mailbox file on disk names, as last read or written here, and by how
@@ -470,8 +497,6 @@ struct State {
     legacy: Option<u32>,
     /// The SHA-256 of attachments already worked out, by where their bytes are.
     hashes: HashMap<usize, (Weak<Vec<u8>>, Digest)>,
-    /// What the mailbox file said about content that couldn't be read when it was opened.
-    missing: BTreeMap<Id, Lost>,
     /// The newest state written (see [`next_seq`]): an older one arriving late is dropped.
     newest: u64,
     swept: Option<Instant>,
@@ -786,8 +811,13 @@ pub struct Opened {
     pub mailbox: Mailbox,
     /// The file keeps its content in a folder beside it (`false`: one self-contained file).
     pub split: bool,
-    /// Bodies and attachments whose content file is missing or damaged.
+    /// Bodies and attachments whose content file was found to be missing or damaged.
     pub unavailable: usize,
+    /// Bodies and attachments brought into memory.
+    pub loaded: usize,
+    /// Bodies and attachments left on disk, to be loaded when something needs them
+    /// (`Session::content`): every attachment, and the bodies of mail beyond the budget.
+    pub deferred: usize,
     /// Bytes at the end of the file that aren't a finished save (a save a crash cut short, or
     /// damage). They are not read; the file is kept aside before it is next written.
     pub unfinished: u64,
@@ -798,12 +828,25 @@ impl std::fmt::Debug for Opened {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "Opened {{ messages: {}, split: {}, unavailable: {}, unfinished: {} }}",
+            "Opened {{ messages: {}, split: {}, unavailable: {}, loaded: {}, deferred: {}, unfinished: {} }}",
             self.mailbox.messages.len(),
             self.split,
             self.unavailable,
+            self.loaded,
+            self.deferred,
             self.unfinished
         )
+    }
+}
+
+/// Say what opening the file at `show` left out, where the owner reads warnings only for what is
+/// wrong: content left on disk is the normal way, noted for anybody debugging.
+fn report(show: &std::path::Display<'_>, dir: &Path, filled: &Filled) {
+    if filled.missing > 0 {
+        log::warn!("{show}: {} bodies or attachments are missing from {} or damaged", filled.missing, dir.display());
+    }
+    if filled.deferred > 0 {
+        log::debug!("{show}: {} attachments and bodies are kept on disk and load when opened ({} loaded)", filled.deferred, filled.loaded);
     }
 }
 
@@ -834,11 +877,11 @@ pub fn open(path: &Path) -> Result<Opened, String> {
     let bytes = fs::read(&file).map_err(|e| format!("{show}: {e}"))?;
     let mut mailbox: Mailbox = serde_json::from_slice(&bytes).map_err(|e| format!("{show}: this isn't a MailCraft mailbox ({e})"))?;
     let version = mailbox.version;
-    let (split, unavailable) = match version {
-        0 | 1 => (false, 0),
+    let (split, filled) = match version {
+        0 | 1 => (false, Filled::default()),
         SPLIT_VERSION => {
             let head: Head = serde_json::from_slice(&bytes).map_err(|e| format!("{show}: this mailbox file is damaged ({e})"))?;
-            (true, fill(&mut st, &blob_dir(&file), &mut mailbox, head))
+            (true, fill(&mut st, &blob_dir(&file), &mut mailbox, head, None))
         }
         newer => return Err(format!("{show}: this mailbox was written by a newer MailCraft (format {newer})")),
     };
@@ -847,13 +890,11 @@ pub fn open(path: &Path) -> Result<Opened, String> {
     for line in mailbox.repair() {
         log::warn!("mailbox repaired: {line}");
     }
-    if unavailable > 0 {
-        log::warn!("{show}: {unavailable} bodies or attachments are missing from {} or damaged", blob_dir(&file).display());
-    }
+    report(&show, &blob_dir(&file), &filled);
     st.stamp = Stamp::of(&file, bytes.len() as u64);
     st.loaded = Loaded::of(&mailbox);
     st.legacy = Some(version.max(1));
-    Ok(Opened { mailbox, split, unavailable, unfinished: 0 })
+    Ok(Opened { mailbox, split, unavailable: filled.missing, loaded: filled.loaded, deferred: filled.deferred, unfinished: 0 })
 }
 
 /// One item of a mailbox file in this form, read.
@@ -935,33 +976,18 @@ fn open_index(st: &mut State, file: &Path, len: u64) -> Result<Opened, String> {
     mailbox.events = events.into_iter().collect();
     mailbox.tasks = tasks.into_iter().collect();
 
-    // What each message keeps outside, to know it again at the next save without working it out.
+    // What each message keeps outside, to know it again at the next save without working it out
+    // (`fill` marks which of it is in memory).
     let mut parts: HashMap<Id, Parts> = head.blobs.iter().map(|(id, wire)| (*id, wire.parts())).collect();
     let dir = blob_dir(file);
-    let unavailable = fill(st, &dir, &mut mailbox, head);
-    for (id, lost) in &st.missing {
-        let Some(p) = parts.get_mut(id) else { continue };
-        let slots = [(&mut p.text, lost.parts.text.is_some()), (&mut p.html, lost.parts.html.is_some())];
-        for (part, gone) in slots {
-            if let (Some(part), true) = (part, gone) {
-                part.held = false;
-            }
-        }
-        for (part, gone) in p.attachments.iter_mut().zip(&lost.parts.attachments) {
-            if let (Some(part), Some(_)) = (part, gone) {
-                part.held = false;
-            }
-        }
-    }
+    let filled = fill(st, &dir, &mut mailbox, head, Some(&mut parts));
     mailbox.version = 1;
     let fixed = mailbox.repair();
     for line in &fixed {
         log::warn!("mailbox repaired: {line}");
     }
     let show = file.display();
-    if unavailable > 0 {
-        log::warn!("{show}: {unavailable} bodies or attachments are missing from {} or damaged", dir.display());
-    }
+    report(&show, &dir, &filled);
     let unfinished = match replayed.tail {
         Tail::Bytes(n) => {
             log::warn!(
@@ -1008,39 +1034,105 @@ fn open_index(st: &mut State, file: &Path, len: u64) -> Result<Opened, String> {
     st.stamp = Stamp::of(file, len);
     st.disk = Some(disk);
     st.loaded = Loaded::of(&mailbox);
-    Ok(Opened { mailbox, split: true, unavailable, unfinished })
+    Ok(Opened { mailbox, split: true, unavailable: filled.missing, loaded: filled.loaded, deferred: filled.deferred, unfinished })
+}
+
+/// How the machine's memory stands, in bytes, where it can be read (Linux: `/proc/meminfo`).
+fn physical_memory() -> Option<u64> {
+    #[cfg(target_os = "linux")]
+    let total = {
+        let text = fs::read_to_string("/proc/meminfo").ok()?;
+        let line = text.lines().find(|l| l.starts_with("MemTotal:"))?;
+        let kb: u64 = line.split_whitespace().nth(1)?.parse().ok()?;
+        kb.checked_mul(1024)
+    };
+    #[cfg(not(target_os = "linux"))]
+    let total = None;
+    total
+}
+
+#[cfg(test)]
+thread_local! {
+    /// A budget a test sets for the mailboxes it opens on this thread (0: the machine's).
+    static TEST_BUDGET: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+}
+
+/// Open mailboxes on this thread with `budget` bytes for their bodies while `f` runs.
+#[cfg(test)]
+pub(crate) fn with_budget<T>(budget: u64, f: impl FnOnce() -> T) -> T {
+    let before = TEST_BUDGET.replace(budget);
+    let out = f();
+    TEST_BUDGET.set(before);
+    out
+}
+
+/// How many bytes of bodies a mailbox brings into memory when it opens: a quarter of the
+/// machine's memory, [`FALLBACK_BUDGET`] when that can't be read, and never more than
+/// [`MAX_CONTENT`]. The newest mail gets it; the rest is read when it is wanted.
+pub fn body_budget() -> u64 {
+    #[cfg(test)]
+    {
+        let set = TEST_BUDGET.get();
+        if set > 0 {
+            return set;
+        }
+    }
+    physical_memory().map_or(FALLBACK_BUDGET, |m| m / 4).min(MAX_CONTENT)
+}
+
+/// What [`fill`] did with the content the mailbox file names.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct Filled {
+    /// Parts brought into memory.
+    loaded: usize,
+    /// Parts left on disk, to be fetched when wanted.
+    deferred: usize,
+    /// Parts whose file is missing or damaged.
+    missing: usize,
+}
+
+/// Whether the content `r` is on disk under `dir`, by a look at the file alone (its kind and
+/// length, not its bytes).
+fn present(dir: &Path, r: &Ref, folders: &Folders) -> bool {
+    blob_path(dir, &r.hash).is_some_and(|(sub, file)| {
+        r.len <= MAX_BLOB && folders.real(&r.hash, &sub) && fs::symlink_metadata(&file).is_ok_and(|m| m.file_type().is_file() && m.len() == r.len)
+    })
 }
 
 /// What a mailbox file wants for one part of a message.
 struct Want {
     /// `None`: what the file gives as a name isn't one.
     r: Option<Ref>,
-    /// Where its bytes will be (an index into what is read); `None` when it can't be read.
+    /// Where its bytes will be (an index into what is read); `None` when it stays on disk.
     slot: Option<usize>,
 }
 
-/// Put the content the mailbox file names back into `mailbox`'s messages. Returns how many
-/// bodies and attachments couldn't be read.
-fn fill(st: &mut State, dir: &Path, mailbox: &mut Mailbox, head: Head) -> usize {
-    // Every distinct piece of content is read once, and only as much as fits the budget: a file
-    // can name the same large content for a million bodies.
+impl Want {
+    /// The part as the message names it while it stays outside memory.
+    fn kept(&self) -> Option<ContentRef> {
+        self.r.map(Ref::to_model)
+    }
+}
+
+/// Put the content the mailbox file names back into `mailbox`'s messages: the bodies of the
+/// newest mail up to [`body_budget`], the rest named on the messages to be fetched when wanted.
+/// `parts`, when given, learns which parts are in memory. Returns what was done.
+fn fill(st: &mut State, dir: &Path, mailbox: &mut Mailbox, head: Head, mut parts: Option<&mut HashMap<Id, Parts>>) -> Filled {
+    // Every distinct piece of content read is read once, and only as much as fits the budget: a
+    // file can name the same large content for a million bodies.
     let mut slots: Vec<(Ref, u32)> = Vec::new();
     let mut index: HashMap<Ref, usize> = HashMap::new();
-    let mut budget = MAX_CONTENT;
-    let mut want = |wire: &Option<(String, u64)>, wanted: bool, body: bool, live: &mut HashMap<Digest, u32>| -> Option<Want> {
+    let mut budget = body_budget();
+    let mut want = |wire: &Option<(String, u64)>, load: bool, live: &mut HashMap<Digest, u32>| -> Option<Want> {
         let wire = wire.as_ref()?;
         let Some(r) = parse_ref(wire) else { return Some(Want { r: None, slot: None }) };
         let n = live.entry(r.hash).or_default();
         *n = n.saturating_add(1);
-        if !wanted {
-            return None;
-        }
-        // A body is a copy of its own; an attachment shares its bytes with every other use.
-        let cost = if body || !index.contains_key(&r) { r.len } else { 0 };
-        if r.len > MAX_BLOB || cost > budget {
+        // A body is a copy of its own, whatever else names the same bytes.
+        if !load || r.len > MAX_BLOB || r.len > budget {
             return Some(Want { r: Some(r), slot: None });
         }
-        budget -= cost;
+        budget -= r.len;
         let slot = *index.entry(r).or_insert_with(|| {
             slots.push((r, 0));
             slots.len().saturating_sub(1)
@@ -1050,81 +1142,271 @@ fn fill(st: &mut State, dir: &Path, mailbox: &mut Mailbox, head: Head) -> usize 
         }
         Some(Want { r: Some(r), slot: Some(slot) })
     };
-    let mut plan = Vec::new();
+    // The newest mail first (by when it was sent, then by its number), so that what the budget
+    // holds is what the owner reads; content of a message that isn't there is still named by the
+    // file on disk, and counted, but nothing of it is read.
+    let mut order: Vec<(i64, Id)> = head.blobs.keys().filter_map(|id| mailbox.messages.get(id).map(|m| (m.date, *id))).collect();
+    order.sort_unstable_by(|a, b| b.cmp(a));
+    let mut plan = Vec::with_capacity(order.len());
+    for (_, id) in order {
+        let Some(wire) = head.blobs.get(&id) else { continue };
+        let text = want(&wire.text, true, &mut st.live);
+        let html = want(&wire.html, true, &mut st.live);
+        let attachments: Vec<Option<Want>> = wire.attachments.iter().map(|a| want(a, false, &mut st.live)).collect();
+        plan.push((id, text, html, attachments));
+    }
     for (id, wire) in &head.blobs {
-        // Content of a message that isn't there is still named by the file on disk.
-        let wanted = mailbox.messages.contains_key(id);
-        let text = want(&wire.text, wanted, true, &mut st.live);
-        let html = want(&wire.html, wanted, true, &mut st.live);
-        let attachments: Vec<Option<Want>> = wire.attachments.iter().map(|a| want(a, wanted, false, &mut st.live)).collect();
-        if wanted {
-            plan.push((*id, text, html, attachments));
+        if !mailbox.messages.contains_key(id) {
+            for part in wire.text.iter().chain(&wire.html).chain(wire.attachments.iter().flatten()) {
+                want(&Some(part.clone()), false, &mut st.live);
+            }
         }
     }
+    drop(want);
     let folders = Folders::new();
     let read = fan_out(slots.len(), |i| slots.get(i).and_then(|(r, _)| get(dir, r, &folders)));
     let mut data: Vec<Option<Arc<Vec<u8>>>> = read.into_iter().map(|b| b.flatten().map(Arc::new)).collect();
     let mut uses: Vec<u32> = slots.iter().map(|(_, uses)| *uses).collect();
-    // The bytes for one more use; the last use takes them along instead of a copy.
-    let mut take = |want: &Want| -> Option<Arc<Vec<u8>>> {
-        let slot = want.slot?;
+    drop(slots);
+    // What stays on disk is looked for (its file, not its bytes), within a time cap, so that what
+    // is missing is told from what is merely not loaded. Past the cap the rest is taken to be
+    // there: a part that isn't says so when it is wanted.
+    let mut on_disk: Vec<Ref> = Vec::new();
+    let mut seen: HashSet<Ref> = HashSet::new();
+    for (_, text, html, attachments) in &plan {
+        for want in text.iter().chain(html).chain(attachments.iter().flatten()) {
+            if let (Some(r), None) = (want.r, want.slot)
+                && seen.insert(r)
+            {
+                on_disk.push(r);
+            }
+        }
+    }
+    drop(seen);
+    let deadline = Instant::now() + STAT_TIME;
+    let looked = fan_out(on_disk.len(), |i| on_disk.get(i).map(|r| (Instant::now() < deadline).then(|| present(dir, r, &folders))));
+    let missing: HashSet<Ref> = on_disk.iter().zip(&looked).filter(|(_, l)| matches!(l, Some(Some(Some(false))))).map(|(r, _)| *r).collect();
+    drop(on_disk);
+    let mut filled = Filled::default();
+    // Three ways a part can stand after this: in memory (`Some(true)`), on disk (`Some(false)`),
+    // missing (`None`).
+    let readable: Vec<bool> = data.iter().map(Option::is_some).collect();
+    let stand = |want: &Want, filled: &mut Filled| -> Option<bool> {
+        match (want.slot, want.r) {
+            (Some(slot), _) if readable.get(slot).copied().unwrap_or(false) => {
+                filled.loaded += 1;
+                Some(true)
+            }
+            (None, Some(r)) if !missing.contains(&r) => {
+                filled.deferred += 1;
+                Some(false)
+            }
+            _ => {
+                filled.missing += 1;
+                None
+            }
+        }
+    };
+    // The bytes for one more use of a slot, as text; the last use takes them along instead of
+    // a copy, so that what was read and the bodies it becomes are never both whole in memory.
+    let mut take = |slot: usize| -> Option<String> {
         let left = uses.get_mut(slot)?;
         *left = left.saturating_sub(1);
-        if *left == 0 { data.get_mut(slot)?.take() } else { data.get(slot)?.clone() }
-    };
-    let text_of = |bytes: Arc<Vec<u8>>| {
+        let bytes = if *left == 0 { data.get_mut(slot)?.take()? } else { data.get(slot)?.clone()? };
         let bytes = Arc::try_unwrap(bytes).unwrap_or_else(|used_elsewhere| used_elsewhere.to_vec());
-        String::from_utf8(bytes).unwrap_or_else(|e| String::from_utf8_lossy(e.as_bytes()).into_owned())
+        Some(String::from_utf8(bytes).unwrap_or_else(|e| String::from_utf8_lossy(e.as_bytes()).into_owned()))
     };
-    let kept = |want: &Want| want.r.map(|r| Part { r, held: false });
-    let mut unavailable = 0;
     for (id, text, html, attachments) in plan {
         let Some(m) = mailbox.messages.get_mut(&id).map(Arc::make_mut) else { continue };
-        let mut gone = Parts { attachments: vec![None; m.attachments.len()], ..Parts::default() };
+        let mut held = parts.as_deref_mut().and_then(|p| p.remove(&id));
+        let mut kept = KeptBody::default();
         if let Some(want) = &text {
-            match take(want) {
-                Some(bytes) => m.body.text = text_of(bytes),
+            match stand(want, &mut filled) {
+                Some(true) => {
+                    if let Some(text) = want.slot.and_then(&mut take) {
+                        m.body.text = text;
+                    }
+                }
+                Some(false) => {
+                    m.body.text = String::new();
+                    kept.text = want.kept();
+                }
                 None => {
                     m.body.text = UNAVAILABLE.to_string();
-                    gone.text = kept(want);
-                    unavailable += 1;
+                    kept.text = want.kept();
+                    kept.failed = true;
                 }
+            }
+            if let Some(p) = held.as_mut().and_then(|p| p.text.as_mut()) {
+                p.held = !m.body.text.is_empty() && m.body.text != UNAVAILABLE;
             }
         }
         if let Some(want) = &html {
-            match take(want) {
-                Some(bytes) => m.body.html = Some(text_of(bytes)),
-                // Without its HTML a message shows its plain text.
+            // Without its HTML a message shows its plain text.
+            m.body.html = None;
+            match stand(want, &mut filled) {
+                Some(true) => {
+                    m.body.html = want.slot.and_then(&mut take);
+                }
+                Some(false) => kept.html = want.kept(),
                 None => {
-                    m.body.html = None;
-                    gone.html = kept(want);
-                    unavailable += 1;
+                    kept.html = want.kept();
+                    kept.failed = true;
                 }
             }
+            if let Some(p) = held.as_mut().and_then(|p| p.html.as_mut()) {
+                p.held = m.body.html.is_some();
+            }
         }
+        // (A missing HTML is noted on the text, which is otherwise there to read.)
+        kept.text_hash = mailcraft_model::text_hash(&m.body.text);
+        m.kept = (!kept.is_empty()).then(|| Box::new(kept));
         for (i, want) in attachments.iter().enumerate() {
             let (Some(want), Some(a)) = (want, m.attachments.get_mut(i)) else { continue };
-            match (take(want), want.r) {
-                (Some(bytes), Some(r)) => {
-                    st.hashes.insert(Arc::as_ptr(&bytes) as usize, (Arc::downgrade(&bytes), r.hash));
-                    a.data = bytes;
-                }
-                // The attachment keeps its name and type, with nothing in it.
-                _ => {
-                    a.data = Arc::default();
-                    if let Some(slot) = gone.attachments.get_mut(i) {
-                        *slot = kept(want);
-                    }
-                    unavailable += 1;
-                }
+            // The attachment keeps its name and type, with nothing in it until it is wanted.
+            a.data = Arc::default();
+            a.kept = want.kept();
+            stand(want, &mut filled);
+            if let Some(p) = held.as_mut().and_then(|p| p.attachments.get_mut(i)).and_then(Option::as_mut) {
+                p.held = false;
             }
         }
-        if !gone.is_empty() {
-            let (text, files) = (Digest::of(m.body.text.as_bytes()), m.attachments.iter().map(|a| a.name.clone()).collect());
-            st.missing.insert(id, Lost { parts: gone, message_id: m.message_id.clone(), text, files });
+        if let (Some(parts), Some(held)) = (parts.as_deref_mut(), held) {
+            parts.insert(id, held);
         }
     }
-    unavailable
+    filled
+}
+
+// ---- fetching ----
+
+/// Fetched content kept for the next time it is wanted, newest last, bounded by bytes. Keyed by
+/// the content folder it came from as well as the name: one mailbox's cache answers nothing
+/// about another's folder.
+#[derive(Default)]
+struct Cache {
+    items: HashMap<(PathBuf, Ref), Arc<Vec<u8>>>,
+    order: std::collections::VecDeque<(PathBuf, Ref)>,
+    bytes: u64,
+}
+
+fn cache() -> &'static Mutex<Cache> {
+    static CACHE: OnceLock<Mutex<Cache>> = OnceLock::new();
+    CACHE.get_or_init(Default::default)
+}
+
+impl Cache {
+    fn get(&mut self, dir: &Path, r: &Ref) -> Option<Arc<Vec<u8>>> {
+        let key = (dir.to_path_buf(), *r);
+        let bytes = self.items.get(&key)?.clone();
+        // Wanted again: it goes to the back of the line for eviction.
+        if let Some(at) = self.order.iter().position(|x| *x == key) {
+            self.order.remove(at);
+            self.order.push_back(key);
+        }
+        Some(bytes)
+    }
+
+    fn put(&mut self, dir: &Path, r: Ref, bytes: Arc<Vec<u8>>) {
+        let key = (dir.to_path_buf(), r);
+        if r.len > CACHE_ITEM_MAX || self.items.contains_key(&key) {
+            return;
+        }
+        while self.bytes.saturating_add(r.len) > CACHE_MAX {
+            let Some(old) = self.order.pop_front() else { break };
+            if self.items.remove(&old).is_some() {
+                self.bytes = self.bytes.saturating_sub(old.1.len);
+            }
+        }
+        self.bytes = self.bytes.saturating_add(r.len);
+        self.order.push_back(key.clone());
+        self.items.insert(key, bytes);
+    }
+}
+
+/// How many bytes the cache of fetched content holds.
+pub fn cached_bytes() -> u64 {
+    lock(cache()).bytes
+}
+
+/// Let go of everything cached (a mailbox was closed; tests).
+pub fn clear_cache() {
+    *lock(cache()) = Cache::default();
+}
+
+/// The content `r` of the mailbox file at `path`, from the cache or from the content folder
+/// beside the file, checked against the length and SHA-256 `r` names.
+pub fn fetch(path: &Path, r: &ContentRef) -> Result<Arc<Vec<u8>>, String> {
+    let r = Ref::from_model(r);
+    let dir = blob_dir(&resolve(path));
+    if let Some(bytes) = lock(cache()).get(&dir, &r) {
+        return Ok(bytes);
+    }
+    let bytes =
+        get(&dir, &r, &Folders::new()).map(Arc::new).ok_or_else(|| format!("the file that keeps it is missing from {} or damaged", dir.display()))?;
+    lock(cache()).put(&dir, r, bytes.clone());
+    Ok(bytes)
+}
+
+/// The content folder beside the mailbox file, as the engine's source of content that isn't in
+/// memory (`crate::io::ContentSource`): what a desktop host gives its session.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct Content;
+
+impl ContentSource for Content {
+    fn fetch(&self, mailbox: &Path, r: &ContentRef) -> Result<Arc<Vec<u8>>, String> {
+        fetch(mailbox, r)
+    }
+}
+
+/// Bring every kept part of every message of `mailbox` into memory from the content folder
+/// beside the file at `path`, the same bytes shared where messages share a file. Returns how many
+/// parts were brought in; a part that can't be read is an error naming its message.
+pub fn load_all(path: &Path, mailbox: &mut Mailbox) -> Result<usize, String> {
+    let mut got: HashMap<ContentRef, Arc<Vec<u8>>> = HashMap::new();
+    let mut n = 0;
+    let ids: Vec<Id> = mailbox.messages.keys().copied().collect();
+    for id in ids {
+        let Some(m) = mailbox.messages.get(&id) else { continue };
+        if m.is_loaded() {
+            continue;
+        }
+        let mut m = Message::clone(m);
+        let mut take = |r: &ContentRef| -> Result<Arc<Vec<u8>>, String> {
+            if let Some(bytes) = got.get(r) {
+                return Ok(bytes.clone());
+            }
+            let bytes = fetch(path, r).map_err(|e| format!("message {id}: {e}"))?;
+            got.insert(*r, bytes.clone());
+            Ok(bytes)
+        };
+        if m.body_is_kept()
+            && let Some(kept) = m.kept.take()
+        {
+            if let Some(r) = kept.text.filter(|_| m.body.text.is_empty()) {
+                m.body.text = text_of_bytes(&take(&r)?);
+                n += 1;
+            }
+            if let Some(r) = kept.html.filter(|_| m.body.html.is_none()) {
+                m.body.html = Some(text_of_bytes(&take(&r)?));
+                n += 1;
+            }
+        }
+        for a in &mut m.attachments {
+            if let Some(r) = a.kept.filter(|_| a.data.is_empty()) {
+                a.data = take(&r)?;
+                n += 1;
+            }
+            a.kept = None;
+        }
+        mailbox.messages.insert(id, Arc::new(m));
+    }
+    Ok(n)
+}
+
+/// Bytes as text, the way a body is read back: what isn't UTF-8 is read as well as it can be.
+pub fn text_of_bytes(bytes: &[u8]) -> String {
+    String::from_utf8(bytes.to_vec()).unwrap_or_else(|e| String::from_utf8_lossy(e.as_bytes()).into_owned())
 }
 
 // ---- saving ----
@@ -1175,26 +1457,26 @@ pub fn save_single(path: &Path, mailbox: &Mailbox) -> Result<u64, String> {
 
 /// What a message comes to in the mailbox file: itself without the content that goes outside,
 /// and the names of that content.
-fn prepare(id: Id, m: &Arc<Message>, lost: Option<&Lost>, hashes: &mut HashMap<usize, (Weak<Vec<u8>>, Digest)>) -> Result<Prepared, String> {
+fn prepare(id: Id, m: &Arc<Message>, hashes: &mut HashMap<usize, (Weak<Vec<u8>>, Digest)>) -> Result<Prepared, String> {
     let outside = |bytes: &[u8]| (bytes.len() > INLINE_MAX).then(|| Part { r: Ref::of(bytes), held: true });
-    // Content that couldn't be read when the mailbox was opened keeps the name it had, as long
-    // as this is that message and still shows what was put in the content's place: the notice
-    // for its text, no HTML beside the text it was opened with, an empty file of the same name.
-    let lost = lost.filter(|l| l.message_id == m.message_id);
-    let same_text = lost.is_some_and(|l| l.text == Digest::of(m.body.text.as_bytes()));
+    let on_disk = |r: &ContentRef| Part { r: Ref::from_model(r), held: false };
+    // Content that stayed on disk when the mailbox was opened (or couldn't be read then) keeps
+    // the name the message carries for it, as long as the message still shows what was put in
+    // the content's place: nothing (or the notice) for its text, no HTML beside that, an empty
+    // file. A text written anew is new content, and the HTML that went with the old one goes.
+    let kept = m.kept.as_deref();
+    let placeholder = m.body.text.is_empty() || m.body.text == UNAVAILABLE;
+    let same_text = kept.is_some_and(|k| k.same_text(&m.body.text));
     let mut parts = Parts {
-        text: lost.filter(|_| m.body.text == UNAVAILABLE).and_then(|l| l.parts.text).or_else(|| outside(m.body.text.as_bytes())),
+        text: kept.filter(|_| placeholder).and_then(|k| k.text.as_ref()).map(on_disk).or_else(|| outside(m.body.text.as_bytes())),
         html: match &m.body.html {
-            None => lost.filter(|_| same_text).and_then(|l| l.parts.html),
+            None => kept.filter(|_| same_text).and_then(|k| k.html.as_ref()).map(on_disk),
             Some(html) => outside(html.as_bytes()),
         },
         attachments: Vec::new(),
     };
-    let same_files = lost.is_some_and(|l| l.files.len() == m.attachments.len());
-    for (i, a) in m.attachments.iter().enumerate().take(MAX_PARTS) {
-        let was = lost
-            .filter(|l| same_files && a.data.is_empty() && l.files.get(i) == Some(&a.name))
-            .and_then(|l| l.parts.attachments.get(i).copied().flatten());
+    for a in m.attachments.iter().take(MAX_PARTS) {
+        let was = a.kept.as_ref().filter(|_| a.data.is_empty()).map(on_disk);
         let part = was.or_else(|| {
             (a.data.len() > INLINE_MAX).then(|| {
                 let key = Arc::as_ptr(&a.data) as usize;
@@ -1229,6 +1511,21 @@ fn prepare(id: Id, m: &Arc<Message>, lost: Option<&Lost>, hashes: &mut HashMap<u
     let refs = if parts.is_empty() { Vec::new() } else { parts.json().into_bytes() };
     let fp = index::put_fp((Coll::Message, id), &json, &refs).map_err(io_error)?;
     Ok(Prepared { of: Arc::downgrade(m), fp, parts, json, refs })
+}
+
+/// A mailbox file never names content that isn't beside it: a part whose bytes aren't in memory
+/// (it stayed on disk when the mailbox was opened) must be in this file's folder, which it is
+/// when the file already names it (`live`), else when its file is there. A message carried over
+/// from a mailbox kept elsewhere, with its content still there, is refused with why.
+fn on_disk_here(id: Id, parts: &Parts, live: &HashMap<Digest, u32>, dir: &Path, folders: &Folders) -> Result<(), String> {
+    for p in parts.all().filter(|p| !p.held && !live.contains_key(&p.r.hash)) {
+        if !present(dir, &p.r, folders) {
+            return Err(format!(
+                "message {id}: its content isn't in this mailbox's folder (it was opened from another mailbox); save the mailbox where it was opened, or save it as one file first"
+            ));
+        }
+    }
+    Ok(())
 }
 
 /// A message worked out ([`prepare`]): its record's JSON and content names, and what to remember
@@ -1406,7 +1703,8 @@ fn walk<'a, 'b, A, B>(
 
 /// Work out what `mailbox` changed since the file said `d`: an item that is the one the file
 /// says costs a step of a walk; any other is worked out and compared with what the file says.
-fn delta<'m>(st: &mut State, mailbox: &'m Mailbox, d: &Disk) -> Result<Delta<'m>, String> {
+fn delta<'m>(st: &mut State, path: &Path, mailbox: &'m Mailbox, d: &Disk) -> Result<Delta<'m>, String> {
+    let (dir, folders) = (blob_dir(path), Folders::new());
     let mut group = Vec::new();
     let mut records = 0u32;
     let (mut wanted, mut messages, mut relink) = (HashMap::new(), Vec::new(), Vec::new());
@@ -1414,7 +1712,7 @@ fn delta<'m>(st: &mut State, mailbox: &'m Mailbox, d: &Disk) -> Result<Delta<'m>
         if was.is_some_and(|w| w.entry.is(m)) {
             return Ok(());
         }
-        let p = prepare(*id, m, st.missing.get(id), &mut st.hashes)?;
+        let p = prepare(*id, m, &mut st.hashes)?;
         if was.is_some_and(|w| w.entry.fp == p.fp) {
             relink.push((*id, p.of));
             return Ok(());
@@ -1424,6 +1722,7 @@ fn delta<'m>(st: &mut State, mailbox: &'m Mailbox, d: &Disk) -> Result<Delta<'m>
                 wanted.entry(r).or_insert(bytes);
             }
         }
+        on_disk_here(*id, &p.parts, &st.live, &dir, &folders)?;
         let (size, _) = index::put(&mut group, (Coll::Message, *id), &p.json, &p.refs).map_err(io_error)?;
         records = records.saturating_add(1);
         messages.push((*id, Msg { entry: Entry { of: p.of, fp: p.fp, size }, parts: p.parts }));
@@ -1616,7 +1915,7 @@ fn write_index(st: &mut State, path: &Path, mailbox: &Mailbox) -> Result<Saved, 
     let prior = st.disk.take();
     let damaged = matches!(prior, Some(Disk { tail: Tail::Bytes(_), .. }));
     let Some(mut d) = prior.filter(Disk::appendable) else { return compact(st, path, mailbox, damaged) };
-    let mut delta = match delta(st, mailbox, &d) {
+    let mut delta = match delta(st, path, mailbox, &d) {
         Ok(delta) => delta,
         Err(e) => {
             st.disk = Some(d);
@@ -1678,13 +1977,15 @@ fn compact(st: &mut State, path: &Path, mailbox: &Mailbox, damaged: bool) -> Res
     let mut wanted = HashMap::new();
     let mut records: u32 = 1;
     let too_many = || "the mailbox holds too many items to be saved".to_string();
+    let (dir, folders) = (blob_dir(path), Folders::new());
     for (id, m) in &mailbox.messages {
-        let p = prepare(*id, m, st.missing.get(id), &mut st.hashes)?;
+        let p = prepare(*id, m, &mut st.hashes)?;
         for (r, bytes) in p.parts.content(m) {
             if !st.live.contains_key(&r.hash) {
                 wanted.entry(r).or_insert(bytes);
             }
         }
+        on_disk_here(*id, &p.parts, &st.live, &dir, &folders)?;
         let (size, _) = index::put(&mut out, (Coll::Message, *id), &p.json, &p.refs).map_err(io_error)?;
         hold(&mut live, &p.parts);
         d.live = d.live.saturating_add(size);

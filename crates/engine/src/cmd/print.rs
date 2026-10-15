@@ -111,8 +111,12 @@ pub fn document(s: &Session, v: &Value) -> Result<Document, CmdError> {
                 return Err(bad(format!("a message prints in the \"memo\" style, not \"{style}\"")));
             }
             let id = p::id(v, "id").or(s.sel.focus()).ok_or_else(|| fail("select a message to print"))?;
-            let m = s.mailbox.message(id).ok_or_else(|| fail(format!("no message with id {id}")))?;
-            Ok(mailcraft_print::memo::layout(&memo(s, m), paper))
+            if s.mailbox.message(id).is_none() {
+                return Err(fail(format!("no message with id {id}")));
+            }
+            // Whole: the pictures its HTML shows are printed with it.
+            let m = s.loaded_message(id)?;
+            Ok(mailcraft_print::memo::layout(&memo(s, &m), paper))
         }
         What::Calendar => Ok(mailcraft_print::calendar::layout(&calendar(s, v)?, paper)),
         What::Contacts => {
