@@ -437,3 +437,36 @@ fn tab_takes_a_list_item_a_level_deeper_and_shift_tab_out() {
     key(&mut h, Key::Enter);
     assert_eq!(kinds(&h)[2], ListKind::None);
 }
+
+#[test]
+fn typing_goes_on_after_the_window_was_left_and_came_back_to() {
+    let mut h = writing();
+    type_in(&mut h, "Hello");
+    h.event(Event::WindowFocused(false));
+    h.run_steps(2);
+    // Coming back re-arms the system's input method.
+    h.event(Event::WindowFocused(true));
+    h.step();
+    assert!(h.output().platform_output.ime.is_some_and(|ime| ime.should_interrupt_composition));
+    h.run_steps(1);
+    assert!(h.output().platform_output.ime.is_some_and(|ime| !ime.should_interrupt_composition));
+    type_in(&mut h, " again");
+    assert_eq!(plain(&h), "Hello again");
+    // Left with the keyboard taken away, a click in the body gives it back.
+    h.event(Event::WindowFocused(false));
+    h.run_steps(1);
+    h.ctx.memory_mut(|m| m.surrender_focus(editor::id()));
+    h.event(Event::WindowFocused(true));
+    h.run_steps(1);
+    let r = h.state().hit.rect("composeBody", 0).unwrap();
+    let at = r.min + egui::vec2(200.0, 8.0);
+    h.event(Event::PointerMoved(at));
+    h.step();
+    for pressed in [true, false] {
+        h.event(Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed, modifiers: Modifiers::NONE });
+        h.step();
+    }
+    h.run_steps(1);
+    type_in(&mut h, "!");
+    assert_eq!(plain(&h), "Hello again!");
+}
