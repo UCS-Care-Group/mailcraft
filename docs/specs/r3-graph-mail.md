@@ -1,6 +1,6 @@
 # R3: Graph mail for Microsoft accounts
 
-> **Status:** proposed · **Written:** 2026-10-15 · **Author:** Martin Ball, with Claude · **Change:** minor (S9–S15: R3.2 decided in detail) · **Target:** Microsoft Outlook (Microsoft 365, Outlook.com)
+> **Status:** proposed · **Written:** 2026-10-15 · **Author:** Martin Ball, with Claude · **Change:** minor (S16–S22: R3.3 decided in detail) · **Target:** Microsoft Outlook (Microsoft 365, Outlook.com)
 
 The words in this document have the meanings in [`CONTEXT.md`](../../CONTEXT.md). It details step
 R3 of [the roadmap reset](roadmap-reset.md); the decisions behind it are
@@ -129,33 +129,58 @@ up to 200,000 messages are usable within minutes of being added.
 
 ### Changes up (R3.3)
 
-16. Each message keeps what the server last said of it: read, flag, categories, importance and
-    the server folder it is in. A run sends the difference between that and the message as it is
-    now, per property: read, flag, categories and importance as one change of the message, a
-    different folder as a move. A copy and a delete for good wait in a queue (they can't be worked
-    out by comparing).
+16. Each message keeps what the server last said of it (its last synced state): read, flag,
+    categories, importance and the server folder it is in. A run sends the difference between that
+    and the message as it is now, per property: read, flag, categories and importance as one change
+    of the message, a different folder as a move. A flag goes up with its due date (its start the
+    day it was flagged, its completed date when marked complete). A copy and a delete for good wait
+    in a queue (they can't be worked out by comparing). A run of a Microsoft account goes in this
+    order: folder changes up (a move may name a folder made here), message changes up, the folder
+    listing, mail down by delta, then fetching.
 17. Where a message changed here and on the server since the last run, what was changed here wins
-    for the properties it touched; the server's version for the rest.
-18. Categories are applied by name. Their colours are read from the master list; a category made
-    here shows in Outlook without a colour until it is given one there. The master list is not
-    written in R3.
+    for the properties it touched; the server's version for the rest. Categories merge: what was
+    added and taken away here is applied to the server's list, so a category the server added
+    meanwhile stays. A message moved here and also moved on the server goes where it was moved
+    here. A message the server no longer has leaves here too, whatever was changed here, and that
+    is said once (S20); the server's retention still has it.
+18. Categories are applied by name. Their colours are read from Outlook's list of categories
+    (`MailboxSettings.Read`, which a sign-in already asks for where it can be had); until it is
+    readable a category keeps the colour chosen here. For a category on Outlook's list, Outlook's
+    colour wins, and changing it here says "The colour is set in Outlook" and changes nothing on
+    the server. A category made here that isn't on Outlook's list says so in the Categorize dialog
+    ("Not in Outlook's list: no colour there"). The list is not written in R3.
 19. **Deleting is Outlook's** (ADR 0003): Delete moves to Deleted Items; Delete for good (Shift+Del,
     emptying Deleted Items) removes from the folders with Graph's delete, recoverable for the
     server's retention period; Graph's `permanentDelete` is never used. Moving a server message into
-    a local folder fetches it whole, copies it there, and then removes it from the server.
+    a local folder, or into another account, shows it there at once, marked as being moved; it is
+    removed from the server only once it is fetched whole **and the mailbox file holding it is
+    saved**. When the server says it no longer exists before it could be fetched, the copy here is
+    kept as it is (its headers and preview), marked incomplete. Moving anything from another
+    account or a local folder into a Microsoft account's server folder is refused with the reason
+    until R3.4 can put a whole message there.
 20. A change the server refuses (404 gone, 403 not allowed, 400 invalid) is put back to how the
-    server has it, said once in the Send/Receive status in plain words ("Couldn't move 'Invoice 42'
-    to Archive: the server says it no longer exists.") and written in full to the Send/Receive log.
-    A busy server or a lost connection is not a refusal: the change waits for the next run.
+    server has it and written in full to the Send/Receive log. The Send/Receive status says it once
+    per run and kind of change, in plain words, naming the message when there is one ("Couldn't
+    move 'Invoice 42' to Archive: the server says it no longer exists.") and counting when there
+    are more ("Couldn't mark 3 messages as read: the server says they no longer exist."). A busy
+    server or a lost connection is not a refusal: the change waits for the next run.
 
 ### Retrying and never twice (all steps)
 
 21. One retry policy for all of Graph: reads (GET) and changes that are the same however often they
     are made (setting read, flag, categories, importance; delete) are retried with back-off,
     honouring `Retry-After`. A move or copy whose answer was lost is retried only after looking
-    where the message is now. `sendMail` and sending a draft are never retried by themselves.
-22. Connections stay one per request; `$batch` (up to 20 requests) is used where it saves round
-    trips. Revisited only if measurement against the stand-in says so.
+    where the message is now: a move by the message's immutable id, which a move keeps; a copy,
+    which gets an id of its own, by a marker. Before a copy, the source message is given an
+    invisible extended property of MailCraft's with a value used once (the mechanism drafts use,
+    S23); a copy carries it, so a lost answer is a search of the destination folder for that value,
+    and only when nothing has it is the copy made again. `sendMail` and sending a draft are never
+    retried by themselves.
+22. Connections stay one per request. Changes of messages (PATCH, move, copy, delete) go up in
+    `$batch` requests of up to 20, so that marking 10,000 messages read or emptying Deleted Items
+    takes minutes, not half an hour. Each request in a batch is answered on its own, and is
+    retried, put back or held by itself as S20 and S21 say; a batch that is throttled as a whole
+    waits as one request does.
 
 ### Drafts and sending (R3.4)
 
@@ -220,8 +245,8 @@ up to 200,000 messages are usable within minutes of being added.
 36. Every done-when is proved against the Graph stand-in, which grows with each task: the folder
     walk and folder changes; message delta in pages with `@removed`, replayed pages and both kinds
     of expired link; MIME; message changes, move, copy, delete; create from MIME, create-reply,
-    draft PATCH and attachments, send-draft, `sendMail`; filtering by extended property; 429 with
-    `Retry-After`; a connection that drops after the request went (for held messages); and a
+    draft PATCH and attachments, send-draft, `sendMail`; filtering by extended property; `$batch`
+    with answers mixed per request (done, refused, throttled); 429 with `Retry-After`; a connection that drops after the request went (for held messages); and a
     generated mailbox of 200,000 messages. No test touches a real mailbox; R3.9 is the author's own,
     by hand.
 
@@ -250,3 +275,4 @@ milestone after beta); importing into server folders.
 | 2026-10-15 | minor | S9–S15 from the R3.2 decision session with Martin Ball: pages of 100, newest page of every folder first, every folder on each run, moves kept by server id, changes here never overwritten, pages saved with their links by the ordinary save, fetched as part of the message, "Download messages in full" per account (default up to 10 MB), progress in the status bar, Cancel stops all of the account's Graph work |
 | 2026-10-15 | minor | S10: a round begun in an earlier run is followed by one more before the folder counts as current (found in R3.2.2) |
 | 2026-10-15 | minor | S12: where a message's size comes from (found in R3.2.3) |
+| 2026-10-15 | minor | S16–S22 and S36 from the R3.3 decision session with Martin Ball: flags with their due dates; categories merge when both sides changed them; a move here wins over one on the server, a message gone from the server goes here too; Outlook's category colours win, read with the `MailboxSettings.Read` a sign-in already asks for; a move out of the account removes the server's copy only once the whole message is saved here; moves into a server folder refused until R3.4; refusals said once per run and kind; the order of a run; a lost copy found by an extended property; message changes in `$batch` |

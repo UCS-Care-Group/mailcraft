@@ -1,6 +1,6 @@
 # R3: Graph mail for Microsoft accounts: implementation plan
 
-> **Status:** proposed, with [the spec](../specs/r3-graph-mail.md) · **Written:** 2026-10-15 · **Change:** minor (R3.2 split in three)
+> **Status:** proposed, with [the spec](../specs/r3-graph-mail.md) · **Written:** 2026-10-15 · **Change:** minor (R3.3 split in two, estimated in agent time)
 
 Refines step R3 of [the roadmap reset plan](roadmap-reset.md). Requirement numbers (S1–S36) are
 the spec's. Each task is one pull request, reviewed by a person (`needs-review`), with
@@ -70,19 +70,39 @@ lacks; a flag changed here survives a page that brings the old one.
 and Cancel stops it; opening a large one fetches it at once; offline says it isn't here yet;
 search says how many weren't searched in full.
 
-## R3.3 Changes up (#14) (14–22 h)
+## R3.3 Changes up (#14) (about 3–5 agent hours)
+
+Two pull requests, in order, from the R3.3 decision session. The estimates of this section are in
+an agent's working time, measured against R3.1 and R3.2 (planned at 30–48 hours, landed in a day);
+the other sections still give the first version's estimates in a person's hours.
+
+### R3.3.1 Stand-in and model (about 1–2 agent hours)
 
 | Part | What |
 |---|---|
-| Differences | From the last synced state: read, flag, categories, importance as one PATCH, a different folder as a move (S16); the conflict rule (S17); categories by name, colours read (S18) |
-| Queue | Copy and delete for good (S16) |
-| Deleting | Delete to Deleted Items; delete for good with Graph's delete; never `permanentDelete`; moving to a local folder fetches, copies, then removes (S19) |
-| Refused | Put back to the server's state, said once, logged (S20); a move or copy with a lost answer looked up before retrying (S21) |
-| Stand-in | PATCH, move, copy, delete; 404/403/400 on demand; a connection dropped after the request |
+| Stand-in | PATCH of read, flag (with dates), categories and importance; move, copy (a new id, extended properties carried), delete; `$batch` of up to 20 with an answer per request; `$filter` by extended property; 404/403/400 on demand per message; a connection dropped after the request; throttling of a request or a whole batch |
+| Model | The copy and delete-for-good queue; the categories merge (S17); "being moved" and "incomplete" on a message moved out of the account (S19); files from before open as they were |
+
+**Done when:** the stand-in answers each of these as Graph does, tested on its own; nothing is any
+different for the owner yet.
+
+### R3.3.2 Changes up (about 2–3 agent hours)
+
+| Part | What |
+|---|---|
+| Differences | From the last synced state: read, flag with its due date, categories, importance as one PATCH, a different folder as a move (S16); the conflict rule, categories merged (S17); in `$batch` (S22); the order of a run (S16) |
+| Queue | Copy with its marker, delete for good (S16, S21) |
+| Deleting and moving out | Delete to Deleted Items; delete for good with Graph's delete; never `permanentDelete`; a move into a local folder or another account removes the server's copy only once fetched whole and saved; moves into a server folder refused until R3.4 (S19) |
+| Refused | Put back to the server's state, said once per run and kind, logged (S20); a move looked up by id and a copy by its marker before retrying (S21) |
+| Categories | Outlook's colour wins for a category on its list; "The colour is set in Outlook"; "Not in Outlook's list: no colour there" in the Categorize dialog (S18) |
 
 **Done when:** one test per kind of change; a refused change is put back and said; a change made
-here and one made on the server to the same message end as S17 says; a grep test finds no
-`permanentDelete` anywhere.
+here and one made on the server to the same message end as S17 says (categories merged); marking
+10,000 messages read takes no more than 500 batches and their retries; a batch answered partly
+done, partly refused and partly throttled puts back the refused, retries the throttled and sends
+nothing twice; a copy whose answer was lost is found by its marker and not made twice; a move into
+a local folder, offline and not fetched, leaves the server's copy until the whole message is saved
+here; a grep test finds no `permanentDelete` anywhere.
 
 ## R3.4 Drafts and sending (#15) (12–18 h)
 
@@ -146,3 +166,4 @@ Total: about 76–122 hours before R3.9.
 | 2026-10-15 | minor | R3.2.1 done; the stand-in holds its generated mailbox in memory (a round of 200,000 messages takes about 2 s) |
 | 2026-10-15 | minor | R3.2.2 done |
 | 2026-10-15 | minor | R3.2.3 done; R3.2 done |
+| 2026-10-15 | minor | R3.3 split into R3.3.1 (stand-in and model) and R3.3.2 (changes up), from the R3.3 decision session; `$batch`, the copy marker and category colours in scope; R3.3 estimated in agent time |

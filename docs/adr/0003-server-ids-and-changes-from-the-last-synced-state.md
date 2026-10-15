@@ -28,7 +28,8 @@ because nothing would send the reverse change.
    difference between that and the message as it is now, per property. Only what can't be worked
    out by comparing (a copy, a delete for good) waits in a queue. Where a message changed both here and on the server
    since the last run, what was changed here wins for the properties it touched, and the server's
-   version for the rest.
+   version for the rest; categories merge, what was added and taken away here being applied to the
+   server's list, so that a category added on the server meanwhile isn't lost.
 3. **Undo is another change.** Undo restores the snapshot as today; the restored state differs from
    the server's, so the next run sends the reverse change. The undo history is no longer forgotten
    when a change reaches the server.
@@ -60,3 +61,9 @@ because nothing would send the reverse change.
 - Shared mailboxes (after beta) need the mailbox's address beside each folder's id; the id is
   stored with room for it.
 - IMAP accounts keep their uid-based identity until the milestone after beta.
+
+## Amendments
+
+- 2026-10-15 (R3.3 decision session, Martin Ball): categories merge as sets when both sides
+  changed them (decision 2). Taking the list here whole would drop a category added in Outlook
+  meanwhile, which is a data-loss incident.
