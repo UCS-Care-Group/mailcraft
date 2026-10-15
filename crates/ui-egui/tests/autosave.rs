@@ -60,8 +60,12 @@ fn frames_until(app: &mut MailApp, ctx: &egui::Context, done: impl Fn(&MailApp) 
     }
 }
 
+/// The mailbox as the file has it, with the content the store keeps on disk brought back in
+/// (a reopened mailbox loads attachments only when they are wanted).
 fn on_disk(path: &Path) -> Mailbox {
-    store::open(path).unwrap().mailbox
+    let mut mailbox = store::open(path).unwrap().mailbox;
+    store::load_all(path, &mut mailbox).unwrap();
+    mailbox
 }
 
 fn unread(app: &MailApp) -> u64 {
