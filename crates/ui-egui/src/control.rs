@@ -91,7 +91,38 @@ pub fn inspect(app: &mut MailApp, ctx: &egui::Context) -> Value {
         "status": app.status_msg.as_ref().map(|(m, _)| m.clone()),
         "textSelection": crate::reading::selection_inspect(app, ctx),
         "perf": {"frameMs": app.frame_ms},
+        "input": {
+            "windowFocused": ctx.input(|i| i.focused),
+            "focus": ctx.memory(|m| m.focused()).map(|id| format!("{id:?}")),
+            "bodyFocused": crate::compose::editor::has_focus(ctx),
+            "trail": app.input_trail,
+        },
     })
+}
+
+/// Most entries of [`MailApp::input_trail`].
+const TRAIL: usize = 60;
+
+/// Note this frame's input in the trail, by kind: no text, no positions.
+pub(crate) fn trail(app: &mut MailApp, ctx: &egui::Context) {
+    use egui::{Event, ImeEvent};
+    for e in ctx.input(|i| i.raw.events.clone()) {
+        let entry = match e {
+            Event::Text(t) => format!("text {}", t.chars().count()),
+            Event::Key { key, pressed, modifiers, .. } => format!("key {} {}{}", key.name(), if pressed { "down" } else { "up" }, if modifiers.any() { " +mods" } else { "" }),
+            Event::PointerButton { pressed, .. } => format!("button {}", if pressed { "down" } else { "up" }),
+            Event::WindowFocused(f) => format!("windowFocused {f}"),
+            Event::Ime(ImeEvent::Preedit { text, .. }) => format!("ime preedit {}", text.chars().count()),
+            Event::Ime(ImeEvent::Commit(t)) => format!("ime commit {}", t.chars().count()),
+            Event::Paste(_) => "paste".into(),
+            Event::PointerGone => "pointer gone".into(),
+            _ => continue,
+        };
+        app.input_trail.push_back(format!("{} {entry}", ctx.cumulative_pass_nr()));
+        while app.input_trail.len() > TRAIL {
+            app.input_trail.pop_front();
+        }
+    }
 }
 
 fn key_from(name: &str) -> Option<egui::Key> {

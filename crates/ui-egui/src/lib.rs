@@ -666,6 +666,9 @@ pub struct MailApp {
     /// The body of the message being written takes the keyboard back at its next frame (after a
     /// ribbon button or a dialog changed its text).
     pub(crate) body_focus_wanted: bool,
+    /// The last input the window was given, by kind only (never what was typed), for
+    /// `ui.inspect`: what a script looks at when typing or the keyboard goes astray.
+    pub(crate) input_trail: std::collections::VecDeque<String>,
     /// The message list should scroll to the selected row (after a keyboard move).
     pub(crate) reveal_selection: bool,
     /// Passwords typed this session, per account. Never saved.
@@ -786,6 +789,7 @@ impl MailApp {
             search_focus: false,
             compose_bcc: false,
             body_focus_wanted: false,
+            input_trail: std::collections::VecDeque::new(),
             reveal_selection: false,
             passwords: Default::default(),
             secrets_trouble: None,
@@ -1966,6 +1970,7 @@ impl MailApp {
             self.ctx = Some(ctx.clone());
         }
         self.drain_control(ctx);
+        control::trail(self, ctx);
         self.poll_sign_in();
         // A sign-in for an account that is being set up has nobody waiting for it once that dialog
         // is gone, however it went (a script closing it, say): the host is told to stop.
