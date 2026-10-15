@@ -15,6 +15,8 @@ mod folder_sync;
 pub mod format;
 pub mod groups;
 pub mod mail;
+#[cfg(test)]
+mod mail_source_tests;
 pub mod people;
 pub mod print;
 pub mod quick_steps;

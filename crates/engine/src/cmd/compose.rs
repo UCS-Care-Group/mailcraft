@@ -23,6 +23,9 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("mail.replyAll", "Reply All", "Home › Respond", reply_all).pure().key("Mod+Shift+R").params(SOURCE).selection(needs_message),
         CommandSpec::new("mail.forward", "Forward", "Home › Respond", forward).pure().key("Mod+F").params(SOURCE).selection(needs_message),
         CommandSpec::new("mail.editDraft", "Open Draft", "Mail", edit_draft).pure().params(SOURCE).selection(needs_message),
+        CommandSpec::new("mail.resend", "Resend Message", "Home › Actions", resend)
+            .params(r#"{"id"?: number} (default: the selected message) — a message in the Outbox goes with the next Send/Receive as it is, held or not (one the server refused to send as the account is held until then: see its `hold`); any other message opens as a new message with the same recipients, subject, text and files, to send again"#)
+            .selection(needs_message),
         CommandSpec::new("compose.set", "Edit Message", "Message", set)
             .pure()
             .params(r#"{"to"?: string, "cc"?: string, "bcc"?: string, "subject"?: string, "body"?: string, "importance"?: "low"|"normal"|"high", "account"?: number}"#)
@@ -112,9 +115,14 @@ fn new(s: &mut Session, v: &Value) -> CmdResult {
     Ok(json!({"composing": true}))
 }
 
+/// The message a command answers, forwards or opens again, whole: its body and its files in
+/// memory, fetched from where the mailbox keeps them when they weren't (`Session::content`).
 fn source_message(s: &Session, v: &Value) -> Result<Message, CmdError> {
     let id = p::id(v, "id").or(s.sel.focus()).ok_or_else(|| fail("select a message first"))?;
-    s.mailbox.message(id).cloned().ok_or_else(|| fail(format!("no message with id {id}")))
+    if s.mailbox.message(id).is_none() {
+        return Err(fail(format!("no message with id {id}")));
+    }
+    s.loaded_message(id).map(|m| Message::clone(&m))
 }
 
 /// `RE: subject`, unless it already starts that way.
@@ -311,10 +319,42 @@ fn forward(s: &mut Session, v: &Value) -> CmdResult {
 
 fn edit_draft(s: &mut Session, v: &Value) -> CmdResult {
     let m = source_message(s, v)?;
-    if !m.draft {
+    // A message held in the Outbox (the server wouldn't send it as the account, [`Message::hold`])
+    // opens to be changed and sent again; it leaves the Outbox when it is sent.
+    let held = m.hold.is_some() && in_outbox(s, &m);
+    if !m.draft && !held {
         return Err(fail("that message isn't a draft"));
     }
-    // A draft in HTML opens with its formatting, as its HTML gives it back.
+    s.compose = Some(opened(&m, ComposeMode::Draft, Some(m.id)));
+    Ok(json!({"composing": true, "draft": m.id}))
+}
+
+/// Whether `m` waits in its account's Outbox.
+fn in_outbox(s: &Session, m: &Message) -> bool {
+    s.mailbox.folder(m.folder).is_some_and(|f| f.kind == FolderKind::Outbox && f.account == m.account)
+}
+
+/// Outlook's Resend Message. A message in the Outbox goes with the next Send/Receive as it is:
+/// one the server refused to send as the account ([`Message::hold`]) is no longer held. Any other
+/// message (one that was sent, as a rule) opens as a new message with its recipients, subject,
+/// text and files, to be sent again as it is or changed first.
+fn resend(s: &mut Session, v: &Value) -> CmdResult {
+    let m = source_message(s, v)?;
+    if in_outbox(s, &m) {
+        let held = m.hold.is_some();
+        s.mailbox.message_mut(m.id)?.hold = None;
+        return Ok(json!({"id": m.id, "queued": true, "wasHeld": held}));
+    }
+    if s.mailbox.account(m.account).is_none() {
+        return Err(fail("the account is gone"));
+    }
+    s.compose = Some(opened(&m, ComposeMode::New, None));
+    Ok(json!({"composing": true, "id": m.id}))
+}
+
+/// The message `m` opened to be written on: as the draft it is (`draft`), or as a new message.
+fn opened(m: &Message, mode: ComposeMode, draft: Option<Id>) -> Compose {
+    // A message in HTML opens with its formatting, as its HTML gives it back.
     let (body, styles, html) = match &m.body.html {
         Some(html) => {
             let (text, styles) = mailcraft_mime::rich::from_html(html);
@@ -326,9 +366,9 @@ fn edit_draft(s: &mut Session, v: &Value) -> CmdResult {
             (text, styles, false)
         }
     };
-    s.compose = Some(Compose {
-        mode: ComposeMode::Draft,
-        draft: Some(m.id),
+    Compose {
+        mode,
+        draft,
         account: m.account,
         to: format_list(&m.to),
         cc: format_list(&m.cc),
@@ -347,8 +387,7 @@ fn edit_draft(s: &mut Session, v: &Value) -> CmdResult {
         sign: m.protect.sign,
         encrypt: m.protect.encrypt,
         ..Default::default()
-    });
-    Ok(json!({"composing": true, "draft": m.id}))
+    }
 }
 
 fn set(s: &mut Session, v: &Value) -> CmdResult {

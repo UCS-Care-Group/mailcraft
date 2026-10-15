@@ -8,7 +8,9 @@
 //! - **Addresses.** `/v1.0/me/events`, `/me/events/{id}`, `/me/calendars/{id}/events[/{id}]`,
 //!   `/me/calendarView`, `/me/calendars/{id}/calendarView`, `/me/events/{id}/instances`, the
 //!   actions `cancel`, `accept`, `tentativelyAccept`, `decline` and `forward`, `/me/calendars`,
-//!   `/me/calendarGroups`, and `/$batch`. An id is one piece of an address: ids here are long
+//!   `/me/calendarGroups`, and `/$batch`; and the same of a shared mailbox the token may reach
+//!   as `/users/{address}/…` ([`State::opens`]; any other is 403, as is every one when the
+//!   token doesn't cover shared calendars, [`State::shared_unpermitted`]). An id is one piece of an address: ids here are long
 //!   and hold `=`, `-`, `_`, `/` and `+`, so one that isn't written as `%XX` where it must be
 //!   names nothing (404, or 400). An event of a calendar that somebody else shares is found
 //!   through that calendar only.
@@ -284,6 +286,13 @@ pub struct State {
     pub throttle_folders: usize,
     /// The prefixes the document writes its two namespaces with (`a` and `b` unless said).
     pub prefixes: (String, String),
+    /// The mailboxes the token may reach as `/users/{address}/…` (in lower case): the shared
+    /// mailboxes the owner has Full Access to. Their calendar is this one (a test that speaks of
+    /// a shared mailbox sets the stand-in up as that mailbox's). Any other address is 403.
+    pub opens: Vec<String>,
+    /// The token doesn't cover the calendars of shared mailboxes (`Calendars.ReadWrite.Shared`):
+    /// 403 to every `/users/{address}/…`.
+    pub shared_unpermitted: bool,
     before: Option<Vec<Stored>>,
     made: u64,
     clock: Timestamp,
@@ -1431,6 +1440,14 @@ impl State {
             (_, ["v1.0", "me", "mailFolders", folder]) if method == "GET" => self.mail_folder_read(asked, folder),
             (_, ["v1.0", "me", "mailFolders", _]) => Err(refuse(405, "MethodNotAllowed", "The method is not allowed on this resource.")),
             (_, ["v1.0", "me", rest @ ..]) => self.me(asked, method, rest),
+            // Another mailbox, by its address: one the token may reach, with the permission.
+            (_, ["v1.0", "users", address, rest @ ..]) => {
+                let address = address.to_ascii_lowercase();
+                if self.shared_unpermitted || !self.opens.contains(&address) {
+                    return Err(refuse(403, "ErrorAccessDenied", "Access is denied. Check credentials and try again."));
+                }
+                self.me(asked, method, rest)
+            }
             (_, [first, ..]) => Err(refuse(400, "BadRequest", format!("Resource not found for the segment '{first}'."))),
             _ => Err(refuse(400, "BadRequest", "Resource not found.")),
         }

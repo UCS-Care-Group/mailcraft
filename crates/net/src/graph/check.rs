@@ -89,6 +89,14 @@ pub fn check_calendar(token: &str, now: Timestamp, zone: &str, offset_at: &dyn F
     check_calendar_at(&super::graph_base(), token, now, zone, offset_at)
 }
 
+/// [`check_calendar`] of the calendar of a shared mailbox the owner of `token` opens (`mailbox`,
+/// its address; empty for the owner's own): every step speaks of `/users/{address}/…` in the
+/// place of `/me/…`, which takes the permission `Calendars.ReadWrite.Shared` and Full Access to
+/// the mailbox. A refusal of either is a 403 in the first step, with Graph's words.
+pub fn check_calendar_of(token: &str, mailbox: &str, now: Timestamp, zone: &str, offset_at: &dyn Fn(Timestamp) -> i32) -> CalendarCheck {
+    check_calendar_for(&super::graph_base(), token, mailbox, now, zone, offset_at)
+}
+
 /// A mark for the appointment (`transactionId`), so that asking twice makes it once.
 fn mark(now: Timestamp) -> String {
     let mut bytes = [0u8; 16];
@@ -126,10 +134,23 @@ pub(super) fn refusal_words(body: &[u8], secret: &str) -> String {
 
 /// [`check_calendar`] against Graph at `base`.
 pub(super) fn check_calendar_at(base: &str, token: &str, now: Timestamp, zone: &str, offset_at: &dyn Fn(Timestamp) -> i32) -> CalendarCheck {
+    check_calendar_for(base, token, "", now, zone, offset_at)
+}
+
+/// [`check_calendar_of`] against Graph at `base`.
+pub(super) fn check_calendar_for(
+    base: &str,
+    token: &str,
+    mailbox: &str,
+    now: Timestamp,
+    zone: &str,
+    offset_at: &dyn Fn(Timestamp) -> i32,
+) -> CalendarCheck {
     let start = check_start(now);
     let mut check = CalendarCheck { start, cleaned_up: true, ..Default::default() };
     let step = |what: usize, ok: bool, status: u16, said: String| CheckStep { what: STEPS.get(what).copied().unwrap_or(""), ok, status, said };
-    let graph = match Graph::at(base, token) {
+    // (An address that can't be a mailbox's is refused here, and nothing is asked.)
+    let graph = match Graph::at(base, token).and_then(|graph| graph.for_mailbox(mailbox)) {
         Ok(graph) => graph,
         Err(e) => {
             check.token_refused = e.is_refused_sign_in();

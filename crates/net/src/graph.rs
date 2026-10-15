@@ -1,6 +1,9 @@
 //! Microsoft Graph, for what a Microsoft 365 or Outlook.com account has that IMAP and SMTP don't
 //! reach: [`send`] sends a message where SMTP is switched off for the account, [`events`] reads
-//! the calendar and [`contacts`] the contacts.
+//! the calendar and [`contacts`] the contacts. A shared mailbox the owner opens is spoken of as
+//! `/users/{address}/…` with the owner's token ([`send_from_mailbox`], [`events_in_of`], and the
+//! mail of one read through Graph, [`mail`]); [`send_as`] sends from one through the owner's own
+//! sending, for a sign-in that doesn't cover `Mail.Send.Shared`.
 //!
 //! Each takes an access token for Graph, which is not the one the mail servers take:
 //! [`oauth::refresh_for`](crate::oauth::refresh_for) with
@@ -95,6 +98,9 @@ use crate::http::{self, Reply, Request, Url};
 
 /// Where Graph is, and what is asked of it.
 const GRAPH: &str = "https://graph.microsoft.com";
+
+/// The longest address of a mailbox that is spoken of in a path ([`Graph::for_mailbox`]).
+const MAX_MAILBOX: usize = 254;
 
 /// Where Graph is spoken to: its own address, always. (Only a test may have a stand-in on this
 /// machine answer in its place, on its own thread: `standin::route`.)
@@ -256,6 +262,24 @@ pub fn events_in(token: &str, query: &EventsQuery) -> Result<EventsDownload, Net
     events_in_at(&graph_base(), token, query)
 }
 
+/// [`events_in`] of a shared mailbox the owner of `token` opens (`mailbox`, its address; empty
+/// for the owner's own): `/users/{address}/…` in the place of `/me/…`, which takes the
+/// permission `Calendars.ReadWrite.Shared` and Full Access to the mailbox. A 403 is
+/// [`NetError::Forbidden`]: the account may not open that calendar.
+pub fn events_in_of(token: &str, mailbox: &str, query: &EventsQuery) -> Result<EventsDownload, NetError> {
+    events_in_for(&graph_base(), token, mailbox, query)
+}
+
+/// [`push_events`] to the calendar of a shared mailbox ([`events_in_of`]).
+pub fn push_events_of(token: &str, mailbox: &str, upload: &EventsUpload, options: &EventOptions) -> EventsUploaded {
+    push_events_for(&graph_base(), token, mailbox, upload, options)
+}
+
+/// [`calendars`] of a shared mailbox ([`events_in_of`]).
+pub fn calendars_of_mailbox(token: &str, mailbox: &str) -> Result<CalendarsDownload, NetError> {
+    calendars_for(&graph_base(), token, mailbox)
+}
+
 /// The contacts in the account's contacts folder, for the owner of `token` (an access token for
 /// Graph). [`ContactsDownload::complete`] and [`ContactsDownload::for_account`] are as for
 /// [`events`].
@@ -305,17 +329,33 @@ enum Doing {
     Writing,
     Categories,
     Favorites,
+    Mail,
 }
 
 fn nonsense(text: &str) -> NetError {
     NetError::Proto(ProtoError::Protocol(text.into()))
 }
 
-/// Graph as one caller has it: where it is, and the token that says who is asking.
+/// Graph as one caller has it: where it is, the token that says who is asking, and the
+/// connection kept open to it between requests (one handshake for many of them).
 struct Graph<'a> {
     base: Url,
     token: &'a str,
+    kept: std::cell::RefCell<http::Kept>,
+    /// Whose mailbox is spoken of: the signed-in owner's (`/me`), or, for a shared mailbox the
+    /// owner opens, that mailbox's (`/users/{address}`, [`Graph::for_mailbox`]).
+    user: Option<String>,
+    /// Set by the caller to call the work off: a wait for a server that said "not now" ends
+    /// with it ([`Graph::ask`]).
+    cancel: Option<&'a std::sync::atomic::AtomicBool>,
+    /// A request told "not now" is asked once more after the wait it names ([`Graph::ask`]);
+    /// off for a caller with a way of its own ([`favorites`]).
+    retries_busy: bool,
 }
+
+/// The longest a request told "not now" (429, 503) waits before it is asked once more, in
+/// seconds; a `Retry-After` beyond it is for the caller to honour ([`NetError::Busy`]).
+pub(crate) const RETRY_AT_MOST: u32 = 15;
 
 impl<'a> Graph<'a> {
     /// Graph at `base` (its own address, or a stand-in on this machine in the tests), for `token`.
@@ -324,16 +364,97 @@ impl<'a> Graph<'a> {
         if token.is_empty() || token.len() > MAX_TOKEN || !token.bytes().all(|b| b.is_ascii_graphic()) {
             return Err(NetError::Proto(ProtoError::Auth("there is no sign-in to show Microsoft Graph".into())));
         }
-        Ok(Graph { base: Url::parse(base)?, token })
+        Ok(Graph { base: Url::parse(base)?, token, kept: Default::default(), user: None, cancel: None, retries_busy: true })
     }
 
-    /// `path` (with its query) on Graph.
+    /// The same, giving up a wait when `cancel` is set.
+    fn cancelled_by(mut self, cancel: &'a std::sync::atomic::AtomicBool) -> Graph<'a> {
+        self.cancel = Some(cancel);
+        self
+    }
+
+    /// The same, handing a "not now" back at once for the caller to deal with.
+    fn without_retry(mut self) -> Graph<'a> {
+        self.retries_busy = false;
+        self
+    }
+
+    /// Wait `seconds`, or less when the work is called off meanwhile. Whether it waited it out.
+    fn pause(&self, seconds: u32) -> bool {
+        let until = Instant::now() + Duration::from_secs(u64::from(seconds));
+        while Instant::now() < until {
+            if self.cancel.is_some_and(|flag| flag.load(std::sync::atomic::Ordering::Relaxed)) {
+                return false;
+            }
+            std::thread::sleep(Duration::from_millis(50).min(until.saturating_duration_since(Instant::now())));
+        }
+        true
+    }
+
+    /// The same, speaking of the mailbox `address` rather than the owner's own (empty: the
+    /// owner's): a shared mailbox, reached with the owner's token. An address that can't be one
+    /// is refused, and nothing is asked.
+    fn for_mailbox(mut self, address: &str) -> Result<Graph<'a>, NetError> {
+        let address = address.trim();
+        if address.is_empty() {
+            return Ok(self);
+        }
+        let usable = address.len() <= MAX_MAILBOX
+            && address.split_once('@').is_some_and(|(user, domain)| !user.is_empty() && domain.contains('.') && !domain.starts_with('.'))
+            && address.chars().all(|c| c.is_ascii_graphic() && !matches!(c, '/' | '\\' | '?' | '#' | '%' | '"' | '<' | '>'));
+        if !usable {
+            return Err(NetError::Config("that isn't the address of a mailbox".into()));
+        }
+        self.user = Some(address.to_ascii_lowercase());
+        Ok(self)
+    }
+
+    /// `path` as it is for the mailbox spoken of: the owner's own as it is (`/me/…`), another's
+    /// with `/users/{address}` in the place of `/me`, the address as one piece of the path.
+    fn mine(&self, path: &str) -> String {
+        let Some(user) = &self.user else { return path.to_string() };
+        for version in ["/v1.0", "/beta", ""] {
+            if let Some(rest) = path.strip_prefix(version).and_then(|rest| rest.strip_prefix("/me"))
+                && (rest.is_empty() || rest.starts_with('/') || rest.starts_with('?'))
+            {
+                return format!("{version}/users/{}{rest}", http::encode(user));
+            }
+        }
+        path.to_string()
+    }
+
+    /// `path` (with its query) on Graph, for the mailbox spoken of ([`Graph::mine`]).
     fn url(&self, path: &str) -> Url {
-        Url { path: path.to_string(), ..self.base.clone() }
+        Url { path: self.mine(path), ..self.base.clone() }
     }
 
-    /// One request, with the token. The answer comes back whatever its status.
+    /// One request, with the token. The answer comes back whatever its status; but one told
+    /// "not now" (429, 503) with a `Retry-After` of [`RETRY_AT_MOST`] seconds or less is asked
+    /// once more after that long (unless the work is called off meanwhile). A longer wait, or a
+    /// second "not now", comes back as it is, for the caller to say when to come back
+    /// ([`NetError::Busy`] through [`Graph::refusal`]).
     fn ask(
+        &self,
+        url: &Url,
+        method: &str,
+        more: &[(&str, &str)],
+        body: Option<&str>,
+        patience: Duration,
+        max_body: usize,
+    ) -> Result<Reply, NetError> {
+        let reply = self.ask_once(url, method, more, body, patience, max_body)?;
+        if !self.retries_busy || !matches!(reply.status, 429 | 503) {
+            return Ok(reply);
+        }
+        let Some(seconds) = wait_of(reply.retry_after.as_deref(), mailcraft_time::now()).filter(|s| *s <= RETRY_AT_MOST) else { return Ok(reply) };
+        log::debug!("Microsoft Graph said not now ({}); asking again in {seconds} s", reply.status);
+        if !self.pause(seconds.max(1)) {
+            return Ok(reply);
+        }
+        self.ask_once(url, method, more, body, patience, max_body)
+    }
+
+    fn ask_once(
         &self,
         url: &Url,
         method: &str,
@@ -345,7 +466,13 @@ impl<'a> Graph<'a> {
         let bearer = format!("Bearer {}", self.token);
         let mut headers = vec![("Authorization", bearer.as_str()), ("Accept", "application/json")];
         headers.extend_from_slice(more);
-        http::request(url, &Request { method, headers: &headers, body, patience, max_body }).map_err(|e| e.without(self.token))
+        let request = Request { method, headers: &headers, body, patience, max_body };
+        let reply = match self.kept.try_borrow_mut() {
+            Ok(mut kept) => kept.request(url, &request),
+            // (Not while another request is on it: that one goes on a connection of its own.)
+            Err(_) => http::request(url, &request),
+        };
+        reply.map_err(|e| e.without(self.token))
     }
 
     /// The error for an answer that isn't the one hoped for. `sent` is what went to Graph besides
@@ -454,6 +581,7 @@ fn refusal(doing: Doing, reply: &Reply, sent: &[&str], now: Timestamp) -> NetErr
                 Doing::Writing => "this account may not change its calendar through Microsoft Graph",
                 Doing::Categories => "this account may not read its list of categories through Microsoft Graph",
                 Doing::Favorites => "this account may not read its Favorites through Microsoft Graph",
+                Doing::Mail => "this account may not read or change its mail through Microsoft Graph",
             };
             NetError::Forbidden(format!("{what}{}", code()))
         }
@@ -496,6 +624,47 @@ fn send_at(base: &str, token: &str, message: &Message, options: &SendOptions) ->
         return Err(NetError::Config("the message has no recipients".into()));
     }
     let graph = Graph::at(base, token)?;
+    send_with(&graph, message, options)
+}
+
+/// Send one message through Microsoft Graph as the owner of `token`, from the shared mailbox
+/// `mailbox` (its address) as that mailbox itself: `POST /users/{address}/sendMail`, the message
+/// as it would go over SMTP ([`send`]), which keeps everything the message has (a signature or
+/// an encrypted body, `In-Reply-To` and `References`, every other header field). Exchange
+/// checks the owner's Send As right on the mailbox and files the copy in the mailbox's own Sent
+/// Items. It takes the permission `Mail.Send.Shared` beside `Mail.Send`
+/// ([`oauth::sign_in_for_mail`](crate::oauth::sign_in_for_mail) asks for it).
+///
+/// A 403 is [`NetError::Forbidden`]: the sign-in doesn't cover sending from another mailbox, or
+/// the owner has no Send As right on it (Exchange's `ErrorSendAsDenied`); its text says which
+/// when Exchange does. [`send_as`] is the other way, through the owner's own sending, for a
+/// sign-in that doesn't cover this one.
+pub fn send_from_mailbox(token: &str, message: &Message, mailbox: &str) -> Result<(), NetError> {
+    send_from_mailbox_at(&graph_base(), token, message, mailbox)
+}
+
+/// [`send_from_mailbox`] through Graph at `base`.
+fn send_from_mailbox_at(base: &str, token: &str, message: &Message, mailbox: &str) -> Result<(), NetError> {
+    if mailbox.trim().is_empty() {
+        return Err(NetError::Config("the shared mailbox's address isn't one mail can be sent from".into()));
+    }
+    let graph = Graph::at(base, token)?.for_mailbox(mailbox)?;
+    send_with(&graph, message, &SendOptions::default())
+}
+
+/// What a 403 to sending from a shared mailbox as itself means ([`send_from_mailbox`]): Exchange's
+/// name for a missing Send As right, in the refusal's code.
+const SEND_AS_DENIED: &str = "SendAsDenied";
+
+/// Whether a [`NetError::Forbidden`] from [`send_from_mailbox`] or [`send_as`] says the owner has
+/// no Send As right on the mailbox, as against a sign-in that doesn't cover sending from it (the
+/// permission `Mail.Send.Shared`): only the second is worth trying the other way.
+pub fn is_send_as_denied(error: &NetError) -> bool {
+    matches!(error, NetError::Forbidden(why) if why.contains(SEND_AS_DENIED))
+}
+
+/// [`send`] through `graph`, as the mailbox it speaks of: the owner's own, or a shared one.
+fn send_with(graph: &Graph<'_>, message: &Message, options: &SendOptions) -> Result<(), NetError> {
     // A message that was never dated is dated now, as it is for SMTP.
     let message = if message.date == 0 { Cow::Owned(Message { date: mailcraft_time::now(), ..message.clone() }) } else { Cow::Borrowed(message) };
     let offset_minutes = options.offset_minutes.unwrap_or_else(|| mailcraft_time::local_offset_minutes(message.date));
@@ -507,7 +676,138 @@ fn send_at(base: &str, token: &str, message: &Message, options: &SendOptions) ->
     let body = STANDARD.encode(&mime);
     drop(mime);
     let reply = graph.ask(&graph.url(SEND_MAIL), "POST", &[("Content-Type", "text/plain")], Some(&body), SEND_TIMEOUT, http::MAX_BODY)?;
-    if reply.status == 202 { Ok(()) } else { Err(graph.refusal(Doing::Sending, &reply, &body)) }
+    match (reply.status, &graph.user) {
+        (202, _) => Ok(()),
+        // From a shared mailbox: the sign-in doesn't cover it, or the owner may not send as it.
+        (403, Some(mailbox)) => {
+            let code = code_of(&reply.body, &[graph.token, &body]);
+            let why = if code.contains(SEND_AS_DENIED) {
+                format!("sending from {mailbox} takes the Send As right on it, which an administrator of your organisation gives{code}")
+            } else {
+                format!("the sign-in doesn't cover sending from {mailbox} as itself (the permission Mail.Send.Shared){code}")
+            };
+            Err(NetError::Forbidden(why))
+        }
+        _ => Err(graph.refusal(Doing::Sending, &reply, &body)),
+    }
+}
+
+/// Send one message through Microsoft Graph as the owner of `token`, from the shared mailbox
+/// `from` (its address), through the owner's own sending: `POST /me/sendMail` with the message
+/// as Graph's JSON and its `from` set to that address, which is what Exchange checks the owner's
+/// Send As right on it against (the MIME form takes the sender from the sign-in). No other
+/// permission than sending mail is asked for, which is what it is for: a sign-in that doesn't
+/// cover `Mail.Send.Shared` yet. [`send_from_mailbox`] is the way for one that does, and the
+/// better one: Graph files this copy in the signed-in owner's Sent Items (and in the shared
+/// mailbox's too only where an administrator set that up).
+///
+/// What goes: the subject, the body (HTML when it has one, else text), From, To, Cc, Bcc,
+/// Reply-To, the importance, and the attachments (inline ones by their Content-ID). Graph takes
+/// no `In-Reply-To` or `References` in this form: a reply from a shared mailbox is threaded by
+/// its subject. A signed or encrypted message ([`Message::secured`]) can't go this way at all,
+/// and is refused rather than sent without its signature or, worse, without its text; so is a
+/// message larger than Graph takes in one request, one with nobody to send it to, or one with an
+/// address that isn't one. Exchange's no to the Send As right is [`NetError::Forbidden`] saying
+/// so ([`is_send_as_denied`]).
+pub fn send_as(token: &str, message: &Message, from: &str) -> Result<(), NetError> {
+    send_as_at(&graph_base(), token, message, from)
+}
+
+/// Most bytes of a message sent as JSON ([`send_as`]): Graph takes a request of 4 MB.
+const MAX_JSON_MESSAGE: usize = 3_500_000;
+
+/// [`send_as`] through Graph at `base`.
+fn send_as_at(base: &str, token: &str, message: &Message, from: &str) -> Result<(), NetError> {
+    let from = from.trim();
+    if !is_address(from) {
+        return Err(NetError::Config("the shared mailbox's address isn't one mail can be sent from".into()));
+    }
+    // Graph's JSON has no place for a signature or an encrypted body: sent this way, a signed
+    // message would go unsigned and an encrypted one empty.
+    if message.secured.is_some() {
+        return Err(NetError::Config(
+            "a signed or encrypted message can't be sent from a shared mailbox through the owner's own sending; it takes the permission Mail.Send.Shared".into(),
+        ));
+    }
+    // Leaving someone out silently would be worse than not sending.
+    for address in message.recipients().chain(message.reply_to.iter()) {
+        let email = address.email.trim();
+        if !email.is_empty() && !is_address(email) {
+            let shown: String = email.chars().filter(|c| !c.is_control()).take(80).collect();
+            return Err(NetError::Config(format!("\"{shown}\" isn't an address mail can be sent to")));
+        }
+    }
+    if !message.recipients().any(|a| !a.email.trim().is_empty()) {
+        return Err(NetError::Config("the message has no recipients".into()));
+    }
+    let graph = Graph::at(base, token)?;
+    let people = |list: &[Address]| -> Vec<Value> {
+        list.iter()
+            .filter(|a| !a.email.trim().is_empty())
+            .map(|a| json!({"emailAddress": {"address": a.email.trim(), "name": clean_line(&a.name)}}))
+            .collect()
+    };
+    let (kind, content) = match &message.body.html {
+        Some(html) if !html.trim().is_empty() => ("HTML", html.as_str()),
+        _ => ("Text", message.body.text.as_str()),
+    };
+    let mut size = content.len();
+    let attachments: Vec<Value> = message
+        .attachments
+        .iter()
+        .map(|a| {
+            size = size.saturating_add(a.data.len().saturating_mul(4) / 3);
+            let mut one = json!({
+                "@odata.type": "#microsoft.graph.fileAttachment",
+                "name": clean_line(&a.name),
+                "contentType": clean_line(&a.mime),
+                "contentBytes": STANDARD.encode(a.data.as_slice()),
+                "isInline": a.inline,
+            });
+            if !a.content_id.trim().is_empty() {
+                one["contentId"] = json!(clean_line(&a.content_id));
+            }
+            one
+        })
+        .collect();
+    if size > MAX_JSON_MESSAGE {
+        return Err(NetError::Config("the message is too large to send from a shared mailbox through Microsoft Graph".into()));
+    }
+    let importance = match message.importance {
+        Importance::Low => "low",
+        Importance::Normal => "normal",
+        Importance::High => "high",
+    };
+    let body = json!({
+        "message": {
+            "subject": clean_line(&message.subject),
+            "body": {"contentType": kind, "content": content},
+            "from": {"emailAddress": {"address": from, "name": clean_line(&message.from.name)}},
+            "toRecipients": people(&message.to),
+            "ccRecipients": people(&message.cc),
+            "bccRecipients": people(&message.bcc),
+            "replyTo": people(&message.reply_to),
+            "importance": importance,
+            "attachments": attachments,
+        },
+        "saveToSentItems": true,
+    })
+    .to_string();
+    let reply = graph.ask(&graph.url(SEND_MAIL), "POST", &[("Content-Type", "application/json")], Some(&body), SEND_TIMEOUT, http::MAX_BODY)?;
+    match reply.status {
+        202 => Ok(()),
+        // Exchange's no to the Send As right (`ErrorSendAsDenied`), or any other 403.
+        403 => Err(NetError::Forbidden(format!(
+            "sending from {from} takes the Send As right on it, which an administrator of your organisation gives{}",
+            code_of(&reply.body, &[graph.token, &body])
+        ))),
+        _ => Err(graph.refusal(Doing::Sending, &reply, &body)),
+    }
+}
+
+/// `text` as one line: no control characters, not too long.
+fn clean_line(text: &str) -> String {
+    text.chars().filter(|c| !c.is_control()).take(998).collect()
 }
 
 /// [`events`] from Graph at `base`.
@@ -517,6 +817,11 @@ fn events_at(base: &str, token: &str, from: Timestamp, to: Timestamp) -> Result<
 
 /// [`events_in`] from Graph at `base`.
 fn events_in_at(base: &str, token: &str, query: &EventsQuery) -> Result<EventsDownload, NetError> {
+    events_in_for(base, token, "", query)
+}
+
+/// [`events_in_of`] from Graph at `base`.
+fn events_in_for(base: &str, token: &str, mailbox: &str, query: &EventsQuery) -> Result<EventsDownload, NetError> {
     let (from, to) = (query.from, query.to);
     if to <= from {
         return Err(NetError::Config("the calendar was asked for a stretch of time with no length".into()));
@@ -525,7 +830,7 @@ fn events_in_at(base: &str, token: &str, query: &EventsQuery) -> Result<EventsDo
     if calendar.is_empty() != query.calendar.trim().is_empty() {
         return Err(NetError::Config("the calendar that was asked for isn't one the server could have".into()));
     }
-    let graph = Graph::at(base, token)?;
+    let graph = Graph::at(base, token)?.for_mailbox(mailbox)?;
     // Graph won't have the question as it is put (400): put as it was before the newest fields
     // were asked for, the calendar still comes.
     let mut listed = Err(nonsense("the calendar wasn't asked for"));
@@ -594,7 +899,7 @@ impl Graph<'_> {
                     json!({
                         "id": n.to_string(),
                         "method": "GET",
-                        "url": format!("/me/events/{}?{select}", http::encode(id)),
+                        "url": self.mine(&format!("/me/events/{}?{select}", http::encode(id))),
                         "headers": {"Prefer": EVENT_PREFERENCES},
                     })
                 })
@@ -876,11 +1181,18 @@ enum Wrote {
 
 /// [`push_events`] to Graph at `base`.
 fn push_events_at(base: &str, token: &str, upload: &EventsUpload, options: &EventOptions) -> EventsUploaded {
+    push_events_for(base, token, "", upload, options)
+}
+
+/// [`push_events_of`] to Graph at `base`.
+fn push_events_for(base: &str, token: &str, mailbox: &str, upload: &EventsUpload, options: &EventOptions) -> EventsUploaded {
     let mut uploaded = EventsUploaded { account: upload.account, email: upload.email.clone(), ..Default::default() };
     let Ok(graph) = Graph::at(base, token) else {
         uploaded.token_refused = true;
         return uploaded;
     };
+    // (An address that can't be a mailbox's: nothing is tried, and nothing is said done.)
+    let Ok(graph) = graph.for_mailbox(mailbox) else { return uploaded };
     // The zone the calendar is shown in, as the upload names it; else this computer's, as the
     // host knows it.
     let shown = graph_zone(&upload.zone).map(|(_, name)| name);
@@ -1620,7 +1932,12 @@ fn calendars_of(graph: &Graph<'_>, path: &str, group: &str, download: &mut Calen
 
 /// [`calendars`] from Graph at `base`.
 fn calendars_at(base: &str, token: &str) -> Result<CalendarsDownload, NetError> {
-    let graph = Graph::at(base, token)?;
+    calendars_for(base, token, "")
+}
+
+/// [`calendars_of_mailbox`] from Graph at `base`.
+fn calendars_for(base: &str, token: &str, mailbox: &str) -> Result<CalendarsDownload, NetError> {
+    let graph = Graph::at(base, token)?.for_mailbox(mailbox)?;
     let mut download = CalendarsDownload { complete: true, ..Default::default() };
     let mut groups: Vec<(String, String)> = Vec::new();
     let query = http::form(&[("$top", PAGE_SIZE), ("$select", "id,name")]);
@@ -1717,8 +2034,10 @@ pub use settings::{MailboxSettings, WorkingHours, mailbox_settings};
 mod favorites;
 pub use favorites::favorites;
 
+pub mod mail;
+
 mod check;
-pub use check::{CHECK_TITLE, CalendarCheck, CheckStep, STEPS as CHECK_STEPS, check_calendar, check_start, no_sign_in};
+pub use check::{CHECK_TITLE, CalendarCheck, CheckStep, STEPS as CHECK_STEPS, check_calendar, check_calendar_of, check_start, no_sign_in};
 
 #[cfg(any(test, feature = "stand-in"))]
 pub mod standin;

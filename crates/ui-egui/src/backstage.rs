@@ -250,6 +250,27 @@ fn shared_card(app: &mut MailApp, ui: &mut Ui, a: &mailcraft_model::Account, t: 
     }
     // What follows goes under the card, not under the button put inside it.
     ui.advance_cursor_after_rect(r);
+    // Its calendar, when there is something to say of it.
+    if let Some(allow) = app.shared_calendar_note(a.id) {
+        ui.horizontal_wrapped(|ui| {
+            ui.add_space(30.0);
+            let said = if allow {
+                tl!("Its calendar needs your permission to read and write the calendars of shared mailboxes.")
+            } else {
+                tl!("Its calendar can't be opened: that takes Full Access to it, which an administrator gives.")
+            };
+            ui.label(egui::RichText::new(said).color(t.text_dim).size(11.5));
+            if allow {
+                let link = ui.link(tl!("Allow…"));
+                app.hit.add("sharedCalendarAllow", a.id, link.rect);
+                if link.clicked()
+                    && let Err(e) = app.run("ui.allowSharedCalendar", json!({"account": a.id}))
+                {
+                    app.status(e);
+                }
+            }
+        });
+    }
 }
 
 fn open(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
@@ -406,7 +427,7 @@ fn options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         });
     });
     // (Whose Favorites the folder pane shows, for an account that signs in with Microsoft.)
-    crate::favorites_sync::options(app, ui, t);
+    crate::favorites_sync::options(app, ui);
     section(ui, tl!("Pictures in mail"), t);
     crate::reading::remote::options(app, ui, t);
     section(ui, tl!("Accounts"), t);
@@ -448,6 +469,22 @@ fn options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
             for n in [1u32, 5, 15, 30, 60, 0] {
                 if ui.selectable_label(n == prefs.sync_minutes, label(n)).clicked() {
                     set(app, json!({"syncMinutes": n}));
+                }
+            }
+        });
+    });
+    // The Inbox and the folders under it by themselves, between the rounds over every folder.
+    row(ui, tl!("Check the Inbox every"), |ui| {
+        let label = |n: u32| match n {
+            0 => tl!("Only with the rounds above").to_string(),
+            60 => tl!("Every minute").to_string(),
+            n if n < 60 => crate::i18n::fmt(tl!("Every {n} seconds"), &[("n", &n.to_string())]),
+            n => crate::i18n::fmt(tl!("Every {n} minutes"), &[("n", &(n / 60).to_string())]),
+        };
+        egui::ComboBox::from_id_salt("opt_inbox_seconds").selected_text(label(prefs.inbox_seconds)).show_ui(ui, |ui| {
+            for n in [30u32, 60, 120, 300, 0] {
+                if ui.selectable_label(n == prefs.inbox_seconds, label(n)).clicked() {
+                    let _ = app.execute("ui.inboxSeconds", json!({"value": n}));
                 }
             }
         });

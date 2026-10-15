@@ -652,17 +652,18 @@ fn a_sync_result_lands_in_the_right_folders() {
             flags: vec![RemoteFlags { uid: 12, read: true, flagged: true, ..Default::default() }],
             removed: vec![11],
             categories: Vec::new(),
-            mark: mailcraft_model::sync::FolderMark { uid_next: 14, exists: 2, quick_runs: 0, backfill: 0 },
+            mark: mailcraft_model::sync::FolderMark { uid_next: 14, exists: 2, ..Default::default() },
+            delta: String::new(),
         }],
         ..Default::default()
     };
     let r = run(&mut s, "sync.apply", json!({"result": second}));
     assert_eq!((r["new"].as_u64(), r["removed"].as_u64(), r["updated"].as_u64()), (Some(1), Some(1), Some(1)));
     // How the server's mailbox stands is kept with the folder, and the next run is told.
-    let mark = s.mailbox.folder(inbox).unwrap().mark;
+    let mark = s.mailbox.folder(inbox).unwrap().mark.clone();
     assert_eq!((mark.uid_next, mark.exists), (14, 2));
     let asked = cmd::account::sync_request(&s, a).unwrap();
-    assert_eq!(asked.folders.iter().find(|f| f.id == inbox).map(|f| f.mark), Some(mark));
+    assert_eq!(asked.folders.iter().find(|f| f.id == inbox).map(|f| f.mark.clone()), Some(mark));
     // Receiving mail is not an undo step, and takes none away.
     assert!(step.is_some() && s.undo_label() == step);
     let mut got: Vec<(u32, bool, FlagStatus)> = s.mailbox.messages_in(inbox).map(|m| (m.uid, m.read, m.flag)).collect();
@@ -1188,7 +1189,7 @@ mod two_way {
             ..Default::default()
         };
         apply(&mut s, partly);
-        assert_eq!(s.mailbox.pending, [Pending::Delete { account: a, from: "INBOX".into(), uid: 3 }]);
+        assert_eq!(s.mailbox.pending, [Pending::Delete { account: a, from: "INBOX".into(), uid: 3, remote_id: String::new() }]);
         assert_eq!((s.mailbox.count(inbox), s.mailbox.count(deleted), unpushed(&s, a)), (0, 0, 1));
         // A download that still lists the message a deletion is waiting for doesn't bring it back.
         let still_there = SyncResult {
@@ -2142,4 +2143,272 @@ fn the_servers_folder_tree_is_here_before_its_mail() {
     let mut repaired = s.mailbox.clone();
     repaired.repair();
     assert_eq!(repaired.folders.len(), s.mailbox.folders.len());
+}
+
+/// A piece of a run that only says how a mailbox stands (its "Checking…" piece, which most of a
+/// run's pieces are) writes the folder's count and mark and nothing else: nothing is worked out
+/// over the account's messages, and no list is rebuilt for it.
+#[test]
+fn a_piece_that_only_says_how_a_mailbox_stands_rebuilds_nothing() {
+    use mailcraft_model::sync::{FolderDelta, FolderMark, SyncResult};
+    let mut s = session();
+    let a = run(&mut s, "account.add", json!({"email": "avery@mail.example", "incoming": {"host": "imap.mail.example"}}))["id"].as_u64().unwrap();
+    let inbox = s.mailbox.folder_of_kind(a, FolderKind::Inbox).unwrap();
+    let delta = |uid_seen, uid_validity, mark: FolderMark| FolderDelta {
+        id: Some(inbox),
+        remote: "INBOX".into(),
+        kind: FolderKind::Inbox,
+        uid_validity,
+        uid_seen,
+        mark,
+        ..Default::default()
+    };
+    let piece = |delta: FolderDelta| SyncResult { account: a, folders: vec![delta], partial: true, ..Default::default() };
+    // The folder comes to follow the mailbox the long way (it has to be tied to it).
+    cmd::account::apply_sync(&mut s, piece(delta(3, 7, FolderMark::default()))).unwrap();
+    assert_eq!(s.mailbox.folder(inbox).unwrap().remote, "INBOX");
+    let rev = s.rev();
+    s.dirty = false;
+    let mark = FolderMark { uid_next: 9, exists: 3, quick_runs: 2, skipped: vec![2], skip_runs: 1, ..Default::default() };
+    let r = cmd::account::apply_sync(&mut s, piece(delta(8, 7, mark.clone()))).unwrap();
+    assert_eq!((r["new"].as_u64(), r["updated"].as_u64()), (Some(0), Some(0)));
+    let f = s.mailbox.folder(inbox).unwrap();
+    assert_eq!((f.uid_seen, f.mark.clone()), (8, mark));
+    assert_eq!(s.rev(), rev, "nothing shown changed");
+    assert!(s.dirty, "but the mark is saved");
+    // How far a mailbox was read never goes back for such a piece.
+    cmd::account::apply_sync(&mut s, piece(delta(5, 7, FolderMark::default()))).unwrap();
+    assert_eq!((s.mailbox.folder(inbox).unwrap().uid_seen, s.rev()), (8, rev));
+    // A mailbox made anew is more than a mark: it starts over, the long way.
+    cmd::account::apply_sync(&mut s, piece(delta(1, 8, FolderMark::default()))).unwrap();
+    let f = s.mailbox.folder(inbox).unwrap();
+    assert_eq!((f.uid_validity, f.uid_seen), (8, 1));
+    assert_eq!(s.rev(), rev + 1);
+}
+
+/// A message the server wouldn't hand over is here by its header alone; when the server comes
+/// round and the message comes whole, it takes the stub's place, with what is the mailbox's kept.
+#[test]
+fn a_message_the_server_came_round_to_hand_over_replaces_its_stub() {
+    use mailcraft_model::sync::{FolderDelta, SyncResult};
+    use mailcraft_model::{Address, Body, Message};
+    let mut s = session();
+    let a = run(&mut s, "account.add", json!({"email": "avery@mail.example", "incoming": {"host": "imap.mail.example"}}))["id"].as_u64().unwrap();
+    let inbox = s.mailbox.folder_of_kind(a, FolderKind::Inbox).unwrap();
+    let piece = |new: Vec<Message>| SyncResult {
+        account: a,
+        folders: vec![FolderDelta {
+            id: Some(inbox),
+            remote: "INBOX".into(),
+            kind: FolderKind::Inbox,
+            uid_validity: 7,
+            uid_seen: 2,
+            new,
+            ..Default::default()
+        }],
+        ..Default::default()
+    };
+    let two = |body: &str, stub: bool| Message {
+        uid: 2,
+        subject: "Two".into(),
+        from: Address::new("Bob", "bob@example.org"),
+        date: 100,
+        body: Body { text: body.into(), html: None },
+        headers: if stub { vec![("X-MailCraft-Not-Downloaded".into(), "0".into())] } else { Vec::new() },
+        ..Default::default()
+    };
+    let r = cmd::account::apply_sync(&mut s, piece(vec![two("This message is here by its header alone.", true)])).unwrap();
+    assert_eq!(r["new"], 1);
+    let id = s.mailbox.messages_in(inbox).find(|m| m.uid == 2).map(|m| m.id).unwrap();
+    run(&mut s, "mail.markRead", json!({"ids": [id]}));
+    run(&mut s, "mail.flag", json!({"id": id}));
+    // The stub again (the server refused again): nothing changes.
+    let r = cmd::account::apply_sync(&mut s, piece(vec![two("This message is here by its header alone.", true)])).unwrap();
+    assert_eq!((r["new"].as_u64(), r["updated"].as_u64()), (Some(0), Some(0)));
+    // The message whole: the same message here, read and flagged as it was, with its text now.
+    let r = cmd::account::apply_sync(&mut s, piece(vec![two("The body of Two.", false)])).unwrap();
+    assert_eq!((r["new"].as_u64(), r["updated"].as_u64()), (Some(0), Some(1)));
+    let m = s.mailbox.message(id).unwrap();
+    assert_eq!((m.body.text.as_str(), m.uid, m.read, m.flag), ("The body of Two.", 2, true, FlagStatus::Flagged));
+    assert!(!m.headers.iter().any(|(name, _)| name == "X-MailCraft-Not-Downloaded"));
+    assert_eq!(s.mailbox.count(inbox), 1);
+}
+
+/// A message the server refused to send as the account (the Send As right on a shared mailbox)
+/// is held in the Outbox with why: Send/Receive leaves it until the owner changes it or sends
+/// it again, instead of trying every few minutes.
+#[test]
+fn a_message_the_server_would_not_send_as_the_account_is_held_until_sent_again() {
+    use mailcraft_model::sync::{HeldMessage, SyncResult};
+    let mut s = session();
+    let a = run(&mut s, "account.add", json!({"email": "avery@mail.example", "incoming": {"host": "imap.mail.example"}}))["id"].as_u64().unwrap();
+    let outbox = s.mailbox.folder_of_kind(a, FolderKind::Outbox).unwrap();
+    run(&mut s, "mail.new", json!({"to": "customer@example.org", "subject": "Your ticket", "account": a}));
+    let id = run(&mut s, "compose.send", json!({}))["id"].as_u64().unwrap();
+    assert_eq!((cmd::account::outbox_due(&s, a), cmd::account::sync_request(&s, a).unwrap().outbox.len()), (1, 1));
+    let hold = |s: &mut Session, id| {
+        let held = vec![HeldMessage { message: id, why: "The server didn't let your account send as it".into() }];
+        cmd::account::apply_sync(s, SyncResult { account: a, held, ..Default::default() }).unwrap();
+    };
+    hold(&mut s, id);
+    let m = s.mailbox.message(id).unwrap();
+    assert_eq!((m.hold.as_deref(), m.folder), (Some("The server didn't let your account send as it"), outbox));
+    assert_eq!((cmd::account::outbox_due(&s, a), cmd::account::sync_request(&s, a).unwrap().outbox.len()), (0, 0));
+    // Sent again as it is: it goes with the next run.
+    let r = run(&mut s, "mail.resend", json!({"id": id}));
+    assert_eq!((r["queued"].as_bool(), r["wasHeld"].as_bool()), (Some(true), Some(true)));
+    assert!(s.mailbox.message(id).unwrap().hold.is_none());
+    assert_eq!(cmd::account::outbox_due(&s, a), 1);
+    // Or opened to be changed, like a draft: sent, the changed message takes its place.
+    hold(&mut s, id);
+    run(&mut s, "mail.editDraft", json!({"id": id}));
+    run(&mut s, "compose.set", json!({"subject": "Your ticket (again)"}));
+    let again = run(&mut s, "compose.send", json!({}))["id"].as_u64().unwrap();
+    assert!(s.mailbox.message(id).is_none());
+    let m = s.mailbox.message(again).unwrap();
+    assert_eq!((m.subject.as_str(), m.hold.as_deref(), m.folder), ("Your ticket (again)", None, outbox));
+    assert_eq!(s.mailbox.count(outbox), 1);
+    // A message that isn't held and isn't a draft doesn't open as one.
+    assert!(s.run("mail.editDraft", &json!({"id": again})).is_err());
+    // Resend Message on a message that was sent opens a new one with its content.
+    let sent = s.mailbox.folder_of_kind(a, FolderKind::Sent).unwrap();
+    s.mailbox.move_message(again, sent).unwrap();
+    let r = run(&mut s, "mail.resend", json!({"id": again}));
+    assert_eq!(r["composing"], true);
+    let c = s.compose.as_ref().unwrap();
+    assert_eq!((c.mode, c.draft, c.to.as_str(), c.subject.as_str()), (ComposeMode::New, None, "customer@example.org", "Your ticket (again)"));
+    assert!(s.run("mail.resend", &json!({"id": 99_999})).is_err());
+}
+
+/// A server account with folders that follow server mailboxes: the Inbox with two folders under
+/// it, and `others` custom folders at the top beside the standard ones, each with `per_folder`
+/// messages that the server knows (through Graph: by their ids too).
+fn mailbox_on_a_server(others: usize, per_folder: u32, graph: bool) -> (Session, Id) {
+    use mailcraft_model::{Account, AccountKind, MailSource, Message, OAuth, OAuthProvider, Server};
+    let mut mb = mailcraft_model::Mailbox::default();
+    let account = mb.add_account(Account {
+        email: "avery@harbor.example".into(),
+        name: "Avery".into(),
+        kind: AccountKind::Imap,
+        incoming: Some(Server { host: "outlook.office365.com".into(), port: 993, security: mailcraft_model::Security::Tls }),
+        oauth: graph.then(|| OAuth { provider: OAuthProvider::Microsoft, ..Default::default() }),
+        mail_source: if graph { MailSource::Graph } else { MailSource::Imap },
+        ..Default::default()
+    });
+    let inbox = mb.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    let mut folders: Vec<(Id, String)> = Vec::new();
+    for f in mb.folders.iter_mut().filter(|f| f.account == account) {
+        f.remote = match f.kind {
+            FolderKind::Inbox => "INBOX".into(),
+            FolderKind::Sent => "Sent Items".into(),
+            FolderKind::Drafts => "Drafts".into(),
+            FolderKind::Deleted => "Deleted Items".into(),
+            FolderKind::Junk => "Junk Email".into(),
+            FolderKind::Archive => "Archive".into(),
+            FolderKind::Outbox | FolderKind::Custom => String::new(),
+        };
+        f.uid_validity = 1;
+        if !f.remote.is_empty() {
+            folders.push((f.id, f.remote.clone()));
+        }
+    }
+    for name in ["Receipts", "Travel"] {
+        let id = mb.add_folder(account, Some(inbox), name).unwrap();
+        let f = mb.folder_mut(id).unwrap();
+        f.remote = format!("INBOX/{name}");
+        f.uid_validity = 1;
+        folders.push((id, f.remote.clone()));
+    }
+    for n in 0..others {
+        let name = format!("Project {n:03}");
+        let id = mb.add_folder(account, None, &name).unwrap();
+        let f = mb.folder_mut(id).unwrap();
+        f.remote = name.clone();
+        f.uid_validity = 1;
+        folders.push((id, name));
+    }
+    let mut uid = 0u32;
+    for (folder, remote) in &folders {
+        for n in 0..per_folder {
+            uid += 1;
+            let remote_id = if graph { format!("AAMkAG{remote}{n:06}=") } else { String::new() };
+            mb.add_message(Message {
+                folder: *folder,
+                account,
+                uid,
+                remote_id,
+                subject: format!("Message {n} in {remote}"),
+                from: mailcraft_model::Address::new("Maya", "maya@lumen.example"),
+                date: now(),
+                received: now(),
+                body: mailcraft_model::Body { text: "A short body of a few words, as mail goes.".into(), html: None },
+                synced: Some(mailcraft_model::sync::RemoteFlags { uid, ..Default::default() }),
+                ..Default::default()
+            })
+            .unwrap();
+        }
+        mb.folder_mut(*folder).unwrap().uid_seen = uid;
+    }
+    (Session::at(mb, now(), 0), account)
+}
+
+#[test]
+fn a_scoped_request_carries_only_the_folders_in_scope_and_those_the_changes_name() {
+    use mailcraft_model::sync::{RemoteOp, SyncScope};
+    let (mut s, a) = mailbox_on_a_server(3, 2, false);
+    let remotes = |req: &mailcraft_model::sync::SyncRequest| {
+        let mut out: Vec<String> = req.folders.iter().map(|f| f.remote.clone()).collect();
+        out.sort();
+        out
+    };
+    let whole = cmd::account::sync_request(&s, a).unwrap();
+    assert_eq!((whole.scope, whole.folders.len()), (SyncScope::All, 12));
+    let inbox = cmd::account::sync_request_scoped(&s, a, SyncScope::InboxTree).unwrap();
+    assert_eq!((inbox.scope, remotes(&inbox)), (SyncScope::InboxTree, vec!["INBOX".to_string(), "INBOX/Receipts".into(), "INBOX/Travel".into()]));
+    let rest = cmd::account::sync_request_scoped(&s, a, SyncScope::Rest).unwrap();
+    // The Inbox's own state goes with the folders' job, for the look at it between two folders;
+    // the folders under it don't.
+    // (The Outbox, which only exists here, is no folder of the Inbox tree either.)
+    assert_eq!(
+        remotes(&rest),
+        ["", "Archive", "Deleted Items", "Drafts", "INBOX", "Junk Email", "Project 000", "Project 001", "Project 002", "Sent Items"]
+    );
+    assert!(rest.folders.iter().filter(|f| f.remote != "INBOX").all(|f| f.kind != FolderKind::Inbox && !f.remote.starts_with("INBOX")));
+    assert!(inbox.folders.iter().all(|f| f.known_uids.len() == 2), "the states are whole");
+    // A change to push names a folder outside the scope: its state goes along, so that the
+    // change can be made; and the Outbox goes with either job.
+    let project = s.mailbox.folders.iter().find(|f| f.remote == "Project 001").unwrap().id;
+    let message = s.mailbox.messages_in(project).next().unwrap().id;
+    run(&mut s, "mail.markRead", json!({"ids": [message], "value": true}));
+    run(&mut s, "mail.new", json!({"to": "maya@lumen.example", "subject": "Queued", "account": a}));
+    assert_eq!(run(&mut s, "compose.send", json!({}))["queued"], true);
+    let inbox = cmd::account::sync_request_scoped(&s, a, SyncScope::InboxTree).unwrap();
+    assert!(inbox.ops.iter().any(|op| matches!(op, RemoteOp::Flags { folder, .. } if folder == "Project 001")), "{:?}", inbox.ops);
+    assert_eq!(remotes(&inbox), ["INBOX", "INBOX/Receipts", "INBOX/Travel", "Project 001"]);
+    assert_eq!(inbox.outbox.len(), 1);
+    let rest = cmd::account::sync_request_scoped(&s, a, SyncScope::Rest).unwrap();
+    assert_eq!((rest.outbox.len(), rest.ops.len()), (1, 1));
+    // The command takes the scope by name, and nothing else.
+    let asked = run(&mut s, "sync.request", json!({"account": a, "scope": "inboxTree"}));
+    assert_eq!((asked["scope"].as_str(), asked["folders"].as_array().unwrap().len()), (Some("inboxTree"), 4));
+    assert!(!run(&mut s, "sync.request", json!({"account": a})).to_string().contains("\"scope\""));
+    assert!(s.run("sync.request", &json!({"account": a, "scope": "everything"})).is_err());
+    // A look at the Inbox reads the folders under it too, and pushes nothing.
+    let look = cmd::account::inbox_request(&s, a).unwrap();
+    assert!(look.inbox_only && look.scope == SyncScope::InboxTree && look.ops.is_empty() && look.outbox.is_empty());
+    assert_eq!(remotes(&look), ["INBOX", "INBOX/Receipts", "INBOX/Travel"]);
+}
+
+/// The owner's shape: some four hundred folders and a hundred thousand messages, read through
+/// Microsoft Graph. The Inbox job's request is a small part of the whole one.
+#[test]
+fn the_inbox_jobs_request_is_a_small_part_of_the_whole_at_a_hundred_thousand_messages() {
+    use mailcraft_model::sync::SyncScope;
+    let (s, a) = mailbox_on_a_server(392, 250, true);
+    assert_eq!(s.mailbox.messages.len(), 100_000);
+    let size = |scope| serde_json::to_vec(&cmd::account::sync_request_scoped(&s, a, scope).unwrap()).unwrap().len();
+    let (whole, inbox, rest) = (size(SyncScope::All), size(SyncScope::InboxTree), size(SyncScope::Rest));
+    eprintln!("request sizes at 100,000 messages in 400 folders: all {whole} bytes, inboxTree {inbox} bytes, rest {rest} bytes");
+    assert!(inbox * 50 < whole, "inbox {inbox} vs all {whole}");
+    assert!(rest < whole && rest + inbox <= whole + inbox / 2);
 }

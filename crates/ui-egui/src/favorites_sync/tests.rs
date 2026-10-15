@@ -438,7 +438,7 @@ fn the_commands_take_anything_and_say_what_they_cannot_do() {
         let local = plain.session.mailbox.accounts[0].id;
         assert!(plain.execute(command, json!({"account": local})).is_err());
     }
-    assert!(plain.favorites_note().is_none() && plain.favorites_offer().is_none());
+    assert!(plain.favorites_note().is_none());
     let mut rig = Rig::new();
     for odd in [
         json!(null),
@@ -579,25 +579,20 @@ fn the_offer_is_one_line_under_the_heading_and_in_the_options() {
     assert_eq!(host.lock().unwrap().sign_ins, [(true, true)]);
     assert!(at(&harness, "favoritesOffer", account).is_none());
 
-    // File › Options: the switch, and the same offer while it stands.
+    // File › Options: the switch and nothing under it; the offer is the folder pane's.
     let mut rig = Rig::new();
     rig.host.lock().unwrap().unconsented = true;
     rig.app.graph_tokens.clear();
     rig.look(0.0);
-    let (mut harness, host, [account, ..]) = window(rig);
+    let (mut harness, _, [account, ..]) = window(rig);
     harness.state_mut().execute("ui.backstage", json!({"value": true, "page": "options"})).unwrap();
     harness.run_steps(3);
-    let switch = at(&harness, "favoritesOption", 0).expect("the switch");
-    let connect = at(&harness, "favoritesConnect", account).expect("the offer");
-    assert!(connect.min.y >= switch.max.y - 0.5);
-    click(&mut harness, connect.center());
-    harness.run_steps(4);
-    assert_eq!(host.lock().unwrap().sign_ins, [(true, true)]);
-    // Switched off there, nothing of Outlook's is offered or shown.
+    assert!(at(&harness, "favoritesOption", 0).is_some());
+    assert!(at(&harness, "favoritesConnect", account).is_none());
+    // Switched off there, nothing of Outlook's is shown.
     let switch = at(&harness, "favoritesOption", 0).unwrap();
     click(&mut harness, egui::pos2(switch.min.x + 9.0, switch.center().y));
     assert!(harness.state().session.prefs.own_favorites);
-    assert!(at(&harness, "favoritesConnect", account).is_none());
     // The setting is saved with the others, and restored.
     let saved = serde_json::to_string(&harness.state().prefs()).unwrap();
     assert!(saved.contains(r#""ownFavorites":true"#), "{saved}");
@@ -973,28 +968,23 @@ fn the_offer_opens_the_choice_for_an_organisation_and_the_choice_does_what_is_pi
 }
 
 #[test]
-fn file_options_has_the_choice_for_each_account_that_has_one() {
+fn file_options_has_the_switch_and_nothing_under_it() {
     let mut rig = Rig::organisation();
     rig.look_all(0.0);
     let (mut harness, _, [account, ..]) = window(rig);
     let at = |h: &egui_kittest::Harness<'static, MailApp>, kind: &str, id: Id| h.state().hit.rect(kind, id);
     harness.state_mut().execute("ui.backstage", json!({"value": true, "page": "options"})).unwrap();
     harness.run_steps(3);
-    let switch = at(&harness, "favoritesOption", 0).expect("the switch");
-    let ways: Vec<egui::Rect> =
-        ["favoritesGraph", "favoritesEws", "favoritesNone"].iter().map(|kind| at(&harness, kind, account).expect("a way")).collect();
-    assert!(ways.iter().all(|way| way.min.y >= switch.max.y - 0.5) && ways.windows(2).all(|pair| pair[1].min.x >= pair[0].max.x));
-    // (An account of an organisation is not offered the plain "connect" beside its choice.)
-    assert!(at(&harness, "favoritesConnect", account).is_none());
-    click(&mut harness, ways[2].center());
+    assert!(at(&harness, "favoritesOption", 0).is_some());
+    for kind in ["favoritesGraph", "favoritesEws", "favoritesNone", "favoritesConnect"] {
+        assert!(at(&harness, kind, account).is_none(), "{kind}");
+    }
+    // The choice is still the owner's, by its command (the folder pane's line, Add Account).
+    harness.state_mut().execute("ui.favoritesSource", json!({"account": account, "source": "none"})).unwrap();
     assert_eq!(harness.state().favorites_source(account), FavoritesSource::None);
     assert!(!favorites_from_server(&harness.state().session, account));
-    click(&mut harness, ways[1].center());
+    harness.state_mut().execute("ui.favoritesSource", json!({"account": account, "source": "ews"})).unwrap();
     assert_eq!(harness.state().favorites_source(account), FavoritesSource::Ews);
-    // Switched off as a whole, nothing of it is shown.
-    let switch = at(&harness, "favoritesOption", 0).unwrap();
-    click(&mut harness, egui::pos2(switch.min.x + 9.0, switch.center().y));
-    assert!(at(&harness, "favoritesEws", account).is_none());
 
     // From 1 April 2027 by the session's clock, Exchange Web Services is not among them, and
     // an account set to it says so in a line and offers Graph.
@@ -1019,8 +1009,6 @@ fn file_options_has_the_choice_for_each_account_that_has_one() {
         app,
     );
     harness.run_steps(4);
-    assert!(at(&harness, "favoritesGraph", account).is_some() && at(&harness, "favoritesNone", account).is_some());
-    assert!(at(&harness, "favoritesEws", account).is_none());
     harness.state_mut().execute("ui.backstage", json!({"value": false})).unwrap();
     harness.run_steps(3);
     assert!(at(&harness, "favoritesNote", account).is_some() && at(&harness, "favoritesSwitch", account).is_some());

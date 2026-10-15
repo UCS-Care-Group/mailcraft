@@ -3,15 +3,21 @@
 //!
 //! A shared mailbox is an account of its own here ([`Account::shared_of`]): its own folders, mail
 //! and synchronisation state, its own heading in the folder pane, and a From address of its own
-//! in new messages. It has no sign-in of its own. A synchronisation reads it over IMAP with the
-//! owner's access token and the shared mailbox's address as the user (SASL XOAUTH2, which
-//! Exchange Online takes from an owner with Full Access), and sends what waits in its Outbox
-//! through SMTP signed in as the owner with the shared mailbox's address as the sender (which
-//! takes the Send As right). No permission beyond what a sign-in already asks Microsoft for is
-//! needed, and nothing goes through Microsoft Graph for it. Whether the server lets the owner in
-//! is found at the first Send/Receive, which says so plainly when it doesn't.
+//! in new messages. It has no sign-in of its own, and its mail is read the way its owner's is
+//! ([`MailSource`], chosen for the owner's account; the shared mailbox follows, and
+//! `account.mailSource` is refused on it). Over IMAP, a synchronisation reads it with the owner's
+//! access token and the shared mailbox's address as the user (SASL XOAUTH2, which Exchange Online
+//! takes from an owner with Full Access), and sends what waits in its Outbox through SMTP signed
+//! in as the owner with the shared mailbox's address as the sender (which takes the Send As
+//! right); no permission beyond what a sign-in already asks Microsoft for is needed. Through
+//! Microsoft Graph (the owner chose that for the account), the run reads and writes
+//! `/users/{address}/…` with the owner's token for Graph mail, which covers the shared mailboxes
+//! too (`Mail.ReadWrite.Shared`, `Mail.Send.Shared`, asked for with `Mail.ReadWrite` on that
+//! choice), and sends from it there (Exchange files the copy in the shared mailbox's Sent Items).
+//! Whether the server lets the owner in is found at the first Send/Receive, which says so
+//! plainly when it doesn't.
 
-use mailcraft_model::{Account, AccountKind, Address, Directory, FolderKind, Id, OAuthProvider};
+use mailcraft_model::{Account, AccountKind, Address, Directory, FolderKind, Id, MailSource, OAuthProvider};
 use serde_json::{Value, json};
 
 use super::{bad, fail};
@@ -27,7 +33,7 @@ const MAX_ADDRESS: usize = 254;
 pub fn specs() -> Vec<CommandSpec> {
     vec![
         CommandSpec::new("account.addShared", "Add Shared Mailbox", "File › Info", add)
-            .params(r#"{"account"?: number (the account whose owner has Full Access to it; it signs in with Microsoft at work or school; default: the first such), "address": string (the shared mailbox's e-mail address), "displayName"?: string (the name mail sent from it shows; default: none)} — opens a shared mailbox of Microsoft 365 under that account, as Outlook does: its own folders and mail, listed under its own heading after the account, and a From address of its own in new messages. It signs in with the account's own sign-in (IMAP as the shared mailbox, with the account's token) and asks Microsoft for no new permission; whether the server lets the account in (Full Access) is found at the next Send/Receive, and sending from it takes the Send As right. No password or token is kept for it. Answers {"id": the shared mailbox's account id, "account", "address"}"#)
+            .params(r#"{"account"?: number (the account whose owner has Full Access to it; it signs in with Microsoft at work or school; default: the first such), "address": string (the shared mailbox's e-mail address), "displayName"?: string (the name mail sent from it shows; default: none)} — opens a shared mailbox of Microsoft 365 under that account, as Outlook does: its own folders and mail, listed under its own heading after the account, and a From address of its own in new messages. It signs in with the account's own sign-in (IMAP as the shared mailbox, with the account's token) and asks Microsoft for no new permission; whether the server lets the account in (Full Access) is for a host to check first (the window does, with `cmd::shared::to_check`), and sending from it takes the Send As right. No password or token is kept for it. Answers {"id": the shared mailbox's account id, "account", "address"}"#)
             .when(has_microsoft_account),
         CommandSpec::new("account.removeShared", "Remove Shared Mailbox", "File › Info", remove)
             .params(r#"{"id": number (the shared mailbox's account id)} | {"account"?: number, "address": string} — closes a shared mailbox opened with account.addShared, and removes what is kept of it on this device. Nothing on the server is touched. Answers {"deleted": id}"#)
@@ -102,6 +108,30 @@ fn owner(s: &Session, v: &Value) -> Result<Id, CmdError> {
 }
 
 fn add(s: &mut Session, v: &Value) -> CmdResult {
+    let (shared, parent_id) = to_open(s, v)?;
+    let address = shared.email.clone();
+    let id = s.mailbox.add_account(shared);
+    // Outlook doesn't put a shared mailbox's Inbox among the owner's Favorites by itself.
+    for folder in s.mailbox.folders.iter_mut().filter(|f| f.account == id && f.kind == FolderKind::Inbox) {
+        folder.favorite = false;
+    }
+    Ok(json!({"id": id, "account": parent_id, "address": address}))
+}
+
+/// The shared mailbox `account.addShared` with `v` would open, and the account it opens under,
+/// as a host is to check it before it is added (the command itself can't): signed in to as the
+/// shared mailbox's address with the owner's sign-in, over the owner's incoming server, and with
+/// no outgoing server (nothing is sent to find out). Refused as `account.addShared` refuses.
+pub fn to_check(s: &Session, v: &Value) -> Result<(Account, Id), CmdError> {
+    let (shared, parent_id) = to_open(s, v)?;
+    let parent = s.mailbox.account(parent_id).ok_or_else(|| fail(format!("no account with id {parent_id}")))?;
+    let checked =
+        Account { username: shared.email.clone(), oauth: parent.oauth.clone(), incoming: parent.incoming.clone(), outgoing: None, ..shared };
+    Ok((checked, parent_id))
+}
+
+/// The shared mailbox `account.addShared` with `v` would add, and the account it opens under.
+fn to_open(s: &Session, v: &Value) -> Result<(Account, Id), CmdError> {
     let address = shared_address(p::req_str(v, "address")?)?;
     let parent_id = owner(s, v)?;
     let parent = s.mailbox.account(parent_id).cloned().ok_or_else(|| fail(format!("no account with id {parent_id}")))?;
@@ -131,12 +161,7 @@ fn add(s: &mut Session, v: &Value) -> CmdResult {
         shared_of: Some(parent_id),
         ..Default::default()
     };
-    let id = s.mailbox.add_account(shared);
-    // Outlook doesn't put a shared mailbox's Inbox among the owner's Favorites by itself.
-    for folder in s.mailbox.folders.iter_mut().filter(|f| f.account == id && f.kind == FolderKind::Inbox) {
-        folder.favorite = false;
-    }
-    Ok(json!({"id": id, "account": parent_id, "address": address}))
+    Ok((shared, parent_id))
 }
 
 fn remove(s: &mut Session, v: &Value) -> CmdResult {
@@ -168,9 +193,10 @@ fn remove(s: &mut Session, v: &Value) -> CmdResult {
 /// The account as a synchronisation signs in with it, and the name its outgoing server is
 /// signed in to with (`SyncRequest::send_login`; empty for an account of its own).
 ///
-/// A shared mailbox takes its owner's servers and Microsoft sign-in, with its own address as the
-/// name the incoming server is signed in to with; the host brings the owner's access token. Any
-/// other account is as it is.
+/// A shared mailbox takes its owner's servers and Microsoft sign-in, and the way the owner's
+/// mail is read ([`MailSource`]), with its own address as the name the incoming server is signed
+/// in to with; the host brings the owner's access token (the owner's token for Graph mail when
+/// that is the way). Any other account is as it is.
 pub fn signed_in_as(s: &Session, account: &Account) -> Result<(Account, String), CmdError> {
     let Some(parent_id) = account.shared_of else { return Ok((account.clone(), String::new())) };
     let parent = s
@@ -185,10 +211,17 @@ pub fn signed_in_as(s: &Session, account: &Account) -> Result<(Account, String),
         incoming: parent.incoming.clone(),
         outgoing: parent.outgoing.clone(),
         oauth: parent.oauth.clone(),
+        mail_source: parent.mail_source,
         username: account.email.trim().to_string(),
         ..account.clone()
     };
     Ok((signed, login))
+}
+
+/// Whether the mail of `account` is read through Microsoft Graph: its own choice, or its
+/// owner's for a shared mailbox ([`Mailbox::mail_source_of`](mailcraft_model::Mailbox::mail_source_of)).
+pub fn through_graph(s: &Session, account: Id) -> bool {
+    s.mailbox.mail_source_of(account) == MailSource::Graph
 }
 
 /// Whether shared mailboxes can be opened under `account` (it signs in with Microsoft at work or

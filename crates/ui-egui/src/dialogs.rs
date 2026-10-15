@@ -753,6 +753,114 @@ pub(crate) fn button_row(ui: &mut Ui, add: impl FnOnce(&mut Ui)) {
 }
 
 /// OK and Cancel, right-aligned. Returns `(ok, cancel)`.
+/// Add Shared Mailbox's check that the account may open the mailbox, before it is added: first a
+/// fresh sign-in of the account when there is none (a Send/Receive of it gets one), then the
+/// server is asked ([`crate::Services::check_shared`]).
+pub(crate) struct SharedChecking {
+    pub(crate) owner: Id,
+    address: String,
+    /// The server's answer to come; `None` while a fresh sign-in of the account is awaited.
+    rx: Option<std::sync::mpsc::Receiver<crate::SharedAccess>>,
+    /// It was added without a check (nothing to check with): the dialog closes.
+    pub(crate) added: bool,
+}
+
+impl MailApp {
+    /// Add Shared Mailbox's Add: refused at once as `account.addShared` refuses; otherwise the
+    /// server is asked whether `owner` may open `address`, and it is added once it says yes
+    /// ([`MailApp::poll_shared_check`]). A build that can't ask adds it unchecked.
+    pub(crate) fn add_shared_checked(&mut self, owner: Id, address: &str) -> Result<(), String> {
+        let params = json!({"account": owner, "address": address});
+        mailcraft_engine::cmd::shared::to_check(&self.session, &params).map_err(|e| e.to_string())?;
+        // The check opens the shared mailbox over IMAP. Under an account whose mail is read
+        // through Graph (an organisation that switched IMAP off, as a rule) that would say
+        // nothing worth knowing: the first Send/Receive, through Graph, says whether the owner
+        // has Full Access, as plainly.
+        if self.services.check_shared.is_none() || self.mail_through_graph(owner) {
+            self.add_shared_now(owner, address)?;
+            self.shared_check = Some(SharedChecking { owner, address: address.to_string(), rx: None, added: true });
+            return Ok(());
+        }
+        self.shared_check = Some(SharedChecking { owner, address: address.to_string(), rx: None, added: false });
+        // Without a sign-in that is still good, a Send/Receive of the account gets one first.
+        if self.fresh_mail_token(owner).is_none() && !self.syncing() && self.graph_rx.is_none() && !self.signing_in() {
+            self.start_sync(&json!({"account": owner, "quiet": false}))?;
+        }
+        self.poll_shared_check().unwrap_or(Ok(()))
+    }
+
+    /// The account's access token for its mail servers, while it is still good.
+    fn fresh_mail_token(&self, account: Id) -> Option<String> {
+        self.tokens.get(&account).filter(|t| t.fresh(mailcraft_time::now())).map(|t| t.access.clone())
+    }
+
+    /// Carry Add Shared Mailbox's check on: start it once there is a sign-in, and take in what the
+    /// server said. `Some(Ok)` once the mailbox is added, `Some(Err)` with what to tell the owner,
+    /// `None` while it is still under way.
+    pub(crate) fn poll_shared_check(&mut self) -> Option<Result<(), String>> {
+        let (owner, address) = self.shared_check.as_ref().map(|c| (c.owner, c.address.clone()))?;
+        let who = self.session.mailbox.account(owner).map(|a| a.email.clone()).unwrap_or_default();
+        let waiting = self.shared_check.as_ref().is_some_and(|c| c.rx.is_none());
+        if waiting {
+            let Some(token) = self.fresh_mail_token(owner) else {
+                // Still signing in, or the Send/Receive that gets the sign-in is still at work.
+                if self.syncing() || self.graph_rx.is_some() || self.signing_in() {
+                    return None;
+                }
+                self.shared_check = None;
+                return Some(Err(crate::i18n::fmt(
+                    tl!("Couldn't sign in to {account} to check it. Use Send/Receive, then try again."),
+                    &[("account", &who)],
+                )));
+            };
+            let params = json!({"account": owner, "address": address});
+            let account = match mailcraft_engine::cmd::shared::to_check(&self.session, &params) {
+                Ok((account, _)) => account,
+                Err(e) => {
+                    self.shared_check = None;
+                    return Some(Err(e.to_string()));
+                }
+            };
+            let rx = self.services.check_shared.as_ref().map(|check| check(account, token));
+            if let Some(c) = self.shared_check.as_mut() {
+                c.rx = rx;
+            }
+        }
+        let answer = match self.shared_check.as_ref().and_then(|c| c.rx.as_ref()).map(std::sync::mpsc::Receiver::try_recv)? {
+            Ok(answer) => answer,
+            Err(std::sync::mpsc::TryRecvError::Empty) => return None,
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => crate::SharedAccess::Failed(tl!("the check stopped unexpectedly").to_string()),
+        };
+        self.shared_check = None;
+        Some(match answer {
+            crate::SharedAccess::Allowed => self.add_shared_now(owner, &address),
+            crate::SharedAccess::NoAccess(said) => Err(crate::i18n::fmt(
+                tl!(
+                    "{account} can't open {address}: the server didn't let it in. Opening a shared mailbox takes Full Access to it, which an administrator of your organisation gives. ({said})"
+                ),
+                &[("account", &who), ("address", &address), ("said", &said)],
+            )),
+            crate::SharedAccess::Failed(why) => {
+                Err(crate::i18n::fmt(tl!("Couldn't check {address} this time: {why}"), &[("address", &address), ("why", &why)]))
+            }
+        })
+    }
+
+    /// `account.addShared`, and a Send/Receive of the new mailbox. Its calendar is asked for
+    /// too, and should the owner's sign-in not cover the calendars of shared mailboxes yet,
+    /// Microsoft's page comes up for that the first time (adding it was the owner's say-so).
+    fn add_shared_now(&mut self, owner: Id, address: &str) -> Result<(), String> {
+        let v = self.execute("account.addShared", json!({"account": owner, "address": address}))?;
+        if let Some(id) = v.get("id").and_then(Value::as_u64) {
+            self.calendar.shared_new.insert(id);
+            if let Err(e) = self.execute("ui.sync", json!({"account": id})) {
+                self.status(e);
+            }
+        }
+        Ok(())
+    }
+}
+
 pub(crate) fn buttons(ui: &mut Ui, ok_label: &str, ok_enabled: bool) -> (bool, bool) {
     let mut result = (false, false);
     ui.add_space(4.0);
@@ -929,6 +1037,16 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
         }
         Dialog::SharedMailbox { account, address, error } => {
             let who = app.session.mailbox.account(*account).map(|a| a.email.clone()).unwrap_or_default();
+            // The check of access, while it is under way: what it came to, when it has.
+            let checking = app.shared_check.as_ref().is_some_and(|c| c.owner == *account);
+            if checking {
+                match app.poll_shared_check() {
+                    Some(Ok(())) => close = true,
+                    Some(Err(why)) => *error = why,
+                    None => ctx.request_repaint_after(std::time::Duration::from_millis(100)),
+                }
+            }
+            let checking = app.shared_check.as_ref().is_some_and(|c| c.owner == *account);
             let mut submit = false;
             let open = window(ctx, tl!("Add Shared Mailbox"), 420.0, |ui| {
                 ui.label(crate::i18n::fmt(tl!("The address of a mailbox {account} has Full Access to"), &[("account", &who)]));
@@ -946,25 +1064,32 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
                     .color(t.text_dim)
                     .size(11.0),
                 );
-                let ready = !address.trim().is_empty();
+                if checking {
+                    ui.horizontal(|ui| {
+                        ui.add(egui::Spinner::new().size(14.0));
+                        ui.label(crate::i18n::fmt(tl!("Checking that {account} can open it…"), &[("account", &who)]));
+                    });
+                }
+                let ready = !address.trim().is_empty() && !checking;
                 let (ok, cancel) = buttons(ui, tl!("Add"), ready);
                 submit = ok || (enter && ready);
                 close |= cancel;
             });
             close |= !open;
+            if close {
+                // (Called off: what the check comes to is not waited for.)
+                app.shared_check = None;
+            }
             if submit {
-                match app.execute("account.addShared", json!({"account": account, "address": address.trim()})) {
-                    Ok(v) => {
-                        close = true;
-                        // The first Send/Receive shows whether the server lets the account in.
-                        if let Some(id) = v.get("id").and_then(Value::as_u64)
-                            && let Err(e) = app.execute("ui.sync", json!({"account": id}))
-                        {
-                            app.status(e);
-                        }
-                    }
-                    Err(e) => *error = e,
+                error.clear();
+                if let Err(e) = app.add_shared_checked(*account, address.trim()) {
+                    *error = e;
                 }
+            }
+            // Added without a check to wait for (a build that can't make one).
+            if app.shared_check.as_ref().is_some_and(|c| c.added) {
+                app.shared_check = None;
+                close = true;
             }
         }
         Dialog::Report { title, lines, .. } => {

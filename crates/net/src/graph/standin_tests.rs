@@ -6,7 +6,7 @@ use mailcraft_model::{Freq, Recurrence, ShowAs};
 use mailcraft_time::{Date, Weekday};
 use serde_json::json;
 
-use super::check::{STEPS, check_calendar_at};
+use super::check::{STEPS, check_calendar_at, check_calendar_for};
 use super::standin::{StandIn, Stored, TOKEN, zone_offset};
 use super::*;
 
@@ -901,4 +901,145 @@ fn a_zone_the_service_has_no_name_for_costs_the_name_and_never_the_moment() {
     let refused = push(&server, vec![create("44444444-d9cb-469f-a165-70867728950e", series)], EASTERN).remove(0);
     assert_eq!(refused.result, EventResult::Refused);
     assert!(server.state().event("Weekly visit").is_none());
+}
+
+// ---- the calendar of a shared mailbox ----
+
+const SHARED: &str = "support@example.org";
+
+#[test]
+fn a_shared_mailboxs_calendar_is_read_and_written_by_its_address() {
+    let server = StandIn::start().unwrap();
+    server.state().opens = vec![SHARED.into()];
+    // Made in the shared mailbox's calendar, with the owner's token.
+    let upload = EventsUpload {
+        account: 9,
+        email: SHARED.into(),
+        ops: vec![create(MARK, appointment("Rota", at(2026, 10, 14, 9, 0), 30))],
+        ..Default::default()
+    };
+    let uploaded = push_events_for(&server.url(), TOKEN, SHARED, &upload, &EventOptions::default());
+    assert_eq!(uploaded.outcomes.iter().map(|o| o.result).collect::<Vec<_>>(), [EventResult::Done]);
+    // Read back from there, a series asked about by name in a batch too.
+    let query =
+        EventsQuery { from: at(2026, 10, 1, 0, 0), to: at(2026, 11, 1, 0, 0), series: vec!["AAMkAG-gone-series=".into()], ..Default::default() };
+    let down = events_in_for(&server.url(), TOKEN, SHARED, &query).unwrap();
+    assert!(down.events.iter().any(|e| e.title == "Rota"), "{:?}", down.events);
+    let calendars = calendars_for(&server.url(), TOKEN, SHARED).unwrap();
+    assert!(!calendars.calendars.is_empty());
+    // Every request spoke of the shared mailbox, its address as one piece of the path; none of
+    // the owner's own.
+    let s = server.state();
+    assert!(!s.requests.is_empty());
+    for asked in &s.requests {
+        if asked.target.contains("$batch") {
+            continue;
+        }
+        assert!(asked.target.starts_with("/v1.0/users/support%40example.org/"), "{}", asked.target);
+        assert!(!asked.target.contains("/me/"), "{}", asked.target);
+    }
+    assert!(s.requests.iter().any(|r| r.path.first().map(String::as_str) == Some("v1.0")
+        && r.path.get(1).map(String::as_str) == Some("users")
+        && r.method == "GET"
+        && r.target.contains("/events/")));
+}
+
+#[test]
+fn a_shared_calendar_the_account_may_not_open_is_said_and_nothing_else_breaks() {
+    let server = StandIn::start().unwrap();
+    let query = EventsQuery { from: at(2026, 10, 1, 0, 0), to: at(2026, 11, 1, 0, 0), ..Default::default() };
+    // No Full Access to it: 403, said as such.
+    assert!(matches!(events_in_for(&server.url(), TOKEN, SHARED, &query), Err(NetError::Forbidden(_))));
+    let upload = EventsUpload {
+        account: 9,
+        email: SHARED.into(),
+        ops: vec![create(MARK, appointment("Rota", at(2026, 10, 14, 9, 0), 30))],
+        ..Default::default()
+    };
+    let uploaded = push_events_for(&server.url(), TOKEN, SHARED, &upload, &EventOptions::default());
+    assert_eq!(uploaded.outcomes.iter().map(|o| o.result).collect::<Vec<_>>(), [EventResult::Denied]);
+    // Full Access, but a token without the permission: the same.
+    server.state().opens = vec![SHARED.into()];
+    server.state().shared_unpermitted = true;
+    assert!(matches!(events_in_for(&server.url(), TOKEN, SHARED, &query), Err(NetError::Forbidden(_))));
+    // The owner's own calendar is as it was.
+    assert!(events_in_at(&server.url(), TOKEN, &query).is_ok());
+}
+
+#[test]
+fn the_connection_check_runs_on_a_shared_mailboxs_calendar_by_its_address() {
+    let server = StandIn::start().unwrap();
+    server.state().opens = vec![SHARED.into()];
+    let now = at(2026, 10, 12, 8, 30);
+    let before = server.state().requests.len();
+    let check = check_calendar_for(&server.url(), TOKEN, SHARED, now, EASTERN, &eastern);
+    assert!(check.ok() && check.cleaned_up, "{check:?}");
+    assert_eq!(check.steps.len(), 7);
+    // Every step spoke of the shared mailbox's calendar, its address as one piece of the path.
+    let state = server.state();
+    let asked: Vec<&str> = state.requests.iter().skip(before).map(|asked| asked.target.as_str()).collect();
+    assert_eq!(asked.len(), 7);
+    for target in &asked {
+        assert!(target.starts_with("/v1.0/users/support%40example.org/events"), "{target}");
+    }
+    // Nothing of the owner's own calendar was touched, and nothing is left in the shared one.
+    assert!(!state.events.iter().any(|event| event.subject == super::check::CHECK_TITLE));
+    drop(state);
+
+    // No Full Access to it (or a token without the permission): the first step is the refusal,
+    // with Graph's name for it, and nothing was made.
+    server.state().opens.clear();
+    let check = check_calendar_for(&server.url(), TOKEN, SHARED, now, EASTERN, &eastern);
+    assert!(!check.ok() && check.cleaned_up && !check.token_refused);
+    assert_eq!(check.steps.iter().map(|step| (step.what, step.ok, step.status)).collect::<Vec<_>>(), [(STEPS[0], false, 403)]);
+    assert!(check.steps[0].said.contains("ErrorAccessDenied"), "{}", check.steps[0].said);
+
+    // An address that is no mailbox's is refused before anything is asked.
+    let asked = server.state().requests.len();
+    let check = check_calendar_for(&server.url(), TOKEN, "../me", now, EASTERN, &eastern);
+    assert_eq!(check.steps.iter().map(|step| (step.what, step.ok, step.status)).collect::<Vec<_>>(), [(STEPS[0], false, 0)]);
+    assert_eq!(server.state().requests.len(), asked);
+}
+
+#[test]
+fn an_address_that_is_no_mailboxs_is_not_put_in_a_path() {
+    let server = StandIn::start().unwrap();
+    server.state().opens = vec![SHARED.into()];
+    let query = EventsQuery { from: at(2026, 10, 1, 0, 0), to: at(2026, 11, 1, 0, 0), ..Default::default() };
+    let before = server.state().requests.len();
+    for hostile in [
+        "../me",
+        "support",
+        "a/b@example.org",
+        "a?b@example.org",
+        "a b@example.org",
+        "a@b",
+        "@example.org",
+        "x@.org",
+        "a%2f@example.org",
+        &"a".repeat(300),
+    ] {
+        assert!(matches!(events_in_for(&server.url(), TOKEN, hostile, &query), Err(NetError::Config(_))), "{hostile}");
+        assert!(matches!(calendars_for(&server.url(), TOKEN, hostile), Err(NetError::Config(_))), "{hostile}");
+        let upload = EventsUpload { ops: vec![delete("AAMkAG-x=")], ..Default::default() };
+        assert!(push_events_for(&server.url(), TOKEN, hostile, &upload, &EventOptions::default()).outcomes.is_empty(), "{hostile}");
+    }
+    assert_eq!(server.state().requests.len(), before);
+}
+
+proptest::proptest! {
+    #[test]
+    fn any_address_is_refused_or_spoken_of_as_one_piece(address in "\\PC{0,80}") {
+        let graph = Graph::at("http://127.0.0.1:9", TOKEN).unwrap();
+        if let Ok(graph) = graph.for_mailbox(&address) {
+            let url = graph.url("/v1.0/me/calendarView?x=1");
+            if address.trim().is_empty() {
+                proptest::prop_assert_eq!(url.path, "/v1.0/me/calendarView?x=1");
+            } else {
+                proptest::prop_assert!(url.path.starts_with("/v1.0/users/"));
+                proptest::prop_assert!(url.path.ends_with("/calendarView?x=1"));
+                proptest::prop_assert_eq!(url.path.matches('/').count(), 4);
+            }
+        }
+    }
 }

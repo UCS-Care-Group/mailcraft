@@ -5,7 +5,7 @@ use serde_json::{Value, json};
 
 use super::{bad, deliver, done, fail, file_name, message_json, message_summary, needs_message, select_after_removal, targets};
 use crate::list::position;
-use crate::{CmdResult, CommandSpec, Session, p};
+use crate::{CmdError, CmdResult, CommandSpec, Session, p};
 
 pub fn specs() -> Vec<CommandSpec> {
     vec![
@@ -252,6 +252,9 @@ fn not_junk(s: &mut Session, v: &Value) -> CmdResult {
 fn move_to(s: &mut Session, v: &Value) -> CmdResult {
     let folder = p::req_id(v, "folder")?;
     let ids = targets(s, v)?;
+    for id in &ids {
+        moves_to_another_mailbox(s, *id, folder)?;
+    }
     let before = s.rows();
     let mut moved = Vec::new();
     for id in &ids {
@@ -262,6 +265,44 @@ fn move_to(s: &mut Session, v: &Value) -> CmdResult {
     }
     select_after_removal(s, &before, &moved);
     Ok(json!({"moved": moved.len(), "folder": folder}))
+}
+
+/// Whether message `id` may move to `folder` when that is another account's (a shared mailbox and
+/// the account it is opened with, or any other): the server it leaves deletes its copy, and the
+/// account it goes to puts it on its own server, so it has to be a message that can be put there
+/// whole. Refused, with what to do, when it can't: a message kept here without all of its text,
+/// and a folder of an account whose mail is read through Microsoft Graph, which takes only drafts
+/// from here.
+fn moves_to_another_mailbox(s: &Session, id: Id, folder: Id) -> Result<(), CmdError> {
+    let m = s.mailbox.message(id).ok_or_else(|| fail(format!("no message with id {id}")))?;
+    let to = s.mailbox.folder(folder).ok_or_else(|| fail(format!("no folder with id {folder}")))?;
+    if m.account == to.account || m.folder == folder {
+        return Ok(());
+    }
+    let on_server = m.uid != 0 || m.synced.is_some();
+    if on_server && super::account::partly_here(m) {
+        return Err(fail(format!(
+            "\"{}\" is too large to have been downloaded whole, so it can't be moved to another mailbox from here",
+            short_subject(&m.subject)
+        )));
+    }
+    if let Some(a) = s.mailbox.account(to.account).filter(|a| s.mailbox.mail_source_of(a.id) == mailcraft_model::MailSource::Graph)
+        && !to.remote.is_empty()
+        && to.kind != FolderKind::Drafts
+    {
+        return Err(fail(format!(
+            "Mail can't be moved into {} from another mailbox: its mail is read through Microsoft Graph, which takes only drafts from here",
+            a.email
+        )));
+    }
+    Ok(())
+}
+
+/// A subject for an error line: one line, not too long.
+fn short_subject(subject: &str) -> String {
+    let words: Vec<&str> = subject.split_whitespace().collect();
+    let line = if words.is_empty() { "(no subject)".to_string() } else { words.join(" ") };
+    if line.chars().count() <= 60 { line } else { line.chars().take(60).chain(['…']).collect() }
 }
 
 fn copy_to(s: &mut Session, v: &Value) -> CmdResult {
@@ -418,7 +459,10 @@ fn save_attachment(s: &mut Session, v: &Value) -> CmdResult {
         Some((stem, ext)) if !ext.is_empty() && ext.len() <= 8 && ext.chars().all(char::is_alphanumeric) => (stem, ext),
         _ => (a.name.as_str(), "bin"),
     };
-    deliver(v, &file_name(stem, ext), a.data.as_ref().clone())
+    // The files of an opened message are in memory; any other is fetched from where the mailbox
+    // keeps it when it isn't.
+    let bytes = if a.is_loaded() { a.data.clone() } else { s.content(id, crate::Part::Attachment(index))? };
+    deliver(v, &file_name(stem, ext), bytes.as_ref().clone())
 }
 
 fn remove_attachment(s: &mut Session, v: &Value) -> CmdResult {

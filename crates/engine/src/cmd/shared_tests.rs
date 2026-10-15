@@ -339,3 +339,119 @@ fn hostile_params_never_panic() {
         assert!(a.display_name.chars().count() <= 254 && !a.display_name.contains(['\r', '\n', '\u{0}']));
     }
 }
+
+/// A message that the account's Inbox has on the server, as UID `uid`.
+fn on_server(s: &mut Session, account: Id, uid: u32, subject: &str) -> Id {
+    let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    let result = SyncResult {
+        account,
+        email: s.mailbox.account(account).unwrap().email.clone(),
+        folders: vec![FolderDelta {
+            id: Some(inbox),
+            remote: "INBOX".into(),
+            kind: FolderKind::Inbox,
+            uid_validity: 11,
+            uid_seen: uid,
+            new: vec![Message { uid, subject: subject.into(), message_id: format!("{uid}@example.org"), ..Default::default() }],
+            ..Default::default()
+        }],
+        ..Default::default()
+    };
+    apply_sync(s, result).unwrap();
+    s.mailbox.messages.values().find(|m| m.subject == subject).unwrap().id
+}
+
+#[test]
+fn a_message_moved_between_an_account_and_its_shared_mailbox_leaves_one_server_for_the_other() {
+    let (mut s, account) = setup();
+    let support = add_support(&mut s, account);
+    let id = on_server(&mut s, account, 5, "Move me to support");
+    let to = s.mailbox.folder_of_kind(support, FolderKind::Inbox).unwrap();
+    s.mailbox.folder_mut(to).unwrap().remote = "INBOX".into();
+    run(&mut s, "mail.move", json!({"ids": [id], "folder": to}));
+    let m = s.mailbox.message(id).unwrap();
+    assert_eq!((m.account, m.folder, m.uid), (support, to, 0));
+    // The account's server deletes its copy; the shared mailbox's is given the message.
+    let request = sync_request(&s, account).unwrap();
+    assert!(request.ops.iter().any(|op| matches!(op, mailcraft_model::sync::RemoteOp::Delete { from, uid: 5 } if from == "INBOX")));
+    let theirs = sync_request(&s, support).unwrap();
+    assert_eq!(theirs.uploads.iter().map(|u| u.message.id).collect::<Vec<_>>(), [id]);
+    // And back again before anything was pushed: the same, the other way.
+    let home = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    run(&mut s, "mail.move", json!({"ids": [id], "folder": home}));
+    assert_eq!(s.mailbox.message(id).unwrap().account, account);
+    assert!(sync_request(&s, support).unwrap().uploads.is_empty());
+}
+
+#[test]
+fn a_message_only_partly_here_does_not_move_to_another_mailbox() {
+    let (mut s, account) = setup();
+    let support = add_support(&mut s, account);
+    let id = on_server(&mut s, account, 6, "Too large");
+    s.mailbox.message_mut(id).unwrap().headers.push(("X-MailCraft-Not-Downloaded".into(), "40000000".into()));
+    let to = s.mailbox.folder_of_kind(support, FolderKind::Inbox).unwrap();
+    let said = refused(&mut s, "mail.move", json!({"ids": [id], "folder": to}));
+    assert!(said.contains("too large"), "{said}");
+    assert_eq!(s.mailbox.message(id).unwrap().account, account);
+}
+
+#[test]
+fn nothing_moves_into_an_account_read_through_graph_but_a_draft() {
+    let (mut s, account) = setup();
+    let support = add_support(&mut s, account);
+    let id = on_server(&mut s, support, 7, "From support");
+    run(&mut s, "account.mailSource", json!({"account": account, "source": "graph"}));
+    let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    s.mailbox.folder_mut(inbox).unwrap().remote = "INBOX".into();
+    let said = refused(&mut s, "mail.move", json!({"ids": [id], "folder": inbox}));
+    assert!(said.contains("Microsoft Graph"), "{said}");
+    assert_eq!(s.mailbox.message(id).unwrap().account, support);
+}
+
+#[test]
+fn a_run_of_a_shared_mailbox_reads_its_mail_the_way_its_owner_does() {
+    use mailcraft_model::MailSource;
+    let (mut s, account) = setup();
+    let support = add_support(&mut s, account);
+    assert!(!super::through_graph(&s, support));
+    let request = sync_request(&s, support).unwrap();
+    assert_eq!(request.account.mail_source, MailSource::Imap);
+    // The owner chooses Graph: the shared mailbox is read through Graph, as `/users/{address}`
+    // with the owner's token, which the host brings; the name it signs in as is still its own.
+    run(&mut s, "account.mailSource", json!({"account": account, "source": "graph"}));
+    assert!(super::through_graph(&s, support));
+    let request = sync_request(&s, support).unwrap();
+    assert_eq!(
+        (request.account.mail_source, request.account.shared_of, request.account.username.as_str()),
+        (MailSource::Graph, Some(account), "support@harbor.example")
+    );
+    assert_eq!(request.account.oauth, s.mailbox.account(account).unwrap().oauth);
+    assert_eq!(request.send_login, "avery@harbor.example");
+    // Its own switch is refused, and says whose it follows.
+    let said = refused(&mut s, "account.mailSource", json!({"account": support, "source": "imap"}));
+    assert!(said.contains("avery@harbor.example"), "{said}");
+    assert_eq!(s.mailbox.account(support).unwrap().mail_source, MailSource::Graph);
+}
+
+/// Account Settings show a shared mailbox on its account's servers as they are now, not as they
+/// were when it was added.
+#[test]
+fn a_shared_mailbox_shows_its_accounts_servers_as_they_are_now() {
+    let (mut s, account) = setup();
+    let support = add_support(&mut s, account);
+    run(
+        &mut s,
+        "account.edit",
+        json!({"id": account, "incoming": {"host": "mail.harbor.example", "port": 1993}, "outgoing": {"host": "smtp.harbor.example", "port": 2525, "security": "starttls"}}),
+    );
+    let owner = s.mailbox.account(account).unwrap().clone();
+    let shared = s.mailbox.account(support).unwrap();
+    assert_eq!((shared.incoming.as_ref(), shared.outgoing.as_ref()), (owner.incoming.as_ref(), owner.outgoing.as_ref()));
+    assert_eq!(shared.incoming.as_ref().map(|i| (i.host.as_str(), i.port)), Some(("mail.harbor.example", 1993)));
+    // Its own name and address stay its own.
+    assert_eq!((shared.email.as_str(), shared.shared_of), ("support@harbor.example", Some(account)));
+    // Another account's servers are nobody else's.
+    let other = run(&mut s, "account.add", json!({"email": "other@mail.example", "incoming": {"host": "imap.mail.example"}}))["id"].as_u64().unwrap();
+    run(&mut s, "account.edit", json!({"id": other, "incoming": {"host": "imap2.mail.example"}}));
+    assert_eq!(s.mailbox.account(support).unwrap().incoming.as_ref().map(|i| i.host.as_str()), Some("mail.harbor.example"));
+}

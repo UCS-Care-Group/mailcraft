@@ -171,53 +171,6 @@ impl ChoiceDialog {
     }
 }
 
-/// File › Options: how the Favorites of Outlook are read for `account`, as three choices side
-/// by side (the one in effect is marked), and under them what there is to say of it.
-pub(crate) fn options_row(app: &mut MailApp, ui: &mut Ui, t: &Tokens, account: Id) {
-    let who = app.session.mailbox.account(account).map(|a| a.email.clone()).unwrap_or_default();
-    // An account that never chose reads them through Microsoft Graph when it has a list.
-    let from_server = mailcraft_engine::cmd::folder::favorites_from_server(&app.session, account);
-    let now = match app.favorites_source(account) {
-        FavoritesSource::Unset if from_server => Some(FavoritesSource::Graph),
-        FavoritesSource::Unset => None,
-        chosen => Some(chosen),
-    };
-    let mut choose: Option<FavoritesSource> = None;
-    ui.horizontal(|ui| {
-        ui.add_space(24.0);
-        ui.label(RichText::new(crate::forms::kit::shown(who.trim(), 60)).color(t.text));
-        for source in offered(app, account) {
-            let (title, detail) = words(source);
-            let resp = ui.selectable_label(now == Some(source), tl!(title)).on_hover_text(tl!(detail));
-            let kind = match source {
-                FavoritesSource::Graph => "favoritesGraph",
-                FavoritesSource::Ews => "favoritesEws",
-                _ => "favoritesNone",
-            };
-            app.hit.add(kind, account, resp.rect);
-            if resp.clicked() && now != Some(source) {
-                choose = Some(source);
-            }
-        }
-    });
-    if let Some(note) = app.favorites_note_of(account).filter(|note| !matches!(note, super::Note::Offer)) {
-        ui.horizontal(|ui| {
-            ui.add_space(24.0);
-            ui.label(RichText::new(tl!(note.text())).color(t.text_dim));
-            for step in app.favorites_steps(account, &note) {
-                if ui.link(tl!(step.label())).on_hover_text(tl!(step.about())).clicked() {
-                    step_taken(app, account, step);
-                }
-            }
-        });
-    }
-    if let Some(source) = choose
-        && let Err(e) = app.run("ui.favoritesSource", json!({"account": account, "source": source.code()}))
-    {
-        app.status(e);
-    }
-}
-
 /// Do what a link under a quiet line says ([`super::Step`]).
 pub(crate) fn step_taken(app: &mut MailApp, account: Id, step: super::Step) {
     let done = match step {

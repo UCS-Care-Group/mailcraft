@@ -166,6 +166,10 @@ pub enum Action {
     CopyMessage,
     /// "Not now": close, leaving nothing behind.
     NotNow,
+    /// Account Settings: "Allow…", Microsoft's page for reading the mail through Graph.
+    AllowGraph,
+    /// Account Settings: save, letting the changes that haven't reached the server go.
+    SwitchAnyway,
 }
 
 /// How setting the account up ended, for the last page to say.
@@ -407,6 +411,11 @@ pub struct AccountSetup {
     directory: Directory,
     favorites: Option<FavoritesSource>,
     edit: Option<Editing>,
+    /// Account Settings of an account that signs in with Microsoft: whether its mail is read
+    /// through Microsoft Graph (as opened, and as ticked now), and whether a save lets the
+    /// changes that haven't reached the server go ([`crate::graph_mail`]).
+    graph: Option<(bool, bool)>,
+    graph_discard: bool,
     /// The window's context, once a frame has run: what the password field left in its memory
     /// is cleared through it.
     ctx: Option<egui::Context>,
@@ -486,6 +495,8 @@ impl AccountSetup {
             directory: Directory::Unknown,
             favorites: None,
             edit: None,
+            graph: None,
+            graph_discard: false,
             ctx: None,
         }
     }
@@ -536,6 +547,11 @@ impl AccountSetup {
         }
         w.oauth = a.oauth.clone();
         w.edit = Some(Editing { id: a.id, baseline: w.fields() });
+        let microsoft = a.oauth.as_ref().is_some_and(|o| o.provider == mailcraft_model::OAuthProvider::Microsoft);
+        if microsoft && a.kind == AccountKind::Imap && a.shared_of.is_none() {
+            let on = a.mail_source == mailcraft_model::MailSource::Graph;
+            w.graph = Some((on, on));
+        }
         w
     }
 
@@ -789,6 +805,17 @@ impl AccountSetup {
             (Page::Done, Action::Go) | (Page::Settings, Action::Back) => return true,
             (Page::Done, Action::Another) => *self = AccountSetup::new(app, &Value::Null),
             (Page::Settings, Action::Go) => return self.save(app),
+            (Page::Settings, Action::SwitchAnyway) => {
+                self.graph_discard = true;
+                return self.save(app);
+            }
+            (Page::Settings, Action::AllowGraph) => {
+                if let Some(id) = self.edit.as_ref().map(|e| e.id)
+                    && let Err(e) = app.execute("ui.allowGraphMail", json!({"account": id}))
+                {
+                    self.error = e;
+                }
+            }
             _ => {}
         }
         false
@@ -1035,6 +1062,18 @@ impl AccountSetup {
             return false;
         }
         let Some(id) = self.edit.as_ref().map(|e| e.id) else { return true };
+        // How the mail is read first: changes that haven't reached the server may hold it, and
+        // the dialog then stays open to say so.
+        if let Some((was, now)) = self.graph
+            && was != now
+        {
+            let source = if now { "graph" } else { "imap" };
+            if let Err(e) = app.execute("ui.mailSource", json!({"account": id, "source": source, "discard": self.graph_discard})) {
+                self.error = e;
+                return false;
+            }
+            self.graph = Some((now, now));
+        }
         if let Some((command, params)) = self.edit_command()
             && let Err(e) = app.execute(command, params)
         {
@@ -1403,6 +1442,8 @@ impl AccountSetup {
 
     fn settings_page(&mut self, app: &MailApp, ui: &mut Ui, pass: &mut Pass) -> Option<Action> {
         let t = pass.t;
+        let mut link: Option<Action> = None;
+        let action = &mut link;
         let asks = self.oauth.is_none() && (app.services.test_account.is_some() || app.services.sync.is_some());
         let how = match &self.oauth {
             Some(oauth) => fmt(tl!("Signs in on the {provider} page in your browser"), &[("provider", oauth.provider.label())]),
@@ -1423,6 +1464,43 @@ impl AccountSetup {
                 field(ui, pass, "clientId", tl!("Application (client) ID"), &mut self.client_id, tl!("The one in File › Options"), 200);
                 field(ui, pass, "tenant", tl!("Tenant"), &mut self.tenant, "common", 64);
             }
+            if let Some((_, on)) = self.graph.as_mut() {
+                let about = tl!(
+                    "Read, change and send this account's mail through Microsoft Graph instead of IMAP and SMTP: for an organisation that switched IMAP off, and to keep Outlook's categories. Outlook's Favorites then come through Graph too. It takes one more permission (reading and writing your mail), which Microsoft's page asks you for when you save, and which your organisation may have to approve. Every message stays; switching back is the same."
+                );
+                let resp = ui.checkbox(on, tl!("Read mail through Microsoft Graph")).on_hover_text(about);
+                pass.field(&resp);
+                if let Some(id) = self.edit.as_ref().map(|e| e.id)
+                    && let Some(said) = app.graph_mail_note(id)
+                {
+                    note(ui, &said.text(), t.text_dim);
+                    ui.horizontal_wrapped(|ui| {
+                        let link = match said {
+                            crate::graph_mail::Note::Waiting(_) => Some((tl!("Switch anyway"), Action::SwitchAnyway)),
+                            _ if app.mail_through_graph(id) => Some((tl!("Allow…"), Action::AllowGraph)),
+                            _ => None,
+                        };
+                        if let Some((label, chosen)) = link
+                            && ui.link(label).clicked()
+                        {
+                            *action = Some(chosen);
+                        }
+                    });
+                }
+            }
+            // A shared mailbox has no switch: its mail is read the way its owner's is.
+            if let Some(id) = self.edit.as_ref().map(|e| e.id)
+                && let Some(owner) = app.session.mailbox.account(id).and_then(|a| a.shared_of).filter(|owner| *owner != id)
+                && let Some(owner) = app.session.mailbox.account(owner)
+                && owner.oauth.as_ref().is_some_and(|o| o.provider == mailcraft_model::OAuthProvider::Microsoft)
+            {
+                let way = if owner.mail_source == mailcraft_model::MailSource::Graph { tl!("through Microsoft Graph") } else { tl!("over IMAP") };
+                let said = crate::i18n::fmt(
+                    tl!("This shared mailbox's mail is read the way {owner}'s is: {way}. That is chosen in the Account Settings of {owner}."),
+                    &[("owner", &owner.email), ("way", way)],
+                );
+                note(ui, &said, t.text_dim);
+            }
         });
         problem(ui, &self.error);
         let (mut save, mut cancel) = (false, false);
@@ -1430,7 +1508,13 @@ impl AccountSetup {
             save = button(ui, tl!("Save"), true, true).clicked();
             cancel = button(ui, tl!("Cancel"), false, true).clicked();
         });
-        if cancel { Some(Action::Back) } else { (save || entered(ui, pass)).then_some(Action::Go) }
+        if cancel {
+            Some(Action::Back)
+        } else if link.is_some() {
+            link
+        } else {
+            (save || entered(ui, pass)).then_some(Action::Go)
+        }
     }
 
     /// The password, masked. It is never shown, copied or spoken.
@@ -1724,6 +1808,34 @@ mod tests {
 
     /// A host that looks mail exchangers up: it answers `answer`, or nothing at all for `None`.
     /// The log is what it was asked.
+    #[test]
+    fn account_settings_of_a_microsoft_account_switch_its_mail_to_graph() {
+        let mut a = app(true);
+        let added = a.execute(
+            "account.add",
+            json!({"email": "avery@harbor.example", "auth": "oauth2", "provider": "microsoft", "incoming": {"host": "outlook.office365.com"}}),
+        );
+        let id = added.unwrap()["id"].as_u64().unwrap();
+        let mut w = AccountSetup::edit(a.session.mailbox.account(id).unwrap());
+        assert_eq!(w.graph, Some((false, false)));
+        w.graph = Some((false, true));
+        // (No host to sign in with here: the choice stands, and the line under it says what to do.)
+        assert!(w.act(&mut a, Action::Go));
+        assert_eq!(a.session.mailbox.account(id).unwrap().mail_source, mailcraft_model::MailSource::Graph);
+        assert_eq!(a.graph_mail_note(id), Some(&crate::graph_mail::Note::Allow));
+        // Opened again it is ticked, and unticked it goes back to IMAP.
+        let mut w = AccountSetup::edit(a.session.mailbox.account(id).unwrap());
+        assert_eq!(w.graph, Some((true, true)));
+        w.graph = Some((true, false));
+        assert!(w.act(&mut a, Action::Go));
+        assert_eq!(a.session.mailbox.account(id).unwrap().mail_source, mailcraft_model::MailSource::Imap);
+        // An account with a password has no such switch.
+        let password = a.execute("account.add", json!({"email": "ada@mail.example", "incoming": {"host": "imap.mail.example"}})).unwrap()["id"]
+            .as_u64()
+            .unwrap();
+        assert_eq!(AccountSetup::edit(a.session.mailbox.account(password).unwrap()).graph, None);
+    }
+
     fn lookups(app: &mut MailApp, answer: Option<Result<Vec<&str>, &str>>) -> Log<String> {
         let asked: Log<String> = Default::default();
         let log = asked.clone();

@@ -223,6 +223,11 @@ impl MailApp {
         if !self.is_microsoft(account) || self.session.prefs.own_favorites {
             return None;
         }
+        // An account whose mail is read through Graph has its Favorites from Graph too: there
+        // is nothing to choose ([`crate::graph_mail`]).
+        if self.mail_through_graph(account) {
+            return Some(FavoritesSource::Graph);
+        }
         match self.favorites_source(account) {
             FavoritesSource::None => None,
             FavoritesSource::Ews if mailcraft_engine::cmd::account::ews_ended(&self.session) => None,
@@ -272,7 +277,7 @@ impl MailApp {
     /// account of an organisation that signs in with Microsoft. (A personal one has Microsoft
     /// Graph and nothing else, and one that nobody knows the kind of is treated as that.)
     pub(crate) fn favorites_choice(&self, account: Id) -> bool {
-        self.is_microsoft(account) && self.directory(account) == Directory::Organisation
+        self.is_microsoft(account) && self.directory(account) == Directory::Organisation && !self.mail_through_graph(account)
     }
 
     /// What the owner of `account` may choose today, by what a command calls each.
@@ -465,13 +470,6 @@ impl MailApp {
             Note::Blocked | Note::Ended => vec![Step::Use(FavoritesSource::Graph)],
             Note::Offer | Note::Refused(_) | Note::Failed(_) => Vec::new(),
         }
-    }
-
-    /// The account whose Favorites could be Outlook's if the owner connected them: the first
-    /// that has the offer standing (File › Options offers it too).
-    pub(crate) fn favorites_offer(&self) -> Option<Id> {
-        let accounts = self.session.mailbox.accounts.iter().map(|a| a.id);
-        accounts.filter(|id| !self.favorites_choice(*id)).find(|id| matches!(self.favorites_note_of(*id), Some(Note::Offer | Note::Refused(_))))
     }
 
     /// The Favorites of `account` are read at the next chance, whatever the clock says and
@@ -954,10 +952,8 @@ impl MailApp {
 }
 
 /// File › Options: whether the folder pane shows Outlook's Favorites for an account that has
-/// them; for an account of an organisation, how they are read; and for any other, the way to
-/// connect them when its sign-in doesn't cover reading them yet. Nothing is shown while no
-/// account signs in with Microsoft.
-pub(crate) fn options(app: &mut MailApp, ui: &mut egui::Ui, t: &crate::theme::Tokens) {
+/// them, and nothing else. Nothing is shown while no account signs in with Microsoft.
+pub(crate) fn options(app: &mut MailApp, ui: &mut egui::Ui) {
     let ids: Vec<Id> = app.session.mailbox.accounts.iter().map(|a| a.id).collect();
     if !ids.iter().any(|id| app.is_microsoft(*id)) {
         return;
@@ -971,36 +967,9 @@ pub(crate) fn options(app: &mut MailApp, ui: &mut egui::Ui, t: &crate::theme::To
     if resp.changed() {
         let _ = app.run("view.favorites", json!({"own": !outlook}));
     }
-    if !outlook {
-        return;
-    }
-    // An account of an organisation: how its Favorites are read, account by account.
-    let choosing: Vec<Id> = ids.iter().copied().filter(|id| app.favorites_choice(*id)).collect();
-    for account in choosing {
-        choice::options_row(app, ui, t, account);
-    }
-    // The sign-in doesn't cover reading them yet: the same offer as under the Favorites heading.
-    if let Some(account) = app.favorites_offer() {
-        let said = match app.favorites_note_of(account) {
-            Some(Note::Refused(why)) => tl!(&why).to_string(),
-            _ => String::new(),
-        };
-        ui.horizontal(|ui| {
-            ui.add_space(24.0);
-            let link = ui.link(tl!("Connect Outlook's Favorites")).on_hover_text(tl!(
-                "Sign in with Microsoft once more to let MailCraft read the folders you keep under Favorites in Outlook. They are only read, never changed, and everything else stays as it is."
-            ));
-            app.hit.add("favoritesConnect", account, link.rect);
-            if link.clicked()
-                && let Err(e) = app.run("ui.connectFavorites", json!({"account": account}))
-            {
-                app.status(e);
-            }
-            if !said.is_empty() {
-                ui.label(egui::RichText::new(said).color(t.text_dim));
-            }
-        });
-    }
+    // (How each account's Favorites are read follows from the account: through Microsoft Graph
+    // when its mail is, and otherwise as its owner chose when it was added or from the line
+    // under the Favorites heading. Nothing more is asked here.)
 }
 
 /// The `ui.*` commands of the Favorites; `None` for any other.

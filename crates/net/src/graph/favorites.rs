@@ -299,7 +299,7 @@ fn too_slow() -> NetError {
 
 /// [`favorites`] from Graph at `base`, waiting by `pause` when a request is told "later".
 fn favorites_at(base: &str, token: &str, pause: &dyn Fn(Duration)) -> Result<FavoritesDownload, NetError> {
-    let graph = Graph::at(base, token)?;
+    let graph = Graph::at(base, token)?.without_retry();
     let started = Instant::now();
     let missing = || Ok(FavoritesDownload { outcome: FavoritesOutcome::Missing, ..Default::default() });
     let reply = graph.ask(&graph.url(CONFIGURATION), "GET", &[], None, ASK_TIMEOUT, MAX_CONFIGURATION)?;

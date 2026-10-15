@@ -2,9 +2,12 @@
 //!
 //! A shared mailbox is opened with its owner's own sign-in: over IMAP with the shared mailbox's
 //! address as the user and the owner's access token (SASL XOAUTH2), and mail from it goes out
-//! through SMTP signed in as the owner with the shared mailbox's address as the sender. Whether
-//! the server lets that happen is a matter of rights an administrator gives (Full Access, Send
-//! As), not of signing in again; the server's refusal is said in those words.
+//! through SMTP signed in as the owner with the shared mailbox's address as the sender; the copy
+//! for its Sent Items is put there from here, since the server files what the owner sends in the
+//! owner's. For an owner whose mail goes through Microsoft Graph, so does every shared mailbox's
+//! ([`crate::graph::mail`]), spoken of as `/users/{address}/…` with the owner's token. Whether
+//! the server lets any of that happen is a matter of rights an administrator gives (Full Access,
+//! Send As), not of signing in again; the server's refusal is said in those words.
 
 use mailcraft_model::sync::SyncRequest;
 use mailcraft_proto::ProtoError;

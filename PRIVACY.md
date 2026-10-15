@@ -41,7 +41,7 @@ MailCraft connects only to these, over encrypted connections:
 | What | When | What is sent |
 |---|---|---|
 | Your mail provider's servers (IMAP, SMTP) | Send/Receive, and on the timer you set | What a mail program sends: your sign-in and your mail |
-| Microsoft's sign-in pages and Microsoft Graph, for an account that signs in with Microsoft | When you sign in; for calendar, contacts, sending mail, working hours, categories and Outlook's Favorites | Your sign-in happens on Microsoft's page in your browser; the program receives tokens, never your password |
+| Microsoft's sign-in pages and Microsoft Graph, for an account that signs in with Microsoft | When you sign in; for calendar, contacts, sending mail, working hours, categories and Outlook's Favorites; and for all of your mail, when you choose to have it read through Microsoft Graph | Your sign-in happens on Microsoft's page in your browser; the program receives tokens, never your password |
 | Exchange Web Services, for a work or school account | Only if you choose it for Outlook's Favorites | Read requests for the list of favourite folders |
 | A public DNS-over-HTTPS resolver (Cloudflare, then Google) | Once, when you press Connect while adding an account at a domain the program does not know | The domain of your address (the part after the @), never the mailbox name |
 | The web address of a picture in a message | Only when you ask for a message's pictures, or for a sender or domain you chose to always download from | The address alone: no cookies, no referrer, no sign-in |
@@ -57,6 +57,11 @@ computer, for you, and for nothing else:
 - reading and changing your calendar, and reading your contacts;
 - reading your mailbox settings (working hours and categories);
 - reading the list of folders you keep under Favorites in Outlook, if you ask for it;
+- reading and changing the calendars of shared mailboxes you open, when you add one or allow it
+  under the shared mailbox in File › Info;
+- reading, changing and filing your mail through Microsoft Graph instead of IMAP, if you switch
+  that on in the account's Account Settings; and then the same, and sending, for the shared
+  mailboxes you open under that account, which are read the way the account is;
 - keeping you signed in (a refresh token, stored as described above).
 
 You can take these back at any time in your Microsoft account's or your organisation's list of

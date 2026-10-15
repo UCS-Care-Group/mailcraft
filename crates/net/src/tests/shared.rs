@@ -103,6 +103,10 @@ fn a_server_that_refuses_is_said_plainly_and_without_the_token() {
     assert!(open.starts_with("Couldn't open the shared mailbox support@example.org: the server didn't let your account in."), "{open}");
     assert!(open.contains("Full Access"), "{open}");
     assert!(result.sent.is_empty() && result.folders.is_empty());
+    // The message is held for the owner, with why, rather than tried every few minutes.
+    assert_eq!(result.held.len(), 1, "{:?}", result.held);
+    assert_eq!(result.held[0].message, 9);
+    assert!(result.held[0].why.starts_with("The server didn't let your account send as support@example.org:"), "{}", result.held[0].why);
     assert!(!format!("{result:?} {request:?}").contains(TOKEN));
     assert!(smtp.world().delivered.is_empty());
 }
@@ -124,4 +128,70 @@ fn another_accounts_refusal_keeps_its_usual_words() {
     request.outbox = vec![hello()];
     let result = sync(&request);
     assert!(result.errors.iter().any(|e| e.starts_with("Couldn't send \"Hello\": ")), "{:?}", result.errors);
+    assert!(result.held.is_empty(), "a recipient refused holds nothing");
+}
+
+#[test]
+fn a_shared_mailbox_is_checked_before_it_is_added() {
+    let (imap, smtp) = shared_servers();
+    let account = shared_request(&imap, &smtp).account;
+    // Let in, and its Inbox opens: it can be added.
+    assert_eq!(crate::check_shared(&account, TOKEN), Ok(()));
+    // A mailbox the account has no Full Access to: the server doesn't let it in.
+    let other = Account { username: "finance@example.org".into(), email: "finance@example.org".into(), ..account.clone() };
+    match crate::check_shared(&other, TOKEN) {
+        Err(crate::SharedCheck::NoAccess(said)) => assert!(!said.contains(TOKEN), "{said}"),
+        other => panic!("{other:?}"),
+    }
+    // Let in, and its Inbox won't open.
+    imap.world().mailbox("INBOX").refuse_open = true;
+    assert!(matches!(crate::check_shared(&account, TOKEN), Err(crate::SharedCheck::NoAccess(_))));
+    // A server that can't be reached is no answer about access.
+    let closed = std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
+    let mut unreachable = account.clone();
+    if let Some(server) = unreachable.incoming.as_mut() {
+        server.port = closed;
+    }
+    assert!(matches!(crate::check_shared(&unreachable, TOKEN), Err(crate::SharedCheck::Failed(_))));
+}
+
+#[test]
+fn a_shared_mailboxs_sent_copy_is_put_in_its_own_sent_items_even_where_the_server_files_what_it_sends() {
+    // Exchange files what the owner sends as the shared mailbox in the owner's Sent Items: the
+    // shared mailbox's copy is put there from here, and said filed only once it is.
+    let (imap, smtp) = shared_servers();
+    let mut request = shared_request(&imap, &smtp);
+    request.outbox = vec![Message { from: Address::new("Support", SHARED), ..hello() }];
+    let exchange = Host { files_sent: true, microsoft: true };
+    let mut pieces: Vec<SyncResult> = Vec::new();
+    sync_as(&request, Limits::in_pieces(), exchange, &AtomicBool::new(false), &mut |piece| pieces.push(piece));
+    let mut result = SyncResult::default();
+    for piece in &pieces {
+        result.absorb(piece.clone());
+    }
+    assert!(result.errors.is_empty(), "{:?}", result.errors);
+    assert_eq!(result.sent, [9]);
+    assert_eq!(result.filed, [9]);
+    assert!(result.unfiled.is_empty());
+    // Said sent before it was filed, and filed only in a piece after the copy was put there.
+    let sent_at = pieces.iter().position(|p| p.sent.contains(&9)).unwrap();
+    let filed_at = pieces.iter().position(|p| p.filed.contains(&9)).unwrap();
+    assert!(sent_at < filed_at, "{sent_at} {filed_at}");
+    let world = imap.world();
+    let sent_items = world.mailboxes.iter().find(|m| m.raw == "Sent Items").unwrap();
+    assert_eq!(sent_items.messages.len(), 1);
+    assert!(String::from_utf8_lossy(&sent_items.messages[0].body).contains("From: Support <support@example.org>"));
+    assert!(sent_items.messages[0].flags.contains("\\Seen"));
+    drop(world);
+
+    // When the server won't take the copy, it isn't said filed, and the message is still sent.
+    let (imap, smtp) = shared_servers();
+    imap.world().refuse = vec!["APPEND".into()];
+    let mut request = shared_request(&imap, &smtp);
+    request.outbox = vec![Message { from: Address::new("Support", SHARED), ..hello() }];
+    let mut whole = SyncResult::default();
+    sync_as(&request, Limits::in_pieces(), exchange, &AtomicBool::new(false), &mut |piece| whole.absorb(piece));
+    assert_eq!(whole.sent, [9]);
+    assert!(whole.filed.is_empty() && whole.unfiled.is_empty(), "{whole:?}");
+    assert!(whole.errors.iter().any(|e| e.starts_with("Couldn't keep a copy of \"Hello\" on the server")), "{:?}", whole.errors);
 }

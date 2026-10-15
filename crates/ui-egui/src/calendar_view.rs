@@ -115,6 +115,7 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
         let mut frame = Frame::begin(ui);
         header(app, ui);
         connect_notice(app, ui);
+        shared_notice(app, ui);
         local_notice(app, ui);
         // After the header, whose buttons change the range; and after the list of calendars,
         // whose check boxes change what is shown.
@@ -1523,6 +1524,45 @@ fn connect_notice(app: &mut MailApp, ui: &mut Ui) {
     app.hit.add("calendarConnect", account, button);
     if resp.on_hover_text(tl!("Sign in once more, so that MailCraft may show and change your calendar")).clicked()
         && let Err(e) = app.run("ui.connectMicrosoft", json!({"account": account}))
+    {
+        app.status(e);
+    }
+}
+
+/// A line under the header while the calendars of the shared mailboxes the owner opens wait for
+/// the owner's permission (`Calendars.ReadWrite.Shared`, asked for by itself): said here, where
+/// those calendars should be, and not only under a card in File › Info. Its button is "Allow…"
+/// for the first such mailbox, which covers every shared mailbox of that owner. (Quiet while the
+/// account's own calendar waits for "Connect": that line comes first, and says more.)
+fn shared_notice(app: &mut MailApp, ui: &mut Ui) {
+    let accounts = app.session.mailbox.accounts.iter().take(50).map(|a| a.id).collect::<Vec<_>>();
+    if accounts.iter().any(|id| app.graph_consent_needed(*id)) {
+        return;
+    }
+    let Some(account) = accounts.into_iter().find(|id| app.shared_calendar_note(*id) == Some(true)) else { return };
+    let t = Tokens::get(ui.ctx());
+    let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), 30.0), Sense::hover());
+    let p = ui.painter().clone();
+    p.rect_filled(r, 0.0, t.today);
+    p.hline(r.x_range(), r.max.y - 0.5, Stroke::new(1.0, t.border));
+    let action = tl!("Allow…");
+    let wide = text_w(ui, action, medium(12.0)) + 26.0;
+    let button = Rect::from_min_size(pos2(r.max.x - 12.0 - wide, r.center().y - 11.0), vec2(wide, 22.0));
+    let resp = ui.interact(button, ui.id().with("shared_calendar_allow"), Sense::click());
+    let fill = if resp.is_pointer_button_down_on() {
+        t.pressed
+    } else if resp.hovered() {
+        t.hover
+    } else {
+        t.surface
+    };
+    p.rect(button, 4.0, fill, Stroke::new(1.0, t.border_strong), StrokeKind::Inside);
+    p.text(button.center(), Align2::CENTER_CENTER, action, medium(12.0), t.text);
+    let text = tl!("The calendars of your shared mailboxes need your permission. Until you give it, nothing of them shows here.");
+    paint_clipped(&p, pos2(r.min.x + 12.0, r.center().y), button.min.x - r.min.x - 24.0, text, regular(12.0), t.text);
+    app.hit.add("sharedCalendarAllow", account, button);
+    if resp.on_hover_text(tl!("Sign in once more, so that MailCraft may show and change the calendars of the shared mailboxes you open")).clicked()
+        && let Err(e) = app.run("ui.allowSharedCalendar", json!({"account": account}))
     {
         app.status(e);
     }

@@ -116,6 +116,30 @@ const MICROSOFT_GRAPH_EXTRAS: &str = "https://graph.microsoft.com/MailboxSetting
 /// keeps everything it had ([`refresh_graph_with_favorites`]), and the owner is asked for them
 /// on the provider's page only when he says so ([`sign_in_for_favorites`]).
 const MICROSOFT_GRAPH_FAVORITES: &str = "https://graph.microsoft.com/MailboxConfigItem.Read https://graph.microsoft.com/Mail.ReadBasic";
+/// And what reading, changing and filing mail through Microsoft Graph takes, for an account whose
+/// owner chose that instead of IMAP (`account.mailSource`): the owner's own mail
+/// (`Mail.ReadWrite`), and with it the mail of the shared mailboxes the owner opens, read and
+/// changed as `/users/{address}/…` (`Mail.ReadWrite.Shared`) and sent from as themselves
+/// (`Mail.Send.Shared`), since an owner whose mail goes through Graph has every shared mailbox go
+/// the same way. Asked for by themselves, when the owner makes that choice ([`sign_in_for_mail`]),
+/// and from then on with every token for Graph of that account ([`refresh_graph_for_mail`]); never
+/// with an ordinary sign-in. A sign-in from before the shared ones were asked for covers the mail
+/// and not them: it is sent to the provider's page once more, as one that covers none of it is.
+const MICROSOFT_GRAPH_MAIL: &str =
+    "https://graph.microsoft.com/Mail.ReadWrite https://graph.microsoft.com/Mail.ReadWrite.Shared https://graph.microsoft.com/Mail.Send.Shared";
+/// And what the calendars of the shared mailboxes an owner opens take: reading and writing the
+/// calendars that others share with the owner, as Full Access to a shared mailbox makes them
+/// (`/users/{address}/calendar…`). Asked for by itself, when the owner adds a shared mailbox or
+/// says "Allow…" ([`sign_in_for_shared_calendars`]), and from then on with the tokens for a
+/// shared mailbox's calendar ([`refresh_graph_for_shared`]); never with an ordinary sign-in.
+const MICROSOFT_GRAPH_SHARED_CALENDARS: &str = "https://graph.microsoft.com/Calendars.ReadWrite.Shared";
+/// What [`refresh_graph_for_shared`] says when the sign-in is good and doesn't cover the
+/// calendars of shared mailboxes: the owner is to be asked on the provider's page.
+pub const SHARED_NOT_COVERED: &str = "the sign-in doesn't cover the calendars of shared mailboxes";
+/// What [`refresh_graph_for_mail`] says when the sign-in is good and doesn't cover reading mail
+/// through Graph, the owner's own or the shared mailboxes': the owner is to be asked on the
+/// provider's page ([`sign_in_for_mail`]).
+pub const MAIL_NOT_COVERED: &str = "the sign-in doesn't cover reading mail through Microsoft Graph";
 /// Whether the page of an ordinary sign-in also puts the Favorites' permissions to the owner,
 /// so that one page settles everything. **Off**: Microsoft's permissions reference lists
 /// `MailboxConfigItem.Read` as one that takes an administrator's consent in an organisation
@@ -400,8 +424,11 @@ pub enum FavoritesRefusal {
 /// What an administrator of an organisation is asked to approve, once for everybody in it:
 /// everything this program asks an owner for, so that one approval covers what is asked later
 /// too. That is what a sign-in's page asks for (IMAP, SMTP, a refresh token and who signs in;
-/// Microsoft Graph's sending, calendar, contacts and mailbox settings) and what reading the
-/// Favorites of Outlook through Graph takes. Exchange Web Services is in it only where `source`
+/// Microsoft Graph's sending, calendar, contacts and mailbox settings), what reading the
+/// Favorites of Outlook through Graph takes, and what reading mail through Graph instead of IMAP
+/// takes (`Mail.ReadWrite`, and for the shared mailboxes `Mail.ReadWrite.Shared` and
+/// `Mail.Send.Shared`), and what the calendars of shared mailboxes take
+/// (`Calendars.ReadWrite.Shared`). Exchange Web Services is in it only where `source`
 /// says the owner chose that way: it stays the owner's separate choice.
 ///
 /// A sign-in asks for no more than is here: a page that asked for one permission an
@@ -410,7 +437,8 @@ fn admin_scope(source: mailcraft_model::FavoritesSource) -> String {
     let who: Vec<&str> = SIGN_IN_SCOPE.split(' ').collect();
     let mail = MICROSOFT_SCOPE.split(' ').filter(|scope| !who.contains(scope));
     let ews = (source == mailcraft_model::FavoritesSource::Ews).then_some(MICROSOFT_EWS);
-    let all = mail.chain([MICROSOFT_GRAPH, MICROSOFT_GRAPH_EXTRAS, MICROSOFT_GRAPH_FAVORITES]).chain(ews).chain([SIGN_IN_SCOPE]);
+    let graph = [MICROSOFT_GRAPH, MICROSOFT_GRAPH_EXTRAS, MICROSOFT_GRAPH_FAVORITES, MICROSOFT_GRAPH_MAIL, MICROSOFT_GRAPH_SHARED_CALENDARS];
+    let all = mail.chain(graph).chain(ews).chain([SIGN_IN_SCOPE]);
     all.collect::<Vec<_>>().join(" ")
 }
 
@@ -633,6 +661,84 @@ pub fn sign_in_for_favorites(oauth: &OAuth, login_hint: &str, open: &dyn Fn(&str
     sign_in_for_favorites_within(&endpoints, oauth, login_hint, open, cancel, SIGN_IN_TIMEOUT)
 }
 
+/// Ask the owner, on the provider's page, to let this program read, change and file mail through
+/// Microsoft Graph (`Mail.ReadWrite`; and for the shared mailboxes the owner opens
+/// `Mail.ReadWrite.Shared` and `Mail.Send.Shared`), beside what Graph was asked for before: for an
+/// account whose owner chose Graph over IMAP. The tokens that come back are Graph's, for all of it.
+/// Asked for by itself, never with an ordinary sign-in, and nothing is tried a second time: a no
+/// is the answer, and it says whose it is ([`FavoritesRefusal`], which is the same for this).
+/// With `favorites`, the Favorites' permissions are asked for on the same page: the owner asked
+/// for those too ([`sign_in_for_favorites`]).
+pub fn sign_in_for_mail(
+    oauth: &OAuth,
+    login_hint: &str,
+    open: &dyn Fn(&str),
+    cancel: &AtomicBool,
+    favorites: bool,
+) -> Result<Tokens, FavoritesRefusal> {
+    let plain = Endpoints::for_resource(oauth, Resource::Graph);
+    let endpoints = Endpoints { scope: mail_scope(favorites), consent: String::new(), lesser: String::new(), ..plain };
+    sign_in_for_favorites_within(&endpoints, oauth, login_hint, open, cancel, SIGN_IN_TIMEOUT)
+}
+
+/// Ask the owner, on the provider's page, to let this program read and write the calendars of
+/// the shared mailboxes the owner opens (`Calendars.ReadWrite.Shared`), beside what Microsoft
+/// Graph was asked for before. The tokens that come back are Graph's, for all of it. Asked for
+/// by itself, never with an ordinary sign-in, and nothing is tried a second time: a no is the
+/// answer, and it says whose it is ([`FavoritesRefusal`], which is the same for this).
+pub fn sign_in_for_shared_calendars(oauth: &OAuth, login_hint: &str, open: &dyn Fn(&str), cancel: &AtomicBool) -> Result<Tokens, FavoritesRefusal> {
+    let plain = Endpoints::for_resource(oauth, Resource::Graph);
+    let endpoints = Endpoints { scope: shared_scope(), consent: String::new(), lesser: String::new(), ..plain };
+    sign_in_for_favorites_within(&endpoints, oauth, login_hint, open, cancel, SIGN_IN_TIMEOUT)
+}
+
+/// What a token for the calendar of a shared mailbox is asked for: what Graph is always asked
+/// for and the shared calendars.
+fn shared_scope() -> String {
+    format!("{MICROSOFT_GRAPH} {MICROSOFT_GRAPH_SHARED_CALENDARS} {SIGN_IN_SCOPE}")
+}
+
+/// A token for Microsoft Graph that is good for the calendars of the shared mailboxes the owner
+/// opens. When the sign-in doesn't cover them, and is good otherwise, the answer is
+/// [`NetError::ConsentNeeded`] with [`SHARED_NOT_COVERED`]: the owner is to be asked on the
+/// provider's page ([`sign_in_for_shared_calendars`]). A sign-in that is over is
+/// `ProtoError::Auth`, as ever.
+pub fn refresh_graph_for_shared(oauth: &OAuth, refresh_token: &str) -> Result<GraphTokens, NetError> {
+    let plain = Endpoints::for_resource(oauth, Resource::Graph);
+    let shared = Endpoints { scope: shared_scope(), ..plain.clone() };
+    let all = Endpoints { scope: format!("{MICROSOFT_GRAPH} {MICROSOFT_GRAPH_EXTRAS} {SIGN_IN_SCOPE}"), ..plain.clone() };
+    refresh_graph_for_shared_at(&shared, &all, &plain, &Endpoints::of(oauth), oauth, refresh_token)
+}
+
+/// [`refresh_graph_for_shared`] at endpoints other than the provider's usual ones: `shared` asks
+/// for the shared calendars; `all`, `plain` and `mail` say ([`refresh_graph_at`]) whether the
+/// sign-in is good without them.
+pub fn refresh_graph_for_shared_at(
+    shared: &Endpoints,
+    all: &Endpoints,
+    plain: &Endpoints,
+    mail: &Endpoints,
+    oauth: &OAuth,
+    refresh_token: &str,
+) -> Result<GraphTokens, NetError> {
+    match refresh_for_at(shared, oauth, refresh_token, Resource::Graph) {
+        Ok(tokens) => Ok(GraphTokens { tokens, extras_missing: false, covers_favorites: false }),
+        Err(error) if error.is_consent_needed() || error.is_refused_sign_in() => match refresh_graph_at(all, plain, mail, oauth, refresh_token) {
+            Ok(_) => Err(NetError::ConsentNeeded(SHARED_NOT_COVERED.into())),
+            Err(error) => Err(error),
+        },
+        Err(error) => Err(error),
+    }
+}
+
+/// What a token for Graph of an account that reads its mail through Graph is asked for: what
+/// Graph is always asked for, the mailbox's settings, the mail, and the Favorites' permissions
+/// when `favorites`.
+fn mail_scope(favorites: bool) -> String {
+    let favorites = if favorites { format!(" {MICROSOFT_GRAPH_FAVORITES}") } else { String::new() };
+    format!("{MICROSOFT_GRAPH} {MICROSOFT_GRAPH_EXTRAS} {MICROSOFT_GRAPH_MAIL}{favorites} {SIGN_IN_SCOPE}")
+}
+
 /// [`sign_in_for_favorites`] at `endpoints`, waiting no longer than `patience` for the owner.
 fn sign_in_for_favorites_within(
     endpoints: &Endpoints,
@@ -835,6 +941,51 @@ pub fn refresh_graph_with_favorites_at(
             log::debug!("the sign-in doesn't cover the Favorites; asking for what Microsoft Graph was asked for before them");
             refresh_graph_at(all, plain, mail, oauth, refresh_token)
         }
+        Err(error) => Err(error),
+    }
+}
+
+/// [`refresh_graph`] for an account that reads its mail through Microsoft Graph: the tokens are
+/// good for the mail too (`Mail.ReadWrite`, and for the shared mailboxes `Mail.ReadWrite.Shared`
+/// and `Mail.Send.Shared`), and for the Favorites when `favorites` asks and the sign-in covers
+/// them ([`GraphTokens::covers_favorites`]). Without the optional extras when the sign-in doesn't
+/// cover those. When it doesn't cover the mail, or covers the owner's own and not the shared
+/// mailboxes' (a sign-in from before those were asked for), and is good otherwise, the answer is
+/// [`NetError::ConsentNeeded`] with [`MAIL_NOT_COVERED`]: the owner is to be asked on the
+/// provider's page ([`sign_in_for_mail`]). A sign-in that is over is `ProtoError::Auth`, as ever.
+pub fn refresh_graph_for_mail(oauth: &OAuth, refresh_token: &str, favorites: bool) -> Result<GraphTokens, NetError> {
+    let plain = Endpoints::for_resource(oauth, Resource::Graph);
+    let with = |scope: String| Endpoints { scope, ..plain.clone() };
+    let bare = format!("{MICROSOFT_GRAPH} {MICROSOFT_GRAPH_MAIL} {SIGN_IN_SCOPE}");
+    let tries = [favorites.then(|| with(mail_scope(true))), Some(with(mail_scope(false))), Some(with(bare))];
+    let all = Endpoints { scope: format!("{MICROSOFT_GRAPH} {MICROSOFT_GRAPH_EXTRAS} {SIGN_IN_SCOPE}"), ..plain.clone() };
+    refresh_graph_for_mail_at(&tries, &all, &plain, &Endpoints::of(oauth), oauth, refresh_token)
+}
+
+/// [`refresh_graph_for_mail`] at endpoints other than the provider's usual ones: `tries` are asked
+/// in turn (with the Favorites' permissions, with the extras, with neither; `None` is skipped),
+/// and when none is had, `all`, `plain` and `mail` say ([`refresh_graph_at`]) whether the sign-in
+/// is good without the mail.
+pub fn refresh_graph_for_mail_at(
+    tries: &[Option<Endpoints>; 3],
+    all: &Endpoints,
+    plain: &Endpoints,
+    mail: &Endpoints,
+    oauth: &OAuth,
+    refresh_token: &str,
+) -> Result<GraphTokens, NetError> {
+    let about_scope = |error: &NetError| error.is_consent_needed() || error.is_refused_sign_in();
+    for (at, endpoints) in tries.iter().enumerate() {
+        let Some(endpoints) = endpoints else { continue };
+        match refresh_for_at(endpoints, oauth, refresh_token, Resource::Graph) {
+            Ok(tokens) => return Ok(GraphTokens { tokens, extras_missing: at == 2, covers_favorites: at == 0 }),
+            Err(error) if about_scope(&error) => log::debug!("the sign-in doesn't cover one of the ways Graph's mail is asked for"),
+            Err(error) => return Err(error),
+        }
+    }
+    // None was had: is it the mail the sign-in doesn't cover, or is the sign-in over?
+    match refresh_graph_at(all, plain, mail, oauth, refresh_token) {
+        Ok(_) => Err(NetError::ConsentNeeded(MAIL_NOT_COVERED.into())),
         Err(error) => Err(error),
     }
 }

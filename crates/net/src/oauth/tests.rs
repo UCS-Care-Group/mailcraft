@@ -904,6 +904,90 @@ fn a_sign_in_that_does_not_cover_the_favorites_keeps_everything_it_had() {
 }
 
 #[test]
+fn a_token_for_mail_through_graph_says_when_the_sign_in_does_not_cover_the_mail() {
+    let granted = r#"{"token_type":"Bearer","expires_in":3600,"access_token":"graph-access","refresh_token":"re-fresh-2"}"#;
+    let unasked = r#"{"error":"invalid_grant","error_description":"AADSTS65001: The user or administrator has not consented to use the application with ID 'client-1' named 'MailCraft'.","error_codes":[65001],"suberror":"consent_required"}"#;
+    let over = r#"{"error":"invalid_grant","error_description":"AADSTS70000: The user could not be authenticated as the grant is expired. The user must sign in again."}"#;
+    let mail = "https://graph.microsoft.com/Mail.ReadWrite";
+    let tries = |server: &FakeHttp, favorites: bool| {
+        let with = |scope: String| Endpoints { scope, ..endpoints_of(server) };
+        [
+            favorites.then(|| with(format!("{GRAPH_SCOPES} {mail} {FAVORITES_SCOPES} offline_access"))),
+            Some(with(format!("{GRAPH_SCOPES} {mail} offline_access"))),
+            Some(with(format!("{GRAPH_SCOPES_BEFORE} {mail} offline_access"))),
+        ]
+    };
+    let all = |server: &FakeHttp| Endpoints { scope: format!("{GRAPH_SCOPES} offline_access"), ..endpoints_of(server) };
+    let plain = |server: &FakeHttp| Endpoints { scope: format!("{GRAPH_SCOPES_BEFORE} offline_access"), ..endpoints_of(server) };
+    let ask = |server: &FakeHttp, favorites: bool| {
+        refresh_graph_for_mail_at(&tries(server, favorites), &all(server), &plain(server), &endpoints_of(server), &oauth(), "re-fresh")
+    };
+    // Covered: one question, for the mail with everything else.
+    let server = FakeHttp::answering(ok(granted));
+    let got = ask(&server, false).unwrap();
+    assert_eq!((got.tokens.access.as_str(), got.extras_missing, got.covers_favorites, server.asked()), ("graph-access", false, false, 1));
+    assert!(form_of(&server, 0)["scope"].contains("Mail.ReadWrite"));
+    // With the Favorites when they are wanted and covered; without them when they aren't.
+    let server = FakeHttp::answering(ok(granted));
+    assert!(ask(&server, true).unwrap().covers_favorites);
+    let server = FakeHttp::start(move |n, _| if n == 0 { response("400 Bad Request", unasked) } else { ok(granted) });
+    let got = ask(&server, true).unwrap();
+    assert_eq!((got.covers_favorites, got.extras_missing, server.asked()), (false, false, 2));
+    assert!(form_of(&server, 1)["scope"].contains("Mail.ReadWrite"));
+    // The sign-in is good but doesn't cover the mail: said as that, for the owner to be asked.
+    let server = FakeHttp::start(move |n, _| if n < 2 { response("400 Bad Request", unasked) } else { ok(granted) });
+    match ask(&server, false) {
+        Err(NetError::ConsentNeeded(why)) => assert_eq!(why, MAIL_NOT_COVERED),
+        other => panic!("{other:?}"),
+    }
+    // A sign-in that is over is that, whatever was asked.
+    let server = FakeHttp::answering(response("400 Bad Request", over));
+    let refused = ask(&server, true).unwrap_err();
+    assert!(refused.is_refused_sign_in() && !format!("{refused} {refused:?}").contains("re-fresh"));
+}
+
+#[test]
+fn the_mail_through_graph_is_asked_for_with_the_shared_mailboxes_and_a_sign_in_without_them_is_asked_again() {
+    // What the owner is asked for, and the administrator with it: the owner's own mail, and the
+    // shared mailboxes' read and sent from, never with an ordinary sign-in.
+    let shared = ["https://graph.microsoft.com/Mail.ReadWrite.Shared", "https://graph.microsoft.com/Mail.Send.Shared"];
+    for scope in [mail_scope(false), mail_scope(true), admin_scope(mailcraft_model::FavoritesSource::Graph)] {
+        let scopes: Vec<&str> = scope.split(' ').collect();
+        assert!(scopes.contains(&"https://graph.microsoft.com/Mail.ReadWrite"), "{scope}");
+        assert!(shared.iter().all(|s| scopes.contains(s)), "{scope}");
+    }
+    for scope in
+        [MICROSOFT_SCOPE, MICROSOFT_GRAPH, &shared_scope(), &format!("{MICROSOFT_GRAPH} {MICROSOFT_GRAPH_EXTRAS} {MICROSOFT_GRAPH_FAVORITES}")]
+    {
+        assert!(!shared.iter().any(|s| scope.contains(s)), "{scope}");
+    }
+    // A sign-in from before the shared mailboxes were asked for: the mail alone is covered, the
+    // shared mailboxes are not. Said as the mail not covered, so that the owner is asked once on
+    // the provider's page, as one who was never asked for the mail is.
+    let granted = r#"{"token_type":"Bearer","expires_in":3600,"access_token":"graph-access","refresh_token":"re-fresh-2"}"#;
+    let unasked = r#"{"error":"invalid_grant","error_description":"AADSTS65001: The user or administrator has not consented to use the application with ID 'client-1' named 'MailCraft'.","error_codes":[65001],"suberror":"consent_required"}"#;
+    let server = FakeHttp::start(move |_, request| {
+        let asked = request.rsplit("\r\n\r\n").next().unwrap_or("").to_string();
+        let scope = fields(&asked).get("scope").cloned().unwrap_or_default();
+        if scope.contains(".Shared") { response("400 Bad Request", unasked) } else { ok(granted) }
+    });
+    let plain = Endpoints::for_resource(&oauth(), Resource::Graph);
+    let with = |scope: String| Endpoints { scope, ..endpoints_of(&server) };
+    let bare = format!("{MICROSOFT_GRAPH} {MICROSOFT_GRAPH_MAIL} {SIGN_IN_SCOPE}");
+    let tries = [None, Some(with(mail_scope(false))), Some(with(bare))];
+    let all = with(format!("{MICROSOFT_GRAPH} {MICROSOFT_GRAPH_EXTRAS} {SIGN_IN_SCOPE}"));
+    let only_plain = with(plain.scope.clone());
+    match refresh_graph_for_mail_at(&tries, &all, &only_plain, &endpoints_of(&server), &oauth(), "re-fresh") {
+        Err(NetError::ConsentNeeded(why)) => assert_eq!(why, MAIL_NOT_COVERED),
+        other => panic!("{other:?}"),
+    }
+    // Both ways of asking for the mail named the shared mailboxes; and then the sign-in was found good without.
+    assert!(server.asked() >= 3, "{}", server.asked());
+    assert!(form_of(&server, 0)["scope"].contains("Mail.Send.Shared") && form_of(&server, 1)["scope"].contains("Mail.ReadWrite.Shared"));
+    assert!(!form_of(&server, 2)["scope"].contains(".Shared"));
+}
+
+#[test]
 fn a_page_that_will_not_have_everything_is_asked_for_what_was_asked_before() {
     // Were more put on the page of a sign-in than was before (`Endpoints::lesser` says what
     // was): a page that refuses it, for what it asks or because it is not the owner's to give,
@@ -1755,11 +1839,11 @@ fn the_identity_token_says_which_directory_signed_in() {
 // ---- an administrator's approval ----
 
 /// What an administrator is asked to approve: everything the program asks an owner for.
-const ADMIN_SCOPES: &str = "https://outlook.office.com/IMAP.AccessAsUser.All https://outlook.office.com/SMTP.Send https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/Calendars.ReadWrite https://graph.microsoft.com/Contacts.Read https://graph.microsoft.com/MailboxSettings.Read https://graph.microsoft.com/MailboxConfigItem.Read https://graph.microsoft.com/Mail.ReadBasic offline_access openid profile email";
+const ADMIN_SCOPES: &str = "https://outlook.office.com/IMAP.AccessAsUser.All https://outlook.office.com/SMTP.Send https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/Calendars.ReadWrite https://graph.microsoft.com/Contacts.Read https://graph.microsoft.com/MailboxSettings.Read https://graph.microsoft.com/MailboxConfigItem.Read https://graph.microsoft.com/Mail.ReadBasic https://graph.microsoft.com/Mail.ReadWrite https://graph.microsoft.com/Mail.ReadWrite.Shared https://graph.microsoft.com/Mail.Send.Shared https://graph.microsoft.com/Calendars.ReadWrite.Shared offline_access openid profile email";
 /// The same, service by service.
 const ADMIN_SCOPES_MAIL: &str =
     "https://outlook.office.com/IMAP.AccessAsUser.All https://outlook.office.com/SMTP.Send offline_access openid profile email";
-const ADMIN_SCOPES_GRAPH: &str = "https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/Calendars.ReadWrite https://graph.microsoft.com/Contacts.Read https://graph.microsoft.com/MailboxSettings.Read https://graph.microsoft.com/MailboxConfigItem.Read https://graph.microsoft.com/Mail.ReadBasic offline_access openid profile email";
+const ADMIN_SCOPES_GRAPH: &str = "https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/Calendars.ReadWrite https://graph.microsoft.com/Contacts.Read https://graph.microsoft.com/MailboxSettings.Read https://graph.microsoft.com/MailboxConfigItem.Read https://graph.microsoft.com/Mail.ReadBasic https://graph.microsoft.com/Mail.ReadWrite https://graph.microsoft.com/Mail.ReadWrite.Shared https://graph.microsoft.com/Mail.Send.Shared https://graph.microsoft.com/Calendars.ReadWrite.Shared offline_access openid profile email";
 /// A directory's id and an application's, both invented.
 const DIRECTORY: &str = "3a1c5e7b-9d2f-4a6c-8e0b-1d3f5a7c9e2b";
 const APPLICATION: &str = "0f6c8d2a-1b3e-4c5d-9e7f-a1b2c3d4e5f6";
@@ -1772,7 +1856,7 @@ fn approval(tenant: &str, open: &dyn Fn(&str)) -> Result<(), AdminRefusal> {
 #[test]
 fn one_approval_covers_everything_the_program_asks_an_owner_for() {
     use mailcraft_model::FavoritesSource;
-    let approved: Vec<String> = admin_scope(FavoritesSource::Graph).split(' ').map(str::to_string).collect();
+    let approved: Vec<String> = admin_scope(mailcraft_model::FavoritesSource::Graph).split(' ').map(str::to_string).collect();
     assert_eq!(approved.join(" "), ADMIN_SCOPES);
     // What the page of a sign-in asks for, to mail and to Graph, and what the tokens are for: a
     // page that asked for one permission more would send the owner to find an administrator again.
@@ -1792,7 +1876,7 @@ fn one_approval_covers_everything_the_program_asks_an_owner_for() {
     assert!(with_ews.split(' ').any(|scope| scope == "https://outlook.office365.com/EWS.AccessAsUser.All"));
     assert!(approved.iter().all(|scope| with_ews.split(' ').any(|other| other == scope)));
     // No permission twice, whichever.
-    for scope in [admin_scope(FavoritesSource::Graph), with_ews] {
+    for scope in [admin_scope(mailcraft_model::FavoritesSource::Graph), with_ews] {
         let mut seen: Vec<&str> = scope.split(' ').collect();
         seen.sort_unstable();
         seen.dedup();
@@ -2145,4 +2229,34 @@ proptest! {
         prop_assert_eq!(&asked["redirect_uri"], &format!("http://localhost:{}", port_of(&asked["redirect_uri"])));
         prop_assert!(asked["state"].len() >= 32 && asked["state"].bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_'));
     }
+}
+
+#[test]
+fn a_token_for_shared_calendars_says_when_the_sign_in_does_not_cover_them() {
+    let granted = r#"{"token_type":"Bearer","expires_in":3600,"access_token":"graph-access","refresh_token":"re-fresh-2"}"#;
+    let unasked = r#"{"error":"invalid_grant","error_description":"AADSTS65001: The user or administrator has not consented to use the application with ID 'client-1' named 'MailCraft'.","error_codes":[65001],"suberror":"consent_required"}"#;
+    let over = r#"{"error":"invalid_grant","error_description":"AADSTS70000: The user could not be authenticated as the grant is expired. The user must sign in again."}"#;
+    let shared = |server: &FakeHttp| Endpoints {
+        scope: format!("{GRAPH_SCOPES_BEFORE} https://graph.microsoft.com/Calendars.ReadWrite.Shared offline_access"),
+        ..endpoints_of(server)
+    };
+    let all = |server: &FakeHttp| Endpoints { scope: format!("{GRAPH_SCOPES} offline_access"), ..endpoints_of(server) };
+    let plain = |server: &FakeHttp| Endpoints { scope: format!("{GRAPH_SCOPES_BEFORE} offline_access"), ..endpoints_of(server) };
+    let ask =
+        |server: &FakeHttp| refresh_graph_for_shared_at(&shared(server), &all(server), &plain(server), &endpoints_of(server), &oauth(), "re-fresh");
+    // Covered: one question.
+    let server = FakeHttp::answering(ok(granted));
+    let got = ask(&server).unwrap();
+    assert_eq!((got.tokens.access.as_str(), server.asked()), ("graph-access", 1));
+    assert!(form_of(&server, 0)["scope"].contains("Calendars.ReadWrite.Shared"));
+    // Good otherwise, not for the shared calendars: said as that.
+    let server = FakeHttp::start(move |n, _| if n == 0 { response("400 Bad Request", unasked) } else { ok(granted) });
+    match ask(&server) {
+        Err(NetError::ConsentNeeded(why)) => assert_eq!(why, SHARED_NOT_COVERED),
+        other => panic!("{other:?}"),
+    }
+    // Over: that.
+    let server = FakeHttp::answering(response("400 Bad Request", over));
+    let refused = ask(&server).unwrap_err();
+    assert!(refused.is_refused_sign_in() && !format!("{refused} {refused:?}").contains("re-fresh"));
 }

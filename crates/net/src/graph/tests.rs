@@ -122,7 +122,8 @@ fn a_message_goes_to_graph_in_base64() {
         "Content-Type: text/plain".into(),
         format!("Content-Length: {}", body.len()),
         "User-Agent: MailCraft".into(),
-        "Connection: close".into(),
+        // (The connection is kept for what Graph is asked next.)
+        "Connection: keep-alive".into(),
     ] {
         assert!(head.contains(&format!("\r\n{header}")), "{header}: {head}");
     }
@@ -2489,3 +2490,51 @@ proptest! {
     }
 }
 mod meetings;
+
+// ---- sending from a shared mailbox ----
+
+#[test]
+fn a_message_from_a_shared_mailbox_goes_as_json_with_its_address_as_from() {
+    let server = FakeHttp::answering(ACCEPTED.to_vec());
+    let mut sent = message();
+    sent.from = Address::new("Support", "support@example.org");
+    sent.body.html = Some("<p>Four o'clock</p>".into());
+    sent.attachments = vec![mailcraft_model::Attachment::new("plan.txt", "text/plain", b"the plan".to_vec())];
+    send_as_at(&server.url(""), TOKEN, &sent, "support@example.org").unwrap();
+    let request = server.request(0);
+    // The owner's own sendMail (Mail.Send is enough for Send As), never the shared mailbox's.
+    assert!(request.starts_with("POST /v1.0/me/sendMail HTTP/1.1\r\n"), "{request}");
+    assert!(request.contains("\r\nContent-Type: application/json"), "{request}");
+    let body: Value = serde_json::from_str(request.split_once("\r\n\r\n").unwrap().1).unwrap();
+    let m = &body["message"];
+    assert_eq!(m["from"]["emailAddress"]["address"], "support@example.org");
+    assert_eq!(m["toRecipients"][0]["emailAddress"]["address"], "bo@example.org");
+    assert_eq!(m["ccRecipients"][0]["emailAddress"]["address"], "cy@example.org");
+    assert_eq!((m["body"]["contentType"].as_str(), m["subject"].as_str()), (Some("HTML"), Some("Tea on Thursday?")));
+    assert_eq!(m["attachments"][0]["contentBytes"], STANDARD.encode(b"the plan"));
+    assert_eq!(body["saveToSentItems"], true);
+}
+
+#[test]
+fn a_shared_mailbox_without_the_send_as_right_is_said_so() {
+    let denied = json_answer(
+        "403 Forbidden",
+        r#"{"error":{"code":"ErrorSendAsDenied","message":"The user account which was used to submit this request does not have the right to send mail on behalf of the specified sending account."}}"#,
+    );
+    let server = FakeHttp::answering(denied);
+    match send_as_at(&server.url(""), TOKEN, &message(), "support@example.org") {
+        Err(NetError::Forbidden(said)) => {
+            assert!(said.contains("Send As") && said.contains("ErrorSendAsDenied") && !said.contains(TOKEN), "{said}");
+        }
+        other => panic!("{other:?}"),
+    }
+    // Nothing goes with an address that can't be a sender, or with nobody to send to.
+    let quiet = FakeHttp::answering(ACCEPTED.to_vec());
+    assert!(matches!(send_as_at(&quiet.url(""), TOKEN, &message(), "not an address"), Err(NetError::Config(_))));
+    let nobody = Message { to: Vec::new(), cc: Vec::new(), ..message() };
+    assert!(matches!(send_as_at(&quiet.url(""), TOKEN, &nobody, "support@example.org"), Err(NetError::Config(_))));
+    let huge =
+        Message { attachments: vec![mailcraft_model::Attachment::new("big.bin", "application/octet-stream", vec![0; 4_000_000])], ..message() };
+    assert!(matches!(send_as_at(&quiet.url(""), TOKEN, &huge, "support@example.org"), Err(NetError::Config(_))));
+    assert_eq!(quiet.asked(), 0);
+}

@@ -299,7 +299,10 @@ fn folder_row(app: &mut MailApp, ui: &mut Ui, f: &Folder, depth: usize, has_chil
         // Only what isn't here already.
         let ids: Vec<Id> = drag.0.iter().copied().filter(|m| app.session.mailbox.message(*m).is_some_and(|m| m.folder != f.id)).collect();
         if !ids.is_empty() {
-            let _ = app.run("mail.move", json!({"ids": ids, "folder": f.id}));
+            // (A move to another mailbox may be refused: what to do is said.)
+            if let Err(e) = app.run("mail.move", json!({"ids": ids, "folder": f.id})) {
+                app.status(e);
+            }
         }
     }
     let (id, custom, favorite, kind) = (f.id, f.kind == FolderKind::Custom, f.favorite, f.kind);

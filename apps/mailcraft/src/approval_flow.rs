@@ -94,6 +94,8 @@ fn sign_in_request(cancel: &Arc<AtomicBool>) -> SignInRequest {
         mail_only: false,
         favorites: false,
         ews: false,
+        mail_graph: false,
+        shared_calendars: false,
     }
 }
 
@@ -145,6 +147,8 @@ fn a_sign_in_that_ends_on_microsofts_page_is_told_to_the_window_in_its_own_words
         SignInRequest { graph: true, favorites: true, ..sign_in_request(&free()) },
         SignInRequest { ews: true, ..sign_in_request(&free()) },
         SignInRequest { mail_only: true, ..sign_in_request(&free()) },
+        SignInRequest { graph: true, mail_graph: true, ..sign_in_request(&free()) },
+        SignInRequest { graph: true, shared_calendars: true, ..sign_in_request(&free()) },
     ] {
         assert_eq!(super::sign_in_with(request, &|_| false), Err(NO_BROWSER.to_string()));
     }
