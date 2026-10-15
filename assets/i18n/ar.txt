@@ -1399,9 +1399,6 @@ Outlook's Favorites are switched off in File › Options
 Show the Favorites from Outlook in the folder pane
 = إظهار المفضلة من Outlook في جزء المجلدات
 
-Connect Outlook's Favorites
-= ربط المفضلة من Outlook
-
 Downloaded {name}
 = تم تنزيل {name}
 

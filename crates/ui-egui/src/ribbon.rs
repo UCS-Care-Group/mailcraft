@@ -782,6 +782,87 @@ pub fn folder_menu(ui: &mut Ui, app: &mut MailApp, mut pick: impl FnMut(&mut Mai
     });
 }
 
+/// The mailboxes a message of `account` can move to: the account and the shared mailboxes it
+/// opens (or, for a shared mailbox, its account and the others it opens), the account first.
+pub fn mailbox_family(app: &MailApp, account: Id) -> Vec<Id> {
+    let accounts = &app.session.mailbox.accounts;
+    let owner = accounts.iter().find(|a| a.id == account).and_then(|a| a.shared_of).unwrap_or(account);
+    let shared = accounts.iter().filter(|a| a.shared_of == Some(owner)).map(|a| a.id);
+    std::iter::once(owner).chain(shared).filter(|id| accounts.iter().any(|a| a.id == *id)).collect()
+}
+
+/// [`folder_menu`] for moving and copying messages: the folders of every mailbox of the
+/// account's ([`mailbox_family`]), each named with its mailbox's address in front when there is
+/// more than one, and a box to find a folder by any part of that.
+pub fn mailbox_folder_menu(ui: &mut Ui, app: &mut MailApp, mut pick: impl FnMut(&mut MailApp, Id)) {
+    let account = app.session.mailbox.folder(app.session.view.folder).map(|f| f.account).or(app.session.mailbox.default_account().map(|a| a.id));
+    let Some(account) = account else { return };
+    let mailboxes = mailbox_family(app, account);
+    let many = mailboxes.len() > 1;
+    fn walk(app: &MailApp, account: Id, parent: Option<Id>, path: &str, depth: usize, out: &mut Vec<(Id, String, String, usize)>) {
+        if depth > 32 {
+            return;
+        }
+        for f in app.session.mailbox.children(account, parent) {
+            let full = if path.is_empty() { f.name.clone() } else { format!("{path} › {}", f.name) };
+            out.push((f.id, f.name.clone(), full.clone(), depth));
+            walk(app, account, Some(f.id), &full, depth + 1, out);
+        }
+    }
+    let mut list: Vec<(Id, String)> = Vec::new();
+    for mailbox in &mailboxes {
+        let email = app.session.mailbox.account(*mailbox).map(|a| crate::forms::kit::shown(a.email.trim(), 60)).unwrap_or_default();
+        let mut folders = Vec::new();
+        walk(app, *mailbox, None, "", 0, &mut folders);
+        for (id, name, full, depth) in folders {
+            list.push((id, if many { format!("{email} › {full}") } else { format!("{}{name}", "    ".repeat(depth)) }));
+        }
+    }
+    // What is typed to find a folder, kept while the menu is open.
+    let key = ui.id().with("folder_search");
+    let mut wanted: String = ui.data(|d| d.get_temp(key)).unwrap_or_default();
+    if many || list.len() > 12 {
+        let field = egui::TextEdit::singleline(&mut wanted).hint_text(tl!("Search folders")).desired_width(320.0).char_limit(120);
+        let resp = ui.add(field);
+        app.hit.add("folderSearch", 0, resp.rect);
+        if !ui.data(|d| d.get_temp::<bool>(key.with("focused"))).unwrap_or(false) {
+            resp.request_focus();
+            ui.data_mut(|d| d.insert_temp(key.with("focused"), true));
+        }
+        ui.data_mut(|d| d.insert_temp(key, wanted.clone()));
+        ui.separator();
+    }
+    let words: Vec<String> = wanted.split_whitespace().map(str::to_lowercase).collect();
+    let mut chosen = None;
+    egui::ScrollArea::vertical().max_height(360.0).show(ui, |ui| {
+        let mut shown = 0;
+        for (id, label) in &list {
+            let lower = label.to_lowercase();
+            if !words.iter().all(|w| lower.contains(w.as_str())) {
+                continue;
+            }
+            shown += 1;
+            let current = *id == app.session.view.folder;
+            let resp = ui.add_enabled(!current, egui::Button::new(label.as_str()).min_size(vec2(320.0, 0.0)));
+            app.hit.add("moveFolder", *id, resp.rect);
+            if resp.clicked() {
+                chosen = Some(*id);
+            }
+        }
+        if shown == 0 {
+            ui.label(egui::RichText::new(tl!("No folder has that name")).color(ui.visuals().weak_text_color()));
+        }
+    });
+    if let Some(id) = chosen {
+        ui.data_mut(|d| {
+            d.remove::<String>(key);
+            d.remove::<bool>(key.with("focused"));
+        });
+        pick(app, id);
+        ui.close();
+    }
+}
+
 /// The categories as menu items that toggle one on the selection through `command`.
 pub fn category_menu(ui: &mut Ui, app: &mut MailApp, command: &str, has: impl Fn(&MailApp, &str) -> bool, clear: Option<&str>) {
     let cats: Vec<(String, egui::Color32)> = app.session.mailbox.categories.iter().map(|c| (c.name.clone(), crate::theme::c32(c.color))).collect();
@@ -838,13 +919,18 @@ fn menu_contents(ui: &mut Ui, app: &mut MailApp, menu: Menu) {
                 ui.label(tl!("Select a message first"));
                 return;
             }
-            folder_menu(ui, app, |app, folder| {
-                let _ = app.run("mail.move", json!({"folder": folder}));
+            mailbox_folder_menu(ui, app, |app, folder| {
+                // (A move to another mailbox may be refused: what to do is said.)
+                if let Err(e) = app.run("mail.move", json!({"folder": folder})) {
+                    app.status(e);
+                }
             });
             ui.separator();
             ui.menu_button(tl!("Copy to Folder"), |ui| {
-                folder_menu(ui, app, |app, folder| {
-                    let _ = app.run("mail.copy", json!({"folder": folder}));
+                mailbox_folder_menu(ui, app, |app, folder| {
+                    if let Err(e) = app.run("mail.copy", json!({"folder": folder})) {
+                        app.status(e);
+                    }
                 });
             });
         }
@@ -1218,7 +1304,7 @@ fn simple_button(app: &mut MailApp, ui: &mut Ui, t: &Tokens, b: &Button<'_>, lab
         // The whole button opens its menu.
         drop_mark(ui, drop_rect.center(), ink);
         let main = main.on_hover_text(item.tip_text());
-        egui::Popup::menu(&main).show(|ui| drop_menu(ui, app, b));
+        menu_popup(&main, has_text_field(b)).show(|ui| drop_menu(ui, app, b));
         return;
     };
     let main = command_tooltip(app, main, &item.tip_text(), command);
@@ -1235,7 +1321,21 @@ fn simple_button(app: &mut MailApp, ui: &mut Ui, t: &Tokens, b: &Button<'_>, lab
     drop_mark(ui, drop_rect.center(), t.icon);
     let tip = b.drops.first().map_or_else(|| item.tip_text(), |under| under.tip_text());
     let drop = drop.on_hover_text(tip);
-    egui::Popup::menu(&drop).show(|ui| drop_menu(ui, app, b));
+    menu_popup(&drop, has_text_field(b)).show(|ui| drop_menu(ui, app, b));
+}
+
+/// The popup of a ribbon button's menu. A menu with a box to type in (the one that moves
+/// messages has one that finds a folder) stays open when the box is clicked: egui's menus
+/// otherwise close on any click inside them, and every item of ours closes the menu itself.
+/// What it is set to here reaches the submenus under it too.
+fn menu_popup<'a>(response: &egui::Response, text_field: bool) -> egui::Popup<'a> {
+    let popup = egui::Popup::menu(response);
+    if text_field { popup.close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside) } else { popup }
+}
+
+/// Whether the menu of `b` (its own, or one of those under it) has a box to type in.
+fn has_text_field(b: &Button<'_>) -> bool {
+    std::iter::once(b.item).chain(b.drops.iter().copied()).any(|item| item.menu == Some(Menu::MoveMessages))
 }
 
 /// The keys of the buttons that were behind `…` in the frame just laid out.
@@ -1283,7 +1383,7 @@ fn simplified(app: &mut MailApp, ui: &mut Ui, t: &Tokens, tab: &Tab, area: Rect)
         bg(ui, rect, &resp, false, t);
         icons::paint(ui.painter(), Rect::from_center_size(rect.center(), vec2(ICON, ICON)), "more", t.icon, t.accent);
         let resp = resp.on_hover_text(tl!("More commands"));
-        egui::Popup::menu(&resp).show(|ui| {
+        menu_popup(&resp, more.iter().any(|b| has_text_field(b))).show(|ui| {
             ui.set_min_width(200.0);
             let mut before: Option<u8> = None;
             for b in &more {
@@ -2002,5 +2102,40 @@ mod tests {
                 ("Send/Receive", vec!["Send/Receive\nAll Folders"]),
             ]
         );
+    }
+
+    /// The Move menu's box for finding a folder can be clicked into: the menu stays open (egui's
+    /// menus otherwise close on any click inside them), and a folder picked from it closes it.
+    #[test]
+    fn clicking_into_the_move_menus_search_box_keeps_the_menu_open() {
+        let mut a = app();
+        a.run("view.mail", json!({})).unwrap();
+        // Enough folders for the box to be offered.
+        for n in 0..14 {
+            a.run("folder.new", json!({"name": format!("Project {n}"), "parent": null})).unwrap();
+        }
+        let first = a.session.mailbox.messages_in(a.session.view.folder).map(|m| m.id).min().expect("a message in view");
+        a.run("mail.select", json!({"id": first})).unwrap();
+        let mut harness = window(a, 1400.0);
+        let button = harness.state().hit.rect("ribbon", hit_id("moveMessages")).expect("the Move button");
+        click(&mut harness, button.center());
+        let field = harness.state().hit.rect("folderSearch", 0).expect("the menu opened with its search box");
+        click(&mut harness, field.center());
+        assert!(harness.state().hit.rect("folderSearch", 0).is_some(), "clicking into the search box closed the Move menu");
+        // A folder whose row is on screen (the list scrolls), and not the one in view.
+        let in_view = harness.state().session.view.folder;
+        let (moved_to, row) = harness
+            .state()
+            .session
+            .mailbox
+            .folders
+            .iter()
+            .filter(|f| f.id != in_view)
+            .filter_map(|f| harness.state().hit.rect("moveFolder", f.id).map(|rect| (f.id, rect)))
+            .find(|(_, rect)| rect.min.y > field.max.y && rect.max.y < 650.0)
+            .expect("a folder row on screen");
+        click(&mut harness, row.center());
+        assert!(harness.state().hit.rect("folderSearch", 0).is_none(), "picking a folder didn't close the menu");
+        assert_eq!(harness.state().session.mailbox.message(first).map(|m| m.folder), Some(moved_to));
     }
 }

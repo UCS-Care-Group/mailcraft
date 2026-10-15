@@ -1399,9 +1399,6 @@ Outlook's Favorites are switched off in File › Options
 Show the Favorites from Outlook in the folder pane
 = הצגת המועדפים מ-Outlook בחלונית התיקיות
 
-Connect Outlook's Favorites
-= חיבור המועדפים של Outlook
-
 Downloaded {name}
 = {name} הורד
 

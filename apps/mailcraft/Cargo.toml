@@ -57,6 +57,10 @@ winit = { version = "0.30", default-features = false, features = ["wayland-csd-a
 # beside the zbus 5 already in the tree (accesskit's). This is zbus 5, Rust throughout, its
 # encryption the RustCrypto crates.
 secret-service = { version = "5.1", features = ["rt-async-io-crypto-rust"] }
+# "Use system setting" for the interface theme: winit reports no light or dark here, so the
+# desktop's own (the freedesktop.org settings portal's `color-scheme`) is read and followed over
+# D-Bus. The zbus 5 already in the tree (accesskit's, secret-service's). MIT.
+zbus = { version = "5", default-features = false, features = ["blocking-api", "async-io"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 rfd = { workspace = true }

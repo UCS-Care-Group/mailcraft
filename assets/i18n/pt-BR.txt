@@ -1729,9 +1729,6 @@ For an account that signs in with Microsoft: the folders you keep under Favorite
 Show the Favorites from Outlook in the folder pane
 = Mostrar os Favoritos do Outlook no painel de pastas
 
-Connect Outlook's Favorites
-= Conectar os Favoritos do Outlook
-
 Sign in with Microsoft once more to let MailCraft read the folders you keep under Favorites in Outlook. They are only read, never changed, and everything else stays as it is.
 = Entre com a Microsoft mais uma vez para que o MailCraft possa ler as pastas que você mantém em Favoritos no Outlook. Elas são só lidas, nunca alteradas, e todo o resto fica como está.
 
