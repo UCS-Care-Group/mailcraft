@@ -582,6 +582,11 @@ impl State {
             return Err(refuse(400, "ErrorInvalidIdMalformed", "Id is malformed."));
         }
         let immutable = immutable_of(id);
+        // A message to be refused (`Fault::Invalid`) is refused here too: the one fault a
+        // download meets.
+        if self.mailbox.faults.get(&immutable) == Some(&super::changes::Fault::Invalid) {
+            return Err(refuse(400, "ErrorInvalidRequest", "The request is invalid."));
+        }
         let mime = self.mailbox.messages.get(&immutable).map(Message::mime).ok_or_else(not_found)?;
         self.raw = Some(("text/plain".into(), mime));
         Ok((200, None))

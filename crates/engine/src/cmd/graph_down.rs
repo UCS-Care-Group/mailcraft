@@ -257,26 +257,35 @@ pub fn progress_words(mb: &Mailbox, account: Id, progress: &GraphProgress) -> St
 /// not gone, no larger than the account's "Download messages in full", newest first; `most` of
 /// them at most, by server id.
 pub fn fetch_queue(mb: &Mailbox, account: Id, most: usize) -> Vec<String> {
+    fetch_queue_passing_over(mb, account, most, &HashSet::new())
+}
+
+/// [`fetch_queue`] without the messages in `passed_over` (by account and server id): those the
+/// server wouldn't give whole this session.
+pub fn fetch_queue_passing_over(mb: &Mailbox, account: Id, most: usize, passed_over: &HashSet<(Id, String)>) -> Vec<String> {
+    let skip = |id: &str| passed_over.contains(&(account, id.to_string()));
     // Messages being moved out of the account first, whatever their size: the move ends only
     // once they are whole here (S19).
     let mut out: Vec<String> = mb
         .messages
         .values()
         .filter(|m| m.unfetched && !m.incomplete)
-        .filter_map(|m| m.moving_out.as_ref().filter(|out| out.account == account).map(|out| out.id.clone()))
+        .filter_map(|m| m.moving_out.as_ref().filter(|out| out.account == account && !skip(&out.id)).map(|out| out.id.clone()))
         .take(most)
         .collect();
-    out.extend(fetch_queue_of_account(mb, account, most.saturating_sub(out.len())));
+    out.extend(fetch_queue_of_account(mb, account, most.saturating_sub(out.len()), &skip));
     out
 }
 
-fn fetch_queue_of_account(mb: &Mailbox, account: Id, most: usize) -> Vec<String> {
+fn fetch_queue_of_account(mb: &Mailbox, account: Id, most: usize, skip: &dyn Fn(&str) -> bool) -> Vec<String> {
     let limit = keeps_whole(mb, account);
     let mut waiting: Vec<(i64, &str)> = mb
         .messages
         .values()
         .filter(|m| m.account == account && m.unfetched)
-        .filter_map(|m| m.server.as_ref().filter(|s| !s.gone && limit.is_none_or(|limit| s.size <= limit)).map(|s| (m.received, s.id.as_str())))
+        .filter_map(|m| {
+            m.server.as_ref().filter(|s| !s.gone && limit.is_none_or(|limit| s.size <= limit) && !skip(&s.id)).map(|s| (m.received, s.id.as_str()))
+        })
         .collect();
     let most = most.min(waiting.len());
     if most == 0 {

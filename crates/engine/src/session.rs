@@ -539,6 +539,9 @@ pub struct Session {
     pub sync_progress: crate::cmd::sync_progress::SyncProgress,
     /// Messages kept in step through Graph, by server id: kept between the pages of a run.
     pub(crate) graph_index: crate::cmd::graph_down::ServerIndex,
+    /// Messages of Microsoft accounts the server wouldn't give whole this session, by account and
+    /// server id: the background passes them over (opening one still asks). Never saved.
+    pub(crate) graph_unfetchable: std::collections::HashSet<(Id, String)>,
     /// Messages being moved out of a Microsoft account that were whole in the mailbox file when
     /// it was last saved: only for those is the server's copy removed (R3 spec S19). Never saved.
     pub(crate) saved_whole: std::collections::HashSet<Id>,
@@ -625,6 +628,7 @@ impl Session {
             sync_status: String::new(),
             sync_progress: Default::default(),
             graph_index: Default::default(),
+            graph_unfetchable: Default::default(),
             saved_whole: Default::default(),
             graph_said: Vec::new(),
             agent: None,

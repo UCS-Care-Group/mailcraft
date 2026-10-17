@@ -21,6 +21,9 @@ use crate::{MailApp, now_ms};
 const BATCH: usize = 10;
 /// How long the background waits before looking again when there was nothing to fetch.
 const IDLE_MS: f64 = 20_000.0;
+/// The longest the background waits after batches that brought nothing, one after another: the
+/// wait doubles from [`IDLE_MS`] up to this.
+const MOST_IDLE_MS: f64 = 15.0 * 60_000.0;
 
 /// What the host is asked to fetch ([`crate::Services::graph_fetch`]).
 pub struct GraphFetchJob {
@@ -45,6 +48,10 @@ pub struct Fetching {
     idle_until: f64,
     /// The last try couldn't reach Microsoft.
     pub(crate) offline: bool,
+    /// Accounts whose background batches stopped with nothing fetched, one after another: how
+    /// many times, and until when (milliseconds) the account is left alone. Each wait is twice
+    /// the one before, and the other accounts go on meanwhile.
+    stuck: std::collections::HashMap<Id, (u32, f64)>,
     /// For the status bar: how many are fetched of how many, while some aren't.
     pub(crate) progress: String,
 }
@@ -143,7 +150,11 @@ impl MailApp {
             return;
         }
         let accounts: Vec<Id> = self.session.mailbox.accounts.iter().filter(|a| a.kind == AccountKind::Microsoft).map(|a| a.id).collect();
+        let now = now_ms();
         for account in accounts {
+            if self.fetching.stuck.get(&account).is_some_and(|(_, until)| now < *until) {
+                continue;
+            }
             let Some(token) = access(self, account) else { continue };
             let Ok(request) = graph_mail::graph_fetch_request(&self.session, account, None, BATCH) else { continue };
             if request.ids.is_empty() {
@@ -197,9 +208,21 @@ impl MailApp {
         self.fetching.offline = result.offline;
         let stuck = result.offline || result.busy_for.is_some() || (result.fetched.is_empty() && !result.errors.is_empty());
         if stuck {
-            // Not now: try again in a while (a Send/Receive renews the token too).
-            let wait = f64::from(result.busy_for.unwrap_or(0)).mul_add(1_000.0, IDLE_MS);
-            self.fetching.idle_until = now_ms() + wait;
+            // Not now: this account is tried again in a while, longer each time it stops again
+            // (a Send/Receive renews the token too, and starts the waits afresh); the others go on.
+            let times = self.fetching.stuck.get(&account).map_or(0, |(times, _)| *times);
+            let wait = backoff(times).max(f64::from(result.busy_for.unwrap_or(0)) * 1_000.0);
+            self.fetching.stuck.insert(account, (times.saturating_add(1), now_ms() + wait));
+            // Said once, when it first stops, not every time it tries again.
+            if times == 0 {
+                let why = result.errors.first().map_or("no answer", String::as_str);
+                log::warn!(
+                    "graph fetch, account {account}: the background download stopped ({why}); it tries again in {} s",
+                    (wait / 1_000.0) as u64
+                );
+            }
+        } else if !result.fetched.is_empty() || !result.missing.is_empty() || !result.failed.is_empty() {
+            self.fetching.stuck.remove(&account);
         }
         match graph_mail::apply_graph_fetch(&mut self.session, result) {
             Ok(said) => {
@@ -234,5 +257,105 @@ impl MailApp {
     pub(crate) fn resume_fetch(&mut self) {
         self.session.sync_progress.full_paused = false;
         self.fetching.idle_until = 0.0;
+        self.fetching.stuck.clear();
+    }
+}
+
+/// How long the background waits after `stuck` batches one after another brought nothing:
+/// [`IDLE_MS`], doubling each time, at most [`MOST_IDLE_MS`].
+fn backoff(stuck: u32) -> f64 {
+    (IDLE_MS * 2f64.powi(i32::try_from(stuck.min(10)).unwrap_or(10))).min(MOST_IDLE_MS)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::mpsc;
+    use std::sync::{Arc, Mutex};
+
+    use mailcraft_engine::Session;
+    use mailcraft_model::sync::{GraphFetchResult, ServerMessage, Tokens};
+    use mailcraft_model::{FolderKind, Message};
+
+    use super::*;
+    use crate::Services;
+
+    type Jobs = Arc<Mutex<Vec<(GraphFetchJob, mpsc::Sender<GraphFetchResult>)>>>;
+
+    /// A window with two Microsoft accounts, each with `n` messages to fetch, and a host that
+    /// keeps every job for the test to answer.
+    fn window(n: i64) -> (MailApp, [Id; 2], Jobs) {
+        let mut app = MailApp::new(Session::empty(), Services::default());
+        app.autosave = false;
+        let mut accounts = [0; 2];
+        for (k, address) in ["one@example.org", "two@example.org"].iter().enumerate() {
+            let account = app.execute("account.add", json!({"email": address, "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+            let inbox = app.session.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+            for m in 0..n {
+                let server = ServerMessage { id: format!("AA{k}M{m}"), folder: "inbox".into(), ..Default::default() };
+                let message =
+                    Message { account, folder: inbox, received: 1_800_000_000 - m, unfetched: true, server: Some(server), ..Default::default() };
+                app.session.mailbox.add_message(message).unwrap();
+            }
+            let tokens = Tokens { access: "stand-in".into(), refresh: "r".into(), expires_at: mailcraft_time::now() + 3_600, ..Default::default() };
+            app.seed_graph_token(account, tokens);
+            accounts[k] = account;
+        }
+        let jobs: Jobs = Default::default();
+        let kept = jobs.clone();
+        app.services.graph_fetch = Some(Box::new(move |job: GraphFetchJob| {
+            let (tx, rx) = mpsc::channel();
+            kept.lock().unwrap().push((job, tx));
+            rx
+        }));
+        (app, accounts, jobs)
+    }
+
+    /// The first three messages of every job refused, as a server that won't convert them says.
+    fn refuse_three(jobs: &Jobs) -> Vec<Id> {
+        let pending: Vec<_> = std::mem::take(&mut *jobs.lock().unwrap());
+        let mut whose = Vec::new();
+        for (job, tx) in pending {
+            whose.push(job.request.account);
+            let failed = job.request.ids.iter().take(3).cloned().collect();
+            let errors = vec!["Couldn't download the messages from Microsoft: Microsoft Graph answered with status 400 (ErrorInvalidRequest)".into()];
+            tx.send(GraphFetchResult { account: job.request.account, email: job.request.email.clone(), failed, errors, ..Default::default() })
+                .unwrap();
+        }
+        whose
+    }
+
+    #[test]
+    fn an_account_whose_messages_are_refused_waits_longer_each_time_and_the_others_go_on() {
+        let (mut app, [one, two], jobs) = window(20);
+        app.drive_fetch();
+        assert_eq!(refuse_three(&jobs), [one]);
+        // Taken in: the next frame asks for the other account, not the same one again.
+        app.drive_fetch();
+        app.drive_fetch();
+        assert_eq!(refuse_three(&jobs), [two]);
+        // Both wait now.
+        for _ in 0..3 {
+            app.drive_fetch();
+        }
+        assert!(jobs.lock().unwrap().is_empty());
+        let (times, until) = app.fetching.stuck[&one];
+        assert_eq!(times, 1);
+        assert!(until >= now_ms() + IDLE_MS * 0.9, "the first wait is the usual one");
+        // Its wait over, the account is asked again: without the messages refused, and when it
+        // stops again it waits twice as long.
+        app.fetching.stuck.get_mut(&one).unwrap().1 = 0.0;
+        app.fetching.idle_until = 0.0;
+        app.drive_fetch();
+        let asked = jobs.lock().unwrap().first().map(|(job, _)| (job.request.account, job.request.ids.clone())).unwrap();
+        assert_eq!(asked.0, one);
+        assert!(asked.1.iter().all(|id| !["AA0M0", "AA0M1", "AA0M2"].contains(&id.as_str())), "{:?}", asked.1);
+        refuse_three(&jobs);
+        app.drive_fetch();
+        let (times, until) = app.fetching.stuck[&one];
+        assert_eq!(times, 2);
+        assert!(until >= now_ms() + IDLE_MS * 1.9);
+        // A Send/Receive starts the waits afresh.
+        app.resume_fetch();
+        assert!(app.fetching.stuck.is_empty());
     }
 }

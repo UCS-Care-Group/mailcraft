@@ -779,6 +779,9 @@ pub struct MailApp {
     /// The pieces of a Graph mail run as they come (R3.2), and what they had to say.
     graph_pieces: Option<Receiver<mailcraft_model::sync::GraphMailResult>>,
     graph_problems: Vec<String>,
+    /// Pieces of the Graph mail run under way taken in so far: when there were some, the mail
+    /// came that way, and the job's own answer has none of it.
+    pub(crate) graph_pieces_taken: usize,
     /// The account whose Graph mail run follows a sign-in for it that just went through: when
     /// that run is refused too, the owner is told rather than sent to Microsoft's page again (#124).
     graph_after_sign_in: Option<Id>,
@@ -954,6 +957,7 @@ impl MailApp {
             graph_rx: None,
             graph_pieces: None,
             graph_problems: Vec::new(),
+            graph_pieces_taken: 0,
             graph_after_sign_in: None,
             fetching: Default::default(),
             graph_checked: Default::default(),
@@ -1758,6 +1762,7 @@ impl MailApp {
         self.services.sync_cancel.store(false, std::sync::atomic::Ordering::Relaxed);
         self.graph_pieces = Some(taken);
         self.graph_problems.clear();
+        self.graph_pieces_taken = 0;
         // The calendar and contacts come after the mail: its last piece doesn't end the run.
         if ask.directory || ask.calendar.is_some() || ask.changes.is_some() {
             self.session.sync_progress.hold(account);
@@ -1920,6 +1925,7 @@ impl MailApp {
                 }
             }
             for piece in taken {
+                self.graph_pieces_taken = self.graph_pieces_taken.saturating_add(1);
                 // New mail may be waiting to be fetched whole: the background looks again.
                 if !piece.pages.is_empty() {
                     self.fetching.wake();
@@ -1956,6 +1962,7 @@ impl MailApp {
             }
         };
         self.graph_rx = None;
+        let streamed = std::mem::take(&mut self.graph_pieces_taken) > 0;
         let after_sign_in = self.graph_after_sign_in.take() == Some(account);
         // A shared mailbox's run is its mail alone (#70).
         if self.session.mailbox.account(account).is_some_and(|a| a.is_shared()) {
@@ -2038,6 +2045,13 @@ impl MailApp {
                     }
                     Err(e) => errors.push(e.to_string()),
                 },
+                // The mail came a piece at a time, each taken in as it came: the job's own answer
+                // has none of it, and the run is over.
+                None if streamed => {
+                    if status == tl!("Sending and receiving…") {
+                        self.session.sync_status.clear();
+                    }
+                }
                 // No answer for the folders (Graph wasn't reached, or the job ended early): what
                 // the job said is why, and it is logged with the rest of the problems below.
                 None => {

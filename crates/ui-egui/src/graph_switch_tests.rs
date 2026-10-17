@@ -414,3 +414,29 @@ fn a_copy_that_cant_be_written_leaves_the_account_on_imap() {
     assert!(status(&h).contains("stopped unexpectedly"), "{}", status(&h));
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// A run whose mail came a piece at a time, as every run of the desktop host's does, ended
+/// without a word in the log that the mail didn't come: it did, before the job's own answer.
+#[test]
+fn a_run_whose_mail_came_in_pieces_doesnt_say_it_ended_without_the_mail() {
+    let lines = logged();
+    let (app, account, _, runs) = on_graph("streamed", crate::GraphResult::default);
+    let mut h = window(app);
+    h.state_mut().services.graph = Some(Box::new(move |req: crate::GraphRequest| {
+        let (tx, rx) = mpsc::channel();
+        if let Some(to) = &req.mail_pieces {
+            let piece = mailcraft_model::sync::GraphMailResult { account: req.account.id, email: req.account.email.clone(), ..Default::default() };
+            to.send(piece).unwrap();
+        }
+        drop(req.mail_pieces);
+        tx.send(crate::GraphResult { account: req.account.id, ..Default::default() }).unwrap();
+        rx
+    }));
+    h.state_mut().run("ui.sync", json!({})).unwrap();
+    h.run_steps(6);
+    assert!(runs.lock().unwrap().is_empty(), "the test's own host answered");
+    assert!(!h.state().syncing());
+    assert_ne!(h.state().session.sync_status, "Sending and receiving…");
+    let said = format!("graph mail, account {account}: the run ended without the mail");
+    assert!(lines.lock().unwrap().iter().all(|l| !l.contains(&said)), "{:?}", lines.lock().unwrap());
+}

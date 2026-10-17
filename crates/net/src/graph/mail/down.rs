@@ -41,7 +41,7 @@ use mailcraft_model::{Address, FlagStatus, FolderKind, Importance};
 use serde_json::Value;
 
 use super::super::pace::Kind;
-use super::super::{ASK_TIMEOUT, Graph, MAX_PAGE, code_of, nonsense, text};
+use super::super::{ASK_TIMEOUT, Graph, MAX_PAGE, code_of, logged_code, nonsense, text};
 use super::{folders as folders_of, id_of};
 use crate::NetError;
 use crate::http::{self, Url};
@@ -226,7 +226,8 @@ fn page(
         // Gone meanwhile, or not to be read: the next run's listing says.
         status => {
             let code = code_of(&reply.body, &[graph.token, &one.folder.id]);
-            log::info!("graph mail: a folder's mail couldn't be read (status {status}){code}; it waits for the next run");
+            let logged = logged_code(&reply.body, &[graph.token, &one.folder.id]);
+            log::info!("graph mail: a folder's mail couldn't be read (status {status}{logged}); it waits for the next run");
             // A folder gone meanwhile is for the next listing to say; anything else is told.
             if status != 404 {
                 if run.refused == 0 {

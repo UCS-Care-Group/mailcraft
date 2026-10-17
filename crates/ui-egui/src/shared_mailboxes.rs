@@ -98,6 +98,7 @@ impl MailApp {
         self.services.sync_cancel.store(false, std::sync::atomic::Ordering::Relaxed);
         self.graph_pieces = Some(taken);
         self.graph_problems.clear();
+        self.graph_pieces_taken = 0;
         // Asked for: the owner wants to know whether the server opens it now.
         if !quiet {
             self.shared_refused.remove(&account);

@@ -198,7 +198,7 @@ pub fn graph_fetch_request(s: &Session, account: Id, message: Option<Id>, most: 
             let m = s.mailbox.message(id).filter(|m| m.account == account).ok_or_else(|| fail(format!("no message with id {id} in {}", a.name)))?;
             m.server.as_ref().filter(|_| m.unfetched).map(|server| vec![server.id.clone()]).unwrap_or_default()
         }
-        None => graph_down::fetch_queue(&s.mailbox, account, most.clamp(1, 100)),
+        None => graph_down::fetch_queue_passing_over(&s.mailbox, account, most.clamp(1, 100), &s.graph_unfetchable),
     };
     let shared = shared_mailbox(s, account)?;
     Ok(GraphFetchRequest { account, email: a.email.clone(), shared, ids, background: message.is_none() })
@@ -219,13 +219,15 @@ pub fn apply_graph_fetch(s: &mut Session, result: GraphFetchResult) -> CmdResult
     s.graph_index = index;
     // Gone before it could be fetched: a message being moved out of the account stays as it is.
     let incomplete = graph_up::missing(&mut s.mailbox, account, &result.missing);
+    // Refused although there: not asked for again in the background this session.
+    s.graph_unfetchable.extend(result.failed.iter().take(1_000).map(|id| (account, id.clone())));
     if taken + incomplete > 0 {
         s.mailbox_changed();
     }
     let (waiting, large) = graph_down::not_fetched(&s.mailbox, account);
     s.sync_progress.count_full(&s.mailbox, account);
     Ok(
-        json!({"fetched": taken, "missing": result.missing.len(), "waiting": waiting, "large": large, "errors": result.errors, "offline": result.offline, "busyFor": result.busy_for}),
+        json!({"fetched": taken, "missing": result.missing.len(), "failed": result.failed.len(), "waiting": waiting, "large": large, "errors": result.errors, "offline": result.offline, "busyFor": result.busy_for}),
     )
 }
 

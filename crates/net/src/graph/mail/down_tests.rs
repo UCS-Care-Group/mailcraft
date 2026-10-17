@@ -244,3 +244,47 @@ fn folders_the_server_refuses_to_list_are_said_with_graphs_code() {
     assert!(!said.contains(&inbox), "no folder's id: {said}");
     assert!(pieces.iter().all(|p| p.pages.is_empty()));
 }
+
+fn fetch_request(ids: &[String]) -> mailcraft_model::sync::GraphFetchRequest {
+    mailcraft_model::sync::GraphFetchRequest {
+        account: 3,
+        email: "owner@example.org".into(),
+        ids: ids.to_vec(),
+        background: true,
+        ..Default::default()
+    }
+}
+
+#[test]
+fn a_message_the_server_refuses_is_passed_over_and_the_rest_still_come() {
+    use crate::graph::standin::Fault;
+    let server = StandIn::start().unwrap();
+    let inbox = server.state().well_known("inbox");
+    let ids = server.state().mailbox.generate(&inbox, 3, NOW);
+    server.state().mailbox.faults.insert(ids[0].clone(), Fault::Invalid);
+    let got = super::fetch::fetch_messages_with(&server.url(), TOKEN, &fetch_request(&ids), Arc::new(Gate::new()), QUICK, &AtomicBool::new(false));
+    // The first one held up the whole batch before: now it is named, and the others come.
+    assert_eq!(got.failed, [ids[0].clone()]);
+    assert_eq!(got.fetched.iter().map(|f| f.id.as_str()).collect::<Vec<_>>(), [ids[1].as_str(), ids[2].as_str()]);
+    assert!(got.errors.is_empty() && got.missing.is_empty() && !got.offline && got.busy_for.is_none(), "{:?}", got.errors);
+}
+
+#[test]
+fn three_messages_refused_one_after_another_stop_the_batch() {
+    use crate::graph::standin::Fault;
+    let server = StandIn::start().unwrap();
+    let inbox = server.state().well_known("inbox");
+    let ids = server.state().mailbox.generate(&inbox, 5, NOW);
+    for id in &ids[..4] {
+        server.state().mailbox.faults.insert(id.clone(), Fault::Invalid);
+    }
+    let got = super::fetch::fetch_messages_with(&server.url(), TOKEN, &fetch_request(&ids), Arc::new(Gate::new()), QUICK, &AtomicBool::new(false));
+    assert_eq!(got.failed, ids[..3].to_vec());
+    assert!(got.fetched.is_empty());
+    // Said by its status and Graph's code, and nothing of the message.
+    assert_eq!(got.errors.len(), 1, "{:?}", got.errors);
+    assert!(got.errors[0].contains("status 400 (ErrorInvalidRequest)"), "{}", got.errors[0]);
+    assert!(ids.iter().all(|id| !got.errors[0].contains(id.as_str())));
+    let asked = server.state().requests.iter().filter(|r| r.target.contains("$value")).count();
+    assert_eq!(asked, 3, "the rest wait");
+}

@@ -600,3 +600,39 @@ fn graphs_delete_past_the_retention_period_is_nowhere_in_the_code() {
     }
     assert!(looked > 100, "{looked} files looked at");
 }
+
+/// Microsoft 365 answers a flag with a start and no due date 400 (and takes the same with the
+/// due date at the start): a plain Follow Up goes with both, and stays in step afterwards.
+#[test]
+fn a_flag_without_a_due_date_goes_up_due_at_its_start() {
+    let mut rig = Rig::new("plain-flag@example.org");
+    {
+        let mut state = rig.server.state();
+        let inbox = state.well_known("inbox");
+        state.mailbox.add(&inbox, "Flag me plainly", NOW - 3_600);
+    }
+    rig.run();
+    rig.act("mail.flag", "Flag me plainly", json!({}));
+    let from = rig.asked();
+    let answers = rig.run();
+    assert_eq!(Rig::errors(&answers), Vec::<Value>::new(), "{answers:?}");
+    let there = rig.there("Flag me plainly").unwrap();
+    assert_eq!(there.flag, "flagged");
+    let start = NOW - NOW % 86_400;
+    assert_eq!((there.flag_start, there.flag_due), (Some(start), Some(start)));
+    assert_eq!(unpushed(&rig.s, rig.account), 0);
+    let flags_since = |rig: &Rig, from: usize| -> Vec<Value> {
+        let state = rig.server.state();
+        state.requests[from..].iter().filter(|r| r.method == "PATCH").filter_map(|r| r.json().get("flag").cloned()).collect()
+    };
+    let flags = flags_since(&rig, from);
+    assert_eq!(flags.len(), 1, "{flags:?}");
+    assert_eq!(flags[0]["startDateTime"], flags[0]["dueDateTime"], "{flags:?}");
+    // The due date comes back down, and nothing goes up again.
+    let from = rig.asked();
+    rig.run();
+    rig.run();
+    assert_eq!(flags_since(&rig, from), Vec::<Value>::new());
+    assert_eq!(unpushed(&rig.s, rig.account), 0);
+    assert_eq!(rig.s.mailbox.message(rig.here("Flag me plainly")).unwrap().flag_due, Some(start));
+}

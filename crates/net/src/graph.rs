@@ -310,6 +310,21 @@ enum Doing {
     Mail,
 }
 
+impl Doing {
+    /// One word for a log line.
+    fn word(self) -> &'static str {
+        match self {
+            Doing::Sending => "sending",
+            Doing::Calendar | Doing::Writing => "calendar",
+            Doing::Contacts => "contacts",
+            Doing::Categories => "categories",
+            Doing::Favorites => "favorites",
+            Doing::Folders => "folders",
+            Doing::Mail => "mail",
+        }
+    }
+}
+
 fn nonsense(text: &str) -> NetError {
     NetError::Proto(ProtoError::Protocol(text.into()))
 }
@@ -521,6 +536,11 @@ impl<'a> Graph<'a> {
     /// The error for an answer that isn't the one hoped for. `sent` is what went to Graph besides
     /// the token: none of it may come back in the error.
     fn refusal(&self, doing: Doing, reply: &Reply, sent: &str) -> NetError {
+        // The mail's refusals are logged by status and Graph's code alone, never its message.
+        if matches!(doing, Doing::Folders | Doing::Mail) {
+            let code = logged_code(&reply.body, &[self.token, sent]);
+            log::info!("graph {}: Microsoft Graph refused a request (status {}{code})", doing.word(), reply.status);
+        }
         // A shared mailbox that won't let the owner in says so by Graph's code (#70).
         if self.shared() && matches!(doing, Doing::Folders | Doing::Mail) {
             let body = serde_json::from_slice::<Value>(&reply.body).unwrap_or(Value::Null);
@@ -591,10 +611,21 @@ fn page_of(body: &[u8]) -> Result<Page, NetError> {
 /// place isn't a name, or repeats what was `sent`: a careless server could write the token or
 /// the mail back there. The message that comes with the name is never shown.
 fn code_of(body: &[u8], sent: &[&str]) -> String {
+    code_name(body, sent).map(|code| format!(" ({code})")).unwrap_or_default()
+}
+
+/// The same name as a log line carries it: `, code=ErrorInvalidRequest` (the form Copy
+/// Diagnostics keeps whole), or nothing.
+fn logged_code(body: &[u8], sent: &[&str]) -> String {
+    code_name(body, sent).map(|code| format!(", code={code}")).unwrap_or_default()
+}
+
+/// The name of [`code_of`], when there is one that may be shown.
+fn code_name(body: &[u8], sent: &[&str]) -> Option<String> {
     let json = serde_json::from_slice::<Value>(body).ok();
     let code = json.as_ref().and_then(|json| json.get("error")).and_then(|error| error.get("code")).and_then(Value::as_str).unwrap_or("");
     let named = !code.is_empty() && code.len() <= MAX_CODE && code.bytes().all(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b'.'));
-    if named && !sent.iter().any(|sent| repeats(code, sent)) { format!(" ({code})") } else { String::new() }
+    (named && !sent.iter().any(|sent| repeats(code, sent))).then(|| code.to_string())
 }
 
 /// Whether `code` (ASCII) repeats something of `sent`: it is a piece of it, or it has a run of

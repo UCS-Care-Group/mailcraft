@@ -170,10 +170,32 @@ fn word(raw: &str, all: bool) -> String {
         _ => (core, ""),
     };
     let taken = |what: &str| all || matches!(what, "address" | "link") || (what == "id" && host.chars().any(|c| c.is_ascii_digit()));
+    // A server's code for a refusal, as the program logs it (`code=ErrorInvalidRequest`): kept.
+    if is_logged_code(core) {
+        return raw.to_owned();
+    }
     match kind(host) {
         Some(what) if taken(what) => format!("{lead}<{what}>{port}{trail}{space}"),
         _ => raw.to_owned(),
     }
+}
+
+/// Whether `core` is `code=<name>`, the way the program logs the short name a server gives a
+/// refusal (Microsoft Graph's `ErrorInvalidRequest`, `BadRequest`, `ErrorMimeContentInvalidBase64String`):
+/// words run together, `_` and `.` allowed, a few digits at most, 64 at most. An id or a token,
+/// letters of either case and digits at random, isn't one.
+fn is_logged_code(core: &str) -> bool {
+    let Some(name) = core.strip_prefix("code=") else { return false };
+    let digits = name.bytes().filter(u8::is_ascii_digit).count();
+    // Words run together: every run of small letters is two or more long (`Error`, `Mime`), as
+    // the case of an id's letters, which changes at random, seldom has it.
+    let words = name.split(|c: char| !c.is_ascii_lowercase()).filter(|run| !run.is_empty()).collect::<Vec<_>>();
+    (1..=64).contains(&name.len())
+        && name.bytes().next().is_some_and(|b| b.is_ascii_alphabetic())
+        && name.bytes().all(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b'.'))
+        && digits <= 4
+        && !words.is_empty()
+        && words.iter().all(|run| run.len() >= 2)
 }
 
 /// What `core` is, when it is something to take out.
@@ -298,6 +320,24 @@ mod tests {
         for text in ["", "\"", "'", "`", "é@", "a\u{0}b", "[x] y: \"é", "::::"] {
             let _ = scrub(text);
         }
+    }
+
+    #[test]
+    fn graphs_codes_stay_and_ids_beside_them_go() {
+        let line = "graph changes: a change of a message was refused (status 400, code=ErrorInvalidPropertyValue)";
+        assert_eq!(redact(line), line);
+        assert_eq!(scrub(line), line);
+        for code in ["ErrorInvalidRequest", "BadRequest", "ErrorMimeContentInvalidBase64String", "Request_BadRequest", "InvalidRequest"] {
+            let text = format!("graph mail: Microsoft Graph refused a request (status 400, code={code})");
+            assert_eq!(redact(&text), text);
+        }
+        // An id is no code, with `code=` before it or not.
+        let id = "AAMkAGVmMDEzMTM4LTZmYWUtNDdkNC1hMDZiLTU1OGY5OTZhYmY4OABGAAAAAAAiQ8W967B7TKBjgx9rVEURBwAiIsqMbYjsT5e-T7KzowPTAAAAAAEMAAA=";
+        for text in [format!("refused {id}"), format!("refused code={id}"), format!("refused code={}", &id[..40])] {
+            assert!(!redact(&text).contains("AAMkAG"), "{}", redact(&text));
+            assert!(!scrub(&text).contains("AAMkAG"), "{}", scrub(&text));
+        }
+        assert_eq!(redact("code=AAMk1234567890abcdefghijk"), "<id>");
     }
 
     #[test]

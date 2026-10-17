@@ -452,3 +452,20 @@ fn outlooks_colours_win_for_the_categories_on_its_list() {
     assert!(list["categories"].as_array().unwrap().iter().all(|c| c["outlook"].is_null()));
     s.run("category.set", &json!({"name": "Blue category", "color": "#2E8B57"})).unwrap();
 }
+
+#[test]
+fn a_message_the_server_wouldnt_give_is_passed_over_in_the_background_but_still_asked_for_when_opened() {
+    use crate::cmd::graph_mail::{apply_graph_fetch, graph_fetch_request};
+    use mailcraft_model::sync::GraphFetchResult;
+    let (mut s, account, m, _) = setup();
+    s.mailbox.message_mut(m).unwrap().unfetched = true;
+    assert_eq!(graph_fetch_request(&s, account, None, 10).unwrap().ids, ["M-1"]);
+    let failed = GraphFetchResult { account, email: "owner@example.org".into(), failed: vec!["M-1".into()], ..Default::default() };
+    let said = apply_graph_fetch(&mut s, failed).unwrap();
+    assert_eq!(said["failed"], 1);
+    // Not asked for again by itself this session, so that it can't hold the rest up.
+    assert!(graph_fetch_request(&s, account, None, 10).unwrap().ids.is_empty());
+    // Opened, it is.
+    assert_eq!(graph_fetch_request(&s, account, Some(m), 1).unwrap().ids, ["M-1"]);
+    assert!(s.mailbox.message(m).unwrap().unfetched);
+}

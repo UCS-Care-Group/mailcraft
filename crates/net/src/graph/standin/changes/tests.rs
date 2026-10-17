@@ -125,6 +125,9 @@ fn a_patch_is_made_whole_or_not_at_all_and_says_what_was_wrong() {
         json!({"flag": {"flagStatus": "maybe"}}),
         // A due date without a start (the reference: 400).
         json!({"flag": {"flagStatus": "flagged", "dueDateTime": {"dateTime": "2026-10-20T09:00:00", "timeZone": "UTC"}}}),
+        // A start without a due date, `null` or none (as Microsoft 365 answers it: 400).
+        json!({"flag": {"flagStatus": "flagged", "startDateTime": {"dateTime": "2026-10-17T00:00:00", "timeZone": "UTC"}, "dueDateTime": null}}),
+        json!({"flag": {"flagStatus": "flagged", "startDateTime": {"dateTime": "2026-10-17T00:00:00", "timeZone": "UTC"}}}),
         json!({"flag": {"startDateTime": {"dateTime": "tomorrow", "timeZone": "UTC"}}}),
         json!({"flag": {"startDateTime": {"dateTime": "2026-10-20T09:00:00", "timeZone": "Mars/Olympus"}}}),
         json!({"subject": "Changed"}),
@@ -140,6 +143,14 @@ fn a_patch_is_made_whole_or_not_at_all_and_says_what_was_wrong() {
         assert!(answer["error"]["code"].is_string(), "{answer}");
     }
     assert!(!server.state().mailbox.messages[id].read);
+    // What Microsoft 365 takes: a flag with no dates (a due date of `null` too), and a start due at once.
+    for body in [
+        json!({"flag": {"flagStatus": "flagged"}}),
+        json!({"flag": {"flagStatus": "flagged", "dueDateTime": null}}),
+        json!({"flag": {"flagStatus": "flagged", "startDateTime": {"dateTime": "2026-10-17T00:00:00", "timeZone": "UTC"}, "dueDateTime": {"dateTime": "2026-10-17T00:00:00", "timeZone": "UTC"}}}),
+    ] {
+        assert_eq!(patch(&server, id, body.clone()).0, 200, "{body}");
+    }
     // A message that isn't there, and an id that is no id.
     assert_eq!(patch(&server, "AAkALgAAAAAAHYQDEapmEc2byACqAC-EWg0A9999999999AAA=", json!({"isRead": true})).0, 404);
     assert_eq!(patch(&server, "short", json!({"isRead": true})).0, 400);

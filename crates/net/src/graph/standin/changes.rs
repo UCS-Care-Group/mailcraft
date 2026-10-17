@@ -7,7 +7,7 @@
 //!   `/me/mailFolders/{folder}/messages/{id}`). A change may say `isRead`, `flag` (a
 //!   `followupFlag`: `flagStatus` `notFlagged`, `flagged` or `complete`, and `startDateTime`,
 //!   `dueDateTime` and `completedDateTime`, each a `dateTimeTimeZone`; a due date only with a
-//!   start, as the reference has it), `categories`, `importance` (`low`, `normal`, `high`) and
+//!   start, as the reference has it, and a start only with a due date, as Microsoft 365 has it: 400 otherwise), `categories`, `importance` (`low`, `normal`, `high`) and
 //!   `singleValueExtendedProperties` (each `{id, value}`, added or replaced by its id), and
 //!   nothing else (400); it is made whole or not at all, answered 200 with the message, and
 //!   shows in the folder's next round of delta. Marking a flag complete without a completed date
@@ -273,6 +273,10 @@ impl FlagChange {
         // "To set the due date, you must also specify the startDateTime."
         if matches!(flag.due, Some(Some(_))) && !matches!(flag.start, Some(Some(_))) {
             return Err(bad("To set the due date, the start date must be set too."));
+        }
+        // And, as Microsoft 365 answers it, a start with no due date (`null`, or none) is 400.
+        if matches!(flag.start, Some(Some(_))) && !matches!(flag.due, Some(Some(_))) {
+            return Err(bad("A start date needs a due date."));
         }
         Ok(flag)
     }
