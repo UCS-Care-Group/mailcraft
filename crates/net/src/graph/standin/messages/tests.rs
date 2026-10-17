@@ -242,3 +242,18 @@ fn two_hundred_thousand_messages_come_once_each() {
     assert_eq!(kept.arrivals.first(), ids.first());
     assert_eq!(kept.arrivals.last(), ids.last());
 }
+
+#[test]
+fn a_delta_that_expands_the_size_is_refused_as_exchange_online_refuses_it() {
+    let server = StandIn::start().unwrap();
+    let inbox = inbox(&server);
+    server.state().mailbox.generate(&inbox, 3, NOW);
+    let target = format!(
+        "/v1.0/me/mailFolders/{inbox}/messages/delta?$select=subject&$expand=singleValueExtendedProperties($filter=id%20eq%20'Integer%200x0E08')"
+    );
+    let (status, _, body) = get(&server, &target, IMMUTABLE);
+    assert_eq!(status, 400);
+    let error = &json(&body)["error"];
+    assert_eq!(error["code"], "BadRequest");
+    assert_eq!(error["message"], "Parsing OData Select and Expand failed: Value cannot be null. (Parameter 'initialState')");
+}

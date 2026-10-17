@@ -18,6 +18,14 @@
 //!   is; another folder's trouble (gone meanwhile, refused) leaves that folder for the next run.
 //!   Only a run in which every folder got to its end says so ([`GraphMailResult::whole`]): the end
 //!   of a round begun in this run, as one begun in an earlier run sees the mailbox as it was then.
+//! - **No sizes.** A delta isn't asked for the messages' sizes: the size is an extended property
+//!   (`PidTagMessageSize`) that only an `$expand` with a `$filter` on its id brings, and Exchange
+//!   Online refuses that on a delta (`400 BadRequest`, "Parsing OData Select and Expand failed"),
+//!   though Graph documents `$expand` for it. A message comes with size 0, "not said", and is
+//!   fetched whole in the background like a small one ("Download messages in full" can't hold it
+//!   back; the fetch has its own cap).
+//! - **Refusals are said.** A folder the server won't list (other than one gone meanwhile) is
+//!   counted, with Graph's error code in the log, and the run ends saying how many there were.
 //! - **What comes back is hostile JSON.** Every id, text and list is capped; an entry that can't
 //!   be read is passed over. Nothing of a message or of a link goes into a log line or an error.
 
@@ -29,7 +37,7 @@ use mailcraft_model::{Address, FlagStatus, FolderKind, Importance};
 use serde_json::Value;
 
 use super::super::pace::Kind;
-use super::super::{ASK_TIMEOUT, Graph, MAX_PAGE, nonsense, text};
+use super::super::{ASK_TIMEOUT, Graph, MAX_PAGE, code_of, nonsense, text};
 use super::{folders as folders_of, id_of};
 use crate::NetError;
 use crate::http::{self, Url};
@@ -37,7 +45,8 @@ use crate::http::{self, Url};
 /// What is asked for of each message: what the message list needs (R3 spec S9).
 pub(super) const FIELDS: &str = "receivedDateTime,sentDateTime,subject,from,toRecipients,ccRecipients,bodyPreview,isRead,flag,categories,importance,parentFolderId,internetMessageId,hasAttachments,isDraft,changeKey";
 /// A message's size on the server (`PidTagMessageSize`), which Graph gives only as an extended
-/// property: what "Download messages in full" is held against.
+/// property: what "Download messages in full" is held against. Asked for of a message by its id,
+/// never of a delta, which refuses it.
 pub(super) const SIZE: &str = "singleValueExtendedProperties($filter=id eq 'Integer 0x0E08')";
 /// Messages to a page.
 const PAGE_SIZE: &str = "odata.maxpagesize=100";
@@ -70,6 +79,14 @@ struct Reading {
     /// The round under way began in this run. One that began in an earlier run sees the mailbox
     /// as it was then: at its end, one more round brings what changed since.
     round_here: bool,
+}
+
+/// What the run has met of the server, folder by folder.
+#[derive(Default)]
+struct Run {
+    /// Folders the server refused to list (not gone meanwhile), and the code of the first refusal.
+    refused: u32,
+    code: String,
 }
 
 /// Why the run stopped.
@@ -110,6 +127,7 @@ pub(super) fn messages(
     // First the newest page of each (all of what changed, for one read to its end before), then
     // each to its end.
     let mut stopped = None;
+    let mut run = Run::default();
     'passes: for first in [true, false] {
         for (n, one) in reading.iter_mut().enumerate() {
             while !one.done && !one.left {
@@ -118,7 +136,7 @@ pub(super) fn messages(
                     break 'passes;
                 }
                 let started = one.pages;
-                if let Err(e) = page(graph, one, u32::try_from(n + 1).unwrap_or(u32::MAX), count, &mut out, emit) {
+                if let Err(e) = page(graph, one, &mut run, u32::try_from(n + 1).unwrap_or(u32::MAX), count, &mut out, emit) {
                     stopped = Some(Stop::Error(e));
                     break 'passes;
                 }
@@ -142,6 +160,10 @@ pub(super) fn messages(
         }
         None => {}
     }
+    if run.refused > 0 {
+        let folders = if run.refused == 1 { "1 folder".to_string() } else { format!("{} folders", run.refused) };
+        out.errors.push(format!("Microsoft Graph refused to list the mail in {folders}{}; it is asked for again in the next run.", run.code));
+    }
     out.whole = reading.iter().all(|one| one.done);
     let pages: u32 = reading.iter().map(|one| one.pages).sum();
     let messages: u32 = reading.iter().map(|one| one.read).sum();
@@ -157,6 +179,7 @@ pub(super) fn messages(
 fn page(
     graph: &Graph<'_>,
     one: &mut Reading,
+    run: &mut Run,
     number: u32,
     folders: u32,
     out: &mut GraphMailResult,
@@ -169,7 +192,8 @@ fn page(
     let url = match &one.link {
         Some(url) => url.clone(),
         None => {
-            let query = http::form(&[("$select", FIELDS), ("$orderby", "receivedDateTime desc"), ("$expand", SIZE)]);
+            // (Not the sizes: a delta refuses their expansion, see above.)
+            let query = http::form(&[("$select", FIELDS), ("$orderby", "receivedDateTime desc")]);
             graph.url(&format!("{}/{}/messages/delta?{query}", folders_of(graph), http::encode(&one.folder.id)))
         }
     };
@@ -194,7 +218,15 @@ fn page(
         401 | 403 | 429 | 503 | 504 => return Err(graph.refusal(super::super::Doing::Mail, &reply, "")),
         // Gone meanwhile, or not to be read: the next run's listing says.
         status => {
-            log::info!("graph mail: a folder's mail couldn't be read (status {status}); it waits for the next run");
+            let code = code_of(&reply.body, &[graph.token, &one.folder.id]);
+            log::info!("graph mail: a folder's mail couldn't be read (status {status}){code}; it waits for the next run");
+            // A folder gone meanwhile is for the next listing to say; anything else is told.
+            if status != 404 {
+                if run.refused == 0 {
+                    run.code = if code.is_empty() { format!(" (status {status})") } else { code };
+                }
+                run.refused = run.refused.saturating_add(1);
+            }
             one.left = true;
             return Ok(());
         }

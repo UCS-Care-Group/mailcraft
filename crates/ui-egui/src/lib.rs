@@ -287,6 +287,10 @@ pub struct SignInRequest {
     /// read. Never with a sign-in of any other kind. A no that is not the owner's to change is
     /// answered as for the Favorites ([`favorites_sync::NEEDS_APPROVAL`]…).
     pub shared: bool,
+    /// With `shared`: ask for sending from shared mailboxes (`Mail.Send.Shared`, #70) as well,
+    /// by itself: the owner is sending from one for the first time, and said go ahead. Never
+    /// with a sign-in of any other kind.
+    pub shared_send: bool,
 }
 
 /// What the host needs to check an account's calendar connection ([`Services::check_calendar`]).
@@ -385,6 +389,9 @@ pub struct GraphResult {
     pub tokens: Option<Tokens>,
     /// The owner hasn't allowed this program to use Graph: "Connect calendar and contacts" asks.
     pub consent_needed: bool,
+    /// A shared mailbox's run had mail to send, and the owner hasn't allowed sending from shared
+    /// mailboxes yet (`Mail.Send.Shared`, #70): none of it was sent (it waits); the window asks.
+    pub send_consent_needed: bool,
     /// The Graph token that was handed in is no longer taken.
     pub token_refused: bool,
     /// The sign-in itself was refused when a token was asked for (it has run out, or was taken
@@ -435,6 +442,8 @@ struct SigningIn {
     account: Id,
     /// For reading this shared mailbox, which is read once it is had (#70).
     shared: Option<Id>,
+    /// And for sending from it: what waits in its Outbox goes once it is had, or is held.
+    shared_send: bool,
     rx: Receiver<Result<Tokens, String>>,
     cancel: std::sync::Arc<std::sync::atomic::AtomicBool>,
 }
@@ -577,6 +586,12 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         "Switch to Microsoft Graph",
         "File › Info",
         r#"{"account"?: number, "answer": "switch"|"switchWithout"|"later"} — the page's answer: switch goes ahead once nothing waits for the IMAP server (a Send/Receive first, when something does), with a copy of the mailbox kept beside it; switchWithout goes ahead at once, leaving what waits for the IMAP server in that copy; later keeps the account on IMAP"#,
+    ),
+    (
+        "ui.allowSharedSend",
+        "Allow Sending from Shared Mailboxes",
+        "Send / Receive",
+        r#"{"account": number (a shared mailbox)} — asks the owner, on Microsoft's page in the browser, to let MailCraft send from the shared mailboxes he may send as or on behalf of (Mail.Send.Shared), by itself and never with a sign-in. The window asks first, at the first send from a shared mailbox. Allowed, what waits in its Outbox goes through its own address with the next Send/Receive; refused, it is held there with why, and nothing is sent from another address. Answers {"pending": "signIn", "account": the account it is opened through}"#,
     ),
     (
         "ui.connectMicrosoft",
@@ -797,6 +812,8 @@ pub struct MailApp {
     /// The next sign-in for Microsoft Graph asks for reading shared mailboxes too, for this
     /// shared mailbox, which is read once it is had ([`shared_mailboxes`], #70).
     shared_next: Option<Id>,
+    /// With `shared_next`: that sign-in asks for sending from shared mailboxes too (#70).
+    shared_send_next: bool,
     /// Shared mailboxes whose server won't let the owner in, and why (no Full Access, no such
     /// mailbox…): shown as No access, and not read again by a Send/Receive that started by
     /// itself, only by one the owner asks for (#70).
@@ -962,6 +979,7 @@ impl MailApp {
             favorites: Default::default(),
             favorites_next: false,
             shared_next: None,
+            shared_send_next: false,
             shared_refused: Default::default(),
             shared_checking: Default::default(),
             mail_only_next: false,
@@ -1341,6 +1359,10 @@ impl MailApp {
                 self.begin_sign_in(account.id, oauth, &account.email, String::new(), false, true)
                     .map(|()| json!({"pending": "signIn", "account": account.id}))
             }
+            "ui.allowSharedSend" => {
+                let Some(shared) = p.get("account").and_then(Value::as_u64) else { return Some(Err(tl!("`account` is required").to_string())) };
+                self.begin_shared_send_sign_in(shared)
+            }
             "ui.cancelSync" => {
                 if self.sync_rx.is_none() && self.graph_pieces.is_none() {
                     return Some(Err(tl!("No Send/Receive is running").to_string()));
@@ -1487,6 +1509,7 @@ impl MailApp {
         let mail_only = std::mem::take(&mut self.mail_only_next);
         let favorites = std::mem::take(&mut self.favorites_next) && graph;
         let shared = self.shared_next.take().filter(|_| graph);
+        let shared_send = std::mem::take(&mut self.shared_send_next) && shared.is_some();
         if self.signing_in.is_some() || self.approving() {
             return Err(tl!("Finish signing in first (your browser is waiting)").to_string());
         }
@@ -1509,9 +1532,10 @@ impl MailApp {
             mail_write: graph
                 && (account == 0 || self.session.mailbox.account(account).is_some_and(|a| a.kind == mailcraft_model::AccountKind::Microsoft)),
             shared: shared.is_some(),
+            shared_send,
         };
         let rx = sign_in(request);
-        self.signing_in = Some(SigningIn { graph, favorites, quiet, account, shared, rx, cancel });
+        self.signing_in = Some(SigningIn { graph, favorites, quiet, account, shared, shared_send, rx, cancel });
         self.session.sync_status = waiting.to_string();
         Ok(())
     }
@@ -2125,7 +2149,7 @@ impl MailApp {
         };
         let (account, for_graph, for_favorites) = (waiting.account, waiting.graph, waiting.favorites);
         let asked_for = !waiting.quiet;
-        let for_shared = waiting.shared;
+        let (for_shared, for_shared_send) = (waiting.shared, waiting.shared_send);
         self.signing_in = None;
         // A day at most, whatever the provider said; a sign-in is asked for again after.
         let now = mailcraft_time::now();
@@ -2144,6 +2168,10 @@ impl MailApp {
         }
         // For reading a shared mailbox (#70): it is read now, or why not is said.
         if let Some(shared) = for_shared {
+            // (And for sending from it: what waits in its Outbox goes now, or is held.)
+            if for_shared_send {
+                return self.shared_send_signed_in(shared, account, answer);
+            }
             return self.shared_signed_in(shared, account, answer);
         }
         let address = self.session.mailbox.account(account).map(|a| a.email.clone()).unwrap_or_default();

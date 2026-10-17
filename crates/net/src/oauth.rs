@@ -24,7 +24,8 @@
 //!
 //! Reading a shared mailbox (#70) takes one more (`Mail.ReadWrite.Shared`), asked for in the
 //! same way: by itself, when the owner has opened one ([`sign_in_for_shared`],
-//! [`refresh_graph_shared`]).
+//! [`refresh_graph_shared`]); and sending from one another (`Mail.Send.Shared`), by itself at
+//! the first send from one ([`sign_in_for_shared_send`], [`refresh_graph_shared_send`]).
 //!
 //! When a no to them is the organisation's rather than the owner's, it is told apart by
 //! Microsoft's own numbers for it: an administrator has to approve first ([`FavoritesRefusal::Approval`]: [`admin_consent_url`] is the address to hand
@@ -123,10 +124,15 @@ const MICROSOFT_GRAPH_FAVORITES: &str = "https://graph.microsoft.com/MailboxConf
 /// shared mailbox and it is first read ([`sign_in_for_shared`], [`refresh_graph_shared`]), never
 /// on the page of a sign-in: an account without shared mailboxes is never asked for it.
 const MICROSOFT_GRAPH_SHARED: &str = "https://graph.microsoft.com/Mail.ReadWrite.Shared";
-/// What sending from a shared mailbox and keeping its calendar in step will take (#70, later
-/// slices). Not asked of an owner yet; only in what an administrator is asked to approve, so
-/// that their one approval already covers those slices when they come.
-const MICROSOFT_GRAPH_SHARED_LATER: &str = "https://graph.microsoft.com/Mail.Send.Shared https://graph.microsoft.com/Calendars.ReadWrite.Shared";
+/// What sending from a shared mailbox takes (#70): mail sent as it or on its behalf, through its
+/// own address. Asked for by itself at the first send from one ([`sign_in_for_shared_send`],
+/// [`refresh_graph_shared_send`]), never on the page of a sign-in, and never for a run that has
+/// nothing of a shared mailbox's to send.
+const MICROSOFT_GRAPH_SHARED_SEND: &str = "https://graph.microsoft.com/Mail.Send.Shared";
+/// What keeping a shared mailbox's calendar in step will take (#70, after beta). Not asked of an
+/// owner yet; only in what an administrator is asked to approve, so that their one approval
+/// already covers it when it comes.
+const MICROSOFT_GRAPH_SHARED_LATER: &str = "https://graph.microsoft.com/Calendars.ReadWrite.Shared";
 /// Whether the page of an ordinary sign-in also puts the Favorites' permissions to the owner,
 /// so that one page settles everything. **Off**: Microsoft's permissions reference lists
 /// `MailboxConfigItem.Read` as one that takes an administrator's consent in an organisation
@@ -404,7 +410,7 @@ pub enum FavoritesRefusal {
 /// too. That is what a sign-in's page asks for (IMAP, SMTP, a refresh token and who signs in;
 /// Microsoft Graph's sending, calendar, contacts, mailbox settings and, for an account kept in step
 /// through Graph, its mail), what reading the Favorites of Outlook through Graph takes, and what
-/// reading a shared mailbox takes, and what sending from one and its calendar will take.
+/// reading a shared mailbox and sending from one take, and what its calendar will take.
 ///
 /// A sign-in asks for no more than is here: a page that asked for one permission an
 /// administrator had not approved would send the owner to find one again.
@@ -417,6 +423,7 @@ fn admin_scope() -> String {
         MICROSOFT_GRAPH_MAIL,
         MICROSOFT_GRAPH_FAVORITES,
         MICROSOFT_GRAPH_SHARED,
+        MICROSOFT_GRAPH_SHARED_SEND,
         MICROSOFT_GRAPH_SHARED_LATER,
         SIGN_IN_SCOPE,
     ]);
@@ -621,6 +628,38 @@ pub fn refresh_graph_shared(oauth: &OAuth, refresh_token: &str) -> Result<GraphT
 /// replaced by what a shared mailbox takes).
 pub fn refresh_graph_shared_at(endpoints: &Endpoints, oauth: &OAuth, refresh_token: &str) -> Result<GraphTokens, NetError> {
     let endpoints = Endpoints { scope: shared_scope(), ..endpoints.clone() };
+    let tokens = refresh_for_at(&endpoints, oauth, refresh_token, Resource::GraphMail)?;
+    Ok(GraphTokens { tokens, extras_missing: true, covers_favorites: false })
+}
+
+/// What the tokens of a shared mailbox's run are asked for when it has mail to send (#70): what
+/// reading it takes, and sending from it on top.
+fn shared_send_scope() -> String {
+    format!("{MICROSOFT_GRAPH} {MICROSOFT_GRAPH_MAIL} {MICROSOFT_GRAPH_SHARED} {MICROSOFT_GRAPH_SHARED_SEND} {SIGN_IN_SCOPE}")
+}
+
+/// Ask the owner, on the provider's page, to let this program send from the shared mailboxes he
+/// may send as or on behalf of (`Mail.Send.Shared`), beside what reading them takes. Only at the
+/// first send from one (#70), after the window has asked him, and never with an ordinary
+/// sign-in. A no says whose it is ([`FavoritesRefusal`]); nothing is tried a second time.
+pub fn sign_in_for_shared_send(oauth: &OAuth, login_hint: &str, open: &dyn Fn(&str), cancel: &AtomicBool) -> Result<Tokens, FavoritesRefusal> {
+    let plain = Endpoints::for_resource(oauth, Resource::GraphMail);
+    let endpoints = Endpoints { scope: shared_send_scope(), consent: String::new(), lesser: String::new(), ..plain };
+    sign_in_for_favorites_within(&endpoints, oauth, login_hint, open, cancel, SIGN_IN_TIMEOUT)
+}
+
+/// [`refresh_graph_shared`] for a run of a shared mailbox that has mail to send (#70): the tokens
+/// are asked for with `Mail.Send.Shared` too, and for nothing less. A sign-in that doesn't cover
+/// it gets [`NetError::ConsentNeeded`]: nothing is sent, and the window asks the owner
+/// ([`sign_in_for_shared_send`]).
+pub fn refresh_graph_shared_send(oauth: &OAuth, refresh_token: &str) -> Result<GraphTokens, NetError> {
+    refresh_graph_shared_send_at(&Endpoints::for_resource(oauth, Resource::GraphMail), oauth, refresh_token)
+}
+
+/// [`refresh_graph_shared_send`] at endpoints other than the provider's usual ones (their scope
+/// is replaced by what sending from a shared mailbox takes).
+pub fn refresh_graph_shared_send_at(endpoints: &Endpoints, oauth: &OAuth, refresh_token: &str) -> Result<GraphTokens, NetError> {
+    let endpoints = Endpoints { scope: shared_send_scope(), ..endpoints.clone() };
     let tokens = refresh_for_at(&endpoints, oauth, refresh_token, Resource::GraphMail)?;
     Ok(GraphTokens { tokens, extras_missing: true, covers_favorites: false })
 }

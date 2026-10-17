@@ -308,6 +308,11 @@ pub enum SendOutcome {
     Held { lost: bool, why: String },
 }
 
+/// The `why` of a message held because Exchange won't let the owner send as the shared mailbox it
+/// was written in, nor on its behalf (Graph's `ErrorSendAsDenied`, #70). Said with the mailbox's
+/// address where the owner reads it; nothing is ever sent from another address instead.
+pub const SEND_AS_DENIED: &str = "you don't have permission to send as this shared mailbox";
+
 /// A message sent and what became of it, with what became of its draft on the way.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]

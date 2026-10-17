@@ -6,8 +6,14 @@
 //! uploaded here. A **held** message ([`Message::held`]) is one whose answer was lost (it may have
 //! gone) or that the server refused: it stays in the Outbox, says what happened and what to check,
 //! and isn't sent again until the owner says so (Send Again).
+//!
+//! A shared mailbox's Outbox (#70) goes the same way, through its own address: the message is
+//! from it, and the copy is in its Sent Items. When Exchange won't let the owner send as it nor
+//! on its behalf, or the owner doesn't allow sending from shared mailboxes (`Mail.Send.Shared`,
+//! asked for at the first send: `sync.holdSends`), what waits is held with that reason. It is
+//! never sent from the owner's own address instead.
 
-use mailcraft_model::sync::{MAX_SENDS, SendDone, SendOutcome, SendUp};
+use mailcraft_model::sync::{MAX_SENDS, SEND_AS_DENIED, SendDone, SendOutcome, SendUp};
 use mailcraft_model::{FolderKind, Id, Mailbox};
 use serde_json::{Value, json};
 
@@ -19,6 +25,8 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("mail.sendAgain", "Send Again", "Mail", send_again)
             .params(r#"{"id"?: number} (default: the selected message) — a held message in the Outbox goes with the next Send/Receive"#)
             .selection(super::needs_message),
+        CommandSpec::new("sync.holdSends", "Hold Unsent Mail", "Send / Receive", hold_sends)
+            .params(r#"{"account": number (a shared mailbox), "why": "declined"|"approval"|"organisation"} — what waits in a shared mailbox's Outbox is held, with that reason: sending from shared mailboxes was not allowed on Microsoft's page ("declined"), waits on an administrator's approval ("approval"), or the organisation doesn't allow it ("organisation"). Nothing is sent from another address. Send Again puts a held message back. Answers {"held": [ids]}"#),
     ]
 }
 
@@ -67,6 +75,18 @@ pub fn send_done(mb: &mut Mailbox, account: Id, done: &SendDone, said: &mut Vec<
         SendOutcome::Waits => changed,
         // Gone: the server files it in Sent Items, and that copy comes down.
         SendOutcome::Sent => mb.forget_message(done.message).is_ok() || changed,
+        // Exchange won't let the owner send as the shared mailbox nor on its behalf (#70): said
+        // with its address where the message is read, and never sent from another.
+        SendOutcome::Held { lost: false, why } if why == SEND_AS_DENIED => {
+            let address = mb.account(account).map(|a| a.email.trim().to_string()).unwrap_or_default();
+            said.push(format!("Couldn't send '{subject}': {why}. It is held in the Outbox."));
+            if let Ok(m) = mb.message_mut(done.message) {
+                m.held = format!(
+                    "It wasn't sent: you don't have permission to send as {address}. Nothing was sent from another address. Your organisation's administrator gives Send As or Send on Behalf permission; then send it again."
+                );
+            }
+            true
+        }
         SendOutcome::Held { lost, why } => {
             let held = if *lost {
                 "It may have been sent: the answer from Microsoft was lost. Look in Sent Items before you send it again.".to_string()
@@ -84,6 +104,37 @@ pub fn send_done(mb: &mut Mailbox, account: Id, done: &SendDone, said: &mut Vec<
             true
         }
     }
+}
+
+/// Why a shared mailbox's mail wasn't let go at the first send (#70), in plain words.
+fn hold_reason(code: &str) -> Option<&'static str> {
+    match code {
+        "declined" => Some("sending from shared mailboxes wasn't allowed on Microsoft's page"),
+        "approval" => Some("your organisation's administrator has to approve MailCraft sending from shared mailboxes first"),
+        "organisation" => Some("your organisation doesn't let MailCraft send from shared mailboxes"),
+        _ => None,
+    }
+}
+
+fn hold_sends(s: &mut Session, v: &Value) -> CmdResult {
+    let account = p::id(v, "account").ok_or_else(|| bad("`account` is required"))?;
+    let a = s.mailbox.account(account).ok_or_else(|| fail(format!("no account with id {account}")))?;
+    if !a.is_shared() {
+        return Err(fail(format!("{} isn't a shared mailbox", a.name)));
+    }
+    let why = p::str(v, "why").and_then(hold_reason).ok_or_else(|| bad("`why` is declined, approval or organisation"))?;
+    let Some(outbox) = s.mailbox.folder_of_kind(account, FolderKind::Outbox) else { return Ok(json!({"held": []})) };
+    let waiting: Vec<Id> = s.mailbox.messages_in(outbox).filter(|m| m.held.is_empty()).map(|m| m.id).take(MAX_SENDS).collect();
+    let mut said = Vec::new();
+    for id in &waiting {
+        let done = SendDone { message: *id, outcome: SendOutcome::Held { lost: false, why: why.to_string() }, draft: None };
+        send_done(&mut s.mailbox, account, &done, &mut said);
+    }
+    if let Some(first) = said.first() {
+        s.sync_status = first.clone();
+        s.mailbox_changed();
+    }
+    Ok(json!({"held": waiting}))
 }
 
 fn send_again(s: &mut Session, v: &Value) -> CmdResult {

@@ -2,8 +2,11 @@
 //! of the account they are opened through, at their own address.
 //!
 //! A shared mailbox's Send/Receive is its folders and mail alone, what was changed in it here going
-//! up first, to its own address: no Outbox (mail written there
-//! goes from the owner's own account), no calendar, no contacts, no Favorites. Its token is
+//! up first, to its own address, with its drafts and its Outbox: no calendar, no contacts, no
+//! Favorites. Mail written in it is from its address, and goes through it. The first time
+//! something waits to be sent from one, the window asks the owner whether to go ahead, and then
+//! Microsoft's page asks him for `Mail.Send.Shared`, by itself; until then nothing of it is sent
+//! (it waits), and a no holds it in its Outbox with why. Its token is
 //! renewed for the run with `Mail.ReadWrite.Shared`; when the owner's sign-in doesn't cover that
 //! yet, he is asked for it on Microsoft's page, by itself, when he asked for the run (adding a
 //! shared mailbox does), and never with a sign-in of any other kind. The refresh token that
@@ -159,6 +162,16 @@ impl MailApp {
                 }
             }
         }
+        // Mail waits to go from it, and sending from shared mailboxes isn't allowed yet (#70):
+        // asked about when the owner asked for the run, else said.
+        if result.send_consent_needed
+            && self.session.mailbox.account(account).is_some()
+            && (quiet || asking || self.dialog.is_some() || !self.ask_shared_send(account))
+        {
+            errors.push(
+                tl!("Mail in this shared mailbox's Outbox waits: sending from shared mailboxes needs your permission. Use Send/Receive.").to_string(),
+            );
+        }
         errors.dedup();
         // Being added: kept when its Inbox was read, else removed again with the reason (S1).
         if !asking && self.shared_checking.contains(&account) {
@@ -237,6 +250,88 @@ impl MailApp {
             } else {
                 self.status(said);
             }
+        }
+    }
+
+    /// The first send from the shared mailbox `shared` (#70): ask the owner whether Microsoft's
+    /// page may ask him to let MailCraft send from shared mailboxes. Whether it was asked.
+    pub(crate) fn ask_shared_send(&mut self, shared: Id) -> bool {
+        let Some(address) = self.session.mailbox.account(shared).filter(|a| a.is_shared()).map(|a| a.email.trim().to_string()) else { return false };
+        let text = crate::i18n::fmt(
+            tl!(
+                "To send from {address}, MailCraft needs your permission to send from shared mailboxes. Microsoft's page opens in your browser to ask you, once.\n\nWhether your mail goes as {address} or on its behalf is your organisation's choice. Until you allow it, the mail waits in its Outbox, and nothing is sent from your own address."
+            ),
+            &[("address", &address)],
+        );
+        let ask = crate::dialogs::Question {
+            title: tl!("Send from a Shared Mailbox").to_string(),
+            text,
+            action: tl!("Continue").to_string(),
+            with: Value::Null,
+            more: Vec::new(),
+            note: None,
+        };
+        self.dialog = Some(Dialog::Confirm { command: "ui.allowSharedSend".to_string(), params: json!({"account": shared}), ask });
+        true
+    }
+
+    /// `ui.allowSharedSend`: Microsoft's page, for sending from shared mailboxes too, because the
+    /// owner is sending from `shared` and said go ahead.
+    pub(crate) fn begin_shared_send_sign_in(&mut self, shared: Id) -> Result<Value, String> {
+        if !self.session.shared_mailboxes {
+            return Err(tl!(mailcraft_engine::cmd::shared::SWITCHED_OFF).to_string());
+        }
+        if !self.session.mailbox.account(shared).is_some_and(Account::is_shared) {
+            return Err(tl!("That isn't a shared mailbox").to_string());
+        }
+        let owner = self.session.mailbox.owner_of(shared).cloned().ok_or_else(|| tl!("This shared mailbox's account is gone").to_string())?;
+        let oauth = owner.oauth.clone().ok_or_else(|| tl!("This account has no sign-in with Microsoft").to_string())?;
+        (self.shared_next, self.shared_send_next) = (Some(shared), true);
+        let begun = self.begin_sign_in(owner.id, oauth, &owner.email, String::new(), false, true);
+        (self.shared_next, self.shared_send_next) = (None, false);
+        begun?;
+        self.session.sync_status = tl!("Allow MailCraft to send from shared mailboxes on the page that opened in your browser…").to_string();
+        Ok(json!({"pending": "signIn", "account": owner.id}))
+    }
+
+    /// The owner answered on Microsoft's page about sending from shared mailboxes: with the
+    /// tokens, what waits in `shared`'s Outbox goes now; without, it is held there with why
+    /// (an administrator's approval has its own page), or waits when the page never came up.
+    pub(crate) fn shared_send_signed_in(&mut self, shared: Id, owner: Id, answer: Result<Tokens, String>) {
+        use crate::approval::NO_BROWSER;
+        use crate::favorites_sync::{NEEDS_APPROVAL, REFUSED_BY_ORGANISATION, REFUSED_FOR_ACCOUNT};
+        self.session.sync_status.clear();
+        let address = self.session.mailbox.account(owner).map(|a| a.email.clone()).unwrap_or_default();
+        let why = match answer {
+            // (Somebody else's tokens are neither used nor remembered, #103.)
+            Ok(tokens) if self.signed_in_as_other(owner, &tokens) => return,
+            Ok(tokens) => {
+                if !tokens.refresh.is_empty() {
+                    self.remember("refresh", &address, &tokens.refresh);
+                    if let Some(kept) = self.tokens.get_mut(&owner) {
+                        kept.refresh = tokens.refresh.clone();
+                    }
+                }
+                self.graph_tokens.insert(shared, tokens);
+                if let Err(e) = self.start_sync(&json!({"account": shared})) {
+                    self.status(e);
+                }
+                return;
+            }
+            Err(e) if e == NEEDS_APPROVAL => "approval",
+            Err(e) if e == REFUSED_BY_ORGANISATION || e == REFUSED_FOR_ACCOUNT => "organisation",
+            // The page never came up: nothing was refused, so the mail waits, and the next
+            // Send/Receive asks again.
+            Err(e) if e == NO_BROWSER => {
+                self.status(format!("{}: {e}", tl!("Mail from the shared mailbox waits")));
+                return;
+            }
+            Err(_) => "declined",
+        };
+        let _ = self.execute("sync.holdSends", json!({"account": shared, "why": why}));
+        if why == "approval" {
+            // What to do next (#124): an administrator approves once, for everybody.
+            let _ = self.run("ui.approvalHelp", json!({"account": owner}));
         }
     }
 

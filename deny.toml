@@ -18,7 +18,15 @@ version = 2
 db-urls = ["https://github.com/rustsec/advisory-db"]
 unmaintained = "all"
 yanked = "warn"
-ignore = []
+ignore = [
+    # 2026-10-17: zvariant, zvariant_derive and zbus_names are merged into zbus 6 and no longer
+    # kept up as crates of their own; nothing is known wrong with them. They come with zbus 4 and
+    # 5, through keyring (the credential store on Linux and FreeBSD) and the GUI stack, which
+    # haven't moved to zbus 6 yet. Look again when they do.
+    { id = "RUSTSEC-2026-0370", reason = "zvariant merged into zbus 6; waits on keyring and the GUI stack" },
+    { id = "RUSTSEC-2026-0371", reason = "zbus_names merged into zbus 6; waits on keyring and the GUI stack" },
+    { id = "RUSTSEC-2026-0372", reason = "zvariant_derive merged into zbus 6; waits on keyring and the GUI stack" },
+]
 
 [licenses]
 version = 2

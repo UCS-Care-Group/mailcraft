@@ -6,10 +6,11 @@ use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 use std::time::Duration;
 
-use mailcraft_model::FolderKind;
 use mailcraft_model::sync::{
-    DraftUp, FolderChange, GraphFetchRequest, GraphLink, GraphMailRequest, GraphMailResult, MessageChange, MessageOutcome, SendUp, SharedRefusal,
+    DraftUp, FolderChange, GraphFetchRequest, GraphLink, GraphMailRequest, GraphMailResult, MessageChange, MessageOutcome, SEND_AS_DENIED,
+    SendOutcome, SendUp, SharedRefusal,
 };
+use mailcraft_model::{Address, Body, FolderKind, Message};
 
 use super::whole_run;
 use crate::graph::pace::{Gate, Retry};
@@ -171,7 +172,7 @@ fn a_shared_mailboxs_changes_go_to_its_own_address_and_never_touch_the_owners_ma
     let before = owners(&server);
     let deleted = other_folder(&server, "deleteditems");
     // Every kind of change a shared mailbox has: a folder made, read, a move to its own Deleted
-    // Items, a copy within it, a delete for good; and a draft and a message to send, which wait.
+    // Items, a copy within it, a delete for good.
     let mut asked = request(SHARED, Vec::new());
     asked.changes = vec![FolderChange::Create { folder: 70, name: "Ours".into(), parent: theirs.clone(), parent_folder: None }];
     asked.messages = vec![
@@ -180,8 +181,6 @@ fn a_shared_mailboxs_changes_go_to_its_own_address_and_never_touch_the_owners_ma
         MessageChange::Copy { copy: 3, id: ids[2].clone(), to: String::new(), to_folder: Some(70), marker: "mailcraft-70-3".into() },
         MessageChange::Delete { id: ids[3].clone() },
     ];
-    asked.drafts = vec![DraftUp { message: 5, marker: "mailcraft-70".into(), subject: Some("Draft".into()), ..Default::default() }];
-    asked.sends = vec![SendUp { message: 6, ..Default::default() }];
     let pieces = run(&server, &asked);
     let all = pieces.iter().fold(GraphMailResult::default(), |mut all, piece| {
         all.absorb(piece.clone());
@@ -190,8 +189,7 @@ fn a_shared_mailboxs_changes_go_to_its_own_address_and_never_touch_the_owners_ma
     assert_eq!(all.changes.len(), 1, "{all:?}");
     assert_eq!(all.messages.len(), 4, "{:?}", all.messages);
     assert!(all.messages.iter().all(|d| matches!(d.outcome, MessageOutcome::Done { .. })), "{:?}", all.messages);
-    assert!(all.drafts.is_empty() && all.sent.is_empty());
-    assert!(all.errors.iter().any(|e| e.contains("wait on this computer")), "{:?}", all.errors);
+    assert!(all.errors.is_empty(), "{:?}", all.errors);
     assert!(all.refused.is_none() && all.listing.is_some());
     // Made in the shared mailbox, in its own folders.
     {
@@ -274,6 +272,138 @@ fn a_folder_change_a_shared_mailbox_refuses_waits_and_is_never_taken_for_a_folde
         assert!(!all.errors.is_empty() && all.errors.iter().all(|e| !e.contains(SHARED) && !e.contains(&theirs)), "{code}: {:?}", all.errors);
     }
     assert!(server.state().other(SHARED).unwrap().folders.iter().all(|f| f.name != "Ours"));
+    all_at_its_address(&server);
+}
+
+/// Every piece of a run, put together.
+fn whole(pieces: Vec<GraphMailResult>) -> GraphMailResult {
+    pieces.into_iter().fold(GraphMailResult::default(), |mut all, piece| {
+        all.absorb(piece);
+        all
+    })
+}
+
+/// A message written in the shared mailbox, never saved as a draft: what `sendMail` takes.
+fn written(subject: &str) -> Box<Message> {
+    Box::new(Message {
+        from: Address::new("", SHARED),
+        to: vec![Address::new("Kit", "kit@example.net")],
+        subject: subject.into(),
+        body: Body { text: "Hello.".into(), html: None },
+        message_id: format!("<{}@example.org>", subject.to_lowercase()),
+        ..Default::default()
+    })
+}
+
+#[test]
+fn a_shared_mailboxs_drafts_and_sends_are_made_in_it_and_never_in_the_owners_mailbox() {
+    let server = StandIn::start().unwrap();
+    server.state().add_other(SHARED, true);
+    let theirs = other_folder(&server, "inbox");
+    let ids = server.state().other(SHARED).unwrap().mailbox.generate(&theirs, 2, NOW);
+    // The owner's mailbox has the same ids: an answer made at `/me` would be of his message.
+    let mine = server.state().well_known("inbox");
+    assert_eq!(server.state().mailbox.generate(&mine, 2, NOW), ids);
+    let before = owners(&server);
+    let their_drafts = other_folder(&server, "drafts");
+    // A draft of its own, an answer to one of its messages, and a message never saved.
+    let mut asked = request(SHARED, Vec::new());
+    asked.drafts = vec![
+        DraftUp {
+            message: 5,
+            marker: "mailcraft-70-5".into(),
+            subject: Some("Rota".into()),
+            to: Some(vec![Address::new("", "kit@example.net")]),
+            ..Default::default()
+        },
+        DraftUp {
+            message: 6,
+            marker: "mailcraft-70-6".into(),
+            of: Some(mailcraft_model::sync::DraftOf { id: ids[0].clone(), kind: mailcraft_model::sync::DraftKind::Reply }),
+            ..Default::default()
+        },
+    ];
+    asked.sends = vec![SendUp { message: 7, draft: None, mime: Some(written("Opening hours")) }];
+    let all = whole(run(&server, &asked));
+    assert!(all.errors.is_empty() && all.refused.is_none(), "{:?}", all.errors);
+    assert_eq!(all.drafts.len(), 2, "{:?}", all.drafts);
+    assert!(all.drafts.iter().all(|d| !d.id.is_empty() && d.folder == their_drafts && d.refused.is_none()), "{:?}", all.drafts);
+    assert!(matches!(all.sent.as_slice(), [done] if done.message == 7 && done.outcome == SendOutcome::Sent), "{:?}", all.sent);
+    {
+        let mut state = server.state();
+        let sent: Vec<(String, String, String)> = state.sent.iter().map(|s| (s.subject.clone(), s.how.clone(), s.mailbox.clone())).collect();
+        assert_eq!(sent, [("Opening hours".to_string(), "sendMail".to_string(), format!("users/{SHARED}"))]);
+        let other = state.other(SHARED).unwrap();
+        let in_drafts: Vec<&str> = other.mailbox.messages.values().filter(|m| m.folder == their_drafts).map(|m| m.from.as_str()).collect();
+        assert_eq!(in_drafts, [SHARED, SHARED], "in its own Drafts, from its address");
+    }
+
+    // The draft sent as that draft, from there: the copy in its own Sent Items.
+    let made = all.drafts.iter().find(|d| d.change.message == 5).map(|d| d.id.clone()).unwrap();
+    let mut asked = request(SHARED, Vec::new());
+    let draft = DraftUp { message: 5, id: made.clone(), marker: "mailcraft-70-5".into(), ..Default::default() };
+    asked.sends = vec![SendUp { message: 5, draft: Some(draft), mime: None }];
+    let all = whole(run(&server, &asked));
+    assert!(matches!(all.sent.as_slice(), [done] if done.outcome == SendOutcome::Sent), "{:?}", all.sent);
+    {
+        let mut state = server.state();
+        assert_eq!(state.sent.last().map(|s| (s.how.as_str(), s.mailbox.clone())), Some(("send", format!("users/{SHARED}"))));
+        let other = state.other(SHARED).unwrap();
+        let sent_items = other.folders.iter().find(|f| f.well_known == "sentitems").unwrap().id.clone();
+        assert_eq!(other.mailbox.messages.values().filter(|m| m.folder == sent_items).count(), 2);
+        assert!(!other.mailbox.messages.contains_key(&made), "the draft left its Drafts");
+    }
+    all_at_its_address(&server);
+    assert_eq!(owners(&server), before, "the owner's Drafts and Sent Items are as they were");
+}
+
+#[test]
+fn a_send_exchange_wont_let_go_from_a_shared_mailbox_is_held_and_nothing_goes() {
+    let server = StandIn::start().unwrap();
+    server.state().add_other(SHARED, true);
+    server.state().other(SHARED).unwrap().send_as_denied = true;
+    let before = owners(&server);
+    let mut asked = request(SHARED, Vec::new());
+    asked.sends = vec![SendUp { message: 7, draft: None, mime: Some(written("Denied")) }];
+    let all = whole(run(&server, &asked));
+    match all.sent.as_slice() {
+        [done] => assert_eq!(done.outcome, SendOutcome::Held { lost: false, why: SEND_AS_DENIED.into() }),
+        other => panic!("{other:?}"),
+    }
+    assert!(server.state().sent.is_empty(), "nothing was sent, from any address");
+    all_at_its_address(&server);
+    assert_eq!(owners(&server), before);
+
+    // An answer that was lost is held too, "may have been sent", and not asked again.
+    server.state().other(SHARED).unwrap().send_as_denied = false;
+    server.state().lose_next.push(format!("POST /v1.0/users/{SHARED}/sendMail"));
+    let all = whole(run(&server, &asked));
+    assert!(matches!(all.sent.as_slice(), [done] if done.outcome == SendOutcome::Held { lost: true, why: String::new() }), "{:?}", all.sent);
+    assert_eq!(server.state().sent.len(), 1, "once");
+
+    // No access any more, by Graph's code: not taken, so it waits, and the mailbox says so.
+    server.state().requests.clear();
+    server.state().fail_next.push((format!("POST /v1.0/users/{SHARED}/sendMail"), 403, "ErrorAccessDenied".into()));
+    let all = whole(run(&server, &asked));
+    assert!(all.sent.is_empty(), "it waits: {:?}", all.sent);
+    assert_eq!(all.refused, Some(SharedRefusal::NoAccess), "{:?}", all.errors);
+    assert!(all.errors.iter().all(|e| !e.contains(SHARED)), "no address in what may be logged: {:?}", all.errors);
+    assert_eq!(server.state().sent.len(), 1);
+    all_at_its_address(&server);
+    assert_eq!(owners(&server), before);
+}
+
+#[test]
+fn a_shared_mailbox_that_wont_let_the_owner_in_keeps_its_drafts_waiting() {
+    let server = StandIn::start().unwrap();
+    server.state().add_other(SHARED, true);
+    let mut asked = request(SHARED, Vec::new());
+    asked.drafts = vec![DraftUp { message: 5, marker: "mailcraft-70-5".into(), subject: Some("Rota".into()), ..Default::default() }];
+    server.state().fail_next.push((format!("POST /v1.0/users/{SHARED}/messages"), 403, "ErrorAccessDenied".into()));
+    let all = whole(run(&server, &asked));
+    assert!(all.drafts.is_empty(), "nothing is answered: it waits: {:?}", all.drafts);
+    assert_eq!(all.refused, Some(SharedRefusal::NoAccess));
+    assert!(server.state().other(SHARED).unwrap().mailbox.messages.is_empty());
     all_at_its_address(&server);
 }
 

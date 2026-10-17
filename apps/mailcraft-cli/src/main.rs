@@ -222,7 +222,11 @@ fn sync_graph(s: &mut Session, account: mailcraft_model::Id, path: &str) -> Resu
             }
             let open = |url: &str| eprintln!("sync: open this page in a browser to sign in:\n{url}");
             let cancel = std::sync::atomic::AtomicBool::new(false);
-            let tokens = if request.shared {
+            let tokens = if request.shared && !request.sends.is_empty() {
+                // (And for sending from it, when something waits in its Outbox.)
+                let signed = mailcraft_net::oauth::sign_in_for_shared_send(&oauth, &hint, &open, &cancel);
+                signed.map_err(|refusal| format!("sync: sending from shared mailboxes wasn't allowed ({refusal:?})"))?
+            } else if request.shared {
                 let signed = mailcraft_net::oauth::sign_in_for_shared(&oauth, &hint, &open, &cancel);
                 signed.map_err(|refusal| format!("sync: shared mailboxes weren't allowed ({refusal:?})"))?
             } else {

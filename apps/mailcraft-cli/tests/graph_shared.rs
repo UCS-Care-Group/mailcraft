@@ -229,3 +229,150 @@ fn changes_in_a_shared_mailbox_go_up_to_it_alone_delete_goes_to_its_own_deleted_
     assert!(server.state().other(SHARED).unwrap().mailbox.messages.get(&ids[0]).is_some_and(|m| m.read), "nothing changed there");
     assert_eq!(owners_messages(&server), before);
 }
+
+/// The messages of the owner's own folder `well_known` (`drafts`, `sentitems`) on the stand-in.
+fn owners_in(server: &StandIn, well_known: &str) -> Vec<String> {
+    let state = server.state();
+    let folder = state.well_known(well_known);
+    let mut all: Vec<String> = state.mailbox.messages.iter().filter(|(_, m)| m.folder == folder).map(|(id, m)| format!("{id} {m:?}")).collect();
+    all.sort();
+    all
+}
+
+/// The ids the stand-in has in the shared mailbox's folder `well_known`.
+fn theirs_in(server: &StandIn, well_known: &str) -> Vec<String> {
+    let mut state = server.state();
+    let other = state.other(SHARED).unwrap();
+    let folder = other.folders.iter().find(|f| f.well_known == well_known).unwrap().id.clone();
+    let mut all: Vec<String> = other.mailbox.messages.iter().filter(|(_, m)| m.folder == folder).map(|(id, _)| id.clone()).collect();
+    all.sort();
+    all
+}
+
+/// A session with the owner and the shared mailbox, both read once, against `server`.
+fn owner_and_shared(server: &StandIn) -> (Session, Id, Id) {
+    let mut s = Session::at(Mailbox::with_local_account("", ""), NOW, 0);
+    s.shared_mailboxes = true;
+    let owner = s.run("account.add", &json!({"email": OWNER, "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+    let shared = s.run("account.addSharedMailbox", &json!({"account": owner, "address": SHARED})).unwrap()["id"].as_u64().unwrap();
+    run(server, &mut s, owner);
+    run(server, &mut s, shared);
+    (s, owner, shared)
+}
+
+#[test]
+fn mail_written_in_a_shared_mailbox_is_kept_in_its_drafts_and_sent_through_it_and_the_owners_drafts_and_sent_items_stay_as_they_were() {
+    let server = StandIn::start().unwrap();
+    server.state().add_other(SHARED, true);
+    // Both mailboxes have the same ids: three in the Inbox each, and the owner three more in his
+    // Drafts and three in his Sent Items, under the ids the shared mailbox's next ones will have.
+    // A draft made or sent at `/me` would land on (or beside) his.
+    let mine = server.state().well_known("inbox");
+    let own = server.state().mailbox.generate(&mine, 3, NOW);
+    let my_drafts = server.state().well_known("drafts");
+    let my_sent = server.state().well_known("sentitems");
+    let mut owners_ids = server.state().mailbox.generate(&my_drafts, 3, NOW);
+    owners_ids.extend(server.state().mailbox.generate(&my_sent, 3, NOW));
+    let ids = {
+        let mut state = server.state();
+        let other = state.other(SHARED).unwrap();
+        let inbox = other.folders.iter().find(|f| f.well_known == "inbox").unwrap().id.clone();
+        other.mailbox.generate(&inbox, 3, NOW)
+    };
+    assert_eq!(own, ids);
+    let (mut s, owner, shared) = owner_and_shared(&server);
+    let before = owners_messages(&server);
+    let (drafts_before, sent_before) = (owners_in(&server, "drafts"), owners_in(&server, "sentitems"));
+    assert_eq!((drafts_before.len(), sent_before.len()), (3, 3));
+    let here_in = |s: &Session, account: Id, kind: FolderKind| s.mailbox.folder_of_kind(account, kind).map_or(0, |f| s.mailbox.count(f));
+    let (my_drafts_here, my_sent_here) = (here_in(&s, owner, FolderKind::Drafts), here_in(&s, owner, FolderKind::Sent));
+
+    // A reply to one of its messages, saved: made there as an answer, in its own Drafts.
+    let first = s.mailbox.messages.values().find(|m| m.account == shared && m.server.as_ref().is_some_and(|x| x.id == ids[0])).unwrap().id;
+    s.run("mail.select", &json!({"id": first})).unwrap();
+    s.run("mail.reply", &json!({})).unwrap();
+    s.run("compose.set", &json!({"to": "kit@example.net"})).unwrap();
+    let draft = s.run("compose.saveDraft", &json!({})).unwrap()["draft"].as_u64().unwrap();
+    server.state().requests.clear();
+    run(&server, &mut s, shared);
+    all_at_its_address(&server);
+    let made = theirs_in(&server, "drafts");
+    assert_eq!(made.len(), 1, "in its own Drafts");
+    assert!(made.first().is_some_and(|id| owners_ids.contains(id)), "under an id the owner's mailbox has too: {made:?}");
+    assert!(server.state().requests.iter().any(|r| r.path.last().is_some_and(|p| p == "createReply")));
+    let kept = s.mailbox.message(draft).unwrap();
+    assert_eq!((kept.account, kept.from.email.as_str()), (shared, SHARED));
+    assert_eq!(kept.server.as_ref().map(|x| x.id.clone()), made.first().cloned());
+
+    // Sent as that draft, from there: it leaves its Drafts, the copy is in its Sent Items.
+    s.run("mail.editDraft", &json!({"id": draft})).unwrap();
+    s.run("compose.set", &json!({"subject": "RE: Message 0, answered"})).unwrap();
+    s.run("compose.send", &json!({})).unwrap();
+    // And a message never saved, begun in one of its folders.
+    s.run("folder.select", &json!({"id": s.mailbox.folder_of_kind(shared, FolderKind::Inbox).unwrap()})).unwrap();
+    s.run("mail.new", &json!({"to": "kit@example.net", "subject": "Opening hours", "body": "Nine to five."})).unwrap();
+    s.run("compose.send", &json!({})).unwrap();
+    assert_eq!(here_in(&s, shared, FolderKind::Outbox), 2);
+    server.state().requests.clear();
+    run(&server, &mut s, shared);
+    all_at_its_address(&server);
+    let sent: Vec<(String, String, String)> = server.state().sent.iter().map(|x| (x.subject.clone(), x.how.clone(), x.mailbox.clone())).collect();
+    assert_eq!(
+        sent,
+        [
+            ("RE: Message 0, answered".to_string(), "send".to_string(), format!("users/{SHARED}")),
+            ("Opening hours".to_string(), "sendMail".to_string(), format!("users/{SHARED}")),
+        ]
+    );
+    assert!(theirs_in(&server, "drafts").is_empty(), "the draft left its Drafts");
+    let their_sent = theirs_in(&server, "sentitems");
+    assert_eq!(their_sent.len(), 2, "both copies in its own Sent Items");
+    assert!(their_sent.iter().any(|id| owners_ids.contains(id)), "under ids the owner's mailbox has too: {their_sent:?}");
+    assert_eq!(here_in(&s, shared, FolderKind::Outbox), 0);
+    // Its copies come down into its own Sent Items here.
+    run(&server, &mut s, shared);
+    assert_eq!(here_in(&s, shared, FolderKind::Sent), 2);
+
+    // The owner's Drafts and Sent Items are as they were, there and here, and his own run says
+    // nothing of any of it.
+    assert_eq!((owners_in(&server, "drafts"), owners_in(&server, "sentitems")), (drafts_before, sent_before));
+    assert_eq!(owners_messages(&server), before, "the owner's messages are as they were");
+    server.state().requests.clear();
+    run(&server, &mut s, owner);
+    for r in server.state().requests.iter() {
+        let said = format!("{} {} {}", r.target, r.path.join("/"), r.body);
+        assert!(!said.to_lowercase().contains(SHARED) && !said.contains("Opening hours"), "the owner's run: {said}");
+    }
+    assert_eq!((here_in(&s, owner, FolderKind::Drafts), here_in(&s, owner, FolderKind::Sent)), (my_drafts_here, my_sent_here));
+    assert_eq!(owners_messages(&server), before);
+}
+
+#[test]
+fn a_send_exchange_wont_let_go_as_a_shared_mailbox_is_held_with_its_address_and_never_sent_from_the_owners() {
+    let server = StandIn::start().unwrap();
+    server.state().add_other(SHARED, true);
+    server.state().other(SHARED).unwrap().send_as_denied = true;
+    let (mut s, owner, shared) = owner_and_shared(&server);
+    let before = owners_messages(&server);
+    s.run("folder.select", &json!({"id": s.mailbox.folder_of_kind(shared, FolderKind::Inbox).unwrap()})).unwrap();
+    s.run("mail.new", &json!({"to": "kit@example.net", "subject": "Denied", "body": "Hello."})).unwrap();
+    let id = s.run("compose.send", &json!({})).unwrap()["id"].as_u64().unwrap();
+    server.state().requests.clear();
+    run(&server, &mut s, shared);
+    all_at_its_address(&server);
+    let m = s.mailbox.message(id).unwrap();
+    assert!(m.held.contains(&format!("you don't have permission to send as {SHARED}")), "{}", m.held);
+    assert!(server.state().sent.is_empty(), "nothing went, from any address");
+    // Not sent again by itself, by it or by its owner.
+    run(&server, &mut s, shared);
+    run(&server, &mut s, owner);
+    assert!(server.state().sent.is_empty());
+    assert_eq!(owners_messages(&server), before);
+    // Given the permission, and sent again: it goes, through its own address.
+    server.state().other(SHARED).unwrap().send_as_denied = false;
+    s.run("mail.sendAgain", &json!({"id": id})).unwrap();
+    run(&server, &mut s, shared);
+    let sent: Vec<String> = server.state().sent.iter().map(|x| x.mailbox.clone()).collect();
+    assert_eq!(sent, [format!("users/{SHARED}")]);
+    assert_eq!(owners_messages(&server), before);
+}

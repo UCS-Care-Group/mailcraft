@@ -1692,8 +1692,8 @@ fn one_approval_covers_everything_the_program_asks_an_owner_for() {
         }
     }
     // And what the Favorites take through Graph, which an owner is asked for later, and what a
-    // shared mailbox takes (#70).
-    for asked in format!("{GRAPH_SCOPES} {FAVORITES_SCOPES} {SHARED_SCOPE}").split(' ') {
+    // shared mailbox takes, read and sent from (#70).
+    for asked in format!("{GRAPH_SCOPES} {FAVORITES_SCOPES} {} {}", shared_scope(), shared_send_scope()).split(' ') {
         assert!(approved.iter().any(|scope| scope == asked), "{asked}");
     }
     // No permission twice.
@@ -2056,6 +2056,27 @@ fn a_shared_mailboxs_permission_is_never_asked_for_with_a_sign_in() {
     }
     assert!(shared_scope().split(' ').any(|scope| scope == SHARED_SCOPE));
     assert!(shared_scope().contains("https://graph.microsoft.com/Mail.ReadWrite ") && shared_scope().contains("offline_access"));
+    // Reading one doesn't ask for sending from one: that is asked for at the first send.
+    assert!(!shared_scope().contains(SHARED_SEND_SCOPE));
+    let send = shared_send_scope();
+    assert!(send.split(' ').any(|scope| scope == SHARED_SEND_SCOPE) && send.split(' ').any(|scope| scope == SHARED_SCOPE), "{send}");
+    assert!(send.contains("https://graph.microsoft.com/Mail.ReadWrite ") && send.contains("offline_access"));
+}
+
+const SHARED_SEND_SCOPE: &str = "https://graph.microsoft.com/Mail.Send.Shared";
+
+#[test]
+fn sending_from_a_shared_mailbox_asks_for_its_permission_and_nothing_less() {
+    let granted = r#"{"token_type":"Bearer","expires_in":3600,"access_token":"send-access","refresh_token":"re-fresh-3"}"#;
+    let unasked = r#"{"error":"invalid_grant","error_description":"AADSTS65001: The user or administrator has not consented to use the application with ID 'client-1' named 'MailCraft'.","error_codes":[65001],"suberror":"consent_required"}"#;
+    let server = FakeHttp::answering(ok(granted));
+    let got = refresh_graph_shared_send_at(&endpoints_of(&server), &oauth(), "re-fresh").unwrap();
+    assert_eq!((got.tokens.access.as_str(), got.tokens.refresh.as_str(), server.asked()), ("send-access", "re-fresh-3", 1));
+    assert_eq!(form_of(&server, 0)["scope"], shared_send_scope());
+    // Not agreed to yet: the window asks the owner; nothing is had without it.
+    let server = FakeHttp::answering(response("400 Bad Request", unasked));
+    assert!(refresh_graph_shared_send_at(&endpoints_of(&server), &oauth(), "re-fresh").unwrap_err().is_consent_needed());
+    assert_eq!(server.asked(), 1);
 }
 
 #[test]
