@@ -117,3 +117,50 @@ fn a_shared_mailbox_is_searched_counted_and_a_favourite_here_and_nothing_of_it_r
     let again: Value = s.run("folder.list", &json!({})).unwrap();
     assert_eq!(again["accounts"].as_array().unwrap().iter().find(|a| a["id"] == shared).map(|a| a["sharedOf"].clone()), Some(json!(owner)));
 }
+
+/// In a shared mailbox too, what changed on the server after every folder had come to its end
+/// comes down with the next run (#148): read elsewhere (said as the message's id and `isRead`
+/// alone, as Exchange Online says it), flagged, categorised; what was marked here stays so.
+#[test]
+fn what_changed_in_a_shared_mailbox_on_the_server_after_a_whole_run_comes_down_with_the_next() {
+    const OWNER: &str = "rowan@example.org";
+    const SHARED: &str = "orders@example.org";
+    let server = StandIn::start().unwrap();
+    server.state().add_other(SHARED, true);
+    let (inbox, ids) = {
+        let mut state = server.state();
+        let other = state.other(SHARED).unwrap();
+        other.mailbox.read_alone = true;
+        let inbox = other.folders.iter().find(|f| f.well_known == "inbox").unwrap().id.clone();
+        let ids = other.mailbox.generate(&inbox, 4, NOW);
+        (inbox, ids)
+    };
+    let mut s = Session::at(Mailbox::with_local_account("", ""), NOW, 0);
+    s.shared_mailboxes = true;
+    let owner = s.run("account.add", &json!({"email": OWNER, "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+    let shared = s.run("account.addSharedMailbox", &json!({"account": owner, "address": SHARED})).unwrap()["id"].as_u64().unwrap();
+    run(&server, &mut s, owner);
+    run(&server, &mut s, shared);
+    let their_inbox = s.mailbox.folder_by_server(shared, &inbox).unwrap();
+    assert_eq!(s.mailbox.unread_count(their_inbox), 4);
+    let here = |s: &Session, id: &str| {
+        s.mailbox.messages.values().find(|m| m.account == shared && m.server.as_ref().is_some_and(|s| s.id == *id)).map(|m| m.id).unwrap()
+    };
+    // Marked read here: it waits on this computer.
+    let mine = here(&s, &ids[3]);
+    s.run("mail.markRead", &json!({"ids": [mine]})).unwrap();
+    {
+        let mut state = server.state();
+        let other = state.other(SHARED).unwrap();
+        other.mailbox.update(&ids[0], |m| m.read = true);
+        other.mailbox.update(&ids[1], |m| m.flag = "flagged".into());
+        other.mailbox.update(&ids[2], |m| m.categories = vec!["Blue category".into()]);
+    }
+    run(&server, &mut s, shared);
+    let m = |s: &Session, n: usize| s.mailbox.message(here(s, &ids[n])).unwrap().clone();
+    assert!(m(&s, 0).read, "read elsewhere");
+    assert_eq!(m(&s, 1).flag, mailcraft_model::FlagStatus::Flagged);
+    assert_eq!(m(&s, 2).categories, ["Blue category"]);
+    assert!(m(&s, 3).read, "marked read here");
+    assert_eq!(s.mailbox.unread_count(their_inbox), 2);
+}

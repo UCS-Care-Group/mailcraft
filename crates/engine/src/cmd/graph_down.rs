@@ -9,6 +9,9 @@
 //! - **A message the server has changed** takes the server's read, flag, categories and
 //!   importance, but for a property changed here since the server last said (ADR 0003): that
 //!   goes up with R3.3, and nothing changed here is overwritten by coming down.
+//! - **A message whose read state alone the server says changed** (its id and `isRead`, as
+//!   Exchange Online says a message read or unread elsewhere, #148) takes it, as a message changed
+//!   there does: but for a message whose read state was changed here since.
 //! - **A message the server says left a folder** (`@removed`: deleted, or moved out) is marked
 //!   gone and kept. Seen in another folder, it has moved there, with what was fetched of it. Only
 //!   once every folder's delta reached its end in a run is what is still gone removed here.
@@ -95,6 +98,19 @@ pub fn take_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, page: &
         {
             s.gone = true;
             down.gone += 1;
+        }
+    }
+    for there in &page.read {
+        let Some(m) = index.find(mb, account, &there.id) else { continue };
+        if let Ok(m) = mb.message_mut(m)
+            && let Some(s) = m.server.as_mut().filter(|s| s.folder == page.folder)
+        {
+            let was = s.read;
+            s.read = there.read;
+            if m.read == was && m.read != there.read {
+                m.read = there.read;
+                down.changed += 1;
+            }
         }
     }
     for there in &page.messages {

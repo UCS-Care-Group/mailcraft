@@ -26,13 +26,17 @@
 //!   back; the fetch has its own cap).
 //! - **Refusals are said.** A folder the server won't list (other than one gone meanwhile) is
 //!   counted, with Graph's error code in the log, and the run ends saying how many there were.
+//! - **A change of read state alone** comes as the message's id and `isRead`, nothing else: so
+//!   Exchange Online says a message marked read or unread elsewhere (Graph's delta docs: read
+//!   state changes are events of the folder's synchronisation, not changes of the message). It is
+//!   taken as that, never as a message (#148).
 //! - **What comes back is hostile JSON.** Every id, text and list is capped; an entry that can't
 //!   be read is passed over. Nothing of a message or of a link goes into a log line or an error.
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use mailcraft_model::sync::{GraphFolder, GraphMailRequest, GraphMailResult, GraphMessage, GraphProgress, MessagePage, ServerMessage};
+use mailcraft_model::sync::{GraphFolder, GraphMailRequest, GraphMailResult, GraphMessage, GraphProgress, MessagePage, ReadState, ServerMessage};
 use mailcraft_model::{Address, FlagStatus, FolderKind, Importance};
 use serde_json::Value;
 
@@ -73,6 +77,8 @@ struct Reading {
     done: bool,
     left: bool,
     read: u32,
+    /// Of `read`, changes of read state alone.
+    read_alone: u32,
     pages: u32,
     /// Started afresh in this run already: a second time leaves it for the next one.
     restarted: bool,
@@ -120,7 +126,7 @@ pub(super) fn messages(
                 },
             };
             let round_here = link.is_none() || caught_up;
-            Reading { folder, link, caught_up, afresh, done: false, left: false, read: 0, pages: 0, restarted: false, round_here }
+            Reading { folder, link, caught_up, afresh, done: false, left: false, read: 0, read_alone: 0, pages: 0, restarted: false, round_here }
         })
         .collect();
     let count = u32::try_from(reading.len()).unwrap_or(u32::MAX);
@@ -167,8 +173,9 @@ pub(super) fn messages(
     out.whole = reading.iter().all(|one| one.done);
     let pages: u32 = reading.iter().map(|one| one.pages).sum();
     let messages: u32 = reading.iter().map(|one| one.read).sum();
+    let read_alone: u32 = reading.iter().map(|one| one.read_alone).sum();
     log::info!(
-        "graph mail: {pages} pages, {messages} messages and changes, {} folders of {count} done",
+        "graph mail: {pages} pages, {messages} messages and changes ({read_alone} of read state alone), {} folders of {count} done",
         reading.iter().filter(|one| one.done).count()
     );
     out
@@ -250,10 +257,13 @@ fn page(
         match entry_of(entry, &one.folder.id) {
             Some(Entry::Message(message)) => taken.messages.push(*message),
             Some(Entry::Removed(id)) => taken.removed.push(id),
+            Some(Entry::Read(id, read)) => taken.read.push(ReadState { id, read }),
             None => {}
         }
     }
-    one.read = one.read.saturating_add(u32::try_from(taken.messages.len() + taken.removed.len()).unwrap_or(u32::MAX));
+    let read_alone = u32::try_from(taken.read.len()).unwrap_or(u32::MAX);
+    one.read_alone = one.read_alone.saturating_add(read_alone);
+    one.read = one.read.saturating_add(u32::try_from(taken.messages.len() + taken.removed.len()).unwrap_or(u32::MAX)).saturating_add(read_alone);
     taken.link = given;
     one.link = Some(link);
     one.caught_up = caught_up;
@@ -303,6 +313,8 @@ fn size_of(value: &Value) -> u64 {
 enum Entry {
     Message(Box<GraphMessage>),
     Removed(String),
+    /// Its read state alone.
+    Read(String, bool),
 }
 
 fn capped(value: &Value, name: &str, most: usize) -> String {
@@ -331,18 +343,32 @@ pub(super) fn message_of(value: &Value) -> Option<GraphMessage> {
     let folder = id_of(text(value, "parentFolderId"))?;
     match entry_of(value, &folder)? {
         Entry::Message(message) => Some(*message),
-        Entry::Removed(_) => None,
+        Entry::Removed(_) | Entry::Read(..) => None,
     }
 }
 
-/// A message of a page, or the id of one the server says left the folder.
+/// A message's `isRead`: `true` or `false`, or the same as text (as Graph's own example of a
+/// delta writes it).
+fn is_read(value: &Value) -> Option<bool> {
+    match value.get("isRead")? {
+        Value::Bool(read) => Some(*read),
+        Value::String(read) if read.eq_ignore_ascii_case("true") => Some(true),
+        Value::String(read) if read.eq_ignore_ascii_case("false") => Some(false),
+        _ => None,
+    }
+}
+
+/// A message of a page, the id of one the server says left the folder, or a change of one's
+/// read state alone.
 fn entry_of(value: &Value, folder: &str) -> Option<Entry> {
     let id = id_of(text(value, "id"))?;
     if value.get("@removed").is_some() {
         return Some(Entry::Removed(id));
     }
+    let read = is_read(value);
     let when = |name: &str| mailcraft_time::iso_to_timestamp(text(value, name), 0);
-    let received = when("receivedDateTime")?;
+    // Without what a message is (when it arrived), it is a change of its read state alone.
+    let Some(received) = when("receivedDateTime") else { return read.map(|read| Entry::Read(id, read)) };
     let flag = match value.get("flag").map(|f| text(f, "flagStatus")) {
         Some("flagged") => FlagStatus::Flagged,
         Some("complete") => FlagStatus::Complete,
@@ -361,7 +387,7 @@ fn entry_of(value: &Value, folder: &str) -> Option<Entry> {
     let server = ServerMessage {
         id,
         folder: folder.to_string(),
-        read: value.get("isRead").and_then(Value::as_bool).unwrap_or(false),
+        read: read.unwrap_or(false),
         flag,
         categories,
         importance,
@@ -389,4 +415,32 @@ fn entry_of(value: &Value, folder: &str) -> Option<Entry> {
         has_attachments: value.get("hasAttachments").and_then(Value::as_bool).unwrap_or(false),
         draft: value.get("isDraft").and_then(Value::as_bool).unwrap_or(false),
     })))
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    use super::{Entry, entry_of};
+
+    const ID: &str = "AAkALgAAAAAAHYQDEapmEc2byACqAC-EWg0A0000000001AAA=";
+
+    #[test]
+    fn a_change_of_read_state_alone_is_taken_as_that_and_never_as_a_message() {
+        let read = |value| match entry_of(&value, "F") {
+            Some(Entry::Read(id, read)) => Some((id == ID, read)),
+            _ => None,
+        };
+        assert_eq!(read(json!({"id": ID, "isRead": true})), Some((true, true)));
+        assert_eq!(read(json!({"@odata.type": "#microsoft.graph.message", "id": ID, "isRead": false})), Some((true, false)));
+        // As Graph's own example of a delta writes it.
+        assert_eq!(read(json!({"id": ID, "isRead": "true"})), Some((true, true)));
+        // Nothing to take: passed over.
+        for nothing in [json!({"id": ID}), json!({"id": ID, "isRead": 1}), json!({"id": ID, "isRead": "yes"}), json!({"isRead": true})] {
+            assert!(entry_of(&nothing, "F").is_none(), "{nothing}");
+        }
+        // A whole message whose isRead is text is read as it says.
+        let whole = json!({"id": ID, "receivedDateTime": "2027-01-15T08:00:00Z", "isRead": "true"});
+        assert!(matches!(entry_of(&whole, "F"), Some(Entry::Message(m)) if m.server.read));
+    }
 }

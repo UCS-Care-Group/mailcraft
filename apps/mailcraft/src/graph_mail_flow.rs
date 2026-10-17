@@ -250,3 +250,48 @@ fn messages_download_whole_in_the_background_on_opening_and_before_a_reply() {
     wait(&mut app, &|app| app.session.mailbox.messages.values().all(|m| !m.unfetched));
     assert!(app.session.mailbox.message(by(&app, &ids[0])).unwrap().body.text.contains("The words of message 1."));
 }
+
+/// What changed on the server after every folder had come to its end (read on a phone, flagged
+/// and categorised in Outlook on the web) comes down with the next Send/Receive, across a save
+/// and a reopen of the mailbox: Exchange Online says a change of read state alone as the
+/// message's id and `isRead`, nothing else (#148).
+#[test]
+fn what_changed_on_the_server_after_a_whole_run_comes_down_with_the_next() {
+    let server = StandIn::start().unwrap();
+    let _route = server.route();
+    let inbox_there = server.state().well_known("inbox");
+    let ids = {
+        let mut state = server.state();
+        state.mailbox.read_alone = true;
+        state.mailbox.generate(&inbox_there, 5, NOW)
+    };
+    let (mut s, account) = session();
+    let first = run(&mut s, account, &mut |_, _, _| {});
+    assert!(first.whole, "{first:?}");
+    let all_caught_up = s.mailbox.folders.iter().filter(|f| f.account == account).filter_map(|f| f.server.as_ref()).all(|f| f.caught_up);
+    assert!(all_caught_up);
+    // Saved and opened again, as the window does between runs.
+    let dir = std::env::temp_dir().join(format!("mailcraft-changes-down-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("changes.mailcraft");
+    mailcraft_engine::store::save(&path, &s.mailbox).unwrap();
+    let mut s = Session::at(mailcraft_engine::store::open(&path).unwrap().mailbox, NOW, 0);
+    let _ = std::fs::remove_dir_all(&dir);
+    {
+        let mut state = server.state();
+        state.mailbox.update(&ids[0], |m| m.read = true);
+        state.mailbox.update(&ids[1], |m| m.flag = "flagged".into());
+        state.mailbox.update(&ids[2], |m| m.categories = vec!["Red category".into()]);
+    }
+    let second = run(&mut s, account, &mut |_, _, _| {});
+    assert!(second.whole && second.errors.is_empty(), "{second:?}");
+    let here = |s: &Session, id: &str| s.mailbox.messages.values().find(|m| m.server.as_ref().is_some_and(|s| s.id == *id)).unwrap().clone();
+    assert!(here(&s, &ids[0]).read, "read on the phone");
+    assert_eq!(here(&s, &ids[1]).flag, FlagStatus::Flagged);
+    assert_eq!(here(&s, &ids[2]).categories, ["Red category"]);
+    assert!(!here(&s, &ids[3]).read && here(&s, &ids[3]).flag == FlagStatus::None);
+    // And back: marked unread there, it is unread here.
+    server.state().mailbox.update(&ids[0], |m| m.read = false);
+    run(&mut s, account, &mut |_, _, _| {});
+    assert!(!here(&s, &ids[0]).read, "marked unread on the phone");
+}

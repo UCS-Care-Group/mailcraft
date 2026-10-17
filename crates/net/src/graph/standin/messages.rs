@@ -20,6 +20,10 @@
 //! - A change may come again in a later page ([`Mail::replays`]); a token the server has
 //!   forgotten is answered `400 syncStateNotFound` ([`Mail::forget_links`]); and a round may be
 //!   told to start over (`410 Gone` with a `Location` that starts it afresh, [`Mail::resets`]).
+//! - With [`Mail::read_alone`], a message whose read state is all that changed since a delta link
+//!   comes in that link's round as its id and `isRead` alone, as Exchange Online reports a change
+//!   of read state: an event of the folder's synchronisation, not a change of the message ("Delta
+//!   queries for messages can return change events [...]: Read/unread state changes").
 //! - `GET /v1.0/me/messages/{id}/$value` answers the message's MIME.
 //!
 //! A round sees the mailbox as it was when it began: what changes while it runs comes in the
@@ -109,6 +113,8 @@ pub struct Message {
     pub attachments: Vec<super::drafts::Attached>,
     /// When it last changed, in the stand-in's count of changes.
     pub(super) changed: u64,
+    /// When its read state alone last changed, with [`Mail::read_alone`] (0: never).
+    pub(super) read_changed: u64,
 }
 
 impl Message {
@@ -224,6 +230,8 @@ fn shown(id: &str, immutable: bool) -> String {
 enum Key {
     Message(String),
     Gone(String),
+    /// Its read state alone changed ([`Mail::read_alone`]).
+    Read(String),
 }
 
 /// A round of a folder's delta, part way: what a `$skiptoken` stands for.
@@ -274,6 +282,9 @@ pub struct Mail {
     pub page_cap: usize,
     /// The top of every folder's delta is refused (`400 ErrorInvalidRequest`), whatever it asks.
     pub refuse_delta: bool,
+    /// A change of nothing but a message's read state comes in the next round as its id and
+    /// `isRead` alone, as Exchange Online reports one (see the top of this file).
+    pub read_alone: bool,
     /// Uploads of large attachments under way, by the token of their address ([`super::drafts`]).
     pub(super) uploads: HashMap<String, super::drafts::Upload>,
 }
@@ -337,9 +348,15 @@ impl Mail {
     /// Change a message as `how` does; `false` when there is no such message.
     pub fn update(&mut self, id: &str, how: impl FnOnce(&mut Message)) -> bool {
         let changed = self.change();
+        let read_alone = self.read_alone;
         let Some(message) = self.messages.get_mut(id) else { return false };
+        let before = message.clone();
         how(message);
-        message.changed = changed;
+        if read_alone && message.read != before.read && (Message { read: before.read, ..message.clone() }) == before {
+            message.read_changed = changed;
+        } else {
+            message.changed = changed;
+        }
         true
     }
 
@@ -394,6 +411,13 @@ impl Mail {
             None => messages.sort_by(|a, b| a.received.cmp(&b.received).then_with(|| a.id.cmp(&b.id))),
             Some(since) => {
                 let mut all: Vec<(u64, Key)> = messages.iter().map(|m| (m.changed, Key::Message(m.id.clone()))).collect();
+                // Read alone since, and not changed otherwise since.
+                all.extend(
+                    self.messages
+                        .values()
+                        .filter(|m| m.folder == folder && m.changed <= since && m.read_changed > since && m.read_changed <= upto)
+                        .map(|m| (m.read_changed, Key::Read(m.id.clone()))),
+                );
                 all.extend(
                     self.gone
                         .iter()
@@ -418,6 +442,11 @@ impl Mail {
                 Key::Message(id) => {
                     if let Some(m) = self.messages.get(id).filter(|m| m.folder == round.folder && m.changed <= round.upto) {
                         out.push(m.json(immutable, round.select.as_deref(), round.size));
+                    }
+                }
+                Key::Read(id) => {
+                    if let Some(m) = self.messages.get(id).filter(|m| m.folder == round.folder && m.read_changed <= round.upto) {
+                        out.push(json!({"id": shown(id, immutable), "isRead": m.read}));
                     }
                 }
                 Key::Gone(id) => {
