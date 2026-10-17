@@ -20,10 +20,10 @@
 //!   and all: the tree comes from where each folder was found, never from splitting a name.
 //!   A listing that doesn't get to its end says so ([`FolderListing::complete`]), and then
 //!   nothing is removed for being missing from it.
-//! - **A shared mailbox** (#70) is asked at `/users/{address}/…` for all of it, its changes
-//!   included; its drafts and sends are not made yet. A refusal of its by Graph's code (no
-//!   access, no mailbox) stops its changes, which wait here; one is never taken for a folder or a
-//!   message that is gone.
+//! - **A shared mailbox** (#70) is asked at `/users/{address}/…` for all of it: its changes, its
+//!   drafts (in its own Drafts) and what is sent from it (the copy in its own Sent Items). A
+//!   refusal of its by Graph's code (no access, no mailbox) stops its changes, drafts and sends,
+//!   which wait here; one is never taken for a folder or a message that is gone.
 //! - **What comes back is hostile JSON.** Every list, id and name is capped; an entry that
 //!   can't be read is passed over (and makes the listing incomplete); nothing in it is run or
 //!   fetched. No folder's name or id goes into an error or a log line.
@@ -159,13 +159,9 @@ pub(crate) fn sync_folders_with(base: &str, token: &str, request: &GraphMailRequ
             return out;
         }
     };
-    // A shared mailbox's changes go up at its own address, as the owner's do at his (#70); its
-    // drafts and what is sent from it don't yet: the engine asks for neither, and a request that
-    // does is not believed.
-    let (drafts, sends) = if graph.shared() { (&[][..], &[][..]) } else { (&request.drafts[..], &request.sends[..]) };
-    if graph.shared() && !(request.drafts.is_empty() && request.sends.is_empty()) {
-        out.errors.push("Drafts and mail from a shared mailbox wait on this computer: they aren't sent to Microsoft yet.".into());
-    }
+    // A shared mailbox's changes, drafts and sends go up at its own address, as the owner's do at
+    // his (#70): every path below comes of `graph`, which names that mailbox.
+    let (drafts, sends) = (&request.drafts[..], &request.sends[..]);
     // What was changed here goes up first: the listing then shows the server after it.
     let mut made: HashMap<u64, String> = HashMap::new();
     for change in request.changes.iter().take(MAX_FOLDER_CHANGES) {
@@ -217,6 +213,11 @@ pub(crate) fn sync_folders_with(base: &str, token: &str, request: &GraphMailRequ
     // Then the drafts saved here (R3.4.1).
     if let Err(e) = drafts::drafts(&graph, drafts, &mut out.drafts) {
         log::info!("graph drafts: the drafts stopped; the rest wait for the next run");
+        // A shared mailbox that won't let the owner in (#70): said as it is, and the rest wait.
+        if let NetError::SharedRefused(_) = e {
+            stop(&mut out, &e);
+            return out;
+        }
         if let NetError::Busy { retry_after, .. } = &e {
             out.busy_for = Some(retry_after.unwrap_or(0).max(gate.paused_for().map_or(0, |left| u32::try_from(left.as_secs()).unwrap_or(u32::MAX))));
         }
@@ -228,6 +229,10 @@ pub(crate) fn sync_folders_with(base: &str, token: &str, request: &GraphMailRequ
     // Then what waits in the Outbox (R3.4.2): never asked twice by itself.
     if let Err(e) = send::sends(&graph, sends, &mut out.sent) {
         log::info!("graph sending: sending stopped; the rest waits for the next run");
+        if let NetError::SharedRefused(_) = e {
+            stop(&mut out, &e);
+            return out;
+        }
         if let NetError::Busy { retry_after, .. } = &e {
             out.busy_for = Some(retry_after.unwrap_or(0).max(gate.paused_for().map_or(0, |left| u32::try_from(left.as_secs()).unwrap_or(u32::MAX))));
         }

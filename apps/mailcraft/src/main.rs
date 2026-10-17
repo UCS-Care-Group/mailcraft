@@ -39,6 +39,8 @@ mod logging;
 mod picture_cache;
 mod quit;
 mod secrets;
+#[cfg(test)]
+mod shared_send_flow;
 mod single_instance;
 
 use std::path::PathBuf;
@@ -299,6 +301,12 @@ fn sign_in_with(request: SignInRequest, open_page: &dyn Fn(&str) -> bool) -> Res
     }
     // A shared mailbox is to be read (#70): the page comes up for what reading shared mailboxes
     // takes, by itself, in the same words for a no as the Favorites'.
+    // Mail is to be sent from a shared mailbox for the first time, and the owner said go ahead
+    // (#70): the page comes up for what sending from shared mailboxes takes too, by itself.
+    if request.graph && request.shared && request.shared_send {
+        let asked = mailcraft_net::oauth::sign_in_for_shared_send(&request.oauth, &request.email, &open, &request.cancel);
+        return asked.map_err(|refusal| unopened(favorites_refusal(refusal)));
+    }
     if request.graph && request.shared {
         let asked = mailcraft_net::oauth::sign_in_for_shared(&request.oauth, &request.email, &open, &request.cancel);
         return asked.map_err(|refusal| unopened(favorites_refusal(refusal)));
@@ -455,7 +463,7 @@ fn graph_in(request: GraphRequest, zone: &str) -> GraphResult {
     let mail = request.mail.is_some();
     // (A shared mailbox's, with what reading shared mailboxes takes: #70.)
     let shared = request.mail.as_ref().is_some_and(|mail| mail.shared);
-    graph_with(request, zone, &|settings, refresh, favorites| {
+    let renew: Renew<'_> = &|settings, refresh, favorites| {
         if shared {
             oauth::refresh_graph_shared(settings, refresh)
         } else if mail {
@@ -465,7 +473,9 @@ fn graph_in(request: GraphRequest, zone: &str) -> GraphResult {
         } else {
             oauth::refresh_graph(settings, refresh)
         }
-    })
+    };
+    // (And for sending from a shared mailbox, when it has mail to send: #70.)
+    graph_sending_with(request, zone, renew, &oauth::refresh_graph_shared_send)
 }
 
 /// How a job gets a token for Microsoft Graph when the window handed it none: from the sign-in
@@ -481,12 +491,47 @@ fn favorites_words(error: &mailcraft_net::NetError) -> &'static str {
     }
 }
 
-/// [`graph_in`], with the token coming from `renew` when the request brings none.
+/// [`graph_in`], with the token coming from `renew` when the request brings none (and, for a
+/// shared mailbox's mail to send, from `renew` too).
+#[cfg(test)]
 fn graph_with(request: GraphRequest, zone: &str, renew: Renew<'_>) -> GraphResult {
+    graph_sending_with(request, zone, renew, &|settings, refresh| renew(settings, refresh, false))
+}
+
+/// How a shared mailbox's run that has mail to send gets a token that covers sending from it
+/// (`Mail.Send.Shared`, #70) when the window handed it none.
+type RenewSend<'a> = &'a dyn Fn(&mailcraft_model::OAuth, &str) -> Result<mailcraft_net::oauth::GraphTokens, mailcraft_net::NetError>;
+
+/// [`graph_in`], with the token coming from `renew` when the request brings none, and from
+/// `renew_send` for a shared mailbox's run that has mail to send.
+fn graph_sending_with(mut request: GraphRequest, zone: &str, renew: Renew<'_>, renew_send: RenewSend<'_>) -> GraphResult {
     use mailcraft_model::remote::{FavoritesDownload, FavoritesOutcome};
     use mailcraft_net::{NetError, graph};
     let mut out = GraphResult { account: request.account.id, ..Default::default() };
     let mut access = request.access.clone();
+    // A shared mailbox with mail to send (#70): the token covers sending from it, or nothing of
+    // it is sent this run (it waits, and the window asks the owner when he asked for the run).
+    // Its changes and drafts go all the same, with what reading it takes.
+    let sending_shared = request.mail.as_ref().is_some_and(|mail| mail.shared && !mail.sends.is_empty());
+    if access.is_empty() && sending_shared {
+        match renew_send(&request.oauth, &request.refresh) {
+            Ok(got) => {
+                access = got.tokens.access.clone();
+                out.tokens = Some(got.tokens);
+            }
+            Err(e) => {
+                if e.is_consent_needed() {
+                    log::info!("graph sending: sending from a shared mailbox isn't allowed yet; its mail waits for the owner's permission");
+                    out.send_consent_needed = true;
+                } else {
+                    log::info!("graph sending: no token for sending from a shared mailbox ({e}); its mail waits");
+                }
+                if let Some(mail) = request.mail.as_mut() {
+                    mail.sends.clear();
+                }
+            }
+        }
+    }
     if access.is_empty() {
         // For everything Graph is asked for; a sign-in from before the newest of it was asked
         // for gets its tokens for what it covers, and says what is missing.

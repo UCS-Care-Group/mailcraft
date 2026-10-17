@@ -6,6 +6,10 @@
 //! - `POST /v1.0/me/messages/{id}/send` sends a draft (400 for a message that isn't one), with
 //!   no body. Answered 202. The draft leaves Drafts.
 //!
+//! Another mailbox (#70) sends the same way at `/v1.0/users/{address}/…`, its copy in its own
+//! Sent Items; one whose owner of the token may not send as it nor on its behalf answers 403
+//! `ErrorSendAsDenied` ([`super::OtherMailbox::send_as_denied`]) and sends nothing.
+//!
 //! Either way the server files its own copy in Sent Items (unless `saveToSentItems` is false),
 //! under an id of its own, which a client finds by the delta of Sent Items; and it keeps what it
 //! sent ([`State::sent`](super::State::sent)), for a test to count. Faults: a message's own
@@ -28,12 +32,16 @@ pub struct Sent {
     pub how: String,
     /// It said it answers this Message-ID (`In-Reply-To`).
     pub in_reply_to: String,
+    /// Whose mailbox sent it: `me`, or `users/{address}` for another (#70), whose Sent Items
+    /// has the copy.
+    pub mailbox: String,
 }
 
 impl State {
     /// File `m` in Sent Items as sent, under an id of its own, and keep a word of it.
     fn file_sent(&mut self, mut m: Message, how: &str, save: bool) {
-        self.sent.push(Sent { subject: m.subject.clone(), to: m.to.clone(), how: how.into(), in_reply_to: m.in_reply_to.clone() });
+        let mailbox = self.whose().to_string();
+        self.sent.push(Sent { subject: m.subject.clone(), to: m.to.clone(), how: how.into(), in_reply_to: m.in_reply_to.clone(), mailbox });
         if m.to.is_empty() && m.cc.is_empty() && m.bcc.is_empty() {
             return;
         }

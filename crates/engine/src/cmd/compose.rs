@@ -512,10 +512,9 @@ fn low_importance(s: &mut Session, _: &Value) -> CmdResult {
 /// the Message-ID `message_id` when it is given (a draft saved again keeps its own, and so do the
 /// Content-IDs of its pictures).
 fn build_as(s: &Session, c: &Compose, strict: bool, message_id: Option<&str>) -> Result<Message, CmdError> {
-    // Mail written in a shared mailbox goes from its owner's own account: sending as a shared
-    // mailbox or on its behalf is not here yet (#70).
-    let written_in = s.mailbox.owner_of(c.account).map_or(c.account, |owner| owner.id);
-    let account = s.mailbox.account(written_in).or(s.mailbox.default_account()).ok_or_else(|| fail("add an account first (File › Add Account)"))?;
+    // Mail written in a shared mailbox is from its address, kept in its Drafts and sent through
+    // it (#70): never from its owner's own account instead.
+    let account = s.mailbox.account(c.account).or(s.mailbox.default_account()).ok_or_else(|| fail("add an account first (File › Add Account)"))?;
     let parse = |line: &str, what: &str| -> Result<Vec<Address>, CmdError> {
         let list = Address::parse_list(line);
         if strict && let Some(bad_one) = list.iter().find(|a| !a.is_valid()) {

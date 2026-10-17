@@ -49,8 +49,9 @@
 //!   ([`Configuration::Denied`], [`State::folders_denied`]), entries for folders that are gone
 //!   or belong to another mailbox, entries that are no folders, and a document that is anything
 //!   at all ([`State::configuration_document`]).
-//! - **Other mailboxes** (#70). `/v1.0/users/{address}/mailFolders…` and
-//!   `/users/{address}/messages/{id}[/$value|/move|/copy]` answer a shared mailbox's folders and
+//! - **Other mailboxes** (#70). `/v1.0/users/{address}/mailFolders…`,
+//!   `/users/{address}/messages[/{id}[/$value|/move|/copy|/send|/createReply…|/attachments]]` and
+//!   `/users/{address}/sendMail` answer a shared mailbox's folders, drafts, sending and
 //!   mail as `/me` answers the owner's, its changes made in it alone ([`State::add_other`]); 403 when the owner wasn't given Full Access to
 //!   it, 404 for an address it doesn't know.
 //! - **Messages.** A folder's message delta in pages, with next and delta links, `@removed`,
@@ -235,6 +236,9 @@ pub struct OtherMailbox {
     /// What every question about it is answered instead, when set: a status and Graph's code
     /// (a 403 `ErrorQuotaExceeded`, a 404 `MailboxNotEnabledForRESTAPI`…), to tell 403s apart.
     pub refusing: Option<(u16, &'static str)>,
+    /// Exchange doesn't let the owner of the token send as it, nor on its behalf: a send from it
+    /// is answered 403 `ErrorSendAsDenied`, and nothing goes (Full Access alone can't send).
+    pub send_as_denied: bool,
     pub folders: Vec<MailFolder>,
     pub mailbox: Mail,
 }
@@ -852,7 +856,14 @@ impl State {
             }
         }
         let folders = std::mem::replace(&mut self.folders, owners);
-        self.others.push(OtherMailbox { address: address.to_string(), full_access, refusing: None, folders, mailbox: Mail::default() });
+        self.others.push(OtherMailbox {
+            address: address.to_string(),
+            full_access,
+            refusing: None,
+            send_as_denied: false,
+            folders,
+            mailbox: Mail::default(),
+        });
     }
 
     /// The other mailbox at `address` (#70), to set up and to look at.
@@ -878,15 +889,37 @@ impl State {
         if !other.full_access {
             return Err(refuse(403, "ErrorAccessDenied", "Access is denied. Check credentials and try again."));
         }
+        let sending = method == "POST" && matches!(rest, ["sendMail"] | ["messages", _, "send"]);
+        if sending && other.send_as_denied {
+            return Err(refuse(
+                403,
+                "ErrorSendAsDenied",
+                "The user account which was used to submit this request does not have the right to send mail on behalf of the specified sending account.",
+            ));
+        }
         let (mut folders, mut mailbox) = (std::mem::take(&mut other.folders), std::mem::take(&mut other.mailbox));
         std::mem::swap(&mut self.folders, &mut folders);
         std::mem::swap(&mut self.mailbox, &mut mailbox);
+        // Its drafts are its own, from its own address (#70, slice 4).
+        let owner = std::mem::replace(&mut self.owner, user.to_string());
         let (local, domain) = user.split_once('@').unwrap_or((user, ""));
         self.at = format!("users/{}@{}", crate::http::encode(local), crate::http::encode(domain));
         let answer = match rest {
             ["mailFolders"] => self.mail_folders(asked, method, None, &[]),
             ["mailFolders", folder, rest @ ..] => self.mail_folders(asked, method, Some(folder), rest),
             ["messages", id, "$value"] if method == "GET" => self.message_value(id),
+            // Its drafts made, changed and sent, and its mail sent, there alone: the copy in its
+            // own Sent Items (#70, slice 4). (A large attachment's upload is the owner's only.)
+            ["messages"] if method == "POST" => self.create_message(asked),
+            ["sendMail"] if method == "POST" => self.send_mail(asked),
+            ["messages", id, "send"] if method == "POST" => self.send_draft(asked, id),
+            ["messages", id, action @ ("createReply" | "createReplyAll" | "createForward")] if method == "POST" => {
+                self.create_answer(asked, id, action)
+            }
+            ["messages", id, "attachments"] => self.attachments_at(asked, method, id, None),
+            ["messages", id, "attachments", attachment] if *attachment != "createUploadSession" => {
+                self.attachments_at(asked, method, id, Some(attachment))
+            }
             // Its messages read, changed, moved, copied and deleted, within it alone: a folder
             // of another mailbox is no destination here (#70, slice 3).
             ["messages", id] => self.message_at(asked, method, id, None),
@@ -895,6 +928,7 @@ impl State {
             [] => Err(refuse(405, "MethodNotAllowed", "The method is not allowed on this resource.")),
         };
         self.at.clear();
+        self.owner = owner;
         std::mem::swap(&mut self.folders, &mut folders);
         std::mem::swap(&mut self.mailbox, &mut mailbox);
         if let Some(other) = self.others.get_mut(at) {
@@ -1805,13 +1839,20 @@ impl State {
                 "ErrorInvalidRequest" => "ErrorInvalidRequest",
                 "ErrorInvalidUser" => "ErrorInvalidUser",
                 "ErrorQuotaExceeded" => "ErrorQuotaExceeded",
+                "ErrorSendAsDenied" => "ErrorSendAsDenied",
                 _ => "ServiceUnavailable",
             };
             return Err(refuse(status, code, "The stand-in was told to say so."));
         }
         // A message is also made, or sent, from its MIME in base64.
+        // (Another mailbox's, at `/users/{address}/…`, as the owner's: #70.)
+        let made_or_sent = |what: &String| what == "messages" || what == "sendMail";
         let mime = asked.method == "POST"
-            && matches!(asked.path.as_slice(), [v, me, what] if v == "v1.0" && me == "me" && (what == "messages" || what == "sendMail"))
+            && match asked.path.as_slice() {
+                [v, me, what] => v == "v1.0" && me == "me" && made_or_sent(what),
+                [v, users, _, what] => v == "v1.0" && users == "users" && made_or_sent(what),
+                _ => false,
+            }
             && asked.header("content-type").to_ascii_lowercase().starts_with("text/plain");
         if !mime && !asked.body.is_empty() && !asked.header("content-type").to_ascii_lowercase().starts_with("application/json") {
             return Err(refuse(415, "RequestBodyRead", "A body is JSON, and says so in its Content-Type."));

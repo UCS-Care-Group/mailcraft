@@ -28,7 +28,9 @@
 //! new version (`{"host": {"update": …}}`): `"0.9.0"` (that is the newest release), `"0.9.0
 //! security"` (and it fixes a security problem), `"same"` (the running version), or `"fails"`.
 //! And a Graph job (`{"host": {"graph": …}}`): `"consent"` (Microsoft wants the owner's
-//! permission first) or `"refused"` (it refused the sign-in); anything else answers with nothing.
+//! permission first), `"refused"` (it refused the sign-in) or `"sendConsent"` (a shared
+//! mailbox's mail waits for permission to send from shared mailboxes, #70); anything else
+//! answers with nothing.
 //! With a stand-in host, the copy of the mailbox kept before a switch to Microsoft Graph is never
 //! finished, so the switch's page keeps saying that it is being saved. And the background
 //! saver (`{"host": {"saving": …}}`): `"messages 12000 200000"` or `"content 3 90000"` (a save
@@ -299,8 +301,8 @@ fn stand_in(host: &Arc<Mutex<Host>>) -> Services {
         // (So that an account of an organisation has its last step, and its first download ends.)
         graph: Some(Box::new(move |request| {
             let how = graphing.lock().map(|host| host.graph.clone()).unwrap_or_default();
-            let (consent_needed, sign_in_refused) = (how == "consent", how == "refused");
-            answered(GraphResult { account: request.account.id, consent_needed, sign_in_refused, ..Default::default() })
+            let (consent_needed, sign_in_refused, send_consent_needed) = (how == "consent", how == "refused", how == "sendConsent");
+            answered(GraphResult { account: request.account.id, consent_needed, sign_in_refused, send_consent_needed, ..Default::default() })
         })),
         sync: Some(Box::new(move |request| {
             let (account, (tx, rx)) = (request.account.id, channel());

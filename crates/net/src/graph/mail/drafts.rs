@@ -19,6 +19,10 @@
 //!   answer was lost is found by the next listing, so nothing is added twice.
 //! - **Its change key** is read last: what tells an edit made elsewhere from this one (S26).
 //!
+//! A shared mailbox's drafts (#70) are made, changed and looked for at its own address
+//! (`/users/{address}/messages`, its own Drafts), never the owner's; one that won't let the owner
+//! in, by Graph's code, stops its drafts, which wait here.
+//!
 //! `In-Reply-To` and `References` can't be written by a client (Graph takes only `x-` headers in
 //! `internetMessageHeaders`): an answer has them from create-reply. No subject, address, name or
 //! id of a draft goes into a log line or an error; what the server answers is hostile JSON.
@@ -36,8 +40,6 @@ use super::up::MARKER;
 use crate::NetError;
 use crate::http::{self, Reply, Url};
 
-const MESSAGES: &str = "/v1.0/me/messages";
-const DRAFTS: &str = "/v1.0/me/mailFolders/drafts/messages";
 /// An attachment smaller than this is added directly; a larger one through an upload session.
 pub(crate) const DIRECT_LIMIT: u64 = 3 * 1024 * 1024;
 /// The bytes of one piece of an upload (ten times 320 KiB, under Graph's 4 MB).
@@ -48,6 +50,13 @@ const MAX_ATTACHMENT: u64 = 150 * 1024 * 1024;
 const MAX_LISTED: usize = 500;
 const MAX_RECIPIENTS: usize = 500;
 const MAX_MARKER: usize = 100;
+
+/// Where the messages of the mailbox are: `/v1.0/me/messages`, or a shared mailbox's own
+/// (`/v1.0/users/{address}/messages`, #70). A draft written in a shared mailbox is made, changed
+/// and sent there and nowhere else.
+fn messages(graph: &Graph<'_>) -> String {
+    graph.mail_path("/messages")
+}
 
 /// What making a draft came to.
 enum Made {
@@ -70,7 +79,8 @@ pub(super) fn drafts(graph: &Graph<'_>, drafts: &[DraftUp], out: &mut Vec<DraftD
         match result {
             Ok(()) if answered => out.push(done),
             Ok(()) => {}
-            Err(e) if matches!(e, NetError::Busy { .. }) || e.is_refused_sign_in() || e.is_unreachable() => {
+            // (And a shared mailbox that won't let the owner in, #70: its drafts wait here.)
+            Err(e) if matches!(e, NetError::Busy { .. } | NetError::SharedRefused(_)) || e.is_refused_sign_in() || e.is_unreachable() => {
                 if answered {
                     out.push(done);
                 }
@@ -131,7 +141,8 @@ pub(super) fn one(graph: &Graph<'_>, d: &DraftUp, done: &mut DraftDone) -> Resul
     // Changed elsewhere since it was last seen: not written over (S26).
     if !d.id.is_empty() && !d.change_key.is_empty() {
         let query = http::form(&[("$select", "changeKey")]);
-        let reply = graph.call(Kind::Read, &graph.url(&format!("{MESSAGES}/{id}?{query}")), "GET", &[], None, WRITE_TIMEOUT, MAX_PAGE)?;
+        let reply = graph.call(Kind::Read, &graph.url(&format!("{}/{id}?{query}", messages(graph))), "GET", &[], None, WRITE_TIMEOUT, MAX_PAGE)?;
+        super::refusing(graph, &reply)?;
         match reply.status {
             200 => {
                 let json = serde_json::from_slice::<Value>(&reply.body).unwrap_or(Value::Null);
@@ -156,13 +167,14 @@ pub(super) fn one(graph: &Graph<'_>, d: &DraftUp, done: &mut DraftDone) -> Resul
         let body = Value::Object(fields(d)).to_string();
         let reply = graph.call(
             Kind::Same,
-            &graph.url(&format!("{MESSAGES}/{id}")),
+            &graph.url(&format!("{}/{id}", messages(graph))),
             "PATCH",
             &[("Content-Type", "application/json")],
             Some(&body),
             WRITE_TIMEOUT,
             MAX_PAGE,
         )?;
+        super::refusing(graph, &reply)?;
         match reply.status {
             200..=299 => done.fields = true,
             404 | 410 | 400 | 403 => {
@@ -178,7 +190,7 @@ pub(super) fn one(graph: &Graph<'_>, d: &DraftUp, done: &mut DraftDone) -> Resul
     }
     // Its change key after all of it.
     let query = http::form(&[("$select", "changeKey,parentFolderId")]);
-    let reply = graph.call(Kind::Read, &graph.url(&format!("{MESSAGES}/{id}?{query}")), "GET", &[], None, WRITE_TIMEOUT, MAX_PAGE)?;
+    let reply = graph.call(Kind::Read, &graph.url(&format!("{}/{id}?{query}", messages(graph))), "GET", &[], None, WRITE_TIMEOUT, MAX_PAGE)?;
     if reply.status == 200 {
         let json = serde_json::from_slice::<Value>(&reply.body).unwrap_or(Value::Null);
         done.change_key = change_key(&json);
@@ -202,7 +214,15 @@ fn refused(graph: &Graph<'_>, reply: &Reply, what: &str) {
 fn look(graph: &Graph<'_>, marker: &str) -> Result<Option<(String, String)>, NetError> {
     let filter = format!("singleValueExtendedProperties/any(ep: ep/id eq '{MARKER}' and ep/value eq '{marker}')");
     let query = http::form(&[("$filter", &filter), ("$select", "id,parentFolderId"), ("$top", "1")]);
-    let reply = graph.call(Kind::Read, &graph.url(&format!("{DRAFTS}?{query}")), "GET", &[], None, WRITE_TIMEOUT, MAX_PAGE)?;
+    let reply = graph.call(
+        Kind::Read,
+        &graph.url(&format!("{}?{query}", graph.mail_path("/mailFolders/drafts/messages"))),
+        "GET",
+        &[],
+        None,
+        WRITE_TIMEOUT,
+        MAX_PAGE,
+    )?;
     if reply.status != 200 {
         return Err(graph.refusal(Doing::Mail, &reply, ""));
     }
@@ -223,7 +243,7 @@ fn make(graph: &Graph<'_>, d: &DraftUp) -> Result<Made, NetError> {
             DraftKind::Forward => "createForward",
         };
         let body = json!({"message": {"singleValueExtendedProperties": marker}}).to_string();
-        let url = graph.url(&format!("{MESSAGES}/{source}/{action}"));
+        let url = graph.url(&format!("{}/{source}/{action}", messages(graph)));
         match made(
             graph,
             graph.call(Kind::Once, &url, "POST", &[("Content-Type", "application/json")], Some(&body), WRITE_TIMEOUT, MAX_PAGE),
@@ -238,7 +258,7 @@ fn make(graph: &Graph<'_>, d: &DraftUp) -> Result<Made, NetError> {
     let mut body = fields(d);
     body.insert("singleValueExtendedProperties".into(), marker);
     let body = Value::Object(body).to_string();
-    let url = graph.url(MESSAGES);
+    let url = graph.url(&messages(graph));
     made(graph, graph.call(Kind::Once, &url, "POST", &[("Content-Type", "application/json")], Some(&body), WRITE_TIMEOUT, MAX_PAGE), &body, true)
 }
 
@@ -251,6 +271,7 @@ fn made(graph: &Graph<'_>, asked: Result<Reply, NetError>, sent: &str, with_fiel
         }
         Err(e) => return Err(e),
     };
+    super::refusing(graph, &reply)?;
     match reply.status {
         200 | 201 => {
             let json = serde_json::from_slice::<Value>(&reply.body).unwrap_or(Value::Null);
@@ -314,7 +335,7 @@ struct There {
 fn listed(graph: &Graph<'_>, id: &str) -> Result<Vec<There>, NetError> {
     let query = http::form(&[("$select", "id,name"), ("$top", "100")]);
     let mut out = Vec::new();
-    graph.list(Doing::Mail, graph.url(&format!("{MESSAGES}/{id}/attachments?{query}")), &[], MAX_LISTED, &mut |value| {
+    graph.list(Doing::Mail, graph.url(&format!("{}/{id}/attachments?{query}", messages(graph))), &[], MAX_LISTED, &mut |value| {
         if let Some(aid) = id_of(text(value, "id")) {
             out.push(There { id: aid, name: text(value, "name").chars().take(255).collect() });
         }
@@ -356,8 +377,16 @@ fn attachments(graph: &Graph<'_>, id: &str, here: &[AttachmentUp], synced: &[Syn
     }
     for aid in extra {
         let Some(aid) = piece(&aid) else { continue };
-        let reply =
-            graph.call(Kind::Same, &graph.url(&format!("{MESSAGES}/{id}/attachments/{aid}")), "DELETE", &[], None, WRITE_TIMEOUT, MAX_PAGE)?;
+        let reply = graph.call(
+            Kind::Same,
+            &graph.url(&format!("{}/{id}/attachments/{aid}", messages(graph))),
+            "DELETE",
+            &[],
+            None,
+            WRITE_TIMEOUT,
+            MAX_PAGE,
+        )?;
+        super::refusing(graph, &reply)?;
         match reply.status {
             200..=299 | 404 | 410 => {}
             400 | 403 => refused(graph, &reply, "removing an attachment"),
@@ -423,12 +452,13 @@ fn add(graph: &Graph<'_>, id: &str, a: &AttachmentUp) -> Result<Added, NetError>
     body.insert("@odata.type".into(), json!("#microsoft.graph.fileAttachment"));
     body.insert("contentBytes".into(), json!(STANDARD.encode(a.data.as_slice())));
     let body = Value::Object(body).to_string();
-    let url = graph.url(&format!("{MESSAGES}/{id}/attachments"));
+    let url = graph.url(&format!("{}/{id}/attachments", messages(graph)));
     let reply = match graph.call(Kind::Once, &url, "POST", &[("Content-Type", "application/json")], Some(&body), SEND_TIMEOUT, MAX_PAGE) {
         Ok(reply) => reply,
         Err(e) if e.is_unreachable() => return Ok(Added::Lost),
         Err(e) => return Err(e),
     };
+    super::refusing(graph, &reply)?;
     match reply.status {
         200 | 201 => {
             let json = serde_json::from_slice::<Value>(&reply.body).unwrap_or(Value::Null);
@@ -457,9 +487,10 @@ fn upload(graph: &Graph<'_>, id: &str, a: &AttachmentUp) -> Result<Added, NetErr
     item.insert("attachmentType".into(), json!("file"));
     item.insert("size".into(), json!(a.size));
     let body = json!({"AttachmentItem": Value::Object(item)}).to_string();
-    let url = graph.url(&format!("{MESSAGES}/{id}/attachments/createUploadSession"));
+    let url = graph.url(&format!("{}/{id}/attachments/createUploadSession", messages(graph)));
     // A session makes nothing until it is filled: asking for another is harmless.
     let reply = graph.call(Kind::Same, &url, "POST", &[("Content-Type", "application/json")], Some(&body), WRITE_TIMEOUT, MAX_PAGE)?;
+    super::refusing(graph, &reply)?;
     match reply.status {
         200 | 201 => {}
         400 | 403 | 404 | 413 => {

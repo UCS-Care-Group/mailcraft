@@ -49,11 +49,11 @@ computer, for you, and for nothing else:
 - reading your mailbox settings (working hours and categories);
 - reading the list of folders you keep under Favorites in Outlook, if you ask for it;
 - reading and changing the mail of shared mailboxes you have been given access to, if you open one;
+- sending from a shared mailbox, asked for by itself the first time you send from one;
 - keeping you signed in (a refresh token, stored as described above).
 
-An administrator who approves MailCraft for an organisation is also asked, in advance, for sending
-from a shared mailbox and for its calendar; no owner is asked for those yet, and MailCraft does
-not use them.
+An administrator who approves MailCraft for an organisation is also asked, in advance, for a
+shared mailbox's calendar; no owner is asked for that yet, and MailCraft does not use it.
 
 You can take these back at any time in your Microsoft account's or your organisation's list of
 approved applications; MailCraft then asks again the next time it needs them.

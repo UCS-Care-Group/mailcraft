@@ -443,3 +443,97 @@ fn favourites_searches_and_counts_in_a_shared_mailbox_ask_no_server_for_anything
     }
     no_imap();
 }
+
+/// What each sign-in was asked: for shared mailboxes, and for sending from them.
+type SendSignIns = Arc<Mutex<Vec<(bool, bool)>>>;
+
+/// [`window`] with a shared mailbox that has something waiting in its Outbox, and a sign-in that
+/// answers `answer`; the shared mailbox, the message, and what sign-ins were asked.
+fn sending(answer: Result<Tokens, String>) -> (MailApp, Id, Id, Id, Answers, Jobs, SendSignIns) {
+    let (mut app, owner, answers, jobs, _) = window();
+    let shared = app.execute("account.addSharedMailbox", json!({"address": SHARED})).unwrap()["id"].as_u64().unwrap();
+    app.session.view.folder = app.session.mailbox.folder_of_kind(shared, FolderKind::Inbox).unwrap();
+    app.execute("mail.new", json!({"to": "kit@example.net", "subject": "Rota"})).unwrap();
+    let id = app.execute("compose.send", json!({})).unwrap()["id"].as_u64().unwrap();
+    assert_eq!(app.session.mailbox.message(id).map(|m| (m.account, m.from.email.clone())), Some((shared, SHARED.to_string())));
+    let asked: SendSignIns = Default::default();
+    let log = asked.clone();
+    app.services.sign_in = Some(Box::new(move |req: SignInRequest| {
+        log.lock().unwrap().push((req.shared, req.shared_send));
+        let (tx, rx) = mpsc::channel();
+        tx.send(answer.clone()).unwrap();
+        rx
+    }));
+    (app, owner, shared, id, answers, jobs, asked)
+}
+
+/// The Send/Receive of `shared` the owner asked for, answered: sending from shared mailboxes
+/// isn't allowed yet.
+fn not_allowed_yet(app: &mut MailApp, shared: Id, answers: &Answers, quiet: bool) {
+    answers.lock().unwrap().push_back((GraphResult { account: shared, send_consent_needed: true, ..Default::default() }, Vec::new()));
+    app.execute("ui.sync", json!({"account": shared, "quiet": quiet})).unwrap();
+    app.poll_graph();
+}
+
+#[test]
+fn the_first_send_from_a_shared_mailbox_asks_the_owner_first_then_microsofts_page() {
+    let (mut app, owner, shared, id, answers, jobs, asked) = sending(Ok(Tokens { email: OWNER.into(), ..tokens("send-access", "ref-4") }));
+    not_allowed_yet(&mut app, shared, &answers, false);
+    // The run took what waits to the host, which found it may not go yet.
+    let sends = jobs.lock().unwrap()[0].2.as_ref().map(|m| m.sends.len());
+    assert_eq!(sends, Some(1));
+    // The window asks first; nothing is held, and no page has come up.
+    let Some(crate::dialogs::Dialog::Confirm { command, params, ask }) = &app.dialog else { panic!("the owner is asked first") };
+    assert_eq!((command.as_str(), params["account"].as_u64()), ("ui.allowSharedSend", Some(shared)));
+    assert!(ask.text.contains(SHARED) && ask.text.contains("nothing is sent from your own address"), "{}", ask.text);
+    assert!(asked.lock().unwrap().is_empty());
+    assert!(app.session.mailbox.message(id).is_some_and(|m| m.held.is_empty()));
+    // Go ahead: Microsoft's page, for sending from shared mailboxes, by itself.
+    app.dialog = None;
+    assert_eq!(app.run("ui.allowSharedSend", json!({"account": shared, "confirmed": true})).unwrap()["account"], owner);
+    assert_eq!(*asked.lock().unwrap(), [(true, true)]);
+    // Allowed: the shared mailbox runs again at once, with what came back.
+    app.poll_sign_in();
+    assert_eq!(app.graph_tokens.get(&shared).map(|t| t.access.as_str()), Some("send-access"));
+    assert_eq!(jobs.lock().unwrap().len(), 2);
+    assert!(app.session.mailbox.message(id).is_some_and(|m| m.held.is_empty()));
+    no_imap();
+}
+
+#[test]
+fn a_no_on_microsofts_page_holds_the_mail_with_why_and_an_administrators_approval_has_its_page() {
+    use crate::favorites_sync::NEEDS_APPROVAL;
+    // Refused by the owner (or the page left).
+    let (mut app, _, shared, id, answers, _, _) = sending(Err("access_denied".into()));
+    not_allowed_yet(&mut app, shared, &answers, false);
+    app.dialog = None;
+    app.run("ui.allowSharedSend", json!({"account": shared, "confirmed": true})).unwrap();
+    app.poll_sign_in();
+    let held = app.session.mailbox.message(id).map(|m| m.held.clone()).unwrap_or_default();
+    assert!(held.starts_with("It wasn't sent") && held.contains("wasn't allowed"), "{held}");
+    assert_eq!(app.session.mailbox.message(id).map(|m| m.account), Some(shared), "still in its own Outbox");
+    // An administrator has to approve first: held with that, and the page that says what to do.
+    let (mut app, owner, shared, id, answers, _, _) = sending(Err(NEEDS_APPROVAL.into()));
+    not_allowed_yet(&mut app, shared, &answers, false);
+    app.dialog = None;
+    app.run("ui.allowSharedSend", json!({"account": shared, "confirmed": true})).unwrap();
+    app.poll_sign_in();
+    let held = app.session.mailbox.message(id).map(|m| m.held.clone()).unwrap_or_default();
+    assert!(held.contains("administrator has to approve"), "{held}");
+    assert_eq!(app.dialog.as_ref().map(|d| d.name()), Some("account"), "the approval page");
+    let _ = owner;
+    no_imap();
+}
+
+#[test]
+fn a_run_that_started_by_itself_never_asks_and_the_mail_waits() {
+    let (mut app, _, shared, id, answers, _, asked) = sending(Ok(tokens("send-access", "ref-4")));
+    not_allowed_yet(&mut app, shared, &answers, true);
+    assert!(app.dialog.is_none() && asked.lock().unwrap().is_empty());
+    assert!(app.session.mailbox.message(id).is_some_and(|m| m.held.is_empty()), "it waits, not held");
+    assert!(app.session.sync_status.contains("needs your permission"), "{}", app.session.sync_status);
+    // Only a shared mailbox's.
+    assert!(app.run("ui.allowSharedSend", json!({"account": 1, "confirmed": true})).is_err());
+    assert!(app.run("ui.allowSharedSend", json!({"confirmed": true})).is_err());
+    no_imap();
+}
