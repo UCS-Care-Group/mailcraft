@@ -1446,6 +1446,11 @@ impl AccountSetup {
             }
             None => tl!("Signs in with a password").to_string(),
         };
+        // The settings of a JMAP account say which server it is on, and show no mail servers: it has none.
+        let jmap = self.edit.as_ref().and_then(|e| app.session.mailbox.account(e.id)).filter(|a| a.kind == AccountKind::Jmap);
+        let how = jmap.map_or(how, crate::backstage::jmap_line);
+        // A JMAP account asks for a password when the host can reach its server and doesn't hold the credential itself (it never asks for one when it does).
+        let asks = if jmap.is_some() { app.services.jmap.is_some() && !app.services.jmap_host_credentials } else { asks };
         page(ui, &t, |ui| {
             heading(ui, &shown(self.email.trim(), 120), &t);
             note(ui, &how, t.text_dim);
@@ -1453,7 +1458,10 @@ impl AccountSetup {
             if asks {
                 self.password_field(ui, pass, tl!("Leave empty to keep the one in use"));
             }
-            self.settings(ui, pass);
+            // (A JMAP account shows no mail servers and no user name: a password goes with its address.)
+            if jmap.is_none() {
+                self.settings(ui, pass);
+            }
             if self.oauth.is_some() {
                 field(ui, pass, "clientId", tl!("Application (client) ID"), &mut self.client_id, tl!("The one in File › Options"), 200);
                 field(ui, pass, "tenant", tl!("Tenant"), &mut self.tenant, "common", 64);
@@ -2926,6 +2934,43 @@ mod tests {
         assert_eq!(page(&h), None);
         // An account that isn't there has no settings to open.
         assert!(h.state_mut().execute("ui.dialog", json!({"name": "account", "id": 999_999})).is_err());
+    }
+
+    /// A JMAP account says which server it is on (the host alone: the address may carry the
+    /// account's own), has no mail servers or user name to change (a password goes with its
+    /// address), and saving its name leaves it a JMAP account.
+    #[test]
+    fn a_jmap_account_names_its_server_and_has_no_mail_servers() {
+        let jmap = json!({
+            "email": "noor@lumen.example", "displayName": "Noor", "kind": "jmap",
+            "jmap": {"session": "https://mail.lumen.example/jmap/session?account=noor@lumen.example", "bearer": true},
+        });
+        let mut a = app(true);
+        let id = a.execute("account.add", jmap).unwrap()["id"].as_u64().unwrap();
+        // The line about it, which File › Info paints (it labels nothing: the text is looked at as text).
+        assert_eq!(crate::backstage::jmap_line(a.session.mailbox.account(id).unwrap()), "JMAP mail.lumen.example");
+        // Account Settings.
+        let mut h = open(a, json!({"id": id}));
+        assert_eq!((page(&h), wizard(&h).map(|w| w.title())), (Some(Page::Settings), Some("Account Settings".to_string())));
+        assert!(says(&h, "JMAP mail.lumen.example") && !says(&h, "User name") && !says(&h, "On this device only"));
+        assert!(!says(&h, "Incoming mail (IMAP)") && !says(&h, "Outgoing mail (SMTP)") && !says(&h, "account=noor"));
+        wizard_mut(&mut h).name = "Noor Haddad".into();
+        click(&mut h, "Save");
+        assert_eq!(page(&h), None);
+        let account = h.state().session.mailbox.account(id).unwrap().clone();
+        assert_eq!((account.kind, account.display_name.as_str()), (AccountKind::Jmap, "Noor Haddad"));
+        assert!(account.jmap.is_some_and(|server| server.bearer && server.problem().is_none()));
+        // File › Info lays out with it.
+        h.state_mut().execute("ui.backstage", json!({"value": true, "page": "info"})).unwrap();
+        h.run_steps(4);
+        assert!(h.state().ui.backstage && h.state().ui.backstage_page == "info", "the page is up");
+        h.state_mut().execute("ui.backstage", json!({"value": false})).unwrap();
+        // One whose address can't be used says so rather than a server.
+        h.state_mut().session.mailbox.account_mut(id).unwrap().jmap = None;
+        assert_eq!(crate::backstage::jmap_line(h.state().session.mailbox.account(id).unwrap()), "JMAP · no usable server address");
+        h.state_mut().execute("ui.dialog", json!({"name": "account", "id": id})).unwrap();
+        h.run_steps(4);
+        assert!(says(&h, "JMAP · no usable server address"));
     }
 
     /// The password is typed in confidence: it is in no command, no debug text, and gone from the

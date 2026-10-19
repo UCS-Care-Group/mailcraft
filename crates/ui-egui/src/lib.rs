@@ -33,6 +33,7 @@ pub mod graph_fetch;
 mod graph_switch;
 pub mod i18n;
 pub mod icons;
+pub mod jmap_job;
 mod keep_offline;
 pub mod keys;
 pub mod mail_view;
@@ -111,6 +112,24 @@ pub struct Services {
     pub graph: Option<Box<dyn Fn(GraphRequest) -> Receiver<GraphResult>>>,
     /// Desktop: fetch messages of a Microsoft account whole on a background thread (R3.2).
     pub graph_fetch: Option<Box<dyn Fn(graph_fetch::GraphFetchJob) -> Receiver<mailcraft_model::sync::GraphFetchResult>>>,
+    /// Run a Send/Receive of a JMAP account as a task of the host's (the browser's `fetch`, or a
+    /// thread where there are sockets): what the run brings back arrives through the channel in pieces as it
+    /// goes ([`mailcraft_model::sync::JmapMailResult::partial`] on all but the last), and the host
+    /// wakes the window for each. The channel is a plain, unbounded one: a task that shares the
+    /// window's thread must never wait for the window to take a piece. A sender dropped before the
+    /// last piece reads as "stopped unexpectedly". Absent where no JMAP server can be reached.
+    pub jmap: Option<Box<dyn Fn(jmap_job::JmapJob) -> Receiver<mailcraft_model::sync::JmapMailResult>>>,
+    /// Fetch messages of a JMAP account whole, as a task of the host's, when the owner opens one and in
+    /// the background ([`graph_fetch`]): the answer is the one [`Services::graph_fetch`]'s is
+    /// ([`mailcraft_model::sync::GraphFetchResult`]), so that the window takes both in alike. One answer
+    /// comes, and the host wakes the window for it; a sender dropped before it reads as a server out of
+    /// reach. Absent where no JMAP server can be reached: nothing is fetched, and the reading pane says
+    /// the rest of a message is on the server.
+    pub jmap_fetch: Option<Box<dyn Fn(jmap_job::JmapFetchJob) -> Receiver<mailcraft_model::sync::GraphFetchResult>>>,
+    /// The host holds the credential that opens a JMAP server (it hands it over and renews it
+    /// itself): the owner is never asked for a password for a JMAP account, no job carries a secret
+    /// ([`jmap_job::JmapJob::secret`]), and a Send/Receive that starts by itself can always go ahead.
+    pub jmap_host_credentials: bool,
     /// Desktop: search a Microsoft mailbox on its server, one page, on a background thread
     /// (R6.2: More results on the server, only on the owner's click).
     pub graph_search: Option<Box<dyn Fn(server_search::GraphSearchJob) -> Receiver<mailcraft_model::sync::GraphSearchResult>>>,
@@ -213,6 +232,20 @@ pub struct Services {
     /// update it installed ([`updates::UpdateStart`]): one that wasn't installed after all, or a
     /// newly installed version that didn't start twice running, with the one it replaced kept.
     pub update_start: updates::UpdateStart,
+}
+
+impl Services {
+    /// Whether this build can run a Send/Receive for some kind of account: the host has mail
+    /// connections ([`Services::sync`]) or a JMAP runner ([`Services::jmap`]).
+    pub fn can_sync(&self) -> bool {
+        self.sync.is_some() || self.jmap.is_some()
+    }
+
+    /// Whether this build can run a Send/Receive for an account of `kind`: a JMAP account needs
+    /// the host's JMAP runner, every other kind its mail connections.
+    pub(crate) fn can_run(&self, kind: mailcraft_model::AccountKind) -> bool {
+        if kind == mailcraft_model::AccountKind::Jmap { self.jmap.is_some() } else { self.sync.is_some() }
+    }
 }
 
 /// The system's clipboard with HTML on it ([`Services::clipboard`]).
@@ -936,6 +969,14 @@ pub struct MailApp {
     sync_run: Option<(Id, Option<usize>, bool)>,
     /// A piece of the run in flight said the server refused the sign-in.
     sync_refused: bool,
+    /// The run of a JMAP account in flight: whose it is, whether nobody asked for it (it started by
+    /// itself), and the pieces to come.
+    jmap_rx: Option<(Id, bool, Receiver<mailcraft_model::sync::JmapMailResult>)>,
+    /// What the pieces of that run said went wrong, until it is over.
+    jmap_problems: Vec<String>,
+    /// JMAP accounts whose server turned the secret down: a run that starts by itself leaves them
+    /// alone until the owner asks for one.
+    jmap_refused: std::collections::HashSet<Id>,
     control_rx: Option<Receiver<ControlRequest>>,
     shot_token: u64,
     queued_shots: Vec<(u64, f64, u32)>,
@@ -1100,6 +1141,9 @@ impl MailApp {
             sync_totals: Default::default(),
             sync_run: None,
             sync_refused: false,
+            jmap_rx: None,
+            jmap_problems: Vec::new(),
+            jmap_refused: Default::default(),
             control_rx: None,
             shot_token: 0,
             queued_shots: Vec::new(),
@@ -1201,14 +1245,17 @@ impl MailApp {
         match self.session.registry.get(id) {
             Some(s) => (s.enabled)(&self.session).is_none(),
             None if id == "ui.sync" => {
+                // A build with only a JMAP runner can synchronise too, and a JMAP run under way is a run under way.
                 self.session.enabled("sync.request")
-                    && self.services.sync.is_some()
+                    && self.services.can_sync()
                     && self.sync_rx.is_none()
                     && self.graph_rx.is_none()
+                    && self.jmap_rx.is_none()
                     && self.signing_in.is_none()
             }
             None if id == "ui.cancelSignIn" => self.signing_in.is_some() || self.approving(),
-            None if id == "ui.cancelSync" => self.sync_rx.is_some(),
+            // A JMAP run under way can be cancelled.
+            None if id == "ui.cancelSync" => self.sync_rx.is_some() || self.jmap_rx.is_some(),
             None if id == "ui.moreResultsOnServer" => {
                 matches!(self.server_link(), server_search::Link::Ask | server_search::Link::NotConnected { retry: true })
             }
@@ -1270,7 +1317,14 @@ impl MailApp {
         match &r {
             Err(e) => {
                 // (The engine's refusal of received mail for a Microsoft account, in the interface's language.)
-                let said = if e == mailcraft_model::STAYS_LOCAL { tl!(mailcraft_model::STAYS_LOCAL).to_string() } else { e.clone() };
+                // (And Send's refusal for an account whose Outbox nothing sends yet, a JMAP one.)
+                let said = if e == mailcraft_model::STAYS_LOCAL {
+                    tl!(mailcraft_model::STAYS_LOCAL).to_string()
+                } else if e == mailcraft_engine::cmd::compose::CANT_SEND_YET {
+                    tl!(mailcraft_engine::cmd::compose::CANT_SEND_YET).to_string()
+                } else {
+                    e.clone()
+                };
                 // What the owner has just done by hand and was refused at once is said in a
                 // message box too, as Outlook does (#152).
                 if self.by_hand && refusal_worth_a_box(id, e) {
@@ -1333,6 +1387,8 @@ impl MailApp {
             self.graph_consent_needed.remove(&account);
             self.passwords.remove(&account);
             self.tokens.remove(&account);
+            // And what was held against a JMAP account's server.
+            self.jmap_refused.remove(&account);
             self.forget_secrets(&address);
         }
         // Starting to write brings up the Message tab; finishing goes back to Home.
@@ -1508,7 +1564,7 @@ impl MailApp {
                 Ok(json!({"pending": "serverSearch"}))
             }
             "ui.cancelSync" => {
-                if self.sync_rx.is_none() && self.graph_pieces.is_none() {
+                if self.sync_rx.is_none() && self.graph_pieces.is_none() && self.jmap_rx.is_none() {
                     return Some(Err(tl!("No Send/Receive is running").to_string()));
                 }
                 // The run stops at the next safe place; what it brought stays. The rest of a
@@ -1744,11 +1800,15 @@ impl MailApp {
     /// password the first time, or has the owner sign in on the provider's page; the answer is
     /// kept in memory until the app closes, and by the operating system when that is wanted.
     fn start_sync(&mut self, p: &Value) -> Result<Value, String> {
-        if self.sync_rx.is_some() || self.graph_rx.is_some() {
+        if self.sync_rx.is_some() || self.graph_rx.is_some() || self.jmap_rx.is_some() {
             return Err(tl!("Send/Receive is already running").to_string());
         }
-        if self.services.sync.is_none() {
-            return Err(tl!("This build can't connect to mail servers (a browser can't open mail connections). Use the desktop app, or bring mail in with File › Import.").to_string());
+        // A build with only a JMAP runner (the browser) isn't one that "can't connect": the refusal for the other kinds of account is below, once the account is known.
+        let cant_connect = || {
+            tl!("This build can't connect to mail servers (a browser can't open mail connections). Use the desktop app, or bring mail in with File › Import.").to_string()
+        };
+        if !self.services.can_sync() {
+            return Err(cant_connect());
         }
         let quiet = p.get("quiet").and_then(Value::as_bool).unwrap_or(false);
         // A run starts, the owner's or one by itself: full messages paused by Stop go on.
@@ -1766,6 +1826,19 @@ impl MailApp {
                 first
             }
         };
+        // An account kept in step with a JMAP server has a run of its own (jmap_job.rs). A password the dialog hands over is kept for the session, as an IMAP account's is, unless the host holds the credential.
+        if self.session.mailbox.account(account).is_some_and(|a| a.kind == mailcraft_model::AccountKind::Jmap) {
+            if !self.services.jmap_host_credentials
+                && let Some(password) = p.get("password").and_then(Value::as_str)
+            {
+                self.passwords.insert(account, password.to_string());
+            }
+            return self.start_jmap_mail(account, quiet);
+        }
+        // The rest need the host's mail connections (a build with only a JMAP runner has none).
+        if self.services.sync.is_none() {
+            return Err(cant_connect());
+        }
         // An account kept in step through Microsoft Graph has no IMAP leg at all (R3).
         if self.session.mailbox.account(account).is_some_and(|a| a.kind == mailcraft_model::AccountKind::Microsoft) {
             let after_sign_in = p.get("afterSignIn").and_then(Value::as_bool).unwrap_or(false);
@@ -1946,7 +2019,14 @@ impl MailApp {
     fn server_accounts(&self) -> Vec<Id> {
         // (A shared mailbox only while they are being tested, #70.)
         let on = self.session.shared_mailboxes;
-        self.session.mailbox.accounts.iter().filter(|a| a.kind.has_server() && (on || !a.is_shared())).map(|a| a.id).collect()
+        // Only those this build can run: a JMAP account needs the host's JMAP runner, the others its mail connections.
+        self.session
+            .mailbox
+            .accounts
+            .iter()
+            .filter(|a| a.kind.has_server() && (on || !a.is_shared()) && self.services.can_run(a.kind))
+            .map(|a| a.id)
+            .collect()
     }
 
     /// How much of `account` waits to go to its server: mail in the Outbox, and changes made here
@@ -1980,6 +2060,14 @@ impl MailApp {
         }
         let account = self.session.mailbox.owner_of(account).map_or(account, |owner| owner.id);
         let Some(a) = self.session.mailbox.account(account) else { return false };
+        // A JMAP account: the host holds its credential, or a password is at hand (a bearer token is only ever in memory); not when its server turned the secret down, until the owner asks.
+        if a.kind == mailcraft_model::AccountKind::Jmap {
+            let bearer = a.jmap.as_ref().is_some_and(|server| server.bearer);
+            let credential = self.services.jmap_host_credentials
+                || self.passwords.contains_key(&account)
+                || (!bearer && self.remembered("password", &a.email).is_some());
+            return self.services.jmap.is_some() && !self.jmap_refused.contains(&account) && credential;
+        }
         if a.oauth.is_some() {
             let kept = self.tokens.get(&account).is_some_and(|t| t.fresh(mailcraft_time::now()) || !t.refresh.is_empty());
             self.services.sign_in.is_some() && (kept || self.remembered("refresh", &a.email).is_some())
@@ -2007,8 +2095,9 @@ impl MailApp {
                 self.session.sync_status = tl!("Sending your changes…").to_string();
             }
         }
-        let busy = self.sync_rx.is_some() || self.graph_rx.is_some() || self.signing_in.is_some() || self.approving();
-        if self.services.sync.is_none() || busy || self.dialog.is_some() {
+        // A JMAP run under way keeps the next one waiting, and a build with only a JMAP runner can run rounds too.
+        let busy = self.sync_rx.is_some() || self.graph_rx.is_some() || self.jmap_rx.is_some() || self.signing_in.is_some() || self.approving();
+        if !self.services.can_sync() || busy || self.dialog.is_some() {
             return;
         }
         if let Some((account, quiet)) = self.sync_queue.pop_front() {
@@ -2496,7 +2585,8 @@ impl MailApp {
     fn sync_running_account(&self) -> Option<Id> {
         let imap = self.sync_rx.as_ref().and(self.sync_run.as_ref()).map(|(account, ..)| *account);
         let graph = self.graph_rx.as_ref().map(|(account, ..)| *account);
-        imap.or(graph).or_else(|| self.signing_in.as_ref().filter(|s| !s.graph && !s.favorites).map(|s| s.account))
+        let jmap = self.jmap_rx.as_ref().map(|(account, ..)| *account);
+        imap.or(graph).or(jmap).or_else(|| self.signing_in.as_ref().filter(|s| !s.graph && !s.favorites).map(|s| s.account))
     }
 
     /// Skip: leave an account that waits its turn out of the run under way.
@@ -2519,7 +2609,7 @@ impl MailApp {
 
     /// Whether a Send/Receive is running.
     pub fn syncing(&self) -> bool {
-        self.sync_rx.is_some() || self.graph_pieces.is_some()
+        self.sync_rx.is_some() || self.graph_pieces.is_some() || self.jmap_rx.is_some()
     }
 
     /// Take in what a Send/Receive has brought so far. It arrives in pieces (what was sent, what
@@ -2681,6 +2771,8 @@ impl MailApp {
         self.poll_admin_consent();
         self.sweep_admin_consent();
         self.poll_graph();
+        // The pieces of a JMAP run, a few a frame.
+        self.poll_jmap();
         self.drive_fetch();
         self.offline_tick();
         self.drive_server_search();
@@ -2716,10 +2808,12 @@ impl MailApp {
         self.draft_autosave_tick(ctx);
         self.collect_screenshots(ctx);
         self.issue_screenshots(ctx);
-        let waiting = self.sync_rx.is_some() || self.graph_rx.is_some() || self.signing_in.is_some() || self.approving();
+        // The pieces of a JMAP run may come without waking the window (the host's task is not always the one that knows it): it looks again soon while one is under way.
+        let waiting = self.sync_rx.is_some() || self.graph_rx.is_some() || self.jmap_rx.is_some() || self.signing_in.is_some() || self.approving();
+        // And a build with only a JMAP runner looks for rounds that are due too.
         if !self.synthetic.is_empty() || waiting || !self.sync_queue.is_empty() {
             ctx.request_repaint_after(std::time::Duration::from_millis(100));
-        } else if self.auto_sync && self.services.sync.is_some() && self.session.prefs.sync_minutes > 0 && !self.server_accounts().is_empty() {
+        } else if self.auto_sync && self.services.can_sync() && self.session.prefs.sync_minutes > 0 && !self.server_accounts().is_empty() {
             // Nothing is happening: look again in a while, in case a Send/Receive round is due or
             // something waits to go out.
             ctx.request_repaint_after(std::time::Duration::from_millis(1_500));
