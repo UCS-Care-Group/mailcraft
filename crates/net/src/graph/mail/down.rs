@@ -389,6 +389,9 @@ fn entry_of(value: &Value, folder: &str) -> Option<Entry> {
         id,
         folder: folder.to_string(),
         read: read.unwrap_or(false),
+        // Graph says neither of the marks a JMAP server keeps as keywords.
+        answered: false,
+        forwarded: false,
         flag,
         categories,
         importance,

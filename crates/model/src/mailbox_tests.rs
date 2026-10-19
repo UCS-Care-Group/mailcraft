@@ -690,3 +690,149 @@ fn a_shared_mailbox_keeps_as_much_offline_as_its_owner() {
     assert_eq!(mb.keep_offline_of(shared), KeepOffline::Years5, "it follows its owner's as that changes");
     assert_eq!((mb.keep_offline_of(local), mb.keep_offline_of(999_999)), (KeepOffline::All, KeepOffline::All));
 }
+
+// ---- a file from before the JMAP setting ----
+
+/// What a file held before an account could be a JMAP account (`jmap`) and before the server's
+/// answered and forwarded marks were kept (`ServerMessage::answered`, `forwarded`): it reads and
+/// writes back, byte for byte, as it did. The texts are what the version before wrote.
+#[test]
+fn a_file_from_before_the_jmap_setting_reads_and_writes_as_it_was() {
+    use crate::sync::ServerMessage;
+    use serde::Serialize;
+    use serde::de::DeserializeOwned;
+    use std::fmt::Debug;
+
+    /// `value` is written as `written`, and `written` reads as `value` and is written the same.
+    fn as_it_was<T: Serialize + DeserializeOwned + PartialEq + Debug>(value: &T, written: &str) {
+        assert_eq!(serde_json::to_string(value).unwrap(), written);
+        let read: T = serde_json::from_str(written).unwrap();
+        assert_eq!(&read, value);
+        assert_eq!(serde_json::to_string(&read).unwrap(), written);
+    }
+
+    let oauth =
+        OAuth { provider: OAuthProvider::Microsoft, client_id: "app-id".into(), tenant: "organizations".into(), directory: Directory::Organisation };
+    let microsoft = Account {
+        id: 2,
+        name: "Noor".into(),
+        email: "noor@example.org".into(),
+        display_name: "Noor Haddad".into(),
+        kind: AccountKind::Microsoft,
+        oauth: Some(oauth),
+        download_in_full: DownloadInFull::UpTo25Mb,
+        keep_offline: KeepOffline::Months3,
+        ..Default::default()
+    };
+    as_it_was(
+        &microsoft,
+        r#"{"id":2,"name":"Noor","email":"noor@example.org","displayName":"Noor Haddad","kind":"microsoft","oauth":{"provider":"microsoft","clientId":"app-id","tenant":"organizations","directory":"organisation"},"downloadInFull":"upTo25Mb","keepOffline":"3m"}"#,
+    );
+    let imap = Account {
+        id: 3,
+        name: "ada@example.org".into(),
+        email: "ada@example.org".into(),
+        display_name: "Ada".into(),
+        kind: AccountKind::Imap,
+        incoming: Some(Server { host: "imap.example.org".into(), port: 993, security: Security::Tls }),
+        outgoing: Some(Server { host: "smtp.example.org".into(), port: 587, security: Security::StartTls }),
+        username: "ada".into(),
+        ..Default::default()
+    };
+    as_it_was(
+        &imap,
+        r#"{"id":3,"name":"ada@example.org","email":"ada@example.org","displayName":"Ada","kind":"imap","incoming":{"host":"imap.example.org","port":993,"security":"tls"},"outgoing":{"host":"smtp.example.org","port":587,"security":"startTls"},"username":"ada"}"#,
+    );
+    let server = ServerMessage {
+        id: "AAkA".into(),
+        folder: "F1".into(),
+        read: true,
+        flag: FlagStatus::Flagged,
+        categories: vec!["Red".into()],
+        importance: Importance::High,
+        gone: true,
+        size: 2048,
+        change_key: "CK1".into(),
+        ..Default::default()
+    };
+    let message = Message { id: 4, account: 2, folder: 9, subject: "Hi".into(), server: Some(server), ..Default::default() };
+    as_it_was(
+        &message,
+        r#"{"id":4,"account":2,"folder":9,"messageId":"","from":{"email":""},"to":[],"subject":"Hi","date":0,"received":0,"body":{"text":""},"read":false,"flag":"none","importance":"normal","answered":false,"forwarded":false,"draft":false,"pinned":false,"server":{"id":"AAkA","folder":"F1","read":true,"flag":"flagged","categories":["Red"],"importance":"high","gone":true,"size":2048,"changeKey":"CK1"}}"#,
+    );
+    let plain = Message {
+        id: 5,
+        account: 2,
+        folder: 9,
+        server: Some(ServerMessage { id: "AAkB".into(), folder: "F1".into(), ..Default::default() }),
+        ..Default::default()
+    };
+    as_it_was(
+        &plain,
+        r#"{"id":5,"account":2,"folder":9,"messageId":"","from":{"email":""},"to":[],"subject":"","date":0,"received":0,"body":{"text":""},"read":false,"flag":"none","importance":"normal","answered":false,"forwarded":false,"draft":false,"pinned":false,"server":{"id":"AAkB","folder":"F1","read":false,"flag":"none","importance":"normal"}}"#,
+    );
+    let folder = Folder {
+        id: 9,
+        account: 2,
+        name: "Inbox".into(),
+        kind: FolderKind::Inbox,
+        server: Some(ServerFolder { id: "F1".into(), name: "Inbox".into(), ..Default::default() }),
+        ..Default::default()
+    };
+    as_it_was(&folder, r#"{"id":9,"account":2,"name":"Inbox","kind":"inbox","favorite":false,"server":{"id":"F1","name":"Inbox"}}"#);
+    // And whole mailboxes: no account says a word of it, and the kind that is new is only read.
+    let mut mb = Mailbox::with_local_account("Ada Lovelace", "ada@example.org");
+    mb.add_account(microsoft);
+    mb.add_account(imap);
+    let json = serde_json::to_string(&mb).unwrap();
+    assert!(!json.contains("jmap") && !json.contains("answered\":true") && !json.contains("forwarded\":true"), "{json}");
+    assert_eq!(serde_json::from_str::<Mailbox>(&json).unwrap(), mb);
+}
+
+#[test]
+fn a_jmap_account_keeps_its_setting_and_a_damaged_one_costs_only_itself() {
+    let session = "https://mail.example.org/jmap/session";
+    let account = Account {
+        id: 4,
+        name: "Ada".into(),
+        email: "ada@example.org".into(),
+        kind: AccountKind::Jmap,
+        jmap: Some(JmapServer { session: session.into(), bearer: true }),
+        ..Default::default()
+    };
+    let json = serde_json::to_string(&account).unwrap();
+    assert_eq!(
+        json,
+        format!(r#"{{"id":4,"name":"Ada","email":"ada@example.org","displayName":"","kind":"jmap","jmap":{{"session":"{session}","bearer":true}}}}"#)
+    );
+    assert_eq!(serde_json::from_str::<Account>(&json).unwrap(), account);
+    // The kind is spelled the way the others are, and an account of another kind has no setting.
+    assert_eq!(serde_json::to_value(AccountKind::Jmap).unwrap(), "jmap");
+    assert!(!serde_json::to_string(&Account::default()).unwrap().contains("jmap"));
+    // Something else where the setting should be (a later version's, a damaged file): the account
+    // and the mailbox still open, without a server that could be used.
+    for odd in ["5", "\"https://mail.example.org\"", "[]", "null", r#"{"session":5}"#, r#"{"bearer":"yes"}"#] {
+        let read: Account = serde_json::from_str(&format!(r#"{{"id":4,"email":"ada@example.org","kind":"jmap","jmap":{odd}}}"#)).unwrap();
+        assert_eq!(read.kind, AccountKind::Jmap, "{odd}");
+        assert!(read.jmap.as_ref().is_none_or(|server| server.problem().is_some()), "{odd}: {:?}", read.jmap);
+    }
+    let bare: Account = serde_json::from_str(r#"{"id":4,"email":"ada@example.org","kind":"jmap","jmap":{}}"#).unwrap();
+    assert_eq!(bare.jmap, Some(JmapServer::default()));
+    assert_eq!(bare.jmap.as_ref().and_then(JmapServer::problem), Some("is empty"));
+    // A mailbox that holds one is read whole, and repair leaves the account as it is.
+    let mut mb = Mailbox::with_local_account("Ada Lovelace", "ada@example.org");
+    let id = mb.add_account(account.clone());
+    let mut back: Mailbox = serde_json::from_str(&serde_json::to_string(&mb).unwrap()).unwrap();
+    assert!(back.repair().is_empty());
+    assert_eq!(back.account(id).map(|a| (a.kind, a.jmap.clone())), Some((AccountKind::Jmap, account.jmap)));
+    assert_eq!(back.folders.iter().filter(|f| f.account == id).count(), FolderKind::STANDARD.len());
+}
+
+#[test]
+fn only_a_jmap_or_microsoft_account_has_server_ids() {
+    use AccountKind::*;
+    assert_eq!([Local, Imap, Microsoft, Jmap].map(AccountKind::server_ids), [false, false, true, true]);
+    // A JMAP account is kept in step with a server, but nothing sends its Outbox yet.
+    assert_eq!([Local, Imap, Microsoft, Jmap].map(AccountKind::has_server), [false, true, true, true]);
+    assert_eq!([Local, Imap, Microsoft, Jmap].map(AccountKind::sends_mail), [false, true, true, false]);
+}

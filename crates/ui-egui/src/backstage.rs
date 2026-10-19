@@ -100,6 +100,15 @@ fn tile(ui: &mut Ui, icon: &str, title: &str, detail: &str, t: &Tokens) -> bool 
     resp.clicked()
 }
 
+/// A JMAP account's line about its server (also on its settings page): the name of the host alone,
+/// as the whole address may carry the account's own.
+pub(crate) fn jmap_line(a: &mailcraft_model::Account) -> String {
+    match a.jmap.as_ref().and_then(mailcraft_model::JmapServer::host) {
+        Some(host) => crate::i18n::fmt(tl!("JMAP {host}"), &[("host", host)]),
+        None => tl!("JMAP · no usable server address").to_string(),
+    }
+}
+
 fn info(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     heading(ui, tl!("Info"), t);
     section(ui, tl!("Accounts"), t);
@@ -130,6 +139,8 @@ fn info(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
             },
             AccountKind::Local => tl!("On this device only: no mail server").to_string(),
             AccountKind::Microsoft => tl!("Signs in with Microsoft · folders kept in step through Microsoft Graph (testing)").to_string(),
+            // A JMAP account names its server.
+            AccountKind::Jmap => jmap_line(a),
             AccountKind::Imap => {
                 let servers = format!(
                     "{} · {}",

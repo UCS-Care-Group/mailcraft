@@ -9,6 +9,7 @@
 mod address;
 mod calendar;
 mod contact;
+mod jmap_server;
 mod mailbox;
 mod message;
 mod offline;
@@ -32,6 +33,7 @@ pub use calendar::{
     ShowAs,
 };
 pub use contact::{Contact, Labeled, PostalAddress};
+pub use jmap_server::JmapServer;
 pub use mailbox::{
     Account, AccountKind, BETWEEN_MAILBOXES, Category, Directory, DownloadInFull, Folder, FolderKind, GraphSwitch, IMPORTED, INTO_GRAPH, MAX_SHARED,
     Mailbox, OAuth, OAuthProvider, Pending, Queued, STAYS_LOCAL, Security, Server, ServerFavorites, ServerFolder,

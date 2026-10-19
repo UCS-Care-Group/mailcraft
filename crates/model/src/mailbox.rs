@@ -6,7 +6,7 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 
 use crate::sync::RemoteFlags;
-use crate::{Action, Calendar, Contact, Event, Id, KeepOffline, Message, ModelError, Rgb, Rule, Signature, Task, clean_name};
+use crate::{Action, Calendar, Contact, Event, Id, JmapServer, KeepOffline, Message, ModelError, Rgb, Rule, Signature, Task, clean_name};
 
 /// Deepest a folder tree may nest (a hostile file could otherwise chain folders without end).
 const MAX_DEPTH: usize = 32;
@@ -191,12 +191,30 @@ pub enum AccountKind {
     /// settings and signs in with Microsoft ([`Account::oauth`]). One that was kept in step by
     /// IMAP becomes one when its owner switches it ([`GraphSwitch`]).
     Microsoft,
+    /// A mailbox on a JMAP server (RFC 8620 and 8621), kept in step over HTTPS alone, never by
+    /// IMAP or SMTP. It has no mail server settings and no OAuth sign-in: its server is
+    /// [`Account::jmap`], and the secret it is opened with (a password, or a bearer token) is
+    /// given by whoever holds the connection and is never written anywhere.
+    Jmap,
 }
 
 impl AccountKind {
-    /// Whether the account is kept in step with a server (by IMAP or by Microsoft Graph).
+    /// Whether the account is kept in step with a server (by IMAP, by Microsoft Graph or by JMAP).
     pub fn has_server(self) -> bool {
+        matches!(self, AccountKind::Imap | AccountKind::Microsoft | AccountKind::Jmap)
+    }
+
+    /// Whether a Send/Receive sends the mail that waits in the account's Outbox (through SMTP, or
+    /// through Microsoft Graph). Not yet for a JMAP account: its sending comes after its reading,
+    /// and until then no mail is put in its Outbox, where it would wait for ever.
+    pub fn sends_mail(self) -> bool {
         matches!(self, AccountKind::Imap | AccountKind::Microsoft)
+    }
+
+    /// Whether the account's folders and messages are known to its server by the ids the server
+    /// hands out (Microsoft Graph, JMAP), rather than by IMAP's paths and UIDs.
+    pub fn server_ids(self) -> bool {
+        matches!(self, AccountKind::Microsoft | AccountKind::Jmap)
     }
 }
 
@@ -258,6 +276,11 @@ pub struct Account {
     /// in). `None` for every other account, and in a file from before there were any.
     #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
     pub shared_of: Option<Id>,
+    /// For a [`AccountKind::Jmap`] account: where its server's session resource is and how the
+    /// secret is sent ([`JmapServer`]). Plain settings: the secret is never kept here. `None` for
+    /// every other account, and in a file from before there were any.
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
+    pub jmap: Option<JmapServer>,
 }
 
 /// What the owner of a Microsoft account kept in step by IMAP said to switching it to Microsoft

@@ -10,9 +10,11 @@ use crate::{Account, Address, FlagStatus, FolderKind, Id, Importance, Message};
 use mailcraft_time::Timestamp;
 
 mod drafts;
+mod jmap;
 mod progress;
 mod search;
 pub use drafts::*;
+pub use jmap::*;
 pub use progress::*;
 pub use search::*;
 
@@ -208,6 +210,12 @@ pub struct ServerMessage {
     /// The server id of the folder it is in.
     pub folder: String,
     pub read: bool,
+    /// The server's `$answered` and `$forwarded` marks as last said (JMAP keywords). A Graph
+    /// server says neither: they stay false for a Microsoft account, and nothing is written.
+    #[serde(skip_serializing_if = "is_false")]
+    pub answered: bool,
+    #[serde(skip_serializing_if = "is_false")]
+    pub forwarded: bool,
     pub flag: FlagStatus,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub categories: Vec<String>,
