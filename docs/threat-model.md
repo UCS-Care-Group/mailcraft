@@ -1,6 +1,6 @@
 # Threat model
 
-> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-10-19 · **Change:** minor (agents with a shell or the owner's files are outside the agent gate; the settings folder, logs and kept pictures are the owner's alone) · **Target:** Microsoft Outlook (Microsoft 365)
+> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-10-19 · **Change:** minor (JMAP, read: a JMAP server is a hostile server like the others, its credentials go to the server its session is served from and to no other, and the web build reads a JMAP account over `fetch`; agents with a shell or the owner's files are outside the agent gate; the settings folder, logs and kept pictures are the owner's alone) · **Target:** Microsoft Outlook (Microsoft 365)
 
 What MailCraft protects, from whom, and how, with the code that does it. Rules for working in the
 code are in [`CLAUDE.md`](../CLAUDE.md) and [`AGENTS.md`](../AGENTS.md); how to report a
@@ -32,7 +32,7 @@ Writes any bytes into a message: crafted MIME, HTML, headers, attachments, pictu
   are followed.
 - **Parsers never crash.** No `unwrap`, `expect`, `panic!` or `unsafe` in production code
   (`unsafe_code = "forbid"` in the workspace `Cargo.toml`, the clippy denials at every crate root);
-  every format and protocol crate (`mime`, `html`, `ical`, `vcard`, `proto`, `net`, `model`,
+  every format and protocol crate (`mime`, `html`, `ical`, `vcard`, `proto`, `jmap`, `net`, `model`,
   `engine`, `time`) has property tests that feed arbitrary input. `Session::run` turns an escaped
   panic into an error and leaves the mailbox as it was (`crates/engine/src/session.rs`).
 - **Header injection.** A value that reaches a header loses CR, LF and NUL
@@ -55,13 +55,16 @@ Gets the request for a picture the owner asked for.
 
 ### A hostile or compromised mail server
 
-Answers IMAP, SMTP or Microsoft Graph with whatever it likes.
+Answers IMAP, SMTP, Microsoft Graph or JMAP with whatever it likes.
 
 - Server responses are parsed as hostile input under the same never-crash rules and property tests
-  (`crates/proto`, `crates/net`); sizes are clamped and allocations capped.
+  (`crates/proto`, `crates/net`, `crates/jmap`); sizes are clamped and allocations capped.
 - **Secrets aren't handed to the wrong party:** a sign-in goes only to the server the account names,
   over TLS (below). OAuth uses the authorization code with PKCE and a loopback redirect
-  (`crates/net/src/oauth.rs`).
+  (`crates/net/src/oauth.rs`). A JMAP account's password or token goes to the server its session
+  is served from and to no other: an address the session names on another server, or on the same
+  one without encryption (plain `http` is for this computer alone), is refused
+  (`crates/jmap`, `Client::connect`).
 - A compromised server can still read and change the mail it holds. That is the server's job, not
   something a client can prevent; end-to-end encryption would be (see Known limits).
 
@@ -72,6 +75,8 @@ Watches or changes traffic between MailCraft and its servers.
 - **Encrypt or refuse.** Every connection that carries mail or a sign-in is TLS (rustls) or STARTTLS,
   with certificates checked against the Mozilla root set built in (`webpki-roots`;
   `crates/net/src/transport.rs`). An unencrypted connection is allowed only to loopback, for tests.
+  (In the browser build a JMAP account's requests go through the browser's `fetch`, so its TLS and
+  its trust store apply.)
 - **No silent downgrade:** a server that doesn't offer STARTTLS when it was asked for is an error
   ("the server doesn't offer STARTTLS", `crates/net/src/sync.rs`, `crates/net/src/send.rs`).
 - **Provider discovery** asks a DNS-over-HTTPS resolver for the domain's mail exchangers
@@ -147,13 +152,18 @@ A malicious or vulnerable dependency, GitHub Action or build step.
 - **Unsigned builds.** The Windows and macOS builds aren't code-signed until signing and publisher
   verification are done (B10, roadmap reset step R8.1); check a download against
   the release's checksums.
-- **The web build** runs in the browser's sandbox and inherits the browser's security; it has no
-  connection to mail servers of its own.
+- **The web build** runs in the browser's sandbox and inherits the browser's security. It has no
+  IMAP, SMTP or Microsoft Graph connection; a JMAP account is read through the browser's `fetch`, over `https`
+  only (plain `http` to this computer alone), with no cookies and the credential in the
+  `Authorization` header alone, which the browser drops on a redirect to another origin and never
+  sends from `https` to `http`. The browser's own TLS and CORS rules apply, so the server has to
+  allow the page's origin. The credential is held in memory for the session and is not remembered.
 
 ## Revision history
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-19 | minor | JMAP, read: a JMAP server among the hostile servers, its credentials sent only to the server its session is served from, and the web build's JMAP account read over `fetch` |
 | 2026-10-19 | minor | Agents on the same computer: the agent gate binds agents that reach MailCraft only through MCP; one with a shell or the owner's files is outside it |
 | 2026-10-19 | minor | The settings folder, the logs and the pictures kept from the web are created for the owner alone on Unix (0700, 0600); open ones from earlier versions are closed |
 | 2026-10-16 | minor | Release signing in the protected `release` environment; draft releases |

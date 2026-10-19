@@ -43,7 +43,7 @@ The pictures are of the sample mailbox (`--sample`): invented people and invente
 | **Desktop** | macOS (universal), Windows (x64, x86, arm64), Linux (x86_64, aarch64), FreeBSD (x86_64) |
 | **Web** | any modern browser, through WebAssembly (WebGPU, or WebGL2 where that is missing) |
 
-The browser build is the same app with three differences that a browser imposes: it can't open connections to mail servers (bring mail in with File › Import, or use the desktop app), the mailbox lives in the browser's storage, and saving means downloading.
+The browser build is the same app with three differences that a browser imposes: it can't use IMAP, SMTP or Microsoft accounts (bring mail in with File › Import, or use the desktop app), though a JMAP account is read over HTTPS (see [docs/gaps.md](docs/gaps.md)), the mailbox lives in the browser's storage, and saving means downloading.
 
 ## Build and run
 
@@ -92,7 +92,7 @@ See [docs/mcp.md](docs/mcp.md) and [docs/control-protocol.md](docs/control-proto
 | L0 | `time`, `control-key`, `charset` | Calendar maths and date text; control-port key files; character sets |
 | L1 | `model`, `html` | The mailbox and its edit primitives, recurrence, search; hostile HTML to safe display blocks |
 | L2 | `mime`, `ical`, `vcard` | Internet messages and mbox; iCalendar; vCard |
-| L3 | `proto`, `net` | IMAP and SMTP without sockets; TLS sockets and synchronisation |
+| L3 | `proto`, `jmap`, `net` | IMAP and SMTP without sockets; JMAP without sockets; TLS sockets and synchronisation |
 | L4 | `engine` | Session, undo, the command registry, the feature catalog, file dispatch |
 | L5 | `mcp` | MCP server |
 | L6 | `ui-egui` | The Outlook-style front end (swappable) |

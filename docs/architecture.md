@@ -1,6 +1,6 @@
 # MailCraft architecture
 
-> **Last reviewed:** 2026-10-11 · **Last updated:** 2026-10-19 · **Change:** minor (fuzz targets for every reader, run in CI; `charset`, L0: one decoder of character sets for mail and vCard files, #180; R6: the mailbox file is a log of records, format 3, `store_index.rs`; a damaged later save stops the reading there, a damaged item of the first save costs only itself, and `file.open` says so; files kept aside are never removed and keep their content from the sweep; no citations of private decision records; R3.7: the switch from IMAP to Graph, no switch for testing; quitting on macOS through craft-quit, the first crate from craft-libs, for the apps alone; cargo-deny, pinned actions, zizmor, Scorecard, the threat model; R3.1: a Microsoft account kept in step through Graph behind a switch for testing, server ids, `graph::pace`; the Secret Service on Linux and FreeBSD behind `Services::secrets`; `StoreTrouble`; Exchange Web Services removed: the Favorites of Outlook are read through Microsoft Graph alone, and there is no choice of a way) · **Target:** Microsoft Outlook (Microsoft 365)
+> **Last reviewed:** 2026-10-11 · **Last updated:** 2026-10-19 · **Change:** minor (M6, reading: `jmap`, L3, JMAP over HTTPS without sockets, a JMAP account read in the browser build, through a window that any host with a JMAP runner can run, Graph's request and answer kept apart from JMAP's; fuzz targets for every reader, run in CI; `charset`, L0: one decoder of character sets for mail and vCard files, #180; R6: the mailbox file is a log of records, format 3, `store_index.rs`; a damaged later save stops the reading there, a damaged item of the first save costs only itself, and `file.open` says so; files kept aside are never removed and keep their content from the sweep; no citations of private decision records; R3.7: the switch from IMAP to Graph, no switch for testing; quitting on macOS through craft-quit, the first crate from craft-libs, for the apps alone; cargo-deny, pinned actions, zizmor, Scorecard, the threat model; R3.1: a Microsoft account kept in step through Graph behind a switch for testing, server ids, `graph::pace`; the Secret Service on Linux and FreeBSD behind `Services::secrets`; `StoreTrouble`; Exchange Web Services removed: the Favorites of Outlook are read through Microsoft Graph alone, and there is no choice of a way) · **Target:** Microsoft Outlook (Microsoft 365)
 
 How MailCraft is built today. Rules for working in the code are in [`AGENTS.md`](../AGENTS.md). The
 shape — layers, "everything is a command", the swappable egui front end, the control channel, MCP,
@@ -25,13 +25,14 @@ code, taken from git pinned to one commit) is for the apps alone.
 | L2 | `ical` | iCalendar reader and writer: events, to-dos, recurrence rules, alarms, attendees |
 | L2 | `vcard` | vCard 2.1/3.0/4.0 reader, 3.0 writer |
 | L3 | `proto` | IMAP4rev1 and SMTP clients over any `Read + Write` stream (no sockets, so they test against scripted transcripts and build for wasm) |
+| L3 | `jmap` | JMAP (RFC 8620, 8621) over any HTTP, with no sockets and no browser APIs, so it builds for wasm: the session, method calls, an account's mailboxes and their newest messages (`sync_mail`), a message fetched whole (`fetch`); an in-process JMAP server for tests (`stand-in` feature) |
 | L3 | `net` | TCP + TLS (rustls), sending through SMTP, two-way IMAP synchronisation, OAuth sign-in, MX lookup, Microsoft Graph (`graph`); empty on wasm |
 | L4 | `engine` | `Session` (mailbox, selection, view, the message being written, undo), the **command registry** (`cmd/*.rs`), the message list (`list.rs`), the Outlook feature catalog (`catalog.rs`), the sample mailbox, file dispatch (`io.rs`) |
 | L5 | `mcp` | MCP server: tools over the command registry; headless or bridged to the running app |
 | L6 | `ui-egui` | The front end: title bar with search, ribbon, module bar, folder pane, message list, reading pane, composer, calendar, people, tasks, Backstage, dialogs, themes, control channel, headless `ui_shot` example |
 | apps | `mailcraft` | Desktop app (eframe + wgpu; logging, window geometry, native dialogs, Send/Receive thread, control server; leaving, `quit.rs`: unsaved work asks first on every platform, then on macOS the process ends through `-[NSApplication terminate:]` (`craft-quit`) rather than by closing the window, which can crash AppKit, and the app menu's Quit (⌘Q) asks like the close button) |
 | apps | `mailcraft-cli` | `info`, `folders`, `list`, `show`, `import`, `export`, `convert`, `run`, `sync`, `commands`, `parity`, `mcp` |
-| apps | `mailcraft-web` | Browser build (eframe web runner, WebGPU with WebGL2 fallback; browser storage, file picker, downloads) |
+| apps | `mailcraft-web` | Browser build (eframe web runner, WebGPU with WebGL2 fallback; browser storage, file picker, downloads; JMAP over the browser's `fetch`) |
 
 ## Data flow
 
@@ -50,7 +51,9 @@ code, taken from git pinned to one commit) is for the apps alone.
 4. **Send/Receive:** `sync.request` (pure) says what to do; a host thread runs `net::sync`, which
    sends the Outbox through SMTP and downloads new mail and flag changes over IMAP with `proto`
    and `mime`; `sync.apply` (pure) takes the result in and runs the rules on new Inbox mail. The
-   engine and the UI never touch a socket, which is why they build for the browser.
+   engine and the UI never touch a socket, which is why they build for the browser. A JMAP
+   account's run is the same with `sync.jmapRequest` and `sync.applyJmap`, and the browser build
+   does the part in between over `fetch`.
 5. **Save:** the desktop app writes the mailbox file a few seconds after each change and on
    exit; the browser writes to its storage; File › Save As and the exports write other files (a
    download in the browser).
@@ -132,6 +135,31 @@ code, taken from git pinned to one commit) is for the apps alone.
   changes again after `Retry-After`, a POST never by itself). The token is asked for with
   `Mail.ReadWrite` (`oauth::refresh_graph_mail`, `Resource::GraphMail`) for these accounts only.
   R3.1 covers the folders; mail comes in R3.2.
+- **A mailbox on a JMAP server, read (M6).** A JMAP account (`AccountKind::Jmap`, RFC 8620 and
+  8621) has no mail servers and no OAuth sign-in: its server is `Account::jmap` (`JmapServer`: the
+  address of the server's session resource, `https` only and plain `http` to this computer alone,
+  and whether the secret is a bearer token or a password). The secret is never kept in the
+  mailbox: the window holds it for the session as it holds an IMAP password (a password is also
+  remembered by the credential store, where the host has one and the owner lets it), and the
+  password goes with the account's address as its login name. Its folders and messages are
+  known by server id as a Graph account's are (`AccountKind::server_ids`), but the request and the
+  answer are JMAP's own (`JmapMailRequest`, `JmapMailResult` in `crates/model/src/sync/jmap.rs`),
+  beside Graph's rather than bent into them: `sync.jmapRequest` / `jmap_mail_request` and
+  `sync.applyJmap` / `apply_jmap_mail` (`crates/engine/src/cmd/jmap_mail.rs`, `jmap_down.rs`) are
+  pure, and `mailcraft_jmap::sync_mail` (L3) does the talking on the host's task. The client does
+  not ask the server what changed (`Email/changes`, which a server may also refuse), so a run reads
+  each mailbox's newest messages, up to the program's Messages to download per folder (File ›
+  Options; 500 at most); a window that holds the whole mailbox makes the mailbox here the same as
+  the server's, a window cut short only adds and updates. A message comes as its headers and
+  preview and is fetched whole when it is opened, and the Inbox's newest forty (those within
+  Download messages in full) in the background (`jmap_fetch.rs`, `mailcraft_jmap::fetch`), with the
+  result a Graph fetch gives; neither asks for a password, so they wait until one has been given
+  in the session, unless the host holds the credential. A host is `Services::jmap` and
+  `Services::jmap_fetch`; their channels are plain ones, so that a task on the window's own thread,
+  as the browser's is, never waits for the window to take a piece. The browser build supplies both
+  over `fetch` (`apps/mailcraft-web/src/jmap_services.rs`); the desktop app and the CLI do not yet.
+  Nothing made here goes up and nothing is sent: `AccountKind::sends_mail` is false for these
+  accounts and Send says so; both come in later steps.
 - **The Favorites are Outlook's, read and never written.** For the same accounts the host also
   reads which folders the owner keeps under Favorites in Outlook (`crates/net/src/graph/favorites.rs`:
   one configuration item of the mailbox, of which one entry is read with an XML reader that
@@ -181,8 +209,8 @@ code, taken from git pinned to one commit) is for the apps alone.
 ## Testing and gates
 
 - Unit tests in every crate; property tests feeding arbitrary bytes to the readers (`mime`,
-  `ical`, `vcard`, `proto`) and round-tripping what the writers produce; in-process fake IMAP and
-  SMTP servers on loopback for `net`; cargo-fuzz targets in `fuzz/` (its own workspace, nightly)
+  `ical`, `vcard`, `proto`, and `jmap` for a server's JSON) and round-tripping what the writers produce; in-process fake IMAP and
+  SMTP servers on loopback for `net`, and an in-process JMAP server for `jmap` and what sits on it; cargo-fuzz targets in `fuzz/` (its own workspace, nightly)
   for each reader (`mime`, `html`, `ical`, `vcard`, `charset`, IMAP and SMTP replies), run a minute
   each by `fuzz.yml` weekly and when a pull request changes a reader; `engine/src/tests.rs::hostile_params_never_panic` runs every
   command with junk params; an MCP acceptance test drives a realistic triage through the protocol.
@@ -218,3 +246,4 @@ code, taken from git pinned to one commit) is for the apps alone.
 | 2026-10-16 | minor | R3.7: the switch from IMAP to Graph (`cmd/graph_switch.rs`, `Account::graph_switch`, `Folder::awaiting_listing`); the switch for testing is gone |
 | 2026-10-18 | minor | `charset` (L0): the decoder of character sets moved out of `mime` so that `vcard` reads `CHARSET=` by the same rules, #180 |
 | 2026-10-19 | minor | Fuzz targets (`fuzz/`, cargo-fuzz) for every reader, run by `fuzz.yml` |
+| 2026-10-19 | minor | M6, reading: `jmap` (L3), `AccountKind::Jmap` and `Account::jmap`, the JMAP request and answer beside Graph's (`sync.jmapRequest`, `sync.applyJmap`, `sync.jmapFetchRequest`, `sync.applyJmapFetch`), `Services::jmap` and `jmap_fetch`, the browser build's runner over `fetch` |

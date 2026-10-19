@@ -1,6 +1,6 @@
 # MailCraft roadmap: milestones and what's next
 
-> **Last reviewed:** 2026-10-14 · **Last updated:** 2026-10-15 · **Change:** patch (M5: the window never waits for a save, R6.3; superseded for the way to beta by the roadmap reset) · **Target:** Microsoft Outlook (Microsoft 365, classic desktop)
+> **Last reviewed:** 2026-10-14 · **Last updated:** 2026-10-19 · **Change:** patch (M6: JMAP read in progress, a JMAP account's mailboxes, newest messages and whole messages in the browser build, changes up and sending not yet; M5: the window never waits for a save, R6.3; superseded for the way to beta by the roadmap reset) · **Target:** Microsoft Outlook (Microsoft 365, classic desktop)
 
 Forward-looking plan. The summary is [`ROADMAP.md`](../ROADMAP.md); the ranked work list is
 [`gaps.md`](gaps.md); the numbers are in [`target-app-parity.md`](target-app-parity.md).
@@ -34,7 +34,7 @@ sync, Microsoft sign-in and the first release have landed since.
 | M3 | **Writes like mail** | Rich-text composing and replies, inline pictures, spell check | #7 |
 | M4 | **Schedules** | Invitations by mail, accept/decline from the reading pane, time zones (done 2026-10-12, M3.5), reminders that fire | #9–#11 |
 | M5 | **Scales** | A per-message store with an index; 500 000 messages stay quick (under way as R6 of the reset: the mailbox file is a log of records, and the window never waits for a save, R6.3) | #8 |
-| M6 | **Beyond IMAP** | JMAP and Microsoft Graph over HTTPS — which also gives the browser build a server connection | #5 |
+| M6 | **Beyond IMAP** | JMAP and Microsoft Graph over HTTPS — which also gives the browser build a server connection. Graph carries Microsoft accounts' mail (R3). JMAP is under way and reads so far: an account's mailboxes, the newest messages of each and a message fetched whole in the browser build (`crates/jmap`); changes made here going up, sending, drafts and an Add Account page for it are not built yet | #5 |
 | M7 | **Switchers** | `.pst`/`.msg` import, languages, printing, Quick Steps and the long tail of the catalog | #12, #14, #15, #17 |
 
 M6 is what makes the web build a real mail client rather than a local one; it may move earlier
@@ -60,3 +60,4 @@ if that turns out to be what people want most.
 | 2026-10-12 | patch | Time zones, listed under M4, are done (M3.5) |
 | 2026-10-14 | minor | Superseded for the way to beta by the roadmap reset |
 | 2026-10-15 | patch | M5: under way as R6; the window never waits for a save (R6.3) |
+| 2026-10-19 | patch | M6: JMAP read in progress (a JMAP account's mailboxes, newest messages and whole messages in the browser build); changes up and sending not yet |

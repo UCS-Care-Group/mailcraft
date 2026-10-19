@@ -1,6 +1,6 @@
 # File formats and protocols
 
-> **Last reviewed:** 2026-10-11 · **Last updated:** 2026-10-18 · **Change:** minor (vCard 2.1's raw 8-bit values in their own `CHARSET`, #185; the word index beside the mailbox file, R6.2; vCard files in every character set of the WHATWG Encoding Standard, #180; mail in every character set of the WHATWG Encoding Standard, #178; the mailbox file in format 3, a log of records, R6; files kept aside never removed; earlier: time zones in the mailbox file and in `.ics`) · **Target:** Microsoft Outlook (Microsoft 365, classic desktop)
+> **Last reviewed:** 2026-10-11 · **Last updated:** 2026-10-19 · **Change:** minor (JMAP mail (RFC 8620, 8621) read over HTTPS, M6; vCard 2.1's raw 8-bit values in their own `CHARSET`, #185; the word index beside the mailbox file, R6.2; vCard files in every character set of the WHATWG Encoding Standard, #180; mail in every character set of the WHATWG Encoding Standard, #178; the mailbox file in format 3, a log of records, R6; files kept aside never removed; earlier: time zones in the mailbox file and in `.ics`) · **Target:** Microsoft Outlook (Microsoft 365, classic desktop)
 
 What MailCraft reads, writes and speaks, and how far each goes. Everything is implemented from the
 public specifications; every reader is fed arbitrary bytes by property tests and must never panic.
@@ -32,7 +32,8 @@ Output is always UTF-8.
 | **IMAP4rev1** (RFC 3501, special-use 6154) | download | LOGIN, LIST, EXAMINE, UID FETCH (flags, sizes, whole messages with literals), modified UTF-7 names, UIDVALIDITY handling; `uid_store` and `append` exist but sync doesn't use them yet (gap #2). No IDLE, CONDSTORE/QRESYNC, AUTHENTICATE, COMPRESS, partial fetch |
 | **TLS** | rustls with the Mozilla root set | Certificate and host name verified; unencrypted connections refused except to loopback; a missing STARTTLS offer is an error |
 | POP3 | no | Not planned before M6 |
-| Exchange (EWS, MAPI), Microsoft Graph, JMAP, CalDAV, CardDAV | no | Gap #5; JMAP and Graph are how the browser build will get a server connection |
+| **JMAP mail** (RFC 8620 core, 8621 mail) | download | Over HTTPS, in the browser build (`fetch`) and in the tests: the session, `Mailbox/get`, `Email/query` and `Email/get` for each mailbox's newest messages, a message fetched whole from its blob, keywords as read, flag, answered, forwarded and draft. Bearer token or password; `https` only, plain `http` to this computer alone. No `*/changes`, no `Email/set`, `EmailSubmission` or `Mailbox/set` (nothing made here goes up, nothing is sent), no search, push or contacts and calendars. Tested against an in-process server only (gap #1) |
+| Exchange (EWS, MAPI), Microsoft Graph, CalDAV, CardDAV | no | Gap #5. Graph runs over HTTPS too, but the browser build has no Graph runner yet |
 
 Interoperability with real servers has not been tested (gap #1).
 
@@ -48,3 +49,4 @@ Interoperability with real servers has not been tested (gap #1).
 | 2026-10-18 | minor | Mail in every character set of the WHATWG Encoding Standard (Windows-1250, ISO-8859-2, KOI8-R, Shift_JIS…), #178 |
 | 2026-10-18 | minor | vCard files in every character set of the WHATWG Encoding Standard, through mail's decoder, #180 |
 | 2026-10-18 | minor | vCard 2.1's raw 8-bit values read in their own `CHARSET`, #185 |
+| 2026-10-19 | minor | JMAP mail (RFC 8620, 8621) read over HTTPS: mailboxes, the newest messages of each, a message fetched whole (M6); nothing made here goes up yet |
