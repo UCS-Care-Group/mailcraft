@@ -417,7 +417,8 @@ fn run(args: &[String]) -> Result<(), Failure> {
                     .mailbox
                     .accounts
                     .iter()
-                    .find(|a| a.kind.has_server())
+                    // The command line has no way to reach a JMAP server yet: a JMAP account is not the one to pick.
+                    .find(|a| a.kind.has_server() && a.kind != mailcraft_model::AccountKind::Jmap)
                     .map(|a| a.id)
                     .ok_or("sync: no account in this mailbox is connected to a mail server")?,
             };

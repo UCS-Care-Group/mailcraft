@@ -2082,6 +2082,11 @@ fn hostile_params_never_panic() {
         }}),
         json!({"conditions": [{"type": "x"}, 5, null], "actions": [{"type": "moveTo", "value": "x"}], "name": "r"}),
         json!({"email": "a@b.example", "incoming": {"host": "", "port": 1e9, "security": 5}, "outgoing": 7}),
+        // Junk for the server of a JMAP account.
+        json!({"email": "a@b.example", "kind": "jmap", "jmap": {"session": "https://user:pw@x.example/\u{0}", "bearer": "yes"}}),
+        json!({"email": "a@b.example", "kind": "jmap", "jmap": 5}),
+        json!({"email": "a@b.example", "kind": "jmap", "jmap": {"session": "http://[::1", "bearer": null}, "incoming": {"host": "x"}, "auth": "oauth2"}),
+        json!({"id": 2, "kind": "jmap", "jmap": {"session": "é".repeat(100_000), "bearer": [[]]}}),
         json!({"emails": [1, null, {"value": 2}], "phones": "x", "address": {"street": 5}, "birthday": 5, "workDays": [], "weekStart": 1}),
         json!({"account": 1, "address": "a@example.org/../../me\r\n?$top=1#x"}),
         json!({"account": 2, "address": "x".repeat(100_000)}),
@@ -2103,6 +2108,27 @@ fn hostile_params_never_panic() {
     let _ = s.run("account.add", &json!({"email": "owner@example.org", "kind": "microsoft"}));
     // And one open, so that the folder pane's commands (Favorites, counts) meet its folders.
     let _ = s.run("account.addSharedMailbox", &json!({"address": "support@example.org"}));
+    // And a JMAP account, so that every command meets one.
+    let _ =
+        s.run("account.add", &json!({"email": "reader@example.org", "kind": "jmap", "jmap": {"session": "https://mail.example.org/jmap/session"}}));
+    // With mail of its own that is not fetched whole, and junk for fetching it and taking that in.
+    let jmap = s.mailbox.accounts.iter().find(|a| a.kind == mailcraft_model::AccountKind::Jmap).map_or(0, |a| a.id);
+    let window = json!({"result": {
+        "account": jmap, "email": "reader@example.org", "whole": true,
+        "listing": {"complete": true, "folders": [{"id": "Min", "name": "INBOX", "kind": "inbox"}]},
+        "pages": [{"folder": "Min", "afresh": true, "messages": [
+            {"server": {"id": "E1", "folder": "Min", "size": 18446744073709551615u64}, "messageId": "<1@x>", "subject": "One", "received": 1_790_000_001},
+            {"server": {"id": "E2", "folder": "Min"}, "messageId": "<2@x>", "subject": "Two", "received": 1_790_000_002},
+        ]}],
+    }});
+    // (If this does not take, the junk below meets no mail of the account: the test says so.)
+    assert_eq!(s.run("sync.applyJmap", &window).unwrap()["new"], 2);
+    let mut junk = junk.to_vec();
+    junk.extend([
+        json!({"account": jmap, "message": 18446744073709551615u64, "most": 1e300}),
+        json!({"account": jmap, "most": 18446744073709551615u64, "result": {"account": jmap, "email": "reader@example.org", "fetched": [{"id": "E1", "mime": [255, 0, 13, 10]}, {"id": ""}, {"id": "a/b", "mime": "x"}, null], "missing": ["E2", "\u{0}", 5], "failed": ["E3"], "errors": ["\u{0}"], "offline": "yes", "busyFor": -1}}),
+        json!({"result": {"account": jmap, "email": "reader@example.org", "fetched": [{"id": "E1", "mime": [255, 0, 13, 10, 254, 58]}, {"id": "E2", "mime": []}, {"id": "nobody", "mime": [1]}], "missing": ["E1", "x".repeat(100_000)], "failed": ["\r\n"], "busyFor": 4294967295u32}}),
+    ]);
     let ids: Vec<&'static str> = s.registry.all().iter().map(|c| c.id).collect();
     for round in 0..2 {
         for id in &ids {

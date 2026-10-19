@@ -19,6 +19,11 @@ use super::sync_progress::{self, Piece};
 use super::{bad, fail};
 use crate::{CmdError, CmdResult, CommandSpec, Session, p};
 
+// The JMAP part of `account.add` and `account.edit`, and its tests.
+mod jmap;
+#[cfg(test)]
+mod tests;
+
 pub fn specs() -> Vec<CommandSpec> {
     vec![
         CommandSpec::new("account.add", "Add Account", "File › Info", add).params(ACCOUNT),
@@ -37,7 +42,7 @@ pub fn specs() -> Vec<CommandSpec> {
     ]
 }
 
-const ACCOUNT: &str = r#"{"email": string, "displayName"?: string, "name"?: string, "username"?: string, "incoming"?: {"host": string, "port"?: number, "security"?: "tls"|"starttls"|"none"} | null, "outgoing"?: same | null, "auth"?: "password"|"oauth2" (oauth2: sign in on the provider's page), "provider"?: "microsoft", "clientId"?: string, "tenant"?: string, "directory"?: "organisation"|"personal" (which kind of Microsoft account signs in, when the sign-in said), "kind"?: "imap"|"local"|"microsoft" (microsoft: kept in step through Microsoft Graph, no mail servers)}"#;
+const ACCOUNT: &str = r#"{"email": string, "displayName"?: string, "name"?: string, "username"?: string, "incoming"?: {"host": string, "port"?: number, "security"?: "tls"|"starttls"|"none"} | null, "outgoing"?: same | null, "auth"?: "password"|"oauth2" (oauth2: sign in on the provider's page), "provider"?: "microsoft", "clientId"?: string, "tenant"?: string, "directory"?: "organisation"|"personal" (which kind of Microsoft account signs in, when the sign-in said), "kind"?: "imap"|"local"|"microsoft"|"jmap" (microsoft: kept in step through Microsoft Graph, no mail servers; jmap: a mailbox on a JMAP server, which needs "jmap"), "jmap"?: {"session": string (the address of the server's session resource: https:// only, plain http:// to this computer alone; at most 2048 characters, no user name or password, no control character), "bearer"?: boolean (the secret is a bearer token; otherwise a password, sent with the account's address as its login name)} (only for a JMAP account, which has no mail servers and no OAuth sign-in; the secret is never given here)}"#;
 
 fn has_server(s: &Session) -> Option<&'static str> {
     if s.mailbox.accounts.iter().any(|a| a.kind.has_server()) {
@@ -206,11 +211,14 @@ fn apply_fields(a: &mut Account, v: &Value) -> Result<(), CmdError> {
     }
     // A Microsoft account kept in step through Graph (R3): asked for by name; one that is that
     // already stays it. (One kept in step by IMAP becomes one by switching: `account.graphSwitch`.)
+    // A JMAP account is asked for by name too; one that already is one stays one (editing its name must not turn it into a local account).
+    let wants_jmap = p::str(v, "kind").map_or(a.kind == AccountKind::Jmap, |k| k.trim().eq_ignore_ascii_case("jmap"));
     let microsoft = match p::str(v, "kind").map(|k| k.trim().to_ascii_lowercase()) {
         None => a.kind == AccountKind::Microsoft,
         Some(k) if k == "microsoft" || k == "graph" => true,
-        Some(k) if k == "imap" || k == "local" => false,
-        Some(_) => return Err(bad("`kind` is imap, local or microsoft")),
+        // "jmap" is made a JMAP account below.
+        Some(k) if k == "imap" || k == "local" || k == "jmap" => false,
+        Some(_) => return Err(bad("`kind` is imap, local, microsoft or jmap")),
     };
     if microsoft {
         // Graph and nothing else: no mail servers, and a sign-in with Microsoft.
@@ -218,9 +226,14 @@ fn apply_fields(a: &mut Account, v: &Value) -> Result<(), CmdError> {
         (a.incoming, a.outgoing) = (None, None);
         let o = a.oauth.get_or_insert_with(OAuth::default);
         o.provider = OAuthProvider::Microsoft;
+    } else if wants_jmap {
+        // A JMAP account: JMAP alone, with the server the command names.
+        jmap::make(a, v)?;
     } else {
         a.kind = if a.incoming.is_some() || a.outgoing.is_some() { AccountKind::Imap } else { AccountKind::Local };
     }
+    // Only a JMAP account has a JMAP server: no other is given one, and one that stops being a JMAP account loses it.
+    jmap::settle(a, v)?;
     if !a.address().is_valid() {
         return Err(bad(format!("\"{}\" isn't an e-mail address", a.email)));
     }
@@ -271,6 +284,8 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
         }
         (a.email, a.kind, a.oauth, a.incoming, a.outgoing, a.username) = (before.email, before.kind, None, None, None, String::new());
         a.shared_of = before.shared_of;
+        // A shared mailbox is opened through a Microsoft account, never over JMAP.
+        a.jmap = None;
     }
     if s.mailbox.accounts.iter().any(|x| x.id != id && x.email.eq_ignore_ascii_case(&a.email)) {
         return Err(fail(format!("{} is already set up", a.email)));
@@ -298,7 +313,8 @@ fn list(s: &mut Session, _: &Value) -> CmdResult {
         .accounts
         .iter()
         .map(|a| {
-            json!({"id": a.id, "name": a.name, "email": a.email, "displayName": a.display_name, "kind": a.kind, "username": a.username, "incoming": a.incoming, "outgoing": a.outgoing, "signature": a.signature, "replySignature": a.reply_signature(), "auth": if a.oauth.is_some() { "oauth2" } else { "password" }, "oauth": a.oauth, "downloadInFull": a.download_in_full, "keepOffline": s.mailbox.keep_offline_of(a.id), "sharedOf": a.shared_of})
+            // A JMAP account's server is listed too (`jmap`, null for any other account).
+            json!({"id": a.id, "name": a.name, "email": a.email, "displayName": a.display_name, "kind": a.kind, "username": a.username, "incoming": a.incoming, "outgoing": a.outgoing, "signature": a.signature, "replySignature": a.reply_signature(), "auth": if a.oauth.is_some() { "oauth2" } else { "password" }, "oauth": a.oauth, "downloadInFull": a.download_in_full, "keepOffline": s.mailbox.keep_offline_of(a.id), "sharedOf": a.shared_of, "jmap": a.jmap})
         })
         .collect();
     Ok(json!({"accounts": accounts, "signatures": s.mailbox.signatures}))
@@ -357,6 +373,10 @@ pub fn sync_request(s: &Session, account: Id) -> Result<SyncRequest, CmdError> {
 pub fn unpushed(s: &Session, account: Id) -> usize {
     if s.mailbox.account(account).is_some_and(|a| a.kind == AccountKind::Microsoft) {
         return super::graph_mail::unpushed(s, account);
+    }
+    // An account kept in step with a JMAP server counts its own (jmap_mail.rs).
+    if s.mailbox.account(account).is_some_and(|a| a.kind == AccountKind::Jmap) {
+        return super::jmap_mail::unpushed(s, account);
     }
     remote_ops(&s.mailbox, account, 0).1
 }
@@ -448,6 +468,12 @@ fn request(s: &mut Session, v: &Value) -> CmdResult {
     if s.mailbox.account(account).is_some_and(|a| a.kind == AccountKind::Microsoft) {
         let mut req = serde_json::to_value(super::graph_mail::graph_mail_request(s, account)?).map_err(|e| fail(e.to_string()))?;
         req["graph"] = json!(true);
+        return Ok(req);
+    }
+    // And one kept in step with a JMAP server too (`sync.jmapRequest`).
+    if s.mailbox.account(account).is_some_and(|a| a.kind == AccountKind::Jmap) {
+        let mut req = serde_json::to_value(super::jmap_mail::jmap_mail_request(s, account, false, &[], false)?).map_err(|e| fail(e.to_string()))?;
+        req["jmap"] = json!(true);
         return Ok(req);
     }
     let req = sync_request(s, account)?;

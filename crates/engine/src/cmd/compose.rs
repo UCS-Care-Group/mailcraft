@@ -13,6 +13,10 @@ use crate::{BodyFormat, CmdError, CmdResult, CommandSpec, Compose, ComposeMode, 
 const MAX_ATTACHMENT: usize = 64 << 20;
 const MAX_ATTACHMENTS: usize = 200;
 
+/// What Send says for an account that is read from its server but whose Outbox nothing sends yet
+/// (a JMAP one, for now); the window shows it in the interface's language.
+pub const CANT_SEND_YET: &str = "Sending isn't available for this account yet";
+
 pub fn specs() -> Vec<CommandSpec> {
     vec![
         CommandSpec::new("mail.new", "New Email", "Home › New", new)
@@ -627,6 +631,10 @@ fn send(s: &mut Session, _: &Value) -> CmdResult {
     }
     let as_draft = m.server_draft.is_some();
     let account = s.mailbox.account(m.account).cloned().ok_or_else(|| fail("the account is gone"))?;
+    // A JMAP account is kept in step with its server but nothing sends its Outbox yet: refuse, rather than leave the message there for ever or file it as sent. The message stays open, as after any refusal.
+    if account.kind.has_server() && !account.kind.sends_mail() {
+        return Err(fail(CANT_SEND_YET));
+    }
     // An account with a server queues the message for the next Send/Receive; a local one has
     // nowhere to send it, so it is filed as sent (and delivered to local accounts it names).
     let queued = account.kind.has_server();
@@ -685,6 +693,7 @@ fn save_draft(s: &mut Session, _: &Value) -> CmdResult {
         (m.server, m.server_draft, m.uid, m.synced) = (old.server.clone(), old.server_draft.clone(), old.uid, old.synced);
         (m.read, m.flag, m.flag_due, m.categories, m.pinned) = (old.read, old.flag, old.flag_due, old.categories.clone(), old.pinned);
     }
+    // Only a Microsoft account's draft is marked for its server. A JMAP account's draft stays in its Drafts folder here and goes nowhere yet: saving drafts on a JMAP server (an import into its Drafts) comes after reading and sending.
     let graph = s.mailbox.account(m.account).is_some_and(|a| a.kind == AccountKind::Microsoft);
     if graph {
         // Begun as an answer to, or a forward of, a message its server has: made there as one.

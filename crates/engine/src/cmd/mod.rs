@@ -22,6 +22,9 @@ pub mod graph_mail;
 pub mod graph_send;
 pub mod graph_switch;
 pub mod graph_up;
+pub mod jmap_down;
+pub mod jmap_fetch;
+pub mod jmap_mail;
 pub mod mail;
 pub mod offline;
 #[cfg(test)]
@@ -71,6 +74,8 @@ pub fn registry() -> Registry {
     v.extend(offline::specs());
     v.extend(signature::specs());
     v.extend(graph_mail::specs());
+    v.extend(jmap_mail::specs());
+    v.extend(jmap_fetch::specs());
     v.extend(shared::specs());
     v.extend(graph_switch::specs());
     v.extend(graph_send::specs());

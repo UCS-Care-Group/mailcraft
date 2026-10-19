@@ -399,7 +399,8 @@ fn is_over(s: &Session, event: &Event) -> bool {
 fn can_mail(s: &Session, invitation: &Invitation) -> bool {
     let owner = s.mailbox.account(invitation.account).or(s.mailbox.default_account());
     invitation.event.organizer.as_ref().is_some_and(Address::is_valid)
-        && owner.is_some_and(|owner| owner.kind.has_server() && s.mailbox.folder_of_kind(owner.id, FolderKind::Outbox).is_some())
+        // An account whose Outbox nothing sends (a JMAP one, for now) can't mail the answer.
+        && owner.is_some_and(|owner| owner.kind.sends_mail() && s.mailbox.folder_of_kind(owner.id, FolderKind::Outbox).is_some())
 }
 
 /// Whether a meeting on the calendar is somebody else's: what a message may call off.
@@ -799,7 +800,8 @@ fn reply_message(
 ) -> Result<Message, CmdError> {
     let organizer =
         invitation.event.organizer.clone().filter(|who| who.is_valid()).ok_or_else(|| fail("The invitation doesn't say who to answer."))?;
-    if !owner.kind.has_server() {
+    // An account whose Outbox nothing sends (a JMAP one, for now) has no way to send the answer.
+    if !owner.kind.sends_mail() {
         return Err(fail("This account has no mail server to send the answer through."));
     }
     let outbox = s.mailbox.folder_of_kind(owner.id, FolderKind::Outbox).ok_or_else(|| fail("this account has no Outbox folder"))?;
@@ -882,7 +884,8 @@ fn reply_message(
 /// What the owner made of the item for their own use (its reminder, its categories, that it is
 /// private) and who else is invited stay here: the file says what, when and where.
 pub(super) fn forward_message(s: &Session, event: &Event, to: &[Address], note: &str) -> Result<Message, CmdError> {
-    let sends = |account: &&mailcraft_model::Account| account.kind.has_server() && s.mailbox.folder_of_kind(account.id, FolderKind::Outbox).is_some();
+    // An account whose Outbox nothing sends (a JMAP one, for now) is not one to send this through.
+    let sends = |account: &&mailcraft_model::Account| account.kind.sends_mail() && s.mailbox.folder_of_kind(account.id, FolderKind::Outbox).is_some();
     let owner = s.mailbox.default_account().filter(sends).or_else(|| s.mailbox.accounts.iter().find(sends));
     let owner = owner.cloned().ok_or_else(|| fail("No account here has a mail server to send this through."))?;
     let outbox = s.mailbox.folder_of_kind(owner.id, FolderKind::Outbox).ok_or_else(|| fail("this account has no Outbox folder"))?;

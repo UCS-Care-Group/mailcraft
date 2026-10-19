@@ -42,8 +42,9 @@ impl ServerIndex {
         self.count = mb.messages.len();
     }
 
-    /// The message of `account` the server calls `id`.
-    fn find(&mut self, mb: &Mailbox, account: Id, id: &str) -> Option<Id> {
+    /// The message of `account` the server calls `id`. The JMAP intake (jmap_down.rs) uses it too:
+    /// messages there are known by server id as well.
+    pub(crate) fn find(&mut self, mb: &Mailbox, account: Id, id: &str) -> Option<Id> {
         let is = |m: Id| mb.message(m).is_some_and(|m| m.account == account && m.server.as_ref().is_some_and(|s| s.id == id));
         if self.count != mb.messages.len() {
             self.rebuild(mb);
@@ -60,7 +61,7 @@ impl ServerIndex {
         }
     }
 
-    fn note(&mut self, mb: &Mailbox, account: Id, id: &str, m: Id) {
+    pub(crate) fn note(&mut self, mb: &Mailbox, account: Id, id: &str, m: Id) {
         self.ids.insert((account, id.to_string()), m);
         self.count = mb.messages.len();
     }
@@ -156,6 +157,9 @@ pub(crate) fn new_message(folder: Id, server_folder: &str, there: &GraphMessage)
         received: there.received,
         body: Body { text: there.preview.clone(), html: None },
         read: server.read,
+        // A JMAP server's answered and forwarded marks (a Graph server says neither: both are false there). The message must show what `server` records, or the next change worked out from the difference would clear them there.
+        answered: server.answered,
+        forwarded: server.forwarded,
         flag: server.flag,
         flag_due: server.flag_due,
         importance: server.importance,

@@ -379,6 +379,11 @@ const NEVER: &[&str] = &[
     "sync.applyGraph",
     "sync.graphFetchRequest",
     "sync.applyGraphFetch",
+    // A JMAP account's run and the messages it fetches whole are the host's side too.
+    "sync.jmapRequest",
+    "sync.applyJmap",
+    "sync.jmapFetchRequest",
+    "sync.applyJmapFetch",
     // A search of the server goes only on the owner's own click (R6.2).
     "sync.graphSearchRequest",
     "sync.applyGraphSearch",
