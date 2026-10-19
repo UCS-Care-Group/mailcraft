@@ -18,9 +18,15 @@ mailcraft-engine = { workspace = true }
 mailcraft-ui-egui = { workspace = true }
 mailcraft-model = { workspace = true }
 mailcraft-time = { workspace = true }
+# JMAP over the browser's `fetch`: mail from a server in the browser build (fetch.rs).
+mailcraft-jmap = { workspace = true }
 egui = { workspace = true }
 log = { workspace = true }
 serde_json = { workspace = true }
+
+# The in-process JMAP server, for the tests of the JMAP runner (jmap_services_tests.rs).
+[dev-dependencies]
+mailcraft-jmap = { workspace = true, features = ["stand-in"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 # `wgpu` pulls egui-wgpu's defaults: WebGPU plus the WebGL2 fallback.
@@ -29,4 +35,5 @@ rfd = { workspace = true }
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
 js-sys = "0.3"
-web-sys = { version = "0.3", features = ["Window", "Document", "Element", "HtmlElement", "HtmlCanvasElement", "HtmlAnchorElement", "Blob", "BlobPropertyBag", "Url", "Location", "CssStyleDeclaration", "Storage"] }
+# `Headers` to `AbortSignal`: JMAP over `fetch`, a request given up after a while (fetch.rs).
+web-sys = { version = "0.3", features = ["Window", "Document", "Element", "HtmlElement", "HtmlCanvasElement", "HtmlAnchorElement", "Blob", "BlobPropertyBag", "Url", "Location", "CssStyleDeclaration", "Storage", "Headers", "Request", "RequestInit", "RequestMode", "RequestCredentials", "RequestCache", "Response", "ReadableStream", "ReadableStreamDefaultReader", "AbortController", "AbortSignal"] }

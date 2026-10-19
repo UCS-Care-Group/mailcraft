@@ -2328,6 +2328,7 @@ version = "0.5.1"
 dependencies = [
  "base64",
  "mailcraft-engine",
+ "mailcraft-jmap",
  "mailcraft-mcp",
  "mailcraft-model",
  "mailcraft-net",
@@ -2503,6 +2504,7 @@ dependencies = [
  "js-sys",
  "log",
  "mailcraft-engine",
+ "mailcraft-jmap",
  "mailcraft-model",
  "mailcraft-time",
  "mailcraft-ui-egui",

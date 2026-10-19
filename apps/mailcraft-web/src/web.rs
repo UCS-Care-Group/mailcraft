@@ -149,6 +149,9 @@ impl eframe::App for WebShell {
 
 fn services(inbox: Inbox, ctx: egui::Context) -> Services {
     let open_inbox = inbox.clone();
+    // An account kept in step with a JMAP server is read through `fetch` (jmap_services.rs), with the credential its owner types.
+    let (jmap_ctx, gate) = (ctx.clone(), crate::jmap_services::Gate::default());
+    let no_credentials = std::rc::Rc::new(crate::credentials::NoCredentials);
     Services {
         open_async: Some(Box::new(move |purpose: &str| {
             let inbox = open_inbox.clone();
@@ -171,6 +174,8 @@ fn services(inbox: Inbox, ctx: egui::Context) -> Services {
         download: Some(Box::new(download)),
         inbox: Some(inbox),
         persist: Some(Box::new(persist)),
+        jmap: Some(crate::jmap_services::jmap_service(jmap_ctx.clone(), no_credentials.clone(), gate.clone())),
+        jmap_fetch: Some(crate::jmap_services::jmap_fetch_service(jmap_ctx, no_credentials, gate)),
         ..Default::default()
     }
 }
