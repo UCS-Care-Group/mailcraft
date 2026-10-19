@@ -2376,6 +2376,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "mailcraft-jmap"
+version = "0.5.1"
+dependencies = [
+ "base64",
+ "log",
+ "mailcraft-mime",
+ "mailcraft-model",
+ "mailcraft-time",
+ "proptest",
+ "serde_json",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "mailcraft-mcp"
 version = "0.5.1"
 dependencies = [
