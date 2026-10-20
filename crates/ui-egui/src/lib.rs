@@ -2157,6 +2157,8 @@ impl MailApp {
                     Err(e) => self.graph_problems.push(e.to_string()),
                 }
             }
+            // A shared mailbox being added is kept once its Inbox is read, not after all its mail.
+            self.shared_check_piece(account);
             if !over {
                 return;
             }

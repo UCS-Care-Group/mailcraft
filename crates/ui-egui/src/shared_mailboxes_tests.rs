@@ -278,6 +278,40 @@ fn add_shared_mailbox_keeps_only_a_mailbox_whose_inbox_could_be_read() {
 }
 
 #[test]
+fn add_shared_mailbox_closes_once_the_inbox_is_read_without_waiting_for_the_whole_mailbox() {
+    let (mut app, owner, _, _, _) = window();
+    // A big mailbox: the folders come first, and the rest of the run is still under way (the
+    // host holds on to the run's pieces and its answer).
+    type Run = (mpsc::SyncSender<GraphMailResult>, mpsc::Sender<GraphResult>);
+    let running: Arc<Mutex<Option<Run>>> = Default::default();
+    let keep = running.clone();
+    app.services.graph = Some(Box::new(move |req: GraphRequest| {
+        let (tx, rx) = mpsc::channel();
+        let pieces = req.mail_pieces.clone().unwrap();
+        pieces.send(GraphMailResult { account: req.account.id, partial: true, ..inbox_read(SHARED) }).unwrap();
+        *keep.lock().unwrap() = Some((pieces, tx));
+        rx
+    }));
+    let answers: Answers = Default::default();
+    add_in_dialog(&mut app, &answers, owner, SHARED, Vec::new());
+    assert!(matches!(&app.dialog, Some(crate::dialogs::Dialog::SharedMailbox { checking: Some(_), .. })));
+    app.poll_graph();
+    // Kept, and the dialog is gone, while the run goes on bringing the rest down.
+    let kept = app.session.mailbox.accounts.iter().find(|a| a.email == SHARED).map(|a| a.id).unwrap();
+    assert!(app.dialog.is_none() && app.shared_checking.is_empty());
+    assert!(app.session.mailbox.folder_by_server(kept, "in").is_some());
+    assert!(app.graph_rx.is_some(), "the run is still under way");
+    // Its end changes nothing about that.
+    let (pieces, answer) = running.lock().unwrap().take().unwrap();
+    drop(pieces);
+    answer.send(GraphResult { account: kept, ..Default::default() }).unwrap();
+    app.poll_graph();
+    app.poll_graph();
+    assert!(app.session.mailbox.account(kept).is_some() && app.dialog.is_none());
+    no_imap();
+}
+
+#[test]
 fn a_shared_mailbox_microsoft_wont_open_shows_no_access_and_keeps_its_mail() {
     let (mut app, _, answers, _, _) = window();
     let shared = app.execute("account.addSharedMailbox", json!({"address": SHARED})).unwrap()["id"].as_u64().unwrap();

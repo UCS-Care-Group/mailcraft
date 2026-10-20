@@ -21,7 +21,8 @@
 //!
 //! Add Shared Mailbox checks the address at once (S1): the mailbox is added, its Inbox read by
 //! its first run, and it is kept only when that worked; otherwise it is removed again and the
-//! dialog says why.
+//! dialog says why. It is kept as soon as the run's first piece (the folders) shows the Inbox
+//! read: the dialog doesn't wait for the rest of the mailbox, which comes down behind it.
 
 use mailcraft_model::sync::SharedRefusal;
 use mailcraft_model::{Account, AccountKind, Directory, FolderKind, Id};
@@ -189,9 +190,8 @@ impl MailApp {
         errors.dedup();
         // Being added: kept when its Inbox was read, else removed again with the reason (S1).
         if !asking && self.shared_checking.contains(&account) {
-            let mb = &self.session.mailbox;
-            let read = mb.folder_of_kind(account, FolderKind::Inbox).and_then(|f| mb.folder(f)).is_some_and(|f| f.server.is_some());
-            let address = mb.account(account).map(|a| a.email.trim().to_string()).unwrap_or_default();
+            let read = self.shared_inbox_read(account);
+            let address = self.session.mailbox.account(account).map(|a| a.email.trim().to_string()).unwrap_or_default();
             let outcome = match (read, self.shared_refused.get(&account)) {
                 (true, _) => Ok(()),
                 (false, Some(why)) => Err(refused_words(*why, &address)),
@@ -369,6 +369,22 @@ impl MailApp {
         if why == "approval" {
             // What to do next (#124): an administrator approves once, for everybody.
             let _ = self.run("ui.approvalHelp", json!({"account": owner}));
+        }
+    }
+
+    /// Whether the Inbox of the shared mailbox `shared` has been read from the server: its
+    /// folders came down, so Microsoft opened it for the owner.
+    fn shared_inbox_read(&self, shared: Id) -> bool {
+        let mb = &self.session.mailbox;
+        mb.folder_of_kind(shared, FolderKind::Inbox).and_then(|f| mb.folder(f)).is_some_and(|f| f.server.is_some())
+    }
+
+    /// A piece of the first run of a shared mailbox being added came in: once its Inbox has been
+    /// read, it is kept and the dialog closes, and the rest of its mail comes down behind it.
+    /// (The whole of a big mailbox can take a long while; the dialog doesn't wait for it.)
+    pub(crate) fn shared_check_piece(&mut self, shared: Id) {
+        if self.shared_checking.contains(&shared) && !self.shared_refused.contains_key(&shared) && self.shared_inbox_read(shared) {
+            self.finish_shared_check(shared, Ok(()));
         }
     }
 
