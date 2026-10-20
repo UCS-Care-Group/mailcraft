@@ -711,13 +711,25 @@ fn view(app: &MailApp) -> Tab {
     let v = &app.session.view;
     let mut tab = view_of_any(app);
     if v.module == Module::Calendar {
-        // The calendar's own: what a row of its hours stands for, and whether the calendars that
-        // are shown lie over one another or stand side by side.
-        let scale = Item::big_menu("timeScale", "clock", "Time\nScale", "Time Scale", Menu::TimeScale).at(2, 3);
+        // The calendar arranges its days, not a list of messages: in place of the messages'
+        // groups, the four views (the one in use marked), what a row of its hours stands for,
+        // and whether the calendars that are shown lie over one another or stand side by side.
+        let cur = v.calendar;
         let over = mailcraft_engine::cmd::calendar_settings::overlaid(&app.session);
-        let overlay = Item::big("copy", "Overlay", "view.overlay", no()).checked(over).at(2, 3);
-        let beside = Item::big("readingPane", "Side-by-\nSide", "view.sideBySide", no()).at(2, 3);
-        tab.groups.insert(tab.groups.len().min(3), g("Calendar", vec![scale, overlay, beside]));
+        let arrangement = g(
+            "Arrangement",
+            vec![
+                Item::big("day", "Day", "view.day", no()).checked(cur == CalView::Day).at(1, 2),
+                Item::big("workWeek", "Work\nWeek", "view.workWeek", no()).checked(cur == CalView::WorkWeek).at(1, 2),
+                Item::big("week", "Week", "view.week", no()).checked(cur == CalView::Week).at(1, 2),
+                Item::big("month", "Month", "view.month", no()).checked(cur == CalView::Month).at(1, 2),
+                Item::big_menu("timeScale", "clock", "Time\nScale", "Time Scale", Menu::TimeScale).at(2, 3),
+                Item::big("copy", "Overlay", "view.overlay", no()).checked(over).at(2, 3),
+                Item::big("readingPane", "Side-by-\nSide", "view.sideBySide", no()).at(2, 3),
+            ],
+        );
+        tab.groups.retain(|group| group.title != "Messages" && group.title != "Arrangement");
+        tab.groups.insert(tab.groups.len().min(1), arrangement);
     }
     tab
 }
@@ -1795,6 +1807,35 @@ mod tests {
         let follow_up = buttons.iter().find(|b| b.item.key == "followUp").unwrap();
         assert_eq!(follow_up.drops.len(), 5);
         assert!(follow_up.item.command.is_none() && !follow_up.is_split());
+    }
+
+    /// Calendar › View arranges the calendar (#239): its Arrangement group has Day, Work Week,
+    /// Week and Month, the one in use marked, and none of the message list's controls; Mail ›
+    /// View keeps them.
+    #[test]
+    fn the_calendar_view_tab_has_the_four_views() {
+        let mut a = app();
+        a.execute("ui.tab", json!({"tab": "View"})).unwrap();
+        let mail = describe(&a);
+        let titles = |tab: &Tab| tab.groups.iter().map(|group| group.title).collect::<Vec<_>>();
+        assert_eq!(titles(&mail), ["Layout", "Messages", "Arrangement", "Window"]);
+        assert!(mail.items().any(|item| item.key == "view.conversations") && !mail.items().any(|item| item.key == "view.day"));
+        a.execute("view.calendar", json!({})).unwrap();
+        a.execute("view.month", json!({})).unwrap();
+        let tab = describe(&a);
+        assert_eq!(titles(&tab), ["Layout", "Arrangement", "Window"]);
+        let arrangement = tab.groups.iter().find(|group| group.title == "Arrangement").unwrap();
+        let keys: Vec<&str> = arrangement.items.iter().map(|item| item.key).collect();
+        assert_eq!(keys, ["view.day", "view.workWeek", "view.week", "view.month", "timeScale", "view.overlay", "view.sideBySide"]);
+        for item in &arrangement.items[..4] {
+            assert_eq!(item.checked, item.key == "view.month", "{}", item.key);
+        }
+        for gone in ["view.conversations", "preview", "arrangeBy", "view.reverseSort"] {
+            assert!(!tab.items().any(|item| item.key == gone), "{gone}");
+        }
+        // Pressing one of them changes the view, as on Home.
+        a.execute("view.workWeek", json!({})).unwrap();
+        assert!(describe(&a).items().any(|item| item.key == "view.workWeek" && item.checked));
     }
 
     /// Labels go before buttons, the plain before the others, the least important first; the
