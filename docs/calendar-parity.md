@@ -1,6 +1,6 @@
 # Calendar: matching Outlook
 
-Status: working list, 2026-10-12 (seventh revision: the fourth wave is in; sixth: time zones; fifth: a change that doesn't reach the server can't go unnoticed). The owner's bar for the
+Status: working list, 2026-10-19 (eighth revision: the views on View › Arrangement too; seventh: the fourth wave is in; sixth: time zones; fifth: a change that doesn't reach the server can't go unnoticed). The owner's bar for the
 calendar is "behaves exactly like Outlook"; this is the list that bar is checked against.
 Behaviour is written down from using Outlook for Windows (classic) as a black box; nothing of it
 is copied but how it behaves.
@@ -13,7 +13,7 @@ server; what has met the real Microsoft 365 service is only what the owner has u
 
 | Outlook does | MailCraft |
 |---|---|
-| Day, Work Week, Week, Month views, switched from the ribbon and with Ctrl+Alt+1…4 | Done (the ribbon and the keys are the only switch, as in Outlook; the Simplified ribbon labels them) |
+| Day, Work Week, Week, Month views, switched from the ribbon and with Ctrl+Alt+1…4 | Done (Home › Arrange and View › Arrangement, where the calendar's View tab has them in place of the messages' sorting and preview (#239); the ribbon and the keys are the only switch, as in Outlook; the Simplified ribbon labels them) |
 | Schedule view (people or calendars as rows) | Later |
 | Today, Back, Forward; the title names the range; Next 7 Days | Done |
 | Date navigator: click a day, a week, drag over days; shows more months when the pane is tall; bold days have events | Done (a drag is one run of up to 14 days; a click in the week margin shows that week) |
@@ -226,3 +226,4 @@ item's original zone when another program made the item.
 | 2026-10-12 | Of the third wave: the calendar list by group, calendars side by side and overlaid, working hours from the mailbox, a reminder opening its occurrence; calendars other than the account's own arrive unticked |
 | 2026-10-12 | The fourth wave is in (M3.4): Teams meetings, importance, response options, Propose New Time, forwarding, moving appointments between calendars; the known differences that came with them |
 | 2026-10-12 | Time zones (M3.5): the calendar's zone and a second one, zones of an item's own in its window, on Microsoft 365 and in `.ics`, working hours in the mailbox's zone, a computer that travels; the known differences that came with them |
+| 2026-10-19 | The calendar's View tab has the four views in Arrangement, and no longer the messages' sorting and preview (#239) |
