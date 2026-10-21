@@ -6,6 +6,7 @@
 - **Reminder windows** follow the main window's light or dark theme, and carry its icon.
 
 **Fixes**
+- Show in Groups (View › Arrange By) turns the date headings off for one continuous list, and Single Line (View › Message Preview) shows each message on one line; thanks to @Schintilla for asking ([#214](https://github.com/GITHUB_REPOSITORY/issues/214)).
 - Ctrl+Q marks the selected messages read and no longer also closes the window ([#269](https://github.com/GITHUB_REPOSITORY/issues/269)).
 - Calendar › View shows the four calendar views in place of the messages' controls ([#239](https://github.com/GITHUB_REPOSITORY/issues/239)).
 - Add Shared Mailbox no longer waits for a Send/Receive already under way ([#70](https://github.com/GITHUB_REPOSITORY/issues/70)).

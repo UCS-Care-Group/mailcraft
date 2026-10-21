@@ -997,12 +997,18 @@ fn menu_contents(ui: &mut Ui, app: &mut MailApp, menu: Menu) {
             for (label, n) in [("Off", 0u8), ("1 Line", 1), ("2 Lines", 2), ("3 Lines", 3)] {
                 mi_check(ui, app, label, lines == n, "view.previewLines", json!({"value": n}));
             }
+            ui.separator();
+            let one = app.session.prefs.one_line;
+            mi_check(ui, app, "Single Line", one, "view.oneLine", json!({"value": !one}));
         }
         Menu::ArrangeBy => {
             let sort = app.session.view.sort;
             for s in SortBy::ALL {
                 mi_check(ui, app, s.label(), sort == s, "view.sort", json!({"by": s}));
             }
+            ui.separator();
+            let groups = app.session.prefs.show_groups;
+            mi_check(ui, app, "Show in Groups", groups, "view.groups", json!({"value": !groups}));
         }
         Menu::Theme => {
             let theme = app.ui.theme;

@@ -5837,6 +5837,11 @@ msgstr ""
 msgid "Show in Calendar"
 msgstr ""
 
+#. command label, interface
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
+msgid "Show in Groups"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "Show in the time bar"
@@ -6052,6 +6057,11 @@ msgstr ""
 #. name
 #: crates/ui-egui/src/ribbon.rs
 msgid "Simplified Ribbon"
+msgstr ""
+
+#. command label, interface
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
+msgid "Single Line"
 msgstr ""
 
 #. interface, name
