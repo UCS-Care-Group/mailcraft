@@ -722,14 +722,15 @@ fn view(app: &MailApp) -> Tab {
         let over = mailcraft_engine::cmd::calendar_settings::overlaid(&app.session);
         let overlay = Item::big("copy", "Overlay", "view.overlay", no()).checked(over).at(2, 3);
         let beside = Item::big("readingPane", "Side-by-\nSide", "view.sideBySide", no()).at(2, 3);
-        let mail = 1..tab.groups.len().min(3);
-        tab.groups.splice(mail, [g("Arrangement", calendar_views(v.calendar, 1)), g("Calendar", vec![scale, overlay, beside])]);
+        tab.groups.retain(|group| group.title != "Messages" && group.title != "Arrangement");
+        let after_layout = tab.groups.len().min(1);
+        tab.groups.splice(after_layout..after_layout, [g("Arrangement", calendar_views(v.calendar, 1)), g("Calendar", vec![scale, overlay, beside])]);
     }
     tab
 }
 
 /// The View tab as every module has it: Layout, then the messages' two groups (which the calendar
-/// replaces with its own), then Window.
+/// replaces with its own, by their titles), then Window.
 fn view_of_any(app: &MailApp) -> Tab {
     let v = &app.session.view;
     Tab::of(vec![
@@ -1831,20 +1832,30 @@ mod tests {
     #[test]
     fn the_calendar_view_tab_has_its_views() {
         let mail_only = ["view.conversations", "preview", "arrangeBy", "view.reverseSort"];
+        let views = ["view.day", "view.workWeek", "view.week", "view.month"];
+        let checked_view = |a: &MailApp| -> Vec<&str> {
+            describe(a).items().filter(|item| views.contains(&item.key) && item.checked).map(|item| item.key).collect()
+        };
         let mut a = app();
         a.execute("view.calendar", json!({})).unwrap();
         a.execute("ui.tab", json!({"tab": "View"})).unwrap();
         let tab = describe(&a);
         assert_eq!(tab.groups.iter().map(|g| g.title).collect::<Vec<_>>(), ["Layout", "Arrangement", "Calendar", "Window"]);
-        let views: Vec<(&str, bool)> = tab.groups[1].items.iter().map(|item| (item.key, item.checked)).collect();
-        assert_eq!(views, [("view.day", false), ("view.workWeek", false), ("view.week", true), ("view.month", false)]);
+        let arrangement: Vec<(&str, bool, u8, u8)> =
+            tab.groups[1].items.iter().map(|item| (item.key, item.checked, item.section, item.rank)).collect();
+        assert_eq!(arrangement, [("view.day", false, 1, 2), ("view.workWeek", false, 1, 2), ("view.week", true, 1, 2), ("view.month", false, 1, 2)]);
+        // The calendar's own group is as it was.
+        let calendar: Vec<&str> = tab.groups[2].items.iter().map(|item| item.key).collect();
+        assert_eq!(calendar, ["timeScale", "view.overlay", "view.sideBySide"]);
         assert!(!tab.items().any(|item| mail_only.contains(&item.key)));
-        a.execute("view.month", json!({})).unwrap();
-        let checked: Vec<&str> = describe(&a).items().filter(|item| item.key.starts_with("view.") && item.checked).map(|item| item.key).collect();
-        assert!(checked.contains(&"view.month") && !checked.contains(&"view.week"));
+        // Each view, pressed, is the one marked.
+        for view in views {
+            a.execute(view, json!({})).unwrap();
+            assert_eq!(checked_view(&a), [view]);
+        }
         a.execute("view.mail", json!({})).unwrap();
         let tab = describe(&a);
-        assert!(!tab.items().any(|item| item.key == "view.day"));
+        assert!(!tab.items().any(|item| views.contains(&item.key)));
         assert!(mail_only.iter().all(|key| tab.items().any(|item| item.key == *key)));
     }
 
