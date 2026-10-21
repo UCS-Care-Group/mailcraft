@@ -439,6 +439,24 @@ fn the_theme_follows_the_system_until_one_is_chosen() {
     assert!(dark(&harness));
 }
 
+/// #266: a window of its own reports a theme of its own (light, on Linux), and egui keeps the
+/// last pass's, whichever window it was. `logic` runs between passes, so the theme must come from
+/// the main window's input, not from whichever window drew last.
+#[test]
+fn another_windows_theme_does_not_change_the_system_theme() {
+    let mut app = app();
+    let ctx = egui::Context::default();
+    let pass = |viewport: egui::ViewportId, theme: Option<egui::Theme>| {
+        let viewports = std::iter::once((viewport, egui::ViewportInfo::default())).collect();
+        let raw = egui::RawInput { viewport_id: viewport, viewports, system_theme: theme, ..Default::default() };
+        ctx.run_ui(raw, |_| {}).drop_without_applying_deltas();
+    };
+    pass(egui::ViewportId::ROOT, Some(egui::Theme::Dark));
+    pass(egui::ViewportId::from_hash_of("appointment"), Some(egui::Theme::Light));
+    app.logic(&ctx);
+    assert!(crate::theme::Tokens::get(&ctx).dark, "the main window is dark, so the program is");
+}
+
 /// An account that signs in on its provider's page: Send/Receive has the host sign in first and
 /// takes the token along (a password is never asked for), reuses it while it is good, renews it
 /// after a refusal, and the wait can be given up.

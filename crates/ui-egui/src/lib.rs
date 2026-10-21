@@ -2781,7 +2781,7 @@ impl MailApp {
             self.styled = true;
         }
         // Settled from the main window's input, so every window has the same theme.
-        let preference = self.ui.theme.preference(ctx.system_theme());
+        let preference = self.ui.theme.preference(theme::main_system_theme(ctx));
         if self.applied_theme != Some(preference) {
             theme::apply(ctx, preference);
             self.applied_theme = Some(preference);
