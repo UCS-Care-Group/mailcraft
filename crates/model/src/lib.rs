@@ -42,7 +42,8 @@ pub use mailbox::{
 };
 pub use mailcraft_time as time;
 pub use message::{
-    Answers, Attachment, Body, ContentRef, FlagStatus, Importance, KeptBody, Message, normalize_subject, size_label, size_label_in, text_hash,
+    Answers, Attachment, Body, ContentRef, FlagStatus, Importance, KeptBody, Message, NOT_DOWNLOADED, normalize_subject, size_label, size_label_in,
+    text_hash,
 };
 pub use offline::{KeepOffline, OfflineWindow};
 pub use remote::Origin;

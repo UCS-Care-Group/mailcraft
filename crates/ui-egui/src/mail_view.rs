@@ -580,8 +580,6 @@ fn list(app: &mut MailApp, ui: &mut Ui) {
     }
 }
 
-/// Whether a row names the folder its message is in, before its preview: in a search of every
-/// mailbox, as Outlook's rows do (#195); in one folder the owner knows which it is.
 /// How wide the folder a search result is in may be drawn: the time's column.
 const FOLDER_W: f32 = TEXT_RIGHT - TIME_RIGHT;
 
@@ -610,6 +608,8 @@ fn paint_result_folder(p: &egui::Painter, end: egui::Pos2, label: &str, t: &Toke
     icon
 }
 
+/// Whether a row names the folder its message is in, under the time: in a search of every
+/// mailbox, as Outlook's rows do (#195); in one folder the owner knows which it is.
 fn shows_folder(s: &mailcraft_engine::Session) -> bool {
     s.view.scope == mailcraft_engine::Scope::Everywhere && !mailcraft_model::search::Query::parse(&s.view.search).is_empty()
 }
@@ -869,9 +869,10 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect) {
     let date_w = if one { one_date_w } else { p.text(pos2(time_end, line2), Align2::RIGHT_CENTER, &date, date_font, date_color).width() };
     let mut subject_end = if one { time_end } else { text_end.min(time_end - date_w - 8.0) };
 
-    // In a search of every mailbox the folder it is in, then category marks and the size of a
-    // conversation: at the right of the preview's first line, under the time, or before the time
-    // when no preview is shown.
+    // Arranged by size, the message's size (#273); in a search of every mailbox the folder it is
+    // in; then category marks and the size of a conversation: at the right of the preview's first
+    // line, under the time, before the time when no preview is shown, or before the marks in a
+    // single line.
     let lines = if one { 0 } else { app.session.prefs.preview_lines.min(3) };
     let preview_y = rect.min.y + PREVIEW_TOP + PREVIEW_PITCH / 2.0 + 0.5;
     let (mut sx, tail_y) = if one {
@@ -881,10 +882,18 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect) {
     } else {
         (time_end - date_w - 8.0, line2)
     };
+    if let Some(bytes) = (app.session.view.sort == SortBy::Size).then(|| m.list_size()).flatten() {
+        // Never "900 bytes": a row says KB at the least, as the size of a picture does.
+        let label = mailcraft_model::size_label_in(crate::i18n::current(), bytes.max(1024));
+        let at = p.text(pos2(sx, tail_y), Align2::RIGHT_CENTER, label, regular(LIST_TEXT), t.text_dim);
+        app.hit.add("messageSize", row.id, at);
+        sx = at.min.x - 6.0;
+    }
     if let Some(folder) = shows_folder(&app.session).then(|| app.session.mailbox.folder(m.folder)).flatten() {
         let label = crate::nav::result_folder_label(&app.session.mailbox, folder);
-        sx = paint_result_folder(p, pos2(sx, tail_y), &label, &t) - 6.0;
-        app.hit.add("messageFolder", row.id, Rect::from_min_max(pos2(sx + 6.0, tail_y - 7.0), pos2(time_end, tail_y + 7.0)));
+        let end = sx;
+        sx = paint_result_folder(p, pos2(end, tail_y), &label, &t) - 6.0;
+        app.hit.add("messageFolder", row.id, Rect::from_min_max(pos2(sx + 6.0, tail_y - 7.0), pos2(end, tail_y + 7.0)));
     }
     for c in m.categories.iter().take(4) {
         let color = crate::theme::c32(app.session.mailbox.category_color(c));
@@ -1513,5 +1522,50 @@ mod tests {
         assert_eq!(crate::nav::result_folder_label(mb, mb.folder(second).unwrap()), "Inbox - Work");
         assert!(crate::nav::result_folder_label(mb, mb.folder(first).unwrap()).starts_with("Inbox - "));
         assert_eq!(crate::nav::result_folder_label(mb, mb.folder(projects).unwrap()), "Projects", "a name only one has");
+    }
+
+    /// #273: arranged by size, each row says its message's size where the folder of a search
+    /// result goes: under the time, or before it with no preview; in a search of every mailbox
+    /// the size is nearest the time and the folder before it. Otherwise no row says it.
+    #[test]
+    fn arranged_by_size_each_row_says_its_size() {
+        let mut harness = window(app(), (1200.0, 800.0));
+        let sizes = |harness: &mut Window| -> Vec<(Row, Rect, Option<Rect>)> {
+            drawn(harness).into_iter().map(|(row, rect)| (row.clone(), rect, harness.state().hit.rect("messageSize", row.id))).collect()
+        };
+        assert!(sizes(&mut harness).iter().all(|(_, _, size)| size.is_none()), "arranged by date");
+
+        harness.state_mut().execute("view.sort", json!({"by": "size", "descending": true})).unwrap();
+        harness.run_steps(3);
+        let rows = sizes(&mut harness);
+        assert!(rows.len() > 3);
+        for (row, rect, size) in &rows {
+            let size = size.unwrap_or_else(|| panic!("row {} says no size", row.id));
+            // Right-aligned at the time's end, on the preview's first line: under the time.
+            assert!((size.max.x - (rect.max.x - TIME_RIGHT)).abs() <= 1.0, "row {}: {size:?} in {rect:?}", row.id);
+            assert!(size.min.y > rect.min.y + PREVIEW_TOP - 2.0 && size.max.y < rect.max.y, "row {}", row.id);
+            assert!(size.width() < FOLDER_W, "row {}: the time's column", row.id);
+        }
+
+        // With no preview, on the subject's line before the time.
+        harness.state_mut().execute("view.previewLines", json!({"value": 0})).unwrap();
+        harness.run_steps(3);
+        for (row, rect, size) in sizes(&mut harness) {
+            let size = size.unwrap_or_else(|| panic!("row {} says no size", row.id));
+            assert!(size.max.x < rect.max.x - TIME_RIGHT - 20.0, "row {}: before the time", row.id);
+            assert!(size.center().y > rect.center().y, "row {}: on the subject's line", row.id);
+        }
+        harness.state_mut().execute("view.previewLines", json!({"value": 1})).unwrap();
+
+        // A search of every mailbox: the size, then the folder before it.
+        harness.state_mut().execute("view.search", json!({"query": "the", "scope": "everywhere"})).unwrap();
+        harness.run_steps(3);
+        let rows = sizes(&mut harness);
+        assert!(!rows.is_empty());
+        for (row, _, size) in &rows {
+            let size = size.unwrap_or_else(|| panic!("row {} says no size", row.id));
+            let folder = at(&harness, "messageFolder", row.id);
+            assert!(folder.max.x <= size.min.x, "row {}: {folder:?} before {size:?}", row.id);
+        }
     }
 }

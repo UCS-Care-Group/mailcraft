@@ -122,6 +122,9 @@ pub fn text_hash(text: &str) -> u64 {
     h.finish()
 }
 
+/// The header `mailcraft-net` gives a message too large to download, with its size on the server.
+pub const NOT_DOWNLOADED: &str = "X-MailCraft-Not-Downloaded";
+
 /// A byte count for people.
 pub fn size_label(bytes: u64) -> String {
     size_label_in(mailcraft_i18n::Lang::English, bytes)
@@ -349,6 +352,21 @@ impl Message {
         if t.is_empty() { format!("\u{0}{}", self.id) } else { t }
     }
 
+    /// Its size as the message list shows and sorts it (#273): [`Message::size`] when all of it is
+    /// here. A Microsoft account's message of which only the headers and a preview are here has
+    /// the size its server said, and `None` when the server said none. `None` too for one with the
+    /// mark of an IMAP message too large to download: the size the mark gives is not believed,
+    /// since any sender can write a header of that name into a message.
+    pub fn list_size(&self) -> Option<u64> {
+        if self.unfetched || self.incomplete {
+            return self.server.as_ref().map(|s| s.size).filter(|size| *size > 0);
+        }
+        if self.headers.iter().any(|(name, _)| name.eq_ignore_ascii_case(NOT_DOWNLOADED)) {
+            return None;
+        }
+        Some(self.size())
+    }
+
     /// Size in bytes, roughly: text, HTML and attachments, in memory or where they are kept.
     pub fn size(&self) -> u64 {
         let kept = self.kept.as_deref();
@@ -433,6 +451,27 @@ mod tests {
             assert_eq!(size_label_in(mailcraft_i18n::Lang::French, 5 * 1024 * 1024 / 2), "2,5 Mo");
         });
         assert_eq!(Importance::parse("HIGH"), Some(Importance::High));
+    }
+
+    /// #273: the list's size is the message's own when all of it is here, its server's when only
+    /// its headers and preview are, and none when the server didn't say or only a header does.
+    #[test]
+    fn the_list_size_is_the_servers_for_what_isnt_here() {
+        let whole = Message { body: Body { text: "x".repeat(2000), html: None }, ..Default::default() };
+        assert_eq!(whole.list_size(), Some(2000));
+        let server = |size: u64| Some(crate::sync::ServerMessage { size, ..Default::default() });
+        let preview = Body { text: "Only the start".into(), html: None };
+        let unfetched = Message { body: preview.clone(), unfetched: true, server: server(30 << 20), ..Default::default() };
+        assert_eq!(unfetched.list_size(), Some(30 << 20));
+        let incomplete = Message { body: preview.clone(), incomplete: true, server: server(4096), ..Default::default() };
+        assert_eq!(incomplete.list_size(), Some(4096));
+        assert_eq!(Message { unfetched: true, server: server(0), ..Default::default() }.list_size(), None);
+        assert_eq!(Message { unfetched: true, ..Default::default() }.list_size(), None);
+        // Too large to download, or a sender's header of that name: not believed either way.
+        for name in [NOT_DOWNLOADED, "x-mailcraft-not-downloaded"] {
+            let marked = Message { body: preview.clone(), headers: vec![(name.into(), "62914560".into())], ..Default::default() };
+            assert_eq!(marked.list_size(), None, "{name}");
+        }
     }
 
     #[test]
