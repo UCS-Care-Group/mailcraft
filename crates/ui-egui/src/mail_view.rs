@@ -608,6 +608,14 @@ fn paint_result_folder(p: &egui::Painter, end: egui::Pos2, label: &str, t: &Toke
     icon
 }
 
+/// What a row says of its message's size (#273): only while the list is arranged by size, and
+/// only when the size is known ([`Message::list_size`]); never "900 bytes", but KB at the least,
+/// as the size of a picture is said.
+fn size_label(s: &mailcraft_engine::Session, m: &Message) -> Option<String> {
+    let bytes = (s.view.sort == SortBy::Size).then(|| m.list_size()).flatten()?;
+    Some(mailcraft_model::size_label_in(crate::i18n::current(), bytes.max(1024)))
+}
+
 /// Whether a row names the folder its message is in, under the time: in a search of every
 /// mailbox, as Outlook's rows do (#195); in one folder the owner knows which it is.
 fn shows_folder(s: &mailcraft_engine::Session) -> bool {
@@ -882,9 +890,7 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect) {
     } else {
         (time_end - date_w - 8.0, line2)
     };
-    if let Some(bytes) = (app.session.view.sort == SortBy::Size).then(|| m.list_size()).flatten() {
-        // Never "900 bytes": a row says KB at the least, as the size of a picture does.
-        let label = mailcraft_model::size_label_in(crate::i18n::current(), bytes.max(1024));
+    if let Some(label) = size_label(&app.session, &m) {
         let at = p.text(pos2(sx, tail_y), Align2::RIGHT_CENTER, label, regular(LIST_TEXT), t.text_dim);
         app.hit.add("messageSize", row.id, at);
         sx = at.min.x - 6.0;
@@ -1529,7 +1535,24 @@ mod tests {
     /// the size is nearest the time and the folder before it. Otherwise no row says it.
     #[test]
     fn arranged_by_size_each_row_says_its_size() {
-        let mut harness = window(app(), (1200.0, 800.0));
+        let mut a = app();
+        // Of a Microsoft account's message only the start is here; another has the mark of a
+        // message too large to download, which any sender could have written.
+        let ids: Vec<Id> = a.session.rows().iter().map(|row| row.id).collect();
+        let (partial, marked, whole) = (ids[1], ids[2], ids[3]);
+        let m = a.session.mailbox.message_mut(partial).unwrap();
+        m.body = mailcraft_model::Body { text: "Only the start".into(), html: None };
+        m.attachments.clear();
+        m.unfetched = true;
+        m.server = Some(mailcraft_model::sync::ServerMessage { size: 5 << 19, ..Default::default() });
+        a.session.mailbox.message_mut(marked).unwrap().headers.push((mailcraft_model::NOT_DOWNLOADED.into(), "62914560".into()));
+        let said = |a: &MailApp, id: Id| size_label(&a.session, a.session.mailbox.message(id).unwrap());
+        assert_eq!((said(&a, partial), said(&a, whole)), (None, None), "arranged by date");
+        a.execute("view.sort", json!({"by": "size", "descending": true})).unwrap();
+        assert_eq!((said(&a, partial), said(&a, marked), said(&a, whole)), (Some("2.5 MB".into()), None, Some("1 KB".into())));
+        a.execute("view.sort", json!({"by": "date"})).unwrap();
+
+        let mut harness = window(a, (1200.0, 800.0));
         let sizes = |harness: &mut Window| -> Vec<(Row, Rect, Option<Rect>)> {
             drawn(harness).into_iter().map(|(row, rect)| (row.clone(), rect, harness.state().hit.rect("messageSize", row.id))).collect()
         };
@@ -1539,7 +1562,11 @@ mod tests {
         harness.run_steps(3);
         let rows = sizes(&mut harness);
         assert!(rows.len() > 3);
-        for (row, rect, size) in &rows {
+        // Largest on top after what is pinned: the message whose server gave its size.
+        assert_eq!(rows.iter().find(|(row, _, _)| !message(&harness, row.id).pinned).map(|(row, _, _)| row.id), Some(partial));
+        // The one with the mark says nothing; every other row says its size.
+        assert!(harness.state().hit.rect("messageSize", marked).is_none());
+        for (row, rect, size) in rows.iter().filter(|(row, _, _)| row.id != marked) {
             let size = size.unwrap_or_else(|| panic!("row {} says no size", row.id));
             // Right-aligned at the time's end, on the preview's first line: under the time.
             assert!((size.max.x - (rect.max.x - TIME_RIGHT)).abs() <= 1.0, "row {}: {size:?} in {rect:?}", row.id);
@@ -1550,7 +1577,7 @@ mod tests {
         // With no preview, on the subject's line before the time.
         harness.state_mut().execute("view.previewLines", json!({"value": 0})).unwrap();
         harness.run_steps(3);
-        for (row, rect, size) in sizes(&mut harness) {
+        for (row, rect, size) in sizes(&mut harness).into_iter().filter(|(row, _, _)| row.id != marked) {
             let size = size.unwrap_or_else(|| panic!("row {} says no size", row.id));
             assert!(size.max.x < rect.max.x - TIME_RIGHT - 20.0, "row {}: before the time", row.id);
             assert!(size.center().y > rect.center().y, "row {}: on the subject's line", row.id);
@@ -1562,7 +1589,7 @@ mod tests {
         harness.run_steps(3);
         let rows = sizes(&mut harness);
         assert!(!rows.is_empty());
-        for (row, _, size) in &rows {
+        for (row, _, size) in rows.iter().filter(|(row, _, _)| row.id != marked) {
             let size = size.unwrap_or_else(|| panic!("row {} says no size", row.id));
             let folder = at(&harness, "messageFolder", row.id);
             assert!(folder.max.x <= size.min.x, "row {}: {folder:?} before {size:?}", row.id);
