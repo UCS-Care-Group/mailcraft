@@ -158,10 +158,13 @@ fn row_height(preview_lines: u8) -> f32 {
 /// A row of the single-line list: the sender, the subject, the marks and the time on one line.
 const ONE_LINE_H: f32 = 32.0;
 
+/// The least a single-line row leaves for the sender's name.
+const ONE_LINE_SENDER_MIN: f32 = 70.0;
+
 /// How wide the sender's name is in a single-line row, of the room the row has for text: a third,
 /// not less than 90 or more than 220 (and never more than the room).
 fn one_line_sender_width(room: f32) -> f32 {
-    (room / 3.0).clamp(70.0, 220.0).min(room.max(0.0))
+    (room / 3.0).clamp(ONE_LINE_SENDER_MIN, 220.0).min(room.max(0.0))
 }
 
 /// A group heading of the list in the interface language: the engine's dates (`Today`) are
@@ -864,23 +867,29 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect) {
     } else if m.forwarded {
         marker("forward", t.text_dim);
     }
+    // Arranged by size, the message's size (#273); in a single line it comes before the marks, so
+    // the sender's name stops short of it there, and a line with no room for both keeps the name.
+    let size = size_label(&app.session, &m)
+        .map(|label| p.layout_no_wrap(label, regular(LIST_TEXT), t.text_dim))
+        .filter(|g| !one || x - 4.0 - (g.size().x + 6.0) >= left + ONE_LINE_SENDER_MIN);
+    let size_room = if one { size.as_ref().map_or(0.0, |g| g.size().x + 6.0) } else { 0.0 };
     let who_font = if unread { semibold(SENDER_TEXT) } else { regular(SENDER_TEXT) };
-    let who_end = if one { (left + one_line_sender_width(time_end - left)).min(x - 4.0) } else { text_end.min(x - 4.0) };
+    let who_end = if one { (left + one_line_sender_width(time_end - left)).min(x - 4.0 - size_room) } else { text_end.min(x - 4.0) };
     let mut who_x = left;
     if m.draft {
         let w = paint_clipped(p, pos2(left, line1), (who_end - left).max(0.0), tl!("[Draft]"), regular(SENDER_TEXT), t.red);
         who_x += w + 5.0;
     }
-    paint_clipped(p, pos2(who_x, line1), (who_end - who_x).max(0.0), &who, who_font, if overdue { t.overdue } else { t.text });
+    let w = paint_clipped(p, pos2(who_x, line1), (who_end - who_x).max(0.0), &who, who_font, if overdue { t.overdue } else { t.text });
+    app.hit.add("messageSender", row.id, Rect::from_min_max(pos2(left, line1 - 7.0), pos2(who_x + w, line1 + 7.0)));
 
     // The subject's line, with the time at its end.
     let date_w = if one { one_date_w } else { p.text(pos2(time_end, line2), Align2::RIGHT_CENTER, &date, date_font, date_color).width() };
     let mut subject_end = if one { time_end } else { text_end.min(time_end - date_w - 8.0) };
 
-    // Arranged by size, the message's size (#273); in a search of every mailbox the folder it is
-    // in; then category marks and the size of a conversation: at the right of the preview's first
-    // line, under the time, before the time when no preview is shown, or before the marks in a
-    // single line.
+    // The size; in a search of every mailbox the folder it is in; then category marks and the
+    // size of a conversation: at the right of the preview's first line, under the time, before
+    // the time when no preview is shown, or before the marks in a single line.
     let lines = if one { 0 } else { app.session.prefs.preview_lines.min(3) };
     let preview_y = rect.min.y + PREVIEW_TOP + PREVIEW_PITCH / 2.0 + 0.5;
     let (mut sx, tail_y) = if one {
@@ -890,8 +899,9 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect) {
     } else {
         (time_end - date_w - 8.0, line2)
     };
-    if let Some(label) = size_label(&app.session, &m) {
-        let at = p.text(pos2(sx, tail_y), Align2::RIGHT_CENTER, label, regular(LIST_TEXT), t.text_dim);
+    if let Some(galley) = size {
+        let at = Align2::RIGHT_CENTER.anchor_size(pos2(sx, tail_y), galley.size());
+        p.galley(at.min, galley, t.text_dim);
         app.hit.add("messageSize", row.id, at);
         sx = at.min.x - 6.0;
     }
@@ -1604,5 +1614,45 @@ mod tests {
             let folder = at(&harness, "messageFolder", row.id);
             assert!(folder.max.x <= size.min.x, "row {}: {folder:?} before {size:?}", row.id);
         }
+    }
+
+    /// #273: in a single line, in a list as narrow as it goes, the sender's name stops short of
+    /// the size, and a row with every mark, which has no room for both, keeps the name.
+    #[test]
+    fn in_a_narrow_single_line_the_sender_stops_short_of_the_size() {
+        let mut a = app();
+        a.ui.list_width = 240.0;
+        let ids: Vec<Id> = a.session.rows().iter().map(|row| row.id).collect();
+        // Every other row with every mark.
+        for id in ids.iter().step_by(2) {
+            let m = a.session.mailbox.message_mut(*id).unwrap();
+            m.from.name = "Bartholomew Featherstonehaugh".into();
+            (m.importance, m.answered) = (Importance::High, true);
+            m.attachments.push(mailcraft_model::Attachment::new("a.pdf", "application/pdf", vec![1]));
+        }
+        a.execute("view.sort", json!({"by": "size", "descending": true})).unwrap();
+        a.execute("view.oneLine", json!({"value": true})).unwrap();
+        let mut harness = window(a, (760.0, 800.0));
+        let rows = drawn(&mut harness);
+        assert!(rows.len() > 3);
+        let (mut said, mut left_out) = (0, 0);
+        for (row, rect) in rows {
+            assert!(rect.width() < 260.0, "{rect:?}");
+            let sender = at(&harness, "messageSender", row.id);
+            if harness.state().hit.rect("messageSize", row.id).is_none() {
+                assert!(sender.width() > 0.0, "row {}: the name is drawn", row.id);
+                left_out += 1;
+            }
+            if let Some(size) = harness.state().hit.rect("messageSize", row.id) {
+                assert!(sender.max.x <= size.min.x, "row {}: {sender:?} runs into {size:?}", row.id);
+                // Never for less than a single line's least room for the name.
+                if message(&harness, row.id).answered {
+                    assert!(sender.width() >= ONE_LINE_SENDER_MIN - 12.0, "row {}: {sender:?}", row.id);
+                }
+                said += 1;
+            }
+        }
+        // Some rows have room for it, and some, crowded with marks, haven't.
+        assert!(said > 0 && left_out > 0, "{said} said, {left_out} left out");
     }
 }

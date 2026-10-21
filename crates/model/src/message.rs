@@ -456,7 +456,8 @@ mod tests {
     }
 
     /// #273: the list's size is the message's own when all of it is here, its server's when only
-    /// its headers and preview are, and none when the server didn't say or only a header does.
+    /// its headers and preview are and the server said one, what is here when it didn't, and none
+    /// when only a header says.
     #[test]
     fn the_list_size_is_the_servers_for_what_isnt_here() {
         let whole = Message { body: Body { text: "x".repeat(2000), html: None }, ..Default::default() };
