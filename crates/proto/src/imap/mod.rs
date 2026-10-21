@@ -708,6 +708,11 @@ impl<S: Read + Write> Imap<S> {
         Ok(Command::new("UID FETCH").arg(set).arg(items))
     }
 
+    /// How many commands have been sent on this connection (the tags used so far).
+    pub fn commands(&self) -> u32 {
+        self.next_tag.wrapping_sub(1)
+    }
+
     /// The tag of the next command.
     fn tag(&mut self) -> String {
         let tag = format!("A{:04}", self.next_tag);

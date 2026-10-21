@@ -376,7 +376,16 @@ pub fn apply_graph_mail(s: &mut Session, result: GraphMailResult) -> CmdResult {
         (None, None, true) => None,
     };
     let folders = result.progress.as_ref().map(|p| (p.number, p.folders));
-    let piece = Piece { step, folders, new: down.new, sent, problems: &errors, last: !result.partial, stopped: result.stopped };
+    let piece = Piece {
+        step,
+        folders,
+        new: down.new,
+        sent,
+        problems: &errors,
+        last: !result.partial,
+        stopped: result.stopped,
+        timings: Some(&result.timings),
+    };
     s.sync_progress.take(account, piece);
     if !result.pages.is_empty() || result.whole {
         s.sync_progress.count_full(&s.mailbox, account, s.now());

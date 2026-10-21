@@ -564,6 +564,9 @@ pub struct SyncResult {
     /// The run was called off before it had done all there was to do (in the last piece).
     #[serde(skip_serializing_if = "is_false")]
     pub stopped: bool,
+    /// How long this piece's part of the run took, and how many requests it made (#276).
+    #[serde(skip_serializing_if = "Timings::is_empty")]
+    pub timings: Timings,
 }
 
 impl SyncResult {
@@ -593,6 +596,7 @@ impl SyncResult {
     pub fn absorb(&mut self, later: SyncResult) {
         (self.account, self.email) = (later.account, later.email);
         (self.partial, self.progress, self.step, self.stopped) = (later.partial, later.progress, later.step, later.stopped);
+        self.timings.absorb(&later.timings);
         if !later.listed.is_empty() {
             self.listed = later.listed;
         }
@@ -1066,6 +1070,9 @@ pub struct GraphMailResult {
     /// own code ([`SharedRefusal`]). A host doesn't ask again by itself until the owner does.
     #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "lenient")]
     pub refused: Option<SharedRefusal>,
+    /// How long this piece's part of the run took, and how many requests it made (#276).
+    #[serde(skip_serializing_if = "Timings::is_empty")]
+    pub timings: Timings,
 }
 
 /// Why Microsoft won't open a shared mailbox for the owner of the token (#70), told apart by
@@ -1109,6 +1116,7 @@ impl GraphMailResult {
         self.pages.extend(piece.pages);
         (self.partial, self.whole, self.stopped) = (piece.partial, piece.whole, piece.stopped);
         self.refused = piece.refused.or(self.refused);
+        self.timings.absorb(&piece.timings);
         if piece.progress.is_some() {
             self.progress = piece.progress;
         }

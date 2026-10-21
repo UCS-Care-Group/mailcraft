@@ -80,7 +80,7 @@ pub(crate) fn push(run: &mut Run, imap: &mut Imap<Stream<'_>>, mailboxes: &[Mail
         let here: Vec<&RemoteOp> = ops.iter().copied().filter(|op| op.mailbox() == remote).collect();
         let alive = push.mailbox(imap, remote, &here, &mut run.out);
         if run.out.has_news() || !run.out.errors.is_empty() {
-            run.hand_over(SyncStep::new(SyncStage::Updating, &label(remote), 0, 0));
+            run.hand_over_in(imap, SyncStep::new(SyncStage::Updating, &label(remote), 0, 0));
         }
         if !alive {
             return None;

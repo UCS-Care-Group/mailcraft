@@ -611,6 +611,7 @@ pub fn apply_sync_part(s: &mut Session, run: &mut SyncTotals, mut result: SyncRe
         problems: &result.errors,
         last: !partial,
         stopped,
+        timings: Some(&result.timings),
     };
     s.sync_progress.take(account, piece);
     run.new += counts.new;

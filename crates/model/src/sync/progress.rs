@@ -32,6 +32,66 @@ impl SyncPhase {
     }
 }
 
+/// How long a phase of a run took, and how many requests it made (#276): measured where the
+/// requests happen and carried on the pieces of a run, so that a slow mailbox can be told from a
+/// slow connection. Nothing in it names an address or a folder.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PhaseTime {
+    pub phase: SyncPhase,
+    /// Wall-clock milliseconds.
+    pub millis: u64,
+    /// Requests to the server (HTTP requests for Graph, commands for a mail server).
+    pub requests: u32,
+}
+
+/// What a piece of a run says of the time it took: the time and requests since the piece before,
+/// by phase, and the folders it left out because they hadn't changed.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct Timings {
+    pub phases: Vec<PhaseTime>,
+    pub skipped: u32,
+}
+
+impl Timings {
+    pub fn is_empty(&self) -> bool {
+        self.phases.is_empty() && self.skipped == 0
+    }
+
+    /// Add time and requests to a phase (nothing for none of either).
+    pub fn add(&mut self, phase: SyncPhase, millis: u64, requests: u32) {
+        if millis == 0 && requests == 0 {
+            return;
+        }
+        match self.phases.iter_mut().find(|p| p.phase == phase) {
+            Some(p) => (p.millis, p.requests) = (p.millis.saturating_add(millis), p.requests.saturating_add(requests)),
+            None => self.phases.push(PhaseTime { phase, millis, requests }),
+        }
+    }
+
+    /// [`Timings::add`] for a span of time.
+    pub fn add_time(&mut self, phase: SyncPhase, took: std::time::Duration, requests: u32) {
+        self.add(phase, u64::try_from(took.as_millis()).unwrap_or(u64::MAX), requests);
+    }
+
+    /// Take in another piece's numbers.
+    pub fn absorb(&mut self, later: &Timings) {
+        for p in later.phases.iter().take(16) {
+            self.add(p.phase, p.millis, p.requests);
+        }
+        self.skipped = self.skipped.saturating_add(later.skipped);
+    }
+
+    pub fn millis(&self) -> u64 {
+        self.phases.iter().fold(0u64, |sum, p| sum.saturating_add(p.millis))
+    }
+
+    pub fn requests(&self) -> u32 {
+        self.phases.iter().fold(0u32, |sum, p| sum.saturating_add(p.requests))
+    }
+}
+
 /// What a mail-server run is doing at a step, finer than its [`SyncPhase`].
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

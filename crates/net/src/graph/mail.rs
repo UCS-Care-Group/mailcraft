@@ -33,10 +33,11 @@
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
+use std::time::{Duration, Instant};
 
 use mailcraft_model::sync::{
     ChangeOutcome, FolderChange, FolderChangeDone, FolderListing, GraphFolder, GraphMailRequest, GraphMailResult, MAX_FOLDER_CHANGES,
-    MAX_LISTED_FOLDERS,
+    MAX_LISTED_FOLDERS, SyncPhase,
 };
 use mailcraft_model::{FolderKind, clean_name};
 use serde_json::{Value, json};
@@ -131,6 +132,7 @@ pub(crate) fn whole_run(
 
 /// [`sync_folders`] at `base`, through `gate`, asking again as `retry` says.
 pub(crate) fn sync_folders_with(base: &str, token: &str, request: &GraphMailRequest, gate: Arc<Gate>, retry: Retry) -> GraphMailResult {
+    let started = Instant::now();
     let mut out = GraphMailResult { account: request.account, email: request.email.clone(), ..Default::default() };
     let priority = if request.background { Priority::Background } else { Priority::Owner };
     let graph = match Graph::for_mail(base, token, gate.clone(), priority, retry).and_then(|graph| graph.of_shared(shared_address(request))) {
@@ -140,6 +142,38 @@ pub(crate) fn sync_folders_with(base: &str, token: &str, request: &GraphMailRequ
             return out;
         }
     };
+    let mut marks = Marks::default();
+    let mut out = folders_in(&graph, request, &gate, out, &mut marks);
+    // What the folders' part of a run took (#276): sending what waits (changes, drafts, mail to
+    // send) from the moment the special folders are known to the listing; the rest is Folders.
+    let (total, requests) = (started.elapsed(), graph.requests_asked());
+    let sending = match (marks.known, marks.sent) {
+        (Some((from, asked)), sent) => {
+            let (to, until) = sent.unwrap_or((total, requests));
+            (to.saturating_sub(from), until.saturating_sub(asked))
+        }
+        (None, _) => (Duration::ZERO, 0),
+    };
+    if sending.1 > 0 {
+        out.timings.add_time(SyncPhase::Sending, sending.0, sending.1);
+    }
+    out.timings.add_time(SyncPhase::Folders, total.saturating_sub(sending.0), requests.saturating_sub(sending.1));
+    out
+}
+
+/// Where the folders' part of a run was at two moments, for its timings: how long into it and how
+/// many requests had been asked.
+#[derive(Default)]
+struct Marks {
+    /// The special folders were known: what is sent begins.
+    known: Option<(Duration, u32)>,
+    /// What is sent was through: the listing begins.
+    sent: Option<(Duration, u32)>,
+}
+
+/// The folders' part of a run, as far as it goes: `out` has the answer so far.
+fn folders_in(graph: &Graph<'_>, request: &GraphMailRequest, gate: &Arc<Gate>, mut out: GraphMailResult, marks: &mut Marks) -> GraphMailResult {
+    let started = Instant::now();
     let stop = |out: &mut GraphMailResult, e: &NetError| {
         if let NetError::Busy { retry_after, .. } = e {
             out.busy_for = Some(retry_after.unwrap_or(0).max(gate.paused_for().map_or(0, |left| u32::try_from(left.as_secs()).unwrap_or(u32::MAX))));
@@ -154,20 +188,21 @@ pub(crate) fn sync_folders_with(base: &str, token: &str, request: &GraphMailRequ
         out.errors.push(format!("Couldn't bring the folders in step with Microsoft: {e}"));
     };
     // Which folder is which: the top of the mailbox, and the special folders.
-    let known = match well_known(&graph) {
+    let known = match well_known(graph) {
         Ok(known) => known,
         Err(e) => {
             stop(&mut out, &e);
             return out;
         }
     };
+    marks.known = Some((started.elapsed(), graph.requests_asked()));
     // A shared mailbox's changes, drafts and sends go up at its own address, as the owner's do at
     // his (#70): every path below comes of `graph`, which names that mailbox.
     let (drafts, sends) = (&request.drafts[..], &request.sends[..]);
     // What was changed here goes up first: the listing then shows the server after it.
     let mut made: HashMap<u64, String> = HashMap::new();
     for change in request.changes.iter().take(MAX_FOLDER_CHANGES) {
-        match make_change(&graph, &known, &made, change) {
+        match make_change(graph, &known, &made, change) {
             Ok(Some(outcome)) => {
                 if let (FolderChange::Create { folder, .. }, ChangeOutcome::Done { folder: there }) = (change, &outcome) {
                     made.insert(*folder, there.id.clone());
@@ -189,7 +224,7 @@ pub(crate) fn sync_folders_with(base: &str, token: &str, request: &GraphMailRequ
         }
     }
     // Then the changes of messages, which may go into a folder just made (R3 spec S16).
-    match up::messages(&graph, &made, &request.messages, &mut out.messages) {
+    match up::messages(graph, &made, &request.messages, &mut out.messages) {
         Ok(0) => {}
         // A shared mailbox that refused some of them (#70): they wait here, and the owner is told.
         Ok(1) => out.errors.push("Microsoft refused a change made in this shared mailbox; it waits on this computer.".into()),
@@ -214,7 +249,7 @@ pub(crate) fn sync_folders_with(base: &str, token: &str, request: &GraphMailRequ
     }
     // Then what was moved or copied here from another mailbox of the same owner's (#70), which
     // may go into a folder just made too.
-    match place::places(&graph, &made, &request.places, &mut out.placed) {
+    match place::places(graph, &made, &request.places, &mut out.placed) {
         Ok(0) => {}
         Ok(1) => out.errors.push("Microsoft refused a message moved or copied into this shared mailbox; it waits on this computer.".into()),
         Ok(held) => {
@@ -238,7 +273,7 @@ pub(crate) fn sync_folders_with(base: &str, token: &str, request: &GraphMailRequ
         }
     }
     // Then the drafts saved here (R3.4.1).
-    if let Err(e) = drafts::drafts(&graph, drafts, &mut out.drafts) {
+    if let Err(e) = drafts::drafts(graph, drafts, &mut out.drafts) {
         log::info!("graph drafts: the drafts stopped; the rest wait for the next run");
         // A shared mailbox that won't let the owner in (#70): said as it is, and the rest wait.
         if let NetError::SharedRefused(_) = e {
@@ -254,7 +289,7 @@ pub(crate) fn sync_folders_with(base: &str, token: &str, request: &GraphMailRequ
         }
     }
     // Then what waits in the Outbox (R3.4.2): never asked twice by itself.
-    if let Err(e) = send::sends(&graph, sends, &mut out.sent) {
+    if let Err(e) = send::sends(graph, sends, &mut out.sent) {
         log::info!("graph sending: sending stopped; the rest waits for the next run");
         if let NetError::SharedRefused(_) = e {
             stop(&mut out, &e);
@@ -268,7 +303,8 @@ pub(crate) fn sync_folders_with(base: &str, token: &str, request: &GraphMailRequ
             return out;
         }
     }
-    match listing(&graph, &known) {
+    marks.sent = Some((started.elapsed(), graph.requests_asked()));
+    match listing(graph, &known) {
         Ok(listing) => {
             log::debug!("graph folders: {} listed, complete: {}", listing.folders.len(), listing.complete);
             out.listing = Some(listing);

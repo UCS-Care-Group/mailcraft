@@ -15,7 +15,7 @@
 
 use std::collections::HashMap;
 
-use mailcraft_model::sync::{SyncPhase, SyncStage, SyncStep};
+use mailcraft_model::sync::{SyncPhase, SyncStage, SyncStep, Timings};
 use mailcraft_model::{AccountKind, Id, Mailbox};
 use serde_json::{Value, json};
 
@@ -24,7 +24,7 @@ use crate::{CmdResult, CommandSpec, Session};
 
 pub fn specs() -> Vec<CommandSpec> {
     vec![CommandSpec::new("sync.progress", "Show Progress", "Send / Receive", progress).pure().params(
-        r#"{} — answers {"running": bool, "accounts": [{"id", "name", "state": "waiting"|"running"|"done"|"stopped"|"skipped", "phase": "sending"|"folders"|"newMail"|"calendarAndContacts"|null, "folder", "done", "total", "new", "sent", "problems": [string], "kept": bool, "fullMessages": {"done", "total", "paused"}|null}]}; opens nothing"#,
+        r#"{} — answers {"running": bool, "accounts": [{"id", "name", "state": "waiting"|"running"|"done"|"stopped"|"skipped", "phase": "sending"|"folders"|"newMail"|"calendarAndContacts"|null, "folder", "done", "total", "new", "sent", "problems": [string], "kept": bool, "timings": {"millis", "requests", "skipped", "phases": [{"phase", "millis", "requests"}]}, "fullMessages": {"done", "total", "paused"}|null}]}; opens nothing"#,
     )]
 }
 
@@ -86,6 +86,9 @@ pub struct AccountRun {
     /// The run changed nothing for it (no new mail, nothing sent, no problems): what it shows is
     /// what the run before came to.
     pub kept: bool,
+    /// How long each phase of its part of the run took and how many requests it made (#276),
+    /// as the pieces said; reset when it starts a run.
+    pub timings: Timings,
 }
 
 impl AccountRun {
@@ -171,6 +174,8 @@ pub(crate) struct Piece<'a> {
     /// The last piece of the account's part of the run.
     pub last: bool,
     pub stopped: bool,
+    /// Time and requests since the piece before (#276).
+    pub timings: Option<&'a Timings>,
 }
 
 impl SyncProgress {
@@ -299,6 +304,7 @@ impl SyncProgress {
         if row.state != RunState::Running {
             row.state = RunState::Running;
             row.kept = false;
+            row.timings = Timings::default();
         }
         Some(row)
     }
@@ -319,6 +325,9 @@ impl SyncProgress {
         }
         row.new = row.new.saturating_add(piece.new);
         row.sent = row.sent.saturating_add(piece.sent);
+        if let Some(timings) = piece.timings {
+            row.timings.absorb(timings);
+        }
         for problem in piece.problems {
             if row.problems.len() >= MAX_PROBLEMS {
                 break;
@@ -375,12 +384,19 @@ impl SyncProgress {
                     "sent": r.sent,
                     "problems": r.problems,
                     "kept": r.kept,
+                    "timings": timings_json(&r.timings),
                     "fullMessages": self.full(r.account).map(|f| json!({"done": f.done, "total": f.total, "paused": self.full_paused})),
                 }))
             })
             .collect();
         json!({"running": self.running(), "accounts": accounts})
     }
+}
+
+/// An account's timings for `sync.progress` (#276): numbers only, no address and no folder name.
+fn timings_json(t: &Timings) -> Value {
+    let phases: Vec<Value> = t.phases.iter().map(|p| json!({"phase": phase_id(p.phase), "millis": p.millis, "requests": p.requests})).collect();
+    json!({"millis": t.millis(), "requests": t.requests(), "skipped": t.skipped, "phases": phases})
 }
 
 fn phase_id(phase: SyncPhase) -> &'static str {
@@ -733,5 +749,50 @@ mod tests {
         assert!(odd.fraction() <= 1.0);
         graph(&mut s, GraphMailResult { account: ms, ..Default::default() });
         assert_eq!(s.sync_progress.fraction(), None, "over");
+    }
+
+    /// #276: the time and requests the pieces carry add up on the account's row, by phase, and a
+    /// new run starts them again; `sync.progress` says them as numbers and nothing else.
+    #[test]
+    fn the_pieces_time_and_requests_add_up_on_the_row_and_start_again_with_a_run() {
+        use mailcraft_model::sync::{SyncPhase, Timings};
+        let (mut s, imap, ms) = session();
+        let timed = |phase, millis, requests, skipped| {
+            let mut t = Timings::default();
+            t.add(phase, millis, requests);
+            t.skipped = skipped;
+            t
+        };
+        let piece = |timings| SyncResult { account: imap, partial: true, timings, ..Default::default() };
+        s.sync_progress.begin(&[imap, ms]);
+        apply(&mut s, piece(timed(SyncPhase::Folders, 1_200, 3, 0)));
+        apply(&mut s, piece(timed(SyncPhase::NewMail, 800, 5, 2)));
+        apply(&mut s, piece(timed(SyncPhase::NewMail, 400, 2, 0)));
+        apply(&mut s, SyncResult { account: imap, timings: timed(SyncPhase::NewMail, 100, 1, 0), ..Default::default() });
+        let r = row(&mut s, imap);
+        assert_eq!(r["state"], json!("done"));
+        assert_eq!(
+            r["timings"],
+            json!({"millis": 2_500, "requests": 11, "skipped": 2, "phases": [
+                {"phase": "folders", "millis": 1_200, "requests": 3},
+                {"phase": "newMail", "millis": 1_300, "requests": 8},
+            ]})
+        );
+        // Another account has its own.
+        assert_eq!(row(&mut s, ms)["timings"]["requests"], json!(0));
+        graph(&mut s, GraphMailResult { account: ms, timings: timed(SyncPhase::Folders, 90, 4, 0), ..Default::default() });
+        assert_eq!(row(&mut s, ms)["timings"]["requests"], json!(4));
+        assert_eq!(row(&mut s, imap)["timings"]["requests"], json!(11), "not the other account's");
+        // The next run starts them again.
+        apply(&mut s, SyncResult { account: imap, timings: timed(SyncPhase::Folders, 10, 1, 0), ..Default::default() });
+        assert_eq!(
+            row(&mut s, imap)["timings"],
+            json!({"millis": 10, "requests": 1, "skipped": 0, "phases": [{"phase": "folders", "millis": 10, "requests": 1}]})
+        );
+        // Hostile numbers add up without overflow.
+        let huge = piece(timed(SyncPhase::NewMail, u64::MAX, u32::MAX, u32::MAX));
+        apply(&mut s, huge.clone());
+        apply(&mut s, huge);
+        assert_eq!(row(&mut s, imap)["timings"]["requests"], json!(u32::MAX));
     }
 }

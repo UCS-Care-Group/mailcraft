@@ -22,6 +22,7 @@
 use egui::{Align2, Rect, RichText, Sense, Ui, pos2, vec2};
 use mailcraft_engine::cmd::sync_progress::{AccountRun, FullMessages, RunState};
 use mailcraft_model::Id;
+use mailcraft_model::sync::SyncPhase;
 use serde_json::json;
 
 use crate::MailApp;
@@ -112,18 +113,41 @@ impl Row {
                 }
             }
             _ if !self.problems.is_empty() => problems(),
-            RunState::Stopped => tl!("Stopped").to_string(),
+            RunState::Stopped => self.with_time(tl!("Stopped").to_string()),
             RunState::Done => {
                 if run.new == 0 && run.sent == 0 {
-                    return tl!("Done: up to date").to_string();
+                    return self.with_time(tl!("Done: up to date").to_string());
                 }
                 let mut line = i18n::fmt(tl!("Done: {n} new"), &[("n", &run.new.to_string())]);
                 if run.sent > 0 {
                     line.push_str(&i18n::fmt(tl!(", {n} sent"), &[("n", &run.sent.to_string())]));
                 }
-                line
+                self.with_time(line)
             }
         }
+    }
+
+    /// `line` and how long the account's part of the run took (#276), when that was measured.
+    fn with_time(&self, line: String) -> String {
+        match self.run.as_ref().map(|r| r.timings.millis()) {
+            Some(millis) if millis > 0 => i18n::fmt(tl!("{result} · {time}"), &[("result", &line), ("time", &took(millis))]),
+            _ => line,
+        }
+    }
+
+    /// How long each phase took, under the row (#276): the phases that are through while the
+    /// account runs, all of them once it is done or stopped. `None` when nothing was measured.
+    pub fn phases_line(&self) -> Option<String> {
+        let run = self.run.as_ref()?;
+        let through = |phase: SyncPhase| run.state != RunState::Running || run.phase != Some(phase);
+        let parts: Vec<String> = run
+            .timings
+            .phases
+            .iter()
+            .filter(|p| p.millis > 0 && through(p.phase))
+            .map(|p| i18n::fmt(tl!("{phase} {time}"), &[("phase", tl!(p.phase.label())), ("time", &took(p.millis))]))
+            .collect();
+        (!parts.is_empty()).then(|| parts.join(" · "))
     }
 
     /// How far it has got, 0 to 1, when that is known (it is running and has a total).
@@ -135,6 +159,53 @@ impl Row {
     fn running(&self) -> bool {
         self.run.as_ref().is_some_and(|r| r.state == RunState::Running)
     }
+}
+
+/// A span of time for a row, short: `0.4 s`, `12 s`, `2 min 05 s` (#276).
+pub(crate) fn took(millis: u64) -> String {
+    let tenths = millis.saturating_add(50) / 100;
+    if tenths < 100 {
+        i18n::fmt(tl!("{n} s"), &[("n", &format!("{}.{}", tenths / 10, tenths % 10))])
+    } else if tenths < 600 {
+        i18n::fmt(tl!("{n} s"), &[("n", &((tenths + 5) / 10).to_string())])
+    } else {
+        let seconds = (tenths + 5) / 10;
+        i18n::fmt(tl!("{m} min {s} s"), &[("m", &(seconds / 60).to_string()), ("s", &format!("{:02}", seconds % 60))])
+    }
+}
+
+/// What Copy Diagnostics adds of the last Send/Receive (#276): per account, in the run's order,
+/// where its state, the time of each phase, the requests made and the folders skipped. The
+/// accounts are numbered and named by kind; no address, name or folder is in it. In English,
+/// like the rest of the report, whatever the interface language.
+pub(crate) fn timings_report(app: &MailApp) -> String {
+    let mb = &app.session.mailbox;
+    let mut out = String::from("\nSend/Receive timings (last run, per account):\n");
+    let mut any = false;
+    for (n, run) in app.session.sync_progress.accounts.iter().enumerate() {
+        let Some(account) = mb.account(run.account) else { continue };
+        any = true;
+        let kind = match account.kind {
+            mailcraft_model::AccountKind::Microsoft => "Microsoft Graph",
+            mailcraft_model::AccountKind::Imap => "mail server",
+            _ => "other",
+        };
+        let t = &run.timings;
+        let phases: Vec<String> = t.phases.iter().map(|p| format!("{} {} ms ({} requests)", p.phase.label(), p.millis, p.requests)).collect();
+        let phases = if phases.is_empty() { "no time measured".to_string() } else { phases.join(", ") };
+        out.push_str(&format!(
+            "- Account {} ({kind}): {}, {} ms in all, {} requests, {} folders skipped; {phases}\n",
+            n + 1,
+            run.state.as_str(),
+            t.millis(),
+            t.requests(),
+            t.skipped
+        ));
+    }
+    if !any {
+        out.push_str("- none yet\n");
+    }
+    out
 }
 
 /// The rows, in the run's order; then any account with problems that isn't in it.
@@ -391,6 +462,10 @@ fn account_row(ui: &mut Ui, t: &Tokens, row: &Row) -> Option<egui::Response> {
         ui.painter().rect_filled(bar, 3.0, t.border);
         let filled = Rect::from_min_size(bar.min, vec2((bar.width() * done).max(6.0), bar.height()));
         ui.painter().rect_filled(filled, 3.0, t.accent);
+    }
+    if let Some(phases) = row.phases_line() {
+        let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), 16.0), Sense::hover());
+        crate::theme::paint_clipped(ui.painter(), pos2(r.min.x, r.center().y), r.width().max(40.0), &phases, regular(12.0), t.text_dim);
     }
     if let Some(full) = row.full_line() {
         let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), 16.0), Sense::hover());
@@ -1004,6 +1079,65 @@ mod tests {
         answer(&mut a);
         assert_eq!(full(&a), None, "all of them are here: no line");
         assert!(a.session.mailbox.messages.values().all(|m| !m.unfetched));
+    }
+
+    /// #276: a span of time is short, from a tenth of a second to minutes, and never overflows.
+    #[test]
+    fn a_span_of_time_is_short() {
+        assert_eq!(took(40), "0.0 s");
+        assert_eq!(took(400), "0.4 s");
+        assert_eq!(took(9_940), "9.9 s");
+        assert_eq!(took(12_400), "12 s");
+        assert_eq!(took(59_400), "59 s");
+        assert_eq!(took(125_000), "2 min 05 s");
+        assert!(!took(u64::MAX).is_empty());
+    }
+
+    /// #276: a done row says how long it took, and under it how long each phase did; a running
+    /// one names only the phases that are through.
+    #[test]
+    fn a_row_says_how_long_it_took_and_each_phase() {
+        use mailcraft_model::sync::{SyncPhase, Timings};
+        let mut timings = Timings::default();
+        timings.add(SyncPhase::Sending, 400, 2);
+        timings.add(SyncPhase::Folders, 1_200, 4);
+        timings.add(SyncPhase::NewMail, 33_000, 25);
+        let row = |run: AccountRun| Row { account: 1, name: "A".into(), run: Some(run), problems: Vec::new(), full: None, paused: false };
+        let done = row(AccountRun { state: RunState::Done, new: 34, timings: timings.clone(), ..Default::default() });
+        assert_eq!(done.line(), "Done: 34 new · 35 s");
+        assert_eq!(done.phases_line().as_deref(), Some("Sending 0.4 s · Folders 1.2 s · New mail 33 s"));
+        let up_to_date = row(AccountRun { state: RunState::Done, timings: timings.clone(), ..Default::default() });
+        assert_eq!(up_to_date.line(), "Done: up to date · 35 s");
+        let stopped = row(AccountRun { state: RunState::Stopped, timings: timings.clone(), ..Default::default() });
+        assert_eq!(stopped.line(), "Stopped · 35 s");
+        // Running: the phase it is in is not through yet.
+        let running = row(AccountRun { state: RunState::Running, phase: Some(SyncPhase::NewMail), timings, ..Default::default() });
+        assert_eq!(running.phases_line().as_deref(), Some("Sending 0.4 s · Folders 1.2 s"));
+        // Nothing measured: nothing said (a host that doesn't time, a run from before).
+        let none = row(AccountRun { state: RunState::Done, new: 3, ..Default::default() });
+        assert_eq!((none.line().as_str(), none.phases_line()), ("Done: 3 new", None));
+    }
+
+    /// #276: Copy Diagnostics adds the last run's time per phase, requests and folders skipped
+    /// for each account, with no address or name in it.
+    #[test]
+    fn copy_diagnostics_has_each_accounts_timings_and_no_addresses() {
+        use mailcraft_model::sync::{SyncPhase, Timings};
+        let (mut a, ids, _) = app();
+        assert!(a.execute("ui.copyDiagnostics", json!({})).unwrap()["text"].as_str().unwrap().contains("- none yet"));
+        let mut timings = Timings::default();
+        timings.add(SyncPhase::Folders, 1_200, 4);
+        timings.add(SyncPhase::NewMail, 8_300, 21);
+        timings.skipped = 3;
+        let piece = SyncResult { account: ids[0], timings, ..Default::default() };
+        a.run("sync.apply", json!({"result": piece})).unwrap();
+        let text = a.execute("ui.copyDiagnostics", json!({})).unwrap()["text"].as_str().unwrap().to_string();
+        assert!(text.contains("Send/Receive timings"), "{text}");
+        assert!(
+            text.contains("- Account 1 (mail server): done, 9500 ms in all, 25 requests, 3 folders skipped; Folders 1200 ms (4 requests), New mail 8300 ms (21 requests)"),
+            "{text}"
+        );
+        assert!(!text.contains("mail.example") && !text.contains("avery") && !text.contains("Inbox"), "{text}");
     }
 
     /// What a row says, whatever the numbers.

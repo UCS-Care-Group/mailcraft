@@ -1880,7 +1880,9 @@ fn copy_diagnostics_takes_the_hosts_report_or_says_what_it_can() {
     let alone = a.execute("ui.copyDiagnostics", json!({})).unwrap();
     assert!(alone["text"].as_str().unwrap().contains(env!("CARGO_PKG_VERSION")));
     a.services.diagnostics = Some(Box::new(|| "the host's report".into()));
-    assert_eq!(a.execute("ui.copyDiagnostics", json!({})).unwrap()["text"], "the host's report");
+    // (The host's report, then the last Send/Receive's timings, #276.)
+    let text = a.execute("ui.copyDiagnostics", json!({})).unwrap()["text"].as_str().unwrap().to_string();
+    assert!(text.starts_with("the host's report") && text.contains("Send/Receive timings"), "{text}");
 }
 
 #[test]

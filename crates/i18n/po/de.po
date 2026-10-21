@@ -10850,6 +10850,11 @@ msgid "{month}/{day}/{year}"
 msgstr "{day}.{month}.{year}"
 
 #. interface
+#: crates/ui-egui/src/sync_panel.rs
+msgid "{m} min {s} s"
+msgstr "{m} min {s} s"
+
+#. interface
 #: crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/invitation.rs
 #, fuzzy
 msgid "{names} and {n} more"
@@ -11346,6 +11351,11 @@ msgstr[0] "{n} Ergebnis in {scope}"
 msgstr[1] "{n} Ergebnisse in {scope}"
 
 #. interface
+#: crates/ui-egui/src/sync_panel.rs
+msgid "{n} s"
+msgstr "{n} s"
+
+#. interface
 #: crates/ui-egui/src/chrome.rs
 #, fuzzy
 msgid "{n} selected"
@@ -11423,6 +11433,11 @@ msgstr "{path} ist kein Postfach; lesen Sie es über Datei › Importieren ein"
 
 #. interface
 #: crates/ui-egui/src/sync_panel.rs
+msgid "{phase} {time}"
+msgstr "{phase} {time}"
+
+#. interface
+#: crates/ui-egui/src/sync_panel.rs
 #, fuzzy
 msgid "{phase}: {detail}"
 msgstr "{phase}: {detail}"
@@ -11432,6 +11447,11 @@ msgstr "{phase}: {detail}"
 #, fuzzy
 msgid "{provider}'s sign-in page is open in your browser"
 msgstr "Die Anmeldeseite von {provider} ist in Ihrem Browser geöffnet"
+
+#. interface
+#: crates/ui-egui/src/sync_panel.rs
+msgid "{result} · {time}"
+msgstr "{result} · {time}"
 
 #. interface
 #: crates/ui-egui/src/forms.rs

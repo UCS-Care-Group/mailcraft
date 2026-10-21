@@ -17,7 +17,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
 use mailcraft_mime::WriteOptions;
-use mailcraft_model::sync::{FolderDelta, FolderState, RemoteFlags, SyncRequest, SyncResult, SyncStage, SyncStep};
+use mailcraft_model::sync::{FolderDelta, FolderState, RemoteFlags, SyncPhase, SyncRequest, SyncResult, SyncStage, SyncStep};
 use mailcraft_model::{Account, Body, FlagStatus, FolderKind, Id, Message, Security};
 use mailcraft_proto::ProtoError;
 use mailcraft_proto::imap::{Fetched, Imap, Mailbox, uid_sets};
@@ -141,9 +141,23 @@ pub(crate) fn sync_within(request: &SyncRequest, limits: Limits) -> SyncResult {
 /// [`sync_with`], told how far to go and what is known of the server from its name (the tests'
 /// servers are all on this machine).
 pub(crate) fn sync_as(request: &SyncRequest, limits: Limits, host: Host, cancel: &AtomicBool, emit: &mut dyn FnMut(SyncResult)) {
-    let mut run = Run { request, limits, cancel, emit, out: blank(request), stopped: false, handed_over: Instant::now() };
+    let mut run = Run {
+        request,
+        limits,
+        cancel,
+        emit,
+        out: blank(request),
+        stopped: false,
+        handed_over: Instant::now(),
+        phase: SyncPhase::Sending,
+        asked: 0,
+        counted: 0,
+    };
     let sent = send_outbox(&mut run);
     let imap = exchange(&mut run, &sent, host);
+    if let Some(imap) = &imap {
+        run.note(imap);
+    }
     run.finish();
     // Said once the answer is handed over: nobody waits for a goodbye.
     if let Some(mut imap) = imap {
@@ -169,6 +183,12 @@ pub(crate) struct Run<'a> {
     stopped: bool,
     /// When the last piece was handed over.
     handed_over: Instant,
+    /// The phase the time since then is spent in: the one the last piece said (#276).
+    phase: SyncPhase,
+    /// Requests (commands, messages sent) since the last piece.
+    asked: u32,
+    /// How many of the connection's commands `asked` has taken in.
+    counted: u32,
 }
 
 impl Run<'_> {
@@ -182,15 +202,37 @@ impl Run<'_> {
     /// and as the line for a status bar that they make.
     pub(crate) fn hand_over(&mut self, step: SyncStep) {
         let mut piece = std::mem::replace(&mut self.out, blank(self.request));
+        self.lap(&mut piece);
+        self.phase = step.stage.phase();
         piece.partial = true;
         piece.progress = step.line();
         piece.step = Some(step);
         self.send(piece);
     }
 
+    /// [`Run::hand_over`], having counted the commands sent on `imap` first.
+    pub(crate) fn hand_over_in(&mut self, imap: &Imap<Stream<'_>>, step: SyncStep) {
+        self.note(imap);
+        self.hand_over(step);
+    }
+
+    /// Count the commands sent on `imap` since they were last counted.
+    pub(crate) fn note(&mut self, imap: &Imap<Stream<'_>>) {
+        let sent = imap.commands();
+        self.asked = self.asked.saturating_add(sent.saturating_sub(self.counted));
+        self.counted = sent;
+    }
+
+    /// Put the time and requests since the last piece into `piece`, under the phase they were in.
+    fn lap(&mut self, piece: &mut SyncResult) {
+        let asked = std::mem::take(&mut self.asked);
+        piece.timings.add_time(self.phase, self.handed_over.elapsed(), asked);
+    }
+
     /// Hand over the last piece.
     fn finish(mut self) {
         let mut piece = std::mem::replace(&mut self.out, blank(self.request));
+        self.lap(&mut piece);
         piece.stopped = self.stopped;
         self.send(piece);
     }
@@ -277,6 +319,7 @@ fn send_outbox(run: &mut Run) -> Vec<Message> {
         }
         // Dated once, so that the copy kept on the server says what the one that went says.
         let message = dated(message);
+        run.asked = run.asked.saturating_add(1);
         let outcome = Envelope::of(&request.account, &message).and_then(|envelope| deliver(&mut smtp, &envelope, &message));
         match outcome {
             Ok(()) => {
@@ -531,14 +574,14 @@ fn exchange<'a>(run: &mut Run<'a>, sent: &[Message], host: Host) -> Option<Imap<
     run.out.listed = listed(&plan);
     if !run.out.listed.is_empty() {
         let found = if run.out.listed.len() == 1 { 1 } else { plan.len().min(MAX_FOLDERS) };
-        run.hand_over(SyncStep::new(SyncStage::Listed, "", 0, found));
+        run.hand_over_in(&imap, SyncStep::new(SyncStage::Listed, "", 0, found));
     }
     // First what the server doesn't know yet, so that what is read afterwards shows it. None of
     // it is left half done because the run was called off, and when the connection is lost on
     // the way, everything else waits for the next run.
     imap.get_mut().watch(None);
     if !owed.is_empty() {
-        run.hand_over(SyncStep::new(SyncStage::Filing, "", 0, 0));
+        run.hand_over_in(&imap, SyncStep::new(SyncStage::Filing, "", 0, 0));
         if !file_sent(&mut imap, &plan, sent, &mut run.out) {
             return None;
         }
@@ -672,7 +715,7 @@ impl FolderSync<'_> {
     fn run(&self, imap: &mut Imap<Stream<'_>>, run: &mut Run) -> bool {
         let name = shown(&self.remote);
         let label = label(&self.remote);
-        run.hand_over(SyncStep::new(SyncStage::Checking, &label, self.place.0, self.place.1));
+        run.hand_over_in(imap, SyncStep::new(SyncStage::Checking, &label, self.place.0, self.place.1));
         let selected = match imap.select(&self.mailbox.raw, true) {
             Ok(selected) => selected,
             Err(e) => return run.failed(&format!("Couldn't open \"{name}\""), &e.into()),
@@ -788,7 +831,7 @@ impl FolderSync<'_> {
                 let mut batch = std::mem::replace(&mut delta, rest);
                 batch.new.sort_by_key(|m| m.uid);
                 run.out.folders.push(batch);
-                run.hand_over(SyncStep::new(SyncStage::Reading, &label, at + 1, total));
+                run.hand_over_in(imap, SyncStep::new(SyncStage::Reading, &label, at + 1, total));
                 waiting = 0;
             }
         }

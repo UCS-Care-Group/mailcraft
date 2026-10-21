@@ -37,8 +37,11 @@
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::Instant;
 
-use mailcraft_model::sync::{GraphFolder, GraphMailRequest, GraphMailResult, GraphMessage, GraphProgress, MessagePage, ReadState, ServerMessage};
+use mailcraft_model::sync::{
+    GraphFolder, GraphMailRequest, GraphMailResult, GraphMessage, GraphProgress, MessagePage, ReadState, ServerMessage, SyncPhase, Timings,
+};
 use mailcraft_model::{Address, FlagStatus, FolderKind, Importance};
 use serde_json::Value;
 
@@ -89,6 +92,27 @@ struct Reading {
     round_here: bool,
 }
 
+/// The time and requests since the last piece was handed on, for the run's timings (#276).
+struct Lap {
+    from: Instant,
+    requests: u32,
+}
+
+impl Lap {
+    fn start(graph: &Graph<'_>) -> Lap {
+        Lap { from: Instant::now(), requests: graph.requests_asked() }
+    }
+
+    /// What has gone since the last lap, as new mail's time; the next lap begins now.
+    fn take(&mut self, graph: &Graph<'_>) -> Timings {
+        let mut timings = Timings::default();
+        let asked = graph.requests_asked();
+        timings.add_time(SyncPhase::NewMail, self.from.elapsed(), asked.saturating_sub(self.requests));
+        *self = Lap { from: Instant::now(), requests: asked };
+        timings
+    }
+}
+
 /// What the run has met of the server, folder by folder.
 #[derive(Default)]
 struct Run {
@@ -132,6 +156,7 @@ pub(super) fn messages(
         })
         .collect();
     let count = u32::try_from(reading.len()).unwrap_or(u32::MAX);
+    let mut lap = Lap::start(graph);
     // First the newest page of each (all of what changed, for one read to its end before), then
     // each to its end.
     let mut stopped = None;
@@ -144,7 +169,7 @@ pub(super) fn messages(
                     break 'passes;
                 }
                 let started = one.pages;
-                if let Err(e) = page(graph, one, &mut run, u32::try_from(n + 1).unwrap_or(u32::MAX), count, &mut out, emit) {
+                if let Err(e) = page(graph, one, &mut run, u32::try_from(n + 1).unwrap_or(u32::MAX), count, &mut out, &mut lap, emit) {
                     stopped = Some(Stop::Error(e));
                     break 'passes;
                 }
@@ -172,6 +197,7 @@ pub(super) fn messages(
         let folders = if run.refused == 1 { "1 folder".to_string() } else { format!("{} folders", run.refused) };
         out.errors.push(format!("Microsoft Graph refused to list the mail in {folders}{}; it is asked for again in the next run.", run.code));
     }
+    out.timings = lap.take(graph);
     out.whole = reading.iter().all(|one| one.done);
     let pages: u32 = reading.iter().map(|one| one.pages).sum();
     let messages: u32 = reading.iter().map(|one| one.read).sum();
@@ -192,6 +218,7 @@ fn page(
     number: u32,
     folders: u32,
     out: &mut GraphMailResult,
+    lap: &mut Lap,
     emit: &mut dyn FnMut(GraphMailResult),
 ) -> Result<(), NetError> {
     if one.pages >= MAX_FOLDER_PAGES {
@@ -283,6 +310,7 @@ fn page(
         pages: vec![taken],
         partial: true,
         progress: Some(progress),
+        timings: lap.take(graph),
         ..Default::default()
     });
     Ok(())

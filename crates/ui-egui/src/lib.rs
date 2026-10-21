@@ -1516,7 +1516,7 @@ impl MailApp {
                 Ok(json!({}))
             }
             "ui.copyDiagnostics" => {
-                let text = match &self.services.diagnostics {
+                let mut text = match &self.services.diagnostics {
                     Some(report) => report(),
                     None => format!(
                         "### MailCraft diagnostics\n\n- Version: {}\n- Platform: {} {}\n\nNo log is kept here.\n",
@@ -1525,6 +1525,8 @@ impl MailApp {
                         std::env::consts::ARCH
                     ),
                 };
+                // How long the last Send/Receive took, account by account (#276).
+                text.push_str(&sync_panel::timings_report(self));
                 if let Some(ctx) = &self.ctx {
                     ctx.copy_text(text.clone());
                 }

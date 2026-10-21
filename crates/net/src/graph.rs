@@ -343,6 +343,8 @@ struct Graph<'a> {
     /// Whose mailbox the mail is asked of: `/me`, the owner of the token; or `/users/{address}`,
     /// a shared mailbox the owner may open (#70, [`Graph::of_shared`]).
     mailbox: String,
+    /// Requests asked so far, counted for the run's timings (#276): every try, retries too.
+    requests: std::sync::atomic::AtomicU32,
 }
 
 /// What stands in an address of Graph's for a shared mailbox (#70): `/users/{address}`, the
@@ -392,7 +394,7 @@ impl<'a> Graph<'a> {
         if token.is_empty() || token.len() > MAX_TOKEN || !token.bytes().all(|b| b.is_ascii_graphic()) {
             return Err(NetError::Proto(ProtoError::Auth("there is no sign-in to show Microsoft Graph".into())));
         }
-        Ok(Graph { base: Url::parse(base)?, token, immutable: false, pace: None, mailbox: "/me".into() })
+        Ok(Graph { base: Url::parse(base)?, token, immutable: false, pace: None, mailbox: "/me".into(), requests: Default::default() })
     }
 
     /// Graph for a Microsoft account's mail (R3): every request asks for immutable ids, goes
@@ -491,6 +493,7 @@ impl<'a> Graph<'a> {
         patience: Duration,
         max_body: usize,
     ) -> Result<Reply, NetError> {
+        self.count_request();
         let bearer = format!("Bearer {}", self.token);
         let mut headers = vec![("Authorization", bearer.as_str()), ("Accept", "application/json")];
         // Immutable ids, beside whatever else is preferred: one `Prefer` header, its values
@@ -507,6 +510,16 @@ impl<'a> Graph<'a> {
             .map_err(|e| e.without(self.token))
     }
 
+    /// Note one more request asked (the run's timings count them).
+    fn count_request(&self) {
+        let _ = self.requests.fetch_update(std::sync::atomic::Ordering::Relaxed, std::sync::atomic::Ordering::Relaxed, |n| Some(n.saturating_add(1)));
+    }
+
+    /// How many requests this Graph has asked so far.
+    fn requests_asked(&self) -> u32 {
+        self.requests.load(std::sync::atomic::Ordering::Relaxed)
+    }
+
     /// `PUT` a piece of a large attachment to the address an upload session gave (R3.4.1): through
     /// the mailbox's gate, and with no `Authorization`, as the address is its own permission (and
     /// the token goes to Graph alone). A piece is asked again only when the server said it was
@@ -514,7 +527,10 @@ impl<'a> Graph<'a> {
     /// afresh, looking first whether the attachment is there.
     fn upload(&self, url: &Url, range: &str, piece: &[u8]) -> Result<Reply, NetError> {
         let headers = [("Content-Type", "application/octet-stream"), ("Content-Range", range)];
-        let ask = || http::request(url, &Request { method: "PUT", headers: &headers, body: Some(piece), patience: SEND_TIMEOUT, max_body: MAX_PAGE });
+        let ask = || {
+            self.count_request();
+            http::request(url, &Request { method: "PUT", headers: &headers, body: Some(piece), patience: SEND_TIMEOUT, max_body: MAX_PAGE })
+        };
         let Some(pace) = &self.pace else { return ask() };
         let mut tries = 0u32;
         loop {

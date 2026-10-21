@@ -1774,7 +1774,10 @@ fn a_mailbox_arrives_in_pieces_the_inbox_first() {
     all.iter().cloned().for_each(|piece| together.absorb(piece));
     together.folders.iter_mut().for_each(|f| f.new.sort_by_key(|m| m.uid));
     assert_eq!((together.new_count(), downloads(&imap)), (355, 355));
-    assert_eq!(together, sync(&asked));
+    // (How long each took is of each run alone.)
+    let mut whole = sync(&asked);
+    (together.timings, whole.timings) = Default::default();
+    assert_eq!(together, whole);
     assert_eq!(imap.world().connections, 2);
 
     // The next run says what changed with the first piece of a mailbox, and brings what is new.
@@ -2383,4 +2386,41 @@ fn a_run_that_only_tells_brings_nothing_down() {
     assert_eq!(result.flagged.len(), 1, "the change went up");
     assert!(result.folders.is_empty(), "and nothing came down");
     assert_eq!(fetched(&imap), before, "no message was fetched");
+}
+
+/// #276: a run says how long its phases took and how many commands it sent, by phase, with
+/// nothing in it that names a mailbox; taken in whole, the pieces add up.
+#[test]
+fn a_mail_server_run_carries_its_time_and_commands_by_phase() {
+    use mailcraft_model::sync::SyncPhase;
+    let imap = Fake::imap(imap_world());
+    let mut pieces = Vec::new();
+    sync_with(&request(account(Some(&imap), None), local_folders()), &AtomicBool::new(false), &mut |piece| pieces.push(piece));
+    let in_phase = |phase| -> u32 { pieces.iter().flat_map(|p| &p.timings.phases).filter(|p| p.phase == phase).map(|p| p.requests).sum() };
+    // Signing in, listing and the folders' state come before the first folder; each folder is a
+    // command or more of new mail.
+    assert!(in_phase(SyncPhase::Folders) >= 2, "{pieces:?}");
+    assert!(in_phase(SyncPhase::NewMail) >= 4, "four folders are looked at");
+    assert_eq!(in_phase(SyncPhase::Sending), 0);
+    assert_eq!(in_phase(SyncPhase::CalendarAndContacts), 0);
+    // No more than the server was sent (it also logs the goodbye, which comes after the last piece).
+    let total: u32 = pieces.iter().map(|p| p.timings.requests()).sum();
+    let logged = u32::try_from(imap.world().log.len()).unwrap();
+    assert!(total <= logged, "{total} counted, {logged} logged");
+    // The same run taken in at once adds up.
+    let whole = sync(&request(account(Some(&imap), None), local_folders()));
+    assert!(whole.timings.requests() > 0 && whole.timings.skipped == 0);
+}
+
+/// #276: mail sent is a request of the sending phase.
+#[test]
+fn mail_sent_is_counted_in_the_sending_phase() {
+    use mailcraft_model::sync::SyncPhase;
+    let smtp = Fake::smtp(smtp_world());
+    let mut asked = request(account(None, Some(&smtp)), Vec::new());
+    asked.outbox = vec![hello()];
+    let result = sync(&asked);
+    assert_eq!(result.sent.len(), 1, "{:?}", result.errors);
+    let sending = result.timings.phases.iter().find(|p| p.phase == SyncPhase::Sending).map_or(0, |p| p.requests);
+    assert_eq!(sending, 1);
 }

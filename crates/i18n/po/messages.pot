@@ -8996,6 +8996,11 @@ msgid "{month}/{day}/{year}"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/sync_panel.rs
+msgid "{m} min {s} s"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/invitation.rs
 msgid "{names} and {n} more"
 msgstr ""
@@ -9421,6 +9426,11 @@ msgstr[0] ""
 msgstr[1] ""
 
 #. interface
+#: crates/ui-egui/src/sync_panel.rs
+msgid "{n} s"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/chrome.rs
 msgid "{n} selected"
 msgid_plural "{n} selected"
@@ -9487,12 +9497,22 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/sync_panel.rs
+msgid "{phase} {time}"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/sync_panel.rs
 msgid "{phase}: {detail}"
 msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
 msgid "{provider}'s sign-in page is open in your browser"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/sync_panel.rs
+msgid "{result} · {time}"
 msgstr ""
 
 #. interface

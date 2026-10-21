@@ -309,3 +309,47 @@ fn three_messages_refused_one_after_another_stop_the_batch() {
     let asked = server.state().requests.iter().filter(|r| r.target.contains("$value")).count();
     assert_eq!(asked, 3, "the rest wait");
 }
+
+/// #276: every piece says how long its part took and how many requests it made, by phase: the
+/// folders in the first piece, the mail in each page's, and nothing in them names a folder.
+#[test]
+fn every_piece_of_a_run_carries_its_time_and_requests() {
+    use mailcraft_model::sync::SyncPhase;
+    let server = StandIn::start().unwrap();
+    let inbox = server.state().well_known("inbox");
+    server.state().mailbox.generate(&inbox, 250, NOW);
+    let pieces = run(&server, Vec::new(), &AtomicBool::new(false));
+    let phase = |piece: &GraphMailResult, phase: SyncPhase| piece.timings.phases.iter().find(|p| p.phase == phase).map_or(0, |p| p.requests);
+    // The folders' piece: the special folders and the listing are requests; nothing was sent.
+    let first = pieces.first().unwrap();
+    assert!(phase(first, SyncPhase::Folders) > 0, "{:?}", first.timings);
+    assert_eq!(phase(first, SyncPhase::Sending), 0);
+    assert_eq!(first.timings.skipped, 0);
+    // The mail: every delta request is counted against the new mail of some piece.
+    let counted: u32 = pieces.iter().map(|p| phase(p, SyncPhase::NewMail)).sum();
+    let asked = u32::try_from(server.state().requests.iter().filter(|r| r.target.contains("/messages/delta")).count()).unwrap();
+    assert!(asked >= 3, "250 messages in pages of 100, and the other folders");
+    assert_eq!(counted, asked);
+    // Taken in at once, as a host that waits for the whole run does, the numbers add up.
+    let mut whole = GraphMailResult::default();
+    for piece in pieces.iter().cloned() {
+        whole.absorb(piece);
+    }
+    assert_eq!(whole.timings.requests(), pieces.iter().map(|p| p.timings.requests()).sum::<u32>());
+    // Pages come with the page's own piece, the last with what was left over.
+    assert!(pieces.iter().filter(|p| !p.pages.is_empty()).all(|p| phase(p, SyncPhase::NewMail) >= 1));
+}
+
+/// #276: what is sent is timed apart from the listing of the folders.
+#[test]
+fn changes_made_here_are_timed_as_sending() {
+    use mailcraft_model::sync::{FolderChange, SyncPhase};
+    let server = StandIn::start().unwrap();
+    let mut asked = request(Vec::new());
+    asked.changes = vec![FolderChange::Create { folder: 9, name: "Projects".into(), parent: String::new(), parent_folder: None }];
+    let pieces = whole_run(&server.url(), TOKEN, &asked, Arc::new(Gate::new()), QUICK, &AtomicBool::new(false));
+    let first = pieces.first().unwrap();
+    let sending = first.timings.phases.iter().find(|p| p.phase == SyncPhase::Sending).map_or(0, |p| p.requests);
+    assert!(sending >= 1, "{:?} {:?}", first.timings, first.errors);
+    assert!(first.timings.phases.iter().any(|p| p.phase == SyncPhase::Folders && p.requests > 0));
+}

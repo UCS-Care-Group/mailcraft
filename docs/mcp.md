@@ -1,6 +1,6 @@
 # MCP server
 
-> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-10-19 · **Change:** minor (whom the gate binds: agents with a shell or the owner's files are outside it; `mail.openAttachment` never for agents, #126; `sync.progress`'s `fullMessages`, `ui.skipSync` allowed, #120) · **Target:** Microsoft Outlook (Microsoft 365)
+> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-10-21 · **Change:** minor (#276: `sync.progress`'s `timings`; whom the gate binds: agents with a shell or the owner's files are outside it; `mail.openAttachment` never for agents, #126; `sync.progress`'s `fullMessages`, `ui.skipSync` allowed, #120) · **Target:** Microsoft Outlook (Microsoft 365)
 
 MailCraft speaks the [Model Context Protocol](https://modelcontextprotocol.io) over stdio, so
 agents can read, file and write mail and keep a calendar.
@@ -77,7 +77,7 @@ The server's instructions say the same. This is defence in depth: the gate above
 
 **Send/Receive Progress.** `sync.progress` (class `safe`, through `execute`) answers what the
 Send/Receive under way is doing, or what the last one did, account by account: its state, phase,
-folder and counts, what it brought, its problems, and for a Microsoft account how far its messages have been fetched whole (`fullMessages`: done, total, paused) ([control protocol](control-protocol.md#commands-worth-knowing)).
+folder and counts, what it brought, its problems, and for a Microsoft account how far its messages have been fetched whole (`fullMessages`: done, total, paused), and how long its part of the run took, by phase, with the requests made and the folders skipped (`timings`: numbers only, #276) ([control protocol](control-protocol.md#commands-worth-knowing)).
 With the window, `ui.skipSync {"account"}` (allowed) leaves an account that waits its turn out of the run.
 It opens nothing. The problems may name a message by its subject, which is message content: they
 are framed as untrusted, like the text above.
@@ -123,3 +123,4 @@ parameters.
 | 2026-10-17 | minor | `sync.progress`'s `fullMessages`; `ui.skipSync` allowed to agents (#120) |
 | 2026-10-18 | minor | `mail.openAttachment` (#126): never for agents |
 | 2026-10-19 | minor | Whom the gate binds: agents that reach MailCraft only through MCP; one with a shell or the owner's files is outside it |
+| 2026-10-21 | minor | `sync.progress`'s `timings` (#276) |
