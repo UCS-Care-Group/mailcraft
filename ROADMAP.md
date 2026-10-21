@@ -282,6 +282,7 @@ follows:
 
 | Date | Change |
 |---|---|
+| 2026-10-21 | #273: arranged by size, each row's size under its time (progress log) |
 | 2026-10-21 | #71: padding, margins, lines, rounded corners and line height from inline styles (progress log) |
 | 2026-10-21 | #214: Show in Groups and Single Line list layout (progress log) |
 | 2026-10-21 | #177: wiping an account's local copy, and everything (progress log) |
