@@ -7853,7 +7853,7 @@ msgid "The calendar couldn't be taken in: {error}"
 msgstr "Der Kalender konnte nicht übernommen werden: {error}"
 
 #. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#: crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "The calendar is being updated already."
 msgstr "Der Kalender wird bereits aktualisiert."
@@ -7877,7 +7877,7 @@ msgid "The colour is set in Outlook"
 msgstr "Die Farbe wird in Outlook festgelegt"
 
 #. interface
-#: crates/ui-egui/src/lib.rs
+#: crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "The contacts couldn't be taken in: {error}"
 msgstr "Die Kontakte konnten nicht übernommen werden: {error}"
@@ -8959,12 +8959,6 @@ msgstr "{folder} auf dem Server aktualisiert"
 #, fuzzy
 msgid "Updates"
 msgstr "Updates"
-
-#. interface
-#: crates/ui-egui/src/lib.rs
-#, fuzzy
-msgid "Updating the calendar and contacts…"
-msgstr "Kalender und Kontakte werden aktualisiert…"
 
 #. interface
 #: crates/ui-egui/src/chrome.rs
@@ -11559,4 +11553,8 @@ msgstr "{why}, daher werden Anmeldungen nicht gespeichert: MailCraft fragt bei j
 #, fuzzy
 msgid "{why}. {n} changes made in it here wait on this computer."
 msgstr "{why}. {n} hier darin vorgenommene Änderungen warten auf diesem Computer."
+
+#, fuzzy
+#~ msgid "Updating the calendar and contacts…"
+#~ msgstr "Kalender und Kontakte werden aktualisiert…"
 

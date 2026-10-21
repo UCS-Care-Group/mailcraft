@@ -6,6 +6,7 @@
 - **Reminder windows** follow the main window's light or dark theme, and carry its icon.
 
 **Fixes**
+- A shared mailbox, and the next account, no longer wait for your own calendar and contacts to download before their mail starts: calendar and contacts follow once the mail of every account is in, still at start-up and every 15 minutes ([#276](https://github.com/GITHUB_REPOSITORY/issues/276)).
 - Ctrl+Q marks the selected messages read and no longer also closes the window ([#269](https://github.com/GITHUB_REPOSITORY/issues/269)).
 - Calendar › View shows the four calendar views in place of the messages' controls ([#239](https://github.com/GITHUB_REPOSITORY/issues/239)).
 - Add Shared Mailbox no longer waits for a Send/Receive already under way, and once the new mailbox is added the rest of its download no longer holds up your own Send/Receive: your changes go out first, a sign-in left open in the browser no longer makes Add wait, and a Send/Receive you pressed still shows its errors ([#70](https://github.com/GITHUB_REPOSITORY/issues/70), [#257](https://github.com/GITHUB_REPOSITORY/issues/257), [#274](https://github.com/GITHUB_REPOSITORY/issues/274); thanks to @strikerz5 for #257).

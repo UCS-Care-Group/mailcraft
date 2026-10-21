@@ -11,7 +11,8 @@
 //! Each of these is one small job for the host ([`Services::graph`](crate::Services::graph)):
 //! tell the server what waits (when anything does), then ask for the days on screen and a week
 //! either side. That is one question when nothing waits. The wide stretch (a month back, a year
-//! ahead) and the contacts stay with Send/Receive, every quarter of an hour.
+//! ahead) and the contacts come in the same kind of job every quarter of an hour, after the
+//! Send/Receive round, never in it (#276): no mailbox's mail waits for them.
 //!
 //! One job at a time, and never while the Microsoft Graph part of a Send/Receive is at work:
 //! an answer that was asked for before a change went up could otherwise be taken in after it.
@@ -82,6 +83,10 @@ pub(crate) struct CalendarSync {
     /// What an account's server was last told, and when: the very same again right away would
     /// mean that the telling doesn't settle anything, and is left for later.
     sent: HashMap<Id, (EventsUpload, f64)>,
+    /// The accounts whose next job was asked for by the owner (a Send/Receive).
+    pub(crate) by_hand: std::collections::HashSet<Id>,
+    /// Whether the job in flight brings the wide stretch with the contacts.
+    directory: bool,
     /// Ask at once: the window came back to the front, or the owner switched to the calendar.
     pub(crate) due: bool,
     /// Whether the window had the focus and the calendar was in front at the last look.
@@ -128,6 +133,20 @@ impl MailApp {
         }
     }
 
+    /// Whether the calendar's job is at work for `account`, or for the owner whose sign-in a
+    /// shared mailbox is read with: no other job of it starts until that one has ended.
+    pub(crate) fn calendar_job_for(&self, account: Id) -> bool {
+        let owner = self.session.mailbox.owner_of(account).map_or(account, |owner| owner.id);
+        self.calendar.rx.as_ref().is_some_and(|(busy, ..)| *busy == owner || *busy == account)
+    }
+
+    /// A Send/Receive the owner asked for was started for `account`: its calendar and contacts
+    /// are asked for in the job that follows the round, the days on screen at least.
+    pub(crate) fn calendar_after_round(&mut self, account: Id) {
+        self.calendar.checked.remove(&account);
+        self.calendar.by_hand.insert(account);
+    }
+
     /// The accounts whose calendar a Microsoft server keeps.
     fn microsoft_accounts(&self) -> Vec<Id> {
         let microsoft = |a: &&mailcraft_model::Account| a.oauth.as_ref().is_some_and(|o| o.provider == mailcraft_model::OAuthProvider::Microsoft);
@@ -147,7 +166,8 @@ impl MailApp {
             return false;
         }
         // One at a time; and a Send/Receive that is about to ask Graph, or is asking, goes first.
-        if self.calendar.rx.is_some() || self.graph_rx.is_some() || self.signing_in.is_some() || !self.sync_queue.is_empty() {
+        if self.calendar.rx.is_some() || self.graph_rx.is_some() || self.sync_rx.is_some() || self.signing_in.is_some() || !self.sync_queue.is_empty()
+        {
             return false;
         }
         // What waits and can't be sent any more is given up before anything is sent: with a
@@ -183,7 +203,9 @@ impl MailApp {
             // Other days came into view (a series shows there by its rule until the server has
             // said which of its days are really there): they are asked for without waiting.
             let elsewhere = in_front && self.calendar.shown.get(&account).is_some_and(|shown| *shown != self.calendar_window());
-            let refresh = ((self.calendar.due || elsewhere) && in_front) || asked.is_none_or(|at| now - at >= every);
+            // The wide stretch with the contacts, every quarter of an hour: after the mail.
+            let wide = self.directory_due(account, now);
+            let refresh = ((self.calendar.due || elsewhere) && in_front) || asked.is_none_or(|at| now - at >= every) || wide;
             if !(push || refresh) || self.graph_consent_needed.contains(&account) {
                 continue;
             }
@@ -200,6 +222,12 @@ impl MailApp {
         // Nobody to ask: the wish to ask at once doesn't outlive the look.
         self.calendar.due = false;
         false
+    }
+
+    /// Whether the wide stretch of `account`'s calendar and its contacts are due: every quarter
+    /// of an hour, and at start-up.
+    fn directory_due(&self, account: Id, now: f64) -> bool {
+        self.graph_checked.get(&account).is_none_or(|at| now - at > 900_000.0)
     }
 
     /// The stretch of the calendar a refresh asks for: the days on screen and a week either
@@ -268,7 +296,8 @@ impl MailApp {
             return false;
         }
         // The Favorites as Outlook has them ride along when they are due ([`crate::favorites_sync`]).
-        let favorites = round.is_none() && self.favorites_ask(account, now, false);
+        let by_hand = self.calendar.by_hand.remove(&account);
+        let favorites = round.is_none() && self.favorites_ask(account, now, by_hand);
         // (A token that is known not to be good for them is not handed on when one that is can
         // be had; without a way of getting another, the one there is has to do.)
         let access = if refresh.is_empty() { self.graph_access(account, false) } else { self.graph_access_for(account, favorites) };
@@ -280,16 +309,18 @@ impl MailApp {
         // The working hours the mailbox has set come along once an hour (and after "Connect").
         let settings = round.is_none() && self.calendar.settings_asked.get(&account).is_none_or(|at| now - at >= SETTINGS_MS);
         let stretch = round.unwrap_or_else(|| self.calendar_window());
+        // The wide stretch and the contacts, with a job for the days on screen when they are due.
+        let directory = round.is_none() && self.directory_due(account, now);
         let ask = GraphRequest {
             account: owner,
             oauth: self.effective_oauth(oauth),
             refresh,
             access,
             outbox: Vec::new(),
-            directory: false,
+            directory,
             calendar: Some(stretch),
             changes,
-            asks: self.calendar_asks(account, false, Some(stretch)),
+            asks: self.calendar_asks(account, directory, Some(stretch)),
             settings,
             favorites,
             favorites_scopes: favorites,
@@ -301,6 +332,7 @@ impl MailApp {
         if settings {
             self.calendar.settings_asked.insert(account, now);
         }
+        self.calendar.directory = directory;
         self.calendar.rx = Some((account, carried, now, graph(ask)));
         if round.is_none() {
             self.calendar.checked.insert(account, now);
@@ -348,6 +380,18 @@ impl MailApp {
         }
         let taken = self.take_in_calendar(account, result.uploaded.as_ref(), result.events.as_ref(), &mut errors);
         self.take_in_more_calendars(&result.more_events, &mut errors);
+        // The contacts came with the wide stretch: both in, and it is a quarter of an hour
+        // until the next.
+        if let Some(contacts) = &result.contacts {
+            match remote::apply_contacts(&mut self.session, contacts) {
+                Ok(_) => {}
+                Err(e) => errors.push(crate::i18n::fmt(tl!("The contacts couldn't be taken in: {error}"), &[("error", &e.to_string())])),
+            }
+        }
+        // (A part that couldn't be had is among the errors: then the next job asks again.)
+        if std::mem::take(&mut self.calendar.directory) && taken && errors.is_empty() {
+            self.graph_checked.insert(account, now_ms());
+        }
         // Something went up: what the server has now is asked for again soon, should this
         // answer have been cut short.
         let went = result.uploaded.as_ref().is_some_and(|uploaded| !uploaded.outcomes.is_empty());
@@ -1167,6 +1211,10 @@ pub(crate) mod testing {
 }
 
 #[cfg(test)]
+#[path = "calendar_off_path_tests.rs"]
+mod calendar_off_path_tests;
+
+#[cfg(test)]
 mod tests {
     use std::sync::{Arc, Mutex};
 
@@ -1189,6 +1237,8 @@ mod tests {
         app.autosave = false;
         let server = serve(&mut app);
         let account = microsoft_account(&mut app);
+        // (The wide stretch and the contacts, due at start-up, are not what these look at.)
+        app.graph_checked.insert(account, f64::MAX);
         server.lock().unwrap().events = vec![event("e-1", "Budget review", NOW - 3 * 3600)];
         (app, server, account)
     }

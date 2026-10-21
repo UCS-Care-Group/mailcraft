@@ -6500,7 +6500,7 @@ msgid "The calendar couldn't be taken in: {error}"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/calendar_sync.rs
+#: crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/lib.rs
 msgid "The calendar is being updated already."
 msgstr ""
 
@@ -6520,7 +6520,7 @@ msgid "The colour is set in Outlook"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/lib.rs
+#: crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/lib.rs
 msgid "The contacts couldn't be taken in: {error}"
 msgstr ""
 
@@ -7419,11 +7419,6 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "Updates"
-msgstr ""
-
-#. interface
-#: crates/ui-egui/src/lib.rs
-msgid "Updating the calendar and contacts…"
 msgstr ""
 
 #. interface

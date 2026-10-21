@@ -1860,8 +1860,22 @@ impl MailApp {
             return Err(tl!("This build can't connect to mail servers (a browser can't open mail connections). Use the desktop app, or bring mail in with File › Import.").to_string());
         }
         let quiet = p.get("quiet").and_then(Value::as_bool).unwrap_or(false);
+        // Never two jobs for one account at once: the calendar's job (a short one, but the
+        // wide stretch every quarter of an hour is not) finishes first.
+        let target = p.get("account").and_then(Value::as_u64).or_else(|| self.server_accounts().first().copied());
+        if target.is_some_and(|account| self.calendar_job_for(account)) {
+            return Err(tl!("The calendar is being updated already.").to_string());
+        }
         // A run starts, the owner's or one by itself: full messages paused by Stop go on.
         self.resume_fetch();
+        // Send/Receive the owner asked for: the calendar and contacts follow the round.
+        if !quiet {
+            let accounts: Vec<Id> =
+                target.into_iter().chain(p.get("account").is_none().then(|| self.server_accounts()).into_iter().flatten()).collect();
+            for account in accounts {
+                self.calendar_after_round(account);
+            }
+        }
         let account = match p.get("account").and_then(Value::as_u64) {
             Some(account) => account,
             // Nobody in particular: every account with a server, one after the other.
@@ -1902,52 +1916,43 @@ impl MailApp {
                 }
             }
             // Microsoft Graph first, for what it does better than the mail protocols: sending
-            // (the answer says what it sent, and this runs again for the mail itself) and the
-            // calendar and contacts, every quarter of an hour.
+            // (the answer says what it sent, and this runs again for the mail itself). The
+            // calendar and contacts are not part of it: they come in a job of their own after
+            // the round ([`calendar_sync`]), so that they never hold up the mail (#276).
             let after_graph = p.get("afterGraph").and_then(Value::as_bool).unwrap_or(false);
             let microsoft = oauth.provider == mailcraft_model::OAuthProvider::Microsoft;
-            if !after_graph && microsoft && !refresh.is_empty() && !self.graph_consent_needed.contains(&account) && self.services.graph.is_some() {
-                let now = now_ms();
-                // The calendar's part is left out while a calendar job of its own is at work
-                // ([`calendar_sync`]): the two answers would cross.
-                let free = !self.calendar_syncing();
-                let directory = free && self.graph_checked.get(&account).is_none_or(|at| now - at > 900_000.0);
-                // What was changed in the calendar here goes along; and a Send/Receive the owner
-                // asked for brings the days on screen when the wide stretch isn't due.
-                let changes = if free { self.calendar_changes(account) } else { None };
-                let calendar = (free && !directory && (!quiet || changes.is_some())).then(|| self.calendar_window());
-                if directory || !request.outbox.is_empty() || changes.is_some() || calendar.is_some() {
-                    // The Favorites as Outlook has them ride along: with a Send/Receive the owner
-                    // asked for, and otherwise when they are due ([`favorites_sync`]).
-                    let favorites = free && self.favorites_ask(account, now, !quiet);
-                    let access = self.graph_access_for(account, favorites);
-                    let ask = GraphRequest {
-                        account: request.account.clone(),
-                        oauth: self.effective_oauth(oauth),
-                        refresh,
-                        access,
-                        outbox: request.outbox.clone(),
-                        directory,
-                        calendar,
-                        changes,
-                        asks: self.calendar_asks(account, directory, calendar),
-                        // (The calendar's own job asks for them: [`calendar_sync`].)
-                        settings: false,
-                        favorites,
-                        favorites_scopes: favorites,
-                        mail: None,
-                        mail_pieces: None,
-                        cancel: Default::default(),
-                    };
-                    self.session.sync_status =
-                        if ask.outbox.is_empty() { tl!("Updating the calendar and contacts…") } else { tl!("Sending…") }.to_string();
-                    let phase = if ask.outbox.is_empty() { SyncPhase::CalendarAndContacts } else { SyncPhase::Sending };
-                    self.session.sync_progress.phase(account, phase);
-                    if let Some(graph) = &self.services.graph {
-                        self.graph_rx = Some((account, quiet, directory, graph(ask)));
-                    }
-                    return Ok(json!({"pending": "graph", "account": account}));
+            if !after_graph
+                && microsoft
+                && !refresh.is_empty()
+                && !self.graph_consent_needed.contains(&account)
+                && self.services.graph.is_some()
+                && !request.outbox.is_empty()
+            {
+                let access = self.graph_access_for(account, false);
+                let ask = GraphRequest {
+                    account: request.account.clone(),
+                    oauth: self.effective_oauth(oauth),
+                    refresh,
+                    access,
+                    outbox: request.outbox.clone(),
+                    directory: false,
+                    calendar: None,
+                    changes: None,
+                    asks: Vec::new(),
+                    // (The calendar's own job asks for these: [`calendar_sync`].)
+                    settings: false,
+                    favorites: false,
+                    favorites_scopes: false,
+                    mail: None,
+                    mail_pieces: None,
+                    cancel: Default::default(),
+                };
+                self.session.sync_status = tl!("Sending…").to_string();
+                self.session.sync_progress.phase(account, SyncPhase::Sending);
+                if let Some(graph) = &self.services.graph {
+                    self.graph_rx = Some((account, quiet, false, graph(ask)));
                 }
+                return Ok(json!({"pending": "graph", "account": account}));
             }
             // What Graph sent, or couldn't say whether it sent, is not sent again by SMTP.
             let skip: Vec<Id> = p.get("skip").and_then(Value::as_array).map(|ids| ids.iter().filter_map(Value::as_u64).collect()).unwrap_or_default();
@@ -2002,13 +2007,6 @@ impl MailApp {
         // The Outbox goes with the mail run itself (R3.4.2): sent as drafts or with `sendMail`,
         // and a message held there is not sent again by itself.
         let outbox: Vec<mailcraft_model::Message> = Vec::new();
-        // The calendar and the contacts as for any account that signs in with Microsoft: the
-        // wide stretch every quarter of an hour, and what was changed in the calendar here.
-        let now = now_ms();
-        let free = !self.calendar_syncing();
-        let directory = free && self.graph_checked.get(&account).is_none_or(|at| now - at > 900_000.0);
-        let changes = if free { self.calendar_changes(account) } else { None };
-        let calendar = (free && !directory && (!quiet || changes.is_some())).then(|| self.calendar_window());
         // The mail comes a piece at a time; a busy window holds the run back rather than letting
         // pieces pile up.
         let (pieces, taken) = std::sync::mpsc::sync_channel(8);
@@ -2019,10 +2017,12 @@ impl MailApp {
             // (Renewed for the job: a token kept from another job may not cover the mail.)
             access: String::new(),
             outbox,
-            directory,
-            calendar,
-            changes,
-            asks: self.calendar_asks(account, directory, calendar),
+            // The calendar and the contacts are a job of their own after the round, so that they
+            // never hold up the next mailbox's mail ([`calendar_sync`], #276).
+            directory: false,
+            calendar: None,
+            changes: None,
+            asks: Vec::new(),
             settings: false,
             // (The calendar's own job reads them, with a token that covers them.)
             favorites: false,
@@ -2037,12 +2037,8 @@ impl MailApp {
         self.graph_pieces = Some(taken);
         self.graph_problems.clear();
         self.graph_pieces_taken = 0;
-        // The calendar and contacts come after the mail: its last piece doesn't end the run.
-        if ask.directory || ask.calendar.is_some() || ask.changes.is_some() {
-            self.session.sync_progress.hold(account);
-        }
         self.sync_run = Some((account, None, false, quiet));
-        self.graph_rx = Some((account, quiet, directory, graph(ask)));
+        self.graph_rx = Some((account, quiet, false, graph(ask)));
         self.session.sync_status = tl!("Sending and receiving…").to_string();
         Ok(json!({"started": true, "account": account, "graph": true}))
     }
@@ -2121,6 +2117,10 @@ impl MailApp {
         }
         let busy = self.sync_rx.is_some() || self.graph_rx.is_some() || self.signing_in.is_some() || self.approving();
         if self.services.sync.is_none() || busy || self.dialog.is_some() {
+            return;
+        }
+        // (Not while the calendar's job is at work for the account: it is a short wait.)
+        if self.sync_queue.front().is_some_and(|(account, _)| self.calendar_job_for(*account)) {
             return;
         }
         if let Some((account, quiet)) = self.sync_queue.pop_front() {
