@@ -4883,6 +4883,11 @@ msgid "No end date"
 msgstr "Kein Enddatum"
 
 #. interface
+#: crates/ui-egui/src/ribbon.rs
+msgid "No folders match"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/scheduling.rs
 #, fuzzy
 msgid "No information"
@@ -6574,6 +6579,11 @@ msgid "Search commands"
 msgstr "Befehle suchen"
 
 #. interface
+#: crates/ui-egui/src/ribbon.rs
+msgid "Search folders"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/chrome.rs
 #, fuzzy
 msgid "Search mail"
@@ -7078,6 +7088,11 @@ msgstr "Als Unterhaltungen anzeigen"
 msgid "Show in Calendar"
 msgstr "Im Kalender anzeigen"
 
+#. command label, interface
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
+msgid "Show in Groups"
+msgstr "In Gruppen anzeigen"
+
 #. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
@@ -7337,6 +7352,11 @@ msgstr "Meldet sich bei {provider} an"
 #, fuzzy
 msgid "Simplified Ribbon"
 msgstr "Vereinfachtes Menüband"
+
+#. command label, interface
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
+msgid "Single Line"
+msgstr "Eine Zeile"
 
 #. interface, name
 #: crates/engine/src/session.rs crates/ui-egui/src/signatures.rs

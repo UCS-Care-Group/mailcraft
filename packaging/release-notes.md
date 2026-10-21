@@ -6,6 +6,8 @@
 - **Reminder windows** follow the main window's light or dark theme, and carry its icon.
 
 **Fixes**
+- Move to Folder, Copy to Folder and the other folder menus have a search box at the top, so a folder is found by typing part of its name ([#74](https://github.com/GITHUB_REPOSITORY/issues/74), thanks to @strikerz5).
+- Show in Groups (View › Arrange By) turns the date headings off for one continuous list, and Single Line (View › Message Preview) shows each message on one line; thanks to @Schintilla for asking ([#214](https://github.com/GITHUB_REPOSITORY/issues/214)).
 - Ctrl+Q marks the selected messages read and no longer also closes the window ([#269](https://github.com/GITHUB_REPOSITORY/issues/269)).
 - Calendar › View shows the four calendar views in place of the messages' controls ([#239](https://github.com/GITHUB_REPOSITORY/issues/239)).
 - Add Shared Mailbox no longer waits for a Send/Receive already under way, and once the new mailbox is added the rest of its download no longer holds up your own Send/Receive: your changes go out first, a sign-in left open in the browser no longer makes Add wait, and a Send/Receive you pressed still shows its errors ([#70](https://github.com/GITHUB_REPOSITORY/issues/70), [#257](https://github.com/GITHUB_REPOSITORY/issues/257), [#274](https://github.com/GITHUB_REPOSITORY/issues/274); thanks to @strikerz5 for #257).
@@ -13,6 +15,7 @@
 - The Appointment window no longer turns the whole program light when Appearance follows a dark system ([#266](https://github.com/GITHUB_REPOSITORY/issues/266)).
 - Right-clicking a selected time range in the calendar opens a menu with New Appointment, New Meeting and New All Day Event for that range ([#261](https://github.com/GITHUB_REPOSITORY/issues/261), thanks to @redfoxx15).
 - HTML mail laid out with a width, a maximum width, or centring by automatic margins (the usual centred newsletter card) now displays at that width and centred, not full width and misaligned ([#150](https://github.com/GITHUB_REPOSITORY/issues/150)).
+- Newsletters, statements and notices keep their padding, margins, lines, rounded corners and line spacing, so their boxes and buttons no longer run into the text ([#71](https://github.com/GITHUB_REPOSITORY/issues/71), thanks to @strikerz5).
 - On macOS the menu bar at the top of the screen now has File, Edit, View, Folder, Message, Window and Help as well as MailCraft's own menu, running the same commands with the same ⌘ keys ([#253](https://github.com/GITHUB_REPOSITORY/issues/253), thanks to @HerbJul).
 
 **Early alpha.** The foundations are in place and tested, but much of what a daily mail program needs is not there yet, and most of the Microsoft 365 behaviour has only been tested against stand-ins. What works is in the [README](https://github.com/GITHUB_REPOSITORY#what-works-today).

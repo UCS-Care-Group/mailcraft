@@ -1,6 +1,6 @@
 # Contributing to MailCraft
 
-> **Status:** current · **Written:** 2026-10-15 · **Last updated:** 2026-10-19 · **Change:** minor (the Contributor Licence Agreement, signed once by a comment; review of sync, store, sign-in and secrets stated as it is done)
+> **Status:** current · **Written:** 2026-10-15 · **Last updated:** 2026-10-21 · **Change:** minor (tests go in files of their own, which code scanning skips)
 
 Thank you for wanting to help. MailCraft holds people's mail, so the way work comes in matters as
 much as the work.
@@ -31,6 +31,11 @@ Issues labelled `post-beta` are parked: they aren't open to claims until beta is
 - **`cargo xtask ci` passes** on your machine before every commit (fmt, clippy, tests, assets,
   spdx, layers, wasm, and cargo-deny when it is installed). Commits carry the task id (`R3.2: messages come down by delta`).
 - **Every crash fix and every data-loss fix comes with a regression test.**
+- **Tests go in files of their own**: `tests.rs`, `<name>_tests.rs` or a `tests/` directory,
+  brought in with `#[cfg(test)] mod <name>_tests;`, not an inline `mod tests { … }` in a source
+  file. Code scanning ([`.github/codeql/codeql-config.yml`](.github/codeql/codeql-config.yml))
+  skips those files; in a source file, a test's made-up passwords and assertion messages are
+  flagged as if they were production code.
 - **New Rust files start with the two SPDX lines** (copyright and licence); `cargo xtask spdx --fix`
   adds them.
 - **Tests never touch a real mailbox.** Use the fake servers in `crates/net/src/fake.rs` and the
@@ -76,3 +81,4 @@ Found something wrong? Use the
 | 2026-10-15 | major | First version: claim before you build, one issue per pull request, decisions kept for the owners, tester sign-up |
 | 2026-10-16 | minor | Changes to sync, the store, sign-in and secrets are read by a maintainer before they land (no promise of enforced code-owner review); `CLAUDE.md` is a link to `AGENTS.md` |
 | 2026-10-19 | minor | The Contributor Licence Agreement ([CLA.md](CLA.md)), signed once by a comment on a pull request |
+| 2026-10-21 | minor | Tests go in files of their own (`tests.rs`, `*_tests.rs`, `tests/`), which code scanning skips |
