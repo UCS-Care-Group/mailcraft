@@ -4873,6 +4873,11 @@ msgid "No end date"
 msgstr "Kein Enddatum"
 
 #. interface
+#: crates/ui-egui/src/ribbon.rs
+msgid "No folders match"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/scheduling.rs
 #, fuzzy
 msgid "No information"
@@ -6557,6 +6562,11 @@ msgstr "Kontakte suchen"
 #, fuzzy
 msgid "Search commands"
 msgstr "Befehle suchen"
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+msgid "Search folders"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/chrome.rs

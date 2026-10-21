@@ -6,6 +6,7 @@
 - **Reminder windows** follow the main window's light or dark theme, and carry its icon.
 
 **Fixes**
+- Move to Folder, Copy to Folder and the other folder menus have a search box at the top, so a folder is found by typing part of its name ([#74](https://github.com/GITHUB_REPOSITORY/issues/74), thanks to @strikerz5).
 - Ctrl+Q marks the selected messages read and no longer also closes the window ([#269](https://github.com/GITHUB_REPOSITORY/issues/269)).
 - Calendar › View shows the four calendar views in place of the messages' controls ([#239](https://github.com/GITHUB_REPOSITORY/issues/239)).
 - Add Shared Mailbox no longer waits for a Send/Receive already under way ([#70](https://github.com/GITHUB_REPOSITORY/issues/70)).
