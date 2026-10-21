@@ -45,6 +45,8 @@ pub const TABLE: &[(&str, Class)] = &[
     ("ical", Class::Layer(2)),
     ("vcard", Class::Layer(2)),
     ("proto", Class::Layer(3)),
+    // JMAP over any HTTP, beside `proto` and `net`: no sockets and no browser APIs, so it builds for the browser too.
+    ("jmap", Class::Layer(3)),
     ("net", Class::Layer(3)),
     ("engine", Class::Layer(4)),
     ("mcp", Class::Layer(5)),
@@ -334,6 +336,25 @@ mod tests {
             let v = check(&[c(krate, &[("craft-quit", Normal, false)])]);
             assert!(matches!(&v[..], [Violation::AppOnly { dep, .. }] if dep == "craft-quit"), "{krate}: {v:?}");
         }
+    }
+
+    #[test]
+    fn the_jmap_client_sits_at_layer_3() {
+        assert_eq!(classify("mailcraft-jmap"), Some(Class::Layer(3)));
+        // It may use what is below it...
+        let below =
+            [("mailcraft-time", Normal, true), ("mailcraft-model", Normal, true), ("mailcraft-mime", Normal, true), ("serde_json", Normal, false)];
+        assert!(check(&[c("mailcraft-jmap", &below)]).is_empty());
+        // ... and nothing at its own layer or above it, in the code or in the tests.
+        for (dep, kind, to) in
+            [("mailcraft-net", Normal, 3), ("mailcraft-proto", Normal, 3), ("mailcraft-engine", Dev, 4), ("mailcraft-ui-egui", Normal, 6)]
+        {
+            let v = check(&[c("mailcraft-jmap", &[(dep, kind, true)])]);
+            assert!(matches!(v[..], [Violation::Upward { from: 3, to: t, .. }] if t == to), "{dep}: {v:?}");
+        }
+        // The engine and the front end may use it.
+        assert!(check(&[c("mailcraft-engine", &[("mailcraft-jmap", Normal, true)])]).is_empty());
+        assert!(check(&[c("mailcraft-ui-egui", &[("mailcraft-jmap", Normal, true)])]).is_empty());
     }
 
     #[test]

@@ -1,0 +1,30 @@
+[package]
+name = "mailcraft-jmap"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "MailCraft JMAP (RFC 8620 and 8621) without sockets or browser APIs: an async client over any HTTP implementation, and an in-process server for the tests of the crates that sit on it"
+
+[lints]
+workspace = true
+
+[dependencies]
+# What a run brings back is the model's own sync data; a message's header fields are read by the
+# MIME reader, and an arrival date by the time crate (all of them lower layers, all of them wasm-ready).
+mailcraft-time = { workspace = true }
+mailcraft-model = { workspace = true }
+mailcraft-mime = { workspace = true }
+log = { workspace = true }
+serde_json = { workspace = true }
+# The stand-in reads the Basic credentials it is sent.
+base64 = { workspace = true, optional = true }
+
+[features]
+# An in-process JMAP server that holds a client to the protocol (`standin`), for the tests of the
+# crates that sit on this one, and the executor of those tests. Never in a build that isn't a test's.
+stand-in = ["dep:base64"]
+
+[dev-dependencies]
+base64 = { workspace = true }
+proptest = { workspace = true }

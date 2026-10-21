@@ -1,5 +1,5 @@
 # Fuzz targets for the code that reads what arrives from outside: messages, mbox files, HTML,
-# iCalendar, vCard, character sets, IMAP/SMTP servers and language catalogues. Not part of the
+# iCalendar, vCard, character sets, IMAP/SMTP servers, JMAP servers and language catalogues. Not part of the
 # main workspace (it needs nightly): `cargo +nightly fuzz run <target>` from the repository root;
 # `cargo fuzz list` names them.
 [package]
@@ -18,6 +18,7 @@ mailcraft-charset = { path = "../crates/charset" }
 mailcraft-i18n = { path = "../crates/i18n" }
 mailcraft-html = { path = "../crates/html" }
 mailcraft-ical = { path = "../crates/ical" }
+mailcraft-jmap = { path = "../crates/jmap" }
 mailcraft-mime = { path = "../crates/mime" }
 mailcraft-proto = { path = "../crates/proto" }
 mailcraft-vcard = { path = "../crates/vcard" }
@@ -77,6 +78,34 @@ bench = false
 [[bin]]
 name = "po"
 path = "fuzz_targets/po.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "jmap_address"
+path = "fuzz_targets/jmap_address.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "jmap_discovery"
+path = "fuzz_targets/jmap_discovery.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "jmap_session"
+path = "fuzz_targets/jmap_session.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "jmap_response"
+path = "fuzz_targets/jmap_response.rs"
 test = false
 doc = false
 bench = false
