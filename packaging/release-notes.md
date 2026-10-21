@@ -6,6 +6,7 @@
 - **Reminder windows** follow the main window's light or dark theme, and carry its icon.
 
 **Fixes**
+- Move to Folder, Copy to Folder and the other folder menus have a search box at the top, so a folder is found by typing part of its name ([#74](https://github.com/GITHUB_REPOSITORY/issues/74), thanks to @strikerz5).
 - Show in Groups (View › Arrange By) turns the date headings off for one continuous list, and Single Line (View › Message Preview) shows each message on one line; thanks to @Schintilla for asking ([#214](https://github.com/GITHUB_REPOSITORY/issues/214)).
 - Ctrl+Q marks the selected messages read and no longer also closes the window ([#269](https://github.com/GITHUB_REPOSITORY/issues/269)).
 - Calendar › View shows the four calendar views in place of the messages' controls ([#239](https://github.com/GITHUB_REPOSITORY/issues/239)).
