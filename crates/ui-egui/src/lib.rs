@@ -61,6 +61,7 @@ mod keep_offline;
 pub mod keys;
 pub mod mail_view;
 mod meeting_dialogs;
+pub mod menubar;
 pub mod nav;
 pub mod people_view;
 pub mod reading;

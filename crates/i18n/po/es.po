@@ -337,8 +337,8 @@ msgstr ""
 "Acerca de\n"
 "MailCraft"
 
-#. interface
-#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs
+#. interface, name
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
 msgid "About MailCraft"
 msgstr "Acerca de MailCraft"
@@ -1759,8 +1759,8 @@ msgstr "Los colaboradores eligen sus propios nombres; consulte docs/contributors
 msgid "Copies a short message with the address of Microsoft's page where an administrator of your organisation approves MailCraft, once for everybody. Nothing is sent: paste it into mail or chat yourself."
 msgstr "Copia un mensaje breve con la dirección de la página de Microsoft donde un administrador de su organización aprueba MailCraft, una sola vez para todos. No se envía nada: péguelo usted mismo en un correo o un chat."
 
-#. command label, interface
-#: crates/engine/src/cmd/format.rs crates/ui-egui/src/dialogs.rs
+#. command label, interface, name
+#: crates/engine/src/cmd/format.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
 msgid "Copy"
 msgstr "Copiar"
@@ -1907,8 +1907,8 @@ msgstr "Carpeta actual"
 msgid "Current View"
 msgstr "Vista actual"
 
-#. command label
-#: crates/engine/src/cmd/format.rs
+#. command label, name
+#: crates/engine/src/cmd/format.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
 msgid "Cut"
 msgstr "Cortar"
@@ -2433,8 +2433,8 @@ msgstr "Vence {when}"
 msgid "E-mail"
 msgstr "Correo electrónico"
 
-#. interface
-#: crates/ui-egui/src/people_view.rs crates/ui-egui/src/tasks_view.rs
+#. interface, name
+#: crates/ui-egui/src/menubar.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Edit"
 msgstr "Editar"
@@ -2729,8 +2729,8 @@ msgstr "feb."
 msgid "February"
 msgstr "febrero"
 
-#. command label, ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/lib.rs
+#. command label, name, ribbon location
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
 msgid "File"
 msgstr "Archivo"
@@ -2836,7 +2836,7 @@ msgid "Fold the calendars of this group away"
 msgstr "Contraer los calendarios de este grupo"
 
 #. name, ribbon location
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/rules.rs crates/model/src/mailbox.rs crates/ui-egui/src/lib.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/rules.rs crates/model/src/mailbox.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
 msgid "Folder"
 msgstr "Carpeta"
@@ -3187,11 +3187,16 @@ msgstr "Tiene datos adjuntos"
 msgid "Held:"
 msgstr "Retenido:"
 
-#. ribbon, ribbon location
-#: crates/ui-egui/src/lib.rs crates/ui-egui/src/ribbon.rs
+#. interface, name, ribbon, ribbon location
+#: crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Help"
 msgstr "Ayuda"
+
+#. interface
+#: crates/ui-egui/src/menubar.rs
+msgid "Hide MailCraft"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/nav.rs
@@ -3391,8 +3396,8 @@ msgstr "Aumentar sangría"
 msgid "Indexing mail: {percent}%"
 msgstr "Indexando el correo: {percent} %"
 
-#. command label, interface, ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/shared.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs
+#. command label, interface, name, ribbon location
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/shared.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
 msgid "Info"
 msgstr "Información"
@@ -4173,8 +4178,8 @@ msgstr "mayo"
 msgid "Meeting"
 msgstr "Reunión"
 
-#. interface, ribbon location
-#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/format.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/tasks_view.rs
+#. interface, name, ribbon location
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/format.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Message"
 msgstr "Mensaje"
@@ -4314,6 +4319,11 @@ msgstr "Así lo indicó la página de Microsoft."
 #, fuzzy
 msgid "Microsoft's server couldn't be reached. Click to try again."
 msgstr "No se pudo conectar con el servidor de Microsoft. Haga clic para volver a intentarlo."
+
+#. interface
+#: crates/ui-egui/src/menubar.rs
+msgid "Minimize"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -5436,8 +5446,8 @@ msgstr "Abriendo {name}"
 msgid "Optional"
 msgstr "Opcionales"
 
-#. command label, interface, ribbon location
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs
+#. command label, interface, name, ribbon location
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
 msgid "Options"
 msgstr "Opciones"
@@ -5568,8 +5578,8 @@ msgstr "Contraseña"
 msgid "Password for {account}"
 msgstr "Contraseña de {account}"
 
-#. command label
-#: crates/engine/src/cmd/format.rs
+#. command label, name
+#: crates/engine/src/cmd/format.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
 msgid "Paste"
 msgstr "Pegar"
@@ -5815,6 +5825,11 @@ msgid "Quick Access"
 msgstr "Acceso rápido"
 
 #. interface
+#: crates/ui-egui/src/menubar.rs
+msgid "Quit MailCraft"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Range"
@@ -5890,8 +5905,8 @@ msgstr "Correo reciente"
 msgid "Recurrence"
 msgstr "Periodicidad"
 
-#. command label
-#: crates/engine/src/cmd/edit.rs
+#. command label, name
+#: crates/engine/src/cmd/edit.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
 msgid "Redo"
 msgstr "Rehacer"
@@ -6612,8 +6627,8 @@ msgstr "Segunda zona horaria"
 msgid "Seeing when other people are busy needs your permission: File › Info › Connect calendar and contacts"
 msgstr "Para ver cuándo están ocupadas otras personas se necesita su permiso: Archivo › Información › Conectar calendario y contactos"
 
-#. command label
-#: crates/engine/src/cmd/mail.rs
+#. command label, name
+#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
 msgid "Select All"
 msgstr "Seleccionar todo"
@@ -6941,6 +6956,11 @@ msgstr "Configurar manualmente"
 #, fuzzy
 msgid "Settings"
 msgstr "Configuración"
+
+#. name
+#: crates/ui-egui/src/menubar.rs
+msgid "Settings…"
+msgstr ""
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -8876,8 +8896,8 @@ msgstr "Escriba su dirección de correo electrónico y MailCraft encuentra el re
 msgid "Underline"
 msgstr "Subrayado"
 
-#. command label
-#: crates/engine/src/cmd/edit.rs
+#. command label, name
+#: crates/engine/src/cmd/edit.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
 msgid "Undo"
 msgstr "Deshacer"
@@ -9066,8 +9086,8 @@ msgstr "La versión {version} corrige un problema de seguridad y está lista:"
 msgid "Version {version} is ready:"
 msgstr "La versión {version} está lista:"
 
-#. ribbon location
-#: crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/lib.rs
+#. name, ribbon location
+#: crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
 msgid "View"
 msgstr "Vista"
@@ -9228,8 +9248,8 @@ msgstr "A quién se invita lo decide su organizador."
 msgid "Width"
 msgstr "Ancho"
 
-#. ribbon, ribbon location
-#: crates/engine/src/cmd/view.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/ribbon.rs
+#. interface, ribbon, ribbon location
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Window"
 msgstr "Ventana"
@@ -9495,6 +9515,11 @@ msgstr "El administrador de su organización tiene que aprobar una vez la lectur
 #, fuzzy
 msgid "Z on top"
 msgstr "Z arriba"
+
+#. interface
+#: crates/ui-egui/src/menubar.rs
+msgid "Zoom"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs

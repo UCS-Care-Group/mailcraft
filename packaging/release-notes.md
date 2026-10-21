@@ -9,6 +9,7 @@
 - Ctrl+Q marks the selected messages read and no longer also closes the window ([#269](https://github.com/GITHUB_REPOSITORY/issues/269)).
 - Calendar › View shows the four calendar views in place of the messages' controls ([#239](https://github.com/GITHUB_REPOSITORY/issues/239)).
 - Add Shared Mailbox no longer waits for a Send/Receive already under way ([#70](https://github.com/GITHUB_REPOSITORY/issues/70)).
+- On macOS the menu bar at the top of the screen now has File, Edit, View, Folder, Message, Window and Help as well as MailCraft's own menu, running the same commands with the same ⌘ keys ([#253](https://github.com/GITHUB_REPOSITORY/issues/253), thanks to @HerbJul).
 
 **Early alpha.** The foundations are in place and tested, but much of what a daily mail program needs is not there yet, and most of the Microsoft 365 behaviour has only been tested against stand-ins. What works is in the [README](https://github.com/GITHUB_REPOSITORY#what-works-today).
 

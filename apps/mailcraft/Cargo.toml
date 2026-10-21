@@ -51,6 +51,10 @@ winresource = "0.1"
 # WordCraft, PdfCraft and PhotoCraft) registers the handler (Objective-C interop needs unsafe,
 # which our workspace forbids) behind a safe API. Pinned exactly: review the diff before bumping.
 fmv-macos-events = "=0.1.0"
+# The menu bar at the top of the screen (`menubar.rs`, #253), made natively from the commands'
+# table. MIT OR Apache-2.0 (tauri's), already in the tree through craft-quit's app menu: the same
+# version, with no default features (no image or serde).
+muda = { version = "0.21.2", default-features = false }
 # The macOS keychain (the owner's login keychain), for the credential store below.
 apple-native-keyring-store = { version = "1", features = ["keychain"] }
 # Desktop alerts through the UserNotifications framework (`alerts.rs`), through the generated

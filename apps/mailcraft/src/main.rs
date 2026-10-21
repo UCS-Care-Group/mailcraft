@@ -43,6 +43,8 @@ mod graph_mail_flow;
 mod graphics;
 mod install;
 mod logging;
+#[cfg(target_os = "macos")]
+mod menubar;
 mod opened_files;
 mod picture_cache;
 mod quit;
@@ -69,7 +71,7 @@ use mailcraft_ui_egui::{
 /// The app, the restored window geometry until the first frame has checked it, the control
 /// server's key file (removed on exit), the file dialogs the app asked for, the hold on the
 /// mailbox that later starts hand their files and links to, a copy that updates itself's part in
-/// that (installing at exit) and, on macOS, the files opened from Finder.
+/// that (installing at exit) and, on macOS, the files opened from Finder and the menu bar.
 struct App(
     MailApp,
     Option<WindowGeometry>,
@@ -78,6 +80,7 @@ struct App(
     Option<single_instance::Guard>,
     Option<HostUpdates>,
     #[cfg(target_os = "macos")] fmv_macos_events::Inbox,
+    #[cfg(target_os = "macos")] Option<menubar::MenuBar>,
 );
 
 /// A copy that updates itself (`self_update`): where it keeps what it needs, what it is, and what
@@ -117,6 +120,11 @@ impl eframe::App for App {
             }
             ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
             ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+        }
+        // The menu bar's choices run before the frame's own work (macOS).
+        #[cfg(target_os = "macos")]
+        if let Some(bar) = &mut self.7 {
+            bar.pump(&mut self.0, ctx);
         }
         self.0.logic(ctx);
         self.3.show(frame);
@@ -1430,12 +1438,21 @@ fn main() -> eframe::Result {
             if let Some(guard) = &guard {
                 guard.wake(&cc.egui_ctx);
             }
-            // macOS: an app menu whose Quit (⌘Q) asks the window to close, so a message being
+            // macOS: the menu bar (File, Edit, View, Folder, Message, Window, Help; every item a
+            // command), whose app menu's Quit (Cmd+Q) asks the window to close, so a message being
             // written is asked about first (winit's own quits without asking). Here, after winit
-            // has built its menu. Elsewhere it does nothing.
-            if let Err(e) = craft_quit::install_app_menu(&cc.egui_ctx, "MailCraft") {
-                log::warn!("the app menu couldn't be set up, so Quit won't ask about unsaved work: {e}");
-            }
+            // has built its menu. If it can't be made, the smaller app menu does the asking.
+            #[cfg(target_os = "macos")]
+            let menu_bar = match menubar::install(&cc.egui_ctx, &app) {
+                Ok(bar) => Some(bar),
+                Err(e) => {
+                    log::warn!("the menu bar couldn't be set up: {e}");
+                    if let Err(e) = craft_quit::install_app_menu(&cc.egui_ctx, "MailCraft") {
+                        log::warn!("the app menu couldn't be set up, so Quit won't ask about unsaved work: {e}");
+                    }
+                    None
+                }
+            };
             Ok(Box::new(App(
                 app,
                 restored,
@@ -1445,6 +1462,8 @@ fn main() -> eframe::Result {
                 updates,
                 #[cfg(target_os = "macos")]
                 apple_events.connect(&cc.egui_ctx),
+                #[cfg(target_os = "macos")]
+                menu_bar,
             )))
         }),
     )
