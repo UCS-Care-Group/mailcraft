@@ -1615,6 +1615,10 @@ impl MailApp {
                 self.services.sync_cancel.store(true, std::sync::atomic::Ordering::Relaxed);
                 self.pause_fetch();
                 self.sync_queue.clear();
+                // (Nor does a run called off for something else go on after.)
+                if let Some((_, _, called_off, _)) = self.sync_run.as_mut() {
+                    *called_off = false;
+                }
                 // (Send/Receive Progress: the accounts still to go are stopped with it.)
                 let waiting: Vec<Id> = self
                     .session
@@ -2032,6 +2036,7 @@ impl MailApp {
         if ask.directory || ask.calendar.is_some() || ask.changes.is_some() {
             self.session.sync_progress.hold(account);
         }
+        self.sync_run = Some((account, None, false, quiet));
         self.graph_rx = Some((account, quiet, directory, graph(ask)));
         self.session.sync_status = tl!("Sending and receiving…").to_string();
         Ok(json!({"started": true, "account": account, "graph": true}))
@@ -2096,8 +2101,9 @@ impl MailApp {
         // Something the owner did (a read mark, a move, a message to send) waits while a long run
         // is still bringing mail down: the run is called off, which loses nothing, and the next
         // one tells the server first.
+        // (Whichever way the account is kept in step: a Graph run too, #274.)
         if self.auto_sync
-            && self.sync_rx.is_some()
+            && self.syncing()
             && let Some((whose, Some(baseline), false, quiet)) = self.sync_run
             && now_ms() - self.push_checked >= 3_000.0
         {
@@ -2220,6 +2226,14 @@ impl MailApp {
                     Err(e) => self.graph_problems.push(e.to_string()),
                 }
             }
+            // Its first piece made the changes made here and sent the Outbox; what waits beyond
+            // what waits now was done here since, and calls the run off ([`MailApp::auto_sync`]).
+            if self.graph_pieces_taken > 0
+                && let Some((whose, None, false, q)) = self.sync_run
+                && whose == account
+            {
+                self.sync_run = Some((whose, Some(self.waiting_to_go(whose)), false, q));
+            }
             // A shared mailbox being added is kept once its Inbox is read, not after all its mail.
             self.shared_check_piece(account, over);
             if !over {
@@ -2241,6 +2255,13 @@ impl MailApp {
             }
         };
         self.graph_rx = None;
+        // Called off so that what the owner did could go out: it goes on at once, as it was.
+        if self.sync_run.is_some_and(|(whose, ..)| whose == account)
+            && let Some((whose, _, true, quiet)) = self.sync_run.take()
+            && !self.sync_queue.iter().any(|(a, _)| *a == whose)
+        {
+            self.sync_queue.push_front((whose, quiet));
+        }
         let streamed = std::mem::take(&mut self.graph_pieces_taken) > 0;
         let after_sign_in = self.graph_after_sign_in.take() == Some(account);
         // A shared mailbox's run is its mail alone (#70).

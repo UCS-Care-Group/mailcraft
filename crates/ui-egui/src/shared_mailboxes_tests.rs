@@ -917,3 +917,90 @@ fn pressing_send_in_a_shared_mailbox_asks_about_sending_from_it() {
     assert_eq!(jobs.lock().unwrap().len(), 1);
     no_imap();
 }
+
+/// A Graph host that holds on to every run until the test ends it: what it was asked for, and
+/// each run's pipes, by account.
+type HeldRun = (mpsc::SyncSender<GraphMailResult>, mpsc::Sender<GraphResult>);
+type Held = Arc<Mutex<Vec<(Id, HeldRun)>>>;
+
+fn holding_graph(app: &mut MailApp) -> (Held, Arc<Mutex<Vec<Id>>>) {
+    let running: Held = Default::default();
+    let asked: Arc<Mutex<Vec<Id>>> = Default::default();
+    let (keep, log) = (running.clone(), asked.clone());
+    app.services.graph = Some(Box::new(move |req: GraphRequest| {
+        log.lock().unwrap().push(req.account.id);
+        let (tx, rx) = mpsc::channel();
+        keep.lock().unwrap().push((req.account.id, (req.mail_pieces.clone().unwrap(), tx)));
+        rx
+    }));
+    (running, asked)
+}
+
+/// A look of the window's, as each frame has it, with the few seconds between looks gone by.
+fn look(app: &mut MailApp) {
+    app.last_auto_sync = crate::now_ms();
+    app.push_checked = 0.0;
+    app.poll_graph();
+    app.auto_sync();
+}
+
+/// What the owner does while a long Graph run is still bringing mail down doesn't wait for the
+/// run to end (#274): the run is called off at its next safe place, and goes on at once after,
+/// as it was asked for, with the change to tell first. Its own mailbox's and a shared one's.
+#[test]
+fn a_change_made_during_a_long_graph_download_goes_out_without_waiting_for_it() {
+    for (address, quiet) in [(OWNER, false), (SHARED, true)] {
+        let (mut app, owner, _, _, _) = window();
+        by_itself_only_to_push(&mut app);
+        let (running, asked) = holding_graph(&mut app);
+        let whose = if address == OWNER {
+            owner
+        } else {
+            app.execute("account.addSharedMailbox", json!({"address": SHARED})).unwrap()["id"].as_u64().unwrap()
+        };
+        app.execute("ui.sync", json!({"account": whose, "quiet": quiet})).unwrap();
+        // Its folders are in, which tells the server what there was to tell; mail comes down.
+        let pieces = running.lock().unwrap()[0].1.0.clone();
+        pieces.send(GraphMailResult { account: whose, partial: true, ..inbox_read(address) }).unwrap();
+        drop(pieces);
+        look(&mut app);
+        assert!(app.syncing() && !app.services.sync_cancel.load(Ordering::Relaxed), "nothing waits: the run goes on");
+        // The owner makes a folder: at the next look the run is called off.
+        let inbox = app.session.mailbox.folder_by_server(whose, "in").unwrap();
+        app.execute("folder.new", json!({"parent": inbox, "name": "Ours"})).unwrap();
+        look(&mut app);
+        assert!(app.services.sync_cancel.load(Ordering::Relaxed), "{address}: called off");
+        assert!(app.syncing(), "until the host says it stopped");
+        look(&mut app);
+        assert_eq!(asked.lock().unwrap().len(), 1, "one run at a time");
+        // The host stops; the run goes on at once, as it was asked for.
+        let (_, (pieces, answer)) = running.lock().unwrap().remove(0);
+        drop(pieces);
+        answer.send(GraphResult { account: whose, ..Default::default() }).unwrap();
+        app.poll_graph();
+        app.poll_graph();
+        assert!(app.graph_rx.is_none());
+        assert_eq!(app.sync_queue.front(), Some(&(whose, quiet)), "{address}: put back as it was");
+        app.auto_sync();
+        assert_eq!(*asked.lock().unwrap(), [whose, whose], "{address}: the next run starts at once");
+        assert!(!app.services.sync_cancel.load(Ordering::Relaxed));
+        // A run the owner stops is not started again behind their back.
+        app.execute("folder.new", json!({"parent": inbox, "name": "Ours too"})).unwrap();
+        let pieces = running.lock().unwrap()[0].1.0.clone();
+        pieces.send(GraphMailResult { account: whose, partial: true, ..inbox_read(address) }).unwrap();
+        drop(pieces);
+        look(&mut app);
+        // (Called off for the change first, then stopped by the owner.)
+        app.execute("folder.new", json!({"parent": inbox, "name": "And another"})).unwrap();
+        look(&mut app);
+        assert!(app.services.sync_cancel.load(Ordering::Relaxed));
+        app.execute("ui.cancelSync", json!({})).unwrap();
+        let (_, (pieces, answer)) = running.lock().unwrap().remove(0);
+        drop(pieces);
+        answer.send(GraphResult { account: whose, ..Default::default() }).unwrap();
+        look(&mut app);
+        look(&mut app);
+        assert!(app.sync_queue.is_empty() && app.graph_rx.is_none(), "{address}: stopped is stopped");
+    }
+    no_imap();
+}

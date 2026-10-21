@@ -119,6 +119,7 @@ impl MailApp {
             self.shared_refused.remove(&account);
             self.shared_send_waits.remove(&account);
         }
+        self.sync_run = Some((account, None, false, quiet));
         self.graph_rx = Some((account, quiet, false, graph(ask)));
         self.session.sync_status = tl!("Sending and receiving…").to_string();
         Ok(json!({"started": true, "account": account, "graph": true, "shared": true}))
