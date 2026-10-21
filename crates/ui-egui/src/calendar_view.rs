@@ -235,6 +235,14 @@ pub(crate) fn slot_at(day: Date, minute: i64, slot: i64) -> (DateTime, DateTime)
 /// arrow keys) leaves it: rows of one day in the time grid, whole days in the month and in the
 /// all-day row. What is typed then starts an entry right there, and Enter makes an appointment
 /// of it.
+/// What the menu over a picked range makes of it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Kind {
+    Appointment,
+    Meeting,
+    AllDay,
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct Slot {
     /// From, and up to (not including).
@@ -331,12 +339,25 @@ impl Slot {
     /// What `ui.openWindow` is given for the window a double click (or Enter) opens for it: a
     /// new appointment for that time, in the calendar of its block.
     fn form(&self) -> Value {
-        let form = if self.all_day {
-            json!({"new": "appointment", "start": self.start.date.iso(), "end": self.last().iso(), "allDay": true})
+        self.form_for(Kind::Appointment)
+    }
+
+    /// The same, for the kind of item the menu over a pick chose.
+    fn form_for(&self, kind: Kind) -> Value {
+        let all_day = self.all_day || kind == Kind::AllDay;
+        let new = if kind == Kind::Meeting { "meeting" } else { "appointment" };
+        let form = if all_day {
+            json!({"new": new, "start": self.start.date.iso(), "end": self.last().iso(), "allDay": true})
         } else {
-            json!({"new": "appointment", "start": iso_minute(self.start), "end": iso_minute(self.end)})
+            json!({"new": new, "start": iso_minute(self.start), "end": iso_minute(self.end)})
         };
         self.there(form)
+    }
+
+    /// Whether `other`, a pick at the place of a click, lies inside this pick (of the same kind
+    /// and calendar, not being typed into): a right click there leaves the pick as it is.
+    fn covers(&self, other: &Slot) -> bool {
+        self.text.is_none() && self.all_day == other.all_day && self.calendar == other.calendar && other.start >= self.start && other.start < self.end
     }
 
     /// `params` with the calendar of the block the pick is in, when it is in one.
@@ -2128,7 +2149,7 @@ fn event_input(app: &mut MailApp, resp: Response, item: &Item, tips: bool) {
 
 /// Clicks on empty calendar: one picks the slot out (and lets go of the event that was
 /// selected), two open a new appointment for it. `pick` is the slot under the pointer.
-fn empty_input(app: &mut MailApp, resp: &Response, slot: &mut Option<Slot>, pick: impl FnOnce() -> Slot) {
+fn empty_input(app: &mut MailApp, resp: &Response, slot: &mut Option<Slot>, pick: impl Fn() -> Slot) {
     if opens(resp) {
         let _ = app.run("ui.openWindow", pick().form());
         *slot = None;
@@ -2138,6 +2159,25 @@ fn empty_input(app: &mut MailApp, resp: &Response, slot: &mut Option<Slot>, pick
         // The block that is clicked in is the calendar being worked in from now on.
         work_in(app, picked.calendar);
         *slot = Some(picked);
+    }
+    // The right button inside the pick leaves it as it is; anywhere else it picks what is under
+    // it. Either way the menu makes something of the pick.
+    if resp.secondary_clicked() {
+        let picked = pick();
+        if !slot.as_ref().is_some_and(|s| s.covers(&picked)) {
+            let _ = app.run("calendar.select", json!({"id": null}));
+            work_in(app, picked.calendar);
+            *slot = Some(picked);
+        }
+    }
+    if let Some(picked) = slot.as_ref().filter(|s| s.text.is_none()).cloned() {
+        resp.context_menu(|ui| {
+            ui.set_min_width(200.0);
+            use crate::widgets::mi;
+            mi(ui, app, "New Appointment", "ui.openWindow", picked.form_for(Kind::Appointment));
+            mi(ui, app, "New Meeting", "ui.openWindow", picked.form_for(Kind::Meeting));
+            mi(ui, app, "New All Day Event", "ui.openWindow", picked.form_for(Kind::AllDay));
+        });
     }
 }
 
@@ -4737,6 +4777,47 @@ mod tests {
         let friday = rig.at("Q4 roadmap").center().x;
         rig.click(pos2(friday, rig.at("Team stand-up").center().y), 1);
         assert_eq!(rig.selected(), (Some(rig.event("Team stand-up").id), Some(d(2026, 10, 16))));
+    }
+
+    #[test]
+    fn right_click_on_a_picked_range_opens_a_menu_and_keeps_the_range() {
+        let mut rig = Rig::sample();
+        rig.run("view.week", json!({}));
+        let block = rig.at("Design review");
+        let x = block.center().x;
+        // Two hours of empty grid below the event, picked out by a drag.
+        let (from, to) = (pos2(x, block.max.y + 2.0 * HOUR_H), pos2(x, block.max.y + 3.5 * HOUR_H));
+        rig.drag(from, to);
+        rig.drop_at(to);
+        let picked = rig.app.hit.rect("slot", u64::try_from(d(2026, 10, 14).to_days()).unwrap()).expect("the range is picked");
+        assert!(picked.height() > 1.5 * HOUR_H, "{picked:?}");
+        // The right button inside it opens a menu, and the range stays.
+        rig.right_click(picked.center());
+        assert!(egui::Popup::is_any_open(&rig.ctx), "no menu opened");
+        assert_eq!(rig.app.hit.rect("slot", u64::try_from(d(2026, 10, 14).to_days()).unwrap()), Some(picked));
+        rig.key(egui::Key::Escape);
+        rig.frames(2);
+        assert!(!egui::Popup::is_any_open(&rig.ctx));
+    }
+
+    #[test]
+    fn the_menu_over_a_range_opens_the_form_for_it() {
+        let day = d(2026, 10, 14);
+        let slot = Slot::timed(day, 14 * 60, 30);
+        for (kind, form) in [("appointment", slot.form_for(Kind::Appointment)), ("meeting", slot.form_for(Kind::Meeting))] {
+            assert_eq!((form["new"].as_str(), form["start"].as_str()), (Some(kind), Some("2026-10-14T14:00")));
+        }
+        let all_day = slot.form_for(Kind::AllDay);
+        assert_eq!(
+            (all_day["new"].as_str(), all_day["allDay"].as_bool(), all_day["start"].as_str()),
+            (Some("appointment"), Some(true), Some("2026-10-14"))
+        );
+        // A click elsewhere in the picked range keeps it; one outside picks another.
+        let mut long = Slot::timed(day, 14 * 60, 30);
+        long.stretch_to(16 * 60);
+        assert!(long.covers(&Slot::timed(day, 15 * 60, 30)));
+        assert!(!long.covers(&Slot::timed(day, 17 * 60, 30)));
+        assert!(!long.covers(&Slot::day(day)));
     }
 
     #[test]

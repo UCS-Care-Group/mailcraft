@@ -4623,8 +4623,13 @@ msgstr ""
 "Nueva\n"
 "tarea"
 
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+msgid "New All Day Event"
+msgstr ""
+
 #. command label, interface
-#: crates/engine/src/cmd/calendar.rs crates/ui-egui/src/forms.rs
+#: crates/engine/src/cmd/calendar.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "New Appointment"
 msgstr "Nueva cita"
@@ -4666,7 +4671,7 @@ msgid "New Mailbox"
 msgstr "Nuevo buzón"
 
 #. command label, interface
-#: crates/engine/src/cmd/calendar.rs crates/ui-egui/src/forms.rs
+#: crates/engine/src/cmd/calendar.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "New Meeting"
 msgstr "Nueva reunión"

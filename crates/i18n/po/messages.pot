@@ -3818,8 +3818,13 @@ msgid ""
 "Task"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+msgid "New All Day Event"
+msgstr ""
+
 #. command label, interface
-#: crates/engine/src/cmd/calendar.rs crates/ui-egui/src/forms.rs
+#: crates/engine/src/cmd/calendar.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs
 msgid "New Appointment"
 msgstr ""
 
@@ -3854,7 +3859,7 @@ msgid "New Mailbox"
 msgstr ""
 
 #. command label, interface
-#: crates/engine/src/cmd/calendar.rs crates/ui-egui/src/forms.rs
+#: crates/engine/src/cmd/calendar.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs
 msgid "New Meeting"
 msgstr ""
 
