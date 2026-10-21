@@ -190,6 +190,11 @@ pub(crate) fn corpus_messages() -> Vec<(&'static str, Message)> {
             "access digest",
             html_message(31, ("Bellweather Directory", "directory@bellweather.example"), "Your weekly access digest", corpus::ACCESS_DIGEST),
         ),
+        (
+            "style width table",
+            html_message(32, ("Lamplight Trading", "payments@lamplight.example"), "Your weekly payments summary", corpus::STYLE_WIDTH_TABLE),
+        ),
+        ("style card", html_message(33, ("Lamplight Shop", "news@lamplight.example"), "New in the shop", corpus::STYLE_CARD)),
     ];
     // A file that is really attached, next to the pictures shown in place.
     if let Some((_, m)) = out.get_mut(4) {
@@ -498,9 +503,10 @@ fn a_data_table_keeps_its_columns_and_a_layout_table_gives_way() {
         // The amounts stand in one column, right-aligned, a row each.
         let amounts: Vec<&Item> = ["29.00", "83.20", "4.95", "79.83"].iter().map(|a| find_exact(&wide, a)).collect();
         assert!(amounts.windows(2).all(|w| (w[0].rect.max.x - w[1].rect.max.x).abs() < 0.5 && w[0].rect.max.y <= w[1].rect.min.y));
-        // The table is as wide as the room, as it asks, and its header row reads across.
+        // The table is as wide as its card (560, centred by the margins its div asks for: #150),
+        // and its header row reads across.
         let (item, qty, total) = (find_exact(&wide, "Item"), find_exact(&wide, "Qty"), find_exact(&wide, "Total"));
-        assert!(item.rect.min.x < 20.0 && total.rect.max.x > 800.0 && total.rect.max.x <= 820.0);
+        assert!(item.rect.min.x > 120.0 && item.rect.min.x < 160.0 && total.rect.max.x > 660.0 && total.rect.max.x <= 700.0);
         assert!(item.rect.min.y == qty.rect.min.y && qty.rect.min.y == total.rect.min.y && item.rect.max.x <= qty.rect.min.x);
         assert_eq!((wide.stats.stacked, wide.size.x), (0, 820.0));
         // Far too little room: it keeps its columns, and the message is wider than the pane (which scrolls).

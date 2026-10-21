@@ -1117,3 +1117,100 @@ fn a_picture_in_a_line_of_text_stands_beside_it() {
     assert_eq!(crate::to_text("<p>Activations <img src='cid:a' alt='denied'> 3</p><p>Next</p>"), "Activations [denied] 3\n\nNext");
     assert_eq!(crate::to_text("<p><img src='cid:a'> 3</p>"), "3");
 }
+
+#[test]
+fn style_width_max_width_and_auto_margins_lay_out_cards() {
+    // A newsletter wrapper whose width is in its style: not a column the width of its narrowest cell.
+    let news = "<table style='width:600px;margin:0 auto'><tr><td style='width:100%'><h2>Weekly digest</h2><p>Invented news for example.org readers.</p></td></tr></table>";
+    assert_eq!(dump(news), ["layout.c w=600[(h2|[B:Weekly digest] ; p|Invented news for example.org readers.)]"]);
+    assert_eq!(
+        dump("<table style='width:80%'><tr><td><p>One</p><p>Two</p></td><td><h3>Three</h3></td></tr></table>"),
+        ["layout w=80%[(p|One ; p|Two)(h3|[B:Three])]"]
+    );
+    // The style beats the attribute, as in the cascade.
+    assert_eq!(
+        dump("<table width=100 style='width:100%'><tr><td><p>One</p><p>Two</p></td><td><h3>Three</h3></td></tr></table>"),
+        ["layout w=100%[(p|One ; p|Two)(h3|[B:Three])]"]
+    );
+    assert_eq!(
+        dump("<table width=300 style='width:bogus'><tr><td><p>One</p><p>Two</p></td><td><h3>Three</h3></td></tr></table>"),
+        ["layout w=300[(p|One ; p|Two)(h3|[B:Three])]"]
+    );
+    // Cells too.
+    let cells = "<table><tr><td style='width:200px'><p>a</p><p>b</p></td><th style='width:50%'>c</th></tr></table>";
+    assert_eq!(cell_widths(cells), [Some(Length::Px(200)), Some(Length::Percent(50))]);
+    // A card of a div: at most so wide, centred by its automatic margins.
+    let card = "<div style='max-width:600px;margin:0 auto'><p>Hello from the shop.</p></div>";
+    assert_eq!(dump(card), ["layout.c w=600[(p|Hello from the shop.)]"]);
+    for margins in ["margin:auto", "margin:0 auto 0 auto", "margin-left:auto;margin-right:auto", "margin:10px auto 4px"] {
+        assert_eq!(dump(&format!("<div style='max-width:600px;{margins}'>x</div>")), ["layout.c w=600[(p|x)]"], "{margins}");
+    }
+    // Only one side automatic is not centring.
+    assert_eq!(dump("<div style='max-width:600px;margin-left:auto'>x</div>"), ["layout w=600[(p|x)]"]);
+    assert_eq!(dump("<div style='max-width:600px'>x</div>"), ["layout w=600[(p|x)]"]);
+    // Centring with no width asked changes nothing.
+    assert_eq!(dump("<div style='margin:0 auto'>x</div>"), ["p|x"]);
+    // A table's max-width caps its width; zero still hides.
+    assert_eq!(
+        dump("<table style='max-width:500px' width='100%'><tr><td><p>One</p><p>Two</p></td><td><h3>Three</h3></td></tr></table>"),
+        ["layout w=500[(p|One ; p|Two)(h3|[B:Three])]"]
+    );
+    assert_eq!(
+        dump("<table width=300 style='max-width:500px'><tr><td><p>One</p><p>Two</p></td><td><h3>Three</h3></td></tr></table>"),
+        ["layout w=300[(p|One ; p|Two)(h3|[B:Three])]"]
+    );
+    assert!(dump("<div style='max-width:0'>gone</div><p>seen</p>").iter().all(|b| !b.contains("gone")));
+}
+
+#[test]
+fn hostile_style_widths_are_clamped_or_ignored() {
+    fn walk(blocks: &[Block], widths: &mut Vec<Length>) {
+        for b in blocks {
+            if let BlockKind::Table(t) = &b.kind {
+                widths.extend(t.width);
+                for c in t.rows.iter().flat_map(|r| &r.cells) {
+                    widths.extend(c.width);
+                    walk(&c.blocks, widths);
+                }
+            }
+        }
+    }
+    let huge = "9".repeat(300);
+    for width in ["99999999999px", "1e9px", "-50px", "-1%", "0", "0px", "NaN", "inf", "12furlongs", "px", "calc(100% - 4px)", "600", &huge] {
+        for html in [
+            format!("<table style='width:{width};max-width:{width};margin:{width} auto'><tr><td style='width:{width}'>x</td></tr></table>"),
+            format!("<div style='max-width:{width};margin:{width}'>x</div>"),
+        ] {
+            let mut widths = Vec::new();
+            walk(&parse(&html), &mut widths);
+            for w in widths {
+                match w {
+                    Length::Px(px) => assert!(px >= 1, "{width}"),
+                    Length::Percent(p) => assert!((1..=100).contains(&p), "{width}"),
+                }
+            }
+        }
+    }
+    assert_eq!(
+        dump("<table style='width:99999999999px'><tr><td><p>One</p><p>Two</p></td><td><h3>Three</h3></td></tr></table>"),
+        ["layout w=65535[(p|One ; p|Two)(h3|[B:Three])]"]
+    );
+    assert_eq!(
+        dump("<table style='width:-50px'><tr><td><p>One</p><p>Two</p></td><td><h3>Three</h3></td></tr></table>"),
+        ["layout[(p|One ; p|Two)(h3|[B:Three])]"]
+    );
+    assert_eq!(
+        dump("<table style='width:250%'><tr><td><p>One</p><p>Two</p></td><td><h3>Three</h3></td></tr></table>"),
+        ["layout w=100%[(p|One ; p|Two)(h3|[B:Three])]"]
+    );
+    let long = format!("<table style='width:{};width:300px'><tr><td><p>One</p><p>Two</p></td><td><h3>Three</h3></td></tr></table>", "a".repeat(5000));
+    assert_eq!(dump(&long), ["layout[(p|One ; p|Two)(h3|[B:Three])]"]);
+}
+
+/// The widths of the cells of the first table.
+fn cell_widths(html: &str) -> Vec<Option<Length>> {
+    match parse(html).first().map(|b| &b.kind) {
+        Some(BlockKind::Table(t)) => t.rows.iter().flat_map(|r| &r.cells).map(|c| c.width).collect(),
+        _ => Vec::new(),
+    }
+}
