@@ -195,6 +195,10 @@ pub(crate) fn corpus_messages() -> Vec<(&'static str, Message)> {
             html_message(32, ("Lamplight Trading", "payments@lamplight.example"), "Your weekly payments summary", corpus::STYLE_WIDTH_TABLE),
         ),
         ("style card", html_message(33, ("Lamplight Shop", "news@lamplight.example"), "New in the shop", corpus::STYLE_CARD)),
+        (
+            "style boxes",
+            html_message(34, ("Hollowpine Rambling Club", "bulletin@hollowpine.example"), "The Hollowpine bulletin", corpus::STYLE_BOXES),
+        ),
     ];
     // A file that is really attached, next to the pictures shown in place.
     if let Some((_, m)) = out.get_mut(4) {
@@ -3521,5 +3525,39 @@ fn a_character_that_couldnt_be_read_is_explained_once() {
     for id in &ids[1..] {
         select(&mut harness, *id);
         assert_eq!(harness.query_all_by_label_contains(SAID).count(), 1, "message {id}");
+    }
+}
+
+/// #71: a bulletin's padding, margins, dashed and dotted lines, rounded corners and line height are
+/// drawn, within the room there is, and its lines stay visible on the paper in light and dark.
+#[test]
+fn boxes_are_drawn_with_their_room_lines_and_corners() {
+    for dark in [false, true] {
+        in_frame(dark, |ctx| {
+            let bulletin = corpus_message("style boxes");
+            let laid = lay_out(ctx, &bulletin, 700.0);
+            let kinds = |f: &dyn Fn(&ItemKind) -> bool| laid.items.iter().filter(|i| f(&i.kind)).count();
+            // The page and the table of leaders are rounded rectangles; the notice, the swap and the divider are dashes.
+            assert!(kinds(&|k| matches!(k, ItemKind::Outline { radius, .. } if *radius >= 6.0)) >= 2);
+            assert!(kinds(&|k| matches!(k, ItemKind::Dashes { dotted: false, .. })) >= 3, "dashed notice and divider");
+            assert!(kinds(&|k| matches!(k, ItemKind::Dashes { dotted: true, .. })) >= 3, "dotted swap");
+            // Every line can be seen on the window's paper.
+            let paper = if dark { crate::theme::Tokens::dark().surface } else { crate::theme::Tokens::light().surface };
+            for item in &laid.items {
+                if let ItemKind::Dashes { color, .. } | ItemKind::Outline { color, .. } = &item.kind {
+                    assert!(contrast(*color, paper) >= 1.2, "{color:?} on {paper:?}");
+                }
+            }
+            // The text is set in from the card's edge by its padding, and runs on at 1.7 times its size.
+            let walk = find_exact(
+                &laid,
+                "Saturday's walk goes ahead from the old mill car park at nine. Bring a flask, and boots you do not mind getting muddy.",
+            );
+            assert!(walk.rect.min.x >= 28.0 && walk.rect.max.x <= 700.0 - 28.0, "{:?}", walk.rect);
+            if let ItemKind::Text(text) = &walk.kind {
+                let line = text.job.sections.first().and_then(|s| s.format.line_height).unwrap_or(0.0);
+                assert!((line - (13.0f32 * 1.7).round()).abs() < 0.6, "{line}");
+            }
+        });
     }
 }

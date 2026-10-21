@@ -149,6 +149,10 @@ fn in_pieces(blocks: Vec<Block>) -> (Vec<Block>, Vec<Option<Glue>>) {
                 align: block.align,
                 space: if n == 0 { block.space } else { 0 },
                 beside: n == 0 && block.beside,
+                gap: if n == 0 { block.gap } else { 0 },
+                line_height: block.line_height,
+                inset: block.inset,
+                line: block.line,
             });
             cuts.push((n > 0).then_some(glue));
         }
@@ -434,9 +438,10 @@ pub fn paint(ui: &mut Ui, laid: &Laid, t: &Tokens, access: Access, mut state: Op
             ItemKind::Fill { color, radius } => {
                 painter.rect_filled(rect, *radius, *color);
             }
-            ItemKind::Outline { color } => {
-                painter.rect_stroke(rect, 0.0, Stroke::new(1.0, *color), egui::StrokeKind::Inside);
+            ItemKind::Outline { color, width, radius } => {
+                painter.rect_stroke(rect, *radius, Stroke::new(*width, *color), egui::StrokeKind::Inside);
             }
+            ItemKind::Dashes { color, dotted } => dashes(&painter, rect, *color, *dotted),
             ItemKind::Bullet { depth, color } => bullet(&painter, rect, *depth, *color),
             ItemKind::Text(text) => {
                 let mut galley = ctx.fonts_mut(|f| f.layout_job((*text.job).clone()));
@@ -645,6 +650,19 @@ fn stand_in(painter: &egui::Painter, rect: Rect, label: &str, paper: Paper, t: &
     if !label.is_empty() && rect.width() > 40.0 && rect.height() >= 20.0 {
         paint_clipped(painter, pos2(rect.min.x + 23.0, rect.min.y + 12.0), rect.width() - 28.0, label, regular(11.5), ink);
     }
+}
+
+/// A dashed or dotted line along the long side of a thin `rect`, centred in it.
+fn dashes(painter: &egui::Painter, rect: Rect, color: Color32, dotted: bool) {
+    let horizontal = rect.width() >= rect.height();
+    let width = if horizontal { rect.height() } else { rect.width() }.max(1.0);
+    let (from, to) = if horizontal {
+        (pos2(rect.min.x, rect.center().y), pos2(rect.max.x, rect.center().y))
+    } else {
+        (pos2(rect.center().x, rect.min.y), pos2(rect.center().x, rect.max.y))
+    };
+    let (dash, gap) = if dotted { (width, width * 1.5) } else { (width * 3.0, width * 2.0) };
+    painter.add(egui::Shape::dashed_line(&[from, to], Stroke::new(width, color), dash, gap));
 }
 
 #[cfg(test)]

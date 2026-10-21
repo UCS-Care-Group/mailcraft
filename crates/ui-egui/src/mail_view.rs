@@ -155,6 +155,15 @@ fn row_height(preview_lines: u8) -> f32 {
     }
 }
 
+/// A row of the single-line list: the sender, the subject, the marks and the time on one line.
+const ONE_LINE_H: f32 = 32.0;
+
+/// How wide the sender's name is in a single-line row, of the room the row has for text: a third,
+/// not less than 90 or more than 220 (and never more than the room).
+fn one_line_sender_width(room: f32) -> f32 {
+    (room / 3.0).clamp(70.0, 220.0).min(room.max(0.0))
+}
+
 /// A group heading of the list in the interface language: the engine's dates (`Today`) are
 /// names the catalogue has, and so is the heading of what is pinned.
 fn group_name(group: &str) -> &str {
@@ -460,12 +469,15 @@ fn list(app: &mut MailApp, ui: &mut Ui) {
         );
         paint_clipped(ui.painter(), pos2(r.min.x + 10.0, r.min.y + 4.0), r.width() - 20.0, &text, regular(11.5), t.text_dim);
     }
-    let row_h = row_height(app.session.prefs.preview_lines);
+    let one_line = app.session.prefs.one_line;
+    // The rows of a search on the server keep the height the preview lines ask for.
+    let server_h = row_height(app.session.prefs.preview_lines);
+    let row_h = if one_line { ONE_LINE_H } else { server_h };
     // Below the local results of a search: More results on the server, and what came (R6.2).
     let searching = !app.session.view.search.trim().is_empty();
     let local: std::collections::HashSet<Id> =
         if searching { rows.iter().flat_map(|r| r.members.iter().copied()).collect() } else { Default::default() };
-    let below = if searching { server_rows::height(app, &local, row_h) } else { 0.0 };
+    let below = if searching { server_rows::height(app, &local, server_h) } else { 0.0 };
     if rows.is_empty() {
         let r = ui.available_rect_before_wrap();
         let msg = if searching {
@@ -482,7 +494,7 @@ fn list(app: &mut MailApp, ui: &mut Ui) {
                 egui::ScrollArea::vertical().id_salt("message_list_server").auto_shrink([false, false]).show_viewport(ui, |ui, viewport| {
                     let (area, _) = ui.allocate_exact_size(vec2(ui.available_width(), below), Sense::hover());
                     let width = (area.width() - SCROLL_LANE).max(0.0);
-                    server_rows::show(app, ui, &local, area.min.x, area.min.y, width, row_h, viewport.translate(area.min.to_vec2()));
+                    server_rows::show(app, ui, &local, area.min.x, area.min.y, width, server_h, viewport.translate(area.min.to_vec2()));
                 });
             });
         }
@@ -560,7 +572,7 @@ fn list(app: &mut MailApp, ui: &mut Ui) {
                 message_row(app, ui, row, rect);
             }
             if below > 0.0 {
-                server_rows::show(app, ui, &local, origin.x, origin.y + rows_end, width, row_h, viewport.translate(origin.to_vec2()));
+                server_rows::show(app, ui, &local, origin.x, origin.y + rows_end, width, server_h, viewport.translate(origin.to_vec2()));
             }
         });
     if arrows {
@@ -710,8 +722,9 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect) {
         .on_hover_cursor(egui::CursorIcon::PointingHand)
         .on_hover_text(if unread { tl!("Mark as read") } else { tl!("Mark as unread") });
     app.hit.add("messageRead", row.id, strip);
-    let line1 = rect.min.y + SENDER_Y;
-    let line2 = rect.min.y + SUBJECT_Y;
+    let one = app.session.prefs.one_line;
+    let line1 = if one { rect.center().y } else { rect.min.y + SENDER_Y };
+    let line2 = if one { rect.center().y } else { rect.min.y + SUBJECT_Y };
     // Quick actions on the row under the pointer, at the right of the sender's line: flag (where
     // a flagged message wears its flag) and delete. Like the read switch they sit on top of the
     // row and leave the selection alone.
@@ -785,6 +798,13 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect) {
     // The sender's line. On its right, the marks: the flag in its own column at the row's end
     // (the quick actions take that place while the pointer is over the row), the others before it.
     let mut x = time_end;
+    let date =
+        crate::dates::list_label(mailcraft_engine::list::when(&m), app.session.now(), app.session.offset_at(m.date), app.session.prefs.twelve_hour);
+    let (date_font, date_color) = match (unread, overdue) {
+        (true, false) => (semibold(LIST_TEXT), t.accent_text),
+        (true, true) => (semibold(LIST_TEXT), t.overdue),
+        (false, _) => (regular(LIST_TEXT), if overdue { t.overdue } else { t.text }),
+    };
     if let Some((delete, flag)) = &quick {
         for (resp, at, icon, color) in
             [(delete, delete_rect, "delete", t.text_dim), (flag, flag_rect, "flag", if flagged { t.icon } else { t.text_dim })]
@@ -803,6 +823,13 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect) {
             FlagStatus::Complete => icons::paint(p, flag, "complete", t.icon, t.accent),
             FlagStatus::None => {}
         }
+    }
+    // In a single line the time comes before the marks, and the quick actions take its place
+    // while the pointer is over the row.
+    let mut one_date_w = 0.0;
+    if one && quick.is_none() {
+        one_date_w = p.text(pos2(time_end, line1), Align2::RIGHT_CENTER, &date, date_font.clone(), date_color).width();
+        x = time_end - one_date_w - 10.0;
     }
     let mut marker = |icon: &str, color: Color32| {
         icons::paint(p, Rect::from_center_size(pos2(x - 6.0, line1), vec2(12.0, 12.0)), icon, color, t.accent);
@@ -830,7 +857,7 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect) {
         marker("forward", t.text_dim);
     }
     let who_font = if unread { semibold(SENDER_TEXT) } else { regular(SENDER_TEXT) };
-    let who_end = text_end.min(x - 4.0);
+    let who_end = if one { (left + one_line_sender_width(time_end - left)).min(x - 4.0) } else { text_end.min(x - 4.0) };
     let mut who_x = left;
     if m.draft {
         let w = paint_clipped(p, pos2(left, line1), (who_end - left).max(0.0), tl!("[Draft]"), regular(SENDER_TEXT), t.red);
@@ -839,22 +866,21 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect) {
     paint_clipped(p, pos2(who_x, line1), (who_end - who_x).max(0.0), &who, who_font, if overdue { t.overdue } else { t.text });
 
     // The subject's line, with the time at its end.
-    let date =
-        crate::dates::list_label(mailcraft_engine::list::when(&m), app.session.now(), app.session.offset_at(m.date), app.session.prefs.twelve_hour);
-    let (date_font, date_color) = match (unread, overdue) {
-        (true, false) => (semibold(LIST_TEXT), t.accent_text),
-        (true, true) => (semibold(LIST_TEXT), t.overdue),
-        (false, _) => (regular(LIST_TEXT), if overdue { t.overdue } else { t.text }),
-    };
-    let date_w = p.text(pos2(time_end, line2), Align2::RIGHT_CENTER, &date, date_font, date_color).width();
-    let mut subject_end = text_end.min(time_end - date_w - 8.0);
+    let date_w = if one { one_date_w } else { p.text(pos2(time_end, line2), Align2::RIGHT_CENTER, &date, date_font, date_color).width() };
+    let mut subject_end = if one { time_end } else { text_end.min(time_end - date_w - 8.0) };
 
     // In a search of every mailbox the folder it is in, then category marks and the size of a
     // conversation: at the right of the preview's first line, under the time, or before the time
     // when no preview is shown.
-    let lines = app.session.prefs.preview_lines.min(3);
+    let lines = if one { 0 } else { app.session.prefs.preview_lines.min(3) };
     let preview_y = rect.min.y + PREVIEW_TOP + PREVIEW_PITCH / 2.0 + 0.5;
-    let (mut sx, tail_y) = if lines > 0 { (time_end, preview_y) } else { (time_end - date_w - 8.0, line2) };
+    let (mut sx, tail_y) = if one {
+        (x, line1)
+    } else if lines > 0 {
+        (time_end, preview_y)
+    } else {
+        (time_end - date_w - 8.0, line2)
+    };
     if let Some(folder) = shows_folder(&app.session).then(|| app.session.mailbox.folder(m.folder)).flatten() {
         let label = crate::nav::result_folder_label(&app.session.mailbox, folder);
         sx = paint_result_folder(p, pos2(sx, tail_y), &label, &t) - 6.0;
@@ -882,7 +908,8 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect) {
         (true, true) => (semibold(LIST_TEXT), t.overdue),
         (false, _) => (regular(LIST_TEXT), if overdue { t.overdue } else { t.text }),
     };
-    paint_clipped(p, pos2(left, line2), (subject_end - left).max(0.0), subject, sfont, scolor);
+    let subject_x = if one { who_end + 10.0 } else { left };
+    paint_clipped(p, pos2(subject_x, line2), (subject_end - subject_x).max(0.0), subject, sfont, scolor);
 
     // Then the preview: whole words, as many lines as asked for, and no mark where it stops.
     let preview_end = text_end.min(sx - 6.0);
@@ -1065,6 +1092,31 @@ mod tests {
         assert_eq!([row_height(0), row_height(1), row_height(2), row_height(3)], [57.0, 72.0, 85.0, 98.0]);
         assert_eq!(row_height(200), row_height(3));
         assert_eq!(SCROLL_LANE, 29.0);
+    }
+
+    /// Show in Groups off draws no headings, and the single-line list draws every row as tall
+    /// as one line, with more rows in the same window.
+    #[test]
+    fn the_list_without_groups_and_in_a_single_line() {
+        let mut a = app();
+        a.execute("view.groups", json!({"value": false})).unwrap();
+        let mut harness = window(a, (1280.0, 1100.0));
+        let rows = drawn(&mut harness);
+        assert!(rows.len() >= 6);
+        assert!(rows.iter().all(|(row, _)| row.group.is_none()));
+        for pair in rows.windows(2) {
+            assert_eq!(pair[1].1.min.y - pair[0].1.min.y, row_height(1));
+        }
+        let before = rows.len();
+        harness.state_mut().execute("view.oneLine", json!({"value": true})).unwrap();
+        harness.run_steps(3);
+        let rows = drawn(&mut harness);
+        assert!(rows.len() >= before);
+        for (_, rect) in &rows {
+            assert_eq!(rect.height(), ONE_LINE_H);
+        }
+        assert_eq!(one_line_sender_width(0.0), 0.0);
+        assert_eq!(one_line_sender_width(10_000.0), 220.0);
     }
 
     /// Whatever a row shows (read or unread, flagged, with a file, with category marks, pinned,

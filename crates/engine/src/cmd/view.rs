@@ -34,6 +34,8 @@ pub fn specs() -> Vec<CommandSpec> {
             .params(r#"{"query": string, "scope"?: "folder"|"everywhere"}"#),
         CommandSpec::new("view.clearSearch", "Close Search", "Search", clear_search).pure(),
         CommandSpec::new("view.previewLines", "Message Preview", "View › Arrangement", preview_lines).pure().params(r#"{"value": 0-3}"#),
+        CommandSpec::new("view.groups", "Show in Groups", "View › Arrangement", groups).pure().params(TOGGLE),
+        CommandSpec::new("view.oneLine", "Single Line", "View › Arrangement", one_line).pure().params(TOGGLE),
         CommandSpec::new("view.day", "Day", "Home › Arrange", day).pure().key(mac_or("Mod+Ctrl+1", "Mod+Alt+1")),
         CommandSpec::new("view.workWeek", "Work Week", "Home › Arrange", work_week).pure().key(mac_or("Mod+Ctrl+2", "Mod+Alt+2")),
         CommandSpec::new("view.week", "Week", "Home › Arrange", week).pure().key(mac_or("Mod+Ctrl+3", "Mod+Alt+3")),
@@ -132,6 +134,16 @@ fn preview_lines(s: &mut Session, v: &Value) -> CmdResult {
     let n = p::u64(v, "value").ok_or_else(|| bad("`value` (0-3) is required"))?;
     s.prefs.preview_lines = n.min(3) as u8;
     Ok(json!({"value": s.prefs.preview_lines}))
+}
+
+fn groups(s: &mut Session, v: &Value) -> CmdResult {
+    s.prefs.show_groups = p::bool(v, "value").unwrap_or(!s.prefs.show_groups);
+    Ok(json!({"value": s.prefs.show_groups}))
+}
+
+fn one_line(s: &mut Session, v: &Value) -> CmdResult {
+    s.prefs.one_line = p::bool(v, "value").unwrap_or(!s.prefs.one_line);
+    Ok(json!({"value": s.prefs.one_line}))
 }
 
 fn cal(s: &mut Session, view: CalView) -> CmdResult {

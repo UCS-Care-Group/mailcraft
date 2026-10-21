@@ -45,6 +45,11 @@ pub const STYLE_WIDTH_TABLE: &str = include_str!("../corpus/style_width_table.ht
 /// inside it (#150).
 pub const STYLE_CARD: &str = include_str!("../corpus/style_card.html");
 
+/// A club bulletin in a rounded, framed card: padding and margins in px, a dashed notice and a
+/// dotted one with rounded corners, a dashed divider, a line height of 1.7, and a table of padded cells
+/// with a line under each row (#71).
+pub const STYLE_BOXES: &str = include_str!("../corpus/style_boxes.html");
+
 /// An order confirmation: a grid of order facts, and a data table with a header row, right-aligned
 /// amounts, spanning total rows and lines under the rows.
 pub const RECEIPT: &str = include_str!("../corpus/receipt.html");
@@ -104,6 +109,7 @@ pub fn messages() -> Vec<(&'static str, &'static str)> {
         ("access digest", ACCESS_DIGEST),
         ("style width table", STYLE_WIDTH_TABLE),
         ("style card", STYLE_CARD),
+        ("style boxes", STYLE_BOXES),
     ]
 }
 

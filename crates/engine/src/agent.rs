@@ -192,6 +192,8 @@ const SAFE: &[&str] = &[
     "view.search",
     "view.clearSearch",
     "view.previewLines",
+    "view.groups",
+    "view.oneLine",
     "view.day",
     "view.workWeek",
     "view.week",
