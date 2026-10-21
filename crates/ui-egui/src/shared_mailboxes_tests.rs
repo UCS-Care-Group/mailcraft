@@ -526,6 +526,9 @@ fn add_shared_mailbox_calls_off_a_sign_in_left_waiting_in_the_browser() {
     // Called off, and the shared mailbox is read at once rather than when the page times out.
     assert!(held.lock().unwrap()[0].0.load(Ordering::Relaxed), "the sign-in is called off");
     assert!(app.signing_in.is_none());
+    // And the owner is told, in Send/Receive's problems, under the account it was for.
+    let said = app.sync_problem_lines();
+    assert!(said.iter().any(|l| l.contains("The sign-in to avery@example.org waiting in your browser was stopped")), "{said:?}");
     app.shared_check_tick();
     let shared = app.session.mailbox.accounts.iter().find(|a| a.email == SHARED).map(|a| a.id).unwrap();
     assert_eq!(jobs.lock().unwrap().iter().map(|(a, ..)| *a).collect::<Vec<_>>(), [shared]);

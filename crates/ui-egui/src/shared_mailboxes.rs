@@ -436,12 +436,23 @@ impl MailApp {
     /// Call off the run under way, at its next safe place, and put its account first in line
     /// again, as it was asked for. (A Graph job that isn't bringing mail down can't be called
     /// off: it is short; nor a sign-in being renewed.) A sign-in waiting on a page in the browser
-    /// is called off at once (#274): the owner is here, not there, and Send/Receive asks again.
+    /// is called off at once (#274): the owner is here, not there, and Send/Receive asks again,
+    /// which the owner is told.
     fn call_off_for_shared_check(&mut self) {
         if self.signing_in.as_ref().is_some_and(|s| s.browser)
             && let Some(left) = self.signing_in.take()
         {
             left.cancel.store(true, std::sync::atomic::Ordering::Relaxed);
+            // Said where Send/Receive's problems are, under the account it was for: the next good
+            // run of it clears it.
+            let address = self.session.mailbox.account(left.account).map(|a| a.email.clone()).unwrap_or_default();
+            let said = crate::i18n::fmt(
+                tl!(
+                    "The sign-in to {address} waiting in your browser was stopped so the shared mailbox could be read. Send/Receive will ask you to sign in again."
+                ),
+                &[("address", &address)],
+            );
+            self.keep_sync_problems(left.account, &[said]);
             return;
         }
         let whose = if self.sync_rx.is_some() {
