@@ -6640,6 +6640,11 @@ msgid "The organizer of this meeting doesn't take proposals of another time."
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/signatures.rs
+msgid "The picture was too big, so it was made smaller ({w} px wide)."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs
 msgid "The port; leave it empty for the usual one"
 msgstr ""

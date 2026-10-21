@@ -907,6 +907,8 @@ pub struct MailApp {
     /// File › Signatures was on screen in the last frame: leaving it saves and closes the open
     /// signature.
     signatures_shown: bool,
+    /// What File › Signatures last said of a picture (a refusal, or that it was made smaller).
+    signature_note: Option<signatures::Note>,
     /// The last input the window was given, by kind only (never what was typed), for
     /// `ui.inspect`: what a script looks at when typing or the keyboard goes astray.
     pub(crate) input_trail: std::collections::VecDeque<String>,
@@ -1126,6 +1128,7 @@ impl MailApp {
             compose_bcc: false,
             body_focus_wanted: false,
             signatures_shown: false,
+            signature_note: None,
             input_trail: std::collections::VecDeque::new(),
             reveal_selection: false,
             passwords: Default::default(),
@@ -2864,7 +2867,7 @@ impl MailApp {
             let path = f.path().to_string_lossy().to_string();
             // A picture dropped on File › Signatures goes into the signature open there.
             if signatures && self.session.signature_edit.is_some() {
-                let _ = self.run("signature.picture.add", json!({"path": path}));
+                signatures::add_picture(self, json!({"path": path}));
             } else {
                 self.open_path(&path);
             }
@@ -2875,6 +2878,7 @@ impl MailApp {
 
     /// Keep what was changed in the signature open in File › Signatures, and close it.
     fn leave_signature(&mut self) {
+        self.signature_note = None;
         if self.session.signature_edit.as_ref().is_some_and(|e| e.dirty)
             && let Err(e) = self.execute("signature.save", json!({}))
         {

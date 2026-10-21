@@ -8022,6 +8022,11 @@ msgid "The organizer of this meeting doesn't take proposals of another time."
 msgstr "Der Organisator dieser Besprechung nimmt keine Vorschläge für eine andere Zeit an."
 
 #. interface
+#: crates/ui-egui/src/signatures.rs
+msgid "The picture was too big, so it was made smaller ({w} px wide)."
+msgstr "Das Bild war zu groß und wurde verkleinert ({w} px breit)."
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "The port; leave it empty for the usual one"
