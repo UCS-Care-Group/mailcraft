@@ -36,11 +36,12 @@ People trust MailCraft with years of correspondence; a crash loses their work an
 ## Clean room
 - Outlook may be **observed** black-box: run it, use its UI with synthetic mail, note how it behaves. Never commit screenshots of it, never read, disassemble or copy anything inside it, never copy its wording beyond feature names.
 - Formats and protocols come from public specs: RFC 5322 and MIME (2045–2049, 2047, 2231), mbox (RFC 4155), IMAP (RFC 3501, 6154, MOVE 6851, UIDPLUS 4315), SMTP (RFC 5321, 4954, 3207), OAuth 2.0 for native programs (RFC 6749, 7636, 8252), `mailto:` links (RFC 6068), iCalendar (RFC 5545), vCard (RFC 6350, 2426). Never copy GPL/LGPL/AGPL code (Thunderbird, Evolution, KMail, mutt, davmail…).
+- Write everything fresh from the public specs: don't adapt code from other trees or forks, whatever their licence.
 
 ## Architecture (see `docs/architecture.md`)
 | Layer | Crate | Job |
 |---|---|---|
-| L0 | `time`, `control-key`, `charset` | calendar maths, date text, the clock; control-port key files; bytes in any WHATWG character set to text |
+| L0 | `time`, `control-key`, `charset`, `i18n` | calendar maths, date text, the clock; control-port key files; bytes in any WHATWG character set to text; interface text in other languages (`.po` catalogues, plural rules) |
 | L1 | `model`, `html` | the mailbox and its edit primitives, recurrence, search, sync data; hostile HTML to display blocks |
 | L2 | `mime`, `ical`, `vcard` | Internet messages and mbox; iCalendar; vCard |
 | L3 | `proto`, `net` | IMAP and SMTP over any `Read + Write`; TLS sockets, sending, synchronising |
@@ -52,7 +53,7 @@ People trust MailCraft with years of correspondence; a crash loses their work an
 - **Everything is a command.** User-visible behaviour = a `CommandSpec` in `crates/engine/src/cmd/*.rs` (id, label, ribbon location, shortcut, params doc, `enabled`, `run`) + tests. UI-only commands (`ui.*`) live in `crates/ui-egui/src/lib.rs`. The ribbon, shortcuts, command search, CLI, control channel and MCP all dispatch by id. Programmatic calls never open dialogs; a dialog only collects input and then runs a command.
 - **The engine never does I/O with servers.** `sync.request` says what a synchronisation should do, `sync.apply` takes in what it brought back (`crates/model/src/sync.rs`); a host with sockets (`mailcraft-net`, on a background thread in the desktop app and in the CLI) does the part in between. That is what keeps the engine and the UI building for the browser.
 - **Parity is measured:** `crates/engine/src/catalog.rs` lists Outlook's ribbon/menu features with command ids. `cargo xtask parity` writes `docs/parity-checklist.md`; a test enforces a floor that only rises. Implement missing ids to raise it.
-- **Layering** is enforced by `cargo xtask layers`. Nothing below L6 depends on egui/eframe/winit/rfd. The UI is thin and reads `Session` state; colours come from `theme::Tokens`; text goes through `tl!`.
+- **Layering** is enforced by `cargo xtask layers`. Nothing below L6 depends on egui/eframe/winit/rfd. The UI is thin and reads `Session` state; colours come from `theme::Tokens`; text goes through `tl!`, and a count through `tln!(n, "{n} message", "{n} messages")` (never an English `if n == 1`); `cargo xtask i18n` refreshes `crates/i18n/po/messages.pot` (CI fails when it is stale).
 - **Rust only** (no handwritten JS/TS). **Never break wasm** (`cargo xtask wasm`).
 
 ## Quality gates

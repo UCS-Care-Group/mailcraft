@@ -121,7 +121,7 @@ fn due_text(task: &Task, today: Date) -> String {
 fn status_text(task: &Task, today: Date, completed_on: Option<Date>) -> (String, bool) {
     let fmt = crate::i18n::fmt;
     match (completed_on, task.due) {
-        (Some(day), _) => (fmt(tl!("Completed on {date}"), &[("date", &day.medium())]), false),
+        (Some(day), _) => (fmt(tl!("Completed on {date}"), &[("date", &crate::dates::medium(day))]), false),
         (None, None) => (tl!("No due date").to_string(), false),
         (None, Some(_)) if task.is_overdue(today) => (fmt(tl!("Overdue: was due {when}"), &[("when", &due_text(task, today))]), true),
         (None, Some(_)) => (fmt(tl!("Due {when}"), &[("when", &due_text(task, today))]), false),
@@ -573,7 +573,7 @@ fn details(app: &mut MailApp, ui: &mut Ui, task: &Task) {
             detail(ui, importance_icon, tl!("Importance"), tl!(importance_label(task.importance)), t.text);
             let reminder = task.reminder.map(|at| {
                 let local = app.session.local(at);
-                format!("{} {}", local.date.medium(), local.time_short(app.session.prefs.twelve_hour))
+                crate::dates::medium_time(local, app.session.prefs.twelve_hour)
             });
             detail(ui, "reminder", tl!("Reminder"), reminder.as_deref().unwrap_or(none), if reminder.is_some() { t.text } else { t.text_dim });
             if task.categories.is_empty() {

@@ -38,6 +38,7 @@ pub const TABLE: &[(&str, Class)] = &[
     ("time", Class::Layer(0)),
     ("control-key", Class::Standalone),
     ("charset", Class::Standalone),
+    ("i18n", Class::Standalone),
     ("model", Class::Layer(1)),
     ("html", Class::Layer(1)),
     ("mime", Class::Layer(2)),

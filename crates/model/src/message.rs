@@ -124,15 +124,26 @@ pub fn text_hash(text: &str) -> u64 {
 
 /// A byte count for people.
 pub fn size_label(bytes: u64) -> String {
-    if bytes < 1024 {
-        format!("{bytes} bytes")
-    } else if bytes < 1024 * 1024 {
-        format!("{} KB", bytes.div_ceil(1024))
-    } else if bytes < 1024 * 1024 * 1024 {
-        format!("{:.1} MB", bytes as f64 / (1024.0 * 1024.0))
+    size_label_in(mailcraft_i18n::Lang::English, bytes)
+}
+
+/// [`size_label`] in `lang` (its units, and its decimal mark: the template has it).
+pub fn size_label_in(lang: mailcraft_i18n::Lang, bytes: u64) -> String {
+    const KB: u64 = 1024;
+    // Tenths of `unit`, rounded.
+    let tenths = |unit: u64| (u128::from(bytes) * 10 + u128::from(unit / 2)) / u128::from(unit);
+    let (template, n, tenth) = if bytes < KB {
+        (lang.tn(bytes, "{n} byte", "{n} bytes"), u128::from(bytes), 0)
+    } else if bytes < KB * KB {
+        (lang.t("{n} KB"), u128::from(bytes.div_ceil(KB)), 0)
+    } else if bytes < KB * KB * KB {
+        let t = tenths(KB * KB);
+        (lang.t("{n}.{tenth} MB"), t / 10, t % 10)
     } else {
-        format!("{:.1} GB", bytes as f64 / (1024.0 * 1024.0 * 1024.0))
-    }
+        let t = tenths(KB * KB * KB);
+        (lang.t("{n}.{tenth} GB"), t / 10, t % 10)
+    };
+    mailcraft_i18n::fmt(template, &[("n", &n.to_string()), ("tenth", &tenth.to_string())])
 }
 
 /// A message body. `text` is always there (readers derive it from the HTML when a message has no
@@ -368,14 +379,14 @@ impl Message {
     }
 }
 
-/// Strip reply and forward prefixes (`Re:`, `RE:`, `Fw:`, `Fwd:`, `AW:`, `WG:`, `Re[2]:`), however
-/// many there are.
+/// Strip reply and forward prefixes (`Re:`, `RE:`, `Fw:`, `Fwd:`, `Re[2]:`; German `AW:`, `WG:`;
+/// Spanish `RV:`; Italian `R:`, `I:`; French `TR :`), however many there are.
 pub fn normalize_subject(subject: &str) -> String {
     let mut s = subject.trim();
     while let Some((prefix, rest)) = s.split_once(':') {
         let p = prefix.trim().to_ascii_lowercase();
         let p = p.split('[').next().unwrap_or("").trim();
-        if matches!(p, "re" | "fw" | "fwd" | "aw" | "wg" | "sv" | "vs" | "tr" | "rv") {
+        if matches!(p, "re" | "fw" | "fwd" | "aw" | "wg" | "sv" | "vs" | "tr" | "rv" | "r" | "i") {
             s = rest.trim();
         } else {
             break;
@@ -395,6 +406,12 @@ mod tests {
         assert_eq!(normalize_subject("Reminder: dentist"), "Reminder: dentist");
         assert_eq!(normalize_subject("  re:  "), "");
         assert_eq!(normalize_subject("Agenda 10:30"), "Agenda 10:30");
+        // French puts a space before the colon, often a narrow or plain no-break one.
+        assert_eq!(normalize_subject("TR : RE\u{202f}: Fwd\u{a0}: tr: Déjeuner"), "Déjeuner");
+        assert_eq!(normalize_subject("AW: WG: Mittagessen"), "Mittagessen");
+        assert_eq!(normalize_subject("RE: RV: Almuerzo"), "Almuerzo");
+        assert_eq!(normalize_subject("R: I: Pranzo"), "Pranzo");
+        assert_eq!(normalize_subject("Ristorante: Pranzo"), "Ristorante: Pranzo");
     }
 
     #[test]
@@ -407,6 +424,14 @@ mod tests {
         assert_eq!(size_label(900), "900 bytes");
         assert_eq!(size_label(1025), "2 KB");
         assert_eq!(size_label(5 * 1024 * 1024 / 2), "2.5 MB");
+        assert_eq!(
+            (size_label(1), size_label(1024 * 1024 * 1024 * 3 / 2), size_label(u64::MAX)),
+            ("1 byte".into(), "1.5 GB".into(), "17179869184.0 GB".into())
+        );
+        let fr = mailcraft_i18n::test_support::po(&[("{n}.{tenth} MB", "{n},{tenth} Mo")]);
+        mailcraft_i18n::test_support::with_catalogue(mailcraft_i18n::Lang::French, &fr, || {
+            assert_eq!(size_label_in(mailcraft_i18n::Lang::French, 5 * 1024 * 1024 / 2), "2,5 Mo");
+        });
         assert_eq!(Importance::parse("HIGH"), Some(Importance::High));
     }
 

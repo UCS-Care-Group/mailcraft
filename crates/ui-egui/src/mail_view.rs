@@ -84,7 +84,7 @@ fn drag_ghost(ui: &Ui) {
     let Some(pos) = ui.ctx().pointer_interact_pos() else { return };
     let t = Tokens::get(ui.ctx());
     ui.ctx().set_cursor_icon(egui::CursorIcon::Grabbing);
-    let text = if drag.0.len() == 1 { tl!("1 message").to_string() } else { format!("{} {}", drag.0.len(), tl!("messages")) };
+    let text = tln!(drag.0.len(), "{n} message", "{n} messages");
     egui::Area::new(egui::Id::new("message_drag_ghost")).order(egui::Order::Tooltip).fixed_pos(pos + vec2(14.0, 16.0)).interactable(false).show(
         ui.ctx(),
         |ui| {
@@ -155,28 +155,34 @@ fn row_height(preview_lines: u8) -> f32 {
     }
 }
 
-/// What the arrangement is called in the list's header.
+/// A group heading of the list in the interface language: the engine's dates (`Today`) are
+/// names the catalogue has, and so is the heading of what is pinned.
+fn group_name(group: &str) -> &str {
+    if group == "Pinned" { tl!("Pinned") } else { tl!(group) }
+}
+
+/// What the arrangement is called in the list's header, in the interface language.
 fn sort_label(sort: SortBy) -> &'static str {
     match sort {
-        SortBy::Date => "By Date",
-        SortBy::From => "By From",
-        SortBy::Subject => "By Subject",
-        SortBy::Size => "By Size",
-        SortBy::Importance => "By Importance",
+        SortBy::Date => tl!("By Date"),
+        SortBy::From => tl!("By From"),
+        SortBy::Subject => tl!("By Subject"),
+        SortBy::Size => tl!("By Size"),
+        SortBy::Importance => tl!("By Importance"),
     }
 }
 
-/// What is on top of the list, for the arrow that turns it over.
+/// What is on top of the list, for the arrow that turns it over, in the interface language.
 fn direction_label(sort: SortBy, descending: bool) -> &'static str {
     match (sort, descending) {
-        (SortBy::Date, true) => "Newest on top",
-        (SortBy::Date, false) => "Oldest on top",
-        (SortBy::From | SortBy::Subject, false) => "A on top",
-        (SortBy::From | SortBy::Subject, true) => "Z on top",
-        (SortBy::Size, true) => "Largest on top",
-        (SortBy::Size, false) => "Smallest on top",
-        (SortBy::Importance, true) => "High on top",
-        (SortBy::Importance, false) => "Low on top",
+        (SortBy::Date, true) => tl!("Newest on top"),
+        (SortBy::Date, false) => tl!("Oldest on top"),
+        (SortBy::From | SortBy::Subject, false) => tl!("A on top"),
+        (SortBy::From | SortBy::Subject, true) => tl!("Z on top"),
+        (SortBy::Size, true) => tl!("Largest on top"),
+        (SortBy::Size, false) => tl!("Smallest on top"),
+        (SortBy::Importance, true) => tl!("High on top"),
+        (SortBy::Importance, false) => tl!("Low on top"),
     }
 }
 
@@ -192,7 +198,7 @@ fn list_header(app: &mut MailApp, ui: &mut Ui) {
     // A, the largest), down once it is turned over.
     let (sort, descending) = (app.session.view.sort, app.session.view.sort_descending);
     let arrow = Rect::from_center_size(pos2(rows_end - 11.0, r.min.y + 33.0), vec2(20.0, 22.0));
-    let arrow_resp = ui.interact(arrow, ui.id().with("list_direction"), Sense::click()).on_hover_text(tl!(direction_label(sort, descending)));
+    let arrow_resp = ui.interact(arrow, ui.id().with("list_direction"), Sense::click()).on_hover_text(direction_label(sort, descending));
     app.hit.add("listSort", 1, arrow);
     if arrow_resp.hovered() {
         ui.painter().rect_filled(arrow, 4.0, t.hover);
@@ -203,7 +209,7 @@ fn list_header(app: &mut MailApp, ui: &mut Ui) {
     }
 
     // The arrangement and its menu.
-    let label = tl!(sort_label(sort));
+    let label = sort_label(sort);
     let label_w = ui.ctx().fonts_mut(|f| f.layout_no_wrap(label.to_string(), regular(SORT_TEXT), t.text).size().x);
     let label_end = rows_end - 46.0;
     let sr = Rect::from_min_max(pos2(label_end - label_w - 6.0, r.min.y + 22.0), pos2(rows_end - 25.0, r.min.y + 44.0));
@@ -386,8 +392,7 @@ fn search_bar(app: &mut MailApp, ui: &mut Ui, found: usize) {
     };
     let said = match found {
         0 => crate::i18n::fmt(tl!("No results in {scope}"), &[("scope", &scope)]),
-        1 => crate::i18n::fmt(tl!("1 result in {scope}"), &[("scope", &scope)]),
-        n => crate::i18n::fmt(tl!("{n} results in {scope}"), &[("n", &n.to_string()), ("scope", &scope)]),
+        n => crate::i18n::fmt(&tln!(n, "{n} result in {scope}", "{n} results in {scope}"), &[("scope", &scope)]),
     };
     let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width() - SCROLL_LANE, 30.0), Sense::hover());
     resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Label, true, &said));
@@ -448,11 +453,11 @@ fn list(app: &mut MailApp, ui: &mut Ui) {
         let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), 22.0), Sense::hover());
         ui.painter().rect_filled(r, 0.0, t.panel);
         let n = app.session.unsearched;
-        let text = if n == 1 {
-            tl!("1 older message wasn't searched: its text isn't loaded yet").to_string()
-        } else {
-            crate::i18n::fmt(tl!("{n} older messages weren't searched: their text isn't loaded yet"), &[("n", &n.to_string())])
-        };
+        let text = tln!(
+            n,
+            "{n} older message wasn't searched: its text isn't loaded yet",
+            "{n} older messages weren't searched: their text isn't loaded yet"
+        );
         paint_clipped(ui.painter(), pos2(r.min.x + 10.0, r.min.y + 4.0), r.width() - 20.0, &text, regular(11.5), t.text_dim);
     }
     let row_h = row_height(app.session.prefs.preview_lines);
@@ -539,7 +544,14 @@ fn list(app: &mut MailApp, ui: &mut Ui) {
                     if i == 0 {
                         ui.painter().line_segment([pos2(gr.min.x, top), pos2(gr.max.x, top)], line);
                     }
-                    paint_clipped(ui.painter(), pos2(gr.min.x + 10.0, gr.center().y), gr.width() - 16.0, tl!(group), semibold(GROUP_TEXT), t.text);
+                    paint_clipped(
+                        ui.painter(),
+                        pos2(gr.min.x + 10.0, gr.center().y),
+                        gr.width() - 16.0,
+                        group_name(group),
+                        semibold(GROUP_TEXT),
+                        t.text,
+                    );
                 }
                 let rect = Rect::from_min_size(pos2(origin.x, origin.y + top), vec2(width, row_h));
                 if reveal && Some(row.id) == focus {
@@ -828,7 +840,7 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect) {
 
     // The subject's line, with the time at its end.
     let date =
-        mailcraft_time::list_label(mailcraft_engine::list::when(&m), app.session.now(), app.session.offset_at(m.date), app.session.prefs.twelve_hour);
+        crate::dates::list_label(mailcraft_engine::list::when(&m), app.session.now(), app.session.offset_at(m.date), app.session.prefs.twelve_hour);
     let (date_font, date_color) = match (unread, overdue) {
         (true, false) => (semibold(LIST_TEXT), t.accent_text),
         (true, true) => (semibold(LIST_TEXT), t.overdue),

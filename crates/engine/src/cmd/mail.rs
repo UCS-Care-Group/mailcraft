@@ -76,7 +76,7 @@ const IDS: &str = r#"{"ids"?: [number]} (default: the selected messages)"#;
 fn select(s: &mut Session, v: &Value) -> CmdResult {
     let ids = p::ids(v).ok_or_else(|| bad("`id` or `ids` is required"))?;
     if let Some(missing) = ids.iter().find(|id| s.mailbox.message(**id).is_none()) {
-        return Err(fail(format!("no message with id {missing}")));
+        return Err(failed!("no message with id {id}", id = missing));
     }
     let Some(last) = ids.last().copied() else {
         s.sel.messages.clear();
@@ -172,12 +172,12 @@ fn previous(s: &mut Session, _: &Value) -> CmdResult {
 fn get(s: &mut Session, v: &Value) -> CmdResult {
     let id = p::id(v, "id").or(s.sel.focus()).ok_or_else(|| fail("select a message first"))?;
     if s.mailbox.message(id).is_none() {
-        return Err(fail(format!("no message with id {id}")));
+        return Err(failed!("no message with id {id}", id));
     }
     // Its text, from where the mailbox keeps it when it isn't in memory (a text that can't be
     // read says so in its place).
     let _ = s.load_where(id, |_| false);
-    let m = s.mailbox.message(id).ok_or_else(|| fail(format!("no message with id {id}")))?;
+    let m = s.mailbox.message(id).ok_or_else(|| failed!("no message with id {id}", id))?;
     Ok(message_json(s, m))
 }
 
@@ -229,8 +229,11 @@ fn move_to_kind(s: &mut Session, ids: &[Id], kind: FolderKind) -> CmdResult {
     let before = s.rows();
     let mut moved = Vec::new();
     for id in ids {
-        let account = s.mailbox.message(*id).map(|m| m.account).ok_or_else(|| fail(format!("no message with id {id}")))?;
-        let folder = s.mailbox.folder_of_kind(account, kind).ok_or_else(|| fail(format!("this account has no {} folder", kind.default_name())))?;
+        let account = s.mailbox.message(*id).map(|m| m.account).ok_or_else(|| failed!("no message with id {id}", id))?;
+        let folder = s
+            .mailbox
+            .folder_of_kind(account, kind)
+            .ok_or_else(|| failed!("this account has no {folder} folder", folder = mailcraft_i18n::Arg::folder(kind.default_name())))?;
         if s.mailbox.message(*id).is_some_and(|m| m.folder != folder) {
             s.mailbox.move_message(*id, folder)?;
             moved.push(*id);
@@ -315,7 +318,7 @@ fn toggle_read(s: &mut Session, v: &Value) -> CmdResult {
 fn mark_all_read(s: &mut Session, v: &Value) -> CmdResult {
     let folder = p::id(v, "folder").unwrap_or(s.view.folder);
     if s.mailbox.folder(folder).is_none() {
-        return Err(fail(format!("no folder with id {folder}")));
+        return Err(failed!("no folder with id {id}", id = folder));
     }
     let ids: Vec<Id> = s.mailbox.messages_in(folder).filter(|m| !m.read).map(|m| m.id).collect();
     for id in &ids {
@@ -403,9 +406,9 @@ fn find_related(s: &mut Session, _: &Value) -> CmdResult {
 fn attachment_target(s: &Session, v: &Value) -> Result<(Id, usize), crate::CmdError> {
     let id = p::id(v, "id").or(s.sel.focus()).ok_or_else(|| fail("select a message first"))?;
     let index = p::u64(v, "index").ok_or_else(|| bad("`index` (number) is required"))? as usize;
-    let m = s.mailbox.message(id).ok_or_else(|| fail(format!("no message with id {id}")))?;
+    let m = s.mailbox.message(id).ok_or_else(|| failed!("no message with id {id}", id))?;
     if m.attachments.get(index).is_none() {
-        return Err(fail(format!("the message has no attachment {index}")));
+        return Err(failed!("the message has no attachment {index}", index));
     }
     Ok((id, index))
 }

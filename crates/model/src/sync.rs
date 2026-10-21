@@ -33,6 +33,11 @@ pub struct FolderState {
     pub uid_validity: u32,
     /// The highest UID already downloaded.
     pub uid_seen: u32,
+    /// The oldest UID of the newest messages the folder was last read down to: older ones were
+    /// left out by the limit of how many to have here, and come down when it grows. Between this
+    /// and `uid_seen`, what isn't here left the folder here and is not asked for again. 0 until
+    /// the folder is read with it (a mailbox from before it was kept).
+    pub uid_from: u32,
     /// UIDs of the messages the mailbox has in this folder (to notice deletions and flag changes).
     pub known_uids: Vec<u32>,
 }
@@ -96,7 +101,8 @@ pub struct SyncRequest {
     pub folders: Vec<FolderState>,
     /// Messages waiting in the Outbox, to send first.
     pub outbox: Vec<Message>,
-    /// Most messages to download per folder in one run (the newest win); 0 means no limit.
+    /// How many of each folder's newest messages to have here (older ones come down when this
+    /// grows); 0 means no limit.
     pub max_per_folder: u32,
     /// Only send what waits and tell the server what changed here; bring nothing down. For a
     /// change that should reach the server at once, without reading every folder for it.
@@ -415,6 +421,9 @@ pub struct FolderDelta {
     pub kind: FolderKind,
     pub uid_validity: u32,
     pub uid_seen: u32,
+    /// How far down the folder is read now ([`FolderState::uid_from`]), said by the last piece
+    /// of it; 0 says nothing.
+    pub uid_from: u32,
     /// Newly downloaded messages (`uid` set; `folder` and `account` are filled in when applied).
     pub new: Vec<Message>,
     /// Current flags of messages the mailbox already had.
@@ -603,6 +612,9 @@ impl SyncResult {
                     folder.id = folder.id.or(delta.id);
                     // The mailbox is read as far as the piece that got furthest says.
                     folder.uid_seen = folder.uid_seen.max(delta.uid_seen);
+                    if delta.uid_from != 0 {
+                        folder.uid_from = delta.uid_from;
+                    }
                     folder.new.extend(delta.new);
                     folder.flags.extend(delta.flags);
                     folder.removed.extend(delta.removed);
@@ -624,16 +636,22 @@ impl SyncResult {
 
 /// `3 new messages, 1 sent`, `Up to date`, or the error.
 pub fn summary_line(error: Option<&str>, new: usize, sent: usize) -> String {
+    summary_line_in(mailcraft_i18n::Lang::English, error, new, sent)
+}
+
+/// [`summary_line`] in `lang` (an error is said as it came).
+pub fn summary_line_in(lang: mailcraft_i18n::Lang, error: Option<&str>, new: usize, sent: usize) -> String {
     if let Some(e) = error {
         return e.to_string();
     }
-    let plural = |n: usize| if n == 1 { "" } else { "s" };
-    match (new, sent) {
-        (0, 0) => "Up to date".into(),
-        (n, 0) => format!("{n} new message{}", plural(n)),
-        (0, s) => format!("{s} message{} sent", plural(s)),
-        (n, s) => format!("{n} new message{}, {s} sent", plural(n)),
-    }
+    let count = |n: usize| u64::try_from(n).unwrap_or(u64::MAX);
+    let template = match (new, sent) {
+        (0, 0) => lang.t("Up to date"),
+        (_, 0) => lang.tn(count(new), "{n} new message", "{n} new messages"),
+        (0, _) => lang.tn(count(sent), "{sent} message sent", "{sent} messages sent"),
+        (_, _) => lang.tn(count(new), "{n} new message, {sent} sent", "{n} new messages, {sent} sent"),
+    };
+    mailcraft_i18n::fmt(template, &[("n", &new.to_string()), ("sent", &sent.to_string())])
 }
 
 // ---- Microsoft Graph (R3) ----

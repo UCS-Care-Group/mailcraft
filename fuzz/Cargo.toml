@@ -1,6 +1,7 @@
 # Fuzz targets for the code that reads what arrives from outside: messages, mbox files, HTML,
-# iCalendar, vCard, character sets and IMAP/SMTP servers. Not part of the main workspace (it needs
-# nightly): `cargo +nightly fuzz run <target>` from the repository root; `cargo fuzz list` names them.
+# iCalendar, vCard, character sets, IMAP/SMTP servers and language catalogues. Not part of the
+# main workspace (it needs nightly): `cargo +nightly fuzz run <target>` from the repository root;
+# `cargo fuzz list` names them.
 [package]
 name = "mailcraft-fuzz"
 version = "0.0.0"
@@ -14,6 +15,7 @@ cargo-fuzz = true
 [dependencies]
 libfuzzer-sys = "0.4"
 mailcraft-charset = { path = "../crates/charset" }
+mailcraft-i18n = { path = "../crates/i18n" }
 mailcraft-html = { path = "../crates/html" }
 mailcraft-ical = { path = "../crates/ical" }
 mailcraft-mime = { path = "../crates/mime" }
@@ -68,6 +70,13 @@ bench = false
 [[bin]]
 name = "smtp"
 path = "fuzz_targets/smtp.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "po"
+path = "fuzz_targets/po.rs"
 test = false
 doc = false
 bench = false

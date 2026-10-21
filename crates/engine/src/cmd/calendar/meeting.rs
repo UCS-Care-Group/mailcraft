@@ -96,9 +96,10 @@ pub(super) fn online_fits(s: &Session, e: &Event, before: Option<&Event>) -> Res
         (Some(_), None) => {
             // (Somebody else's meeting is online or not as its organizer made it.)
             if let Some(who) = before.filter(|before| before.origin.guest).and_then(|before| kept_by(s, before)) {
-                return Err(fail(format!(
-                    "This meeting is kept by the server of {who}, and somebody else organizes it. Whether it is held online is for its organizer to say."
-                )));
+                return Err(failed!(
+                    "This meeting is kept by the server of {who}, and somebody else organizes it. Whether it is held online is for its organizer to say.",
+                    who
+                ));
             }
             match teams_refusal(s, e.calendar) {
                 Some(why) => Err(fail(why)),
@@ -119,9 +120,10 @@ pub(super) fn online_fits(s: &Session, e: &Event, before: Option<&Event>) -> Res
 pub(super) fn movable(s: &Session, before: &Event, e: &Event, who: &str) -> Result<(), CmdError> {
     let target = s.mailbox.calendar(e.calendar).ok_or_else(|| fail("the calendar is gone"))?;
     if target.origin.account != before.origin.account || remote::keeper(&s.mailbox, &target.origin).is_none() {
-        return Err(fail(format!(
-            "This event is kept by the server of {who}. It can be moved to another calendar of that account, not out of it: taking it out would delete it there."
-        )));
+        return Err(failed!(
+            "This event is kept by the server of {who}. It can be moved to another calendar of that account, not out of it: taking it out would delete it there.",
+            who
+        ));
     }
     remote::writable(&s.mailbox, target.id)?;
     remote::writable(&s.mailbox, before.calendar)?;
@@ -277,10 +279,10 @@ fn recipients(v: &Value) -> Result<Vec<Address>, CmdError> {
     };
     if let Some(wrong) = named.iter().find(|who| !who.is_valid()) {
         let shown: String = wrong.email.chars().filter(|c| !c.is_control()).take(80).collect();
-        return Err(fail(format!("\"{shown}\" isn't an e-mail address")));
+        return Err(failed!("\"{shown}\" isn't an e-mail address", shown));
     }
     if named.len() > MAX_FORWARD {
-        return Err(fail(format!("A meeting is forwarded to {MAX_FORWARD} people at most at once.")));
+        return Err(failed!("A meeting is forwarded to {n} people at most at once.", n = MAX_FORWARD));
     }
     let to = forward_recipients(named);
     if to.is_empty() {
@@ -302,11 +304,11 @@ fn forward(s: &mut Session, v: &Value) -> CmdResult {
     if let Part::One(day) = one
         && !super::happens_on(s, &event, day)
     {
-        return Err(fail(format!("the series doesn't happen on {}", day.iso())));
+        return Err(failed!("the series doesn't happen on {date}", date = day.iso()));
     }
     if let Some(who) = kept_by(s, &event) {
         if event.origin.id.is_empty() {
-            return Err(fail(format!("This item hasn't reached the server of {who} yet. Forward it once it is there (in a moment).")));
+            return Err(failed!("This item hasn't reached the server of {who} yet. Forward it once it is there (in a moment).", who));
         }
         let day = match one {
             Part::One(day) => Some(day),

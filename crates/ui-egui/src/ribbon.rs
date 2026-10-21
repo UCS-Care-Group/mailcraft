@@ -234,7 +234,7 @@ impl Item {
 
     /// The label on one line, in the interface language.
     fn name(&self) -> String {
-        tl!(self.label).replace('\n', " ")
+        tl!(self.label).replace("-\n", "-").replace("/\n", "/").replace('\n', " ")
     }
 
     /// What the tooltip calls it.
@@ -785,7 +785,7 @@ pub fn folder_menu(ui: &mut Ui, app: &mut MailApp, mut pick: impl FnMut(&mut Mai
             return;
         }
         for f in app.session.mailbox.children(account, parent) {
-            out.push((f.id, f.name.clone(), depth));
+            out.push((f.id, crate::nav::folder_name(f).to_string(), depth));
             walk(app, account, Some(f.id), depth + 1, out);
         }
     }
@@ -922,7 +922,7 @@ fn menu_contents(ui: &mut Ui, app: &mut MailApp, menu: Menu) {
             let cur = app.session.sel.event.and_then(|id| app.session.mailbox.event(id)).and_then(|e| e.reminder_minutes);
             mi_check(ui, app, "None", cur.is_none(), "calendar.reminder", json!({"minutes": null}));
             for m in [0u32, 5, 10, 15, 30, 60, 120, 1440] {
-                let label = if m == 0 { tl!("At start time").to_string() } else { mailcraft_time::duration_label(i64::from(m)) };
+                let label = if m == 0 { tl!("At start time").to_string() } else { crate::dates::duration(i64::from(m)) };
                 mi_check(ui, app, &label, cur == Some(m), "calendar.reminder", json!({"minutes": m}));
             }
         }
@@ -1660,6 +1660,28 @@ mod tests {
         }
         out.push(("Message".to_string(), vec![("view.mail", json!({})), ("mail.new", json!({}))]));
         out
+    }
+
+    /// Every label, tooltip name and group title of every tab is in the template the catalogues
+    /// are made from (`cargo xtask i18n`), as written, a large button's line break and all: a
+    /// control the extraction missed would stay English in every language.
+    #[test]
+    fn every_ribbon_text_is_in_the_template() {
+        let template = mailcraft_i18n::po::parse(include_str!("../../i18n/po/messages.pot"));
+        let known: std::collections::BTreeSet<String> = template.entries.iter().filter(|e| e.context.is_none()).map(|e| e.id.clone()).collect();
+        let mut a = app();
+        let mut missing = std::collections::BTreeSet::new();
+        for (_, commands) in every_tab() {
+            for (command, params) in commands {
+                a.run(command, params).unwrap();
+            }
+            let tab = describe(&a);
+            for group in &tab.groups {
+                let texts = std::iter::once(group.title).chain(group.items.iter().flat_map(|i| [i.label, i.tip]));
+                missing.extend(texts.filter(|s| !s.is_empty() && !known.contains(*s)));
+            }
+        }
+        assert!(missing.is_empty(), "not in messages.pot (run `cargo xtask i18n`): {missing:?}");
     }
 
     /// One description feeds both layouts: every control has a key of its own, an icon that is

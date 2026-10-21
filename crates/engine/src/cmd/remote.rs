@@ -247,10 +247,14 @@ pub(crate) fn who(account: &Account) -> &str {
 /// Refuse to change `what` ("contact", "calendar") when an account's server keeps it: the change
 /// would not reach the server, and the next download would take it back. (Events are sent back:
 /// [`note_changed`].)
-pub(crate) fn changeable(mailbox: &Mailbox, origin: &Origin, what: &str) -> Result<(), CmdError> {
+pub(crate) fn changeable(mailbox: &Mailbox, origin: &Origin, what: &'static str) -> Result<(), CmdError> {
     let Some(account) = keeper(mailbox, origin) else { return Ok(()) };
     let who = who(account);
-    Err(fail(format!("This {what} is kept by the server of {who}. Changes made here are not sent back yet, so it can't be changed or deleted here.")))
+    Err(failed!(
+        "This {what} is kept by the server of {who}. Changes made here are not sent back yet, so it can't be changed or deleted here.",
+        what = mailcraft_i18n::Arg::words(what),
+        who
+    ))
 }
 
 /// The instant of a wall-clock time here, in a zone whose offset at an instant is `offset_at`.
@@ -517,11 +521,11 @@ fn put_fields(event: &mut Event, fields: &EventFields, offset_at: &dyn Fn(Timest
 
 /// The account a download is for, when the mailbox has it and it is the one the download names.
 fn owner<'a>(mailbox: &'a Mailbox, account: Id, email: &str) -> Result<&'a Account, CmdError> {
-    let owner = mailbox.account(account).ok_or_else(|| fail(format!("no account with id {account}")))?;
+    let owner = mailbox.account(account).ok_or_else(|| failed!("no account with id {id}", id = account))?;
     // A download for another account (the mailbox was replaced while it was under way) would fill
     // this one's calendar with a stranger's.
     if !email.trim().is_empty() && !owner.email.trim().eq_ignore_ascii_case(email.trim()) {
-        return Err(fail(format!("this download was for another account, not for {}", owner.name)));
+        return Err(failed!("this download was for another account, not for {name}", name = owner.name));
     }
     Ok(owner)
 }
@@ -799,7 +803,7 @@ fn new_token(event: Id, salt: u64) -> String {
 pub(crate) fn writable(mailbox: &Mailbox, calendar: Id) -> Result<(), CmdError> {
     match mailbox.calendar(calendar) {
         Some(c) if c.read_only && keeper(mailbox, &c.origin).is_some() => {
-            Err(fail(format!("The calendar \"{}\" can only be read: its owner hasn't let this account change it.", c.name)))
+            Err(failed!("The calendar \"{name}\" can only be read: its owner hasn't let this account change it.", name = c.name))
         }
         _ => Ok(()),
     }
@@ -1237,7 +1241,7 @@ pub fn events_waiting(s: &Session, account: Id) -> EventsWaiting {
 /// the changes that are due, oldest first, [`MAX_EVENT_OPS`] at most. Times go as instants, in
 /// the session's zone ([`server_time`]).
 pub fn event_upload(s: &Session, account: Id) -> Result<EventsUpload, CmdError> {
-    let owner = s.mailbox.account(account).ok_or_else(|| fail(format!("no account with id {account}")))?;
+    let owner = s.mailbox.account(account).ok_or_else(|| failed!("no account with id {id}", id = account))?;
     let (offset_at, now) = (offset_of(s), s.now());
     let mailbox = &s.mailbox;
     let here = events_here(mailbox);

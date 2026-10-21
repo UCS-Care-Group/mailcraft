@@ -180,8 +180,7 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
             );
             if waiting > 1 {
                 ui.label(
-                    egui::RichText::new(crate::i18n::fmt(tl!("{n} more questions are waiting."), &[("n", &(waiting - 1).to_string())]))
-                        .color(t.text_dim),
+                    egui::RichText::new(tln!(waiting - 1, "{n} more question is waiting.", "{n} more questions are waiting.")).color(t.text_dim),
                 );
             }
             ui.add_space(6.0);

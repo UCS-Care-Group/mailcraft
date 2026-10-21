@@ -636,7 +636,7 @@ fn the_calendar_button_shows_the_day_and_the_option_files_the_request_away() {
     let (app, account, ids) =
         mail_app(vec![Meeting::default().mail(), Meeting { uid: "uid-other".into(), title: "Budget", ..Default::default() }.mail()]);
     let (first, second) = (ids[0], ids[1]);
-    let mut harness = window(app, (1280.0, 900.0));
+    let mut harness = window(app, (1280.0, 420.0));
     select(&mut harness, first);
     // Unless the owner turns it on, an answered request stays where it is.
     assert!(!harness.state().session.prefs.delete_answered_requests);
@@ -646,6 +646,9 @@ fn the_calendar_button_shows_the_day_and_the_option_files_the_request_away() {
     assert_eq!(harness.state().session.mailbox.message(first).map(|m| m.folder), Some(inbox));
     // Turned on in File › Options: the next one goes to Deleted Items, and is not deleted for good.
     harness.state_mut().execute("ui.backstage", json!({"value": true, "page": "options"})).unwrap();
+    harness.run_steps(3);
+    // A short window puts it below the fold, as a taller system font (Segoe UI on Windows) does.
+    harness.get_by_label("Delete meeting requests from the Inbox after responding").scroll_to_me();
     harness.run_steps(3);
     harness.get_by_label("Delete meeting requests from the Inbox after responding").click();
     harness.run_steps(3);

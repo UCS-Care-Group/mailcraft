@@ -100,7 +100,7 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
     };
     if picked > 1 {
         let r = ui.available_rect_before_wrap();
-        let text = crate::i18n::fmt(tl!("{n} items selected"), &[("n", &picked.to_string())]);
+        let text = tln!(picked, "{n} item selected", "{n} items selected");
         ui.painter().text(pos2(r.center().x, r.min.y + r.height() * 0.4), Align2::CENTER_CENTER, text, semibold(15.0), t.text_dim);
         return;
     }
@@ -316,7 +316,7 @@ fn header(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Place, pictur
             crate::widgets::avatar(ui, r.center(), 17.0, &m.from);
             ui.vertical(|ui| {
                 ui.spacing_mut().item_spacing = vec2(0.0, 1.0);
-                let when = mailcraft_time::header_label(m.date, app.session.offset_at(m.date), app.session.prefs.twelve_hour);
+                let when = crate::dates::header_label(m.date, app.session.offset_at(m.date), app.session.prefs.twelve_hour);
                 // The date first, at the right; the name and address get what is left, cut short
                 // when the pane is narrow rather than run under the date.
                 ui.horizontal(|ui| {
@@ -333,15 +333,17 @@ fn header(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Place, pictur
                         });
                     });
                 });
-                let mut line = |ui: &mut Ui, field: select::Field, label: &str, list: &[mailcraft_model::Address]| {
+                // (`said` is the line in the interface language, with `{names}` still to fill.)
+                let mut line = |ui: &mut Ui, field: select::Field, said: &str, list: &[mailcraft_model::Address]| {
                     if !list.is_empty() {
-                        let text = egui::RichText::new(format!("{} {}", tl!(label), format_list(list))).font(regular(11.5)).color(t.text_dim);
+                        let said = crate::i18n::fmt(said, &[("names", &format_list(list))]);
+                        let text = egui::RichText::new(said).font(regular(11.5)).color(t.text_dim);
                         fields.add(ui, field, egui::Label::new(text).truncate());
                     }
                 };
-                line(ui, select::Field::To, "To:", &m.to);
-                line(ui, select::Field::Cc, "Cc:", &m.cc);
-                line(ui, select::Field::Bcc, "Bcc:", &m.bcc);
+                line(ui, select::Field::To, tl!("To: {names}"), &m.to);
+                line(ui, select::Field::Cc, tl!("Cc: {names}"), &m.cc);
+                line(ui, select::Field::Bcc, tl!("Bcc: {names}"), &m.bcc);
             });
         });
         notes(app, ui, m, &t, pictures);
@@ -358,8 +360,11 @@ fn notes(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, t: &Tokens, pictures:
     let mut lines: Vec<(&str, String)> = Vec::new();
     match m.flag {
         FlagStatus::Flagged => {
-            let due = m.flag_due.map(|d| format!(" {} {}", tl!("Due"), app.session.local(d).date.medium())).unwrap_or_default();
-            lines.push(("flag", format!("{}{due}", tl!("Follow up."))));
+            let said = match m.flag_due {
+                Some(d) => crate::i18n::fmt(tl!("Follow up. Due {date}"), &[("date", &crate::dates::medium(app.session.local(d).date))]),
+                None => tl!("Follow up.").to_string(),
+            };
+            lines.push(("flag", said));
         }
         FlagStatus::Complete => lines.push(("complete", tl!("Completed.").to_string())),
         FlagStatus::None => {}
@@ -397,7 +402,7 @@ fn notes(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, t: &Tokens, pictures:
     if thread.len() > 1 {
         ui.horizontal_wrapped(|ui| {
             ui.label(
-                egui::RichText::new(crate::i18n::fmt(tl!("{n} messages in this conversation:"), &[("n", &thread.len().to_string())]))
+                egui::RichText::new(tln!(thread.len(), "{n} message in this conversation:", "{n} messages in this conversation:"))
                     .font(regular(11.5))
                     .color(t.text_dim),
             );
@@ -406,7 +411,7 @@ fn notes(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, t: &Tokens, pictures:
                 let label = format!(
                     "{} · {}",
                     other.from.display(),
-                    mailcraft_time::list_label(other.date, app.session.now(), app.session.offset_at(other.date), app.session.prefs.twelve_hour)
+                    crate::dates::list_label(other.date, app.session.now(), app.session.offset_at(other.date), app.session.prefs.twelve_hour)
                 );
                 if ui.add_enabled(*id != m.id, egui::Button::new(egui::RichText::new(label).font(regular(11.0))).small()).clicked() {
                     let _ = app.run("mail.select", json!({"id": id}));
@@ -436,7 +441,13 @@ fn attachments(app: &mut MailApp, ui: &mut Ui, m: &Message, t: &Tokens) {
             ui.painter().rect(r, 5.0, if resp.hovered() { t.hover } else { t.panel }, Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
             icons::paint(ui.painter(), Rect::from_center_size(pos2(r.min.x + 17.0, r.center().y), vec2(20.0, 20.0)), "attach", t.icon, t.accent);
             paint_clipped(ui.painter(), pos2(r.min.x + 34.0, r.min.y + 13.0), name_w + 4.0, &shown, regular(12.0), t.text);
-            ui.painter().text(pos2(r.min.x + 34.0, r.min.y + 27.0), Align2::LEFT_CENTER, a.size_label(), regular(10.5), t.text_dim);
+            ui.painter().text(
+                pos2(r.min.x + 34.0, r.min.y + 27.0),
+                Align2::LEFT_CENTER,
+                mailcraft_model::size_label_in(crate::i18n::current(), a.size() as u64),
+                regular(10.5),
+                t.text_dim,
+            );
             // Double-click opens it, as in Outlook; its menu opens or saves it.
             let resp = resp.on_hover_text(crate::i18n::fmt(tl!("Double-click to open {name}; right-click to save it"), &[("name", &shown)]));
             if resp.double_clicked() {

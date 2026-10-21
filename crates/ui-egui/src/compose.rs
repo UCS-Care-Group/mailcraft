@@ -206,7 +206,11 @@ impl Shown {
             cc: c.cc.clone(),
             bcc: c.bcc.clone(),
             subject: c.subject.clone(),
-            attachments: c.attachments.iter().map(|a| (mailcraft_engine::opening::file_name(&a.name), a.size_label())).collect(),
+            attachments: c
+                .attachments
+                .iter()
+                .map(|a| (mailcraft_engine::opening::file_name(&a.name), mailcraft_model::size_label_in(crate::i18n::current(), a.size() as u64)))
+                .collect(),
             quote: c.quote.is_some(),
         })
     }

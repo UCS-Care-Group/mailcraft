@@ -13,3 +13,5 @@
 *.ico binary
 *.icns binary
 *.ttf binary
+*.po text eol=lf
+*.pot text eol=lf

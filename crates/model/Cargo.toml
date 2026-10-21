@@ -9,6 +9,7 @@ description = "MailCraft data model: accounts, folders, messages, contacts, cale
 workspace = true
 
 [dependencies]
+mailcraft-i18n = { workspace = true }
 mailcraft-time = { workspace = true }
 serde = { workspace = true }
 # An account of a kind this version doesn't know is kept as its file has it, field for field, to
@@ -18,4 +19,5 @@ thiserror = { workspace = true }
 base64 = { workspace = true }
 
 [dev-dependencies]
+mailcraft-i18n = { workspace = true, features = ["test-support"] }
 proptest = { workspace = true }

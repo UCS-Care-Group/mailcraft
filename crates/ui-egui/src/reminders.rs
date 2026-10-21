@@ -44,13 +44,13 @@ fn key_of(r: &Reminder) -> String {
 
 /// `in 10 minutes`, `now`, `25 minutes ago`, `in 2 hours`, `3 days ago`.
 pub(crate) fn when(minutes: i64) -> String {
-    let (n, unit) = match minutes.unsigned_abs() {
+    let unit = match minutes.unsigned_abs() {
         0 => return tl!("now").to_string(),
-        m @ 1..=119 => (m, if m == 1 { tl!("minute") } else { tl!("minutes") }),
-        m @ 120..=2879 => (m / 60, tl!("hours")),
-        m => (m / 1440, tl!("days")),
+        m @ 1..=119 => tln!(m, "{n} minute", "{n} minutes"),
+        m @ 120..=2879 => tln!(m / 60, "{n} hour", "{n} hours"),
+        m => tln!(m / 1440, "{n} day", "{n} days"),
     };
-    if minutes > 0 { format!("{} {n} {unit}", tl!("in")) } else { format!("{n} {unit} {}", tl!("ago")) }
+    if minutes > 0 { crate::i18n::fmt(tl!("in {time}"), &[("time", &unit)]) } else { crate::i18n::fmt(tl!("{time} ago"), &[("time", &unit)]) }
 }
 
 /// Work out what is due, every few seconds and whenever the mailbox changed; ask for attention
@@ -141,7 +141,7 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
     let (mut dismissed, mut snoozed, mut opened) = (None, None, None);
     let mut joined: Option<u64> = None;
     let (mut dismiss_all, mut closed) = (false, false);
-    let title = if rows.len() == 1 { tl!("1 Reminder").to_string() } else { format!("{} {}", rows.len(), tl!("Reminders")) };
+    let title = tln!(rows.len(), "{n} Reminder", "{n} Reminders");
     let height = (rows.len().clamp(1, 6) as f32) * 46.0 + 96.0;
     let builder = crate::windows::like_main(
         ctx,
@@ -184,28 +184,31 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
                     // An online meeting that has a link to join by gets a Join button beside Dismiss.
                     let join = app.session.mailbox.event(r.event).and_then(|e| e.join_link()).and_then(mailcraft_model::OnlineMeeting::clean_link);
                     let aside = if join.is_some() { 56.0 } else { 0.0 };
+                    // Dismiss is as wide as its word needs in the interface language (64 at least).
+                    let font = egui::TextStyle::Button.resolve(ui.style());
+                    let wide = ui.fonts_mut(|f| f.layout_no_wrap(tl!("Dismiss").to_string(), font, t.text).size().x + 16.0).max(64.0);
                     crate::theme::paint_clipped(
                         ui.painter(),
                         egui::pos2(rect.min.x + 34.0, rect.min.y + 15.0),
-                        rect.width() - 130.0 - aside,
+                        rect.width() - wide - 66.0 - aside,
                         name,
                         semibold(12.5),
                         t.text,
                     );
-                    let time = if r.all_day { r.start.date.medium() } else { format!("{} {}", r.start.date.medium(), r.start.time_short(twelve)) };
+                    let time = if r.all_day { crate::dates::medium(r.start.date) } else { crate::dates::medium_time(r.start, twelve) };
                     let detail = if r.location.trim().is_empty() { time } else { format!("{time} · {}", r.location) };
                     crate::theme::paint_clipped(
                         ui.painter(),
                         egui::pos2(rect.min.x + 34.0, rect.min.y + 32.0),
-                        rect.width() - 130.0 - aside,
+                        rect.width() - wide - 66.0 - aside,
                         &detail,
                         regular(11.5),
                         t.text_dim,
                     );
                     let color = if r.minutes <= 0 { t.red } else { t.text_dim };
-                    let said = egui::pos2(rect.max.x - 78.0 - aside, rect.min.y + 15.0);
+                    let said = egui::pos2(rect.max.x - wide - 14.0 - aside, rect.min.y + 15.0);
                     ui.painter().text(said, Align2::RIGHT_CENTER, when(r.minutes), regular(11.5), color);
-                    let button = egui::Rect::from_min_size(egui::pos2(rect.max.x - 70.0, rect.center().y - 12.0), vec2(64.0, 24.0));
+                    let button = egui::Rect::from_min_size(egui::pos2(rect.max.x - wide - 6.0, rect.center().y - 12.0), vec2(wide, 24.0));
                     // The link is shown where it leads, and followed only on the click.
                     let mut pressed = false;
                     if let Some(link) = &join {

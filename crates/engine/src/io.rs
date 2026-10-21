@@ -211,9 +211,9 @@ pub struct SaveReport {
 /// Bring a file's contents into the mailbox: messages go to `folder` (default: the folder in
 /// view, or the Inbox), events to the default calendar, contacts and to-dos to their lists.
 pub fn import(s: &mut Session, name: &str, bytes: &[u8], folder: Option<Id>) -> Result<Value, CmdError> {
-    let format = Format::detect(name, bytes).ok_or_else(|| fail(format!("{name}: not a message, calendar or contact file MailCraft reads")))?;
+    let format = Format::detect(name, bytes).ok_or_else(|| failed!("{name}: not a message, calendar or contact file MailCraft reads", name))?;
     let folder = match folder {
-        Some(f) => s.mailbox.folder(f).map(|f| f.id).ok_or_else(|| fail(format!("no folder with id {f}")))?,
+        Some(f) => s.mailbox.folder(f).map(|f| f.id).ok_or_else(|| failed!("no folder with id {id}", id = f))?,
         None => s.mailbox.folder(s.view.folder).map(|f| f.id).or_else(|| s.mailbox.inbox()).ok_or_else(|| fail("the mailbox has no folders"))?,
     };
     let now = s.now();
@@ -222,7 +222,7 @@ pub fn import(s: &mut Session, name: &str, bytes: &[u8], folder: Option<Id>) -> 
         Format::Eml | Format::Mbox => {
             let messages = if format == Format::Eml { vec![mailcraft_mime::parse(bytes)] } else { mailcraft_mime::parse_mbox(bytes) };
             if messages.is_empty() {
-                return Err(fail(format!("{name} has no messages")));
+                return Err(failed!("{name} has no messages", name));
             }
             // Graph can't put received mail into a Microsoft account's folders: a local folder
             // has it instead, and is shown (R3 spec S30).
@@ -261,7 +261,7 @@ pub fn import(s: &mut Session, name: &str, bytes: &[u8], folder: Option<Id>) -> 
             // (Times in a zone become the times of the zone the calendar is shown in.)
             let file = mailcraft_ical::parse(&text, &crate::cmd::remote::offset_of(s));
             if file.events.is_empty() && file.tasks.is_empty() {
-                return Err(fail(format!("{name} has no events or tasks")));
+                return Err(failed!("{name} has no events or tasks", name));
             }
             let notes = file.notes;
             let (mut events, mut tasks, mut updated) = (Vec::new(), Vec::new(), 0);
@@ -298,7 +298,7 @@ pub fn import(s: &mut Session, name: &str, bytes: &[u8], folder: Option<Id>) -> 
         Format::Vcf => {
             let contacts = mailcraft_vcard::parse_bytes(bytes);
             if contacts.is_empty() {
-                return Err(fail(format!("{name} has no contacts")));
+                return Err(failed!("{name} has no contacts", name));
             }
             let mut ids = Vec::new();
             for mut c in contacts {

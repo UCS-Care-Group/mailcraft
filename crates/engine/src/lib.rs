@@ -8,6 +8,22 @@
 //! JSON control channel and the MCP server all call [`Session::run`].
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
+/// A text with values (`mailcraft_i18n::Text`): `said!("no folder named {name}", name)`, or
+/// `said!("{name} is larger than {mb} MB", name, mb = MAX >> 20)`. The template is a literal, so
+/// `cargo xtask i18n` finds it; a value that is interface text itself is `mailcraft_i18n::Arg::words(…)`.
+macro_rules! said {
+    (@arg $k:ident) => { mailcraft_i18n::ToArg::to_arg(&$k) };
+    (@arg $k:ident = $v:expr) => { mailcraft_i18n::ToArg::to_arg(&$v) };
+    ($t:literal $(, $k:ident $(= $v:expr)?)* $(,)?) => {
+        mailcraft_i18n::Text::new($t, vec![$((stringify!($k), said!(@arg $k $(= $v)?))),*])
+    };
+}
+
+/// A command that failed, saying why with values in it ([`CmdError::Said`]); as [`said!`].
+macro_rules! failed {
+    ($($t:tt)*) => { $crate::CmdError::Said(said!($($t)*)) };
+}
+
 pub mod agent;
 pub mod arrivals;
 pub mod catalog;
@@ -44,16 +60,35 @@ pub fn store_placeholder() -> &'static str {
     "[This message's text is unavailable: the file that keeps it is missing from the mailbox's content folder, or damaged.]"
 }
 
+/// Why a command didn't run. Its `Display` is English (for the CLI, MCP and the control
+/// channel); [`CmdError::in_lang`] is what the window says.
 #[derive(Debug, thiserror::Error, Clone, PartialEq)]
 pub enum CmdError {
     #[error("unknown command `{0}`")]
     Unknown(String),
+    /// For whoever wrote the parameters (an agent, a script): English.
     #[error("bad parameters: {0}")]
     Params(String),
     #[error("not available: {0}")]
     Disabled(String),
+    /// A fixed English text, looked up whole in the catalogue.
     #[error("{0}")]
     Failed(String),
+    /// A text with values in it ([`failed!`]): its template is looked up, then filled.
+    #[error("{0}")]
+    Said(mailcraft_i18n::Text),
+}
+
+impl CmdError {
+    /// What the window says of it in `lang`, without the "bad parameters:" / "not available:"
+    /// that the English starts with for an agent.
+    pub fn in_lang(&self, lang: mailcraft_i18n::Lang) -> String {
+        match self {
+            CmdError::Unknown(_) => self.to_string(),
+            CmdError::Params(s) | CmdError::Disabled(s) | CmdError::Failed(s) => lang.t(s).to_string(),
+            CmdError::Said(t) => t.in_lang(lang),
+        }
+    }
 }
 
 impl From<mailcraft_model::ModelError> for CmdError {

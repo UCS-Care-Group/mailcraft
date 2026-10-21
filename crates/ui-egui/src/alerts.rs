@@ -31,7 +31,7 @@ use mailcraft_model::Id;
 use serde::Serialize;
 use serde_json::{Value, json};
 
-use crate::{MailApp, i18n};
+use crate::MailApp;
 
 /// How many get an alert each; beyond that, one alert counts them.
 pub const AT_ONCE: usize = 3;
@@ -198,7 +198,7 @@ pub fn plan_mail(found: &[Arrival], on: bool, focused: bool) -> Vec<Planned> {
         return vec![Planned {
             kind: AlertKind::Mail,
             title: tl!("New mail").to_string(),
-            body: i18n::fmt(tl!("{n} new messages"), &[("n", &found.len().to_string())]),
+            body: tln!(found.len(), "{n} new message", "{n} new messages"),
             opens: Opens::Folder { folder: first },
         }];
     }
@@ -227,14 +227,14 @@ pub fn plan_reminders(due: &[Reminder], on: bool, twelve_hour: bool) -> Vec<Plan
         return vec![Planned {
             kind: AlertKind::Reminder,
             title: tl!("Reminders").to_string(),
-            body: i18n::fmt(tl!("{n} reminders are due"), &[("n", &due.len().to_string())]),
+            body: tln!(due.len(), "{n} reminder is due", "{n} reminders are due"),
             opens: Opens::Reminders,
         }];
     }
     due.iter()
         .map(|r| {
             let title = clean(&r.title, SUBJECT_CHARS);
-            let time = if r.all_day { r.start.date.medium() } else { format!("{} {}", r.start.date.medium(), r.start.time_short(twelve_hour)) };
+            let time = if r.all_day { crate::dates::medium(r.start.date) } else { crate::dates::medium_time(r.start, twelve_hour) };
             let place = clean(&r.location, SUBJECT_CHARS);
             Planned {
                 kind: AlertKind::Reminder,

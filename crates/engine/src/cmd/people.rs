@@ -42,7 +42,7 @@ fn needs_contact(s: &Session) -> Option<&'static str> {
 
 fn target(s: &Session, v: &Value) -> Result<Id, CmdError> {
     let id = p::id(v, "id").or(s.sel.contact).ok_or_else(|| fail("select a contact first"))?;
-    s.mailbox.contact(id).map(|c| c.id).ok_or_else(|| fail(format!("no contact with id {id}")))
+    s.mailbox.contact(id).map(|c| c.id).ok_or_else(|| failed!("no contact with id {id}", id))
 }
 
 /// [`target`] for a command that changes or deletes the contact. A contact that an account's
@@ -197,7 +197,7 @@ fn delete(s: &mut Session, v: &Value) -> CmdResult {
 
 fn select(s: &mut Session, v: &Value) -> CmdResult {
     s.sel.contact = match p::id(v, "id") {
-        Some(id) => Some(s.mailbox.contact(id).map(|c| c.id).ok_or_else(|| fail(format!("no contact with id {id}")))?),
+        Some(id) => Some(s.mailbox.contact(id).map(|c| c.id).ok_or_else(|| failed!("no contact with id {id}", id))?),
         None => None,
     };
     done()
@@ -260,7 +260,7 @@ fn email(s: &mut Session, v: &Value) -> CmdResult {
 
 fn from_message(s: &mut Session, v: &Value) -> CmdResult {
     let mid = p::id(v, "id").or(s.sel.focus()).ok_or_else(|| fail("select a message first"))?;
-    let from = s.mailbox.message(mid).map(|m| m.from.clone()).ok_or_else(|| fail(format!("no message with id {mid}")))?;
+    let from = s.mailbox.message(mid).map(|m| m.from.clone()).ok_or_else(|| failed!("no message with id {id}", id = mid))?;
     if !from.is_valid() {
         return Err(fail("the sender has no usable e-mail address"));
     }

@@ -69,9 +69,9 @@ fn graph_switch(s: &mut Session, v: &Value) -> CmdResult {
             .map(|a| a.id)
             .ok_or_else(|| fail("no Microsoft account is kept in step by IMAP"))?,
     };
-    let a = s.mailbox.account(account).ok_or_else(|| fail(format!("no account with id {account}")))?;
+    let a = s.mailbox.account(account).ok_or_else(|| failed!("no account with id {id}", id = account))?;
     if !a.on_imap_with_microsoft() {
-        return Err(fail(format!("{} isn't a Microsoft account kept in step by IMAP", a.name)));
+        return Err(failed!("{name} isn't a Microsoft account kept in step by IMAP", name = a.name));
     }
     // `switchWithout`: the owner chose to switch without what still waits for an IMAP server
     // that can't be reached (it is in the backup).
@@ -195,9 +195,9 @@ fn on_imap(m: &Message) -> bool {
 /// (the module's steps 3 to 5). Not an undo step: what the server has comes down afresh, and
 /// what was here before is in the backup.
 pub fn switch(s: &mut Session, account: Id) -> Result<Switched, CmdError> {
-    let a = s.mailbox.account(account).cloned().ok_or_else(|| fail(format!("no account with id {account}")))?;
+    let a = s.mailbox.account(account).cloned().ok_or_else(|| failed!("no account with id {id}", id = account))?;
     if !a.on_imap_with_microsoft() {
-        return Err(fail(format!("{} isn't a Microsoft account kept in step by IMAP", a.name)));
+        return Err(failed!("{name} isn't a Microsoft account kept in step by IMAP", name = a.name));
     }
     let now = u64::try_from(s.now()).unwrap_or_default();
     let mb = &mut s.mailbox;
@@ -275,6 +275,7 @@ pub fn switch(s: &mut Session, account: Id) -> Result<Switched, CmdError> {
         f.remote.clear();
         f.uid_validity = 0;
         f.uid_seen = 0;
+        f.uid_from = 0;
         f.server = None;
         f.awaiting_listing = f.kind == FolderKind::Custom && was_on_server;
     }

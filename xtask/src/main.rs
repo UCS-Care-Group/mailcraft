@@ -5,6 +5,7 @@
 //! Pure Rust (std + serde_json). `cargo` and `git` are invoked through `std::process::Command`.
 
 mod assets;
+mod i18n;
 mod ico;
 mod icon;
 mod layers;
@@ -26,8 +27,11 @@ commands:
   layers          enforce the crate dependency layering (docs/architecture.md)
   wasm            cargo check --target wasm32-unknown-unknown for the wasm-safe crates
   deny            cargo deny check (advisories, licences, bans, sources; see deny.toml)
-  ci              fmt --check, clippy -D warnings, test, assets, spdx, layers, wasm, deny (stops at first failure)
+  ci              fmt --check, clippy -D warnings, test, assets, spdx, layers, wasm, deny, i18n --check
+                  (stops at first failure)
   stats [--exact] count tests and lines per crate (--exact: ask the test harness via `-- --list`)
+  i18n [--check]  gather the interface's English into crates/i18n/po/messages.pot and merge it into
+                  each language's .po (coverage per language); --check changes nothing, fails if out of date
   parity          recompute the Outlook feature-parity summary in docs/parity-checklist.md
   ico <out.ico> <in.png>...
                   pack square PNGs (<= 256 px) into a Windows .ico (see packaging/icons.sh)
@@ -51,6 +55,7 @@ fn main() -> ExitCode {
         Some("ci") => cmd_ci(),
         Some("stats") => stats::run(&root(), rest.contains(&"--exact")),
         Some("parity") => parity::run(&root()),
+        Some("i18n") => i18n::run(&root(), rest.contains(&"--check")),
         Some("ico") => ico::run(&rest),
         Some("icon") => icon::run(&root()),
         Some("version") => version::run(&root(), &rest),
@@ -210,6 +215,7 @@ fn cmd_ci() -> Result<(), String> {
         ("layers", Box::new(cmd_layers)),
         ("wasm", Box::new(cmd_wasm)),
         ("deny", Box::new(cmd_deny)),
+        ("i18n", Box::new(|| i18n::run(&root(), true))),
     ];
     // `XTASK_CI_SKIP=clippy,wasm`: steps another runner covers (CI runs them on Linux only).
     let skip = std::env::var("XTASK_CI_SKIP").unwrap_or_default();

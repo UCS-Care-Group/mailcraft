@@ -188,7 +188,7 @@ pub fn current(s: &mut Session) -> &mut ServerSearch {
 /// more and isn't being asked already. Each is then waited for.
 pub fn requests(s: &mut Session) -> Result<Vec<GraphSearchRequest>, CmdError> {
     if let Some(why) = offered_reason(s) {
-        return Err(fail(format!("More results on the server aren't offered: {why}")));
+        return Err(failed!("More results on the server aren't offered: {why}", why = mailcraft_i18n::Arg::words(why)));
     }
     current(s);
     let query = s.view.search.clone();
@@ -231,9 +231,9 @@ pub fn apply(s: &mut Session, result: GraphSearchResult) -> CmdResult {
         return Ok(json!({"taken": 0, "stale": true}));
     }
     let account = result.account;
-    let a = s.mailbox.account(account).ok_or_else(|| fail(format!("no account with id {account}")))?;
+    let a = s.mailbox.account(account).ok_or_else(|| failed!("no account with id {id}", id = account))?;
     if !result.email.is_empty() && !a.email.trim().eq_ignore_ascii_case(result.email.trim()) {
-        return Err(fail(format!("these results were for another mailbox, not for {}", a.name)));
+        return Err(failed!("these results were for another mailbox, not for {name}", name = a.name));
     }
     let Some(at) = s.server_search.mailboxes.iter().position(|m| m.account == account) else {
         return Ok(json!({"taken": 0, "stale": true}));

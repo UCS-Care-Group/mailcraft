@@ -406,6 +406,13 @@ pub struct Prefs {
     /// `3:05 PM` rather than `15:05`.
     pub twelve_hour: bool,
     pub week_start: Weekday,
+    /// The owner chose the clock (`file.options`); else it is the interface language's own
+    /// ([`Prefs::follow_language`]). `None`: settings saved before this was kept.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub clock_chosen: Option<bool>,
+    /// The same for the first day of the week.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub week_start_chosen: Option<bool>,
     pub work_days: Vec<Weekday>,
     /// Working hours, for the calendar's shading (0–24).
     pub work_start: u8,
@@ -468,6 +475,8 @@ impl Default for Prefs {
         Prefs {
             twelve_hour: true,
             week_start: Weekday::Sun,
+            clock_chosen: None,
+            week_start_chosen: None,
             work_days: vec![Weekday::Mon, Weekday::Tue, Weekday::Wed, Weekday::Thu, Weekday::Fri],
             work_start: 8,
             work_end: 17,
@@ -488,6 +497,25 @@ impl Default for Prefs {
             zone_label: String::new(),
             second_zone_label: String::new(),
             recent_zones: Vec::new(),
+        }
+    }
+}
+
+impl Prefs {
+    /// The clock and the first day of the week that the owner never chose follow the interface
+    /// language (French: 24-hour, Monday); the ones they chose are kept. Settings saved before
+    /// this was kept count what differs from the old defaults (12-hour, Sunday) as chosen, so
+    /// they behave as they always did.
+    pub fn follow_language(&mut self, lang: mailcraft_i18n::Lang) {
+        let old = Prefs::default();
+        let clock = *self.clock_chosen.get_or_insert(self.twelve_hour != old.twelve_hour);
+        let week = *self.week_start_chosen.get_or_insert(self.week_start != old.week_start);
+        let own = lang.conventions();
+        if !clock {
+            self.twelve_hour = own.twelve_hour;
+        }
+        if !week {
+            self.week_start = Weekday::from_index(i64::from(own.week_start));
         }
     }
 }
@@ -622,6 +650,11 @@ pub struct Session {
     /// host that wants it (the desktop app), never by a command's params. Off, a search reads
     /// the messages themselves, as it always does in the browser. Never saved.
     pub index_words: bool,
+    /// The language of the window the owner reads this session in, set by the host (the desktop
+    /// and the browser follow the owner's choice; the CLI and a headless MCP server leave it
+    /// English). What the engine writes for a person is to follow it; commands, their parameters
+    /// and what agents read stay English. Never saved in the mailbox file.
+    pub interface_language: mailcraft_i18n::Lang,
     /// The word index of the mailbox file, while [`Session::index_words`] is on and the mailbox
     /// is kept in a file ([`crate::words`]).
     #[cfg(not(target_arch = "wasm32"))]
@@ -712,6 +745,7 @@ impl Session {
             search_pass: None,
             searched_for: None,
             index_words: false,
+            interface_language: mailcraft_i18n::Lang::English,
             #[cfg(not(target_arch = "wasm32"))]
             words: None,
         };
@@ -810,6 +844,18 @@ impl Session {
 
     pub fn local(&self, ts: Timestamp) -> DateTime {
         DateTime::from_timestamp(ts, self.offset_at(ts))
+    }
+
+    /// `at`'s time as the interface language says it, on the owner's clock.
+    pub fn time_said(&self, at: DateTime) -> String {
+        mailcraft_i18n::date::time(&self.interface_language, at.hour, at.minute, self.prefs.twelve_hour)
+    }
+
+    /// `at`'s date (`Sunday, October 11, 2026`) and time as the interface language says them.
+    pub fn date_time_said(&self, at: DateTime) -> String {
+        let d = at.date;
+        let day = mailcraft_i18n::date::Day { year: d.year, month: d.month, day: d.day, weekday: d.weekday().index() };
+        format!("{} {}", mailcraft_i18n::date::long(&self.interface_language, day), self.time_said(at))
     }
 
     pub fn local_now(&self) -> DateTime {
@@ -1067,7 +1113,7 @@ impl Session {
     /// the bytes of an attachment, wherever they are. An error names what is wrong: no such
     /// message or part, or a part whose file is missing or damaged.
     pub fn content(&self, message: Id, part: Part) -> Result<Arc<Vec<u8>>, CmdError> {
-        let m = self.mailbox.message(message).ok_or_else(|| CmdError::Failed(format!("no message with id {message}")))?;
+        let m = self.mailbox.message(message).ok_or_else(|| failed!("no message with id {id}", id = message))?;
         let kept = m.kept.as_deref().filter(|k| !k.failed);
         match part {
             Part::Text => match kept.and_then(|k| k.text).filter(|_| m.body.text.is_empty()) {
@@ -1079,7 +1125,7 @@ impl Session {
                 None => Ok(Arc::new(m.body.html.as_deref().unwrap_or("").as_bytes().to_vec())),
             },
             Part::Attachment(i) => {
-                let a = m.attachments.get(i).ok_or_else(|| CmdError::Failed(format!("the message has no attachment {i}")))?;
+                let a = m.attachments.get(i).ok_or_else(|| failed!("the message has no attachment {index}", index = i))?;
                 match a.kept.filter(|_| a.data.is_empty()) {
                     Some(r) => self.fetch(&r),
                     None => Ok(a.data.clone()),
@@ -1092,7 +1138,7 @@ impl Session {
     /// message itself when nothing had to be fetched), without changing the mailbox: for what
     /// writes a message out (MIME to send or export, a forward).
     pub fn loaded_message_where(&self, id: Id, pick: impl Fn(&Attachment) -> bool) -> Result<Arc<Message>, CmdError> {
-        let m = self.mailbox.messages.get(&id).ok_or_else(|| CmdError::Failed(format!("no message with id {id}")))?;
+        let m = self.mailbox.messages.get(&id).ok_or_else(|| failed!("no message with id {id}", id))?;
         if !m.body_is_kept() && m.attachments.iter().all(|a| a.is_loaded() || !pick(a)) {
             return Ok(m.clone());
         }
@@ -1128,7 +1174,7 @@ impl Session {
     /// wasn't there) is never written back as the body, and the file stays named, to be read
     /// the next time.
     pub fn load_where(&mut self, id: Id, pick: impl Fn(&Attachment) -> bool) -> Result<bool, CmdError> {
-        let Some(m) = self.mailbox.messages.get(&id) else { return Err(CmdError::Failed(format!("no message with id {id}"))) };
+        let Some(m) = self.mailbox.messages.get(&id) else { return Err(failed!("no message with id {id}", id)) };
         if !m.body_is_kept() && m.attachments.iter().all(|a| a.is_loaded() || !pick(a)) {
             return Ok(false);
         }
@@ -1587,7 +1633,7 @@ impl Session {
             Ok(r) => r,
             Err(_) => {
                 log::error!("command `{id}` panicked; the mailbox was restored");
-                Err(CmdError::Failed(format!("{} failed unexpectedly; nothing was changed", spec.label)))
+                Err(failed!("{command} failed unexpectedly; nothing was changed", command = mailcraft_i18n::Arg::words(spec.label)))
             }
         };
         // An agent's command that did more than it was allowed (mail into an Outbox, messages

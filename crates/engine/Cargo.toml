@@ -10,6 +10,7 @@ workspace = true
 
 [dependencies]
 mailcraft-time = { workspace = true }
+mailcraft-i18n = { workspace = true }
 mailcraft-model = { workspace = true }
 mailcraft-html = { workspace = true }
 mailcraft-mime = { workspace = true }
@@ -27,4 +28,5 @@ base64 = { workspace = true }
 ring = { workspace = true }
 
 [dev-dependencies]
+mailcraft-i18n = { workspace = true, features = ["test-support"] }
 proptest = { workspace = true }

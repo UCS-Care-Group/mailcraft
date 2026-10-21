@@ -131,7 +131,7 @@ fn new(s: &mut Session, v: &Value) -> CmdResult {
 fn source_message(s: &Session, v: &Value) -> Result<Message, CmdError> {
     let id = p::id(v, "id").or(s.sel.focus()).ok_or_else(|| fail("select a message first"))?;
     if s.mailbox.message(id).is_none() {
-        return Err(fail(format!("no message with id {id}")));
+        return Err(failed!("no message with id {id}", id));
     }
     s.loaded_message(id).map(|m| Message::clone(&m))
 }
@@ -141,7 +141,7 @@ fn source_message(s: &Session, v: &Value) -> Result<Message, CmdError> {
 fn reply_source(s: &Session, v: &Value) -> Result<Message, CmdError> {
     let id = p::id(v, "id").or(s.sel.focus()).ok_or_else(|| fail("select a message first"))?;
     if s.mailbox.message(id).is_none() {
-        return Err(fail(format!("no message with id {id}")));
+        return Err(failed!("no message with id {id}", id));
     }
     s.loaded_for_reply(id).map(|m| Message::clone(&m))
 }
@@ -152,18 +152,42 @@ fn prefixed(prefix: &str, subject: &str) -> String {
     if lower.starts_with(&format!("{}:", prefix.to_ascii_lowercase())) { subject.trim().to_string() } else { format!("{prefix}: {}", subject.trim()) }
 }
 
+/// The line that opens the quoted original in plain text, in English; a language has its own
+/// (`-----Message d'origine-----`), which a draft reopening knows too ([`original_at`]).
+const ORIGINAL: &str = "-----Original Message-----";
+
+/// Where the quoted original starts in a plain-text body: the opening line in any language.
+fn original_at(text: &str) -> Option<usize> {
+    mailcraft_i18n::Lang::ALL.iter().filter_map(|l| text.find(&format!("\n\n{}", l.t(ORIGINAL)))).min()
+}
+
+/// The names of the header lines above a quoted original, with their colons, in the interface
+/// language: the recipient reads them as the owner's program wrote them (French puts a narrow
+/// no-break space before the colon: `De\u{202f}:`).
+fn header_names(s: &Session) -> [&'static str; 5] {
+    let lang = s.interface_language;
+    [lang.t("From:"), lang.t("Sent:"), lang.t("To:"), lang.t("Cc:"), lang.t("Subject:")]
+}
+
+/// When the original was sent, as its header line says it.
+fn sent_on(s: &Session, m: &Message) -> String {
+    let at = s.local(m.date);
+    s.date_time_said(at)
+}
+
 /// The original message under a reply or forward, as plain text.
 fn quoted(s: &Session, m: &Message) -> String {
-    let mut out = String::from("\n\n-----Original Message-----\n");
-    out.push_str(&format!("From: {}\n", m.from.full()));
-    out.push_str(&format!("Sent: {} {}\n", s.local(m.date).date.long(), s.local(m.date).time_short(s.prefs.twelve_hour)));
+    let [from, sent, to, cc, subject] = header_names(s);
+    let mut out = format!("\n\n{}\n", s.interface_language.t(ORIGINAL));
+    out.push_str(&format!("{from} {}\n", m.from.full()));
+    out.push_str(&format!("{sent} {}\n", sent_on(s, m)));
     if !m.to.is_empty() {
-        out.push_str(&format!("To: {}\n", format_list(&m.to)));
+        out.push_str(&format!("{to} {}\n", format_list(&m.to)));
     }
     if !m.cc.is_empty() {
-        out.push_str(&format!("Cc: {}\n", format_list(&m.cc)));
+        out.push_str(&format!("{cc} {}\n", format_list(&m.cc)));
     }
-    out.push_str(&format!("Subject: {}\n\n", m.subject));
+    out.push_str(&format!("{subject} {}\n\n", m.subject));
     out.push_str(m.body.text.trim_end());
     out.push('\n');
     out
@@ -179,17 +203,18 @@ pub(crate) const QUOTE_MARK: &str = "<div id=\"mailcraft-quote\">";
 /// would.
 fn quoted_html(s: &Session, m: &Message, html: &str) -> String {
     let e = mailcraft_html::escape;
+    let [from, sent, to, cc, subject] = header_names(s).map(e);
     let mut out = String::from(QUOTE_MARK);
     out.push_str("<hr style=\"border:none;border-top:solid #E1E1E1 1.0pt\"><div>");
-    out.push_str(&format!("<b>From:</b> {}<br>", e(&m.from.full())));
-    out.push_str(&format!("<b>Sent:</b> {} {}<br>", e(&s.local(m.date).date.long()), e(&s.local(m.date).time_short(s.prefs.twelve_hour))));
+    out.push_str(&format!("<b>{from}</b> {}<br>", e(&m.from.full())));
+    out.push_str(&format!("<b>{sent}</b> {}<br>", e(&sent_on(s, m))));
     if !m.to.is_empty() {
-        out.push_str(&format!("<b>To:</b> {}<br>", e(&format_list(&m.to))));
+        out.push_str(&format!("<b>{to}</b> {}<br>", e(&format_list(&m.to))));
     }
     if !m.cc.is_empty() {
-        out.push_str(&format!("<b>Cc:</b> {}<br>", e(&format_list(&m.cc))));
+        out.push_str(&format!("<b>{cc}</b> {}<br>", e(&format_list(&m.cc))));
     }
-    out.push_str(&format!("<b>Subject:</b> {}</div><br>\r\n", e(&m.subject)));
+    out.push_str(&format!("<b>{subject}</b> {}</div><br>\r\n", e(&m.subject)));
     out.push_str(&mailcraft_html::quotable(html));
     out.push_str("\r\n</div>");
     out
@@ -312,7 +337,7 @@ fn edit_draft(s: &mut Session, v: &Value) -> CmdResult {
         Some((html, at)) => {
             let end = html.rfind("</body>").filter(|end| *end >= at).unwrap_or(html.len());
             let quoted = mailcraft_html::quotable(html.get(at..end).unwrap_or("")).trim_end().to_string();
-            let text = m.body.text.find("\n\n-----Original Message-----").and_then(|at| m.body.text.get(at..)).unwrap_or("").to_string();
+            let text = original_at(&m.body.text).and_then(|at| m.body.text.get(at..)).unwrap_or("").to_string();
             let pictures = shown_pictures(&m, &quoted);
             (Some(html.get(..at).unwrap_or("").to_string()), Some(Quote { text, html: quoted, pictures }))
         }
@@ -351,7 +376,7 @@ fn set(s: &mut Session, v: &Value) -> CmdResult {
     if let Some(a) = account
         && s.mailbox.account(a).is_none()
     {
-        return Err(fail(format!("no account with id {a}")));
+        return Err(failed!("no account with id {id}", id = a));
     }
     let importance = match p::str(v, "importance") {
         Some(i) => Some(Importance::parse(i).ok_or_else(|| bad("`importance` is low, normal or high"))?),
@@ -396,7 +421,7 @@ fn attach(s: &mut Session, v: &Value) -> CmdResult {
         None => source(v)?,
     };
     if bytes.len() > MAX_ATTACHMENT {
-        return Err(fail(format!("{name} is larger than {} MB", MAX_ATTACHMENT >> 20)));
+        return Err(failed!("{name} is larger than {mb} MB", name, mb = MAX_ATTACHMENT >> 20));
     }
     // Only the file's own name travels, never the folders it was in.
     let name = name.rsplit(['/', '\\']).next().unwrap_or("").trim().to_string();
@@ -416,7 +441,7 @@ fn remove_attachment(s: &mut Session, v: &Value) -> CmdResult {
     let index = p::u64(v, "index").ok_or_else(|| bad("`index` (number) is required"))? as usize;
     let c = compose_mut(s)?;
     if index >= c.attachments.len() {
-        return Err(fail(format!("the message has no attachment {index}")));
+        return Err(failed!("the message has no attachment {index}", index));
     }
     let removed = c.attachments.remove(index);
     c.dirty = true;
@@ -428,7 +453,7 @@ fn signature(s: &mut Session, v: &Value) -> CmdResult {
     if let Some(name) = p::str(v, "name")
         && s.mailbox.signature(name).is_none()
     {
-        return Err(fail(format!("no signature named \"{name}\"")));
+        return Err(failed!("no signature named \"{name}\"", name));
     }
     let reply = s.compose.as_ref().is_some_and(|c| is_response(c.mode));
     let sig =
@@ -497,10 +522,14 @@ fn build_as(s: &Session, c: &Compose, strict: bool, message_id: Option<&str>) ->
     // Mail written in a shared mailbox is from its address, kept in its Drafts and sent through
     // it (#70): never from its owner's own account instead.
     let account = s.mailbox.account(c.account).or(s.mailbox.default_account()).ok_or_else(|| fail("add an account first (File › Add Account)"))?;
-    let parse = |line: &str, what: &str| -> Result<Vec<Address>, CmdError> {
+    let parse = |line: &str, what: &'static str| -> Result<Vec<Address>, CmdError> {
         let list = Address::parse_list(line);
         if strict && let Some(bad_one) = list.iter().find(|a| !a.is_valid()) {
-            return Err(fail(format!("\"{}\" on the {what} line isn't an e-mail address", bad_one.email)));
+            return Err(failed!(
+                "\"{address}\" on the {what} line isn't an e-mail address",
+                address = bad_one.email,
+                what = mailcraft_i18n::Arg::words(what)
+            ));
         }
         Ok(list)
     };
@@ -643,13 +672,19 @@ fn send(s: &mut Session, _: &Value) -> CmdResult {
     // for the message: not its Outbox, where it would wait for ever, nor Sent Items, as if it had
     // gone. It stays as it is being written.
     if account.kind.has_server() && !account.kind.sends_mail() {
-        return Err(fail(format!("{NOT_SENDING_YET}: send this message from another account, or save it as a draft")));
+        return Err(failed!(
+            "{not_sending_yet}: send this message from another account, or save it as a draft",
+            not_sending_yet = mailcraft_i18n::Arg::words(NOT_SENDING_YET)
+        ));
     }
     // An account that sends its mail queues the message for the next Send/Receive; a local one
     // has nowhere to send it, so it is filed as sent (and delivered to local accounts it names).
     let queued = account.kind.sends_mail();
     let kind = if queued { FolderKind::Outbox } else { FolderKind::Sent };
-    m.folder = s.mailbox.folder_of_kind(account.id, kind).ok_or_else(|| fail(format!("this account has no {} folder", kind.default_name())))?;
+    m.folder = s
+        .mailbox
+        .folder_of_kind(account.id, kind)
+        .ok_or_else(|| failed!("this account has no {folder} folder", folder = mailcraft_i18n::Arg::folder(kind.default_name())))?;
     // The original is marked replied or forwarded once this has gone (#154): from the Outbox when
     // the server has taken it, at once for a local account, which files it as sent.
     m.answers = answers_of(s, &c).or_else(|| c.draft.and_then(|d| s.mailbox.message(d)).and_then(|d| d.answers.clone()));

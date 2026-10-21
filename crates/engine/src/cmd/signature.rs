@@ -71,7 +71,7 @@ fn named<'a>(s: &'a mut Session, v: &Value) -> Result<&'a mut Signature, CmdErro
         return Ok(&mut e.signature);
     }
     let name = p::req_str(v, "name")?.trim().to_string();
-    s.mailbox.signatures.iter_mut().find(|x| x.name.eq_ignore_ascii_case(&name)).ok_or_else(|| fail(format!("no signature named \"{name}\"")))
+    s.mailbox.signatures.iter_mut().find(|x| x.name.eq_ignore_ascii_case(&name)).ok_or_else(|| failed!("no signature named \"{name}\"", name))
 }
 
 /// The open signature's text is what `set` gave the signature of that name.
@@ -120,7 +120,7 @@ fn open(s: &mut Session, v: &Value) -> CmdResult {
     if s.signature_edit.as_ref().is_some_and(|e| e.dirty && !e.signature.name.eq_ignore_ascii_case(&name)) {
         return Err(fail("save or close the signature being edited first"));
     }
-    let sig = s.mailbox.signature(&name).cloned().ok_or_else(|| fail(format!("no signature named \"{name}\"")))?;
+    let sig = s.mailbox.signature(&name).cloned().ok_or_else(|| failed!("no signature named \"{name}\"", name))?;
     if s.signature_edit.as_ref().is_some_and(|e| e.signature.name == sig.name) {
         return done();
     }
@@ -198,7 +198,7 @@ fn set(s: &mut Session, v: &Value) -> CmdResult {
 fn account_of(s: &Session, v: &Value) -> Result<Id, CmdError> {
     let id = match p::id(v, "account") {
         Some(id) if s.mailbox.account(id).is_some() => id,
-        Some(id) => return Err(fail(format!("no account with id {id}"))),
+        Some(id) => return Err(failed!("no account with id {id}", id)),
         None => s.mailbox.default_account().map(|a| a.id).ok_or_else(|| fail("add an account first"))?,
     };
     // (Its settings are written back as its file had them: a choice made here would be lost.)
@@ -213,7 +213,7 @@ fn remove(s: &mut Session, v: &Value) -> CmdResult {
     let before = s.mailbox.signatures.len();
     s.mailbox.signatures.retain(|x| !x.name.eq_ignore_ascii_case(&name));
     if s.mailbox.signatures.len() == before {
-        return Err(fail(format!("no signature named \"{name}\"")));
+        return Err(failed!("no signature named \"{name}\"", name));
     }
     if s.signature_edit.as_ref().is_some_and(|e| e.signature.name.eq_ignore_ascii_case(&name)) {
         s.signature_edit = None;
@@ -233,12 +233,12 @@ fn remove(s: &mut Session, v: &Value) -> CmdResult {
 fn rename(s: &mut Session, v: &Value) -> CmdResult {
     let to = clean_name(p::req_str(v, "to")?).ok_or_else(|| bad("`to` is empty"))?;
     let name = p::req_str(v, "name")?.trim().to_string();
-    let from = s.mailbox.signature(&name).map(|x| x.name.clone()).ok_or_else(|| fail(format!("no signature named \"{name}\"")))?;
+    let from = s.mailbox.signature(&name).map(|x| x.name.clone()).ok_or_else(|| failed!("no signature named \"{name}\"", name))?;
     if !to.eq_ignore_ascii_case(&from) && s.mailbox.signature(&to).is_some() {
-        return Err(fail(format!("there is already a signature named \"{to}\"")));
+        return Err(failed!("there is already a signature named \"{to}\"", to));
     }
     let found =
-        s.mailbox.signatures.iter_mut().find(|x| x.name.eq_ignore_ascii_case(&from)).ok_or_else(|| fail(format!("no signature named \"{from}\"")))?;
+        s.mailbox.signatures.iter_mut().find(|x| x.name.eq_ignore_ascii_case(&from)).ok_or_else(|| failed!("no signature named \"{from}\"", from))?;
     found.name = to.clone();
     if let Some(e) = s.signature_edit.as_mut().filter(|e| e.signature.name.eq_ignore_ascii_case(&from)) {
         e.signature.name = to.clone();
@@ -260,7 +260,7 @@ fn defaults(s: &mut Session, v: &Value) -> CmdResult {
         match p::str(v, key).map(str::trim) {
             None => Ok(None),
             Some("") => Ok(Some(String::new())),
-            Some(name) => s.mailbox.signature(name).map(|sig| Some(sig.name.clone())).ok_or_else(|| fail(format!("no signature named \"{name}\""))),
+            Some(name) => s.mailbox.signature(name).map(|sig| Some(sig.name.clone())).ok_or_else(|| failed!("no signature named \"{name}\"", name)),
         }
     };
     let (new, reply) = (pick("new")?, pick("reply")?);
@@ -329,7 +329,7 @@ fn picture_remove(s: &mut Session, v: &Value) -> CmdResult {
     {
         let places = picture_places(e.body.text(), id);
         if places.is_empty() {
-            return Err(fail(format!("no picture {id} in this signature")));
+            return Err(failed!("no picture {id} in this signature", id));
         }
         for at in places.into_iter().rev() {
             e.body.delete(at, at + 1).map_err(|err| fail(err.to_string()))?;

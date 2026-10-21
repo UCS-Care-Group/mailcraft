@@ -2,10 +2,10 @@
   "schema": 1,
   "repo": "UCS-Care-Group/mailcraft",
   "branch": "main",
-  "head": "00453f754163b177d81ac06ec11531595a7c959b",
-  "head_date": "2026-10-15T18:09:18Z",
-  "commits": 83,
-  "unattributed_commits": 0,
+  "head": "290f5059bac02a6f09c16c8ed3b96f8dffef6ead",
+  "head_date": "2026-10-20T22:22:57Z",
+  "commits": 326,
+  "unattributed_commits": 2,
   "contributors": [
     {
       "login": "billsecond",
@@ -24,14 +24,66 @@
       "login": "benandez",
       "people_entry": true,
       "github_name": null,
-      "prs": 35,
-      "commits": 51,
-      "lines_added": 18490,
-      "lines_deleted": 6502,
+      "prs": 145,
+      "commits": 254,
+      "lines_added": 126128,
+      "lines_deleted": 12885,
       "binary_added": 0,
       "binary_deleted": 0,
       "first_commit": "2026-10-14T15:25:15Z",
-      "last_commit": "2026-10-15T17:34:39Z"
+      "last_commit": "2026-10-20T21:54:02Z"
+    },
+    {
+      "login": "strikerz5",
+      "people_entry": false,
+      "github_name": null,
+      "prs": 4,
+      "commits": 23,
+      "lines_added": 8225,
+      "lines_deleted": 986,
+      "binary_added": 0,
+      "binary_deleted": 0,
+      "first_commit": "2026-10-15T15:14:57Z",
+      "last_commit": "2026-10-16T05:24:37Z"
+    },
+    {
+      "login": "bvisible",
+      "people_entry": false,
+      "github_name": null,
+      "prs": 2,
+      "commits": 10,
+      "lines_added": 2013,
+      "lines_deleted": 80,
+      "binary_added": 0,
+      "binary_deleted": 0,
+      "first_commit": "2026-10-19T18:45:37Z",
+      "last_commit": "2026-10-20T09:32:52Z"
+    },
+    {
+      "login": "mickeyr",
+      "people_entry": false,
+      "github_name": null,
+      "prs": 1,
+      "commits": 1,
+      "lines_added": 40,
+      "lines_deleted": 5,
+      "binary_added": 0,
+      "binary_deleted": 0,
+      "first_commit": "2026-10-19T21:36:26Z",
+      "last_commit": "2026-10-19T21:36:26Z"
+    },
+    {
+      "login": "vvaltson",
+      "people_entry": true,
+      "github_name": null,
+      "prs": 1,
+      "commits": 3,
+      "lines_added": 150,
+      "lines_deleted": 21,
+      "binary_added": 0,
+      "binary_deleted": 0,
+      "first_commit": "2026-10-20T02:18:20Z",
+      "last_commit": "2026-10-20T16:47:20Z"
     }
   ]
 }

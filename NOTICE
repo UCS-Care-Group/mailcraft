@@ -28,15 +28,6 @@ or the Apache License, Version 2.0:
 The ArtCraft name, wordmark and logos are trademarks of the ArtCraft Team. They are not open
 source, are not included in this repository and are not covered by the license above.
 
-Portions adapted from an earlier MailCraft tree
-
-Some helpers of the JMAP support started from the MailCraft tree at https://github.com/ZIDAN44/mailcraft
-(commits f0a7540 and aec108e, 15 October 2026), which is Copyright (c) 2026 ArtCraft Team and the
-MailCraft contributors, is licensed under the MIT License or the Apache License, Version 2.0, and
-carries no GPL, LGPL or AGPL code: the parsing of URLs and the HTTP request and error types of
-crates/jmap (src/url.rs, src/lib.rs), and the browser build's fetch transport
-(apps/mailcraft-web/src/fetch.rs). They were rewritten and tested here.
-
 Third-party material
 
 This product bundles third-party material under its own licenses, listed below. The per-file

@@ -293,34 +293,31 @@ pub fn status_bar(app: &mut MailApp, ui: &mut Ui) {
                     if w + 0.5 < whole { resp.on_hover_text(s) } else { resp }
                 };
                 let st = |ui: &mut Ui, s: &str, color: egui::Color32| st_most(ui, s, color, f32::INFINITY);
-                let n = |count: usize, one: &str, many: &str| {
-                    crate::i18n::fmt(if count == 1 { tl!(one) } else { tl!(many) }, &[("n", &count.to_string())])
-                };
                 match app.session.view.module {
                     Module::Mail => {
                         let shown = app.session.rows().len();
                         let folder = app.session.view.folder;
-                        st(ui, &n(shown, "{n} item", "{n} items"), t.text_dim);
+                        st(ui, &tln!(shown, "{n} item", "{n} items"), t.text_dim);
                         let unread = app.session.mailbox.unread_count(folder);
                         if unread > 0 {
                             st(ui, &crate::i18n::fmt(tl!("Unread: {n}"), &[("n", &unread.to_string())]), t.text_dim);
                         }
                         let picked = app.session.sel.messages.len();
                         if picked > 1 {
-                            st(ui, &n(picked, "{n} selected", "{n} selected"), t.text_dim);
+                            st(ui, &tln!(picked, "{n} selected", "{n} selected"), t.text_dim);
                         }
                     }
                     Module::Calendar => {
                         let (from, to) = mailcraft_engine::cmd::view::calendar_range(&app.session);
                         let count = mailcraft_engine::cmd::calendar::occurrences(&app.session, from, to).len();
-                        st(ui, &n(count, "{n} event in view", "{n} events in view"), t.text_dim);
+                        st(ui, &tln!(count, "{n} event in view", "{n} events in view"), t.text_dim);
                     }
                     Module::People => {
-                        st(ui, &n(app.session.mailbox.contacts.len(), "{n} contact", "{n} contacts"), t.text_dim);
+                        st(ui, &tln!(app.session.mailbox.contacts.len(), "{n} contact", "{n} contacts"), t.text_dim);
                     }
                     Module::Tasks => {
                         let open = app.session.mailbox.tasks.values().filter(|x| !x.is_complete()).count();
-                        st(ui, &n(open, "{n} open task", "{n} open tasks"), t.text_dim);
+                        st(ui, &tln!(open, "{n} open task", "{n} open tasks"), t.text_dim);
                     }
                 }
                 if let Some((msg, at)) = &app.status_msg

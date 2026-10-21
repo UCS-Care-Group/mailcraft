@@ -60,7 +60,7 @@ fn run(s: &mut Session, id: &str, params: Value) -> Value {
 /// Why a command was refused.
 fn refused(s: &mut Session, id: &str, params: Value) -> String {
     match s.run(id, &params) {
-        Err(CmdError::Failed(why)) => why,
+        Err(e @ (CmdError::Failed(_) | CmdError::Said(_))) => e.to_string(),
         other => panic!("{id} {params}: expected a refusal, got {other:?}"),
     }
 }

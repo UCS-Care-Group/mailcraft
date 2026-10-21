@@ -1809,7 +1809,7 @@ fn what_is_kept_of_pictures_is_said_and_cleared_in_the_options() {
     *kept.usage.lock().unwrap() = (1, 2_100);
     harness.state_mut().execute("ui.backstage", json!({"value": true, "page": "options"})).unwrap();
     harness.run_steps(3);
-    assert!(says(&harness, "One downloaded picture is kept on this computer (3 KB)."));
+    assert!(says(&harness, "1 downloaded picture is kept on this computer (3 KB)."));
     assert_eq!(harness.state_mut().execute("ui.clearPictureCache", json!({})).unwrap()["cleared"], 1);
     assert_eq!(*kept.cleared.lock().unwrap(), 2);
 

@@ -251,14 +251,17 @@ pub fn moving_out(mb: &Mailbox, account: Id, id: &str) -> Option<Id> {
 }
 
 /// What the status bar says while a run is under way.
-pub fn progress_words(mb: &Mailbox, account: Id, progress: &GraphProgress) -> String {
+pub fn progress_words(mb: &Mailbox, account: Id, progress: &GraphProgress, lang: mailcraft_i18n::Lang) -> String {
     let name = mb.folder_by_server(account, &progress.folder).and_then(|f| mb.folder(f)).map(|f| f.name.clone()).unwrap_or_default();
     let name: String = name.chars().filter(|c| !c.is_control()).take(60).collect();
-    if progress.total > 0 {
-        format!("Receiving {name}: {} of {} · folder {} of {}", progress.read.min(progress.total), progress.total, progress.number, progress.folders)
+    let (read, total) = (progress.read.min(progress.total).to_string(), progress.total.to_string());
+    let (number, folders) = (progress.number.to_string(), progress.folders.to_string());
+    let template = if progress.total > 0 {
+        lang.t("Receiving {name}: {read} of {total} · folder {number} of {folders}")
     } else {
-        format!("Receiving {name} · folder {} of {}", progress.number, progress.folders)
-    }
+        lang.t("Receiving {name} · folder {number} of {folders}")
+    };
+    mailcraft_i18n::fmt(template, &[("name", &name), ("read", &read), ("total", &total), ("number", &number), ("folders", &folders)])
 }
 
 /// The next messages of `account` to fetch whole in the background (R3 spec S12): not fetched,

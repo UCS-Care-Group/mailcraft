@@ -51,7 +51,7 @@ fn run(s: &mut Session, id: &str, params: Value) -> Value {
 /// Why a command was refused.
 fn refused(s: &mut Session, id: &str, params: Value) -> String {
     match s.run(id, &params) {
-        Err(CmdError::Failed(why)) => why,
+        Err(e @ (CmdError::Failed(_) | CmdError::Said(_))) => e.to_string(),
         other => panic!("{id} {params}: expected a refusal, got {other:?}"),
     }
 }
@@ -911,7 +911,7 @@ fn what_is_done_to_a_servers_event_is_noted_for_the_server() {
     // A new event that is deleted again never reaches the server.
     run(&mut s, "calendar.delete", json!({"id": made}));
     assert_eq!(ops(&s, account).len(), 2);
-    assert!(matches!(s.run("sync.eventChanges", &json!({"account": 424_242})), Err(CmdError::Failed(_))));
+    assert!(matches!(s.run("sync.eventChanges", &json!({"account": 424_242})), Err(CmdError::Failed(_) | CmdError::Said(_))));
 }
 
 #[test]

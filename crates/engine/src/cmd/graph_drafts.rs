@@ -92,12 +92,12 @@ pub fn marker(id: Id, seed: u64) -> String {
 
 /// Take in what became of one draft. Whether anything changed here; a line for the owner, when
 /// the server wouldn't take it.
-pub fn draft_done(mb: &mut Mailbox, account: Id, done: &DraftDone, said: &mut Vec<String>) -> bool {
+pub fn draft_done(mb: &mut Mailbox, account: Id, done: &DraftDone, lang: mailcraft_i18n::Lang, said: &mut Vec<String>) -> bool {
     let change = &done.change;
     let Some(m) = mb.message(change.message).filter(|m| m.account == account) else { return false };
     let Some(sd) = m.server_draft.clone().filter(|sd| sd.marker == change.marker) else { return false };
     let subject: String = m.subject.chars().filter(|c| !c.is_control()).take(60).collect();
-    let subject = if subject.trim().is_empty() { "(no subject)".to_string() } else { subject };
+    let subject = if subject.trim().is_empty() { lang.t("(no subject)").to_string() } else { subject };
     let drafts_there =
         mb.folder_of_kind(account, FolderKind::Drafts).and_then(|f| mb.folder(f)).and_then(|f| f.server.as_ref()).map(|s| s.id.clone());
     if done.conflict {
@@ -115,8 +115,9 @@ pub fn draft_done(mb: &mut Mailbox, account: Id, done: &DraftDone, said: &mut Ve
         } else {
             // Not taken: it waits until it is saved again, and that is said once.
             sd.pending = false;
-            let why = if status == 403 { "this account may not save it" } else { "it can't take it" };
-            said.push(format!("Couldn't save the draft '{subject}' on the server: the server says {why}."));
+            let why = if status == 403 { lang.t("this account may not save it") } else { lang.t("it can't take it") };
+            let line = lang.t("Couldn't save the draft '{subject}' on the server: the server says {why}.");
+            said.push(mailcraft_i18n::fmt(line, &[("subject", &subject), ("why", why)]));
         }
         return true;
     }

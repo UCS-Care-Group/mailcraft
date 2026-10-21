@@ -72,7 +72,7 @@ impl MailApp {
                 return Err(crate::i18n::fmt(tl!("Sign in to {owner} first (Send/Receive), then add the shared mailbox."), &[("owner", &address)]));
             }
             if quiet {
-                return Err(format!("{} {address}", tl!("Use Send/Receive to sign in to")));
+                return Err(crate::i18n::fmt(tl!("Use Send/Receive to sign in to {address}"), &[("address", &address)]));
             }
             // The owner's own sign-in first; the shared mailbox is read after it, when asked.
             self.begin_sign_in(owner.id, oauth, &address, String::new(), false, true)?;
@@ -196,7 +196,7 @@ impl MailApp {
                 (true, _) => Ok(()),
                 (false, Some(why)) => Err(refused_words(*why, &address)),
                 (false, None) => Err(match errors.first() {
-                    Some(first) => format!("{} {first}", crate::i18n::fmt(tl!("{address} couldn't be opened:"), &[("address", &address)])),
+                    Some(first) => crate::i18n::fmt(tl!("{address} couldn't be opened: {error}"), &[("address", &address), ("error", first)]),
                     None => crate::i18n::fmt(tl!("{address} couldn't be opened."), &[("address", &address)]),
                 }),
             };
@@ -278,7 +278,7 @@ impl MailApp {
             Err(e) if e == crate::favorites_sync::NEEDS_APPROVAL => {
                 Some(tl!("Your organisation's administrator has to approve reading shared mailboxes once: File › Info").to_string())
             }
-            Err(e) => Some(format!("{}: {e}", tl!("Shared mailboxes weren't allowed"))),
+            Err(e) => Some(crate::i18n::fmt(tl!("Shared mailboxes weren't allowed: {error}"), &[("error", &e)])),
         };
         if let Some(said) = refused {
             if self.shared_checking.contains(&shared) {
@@ -358,7 +358,7 @@ impl MailApp {
             // The page never came up: nothing was refused, so the mail waits, and the next
             // Send/Receive asks again.
             Err(e) if e == NO_BROWSER => {
-                self.status(format!("{}: {e}", tl!("Mail from the shared mailbox waits")));
+                self.status(crate::i18n::fmt(tl!("Mail from the shared mailbox waits: {error}"), &[("error", &e)]));
                 return;
             }
             Err(_) => "declined",

@@ -184,7 +184,7 @@ pub(crate) mod kit {
     use egui::{Align, Align2, Color32, CornerRadius, Key, Response, Sense, Stroke, StrokeKind, Ui, pos2, vec2};
     use mailcraft_engine::Session;
     use mailcraft_model::Category;
-    use mailcraft_time::{Date, duration_label, parse_time, time_short};
+    use mailcraft_time::{Date, parse_time, time_short};
     use serde_json::{Map, Value, json};
 
     use crate::theme::{Tokens, c32, paint_clipped, regular};
@@ -512,7 +512,7 @@ pub(crate) mod kit {
             Some(start) => (1..48u32)
                 .map(|k| start.saturating_add(30 * k))
                 .take_while(|m| *m < 24 * 60)
-                .map(|m| (m, format!("{} ({})", clock_text(m, twelve), duration_label(i64::from(m - start)))))
+                .map(|m| (m, format!("{} ({})", clock_text(m, twelve), crate::dates::duration(i64::from(m - start)))))
                 .collect(),
             None => Vec::new(),
         };
@@ -1114,7 +1114,7 @@ mod event {
     use egui::{Ui, vec2};
     use mailcraft_engine::Session;
     use mailcraft_model::{Address, Freq, Id, Importance, Recurrence, ResponseOptions, ShowAs, format_list};
-    use mailcraft_time::{Date, DateTime, Weekday, Zone, duration_label, month_name, time_short};
+    use mailcraft_time::{Date, DateTime, Weekday, Zone, month_name, time_short};
     use serde_json::{Map, Value, json};
 
     use super::kit::{
@@ -1324,7 +1324,7 @@ mod event {
         match minutes {
             None => tl!("None").to_string(),
             Some(0) => tl!("At start time").to_string(),
-            Some(m) => duration_label(i64::from(m)),
+            Some(m) => crate::dates::duration(i64::from(m)),
         }
     }
 
@@ -1873,7 +1873,7 @@ mod event {
                                 if pass.time(ui, "recurrence_end_time", &mut self.end_time, true, after) {
                                     self.end_time_moved();
                                 }
-                                ui.label(egui::RichText::new(format!("· {}", duration_label(self.minutes))).color(t.text_dim));
+                                ui.label(egui::RichText::new(format!("· {}", crate::dates::duration(self.minutes))).color(t.text_dim));
                             });
                         }
                         heading(ui, tl!("Pattern"));
@@ -1900,7 +1900,8 @@ mod event {
                                 if ui.add(egui::DragValue::new(&mut self.repeat.count).range(1..=9999).speed(0.05)).changed() {
                                     self.repeat.ends = Ends::After;
                                 }
-                                ui.label(if self.repeat.count == 1 { tl!("time") } else { tl!("times") });
+                                // (The number is in the box before it: only the word follows it.)
+                                ui.label(tln!(self.repeat.count, "time", "times"));
                             });
                             ui.horizontal(|ui| {
                                 if ui.radio(self.repeat.ends == Ends::Until, tl!("By")).clicked() {
@@ -1926,7 +1927,7 @@ mod event {
                             let words = if first == from {
                                 words
                             } else {
-                                crate::i18n::fmt(tl!("{rule}, from {day}"), &[("rule", &words), ("day", &first.medium())])
+                                crate::i18n::fmt(tl!("{rule}, from {day}"), &[("rule", &words), ("day", &crate::dates::medium(first))])
                             };
                             ui.label(egui::RichText::new(words).color(t.text_dim));
                         }
@@ -2614,13 +2615,13 @@ mod event {
             let (start, end) = (self.start()?, self.end()?);
             if self.all_day {
                 let days = start.date.days_until(end.date);
-                (days >= 0).then(|| duration_label((days + 1) * 24 * 60))
+                (days >= 0).then(|| crate::dates::duration((days + 1) * 24 * 60))
             } else if self.two_clocks() {
                 let (begins, ends) = self.instants()?;
-                (ends >= begins).then(|| duration_label((ends - begins) / 60))
+                (ends >= begins).then(|| crate::dates::duration((ends - begins) / 60))
             } else {
                 let minutes = start.minutes_until(end);
-                (minutes >= 0).then(|| duration_label(minutes))
+                (minutes >= 0).then(|| crate::dates::duration(minutes))
             }
         }
 
@@ -2890,9 +2891,11 @@ mod event {
         fn recurrence_line(&self, twelve: bool) -> Option<String> {
             let start = self.series_start();
             let rule = self.repeat.rule(start)?;
-            let words = crate::i18n::fmt(tl!("{rule}, from {day}"), &[("rule", &rule.describe(start)), ("day", &start.medium())]);
+            let words = crate::i18n::fmt(tl!("{rule}, from {day}"), &[("rule", &rule.describe(start)), ("day", &crate::dates::medium(start))]);
             match (self.all_day, parse_clock(&self.start_time), parse_clock(&self.end_time)) {
-                (false, Some((h, m)), Some((eh, em))) => Some(format!("{words}, {} – {}", time_short(h, m, twelve), time_short(eh, em, twelve))),
+                (false, Some((h, m)), Some((eh, em))) => {
+                    Some(format!("{words}, {} – {}", crate::dates::time(h, m, twelve), crate::dates::time(eh, em, twelve)))
+                }
                 _ => Some(words),
             }
         }
@@ -3115,11 +3118,7 @@ mod event {
             // Other times that people invited proposed (a meeting the owner organizes).
             if self.proposals > 0 && !self.guest {
                 row(ui, tl!("Proposals"), |ui| {
-                    let words = if self.proposals == 1 {
-                        tl!("1 person proposed another time.").to_string()
-                    } else {
-                        crate::i18n::fmt(tl!("{n} people proposed another time."), &[("n", &self.proposals.to_string())])
-                    };
+                    let words = tln!(self.proposals, "{n} person proposed another time.", "{n} people proposed another time.");
                     ui.label(egui::RichText::new(words).color(t.text));
                     if ui.link(tl!("View All Proposals…")).clicked() {
                         asked = Some("proposals");
@@ -5664,7 +5663,7 @@ mod rules {
             if out.len() >= mb.folders.len() {
                 break;
             }
-            out.push((id, mb.folder_path(id)));
+            out.push((id, crate::nav::folder_path(mb, id)));
             waiting.extend(mb.children(account, Some(id)).iter().rev().map(|f| f.id));
         }
         out
@@ -5678,7 +5677,7 @@ mod rules {
             .actions
             .iter()
             .map(|a| match a {
-                Action::MoveTo(f) if mb.folder(*f).is_some() => format!("move it to {}", mb.folder_path(*f)),
+                Action::MoveTo(f) if mb.folder(*f).is_some() => format!("move it to {}", crate::nav::folder_path(mb, *f)),
                 Action::MoveTo(_) => "move it to a folder that is gone".to_string(),
                 other => other.describe(),
             })
@@ -5775,7 +5774,7 @@ mod rules {
             let t = pass.t;
             let rules = app.session.mailbox.rules.clone();
             let categories: Vec<String> = app.session.mailbox.categories.iter().map(|c| c.name.clone()).collect();
-            let folder_in_view = app.session.mailbox.folder_path(app.session.view.folder);
+            let folder_in_view = crate::nav::folder_path(&app.session.mailbox, app.session.view.folder);
             let mut run: Option<(&'static str, Value)> = None;
             let mut add = false;
             body(ui, |ui| {
@@ -5812,11 +5811,7 @@ mod rules {
                         run = Some(("rules.run", json!({})));
                     }
                     if let Some(n) = self.ran {
-                        let found = if n == 1 {
-                            tl!("1 message matched").to_string()
-                        } else {
-                            crate::i18n::fmt(tl!("{n} messages matched"), &[("n", &n.to_string())])
-                        };
+                        let found = tln!(n, "{n} message matched", "{n} messages matched");
                         ui.label(egui::RichText::new(found).color(t.text_dim));
                     }
                 });

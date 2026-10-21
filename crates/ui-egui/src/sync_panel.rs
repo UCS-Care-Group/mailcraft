@@ -82,7 +82,7 @@ impl Row {
     pub fn full_line(&self) -> Option<String> {
         let full = self.full.filter(|f| f.waiting())?;
         let counted = i18n::fmt(tl!("Full messages: {done} of {total}"), &[("done", &full.done.to_string()), ("total", &full.total.to_string())]);
-        Some(if self.paused { format!("{counted} · {}", tl!("Paused until the next Send/Receive")) } else { counted })
+        Some(if self.paused { i18n::fmt(tl!("{counted} · Paused until the next Send/Receive"), &[("counted", &counted)]) } else { counted })
     }
 
     /// Whether it waits its turn (and can be skipped).
@@ -92,8 +92,7 @@ impl Row {
 
     /// What the row says under the account's name, in one line.
     pub fn line(&self) -> String {
-        let count = |n: usize, one: &str, many: &str| i18n::fmt(if n == 1 { tl!(one) } else { tl!(many) }, &[("n", &n.to_string())]);
-        let problems = || count(self.problems.len(), "{n} problem", "{n} problems");
+        let problems = || tln!(self.problems.len(), "{n} problem", "{n} problems");
         let Some(run) = &self.run else { return problems() };
         match run.state {
             RunState::Waiting => tl!("Waiting").to_string(),
@@ -106,7 +105,11 @@ impl Row {
                     (done, total) => i18n::fmt(tl!("{done} of {total}"), &[("done", &done.to_string()), ("total", &total.to_string())]),
                 };
                 let detail: Vec<&str> = [run.folder.as_str(), counted.as_str()].into_iter().filter(|s| !s.is_empty()).collect();
-                if detail.is_empty() { tl!(phase.label()).to_string() } else { format!("{}: {}", tl!(phase.label()), detail.join(", ")) }
+                if detail.is_empty() {
+                    tl!(phase.label()).to_string()
+                } else {
+                    i18n::fmt(tl!("{phase}: {detail}"), &[("phase", tl!(phase.label())), ("detail", &detail.join(", "))])
+                }
             }
             _ if !self.problems.is_empty() => problems(),
             RunState::Stopped => tl!("Stopped").to_string(),

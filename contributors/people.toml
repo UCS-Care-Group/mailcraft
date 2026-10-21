@@ -21,3 +21,6 @@
 real_name = "Martin Ball"
 display_name = "Martin Ball"
 sync_github_name = false
+
+[people.vvaltson]
+sync_github_name = true

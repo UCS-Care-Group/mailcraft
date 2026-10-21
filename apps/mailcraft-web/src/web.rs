@@ -173,6 +173,15 @@ fn services(inbox: Inbox, ctx: egui::Context) -> Services {
         download: Some(Box::new(download)),
         inbox: Some(inbox),
         persist: Some(Box::new(persist)),
+        // The browser's language, for an interface language left on Automatic; and the page says
+        // which language it is in (`<html lang>`), for screen readers and the browser's own tools.
+        system_locale: web_sys::window().and_then(|w| w.navigator().language()),
+        on_language: Some(Box::new(|code: &str| {
+            let root = web_sys::window().and_then(|w| w.document()).and_then(|d| d.document_element());
+            if let Some(root) = root {
+                let _ = root.set_attribute("lang", code);
+            }
+        })),
         ..Default::default()
     }
 }

@@ -13,3 +13,5 @@ image = { workspace = true }
 # verifies it with (already in the tree through rustls), so the release build downloads no tool.
 ring = { workspace = true }
 base64 = { workspace = true }
+# `cargo xtask i18n` reads and writes the interface's catalogues with the program's own reader.
+mailcraft-i18n = { workspace = true }

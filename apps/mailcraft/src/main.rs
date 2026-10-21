@@ -1136,6 +1136,8 @@ fn services(
         // A copy that updates itself downloads a newer release, checked by its signature.
         update_download: updates.map(|updates| update_download(&download_ctx, updates.clone())),
         updates_turned_off_by_organisation: updater::turned_off_by_organisation(),
+        // The system's language, for an interface language left on Automatic.
+        system_locale: sys_locale::get_locale(),
         ..Default::default()
     }
 }

@@ -104,7 +104,7 @@ fn can_empty(s: &Session) -> Option<&'static str> {
 
 fn target(s: &Session, v: &Value) -> Result<Id, CmdError> {
     let id = p::id(v, "id").unwrap_or(s.view.folder);
-    s.mailbox.folder(id).map(|f| f.id).ok_or_else(|| fail(format!("no folder with id {id}")))
+    s.mailbox.folder(id).map(|f| f.id).ok_or_else(|| failed!("no folder with id {id}", id))
 }
 
 /// A folder by `Inbox/Projects/Apollo` (case-insensitive), in `account` or any account.
@@ -121,13 +121,15 @@ fn by_path(s: &Session, account: Option<Id>, path: &str) -> Option<Id> {
 fn select(s: &mut Session, v: &Value) -> CmdResult {
     let account = p::id(v, "account");
     let id = if let Some(id) = p::id(v, "id") {
-        s.mailbox.folder(id).map(|f| f.id).ok_or_else(|| fail(format!("no folder with id {id}")))?
+        s.mailbox.folder(id).map(|f| f.id).ok_or_else(|| failed!("no folder with id {id}", id))?
     } else if let Some(kind) = p::str(v, "kind") {
         let kind = FolderKind::parse(kind).ok_or_else(|| bad("`kind` is inbox, drafts, sent, deleted, junk, archive or outbox"))?;
         let account = account.or_else(|| s.mailbox.folder(s.view.folder).map(|f| f.account)).or_else(|| s.mailbox.default_account().map(|a| a.id));
-        account.and_then(|a| s.mailbox.folder_of_kind(a, kind)).ok_or_else(|| fail(format!("no {} folder", kind.default_name())))?
+        account
+            .and_then(|a| s.mailbox.folder_of_kind(a, kind))
+            .ok_or_else(|| failed!("no {folder} folder", folder = mailcraft_i18n::Arg::folder(kind.default_name())))?
     } else if let Some(path) = p::str(v, "path") {
-        by_path(s, account, path).ok_or_else(|| fail(format!("no folder \"{path}\"")))?
+        by_path(s, account, path).ok_or_else(|| failed!("no folder \"{path}\"", path))?
     } else {
         return Err(bad("`id`, `kind` or `path` is required"));
     };

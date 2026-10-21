@@ -228,8 +228,9 @@ fn picked_in_list(ui: &Ui) -> bool {
 /// A folder's row, `selected` when it is the one the folder in view is highlighted in. `key` tells
 /// the Favorites' rows (`fav`) from the accounts' (`tree`).
 fn folder_row(app: &mut MailApp, ui: &mut Ui, f: &Folder, depth: usize, has_children: bool, key: &str, count: Count, selected: bool) {
-    // Under Favorites a shared mailbox's folder says whose it is (#70); in its tree, its name.
-    let name = if key == "fav" { folder_label(&app.session.mailbox, f) } else { f.name.clone() };
+    // Under Favorites a shared mailbox's folder says whose it is (#70), and so does one whose name
+    // another account's folder has too (two Inboxes); in its tree, its name.
+    let name = if key == "fav" { result_folder_label(&app.session.mailbox, f) } else { folder_name(f).to_string() };
     let t = Tokens::get(ui.ctx());
     let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), ROW_H), Sense::hover());
     let resp = ui.interact(r, ui.id().with((key, f.id)), Sense::click());
@@ -549,13 +550,63 @@ pub fn folder_pane(app: &mut MailApp, ui: &mut Ui) {
     app.ui.folder_pane_width = shown.response.rect.width();
 }
 
+/// What the window calls a folder: in English always its own name; in another interface language,
+/// a folder of a standard kind (Inbox, Sent Items…) still called by its default name, or one the
+/// server has as its folder of that kind (whatever the server calls it), by the language's name
+/// for that kind, and the local folder imported mail goes to by the language's word. A folder the
+/// owner named keeps its name, and the name kept in the mailbox and on the server never changes.
+pub(crate) fn folder_name(f: &Folder) -> &str {
+    if crate::i18n::current() == crate::i18n::Lang::English {
+        return &f.name;
+    }
+    match named_by(f) {
+        Some(Named::Imported) => tl!("Imported"),
+        Some(Named::Kind(kind)) => crate::i18n::current().folder(kind.default_name()),
+        None => &f.name,
+    }
+}
+
+/// What gives a folder its name in another interface language than English ([`folder_name`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Named {
+    /// The local folder imported mail goes to ([`mailcraft_model::IMPORTED`]).
+    Imported,
+    /// Its kind.
+    Kind(FolderKind),
+}
+
+/// `None`: the folder's own name.
+fn named_by(f: &Folder) -> Option<Named> {
+    let on_server = !f.remote.is_empty() || f.server.is_some();
+    match f.kind {
+        FolderKind::Custom => (!on_server && f.name == mailcraft_model::IMPORTED).then_some(Named::Imported),
+        kind => (on_server || f.name == kind.default_name()).then_some(Named::Kind(kind)),
+    }
+}
+
+/// A folder's place in its account's tree (`Inbox/Projects`), each folder by [`folder_name`].
+pub(crate) fn folder_path(mb: &Mailbox, id: Id) -> String {
+    let mut parts = Vec::new();
+    let mut cur = mb.folder(id);
+    while let Some(f) = cur {
+        parts.push(folder_name(f));
+        // No deeper than a mailbox lets a tree go, however a file tangles it.
+        if parts.len() > 32 {
+            break;
+        }
+        cur = f.parent.and_then(|p| mb.folder(p));
+    }
+    parts.reverse();
+    parts.join("/")
+}
+
 /// What a folder is called where it is listed away from its own account's tree (under Favorites,
 /// in the bar over a search's results): its name, and for a folder of a shared mailbox the
 /// mailbox it is in, so that its Inbox is never taken for the owner's (#70).
 pub(crate) fn folder_label(mb: &Mailbox, f: &Folder) -> String {
-    let Some(a) = mb.account(f.account).filter(|a| a.is_shared()) else { return f.name.clone() };
+    let Some(a) = mb.account(f.account).filter(|a| a.is_shared()) else { return folder_name(f).to_string() };
     let mailbox = if a.name.trim().is_empty() { a.email.trim() } else { a.name.trim() };
-    crate::i18n::fmt(tl!("{folder} - {mailbox}"), &[("folder", &f.name), ("mailbox", mailbox)])
+    crate::i18n::fmt(tl!("{folder} - {mailbox}"), &[("folder", folder_name(f)), ("mailbox", mailbox)])
 }
 
 /// A folder's name on a row of a search of every mailbox (#195): [`folder_label`], and for a
@@ -569,7 +620,7 @@ pub(crate) fn result_folder_label(mb: &Mailbox, f: &Folder) -> String {
     match mb.account(f.account) {
         Some(a) if !shared && twin() => {
             let account = if a.name.trim().is_empty() { a.email.trim() } else { a.name.trim() };
-            crate::i18n::fmt(tl!("{folder} - {mailbox}"), &[("folder", &f.name), ("mailbox", account)])
+            crate::i18n::fmt(tl!("{folder} - {mailbox}"), &[("folder", folder_name(f)), ("mailbox", account)])
         }
         _ => folder_label(mb, f),
     }
@@ -578,7 +629,7 @@ pub(crate) fn result_folder_label(mb: &Mailbox, f: &Folder) -> String {
 /// What an account's heading in the folder pane says: its name, and for a shared mailbox
 /// Microsoft won't open for the owner, No access (#70; the mail already here stays readable).
 pub(crate) fn heading_name(app: &MailApp, a: &mailcraft_model::Account) -> String {
-    if app.shared_refused.contains_key(&a.id) { format!("{} · {}", a.name, tl!("No access")) } else { a.name.clone() }
+    if app.shared_refused.contains_key(&a.id) { crate::i18n::fmt(tl!("{account} · No access"), &[("account", &a.name)]) } else { a.name.clone() }
 }
 
 #[cfg(test)]
@@ -593,6 +644,29 @@ mod tests {
 
     fn names(folders: &[&Folder]) -> Vec<String> {
         folders.iter().map(|f| f.name.clone()).collect()
+    }
+
+    /// A standard folder still called by its default name, or the server's folder of its kind,
+    /// is named in the interface language; one the owner named keeps its name; English shows
+    /// every folder by its own name. What is kept never changes.
+    #[test]
+    fn folders_are_named_in_the_interface_language_by_their_kind() {
+        let folder = |name: &str, kind: FolderKind, remote: &str| Folder { name: name.into(), kind, remote: remote.into(), ..Default::default() };
+        assert_eq!(named_by(&folder("Inbox", FolderKind::Inbox, "")), Some(Named::Kind(FolderKind::Inbox)));
+        assert_eq!(named_by(&folder("Sent Items", FolderKind::Sent, "")), Some(Named::Kind(FolderKind::Sent)));
+        assert_eq!(named_by(&folder("Old mail", FolderKind::Archive, "")), None);
+        assert_eq!(named_by(&folder("Sent Mail", FolderKind::Sent, "[Gmail]/Sent Mail")), Some(Named::Kind(FolderKind::Sent)));
+        assert_eq!(named_by(&folder(mailcraft_model::IMPORTED, FolderKind::Custom, "")), Some(Named::Imported));
+        assert_eq!(named_by(&folder("Imported", FolderKind::Custom, "Imported")), None);
+        assert_eq!(named_by(&folder("Projects", FolderKind::Custom, "")), None);
+        assert_eq!(mailcraft_model::IMPORTED, "Imported", "the text `folder_name` translates");
+        // (The tests' window is in English: every folder by its own name.)
+        assert_eq!(folder_name(&folder("Sent Mail", FolderKind::Sent, "[Gmail]/Sent Mail")), "Sent Mail");
+        // A tangled tree still ends.
+        let mut mb = Mailbox::default();
+        mb.folders.push(Folder { id: 1, parent: Some(2), ..folder("a", FolderKind::Custom, "") });
+        mb.folders.push(Folder { id: 2, parent: Some(1), ..folder("b", FolderKind::Custom, "") });
+        assert!(folder_path(&mb, 1).split('/').count() <= 33);
     }
 
     /// The folders of `account` under `parent` (`None`: its top level), in the pane's order.
@@ -749,6 +823,38 @@ mod tests {
             harness.step();
         }
         harness.run_steps(2);
+    }
+
+    /// Two accounts' Inboxes among the Favorites say which account each is, as in a search of every
+    /// mailbox; under each account's own heading they stay plain Inbox.
+    #[test]
+    fn two_accounts_inboxes_among_the_favorites_are_told_apart() {
+        let mut app = MailApp::new(Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0), Services::default());
+        app.autosave = false;
+        let mb = &mut app.session.mailbox;
+        let first = mb.inbox().unwrap();
+        let work = mb.add_account(mailcraft_model::Account { name: "Work".into(), email: "me@work.example".into(), ..Default::default() });
+        let second = mb.folder_of_kind(work, FolderKind::Inbox).unwrap();
+        for id in [first, second] {
+            app.execute("folder.favorite", serde_json::json!({"id": id, "value": true})).unwrap();
+        }
+        let ctx = egui::Context::default();
+        crate::theme::install_fonts(&ctx);
+        let mut out = ctx.run_ui(egui::RawInput::default(), |ui| folder_pane(&mut app, ui));
+        out.textures_delta.clear();
+        let texts: Vec<String> = out
+            .shapes
+            .iter()
+            .filter_map(|c| match &c.shape {
+                egui::Shape::Text(t) => Some(t.galley.text().to_string()),
+                _ => None,
+            })
+            .collect();
+        assert!(texts.iter().any(|t| t == "Inbox - Work"), "{texts:?}");
+        let mine = app.session.mailbox.accounts.first().unwrap();
+        let mine = if mine.name.trim().is_empty() { mine.email.trim() } else { mine.name.trim() };
+        assert!(texts.iter().any(|t| *t == format!("Inbox - {mine}")), "{texts:?}");
+        assert!(texts.iter().any(|t| t == "Inbox"), "each account's own tree keeps the plain name: {texts:?}");
     }
 
     /// The pane lists the folders in order down the screen, one row each, further in at each level.

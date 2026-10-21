@@ -262,3 +262,60 @@ fn originals_of_any_shape_are_carried_without_panicking() {
         assert!(!String::from_utf8_lossy(&bytes[..head_end]).to_ascii_lowercase().contains("\r\nbcc:"), "{html:?}");
     }
 }
+
+#[test]
+fn a_reply_quotes_in_the_interface_language_and_its_draft_reopens_in_any() {
+    use mailcraft_i18n::{Lang, test_support};
+    let fr = test_support::po(&[
+        ("-----Original Message-----", "-----Message d'origine-----"),
+        ("From:", "De\u{202f}:"),
+        ("Sent:", "Envoyé\u{202f}:"),
+        ("To:", "À\u{202f}:"),
+        ("Subject:", "Objet\u{202f}:"),
+        ("{weekday}, {month} {day}, {year}", "{weekday} {day} {month} {year}"),
+        ("Saturday", "samedi"),
+        ("October", "octobre"),
+    ]);
+    test_support::with_catalogue(Lang::French, &fr, || {
+        let mut s = session();
+        s.interface_language = Lang::French;
+        s.prefs.twelve_hour = false;
+        let id = newsletter(&mut s);
+        run(&mut s, "mail.reply", json!({"id": id}));
+        let was = compose(&s).quote.clone().unwrap();
+        assert!(was.text.starts_with("\n\n-----Message d'origine-----\nDe\u{202f}: ") && was.text.contains("\nObjet\u{202f}: "), "{}", was.text);
+        assert!(was.text.contains("\nEnvoyé\u{202f}: samedi 3 octobre 2026 04:00\n"), "{}", was.text);
+        assert!(was.html.contains("<b>De\u{202f}:</b> ") && was.html.contains("<b>Envoyé\u{202f}:</b> "), "{}", was.html);
+        let d = run(&mut s, "compose.saveDraft", json!({}))["draft"].as_u64().unwrap();
+        run(&mut s, "compose.close", json!({}));
+        // Reopened after the owner has gone back to English, the French original is still known.
+        s.interface_language = Lang::English;
+        run(&mut s, "mail.editDraft", json!({"id": d}));
+        assert_eq!(compose(&s).quote.clone().unwrap().text, was.text);
+    });
+}
+
+#[test]
+fn a_draft_quoted_in_any_shipped_language_reopens_with_its_quote() {
+    use mailcraft_i18n::Lang;
+    let markers = [
+        (Lang::French, "-----Message d'origine-----", "De\u{202f}: "),
+        (Lang::German, "-----Ursprüngliche Nachricht-----", "Von: "),
+        (Lang::Spanish, "-----Mensaje original-----", "De: "),
+        (Lang::Italian, "-----Messaggio originale-----", "Da: "),
+    ];
+    for (lang, marker, from) in markers {
+        let mut s = session();
+        s.interface_language = lang;
+        let id = newsletter(&mut s);
+        run(&mut s, "mail.reply", json!({"id": id}));
+        let was = compose(&s).quote.clone().unwrap();
+        assert!(was.text.starts_with(&format!("\n\n{marker}\n{from}")), "{lang:?}: {}", was.text);
+        let d = run(&mut s, "compose.saveDraft", json!({}))["draft"].as_u64().unwrap();
+        run(&mut s, "compose.close", json!({}));
+        // Reopened in English, the quote is still found by its language's marker.
+        s.interface_language = Lang::English;
+        run(&mut s, "mail.editDraft", json!({"id": d}));
+        assert_eq!(compose(&s).quote.clone().unwrap().text, was.text, "{lang:?}");
+    }
+}

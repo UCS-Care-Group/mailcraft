@@ -390,7 +390,11 @@ fn defaults(app: &mut MailApp, ui: &mut Ui, names: &[String]) {
         .into_iter()
         .filter(|a| a.kind != mailcraft_model::AccountKind::Unknown)
         .map(|a| {
-            let shown = if a.is_shared() { format!("    {} ({})", a.email, tl!("shared mailbox")) } else { a.email.clone() };
+            let shown = if a.is_shared() {
+                format!("    {}", crate::i18n::fmt(tl!("{address} (shared mailbox)"), &[("address", &a.email)]))
+            } else {
+                a.email.clone()
+            };
             (a.id, shown, a.signature.clone(), a.reply_signature().to_string())
         })
         .collect();

@@ -282,6 +282,7 @@ const SAFE: &[&str] = &[
     "ui.dialog",
     "ui.closeDialog",
     "ui.theme",
+    "ui.language",
     "ui.interfaceSize",
     "ui.focusSearch",
     "ui.sync",
@@ -562,14 +563,17 @@ fn quoted(s: &str) -> String {
     if c.is_empty() { "(no subject)".to_string() } else { format!("\u{201c}{c}\u{201d}") }
 }
 
+/// `{n} message` / `{n} messages` for `n`, by the language's plural rule.
+// ponytail: always English for now; the session's `interface_language` comes in with the engine's text (slice 4).
 fn plural(n: usize, one: &str, many: &str) -> String {
-    if n == 1 { format!("1 {one}") } else { format!("{n} {many}") }
+    let n = u64::try_from(n).unwrap_or(u64::MAX);
+    mailcraft_i18n::fmt(mailcraft_i18n::Lang::English.tn(n, one, many), &[("n", &n.to_string())])
 }
 
 fn messages_text(s: &Session, ids: &[Id]) -> String {
     let subjects: Vec<String> = ids.iter().take(3).filter_map(|id| s.mailbox.message(*id)).map(|m| quoted(&m.subject)).collect();
     let more = if ids.len() > 3 { ", …" } else { "" };
-    format!("{} ({}{more})", plural(ids.len(), "message", "messages"), subjects.join(", "))
+    format!("{} ({}{more})", plural(ids.len(), "{n} message", "{n} messages"), subjects.join(", "))
 }
 
 fn event_title(s: &Session, params: &Value) -> String {
@@ -591,7 +595,7 @@ pub fn describe(s: &Session, id: &str, params: &Value) -> String {
                     String::new()
                 } else {
                     let names: Vec<String> = c.attachments.iter().take(5).map(|a| clip(&a.name, 40)).collect();
-                    format!(" with {} ({})", plural(c.attachments.len(), "attachment", "attachments"), names.join(", "))
+                    format!(" with {} ({})", plural(c.attachments.len(), "{n} attachment", "{n} attachments"), names.join(", "))
                 };
                 format!("send {} to {to}{files}", quoted(&c.subject))
             }
@@ -611,7 +615,7 @@ pub fn describe(s: &Session, id: &str, params: &Value) -> String {
             let name = s.mailbox.folder(f).map(|f| quoted(&f.name)).unwrap_or_else(|| "a folder".to_string());
             let n = s.mailbox.count(f);
             let verb = if id == "folder.empty" { "empty" } else { "delete the folder" };
-            format!("{verb} {name} and the {} in it, for good", plural(n, "message", "messages"))
+            format!("{verb} {name} and the {} in it, for good", plural(n, "{n} message", "{n} messages"))
         }
         "calendar.forward" => format!("forward {} to {}", event_title(s, params), clip(&params.get("to").map(value_text).unwrap_or_default(), 160)),
         "calendar.propose" => format!("propose another time for {} to its organizer", event_title(s, params)),

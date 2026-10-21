@@ -1,0 +1,16 @@
+[package]
+name = "mailcraft-i18n"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "MailCraft interface languages: gettext catalogues keyed by the English text, compiled in and read by a small reader of its own; plural forms; named placeholders"
+
+[features]
+# `test_support::with_catalogue`: a catalogue read from a string, for the tests of another crate.
+test-support = []
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+proptest = { workspace = true }

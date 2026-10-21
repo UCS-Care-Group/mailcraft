@@ -1417,6 +1417,7 @@ fn open_index(st: &mut State, file: &Path, len: u64) -> Result<Opened, String> {
 fn forget_how_far_fetched(mailbox: &mut Mailbox) {
     for folder in &mut mailbox.folders {
         folder.uid_seen = 0;
+        folder.uid_from = 0;
         if let Some(server) = &mut folder.server {
             server.delta.clear();
             server.caught_up = false;

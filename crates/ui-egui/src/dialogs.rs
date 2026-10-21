@@ -259,7 +259,7 @@ pub fn confirmation(app: &MailApp, id: &str, params: &Value) -> Option<Question>
             let what = if n == 1 {
                 tl!("This message will be deleted for good.").to_string()
             } else {
-                format!("{n} {}", tl!("messages will be deleted for good."))
+                tln!(n, "{n} message will be deleted for good.", "{n} messages will be deleted for good.")
             };
             let text = if going.iter().any(|m| on_server(m.account)) {
                 let too = if n == 1 {
@@ -294,21 +294,21 @@ pub fn confirmation(app: &MailApp, id: &str, params: &Value) -> Option<Question>
             if mb.count(f.id) == 0 {
                 return None;
             }
-            let text = format!("{} \"{}\" {}{}", tl!("Everything in"), f.name, tl!("will be deleted for good."), server_too(on_server(f.account)));
+            let everything = crate::i18n::fmt(tl!("Everything in \"{folder}\" will be deleted for good."), &[("folder", crate::nav::folder_name(f))]);
+            let text = format!("{everything}{}", server_too(on_server(f.account)));
             question(tl!("Empty Folder"), text, tl!("Empty"))
         }
         "folder.delete" => {
             let f = folder("id")?;
-            let text = format!("{} \"{}\" {}", tl!("The folder"), f.name, tl!("and everything in it will be deleted."));
+            let text =
+                crate::i18n::fmt(tl!("The folder \"{folder}\" and everything in it will be deleted."), &[("folder", crate::nav::folder_name(f))]);
             question(tl!("Delete Folder"), text, tl!("Delete"))
         }
         "account.remove" => {
             let a = mb.account(params.get("id").and_then(Value::as_u64)?)?;
-            let text = format!(
-                "{} {} {}",
-                a.email,
-                tl!("and the mail kept for it on this device will be removed."),
-                tl!("Mail on the server is not touched.")
+            let text = crate::i18n::fmt(
+                tl!("{address} and the mail kept for it on this device will be removed. Mail on the server is not touched."),
+                &[("address", &a.email)],
             );
             // (The shared mailboxes opened through it go with it, #70.)
             let shared = mb.shared_mailboxes(a.id).len();
@@ -332,10 +332,13 @@ pub fn confirmation(app: &MailApp, id: &str, params: &Value) -> Option<Question>
             );
             let text = match waiting {
                 0 => text,
-                1 => format!("{text} {}", tl!("1 change made here hasn't reached the server and will be lost.")),
                 n => format!(
                     "{text} {}",
-                    crate::i18n::fmt(tl!("{n} changes made here haven't reached the server and will be lost."), &[("n", &n.to_string())])
+                    tln!(
+                        n,
+                        "{n} change made here hasn't reached the server and will be lost.",
+                        "{n} changes made here haven't reached the server and will be lost."
+                    )
                 ),
             };
             question(tl!("Remove Shared Mailbox"), text, tl!("Remove"))
@@ -354,7 +357,7 @@ pub fn confirmation(app: &MailApp, id: &str, params: &Value) -> Option<Question>
             }
             let text = crate::i18n::fmt(
                 tl!("About {size} of mail older than {window} will be removed from this computer. It stays on the server."),
-                &[("size", &mailcraft_model::size_label(bytes)), ("window", crate::keep_offline::label(keep))],
+                &[("size", &mailcraft_model::size_label_in(crate::i18n::current(), bytes)), ("window", crate::keep_offline::label(keep))],
             );
             question(tl!("Mail to Keep Offline"), text, tl!("OK"))
         }
@@ -386,29 +389,24 @@ pub fn confirmation(app: &MailApp, id: &str, params: &Value) -> Option<Question>
                 return None;
             }
             let meetings = items.iter().filter(|e| !e.attendees.is_empty()).count();
-            let count = if items.len() == 1 {
-                tl!("1 item is").to_string()
-            } else {
-                crate::i18n::fmt(tl!("{n} items are"), &[("n", &items.len().to_string())])
-            };
+            let count = tln!(
+                items.len(),
+                "{n} item is only on this computer, and not in your Outlook calendar.",
+                "{n} items are only on this computer, and not in your Outlook calendar."
+            );
             let mut text = format!(
                 "{count} {} {}",
-                tl!(
-                    "only on this computer, and not in your Outlook calendar. Moving them puts them into your account's calendar, where Outlook and your other devices have them too."
-                ),
+                tl!("Moving them puts them into your account's calendar, where Outlook and your other devices have them too."),
                 tl!("One that is there already (the same title at the same time) is not made a second time: the copy on this computer goes.")
             );
             if meetings == 0 {
                 return Some(Question::new(tl!("Move to Your Account's Calendar"), text, tl!("Move"), json!({"send": false})));
             }
-            let invited = if meetings == 1 {
-                tl!("1 of them is a meeting with people invited: moving it makes the account's server send them the invitation by mail.").to_string()
-            } else {
-                crate::i18n::fmt(
-                    tl!("{n} of them are meetings with people invited: moving those makes the account's server send them the invitations by mail."),
-                    &[("n", &meetings.to_string())],
-                )
-            };
+            let invited = tln!(
+                meetings,
+                "{n} of them is a meeting with people invited: moving it makes the account's server send them the invitation by mail.",
+                "{n} of them are meetings with people invited: moving those makes the account's server send them the invitations by mail."
+            );
             text.push_str(&format!(" {invited}"));
             let ask = Question::new(tl!("Move to Your Account's Calendar"), text, tl!("Move All and Send Invitations"), json!({"send": true}));
             Some(ask.or(tl!("Move the Appointments Only"), json!({"send": false})))
@@ -488,11 +486,7 @@ fn opening_question(app: &MailApp, params: &Value) -> Option<Question> {
 
 /// "1 person is invited to this meeting." / "3 people are invited to this meeting."
 fn invited_line(n: usize) -> String {
-    if n == 1 {
-        tl!("1 person is invited to this meeting.").to_string()
-    } else {
-        crate::i18n::fmt(tl!("{n} people are invited to this meeting."), &[("n", &n.to_string())])
-    }
+    tln!(n, "{n} person is invited to this meeting.", "{n} people are invited to this meeting.")
 }
 
 /// What a calendar command the user ran is asked about first, as Outlook asks. One question at
@@ -556,7 +550,7 @@ fn calendar_question(app: &MailApp, id: &str, params: &Value) -> Option<Question
         let name: String = e.title.chars().filter(|c| !c.is_control()).take(80).collect();
         let text = crate::i18n::fmt(
             tl!("\"{name}\" is one of a series. Do you mean just the one on {day}, or the entire series?"),
-            &[("name", &name), ("day", &day.long())],
+            &[("name", &name), ("day", &crate::dates::long(day))],
         );
         let one = json!({"scope": "occurrence", "occurrence": day.iso()});
         return Some(Question::new(title, text, tl!("Just This One"), one).or(tl!("The Entire Series"), json!({"scope": "series"})));
@@ -906,7 +900,7 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
             let mut submit = false;
             let open = window(ctx, title, 380.0, |ui| {
                 if let FolderMode::New { parent } = mode {
-                    let place = parent.map(|p| app.session.mailbox.folder_path(p)).unwrap_or_else(|| tl!("the top level").to_string());
+                    let place = parent.map(|p| crate::nav::folder_path(&app.session.mailbox, p)).unwrap_or_else(|| tl!("the top level").to_string());
                     ui.label(egui::RichText::new(crate::i18n::fmt(tl!("In {place}"), &[("place", &place)])).color(t.text_dim));
                 }
                 let resp = ui.add(egui::TextEdit::singleline(name).hint_text(tl!("Folder name")).desired_width(f32::INFINITY));

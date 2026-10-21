@@ -90,6 +90,9 @@ pub struct Folder {
     pub uid_validity: u32,
     #[serde(skip_serializing_if = "is_zero")]
     pub uid_seen: u32,
+    /// How far down the folder was last read ([`crate::sync::FolderState::uid_from`]).
+    #[serde(skip_serializing_if = "is_zero")]
+    pub uid_from: u32,
     /// For a folder of a [`AccountKind::Microsoft`] account that the server has: what the
     /// server calls it and what it last said of it ([`ServerFolder`]). `None` for a folder that
     /// only exists here (one made here that the server is yet to hear of, or a folder of any

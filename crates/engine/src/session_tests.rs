@@ -66,3 +66,42 @@ fn putting_one_message_in_place_many_times_keeps_one_swap_and_a_failure_still_go
     assert_eq!(s.mailbox.message(other).unwrap().read, read);
     assert_eq!(s.mailbox.message(id).unwrap().body.text, last);
 }
+
+#[test]
+fn the_interface_language_is_the_hosts_and_never_saved() {
+    let mut s = Session::empty();
+    assert_eq!(s.interface_language, mailcraft_i18n::Lang::English);
+    s.interface_language = mailcraft_i18n::Lang::Pseudo;
+    let saved = serde_json::to_string(&s.mailbox).unwrap();
+    assert!(!saved.contains("pseudo"), "the mailbox file says nothing of the window's language");
+}
+
+/// The clock and the first day of the week follow the interface language until the owner
+/// chooses them; what they chose, and settings saved before, stay as they were.
+#[test]
+fn the_clock_and_the_week_follow_the_language_unless_chosen() {
+    use mailcraft_i18n::Lang;
+    use mailcraft_time::Weekday;
+    let mut fresh = Prefs::default();
+    fresh.follow_language(Lang::English);
+    assert_eq!((fresh.twelve_hour, fresh.week_start), (true, Weekday::Sun), "English as it always was");
+    fresh.follow_language(Lang::French);
+    assert_eq!((fresh.twelve_hour, fresh.week_start), (false, Weekday::Mon), "French's own");
+    fresh.follow_language(Lang::English);
+    assert_eq!((fresh.twelve_hour, fresh.week_start), (true, Weekday::Sun), "and back");
+    // Saved before the choice was kept: what differs from the old defaults was chosen.
+    let mut old: Prefs = serde_json::from_value(json!({"twelveHour": false})).unwrap();
+    old.follow_language(Lang::French);
+    old.follow_language(Lang::English);
+    assert_eq!((old.twelve_hour, old.week_start), (false, Weekday::Sun));
+    let mut old: Prefs = serde_json::from_value(json!({"weekStart": "Mon"})).unwrap();
+    old.follow_language(Lang::English);
+    assert_eq!((old.twelve_hour, old.week_start), (true, Weekday::Mon));
+    // Chosen in Options: kept whatever the language, and saved.
+    let mut s = Session::empty();
+    s.run("file.options", &json!({"twelveHour": true, "weekStart": "sun"})).unwrap();
+    s.prefs.follow_language(Lang::French);
+    assert_eq!((s.prefs.twelve_hour, s.prefs.week_start), (true, Weekday::Sun));
+    let saved: Prefs = serde_json::from_value(serde_json::to_value(&s.prefs).unwrap()).unwrap();
+    assert_eq!(saved, s.prefs);
+}

@@ -9,7 +9,7 @@
 use std::collections::{HashMap, HashSet};
 
 use mailcraft_model::sync::{
-    Deleted, FlagsPushed, FolderDelta, FolderState, Moved, RemoteFlags, RemoteOp, SyncRequest, SyncResult, SyncStage, summary_line,
+    Deleted, FlagsPushed, FolderDelta, FolderState, Moved, RemoteFlags, RemoteOp, SyncRequest, SyncResult, SyncStage, summary_line_in,
 };
 use mailcraft_model::{
     Account, AccountKind, Directory, FlagStatus, Folder, FolderKind, Id, Mailbox, Message, OAuth, OAuthProvider, Pending, Security, Server,
@@ -237,7 +237,7 @@ fn add(s: &mut Session, v: &Value) -> CmdResult {
     let mut a = Account { keep_offline: mailcraft_model::KeepOffline::NEW_ACCOUNT, ..Default::default() };
     apply_fields(&mut a, v)?;
     if s.mailbox.accounts.iter().any(|x| x.email.eq_ignore_ascii_case(&a.email)) {
-        return Err(fail(format!("{} is already set up", a.email)));
+        return Err(failed!("{address} is already set up", address = a.email));
     }
     if s.mailbox.accounts.len() >= 50 {
         return Err(fail("there are too many accounts"));
@@ -260,13 +260,13 @@ fn add(s: &mut Session, v: &Value) -> CmdResult {
 /// The answer to something only the newer MailCraft that added `a` does with it: an account of a
 /// kind this version doesn't know ([`AccountKind::Unknown`]), kept as its file has it. `then` says
 /// what happens instead, or what to do.
-pub(crate) fn added_by_newer(a: &Account, then: &str) -> CmdError {
-    fail(format!("{} was added by a newer version of MailCraft, {then}", super::remote::who(a)))
+pub(crate) fn added_by_newer(a: &Account, then: &'static str) -> CmdError {
+    failed!("{who} was added by a newer version of MailCraft, {then}", who = super::remote::who(a), then = mailcraft_i18n::Arg::words(then))
 }
 
 fn edit(s: &mut Session, v: &Value) -> CmdResult {
     let id = p::req_id(v, "id")?;
-    let mut a = s.mailbox.account(id).cloned().ok_or_else(|| fail(format!("no account with id {id}")))?;
+    let mut a = s.mailbox.account(id).cloned().ok_or_else(|| failed!("no account with id {id}", id))?;
     // Its settings are written back as its file had them: a change here would be lost.
     if a.kind == AccountKind::Unknown {
         return Err(added_by_newer(&a, "which keeps its settings: change them there"));
@@ -286,7 +286,7 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
         a.shared_of = before.shared_of;
     }
     if s.mailbox.accounts.iter().any(|x| x.id != id && x.email.eq_ignore_ascii_case(&a.email)) {
-        return Err(fail(format!("{} is already set up", a.email)));
+        return Err(failed!("{address} is already set up", address = a.email));
     }
     *s.mailbox.account_mut(id)? = a;
     Ok(json!({"id": id}))
@@ -326,17 +326,17 @@ const MAX_LEVELS: usize = 64;
 /// since the server last heard (flags, moves, deletions), download what is new. The host adds
 /// the password.
 pub fn sync_request(s: &Session, account: Id) -> Result<SyncRequest, CmdError> {
-    let a = s.mailbox.account(account).ok_or_else(|| fail(format!("no account with id {account}")))?;
+    let a = s.mailbox.account(account).ok_or_else(|| failed!("no account with id {id}", id = account))?;
     if a.kind == AccountKind::Unknown {
         return Err(added_by_newer(a, "which sends and receives its mail: this version leaves it as it is"));
     }
     // A JMAP account is kept in step over JMAP alone, and no run of it is made here yet: nothing
     // is asked of IMAP or SMTP servers it doesn't have.
     if a.kind == AccountKind::Jmap {
-        return Err(fail(format!("{} is a JMAP account, and this version doesn't send and receive with one yet", a.name)));
+        return Err(failed!("{name} is a JMAP account, and this version doesn't send and receive with one yet", name = a.name));
     }
     if a.kind != AccountKind::Imap {
-        return Err(fail(format!("{} isn't connected to a mail server", a.name)));
+        return Err(failed!("{name} isn't connected to a mail server", name = a.name));
     }
     let outbox_folder = s.mailbox.folder_of_kind(account, FolderKind::Outbox);
     let mut known: HashMap<Id, Vec<u32>> = HashMap::new();
@@ -347,6 +347,14 @@ pub fn sync_request(s: &Session, account: Id) -> Result<SyncRequest, CmdError> {
         }
         if m.uid != 0 {
             known.entry(m.folder).or_default().push(m.uid);
+        }
+    }
+    // What waits to be moved or deleted on the server is there still: known, so that it doesn't
+    // come down again.
+    for p in s.mailbox.pending.iter().filter(|p| p.account() == account) {
+        let (from, uid) = p.source();
+        if let Some(f) = s.mailbox.folders.iter().find(|f| uid != 0 && f.account == account && f.remote == from) {
+            known.entry(f.id).or_default().push(uid);
         }
     }
     let folders = s
@@ -360,6 +368,7 @@ pub fn sync_request(s: &Session, account: Id) -> Result<SyncRequest, CmdError> {
             kind: f.kind,
             uid_validity: f.uid_validity,
             uid_seen: f.uid_seen,
+            uid_from: f.uid_from,
             known_uids: known.remove(&f.id).unwrap_or_default(),
         })
         .collect();
@@ -545,11 +554,16 @@ impl SyncTotals {
     /// How the run went, in one line: its first problem, else what it brought (`3 new messages,
     /// 1 sent`, `Up to date`), or that it was stopped and what it had brought by then.
     pub fn summary(&self) -> String {
-        let line = summary_line(self.errors.first().map(String::as_str), self.new, self.sent);
+        self.summary_in(mailcraft_i18n::Lang::English)
+    }
+
+    /// [`summary`](Self::summary) in `lang`.
+    pub fn summary_in(&self, lang: mailcraft_i18n::Lang) -> String {
+        let line = summary_line_in(lang, self.errors.first().map(String::as_str), self.new, self.sent);
         match (self.stopped && self.errors.is_empty(), self.new + self.sent) {
             (false, _) => line,
-            (true, 0) => "Stopped".into(),
-            (true, _) => format!("Stopped ({line})"),
+            (true, 0) => lang.t("Stopped").to_string(),
+            (true, _) => mailcraft_i18n::fmt(lang.t("Stopped ({line})"), &[("line", &line)]),
         }
     }
 }
@@ -569,7 +583,7 @@ impl SyncTotals {
 /// Answers what this piece changed, with the run's line (`summary`) and its sums so far (`total`).
 pub fn apply_sync_part(s: &mut Session, run: &mut SyncTotals, mut result: SyncResult) -> CmdResult {
     let account = result.account;
-    let Some(a) = s.mailbox.account(account) else { return Err(fail(format!("no account with id {account}"))) };
+    let Some(a) = s.mailbox.account(account) else { return Err(failed!("no account with id {id}", id = account)) };
     // No run here asks a server anything of it, so nothing that comes back is for it.
     if a.kind == AccountKind::Unknown {
         return Err(added_by_newer(a, "which sends and receives its mail: this version leaves it as it is"));
@@ -577,11 +591,11 @@ pub fn apply_sync_part(s: &mut Session, run: &mut SyncTotals, mut result: SyncRe
     // An answer for another account (the mailbox was replaced while the run was under way) would
     // tie this one's messages to a stranger's server.
     if !result.email.is_empty() && !a.email.trim().eq_ignore_ascii_case(result.email.trim()) {
-        return Err(fail(format!("this Send/Receive was for another account, not for {}", a.name)));
+        return Err(failed!("this Send/Receive was for another account, not for {name}", name = a.name));
     }
     // A host that says only the numbers has its line made of them.
     let progress = match (&result.step, result.progress.is_empty()) {
-        (Some(step), true) => step.line(),
+        (Some(step), true) => step.line_in(s.interface_language),
         _ => result.progress.clone(),
     };
     let (partial, stopped) = (result.partial, result.stopped);
@@ -611,7 +625,7 @@ pub fn apply_sync_part(s: &mut Session, run: &mut SyncTotals, mut result: SyncRe
     let summary = run.summary();
     if !partial {
         let t = s.local_now();
-        s.sync_status = format!("{summary} — {}", t.time_short(s.prefs.twelve_hour));
+        s.sync_status = format!("{} — {}", run.summary_in(s.interface_language), s.time_said(t));
     } else if !progress.is_empty() {
         s.sync_status = progress.clone();
     }
@@ -1187,6 +1201,9 @@ fn take_in(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, delta: Folde
     }
     if let Ok(f) = mb.folder_mut(folder) {
         f.uid_seen = if reset { delta.uid_seen } else { delta.uid_seen.max(old_seen) };
+        if reset || delta.uid_from != 0 {
+            f.uid_from = delta.uid_from;
+        }
     }
 }
 

@@ -477,9 +477,8 @@ pub fn line(app: &mut MailApp, ui: &mut Ui, m: &Message, doc: &Doc, access: Acce
 
 /// A number of bytes for the owner to read: `340 KB`, `12.4 MB`.
 fn size_label(bytes: u64) -> String {
-    const KB: f64 = 1024.0;
-    let bytes = bytes as f64;
-    if bytes < KB * KB { format!("{:.0} KB", (bytes / KB).ceil()) } else { format!("{:.1} MB", bytes / (KB * KB)) }
+    // (In KB at least.)
+    mailcraft_model::size_label_in(crate::i18n::current(), bytes.max(1024))
 }
 
 /// The rows of File › Options: the switch for all mail, the senders and the domains that are
@@ -525,8 +524,10 @@ pub fn options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     ui.horizontal(|ui| {
         let kept = match count {
             0 => tl!("No downloaded pictures are kept on this computer.").to_string(),
-            1 => crate::i18n::fmt(tl!("One downloaded picture is kept on this computer ({size})."), &[("size", &size_label(bytes))]),
-            n => crate::i18n::fmt(tl!("{n} downloaded pictures are kept on this computer ({size})."), &[("n", &n.to_string()), ("size", &size_label(bytes))]),
+            n => crate::i18n::fmt(
+                &tln!(n, "{n} downloaded picture is kept on this computer ({size}).", "{n} downloaded pictures are kept on this computer ({size})."),
+                &[("size", &size_label(bytes))],
+            ),
         };
         let tip = tl!(
             "A picture you asked for is kept for a month, so that reading the message again doesn't ask its sender's server again. Nothing kept is ever run, and it is checked like a new download before it is shown."

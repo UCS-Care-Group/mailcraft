@@ -4,7 +4,7 @@ members = ["crates/*", "apps/*", "xtask"]
 default-members = ["crates/*", "apps/mailcraft", "apps/mailcraft-cli", "xtask"]
 
 [workspace.package]
-version = "0.5.2"
+version = "0.6.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 rust-version = "1.95"
@@ -14,6 +14,7 @@ repository = "https://github.com/UCS-Care-Group/mailcraft"
 # internal
 mailcraft-time = { path = "crates/time" }
 mailcraft-charset = { path = "crates/charset" }
+mailcraft-i18n = { path = "crates/i18n" }
 mailcraft-model = { path = "crates/model" }
 mailcraft-html = { path = "crates/html" }
 mailcraft-mime = { path = "crates/mime" }

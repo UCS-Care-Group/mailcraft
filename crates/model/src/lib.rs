@@ -41,7 +41,9 @@ pub use mailbox::{
     MAX_SHARED, Mailbox, NOT_SENDING_YET, OAuth, OAuthProvider, Pending, Queued, STAYS_LOCAL, Security, Server, ServerFavorites, ServerFolder,
 };
 pub use mailcraft_time as time;
-pub use message::{Answers, Attachment, Body, ContentRef, FlagStatus, Importance, KeptBody, Message, normalize_subject, size_label, text_hash};
+pub use message::{
+    Answers, Attachment, Body, ContentRef, FlagStatus, Importance, KeptBody, Message, normalize_subject, size_label, size_label_in, text_hash,
+};
 pub use offline::{KeepOffline, OfflineWindow};
 pub use remote::Origin;
 pub use rich::{RichBody, RichText};

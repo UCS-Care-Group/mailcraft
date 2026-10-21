@@ -287,8 +287,7 @@ fn web_target(raw: &str) -> Option<String> {
 
 /// `March 14, 1988`; the ISO form for a date whose month is out of range.
 fn birthday_text(day: Date) -> String {
-    let month = mailcraft_time::month_name(day.month);
-    if month.is_empty() { day.iso() } else { format!("{} {}, {}", tl!(month), day.day, day.year) }
+    if mailcraft_time::month_name(day.month).is_empty() { day.iso() } else { crate::dates::long_without_weekday(day) }
 }
 
 /// The next time the birthday comes round (today counts) and the age reached then. `None` when
@@ -674,7 +673,7 @@ fn card_birthday(app: &MailApp, ui: &mut Ui, c: &Contact) {
     let note = match next_birthday(birthday, today) {
         Some((next, age)) if next == today => crate::i18n::fmt(tl!("Turns {age} today"), &[("age", &age.to_string())]),
         Some((next, age)) => {
-            let on = format!("{} {}", tl!(mailcraft_time::month_name(next.month)), next.day);
+            let on = crate::dates::month_day_long(next);
             crate::i18n::fmt(tl!("Turns {age} on {date}"), &[("age", &age.to_string()), ("date", &on)])
         }
         None => String::new(),
@@ -706,9 +705,9 @@ fn card_recent(app: &mut MailApp, ui: &mut Ui, c: &Contact) {
             t.text_dim,
             t.accent,
         );
-        let date = mailcraft_time::list_label(m.date, app.session.now(), app.session.offset_at(m.date), app.session.prefs.twelve_hour);
+        let date = crate::dates::list_label(m.date, app.session.now(), app.session.offset_at(m.date), app.session.prefs.twelve_hour);
         let date_w = p.text(pos2(r.max.x - 8.0, r.center().y), Align2::RIGHT_CENTER, &date, regular(11.0), t.text_dim).width();
-        let folder = app.session.mailbox.folder(m.folder).map(|f| one_line(&f.name, 60)).unwrap_or_default();
+        let folder = app.session.mailbox.folder(m.folder).map(|f| one_line(crate::nav::folder_name(f), 60)).unwrap_or_default();
         let folder_w = text_width(ui, &folder, regular(11.0)).min(140.0);
         let folder_x = r.max.x - 8.0 - date_w.max(64.0) - 14.0 - folder_w;
         paint_clipped(p, pos2(folder_x, r.center().y), folder_w + 1.0, &folder, regular(11.0), t.text_dim);

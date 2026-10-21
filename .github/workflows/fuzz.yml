@@ -5,7 +5,7 @@ name: Fuzz
 
 on:
   pull_request:
-    paths: [fuzz/**, crates/charset/**, crates/html/**, crates/ical/**, crates/mime/**, crates/proto/**, crates/vcard/**]
+    paths: [fuzz/**, crates/charset/**, crates/html/**, crates/i18n/**, crates/ical/**, crates/mime/**, crates/proto/**, crates/vcard/**]
   schedule:
     - cron: '17 4 * * 1'
   workflow_dispatch:
@@ -23,7 +23,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target: [mime, html, ical, vcard, charset, imap, smtp]
+        target: [mime, html, ical, vcard, charset, imap, smtp, po]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

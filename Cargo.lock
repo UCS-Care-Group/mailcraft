@@ -2280,7 +2280,7 @@ checksum = "f9f8bd3e56ce4dfc153cf470fffbfa98c7620958b312ca5c3a4b8d5181fd13c6"
 
 [[package]]
 name = "mailcraft"
-version = "0.5.2"
+version = "0.6.0"
 dependencies = [
  "apple-native-keyring-store",
  "arboard",
@@ -2309,6 +2309,7 @@ dependencies = [
  "rfd",
  "ring",
  "serde_json",
+ "sys-locale",
  "webbrowser",
  "windows",
  "windows-native-keyring-store",
@@ -2321,7 +2322,7 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-charset"
-version = "0.5.2"
+version = "0.6.0"
 dependencies = [
  "encoding_rs",
  "proptest",
@@ -2329,7 +2330,7 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-cli"
-version = "0.5.2"
+version = "0.6.0"
 dependencies = [
  "base64",
  "mailcraft-engine",
@@ -2342,15 +2343,16 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-control-key"
-version = "0.5.2"
+version = "0.6.0"
 
 [[package]]
 name = "mailcraft-engine"
-version = "0.5.2"
+version = "0.6.0"
 dependencies = [
  "base64",
  "log",
  "mailcraft-html",
+ "mailcraft-i18n",
  "mailcraft-ical",
  "mailcraft-mime",
  "mailcraft-model",
@@ -2365,15 +2367,22 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-html"
-version = "0.5.2"
+version = "0.6.0"
 dependencies = [
  "proptest",
  "serde",
 ]
 
 [[package]]
+name = "mailcraft-i18n"
+version = "0.6.0"
+dependencies = [
+ "proptest",
+]
+
+[[package]]
 name = "mailcraft-ical"
-version = "0.5.2"
+version = "0.6.0"
 dependencies = [
  "mailcraft-model",
  "mailcraft-time",
@@ -2382,7 +2391,7 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-mcp"
-version = "0.5.2"
+version = "0.6.0"
 dependencies = [
  "log",
  "mailcraft-control-key",
@@ -2392,7 +2401,7 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-mime"
-version = "0.5.2"
+version = "0.6.0"
 dependencies = [
  "base64",
  "mailcraft-charset",
@@ -2405,9 +2414,10 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-model"
-version = "0.5.2"
+version = "0.6.0"
 dependencies = [
  "base64",
+ "mailcraft-i18n",
  "mailcraft-time",
  "proptest",
  "serde",
@@ -2417,7 +2427,7 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-net"
-version = "0.5.2"
+version = "0.6.0"
 dependencies = [
  "base64",
  "flate2",
@@ -2437,7 +2447,7 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-proto"
-version = "0.5.2"
+version = "0.6.0"
 dependencies = [
  "base64",
  "log",
@@ -2447,7 +2457,7 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-time"
-version = "0.5.2"
+version = "0.6.0"
 dependencies = [
  "jiff",
  "js-sys",
@@ -2457,7 +2467,7 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-ui-egui"
-version = "0.5.2"
+version = "0.6.0"
 dependencies = [
  "egui",
  "egui_kittest",
@@ -2466,6 +2476,7 @@ dependencies = [
  "log",
  "mailcraft-engine",
  "mailcraft-html",
+ "mailcraft-i18n",
  "mailcraft-model",
  "mailcraft-time",
  "serde",
@@ -2476,7 +2487,7 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-vcard"
-version = "0.5.2"
+version = "0.6.0"
 dependencies = [
  "base64",
  "mailcraft-charset",
@@ -2487,7 +2498,7 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-web"
-version = "0.5.2"
+version = "0.6.0"
 dependencies = [
  "eframe",
  "egui",
@@ -3716,9 +3727,9 @@ dependencies = [
 
 [[package]]
 name = "rustls-webpki"
-version = "0.103.15"
+version = "0.103.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f3c3cf1d8b1e7d4927e2d154c3fcb02979afb9939629c62cd9048d4f07b60ac2"
+checksum = "4443b1b6d39d7c663139942cc4558262562d2c84123bb6282ef177009ca8b281"
 dependencies = [
  "ring",
  "rustls-pki-types",
@@ -4117,13 +4128,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "sys-locale"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8eab9a99a024a169fe8a903cf9d4a3b3601109bcc13bd9e3c6fff259138626c4"
+dependencies = [
+ "libc",
+]
+
+[[package]]
 name = "tempfile"
 version = "3.27.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.4.3",
+ "getrandom 0.3.4",
  "once_cell",
  "rustix 1.1.5",
  "windows-sys 0.61.2",
@@ -4717,9 +4737,9 @@ dependencies = [
 
 [[package]]
 name = "webpki-roots"
-version = "1.0.9"
+version = "1.0.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7dcd9d09a39985f5344844e66b0c530a33843579125f23e21e9f0f220850f22a"
+checksum = "1c1c8e20c8a38fc7d65abfe74eb7280e4aa667e8eec8bc84996d2874810748d9"
 dependencies = [
  "rustls-pki-types",
 ]
@@ -5385,10 +5405,11 @@ checksum = "e450f9b2ed1dff33c94c12589a87338689467b9c4f5d8a5710bd09a847d2c8a7"
 
 [[package]]
 name = "xtask"
-version = "0.5.2"
+version = "0.6.0"
 dependencies = [
  "base64",
  "image",
+ "mailcraft-i18n",
  "ring",
  "serde_json",
 ]

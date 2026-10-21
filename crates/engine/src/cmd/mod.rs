@@ -124,7 +124,7 @@ pub(crate) fn targets(s: &Session, v: &Value) -> Result<Vec<Id>, CmdError> {
         return Err(fail("select a message first"));
     }
     if let Some(missing) = ids.iter().find(|id| s.mailbox.message(**id).is_none()) {
-        return Err(fail(format!("no message with id {missing}")));
+        return Err(failed!("no message with id {id}", id = missing));
     }
     Ok(ids)
 }
@@ -233,7 +233,7 @@ pub(crate) fn source(v: &Value) -> Result<(String, Vec<u8>), CmdError> {
     {
         let meta = std::fs::metadata(path).map_err(|e| fail(format!("{path}: {e}")))?;
         if meta.len() > crate::io::MAX_FILE {
-            return Err(fail(format!("{path} is larger than {} MB", crate::io::MAX_FILE >> 20)));
+            return Err(failed!("{path} is larger than {mb} MB", path, mb = crate::io::MAX_FILE >> 20));
         }
         let bytes = std::fs::read(path).map_err(|e| fail(format!("{path}: {e}")))?;
         Ok((name, bytes))

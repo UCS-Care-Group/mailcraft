@@ -82,10 +82,12 @@ pub(crate) fn wording(account: &str) -> Vec<String> {
 pub(crate) fn waiting_wording(account: &str, n: usize) -> Vec<String> {
     let left = if n == 0 {
         tl!("No changes are left behind: only mail in the Outbox is waiting.").to_string()
-    } else if n == 1 {
-        tl!("1 change waiting for the IMAP server won't reach it; it stays in the backup copy.").to_string()
     } else {
-        fmt(tl!("{n} changes waiting for the IMAP server won't reach it; they stay in the backup copy."), &[("n", &n.to_string())])
+        tln!(
+            n,
+            "{n} change waiting for the IMAP server won't reach it; it stays in the backup copy.",
+            "{n} changes waiting for the IMAP server won't reach it; they stay in the backup copy."
+        )
     };
     vec![
         fmt(tl!("{account} is switching to Microsoft Graph, but MailCraft can't reach its IMAP server to send what is waiting there first."), &[("account", account)]),
@@ -362,16 +364,12 @@ impl MailApp {
             &[("account", &whose), ("backup", &backup)],
         ));
         if answer == "switchWithout" && left > 0 {
-            let said = if left == 1 {
-                tl!(
-                    "{account} now uses Microsoft Graph, and its mail is downloading again. 1 change that didn't reach the IMAP server is in the copy of your mailbox from before the switch: {backup}."
-                )
-            } else {
-                tl!(
-                    "{account} now uses Microsoft Graph, and its mail is downloading again. {n} changes that didn't reach the IMAP server are in the copy of your mailbox from before the switch: {backup}."
-                )
-            };
-            self.status(fmt(said, &[("account", &whose), ("n", &left.to_string()), ("backup", &backup)]));
+            let said = tln!(
+                left,
+                "{account} now uses Microsoft Graph, and its mail is downloading again. {n} change that didn't reach the IMAP server is in the copy of your mailbox from before the switch: {backup}.",
+                "{account} now uses Microsoft Graph, and its mail is downloading again. {n} changes that didn't reach the IMAP server are in the copy of your mailbox from before the switch: {backup}."
+            );
+            self.status(fmt(&said, &[("account", &whose), ("backup", &backup)]));
         }
         if let Err(e) = started {
             log::warn!("the first Send/Receive after the switch didn't start: {e}");

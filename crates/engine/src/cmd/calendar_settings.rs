@@ -217,7 +217,7 @@ fn list(s: &mut Session, _: &Value) -> CmdResult {
 
 fn calendar_named(s: &Session, v: &Value, key: &str) -> Result<Id, CmdError> {
     let id = p::req_id(v, key)?;
-    s.mailbox.calendar(id).map(|c| c.id).ok_or_else(|| fail(format!("no calendar with id {id}")))
+    s.mailbox.calendar(id).map(|c| c.id).ok_or_else(|| failed!("no calendar with id {id}", id))
 }
 
 fn show_only(s: &mut Session, v: &Value) -> CmdResult {
@@ -235,7 +235,7 @@ fn color(s: &mut Session, v: &Value) -> CmdResult {
         Some(Value::Null) => None,
         Some(_) => Some(p::str(v, "color").and_then(Rgb::parse).ok_or_else(|| bad("`color` looks like #2E8B57"))?),
     };
-    let calendar = s.mailbox.calendars.iter_mut().find(|c| c.id == id).ok_or_else(|| fail(format!("no calendar with id {id}")))?;
+    let calendar = s.mailbox.calendars.iter_mut().find(|c| c.id == id).ok_or_else(|| failed!("no calendar with id {id}", id))?;
     calendar.own_color = chosen;
     Ok(json!({"id": id, "color": calendar.shown_color().hex(), "ownColor": chosen.is_some()}))
 }
@@ -430,7 +430,7 @@ fn work_hours_command(s: &mut Session, v: &Value) -> CmdResult {
 /// goes). What isn't working hours (no days, an end before the start) is refused, and what was
 /// kept stays. Not an undo step, and nothing of the mailbox changes: they are a preference.
 pub fn apply_mailbox_hours(s: &mut Session, account: Id, hours: Option<&MailboxHours>) -> CmdResult {
-    let owner = s.mailbox.account(account).ok_or_else(|| fail(format!("no account with id {account}")))?;
+    let owner = s.mailbox.account(account).ok_or_else(|| failed!("no account with id {id}", id = account))?;
     let email = owner.email.trim().to_string();
     match hours {
         None => {
@@ -441,7 +441,7 @@ pub fn apply_mailbox_hours(s: &mut Session, account: Id, hours: Option<&MailboxH
         }
         Some(hours) => {
             if !hours.email.trim().is_empty() && !hours.email.trim().eq_ignore_ascii_case(&email) {
-                return Err(fail(format!("these settings are for another account, not for {}", remote::who(owner))));
+                return Err(failed!("these settings are for another account, not for {who}", who = remote::who(owner)));
             }
             let tidy = hours.tidy().ok_or_else(|| bad("`workingHours` needs at least one day, and an end after the start on the same day"))?;
             s.prefs.mailbox_hours = Some(MailboxHours { email, ..tidy });
@@ -470,9 +470,9 @@ fn apply_settings_command(s: &mut Session, v: &Value) -> CmdResult {
     let stated = p::str(v, "email").unwrap_or("").trim().to_string();
     // Settings for another account (the mailbox was replaced while they were on their way) are
     // nobody's here.
-    let owner = s.mailbox.account(account).ok_or_else(|| fail(format!("no account with id {account}")))?;
+    let owner = s.mailbox.account(account).ok_or_else(|| failed!("no account with id {id}", id = account))?;
     if !stated.is_empty() && !owner.email.trim().eq_ignore_ascii_case(&stated) {
-        return Err(fail(format!("these settings are for another account, not for {}", remote::who(owner))));
+        return Err(failed!("these settings are for another account, not for {who}", who = remote::who(owner)));
     }
     let hours = match v.get("workingHours") {
         None => return Err(bad("`workingHours` is required (null for none)")),

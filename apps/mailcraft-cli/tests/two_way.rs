@@ -16,7 +16,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use fake::{Fake, FakeImap, FakeMailbox, FakeMessage, FakeSmtp, ImapWorld, SmtpWorld};
 use mailcraft_engine::Session;
 use mailcraft_engine::cmd::account::{SyncTotals, apply_sync, apply_sync_part, sync_request, unpushed};
-use mailcraft_model::{FlagStatus, FolderKind, Id, Mailbox};
+use mailcraft_model::{Account, FlagStatus, FolderKind, Id, Mailbox};
 use serde_json::{Value, json};
 
 const PASSWORD: &str = "hunter2";
@@ -589,4 +589,75 @@ fn gmail_archives_into_all_mail_and_deletes_for_good_through_the_trash() {
     assert_eq!(downloads(&r), 4);
     // Never a sweep of what other programs marked.
     assert!(!r.imap.world().log.iter().any(|line| line.ends_with(" EXPUNGE") || line.ends_with(" CLOSE")));
+}
+
+// ---- Messages to download per folder ----
+
+/// The Inbox of an account of this computer alone: a folder the server never hears of.
+fn kept_here(r: &mut Rig) -> Id {
+    let local = r.s.mailbox.add_account(Account { name: "On this computer".into(), ..Default::default() });
+    r.s.mailbox.folder_of_kind(local, FolderKind::Inbox).unwrap()
+}
+
+#[test]
+fn mail_moved_to_another_account_does_not_come_down_again() {
+    // Without a limit, and with one that leaves the oldest out.
+    for (limit, left) in [(0, 3), (3, 2)] {
+        let mut r = Rig::new(true, true);
+        r.run("file.options", json!({"syncLimit": limit}));
+        r.sync();
+        let (inbox, local, four) = (r.folder(FolderKind::Inbox), kept_here(&mut r), r.titled("Four"));
+        r.run("mail.move", json!({"ids": [four], "folder": local}));
+        for _ in 0..2 {
+            assert_eq!(r.sync()["new"].as_u64(), Some(0), "limit {limit}");
+        }
+        // The server still has it, and here it is in the other account's folder alone.
+        assert_eq!((r.server("INBOX").len(), r.s.mailbox.count(inbox)), (4, left), "limit {limit}");
+        assert_eq!(r.s.mailbox.message(r.titled("Four")).map(|m| m.folder), Some(local));
+    }
+}
+
+#[test]
+fn a_raised_limit_brings_the_older_mail_down_once() {
+    let mut r = Rig::new(true, true);
+    r.run("file.options", json!({"syncLimit": 2}));
+    r.sync();
+    let (inbox, local, four) = (r.folder(FolderKind::Inbox), kept_here(&mut r), r.titled("Four"));
+    assert_eq!(r.s.mailbox.count(inbox), 2);
+    // What a raised limit takes in is the older mail, not what left the folder here meanwhile.
+    r.run("mail.move", json!({"ids": [four], "folder": local}));
+    r.run("file.options", json!({"syncLimit": 3}));
+    assert_eq!(r.sync()["new"].as_u64(), Some(1));
+    r.titled("Two");
+    r.run("file.options", json!({"syncLimit": 0}));
+    assert_eq!(r.sync()["new"].as_u64(), Some(1));
+    r.titled("One");
+    // And it comes down once.
+    assert_eq!(r.sync()["new"].as_u64(), Some(0));
+    let mut here: Vec<String> = r.s.mailbox.messages_in(inbox).map(|m| m.subject.clone()).collect();
+    here.sort();
+    assert_eq!(here, ["One", "Three", "Two"]);
+    assert_eq!(r.s.mailbox.message(r.titled("Four")).map(|m| m.folder), Some(local));
+}
+
+/// A run called off while the older mail a raised limit lets in comes down: the next runs bring
+/// the rest, and nothing comes twice.
+#[test]
+fn older_mail_called_off_halfway_comes_down_with_the_next_run() {
+    let raised = || {
+        let mut r = Rig::new(true, true);
+        deliver(&r, 5..=124);
+        r.run("file.options", json!({"syncLimit": 2}));
+        r.sync();
+        assert_eq!(r.s.mailbox.count(r.folder(FolderKind::Inbox)), 2);
+        r.run("file.options", json!({"syncLimit": 0}));
+        r
+    };
+    let (_, lines) = raised().sync_in_pieces(usize::MAX, usize::MAX);
+    assert!(lines.iter().filter(|line| line.starts_with("Inbox: ")).count() >= 2, "{lines:?}");
+    for stop_at in 1..=lines.len() {
+        let mut r = raised();
+        r.sync_in_pieces(usize::MAX, stop_at);
+        r.settled();
+    }
 }

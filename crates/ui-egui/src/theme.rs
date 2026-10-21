@@ -926,6 +926,33 @@ mod tests {
         }
     }
 
+    /// Every character of every shipped catalogue (accents, ß, « » „ “ ¿ ¡, the narrow no-break
+    /// space French puts before a colon) has a glyph in every weight of the bundled fonts.
+    #[test]
+    fn the_catalogues_are_drawn_with_the_bundled_fonts() {
+        let catalogues = [
+            ("fr", include_str!("../../i18n/po/fr.po")),
+            ("de", include_str!("../../i18n/po/de.po")),
+            ("es", include_str!("../../i18n/po/es.po")),
+            ("it", include_str!("../../i18n/po/it.po")),
+        ];
+        let mut chars = BTreeSet::new();
+        for (code, text) in catalogues {
+            chars.extend(text.chars().filter(|c| !c.is_ascii() && !c.is_control()).map(|c| (c, code)));
+        }
+        assert!(chars.iter().any(|(c, _)| *c == '\u{202f}') && chars.iter().any(|(c, _)| *c == 'ß'));
+        let ctx = draws(super::font_definitions_with(&SystemFont::none()));
+        ctx.run_ui(egui::RawInput::default(), |ui| {
+            for font in [super::regular(12.0), super::medium(12.0), super::semibold(12.0), super::bold(12.0)] {
+                let missing: Vec<String> = ui.fonts_mut(|f| {
+                    chars.iter().filter(|(c, _)| !f.has_glyph(&font, *c)).map(|(c, code)| format!("{c} U+{:04X} in {code}.po", *c as u32)).collect()
+                });
+                assert!(missing.is_empty(), "{font:?}: {missing:#?}");
+            }
+        })
+        .drop_without_applying_deltas();
+    }
+
     fn symbols_have_glyphs(fonts: egui::FontDefinitions) {
         let ctx = egui::Context::default();
         ctx.set_fonts(fonts);

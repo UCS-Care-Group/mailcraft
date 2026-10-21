@@ -77,7 +77,7 @@ fn has_shared(s: &Session) -> Option<&'static str> {
 /// Microsoft account that is no shared mailbox itself.
 fn owner(s: &Session, v: &Value) -> Result<Id, CmdError> {
     match p::id(v, "account") {
-        Some(id) => s.mailbox.account(id).map(|a| a.id).ok_or_else(|| fail(format!("no account with id {id}"))),
+        Some(id) => s.mailbox.account(id).map(|a| a.id).ok_or_else(|| failed!("no account with id {id}", id)),
         None => s
             .mailbox
             .accounts
@@ -124,13 +124,13 @@ fn remove(s: &mut Session, v: &Value) -> CmdResult {
                 .iter()
                 .find(|a| a.is_shared() && a.email.trim().eq_ignore_ascii_case(&address) && under.is_none_or(|o| a.shared_of == Some(o)))
                 .map(|a| a.id)
-                .ok_or_else(|| fail(format!("no shared mailbox {address} is open")))?
+                .ok_or_else(|| failed!("no shared mailbox {address} is open", address))?
         }
         (None, None) => return Err(bad("name the shared mailbox: `id`, or `address`")),
     };
-    let account = s.mailbox.account(id).ok_or_else(|| fail(format!("no account with id {id}")))?;
+    let account = s.mailbox.account(id).ok_or_else(|| failed!("no account with id {id}", id))?;
     if !account.is_shared() {
-        return Err(fail(format!("{} isn't a shared mailbox: remove it with account.remove", account.name)));
+        return Err(failed!("{name} isn't a shared mailbox: remove it with account.remove", name = account.name));
     }
     s.mailbox.remove_account(id)?;
     if s.mailbox.folder(s.view.folder).is_none() {

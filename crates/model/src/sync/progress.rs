@@ -3,6 +3,7 @@
 //! How far a Send/Receive has got, as numbers: what a host's line for the status bar is made of,
 //! and what the engine keeps per account while a run goes on (#120).
 
+use mailcraft_i18n::{Lang, fmt};
 use serde::{Deserialize, Serialize};
 
 /// What part of a run an account is in, as the owner is told it.
@@ -82,18 +83,25 @@ impl SyncStep {
 
     /// The step in one short line, for a status bar (`Inbox: 150 of 500`).
     pub fn line(&self) -> String {
-        let (folder, done, total) = (shown(&self.folder), self.done, self.total);
-        match self.stage {
-            SyncStage::Sending if done == 0 => format!("Sending {total} message{}", if total == 1 { "" } else { "s" }),
-            SyncStage::Sending => format!("Sent {done} of {total}"),
-            SyncStage::Connecting => "Connecting to the mail server".into(),
-            SyncStage::Updating => format!("Updated {folder} on the server"),
-            SyncStage::Listed if total == 1 => "Found 1 folder".into(),
-            SyncStage::Listed => format!("Found {total} folders"),
-            SyncStage::Filing => "Keeping a copy of what was sent".into(),
-            SyncStage::Checking => format!("Checking {folder} ({done} of {total})"),
-            SyncStage::Reading => format!("{folder}: {done} of {total}"),
-        }
+        self.line_in(Lang::English)
+    }
+
+    /// [`line`](Self::line) in `lang`.
+    pub fn line_in(&self, lang: Lang) -> String {
+        let folder = shown(&self.folder);
+        let (done, total) = (self.done.to_string(), self.total.to_string());
+        let values = [("folder", folder.as_str()), ("done", done.as_str()), ("total", total.as_str()), ("n", total.as_str())];
+        let template = match self.stage {
+            SyncStage::Sending if self.done == 0 => lang.tn(u64::from(self.total), "Sending {n} message", "Sending {n} messages"),
+            SyncStage::Sending => lang.t("Sent {done} of {total}"),
+            SyncStage::Connecting => lang.t("Connecting to the mail server"),
+            SyncStage::Updating => lang.t("Updated {folder} on the server"),
+            SyncStage::Listed => lang.tn(u64::from(self.total), "Found {n} folder", "Found {n} folders"),
+            SyncStage::Filing => lang.t("Keeping a copy of what was sent"),
+            SyncStage::Checking => lang.t("Checking {folder} ({done} of {total})"),
+            SyncStage::Reading => lang.t("{folder}: {done} of {total}"),
+        };
+        fmt(template, &values)
     }
 }
 
@@ -129,5 +137,14 @@ mod tests {
         assert_eq!(json, r#"{"stage":"reading","folder":"Inbox","done":2,"total":4}"#);
         assert_eq!(SyncStage::Updating.phase(), SyncPhase::Folders);
         assert_eq!(SyncStage::Checking.phase().label(), "New mail");
+        let fr = mailcraft_i18n::test_support::po(&[
+            ("Found {n} folder", "{n} dossier trouvé"),
+            ("{folder}: {done} of {total}", "{folder} : {done} sur {total}"),
+        ]);
+        mailcraft_i18n::test_support::with_catalogue(Lang::French, &fr, || {
+            assert_eq!(SyncStep::new(SyncStage::Listed, "", 0, 1).line_in(Lang::French), "1 dossier trouvé");
+            assert_eq!(SyncStep::new(SyncStage::Reading, "Inbox", 2, 4).line_in(Lang::French), "Inbox : 2 sur 4");
+            assert_eq!(SyncStep::new(SyncStage::Listed, "", 0, 2).line(), "Found 2 folders");
+        });
     }
 }

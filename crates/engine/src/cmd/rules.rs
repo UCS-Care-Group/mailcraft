@@ -48,7 +48,7 @@ fn action(s: &Session, v: &Value) -> Result<Action, CmdError> {
     Ok(match p::req_str(v, "type")? {
         "moveTo" => {
             let folder = p::req_id(v, "value")?;
-            Action::MoveTo(s.mailbox.folder(folder).map(|f| f.id).ok_or_else(|| fail(format!("no folder with id {folder}")))?)
+            Action::MoveTo(s.mailbox.folder(folder).map(|f| f.id).ok_or_else(|| failed!("no folder with id {id}", id = folder))?)
         }
         "categorize" => Action::Categorize(clean_name(p::str(v, "value").unwrap_or("")).ok_or_else(|| bad("categorize needs a category name"))?),
         "flag" => Action::Flag,
@@ -95,14 +95,14 @@ fn remove(s: &mut Session, v: &Value) -> CmdResult {
     let before = s.mailbox.rules.len();
     s.mailbox.rules.retain(|r| r.id != id);
     if s.mailbox.rules.len() == before {
-        return Err(fail(format!("no rule with id {id}")));
+        return Err(failed!("no rule with id {id}", id));
     }
     Ok(json!({"deleted": id}))
 }
 
 fn enable(s: &mut Session, v: &Value) -> CmdResult {
     let id = p::req_id(v, "id")?;
-    let r = s.mailbox.rules.iter_mut().find(|r| r.id == id).ok_or_else(|| fail(format!("no rule with id {id}")))?;
+    let r = s.mailbox.rules.iter_mut().find(|r| r.id == id).ok_or_else(|| failed!("no rule with id {id}", id))?;
     r.enabled = p::bool(v, "value").unwrap_or(!r.enabled);
     Ok(json!({"id": id, "enabled": r.enabled}))
 }
@@ -136,7 +136,7 @@ fn run_on(s: &mut Session, folder: Id) -> usize {
 fn run(s: &mut Session, v: &Value) -> CmdResult {
     let folder = p::id(v, "folder").unwrap_or(s.view.folder);
     if s.mailbox.folder(folder).is_none() {
-        return Err(fail(format!("no folder with id {folder}")));
+        return Err(failed!("no folder with id {id}", id = folder));
     }
     let matched = run_on(s, folder);
     Ok(json!({"matched": matched}))
@@ -144,9 +144,9 @@ fn run(s: &mut Session, v: &Value) -> CmdResult {
 
 fn from_message(s: &mut Session, v: &Value) -> CmdResult {
     let folder = p::req_id(v, "folder")?;
-    let target = s.mailbox.folder(folder).map(|f| f.name.clone()).ok_or_else(|| fail(format!("no folder with id {folder}")))?;
+    let target = s.mailbox.folder(folder).map(|f| f.name.clone()).ok_or_else(|| failed!("no folder with id {id}", id = folder))?;
     let mid = p::id(v, "id").or(s.sel.focus()).ok_or_else(|| fail("select a message first"))?;
-    let m = s.mailbox.message(mid).ok_or_else(|| fail(format!("no message with id {mid}")))?;
+    let m = s.mailbox.message(mid).ok_or_else(|| failed!("no message with id {id}", id = mid))?;
     let (from, source) = (m.from.clone(), m.folder);
     if from.email.trim().is_empty() {
         return Err(fail("the sender has no address to match"));

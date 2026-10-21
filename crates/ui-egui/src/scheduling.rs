@@ -23,7 +23,7 @@ use egui::{Align2, Color32, CursorIcon, Rect, Sense, Stroke, Ui, pos2, vec2};
 use mailcraft_model::remote::{FreeBusy, FreeBusyAsk, MAX_SCHEDULES};
 use mailcraft_model::sync::Tokens as SignIn;
 use mailcraft_model::{Address, Id, ShowAs};
-use mailcraft_time::{Date, DateTime, time_short};
+use mailcraft_time::{Date, DateTime};
 use serde_json::{Value, json};
 
 use crate::theme::{Tokens, paint_clipped, regular, semibold};
@@ -768,7 +768,7 @@ pub(crate) fn show(app: &mut MailApp, ui: &mut Ui, view: &mut View, meeting: &Me
             for hour in 0..24u8 {
                 let x = x_of(f32::from(hour) * 60.0);
                 if x + 60.0 >= head.min.x && x <= head.max.x {
-                    hours.text(pos2(x + 5.0, head.center().y), Align2::LEFT_CENTER, time_short(hour, 0, twelve), regular(11.5), t.text_dim);
+                    hours.text(pos2(x + 5.0, head.center().y), Align2::LEFT_CENTER, crate::dates::time(hour, 0, twelve), regular(11.5), t.text_dim);
                 }
             }
             // The names, over the grid as it scrolls under them.
@@ -808,7 +808,7 @@ pub(crate) fn show(app: &mut MailApp, ui: &mut Ui, view: &mut View, meeting: &Me
             top.rect_filled(corner, 0.0, t.panel);
             top.line_segment([corner.left_bottom(), corner.right_bottom()], Stroke::new(1.0, t.border_strong));
             top.line_segment([corner.right_top(), corner.right_bottom()], Stroke::new(1.0, t.border_strong));
-            let day = format!("{}, {}", tl!(meeting.day.weekday().short()), meeting.day.medium());
+            let day = crate::dates::weekday_medium(meeting.day);
             paint_clipped(&top, pos2(corner.min.x + 10.0, corner.center().y), NAME_W - 16.0, &day, semibold(12.0), t.text);
         });
     });

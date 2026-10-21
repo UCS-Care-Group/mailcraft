@@ -48,7 +48,7 @@ fn settle(s: &Session) -> Result<(), crate::CmdError> {
             && crate::store::followed(path)
         {
             crate::store::save_within(path, &s.mailbox, SETTLE_WAIT)
-                .map_err(|e| fail(format!("the mailbox couldn't be saved first, so it stays open ({e})")))?;
+                .map_err(|e| failed!("the mailbox couldn't be saved first, so it stays open ({e})", e))?;
         }
     }
     Ok(())
@@ -90,7 +90,7 @@ fn read(v: &Value) -> Result<(Mailbox, Left), crate::CmdError> {
             && let Some(path) = p::str(v, "path")
         {
             if Format::from_extension(path).is_some_and(|f| f != Format::Mailbox) {
-                return Err(fail(format!("{path} isn't a mailbox; bring it in with File › Import")));
+                return Err(failed!("{path} isn't a mailbox; bring it in with File › Import", path));
             }
             let opened = crate::store::open(std::path::Path::new(path)).map_err(fail)?;
             let left = Left {
@@ -106,8 +106,8 @@ fn read(v: &Value) -> Result<(Mailbox, Left), crate::CmdError> {
     let (name, bytes) = source(v)?;
     match Format::detect(&name, &bytes) {
         Some(Format::Mailbox) => {}
-        Some(_) => return Err(fail(format!("{name} isn't a mailbox; bring it in with File › Import"))),
-        None => return Err(fail(format!("{name} isn't a MailCraft mailbox"))),
+        Some(_) => return Err(failed!("{name} isn't a mailbox; bring it in with File › Import", name)),
+        None => return Err(failed!("{name} isn't a MailCraft mailbox", name)),
     }
     Ok((crate::io::read_mailbox(&bytes).map_err(fail)?, Left::default()))
 }
@@ -217,7 +217,7 @@ fn import(s: &mut Session, v: &Value) -> CmdResult {
 fn export_message(s: &mut Session, v: &Value) -> CmdResult {
     let id = p::id(v, "id").or(s.sel.focus()).ok_or_else(|| fail("select a message first"))?;
     if s.mailbox.message(id).is_none() {
-        return Err(fail(format!("no message with id {id}")));
+        return Err(failed!("no message with id {id}", id));
     }
     // Whole: what the mailbox keeps outside memory goes into the file.
     let m = s.loaded_message(id)?;
@@ -229,7 +229,7 @@ fn export_message(s: &mut Session, v: &Value) -> CmdResult {
 
 fn export_folder(s: &mut Session, v: &Value) -> CmdResult {
     let id = p::id(v, "id").unwrap_or(s.view.folder);
-    let folder = s.mailbox.folder(id).ok_or_else(|| fail(format!("no folder with id {id}")))?;
+    let folder = s.mailbox.folder(id).ok_or_else(|| failed!("no folder with id {id}", id))?;
     // Each message whole: what the mailbox keeps outside memory goes into the file.
     let mut whole: Vec<std::sync::Arc<mailcraft_model::Message>> = Vec::new();
     for m in s.mailbox.messages_in(id) {
@@ -256,7 +256,7 @@ fn export_calendar(s: &mut Session, v: &Value) -> CmdResult {
     // wherever it is. (Floating, as before, when the system can't say which zone this is.)
     let zone = Some(s.zone());
     if let Some(id) = p::id(v, "id") {
-        let e = s.mailbox.event(id).ok_or_else(|| fail(format!("no event with id {id}")))?;
+        let e = s.mailbox.event(id).ok_or_else(|| failed!("no event with id {id}", id))?;
         let text = mailcraft_ical::write_in(&[e], &[], &opts, zone);
         return deliver(v, &export_name(if e.title.is_empty() { "event" } else { &e.title }, "ics"), text.into_bytes());
     }
@@ -264,7 +264,7 @@ fn export_calendar(s: &mut Session, v: &Value) -> CmdResult {
     if let Some(c) = calendar
         && s.mailbox.calendar(c).is_none()
     {
-        return Err(fail(format!("no calendar with id {c}")));
+        return Err(failed!("no calendar with id {id}", id = c));
     }
     let events: Vec<&mailcraft_model::Event> =
         s.mailbox.events.values().map(|e| e.as_ref()).filter(|e| calendar.is_none_or(|c| e.calendar == c)).collect();
@@ -318,10 +318,10 @@ fn weekday(text: &str) -> Result<Weekday, crate::CmdError> {
 fn options(s: &mut Session, v: &Value) -> CmdResult {
     let mut prefs = s.prefs.clone();
     if let Some(b) = p::bool(v, "twelveHour") {
-        prefs.twelve_hour = b;
+        (prefs.twelve_hour, prefs.clock_chosen) = (b, Some(true));
     }
     if let Some(d) = p::str(v, "weekStart") {
-        prefs.week_start = weekday(d)?;
+        (prefs.week_start, prefs.week_start_chosen) = (weekday(d)?, Some(true));
     }
     if let Some(days) = p::strings(v, "workDays") {
         let mut list = days.iter().map(|d| weekday(d)).collect::<Result<Vec<_>, _>>()?;

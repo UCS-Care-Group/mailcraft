@@ -688,6 +688,7 @@ fn a_sync_result_lands_in_the_right_folders() {
             kind: FolderKind::Inbox,
             uid_validity: 7,
             uid_seen: 13,
+            uid_from: 0,
             new: vec![mail(12, "Two again"), mail(13, "Three")],
             flags: vec![RemoteFlags { uid: 12, read: true, flagged: true, ..Default::default() }],
             removed: vec![11],
@@ -802,7 +803,7 @@ mod two_way {
     /// What a run read in one server mailbox: its new messages, and the flags of the ones known.
     fn news(id: Option<Id>, remote: &str, kind: FolderKind, uid_validity: u32, new: Vec<Message>, flags: Vec<RemoteFlags>) -> FolderDelta {
         let uid_seen = new.iter().map(|m| m.uid).chain(flags.iter().map(|f| f.uid)).max().unwrap_or(0);
-        FolderDelta { id, remote: remote.into(), kind, uid_validity, uid_seen, new, flags, removed: Vec::new() }
+        FolderDelta { id, remote: remote.into(), kind, uid_validity, uid_seen, new, flags, ..Default::default() }
     }
 
     fn has(uid: u32, read: bool, flagged: bool) -> RemoteFlags {
@@ -1033,7 +1034,8 @@ mod two_way {
                 RemoteOp::Move { message: two, from: "INBOX".into(), uid: 2, to: "Archive".into(), to_folder: archive, create: vec![] },
             ]
         );
-        assert_eq!((known(&req, inbox), known(&req, archive)), (vec![1, 3], vec![1]));
+        // Until it has, the server has it in INBOX: known there, so that it doesn't come down again.
+        assert_eq!((known(&req, inbox), known(&req, archive)), (vec![1, 2, 3], vec![1]));
 
         // The server did both, and said where the message is now.
         let done = SyncResult {
@@ -1234,7 +1236,8 @@ mod two_way {
             RemoteOp::Delete { from: "INBOX".into(), uid: 3 },
         ];
         assert_eq!((request(&s, a).ops, unpushed(&s, a)), (gone.to_vec(), 3));
-        assert_eq!(known(&request(&s, a), inbox), Vec::<u32>::new());
+        // Known where the server still has them, so that they don't come down again.
+        assert_eq!(known(&request(&s, a), inbox), vec![2, 3]);
 
         // Two go through; the third is refused. It waits, and nothing comes back.
         let partly = SyncResult {
@@ -1602,7 +1605,7 @@ mod two_way {
                 RemoteOp::Move { message: report, from: "INBOX".into(), uid: 4, to: "Archive".into(), to_folder: archive, create: vec![] },
             ]
         );
-        assert_eq!(known(&request(&s, a), inbox), vec![1, 2, 3, 5]);
+        assert_eq!(known(&request(&s, a), inbox), vec![1, 2, 3, 4, 5]);
 
         // The same on the very first run, when the Inbox only starts to follow its mailbox.
         let mut s = session();
@@ -2153,7 +2156,7 @@ fn a_panicking_command_is_contained() {
     std::panic::set_hook(Box::new(|_| {}));
     let r = s.run("test.boom", &json!({}));
     std::panic::set_hook(hook);
-    assert!(matches!(r, Err(CmdError::Failed(_))));
+    assert!(matches!(r, Err(CmdError::Failed(_) | CmdError::Said(_))));
     assert!(s.mailbox == before && !s.can_undo());
     // The session still works.
     assert!(s.run("mail.next", &json!({})).is_ok());

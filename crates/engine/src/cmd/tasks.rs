@@ -38,7 +38,7 @@ fn needs_task(s: &Session) -> Option<&'static str> {
 
 fn target(s: &Session, v: &Value) -> Result<Id, CmdError> {
     let id = p::id(v, "id").or(s.sel.task).ok_or_else(|| fail("select a task first"))?;
-    s.mailbox.task(id).map(|t| t.id).ok_or_else(|| fail(format!("no task with id {id}")))
+    s.mailbox.task(id).map(|t| t.id).ok_or_else(|| failed!("no task with id {id}", id))
 }
 
 fn apply(s: &Session, t: &mut Task, v: &Value) -> Result<(), CmdError> {
@@ -117,7 +117,7 @@ fn complete(s: &mut Session, v: &Value) -> CmdResult {
 
 fn select(s: &mut Session, v: &Value) -> CmdResult {
     s.sel.task = match p::id(v, "id") {
-        Some(id) => Some(s.mailbox.task(id).map(|t| t.id).ok_or_else(|| fail(format!("no task with id {id}")))?),
+        Some(id) => Some(s.mailbox.task(id).map(|t| t.id).ok_or_else(|| failed!("no task with id {id}", id))?),
         None => None,
     };
     done()
@@ -191,7 +191,7 @@ fn categorize(s: &mut Session, v: &Value) -> CmdResult {
 fn from_message(s: &mut Session, v: &Value) -> CmdResult {
     let mid = p::id(v, "id").or(s.sel.focus()).ok_or_else(|| fail("select a message first"))?;
     let due = p::date(v, "due")?;
-    let m = s.mailbox.message(mid).ok_or_else(|| fail(format!("no message with id {mid}")))?;
+    let m = s.mailbox.message(mid).ok_or_else(|| failed!("no message with id {id}", id = mid))?;
     // One to-do per message.
     if let Some(existing) = s.mailbox.tasks.values().find(|t| t.message == Some(mid)).map(|t| t.id) {
         s.sel.task = Some(existing);

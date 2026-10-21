@@ -52,9 +52,9 @@ fn account_of(s: &Session, v: &Value, required: bool) -> Result<Option<Id>, crat
         None | Some(Value::Null) if !required => return Ok(None),
         _ => p::req_id(v, "account")?,
     };
-    let a = s.mailbox.account(id).ok_or_else(|| fail(format!("no account with id {id}")))?;
+    let a = s.mailbox.account(id).ok_or_else(|| failed!("no account with id {id}", id))?;
     if a.kind != AccountKind::Microsoft {
-        return Err(fail(format!("{} isn't kept in step through Microsoft Graph", a.name)));
+        return Err(failed!("{name} isn't kept in step through Microsoft Graph", name = a.name));
     }
     if a.is_shared() {
         return Err(fail("a shared mailbox keeps as much mail offline as the account it is opened through: name that account"));

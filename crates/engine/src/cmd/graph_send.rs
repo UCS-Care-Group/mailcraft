@@ -65,14 +65,17 @@ pub fn waiting(mb: &Mailbox, account: Id) -> usize {
 
 /// Take in what became of one message sent. Whether anything changed; a line for the owner when
 /// it is held.
-pub fn send_done(mb: &mut Mailbox, account: Id, done: &SendDone, said: &mut Vec<String>) -> bool {
+pub fn send_done(mb: &mut Mailbox, account: Id, done: &SendDone, lang: mailcraft_i18n::Lang, said: &mut Vec<String>) -> bool {
     let mut changed = false;
     if let Some(draft) = &done.draft {
-        changed |= super::graph_drafts::draft_done(mb, account, draft, said);
+        changed |= super::graph_drafts::draft_done(mb, account, draft, lang, said);
     }
     let Some(m) = mb.message(done.message).filter(|m| m.account == account) else { return changed };
     let subject: String = m.subject.chars().filter(|c| !c.is_control()).take(60).collect();
-    let subject = if subject.trim().is_empty() { "(no subject)".to_string() } else { subject };
+    let subject = if subject.trim().is_empty() { lang.t("(no subject)").to_string() } else { subject };
+    let couldnt = |why: &str| {
+        mailcraft_i18n::fmt(lang.t("Couldn't send '{subject}': {why}. It is held in the Outbox."), &[("subject", &subject), ("why", why)])
+    };
     match &done.outcome {
         SendOutcome::Waits => changed,
         // Gone: the server files it in Sent Items, and that copy comes down. What it answers or
@@ -85,7 +88,7 @@ pub fn send_done(mb: &mut Mailbox, account: Id, done: &SendDone, said: &mut Vec<
         // with its address where the message is read, and never sent from another.
         SendOutcome::Held { lost: false, why } if why == SEND_AS_DENIED => {
             let address = mb.account(account).map(|a| a.email.trim().to_string()).unwrap_or_default();
-            said.push(format!("Couldn't send '{subject}': {why}. It is held in the Outbox."));
+            said.push(couldnt(why));
             if let Ok(m) = mb.message_mut(done.message) {
                 m.held = format!(
                     "It wasn't sent: you don't have permission to send as {address}. Nothing was sent from another address. Your organisation's administrator gives Send As or Send on Behalf permission; then send it again."
@@ -100,9 +103,9 @@ pub fn send_done(mb: &mut Mailbox, account: Id, done: &SendDone, said: &mut Vec<
                 format!("It wasn't sent: {why}. Change it, or send it again.")
             };
             said.push(if *lost {
-                format!("'{subject}' may have been sent: look in Sent Items. It is held in the Outbox.")
+                mailcraft_i18n::fmt(lang.t("'{subject}' may have been sent: look in Sent Items. It is held in the Outbox."), &[("subject", &subject)])
             } else {
-                format!("Couldn't send '{subject}': {why}. It is held in the Outbox.")
+                couldnt(why)
             });
             if let Ok(m) = mb.message_mut(done.message) {
                 m.held = held;
@@ -124,9 +127,9 @@ fn hold_reason(code: &str) -> Option<&'static str> {
 
 fn hold_sends(s: &mut Session, v: &Value) -> CmdResult {
     let account = p::id(v, "account").ok_or_else(|| bad("`account` is required"))?;
-    let a = s.mailbox.account(account).ok_or_else(|| fail(format!("no account with id {account}")))?;
+    let a = s.mailbox.account(account).ok_or_else(|| failed!("no account with id {id}", id = account))?;
     if !a.is_shared() {
-        return Err(fail(format!("{} isn't a shared mailbox", a.name)));
+        return Err(failed!("{name} isn't a shared mailbox", name = a.name));
     }
     let why = p::str(v, "why").and_then(hold_reason).ok_or_else(|| bad("`why` is declined, approval or organisation"))?;
     let Some(outbox) = s.mailbox.folder_of_kind(account, FolderKind::Outbox) else { return Ok(json!({"held": []})) };
@@ -134,7 +137,7 @@ fn hold_sends(s: &mut Session, v: &Value) -> CmdResult {
     let mut said = Vec::new();
     for id in &waiting {
         let done = SendDone { message: *id, outcome: SendOutcome::Held { lost: false, why: why.to_string() }, draft: None };
-        send_done(&mut s.mailbox, account, &done, &mut said);
+        send_done(&mut s.mailbox, account, &done, s.interface_language, &mut said);
     }
     if let Some(first) = said.first() {
         s.sync_status = first.clone();
@@ -145,7 +148,7 @@ fn hold_sends(s: &mut Session, v: &Value) -> CmdResult {
 
 fn send_again(s: &mut Session, v: &Value) -> CmdResult {
     let id = p::id(v, "id").or(s.sel.focus()).ok_or_else(|| bad("select a message first"))?;
-    let m = s.mailbox.message(id).ok_or_else(|| fail(format!("no message with id {id}")))?;
+    let m = s.mailbox.message(id).ok_or_else(|| failed!("no message with id {id}", id))?;
     if m.held.is_empty() {
         return Err(fail("that message isn't held"));
     }

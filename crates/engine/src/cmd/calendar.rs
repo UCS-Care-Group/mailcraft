@@ -83,7 +83,7 @@ fn needs_event(s: &Session) -> Option<&'static str> {
 
 fn target(s: &Session, v: &Value) -> Result<Id, CmdError> {
     let id = p::id(v, "id").or(s.sel.event).ok_or_else(|| fail("select an appointment first"))?;
-    s.mailbox.event(id).map(|e| e.id).ok_or_else(|| fail(format!("no event with id {id}")))
+    s.mailbox.event(id).map(|e| e.id).ok_or_else(|| failed!("no event with id {id}", id))
 }
 
 /// [`target`] for a command that changes or deletes the event: the event as it is before, which
@@ -277,7 +277,7 @@ fn parse_attendees(text: &str, optional: bool) -> Result<Vec<Attendee>, CmdError
             if address.is_valid() {
                 Ok(Attendee { address, optional, response: Response::None })
             } else {
-                Err(fail(format!("\"{}\" isn't an e-mail address", address.email)))
+                Err(failed!("\"{address}\" isn't an e-mail address", address = address.email))
             }
         })
         .collect()
@@ -379,7 +379,7 @@ fn apply(s: &Session, e: &mut Event, v: &Value) -> Result<(), CmdError> {
         e.private = b;
     }
     if let Some(c) = p::id(v, "calendar") {
-        let calendar = s.mailbox.calendar(c).ok_or_else(|| fail(format!("no calendar with id {c}")))?;
+        let calendar = s.mailbox.calendar(c).ok_or_else(|| failed!("no calendar with id {id}", id = c))?;
         e.calendar = calendar.id;
     }
     meeting::apply(e, v)
@@ -472,17 +472,17 @@ fn may_change(s: &Session, v: &Value, before: &Event, e: &Event) -> Result<bool,
     let fields = remote::changed_fields(before, e, &remote::offset_of(s));
     if before.origin.guest {
         let why = if fields.attendees.is_some() {
-            "Who is invited is for its organizer to say."
+            mailcraft_i18n::Arg::words("Who is invited is for its organizer to say.")
         } else if fields.repeat.is_some() {
-            "How it repeats is for its organizer to say."
+            mailcraft_i18n::Arg::words("How it repeats is for its organizer to say.")
         } else if fields.online.is_some() {
-            "Whether it is held online is for its organizer to say."
+            mailcraft_i18n::Arg::words("Whether it is held online is for its organizer to say.")
         } else if fields.request_responses.is_some() || fields.allow_proposals.is_some() {
-            "What the people invited are asked for is for its organizer to say."
+            mailcraft_i18n::Arg::words("What the people invited are asked for is for its organizer to say.")
         } else {
             return Ok(false);
         };
-        return Err(fail(format!("This meeting is kept by the server of {who}, and somebody else organizes it. {why}")));
+        return Err(failed!("This meeting is kept by the server of {who}, and somebody else organizes it. {why}", who, why));
     }
     // Those invited before and those invited now: whoever is dropped hears of it too.
     let people = if remote::seen_by_others(&fields) { before.attendees.len().max(e.attendees.len()) } else { 0 };
@@ -495,7 +495,7 @@ fn may_change(s: &Session, v: &Value, before: &Event, e: &Event) -> Result<bool,
 /// title), on its own day.
 fn change_one(s: &mut Session, v: &Value, series: &Event, day: Date, changed: Event) -> CmdResult {
     if !happens_on(s, series, day) {
-        return Err(fail(format!("the series doesn't happen on {}", day.iso())));
+        return Err(failed!("the series doesn't happen on {date}", date = day.iso()));
     }
     if series.exceptions.len() >= 5000 {
         return Err(fail("this series has too many changed days"));
@@ -711,7 +711,7 @@ fn delete(s: &mut Session, v: &Value) -> CmdResult {
             return Ok(json!({"id": id, "occurrence": day.iso()}));
         }
         if !happens_on(s, &before, day) {
-            return Err(fail(format!("the series doesn't happen on {}", day.iso())));
+            return Err(failed!("the series doesn't happen on {date}", date = day.iso()));
         }
         if before.exceptions.len() >= 5000 {
             return Err(fail("this series has too many cancelled days"));
@@ -751,7 +751,7 @@ fn delete(s: &mut Session, v: &Value) -> CmdResult {
 fn select(s: &mut Session, v: &Value) -> CmdResult {
     match p::id(v, "id") {
         Some(id) => {
-            let e = s.mailbox.event(id).ok_or_else(|| fail(format!("no event with id {id}")))?;
+            let e = s.mailbox.event(id).ok_or_else(|| failed!("no event with id {id}", id))?;
             s.sel.event_day = p::date(v, "day")?.or(Some(e.start.date));
             s.sel.event = Some(id);
         }
@@ -845,7 +845,7 @@ fn respond(s: &mut Session, v: &Value) -> CmdResult {
             return Err(fail("You organize this meeting, so there is nobody to send an answer to."));
         }
         if before.origin.id.is_empty() {
-            return Err(fail(format!("This meeting hasn't reached the server of {who} yet.")));
+            return Err(failed!("This meeting hasn't reached the server of {who} yet.", who));
         }
         writable(s, before.calendar)?;
         let (send, note) = (p::bool(v, "send") == Some(true), comment(v));
@@ -854,7 +854,7 @@ fn respond(s: &mut Session, v: &Value) -> CmdResult {
         match part(s, &before, v)? {
             Part::One(day) => {
                 if !happens_on(s, &before, day) {
-                    return Err(fail(format!("the series doesn't happen on {}", day.iso())));
+                    return Err(failed!("the series doesn't happen on {date}", date = day.iso()));
                 }
                 // Declined, that day is out of the calendar; otherwise the server makes the
                 // occurrence an event of its own with the answer, which the next download brings.
@@ -964,7 +964,7 @@ fn categorize(s: &mut Session, v: &Value) -> CmdResult {
 fn from_message(s: &mut Session, v: &Value) -> CmdResult {
     let mid = p::id(v, "id").or(s.sel.focus()).ok_or_else(|| fail("select a message first"))?;
     if s.mailbox.message(mid).is_none() {
-        return Err(fail(format!("no message with id {mid}")));
+        return Err(failed!("no message with id {id}", id = mid));
     }
     // Its text goes into the meeting: from where the mailbox keeps it when it isn't in memory.
     let m = s.loaded_message_where(mid, |_| false)?;
@@ -1001,7 +1001,7 @@ fn from_message(s: &mut Session, v: &Value) -> CmdResult {
 fn add_calendar(s: &mut Session, v: &Value) -> CmdResult {
     let name = clean_name(p::req_str(v, "name")?).ok_or_else(|| bad("`name` is empty"))?;
     if s.mailbox.calendars.iter().any(|c| c.name.eq_ignore_ascii_case(&name)) {
-        return Err(fail(format!("a calendar named \"{name}\" already exists")));
+        return Err(failed!("a calendar named \"{name}\" already exists", name));
     }
     if s.mailbox.calendars.len() >= 200 {
         return Err(fail("there are too many calendars"));
@@ -1017,7 +1017,7 @@ fn add_calendar(s: &mut Session, v: &Value) -> CmdResult {
 
 fn remove_calendar(s: &mut Session, v: &Value) -> CmdResult {
     let id = p::req_id(v, "id")?;
-    let Some(calendar) = s.mailbox.calendar(id) else { return Err(fail(format!("no calendar with id {id}"))) };
+    let Some(calendar) = s.mailbox.calendar(id) else { return Err(failed!("no calendar with id {id}", id)) };
     // A calendar that a server keeps would be back with the next download, its events with it.
     super::remote::changeable(&s.mailbox, &calendar.origin, "calendar")?;
     // One calendar of the mailbox's own stays, for new events to go in.
@@ -1046,7 +1046,7 @@ fn move_to_account(s: &mut Session, v: &Value) -> CmdResult {
     let from: Vec<Id> = match p::id(v, "calendar") {
         Some(calendar) if own(s, calendar) => vec![calendar],
         Some(calendar) if s.mailbox.calendar(calendar).is_some() => return Err(fail("That calendar is kept by an account's server already.")),
-        Some(calendar) => return Err(fail(format!("no calendar with id {calendar}"))),
+        Some(calendar) => return Err(failed!("no calendar with id {id}", id = calendar)),
         None => s.mailbox.calendars.iter().filter(|c| remote::keeper(&s.mailbox, &c.origin).is_none()).map(|c| c.id).collect(),
     };
     let ids: Vec<Id> = s.mailbox.events.values().filter(|e| from.contains(&e.calendar)).map(|e| e.id).take(10_000).collect();
@@ -1119,7 +1119,7 @@ fn set_current(s: &mut Session, v: &Value) -> CmdResult {
         None | Some(Value::Null) => 0,
         Some(_) => {
             let id = p::req_id(v, "id")?;
-            s.mailbox.calendar(id).map(|c| c.id).ok_or_else(|| fail(format!("no calendar with id {id}")))?
+            s.mailbox.calendar(id).map(|c| c.id).ok_or_else(|| failed!("no calendar with id {id}", id))?
         }
     };
     Ok(json!({"id": current_calendar(s)}))
@@ -1128,7 +1128,7 @@ fn set_current(s: &mut Session, v: &Value) -> CmdResult {
 fn show_calendar(s: &mut Session, v: &Value) -> CmdResult {
     let id = p::req_id(v, "id")?;
     let value = p::bool(v, "value");
-    let c = s.mailbox.calendars.iter_mut().find(|c| c.id == id).ok_or_else(|| fail(format!("no calendar with id {id}")))?;
+    let c = s.mailbox.calendars.iter_mut().find(|c| c.id == id).ok_or_else(|| failed!("no calendar with id {id}", id))?;
     c.visible = value.unwrap_or(!c.visible);
     Ok(json!({"id": id, "visible": c.visible}))
 }
