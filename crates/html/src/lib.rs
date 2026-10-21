@@ -93,6 +93,85 @@ pub enum Length {
     Percent(u8),
 }
 
+/// The most a message can ask for as padding or margin on a side, in CSS pixels.
+pub const MAX_BOX_PX: u8 = 64;
+
+/// The thickest line a message can ask for round a box, in CSS pixels (a thinner one than a
+/// pixel is a pixel).
+pub const MAX_LINE_PX: u8 = 4;
+
+/// The roundest corner a message can ask for, in CSS pixels.
+pub const MAX_RADIUS_PX: u8 = 24;
+
+/// The least and most a message can ask of a line's height, in hundredths of its font size.
+pub const MIN_LINE_HEIGHT: u16 = 100;
+pub const MAX_LINE_HEIGHT: u16 = 250;
+
+/// Room on the four sides of a box, in CSS pixels, each at most [`MAX_BOX_PX`].
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct Insets {
+    pub top: u8,
+    pub right: u8,
+    pub bottom: u8,
+    pub left: u8,
+}
+
+impl Insets {
+    pub fn any(self) -> bool {
+        self.top > 0 || self.right > 0 || self.bottom > 0 || self.left > 0
+    }
+}
+
+/// How a line round a box is drawn. The quieter styles of CSS (`double`, `groove`, `inset`...) are
+/// drawn solid.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum LineStyle {
+    #[default]
+    Solid,
+    Dashed,
+    Dotted,
+}
+
+/// The line on one side of a box. A width of 0 is no line.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct Line {
+    /// CSS pixels, 0 to [`MAX_LINE_PX`].
+    pub width: u8,
+    pub style: LineStyle,
+    /// The colour the message asks for; a UI adjusts it to the paper it is drawn on.
+    pub color: Option<Rgb>,
+}
+
+impl Line {
+    /// A plain one-pixel line in the reader's own line colour.
+    pub const THIN: Line = Line { width: 1, style: LineStyle::Solid, color: None };
+
+    pub fn is_set(&self) -> bool {
+        self.width > 0
+    }
+}
+
+/// How tall a line of text is.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum LineHeight {
+    /// Hundredths of the font size, [`MIN_LINE_HEIGHT`] to [`MAX_LINE_HEIGHT`].
+    Scale(u16),
+    /// CSS pixels, 1 to 200 (a UI holds it to the same range of the font size).
+    Px(u8),
+}
+
+impl LineHeight {
+    /// The height of a line of text of `size` pixels, held to 1 to 2.5 times the size.
+    pub fn of(self, size: f32) -> f32 {
+        let size = if size.is_finite() { size.max(1.0) } else { 1.0 };
+        let wanted = match self {
+            LineHeight::Scale(hundredths) => size * f32::from(hundredths) / 100.0,
+            LineHeight::Px(px) => f32::from(px),
+        };
+        wanted.clamp(size * f32::from(MIN_LINE_HEIGHT) / 100.0, size * f32::from(MAX_LINE_HEIGHT) / 100.0)
+    }
+}
+
 /// The sides of a table cell that have a line.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Sides {
@@ -220,12 +299,38 @@ pub struct Block {
     /// container, nor where a line break or a block of its own came in between.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub beside: bool,
+    /// Room above the block in pixels, from a margin of the block or the one above (the larger of
+    /// the two), at most [`MAX_BOX_PX`]. When it is set it is the gap, instead of `space`'s.
+    #[serde(default, skip_serializing_if = "is_zero_u8")]
+    pub gap: u8,
+    /// How tall its lines are, where the message says.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub line_height: Option<LineHeight>,
+    /// Room kept free left and right of the block, in pixels: the margins and padding of the
+    /// elements round it that have no frame of their own, saturating at 255.
+    #[serde(default, skip_serializing_if = "is_no_inset")]
+    pub inset: [u8; 2],
+    /// How a rule looks, where the source draws it with a border (a `Rule` block only).
+    #[serde(default, skip_serializing_if = "is_default_line")]
+    pub line: Line,
+}
+
+fn is_no_inset(inset: &[u8; 2]) -> bool {
+    *inset == [0, 0]
+}
+
+fn is_default_line(line: &Line) -> bool {
+    *line == Line::default()
+}
+
+fn is_zero_u8(n: &u8) -> bool {
+    *n == 0
 }
 
 impl Block {
     /// A block of `kind` with no quoting, alignment or gap.
     pub fn new(kind: BlockKind, spans: Vec<Span>) -> Block {
-        Block { kind, spans, quote: 0, align: Align::Left, space: 0, beside: false }
+        Block { kind, spans, quote: 0, align: Align::Left, space: 0, beside: false, gap: 0, line_height: None, inset: [0, 0], line: Line::default() }
     }
 
     /// The block's text without formatting (not what is inside a table: see [`has_text`]).
@@ -249,6 +354,13 @@ pub struct Table {
     pub outline: bool,
     pub width: Option<Length>,
     pub background: Option<Rgb>,
+    /// The lines round the whole table (top, right, bottom, left) as the source draws them. Set
+    /// together with `outline` when the source frames it; a UI draws `outline` alone as thin lines.
+    #[serde(default)]
+    pub lines: [Line; 4],
+    /// Rounded corners, in pixels.
+    #[serde(default, skip_serializing_if = "is_zero_u8")]
+    pub radius: u8,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -269,11 +381,31 @@ pub struct Cell {
     /// The sides the cell asks to have a line on. Whether, never how thick or what colour.
     #[serde(default)]
     pub border: Sides,
+    /// How those lines look, side by side (top, right, bottom, left).
+    #[serde(default)]
+    pub lines: [Line; 4],
+    /// The room inside the cell where the source gives it; `None` when it says nothing.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub padding: Option<Insets>,
+    /// Rounded corners, in pixels.
+    #[serde(default, skip_serializing_if = "is_zero_u8")]
+    pub radius: u8,
 }
 
 impl Default for Cell {
     fn default() -> Self {
-        Cell { blocks: Vec::new(), header: false, colspan: 1, rowspan: 1, background: None, width: None, border: Sides::default() }
+        Cell {
+            blocks: Vec::new(),
+            header: false,
+            colspan: 1,
+            rowspan: 1,
+            background: None,
+            width: None,
+            border: Sides::default(),
+            lines: [Line::default(); 4],
+            padding: None,
+            radius: 0,
+        }
     }
 }
 

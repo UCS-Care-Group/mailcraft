@@ -13,8 +13,8 @@ use crate::entities::unescape;
 use crate::style::{self, Css, MsoList, Size};
 use crate::tokenizer::{Tag, Token, Tokenizer};
 use crate::{
-    Align, Block, BlockKind, Cell, Length, MAX_BLOCKS, MAX_CELLS, MAX_INPUT, MAX_ROW_SPAN, MAX_TABLE_COLUMNS, MAX_TABLE_DEPTH, MAX_TABLE_ROWS,
-    Marker, Rgb, Row, Sides, Span, Table, is_blank, is_safe_url, truncate,
+    Align, Block, BlockKind, Cell, Insets, Length, Line, LineHeight, MAX_BLOCKS, MAX_BOX_PX, MAX_CELLS, MAX_INPUT, MAX_ROW_SPAN, MAX_TABLE_COLUMNS,
+    MAX_TABLE_DEPTH, MAX_TABLE_ROWS, Marker, Rgb, Row, Sides, Span, Table, is_blank, is_safe_url, truncate,
 };
 
 /// Deepest nesting of elements that is tracked; what is nested deeper keeps its text and loses its
@@ -75,6 +75,7 @@ struct Style {
     size: Option<u8>,
     font: Option<Rc<str>>,
     align: Align,
+    line_height: Option<LineHeight>,
     link: Option<Rc<str>>,
     /// The font size in force is too small to be meant to be read (2 pixels or less): text
     /// written at it is not shown. It lasts until an element inside names a size that can be
@@ -132,6 +133,8 @@ struct Delta {
     size: Option<Size>,
     font: Option<Rc<str>>,
     align: Option<Align>,
+    /// `Some(None)`: `normal`.
+    line_height: Option<Option<LineHeight>>,
     link: Option<Option<Rc<str>>>,
     /// A table cell: formatting elements and highlights from outside stop here (an unclosed `<b>`
     /// above a table does not make the table bold). Colour, size and alignment are inherited, as
@@ -156,6 +159,7 @@ impl Delta {
             size: css.size,
             font: css.font.as_deref().map(Rc::from),
             align: css.align,
+            line_height: css.line_height,
             ..Delta::default()
         }
     }
@@ -188,6 +192,9 @@ impl Delta {
         }
         if let Some(align) = self.align {
             style.align = align;
+        }
+        if let Some(line_height) = self.line_height {
+            style.line_height = line_height;
         }
         if self.font.is_some() {
             style.font = self.font.clone();
@@ -231,6 +238,12 @@ struct BlockNode {
     quote: bool,
     /// It has a bottom border: a rule follows it.
     rule: bool,
+    /// How that rule looks.
+    rule_line: Line,
+    /// The room from the sides it adds for what is inside it, taken back when it ends.
+    inset: [u8; 2],
+    /// Its bottom margin in pixels, when it gives one: the gap that follows it.
+    gap: u8,
     /// An Outlook list paragraph.
     mso: bool,
     /// It has a background or a frame: its blocks are collected apart.
@@ -244,6 +257,11 @@ struct BoxBuild {
     /// A `max-width` caps it (the whole room when none), and automatic margins centre it.
     width: Option<Length>,
     align: Align,
+    padding: Option<Insets>,
+    lines: [Line; 4],
+    radius: u8,
+    /// The room left and right of the box.
+    margin: [u8; 2],
 }
 
 #[derive(Debug)]
@@ -256,6 +274,11 @@ struct TableBuild {
     border: bool,
     /// A border on the table itself.
     outline: bool,
+    lines: [Line; 4],
+    radius: u8,
+    margin: [u8; 2],
+    /// Its bottom margin in pixels.
+    gap_below: u8,
     /// `role="presentation"`.
     presentation: bool,
     /// It has `<th>`, `<thead>` or `<caption>`.
@@ -286,6 +309,9 @@ struct CellBuild {
     background: Option<Rgb>,
     width: Option<Length>,
     border: Sides,
+    lines: [Line; 4],
+    padding: Option<Insets>,
+    radius: u8,
 }
 
 /// What an open element is.
@@ -339,6 +365,7 @@ struct Context {
     heading: Option<u8>,
     item: Option<BlockKind>,
     mso_item: bool,
+    inset: [u16; 2],
 }
 
 /// Where blocks are collected: the message, a table cell, or a block with its own background.
@@ -347,6 +374,8 @@ struct Frame {
     blocks: Vec<Block>,
     /// Blank lines waiting for the next block.
     space: u8,
+    /// The pixels of margin waiting for the next block.
+    gap: u8,
     outer: Context,
 }
 
@@ -362,6 +391,10 @@ struct Builder {
     spans: Vec<Span>,
     kind: BlockKind,
     align: Align,
+    line_height: Option<LineHeight>,
+    /// Room from the sides, left and right, that the open elements that are not boxes ask for
+    /// (the margins and padding of a `<div>` that has no frame of its own), in pixels.
+    inset: [u16; 2],
     /// The style may have changed since the last character: the next one may need a new span.
     fresh: bool,
     nodes: Vec<Node>,
@@ -404,6 +437,8 @@ impl Builder {
             spans: Vec::new(),
             kind: BlockKind::Paragraph,
             align: Align::Left,
+            line_height: None,
+            inset: [0, 0],
             fresh: true,
             nodes: Vec::new(),
             base: Style::default(),
@@ -542,6 +577,7 @@ impl Builder {
                 BlockKind::Paragraph
             };
             self.align = self.style().align;
+            self.line_height = self.style().line_height;
             self.fresh = true;
         }
         self.append(c);
@@ -616,6 +652,14 @@ impl Builder {
         }
     }
 
+    /// At least `px` pixels of margin above the next block.
+    fn want_gap(&mut self, px: u8) {
+        if self.hidden == 0 && px > 0 {
+            let frame = self.frame();
+            frame.gap = frame.gap.max(px.min(MAX_BOX_PX));
+        }
+    }
+
     /// One more blank line above the next block.
     fn add_space(&mut self) {
         if self.hidden == 0 {
@@ -658,7 +702,7 @@ impl Builder {
                 spans.remove(0);
             }
         }
-        let block = Block { kind, spans, quote: self.quote_depth(), align: self.align, space: 0, beside };
+        let block = Block { quote: self.quote_depth(), align: self.align, beside, line_height: self.line_height, ..Block::new(kind, spans) };
         self.emit(block, false);
         // `text<br><br>` ends with an empty line.
         if !pre && breaks >= 2 {
@@ -675,35 +719,56 @@ impl Builder {
         self.count = self.count.saturating_add(1);
         let frame = self.frame();
         block.space = if frame.blocks.is_empty() { 0 } else { frame.space.min(MAX_SPACE) };
+        block.gap = if frame.blocks.is_empty() { 0 } else { frame.gap };
         frame.space = 0;
+        frame.gap = 0;
         frame.blocks.push(block);
+        let inset = self.inset_now();
+        if let Some(block) = self.frame().blocks.last_mut() {
+            block.inset = [block.inset[0].saturating_add(inset[0]), block.inset[1].saturating_add(inset[1])];
+        }
     }
 
     /// Add the blocks of a table that only wrapped them to the frame being read.
-    fn splice(&mut self, blocks: Vec<Block>) {
+    ///
+    /// The room a cell had inside (`padding`) is kept as far as a flow of blocks can: above the
+    /// first block, below the last, and to the left and right of all of them.
+    fn splice(&mut self, blocks: Vec<Block>, padding: Option<Insets>) {
         let quote = self.quote_depth();
+        let pad = padding.unwrap_or_default();
+        let inset = self.inset_now();
         let frame = self.frame();
         for (i, mut block) in blocks.into_iter().enumerate() {
             if i == 0 {
                 block.space = if frame.blocks.is_empty() { 0 } else { block.space.max(frame.space).min(MAX_SPACE) };
+                block.gap = if frame.blocks.is_empty() { 0 } else { block.gap.max(frame.gap).max(pad.top) };
                 frame.space = 0;
+                frame.gap = 0;
             }
             block.quote = block.quote.saturating_add(quote);
+            block.inset =
+                [block.inset[0].saturating_add(inset[0]).saturating_add(pad.left), block.inset[1].saturating_add(inset[1]).saturating_add(pad.right)];
             frame.blocks.push(block);
         }
+        self.want_gap(pad.bottom);
+    }
+
+    /// The room blocks made now stand in from the sides, from the elements that are open.
+    fn inset_now(&self) -> [u8; 2] {
+        [u8::try_from(self.inset[0]).unwrap_or(u8::MAX), u8::try_from(self.inset[1]).unwrap_or(u8::MAX)]
     }
 
     fn quote_depth(&self) -> u8 {
         u8::try_from(self.quote).unwrap_or(u8::MAX)
     }
 
-    fn rule(&mut self) {
+    fn rule(&mut self, line: Line) {
         if self.hidden > 0 {
             return;
         }
         self.flush();
         self.settle();
-        let block = Block { quote: self.quote_depth(), ..Block::new(BlockKind::Rule, Vec::new()) };
+        let block = Block { quote: self.quote_depth(), line, ..Block::new(BlockKind::Rule, Vec::new()) };
         self.emit(block, false);
     }
 
@@ -737,7 +802,7 @@ impl Builder {
                 let (width, height) = (size(width.or(css.width)), size(height.or(css.height)));
                 let kind = BlockKind::Image { src, width, height, link: style.link.as_deref().map(str::to_string) };
                 let count = self.frame().blocks.len();
-                let block = Block { kind, spans, quote: self.quote_depth(), align: style.align, space: 0, beside };
+                let block = Block { quote: self.quote_depth(), align: style.align, beside, ..Block::new(kind, spans) };
                 self.emit(block, false);
                 // (Only when it was added: past the cap there is no line to go on.)
                 self.after_picture = self.frame().blocks.len() > count;
@@ -909,8 +974,9 @@ impl Builder {
             heading: self.heading.take(),
             item: self.item.take(),
             mso_item: std::mem::take(&mut self.mso_item),
+            inset: std::mem::take(&mut self.inset),
         };
-        self.frames.push(Frame { blocks: Vec::new(), space: 0, outer });
+        self.frames.push(Frame { blocks: Vec::new(), space: 0, gap: 0, outer });
     }
 
     /// The blocks collected since [`Builder::enter_frame`].
@@ -923,6 +989,7 @@ impl Builder {
         self.heading = frame.outer.heading;
         self.item = frame.outer.item;
         self.mso_item = frame.outer.mso_item;
+        self.inset = frame.outer.inset;
         frame.blocks
     }
 
@@ -957,8 +1024,10 @@ impl Builder {
                     self.quote = self.quote.saturating_sub(1);
                 }
                 if block.rule {
-                    self.rule();
+                    self.rule(block.rule_line);
                 }
+                self.inset = [self.inset[0].saturating_sub(u16::from(block.inset[0])), self.inset[1].saturating_sub(u16::from(block.inset[1]))];
+                self.want_gap(block.gap);
                 if block.margin {
                     self.want_space(1);
                 }
@@ -999,7 +1068,9 @@ impl Builder {
                 if table.implied {
                     self.implied = self.implied.saturating_sub(1);
                 }
+                let below = table.gap_below;
                 self.end_table(*table);
+                self.want_gap(below);
             }
             Kind::Row(row) => {
                 self.flush();
@@ -1019,10 +1090,18 @@ impl Builder {
         if blocks.is_empty() {
             return;
         }
-        let cell = Cell { blocks, background: boxed.background, ..Cell::default() };
-        let table =
-            Table { rows: vec![Row { cells: vec![cell] }], columns: 1, layout: true, outline: boxed.outline, width: boxed.width, ..Table::default() };
-        let block = Block { quote: self.quote_depth(), align: boxed.align, ..Block::new(BlockKind::Table(table), Vec::new()) };
+        let cell = Cell { blocks, background: boxed.background, padding: boxed.padding, radius: boxed.radius, ..Cell::default() };
+        let table = Table {
+            rows: vec![Row { cells: vec![cell] }],
+            columns: 1,
+            layout: true,
+            outline: boxed.outline,
+            width: boxed.width,
+            lines: boxed.lines,
+            radius: boxed.radius,
+            ..Table::default()
+        };
+        let block = Block { quote: self.quote_depth(), align: boxed.align, inset: boxed.margin, ..Block::new(BlockKind::Table(table), Vec::new()) };
         self.emit(block, true);
     }
 
@@ -1035,6 +1114,9 @@ impl Builder {
             background: cell.background,
             width: cell.width,
             border: cell.border,
+            lines: cell.lines,
+            padding: cell.padding,
+            radius: cell.radius,
         };
         // Its row is the nearest one, this side of the table.
         for node in self.nodes.iter_mut().rev() {
@@ -1047,7 +1129,7 @@ impl Builder {
                 _ => {}
             }
         }
-        self.splice(cell.blocks);
+        self.splice(cell.blocks, cell.padding);
     }
 
     fn end_row(&mut self, row: RowBuild) {
@@ -1067,7 +1149,7 @@ impl Builder {
             return;
         }
         for cell in cells {
-            self.splice(cell.blocks);
+            self.splice(cell.blocks, cell.padding);
         }
     }
 
@@ -1118,7 +1200,13 @@ impl Builder {
         // A table that only wraps a column of things is those things. Unless the things are
         // pictures and nothing else, a row each: those are slices of one picture, and stay the
         // rows of a table, for whoever draws them to set them edge to edge.
-        let plain = table.background.is_none() && !table.outline && !table.border && !matches!(table.width, Some(Length::Px(_)));
+        let framed = table.lines.iter().any(Line::is_set);
+        let plain = table.background.is_none()
+            && !table.outline
+            && !framed
+            && !table.border
+            && table.margin == [0, 0]
+            && !matches!(table.width, Some(Length::Px(_)));
         let picture = |cell: &Cell| !cell.blocks.is_empty() && cell.blocks.iter().all(|b| matches!(b.kind, BlockKind::Image { .. }));
         let slices = rows.len() >= 2 && rows.iter().all(|r| r.cells.iter().all(picture));
         if layout && plain && !slices && rows.iter().all(|r| r.cells.len() == 1 && r.cells.iter().all(|c| c.background.is_none() && !c.border.any()))
@@ -1130,7 +1218,7 @@ impl Builder {
                     {
                         first.space = first.space.max(1);
                     }
-                    self.splice(cell.blocks);
+                    self.splice(cell.blocks, cell.padding);
                 }
             }
             return;
@@ -1143,8 +1231,10 @@ impl Builder {
             outline: table.outline,
             width: table.width,
             background: table.background,
+            lines: table.lines,
+            radius: table.radius,
         });
-        let block = Block { kind, spans: Vec::new(), quote: self.quote_depth(), align: table.align, space: 0, beside: false };
+        let block = Block { quote: self.quote_depth(), align: table.align, inset: table.margin, ..Block::new(kind, Vec::new()) };
         self.emit(block, true);
     }
 
@@ -1158,6 +1248,10 @@ impl Builder {
             align: Align::Left,
             border: false,
             outline: false,
+            lines: [Line::default(); 4],
+            radius: 0,
+            margin: [0, 0],
+            gap_below: 0,
             presentation: false,
             header: false,
             implied: true,
@@ -1185,6 +1279,10 @@ impl Builder {
             align: tag.attr("align").and_then(|a| style::attr_align(&a)).or(css.centred().then_some(Align::Center)).unwrap_or(self.style().align),
             border,
             outline: css.framed(),
+            lines: css.lines,
+            radius: css.radius,
+            margin: [css.margin_insets().left, css.margin_insets().right],
+            gap_below: css.margin_insets().bottom,
             presentation: matches!(role.as_deref(), Some("presentation" | "none")),
             header: false,
             implied: false,
@@ -1193,6 +1291,7 @@ impl Builder {
             last_row: false,
         };
         let hidden = css.hidden || tag.has("hidden");
+        self.want_gap(css.margin_insets().top);
         if !self.push_node("table", Kind::Table(Box::new(build)), Delta { hooked: hooked(tag), ..Delta::of(&css) }, hidden) {
             self.overflow = self.overflow.saturating_add(1);
         }
@@ -1286,6 +1385,9 @@ impl Builder {
                 let [top, right, bottom, left] = css.borders;
                 Sides { top, right, bottom, left }
             },
+            lines: css.lines,
+            padding: css.padding_insets(),
+            radius: css.radius,
         };
         let mut delta = Delta { hooked: hooked(tag), ..Delta::of(&css) };
         delta.cell = true;
@@ -1476,25 +1578,41 @@ impl Builder {
         // (Only a `max-width` makes a block a card; automatic margins alone have nothing to centre.)
         let capped = css.max_width.filter(|_| !paragraph && name != "body");
         let boxed = (background.is_some() || outline || capped.is_some()) && self.frames.len() < MAX_TABLE_DEPTH;
+        let padding = css.padding_insets().unwrap_or_default();
+        let margins = css.margin_insets();
+        let quote = left && !outline;
+        // A box keeps its padding inside it; any other block has it as room round what it holds.
+        // (A quote has its own indent, and an Outlook list paragraph its level's.)
+        let mso = matches!(css.mso_list, Some(MsoList::Level(_)));
+        let plain = !boxed && !mso;
+        let room = |margin: u8, padding: u8, padded: bool| margin.saturating_add(if padded { padding } else { 0 });
         let node = BlockNode {
             margin: margin_below,
-            quote: left && !outline,
+            gap: room(margins.bottom, padding.bottom, !boxed),
+            quote,
             rule: bottom && !outline,
-            mso: matches!(css.mso_list, Some(MsoList::Level(_))),
+            rule_line: css.lines[2],
+            inset: if plain { [room(margins.left, padding.left, !quote), room(margins.right, padding.right, true)] } else { [0, 0] },
+            mso,
             boxed: boxed.then_some(BoxBuild {
                 background,
                 outline,
                 width: capped.or(Some(Length::Percent(100))),
                 align: if css.centred() && capped.is_some() { Align::Center } else { Align::Left },
+                padding: css.padding_insets(),
+                lines: if outline { css.lines } else { [Line::default(); 4] },
+                radius: if background.is_some() || outline { css.radius } else { 0 },
+                margin: [margins.left, margins.right],
             }),
         };
         if margin_above {
             self.want_space(1);
         }
+        self.want_gap(room(margins.top, padding.top, !boxed));
         if top && !outline {
-            self.rule();
+            self.rule(css.lines[0]);
         }
-        let (quote, mso) = (node.quote, node.mso);
+        let (quote, mso, inset) = (node.quote, node.mso, node.inset);
         if !self.push_node(name, Kind::Block(node), delta, false) {
             self.overflow = self.overflow.saturating_add(1);
             return;
@@ -1502,6 +1620,7 @@ impl Builder {
         if quote {
             self.quote = self.quote.saturating_add(1);
         }
+        self.inset = [self.inset[0].saturating_add(u16::from(inset[0])), self.inset[1].saturating_add(u16::from(inset[1]))];
         if boxed {
             self.enter_frame();
         }
@@ -1623,8 +1742,10 @@ impl Builder {
             "br" => self.line_break(),
             "hr" => {
                 self.close_paragraph();
-                if !css_of(tag).hidden {
-                    self.rule();
+                let css = css_of(tag);
+                if !css.hidden {
+                    // (An `hr` is drawn by its own look, a border of its own makes it neither thicker nor coloured.)
+                    self.rule(Line::default());
                 }
             }
             "img" => self.image(tag),
