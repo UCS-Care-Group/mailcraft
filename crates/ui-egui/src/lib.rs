@@ -57,6 +57,7 @@ pub mod graph_fetch;
 mod graph_switch;
 pub mod i18n;
 pub mod icons;
+mod inbox_pass;
 mod keep_offline;
 pub mod keys;
 pub mod mail_view;
@@ -1037,6 +1038,11 @@ pub struct MailApp {
     last_auto_sync: f64,
     /// Accounts waiting their turn in a Send/Receive round, and whether nobody asked for it.
     sync_queue: std::collections::VecDeque<(Id, bool)>,
+    /// Accounts whose Inbox pass is still to come, at the start of a round, and whether nobody
+    /// asked for it (#276).
+    inbox_queue: std::collections::VecDeque<(Id, bool)>,
+    /// The account whose Inbox pass is under way.
+    inbox_run: Option<Id>,
     /// When it was last looked whether something made here waits to go to a server (milliseconds).
     push_checked: f64,
     /// Accounts whose next run that nobody asked for only tells the server what changed here
@@ -1190,6 +1196,8 @@ impl MailApp {
             auto_sync: true,
             last_auto_sync: 0.0,
             sync_queue: Default::default(),
+            inbox_queue: Default::default(),
+            inbox_run: None,
             push_checked: 0.0,
             push_only_next: Default::default(),
             push_seen: Default::default(),
@@ -1620,6 +1628,7 @@ impl MailApp {
                 self.services.sync_cancel.store(true, std::sync::atomic::Ordering::Relaxed);
                 self.pause_fetch();
                 self.sync_queue.clear();
+                self.inbox_queue.clear();
                 // (Nor does a run called off for something else go on after.)
                 if let Some((_, _, called_off, _)) = self.sync_run.as_mut() {
                     *called_off = false;
@@ -1866,13 +1875,20 @@ impl MailApp {
             Some(account) => account,
             // Nobody in particular: every account with a server, one after the other.
             None => {
-                let mut all = self.server_accounts().into_iter();
-                let first = all.next().ok_or_else(|| tl!("No account is connected to a mail server (File › Add Account)").to_string())?;
-                self.sync_queue = all.map(|a| (a, quiet)).collect();
+                let round = self.server_accounts();
+                let none = || tl!("No account is connected to a mail server (File › Add Account)").to_string();
+                if round.is_empty() {
+                    return Err(none());
+                }
                 // One run of them all, in this order: the rest wait their turn.
-                let round: Vec<Id> = std::iter::once(first).chain(self.sync_queue.iter().map(|(a, _)| *a)).collect();
+                self.sync_queue = round.iter().map(|a| (*a, quiet)).collect();
                 self.session.sync_progress.begin(&round);
-                first
+                // The Inbox of every account kept in step through Graph comes first (#276).
+                self.queue_inbox_passes(&round, quiet);
+                if let Some(started) = self.start_next_inbox_pass() {
+                    return Ok(started);
+                }
+                self.sync_queue.pop_front().map(|(first, _)| first).ok_or_else(none)?
             }
         };
         // An account kept in step through Microsoft Graph has no IMAP leg at all (R3).
@@ -2123,6 +2139,10 @@ impl MailApp {
         if self.services.sync.is_none() || busy || self.dialog.is_some() {
             return;
         }
+        // The round's Inbox passes come before anything else of it (#276).
+        if self.start_next_inbox_pass().is_some() {
+            return;
+        }
         if let Some((account, quiet)) = self.sync_queue.pop_front() {
             // An account that would have to ask, or can't start, is left out of the run.
             let started = (!quiet || self.can_sync_quietly(account)) && self.start_sync(&json!({"account": account, "quiet": quiet})).is_ok();
@@ -2161,6 +2181,7 @@ impl MailApp {
         let round: Vec<Id> = self.sync_queue.iter().map(|(a, _)| *a).collect();
         if !round.is_empty() {
             self.session.sync_progress.begin(&round);
+            self.queue_inbox_passes(&round, true);
         }
     }
 
@@ -2240,13 +2261,15 @@ impl MailApp {
                 self.sync_run = Some((whose, Some(self.waiting_to_go(whose)), false, q));
             }
             // A shared mailbox being added is kept once its Inbox is read, not after all its mail.
-            self.shared_check_piece(account, over);
+            if self.inbox_run.is_none() {
+                self.shared_check_piece(account, over);
+            }
             if !over {
                 return;
             }
             self.graph_pieces = None;
-            // The mail is in; the calendar and contacts come next.
-            if self.session.sync_progress.holding(account) {
+            // The mail is in; the calendar and contacts come next (not after the Inbox pass).
+            if self.inbox_run.is_none() && self.session.sync_progress.holding(account) {
                 self.session.sync_progress.phase(account, SyncPhase::CalendarAndContacts);
             }
         }
@@ -2260,6 +2283,11 @@ impl MailApp {
             }
         };
         self.graph_rx = None;
+        // The Inbox pass is over: the round goes on (#276).
+        if self.inbox_run.take() == Some(account) {
+            self.graph_pieces_taken = 0;
+            return self.finish_inbox_pass(account, result);
+        }
         // Called off so that what the owner did could go out: it goes on at once, as it was.
         if self.sync_run.is_some_and(|(whose, ..)| whose == account)
             && let Some((whose, _, true, quiet)) = self.sync_run.take()

@@ -93,6 +93,10 @@ pub(crate) fn sync_mail_with(
     cancel: &AtomicBool,
     emit: &mut dyn FnMut(GraphMailResult),
 ) {
+    // The Inbox pass (#276): the Inbox's delta alone, before anything else of the run.
+    if let Some(inbox) = &request.inbox_pass {
+        return inbox_pass(base, token, request, inbox, gate, retry, cancel, emit);
+    }
     let mut folders = sync_folders_with(base, token, request, gate.clone(), retry);
     // No listing, or a server that wants to be left alone: that is the run.
     let listed = match &folders.listing {
@@ -103,7 +107,7 @@ pub(crate) fn sync_mail_with(
     emit(folders);
     let priority = if request.background { Priority::Background } else { Priority::Owner };
     let last = match Graph::for_mail(base, token, gate, priority, retry).and_then(|graph| graph.of_shared(shared_address(request))) {
-        Ok(graph) => down::messages(&graph, request, &listed, cancel, emit),
+        Ok(graph) => down::messages(&graph, request, &listed, SyncPhase::NewMail, cancel, emit),
         Err(e) => GraphMailResult {
             account: request.account,
             email: request.email.clone(),
@@ -111,6 +115,36 @@ pub(crate) fn sync_mail_with(
             ..Default::default()
         },
     };
+    emit(last);
+}
+
+/// The Inbox pass of a run (#276): the delta of `inbox` from its stored link, a page at a time
+/// through `emit`, and nothing else; no folder is listed and nothing is sent. Every piece is
+/// partial and none says the mailbox was read whole: the run that follows is the rest, from the
+/// links this one moved on.
+#[allow(clippy::too_many_arguments)]
+fn inbox_pass(
+    base: &str,
+    token: &str,
+    request: &GraphMailRequest,
+    inbox: &mailcraft_model::sync::GraphFolder,
+    gate: Arc<Gate>,
+    retry: Retry,
+    cancel: &AtomicBool,
+    emit: &mut dyn FnMut(GraphMailResult),
+) {
+    let priority = if request.background { Priority::Background } else { Priority::Owner };
+    let mut last = match Graph::for_mail(base, token, gate, priority, retry).and_then(|graph| graph.of_shared(shared_address(request))) {
+        Ok(graph) => down::messages(&graph, request, std::slice::from_ref(inbox), SyncPhase::Inbox, cancel, emit),
+        Err(e) => GraphMailResult {
+            account: request.account,
+            email: request.email.clone(),
+            errors: vec![format!("Couldn't reach Microsoft for the mail: {e}")],
+            ..Default::default()
+        },
+    };
+    // (Only the Inbox was read: that is not every folder of the mailbox.)
+    (last.partial, last.whole, last.inbox_pass) = (true, false, true);
     emit(last);
 }
 

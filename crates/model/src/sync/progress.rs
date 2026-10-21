@@ -10,6 +10,8 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum SyncPhase {
+    /// The Inbox's new mail, brought first of all, before anything else of the run (#276).
+    Inbox,
     /// Sending what waits in the Outbox.
     Sending,
     /// Telling the server what changed here, listing its folders, keeping a copy of what was sent.
@@ -24,6 +26,7 @@ impl SyncPhase {
     /// The phase's name for the owner.
     pub fn label(self) -> &'static str {
         match self {
+            SyncPhase::Inbox => "Inbox",
             SyncPhase::Sending => "Sending",
             SyncPhase::Folders => "Folders",
             SyncPhase::NewMail => "New mail",

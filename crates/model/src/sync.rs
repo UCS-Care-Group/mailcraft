@@ -752,6 +752,11 @@ pub struct GraphMailRequest {
     /// owner's (#70).
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub places: Vec<PlaceUp>,
+    /// The Inbox pass (#276): the run is only the delta of this folder (the Inbox, from its
+    /// stored delta link in `links`) and nothing else: no folder changes, no listing,
+    /// nothing sent. Every piece of it is partial; the host ends it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub inbox_pass: Option<GraphFolder>,
 }
 
 /// Most changes of messages one Graph run is asked to make; more go over several runs.
@@ -1073,6 +1078,10 @@ pub struct GraphMailResult {
     /// How long this piece's part of the run took, and how many requests it made (#276).
     #[serde(skip_serializing_if = "Timings::is_empty")]
     pub timings: Timings,
+    /// The piece is of the Inbox pass ([`GraphMailRequest::inbox_pass`], #276): it is never the
+    /// end of the account's part of the run, and never says the mailbox was read whole.
+    #[serde(skip_serializing_if = "is_false")]
+    pub inbox_pass: bool,
 }
 
 /// Why Microsoft won't open a shared mailbox for the owner of the token (#70), told apart by

@@ -84,6 +84,26 @@ pub fn graph_mail_request(s: &Session, account: Id) -> Result<GraphMailRequest, 
         sends,
         // Mail moved or copied here from another mailbox of the same owner's (#70).
         places: super::graph_place::place_changes(s, account, MAX_PLACES).0,
+        inbox_pass: None,
+    })
+}
+
+/// The Inbox pass of `account` (#276): only its Inbox's delta, from the link kept for it, to be
+/// run before anything else of a Send/Receive. `None` for an account with no Inbox pass: not one
+/// kept in step through Graph, one that can't be read, or one whose Inbox has no delta link yet
+/// (never read to its end, or a round under way: the run itself brings it in).
+pub fn graph_inbox_request(s: &Session, account: Id) -> Option<GraphMailRequest> {
+    let a = s.mailbox.account(account).filter(|a| a.kind == AccountKind::Microsoft)?;
+    let shared = shared_mailbox(s, account).ok()?;
+    let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).and_then(|id| s.mailbox.folder(id))?;
+    let server = inbox.server.as_ref().filter(|server| !server.id.is_empty() && !server.delta.is_empty() && server.caught_up)?;
+    Some(GraphMailRequest {
+        account,
+        email: a.email.clone(),
+        shared,
+        links: vec![GraphLink { folder: server.id.clone(), link: server.delta.clone(), caught_up: true }],
+        inbox_pass: Some(GraphFolder { id: server.id.clone(), name: inbox.name.clone(), kind: FolderKind::Inbox, ..Default::default() }),
+        ..Default::default()
     })
 }
 
@@ -352,7 +372,7 @@ pub fn apply_graph_mail(s: &mut Session, result: GraphMailResult) -> CmdResult {
         graph_down::take_page(&mut s.mailbox, &mut index, account, page, &mut down);
     }
     s.graph_index = index;
-    if result.whole {
+    if result.whole && !result.inbox_pass {
         graph_down::sweep(&mut s.mailbox, account, &mut down);
     }
     // A shared mailbox is named as its server names it, once its Sent Items say so (#70).
@@ -369,11 +389,12 @@ pub fn apply_graph_mail(s: &mut Session, result: GraphMailResult) -> CmdResult {
     let step = match (&result.progress, &result.listing, result.sent.is_empty()) {
         (Some(progress), ..) => {
             let name = s.mailbox.folder_by_server(account, &progress.folder).and_then(|f| s.mailbox.folder(f)).map(|f| f.name.as_str());
-            Some((SyncPhase::NewMail, sync_progress::shown(name.unwrap_or_default()), progress.read.min(progress.total), progress.total))
+            let phase = if result.inbox_pass { SyncPhase::Inbox } else { SyncPhase::NewMail };
+            Some((phase, sync_progress::shown(name.unwrap_or_default()), progress.read.min(progress.total), progress.total))
         }
         (None, Some(_), _) => Some((SyncPhase::Folders, String::new(), 0, 0)),
         (None, None, false) => Some((SyncPhase::Sending, String::new(), 0, 0)),
-        (None, None, true) => None,
+        (None, None, true) => result.inbox_pass.then(|| (SyncPhase::Inbox, String::new(), 0, 0)),
     };
     let folders = result.progress.as_ref().map(|p| (p.number, p.folders));
     let piece = Piece {
@@ -382,7 +403,8 @@ pub fn apply_graph_mail(s: &mut Session, result: GraphMailResult) -> CmdResult {
         new: down.new,
         sent,
         problems: &errors,
-        last: !result.partial,
+        // (The Inbox pass is never the end of the account's part of the run.)
+        last: !result.partial && !result.inbox_pass,
         stopped: result.stopped,
         timings: Some(&result.timings),
     };
