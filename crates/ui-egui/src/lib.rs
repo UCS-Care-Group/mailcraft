@@ -510,6 +510,8 @@ struct SigningIn {
     shared: Option<Id>,
     /// And for sending from it: what waits in its Outbox goes once it is had, or is held.
     shared_send: bool,
+    /// The owner signs in on a page in the browser (no kept token to renew it with).
+    browser: bool,
     rx: Receiver<Result<Tokens, String>>,
     cancel: std::sync::Arc<std::sync::atomic::AtomicBool>,
 }
@@ -984,8 +986,9 @@ pub struct MailApp {
     /// What the run in flight has come to so far, piece by piece.
     sync_totals: mailcraft_engine::cmd::account::SyncTotals,
     /// The run in flight: whose it is, how much was still waiting to go out when it turned to
-    /// bringing mail down (unknown until then), and whether it was called off to let more out.
-    sync_run: Option<(Id, Option<usize>, bool)>,
+    /// bringing mail down (unknown until then), whether it was called off to let more out, and
+    /// whether nobody asked for it (it comes back as it was).
+    sync_run: Option<(Id, Option<usize>, bool, bool)>,
     /// A piece of the run in flight said the server refused the sign-in.
     sync_refused: bool,
     control_rx: Option<Receiver<ControlRequest>>,
@@ -1758,7 +1761,8 @@ impl MailApp {
             return Err(tl!("This build can't sign in to this kind of account. Use the desktop app.").to_string());
         };
         let cancel = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
-        let waiting = if refresh.is_empty() { tl!("Sign in on the page that opened in your browser…") } else { tl!("Renewing the sign-in…") };
+        let browser = refresh.is_empty();
+        let waiting = if browser { tl!("Sign in on the page that opened in your browser…") } else { tl!("Renewing the sign-in…") };
         let request = SignInRequest {
             account,
             oauth: self.effective_oauth(oauth),
@@ -1776,7 +1780,7 @@ impl MailApp {
             shared_send,
         };
         let rx = sign_in(request);
-        self.signing_in = Some(SigningIn { graph, favorites, quiet, account, shared, shared_send, rx, cancel });
+        self.signing_in = Some(SigningIn { graph, favorites, quiet, account, shared, shared_send, browser, rx, cancel });
         self.session.sync_status = waiting.to_string();
         Ok(())
     }
@@ -1954,7 +1958,7 @@ impl MailApp {
             request.password = password;
         }
         let Some(start) = &self.services.sync else { return Err(tl!("This build can't connect to mail servers").to_string()) };
-        self.sync_run = Some((account, None, false));
+        self.sync_run = Some((account, None, false, quiet));
         self.sync_rx = Some(start(request));
         self.session.sync_status = tl!("Sending and receiving…").to_string();
         Ok(json!({"started": true, "account": account}))
@@ -2094,13 +2098,13 @@ impl MailApp {
         // one tells the server first.
         if self.auto_sync
             && self.sync_rx.is_some()
-            && let Some((whose, Some(baseline), false)) = self.sync_run
+            && let Some((whose, Some(baseline), false, quiet)) = self.sync_run
             && now_ms() - self.push_checked >= 3_000.0
         {
             self.push_checked = now_ms();
             if self.waiting_to_go(whose) > baseline {
                 self.services.sync_cancel.store(true, std::sync::atomic::Ordering::Relaxed);
-                self.sync_run = Some((whose, Some(baseline), true));
+                self.sync_run = Some((whose, Some(baseline), true, quiet));
                 self.session.sync_status = tl!("Sending your changes…").to_string();
             }
         }
@@ -2217,7 +2221,7 @@ impl MailApp {
                 }
             }
             // A shared mailbox being added is kept once its Inbox is read, not after all its mail.
-            self.shared_check_piece(account);
+            self.shared_check_piece(account, over);
             if !over {
                 return;
             }
@@ -2656,8 +2660,8 @@ impl MailApp {
             }
             // Once it brings mail down, the run has told the server what there was to tell: what
             // waits beyond what waits at this moment was done here since.
-            if downloading && let Some((whose, None, false)) = self.sync_run {
-                self.sync_run = Some((whose, Some(self.waiting_to_go(whose)), false));
+            if downloading && let Some((whose, None, false, quiet)) = self.sync_run {
+                self.sync_run = Some((whose, Some(self.waiting_to_go(whose)), false, quiet));
             }
             if !last {
                 continue;
@@ -2666,8 +2670,8 @@ impl MailApp {
             self.sync_rx = None;
             // Called off so that what the owner did could go out: the next run starts at once,
             // tells the server first, and carries on bringing mail down.
-            if let Some((whose, _, true)) = self.sync_run.take() {
-                self.sync_queue.push_front((whose, true));
+            if let Some((whose, _, true, quiet)) = self.sync_run.take() {
+                self.sync_queue.push_front((whose, quiet));
             }
             let totals = std::mem::take(&mut self.sync_totals);
             let address = self.session.mailbox.account(account).map(|a| a.email.clone()).unwrap_or_default();

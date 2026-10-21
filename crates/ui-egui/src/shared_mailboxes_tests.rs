@@ -341,7 +341,7 @@ fn add_shared_mailbox_while_a_send_receive_is_under_way_calls_it_off_and_reads_t
     assert!(matches!(&app.dialog, Some(crate::dialogs::Dialog::SharedMailbox { checking: Some(_), error, .. }) if error.is_empty()));
     let shared = app.session.mailbox.accounts.iter().find(|a| a.email == SHARED).map(|a| a.id).unwrap();
     assert!(app.services.sync_cancel.load(Ordering::Relaxed));
-    assert!(app.sync_queue.iter().any(|(a, _)| *a == owner), "the owner's run goes on after");
+    assert_eq!(app.sync_queue.front(), Some(&(owner, false)), "the owner's run goes on after, as asked for");
     app.shared_check_tick();
     assert_eq!(*asked.lock().unwrap(), [owner], "nothing starts while the owner's run is stopping");
     // The owner's run stops.
@@ -390,7 +390,7 @@ fn add_shared_mailbox_while_a_mail_protocol_run_is_under_way_calls_it_off_and_re
     assert!(matches!(&app.dialog, Some(crate::dialogs::Dialog::SharedMailbox { checking: Some(_), error, .. }) if error.is_empty()));
     let shared = app.session.mailbox.accounts.iter().find(|a| a.email == SHARED).map(|a| a.id).unwrap();
     assert!(app.services.sync_cancel.load(Ordering::Relaxed));
-    assert!(matches!(app.sync_run, Some((whose, _, true)) if whose == other), "called off, to go on after");
+    assert!(matches!(app.sync_run, Some((whose, _, true, _)) if whose == other), "called off, to go on after");
     app.poll_sync();
     app.shared_check_tick();
     assert!(jobs.lock().unwrap().is_empty(), "nothing starts while the other run is stopping");
@@ -398,7 +398,7 @@ fn add_shared_mailbox_while_a_mail_protocol_run_is_under_way_calls_it_off_and_re
     running.lock().unwrap().take().unwrap().send(SyncResult { account: other, stopped: true, ..Default::default() }).unwrap();
     app.poll_sync();
     assert!(app.sync_rx.is_none());
-    assert_eq!(app.sync_queue.front().map(|(a, _)| *a), Some(other), "the other account's run goes on after");
+    assert_eq!(app.sync_queue.front(), Some(&(other, false)), "the other account's run goes on after, as asked for");
     // The shared mailbox is read first, through Graph alone, and the dialog closes on its folders.
     app.shared_check_tick();
     assert_eq!(jobs.lock().unwrap().iter().map(|(a, ..)| *a).collect::<Vec<_>>(), [shared]);
@@ -448,6 +448,119 @@ fn add_shared_mailbox_called_off_while_it_waits_starts_nothing() {
     app.graph_rx = None;
     app.shared_check_tick();
     assert!(jobs.lock().unwrap().is_empty() && app.session.mailbox.account(shared).is_none());
+    no_imap();
+}
+
+#[test]
+fn after_add_shared_mailbox_the_called_off_run_goes_on_before_the_rest_of_the_shared_mailbox() {
+    let (mut app, owner, _, _, _) = window();
+    // Both mailboxes are big: the host holds on to each run until it is called off, and the
+    // shared mailbox's sends its folders first (#274).
+    type Run = (mpsc::SyncSender<GraphMailResult>, mpsc::Sender<GraphResult>);
+    let running: Arc<Mutex<Vec<(Id, Run)>>> = Default::default();
+    let asked: Arc<Mutex<Vec<Id>>> = Default::default();
+    let (keep, log) = (running.clone(), asked.clone());
+    app.services.graph = Some(Box::new(move |req: GraphRequest| {
+        log.lock().unwrap().push(req.account.id);
+        let (tx, rx) = mpsc::channel();
+        let pieces = req.mail_pieces.clone().unwrap();
+        if req.account.email == SHARED {
+            pieces.send(GraphMailResult { account: req.account.id, partial: true, ..inbox_read(SHARED) }).unwrap();
+        }
+        keep.lock().unwrap().push((req.account.id, (pieces, tx)));
+        rx
+    }));
+    let stop = |app: &mut MailApp, whose: Id| {
+        let at = running.lock().unwrap().iter().position(|(a, _)| *a == whose).unwrap();
+        let (_, (pieces, answer)) = running.lock().unwrap().remove(at);
+        drop(pieces);
+        answer.send(GraphResult { account: whose, ..Default::default() }).unwrap();
+        app.poll_graph();
+        app.poll_graph();
+        assert!(app.graph_rx.is_none());
+    };
+    // The owner pressed Send/Receive, then Add.
+    app.execute("ui.sync", json!({"account": owner})).unwrap();
+    let answers: Answers = Default::default();
+    add_in_dialog(&mut app, &answers, owner, SHARED, Vec::new());
+    assert!(app.services.sync_cancel.load(Ordering::Relaxed));
+    // Put back in line as the owner asked for it: its errors are still shown.
+    assert_eq!(app.sync_queue.iter().copied().collect::<Vec<_>>(), [(owner, false)]);
+    stop(&mut app, owner);
+    app.shared_check_tick();
+    let shared = app.session.mailbox.accounts.iter().find(|a| a.email == SHARED).map(|a| a.id).unwrap();
+    // Its folders are in: kept, and the dialog closes.
+    app.poll_graph();
+    assert!(app.dialog.is_none() && app.shared_checking.is_empty());
+    // The rest of the shared mailbox doesn't hold the owner's run up: it is called off in its
+    // turn, and comes down after.
+    assert!(app.services.sync_cancel.load(Ordering::Relaxed), "the shared mailbox's run is called off");
+    assert_eq!(app.sync_queue.iter().copied().collect::<Vec<_>>(), [(owner, false), (shared, false)]);
+    stop(&mut app, shared);
+    assert!(app.session.mailbox.account(shared).is_some(), "kept");
+    app.auto_sync();
+    assert_eq!(*asked.lock().unwrap(), [owner, shared, owner], "the owner's run goes on first");
+    assert!(!app.services.sync_cancel.load(Ordering::Relaxed));
+    stop(&mut app, owner);
+    app.auto_sync();
+    assert_eq!(*asked.lock().unwrap(), [owner, shared, owner, shared], "then the rest of the shared mailbox");
+    assert!(app.sync_queue.is_empty());
+    no_imap();
+}
+
+#[test]
+fn add_shared_mailbox_calls_off_a_sign_in_left_waiting_in_the_browser() {
+    let (mut app, owner, answers, jobs, _) = window();
+    // Another account's sign-in waits on a page in the browser, which the owner left (#274).
+    let held: Arc<Mutex<Vec<(Arc<AtomicBool>, mpsc::Sender<Result<Tokens, String>>)>>> = Default::default();
+    let keep = held.clone();
+    app.services.sign_in = Some(Box::new(move |req: SignInRequest| {
+        let (tx, rx) = mpsc::channel();
+        keep.lock().unwrap().push((req.cancel.clone(), tx));
+        rx
+    }));
+    let other = app.execute("account.add", json!({"email": "avery@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+    app.execute("ui.sync", json!({"account": other})).unwrap();
+    assert!(app.signing_in.is_some());
+    add_in_dialog(&mut app, &answers, owner, SHARED, vec![inbox_read(SHARED)]);
+    // Called off, and the shared mailbox is read at once rather than when the page times out.
+    assert!(held.lock().unwrap()[0].0.load(Ordering::Relaxed), "the sign-in is called off");
+    assert!(app.signing_in.is_none());
+    app.shared_check_tick();
+    let shared = app.session.mailbox.accounts.iter().find(|a| a.email == SHARED).map(|a| a.id).unwrap();
+    assert_eq!(jobs.lock().unwrap().iter().map(|(a, ..)| *a).collect::<Vec<_>>(), [shared]);
+    app.poll_graph();
+    assert!(app.dialog.is_none() && app.shared_checking.is_empty());
+    assert!(app.session.mailbox.folder_by_server(shared, "in").is_some());
+    no_imap();
+}
+
+#[test]
+fn add_shared_mailbox_waits_for_a_sign_in_being_renewed() {
+    let (mut app, owner, answers, jobs, _) = window();
+    // A sign-in renewed with a kept token: nobody is in the browser, and it is short.
+    let (renewed, rx) = mpsc::channel();
+    let cancel = Arc::new(AtomicBool::new(false));
+    app.signing_in = Some(crate::SigningIn {
+        graph: false,
+        favorites: false,
+        quiet: true,
+        account: owner,
+        shared: None,
+        shared_send: false,
+        browser: false,
+        rx,
+        cancel: cancel.clone(),
+    });
+    add_in_dialog(&mut app, &answers, owner, SHARED, vec![inbox_read(SHARED)]);
+    app.shared_check_tick();
+    assert!(!cancel.load(Ordering::Relaxed) && app.signing_in.is_some() && jobs.lock().unwrap().is_empty());
+    drop(renewed);
+    app.signing_in = None;
+    app.shared_check_tick();
+    assert_eq!(jobs.lock().unwrap().len(), 1);
+    app.poll_graph();
+    assert!(app.dialog.is_none() && app.shared_checking.is_empty());
     no_imap();
 }
 
