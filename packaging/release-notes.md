@@ -19,6 +19,7 @@
 - HTML mail laid out with a width, a maximum width, or centring by automatic margins (the usual centred newsletter card) now displays at that width and centred, not full width and misaligned ([#150](https://github.com/GITHUB_REPOSITORY/issues/150)).
 - Newsletters, statements and notices keep their padding, margins, lines, rounded corners and line spacing, so their boxes and buttons no longer run into the text ([#71](https://github.com/GITHUB_REPOSITORY/issues/71), thanks to @strikerz5).
 - Send/Receive brings new mail in every Microsoft Inbox, shared mailboxes included, first, before the folders and the rest ([#276](https://github.com/GITHUB_REPOSITORY/issues/276)).
+- Arranged by size, each message in the list says its size under its time ([#273](https://github.com/GITHUB_REPOSITORY/issues/273)).
 
 **Early alpha.** The foundations are in place and tested, but much of what a daily mail program needs is not there yet, and most of the Microsoft 365 behaviour has only been tested against stand-ins. What works is in the [README](https://github.com/GITHUB_REPOSITORY#what-works-today).
 
