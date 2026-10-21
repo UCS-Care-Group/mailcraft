@@ -24,7 +24,9 @@
 //! dialog says why. It is kept as soon as the run's first piece (the folders) shows the Inbox
 //! read: the dialog doesn't wait for the rest of the mailbox, which comes down behind it. A
 //! Send/Receive under way when Add is pressed is called off for it (it loses nothing, and goes
-//! on after), instead of the new mailbox being refused for it.
+//! on after, as it was asked for), instead of the new mailbox being refused for it; so is a
+//! sign-in left waiting in the browser. Once the new mailbox is kept, the rest of it waits for
+//! the runs in line: its own run is called off in turn and goes on after them (#274).
 
 use mailcraft_model::sync::SharedRefusal;
 use mailcraft_model::{Account, AccountKind, Directory, FolderKind, Id};
@@ -117,6 +119,7 @@ impl MailApp {
             self.shared_refused.remove(&account);
             self.shared_send_waits.remove(&account);
         }
+        self.sync_run = Some((account, None, false, quiet));
         self.graph_rx = Some((account, quiet, false, graph(ask)));
         self.session.sync_status = tl!("Sending and receiving…").to_string();
         Ok(json!({"started": true, "account": account, "graph": true, "shared": true}))
@@ -383,10 +386,22 @@ impl MailApp {
 
     /// A piece of the first run of a shared mailbox being added came in: once its Inbox has been
     /// read, it is kept and the dialog closes, and the rest of its mail comes down behind it.
-    /// (The whole of a big mailbox can take a long while; the dialog doesn't wait for it.)
-    pub(crate) fn shared_check_piece(&mut self, shared: Id) {
-        if self.shared_checking.contains(&shared) && !self.shared_refused.contains_key(&shared) && self.shared_inbox_read(shared) {
-            self.finish_shared_check(shared, Ok(()));
+    /// (The whole of a big mailbox can take a long while; the dialog doesn't wait for it.) When
+    /// a run was called off for it, or others wait their turn, the rest of it waits for them
+    /// (#274): its run is called off too, which loses nothing, and goes on after them. `over`:
+    /// its last piece is in already.
+    pub(crate) fn shared_check_piece(&mut self, shared: Id, over: bool) {
+        if !(self.shared_checking.contains(&shared) && !self.shared_refused.contains_key(&shared) && self.shared_inbox_read(shared)) {
+            return;
+        }
+        self.finish_shared_check(shared, Ok(()));
+        if over || self.sync_queue.is_empty() {
+            return;
+        }
+        let quiet = self.graph_rx.as_ref().is_some_and(|(_, quiet, ..)| *quiet);
+        self.services.sync_cancel.store(true, std::sync::atomic::Ordering::Relaxed);
+        if !self.sync_queue.iter().any(|(a, _)| *a == shared) {
+            self.sync_queue.push_back((shared, quiet));
         }
     }
 
@@ -398,6 +413,9 @@ impl MailApp {
         self.shared_checking.insert(shared);
         if self.shared_check_waits() {
             self.call_off_for_shared_check();
+        }
+        // (A sign-in left waiting in the browser is called off at once.)
+        if self.shared_check_waits() {
             self.shared_check_next = Some(shared);
             return Ok(());
         }
@@ -416,24 +434,43 @@ impl MailApp {
     }
 
     /// Call off the run under way, at its next safe place, and put its account first in line
-    /// again. (A Graph job that isn't bringing mail down can't be called off: it is short.)
+    /// again, as it was asked for. (A Graph job that isn't bringing mail down can't be called
+    /// off: it is short; nor a sign-in being renewed.) A sign-in waiting on a page in the browser
+    /// is called off at once (#274): the owner is here, not there, and Send/Receive asks again,
+    /// which the owner is told.
     fn call_off_for_shared_check(&mut self) {
+        if self.signing_in.as_ref().is_some_and(|s| s.browser)
+            && let Some(left) = self.signing_in.take()
+        {
+            left.cancel.store(true, std::sync::atomic::Ordering::Relaxed);
+            // Said where Send/Receive's problems are, under the account it was for: the next good
+            // run of it clears it.
+            let address = self.session.mailbox.account(left.account).map(|a| a.email.clone()).unwrap_or_default();
+            let said = crate::i18n::fmt(
+                tl!(
+                    "The sign-in to {address} waiting in your browser was stopped so the shared mailbox could be read. Send/Receive will ask you to sign in again."
+                ),
+                &[("address", &address)],
+            );
+            self.keep_sync_problems(left.account, &[said]);
+            return;
+        }
         let whose = if self.sync_rx.is_some() {
             // (Its end puts it back in line itself.)
-            if let Some((whose, baseline, _)) = self.sync_run {
-                self.sync_run = Some((whose, baseline, true));
+            if let Some((whose, baseline, _, quiet)) = self.sync_run {
+                self.sync_run = Some((whose, baseline, true, quiet));
             }
             None
         } else if self.graph_pieces.is_some() {
-            self.graph_rx.as_ref().map(|(whose, ..)| *whose)
+            self.graph_rx.as_ref().map(|(whose, quiet, ..)| (*whose, *quiet))
         } else {
             return;
         };
         self.services.sync_cancel.store(true, std::sync::atomic::Ordering::Relaxed);
-        if let Some(whose) = whose
+        if let Some((whose, quiet)) = whose
             && !self.sync_queue.iter().any(|(a, _)| *a == whose)
         {
-            self.sync_queue.push_front((whose, true));
+            self.sync_queue.push_front((whose, quiet));
         }
     }
 

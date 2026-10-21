@@ -176,7 +176,10 @@ fn opened_path(app: &mut MailApp, purpose: &str, path: &str) -> Result<Value, St
     let r = match purpose {
         "mailbox" => app.run("file.open", json!({"path": path})),
         "attach" => app.run("compose.attach", json!({"path": path})),
-        "picture" => return app.run("signature.picture.add", json!({"path": path})),
+        "picture" => {
+            crate::signatures::add_picture(app, json!({"path": path}));
+            return Ok(json!({"picture": path}));
+        }
         _ => app.run("file.import", json!({"path": path})),
     };
     if r.is_ok() {

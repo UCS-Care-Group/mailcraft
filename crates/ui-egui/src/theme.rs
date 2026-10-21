@@ -581,6 +581,13 @@ pub fn paint_clipped(painter: &egui::Painter, pos: egui::Pos2, width: f32, text:
     size.x
 }
 
+/// The theme the system reports for the main window, from its own input. `Context::system_theme`
+/// is the last pass's, whichever window that was, and a window of its own reports another one
+/// (light, on Linux) than the desktop's (#266); `logic` runs between passes.
+pub fn main_system_theme(ctx: &egui::Context) -> Option<egui::Theme> {
+    ctx.input_for(egui::ViewportId::ROOT, |i| i.raw.system_theme)
+}
+
 /// Apply the interface theme to egui. Both palettes go in, our light one as egui's light style
 /// and our dark one as its dark style, and `preference` ([`Appearance::preference`]) pins egui
 /// (and the window decorations) to one of them.

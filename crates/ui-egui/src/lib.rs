@@ -510,6 +510,8 @@ struct SigningIn {
     shared: Option<Id>,
     /// And for sending from it: what waits in its Outbox goes once it is had, or is held.
     shared_send: bool,
+    /// The owner signs in on a page in the browser (no kept token to renew it with).
+    browser: bool,
     rx: Receiver<Result<Tokens, String>>,
     cancel: std::sync::Arc<std::sync::atomic::AtomicBool>,
 }
@@ -907,6 +909,8 @@ pub struct MailApp {
     /// File › Signatures was on screen in the last frame: leaving it saves and closes the open
     /// signature.
     signatures_shown: bool,
+    /// What File › Signatures last said of a picture (a refusal, or that it was made smaller).
+    signature_note: Option<signatures::Note>,
     /// The last input the window was given, by kind only (never what was typed), for
     /// `ui.inspect`: what a script looks at when typing or the keyboard goes astray.
     pub(crate) input_trail: std::collections::VecDeque<String>,
@@ -984,8 +988,9 @@ pub struct MailApp {
     /// What the run in flight has come to so far, piece by piece.
     sync_totals: mailcraft_engine::cmd::account::SyncTotals,
     /// The run in flight: whose it is, how much was still waiting to go out when it turned to
-    /// bringing mail down (unknown until then), and whether it was called off to let more out.
-    sync_run: Option<(Id, Option<usize>, bool)>,
+    /// bringing mail down (unknown until then), whether it was called off to let more out, and
+    /// whether nobody asked for it (it comes back as it was).
+    sync_run: Option<(Id, Option<usize>, bool, bool)>,
     /// A piece of the run in flight said the server refused the sign-in.
     sync_refused: bool,
     control_rx: Option<Receiver<ControlRequest>>,
@@ -1126,6 +1131,7 @@ impl MailApp {
             compose_bcc: false,
             body_focus_wanted: false,
             signatures_shown: false,
+            signature_note: None,
             input_trail: std::collections::VecDeque::new(),
             reveal_selection: false,
             passwords: Default::default(),
@@ -1612,6 +1618,10 @@ impl MailApp {
                 self.services.sync_cancel.store(true, std::sync::atomic::Ordering::Relaxed);
                 self.pause_fetch();
                 self.sync_queue.clear();
+                // (Nor does a run called off for something else go on after.)
+                if let Some((_, _, called_off, _)) = self.sync_run.as_mut() {
+                    *called_off = false;
+                }
                 // (Send/Receive Progress: the accounts still to go are stopped with it.)
                 let waiting: Vec<Id> = self
                     .session
@@ -1758,7 +1768,8 @@ impl MailApp {
             return Err(tl!("This build can't sign in to this kind of account. Use the desktop app.").to_string());
         };
         let cancel = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
-        let waiting = if refresh.is_empty() { tl!("Sign in on the page that opened in your browser…") } else { tl!("Renewing the sign-in…") };
+        let browser = refresh.is_empty();
+        let waiting = if browser { tl!("Sign in on the page that opened in your browser…") } else { tl!("Renewing the sign-in…") };
         let request = SignInRequest {
             account,
             oauth: self.effective_oauth(oauth),
@@ -1776,7 +1787,7 @@ impl MailApp {
             shared_send,
         };
         let rx = sign_in(request);
-        self.signing_in = Some(SigningIn { graph, favorites, quiet, account, shared, shared_send, rx, cancel });
+        self.signing_in = Some(SigningIn { graph, favorites, quiet, account, shared, shared_send, browser, rx, cancel });
         self.session.sync_status = waiting.to_string();
         Ok(())
     }
@@ -1954,7 +1965,7 @@ impl MailApp {
             request.password = password;
         }
         let Some(start) = &self.services.sync else { return Err(tl!("This build can't connect to mail servers").to_string()) };
-        self.sync_run = Some((account, None, false));
+        self.sync_run = Some((account, None, false, quiet));
         self.sync_rx = Some(start(request));
         self.session.sync_status = tl!("Sending and receiving…").to_string();
         Ok(json!({"started": true, "account": account}))
@@ -2028,6 +2039,7 @@ impl MailApp {
         if ask.directory || ask.calendar.is_some() || ask.changes.is_some() {
             self.session.sync_progress.hold(account);
         }
+        self.sync_run = Some((account, None, false, quiet));
         self.graph_rx = Some((account, quiet, directory, graph(ask)));
         self.session.sync_status = tl!("Sending and receiving…").to_string();
         Ok(json!({"started": true, "account": account, "graph": true}))
@@ -2092,15 +2104,16 @@ impl MailApp {
         // Something the owner did (a read mark, a move, a message to send) waits while a long run
         // is still bringing mail down: the run is called off, which loses nothing, and the next
         // one tells the server first.
+        // (Whichever way the account is kept in step: a Graph run too, #274.)
         if self.auto_sync
-            && self.sync_rx.is_some()
-            && let Some((whose, Some(baseline), false)) = self.sync_run
+            && self.syncing()
+            && let Some((whose, Some(baseline), false, quiet)) = self.sync_run
             && now_ms() - self.push_checked >= 3_000.0
         {
             self.push_checked = now_ms();
             if self.waiting_to_go(whose) > baseline {
                 self.services.sync_cancel.store(true, std::sync::atomic::Ordering::Relaxed);
-                self.sync_run = Some((whose, Some(baseline), true));
+                self.sync_run = Some((whose, Some(baseline), true, quiet));
                 self.session.sync_status = tl!("Sending your changes…").to_string();
             }
         }
@@ -2216,8 +2229,16 @@ impl MailApp {
                     Err(e) => self.graph_problems.push(e.to_string()),
                 }
             }
+            // Its first piece made the changes made here and sent the Outbox; what waits beyond
+            // what waits now was done here since, and calls the run off ([`MailApp::auto_sync`]).
+            if self.graph_pieces_taken > 0
+                && let Some((whose, None, false, q)) = self.sync_run
+                && whose == account
+            {
+                self.sync_run = Some((whose, Some(self.waiting_to_go(whose)), false, q));
+            }
             // A shared mailbox being added is kept once its Inbox is read, not after all its mail.
-            self.shared_check_piece(account);
+            self.shared_check_piece(account, over);
             if !over {
                 return;
             }
@@ -2237,6 +2258,13 @@ impl MailApp {
             }
         };
         self.graph_rx = None;
+        // Called off so that what the owner did could go out: it goes on at once, as it was.
+        if self.sync_run.is_some_and(|(whose, ..)| whose == account)
+            && let Some((whose, _, true, quiet)) = self.sync_run.take()
+            && !self.sync_queue.iter().any(|(a, _)| *a == whose)
+        {
+            self.sync_queue.push_front((whose, quiet));
+        }
         let streamed = std::mem::take(&mut self.graph_pieces_taken) > 0;
         let after_sign_in = self.graph_after_sign_in.take() == Some(account);
         // A shared mailbox's run is its mail alone (#70).
@@ -2656,8 +2684,8 @@ impl MailApp {
             }
             // Once it brings mail down, the run has told the server what there was to tell: what
             // waits beyond what waits at this moment was done here since.
-            if downloading && let Some((whose, None, false)) = self.sync_run {
-                self.sync_run = Some((whose, Some(self.waiting_to_go(whose)), false));
+            if downloading && let Some((whose, None, false, quiet)) = self.sync_run {
+                self.sync_run = Some((whose, Some(self.waiting_to_go(whose)), false, quiet));
             }
             if !last {
                 continue;
@@ -2666,8 +2694,8 @@ impl MailApp {
             self.sync_rx = None;
             // Called off so that what the owner did could go out: the next run starts at once,
             // tells the server first, and carries on bringing mail down.
-            if let Some((whose, _, true)) = self.sync_run.take() {
-                self.sync_queue.push_front((whose, true));
+            if let Some((whose, _, true, quiet)) = self.sync_run.take() {
+                self.sync_queue.push_front((whose, quiet));
             }
             let totals = std::mem::take(&mut self.sync_totals);
             let address = self.session.mailbox.account(account).map(|a| a.email.clone()).unwrap_or_default();
@@ -2781,7 +2809,7 @@ impl MailApp {
             self.styled = true;
         }
         // Settled from the main window's input, so every window has the same theme.
-        let preference = self.ui.theme.preference(ctx.system_theme());
+        let preference = self.ui.theme.preference(theme::main_system_theme(ctx));
         if self.applied_theme != Some(preference) {
             theme::apply(ctx, preference);
             self.applied_theme = Some(preference);
@@ -2864,7 +2892,7 @@ impl MailApp {
             let path = f.path().to_string_lossy().to_string();
             // A picture dropped on File › Signatures goes into the signature open there.
             if signatures && self.session.signature_edit.is_some() {
-                let _ = self.run("signature.picture.add", json!({"path": path}));
+                signatures::add_picture(self, json!({"path": path}));
             } else {
                 self.open_path(&path);
             }
@@ -2875,6 +2903,7 @@ impl MailApp {
 
     /// Keep what was changed in the signature open in File › Signatures, and close it.
     fn leave_signature(&mut self) {
+        self.signature_note = None;
         if self.session.signature_edit.as_ref().is_some_and(|e| e.dirty)
             && let Err(e) = self.execute("signature.save", json!({}))
         {

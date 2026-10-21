@@ -11,7 +11,7 @@
 //! left.
 
 use egui::{Ui, vec2};
-use mailcraft_model::signature::{HEAVY_BYTES, Layout, MAX_PICTURES_BYTES, MAX_WIDTH};
+use mailcraft_model::signature::{HEAVY_BYTES, Layout, MAX_PICTURE_BYTES, MAX_PICTURES_BYTES, MAX_WIDTH};
 use serde_json::json;
 
 use crate::MailApp;
@@ -53,6 +53,103 @@ pub(crate) fn page(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     ui.add_space(10.0);
     ui.label(egui::RichText::new(tl!("Choose default signatures")).font(semibold(14.0)).color(t.accent_text));
     defaults(app, ui, &names);
+}
+
+/// The page's last word on a picture: what refused it, or that it was made smaller.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct Note {
+    pub text: String,
+    pub error: bool,
+}
+
+/// A picture of this many bytes at most is read to be made smaller; more is refused outright.
+const MAX_SOURCE_BYTES: u64 = 32 * 1024 * 1024;
+
+/// Add a picture to the open signature (`path` or `data`, as `signature.picture.add` takes them):
+/// one over the cap is made smaller to fit; what can't be added is said on the page, which is
+/// all the owner sees (the status bar is hidden behind File).
+pub(crate) fn add_picture(app: &mut MailApp, params: serde_json::Value) {
+    app.signature_note = None;
+    let Err(refused) = app.run("signature.picture.add", params.clone()) else { return };
+    let (stem, bytes) = match source(&params) {
+        Some(s) => s,
+        None => return refuse(app, refused),
+    };
+    let Some((small, w, ext)) = shrink(&bytes) else { return refuse(app, refused) };
+    let data = crate::files::base64_lite::encode(&small);
+    let mut again = json!({"data": data, "file": format!("{stem}.{ext}")});
+    if let Some(alt) = params.get("alt") {
+        again["alt"] = alt.clone();
+    }
+    match app.run("signature.picture.add", again) {
+        Ok(_) => {
+            let text = crate::i18n::fmt(tl!("The picture was too big, so it was made smaller ({w} px wide)."), &[("w", &w.to_string())]);
+            app.signature_note = Some(Note { text, error: false });
+        }
+        Err(_) => refuse(app, refused),
+    }
+}
+
+fn refuse(app: &mut MailApp, why: String) {
+    app.signature_note = Some(Note { text: why, error: true });
+}
+
+/// The picture's name without its extension, and its bytes, from a file or from the data.
+fn source(params: &serde_json::Value) -> Option<(String, Vec<u8>)> {
+    let name = |n: &str| {
+        let n = n.rsplit(['/', '\\']).next().unwrap_or(n);
+        n.rsplit_once('.').map_or(n, |(stem, _)| stem).to_string()
+    };
+    if let Some(data) = params.get("data").and_then(|d| d.as_str()) {
+        let file = params.get("file").and_then(|f| f.as_str()).unwrap_or("picture");
+        return Some((name(file), crate::files::base64_lite::decode(data)?));
+    }
+    let path = params.get("path")?.as_str()?.trim();
+    if std::fs::metadata(path).ok()?.len() > MAX_SOURCE_BYTES {
+        return None;
+    }
+    Some((name(path), std::fs::read(path).ok()?))
+}
+
+/// `bytes` as a picture within [`MAX_PICTURE_BYTES`] and [`MAX_WIDTH`] px: PNG, or JPEG when it has
+/// no transparency and PNG is still too big, at half the width again until it fits (a few tries).
+/// And the width and the extension to name it by. `None` when it can't be read (limits on what it may decode to) or won't fit.
+fn shrink(bytes: &[u8]) -> Option<(Vec<u8>, u32, &'static str)> {
+    use image::{ImageDecoder as _, ImageEncoder as _};
+    let mut decoder = image::ImageReader::new(std::io::Cursor::new(bytes)).with_guessed_format().ok()?.into_decoder().ok()?;
+    let mut limits = image::Limits::default();
+    limits.max_image_width = Some(16_384);
+    limits.max_image_height = Some(16_384);
+    limits.max_alloc = Some(256 * 1024 * 1024);
+    decoder.set_limits(limits).ok()?;
+    let img = image::DynamicImage::from_decoder(decoder).ok()?;
+    let opaque = !img.color().has_alpha();
+    let mut width = img.width().min(u32::from(MAX_WIDTH));
+    for _ in 0..5 {
+        if width < 16 {
+            return None;
+        }
+        let height = u32::try_from(u64::from(img.height()) * u64::from(width) / u64::from(img.width().max(1))).ok()?.max(1);
+        let small = img.resize_exact(width, height, image::imageops::FilterType::Triangle);
+        let mut png = Vec::new();
+        let rgba = small.to_rgba8();
+        image::codecs::png::PngEncoder::new(&mut png).write_image(rgba.as_raw(), width, height, image::ExtendedColorType::Rgba8).ok()?;
+        if png.len() <= MAX_PICTURE_BYTES {
+            return Some((png, width, "png"));
+        }
+        if opaque {
+            let mut jpeg = Vec::new();
+            let rgb = small.to_rgb8();
+            image::codecs::jpeg::JpegEncoder::new_with_quality(&mut jpeg, 85)
+                .write_image(rgb.as_raw(), width, height, image::ExtendedColorType::Rgb8)
+                .ok()?;
+            if jpeg.len() <= MAX_PICTURE_BYTES {
+                return Some((jpeg, width, "jpg"));
+            }
+        }
+        width /= 2;
+    }
+    None
 }
 
 /// Open `name`, keeping what was changed in the one open now.
@@ -134,15 +231,16 @@ fn editing(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
             let _ = app.run("compose.link", json!({}));
         }
         if ui.button(tl!("Insert Picture")).clicked() {
+            app.signature_note = None;
             let _ = app.run("signature.picture.add", json!({}));
         }
         // (A picture alone on the clipboard makes no paste in the editor: egui pastes text.)
         if app.services.clipboard.is_some() && ui.button(tl!("Paste Picture")).clicked() {
             match app.services.clipboard.as_ref().and_then(|b| b.image()) {
                 Some(png) => {
-                    let _ = app.run("signature.picture.add", json!({"data": crate::files::base64_lite::encode(&png), "file": "picture.png"}));
+                    add_picture(app, json!({"data": crate::files::base64_lite::encode(&png), "file": "picture.png"}));
                 }
-                None => app.status(tl!("There is no picture on the clipboard.")),
+                None => app.signature_note = Some(Note { text: tl!("There is no picture on the clipboard.").to_string(), error: true }),
             }
         }
         let layout = app.session.signature_edit.as_ref().map_or(Layout::Inline, |e| e.signature.layout);
@@ -163,6 +261,9 @@ fn editing(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         ui.set_min_height(150.0);
         editor::show_doc(app, ui, Which::Signature, 130.0, false);
     });
+    if let Some(note) = &app.signature_note {
+        ui.label(egui::RichText::new(note.text.as_str()).color(if note.error { t.red } else { t.text_dim }));
+    }
     picture(app, ui);
     let Some(e) = app.session.signature_edit.as_ref() else { return };
     // What its pictures add to every message, counting those its text still holds.

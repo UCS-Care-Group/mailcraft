@@ -241,6 +241,9 @@ struct BlockNode {
 struct BoxBuild {
     background: Option<Rgb>,
     outline: bool,
+    /// A `max-width` caps it (the whole room when none), and automatic margins centre it.
+    width: Option<Length>,
+    align: Align,
 }
 
 #[derive(Debug)]
@@ -1017,15 +1020,9 @@ impl Builder {
             return;
         }
         let cell = Cell { blocks, background: boxed.background, ..Cell::default() };
-        let table = Table {
-            rows: vec![Row { cells: vec![cell] }],
-            columns: 1,
-            layout: true,
-            outline: boxed.outline,
-            width: Some(Length::Percent(100)),
-            ..Table::default()
-        };
-        let block = Block { quote: self.quote_depth(), ..Block::new(BlockKind::Table(table), Vec::new()) };
+        let table =
+            Table { rows: vec![Row { cells: vec![cell] }], columns: 1, layout: true, outline: boxed.outline, width: boxed.width, ..Table::default() };
+        let block = Block { quote: self.quote_depth(), align: boxed.align, ..Block::new(BlockKind::Table(table), Vec::new()) };
         self.emit(block, true);
     }
 
@@ -1183,9 +1180,9 @@ impl Builder {
         let role = tag.attr("role").map(|r| r.trim().to_ascii_lowercase());
         let build = TableBuild {
             rows: Vec::new(),
-            width: tag.attr("width").and_then(|w| style::attr_length(&w)),
+            width: sized(&css, tag.attr("width").and_then(|w| style::attr_length(&w))),
             background: css.background.or_else(|| tag.attr("bgcolor").and_then(|c| style::attr_color(&c))).filter(|bg| Some(*bg) != self.backdrop()),
-            align: tag.attr("align").and_then(|a| style::attr_align(&a)).unwrap_or(self.style().align),
+            align: tag.attr("align").and_then(|a| style::attr_align(&a)).or(css.centred().then_some(Align::Center)).unwrap_or(self.style().align),
             border,
             outline: css.framed(),
             presentation: matches!(role.as_deref(), Some("presentation" | "none")),
@@ -1284,7 +1281,7 @@ impl Builder {
             colspan: span("colspan", MAX_TABLE_COLUMNS as u16),
             rowspan: span("rowspan", MAX_ROW_SPAN),
             background: css.background.or_else(|| tag.attr("bgcolor").and_then(|c| style::attr_color(&c))).filter(|bg| Some(*bg) != self.backdrop()),
-            width: tag.attr("width").and_then(|w| style::attr_length(&w)),
+            width: sized(&css, tag.attr("width").and_then(|w| style::attr_length(&w))),
             border: {
                 let [top, right, bottom, left] = css.borders;
                 Sides { top, right, bottom, left }
@@ -1476,13 +1473,20 @@ impl Builder {
         let background = background.filter(|bg| !(near_white(*bg) && !self.tinted()) && Some(*bg) != self.backdrop());
         let outline = css.framed();
         let [top, _, bottom, left] = css.borders;
-        let boxed = (background.is_some() || outline) && self.frames.len() < MAX_TABLE_DEPTH;
+        // (Only a `max-width` makes a block a card; automatic margins alone have nothing to centre.)
+        let capped = css.max_width.filter(|_| !paragraph && name != "body");
+        let boxed = (background.is_some() || outline || capped.is_some()) && self.frames.len() < MAX_TABLE_DEPTH;
         let node = BlockNode {
             margin: margin_below,
             quote: left && !outline,
             rule: bottom && !outline,
             mso: matches!(css.mso_list, Some(MsoList::Level(_))),
-            boxed: boxed.then_some(BoxBuild { background, outline }),
+            boxed: boxed.then_some(BoxBuild {
+                background,
+                outline,
+                width: capped.or(Some(Length::Percent(100))),
+                align: if css.centred() && capped.is_some() { Align::Center } else { Align::Left },
+            }),
         };
         if margin_above {
             self.want_space(1);
@@ -1728,6 +1732,20 @@ impl Builder {
 }
 
 /// The whitelisted facts of a tag's `style` attribute.
+/// The width a table or cell asks for: its style's, else its attribute's, held to its `max-width`.
+fn sized(css: &Css, attr: Option<Length>) -> Option<Length> {
+    use Length::{Percent, Px};
+    match (css.layout_width.or(attr), css.max_width) {
+        (width, None) => width,
+        (Some(Px(w)), Some(Px(m))) => Some(Px(w.min(m))),
+        (Some(Px(w)), Some(Percent(_))) => Some(Px(w)),
+        (Some(Percent(w)), Some(Percent(m))) => Some(Percent(w.min(m))),
+        (Some(Percent(100)) | None, Some(Px(m))) => Some(Px(m)),
+        (Some(Percent(w)), Some(Px(_))) => Some(Percent(w)),
+        (None, Some(Percent(m))) => Some(Percent(m)),
+    }
+}
+
 fn css_of(tag: &Tag<'_>) -> Css {
     tag.attr("style").map(|s| Css::parse(&s)).unwrap_or_default()
 }

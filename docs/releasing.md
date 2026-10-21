@@ -1,6 +1,6 @@
 # Releasing MailCraft
 
-> **Last reviewed:** 2026-10-18 · **Last updated:** 2026-10-20 · **Change:** minor (build provenance as a file beside each release; reproducible builds, checked weekly; one pinned Rust version, 1.98.1, for every build; what to do when a release key leaks: there is no taking it back from copies already out; v0.5.0, the first release with MailCraft's own signature; how a copy that updates itself installs a release; `DISABLEAUTOMATICUPDATES=1`; MailCraft's own release signature: `SHA256SUMS.txt.sig`, the `MAILCRAFT_RELEASE_KEY` secret, `cargo xtask release-key`) · **Status:** releases v0.1.0 to v0.5.0 were built and published by `release.yml` and `package.yml` on GitHub's runners, for every platform in the table below; v0.5.0 is the first with MailCraft's own release signature (`SHA256SUMS.txt.sig`, verified by the in-use key), and none is signed by the operating systems' signatures yet (gap #18).
+> **Last reviewed:** 2026-10-18 · **Last updated:** 2026-10-21 · **Change:** minor (a Fixes section in the release notes, each issue linked, checked against what merged since the last tag; build provenance as a file beside each release; reproducible builds, checked weekly; one pinned Rust version, 1.98.1, for every build; what to do when a release key leaks: there is no taking it back from copies already out; v0.5.0, the first release with MailCraft's own signature; how a copy that updates itself installs a release; `DISABLEAUTOMATICUPDATES=1`; MailCraft's own release signature: `SHA256SUMS.txt.sig`, the `MAILCRAFT_RELEASE_KEY` secret, `cargo xtask release-key`) · **Status:** releases v0.1.0 to v0.5.0 were built and published by `release.yml` and `package.yml` on GitHub's runners, for every platform in the table below; v0.5.0 is the first with MailCraft's own release signature (`SHA256SUMS.txt.sig`, verified by the in-use key), and none is signed by the operating systems' signatures yet (gap #18).
 
 The canonical recipe is [craftrules `release/playbook.md`](https://github.com/storytold/craftrules/blob/main/release/playbook.md);
 this file has the MailCraft specifics. The scripts in `packaging/` are WordCraft's with MailCraft's
@@ -15,10 +15,18 @@ standard runners in any public repository, a fork included. If the repository mo
 organisation, call `storytold/craft-common-actions/.github/workflows/release.yml` instead, as
 WordCraft does.
 
-1. Bump the version: `cargo xtask version set 0.2.0` (the one source of truth is
+1. Release notes: `packaging/release-notes.md` is the release's text on GitHub and on the
+   website's changelog, which shows it as written. Under **Fixes**, one line for each user-visible
+   fix, each linking the issue it resolves (or its PR when there was no issue) in full,
+   `[#123](https://github.com/GITHUB_REPOSITORY/issues/123)`, because the website does not link
+   a bare `#123`; thank whoever reported it. Check the list against everything merged since the
+   last tag, `gh pr list --state merged --search "merged:>YYYY-MM-DD" --json number,title,closingIssuesReferences`:
+   every user-visible change is in the notes, and a security fix always is. Lines are added as
+   fixes merge and cleared when the next release's notes start.
+2. Bump the version: `cargo xtask version set 0.2.0` (the one source of truth is
    `[workspace.package] version`; the app shows it in `--version` and About, with the commit from
    `MAILCRAFT_BUILD_SHA`), commit, and get `cargo xtask ci` green.
-2. Tag that commit `v0.2.0` and push the tag. The workflow refuses a tag that isn't the version in
+3. Tag that commit `v0.2.0` and push the tag. The workflow refuses a tag that isn't the version in
    `Cargo.toml`, then builds:
 
 | Platform | Artifacts | Signing |
@@ -29,12 +37,12 @@ WordCraft does.
 | FreeBSD | x86_64 `.tar.gz` (built in a FreeBSD VM; on a tag always, on a dry run only when asked for) | checksums |
 | Web | `mailcraft-web-<version>.zip` (static site: `index.html`, wasm, glue) | none |
 
-3. The run makes ONE **draft** GitHub release, `MailCraft v<version>` on that tag, with every file
+4. The run makes ONE **draft** GitHub release, `MailCraft v<version>` on that tag, with every file
    and a `SHA256SUMS.txt` (`sha256sum` format; `packaging/release-notes.md` is its text). Running
    the same tag again replaces the files of that draft; a release that is already published is
    never changed by the workflow (the run fails instead). A version with a suffix
    (`0.2.0-rc.1`) is marked as a pre-release.
-4. A maintainer checks the draft (files, names, checksums, notes) and publishes it by hand:
+5. A maintainer checks the draft (files, names, checksums, notes) and publishes it by hand:
    Releases › the draft › Edit › Publish release, or `gh release edit v0.2.0 --draft=false`.
    Nothing is public until then.
 
@@ -230,6 +238,7 @@ and in the Flatpak (which is granted `org.freedesktop.secrets` for it).
 
 | Date | Change |
 |---|---|
+| 2026-10-21 | Release notes: a Fixes section, each fix's issue linked in full for the website's changelog; checked against what merged since the last tag |
 | 2026-10-20 | Build provenance attached to each release as `mailcraft-<version>.intoto.jsonl` |
 | 2026-10-20 | Reproducible builds: the Linux app and CLI built twice in different folders and compared, weekly |
 | 2026-10-20 | One pinned Rust version, 1.98.1, for CI, the packages and the release |

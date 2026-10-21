@@ -8039,6 +8039,11 @@ msgid "The organizer of this meeting doesn't take proposals of another time."
 msgstr "L'organizzatore di questa riunione non accetta proposte di un altro orario."
 
 #. interface
+#: crates/ui-egui/src/signatures.rs
+msgid "The picture was too big, so it was made smaller ({w} px wide)."
+msgstr "L'immagine era troppo grande ed è stata ridotta ({w} px di larghezza)."
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "The port; leave it empty for the usual one"
@@ -8085,6 +8090,11 @@ msgstr "L'indirizzo di posta elettronica della cassetta postale condivisa"
 #, fuzzy
 msgid "The sign-in of the account this shared mailbox is opened through was refused: sign in again with Send/Receive"
 msgstr "L'accesso dell'account tramite cui è aperta questa cassetta postale condivisa è stato rifiutato: accedere di nuovo con Invia/Ricevi"
+
+#. interface
+#: crates/ui-egui/src/shared_mailboxes.rs
+msgid "The sign-in to {address} waiting in your browser was stopped so the shared mailbox could be read. Send/Receive will ask you to sign in again."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/graph_switch.rs

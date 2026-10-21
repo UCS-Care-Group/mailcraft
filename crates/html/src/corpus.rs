@@ -36,6 +36,15 @@ pub const BUILT_NEWSLETTER: &str = include_str!("../corpus/built_newsletter.html
 /// button, and a footer of small linked pictures side by side (a row of cells, then a line).
 pub const ACCESS_DIGEST: &str = include_str!("../corpus/access_digest.html");
 
+/// A payments summary whose widths are all in `style`: a wrapper table with a `width="100"`
+/// attribute that its style makes 100%, a 600-pixel card centred by `margin: 0 auto`, and cells
+/// with percentage widths (#150).
+pub const STYLE_WIDTH_TABLE: &str = include_str!("../corpus/style_width_table.html");
+
+/// A shop's mailing in a `<div>` card: `max-width:600px; margin:0 auto`, with a narrower block
+/// inside it (#150).
+pub const STYLE_CARD: &str = include_str!("../corpus/style_card.html");
+
 /// An order confirmation: a grid of order facts, and a data table with a header row, right-aligned
 /// amounts, spanning total rows and lines under the rows.
 pub const RECEIPT: &str = include_str!("../corpus/receipt.html");
@@ -93,6 +102,8 @@ pub fn messages() -> Vec<(&'static str, &'static str)> {
         ("calendar notice", CALENDAR),
         ("built newsletter", BUILT_NEWSLETTER),
         ("access digest", ACCESS_DIGEST),
+        ("style width table", STYLE_WIDTH_TABLE),
+        ("style card", STYLE_CARD),
     ]
 }
 
