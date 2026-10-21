@@ -10,7 +10,7 @@ use std::sync::mpsc;
 use std::sync::{Arc, Mutex};
 
 use mailcraft_engine::Session;
-use mailcraft_model::sync::{GraphMailRequest, GraphMailResult, Tokens};
+use mailcraft_model::sync::{GraphMailRequest, GraphMailResult, SyncRequest, SyncResult, Tokens};
 use mailcraft_model::{FolderKind, Id};
 use serde_json::json;
 
@@ -308,6 +308,146 @@ fn add_shared_mailbox_closes_once_the_inbox_is_read_without_waiting_for_the_whol
     app.poll_graph();
     app.poll_graph();
     assert!(app.session.mailbox.account(kept).is_some() && app.dialog.is_none());
+    no_imap();
+}
+
+#[test]
+fn add_shared_mailbox_while_a_send_receive_is_under_way_calls_it_off_and_reads_the_new_one_first() {
+    let (mut app, owner, _, _, _) = window();
+    // The owner's own run is bringing a big mailbox down when Add is pressed: the host holds on
+    // to it until it is called off. The shared mailbox's run answers at once.
+    type Run = (mpsc::SyncSender<GraphMailResult>, mpsc::Sender<GraphResult>);
+    let running: Arc<Mutex<Option<Run>>> = Default::default();
+    let asked: Arc<Mutex<Vec<Id>>> = Default::default();
+    let (keep, log) = (running.clone(), asked.clone());
+    app.services.graph = Some(Box::new(move |req: GraphRequest| {
+        log.lock().unwrap().push(req.account.id);
+        let (tx, rx) = mpsc::channel();
+        let pieces = req.mail_pieces.clone().unwrap();
+        if req.account.email == SHARED {
+            pieces.send(GraphMailResult { account: req.account.id, partial: true, ..inbox_read(SHARED) }).unwrap();
+            drop(pieces);
+            tx.send(GraphResult { account: req.account.id, ..Default::default() }).unwrap();
+        } else {
+            *keep.lock().unwrap() = Some((pieces, tx));
+        }
+        rx
+    }));
+    app.execute("ui.sync", json!({"account": owner})).unwrap();
+    assert!(app.graph_rx.is_some());
+    let answers: Answers = Default::default();
+    add_in_dialog(&mut app, &answers, owner, SHARED, Vec::new());
+    // Not refused as "already running": it waits, and the owner's run is called off.
+    assert!(matches!(&app.dialog, Some(crate::dialogs::Dialog::SharedMailbox { checking: Some(_), error, .. }) if error.is_empty()));
+    let shared = app.session.mailbox.accounts.iter().find(|a| a.email == SHARED).map(|a| a.id).unwrap();
+    assert!(app.services.sync_cancel.load(Ordering::Relaxed));
+    assert!(app.sync_queue.iter().any(|(a, _)| *a == owner), "the owner's run goes on after");
+    app.shared_check_tick();
+    assert_eq!(*asked.lock().unwrap(), [owner], "nothing starts while the owner's run is stopping");
+    // The owner's run stops.
+    let (pieces, answer) = running.lock().unwrap().take().unwrap();
+    drop(pieces);
+    answer.send(GraphResult { account: owner, ..Default::default() }).unwrap();
+    app.poll_graph();
+    app.poll_graph();
+    assert!(app.graph_rx.is_none());
+    // The shared mailbox is read first, before anything else in line, and kept: the dialog
+    // closes on the folders, which are its run's first piece.
+    app.shared_check_tick();
+    assert_eq!(*asked.lock().unwrap(), [owner, shared]);
+    app.poll_graph();
+    assert!(app.dialog.is_none() && app.shared_checking.is_empty());
+    assert!(app.session.mailbox.account(shared).is_some() && app.session.mailbox.folder_by_server(shared, "in").is_some());
+    // Then the owner's run goes on (the window's frame: a run by itself after the check).
+    app.auto_sync();
+    assert_eq!(*asked.lock().unwrap(), [owner, shared, owner], "the called-off run goes on after");
+    no_imap();
+}
+
+#[test]
+fn add_shared_mailbox_while_a_mail_protocol_run_is_under_way_calls_it_off_and_reads_the_new_one_first() {
+    let (mut app, owner, answers, jobs, _) = window();
+    // Another account's run, over the mail protocols, is bringing a big mailbox down when Add is
+    // pressed: this host holds on to it until it is called off. (The window's own host would
+    // take any run for one of a shared mailbox's: this test's notes whose it was.)
+    let running: Arc<Mutex<Option<mpsc::Sender<SyncResult>>>> = Default::default();
+    let asked: Arc<Mutex<Vec<Id>>> = Default::default();
+    let (keep, log) = (running.clone(), asked.clone());
+    app.services.sync = Some(Box::new(move |req: SyncRequest| {
+        log.lock().unwrap().push(req.account.id);
+        let (tx, rx) = mpsc::channel();
+        *keep.lock().unwrap() = Some(tx);
+        rx
+    }));
+    let other = app.execute("account.add", json!({"email": "avery@mail.example", "incoming": {"host": "imap.mail.example"}})).unwrap()["id"]
+        .as_u64()
+        .unwrap();
+    app.passwords.insert(other, "pw".into());
+    app.execute("ui.sync", json!({"account": other})).unwrap();
+    assert!(app.sync_rx.is_some());
+    add_in_dialog(&mut app, &answers, owner, SHARED, vec![inbox_read(SHARED)]);
+    // Not refused as "already running": it waits, and the other account's run is called off.
+    assert!(matches!(&app.dialog, Some(crate::dialogs::Dialog::SharedMailbox { checking: Some(_), error, .. }) if error.is_empty()));
+    let shared = app.session.mailbox.accounts.iter().find(|a| a.email == SHARED).map(|a| a.id).unwrap();
+    assert!(app.services.sync_cancel.load(Ordering::Relaxed));
+    assert!(matches!(app.sync_run, Some((whose, _, true)) if whose == other), "called off, to go on after");
+    app.poll_sync();
+    app.shared_check_tick();
+    assert!(jobs.lock().unwrap().is_empty(), "nothing starts while the other run is stopping");
+    // The host stops: the run's last piece.
+    running.lock().unwrap().take().unwrap().send(SyncResult { account: other, stopped: true, ..Default::default() }).unwrap();
+    app.poll_sync();
+    assert!(app.sync_rx.is_none());
+    assert_eq!(app.sync_queue.front().map(|(a, _)| *a), Some(other), "the other account's run goes on after");
+    // The shared mailbox is read first, through Graph alone, and the dialog closes on its folders.
+    app.shared_check_tick();
+    assert_eq!(jobs.lock().unwrap().iter().map(|(a, ..)| *a).collect::<Vec<_>>(), [shared]);
+    app.poll_graph();
+    app.poll_graph();
+    assert!(app.dialog.is_none() && app.shared_checking.is_empty());
+    assert!(app.session.mailbox.folder_by_server(shared, "in").is_some());
+    // Then the other account's run goes on.
+    app.auto_sync();
+    assert_eq!(*asked.lock().unwrap(), [other, other]);
+    assert_eq!(jobs.lock().unwrap().len(), 1, "the shared mailbox was read once, through Graph");
+}
+
+#[test]
+fn add_shared_mailbox_waits_for_a_graph_job_that_brings_no_mail_down_without_calling_it_off() {
+    let (mut app, owner, answers, jobs, _) = window();
+    // The owner's run has its mail in and is on its calendar and contacts: short, and not
+    // called off; the shared mailbox's run starts once it has ended.
+    let (end, held) = mpsc::channel::<GraphResult>();
+    app.graph_rx = Some((owner, true, false, held));
+    add_in_dialog(&mut app, &answers, owner, SHARED, vec![inbox_read(SHARED)]);
+    assert!(matches!(&app.dialog, Some(crate::dialogs::Dialog::SharedMailbox { checking: Some(_), error, .. }) if error.is_empty()));
+    let shared = app.session.mailbox.accounts.iter().find(|a| a.email == SHARED).map(|a| a.id).unwrap();
+    app.shared_check_tick();
+    assert!(!app.services.sync_cancel.load(Ordering::Relaxed) && jobs.lock().unwrap().is_empty());
+    assert!(app.sync_queue.is_empty(), "nothing to put back in line: the job wasn't called off");
+    end.send(GraphResult { account: owner, ..Default::default() }).unwrap();
+    app.poll_graph();
+    assert!(app.graph_rx.is_none());
+    app.shared_check_tick();
+    assert_eq!(jobs.lock().unwrap().iter().map(|(a, ..)| *a).collect::<Vec<_>>(), [shared]);
+    app.poll_graph();
+    assert!(app.dialog.is_none() && app.shared_checking.is_empty());
+    assert!(app.session.mailbox.folder_by_server(shared, "in").is_some());
+    no_imap();
+}
+
+#[test]
+fn add_shared_mailbox_called_off_while_it_waits_starts_nothing() {
+    let (mut app, owner, answers, jobs, _) = window();
+    // A run that never ends by itself.
+    let (_hold, held) = mpsc::channel::<GraphResult>();
+    app.graph_rx = Some((owner, true, false, held));
+    add_in_dialog(&mut app, &answers, owner, SHARED, Vec::new());
+    let shared = app.session.mailbox.accounts.iter().find(|a| a.email == SHARED).map(|a| a.id).unwrap();
+    app.drop_shared_check(shared);
+    app.graph_rx = None;
+    app.shared_check_tick();
+    assert!(jobs.lock().unwrap().is_empty() && app.session.mailbox.account(shared).is_none());
     no_imap();
 }
 

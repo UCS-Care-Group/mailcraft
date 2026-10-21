@@ -968,6 +968,9 @@ pub struct MailApp {
     /// Shared mailboxes just added in Add Shared Mailbox whose Inbox hasn't been read yet: kept
     /// only once it has been, and removed again when it can't be (#70).
     shared_checking: std::collections::HashSet<Id>,
+    /// A shared mailbox being added whose first run waits for the Send/Receive under way, which
+    /// was called off for it: it starts as soon as that one has stopped.
+    shared_check_next: Option<Id>,
     /// The next sign-in asks for mail alone (account setup's "mail only").
     mail_only_next: bool,
     /// A sign-in the host is waiting on (the owner is in the browser).
@@ -1148,6 +1151,7 @@ impl MailApp {
             shared_send_pressed: Default::default(),
             shared_refused: Default::default(),
             shared_checking: Default::default(),
+            shared_check_next: None,
             mail_only_next: false,
             signing_in: None,
             setup_sign_in: None,
@@ -2818,6 +2822,8 @@ impl MailApp {
         self.poll_calendar_check();
         self.poll_free_busy();
         self.poll_sync();
+        // (Before any other run can start: a shared mailbox being added goes first.)
+        self.shared_check_tick();
         self.check_secret_store();
         // Whether a new version is out, when the owner wants that known ([`updates`]).
         self.updates_tick(ctx);

@@ -22,7 +22,9 @@
 //! Add Shared Mailbox checks the address at once (S1): the mailbox is added, its Inbox read by
 //! its first run, and it is kept only when that worked; otherwise it is removed again and the
 //! dialog says why. It is kept as soon as the run's first piece (the folders) shows the Inbox
-//! read: the dialog doesn't wait for the rest of the mailbox, which comes down behind it.
+//! read: the dialog doesn't wait for the rest of the mailbox, which comes down behind it. A
+//! Send/Receive under way when Add is pressed is called off for it (it loses nothing, and goes
+//! on after), instead of the new mailbox being refused for it.
 
 use mailcraft_model::sync::SharedRefusal;
 use mailcraft_model::{Account, AccountKind, Directory, FolderKind, Id};
@@ -390,8 +392,15 @@ impl MailApp {
 
     /// Add Shared Mailbox: read the shared mailbox `shared`, just added, to see whether it is to
     /// be kept ([`MailApp::finish_shared_check`]). When the run can't start, it is removed again.
+    /// A Send/Receive under way (the owner's own, say, which can take long) is called off for it,
+    /// which loses nothing: this one starts once that has stopped, and that one goes on after.
     pub(crate) fn begin_shared_check(&mut self, shared: Id) -> Result<(), String> {
         self.shared_checking.insert(shared);
+        if self.shared_check_waits() {
+            self.call_off_for_shared_check();
+            self.shared_check_next = Some(shared);
+            return Ok(());
+        }
         match self.start_sync(&json!({"account": shared})) {
             Ok(_) => Ok(()),
             Err(e) => {
@@ -401,10 +410,61 @@ impl MailApp {
         }
     }
 
+    /// Whether the first run of a shared mailbox being added has to wait for another to end.
+    fn shared_check_waits(&self) -> bool {
+        self.sync_rx.is_some() || self.graph_rx.is_some() || self.signing_in.is_some()
+    }
+
+    /// Call off the run under way, at its next safe place, and put its account first in line
+    /// again. (A Graph job that isn't bringing mail down can't be called off: it is short.)
+    fn call_off_for_shared_check(&mut self) {
+        let whose = if self.sync_rx.is_some() {
+            // (Its end puts it back in line itself.)
+            if let Some((whose, baseline, _)) = self.sync_run {
+                self.sync_run = Some((whose, baseline, true));
+            }
+            None
+        } else if self.graph_pieces.is_some() {
+            self.graph_rx.as_ref().map(|(whose, ..)| *whose)
+        } else {
+            return;
+        };
+        self.services.sync_cancel.store(true, std::sync::atomic::Ordering::Relaxed);
+        if let Some(whose) = whose
+            && !self.sync_queue.iter().any(|(a, _)| *a == whose)
+        {
+            self.sync_queue.push_front((whose, true));
+        }
+    }
+
+    /// Every frame: the first run of a shared mailbox being added, once the run it waited for
+    /// has stopped (that one may have handed over to another leg of its own, which is called off
+    /// too).
+    pub(crate) fn shared_check_tick(&mut self) {
+        let Some(shared) = self.shared_check_next else { return };
+        if !self.shared_checking.contains(&shared) {
+            self.shared_check_next = None;
+            return;
+        }
+        if self.shared_check_waits() {
+            if !self.services.sync_cancel.load(std::sync::atomic::Ordering::Relaxed) {
+                self.call_off_for_shared_check();
+            }
+            return;
+        }
+        self.shared_check_next = None;
+        if let Err(e) = self.start_sync(&json!({"account": shared})) {
+            self.finish_shared_check(shared, Err(e));
+        }
+    }
+
     /// A shared mailbox being added that isn't to be kept: removed again, with what was kept for
     /// it in memory. (Not undoable by itself: it was never there for the owner.)
     pub(crate) fn drop_shared_check(&mut self, shared: Id) {
         self.shared_checking.remove(&shared);
+        if self.shared_check_next == Some(shared) {
+            self.shared_check_next = None;
+        }
         self.shared_refused.remove(&shared);
         self.graph_tokens.remove(&shared);
         if self.session.mailbox.account(shared).is_some_and(Account::is_shared) {
