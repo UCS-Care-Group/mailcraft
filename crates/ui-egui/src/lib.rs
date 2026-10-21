@@ -48,6 +48,7 @@ pub mod chrome;
 pub mod compose;
 pub mod control;
 pub mod credits;
+pub mod data_removal;
 pub mod dates;
 pub mod dialogs;
 pub mod favorites_sync;
@@ -179,6 +180,10 @@ pub struct Services {
     /// any download; this is only for saying how much is kept and for forgetting it. Absent
     /// where nothing is kept (the browser, the tests, the sample mailbox).
     pub picture_cache: Option<Box<dyn PictureCache>>,
+    /// Desktop: remove everything MailCraft keeps on this computer, in the folders the host
+    /// itself works in ([`data_removal::DataWipe`], File › Info › Remove MailCraft's data from
+    /// this computer, #177). Absent in the browser and the tests.
+    pub data_wipe: Option<Box<dyn data_removal::DataWipe>>,
     /// Desktop: ask an account's server when people are free and busy, on a background thread,
     /// for a meeting's Scheduling Assistant ([`scheduling`]). It reads and writes nothing. The
     /// answer, or why there is none, arrives through the channel and the host wakes the UI.
@@ -651,6 +656,12 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
     ("ui.interfaceSize", "Interface Size", "File › Options", r#"{"value": 80-200}"#),
     ("ui.focusSearch", "Search", "Search", "{}"),
     (
+        "ui.removeAllData",
+        "Remove MailCraft's Data from This Computer",
+        "File › Info",
+        "{} — removes everything MailCraft keeps on this computer, for an installed or a portable copy alike: every account's mail and the settings (the mailbox file and its content, the settings, the logs), the sign-ins remembered in the system's credential store, the downloaded pictures and the opened attachments; then quits. Mail on the servers is not touched. By hand it asks first; never for an agent",
+    ),
+    (
         "ui.sync",
         "Send/Receive All Folders",
         "Send / Receive",
@@ -1011,6 +1022,9 @@ pub struct MailApp {
     /// The window title last sent; a viewport command schedules a repaint, so only send changes.
     sent_title: String,
     pub quit_requested: bool,
+    /// MailCraft's data was removed from this computer ([`data_removal`]): nothing is written
+    /// or remembered from here on, and the window goes when its report is read.
+    pub data_removed: bool,
     /// Save the mailbox by itself a moment after each change (on by default).
     pub autosave: bool,
     /// Open account setup when the app starts on a mailbox nobody has set up yet (the host turns
@@ -1186,6 +1200,7 @@ impl MailApp {
             sent_title: String::new(),
             shown_zone: None,
             quit_requested: false,
+            data_removed: false,
             autosave: true,
             offer_setup: false,
             offer_graph_switch: false,
@@ -1278,7 +1293,8 @@ impl MailApp {
         match self.session.registry.get(id) {
             Some(s) => (s.enabled)(&self.session).is_none(),
             None if id == "ui.sync" => {
-                self.session.enabled("sync.request")
+                !self.data_removed
+                    && self.session.enabled("sync.request")
                     && self.services.sync.is_some()
                     && self.sync_rx.is_none()
                     && self.graph_rx.is_none()
@@ -1431,6 +1447,7 @@ impl MailApp {
         let s = |k: &str| p.get(k).and_then(Value::as_str);
         let b = |k: &str| p.get(k).and_then(Value::as_bool);
         Some(match id {
+            "ui.removeAllData" => self.remove_all_data(),
             "ui.tab" => {
                 let Some(tab) = s("tab") else { return Some(Err("missing `tab`".into())) };
                 if tab == "File" {
@@ -1717,7 +1734,7 @@ impl MailApp {
 
     /// Have the operating system remember a secret for `address`, when the owner wants that.
     fn remember(&self, kind: &str, address: &str, secret: &str) {
-        if !self.ui.remember_sign_in || secret.is_empty() {
+        if !self.ui.remember_sign_in || secret.is_empty() || self.data_removed {
             return;
         }
         if let Some(store) = &self.services.secrets
@@ -1862,6 +1879,9 @@ impl MailApp {
     /// password the first time, or has the owner sign in on the provider's page; the answer is
     /// kept in memory until the app closes, and by the operating system when that is wanted.
     fn start_sync(&mut self, p: &Value) -> Result<Value, String> {
+        if self.data_removed {
+            return Err(tl!("MailCraft's data has been removed: nothing is sent or received").to_string());
+        }
         if self.sync_rx.is_some() || self.graph_rx.is_some() {
             return Err(tl!("Send/Receive is already running").to_string());
         }
@@ -2884,13 +2904,20 @@ impl MailApp {
         self.poll_free_busy();
         self.poll_sync();
         // (Before any other run can start: a shared mailbox being added goes first.)
-        self.shared_check_tick();
+        // Once MailCraft's data is removed nothing starts by itself any more: no Send/Receive,
+        // no calendar run, no check for a new version (#177).
+        if !self.data_removed {
+            self.shared_check_tick();
+        }
         self.check_secret_store();
-        // Whether a new version is out, when the owner wants that known ([`updates`]).
-        self.updates_tick(ctx);
-        self.auto_sync();
-        // The calendar by itself, between Send/Receive runs ([`calendar_sync`]).
-        self.calendar_tick(ctx);
+        self.data_removal_tick();
+        if !self.data_removed {
+            // Whether a new version is out, when the owner wants that known ([`updates`]).
+            self.updates_tick(ctx);
+            self.auto_sync();
+            // The calendar by itself, between Send/Receive runs ([`calendar_sync`]).
+            self.calendar_tick(ctx);
+        }
         reminders::tick(self, ctx);
         if std::mem::take(&mut self.offer_setup) && self.dialog.is_none() && self.needs_setup() {
             self.dialog = dialogs::Dialog::open("account", self, &json!({}));
@@ -3354,6 +3381,10 @@ impl MailApp {
     /// already, [`MailApp::close_requested`]: what is left is what changed since, a short one).
     /// `Err` says why the mailbox couldn't be saved.
     pub fn save_on_exit(&mut self) -> Result<(), String> {
+        // Its data was removed from this computer: writing now would bring some of it back.
+        if self.data_removed {
+            return Ok(());
+        }
         let unsaved = self.autosave && self.session.path.is_some() && (self.session.dirty || self.session.rev() != self.saved_rev);
         if let (Some(saver), Some(path)) = (&self.services.saver, &self.session.path) {
             // Through the saver too, never in place: a save in place would wait out whatever the

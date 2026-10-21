@@ -303,6 +303,11 @@ msgstr "Une image que vous avez demandée est conservée un mois, pour que relir
 msgid "A rule needs a name, and something to look for."
 msgstr "Une règle a besoin d'un nom et de quelque chose à rechercher."
 
+#. interface
+#: crates/ui-egui/src/data_removal.rs
+msgid "A save of the mailbox is still running: try again in a moment"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/calendar/meeting.rs
 #, fuzzy
@@ -1919,6 +1924,11 @@ msgstr "Couper"
 msgid "Dark"
 msgstr "Sombre"
 
+#. interface
+#: crates/ui-egui/src/data_removal.rs
+msgid "Data on this computer"
+msgstr ""
+
 #. name
 #: crates/engine/src/session.rs
 #, fuzzy
@@ -2326,6 +2336,11 @@ msgid "Download pictures in mail automatically"
 msgstr "Télécharger automatiquement les images du courrier"
 
 #. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "Downloaded pictures and opened attachments can't be told apart by account: File › Info › Remove MailCraft's data from this computer clears them."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/attachment_open.rs crates/ui-egui/src/files.rs
 #, fuzzy
 msgid "Downloaded {name}"
@@ -2612,6 +2627,11 @@ msgstr "Toutes les {n} minutes"
 #, fuzzy
 msgid "Everything"
 msgstr "Tout"
+
+#. interface
+#: crates/ui-egui/src/data_removal.rs
+msgid "Everything else is gone. MailCraft quits when you close this."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -3517,6 +3537,11 @@ msgstr "Elle se trouve uniquement sur cet appareil : rien n'est envoyé à un 
 msgid "It is removed from the mail server too, and that can't be undone."
 msgstr "Il est aussi supprimé du serveur de messagerie, et c'est irréversible."
 
+#. interface
+#: crates/ui-egui/src/data_removal.rs
+msgid "It is the same for an installed and a portable copy. MailCraft quits afterwards."
+msgstr ""
+
 #. command label, ribbon
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -3534,6 +3559,11 @@ msgstr "Les éléments de ce calendrier sont conservés sur cet ordinateur et nu
 #, fuzzy
 msgid "Its mail can be read here. What you change in it is kept in this mailbox, and this version tells no mail server about it."
 msgstr "Son courrier peut être lu ici. Ce que vous y modifiez est conservé dans cette boîte aux lettres, et cette version n'en informe aucun serveur de messagerie."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "Its messages, attachments, settings and remembered sign-in go with it."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -3908,6 +3938,16 @@ msgid "Mail moves and copies between a shared mailbox and its own account's mail
 msgstr "Le courrier se déplace et se copie uniquement entre une boîte aux lettres partagée et les boîtes aux lettres de son propre compte : déplacez-le là-bas, ou dans un dossier sur cet ordinateur"
 
 #. interface
+#: crates/ui-egui/src/data_removal.rs
+msgid "Mail on the servers is not touched."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/data_removal.rs
+msgid "Mail on the servers is not touched. This can't be undone."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup/help.rs
 #, fuzzy
 msgid "Mail only"
@@ -4026,6 +4066,16 @@ msgstr "MailCraft {version} est disponible et corrige un problème de sécurité
 #, fuzzy
 msgid "MailCraft {version} wasn't installed: this version is still the one here."
 msgstr "MailCraft {version} n'a pas été installé : c'est toujours cette version qui est installée."
+
+#. interface
+#: crates/ui-egui/src/data_removal.rs
+msgid "MailCraft's data has been removed already"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+msgid "MailCraft's data has been removed: nothing is sent or received"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/nav.rs
@@ -5996,10 +6046,30 @@ msgid "Remove Attachment"
 msgstr "Supprimer la pièce jointe"
 
 #. interface
+#: crates/ui-egui/src/data_removal.rs
+msgid "Remove Everything"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Remove Link"
 msgstr "Supprimer le lien"
+
+#. interface
+#: crates/ui-egui/src/data_removal.rs
+msgid "Remove MailCraft's Data"
+msgstr ""
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+msgid "Remove MailCraft's Data from This Computer"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/data_removal.rs
+msgid "Remove MailCraft's data from this computer…"
+msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/offline.rs
@@ -6070,6 +6140,11 @@ msgstr "Supprimer cette action"
 #, fuzzy
 msgid "Remove this condition"
 msgstr "Supprimer cette condition"
+
+#. interface
+#: crates/ui-egui/src/data_removal.rs
+msgid "Removing MailCraft's data isn't available here"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -7407,6 +7482,11 @@ msgid "Some characters in this message couldn't be read: the sender's program di
 msgstr "Certains caractères de ce message n'ont pas pu être lus : le programme de l'expéditeur n'a pas correctement indiqué leur encodage."
 
 #. interface
+#: crates/ui-egui/src/data_removal.rs
+msgid "Some of it is still there, as listed above. MailCraft quits when you close this."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/mail_view/server_rows.rs
 #, fuzzy
 msgid "Some of the search was checked on this computer"
@@ -7633,6 +7713,11 @@ msgstr "Tableau"
 #, fuzzy
 msgid "Tags"
 msgstr "Indicateurs"
+
+#. interface
+#: crates/ui-egui/src/data_removal.rs
+msgid "Take everything MailCraft keeps here with you when you are done: for a shared or work computer, or before deleting a portable copy."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -8125,6 +8210,11 @@ msgid "The switch of {account} to Microsoft Graph waits until MailCraft can reac
 msgstr "Le basculement de {account} vers Microsoft Graph attend que MailCraft puisse joindre le serveur."
 
 #. interface
+#: crates/ui-egui/src/data_removal.rs
+msgid "The system's credential store"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "The system's credential store is locked, or unlocking it was refused"
@@ -8189,6 +8279,16 @@ msgstr "Ce compte n'existe pas"
 #, fuzzy
 msgid "There's no mailbox at {address}."
 msgstr "Il n'existe pas de boîte aux lettres à l'adresse {address}."
+
+#. interface
+#: crates/ui-egui/src/data_removal.rs
+msgid "These could not be removed. Remove them yourself:"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/data_removal.rs
+msgid "These were left alone:"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
@@ -8639,6 +8739,11 @@ msgstr "Cette image est sur le web. Cette version ne peut pas télécharger les 
 #, fuzzy
 msgid "This picture was downloaded, but can't be shown."
 msgstr "Cette image a été téléchargée, mais ne peut pas être affichée."
+
+#. interface
+#: crates/ui-egui/src/data_removal.rs
+msgid "This removes everything MailCraft keeps on this computer: every account's mail, attachments, contacts, calendar and settings, the sign-ins remembered in the system's credential store, downloaded pictures, opened attachments and logs."
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
@@ -9783,6 +9888,11 @@ msgid "folders are nested too deeply"
 msgstr "les dossiers sont imbriqués trop profondément"
 
 #. interface
+#: crates/ui-egui/src/data_removal.rs
+msgid "has too many files: the rest was not removed"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/reminders.rs
 #, fuzzy
 msgid "hours"
@@ -9811,6 +9921,36 @@ msgstr "dans {time}"
 #, fuzzy
 msgid "incomplete"
 msgstr "incomplete"
+
+#. interface
+#: crates/ui-egui/src/data_removal.rs
+msgid "is a link: not followed, and nothing in it was removed"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/data_removal.rs
+msgid "is nested too deep: left alone"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/data_removal.rs
+msgid "is outside the folder being cleared: left alone"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/data_removal.rs
+msgid "is part of a mailbox you opened from outside MailCraft's own folder: it is yours and was not touched"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/data_removal.rs
+msgid "isn't a folder MailCraft keeps its data in: left alone"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/data_removal.rs
+msgid "isn't a folder: left alone"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/graph_drafts.rs
@@ -10629,6 +10769,11 @@ msgid "time"
 msgid_plural "times"
 msgstr[0] "fois"
 msgstr[1] "fois"
+
+#. interface
+#: crates/ui-egui/src/data_removal.rs
+msgid "was kept because the mailbox file beside it could not be removed: remove them together"
+msgstr ""
 
 #. name
 #: crates/model/src/calendar.rs

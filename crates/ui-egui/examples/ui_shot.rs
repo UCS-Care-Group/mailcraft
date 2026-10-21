@@ -190,6 +190,15 @@ impl mailcraft_ui_egui::SecretStore for StandInSecrets {
     fn delete(&self, _: &str) {}
 }
 
+/// Removing MailCraft's data: nothing is kept by this window, so nothing is removed.
+struct StandInWipe;
+
+impl mailcraft_ui_egui::data_removal::DataWipe for StandInWipe {
+    fn erase(&self, _: Option<&std::path::Path>) -> mailcraft_ui_egui::data_removal::WipeReport {
+        Default::default()
+    }
+}
+
 impl Host {
     /// How a sign-in of `email` ends now; `None` while the owner is still in the browser.
     fn signed_in(&self, email: &str) -> Option<Result<Tokens, String>> {
@@ -462,6 +471,8 @@ fn main() {
     let mut services = if stood_in { stand_in(&host) } else { Services::default() };
     // The system's notifications, always (File › Options shows its switches where there are some).
     services.alert = Some(Box::new(StandInAlerts(host.clone())));
+    // Remove MailCraft's data (#177): offered, and removes nothing here.
+    services.data_wipe = Some(Box::new(StandInWipe));
     // The organisation has turned updating by itself off for the computer.
     services.updates_turned_off_by_organisation = lines.iter().any(|l| l.pointer("/host/updates").and_then(|v| v.as_str()) == Some("organisation"));
     // A newly installed version that didn't start twice running, with the one before it kept.

@@ -2743,11 +2743,31 @@ fn named_by_kept_aside(file: &Path) -> Option<HashSet<Digest>> {
 /// mailbox file still names them (another message keeps the same file), a file kept aside does,
 /// or a message held in memory that the server can't give again does (an Undo step of local
 /// mail: a Microsoft account's mail that an Undo brings back keeps the content it has now).
-pub fn forget_when_saved(path: &Path, rev: u64, refs: impl IntoIterator<Item = ContentRef>) {
+///
+/// At most [`MAX_FORGETTING`] names are kept waiting at once; the number that didn't fit is
+/// returned, and those files are left to the sweep (which removes what nothing names, hours
+/// later), so a caller that promises a wipe says so.
+pub fn forget_when_saved(path: &Path, rev: u64, refs: impl IntoIterator<Item = ContentRef>) -> usize {
+    forget_with_cap(path, rev, refs, MAX_FORGETTING)
+}
+
+fn forget_with_cap(path: &Path, rev: u64, refs: impl IntoIterator<Item = ContentRef>, cap: usize) -> usize {
     let shared = shared(path);
     let mut forgetting = lock(&shared.forgetting);
-    let room = MAX_FORGETTING.saturating_sub(forgetting.len());
-    forgetting.extend(refs.into_iter().take(room).map(|r| (rev, Digest(r.sha256))));
+    let mut left_over = 0usize;
+    for r in refs {
+        if forgetting.len() < cap {
+            forgetting.push((rev, Digest(r.sha256)));
+        } else {
+            left_over = left_over.saturating_add(1);
+        }
+    }
+    left_over
+}
+
+#[cfg(test)]
+pub(crate) fn forget_with_cap_for_test(path: &Path, rev: u64, refs: Vec<ContentRef>, cap: usize) -> usize {
+    forget_with_cap(path, rev, refs, cap)
 }
 
 /// The mailbox at `path` was saved as it was in state `rev`: the content let go of up to then
