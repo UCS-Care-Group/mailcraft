@@ -1,7 +1,9 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
 use super::*;
-use crate::{MAX_FONT_PX, MIN_FONT_PX};
+use crate::{
+    Insets, Line, LineHeight, LineStyle, MAX_BOX_PX, MAX_FONT_PX, MAX_LINE_HEIGHT, MAX_LINE_PX, MAX_RADIUS_PX, MIN_FONT_PX, MIN_LINE_HEIGHT,
+};
 
 #[test]
 fn a_list_without_margins_has_no_gap_around_it() {
@@ -1017,6 +1019,13 @@ fn a_picture_takes_its_size_from_its_style_where_its_attributes_give_none() {
 /// What holds of every block, whatever the input.
 pub(crate) fn check_block(block: &Block, context: &str) {
     assert!(block.space <= MAX_SPACE, "{context}: {block:?}");
+    assert!(block.gap <= MAX_BOX_PX, "{context}: {block:?}");
+    assert!(block.line.width <= MAX_LINE_PX, "{context}: {block:?}");
+    match block.line_height {
+        Some(LineHeight::Scale(n)) => assert!((MIN_LINE_HEIGHT..=MAX_LINE_HEIGHT).contains(&n), "{context}: {block:?}"),
+        Some(LineHeight::Px(n)) => assert!(n >= 1, "{context}: {block:?}"),
+        None => {}
+    }
     // Only a picture or text stands in the line of the block before.
     assert!(!(block.beside && matches!(block.kind, BlockKind::Table(_) | BlockKind::Rule)), "{context}: {block:?}");
     match &block.kind {
@@ -1028,12 +1037,16 @@ pub(crate) fn check_block(block: &Block, context: &str) {
         BlockKind::Table(table) => {
             assert!(block.spans.is_empty() && !table.rows.is_empty(), "{context}: {block:?}");
             assert!(table.rows.len() <= MAX_TABLE_ROWS && usize::from(table.columns) <= MAX_TABLE_COLUMNS, "{context}");
+            assert!(table.radius <= MAX_RADIUS_PX && table.lines.iter().all(|l| l.width <= MAX_LINE_PX), "{context}: {block:?}");
             for row in &table.rows {
                 assert!(!row.cells.is_empty() && row.cells.len() <= MAX_TABLE_COLUMNS, "{context}: {block:?}");
                 for cell in &row.cells {
                     assert!((1..=MAX_TABLE_COLUMNS as u16).contains(&cell.colspan) && (1..=MAX_ROW_SPAN).contains(&cell.rowspan), "{context}");
                     assert_eq!(cell.blocks.first().map_or(0, |b| b.space), 0, "{context}: {block:?}");
                     assert!(!cell.blocks.first().is_some_and(|b| b.beside), "{context}: {block:?}");
+                    assert!(cell.radius <= MAX_RADIUS_PX && cell.lines.iter().all(|l| l.width <= MAX_LINE_PX), "{context}: {block:?}");
+                    let pad = cell.padding.unwrap_or_default();
+                    assert!([pad.top, pad.right, pad.bottom, pad.left].iter().all(|p| *p <= MAX_BOX_PX), "{context}: {block:?}");
                     for inner in &cell.blocks {
                         check_block(inner, context);
                     }
@@ -1075,7 +1088,7 @@ proptest::proptest! {
     }
 
     #[test]
-    fn styled_soup_parses_into_sane_blocks(s in "(<(div|p|span|td|table|tr|a|font|img|blockquote)( style=\"((color|background|font-size|display|margin|border|border-left|border-top|text-align|mso-list|font-weight|max-height|width|height|overflow|opacity):(#[0-9a-f]{3}|red|none|0|1px|40px|200%|hidden|center|solid|ignore|l0 level2|bold);?){0,4}\")?( (src|href)=\"(cid:x|https://e.example/|x)\")?>|</(div|p|span|td|table|tr|a|font|blockquote)>|[a-z ]{0,5}){0,60}") {
+    fn styled_soup_parses_into_sane_blocks(s in "(<(div|p|span|td|table|tr|a|font|img|blockquote)( style=\"((color|background|font-size|display|margin|border|border-left|border-top|border-bottom|text-align|mso-list|font-weight|max-height|width|height|overflow|opacity|padding|padding-left|margin-left|margin-top|border-radius|border-width|border-style|border-color|line-height):(#[0-9a-f]{3}|red|none|0|1px|40px|200%|99999px|1.5|-3px|hidden|center|solid|dashed|ignore|l0 level2|bold|calc\\(1px\\)|auto);?){0,4}\")?( (src|href)=\"(cid:x|https://e.example/|x)\")?>|</(div|p|span|td|table|tr|a|font|blockquote)>|[a-z ]{0,5}){0,60}") {
         let blocks = parse(&s);
         proptest::prop_assert!(table_depth(&blocks) <= MAX_TABLE_DEPTH);
         for block in &blocks {
@@ -1212,5 +1225,119 @@ fn cell_widths(html: &str) -> Vec<Option<Length>> {
     match parse(html).first().map(|b| &b.kind) {
         Some(BlockKind::Table(t)) => t.rows.iter().flat_map(|r| &r.cells).map(|c| c.width).collect(),
         _ => Vec::new(),
+    }
+}
+
+// ---- #71: padding, margins, lines, rounded corners and line height ----
+
+fn only_table(html: &str) -> (Block, Table) {
+    let blocks = parse(html);
+    let Some(block) = blocks.into_iter().find(|b| matches!(b.kind, BlockKind::Table(_))) else { panic!("no table in {html}") };
+    let BlockKind::Table(table) = block.kind.clone() else { panic!("not a table") };
+    (block, table)
+}
+
+#[test]
+fn a_card_keeps_its_padding_lines_corners_and_margins() {
+    let (block, table) = only_table(
+        "<p>before</p><div style='background:#eef3fb;border:2px dashed #cc9900;border-radius:8px;padding:12px 20px 6px;margin:0 10px 16px 30px'>Card text</div><p>after</p>",
+    );
+    let cell = &table.rows[0].cells[0];
+    assert_eq!(cell.padding, Some(Insets { top: 12, right: 20, bottom: 6, left: 20 }));
+    assert_eq!(table.radius, 8);
+    assert!(table.outline);
+    assert_eq!(table.lines, [Line { width: 2, style: LineStyle::Dashed, color: Some(Rgb(0xcc, 0x99, 0)) }; 4]);
+    // Left and right margins keep the card in from the sides; the one below is the gap before what follows.
+    assert_eq!(block.inset, [30, 10]);
+    let after = parse("<div style='background:#eef3fb;border:1px solid #ccc;margin-bottom:16px'>a</div><p>after</p>");
+    assert_eq!(after.last().map(|b| b.gap), Some(16));
+}
+
+#[test]
+fn padding_and_margins_of_a_plain_block_are_room_round_what_it_holds() {
+    // A block with nothing to draw is no box: its room is a gap above, a gap below and an inset.
+    let blocks = parse(
+        "<p>a</p><div style='margin:5px 7px;padding:10px 20px 4px 3px'><p style='margin:0'>b</p><p style='margin:0'>c</p></div><p style='margin:0'>d</p>",
+    );
+    let gaps: Vec<u8> = blocks.iter().map(|b| b.gap).collect();
+    assert_eq!(gaps, [0, 15, 0, 9], "{blocks:?}");
+    let insets: Vec<[u8; 2]> = blocks.iter().map(|b| b.inset).collect();
+    assert_eq!(insets, [[0, 0], [10, 27], [10, 27], [0, 0]]);
+    assert!(blocks.iter().all(|b| !matches!(b.kind, BlockKind::Table(_))));
+}
+
+#[test]
+fn a_quote_keeps_its_own_indent() {
+    let blocks = parse("<blockquote style='margin:0'>x</blockquote><div style='border-left:2px solid #ccc;padding-left:20px;margin:0'>q</div>");
+    let q = blocks.last().expect("a block");
+    assert_eq!((q.quote, q.inset[0]), (1, 0));
+}
+
+#[test]
+fn a_cell_keeps_its_padding_even_when_the_table_only_wraps_a_column() {
+    // Several cells: the table stays, and each cell says how much room it has.
+    let (_, table) = only_table("<table><tr><td style='padding:4px 8px'>a</td><td style='padding:0'>b</td><td>c</td></tr></table>");
+    let pads: Vec<Option<Insets>> = table.rows[0].cells.iter().map(|c| c.padding).collect();
+    assert_eq!(pads, [Some(Insets { top: 4, right: 8, bottom: 4, left: 8 }), Some(Insets::default()), None]);
+    // A column of one: the table is gone, and the room it had is kept as gaps and insets.
+    let blocks =
+        parse("<p>x</p><table><tr><td style='padding:10px 15px 6px 25px'><p style='margin:0'>in</p></td></tr></table><p style='margin:0'>y</p>");
+    assert!(blocks.iter().all(|b| !matches!(b.kind, BlockKind::Table(_))), "{blocks:?}");
+    let by: Vec<(u8, [u8; 2])> = blocks.iter().map(|b| (b.gap, b.inset)).collect();
+    assert_eq!(by, [(0, [0, 0]), (10, [25, 15]), (6, [0, 0])]);
+}
+
+#[test]
+fn a_table_has_lines_corners_and_margins_of_its_own() {
+    let (block, table) = only_table("<table style='border:1px solid #999;border-radius:6px;margin:0 12px'><tr><td>a</td><td>b</td></tr></table>");
+    assert_eq!((table.radius, block.inset), (6, [12, 12]));
+    assert!(table.outline && table.lines.iter().all(|l| l.width == 1));
+    // A cell's own lines, corners and room.
+    let (_, table) =
+        only_table("<table><tr><td style='border-bottom:3px dotted red;border-radius:4px;background:#eee'>a</td><td>b</td></tr></table>");
+    let cell = &table.rows[0].cells[0];
+    assert_eq!((cell.radius, cell.border.bottom, cell.lines[2]), (4, true, Line { width: 3, style: LineStyle::Dotted, color: Some(Rgb(255, 0, 0)) }));
+}
+
+#[test]
+fn a_rule_has_the_look_its_border_asks_for() {
+    let blocks = parse("<div style='border-bottom:3px dashed #888888'>title</div>x");
+    let rule = blocks.iter().find(|b| b.kind == BlockKind::Rule).expect("a rule");
+    assert_eq!(rule.line, Line { width: 3, style: LineStyle::Dashed, color: Some(Rgb(0x88, 0x88, 0x88)) });
+    // An <hr> is as it has been.
+    assert_eq!(parse("a<hr style='border:5px dotted red'>b").iter().find(|b| b.kind == BlockKind::Rule).map(|b| b.line), Some(Line::default()));
+}
+
+#[test]
+fn line_height_is_inherited_until_it_is_changed() {
+    let blocks = parse("<div style='line-height:1.6'><p>a</p><p style='line-height:24px'>b</p><p style='line-height:normal'>c</p></div><p>d</p>");
+    let heights: Vec<Option<LineHeight>> = blocks.iter().map(|b| b.line_height).collect();
+    assert_eq!(heights, [Some(LineHeight::Scale(160)), Some(LineHeight::Px(24)), None, None]);
+    assert_eq!(parse("<p style='line-height:40'>a</p>")[0].line_height, Some(LineHeight::Scale(MAX_LINE_HEIGHT)));
+}
+
+#[test]
+fn hostile_box_styles_change_nothing() {
+    let plain = parse("<div style='background:#eef3fb'>a</div>");
+    let hostile = parse(
+        "<div style='background:#eef3fb;padding:calc(1px);margin:var(--m);border-radius:url(x);line-height:expression(1);border:1px solid var(--c)'>a</div>",
+    );
+    assert_eq!(plain, hostile);
+    // Huge values are held to the range, nothing grows without bound.
+    let (block, table) =
+        only_table("<div style='background:#eef3fb;padding:99999px;margin:0 99999px;border:99px solid red;border-radius:9999px'>a</div>");
+    let cell = &table.rows[0].cells[0];
+    assert_eq!(cell.padding, Some(Insets { top: 64, right: 64, bottom: 64, left: 64 }));
+    assert_eq!((table.radius, table.lines[0].width, block.inset), (24, 4, [64, 64]));
+}
+
+#[test]
+fn inset_and_gap_never_pile_past_what_fits_a_byte() {
+    let nested = "<div style='margin:0 64px;padding:0 64px'>".repeat(40);
+    let blocks = parse(&format!("{nested}x"));
+    assert_eq!(blocks.len(), 1);
+    assert_eq!(blocks[0].inset, [255, 255]);
+    for b in &parse(&"<div style='padding:64px;margin:64px'>x</div>".repeat(50)) {
+        assert!(b.gap <= MAX_BOX_PX, "{b:?}");
     }
 }
