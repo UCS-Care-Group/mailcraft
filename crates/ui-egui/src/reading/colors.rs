@@ -30,6 +30,10 @@ pub const MIN_CONTRAST: f32 = 3.0;
 /// The contrast a colour that falls short is brought to: what WCAG asks of body text.
 pub const TARGET_CONTRAST: f32 = 4.5;
 
+/// The least contrast a line round a box keeps with the paper it is drawn on: a line is not text,
+/// so far less than [`MIN_CONTRAST`], but never invisible.
+pub const LINE_CONTRAST: f32 = 1.5;
+
 pub fn c32(c: Rgb) -> Color32 {
     Color32::from_rgb(c.0, c.1, c.2)
 }
@@ -175,6 +179,19 @@ impl Paper {
     /// The colour of a rule, a quote bar or a cell border.
     pub fn line(&self, t: &Tokens) -> Color32 {
         if self.own { mix(self.fill, self.text(t, false), 0.28) } else { t.border_strong }
+    }
+
+    /// The colour of a line round a box that asks for `asked`: as a background colour is turned
+    /// for this theme, and then kept [`LINE_CONTRAST`] apart from the paper it is drawn on, so it
+    /// is seen in light and dark and on any colour. The reader's own line colour when it asks for none.
+    pub fn border(&self, t: &Tokens, asked: Option<Rgb>) -> Color32 {
+        let Some(asked) = asked else { return self.line(t) };
+        let turned = Paper::of(asked, t).fill;
+        if contrast(turned, self.fill) >= LINE_CONTRAST {
+            return turned;
+        }
+        let end = if contrast(Color32::BLACK, self.fill) >= contrast(Color32::WHITE, self.fill) { Color32::BLACK } else { Color32::WHITE };
+        (1..=12).map(|step| mix(turned, end, step as f32 / 12.0)).find(|moved| contrast(*moved, self.fill) >= LINE_CONTRAST).unwrap_or(end)
     }
 
     /// The colour a run of text is painted in: the one it asks for when that can be read here,

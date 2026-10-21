@@ -5,8 +5,8 @@
 use super::*;
 use crate::blocks::tests::check_block;
 use crate::{
-    Align, Block, BlockKind, Length, MAX_BLOCKS, MAX_CELLS, MAX_INPUT, MAX_TABLE_DEPTH, Marker, Rgb, Span, Table, has_text, images, is_embedded,
-    parse, text_blocks, to_text,
+    Align, Block, BlockKind, Insets, Length, LineHeight, LineStyle, MAX_BLOCKS, MAX_CELLS, MAX_INPUT, MAX_TABLE_DEPTH, Marker, Rgb, Span, Table,
+    has_text, images, is_embedded, parse, text_blocks, to_text,
 };
 
 /// Every block, looking inside tables, in reading order.
@@ -871,4 +871,38 @@ fn style_widths_and_auto_margins_make_centred_cards() {
     assert!(tables.iter().copied().filter(|b| capped(b)).all(|b| b.align == Align::Center), "{}", show(&blocks));
     assert!(tables.iter().any(|b| matches!(&b.kind, BlockKind::Table(t) if t.width == Some(Length::Px(600)))), "{}", show(&blocks));
     assert!(tables.iter().any(|b| matches!(&b.kind, BlockKind::Table(t) if t.width == Some(Length::Px(480)))), "{}", show(&blocks));
+}
+
+/// #71: a club bulletin written the way a newsletter builder does, with padding, margins, lines
+/// of three styles, rounded corners and a line height: all of it is kept, within its limits.
+#[test]
+fn a_bulletin_keeps_its_padding_margins_lines_corners_and_line_height() {
+    let blocks = parse(STYLE_BOXES);
+    let all = flat(&blocks);
+    let cards: Vec<&Table> = all
+        .iter()
+        .filter_map(|b| match &b.kind {
+            BlockKind::Table(t) if t.outline => Some(t),
+            _ => None,
+        })
+        .collect();
+    // The page (solid, 10), the notice (dashed, 8) and the kit swap (dotted, 14, in from the sides).
+    let styles: Vec<(LineStyle, u8)> = cards.iter().map(|t| (t.lines[0].style, t.radius)).collect();
+    assert!(styles.contains(&(LineStyle::Solid, 10)), "{styles:?}\n{}", show(&blocks));
+    assert!(styles.contains(&(LineStyle::Dashed, 8)), "{styles:?}");
+    assert!(styles.contains(&(LineStyle::Dotted, 14)), "{styles:?}");
+    let swap = all.iter().find(|b| matches!(&b.kind, BlockKind::Table(t) if t.lines[0].style == LineStyle::Dotted)).expect("the kit swap");
+    assert_eq!(swap.inset, [40, 40]); // its own 12 and the 28 of the block it is in
+    // The notice keeps the room inside it.
+    let notice = cards.iter().find(|t| t.lines[0].style == LineStyle::Dashed).expect("the notice");
+    assert_eq!(notice.rows[0].cells[0].padding, Some(Insets { top: 12, right: 16, bottom: 12, left: 16 }));
+    // The divider is a dashed rule 2 pixels thick; the body text has the line height it asks for.
+    let rule = all.iter().find(|b| b.kind == BlockKind::Rule && b.line.width > 0).expect("the divider");
+    assert_eq!((rule.line.width, rule.line.style), (2, LineStyle::Dashed));
+    let text = all.iter().find(|b| b.text().starts_with("Saturday's walk")).expect("the walk");
+    assert_eq!(text.line_height, Some(LineHeight::Scale(170)));
+    // The table of leaders gives each cell its room and a line under it.
+    let leaders = table_with(&blocks, "Priya Raman");
+    assert!(leaders.rows.iter().flat_map(|r| &r.cells).all(|c| c.padding == Some(Insets { top: 10, right: 14, bottom: 10, left: 14 })));
+    assert!(leaders.outline && leaders.radius == 6);
 }
