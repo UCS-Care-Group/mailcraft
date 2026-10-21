@@ -169,7 +169,9 @@ impl eframe::App for App {
         }
         // A new version downloaded and checked is installed now (and started, when the owner
         // pressed Restart to update), or the version before is put back (`self_update`).
-        if let Some(updates) = &self.5 {
+        // (Not once MailCraft's data was removed: that would write into the folder again, and
+        // could install and start another version after the owner asked for everything to go.)
+        if let Some(updates) = self.5.as_ref().filter(|_| wipe::may_install_at_exit(self.0.data_removed)) {
             let running = env!("CARGO_PKG_VERSION");
             self_update::settle(&updates.folders, running);
             if let Some(what) = self.0.update_on_exit() {
@@ -1034,6 +1036,7 @@ fn services(
 ) -> Services {
     let pictures_ctx = ctx.clone();
     let pictures_kept = kept_pictures.clone();
+    let wipe_pictures = kept_pictures.clone();
     let busy_ctx = ctx.clone();
     let check_ctx = ctx.clone();
     let approval_ctx = ctx.clone();
@@ -1124,8 +1127,10 @@ fn services(
         secrets: secrets::store(),
         // File › Info › Remove MailCraft's data from this computer (#177): the folders this
         // program works in, and no others. Not offered by a run that keeps nothing.
-        data_wipe: prefs_enabled()
-            .then(|| Box::new(wipe::Wipe { roots: wipe::Roots::of_this_program() }) as Box<dyn mailcraft_ui_egui::data_removal::DataWipe>),
+        data_wipe: prefs_enabled().then(|| {
+            Box::new(wipe::Wipe { roots: wipe::Roots::of_this_program(), pictures: wipe_pictures })
+                as Box<dyn mailcraft_ui_egui::data_removal::DataWipe>
+        }),
         // Desktop alerts, through the system's notifications (`alerts`).
         alert: alerts::host(alert_ctx),
         clipboard: clipboard::board(),
@@ -1160,6 +1165,9 @@ fn update_download(
     Box::new(move |release: mailcraft_model::update::Release| {
         let updates = updates.clone();
         background(&ctx, "update download", move || {
+            if wipe::begun() {
+                return Err("MailCraft's data was removed from this computer".to_string());
+            }
             let dir = updates.folders.updates();
             // The SHA-256 noted is the signed list's, not the file's read back: what is
             // installed is checked against what the release signed.
@@ -1299,7 +1307,10 @@ fn main() -> eframe::Result {
             let folders = updates.folders.clone();
             let _ = std::thread::Builder::new().name("update settle".into()).spawn(move || {
                 std::thread::sleep(self_update::SETTLED_AFTER);
-                self_update::settle(&folders, env!("CARGO_PKG_VERSION"));
+                // Not into a folder MailCraft's data was removed from (#177).
+                if !wipe::begun() {
+                    self_update::settle(&folders, env!("CARGO_PKG_VERSION"));
+                }
             });
             start
         }

@@ -1285,7 +1285,8 @@ impl MailApp {
         match self.session.registry.get(id) {
             Some(s) => (s.enabled)(&self.session).is_none(),
             None if id == "ui.sync" => {
-                self.session.enabled("sync.request")
+                !self.data_removed
+                    && self.session.enabled("sync.request")
                     && self.services.sync.is_some()
                     && self.sync_rx.is_none()
                     && self.graph_rx.is_none()
@@ -1413,10 +1414,6 @@ impl MailApp {
             for account in self.session.mailbox.accounts.iter().map(|a| a.id).collect::<Vec<_>>() {
                 self.favorites_due(account);
             }
-        }
-        // Removed, the account can't be brought back by Undo: its mail is gone from this computer.
-        if r.is_ok() && matches!(id, "account.remove" | "account.removeSharedMailbox") {
-            self.session.forget_history();
         }
         if let (Ok(_), Some((account, address))) = (&r, leaving) {
             // Its calendar and contacts were the server's, not the owner's own.
@@ -1873,6 +1870,9 @@ impl MailApp {
     /// password the first time, or has the owner sign in on the provider's page; the answer is
     /// kept in memory until the app closes, and by the operating system when that is wanted.
     fn start_sync(&mut self, p: &Value) -> Result<Value, String> {
+        if self.data_removed {
+            return Err(tl!("MailCraft's data has been removed: nothing is sent or received").to_string());
+        }
         if self.sync_rx.is_some() || self.graph_rx.is_some() {
             return Err(tl!("Send/Receive is already running").to_string());
         }
@@ -2876,14 +2876,20 @@ impl MailApp {
         self.poll_free_busy();
         self.poll_sync();
         // (Before any other run can start: a shared mailbox being added goes first.)
-        self.shared_check_tick();
+        // Once MailCraft's data is removed nothing starts by itself any more: no Send/Receive,
+        // no calendar run, no check for a new version (#177).
+        if !self.data_removed {
+            self.shared_check_tick();
+        }
         self.check_secret_store();
         self.data_removal_tick();
-        // Whether a new version is out, when the owner wants that known ([`updates`]).
-        self.updates_tick(ctx);
-        self.auto_sync();
-        // The calendar by itself, between Send/Receive runs ([`calendar_sync`]).
-        self.calendar_tick(ctx);
+        if !self.data_removed {
+            // Whether a new version is out, when the owner wants that known ([`updates`]).
+            self.updates_tick(ctx);
+            self.auto_sync();
+            // The calendar by itself, between Send/Receive runs ([`calendar_sync`]).
+            self.calendar_tick(ctx);
+        }
         reminders::tick(self, ctx);
         if std::mem::take(&mut self.offer_setup) && self.dialog.is_none() && self.needs_setup() {
             self.dialog = dialogs::Dialog::open("account", self, &json!({}));

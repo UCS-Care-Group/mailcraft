@@ -303,6 +303,11 @@ msgstr "Ein angefordertes Bild wird einen Monat lang aufbewahrt, damit beim erne
 msgid "A rule needs a name, and something to look for."
 msgstr "Eine Regel braucht einen Namen und etwas, wonach gesucht wird."
 
+#. interface
+#: crates/ui-egui/src/data_removal.rs
+msgid "A save of the mailbox is still running: try again in a moment"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/calendar/meeting.rs
 #, fuzzy
@@ -4064,6 +4069,11 @@ msgid "MailCraft's data has been removed already"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/lib.rs
+msgid "MailCraft's data has been removed: nothing is sent or received"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/nav.rs
 #, fuzzy
 msgid "Mailbox"
@@ -7438,6 +7448,11 @@ msgid "Some characters in this message couldn't be read: the sender's program di
 msgstr "Einige Zeichen dieser Nachricht konnten nicht gelesen werden: Das Programm des Absenders hat ihre Codierung nicht korrekt angegeben."
 
 #. interface
+#: crates/ui-egui/src/data_removal.rs
+msgid "Some of it is still there, as listed above. MailCraft quits when you close this."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/mail_view/server_rows.rs
 #, fuzzy
 msgid "Some of the search was checked on this computer"
@@ -9876,17 +9891,17 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
-msgid "is a mailbox file you opened from outside MailCraft's own folder: it is yours and was not touched"
-msgstr ""
-
-#. interface
-#: crates/ui-egui/src/data_removal.rs
 msgid "is nested too deep: left alone"
 msgstr ""
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
 msgid "is outside the folder being cleared: left alone"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/data_removal.rs
+msgid "is part of a mailbox you opened from outside MailCraft's own folder: it is yours and was not touched"
 msgstr ""
 
 #. interface
@@ -10716,6 +10731,11 @@ msgid "time"
 msgid_plural "times"
 msgstr[0] "Termin"
 msgstr[1] "Terminen"
+
+#. interface
+#: crates/ui-egui/src/data_removal.rs
+msgid "was kept because the mailbox file beside it could not be removed: remove them together"
+msgstr ""
 
 #. name
 #: crates/model/src/calendar.rs
