@@ -20,6 +20,8 @@
 //! | a margin or none | `margin`, `margin-top`, `margin-bottom`: only whether there is one to speak of (over 6 pixels) |
 //! | a border or none | `border` and its sides, `border-style`, `border-width`: only whether there is one |
 //! | Outlook's lists | `mso-list` (the level, and the marker text to replace) |
+//! | a table's or cell's width | `width` (pixels or a percentage, clamped like the attribute, which it beats), `max-width` (clamped; a zero one hides) |
+//! | centring | `margin: auto`, `margin: 0 auto`, or `margin-left` and `margin-right` both `auto`: like `align=center` on a table, or on a block with a `max-width` |
 //! | a picture's size | `width` and `height` in pixels, where its attributes give none |
 //!
 //! The old-style attributes (`color`, `bgcolor`, `align`, `width`, `height`, `<font size>`) are
@@ -116,6 +118,13 @@ pub(crate) struct Css {
     /// pixel; never used to size anything).
     pub width: Option<f32>,
     pub height: Option<f32>,
+    /// The `width` a table or cell asks for, like its `width` attribute ([`Length`], clamped).
+    pub layout_width: Option<Length>,
+    /// A `max-width` other than zero, clamped the same way.
+    pub max_width: Option<Length>,
+    /// Whether the left (right) margin is `auto`.
+    pub margin_left_auto: Option<bool>,
+    pub margin_right_auto: Option<bool>,
 }
 
 impl Css {
@@ -174,7 +183,11 @@ impl Css {
                 "visibility" => css.hidden |= matches!(value, "hidden" | "collapse"),
                 "opacity" => css.hidden |= number(value.trim_end_matches('%')).is_some_and(|n| n <= 0.0),
                 // (`mso-hide:all` hides nothing here: see the notes at the top.)
-                "max-height" | "max-width" => css.hidden |= is_zero(value) == Some(true),
+                "max-height" => css.hidden |= is_zero(value) == Some(true),
+                "max-width" => {
+                    css.hidden |= is_zero(value) == Some(true);
+                    css.max_width = css_length(value).or(css.max_width);
+                }
                 "overflow" | "overflow-x" | "overflow-y" => clipped |= tokens(value).any(|t| matches!(t, "hidden" | "clip")),
                 "height" => {
                     css.height = length_px(value).or(css.height);
@@ -182,15 +195,24 @@ impl Css {
                 }
                 "width" => {
                     css.width = length_px(value).or(css.width);
+                    css.layout_width = css_length(value).or(css.layout_width);
                     zero_box |= is_zero(value) == Some(true);
                 }
                 "margin" => {
                     let parts: Vec<&str> = tokens(value).take(4).collect();
                     let top = parts.first().copied().and_then(is_slight);
                     let bottom = parts.get(2).copied().and_then(is_slight).or(if parts.len() < 3 { top } else { None });
+                    let auto = |part: Option<&&str>| part.map(|p| *p == "auto");
+                    // One value is all four sides, two are vertical then horizontal, three add the bottom.
+                    let right = parts.get(1).or(parts.first());
+                    let left = parts.get(3).or(right);
+                    css.margin_left_auto = auto(left).or(css.margin_left_auto);
+                    css.margin_right_auto = auto(right).or(css.margin_right_auto);
                     css.margin_top_zero = top.or(css.margin_top_zero);
                     css.margin_bottom_zero = bottom.or(css.margin_bottom_zero);
                 }
+                "margin-left" => css.margin_left_auto = Some(value == "auto"),
+                "margin-right" => css.margin_right_auto = Some(value == "auto"),
                 "margin-top" | "margin-block-start" => css.margin_top_zero = is_slight(value).or(css.margin_top_zero),
                 "margin-bottom" | "margin-block-end" => css.margin_bottom_zero = is_slight(value).or(css.margin_bottom_zero),
                 "border" | "border-style" | "border-width" => {
@@ -233,6 +255,11 @@ impl Css {
     #[cfg(test)]
     pub fn any_border(&self) -> bool {
         self.borders.iter().any(|b| *b)
+    }
+
+    /// Centred by automatic margins on both sides (`margin: 0 auto`).
+    pub fn centred(&self) -> bool {
+        self.margin_left_auto == Some(true) && self.margin_right_auto == Some(true)
     }
 
     /// Whether every side has a border.
@@ -334,6 +361,17 @@ fn length_px(value: &str) -> Option<f32> {
         _ => return None,
     };
     px.is_finite().then_some(px)
+}
+
+/// A `width` or `max-width` as a [`Length`], clamped like the attribute's: pixels (or any absolute
+/// unit) from 1 to 65,535, or a percentage from 1 to 100. Zero, negative and nonsense give nothing.
+fn css_length(value: &str) -> Option<Length> {
+    let (n, unit) = dimension(value)?;
+    if unit == "%" {
+        return (n >= 1.0).then(|| Length::Percent(n.round().min(100.0) as u8));
+    }
+    let px = length_px(value)?;
+    (px >= 1.0).then(|| Length::Px(px.round().min(f32::from(u16::MAX)) as u16))
 }
 
 /// Whether a length is zero, whatever its unit; `None` for something that isn't a length (`auto`).
@@ -788,10 +826,44 @@ mod tests {
     }
 
     #[test]
+    fn widths_and_automatic_margins_are_read_clamped() {
+        let w = |v: &str| Css::parse(&format!("width:{v}")).layout_width;
+        assert_eq!(w("600px"), Some(Length::Px(600)));
+        assert_eq!(w("450pt"), Some(Length::Px(600)));
+        assert_eq!(w("80%"), Some(Length::Percent(80)));
+        assert_eq!(w("250%"), Some(Length::Percent(100)));
+        assert_eq!(w("99999999px"), Some(Length::Px(u16::MAX)));
+        for none in ["0", "0px", "-5px", "-1%", "0.2px", "auto", "12em", "calc(1px + 2px)", "px", "1e9px", "abc"] {
+            assert_eq!(w(none), None, "{none}");
+        }
+        let m = |v: &str| Css::parse(&format!("max-width:{v}"));
+        assert_eq!(m("600px").max_width, Some(Length::Px(600)));
+        assert!(!m("600px").hidden);
+        assert!(m("0").hidden && m("0").max_width.is_none());
+        assert_eq!(m("none").max_width, None);
+        let centred = |v: &str| Css::parse(v).centred();
+        for yes in [
+            "margin:0 auto",
+            "margin:auto",
+            "margin: 0 auto 0 auto",
+            "margin:1px auto 2px",
+            "margin-left:auto;margin-right:auto",
+            "margin:0;margin-left:auto;margin-right:AUTO",
+        ] {
+            assert!(centred(yes), "{yes}");
+        }
+        for no in
+            ["margin:0", "margin:auto 0", "margin-left:auto", "margin:0 auto;margin-right:0", "margin:0 auto 0 0", "margin:auto;margin-left:4px"]
+        {
+            assert!(!centred(no), "{no}");
+        }
+    }
+
+    #[test]
     fn everything_else_is_ignored() {
         let css = Css::parse(
             "position:absolute; left:-9999px; float:left; padding:40px; line-height:0; \
-             background-image:url(https://tracker.example/p.gif); content:'x'; behavior:url(x.htc); width:50%; z-index:9; \
+             background-image:url(https://tracker.example/p.gif); content:'x'; behavior:url(x.htc); min-width:50%; z-index:9; \
              transform:scale(9); animation:spin 1s; letter-spacing:4em; text-transform:uppercase",
         );
         assert_eq!(css, Css::default());

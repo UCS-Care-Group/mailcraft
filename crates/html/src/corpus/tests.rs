@@ -849,3 +849,26 @@ fn the_access_digest_keeps_its_centred_column_and_its_lines() {
     let roles = table_with(&blocks, "Privileged authentication");
     assert_eq!(roles.rows[0].cells.iter().map(|c| c.width).collect::<Vec<_>>(), [Some(Length::Percent(70)), Some(Length::Percent(30))]);
 }
+
+/// #150: widths and centring written in `style` lay the payments summary out as a 600-pixel
+/// centred card, and a div's `max-width` makes a centred card; nothing is left a narrow column.
+#[test]
+fn style_widths_and_auto_margins_make_centred_cards() {
+    let blocks = parse(STYLE_WIDTH_TABLE);
+    let card = flat(&blocks)
+        .into_iter()
+        .find(|b| matches!(&b.kind, BlockKind::Table(t) if t.width == Some(Length::Px(600))))
+        .unwrap_or_else(|| panic!("no 600-pixel table\n{}", show(&blocks)));
+    assert_eq!(card.align, Align::Center);
+    let roles = table_with(&blocks, "Invoice 1041");
+    assert_eq!(roles.rows[0].cells.iter().map(|c| c.width).collect::<Vec<_>>(), [Some(Length::Percent(70)), Some(Length::Percent(30))]);
+    let blocks = parse(STYLE_CARD);
+    let shown = flat(&blocks);
+    let tables: Vec<&Block> = shown.iter().copied().filter(|b| matches!(b.kind, BlockKind::Table(_))).collect();
+    assert!(tables.len() >= 2, "{}", show(&blocks));
+    // (The page's own background is a box the whole width, on the left.)
+    let capped = |b: &Block| matches!(&b.kind, BlockKind::Table(t) if matches!(t.width, Some(Length::Px(_))));
+    assert!(tables.iter().copied().filter(|b| capped(b)).all(|b| b.align == Align::Center), "{}", show(&blocks));
+    assert!(tables.iter().any(|b| matches!(&b.kind, BlockKind::Table(t) if t.width == Some(Length::Px(600)))), "{}", show(&blocks));
+    assert!(tables.iter().any(|b| matches!(&b.kind, BlockKind::Table(t) if t.width == Some(Length::Px(480)))), "{}", show(&blocks));
+}
