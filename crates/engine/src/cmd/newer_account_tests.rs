@@ -166,8 +166,9 @@ fn what_is_changed_in_its_mail_is_kept_and_an_undo_brings_it_back_whole() {
     let file: Value = serde_json::from_slice(&crate::io::write_mailbox(&s.mailbox).unwrap()).unwrap();
     assert_eq!(file["messages"][id.to_string()]["flag"], "flagged");
     assert_eq!(as_saved(&s, newer), kept);
-    // Removed and brought back by Undo, it is as its file had it.
-    s.run("account.remove", &json!({"id": newer})).unwrap();
+    // Changed and brought back by Undo, it is as its file had it. (Removing it keeps no Undo
+    // step: #177.)
+    s.run("mail.flag", &json!({"id": id})).unwrap();
     s.run("edit.undo", &json!({})).unwrap();
     assert_eq!(as_saved(&s, newer), kept);
 }

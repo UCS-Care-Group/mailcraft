@@ -1664,7 +1664,13 @@ impl Session {
                 if self.mailbox != before.mailbox {
                     self.hold_replaced(&before.mailbox);
                     self.rev += 1;
-                    if history {
+                    if history && wipes_history(id) {
+                        // The mail is gone from this computer (#177): no step brings it back,
+                        // and none holds its content on disk.
+                        self.dirty = true;
+                        self.history.clear();
+                        self.redo.clear();
+                    } else if history {
                         self.dirty = true;
                         let mut before = before;
                         before.touched = crate::undo::touched(&before.mailbox, &self.mailbox);
@@ -1690,6 +1696,12 @@ impl Session {
         }
         result
     }
+}
+
+/// Commands that remove what is kept of an account on this computer (#177): they leave nothing
+/// to undo, as the content they remove would have to stay on disk for it.
+fn wipes_history(id: &str) -> bool {
+    matches!(id, "account.remove" | "account.removeSharedMailbox")
 }
 
 /// Whether an attachment is a calendar part (an invitation, an answer to one).

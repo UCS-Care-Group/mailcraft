@@ -132,11 +132,11 @@ fn remove(s: &mut Session, v: &Value) -> CmdResult {
     if !account.is_shared() {
         return Err(failed!("{name} isn't a shared mailbox: remove it with account.remove", name = account.name));
     }
-    s.mailbox.remove_account(id)?;
+    let left = super::account::remove_with_content(s, id)?;
     if s.mailbox.folder(s.view.folder).is_none() {
         s.view.folder = s.mailbox.default_account().and_then(|a| s.mailbox.folder_of_kind(a.id, FolderKind::Inbox)).unwrap_or(0);
     }
-    Ok(json!({"deleted": id}))
+    Ok(json!({"deleted": id, "leftToSweep": left}))
 }
 
 #[cfg(test)]

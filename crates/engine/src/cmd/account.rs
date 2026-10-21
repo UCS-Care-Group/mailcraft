@@ -25,7 +25,7 @@ pub fn specs() -> Vec<CommandSpec> {
     vec![
         CommandSpec::new("account.add", "Add Account", "File › Info", add).params(ACCOUNT),
         CommandSpec::new("account.edit", "Account Settings", "File › Info", edit).params(r#"{"id": number, …the fields of account.add, "downloadInFull"?: "upTo10Mb"|"upTo25Mb"|"upTo50Mb"|"everything" (a Microsoft account: which messages are fetched whole in the background), "keepOffline"?: "3d"|"1w"|"2w"|"1m"|"3m"|"6m"|"12m"|"2y"|"5y"|"10y"|"all" (a Microsoft account's mail to keep offline: how far back, by received date, mail is kept in full on this computer; older mail keeps its headers and preview. A shared mailbox follows its owner's. Shortening it removes nothing by itself: account.thinOffline does)}"#),
-        CommandSpec::new("account.remove", "Remove Account", "File › Info", remove).params(r#"{"id": number}"#),
+        CommandSpec::new("account.remove", "Remove Account", "File › Info", remove).params(r#"{"id": number} — removes the account, its mail and what is kept for it on this computer (bodies and attachments leave the content folder once a state without it is saved; no Undo step is kept); nothing on the server is touched. Answers {"deleted": id, "leftToSweep": n (content files the sweep removes later)}"#),
         CommandSpec::new("account.list", "List Accounts", "File › Info", list).pure(),
         CommandSpec::new("account.preset", "Suggest Account Settings", "File › Info", preset)
             .pure()
@@ -298,11 +298,72 @@ fn remove(s: &mut Session, v: &Value) -> CmdResult {
     if s.mailbox.accounts.iter().all(|a| a.id == id || a.shared_of == Some(id)) {
         return Err(fail("the last account can't be removed"));
     }
-    s.mailbox.remove_account(id)?;
+    let left = remove_with_content(s, id)?;
     if s.mailbox.folder(s.view.folder).is_none() {
         s.view.folder = s.mailbox.default_account().and_then(|a| s.mailbox.folder_of_kind(a.id, FolderKind::Inbox)).unwrap_or(0);
     }
-    Ok(json!({"deleted": id}))
+    Ok(json!({"deleted": id, "leftToSweep": left}))
+}
+
+/// Most bytes of content in memory one removal hashes to name the files it takes with it: what
+/// is in memory is bounded by the session's budget already, and this keeps the window from
+/// waiting on a large account. Messages past it leave their files to the sweep.
+const HASH_BUDGET: u64 = 256 << 20;
+
+/// What a message holds in memory (what hashing it costs).
+fn in_memory(m: &Message) -> u64 {
+    let body = m.body.text.len() as u64 + m.body.html.as_ref().map_or(0, |h| h.len() as u64);
+    body.saturating_add(m.attachments.iter().map(|a| a.data.len() as u64).sum::<u64>())
+}
+
+/// Remove account `id` (with the shared mailboxes opened through it) and what is kept on disk
+/// for its mail (#177): the bodies and attachments that only its messages name go from the
+/// mailbox's content folder once a state without the account is saved ([`crate::store::forget_when_saved`]),
+/// not hours later with the sweep. Content another account's mail names too stays for it. No
+/// Undo step is kept (`Session::run`), as it would hold the mail on disk.
+///
+/// Answers how many content files were left to the sweep (hours later, the same result): those
+/// of messages past [`HASH_BUDGET`] and names past the store's waiting list.
+pub(crate) fn remove_with_content(s: &mut Session, id: Id) -> Result<usize, CmdError> {
+    remove_within(s, id, HASH_BUDGET)
+}
+
+/// [`remove_with_content`] hashing at most `budget` bytes of content in memory.
+pub(crate) fn remove_within(s: &mut Session, id: Id, budget: u64) -> Result<usize, CmdError> {
+    let going: HashSet<Id> = s.mailbox.accounts.iter().filter(|a| a.id == id || a.shared_of == Some(id)).map(|a| a.id).collect();
+    #[allow(unused_mut)]
+    let mut left = 0usize;
+    #[cfg(target_arch = "wasm32")]
+    let _ = budget;
+    #[cfg(not(target_arch = "wasm32"))]
+    let refs: Vec<mailcraft_model::ContentRef> = if s.path.is_some() {
+        let mut budget = budget;
+        let mut refs = Vec::new();
+        for (mid, m) in s.mailbox.messages.iter().filter(|(_, m)| going.contains(&m.account)) {
+            let cost = in_memory(m);
+            if cost > budget {
+                left = left.saturating_add(1);
+                continue;
+            }
+            budget -= cost;
+            refs.extend(crate::store::content_names(*mid, m));
+        }
+        refs
+    } else {
+        Vec::new()
+    };
+    let gone: HashSet<Id> = s.mailbox.messages.iter().filter(|(_, m)| going.contains(&m.account)).map(|(mid, _)| *mid).collect();
+    s.mailbox.remove_account(id)?;
+    s.let_go(&gone);
+    s.mailbox_changed();
+    #[cfg(not(target_arch = "wasm32"))]
+    if let Some(path) = s.path.clone() {
+        left = left.saturating_add(crate::store::forget_when_saved(&path, s.rev(), refs));
+    }
+    if left > 0 {
+        log::info!("{left} content file(s) of a removed account are left to the sweep");
+    }
+    Ok(left)
 }
 
 fn list(s: &mut Session, _: &Value) -> CmdResult {

@@ -410,6 +410,8 @@ const NEVER: &[&str] = &[
     // Installing a new version, or going back to the one before: only the owner's click.
     "ui.restartToUpdate",
     "ui.goBackVersion",
+    // Everything MailCraft keeps on this computer, gone (#177): only the owner's own click.
+    "ui.removeAllData",
 ];
 
 /// A command's class by id; `None`: not classified (and so refused).
