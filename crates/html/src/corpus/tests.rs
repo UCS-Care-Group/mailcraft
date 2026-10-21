@@ -867,8 +867,8 @@ fn style_widths_and_auto_margins_make_centred_cards() {
     let tables: Vec<&Block> = shown.iter().copied().filter(|b| matches!(b.kind, BlockKind::Table(_))).collect();
     assert!(tables.len() >= 2, "{}", show(&blocks));
     // (The page's own background is a box the whole width, on the left.)
-    let capped = |b: &&Block| matches!(&b.kind, BlockKind::Table(t) if matches!(t.width, Some(Length::Px(_))));
-    assert!(tables.iter().filter(capped).all(|b| b.align == Align::Center), "{}", show(&blocks));
+    let capped = |b: &Block| matches!(&b.kind, BlockKind::Table(t) if matches!(t.width, Some(Length::Px(_))));
+    assert!(tables.iter().copied().filter(|b| capped(b)).all(|b| b.align == Align::Center), "{}", show(&blocks));
     assert!(tables.iter().any(|b| matches!(&b.kind, BlockKind::Table(t) if t.width == Some(Length::Px(600)))), "{}", show(&blocks));
     assert!(tables.iter().any(|b| matches!(&b.kind, BlockKind::Table(t) if t.width == Some(Length::Px(480)))), "{}", show(&blocks));
 }
