@@ -425,6 +425,11 @@ pub struct Prefs {
     pub quote_on_reply: bool,
     /// Lines of body text under each message in the list (0–3).
     pub preview_lines: u8,
+    /// The list has group headings (Today, Yesterday…; `view.groups`). Off: one continuous list.
+    pub show_groups: bool,
+    /// Each row of the list is one line: sender, subject, time and marks (`view.oneLine`).
+    #[serde(skip_serializing_if = "is_false")]
+    pub one_line: bool,
     /// Most messages one synchronisation downloads per folder (0: all).
     pub sync_limit: u32,
     /// Minutes between automatic Send/Receive runs (0: only when asked).
@@ -484,6 +489,8 @@ impl Default for Prefs {
             default_reminder: Some(15),
             quote_on_reply: true,
             preview_lines: 1,
+            show_groups: true,
+            one_line: false,
             sync_limit: 500,
             sync_minutes: 5,
             time_scale: 30,
@@ -913,8 +920,16 @@ impl Session {
     /// as [`Session::search_time`] allows; what it didn't get to is counted in
     /// [`Session::unsearched`].
     pub fn rows(&mut self) -> Arc<Vec<Row>> {
-        let list =
-            |s: &Session| format!("{}|{}|{}|{}", s.rev, s.today().to_days(), s.words_finished(), serde_json::to_string(&s.view).unwrap_or_default());
+        let list = |s: &Session| {
+            format!(
+                "{}|{}|{}|{}|{}",
+                s.rev,
+                s.today().to_days(),
+                s.words_finished(),
+                s.prefs.show_groups,
+                serde_json::to_string(&s.view).unwrap_or_default()
+            )
+        };
         let key = |s: &Session| format!("{}|{}", s.loads, list(s));
         if let Some((k, rows)) = &self.list_cache
             && *k == key(self)

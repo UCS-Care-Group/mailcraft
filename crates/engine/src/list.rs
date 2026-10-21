@@ -156,7 +156,8 @@ pub fn rows_with(s: &Session, decided: &HashMap<Id, bool>, searched: &HashMap<Id
     }
 
     let mut last: Option<String> = None;
-    for row in &mut out {
+    // Show in Groups off: the sorted rows, no headings.
+    for row in out.iter_mut().filter(|_| s.prefs.show_groups) {
         let label = mb.message(row.id).and_then(|m| group_label(s, m));
         if label != last {
             row.group = label.clone();
