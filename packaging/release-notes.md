@@ -6,6 +6,7 @@
 - **Reminder windows** follow the main window's light or dark theme, and carry its icon.
 
 **Fixes**
+- Removing an account now removes its mail, attachments and remembered sign-in from this computer, and File › Info › Remove MailCraft's data from this computer removes everything MailCraft keeps here, for an installed or a portable copy; mail on the servers is never touched ([#177](https://github.com/GITHUB_REPOSITORY/issues/177)).
 - Ctrl+Q marks the selected messages read and no longer also closes the window ([#269](https://github.com/GITHUB_REPOSITORY/issues/269)).
 - Calendar › View shows the four calendar views in place of the messages' controls ([#239](https://github.com/GITHUB_REPOSITORY/issues/239)).
 - Add Shared Mailbox no longer waits for a Send/Receive already under way ([#70](https://github.com/GITHUB_REPOSITORY/issues/70)).

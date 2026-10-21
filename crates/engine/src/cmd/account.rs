@@ -298,11 +298,34 @@ fn remove(s: &mut Session, v: &Value) -> CmdResult {
     if s.mailbox.accounts.iter().all(|a| a.id == id || a.shared_of == Some(id)) {
         return Err(fail("the last account can't be removed"));
     }
-    s.mailbox.remove_account(id)?;
+    remove_with_content(s, id)?;
     if s.mailbox.folder(s.view.folder).is_none() {
         s.view.folder = s.mailbox.default_account().and_then(|a| s.mailbox.folder_of_kind(a.id, FolderKind::Inbox)).unwrap_or(0);
     }
     Ok(json!({"deleted": id}))
+}
+
+/// Remove account `id` (with the shared mailboxes opened through it) and what is kept on disk
+/// for its mail (#177): the bodies and attachments that only its messages name go from the
+/// mailbox's content folder once a state without the account is saved ([`crate::store::forget_when_saved`]),
+/// not hours later with the sweep. Content another account's mail names too stays for it.
+pub(crate) fn remove_with_content(s: &mut Session, id: Id) -> Result<(), CmdError> {
+    let going: HashSet<Id> = s.mailbox.accounts.iter().filter(|a| a.id == id || a.shared_of == Some(id)).map(|a| a.id).collect();
+    #[cfg(not(target_arch = "wasm32"))]
+    let refs: Vec<mailcraft_model::ContentRef> = if s.path.is_some() {
+        s.mailbox.messages.iter().filter(|(_, m)| going.contains(&m.account)).flat_map(|(mid, m)| crate::store::content_names(*mid, m)).collect()
+    } else {
+        Vec::new()
+    };
+    let gone: HashSet<Id> = s.mailbox.messages.iter().filter(|(_, m)| going.contains(&m.account)).map(|(mid, _)| *mid).collect();
+    s.mailbox.remove_account(id)?;
+    s.let_go(&gone);
+    s.mailbox_changed();
+    #[cfg(not(target_arch = "wasm32"))]
+    if let Some(path) = s.path.clone() {
+        crate::store::forget_when_saved(&path, s.rev(), refs);
+    }
+    Ok(())
 }
 
 fn list(s: &mut Session, _: &Value) -> CmdResult {

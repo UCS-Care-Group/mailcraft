@@ -54,6 +54,7 @@ mod single_instance;
 #[cfg(test)]
 mod update_flow;
 mod updater;
+mod wipe;
 
 use std::path::PathBuf;
 
@@ -157,7 +158,7 @@ impl eframe::App for App {
             opened.clear();
         }
         // What is still to be noted of the pictures kept on disk.
-        if let Some(pictures) = PICTURES.get() {
+        if let Some(pictures) = PICTURES.get().filter(|_| !self.0.data_removed) {
             pictures.flush();
         }
         if let Some(key_file) = &self.2 {
@@ -285,7 +286,8 @@ fn saved_window() -> Option<WindowGeometry> {
 }
 
 fn save_prefs(app: &MailApp) {
-    if !prefs_enabled() {
+    // Its data was removed from this computer (File › Info): nothing is written back.
+    if !prefs_enabled() || app.data_removed {
         return;
     }
     if let Some(p) = prefs_path() {
@@ -1120,6 +1122,10 @@ fn services(
         open_file: opened_files()
             .map(|opened| Box::new(move |name: &str, bytes: &[u8]| opened.open(name, bytes)) as Box<dyn Fn(&str, &[u8]) -> Result<(), String>>),
         secrets: secrets::store(),
+        // File › Info › Remove MailCraft's data from this computer (#177): the folders this
+        // program works in, and no others. Not offered by a run that keeps nothing.
+        data_wipe: prefs_enabled()
+            .then(|| Box::new(wipe::Wipe { roots: wipe::Roots::of_this_program() }) as Box<dyn mailcraft_ui_egui::data_removal::DataWipe>),
         // Desktop alerts, through the system's notifications (`alerts`).
         alert: alerts::host(alert_ctx),
         clipboard: clipboard::board(),

@@ -47,6 +47,8 @@ pub mod sync_progress;
 pub mod tasks;
 pub mod view;
 #[cfg(test)]
+mod wipe_tests;
+#[cfg(test)]
 mod zone_tests;
 pub mod zones;
 
