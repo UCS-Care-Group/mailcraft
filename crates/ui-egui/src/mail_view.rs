@@ -1584,6 +1584,16 @@ mod tests {
         }
         harness.state_mut().execute("view.previewLines", json!({"value": 1})).unwrap();
 
+        // In a single line, on that line before the marks and the time.
+        harness.state_mut().execute("view.oneLine", json!({"value": true})).unwrap();
+        harness.run_steps(3);
+        for (row, rect, size) in sizes(&mut harness).into_iter().filter(|(row, _, _)| row.id != marked) {
+            let size = size.unwrap_or_else(|| panic!("row {} says no size", row.id));
+            assert!(size.max.x < rect.max.x - TIME_RIGHT - 20.0, "row {}: before the time", row.id);
+            assert!((size.center().y - rect.center().y).abs() <= 2.0, "row {}: on its one line", row.id);
+        }
+        harness.state_mut().execute("view.oneLine", json!({"value": false})).unwrap();
+
         // A search of every mailbox: the size, then the folder before it.
         harness.state_mut().execute("view.search", json!({"query": "the", "scope": "everywhere"})).unwrap();
         harness.run_steps(3);

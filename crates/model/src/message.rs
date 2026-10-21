@@ -352,14 +352,16 @@ impl Message {
         if t.is_empty() { format!("\u{0}{}", self.id) } else { t }
     }
 
-    /// Its size as the message list shows and sorts it (#273): [`Message::size`] when all of it is
-    /// here. A Microsoft account's message of which only the headers and a preview are here has
-    /// the size its server said, and `None` when the server said none. `None` too for one with the
-    /// mark of an IMAP message too large to download: the size the mark gives is not believed,
-    /// since any sender can write a header of that name into a message.
+    /// Its size as the message list shows and sorts it (#273): a Microsoft account's message of
+    /// which only the headers and a preview are here has the size its server said, when it said
+    /// one; otherwise [`Message::size`], of what is here (a whole message marked to be fetched
+    /// again keeps its body until then). `None` for one with the mark of an IMAP message too large
+    /// to download: the size the mark gives is not believed, since any sender can write a header
+    /// of that name into a message.
     pub fn list_size(&self) -> Option<u64> {
-        if self.unfetched || self.incomplete {
-            return self.server.as_ref().map(|s| s.size).filter(|size| *size > 0);
+        let said = self.server.as_ref().map(|s| s.size).filter(|size| *size > 0);
+        if let Some(size) = said.filter(|_| self.unfetched || self.incomplete) {
+            return Some(size);
         }
         if self.headers.iter().any(|(name, _)| name.eq_ignore_ascii_case(NOT_DOWNLOADED)) {
             return None;
@@ -465,8 +467,15 @@ mod tests {
         assert_eq!(unfetched.list_size(), Some(30 << 20));
         let incomplete = Message { body: preview.clone(), incomplete: true, server: server(4096), ..Default::default() };
         assert_eq!(incomplete.list_size(), Some(4096));
-        assert_eq!(Message { unfetched: true, server: server(0), ..Default::default() }.list_size(), None);
-        assert_eq!(Message { unfetched: true, ..Default::default() }.list_size(), None);
+        // The server said no size (a Graph delta never does): what is here. A whole message with
+        // an unreadable character is marked to be fetched again and keeps its body meanwhile.
+        let whole_again = Message { unfetched: true, server: server(0), ..whole.clone() };
+        assert_eq!(whole_again.list_size(), Some(2000));
+        assert_eq!(Message { unfetched: true, ..whole.clone() }.list_size(), Some(2000));
+        let preview_only = Message { body: preview.clone(), unfetched: true, server: server(0), ..Default::default() };
+        assert_eq!(preview_only.list_size(), Some(preview_only.size()));
+        // A whole message's own size wins over what its server said.
+        assert_eq!(Message { server: server(30 << 20), ..whole.clone() }.list_size(), Some(2000));
         // Too large to download, or a sender's header of that name: not believed either way.
         for name in [NOT_DOWNLOADED, "x-mailcraft-not-downloaded"] {
             let marked = Message { body: preview.clone(), headers: vec![(name.into(), "62914560".into())], ..Default::default() };

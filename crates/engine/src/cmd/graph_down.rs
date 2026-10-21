@@ -624,4 +624,21 @@ Content-Type: text/html; charset=windows-1250\r\nContent-Transfer-Encoding: quot
         // A file from before has not been looked through.
         assert!(!serde_json::from_str::<Mailbox>("{}").unwrap().redecoded);
     }
+
+    #[test]
+    fn mail_fetched_again_keeps_its_size_in_the_list() {
+        // As a delta brings it: size 0, "not said" (#273). Marked to be fetched again for an
+        // unreadable character, it keeps its body until the new copy comes, and the list says
+        // that body's size meanwhile, not none.
+        let (mut mb, _, folder) = mailbox();
+        let server = ServerMessage { id: "AAkC9".into(), folder: "F".into(), size: 0, ..Default::default() };
+        let text = format!("Hi Avery, we\u{FFFD}ve met. {}", "x".repeat(4000));
+        let whole = Message { folder, server: Some(server), body: Body { text, html: None }, ..Default::default() };
+        let id = mb.add_message(whole).unwrap();
+        assert_eq!(refetch_unreadable(&mut mb), 1);
+        let m = mb.message(id).unwrap();
+        assert!(m.unfetched);
+        assert_eq!(m.list_size(), Some(m.size()));
+        assert!(m.size() > 4000);
+    }
 }
