@@ -112,6 +112,9 @@ pub struct Cache {
     /// How far ahead of the system's clock this cache's is, in seconds: none, but in the tests,
     /// which can't wait a month.
     ahead: AtomicU64,
+    /// MailCraft's data is being removed from this computer (#177): nothing is written any more,
+    /// whatever download is still in flight.
+    stopped: AtomicBool,
 }
 
 /// The time, in Unix seconds.
@@ -220,7 +223,18 @@ impl Cache {
             max_pictures: max_pictures.min(MAX_PICTURES),
             max_total: max_total.min(MAX_TOTAL),
             ahead: AtomicU64::new(0),
+            stopped: AtomicBool::new(false),
         })
+    }
+
+    /// Write nothing from now on: a picture still being downloaded is not kept, and the index is
+    /// not written, so that the folder isn't made again after it was removed (#177).
+    pub fn stop(&self) {
+        self.stopped.store(true, Ordering::SeqCst);
+    }
+
+    fn is_stopped(&self) -> bool {
+        self.stopped.load(Ordering::SeqCst)
     }
 
     /// The time as this cache has it, in Unix seconds.
@@ -333,10 +347,13 @@ impl Cache {
     /// large. Whether they were kept; trouble with the disk only means they were not.
     pub fn put(self: &Arc<Self>, url: &str, bytes: &[u8]) -> bool {
         let Some(address) = key(url) else { return false };
-        if bytes.is_empty() || bytes.len() > MAX_PICTURE || bytes.len() as u64 > self.max_total || !looks_like_a_picture(bytes) {
+        if self.is_stopped() || bytes.is_empty() || bytes.len() > MAX_PICTURE || bytes.len() as u64 > self.max_total || !looks_like_a_picture(bytes) {
             return false;
         }
         let content = Digest::of(bytes);
+        if self.is_stopped() {
+            return false;
+        }
         if let Err(e) = self.write(&content, bytes) {
             log::debug!("a downloaded picture was not kept: {e}");
             return false;
@@ -490,6 +507,9 @@ impl Cache {
     /// that ended between writing a picture and writing the index left behind. Without it the
     /// folder could grow past its bounds with nobody counting.
     pub fn tidy(&self) {
+        if self.is_stopped() {
+            return;
+        }
         let named: std::collections::HashSet<String> = self.lock().entries.values().map(|entry| entry.content.hex()).collect();
         let old = |path: &Path| fs::symlink_metadata(path).and_then(|m| m.modified()).is_ok_and(|at| at.elapsed().is_ok_and(|age| age > GRACE));
         self.sweep(|path| old(path) && !path.file_name().and_then(|name| name.to_str()).is_some_and(|name| named.contains(name)));
@@ -501,6 +521,9 @@ impl Cache {
     /// The folder is not made for it: keeping a picture makes it, and an index of a folder
     /// that is gone (cleared, or taken away under us) names nothing worth writing down.
     fn write_index(&self, now: bool) -> bool {
+        if self.is_stopped() {
+            return true;
+        }
         let _writing = self.writing.lock().unwrap_or_else(|e| e.into_inner());
         let text = {
             let mut state = self.lock();

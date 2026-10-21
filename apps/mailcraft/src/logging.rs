@@ -288,10 +288,16 @@ impl log::Log for AppLogger {
     fn flush(&self) {}
 }
 
+static LOGGER: OnceLock<AppLogger> = OnceLock::new();
+
+/// The installed logger, once [`install`] has run.
+pub fn current() -> Option<&'static AppLogger> {
+    LOGGER.get()
+}
+
 /// Install the logger (filter from `RUST_LOG`, else [`DEFAULT_FILTER`]); `None` when another
 /// logger was installed first. Call [`AppLogger::attach_dir`] once the settings directory is known.
 pub fn install() -> Option<&'static AppLogger> {
-    static LOGGER: OnceLock<AppLogger> = OnceLock::new();
     let spec = std::env::var("RUST_LOG").ok().filter(|s| !s.trim().is_empty());
     let filter = Filter::parse(spec.as_deref().unwrap_or(DEFAULT_FILTER));
     let max = filter.max();

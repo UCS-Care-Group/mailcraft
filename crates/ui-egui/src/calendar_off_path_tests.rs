@@ -137,8 +137,9 @@ fn the_calendar_download_waits_for_the_round_and_a_round_waits_for_a_calendar_jo
     assert_eq!(jobs.lock().unwrap()[0], (owner, false, true));
     // A round the window starts by itself waits its turn for that account, and goes on after.
     app.sync_queue.push_back((owner, true));
+    app.inbox_queue.push_back((owner, true));
     app.auto_sync();
-    assert_eq!(app.sync_queue.len(), 1, "waiting");
+    assert_eq!((app.inbox_queue.len(), app.sync_queue.len()), (1, 1), "the Inbox pass and the run wait");
     assert_eq!(jobs.lock().unwrap().len(), 1);
     let (answer, req) = held.lock().unwrap().take().unwrap();
     answer

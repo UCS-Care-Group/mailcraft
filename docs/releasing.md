@@ -1,6 +1,6 @@
 # Releasing MailCraft
 
-> **Last reviewed:** 2026-10-18 · **Last updated:** 2026-10-21 · **Change:** minor (the 0.6.0 Fixes lines brought up to date; a Fixes section in the release notes, each issue linked, checked against what merged since the last tag; build provenance as a file beside each release; reproducible builds, checked weekly; one pinned Rust version, 1.98.1, for every build; what to do when a release key leaks: there is no taking it back from copies already out; v0.5.0, the first release with MailCraft's own signature; how a copy that updates itself installs a release; `DISABLEAUTOMATICUPDATES=1`; MailCraft's own release signature: `SHA256SUMS.txt.sig`, the `MAILCRAFT_RELEASE_KEY` secret, `cargo xtask release-key`) · **Status:** releases v0.1.0 to v0.5.0 were built and published by `release.yml` and `package.yml` on GitHub's runners, for every platform in the table below; v0.5.0 is the first with MailCraft's own release signature (`SHA256SUMS.txt.sig`, verified by the in-use key), and none is signed by the operating systems' signatures yet (gap #18).
+> **Last reviewed:** 2026-10-18 · **Last updated:** 2026-10-21 · **Change:** minor (the release announced to the testers in #11; the 0.6.0 Fixes lines brought up to date; a Fixes section in the release notes, each issue linked, checked against what merged since the last tag; build provenance as a file beside each release; reproducible builds, checked weekly; one pinned Rust version, 1.98.1, for every build; what to do when a release key leaks: there is no taking it back from copies already out; v0.5.0, the first release with MailCraft's own signature; how a copy that updates itself installs a release; `DISABLEAUTOMATICUPDATES=1`; MailCraft's own release signature: `SHA256SUMS.txt.sig`, the `MAILCRAFT_RELEASE_KEY` secret, `cargo xtask release-key`) · **Status:** releases v0.1.0 to v0.5.0 were built and published by `release.yml` and `package.yml` on GitHub's runners, for every platform in the table below; v0.5.0 is the first with MailCraft's own release signature (`SHA256SUMS.txt.sig`, verified by the in-use key), and none is signed by the operating systems' signatures yet (gap #18).
 
 The canonical recipe is [craftrules `release/playbook.md`](https://github.com/storytold/craftrules/blob/main/release/playbook.md);
 this file has the MailCraft specifics. The scripts in `packaging/` are WordCraft's with MailCraft's
@@ -45,6 +45,9 @@ WordCraft does.
 5. A maintainer checks the draft (files, names, checksums, notes) and publishes it by hand:
    Releases › the draft › Edit › Publish release, or `gh release edit v0.2.0 --draft=false`.
    Nothing is public until then.
+6. Announce it to the testers: a comment on [#11](https://github.com/UCS-Care-Group/mailcraft/issues/11)
+   headed `## MailCraft v<version> is out`, with the download link and the release's headlines
+   (the tester welcome promises it). Add anyone who signed up since to #11's Testers table.
 
 Signing secrets (`APPLE_*`, `WINDOWS_CERTIFICATE*` and `AZURE_*`) are secrets of the `release`
 environment, not of the repository. That environment accepts version tags (`v*`) only and waits
@@ -238,6 +241,7 @@ and in the Flatpak (which is granted `org.freedesktop.secrets` for it).
 
 | Date | Change |
 |---|---|
+| 2026-10-21 | Step 6: each release announced to the testers in #11, and new sign-ups added to its table |
 | 2026-10-21 | Release notes: a Fixes section, each fix's issue linked in full for the website's changelog; checked against what merged since the last tag |
 | 2026-10-20 | Build provenance attached to each release as `mailcraft-<version>.intoto.jsonl` |
 | 2026-10-20 | Reproducible builds: the Linux app and CLI built twice in different folders and compared, weekly |

@@ -75,6 +75,35 @@ fn the_sample_mailbox_opens_on_a_grouped_inbox() {
 }
 
 #[test]
+fn show_in_groups_off_leaves_rows_without_headings_and_is_remembered() {
+    let mut s = session();
+    let sorted: Vec<Id> = s.rows().iter().map(|r| r.id).collect();
+    assert!(s.rows().iter().any(|r| r.group.is_some()));
+    assert_eq!(s.run("view.groups", &json!({})).unwrap()["value"], false);
+    let rows = s.rows();
+    assert!(rows.iter().all(|r| r.group.is_none()));
+    assert_eq!(rows.iter().map(|r| r.id).collect::<Vec<_>>(), sorted);
+    // Saved with the other preferences, and on again by the same command.
+    let saved = serde_json::to_value(&s.prefs).unwrap();
+    assert_eq!(saved["showGroups"], false);
+    assert!(!serde_json::from_value::<crate::Prefs>(saved).unwrap().show_groups);
+    assert!(serde_json::from_value::<crate::Prefs>(json!({})).unwrap().show_groups);
+    assert_eq!(s.run("view.groups", &json!({"value": true})).unwrap()["value"], true);
+    assert!(s.rows().iter().any(|r| r.group.is_some()));
+}
+
+#[test]
+fn the_single_line_list_is_a_toggled_preference() {
+    let mut s = session();
+    assert!(!s.prefs.one_line);
+    assert_eq!(s.run("view.oneLine", &json!({})).unwrap()["value"], true);
+    assert!(s.prefs.one_line);
+    assert_eq!(serde_json::to_value(&s.prefs).unwrap()["oneLine"], true);
+    assert_eq!(s.run("view.oneLine", &json!({"value": false})).unwrap()["value"], false);
+    assert!(serde_json::to_value(&s.prefs).unwrap().get("oneLine").is_none());
+}
+
+#[test]
 fn selecting_marks_read_without_an_undo_step() {
     let mut s = session();
     let id = s.rows()[1].id;
