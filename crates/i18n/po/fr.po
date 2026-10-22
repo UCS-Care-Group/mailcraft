@@ -1357,6 +1357,12 @@ msgid "Change this account's name, servers and sign-in"
 msgstr "Modifier le nom, les serveurs et la connexion de ce compte"
 
 #. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Change this account's name, sign-in and mail to keep offline"
+msgstr "Modifier le nom, la connexion et le courrier à conserver hors connexion de ce compte"
+
+#. interface
 #: crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Changed: saved when you choose another signature or leave this page."
@@ -3609,6 +3615,12 @@ msgstr "Les éléments de ce calendrier sont conservés sur cet ordinateur et nu
 #, fuzzy
 msgid "Its mail can be read here. What you change in it is kept in this mailbox, and this version tells no mail server about it."
 msgstr "Son courrier peut être lu ici. Ce que vous y modifiez est conservé dans cette boîte aux lettres, et cette version n'en informe aucun serveur de messagerie."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "Its mail is kept in step through Microsoft Graph, without mail servers"
+msgstr "Son courrier est synchronisé via Microsoft Graph, sans serveur de messagerie"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
