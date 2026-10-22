@@ -605,6 +605,10 @@ pub struct Session {
     pub(crate) saved_whole: std::collections::HashSet<Id>,
     /// What the server refused in the Graph run under way, for the status at its end (S20).
     pub(crate) graph_said: Vec<String>,
+    /// When each Microsoft account last had every folder read in a Graph run, none passed over
+    /// for having the counts it had (#276): the next full sweep is due an hour later. Empty when
+    /// a mailbox is opened, so the first run reads everything. Never saved.
+    pub(crate) graph_swept: std::collections::HashMap<Id, Timestamp>,
     /// Set while a command an agent asked for runs (with what the owner allowed it): what the
     /// command did is checked against that ([`crate::agent`]), and undone when it oversteps.
     pub agent: Option<Vec<crate::agent::Class>>,
@@ -732,6 +736,7 @@ impl Session {
             openings: 0,
             saved_whole: Default::default(),
             graph_said: Vec::new(),
+            graph_swept: Default::default(),
             agent: None,
             graph_switch_backup: None,
             server_search: Default::default(),
@@ -1518,6 +1523,7 @@ impl Session {
         self.searched_for = None;
         self.saved_whole.clear();
         self.kept_for_now.clear();
+        self.graph_swept.clear();
         self.openings = self.openings.wrapping_add(1);
         self.history.clear();
         self.redo.clear();

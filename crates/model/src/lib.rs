@@ -37,8 +37,9 @@ pub use calendar::{
 pub use contact::{Contact, Labeled, PostalAddress};
 pub use jmap_server::JmapServer;
 pub use mailbox::{
-    Account, AccountKind, AsWritten, BETWEEN_MAILBOXES, Category, Directory, DownloadInFull, Folder, FolderKind, GraphSwitch, IMPORTED, INTO_GRAPH,
-    MAX_SHARED, Mailbox, NOT_SENDING_YET, OAuth, OAuthProvider, Pending, Queued, STAYS_LOCAL, Security, Server, ServerFavorites, ServerFolder,
+    Account, AccountKind, AsWritten, BETWEEN_MAILBOXES, Category, Directory, DownloadInFull, Folder, FolderCounts, FolderKind, GraphSwitch, IMPORTED,
+    INTO_GRAPH, MAX_SHARED, Mailbox, NOT_SENDING_YET, OAuth, OAuthProvider, Pending, Queued, STAYS_LOCAL, Security, Server, ServerFavorites,
+    ServerFolder,
 };
 pub use mailcraft_time as time;
 pub use message::{
