@@ -244,7 +244,7 @@ impl Graph<'_> {
                 400 if code == "ErrorInvalidIdMalformed" => Slot::Answered(Found::Gone),
                 401 => return Err(NetError::Proto(ProtoError::Auth("Microsoft Graph didn't take the sign-in".into()))),
                 403 => {
-                    let code = code_of(said.to_string().as_bytes(), &[self.token, &body]);
+                    let code = code_of(said.to_string().as_bytes(), &[&self.token(), &body]);
                     return Err(NetError::Forbidden(format!("this account may not read its folders through Microsoft Graph{code}")));
                 }
                 400 => return Err(NetError::Proto(ProtoError::Rejected("Microsoft Graph answered with status 400".into()))),

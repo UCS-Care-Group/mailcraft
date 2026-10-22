@@ -43,7 +43,9 @@ use mailcraft_model::{FolderKind, clean_name};
 use serde_json::{Value, json};
 
 use super::pace::{Gate, Kind, Priority, Retry};
-use super::{ASK_TIMEOUT, BATCH, BATCH_SIZE, Doing, Graph, IMMUTABLE_IDS, MAX_BATCH, MAX_PAGE, WRITE_TIMEOUT, graph_base, nonsense, text};
+use super::{
+    ASK_TIMEOUT, BATCH, BATCH_SIZE, Bearer, Doing, Graph, IMMUTABLE_IDS, MAX_BATCH, MAX_PAGE, Renew, WRITE_TIMEOUT, graph_base, nonsense, text,
+};
 use crate::NetError;
 use crate::http::{self, Reply};
 
@@ -83,6 +85,13 @@ pub fn sync_mail(token: &str, request: &GraphMailRequest, cancel: &AtomicBool, e
     sync_mail_with(&graph_base(), token, request, Gate::for_mailbox(&request.email), Retry::STANDARD, cancel, emit);
 }
 
+/// [`sync_mail`], with `renew` to get a new token when Graph stops taking `token` part-way
+/// (#306): once in the run, the request it refused asked again with the new one. A second
+/// refusal ends the run as [`sync_mail`]'s would.
+pub fn sync_mail_renewing(token: &str, renew: Renew<'_>, request: &GraphMailRequest, cancel: &AtomicBool, emit: &mut dyn FnMut(GraphMailResult)) {
+    sync_mail_renewing_with(&graph_base(), token, Some(renew), request, Gate::for_mailbox(&request.email), Retry::STANDARD, cancel, emit);
+}
+
 /// [`sync_mail`] at `base`, through `gate`, asking again as `retry` says.
 pub(crate) fn sync_mail_with(
     base: &str,
@@ -93,11 +102,27 @@ pub(crate) fn sync_mail_with(
     cancel: &AtomicBool,
     emit: &mut dyn FnMut(GraphMailResult),
 ) {
+    sync_mail_renewing_with(base, token, None, request, gate, retry, cancel, emit);
+}
+
+/// [`sync_mail_with`], renewing the token once with `renew` when there is one.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn sync_mail_renewing_with(
+    base: &str,
+    token: &str,
+    renew: Option<Renew<'_>>,
+    request: &GraphMailRequest,
+    gate: Arc<Gate>,
+    retry: Retry,
+    cancel: &AtomicBool,
+    emit: &mut dyn FnMut(GraphMailResult),
+) {
+    let bearer = Bearer::new(token, renew);
     // The Inbox pass (#276): the Inbox's delta alone, before anything else of the run.
     if let Some(inbox) = &request.inbox_pass {
-        return inbox_pass(base, token, request, inbox, gate, retry, cancel, emit);
+        return inbox_pass(base, token, &bearer, request, inbox, gate, retry, cancel, emit);
     }
-    let mut folders = sync_folders_with(base, token, request, gate.clone(), retry);
+    let mut folders = folders_with(base, token, &bearer, request, gate.clone(), retry);
     // No listing, or a server that wants to be left alone: that is the run.
     let listed = match &folders.listing {
         Some(listing) if folders.busy_for.is_none() => listing.folders.clone(),
@@ -106,7 +131,7 @@ pub(crate) fn sync_mail_with(
     folders.partial = true;
     emit(folders);
     let priority = if request.background { Priority::Background } else { Priority::Owner };
-    let last = match Graph::for_mail(base, token, gate, priority, retry).and_then(|graph| graph.of_shared(shared_address(request))) {
+    let last = match for_mail(base, token, &bearer, gate, priority, retry).and_then(|graph| graph.of_shared(shared_address(request))) {
         Ok(graph) => down::messages(&graph, request, &listed, SyncPhase::NewMail, cancel, emit),
         Err(e) => GraphMailResult {
             account: request.account,
@@ -126,6 +151,7 @@ pub(crate) fn sync_mail_with(
 fn inbox_pass(
     base: &str,
     token: &str,
+    bearer: &Bearer<'_>,
     request: &GraphMailRequest,
     inbox: &mailcraft_model::sync::GraphFolder,
     gate: Arc<Gate>,
@@ -134,7 +160,7 @@ fn inbox_pass(
     emit: &mut dyn FnMut(GraphMailResult),
 ) {
     let priority = if request.background { Priority::Background } else { Priority::Owner };
-    let mut last = match Graph::for_mail(base, token, gate, priority, retry).and_then(|graph| graph.of_shared(shared_address(request))) {
+    let mut last = match for_mail(base, token, bearer, gate, priority, retry).and_then(|graph| graph.of_shared(shared_address(request))) {
         Ok(graph) => down::messages(&graph, request, std::slice::from_ref(inbox), SyncPhase::Inbox, cancel, emit),
         Err(e) => GraphMailResult {
             account: request.account,
@@ -166,10 +192,27 @@ pub(crate) fn whole_run(
 
 /// [`sync_folders`] at `base`, through `gate`, asking again as `retry` says.
 pub(crate) fn sync_folders_with(base: &str, token: &str, request: &GraphMailRequest, gate: Arc<Gate>, retry: Retry) -> GraphMailResult {
+    folders_with(base, token, &Bearer::new(token, None), request, gate, retry)
+}
+
+/// Graph for a run's mail, showing the run's `bearer` (`token` is the one it began with).
+fn for_mail<'a>(
+    base: &str,
+    token: &'a str,
+    bearer: &'a Bearer<'a>,
+    gate: Arc<Gate>,
+    priority: Priority,
+    retry: Retry,
+) -> Result<Graph<'a>, NetError> {
+    Graph::for_mail(base, token, gate, priority, retry).map(|graph| graph.renewing(Some(bearer)))
+}
+
+/// [`sync_folders_with`], showing the run's `bearer`.
+fn folders_with(base: &str, token: &str, bearer: &Bearer<'_>, request: &GraphMailRequest, gate: Arc<Gate>, retry: Retry) -> GraphMailResult {
     let started = Instant::now();
     let mut out = GraphMailResult { account: request.account, email: request.email.clone(), ..Default::default() };
     let priority = if request.background { Priority::Background } else { Priority::Owner };
-    let graph = match Graph::for_mail(base, token, gate.clone(), priority, retry).and_then(|graph| graph.of_shared(shared_address(request))) {
+    let graph = match for_mail(base, token, bearer, gate.clone(), priority, retry).and_then(|graph| graph.of_shared(shared_address(request))) {
         Ok(graph) => graph,
         Err(e) => {
             out.errors.push(format!("Couldn't reach Microsoft for the folders: {e}"));
@@ -712,6 +755,8 @@ pub use search::search_messages;
 
 #[cfg(test)]
 mod down_tests;
+#[cfg(test)]
+mod renew_tests;
 #[cfg(test)]
 mod search_tests;
 #[cfg(test)]
