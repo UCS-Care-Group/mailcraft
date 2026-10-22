@@ -61,6 +61,10 @@ jobs:
           components: rustfmt, clippy
           targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        # Pull requests read main's cache but don't write their own: a cache per PR fills the
+        # repository's 10 GB and pushes out the caches that matter (FreeBSD's above all).
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       # Windowing and file-dialog headers the desktop app links against.
       - name: Linux build dependencies
         if: runner.os == 'Linux'
