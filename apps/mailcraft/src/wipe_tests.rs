@@ -182,7 +182,8 @@ fn what_cant_be_removed_is_reported_and_the_rest_still_goes() {
 
     let report = erase(&roots(&scratch), None);
 
-    fs::set_permissions(&locked, fs::Permissions::from_mode(0o700)).unwrap();
+    // As root nothing was denied and the folder is gone with the rest.
+    let _ = fs::set_permissions(&locked, fs::Permissions::from_mode(0o700));
     if denied {
         assert!(!report.failed.is_empty());
     }
@@ -237,7 +238,8 @@ fn a_mailbox_file_that_cannot_go_keeps_its_content_so_nothing_dangles() {
 
     let report = erase(&roots(&scratch), None);
 
-    fs::set_permissions(&settings, fs::Permissions::from_mode(0o700)).unwrap();
+    // As root nothing was denied and the folder is gone with the rest.
+    let _ = fs::set_permissions(&settings, fs::Permissions::from_mode(0o700));
     if denied {
         assert!(settings.join("mailbox.mailcraft").exists());
         // Its content is still there: the mailbox that stays is whole.
