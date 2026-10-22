@@ -7,12 +7,13 @@
 //! `category`, `attachment` (file name), `has:attachment`, `is:unread|read|flagged|important`,
 //! `importance:high|normal|low`, `before:`, `after:`, `on:` (dates, `YYYY-MM-DD` or `M/D/YYYY`).
 //! A space after a keyword's colon is allowed (`from: ada`); a keyword with nothing after it yet
-//! asks for nothing.
+//! asks for nothing. Inside double quotes, `\"` is a double quote and `\\` a backslash.
 //!
 //! A word matches the start of a word, ignoring case and accents (`meet` finds "Meeting",
 //! `gvozdar` finds "Gvožđar"); a phrase, its words one after another ([`crate::words`]). `from:`,
-//! `to:` and `cc:` with a whole address (`from:ada@example.org`) match that address and no other,
-//! ignoring case (#301). A category matches anywhere in its name. Text with no letters or digits in it (`-`, `@`) asks
+//! `to:` and `cc:` with a whole address (`from:ada@example.org`, or with a quoted name,
+//! `from:"\"ada smith\"@example.org"`) match that address and no other, ignoring case (#301). A
+//! category matches anywhere in its name. Text with no letters or digits in it (`-`, `@`) asks
 //! for nothing.
 
 use std::ops::Range;
@@ -74,15 +75,26 @@ pub struct Query {
     terms: Vec<Term>,
 }
 
-/// Split on spaces outside double quotes; the quotes are dropped. Each token with where it
-/// stands in `s` (bytes, its quotes included).
+/// Split on spaces outside double quotes; the quotes are dropped, and inside them `\"` is a
+/// double quote and `\\` a backslash ([`keyword_value`]). Each token with where it stands in `s`
+/// (bytes, its quotes included).
 fn tokens(s: &str) -> Vec<(String, Range<usize>)> {
     let mut out = Vec::new();
     let mut cur = String::new();
     let mut quoted = false;
     let mut any = false;
     let (mut start, mut end) = (0, 0);
-    for (i, c) in s.char_indices().take(MAX_QUERY) {
+    let mut chars = s.char_indices().take(MAX_QUERY).peekable();
+    while let Some((i, c)) = chars.next() {
+        // (Inside quotes the token has begun already: at its opening quote.)
+        if c == '\\'
+            && quoted
+            && let Some((j, escaped)) = chars.next_if(|(_, next)| matches!(next, '"' | '\\'))
+        {
+            end = j.saturating_add(escaped.len_utf8());
+            cur.push(escaped);
+            continue;
+        }
         if c.is_whitespace() && !quoted {
             if any || !cur.is_empty() {
                 out.push((std::mem::take(&mut cur), start..end));
@@ -214,12 +226,12 @@ fn keyword_kind(body: &str) -> Option<Kind> {
 }
 
 /// Whether `v` is one whole address and nothing else (`name@domain`): a name of parts between
-/// dots, each of letters (accents too), digits and `!#$%&'*+-/=?^_`{|}~`, an `@`, and a domain
-/// of parts between dots, each of letters, digits and `-` that starts and ends with a letter or
-/// digit. Only such a value after `from:`, `to:` or `cc:` is an address; one with more round it
+/// dots, each of letters (accents too), digits and `!#$%&'*+-/=?^_`{|}~`, or a name in double
+/// quotes (`"ada smith"@example.org`, with `\"` and `\\` inside), an `@`, and a domain of parts
+/// between dots, each of letters, digits and `-` that starts and ends with a letter or digit.
+/// Only such a value after `from:`, `to:` or `cc:` is an address; one with more round it
 /// (`<ada@example.org>`, `ada@example.org,`) is words, as before.
 pub fn is_address(v: &str) -> bool {
-    let Some((name, domain)) = v.split_once('@') else { return false };
     let letter = |c: char| c.is_alphanumeric() || words::is_mark(c);
     let atom = |part: &str| !part.is_empty() && part.chars().all(|c| letter(c) || "!#$%&'*+-/=?^_`{|}~".contains(c));
     let label = |part: &str| {
@@ -227,7 +239,49 @@ pub fn is_address(v: &str) -> bool {
             && part.chars().last().is_some_and(letter)
             && part.chars().all(|c| letter(c) || c == '-')
     };
-    name.split('.').all(atom) && domain.split('.').all(label) && words::words(v).len() >= 2
+    let domain = match v.strip_prefix('"') {
+        Some(quoted) => after_quotes(quoted).and_then(|rest| rest.strip_prefix('@')),
+        None => v.split_once('@').filter(|(name, _)| name.split('.').all(atom)).map(|(_, domain)| domain),
+    };
+    domain.is_some_and(|domain| domain.split('.').all(label)) && words::words(v).len() >= 2
+}
+
+/// What follows the closing quote of `quoted` (the text after an opening one), where `\` makes
+/// the character after it part of the name; `None` when it isn't closed or has a control
+/// character in it.
+fn after_quotes(quoted: &str) -> Option<&str> {
+    let mut escaped = false;
+    for (i, c) in quoted.char_indices() {
+        if c.is_control() {
+            return None;
+        }
+        match c {
+            _ if escaped => escaped = false,
+            '\\' => escaped = true,
+            '"' => return quoted.get(i.saturating_add(1)..),
+            _ => {}
+        }
+    }
+    None
+}
+
+/// `value` as it is to be written after a keyword for the search to read it back as it is: in
+/// double quotes, with `"` and `\` in it written `\"` and `\\`, when it has a space, a quote or a
+/// backslash in it (`from:"\"ada smith\"@example.org"`); otherwise as it is.
+pub fn keyword_value(value: &str) -> String {
+    if !value.is_empty() && !value.chars().any(|c| c.is_whitespace() || c == '"' || c == '\\') {
+        return value.to_string();
+    }
+    let mut out = String::with_capacity(value.len().saturating_add(2));
+    out.push('"');
+    for c in value.chars() {
+        if matches!(c, '"' | '\\') {
+            out.push('\\');
+        }
+        out.push(c);
+    }
+    out.push('"');
+    out
 }
 
 /// Whether a server's search takes `word` as it is: letters, digits and `@._-'+`, which keep an

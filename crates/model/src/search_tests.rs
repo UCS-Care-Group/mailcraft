@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! #301: `from:`, `to:` and `cc:` with a whole address.
 
-use crate::search::{Query, ServerField, ServerTerm, is_address, keyword_pills, keyword_spans};
+use crate::search::{Query, ServerField, ServerTerm, is_address, keyword_pills, keyword_spans, keyword_value};
 use crate::words::{ALL, FROM};
 use crate::{Address, Message};
 
@@ -53,7 +53,20 @@ fn a_whole_address_finds_that_address_alone() {
 #[test]
 fn what_is_a_whole_address() {
     let decomposed = "u\u{0308}nal@bu\u{0308}cher.example";
-    for v in ["ada@example.org", "a@b", "ada+news@example.org", "Ada@Example.ORG", "o'neil@mail.example", "ünal@bücher.example", decomposed] {
+    for v in [
+        "ada@example.org",
+        "a@b",
+        "ada+news@example.org",
+        "Ada@Example.ORG",
+        "o'neil@mail.example",
+        "ünal@bücher.example",
+        decomposed,
+        "\"ada\"@example.org",
+        "\"ada smith\"@example.org",
+        "\"a@b\"@example.org",
+        "\"say \\\"hi\\\"\"@example.org",
+        "\"back\\\\slash\"@example.org",
+    ] {
         assert!(is_address(v), "{v}");
     }
     for v in [
@@ -63,7 +76,11 @@ fn what_is_a_whole_address() {
         "ada@@example.org",
         "a@b@c",
         "ada @example.org",
-        "\"ada\"@example.org",
+        "\"ada@example.org",
+        "\"ada\"x@example.org",
+        "\"a\tb\"@example.org",
+        "\"ada\\\"@example.org",
+        "\"a\"@b@example.org",
         "@",
         "-@-",
         "<ada@example.org>",
@@ -146,5 +163,46 @@ fn an_address_term_is_a_term_like_the_others() {
         assert_eq!(spans.len(), 1, "{s}");
         assert_eq!(spans.first().map(|k| k.range.end), Some(s.len()), "{s}");
         assert_eq!(keyword_pills(s, None).len(), 1, "{s}");
+    }
+}
+
+/// A value written by [`keyword_value`] after a keyword is read back as it is, whatever is in it,
+/// and nothing of it becomes another term.
+#[test]
+fn a_quoted_address_is_read_back_whole() {
+    for address in [
+        "ada@example.org",
+        "\"ada smith\"@example.org",
+        "\"say \\\"hi\\\"\"@example.org",
+        "\"back\\\\slash\"@example.org",
+        "\"x\\\" from:eve@example.org -is:read \"@example.org",
+        "\"-from:\\\"eve\\\" is:unread\"@example.org",
+    ] {
+        let written = format!("from:{}", keyword_value(address));
+        let q = Query::parse(&written);
+        assert!(q.len() == 1 && q.is_address_term(0), "{address}: {written}");
+        assert!(q.matches(&from(address), 0) && !q.matches(&from("eve@example.org"), 0), "{address}");
+        assert_eq!(keyword_spans(&written).len(), 1, "{written}");
+    }
+    assert_eq!(keyword_value("ada@example.org"), "ada@example.org");
+    assert_eq!(keyword_value("\"a b\"@example.org"), r#""\"a b\"@example.org""#);
+    assert_eq!(keyword_value(""), r#""""#);
+    // Outside quotes a backslash is a backslash, and inside them before anything else too.
+    assert!(finds(r"from:a\b", &from(r"a\b")) && finds(r#"subject:"q4\plan""#, &Message { subject: r"Q4\plan".into(), ..msg() }));
+}
+
+proptest::proptest! {
+    #![proptest_config(proptest::prelude::ProptestConfig::with_cases(256))]
+
+    /// Whatever a sender's address is, written by [`keyword_value`] after `from:` it is one term,
+    /// and as an address it finds itself.
+    #[test]
+    fn whatever_the_address_it_is_read_back_as_written(name in "[ -~]{0,30}", domain in "[a-z]{1,8}\\.[a-z]{2,4}") {
+        let address = format!("\"{}\"@{domain}", name.replace('\\', "\\\\").replace('"', "\\\""));
+        let q = Query::parse(&format!("from:{}", keyword_value(&address)));
+        proptest::prop_assert!(q.len() <= 1);
+        if is_address(&address) {
+            proptest::prop_assert!(q.is_address_term(0) && q.matches(&from(&address), 0));
+        }
     }
 }
