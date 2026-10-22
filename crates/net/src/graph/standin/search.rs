@@ -50,11 +50,10 @@ enum Clause {
     Importance(&'static str),
 }
 
-/// Whether `text` is one whole address: something, an `@`, and something with no `@`, with no
-/// space in either.
+/// Whether `text` is one whole address, as MailCraft's search has it, so that a test of both
+/// finds the same mail ([`mailcraft_model::search::is_address`]).
 fn is_whole_address(text: &str) -> bool {
-    text.split_once('@')
-        .is_some_and(|(name, domain)| !name.is_empty() && !domain.is_empty() && !domain.contains('@') && !text.contains(char::is_whitespace))
+    mailcraft_model::search::is_address(text)
 }
 
 /// The words of `text` as a search reads them: runs of letters and digits, in lower case.

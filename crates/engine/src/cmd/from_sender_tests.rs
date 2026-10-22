@@ -72,3 +72,30 @@ fn a_quoted_address_is_searched_for_whole() {
     assert!(s.run("mail.findFromSender", &json!({"id": ids[2]})).is_err());
     assert!(s.view.search.is_empty());
 }
+
+/// Find Related writes the subject so that the search reads it back as it is: a backslash at its
+/// end (`Backup C:\`) doesn't take in what is typed after it, now that `\"` is a quote inside
+/// quotes (#301).
+#[test]
+fn find_related_with_a_backslash_at_the_end_of_the_subject() {
+    let mut s = session();
+    let inbox = s.mailbox.folder_of_kind(s.mailbox.accounts[0].id, FolderKind::Inbox).unwrap();
+    let ids: Vec<Id> = s.mailbox.messages.values().filter(|m| m.folder == inbox).map(|m| m.id).take(2).collect();
+    for id in &ids {
+        s.mailbox.message_mut(*id).unwrap().subject = r"Backup C:\".into();
+    }
+    run(&mut s, "mail.select", json!({"id": ids[0]}));
+    // (Selecting it read it.)
+    for (id, read) in ids.iter().zip([false, true]) {
+        s.mailbox.message_mut(*id).unwrap().read = read;
+    }
+    let said = run(&mut s, "mail.findRelated", json!({}));
+    assert_eq!(said["search"], r#"subject:"Backup C:\\""#);
+    assert_eq!(said["found"], 2);
+    let narrowed = format!("{} is:unread", s.view.search);
+    assert_eq!(run(&mut s, "view.search", json!({"query": narrowed, "scope": "everywhere"}))["found"], 1);
+    let spans = mailcraft_model::search::keyword_spans(&narrowed);
+    let keys: Vec<&str> = spans.iter().map(|k| &narrowed[k.key.clone()]).collect();
+    assert_eq!(keys, ["subject:", "is:"]);
+    assert_eq!(spans.last().map(|k| &narrowed[k.range.clone()]), Some("is:unread"));
+}

@@ -74,6 +74,8 @@ fn an_address_is_searched_on_the_server_as_it_is_here() {
         ("from:ada+news@example.org", r#""from:\"ada+news@example.org\"""#),
         ("from:ADA@example.org", r#""from:ada@example.org""#),
         ("from:ada", r#""from:ada""#),
+        // Not a whole address here, so not one there either: words, in both.
+        ("from:ada@-example.org", r#""from:ada@-example.org""#),
     ] {
         let found = ask(&server.url(), &request("owner@example.org", false, "", query));
         assert!(found.errors.is_empty(), "{query}: {:?}", found.errors);

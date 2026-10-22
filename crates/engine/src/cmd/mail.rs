@@ -402,7 +402,9 @@ fn find_related(s: &mut Session, _: &Value) -> CmdResult {
     if topic.is_empty() {
         return Err(fail("this message has no subject to look for"));
     }
-    s.view.search = format!("subject:\"{}\"", topic.replace('"', ""));
+    // Written so that the search reads it back as it is: a backslash at its end keeps its
+    // closing quote from being read as part of it (#301).
+    s.view.search = format!("subject:{}", mailcraft_model::search::keyword_value(&topic));
     s.view.scope = crate::Scope::Everywhere;
     Ok(json!({"search": s.view.search, "found": s.rows().len()}))
 }
