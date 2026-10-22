@@ -45,7 +45,7 @@ const BATCH_BYTES: usize = 4 * 1024 * 1024;
 const BATCH_WAIT: Duration = Duration::from_secs(1);
 /// The header a message kept without its text has, for a program to know it by: its size on
 /// the server, in bytes.
-const NOT_DOWNLOADED: &str = "X-MailCraft-Not-Downloaded";
+const NOT_DOWNLOADED: &str = mailcraft_model::NOT_DOWNLOADED;
 
 /// How far one run goes, and how its answer is cut into pieces.
 #[derive(Clone, Debug)]

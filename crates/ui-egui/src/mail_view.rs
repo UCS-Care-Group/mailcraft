@@ -158,10 +158,13 @@ fn row_height(preview_lines: u8) -> f32 {
 /// A row of the single-line list: the sender, the subject, the marks and the time on one line.
 const ONE_LINE_H: f32 = 32.0;
 
+/// The least a single-line row leaves for the sender's name.
+const ONE_LINE_SENDER_MIN: f32 = 70.0;
+
 /// How wide the sender's name is in a single-line row, of the room the row has for text: a third,
 /// not less than 90 or more than 220 (and never more than the room).
 fn one_line_sender_width(room: f32) -> f32 {
-    (room / 3.0).clamp(70.0, 220.0).min(room.max(0.0))
+    (room / 3.0).clamp(ONE_LINE_SENDER_MIN, 220.0).min(room.max(0.0))
 }
 
 /// A group heading of the list in the interface language: the engine's dates (`Today`) are
@@ -580,8 +583,6 @@ fn list(app: &mut MailApp, ui: &mut Ui) {
     }
 }
 
-/// Whether a row names the folder its message is in, before its preview: in a search of every
-/// mailbox, as Outlook's rows do (#195); in one folder the owner knows which it is.
 /// How wide the folder a search result is in may be drawn: the time's column.
 const FOLDER_W: f32 = TEXT_RIGHT - TIME_RIGHT;
 
@@ -610,6 +611,16 @@ fn paint_result_folder(p: &egui::Painter, end: egui::Pos2, label: &str, t: &Toke
     icon
 }
 
+/// What a row says of its message's size (#273): only while the list is arranged by size, and
+/// only when the size is known ([`Message::list_size`]); never "900 bytes", but KB at the least,
+/// as the size of a picture is said.
+fn size_label(s: &mailcraft_engine::Session, m: &Message) -> Option<String> {
+    let bytes = (s.view.sort == SortBy::Size).then(|| m.list_size()).flatten()?;
+    Some(mailcraft_model::size_label_in(crate::i18n::current(), bytes.max(1024)))
+}
+
+/// Whether a row names the folder its message is in, under the time: in a search of every
+/// mailbox, as Outlook's rows do (#195); in one folder the owner knows which it is.
 fn shows_folder(s: &mailcraft_engine::Session) -> bool {
     s.view.scope == mailcraft_engine::Scope::Everywhere && !mailcraft_model::search::Query::parse(&s.view.search).is_empty()
 }
@@ -856,22 +867,29 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect) {
     } else if m.forwarded {
         marker("forward", t.text_dim);
     }
+    // Arranged by size, the message's size (#273); in a single line it comes before the marks, so
+    // the sender's name stops short of it there, and a line with no room for both keeps the name.
+    let size = size_label(&app.session, &m)
+        .map(|label| p.layout_no_wrap(label, regular(LIST_TEXT), t.text_dim))
+        .filter(|g| !one || x - 4.0 - (g.size().x + 6.0) >= left + ONE_LINE_SENDER_MIN);
+    let size_room = if one { size.as_ref().map_or(0.0, |g| g.size().x + 6.0) } else { 0.0 };
     let who_font = if unread { semibold(SENDER_TEXT) } else { regular(SENDER_TEXT) };
-    let who_end = if one { (left + one_line_sender_width(time_end - left)).min(x - 4.0) } else { text_end.min(x - 4.0) };
+    let who_end = if one { (left + one_line_sender_width(time_end - left)).min(x - 4.0 - size_room) } else { text_end.min(x - 4.0) };
     let mut who_x = left;
     if m.draft {
         let w = paint_clipped(p, pos2(left, line1), (who_end - left).max(0.0), tl!("[Draft]"), regular(SENDER_TEXT), t.red);
         who_x += w + 5.0;
     }
-    paint_clipped(p, pos2(who_x, line1), (who_end - who_x).max(0.0), &who, who_font, if overdue { t.overdue } else { t.text });
+    let w = paint_clipped(p, pos2(who_x, line1), (who_end - who_x).max(0.0), &who, who_font, if overdue { t.overdue } else { t.text });
+    app.hit.add("messageSender", row.id, Rect::from_min_max(pos2(left, line1 - 7.0), pos2(who_x + w, line1 + 7.0)));
 
     // The subject's line, with the time at its end.
     let date_w = if one { one_date_w } else { p.text(pos2(time_end, line2), Align2::RIGHT_CENTER, &date, date_font, date_color).width() };
     let mut subject_end = if one { time_end } else { text_end.min(time_end - date_w - 8.0) };
 
-    // In a search of every mailbox the folder it is in, then category marks and the size of a
-    // conversation: at the right of the preview's first line, under the time, or before the time
-    // when no preview is shown.
+    // The size; in a search of every mailbox the folder it is in; then category marks and the
+    // size of a conversation: at the right of the preview's first line, under the time, before
+    // the time when no preview is shown, or before the marks in a single line.
     let lines = if one { 0 } else { app.session.prefs.preview_lines.min(3) };
     let preview_y = rect.min.y + PREVIEW_TOP + PREVIEW_PITCH / 2.0 + 0.5;
     let (mut sx, tail_y) = if one {
@@ -881,10 +899,17 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect) {
     } else {
         (time_end - date_w - 8.0, line2)
     };
+    if let Some(galley) = size {
+        let at = Align2::RIGHT_CENTER.anchor_size(pos2(sx, tail_y), galley.size());
+        p.galley(at.min, galley, t.text_dim);
+        app.hit.add("messageSize", row.id, at);
+        sx = at.min.x - 6.0;
+    }
     if let Some(folder) = shows_folder(&app.session).then(|| app.session.mailbox.folder(m.folder)).flatten() {
         let label = crate::nav::result_folder_label(&app.session.mailbox, folder);
-        sx = paint_result_folder(p, pos2(sx, tail_y), &label, &t) - 6.0;
-        app.hit.add("messageFolder", row.id, Rect::from_min_max(pos2(sx + 6.0, tail_y - 7.0), pos2(time_end, tail_y + 7.0)));
+        let end = sx;
+        sx = paint_result_folder(p, pos2(end, tail_y), &label, &t) - 6.0;
+        app.hit.add("messageFolder", row.id, Rect::from_min_max(pos2(sx + 6.0, tail_y - 7.0), pos2(end, tail_y + 7.0)));
     }
     for c in m.categories.iter().take(4) {
         let color = crate::theme::c32(app.session.mailbox.category_color(c));
@@ -1513,5 +1538,121 @@ mod tests {
         assert_eq!(crate::nav::result_folder_label(mb, mb.folder(second).unwrap()), "Inbox - Work");
         assert!(crate::nav::result_folder_label(mb, mb.folder(first).unwrap()).starts_with("Inbox - "));
         assert_eq!(crate::nav::result_folder_label(mb, mb.folder(projects).unwrap()), "Projects", "a name only one has");
+    }
+
+    /// #273: arranged by size, each row says its message's size where the folder of a search
+    /// result goes: under the time, or before it with no preview; in a search of every mailbox
+    /// the size is nearest the time and the folder before it. Otherwise no row says it.
+    #[test]
+    fn arranged_by_size_each_row_says_its_size() {
+        let mut a = app();
+        // Of a Microsoft account's message only the start is here; another has the mark of a
+        // message too large to download, which any sender could have written.
+        let ids: Vec<Id> = a.session.rows().iter().map(|row| row.id).collect();
+        let (partial, marked, whole) = (ids[1], ids[2], ids[3]);
+        let m = a.session.mailbox.message_mut(partial).unwrap();
+        m.body = mailcraft_model::Body { text: "Only the start".into(), html: None };
+        m.attachments.clear();
+        m.unfetched = true;
+        m.server = Some(mailcraft_model::sync::ServerMessage { size: 5 << 19, ..Default::default() });
+        a.session.mailbox.message_mut(marked).unwrap().headers.push((mailcraft_model::NOT_DOWNLOADED.into(), "62914560".into()));
+        let said = |a: &MailApp, id: Id| size_label(&a.session, a.session.mailbox.message(id).unwrap());
+        assert_eq!((said(&a, partial), said(&a, whole)), (None, None), "arranged by date");
+        a.execute("view.sort", json!({"by": "size", "descending": true})).unwrap();
+        assert_eq!((said(&a, partial), said(&a, marked), said(&a, whole)), (Some("2.5 MB".into()), None, Some("1 KB".into())));
+        a.execute("view.sort", json!({"by": "date"})).unwrap();
+
+        let mut harness = window(a, (1200.0, 800.0));
+        let sizes = |harness: &mut Window| -> Vec<(Row, Rect, Option<Rect>)> {
+            drawn(harness).into_iter().map(|(row, rect)| (row.clone(), rect, harness.state().hit.rect("messageSize", row.id))).collect()
+        };
+        assert!(sizes(&mut harness).iter().all(|(_, _, size)| size.is_none()), "arranged by date");
+
+        harness.state_mut().execute("view.sort", json!({"by": "size", "descending": true})).unwrap();
+        harness.run_steps(3);
+        let rows = sizes(&mut harness);
+        assert!(rows.len() > 3);
+        // Largest on top after what is pinned: the message whose server gave its size.
+        assert_eq!(rows.iter().find(|(row, _, _)| !message(&harness, row.id).pinned).map(|(row, _, _)| row.id), Some(partial));
+        // The one with the mark says nothing; every other row says its size.
+        assert!(harness.state().hit.rect("messageSize", marked).is_none());
+        for (row, rect, size) in rows.iter().filter(|(row, _, _)| row.id != marked) {
+            let size = size.unwrap_or_else(|| panic!("row {} says no size", row.id));
+            // Right-aligned at the time's end, on the preview's first line: under the time.
+            assert!((size.max.x - (rect.max.x - TIME_RIGHT)).abs() <= 1.0, "row {}: {size:?} in {rect:?}", row.id);
+            assert!(size.min.y > rect.min.y + PREVIEW_TOP - 2.0 && size.max.y < rect.max.y, "row {}", row.id);
+            assert!(size.width() < FOLDER_W, "row {}: the time's column", row.id);
+        }
+
+        // With no preview, on the subject's line before the time.
+        harness.state_mut().execute("view.previewLines", json!({"value": 0})).unwrap();
+        harness.run_steps(3);
+        for (row, rect, size) in sizes(&mut harness).into_iter().filter(|(row, _, _)| row.id != marked) {
+            let size = size.unwrap_or_else(|| panic!("row {} says no size", row.id));
+            assert!(size.max.x < rect.max.x - TIME_RIGHT - 20.0, "row {}: before the time", row.id);
+            assert!(size.center().y > rect.center().y, "row {}: on the subject's line", row.id);
+        }
+        harness.state_mut().execute("view.previewLines", json!({"value": 1})).unwrap();
+
+        // In a single line, on that line before the marks and the time.
+        harness.state_mut().execute("view.oneLine", json!({"value": true})).unwrap();
+        harness.run_steps(3);
+        for (row, rect, size) in sizes(&mut harness).into_iter().filter(|(row, _, _)| row.id != marked) {
+            let size = size.unwrap_or_else(|| panic!("row {} says no size", row.id));
+            assert!(size.max.x < rect.max.x - TIME_RIGHT - 20.0, "row {}: before the time", row.id);
+            assert!((size.center().y - rect.center().y).abs() <= 2.0, "row {}: on its one line", row.id);
+        }
+        harness.state_mut().execute("view.oneLine", json!({"value": false})).unwrap();
+
+        // A search of every mailbox: the size, then the folder before it.
+        harness.state_mut().execute("view.search", json!({"query": "the", "scope": "everywhere"})).unwrap();
+        harness.run_steps(3);
+        let rows = sizes(&mut harness);
+        assert!(!rows.is_empty());
+        for (row, _, size) in rows.iter().filter(|(row, _, _)| row.id != marked) {
+            let size = size.unwrap_or_else(|| panic!("row {} says no size", row.id));
+            let folder = at(&harness, "messageFolder", row.id);
+            assert!(folder.max.x <= size.min.x, "row {}: {folder:?} before {size:?}", row.id);
+        }
+    }
+
+    /// #273: in a single line, in a list as narrow as it goes, the sender's name stops short of
+    /// the size, and a row with every mark, which has no room for both, keeps the name.
+    #[test]
+    fn in_a_narrow_single_line_the_sender_stops_short_of_the_size() {
+        let mut a = app();
+        a.ui.list_width = 240.0;
+        let ids: Vec<Id> = a.session.rows().iter().map(|row| row.id).collect();
+        // Every other row with every mark.
+        for id in ids.iter().step_by(2) {
+            let m = a.session.mailbox.message_mut(*id).unwrap();
+            m.from.name = "Bartholomew Featherstonehaugh".into();
+            (m.importance, m.answered) = (Importance::High, true);
+            m.attachments.push(mailcraft_model::Attachment::new("a.pdf", "application/pdf", vec![1]));
+        }
+        a.execute("view.sort", json!({"by": "size", "descending": true})).unwrap();
+        a.execute("view.oneLine", json!({"value": true})).unwrap();
+        let mut harness = window(a, (760.0, 800.0));
+        let rows = drawn(&mut harness);
+        assert!(rows.len() > 3);
+        let (mut said, mut left_out) = (0, 0);
+        for (row, rect) in rows {
+            assert!(rect.width() < 260.0, "{rect:?}");
+            let sender = at(&harness, "messageSender", row.id);
+            if harness.state().hit.rect("messageSize", row.id).is_none() {
+                assert!(sender.width() > 0.0, "row {}: the name is drawn", row.id);
+                left_out += 1;
+            }
+            if let Some(size) = harness.state().hit.rect("messageSize", row.id) {
+                assert!(sender.max.x <= size.min.x, "row {}: {sender:?} runs into {size:?}", row.id);
+                // Never for less than a single line's least room for the name.
+                if message(&harness, row.id).answered {
+                    assert!(sender.width() >= ONE_LINE_SENDER_MIN - 12.0, "row {}: {sender:?}", row.id);
+                }
+                said += 1;
+            }
+        }
+        // Some rows have room for it, and some, crowded with marks, haven't.
+        assert!(said > 0 && left_out > 0, "{said} said, {left_out} left out");
     }
 }

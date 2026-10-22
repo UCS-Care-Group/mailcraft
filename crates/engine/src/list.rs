@@ -118,7 +118,9 @@ pub fn rows_with(s: &Session, decided: &HashMap<Id, bool>, searched: &HashMap<Id
             // Within one sender or subject, newest first when the names run A to Z.
             SortBy::From => a.from.display().to_lowercase().cmp(&b.from.display().to_lowercase()).then(when(b).cmp(&when(a))),
             SortBy::Subject => a.topic().to_lowercase().cmp(&b.topic().to_lowercase()).then(when(b).cmp(&when(a))),
-            SortBy::Size => a.size().cmp(&b.size()),
+            // As the row says it (#273): the server's size for what isn't here; one not known
+            // counts as the smallest.
+            SortBy::Size => a.list_size().cmp(&b.list_size()),
             SortBy::Importance => a.importance.cmp(&b.importance).then(when(a).cmp(&when(b))),
         };
         // Pinned messages stay on top whichever way the list is sorted; ids break ties so the

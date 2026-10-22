@@ -378,6 +378,34 @@ fn folders_and_views() {
     let rows = s.rows();
     let senders: Vec<&str> = rows.iter().filter_map(|r| r.group.as_deref()).collect();
     assert_eq!(senders[..3], ["Pinned", "Cloudline Billing", "Dev Patel"]);
+    // By size, largest on top, a message of which only the start is here sorts by the size its
+    // server said (#273).
+    let unpinned =
+        |s: &mut Session| -> Vec<Id> { s.rows().iter().map(|r| r.id).filter(|id| s.mailbox.message(*id).is_some_and(|m| !m.pinned)).collect() };
+    run(&mut s, "view.sort", json!({"by": "size", "descending": true}));
+    let order = unpinned(&mut s);
+    let partial = *order.last().unwrap();
+    let m = s.mailbox.message_mut(partial).unwrap();
+    m.body = mailcraft_model::Body { text: "Only the start".into(), html: None };
+    m.attachments.clear();
+    m.unfetched = true;
+    m.server = Some(mailcraft_model::sync::ServerMessage { size: 50 << 20, ..Default::default() });
+    // Another order and back, for the list to be made again.
+    run(&mut s, "view.sort", json!({"by": "date"}));
+    s.rows();
+    run(&mut s, "view.sort", json!({"by": "size", "descending": true}));
+    assert_eq!(unpinned(&mut s).first(), Some(&partial));
+    assert_ne!(order.first(), Some(&partial));
+    // One whose size isn't known counts as the smallest: last with the largest on top, first
+    // with the smallest.
+    let unknown = order[0];
+    s.mailbox.message_mut(unknown).unwrap().headers.push((mailcraft_model::NOT_DOWNLOADED.into(), "62914560".into()));
+    run(&mut s, "view.sort", json!({"by": "date"}));
+    s.rows();
+    run(&mut s, "view.sort", json!({"by": "size", "descending": true}));
+    assert_eq!(unpinned(&mut s).last(), Some(&unknown));
+    run(&mut s, "view.sort", json!({"by": "size", "descending": false}));
+    assert_eq!(unpinned(&mut s).first(), Some(&unknown));
     run(&mut s, "view.sort", json!({"by": "date"}));
     run(&mut s, "view.filter", json!({"value": "unread"}));
     assert_eq!(s.rows().len(), 4);

@@ -474,10 +474,11 @@ fn account_row(ui: &mut Ui, t: &Tokens, row: &Row) -> Option<egui::Response> {
     if !row.waiting() {
         return None;
     }
-    // Skip, over the two lines' right end.
+    // Skip, over the two lines' right end; placed, not put, so that what is under those two
+    // lines (the Inbox pass's time, Full messages) keeps its room.
     let at = Rect::from_center_size(pos2(top.max.x - 36.0, top.max.y + 2.0), vec2(72.0, 26.0));
     let skip = ui
-        .put(at, egui::Button::new(RichText::new(tl!("Skip")).font(regular(12.5))))
+        .place(at, egui::Button::new(RichText::new(tl!("Skip")).font(regular(12.5))))
         .on_hover_text(tl!("Leave this account out of this Send/Receive"));
     Some(skip)
 }
@@ -972,6 +973,28 @@ mod tests {
         h.run_steps(2);
         assert!(h.state().hit.rect("syncSkip", ids[1]).is_none(), "nothing to skip once skipped");
         assert!(h.state().hit.rect("syncSkip", ids[2]).is_some());
+    }
+
+    /// A waiting row with lines under it (an Inbox pass's time, Full messages) keeps their room:
+    /// the next row starts below them, not over them.
+    #[test]
+    fn a_waiting_rows_lines_are_not_covered_by_the_next_row() {
+        use mailcraft_model::sync::{SyncPhase, Timings};
+        let (mut a, ids, _) = app();
+        a.execute("ui.sync", json!({})).unwrap();
+        let mut timings = Timings::default();
+        timings.add(SyncPhase::Inbox, 300, 1);
+        for run in a.session.sync_progress.accounts.iter_mut().filter(|r| r.account != ids[0]) {
+            run.timings = timings.clone();
+        }
+        a.session.sync_progress.set_full(ids[1], 10, 50);
+        a.execute("ui.dialog", json!({"name": "syncProgress"})).unwrap();
+        let h = window(a, 800.0);
+        let row = |id| h.state().hit.rect("syncRow", id).unwrap();
+        assert!(h.state().hit.rect("syncSkip", ids[1]).is_some(), "the row waits");
+        // Name, Waiting, the Inbox time and Full messages: four lines of room.
+        assert!(row(ids[1]).height() >= 4.0 * 16.0, "{:?}", row(ids[1]));
+        assert!(row(ids[2]).min.y >= row(ids[1]).max.y, "{:?} over {:?}", row(ids[2]), row(ids[1]));
     }
 
     /// A Microsoft account's full messages: counted under its row as they come in; Stop pauses

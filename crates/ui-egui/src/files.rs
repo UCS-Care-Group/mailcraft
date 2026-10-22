@@ -54,6 +54,8 @@ fn export_name(app: &MailApp, id: &str, params: &Value) -> Option<String> {
             "ics",
         ),
         "file.exportContacts" => "contacts.vcf".to_string(),
+        // Report a Problem on GitHub with the diagnostics: a file to attach on the page.
+        "ui.reportProblem" if crate::report_problem::saves_file(params) => crate::report_problem::file_name(app),
         "mail.saveAttachment" => {
             let index = params.get("index").and_then(Value::as_u64)? as usize;
             let id = params.get("id").and_then(Value::as_u64).or(s.sel.focus())?;
@@ -147,7 +149,13 @@ pub(crate) fn poll(app: &mut MailApp) -> Option<Result<Value, String>> {
                 o.insert("path".into(), json!(path));
             }
             let r = app.execute(&command, params);
-            if r.is_ok() {
+            // (Report a Problem says itself where its file went and what to do with it.)
+            if r.is_ok() && command == "ui.reportProblem" {
+                // The file is saved and GitHub's page open: now the window it came from closes.
+                if matches!(app.dialog, Some(crate::dialogs::Dialog::ReportProblem(_))) {
+                    app.dialog = None;
+                }
+            } else if r.is_ok() {
                 let name = std::path::Path::new(&path).file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
                 app.status(crate::i18n::fmt(tl!("Saved {name}"), &[("name", &name)]));
             }

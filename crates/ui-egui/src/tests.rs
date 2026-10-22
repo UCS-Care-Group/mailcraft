@@ -1632,7 +1632,18 @@ fn microsoft_graph_sends_and_brings_the_calendar_before_the_mail() {
         }
     };
 
-    // A message to send, and the first run: Graph sends it and brings the calendar and contacts.
+    // The calendar's own job, which follows a round (#276): looked at, then answered.
+    let mut clock = crate::now_ms();
+    let calendar = |a: &mut MailApp, clock: &mut f64| {
+        *clock += 400_000.0;
+        let started = a.calendar_tick_at(true, *clock);
+        for _ in 0..4 {
+            a.poll_calendar();
+        }
+        started
+    };
+
+    // A message to send, and the first run: Graph sends it; the calendar and contacts follow.
     a.execute("mail.new", json!({"to": "maya@lumen.example", "subject": "Through Graph", "account": id})).unwrap();
     assert_eq!(a.execute("compose.send", json!({})).unwrap()["queued"], true);
     assert_eq!(a.execute("ui.sync", json!({"account": id})).unwrap()["pending"], "graph");
@@ -1641,7 +1652,7 @@ fn microsoft_graph_sends_and_brings_the_calendar_before_the_mail() {
     let row = |a: &MailApp| a.session.sync_progress.accounts.iter().find(|r| r.account == id).cloned().unwrap();
     assert_eq!((row(&a).state, row(&a).phase), (RunState::Running, Some(SyncPhase::Sending)));
     settle(&mut a);
-    assert_eq!(*asked.lock().unwrap(), [(1, true, false)]);
+    assert_eq!(*asked.lock().unwrap(), [(1, false, false)], "what is sent, and nothing of the calendar");
     assert_eq!(*smtp.lock().unwrap(), [0], "what Graph sent is not sent again by the mail server");
     // What Graph sent is part of the run, not the end of it: the mail server's leg comes after,
     // in the same row, which counts the message as sent by this run (not one kept from before).
@@ -1650,25 +1661,31 @@ fn microsoft_graph_sends_and_brings_the_calendar_before_the_mail() {
     let (outbox, sent) =
         (a.session.mailbox.folder_of_kind(id, FolderKind::Outbox).unwrap(), a.session.mailbox.folder_of_kind(id, FolderKind::Sent).unwrap());
     assert_eq!((a.session.mailbox.count(outbox), a.session.mailbox.count(sent)), (0, 1));
+    assert!(a.session.mailbox.events.values().all(|e| e.title != "From the server"), "not in the run");
+    // The round is over: the calendar and contacts come, with the wide stretch.
+    assert!(calendar(&mut a, &mut clock));
+    assert_eq!(*asked.lock().unwrap(), [(1, false, false), (0, true, false)]);
     assert!(a.session.mailbox.events.values().any(|e| e.title == "From the server"));
     assert!(a.session.mailbox.contacts.values().any(|c| c.name() == "Remote Person"));
     assert_eq!(a.tokens.get(&id).unwrap().refresh, "ref-2", "the newest refresh token is the account's");
 
-    // Soon after, with nothing to send: a Send/Receive the owner asked for still brings the days
-    // of the calendar that are on screen (not the wide stretch, nor the contacts).
-    assert_eq!(a.execute("ui.sync", json!({"account": id})).unwrap()["pending"], "graph");
-    assert_eq!(row(&a).phase, Some(SyncPhase::CalendarAndContacts));
+    // Soon after, with nothing to send: a Send/Receive the owner asked for is the mail alone, and
+    // the days on screen follow it (not the wide stretch, nor the contacts).
+    assert_eq!(a.execute("ui.sync", json!({"account": id})).unwrap()["started"], true);
     settle(&mut a);
-    assert_eq!(*asked.lock().unwrap(), [(1, true, false), (0, false, true)]);
+    assert_eq!(asked.lock().unwrap().len(), 2);
+    assert!(calendar(&mut a, &mut clock));
+    assert_eq!(asked.lock().unwrap().last().map(|x| (x.0, x.1)), Some((0, false)));
     // One that started by itself goes straight to the mail: the calendar keeps itself current.
     assert_eq!(a.execute("ui.sync", json!({"account": id, "quiet": true})).unwrap()["started"], true);
     settle(&mut a);
-    assert_eq!(asked.lock().unwrap().len(), 2);
-    // A quarter of an hour on: the calendar again, with the token it has.
+    assert_eq!(asked.lock().unwrap().len(), 3);
+    // A quarter of an hour on: the wide stretch again, with the token it has.
     a.graph_checked.insert(id, 0.0);
     a.execute("ui.sync", json!({"account": id})).unwrap();
     settle(&mut a);
-    assert_eq!(asked.lock().unwrap().last(), Some(&(0, true, true)));
+    assert!(calendar(&mut a, &mut clock));
+    assert_eq!(asked.lock().unwrap().last().map(|x| (x.0, x.1)), Some((0, true)));
     assert_eq!(a.session.mailbox.events.values().filter(|e| e.title == "From the server").count(), 1, "the same event, once");
 
     // No permission for Graph: mail goes on by the mail server, and Graph isn't asked every run.
@@ -1679,6 +1696,7 @@ fn microsoft_graph_sends_and_brings_the_calendar_before_the_mail() {
     a.execute("compose.send", json!({})).unwrap();
     a.execute("ui.sync", json!({"account": id})).unwrap();
     settle(&mut a);
+    calendar(&mut a, &mut clock);
     assert!(a.graph_consent_needed(id));
     assert_eq!(smtp.lock().unwrap().last(), Some(&1), "the mail server sends it");
     let before = asked.lock().unwrap().len();
@@ -1691,8 +1709,9 @@ fn microsoft_graph_sends_and_brings_the_calendar_before_the_mail() {
     assert_eq!(a.execute("ui.connectMicrosoft", json!({"account": id})).unwrap()["pending"], "signIn");
     settle(&mut a);
     assert_eq!(sign_ins.lock().unwrap().last(), Some(&true));
+    calendar(&mut a, &mut clock);
     assert!(!a.graph_consent_needed(id));
-    assert_eq!(asked.lock().unwrap().last().map(|x| (x.1, x.2)), Some((true, true)));
+    assert_eq!(asked.lock().unwrap().last().map(|x| x.1), Some(true));
 
     // The account goes: what came from its server goes with it.
     a.execute("account.remove", json!({"id": id})).unwrap();

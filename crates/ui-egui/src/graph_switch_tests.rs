@@ -206,7 +206,7 @@ fn switch_sends_what_waits_first_waits_while_offline_and_then_switches() {
 }
 
 /// What the log has said, for the tests that look at it (one logger for the whole test run).
-fn logged() -> &'static Mutex<Vec<String>> {
+pub(crate) fn logged() -> &'static Mutex<Vec<String>> {
     static LINES: std::sync::OnceLock<Mutex<Vec<String>>> = std::sync::OnceLock::new();
     struct Kept;
     impl log::Log for Kept {

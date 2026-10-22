@@ -331,10 +331,65 @@ fn nonsense(text: &str) -> NetError {
     NetError::Proto(ProtoError::Protocol(text.into()))
 }
 
+/// How a run gets a new access token when Graph stops taking the one it has part-way (#306):
+/// from the sign-in's refresh token, as the job got its first.
+pub type Renew<'a> = &'a dyn Fn() -> Result<String, NetError>;
+
+/// The access token of a run of mail that may be renewed, once, when Graph answers a request
+/// 401 part-way (a token that ran out while the run went on, or while the computer slept): the
+/// request is asked again with the new token, and a second 401 ends the run as before. Shared by
+/// every [`Graph`] of the run; nothing of the token is logged.
+pub(crate) struct Bearer<'a> {
+    token: std::cell::RefCell<String>,
+    renew: Option<Renew<'a>>,
+    renewed: std::cell::Cell<bool>,
+}
+
+impl<'a> Bearer<'a> {
+    pub(crate) fn new(token: &str, renew: Option<Renew<'a>>) -> Bearer<'a> {
+        Bearer { token: std::cell::RefCell::new(token.to_string()), renew, renewed: std::cell::Cell::new(false) }
+    }
+
+    /// The token as it is now.
+    fn current(&self) -> String {
+        self.token.borrow().clone()
+    }
+
+    /// Renew the token, the first time only: whether there is a new one to ask again with.
+    fn renew_once(&self) -> bool {
+        let Some(renew) = self.renew else { return false };
+        if self.renewed.replace(true) {
+            return false;
+        }
+        match renew() {
+            Ok(token) if usable_token(&token) => {
+                log::info!("graph: Microsoft Graph stopped taking the sign-in part-way; it was renewed and the request is asked again");
+                *self.token.borrow_mut() = token;
+                true
+            }
+            Ok(_) => {
+                log::warn!("graph: Microsoft Graph stopped taking the sign-in part-way, and the renewed one can't be shown to it");
+                false
+            }
+            Err(e) => {
+                log::warn!("graph: Microsoft Graph stopped taking the sign-in part-way, and it couldn't be renewed: {e}");
+                false
+            }
+        }
+    }
+}
+
+/// Whether `token` may be shown to Graph: not empty, not too long, and what a header can carry.
+fn usable_token(token: &str) -> bool {
+    !token.is_empty() && token.len() <= MAX_TOKEN && token.bytes().all(|b| b.is_ascii_graphic())
+}
+
 /// Graph as one caller has it: where it is, and the token that says who is asking.
 struct Graph<'a> {
     base: Url,
     token: &'a str,
+    /// The run's token when it may be renewed part-way (#306): then it, not `token`, is shown.
+    bearer: Option<&'a Bearer<'a>>,
     /// Whether every request asks for immutable ids (`Prefer: IdType="ImmutableId"`): mail only, R3 spec S4.
     immutable: bool,
     /// The ground rules of a mailbox's mail ([`pace`]): its gate, who is waiting, and how a
@@ -391,10 +446,21 @@ impl<'a> Graph<'a> {
     /// gone and new; that change waits for a step that re-keys them.)
     fn at(base: &str, token: &'a str) -> Result<Graph<'a>, NetError> {
         // A token that isn't one is not sent anywhere; it is also what a header can't carry.
-        if token.is_empty() || token.len() > MAX_TOKEN || !token.bytes().all(|b| b.is_ascii_graphic()) {
+        if !usable_token(token) {
             return Err(NetError::Proto(ProtoError::Auth("there is no sign-in to show Microsoft Graph".into())));
         }
-        Ok(Graph { base: Url::parse(base)?, token, immutable: false, pace: None, mailbox: "/me".into(), requests: Default::default() })
+        Ok(Graph { base: Url::parse(base)?, token, bearer: None, immutable: false, pace: None, mailbox: "/me".into(), requests: Default::default() })
+    }
+
+    /// The same Graph, showing the run's `bearer` (which may be renewed once part-way, #306)
+    /// instead of the token it was made with.
+    fn renewing(self, bearer: Option<&'a Bearer<'a>>) -> Graph<'a> {
+        Graph { bearer, ..self }
+    }
+
+    /// The token shown with every request now.
+    fn token(&self) -> String {
+        self.bearer.map_or_else(|| self.token.to_string(), Bearer::current)
     }
 
     /// Graph for a Microsoft account's mail (R3): every request asks for immutable ids, goes
@@ -425,15 +491,20 @@ impl<'a> Graph<'a> {
         patience: Duration,
         max_body: usize,
     ) -> Result<Reply, NetError> {
-        let Some(pace) = &self.pace else { return self.ask(url, method, more, body, patience, max_body) };
+        let Some(pace) = &self.pace else { return self.ask_as(kind, url, method, more, body, patience, max_body) };
         let mut tries = 0u32;
         loop {
             tries = tries.saturating_add(1);
             let permit = pace.gate.enter(pace.priority, pace.retry.longest_wait)?;
-            let asked = self.ask(url, method, more, body, patience, max_body);
+            let asked = self.ask_as(kind, url, method, more, body, patience, max_body);
             drop(permit);
             let again = kind.may_repeat() && tries < pace.retry.tries;
             match asked {
+                // The token stopped working part-way (#306): renewed once, and the request asked
+                // again (Graph did nothing with it). A second 401 is the answer.
+                Ok(reply) if reply.status == 401 && self.bearer.is_some_and(Bearer::renew_once) => {
+                    tries = tries.saturating_sub(1);
+                }
                 Ok(reply) if matches!(reply.status, 429 | 503 | 504) => {
                     let wait = pace.retry.wait_before(tries.saturating_add(1), wait_of(reply.retry_after.as_deref(), mailcraft_time::now()));
                     // Everybody asking this mailbox waits, not just this request.
@@ -493,8 +564,39 @@ impl<'a> Graph<'a> {
         patience: Duration,
         max_body: usize,
     ) -> Result<Reply, NetError> {
+        // Outside the ground rules of mail, only a GET is known to be one that may be asked again.
+        self.with_headers(more, |headers| {
+            self.send(url, &Request { method, headers, body: body.map(str::as_bytes), patience, max_body }, method == "GET")
+        })
+    }
+
+    /// [`Graph::ask`] for a request of a `kind` the caller knows.
+    #[allow(clippy::too_many_arguments)]
+    fn ask_as(
+        &self,
+        kind: pace::Kind,
+        url: &Url,
+        method: &str,
+        more: &[(&str, &str)],
+        body: Option<&str>,
+        patience: Duration,
+        max_body: usize,
+    ) -> Result<Reply, NetError> {
+        self.with_headers(more, |headers| {
+            self.send(url, &Request { method, headers, body: body.map(str::as_bytes), patience, max_body }, kind.may_repeat())
+        })
+    }
+
+    /// One request on a connection kept open to Graph, or a new one ([`kept`](crate::kept)):
+    /// only one that is `repeatable` goes on a connection that waited.
+    fn send(&self, url: &Url, request: &Request<'_>, repeatable: bool) -> Result<Reply, NetError> {
         self.count_request();
-        let bearer = format!("Bearer {}", self.token);
+        crate::kept::request(url, request, repeatable).map_err(|e| e.without(&self.token()))
+    }
+
+    /// The headers of every request, the token among them, with `more`, handed to `then`.
+    fn with_headers<T>(&self, more: &[(&str, &str)], then: impl FnOnce(&[(&str, &str)]) -> T) -> T {
+        let bearer = format!("Bearer {}", self.token());
         let mut headers = vec![("Authorization", bearer.as_str()), ("Accept", "application/json")];
         // Immutable ids, beside whatever else is preferred: one `Prefer` header, its values
         // parted by commas (RFC 7240).
@@ -506,8 +608,7 @@ impl<'a> Graph<'a> {
         } else {
             headers.extend_from_slice(more);
         }
-        http::request(url, &Request { method, headers: &headers, body: body.map(str::as_bytes), patience, max_body })
-            .map_err(|e| e.without(self.token))
+        then(&headers)
     }
 
     /// Note one more request asked (the run's timings count them).
@@ -556,7 +657,7 @@ impl<'a> Graph<'a> {
     fn refusal(&self, doing: Doing, reply: &Reply, sent: &str) -> NetError {
         // The mail's refusals are logged by status and Graph's code alone, never its message.
         if matches!(doing, Doing::Folders | Doing::Mail) {
-            let code = logged_code(&reply.body, &[self.token, sent]);
+            let code = logged_code(&reply.body, &[&self.token(), sent]);
             log::info!("graph {}: Microsoft Graph refused a request (status {}{code})", doing.word(), reply.status);
         }
         // A shared mailbox that won't let the owner in says so by Graph's code (#70).
@@ -566,7 +667,7 @@ impl<'a> Graph<'a> {
                 return NetError::SharedRefused(why);
             }
         }
-        refusal(doing, reply, &[self.token, sent], mailcraft_time::now())
+        refusal(doing, reply, &[&self.token(), sent], mailcraft_time::now())
     }
 
     /// Read a list page by page, handing every entry to `take`, `most` of them at most. Whether
@@ -618,8 +719,12 @@ struct Page {
 
 /// The entries of a page, and where it says the next one is: `{"value": […], "@odata.nextLink": "…"}`.
 fn page_of(body: &[u8]) -> Result<Page, NetError> {
-    let json = serde_json::from_slice::<Value>(body).ok();
-    let Some(Value::Object(mut page)) = json else { return Err(nonsense("Microsoft Graph's answer isn't the JSON it should be")) };
+    page_from(serde_json::from_slice::<Value>(body).unwrap_or(Value::Null))
+}
+
+/// [`page_of`] of what was read already: the body of an answer inside a `$batch`.
+fn page_from(json: Value) -> Result<Page, NetError> {
+    let Value::Object(mut page) = json else { return Err(nonsense("Microsoft Graph's answer isn't the JSON it should be")) };
     let Some(Value::Array(entries)) = page.remove("value") else { return Err(nonsense("Microsoft Graph's answer has no list in it")) };
     Ok(Page { entries, next: page.remove("@odata.nextLink").filter(|link| !link.is_null()) })
 }
@@ -1957,7 +2062,7 @@ pub use favorites::favorites;
 pub mod pace;
 
 pub mod mail;
-pub use mail::{fetch_messages, search_messages, sync_folders, sync_mail};
+pub use mail::{fetch_messages, search_messages, sync_folders, sync_mail, sync_mail_renewing};
 
 mod check;
 pub use check::{CHECK_TITLE, CalendarCheck, CheckStep, STEPS as CHECK_STEPS, check_calendar, check_start, no_sign_in};

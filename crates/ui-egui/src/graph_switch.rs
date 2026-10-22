@@ -406,4 +406,4 @@ pub(crate) fn ui_command(app: &mut MailApp, id: &str, p: &Value) -> Option<Resul
 
 #[cfg(test)]
 #[path = "graph_switch_tests.rs"]
-mod tests;
+pub(crate) mod tests;

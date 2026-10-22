@@ -21,6 +21,7 @@ mailcraft-mime = { path = "crates/mime" }
 mailcraft-ical = { path = "crates/ical" }
 mailcraft-vcard = { path = "crates/vcard" }
 mailcraft-proto = { path = "crates/proto" }
+mailcraft-jmap = { path = "crates/jmap" }
 mailcraft-net = { path = "crates/net" }
 mailcraft-engine = { path = "crates/engine" }
 mailcraft-mcp = { path = "crates/mcp" }

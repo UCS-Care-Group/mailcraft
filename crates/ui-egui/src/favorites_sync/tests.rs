@@ -236,6 +236,8 @@ fn outlooks_favorites_are_read_at_the_start_and_then_every_quarter_of_an_hour() 
     let before = rig.jobs().len();
     rig.app.execute("ui.sync", json!({"account": rig.account})).unwrap();
     rig.settle();
+    // (The calendar's own job follows the run, and reads them.)
+    rig.look(SECOND);
     assert_eq!(rig.jobs()[before..], [(true, true, true)]);
     assert_eq!(rig.listed(), [rig.receipts]);
 
@@ -248,6 +250,7 @@ fn outlooks_favorites_are_read_at_the_start_and_then_every_quarter_of_an_hour() 
     );
     rig.app.execute("ui.sync", json!({"account": rig.account})).unwrap();
     rig.settle();
+    rig.look(SECOND);
     assert_eq!(rig.last(), (false, false, true));
     rig.look(20.0 * MINUTE);
     assert_eq!(rig.last(), (false, false, true));
@@ -302,6 +305,7 @@ fn a_sign_in_that_does_not_cover_them_gets_one_quiet_offer_and_nothing_else_chan
     rig.host.lock().unwrap().unconsented = false;
     let before = rig.jobs().len();
     rig.settle();
+    rig.look(SECOND);
     assert_eq!(rig.host.lock().unwrap().sign_ins, [(true, true)]);
     // They are read at once, with the token the sign-in brought, and the offer is gone.
     assert_eq!(rig.jobs()[before], (true, true, true));
