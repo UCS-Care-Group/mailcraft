@@ -645,7 +645,11 @@ pub(crate) fn read_reply_kept<R: Read>(stream: &mut R, started: Instant, patienc
         }
         head = read_head(&mut reader)?;
     }
-    let (body, delimited) = if matches!(head.status, 100..=199 | 204 | 304) {
+    // Still "go on": the answer proper may be on its way, and must not be read as the next one's.
+    if (100..200).contains(&head.status) {
+        return Err(nonsense("the server didn't answer"));
+    }
+    let (body, delimited) = if matches!(head.status, 204 | 304) {
         (Vec::new(), true)
     } else if head.chunked {
         (read_chunks(&mut reader, max_body)?, true)

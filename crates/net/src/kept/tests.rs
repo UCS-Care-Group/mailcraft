@@ -167,6 +167,29 @@ fn a_read_whose_answer_was_cut_off_is_not_asked_again_here() {
 }
 
 #[test]
+fn an_answer_that_is_still_to_come_is_never_read_as_the_next_ones() {
+    // Five "go on"s, then the answer proper late: it must not be taken for the next request's.
+    let continues = "HTTP/1.1 100 Continue\r\n\r\n".repeat(5);
+    let server = FakeKeptHttp::start(move |n, _, _| {
+        if n == 0 {
+            let mut answer = continues.as_bytes().to_vec();
+            answer.extend(kept_answer("200 OK", "{\"late\":1}"));
+            Kept::Answer(answer)
+        } else {
+            Kept::Answer(kept_answer("200 OK", &format!("{{\"n\":{n}}}")))
+        }
+    });
+    let pool = pool();
+    let at = url(&server, "/v1.0/me");
+    get(&pool, &at).unwrap_err();
+    assert_eq!(pool.waiting(), 0, "the connection with an answer still on it was dropped");
+    let reply = get(&pool, &at).unwrap();
+    assert_eq!(reply.body, b"{\"n\":1}".to_vec());
+    assert_eq!(server.connections(), 2);
+    assert!(kept_after(b"HTTP/1.1 100 Continue\r\n\r\n".repeat(5).as_slice()).is_none());
+}
+
+#[test]
 fn an_answer_that_is_too_long_drops_its_connection() {
     let server = FakeKeptHttp::start(|n, _, _| Kept::Answer(kept_answer("200 OK", &"x".repeat(if n == 1 { MAX_BODY + 1 } else { 2 }))));
     let pool = pool();
