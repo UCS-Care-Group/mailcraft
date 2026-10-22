@@ -609,6 +609,9 @@ pub struct Session {
     /// for having the counts it had (#276): the next full sweep is due an hour later. Empty when
     /// a mailbox is opened, so the first run reads everything. Never saved.
     pub(crate) graph_swept: std::collections::HashMap<Id, Timestamp>,
+    /// Microsoft accounts whose last folder listing was cut short (#276): a folder it left out
+    /// wasn't read, so the run that follows is no full sweep.
+    pub(crate) graph_listed_short: std::collections::HashSet<Id>,
     /// Set while a command an agent asked for runs (with what the owner allowed it): what the
     /// command did is checked against that ([`crate::agent`]), and undone when it oversteps.
     pub agent: Option<Vec<crate::agent::Class>>,
@@ -737,6 +740,7 @@ impl Session {
             saved_whole: Default::default(),
             graph_said: Vec::new(),
             graph_swept: Default::default(),
+            graph_listed_short: Default::default(),
             agent: None,
             graph_switch_backup: None,
             server_search: Default::default(),
@@ -1524,6 +1528,7 @@ impl Session {
         self.saved_whole.clear();
         self.kept_for_now.clear();
         self.graph_swept.clear();
+        self.graph_listed_short.clear();
         self.openings = self.openings.wrapping_add(1);
         self.history.clear();
         self.redo.clear();

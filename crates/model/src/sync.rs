@@ -995,6 +995,10 @@ pub struct GraphFolder {
     pub total: u32,
     #[serde(skip_serializing_if = "is_zero_u32")]
     pub unread: u32,
+    /// The server gave both counts (#276). A count it didn't give reads as 0 above, so a folder
+    /// whose counts aren't known is never passed over as unchanged.
+    #[serde(skip_serializing_if = "is_false")]
+    pub counted: bool,
 }
 
 fn is_zero_u32(n: &u32) -> bool {

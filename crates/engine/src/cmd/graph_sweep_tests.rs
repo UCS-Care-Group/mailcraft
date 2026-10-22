@@ -138,3 +138,24 @@ fn a_piece_without_pages_leaves_the_mailbox_as_it_was() {
     assert!(!s.dirty);
     assert_eq!(s.rev(), rev);
 }
+
+/// A listing cut short left folders out, which weren't read: the run is no full sweep, and the
+/// next is one, until a run whose listing was whole.
+#[test]
+fn a_run_whose_listing_was_cut_short_is_not_a_sweep() {
+    let (mut s, account) = session();
+    let short = |complete| GraphMailResult {
+        listing: Some(FolderListing {
+            folders: vec![GraphFolder { id: "in".into(), name: "Inbox".into(), kind: FolderKind::Inbox, ..Default::default() }],
+            complete,
+        }),
+        partial: true,
+        ..Default::default()
+    };
+    take(&mut s, account, short(false));
+    take(&mut s, account, ended(0));
+    assert!(full(&s, account));
+    take(&mut s, account, short(true));
+    take(&mut s, account, ended(0));
+    assert!(!full(&s, account));
+}

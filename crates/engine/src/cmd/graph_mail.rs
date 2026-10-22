@@ -379,6 +379,11 @@ pub fn apply_graph_mail(s: &mut Session, result: GraphMailResult) -> CmdResult {
     s.graph_said.extend(refused);
     if let Some(listing) = &result.listing {
         take_listing(&mut s.mailbox, account, listing, &mut taken);
+        if listing.complete {
+            s.graph_listed_short.remove(&account);
+        } else {
+            s.graph_listed_short.insert(account);
+        }
     }
     // Mail down (R3.2): each page with its link; what is still gone once every folder is done.
     let mut down = Down::default();
@@ -389,8 +394,9 @@ pub fn apply_graph_mail(s: &mut Session, result: GraphMailResult) -> CmdResult {
     s.graph_index = index;
     if result.whole && !result.inbox_pass {
         graph_down::sweep(&mut s.mailbox, account, &mut down);
-        // Every folder read, none passed over: the full sweep is done for the hour (#276).
-        if !result.partial && result.timings.skipped == 0 {
+        // Every folder read, none passed over and none left out of a listing cut short: the full
+        // sweep is done for the hour (#276).
+        if !result.partial && result.timings.skipped == 0 && !s.graph_listed_short.contains(&account) {
             let now = s.now();
             s.graph_swept.insert(account, now);
         }

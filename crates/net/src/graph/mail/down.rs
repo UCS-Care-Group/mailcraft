@@ -217,7 +217,8 @@ pub(super) fn messages(
                 },
             };
             let round_here = link.is_none() || caught_up;
-            let listed = listing.then_some(FolderCounts { total: folder.total, unread: folder.unread });
+            // Counts the server didn't give are unknown, not 0: such a folder is never passed over.
+            let listed = (listing && folder.counted).then_some(FolderCounts { total: folder.total, unread: folder.unread });
             let mut one = Reading {
                 folder,
                 link,

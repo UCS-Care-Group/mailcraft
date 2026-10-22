@@ -233,3 +233,20 @@ fn the_inbox_pass_gives_no_counts() {
     assert!(pages[0].counts.is_none());
     assert_eq!(pieces.last().unwrap().timings.skipped, 0);
 }
+
+/// A listing that doesn't give a folder's counts says nothing of whether it changed: read as 0,
+/// they would match counts of 0 kept with its link. Such a folder is read, and its link keeps none.
+#[test]
+fn a_folder_listed_without_its_counts_is_never_passed_over() {
+    let r = rig();
+    let zero = Some(mailcraft_model::FolderCounts { total: 0, unread: 0 });
+    let links: Vec<GraphLink> = r.links.iter().cloned().map(|l| GraphLink { counts: zero, ..l }).collect();
+    r.server.state().uncounted = true;
+    let before = r.server.state().requests.len();
+    let pieces = run(&r.server, links, false);
+    let last = pieces.last().unwrap();
+    assert!(last.whole && last.errors.is_empty(), "{:?}", last.errors);
+    assert_eq!(last.timings.skipped, 0);
+    assert_eq!((deltas_of(&r.server, &r.projects, before), deltas_of(&r.server, &r.receipts, before)), (1, 1));
+    assert!(pieces.iter().flat_map(|p| &p.pages).all(|p| p.counts.is_none()), "{pieces:?}");
+}
