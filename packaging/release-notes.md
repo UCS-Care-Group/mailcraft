@@ -22,6 +22,7 @@
 - Send/Receive brings new mail in every Microsoft Inbox, shared mailboxes included, first, before the folders and the rest ([#276](https://github.com/GITHUB_REPOSITORY/issues/276)).
 - Send/Receive is quicker on a Microsoft account with many folders: your own folders whose message and unread counts haven't changed are skipped, and every folder is still read at the first Send/Receive after opening and once an hour, so flag and category changes there arrive by then ([#276](https://github.com/GITHUB_REPOSITORY/issues/276)).
 - A Microsoft account's Send/Receive keeps its connection to Microsoft open between requests instead of opening a new one for each, so it waits less ([#276](https://github.com/GITHUB_REPOSITORY/issues/276)).
+- A Microsoft account with many folders lists them in a few requests instead of one for every folder that has subfolders, so Send/Receive gets to the mail sooner ([#276](https://github.com/GITHUB_REPOSITORY/issues/276)).
 - Arranged by size, each message in the list says its size under its time ([#273](https://github.com/GITHUB_REPOSITORY/issues/273)).
 
 **Early alpha.** The foundations are in place and tested, but much of what a daily mail program needs is not there yet, and most of the Microsoft 365 behaviour has only been tested against stand-ins. What works is in the [README](https://github.com/GITHUB_REPOSITORY#what-works-today).

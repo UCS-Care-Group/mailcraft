@@ -648,8 +648,12 @@ struct Page {
 
 /// The entries of a page, and where it says the next one is: `{"value": […], "@odata.nextLink": "…"}`.
 fn page_of(body: &[u8]) -> Result<Page, NetError> {
-    let json = serde_json::from_slice::<Value>(body).ok();
-    let Some(Value::Object(mut page)) = json else { return Err(nonsense("Microsoft Graph's answer isn't the JSON it should be")) };
+    page_from(serde_json::from_slice::<Value>(body).unwrap_or(Value::Null))
+}
+
+/// [`page_of`] of what was read already: the body of an answer inside a `$batch`.
+fn page_from(json: Value) -> Result<Page, NetError> {
+    let Value::Object(mut page) = json else { return Err(nonsense("Microsoft Graph's answer isn't the JSON it should be")) };
     let Some(Value::Array(entries)) = page.remove("value") else { return Err(nonsense("Microsoft Graph's answer has no list in it")) };
     Ok(Page { entries, next: page.remove("@odata.nextLink").filter(|link| !link.is_null()) })
 }

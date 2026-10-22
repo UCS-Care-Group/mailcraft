@@ -369,6 +369,8 @@ pub struct State {
     /// The folders whose list of subfolders can't be had just now (500): a walk of the folders is
     /// cut short there.
     pub broken_lists: Vec<String>,
+    /// A server that won't take a `$batch` at all (400): a client asks one request at a time.
+    pub refuse_batches: bool,
     /// The prefixes the document writes its two namespaces with (`a` and `b` unless said).
     pub prefixes: (String, String),
     /// The messages of every folder, and the rounds of their delta ([`messages`]).
@@ -2217,6 +2219,9 @@ impl State {
 
     /// Several requests in one (`POST /$batch`): each is answered by itself.
     fn batch(&mut self, asked: &Asked) -> Result<Answer, Refusal> {
+        if self.refuse_batches {
+            return Err(refuse(400, "BadRequest", "Batch requests are not supported here."));
+        }
         let body = asked.json();
         let Some(requests) = body.get("requests").and_then(Value::as_array) else {
             return Err(refuse(400, "BadRequest", "A batch has a list of requests."));
