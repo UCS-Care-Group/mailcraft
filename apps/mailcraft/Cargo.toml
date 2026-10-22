@@ -63,6 +63,10 @@ apple-native-keyring-store = { version = "1", features = ["keychain"] }
 objc2 = { version = "0.6", default-features = false, features = ["std"] }
 objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSBundle", "NSError", "NSString"] }
 block2 = { version = "0.6", default-features = false, features = ["std"] }
+# AppKit's window, for one safe class call: no automatic window tabs (#253: the View menu's greyed
+# Show Tab Bar). The same project's bindings, already in the tree through winit and muda, with
+# the same features.
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSResponder", "NSWindow"] }
 objc2-user-notifications = { version = "0.3", default-features = false, features = [
     "std",
     "block2",

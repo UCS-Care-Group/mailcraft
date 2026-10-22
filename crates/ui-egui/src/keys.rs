@@ -109,12 +109,32 @@ fn module_of(id: &str) -> Option<Module> {
     }
 }
 
+/// Whether the window takes command keys now: not while File (backstage) or a dialog is open. The
+/// menu bar asks the same, so its items are greyed then.
+pub fn takes_commands(app: &MailApp) -> bool {
+    !app.ui.backstage && app.dialog.is_none()
+}
+
+/// What the window runs for a command asked for by a key or from the menu bar: nothing when the
+/// command belongs to another module than the one in front (Delete in Calendar never deletes the
+/// message still selected in Mail); otherwise the id to run, which for some commands is the
+/// window's own (the host does the talking to the server; the search box takes the keyboard).
+pub fn window_command(app: &MailApp, id: &'static str) -> Option<&'static str> {
+    if module_of(id).is_some_and(|m| m != app.session.view.module) {
+        return None;
+    }
+    Some(match id {
+        "sync.request" => "ui.sync",
+        "view.search" => "ui.focusSearch",
+        other => other,
+    })
+}
+
 /// The command a key runs now: the first enabled one bound to it that fits the module in front.
 pub fn resolve(app: &MailApp, key: &str) -> Option<&'static str> {
-    let module = app.session.view.module;
     let composing = app.session.compose.is_some();
     let bound = |c: &&mailcraft_engine::CommandSpec| !c.shortcut.is_empty() && c.shortcut.split(" / ").any(|k| k.eq_ignore_ascii_case(key));
-    let fits = |c: &&mailcraft_engine::CommandSpec| module_of(c.id).is_none_or(|m| m == module);
+    let fits = |c: &&mailcraft_engine::CommandSpec| window_command(app, c.id).is_some();
     let mut hits: Vec<&mailcraft_engine::CommandSpec> = app.session.registry.all().iter().filter(bound).filter(fits).collect();
     // While writing, the Message commands win (Mod+S saves the draft); otherwise they are out.
     hits.sort_by_key(|c| c.id.starts_with("compose.") != composing);
@@ -134,13 +154,10 @@ fn module_delete(app: &MailApp) -> Option<&'static str> {
 /// Command shortcuts when no text field has the keyboard and no dialog is open. Keys with Mod (or
 /// function keys) also work while typing, except the ones text editing needs.
 pub fn global_shortcuts(app: &mut MailApp, ctx: &egui::Context) {
-    if app.ui.backstage {
-        if ctx.input(|i| i.key_pressed(Key::Escape)) {
+    if !takes_commands(app) {
+        if app.ui.backstage && ctx.input(|i| i.key_pressed(Key::Escape)) {
             app.ui.backstage = false;
         }
-        return;
-    }
-    if app.dialog.is_some() {
         return;
     }
     let typing = ctx.egui_wants_keyboard_input();
@@ -206,14 +223,7 @@ pub fn global_shortcuts(app: &mut MailApp, ctx: &egui::Context) {
             let _ = app.run("ui.selectAllInMessage", place);
             continue;
         }
-        if let Some(id) = resolve(app, &k) {
-            let id = match id {
-                // The host does the talking to the server.
-                "sync.request" => "ui.sync",
-                // The search box takes the keyboard.
-                "view.search" => "ui.focusSearch",
-                other => other,
-            };
+        if let Some(id) = resolve(app, &k).and_then(|id| window_command(app, id)) {
             let _ = app.run(id, json!({}));
         }
     }

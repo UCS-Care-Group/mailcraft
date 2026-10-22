@@ -3256,7 +3256,7 @@ msgstr "Aide"
 #. interface
 #: crates/ui-egui/src/menubar.rs
 msgid "Hide MailCraft"
-msgstr ""
+msgstr "Masquer MailCraft"
 
 #. interface
 #: crates/ui-egui/src/nav.rs
@@ -4418,7 +4418,7 @@ msgstr "Impossible de joindre le serveur de Microsoft. Cliquez pour réessayer."
 #. interface
 #: crates/ui-egui/src/menubar.rs
 msgid "Minimize"
-msgstr ""
+msgstr "Placer dans le Dock"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -5942,7 +5942,7 @@ msgstr "Accès rapide"
 #. interface
 #: crates/ui-egui/src/menubar.rs
 msgid "Quit MailCraft"
-msgstr ""
+msgstr "Quitter MailCraft"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -7132,7 +7132,7 @@ msgstr "Paramètres"
 #. name
 #: crates/ui-egui/src/menubar.rs
 msgid "Settings…"
-msgstr ""
+msgstr "Réglages…"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -9775,7 +9775,7 @@ msgstr "Z en haut"
 #. interface
 #: crates/ui-egui/src/menubar.rs
 msgid "Zoom"
-msgstr ""
+msgstr "Réduire/agrandir"
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs

@@ -7,7 +7,10 @@
 //! every platform.
 //!
 //! Every item is a command from the registry, run by id as the ribbon runs it (`MailApp::run`),
-//! labelled with the registry's own label. The Edit menu's Undo, Redo, Cut, Copy, Paste and
+//! labelled with the registry's own label. An item does what its key does in the window, and only
+//! when the key would: the same id (Search focuses the search box, Send/Receive is the host's),
+//! nothing of another module than the one in front, and nothing while File or a dialog is open
+//! (`crate::keys` decides all three for both). The Edit menu's Undo, Redo, Cut, Copy, Paste and
 //! Select All are not commands: they are the key presses a text field already understands, so
 //! they work in whatever has the focus, the message being written included.
 //!
@@ -22,7 +25,7 @@ use std::collections::HashSet;
 use egui::{Event, Key, Modifiers};
 use serde_json::Value;
 
-use crate::MailApp;
+use crate::{MailApp, keys};
 
 /// A key equivalent: ⌘ and the key, with ⇧ and ⌥ where named. `key` is one letter or digit
 /// (upper case), `Enter` or `,`.
@@ -375,21 +378,29 @@ fn block(app: &MailApp, title: &str, rows: &[Row], taken: &mut HashSet<Chord>) -
     MenuBlock { title: title.to_string(), entries }
 }
 
-/// Whether the item can be chosen now. The Edit menu's items always can: the text field that
-/// has the focus decides what they do.
+/// Whether the item can be chosen now: a command when the window would run it for its key
+/// ([`keys::takes_commands`], [`keys::window_command`]: not while File or a dialog is open, not a
+/// command of another module than the one in front) and it can run. The Edit menu's items always
+/// can: the text field that has the focus decides what they do.
 pub fn enabled(app: &MailApp, action: &Action) -> bool {
     match action {
-        Action::Command { id, .. } => app.enabled(id),
+        Action::Command { id, .. } => keys::takes_commands(app) && keys::window_command(app, id).is_some_and(|run| app.enabled(run)),
         Action::Edit(_) => true,
     }
 }
 
-/// Choose an item: a command runs as the ribbon runs it (a failure shows in the status bar); an
+/// Choose an item: a command runs as its key does in the window (the same id: Search focuses the
+/// search box, Send/Receive is the host's), as the ribbon runs it (a failure shows in the status bar); an
 /// Edit item becomes the input a text field takes on its next frame. `clipboard_text` is asked
 /// for only by Paste.
 pub fn run(app: &mut MailApp, action: &Action, clipboard_text: impl FnOnce() -> String) {
     match action {
         Action::Command { id, params } => {
+            // (The host asks [`enabled`] first; a choice that arrives late is checked again.)
+            if !enabled(app, action) {
+                return;
+            }
+            let Some(id) = keys::window_command(app, id) else { return };
             let params = serde_json::from_str::<Value>(params).ok().filter(Value::is_object).unwrap_or_else(|| serde_json::json!({}));
             let _ = app.run(id, params);
         }
@@ -419,104 +430,4 @@ pub fn run(app: &mut MailApp, action: &Action, clipboard_text: impl FnOnce() -> 
 }
 
 #[cfg(test)]
-mod tests {
-    use mailcraft_engine::Session;
-    use mailcraft_model::Mailbox;
-
-    use super::*;
-    use crate::Services;
-
-    fn app() -> MailApp {
-        MailApp::new(Session::new(Mailbox::default()), Services::default())
-    }
-
-    fn items(block: &MenuBlock) -> impl Iterator<Item = &Item> {
-        block.entries.iter().filter_map(|e| if let Entry::Item(i) = e { Some(i) } else { None })
-    }
-
-    #[test]
-    fn every_listed_command_exists_and_none_is_left_out() {
-        let app = app();
-        let tables: Vec<&[Row]> = TABLES.iter().map(|t| t.1).chain([HELP]).collect();
-        for rows in &tables {
-            for row in *rows {
-                if let Row::Cmd(id) = row {
-                    assert!(app.session.registry.get(id).is_some(), "{id} is not a command");
-                }
-            }
-        }
-        let wanted: usize = tables.iter().flat_map(|r| r.iter()).filter(|r| !matches!(r, Row::Sep)).count();
-        let built: usize = menus(&app).iter().map(|m| items(m).count()).sum();
-        assert_eq!(wanted, built);
-        // The `ui.*` commands the own items run exist too, with params that read.
-        for own in [Own::Info, Own::Options, Own::About, Own::HelpTab, Own::Settings] {
-            let Action::Command { id, params } = own.action() else { panic!("{own:?} is not a command") };
-            assert!(app.enabled(id), "{id} is not a command");
-            assert!(serde_json::from_str::<Value>(params).is_ok_and(|v| v.is_object()), "{params}");
-        }
-    }
-
-    #[test]
-    fn no_menu_is_empty_and_separators_only_divide() {
-        let app = app();
-        let menus = menus(&app);
-        assert_eq!(menus.len(), TABLES.len() + 1);
-        for m in &menus {
-            assert!(!m.title.is_empty());
-            assert!(items(m).count() > 0, "{} is empty", m.title);
-            assert!(!matches!(m.entries.first(), Some(Entry::Separator)));
-            assert!(!matches!(m.entries.last(), Some(Entry::Separator)));
-            assert!(m.entries.windows(2).all(|w| !matches!(w, [Entry::Separator, Entry::Separator])), "{}", m.title);
-            assert!(items(m).all(|i| !i.label.is_empty()));
-        }
-        assert!(!window_title().is_empty());
-        assert!(!app_items().is_empty());
-        let t = app_text();
-        assert!([t.about, t.hide, t.quit, t.minimize, t.zoom].iter().all(|s| !s.is_empty()));
-    }
-
-    #[test]
-    fn a_key_goes_to_one_item_and_none_is_one_a_text_field_needs() {
-        let app = app();
-        let mut seen = HashSet::new();
-        for i in menus(&app).iter().flat_map(items) {
-            if let Some(c) = &i.chord {
-                assert!(seen.insert(c.clone()), "{c:?} twice");
-                assert!(c.key == "Enter" || c.key.chars().count() == 1);
-            }
-        }
-        assert!(seen.contains(&Chord::new(false, false, "Z")) && seen.contains(&Chord::new(false, false, "V")));
-        assert!(chord("Delete").is_none() && chord("Escape").is_none() && chord("F9").is_none());
-        assert!(chord("Mod+Q").is_none() && chord("Mod+Y").is_none() && chord("Mod+A").is_none());
-        assert_eq!(chord("Delete / Mod+D"), Some(Chord::new(false, false, "D")));
-        assert_eq!(chord("Mod+Shift+R"), Some(Chord::new(true, false, "R")));
-        assert_eq!(chord("Mod+Alt+1"), Some(Chord::new(false, true, "1")));
-        assert_eq!(chord("Mod+Enter / Alt+S"), Some(Chord::new(false, false, "Enter")));
-        assert!(chord("").is_none() && chord("Mod+").is_none() && chord("Mod+Foo+R").is_none());
-    }
-
-    #[test]
-    fn commands_are_enabled_from_the_registry_and_unknown_ones_are_refused() {
-        let mut app = app();
-        // Nothing is selected in an empty mailbox, so Reply can't run; New Email can.
-        assert!(!enabled(&app, &Action::Command { id: "mail.reply", params: "{}" }));
-        assert!(enabled(&app, &Action::Command { id: "mail.new", params: "{}" }));
-        assert!(!enabled(&app, &Action::Command { id: "no.such.command", params: "{}" }));
-        assert!(enabled(&app, &Action::Edit(EditKey::Copy)));
-        // Running something unknown, with junk params, does nothing and does not panic.
-        run(&mut app, &Action::Command { id: "no.such.command", params: "{" }, String::new);
-    }
-
-    #[test]
-    fn edit_items_become_the_input_a_text_field_takes() {
-        let mut app = app();
-        run(&mut app, &Action::Edit(EditKey::Paste), || "pasted".to_string());
-        run(&mut app, &Action::Edit(EditKey::SelectAll), String::new);
-        assert!(app.synthetic.iter().any(|e| matches!(e, Event::Paste(t) if t == "pasted")));
-        assert!(app.synthetic.iter().any(|e| matches!(e, Event::Key { key: Key::A, pressed: true, modifiers, .. } if modifiers.command)));
-        for _ in 0..200 {
-            run(&mut app, &Action::Edit(EditKey::Copy), String::new);
-        }
-        assert!(app.synthetic.len() <= 70);
-    }
-}
+mod tests;

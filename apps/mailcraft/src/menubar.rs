@@ -72,6 +72,11 @@ pub fn install(ctx: &Context, app: &MailApp) -> Result<MenuBar, Box<dyn std::err
     let ctx = ctx.clone();
     let (menu, items) = build(app)?;
     menu.init_for_nsapp();
+    // One window, no tabs: AppKit would otherwise add Show Tab Bar and Show All Tabs to the menus,
+    // greyed. (Called on the main thread, from the eframe creator; elsewhere it is left alone.)
+    if let Some(mtm) = objc2::MainThreadMarker::new() {
+        objc2_app_kit::NSWindow::setAllowsAutomaticWindowTabbing(false, mtm);
+    }
     MenuEvent::set_event_handler(Some(move |event: MenuEvent| {
         // Quit asks the window to close, so a message being written is asked about first.
         if !craft_quit::on_menu_event(&ctx, event.id.as_ref()) {
