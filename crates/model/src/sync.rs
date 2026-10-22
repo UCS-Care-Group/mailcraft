@@ -1084,8 +1084,9 @@ pub struct GraphMailResult {
     /// at a time), each taken in as it comes.
     #[serde(skip_serializing_if = "is_false")]
     pub partial: bool,
-    /// Every folder's delta reached its end in this run: a message the server said left its folder
-    /// and that turned up in no other is removed now (R3 spec S9, S11).
+    /// Every folder's delta reached its end in this run, and the run's listing of folders went to
+    /// its end: a message the server said left its folder and that turned up in no other is
+    /// removed now (R3 spec S9, S11). Never after a listing cut short (#305).
     #[serde(skip_serializing_if = "is_false")]
     pub whole: bool,
     /// How far the run has got, for the status bar (R3 spec S15).

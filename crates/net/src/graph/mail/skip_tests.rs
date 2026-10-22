@@ -250,3 +250,30 @@ fn a_folder_listed_without_its_counts_is_never_passed_over() {
     assert_eq!((deltas_of(&r.server, &r.projects, before), deltas_of(&r.server, &r.receipts, before)), (1, 1));
     assert!(pieces.iter().flat_map(|p| &p.pages).all(|p| p.counts.is_none()), "{pieces:?}");
 }
+
+/// A listing cut short (#305): the folders it missed aren't read, so what left a folder read may
+/// be in one of them. The run reads what it listed and isn't whole; nor is it whole when it reads
+/// everything, folders passed over included.
+#[test]
+fn a_run_whose_listing_was_cut_short_is_never_whole() {
+    let r = rig();
+    let apollo = r.server.state().add_folder("Apollo", Some(&r.projects));
+    let moved = r.server.state().mailbox.generate(&r.inbox, 1, NOW + 60);
+    let first = run(&r.server, r.links.clone(), true);
+    assert!(first.last().unwrap().whole);
+    let links = links_after(&first, r.links.clone());
+    {
+        let mut state = r.server.state();
+        for id in moved {
+            assert!(state.mailbox.move_to(&id, &apollo));
+        }
+        state.broken_lists.push(r.projects.clone());
+    }
+    for full in [false, true] {
+        let pieces = run(&r.server, links.clone(), full);
+        assert!(pieces.first().and_then(|p| p.listing.as_ref()).is_some_and(|l| !l.complete));
+        let last = pieces.last().unwrap();
+        assert!(!last.whole && !last.partial, "full: {full}");
+        assert!(messages_of(&pieces, &apollo).is_empty());
+    }
+}

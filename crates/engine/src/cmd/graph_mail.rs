@@ -392,11 +392,11 @@ pub fn apply_graph_mail(s: &mut Session, result: GraphMailResult) -> CmdResult {
         graph_down::take_page(&mut s.mailbox, &mut index, account, page, &mut down);
     }
     s.graph_index = index;
-    if result.whole && !result.inbox_pass {
+    // (Not after a listing cut short: what left a folder may be in one it missed, #305.)
+    if result.whole && !result.inbox_pass && !s.graph_listed_short.contains(&account) {
         graph_down::sweep(&mut s.mailbox, account, &mut down);
-        // Every folder read, none passed over and none left out of a listing cut short: the full
-        // sweep is done for the hour (#276).
-        if !result.partial && result.timings.skipped == 0 && !s.graph_listed_short.contains(&account) {
+        // Every folder read and none passed over: the full sweep is done for the hour (#276).
+        if !result.partial && result.timings.skipped == 0 {
             let now = s.now();
             s.graph_swept.insert(account, now);
         }

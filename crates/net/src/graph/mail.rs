@@ -125,14 +125,14 @@ pub(crate) fn sync_mail_renewing_with(
     }
     let mut folders = folders_with(base, token, &bearer, request, gate.clone(), retry);
     // No listing, or a server that wants to be left alone: that is the run.
-    let listed = match &folders.listing {
-        Some(listing) if folders.busy_for.is_none() => listing.folders.clone(),
+    let (listed, complete) = match &folders.listing {
+        Some(listing) if folders.busy_for.is_none() => (listing.folders.clone(), listing.complete),
         _ => return emit(folders),
     };
     folders.partial = true;
     emit(folders);
     let priority = if request.background { Priority::Background } else { Priority::Owner };
-    let last = match for_mail(base, token, &bearer, gate, priority, retry).and_then(|graph| graph.of_shared(shared_address(request))) {
+    let mut last = match for_mail(base, token, &bearer, gate, priority, retry).and_then(|graph| graph.of_shared(shared_address(request))) {
         Ok(graph) => down::messages(&graph, request, &listed, SyncPhase::NewMail, cancel, emit),
         Err(e) => GraphMailResult {
             account: request.account,
@@ -141,6 +141,9 @@ pub(crate) fn sync_mail_renewing_with(
             ..Default::default()
         },
     };
+    // A listing cut short left folders out, and they weren't read: what left a folder may be in
+    // one of them, so the run isn't whole and nothing is removed for being gone (#305).
+    last.whole &= complete;
     emit(last);
 }
 
