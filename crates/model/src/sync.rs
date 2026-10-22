@@ -158,10 +158,15 @@ pub struct Tokens {
     pub tenant: String,
 }
 
+/// How long before an access token runs out it is renewed rather than used (seconds).
+pub const FRESH_MARGIN: i64 = 300;
+
 impl Tokens {
-    /// Whether the access token is still good at `now` (Unix seconds), with a minute to spare.
+    /// Whether the access token is still good at `now` (Unix seconds), with five minutes to
+    /// spare: one that runs out sooner is renewed before a job starts with it, not during it
+    /// (#306). `now` is the wall clock, so time the computer spent asleep counts.
     pub fn fresh(&self, now: i64) -> bool {
-        !self.access.is_empty() && self.expires_at.saturating_sub(60) > now
+        !self.access.is_empty() && self.expires_at.saturating_sub(FRESH_MARGIN) > now
     }
 
     /// Whether these are somebody else's than the account's whose address is `email` and whose
@@ -1297,7 +1302,7 @@ mod tests {
         let tokens = Tokens { access: "tok-en-123".into(), refresh: "re-fresh-456".into(), expires_at: 1_000, ..Default::default() };
         let shown = format!("{tokens:?}");
         assert!(!shown.contains("tok-en-123") && !shown.contains("re-fresh-456"));
-        assert!(tokens.fresh(900) && !tokens.fresh(950) && !Tokens::default().fresh(0));
+        assert!(tokens.fresh(650) && !tokens.fresh(700) && !tokens.fresh(950) && !Tokens::default().fresh(0));
         // (#103) Who signed in, against the account.
         let ada = Tokens { email: " Ada@Example.org ".into(), ..Default::default() };
         assert!(!ada.someone_else("ada@example.org", "") && !ada.someone_else("ada.alias@example.org", "ADA@example.org"));

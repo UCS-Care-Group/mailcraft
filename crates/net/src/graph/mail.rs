@@ -9,7 +9,8 @@
 //!
 //! - **Asked of the server.** `GET /me/mailFolders/{well-known name}` for which folder is the
 //!   Inbox, the Drafts… and the top of the mailbox (twenty to a `$batch`); `GET /me/mailFolders`
-//!   and `GET /me/mailFolders/{id}/childFolders`, page by page, for the folders; `POST
+//!   and `GET /me/mailFolders/{id}/childFolders`, page by page, for the folders, the subfolders
+//!   of a level of the tree twenty folders to a `$batch` (#276); `POST
 //!   /me/mailFolders[/{id}/childFolders]` to make one, `PATCH /me/mailFolders/{id}` to rename
 //!   one, `POST /me/mailFolders/{id}/move` to move one (Delete Folder is a move into Deleted
 //!   Items, as Outlook does), `DELETE /me/mailFolders/{id}` to delete one for good. Every
@@ -30,7 +31,7 @@
 //!   can't be read is passed over (and makes the listing incomplete); nothing in it is run or
 //!   fetched. No folder's name or id goes into an error or a log line.
 
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 use std::time::{Duration, Instant};
@@ -43,7 +44,9 @@ use mailcraft_model::{FolderKind, clean_name};
 use serde_json::{Value, json};
 
 use super::pace::{Gate, Kind, Priority, Retry};
-use super::{ASK_TIMEOUT, BATCH, BATCH_SIZE, Doing, Graph, IMMUTABLE_IDS, MAX_BATCH, MAX_PAGE, WRITE_TIMEOUT, graph_base, nonsense, text};
+use super::{
+    ASK_TIMEOUT, BATCH, BATCH_SIZE, Bearer, Doing, Graph, IMMUTABLE_IDS, MAX_BATCH, MAX_PAGE, Renew, WRITE_TIMEOUT, graph_base, nonsense, text,
+};
 use crate::NetError;
 use crate::http::{self, Reply};
 
@@ -83,6 +86,13 @@ pub fn sync_mail(token: &str, request: &GraphMailRequest, cancel: &AtomicBool, e
     sync_mail_with(&graph_base(), token, request, Gate::for_mailbox(&request.email), Retry::STANDARD, cancel, emit);
 }
 
+/// [`sync_mail`], with `renew` to get a new token when Graph stops taking `token` part-way
+/// (#306): once in the run, the request it refused asked again with the new one. A second
+/// refusal ends the run as [`sync_mail`]'s would.
+pub fn sync_mail_renewing(token: &str, renew: Renew<'_>, request: &GraphMailRequest, cancel: &AtomicBool, emit: &mut dyn FnMut(GraphMailResult)) {
+    sync_mail_renewing_with(&graph_base(), token, Some(renew), request, Gate::for_mailbox(&request.email), Retry::STANDARD, cancel, emit);
+}
+
 /// [`sync_mail`] at `base`, through `gate`, asking again as `retry` says.
 pub(crate) fn sync_mail_with(
     base: &str,
@@ -93,11 +103,27 @@ pub(crate) fn sync_mail_with(
     cancel: &AtomicBool,
     emit: &mut dyn FnMut(GraphMailResult),
 ) {
+    sync_mail_renewing_with(base, token, None, request, gate, retry, cancel, emit);
+}
+
+/// [`sync_mail_with`], renewing the token once with `renew` when there is one.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn sync_mail_renewing_with(
+    base: &str,
+    token: &str,
+    renew: Option<Renew<'_>>,
+    request: &GraphMailRequest,
+    gate: Arc<Gate>,
+    retry: Retry,
+    cancel: &AtomicBool,
+    emit: &mut dyn FnMut(GraphMailResult),
+) {
+    let bearer = Bearer::new(token, renew);
     // The Inbox pass (#276): the Inbox's delta alone, before anything else of the run.
     if let Some(inbox) = &request.inbox_pass {
-        return inbox_pass(base, token, request, inbox, gate, retry, cancel, emit);
+        return inbox_pass(base, token, &bearer, request, inbox, gate, retry, cancel, emit);
     }
-    let mut folders = sync_folders_with(base, token, request, gate.clone(), retry);
+    let mut folders = folders_with(base, token, &bearer, request, gate.clone(), retry);
     // No listing, or a server that wants to be left alone: that is the run.
     let listed = match &folders.listing {
         Some(listing) if folders.busy_for.is_none() => listing.folders.clone(),
@@ -106,7 +132,7 @@ pub(crate) fn sync_mail_with(
     folders.partial = true;
     emit(folders);
     let priority = if request.background { Priority::Background } else { Priority::Owner };
-    let last = match Graph::for_mail(base, token, gate, priority, retry).and_then(|graph| graph.of_shared(shared_address(request))) {
+    let last = match for_mail(base, token, &bearer, gate, priority, retry).and_then(|graph| graph.of_shared(shared_address(request))) {
         Ok(graph) => down::messages(&graph, request, &listed, SyncPhase::NewMail, cancel, emit),
         Err(e) => GraphMailResult {
             account: request.account,
@@ -126,6 +152,7 @@ pub(crate) fn sync_mail_with(
 fn inbox_pass(
     base: &str,
     token: &str,
+    bearer: &Bearer<'_>,
     request: &GraphMailRequest,
     inbox: &mailcraft_model::sync::GraphFolder,
     gate: Arc<Gate>,
@@ -134,7 +161,7 @@ fn inbox_pass(
     emit: &mut dyn FnMut(GraphMailResult),
 ) {
     let priority = if request.background { Priority::Background } else { Priority::Owner };
-    let mut last = match Graph::for_mail(base, token, gate, priority, retry).and_then(|graph| graph.of_shared(shared_address(request))) {
+    let mut last = match for_mail(base, token, bearer, gate, priority, retry).and_then(|graph| graph.of_shared(shared_address(request))) {
         Ok(graph) => down::messages(&graph, request, std::slice::from_ref(inbox), SyncPhase::Inbox, cancel, emit),
         Err(e) => GraphMailResult {
             account: request.account,
@@ -166,10 +193,27 @@ pub(crate) fn whole_run(
 
 /// [`sync_folders`] at `base`, through `gate`, asking again as `retry` says.
 pub(crate) fn sync_folders_with(base: &str, token: &str, request: &GraphMailRequest, gate: Arc<Gate>, retry: Retry) -> GraphMailResult {
+    folders_with(base, token, &Bearer::new(token, None), request, gate, retry)
+}
+
+/// Graph for a run's mail, showing the run's `bearer` (`token` is the one it began with).
+fn for_mail<'a>(
+    base: &str,
+    token: &'a str,
+    bearer: &'a Bearer<'a>,
+    gate: Arc<Gate>,
+    priority: Priority,
+    retry: Retry,
+) -> Result<Graph<'a>, NetError> {
+    Graph::for_mail(base, token, gate, priority, retry).map(|graph| graph.renewing(Some(bearer)))
+}
+
+/// [`sync_folders_with`], showing the run's `bearer`.
+fn folders_with(base: &str, token: &str, bearer: &Bearer<'_>, request: &GraphMailRequest, gate: Arc<Gate>, retry: Retry) -> GraphMailResult {
     let started = Instant::now();
     let mut out = GraphMailResult { account: request.account, email: request.email.clone(), ..Default::default() };
     let priority = if request.background { Priority::Background } else { Priority::Owner };
-    let graph = match Graph::for_mail(base, token, gate.clone(), priority, retry).and_then(|graph| graph.of_shared(shared_address(request))) {
+    let graph = match for_mail(base, token, bearer, gate.clone(), priority, retry).and_then(|graph| graph.of_shared(shared_address(request))) {
         Ok(graph) => graph,
         Err(e) => {
             out.errors.push(format!("Couldn't reach Microsoft for the folders: {e}"));
@@ -487,71 +531,187 @@ pub(crate) fn entry_of(value: &Value) -> Option<Entry> {
     Some(Entry { id, name, children, unseen: hidden || search, total: total.unwrap_or(0), unread: unread.unwrap_or(0), counted })
 }
 
-/// Every folder of the mailbox, parents first. A listing that was cut short comes back as far
-/// as it got, with why.
+/// Every folder of the mailbox, parents first, a level of the tree at a time. A listing that was
+/// cut short comes back as far as it got, with why.
 fn listing(graph: &Graph<'_>, known: &Known) -> Result<FolderListing, (FolderListing, NetError)> {
     let query = http::form(&[("$top", FOLDER_PAGE), ("$select", FOLDER_FIELDS)]);
     let mut out = FolderListing { folders: Vec::new(), complete: true };
     let mut seen: HashSet<String> = HashSet::from([known.root.clone()]);
-    // Where to look next: a folder's server id (empty: the top), and how deep that is.
-    let mut queue: VecDeque<(String, usize)> = VecDeque::from([(String::new(), 0)]);
-    while let Some((parent, depth)) = queue.pop_front() {
-        let path = if parent.is_empty() {
-            format!("{}?{query}", folders(graph))
-        } else {
-            format!("{}/{}/childFolders?{query}", folders(graph), http::encode(&parent))
-        };
-        let mut found: Vec<Entry> = Vec::new();
-        let mut unreadable = 0usize;
-        let room = MAX_LISTED_FOLDERS.saturating_sub(out.folders.len());
-        let listed = graph.list(Doing::Folders, graph.url(&path), &[], room.saturating_add(1), &mut |value| match entry_of(value) {
-            Some(entry) => found.push(entry),
-            None => unreadable += 1,
-        });
-        match listed {
-            Ok(whole) => out.complete &= whole && unreadable == 0,
-            // The server is busy, can't be reached, or won't take the sign-in: the walk ends here.
-            Err(e) if matches!(e, NetError::Busy { .. }) || e.is_unreachable() || e.is_refused_sign_in() => {
-                out.complete = false;
-                return Err((out, e));
-            }
-            // This folder's list couldn't be had (it went while the walk was under way, or the
-            // server stumbled): what is under it isn't known, and the walk goes on.
-            Err(e) => {
-                log::debug!("graph folders: a list of subfolders couldn't be read: {e}");
-                out.complete = false;
-            }
-        }
-        for entry in found {
-            if out.folders.len() >= MAX_LISTED_FOLDERS {
-                out.complete = false;
-                break;
-            }
-            // A hidden folder or a search folder is not shown, nor what lies under it; one that
-            // came twice is the first one.
-            if entry.unseen || !seen.insert(entry.id.clone()) {
-                continue;
-            }
-            if entry.children > 0 {
-                if depth + 1 < MAX_DEPTH {
-                    queue.push_back((entry.id.clone(), depth + 1));
-                } else {
+    // The folders whose subfolders are asked for next (a server id; empty: the top), all of one
+    // depth.
+    let mut level: Vec<String> = vec![String::new()];
+    let mut depth = 0usize;
+    while !level.is_empty() {
+        let mut next: Vec<String> = Vec::new();
+        for parents in level.chunks(BATCH_SIZE) {
+            let room = MAX_LISTED_FOLDERS.saturating_sub(out.folders.len()).saturating_add(1);
+            let answers = match children_of(graph, parents, &query, room) {
+                Ok(answers) => answers,
+                Err(e) => {
                     out.complete = false;
+                    return Err((out, e));
+                }
+            };
+            for (parent, (children, failed)) in parents.iter().zip(answers) {
+                match failed {
+                    None => out.complete &= children.whole && children.unreadable == 0,
+                    // The server is busy, can't be reached, or won't take the sign-in: the walk
+                    // ends here.
+                    Some(e) if matches!(e, NetError::Busy { .. }) || e.is_unreachable() || e.is_refused_sign_in() => {
+                        out.complete = false;
+                        return Err((out, e));
+                    }
+                    // This folder's list couldn't be had (it went while the walk was under way, or
+                    // the server stumbled): what is under it isn't known, and the walk goes on.
+                    Some(e) => {
+                        log::debug!("graph folders: a list of subfolders couldn't be read: {e}");
+                        out.complete = false;
+                    }
+                }
+                for entry in children.found {
+                    if out.folders.len() >= MAX_LISTED_FOLDERS {
+                        out.complete = false;
+                        break;
+                    }
+                    // A hidden folder or a search folder is not shown, nor what lies under it;
+                    // one that came twice is the first one.
+                    if entry.unseen || !seen.insert(entry.id.clone()) {
+                        continue;
+                    }
+                    if entry.children > 0 {
+                        if depth + 1 < MAX_DEPTH {
+                            next.push(entry.id.clone());
+                        } else {
+                            out.complete = false;
+                        }
+                    }
+                    let kind = known.kinds.get(&entry.id).copied().unwrap_or_default();
+                    out.folders.push(GraphFolder {
+                        id: entry.id,
+                        parent: parent.clone(),
+                        name: entry.name,
+                        kind,
+                        total: entry.total,
+                        unread: entry.unread,
+                        counted: entry.counted,
+                    });
                 }
             }
-            let kind = known.kinds.get(&entry.id).copied().unwrap_or_default();
-            out.folders.push(GraphFolder {
-                id: entry.id,
-                parent: parent.clone(),
-                name: entry.name,
-                kind,
-                total: entry.total,
-                unread: entry.unread,
-                counted: entry.counted,
-            });
         }
+        level = next;
+        depth += 1;
     }
     Ok(out)
+}
+
+/// The subfolders one folder's list brought: what was read, how many entries couldn't be, and
+/// whether the list was read to its end.
+#[derive(Default)]
+struct Children {
+    found: Vec<Entry>,
+    unreadable: usize,
+    whole: bool,
+}
+
+/// Where the subfolders of `parent` (a server id; empty: the top) are listed, with `query`.
+fn children_path(graph: &Graph<'_>, parent: &str, query: &str) -> String {
+    if parent.is_empty() {
+        format!("{}?{query}", folders(graph))
+    } else {
+        format!("{}/{}/childFolders?{query}", folders(graph), http::encode(parent))
+    }
+}
+
+/// The subfolders of every one of `parents` (at most [`BATCH_SIZE`]), `most` of each, in one
+/// `$batch` (#276): one request for the lot, where asking each by itself took one apiece. What
+/// each brought, and why its list stopped short when it did. A parent whose answer in the batch
+/// isn't a page of folders (refused, busy, gone) is asked by itself, so that what becomes of it
+/// is what became of it before; a batch the server won't take is asked one at a time. The error
+/// is a batch that couldn't be asked at all.
+fn children_of(graph: &Graph<'_>, parents: &[String], query: &str, most: usize) -> Result<Vec<(Children, Option<NetError>)>, NetError> {
+    let mut answers: Vec<Option<(Children, Option<NetError>)>> = (0..parents.len()).map(|_| None).collect();
+    if parents.len() > 1 {
+        let requests: Vec<Value> = parents
+            .iter()
+            .enumerate()
+            .map(|(n, parent)| {
+                let url = graph.batch_path(&format!("/mailFolders/{}/childFolders?{query}", http::encode(parent)));
+                json!({"id": n.to_string(), "method": "GET", "url": url, "headers": {"Prefer": IMMUTABLE_IDS}})
+            })
+            .collect();
+        let body = json!({"requests": requests}).to_string();
+        let reply =
+            graph.call(Kind::Read, &graph.url(BATCH), "POST", &[("Content-Type", "application/json")], Some(&body), ASK_TIMEOUT, MAX_BATCH)?;
+        if reply.status == 200 {
+            let json = serde_json::from_slice::<Value>(&reply.body).unwrap_or(Value::Null);
+            let said = json.get("responses").and_then(Value::as_array).map(Vec::as_slice).unwrap_or_default();
+            for one in said.iter().take(BATCH_SIZE * 2) {
+                let n = one.get("id").and_then(Value::as_str).and_then(|n| n.parse::<usize>().ok());
+                let (Some(slot), Some(parent)) = (n.and_then(|n| answers.get_mut(n)), n.and_then(|n| parents.get(n))) else { continue };
+                if slot.is_some() || one.get("status").and_then(Value::as_u64) != Some(200) {
+                    continue;
+                }
+                let Ok(page) = super::page_from(one.get("body").cloned().unwrap_or(Value::Null)) else { continue };
+                let current = graph.url(&children_path(graph, parent, query));
+                // A next page that can't be followed: the folder is asked by itself.
+                let next = match &page.next {
+                    Some(link) => match graph.next_page(link, &current) {
+                        Ok(url) => Some(url),
+                        Err(_) => continue,
+                    },
+                    None => None,
+                };
+                let mut children = Children { whole: true, ..Children::default() };
+                for value in &page.entries {
+                    if children.found.len().saturating_add(children.unreadable) >= most {
+                        children.whole = false;
+                        break;
+                    }
+                    match entry_of(value) {
+                        Some(entry) => children.found.push(entry),
+                        None => children.unreadable += 1,
+                    }
+                }
+                let mut failed = None;
+                if let Some(url) = next.filter(|_| children.whole) {
+                    let left = most.saturating_sub(children.found.len().saturating_add(children.unreadable));
+                    let (found, unreadable) = (&mut children.found, &mut children.unreadable);
+                    match graph.list(Doing::Folders, url, &[], left, &mut |value| match entry_of(value) {
+                        Some(entry) => found.push(entry),
+                        None => *unreadable += 1,
+                    }) {
+                        Ok(whole) => children.whole = whole,
+                        Err(e) => {
+                            children.whole = false;
+                            failed = Some(e);
+                        }
+                    }
+                }
+                *slot = Some((children, failed));
+            }
+        } else if matches!(reply.status, 401 | 429 | 503 | 504) {
+            return Err(graph.refusal(Doing::Folders, &reply, &body));
+        }
+    }
+    // What the batch didn't settle, one at a time, as every list was asked before.
+    Ok(parents
+        .iter()
+        .zip(answers)
+        .map(|(parent, answer)| {
+            answer.unwrap_or_else(|| {
+                let (mut found, mut unreadable) = (Vec::new(), 0usize);
+                let listed =
+                    graph.list(Doing::Folders, graph.url(&children_path(graph, parent, query)), &[], most, &mut |value| match entry_of(value) {
+                        Some(entry) => found.push(entry),
+                        None => unreadable += 1,
+                    });
+                match listed {
+                    Ok(whole) => (Children { found, unreadable, whole }, None),
+                    Err(e) => (Children { found, unreadable, whole: false }, Some(e)),
+                }
+            })
+        })
+        .collect())
 }
 
 /// Make one change on the server. `None` when it can't be made yet (the folder it goes in isn't
@@ -712,6 +872,8 @@ pub use search::search_messages;
 
 #[cfg(test)]
 mod down_tests;
+#[cfg(test)]
+mod renew_tests;
 #[cfg(test)]
 mod search_tests;
 #[cfg(test)]

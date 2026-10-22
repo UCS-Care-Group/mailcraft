@@ -52,6 +52,8 @@ mod self_update;
 mod shared_send_flow;
 mod single_instance;
 #[cfg(test)]
+mod token_renew_flow;
+#[cfg(test)]
 mod update_flow;
 mod updater;
 mod wipe;
@@ -771,7 +773,21 @@ fn graph_sending_with(mut request: GraphRequest, zone: &str, renew: Renew<'_>, r
         // window as each comes, or put together for a caller that takes it in at once.
         let mut result: Option<mailcraft_model::sync::GraphMailResult> = None;
         let (cancel, pieces) = (&request.cancel, &request.mail_pieces);
-        graph::sync_mail(&access, mail, cancel, &mut |piece| match pieces {
+        // When Graph stops taking the token part-way (it ran out during a long run, or while the
+        // computer slept), one new one from the refresh token, the newest there is (#306).
+        let renewed: std::cell::RefCell<Option<mailcraft_model::sync::Tokens>> = std::cell::RefCell::new(None);
+        let refresh = out.tokens.as_ref().map(|t| t.refresh.clone()).filter(|r| !r.is_empty()).unwrap_or_else(|| request.refresh.clone());
+        let again = || {
+            let got = if mail.shared && !mail.sends.is_empty() {
+                renew_send(&request.oauth, &refresh)?
+            } else {
+                renew(&request.oauth, &refresh, request.favorites_scopes)?
+            };
+            let access = got.tokens.access.clone();
+            *renewed.borrow_mut() = Some(got.tokens);
+            Ok(access)
+        };
+        graph::sync_mail_renewing(&access, &again, mail, cancel, &mut |piece| match pieces {
             Some(to) => {
                 let summary = (piece.listing.as_ref().map(|l| l.folders.len()), piece.errors.len());
                 // Nobody is listening any more (the window closed): stop.
@@ -797,6 +813,11 @@ fn graph_sending_with(mut request: GraphRequest, zone: &str, renew: Renew<'_>, r
                 result.errors.len()
             );
             out.mail = Some(result);
+        }
+        // A token renewed part-way is the one kept, and the one the rest of the run shows.
+        if let Some(tokens) = renewed.into_inner() {
+            access = tokens.access.clone();
+            out.tokens = Some(tokens);
         }
     }
     // What was made, moved, changed or deleted in the calendar here goes up before the calendar
