@@ -211,3 +211,57 @@ fn by_hand_the_window_opens_and_a_script_never_opens_it() {
     assert!(url.contains("what=It%20stopped"), "{url}");
     assert_private(url);
 }
+
+fn opened(h: &egui_kittest::Harness<'static, MailApp>) -> Vec<String> {
+    h.output()
+        .platform_output
+        .commands
+        .iter()
+        .filter_map(|c| match c {
+            egui::OutputCommand::OpenUrl(u) => Some(u.url.clone()),
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn a_cancelled_save_keeps_the_window_and_what_was_typed() {
+    let mut a = app();
+    // A save dialog the test answers when it likes, as the owner would.
+    let (answers_tx, answers) = std::sync::mpsc::channel::<std::sync::mpsc::Sender<Option<String>>>();
+    a.services.file_dialog = Some(Box::new(move |_| {
+        let (tx, rx) = std::sync::mpsc::channel();
+        let _ = answers_tx.send(tx);
+        rx
+    }));
+    let mut h = window(a);
+    h.get_by_label("Report a Problem").click();
+    h.run_steps(3);
+    let Some(crate::dialogs::Dialog::ReportProblem(d)) = h.state_mut().dialog.as_mut() else { panic!("not the window") };
+    d.typed.what = "It stopped".into();
+    h.run_steps(2);
+    h.get_by_label("Open on GitHub").click();
+    h.step();
+    // The dialog is asked for, the window waits, and no page is opened yet.
+    let answer = answers.try_recv().unwrap();
+    assert!(opened(&h).is_empty());
+    assert!(matches!(h.state().dialog, Some(crate::dialogs::Dialog::ReportProblem(_))));
+    answer.send(None).unwrap();
+    h.run_steps(3);
+    let Some(crate::dialogs::Dialog::ReportProblem(d)) = h.state().dialog.as_ref() else { panic!("the window closed on a cancel") };
+    assert_eq!(d.typed.what, "It stopped");
+    assert!(!d.waiting && !d.error.is_empty());
+    assert!(opened(&h).is_empty());
+
+    // Once more, and this time the file is saved: then the page opens and the window closes.
+    let path = std::env::temp_dir().join(format!("mailcraft-report-test-{}.txt", std::process::id()));
+    h.get_by_label("Open on GitHub").click();
+    h.step();
+    answers.try_recv().unwrap().send(Some(path.to_string_lossy().to_string())).unwrap();
+    h.step();
+    let urls = opened(&h);
+    assert!(h.state().dialog.is_none());
+    assert!(urls.first().is_some_and(|u| u.contains("what=It%20stopped")), "{urls:?}");
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), diagnostics(h.state()));
+    let _ = std::fs::remove_file(&path);
+}

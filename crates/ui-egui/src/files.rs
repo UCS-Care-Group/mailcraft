@@ -150,7 +150,12 @@ pub(crate) fn poll(app: &mut MailApp) -> Option<Result<Value, String>> {
             }
             let r = app.execute(&command, params);
             // (Report a Problem says itself where its file went and what to do with it.)
-            if r.is_ok() && command != "ui.reportProblem" {
+            if r.is_ok() && command == "ui.reportProblem" {
+                // The file is saved and GitHub's page open: now the window it came from closes.
+                if matches!(app.dialog, Some(crate::dialogs::Dialog::ReportProblem(_))) {
+                    app.dialog = None;
+                }
+            } else if r.is_ok() {
                 let name = std::path::Path::new(&path).file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
                 app.status(crate::i18n::fmt(tl!("Saved {name}"), &[("name", &name)]));
             }

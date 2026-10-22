@@ -1509,6 +1509,11 @@ msgid "Choose the kind of account"
 msgstr "Kontotyp wählen"
 
 #. interface
+#: crates/ui-egui/src/report_problem.rs
+msgid "Choose where to save the diagnostics: GitHub's page opens once they are saved."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "City"
@@ -8105,6 +8110,11 @@ msgstr "Zum Tag dieser Besprechung kann der Kalender des Kontos nicht abgefragt 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
 msgid "The diagnostics couldn't be saved: {error}"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/report_problem.rs
+msgid "The diagnostics weren't saved, so GitHub's page wasn't opened. Try again, or untick Include diagnostics."
 msgstr ""
 
 #. interface

@@ -310,13 +310,20 @@ pub struct Draft {
     /// What was typed was cut to fit an address.
     pub(crate) cut: bool,
     pub(crate) error: String,
+    /// The save dialog for the diagnostics is open: the window stays, and closes once the file
+    /// is saved (`files::poll`), so that nothing typed is lost to a cancelled dialog.
+    pub(crate) waiting: bool,
+}
+
+fn not_saved() -> String {
+    tl!("The diagnostics weren't saved, so GitHub's page wasn't opened. Try again, or untick Include diagnostics.").to_string()
 }
 
 impl Draft {
     pub(crate) fn new(app: &MailApp, params: &Value) -> Draft {
         let mut typed = Typed::from_params(params);
         typed.title = typed.title.chars().take(TITLE_CHARS).collect();
-        Draft { typed, include: true, text: diagnostics(app), cut: false, error: String::new() }
+        Draft { typed, include: true, text: diagnostics(app), cut: false, error: String::new(), waiting: false }
     }
 
     /// The params of `ui.reportProblem` for `via`.
@@ -366,7 +373,15 @@ impl Draft {
         if !self.error.is_empty() {
             ui.label(egui::RichText::new(self.error.as_str()).color(t.red));
         }
-        let ready = !self.typed.what.trim().is_empty();
+        if self.waiting && app.file_dialog.is_none() {
+            // Still here once the dialog is gone: the file wasn't saved.
+            self.waiting = false;
+            self.error = not_saved();
+        }
+        if self.waiting {
+            ui.label(dim(tl!("Choose where to save the diagnostics: GitHub's page opens once they are saved.")));
+        }
+        let ready = !self.typed.what.trim().is_empty() && !self.waiting;
         let email_no = email_refused(app);
         let mut via = None;
         let mut cancel = false;
@@ -392,6 +407,15 @@ impl Draft {
         }
         let Some(via) = via else { return cancel };
         match app.run("ui.reportProblem", self.params(via)) {
+            Ok(v) if v.get("pending").is_some() => {
+                self.waiting = true;
+                self.error.clear();
+                false
+            }
+            Ok(v) if v.get("cancelled").is_some() => {
+                self.error = not_saved();
+                false
+            }
             Ok(_) => true,
             Err(e) => {
                 self.error = e;
