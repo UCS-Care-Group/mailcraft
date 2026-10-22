@@ -3091,6 +3091,11 @@ msgstr "venerdì"
 msgid "From"
 msgstr "Da"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "From Sender"
+msgstr ""
+
 #. name
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -4343,6 +4348,11 @@ msgstr "Messaggi (.eml, .mbox), calendari (.ics) e contatti (.vcf)"
 #, fuzzy
 msgid "Messages are shown without running anything in them, and the pictures a message keeps on the web are downloaded only when you ask. Passwords are kept in memory only while the app is open."
 msgstr "I messaggi vengono mostrati senza eseguire nulla del loro contenuto, e le immagini che un messaggio tiene sul web vengono scaricate solo su richiesta. Le password vengono conservate in memoria solo mentre l'app è aperta."
+
+#. command label, interface, ribbon
+#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
+msgid "Messages from Sender"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -10970,6 +10980,11 @@ msgstr "questa cassetta postale non è raggiungibile tramite Microsoft Graph (Ma
 #, fuzzy
 msgid "this message already has as many attachments as it can carry"
 msgstr "questo messaggio ha già il numero massimo di allegati"
+
+#. what a command says
+#: crates/engine/src/cmd/mail.rs
+msgid "this message has no sender address to look for"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/mail.rs

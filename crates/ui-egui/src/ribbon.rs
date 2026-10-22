@@ -351,6 +351,7 @@ fn home_mail(app: &MailApp) -> Tab {
             vec![
                 Item::big_menu("filter", "filter", "Filter\nEmail", "Filter Email", Menu::FilterMail).at(4, 4),
                 Item::small("findRelated", "Related", "Find Related Messages", "mail.findRelated", no()).at(5, 7),
+                Item::small("findFromSender", "From Sender", "Messages from Sender", "mail.findFromSender", no()).at(5, 7),
             ],
         ),
         g("Send/Receive", vec![Item::big("sync", "Send/Receive\nAll Folders", "ui.sync", no()).at(5, 5)]),
@@ -2290,7 +2291,7 @@ mod tests {
                 ("Respond", vec!["Reply", "Reply\nAll", "Forward", "Meeting", "Add Sender"]),
                 ("Move", vec!["Move", "Rules"]),
                 ("Tags", vec!["Unread/\nRead", "Categorize", "Follow\nUp", "Pin"]),
-                ("Find", vec!["Filter\nEmail", "Related"]),
+                ("Find", vec!["Filter\nEmail", "Related", "From Sender"]),
                 ("Send/Receive", vec!["Send/Receive\nAll Folders"]),
             ]
         );

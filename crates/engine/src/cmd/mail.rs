@@ -55,6 +55,7 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("mail.junk", "Block Sender", "Home › Delete", junk).params(IDS).selection(needs_message),
         CommandSpec::new("mail.notJunk", "Not Junk", "Home › Delete", not_junk).key("Mod+Alt+J").params(IDS).selection(needs_message),
         CommandSpec::new("mail.findRelated", "Find Related Messages", "Home › Find", find_related).pure().selection(needs_message),
+        CommandSpec::new("mail.findFromSender", "Messages from Sender", "Home › Find", find_from_sender).pure().selection(needs_message),
         CommandSpec::new("mail.openAttachment", "Open Attachment", "Attachments › Actions", open_attachment)
             .pure()
             .params(
@@ -399,6 +400,19 @@ fn find_related(s: &mut Session, _: &Value) -> CmdResult {
         return Err(fail("this message has no subject to look for"));
     }
     s.view.search = format!("subject:\"{}\"", topic.replace('"', ""));
+    s.view.scope = crate::Scope::Everywhere;
+    Ok(json!({"search": s.view.search, "found": s.rows().len()}))
+}
+
+/// Mail from the sender of the message in focus, in every mailbox: a search for its address, which
+/// finds that address and no other (#301), left in the search box to be narrowed.
+fn find_from_sender(s: &mut Session, _: &Value) -> CmdResult {
+    let m = s.focused_message().ok_or_else(|| fail("select a message first"))?;
+    let address = m.from.email.trim();
+    if !mailcraft_model::search::is_address(address) {
+        return Err(fail("this message has no sender address to look for"));
+    }
+    s.view.search = format!("from:{address}");
     s.view.scope = crate::Scope::Everywhere;
     Ok(json!({"search": s.view.search, "found": s.rows().len()}))
 }

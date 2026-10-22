@@ -430,6 +430,21 @@ fn search_filters_the_list_and_can_look_everywhere() {
     let first_id = first(&mut s);
     run(&mut s, "mail.select", json!({"id": first_id}));
     assert_eq!(run(&mut s, "mail.findRelated", json!({}))["found"], 1);
+
+    // Mail from its sender, by address, in every mailbox (#301).
+    run(&mut s, "view.clearSearch", json!({}));
+    run(&mut s, "mail.select", json!({"id": first_id}));
+    let sender = s.mailbox.message(first_id).unwrap().from.email.clone();
+    let said = run(&mut s, "mail.findFromSender", json!({}));
+    assert_eq!(said["search"], format!("from:{sender}"));
+    assert_eq!(s.view.scope, crate::Scope::Everywhere);
+    let rows = s.rows();
+    assert!(!rows.is_empty() && said["found"] == rows.len());
+    assert!(rows.iter().all(|r| s.mailbox.message(r.id).unwrap().from.email.eq_ignore_ascii_case(&sender)));
+    // A message with no sender address to look for says so, and the search is as it was.
+    s.mailbox.message_mut(first_id).unwrap().from.email.clear();
+    assert!(s.run("mail.findFromSender", &json!({})).is_err());
+    assert_eq!(s.view.search, format!("from:{sender}"));
 }
 
 /// A list shows what a message says to its reader: the HTML's words when there is HTML, never

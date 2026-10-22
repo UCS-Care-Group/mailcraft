@@ -3087,6 +3087,11 @@ msgstr "Freitag"
 msgid "From"
 msgstr "Von"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "From Sender"
+msgstr ""
+
 #. name
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -4337,6 +4342,11 @@ msgstr "Nachrichten (.eml, .mbox), Kalender (.ics) und Kontakte (.vcf)"
 #, fuzzy
 msgid "Messages are shown without running anything in them, and the pictures a message keeps on the web are downloaded only when you ask. Passwords are kept in memory only while the app is open."
 msgstr "Nachrichten werden angezeigt, ohne dass etwas darin ausgeführt wird, und Bilder, die eine Nachricht im Web hat, werden nur auf Ihre Anforderung heruntergeladen. Kennwörter bleiben nur im Arbeitsspeicher, solange die App geöffnet ist."
+
+#. command label, interface, ribbon
+#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
+msgid "Messages from Sender"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -10954,6 +10964,11 @@ msgstr "dieses Postfach ist über Microsoft Graph nicht erreichbar (MailboxNotEn
 #, fuzzy
 msgid "this message already has as many attachments as it can carry"
 msgstr "diese Nachricht hat bereits so viele Anlagen, wie sie aufnehmen kann"
+
+#. what a command says
+#: crates/engine/src/cmd/mail.rs
+msgid "this message has no sender address to look for"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/mail.rs

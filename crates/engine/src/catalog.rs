@@ -98,6 +98,7 @@ Home|Find|Search People|people.search
 Home|Find|Address Book|people.addressBook
 Home|Find|Filter Email|view.filter
 Home|Find|Find Related Messages|mail.findRelated
+Home|Find|Messages from Sender|mail.findFromSender
 Home|Actions|Add Sender to Contacts|people.fromMessage
 Home|Actions|View Source|mail.viewSource
 Home|Actions|Translate|mail.translate

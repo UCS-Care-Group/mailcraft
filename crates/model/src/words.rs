@@ -46,7 +46,7 @@ pub fn texts<'a>(m: &'a Message, body: &'a str, mut f: impl FnMut(u8, &'a str) -
 }
 
 /// Whether `c` is a combining mark (an accent written after its letter): dropped from a word.
-fn is_mark(c: char) -> bool {
+pub(crate) fn is_mark(c: char) -> bool {
     matches!(c, '\u{0300}'..='\u{036F}' | '\u{1AB0}'..='\u{1AFF}' | '\u{1DC0}'..='\u{1DFF}' | '\u{20D0}'..='\u{20FF}' | '\u{FE20}'..='\u{FE2F}')
 }
 

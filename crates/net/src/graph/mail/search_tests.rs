@@ -46,6 +46,11 @@ fn what_goes_to_the_server_is_what_its_search_understands() {
     assert_eq!(search_value(r#"AND OR (x) a\b c*d "e"f"#).as_deref(), Some(r#""and AND or AND x AND \"a b\" AND \"c d\" AND ef""#));
     // Case and accents as the owner wrote them: the server folds them as it does.
     assert_eq!(search_value("Gvožđar").as_deref(), Some(r#""Gvožđar""#));
+    // #301: a whole address goes whole; one the syntax can't take as it is (`+`) is checked
+    // here alone, and nothing else of the search is lost.
+    assert_eq!(search_value("from:Ada@Example.org").as_deref(), Some(r#""from:ada@example.org""#));
+    assert_eq!(search_value("from:ada+news@example.org"), None);
+    assert_eq!(search_value("from:ada+news@example.org budget").as_deref(), Some(r#""budget""#));
 }
 
 /// #194: a space after a keyword's colon sends the keyword with its word; a keyword with nothing
