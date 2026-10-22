@@ -256,6 +256,11 @@ msgid "A meeting that repeats and skips some days can't be put on the server's c
 msgstr "Una reunión periódica que omite algunos días no se puede poner en el calendario del servidor desde aquí: todos los invitados recibirían una cancelación por cada día omitido. Guárdela en un calendario de este equipo o vuelva a crearla sin los días omitidos."
 
 #. interface
+#: crates/ui-egui/src/report_problem.rs
+msgid "A new message to MailCraft's maintainers, from your account: nothing is sent until you press Send."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "A new version is downloaded in the background, kept only when MailCraft's own release signature says it is ours, and installed when you restart to update or quit."
@@ -517,6 +522,11 @@ msgstr "Agregar una cuenta"
 #, fuzzy
 msgid "Add an account first"
 msgstr "Agregue primero una cuenta"
+
+#. interface
+#: crates/ui-egui/src/report_problem.rs
+msgid "Add an account that sends mail first (File › Add Account)."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -1245,7 +1255,7 @@ msgid "Calibri"
 msgstr "Calibri"
 
 #. interface
-#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/report_problem.rs
 #, fuzzy
 msgid "Cancel"
 msgstr "Cancelar"
@@ -2756,7 +2766,7 @@ msgid "File"
 msgstr "Archivo"
 
 #. interface
-#: crates/ui-egui/src/files.rs
+#: crates/ui-egui/src/files.rs crates/ui-egui/src/report_problem.rs
 #, fuzzy
 msgid "File dialogs aren't available here"
 msgstr "Los cuadros de diálogo de archivos no están disponibles aquí"
@@ -2812,6 +2822,11 @@ msgstr "Buscar mensajes relacionados"
 #, fuzzy
 msgid "Finding your account settings…"
 msgstr "Buscando la configuración de su cuenta…"
+
+#. interface
+#: crates/ui-egui/src/report_problem.rs
+msgid "Finish or close the message you're writing first."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/approval.rs crates/ui-egui/src/lib.rs
@@ -3111,6 +3126,26 @@ msgstr "Obtener mensaje"
 msgid "Get Task"
 msgstr "Obtener tarea"
 
+#. interface
+#: crates/ui-egui/src/report_problem.rs
+msgid "GitHub is public and needs a GitHub account. Email is private and goes from your own account to MailCraft's maintainers."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/report_problem.rs
+msgid "GitHub issues are public: don't put email addresses, names or anything from your messages in them. Describe what happened in your own words."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/report_problem.rs
+msgid "GitHub's page is open: attach the diagnostics file there, then submit. MailCraft sent nothing."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/report_problem.rs
+msgid "GitHub's page is open: check it, then submit. MailCraft sent nothing."
+msgstr ""
+
 #. name
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
@@ -3386,6 +3421,11 @@ msgstr "Bandeja de entrada"
 #, fuzzy
 msgid "Include"
 msgstr "Incluir"
+
+#. interface
+#: crates/ui-egui/src/report_problem.rs
+msgid "Include diagnostics"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -5240,6 +5280,11 @@ msgid "On"
 msgstr "El día"
 
 #. interface
+#: crates/ui-egui/src/report_problem.rs
+msgid "On GitHub they are saved to a file you choose, which you attach to the issue; by email they are attached to the message. They are never put in the link."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "On the"
@@ -5432,6 +5477,11 @@ msgid "Open in a Window of Its Own"
 msgstr "Abrir en una ventana propia"
 
 #. interface
+#: crates/ui-egui/src/report_problem.rs
+msgid "Open on GitHub"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Open source under the MIT License or the Apache License 2.0, at your option."
@@ -5484,6 +5534,11 @@ msgstr "Abriendo datos adjuntos del correo"
 #, fuzzy
 msgid "Opening {name}"
 msgstr "Abriendo {name}"
+
+#. interface
+#: crates/ui-egui/src/report_problem.rs
+msgid "Opens GitHub's page in your browser, filled in: you check it and submit it there."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/scheduling.rs
@@ -6238,6 +6293,18 @@ msgstr "Responder a todos"
 msgid "Reply with Meeting"
 msgstr "Responder con una reunión"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid ""
+"Report a\n"
+"Problem"
+msgstr ""
+
+#. command label, interface
+#: crates/ui-egui/src/chrome.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/lib.rs
+msgid "Report a Problem"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -6563,10 +6630,20 @@ msgid "Saving the mailbox… {done} of {total} messages"
 msgstr "Guardando el buzón… {done} de {total} mensajes"
 
 #. interface
+#: crates/ui-egui/src/report_problem.rs
+msgid "Say what happened (`what`)"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/windows.rs
 #, fuzzy
 msgid "Say what to open: `message` or `event` by its id, or `new` (\"appointment\" or \"meeting\")"
 msgstr "Indique qué abrir: `message` o `event` por su id., o `new` (\"appointment\" o \"meeting\")"
+
+#. interface
+#: crates/ui-egui/src/report_problem.rs
+msgid "Say what went wrong. MailCraft sends nothing by itself: you check the report and send it."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -6822,6 +6899,11 @@ msgstr "¿Enviar una respuesta?"
 #, fuzzy
 msgid "Send and receive automatically"
 msgstr "Enviar y recibir automáticamente"
+
+#. interface
+#: crates/ui-egui/src/report_problem.rs
+msgid "Send by Email"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
@@ -7756,6 +7838,11 @@ msgid "Teams meeting"
 msgstr "Reunión de Teams"
 
 #. interface
+#: crates/ui-egui/src/chrome.rs
+msgid "Tell MailCraft's makers what went wrong, on GitHub or by email. You check the report and send it yourself."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "Tenant"
@@ -7840,10 +7927,20 @@ msgid "That is not a sender's address"
 msgstr "Eso no es la dirección de un remitente"
 
 #. interface
+#: crates/ui-egui/src/report_problem.rs
+msgid "That is too long for a report: shorten it"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
 #, fuzzy
 msgid "That isn't a shared mailbox"
 msgstr "Eso no es un buzón compartido"
+
+#. interface
+#: crates/ui-egui/src/report_problem.rs
+msgid "That's as much as a link to GitHub can carry: add the rest on GitHub once the page is open."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -8018,6 +8115,11 @@ msgstr "El día anterior"
 #, fuzzy
 msgid "The day of this meeting is not one the account's calendar can be asked about."
 msgstr "No se puede consultar el calendario de la cuenta sobre el día de esta reunión."
+
+#. interface
+#: crates/ui-egui/src/report_problem.rs
+msgid "The diagnostics couldn't be saved: {error}"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -8233,7 +8335,7 @@ msgid "The test appointment is gone again. Nothing else in the calendar was read
 msgstr "La cita de prueba ya se ha vuelto a quitar. No se leyó ni se cambió nada más del calendario."
 
 #. interface
-#: crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/invitation.rs
+#: crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/report_problem.rs
 #, fuzzy
 msgid "The window isn't up yet."
 msgstr "La ventana todavía no está abierta."
@@ -8469,6 +8571,11 @@ msgstr "Este contacto se eliminará de forma definitiva."
 #, fuzzy
 msgid "This copy of MailCraft doesn't update itself."
 msgstr "Esta copia de MailCraft no se actualiza sola."
+
+#. interface
+#: crates/ui-egui/src/report_problem.rs
+msgid "This copy of MailCraft has no address to send reports to."
+msgstr ""
 
 #. name
 #: crates/ui-egui/src/account_setup.rs
@@ -8846,7 +8953,7 @@ msgid "Time zones"
 msgstr "Zonas horarias"
 
 #. interface
-#: crates/ui-egui/src/forms.rs
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/report_problem.rs
 #, fuzzy
 msgid "Title"
 msgstr "Título"
@@ -9264,6 +9371,11 @@ msgid "Week starts on"
 msgstr "La semana empieza el"
 
 #. interface
+#: crates/ui-egui/src/report_problem.rs
+msgid "What happened"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "What happens to mail as it arrives"
@@ -9304,6 +9416,16 @@ msgstr "Qué hacer a continuación"
 #, fuzzy
 msgid "What you change is changed in your calendar only. The organizer and the other people invited are not told and still have the meeting as it was, so you could miss it. An update from the organizer can replace your change."
 msgstr "Lo que cambie se cambia solo en su calendario. Al organizador y a los demás invitados no se les avisa y siguen teniendo la reunión como estaba, así que podría perdérsela. Una actualización del organizador puede reemplazar su cambio."
+
+#. interface
+#: crates/ui-egui/src/report_problem.rs
+msgid "What you expected (optional)"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/report_problem.rs
+msgid "What you wrote is too long for a link to GitHub: shorten it, and add the rest on GitHub"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/updates.rs
@@ -9608,6 +9730,11 @@ msgstr "Su organización reserva a sus administradores la concesión de este per
 #, fuzzy
 msgid "Your organisation's administrator has to approve reading shared mailboxes once: File › Info"
 msgstr "El administrador de su organización tiene que aprobar una vez la lectura de buzones compartidos: Archivo › Información"
+
+#. interface
+#: crates/ui-egui/src/report_problem.rs
+msgid "Your report is ready in a new message: check it, then press Send."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs

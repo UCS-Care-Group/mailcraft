@@ -52,4 +52,4 @@ body:
     id: diagnostics
     attributes:
       label: Diagnostics
-      description: "In MailCraft: Help › Copy Diagnostics, then paste here. It has the version, the platform and the end of the log, with addresses, names, paths, hosts, links and quoted text taken out. Read it before you submit. If MailCraft crashed, start it again first: the copy includes the run before. Version 0.3.0 and earlier don't have the button; leave this empty."
+      description: "In MailCraft: Help › Copy Diagnostics, then paste here; or, from Report a Problem, drag the diagnostics file it saved into this box. It has the version, the platform and the end of the log, with addresses, names, paths, hosts, links and quoted text taken out. Read it before you submit. If MailCraft crashed, start it again first: the copy includes the run before. Version 0.3.0 and earlier don't have the button; leave this empty."

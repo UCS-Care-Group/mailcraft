@@ -29,8 +29,22 @@ fn qat_button(ui: &mut Ui, app: &mut MailApp, icon: &str, tip: &str, id: &str) -
 /// "Copy Diagnostics", beside the window's own buttons, so a tester finds it (D1): the same command
 /// as Help › Copy Diagnostics.
 fn diagnostics_pill(ui: &mut Ui, app: &mut MailApp, h: f32) {
+    let tip = tl!(
+        "Copy the version, the platform and the end of MailCraft's own record, to paste into a problem report. No message, address, password or token is in it, and nothing is sent."
+    );
+    pill(ui, app, h, "copy", tl!("Copy Diagnostics"), tip, "ui.copyDiagnostics");
+}
+
+/// "Report a Problem", beside Copy Diagnostics: the same command as Help › Report a Problem,
+/// which opens its window ([`crate::report_problem`]).
+fn report_pill(ui: &mut Ui, app: &mut MailApp, h: f32) {
+    let tip = tl!("Tell MailCraft's makers what went wrong, on GitHub or by email. You check the report and send it yourself.");
+    pill(ui, app, h, "report", tl!("Report a Problem"), tip, "ui.reportProblem");
+}
+
+/// A rounded button of the title bar, with its icon and its label, that runs `id` by hand.
+fn pill(ui: &mut Ui, app: &mut MailApp, h: f32, icon: &str, label: &str, tip: &str, id: &str) {
     let t = Tokens::get(ui.ctx());
-    let label = tl!("Copy Diagnostics");
     let font = medium(11.5);
     let w = ui.ctx().fonts_mut(|f| f.layout_no_wrap(label.to_string(), font.clone(), t.text).size().x);
     let (r, resp) = ui.allocate_exact_size(vec2(w + 34.0, h), Sense::click());
@@ -42,14 +56,11 @@ fn diagnostics_pill(ui: &mut Ui, app: &mut MailApp, h: f32) {
         t.title_bar
     };
     ui.painter().rect(r, h / 2.0, fill, Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
-    icons::paint(ui.painter(), Rect::from_center_size(pos2(r.min.x + 15.0, r.center().y), vec2(16.0, 16.0)), "copy", t.icon, t.accent);
+    icons::paint(ui.painter(), Rect::from_center_size(pos2(r.min.x + 15.0, r.center().y), vec2(16.0, 16.0)), icon, t.icon, t.accent);
     ui.painter().text(pos2(r.min.x + 26.0, r.center().y), Align2::LEFT_CENTER, label, font, t.text);
     resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, label));
-    let tip = tl!(
-        "Copy the version, the platform and the end of MailCraft's own record, to paste into a problem report. No message, address, password or token is in it, and nothing is sent."
-    );
     if resp.on_hover_text(tip).clicked() {
-        let _ = app.run("ui.copyDiagnostics", json!({}));
+        let _ = app.run(id, json!({}));
     }
 }
 
@@ -214,6 +225,8 @@ pub fn title_bar(app: &mut MailApp, ui: &mut Ui) {
                     }
                     ui.add_space(8.0);
                     diagnostics_pill(ui, app, avatar_h.min(26.0));
+                    ui.add_space(4.0);
+                    report_pill(ui, app, avatar_h.min(26.0));
                     right_start = ui.min_rect().min.x;
                 });
             });

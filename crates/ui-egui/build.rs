@@ -19,7 +19,25 @@ fn read(path: &Path) -> Result<String, String> {
     std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))
 }
 
+/// The project's maintainers' address, from `funding.json` at the root of the repository (its
+/// `entity.email`, #54): Report a Problem's Send by Email writes to it. Empty, with a warning,
+/// when it can't be read; the window then says email isn't available.
+fn maintainer() -> String {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../funding.json");
+    let found = read(&path).and_then(|json| {
+        let value: serde_json::Value = serde_json::from_str(&json).map_err(|e| format!("{}: {e}", path.display()))?;
+        let email = value.get("entity").and_then(|e| e.get("email")).and_then(serde_json::Value::as_str).unwrap_or_default();
+        let plain = email.len() <= 200 && email.matches('@').count() == 1 && email.chars().all(|c| c.is_ascii_alphanumeric() || "@.-_+".contains(c));
+        if plain { Ok(email.to_string()) } else { Err(format!("{}: no plain entity.email", path.display())) }
+    });
+    found.unwrap_or_else(|e| {
+        println!("cargo::warning=maintainer address: {e}; Report a Problem can't send by email");
+        String::new()
+    })
+}
+
 fn main() {
+    println!("cargo::rustc-env=MAILCRAFT_MAINTAINER_EMAIL={}", maintainer());
     let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../contributors");
     // Without people.toml everyone is still credited, by username.
     let people = read(&dir.join("people.toml")).unwrap_or_else(|e| {

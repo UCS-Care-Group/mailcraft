@@ -89,6 +89,9 @@ pub enum Dialog {
         account: Id,
     },
     Form(Form),
+    /// Help › Report a Problem ([`crate::report_problem`]): it only collects what went wrong,
+    /// then runs `ui.reportProblem`.
+    ReportProblem(Box<crate::report_problem::Draft>),
     /// Propose New Time, Forward, or the list of what was proposed ([`crate::meeting_dialogs`]).
     Meeting(crate::meeting_dialogs::MeetingDialog),
 }
@@ -157,6 +160,7 @@ impl Dialog {
             Dialog::About(AboutTab::Testers) => "testers",
             Dialog::GraphSwitch { .. } => "graphSwitch",
             Dialog::Form(f) => f.name(),
+            Dialog::ReportProblem(_) => "reportProblem",
             Dialog::Meeting(d) => d.name(),
         }
     }
@@ -207,6 +211,7 @@ impl Dialog {
                 _ => Dialog::About(AboutTab::About),
             },
             "contributors" => Dialog::About(AboutTab::Contributors),
+            "reportProblem" => Dialog::ReportProblem(Box::new(crate::report_problem::Draft::new(app, params))),
             "testers" => Dialog::About(AboutTab::Testers),
             // An item that repeats is asked about before it opens: just this one, or the series?
             "editEvent" if opening_question(app, params).is_some() => {
@@ -695,6 +700,7 @@ pub fn input_dialog(id: &str, params: &Value) -> Option<&'static str> {
         "account.add" if !has("email") => Some("account"),
         "rules.list" => Some("rules"),
         "category.list" => Some("categories"),
+        "ui.reportProblem" if !has("what") => Some("reportProblem"),
         _ => None,
     }
 }
@@ -1258,6 +1264,12 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
             let title = form.title();
             let mut done = false;
             let open = window(ctx, &title, form.width(), |ui| done = form.show(app, ui));
+            close |= !open || done;
+        }
+        // (Enter is nobody's in this one either: it has boxes of several lines.)
+        Dialog::ReportProblem(draft) => {
+            let mut done = false;
+            let open = window(ctx, tl!("Report a Problem"), crate::report_problem::WIDTH, |ui| done = draft.show(app, ui));
             close |= !open || done;
         }
         // (Enter is nobody's in these: what they send, they send from a button.)

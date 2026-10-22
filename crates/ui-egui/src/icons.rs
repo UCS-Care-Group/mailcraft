@@ -914,6 +914,12 @@ pub fn paint(p: &Painter, r: Rect, name: &str, c: Color32, accent: Color32) {
             pen.circle(10.0, 10.0, 7.5, c);
             pen.question(10.0, 9.75, 0.6, a);
         }
+        // Report a Problem: a speech bubble with an exclamation mark in it.
+        "report" | "reportProblem" => {
+            pen.rounded(&[(2.5, 3.5), (17.5, 3.5), (17.5, 13.5), (9.0, 13.5), (5.5, 17.0), (5.5, 13.5), (2.5, 13.5)], true, 1.0, c);
+            pen.line_c(&[(10.0, 6.0), (10.0, 9.5)], a);
+            pen.fcircle(10.0, 11.5, 0.9, a);
+        }
         "print" => {
             pen.rounded(&[(6.0, 6.5), (6.0, 2.5), (14.0, 2.5), (14.0, 6.5)], false, 1.0, c);
             pen.rounded(&[(5.5, 13.5), (2.5, 13.5), (2.5, 6.5), (17.5, 6.5), (17.5, 13.5), (14.5, 13.5)], false, 1.0, c);
@@ -1230,6 +1236,8 @@ pub const NAMES: &[&str] = &[
     "info",
     "about",
     "help",
+    "report",
+    "reportProblem",
     "print",
     "theme",
     "phone",

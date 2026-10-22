@@ -225,6 +225,8 @@ pub fn primary_button(ui: &mut Ui, label: &str, enabled: bool) -> Response {
     };
     ui.painter().rect_filled(r, 4.0, fill);
     ui.painter().text(r.center(), Align2::CENTER_CENTER, label, crate::theme::medium(12.5), if enabled { t.on_accent } else { t.text_disabled });
+    // (Named for screen readers, as a button.)
+    resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, enabled, label));
     resp
 }
 

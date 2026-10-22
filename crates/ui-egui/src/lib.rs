@@ -67,6 +67,7 @@ pub mod nav;
 pub mod people_view;
 pub mod reading;
 mod reminders;
+mod report_problem;
 pub mod ribbon;
 pub mod scheduling;
 mod search_pills;
@@ -648,7 +649,7 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         "ui.dialog",
         "Open Dialog",
         "Window",
-        r#"{"name": "commands"|"event"|"meeting"|"editEvent"|"contact"|"editContact"|"task"|"editTask"|"folder"|"goToDate"|"link"|"account"|"categories"|"rules"|"about"|"contributors"|"testers"|"proposeTime"|"forwardMeeting"|"proposals", …} (account: "email"?: string to start with, or "id": number for that account's settings, and with "page": "approval" the page that says what to do when its organisation has to approve MailCraft first (as `ui.approvalHelp` opens it); proposeTime: "id"?: number (an item of the calendar) | "message": number (an invitation in the mail); forwardMeeting: "id"?: number; proposals: "id"?: number | "message": number — the first two write to other people only from their own Propose and Send buttons)"#,
+        r#"{"name": "commands"|"event"|"meeting"|"editEvent"|"contact"|"editContact"|"task"|"editTask"|"folder"|"goToDate"|"link"|"account"|"categories"|"rules"|"about"|"contributors"|"testers"|"reportProblem"|"proposeTime"|"forwardMeeting"|"proposals", …} (account: "email"?: string to start with, or "id": number for that account's settings, and with "page": "approval" the page that says what to do when its organisation has to approve MailCraft first (as `ui.approvalHelp` opens it); proposeTime: "id"?: number (an item of the calendar) | "message": number (an invitation in the mail); forwardMeeting: "id"?: number; proposals: "id"?: number | "message": number — the first two write to other people only from their own Propose and Send buttons)"#,
     ),
     ("ui.closeDialog", "Close Dialog", "Window", "{}"),
     ("ui.theme", "Interface Theme", "File › Options", r#"{"value": "light"|"dark"|"system"}"#),
@@ -843,6 +844,12 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         "Copy Diagnostics",
         "Help",
         r#"{} — the version, the platform and the end of the program's log, with addresses, names, paths, hosts, links, ids and quoted text taken out, to the clipboard for a problem report. Nothing is sent"#,
+    ),
+    (
+        "ui.reportProblem",
+        "Report a Problem",
+        "Help",
+        r#"{"what": string, "title"?: string, "expected"?: string, "via"?: "github"|"email" (default github), "diagnostics"?: bool, "path"?: string (github: where the diagnostics file is saved), "open"?: bool (default true)} — by hand without `what`: the Report a Problem window. github: opens the repository's new-issue page in the system's browser, filled in with the title, what was typed, the version and the platform, and nothing else (never the diagnostics, never more than 8,000 characters: text that doesn't fit is refused); with `diagnostics`, the same text as `ui.copyDiagnostics` is saved to `path` (without one it is answered as `name` and `data`), to attach on the page. email: starts a new message to MailCraft's maintainers from an account that sends mail, with the diagnostics attached when asked; nothing is sent until Send is pressed. `open: false` only answers what would be opened. MailCraft posts nothing itself. Answers {"via", "url"?, "length"?, "saved"?, "attached"?}"#,
     ),
     ("ui.copyLinkAddress", "Copy Link Address", "Message", r#"{"url": string} — a link's address (http, https, mailto or tel) to the clipboard"#),
     (
@@ -1547,17 +1554,7 @@ impl MailApp {
                 Ok(json!({}))
             }
             "ui.copyDiagnostics" => {
-                let mut text = match &self.services.diagnostics {
-                    Some(report) => report(),
-                    None => format!(
-                        "### MailCraft diagnostics\n\n- Version: {}\n- Platform: {} {}\n\nNo log is kept here.\n",
-                        env!("CARGO_PKG_VERSION"),
-                        std::env::consts::OS,
-                        std::env::consts::ARCH
-                    ),
-                };
-                // How long the last Send/Receive took, account by account (#276).
-                text.push_str(&sync_panel::timings_report(self));
+                let text = report_problem::diagnostics(self);
                 if let Some(ctx) = &self.ctx {
                     ctx.copy_text(text.clone());
                 }
@@ -1715,7 +1712,8 @@ impl MailApp {
                     .or_else(|| approval::ui_command(self, id, p))
                     .or_else(|| graph_switch::ui_command(self, id, p))
                     .or_else(|| updates::ui_command(self, id, p))
-                    .or_else(|| attachment_open::ui_command(self, id, p));
+                    .or_else(|| attachment_open::ui_command(self, id, p))
+                    .or_else(|| report_problem::ui_command(self, id, p));
             }
         })
     }

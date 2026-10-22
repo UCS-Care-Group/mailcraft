@@ -3,6 +3,7 @@
 - **Interface languages (preview).** French, German, Spanish and Italian, in File › Options › General › Language (Automatic follows the system's language). Every text is translated, with dates, the clock and the first day of the week as each language has them. Each is marked Preview ("Deutsch (Vorschau)") until a native speaker has reviewed it: corrections are welcome, and `docs/translating.md` says how ([#254](https://github.com/GITHUB_REPOSITORY/issues/254)).
 - **More mail when you ask for it.** Raising File › Options › Messages to download per folder (or setting it to All) now brings down the older mail a smaller limit left out, at the next Send/Receive of an IMAP account (#223, thanks to @vvaltson).
 - **Favorites** name two accounts' folders of one name with their account ("Inbox - Work"), thanks to @mickeyr.
+- **Report a Problem**, in the title bar beside Copy Diagnostics and in Help: say what went wrong, and MailCraft starts the report for you, on GitHub (the problem form filled in, in your browser, with the diagnostics saved to a file to attach; public) or by email (a new message to the maintainers from your own account, with the diagnostics attached; private). You read everything first, and nothing goes until you submit it or press Send.
 - **Reminder windows** follow the main window's light or dark theme, and carry its icon.
 
 **Fixes**

@@ -310,8 +310,16 @@ const SAFE: &[&str] = &[
     "ui.findInvitation",
 ];
 
-const SEND: &[&str] =
-    &["compose.send", "mail.sendAgain", "calendar.propose", "calendar.forward", "ui.downloadPictures", "ui.retryPictures", "ui.joinMeeting"];
+const SEND: &[&str] = &[
+    "compose.send",
+    "mail.sendAgain",
+    "calendar.propose",
+    "calendar.forward",
+    "ui.downloadPictures",
+    "ui.retryPictures",
+    "ui.joinMeeting",
+    "ui.reportProblem",
+];
 
 const DELETE: &[&str] = &[
     "mail.deletePermanently",
@@ -462,6 +470,7 @@ pub const FILE_PARAMS: &[(&str, &str, FileUse)] = &[
     ("file.exportCalendar", "path", FileUse::Writes { ext: "ics" }),
     ("file.exportContacts", "path", FileUse::Writes { ext: "vcf" }),
     ("mail.saveAttachment", "path", FileUse::Writes { ext: "" }),
+    ("ui.reportProblem", "path", FileUse::Writes { ext: "txt" }),
 ];
 
 /// The file param of `id`, if it has one.
@@ -707,9 +716,9 @@ mod tests {
         all.sort_unstable();
         all.dedup();
         assert_eq!(all.len(), n, "an id is in two lists");
-        // Every file param is a registered command's.
+        // Every file param is a registered command's, or one of the window's own (`ui.*`).
         for (id, ..) in FILE_PARAMS {
-            assert!(s.registry.get(id).is_some(), "{id}");
+            assert!(s.registry.get(id).is_some() || id.starts_with("ui."), "{id}");
         }
     }
 
