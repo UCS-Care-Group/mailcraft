@@ -26,6 +26,7 @@
 - Send/Receive of a Microsoft account no longer removes a message that was moved into another folder when the list of folders comes back incomplete and misses that folder: the message stays until a Send/Receive with the whole list finds it where it went ([#305](https://github.com/GITHUB_REPOSITORY/issues/305)).
 - On a Mac, the message list's rows reach the right edge, with a thin scroll bar over them while scrolling, as in other Mac programs (thanks to @pick2510 for reporting).
 - On macOS the menu bar at the top of the screen now has File, Edit, View, Folder, Message, Window and Help as well as MailCraft's own menu, running the same commands with the same ⌘ keys ([#253](https://github.com/GITHUB_REPOSITORY/issues/253), thanks to @HerbJul).
+- The settings of an account kept in step through Microsoft Graph no longer show a user name or IMAP and SMTP servers it doesn't use; they say its mail comes through Microsoft Graph instead ([#312](https://github.com/GITHUB_REPOSITORY/issues/312), thanks to @kartas39).
 
 **Early alpha.** The foundations are in place and tested, but much of what a daily mail program needs is not there yet, and most of the Microsoft 365 behaviour has only been tested against stand-ins. What works is in the [README](https://github.com/GITHUB_REPOSITORY#what-works-today).
 
