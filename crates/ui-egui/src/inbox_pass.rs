@@ -26,11 +26,14 @@
 //!   Inbox itself, and the next check is a minute after it.
 //! - Quiet: Send/Receive Progress and the status line stay as they were, nothing is asked and
 //!   nothing is shown; what went wrong goes to the log as a round's does, and the next tick tries
-//!   again. A run the owner asks for meanwhile goes ahead: the check gives way.
+//!   again; a check that keeps failing says so once, until one gets through. A run the owner
+//!   asks for meanwhile goes ahead: the check gives way, and whatever sign-in it renewed is kept
+//!   all the same.
 
-use std::collections::VecDeque;
+use std::collections::{HashSet, VecDeque};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::mpsc::{Receiver, TryRecvError};
 
 use mailcraft_model::{AccountKind, Id};
 use serde_json::{Value, json};
@@ -52,6 +55,10 @@ pub(crate) struct InboxCheck {
     /// When the last tick was, or a round last kept it from coming (the session's clock, in
     /// seconds; 0 before the first).
     last: i64,
+    /// Checks that gave way to a run: only their answer's sign-in is still waited for.
+    gave_way: Vec<(Id, Receiver<GraphResult>)>,
+    /// Accounts whose last check went wrong and said so: said once, until one gets through.
+    failing: HashSet<Id>,
 }
 
 impl InboxCheck {
@@ -66,6 +73,7 @@ impl MailApp {
     /// once a minute, between rounds, by the session's clock. The account whose check was
     /// started, if one was.
     pub(crate) fn inbox_check_tick(&mut self) -> Option<Id> {
+        self.take_in_given_way();
         let now = self.session.now();
         if !self.auto_sync || self.session.prefs.sync_minutes == 0 || self.services.graph.is_none() {
             self.inbox_check.queue.clear();
@@ -110,8 +118,9 @@ impl MailApp {
     }
 
     /// A run is about to start: the Inbox check under way, if any, gives way to it. Its job is
-    /// told to stop and nobody listens to it any more; what it already brought stays, and the
-    /// run reads the Inbox from there.
+    /// told to stop and its mail is no longer listened to; what it already brought stays, and the
+    /// run reads the Inbox from there. A sign-in it renewed is kept, now if its answer is in (the
+    /// run then goes with it), else when the answer comes.
     pub(crate) fn give_up_inbox_check(&mut self) {
         self.inbox_check.queue.clear();
         if self.inbox_check.running.take().is_none() {
@@ -120,7 +129,10 @@ impl MailApp {
         if let Some(cancel) = self.inbox_check.cancel.take() {
             cancel.store(true, Ordering::Relaxed);
         }
-        self.graph_rx = None;
+        if let Some((account, _, _, job)) = self.graph_rx.take() {
+            self.inbox_check.gave_way.push((account, job));
+            self.take_in_given_way();
+        }
         self.graph_pieces = None;
         self.inbox_run = None;
         self.graph_pieces_taken = 0;
@@ -219,17 +231,27 @@ impl MailApp {
         Some(json!({"started": true, "account": account, "graph": true, "inbox": true}))
     }
 
-    /// The Inbox pass's job came back (its pieces are in already): keep the tokens it got and
-    /// let the account wait for the rest of its run. Whatever went wrong is the run's to meet
-    /// again, and to ask about.
-    pub(crate) fn finish_inbox_pass(&mut self, account: Id, result: GraphResult) {
-        let check = self.inbox_check.running.take() == Some(account);
-        self.inbox_check.cancel = None;
+    /// The answers of checks that gave way, as they come: their sign-in is kept, nothing else.
+    fn take_in_given_way(&mut self) {
+        let mut waiting = Vec::new();
+        for (account, job) in std::mem::take(&mut self.inbox_check.gave_way) {
+            match job.try_recv() {
+                Ok(result) => self.keep_inbox_tokens(account, &result),
+                Err(TryRecvError::Empty) => waiting.push((account, job)),
+                Err(TryRecvError::Disconnected) => {}
+            }
+        }
+        self.inbox_check.gave_way = waiting;
+    }
+
+    /// What an Inbox pass's answer says of its sign-in, kept as for any job: renewed tokens (the
+    /// refresh token for the owner, in the system's store when remembered), or a token refused.
+    fn keep_inbox_tokens(&mut self, account: Id, result: &GraphResult) {
         let owner = self.session.mailbox.owner_of(account).map(|o| (o.id, o.email.clone()));
         if result.token_refused {
             self.graph_tokens.remove(&account);
         }
-        if let Some(tokens) = result.tokens
+        if let Some(tokens) = result.tokens.clone()
             && (owner.is_some() || !self.signed_in_as_other(account, &tokens))
         {
             let (owner, address) =
@@ -243,9 +265,26 @@ impl MailApp {
             let now = mailcraft_time::now();
             self.graph_tokens.insert(account, Tokens { expires_at: tokens.expires_at.clamp(now, now.saturating_add(86_400)), ..tokens });
         }
-        let what = if check { "inbox check" } else { "inbox pass" };
-        for problem in std::mem::take(&mut self.graph_problems).iter().chain(&result.errors) {
-            log::warn!("send/receive, account {account}: {what}: {problem}");
+    }
+
+    /// The Inbox pass's job came back (its pieces are in already): keep the tokens it got and
+    /// let the account wait for the rest of its run. Whatever went wrong is the run's to meet
+    /// again, and to ask about.
+    pub(crate) fn finish_inbox_pass(&mut self, account: Id, result: GraphResult) {
+        let check = self.inbox_check.running.take() == Some(account);
+        self.inbox_check.cancel = None;
+        self.keep_inbox_tokens(account, &result);
+        let problems: Vec<String> = std::mem::take(&mut self.graph_problems).into_iter().chain(result.errors).collect();
+        if check && problems.is_empty() {
+            self.inbox_check.failing.remove(&account);
+        }
+        // A check that keeps failing (the network is down) says so once, until one gets through.
+        let said_already = check && !problems.is_empty() && !self.inbox_check.failing.insert(account);
+        if !said_already {
+            let what = if check { "inbox check" } else { "inbox pass" };
+            for problem in &problems {
+                log::warn!("send/receive, account {account}: {what}: {problem}");
+            }
         }
         // The check is quiet: it leaves the round's Progress and the status alone, and the next
         // tick tries again whatever went wrong.

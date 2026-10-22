@@ -37,6 +37,8 @@ struct Host {
     jobs: Vec<Job>,
     hold: bool,
     held: Option<(mpsc::SyncSender<GraphMailResult>, mpsc::Sender<GraphResult>)>,
+    /// The refresh token each job went with.
+    refreshes: Vec<String>,
 }
 
 type Shared = Arc<Mutex<Host>>;
@@ -84,6 +86,7 @@ fn window(links: (bool, bool)) -> (MailApp, Id, Id, Shared) {
         let mail = req.mail.clone().unwrap_or_default();
         let (account, email) = (req.account.id, req.account.email.clone());
         let pass = mail.inbox_pass.is_some();
+        host.refreshes.push(req.refresh.clone());
         host.jobs.push(Job { account, pass, inbox_link: mail.links.iter().find(|l| l.folder == "in").map(|l| l.link.clone()) });
         let (tx, rx) = mpsc::channel();
         let pieces = req.mail_pieces.clone().unwrap();
@@ -445,4 +448,97 @@ fn no_check_for_an_account_with_no_inbox_link_or_no_sign_in() {
     assert!(tick(&mut app, T0 + 120).is_empty());
     assert!(app.signing_in.is_none() && app.dialog.is_none());
     assert_eq!(jobs(&host).len(), 1);
+}
+
+/// What a check renewed with Microsoft: a new access token and a new refresh token.
+fn renewed(refresh: &str) -> Tokens {
+    Tokens { access: "renewed-access".into(), refresh: refresh.into(), expires_at: mailcraft_time::now() + 3_600, ..Default::default() }
+}
+
+/// The credential store of the system, as a map.
+#[derive(Clone, Default)]
+struct Store(Arc<Mutex<std::collections::HashMap<String, String>>>);
+
+impl crate::SecretStore for Store {
+    fn get(&self, key: &str) -> Option<String> {
+        self.0.lock().unwrap().get(key).cloned()
+    }
+    fn set(&self, key: &str, secret: &str) -> Result<(), String> {
+        self.0.lock().unwrap().insert(key.into(), secret.into());
+        Ok(())
+    }
+    fn delete(&self, key: &str) {
+        self.0.lock().unwrap().remove(key);
+    }
+}
+
+#[test]
+fn a_check_that_gives_way_keeps_the_sign_in_it_renewed_and_the_round_goes_with_it() {
+    let (mut app, owner, _, host) = checked_window();
+    let store = Store::default();
+    app.services.secrets = Some(Box::new(store.clone()));
+    app.ui.remember_sign_in = true;
+    host.lock().unwrap().hold = true;
+    at(&mut app, T0 + 60);
+    assert_eq!(app.inbox_check_tick(), Some(owner));
+    // Microsoft renewed the sign-in and the check's answer is in, not yet taken in, when the
+    // owner presses Send/Receive.
+    let (pieces, answer) = host.lock().unwrap().held.take().unwrap();
+    drop(pieces);
+    answer.send(GraphResult { account: owner, tokens: Some(renewed("ref-2")), ..Default::default() }).unwrap();
+    host.lock().unwrap().hold = false;
+    app.execute("ui.sync", json!({})).unwrap();
+    assert_eq!(host.lock().unwrap().refreshes, ["ref-1", "ref-2"], "the round goes with the renewed refresh token");
+    assert_eq!(app.tokens[&owner].refresh, "ref-2");
+    assert!(store.0.lock().unwrap().values().any(|s| s == "ref-2"), "remembered as a finished check's would be");
+}
+
+#[test]
+fn a_check_that_gave_way_keeps_the_sign_in_its_answer_brings_later() {
+    let (mut app, owner, _, host) = checked_window();
+    host.lock().unwrap().hold = true;
+    at(&mut app, T0 + 60);
+    assert_eq!(app.inbox_check_tick(), Some(owner));
+    let (pieces, answer) = host.lock().unwrap().held.take().unwrap();
+    host.lock().unwrap().hold = false;
+    app.execute("ui.sync", json!({})).unwrap();
+    drive(&mut app, 200);
+    // The check's job comes to its end after the round: only its sign-in is taken in.
+    drop(pieces);
+    answer.send(GraphResult { account: owner, tokens: Some(renewed("ref-3")), ..Default::default() }).unwrap();
+    let hello = count_hello(&app, owner);
+    at(&mut app, T0 + 61);
+    app.inbox_check_tick();
+    assert_eq!(app.tokens[&owner].refresh, "ref-3");
+    assert_eq!(app.graph_tokens[&owner].access, "renewed-access");
+    assert_eq!(count_hello(&app, owner), hello);
+}
+
+#[test]
+fn a_check_that_keeps_failing_says_so_once_until_one_gets_through() {
+    let (mut app, owner, _, host) = checked_window();
+    let logged = crate::graph_switch::tests::logged();
+    let problem = "Couldn't reach Microsoft (inbox check, once)";
+    let said = || logged.lock().unwrap().iter().filter(|l| l.contains(problem)).count();
+    let fail = |app: &mut MailApp, host: &Shared, now: i64| {
+        host.lock().unwrap().hold = true;
+        at(app, now);
+        assert_eq!(app.inbox_check_tick(), Some(owner));
+        let (pieces, answer) = host.lock().unwrap().held.take().unwrap();
+        drop(pieces);
+        answer.send(GraphResult { account: owner, errors: vec![problem.into()], ..Default::default() }).unwrap();
+        settle(app);
+        host.lock().unwrap().hold = false;
+        while app.inbox_check_tick().is_some() {
+            settle(app);
+        }
+    };
+    fail(&mut app, &host, T0 + 60);
+    fail(&mut app, &host, T0 + 120);
+    fail(&mut app, &host, T0 + 180);
+    assert_eq!(said(), 1, "the network down is said once, not every minute");
+    // One gets through; the next that fails says so again.
+    assert_eq!(tick(&mut app, T0 + 240).first(), Some(&owner));
+    fail(&mut app, &host, T0 + 300);
+    assert_eq!(said(), 2);
 }
