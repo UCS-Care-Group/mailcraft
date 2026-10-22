@@ -22,6 +22,7 @@
 - Send/Receive brings new mail in every Microsoft Inbox, shared mailboxes included, first, before the folders and the rest ([#276](https://github.com/GITHUB_REPOSITORY/issues/276)).
 - Send/Receive is quicker on a Microsoft account with many folders: your own folders whose message and unread counts haven't changed are skipped, and every folder is still read at the first Send/Receive after opening and once an hour, so flag and category changes there arrive by then ([#276](https://github.com/GITHUB_REPOSITORY/issues/276)).
 - A Microsoft account's Send/Receive keeps its connection to Microsoft open between requests instead of opening a new one for each, so it waits less ([#276](https://github.com/GITHUB_REPOSITORY/issues/276)).
+- A Microsoft account with many folders lists them in a few requests instead of one for every folder that has subfolders, so Send/Receive gets to the mail sooner ([#276](https://github.com/GITHUB_REPOSITORY/issues/276)).
 - Arranged by size, each message in the list says its size under its time ([#273](https://github.com/GITHUB_REPOSITORY/issues/273)).
 - Send/Receive of a Microsoft account no longer stops part-way through its folders with "InvalidAuthenticationToken" when the sign-in runs out during the run (a long first download, or the computer asleep in the middle of one): the sign-in is renewed once and the run goes on, and one about to run out is renewed before a job starts ([#306](https://github.com/GITHUB_REPOSITORY/issues/306)).
 

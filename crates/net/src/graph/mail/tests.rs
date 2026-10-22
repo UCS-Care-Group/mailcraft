@@ -247,6 +247,83 @@ fn a_listing_cut_short_says_so() {
     assert!(names.contains(&"Projects") && names.contains(&"Receipts") && !names.contains(&"Apollo"), "{names:?}");
 }
 
+/// How many requests the folders' part of a run asked.
+fn folder_requests(result: &GraphMailResult) -> u32 {
+    result.timings.phases.iter().filter(|p| p.phase == SyncPhase::Folders).map(|p| p.requests).sum()
+}
+
+/// Forty folders at the top with two subfolders each, the first of them with one of its own,
+/// and the first folder with 148 more (two pages): `(top folders, all made)`.
+fn many_folders(server: &StandIn) -> (Vec<String>, usize) {
+    let mut state = server.state();
+    let mut tops = Vec::new();
+    let mut made = 0;
+    for n in 0..40 {
+        let top = state.add_folder(&format!("Project {n}"), None);
+        let first = state.add_folder(&format!("Project {n} notes"), Some(&top));
+        state.add_folder(&format!("Project {n} drafts"), Some(&top));
+        state.add_folder(&format!("Project {n} old notes"), Some(&first));
+        made += 4;
+        tops.push(top);
+    }
+    for m in 0..148 {
+        state.add_folder(&format!("Receipt {m}"), Some(&tops[0]));
+        made += 1;
+    }
+    (tops, made)
+}
+
+#[test]
+fn a_level_of_the_tree_is_listed_twenty_folders_to_a_batch() {
+    let server = StandIn::start().unwrap();
+    let (_, made) = many_folders(&server);
+    let result = run(&server, vec![]);
+    assert!(result.errors.is_empty(), "{:?}", result.errors);
+    let listing = result.listing.as_ref().unwrap();
+    assert!(listing.complete);
+    let tree = tree(listing);
+    assert!(tree.contains(&("Project 39 old notes".into(), "Project 39 notes".into())), "{tree:?}");
+    assert!(tree.contains(&("Receipt 147".into(), "Project 0".into())), "{tree:?}");
+    let ours = tree.iter().filter(|(name, _)| name.starts_with("Project") || name.starts_with("Receipt")).count();
+    assert_eq!(ours, made);
+    // The special folders (one batch), the top (one page), the forty under it (two batches,
+    // and the second page of the first one's 150), the forty under those (two batches): seven,
+    // where a request for every folder with subfolders was 83.
+    assert_eq!(folder_requests(&result), 7);
+    // Every one of them asked for immutable ids, those inside a batch too.
+    for asked in &server.state().requests {
+        assert!(asked.header("prefer").contains("IdType=\"ImmutableId\""), "{} {}", asked.method, asked.target);
+    }
+}
+
+#[test]
+fn a_list_that_fails_inside_a_batch_leaves_the_listing_incomplete() {
+    let server = StandIn::start().unwrap();
+    let (tops, _) = many_folders(&server);
+    server.state().broken_lists.push(tops[25].clone());
+    let result = run(&server, vec![]);
+    let listing = result.listing.unwrap();
+    // Never a tree that looks whole without what lies under the folder that couldn't be read
+    // (#305): nothing is removed for being missing from it.
+    assert!(!listing.complete);
+    let names: Vec<&str> = listing.folders.iter().map(|f| f.name.as_str()).collect();
+    assert!(names.contains(&"Project 25") && !names.contains(&"Project 25 notes"), "{names:?}");
+    // Its neighbours in the same batch, and what lies under them, are there.
+    assert!(names.contains(&"Project 24 notes") && names.contains(&"Project 26 old notes"), "{names:?}");
+}
+
+#[test]
+fn a_server_that_wont_take_a_batch_is_asked_one_folder_at_a_time() {
+    let server = StandIn::start().unwrap();
+    let (_, made) = many_folders(&server);
+    server.state().refuse_batches = true;
+    let result = run(&server, vec![]);
+    let listing = result.listing.unwrap();
+    assert!(listing.complete);
+    let ours = listing.folders.iter().filter(|f| f.name.starts_with("Project") || f.name.starts_with("Receipt")).count();
+    assert_eq!(ours, made);
+}
+
 #[test]
 fn a_sign_in_that_isnt_taken_lists_nothing() {
     let server = StandIn::start().unwrap();
