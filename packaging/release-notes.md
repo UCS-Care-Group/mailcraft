@@ -27,6 +27,7 @@
 - Arranged by size, each message in the list says its size under its time ([#273](https://github.com/GITHUB_REPOSITORY/issues/273)).
 - Send/Receive of a Microsoft account no longer stops part-way through its folders with "InvalidAuthenticationToken" when the sign-in runs out during the run (a long first download, or the computer asleep in the middle of one): the sign-in is renewed once and the run goes on, and one about to run out is renewed before a job starts ([#306](https://github.com/GITHUB_REPOSITORY/issues/306)).
 - Send/Receive of a Microsoft account no longer removes a message that was moved into another folder when the list of folders comes back incomplete and misses that folder: the message stays until a Send/Receive with the whole list finds it where it went ([#305](https://github.com/GITHUB_REPOSITORY/issues/305)).
+- On a Mac, the message list's rows reach the right edge, with a thin scroll bar over them while scrolling, as in other Mac programs (thanks to @pick2510 for reporting).
 
 **Early alpha.** The foundations are in place and tested, but much of what a daily mail program needs is not there yet, and most of the Microsoft 365 behaviour has only been tested against stand-ins. What works is in the [README](https://github.com/GITHUB_REPOSITORY#what-works-today).
 

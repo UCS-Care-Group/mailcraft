@@ -1055,6 +1055,10 @@ pub struct MailApp {
     /// Send/Receive by itself when the app starts and every few minutes (on by default; how often
     /// is the owner's `syncMinutes` option).
     pub auto_sync: bool,
+    /// Scroll bars float over what they scroll, slim, and show only while it moves or the pointer
+    /// is over it, as a Mac's do: the message list keeps no lane for its bar and has no arrows.
+    /// On a Mac only; tests and screenshots turn it on anywhere.
+    pub overlay_scroll_bars: bool,
     /// When the last round that started by itself began (milliseconds; 0 before the first).
     last_auto_sync: f64,
     /// Accounts waiting their turn in a Send/Receive round, and whether nobody asked for it.
@@ -1218,6 +1222,7 @@ impl MailApp {
             graph_switch_copy: None,
             graph_switch_waiting_shown: Default::default(),
             auto_sync: true,
+            overlay_scroll_bars: cfg!(target_os = "macos"),
             last_auto_sync: 0.0,
             sync_queue: Default::default(),
             inbox_queue: Default::default(),
