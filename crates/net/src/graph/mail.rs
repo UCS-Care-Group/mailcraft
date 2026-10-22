@@ -469,6 +469,8 @@ pub(crate) struct Entry {
     /// How many messages it has, and how many are unread (0 when not said).
     pub total: u32,
     pub unread: u32,
+    /// Both counts were given (#276).
+    pub counted: bool,
 }
 
 /// [`Entry`] of one JSON value of a list, or of the answer to a change.
@@ -479,8 +481,10 @@ pub(crate) fn entry_of(value: &Value) -> Option<Entry> {
     let children = value.get("childFolderCount").map_or(Some(1), Value::as_u64)?;
     let hidden = value.get("isHidden").and_then(Value::as_bool).unwrap_or(false);
     let search = text(value, "@odata.type").to_ascii_lowercase().contains("mailsearchfolder");
-    let count = |name: &str| value.get(name).and_then(Value::as_u64).map_or(0, |n| u32::try_from(n).unwrap_or(u32::MAX));
-    Some(Entry { id, name, children, unseen: hidden || search, total: count("totalItemCount"), unread: count("unreadItemCount") })
+    let count = |name: &str| value.get(name).and_then(Value::as_u64).map(|n| u32::try_from(n).unwrap_or(u32::MAX));
+    let (total, unread) = (count("totalItemCount"), count("unreadItemCount"));
+    let counted = total.is_some() && unread.is_some();
+    Some(Entry { id, name, children, unseen: hidden || search, total: total.unwrap_or(0), unread: unread.unwrap_or(0), counted })
 }
 
 /// Every folder of the mailbox, parents first. A listing that was cut short comes back as far
@@ -536,7 +540,15 @@ fn listing(graph: &Graph<'_>, known: &Known) -> Result<FolderListing, (FolderLis
                 }
             }
             let kind = known.kinds.get(&entry.id).copied().unwrap_or_default();
-            out.folders.push(GraphFolder { id: entry.id, parent: parent.clone(), name: entry.name, kind, total: entry.total, unread: entry.unread });
+            out.folders.push(GraphFolder {
+                id: entry.id,
+                parent: parent.clone(),
+                name: entry.name,
+                kind,
+                total: entry.total,
+                unread: entry.unread,
+                counted: entry.counted,
+            });
         }
     }
     Ok(out)
@@ -704,5 +716,7 @@ mod down_tests;
 mod search_tests;
 #[cfg(test)]
 mod shared_tests;
+#[cfg(test)]
+mod skip_tests;
 #[cfg(test)]
 mod tests;

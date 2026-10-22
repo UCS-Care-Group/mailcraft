@@ -333,6 +333,8 @@ pub struct State {
     /// without it, and nothing is said. Otherwise it is answered 400. (The reference doesn't
     /// say which of the two the service does: a client has to live with both.)
     pub drops_online: bool,
+    /// A folder is listed without its `totalItemCount` and `unreadItemCount` (#276).
+    pub uncounted: bool,
     /// The mail a real server would have sent to other people: `invitation:Title:people`,
     /// `update:Title:people`, `cancellation:Title:people:note`, `response:Title:answer:note`,
     /// `proposal:Title:start/end` (with a response that proposes another time) and
@@ -1069,6 +1071,9 @@ impl State {
         });
         if let (Some(select), Some(map)) = (select, all.as_object_mut()) {
             map.retain(|name, _| name == "id" || select.contains(&name.as_str()));
+        }
+        if let (true, Some(map)) = (self.uncounted, all.as_object_mut()) {
+            map.retain(|name, _| name != "totalItemCount" && name != "unreadItemCount");
         }
         if folder.search {
             all["@odata.type"] = json!("#microsoft.graph.mailSearchFolder");

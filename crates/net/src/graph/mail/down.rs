@@ -34,15 +34,30 @@
 //!   taken as that, never as a message (#148).
 //! - **What comes back is hostile JSON.** Every id, text and list is capped; an entry that can't
 //!   be read is passed over. Nothing of a message or of a link goes into a log line or an error.
+//! - **Folders that haven't changed are passed over** (#276). A folder of the owner's own (not
+//!   the Inbox nor another special folder, which are always read) whose delta link ended a round
+//!   and whose message and unread counts in this run's listing are the ones kept with that link
+//!   is not asked for, and is counted in the run's timings as skipped. The counts are a hint, not
+//!   a proof: one message in and one out, a message read and another marked unread, or a flag or
+//!   a category changed leave them as they were. So the engine asks for a **full sweep**
+//!   ([`GraphMailRequest::full`]), with nothing passed over, on the first run after the mailbox
+//!   is opened, once an hour after that, and while a message the server said left its folder
+//!   waits for a whole run: what a skip missed comes then, from the same delta link, so nothing
+//!   is lost, only late. And when a folder read in this run says a message left it that turned
+//!   up in no folder read, the folders passed over are read after all: it may have moved into
+//!   one of them, and a run that is whole removes what is still gone ([`GraphMailResult::whole`]).
+//! - **An empty page changes nothing** (#276): a page from a delta link that brings nothing, and
+//!   whose counts are the ones kept, is not handed on (the piece has its progress and timings
+//!   only): the link kept goes on from the same place, and the mailbox isn't touched.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Instant;
 
 use mailcraft_model::sync::{
     GraphFolder, GraphMailRequest, GraphMailResult, GraphMessage, GraphProgress, MessagePage, ReadState, ServerMessage, SyncPhase, Timings,
 };
-use mailcraft_model::{Address, FlagStatus, FolderKind, Importance};
+use mailcraft_model::{Address, FlagStatus, FolderCounts, FolderKind, Importance};
 use serde_json::Value;
 
 use super::super::pace::Kind;
@@ -66,6 +81,9 @@ const MAX_TEXT: usize = 998;
 const MAX_PREVIEW: usize = 255;
 const MAX_PEOPLE: usize = 500;
 const MAX_CATEGORIES: usize = 25;
+/// Most message ids a run keeps to tell whether what left a folder turned up in another: past
+/// that, every folder passed over is read after all.
+const MAX_TRACKED: usize = 50_000;
 /// The special folders first, in Outlook's order; then the rest as listed.
 const ORDER: [FolderKind; 7] =
     [FolderKind::Inbox, FolderKind::Drafts, FolderKind::Sent, FolderKind::Deleted, FolderKind::Archive, FolderKind::Junk, FolderKind::Outbox];
@@ -90,6 +108,12 @@ struct Reading {
     /// The round under way began in this run. One that began in an earlier run sees the mailbox
     /// as it was then: at its end, one more round brings what changed since.
     round_here: bool,
+    /// The counts kept with its delta link, and those of this run's listing (`None` for the
+    /// Inbox pass, which lists nothing).
+    kept: Option<FolderCounts>,
+    listed: Option<FolderCounts>,
+    /// Passed over: its counts are the ones kept with its delta link (#276).
+    skipped: bool,
 }
 
 /// The time and requests since the last piece was handed on, for the run's timings (#276).
@@ -125,6 +149,37 @@ struct Run {
     /// Folders the server refused to list (not gone meanwhile), and the code of the first refusal.
     refused: u32,
     code: String,
+    /// While folders are passed over: the ids of messages that left a folder read, and of those
+    /// a folder read has; past [`MAX_TRACKED`] of them, `overflow`.
+    tracking: bool,
+    left: HashSet<String>,
+    seen: HashSet<String>,
+    overflow: bool,
+}
+
+impl Run {
+    fn note(&mut self, page: &MessagePage) {
+        if !self.tracking || self.overflow {
+            return;
+        }
+        self.left.extend(page.removed.iter().cloned());
+        self.seen.extend(page.messages.iter().map(|m| m.server.id.clone()));
+        if self.left.len().saturating_add(self.seen.len()) > MAX_TRACKED {
+            self.overflow = true;
+            (self.left, self.seen) = Default::default();
+        }
+    }
+
+    /// A message left a folder read and turned up in none read: it may be in one passed over.
+    fn unexplained(&self) -> bool {
+        self.overflow || self.left.iter().any(|id| !self.seen.contains(id))
+    }
+}
+
+/// Whether `one` may be passed over (#276): a folder of the owner's own whose delta link ended a
+/// round and whose counts in this run's listing are those kept with the link. When in doubt, no.
+fn unchanged(one: &Reading) -> bool {
+    one.folder.kind == FolderKind::Custom && one.link.is_some() && one.caught_up && !one.afresh && one.kept.is_some() && one.kept == one.listed
 }
 
 /// Why the run stopped.
@@ -144,22 +199,46 @@ pub(super) fn messages(
     emit: &mut dyn FnMut(GraphMailResult),
 ) -> GraphMailResult {
     let mut out = GraphMailResult { account: request.account, email: request.email.clone(), ..Default::default() };
-    let links: HashMap<&str, (&str, bool)> = request.links.iter().map(|l| (l.folder.as_str(), (l.link.as_str(), l.caught_up))).collect();
+    let links: HashMap<&str, (&str, bool, Option<FolderCounts>)> =
+        request.links.iter().map(|l| (l.folder.as_str(), (l.link.as_str(), l.caught_up, l.counts))).collect();
+    // The Inbox pass lists nothing: its folder's counts are none of the server's.
+    let listing = !phase_is_inbox(phase);
     let mut folders: Vec<GraphFolder> = listed.to_vec();
     folders.sort_by_key(|f| ORDER.iter().position(|kind| *kind == f.kind).unwrap_or(ORDER.len()));
     let mut reading: Vec<Reading> = folders
         .into_iter()
         .map(|folder| {
-            let (link, caught_up, afresh) = match links.get(folder.id.as_str()) {
-                None => (None, false, false),
+            let (link, caught_up, afresh, kept) = match links.get(folder.id.as_str()) {
+                None => (None, false, false, None),
                 // A link from the mailbox file is followed only to Graph itself.
-                Some((link, caught_up)) => match Url::parse_within(link, http::MAX_LONG_URL).ok().filter(|url| graph.base.same_server(url)) {
-                    Some(url) => (Some(url), *caught_up, false),
-                    None => (None, false, true),
+                Some((link, caught_up, kept)) => match Url::parse_within(link, http::MAX_LONG_URL).ok().filter(|url| graph.base.same_server(url)) {
+                    Some(url) => (Some(url), *caught_up, false, kept.filter(|_| *caught_up)),
+                    None => (None, false, true, None),
                 },
             };
             let round_here = link.is_none() || caught_up;
-            Reading { folder, link, caught_up, afresh, done: false, left: false, read: 0, read_alone: 0, pages: 0, restarted: false, round_here }
+            // Counts the server didn't give are unknown, not 0: such a folder is never passed over.
+            let listed = (listing && folder.counted).then_some(FolderCounts { total: folder.total, unread: folder.unread });
+            let mut one = Reading {
+                folder,
+                link,
+                caught_up,
+                afresh,
+                done: false,
+                left: false,
+                read: 0,
+                read_alone: 0,
+                pages: 0,
+                restarted: false,
+                round_here,
+                kept,
+                listed,
+                skipped: false,
+            };
+            if listing && !request.full && unchanged(&one) {
+                (one.skipped, one.done) = (true, true);
+            }
+            one
         })
         .collect();
     let count = u32::try_from(reading.len()).unwrap_or(u32::MAX);
@@ -167,8 +246,20 @@ pub(super) fn messages(
     // First the newest page of each (all of what changed, for one read to its end before), then
     // each to its end.
     let mut stopped = None;
-    let mut run = Run::default();
-    'passes: for first in [true, false] {
+    let mut run = Run { tracking: reading.iter().any(|one| one.skipped), ..Default::default() };
+    'passes: for (pass, first) in [(0, true), (1, false), (2, false)] {
+        // After the rest: what left a folder read and turned up in none may be in a folder passed
+        // over, so those are read after all (each from its delta link: as a rule, a page).
+        if pass == 2 {
+            if !run.tracking || !run.unexplained() {
+                break;
+            }
+            log::info!("graph mail: mail left a folder and turned up in none read; the folders passed over are read too");
+            for one in reading.iter_mut().filter(|one| one.skipped) {
+                (one.skipped, one.done) = (false, false);
+            }
+            run.tracking = false;
+        }
         for (n, one) in reading.iter_mut().enumerate() {
             while !one.done && !one.left {
                 if cancel.load(Ordering::Relaxed) {
@@ -205,13 +296,16 @@ pub(super) fn messages(
         out.errors.push(format!("Microsoft Graph refused to list the mail in {folders}{}; it is asked for again in the next run.", run.code));
     }
     out.timings = lap.take(graph);
+    let skipped = reading.iter().filter(|one| one.skipped).count();
+    out.timings.skipped = u32::try_from(skipped).unwrap_or(u32::MAX);
     out.inbox_pass = phase_is_inbox(phase);
+    // (A folder passed over counts as done: nothing that left a folder read can be in it.)
     out.whole = reading.iter().all(|one| one.done);
     let pages: u32 = reading.iter().map(|one| one.pages).sum();
     let messages: u32 = reading.iter().map(|one| one.read).sum();
     let read_alone: u32 = reading.iter().map(|one| one.read_alone).sum();
     log::info!(
-        "graph mail: {pages} pages, {messages} messages and changes ({read_alone} of read state alone), {} folders of {count} done",
+        "graph mail: {pages} pages, {messages} messages and changes ({read_alone} of read state alone), {} folders of {count} done, {skipped} passed over unchanged",
         reading.iter().filter(|one| one.done).count()
     );
     out
@@ -303,6 +397,20 @@ fn page(
     one.read_alone = one.read_alone.saturating_add(read_alone);
     one.read = one.read.saturating_add(u32::try_from(taken.messages.len() + taken.removed.len()).unwrap_or(u32::MAX)).saturating_add(read_alone);
     taken.link = given;
+    // The counts of this run's listing go with a link that ends a round begun after it; a round
+    // begun in an earlier run may have missed what changed since then, and gets none.
+    taken.counts = if caught_up && one.round_here { one.listed } else { None };
+    run.note(&taken);
+    // Nothing to take in, from a delta link to one, with the counts kept: the link kept goes on
+    // from the same place, and the page isn't handed on.
+    let empty = one.caught_up
+        && caught_up
+        && !taken.afresh
+        && taken.messages.is_empty()
+        && taken.removed.is_empty()
+        && taken.read.is_empty()
+        && taken.counts.is_some()
+        && taken.counts == one.kept;
     one.link = Some(link);
     one.caught_up = caught_up;
     // At the end of a round begun in an earlier run, the next round (begun now) is what makes the
@@ -315,7 +423,7 @@ fn page(
     emit(GraphMailResult {
         account: out.account,
         email: out.email.clone(),
-        pages: vec![taken],
+        pages: if empty { Vec::new() } else { vec![taken] },
         partial: true,
         progress: Some(progress),
         timings: lap.take(graph),
