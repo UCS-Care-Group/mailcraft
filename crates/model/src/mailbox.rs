@@ -134,6 +134,20 @@ pub struct ServerFolder {
     /// brings what changed since. Otherwise it is the next page of a round not yet ended.
     #[serde(skip_serializing_if = "is_false")]
     pub caught_up: bool,
+    /// How many messages the folder had, and how many unread, as the server's listing counted
+    /// them at the start of the round that `delta` ended: a folder whose counts are the same
+    /// again may be passed over by a Send/Receive (#276). `None` when not known for that link
+    /// (a round not ended, one begun in an earlier run, a mailbox from before): never passed over.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub counts: Option<FolderCounts>,
+}
+
+/// A folder's message counts as its server's listing gives them (#276).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct FolderCounts {
+    pub total: u32,
+    pub unread: u32,
 }
 
 fn is_false(b: &bool) -> bool {

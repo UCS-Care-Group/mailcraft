@@ -85,7 +85,22 @@ pub fn graph_mail_request(s: &Session, account: Id) -> Result<GraphMailRequest, 
         // Mail moved or copied here from another mailbox of the same owner's (#70).
         places: super::graph_place::place_changes(s, account, MAX_PLACES).0,
         inbox_pass: None,
+        full: full_sweep_due(s, account),
     })
+}
+
+/// How long after a full sweep of an account's folders the next one is due (#276).
+pub const FULL_SWEEP_EVERY: i64 = 60 * 60;
+
+/// Whether the next Graph run of `account` reads every folder, passing none over for having the
+/// counts it had (#276): the first run after the mailbox is opened, one an hour after the last
+/// whole one, and one while a message the server said left its folder waits for a whole run (a
+/// folder passed over might be where it went). Counts that match can hide a change (one message
+/// in and one out, one read and another unread, a flag or a category): the sweep is what brings
+/// those, late but never lost.
+fn full_sweep_due(s: &Session, account: Id) -> bool {
+    let due = s.graph_swept.get(&account).is_none_or(|at| s.now().saturating_sub(*at) >= FULL_SWEEP_EVERY);
+    due || s.mailbox.messages.values().any(|m| m.account == account && m.server.as_ref().is_some_and(|server| server.gone))
 }
 
 /// The Inbox pass of `account` (#276): only its Inbox's delta, from the link kept for it, to be
@@ -101,7 +116,7 @@ pub fn graph_inbox_request(s: &Session, account: Id) -> Option<GraphMailRequest>
         account,
         email: a.email.clone(),
         shared,
-        links: vec![GraphLink { folder: server.id.clone(), link: server.delta.clone(), caught_up: true }],
+        links: vec![GraphLink { folder: server.id.clone(), link: server.delta.clone(), caught_up: true, counts: None }],
         inbox_pass: Some(GraphFolder { id: server.id.clone(), name: inbox.name.clone(), kind: FolderKind::Inbox, ..Default::default() }),
         ..Default::default()
     })
@@ -129,7 +144,7 @@ fn links(mb: &Mailbox, account: Id) -> Vec<GraphLink> {
         .filter(|f| f.account == account)
         .filter_map(|f| f.server.as_ref())
         .filter(|s| !s.delta.is_empty())
-        .map(|s| GraphLink { folder: s.id.clone(), link: s.delta.clone(), caught_up: s.caught_up })
+        .map(|s| GraphLink { folder: s.id.clone(), link: s.delta.clone(), caught_up: s.caught_up, counts: s.counts.filter(|_| s.caught_up) })
         .collect()
 }
 
@@ -364,6 +379,11 @@ pub fn apply_graph_mail(s: &mut Session, result: GraphMailResult) -> CmdResult {
     s.graph_said.extend(refused);
     if let Some(listing) = &result.listing {
         take_listing(&mut s.mailbox, account, listing, &mut taken);
+        if listing.complete {
+            s.graph_listed_short.remove(&account);
+        } else {
+            s.graph_listed_short.insert(account);
+        }
     }
     // Mail down (R3.2): each page with its link; what is still gone once every folder is done.
     let mut down = Down::default();
@@ -374,6 +394,12 @@ pub fn apply_graph_mail(s: &mut Session, result: GraphMailResult) -> CmdResult {
     s.graph_index = index;
     if result.whole && !result.inbox_pass {
         graph_down::sweep(&mut s.mailbox, account, &mut down);
+        // Every folder read, none passed over and none left out of a listing cut short: the full
+        // sweep is done for the hour (#276).
+        if !result.partial && result.timings.skipped == 0 && !s.graph_listed_short.contains(&account) {
+            let now = s.now();
+            s.graph_swept.insert(account, now);
+        }
     }
     // A shared mailbox is named as its server names it, once its Sent Items say so (#70).
     let named = s.mailbox.name_shared_from_sent(account);
@@ -493,6 +519,7 @@ fn change_done(mb: &mut Mailbox, account: Id, change: &FolderChange, outcome: &C
                 parent: there.parent.clone(),
                 delta: String::new(),
                 caught_up: false,
+                counts: None,
             });
             taken.pushed += 1;
             None
@@ -563,7 +590,7 @@ fn take_listing(mb: &mut Mailbox, account: Id, listing: &FolderListing, taken: &
                     parent: parent_here,
                     name: name.clone(),
                     kind: there.kind,
-                    server: Some(ServerFolder { id: there.id.clone(), name, parent: there.parent.clone(), delta: String::new(), caught_up: false }),
+                    server: Some(ServerFolder { id: there.id.clone(), name, parent: there.parent.clone(), ..Default::default() }),
                     ..Default::default()
                 });
                 here.insert(there.id.clone(), id);
@@ -634,6 +661,7 @@ fn update(mb: &mut Mailbox, id: Id, there: &GraphFolder, name: &str, parent_here
         parent: there.parent.clone(),
         delta: last.delta,
         caught_up: last.caught_up,
+        counts: last.counts,
     });
     *f != before
 }
@@ -641,3 +669,7 @@ fn update(mb: &mut Mailbox, id: Id, there: &GraphFolder, name: &str, parent_here
 #[cfg(test)]
 #[path = "graph_mail_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "graph_sweep_tests.rs"]
+mod sweep_tests;

@@ -8,7 +8,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::{Account, Address, FlagStatus, FolderKind, Id, Importance, Message};
+use crate::{Account, Address, FlagStatus, FolderCounts, FolderKind, Id, Importance, Message};
 use mailcraft_time::Timestamp;
 
 mod drafts;
@@ -757,6 +757,10 @@ pub struct GraphMailRequest {
     /// nothing sent. Every piece of it is partial; the host ends it.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub inbox_pass: Option<GraphFolder>,
+    /// A full sweep (#276): every folder's delta is read, none is passed over for having the
+    /// same counts as before. The first run after the mailbox is opened, then one an hour.
+    #[serde(skip_serializing_if = "is_false")]
+    pub full: bool,
 }
 
 /// Most changes of messages one Graph run is asked to make; more go over several runs.
@@ -899,6 +903,11 @@ pub struct GraphLink {
     /// It is a delta link (the folder's round has ended once), not the next page of a round.
     #[serde(skip_serializing_if = "is_false")]
     pub caught_up: bool,
+    /// The folder's counts when the round this delta link ended began
+    /// ([`crate::ServerFolder::counts`]): the same again in this run's listing, the folder may
+    /// be passed over (#276).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub counts: Option<FolderCounts>,
 }
 
 /// A message as a folder's delta gives it: what the message list needs (R3 spec S9).
@@ -951,6 +960,11 @@ pub struct MessagePage {
     /// (R3 spec S11).
     #[serde(skip_serializing_if = "is_false")]
     pub afresh: bool,
+    /// For a page that ends a round begun after this run's listing: the folder's counts in that
+    /// listing, kept with the link ([`crate::ServerFolder::counts`], #276). Otherwise `None`,
+    /// and the counts kept for the folder are forgotten with its old link.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub counts: Option<FolderCounts>,
 }
 
 /// A message's read state as a folder's delta says it alone.
@@ -981,6 +995,10 @@ pub struct GraphFolder {
     pub total: u32,
     #[serde(skip_serializing_if = "is_zero_u32")]
     pub unread: u32,
+    /// The server gave both counts (#276). A count it didn't give reads as 0 above, so a folder
+    /// whose counts aren't known is never passed over as unchanged.
+    #[serde(skip_serializing_if = "is_false")]
+    pub counted: bool,
 }
 
 fn is_zero_u32(n: &u32) -> bool {

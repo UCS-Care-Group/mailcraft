@@ -75,7 +75,7 @@ fn a_shared_mailbox_is_read_at_its_own_address_with_the_owners_token() {
     let mut links: Vec<GraphLink> = Vec::new();
     for page in pieces.iter().flat_map(|p| &p.pages) {
         links.retain(|l| l.folder != page.folder);
-        links.push(GraphLink { folder: page.folder.clone(), link: page.link.clone(), caught_up: page.caught_up });
+        links.push(GraphLink { folder: page.folder.clone(), link: page.link.clone(), caught_up: page.caught_up, counts: page.counts });
     }
     assert!(links.iter().all(|l| l.link.contains(&format!("/v1.0/users/{SHARED}/mailFolders/"))));
     server.state().other(SHARED).unwrap().mailbox.add(&theirs, "One more", NOW + 60);

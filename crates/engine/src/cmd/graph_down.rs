@@ -141,6 +141,8 @@ pub fn take_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, page: &
     {
         s.delta = page.link.clone();
         s.caught_up = page.caught_up;
+        // The counts the link was got with, or none (#276): a new link never keeps the old one's.
+        s.counts = page.counts;
     }
 }
 

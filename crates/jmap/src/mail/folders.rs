@@ -103,6 +103,8 @@ pub(super) fn listing_with_counts(answer: &Value) -> Option<(FolderListing, Hash
             kind,
             total: count(entry, "totalEmails"),
             unread: count(entry, "unreadEmails"),
+            // Only Graph's delta passes folders over by their counts (#276).
+            counted: false,
         });
     }
     // (A list with nothing in it is no listing of the account's mailboxes.)
