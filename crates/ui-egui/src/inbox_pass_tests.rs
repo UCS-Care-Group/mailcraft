@@ -37,6 +37,8 @@ struct Host {
     jobs: Vec<Job>,
     hold: bool,
     held: Option<(mpsc::SyncSender<GraphMailResult>, mpsc::Sender<GraphResult>)>,
+    /// The refresh token each job went with.
+    refreshes: Vec<String>,
 }
 
 type Shared = Arc<Mutex<Host>>;
@@ -84,6 +86,7 @@ fn window(links: (bool, bool)) -> (MailApp, Id, Id, Shared) {
         let mail = req.mail.clone().unwrap_or_default();
         let (account, email) = (req.account.id, req.account.email.clone());
         let pass = mail.inbox_pass.is_some();
+        host.refreshes.push(req.refresh.clone());
         host.jobs.push(Job { account, pass, inbox_link: mail.links.iter().find(|l| l.folder == "in").map(|l| l.link.clone()) });
         let (tx, rx) = mpsc::channel();
         let pieces = req.mail_pieces.clone().unwrap();
@@ -248,4 +251,294 @@ fn a_round_that_started_by_itself_asks_nobody_for_a_pass() {
     app.queue_inbox_passes(&[owner, shared], true);
     assert!(app.start_next_inbox_pass().is_none());
     assert!(host.lock().unwrap().jobs.is_empty() && app.signing_in.is_none() && app.inbox_queue.is_empty());
+}
+
+// The Inbox checked by itself every minute, between rounds.
+
+const T0: i64 = 1_800_000_000;
+
+/// A window whose Inbox is checked by itself: Send/Receive runs by itself, a sign-in could be
+/// asked for (it never is), and the session's clock is at `T0`. The first tick only starts the
+/// minute.
+fn checked_window() -> (MailApp, Id, Id, Shared) {
+    let (mut app, owner, shared, host) = window((true, true));
+    app.auto_sync = true;
+    app.services.sign_in = Some(Box::new(|_| mpsc::channel().1));
+    at(&mut app, T0);
+    assert_eq!(app.inbox_check_tick(), None, "nothing at once: the window's first round reads the Inbox");
+    (app, owner, shared, host)
+}
+
+fn at(app: &mut MailApp, now: i64) {
+    app.session.clock.now = Some(now);
+}
+
+/// Take in what the check under way brings, until it is over.
+fn settle(app: &mut MailApp) {
+    for _ in 0..20 {
+        if app.graph_rx.is_none() {
+            return;
+        }
+        app.poll_graph();
+    }
+}
+
+/// Tick at `now` until nothing more starts; the accounts whose Inbox was checked.
+fn tick(app: &mut MailApp, now: i64) -> Vec<Id> {
+    at(app, now);
+    let mut checked = Vec::new();
+    while let Some(account) = app.inbox_check_tick() {
+        checked.push(account);
+        settle(app);
+    }
+    checked
+}
+
+#[test]
+fn the_inbox_is_checked_by_itself_every_minute_quietly() {
+    let (mut app, owner, shared, host) = checked_window();
+    app.session.sync_status = "Up to date — 9:30".into();
+    let progress = app.session.sync_progress.clone();
+    assert!(tick(&mut app, T0 + 30).is_empty(), "not before the minute is up");
+    assert_eq!(tick(&mut app, T0 + 60), [owner, shared], "each account kept in step through Graph, one after the other");
+    assert!(tick(&mut app, T0 + 90).is_empty());
+    assert_eq!(tick(&mut app, T0 + 125), [owner, shared]);
+    let jobs = jobs(&host);
+    assert_eq!(jobs.len(), 4);
+    assert!(jobs.iter().all(|j| j.pass), "an Inbox pass and nothing else: {jobs:?}");
+    // Each goes on from the link the one before moved on.
+    assert_eq!(jobs[0].inbox_link.as_deref(), Some(FIRST_LINK));
+    assert_eq!(jobs[2].inbox_link.as_deref(), Some(NEXT_LINK));
+    // What it brought is in; Send/Receive Progress and the status line never heard of it.
+    assert_eq!((count_hello(&app, owner), count_hello(&app, shared)), (1, 1));
+    assert!(app.session.sync_progress == progress && !app.session.sync_progress.running());
+    assert_eq!(app.session.sync_status, "Up to date — 9:30");
+    assert!(app.dialog.is_none() && app.signing_in.is_none() && app.sync_panel.is_none());
+}
+
+#[test]
+fn a_check_is_quiet_while_it_runs_and_ticks_never_stack() {
+    let (mut app, owner, _, host) = checked_window();
+    host.lock().unwrap().hold = true;
+    let (progress, status) = (app.session.sync_progress.clone(), app.session.sync_status.clone());
+    at(&mut app, T0 + 60);
+    assert_eq!(app.inbox_check_tick(), Some(owner));
+    // Not a Send/Receive the window shows: the button is there to press, nothing says it runs.
+    assert!(!app.syncing() && app.enabled("ui.sync"));
+    assert!(app.session.sync_progress == progress && app.session.sync_status == status);
+    // Minutes go by with the check held: no other starts.
+    for later in [T0 + 120, T0 + 180, T0 + 600] {
+        at(&mut app, later);
+        assert_eq!(app.inbox_check_tick(), None);
+    }
+    assert_eq!(jobs(&host).len(), 1);
+}
+
+#[test]
+fn no_check_while_a_round_is_under_way_and_the_next_is_a_minute_after_it() {
+    let (mut app, owner, shared, host) = checked_window();
+    // (The next round by itself is minutes away.)
+    app.last_auto_sync = crate::now_ms();
+    host.lock().unwrap().hold = true;
+    app.execute("ui.sync", json!({})).unwrap();
+    assert_eq!(jobs(&host).len(), 1, "the round's first pass");
+    assert!(tick(&mut app, T0 + 60).is_empty(), "the round is under way");
+    assert!(tick(&mut app, T0 + 200).is_empty(), "still");
+    let (pieces, answer) = host.lock().unwrap().held.take().unwrap();
+    drop(pieces);
+    answer.send(GraphResult { account: owner, ..Default::default() }).unwrap();
+    host.lock().unwrap().hold = false;
+    // The round goes to its end, its frames ticking as the window's do.
+    for _ in 0..200 {
+        app.poll_graph();
+        app.auto_sync();
+        assert_eq!(app.inbox_check_tick(), None, "no check during the round");
+        if app.graph_rx.is_none() && app.sync_queue.is_empty() && app.inbox_queue.is_empty() && !app.session.sync_progress.running() {
+            break;
+        }
+    }
+    assert_eq!(jobs(&host).len(), 4, "{:?}", jobs(&host));
+    // The round read the Inbox: the next check is a minute after it.
+    assert!(tick(&mut app, T0 + 230).is_empty());
+    assert_eq!(tick(&mut app, T0 + 260), [owner, shared]);
+}
+
+#[test]
+fn a_send_receive_asked_for_during_a_check_goes_ahead() {
+    let (mut app, owner, shared, host) = checked_window();
+    host.lock().unwrap().hold = true;
+    at(&mut app, T0 + 60);
+    assert_eq!(app.inbox_check_tick(), Some(owner));
+    let started = app.execute("ui.sync", json!({})).unwrap();
+    assert_eq!(started["inbox"], json!(true), "{started}");
+    assert!(started.get("check").is_none(), "the round's own pass: {started}");
+    assert_eq!(jobs(&host).len(), 2);
+    assert!(app.syncing() && app.session.sync_progress.running());
+    // The check gave way: nothing of it is left waiting.
+    assert!(!app.inbox_check.under_way());
+    host.lock().unwrap().hold = false;
+    drive(&mut app, 200);
+    assert_eq!((count_hello(&app, owner), count_hello(&app, shared)), (1, 1));
+}
+
+#[test]
+fn a_check_that_fails_is_tried_again_next_minute_without_a_word() {
+    let (mut app, owner, _, host) = checked_window();
+    host.lock().unwrap().hold = true;
+    let (progress, status) = (app.session.sync_progress.clone(), app.session.sync_status.clone());
+    at(&mut app, T0 + 60);
+    assert_eq!(app.inbox_check_tick(), Some(owner));
+    let (pieces, answer) = host.lock().unwrap().held.take().unwrap();
+    drop(pieces);
+    let failed = GraphResult { account: owner, errors: vec!["Couldn't reach Microsoft".into()], ..Default::default() };
+    answer.send(failed).unwrap();
+    settle(&mut app);
+    host.lock().unwrap().hold = false;
+    assert!(app.dialog.is_none() && app.sync_panel.is_none() && app.signing_in.is_none());
+    assert!(app.session.sync_progress == progress && app.session.sync_status == status);
+    // (The shared mailbox's check of this tick goes on.)
+    while app.inbox_check_tick().is_some() {
+        settle(&mut app);
+    }
+    assert_eq!(tick(&mut app, T0 + 120).first(), Some(&owner), "tried again");
+}
+
+#[test]
+fn no_check_for_an_account_without_graph_or_when_send_receive_by_itself_is_off() {
+    let (mut app, owner, shared, host) = checked_window();
+    let imap = app.execute("account.add", json!({"email": "avery@mail.example", "incoming": {"host": "imap.mail.example"}})).unwrap()["id"]
+        .as_u64()
+        .unwrap();
+    app.passwords.insert(imap, "invented".into());
+    let asked = Arc::new(Mutex::new(0));
+    let count = asked.clone();
+    app.services.sync = Some(Box::new(move |_req: mailcraft_model::sync::SyncRequest| {
+        *count.lock().unwrap() += 1;
+        mpsc::channel().1
+    }));
+    assert_eq!(tick(&mut app, T0 + 60), [owner, shared], "not the mail server's account");
+    assert_eq!(*asked.lock().unwrap(), 0, "no mail server is asked");
+    // Send/Receive by itself turned off: no check either.
+    app.session.prefs.sync_minutes = 0;
+    assert!(tick(&mut app, T0 + 200).is_empty());
+    app.session.prefs.sync_minutes = 5;
+    app.auto_sync = false;
+    assert!(tick(&mut app, T0 + 400).is_empty());
+    // No account kept in step through Graph: nothing ever.
+    app.auto_sync = true;
+    app.execute("account.remove", json!({"id": shared})).unwrap();
+    app.execute("account.remove", json!({"id": owner})).unwrap();
+    let before = jobs(&host).len();
+    assert!(tick(&mut app, T0 + 600).is_empty() && tick(&mut app, T0 + 700).is_empty());
+    assert_eq!(jobs(&host).len(), before);
+    assert_eq!(*asked.lock().unwrap(), 0);
+}
+
+#[test]
+fn no_check_for_an_account_with_no_inbox_link_or_no_sign_in() {
+    let (mut app, owner, shared, host) = window((false, true));
+    app.auto_sync = true;
+    app.services.sign_in = Some(Box::new(|_| mpsc::channel().1));
+    at(&mut app, T0);
+    assert_eq!(app.inbox_check_tick(), None);
+    assert_eq!(tick(&mut app, T0 + 60), [shared], "the owner's Inbox was never read to its end");
+    // Nothing kept or remembered to sign in with: no check, nothing asked.
+    app.tokens.remove(&owner);
+    app.graph_tokens.clear();
+    assert!(tick(&mut app, T0 + 120).is_empty());
+    assert!(app.signing_in.is_none() && app.dialog.is_none());
+    assert_eq!(jobs(&host).len(), 1);
+}
+
+/// What a check renewed with Microsoft: a new access token and a new refresh token.
+fn renewed(refresh: &str) -> Tokens {
+    Tokens { access: "renewed-access".into(), refresh: refresh.into(), expires_at: mailcraft_time::now() + 3_600, ..Default::default() }
+}
+
+/// The credential store of the system, as a map.
+#[derive(Clone, Default)]
+struct Store(Arc<Mutex<std::collections::HashMap<String, String>>>);
+
+impl crate::SecretStore for Store {
+    fn get(&self, key: &str) -> Option<String> {
+        self.0.lock().unwrap().get(key).cloned()
+    }
+    fn set(&self, key: &str, secret: &str) -> Result<(), String> {
+        self.0.lock().unwrap().insert(key.into(), secret.into());
+        Ok(())
+    }
+    fn delete(&self, key: &str) {
+        self.0.lock().unwrap().remove(key);
+    }
+}
+
+#[test]
+fn a_check_that_gives_way_keeps_the_sign_in_it_renewed_and_the_round_goes_with_it() {
+    let (mut app, owner, _, host) = checked_window();
+    let store = Store::default();
+    app.services.secrets = Some(Box::new(store.clone()));
+    app.ui.remember_sign_in = true;
+    host.lock().unwrap().hold = true;
+    at(&mut app, T0 + 60);
+    assert_eq!(app.inbox_check_tick(), Some(owner));
+    // Microsoft renewed the sign-in and the check's answer is in, not yet taken in, when the
+    // owner presses Send/Receive.
+    let (pieces, answer) = host.lock().unwrap().held.take().unwrap();
+    drop(pieces);
+    answer.send(GraphResult { account: owner, tokens: Some(renewed("ref-2")), ..Default::default() }).unwrap();
+    host.lock().unwrap().hold = false;
+    app.execute("ui.sync", json!({})).unwrap();
+    assert_eq!(host.lock().unwrap().refreshes, ["ref-1", "ref-2"], "the round goes with the renewed refresh token");
+    assert_eq!(app.tokens[&owner].refresh, "ref-2");
+    assert!(store.0.lock().unwrap().values().any(|s| s == "ref-2"), "remembered as a finished check's would be");
+}
+
+#[test]
+fn a_check_that_gave_way_keeps_the_sign_in_its_answer_brings_later() {
+    let (mut app, owner, _, host) = checked_window();
+    host.lock().unwrap().hold = true;
+    at(&mut app, T0 + 60);
+    assert_eq!(app.inbox_check_tick(), Some(owner));
+    let (pieces, answer) = host.lock().unwrap().held.take().unwrap();
+    host.lock().unwrap().hold = false;
+    app.execute("ui.sync", json!({})).unwrap();
+    drive(&mut app, 200);
+    // The check's job comes to its end after the round: only its sign-in is taken in.
+    drop(pieces);
+    answer.send(GraphResult { account: owner, tokens: Some(renewed("ref-3")), ..Default::default() }).unwrap();
+    let hello = count_hello(&app, owner);
+    at(&mut app, T0 + 61);
+    app.inbox_check_tick();
+    assert_eq!(app.tokens[&owner].refresh, "ref-3");
+    assert_eq!(app.graph_tokens[&owner].access, "renewed-access");
+    assert_eq!(count_hello(&app, owner), hello);
+}
+
+#[test]
+fn a_check_that_keeps_failing_says_so_once_until_one_gets_through() {
+    let (mut app, owner, _, host) = checked_window();
+    let logged = crate::graph_switch::tests::logged();
+    let problem = "Couldn't reach Microsoft (inbox check, once)";
+    let said = || logged.lock().unwrap().iter().filter(|l| l.contains(problem)).count();
+    let fail = |app: &mut MailApp, host: &Shared, now: i64| {
+        host.lock().unwrap().hold = true;
+        at(app, now);
+        assert_eq!(app.inbox_check_tick(), Some(owner));
+        let (pieces, answer) = host.lock().unwrap().held.take().unwrap();
+        drop(pieces);
+        answer.send(GraphResult { account: owner, errors: vec![problem.into()], ..Default::default() }).unwrap();
+        settle(app);
+        host.lock().unwrap().hold = false;
+        while app.inbox_check_tick().is_some() {
+            settle(app);
+        }
+    };
+    fail(&mut app, &host, T0 + 60);
+    fail(&mut app, &host, T0 + 120);
+    fail(&mut app, &host, T0 + 180);
+    assert_eq!(said(), 1, "the network down is said once, not every minute");
+    // One gets through; the next that fails says so again.
+    assert_eq!(tick(&mut app, T0 + 240).first(), Some(&owner));
+    fail(&mut app, &host, T0 + 300);
+    assert_eq!(said(), 2);
 }

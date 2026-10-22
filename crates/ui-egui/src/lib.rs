@@ -1064,6 +1064,8 @@ pub struct MailApp {
     inbox_queue: std::collections::VecDeque<(Id, bool)>,
     /// The account whose Inbox pass is under way.
     inbox_run: Option<Id>,
+    /// The Inbox checked by itself every minute, between rounds (#276, [`inbox_pass`]).
+    inbox_check: inbox_pass::InboxCheck,
     /// When it was last looked whether something made here waits to go to a server (milliseconds).
     push_checked: f64,
     /// Accounts whose next run that nobody asked for only tells the server what changed here
@@ -1220,6 +1222,7 @@ impl MailApp {
             sync_queue: Default::default(),
             inbox_queue: Default::default(),
             inbox_run: None,
+            inbox_check: Default::default(),
             push_checked: 0.0,
             push_only_next: Default::default(),
             push_seen: Default::default(),
@@ -1304,7 +1307,7 @@ impl MailApp {
                     && self.session.enabled("sync.request")
                     && self.services.sync.is_some()
                     && self.sync_rx.is_none()
-                    && self.graph_rx.is_none()
+                    && (self.graph_rx.is_none() || self.inbox_check.under_way())
                     && self.signing_in.is_none()
             }
             None if id == "ui.cancelSignIn" => self.signing_in.is_some() || self.approving(),
@@ -1634,7 +1637,7 @@ impl MailApp {
                 Ok(json!({"pending": "serverSearch"}))
             }
             "ui.cancelSync" => {
-                if self.sync_rx.is_none() && self.graph_pieces.is_none() {
+                if !self.syncing() {
                     return Some(Err(tl!("No Send/Receive is running").to_string()));
                 }
                 // The run stops at the next safe place; what it brought stays. The rest of a
@@ -1880,6 +1883,8 @@ impl MailApp {
         if self.data_removed {
             return Err(tl!("MailCraft's data has been removed: nothing is sent or received").to_string());
         }
+        // The Inbox checked by itself gives way to a run (#276).
+        self.give_up_inbox_check();
         if self.sync_rx.is_some() || self.graph_rx.is_some() {
             return Err(tl!("Send/Receive is already running").to_string());
         }
@@ -2261,6 +2266,9 @@ impl MailApp {
                 if let Some(why) = piece.refused {
                     self.shared_refused.insert(account, why);
                 }
+                // The Inbox checked by itself leaves Send/Receive Progress and the status as
+                // they were: it is quiet (#276).
+                let kept = self.inbox_check.under_way().then(|| (self.session.sync_progress.clone(), self.session.sync_status.clone()));
                 match mailcraft_engine::cmd::graph_mail::apply_graph_mail(&mut self.session, piece) {
                     Ok(said) => {
                         let errors =
@@ -2268,6 +2276,9 @@ impl MailApp {
                         self.graph_problems.extend(errors.unwrap_or_default());
                     }
                     Err(e) => self.graph_problems.push(e.to_string()),
+                }
+                if let Some((progress, status)) = kept {
+                    (self.session.sync_progress, self.session.sync_status) = (progress, status);
                 }
             }
             // Its first piece made the changes made here and sent the Outbox; what waits beyond
@@ -2694,7 +2705,8 @@ impl MailApp {
 
     /// Whether a Send/Receive is running.
     pub fn syncing(&self) -> bool {
-        self.sync_rx.is_some() || self.graph_pieces.is_some()
+        // (The Inbox checked by itself is not one: it is quiet, #276.)
+        self.sync_rx.is_some() || (self.graph_pieces.is_some() && !self.inbox_check.under_way())
     }
 
     /// Take in what a Send/Receive has brought so far. It arrives in pieces (what was sent, what
@@ -2913,6 +2925,8 @@ impl MailApp {
             // Whether a new version is out, when the owner wants that known ([`updates`]).
             self.updates_tick(ctx);
             self.auto_sync();
+            // The Inbox by itself every minute, between rounds (#276).
+            self.inbox_check_tick();
             // The calendar by itself, between Send/Receive runs ([`calendar_sync`]).
             self.calendar_tick(ctx);
         }
