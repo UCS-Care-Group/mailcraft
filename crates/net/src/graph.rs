@@ -425,12 +425,12 @@ impl<'a> Graph<'a> {
         patience: Duration,
         max_body: usize,
     ) -> Result<Reply, NetError> {
-        let Some(pace) = &self.pace else { return self.ask(url, method, more, body, patience, max_body) };
+        let Some(pace) = &self.pace else { return self.ask_as(kind, url, method, more, body, patience, max_body) };
         let mut tries = 0u32;
         loop {
             tries = tries.saturating_add(1);
             let permit = pace.gate.enter(pace.priority, pace.retry.longest_wait)?;
-            let asked = self.ask(url, method, more, body, patience, max_body);
+            let asked = self.ask_as(kind, url, method, more, body, patience, max_body);
             drop(permit);
             let again = kind.may_repeat() && tries < pace.retry.tries;
             match asked {
@@ -493,7 +493,38 @@ impl<'a> Graph<'a> {
         patience: Duration,
         max_body: usize,
     ) -> Result<Reply, NetError> {
+        // Outside the ground rules of mail, only a GET is known to be one that may be asked again.
+        self.with_headers(more, |headers| {
+            self.send(url, &Request { method, headers, body: body.map(str::as_bytes), patience, max_body }, method == "GET")
+        })
+    }
+
+    /// [`Graph::ask`] for a request of a `kind` the caller knows.
+    #[allow(clippy::too_many_arguments)]
+    fn ask_as(
+        &self,
+        kind: pace::Kind,
+        url: &Url,
+        method: &str,
+        more: &[(&str, &str)],
+        body: Option<&str>,
+        patience: Duration,
+        max_body: usize,
+    ) -> Result<Reply, NetError> {
+        self.with_headers(more, |headers| {
+            self.send(url, &Request { method, headers, body: body.map(str::as_bytes), patience, max_body }, kind.may_repeat())
+        })
+    }
+
+    /// One request on a connection kept open to Graph, or a new one ([`kept`](crate::kept)):
+    /// only one that is `repeatable` goes on a connection that waited.
+    fn send(&self, url: &Url, request: &Request<'_>, repeatable: bool) -> Result<Reply, NetError> {
         self.count_request();
+        crate::kept::request(url, request, repeatable).map_err(|e| e.without(self.token))
+    }
+
+    /// The headers of every request, the token among them, with `more`, handed to `then`.
+    fn with_headers<T>(&self, more: &[(&str, &str)], then: impl FnOnce(&[(&str, &str)]) -> T) -> T {
         let bearer = format!("Bearer {}", self.token);
         let mut headers = vec![("Authorization", bearer.as_str()), ("Accept", "application/json")];
         // Immutable ids, beside whatever else is preferred: one `Prefer` header, its values
@@ -506,8 +537,7 @@ impl<'a> Graph<'a> {
         } else {
             headers.extend_from_slice(more);
         }
-        http::request(url, &Request { method, headers: &headers, body: body.map(str::as_bytes), patience, max_body })
-            .map_err(|e| e.without(self.token))
+        then(&headers)
     }
 
     /// Note one more request asked (the run's timings count them).

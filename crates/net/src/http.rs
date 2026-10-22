@@ -228,8 +228,16 @@ fn nonsense(text: &str) -> NetError {
     NetError::Proto(ProtoError::Protocol(text.into()))
 }
 
+/// What an answer cut off by the server hanging up is called.
+const CLOSED: &str = "the server closed the connection";
+
 fn closed() -> NetError {
-    problem("the server closed the connection")
+    problem(CLOSED)
+}
+
+/// Whether an error of [`exchange`] says that the server hung up (or never took the request).
+pub(crate) fn is_closed(error: &NetError) -> bool {
+    matches!(error, NetError::Proto(ProtoError::Io(why)) if why == CLOSED)
 }
 
 /// What an answer that didn't come in its time is called.
@@ -284,45 +292,70 @@ fn send(url: &Url, method: &str, headers: &[(&str, &str)], body: Option<&str>, p
 /// request going out and the answer coming back. Only a body too large to go up in that time
 /// at the slowest speed that is put up with gets more.
 pub(crate) fn request(url: &Url, request: &Request<'_>) -> Result<Reply, NetError> {
-    let method = request.method;
+    check_method(request.method)?;
+    let mut stream = connect(url, request.patience)?;
+    exchange(&mut stream, url, request, false).map(|(reply, _)| reply)
+}
+
+/// A method is a short word in capitals, and nothing else is sent as one.
+pub(crate) fn check_method(method: &str) -> Result<(), NetError> {
     if method.is_empty() || method.len() > 10 || !method.bytes().all(|b| b.is_ascii_uppercase()) {
         return Err(NetError::Config("that is no way to ask a web server".into()));
     }
+    Ok(())
+}
+
+/// A new connection to `url`'s server, by the rules of every connection: TLS, or plain to this
+/// machine alone. Connecting and every read or write after may take `patience`.
+pub(crate) fn connect(url: &Url, patience: Duration) -> Result<transport::Stream<'static>, NetError> {
     let server = Server { host: url.host.clone(), port: url.port, security: if url.secure { Security::Tls } else { Security::None } };
-    let (mut stream, _) = transport::open_within(&server, Service::Http, request.patience, request.patience)?;
+    let (stream, _) = transport::open_within(&server, Service::Http, patience, patience)?;
+    Ok(stream)
+}
+
+/// Send `request` on `stream` and read its answer, whatever its status. With `keep` the
+/// request asks for the connection to stay open ([`crate::kept`]), and what comes back says,
+/// beside the answer, whether it may carry another request: only when the answer said where
+/// it ends (by its length or in chunks), nothing came after it, and the server didn't say it
+/// closes. Without `keep` the request says `Connection: close`, and the answer is never
+/// followed by another.
+pub(crate) fn exchange<S: Read + Write>(stream: &mut S, url: &Url, request: &Request<'_>, keep: bool) -> Result<(Reply, bool), NetError> {
+    check_method(request.method)?;
     let started = Instant::now();
     let body: &[u8] = request.body.unwrap_or_default();
     let allowance = Duration::from_secs(u64::try_from(body.len() / MIN_UPLOAD_RATE).unwrap_or(u64::MAX));
     let patience = request.patience.saturating_add(allowance);
-    let head = head_of(method, url, request.headers, request.body.map(<[u8]>::len));
+    let head = head_of(request.method, url, request.headers, request.body.map(<[u8]>::len), keep);
     // A header or a body may carry secrets: nothing of the request is logged.
     if body.len() <= UPLOAD_CHUNK {
         let mut all = head.into_bytes();
         all.extend_from_slice(body);
-        write_all(&mut stream, &all)?;
+        write_all(stream, &all)?;
     } else {
-        write_all(&mut stream, head.as_bytes())?;
+        write_all(stream, head.as_bytes())?;
         // A server that takes its time over every piece is not waited on for ever.
         for piece in body.chunks(UPLOAD_CHUNK) {
             if started.elapsed() >= patience {
                 return Err(too_slow());
             }
-            write_all(&mut stream, piece)?;
+            write_all(stream, piece)?;
         }
     }
     stream.flush().map_err(|e| io_problem(&e))?;
-    let reply = read_reply(&mut stream, started, patience, request.max_body.min(MAX_LARGE_BODY))?;
+    let (reply, reusable) = read_reply_kept(stream, started, patience, request.max_body.min(MAX_LARGE_BODY))?;
     log::debug!("{} answered {} ({} bytes)", url.host, reply.status, reply.body.len());
-    Ok(reply)
+    Ok((reply, keep && reusable))
 }
 
-/// The request line and the headers of a request, up to the empty line.
-fn head_of(method: &str, url: &Url, headers: &[(&str, &str)], body: Option<usize>) -> String {
+/// The request line and the headers of a request, up to the empty line. With `keep` it asks
+/// for the connection to stay open after the answer; without, for it to close.
+fn head_of(method: &str, url: &Url, headers: &[(&str, &str)], body: Option<usize>, keep: bool) -> String {
     // The address was checked when it was read: nothing in it can end the line early.
     let mut head = format!("{method} {} HTTP/1.1\r\nHost: {}\r\nUser-Agent: {USER_AGENT}\r\n", url.path, url.authority());
     for (name, value) in headers {
-        // Nor can a header: a name that isn't one is left out, and a value loses its control characters.
-        if !name.is_empty() && name.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-') {
+        // Nor can a header: a name that isn't one is left out, and a value loses its control
+        // characters. Whether the connection stays open is this crate's to say, not a caller's.
+        if !name.is_empty() && name.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-') && !name.eq_ignore_ascii_case("connection") {
             let value: String = value.chars().filter(|c| !c.is_control()).collect();
             head.push_str(&format!("{name}: {value}\r\n"));
         }
@@ -330,7 +363,7 @@ fn head_of(method: &str, url: &Url, headers: &[(&str, &str)], body: Option<usize
     if let Some(length) = body {
         head.push_str(&format!("Content-Length: {length}\r\n"));
     }
-    head.push_str("Connection: close\r\n\r\n");
+    head.push_str(if keep { "Connection: keep-alive\r\n\r\n" } else { "Connection: close\r\n\r\n" });
     head
 }
 
@@ -373,7 +406,7 @@ pub(crate) fn stream(
     let server = Server { host: url.host.clone(), port: url.port, security: if url.secure { Security::Tls } else { Security::None } };
     let (mut stream, _) = transport::open_within(&server, Service::Http, patience.connect, patience.idle)?;
     let started = Instant::now();
-    write_all(&mut stream, head_of("GET", url, headers, None).as_bytes())?;
+    write_all(&mut stream, head_of("GET", url, headers, None, false).as_bytes())?;
     stream.flush().map_err(|e| io_problem(&e))?;
     let mut reader = Reader { stream: &mut stream, buf: Vec::new(), start: 0, ended: false, started, patience: patience.total };
     let mut head = read_head(&mut reader)?;
@@ -578,6 +611,10 @@ struct Head {
     retry_after: Option<String>,
     location: Option<String>,
     content_range: Option<String>,
+    /// The server closes the connection after this answer: it said so, it speaks HTTP/1.0, or
+    /// the way the body ends is not one that leaves the connection fit for more (a coding
+    /// other than chunked last, or both a length and chunks, which a server never sends).
+    close: bool,
 }
 
 /// [`read_reply`] with a body of no more than the usual size.
@@ -591,6 +628,14 @@ pub(crate) fn read_answer<R: Read>(stream: &mut R, started: Instant, patience: D
 /// the end of the stream (`max_body` bytes of it at most), and what the answer says of when to
 /// come back. It has `patience` from `started` to arrive.
 pub(crate) fn read_reply<R: Read>(stream: &mut R, started: Instant, patience: Duration, max_body: usize) -> Result<Reply, NetError> {
+    read_reply_kept(stream, started, patience, max_body).map(|(reply, _)| reply)
+}
+
+/// [`read_reply`], and whether the connection may carry another request after it: only when
+/// the answer's body ended where the answer said it would (its length, its last chunk, or no
+/// body by its status), not a byte came after it, and the server didn't say it closes. Never
+/// for a body read up to the end of the stream.
+pub(crate) fn read_reply_kept<R: Read>(stream: &mut R, started: Instant, patience: Duration, max_body: usize) -> Result<(Reply, bool), NetError> {
     let mut reader = Reader { stream, buf: Vec::new(), start: 0, ended: false, started, patience };
     let mut head = read_head(&mut reader)?;
     // "Go on" before the answer proper (100 Continue): never asked for, tolerated a few times.
@@ -600,17 +645,22 @@ pub(crate) fn read_reply<R: Read>(stream: &mut R, started: Instant, patience: Du
         }
         head = read_head(&mut reader)?;
     }
-    let body = if matches!(head.status, 100..=199 | 204 | 304) {
-        Vec::new()
+    // Still "go on": the answer proper may be on its way, and must not be read as the next one's.
+    if (100..200).contains(&head.status) {
+        return Err(nonsense("the server didn't answer"));
+    }
+    let (body, delimited) = if matches!(head.status, 204 | 304) {
+        (Vec::new(), true)
     } else if head.chunked {
-        read_chunks(&mut reader, max_body)?
+        (read_chunks(&mut reader, max_body)?, true)
     } else if let Some(length) = head.length {
         let length = usize::try_from(length).ok().filter(|n| *n <= max_body).ok_or_else(|| too_long(max_body))?;
-        reader.take(length)?
+        (reader.take(length)?, true)
     } else {
-        reader.rest(max_body)?
+        (reader.rest(max_body)?, false)
     };
-    Ok(Reply { status: head.status, body, retry_after: head.retry_after })
+    let reusable = delimited && !head.close && !reader.ended && reader.pending().is_empty();
+    Ok((Reply { status: head.status, body, retry_after: head.retry_after }, reusable))
 }
 
 fn read_head<R: Read>(reader: &mut Reader<'_, R>) -> Result<Head, NetError> {
@@ -622,7 +672,8 @@ fn read_head<R: Read>(reader: &mut Reader<'_, R>) -> Result<Head, NetError> {
     let (version, status) = (words.next().unwrap_or(""), words.next().unwrap_or(""));
     let status = status.parse::<u16>().ok().filter(|s| status.len() == 3 && (100..600).contains(s));
     let (true, Some(status)) = (version.starts_with("HTTP/1."), status) else { return Err(not_http()) };
-    let mut head = Head { status, ..Default::default() };
+    // Only HTTP/1.1 keeps a connection open unless told otherwise.
+    let mut head = Head { status, close: !version.starts_with("HTTP/1.1"), ..Default::default() };
     let mut seen = line.len();
     for _ in 0..MAX_HEAD_LINES {
         let line = reader.line(MAX_HEAD)?.ok_or_else(closed)?;
@@ -642,6 +693,10 @@ fn read_head<R: Read>(reader: &mut Reader<'_, R>) -> Result<Head, NetError> {
             head.length = Some(length);
         } else if name.eq_ignore_ascii_case("transfer-encoding") {
             head.chunked = value.rsplit(',').next().is_some_and(|last| last.trim().eq_ignore_ascii_case("chunked"));
+            // A body whose coding doesn't end in chunks runs to the end of the connection.
+            head.close |= !head.chunked;
+        } else if name.eq_ignore_ascii_case("connection") {
+            head.close |= value.split(',').any(|token| token.trim().eq_ignore_ascii_case("close"));
         } else if name.eq_ignore_ascii_case("retry-after") {
             head.retry_after = Some(tidy(value));
         } else if name.eq_ignore_ascii_case("location") {
@@ -649,6 +704,8 @@ fn read_head<R: Read>(reader: &mut Reader<'_, R>) -> Result<Head, NetError> {
         } else if name.eq_ignore_ascii_case("content-range") {
             head.content_range = Some(value.to_string());
         }
+        // A length beside chunks: the chunks are read, and the connection is not trusted after.
+        head.close |= head.chunked && head.length.is_some();
     }
     Err(nonsense("the server's answer has too many headers"))
 }

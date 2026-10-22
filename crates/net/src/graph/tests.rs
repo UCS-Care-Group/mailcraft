@@ -124,7 +124,8 @@ fn a_message_goes_to_graph_in_base64() {
         "Content-Type: text/plain".into(),
         format!("Content-Length: {}", body.len()),
         "User-Agent: MailCraft".into(),
-        "Connection: close".into(),
+        // Graph's connections are kept open (#276); a send still has a new one of its own.
+        "Connection: keep-alive".into(),
     ] {
         assert!(head.contains(&format!("\r\n{header}")), "{header}: {head}");
     }
@@ -2488,6 +2489,31 @@ proptest! {
         // And as instants, when Graph wouldn't have the zone.
         let plain: Value = serde_json::from_str(&event_body(&fields, "", "", false).unwrap()).unwrap();
         prop_assert_eq!((when(plain.get("start")), when(plain.get("end")), plain["start"]["timeZone"].as_str()), (Some(start), Some(end), Some("UTC")));
+    }
+}
+
+/// Graph's requests go on connections kept open (#276): reads one after another on one, and
+/// what would happen twice on a new one of its own, with the token on every request.
+#[test]
+fn graph_requests_reuse_their_connection() {
+    use crate::fake::{FakeKeptHttp, Kept, kept_answer};
+
+    let server = FakeKeptHttp::start(|_, _, _| Kept::Answer(kept_answer("200 OK", r#"{"value":[]}"#)));
+    let graph = Graph::at(&server.url(""), TOKEN).unwrap();
+    for _ in 0..4 {
+        assert_eq!(graph.ask(&graph.url(CONTACTS), "GET", &[], None, ASK_TIMEOUT, MAX_PAGE).unwrap().status, 200);
+    }
+    assert_eq!((server.connections(), server.asked()), (1, 4));
+    graph.ask(&graph.url(SEND_MAIL), "POST", &[("Content-Type", "text/plain")], Some("aGk="), SEND_TIMEOUT, MAX_PAGE).unwrap();
+    assert_eq!(server.connections(), 2, "a send has a connection of its own");
+    // By the ground rules of mail a $batch of reads may go on one that waited; a move may not.
+    let read = graph.call(pace::Kind::Read, &graph.url("/v1.0/$batch"), "POST", &[], Some("{}"), ASK_TIMEOUT, MAX_PAGE).unwrap();
+    assert_eq!((read.status, server.connections()), (200, 2));
+    graph.call(pace::Kind::Once, &graph.url("/v1.0/me/messages/AAMk/move"), "POST", &[], Some("{}"), ASK_TIMEOUT, MAX_PAGE).unwrap();
+    assert_eq!(server.connections(), 3);
+    assert_eq!(graph.requests_asked(), 7);
+    for n in 0..7 {
+        assert!(server.request(n).contains(&format!("Authorization: Bearer {TOKEN}\r\n")), "{}", server.request(n));
     }
 }
 mod meetings;

@@ -74,6 +74,118 @@ impl FakeHttp {
     }
 }
 
+/// What a [`FakeKeptHttp`] does with a request.
+pub(crate) enum Kept {
+    /// Write these bytes and wait for the next request on the same connection.
+    Answer(Vec<u8>),
+    /// Write these bytes and close the connection, saying nothing of it.
+    AnswerAndClose(Vec<u8>),
+    /// Close the connection without a word of an answer.
+    Hang,
+}
+
+/// A fake web server that keeps its connections open: every connection has a thread of its
+/// own and is read request after request. It counts the connections it took.
+pub(crate) struct FakeKeptHttp {
+    pub(crate) port: u16,
+    connections: Arc<Mutex<usize>>,
+    requests: Arc<Mutex<Vec<String>>>,
+}
+
+impl FakeKeptHttp {
+    /// Answer request number `n` (from 0, over all connections) as `answer` says, given the
+    /// number of the connection it came on (from 0) and the request as it came.
+    pub(crate) fn start(answer: impl Fn(usize, usize, &str) -> Kept + Send + Sync + 'static) -> FakeKeptHttp {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let (connections, requests) = (Arc::new(Mutex::new(0usize)), Arc::new(Mutex::new(Vec::new())));
+        let (counted, kept) = (connections.clone(), requests.clone());
+        let answer = Arc::new(answer);
+        std::thread::spawn(move || {
+            for mut stream in listener.incoming().flatten() {
+                let connection = {
+                    let mut count = counted.lock().unwrap();
+                    *count += 1;
+                    *count - 1
+                };
+                let (kept, answer) = (kept.clone(), answer.clone());
+                std::thread::spawn(move || {
+                    let mut reader = BufReader::new(stream.try_clone().unwrap());
+                    loop {
+                        let Some(request) = read_one(&mut reader) else { return };
+                        let n = {
+                            let mut all = kept.lock().unwrap();
+                            all.push(request.clone());
+                            all.len() - 1
+                        };
+                        match answer(n, connection, &request) {
+                            Kept::Answer(bytes) => {
+                                if stream.write_all(&bytes).is_err() {
+                                    return;
+                                }
+                            }
+                            Kept::AnswerAndClose(bytes) => {
+                                let _ = stream.write_all(&bytes);
+                                return;
+                            }
+                            Kept::Hang => return,
+                        }
+                    }
+                });
+            }
+        });
+        FakeKeptHttp { port, connections, requests }
+    }
+
+    /// `http://127.0.0.1:{port}{path}`.
+    pub(crate) fn url(&self, path: &str) -> String {
+        format!("http://127.0.0.1:{}{path}", self.port)
+    }
+
+    /// How many connections it took.
+    pub(crate) fn connections(&self) -> usize {
+        *self.connections.lock().unwrap()
+    }
+
+    /// How many requests have come.
+    pub(crate) fn asked(&self) -> usize {
+        self.requests.lock().unwrap().len()
+    }
+
+    /// Request number `n`.
+    pub(crate) fn request(&self, n: usize) -> String {
+        self.requests.lock().unwrap()[n].clone()
+    }
+}
+
+/// One request off a connection: its head, an empty line and its body; `None` once the
+/// client has gone.
+fn read_one(reader: &mut BufReader<TcpStream>) -> Option<String> {
+    let (mut request, mut length) = (String::new(), 0usize);
+    loop {
+        let mut line = String::new();
+        if reader.read_line(&mut line).unwrap_or(0) == 0 {
+            return None;
+        }
+        if let Some(value) = line.to_ascii_lowercase().strip_prefix("content-length:") {
+            length = value.trim().parse().unwrap();
+        }
+        request.push_str(&line);
+        if line == "\r\n" {
+            break;
+        }
+    }
+    let mut body = vec![0u8; length];
+    reader.read_exact(&mut body).ok()?;
+    request.push_str(&String::from_utf8(body).unwrap());
+    Some(request)
+}
+
+/// An HTTP answer with a JSON body and its length, that leaves the connection open.
+pub(crate) fn kept_answer(status: &str, body: &str) -> Vec<u8> {
+    format!("HTTP/1.1 {status}\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n{body}", body.len()).into_bytes()
+}
+
 /// An HTTP answer with a JSON body and its length.
 pub(crate) fn json_answer(status: &str, body: &str) -> Vec<u8> {
     format!("HTTP/1.1 {status}\r\nContent-Type: application/json; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len())

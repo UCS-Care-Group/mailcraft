@@ -108,6 +108,18 @@ impl<'a> Stream<'a> {
         let _ = tcp.set_write_timeout(Some(FAREWELL_TIMEOUT));
     }
 
+    /// Wait `io` at most for any one read or write from now on (never more than [`IO_TIMEOUT`],
+    /// never for ever): for a connection kept open ([`crate::kept`]) and taken up again by a
+    /// request with patience of its own.
+    pub(crate) fn wait_for(&mut self, io: Duration) -> std::io::Result<()> {
+        let tcp = match &self.io {
+            Io::Plain(tcp) => tcp,
+            Io::Tls(tls) => &tls.sock,
+        };
+        let io = Some(io.min(IO_TIMEOUT).max(Duration::from_millis(1)));
+        tcp.set_read_timeout(io).and_then(|()| tcp.set_write_timeout(io))
+    }
+
     /// What every read and write begins with: the flag, and the time the command has had.
     fn before(&mut self, writing: bool) -> std::io::Result<()> {
         if self.cancel.is_some_and(|cancel| cancel.load(Ordering::Relaxed)) {
