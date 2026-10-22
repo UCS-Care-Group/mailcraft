@@ -1024,6 +1024,11 @@ impl Session {
                     if !set.has(slot) {
                         return Some(false);
                     }
+                    // A whole address (#301): its words only narrow the messages down, and the
+                    // address itself is looked at on each.
+                    if query.is_address_term(i) {
+                        return None;
+                    }
                     let (fields, w) = query.words_of(i)?;
                     if w.len() <= 1 {
                         return Some(true);

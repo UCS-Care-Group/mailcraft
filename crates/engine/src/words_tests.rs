@@ -389,7 +389,13 @@ mod in_step {
         let mut mb = Mailbox::with_local_account("Avery", "avery@mail.example");
         let account = mb.accounts[0].id;
         let folder = mb.folders.iter().find(|f| f.account == account && f.kind == FolderKind::Inbox).unwrap().id;
-        let senders = [("One", "ada@example.org"), ("Two", "ADA@Example.org"), ("Three", "adam@example.org"), ("Four", "ada.smith@example.org")];
+        let senders = [
+            ("One", "ada@example.org"),
+            ("Two", "ADA@Example.org"),
+            ("Three", "adam@example.org"),
+            ("Four", "ada.smith@example.org"),
+            ("Five", "ada@example.org.example"),
+        ];
         for (subject, email) in senders {
             mb.add_message(Message { folder, account, from: Address::new("Ada", email), ..message(0, subject, "Ada", "Hello.") }).unwrap();
         }
@@ -406,7 +412,7 @@ mod in_step {
         assert_eq!(subjects(&mut s, "from:ada@example.org"), ["One", "Two"]);
         assert!(s.words().unwrap().complete(), "answered from the index");
         // Words of it find more, as before.
-        assert_eq!(subjects(&mut s, "from:ada"), ["Four", "One", "Three", "Two"]);
+        assert_eq!(subjects(&mut s, "from:ada"), ["Five", "Four", "One", "Three", "Two"]);
         assert_eq!(subjects(&mut s, "from:ada@example.org -subject:two"), ["One"]);
     }
 

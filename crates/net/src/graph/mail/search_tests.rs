@@ -46,11 +46,47 @@ fn what_goes_to_the_server_is_what_its_search_understands() {
     assert_eq!(search_value(r#"AND OR (x) a\b c*d "e"f"#).as_deref(), Some(r#""and AND or AND x AND \"a b\" AND \"c d\" AND ef""#));
     // Case and accents as the owner wrote them: the server folds them as it does.
     assert_eq!(search_value("Gvožđar").as_deref(), Some(r#""Gvožđar""#));
-    // #301: a whole address goes whole; one the syntax can't take as it is (`+`) is checked
-    // here alone, and nothing else of the search is lost.
+    // #301: a whole address goes whole, one with a `+` in quotes, where the syntax reads `+` as
+    // text; one it can't take as it is stays to be checked here, and nothing else is lost.
     assert_eq!(search_value("from:Ada@Example.org").as_deref(), Some(r#""from:ada@example.org""#));
-    assert_eq!(search_value("from:ada+news@example.org"), None);
-    assert_eq!(search_value("from:ada+news@example.org budget").as_deref(), Some(r#""budget""#));
+    assert_eq!(search_value("from:ada+news@example.org budget").as_deref(), Some(r#""from:\"ada+news@example.org\" AND budget""#));
+    assert_eq!(search_value("Ada+News@example.org").as_deref(), Some(r#""\"Ada+News@example.org\"""#));
+    assert_eq!(search_value("c+plus").as_deref(), Some(r#""\"c plus\"""#));
+    assert_eq!(search_value("from:ada!news@example.org budget").as_deref(), Some(r#""budget""#));
+}
+
+/// #301: a plus-address reaches the server in one piece, and what the server finds for it is
+/// looked at here, so that only that address's mail is shown, as a search here shows.
+#[test]
+fn a_plus_address_is_searched_on_the_server_and_checked_here() {
+    let server = StandIn::start().unwrap();
+    let inbox = server.state().well_known("inbox");
+    {
+        let mut state = server.state();
+        for (i, from) in ["ada+news@example.org", "ada@example.org", "adam+newsletter@example.org", "ADA+NEWS@example.org"].into_iter().enumerate() {
+            let id = state.mailbox.add(&inbox, from, NOW - 60 * i as i64);
+            state.mailbox.messages.get_mut(&id).unwrap().from = from.into();
+        }
+    }
+    let query = "from:ada+news@example.org";
+    let found = ask(&server.url(), &request("owner@example.org", false, "", query));
+    assert!(found.errors.is_empty(), "{:?}", found.errors);
+    let asked = server.state().requests.last().cloned().unwrap();
+    let param = asked.query.iter().find(|(n, _)| n == "$search").map(|(_, v)| v.clone());
+    assert_eq!(param.as_deref(), Some(r#""from:\"ada+news@example.org\"""#));
+    // The server's search matches words, so it finds more than the address.
+    let mut by_server = subjects(&found);
+    by_server.sort();
+    assert_eq!(by_server, ["ADA+NEWS@example.org", "ada+news@example.org", "adam+newsletter@example.org"]);
+    // What is checked here leaves the one address, as a search here finds it.
+    let local = mailcraft_model::search::Query::parse(query).for_server().local;
+    let checked = |m: &&mailcraft_model::sync::GraphMessage| {
+        let message = mailcraft_model::Message { from: m.from.clone(), ..Default::default() };
+        local.matches(&message, 0)
+    };
+    let mut kept: Vec<&str> = found.messages.iter().filter(checked).map(|m| m.subject.as_str()).collect();
+    kept.sort();
+    assert_eq!(kept, ["ADA+NEWS@example.org", "ada+news@example.org"]);
 }
 
 /// #194: a space after a keyword's colon sends the keyword with its word; a keyword with nothing
