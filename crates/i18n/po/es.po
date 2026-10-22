@@ -3910,7 +3910,7 @@ msgid "List Tasks"
 msgstr "Enumerar tareas"
 
 #. interface
-#: crates/ui-egui/src/backstage.rs
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Local mailbox"
 msgstr "Buzón local"
@@ -4098,6 +4098,12 @@ msgstr "MailCraft la guarda en memoria hasta que cierre la aplicación. Nunca se
 #, fuzzy
 msgid "MailCraft looks for a new version once a day (File › Options). Only GitHub is asked."
 msgstr "MailCraft busca una nueva versión una vez al día (Archivo › Opciones). Solo se consulta a GitHub."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "MailCraft will have no account afterwards: File › Add Account sets one up again."
+msgstr "MailCraft no tendrá ninguna cuenta después: Archivo › Agregar cuenta vuelve a configurar una."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -10631,12 +10637,6 @@ msgid "the folder this message is in isn't on this computer any more"
 msgstr "la carpeta en la que está este mensaje ya no está en este equipo"
 
 #. what a command says
-#: crates/engine/src/cmd/account.rs
-#, fuzzy
-msgid "the last account can't be removed"
-msgstr "no se puede quitar la última cuenta"
-
-#. what a command says
 #: crates/engine/src/cmd/calendar.rs
 #, fuzzy
 msgid "the last calendar can't be deleted"
@@ -10809,6 +10809,12 @@ msgstr "hay demasiadas firmas"
 #, fuzzy
 msgid "there is already a signature named \"{to}\""
 msgstr "ya hay una firma llamada «{to}»"
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "there is no account to remove"
+msgstr "no hay ninguna cuenta que quitar"
 
 #. what a command says
 #: crates/engine/src/cmd/graph_switch.rs
@@ -11910,6 +11916,10 @@ msgstr "{why}, así que no se recuerdan los inicios de sesión: MailCraft vuelve
 #, fuzzy
 msgid "{why}. {n} changes made in it here wait on this computer."
 msgstr "{why}. {n} cambios hechos aquí en él esperan en este equipo."
+
+#, fuzzy
+#~ msgid "the last account can't be removed"
+#~ msgstr "no se puede quitar la última cuenta"
 
 #, fuzzy
 #~ msgid "Updating the calendar and contacts…"

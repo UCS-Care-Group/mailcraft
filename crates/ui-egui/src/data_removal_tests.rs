@@ -191,6 +191,23 @@ fn removing_an_account_forgets_its_sign_in_and_cannot_be_undone_into_its_mail() 
     assert!(a.session.mailbox.account(id).is_none());
 }
 
+#[test]
+fn removing_the_only_account_forgets_its_sign_in_and_leaves_an_empty_mailbox() {
+    let (host, store) = (Host::default(), Store::default());
+    let mut a = app(&host, &store);
+    a.session = Session::at(mailcraft_model::Mailbox::with_local_account("", ""), NOW, 0);
+    let id =
+        a.execute("account.add", json!({"email": "avery@mail.example", "incoming": {"host": "imap.mail.example"}})).unwrap()["id"].as_u64().unwrap();
+    store.set("password:avery@mail.example", "pw").unwrap();
+    store.set("refresh:avery@mail.example", "ref").unwrap();
+    a.execute("account.remove", json!({"id": id})).unwrap();
+    assert!(store.0.lock().unwrap().is_empty());
+    assert!(matches!(a.session.mailbox.accounts.as_slice(), [fresh] if fresh.email.is_empty() && fresh.id != id));
+    assert!(!a.session.can_undo() && !a.session.can_redo());
+    // Nothing of a run of it is left waiting either: there is no account here to sync.
+    assert!(a.server_accounts().is_empty());
+}
+
 // ---- the review of #294 ----
 
 /// A saver that is never idle: a save that is still running when the wait is over.

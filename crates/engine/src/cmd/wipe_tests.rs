@@ -6,7 +6,7 @@
 
 use std::path::{Path, PathBuf};
 
-use mailcraft_model::{Attachment, Body, FolderKind, Id, Mailbox, Message};
+use mailcraft_model::{AccountKind, Attachment, Body, FolderKind, Id, Mailbox, Message};
 use serde_json::json;
 
 use crate::Session;
@@ -77,6 +77,70 @@ fn removing_an_account_removes_its_content_files_and_keeps_what_another_account_
     let reopened = crate::store::open(&path).unwrap();
     assert_eq!(reopened.mailbox.messages.len(), 1);
     assert!(reopened.mailbox.accounts.iter().all(|a| a.id != going));
+}
+
+/// #313: the only account is removed as any other, its content files with it, and an empty
+/// mailbox takes its place, as at a first start: a nameless local account with the standard
+/// folders, whose place the next account added takes again.
+#[test]
+fn removing_the_only_account_leaves_an_empty_mailbox_as_at_a_first_start() {
+    let tmp = Scratch::new("only");
+    let path = tmp.0.join("mailbox.mailcraft");
+    let mut s = Session::at(Mailbox::with_local_account("", ""), 1_800_000_000, 0);
+    let going = s.run("account.add", &json!({"email": "grace@example.org"})).unwrap()["id"].as_u64().unwrap();
+    assert_eq!(s.mailbox.accounts.len(), 1, "it took the placeholder's place");
+    add(&mut s, going, &big("going body"), &[9u8; 5_000]);
+    s.path = Some(path.clone());
+    s.run("file.save", &json!({})).unwrap();
+    assert!(blobs(&path) >= 2);
+
+    s.run("account.remove", &json!({"id": going})).unwrap();
+    assert!(!s.can_undo() && !s.can_redo());
+    s.run("file.save", &json!({})).unwrap();
+    assert_eq!(blobs(&path), 0);
+
+    // What a first start has, and nothing of the account that went.
+    let first = Mailbox::with_local_account("", "");
+    let [fresh] = s.mailbox.accounts.as_slice() else { panic!("{:?}", s.mailbox.accounts) };
+    assert!(fresh.id != going && fresh.email.is_empty() && fresh.kind == AccountKind::Local);
+    assert_eq!(fresh.name, first.accounts[0].name);
+    assert_eq!(s.mailbox.folders.len(), first.folders.len());
+    assert!(s.mailbox.folders.iter().all(|f| f.account == fresh.id));
+    assert!(s.mailbox.messages.is_empty() && s.mailbox.pending.is_empty() && !s.mailbox.calendars.is_empty());
+    assert_eq!(s.mailbox.folder(s.view.folder).map(|f| (f.account, f.kind)), Some((fresh.id, FolderKind::Inbox)));
+    let reopened = crate::store::open(&path).unwrap();
+    assert!(matches!(reopened.mailbox.accounts.as_slice(), [a] if a.email.is_empty()));
+
+    // The next account takes its place, as the first one did.
+    let next = s.run("account.add", &json!({"email": "ada@example.org"})).unwrap()["id"].as_u64().unwrap();
+    assert!(matches!(s.mailbox.accounts.as_slice(), [a] if a.id == next));
+}
+
+/// #313: the placeholder of an empty mailbox (the only account, with no address and no mail)
+/// isn't an account to remove. Once mail is imported into it, it is a local mailbox like any
+/// account: removed alone, its mail goes and a fresh placeholder takes its place; beside an
+/// account, it goes as any other.
+#[test]
+fn the_empty_mailbox_has_no_account_to_remove() {
+    let mut s = Session::at(Mailbox::with_local_account("", ""), 1_800_000_000, 0);
+    let placeholder = s.mailbox.accounts[0].id;
+    assert_eq!(s.mailbox.placeholder(), Some(placeholder));
+    let said = s.run("account.remove", &json!({"id": placeholder})).unwrap_err().to_string();
+    assert!(said.contains("no account to remove"), "{said}");
+    assert_eq!(s.mailbox.accounts.len(), 1);
+
+    let local = placeholder;
+    add(&mut s, local, "imported", &[1u8; 10]);
+    assert_eq!(s.mailbox.placeholder(), None);
+    s.run("account.remove", &json!({"id": local})).unwrap();
+    assert!(s.mailbox.messages.is_empty());
+    assert!(s.mailbox.placeholder().is_some_and(|fresh| fresh != local));
+
+    let local = s.mailbox.accounts[0].id;
+    add(&mut s, local, "imported", &[1u8; 10]);
+    let ada = s.run("account.add", &json!({"email": "ada@example.org"})).unwrap()["id"].as_u64().unwrap();
+    s.run("account.remove", &json!({"id": local})).unwrap();
+    assert!(matches!(s.mailbox.accounts.as_slice(), [a] if a.id == ada));
 }
 
 #[test]
