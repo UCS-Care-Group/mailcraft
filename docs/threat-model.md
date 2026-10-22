@@ -1,6 +1,6 @@
 # Threat model
 
-> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-10-21 · **Change:** minor (the whitelist adds padding, margins, lines, rounded corners and a line height, all clamped, #71; the whitelist adds width, max-width and centring by automatic margins, #150; an assurance case: claim, trust boundaries, design principles, common weaknesses and the evidence; releases carry MailCraft's own signature; agents with a shell or the owner's files are outside the agent gate; the settings folder, logs and kept pictures are the owner's alone) · **Target:** Microsoft Outlook (Microsoft 365)
+> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-10-22 · **Change:** minor (`--control-agents-only`: no control request passes for the owner's script; the whitelist adds padding, margins, lines, rounded corners and a line height, all clamped, #71; the whitelist adds width, max-width and centring by automatic margins, #150; an assurance case: claim, trust boundaries, design principles, common weaknesses and the evidence; releases carry MailCraft's own signature; agents with a shell or the owner's files are outside the agent gate; the settings folder, logs and kept pictures are the owner's alone) · **Target:** Microsoft Outlook (Microsoft 365)
 
 What MailCraft protects, from whom, and how, with the code that does it. Rules for working in the
 code are in [`CLAUDE.md`](../CLAUDE.md) and [`AGENTS.md`](../AGENTS.md); how to report a
@@ -110,7 +110,10 @@ An `.eml`, `.mbox`, `.ics`, `.vcf` or `.mailcraft` file from somewhere else.
   the bridge's `agent` marking for the owner's own script, so an agent that can run a shell or read
   files as the owner (it could read the control key in the settings folder, or the mailbox file
   itself, or run `mailcraft-cli`) is outside the gate. Run such an agent as another user or in a
-  sandbox, and don't start the app with `--control` while one is around.
+  sandbox, and don't start the app with `--control` while one is around. With
+  `--control-agents-only` every control request is an agent's, allowed nothing in advance, so the
+  running window can't be driven past the owner's question; the mailbox file and `mailcraft-cli`
+  stay within such an agent's reach.
 
 ### A supply-chain compromise
 
@@ -220,3 +223,4 @@ settings files (`crates/engine/src/store.rs`); commands from the control channel
 | 2026-10-16 | minor | Release signing in the protected `release` environment; draft releases |
 | 2026-10-16 | minor | Pinned build tools with checksums; build provenance for release files |
 | 2026-10-15 | major | First version: assets, adversaries, mechanisms with their files, known limits |
+| 2026-10-22 | minor | `--control-agents-only`: every control request is an agent's, allowed nothing in advance; the mailbox file and `mailcraft-cli` stay within reach of an agent running as the owner |
