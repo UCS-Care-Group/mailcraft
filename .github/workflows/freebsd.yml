@@ -26,6 +26,6 @@ permissions:
 jobs:
   freebsd:
     # Pinned to a full commit SHA of the shared workflow's main branch; moved by hand, after reading the change.
-    uses: storytold/craft-common-actions/.github/workflows/freebsd.yml@a4acae8e3a54b0c198c9f22fe4f4197ffd9f58b8 # main # zizmor: ignore[ref-version-mismatch]
+    uses: storytold/craft-common-actions/.github/workflows/freebsd.yml@82b63dea97c774ca6fbc2584b9b063de4dedc3f6 # main # zizmor: ignore[ref-version-mismatch]
     with:
       craft-fonts-ref: 8dcdacd5153e64560d109541a47d806f26f048c0

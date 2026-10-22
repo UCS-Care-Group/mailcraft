@@ -716,6 +716,18 @@ mod tests {
         assert_eq!(mailbox, before);
     }
 
+    #[test]
+    fn a_time_the_clocks_skip_stays_put_in_its_own_zone() {
+        // The case the property test found: 01:00 on the night London's clocks go forward.
+        let london = zone("Europe/London");
+        let mut mailbox = Mailbox::with_local_account("Ada", "ada@example.org");
+        mailbox.add_event(timed(0, at(2039, 3, 27, 1, 0), 1)).unwrap();
+        mailbox.rebase(london);
+        let before = mailbox.clone();
+        assert_eq!(mailbox.rebase(london), 0);
+        assert_eq!(mailbox, before);
+    }
+
     proptest::proptest! {
         #[test]
         fn rebasing_there_and_back_moves_no_instant(
@@ -742,8 +754,11 @@ mod tests {
             // Every instant is the same instant, also in an hour the second zone's clocks show
             // twice; and it reads as that zone's clock shows it.
             proptest::prop_assert_eq!(instants(&mailbox, second), before.clone());
-            let shown: Vec<DateTime> = before.iter().map(|(start, _)| second.wall(*start)).collect();
-            proptest::prop_assert_eq!(mailbox.events.values().map(|e| e.start).collect::<Vec<_>>(), shown);
+            // (Into the zone it is already in nothing moves, so a time its clocks skip stays as written.)
+            if first != second {
+                let shown: Vec<DateTime> = before.iter().map(|(start, _)| second.wall(*start)).collect();
+                proptest::prop_assert_eq!(mailbox.events.values().map(|e| e.start).collect::<Vec<_>>(), shown);
+            }
             let pinned = mailbox.clone();
             for event in mailbox.events.values().filter(|event| event.recurrence.is_some()) {
                 // The series still starts on the same day of its own.
