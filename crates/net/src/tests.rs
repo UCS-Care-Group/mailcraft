@@ -2424,3 +2424,24 @@ fn mail_sent_is_counted_in_the_sending_phase() {
     let sending = result.timings.phases.iter().find(|p| p.phase == SyncPhase::Sending).map_or(0, |p| p.requests);
     assert_eq!(sending, 1);
 }
+
+#[test]
+fn a_server_that_floods_one_answer_is_given_up_on() {
+    let pad = "x".repeat(60 * 1024);
+    // About 38 MB of FETCH lines at invented UIDs, and about as much of LIST lines: more than one
+    // command may bring, and nothing of it is kept.
+    let fetch: String = (0..640).map(|n| format!("* {n} FETCH (UID {} FLAGS ({pad}))\r\n", 1_000 + n)).collect::<String>() + "{tag} OK done\r\n";
+    let list: String = (0..640).map(|n| format!("* LIST () \"/\" \"{n}{pad}\"\r\n")).collect::<String>() + "{tag} OK done\r\n";
+    for (at, answer) in [("UID FETCH 1:* (UID FLAGS)", fetch), ("LIST", list)] {
+        let imap = Fake::imap(imap_world());
+        imap.world().answers = vec![(at.to_string(), answer)];
+        let ada = account(Some(&imap), None);
+        let started = Instant::now();
+        let result = sync(&request(ada, local_folders()));
+        assert!(started.elapsed() < Duration::from_secs(60), "{at}: {:?}", started.elapsed());
+        assert!(!result.errors.is_empty(), "{at}");
+        assert!(result.errors.iter().all(|line| line.len() < 600 && !line.chars().any(char::is_control)), "{at}: {:?}", result.errors);
+        // Nothing of the flood is taken in.
+        assert!(result.folders.iter().all(|folder| folder.new.is_empty()), "{at}");
+    }
+}
