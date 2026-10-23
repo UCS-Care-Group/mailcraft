@@ -10,6 +10,8 @@
 //! ([`Mailbox::rebase`](crate::Mailbox::rebase)). An event may have a zone of its own
 //! ([`Event::start_zone`]); `zoned.rs` has what that means.
 
+use std::collections::HashSet;
+
 use mailcraft_time::{Date, DateTime, Weekday, month_name};
 use serde::{Deserialize, Serialize};
 
@@ -382,6 +384,28 @@ impl Recurrence {
         }
     }
 
+    /// How many days every period after the first gives, when that is the same for all of them.
+    fn per_period(&self) -> Option<u64> {
+        match self.freq {
+            Freq::Daily if self.by_day.is_empty() => Some(1),
+            Freq::Daily => None,
+            Freq::Weekly => Some(self.distinct_days()),
+            Freq::Monthly | Freq::Yearly => match self.nth {
+                None | Some(0) => Some(1),
+                // The first to fourth, and the last, weekday of a month is always there.
+                Some(nth) if (1..=4).contains(&nth) || nth < 0 => Some(self.distinct_days()),
+                Some(_) => None,
+            },
+        }
+    }
+
+    fn distinct_days(&self) -> u64 {
+        let mut days = self.by_day.clone();
+        days.sort();
+        days.dedup();
+        days.len().max(1) as u64
+    }
+
     /// The days the series falls on between `from` and `to` (inclusive), for a series that starts
     /// on `start`, without the `exdates`. Excluded days still count towards `count`.
     pub fn dates(&self, start: Date, from: Date, to: Date, exdates: &[Date]) -> Vec<Date> {
@@ -390,19 +414,32 @@ impl Recurrence {
         if last < start || to < from {
             return out;
         }
-        // Without a count, the periods before the window don't need walking.
-        let first_period = if self.count.is_some() {
-            0
-        } else {
-            let behind = match self.freq {
-                Freq::Daily => start.days_until(from) / self.step(),
-                Freq::Weekly => start.days_until(from) / (7 * self.step()),
-                Freq::Monthly => (i64::from(from.year - start.year) * 12 + i64::from(from.month) - i64::from(start.month)) / self.step(),
-                Freq::Yearly => i64::from(from.year - start.year) / self.step(),
-            };
-            (behind - 1).max(0)
+        // The periods before the window don't need walking.
+        let behind = match self.freq {
+            Freq::Daily => start.days_until(from) / self.step(),
+            Freq::Weekly => start.days_until(from) / (7 * self.step()),
+            Freq::Monthly => (i64::from(from.year - start.year) * 12 + i64::from(from.month) - i64::from(start.month)) / self.step(),
+            Freq::Yearly => i64::from(from.year - start.year) / self.step(),
         };
+        let skip = (behind - 1).max(0);
         let mut produced = 0u32;
+        let first_period = match (self.count, self.per_period()) {
+            (None, _) => skip,
+            // A count: every period after the first gives the same number of days, so the
+            // periods skipped are counted, not walked (the first has days before the start).
+            (Some(count), Some(each)) if skip > 1 => {
+                let first = self.period(start, 0).into_iter().filter(|day| *day >= start).count() as u64;
+                let before = first.saturating_add(each.saturating_mul(skip as u64 - 1));
+                if before >= u64::from(count) {
+                    return out;
+                }
+                produced = u32::try_from(before).unwrap_or(u32::MAX);
+                skip
+            }
+            (Some(_), _) => 0,
+        };
+        // Many excluded days are looked up in a set.
+        let excluded: HashSet<Date> = exdates.iter().copied().collect();
         let mut previous: Option<Date> = None;
         for p in first_period..first_period.saturating_add(MAX_STEPS) {
             let period = self.period(start, p);
@@ -424,7 +461,7 @@ impl Recurrence {
                 if self.count.is_some_and(|c| produced > c) {
                     return out;
                 }
-                if day >= from && !exdates.contains(&day) {
+                if day >= from && !excluded.contains(&day) {
                     out.push(day);
                     if out.len() >= MAX_RESULTS {
                         return out;
