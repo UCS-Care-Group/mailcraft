@@ -955,8 +955,20 @@ msgstr ""
 msgid "Arrange By"
 msgstr "Réorganiser par"
 
+#. command label
+#: crates/engine/src/cmd/people.rs
+#, fuzzy
+msgid "Arrange Contacts By"
+msgstr "Réorganiser les contacts par"
+
+#. command label
+#: crates/engine/src/cmd/tasks.rs
+#, fuzzy
+msgid "Arrange Tasks By"
+msgstr "Réorganiser les tâches par"
+
 #. ribbon, ribbon location
-#: crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Arrangement"
 msgstr "Disposition"
@@ -1184,6 +1196,12 @@ msgstr "Le"
 #. interface
 #: crates/ui-egui/src/mail_view.rs
 #, fuzzy
+msgid "By Categories"
+msgstr "Par catégories"
+
+#. interface
+#: crates/ui-egui/src/mail_view.rs
+#, fuzzy
 msgid "By Date"
 msgstr "Par date"
 
@@ -1301,8 +1319,8 @@ msgstr "Annuler cette réunion ?"
 msgid "Cancelled"
 msgstr "Annulé"
 
-#. interface
-#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/tasks_view.rs
+#. interface, name
+#: crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Categories"
 msgstr "Catégories"
@@ -2440,6 +2458,12 @@ msgstr "Les brouillons non envoyés vont dans vos Brouillons sur le serveur. Les
 #, fuzzy
 msgid "Due"
 msgstr "Échéance"
+
+#. name
+#: crates/engine/src/session.rs
+#, fuzzy
+msgid "Due Date"
+msgstr "Date d'échéance"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -4644,8 +4668,8 @@ msgstr "Mes tâches"
 msgid "My organisation has to approve MailCraft first: what to do"
 msgstr "Mon organisation doit d'abord approuver MailCraft : que faire"
 
-#. interface
-#: crates/ui-egui/src/forms.rs
+#. interface, name
+#: crates/engine/src/session.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Name"
 msgstr "Nom"
@@ -4974,6 +4998,12 @@ msgstr "Aucun rendez-vous n'est ouvert dans une fenêtre distincte"
 #, fuzzy
 msgid "No categories yet"
 msgstr "Aucune catégorie pour l'instant"
+
+#. interface
+#: crates/ui-egui/src/tasks_view.rs
+#, fuzzy
+msgid "No category"
+msgstr "Aucune catégorie"
 
 #. interface
 #: crates/ui-egui/src/graph_switch.rs
@@ -9389,7 +9419,7 @@ msgid "Version {version} is ready:"
 msgstr "La version {version} est prête :"
 
 #. name, ribbon location
-#: crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
+#: crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
 msgid "View"
 msgstr "Affichage"

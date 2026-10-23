@@ -8,6 +8,7 @@
 use std::sync::Arc;
 
 use egui::{Align2, Color32, FontId, Rect, RichText, Sense, Stroke, Ui, pos2, vec2};
+use mailcraft_engine::PeopleSort;
 use mailcraft_engine::cmd::people;
 use mailcraft_model::{Address, Contact, Id, Mailbox};
 use mailcraft_time::Date;
@@ -51,6 +52,10 @@ enum Group {
     Letter(char),
     /// Names that start with a digit or a symbol, and contacts without a name.
     Other,
+    /// Arranged by categories: one set of them, by its place in [`PeopleList::names`].
+    Categories(u32),
+    /// Arranged by categories: the contacts that have none.
+    NoCategory,
 }
 
 fn group_of(favorite: bool, file_as: &str) -> Group {
@@ -63,11 +68,13 @@ fn group_of(favorite: bool, file_as: &str) -> Group {
     }
 }
 
-fn group_label(group: Group) -> String {
+fn group_label(group: Group, names: &[String]) -> String {
     match group {
         Group::Favorites => tl!("Favorites").to_string(),
         Group::Letter(c) => c.to_string(),
         Group::Other => "#".to_string(),
+        Group::Categories(i) => names.get(i as usize).map_or_else(String::new, |n| one_line(n, 200)),
+        Group::NoCategory => tl!(mailcraft_engine::list::NO_CATEGORY).to_string(),
     }
 }
 
@@ -75,6 +82,9 @@ fn group_label(group: Group) -> String {
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct Row<G> {
     pub id: Id,
+    /// Which of the item's rows this is: arranged by categories, an item filed under two is
+    /// listed under each, as Outlook lists it, and the second row is copy 1.
+    pub copy: u16,
     pub top: f32,
     pub heading: Option<G>,
 }
@@ -95,12 +105,15 @@ impl<G: Copy + PartialEq> Layout<G> {
         let mut rows = Vec::new();
         let mut y = 0.0f32;
         let mut last = None;
+        let mut copies: std::collections::HashMap<Id, u16> = std::collections::HashMap::new();
         for (id, group) in items {
             let heading = (last != Some(group)).then_some(group);
             if heading.is_some() {
                 y += GROUP_H;
             }
-            rows.push(Row { id, top: y, heading });
+            let copy = copies.entry(id).or_default();
+            rows.push(Row { id, copy: *copy, top: y, heading });
+            *copy = copy.saturating_add(1);
             y += row_h;
             last = Some(group);
         }
@@ -116,16 +129,45 @@ impl<G: Copy + PartialEq> Layout<G> {
 
     /// The row `step` rows from `current`; the first row (the last when going up) when nothing
     /// in the list is selected.
+    #[cfg(test)]
     pub fn neighbour(&self, current: Option<Id>, step: i64) -> Option<Id> {
+        self.neighbour_row(current.map(|id| (id, 0)), step).map(|(id, _)| id)
+    }
+
+    /// [`neighbour`](Self::neighbour) from one of an item's rows (`(id, copy)`), to a row.
+    pub fn neighbour_row(&self, current: Option<(Id, u16)>, step: i64) -> Option<(Id, u16)> {
         let last = self.rows.len().checked_sub(1)?;
-        let at = current.and_then(|id| self.rows.iter().position(|r| r.id == id));
-        let index = match at {
+        let index = match current.and_then(|row| self.position(row)) {
             Some(i) => (i as i64).saturating_add(step).clamp(0, last as i64) as usize,
             None if step < 0 => last,
             None => 0,
         };
-        self.rows.get(index).map(|r| r.id)
+        self.rows.get(index).map(|r| (r.id, r.copy))
     }
+
+    /// Where one of an item's rows is: that copy, or the item's first row when it has fewer.
+    fn position(&self, (id, copy): (Id, u16)) -> Option<usize> {
+        self.rows.iter().position(|r| r.id == id && r.copy == copy).or_else(|| self.rows.iter().position(|r| r.id == id))
+    }
+}
+
+/// How many items a list shows: one listed under several categories counts once.
+pub(crate) fn listed<G>(layout: &Layout<G>) -> usize {
+    layout.rows.iter().filter(|r| r.copy == 0).count()
+}
+
+/// Which of the selected item's rows has the selection, for an item a list shows more than once:
+/// the row clicked or stepped to, kept for the list `slot`; the first otherwise.
+pub(crate) fn chosen_copy(ctx: &egui::Context, slot: &'static str, selected: Option<Id>) -> u16 {
+    match ctx.data(|d| d.get_temp::<(Id, u16)>(egui::Id::new(slot))) {
+        Some((id, copy)) if Some(id) == selected => copy,
+        _ => 0,
+    }
+}
+
+/// Remembers which of an item's rows was chosen ([`chosen_copy`]).
+pub(crate) fn choose_copy(ctx: &egui::Context, slot: &'static str, id: Id, copy: u16) {
+    ctx.data_mut(|d| d.insert_temp(egui::Id::new(slot), (id, copy)));
 }
 
 /// Whether the selection is not the one this list showed last frame: a selection that changed
@@ -138,19 +180,19 @@ pub(crate) fn selection_changed(ui: &Ui, slot: &'static str, selected: Option<Id
 }
 
 /// A scrolling list that paints its headings and only the rows in view. `reveal` is a row to
-/// scroll to; `row` paints one row in the rectangle it is given.
+/// scroll to (`(id, copy)`); `row` paints one row (its item and copy) in the rectangle it is given.
 pub(crate) fn show_rows<G: Copy + PartialEq>(
     ui: &mut Ui,
     layout: &Layout<G>,
-    reveal: Option<Id>,
+    reveal: Option<(Id, u16)>,
     label: impl Fn(G) -> String,
-    mut row: impl FnMut(&mut Ui, Id, Rect),
+    mut row: impl FnMut(&mut Ui, Id, u16, Rect),
 ) {
     let t = Tokens::get(ui.ctx());
     egui::ScrollArea::vertical().auto_shrink([false, false]).show_viewport(ui, |ui, viewport| {
         let (area, _) = ui.allocate_exact_size(vec2(ui.available_width(), layout.height), Sense::hover());
         let (origin, width) = (area.min, area.width());
-        if let Some(r) = reveal.and_then(|id| layout.rows.iter().find(|r| r.id == id)) {
+        if let Some(r) = reveal.and_then(|row| layout.position(row)).and_then(|i| layout.rows.get(i)) {
             let heading = if r.heading.is_some() { GROUP_H } else { 0.0 };
             ui.scroll_to_rect(Rect::from_min_size(pos2(origin.x, origin.y + r.top - heading), vec2(width, layout.row_h + heading)), None);
         }
@@ -160,34 +202,79 @@ pub(crate) fn show_rows<G: Copy + PartialEq>(
                 ui.painter().rect_filled(bar, 0.0, t.panel);
                 paint_clipped(ui.painter(), pos2(bar.min.x + 12.0, bar.center().y), width - 24.0, &label(group), semibold(11.5), t.text_dim);
             }
-            row(ui, r.id, Rect::from_min_size(pos2(origin.x, origin.y + r.top), vec2(width, layout.row_h)));
+            row(ui, r.id, r.copy, Rect::from_min_size(pos2(origin.x, origin.y + r.top), vec2(width, layout.row_h)));
         }
     });
+}
+
+/// The contact list as laid out, with the names of the categories its headings stand for when it
+/// is arranged by categories.
+#[derive(Clone, Debug, PartialEq)]
+struct PeopleList {
+    layout: Layout<Group>,
+    names: Vec<String>,
+}
+
+impl std::ops::Deref for PeopleList {
+    type Target = Layout<Group>;
+    fn deref(&self) -> &Layout<Group> {
+        &self.layout
+    }
 }
 
 /// The layout kept between frames, with what it was made from.
 #[derive(Clone)]
 struct CachedLayout {
-    key: (u64, usize, String),
-    layout: Arc<Layout<Group>>,
+    key: (u64, usize, String, PeopleSort),
+    list: Arc<PeopleList>,
 }
 
 /// The list for the search in view. Sorting every contact is the slow part, so the result is kept
-/// until the mailbox or the search changes.
-fn list_layout(app: &MailApp, ctx: &egui::Context) -> Arc<Layout<Group>> {
+/// until the mailbox, the search or the arrangement changes.
+fn list_layout(app: &MailApp, ctx: &egui::Context) -> Arc<PeopleList> {
     let slot = egui::Id::new("people_list_layout");
-    let query = &app.session.view.people_search;
-    let key = (app.session.rev(), app.session.mailbox.contacts.len(), query.clone());
+    let s = &app.session;
+    let query = &s.view.people_search;
+    let key = (s.rev(), s.mailbox.contacts.len(), query.clone(), s.view.people_sort);
     if let Some(cached) = ctx.data(|d| d.get_temp::<CachedLayout>(slot)).filter(|c| c.key == key) {
-        return cached.layout;
+        return cached.list;
     }
-    let ids = people::sorted(&app.session, query);
-    let layout = Arc::new(Layout::new(
-        ROW_H,
-        ids.iter().filter_map(|id| app.session.mailbox.contact(*id)).map(|c| (c.id, group_of(c.favorite, &c.file_as()))),
-    ));
-    ctx.data_mut(|d| d.insert_temp(slot, CachedLayout { key, layout: layout.clone() }));
-    layout
+    let ids = people::sorted(s, query);
+    let contacts = ids.iter().filter_map(|id| s.mailbox.contact(*id));
+    let mut names: Vec<String> = Vec::new();
+    let layout = match s.view.people_sort {
+        PeopleSort::Name => Layout::new(ROW_H, contacts.map(|c| (c.id, group_of(c.favorite, &c.file_as())))),
+        // As Outlook lists them: a contact under each of its categories, those with none first,
+        // then the categories A to Z, the contacts by name under each (the order they come in).
+        PeopleSort::Categories => {
+            let mut placed: Vec<(Option<String>, Id)> = Vec::new();
+            for c in contacts {
+                let filed = mailcraft_engine::list::category_names(s, &c.categories);
+                if filed.is_empty() {
+                    placed.push((None, c.id));
+                }
+                placed.extend(filed.into_iter().map(|name| (Some(name.to_string()), c.id)));
+            }
+            placed.sort_by_cached_key(|(name, _)| name.as_ref().map(|n| n.to_lowercase()));
+            let rows: Vec<(Id, Group)> = placed
+                .into_iter()
+                .map(|(name, id)| match name {
+                    None => (id, Group::NoCategory),
+                    Some(name) => {
+                        // Sorted by name, so a name not last seen is a new one.
+                        if !names.last().is_some_and(|n| n.eq_ignore_ascii_case(&name)) {
+                            names.push(name);
+                        }
+                        (id, Group::Categories(u32::try_from(names.len() - 1).unwrap_or(u32::MAX)))
+                    }
+                })
+                .collect();
+            Layout::new(ROW_H, rows)
+        }
+    };
+    let list = Arc::new(PeopleList { layout, names });
+    ctx.data_mut(|d| d.insert_temp(slot, CachedLayout { key, list: list.clone() }));
+    list
 }
 
 // ---- small pure pieces ----
@@ -354,11 +441,16 @@ fn keyboard(app: &mut MailApp, ui: &Ui, layout: &Layout<Group>) {
         )
     });
     let step = down.min(1000) as i64 - up.min(1000) as i64;
+    let selected = app.session.sel.contact;
+    let at = selected.map(|id| (id, chosen_copy(ui.ctx(), PEOPLE_ROW, selected)));
     if step != 0
-        && let Some(id) = layout.neighbour(app.session.sel.contact, step)
-        && app.session.sel.contact != Some(id)
+        && let Some((id, copy)) = layout.neighbour_row(at, step)
+        && at != Some((id, copy))
     {
-        let _ = app.run("people.select", json!({"id": id}));
+        choose_copy(ui.ctx(), PEOPLE_ROW, id, copy);
+        if selected != Some(id) {
+            let _ = app.run("people.select", json!({"id": id}));
+        }
     }
     if enter && app.session.sel.contact.is_some() {
         let _ = app.run("people.edit", json!({}));
@@ -367,13 +459,16 @@ fn keyboard(app: &mut MailApp, ui: &Ui, layout: &Layout<Group>) {
 
 // ---- the list pane ----
 
-fn list(app: &mut MailApp, ui: &mut Ui, layout: &Layout<Group>) {
+/// Where the contact list keeps which row of the selected contact has the selection.
+const PEOPLE_ROW: &str = "people_list_row";
+
+fn list(app: &mut MailApp, ui: &mut Ui, layout: &PeopleList) {
     let t = Tokens::get(ui.ctx());
     ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
     let searching = !app.session.view.people_search.trim().is_empty();
     let total = app.session.mailbox.contacts.len();
     let count = if searching {
-        crate::i18n::fmt(tl!("{n} of {total}"), &[("n", &layout.rows.len().to_string()), ("total", &total.to_string())])
+        crate::i18n::fmt(tl!("{n} of {total}"), &[("n", &listed(&layout.layout).to_string()), ("total", &total.to_string())])
     } else {
         total.to_string()
     };
@@ -396,8 +491,9 @@ fn list(app: &mut MailApp, ui: &mut Ui, layout: &Layout<Group>) {
         return;
     }
     let selected = app.session.sel.contact;
-    let reveal = selection_changed(ui, "people_list_seen", selected).then_some(selected).flatten();
-    show_rows(ui, layout, reveal, group_label, |ui, id, rect| contact_row(app, ui, id, rect));
+    let at = selected.map(|id| (id, chosen_copy(ui.ctx(), PEOPLE_ROW, selected)));
+    let reveal = selection_changed(ui, "people_list_seen", selected).then_some(at).flatten();
+    show_rows(ui, layout, reveal, |g| group_label(g, &layout.names), |ui, id, copy, rect| contact_row(app, ui, id, copy, rect));
 }
 
 fn empty_list(app: &mut MailApp, ui: &mut Ui, searching: bool) {
@@ -418,13 +514,18 @@ fn empty_list(app: &mut MailApp, ui: &mut Ui, searching: bool) {
     });
 }
 
-fn contact_row(app: &mut MailApp, ui: &mut Ui, id: Id, rect: Rect) {
+fn contact_row(app: &mut MailApp, ui: &mut Ui, id: Id, copy: u16, rect: Rect) {
     let t = Tokens::get(ui.ctx());
     // The shared pointer, not a copy of the contact.
     let Some(c) = app.session.mailbox.contacts.get(&id).cloned() else { return };
-    let resp = ui.interact(rect, ui.id().with(("contact", id)), Sense::click());
+    // A contact listed under two categories is two rows, each with an id of its own.
+    let resp = ui.interact(rect, ui.id().with(("contact", id, copy)), Sense::click());
     app.hit.add("contact", id, rect);
-    let selected = app.session.sel.contact == Some(id);
+    // The selection is on one of a contact's rows: the one clicked or stepped to.
+    let selected = app.session.sel.contact == Some(id) && chosen_copy(ui.ctx(), PEOPLE_ROW, Some(id)) == copy;
+    if resp.clicked() || resp.secondary_clicked() {
+        choose_copy(ui.ctx(), PEOPLE_ROW, id, copy);
+    }
     let p = ui.painter();
     if selected {
         p.rect_filled(rect, 0.0, t.selection);
@@ -803,6 +904,9 @@ pub(crate) mod testing {
 }
 
 #[cfg(test)]
+mod arrange_tests;
+
+#[cfg(test)]
 mod tests {
     use mailcraft_model::{Labeled, Message};
 
@@ -827,9 +931,9 @@ mod tests {
         for odd in ["", "   ", "42 Wallaby Way", "@home", "\u{0}", "(Acme)"] {
             assert_eq!(group_of(false, odd), Group::Other, "{odd:?}");
         }
-        assert_eq!(group_label(Group::Favorites), "Favorites");
-        assert_eq!(group_label(Group::Letter('C')), "C");
-        assert_eq!(group_label(Group::Other), "#");
+        assert_eq!(group_label(Group::Favorites, &[]), "Favorites");
+        assert_eq!(group_label(Group::Letter('C'), &[]), "C");
+        assert_eq!(group_label(Group::Other, &[]), "#");
     }
 
     #[test]

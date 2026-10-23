@@ -77,10 +77,11 @@ pub enum SortBy {
     Subject,
     Size,
     Importance,
+    Categories,
 }
 
 impl SortBy {
-    pub const ALL: [SortBy; 5] = [SortBy::Date, SortBy::From, SortBy::Subject, SortBy::Size, SortBy::Importance];
+    pub const ALL: [SortBy; 6] = [SortBy::Date, SortBy::From, SortBy::Subject, SortBy::Size, SortBy::Importance, SortBy::Categories];
 
     pub fn label(self) -> &'static str {
         match self {
@@ -89,13 +90,58 @@ impl SortBy {
             SortBy::Subject => "Subject",
             SortBy::Size => "Size",
             SortBy::Importance => "Importance",
+            SortBy::Categories => "Categories",
         }
     }
 
     /// Whether a list arranged this way starts at the top of the scale until it is turned over:
-    /// the newest, the largest, the most important. Senders and subjects start at A.
+    /// the newest, the largest, the most important. Senders, subjects and categories start at A.
     pub fn starts_high(self) -> bool {
-        !matches!(self, SortBy::From | SortBy::Subject)
+        !matches!(self, SortBy::From | SortBy::Subject | SortBy::Categories)
+    }
+}
+
+/// How the contact list is arranged.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum PeopleSort {
+    /// A to Z by the name each is filed as, favourites first, under their first letters.
+    #[default]
+    Name,
+    /// A to Z by the categories each carries, those with none first, then by name.
+    Categories,
+}
+
+impl PeopleSort {
+    pub const ALL: [PeopleSort; 2] = [PeopleSort::Name, PeopleSort::Categories];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            PeopleSort::Name => "Name",
+            PeopleSort::Categories => "Categories",
+        }
+    }
+}
+
+/// How the task list is arranged.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum TaskSort {
+    /// By when each is due, under Overdue, Today, Tomorrow and the like.
+    #[default]
+    DueDate,
+    /// Under each of its categories, those with none first, then by when each is due.
+    Categories,
+}
+
+impl TaskSort {
+    pub const ALL: [TaskSort; 2] = [TaskSort::DueDate, TaskSort::Categories];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            TaskSort::DueDate => "Due Date",
+            TaskSort::Categories => "Categories",
+        }
     }
 }
 
@@ -243,7 +289,9 @@ pub struct ViewState {
     /// for the first of them.
     pub overlay_front: Id,
     pub people_search: String,
+    pub people_sort: PeopleSort,
     pub task_filter: TaskFilter,
+    pub task_sort: TaskSort,
 }
 
 impl Default for ViewState {
@@ -266,7 +314,9 @@ impl Default for ViewState {
             overlay: Vec::new(),
             overlay_front: 0,
             people_search: String::new(),
+            people_sort: PeopleSort::Name,
             task_filter: TaskFilter::Active,
+            task_sort: TaskSort::DueDate,
         }
     }
 }
@@ -282,12 +332,25 @@ pub struct Selection {
     /// The day of the selected occurrence, for an event that repeats.
     pub event_day: Option<Date>,
     pub task: Option<Id>,
+    /// Which of the focused message's rows has the focus, for a message the list shows more than
+    /// once (arranged by categories, under each of its categories): the message and the row's
+    /// [`copy`](crate::list::Row::copy).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub focus_row: Option<(Id, u16)>,
 }
 
 impl Selection {
     /// The message in the reading pane.
     pub fn focus(&self) -> Option<Id> {
         self.messages.last().copied()
+    }
+
+    /// Which of the focused message's rows has the focus: its first unless another was chosen.
+    pub fn focus_copy(&self) -> u16 {
+        match self.focus_row {
+            Some((id, copy)) if self.focus() == Some(id) => copy,
+            _ => 0,
+        }
     }
 }
 
