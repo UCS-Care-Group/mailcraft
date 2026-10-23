@@ -44,7 +44,7 @@ base64 = { workspace = true }
 
 [build-dependencies]
 # Icon + VERSIONINFO for mailcraft.exe; build.rs only uses it when the target is Windows.
-winresource = "0.1"
+winresource = "0.1.34"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 # Finder double-click, Open With, Dock drops and `open -a MailCraft note.eml` arrive as a
@@ -90,7 +90,7 @@ keyring-core = "1"
 windows-native-keyring-store = "1.1"
 # Two registry values read, never written: where the `.msi` put the program (whether this copy
 # updates itself) and an organisation's policy that turns updating off (`install.rs`, `updater.rs`).
-winreg = "0.55"
+winreg = "0.56"
 # Desktop alerts as toasts (`alerts.rs`): Windows.UI.Notifications and the XML they are made of.
 # Already in the tree (the GUI stack's), the same version; only these features are added.
 windows = { version = "0.62", features = ["Foundation", "Data_Xml_Dom", "UI_Notifications"] }
@@ -105,7 +105,7 @@ zbus-secret-service-keyring-store = { version = "1", features = ["rt-async-io-cr
 # Under Wayland the clipboard is the compositor's (its data-control protocol, which KDE Plasma
 # and the wlroots compositors have); where it isn't offered (GNOME), arboard falls back to the
 # X11 clipboard through XWayland.
-arboard = { version = "3.6", default-features = false, features = ["wayland-data-control", "image-data"] }
+arboard = { version = "3.7", default-features = false, features = ["wayland-data-control", "image-data"] }
 # A program started from MailCraft (the browser, for a sign-in or a link) only comes in front
 # when it is handed an activation token (xdg-activation under Wayland, startup notification under
 # X11), which the window asks winit for and winit hands back as a window event that eframe drops
@@ -139,4 +139,4 @@ open = { version = "5.4", features = ["shellexecute-on-windows"] }
 # The system's clipboard with HTML on it, for copying and pasting formatted text in a message
 # being written (egui's own clipboard carries text only). Already in the tree: egui's window
 # layer copies text through it.
-arboard = { version = "3.6", default-features = false, features = ["image-data"] }
+arboard = { version = "3.7", default-features = false, features = ["image-data"] }

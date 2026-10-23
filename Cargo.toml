@@ -59,7 +59,7 @@ flate2 = { version = "1", default-features = false, features = ["rust_backend"] 
 # configuration of Outlook on the web, of which the list of Favorites is read:
 # `mailcraft-net`'s `graph::favorites`). MIT, Rust throughout, and nothing but `memchr` under it. It reads no DTD and expands no entity: a reference in the text is handed over as such.
 # Already in the tree (a build tool of the Linux windowing crates uses it); desktop and CLI only.
-quick-xml = { version = "0.41", default-features = false }
+quick-xml = { version = "0.42", default-features = false }
 
 # images (screenshots, inline pictures). WebP for the pictures of mail that are kept as nothing
 # else on the web; its decoder (image-webp) is Rust all the way down, like the others here.
@@ -71,7 +71,7 @@ egui_extras = { version = "0.36", default-features = false }
 eframe = { version = "0.36", default-features = false }
 egui_kittest = "0.36"
 rfd = "0.17"
-arboard = { version = "3.6", default-features = false }
+arboard = { version = "3.7", default-features = false }
 # Reading a link's address the way a browser does (WHATWG URL), for the host it really goes to,
 # an international name in its ASCII (`xn--`) form: the tip over a link. MIT OR Apache-2.0, Rust
 # throughout, builds for the browser; already in the tree (the desktop's `webbrowser` uses it).
