@@ -229,7 +229,7 @@ fn importing_for_a_microsoft_account_without_a_local_account_makes_one() {
     assert!(s.mailbox.accounts.iter().all(|a| a.kind == mailcraft_model::AccountKind::Microsoft));
     let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
     let mbox = "From a@example.org Thu Jan 14 08:00:00 2027\nFrom: a@example.org\nSubject: One\n\nHi\n\nFrom b@example.org Thu Jan 14 09:00:00 2027\nFrom: b@example.org\nSubject: Two\n\nHi\n";
-    let data = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, mbox);
+    let data = mailcraft_charset::base64::STANDARD.encode(mbox);
     let r = s.run("file.import", &json!({"name": "all.mbox", "data": data, "folder": inbox})).unwrap();
     assert_eq!(r["messages"], 2);
     let f = s.mailbox.folder(r["folder"].as_u64().unwrap()).unwrap();

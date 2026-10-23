@@ -2,8 +2,6 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! Content transfer encodings (RFC 2045): base64 and quoted-printable.
 
-use base64::Engine as _;
-
 /// Longest encoded line, without its line break.
 const LINE: usize = 76;
 
@@ -49,7 +47,7 @@ pub(crate) fn base64_decode(input: &[u8]) -> Vec<u8> {
 
 /// Base64 on one line.
 pub(crate) fn base64(data: &[u8]) -> String {
-    base64::engine::general_purpose::STANDARD.encode(data)
+    mailcraft_charset::base64::STANDARD.encode(data)
 }
 
 /// Base64 in lines of 76 characters, CRLF between them (none after the last).

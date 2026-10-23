@@ -8,8 +8,6 @@ use std::net::{TcpListener, TcpStream};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
 
-use base64::Engine as _;
-
 /// A fake web server (a token endpoint, a name server that answers over HTTP): each request is
 /// answered with bytes of the test's choosing, and kept for the test to look at.
 pub(crate) struct FakeHttp {
@@ -415,7 +413,7 @@ const REASONS: &str = "eyJzdGF0dXMiOiI0MDEifQ==";
 
 /// The user and the token of an XOAUTH2 response (`user=…^Aauth=Bearer …^A^A` in base64); empty when it isn't one.
 fn bearer(payload: &str) -> (String, String) {
-    let decoded = base64::engine::general_purpose::STANDARD.decode(payload).unwrap_or_default();
+    let decoded = mailcraft_charset::base64::STANDARD.decode(payload).unwrap_or_default();
     let decoded = String::from_utf8_lossy(&decoded).into_owned();
     let parts: Vec<&str> = decoded.split('\u{1}').collect();
     match parts.as_slice() {
@@ -833,7 +831,7 @@ fn serve_smtp(stream: TcpStream, shared: Arc<Mutex<SmtpWorld>>) {
             pretend_tls(&mut out, &mut reader, "220 go ahead\r\n");
             return;
         } else if let Some(payload) = line.strip_prefix("AUTH PLAIN ") {
-            let decoded = base64::engine::general_purpose::STANDARD.decode(payload).unwrap_or_default();
+            let decoded = mailcraft_charset::base64::STANDARD.decode(payload).unwrap_or_default();
             let decoded = String::from_utf8_lossy(&decoded).into_owned();
             let parts: Vec<&str> = decoded.split('\0').collect();
             if parts == ["", world.user.as_str(), world.password.as_str()] {

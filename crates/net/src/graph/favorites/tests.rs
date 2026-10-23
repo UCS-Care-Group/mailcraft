@@ -479,7 +479,7 @@ fn ids_are_written_for_an_address_or_not_taken() {
 
 #[test]
 fn the_document_is_unpacked_from_either_alphabet() {
-    use base64::engine::general_purpose::{STANDARD, URL_SAFE};
+    use mailcraft_charset::base64::{STANDARD, URL_SAFE};
     // Bytes that make `+` and `/` in one alphabet, `-` and `_` in the other.
     let text = "<a>\u{fb}\u{ff}\u{fe} ~~~ ???>>></a>";
     for packed in [STANDARD.encode(text), URL_SAFE.encode(text), STANDARD_NO_PAD.encode(text), URL_SAFE_NO_PAD.encode(text)] {
@@ -549,7 +549,7 @@ proptest! {
 
     #[test]
     fn any_bytes_are_a_document_or_none(bytes in proptest::collection::vec(any::<u8>(), 0..300), text in "\\PC{0,200}") {
-        use base64::engine::general_purpose::STANDARD;
+        use mailcraft_charset::base64::STANDARD;
         let _ = document(&text);
         if let Some(unpacked) = document(&STANDARD.encode(&bytes)) {
             let _ = favorites_of(&unpacked);

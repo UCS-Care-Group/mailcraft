@@ -76,8 +76,7 @@ use std::borrow::Cow;
 use std::collections::HashSet;
 use std::time::{Duration, Instant};
 
-use base64::Engine as _;
-use base64::engine::general_purpose::STANDARD;
+use mailcraft_charset::base64::STANDARD;
 use mailcraft_mime::WriteOptions;
 use mailcraft_model::remote::{
     BusyTime, CalendarsDownload, CategoriesDownload, ContactsDownload, EventChangeKind, EventFields, EventOp, EventOutcome, EventResult, EventTime,

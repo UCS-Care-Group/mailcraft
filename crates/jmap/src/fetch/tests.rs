@@ -10,7 +10,6 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Duration;
 
-use base64::Engine as _;
 use proptest::prelude::*;
 
 use super::*;
@@ -336,7 +335,7 @@ fn what_a_server_echoes_never_reaches_an_error() {
     doc["accounts"] = json!({account: doc["accounts"]["A1"].clone()});
     doc["primaryAccounts"][CAPABILITY_MAIL] = json!(account);
     let url = format!("https://jmap.example.org/api/method/app.download?accountId={account}&blobId=B1&name=message.eml&type=message%2Frfc822");
-    let header = base64::engine::general_purpose::STANDARD.encode("ada@example.org:hunter2");
+    let header = mailcraft_charset::base64::STANDARD.encode("ada@example.org:hunter2");
     let echoes = [
         reply(500, &json!({"detail": format!("could not give {url} to Basic {header} (hunter2)")})),
         reply(403, &json!({"detail": format!("refused Basic {header} for {url}")})),

@@ -106,16 +106,15 @@ pub fn contains_ci(haystack: &str, needle: &str) -> bool {
 pub(crate) mod b64 {
     use std::sync::Arc;
 
-    use base64::Engine as _;
     use serde::{Deserialize as _, Deserializer, Serializer};
 
     pub fn serialize<S: Serializer>(v: &Arc<Vec<u8>>, s: S) -> Result<S::Ok, S::Error> {
-        s.serialize_str(&base64::engine::general_purpose::STANDARD.encode(v.as_slice()))
+        s.serialize_str(&mailcraft_charset::base64::STANDARD.encode(v.as_slice()))
     }
 
     pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<Arc<Vec<u8>>, D::Error> {
         let text = String::deserialize(d)?;
-        base64::engine::general_purpose::STANDARD.decode(text.trim()).map(Arc::new).map_err(serde::de::Error::custom)
+        mailcraft_charset::base64::STANDARD.decode(text.trim()).map(Arc::new).map_err(serde::de::Error::custom)
     }
 }
 

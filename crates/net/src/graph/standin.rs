@@ -1313,10 +1313,9 @@ impl State {
                 if self.configuration == Configuration::Missing || *folder != "root" || *name != "Aggregated.OwaUserConfiguration" {
                     return Err(not_found());
                 }
-                use base64::Engine as _;
                 let document = self.configuration_document.clone().unwrap_or_else(|| self.configuration_xml());
                 let context = format!("{}/beta/$metadata#users('me')/mailFolders('root')/userConfigurations/$entity", self.base);
-                let packed = base64::engine::general_purpose::STANDARD.encode(document);
+                let packed = mailcraft_charset::base64::STANDARD.encode(document);
                 Ok((200, Some(json!({"@odata.context": context, "id": name, "xmlData": packed}))))
             }
             [first, ..] => Err(refuse(400, "BadRequest", format!("Resource not found for the segment '{first}'."))),

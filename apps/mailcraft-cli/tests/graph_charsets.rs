@@ -10,8 +10,7 @@
 
 use std::sync::atomic::AtomicBool;
 
-use base64::Engine as _;
-use base64::engine::general_purpose::STANDARD;
+use mailcraft_charset::base64::STANDARD;
 use mailcraft_engine::Session;
 use mailcraft_engine::cmd::graph_mail::{apply_graph_fetch, apply_graph_mail, graph_fetch_request, graph_mail_request};
 use mailcraft_model::{FlagStatus, Id, Mailbox};

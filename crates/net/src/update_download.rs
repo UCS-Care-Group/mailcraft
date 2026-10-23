@@ -22,7 +22,6 @@ use std::io::{BufWriter, Read, Write};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use base64::Engine as _;
 use mailcraft_model::update::{Asset, Release, is_file_name};
 use ring::signature::{ED25519, UnparsedPublicKey};
 
@@ -121,7 +120,7 @@ pub fn release_keys() -> Vec<[u8; 32]> {
 pub fn keys_of(texts: &[&str]) -> Vec<[u8; 32]> {
     texts
         .iter()
-        .filter_map(|text| base64::engine::general_purpose::STANDARD.decode(text.trim()).ok())
+        .filter_map(|text| mailcraft_charset::base64::STANDARD.decode(text.trim()).ok())
         .filter_map(|bytes| <[u8; 32]>::try_from(bytes.as_slice()).ok())
         .collect()
 }
@@ -132,7 +131,7 @@ pub fn parse_signature(bytes: &[u8]) -> Option<[u8; 64]> {
         return None;
     }
     let text = std::str::from_utf8(bytes).ok()?.trim();
-    let decoded = base64::engine::general_purpose::STANDARD.decode(text).ok()?;
+    let decoded = mailcraft_charset::base64::STANDARD.decode(text).ok()?;
     <[u8; 64]>::try_from(decoded.as_slice()).ok()
 }
 
@@ -439,7 +438,7 @@ mod tests {
 
     /// The signature file as `cargo xtask release-key sign` writes it.
     fn signature(pair: &Ed25519KeyPair, bytes: &[u8]) -> Vec<u8> {
-        format!("{}\n", base64::engine::general_purpose::STANDARD.encode(pair.sign(bytes).as_ref())).into_bytes()
+        format!("{}\n", mailcraft_charset::base64::STANDARD.encode(pair.sign(bytes).as_ref())).into_bytes()
     }
 
     fn hex(digest: &[u8]) -> String {
@@ -776,7 +775,7 @@ mod tests {
         assert!(parse_signature(&sig).is_some());
         assert!(parse_signature(b"  \r\n").is_none());
         assert!(parse_signature(&[b'A'; 2000]).is_none());
-        assert!(parse_signature(base64::engine::general_purpose::STANDARD.encode([0u8; 63]).as_bytes()).is_none());
+        assert!(parse_signature(mailcraft_charset::base64::STANDARD.encode([0u8; 63]).as_bytes()).is_none());
         let digest = "ab".repeat(32);
         let sums = format!(
             "{digest}  {NAME}\r\n{digest} *binary.msi\nnot a line\n{digest}  ../evil\n{}  short\n{digest}  \n{digest}  with space\n",

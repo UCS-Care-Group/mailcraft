@@ -3,8 +3,6 @@
 //! Text values: cleaning, escaping, splitting, and the 2.1 encodings (quoted-printable, base64;
 //! a `CHARSET` is read by `mailcraft-charset`, as mail is).
 
-use base64::Engine as _;
-
 /// A one-line field: line breaks and other control characters become spaces, and the ends are
 /// trimmed.
 pub(crate) fn single(s: &str) -> String {
@@ -132,7 +130,7 @@ pub(crate) fn quoted_printable(s: &str) -> Vec<u8> {
 /// The bytes of a base64 value, white space and padding or not; empty for junk.
 pub(crate) fn base64_bytes(s: &str) -> Vec<u8> {
     let compact: String = s.chars().filter(|c| !c.is_whitespace()).collect();
-    base64::engine::general_purpose::STANDARD_NO_PAD.decode(compact.trim_end_matches('=')).unwrap_or_default()
+    mailcraft_charset::base64::STANDARD_NO_PAD.decode(compact.trim_end_matches('=')).unwrap_or_default()
 }
 
 #[cfg(test)]

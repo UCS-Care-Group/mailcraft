@@ -2266,7 +2266,6 @@ version = "0.7.0"
 dependencies = [
  "apple-native-keyring-store",
  "arboard",
- "base64",
  "block2 0.6.2",
  "dispatch2",
  "eframe",
@@ -2275,6 +2274,7 @@ dependencies = [
  "image",
  "keyring-core",
  "log",
+ "mailcraft-charset",
  "mailcraft-control-key",
  "mailcraft-engine",
  "mailcraft-model",
@@ -2305,6 +2305,7 @@ dependencies = [
 name = "mailcraft-charset"
 version = "0.7.0"
 dependencies = [
+ "base64",
  "encoding_rs",
  "proptest",
 ]
@@ -2313,7 +2314,7 @@ dependencies = [
 name = "mailcraft-cli"
 version = "0.7.0"
 dependencies = [
- "base64",
+ "mailcraft-charset",
  "mailcraft-engine",
  "mailcraft-mcp",
  "mailcraft-model",
@@ -2330,8 +2331,8 @@ version = "0.7.0"
 name = "mailcraft-engine"
 version = "0.7.0"
 dependencies = [
- "base64",
  "log",
+ "mailcraft-charset",
  "mailcraft-html",
  "mailcraft-i18n",
  "mailcraft-ical",
@@ -2374,8 +2375,8 @@ dependencies = [
 name = "mailcraft-jmap"
 version = "0.7.0"
 dependencies = [
- "base64",
  "log",
+ "mailcraft-charset",
  "mailcraft-mime",
  "mailcraft-model",
  "mailcraft-time",
@@ -2397,7 +2398,6 @@ dependencies = [
 name = "mailcraft-mime"
 version = "0.7.0"
 dependencies = [
- "base64",
  "mailcraft-charset",
  "mailcraft-html",
  "mailcraft-model",
@@ -2410,7 +2410,7 @@ dependencies = [
 name = "mailcraft-model"
 version = "0.7.0"
 dependencies = [
- "base64",
+ "mailcraft-charset",
  "mailcraft-i18n",
  "mailcraft-time",
  "proptest",
@@ -2423,9 +2423,9 @@ dependencies = [
 name = "mailcraft-net"
 version = "0.7.0"
 dependencies = [
- "base64",
  "flate2",
  "log",
+ "mailcraft-charset",
  "mailcraft-mime",
  "mailcraft-model",
  "mailcraft-proto",
@@ -2443,8 +2443,8 @@ dependencies = [
 name = "mailcraft-proto"
 version = "0.7.0"
 dependencies = [
- "base64",
  "log",
+ "mailcraft-charset",
  "proptest",
  "thiserror 2.0.21",
 ]
@@ -2483,7 +2483,6 @@ dependencies = [
 name = "mailcraft-vcard"
 version = "0.7.0"
 dependencies = [
- "base64",
  "mailcraft-charset",
  "mailcraft-model",
  "mailcraft-time",
@@ -4127,7 +4126,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.3.4",
+ "getrandom 0.4.3",
  "once_cell",
  "rustix 1.1.5",
  "windows-sys 0.61.2",
@@ -5391,8 +5390,8 @@ checksum = "e450f9b2ed1dff33c94c12589a87338689467b9c4f5d8a5710bd09a847d2c8a7"
 name = "xtask"
 version = "0.7.0"
 dependencies = [
- "base64",
  "image",
+ "mailcraft-charset",
  "mailcraft-i18n",
  "ring",
  "serde_json",

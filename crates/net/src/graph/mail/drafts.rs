@@ -29,8 +29,7 @@
 //! `internetMessageHeaders`): an answer has them from create-reply. No subject, address, name or
 //! id of a draft goes into a log line or an error; what the server answers is hostile JSON.
 
-use base64::Engine as _;
-use base64::engine::general_purpose::STANDARD;
+use mailcraft_charset::base64::STANDARD;
 use mailcraft_model::sync::{AttachmentUp, DraftDone, DraftKind, DraftUp, MAX_DRAFTS, SyncedAttachment};
 use mailcraft_model::{Address, Importance};
 use serde_json::{Map, Value, json};

@@ -60,8 +60,7 @@ use std::net::{Ipv4Addr, Ipv6Addr, Shutdown, TcpListener, TcpStream};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
-use base64::Engine as _;
-use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+use mailcraft_charset::base64::URL_SAFE_NO_PAD;
 use mailcraft_model::sync::Tokens;
 use mailcraft_model::{OAuth, OAuthProvider};
 use mailcraft_proto::ProtoError;

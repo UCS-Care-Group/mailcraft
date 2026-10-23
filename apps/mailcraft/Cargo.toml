@@ -33,7 +33,7 @@ log = { workspace = true }
 mailcraft-net = { workspace = true, features = ["stand-in"] }
 # A sign-in the provider refuses, as `mailcraft-net` says it.
 mailcraft-proto = { workspace = true }
-base64 = { workspace = true }
+mailcraft-charset = { workspace = true }
 
 [build-dependencies]
 # Icon + VERSIONINFO for mailcraft.exe; build.rs only uses it when the target is Windows.
