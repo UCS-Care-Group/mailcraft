@@ -80,6 +80,9 @@ pub fn root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).parent().expect("xtask has a parent dir").to_path_buf()
 }
 
+/// `cargo`, run from the workspace root. Every command xtask runs on the workspace passes
+/// `--locked`, so what CI checks (and cargo-deny audits) is the committed `Cargo.lock`, not a fresh
+/// resolution; a stale lock is an error, not something that is quietly rewritten.
 pub fn cargo() -> Command {
     let mut c = Command::new(std::env::var("CARGO").unwrap_or_else(|_| "cargo".into()));
     c.current_dir(root());
@@ -93,7 +96,7 @@ fn run(mut cmd: Command, what: &str) -> Result<(), String> {
 }
 
 pub fn metadata() -> Result<serde_json::Value, String> {
-    let out = cargo().args(["metadata", "--format-version", "1", "--no-deps"]).output().map_err(|e| format!("cargo metadata: {e}"))?;
+    let out = cargo().args(["metadata", "--locked", "--format-version", "1", "--no-deps"]).output().map_err(|e| format!("cargo metadata: {e}"))?;
     if !out.status.success() {
         return Err(format!("cargo metadata failed:\n{}", String::from_utf8_lossy(&out.stderr)));
     }
@@ -154,7 +157,7 @@ fn cmd_wasm() -> Result<(), String> {
     let mut results = Vec::new();
     for pkg in &set {
         let mut c = cargo();
-        c.args(["check", "--target", "wasm32-unknown-unknown", "-p", pkg]);
+        c.args(["check", "--locked", "--target", "wasm32-unknown-unknown", "-p", pkg]);
         let ok = run(c, &format!("cargo check --target wasm32-unknown-unknown -p {pkg}")).is_ok();
         results.push((pkg.clone(), ok));
     }
@@ -179,8 +182,8 @@ fn cmd_deny() -> Result<(), String> {
         return Ok(());
     }
     let mut c = cargo();
-    c.args(["deny", "check"]);
-    run(c, "cargo deny check")
+    c.args(["deny", "--locked", "check"]);
+    run(c, "cargo deny --locked check")
 }
 
 fn cmd_ci() -> Result<(), String> {
@@ -198,16 +201,16 @@ fn cmd_ci() -> Result<(), String> {
             "clippy",
             Box::new(|| {
                 let mut c = cargo();
-                c.args(["clippy", "--workspace", "--all-targets", "--", "-D", "warnings"]);
-                run(c, "cargo clippy --workspace --all-targets -- -D warnings")
+                c.args(["clippy", "--locked", "--workspace", "--all-targets", "--", "-D", "warnings"]);
+                run(c, "cargo clippy --locked --workspace --all-targets -- -D warnings")
             }),
         ),
         (
             "test",
             Box::new(|| {
                 let mut c = cargo();
-                c.args(["test", "--workspace"]);
-                run(c, "cargo test --workspace")
+                c.args(["test", "--locked", "--workspace"]);
+                run(c, "cargo test --locked --workspace")
             }),
         ),
         ("assets", Box::new(|| assets::run(&root()))),

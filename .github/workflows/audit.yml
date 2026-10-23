@@ -1,0 +1,34 @@
+name: Audit
+
+# cargo-deny on a schedule, so an advisory against a locked crate (or a yanked one) is seen in
+# days, not at the next code change or release. The shipping tree is checked in full (advisories,
+# licences, bans, sources: deny.toml); fuzz/ has a lock of its own, outside the workspace, and is
+# checked for advisories and sources (its harness crates carry licences the shipping tree does
+# not). A failure here is a red scheduled run: look at it, update the lock, and release.
+on:
+  schedule:
+    - cron: "17 5 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: audit
+  cancel-in-progress: true
+
+jobs:
+  deny:
+    name: cargo-deny
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
+        with:
+          tool: cargo-deny@0.20.2
+      - name: The workspace, with its committed lock
+        run: cargo deny --locked check
+      - name: The fuzz targets, with their committed lock
+        run: cargo deny --manifest-path fuzz/Cargo.toml --locked check advisories sources

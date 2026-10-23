@@ -1,6 +1,6 @@
 # Threat model
 
-> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-10-23 · **Change:** minor (C1 PR-a: a mailbox in mail is saved, never opened; a calendar file's time zone definitions, dates and series cost bounded work: a hostile invitation or calendar file can't freeze the window, PR-d; PR-e: a message keeps at most 2,000 recipients and 500 categories and 4 MB of header, a long list is cut in the reading pane and in a quote, an mbox import stops at 200,000 messages, a mailbox file is checked for its item count while it is read, repairing a mailbox is linear; a mail server's answer to one command is capped in text, responses, folders, messages and time, so it can't make MailCraft keep memory without bound; `--control-agents-only`: no control request passes for the owner's script; secrets in memory dropped when a mailbox is replaced; agent questions name servers; the whitelist adds padding, margins, lines, rounded corners and a line height, all clamped, #71; the whitelist adds width, max-width and centring by automatic margins, #150; an assurance case: claim, trust boundaries, design principles, common weaknesses and the evidence; releases carry MailCraft's own signature; agents with a shell or the owner's files are outside the agent gate; the settings folder, logs and kept pictures are the owner's alone) · **Target:** Microsoft Outlook (Microsoft 365)
+> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-10-23 · **Change:** minor (C1 PR-a: a mailbox in mail is saved, never opened; releases build and sign only from `main` after a passing CI, compile and sign in separate steps, check WiX by hash and use `--locked`; a daily cargo-deny run; Dependabot for crates; CODEOWNERS covers the workflows, packaging, xtask, the lock files, the updater and the agent gate; a calendar file's time zone definitions, dates and series cost bounded work: a hostile invitation or calendar file can't freeze the window, PR-d; PR-e: a message keeps at most 2,000 recipients and 500 categories and 4 MB of header, a long list is cut in the reading pane and in a quote, an mbox import stops at 200,000 messages, a mailbox file is checked for its item count while it is read, repairing a mailbox is linear; a mail server's answer to one command is capped in text, responses, folders, messages and time, so it can't make MailCraft keep memory without bound; `--control-agents-only`: no control request passes for the owner's script; secrets in memory dropped when a mailbox is replaced; agent questions name servers; the whitelist adds padding, margins, lines, rounded corners and a line height, all clamped, #71; the whitelist adds width, max-width and centring by automatic margins, #150; an assurance case: claim, trust boundaries, design principles, common weaknesses and the evidence; releases carry MailCraft's own signature; agents with a shell or the owner's files are outside the agent gate; the settings folder, logs and kept pictures are the owner's alone) · **Target:** Microsoft Outlook (Microsoft 365)
 
 What MailCraft protects, from whom, and how, with the code that does it. Rules for working in the
 code are in [`CLAUDE.md`](../CLAUDE.md) and [`AGENTS.md`](../AGENTS.md); how to report a
@@ -148,19 +148,27 @@ A malicious or vulnerable dependency, GitHub Action or build step.
 
 - **Dependencies:** `cargo deny check` ([`deny.toml`](../deny.toml); `cargo xtask deny`, a job of CI
   that `ci-ok` requires) fails on a RustSec vulnerability, allows only OSI-permissive licences (no
-  GPL, LGPL or AGPL), and only crates.io as a source. `Cargo.lock` is committed.
+  GPL, LGPL or AGPL), and only crates.io as a source. `Cargo.lock` is committed, and CI and the
+  release build with `--locked`, so the lock that is audited is the one that ships. The same
+  check runs daily on a schedule (`audit.yml`, the workspace and `fuzz/`'s own lock), and Dependabot
+  proposes crate updates weekly. `.github/CODEOWNERS` asks the owners to review the workflows,
+  packaging, xtask, the lock files, the updater and the agent gate.
 - **Workflows:** every third-party action is pinned to a full commit SHA, kept current by Dependabot
   with a week's cooldown; checkouts don't keep credentials; workflows get read-only permissions
   unless a job needs more; the release passes its signing secrets by name, not `inherit`.
 - **Release signing:** the signing secrets are kept in the protected `release` environment (version
   tags only, a maintainer's approval), and only the jobs that sign a pushed version tag, and the
   one that makes the release, run in it; a dry run started by hand, on any ref, is unsigned and
-  gets no secrets. The workflow makes a draft release, which a maintainer publishes by hand.
+  gets no secrets. A pushed tag is built and signed only when its commit is on `main` and `ci-ok`
+  passed on it (checked by the first job, which the others need). Dependencies are compiled in a
+  step with no signing secret in its environment (Windows and macOS builds, and `xtask`, which
+  signs the checksums), and the secrets reach only the step that signs; release builds use no build
+  cache. The workflow makes a draft release, which a maintainer publishes by hand.
   [zizmor](https://docs.zizmor.sh/) checks the workflows on every change to them, and
   [OpenSSF Scorecard](https://scorecard.dev/) scores the repository weekly.
 - **Build tools:** the shared workflows are pinned to full commit SHAs too, and every tool the
   release downloads by URL (nfpm, appimagetool and the AppImage runtime, the Trusted Signing
-  client, rustup-init, wasm-opt) is an exact version checked against a recorded sha256 before
+  client, rustup-init, wasm-opt) and WiX (a NuGet package) is an exact version checked against a recorded sha256 before
   use; trunk runs offline. Every release file gets a build provenance attestation
   (`gh attestation verify <file> -R UCS-Care-Group/mailcraft`).
 - Pure-Rust TLS (rustls), and no handwritten JavaScript.
@@ -243,6 +251,7 @@ settings files (`crates/engine/src/store.rs`); commands from the control channel
 | Date | Change | Summary |
 |---|---|---|
 | 2026-10-23 | minor | C1 PR-a: a `.mailcraft` attachment is saved, never opened; secrets in memory dropped when a mailbox is replaced; agent questions for account and open commands name servers; rules trimmed on repair |
+| 2026-10-23 | minor | Supply chain: release builds only from `main` after CI; compile and sign in separate steps; WiX checked by hash; `--locked`; daily cargo-deny; Dependabot for crates; wider CODEOWNERS |
 | 2026-10-23 | minor | iCalendar work is bounded as a whole: a zone a file defines is resolved once per offset, its parts and dates are capped at 64, one parse has a work budget (past it the times are kept as written and a note says so), an invitation's card reads its first event only, and a series with a count is not walked from its first day (PR-d) |
 | 2026-10-23 | minor | Counts bounded: recipients, categories and header bytes per message, mbox import, items while a mailbox file is read, accounts, folders and categories on load; repair linear (PR-e) |
 | 2026-10-23 | minor | An IMAP server's answer to one command is capped in text, responses, folders, messages and time; flags and mailbox names are cut short |
