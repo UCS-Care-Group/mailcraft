@@ -76,17 +76,24 @@ fn a_size_the_server_gives_is_taken_and_one_it_doesnt_keeps_the_last() {
     assert_eq!(size(&mb, id), MIME.len() as u64);
 }
 
-/// A draft changed elsewhere is fetched again, and has the size of what came the second time.
+/// A draft changed elsewhere is fetched again, whatever the size of the version before, and has
+/// the size of what came the second time.
 #[test]
 fn a_draft_fetched_again_has_its_new_size() {
     let (mut mb, account, id) = mailbox(true);
     let mut index = ServerIndex::default();
     assert!(take_fetched(&mut mb, &mut index, account, "AAkA1", MIME));
     assert_eq!(size(&mb, id), MIME.len() as u64);
+    // Larger than the background fetch takes (10 MB), with an attachment since taken off on the web.
+    mb.message_mut(id).unwrap().server.as_mut().unwrap().size = 15 << 20;
     take_page(&mut mb, &mut index, account, &delta("AAkA1", "CK2"), &mut Down::default());
     let m = mb.message(id).unwrap();
     assert!(m.unfetched && m.draft, "changed elsewhere, it is to be fetched again");
-    assert_eq!(size(&mb, id), MIME.len() as u64);
+    // The old version's size isn't the new one's: it is in the background fetch, and the list
+    // says what is here meanwhile.
+    assert_eq!(size(&mb, id), 0);
+    assert_eq!(fetch_queue(&mb, account, 10, 0), ["AAkA1"]);
+    assert_eq!(m.list_size(), Some(m.size()));
     let longer = [MIME, b"A paragraph added on the web.\r\n".as_slice()].concat();
     assert!(take_fetched(&mut mb, &mut index, account, "AAkA1", &longer));
     assert_eq!(size(&mb, id), longer.len() as u64);

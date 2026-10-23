@@ -223,8 +223,10 @@ fn update(mb: &mut Mailbox, account: Id, id: Id, folder: Id, server_folder: &str
         }
     }
     // A delta never says a size (#300): the last one known, of the whole message when it was
-    // fetched, stays.
-    let size = if now.size > 0 { now.size } else { last.size };
+    // fetched, stays; but not for a draft changed elsewhere, whose new version is still to be
+    // fetched and may be smaller than the background fetch's limit, which its old size is held
+    // against. Until then the list says what is here, its old version.
+    let size = if now.size > 0 || changed_there { now.size } else { last.size };
     m.server = Some(ServerMessage { folder: server_folder.to_string(), gone: false, size, ..now.clone() });
     *m != before
 }
