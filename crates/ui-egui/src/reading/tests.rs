@@ -131,6 +131,11 @@ fn message(n: usize, from: (&str, &str), subject: &str, html: Option<String>, te
         received: date,
         read: true,
         body: Body { text, html },
+        // The server vouched for every sender (a test of the lists would be of nothing otherwise).
+        headers: vec![(
+            "Authentication-Results".into(),
+            format!("mx.example.org; dmarc=pass header.from={}", from.1.rsplit('@').next().unwrap_or("")),
+        )],
         ..Message::default()
     }
 }
@@ -316,9 +321,18 @@ fn the_whole_corpus_lays_out_in_both_themes_at_every_width() {
 
 // ---- the corpus in a window ----
 
+/// Its server is the one that wrote the `mx.example.org` line the corpus carries.
+fn served_by_example_org(mailbox: &mut Mailbox) {
+    for account in &mut mailbox.accounts {
+        account.kind = mailcraft_model::AccountKind::Imap;
+        account.incoming = Some(mailcraft_model::Server { host: "imap.example.org".into(), port: 993, security: mailcraft_model::Security::Tls });
+    }
+}
+
 /// A window on a mailbox that holds the corpus, and the id of each message by its name.
 fn corpus_app(large: bool) -> (MailApp, Vec<(&'static str, u64)>) {
     let mut mailbox = Mailbox::with_local_account("Avery Quinn", "avery@lumen-works.example");
+    served_by_example_org(&mut mailbox);
     let inbox = mailbox.inbox().unwrap();
     let mut ids = Vec::new();
     let mut messages = corpus_messages();
@@ -1108,6 +1122,7 @@ fn web_pictures(host: &str, count: usize) -> Vec<String> {
 /// A window on a mailbox that holds `messages`, and their ids.
 fn app_with(messages: Vec<Message>) -> (MailApp, Vec<u64>) {
     let mut mailbox = Mailbox::with_local_account("Avery Quinn", "avery@lumen-works.example");
+    served_by_example_org(&mut mailbox);
     let inbox = mailbox.inbox().unwrap();
     let ids = messages.into_iter().map(|m| mailbox.add_message(Message { folder: inbox, ..m }).unwrap()).collect();
     let mut app = MailApp::new(Session::at(mailbox, NOW, 0), Services::default());
@@ -1300,6 +1315,130 @@ fn a_remembered_sender_and_the_switch_for_all_mail() {
     harness.state_mut().execute("ui.downloadPicturesAutomatically", json!({"value": false})).unwrap();
     select(&mut harness, other);
     assert_eq!(shown(&harness, other), (0, 2, 2));
+}
+
+/// (A8-9) A long display name is cut short, never the address after it.
+#[test]
+fn a_long_name_does_not_squeeze_the_address_out_of_the_header() {
+    let long = "Support Desk ".repeat(9);
+    let mut near = web_message(0, "a@evil.example", "Short", &[]);
+    near.from = mailcraft_model::Address::new("Support", "a@evil.example");
+    let mut far = web_message(1, "a@evil.example", "Long", &[]);
+    far.from = mailcraft_model::Address::new(&long, "a@evil.example");
+    let (app, ids) = app_with(vec![near, far]);
+    let mut harness = window(app, (1280.0, 800.0));
+    let width = |harness: &Window| harness.query_by_label("<a@evil.example>").map(|node| node.rect().width());
+    select(&mut harness, ids[0]);
+    let whole = width(&harness).expect("the address is shown");
+    select(&mut harness, ids[1]);
+    let squeezed = width(&harness).expect("the address is shown");
+    assert!((whole - squeezed).abs() < 1.0, "{whole} against {squeezed}: the address was cut");
+}
+
+/// Without the receiving server's word, a remembered sender or domain is not enough.
+#[test]
+fn a_remembered_sender_needs_the_servers_word() {
+    let shop = "news@shop.example";
+    let verdict = |value: &str| vec![("Authentication-Results".to_string(), value.to_string())];
+    let mut plain = web_message(0, shop, "No verdict", &web_pictures("a.shop.example", 1));
+    plain.headers.clear();
+    let mut failed = web_message(1, shop, "Failed", &web_pictures("b.shop.example", 1));
+    failed.headers = verdict("mx.example.org; dmarc=fail header.from=shop.example");
+    // The server's line is on top; one lower down is the sender's own.
+    failed.headers.push(("Authentication-Results".into(), "forged.example; dmarc=pass header.from=shop.example".into()));
+    let mut wrong = web_message(2, shop, "Another domain", &web_pictures("c.shop.example", 1));
+    wrong.headers = verdict("mx.example.org; dmarc=pass header.from=elsewhere.example");
+    let good = web_message(3, shop, "Vouched", &web_pictures("d.shop.example", 1));
+    let (mut app, ids) = app_with(vec![plain, failed, wrong, good]);
+    app.ui.picture_senders = vec![shop.into()];
+    app.ui.picture_domains = vec!["shop.example".into()];
+    let host = Host::answering(&mut app, |_| Ok(png(40, 30)));
+    let mut harness = window(app, (1280.0, 800.0));
+    for id in &ids[..3] {
+        select(&mut harness, *id);
+        assert_eq!(shown(&harness, *id), (0, 1, 1));
+        assert!(harness.state().hit.rect("alwaysDownloadPictures", *id).is_none());
+        // One message at a time is still the owner's to ask for.
+        assert!(harness.state().hit.rect("downloadPictures", *id).is_some());
+    }
+    assert!(host.asked().is_empty(), "{:?}", host.asked());
+    assert!(says(&harness, "the mail server didn't confirm"));
+    select(&mut harness, ids[3]);
+    assert_eq!((host.asked().len(), shown(&harness, ids[3])), (1, (1, 0, 0)));
+}
+
+/// The Kelvin sign is not a "k": a lookalike address is nobody the owner remembered.
+#[test]
+fn a_lookalike_address_is_not_a_remembered_sender() {
+    let ui = crate::UiState { picture_senders: vec!["kim@kite.example".into()], picture_domains: vec!["kite.example".into()], ..Default::default() };
+    assert!(super::remote::sender_remembered(&ui, "KIM@Kite.Example"));
+    assert!(super::remote::domain_remembered(&ui, "anyone@kite.example"));
+    for lookalike in ["\u{212A}im@kite.example", "kim@\u{212A}ite.example", "kim@kite.exampl\u{0435}"] {
+        assert!(!super::remote::sender_remembered(&ui, lookalike), "{lookalike}");
+        assert!(!super::remote::domain_remembered(&ui, lookalike), "{lookalike}");
+    }
+    // Nor can one be added.
+    let (mut app, _) = app_with(vec![]);
+    assert!(app.execute("ui.alwaysDownloadPictures", json!({"sender": "\u{212A}im@kite.example"})).is_err());
+    assert!(app.execute("ui.alwaysDownloadPictures", json!({"domain": "\u{212A}ite.example"})).is_err());
+    // An entry from before can still be taken off.
+    app.ui.picture_senders = vec!["\u{212A}im@kite.example".into()];
+    app.execute("ui.alwaysDownloadPictures", json!({"sender": "\u{212A}im@kite.example", "value": false})).unwrap();
+    assert!(app.ui.picture_senders.is_empty());
+}
+
+/// Mail under Junk E-mail is Junk's, however deep, for the global switch and the lists alike.
+#[test]
+fn mail_in_a_subfolder_of_junk_is_junk_for_pictures() {
+    let shop = "news@shop.example";
+    let (mut app, ids) = app_with(vec![web_message(0, shop, "Sorted out", &web_pictures("a.shop.example", 1))]);
+    let id = ids[0];
+    let account = app.session.mailbox.accounts[0].id;
+    let junk = app.session.mailbox.folder_of_kind(account, mailcraft_model::FolderKind::Junk).unwrap();
+    let sub = app.session.mailbox.add_folder(account, Some(junk), "Sorted").unwrap();
+    let deeper = app.session.mailbox.add_folder(account, Some(sub), "Older").unwrap();
+    app.session.mailbox.message_mut(id).unwrap().folder = deeper;
+    app.ui.picture_senders = vec![shop.into()];
+    app.ui.download_pictures = true;
+    let host = Host::answering(&mut app, |_| Ok(png(40, 30)));
+    let mut harness = window(app, (1280.0, 800.0));
+    select(&mut harness, id);
+    assert_eq!(shown(&harness, id), (0, 1, 1));
+    assert!(host.asked().is_empty());
+}
+
+/// A draft opened again has lost the message it quotes: its pictures are not fetched by the switch.
+#[test]
+fn the_quote_of_a_reopened_draft_fetches_nothing() {
+    let html = "<html><body><p>Mine</p><div id=\"mailcraft-quote\"><p>Theirs</p><img src=\"https://x.example/p.png\" width=40 height=30></div></body></html>";
+    let mut draft = web_message(0, "avery@lumen-works.example", "Re: Offer", &[]);
+    draft.draft = true;
+    draft.body.html = Some(html.into());
+    draft.body.text = "Mine\n\n-----Original Message-----\nTheirs".into();
+    let (mut app, ids) = app_with(vec![draft]);
+    app.ui.download_pictures = true;
+    let host = Host::answering(&mut app, |_| Ok(png(40, 30)));
+    app.execute("mail.editDraft", json!({"id": ids[0]})).unwrap();
+    assert!(app.session.compose.as_ref().is_some_and(|c| c.quote.is_some() && c.source.is_none()));
+    let mut harness = window(app, (1280.0, 900.0));
+    harness.run_steps(10);
+    let quote = harness.state().session.compose.as_ref().and_then(|c| c.quote.clone()).unwrap();
+    assert!(quote.html.contains("x.example/p.png"), "{}", quote.html);
+    let laid = super::view::kept_at(&harness.ctx, Place::Quote, 0, |laid, _| (laid.done, laid.stats.remote));
+    assert_eq!(laid, Some((true, 1)), "the quote is on screen");
+    assert!(host.asked().is_empty(), "{:?}", host.asked());
+}
+
+/// The control for the test above: the quote of a reply to a message that is known does fetch.
+#[test]
+fn the_quote_of_a_reply_fetches_when_the_switch_is_on() {
+    let (mut app, ids) = app_with(vec![web_message(0, "news@shop.example", "Offer", &web_pictures("a.shop.example", 1))]);
+    app.ui.download_pictures = true;
+    let host = Host::answering(&mut app, |_| Ok(png(40, 30)));
+    app.execute("mail.reply", json!({"id": ids[0]})).unwrap();
+    let mut harness = window(app, (1280.0, 900.0));
+    harness.run_steps(10);
+    assert_eq!(host.asked().len(), 1);
 }
 
 #[test]
@@ -3380,6 +3519,7 @@ fn the_selection_commands_take_anything_and_never_panic() {
 // ---- meetings that arrive as mail ----
 
 mod invitation;
+mod remote_server;
 
 /// The original under a reply to HTML mail is laid out as the reading pane lays it out (its
 /// heading, its list), not as text; and a remote picture in it stays a stand-in until the owner

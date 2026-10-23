@@ -29,7 +29,12 @@ pub mod arrivals;
 pub mod catalog;
 pub mod cmd;
 pub mod io;
+#[cfg(test)]
+mod launchable_tests;
 pub mod list;
+pub mod mark;
+#[cfg(test)]
+mod mark_tests;
 pub mod opening;
 pub mod sample;
 mod session;
@@ -275,5 +280,7 @@ pub mod p {
     }
 }
 
+#[cfg(test)]
+mod agent_tests;
 #[cfg(test)]
 mod tests;

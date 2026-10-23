@@ -276,6 +276,30 @@ BEGIN:VALARM\r\nTRIGGER:-PT15M\r\nACTION:DISPLAY\r\nEND:VALARM\r\nEND:VEVENT\r\n
     assert!(outbox(harness.state(), account).is_empty());
 }
 
+/// (A8-5) The answer is mailed to the organizer's address, which the bar and the question show,
+/// with a word when the message came from another address.
+#[test]
+fn the_address_an_answer_goes_to_is_shown() {
+    let forged = Meeting { uid: "uid-other".into(), organizer: "ORGANIZER;CN=IT Helpdesk:mailto:collector@evil.example", ..Meeting::default() };
+    let (app, _, ids) = mail_app(vec![Meeting::default().mail(), forged.mail()]);
+    let mut harness = window(app, (1280.0, 900.0));
+    let question = |harness: &Window| match &harness.state().dialog {
+        Some(Dialog::Confirm { ask, .. }) => ask.text.clone(),
+        _ => panic!("no question"),
+    };
+    select(&mut harness, ids[0]);
+    assert!(says(&harness, "Organizer Bo Marsh <bo@example.org>") && !says(&harness, "didn't come from the address"));
+    press(&mut harness, "invitationAccept", ids[0]);
+    let text = question(&harness);
+    assert!(text.contains("Bo Marsh <bo@example.org> organizes") && !text.contains("didn't come from"), "{text}");
+    answer(&mut harness, "Don't Send a Response");
+    select(&mut harness, ids[1]);
+    assert!(says(&harness, "Organizer IT Helpdesk <collector@evil.example>") && says(&harness, "didn't come from the address"));
+    press(&mut harness, "invitationAccept", ids[1]);
+    let text = question(&harness);
+    assert!(text.contains("IT Helpdesk <collector@evil.example> organizes") && text.contains("didn't come from the address"), "{text}");
+}
+
 #[test]
 fn a_click_on_an_answer_asks_before_anything_is_sent() {
     let (app, account, ids) = mail_app(vec![Meeting::default().mail()]);

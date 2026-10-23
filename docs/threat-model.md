@@ -1,6 +1,6 @@
 # Threat model
 
-> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-10-22 · **Change:** minor (`--control-agents-only`: no control request passes for the owner's script; the whitelist adds padding, margins, lines, rounded corners and a line height, all clamped, #71; the whitelist adds width, max-width and centring by automatic margins, #150; an assurance case: claim, trust boundaries, design principles, common weaknesses and the evidence; releases carry MailCraft's own signature; agents with a shell or the owner's files are outside the agent gate; the settings folder, logs and kept pictures are the owner's alone) · **Target:** Microsoft Outlook (Microsoft 365)
+> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-10-23 · **Change:** minor (always-download pictures hold only for mail the receiving server vouches for, by ASCII addresses, and not under Junk E-mail; C1 PR-c: a mailbox opened from a file is unconfirmed until its servers are confirmed; C1 PR-b: a remembered password or sign-in is filed under the address and the servers it goes to; Batch 5b: agents are not written anything that asks before opening; Batch 5: saved attachments marked from the Internet, more launchable kinds blocked, one list for agents and the opener, unparseable web links refused; batch 4: no rule moves mail into an Outbox; agents are asked before deleting contacts, tasks, events and categories, and before an undo that reverts rules, signatures or accounts; questions show complete parameters or are refused; calendar questions name the event and the people invited; Copy Diagnostics is not for agents; C1 PR-a: a mailbox in mail is saved, never opened; releases build and sign only from `main` after a passing CI, compile and sign in separate steps, check WiX by hash and use `--locked`; a daily cargo-deny run; Dependabot for crates; CODEOWNERS covers the workflows, packaging, xtask, the lock files, the updater and the agent gate; a calendar file's time zone definitions, dates and series cost bounded work: a hostile invitation or calendar file can't freeze the window, PR-d; PR-e: a message keeps at most 2,000 recipients and 500 categories and 4 MB of header, a long list is cut in the reading pane and in a quote, an mbox import stops at 200,000 messages, a mailbox file is checked for its item count while it is read, repairing a mailbox is linear; a mail server's answer to one command is capped in text, responses, folders, messages and time, so it can't make MailCraft keep memory without bound; secrets in memory dropped when a mailbox is replaced; agent questions name servers; an invitation changes a local meeting only for its organizer; the log keeps no subjects, addresses or folder names; `--control-agents-only`: no control request passes for the owner's script; the whitelist adds padding, margins, lines, rounded corners and a line height, all clamped, #71; the whitelist adds width, max-width and centring by automatic margins, #150; an assurance case: claim, trust boundaries, design principles, common weaknesses and the evidence; releases carry MailCraft's own signature; agents with a shell or the owner's files are outside the agent gate; the settings folder, logs and kept pictures are the owner's alone) · **Target:** Microsoft Outlook (Microsoft 365)
 
 What MailCraft protects, from whom, and how, with the code that does it. Rules for working in the
 code are in [`CLAUDE.md`](../CLAUDE.md) and [`AGENTS.md`](../AGENTS.md); how to report a
@@ -28,6 +28,24 @@ Writes any bytes into a message: crafted MIME, HTML, headers, attachments, pictu
 - **Nothing is fetched by itself.** Pictures attached to the message (`cid:`) are shown; pictures on
   the web only on the owner's say-so, and only `<img>` addresses (no backgrounds, style sheets,
   fonts or frames, nothing 2 px or smaller), so a tracking pixel doesn't fire.
+- **"Always download pictures" is not a trust in a `From:` line.** A remembered sender or domain
+  holds only for a message whose topmost `Authentication-Results` header says `dmarc=pass` (or
+  `compauth=pass`) for the sender's domain **and was written by the account's own server**
+  (`crates/ui-egui/src/reading/remote.rs`, `vouched`, `from_own_server`): for a Microsoft account any
+  topmost header (Exchange Online stamps its own, with no authserv-id); for another account one whose
+  authserv-id (RFC 8601) is a known id of its IMAP host's provider
+  (`mailcraft_model::provider::authserv_ids`: `mx.google.com` for `imap.gmail.com`) or is the IMAP
+  host's domain one label up, or a name under it (`imap.lumen.example` takes `mx.lumen.example`; a bare
+  suffix such as `co.uk` never matches). Anything else, a message without that, or an account that
+  is not IMAP or Microsoft is asked about one message at a time. Addresses are kept and
+  compared as ASCII (the Kelvin sign is not a "k"), and mail anywhere under Junk E-mail, not only in
+  it, never takes the lists or the switch for all mail. The limits: a provider whose id is neither
+  in the table nor under its IMAP host's domain asks every time (nothing is guessed); the
+  public-suffix check is a short list of common two-label suffixes, not the full list.
+- **A meeting invitation does not rewrite a meeting it isn't about.** An invitation carrying the
+  `UID` of a meeting on a local calendar changes or removes it only when it names the same
+  organizer (`crates/engine/src/cmd/calendar/invitation.rs`, `same_organizer`); the bar shows the
+  organizer's name and address, and says when the message did not come from that address.
 - **Links** are shown with their real destination; only `http`, `https`, `mailto`, `tel` and `cid`
   are followed.
 - **Parsers never crash.** No `unwrap`, `expect`, `panic!` or `unsafe` in production code
@@ -59,6 +77,13 @@ Answers IMAP, SMTP or Microsoft Graph with whatever it likes.
 
 - Server responses are parsed as hostile input under the same never-crash rules and property tests
   (`crates/proto`, `crates/net`); sizes are clamped and allocations capped.
+- **One command can't grow memory without bound.** An IMAP command's answer is read up to 32 MB of
+  text outside literals and 250,000 responses (a FETCH of a folder, twice its EXISTS plus 1,000 if more), and a command with its answer gets its time plus at
+  most 30 more minutes however much moves (`crates/proto/src/imap/mod.rs`,
+  `crates/net/src/transport.rs`). A LIST keeps 4,000 mailboxes (the rest are read and dropped),
+  none with a name over 1,024 bytes; a flag is cut at 256 bytes. A FETCH of a set keeps only UIDs
+  in that set and below the mailbox's UIDNEXT, at most twice its EXISTS plus 1,000 distinct ones;
+  more is the command's error and nothing of it is taken in.
 - **Secrets aren't handed to the wrong party:** a sign-in goes only to the server the account names,
   over TLS (below). OAuth uses the authorization code with PKCE and a loopback redirect
   (`crates/net/src/oauth.rs`).
@@ -87,6 +112,51 @@ An `.eml`, `.mbox`, `.ics`, `.vcf` or `.mailcraft` file from somewhere else.
 - Read by the same parsers, under the same never-crash rules and property tests; a file that can't
   be read is an error, never a crash, and a command that fails leaves the mailbox as it was.
 - `crates/engine/src/tests.rs::hostile_params_never_panic` runs every command with junk parameters.
+- A `.mailcraft` attachment is never opened from a message: it can only be saved
+  (`crates/engine/src/opening.rs`), so a sender cannot put a mailbox with accounts of their
+  choosing in front of the owner with one click.
+- The passwords and sign-ins held in memory belong to the mailbox they were given for: any
+  mailbox that takes its place (File › Open, File › New) drops them all, since a file chooses its
+  accounts' ids and servers (`MailApp::drop_secrets_if_replaced`).
+- When an agent asks to add or change an account, or to open a mailbox file, the owner's question
+  names the servers the account would connect to, read from the file for an open
+  (`crates/engine/src/agent.rs`).
+- A file's rules are cut to the most a mailbox keeps (500) when it is repaired.
+- A password or sign-in the system remembers is filed under the account's address and the
+  servers it goes to (IMAP and SMTP host and port; a Microsoft account kept in step through Graph
+  under the address alone, Graph and Microsoft's sign-in page being fixed): an account that names
+  other servers, such as one in a mailbox from a file, finds nothing and asks. Changing an
+  account's server drops what was kept for the old one, and so does removing the account.
+  Secrets kept before this move once, for the mailbox the window starts with, to the servers of
+  its accounts (`MailApp::secret_key`, `MailApp::migrate_secrets`).
+- A mailbox opened from a file (File › Open, a double-click, a drop) is **unconfirmed** until the
+  owner has seen where each of its accounts connects and confirmed it (`crates/ui-egui/src/unconfirmed.rs`).
+  Nothing of it reaches a server: no automatic Send/Receive, no quiet push, a manual Send/Receive
+  asks the owner to confirm, its Outbox is not sent, its changes wait, its rules do not run, and
+  nothing is signed in for it. A bar says so and lists the servers; `ui.confirmServers` is the
+  owner's yes (an agent needs the owner's say, class `accounts`). The yes is kept in `ui.json` for
+  that file and a SHA-256 fingerprint of its accounts' addresses, kinds and servers: change either
+  and the owner is asked again. The owner's own mailbox and one named with `--mailbox` are never
+  unconfirmed, nor is a file with no account that connects to a server.
+- No rule moves mail into an Outbox, or a folder under one, whoever made it: `rules.add` and
+  `rules.fromMessage` refuse it, and applying rules skips such a target (a rule from a file or an
+  older version), so incoming mail is never relayed by the owner's SMTP account
+  (`Mailbox::is_send_queue`).
+- An agent is asked before it deletes a contact, task, event or category (class `delete`; none
+  has a Deleted Items to come back from), and before an Undo or Redo that would put back the
+  accounts, rules or signatures of before. The question shows the call in full: one too long to
+  show (`MAX_QUESTION`) is refused, never cut; a calendar question names the event and the people
+  it writes to. `ui.copyDiagnostics` is not available to agents.
+- Counts are bounded as well as sizes. A message keeps at most 2,000 recipients (`To`, `Cc` and
+  `Bcc` together; `Reply-To` as many again), 500 categories and 4 MB of header fields
+  (`crates/mime/src/parse.rs`, `header.rs`); the reading pane lists the first 50 names and draws 8
+  category chips, and a quote under a reply or forward the first 100 names, each with a count of the
+  rest. An mbox import takes 200,000 messages and says it stopped (`crates/engine/src/io.rs`).
+  A `.mailcraft` file is counted while it is read (`crates/model/src/load_limit.rs`): one that holds
+  more items (messages, contacts, events, tasks, accounts, folders, categories) than four times the
+  body budget allows at a kilobyte each is refused before it uses the memory. Loading keeps at most
+  1,000 accounts, 50,000 folders and 1,000 categories, cleans their names, and repairs in time
+  linear in the file (`Mailbox::repair`).
 
 ### Other programs and users on the same computer
 
@@ -121,19 +191,27 @@ A malicious or vulnerable dependency, GitHub Action or build step.
 
 - **Dependencies:** `cargo deny check` ([`deny.toml`](../deny.toml); `cargo xtask deny`, a job of CI
   that `ci-ok` requires) fails on a RustSec vulnerability, allows only OSI-permissive licences (no
-  GPL, LGPL or AGPL), and only crates.io as a source. `Cargo.lock` is committed.
+  GPL, LGPL or AGPL), and only crates.io as a source. `Cargo.lock` is committed, and CI and the
+  release build with `--locked`, so the lock that is audited is the one that ships. The same
+  check runs daily on a schedule (`audit.yml`, the workspace and `fuzz/`'s own lock), and Dependabot
+  proposes crate updates weekly. `.github/CODEOWNERS` asks the owners to review the workflows,
+  packaging, xtask, the lock files, the updater and the agent gate.
 - **Workflows:** every third-party action is pinned to a full commit SHA, kept current by Dependabot
   with a week's cooldown; checkouts don't keep credentials; workflows get read-only permissions
   unless a job needs more; the release passes its signing secrets by name, not `inherit`.
 - **Release signing:** the signing secrets are kept in the protected `release` environment (version
   tags only, a maintainer's approval), and only the jobs that sign a pushed version tag, and the
   one that makes the release, run in it; a dry run started by hand, on any ref, is unsigned and
-  gets no secrets. The workflow makes a draft release, which a maintainer publishes by hand.
+  gets no secrets. A pushed tag is built and signed only when its commit is on `main` and `ci-ok`
+  passed on it (checked by the first job, which the others need). Dependencies are compiled in a
+  step with no signing secret in its environment (Windows and macOS builds, and `xtask`, which
+  signs the checksums), and the secrets reach only the step that signs; release builds use no build
+  cache. The workflow makes a draft release, which a maintainer publishes by hand.
   [zizmor](https://docs.zizmor.sh/) checks the workflows on every change to them, and
   [OpenSSF Scorecard](https://scorecard.dev/) scores the repository weekly.
 - **Build tools:** the shared workflows are pinned to full commit SHAs too, and every tool the
   release downloads by URL (nfpm, appimagetool and the AppImage runtime, the Trusted Signing
-  client, rustup-init, wasm-opt) is an exact version checked against a recorded sha256 before
+  client, rustup-init, wasm-opt) and WiX (a NuGet package) is an exact version checked against a recorded sha256 before
   use; trunk runs offline. Every release file gets a build provenance attestation
   (`gh attestation verify <file> -R UCS-Care-Group/mailcraft`).
 - Pure-Rust TLS (rustls), and no handwritten JavaScript.
@@ -215,6 +293,15 @@ settings files (`crates/engine/src/store.rs`); commands from the control channel
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-23 | minor | C1 PR-c: a mailbox opened from a file is unconfirmed until its servers are confirmed; nothing of it reaches a server meanwhile |
+| 2026-10-23 | minor | C1 PR-b: remembered passwords and sign-ins are filed under the address and the servers they go to; changing a server asks again; older entries move once |
+| 2026-10-23 | minor | Batch 5: attachments saved with Save As are marked from the Internet (Windows zone, macOS quarantine; Linux has no such mark); the launchable kinds that are never opened grow, legacy Office binaries ask first, and the same list bars the files an agent may have written; a web link the parser rejects is never handed to the opener |
+| 2026-10-23 | minor | Batch 4: no rule moves mail into an Outbox; agents are asked before deleting contacts, tasks, events and categories, and before an undo that reverts rules, signatures or accounts; questions show complete parameters or are refused; calendar questions name the event and the people invited; Copy Diagnostics is not for agents |
+| 2026-10-23 | minor | C1 PR-a: a `.mailcraft` attachment is saved, never opened; secrets in memory dropped when a mailbox is replaced; agent questions for account and open commands name servers; rules trimmed on repair |
+| 2026-10-23 | minor | Supply chain: release builds only from `main` after CI; compile and sign in separate steps; WiX checked by hash; `--locked`; daily cargo-deny; Dependabot for crates; wider CODEOWNERS |
+| 2026-10-23 | minor | iCalendar work is bounded as a whole: a zone a file defines is resolved once per offset, its parts and dates are capped at 64, one parse has a work budget (past it the times are kept as written and a note says so), an invitation's card reads its first event only, and a series with a count is not walked from its first day (PR-d) |
+| 2026-10-23 | minor | Counts bounded: recipients, categories and header bytes per message, mbox import, items while a mailbox file is read, accounts, folders and categories on load; repair linear (PR-e) |
+| 2026-10-23 | minor | An IMAP server's answer to one command is capped in text, responses, folders, messages and time; flags and mailbox names are cut short |
 | 2026-10-21 | minor | The HTML whitelist adds padding and margins (0 to 64 px), lines (1 to 4 px, solid, dashed or dotted), `border-radius` (up to 24 px) and `line-height` (1 to 2.5 times), all clamped, functions refused (#71) |
 | 2026-10-21 | minor | The HTML whitelist adds `width` (tables, cells), `max-width` and centring by automatic margins, all clamped (#150) |
 | 2026-10-20 | minor | An assurance case: the claim, trust boundaries, secure design principles, common weaknesses countered, evidence; releases carry MailCraft's own signature |
@@ -223,4 +310,5 @@ settings files (`crates/engine/src/store.rs`); commands from the control channel
 | 2026-10-16 | minor | Release signing in the protected `release` environment; draft releases |
 | 2026-10-16 | minor | Pinned build tools with checksums; build provenance for release files |
 | 2026-10-15 | major | First version: assets, adversaries, mechanisms with their files, known limits |
+| 2026-10-23 | minor | Always-download pictures need the server's `dmarc=pass`, ASCII addresses, and Junk subfolders count as Junk; an invitation changes a local meeting only for its organizer, whose address is shown; the update question names installing; the log keeps no subjects, addresses or folder names |
 | 2026-10-22 | minor | `--control-agents-only`: every control request is an agent's, allowed nothing in advance; the mailbox file and `mailcraft-cli` stay within reach of an agent running as the owner |

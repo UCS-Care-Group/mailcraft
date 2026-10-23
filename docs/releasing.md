@@ -1,6 +1,6 @@
 # Releasing MailCraft
 
-> **Last reviewed:** 2026-10-18 · **Last updated:** 2026-10-21 · **Change:** minor (the release announced to the testers in #11; the 0.6.0 Fixes lines brought up to date; a Fixes section in the release notes, each issue linked, checked against what merged since the last tag; build provenance as a file beside each release; reproducible builds, checked weekly; one pinned Rust version, 1.98.1, for every build; what to do when a release key leaks: there is no taking it back from copies already out; v0.5.0, the first release with MailCraft's own signature; how a copy that updates itself installs a release; `DISABLEAUTOMATICUPDATES=1`; MailCraft's own release signature: `SHA256SUMS.txt.sig`, the `MAILCRAFT_RELEASE_KEY` secret, `cargo xtask release-key`) · **Status:** releases v0.1.0 to v0.5.0 were built and published by `release.yml` and `package.yml` on GitHub's runners, for every platform in the table below; v0.5.0 is the first with MailCraft's own release signature (`SHA256SUMS.txt.sig`, verified by the in-use key), and none is signed by the operating systems' signatures yet (gap #18).
+> **Last reviewed:** 2026-10-18 · **Last updated:** 2026-10-23 · **Change:** minor (a tag builds and signs only from `main` with a passing CI; compiling and signing in separate steps; WiX checked by hash; `--locked`; the release announced to the testers in #11; the 0.6.0 Fixes lines brought up to date; a Fixes section in the release notes, each issue linked, checked against what merged since the last tag; build provenance as a file beside each release; reproducible builds, checked weekly; one pinned Rust version, 1.98.1, for every build; what to do when a release key leaks: there is no taking it back from copies already out; v0.5.0, the first release with MailCraft's own signature; how a copy that updates itself installs a release; `DISABLEAUTOMATICUPDATES=1`; MailCraft's own release signature: `SHA256SUMS.txt.sig`, the `MAILCRAFT_RELEASE_KEY` secret, `cargo xtask release-key`) · **Status:** releases v0.1.0 to v0.5.0 were built and published by `release.yml` and `package.yml` on GitHub's runners, for every platform in the table below; v0.5.0 is the first with MailCraft's own release signature (`SHA256SUMS.txt.sig`, verified by the in-use key), and none is signed by the operating systems' signatures yet (gap #18).
 
 The canonical recipe is [craftrules `release/playbook.md`](https://github.com/storytold/craftrules/blob/main/release/playbook.md);
 this file has the MailCraft specifics. The scripts in `packaging/` are WordCraft's with MailCraft's
@@ -49,6 +49,17 @@ WordCraft does.
    headed `## MailCraft v<version> is out`, with the download link and the release's headlines
    (the tester welcome promises it). Add anyone who signed up since to #11's Testers table.
 
+A pushed tag builds and signs only if its commit is on `main` and `ci-ok` passed on it: the first
+job of `release.yml` (`version`) checks both and every other job needs it, so a tag on a branch
+commit, or on a commit that CI never passed, stops before any signing secret is in reach. Tag
+the merge commit once CI on `main` is green (a documentation-only commit runs no `ci-ok` and
+can't be tagged). The Windows and macOS jobs compile in a step of their own with no signing
+secret in the environment (`package.ps1 -BuildOnly`, `package.sh --build-only`) and sign in a
+later one (`-SkipBuild`, `--skip-build`); the job that signs the checksums builds `xtask` first
+and runs the finished binary with the key (`MAILCRAFT_XTASK`), so no build script or macro of a
+dependency ever runs with a signing secret in its environment. Release builds use no build cache
+(`Swatinem/rust-cache` is for CI only).
+
 Signing secrets (`APPLE_*`, `WINDOWS_CERTIFICATE*` and `AZURE_*`) are secrets of the `release`
 environment, not of the repository. That environment accepts version tags (`v*`) only and waits
 for a maintainer's approval; the Windows and macOS jobs that sign, and the job that makes the
@@ -88,8 +99,9 @@ itself off for every user of the computer.
   `gh secret set MAILCRAFT_RELEASE_KEY --env release < mailcraft-release-key-in-use.pkcs8.b64`),
   and nowhere else. The public keys go into `RELEASE_KEYS`; they are not secret.
 - **Signing:** `packaging/sign-sums.sh <folder>` runs `cargo xtask release-key sign
-  <folder>/SHA256SUMS.txt` with the key from the environment (built from the checkout with the
-  locked crates: no tool is downloaded). The key is never printed; the step names the public key
+  <folder>/SHA256SUMS.txt` with the key from the environment (xtask is built from the checkout
+  with the locked crates in an earlier step that has no key, and the script runs that binary; no
+  tool is downloaded). The key is never printed; the step names the public key
   it signed with. Without the secret (a fork, a dry run) it says "unsigned" and the run goes on:
   such a release has no `.sig`, and no copy of MailCraft installs it by itself.
 - **Checking by hand:** the signature is a plain ed25519 signature over the bytes of
@@ -125,7 +137,10 @@ after their release), the shared workflows of `storytold/craft-common-actions` b
 (moved by hand), and every tool downloaded by URL by exact version and
 sha256, checked before it is used: nfpm (`package.yml`), appimagetool and the AppImage runtime
 (`packaging/linux/package.sh`), the Trusted Signing client (`packaging/windows/sign.ps1`),
-rustup-init on FreeBSD and wasm-opt (`package.yml`). trunk and wasm-bindgen come pinned through
+rustup-init on FreeBSD and wasm-opt (`package.yml`). WiX 5.0.2 and its two extensions are NuGet
+packages: `package.yml` downloads each by exact version and checks its sha256 before installing
+the tool from the checked file (the extensions are fetched by `wix extension add`, after their
+packages' hashes have been checked). trunk and wasm-bindgen come pinned through
 `taiki-e/install-action`, and trunk runs offline so it downloads nothing itself; the
 wasm-bindgen version in `package.yml` follows the one in `Cargo.lock`. To move a tool, change
 its version and its sha256 together, taken from the file itself.
@@ -199,7 +214,13 @@ version, **1.98.1**, not whatever `stable` is that day, so a release built again
 the same compiler, with `Cargo.lock` pinning the crates and the actions pinned by commit. Fuzzing
 alone uses nightly, as cargo-fuzz needs. Moving to a newer Rust is a change of its own: replace the
 version in `.github/workflows/ci.yml`, `package.yml` and `release.yml` together, and run
-`cargo xtask ci` with it first.
+`cargo xtask ci` with it first. There is no `rust-toolchain.toml`: the workflows say the version,
+and a contributor's own toolchain is theirs to choose (`rust-version` in `Cargo.toml` is the floor).
+
+Every cargo command CI and the release run uses `--locked` (`cargo xtask` passes it on to the
+commands it runs, and CI starts it with `cargo run --locked --package xtask`), so the lock that is
+tested and audited is the one that is built. `audit.yml` runs cargo-deny every day, on the
+workspace and on `fuzz/`'s own lock, and Dependabot proposes crate updates weekly for both.
 
 ## Reproducible builds
 
@@ -241,6 +262,7 @@ and in the Flatpak (which is granted `org.freedesktop.secrets` for it).
 
 | Date | Change |
 |---|---|
+| 2026-10-23 | A tag builds and signs only from `main` with a passing `ci-ok`; compile and sign in separate steps; WiX checked by hash; no build cache in release builds; `--locked` everywhere; a daily cargo-deny run and Dependabot for crates |
 | 2026-10-21 | Step 6: each release announced to the testers in #11, and new sign-ups added to its table |
 | 2026-10-21 | Release notes: a Fixes section, each fix's issue linked in full for the website's changelog; checked against what merged since the last tag |
 | 2026-10-20 | Build provenance attached to each release as `mailcraft-<version>.intoto.jsonl` |

@@ -19,8 +19,9 @@
 //! - **Ours alone:** the folders are made for this user only (0700 on Unix), a link where one of
 //!   them should be is never followed, and a file is only ever made new, never written through
 //!   something that was there.
-//! - **Marked as from the Internet** on Windows (its zone, as a browser's download is), so the
-//!   program that opens it treats it as it treats a download (Office's Protected View).
+//! - **Marked as from the Internet** on Windows (its zone, as a browser's download is) and macOS
+//!   (quarantined), so the program that opens it treats it as it treats a download (Office's
+//!   Protected View, Gatekeeper); see `mailcraft_engine::mark`.
 //! - **Opened without a shell:** the system's own way of opening a file (ShellExecute on Windows,
 //!   `open` on macOS, `xdg-open` and the like elsewhere, through the `open` crate), with the
 //!   file's whole path as the one argument.
@@ -96,7 +97,7 @@ impl Opened {
         let mut file = new_file(&path).map_err(failed)?;
         file.write_all(bytes).and_then(|()| file.sync_all()).map_err(failed)?;
         drop(file);
-        mark_from_internet(&path);
+        mailcraft_engine::mark::mark_from_internet(&path);
         // A copy: what is changed in it is not the message's (Save As keeps a file).
         if let Ok(meta) = fs::metadata(&path) {
             let mut perms = meta.permissions();
@@ -206,20 +207,6 @@ fn new_file(path: &Path) -> std::io::Result<fs::File> {
     #[cfg(unix)]
     std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
     options.open(path)
-}
-
-/// Windows: the file came from the Internet (zone 3), as a browser marks its downloads.
-fn mark_from_internet(path: &Path) {
-    #[cfg(windows)]
-    {
-        let mut stream = path.as_os_str().to_os_string();
-        stream.push(":Zone.Identifier");
-        if let Err(e) = fs::write(PathBuf::from(stream), b"[ZoneTransfer]\r\nZoneId=3\r\n") {
-            log::debug!("an opened attachment wasn't marked as from the Internet ({:?})", e.kind());
-        }
-    }
-    #[cfg(not(windows))]
-    let _ = path;
 }
 
 /// Remove `path`: a file or a link as it is (a link is never followed), a folder with what is in

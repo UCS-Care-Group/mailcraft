@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 use std::sync::Arc;
 
+use crate::mailbox::{MAX_ACCOUNTS, MAX_CATEGORIES, MAX_FOLDERS};
 use crate::*;
 
 fn mailbox() -> (Mailbox, Id) {
@@ -12,6 +13,18 @@ fn mailbox() -> (Mailbox, Id) {
 
 fn mail(folder: Id, subject: &str, date: i64) -> Message {
     Message { folder, subject: subject.into(), date, from: Address::new("Bob", "bob@example.org"), ..Default::default() }
+}
+
+#[test]
+fn junk_includes_its_subfolders() {
+    let (mut mb, account) = mailbox();
+    let junk = mb.folder_of_kind(account, FolderKind::Junk).unwrap();
+    let inbox = mb.inbox().unwrap();
+    let sub = mb.add_folder(account, Some(junk), "Sorted").unwrap();
+    let deeper = mb.add_folder(account, Some(sub), "Older").unwrap();
+    let elsewhere = mb.add_folder(account, Some(inbox), "Sorted").unwrap();
+    assert!([junk, sub, deeper].iter().all(|f| mb.in_junk(*f)));
+    assert!(![inbox, elsewhere, 9_999].iter().any(|f| mb.in_junk(*f)));
 }
 
 #[test]
@@ -938,4 +951,96 @@ fn only_a_jmap_or_microsoft_account_has_server_ids() {
     // kind this version doesn't know is neither: whatever it is, this version doesn't know how.
     assert_eq!([Local, Imap, Microsoft, Jmap, Unknown].map(AccountKind::has_server), [false, true, true, true, false]);
     assert_eq!([Local, Imap, Microsoft, Jmap, Unknown].map(AccountKind::sends_mail), [false, true, true, false, false]);
+}
+
+#[test]
+fn repair_trims_rules_to_the_most_a_mailbox_keeps() {
+    let (mut mb, _) = mailbox();
+    for id in 1..=(MAX_RULES as Id + 50) {
+        mb.rules.push(Rule {
+            id,
+            name: "r".into(),
+            enabled: true,
+            conditions: vec![Condition::HasAttachment],
+            actions: vec![Action::Flag],
+            stop: false,
+        });
+    }
+    let fixed = mb.repair();
+    assert_eq!(mb.rules.len(), MAX_RULES);
+    assert!(fixed.iter().any(|f| f.contains("rules")), "{fixed:?}");
+}
+
+/// A mailbox of `accounts` accounts, each with the seven standard folders, as a file would hold it.
+fn many_accounts(accounts: usize) -> Mailbox {
+    let mut mb = Mailbox::default();
+    for a in 1..=accounts as Id {
+        mb.accounts.push(Account { id: a, name: format!("A{a}"), email: format!("a{a}@example.org"), ..Default::default() });
+        for (i, kind) in FolderKind::STANDARD.into_iter().enumerate() {
+            mb.folders.push(Folder { id: 1_000_000 + a * 10 + i as Id, account: a, name: kind.default_name().into(), kind, ..Default::default() });
+        }
+    }
+    mb
+}
+
+#[test]
+fn repair_of_many_accounts_is_linear_and_capped() {
+    let mut mb = many_accounts(8000);
+    let t = std::time::Instant::now();
+    let fixed = mb.repair();
+    assert!(t.elapsed().as_millis() < 1000, "{:?}", t.elapsed());
+    assert_eq!(mb.accounts.len(), MAX_ACCOUNTS);
+    assert!(fixed.iter().any(|f| f.contains("beyond the limits")), "{fixed:?}");
+    // Every kept account still has each standard folder once, and no folder is without an account.
+    assert_eq!(mb.folders.len(), MAX_ACCOUNTS * 7);
+    assert!(mb.folders.iter().all(|f| mb.account(f.account).is_some()));
+    // Under the caps nothing is dropped: the same shape as a person's.
+    let mut ok = many_accounts(MAX_ACCOUNTS);
+    assert!(ok.repair().is_empty());
+}
+
+#[test]
+fn accounts_in_order_is_linear() {
+    let mb = many_accounts(8000);
+    let t = std::time::Instant::now();
+    assert_eq!(mb.accounts_in_order().len(), 8000);
+    assert!(t.elapsed().as_millis() < 1000, "{:?}", t.elapsed());
+}
+
+#[test]
+fn repair_of_a_long_chain_of_folders_is_linear() {
+    let (mut mb, account) = mailbox();
+    let base = 10_000_000;
+    for i in 0..(MAX_FOLDERS as Id - 10) {
+        let parent = if i == 0 { None } else { Some(base + i - 1) };
+        mb.folders.push(Folder { id: base + i, account, name: format!("f{i}"), parent, ..Default::default() });
+    }
+    let t = std::time::Instant::now();
+    mb.repair();
+    assert!(t.elapsed().as_millis() < 1000, "{:?}", t.elapsed());
+    assert!(mb.folders.len() <= MAX_FOLDERS);
+}
+
+#[test]
+fn repair_cleans_names_and_caps_categories() {
+    let (mut mb, account) = mailbox();
+    mb.folders.push(Folder { id: 900, account, name: "  Bad\u{7}\nname  ".into(), ..Default::default() });
+    mb.categories = (0..MAX_CATEGORIES + 50).map(|i| Category { name: format!("c{i}"), ..Default::default() }).collect();
+    mb.repair();
+    assert_eq!(mb.folder(900).map(|f| f.name.as_str()), Some("Badname"));
+    assert_eq!(mb.categories.len(), MAX_CATEGORIES);
+}
+
+#[test]
+fn a_file_with_too_many_items_is_refused_while_it_is_read() {
+    let mut json = String::from("{\"messages\":{");
+    for i in 1..=2000 {
+        json.push_str(&format!("{}\"{i}\":{{}}", if i > 1 { "," } else { "" }));
+    }
+    json.push_str("}}");
+    assert_eq!(from_json(json.as_bytes(), 2000).map(|m| m.messages.len()).ok(), Some(2000));
+    let err = from_json(json.as_bytes(), 1999).unwrap_err().to_string();
+    assert!(err.contains("more items"), "{err}");
+    // The budget is not left set for the next read.
+    assert_eq!(serde_json::from_str::<Mailbox>(&json).map(|m| m.messages.len()).ok(), Some(2000));
 }

@@ -208,6 +208,11 @@ msgstr ""
 msgid "A meeting is forwarded to {n} people at most at once."
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/reading/invitation.rs
+msgid "A meeting on your calendar has this ID but another organizer, so this invitation can't change it."
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
 msgid "A meeting that repeats and skips some days can't be put on the server's calendar from here: everyone invited would get a cancellation for each skipped day. Keep it in a calendar on this computer, or make it again without the skipped days."
@@ -1167,6 +1172,11 @@ msgstr ""
 msgid "Check Now"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/updates.rs
+msgid "Check daily for new versions of MailCraft, and download and install them when you quit? Only GitHub is asked; nothing about you or your mail is sent."
+msgstr ""
+
 #. command label
 #: crates/ui-egui/src/lib.rs
 msgid "Check for New Versions"
@@ -1180,11 +1190,6 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/updates.rs
 msgid "Check for new versions"
-msgstr ""
-
-#. interface
-#: crates/ui-egui/src/updates.rs
-msgid "Check once a day for new versions of MailCraft? Only GitHub is asked; nothing about you or your mail is sent."
 msgstr ""
 
 #. interface
@@ -1415,6 +1420,16 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/reading.rs
 msgid "Completed."
+msgstr ""
+
+#. command label, interface
+#: crates/ui-egui/src/lib.rs crates/ui-egui/src/unconfirmed.rs
+msgid "Confirm Servers"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/unconfirmed.rs
+msgid "Confirm servers"
 msgstr ""
 
 #. interface
@@ -2824,6 +2839,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/lib.rs
 msgid "Imported {what} into a local folder: Microsoft doesn't let a mail program put received mail into your mailbox"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+msgid "Imported {what}; stopped after {count}: the file has more than one import takes"
 msgstr ""
 
 #. interface
@@ -4488,6 +4508,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/windows.rs
 msgid "Only a meeting you organize has a Scheduling Assistant"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/unconfirmed.rs
+msgid "Only confirm if you know these servers."
 msgstr ""
 
 #. interface
@@ -7201,6 +7226,11 @@ msgstr ""
 msgid "This invitation doesn't say which meeting it is about, so it can't be answered."
 msgstr ""
 
+#. what a command says
+#: crates/engine/src/cmd/calendar/invitation.rs
+msgid "This invitation has the ID of a meeting on your calendar but names another organizer, so it can't change that meeting."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/updates.rs
 msgid "This is a development build: it checks only when you press Check for Updates in File › About."
@@ -7254,6 +7284,16 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/chrome.rs
 msgid "This mailbox is on this device only"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/unconfirmed.rs
+msgid "This mailbox was opened from a file. Its accounts connect to:"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+msgid "This mailbox was opened from a file: confirm its servers first"
 msgstr ""
 
 #. interface
@@ -8021,6 +8061,11 @@ msgid "You accepted this meeting."
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/reading/remote.rs
+msgid "You always download this sender's pictures, but the mail server didn't confirm that this message came from them, so it is asked first."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/reading/invitation.rs
 msgid "You declined this meeting."
 msgstr ""
@@ -8246,6 +8291,11 @@ msgid "a personal Microsoft account (Outlook.com) has no shared mailboxes: they 
 msgstr ""
 
 #. what a command says
+#: crates/engine/src/cmd/rules.rs
+msgid "a rule can't move mail to an Outbox: that would send it"
+msgstr ""
+
+#. what a command says
 #: crates/model/src/mailbox.rs
 msgid "a shared mailbox can't open another one: name the account it is opened through"
 msgstr ""
@@ -8299,6 +8349,13 @@ msgstr ""
 #: crates/ui-egui/src/forms.rs
 msgid "and"
 msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading.rs
+msgid "and {n} more"
+msgid_plural "and {n} more"
+msgstr[0] ""
+msgstr[1] ""
 
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs
@@ -8506,6 +8563,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/reminders.rs
 msgid "minutes"
+msgstr ""
+
+#. why a command can't run
+#: crates/engine/src/cmd/calendar/invitation.rs
+msgid "mismatch"
 msgstr ""
 
 #. name

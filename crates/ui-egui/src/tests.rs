@@ -646,14 +646,14 @@ fn the_system_remembers_passwords_and_sign_ins_only_when_wanted() {
 
     // A password is remembered once it has worked, not when it is typed.
     a.execute("ui.sync", json!({"account": plain, "password": "pw-one"})).unwrap();
-    assert_eq!(kept("password:avery@mail.example"), None);
+    assert_eq!(kept("password:avery@mail.example|imap=imap.mail.example:0|smtp=none"), None);
     a.poll_sync();
-    assert_eq!(kept("password:avery@mail.example").as_deref(), Some("pw-one"));
+    assert_eq!(kept("password:avery@mail.example|imap=imap.mail.example:0|smtp=none").as_deref(), Some("pw-one"));
     // A sign-in is remembered as its refresh token; the access token is not kept anywhere.
     a.execute("ui.sync", json!({"account": signed})).unwrap();
     a.poll_sign_in();
     a.poll_sync();
-    assert_eq!(kept("refresh:quinn@mail.example").as_deref(), Some("ref-kept"));
+    assert_eq!(kept("refresh:quinn@mail.example|imap=imap.mail.example:0|smtp=none").as_deref(), Some("ref-kept"));
     assert!(!store.0.lock().unwrap().values().any(|v| v == "tok"));
     // Neither reaches the settings or the mailbox.
     let written = format!("{}{}", serde_json::to_string(&a.prefs()).unwrap(), serde_json::to_string(&a.session.mailbox).unwrap());
@@ -675,14 +675,14 @@ fn the_system_remembers_passwords_and_sign_ins_only_when_wanted() {
     b.execute("ui.sync", json!({"account": plain})).unwrap();
     b.poll_sync();
     refuse.store(false, Ordering::Relaxed);
-    assert_eq!(kept("password:avery@mail.example"), None);
+    assert_eq!(kept("password:avery@mail.example|imap=imap.mail.example:0|smtp=none"), None);
     assert_eq!(b.execute("ui.sync", json!({"account": plain})).unwrap()["pending"], "password");
     b.dialog = None;
 
     // Switched off: what was kept goes, and nothing new is kept.
     b.execute("ui.sync", json!({"account": plain, "password": "pw-two"})).unwrap();
     b.poll_sync();
-    assert_eq!(kept("password:avery@mail.example").as_deref(), Some("pw-two"));
+    assert_eq!(kept("password:avery@mail.example|imap=imap.mail.example:0|smtp=none").as_deref(), Some("pw-two"));
     assert_eq!(b.execute("ui.rememberSignIn", json!({"value": false})).unwrap()["value"], false);
     assert!(store.0.lock().unwrap().is_empty());
     b.execute("ui.sync", json!({"account": plain})).unwrap();
@@ -693,9 +693,9 @@ fn the_system_remembers_passwords_and_sign_ins_only_when_wanted() {
     b.execute("ui.rememberSignIn", json!({"value": true})).unwrap();
     b.execute("ui.sync", json!({"account": plain})).unwrap();
     b.poll_sync();
-    assert!(kept("password:avery@mail.example").is_some());
+    assert!(kept("password:avery@mail.example|imap=imap.mail.example:0|smtp=none").is_some());
     b.execute("account.remove", json!({"id": plain})).unwrap();
-    assert_eq!(kept("password:avery@mail.example"), None);
+    assert_eq!(kept("password:avery@mail.example|imap=imap.mail.example:0|smtp=none"), None);
 }
 
 /// (#103) An account that exists is signed in again, and on the provider's page the owner picks
@@ -776,7 +776,10 @@ fn a_sign_in_as_somebody_else_is_never_taken_for_an_account_that_exists() {
     a.execute("ui.sync", json!({"account": id})).unwrap();
     a.poll_sign_in();
     assert_eq!(a.tokens.get(&id).map(|t| t.access.as_str()), Some("tok-other"));
-    assert_eq!(store.0.lock().unwrap().get("refresh:quinn@mail.example").map(String::as_str), Some("ref-other"));
+    assert_eq!(
+        store.0.lock().unwrap().get("refresh:quinn@mail.example|imap=outlook.office365.com:0|smtp=none").map(String::as_str),
+        Some("ref-other")
+    );
     assert_eq!(synced.lock().unwrap().as_slice(), ["tok-other"]);
     a.poll_sync();
     // A sign-in that names nobody: the account's, as it always was.

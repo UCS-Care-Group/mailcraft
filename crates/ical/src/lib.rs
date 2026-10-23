@@ -30,13 +30,15 @@ mod tests;
 mod values;
 mod write;
 #[cfg(test)]
+mod zone_budget_tests;
+#[cfg(test)]
 mod zone_tests;
 mod zones;
 
 use mailcraft_model::{Event, Task};
 use mailcraft_time::Timestamp;
 
-pub use read::parse;
+pub use read::{parse, parse_events};
 pub use rrule::{format_rrule, parse_rrule};
 pub use write::{write, write_in};
 

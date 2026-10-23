@@ -249,6 +249,11 @@ msgstr "Non è possibile spostare una riunione in un altro calendario: il server
 msgid "A meeting is forwarded to {n} people at most at once."
 msgstr "Una riunione viene inoltrata al massimo a {n} persone alla volta."
 
+#. interface
+#: crates/ui-egui/src/reading/invitation.rs
+msgid "A meeting on your calendar has this ID but another organizer, so this invitation can't change it."
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
 #, fuzzy
@@ -1408,6 +1413,11 @@ msgstr "Controlla nomi"
 msgid "Check Now"
 msgstr "Verifica ora"
 
+#. interface
+#: crates/ui-egui/src/updates.rs
+msgid "Check daily for new versions of MailCraft, and download and install them when you quit? Only GitHub is asked; nothing about you or your mail is sent."
+msgstr ""
+
 #. command label
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
@@ -1425,12 +1435,6 @@ msgstr "Verifica aggiornamenti"
 #, fuzzy
 msgid "Check for new versions"
 msgstr "Verifica nuove versioni"
-
-#. interface
-#: crates/ui-egui/src/updates.rs
-#, fuzzy
-msgid "Check once a day for new versions of MailCraft? Only GitHub is asked; nothing about you or your mail is sent."
-msgstr "Verificare una volta al giorno la presenza di nuove versioni di MailCraft? Viene interpellato solo GitHub; non viene inviato nulla sull'utente o sulla sua posta."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -1706,6 +1710,16 @@ msgstr "Completata il {date}"
 #, fuzzy
 msgid "Completed."
 msgstr "Completata."
+
+#. command label, interface
+#: crates/ui-egui/src/lib.rs crates/ui-egui/src/unconfirmed.rs
+msgid "Confirm Servers"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/unconfirmed.rs
+msgid "Confirm servers"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/calendar_view.rs
@@ -3403,6 +3417,11 @@ msgid "Imported {what} into a local folder: Microsoft doesn't let a mail program
 msgstr "Importato {what} in una cartella locale: Microsoft non consente a un programma di posta di inserire posta ricevuta nella cassetta postale"
 
 #. interface
+#: crates/ui-egui/src/lib.rs
+msgid "Imported {what}; stopped after {count}: the file has more than one import takes"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "In a plain-text message"
@@ -4101,9 +4120,8 @@ msgstr "MailCraft cerca una nuova versione una volta al giorno (File › Opzioni
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
-#, fuzzy
 msgid "MailCraft will have no account afterwards: File › Add Account sets one up again."
-msgstr "MailCraft non avrà più nessun account: File › Aggiungi account ne configura di nuovo uno."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -5406,6 +5424,11 @@ msgstr "Riunione online"
 #, fuzzy
 msgid "Only a meeting you organize has a Scheduling Assistant"
 msgstr "Solo una riunione organizzata da sé ha l'Assistente Pianificazione"
+
+#. interface
+#: crates/ui-egui/src/unconfirmed.rs
+msgid "Only confirm if you know these servers."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -8653,6 +8676,11 @@ msgstr "Questo invito non indica quando si tiene la riunione."
 msgid "This invitation doesn't say which meeting it is about, so it can't be answered."
 msgstr "Questo invito non indica a quale riunione si riferisce, quindi non è possibile rispondere."
 
+#. what a command says
+#: crates/engine/src/cmd/calendar/invitation.rs
+msgid "This invitation has the ID of a meeting on your calendar but names another organizer, so it can't change that meeting."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/updates.rs
 #, fuzzy
@@ -8718,6 +8746,16 @@ msgstr "Questo elemento è ancora in viaggio verso il server dell'account. Spost
 #, fuzzy
 msgid "This mailbox is on this device only"
 msgstr "Questa cassetta postale è solo su questo dispositivo"
+
+#. interface
+#: crates/ui-egui/src/unconfirmed.rs
+msgid "This mailbox was opened from a file. Its accounts connect to:"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+msgid "This mailbox was opened from a file: confirm its servers first"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs
@@ -9640,6 +9678,11 @@ msgid "You accepted this meeting."
 msgstr "Questa riunione è stata accettata."
 
 #. interface
+#: crates/ui-egui/src/reading/remote.rs
+msgid "You always download this sender's pictures, but the mail server didn't confirm that this message came from them, so it is asked first."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/reading/invitation.rs
 #, fuzzy
 msgid "You declined this meeting."
@@ -9908,6 +9951,11 @@ msgid "a personal Microsoft account (Outlook.com) has no shared mailboxes: they 
 msgstr "un account Microsoft personale (Outlook.com) non ha cassette postali condivise: sono una funzione di Microsoft 365"
 
 #. what a command says
+#: crates/engine/src/cmd/rules.rs
+msgid "a rule can't move mail to an Outbox: that would send it"
+msgstr ""
+
+#. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
 msgid "a shared mailbox can't open another one: name the account it is opened through"
@@ -9972,6 +10020,13 @@ msgstr "un evento richiede un titolo"
 #, fuzzy
 msgid "and"
 msgstr "e"
+
+#. interface
+#: crates/ui-egui/src/reading.rs
+msgid "and {n} more"
+msgid_plural "and {n} more"
+msgstr[0] ""
+msgstr[1] ""
 
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs
@@ -10213,6 +10268,11 @@ msgstr "scrive ad altre persone o si collega al web"
 #, fuzzy
 msgid "minutes"
 msgstr "minuti"
+
+#. why a command can't run
+#: crates/engine/src/cmd/calendar/invitation.rs
+msgid "mismatch"
+msgstr ""
 
 #. name
 #: crates/model/src/calendar.rs
@@ -10810,9 +10870,8 @@ msgstr "esiste già una firma denominata «{to}»"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
-#, fuzzy
 msgid "there is no account to remove"
-msgstr "non c'è nessun account da rimuovere"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/graph_switch.rs
@@ -11918,6 +11977,10 @@ msgstr "{why}. {n} modifiche apportate qui sono in attesa su questo computer."
 #, fuzzy
 #~ msgid "the last account can't be removed"
 #~ msgstr "l'ultimo account non può essere rimosso"
+
+#, fuzzy
+#~ msgid "Check once a day for new versions of MailCraft? Only GitHub is asked; nothing about you or your mail is sent."
+#~ msgstr "Verificare una volta al giorno la presenza di nuove versioni di MailCraft? Viene interpellato solo GitHub; non viene inviato nulla sull'utente o sulla sua posta."
 
 #, fuzzy
 #~ msgid "Updating the calendar and contacts…"
