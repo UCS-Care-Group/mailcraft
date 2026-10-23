@@ -208,6 +208,9 @@ pub struct SaveReport {
     pub result: Result<(), String>,
 }
 
+/// Most messages one import takes from an mbox file; the rest are left.
+pub const MAX_IMPORT_MESSAGES: usize = 200_000;
+
 /// Bring a file's contents into the mailbox: messages go to `folder` (default: the folder in
 /// view, or the Inbox), events to the default calendar, contacts and to-dos to their lists.
 pub fn import(s: &mut Session, name: &str, bytes: &[u8], folder: Option<Id>) -> Result<Value, CmdError> {
@@ -220,7 +223,15 @@ pub fn import(s: &mut Session, name: &str, bytes: &[u8], folder: Option<Id>) -> 
     match format {
         Format::Mailbox => Err(bad(format!("{name} is a whole mailbox; open it with File › Open"))),
         Format::Eml | Format::Mbox => {
-            let messages = if format == Format::Eml { vec![mailcraft_mime::parse(bytes)] } else { mailcraft_mime::parse_mbox(bytes) };
+            // At most MAX_IMPORT_MESSAGES are taken from a file; the one after them tells whether
+            // the file went on ("stopped after N").
+            let mut messages: Vec<_> = if format == Format::Eml {
+                vec![mailcraft_mime::parse(bytes)]
+            } else {
+                mailcraft_mime::mbox_messages(bytes).take(MAX_IMPORT_MESSAGES + 1).collect()
+            };
+            let stopped = messages.len() > MAX_IMPORT_MESSAGES;
+            messages.truncate(MAX_IMPORT_MESSAGES);
             if messages.is_empty() {
                 return Err(failed!("{name} has no messages", name));
             }
@@ -253,7 +264,7 @@ pub fn import(s: &mut Session, name: &str, bytes: &[u8], folder: Option<Id>) -> 
                 s.sel.messages = vec![*last];
             }
             Ok(
-                json!({"format": if format == Format::Eml { "eml" } else { "mbox" }, "messages": ids.len(), "ids": ids, "folder": folder, "local": microsoft}),
+                json!({"format": if format == Format::Eml { "eml" } else { "mbox" }, "messages": ids.len(), "ids": ids, "folder": folder, "local": microsoft, "stoppedAfter": stopped.then_some(ids.len())}),
             )
         }
         Format::Ics => {
@@ -265,13 +276,19 @@ pub fn import(s: &mut Session, name: &str, bytes: &[u8], folder: Option<Id>) -> 
             }
             let notes = file.notes;
             let (mut events, mut tasks, mut updated) = (Vec::new(), Vec::new(), 0);
+            // The events of this computer's own, by UID: looked up once, not once for every event.
+            let mut own_uids: std::collections::HashMap<String, (mailcraft_model::Id, mailcraft_model::Id)> = std::collections::HashMap::new();
+            for x in s.mailbox.events.values() {
+                if !x.uid.is_empty() && x.origin.is_local() {
+                    own_uids.entry(x.uid.clone()).or_insert((x.id, x.calendar));
+                }
+            }
             for mut e in file.events {
                 e.id = 0;
                 // The same event again (same UID) replaces the one already here. One that a server
                 // keeps is not the owner's to replace (the next download would bring it back as
                 // well): the imported event is added beside it.
-                let own = |x: &&std::sync::Arc<mailcraft_model::Event>| x.uid == e.uid && x.origin.is_local();
-                let existing = if e.uid.is_empty() { None } else { s.mailbox.events.values().find(own).map(|x| (x.id, x.calendar)) };
+                let existing = if e.uid.is_empty() { None } else { own_uids.get(&e.uid).copied() };
                 match existing {
                     Some((id, calendar)) => {
                         e.id = id;
@@ -280,7 +297,14 @@ pub fn import(s: &mut Session, name: &str, bytes: &[u8], folder: Option<Id>) -> 
                         updated += 1;
                         events.push(id);
                     }
-                    None => events.push(s.mailbox.add_event(e)?),
+                    None => {
+                        let uid = e.uid.clone();
+                        let (calendar, id) = (e.calendar, s.mailbox.add_event(e)?);
+                        if !uid.is_empty() {
+                            own_uids.entry(uid).or_insert((id, calendar));
+                        }
+                        events.push(id);
+                    }
                 }
             }
             for mut t in file.tasks {

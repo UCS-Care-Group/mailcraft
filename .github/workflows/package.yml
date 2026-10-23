@@ -92,19 +92,41 @@ jobs:
         with:
           toolchain: 1.98.1
           targets: ${{ matrix.target }}
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
-        with:
-          key: package-windows-${{ matrix.arch }}
+      # WiX 5.0.2 and its two extensions are NuGet packages. Each is downloaded by exact version
+      # and checked against the SHA-256 pinned here before anything is installed; the tool is
+      # installed from the checked file. (None of the three has dependencies.)
       - name: Install WiX and its dialog and shell extensions
         shell: pwsh
         run: |
-          dotnet tool install --global wix --version $env:WIX_VERSION
+          $pins = @{
+            'wix'                    = 'f30ef0c74e2a986126539c5780be93ac24e8136eaf723b1937b26272703ae173'
+            'wixtoolset.ui.wixext'   = '5ef2c707614b9f70b6bbadd2d4abcb4124efee215e9b16bfbc80113079a604c7'
+            'wixtoolset.util.wixext' = 'dda1cc1b4d3b2305b1246f167c6af6fcded5000be84b3bbff3dda4f442bf4740'
+          }
+          if ($env:WIX_VERSION -ne '5.0.2') { throw "the pinned hashes are for WiX 5.0.2, not $env:WIX_VERSION" }
+          $dir = Join-Path $env:RUNNER_TEMP 'wix-nupkg'
+          New-Item -ItemType Directory -Force -Path $dir | Out-Null
+          foreach ($id in $pins.Keys) {
+            $file = Join-Path $dir "$id.$env:WIX_VERSION.nupkg"
+            Invoke-WebRequest -Uri "https://api.nuget.org/v3-flatcontainer/$id/$env:WIX_VERSION/$id.$env:WIX_VERSION.nupkg" -OutFile $file
+            $got = (Get-FileHash -Algorithm SHA256 -Path $file).Hash.ToLowerInvariant()
+            if ($got -ne $pins[$id]) { throw "$id $env:WIX_VERSION does not match its pinned sha256 (got $got)" }
+          }
+          dotnet tool install --global wix --version $env:WIX_VERSION --add-source $dir
+          if ($LASTEXITCODE -ne 0) { throw 'dotnet tool install wix failed' }
           wix extension add -g "WixToolset.UI.wixext/$env:WIX_VERSION" "WixToolset.Util.wixext/$env:WIX_VERSION"
+          if ($LASTEXITCODE -ne 0) { throw 'wix extension add failed' }
       - name: Build and package, unsigned (MSI and portable zip)
         if: ${{ !inputs.sign }}
         shell: pwsh
         run: ./packaging/windows/package.ps1 -Arch ${{ matrix.arch }}
-      - name: Build, sign and package (MSI and portable zip)
+      # The compile runs first, with no secret in its environment, so no build script or macro of a
+      # dependency can read the signing credentials; the signing step then packages what was built.
+      - name: Build (no signing secrets here)
+        if: inputs.sign
+        shell: pwsh
+        run: ./packaging/windows/package.ps1 -Arch ${{ matrix.arch }} -BuildOnly
+      - name: Sign and package (MSI and portable zip)
         if: inputs.sign
         shell: pwsh
         env:
@@ -116,7 +138,7 @@ jobs:
           AZURE_SIGNING_ENDPOINT: ${{ secrets.AZURE_SIGNING_ENDPOINT }}
           AZURE_SIGNING_ACCOUNT: ${{ secrets.AZURE_SIGNING_ACCOUNT }}
           AZURE_CERT_PROFILE: ${{ secrets.AZURE_CERT_PROFILE }}
-        run: ./packaging/windows/package.ps1 -Arch ${{ matrix.arch }}
+        run: ./packaging/windows/package.ps1 -Arch ${{ matrix.arch }} -SkipBuild
       # The installer for real, on the one architecture this runner is: files in place, the
       # program listed, the command-line program answering, and nothing left after uninstalling.
       - name: Install, check and uninstall the MSI (x64 only)
@@ -161,9 +183,11 @@ jobs:
         with:
           toolchain: 1.98.1
           targets: aarch64-apple-darwin, x86_64-apple-darwin
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
-        with:
-          key: package-macos-universal
+      # Signed builds compile first, with no secret in the environment and before the certificate is
+      # imported, so no build script or macro of a dependency can read the signing credentials.
+      - name: Build (no signing secrets here)
+        if: inputs.sign
+        run: bash packaging/macos/package.sh --arch universal --build-only
       # With the signing secrets set, the app is signed with the Developer ID and notarized;
       # without them (an unsigned build, or none in the environment) it is ad-hoc signed and the
       # script says so.
@@ -178,13 +202,13 @@ jobs:
       - name: Build and package, ad-hoc signed (.app in a .dmg, CLI zip)
         if: ${{ !inputs.sign }}
         run: bash packaging/macos/package.sh --arch universal
-      - name: Build, sign and package (.app in a .dmg, CLI zip)
+      - name: Sign and package (.app in a .dmg, CLI zip)
         if: inputs.sign
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: bash packaging/macos/package.sh --arch universal
+        run: bash packaging/macos/package.sh --arch universal --skip-build
       - name: Check the .dmg
         run: |
           dmg=$(ls dist/release/*-macos-universal.dmg)
@@ -246,9 +270,6 @@ jobs:
       - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
         with:
           toolchain: 1.98.1
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
-        with:
-          key: package-linux-${{ matrix.arch }}
       - name: Build and package (AppImage, deb, rpm, tar.gz)
         run: bash packaging/linux/package.sh
       # The .deb for real: installed with its dependencies, the window started on a virtual
@@ -359,9 +380,6 @@ jobs:
         with:
           toolchain: 1.98.1
           targets: wasm32-unknown-unknown
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
-        with:
-          key: package-web
       # Pinned trunk and wasm-bindgen releases (prebuilt, checked by install-action against its
       # own checksums). wasm-bindgen must be the version in Cargo.lock: trunk runs offline below,
       # so a mismatch fails the build instead of trunk downloading one.

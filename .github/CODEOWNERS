@@ -7,3 +7,21 @@
 /crates/engine/src/cmd/remote.rs @benandez
 /crates/engine/src/cmd/remote/ @benandez
 /apps/mailcraft/src/secrets.rs @benandez
+
+# Anything that builds, signs, ships or updates MailCraft, and the files that steer agents.
+/.github/ @benandez
+/packaging/ @benandez
+/xtask/ @benandez
+/fuzz/ @benandez
+/.cargo/ @benandez
+Cargo.toml @benandez
+Cargo.lock @benandez
+/deny.toml @benandez
+/AGENTS.md @benandez
+/CLAUDE.md @benandez
+/apps/mailcraft/src/self_update.rs @benandez
+/apps/mailcraft/src/update_flow.rs @benandez
+/apps/mailcraft/src/updater.rs @benandez
+/apps/mailcraft/src/control_server.rs @benandez
+/crates/control-key/ @benandez
+/crates/mcp/ @benandez

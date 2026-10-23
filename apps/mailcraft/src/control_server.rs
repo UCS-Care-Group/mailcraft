@@ -37,8 +37,9 @@ impl KeyFile {
 
 /// Bind `127.0.0.1:port`, write the key file into `settings` and serve. `None` when the port
 /// cannot be bound or there is no random key (the control channel is off); the key file is
-/// `None` when it could not be written (requests are then refused).
-pub fn start(port: u16, ctx: egui::Context, settings: Option<&Path>) -> Option<(Receiver<ControlRequest>, Option<KeyFile>)> {
+/// `None` when it could not be written (requests are then refused). `agents_only`
+/// (`--control-agents-only`): every request is an agent's, allowed nothing in advance.
+pub fn start(port: u16, ctx: egui::Context, settings: Option<&Path>, agents_only: bool) -> Option<(Receiver<ControlRequest>, Option<KeyFile>)> {
     let listener = match TcpListener::bind(("127.0.0.1", port)) {
         Ok(l) => l,
         Err(e) => {
@@ -73,7 +74,7 @@ pub fn start(port: u16, ctx: egui::Context, settings: Option<&Path>) -> Option<(
         Some(f) => log::info!("control server listening on 127.0.0.1:{port}, key in {}", f.path().display()),
         None => log::info!("control server listening on 127.0.0.1:{port}"),
     }
-    Some((serve_on(listener, ctx, key, FIRST_REQUEST), key_file))
+    Some((serve_on(listener, ctx, key, FIRST_REQUEST, agents_only), key_file))
 }
 
 /// A new key: 32 random bytes from the operating system, as hex.
@@ -105,13 +106,13 @@ pub(crate) fn keys_match(given: &str, key: &str) -> bool {
     !b.is_empty() && a.len() == b.len() && a.iter().zip(b).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
 }
 
-fn serve_on(listener: TcpListener, ctx: egui::Context, key: String, first: Duration) -> Receiver<ControlRequest> {
+fn serve_on(listener: TcpListener, ctx: egui::Context, key: String, first: Duration, agents_only: bool) -> Receiver<ControlRequest> {
     let (tx, rx) = channel::<ControlRequest>();
     let key: Arc<str> = key.into();
     std::thread::spawn(move || {
         for stream in listener.incoming().flatten() {
             let (tx, ctx, key) = (tx.clone(), ctx.clone(), key.clone());
-            std::thread::spawn(move || serve(stream, tx, ctx, &key, first));
+            std::thread::spawn(move || serve(stream, tx, ctx, &key, first, agents_only));
         }
     });
     rx
@@ -177,7 +178,7 @@ fn discard_rest_of_line(r: &mut BufReader<Timed>) {
     }
 }
 
-fn serve(stream: TcpStream, tx: Sender<ControlRequest>, ctx: egui::Context, key: &str, first: Duration) {
+fn serve(stream: TcpStream, tx: Sender<ControlRequest>, ctx: egui::Context, key: &str, first: Duration, agents_only: bool) {
     let Ok(read) = stream.try_clone() else { return };
     let mut out = stream;
     // One overall deadline from accept to the first authorised request; after it, none.
@@ -241,8 +242,12 @@ fn serve(stream: TcpStream, tx: Sender<ControlRequest>, ctx: egui::Context, key:
         }
         let (req, rrx) = ControlRequest::new(method, params);
         // Marked by the MCP bridge (`agent`): the window's gate for agents decides, and asks the
-        // owner about what needs them. A request without it is the owner's own script.
+        // owner about what needs them. A request without it is the owner's own script, unless
+        // the window was started with `--control-agents-only`: then every request is an agent's
+        // and allowed nothing in advance, whatever it claims, since anything that read the key
+        // could claim it.
         let req = match msg.get("agent") {
+            _ if agents_only => req.from_agent(Vec::new()),
             Some(a) => req.from_agent(mailcraft_ui_egui::control::agent_allow(a)),
             None => req,
         };
@@ -268,7 +273,13 @@ mod tests {
     fn boot_with(first: Duration) -> (u16, Receiver<ControlRequest>) {
         let listener = TcpListener::bind(("127.0.0.1", 0)).unwrap();
         let port = listener.local_addr().unwrap().port();
-        (port, serve_on(listener, egui::Context::default(), KEY.to_string(), first))
+        (port, serve_on(listener, egui::Context::default(), KEY.to_string(), first, false))
+    }
+
+    fn boot_agents_only() -> (u16, Receiver<ControlRequest>) {
+        let listener = TcpListener::bind(("127.0.0.1", 0)).unwrap();
+        let port = listener.local_addr().unwrap().port();
+        (port, serve_on(listener, egui::Context::default(), KEY.to_string(), FIRST_REQUEST, true))
     }
 
     fn boot() -> (u16, Receiver<ControlRequest>) {
@@ -382,6 +393,20 @@ mod tests {
         // Without it, the owner's own script, as before; a param can't mark or unmark it.
         c.send(&format!(r#"{{"id":3,"key":"{KEY}","method":"mail.flag","params":{{"agent":{{"allow":["send"]}}}}}}"#));
         assert_eq!(answer(&rx).agent, None);
+        assert_eq!(c.recv()["ok"], true);
+    }
+
+    #[test]
+    fn with_agents_only_every_request_is_an_agents_allowed_nothing() {
+        let (port, rx) = boot_agents_only();
+        let mut c = Conn::open(port);
+        // Unmarked: still an agent's.
+        c.send(&format!(r#"{{"id":1,"key":"{KEY}","method":"mail.flag"}}"#));
+        assert_eq!(answer(&rx).agent, Some(vec![]));
+        assert_eq!(c.recv()["ok"], true);
+        // What it claims to be allowed is ignored: anything that read the key could claim it.
+        c.send(&format!(r#"{{"id":2,"key":"{KEY}","agent":{{"allow":["send","input"]}},"method":"mail.flag"}}"#));
+        assert_eq!(answer(&rx).agent, Some(vec![]));
         assert_eq!(c.recv()["ok"], true);
     }
 
@@ -506,11 +531,11 @@ mod tests {
         // The port is taken: no key file.
         let taken = TcpListener::bind(("127.0.0.1", 0)).unwrap();
         let port = taken.local_addr().unwrap().port();
-        assert!(start(port, egui::Context::default(), Some(&dir)).is_none());
+        assert!(start(port, egui::Context::default(), Some(&dir), false).is_none());
         assert!(!dir.exists() || std::fs::read_dir(&dir).unwrap().next().is_none(), "no key file after a failed bind");
         drop(taken);
         // Bound: the key file holds the key that opens the port.
-        let (rx, key_file) = start(port, egui::Context::default(), Some(&dir)).unwrap();
+        let (rx, key_file) = start(port, egui::Context::default(), Some(&dir), false).unwrap();
         let key_file = key_file.unwrap();
         assert_eq!(key_file.path(), mailcraft_control_key::key_path(&dir, port));
         let key = std::fs::read_to_string(key_file.path()).unwrap();

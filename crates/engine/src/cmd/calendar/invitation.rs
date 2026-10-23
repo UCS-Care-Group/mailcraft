@@ -198,7 +198,7 @@ fn read(s: &Session, v: &Value) -> Result<Invitation, CmdError> {
     let offset_at = remote::offset_of(s);
     for (index, part) in message.attachments.iter().enumerate().filter(calendar).take(MAX_PARTS).filter(|(_, part)| part.data.len() <= MAX_ICS) {
         let text = String::from_utf8_lossy(&part.data);
-        let file = mailcraft_ical::parse(&text, &offset_at);
+        let file = mailcraft_ical::parse_events(&text, &offset_at, 1);
         let notes = file.notes;
         // The meeting itself comes first; changed days of a series follow it.
         if let Some(event) = file.events.into_iter().next() {

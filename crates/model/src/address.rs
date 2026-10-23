@@ -138,6 +138,13 @@ pub fn format_list(list: &[Address]) -> String {
     list.iter().map(Address::full).collect::<Vec<_>>().join("; ")
 }
 
+/// A recipient line of at most `max` names, and how many more there were: for showing a list a
+/// sender wrote (which can hold thousands of names) without building all of it.
+pub fn format_list_capped(list: &[Address], max: usize) -> (String, usize) {
+    let shown = list.get(..max).unwrap_or(list);
+    (format_list(shown), list.len().saturating_sub(shown.len()))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

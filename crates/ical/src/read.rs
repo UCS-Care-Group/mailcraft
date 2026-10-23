@@ -12,7 +12,7 @@ use crate::IcsFile;
 use crate::lines::{ContentLine, Lines, prefix};
 use crate::rrule;
 use crate::values::{When, parse_duration, split_list, unescape_text};
-use crate::zones::{FileZones, MAX_NOTES};
+use crate::zones::{FileZones, MAX_NOTES, Source};
 
 /// Most events and to-dos read from one text.
 const MAX_COMPONENTS: usize = 20_000;
@@ -48,8 +48,15 @@ type OffsetAt<'a> = &'a dyn Fn(Timestamp) -> i32;
 /// Work is bounded: at most 20 000 events and to-dos are read, 500 attendees and 5 000 excluded
 /// days per event, 64 time zones, and what a line holds beyond 1 MiB is dropped.
 pub fn parse(text: &str, offset_at: &dyn Fn(Timestamp) -> i32) -> IcsFile {
+    parse_events(text, offset_at, MAX_COMPONENTS)
+}
+
+/// As [`parse`], reading no more than `max_events` events (an invitation's card is about the
+/// first one). To-dos still count towards the usual limit.
+pub fn parse_events(text: &str, offset_at: &dyn Fn(Timestamp) -> i32, max_events: usize) -> IcsFile {
     let zones = FileZones::collect(text);
-    let mut reader = Reader { offset_at, zones: &zones, file: IcsFile::default(), stack: Vec::new(), item: None, alarm: None, changed: Vec::new() };
+    let mut reader =
+        Reader { max_events, offset_at, zones: &zones, file: IcsFile::default(), stack: Vec::new(), item: None, alarm: None, changed: Vec::new() };
     for raw in Lines::new(text) {
         if reader.full() {
             break;
@@ -98,6 +105,8 @@ enum Item {
 }
 
 struct Reader<'a> {
+    /// Most events to read.
+    max_events: usize,
     offset_at: OffsetAt<'a>,
     /// The zones the text defines.
     zones: &'a FileZones,
@@ -115,7 +124,7 @@ struct Reader<'a> {
 
 impl Reader<'_> {
     fn full(&self) -> bool {
-        self.file.events.len().saturating_add(self.file.tasks.len()) >= MAX_COMPONENTS
+        self.file.events.len() >= self.max_events || self.file.events.len().saturating_add(self.file.tasks.len()) >= MAX_COMPONENTS
     }
 
     fn line(&mut self, line: &ContentLine) {
@@ -235,6 +244,9 @@ impl Reader<'_> {
 
     fn finish(mut self) -> IcsFile {
         self.close_item();
+        if let Some(said) = self.zones.stopped_note() {
+            self.file.notes.push(said);
+        }
         if self.changed.is_empty() {
             return self.file;
         }
@@ -299,8 +311,14 @@ fn stamp_of(line: &ContentLine, value: &str, zones: &FileZones, notes: &mut Vec<
         return Some(Stamp { zone, ..Stamp::plain(when) });
     };
     let source = zones.source(tzid);
+    if let Source::File(definition, _) = &source
+        && !zones.spend(definition.cost().saturating_mul(2))
+    {
+        // The file has had its share of work: the time is kept as it is written.
+        return Some(Stamp::plain(when));
+    }
     let instant = source.instant(written);
-    let (zone, said) = source.zone(tzid, written, instant.unwrap_or(0));
+    let (zone, said) = source.zone_in(Some(zones), tzid, written, instant.unwrap_or(0));
     if let Some(said) = said
         && notes.len() < MAX_NOTES
         && !notes.contains(&said)
