@@ -770,21 +770,31 @@ pub fn describe(s: &Session, id: &str, params: &Value) -> String {
             }
         }
         "account.edit" | "account.remove" => {
-            let a = p::id(params, "id").and_then(|a| s.mailbox.account(a)).map(|a| clip(&a.email, 80)).unwrap_or_default();
+            let verb = if id == "account.edit" { "change" } else { "remove" };
+            let Some(account) = p::id(params, "id").and_then(|a| s.mailbox.account(a)) else {
+                return format!("{verb} an account that isn't there");
+            };
+            // An account with no address to show (a local mailbox) is called "Local mailbox", as
+            // File › Info and the window's question call it.
+            let a = match clip(&account.email, 80) {
+                email if email.is_empty() => "Local mailbox".to_string(),
+                email => email,
+            };
             if id == "account.edit" {
-                let old = p::id(params, "id").and_then(|a| s.mailbox.account(a));
-                let moved = old
-                    .and_then(|old| {
-                        crate::cmd::account::edited(old, params)
-                            .map(|new| (crate::cmd::account::servers_text(old), crate::cmd::account::servers_text(&new)))
-                    })
+                let moved = crate::cmd::account::edited(account, params)
+                    .map(|new| (crate::cmd::account::servers_text(account), crate::cmd::account::servers_text(&new)))
                     .filter(|(was, now)| was != now);
                 return match moved {
                     Some((was, now)) => format!("change the account {a}; its servers change from {was} to {now}"),
                     None => format!("change the account {a}"),
                 };
             }
-            format!("remove the account {a}")
+            // The only account leaves an empty mailbox, as at a first start (#313); the shared
+            // mailboxes opened through it go with it. The placeholder of an empty mailbox isn't
+            // removed (the command says so), so it isn't said to leave one.
+            let only = s.mailbox.placeholder() != Some(account.id)
+                && s.mailbox.accounts.iter().all(|x| x.id == account.id || x.shared_of == Some(account.id));
+            if only { format!("remove the account {a} (the only account: leaves an empty mailbox)") } else { format!("remove the account {a}") }
         }
         _ => {
             let mut shown = params.to_string();

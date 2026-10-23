@@ -380,7 +380,9 @@ pub(crate) fn remove_within(s: &mut Session, id: Id, budget: u64) -> Result<usiz
     };
     let gone: HashSet<Id> = s.mailbox.messages.iter().filter(|(_, m)| going.contains(&m.account)).map(|(mid, _)| *mid).collect();
     s.mailbox.remove_account(id)?;
-    // A mailbox always has an account (#313).
+    // A mailbox always has an account (#313). The placeholder goes in before `mailbox_changed`,
+    // whose `normalize` moves the folder on screen to its Inbox and a message being written to
+    // it: with no account yet, both would be left pointing at nothing.
     if s.mailbox.accounts.is_empty() {
         s.mailbox.add_account(Account::default());
     }
