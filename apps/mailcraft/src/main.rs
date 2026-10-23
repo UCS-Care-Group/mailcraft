@@ -24,6 +24,7 @@ mod alerts;
 mod apple_events;
 #[cfg(test)]
 mod approval_flow;
+mod block_on;
 mod browser;
 #[cfg(test)]
 mod calendar_flow;
@@ -37,6 +38,7 @@ mod favorites_flow;
 #[cfg(test)]
 mod favorites_organisation_flow;
 mod file_dialogs;
+mod file_launcher;
 #[cfg(test)]
 mod graph_folders_flow;
 #[cfg(test)]
@@ -50,11 +52,14 @@ mod menubar;
 mod opened_files;
 mod picture_cache;
 mod quit;
+#[cfg(target_os = "macos")]
+mod quit_macos;
 mod secrets;
 mod self_update;
 #[cfg(test)]
 mod shared_send_flow;
 mod single_instance;
+mod system_locale;
 #[cfg(test)]
 mod token_renew_flow;
 #[cfg(test)]
@@ -1181,7 +1186,7 @@ fn services(
         update_download: updates.map(|updates| update_download(&download_ctx, updates.clone())),
         updates_turned_off_by_organisation: updater::turned_off_by_organisation(),
         // The system's language, for an interface language left on Automatic.
-        system_locale: sys_locale::get_locale(),
+        system_locale: system_locale::system_locale(),
         ..Default::default()
     }
 }
@@ -1492,7 +1497,7 @@ fn main() -> eframe::Result {
                 Ok(bar) => Some(bar),
                 Err(e) => {
                     log::warn!("the menu bar couldn't be set up: {e}");
-                    if let Err(e) = craft_quit::install_app_menu(&cc.egui_ctx, "MailCraft") {
+                    if let Err(e) = quit_macos::install_app_menu(&cc.egui_ctx, "MailCraft") {
                         log::warn!("the app menu couldn't be set up, so Quit won't ask about unsaved work: {e}");
                     }
                     None

@@ -3115,6 +3115,11 @@ msgstr "viernes"
 msgid "From"
 msgstr "De"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "From Sender"
+msgstr ""
+
 #. name
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -3953,7 +3958,7 @@ msgid "List Tasks"
 msgstr "Enumerar tareas"
 
 #. interface
-#: crates/ui-egui/src/backstage.rs
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Local mailbox"
 msgstr "Buzón local"
@@ -4141,6 +4146,11 @@ msgstr "MailCraft la guarda en memoria hasta que cierre la aplicación. Nunca se
 #, fuzzy
 msgid "MailCraft looks for a new version once a day (File › Options). Only GitHub is asked."
 msgstr "MailCraft busca una nueva versión una vez al día (Archivo › Opciones). Solo se consulta a GitHub."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "MailCraft will have no account afterwards: File › Add Account sets one up again."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -4367,6 +4377,11 @@ msgstr "Mensajes (.eml, .mbox), calendarios (.ics) y contactos (.vcf)"
 #, fuzzy
 msgid "Messages are shown without running anything in them, and the pictures a message keeps on the web are downloaded only when you ask. Passwords are kept in memory only while the app is open."
 msgstr "Los mensajes se muestran sin ejecutar nada de lo que contienen, y las imágenes que un mensaje tiene en la web solo se descargan cuando usted lo pide. Las contraseñas solo se guardan en memoria mientras la aplicación está abierta."
+
+#. command label, interface, ribbon
+#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
+msgid "Messages from Sender"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -10722,12 +10737,6 @@ msgid "the folder this message is in isn't on this computer any more"
 msgstr "la carpeta en la que está este mensaje ya no está en este equipo"
 
 #. what a command says
-#: crates/engine/src/cmd/account.rs
-#, fuzzy
-msgid "the last account can't be removed"
-msgstr "no se puede quitar la última cuenta"
-
-#. what a command says
 #: crates/engine/src/cmd/calendar.rs
 #, fuzzy
 msgid "the last calendar can't be deleted"
@@ -10786,6 +10795,11 @@ msgstr "la carpeta principal pertenece a otra cuenta"
 #, fuzzy
 msgid "the proposed end is not after the proposed start"
 msgstr "el fin propuesto no es posterior al inicio propuesto"
+
+#. what a command says
+#: crates/engine/src/cmd/mail.rs
+msgid "the search can't look for this sender's address as a whole address"
+msgstr ""
 
 #. why a command can't run
 #: crates/engine/src/cmd/search_server.rs
@@ -10902,6 +10916,11 @@ msgid "there is already a signature named \"{to}\""
 msgstr "ya hay una firma llamada «{to}»"
 
 #. what a command says
+#: crates/engine/src/cmd/account.rs
+msgid "there is no account to remove"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/graph_switch.rs
 #, fuzzy
 msgid "there is no free name for a local folder"
@@ -11002,6 +11021,11 @@ msgstr "no se puede acceder a este buzón a través de Microsoft Graph (MailboxN
 #, fuzzy
 msgid "this message already has as many attachments as it can carry"
 msgstr "este mensaje ya tiene todos los datos adjuntos que admite"
+
+#. what a command says
+#: crates/engine/src/cmd/mail.rs
+msgid "this message has no sender address to look for"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/mail.rs
@@ -12001,6 +12025,10 @@ msgstr "{why}, así que no se recuerdan los inicios de sesión: MailCraft vuelve
 #, fuzzy
 msgid "{why}. {n} changes made in it here wait on this computer."
 msgstr "{why}. {n} cambios hechos aquí en él esperan en este equipo."
+
+#, fuzzy
+#~ msgid "the last account can't be removed"
+#~ msgstr "no se puede quitar la última cuenta"
 
 #, fuzzy
 #~ msgid "Check once a day for new versions of MailCraft? Only GitHub is asked; nothing about you or your mail is sent."

@@ -215,6 +215,12 @@ pub struct Message {
     /// copy that comes down is matched to it by its Message-ID instead of being added.
     #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
     pub synced: Option<RemoteFlags>,
+    /// For an IMAP message too large to download, of which only the header is here: its size on
+    /// the server in bytes, as the server gave it (`RFC822.SIZE`); 0 for every other message.
+    /// Only a synchronisation sets it, so unlike the header [`NOT_DOWNLOADED`], which any sender
+    /// can write into a message, it is a mark nobody can forge. A file from before has none.
+    #[serde(skip_serializing_if = "is_zero_u64")]
+    pub not_downloaded: u64,
     /// For a message of a Microsoft account that the server has: its server id and what the
     /// server last said of it ([`ServerMessage`], ADR 0003). `None` for a message the server
     /// hasn't got (or hasn't said so yet), and for every message of any other account; `uid` and
@@ -314,6 +320,10 @@ fn is_zero(n: &u32) -> bool {
     *n == 0
 }
 
+fn is_zero_u64(n: &u64) -> bool {
+    *n == 0
+}
+
 impl Message {
     /// Every recipient: To, Cc, Bcc.
     pub fn recipients(&self) -> impl Iterator<Item = &Address> {
@@ -352,13 +362,18 @@ impl Message {
         if t.is_empty() { format!("\u{0}{}", self.id) } else { t }
     }
 
-    /// Its size as the message list shows and sorts it (#273): a Microsoft account's message of
-    /// which only the headers and a preview are here has the size its server said, when it said
-    /// one; otherwise [`Message::size`], of what is here (a whole message marked to be fetched
-    /// again keeps its body until then). `None` for one with the mark of an IMAP message too large
-    /// to download: the size the mark gives is not believed, since any sender can write a header
-    /// of that name into a message.
+    /// Its size as the message list shows and sorts it (#273, #300): an IMAP message too large to
+    /// download has its size on the server ([`Message::not_downloaded`]); a Microsoft account's
+    /// message of which only the headers and a preview are here has the size its server said, or
+    /// that of the whole message when it was fetched; otherwise [`Message::size`], of what is here
+    /// (a whole message marked to be fetched again keeps its body until then). `None` for one
+    /// with only the header of an IMAP message too large to download, as a file from before
+    /// `not_downloaded` has it: the size that header gives is not believed, since any sender can
+    /// write a header of that name into a message.
     pub fn list_size(&self) -> Option<u64> {
+        if self.not_downloaded > 0 {
+            return Some(self.not_downloaded);
+        }
         let said = self.server.as_ref().map(|s| s.size).filter(|size| *size > 0);
         if let Some(size) = said.filter(|_| self.unfetched || self.incomplete) {
             return Some(size);
@@ -416,6 +431,10 @@ pub fn normalize_subject(subject: &str) -> String {
 }
 
 #[cfg(test)]
+#[path = "message_size_tests.rs"]
+mod size_tests;
+
+#[cfg(test)]
 mod tests {
     use super::*;
 
@@ -453,35 +472,6 @@ mod tests {
             assert_eq!(size_label_in(mailcraft_i18n::Lang::French, 5 * 1024 * 1024 / 2), "2,5 Mo");
         });
         assert_eq!(Importance::parse("HIGH"), Some(Importance::High));
-    }
-
-    /// #273: the list's size is the message's own when all of it is here, its server's when only
-    /// its headers and preview are and the server said one, what is here when it didn't, and none
-    /// when only a header says.
-    #[test]
-    fn the_list_size_is_the_servers_for_what_isnt_here() {
-        let whole = Message { body: Body { text: "x".repeat(2000), html: None }, ..Default::default() };
-        assert_eq!(whole.list_size(), Some(2000));
-        let server = |size: u64| Some(crate::sync::ServerMessage { size, ..Default::default() });
-        let preview = Body { text: "Only the start".into(), html: None };
-        let unfetched = Message { body: preview.clone(), unfetched: true, server: server(30 << 20), ..Default::default() };
-        assert_eq!(unfetched.list_size(), Some(30 << 20));
-        let incomplete = Message { body: preview.clone(), incomplete: true, server: server(4096), ..Default::default() };
-        assert_eq!(incomplete.list_size(), Some(4096));
-        // The server said no size (a Graph delta never does): what is here. A whole message with
-        // an unreadable character is marked to be fetched again and keeps its body meanwhile.
-        let whole_again = Message { unfetched: true, server: server(0), ..whole.clone() };
-        assert_eq!(whole_again.list_size(), Some(2000));
-        assert_eq!(Message { unfetched: true, ..whole.clone() }.list_size(), Some(2000));
-        let preview_only = Message { body: preview.clone(), unfetched: true, server: server(0), ..Default::default() };
-        assert_eq!(preview_only.list_size(), Some(preview_only.size()));
-        // A whole message's own size wins over what its server said.
-        assert_eq!(Message { server: server(30 << 20), ..whole.clone() }.list_size(), Some(2000));
-        // Too large to download, or a sender's header of that name: not believed either way.
-        for name in [NOT_DOWNLOADED, "x-mailcraft-not-downloaded"] {
-            let marked = Message { body: preview.clone(), headers: vec![(name.into(), "62914560".into())], ..Default::default() };
-            assert_eq!(marked.list_size(), None, "{name}");
-        }
     }
 
     #[test]

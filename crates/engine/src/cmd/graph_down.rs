@@ -222,7 +222,12 @@ fn update(mb: &mut Mailbox, account: Id, id: Id, folder: Id, server_folder: &str
             sd.synced = None;
         }
     }
-    m.server = Some(ServerMessage { folder: server_folder.to_string(), gone: false, ..now.clone() });
+    // A delta never says a size (#300): the last one known, of the whole message when it was
+    // fetched, stays; but not for a draft changed elsewhere, whose new version is still to be
+    // fetched and may be smaller than the background fetch's limit, which its old size is held
+    // against. Until then the list says what is here, its old version.
+    let size = if now.size > 0 || changed_there { now.size } else { last.size };
+    m.server = Some(ServerMessage { folder: server_folder.to_string(), gone: false, size, ..now.clone() });
     *m != before
 }
 
@@ -373,6 +378,12 @@ pub fn take_fetched_as(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, i
     m.kept = None;
     m.unfetched = false;
     m.attachments_on_server = false;
+    // Its size is that of the MIME brought (#300), which the fetch caps and which is measured
+    // here: kept for when it is back to its preview, and taken anew at every fetch, so that a
+    // draft changed elsewhere and fetched again doesn't keep the size it had.
+    if let Some(server) = m.server.as_mut() {
+        server.size = mime.len() as u64;
+    }
     // A draft as the server has it now: what a change made here is worked out from.
     if m.draft {
         let state = mailcraft_model::sync::DraftState::of(m);
@@ -447,6 +458,10 @@ fn keeps_whole(mb: &Mailbox, account: Id) -> Option<u64> {
     let a = mb.owner_of(account).or(mb.account(account))?;
     a.download_in_full.limit()
 }
+
+#[cfg(test)]
+#[path = "graph_down_size_tests.rs"]
+mod size_tests;
 
 #[cfg(test)]
 mod tests {

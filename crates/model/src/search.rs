@@ -7,12 +7,15 @@
 //! `category`, `attachment` (file name), `has:attachment`, `is:unread|read|flagged|important`,
 //! `importance:high|normal|low`, `before:`, `after:`, `on:` (dates, `YYYY-MM-DD` or `M/D/YYYY`).
 //! A space after a keyword's colon is allowed (`from: ada`); a keyword with nothing after it yet
-//! asks for nothing.
+//! asks for nothing. Inside double quotes, `\"` is a double quote and `\\` a backslash.
 //!
 //! A word matches the start of a word, ignoring case and accents (`meet` finds "Meeting",
-//! `gvozdar` finds "Gvožđar"); a phrase, its words one after another ([`crate::words`]). A
-//! category matches anywhere in its name. Text with no letters or digits in it (`-`, `@`) asks
-//! for nothing.
+//! `gvozdar` finds "Gvožđar"); a phrase, its words one after another ([`crate::words`]). `from:`,
+//! `to:` and `cc:` with a whole address (`from:ada@example.org`, or with a quoted name,
+//! `from:"\"ada smith\"@example.org"`) match that address and no other, ignoring case (#301): an
+//! international domain written in `xn--` form and the same domain in its own letters are two
+//! addresses (`ada@xn--bcher-kva.example` doesn't find `ada@bücher.example`). A category matches
+//! anywhere in its name. Text with no letters or digits in it (`-`, `@`) asks for nothing.
 
 use std::ops::Range;
 
@@ -35,6 +38,14 @@ enum Kind {
         /// search ([`Query::for_server`]).
         raw: Vec<String>,
     },
+    /// One whole address, in small letters, in the parts of a message `fields` names (`FROM`,
+    /// `TO`, `CC`): the address itself, not words of it (#301). Its `words` are what a word
+    /// index narrows the messages by before the address is compared.
+    Address {
+        fields: u8,
+        address: String,
+        words: Vec<String>,
+    },
     Category(String),
     HasAttachment,
     Unread,
@@ -44,6 +55,13 @@ enum Kind {
     Before(Date),
     After(Date),
     On(Date),
+}
+
+impl Kind {
+    /// Whether it asks for nothing: words (or an address) with no letters or digits in them.
+    fn asks_nothing(&self) -> bool {
+        matches!(self, Kind::Words { words, .. } | Kind::Address { words, .. } if words.is_empty())
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -58,15 +76,26 @@ pub struct Query {
     terms: Vec<Term>,
 }
 
-/// Split on spaces outside double quotes; the quotes are dropped. Each token with where it
-/// stands in `s` (bytes, its quotes included).
+/// Split on spaces outside double quotes; the quotes are dropped, and inside them `\"` is a
+/// double quote and `\\` a backslash ([`keyword_value`]). Each token with where it stands in `s`
+/// (bytes, its quotes included).
 fn tokens(s: &str) -> Vec<(String, Range<usize>)> {
     let mut out = Vec::new();
     let mut cur = String::new();
     let mut quoted = false;
     let mut any = false;
     let (mut start, mut end) = (0, 0);
-    for (i, c) in s.char_indices().take(MAX_QUERY) {
+    let mut chars = s.char_indices().take(MAX_QUERY).peekable();
+    while let Some((i, c)) = chars.next() {
+        // (Inside quotes the token has begun already: at its opening quote.)
+        if c == '\\'
+            && quoted
+            && let Some((j, escaped)) = chars.next_if(|(_, next)| matches!(next, '"' | '\\'))
+        {
+            end = j.saturating_add(escaped.len_utf8());
+            cur.push(escaped);
+            continue;
+        }
         if c.is_whitespace() && !quoted {
             if any || !cur.is_empty() {
                 out.push((std::mem::take(&mut cur), start..end));
@@ -114,7 +143,7 @@ pub fn keyword_spans(s: &str) -> Vec<KeywordSpan> {
             },
             _ => (body.to_string(), at.clone()),
         };
-        let shown = keyword_kind(&body).is_some_and(|kind| !matches!(&kind, Kind::Words { words, .. } if words.is_empty()));
+        let shown = keyword_kind(&body).is_some_and(|kind| !kind.asks_nothing());
         let colon = s.get(at.clone()).and_then(|t| t.find(':')).map(|c| at.start.saturating_add(c).saturating_add(1));
         if let Some(colon) = colon.filter(|_| shown) {
             let key_start = if s.get(at.start..).is_some_and(|t| t.starts_with('-')) { at.start.saturating_add(1) } else { at.start };
@@ -165,10 +194,14 @@ fn keyword_kind(body: &str) -> Option<Kind> {
     let (key, value) = body.split_once(':').filter(|(_, v)| !v.is_empty())?;
     let v = value.to_string();
     let words_in = |fields: u8, v: &str| Kind::Words { fields, words: words::words(v), raw: raw_words(v) };
+    let address_in = |fields: u8, v: &str| match is_address(v) {
+        true => Kind::Address { fields, address: address_key(v), words: words::words(v) },
+        false => words_in(fields, v),
+    };
     Some(match key.to_ascii_lowercase().as_str() {
-        "from" => words_in(FROM, &v),
-        "to" => words_in(TO, &v),
-        "cc" => words_in(CC, &v),
+        "from" => address_in(FROM, &v),
+        "to" => address_in(TO, &v),
+        "cc" => address_in(CC, &v),
         "subject" => words_in(SUBJECT, &v),
         "body" => words_in(BODY, &v),
         "category" | "categories" => Kind::Category(v),
@@ -193,6 +226,82 @@ fn keyword_kind(body: &str) -> Option<Kind> {
     })
 }
 
+/// An address as two of them are compared: trimmed, in small letters, a final sigma (`ς`) as any
+/// other (`σ`), so that `ΟΣ@example.org` and `οσ@example.org` are one address. Accents and an
+/// international domain's `xn--` form are left as they are.
+pub fn address_key(v: &str) -> String {
+    v.trim().to_lowercase().replace('ς', "σ")
+}
+
+/// Whether `v` is one whole address and nothing else (`name@domain`): a name of parts between
+/// dots, each of letters (accents too), digits and `!#$%&'*+-/=?^_`{|}~`, or a name in double
+/// quotes (`"ada smith"@example.org`, with `\"` and `\\` inside), an `@`, and a domain of parts
+/// between dots, each of letters, digits and `-` that starts and ends with a letter or digit.
+/// Only such a value after `from:`, `to:` or `cc:` is an address; one with more round it
+/// (`<ada@example.org>`, `ada@example.org,`) is words, as before.
+pub fn is_address(v: &str) -> bool {
+    let letter = |c: char| c.is_alphanumeric() || words::is_mark(c);
+    let atom = |part: &str| !part.is_empty() && part.chars().all(|c| letter(c) || "!#$%&'*+-/=?^_`{|}~".contains(c));
+    let label = |part: &str| {
+        part.chars().next().is_some_and(char::is_alphanumeric)
+            && part.chars().last().is_some_and(letter)
+            && part.chars().all(|c| letter(c) || c == '-')
+    };
+    let domain = match v.strip_prefix('"') {
+        Some(quoted) => after_quotes(quoted).and_then(|rest| rest.strip_prefix('@')),
+        None => v.split_once('@').filter(|(name, _)| name.split('.').all(atom)).map(|(_, domain)| domain),
+    };
+    domain.is_some_and(|domain| domain.split('.').all(label)) && words::words(v).len() >= 2
+}
+
+/// What follows the closing quote of `quoted` (the text after an opening one), where `\` makes
+/// the character after it part of the name; `None` when it isn't closed or has a control
+/// character in it.
+fn after_quotes(quoted: &str) -> Option<&str> {
+    let mut escaped = false;
+    for (i, c) in quoted.char_indices() {
+        if c.is_control() {
+            return None;
+        }
+        match c {
+            _ if escaped => escaped = false,
+            '\\' => escaped = true,
+            '"' => return quoted.get(i.saturating_add(1)..),
+            _ => {}
+        }
+    }
+    None
+}
+
+/// `value` as it is to be written after a keyword for the search to read it back as it is: in
+/// double quotes, with `"` and `\` in it written `\"` and `\\`, when it has a space, a quote or a
+/// backslash in it (`from:"\"ada smith\"@example.org"`); otherwise as it is.
+pub fn keyword_value(value: &str) -> String {
+    if !value.is_empty() && !value.chars().any(|c| c.is_whitespace() || c == '"' || c == '\\') {
+        return value.to_string();
+    }
+    let mut out = String::with_capacity(value.len().saturating_add(2));
+    out.push('"');
+    for c in value.chars() {
+        if matches!(c, '"' | '\\') {
+            out.push('\\');
+        }
+        out.push(c);
+    }
+    out.push('"');
+    out
+}
+
+/// Whether a server's search takes `word` as it is: letters, digits and `@._-'+`, which keep an
+/// address whole ([`raw_words`]), and no longer than a word that goes to a server.
+fn server_takes(word: &str) -> bool {
+    !word.is_empty() && word.chars().count() <= MAX_SERVER_WORD && word.chars().all(|c| c.is_alphanumeric() || SERVER_WORD.contains(c))
+}
+
+/// What a word for a server's search may have besides letters and digits (`+` only inside an
+/// address, `ada+news@example.org`).
+const SERVER_WORD: &str = "@._-'+";
+
 /// Most words of one term, and most characters of one word, that go to a server.
 const MAX_SERVER_WORDS: usize = 8;
 const MAX_SERVER_WORD: usize = 64;
@@ -201,14 +310,30 @@ const MAX_SERVER_TERMS: usize = 16;
 
 /// The words of `text` as a server's search is to be given them: runs of letters, digits and
 /// `@._-'` (so that an address stays whole), each trimmed of what isn't a letter or a digit at
-/// its ends, in the case and with the accents they were typed in.
+/// its ends, in the case and with the accents they were typed in. A `+` parts words, except in a
+/// whole address (`ada+news@example.org`, #301), which is one word.
 fn raw_words(text: &str) -> Vec<String> {
-    text.split(|c: char| !(c.is_alphanumeric() || "@._-'".contains(c)))
-        .map(|w| w.trim_matches(|c: char| !c.is_alphanumeric()))
+    let trim = |w: &str| w.trim_matches(|c: char| !c.is_alphanumeric()).to_string();
+    text.split(|c: char| !(c.is_alphanumeric() || SERVER_WORD.contains(c)))
+        .map(trim)
+        .flat_map(|run| match is_address(&run) {
+            true => vec![run],
+            false => run.split('+').map(trim).collect(),
+        })
         .filter(|w| !w.is_empty())
         .take(MAX_SERVER_WORDS)
         .map(|w| w.chars().take(MAX_SERVER_WORD).collect())
         .collect()
+}
+
+/// Whether a server was given less of a term than was typed (as many words as it takes, or a word
+/// as long, and so perhaps cut short) in parts of a message that a message found on the server
+/// has here whole: its people and its subject. Such a term is looked at here too; one in the
+/// body or an attachment's name isn't, as such a message has only a preview of its body here and
+/// no attachments, so looking would drop what the server rightly found.
+fn cut_short(fields: u8, raw: &[String]) -> bool {
+    let whole_here = fields & !(FROM | TO | CC | SUBJECT) == 0;
+    whole_here && (raw.len() >= MAX_SERVER_WORDS || raw.iter().any(|w| w.chars().count() >= MAX_SERVER_WORD))
 }
 
 /// The part of a message a server's search is asked to look in.
@@ -312,7 +437,7 @@ impl Query {
             };
             let kind = keyword_kind(body).unwrap_or_else(|| Kind::Words { fields: words::ALL, words: words::words(body), raw: raw_words(body) });
             // Text with no words in it asks for nothing.
-            if !matches!(&kind, Kind::Words { words, .. } if words.is_empty()) {
+            if !kind.asks_nothing() {
                 terms.push(Term { negate, kind });
             }
         }
@@ -339,9 +464,15 @@ impl Query {
     /// say `None`.
     pub fn words_of(&self, i: usize) -> Option<(u8, &[String])> {
         match &self.terms.get(i)?.kind {
-            Kind::Words { fields, words, .. } => Some((*fields, words)),
+            Kind::Words { fields, words, .. } | Kind::Address { fields, words, .. } => Some((*fields, words)),
             _ => None,
         }
+    }
+
+    /// Whether term `i` is a whole address (`from:ada@example.org`): its words only narrow the
+    /// messages, and the address itself is looked at on each.
+    pub fn is_address_term(&self, i: usize) -> bool {
+        matches!(self.terms.get(i).map(|t| &t.kind), Some(Kind::Address { .. }))
     }
 
     /// Whether term `i` reads a message's text.
@@ -359,6 +490,10 @@ impl Query {
         for term in &self.terms {
             let sent = match (&term.kind, term.negate) {
                 (_, true) => None,
+                // A server reads a whole address after `from:`, `to:` or `cc:` as that address,
+                // where here such a term is words (`from:<ada@example.org>` finds
+                // adam@example.org): it is looked at here alone.
+                (Kind::Words { fields: FROM | TO | CC, raw, .. }, false) if raw.iter().any(|w| is_address(w)) => None,
                 (Kind::Words { fields, raw, .. }, false) if !raw.is_empty() => {
                     let field = match *fields {
                         words::ALL => Some(None),
@@ -372,12 +507,31 @@ impl Query {
                     };
                     field.map(|field| ServerTerm::Words { field, words: raw.clone() })
                 }
+                // An address a server's search can't be given as it is (one with `!#$%…` or too
+                // long) is looked at here alone.
+                (Kind::Address { fields, address, .. }, false) if server_takes(address) => {
+                    let field = match *fields {
+                        FROM => Some(ServerField::From),
+                        TO => Some(ServerField::To),
+                        CC => Some(ServerField::Cc),
+                        _ => None,
+                    };
+                    field.map(|field| ServerTerm::Words { field: Some(field), words: vec![address.clone()] })
+                }
                 (Kind::HasAttachment, false) => Some(ServerTerm::HasAttachment),
                 (Kind::Importance(i @ (Importance::High | Importance::Low)), false) => Some(ServerTerm::Importance(*i)),
                 _ => None,
             };
             match sent {
-                Some(sent) if out.terms.len() < MAX_SERVER_TERMS => out.terms.push(sent),
+                Some(sent) if out.terms.len() < MAX_SERVER_TERMS => {
+                    out.terms.push(sent);
+                    // A whole address is looked at here too: a server's search may find it
+                    // inside a longer one; and so are words the server was given less of.
+                    let cut = matches!(&term.kind, Kind::Words { fields, raw, .. } if cut_short(*fields, raw));
+                    if cut || matches!(term.kind, Kind::Address { .. }) {
+                        out.local.terms.push(term.clone());
+                    }
+                }
                 _ => out.local.terms.push(term.clone()),
             }
         }
@@ -397,6 +551,10 @@ impl Query {
             let hit = known(i).unwrap_or_else(|| match &t.kind {
                 Kind::Words { fields, words, .. } => {
                     words::texts(m, &m.body.text, |field, text| field & fields != 0 && words::starts_in(text, words))
+                }
+                Kind::Address { fields, address, .. } => {
+                    let is = |a: &crate::Address| address_key(&a.email) == *address;
+                    (fields & FROM != 0 && is(&m.from)) || (fields & TO != 0 && m.to.iter().any(is)) || (fields & CC != 0 && m.cc.iter().any(is))
                 }
                 Kind::Category(x) => m.categories.iter().any(|c| contains_ci(c, x)),
                 Kind::HasAttachment => m.has_attachments(),
@@ -517,7 +675,7 @@ mod tests {
                 ServerTerm::Importance(Importance::Low),
             ]
         );
-        assert_eq!(split.local.len(), 3, "is:unread, -lunch, category:red");
+        assert_eq!(split.local.len(), 4, "the address (#301), is:unread, -lunch, category:red");
         assert!(!split.local.matches(&msg(), 0), "its category is blue");
         let unread_red = Message { categories: vec!["Red".into()], ..msg() };
         assert!(split.local.matches(&unread_red, 0));

@@ -22,7 +22,7 @@ mailcraft-net = { workspace = true }
 serde_json = { workspace = true }
 
 [dev-dependencies]
-# The fake mail servers of `crates/net` (included by path in `tests/two_way.rs`) speak base64.
-base64 = { workspace = true }
+# The fake mail servers of `crates/net` (included by path in `tests/two_way.rs`) speak base64 (`mailcraft-charset`).
+mailcraft-charset = { workspace = true }
 # The Graph stand-in, for `tests/graph_folders.rs`: in a test's build only.
 mailcraft-net = { workspace = true, features = ["stand-in"] }

@@ -104,8 +104,7 @@ proptest! {
         let runs: Vec<serde_json::Value> = ids.iter().map(|id| serde_json::json!({"text": "x", "picture": id}))
             .chain(std::iter::once(serde_json::json!({"text": words}))).collect();
         let pictures: Vec<serde_json::Value> = ids.iter().zip(&sizes).map(|(id, n)| {
-            use base64::Engine as _;
-            serde_json::json!({"id": id, "data": base64::engine::general_purpose::STANDARD.encode(png(*n)), "alt": "a"})
+            serde_json::json!({"id": id, "data": mailcraft_charset::base64::STANDARD.encode(png(*n)), "alt": "a"})
         }).collect();
         let json = serde_json::json!({"name": "S", "body": {"paragraphs": [{"runs": runs}]}, "pictures": pictures});
         let sig: Signature = serde_json::from_value(json).unwrap();

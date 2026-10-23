@@ -80,7 +80,7 @@ pub fn start(port: u16, ctx: egui::Context, settings: Option<&Path>, agents_only
 /// A new key: 32 random bytes from the operating system, as hex.
 pub(crate) fn random_key() -> Result<String, String> {
     let mut b = [0u8; 32];
-    getrandom::fill(&mut b).map_err(|e| e.to_string())?;
+    ring::rand::SecureRandom::fill(&ring::rand::SystemRandom::new(), &mut b).map_err(|_| "the operating system gave no random bytes".to_string())?;
     Ok(b.iter().map(|x| format!("{x:02x}")).collect())
 }
 

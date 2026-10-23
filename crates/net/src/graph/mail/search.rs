@@ -177,17 +177,19 @@ fn clause(term: &ServerTerm) -> Option<String> {
                 Some(ServerField::Body) => "body:",
                 Some(ServerField::Attachment) => "attachment:",
             };
-            // A word is letters, digits and `@._-'` (no quote, backslash, colon, bracket or
-            // star); one that is an operator of the syntax is written in small letters, which
-            // it reads as a word.
+            // A word is letters, digits and `@._-'+` (no quote, backslash, colon, bracket or
+            // star; `+` only in an address); one that is an operator of the syntax is written in
+            // small letters, which it reads as a word.
             let plain = |word: &String| {
-                let clean = !word.is_empty() && word.chars().all(|c| c.is_alphanumeric() || "@._-'".contains(c));
+                let clean = !word.is_empty() && word.chars().all(|c| c.is_alphanumeric() || "@._-'+".contains(c));
                 let operator = matches!(word.as_str(), "AND" | "OR" | "NOT" | "NEAR" | "ONEAR");
                 clean.then(|| if operator { word.to_lowercase() } else { word.clone() })
             };
             let words: Vec<String> = words.iter().map(plain).collect::<Option<_>>()?;
             match words.as_slice() {
                 [] => None,
+                // The syntax reads `+` as an operator; in quotes it is text (#301).
+                [one] if one.contains('+') => Some(format!("{property}\\\"{one}\\\"")),
                 [one] => Some(format!("{property}{one}")),
                 many => Some(format!("{property}\\\"{}\\\"", many.join(" "))),
             }

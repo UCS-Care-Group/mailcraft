@@ -10,7 +10,6 @@ use std::net::TcpListener;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
-use base64::Engine as _;
 use mailcraft_engine::Session;
 use mailcraft_model::Mailbox;
 use mailcraft_model::update::{Asset, Release, Version};
@@ -72,7 +71,7 @@ fn release(signer: &Ed25519KeyPair, file: &[u8]) -> (Release, String, Arc<Mutex<
     let name = Install::AppImage.file_name(&version, std::env::consts::ARCH).unwrap_or_else(|| format!("mailcraft-{version}-linux-x86_64.AppImage"));
     let digest: String = ring::digest::digest(&ring::digest::SHA256, file).as_ref().iter().map(|b| format!("{b:02x}")).collect();
     let sums = format!("{digest}  {name}\n").into_bytes();
-    let signature = format!("{}\n", base64::engine::general_purpose::STANDARD.encode(signer.sign(&sums).as_ref())).into_bytes();
+    let signature = format!("{}\n", mailcraft_charset::base64::STANDARD.encode(signer.sign(&sums).as_ref())).into_bytes();
     let files =
         vec![("/d/SHA256SUMS.txt".to_string(), sums), ("/d/SHA256SUMS.txt.sig".to_string(), signature), (format!("/d/{name}"), file.to_vec())];
     let sizes: Vec<u64> = files.iter().map(|(_, b)| b.len() as u64).collect();

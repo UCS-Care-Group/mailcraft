@@ -57,7 +57,7 @@ impl Launcher {
             };
             let ctx = self.ctx.clone();
             let waiting = std::thread::Builder::new().name("file dialog".into()).spawn(move || {
-                let picked = pollster::block_on(picking).map(|f| f.path().to_string_lossy().to_string());
+                let picked = crate::block_on::block_on(picking).map(|f| f.path().to_string_lossy().to_string());
                 let _ = answer.send(picked);
                 ctx.request_repaint();
             });

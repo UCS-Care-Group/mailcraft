@@ -16,7 +16,7 @@ serde = { workspace = true }
 # be written back so (`Account::as_written`).
 serde_json = { workspace = true }
 thiserror = { workspace = true }
-base64 = { workspace = true }
+mailcraft-charset = { workspace = true }
 
 [dev-dependencies]
 mailcraft-i18n = { workspace = true, features = ["test-support"] }

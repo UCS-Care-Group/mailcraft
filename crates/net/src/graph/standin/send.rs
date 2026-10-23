@@ -18,8 +18,7 @@
 //! ([`super::Fault`]), [`State::fail_next`](super::State::fail_next) and
 //! [`State::lose_next`](super::State::lose_next) (sent, and the answer lost).
 
-use base64::Engine as _;
-use base64::engine::general_purpose::STANDARD;
+use mailcraft_charset::base64::STANDARD;
 use serde_json::Value;
 
 use super::messages::Message;

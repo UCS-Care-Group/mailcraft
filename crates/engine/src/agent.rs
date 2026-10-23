@@ -130,6 +130,7 @@ const SAFE: &[&str] = &[
     "mail.junk",
     "mail.notJunk",
     "mail.findRelated",
+    "mail.findFromSender",
     "mail.saveAttachment",
     "mail.new",
     "mail.reply",

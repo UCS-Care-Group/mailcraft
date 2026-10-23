@@ -4,7 +4,7 @@
 //! Help, made with `muda` from the table in `mailcraft_ui_egui::menubar`. Every item is a command
 //! of the registry, run by id as the ribbon runs it; this file only turns the table into native
 //! menus, keeps them enabled as the commands are, and hands what is chosen back to the table's
-//! `run`. Quit asks first, as the close button does (`craft_quit`).
+//! `run`. Quit asks first, as the close button does (`quit.rs`).
 //!
 //! muda's events arrive on the main thread; the handler only queues the item's id and asks for a
 //! frame, and [`MenuBar::pump`] runs them in `eframe::App::logic`, on the UI thread. An id that
@@ -79,7 +79,7 @@ pub fn install(ctx: &Context, app: &MailApp) -> Result<MenuBar, Box<dyn std::err
     }
     MenuEvent::set_event_handler(Some(move |event: MenuEvent| {
         // Quit asks the window to close, so a message being written is asked about first.
-        if !craft_quit::on_menu_event(&ctx, event.id.as_ref()) {
+        if !crate::quit::on_menu_event(&ctx, event.id.as_ref()) {
             let _ = tx.send(event.id.as_ref().to_string());
         }
         ctx.request_repaint();
@@ -147,7 +147,7 @@ fn build(app: &MailApp) -> Result<Built, Box<dyn std::error::Error + Send + Sync
         &PredefinedMenuItem::hide_others(None),
         &PredefinedMenuItem::show_all(None),
         &PredefinedMenuItem::separator(),
-        &MenuItem::with_id(craft_quit::QUIT_MENU_ID, &words.quit, true, accelerator(&Chord { shift: false, alt: false, key: "Q".into() })),
+        &MenuItem::with_id(crate::quit::QUIT_MENU_ID, &words.quit, true, accelerator(&Chord { shift: false, alt: false, key: "Q".into() })),
     ])?;
     menu.append(&app_menu)?;
 

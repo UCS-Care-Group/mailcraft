@@ -40,8 +40,7 @@ mod xml;
 use std::collections::{HashMap, HashSet};
 use std::time::{Duration, Instant};
 
-use base64::Engine as _;
-use base64::engine::general_purpose::{STANDARD_NO_PAD, URL_SAFE_NO_PAD};
+use mailcraft_charset::base64::{STANDARD_NO_PAD, URL_SAFE_NO_PAD};
 use mailcraft_model::FolderKind;
 use mailcraft_model::remote::{FavoritesDownload, FavoritesOutcome, MAX_FAVORITE_DEPTH, MAX_FAVORITES};
 use mailcraft_proto::ProtoError;

@@ -3,7 +3,7 @@ name = "mailcraft-charset"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "MailCraft character sets: bytes in any set of the WHATWG Encoding Standard to text (shared by the mail and vCard readers)"
+description = "MailCraft character sets: bytes in any set of the WHATWG Encoding Standard to text (shared by the mail and vCard readers), and base64 (RFC 4648)"
 
 [lints]
 workspace = true
@@ -13,3 +13,5 @@ encoding_rs = { workspace = true }
 
 [dev-dependencies]
 proptest = { workspace = true }
+# Only the test that compares our base64 with the crate's, on every config.
+base64 = { workspace = true }
