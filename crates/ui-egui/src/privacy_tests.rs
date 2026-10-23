@@ -41,14 +41,15 @@ fn send_receive_problems_are_kept_for_the_owner_and_not_logged() {
 fn the_update_question_names_installing() {
     let mut app = app();
     app.updates.asking = true;
-    let mut harness = egui_kittest::Harness::builder().with_size(egui::vec2(1400.0, 800.0)).build_ui_state(
-        |ui, app: &mut MailApp| {
-            let ctx = ui.ctx().clone();
-            app.logic(&ctx);
-            app.ui(ui);
-        },
-        app,
-    );
+    let mut harness =
+        egui_kittest::Harness::builder().with_accessibility_check(false).allow_missing_glyphs().with_size(egui::vec2(1400.0, 800.0)).build_ui_state(
+            |ui, app: &mut MailApp| {
+                let ctx = ui.ctx().clone();
+                app.logic(&ctx);
+                app.ui(ui);
+            },
+            app,
+        );
     harness.run_steps(4);
     assert!(harness.query_all_by_label_contains("download and install them when you quit").next().is_some());
 }

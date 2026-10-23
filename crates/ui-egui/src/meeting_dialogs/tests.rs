@@ -56,14 +56,19 @@ fn served(events: Vec<RemoteEvent>) -> (Harness, Arc<Mutex<Server>>) {
     microsoft_account(&mut app);
     server.lock().unwrap().events = events;
     app.auto_sync = true;
-    let mut harness = egui_kittest::Harness::builder().with_size(egui::vec2(1280.0, 800.0)).with_step_dt(1.0 / 60.0).build_ui_state(
-        |ui, app: &mut MailApp| {
-            let ctx = ui.ctx().clone();
-            app.logic(&ctx);
-            app.ui(ui);
-        },
-        app,
-    );
+    let mut harness = egui_kittest::Harness::builder()
+        .with_accessibility_check(false)
+        .allow_missing_glyphs()
+        .with_size(egui::vec2(1280.0, 800.0))
+        .with_step_dt(1.0 / 60.0)
+        .build_ui_state(
+            |ui, app: &mut MailApp| {
+                let ctx = ui.ctx().clone();
+                app.logic(&ctx);
+                app.ui(ui);
+            },
+            app,
+        );
     harness.run_steps(8);
     // (The sample has reminders that are due: their window would lie over what is clicked.)
     let _ = harness.state_mut().execute("ui.dismissReminder", json!({"all": true}));

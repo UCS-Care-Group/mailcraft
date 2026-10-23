@@ -447,14 +447,15 @@ fn window(rig: Rig) -> (egui_kittest::Harness<'static, MailApp>, Arc<Mutex<Host>
     let mut app = rig.app;
     // (The harness looks at the server by the real clock: nothing is due there but the start.)
     app.auto_sync = false;
-    let mut harness = egui_kittest::Harness::builder().with_size(egui::vec2(1280.0, 800.0)).build_ui_state(
-        |ui, app: &mut MailApp| {
-            let ctx = ui.ctx().clone();
-            app.logic(&ctx);
-            app.ui(ui);
-        },
-        app,
-    );
+    let mut harness =
+        egui_kittest::Harness::builder().with_accessibility_check(false).allow_missing_glyphs().with_size(egui::vec2(1280.0, 800.0)).build_ui_state(
+            |ui, app: &mut MailApp| {
+                let ctx = ui.ctx().clone();
+                app.logic(&ctx);
+                app.ui(ui);
+            },
+            app,
+        );
     harness.run_steps(4);
     let _ = harness.state_mut().execute("ui.dismissReminder", json!({"all": true}));
     harness.run_steps(3);
@@ -567,14 +568,15 @@ fn the_offer_is_one_line_under_the_heading_and_in_the_options() {
     let mut plain = MailApp::new(Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0), Services::default());
     plain.autosave = false;
     plain.execute("ui.backstage", json!({"value": true, "page": "options"})).unwrap();
-    let mut harness = egui_kittest::Harness::builder().with_size(egui::vec2(1280.0, 800.0)).build_ui_state(
-        |ui, app: &mut MailApp| {
-            let ctx = ui.ctx().clone();
-            app.logic(&ctx);
-            app.ui(ui);
-        },
-        plain,
-    );
+    let mut harness =
+        egui_kittest::Harness::builder().with_accessibility_check(false).allow_missing_glyphs().with_size(egui::vec2(1280.0, 800.0)).build_ui_state(
+            |ui, app: &mut MailApp| {
+                let ctx = ui.ctx().clone();
+                app.logic(&ctx);
+                app.ui(ui);
+            },
+            plain,
+        );
     harness.run_steps(4);
     assert!(harness.state().hit.rect("favoritesOption", 0).is_none());
 }

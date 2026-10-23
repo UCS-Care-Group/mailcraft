@@ -110,7 +110,7 @@ pub(super) fn show(app: &mut MailApp, ui: &mut Ui, local: &HashSet<Id>, left: f3
                 icons::paint(ui.painter(), r, "highImportance", t.orange, t.accent);
                 let w = paint_clipped(ui.painter(), pos2(rect.min.x + 28.0, rect.center().y), rect.width() - 36.0, &text, regular(11.5), t.text);
                 if w >= rect.width() - 40.0 {
-                    ui.interact(rect, ui.id().with(("server_problem", y as i64)), Sense::hover()).on_hover_text(text);
+                    ui.interact(rect, ui.scope_id().with(("server_problem", y as i64)), Sense::hover()).on_hover_text(text);
                 }
                 app.hit.add("serverProblem", 0, rect);
             }
@@ -131,14 +131,14 @@ fn link_line(app: &mut MailApp, ui: &mut Ui, rect: Rect, link: Link) {
     let font = regular(12.5);
     let galley = ui.painter().layout_no_wrap(text.clone(), font.clone(), t.accent_text);
     let at = Rect::from_min_size(pos2(rect.min.x + TEXT_LEFT - 18.0, rect.center().y - galley.size().y / 2.0), galley.size());
-    let resp = ui.interact(at.expand(4.0), ui.id().with("more_on_server"), if live { Sense::click() } else { Sense::hover() });
+    let resp = ui.interact(at.expand(4.0), ui.scope_id().with("more_on_server"), if live { Sense::click() } else { Sense::hover() });
     let resp = if live { resp.on_hover_cursor(egui::CursorIcon::PointingHand) } else { resp };
     let resp = match link {
         Link::NotConnected { retry: true } => resp.on_hover_text(tl!("Microsoft's server couldn't be reached. Click to try again.")),
         Link::NotConnected { retry: false } => resp.on_hover_text(tl!("Send/Receive signs in to Microsoft; then the server can be searched.")),
         _ => resp,
     };
-    resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, live, &text));
+    resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, live, &text));
     app.hit.add("moreOnServer", 0, at);
     let color = match link {
         Link::Ask => t.accent_text,
@@ -158,7 +158,7 @@ fn result_row(app: &mut MailApp, ui: &mut Ui, index: usize, rect: Rect) {
     let t = Tokens::get(ui.ctx());
     let Some(r) = app.session.server_search.results.get(index).cloned() else { return };
     let m = mailcraft_engine::cmd::search_server::as_message(r.account, r.folder, &r.found);
-    let resp = ui.interact(rect, ui.id().with(("server_result", index)), Sense::click()).on_hover_cursor(egui::CursorIcon::PointingHand);
+    let resp = ui.interact(rect, ui.scope_id().with(("server_result", index)), Sense::click()).on_hover_cursor(egui::CursorIcon::PointingHand);
     app.hit.add("serverResult", index as u64, rect);
     let p = ui.painter();
     let body = Rect::from_min_max(pos2(rect.min.x + ROW_INSET, rect.min.y), pos2(rect.max.x, rect.max.y - 1.0));
@@ -227,7 +227,7 @@ fn result_row(app: &mut MailApp, ui: &mut Ui, index: usize, rect: Rect) {
         let preview: String = m.body.text.split_whitespace().collect::<Vec<_>>().join(" ");
         paint_clipped(p, pos2(left, preview_y), (end - left).max(0.0), &preview, regular(LIST_TEXT), t.text_dim);
     }
-    resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, format!("{who}, {subject}")));
+    resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, format!("{who}, {subject}")));
     if resp.clicked() {
         app.open_server_result(index);
     }

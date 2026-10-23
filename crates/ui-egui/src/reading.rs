@@ -195,7 +195,7 @@ pub(crate) fn has_unreadable(m: &Message) -> bool {
 /// why there is a � in it. One line for the whole message, so that no � needs a word of its own.
 /// Looked for once per message and kept, not every frame: a body can be long.
 fn unreadable_line(ui: &mut Ui, m: &Message, t: &Tokens) {
-    let key = egui::Id::new(("mailcraft-unreadable", m.id, m.subject.len(), m.body.text.len(), m.body.html.as_ref().map_or(0, String::len)));
+    let key = egui::Id::unique(("mailcraft-unreadable", m.id, m.subject.len(), m.body.text.len(), m.body.html.as_ref().map_or(0, String::len)));
     let unreadable = match ui.ctx().data(|d| d.get_temp::<bool>(key)) {
         Some(kept) => kept,
         None => {
@@ -245,7 +245,7 @@ pub(crate) fn show_quote(app: &mut MailApp, ui: &mut Ui) {
 fn quote_message(app: &MailApp, ctx: &egui::Context) -> Option<Arc<Message>> {
     let c = app.session.compose.as_ref()?;
     let quote = c.quote.as_ref()?;
-    let key = egui::Id::new("mailcraft-compose-quote");
+    let key = egui::Id::unique("mailcraft-compose-quote");
     let kept: Option<Arc<Message>> = ctx.data(|d| d.get_temp(key));
     let source = c.source.and_then(|id| app.session.mailbox.messages.get(&id));
     let pictures = if quote.pictures.is_empty() { &c.attachments } else { &quote.pictures };

@@ -30,11 +30,11 @@ fn field_at(ui: &mut Ui, label: &str, text: &str, hint: &str, focus: bool, right
     ui.painter().text(pos2(r.min.x + 16.0, r.center().y), Align2::LEFT_CENTER, label, regular(12.0), t.text_dim);
     let edit_rect = Rect::from_min_max(pos2(r.min.x + 16.0 + LABEL_W, r.min.y + 3.0), pos2(r.max.x - 12.0 - right, r.max.y - 3.0));
     let edit = egui::TextEdit::singleline(&mut buf)
-        .id(ui.id().with(("compose", label)))
+        .id(ui.scope_id().with(("compose", label)))
         .frame(egui::Frame::NONE)
         .hint_text(hint)
         .font(regular(13.0))
-        .vertical_align(egui::Align::Center)
+        .align(egui::Align2::LEFT_CENTER)
         .desired_width(edit_rect.width());
     let resp = ui.put(edit_rect, edit);
     if focus {
@@ -90,8 +90,8 @@ fn bcc_link(app: &MailApp) -> bool {
 /// then whoever mail was exchanged with); arrow keys choose, Enter or Tab or a click takes one.
 fn recipient_field(app: &mut MailApp, ui: &mut Ui, key: &str, label: &str, text: &str, hint: &str, focus: bool) {
     let t = Tokens::get(ui.ctx());
-    let id = ui.id().with(("compose", label));
-    let store = egui::Id::new("compose_suggesting");
+    let id = ui.scope_id().with(("compose", label));
+    let store = egui::Id::unique("compose_suggesting");
     let mut st: Suggesting = ui.data(|d| d.get_temp(store)).unwrap_or_default();
     let mine = st.field == key && !st.items.is_empty();
     let focused = ui.memory(|m| m.has_focus(id));
@@ -273,7 +273,7 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
         ui.painter().text(pos2(r.min.x + 16.0, r.center().y), Align2::LEFT_CENTER, tl!("From"), regular(12.0), t.text_dim);
         let current = app.session.mailbox.account(c.account).map(|a| a.address().full()).unwrap_or_default();
         let pick = Rect::from_min_max(pos2(r.min.x + 16.0 + LABEL_W, r.min.y + 4.0), pos2(r.max.x - 12.0, r.max.y - 4.0));
-        let resp = ui.interact(pick, ui.id().with("compose_from"), Sense::click());
+        let resp = ui.interact(pick, ui.scope_id().with("compose_from"), Sense::click());
         if resp.hovered() {
             ui.painter().rect_filled(pick.expand2(vec2(4.0, 0.0)), 4.0, t.hover);
         }
@@ -308,7 +308,7 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
             pos2(last.max.x - 52.0, bar.max.y + if app.session.mailbox.accounts.len() > 1 { 34.0 } else { 4.0 }),
             vec2(40.0, 22.0),
         );
-        let resp = ui.interact(br, ui.id().with("show_bcc"), Sense::click());
+        let resp = ui.interact(br, ui.scope_id().with("show_bcc"), Sense::click());
         ui.painter().text(br.center(), Align2::CENTER_CENTER, tl!("Bcc"), regular(11.5), if resp.hovered() { t.accent_text } else { t.text_dim });
         if resp.clicked() {
             app.compose_bcc = true;
@@ -334,7 +334,7 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
                     );
                     paint_clipped(ui.painter(), pos2(r.min.x + 26.0, r.center().y), w, &label, regular(12.0), t.text);
                     let x = Rect::from_center_size(pos2(r.max.x - 12.0, r.center().y), vec2(18.0, 18.0));
-                    let xr = ui.interact(x, ui.id().with(("unattach", i)), Sense::click());
+                    let xr = ui.interact(x, ui.scope_id().with(("unattach", i)), Sense::click());
                     if xr.hovered() {
                         ui.painter().rect_filled(x, 3.0, t.hover);
                     }

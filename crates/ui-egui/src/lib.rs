@@ -1049,6 +1049,8 @@ pub struct MailApp {
     control_rx: Option<Receiver<ControlRequest>>,
     shot_token: u64,
     queued_shots: Vec<(u64, f64, u32)>,
+    /// Frames the integration handed back, by the token they were asked with.
+    shot_images: std::sync::Arc<std::sync::Mutex<Vec<(u64, std::sync::Arc<egui::ColorImage>)>>>,
     pending_shots: Vec<(u64, Option<String>, bool, std::sync::mpsc::Sender<Value>, f64)>,
     pub(crate) synthetic: Vec<egui::Event>,
     /// What agents want that waits for the owner's yes ([`agent_gate`]).
@@ -1241,6 +1243,7 @@ impl MailApp {
             control_rx: None,
             shot_token: 0,
             queued_shots: Vec::new(),
+            shot_images: Default::default(),
             pending_shots: Vec::new(),
             synthetic: Vec::new(),
             asking: Default::default(),
@@ -3090,7 +3093,7 @@ impl MailApp {
         files::drain_inbox(self);
         self.autosave_tick(ctx);
         self.draft_autosave_tick(ctx);
-        self.collect_screenshots(ctx);
+        self.collect_screenshots();
         self.issue_screenshots(ctx);
         let waiting = self.sync_rx.is_some() || self.graph_rx.is_some() || self.signing_in.is_some() || self.approving();
         if !self.synthetic.is_empty() || waiting || !self.sync_queue.is_empty() {
@@ -3599,10 +3602,17 @@ impl MailApp {
 
     fn issue_screenshots(&mut self, ctx: &egui::Context) {
         let now = now_ms();
+        let sink = self.shot_images.clone();
         self.queued_shots.retain_mut(|(token, at, frames)| {
             *frames += 1;
             if now >= *at && *frames >= 3 {
-                ctx.send_viewport_cmd(egui::ViewportCommand::Screenshot(egui::UserData::new(*token)));
+                let token = *token;
+                let sink = sink.clone();
+                let repaint = ctx.clone();
+                ctx.send_viewport_cmd(egui::ViewportCommand::Screenshot(egui::ScreenshotCallback::new(move |image| {
+                    sink.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).push((token, image));
+                    repaint.request_repaint();
+                })));
                 false
             } else {
                 true
@@ -3613,23 +3623,11 @@ impl MailApp {
         }
     }
 
-    fn collect_screenshots(&mut self, ctx: &egui::Context) {
+    fn collect_screenshots(&mut self) {
         if self.pending_shots.is_empty() {
             return;
         }
-        let events: Vec<_> = ctx.input(|i| {
-            i.raw
-                .events
-                .iter()
-                .filter_map(|e| match e {
-                    egui::Event::Screenshot { user_data, image, .. } => {
-                        let token = user_data.data.as_ref().and_then(|d| d.downcast_ref::<u64>()).copied()?;
-                        Some((token, image.clone()))
-                    }
-                    _ => None,
-                })
-                .collect()
-        });
+        let events: Vec<_> = std::mem::take(&mut *self.shot_images.lock().unwrap_or_else(|poisoned| poisoned.into_inner()));
         for (token, image) in events {
             if let Some(i) = self.pending_shots.iter().position(|(t, ..)| *t == token) {
                 let (_, path, inline, reply, _) = self.pending_shots.remove(i);

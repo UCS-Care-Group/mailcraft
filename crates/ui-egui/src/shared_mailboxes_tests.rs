@@ -160,14 +160,15 @@ fn the_add_shared_mailbox_dialog_collects_the_address_and_runs_the_command() {
     assert!(matches!(app.dialog, Some(crate::dialogs::Dialog::SharedMailbox { account, .. }) if account == owner));
     // Laid out in both themes, as File › Info is with a shared mailbox under its owner.
     app.execute("account.addSharedMailbox", json!({"account": owner, "address": "sales@example.org"})).unwrap();
-    let mut h = egui_kittest::Harness::builder().with_size(egui::vec2(1280.0, 800.0)).build_ui_state(
-        |ui, app: &mut MailApp| {
-            let ctx = ui.ctx().clone();
-            app.logic(&ctx);
-            app.ui(ui);
-        },
-        app,
-    );
+    let mut h =
+        egui_kittest::Harness::builder().with_accessibility_check(false).allow_missing_glyphs().with_size(egui::vec2(1280.0, 800.0)).build_ui_state(
+            |ui, app: &mut MailApp| {
+                let ctx = ui.ctx().clone();
+                app.logic(&ctx);
+                app.ui(ui);
+            },
+            app,
+        );
     for theme in [crate::theme::Appearance::Light, crate::theme::Appearance::Dark] {
         h.state_mut().ui.theme = theme;
         h.run_steps(3);
@@ -594,14 +595,15 @@ fn a_shared_mailbox_microsoft_wont_open_shows_no_access_and_keeps_its_mail() {
     assert!(app.shared_refused.contains_key(&shared));
     assert!(app.sync_problem_lines().iter().any(|l| l.contains("wait on this computer")), "{:?}", app.sync_problem_lines());
     // The folder pane says No access on its heading, in both themes.
-    let mut h = egui_kittest::Harness::builder().with_size(egui::vec2(1280.0, 800.0)).build_ui_state(
-        |ui, app: &mut MailApp| {
-            let ctx = ui.ctx().clone();
-            app.logic(&ctx);
-            app.ui(ui);
-        },
-        app,
-    );
+    let mut h =
+        egui_kittest::Harness::builder().with_accessibility_check(false).allow_missing_glyphs().with_size(egui::vec2(1280.0, 800.0)).build_ui_state(
+            |ui, app: &mut MailApp| {
+                let ctx = ui.ctx().clone();
+                app.logic(&ctx);
+                app.ui(ui);
+            },
+            app,
+        );
     for theme in [crate::theme::Appearance::Light, crate::theme::Appearance::Dark] {
         h.state_mut().ui.theme = theme;
         h.run_steps(3);

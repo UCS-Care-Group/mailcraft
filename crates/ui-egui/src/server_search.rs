@@ -285,6 +285,8 @@ mod tests {
                 app.drive_server_search();
                 app.open_server_result(0);
                 let mut harness = egui_kittest::Harness::builder()
+                    .with_accessibility_check(false)
+                    .allow_missing_glyphs()
                     .with_size(egui::vec2(1440.0, 900.0))
                     .with_pixels_per_point(scale)
                     .with_step_dt(1.0 / 60.0)

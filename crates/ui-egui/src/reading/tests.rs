@@ -367,14 +367,15 @@ fn write_the_corpus_as_a_mailbox() {
 }
 
 fn window(app: MailApp, size: (f32, f32)) -> egui_kittest::Harness<'static, MailApp> {
-    let mut harness = egui_kittest::Harness::builder().with_size(egui::vec2(size.0, size.1)).build_ui_state(
-        |ui, app: &mut MailApp| {
-            let ctx = ui.ctx().clone();
-            app.logic(&ctx);
-            app.ui(ui);
-        },
-        app,
-    );
+    let mut harness =
+        egui_kittest::Harness::builder().with_accessibility_check(false).allow_missing_glyphs().with_size(egui::vec2(size.0, size.1)).build_ui_state(
+            |ui, app: &mut MailApp| {
+                let ctx = ui.ctx().clone();
+                app.logic(&ctx);
+                app.ui(ui);
+            },
+            app,
+        );
     harness.run_steps(3);
     harness
 }
@@ -1222,6 +1223,7 @@ fn nothing_is_asked_for_without_the_owners_say_so() {
                 delta: egui::vec2(0.0, -400.0),
                 phase: egui::TouchPhase::Move,
                 modifiers: egui::Modifiers::NONE,
+                source: egui::MouseWheelSource::Unknown,
             });
             harness.run_steps(4);
             harness.state_mut().execute("ui.closeWindow", json!({"all": true})).unwrap();
@@ -2213,6 +2215,8 @@ fn shots_of_pictures_from_the_web_and_of_a_message_window() {
         let news = id_of(&ids, "newsletter");
         let built = id_of(&ids, "built newsletter");
         let mut harness = egui_kittest::Harness::builder()
+            .with_accessibility_check(false)
+            .allow_missing_glyphs()
             .with_size(egui::vec2(1440.0, 900.0))
             .with_pixels_per_point(2.0)
             .with_step_dt(1.0 / 60.0)
@@ -2253,6 +2257,7 @@ fn shots_of_pictures_from_the_web_and_of_a_message_window() {
             delta: egui::vec2(0.0, -560.0),
             phase: egui::TouchPhase::Move,
             modifiers: egui::Modifiers::NONE,
+            source: egui::MouseWheelSource::Unknown,
         });
         harness.run_steps(20);
         let at = stand_in_at(&harness, built, "amber glow jar.jpg");
@@ -2664,7 +2669,7 @@ fn selected_text_can_be_read_in_both_themes() {
         in_frame(dark, |ctx| {
             let t = Tokens::get(ctx);
             let laid = lay_out(ctx, &corpus_message("colours"), 640.0);
-            egui::Area::new(egui::Id::new("marks")).show(ctx, |ui| {
+            egui::Area::new(egui::Id::unique("marks")).show(ctx, |ui| {
                 let marks = select::Marks::new(ui, &t);
                 for item in &laid.items {
                     let ItemKind::Text(text) = &item.kind else { continue };
@@ -2695,14 +2700,19 @@ fn selected_text_can_be_read_in_both_themes() {
 /// A window whose frames are a sixtieth of a second apart, as on a screen: two clicks, each a
 /// frame down and a frame up, are a double click.
 fn quick_window(app: MailApp, size: (f32, f32)) -> Window {
-    let mut harness = egui_kittest::Harness::builder().with_size(egui::vec2(size.0, size.1)).with_step_dt(1.0 / 60.0).build_ui_state(
-        |ui, app: &mut MailApp| {
-            let ctx = ui.ctx().clone();
-            app.logic(&ctx);
-            app.ui(ui);
-        },
-        app,
-    );
+    let mut harness = egui_kittest::Harness::builder()
+        .with_accessibility_check(false)
+        .allow_missing_glyphs()
+        .with_size(egui::vec2(size.0, size.1))
+        .with_step_dt(1.0 / 60.0)
+        .build_ui_state(
+            |ui, app: &mut MailApp| {
+                let ctx = ui.ctx().clone();
+                app.logic(&ctx);
+                app.ui(ui);
+            },
+            app,
+        );
     harness.run_steps(3);
     harness
 }

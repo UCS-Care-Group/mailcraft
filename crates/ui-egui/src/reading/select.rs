@@ -442,7 +442,7 @@ impl Fields {
     /// Lay `label` out where a label goes, as the text of `field`. It is not painted yet.
     pub(super) fn add(&mut self, ui: &mut Ui, field: Field, label: egui::Label) {
         let (pos, galley, response) = label.selectable(false).sense(sense(ui)).layout_in_ui(ui);
-        response.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Label, ui.is_enabled(), galley.text()));
+        response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Label, ui.is_enabled(), galley.text()));
         // What is cut short is shown whole when the pointer rests on it.
         let response = if galley.elided { response.on_hover_text(galley.text().to_string()) } else { response };
         self.shown.push(Shown { field, pos, galley, response });

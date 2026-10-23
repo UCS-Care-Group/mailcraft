@@ -25,7 +25,7 @@ fn app() -> MailApp {
 }
 
 fn window(app: MailApp) -> Window {
-    let mut harness = Harness::builder().with_size(egui::vec2(1280.0, 800.0)).build_ui_state(
+    let mut harness = Harness::builder().with_accessibility_check(false).allow_missing_glyphs().with_size(egui::vec2(1280.0, 800.0)).build_ui_state(
         |ui, app: &mut MailApp| {
             let ctx = ui.ctx().clone();
             app.logic(&ctx);

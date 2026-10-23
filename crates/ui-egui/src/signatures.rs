@@ -172,7 +172,7 @@ fn list(app: &mut MailApp, ui: &mut Ui, t: &Tokens, names: &[String], open: Opti
             }
         }
     });
-    let renaming_id = egui::Id::new("mailcraft-signature-rename");
+    let renaming_id = egui::Id::unique("mailcraft-signature-rename");
     let mut renaming: Option<String> = ui.data(|d| d.get_temp(renaming_id));
     if let (Some(text), Some(from)) = (renaming.as_mut(), open) {
         let r = ui.add(egui::TextEdit::singleline(text).desired_width(172.0).char_limit(100));
@@ -322,7 +322,7 @@ fn details_form(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     let name = e.signature.name.clone();
     let kept = e.signature.details.clone();
     let hand_edited = kept.as_ref().is_some_and(|d| d.made != 0 && d.made != mailcraft_model::signature::text_hash(e.body.text()));
-    let key = egui::Id::new("mailcraft-signature-details");
+    let key = egui::Id::unique("mailcraft-signature-details");
     let seen = kept.clone().map(fields_of);
     let mut form: Form =
         ui.data(|d| d.get_temp(key)).filter(|f: &Form| f.signature == name && (seen.is_none() || f.seen == seen)).unwrap_or_else(|| {
@@ -380,7 +380,7 @@ fn preview(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         return;
     }
     let ctx = ui.ctx().clone();
-    let key = egui::Id::new("mailcraft-signature-preview");
+    let key = egui::Id::unique("mailcraft-signature-preview");
     let stamp = (
         mailcraft_model::signature::text_hash(sig.body()),
         format!("{:?}", sig.layout),

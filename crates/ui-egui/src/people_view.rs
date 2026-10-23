@@ -131,7 +131,7 @@ impl<G: Copy + PartialEq> Layout<G> {
 /// Whether the selection is not the one this list showed last frame: a selection that changed
 /// (the keyboard, a command, a new item) is scrolled into view.
 pub(crate) fn selection_changed(ui: &Ui, slot: &'static str, selected: Option<Id>) -> bool {
-    let slot = egui::Id::new(slot);
+    let slot = egui::Id::unique(slot);
     let changed = ui.data(|d| d.get_temp::<Option<Id>>(slot)) != Some(selected);
     ui.data_mut(|d| d.insert_temp(slot, selected));
     changed
@@ -175,7 +175,7 @@ struct CachedLayout {
 /// The list for the search in view. Sorting every contact is the slow part, so the result is kept
 /// until the mailbox or the search changes.
 fn list_layout(app: &MailApp, ctx: &egui::Context) -> Arc<Layout<Group>> {
-    let slot = egui::Id::new("people_list_layout");
+    let slot = egui::Id::unique("people_list_layout");
     let query = &app.session.view.people_search;
     let key = (app.session.rev(), app.session.mailbox.contacts.len(), query.clone());
     if let Some(cached) = ctx.data(|d| d.get_temp::<CachedLayout>(slot)).filter(|c| c.key == key) {
@@ -323,7 +323,7 @@ fn recent_mail(mailbox: &Mailbox, c: &Contact, limit: usize) -> Vec<Id> {
 /// [`recent_mail`] for the selected contact, kept until the mailbox changes.
 fn recent_for(app: &MailApp, ctx: &egui::Context, c: &Contact) -> Arc<Vec<Id>> {
     type Cached = ((u64, usize, Id), Arc<Vec<Id>>);
-    let slot = egui::Id::new("people_recent_mail");
+    let slot = egui::Id::unique("people_recent_mail");
     let key = (app.session.rev(), app.session.mailbox.messages.len(), c.id);
     if let Some((_, list)) = ctx.data(|d| d.get_temp::<Cached>(slot)).filter(|(k, _)| *k == key) {
         return list;
@@ -381,7 +381,7 @@ fn list(app: &mut MailApp, ui: &mut Ui, layout: &Layout<Group>) {
     crate::chrome::pane_title(ui, tl!("People"), &count);
     // New Contact, at the right of the heading.
     let button = Rect::from_center_size(pos2(header.max.x - 20.0, header.center().y), vec2(26.0, 24.0));
-    let resp = ui.interact(button, ui.id().with("people_new"), Sense::click());
+    let resp = ui.interact(button, ui.scope_id().with("people_new"), Sense::click());
     if resp.hovered() {
         ui.painter().rect_filled(button, 4.0, if resp.is_pointer_button_down_on() { t.pressed } else { t.hover });
     }
@@ -422,7 +422,7 @@ fn contact_row(app: &mut MailApp, ui: &mut Ui, id: Id, rect: Rect) {
     let t = Tokens::get(ui.ctx());
     // The shared pointer, not a copy of the contact.
     let Some(c) = app.session.mailbox.contacts.get(&id).cloned() else { return };
-    let resp = ui.interact(rect, ui.id().with(("contact", id)), Sense::click());
+    let resp = ui.interact(rect, ui.scope_id().with(("contact", id)), Sense::click());
     app.hit.add("contact", id, rect);
     let selected = app.session.sel.contact == Some(id);
     let p = ui.painter();
@@ -757,14 +757,19 @@ pub(crate) mod testing {
         let mut app = MailApp::new(Session::at(mailbox, now(), 0), Services::default());
         app.autosave = false;
         app.execute(module, json!({})).unwrap();
-        let mut window = Harness::builder().with_size(egui::vec2(1280.0, 800.0)).with_step_dt(1.0 / 60.0).build_ui_state(
-            |ui, app: &mut MailApp| {
-                let ctx = ui.ctx().clone();
-                app.logic(&ctx);
-                app.ui(ui);
-            },
-            app,
-        );
+        let mut window = Harness::builder()
+            .with_accessibility_check(false)
+            .allow_missing_glyphs()
+            .with_size(egui::vec2(1280.0, 800.0))
+            .with_step_dt(1.0 / 60.0)
+            .build_ui_state(
+                |ui, app: &mut MailApp| {
+                    let ctx = ui.ctx().clone();
+                    app.logic(&ctx);
+                    app.ui(ui);
+                },
+                app,
+            );
         window.run_steps(5);
         window
     }

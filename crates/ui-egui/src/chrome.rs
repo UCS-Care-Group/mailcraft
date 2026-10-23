@@ -58,7 +58,7 @@ fn pill(ui: &mut Ui, app: &mut MailApp, h: f32, icon: &str, label: &str, tip: &s
     ui.painter().rect(r, h / 2.0, fill, Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
     icons::paint(ui.painter(), Rect::from_center_size(pos2(r.min.x + 15.0, r.center().y), vec2(16.0, 16.0)), icon, t.icon, t.accent);
     ui.painter().text(pos2(r.min.x + 26.0, r.center().y), Align2::LEFT_CENTER, label, font, t.text);
-    resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, label));
+    resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, label));
     if resp.on_hover_text(tip).clicked() {
         let _ = app.run(id, json!({}));
     }
@@ -82,7 +82,7 @@ pub const MAC_CONTENT_LEFT: f32 = MAC_LIGHTS_LEFT + 2.0 * MAC_LIGHT_PITCH + MAC_
 /// The search box: typing filters the message list as you go; Escape clears it.
 fn search_box(app: &mut MailApp, ui: &mut Ui, rect: Rect) {
     let t = Tokens::get(ui.ctx());
-    let id = ui.id().with("search_box");
+    let id = ui.scope_id().with("search_box");
     let focused = ui.memory(|m| m.has_focus(id));
     // A box in the ribbon's colour on the window's, with an edge that shows on both: a bright one
     // on the near-black of the dark window, a quiet one on the light.
@@ -124,7 +124,7 @@ fn search_box(app: &mut MailApp, ui: &mut Ui, rect: Rect) {
         .frame(egui::Frame::NONE)
         .hint_text(hint)
         .font(font.clone())
-        .vertical_align(egui::Align::Center)
+        .align(egui::Align2::LEFT_CENTER)
         .desired_width(edit_rect.width())
         .layouter(&mut layouter);
     let output = ui
@@ -158,7 +158,7 @@ fn search_box(app: &mut MailApp, ui: &mut Ui, rect: Rect) {
     let scope_rect = Rect::from_min_max(pos2(rect.max.x - scope_w, rect.min.y + 2.0), pos2(rect.max.x - 2.0, rect.max.y - 2.0));
     let everywhere = app.session.view.scope == Scope::Everywhere;
     let label = if everywhere { tl!("All Mailboxes") } else { tl!("Current Folder") };
-    let sresp = ui.interact(scope_rect, ui.id().with("search_scope"), Sense::click());
+    let sresp = ui.interact(scope_rect, ui.scope_id().with("search_scope"), Sense::click());
     if sresp.hovered() {
         ui.painter().rect_filled(scope_rect, 4.0, t.hover);
     }
@@ -188,7 +188,7 @@ pub fn title_bar(app: &mut MailApp, ui: &mut Ui) {
         .show(ui, |ui| {
             let full = ui.max_rect();
             // Drag the window by the title bar (integrated title bar on macOS).
-            let drag = ui.interact(full, ui.id().with("title_drag"), Sense::click_and_drag());
+            let drag = ui.interact(full, ui.scope_id().with("title_drag"), Sense::click_and_drag());
             if drag.drag_started() {
                 ui.ctx().send_viewport_cmd(egui::ViewportCommand::StartDrag);
             }
@@ -456,7 +456,7 @@ fn progress_bar(ui: &mut Ui, t: &Tokens, label: &str, fraction: f32, key: &str) 
     let bar_w = SYNC_BAR.x.min(room);
     let label_w = label_w.min((room - bar_w - gap).max(0.0));
     let (r, resp) = ui.allocate_exact_size(vec2(label_w + gap + bar_w, STATUS_TEXT * 1.4), Sense::hover());
-    let key = egui::Id::new(key);
+    let key = egui::Id::unique(key);
     let before: f32 = ui.ctx().data(|d| d.get_temp(key)).unwrap_or(0.0);
     let shown = fraction.clamp(0.0, 1.0).max(before);
     ui.ctx().data_mut(|d| d.insert_temp(key, shown));
@@ -479,7 +479,7 @@ fn progress_bar(ui: &mut Ui, t: &Tokens, label: &str, fraction: f32, key: &str) 
 fn indexing_bar(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     let key = "status_index_bar";
     let mailcraft_engine::WordIndex::Building { done, total } = app.session.word_index() else {
-        ui.ctx().data_mut(|d| d.remove::<f32>(egui::Id::new(key)));
+        ui.ctx().data_mut(|d| d.remove::<f32>(egui::Id::unique(key)));
         return;
     };
     if total == 0 {
@@ -500,7 +500,7 @@ fn indexing_bar(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
 /// Forget how far the bar of the last run got, once no run is under way.
 pub(crate) fn sync_bar_rest(app: &MailApp, ctx: &egui::Context) {
     if !matches!(sync_shown(app), SyncShown::Bar { .. }) {
-        ctx.data_mut(|d| d.remove::<f32>(egui::Id::new("status_sync_bar")));
+        ctx.data_mut(|d| d.remove::<f32>(egui::Id::unique("status_sync_bar")));
     }
 }
 

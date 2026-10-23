@@ -166,14 +166,15 @@ fn the_maintainers_address_is_funding_jsons() {
 
 /// The whole window, kept for clicking.
 fn window(a: MailApp) -> egui_kittest::Harness<'static, MailApp> {
-    let mut h = egui_kittest::Harness::builder().with_size(egui::vec2(1280.0, 800.0)).build_ui_state(
-        |ui, app: &mut MailApp| {
-            let ctx = ui.ctx().clone();
-            app.logic(&ctx);
-            app.ui(ui);
-        },
-        a,
-    );
+    let mut h =
+        egui_kittest::Harness::builder().with_accessibility_check(false).allow_missing_glyphs().with_size(egui::vec2(1280.0, 800.0)).build_ui_state(
+            |ui, app: &mut MailApp| {
+                let ctx = ui.ctx().clone();
+                app.logic(&ctx);
+                app.ui(ui);
+            },
+            a,
+        );
     h.run_steps(3);
     h
 }

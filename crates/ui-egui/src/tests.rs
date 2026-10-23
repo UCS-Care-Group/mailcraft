@@ -23,14 +23,15 @@ fn first_message(app: &mut MailApp) -> u64 {
 
 /// Lay out `frames` frames of the whole window at `size`.
 fn frames(app: MailApp, size: (f32, f32), frames: usize) -> MailApp {
-    let mut harness = egui_kittest::Harness::builder().with_size(egui::vec2(size.0, size.1)).build_ui_state(
-        |ui, app: &mut MailApp| {
-            let ctx = ui.ctx().clone();
-            app.logic(&ctx);
-            app.ui(ui);
-        },
-        app,
-    );
+    let mut harness =
+        egui_kittest::Harness::builder().with_accessibility_check(false).allow_missing_glyphs().with_size(egui::vec2(size.0, size.1)).build_ui_state(
+            |ui, app: &mut MailApp| {
+                let ctx = ui.ctx().clone();
+                app.logic(&ctx);
+                app.ui(ui);
+            },
+            app,
+        );
     for _ in 0..frames {
         harness.step();
     }
@@ -293,14 +294,18 @@ fn about_credits_the_contributors() {
     for (id, params) in [("ui.dialog", json!({"name": "about"})), ("ui.backstage", json!({"value": true, "page": "about"}))] {
         let mut a = app();
         a.execute(id, params).unwrap();
-        let mut harness = egui_kittest::Harness::builder().with_size(egui::vec2(1280.0, 800.0)).build_ui_state(
-            |ui, app: &mut MailApp| {
-                let ctx = ui.ctx().clone();
-                app.logic(&ctx);
-                app.ui(ui);
-            },
-            a,
-        );
+        let mut harness = egui_kittest::Harness::builder()
+            .with_accessibility_check(false)
+            .allow_missing_glyphs()
+            .with_size(egui::vec2(1280.0, 800.0))
+            .build_ui_state(
+                |ui, app: &mut MailApp| {
+                    let ctx = ui.ctx().clone();
+                    app.logic(&ctx);
+                    app.ui(ui);
+                },
+                a,
+            );
         harness.run_steps(4);
         assert!(harness.query_by_label_contains("Made by its contributors").is_some(), "{id}");
         assert!(harness.query_by_label_contains("github.com/UCS-Care-Group/mailcraft/graphs/contributors").is_some(), "{id}");
@@ -316,14 +321,18 @@ fn about_thanks_the_testers() {
         let mut a = app();
         a.execute("ui.dialog", params.clone()).unwrap();
         assert_eq!(a.dialog.as_ref().map(|d| d.name()), Some("testers"), "{params}");
-        let mut harness = egui_kittest::Harness::builder().with_size(egui::vec2(1280.0, 800.0)).build_ui_state(
-            |ui, app: &mut MailApp| {
-                let ctx = ui.ctx().clone();
-                app.logic(&ctx);
-                app.ui(ui);
-            },
-            a,
-        );
+        let mut harness = egui_kittest::Harness::builder()
+            .with_accessibility_check(false)
+            .allow_missing_glyphs()
+            .with_size(egui::vec2(1280.0, 800.0))
+            .build_ui_state(
+                |ui, app: &mut MailApp| {
+                    let ctx = ui.ctx().clone();
+                    app.logic(&ctx);
+                    app.ui(ui);
+                },
+                a,
+            );
         harness.run_steps(4);
         assert!(harness.query_by_label_contains("tell us what goes wrong. Thank you.").is_some(), "{params}");
         if crate::credits::TESTERS.is_empty() {
@@ -370,14 +379,15 @@ fn a_large_mailbox_lays_out() {
 
 /// The whole window in a harness that is kept, for tests that click and look at the result.
 fn window(app: MailApp) -> egui_kittest::Harness<'static, MailApp> {
-    let mut harness = egui_kittest::Harness::builder().with_size(egui::vec2(1280.0, 800.0)).build_ui_state(
-        |ui, app: &mut MailApp| {
-            let ctx = ui.ctx().clone();
-            app.logic(&ctx);
-            app.ui(ui);
-        },
-        app,
-    );
+    let mut harness =
+        egui_kittest::Harness::builder().with_accessibility_check(false).allow_missing_glyphs().with_size(egui::vec2(1280.0, 800.0)).build_ui_state(
+            |ui, app: &mut MailApp| {
+                let ctx = ui.ctx().clone();
+                app.logic(&ctx);
+                app.ui(ui);
+            },
+            app,
+        );
     harness.run_steps(3);
     harness
 }

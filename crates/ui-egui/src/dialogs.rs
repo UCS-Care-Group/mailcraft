@@ -808,7 +808,7 @@ fn score(query: &str, label: &str, location: &str, id: &str) -> Option<u32> {
 pub(crate) fn window(ctx: &egui::Context, title: &str, width: f32, add: impl FnOnce(&mut Ui)) -> bool {
     let mut open = true;
     egui::Window::new(egui::RichText::new(title).font(semibold(14.0)))
-        .id(egui::Id::new("dialog"))
+        .id(egui::Id::unique("dialog"))
         .open(&mut open)
         .collapsible(false)
         .resizable(false)
@@ -848,7 +848,7 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
     let t = Tokens::get(ctx);
     // A scrim: what is behind the dialog is out of reach until it is answered.
     let screen = ctx.content_rect();
-    egui::Area::new(egui::Id::new("dialog_scrim")).order(egui::Order::Middle).fixed_pos(screen.min).show(ctx, |ui| {
+    egui::Area::new(egui::Id::unique("dialog_scrim")).order(egui::Order::Middle).fixed_pos(screen.min).show(ctx, |ui| {
         let resp = ui.allocate_response(screen.size(), egui::Sense::click());
         ui.painter().rect_filled(screen, 0.0, egui::Color32::from_black_alpha(if t.dark { 110 } else { 60 }));
         resp
@@ -1331,7 +1331,7 @@ pub(crate) fn unsaved_changes(ctx: &egui::Context, hit: &mut crate::control::Hit
     };
     let frame = egui::Frame::window(&ctx.global_style()).fill(t.surface).inner_margin(egui::Margin::same(16));
     let width = (ctx.content_rect().width() - 48.0).clamp(120.0, 420.0);
-    egui::Modal::new(egui::Id::new(("unsaved-changes", window)))
+    egui::Modal::new(egui::Id::unique(("unsaved-changes", window)))
         .frame(frame)
         .backdrop_color(egui::Color32::from_black_alpha(if t.dark { 110 } else { 60 }))
         .show(ctx, |ui| {

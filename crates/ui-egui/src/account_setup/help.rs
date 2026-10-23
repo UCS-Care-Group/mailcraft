@@ -467,7 +467,7 @@ fn step(ui: &mut Ui, t: &Tokens, title: &str, detail: &str) -> Response {
     let (r, resp) = ui.allocate_exact_size(vec2(width, height), Sense::click());
     // Known by what it says to whoever can't see it painted: the sentence about it is part of that.
     let label = if detail.is_empty() { title.to_string() } else { format!("{title}. {detail}") };
-    resp.widget_info(|| WidgetInfo::labeled(WidgetType::Button, true, &label));
+    resp.widget_info(|| WidgetInfo::labeled(Role::Button, true, &label));
     let lit = resp.hovered() || resp.has_focus();
     ui.painter().rect(r, 6.0, if lit { t.hover } else { t.panel }, Stroke::new(1.0, if lit { t.accent } else { t.border }), StrokeKind::Inside);
     paint_clipped(ui.painter(), pos2(r.min.x + 12.0, r.min.y + 17.0), r.width() - 24.0, title, semibold(13.0), t.accent_text);
