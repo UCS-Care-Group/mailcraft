@@ -1127,6 +1127,19 @@ impl Mailbox {
         v
     }
 
+    /// The folder is an Outbox or lies under one: mail put there is sent by the next Send/Receive.
+    pub fn is_send_queue(&self, id: Id) -> bool {
+        let mut cur = Some(id);
+        for _ in 0..=self.folders.len() {
+            let Some(f) = cur.and_then(|c| self.folder(c)) else { return false };
+            if f.kind == FolderKind::Outbox {
+                return true;
+            }
+            cur = f.parent;
+        }
+        false
+    }
+
     /// A folder and everything under it.
     pub fn subtree(&self, id: Id) -> Vec<Id> {
         let mut out = vec![id];
@@ -1811,8 +1824,11 @@ impl Mailbox {
             for action in &rule.actions {
                 match action {
                     Action::MoveTo(folder) => {
-                        // A rule pointing at a folder that is gone does nothing.
-                        let _ = self.move_message(id, *folder);
+                        // A rule pointing at a folder that is gone does nothing, and none puts
+                        // mail into a send queue (the next Send/Receive would send it).
+                        if !self.is_send_queue(*folder) {
+                            let _ = self.move_message(id, *folder);
+                        }
                     }
                     Action::Delete => {
                         let _ = self.delete_message(id);
