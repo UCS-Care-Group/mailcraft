@@ -125,6 +125,10 @@ Read [CONTRIBUTING.md](CONTRIBUTING.md) and [AGENTS.md](AGENTS.md) first (it is 
 
 **Want to test it on your own mail?** [Sign up as a tester](https://github.com/UCS-Care-Group/mailcraft/issues/new?template=tester-signup.yml), for the alpha now or the beta later.
 
+## Supporting MailCraft
+
+MailCraft is stewarded by UCS Care Group. You can support it through [GitHub Sponsors](https://github.com/sponsors/UCS-Care-Group), or, for an organisation, by bank transfer against an invoice ([funding.json](funding.json) lists what funding pays for).
+
 ## License
 
 MailCraft is dual-licensed under the [MIT License](LICENSE-MIT) or the [Apache License, Version 2.0](LICENSE-APACHE), at your option. Contributors sign a [Contributor Licence Agreement](CLA.md) once; they keep their copyright. Bundled fonts keep their own open licences; see [NOTICE](NOTICE) and [ATTRIBUTION.md](ATTRIBUTION.md). MailCraft is not affiliated with Microsoft; Outlook is a trademark of Microsoft Corporation, named here only to say what MailCraft is an alternative to.
