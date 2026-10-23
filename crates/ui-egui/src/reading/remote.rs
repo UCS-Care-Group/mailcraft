@@ -8,7 +8,9 @@
 //! pictures" for the message at hand (it holds until the program closes), "Always download
 //! pictures from" its sender or from everybody at its sender's domain (remembered in the
 //! settings), or the switch in File › Options that downloads them for all mail (off unless the
-//! owner turns it on). The last three do not hold for what is in Junk E-mail.
+//! owner turns it on). The last three do not hold for what is in Junk E-mail (or under it). A
+//! remembered sender or domain holds only for a message the receiving server vouches for
+//! ([`vouched`]): a `From:` line is anybody's to write.
 //!
 //! This crate opens no connections and keeps no files. It hands an address to the host
 //! ([`Services::pictures`]) and takes back bytes or a refusal; the host is the one that checks
@@ -32,7 +34,7 @@ use std::sync::Arc;
 use std::sync::mpsc::{Receiver, TryRecvError};
 
 use egui::{Color32, Sense, Stroke, Ui, vec2};
-use mailcraft_model::{FolderKind, Id, Message};
+use mailcraft_model::{Account, AccountKind, Id, Message, provider};
 use serde_json::{Value, json};
 
 use super::Place;
@@ -58,6 +60,11 @@ pub const MAX_DOMAINS: usize = 500;
 /// Longest address of a sender that is remembered, and the longest domain.
 const MAX_SENDER_LEN: usize = 320;
 const MAX_DOMAIN_LEN: usize = 253;
+/// How many of a message's headers are looked through for the server's verdict, and how many
+/// words of it.
+const MAX_HEADERS_READ: usize = 2_000;
+const MAX_TOKENS: usize = 200;
+const MAX_HEADER_CHARS: usize = 4_000;
 /// Most messages the owner asked pictures for that are kept track of.
 const MAX_ASKED: usize = 500;
 /// Most messages whose share of the downloading is kept track of.
@@ -186,21 +193,24 @@ impl RemotePictures {
 /// A sender's address as it is remembered; `None` for what is no address.
 fn sender(text: &str) -> Option<String> {
     let text = text.trim();
-    let plain = text.len() <= MAX_SENDER_LEN && text.contains('@') && !text.chars().any(|c| c.is_whitespace() || c.is_control());
-    (plain && text.len() >= 3).then(|| text.to_lowercase())
+    // ASCII only, folded as ASCII: Unicode lower-casing maps some letters (the Kelvin sign) onto
+    // ASCII ones, which would let a lookalike address stand for a remembered one.
+    let plain = text.is_ascii() && text.len() <= MAX_SENDER_LEN && text.contains('@') && !text.chars().any(|c| c.is_whitespace() || c.is_control());
+    (plain && text.len() >= 3).then(|| text.to_ascii_lowercase())
 }
 
 /// A domain as it is remembered: what follows the `@` of an address (or the whole of `text`,
-/// with or without an `@` in front), in lower case; `None` for what is no domain.
+/// with or without an `@` in front), in ASCII lower case; `None` for what is no domain (a name
+/// with a letter outside ASCII is written the way it goes over the wire, `xn--…`, to be one).
 fn domain(text: &str) -> Option<String> {
     let text = text.trim();
     let name = text.rsplit_once('@').map_or(text, |(_, name)| name).trim_end_matches('.');
     let plain = !name.is_empty()
         && name.len() <= MAX_DOMAIN_LEN
-        && name.chars().all(|c| c.is_alphanumeric() || matches!(c, '-' | '.'))
+        && name.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '.'))
         && !name.starts_with(['.', '-'])
         && !name.contains("..");
-    plain.then(|| name.to_lowercase())
+    plain.then(|| name.to_ascii_lowercase())
 }
 
 /// Whether pictures from `address` are always downloaded.
@@ -215,9 +225,99 @@ pub fn domain_remembered(ui: &UiState, address: &str) -> bool {
     ui.picture_domains.iter().take(MAX_DOMAINS).any(|kept| domain(kept).is_some_and(|kept| kept == of_sender))
 }
 
-/// Whether `m` is in an account's Junk E-mail folder.
+/// Whether `m` is in an account's Junk E-mail folder or under it.
 fn in_junk(app: &MailApp, m: &Message) -> bool {
-    app.session.mailbox.folder(m.folder).is_some_and(|f| f.kind == FolderKind::Junk)
+    app.session.mailbox.in_junk(m.folder)
+}
+
+/// Two-label public suffixes a host's domain must not be cut down to. ponytail: a short list of
+/// the common ones, not the Public Suffix List; a rarer one lets an id under that suffix match
+/// a mail host sitting directly under it.
+const TWO_LABEL_SUFFIXES: &[&str] = &[
+    "co.uk", "org.uk", "ac.uk", "gov.uk", "me.uk", "com.au", "net.au", "org.au", "co.nz", "co.jp", "co.za", "com.br", "com.cn", "co.in", "com.mx",
+    "com.tr", "co.kr", "com.sg", "com.hk",
+];
+
+/// The authserv-id (RFC 8601) an `Authentication-Results` value starts with: the first word before
+/// the first `;`, after comments, ignoring an optional version number. `None` when the value
+/// starts with a result instead (Exchange Online writes no id), or the id is no host name.
+fn authserv_id(value: &str) -> Option<String> {
+    let mut plain = String::new();
+    let mut depth = 0usize;
+    for c in value.chars().take(MAX_HEADER_CHARS) {
+        match c {
+            '(' => depth = depth.saturating_add(1),
+            ')' => depth = depth.saturating_sub(1),
+            ';' if depth == 0 => break,
+            c if depth == 0 => plain.push(c),
+            _ => {}
+        }
+    }
+    let first = plain.split_whitespace().next()?;
+    if first.contains('=') { None } else { domain(first) }
+}
+
+/// Whether the topmost `Authentication-Results` header of `m` was written by `account`'s own
+/// server: any header for a Microsoft account (Exchange Online puts its own on top, with no id),
+/// and for another account one whose authserv-id is a known id of its IMAP host's provider
+/// (`provider::authserv_ids`), or the IMAP host's domain one label up, or a name under that.
+/// Anything else is not known to be the account's server's.
+fn from_own_server(account: Option<&Account>, value: &str) -> bool {
+    let Some(account) = account else { return false };
+    let host = account.incoming.as_ref().map(|server| server.host.trim().trim_end_matches('.').to_ascii_lowercase());
+    if account.kind == AccountKind::Microsoft || host.as_deref().is_some_and(provider::is_microsoft_imap_host) {
+        return true;
+    }
+    let (Some(host), Some(id)) = (host, authserv_id(value)) else { return false };
+    if provider::authserv_ids(&host).contains(&id.as_str()) {
+        return true;
+    }
+    let Some((_, rest)) = host.split_once('.') else { return false };
+    rest.split('.').count() >= 2
+        && !TWO_LABEL_SUFFIXES.contains(&rest)
+        && (id == rest || id.strip_suffix(rest).is_some_and(|head| head.ends_with('.')))
+}
+
+/// Whether the server that received `m` vouches that it came from the domain it says it did:
+/// the topmost `Authentication-Results` header (the receiving server puts its own on top; the
+/// ones below were written before it), written by the server of the account `m` is in
+/// ([`from_own_server`]), holds `dmarc=pass` (or Exchange Online's `compauth=pass`), and, when
+/// it names the `header.from` it judged, that is the sender's domain. A header the sender
+/// could have written is not read.
+pub fn vouched(account: Option<&Account>, m: &Message) -> bool {
+    let Some((_, value)) = m.headers.iter().take(MAX_HEADERS_READ).find(|(name, _)| name.eq_ignore_ascii_case("Authentication-Results")) else {
+        return false;
+    };
+    if !from_own_server(account, value) {
+        return false;
+    }
+    let mut passed = false;
+    let mut of_domain: Option<String> = None;
+    for token in value.split(|c: char| c.is_whitespace() || c == ';').take(MAX_TOKENS) {
+        let token = token.trim_matches(['(', ')', ',']);
+        if token.eq_ignore_ascii_case("dmarc=pass") || token.eq_ignore_ascii_case("compauth=pass") {
+            passed = true;
+        } else if let Some((key, name)) = token.split_once('=')
+            && key.eq_ignore_ascii_case("header.from")
+        {
+            of_domain = domain(name);
+        }
+    }
+    let sender_domain = sender(&m.from.email).and_then(|address| domain(&address));
+    passed && sender_domain.is_some() && of_domain.as_ref().is_none_or(|named| Some(named) == sender_domain.as_ref())
+}
+
+/// Whether a remembered sender or domain stands for `m`'s sender, and the server vouches for it.
+fn remembered_and_vouched(app: &MailApp, m: &Message) -> bool {
+    (sender_remembered(&app.ui, &m.from.email) || domain_remembered(&app.ui, &m.from.email)) && vouched(app.session.mailbox.account(m.account), m)
+}
+
+/// A remembered sender or domain stands for `m`'s sender but nothing vouches for the address.
+fn remembered_unvouched(app: &MailApp, m: &Message) -> bool {
+    !in_junk(app, m)
+        && !app.ui.download_pictures
+        && (sender_remembered(&app.ui, &m.from.email) || domain_remembered(&app.ui, &m.from.email))
+        && !vouched(app.session.mailbox.account(m.account), m)
 }
 
 /// Whether this build can download pictures at all.
@@ -231,8 +331,7 @@ pub fn access(app: &MailApp, m: &Message) -> Access {
         return Access::Unavailable;
     }
     // What lands in Junk E-mail is trusted by nobody's say-so but the owner's, message by message.
-    let trusted =
-        !in_junk(app, m) && (app.ui.download_pictures || sender_remembered(&app.ui, &m.from.email) || domain_remembered(&app.ui, &m.from.email));
+    let trusted = !in_junk(app, m) && (app.ui.download_pictures || remembered_and_vouched(app, m));
     if trusted || app.remote_pictures.asked.contains(&mark(m)) { Access::Allowed } else { Access::Blocked }
 }
 
@@ -394,6 +493,11 @@ pub fn line(app: &mut MailApp, ui: &mut Ui, m: &Message, doc: &Doc, access: Acce
         Access::Unavailable => {
             (tl!("Pictures not shown.").to_string(), tl!("This message has pictures on the web. This build can't download them.").to_string(), false)
         }
+        Access::Blocked if remembered_unvouched(app, m) => (
+            tl!("Pictures not downloaded.").to_string(),
+            tl!("You always download this sender's pictures, but the mail server didn't confirm that this message came from them, so it is asked first.").to_string(),
+            false,
+        ),
         Access::Blocked => (
             tl!("Pictures not downloaded.").to_string(),
             tl!("They are on the web, and fetching them would tell the sender that you opened this message.").to_string(),
@@ -448,8 +552,9 @@ pub fn line(app: &mut MailApp, ui: &mut Ui, m: &Message, doc: &Doc, access: Acce
             if download.clicked() {
                 let _ = app.run("ui.downloadPictures", json!({"message": m.id}));
             }
-            // Remembering a sender does nothing for what is in Junk E-mail, so it is not offered there.
-            let Some(from) = sender(&m.from.email).filter(|_| !in_junk(app, m)) else { return };
+            // Remembering a sender does nothing for what is in Junk E-mail, nor for a message the
+            // server doesn't vouch for, so it is not offered there.
+            let Some(from) = sender(&m.from.email).filter(|_| !in_junk(app, m) && vouched(app.session.mailbox.account(m.account), m)) else { return };
             let label = crate::i18n::fmt(tl!("Always download pictures from {sender}"), &[("sender", &short(&from, 60))]);
             let always = action(ui, label, tl!("Remembered in the settings; File › Options lists the senders and takes them off again."));
             if place == Place::Pane {
@@ -634,7 +739,15 @@ fn always(app: &mut MailApp, p: &Value) -> Result<Value, String> {
         None | Some(Value::Null) => subject(app, p)?.from.email.clone(),
         Some(text) => text.as_str().ok_or_else(|| "`sender` is an address".to_string())?.to_string(),
     };
-    let Some(address) = sender(&named) else { return Err(tl!("That is not a sender's address").to_string()) };
+    let Some(address) = sender(&named) else {
+        // An entry from before addresses were kept in ASCII only can still be taken off.
+        let old = named.trim();
+        if !on && !old.is_empty() && old.len() <= MAX_SENDER_LEN {
+            app.ui.picture_senders.retain(|other| other.trim().to_lowercase() != old.to_lowercase());
+            return Ok(json!({"sender": old, "value": false, "senders": app.ui.picture_senders.len()}));
+        }
+        return Err(tl!("That is not a sender's address").to_string());
+    };
     let kept = &mut app.ui.picture_senders;
     kept.retain(|other| !other.trim().eq_ignore_ascii_case(&address));
     kept.truncate(MAX_SENDERS);

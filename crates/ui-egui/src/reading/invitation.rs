@@ -406,6 +406,18 @@ pub(crate) fn ui_command(app: &mut MailApp, id: &str, p: &Value) -> Option<Resul
     Some(look_for(app, &ctx, message, &info, true).map(|()| json!({"message": message, "asked": true})))
 }
 
+/// A person as the bar shows them: `Name <address>`, the address always whole (it is what an
+/// answer is mailed to), the name cut to fit and free of control characters.
+fn person_text(who: &Person) -> String {
+    let clean = |text: &str, max: usize| text.chars().filter(|c| !c.is_control()).take(max).collect::<String>();
+    let (name, email) = (clean(who.name.trim(), 80), clean(who.email.trim(), 254));
+    match (name.is_empty(), email.is_empty()) {
+        (_, true) => name,
+        (true, false) => email,
+        (false, false) => format!("{name} <{email}>"),
+    }
+}
+
 // ---- the question a plain click on an answer asks ----
 
 /// What a user-run `calendar.respond` for a message is asked first: whether the organizer is to
@@ -426,10 +438,14 @@ pub(crate) fn question(app: &mut MailApp, id: &str, params: &Value) -> Option<Op
     if !info.answerable || !info.can_send {
         return Some(None);
     }
-    let organizer = info.people.organizer.as_ref().map(|who| who.name.trim().chars().take(80).collect::<String>()).filter(|who| !who.is_empty());
+    // Who the answer goes to, by name and by address: the name is anything the sender wrote.
+    let organizer = info.people.organizer.as_ref().map(person_text).filter(|who| !who.is_empty());
     let who = organizer.unwrap_or_else(|| tl!("Somebody else").to_string());
     let lead = crate::i18n::fmt(tl!("{name} organizes this meeting; you are invited to it."), &[("name", &who)]);
-    let text = format!("{lead} {}", tl!("Send your answer to the organizer? You can write a note to go with it."));
+    let mut text = format!("{lead} {}", tl!("Send your answer to the organizer? You can write a note to go with it."));
+    if !info.from_organizer {
+        text = format!("{text} {}", tl!("This message didn't come from the address of the meeting's organizer."));
+    }
     Some(Some(Question {
         title: tl!("Send a Response?").to_string(),
         text,
@@ -632,6 +648,11 @@ fn headlines(app: &MailApp, info: &Info) -> Vec<(&'static str, String, bool)> {
                 Some("organizer") => lines.push(("meeting", tl!("You organize this meeting: there is nothing to answer.").to_string(), false)),
                 Some("past") => lines.push(("clock", tl!("This meeting is over.").to_string(), false)),
                 Some("readOnly") => lines.push(("private", tl!("This meeting is in a calendar that can't be changed from here.").to_string(), false)),
+                Some("mismatch") => lines.push((
+                    "info",
+                    tl!("A meeting on your calendar has this ID but another organizer, so this invitation can't change it.").to_string(),
+                    false,
+                )),
                 Some("incomplete") => {
                     lines.push(("info", tl!("This invitation doesn't say which meeting it is about, so it can't be answered.").to_string(), false))
                 }
@@ -640,6 +661,10 @@ fn headlines(app: &MailApp, info: &Info) -> Vec<(&'static str, String, bool)> {
                 None if info.update => lines.push(("sync", tl!("The organizer has changed this meeting.").to_string(), info.answered.is_none())),
                 None if info.answered.is_none() => lines.push(("meetingRequest", tl!("You haven't answered this invitation yet.").to_string(), true)),
                 None => {}
+            }
+            // An answer goes to the organizer, whoever sent the message.
+            if !info.from_organizer {
+                lines.push(("info", tl!("This message didn't come from the address of the meeting's organizer.").to_string(), false));
             }
             if info.occurrence.is_some() {
                 lines.push(("recurrence", tl!("This is about one occurrence of a series.").to_string(), false));
@@ -1019,7 +1044,7 @@ fn details(app: &MailApp, ui: &mut Ui, t: &Tokens, info: &Info, when: Option<&Wh
         return;
     }
     if let Some(organizer) = &info.people.organizer {
-        row(ui, t, tl!("Organizer"), if organizer.name.trim().is_empty() { organizer.email.trim() } else { organizer.name.trim() }, 1, width);
+        row(ui, t, tl!("Organizer"), &person_text(organizer), 1, width);
     }
     if info.people.required_count > 0 {
         row(ui, t, tl!("Required"), &names(&info.people.required, info.people.required_count), 2, width);

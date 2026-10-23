@@ -249,6 +249,11 @@ msgstr "Eine Besprechung kann nicht in einen anderen Kalender verschoben werden:
 msgid "A meeting is forwarded to {n} people at most at once."
 msgstr "Eine Besprechung wird an höchstens {n} Personen gleichzeitig weitergeleitet."
 
+#. interface
+#: crates/ui-egui/src/reading/invitation.rs
+msgid "A meeting on your calendar has this ID but another organizer, so this invitation can't change it."
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
 #, fuzzy
@@ -1406,6 +1411,11 @@ msgstr "Namen überprüfen"
 msgid "Check Now"
 msgstr "Jetzt prüfen"
 
+#. interface
+#: crates/ui-egui/src/updates.rs
+msgid "Check daily for new versions of MailCraft, and download and install them when you quit? Only GitHub is asked; nothing about you or your mail is sent."
+msgstr ""
+
 #. command label
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
@@ -1423,12 +1433,6 @@ msgstr "Nach Updates suchen"
 #, fuzzy
 msgid "Check for new versions"
 msgstr "Nach neuen Versionen suchen"
-
-#. interface
-#: crates/ui-egui/src/updates.rs
-#, fuzzy
-msgid "Check once a day for new versions of MailCraft? Only GitHub is asked; nothing about you or your mail is sent."
-msgstr "Einmal täglich nach neuen Versionen von MailCraft suchen? Gefragt wird nur GitHub; nichts über Sie oder Ihre E-Mails wird gesendet."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -3921,7 +3925,7 @@ msgid "List Tasks"
 msgstr "Aufgaben auflisten"
 
 #. interface
-#: crates/ui-egui/src/backstage.rs
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Local mailbox"
 msgstr "Lokales Postfach"
@@ -4109,6 +4113,11 @@ msgstr "MailCraft hält es im Arbeitsspeicher, bis Sie die App schließen. Es wi
 #, fuzzy
 msgid "MailCraft looks for a new version once a day (File › Options). Only GitHub is asked."
 msgstr "MailCraft sucht einmal täglich nach einer neuen Version (Datei › Optionen). Gefragt wird nur GitHub."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "MailCraft will have no account afterwards: File › Add Account sets one up again."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -8655,6 +8664,11 @@ msgstr "Diese Einladung gibt nicht an, wann die Besprechung ist."
 msgid "This invitation doesn't say which meeting it is about, so it can't be answered."
 msgstr "Diese Einladung gibt nicht an, um welche Besprechung es geht, daher kann sie nicht beantwortet werden."
 
+#. what a command says
+#: crates/engine/src/cmd/calendar/invitation.rs
+msgid "This invitation has the ID of a meeting on your calendar but names another organizer, so it can't change that meeting."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/updates.rs
 #, fuzzy
@@ -9648,6 +9662,11 @@ msgid "You accepted this meeting."
 msgstr "Sie haben diese Besprechung zugesagt."
 
 #. interface
+#: crates/ui-egui/src/reading/remote.rs
+msgid "You always download this sender's pictures, but the mail server didn't confirm that this message came from them, so it is asked first."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/reading/invitation.rs
 #, fuzzy
 msgid "You declined this meeting."
@@ -10234,6 +10253,11 @@ msgstr "es schreibt an andere Personen oder greift auf das Web zu"
 msgid "minutes"
 msgstr "Minuten"
 
+#. why a command can't run
+#: crates/engine/src/cmd/calendar/invitation.rs
+msgid "mismatch"
+msgstr ""
+
 #. name
 #: crates/model/src/calendar.rs
 #, fuzzy
@@ -10655,12 +10679,6 @@ msgid "the folder this message is in isn't on this computer any more"
 msgstr "der Ordner dieser Nachricht ist nicht mehr auf diesem Computer"
 
 #. what a command says
-#: crates/engine/src/cmd/account.rs
-#, fuzzy
-msgid "the last account can't be removed"
-msgstr "das letzte Konto kann nicht entfernt werden"
-
-#. what a command says
 #: crates/engine/src/cmd/calendar.rs
 #, fuzzy
 msgid "the last calendar can't be deleted"
@@ -10833,6 +10851,11 @@ msgstr "es gibt zu viele Signaturen"
 #, fuzzy
 msgid "there is already a signature named \"{to}\""
 msgstr "es gibt bereits eine Signatur namens „{to}“"
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+msgid "there is no account to remove"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/graph_switch.rs
@@ -11934,6 +11957,14 @@ msgstr "{why}, daher werden Anmeldungen nicht gespeichert: MailCraft fragt bei j
 #, fuzzy
 msgid "{why}. {n} changes made in it here wait on this computer."
 msgstr "{why}. {n} hier darin vorgenommene Änderungen warten auf diesem Computer."
+
+#, fuzzy
+#~ msgid "the last account can't be removed"
+#~ msgstr "das letzte Konto kann nicht entfernt werden"
+
+#, fuzzy
+#~ msgid "Check once a day for new versions of MailCraft? Only GitHub is asked; nothing about you or your mail is sent."
+#~ msgstr "Einmal täglich nach neuen Versionen von MailCraft suchen? Gefragt wird nur GitHub; nichts über Sie oder Ihre E-Mails wird gesendet."
 
 #, fuzzy
 #~ msgid "Updating the calendar and contacts…"

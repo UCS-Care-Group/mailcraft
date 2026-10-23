@@ -2782,8 +2782,8 @@ impl MailApp {
         out
     }
 
-    /// Keep what a Send/Receive said went wrong (and put it in the log); a run without problems
-    /// clears what was kept for its account.
+    /// Keep what a Send/Receive said went wrong (the log gets only how many); a run without
+    /// problems clears what was kept for its account.
     fn note_sync_problems(&mut self, account: Id, errors: &[String], finished: bool) {
         if errors.is_empty() {
             if finished {
@@ -2791,9 +2791,9 @@ impl MailApp {
             }
             return;
         }
-        for e in errors {
-            log::warn!("send/receive, account {account}: {e}");
-        }
+        // The lines name subjects, addresses and folders: they are for the owner to read in the
+        // problems report, and the log says only how many there were.
+        log::warn!("send/receive, account {account}: {} problem(s) reported", errors.len());
         self.keep_sync_problems(account, errors);
     }
 
@@ -3767,5 +3767,7 @@ pub fn now_ms() -> f64 {
     }
 }
 
+#[cfg(test)]
+mod privacy_tests;
 #[cfg(test)]
 mod tests;

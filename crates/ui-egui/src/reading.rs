@@ -229,7 +229,10 @@ pub(crate) fn show_quote(app: &mut MailApp, ui: &mut Ui) {
     let Some(m) = quote_message(app, &ctx) else { return };
     remote::tick(app, &ctx);
     let doc = view::doc_where(&ctx, &m, Place::Quote, remote::available(app));
-    let access = if doc.remote.is_empty() { Access::Blocked } else { remote::access(app, &m) };
+    // A quote whose original isn't known (a reopened draft, an original since deleted) has no
+    // folder or sender to judge by: it never fetches anything.
+    let known = app.session.compose.as_ref().and_then(|c| c.source).is_some_and(|id| app.session.mailbox.messages.contains_key(&id));
+    let access = if doc.remote.is_empty() || !known { Access::Blocked } else { remote::access(app, &m) };
     if access == Access::Allowed {
         remote::want(app, &ctx, &m, &doc);
     }
@@ -328,10 +331,26 @@ fn header(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Place, pictur
                         ui.add_space(8.0);
                         fields.add(ui, select::Field::Date, egui::Label::new(egui::RichText::new(when).font(regular(11.5)).color(t.text_dim)));
                         ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
-                            let name = egui::RichText::new(m.from.display()).font(semibold(13.0)).color(t.text);
-                            fields.add(ui, select::Field::Sender, egui::Label::new(name).truncate());
+                            // The address is what the sender really is: it gets its room first, and a
+                            // long name is cut short instead (and a name that looks like an address
+                            // is marked, as it may be passing for one).
+                            let address_text = format!("<{}>", m.from.email);
+                            let room = ui.available_width();
+                            let address_w = if m.from.name.is_empty() {
+                                0.0
+                            } else {
+                                ui.painter().layout_no_wrap(address_text.clone(), regular(11.5), t.text_dim).size().x.min(room * 0.8)
+                            };
+                            let name_w = (room - address_w - ui.spacing().item_spacing.x).max(room * 0.2);
+                            let looks_like_address = m.from.name.contains('@');
+                            let name =
+                                egui::RichText::new(m.from.display()).font(semibold(13.0)).color(if looks_like_address { t.orange } else { t.text });
+                            ui.scope(|ui| {
+                                ui.set_max_width(name_w);
+                                fields.add(ui, select::Field::Sender, egui::Label::new(name).truncate());
+                            });
                             if !m.from.name.is_empty() {
-                                let address = egui::RichText::new(format!("<{}>", m.from.email)).font(regular(11.5)).color(t.text_dim);
+                                let address = egui::RichText::new(address_text).font(regular(11.5)).color(t.text_dim);
                                 fields.add(ui, select::Field::Address, egui::Label::new(address).truncate());
                             }
                         });

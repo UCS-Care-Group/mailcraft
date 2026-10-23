@@ -16,6 +16,18 @@ fn mail(folder: Id, subject: &str, date: i64) -> Message {
 }
 
 #[test]
+fn junk_includes_its_subfolders() {
+    let (mut mb, account) = mailbox();
+    let junk = mb.folder_of_kind(account, FolderKind::Junk).unwrap();
+    let inbox = mb.inbox().unwrap();
+    let sub = mb.add_folder(account, Some(junk), "Sorted").unwrap();
+    let deeper = mb.add_folder(account, Some(sub), "Older").unwrap();
+    let elsewhere = mb.add_folder(account, Some(inbox), "Sorted").unwrap();
+    assert!([junk, sub, deeper].iter().all(|f| mb.in_junk(*f)));
+    assert!(![inbox, elsewhere, 9_999].iter().any(|f| mb.in_junk(*f)));
+}
+
+#[test]
 fn a_new_account_has_the_standard_folders_and_a_calendar() {
     let (mb, account) = mailbox();
     let names: Vec<&str> = mb.children(account, None).iter().map(|f| f.name.as_str()).collect();

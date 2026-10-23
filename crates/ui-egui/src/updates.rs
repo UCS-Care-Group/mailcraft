@@ -530,7 +530,9 @@ pub(crate) fn question(app: &mut MailApp, ui: &mut Ui) {
             let _ = app.run("ui.dismissUpdateNotice", json!({"notice": "installsItself"}));
         });
     } else if app.updates.asking {
-        let said = tl!("Check once a day for new versions of MailCraft? Only GitHub is asked; nothing about you or your mail is sent.");
+        let said = tl!(
+            "Check daily for new versions of MailCraft, and download and install them when you quit? Only GitHub is asked; nothing about you or your mail is sent."
+        );
         bar(app, ui, "update_question", said, &[("updateYes", tl!("Yes"), true), ("updateNo", tl!("No"), false)], |app, which| {
             let _ = app.run("ui.updateCheck", json!({"value": which == "updateYes"}));
         });
