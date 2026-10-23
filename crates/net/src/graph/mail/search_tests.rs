@@ -292,3 +292,12 @@ proptest! {
         let _ = ask(&server.url(""), &request("owner@example.org", false, "", "budget"));
     }
 }
+
+/// #301: an address that starts with a mark is sent in quotes, so the server does not read it as
+/// query syntax; one that starts with a letter or digit goes as it is.
+#[test]
+fn an_address_starting_with_a_mark_is_sent_quoted() {
+    assert_eq!(search_value("from:_ada@example.org").as_deref(), Some(r#""from:\"_ada@example.org\"""#));
+    assert_eq!(search_value("from:'ada@example.org").as_deref(), Some(r#""from:\"'ada@example.org\"""#));
+    assert_eq!(search_value("from:1ada@example.org").as_deref(), Some(r#""from:1ada@example.org""#));
+}
