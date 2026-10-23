@@ -220,7 +220,6 @@ const SAFE: &[&str] = &[
     "calendar.newMeeting",
     "calendar.edit",
     "calendar.move",
-    "calendar.delete",
     "calendar.select",
     "calendar.get",
     "calendar.list",
@@ -249,7 +248,6 @@ const SAFE: &[&str] = &[
     // People and tasks.
     "people.new",
     "people.edit",
-    "people.delete",
     "people.select",
     "people.get",
     "people.list",
@@ -260,7 +258,6 @@ const SAFE: &[&str] = &[
     "people.fromMessage",
     "tasks.new",
     "tasks.edit",
-    "tasks.delete",
     "tasks.complete",
     "tasks.select",
     "tasks.get",
@@ -269,7 +266,6 @@ const SAFE: &[&str] = &[
     "tasks.fromMessage",
     "category.set",
     "category.rename",
-    "category.remove",
     "category.list",
     "account.list",
     "account.offlineSize",
@@ -303,7 +299,6 @@ const SAFE: &[&str] = &[
     "ui.clearPictureCache",
     "ui.copySelection",
     "ui.selectAllInMessage",
-    "ui.copyDiagnostics",
     // (Refused by the window itself unless the owner has the daily check on.)
     "ui.checkForUpdates",
     "ui.toggleCalendarGroup",
@@ -327,6 +322,12 @@ const DELETE: &[&str] = &[
     "folder.delete",
     "folder.empty",
     "calendar.removeCalendar",
+    // Local contacts, tasks, events and categories have no Deleted Items to come back from, and
+    // undo is short-lived (a pushing sync clears it).
+    "calendar.delete",
+    "people.delete",
+    "tasks.delete",
+    "category.remove",
     "compose.discard",
     "ui.closeWindow",
 ];
@@ -420,6 +421,8 @@ const NEVER: &[&str] = &[
     "ui.goBackVersion",
     // Everything MailCraft keeps on this computer, gone (#177): only the owner's own click.
     "ui.removeAllData",
+    // The redacted log tail, and the clipboard overwritten with it.
+    "ui.copyDiagnostics",
 ];
 
 /// A command's class by id; `None`: not classified (and so refused).
@@ -499,11 +502,17 @@ pub fn no_paths(id: &str, key: &str) -> String {
 /// `id` with these params: its class, now (`"send": true`, the Outbox, Deleted Items).
 pub fn classify(s: &Session, id: &str, params: &Value) -> Access {
     let Some(base) = access(id) else { return Access::Never };
+    let sends = p::bool(params, "send") == Some(true);
+    // A cancellation sent to the people invited is the stronger question.
+    if id == "calendar.delete" && sends {
+        return Access::Owner(Class::Send);
+    }
     if base != Access::Safe {
         return base;
     }
-    let sends = p::bool(params, "send") == Some(true);
     match id {
+        // Undoing can put back the accounts, rules or signatures of before.
+        "edit.undo" | "edit.redo" => s.undo_reverts(id == "edit.redo").map_or(Access::Safe, Access::Owner),
         _ if id.starts_with("calendar.") && sends => Access::Owner(Class::Send),
         "mail.move" | "mail.copy" | "file.import" => {
             let folder = p::id(params, "folder").or(if id == "file.import" { Some(s.view.folder) } else { None });
@@ -552,9 +561,21 @@ pub fn check(s: &Session, id: &str, params: &Value, allow: &[Class]) -> Verdict 
         Access::Safe => Verdict::Run,
         Access::Never => Verdict::Refuse(format!("`{id}` isn't available to agents")),
         Access::Owner(c) if allow.contains(&c) => Verdict::Run,
-        Access::Owner(c) => Verdict::Ask(c, describe(s, id, params)),
+        Access::Owner(c) => {
+            let what = describe(s, id, params);
+            if what.chars().count() > MAX_QUESTION {
+                return Verdict::Refuse(format!(
+                    "`{id}` is too large to show the owner in a question, and the owner is never asked about what they can't read in full: do it in smaller steps"
+                ));
+            }
+            Verdict::Ask(c, what)
+        }
     }
 }
+
+/// The most characters of a question about what an agent wants (the window shows all of them;
+/// a call whose description is longer is refused rather than clipped).
+pub const MAX_QUESTION: usize = 900;
 
 /// The refusal when nobody can be asked (headless).
 pub fn needs_owner(id: &str, class: Class, what: &str) -> String {
@@ -589,9 +610,47 @@ fn messages_text(s: &Session, ids: &[Id]) -> String {
     format!("{} ({}{more})", plural(ids.len(), "{n} message", "{n} messages"), subjects.join(", "))
 }
 
-fn event_title(s: &Session, params: &Value) -> String {
-    let id = p::id(params, "id").or(s.sel.event);
-    id.and_then(|e| s.mailbox.event(e)).map(|e| quoted(&e.title)).unwrap_or_else(|| "an item of the calendar".to_string())
+/// `s` with control characters made spaces, in full.
+fn plain(s: &str) -> String {
+    s.chars().map(|c| if c.is_control() { ' ' } else { c }).collect::<String>().trim().to_string()
+}
+
+/// Up to `n` of `items`, then how many more there are.
+fn some(items: &[String], n: usize) -> String {
+    let more = items.len().saturating_sub(n);
+    let shown = items.iter().take(n).map(|x| plain(x)).collect::<Vec<_>>().join("; ");
+    if more == 0 { shown } else { format!("{shown} and {more} more") }
+}
+
+/// The addresses in a list the way params write them (`a@x; b@y`, or an array).
+fn addresses(v: Option<&Value>) -> Vec<String> {
+    let text = v.map(value_text).unwrap_or_default();
+    text.split([';', ',']).map(str::trim).filter(|x| !x.is_empty()).map(str::to_string).collect()
+}
+
+/// The event a calendar call is about: the one `params` creates, or the one it names (or that is
+/// selected), and when it starts.
+fn event_title(s: &Session, id: &str, params: &Value) -> String {
+    if matches!(id, "calendar.new" | "calendar.newMeeting") {
+        let (title, start) = (p::str(params, "title").unwrap_or(""), p::str(params, "start").unwrap_or(""));
+        let at = if start.is_empty() { String::new() } else { format!(" at {}", clip(start, 40)) };
+        return format!("the new event {}{at}", quoted(title));
+    }
+    match p::id(params, "id").or(s.sel.event).and_then(|e| s.mailbox.event(e)) {
+        Some(e) => quoted(&e.title),
+        None => "an item of the calendar".to_string(),
+    }
+}
+
+/// The people a calendar call writes to: those it names and those the event already has.
+fn invitees(s: &Session, params: &Value) -> Vec<String> {
+    let mut who = addresses(params.get("attendees"));
+    who.extend(addresses(params.get("optional")));
+    if let Some(e) = p::id(params, "id").or(s.sel.event).and_then(|e| s.mailbox.event(e)) {
+        who.extend(e.attendees.iter().map(|a| a.address.email.clone()));
+    }
+    who.dedup();
+    who
 }
 
 /// What a call would do, in a sentence that follows "An agent wants to …" (for the owner's
@@ -602,8 +661,9 @@ pub fn describe(s: &Session, id: &str, params: &Value) -> String {
     match id {
         "compose.send" => match &s.compose {
             Some(c) => {
-                let to: Vec<&str> = [c.to.as_str(), c.cc.as_str(), c.bcc.as_str()].into_iter().map(str::trim).filter(|x| !x.is_empty()).collect();
-                let to = if to.is_empty() { "nobody yet".to_string() } else { clip(&to.join("; "), 160) };
+                let to: Vec<String> =
+                    [c.to.as_str(), c.cc.as_str(), c.bcc.as_str()].into_iter().flat_map(|l| addresses(Some(&Value::String(l.to_string())))).collect();
+                let to = if to.is_empty() { "nobody yet".to_string() } else { some(&to, 12) };
                 let files = if c.attachments.is_empty() {
                     String::new()
                 } else {
@@ -630,11 +690,54 @@ pub fn describe(s: &Session, id: &str, params: &Value) -> String {
             let verb = if id == "folder.empty" { "empty" } else { "delete the folder" };
             format!("{verb} {name} and the {} in it, for good", plural(n, "{n} message", "{n} messages"))
         }
-        "calendar.forward" => format!("forward {} to {}", event_title(s, params), clip(&params.get("to").map(value_text).unwrap_or_default(), 160)),
-        "calendar.propose" => format!("propose another time for {} to its organizer", event_title(s, params)),
-        "calendar.respond" => format!("answer {} ({}) and tell its organizer", event_title(s, params), clip(st("response"), 20)),
+        "calendar.forward" => format!("forward {} to {}", event_title(s, id, params), some(&addresses(params.get("to")), 12)),
+        "calendar.propose" => format!("propose another time for {} to its organizer", event_title(s, id, params)),
+        "calendar.respond" => format!("answer {} ({}) and tell its organizer", event_title(s, id, params), clip(st("response"), 20)),
         _ if id.starts_with("calendar.") && p::bool(params, "send") == Some(true) => {
-            format!("{} ({label}) and write to the people invited", event_title(s, params))
+            let who = invitees(s, params);
+            let to = if who.is_empty() {
+                "the people it has invited".to_string()
+            } else {
+                format!("{} ({})", plural(who.len(), "{n} person", "{n} people"), some(&who, 8))
+            };
+            format!("{label}: {}, and write to {to}", event_title(s, id, params))
+        }
+        "calendar.delete" => format!("delete {} from the calendar", event_title(s, id, params)),
+        "people.delete" => {
+            let c = p::id(params, "id").or(s.sel.contact).and_then(|c| s.mailbox.contact(c));
+            format!(
+                "delete the contact {} for good; contacts don't go to Deleted Items",
+                c.map(|c| quoted(&c.name())).unwrap_or_else(|| "(none selected)".to_string())
+            )
+        }
+        "tasks.delete" => {
+            let t = p::id(params, "id").or(s.sel.task).and_then(|t| s.mailbox.task(t));
+            format!("delete the task {} for good", t.map(|t| quoted(&t.title)).unwrap_or_else(|| "(none selected)".to_string()))
+        }
+        "category.remove" => format!("delete the category {}, taking it off everything that has it", quoted(st("name"))),
+        "edit.undo" | "edit.redo" => {
+            let redo = id == "edit.redo";
+            let label = if redo { s.redo_label() } else { s.undo_label() };
+            let what = match s.undo_reverts(redo) {
+                Some(Class::Accounts) => "the accounts",
+                _ => "the rules or signatures",
+            };
+            format!("{} {}, which also puts {what} back as they were", if redo { "redo" } else { "undo" }, quoted(label.unwrap_or("the last change")))
+        }
+        "rules.add" => rule_text(s, params),
+        "rules.fromMessage" => {
+            let folder = p::id(params, "folder").filter(|f| s.mailbox.folder(*f).is_some());
+            let to = folder.map(|f| quoted(&s.mailbox.folder_path(f))).unwrap_or_else(|| "a folder".to_string());
+            let from = p::id(params, "id").or(s.sel.focus()).and_then(|m| s.mailbox.message(m)).map(|m| plain(&m.from.email)).unwrap_or_default();
+            format!("make a rule that always moves mail from {} to {to}", quoted(&from))
+        }
+        "rules.enable" | "rules.remove" => {
+            let r = p::id(params, "id").and_then(|r| s.mailbox.rules.iter().find(|r2| r2.id == r));
+            let verb = if id == "rules.remove" { "delete" } else { "switch on or off" };
+            match r {
+                Some(r) => format!("{verb} the rule {}: {}", quoted(&r.name), rule_words(s, r)),
+                None => format!("{verb} a rule that isn't there"),
+            }
         }
         "account.add" => {
             let to = crate::cmd::account::from_params(params)
@@ -680,9 +783,33 @@ pub fn describe(s: &Session, id: &str, params: &Value) -> String {
             if shown == "{}" || shown == "null" {
                 shown.clear();
             }
-            let shown = if shown.is_empty() { String::new() } else { format!(" {}", clip(&shown, 200)) };
+            // In full: `check` refuses what is too long to show, rather than a cut hiding the end.
+            let shown = if shown.is_empty() { String::new() } else { format!(" {}", plain(&shown)) };
             format!("run \u{201c}{label}\u{201d} ({id}){shown}")
         }
+    }
+}
+
+/// A rule as it would be made, in words, naming the folders by their paths.
+fn rule_words(s: &Session, r: &mailcraft_model::Rule) -> String {
+    let when = r.conditions.iter().map(|c| plain(&c.describe())).collect::<Vec<_>>().join(" and ");
+    let then = r
+        .actions
+        .iter()
+        .map(|a| match a {
+            mailcraft_model::Action::MoveTo(f) if s.mailbox.folder(*f).is_some() => format!("move it to {}", plain(&s.mailbox.folder_path(*f))),
+            mailcraft_model::Action::MoveTo(_) => "move it to a folder that is gone".to_string(),
+            other => plain(&other.describe()),
+        })
+        .collect::<Vec<_>>()
+        .join(", ");
+    format!("when {when}: {then}")
+}
+
+fn rule_text(s: &Session, params: &Value) -> String {
+    match crate::cmd::rules::rule_from_params(s, params) {
+        Ok(r) => format!("create the rule {}: {}", quoted(&r.name), rule_words(s, &r)),
+        Err(_) => "create a rule that can't be made as asked".to_string(),
     }
 }
 

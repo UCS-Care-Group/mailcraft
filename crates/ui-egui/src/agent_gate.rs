@@ -158,7 +158,7 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
     // Nothing from the control channel reaches the window while the owner is asked.
     app.synthetic.clear();
     let t = Tokens::get(ctx);
-    let what: String = a.what.chars().filter(|c| !c.is_control()).take(400).collect();
+    let what: String = a.what.chars().filter(|c| !c.is_control()).take(agent::MAX_QUESTION).collect();
     let text = crate::i18n::fmt(tl!("An agent wants to {what}."), &[("what", what.trim())]);
     let (yes_label, no_label) = verbs(a.class);
     let waiting = app.asking.len();
