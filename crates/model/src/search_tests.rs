@@ -46,6 +46,11 @@ fn a_whole_address_finds_that_address_alone() {
     let decomposed = "u\u{0308}nal@bu\u{0308}cher.example";
     assert!(finds(&format!("from:{decomposed}"), &from(decomposed)) && !finds(&format!("from:{decomposed}"), &from("unal@bucher.example")));
     assert!(finds("from:İpek@example.org", &from("i̇pek@example.org")) && finds("from:i̇pek@example.org", &from("İPEK@EXAMPLE.ORG")));
+    // An international domain in `xn--` form and in its own letters are two addresses.
+    assert!(
+        !finds("from:ada@xn--bcher-kva.example", &from("ada@bücher.example"))
+            && !finds("from:ada@bücher.example", &from("ada@xn--bcher-kva.example"))
+    );
     // A message with no sender address is found by no address.
     assert!(!finds("from:ada@example.org", &from("")) && !finds("from:ada@example.org", &Message::default()));
 }

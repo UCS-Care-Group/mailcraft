@@ -12,9 +12,10 @@
 //! A word matches the start of a word, ignoring case and accents (`meet` finds "Meeting",
 //! `gvozdar` finds "Gvožđar"); a phrase, its words one after another ([`crate::words`]). `from:`,
 //! `to:` and `cc:` with a whole address (`from:ada@example.org`, or with a quoted name,
-//! `from:"\"ada smith\"@example.org"`) match that address and no other, ignoring case (#301). A
-//! category matches anywhere in its name. Text with no letters or digits in it (`-`, `@`) asks
-//! for nothing.
+//! `from:"\"ada smith\"@example.org"`) match that address and no other, ignoring case (#301): an
+//! international domain written in `xn--` form and the same domain in its own letters are two
+//! addresses (`ada@xn--bcher-kva.example` doesn't find `ada@bücher.example`). A category matches
+//! anywhere in its name. Text with no letters or digits in it (`-`, `@`) asks for nothing.
 
 use std::ops::Range;
 
