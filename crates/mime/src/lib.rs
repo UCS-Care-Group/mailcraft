@@ -29,9 +29,9 @@ mod write;
 mod tests;
 
 pub use mailto::{Mailto, is_mailto, parse_mailto};
-pub use mbox::{parse_mbox, write_mbox};
+pub use mbox::{MboxMessages, mbox_messages, parse_mbox, write_mbox};
 pub use media::media_type_for;
-pub use parse::parse;
+pub use parse::{MAX_CATEGORIES, MAX_RECIPIENTS, parse};
 pub use words::{decode_words, encode_words};
 pub use write::write;
 
