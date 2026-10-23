@@ -1126,6 +1126,11 @@ msgid "Change this account's name, servers and sign-in"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Change this account's name, sign-in and mail to keep offline"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/signatures.rs
 msgid "Changed: saved when you choose another signature or leave this page."
 msgstr ""
@@ -2999,6 +3004,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 msgid "Its mail can be read here. What you change in it is kept in this mailbox, and this version tells no mail server about it."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Its mail is kept in step through Microsoft Graph, without mail servers"
 msgstr ""
 
 #. interface

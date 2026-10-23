@@ -1,6 +1,6 @@
 # MCP server
 
-> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-10-21 · **Change:** minor (#276: `sync.progress`'s `timings`; whom the gate binds: agents with a shell or the owner's files are outside it; `mail.openAttachment` never for agents, #126; `sync.progress`'s `fullMessages`, `ui.skipSync` allowed, #120) · **Target:** Microsoft Outlook (Microsoft 365)
+> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-10-22 · **Change:** minor (`--control-agents-only`: the control channel takes every request for an agent's; #276: `sync.progress`'s `timings`; whom the gate binds: agents with a shell or the owner's files are outside it; `mail.openAttachment` never for agents, #126; `sync.progress`'s `fullMessages`, `ui.skipSync` allowed, #120) · **Target:** Microsoft Outlook (Microsoft 365)
 
 MailCraft speaks the [Model Context Protocol](https://modelcontextprotocol.io) over stdio, so
 agents can read, file and write mail and keep a calendar.
@@ -44,8 +44,9 @@ given. With `--files DIR`, an agent may name files inside DIR: the server reads 
 itself and hands the command `data`. A path is taken relative to DIR (an absolute one must lie in
 it); `..` is refused; a link that leads out of DIR is not followed; files are written as new files
 only (never over an existing file, never through a link), never hidden, with the extension the
-command writes (`.eml`, `.mbox`, `.ics`, `.vcf`; for an attachment, any but programs and
-scripts). The mailbox file itself is never named by an agent: `save_mailbox` saves in place
+command writes (`.eml`, `.mbox`, `.ics`, `.vcf`; for an attachment, any but the kinds the
+attachment opener refuses or asks about first: programs and scripts, web pages (`.html`, `.svg`,
+`.xml`), and Office files that can carry macros, `.docm` and legacy `.doc`, `.xls`, `.ppt`). The mailbox file itself is never named by an agent: `save_mailbox` saves in place
 (class `mailbox`). `screenshot` comes back in the answer; nothing is written.
 
 **`--allow`.** `--allow send`, `delete`, `accounts`, `mailbox`, `settings` or `input`, repeated
@@ -67,7 +68,11 @@ takes a request without the bridge's `agent` marking for the owner's own script,
 without asking. An agent that can run a shell or read files as the same user is outside the gate:
 it could read the control key in the settings folder, or the mailbox file itself, or run
 `mailcraft-cli`. Run such an agent as another user or in a sandbox, and don't start the app with
-`--control` while one is around.
+`--control` while one is around. Starting it with `--control <port> --control-agents-only`
+narrows this: every request through the control channel is then an agent's, allowed nothing in
+advance (whatever it claims), so the window asks the owner before anything is sent or deleted
+and refuses clicks and keys. `--allow` then has no effect. It doesn't stop such an agent reading
+the mailbox file or running `mailcraft-cli` on it.
 
 **Message text is untrusted.** `read_message`, `list_messages`, `list_events`, `list_contacts`,
 `list_tasks` and the same commands through `execute` (`mail.get`, `mail.list`, `calendar.list`,
@@ -124,3 +129,4 @@ parameters.
 | 2026-10-18 | minor | `mail.openAttachment` (#126): never for agents |
 | 2026-10-19 | minor | Whom the gate binds: agents that reach MailCraft only through MCP; one with a shell or the owner's files is outside it |
 | 2026-10-21 | minor | `sync.progress`'s `timings` (#276) |
+| 2026-10-22 | minor | `--control-agents-only`: every control-channel request is an agent's, allowed nothing in advance |

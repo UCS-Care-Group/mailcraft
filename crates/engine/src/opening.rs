@@ -263,6 +263,13 @@ pub fn is_launchable(ext: &str) -> bool {
 /// Web pages and drawings that open in the browser, where what is in them runs.
 pub const SCRIPTS: &[&str] = &["htm", "html", "xhtml", "shtml", "mht", "mhtml", "svg", "svgz", "xht", "xml", "xsl"];
 
+/// Whether a file of this kind (the part after the last dot, in lower case) is one the opener
+/// refuses or asks about first ([`BLOCKED`], [`MACROS`] and [`SCRIPTS`] together): the one list
+/// the files an agent may not have written are refused by.
+pub fn is_risky(ext: &str) -> bool {
+    BLOCKED.contains(&ext) || MACROS.contains(&ext) || SCRIPTS.contains(&ext)
+}
+
 /// Names Windows keeps for devices: a file with one of these before its first dot is no file.
 const RESERVED: &[&str] = &[
     "con", "prn", "aux", "nul", "com1", "com2", "com3", "com4", "com5", "com6", "com7", "com8", "com9", "com¹", "com²", "com³", "lpt1", "lpt2",
