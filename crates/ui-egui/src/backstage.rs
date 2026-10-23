@@ -189,12 +189,14 @@ fn info(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
             ui.new_child(egui::UiBuilder::new().max_rect(br)).add_sized(br.size(), button)
         };
         let settings_at = if accounts.len() > 1 { 168.0 } else { 86.0 };
+        // (An account kept in step through Graph has no servers to change, #312.)
+        let settings_tip = if a.kind == AccountKind::Microsoft {
+            tl!("Change this account's name, sign-in and mail to keep offline")
+        } else {
+            tl!("Change this account's name, servers and sign-in")
+        };
         // (A shared mailbox has no settings of its own: its owner's sign-in reads it, #70.)
-        if !a.email.is_empty()
-            && !a.is_shared()
-            && on_card(ui, settings_at, egui::Button::new(tl!("Settings")))
-                .on_hover_text(tl!("Change this account's name, servers and sign-in"))
-                .clicked()
+        if !a.email.is_empty() && !a.is_shared() && on_card(ui, settings_at, egui::Button::new(tl!("Settings"))).on_hover_text(settings_tip).clicked()
         {
             let _ = app.run("ui.dialog", json!({"name": "account", "id": a.id}));
         }
