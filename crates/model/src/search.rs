@@ -226,11 +226,10 @@ fn keyword_kind(body: &str) -> Option<Kind> {
     })
 }
 
-/// An address as two of them are compared: trimmed, in small letters, a final sigma (`ς`) as any
-/// other (`σ`), so that `ΟΣ@example.org` and `οσ@example.org` are one address. Accents and an
-/// international domain's `xn--` form are left as they are.
+/// An address as two of them are compared: trimmed, with ASCII letters in small letters only
+/// (other letters, accents and an international domain's `xn--` form are left as they are).
 pub fn address_key(v: &str) -> String {
-    v.trim().to_lowercase().replace('ς', "σ")
+    v.trim().to_ascii_lowercase()
 }
 
 /// Whether `v` is one whole address and nothing else (`name@domain`): a name of parts between
