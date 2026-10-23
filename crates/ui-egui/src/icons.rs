@@ -719,6 +719,12 @@ pub fn paint(p: &Painter, r: Rect, name: &str, c: Color32, accent: Color32) {
             pen.person(7.0, 7.5, 2.75, 17.5, 4.0, 180.0, 360.0, c);
             pen.new_plus();
         }
+        // A person, and a magnifier over the modifier's zone: their mail, looked for.
+        "findFromSender" => {
+            pen.person(7.0, 7.5, 2.75, 17.5, 4.0, 180.0, 360.0, c);
+            pen.circle(14.0, 13.5, 2.75, a);
+            pen.line_c(&[(16.0, 15.5), (18.0, 17.5)], a);
+        }
         "meeting" | "fromMessage" => {
             pen.person(7.5, 7.5, 2.75, 17.5, 5.0, 180.0, 360.0, c);
             pen.person(13.5, 5.5, 2.25, 14.5, 4.0, 250.0, 360.0, c);
@@ -1211,6 +1217,7 @@ pub const NAMES: &[&str] = &[
     "search",
     "find",
     "findRelated",
+    "findFromSender",
     "filter",
     "readingPane",
     "folderPane",

@@ -219,7 +219,7 @@ impl Walk {
         let mut one = [0u8; 4];
         match reference.resolve_char_ref() {
             Ok(Some(c)) => self.text(c.encode_utf8(&mut one)),
-            Ok(None) => match reference.decode().ok().and_then(|name| resolve_xml_entity(&name)) {
+            Ok(None) => match resolve_xml_entity(reference) {
                 Some(text) => self.text(text),
                 None => self.spoiled = true,
             },
@@ -246,14 +246,14 @@ pub(super) fn favorites_of(xml: &str) -> Result<Option<Listed>, Malformed> {
     // Every event takes at least a byte of the document, which bounds the loop.
     for _ in 0..=xml.len() {
         match reader.read_event().map_err(|_| Malformed)? {
-            Event::Start(element) => walk.open(element.local_name().as_ref())?,
+            Event::Start(element) => walk.open(AsRef::<str>::as_ref(&element.local_name()).as_bytes())?,
             Event::Empty(element) => {
-                walk.open(element.local_name().as_ref())?;
+                walk.open(AsRef::<str>::as_ref(&element.local_name()).as_bytes())?;
                 walk.close()?;
             }
             Event::End(_) => walk.close()?,
-            Event::Text(text) => walk.text(&text.decode().map_err(|_| Malformed)?),
-            Event::CData(text) => walk.text(&text.decode().map_err(|_| Malformed)?),
+            Event::Text(text) => walk.text(&text.xml10_content()),
+            Event::CData(text) => walk.text(&text.xml10_content()),
             Event::GeneralRef(reference) => walk.reference(&reference),
             // A document that brings a DTD along is not one this reads.
             Event::DocType(_) => return Err(Malformed),

@@ -195,14 +195,12 @@ pub fn message_json(s: &Session, m: &Message) -> Value {
 
 /// Bytes for a command's answer or from its params.
 pub fn base64_encode(bytes: &[u8]) -> String {
-    use base64::Engine as _;
-    base64::engine::general_purpose::STANDARD.encode(bytes)
+    mailcraft_charset::base64::STANDARD.encode(bytes)
 }
 
 pub fn base64_decode(text: &str) -> Result<Vec<u8>, CmdError> {
-    use base64::Engine as _;
     let clean: String = text.chars().filter(|c| !c.is_whitespace()).collect();
-    base64::engine::general_purpose::STANDARD.decode(clean).map_err(|_| bad("`data` must be base64"))
+    mailcraft_charset::base64::STANDARD.decode(clean).map_err(|_| bad("`data` must be base64"))
 }
 
 /// Write `bytes` to `path` when the command got one; otherwise hand them back as base64 `data`

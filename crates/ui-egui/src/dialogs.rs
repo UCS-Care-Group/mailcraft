@@ -313,11 +313,14 @@ pub fn confirmation(app: &MailApp, id: &str, params: &Value) -> Option<Question>
                 crate::i18n::fmt(tl!("The folder \"{folder}\" and everything in it will be deleted."), &[("folder", crate::nav::folder_name(f))]);
             question(tl!("Delete Folder"), text, tl!("Delete"))
         }
+        // (The placeholder of an empty mailbox isn't removed, and the command says so.)
         "account.remove" => {
-            let a = mb.account(params.get("id").and_then(Value::as_u64)?)?;
+            let a = mb.account(params.get("id").and_then(Value::as_u64)?).filter(|a| mb.placeholder() != Some(a.id))?;
+            // A local mailbox has no address: it is called as File › Info calls it.
+            let who = if a.email.is_empty() { tl!("Local mailbox").to_string() } else { a.email.clone() };
             let text = crate::i18n::fmt(
                 tl!("{address} and the mail kept for it on this device will be removed. Mail on the server is not touched."),
-                &[("address", &a.email)],
+                &[("address", &who)],
             );
             // Pictures and opened attachments are kept by their address and by file, not by account.
             let text = format!(
@@ -336,6 +339,12 @@ pub fn confirmation(app: &MailApp, id: &str, params: &Value) -> Option<Question>
                     "{text} {}",
                     crate::i18n::fmt(tl!("The {n} shared mailboxes opened through it are removed from this device too."), &[("n", &n.to_string())])
                 ),
+            };
+            // The only account leaves an empty mailbox, as at a first start (#313).
+            let text = if mb.accounts.iter().all(|x| x.id == a.id || x.shared_of == Some(a.id)) {
+                format!("{text} {}", tl!("MailCraft will have no account afterwards: File › Add Account sets one up again."))
+            } else {
+                text
             };
             question(tl!("Remove Account"), text, tl!("Remove"))
         }

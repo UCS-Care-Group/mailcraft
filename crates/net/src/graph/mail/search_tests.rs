@@ -46,6 +46,63 @@ fn what_goes_to_the_server_is_what_its_search_understands() {
     assert_eq!(search_value(r#"AND OR (x) a\b c*d "e"f"#).as_deref(), Some(r#""and AND or AND x AND \"a b\" AND \"c d\" AND ef""#));
     // Case and accents as the owner wrote them: the server folds them as it does.
     assert_eq!(search_value("Gvožđar").as_deref(), Some(r#""Gvožđar""#));
+    // #301: a whole address goes whole, one with a `+` in quotes, where the syntax reads `+` as
+    // text; one it can't take as it is stays to be checked here, and nothing else is lost.
+    assert_eq!(search_value("from:Ada@Example.org").as_deref(), Some(r#""from:ada@example.org""#));
+    assert_eq!(search_value("from:ada+news@example.org budget").as_deref(), Some(r#""from:\"ada+news@example.org\" AND budget""#));
+    assert_eq!(search_value("Ada+News@example.org").as_deref(), Some(r#""\"Ada+News@example.org\"""#));
+    assert_eq!(search_value("c+plus").as_deref(), Some(r#""\"c plus\"""#));
+    assert_eq!(search_value("from:ada!news@example.org budget").as_deref(), Some(r#""budget""#));
+}
+
+/// #301: an address reaches the server in one piece (a plus-address too), the server finds that
+/// address alone, and what it finds is what a search here finds; what it finds is checked here as
+/// well.
+#[test]
+fn an_address_is_searched_on_the_server_as_it_is_here() {
+    let server = StandIn::start().unwrap();
+    let inbox = server.state().well_known("inbox");
+    let senders =
+        ["ada+news@example.org", "ada@example.org", "adam+newsletter@example.org", "ADA+NEWS@example.org", "ada.smith@example.org", "ΟΣ@example.org"];
+    {
+        let mut state = server.state();
+        for (i, from) in senders.into_iter().enumerate() {
+            let id = state.mailbox.add(&inbox, from, NOW - 60 * i as i64);
+            state.mailbox.messages.get_mut(&id).unwrap().from = from.into();
+        }
+    }
+    // Each message's subject is its sender. `alone`: the server's answer is the search's by itself.
+    for (query, sent, alone) in [
+        ("from:ada+news@example.org", r#""from:\"ada+news@example.org\"""#, true),
+        ("from:ADA@example.org", r#""from:ada@example.org""#, true),
+        ("from:ada", r#""from:ada""#, true),
+        // A final sigma is a sigma, here and there.
+        ("from:οσ@example.org", r#""from:οσ@example.org""#, true),
+        // Not a whole address here, so not one there either: words, in both.
+        ("from:ada@-example.org", r#""from:ada@-example.org""#, true),
+        // Words here round a whole address, which the server would read as that address: not
+        // sent, so the server finds more, and what is checked here leaves the search's answer.
+        ("from:<ada@example.org> subject:ada", r#""subject:ada""#, false),
+    ] {
+        let found = ask(&server.url(), &request("owner@example.org", false, "", query));
+        assert!(found.errors.is_empty(), "{query}: {:?}", found.errors);
+        let asked = server.state().requests.last().cloned().unwrap();
+        let param = asked.query.iter().find(|(n, _)| n == "$search").map(|(_, v)| v.clone());
+        assert_eq!(param.as_deref(), Some(sent), "{query}");
+        // What the server finds, once what is checked here has looked at it, is what a search
+        // here finds; and with nothing left to check, by itself.
+        let parsed = mailcraft_model::search::Query::parse(query);
+        let local = parsed.for_server().local;
+        let message =
+            |from: &str| mailcraft_model::Message { from: mailcraft_model::Address::new("", from), subject: from.into(), ..Default::default() };
+        let mut by_here: Vec<&str> = senders.into_iter().filter(|from| parsed.matches(&message(from), 0)).collect();
+        by_here.sort();
+        let mut by_server: Vec<&str> = subjects(&found);
+        by_server.sort();
+        let checked: Vec<&str> = by_server.iter().copied().filter(|from| local.matches(&message(from), 0)).collect();
+        assert_eq!(checked, by_here, "{query}");
+        assert_eq!(by_server == by_here, alone, "{query}: {by_server:?}");
+    }
 }
 
 /// #194: a space after a keyword's colon sends the keyword with its word; a keyword with nothing

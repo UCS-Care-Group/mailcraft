@@ -2571,6 +2571,11 @@ msgstr ""
 msgid "From"
 msgstr ""
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "From Sender"
+msgstr ""
+
 #. name
 #: crates/ui-egui/src/forms.rs
 msgid "From contains"
@@ -3277,7 +3282,7 @@ msgid "List Tasks"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/backstage.rs
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs
 msgid "Local mailbox"
 msgstr ""
 
@@ -3434,6 +3439,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/updates.rs
 msgid "MailCraft looks for a new version once a day (File › Options). Only GitHub is asked."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "MailCraft will have no account afterwards: File › Add Account sets one up again."
 msgstr ""
 
 #. interface
@@ -3620,6 +3630,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "Messages are shown without running anything in them, and the pictures a message keeps on the web are downloaded only when you ask. Passwords are kept in memory only while the app is open."
+msgstr ""
+
+#. command label, interface, ribbon
+#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
+msgid "Messages from Sender"
 msgstr ""
 
 #. interface
@@ -8921,11 +8936,6 @@ msgid "the folder this message is in isn't on this computer any more"
 msgstr ""
 
 #. what a command says
-#: crates/engine/src/cmd/account.rs
-msgid "the last account can't be removed"
-msgstr ""
-
-#. what a command says
 #: crates/engine/src/cmd/calendar.rs
 msgid "the last calendar can't be deleted"
 msgstr ""
@@ -8973,6 +8983,11 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/calendar/meeting.rs
 msgid "the proposed end is not after the proposed start"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/mail.rs
+msgid "the search can't look for this sender's address as a whole address"
 msgstr ""
 
 #. why a command can't run
@@ -9071,6 +9086,11 @@ msgid "there is already a signature named \"{to}\""
 msgstr ""
 
 #. what a command says
+#: crates/engine/src/cmd/account.rs
+msgid "there is no account to remove"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/graph_switch.rs
 msgid "there is no free name for a local folder"
 msgstr ""
@@ -9153,6 +9173,11 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
 msgid "this message already has as many attachments as it can carry"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/mail.rs
+msgid "this message has no sender address to look for"
 msgstr ""
 
 #. what a command says

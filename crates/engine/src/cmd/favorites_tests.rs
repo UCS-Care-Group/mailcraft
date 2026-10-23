@@ -362,14 +362,14 @@ fn a_mailbox_that_chose_exchange_web_services_opens_reads_through_graph_and_says
 
     // Opened as a mailbox: the answer says so, and the mailbox is to be saved without it.
     let mut s = Session::at(Mailbox::with_local_account("", ""), 1_791_993_600, 0);
-    let data = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, old.as_bytes());
+    let data = mailcraft_charset::base64::STANDARD.encode(old.as_bytes());
     let answer = run(&mut s, "file.open", json!({"name": "old.mailcraft", "data": data}));
     assert_eq!(answer["favoritesNowGraph"], 1);
     assert!(s.dirty);
     let saved = String::from_utf8(crate::io::write_mailbox(&s.mailbox).unwrap()).unwrap();
     assert!(!saved.contains("favoritesSource"), "{saved}");
     // Opened again, there is nothing more to say.
-    let data = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, saved.as_bytes());
+    let data = mailcraft_charset::base64::STANDARD.encode(saved.as_bytes());
     let again = run(&mut s, "file.open", json!({"name": "old.mailcraft", "data": data}));
     assert_eq!((again["favoritesNowGraph"].clone(), s.dirty), (json!(0), false));
 }

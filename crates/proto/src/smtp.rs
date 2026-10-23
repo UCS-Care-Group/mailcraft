@@ -4,8 +4,7 @@
 
 use std::io::{Read, Write};
 
-use base64::Engine as _;
-use base64::engine::general_purpose::STANDARD;
+use mailcraft_charset::base64::STANDARD;
 
 use crate::line::Wire;
 use crate::{ProtoError, Secrets, for_trace, tidy, xoauth2};

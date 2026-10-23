@@ -2048,6 +2048,50 @@ fn info_account_card_keeps_what_follows_below_it() {
     assert!(download.min.y >= card_bottom + 8.0, "download {download:?} under the card ending at {card_bottom}");
 }
 
+/// #313: File › Info has Remove for the only account too, beside its Settings, and the question
+/// says MailCraft will have no account afterwards. The empty mailbox left has nothing to remove.
+#[test]
+fn the_only_account_can_be_removed_in_file_info() {
+    use egui_kittest::kittest::Queryable;
+    let mut a = app();
+    let _ = a.execute("ui.dismissReminder", json!({"all": true}));
+    let only = match a.session.mailbox.accounts.as_slice() {
+        [only] => only.id,
+        more => panic!("the sample has one account: {more:?}"),
+    };
+    a.execute("ui.backstage", json!({"value": true, "page": "info"})).unwrap();
+    let mut h = window(a);
+    h.run_steps(3);
+    let (settings, remove) = (h.get_by_label("Settings").rect(), h.get_by_label("Remove").rect());
+    assert!(settings.max.x < remove.min.x, "Settings {settings:?} beside Remove {remove:?}");
+    h.get_by_label("Remove").click();
+    h.run_steps(3);
+    let Some(crate::dialogs::Dialog::Confirm { ask, .. }) = &h.state().dialog else { panic!("no question") };
+    assert!(ask.text.contains("MailCraft will have no account afterwards"), "{}", ask.text);
+    assert!(h.state().session.mailbox.account(only).is_some(), "only asked so far");
+
+    // Not said for an account that isn't the last.
+    let a = h.state_mut();
+    a.dialog = None;
+    let other = a.execute("account.add", json!({"email": "ada@lumen.example"})).unwrap()["id"].as_u64().unwrap();
+    a.run("account.remove", json!({"id": other})).unwrap();
+    let Some(crate::dialogs::Dialog::Confirm { ask, .. }) = &a.dialog else { panic!("no question") };
+    assert!(!ask.text.contains("no account afterwards"), "{}", ask.text);
+    a.dialog = None;
+    a.execute("account.remove", json!({"id": other})).unwrap();
+
+    a.run("account.remove", json!({"id": only, "confirmed": true})).unwrap();
+    assert!(matches!(a.session.mailbox.accounts.as_slice(), [fresh] if fresh.email.is_empty()), "{:?}", a.session.mailbox.accounts);
+    h.run_steps(3);
+    assert!(h.state().ui.backstage && h.state().ui.backstage_page == "info");
+    assert!(h.query_by_label("Remove").is_none() && h.query_by_label("Settings").is_none());
+    // Asked for anyway, nothing is asked: the command says there is nothing to remove.
+    let a = h.state_mut();
+    let placeholder = a.session.mailbox.placeholder().unwrap();
+    assert!(a.run("account.remove", json!({"id": placeholder})).is_err());
+    assert!(a.dialog.is_none());
+}
+
 /// #196: the search box draws keywords as pills, and the query stays what was typed: the pills'
 /// capitals never reach it, Backspace edits it as text, and the keyboard alone does all of it.
 #[test]

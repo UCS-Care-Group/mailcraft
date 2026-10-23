@@ -1090,10 +1090,13 @@ fn clicks(app: &mut MailApp, ui: &Ui, resp: &egui::Response, row: &Row, m: &Mess
         mi(ui, app, "Add to Tasks", "tasks.fromMessage", json!({}));
         mi(ui, app, "Add Sender to Contacts", "people.fromMessage", json!({}));
         mi(ui, app, "Find Related Messages", "mail.findRelated", json!({}));
+        mi(ui, app, "Messages from Sender", "mail.findFromSender", json!({"id": id}));
         mi(ui, app, "Save Message As…", "file.exportMessage", json!({}));
     });
 }
 
+#[cfg(test)]
+mod from_sender_menu_tests;
 #[cfg(test)]
 mod overlay_scroll_tests;
 

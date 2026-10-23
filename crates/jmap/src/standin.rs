@@ -58,7 +58,6 @@
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::sync::{Arc, Mutex, PoisonError};
 
-use base64::Engine as _;
 use mailcraft_model::{Address, Message};
 use serde_json::{Map, Value, json};
 
@@ -368,7 +367,7 @@ impl Data {
             return self.token.as_deref() == Some(credentials);
         }
         if scheme.eq_ignore_ascii_case("basic") {
-            let decoded = base64::engine::general_purpose::STANDARD.decode(credentials).ok().and_then(|bytes| String::from_utf8(bytes).ok());
+            let decoded = mailcraft_charset::base64::STANDARD.decode(credentials).ok().and_then(|bytes| String::from_utf8(bytes).ok());
             return decoded.and_then(|text| text.split_once(':').map(|(user, password)| user == USER && password == PASSWORD)).unwrap_or(false);
         }
         false
