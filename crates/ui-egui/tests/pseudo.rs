@@ -92,7 +92,7 @@ fn every_main_view_is_in_the_pseudo_language() {
     app.autosave = false;
     app.execute("ui.language", json!({"language": "pseudo"})).unwrap();
     let data = mailbox_words(&app);
-    let mut h = Harness::builder().with_size(egui::vec2(1440.0, 920.0)).build_ui_state(
+    let mut h = Harness::builder().with_accessibility_check(false).allow_missing_glyphs().with_size(egui::vec2(1440.0, 920.0)).build_ui_state(
         |ui, app: &mut MailApp| {
             let ctx = ui.ctx().clone();
             app.logic(&ctx);

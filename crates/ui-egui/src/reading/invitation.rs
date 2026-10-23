@@ -237,7 +237,7 @@ struct Kept {
 
 impl Store {
     fn of(ctx: &egui::Context) -> Arc<Mutex<Store>> {
-        ctx.data_mut(|d| d.get_temp_mut_or_default::<Arc<Mutex<Store>>>(egui::Id::new("mailcraft-reading-invitations")).clone())
+        ctx.data_mut(|d| d.get_temp_mut_or_default::<Arc<Mutex<Store>>>(egui::Id::unique("mailcraft-reading-invitations")).clone())
     }
 }
 
@@ -515,13 +515,13 @@ fn button(ui: &mut Ui, t: &Tokens, icon: &str, label: &str, checked: bool, menu:
     let main_w = 8.0 + 16.0 + 5.0 + text_width(ui, label, 12.0) + 9.0;
     let (rect, _) = ui.allocate_exact_size(vec2(main_w + if menu { 18.0 } else { 0.0 }, 26.0), Sense::hover());
     let main_rect = Rect::from_min_max(rect.min, pos2(rect.min.x + main_w, rect.max.y));
-    let id = ui.id().with(("invitation", label));
+    let id = ui.scope_id().with(("invitation", label));
     let main = ui.interact(main_rect, id.with("main"), Sense::click());
-    main.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, label));
+    main.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, label));
     let more = menu.then(|| {
         let more = ui.interact(Rect::from_min_max(pos2(main_rect.max.x, rect.min.y), rect.max), id.with("menu"), Sense::click());
         more.widget_info(|| {
-            egui::WidgetInfo::labeled(egui::WidgetType::Button, true, crate::i18n::fmt(tl!("{answer}: more ways to answer"), &[("answer", label)]))
+            egui::WidgetInfo::labeled(egui::Role::Button, true, crate::i18n::fmt(tl!("{answer}: more ways to answer"), &[("answer", label)]))
         });
         more
     });
@@ -579,7 +579,7 @@ fn row(ui: &mut Ui, t: &Tokens, name: &str, text: &str, rows: usize, width: f32)
     };
     let galley = ui.painter().layout_job(job);
     let (r, resp) = ui.allocate_exact_size(vec2(width, galley.size().y.max(16.0)), Sense::hover());
-    resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Label, true, format!("{name} {text}")));
+    resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Label, true, format!("{name} {text}")));
     ui.painter().text(r.min, Align2::LEFT_TOP, name, regular(12.0), t.text_dim);
     let cut = galley.elided || text.chars().count() > PEOPLE_CHARS;
     ui.painter().galley(pos2(r.min.x + NAME_W, r.min.y), galley, t.text);

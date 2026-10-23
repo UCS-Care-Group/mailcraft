@@ -929,6 +929,8 @@ fn shots_of_meeting_mail() {
         app.execute("calendar.new", json!({"title": "Dentist", "start": "2026-10-15T14:30", "end": "2026-10-15T15:30"})).unwrap();
         app.execute("calendar.new", json!({"title": "Stand-up", "start": "2026-10-15T13:30", "end": "2026-10-15T14:00"})).unwrap();
         let mut harness = egui_kittest::Harness::builder()
+            .with_accessibility_check(false)
+            .allow_missing_glyphs()
             .with_size(egui::vec2(1440.0, 900.0))
             .with_pixels_per_point(2.0)
             .with_step_dt(1.0 / 60.0)

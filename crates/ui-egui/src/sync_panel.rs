@@ -265,7 +265,7 @@ pub(crate) fn show(app: &mut MailApp, ctx: &egui::Context) {
     let mut skip = None;
     let mut close = false;
     let mut scrolled = false;
-    let shown = egui::Area::new(egui::Id::new("sync_progress_panel"))
+    let shown = egui::Area::new(egui::Id::unique("sync_progress_panel"))
         .order(egui::Order::Foreground)
         .anchor(Align2::RIGHT_BOTTOM, vec2(-12.0, -32.0))
         .show(ctx, |ui| {
@@ -313,7 +313,7 @@ pub(crate) fn show(app: &mut MailApp, ctx: &egui::Context) {
                     } else {
                         // As tall as what it listed the frame before: the panel grows to that,
                         // rather than keeping its last height and scrolling the last few points.
-                        let listed = ui.data(|d| d.get_temp::<f32>(egui::Id::new("sync_panel_listed"))).unwrap_or(0.0);
+                        let listed = ui.data(|d| d.get_temp::<f32>(egui::Id::unique("sync_panel_listed"))).unwrap_or(0.0);
                         scroll.min_scrolled_height(listed.min(limit)).max_height(limit).auto_shrink([false, true])
                     };
                     // The bar stands out against the panel, in light and in dark, and stays at its
@@ -359,7 +359,7 @@ pub(crate) fn show(app: &mut MailApp, ctx: &egui::Context) {
                         }
                     });
                     list_height = Some(out.inner_rect.height());
-                    ui.data_mut(|d| d.insert_temp(egui::Id::new("sync_panel_listed"), out.content_size.y));
+                    ui.data_mut(|d| d.insert_temp(egui::Id::unique("sync_panel_listed"), out.content_size.y));
                     app.hit.add("syncList", 0, out.inner_rect);
                     // Whether there is more than it shows: the bar is there (as egui reckons it).
                     if out.content_size.y > cap.ceil() {
@@ -382,7 +382,7 @@ pub(crate) fn show(app: &mut MailApp, ctx: &egui::Context) {
                 ("syncPanelCorner", Rect::from_min_size(r.min, vec2(grip * 2.0, grip * 2.0)), egui::CursorIcon::ResizeNwSe),
             ];
             for (name, rect, cursor) in edges {
-                let edge = ui.interact(rect, egui::Id::new(("sync_panel_edge", name)), Sense::drag()).on_hover_cursor(cursor);
+                let edge = ui.interact(rect, egui::Id::unique(("sync_panel_edge", name)), Sense::drag()).on_hover_cursor(cursor);
                 app.hit.add(name, 0, rect);
                 if edge.dragged() {
                     let d = edge.drag_delta();
@@ -572,14 +572,15 @@ mod tests {
     }
 
     fn window_sized(app: MailApp, width: f32, height: f32) -> Harness<'static, MailApp> {
-        let mut harness = Harness::builder().with_size(egui::vec2(width, height)).build_ui_state(
-            |ui, app: &mut MailApp| {
-                let ctx = ui.ctx().clone();
-                app.logic(&ctx);
-                app.ui(ui);
-            },
-            app,
-        );
+        let mut harness =
+            Harness::builder().with_accessibility_check(false).allow_missing_glyphs().with_size(egui::vec2(width, height)).build_ui_state(
+                |ui, app: &mut MailApp| {
+                    let ctx = ui.ctx().clone();
+                    app.logic(&ctx);
+                    app.ui(ui);
+                },
+                app,
+            );
         harness.run_steps(3);
         harness
     }

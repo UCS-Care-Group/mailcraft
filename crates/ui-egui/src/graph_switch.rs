@@ -132,7 +132,7 @@ pub(crate) fn show(app: &mut MailApp, ctx: &egui::Context, account: Id) -> bool 
             // Neither Enter nor Escape answers it: each answer takes a deliberate click.
             let switch = primary_button(ui, tl!("Switch"), true);
             // (Named for screen readers: the button paints its own words.)
-            switch.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, tl!("Switch")));
+            switch.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, tl!("Switch")));
             if switch.clicked() {
                 answer = Some("switch");
             }
@@ -192,7 +192,7 @@ fn show_waiting(app: &mut MailApp, ctx: &egui::Context, account: Id) -> bool {
         button_row(ui, |ui| {
             // Waiting is what loses nothing: it is the button that stands out.
             let wait = primary_button(ui, tl!("Keep Waiting"), true);
-            wait.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, tl!("Keep Waiting")));
+            wait.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, tl!("Keep Waiting")));
             if wait.clicked() {
                 answer = Some("wait");
             }

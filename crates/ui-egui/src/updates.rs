@@ -1138,14 +1138,18 @@ mod tests {
     fn the_question_options_and_about_are_laid_out() {
         let (_host, services) = stand_in(Ok(release(&newer(), true)));
         let app = start(services, &UiState::default(), NOW);
-        let mut harness = egui_kittest::Harness::builder().with_size(egui::vec2(1200.0, 800.0)).build_ui_state(
-            |ui, app: &mut MailApp| {
-                let ctx = ui.ctx().clone();
-                app.logic(&ctx);
-                app.ui(ui);
-            },
-            app,
-        );
+        let mut harness = egui_kittest::Harness::builder()
+            .with_accessibility_check(false)
+            .allow_missing_glyphs()
+            .with_size(egui::vec2(1200.0, 800.0))
+            .build_ui_state(
+                |ui, app: &mut MailApp| {
+                    let ctx = ui.ctx().clone();
+                    app.logic(&ctx);
+                    app.ui(ui);
+                },
+                app,
+            );
         harness.run_steps(4);
         assert!(harness.state().updates.asking);
         assert!(harness.state().hit.rect("updateYes", 0).is_some());
@@ -1285,14 +1289,18 @@ mod tests {
         for update_start in [UpdateStart::default(), UpdateStart { didnt_start: Some((here.into(), "0.1.0".into())), ..Default::default() }] {
             let offer = update_start.didnt_start.is_some();
             let app = ready_app(false, update_start);
-            let mut harness = egui_kittest::Harness::builder().with_size(egui::vec2(1400.0, 800.0)).build_ui_state(
-                |ui, app: &mut MailApp| {
-                    let ctx = ui.ctx().clone();
-                    app.logic(&ctx);
-                    app.ui(ui);
-                },
-                app,
-            );
+            let mut harness = egui_kittest::Harness::builder()
+                .with_accessibility_check(false)
+                .allow_missing_glyphs()
+                .with_size(egui::vec2(1400.0, 800.0))
+                .build_ui_state(
+                    |ui, app: &mut MailApp| {
+                        let ctx = ui.ctx().clone();
+                        app.logic(&ctx);
+                        app.ui(ui);
+                    },
+                    app,
+                );
             harness.run_steps(4);
             assert!(harness.state().hit.rect("restartToUpdate", 0).is_some());
             assert_eq!(harness.state().hit.rect("goBack", 0).is_some(), offer);

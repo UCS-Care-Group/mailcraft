@@ -496,7 +496,7 @@ fn main() {
     let mut harness =
         // Frames a sixtieth of a second apart, as on a screen: two clicks one frame after the other
         // then count as a double click (egui allows 0.3 s between them).
-        egui_kittest::Harness::builder()
+        egui_kittest::Harness::builder().with_accessibility_check(false).allow_missing_glyphs()
             .with_size(egui::vec2(w, h))
             .with_pixels_per_point(scale)
             .with_max_steps(1_000_000)

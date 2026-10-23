@@ -477,7 +477,7 @@ pub fn inspect(app: &MailApp) -> Value {
 
 /// The egui name of the window numbered `id`, where it is shown inside the main window.
 fn area(id: u64) -> egui::Id {
-    egui::Id::new(("mailcraft-window", id))
+    egui::Id::unique(("mailcraft-window", id))
 }
 
 /// Whether a message is the one a window has been showing.
@@ -774,7 +774,7 @@ fn contents(app: &mut MailApp, ui: &mut Ui, id: u64, what: &mut What, own_keys: 
         What::Message { seen, .. } => {
             let m = seen.clone();
             let mut close = false;
-            egui::Panel::top(egui::Id::new(("mailcraft-window-actions", id)))
+            egui::Panel::top(egui::Id::unique(("mailcraft-window-actions", id)))
                 .resizable(false)
                 .frame(egui::Frame::NONE.fill(t.ribbon).inner_margin(egui::Margin::symmetric(10, 5)))
                 .show(ui, |ui| close = actions(app, ui, &m, own_keys));
@@ -917,14 +917,21 @@ mod tests {
     /// after the other are a double click. (These windows are inside the main one: the headless
     /// window has no others, like a browser.)
     fn window(app: MailApp) -> Harness {
-        let mut harness = egui_kittest::Harness::builder().with_size(egui::vec2(1280.0, 800.0)).with_step_dt(1.0 / 60.0).build_ui_state(
-            |ui, app: &mut MailApp| {
-                let ctx = ui.ctx().clone();
-                app.logic(&ctx);
-                app.ui(ui);
-            },
-            app,
-        );
+        let mut harness = egui_kittest::Harness::builder()
+            .with_accessibility_check(false)
+            .allow_missing_glyphs()
+            .with_accessibility_check(false)
+            .allow_missing_glyphs()
+            .with_size(egui::vec2(1280.0, 800.0))
+            .with_step_dt(1.0 / 60.0)
+            .build_ui_state(
+                |ui, app: &mut MailApp| {
+                    let ctx = ui.ctx().clone();
+                    app.logic(&ctx);
+                    app.ui(ui);
+                },
+                app,
+            );
         harness.run_steps(3);
         harness
     }
@@ -1462,7 +1469,7 @@ mod tests {
             let app = app();
             let form = Form::open("event", &app, &json!({"title": "Plan"})).unwrap();
             let state = Shown { app, what: What::Event { event: None, form: Box::new(form) }, fill, frames: 0, foot: 0.0 };
-            let mut harness = egui_kittest::Harness::builder().with_size(size).build_ui_state(
+            let mut harness = egui_kittest::Harness::builder().with_accessibility_check(false).allow_missing_glyphs().with_size(size).build_ui_state(
                 |ui, shown: &mut Shown| {
                     let ctx = ui.ctx().clone();
                     shown.app.logic(&ctx);

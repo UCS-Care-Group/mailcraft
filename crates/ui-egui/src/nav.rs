@@ -218,7 +218,7 @@ fn highlight(r: Rect) -> Rect {
 fn heading(app: &mut MailApp, ui: &mut Ui, id: Id, name: &str, height: f32, text_y: f32, ruled: bool) -> bool {
     let t = Tokens::get(ui.ctx());
     let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), height), Sense::hover());
-    let resp = ui.interact(r, ui.id().with(("heading", id)), Sense::click());
+    let resp = ui.interact(r, ui.scope_id().with(("heading", id)), Sense::click());
     app.hit.add("folderHeading", id, r);
     if ruled {
         let y = r.min.y + 9.5;
@@ -237,7 +237,7 @@ fn heading(app: &mut MailApp, ui: &mut Ui, id: Id, name: &str, height: f32, text
 /// Where the folder in view was last picked: `true` in its account's list, `false` under
 /// Favorites (and before any pick). A folder listed in both is highlighted in that one place.
 fn picked_in_list(ui: &Ui) -> bool {
-    ui.data(|d| d.get_temp::<bool>(egui::Id::new("folder_picked_in_list"))).unwrap_or(false)
+    ui.data(|d| d.get_temp::<bool>(egui::Id::unique("folder_picked_in_list"))).unwrap_or(false)
 }
 
 /// A folder's row, `selected` when it is the one the folder in view is highlighted in. `key` tells
@@ -248,7 +248,7 @@ fn folder_row(app: &mut MailApp, ui: &mut Ui, f: &Folder, depth: usize, has_chil
     let name = if key == "fav" { result_folder_label(&app.session.mailbox, f) } else { folder_name(f).to_string() };
     let t = Tokens::get(ui.ctx());
     let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), ROW_H), Sense::hover());
-    let resp = ui.interact(r, ui.id().with((key, f.id)), Sense::click());
+    let resp = ui.interact(r, ui.scope_id().with((key, f.id)), Sense::click());
     app.hit.add("folder", f.id, r);
     let row = highlight(r);
     if selected {
@@ -261,7 +261,7 @@ fn folder_row(app: &mut MailApp, ui: &mut Ui, f: &Folder, depth: usize, has_chil
     // The chevron has its own click target, only on a folder with something under it.
     if has_children {
         let tr = Rect::from_min_max(pos2(x + HIGHLIGHT_LEFT, r.min.y), pos2(x + NAME_LEFT, r.max.y));
-        let tresp = ui.interact(tr, ui.id().with((key, "twisty", f.id)), Sense::click());
+        let tresp = ui.interact(tr, ui.scope_id().with((key, "twisty", f.id)), Sense::click());
         let open = !app.ui.collapsed_folders.contains(&f.id);
         chevron(ui.painter(), pos2(x + CHEVRON_X, r.center().y), ROW_CHEVRON, open, if tresp.hovered() { t.accent_text } else { t.text });
         if tresp.clicked() {
@@ -279,7 +279,7 @@ fn folder_row(app: &mut MailApp, ui: &mut Ui, f: &Folder, depth: usize, has_chil
     let font = if selected { bold(NAME_SIZE) } else { regular(NAME_SIZE) };
     paint_clipped(ui.painter(), pos2(x + NAME_LEFT, y), (name_end - x - NAME_LEFT).max(0.0), &name, font, t.text);
     if resp.clicked() {
-        ui.data_mut(|d| d.insert_temp(egui::Id::new("folder_picked_in_list"), key == "tree"));
+        ui.data_mut(|d| d.insert_temp(egui::Id::unique("folder_picked_in_list"), key == "tree"));
         let _ = app.run("folder.select", json!({"id": f.id}));
     }
     // Messages dragged out of the list are filed in the folder they are let go over.
@@ -339,7 +339,7 @@ fn quiet_lines(ui: &mut Ui, text: &str) -> Rect {
 fn quiet_link(app: &mut MailApp, ui: &mut Ui, account: Id, step: crate::favorites_sync::Step) {
     let t = Tokens::get(ui.ctx());
     let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), ROW_H), Sense::hover());
-    let resp = ui.interact(highlight(r), ui.id().with(("favorites_step", account, step.code())), Sense::click());
+    let resp = ui.interact(highlight(r), ui.scope_id().with(("favorites_step", account, step.code())), Sense::click());
     let kind = match step {
         crate::favorites_sync::Step::CopyMessage => "favoritesCopyMessage",
         crate::favorites_sync::Step::Help => "favoritesHelp",
@@ -368,7 +368,7 @@ fn favorites_note(app: &mut MailApp, ui: &mut Ui, account: Id, note: &Note) {
         let about = tl!(
             "Your organisation keeps this permission for its administrators to give. Once one of them has approved it, choose it again here. Until then the Favorites kept in MailCraft are shown."
         );
-        ui.interact(r, ui.id().with(("favorites_note", account)), Sense::hover()).on_hover_text(about);
+        ui.interact(r, ui.scope_id().with(("favorites_note", account)), Sense::hover()).on_hover_text(about);
         for step in app.favorites_steps(note) {
             quiet_link(app, ui, account, step);
         }
@@ -382,7 +382,7 @@ fn favorites_note(app: &mut MailApp, ui: &mut Ui, account: Id, note: &Note) {
     match note {
         // The whole line is the offer.
         Note::Offer => {
-            let resp = ui.interact(highlight(r), ui.id().with(("favorites_offer", account)), Sense::click());
+            let resp = ui.interact(highlight(r), ui.scope_id().with(("favorites_offer", account)), Sense::click());
             app.hit.add("favoritesOffer", account, r);
             if resp.hovered() {
                 ui.painter().rect_filled(highlight(r), 0.0, t.panel.lerp_to_gamma(t.hover, 0.7));
@@ -401,7 +401,7 @@ fn favorites_note(app: &mut MailApp, ui: &mut Ui, account: Id, note: &Note) {
         // (Said above, in more than a row.)
         Note::Approval => {}
         Note::Refused(why) => {
-            let resp = ui.interact(highlight(r), ui.id().with(("favorites_note", account)), Sense::hover());
+            let resp = ui.interact(highlight(r), ui.scope_id().with(("favorites_note", account)), Sense::hover());
             app.hit.add("favoritesNote", account, r);
             paint_clipped(ui.painter(), pos2(left, y), width, tl!(why), font, t.text_dim);
             resp.on_hover_text(tl!(
@@ -415,7 +415,7 @@ fn favorites_note(app: &mut MailApp, ui: &mut Ui, account: Id, note: &Note) {
             let again_w = crate::theme::text_width(ui.painter(), again, &font, 0.0, t.accent_text);
             let used = paint_clipped(ui.painter(), pos2(left, y), (width - again_w - 10.0).max(0.0), tl!(why), font.clone(), t.text_dim);
             let link = Rect::from_min_size(pos2(left + used + if used > 0.0 { 10.0 } else { 0.0 }, r.min.y), vec2(again_w, ROW_H));
-            let resp = ui.interact(link, ui.id().with(("favorites_retry", account)), Sense::click());
+            let resp = ui.interact(link, ui.scope_id().with(("favorites_retry", account)), Sense::click());
             app.hit.add("favoritesRetry", account, link);
             let ink = if resp.hovered() { t.accent } else { t.accent_text };
             ui.painter().text(pos2(link.min.x, y), Align2::LEFT_CENTER, again, font, ink);
@@ -451,7 +451,7 @@ fn pane_top(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     ui.add_space(4.0);
     let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), ROW_H), Sense::hover());
     let button = Rect::from_center_size(pos2(r.max.x - 14.0, r.center().y), vec2(20.0, 20.0));
-    let resp = ui.interact(button, ui.id().with("hide_pane"), Sense::click());
+    let resp = ui.interact(button, ui.scope_id().with("hide_pane"), Sense::click());
     if resp.hovered() {
         ui.painter().rect_filled(button, 4.0, if resp.is_pointer_button_down_on() { t.pressed } else { t.hover });
     }
@@ -473,7 +473,7 @@ pub fn folder_pane_strip(app: &mut MailApp, ui: &mut Ui) {
         ui.add_space(4.0);
         let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), ROW_H), Sense::hover());
         let button = Rect::from_center_size(r.center(), vec2(20.0, 20.0));
-        let resp = ui.interact(button, ui.id().with("show_pane"), Sense::click());
+        let resp = ui.interact(button, ui.scope_id().with("show_pane"), Sense::click());
         if resp.hovered() {
             ui.painter().rect_filled(button, 4.0, if resp.is_pointer_button_down_on() { t.pressed } else { t.hover });
         }
@@ -817,14 +817,18 @@ mod tests {
     fn window() -> egui_kittest::Harness<'static, MailApp> {
         let mut app = MailApp::new(Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0), Services::default());
         app.autosave = false;
-        let mut harness = egui_kittest::Harness::builder().with_size(egui::vec2(1280.0, 800.0)).build_ui_state(
-            |ui, app: &mut MailApp| {
-                let ctx = ui.ctx().clone();
-                app.logic(&ctx);
-                app.ui(ui);
-            },
-            app,
-        );
+        let mut harness = egui_kittest::Harness::builder()
+            .with_accessibility_check(false)
+            .allow_missing_glyphs()
+            .with_size(egui::vec2(1280.0, 800.0))
+            .build_ui_state(
+                |ui, app: &mut MailApp| {
+                    let ctx = ui.ctx().clone();
+                    app.logic(&ctx);
+                    app.ui(ui);
+                },
+                app,
+            );
         harness.run_steps(4);
         // The sample has reminders due, and their window would lie over the top of the pane.
         let _ = harness.state_mut().execute("ui.dismissReminder", serde_json::json!({"all": true}));

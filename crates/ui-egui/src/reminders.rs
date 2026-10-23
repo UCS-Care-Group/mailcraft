@@ -230,7 +230,7 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
             });
             ui.separator();
             ui.horizontal(|ui| {
-                let mut minutes = ui.data(|d| d.get_temp::<u64>(egui::Id::new("reminder_snooze"))).unwrap_or(5);
+                let mut minutes = ui.data(|d| d.get_temp::<u64>(egui::Id::unique("reminder_snooze"))).unwrap_or(5);
                 if ui.button(tl!("Snooze")).on_hover_text(tl!("Remind me again later")).clicked() {
                     snoozed = Some(minutes);
                 }
@@ -239,7 +239,7 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
                         ui.selectable_value(&mut minutes, m, snooze_label(m));
                     }
                 });
-                ui.data_mut(|d| d.insert_temp(egui::Id::new("reminder_snooze"), minutes));
+                ui.data_mut(|d| d.insert_temp(egui::Id::unique("reminder_snooze"), minutes));
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     if ui.button(tl!("Dismiss All")).clicked() {
                         dismiss_all = true;

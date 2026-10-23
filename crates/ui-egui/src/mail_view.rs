@@ -90,7 +90,7 @@ fn drag_ghost(ui: &Ui) {
     let t = Tokens::get(ui.ctx());
     ui.ctx().set_cursor_icon(egui::CursorIcon::Grabbing);
     let text = tln!(drag.0.len(), "{n} message", "{n} messages");
-    egui::Area::new(egui::Id::new("message_drag_ghost")).order(egui::Order::Tooltip).fixed_pos(pos + vec2(14.0, 16.0)).interactable(false).show(
+    egui::Area::new(egui::Id::unique("message_drag_ghost")).order(egui::Order::Tooltip).fixed_pos(pos + vec2(14.0, 16.0)).interactable(false).show(
         ui.ctx(),
         |ui| {
             egui::Frame::NONE
@@ -215,7 +215,7 @@ fn list_header(app: &mut MailApp, ui: &mut Ui) {
     // A, the largest), down once it is turned over.
     let (sort, descending) = (app.session.view.sort, app.session.view.sort_descending);
     let arrow = Rect::from_center_size(pos2(rows_end - 11.0, r.min.y + 33.0), vec2(20.0, 22.0));
-    let arrow_resp = ui.interact(arrow, ui.id().with("list_direction"), Sense::click()).on_hover_text(direction_label(sort, descending));
+    let arrow_resp = ui.interact(arrow, ui.scope_id().with("list_direction"), Sense::click()).on_hover_text(direction_label(sort, descending));
     app.hit.add("listSort", 1, arrow);
     if arrow_resp.hovered() {
         ui.painter().rect_filled(arrow, 4.0, t.hover);
@@ -230,7 +230,7 @@ fn list_header(app: &mut MailApp, ui: &mut Ui) {
     let label_w = ui.ctx().fonts_mut(|f| f.layout_no_wrap(label.to_string(), regular(SORT_TEXT), t.text).size().x);
     let label_end = rows_end - 46.0;
     let sr = Rect::from_min_max(pos2(label_end - label_w - 6.0, r.min.y + 22.0), pos2(rows_end - 25.0, r.min.y + 44.0));
-    let sresp = ui.interact(sr, ui.id().with("list_sort"), Sense::click());
+    let sresp = ui.interact(sr, ui.scope_id().with("list_sort"), Sense::click());
     app.hit.add("listSort", 0, sr);
     if sresp.hovered() {
         ui.painter().rect_filled(sr, 4.0, t.hover);
@@ -287,7 +287,7 @@ fn list_header(app: &mut MailApp, ui: &mut Ui) {
             continue;
         }
         let tab = Rect::from_min_max(pos2(x, r.min.y + 18.0), pos2(x + w + 3.0, r.max.y));
-        let resp = ui.interact(tab.expand2(vec2(5.0, 0.0)), ui.id().with(("list_tab", n)), Sense::click());
+        let resp = ui.interact(tab.expand2(vec2(5.0, 0.0)), ui.scope_id().with(("list_tab", n)), Sense::click());
         app.hit.add("listTab", n, tab);
         paint_clipped(ui.painter(), pos2(x + 2.0, r.min.y + 31.5), w + 1.0, label, regular(SENDER_TEXT), if on { t.accent_text } else { t.text });
         let under = Rect::from_min_max(pos2(tab.min.x, r.max.y - 1.0), tab.max);
@@ -400,7 +400,7 @@ fn scroll_arrows(app: &mut MailApp, ui: &mut Ui, lane: Rect, out: &egui::scroll_
             Rect::from_min_max(pos2(lane.min.x, lane.max.y - SCROLL_END), lane.max)
         };
         // It takes drags too, so that a press on it is not one on the bar underneath.
-        let resp = ui.interact(zone, ui.id().with(("list_scroll_arrow", up)), Sense::click_and_drag());
+        let resp = ui.interact(zone, ui.scope_id().with(("list_scroll_arrow", up)), Sense::click_and_drag());
         app.hit.add("listScroll", u64::from(!up), zone);
         // A triangle 9 wide and 7 tall, its point 5 from the end of the lane.
         let (tip, base) = if up { (zone.min.y + 5.0, zone.min.y + 12.0) } else { (zone.max.y - 5.0, zone.max.y - 12.0) };
@@ -416,9 +416,10 @@ fn scroll_arrows(app: &mut MailApp, ui: &mut Ui, lane: Rect, out: &egui::scroll_
             0.0
         };
         if by > 0.0 {
-            let mut state = out.state;
-            state.offset.y = (state.offset.y + if up { -by } else { by }).clamp(0.0, furthest);
-            state.store(ui.ctx(), out.id);
+            // The area's offset can't be set from outside any more: the next frame's area is
+            // handed the new one when it is built.
+            let to = (out.state.clamped_offset().y + if up { -by } else { by }).clamp(0.0, furthest);
+            ui.ctx().data_mut(|d| d.insert_temp(egui::Id::unique("message_list_scroll_to"), to));
             ui.ctx().request_repaint();
         }
     }
@@ -430,7 +431,7 @@ fn scroll_arrows(app: &mut MailApp, ui: &mut Ui, lane: Rect, out: &egui::scroll_
 fn search_bar(app: &mut MailApp, ui: &mut Ui, found: usize) {
     let on = !app.session.view.search.trim().is_empty();
     // It fades in when a search starts; with no search it is gone at once, ready to fade again.
-    let shown = ui.ctx().animate_bool_with_time(ui.id().with("search_bar_fade"), on, if on { 0.15 } else { 0.0 });
+    let shown = ui.ctx().animate_bool_with_time(ui.scope_id().with("search_bar_fade"), on, if on { 0.15 } else { 0.0 });
     if !on {
         return;
     }
@@ -446,13 +447,13 @@ fn search_bar(app: &mut MailApp, ui: &mut Ui, found: usize) {
         n => crate::i18n::fmt(&tln!(n, "{n} result in {scope}", "{n} results in {scope}"), &[("scope", &scope)]),
     };
     let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width() - lane_width(app), 30.0), Sense::hover());
-    resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Label, true, &said));
+    resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Label, true, &said));
     let fill = t.selection.gamma_multiply(shown);
     ui.painter().rect_filled(r.shrink2(vec2(6.0, 3.0)), 4.0, fill);
     let close = Rect::from_center_size(pos2(r.max.x - 22.0, r.center().y), vec2(22.0, 22.0));
     crate::theme::paint_clipped(ui.painter(), pos2(r.min.x + 16.0, r.center().y), close.min.x - r.min.x - 24.0, &said, semibold(12.0), t.text);
-    let x = ui.interact(close, ui.id().with("search_bar_close"), Sense::click()).on_hover_text(tl!("Clear search (Esc)"));
-    x.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, tl!("Clear search")));
+    let x = ui.interact(close, ui.scope_id().with("search_bar_close"), Sense::click()).on_hover_text(tl!("Clear search (Esc)"));
+    x.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, tl!("Clear search")));
     app.hit.add("searchBarClose", 0, close);
     if x.hovered() {
         ui.painter().rect_filled(close, 4.0, t.hover);
@@ -575,56 +576,52 @@ fn list(app: &mut MailApp, ui: &mut Ui) {
     } else {
         scroll_style(ui, &t);
     }
-    let out =
-        egui::ScrollArea::vertical().id_salt("message_list").auto_shrink([false, false]).scroll_bar_rect(travel).show_viewport(ui, |ui, viewport| {
-            // The bar's looks are the bar's alone.
-            ui.set_style(plain);
-            let (area, _) = ui.allocate_exact_size(vec2(ui.available_width(), total), Sense::hover());
-            let origin = area.min;
-            // Rows end where the scroll bar's lane starts, whether the list scrolls or not (at the
-            // list's right edge where the bar floats over them).
-            let width = (area.width() - lane_w).max(0.0);
-            // Only the rows in view are laid out.
-            let first = tops.partition_point(|top| top + row_h < viewport.min.y).saturating_sub(1);
-            for (i, row) in rows.iter().enumerate().skip(first) {
-                let Some(top) = tops.get(i).copied() else { break };
-                if top - GROUP_H > viewport.max.y {
-                    break;
-                }
-                if let Some(group) = &row.group {
-                    // A box a step lighter than the list (a step darker on a light one), with a line round it.
-                    let gr = Rect::from_min_max(pos2(origin.x + ROW_INSET, origin.y + top - GROUP_H), pos2(origin.x + width, origin.y + top));
-                    let fill = t.surface.lerp_to_gamma(t.selection, if t.dark { 1.0 } else { 0.45 });
-                    let line = Stroke::new(1.0, t.border_strong);
-                    ui.painter().rect_filled(gr, 0.0, fill);
-                    // The line under the row above is this box's top edge, except for the first box.
-                    let (left, right, bottom) = (gr.min.x + 0.5, gr.max.x - 0.5, gr.max.y - 0.5);
-                    let top = if i == 0 { gr.min.y + 0.5 } else { gr.min.y };
-                    ui.painter().line_segment([pos2(left, top), pos2(left, gr.max.y)], line);
-                    ui.painter().line_segment([pos2(right, top), pos2(right, gr.max.y)], line);
-                    ui.painter().line_segment([pos2(gr.min.x, bottom), pos2(gr.max.x, bottom)], line);
-                    if i == 0 {
-                        ui.painter().line_segment([pos2(gr.min.x, top), pos2(gr.max.x, top)], line);
-                    }
-                    paint_clipped(
-                        ui.painter(),
-                        pos2(gr.min.x + 10.0, gr.center().y),
-                        gr.width() - 16.0,
-                        group_name(group),
-                        semibold(GROUP_TEXT),
-                        t.text,
-                    );
-                }
-                let rect = Rect::from_min_size(pos2(origin.x, origin.y + top), vec2(width, row_h));
-                if reveal && Some(row.id) == focus {
-                    ui.scroll_to_rect(rect, None);
-                }
-                message_row(app, ui, row, rect);
+    let mut area = egui::ScrollArea::vertical().id_salt("message_list").auto_shrink([false, false]).scroll_bar_rect(travel);
+    if let Some(to) = ui.ctx().data_mut(|d| d.remove_temp::<f32>(egui::Id::unique("message_list_scroll_to"))) {
+        area = area.vertical_scroll_offset(to);
+    }
+    let out = area.show_viewport(ui, |ui, viewport| {
+        // The bar's looks are the bar's alone.
+        ui.set_style(plain);
+        let (area, _) = ui.allocate_exact_size(vec2(ui.available_width(), total), Sense::hover());
+        let origin = area.min;
+        // Rows end where the scroll bar's lane starts, whether the list scrolls or not (at the
+        // list's right edge where the bar floats over them).
+        let width = (area.width() - lane_w).max(0.0);
+        // Only the rows in view are laid out.
+        let first = tops.partition_point(|top| top + row_h < viewport.min.y).saturating_sub(1);
+        for (i, row) in rows.iter().enumerate().skip(first) {
+            let Some(top) = tops.get(i).copied() else { break };
+            if top - GROUP_H > viewport.max.y {
+                break;
             }
-            if below > 0.0 {
-                server_rows::show(app, ui, &local, origin.x, origin.y + rows_end, width, server_h, viewport.translate(origin.to_vec2()));
+            if let Some(group) = &row.group {
+                // A box a step lighter than the list (a step darker on a light one), with a line round it.
+                let gr = Rect::from_min_max(pos2(origin.x + ROW_INSET, origin.y + top - GROUP_H), pos2(origin.x + width, origin.y + top));
+                let fill = t.surface.lerp_to_gamma(t.selection, if t.dark { 1.0 } else { 0.45 });
+                let line = Stroke::new(1.0, t.border_strong);
+                ui.painter().rect_filled(gr, 0.0, fill);
+                // The line under the row above is this box's top edge, except for the first box.
+                let (left, right, bottom) = (gr.min.x + 0.5, gr.max.x - 0.5, gr.max.y - 0.5);
+                let top = if i == 0 { gr.min.y + 0.5 } else { gr.min.y };
+                ui.painter().line_segment([pos2(left, top), pos2(left, gr.max.y)], line);
+                ui.painter().line_segment([pos2(right, top), pos2(right, gr.max.y)], line);
+                ui.painter().line_segment([pos2(gr.min.x, bottom), pos2(gr.max.x, bottom)], line);
+                if i == 0 {
+                    ui.painter().line_segment([pos2(gr.min.x, top), pos2(gr.max.x, top)], line);
+                }
+                paint_clipped(ui.painter(), pos2(gr.min.x + 10.0, gr.center().y), gr.width() - 16.0, group_name(group), semibold(GROUP_TEXT), t.text);
             }
-        });
+            let rect = Rect::from_min_size(pos2(origin.x, origin.y + top), vec2(width, row_h));
+            if reveal && Some(row.id) == focus {
+                ui.scroll_to_rect(rect, None);
+            }
+            message_row(app, ui, row, rect);
+        }
+        if below > 0.0 {
+            server_rows::show(app, ui, &local, origin.x, origin.y + rows_end, width, server_h, viewport.translate(origin.to_vec2()));
+        }
+    });
     if arrows {
         scroll_arrows(app, ui, lane, &out, row_h);
     }
@@ -693,7 +690,7 @@ const MAX_PREVIEWS: usize = 512;
 fn preview(ui: &Ui, rev: u64, m: &Arc<Message>, max_chars: usize) -> Arc<str> {
     let of: PreviewOf = (Arc::as_ptr(m) as usize, m.body.text.len(), m.body.html.as_ref().map_or(0, String::len), max_chars);
     ui.data_mut(|data| {
-        let kept = data.get_temp_mut_or_default::<Previews>(egui::Id::new("message_list_previews"));
+        let kept = data.get_temp_mut_or_default::<Previews>(egui::Id::unique("message_list_previews"));
         if kept.rev != rev || kept.lines.len() > MAX_PREVIEWS {
             kept.lines.clear();
             kept.rev = rev;
@@ -769,14 +766,14 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect) {
     let t = Tokens::get(ui.ctx());
     // The shared pointer, not a copy of the message.
     let Some(m) = app.session.mailbox.messages.get(&row.id).cloned() else { return };
-    let resp = ui.interact(rect, ui.id().with(("msg", row.id)), Sense::click_and_drag());
+    let resp = ui.interact(rect, ui.scope_id().with(("msg", row.id)), Sense::click_and_drag());
     app.hit.add("message", row.id, rect);
     let unread = row.unread > 0;
     // The strip down the left edge is a switch between read and unread. It sits on top of the
     // row, so a click there changes the mark and leaves the selection alone.
     let strip = Rect::from_min_max(rect.min, pos2(rect.min.x + READ_STRIP, rect.max.y));
     let read_resp = ui
-        .interact(strip, ui.id().with(("msg_read", row.id)), Sense::click())
+        .interact(strip, ui.scope_id().with(("msg_read", row.id)), Sense::click())
         .on_hover_cursor(egui::CursorIcon::PointingHand)
         .on_hover_text(if unread { tl!("Mark as read") } else { tl!("Mark as unread") });
     app.hit.add("messageRead", row.id, strip);
@@ -793,8 +790,8 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect) {
     let delete_rect = flag_rect.translate(vec2(-(QUICK_TARGET.x + QUICK_GAP), 0.0));
     let flagged = m.flag == FlagStatus::Flagged;
     let quick = over.then(|| {
-        let delete = ui.interact(delete_rect, ui.id().with(("msg_delete", row.id)), Sense::click()).on_hover_text(tl!("Delete"));
-        let flag = ui.interact(flag_rect, ui.id().with(("msg_flag", row.id)), Sense::click()).on_hover_text(if flagged {
+        let delete = ui.interact(delete_rect, ui.scope_id().with(("msg_delete", row.id)), Sense::click()).on_hover_text(tl!("Delete"));
+        let flag = ui.interact(flag_rect, ui.scope_id().with(("msg_flag", row.id)), Sense::click()).on_hover_text(if flagged {
             tl!("Clear flag")
         } else {
             tl!("Flag for follow-up")
@@ -1120,14 +1117,19 @@ mod tests {
 
     /// The whole window, through real frames.
     fn window(app: MailApp, size: (f32, f32)) -> Window {
-        let mut harness = egui_kittest::Harness::builder().with_size(vec2(size.0, size.1)).with_step_dt(1.0 / 60.0).build_ui_state(
-            |ui, app: &mut MailApp| {
-                let ctx = ui.ctx().clone();
-                app.logic(&ctx);
-                app.ui(ui);
-            },
-            app,
-        );
+        let mut harness = egui_kittest::Harness::builder()
+            .with_accessibility_check(false)
+            .allow_missing_glyphs()
+            .with_size(vec2(size.0, size.1))
+            .with_step_dt(1.0 / 60.0)
+            .build_ui_state(
+                |ui, app: &mut MailApp| {
+                    let ctx = ui.ctx().clone();
+                    app.logic(&ctx);
+                    app.ui(ui);
+                },
+                app,
+            );
         harness.run_steps(4);
         let _ = harness.state_mut().execute("ui.dismissReminder", json!({"all": true}));
         harness.run_steps(3);
@@ -1463,7 +1465,7 @@ mod tests {
         let kept = |harness: &Window, id: Id| -> Option<String> {
             harness
                 .ctx
-                .data(|data| data.get_temp::<Previews>(egui::Id::new("message_list_previews")))
+                .data(|data| data.get_temp::<Previews>(egui::Id::unique("message_list_previews")))
                 .and_then(|p| p.lines.get(&id).map(|(_, line)| line.to_string()))
         };
         let mut a = app();
@@ -1525,7 +1527,7 @@ mod tests {
             for m in &messages {
                 assert_eq!(&*preview(ui, 7, m, 40), format!("Message number {} says hello", m.id).as_str());
             }
-            let kept = ui.data(|data| data.get_temp::<Previews>(egui::Id::new("message_list_previews"))).unwrap();
+            let kept = ui.data(|data| data.get_temp::<Previews>(egui::Id::unique("message_list_previews"))).unwrap();
             assert!(kept.lines.len() <= MAX_PREVIEWS + 1, "{}", kept.lines.len());
             // Asked again, the same line; asked for less, a shorter one; after a change, a new one.
             let first = messages.last().unwrap();

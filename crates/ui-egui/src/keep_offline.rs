@@ -149,7 +149,7 @@ pub(crate) fn slider(app: &mut MailApp, ui: &mut egui::Ui, account: mailcraft_mo
     let steps = KeepOffline::STEPS;
     let last = steps.len().saturating_sub(1);
     let at = steps.iter().position(|k| *k == now).unwrap_or(last);
-    let held = egui::Id::new(("keep-offline", account));
+    let held = egui::Id::unique(("keep-offline", account));
     let mut index = ui.data(|d| d.get_temp::<usize>(held)).unwrap_or(at);
     let response = step_slider(ui, &mut index, last + 1).on_hover_text(tl!(
             "How far back mail is kept in full on this computer. Older mail keeps its headers and a preview, and downloads when you open it. It stays on the server."

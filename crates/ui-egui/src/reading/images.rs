@@ -258,7 +258,7 @@ pub struct Pictures {
 impl Pictures {
     /// The window's pictures.
     pub fn of(ctx: &egui::Context) -> Arc<Mutex<Pictures>> {
-        ctx.data_mut(|d| d.get_temp_mut_or_default::<Arc<Mutex<Pictures>>>(egui::Id::new("mailcraft-inline-pictures")).clone())
+        ctx.data_mut(|d| d.get_temp_mut_or_default::<Arc<Mutex<Pictures>>>(egui::Id::unique("mailcraft-inline-pictures")).clone())
     }
 
     fn entry(&mut self, data: &Arc<Vec<u8>>, frame: u64) -> Option<&mut Entry> {

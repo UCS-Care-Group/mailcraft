@@ -584,8 +584,8 @@ fn options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
 fn time_zones(app: &mut MailApp, ui: &mut Ui, prefs: &mailcraft_engine::Prefs) {
     use mailcraft_time::Zone;
     // What is typed into a zone's list, kept from frame to frame.
-    let typed = |ui: &Ui, key: &str| ui.data(|data| data.get_temp::<String>(egui::Id::new(key))).unwrap_or_default();
-    let keep = |ui: &Ui, key: &str, text: String| ui.data_mut(|data| data.insert_temp(egui::Id::new(key), text));
+    let typed = |ui: &Ui, key: &str| ui.data(|data| data.get_temp::<String>(egui::Id::unique(key))).unwrap_or_default();
+    let keep = |ui: &Ui, key: &str, text: String| ui.data_mut(|data| data.insert_temp(egui::Id::unique(key), text));
     let label = |ui: &mut Ui, text: &str| {
         let mut text = text.to_string();
         let field = egui::TextEdit::singleline(&mut text).hint_text(tl!("Label")).desired_width(80.0).char_limit(24);
@@ -597,7 +597,7 @@ fn time_zones(app: &mut MailApp, ui: &mut Ui, prefs: &mailcraft_engine::Prefs) {
             let _ = app.run("view.timeZone", json!({"label": text}));
         }
         let mut query = typed(ui, "opt_zone_query");
-        if let Some(zone) = crate::zones::picker(ui, egui::Id::new("opt_zone"), &app.session, app.session.zone(), &mut query, 250.0) {
+        if let Some(zone) = crate::zones::picker(ui, egui::Id::unique("opt_zone"), &app.session, app.session.zone(), &mut query, 250.0) {
             let _ = app.run("view.timeZone", json!({"zone": zone.id()}));
         }
         keep(ui, "opt_zone_query", query);
@@ -620,7 +620,7 @@ fn time_zones(app: &mut MailApp, ui: &mut Ui, prefs: &mailcraft_engine::Prefs) {
             let _ = app.run("view.timeZone", json!({"secondLabel": text}));
         }
         let mut query = typed(ui, "opt_second_zone_query");
-        if let Some(zone) = crate::zones::picker(ui, egui::Id::new("opt_second_zone"), &app.session, second, &mut query, 250.0) {
+        if let Some(zone) = crate::zones::picker(ui, egui::Id::unique("opt_second_zone"), &app.session, second, &mut query, 250.0) {
             let _ = app.run("view.timeZone", json!({"second": zone.id()}));
         }
         keep(ui, "opt_second_zone_query", query);

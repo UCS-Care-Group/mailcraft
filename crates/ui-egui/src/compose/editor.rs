@@ -58,14 +58,14 @@ impl Which {
     fn id(self) -> egui::Id {
         match self {
             Which::Message => id(),
-            Which::Signature => egui::Id::new("mailcraft-signature-body"),
+            Which::Signature => egui::Id::unique("mailcraft-signature-body"),
         }
     }
 }
 
 /// The body's id: what has the keyboard when it does.
 pub fn id() -> egui::Id {
-    egui::Id::new("mailcraft-compose-body")
+    egui::Id::unique("mailcraft-compose-body")
 }
 
 /// Whether the body (or a signature being edited) has the keyboard.

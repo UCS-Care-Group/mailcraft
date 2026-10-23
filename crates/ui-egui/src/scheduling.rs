@@ -705,7 +705,7 @@ pub(crate) fn show(app: &mut MailApp, ui: &mut Ui, view: &mut View, meeting: &Me
             }
             // A click on the grid puts the meeting there, as long as it was.
             let (pointer, pressed_at) = ui.input(|i| (i.pointer.interact_pos(), i.pointer.press_origin()));
-            let ground = ui.interact(grid, ui.id().with(("scheduling_grid", window)), Sense::click());
+            let ground = ui.interact(grid, ui.scope_id().with(("scheduling_grid", window)), Sense::click());
             app.hit.add("schedulingGrid", window, grid);
             if let (true, Some(at), Some((start, end)), false) = (ground.clicked(), pointer, span, meeting.all_day) {
                 let length = (end - start).clamp(0, i64::from(DAY));
@@ -735,7 +735,7 @@ pub(crate) fn show(app: &mut MailApp, ui: &mut Ui, view: &mut View, meeting: &Me
                         if !rect.is_positive() || (hold == Hold::End && end > i64::from(DAY)) {
                             continue;
                         }
-                        let part = ui.interact(rect, ui.id().with(("scheduling_band", window, kind)), Sense::drag());
+                        let part = ui.interact(rect, ui.scope_id().with(("scheduling_band", window, kind)), Sense::drag());
                         app.hit.add(kind, window, rect);
                         let part = part.on_hover_cursor(if hold == Hold::Move { CursorIcon::Grab } else { CursorIcon::ResizeHorizontal });
                         // (Counted from where the button went down, not from where the drag was
@@ -799,7 +799,7 @@ pub(crate) fn show(app: &mut MailApp, ui: &mut Ui, view: &mut View, meeting: &Me
                 paint_clipped(&below, pos2(cell.min.x + 28.0, cell.center().y), NAME_W - 36.0, &row.name, font, ink);
                 let visible = cell.intersect(Rect::from_min_max(pos2(names.min.x, names.min.y + HEAD_H), names.max));
                 if !row.detail.is_empty() && visible.is_positive() {
-                    ui.interact(visible, ui.id().with(("scheduling_name", window, i)), Sense::hover()).on_hover_text(row.detail.as_str());
+                    ui.interact(visible, ui.scope_id().with(("scheduling_name", window, i)), Sense::hover()).on_hover_text(row.detail.as_str());
                 }
             }
             // The corner: the day that is shown.
