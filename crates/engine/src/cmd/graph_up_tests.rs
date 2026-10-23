@@ -376,6 +376,22 @@ fn a_refused_delete_for_good_is_put_back_at_once_with_all_that_was_fetched() {
     assert!(s.mailbox.queued.is_empty());
 }
 
+/// #300: put back as the server has it after a refused delete for good, a message keeps the
+/// size it had when the server's answer says none; one the server says is taken.
+#[test]
+fn a_refused_delete_for_good_keeps_the_size_known_here() {
+    for (said, kept) in [(0, 4096), (8192, 8192)] {
+        let (mut s, account, m, _) = setup();
+        s.mailbox.message_mut(m).unwrap().server.as_mut().unwrap().size = 4096;
+        s.run("mail.deletePermanently", &json!({"ids": [m]})).unwrap();
+        let mut there = GraphMessage { subject: "Invoice 42".into(), ..Default::default() };
+        there.server = ServerMessage { id: "M-1".into(), folder: "F-in".into(), size: said, ..Default::default() };
+        delete_answered(&mut s, account, MessageOutcome::Refused { status: 403 }, Some(there));
+        let back = s.mailbox.messages.values().find(|m| m.subject == "Invoice 42").unwrap();
+        assert_eq!(back.server.as_ref().map(|s| s.size), Some(kept), "the server said {said}");
+    }
+}
+
 #[test]
 fn a_refused_delete_of_a_message_being_moved_out_puts_it_back_where_the_server_has_it() {
     let (mut s, account, m, kept) = setup();

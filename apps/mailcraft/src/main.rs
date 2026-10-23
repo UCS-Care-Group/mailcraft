@@ -50,6 +50,8 @@ mod menubar;
 mod opened_files;
 mod picture_cache;
 mod quit;
+#[cfg(target_os = "macos")]
+mod quit_macos;
 mod secrets;
 mod self_update;
 #[cfg(test)]
@@ -1492,7 +1494,7 @@ fn main() -> eframe::Result {
                 Ok(bar) => Some(bar),
                 Err(e) => {
                     log::warn!("the menu bar couldn't be set up: {e}");
-                    if let Err(e) = craft_quit::install_app_menu(&cc.egui_ctx, "MailCraft") {
+                    if let Err(e) = quit_macos::install_app_menu(&cc.egui_ctx, "MailCraft") {
                         log::warn!("the app menu couldn't be set up, so Quit won't ask about unsaved work: {e}");
                     }
                     None

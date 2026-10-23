@@ -734,6 +734,9 @@ fn of_a_message_too_large_to_take_the_header_is_kept_with_a_note() {
     // A program knows it by its header, which says how large the message is.
     assert_eq!(two.headers.iter().find(|(name, _)| name == "X-MailCraft-Not-Downloaded").map(|(_, size)| size.as_str()), Some("62914560"));
     assert!(result.folders[0].new[0].headers.iter().all(|(name, _)| name != "X-MailCraft-Not-Downloaded"));
+    // And by its size on the server, kept apart from the header for the list (#300).
+    assert_eq!((two.not_downloaded, two.list_size()), (62_914_560, Some(62_914_560)));
+    assert_eq!(result.folders[0].new[0].not_downloaded, 0);
     // Only its header was asked for.
     assert_eq!(sent(&imap, "UID FETCH 2 (UID FLAGS INTERNALDATE BODY.PEEK[HEADER])"), 1);
     assert_eq!((sent(&imap, "UID FETCH 2 (UID FLAGS INTERNALDATE BODY.PEEK[])"), downloads(&imap)), (0, 4));
