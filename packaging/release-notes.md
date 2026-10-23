@@ -39,6 +39,7 @@
 - On a Mac, the message list's rows reach the right edge, with a thin scroll bar over them while scrolling, as in other Mac programs (thanks to @pick2510 for reporting).
 - On macOS the menu bar at the top of the screen now has File, Edit, View, Folder, Message, Window and Help as well as MailCraft's own menu, running the same commands with the same ⌘ keys ([#253](https://github.com/GITHUB_REPOSITORY/issues/253), thanks to @HerbJul).
 - The settings of an account kept in step through Microsoft Graph no longer show a user name or IMAP and SMTP servers it doesn't use; they say its mail comes through Microsoft Graph instead ([#312](https://github.com/GITHUB_REPOSITORY/issues/312), thanks to @kartas39).
+- Arranged by size, a message that is only partly here says, and sorts by, its whole size: a Microsoft account's message kept as its preview the size it had when it was downloaded, and a message too large to download from a mail server the size that server gave ([#300](https://github.com/GITHUB_REPOSITORY/issues/300)).
 
 **Early alpha.** The foundations are in place and tested, but much of what a daily mail program needs is not there yet, and most of the Microsoft 365 behaviour has only been tested against stand-ins. What works is in the [README](https://github.com/GITHUB_REPOSITORY#what-works-today).
 

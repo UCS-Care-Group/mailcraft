@@ -3134,3 +3134,7 @@ impl Queue {
 #[cfg(test)]
 #[path = "store_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "store_size_tests.rs"]
+mod size_tests;
