@@ -130,10 +130,6 @@ rfd = { workspace = true }
 # could be started (egui's own way of opening a link doesn't). Already in the tree: eframe's
 # `links` feature runs on it.
 webbrowser = "1.2"
-# Opens an attachment the owner asked to open with the system's program for its kind (#126):
-# ShellExecute on Windows, `open` on macOS, `xdg-open` and the like elsewhere, never through a
-# shell. Already in the tree (egui_kittest's).
-open = { version = "5.4", features = ["shellexecute-on-windows"] }
 # The system's clipboard with HTML on it, for copying and pasting formatted text in a message
 # being written (egui's own clipboard carries text only). Already in the tree: egui's window
 # layer copies text through it.

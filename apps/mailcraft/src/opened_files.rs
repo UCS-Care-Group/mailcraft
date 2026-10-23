@@ -22,9 +22,9 @@
 //! - **Marked as from the Internet** on Windows (its zone, as a browser's download is) and macOS
 //!   (quarantined), so the program that opens it treats it as it treats a download (Office's
 //!   Protected View, Gatekeeper); see `mailcraft_engine::mark`.
-//! - **Opened without a shell:** the system's own way of opening a file (ShellExecute on Windows,
-//!   `open` on macOS, `xdg-open` and the like elsewhere, through the `open` crate), with the
-//!   file's whole path as the one argument.
+//! - **Opened without a shell:** the system's own opener started as a program (Explorer on
+//!   Windows, `open` on macOS, `xdg-open` and the like elsewhere; `file_launcher.rs`), with the
+//!   file's whole absolute path as the one argument.
 //! - **Tidied:** the run's folder goes when MailCraft quits; what an earlier run left (it was
 //!   killed, the file was still open) goes at the next start once it is a day old.
 
@@ -73,7 +73,7 @@ impl Opened {
     /// Write `bytes` as an attachment called `name` and open it with the system's program.
     pub fn open(&self, name: &str, bytes: &[u8]) -> Result<(), String> {
         let path = self.write(name, bytes)?;
-        open::that_detached(&path).map_err(|e| {
+        crate::file_launcher::open_detached(&path).map_err(|e| {
             log::warn!("couldn't open an attachment with the system's program ({:?})", e.kind());
             "No program could be started to open the attachment: save it with Save As instead.".to_string()
         })

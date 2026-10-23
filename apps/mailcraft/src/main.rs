@@ -38,6 +38,7 @@ mod favorites_flow;
 #[cfg(test)]
 mod favorites_organisation_flow;
 mod file_dialogs;
+mod file_launcher;
 #[cfg(test)]
 mod graph_folders_flow;
 #[cfg(test)]
