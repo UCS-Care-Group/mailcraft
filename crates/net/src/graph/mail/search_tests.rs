@@ -70,28 +70,35 @@ fn an_address_is_searched_on_the_server_as_it_is_here() {
             state.mailbox.messages.get_mut(&id).unwrap().from = from.into();
         }
     }
-    for (query, sent) in [
-        ("from:ada+news@example.org", r#""from:\"ada+news@example.org\"""#),
-        ("from:ADA@example.org", r#""from:ada@example.org""#),
-        ("from:ada", r#""from:ada""#),
+    // Each message's subject is its sender. `alone`: the server's answer is the search's by itself.
+    for (query, sent, alone) in [
+        ("from:ada+news@example.org", r#""from:\"ada+news@example.org\"""#, true),
+        ("from:ADA@example.org", r#""from:ada@example.org""#, true),
+        ("from:ada", r#""from:ada""#, true),
         // Not a whole address here, so not one there either: words, in both.
-        ("from:ada@-example.org", r#""from:ada@-example.org""#),
+        ("from:ada@-example.org", r#""from:ada@-example.org""#, true),
+        // Words here round a whole address, which the server would read as that address: not
+        // sent, so the server finds more, and what is checked here leaves the search's answer.
+        ("from:<ada@example.org> subject:ada", r#""subject:ada""#, false),
     ] {
         let found = ask(&server.url(), &request("owner@example.org", false, "", query));
         assert!(found.errors.is_empty(), "{query}: {:?}", found.errors);
         let asked = server.state().requests.last().cloned().unwrap();
         let param = asked.query.iter().find(|(n, _)| n == "$search").map(|(_, v)| v.clone());
         assert_eq!(param.as_deref(), Some(sent), "{query}");
-        // What the server finds is what a search here finds, and what is checked here keeps it.
+        // What the server finds, once what is checked here has looked at it, is what a search
+        // here finds; and with nothing left to check, by itself.
         let parsed = mailcraft_model::search::Query::parse(query);
-        let here = |from: &str| parsed.matches(&mailcraft_model::Message { from: mailcraft_model::Address::new("", from), ..Default::default() }, 0);
+        let local = parsed.for_server().local;
+        let message =
+            |from: &str| mailcraft_model::Message { from: mailcraft_model::Address::new("", from), subject: from.into(), ..Default::default() };
+        let mut by_here: Vec<&str> = senders.into_iter().filter(|from| parsed.matches(&message(from), 0)).collect();
+        by_here.sort();
         let mut by_server: Vec<&str> = subjects(&found);
         by_server.sort();
-        let mut by_here: Vec<&str> = senders.into_iter().filter(|from| here(from)).collect();
-        by_here.sort();
-        assert_eq!(by_server, by_here, "{query}");
-        let local = parsed.for_server().local;
-        assert!(found.messages.iter().all(|m| local.matches(&mailcraft_model::Message { from: m.from.clone(), ..Default::default() }, 0)), "{query}");
+        let checked: Vec<&str> = by_server.iter().copied().filter(|from| local.matches(&message(from), 0)).collect();
+        assert_eq!(checked, by_here, "{query}");
+        assert_eq!(by_server == by_here, alone, "{query}: {by_server:?}");
     }
 }
 

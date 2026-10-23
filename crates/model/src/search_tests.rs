@@ -123,6 +123,11 @@ fn a_server_is_given_the_address_whole_and_its_results_are_checked() {
     );
     assert_eq!(split.local.len(), 1);
     assert!(split.local.matches(&msg(), 0) && !split.local.matches(&from("adam@example.org"), 0));
+    // More round an address is words here, and a server would read the address in it as that
+    // address: it stays here alone, and still finds the words.
+    let words = Query::parse("from:<ada@example.org> budget").for_server();
+    assert_eq!(words.terms, [ServerTerm::Words { field: None, words: vec!["budget".into()] }]);
+    assert!(words.local.len() == 1 && words.local.matches(&from("adam@example.org"), 0));
     // One too long for a server's word, or with what a server's search can't take, stays here
     // alone, and still finds it.
     let long = format!("{}@example.org", "a".repeat(70));

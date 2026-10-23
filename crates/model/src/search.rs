@@ -473,6 +473,10 @@ impl Query {
         for term in &self.terms {
             let sent = match (&term.kind, term.negate) {
                 (_, true) => None,
+                // A server reads a whole address after `from:`, `to:` or `cc:` as that address,
+                // where here such a term is words (`from:<ada@example.org>` finds
+                // adam@example.org): it is looked at here alone.
+                (Kind::Words { fields: FROM | TO | CC, raw, .. }, false) if raw.iter().any(|w| is_address(w)) => None,
                 (Kind::Words { fields, raw, .. }, false) if !raw.is_empty() => {
                     let field = match *fields {
                         words::ALL => Some(None),
