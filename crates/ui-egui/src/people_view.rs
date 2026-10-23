@@ -739,6 +739,8 @@ pub(crate) mod testing {
 
     use crate::{MailApp, Services};
 
+    pub type Window = Harness<'static, MailApp>;
+
     /// Wednesday 2026-10-14 16:00 UTC.
     pub fn now() -> i64 {
         mailcraft_time::DateTime::new(mailcraft_time::Date::new(2026, 10, 14).unwrap(), 16, 0, 0).unwrap().to_timestamp(0)

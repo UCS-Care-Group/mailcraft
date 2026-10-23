@@ -8980,6 +8980,11 @@ msgstr ""
 msgid "the proposed end is not after the proposed start"
 msgstr ""
 
+#. what a command says
+#: crates/engine/src/cmd/mail.rs
+msgid "the search can't look for this sender's address as a whole address"
+msgstr ""
+
 #. why a command can't run
 #: crates/engine/src/cmd/search_server.rs
 msgid "the search involves no mailbox of a Microsoft account"

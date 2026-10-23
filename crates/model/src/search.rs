@@ -195,7 +195,7 @@ fn keyword_kind(body: &str) -> Option<Kind> {
     let v = value.to_string();
     let words_in = |fields: u8, v: &str| Kind::Words { fields, words: words::words(v), raw: raw_words(v) };
     let address_in = |fields: u8, v: &str| match is_address(v) {
-        true => Kind::Address { fields, address: v.to_lowercase(), words: words::words(v) },
+        true => Kind::Address { fields, address: address_key(v), words: words::words(v) },
         false => words_in(fields, v),
     };
     Some(match key.to_ascii_lowercase().as_str() {
@@ -224,6 +224,13 @@ fn keyword_kind(body: &str) -> Option<Kind> {
         // `10:30`, `re: budget`, a URL: plain text.
         _ => return None,
     })
+}
+
+/// An address as two of them are compared: trimmed, in small letters, a final sigma (`ς`) as any
+/// other (`σ`), so that `ΟΣ@example.org` and `οσ@example.org` are one address. Accents and an
+/// international domain's `xn--` form are left as they are.
+pub fn address_key(v: &str) -> String {
+    v.trim().to_lowercase().replace('ς', "σ")
 }
 
 /// Whether `v` is one whole address and nothing else (`name@domain`): a name of parts between
@@ -317,6 +324,12 @@ fn raw_words(text: &str) -> Vec<String> {
         .take(MAX_SERVER_WORDS)
         .map(|w| w.chars().take(MAX_SERVER_WORD).collect())
         .collect()
+}
+
+/// Whether a server was given less of a term than was typed: as many words as it takes, or a word
+/// as long (and so perhaps cut short). Such a term is looked at here too.
+fn cut_short(raw: &[String]) -> bool {
+    raw.len() >= MAX_SERVER_WORDS || raw.iter().any(|w| w.chars().count() >= MAX_SERVER_WORD)
 }
 
 /// The part of a message a server's search is asked to look in.
@@ -509,8 +522,9 @@ impl Query {
                 Some(sent) if out.terms.len() < MAX_SERVER_TERMS => {
                     out.terms.push(sent);
                     // A whole address is looked at here too: a server's search may find it
-                    // inside a longer one.
-                    if matches!(term.kind, Kind::Address { .. }) {
+                    // inside a longer one; and so are words the server was given less of.
+                    let cut = matches!(&term.kind, Kind::Words { raw, .. } if cut_short(raw));
+                    if cut || matches!(term.kind, Kind::Address { .. }) {
                         out.local.terms.push(term.clone());
                     }
                 }
@@ -535,7 +549,7 @@ impl Query {
                     words::texts(m, &m.body.text, |field, text| field & fields != 0 && words::starts_in(text, words))
                 }
                 Kind::Address { fields, address, .. } => {
-                    let is = |a: &crate::Address| a.email.trim().to_lowercase() == *address;
+                    let is = |a: &crate::Address| address_key(&a.email) == *address;
                     (fields & FROM != 0 && is(&m.from)) || (fields & TO != 0 && m.to.iter().any(is)) || (fields & CC != 0 && m.cc.iter().any(is))
                 }
                 Kind::Category(x) => m.categories.iter().any(|c| contains_ci(c, x)),

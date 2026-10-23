@@ -62,7 +62,8 @@ fn what_goes_to_the_server_is_what_its_search_understands() {
 fn an_address_is_searched_on_the_server_as_it_is_here() {
     let server = StandIn::start().unwrap();
     let inbox = server.state().well_known("inbox");
-    let senders = ["ada+news@example.org", "ada@example.org", "adam+newsletter@example.org", "ADA+NEWS@example.org", "ada.smith@example.org"];
+    let senders =
+        ["ada+news@example.org", "ada@example.org", "adam+newsletter@example.org", "ADA+NEWS@example.org", "ada.smith@example.org", "ΟΣ@example.org"];
     {
         let mut state = server.state();
         for (i, from) in senders.into_iter().enumerate() {
@@ -75,6 +76,8 @@ fn an_address_is_searched_on_the_server_as_it_is_here() {
         ("from:ada+news@example.org", r#""from:\"ada+news@example.org\"""#, true),
         ("from:ADA@example.org", r#""from:ada@example.org""#, true),
         ("from:ada", r#""from:ada""#, true),
+        // A final sigma is a sigma, here and there.
+        ("from:οσ@example.org", r#""from:οσ@example.org""#, true),
         // Not a whole address here, so not one there either: words, in both.
         ("from:ada@-example.org", r#""from:ada@-example.org""#, true),
         // Words here round a whole address, which the server would read as that address: not

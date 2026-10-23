@@ -10765,6 +10765,11 @@ msgstr "la cartella padre appartiene a un altro account"
 msgid "the proposed end is not after the proposed start"
 msgstr "la fine proposta non è successiva all'inizio proposto"
 
+#. what a command says
+#: crates/engine/src/cmd/mail.rs
+msgid "the search can't look for this sender's address as a whole address"
+msgstr ""
+
 #. why a command can't run
 #: crates/engine/src/cmd/search_server.rs
 #, fuzzy

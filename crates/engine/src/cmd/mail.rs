@@ -419,10 +419,14 @@ fn find_from_sender(s: &mut Session, v: &Value) -> CmdResult {
     let m = s.mailbox.message(id).ok_or_else(|| failed!("no message with id {id}", id))?;
     let address = m.from.email.trim();
     let search = format!("from:{}", keyword_value(address));
-    // What is written is read back as that one address, or not written at all.
+    if address.is_empty() {
+        return Err(fail("this message has no sender address to look for"));
+    }
+    // What is written is read back as that one address, or not written at all: an address the
+    // search doesn't take as a whole one (`ada@[192.0.2.1]`) is said to be one.
     let query = Query::parse(&search);
     if !is_address(address) || query.len() != 1 || !query.is_address_term(0) || !query.matches(m, 0) {
-        return Err(fail("this message has no sender address to look for"));
+        return Err(fail("the search can't look for this sender's address as a whole address"));
     }
     s.view.search = search;
     s.view.scope = crate::Scope::Everywhere;

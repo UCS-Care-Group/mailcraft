@@ -10767,6 +10767,11 @@ msgstr "la carpeta principal pertenece a otra cuenta"
 msgid "the proposed end is not after the proposed start"
 msgstr "el fin propuesto no es posterior al inicio propuesto"
 
+#. what a command says
+#: crates/engine/src/cmd/mail.rs
+msgid "the search can't look for this sender's address as a whole address"
+msgstr ""
+
 #. why a command can't run
 #: crates/engine/src/cmd/search_server.rs
 #, fuzzy

@@ -47,8 +47,12 @@ fn mail_from_the_sender_of_the_selected_message_or_of_the_one_named() {
 
     // No such message, or one with no sender address: said, and the search is as it was.
     assert!(s.run("mail.findFromSender", &json!({"id": 999_999})).is_err());
+    s.mailbox.message_mut(other).unwrap().from.email = "ada@[192.0.2.1]".into();
+    let said = s.run("mail.findFromSender", &json!({"id": other})).unwrap_err().to_string();
+    assert!(said.contains("as a whole address"), "{said}");
     s.mailbox.message_mut(other).unwrap().from.email.clear();
-    assert!(s.run("mail.findFromSender", &json!({"id": other})).is_err());
+    let said = s.run("mail.findFromSender", &json!({"id": other})).unwrap_err().to_string();
+    assert!(said.contains("no sender address"), "{said}");
     assert_eq!(s.view.search, format!("from:{other_sender}"));
 }
 

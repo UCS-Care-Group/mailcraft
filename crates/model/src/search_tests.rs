@@ -29,7 +29,9 @@ fn finds(q: &str, m: &Message) -> bool {
 #[test]
 fn a_whole_address_finds_that_address_alone() {
     for q in ["from:ada@example.org", "from:\"ada@example.org\"", "from: ADA@Example.ORG", "FROM:ada@example.org"] {
-        assert!(finds(q, &from("ada@example.org")) && finds(q, &from(" Ada@Example.org ")), "{q}");
+        // As kept, with the spaces a message may have round it.
+        let spaced = Message { from: Address { name: "Ada".into(), email: " Ada@Example.org ".into() }, ..msg() };
+        assert!(finds(q, &from("ada@example.org")) && finds(q, &spaced), "{q}");
         for near in ["adam@example.org", "ada.smith@example.org", "ada@example.org.example", "ada@example.com", "xada@example.org"] {
             assert!(!finds(q, &from(near)), "{q} found {near}");
         }
@@ -46,6 +48,8 @@ fn a_whole_address_finds_that_address_alone() {
     let decomposed = "u\u{0308}nal@bu\u{0308}cher.example";
     assert!(finds(&format!("from:{decomposed}"), &from(decomposed)) && !finds(&format!("from:{decomposed}"), &from("unal@bucher.example")));
     assert!(finds("from:İpek@example.org", &from("i̇pek@example.org")) && finds("from:i̇pek@example.org", &from("İPEK@EXAMPLE.ORG")));
+    // A final sigma is a sigma: ΟΣ and οσ are one address, either way round.
+    assert!(finds("from:οσ@example.org", &from("ΟΣ@example.org")) && finds("from:ΟΣ@example.org", &from("οσ@example.org")));
     // An international domain in `xn--` form and in its own letters are two addresses.
     assert!(
         !finds("from:ada@xn--bcher-kva.example", &from("ada@bücher.example"))
@@ -136,6 +140,21 @@ fn a_server_is_given_the_address_whole_and_its_results_are_checked() {
         assert_eq!(split.terms, [ServerTerm::Words { field: None, words: vec!["budget".into()] }], "{address}");
         assert!(split.local.matches(&from(address), 0) && !split.local.matches(&msg(), 0), "{address}");
     }
+}
+
+/// A phrase longer than a server is given is looked at here too, so the server's answer is
+/// checked for what it wasn't asked.
+#[test]
+fn what_a_server_is_given_less_of_is_looked_at_here() {
+    let q = "from:ada@example.org subject:\"one two three four five six seven eight nine\"";
+    let split = Query::parse(q).for_server();
+    assert_eq!(split.terms.len(), 2);
+    assert_eq!(split.local.len(), 2);
+    let eight = Message { subject: "one two three four five six seven eight".into(), ..msg() };
+    let nine = Message { subject: "one two three four five six seven eight nine".into(), ..msg() };
+    assert!(!split.local.matches(&eight, 0) && split.local.matches(&nine, 0));
+    // A phrase a server is given whole is the server's alone, as before.
+    assert_eq!(Query::parse("from:ada@example.org subject:\"budget review\"").for_server().local.len(), 1);
 }
 
 /// A plus-address stays in one piece, for the server too; elsewhere `+` parts words.
