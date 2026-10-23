@@ -326,10 +326,14 @@ fn raw_words(text: &str) -> Vec<String> {
         .collect()
 }
 
-/// Whether a server was given less of a term than was typed: as many words as it takes, or a word
-/// as long (and so perhaps cut short). Such a term is looked at here too.
-fn cut_short(raw: &[String]) -> bool {
-    raw.len() >= MAX_SERVER_WORDS || raw.iter().any(|w| w.chars().count() >= MAX_SERVER_WORD)
+/// Whether a server was given less of a term than was typed (as many words as it takes, or a word
+/// as long, and so perhaps cut short) in parts of a message that a message found on the server
+/// has here whole: its people and its subject. Such a term is looked at here too; one in the
+/// body or an attachment's name isn't, as such a message has only a preview of its body here and
+/// no attachments, so looking would drop what the server rightly found.
+fn cut_short(fields: u8, raw: &[String]) -> bool {
+    let whole_here = fields & !(FROM | TO | CC | SUBJECT) == 0;
+    whole_here && (raw.len() >= MAX_SERVER_WORDS || raw.iter().any(|w| w.chars().count() >= MAX_SERVER_WORD))
 }
 
 /// The part of a message a server's search is asked to look in.
@@ -523,7 +527,7 @@ impl Query {
                     out.terms.push(sent);
                     // A whole address is looked at here too: a server's search may find it
                     // inside a longer one; and so are words the server was given less of.
-                    let cut = matches!(&term.kind, Kind::Words { raw, .. } if cut_short(raw));
+                    let cut = matches!(&term.kind, Kind::Words { fields, raw, .. } if cut_short(*fields, raw));
                     if cut || matches!(term.kind, Kind::Address { .. }) {
                         out.local.terms.push(term.clone());
                     }

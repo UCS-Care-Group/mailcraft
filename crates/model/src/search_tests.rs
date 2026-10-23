@@ -153,6 +153,16 @@ fn what_a_server_is_given_less_of_is_looked_at_here() {
     let eight = Message { subject: "one two three four five six seven eight".into(), ..msg() };
     let nine = Message { subject: "one two three four five six seven eight nine".into(), ..msg() };
     assert!(!split.local.matches(&eight, 0) && split.local.matches(&nine, 0));
+    // In the body or an attachment's name, the server's alone: a message found there has only a
+    // preview of its body here, and no attachments.
+    for q in [
+        "body:\"one two three four five six seven eight nine\"",
+        "attachment:\"one two three four five six seven eight\"",
+        "\"one two three four five six seven eight nine\"",
+    ] {
+        let split = Query::parse(q).for_server();
+        assert!(split.terms.len() == 1 && split.local.is_empty(), "{q}");
+    }
     // A phrase a server is given whole is the server's alone, as before.
     assert_eq!(Query::parse("from:ada@example.org subject:\"budget review\"").for_server().local.len(), 1);
 }
