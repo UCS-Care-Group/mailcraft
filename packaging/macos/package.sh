@@ -4,7 +4,7 @@
 #   $DIST/mailcraft-<version>-macos-<arch>.dmg          MailCraft.app on a drag-to-Applications DMG
 #   $DIST/mailcraft-cli-<version>-macos-<arch>.zip      the headless CLI
 #
-# Usage: packaging/macos/package.sh [--arch universal|aarch64|x86_64] [--skip-build]
+# Usage: packaging/macos/package.sh [--arch universal|aarch64|x86_64] [--skip-build | --build-only]
 #
 # Signing (env):
 #   MACOS_SIGN_IDENTITY   codesign identity (name or SHA-1). Default "-" = ad-hoc (local testing;
@@ -19,11 +19,13 @@ HERE="$ROOT/packaging/macos"
 
 ARCH=universal
 SKIP_BUILD=0
+BUILD_ONLY=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --arch) ARCH="$2"; shift 2 ;;
     --skip-build) SKIP_BUILD=1; shift ;;
-    -h | --help) sed -n '2,16p' "$0"; exit 0 ;;
+    --build-only) BUILD_ONLY=1; shift ;;
+    -h | --help) sed -n '2,18p' "$0"; exit 0 ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
 done
@@ -33,6 +35,10 @@ case "$ARCH" in
   x86_64) TARGETS=(x86_64-apple-darwin) ;;
   *) echo "unknown --arch $ARCH" >&2; exit 2 ;;
 esac
+if [ "$SKIP_BUILD" = 1 ] && [ "$BUILD_ONLY" = 1 ]; then
+  echo "--skip-build and --build-only can't be used together" >&2
+  exit 2
+fi
 
 # Keep in sync with LSMinimumSystemVersion in Info.plist.in.
 export MACOSX_DEPLOYMENT_TARGET=11.0
@@ -59,6 +65,13 @@ if [ "$SKIP_BUILD" = 0 ]; then
   args=()
   for t in "${TARGETS[@]}"; do args+=(--target "$t"); done
   (cd "$ROOT" && cargo build --release --locked -p mailcraft -p mailcraft-cli "${args[@]}")
+fi
+
+# CI compiles in a step of its own (--build-only), with no signing secret in its environment, and
+# signs in a later one (--skip-build): nothing a dependency's build script runs sees the secrets.
+if [ "$BUILD_ONLY" = 1 ]; then
+  echo "==> built; signing and packaging come next"
+  exit 0
 fi
 
 rm -rf "$WORK"

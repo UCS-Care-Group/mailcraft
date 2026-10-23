@@ -2827,6 +2827,11 @@ msgid "Imported {what} into a local folder: Microsoft doesn't let a mail program
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/lib.rs
+msgid "Imported {what}; stopped after {count}: the file has more than one import takes"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/signatures.rs
 msgid "In a plain-text message"
 msgstr ""
@@ -8294,6 +8299,13 @@ msgstr ""
 #: crates/ui-egui/src/forms.rs
 msgid "and"
 msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading.rs
+msgid "and {n} more"
+msgid_plural "and {n} more"
+msgstr[0] ""
+msgstr[1] ""
 
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs

@@ -394,7 +394,7 @@ fn large_and_hostile_input_is_read_quickly() {
     let _ = parse(&m);
     let mut m = b"To: ".to_vec();
     m.extend(b"a@example.org,".repeat(50_000));
-    assert_eq!(parse(&m).to.len(), 10_000);
+    assert_eq!(parse(&m).to.len(), crate::MAX_RECIPIENTS);
     let mut m = b"Cc: ".to_vec();
     m.extend(b"\"a\" <a@example.org>, (c) ".repeat(50_000));
     assert!(parse(&m).cc.len() > 1_000);
@@ -649,5 +649,67 @@ proptest! {
         let second = parse(&write(&first, &opts));
         let third = parse(&write(&second, &opts));
         prop_assert_eq!(third, second);
+    }
+}
+
+// ---- caps on lists and header bytes ----
+
+#[test]
+fn recipients_and_categories_are_capped_across_the_message() {
+    let line = format!("To: {}\r\n", (0..10_000).map(|i| format!("u{i}@example.org")).collect::<Vec<_>>().join(", "));
+    let keywords = format!("Keywords: {}\r\n", (0..10_000).map(|i| format!("k{i}")).collect::<Vec<_>>().join(","));
+    let mut raw = String::new();
+    for _ in 0..10 {
+        raw.push_str(&line);
+        raw.push_str(&keywords);
+    }
+    raw.push_str("Cc: c@example.org\r\nReply-To: ");
+    raw.push_str(&(0..5000).map(|i| format!("r{i}@example.org")).collect::<Vec<_>>().join(", "));
+    raw.push_str("\r\n\r\nbody\r\n");
+    let t = std::time::Instant::now();
+    let m = parse(raw.as_bytes());
+    assert!(t.elapsed().as_secs() < 1, "{:?}", t.elapsed());
+    assert_eq!(m.to.len() + m.cc.len() + m.bcc.len(), crate::MAX_RECIPIENTS);
+    assert_eq!(m.categories.len(), crate::MAX_CATEGORIES);
+    assert_eq!(m.reply_to.len(), crate::MAX_RECIPIENTS);
+}
+
+#[test]
+fn a_header_block_keeps_a_bounded_number_of_bytes() {
+    let mut raw = Vec::new();
+    for i in 0..100 {
+        raw.extend_from_slice(format!("X-F{i}: ").as_bytes());
+        raw.extend_from_slice(&b"a".repeat(100_000));
+        raw.extend_from_slice(b"\r\n");
+    }
+    raw.extend_from_slice(b"\r\nbody");
+    let (headers, body) = crate::header::split(&raw, true);
+    assert!(headers.0.iter().map(|f| f.name.len() + f.value.len()).sum::<usize>() <= 4 * 1024 * 1024);
+    assert!(!headers.0.is_empty() && headers.0.len() < 100);
+    assert_eq!(body, b"body");
+}
+
+#[test]
+fn an_mbox_is_read_one_message_at_a_time() {
+    let mbox = b"From a@example.org Tue Jul  1 08:52:37 2003\nSubject: one\n\nx\n\nFrom b@example.org Tue Jul  1 08:52:37 2003\nSubject: two\n\ny\n"
+        .repeat(10);
+    let mut it = crate::mbox_messages(&mbox);
+    assert_eq!(it.next().map(|m| m.subject), Some("one".into()));
+    assert_eq!(crate::mbox_messages(&mbox).take(5).count(), 5);
+    assert_eq!(crate::mbox_messages(&mbox).count(), parse_mbox(&mbox).len());
+}
+
+proptest! {
+    #[test]
+    fn list_headers_stay_under_the_caps(lines in proptest::collection::vec(("(To|Cc|Bcc|Reply-To|Keywords)", "[a-z@.,; <>]{0,3000}"), 0..60)) {
+        let mut raw = String::new();
+        for (name, value) in &lines {
+            raw.push_str(&format!("{name}: {value}\r\n"));
+        }
+        raw.push_str("\r\nbody");
+        let m = parse(raw.as_bytes());
+        prop_assert!(m.to.len() + m.cc.len() + m.bcc.len() <= crate::MAX_RECIPIENTS);
+        prop_assert!(m.reply_to.len() <= crate::MAX_RECIPIENTS);
+        prop_assert!(m.categories.len() <= crate::MAX_CATEGORIES);
     }
 }

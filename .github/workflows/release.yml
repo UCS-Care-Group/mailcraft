@@ -7,6 +7,9 @@ name: Release
 # so ArtCraft Launcher and anything else that reads those releases finds MailCraft's files by
 # the same names. A maintainer reviews the draft and publishes it by hand. See docs/releasing.md.
 #
+# A tag builds and signs only when its commit is on main and CI passed there (the `version` job
+# checks that first; every other job needs it).
+#
 # The signing and publishing jobs run in the protected `release` environment, which holds the
 # signing secrets and is limited to version tags; only a pushed tag reaches them.
 #
@@ -40,6 +43,10 @@ jobs:
   version:
     name: Version
     runs-on: ubuntu-24.04
+    # checks: read, for the CI result of the tagged commit.
+    permissions:
+      contents: read
+      checks: read
     outputs:
       version: ${{ steps.v.outputs.version }}
       prerelease: ${{ steps.v.outputs.prerelease }}
@@ -47,6 +54,26 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          # All branches, to tell whether the tagged commit is on main.
+          fetch-depth: 0
+      # Everything that builds or signs `needs` this job, so a tag that fails here stops the run
+      # before any signing secret is in reach.
+      - name: A release tag is a commit of main that passed CI
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" refs/remotes/origin/main; then
+            echo "::error::$GITHUB_REF_NAME points at $GITHUB_SHA, which is not on main: a release is tagged on a commit that was reviewed and merged"
+            exit 1
+          fi
+          ok=$(gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/check-runs?check_name=ci-ok&filter=latest&per_page=100" \
+            --jq '[.check_runs[] | select(.conclusion == "success")] | length')
+          if [ "${ok:-0}" -lt 1 ]; then
+            echo "::error::no passing ci-ok check on $GITHUB_SHA: wait for CI on main to pass, or tag a commit that ran it (documentation-only commits do not run it)"
+            exit 1
+          fi
+          echo "$GITHUB_SHA is on main and its ci-ok passed"
       - id: v
         name: The tag is the version in Cargo.toml
         run: |
@@ -155,13 +182,19 @@ jobs:
           sha256sum -- * | tee SHA256SUMS.txt
       # MailCraft's own release signature over the checksums (SHA256SUMS.txt.sig): what a copy of
       # MailCraft checks before it installs an update. Built from this checkout's xtask with the
-      # locked crates; no tool is downloaded. Without the key the release is unsigned and says so.
+      # locked crates, compiled in a step before the key is set; no tool is downloaded. Without the
+      # key the release is unsigned and says so.
       - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
         with:
           toolchain: 1.98.1
+      # Compiled here, before the key is anywhere in the environment: a build script or macro of a
+      # dependency of xtask never runs with it. The signing step only runs the finished binary.
+      - name: Build the signing tool (no key here)
+        run: cargo build --locked --release --package xtask
       - name: Sign the checksums
         env:
           MAILCRAFT_RELEASE_KEY: ${{ secrets.MAILCRAFT_RELEASE_KEY }}
+          MAILCRAFT_XTASK: ${{ github.workspace }}/target/release/xtask
         run: packaging/sign-sums.sh artifacts
       - name: Attest build provenance
         id: attest

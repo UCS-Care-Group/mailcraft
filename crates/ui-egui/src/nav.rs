@@ -107,15 +107,30 @@ const MAX_ROWS: usize = 4000;
 
 /// The folders of `account` as the pane lists them, depth first, skipping what is under a folded
 /// one: each with its depth and whether it has subfolders.
+#[cfg(test)]
 fn visible(mailbox: &Mailbox, folded: &[Id], account: Id) -> Vec<(Folder, usize, bool)> {
-    // By parent, in one pass over the folders however many there are, each list in order.
-    let mut tree: HashMap<Option<Id>, Vec<&Folder>> = HashMap::new();
-    for f in mailbox.folders.iter().filter(|f| f.account == account) {
-        tree.entry(f.parent).or_default().push(f);
+    let mut trees = trees(mailbox, |a| a == account);
+    visible_in(trees.remove(&account).unwrap_or_default(), folded)
+}
+
+/// The folders of each account that `wanted` names, by account and parent, in one pass over all the
+/// folders however many accounts there are, each list in the order the pane shows it.
+fn trees(mailbox: &Mailbox, wanted: impl Fn(Id) -> bool) -> HashMap<Id, Tree<'_>> {
+    let mut trees: HashMap<Id, Tree> = HashMap::new();
+    for f in mailbox.folders.iter().filter(|f| wanted(f.account)) {
+        trees.entry(f.account).or_default().entry(f.parent).or_default().push(f);
     }
-    for (parent, list) in &mut tree {
-        sort_as_listed(list, parent.is_none());
+    for tree in trees.values_mut() {
+        for (parent, list) in tree.iter_mut() {
+            sort_as_listed(list, parent.is_none());
+        }
     }
+    trees
+}
+
+type Tree<'a> = HashMap<Option<Id>, Vec<&'a Folder>>;
+
+fn visible_in(tree: Tree<'_>, folded: &[Id]) -> Vec<(Folder, usize, bool)> {
     let mut out = Vec::new();
     list_under(&tree, folded, None, 0, &mut out);
     out
@@ -502,13 +517,15 @@ pub fn folder_pane(app: &mut MailApp, ui: &mut Ui) {
             // And what there is to say of Outlook's, in one quiet line under the heading.
             let note = app.favorites_note();
             // (A shared mailbox right after the account it is opened through, #70.)
+            // (The folders are grouped by account once, not once for each account.)
+            let mut trees = trees(&app.session.mailbox, |a| !folded.contains(&a));
             let lists: Vec<(Id, String, Vec<(Folder, usize, bool)>)> = app
                 .session
                 .mailbox
                 .accounts_in_order()
                 .into_iter()
                 .map(|a| {
-                    let rows = if folded.contains(&a.id) { Vec::new() } else { visible(&app.session.mailbox, &folded, a.id) };
+                    let rows = visible_in(trees.remove(&a.id).unwrap_or_default(), &folded);
                     (a.id, heading_name(app, a), rows)
                 })
                 .collect();
