@@ -203,6 +203,7 @@ const MESSAGE: &[Row] = &[
     Cmd("mail.reply"),
     Cmd("mail.replyAll"),
     Cmd("mail.forward"),
+    Cmd("mail.forwardAsAttachment"),
     Sep,
     Cmd("mail.delete"),
     Cmd("mail.archive"),

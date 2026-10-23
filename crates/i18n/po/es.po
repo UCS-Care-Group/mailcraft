@@ -3220,6 +3220,12 @@ msgstr "Reenviar"
 msgid "Forward This Occurrence…"
 msgstr "Reenviar esta repetición…"
 
+#. command label, interface, ribbon
+#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Forward as Attachment"
+msgstr "Reenviar como datos adjuntos"
+
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
 #, fuzzy
@@ -11152,6 +11158,12 @@ msgstr "de cada"
 msgid "on"
 msgstr "el"
 
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "only the headers of this message are here, so it can't be forwarded as an attachment"
+msgstr "aquí solo están los encabezados de este mensaje, así que no se puede reenviar como datos adjuntos"
+
 #. why a command can't run
 #: crates/engine/src/cmd/calendar/invitation.rs
 #, fuzzy
@@ -11228,6 +11240,12 @@ msgstr "seleccione primero una tarea"
 #, fuzzy
 msgid "select an appointment first"
 msgstr "seleccione primero una cita"
+
+#. why a command can't run
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "select only one message to forward as an attachment"
+msgstr "seleccione un solo mensaje para reenviarlo como datos adjuntos"
 
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/shared.rs
@@ -11474,6 +11492,12 @@ msgstr "la firma ya no está ahí"
 msgid "the task is gone"
 msgstr "la tarea ya no existe"
 
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "the text of this message can't be read on this computer, so it can't be forwarded as an attachment"
+msgstr "el texto de este mensaje no se puede leer en este equipo, así que no se puede reenviar como datos adjuntos"
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
@@ -11640,6 +11664,18 @@ msgstr ""
 #, fuzzy
 msgid "this message has no subject to look for"
 msgstr "este mensaje no tiene ningún asunto que buscar"
+
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "this message isn't downloaded yet: open it once you're online, then forward it as an attachment"
+msgstr "este mensaje aún no se ha descargado: ábralo cuando tenga conexión y luego reenvíelo como datos adjuntos"
+
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "this message was too large to download: only its header is here, so it can't be forwarded as an attachment"
+msgstr "este mensaje era demasiado grande para descargarlo: aquí solo está su encabezado, así que no se puede reenviar como datos adjuntos"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs

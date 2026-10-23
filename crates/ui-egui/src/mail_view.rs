@@ -1083,6 +1083,7 @@ fn clicks(app: &mut MailApp, ui: &Ui, resp: &egui::Response, row: &Row, m: &Mess
         mi(ui, app, "Reply", "mail.reply", json!({}));
         mi(ui, app, "Reply All", "mail.replyAll", json!({}));
         mi(ui, app, "Forward", "mail.forward", json!({}));
+        mi(ui, app, "Forward as Attachment", "mail.forwardAsAttachment", json!({}));
         ui.separator();
         mi(ui, app, if read { "Mark as Unread" } else { "Mark as Read" }, if read { "mail.markUnread" } else { "mail.markRead" }, json!({}));
         mi(ui, app, if flagged { "Clear Flag" } else { "Follow Up" }, if flagged { "mail.clearFlag" } else { "mail.flag" }, json!({}));
@@ -1123,6 +1124,8 @@ fn clicks(app: &mut MailApp, ui: &Ui, resp: &egui::Response, row: &Row, m: &Mess
     });
 }
 
+#[cfg(test)]
+mod forward_attachment_tests;
 #[cfg(test)]
 mod from_sender_menu_tests;
 #[cfg(test)]

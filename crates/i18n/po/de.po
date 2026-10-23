@@ -3216,6 +3216,12 @@ msgstr "Weiterleiten"
 msgid "Forward This Occurrence…"
 msgstr "Dieses Vorkommen weiterleiten…"
 
+#. command label, interface, ribbon
+#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Forward as Attachment"
+msgstr "Als Anlage weiterleiten"
+
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
 #, fuzzy
@@ -11134,6 +11140,12 @@ msgstr "jedes"
 msgid "on"
 msgstr "am"
 
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "only the headers of this message are here, so it can't be forwarded as an attachment"
+msgstr "nur die Kopfzeilen dieser Nachricht sind hier, daher kann sie nicht als Anlage weitergeleitet werden"
+
 #. why a command can't run
 #: crates/engine/src/cmd/calendar/invitation.rs
 #, fuzzy
@@ -11210,6 +11222,12 @@ msgstr "wählen Sie zuerst eine Aufgabe aus"
 #, fuzzy
 msgid "select an appointment first"
 msgstr "wählen Sie zuerst einen Termin aus"
+
+#. why a command can't run
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "select only one message to forward as an attachment"
+msgstr "wählen Sie nur eine Nachricht aus, um sie als Anlage weiterzuleiten"
 
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/shared.rs
@@ -11456,6 +11474,12 @@ msgstr "die Signatur ist nicht mehr vorhanden"
 msgid "the task is gone"
 msgstr "die Aufgabe ist nicht mehr vorhanden"
 
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "the text of this message can't be read on this computer, so it can't be forwarded as an attachment"
+msgstr "der Text dieser Nachricht kann auf diesem Computer nicht gelesen werden, daher kann sie nicht als Anlage weitergeleitet werden"
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
@@ -11622,6 +11646,18 @@ msgstr ""
 #, fuzzy
 msgid "this message has no subject to look for"
 msgstr "diese Nachricht hat keinen Betreff, nach dem gesucht werden kann"
+
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "this message isn't downloaded yet: open it once you're online, then forward it as an attachment"
+msgstr "diese Nachricht ist noch nicht heruntergeladen: Öffnen Sie sie, sobald Sie online sind, und leiten Sie sie dann als Anlage weiter"
+
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "this message was too large to download: only its header is here, so it can't be forwarded as an attachment"
+msgstr "diese Nachricht war zu groß zum Herunterladen: Nur ihr Nachrichtenkopf ist hier, daher kann sie nicht als Anlage weitergeleitet werden"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs

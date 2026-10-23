@@ -48,8 +48,9 @@ pub struct Fetching {
     background: Option<(Id, Receiver<GraphFetchResult>)>,
     /// The owner's message under way: which one, and the answer to come.
     now: Option<(Id, Receiver<GraphFetchResult>)>,
-    /// What waits for that message: a command and its params.
-    then: Option<(String, Value)>,
+    /// What waits for that message: a command, its params, and the mailbox opening it was asked
+    /// under ([`mailcraft_engine::Session::openings`]).
+    then: Option<(String, Value, u64)>,
     /// The message last asked for when it was opened (not asked again while it stays open).
     opened: Option<Id>,
     pub(crate) cancel: Arc<AtomicBool>,
@@ -85,7 +86,14 @@ impl Fetching {
 fn needs_whole(app: &MailApp, id: &str, params: &Value) -> Option<Id> {
     if !matches!(
         id,
-        "mail.reply" | "mail.replyAll" | "mail.forward" | "mail.editDraft" | "file.exportMessage" | "mail.saveAttachment" | "mail.openAttachment"
+        "mail.reply"
+            | "mail.replyAll"
+            | "mail.forward"
+            | "mail.forwardAsAttachment"
+            | "mail.editDraft"
+            | "file.exportMessage"
+            | "mail.saveAttachment"
+            | "mail.openAttachment"
     ) {
         return None;
     }
@@ -94,7 +102,10 @@ fn needs_whole(app: &MailApp, id: &str, params: &Value) -> Option<Id> {
         _ => None,
     };
     let message = params.get("id").and_then(Value::as_u64).or(selected)?;
-    app.session.mailbox.message(message).filter(|m| m.unfetched && m.server.is_some()).map(|m| m.id)
+    // One whose server's copy went before it could be fetched never will be: Forward as Attachment
+    // says so itself (the others have no word of their own for it, and wait as they did).
+    let never = |m: &mailcraft_model::Message| m.incomplete && id == "mail.forwardAsAttachment";
+    app.session.mailbox.message(message).filter(|m| m.unfetched && !never(m) && m.server.is_some()).map(|m| m.id)
 }
 
 /// A Graph token of this session for `account` that is still good.
@@ -144,7 +155,13 @@ impl MailApp {
         if !self.fetch_now(account, message) {
             return Some(Err(tl!("This message isn't on this computer yet. It will download when you're online.").to_string()));
         }
-        self.fetching.then = Some((id.to_string(), params.clone()));
+        // Named, for the selection may have moved on by the time it is here. An `id` the call
+        // gave stays as it was, for the command to judge.
+        let mut then = params.as_object().cloned().unwrap_or_default();
+        if then.get("id").is_none_or(Value::is_null) {
+            then.insert("id".into(), json!(message));
+        }
+        self.fetching.then = Some((id.to_string(), Value::Object(then), self.session.openings()));
         self.status(tl!("Downloading the message first…"));
         Some(Ok(json!({"pending": "download", "message": message})))
     }
@@ -240,7 +257,12 @@ impl MailApp {
             self.status(e.to_string());
         }
         let whole = self.session.mailbox.message(message).is_some_and(|m| !m.unfetched);
-        if let Some((command, params)) = self.fetching.then.take() {
+        if let Some((command, params, opening)) = self.fetching.then.take() {
+            // Asked of a mailbox that another has taken the place of: the message it names is not
+            // this one's, whatever has that id here.
+            if opening != self.session.openings() {
+                return;
+            }
             if whole {
                 let _ = self.run(&command, params);
             } else {

@@ -413,6 +413,10 @@ pub struct Compose {
     pub mode: ComposeMode,
     /// The message replied to or forwarded.
     pub source: Option<Id>,
+    /// It forwards `source` whole, as an attachment (#315): a Microsoft account's draft of it is
+    /// made as a message of its own, not as a forward of `source`.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub as_attachment: bool,
     /// The saved draft this message continues.
     pub draft: Option<Id>,
     /// The account it is sent from.

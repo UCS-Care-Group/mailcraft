@@ -124,6 +124,8 @@ pub fn text_hash(text: &str) -> u64 {
 
 /// The header `mailcraft-net` gives a message too large to download, with its size on the server.
 pub const NOT_DOWNLOADED: &str = "X-MailCraft-Not-Downloaded";
+/// How the note `mailcraft-net` keeps in place of such a message's text begins.
+pub const NOT_DOWNLOADED_NOTE: &str = "This message is too large to download:";
 
 /// A byte count for people.
 pub fn size_label(bytes: u64) -> String {

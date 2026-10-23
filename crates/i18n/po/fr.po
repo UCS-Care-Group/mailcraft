@@ -3220,6 +3220,12 @@ msgstr "Transférer"
 msgid "Forward This Occurrence…"
 msgstr "Transférer cette occurrence…"
 
+#. command label, interface, ribbon
+#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Forward as Attachment"
+msgstr "Transférer en tant que pièce jointe"
+
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
 #, fuzzy
@@ -11152,6 +11158,12 @@ msgstr "tous les"
 msgid "on"
 msgstr "le"
 
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "only the headers of this message are here, so it can't be forwarded as an attachment"
+msgstr "seuls les en-têtes de ce message sont ici, il ne peut donc pas être transféré en tant que pièce jointe"
+
 #. why a command can't run
 #: crates/engine/src/cmd/calendar/invitation.rs
 #, fuzzy
@@ -11228,6 +11240,12 @@ msgstr "sélectionnez d'abord une tâche"
 #, fuzzy
 msgid "select an appointment first"
 msgstr "sélectionnez d'abord un rendez-vous"
+
+#. why a command can't run
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "select only one message to forward as an attachment"
+msgstr "sélectionnez un seul message à transférer en tant que pièce jointe"
 
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/shared.rs
@@ -11474,6 +11492,12 @@ msgstr "la signature n'existe plus"
 msgid "the task is gone"
 msgstr "la tâche n'existe plus"
 
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "the text of this message can't be read on this computer, so it can't be forwarded as an attachment"
+msgstr "le texte de ce message ne peut pas être lu sur cet ordinateur, il ne peut donc pas être transféré en tant que pièce jointe"
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
@@ -11640,6 +11664,18 @@ msgstr ""
 #, fuzzy
 msgid "this message has no subject to look for"
 msgstr "ce message n'a pas d'objet à rechercher"
+
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "this message isn't downloaded yet: open it once you're online, then forward it as an attachment"
+msgstr "ce message n'est pas encore téléchargé : ouvrez-le une fois en ligne, puis transférez-le en tant que pièce jointe"
+
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "this message was too large to download: only its header is here, so it can't be forwarded as an attachment"
+msgstr "ce message était trop volumineux pour être téléchargé : seul son en-tête est ici, il ne peut donc pas être transféré en tant que pièce jointe"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs
