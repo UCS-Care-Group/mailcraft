@@ -243,6 +243,8 @@ pub fn confirmation(app: &MailApp, id: &str, params: &Value) -> Option<Question>
     match id {
         // Everything MailCraft keeps on this computer (#177).
         "ui.removeAllData" if app.services.data_wipe.is_some() && !app.data_removed => Some(crate::data_removal::question()),
+        // A mailbox from a file: where its accounts connect to.
+        "ui.confirmServers" if app.unconfirmed => Some(app.confirm_servers_question()),
         // An Office file with macros, or a web page, from a message (#126).
         "mail.openAttachment" => {
             let (title, text, action) = crate::attachment_open::question(app, params)?;

@@ -1,6 +1,6 @@
 # Threat model
 
-> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-10-23 · **Change:** minor (C1 PR-b: a remembered password or sign-in is filed under the address and the servers it goes to; C1 PR-a: a mailbox in mail is saved, never opened; secrets in memory dropped when a mailbox is replaced; agent questions name servers; the whitelist adds padding, margins, lines, rounded corners and a line height, all clamped, #71; the whitelist adds width, max-width and centring by automatic margins, #150; an assurance case: claim, trust boundaries, design principles, common weaknesses and the evidence; releases carry MailCraft's own signature; agents with a shell or the owner's files are outside the agent gate; the settings folder, logs and kept pictures are the owner's alone) · **Target:** Microsoft Outlook (Microsoft 365)
+> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-10-23 · **Change:** minor (C1 PR-c: a mailbox opened from a file is unconfirmed until its servers are confirmed; C1 PR-b: a remembered password or sign-in is filed under the address and the servers it goes to; C1 PR-a: a mailbox in mail is saved, never opened; secrets in memory dropped when a mailbox is replaced; agent questions name servers; the whitelist adds padding, margins, lines, rounded corners and a line height, all clamped, #71; the whitelist adds width, max-width and centring by automatic margins, #150; an assurance case: claim, trust boundaries, design principles, common weaknesses and the evidence; releases carry MailCraft's own signature; agents with a shell or the owner's files are outside the agent gate; the settings folder, logs and kept pictures are the owner's alone) · **Target:** Microsoft Outlook (Microsoft 365)
 
 What MailCraft protects, from whom, and how, with the code that does it. Rules for working in the
 code are in [`CLAUDE.md`](../CLAUDE.md) and [`AGENTS.md`](../AGENTS.md); how to report a
@@ -104,6 +104,15 @@ An `.eml`, `.mbox`, `.ics`, `.vcf` or `.mailcraft` file from somewhere else.
   account's server drops what was kept for the old one, and so does removing the account.
   Secrets kept before this move once, for the mailbox the window starts with, to the servers of
   its accounts (`MailApp::secret_key`, `MailApp::migrate_secrets`).
+- A mailbox opened from a file (File › Open, a double-click, a drop) is **unconfirmed** until the
+  owner has seen where each of its accounts connects and confirmed it (`crates/ui-egui/src/unconfirmed.rs`).
+  Nothing of it reaches a server: no automatic Send/Receive, no quiet push, a manual Send/Receive
+  asks the owner to confirm, its Outbox is not sent, its changes wait, its rules do not run, and
+  nothing is signed in for it. A bar says so and lists the servers; `ui.confirmServers` is the
+  owner's yes (an agent needs the owner's say, class `accounts`). The yes is kept in `ui.json` for
+  that file and a SHA-256 fingerprint of its accounts' addresses, kinds and servers: change either
+  and the owner is asked again. The owner's own mailbox and one named with `--mailbox` are never
+  unconfirmed, nor is a file with no account that connects to a server.
 
 ### Other programs and users on the same computer
 
@@ -229,6 +238,7 @@ settings files (`crates/engine/src/store.rs`); commands from the control channel
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-23 | minor | C1 PR-c: a mailbox opened from a file is unconfirmed until its servers are confirmed; nothing of it reaches a server meanwhile |
 | 2026-10-23 | minor | C1 PR-b: remembered passwords and sign-ins are filed under the address and the servers they go to; changing a server asks again; older entries move once |
 | 2026-10-23 | minor | C1 PR-a: a `.mailcraft` attachment is saved, never opened; secrets in memory dropped when a mailbox is replaced; agent questions for account and open commands name servers; rules trimmed on repair |
 | 2026-10-21 | minor | The HTML whitelist adds padding and margins (0 to 64 px), lines (1 to 4 px, solid, dashed or dotted), `border-radius` (up to 24 px) and `line-height` (1 to 2.5 times), all clamped, functions refused (#71) |

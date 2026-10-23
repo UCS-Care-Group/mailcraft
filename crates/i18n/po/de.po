@@ -1699,6 +1699,16 @@ msgstr "Erledigt am {date}"
 msgid "Completed."
 msgstr "Erledigt."
 
+#. command label, interface
+#: crates/ui-egui/src/lib.rs crates/ui-egui/src/unconfirmed.rs
+msgid "Confirm Servers"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/unconfirmed.rs
+msgid "Confirm servers"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/calendar_view.rs
 #, fuzzy
@@ -5384,6 +5394,11 @@ msgid "Only a meeting you organize has a Scheduling Assistant"
 msgstr "Nur eine von Ihnen organisierte Besprechung hat einen Terminplanungs-Assistenten"
 
 #. interface
+#: crates/ui-egui/src/unconfirmed.rs
+msgid "Only confirm if you know these servers."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Only on"
@@ -8688,6 +8703,16 @@ msgstr "Dieses Element ist noch unterwegs zum Server des Kontos. Verschieben Sie
 #, fuzzy
 msgid "This mailbox is on this device only"
 msgstr "Dieses Postfach ist nur auf diesem Gerät"
+
+#. interface
+#: crates/ui-egui/src/unconfirmed.rs
+msgid "This mailbox was opened from a file. Its accounts connect to:"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+msgid "This mailbox was opened from a file: confirm its servers first"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs

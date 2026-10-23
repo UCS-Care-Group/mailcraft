@@ -248,7 +248,7 @@ pub(crate) fn edited(old: &Account, v: &Value) -> Option<Account> {
 }
 
 /// Where an account's mail goes, in words: `imap host:port, smtp host:port`, or Microsoft.
-pub(crate) fn servers_text(a: &Account) -> String {
+pub fn servers_text(a: &Account) -> String {
     let one = |name: &str, s: &Option<Server>| match s {
         Some(s) if s.port == 0 => Some(format!("{name} {}", s.host)),
         Some(s) => Some(format!("{name} {}:{}", s.host, s.port)),

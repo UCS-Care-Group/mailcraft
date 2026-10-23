@@ -539,7 +539,7 @@ pub(crate) fn question(app: &mut MailApp, ui: &mut Ui) {
 
 /// A line across the window above the status bar: `said`, then its buttons (hit name, label,
 /// whether it is the primary one); `pressed` gets the hit name of the one pressed.
-fn bar(
+pub(crate) fn bar(
     app: &mut MailApp,
     ui: &mut Ui,
     id: &'static str,
