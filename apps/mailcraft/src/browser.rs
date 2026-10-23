@@ -213,7 +213,15 @@ const OPENED: [&str; 4] = ["http:", "https:", "mailto:", "tel:"];
 /// read; this is the last check before anything leaves the program, whoever asked, so that a
 /// `file:`, `smb:` or `ms-msdt:` address can't be launched by a way in that forgot the first.
 pub fn openable(url: &str) -> bool {
-    !url.chars().any(char::is_control) && OPENED.iter().any(|s| url.get(..s.len()).is_some_and(|p| p.eq_ignore_ascii_case(s)))
+    if url.chars().any(char::is_control) || !OPENED.iter().any(|s| url.get(..s.len()).is_some_and(|p| p.eq_ignore_ascii_case(s))) {
+        return false;
+    }
+    // A web address the parser rejects would be taken for a relative file path by the opener
+    // (and become a `file:` address): refuse it here.
+    if url.get(..4).is_some_and(|p| p.eq_ignore_ascii_case("http")) {
+        return url::Url::parse(url).is_ok_and(|u| matches!(u.scheme(), "http" | "https") && u.host_str().is_some_and(|h| !h.is_empty()));
+    }
+    true
 }
 
 /// The system's own way of opening a page (ShellExecute, Launch Services, the desktop's opener).
@@ -396,6 +404,16 @@ mod tests {
         assert_eq!(taken, ["https://news.example/a", "https://news.example/b"]);
         output.textures_delta.clear();
         assert!(matches!(output.platform_output.commands.as_slice(), [egui::OutputCommand::CopyText(t)] if t == "kept"));
+    }
+
+    #[test]
+    fn web_addresses_the_parser_rejects_are_refused() {
+        // `webbrowser` would take these for relative file paths and open a `file:` address.
+        for url in ["http://a b/../../../etc/hosts", "https://x:99999/", "http://[bad/x", "http://", "https://"] {
+            assert!(!openable(url), "{url:?}");
+            assert!(!system_open(url), "{url:?}");
+        }
+        assert!(openable("https://a.example:8443/x?y#z"));
     }
 
     #[test]

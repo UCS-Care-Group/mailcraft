@@ -486,12 +486,6 @@ pub fn file_named(id: &str, params: &Value) -> Option<&'static str> {
     file_param(id).map(|(k, _)| k).filter(|k| params.get(*k).is_some_and(|v| !v.is_null()))
 }
 
-/// Extensions a file written for an agent never has (programs, scripts, shortcuts).
-pub const RUNNABLE: &[&str] = &[
-    "bat", "cmd", "com", "exe", "msi", "ps1", "psm1", "vbs", "vbe", "js", "jse", "wsf", "wsh", "scr", "pif", "lnk", "url", "reg", "hta", "cpl",
-    "jar", "sh", "bash", "zsh", "command", "app", "desktop", "py", "pl", "rb", "dll", "so", "dylib",
-];
-
 /// The refusal for a file param from an agent.
 pub fn no_paths(id: &str, key: &str) -> String {
     format!(

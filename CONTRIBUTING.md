@@ -1,6 +1,6 @@
 # Contributing to MailCraft
 
-> **Status:** current · **Written:** 2026-10-15 · **Last updated:** 2026-10-21 · **Change:** minor (tests go in files of their own, which code scanning skips)
+> **Status:** current · **Written:** 2026-10-15 · **Last updated:** 2026-10-23 · **Change:** minor (a bug and its fix come together: report and pull request at once, no claim)
 
 Thank you for wanting to help. MailCraft holds people's mail, so the way work comes in matters as
 much as the work.
@@ -15,8 +15,14 @@ much as the work.
 3. **Claim an issue.** Every task in the plan is an issue labelled with its step (`R3`, `R4`, …).
    Comment "I'd like to take this" on one that has no assignee. A maintainer assigns it to you and
    adds `claimed`; only then start. If nothing has moved on a claimed issue for 14 days, it may be
-   given to someone else. Something not in the issues: open one and wait for a yes before
-   building it.
+   given to someone else. A new feature or change that isn't in the issues: open one and wait for
+   a yes before building it.
+4. **Found a bug and have the fix? Send both at once.** Open the
+   [problem report](https://github.com/UCS-Care-Group/mailcraft/issues/new?template=problem.yml)
+   and the pull request that fixes it together, with `Closes #<issue>` in the pull request: no
+   claim and no wait. A report without a fix is just as welcome. If the fix needs one of the
+   [owners' decisions](#decisions-that-are-the-owners-not-a-contributors) below, ask in the issue
+   first.
 
 Issues labelled `post-beta` are parked: they aren't open to claims until beta is reached.
 
@@ -77,6 +83,7 @@ Found something wrong? Use the
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-23 | minor | A bug fix needs no claim: the problem report and its pull request come together |
 | 2026-10-20 | minor | A first contribution (`good first issue`); how pull requests are reviewed; SPDX lines in new Rust files |
 | 2026-10-15 | major | First version: claim before you build, one issue per pull request, decisions kept for the owners, tester sign-up |
 | 2026-10-16 | minor | Changes to sync, the store, sign-in and secrets are read by a maintainer before they land (no promise of enforced code-owner review); `CLAUDE.md` is a link to `AGENTS.md` |
