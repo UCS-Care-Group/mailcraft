@@ -5,6 +5,7 @@
 
 **Fixes**
 - A `.mailcraft` file received as an attachment is only saved, never opened from the message; opening another mailbox forgets the passwords and sign-ins held in memory; an agent that asks to add or change an account, or to open a mailbox file, is asked about with the mail servers named (C1 PR-a).
+- A calendar invitation or .ics file built to be slow (a time zone with hundreds of parts, thousands of excluded days, or a series counting from 1970) no longer freezes the window: the work a file may cost is bounded, the card still shows, and a note says when a file's time zones were only partly used (PR-d).
 - A message with tens of thousands of recipients or categories, a mailbox file of millions of empty messages, an mbox of a very large number of tiny messages or a mailbox file with thousands of accounts and folders no longer exhausts memory or freezes the window: the lists are cut (the reading pane says "and N more"), an import stops at 200,000 messages and says so, and a file with more than the computer can hold is refused (PR-e).
 - A mail server that answers one request with an endless stream of mail lists or folders can no longer make MailCraft run out of memory or keep working for hours: an answer is read up to a limit in size, count and time, and past it the request fails and nothing of it is taken in.
 - Move to Folder, Copy to Folder and the other folder menus have a search box at the top, so a folder is found by typing part of its name ([#74](https://github.com/GITHUB_REPOSITORY/issues/74), thanks to @strikerz5).
