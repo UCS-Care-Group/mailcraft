@@ -208,6 +208,9 @@ pub struct SaveReport {
     pub result: Result<(), String>,
 }
 
+/// Most messages one import takes from an mbox file; the rest are left.
+pub const MAX_IMPORT_MESSAGES: usize = 200_000;
+
 /// Bring a file's contents into the mailbox: messages go to `folder` (default: the folder in
 /// view, or the Inbox), events to the default calendar, contacts and to-dos to their lists.
 pub fn import(s: &mut Session, name: &str, bytes: &[u8], folder: Option<Id>) -> Result<Value, CmdError> {
@@ -220,7 +223,15 @@ pub fn import(s: &mut Session, name: &str, bytes: &[u8], folder: Option<Id>) -> 
     match format {
         Format::Mailbox => Err(bad(format!("{name} is a whole mailbox; open it with File › Open"))),
         Format::Eml | Format::Mbox => {
-            let messages = if format == Format::Eml { vec![mailcraft_mime::parse(bytes)] } else { mailcraft_mime::parse_mbox(bytes) };
+            // At most MAX_IMPORT_MESSAGES are taken from a file; the one after them tells whether
+            // the file went on ("stopped after N").
+            let mut messages: Vec<_> = if format == Format::Eml {
+                vec![mailcraft_mime::parse(bytes)]
+            } else {
+                mailcraft_mime::mbox_messages(bytes).take(MAX_IMPORT_MESSAGES + 1).collect()
+            };
+            let stopped = messages.len() > MAX_IMPORT_MESSAGES;
+            messages.truncate(MAX_IMPORT_MESSAGES);
             if messages.is_empty() {
                 return Err(failed!("{name} has no messages", name));
             }
@@ -253,7 +264,7 @@ pub fn import(s: &mut Session, name: &str, bytes: &[u8], folder: Option<Id>) -> 
                 s.sel.messages = vec![*last];
             }
             Ok(
-                json!({"format": if format == Format::Eml { "eml" } else { "mbox" }, "messages": ids.len(), "ids": ids, "folder": folder, "local": microsoft}),
+                json!({"format": if format == Format::Eml { "eml" } else { "mbox" }, "messages": ids.len(), "ids": ids, "folder": folder, "local": microsoft, "stoppedAfter": stopped.then_some(ids.len())}),
             )
         }
         Format::Ics => {

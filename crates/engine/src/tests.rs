@@ -2394,3 +2394,29 @@ fn the_question_for_file_open_reads_the_servers_from_the_file() {
     assert!(missing.contains("can't be read"), "{missing}");
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn an_mbox_import_stops_after_the_most_it_takes() {
+    let mut s = session();
+    let one = b"From a@example.org Tue Jul  1 08:52:37 2003\nSubject: x\n\nx\n\n";
+    let file = one.repeat(crate::io::MAX_IMPORT_MESSAGES + 50);
+    let r = crate::io::import(&mut s, "big.mbox", &file, None).unwrap();
+    assert_eq!(r["messages"], crate::io::MAX_IMPORT_MESSAGES);
+    assert_eq!(r["stoppedAfter"], crate::io::MAX_IMPORT_MESSAGES);
+    // A file within the limit says nothing of it.
+    let r = crate::io::import(&mut s, "small.mbox", &one.repeat(3), None).unwrap();
+    assert_eq!(r["messages"], 3);
+    assert!(r["stoppedAfter"].is_null());
+}
+
+#[test]
+fn a_reply_quotes_only_the_first_names_of_a_long_list() {
+    let mut s = session();
+    let inbox = kind(&s, FolderKind::Inbox);
+    let to = (0..5000).map(|i| mailcraft_model::Address::new("", format!("u{i}@example.org"))).collect();
+    let id = s.mailbox.add_message(mailcraft_model::Message { folder: inbox, subject: "many".into(), to, ..Default::default() }).unwrap();
+    run(&mut s, "mail.reply", json!({"id": id}));
+    let c = s.compose.as_ref().unwrap();
+    let body = c.quote.as_ref().map_or_else(|| c.body.plain(), |q| q.text.clone());
+    assert!(body.contains("(+4900)") && !body.contains("u4999@"), "{}", body.len());
+}
