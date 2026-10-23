@@ -2294,7 +2294,6 @@ dependencies = [
  "objc2-foundation 0.3.2",
  "objc2-user-notifications 0.3.2",
  "open",
- "pollster 0.4.0",
  "rfd",
  "ring",
  "serde_json",

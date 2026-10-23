@@ -126,9 +126,6 @@ zbus = { version = "5", default-features = false, features = ["async-io", "block
 # release in the update test (`update_flow`).
 ring = { workspace = true }
 rfd = { workspace = true }
-# Waits for an `rfd::AsyncFileDialog` on a background thread (the dialogs don't block the UI);
-# rfd itself already depends on it.
-pollster = "0.4"
 # Opens Microsoft's sign-in and approval pages in the system's browser, and says when no browser
 # could be started (egui's own way of opening a link doesn't). Already in the tree: eframe's
 # `links` feature runs on it.

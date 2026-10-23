@@ -24,6 +24,7 @@ mod alerts;
 mod apple_events;
 #[cfg(test)]
 mod approval_flow;
+mod block_on;
 mod browser;
 #[cfg(test)]
 mod calendar_flow;
