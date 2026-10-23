@@ -67,3 +67,19 @@ fn the_size_of_a_message_too_large_is_written_and_read_back() {
     let before: Message = serde_json::from_str(r#"{"id": 9, "headers": [["X-MailCraft-Not-Downloaded", "62914560"]]}"#).unwrap();
     assert_eq!((before.not_downloaded, before.list_size()), (0, None));
 }
+
+/// #300: a mailbox file with something other than a size where the size on the server goes
+/// (corrupted, or written by hand) still opens; the message reads as one without it.
+#[test]
+fn a_size_on_the_server_that_isnt_one_reads_as_none() {
+    for bad in ["-1", "1.5", "1e3", "true", r#""62914560""#, "null", "[]", "{}", "18446744073709551616"] {
+        let json = format!(r#"{{"id": 9, "notDownloaded": {bad}, "headers": [["X-MailCraft-Not-Downloaded", "62914560"]]}}"#);
+        let m: Message = serde_json::from_str(&json).unwrap_or_else(|e| panic!("{bad}: {e}"));
+        assert_eq!((m.id, m.not_downloaded, m.list_size()), (9, 0, None), "{bad}");
+        let json = serde_json::to_string(&whole()).unwrap();
+        let here: Message = serde_json::from_str(&format!(r#"{{"notDownloaded": {bad}, {}"#, &json[1..])).unwrap_or_else(|e| panic!("{bad}: {e}"));
+        assert_eq!(here.list_size(), Some(2000), "{bad}");
+    }
+    let largest: Message = serde_json::from_str(r#"{"id": 9, "notDownloaded": 18446744073709551615}"#).unwrap();
+    assert_eq!(largest.list_size(), Some(u64::MAX));
+}

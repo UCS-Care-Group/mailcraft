@@ -217,9 +217,12 @@ pub struct Message {
     pub synced: Option<RemoteFlags>,
     /// For an IMAP message too large to download, of which only the header is here: its size on
     /// the server in bytes, as the server gave it (`RFC822.SIZE`); 0 for every other message.
-    /// Only a synchronisation sets it, so unlike the header [`NOT_DOWNLOADED`], which any sender
-    /// can write into a message, it is a mark nobody can forge. A file from before has none.
-    #[serde(skip_serializing_if = "is_zero_u64")]
+    /// A synchronisation sets it from what the server says; unlike the header [`NOT_DOWNLOADED`],
+    /// which any sender can write into a message, nothing in a message's MIME can. A mailbox file
+    /// (one opened from elsewhere too) or a synchronisation result given to `sync.apply` can hold
+    /// any size there, so it is a size to show, not a sign of where the message came from. A file
+    /// from before has none, and one that holds something other than a size there reads as 0.
+    #[serde(skip_serializing_if = "is_zero_u64", deserialize_with = "crate::sync::lenient_or_default")]
     pub not_downloaded: u64,
     /// For a message of a Microsoft account that the server has: its server id and what the
     /// server last said of it ([`ServerMessage`], ADR 0003). `None` for a message the server
