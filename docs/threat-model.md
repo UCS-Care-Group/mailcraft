@@ -1,6 +1,6 @@
 # Threat model
 
-> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-10-23 · **Change:** minor (a calendar file's time zone definitions, dates and series cost bounded work: a hostile invitation or calendar file can't freeze the window, PR-d; `--control-agents-only`: no control request passes for the owner's script; the whitelist adds padding, margins, lines, rounded corners and a line height, all clamped, #71; the whitelist adds width, max-width and centring by automatic margins, #150; an assurance case: claim, trust boundaries, design principles, common weaknesses and the evidence; releases carry MailCraft's own signature; agents with a shell or the owner's files are outside the agent gate; the settings folder, logs and kept pictures are the owner's alone) · **Target:** Microsoft Outlook (Microsoft 365)
+> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-10-23 · **Change:** minor (a calendar file's time zone definitions, dates and series cost bounded work: a hostile invitation or calendar file can't freeze the window, PR-d; a mail server's answer to one command is capped in text, responses, folders, messages and time, so it can't make MailCraft keep memory without bound; `--control-agents-only`: no control request passes for the owner's script; the whitelist adds padding, margins, lines, rounded corners and a line height, all clamped, #71; the whitelist adds width, max-width and centring by automatic margins, #150; an assurance case: claim, trust boundaries, design principles, common weaknesses and the evidence; releases carry MailCraft's own signature; agents with a shell or the owner's files are outside the agent gate; the settings folder, logs and kept pictures are the owner's alone) · **Target:** Microsoft Outlook (Microsoft 365)
 
 What MailCraft protects, from whom, and how, with the code that does it. Rules for working in the
 code are in [`CLAUDE.md`](../CLAUDE.md) and [`AGENTS.md`](../AGENTS.md); how to report a
@@ -59,6 +59,13 @@ Answers IMAP, SMTP or Microsoft Graph with whatever it likes.
 
 - Server responses are parsed as hostile input under the same never-crash rules and property tests
   (`crates/proto`, `crates/net`); sizes are clamped and allocations capped.
+- **One command can't grow memory without bound.** An IMAP command's answer is read up to 32 MB of
+  text outside literals and 250,000 responses (a FETCH of a folder, twice its EXISTS plus 1,000 if more), and a command with its answer gets its time plus at
+  most 30 more minutes however much moves (`crates/proto/src/imap/mod.rs`,
+  `crates/net/src/transport.rs`). A LIST keeps 4,000 mailboxes (the rest are read and dropped),
+  none with a name over 1,024 bytes; a flag is cut at 256 bytes. A FETCH of a set keeps only UIDs
+  in that set and below the mailbox's UIDNEXT, at most twice its EXISTS plus 1,000 distinct ones;
+  more is the command's error and nothing of it is taken in.
 - **Secrets aren't handed to the wrong party:** a sign-in goes only to the server the account names,
   over TLS (below). OAuth uses the authorization code with PKCE and a loopback redirect
   (`crates/net/src/oauth.rs`).
@@ -216,6 +223,7 @@ settings files (`crates/engine/src/store.rs`); commands from the control channel
 | Date | Change | Summary |
 |---|---|---|
 | 2026-10-23 | minor | iCalendar work is bounded as a whole: a zone a file defines is resolved once per offset, its parts and dates are capped at 64, one parse has a work budget (past it the times are kept as written and a note says so), an invitation's card reads its first event only, and a series with a count is not walked from its first day (PR-d) |
+| 2026-10-23 | minor | An IMAP server's answer to one command is capped in text, responses, folders, messages and time; flags and mailbox names are cut short |
 | 2026-10-21 | minor | The HTML whitelist adds padding and margins (0 to 64 px), lines (1 to 4 px, solid, dashed or dotted), `border-radius` (up to 24 px) and `line-height` (1 to 2.5 times), all clamped, functions refused (#71) |
 | 2026-10-21 | minor | The HTML whitelist adds `width` (tables, cells), `max-width` and centring by automatic margins, all clamped (#150) |
 | 2026-10-20 | minor | An assurance case: the claim, trust boundaries, secure design principles, common weaknesses countered, evidence; releases carry MailCraft's own signature |
