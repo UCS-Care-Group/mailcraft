@@ -43,13 +43,15 @@ fn a_whole_address_finds_that_address_alone() {
     assert!(!finds("-from:ada@example.org", &msg()) && finds("-from:adam@example.org", &msg()));
     // A part of one is words, as before: a word starts a word.
     assert!(finds("from:ada", &from("adam@example.org")) && finds("from:example.org", &msg()) && finds("from:\"ada love\"", &msg()));
-    // Accents written either way, and a letter whose small form is longer (İ), compare as the
-    // same address in either case.
+    // Accents written either way stay as they are.
     let decomposed = "u\u{0308}nal@bu\u{0308}cher.example";
     assert!(finds(&format!("from:{decomposed}"), &from(decomposed)) && !finds(&format!("from:{decomposed}"), &from("unal@bucher.example")));
-    assert!(finds("from:İpek@example.org", &from("i̇pek@example.org")) && finds("from:i̇pek@example.org", &from("İPEK@EXAMPLE.ORG")));
-    // A final sigma is a sigma: ΟΣ and οσ are one address, either way round.
-    assert!(finds("from:οσ@example.org", &from("ΟΣ@example.org")) && finds("from:ΟΣ@example.org", &from("οσ@example.org")));
+    // Only ASCII letters change case (the compared key is ASCII-lowercased): ASCII in either case
+    // is one address; other letters in another case, or a final sigma, are another.
+    assert!(finds("from:ADA@Example.ORG", &from("ada@example.org")));
+    assert!(!finds("from:İpek@example.org", &from("i̇pek@example.org")));
+    assert!(!finds("from:οσ@example.org", &from("ΟΣ@example.org")) && !finds("from:ΟΣ@example.org", &from("οσ@example.org")));
+    assert!(finds("from:οσ@example.org", &from("οσ@EXAMPLE.org")));
     // An international domain in `xn--` form and in its own letters are two addresses.
     assert!(
         !finds("from:ada@xn--bcher-kva.example", &from("ada@bücher.example"))

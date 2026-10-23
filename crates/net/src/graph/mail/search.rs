@@ -188,8 +188,9 @@ fn clause(term: &ServerTerm) -> Option<String> {
             let words: Vec<String> = words.iter().map(plain).collect::<Option<_>>()?;
             match words.as_slice() {
                 [] => None,
-                // The syntax reads `+` as an operator; in quotes it is text (#301).
-                [one] if one.contains('+') => Some(format!("{property}\\\"{one}\\\"")),
+                // The syntax reads `+` as an operator, and a word starting with a mark as query
+                // syntax (`-ada@example.org`); in quotes they are text (#301).
+                [one] if one.contains('+') || !one.starts_with(char::is_alphanumeric) => Some(format!("{property}\\\"{one}\\\"")),
                 [one] => Some(format!("{property}{one}")),
                 many => Some(format!("{property}\\\"{}\\\"", many.join(" "))),
             }
