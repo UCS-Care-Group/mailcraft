@@ -15,7 +15,7 @@
 use std::io::{Read, Write};
 use std::path::{Component, Path, PathBuf};
 
-use mailcraft_engine::agent::RUNNABLE;
+use mailcraft_engine::opening::is_launchable;
 
 /// Largest file read for an agent.
 pub const MAX_READ: u64 = 64 << 20;
@@ -109,7 +109,7 @@ impl FilesDir {
         if !ext.is_empty() && e.as_deref() != Some(ext) {
             return Err(format!("{given}: this command writes a .{ext} file; the name must end in .{ext}"));
         }
-        if e.as_deref().is_some_and(|e| RUNNABLE.contains(&e)) {
+        if e.as_deref().is_some_and(is_launchable) {
             return Err(format!("{given}: programs and scripts are not written for an agent"));
         }
         let parent = joined.parent().ok_or_else(|| format!("{given}: no folder"))?;

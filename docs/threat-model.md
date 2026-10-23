@@ -1,6 +1,6 @@
 # Threat model
 
-> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-10-23 · **Change:** minor (C1 PR-a: a mailbox in mail is saved, never opened; secrets in memory dropped when a mailbox is replaced; agent questions name servers; the whitelist adds padding, margins, lines, rounded corners and a line height, all clamped, #71; the whitelist adds width, max-width and centring by automatic margins, #150; an assurance case: claim, trust boundaries, design principles, common weaknesses and the evidence; releases carry MailCraft's own signature; agents with a shell or the owner's files are outside the agent gate; the settings folder, logs and kept pictures are the owner's alone) · **Target:** Microsoft Outlook (Microsoft 365)
+> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-10-23 · **Change:** minor (Batch 5: saved attachments marked from the Internet, more launchable kinds blocked, one list for agents and the opener, unparseable web links refused; C1 PR-a: a mailbox in mail is saved, never opened; secrets in memory dropped when a mailbox is replaced; agent questions name servers; the whitelist adds padding, margins, lines, rounded corners and a line height, all clamped, #71; the whitelist adds width, max-width and centring by automatic margins, #150; an assurance case: claim, trust boundaries, design principles, common weaknesses and the evidence; releases carry MailCraft's own signature; agents with a shell or the owner's files are outside the agent gate; the settings folder, logs and kept pictures are the owner's alone) · **Target:** Microsoft Outlook (Microsoft 365)
 
 What MailCraft protects, from whom, and how, with the code that does it. Rules for working in the
 code are in [`CLAUDE.md`](../CLAUDE.md) and [`AGENTS.md`](../AGENTS.md); how to report a
@@ -222,6 +222,7 @@ settings files (`crates/engine/src/store.rs`); commands from the control channel
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-23 | minor | Batch 5: attachments saved with Save As are marked from the Internet (Windows zone, macOS quarantine; Linux has no such mark); the launchable kinds that are never opened grow, legacy Office binaries ask first, and the same list bars the files an agent may have written; a web link the parser rejects is never handed to the opener |
 | 2026-10-23 | minor | C1 PR-a: a `.mailcraft` attachment is saved, never opened; secrets in memory dropped when a mailbox is replaced; agent questions for account and open commands name servers; rules trimmed on repair |
 | 2026-10-21 | minor | The HTML whitelist adds padding and margins (0 to 64 px), lines (1 to 4 px, solid, dashed or dotted), `border-radius` (up to 24 px) and `line-height` (1 to 2.5 times), all clamped, functions refused (#71) |
 | 2026-10-21 | minor | The HTML whitelist adds `width` (tables, cells), `max-width` and centring by automatic margins, all clamped (#150) |
