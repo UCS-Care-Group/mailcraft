@@ -497,7 +497,7 @@ fn planned<'a>(mailboxes: &'a [Mailbox], tied: &[(&str, FolderKind)], microsoft:
         plan.retain(|(mailbox, _)| {
             let keep = !not_mail(mailbox) || tied.iter().any(|(remote, _)| *remote == kinds::remote_name(mailbox));
             if !keep {
-                log::debug!("{}: not a folder of mail, left out", shown(&mailbox.name));
+                log::debug!("a folder that is not a folder of mail is left out");
             }
             keep
         });
@@ -854,7 +854,7 @@ impl FolderSync<'_> {
             _ => uid_from,
         };
         delta.new.sort_by_key(|m| m.uid);
-        log::debug!("{name}: {total} wanted, {} gone, read up to {}", delta.removed.len(), delta.uid_seen);
+        log::debug!("a folder: {total} wanted, {} gone, read up to {}", delta.removed.len(), delta.uid_seen);
         // It goes with the next piece: the next mailbox's first line, or the end of the run.
         run.out.folders.push(delta);
         alive

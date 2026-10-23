@@ -249,6 +249,11 @@ msgstr "No se puede mover una reunión a otro calendario: el servidor de la cuen
 msgid "A meeting is forwarded to {n} people at most at once."
 msgstr "Una reunión se reenvía como máximo a {n} personas a la vez."
 
+#. interface
+#: crates/ui-egui/src/reading/invitation.rs
+msgid "A meeting on your calendar has this ID but another organizer, so this invitation can't change it."
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
 #, fuzzy
@@ -1408,6 +1413,11 @@ msgstr "Comprobar nombres"
 msgid "Check Now"
 msgstr "Comprobar ahora"
 
+#. interface
+#: crates/ui-egui/src/updates.rs
+msgid "Check daily for new versions of MailCraft, and download and install them when you quit? Only GitHub is asked; nothing about you or your mail is sent."
+msgstr ""
+
 #. command label
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
@@ -1425,12 +1435,6 @@ msgstr "Buscar actualizaciones"
 #, fuzzy
 msgid "Check for new versions"
 msgstr "Buscar nuevas versiones"
-
-#. interface
-#: crates/ui-egui/src/updates.rs
-#, fuzzy
-msgid "Check once a day for new versions of MailCraft? Only GitHub is asked; nothing about you or your mail is sent."
-msgstr "¿Desea buscar nuevas versiones de MailCraft una vez al día? Solo se consulta a GitHub; no se envía nada sobre usted ni sobre su correo."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -8649,6 +8653,11 @@ msgstr "Esta invitación no indica cuándo es la reunión."
 msgid "This invitation doesn't say which meeting it is about, so it can't be answered."
 msgstr "Esta invitación no indica a qué reunión se refiere, así que no se puede responder."
 
+#. what a command says
+#: crates/engine/src/cmd/calendar/invitation.rs
+msgid "This invitation has the ID of a meeting on your calendar but names another organizer, so it can't change that meeting."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/updates.rs
 #, fuzzy
@@ -9636,6 +9645,11 @@ msgid "You accepted this meeting."
 msgstr "Ha aceptado esta reunión."
 
 #. interface
+#: crates/ui-egui/src/reading/remote.rs
+msgid "You always download this sender's pictures, but the mail server didn't confirm that this message came from them, so it is asked first."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/reading/invitation.rs
 #, fuzzy
 msgid "You declined this meeting."
@@ -10209,6 +10223,11 @@ msgstr "escribe a otras personas o se conecta a la web"
 #, fuzzy
 msgid "minutes"
 msgstr "minutos"
+
+#. why a command can't run
+#: crates/engine/src/cmd/calendar/invitation.rs
+msgid "mismatch"
+msgstr ""
 
 #. name
 #: crates/model/src/calendar.rs
@@ -11910,6 +11929,10 @@ msgstr "{why}, así que no se recuerdan los inicios de sesión: MailCraft vuelve
 #, fuzzy
 msgid "{why}. {n} changes made in it here wait on this computer."
 msgstr "{why}. {n} cambios hechos aquí en él esperan en este equipo."
+
+#, fuzzy
+#~ msgid "Check once a day for new versions of MailCraft? Only GitHub is asked; nothing about you or your mail is sent."
+#~ msgstr "¿Desea buscar nuevas versiones de MailCraft una vez al día? Solo se consulta a GitHub; no se envía nada sobre usted ni sobre su correo."
 
 #, fuzzy
 #~ msgid "Updating the calendar and contacts…"

@@ -1124,6 +1124,23 @@ impl Mailbox {
         out
     }
 
+    /// Whether `id` is a Junk E-mail folder or lies anywhere under one.
+    pub fn in_junk(&self, id: Id) -> bool {
+        let mut cur = Some(id);
+        let mut steps = 0;
+        while let Some(f) = cur.and_then(|c| self.folder(c)) {
+            if f.kind == FolderKind::Junk {
+                return true;
+            }
+            cur = f.parent;
+            steps += 1;
+            if steps > MAX_DEPTH {
+                break;
+            }
+        }
+        false
+    }
+
     /// `Inbox/Projects/Apollo`.
     pub fn folder_path(&self, id: Id) -> String {
         let mut parts = Vec::new();

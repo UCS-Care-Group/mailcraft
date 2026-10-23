@@ -208,6 +208,11 @@ msgstr ""
 msgid "A meeting is forwarded to {n} people at most at once."
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/reading/invitation.rs
+msgid "A meeting on your calendar has this ID but another organizer, so this invitation can't change it."
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
 msgid "A meeting that repeats and skips some days can't be put on the server's calendar from here: everyone invited would get a cancellation for each skipped day. Keep it in a calendar on this computer, or make it again without the skipped days."
@@ -1167,6 +1172,11 @@ msgstr ""
 msgid "Check Now"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/updates.rs
+msgid "Check daily for new versions of MailCraft, and download and install them when you quit? Only GitHub is asked; nothing about you or your mail is sent."
+msgstr ""
+
 #. command label
 #: crates/ui-egui/src/lib.rs
 msgid "Check for New Versions"
@@ -1180,11 +1190,6 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/updates.rs
 msgid "Check for new versions"
-msgstr ""
-
-#. interface
-#: crates/ui-egui/src/updates.rs
-msgid "Check once a day for new versions of MailCraft? Only GitHub is asked; nothing about you or your mail is sent."
 msgstr ""
 
 #. interface
@@ -7196,6 +7201,11 @@ msgstr ""
 msgid "This invitation doesn't say which meeting it is about, so it can't be answered."
 msgstr ""
 
+#. what a command says
+#: crates/engine/src/cmd/calendar/invitation.rs
+msgid "This invitation has the ID of a meeting on your calendar but names another organizer, so it can't change that meeting."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/updates.rs
 msgid "This is a development build: it checks only when you press Check for Updates in File › About."
@@ -8016,6 +8026,11 @@ msgid "You accepted this meeting."
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/reading/remote.rs
+msgid "You always download this sender's pictures, but the mail server didn't confirm that this message came from them, so it is asked first."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/reading/invitation.rs
 msgid "You declined this meeting."
 msgstr ""
@@ -8501,6 +8516,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/reminders.rs
 msgid "minutes"
+msgstr ""
+
+#. why a command can't run
+#: crates/engine/src/cmd/calendar/invitation.rs
+msgid "mismatch"
 msgstr ""
 
 #. name

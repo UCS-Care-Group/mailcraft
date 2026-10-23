@@ -4,6 +4,10 @@
 - **Report a Problem**, in the title bar beside Copy Diagnostics and in Help: say what went wrong, and MailCraft starts the report for you, on GitHub (the problem form filled in, in your browser, with the diagnostics saved to a file to attach; public) or by email (a new message to the maintainers from your own account, with the diagnostics attached; private). You read everything first, and nothing goes until you submit it or press Send.
 
 **Fixes**
+- "Always download pictures" from a sender or a domain now holds only for mail your mail server says really came from that domain (its `dmarc=pass`), the address is compared as plain ASCII, and mail in a subfolder of Junk E-mail counts as Junk; other mail from a remembered sender asks first, and says why. Your lists are kept.
+- A meeting invitation that carries the ID of a meeting already on your calendar, but names another organizer, no longer replaces or removes it; the invitation bar and its question show the organizer's address and say when the message came from another one.
+- The question about checking for updates says that Yes also downloads and installs them when you quit.
+- MailCraft's log no longer holds subjects, addresses or folder names from Send/Receive problems (they are still in the problems report), and a long sender name no longer hides the address in the reading pane.
 - Move to Folder, Copy to Folder and the other folder menus have a search box at the top, so a folder is found by typing part of its name ([#74](https://github.com/GITHUB_REPOSITORY/issues/74), thanks to @strikerz5).
 - Show in Groups (View › Arrange By) turns the date headings off for one continuous list, and Single Line (View › Message Preview) shows each message on one line; thanks to @Schintilla for asking ([#214](https://github.com/GITHUB_REPOSITORY/issues/214)).
 - Removing an account now removes its mail, attachments and remembered sign-in from this computer, and File › Info › Remove MailCraft's data from this computer removes everything MailCraft keeps here, for an installed or a portable copy; mail on the servers is never touched ([#177](https://github.com/GITHUB_REPOSITORY/issues/177)).

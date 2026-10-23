@@ -1,6 +1,6 @@
 # Threat model
 
-> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-10-22 · **Change:** minor (`--control-agents-only`: no control request passes for the owner's script; the whitelist adds padding, margins, lines, rounded corners and a line height, all clamped, #71; the whitelist adds width, max-width and centring by automatic margins, #150; an assurance case: claim, trust boundaries, design principles, common weaknesses and the evidence; releases carry MailCraft's own signature; agents with a shell or the owner's files are outside the agent gate; the settings folder, logs and kept pictures are the owner's alone) · **Target:** Microsoft Outlook (Microsoft 365)
+> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-10-23 · **Change:** minor (always-download pictures hold only for mail the receiving server vouches for, by ASCII addresses, and not under Junk E-mail; an invitation changes a local meeting only for its organizer; the log keeps no subjects, addresses or folder names; `--control-agents-only`: no control request passes for the owner's script; the whitelist adds padding, margins, lines, rounded corners and a line height, all clamped, #71; the whitelist adds width, max-width and centring by automatic margins, #150; an assurance case: claim, trust boundaries, design principles, common weaknesses and the evidence; releases carry MailCraft's own signature; agents with a shell or the owner's files are outside the agent gate; the settings folder, logs and kept pictures are the owner's alone) · **Target:** Microsoft Outlook (Microsoft 365)
 
 What MailCraft protects, from whom, and how, with the code that does it. Rules for working in the
 code are in [`CLAUDE.md`](../CLAUDE.md) and [`AGENTS.md`](../AGENTS.md); how to report a
@@ -28,6 +28,18 @@ Writes any bytes into a message: crafted MIME, HTML, headers, attachments, pictu
 - **Nothing is fetched by itself.** Pictures attached to the message (`cid:`) are shown; pictures on
   the web only on the owner's say-so, and only `<img>` addresses (no backgrounds, style sheets,
   fonts or frames, nothing 2 px or smaller), so a tracking pixel doesn't fire.
+- **"Always download pictures" is not a trust in a `From:` line.** A remembered sender or domain
+  holds only for a message whose topmost `Authentication-Results` header (the receiving server's own)
+  says `dmarc=pass` (or `compauth=pass`) for the sender's domain (`crates/ui-egui/src/reading/remote.rs`,
+  `vouched`); a message without that is asked about one message at a time. Addresses are kept and
+  compared as ASCII (the Kelvin sign is not a "k"), and mail anywhere under Junk E-mail, not only in
+  it, never takes the lists or the switch for all mail. The limit: a server that adds no such header
+  gives the sender nothing to forge but also the owner nothing to rely on; a header written by the
+  sender at the top of a message, where the receiving server adds none, is believed.
+- **A meeting invitation does not rewrite a meeting it isn't about.** An invitation carrying the
+  `UID` of a meeting on a local calendar changes or removes it only when it names the same
+  organizer (`crates/engine/src/cmd/calendar/invitation.rs`, `same_organizer`); the bar shows the
+  organizer's name and address, and says when the message did not come from that address.
 - **Links** are shown with their real destination; only `http`, `https`, `mailto`, `tel` and `cid`
   are followed.
 - **Parsers never crash.** No `unwrap`, `expect`, `panic!` or `unsafe` in production code
@@ -223,4 +235,5 @@ settings files (`crates/engine/src/store.rs`); commands from the control channel
 | 2026-10-16 | minor | Release signing in the protected `release` environment; draft releases |
 | 2026-10-16 | minor | Pinned build tools with checksums; build provenance for release files |
 | 2026-10-15 | major | First version: assets, adversaries, mechanisms with their files, known limits |
+| 2026-10-23 | minor | Always-download pictures need the server's `dmarc=pass`, ASCII addresses, and Junk subfolders count as Junk; an invitation changes a local meeting only for its organizer, whose address is shown; the update question names installing; the log keeps no subjects, addresses or folder names |
 | 2026-10-22 | minor | `--control-agents-only`: every control request is an agent's, allowed nothing in advance; the mailbox file and `mailcraft-cli` stay within reach of an agent running as the owner |
