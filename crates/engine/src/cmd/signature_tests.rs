@@ -18,8 +18,7 @@ fn run(s: &mut Session, id: &str, params: Value) -> Value {
 }
 
 fn png() -> String {
-    use base64::Engine as _;
-    base64::engine::general_purpose::STANDARD.encode(b"\x89PNG\r\n\x1a\nIHDR....")
+    mailcraft_charset::base64::STANDARD.encode(b"\x89PNG\r\n\x1a\nIHDR....")
 }
 
 fn account(s: &Session) -> u64 {
@@ -82,10 +81,7 @@ fn a_signature_takes_rich_text_pasted_html_and_pictures_within_the_caps() {
     assert_eq!(sig.plain(), "[Lumen Studio]Avery Quinn\nLumen");
     assert_eq!(sig.picture(u32::try_from(id).unwrap()).unwrap().width, Some(120));
     // Not a picture, a web address, and a picture that isn't there.
-    let junk = {
-        use base64::Engine as _;
-        base64::engine::general_purpose::STANDARD.encode(b"<html>")
-    };
+    let junk = { mailcraft_charset::base64::STANDARD.encode(b"<html>") };
     assert!(s.run("signature.picture.add", &json!({"name": "Work", "data": junk})).unwrap_err().to_string().contains("PNG, JPEG or GIF"));
     assert!(
         s.run("signature.picture.add", &json!({"name": "Work", "path": "https://example.org/logo.png"}))

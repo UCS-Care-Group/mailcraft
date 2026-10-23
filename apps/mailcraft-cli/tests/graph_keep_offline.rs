@@ -95,7 +95,7 @@ fn the_background_fetches_mail_within_the_window_and_opening_older_mail_fetches_
 /// in content files beside the mailbox file.
 fn mime(n: usize) -> String {
     let text = format!("Message {n} says this. ").repeat(200);
-    let file = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, format!("attachment {n} ").repeat(300));
+    let file = mailcraft_charset::base64::STANDARD.encode(format!("attachment {n} ").repeat(300));
     format!(
         "From: Kit <kit@example.org>\r\nTo: offline@example.org\r\nSubject: Report {n}\r\nMessage-ID: <r{n}@example.org>\r\nMIME-Version: 1.0\r\n\
 Content-Type: multipart/mixed; boundary=\"b\"\r\n\r\n--b\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n{text}\r\n--b\r\n\

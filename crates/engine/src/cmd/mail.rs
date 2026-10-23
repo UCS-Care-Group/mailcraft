@@ -55,6 +55,10 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("mail.junk", "Block Sender", "Home › Delete", junk).params(IDS).selection(needs_message),
         CommandSpec::new("mail.notJunk", "Not Junk", "Home › Delete", not_junk).key("Mod+Alt+J").params(IDS).selection(needs_message),
         CommandSpec::new("mail.findRelated", "Find Related Messages", "Home › Find", find_related).pure().selection(needs_message),
+        CommandSpec::new("mail.findFromSender", "Messages from Sender", "Home › Find", find_from_sender)
+            .pure()
+            .params(r#"{"id"?: number} (a message; default: the selected one)"#)
+            .selection(needs_message),
         CommandSpec::new("mail.openAttachment", "Open Attachment", "Attachments › Actions", open_attachment)
             .pure()
             .params(
@@ -407,7 +411,33 @@ fn find_related(s: &mut Session, _: &Value) -> CmdResult {
     if topic.is_empty() {
         return Err(fail("this message has no subject to look for"));
     }
-    s.view.search = format!("subject:\"{}\"", topic.replace('"', ""));
+    // Written so that the search reads it back as it is: a backslash at its end keeps its
+    // closing quote from being read as part of it (#301).
+    s.view.search = format!("subject:{}", mailcraft_model::search::keyword_value(&topic));
+    s.view.scope = crate::Scope::Everywhere;
+    Ok(json!({"search": s.view.search, "found": s.rows().len()}))
+}
+
+/// Mail from the sender of a message (the one in focus, or `id`), in every mailbox: a search for
+/// its address, which finds that address and no other (#301), left in the search box to be
+/// narrowed. A quoted name (`"ada smith"@example.org`) is written so that the search reads it
+/// back whole.
+fn find_from_sender(s: &mut Session, v: &Value) -> CmdResult {
+    use mailcraft_model::search::{Query, is_address, keyword_value};
+    let id = p::id(v, "id").or(s.sel.focus()).ok_or_else(|| fail("select a message first"))?;
+    let m = s.mailbox.message(id).ok_or_else(|| failed!("no message with id {id}", id))?;
+    let address = m.from.email.trim();
+    let search = format!("from:{}", keyword_value(address));
+    if address.is_empty() {
+        return Err(fail("this message has no sender address to look for"));
+    }
+    // What is written is read back as that one address, or not written at all: an address the
+    // search doesn't take as a whole one (`ada@[192.0.2.1]`) is said to be one.
+    let query = Query::parse(&search);
+    if !is_address(address) || query.len() != 1 || !query.is_address_term(0) || !query.matches(m, 0) {
+        return Err(fail("the search can't look for this sender's address as a whole address"));
+    }
+    s.view.search = search;
     s.view.scope = crate::Scope::Everywhere;
     Ok(json!({"search": s.view.search, "found": listed(&s.rows())}))
 }
@@ -455,3 +485,7 @@ fn remove_attachment(s: &mut Session, v: &Value) -> CmdResult {
     let removed = m.attachments.remove(index);
     Ok(json!({"removed": removed.name}))
 }
+
+#[cfg(test)]
+#[path = "from_sender_tests.rs"]
+mod from_sender_tests;

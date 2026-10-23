@@ -9,7 +9,7 @@ description = "MailCraft mail protocols without sockets: IMAP4rev1 and SMTP clie
 workspace = true
 
 [dependencies]
-base64 = { workspace = true }
+mailcraft-charset = { workspace = true }
 thiserror = { workspace = true }
 log = { workspace = true }
 

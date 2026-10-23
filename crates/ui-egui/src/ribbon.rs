@@ -351,6 +351,7 @@ fn home_mail(app: &MailApp) -> Tab {
             vec![
                 Item::big_menu("filter", "filter", "Filter\nEmail", "Filter Email", Menu::FilterMail).at(4, 4),
                 Item::small("findRelated", "Related", "Find Related Messages", "mail.findRelated", no()).at(5, 7),
+                Item::small("findFromSender", "From Sender", "Messages from Sender", "mail.findFromSender", no()).at(5, 7),
             ],
         ),
         g("Send/Receive", vec![Item::big("sync", "Send/Receive\nAll Folders", "ui.sync", no()).at(5, 5)]),
@@ -2073,7 +2074,13 @@ mod tests {
             let more = check_row(&harness, "mail home");
             match width as u32 {
                 1200 => assert!(more.is_empty(), "{more:?}"),
-                800 => assert!(more.contains(&"mail.findRelated") && !more.contains(&"mail.delete") && most >= more.len(), "{more:?}"),
+                800 => assert!(
+                    more.contains(&"mail.findRelated")
+                        && more.contains(&"mail.findFromSender")
+                        && !more.contains(&"mail.delete")
+                        && most >= more.len(),
+                    "{more:?}"
+                ),
                 _ => {}
             }
         }
@@ -2096,9 +2103,9 @@ mod tests {
         click(&mut harness, pos);
         assert_eq!(message(&harness).read, !read);
 
-        // Behind `…`: Pin and Related are there, and run.
+        // Behind `…`: Pin, Related and From Sender are there, and run.
         let more = check_row(&harness, "mail home at 800");
-        assert!(more.contains(&"mail.pin") && more.contains(&"mail.findRelated"), "{more:?}");
+        assert!(more.contains(&"mail.pin") && more.contains(&"mail.findRelated") && more.contains(&"mail.findFromSender"), "{more:?}");
         assert!(harness.query_by_label("Pin").is_none(), "the menu is shut");
         let dots = harness.state().hit.rect("ribbonMore", 0).unwrap().center();
         click(&mut harness, dots);
@@ -2115,6 +2122,14 @@ mod tests {
         harness.get_by_label("Related").click();
         harness.run_steps(3);
         assert!(harness.state().session.view.search.starts_with("subject:"), "{:?}", harness.state().session.view.search);
+        harness.state_mut().execute("view.clearSearch", json!({})).unwrap();
+        harness.state_mut().execute("mail.select", json!({"id": focus})).unwrap();
+        harness.run_steps(3);
+        let sender = mailcraft_model::search::keyword_value(message(&harness).from.email.trim());
+        click(&mut harness, dots);
+        harness.get_by_label("From Sender").click();
+        harness.run_steps(3);
+        assert_eq!(harness.state().session.view.search, format!("from:{sender}"));
         harness.state_mut().execute("view.clearSearch", json!({})).unwrap();
         harness.state_mut().execute("mail.select", json!({"id": focus})).unwrap();
         harness.run_steps(3);
@@ -2290,7 +2305,7 @@ mod tests {
                 ("Respond", vec!["Reply", "Reply\nAll", "Forward", "Meeting", "Add Sender"]),
                 ("Move", vec!["Move", "Rules"]),
                 ("Tags", vec!["Unread/\nRead", "Categorize", "Follow\nUp", "Pin"]),
-                ("Find", vec!["Filter\nEmail", "Related"]),
+                ("Find", vec!["Filter\nEmail", "Related", "From Sender"]),
                 ("Send/Receive", vec!["Send/Receive\nAll Folders"]),
             ]
         );

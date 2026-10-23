@@ -159,9 +159,11 @@ fn info(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         ui.painter().rect(r, 6.0, t.panel, Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
         crate::widgets::avatar(ui, pos2(r.min.x + 30.0, r.center().y), 17.0, &a.address());
         let title = if a.email.is_empty() { tl!("Local mailbox").to_string() } else { a.address().full() };
-        // The text runs up to the buttons at the right: Settings, and Remove when there are others
-        // (a shared mailbox has Remove alone).
-        let buttons = if a.is_shared() { 1 } else { usize::from(!a.email.is_empty()) + usize::from(accounts.len() > 1) };
+        // The text runs up to the buttons at the right: Settings, and Remove (a shared mailbox has
+        // Remove alone). The only account can be removed too, leaving an empty mailbox (#313); the
+        // empty mailbox's own placeholder can't.
+        let removable = app.session.mailbox.placeholder() != Some(a.id);
+        let buttons = if a.is_shared() { 1 } else { usize::from(!a.email.is_empty()) + usize::from(removable) };
         let text_w = r.width() - 70.0 - 82.0 * buttons as f32;
         crate::theme::paint_clipped(ui.painter(), pos2(r.min.x + 58.0, r.min.y + 20.0), text_w, &title, semibold(13.0), t.text);
         let detail = account_detail(app, a);
@@ -188,7 +190,7 @@ fn info(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
             let br = Rect::from_min_size(pos2(r.max.x - right, r.center().y - 13.0), vec2(74.0, 26.0));
             ui.new_child(egui::UiBuilder::new().max_rect(br)).add_sized(br.size(), button)
         };
-        let settings_at = if accounts.len() > 1 { 168.0 } else { 86.0 };
+        let settings_at = if removable { 168.0 } else { 86.0 };
         // (An account kept in step through Graph has no servers to change, #312.)
         let settings_tip = if a.kind == AccountKind::Microsoft {
             tl!("Change this account's name, sign-in and mail to keep offline")
@@ -207,7 +209,7 @@ fn info(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
             {
                 let _ = app.run("account.removeSharedMailbox", json!({"id": a.id}));
             }
-        } else if accounts.len() > 1
+        } else if removable
             && on_card(ui, 86.0, egui::Button::new(tl!("Remove"))).on_hover_text(tl!("Remove this account and the mail kept for it here")).clicked()
         {
             let _ = app.run("account.remove", json!({"id": a.id}));

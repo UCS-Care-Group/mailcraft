@@ -39,7 +39,6 @@ base64 = "0.22"
 # (windows-1250, iso-8859-2, koi8-r, shift_jis, iso-2022-jp…), and vCard files: `mailcraft-charset`.
 # (Apache-2.0 OR MIT) AND BSD-3-Clause, Rust throughout, builds for the browser.
 encoding_rs = "0.8"
-getrandom = "0.3"
 # Time zones: the IANA Time Zone Database compiled in (`tzdb-bundle-always`: the same rules on
 # every platform and in the browser) and the system's own zone. Unlicense OR MIT; the database is
 # in the public domain. Used by `mailcraft-time` only, which wraps it (`Zone`); calendar maths is
@@ -59,7 +58,7 @@ flate2 = { version = "1", default-features = false, features = ["rust_backend"] 
 # configuration of Outlook on the web, of which the list of Favorites is read:
 # `mailcraft-net`'s `graph::favorites`). MIT, Rust throughout, and nothing but `memchr` under it. It reads no DTD and expands no entity: a reference in the text is handed over as such.
 # Already in the tree (a build tool of the Linux windowing crates uses it); desktop and CLI only.
-quick-xml = { version = "0.41", default-features = false }
+quick-xml = { version = "0.42", default-features = false }
 
 # images (screenshots, inline pictures). WebP for the pictures of mail that are kept as nothing
 # else on the web; its decoder (image-webp) is Rust all the way down, like the others here.
@@ -71,18 +70,11 @@ egui_extras = { version = "0.36", default-features = false }
 eframe = { version = "0.36", default-features = false }
 egui_kittest = "0.36"
 rfd = "0.17"
-arboard = { version = "3.6", default-features = false }
+arboard = { version = "3.7", default-features = false }
 # Reading a link's address the way a browser does (WHATWG URL), for the host it really goes to,
 # an international name in its ASCII (`xn--`) form: the tip over a link. MIT OR Apache-2.0, Rust
 # throughout, builds for the browser; already in the tree (the desktop's `webbrowser` uses it).
 url = "2.5"
-
-# craft-libs (https://github.com/storytold/craft-libs): code shared by the Craft apps, taken from
-# git pinned to one commit (`rev`); review the diff before moving the pin. Only `craft-quit`, in
-# the desktop app alone: on macOS MailCraft quits through `-[NSApplication terminate:]` rather
-# than by closing its window, which can crash AppKit (its Touch Bar), and its app menu's Quit (⌘Q)
-# asks first, as the close button does. `menu` brings muda on macOS only. Needs Rust 1.95.
-craft-quit = { git = "https://github.com/storytold/craft-libs", rev = "8f5a2831614e632f91ad367f7af2a6e5b61b9529", features = ["menu"] }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

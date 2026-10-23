@@ -18,13 +18,13 @@ mailcraft-mime = { workspace = true }
 log = { workspace = true }
 serde_json = { workspace = true }
 # The stand-in reads the Basic credentials it is sent.
-base64 = { workspace = true, optional = true }
+mailcraft-charset = { workspace = true, optional = true }
 
 [features]
 # An in-process JMAP server that holds a client to the protocol (`standin`), for the tests of the
 # crates that sit on this one, and the executor of those tests. Never in a build that isn't a test's.
-stand-in = ["dep:base64"]
+stand-in = ["dep:mailcraft-charset"]
 
 [dev-dependencies]
-base64 = { workspace = true }
+mailcraft-charset = { workspace = true }
 proptest = { workspace = true }

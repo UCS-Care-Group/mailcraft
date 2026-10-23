@@ -90,7 +90,7 @@ fn probe_dx12(options: &NativeOptions) -> Vec<Dx12Adapter> {
         return Vec::new();
     };
     let instance = Instance::new(InstanceDescriptor { backends: Backends::DX12, ..InstanceDescriptor::new_without_display_handle() });
-    pollster::block_on(instance.enumerate_adapters(Backends::DX12))
+    crate::block_on::block_on(instance.enumerate_adapters(Backends::DX12))
         .iter()
         .map(|adapter| {
             let info = adapter.get_info();

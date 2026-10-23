@@ -431,7 +431,9 @@ fn put_back(mb: &mut Mailbox, account: Id, id: &str, kept: Option<Box<Message>>,
             (m.folder, m.uid, m.synced, m.moving_out) = (folder, 0, None, None);
             (m.read, m.flag, m.flag_due, m.importance) = (server.read, server.flag, server.flag_due, server.importance);
             m.categories = server.categories.clone();
-            m.server = Some(ServerMessage { id: id.to_string(), gone: false, ..server });
+            // A size the server didn't say is the one kept (#300), as a delta's is.
+            let size = if server.size > 0 { server.size } else { m.server.as_ref().map_or(0, |s| s.size) };
+            m.server = Some(ServerMessage { id: id.to_string(), gone: false, size, ..server });
             let _ = mb.add_message(m);
         }
         (None, Some(server), Some(folder)) => {

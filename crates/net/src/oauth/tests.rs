@@ -1319,7 +1319,7 @@ fn who_signed_in_is_read_from_the_identity_token() {
     assert_eq!(who(&id_token(r#"{"email":"not an address","preferred_username":"ada@example.org"}"#)), named("", "ada@example.org"));
     assert_eq!(who(&id_token(r#"{"sub":"123"}"#)), named("", ""));
     // Padded, as base64 elsewhere is.
-    let padded = format!("e30=.{}=.", base64::engine::general_purpose::URL_SAFE.encode(r#"{"name":"Ada"}"#).trim_end_matches('='));
+    let padded = format!("e30=.{}=.", mailcraft_charset::base64::URL_SAFE.encode(r#"{"name":"Ada"}"#).trim_end_matches('='));
     assert_eq!(who(&padded), named("Ada", ""));
 
     // With the tokens of a sign-in, and of a refresh only when it brings one.

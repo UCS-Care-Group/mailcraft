@@ -26,8 +26,7 @@
 //! - **Answers lost on demand** ([`State::lose_next`](super::State::lose_next)): a request of a
 //!   method and an address (`*` for any one piece of it) is carried out and its answer lost.
 
-use base64::Engine as _;
-use base64::engine::general_purpose::STANDARD;
+use mailcraft_charset::base64::STANDARD;
 use serde_json::{Map, Value, json};
 
 use super::messages::Message;

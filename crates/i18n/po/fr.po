@@ -3097,6 +3097,11 @@ msgstr "vendredi"
 msgid "From"
 msgstr "De"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "From Sender"
+msgstr ""
+
 #. name
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -3935,7 +3940,7 @@ msgid "List Tasks"
 msgstr "Lister les tâches"
 
 #. interface
-#: crates/ui-egui/src/backstage.rs
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Local mailbox"
 msgstr "Boîte aux lettres locale"
@@ -4123,6 +4128,11 @@ msgstr "MailCraft le garde en mémoire jusqu'à la fermeture de l'application. I
 #, fuzzy
 msgid "MailCraft looks for a new version once a day (File › Options). Only GitHub is asked."
 msgstr "MailCraft recherche une nouvelle version une fois par jour (Fichier › Options). Seul GitHub est interrogé."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "MailCraft will have no account afterwards: File › Add Account sets one up again."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -4349,6 +4359,11 @@ msgstr "Messages (.eml, .mbox), calendriers (.ics) et contacts (.vcf)"
 #, fuzzy
 msgid "Messages are shown without running anything in them, and the pictures a message keeps on the web are downloaded only when you ask. Passwords are kept in memory only while the app is open."
 msgstr "Les messages sont affichés sans rien exécuter de leur contenu, et les images qu'un message garde sur le web ne sont téléchargées qu'à votre demande. Les mots de passe ne sont gardés en mémoire que tant que l'application est ouverte."
+
+#. command label, interface, ribbon
+#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
+msgid "Messages from Sender"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -10698,12 +10713,6 @@ msgid "the folder this message is in isn't on this computer any more"
 msgstr "le dossier contenant ce message n'est plus sur cet ordinateur"
 
 #. what a command says
-#: crates/engine/src/cmd/account.rs
-#, fuzzy
-msgid "the last account can't be removed"
-msgstr "le dernier compte ne peut pas être supprimé"
-
-#. what a command says
 #: crates/engine/src/cmd/calendar.rs
 #, fuzzy
 msgid "the last calendar can't be deleted"
@@ -10762,6 +10771,11 @@ msgstr "le dossier parent appartient à un autre compte"
 #, fuzzy
 msgid "the proposed end is not after the proposed start"
 msgstr "la fin proposée n'est pas postérieure au début proposé"
+
+#. what a command says
+#: crates/engine/src/cmd/mail.rs
+msgid "the search can't look for this sender's address as a whole address"
+msgstr ""
 
 #. why a command can't run
 #: crates/engine/src/cmd/search_server.rs
@@ -10878,6 +10892,11 @@ msgid "there is already a signature named \"{to}\""
 msgstr "il existe déjà une signature nommée « {to} »"
 
 #. what a command says
+#: crates/engine/src/cmd/account.rs
+msgid "there is no account to remove"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/graph_switch.rs
 #, fuzzy
 msgid "there is no free name for a local folder"
@@ -10978,6 +10997,11 @@ msgstr "cette boîte aux lettres n'est pas joignable via Microsoft Graph (Mailbo
 #, fuzzy
 msgid "this message already has as many attachments as it can carry"
 msgstr "ce message contient déjà le nombre maximal de pièces jointes"
+
+#. what a command says
+#: crates/engine/src/cmd/mail.rs
+msgid "this message has no sender address to look for"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/mail.rs
@@ -11979,20 +12003,8 @@ msgid "{why}. {n} changes made in it here wait on this computer."
 msgstr "{why}. {n} modifications faites ici attendent sur cet ordinateur."
 
 #, fuzzy
-#~ msgid "Arrange Contacts By"
-#~ msgstr "Réorganiser les contacts par"
-
-#, fuzzy
-#~ msgid "Arrange Tasks By"
-#~ msgstr "Réorganiser les tâches par"
-
-#, fuzzy
-#~ msgid "Due Date"
-#~ msgstr "Date d'échéance"
-
-#, fuzzy
-#~ msgid "No category"
-#~ msgstr "Aucune catégorie"
+#~ msgid "the last account can't be removed"
+#~ msgstr "le dernier compte ne peut pas être supprimé"
 
 #, fuzzy
 #~ msgid "Check once a day for new versions of MailCraft? Only GitHub is asked; nothing about you or your mail is sent."
