@@ -210,6 +210,10 @@ impl When {
     }
 }
 
+/// How long the engine may take to read a meeting before the answer is kept until the mailbox
+/// changes.
+const SLOW: std::time::Duration = std::time::Duration::from_millis(100);
+
 /// What is kept between frames.
 #[derive(Default)]
 struct Store {
@@ -224,6 +228,9 @@ struct Kept {
     message: Id,
     rev: u64,
     minute: i64,
+    /// It took long to work out: it is kept until the mailbox changes, not asked again by the
+    /// minute (a message built to be slow must not keep the window busy).
+    slow: bool,
     info: Option<Arc<Info>>,
     used: u64,
 }
@@ -261,13 +268,15 @@ pub(super) fn info(app: &mut MailApp, ctx: &egui::Context, m: &Message) -> Optio
     let store = Store::of(ctx);
     {
         let mut store = store.lock().unwrap_or_else(|e| e.into_inner());
-        if let Some(kept) = store.infos.iter_mut().find(|kept| kept.message == m.id && kept.rev == rev && kept.minute == minute) {
+        if let Some(kept) = store.infos.iter_mut().find(|kept| kept.message == m.id && kept.rev == rev && (kept.slow || kept.minute == minute)) {
             kept.used = frame;
             return kept.info.clone();
         }
     }
     // (Asked with the store let go of: the command is the engine's, and may take its time.)
+    let began = std::time::Instant::now();
     let info = engine_says(app, m.id).map(Arc::new);
+    let slow = began.elapsed() > SLOW;
     let mut store = store.lock().unwrap_or_else(|e| e.into_inner());
     store.infos.retain(|kept| kept.message != m.id);
     if store.infos.len() >= KEPT
@@ -275,7 +284,7 @@ pub(super) fn info(app: &mut MailApp, ctx: &egui::Context, m: &Message) -> Optio
     {
         store.infos.swap_remove(oldest);
     }
-    store.infos.push(Kept { message: m.id, rev, minute, info: info.clone(), used: frame });
+    store.infos.push(Kept { message: m.id, rev, minute, slow, info: info.clone(), used: frame });
     info
 }
 

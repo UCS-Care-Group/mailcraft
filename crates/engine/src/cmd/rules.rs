@@ -8,7 +8,7 @@ use serde_json::{Value, json};
 use super::{bad, fail, needs_message};
 use crate::{CmdError, CmdResult, CommandSpec, Session, p};
 
-const MAX_RULES: usize = 500;
+use mailcraft_model::MAX_RULES;
 
 pub fn specs() -> Vec<CommandSpec> {
     vec![

@@ -221,6 +221,9 @@ pub const BLOCKED: &[&str] = &[
     "rpm",
     "so",
     "ko",
+    // MailCraft's own mailbox: its accounts name servers, so one sent in mail is saved, never
+    // opened from the message.
+    "mailcraft",
 ];
 
 /// Office files that can carry macros.
@@ -470,6 +473,8 @@ mod tests {
             "outlook.prf",
             "help.hpj",
             "group.grp",
+            "backup.mailcraft",
+            "Backup.MAILCRAFT",
         ] {
             assert_eq!(verdict(name), Verdict::Blocked, "{name}");
         }

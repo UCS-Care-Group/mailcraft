@@ -20,6 +20,9 @@
 //! Definitions are hostile text: offsets of more than eighteen hours are not offsets, and the
 //! zones, their parts and their dates are all capped.
 
+use std::cell::{Cell, RefCell};
+use std::collections::HashMap;
+
 use mailcraft_time::{DAY, Date, DateTime, Timestamp, Weekday, Zone, days_in_month};
 
 use crate::lines::{ContentLine, Lines, fold, prefix};
@@ -28,8 +31,13 @@ use crate::values::{When, format_local};
 /// Most zones one file defines, most parts (`STANDARD`, `DAYLIGHT`) of one zone, and most dates
 /// (`RDATE`) of one part.
 const MAX_ZONES: usize = 64;
-const MAX_PARTS: usize = 400;
-const MAX_DATES: usize = 400;
+const MAX_PARTS: usize = 64;
+const MAX_DATES: usize = 64;
+/// The work one parse may spend on finding the instants of times in zones the file defines, in
+/// units of one look at one part or one date of a definition. Past it, times are kept as written.
+const WORK_BUDGET: u64 = 20_000_000;
+/// How many weeks `Source::zone` compares, both sides, times two and one (the work of one miss).
+const SAMPLES: u64 = 121;
 /// The furthest from UTC an offset may be, in seconds.
 const MAX_OFFSET: i32 = 18 * 3600;
 /// Longest `TZID` looked at, and how much of one is shown in a note.
@@ -140,6 +148,11 @@ pub(crate) struct FileZone {
 }
 
 impl FileZone {
+    /// What one look at the definition costs, in units of `WORK_BUDGET`.
+    pub(crate) fn cost(&self) -> u64 {
+        self.parts.iter().fold(0u64, |sum, part| sum.saturating_add(8).saturating_add(part.dates.len() as u64))
+    }
+
     fn offset_by(&self, limit: i64, year: i32, key: &dyn Fn(&Part, DateTime) -> i64) -> i32 {
         let mut best: Option<(i64, i32)> = None;
         for part in &self.parts {
@@ -268,6 +281,13 @@ pub(crate) enum Source<'a> {
 pub(crate) struct FileZones {
     /// The `TZID`, the definition, and the place it says it is (`X-LIC-LOCATION`).
     zones: Vec<(String, FileZone, String)>,
+    /// Work spent so far (see `WORK_BUDGET`), times resolved so far, and whether the budget ran out.
+    spent: Cell<u64>,
+    resolved: Cell<u32>,
+    stopped: Cell<bool>,
+    /// What `Source::zone` found, per `TZID` and offset: a definition is compared with the
+    /// database once, not once per property.
+    found: RefCell<HashMap<(String, i64), (Option<Zone>, Option<String>)>>,
 }
 
 impl FileZones {
@@ -336,6 +356,29 @@ impl FileZones {
         out
     }
 
+    /// Spend `units` of the file's work budget; `false` (and the budget is out for good) when
+    /// there is not enough left.
+    pub(crate) fn spend(&self, units: u64) -> bool {
+        let total = self.spent.get().saturating_add(units);
+        if self.stopped.get() || total > WORK_BUDGET {
+            self.stopped.set(true);
+            return false;
+        }
+        self.spent.set(total);
+        self.resolved.set(self.resolved.get().saturating_add(1));
+        true
+    }
+
+    /// What is said when the budget ran out.
+    pub(crate) fn stopped_note(&self) -> Option<String> {
+        self.stopped.get().then(|| {
+            format!(
+                "Time zone work stopped after {} times: the rest of the times in the zones this file defines are kept as they are written.",
+                self.resolved.get()
+            )
+        })
+    }
+
     /// How times with this `TZID` are read.
     pub(crate) fn source(&self, tzid: &str) -> Source<'_> {
         let tzid = prefix(tzid.trim(), MAX_TZID);
@@ -377,7 +420,13 @@ impl Source<'_> {
 
     /// The zone of the database an event written in this zone at `wall` (which is `instant`)
     /// keeps as its own, and what there is to say about it.
+    #[cfg(test)]
     pub(crate) fn zone(&self, tzid: &str, wall: DateTime, instant: Timestamp) -> (Option<Zone>, Option<String>) {
+        self.zone_in(None, tzid, wall, instant)
+    }
+
+    /// As [`zone`](Self::zone), remembering in `zones` what a definition came to, per offset.
+    pub(crate) fn zone_in(&self, zones: Option<&FileZones>, tzid: &str, wall: DateTime, instant: Timestamp) -> (Option<Zone>, Option<String>) {
         match self {
             Source::Utc => (Some(Zone::UTC), None),
             Source::Known(zone) => (Some(*zone), None),
@@ -392,6 +441,11 @@ impl Source<'_> {
                 if let Some(zone) = named.filter(|zone| zone.offset_seconds_at(instant) == offset) {
                     return (Some(zone), None);
                 }
+                let key = (tzid.to_string(), offset);
+                if let Some(found) = zones.and_then(|zones| zones.found.borrow().get(&key).cloned()) {
+                    return found;
+                }
+                let affordable = zones.is_none_or(|zones| zones.spend(SAMPLES.saturating_mul(definition.cost())));
                 let contradicts = named
                     .map(|_| note(tzid, "is defined in the file otherwise than the zone of that name: its times are read as the file defines them."));
                 // A zone of the database that keeps the same clock around then.
@@ -401,14 +455,24 @@ impl Source<'_> {
                         zone.offset_seconds_at(at) == i64::from(definition.offset_at(at))
                     })
                 };
-                if let Some(zone) = Zone::choices().into_iter().filter(|zone| zone.offset_seconds_at(instant) == offset).find(same) {
-                    return (Some(zone), contradicts);
+                let chosen =
+                    if affordable { Zone::choices().into_iter().filter(|zone| zone.offset_seconds_at(instant) == offset).find(same) } else { None };
+                if let Some(zone) = chosen {
+                    let result = (Some(zone), contradicts);
+                    if let Some(zones) = zones {
+                        zones.found.borrow_mut().insert(key, result.clone());
+                    }
+                    return result;
                 }
                 let fixed = i32::try_from(offset.div_euclid(60)).ok().and_then(Zone::fixed);
                 let label = fixed.map(Zone::id).unwrap_or_default();
                 let said = contradicts
                     .unwrap_or_else(|| note(tzid, &format!("is defined in the file and is like none that is known: its times are kept at {label}.")));
-                (fixed, Some(said))
+                let result = (fixed, Some(said));
+                if affordable && let Some(zones) = zones {
+                    zones.found.borrow_mut().insert(key, result.clone());
+                }
+                result
             }
         }
     }

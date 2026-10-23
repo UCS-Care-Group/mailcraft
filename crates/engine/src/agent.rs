@@ -636,7 +636,13 @@ pub fn describe(s: &Session, id: &str, params: &Value) -> String {
         _ if id.starts_with("calendar.") && p::bool(params, "send") == Some(true) => {
             format!("{} ({label}) and write to the people invited", event_title(s, params))
         }
-        "account.add" => format!("add the account {}", clip(st("email"), 80)),
+        "account.add" => {
+            let to = crate::cmd::account::from_params(params)
+                .map(|a| crate::cmd::account::servers_text(&a))
+                .unwrap_or_else(|| "no valid server".to_string());
+            format!("add the account {}, which connects to {to}", clip(st("email"), 80))
+        }
+        "file.open" => format!("open the mailbox {} as the mailbox in view; its {}", clip(st("path"), 160), crate::cmd::file::servers_in(params)),
         "account.addSharedMailbox" => format!("open the shared mailbox {}", clip(st("address"), 80)),
         "account.removeSharedMailbox" => {
             let a = p::id(params, "id").and_then(|a| s.mailbox.account(a)).map(|a| a.email.clone()).unwrap_or_else(|| st("address").to_string());
@@ -654,7 +660,20 @@ pub fn describe(s: &Session, id: &str, params: &Value) -> String {
         }
         "account.edit" | "account.remove" => {
             let a = p::id(params, "id").and_then(|a| s.mailbox.account(a)).map(|a| clip(&a.email, 80)).unwrap_or_default();
-            format!("{} {a}", if id == "account.edit" { "change the account" } else { "remove the account" })
+            if id == "account.edit" {
+                let old = p::id(params, "id").and_then(|a| s.mailbox.account(a));
+                let moved = old
+                    .and_then(|old| {
+                        crate::cmd::account::edited(old, params)
+                            .map(|new| (crate::cmd::account::servers_text(old), crate::cmd::account::servers_text(&new)))
+                    })
+                    .filter(|(was, now)| was != now);
+                return match moved {
+                    Some((was, now)) => format!("change the account {a}; its servers change from {was} to {now}"),
+                    None => format!("change the account {a}"),
+                };
+            }
+            format!("remove the account {a}")
         }
         _ => {
             let mut shown = params.to_string();

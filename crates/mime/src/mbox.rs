@@ -16,45 +16,73 @@ use crate::{WriteOptions, header, parse, write};
 /// files). Bytes before the first separator are read as a message too, so a lone `.eml` gives one
 /// message. Each message is read with [`parse()`], which never fails.
 pub fn parse_mbox(bytes: &[u8]) -> Vec<Message> {
-    let mut messages = Vec::new();
-    let mut current: Option<Vec<u8>> = None;
-    let mut previous_blank = true;
-    let mut pos = 0;
-    while pos < bytes.len() {
-        let (line, next) = header::line_at(bytes, pos);
-        if line.starts_with(b"From ") && (previous_blank || has_time(line)) {
-            finish(current.take(), &mut messages);
-            current = Some(Vec::new());
-        } else {
-            let whole = bytes.get(pos..next).unwrap_or_default();
-            // `>From ` was `From ` before it was stored; `>>From ` was `>From `.
-            let quoted = line.iter().position(|b| *b != b'>').is_some_and(|i| i > 0 && line.get(i..).is_some_and(|rest| rest.starts_with(b"From ")));
-            let unquoted = if quoted { whole.get(1..).unwrap_or_default() } else { whole };
-            match &mut current {
-                Some(message) => message.extend_from_slice(unquoted),
-                // Before any separator: blank lines are nothing, anything else is a message.
-                None if line.is_empty() => {}
-                None => current = Some(unquoted.to_vec()),
+    mbox_messages(bytes).collect()
+}
+
+/// The messages of an mbox file one at a time, read as [`parse_mbox`] reads them. Lets a caller
+/// stop early (an import caps how many it takes) without every message being built first.
+pub fn mbox_messages(bytes: &[u8]) -> MboxMessages<'_> {
+    MboxMessages { bytes, pos: 0, current: None, previous_blank: true, done: false }
+}
+
+/// The iterator behind [`mbox_messages`].
+pub struct MboxMessages<'a> {
+    bytes: &'a [u8],
+    pos: usize,
+    current: Option<Vec<u8>>,
+    previous_blank: bool,
+    done: bool,
+}
+
+impl Iterator for MboxMessages<'_> {
+    type Item = Message;
+
+    fn next(&mut self) -> Option<Message> {
+        while !self.done {
+            if self.pos >= self.bytes.len() {
+                self.done = true;
+                if let Some(m) = finish(self.current.take()) {
+                    return Some(m);
+                }
+                break;
+            }
+            let (line, next) = header::line_at(self.bytes, self.pos);
+            let mut out = None;
+            if line.starts_with(b"From ") && (self.previous_blank || has_time(line)) {
+                out = finish(self.current.take());
+                self.current = Some(Vec::new());
+            } else {
+                let whole = self.bytes.get(self.pos..next).unwrap_or_default();
+                // `>From ` was `From ` before it was stored; `>>From ` was `>From `.
+                let quoted =
+                    line.iter().position(|b| *b != b'>').is_some_and(|i| i > 0 && line.get(i..).is_some_and(|rest| rest.starts_with(b"From ")));
+                let unquoted = if quoted { whole.get(1..).unwrap_or_default() } else { whole };
+                match &mut self.current {
+                    Some(message) => message.extend_from_slice(unquoted),
+                    // Before any separator: blank lines are nothing, anything else is a message.
+                    None if line.is_empty() => {}
+                    None => self.current = Some(unquoted.to_vec()),
+                }
+            }
+            self.previous_blank = line.is_empty();
+            self.pos = next;
+            if out.is_some() {
+                return out;
             }
         }
-        previous_blank = line.is_empty();
-        pos = next;
+        None
     }
-    finish(current.take(), &mut messages);
-    messages
 }
 
 /// Parse a message cut out of an mbox, without the empty line that ended it there.
-fn finish(message: Option<Vec<u8>>, messages: &mut Vec<Message>) {
-    let Some(mut bytes) = message else { return };
+fn finish(message: Option<Vec<u8>>) -> Option<Message> {
+    let mut bytes = message?;
     if bytes.ends_with(b"\n\r\n") {
         bytes.truncate(bytes.len() - 2);
     } else if bytes.ends_with(b"\n\n") {
         bytes.truncate(bytes.len() - 1);
     }
-    if !bytes.iter().all(u8::is_ascii_whitespace) {
-        messages.push(parse(&bytes));
-    }
+    if bytes.iter().all(u8::is_ascii_whitespace) { None } else { Some(parse(&bytes)) }
 }
 
 /// Whether a line holds a clock time (`hh:mm`), as mbox separator lines do.
