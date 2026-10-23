@@ -175,6 +175,18 @@ fn sent_on(s: &Session, m: &Message) -> String {
     s.date_time_said(at)
 }
 
+/// Most names a quoted `To:` or `Cc:` line carries; a message can list thousands.
+const QUOTED_NAMES: usize = 100;
+
+/// A recipient line for the quote under a reply or forward, cut after [`QUOTED_NAMES`] with a count.
+fn quoted_list(list: &[Address]) -> String {
+    let (mut line, more) = mailcraft_model::format_list_capped(list, QUOTED_NAMES);
+    if more > 0 {
+        line.push_str(&format!("; … (+{more})"));
+    }
+    line
+}
+
 /// The original message under a reply or forward, as plain text.
 fn quoted(s: &Session, m: &Message) -> String {
     let [from, sent, to, cc, subject] = header_names(s);
@@ -182,10 +194,10 @@ fn quoted(s: &Session, m: &Message) -> String {
     out.push_str(&format!("{from} {}\n", m.from.full()));
     out.push_str(&format!("{sent} {}\n", sent_on(s, m)));
     if !m.to.is_empty() {
-        out.push_str(&format!("{to} {}\n", format_list(&m.to)));
+        out.push_str(&format!("{to} {}\n", quoted_list(&m.to)));
     }
     if !m.cc.is_empty() {
-        out.push_str(&format!("{cc} {}\n", format_list(&m.cc)));
+        out.push_str(&format!("{cc} {}\n", quoted_list(&m.cc)));
     }
     out.push_str(&format!("{subject} {}\n\n", m.subject));
     out.push_str(m.body.text.trim_end());
@@ -209,10 +221,10 @@ fn quoted_html(s: &Session, m: &Message, html: &str) -> String {
     out.push_str(&format!("<b>{from}</b> {}<br>", e(&m.from.full())));
     out.push_str(&format!("<b>{sent}</b> {}<br>", e(&sent_on(s, m))));
     if !m.to.is_empty() {
-        out.push_str(&format!("<b>{to}</b> {}<br>", e(&format_list(&m.to))));
+        out.push_str(&format!("<b>{to}</b> {}<br>", e(&quoted_list(&m.to))));
     }
     if !m.cc.is_empty() {
-        out.push_str(&format!("<b>{cc}</b> {}<br>", e(&format_list(&m.cc))));
+        out.push_str(&format!("<b>{cc}</b> {}<br>", e(&quoted_list(&m.cc))));
     }
     out.push_str(&format!("<b>{subject}</b> {}</div><br>\r\n", e(&m.subject)));
     out.push_str(&mailcraft_html::quotable(html));

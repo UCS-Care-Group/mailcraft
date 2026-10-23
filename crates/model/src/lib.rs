@@ -12,6 +12,7 @@ mod address;
 mod calendar;
 mod contact;
 mod jmap_server;
+mod load_limit;
 mod mailbox;
 mod message;
 mod offline;
@@ -29,13 +30,14 @@ pub mod zoned;
 
 use serde::{Deserialize, Serialize};
 
-pub use address::{Address, MAX_ADDRESS, format_list, mailbox_address};
+pub use address::{Address, MAX_ADDRESS, format_list, format_list_capped, mailbox_address};
 pub use calendar::{
     Attendee, Calendar, Event, Freq, MAX_JOIN_LINK, Occurrence, OnlineMeeting, OnlineProvider, Proposal, Recurrence, Response, ResponseOptions,
     ShowAs,
 };
 pub use contact::{Contact, Labeled, PostalAddress};
 pub use jmap_server::JmapServer;
+pub use load_limit::{MIN_ITEM_BYTES, from_json};
 pub use mailbox::{
     Account, AccountKind, AsWritten, BETWEEN_MAILBOXES, Category, Directory, DownloadInFull, Folder, FolderCounts, FolderKind, GraphSwitch, IMPORTED,
     INTO_GRAPH, MAX_SHARED, Mailbox, NOT_SENDING_YET, OAuth, OAuthProvider, Pending, Queued, STAYS_LOCAL, Security, Server, ServerFavorites,

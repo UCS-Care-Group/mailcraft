@@ -20,6 +20,12 @@ const MAX_PARTS: usize = 1000;
 const MAX_KEPT_HEADERS: usize = 200;
 const MAX_KEPT_BYTES: usize = 64 * 1024;
 
+/// Most recipients (`To`, `Cc` and `Bcc` together) and most `Reply-To` addresses kept from one message.
+pub const MAX_RECIPIENTS: usize = 2000;
+
+/// Most categories (`Keywords`) kept from one message.
+pub const MAX_CATEGORIES: usize = 500;
+
 /// Most message ids read from `References`.
 const MAX_IDS: usize = 1000;
 
@@ -68,15 +74,30 @@ fn read_headers(headers: &Headers, m: &mut Message) {
         let name = field.name.to_ascii_lowercase();
         let value = field.value.as_str();
         match name.as_str() {
-            "to" => m.to.extend(address::parse_list(value)),
-            "cc" => m.cc.extend(address::parse_list(value)),
-            "bcc" => m.bcc.extend(address::parse_list(value)),
-            "reply-to" => m.reply_to.extend(address::parse_list(value)),
+            "to" => {
+                let room = MAX_RECIPIENTS.saturating_sub(m.to.len() + m.cc.len() + m.bcc.len());
+                m.to.extend(address::parse_list(value).into_iter().take(room));
+            }
+            "cc" => {
+                let room = MAX_RECIPIENTS.saturating_sub(m.to.len() + m.cc.len() + m.bcc.len());
+                m.cc.extend(address::parse_list(value).into_iter().take(room));
+            }
+            "bcc" => {
+                let room = MAX_RECIPIENTS.saturating_sub(m.to.len() + m.cc.len() + m.bcc.len());
+                m.bcc.extend(address::parse_list(value).into_iter().take(room));
+            }
+            "reply-to" => {
+                let room = MAX_RECIPIENTS.saturating_sub(m.reply_to.len());
+                m.reply_to.extend(address::parse_list(value).into_iter().take(room));
+            }
             "references" => {
                 let room = MAX_IDS.saturating_sub(m.references.len());
                 m.references.extend(message_ids(value).into_iter().take(room));
             }
-            "keywords" => m.categories.extend(value.split(',').map(|k| decode_words(k.trim())).filter(|k| !k.is_empty())),
+            "keywords" => {
+                let room = MAX_CATEGORIES.saturating_sub(m.categories.len());
+                m.categories.extend(value.split(',').map(|k| decode_words(k.trim())).filter(|k| !k.is_empty()).take(room));
+            }
             "status" => m.read |= value.contains('R'),
             "x-status" => {
                 if value.contains('F') {
