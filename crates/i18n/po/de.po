@@ -953,8 +953,20 @@ msgstr ""
 msgid "Arrange By"
 msgstr "Anordnen nach"
 
+#. command label
+#: crates/engine/src/cmd/people.rs
+#, fuzzy
+msgid "Arrange Contacts By"
+msgstr "Kontakte anordnen nach"
+
+#. command label
+#: crates/engine/src/cmd/tasks.rs
+#, fuzzy
+msgid "Arrange Tasks By"
+msgstr "Aufgaben anordnen nach"
+
 #. ribbon, ribbon location
-#: crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Arrangement"
 msgstr "Anordnung"
@@ -2444,6 +2456,12 @@ msgstr "Nicht gesendete Entwürfe kommen in Ihre Entwürfe auf dem Server. Ordne
 #, fuzzy
 msgid "Due"
 msgstr "Fällig"
+
+#. name
+#: crates/engine/src/session.rs
+#, fuzzy
+msgid "Due Date"
+msgstr "Fälligkeitsdatum"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -4629,8 +4647,8 @@ msgstr "Meine Aufgaben"
 msgid "My organisation has to approve MailCraft first: what to do"
 msgstr "Meine Organisation muss MailCraft zuerst genehmigen: Was ist zu tun?"
 
-#. interface
-#: crates/ui-egui/src/forms.rs
+#. interface, name
+#: crates/engine/src/session.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Name"
 msgstr "Name"
@@ -4959,6 +4977,12 @@ msgstr "Kein Termin ist in einem eigenen Fenster geöffnet"
 #, fuzzy
 msgid "No categories yet"
 msgstr "Noch keine Kategorien"
+
+#. interface
+#: crates/ui-egui/src/tasks_view.rs
+#, fuzzy
+msgid "No category"
+msgstr "Keine Kategorie"
 
 #. interface
 #: crates/ui-egui/src/graph_switch.rs
@@ -9364,7 +9388,7 @@ msgid "Version {version} is ready:"
 msgstr "Version {version} ist bereit:"
 
 #. name, ribbon location
-#: crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
+#: crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
 msgid "View"
 msgstr "Ansicht"
@@ -11959,22 +11983,6 @@ msgstr "{why}, daher werden Anmeldungen nicht gespeichert: MailCraft fragt bei j
 #, fuzzy
 msgid "{why}. {n} changes made in it here wait on this computer."
 msgstr "{why}. {n} hier darin vorgenommene Änderungen warten auf diesem Computer."
-
-#, fuzzy
-#~ msgid "Arrange Contacts By"
-#~ msgstr "Kontakte anordnen nach"
-
-#, fuzzy
-#~ msgid "Arrange Tasks By"
-#~ msgstr "Aufgaben anordnen nach"
-
-#, fuzzy
-#~ msgid "Due Date"
-#~ msgstr "Fälligkeitsdatum"
-
-#, fuzzy
-#~ msgid "No category"
-#~ msgstr "Keine Kategorie"
 
 #, fuzzy
 #~ msgid "Check once a day for new versions of MailCraft? Only GitHub is asked; nothing about you or your mail is sent."

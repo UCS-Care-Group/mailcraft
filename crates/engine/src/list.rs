@@ -70,6 +70,15 @@ fn group_label(s: &Session, m: &Message) -> Option<String> {
 /// The heading of the things that have no category, in a list arranged by categories.
 pub const NO_CATEGORY: &str = "No category";
 
+/// An item's categories as one name, in A to Z order whatever order they were given in, so a
+/// message or contact filed Red and Blue sits with every other one filed Blue and Red; `None`
+/// with none. A name is spelt as the mailbox's list of categories spells it, so `red category`
+/// and `Red category` are one.
+pub fn category_set(s: &Session, categories: &[String]) -> Option<String> {
+    let names = category_names(s, categories);
+    (!names.is_empty()).then(|| names.join(", "))
+}
+
 /// An item's categories one by one, A to Z, each once and spelt as the mailbox's list of
 /// categories spells it: the headings an item arranged by categories is listed under.
 pub fn category_names<'a>(s: &'a Session, categories: &'a [String]) -> Vec<&'a str> {
@@ -82,6 +91,11 @@ pub fn category_names<'a>(s: &'a Session, categories: &'a [String]) -> Vec<&'a s
     names.sort_by_key(|c| c.to_lowercase());
     names.dedup_by(|a, b| a.eq_ignore_ascii_case(b));
     names
+}
+
+/// How [`category_set`] sorts: the things with no category first, then A to Z.
+pub fn category_key(s: &Session, categories: &[String]) -> Option<String> {
+    category_set(s, categories).map(|c| c.to_lowercase())
 }
 
 pub fn rows(s: &Session) -> Vec<Row> {

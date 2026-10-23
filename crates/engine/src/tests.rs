@@ -467,6 +467,30 @@ fn the_list_arranges_by_categories() {
     assert!(s.run("view.sort", &json!({"by": "colour"})).is_err());
 }
 
+/// Contacts arranged by categories: those with none first, then by their sets of categories A to
+/// Z, then by name; favourites sit among the rest. By name puts favourites back on top.
+#[test]
+fn contacts_arrange_by_categories() {
+    let mut s = session();
+    let by_name = crate::cmd::people::sorted(&s, "");
+    for id in &by_name {
+        s.mailbox.contact_mut(*id).unwrap().categories.clear();
+    }
+    let (a, b, c) = (by_name[0], by_name[1], by_name[2]);
+    s.mailbox.contact_mut(a).unwrap().categories = vec!["Red category".into()];
+    s.mailbox.contact_mut(b).unwrap().categories = vec!["red CATEGORY".into(), "Blue category".into()];
+    s.mailbox.contact_mut(c).unwrap().categories = vec!["Blue category".into(), "Red category".into()];
+    assert_eq!(run(&mut s, "people.arrange", json!({"by": "categories"}))["by"], "categories");
+    let order = crate::cmd::people::sorted(&s, "");
+    assert_eq!(order.len(), by_name.len());
+    let n = order.len();
+    let at = |id: Id| order.iter().position(|x| *x == id).unwrap();
+    assert_eq!((at(b).min(at(c)), at(b).max(at(c)), at(a)), (n - 3, n - 2, n - 1), "Blue and Red, then Red, after those with none");
+    assert!(s.run("people.arrange", &json!({"by": "colour"})).is_err());
+    run(&mut s, "people.arrange", json!({"by": "name"}));
+    assert_eq!(crate::cmd::people::sorted(&s, ""), by_name);
+}
+
 #[test]
 fn search_filters_the_list_and_can_look_everywhere() {
     let mut s = session();
