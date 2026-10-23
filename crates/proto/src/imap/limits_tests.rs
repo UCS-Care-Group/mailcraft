@@ -142,3 +142,20 @@ proptest! {
         }
     }
 }
+
+#[test]
+fn a_folder_with_more_messages_than_other_commands_may_answer_still_reads() {
+    let exists = 300_000u32;
+    let lines = |n: u32| flood(n as usize, |i| format!("* {i} FETCH (UID {} FLAGS ())\r\n", i + 1)) + "A0001 OK done\r\n";
+    let mut s = Script::new(lines(exists));
+    assert_eq!(opened(&mut s, exists, exists + 1).uid_fetch_flags("1:*").unwrap().len(), exists as usize);
+    let sizes = flood(exists as usize, |i| format!("* {i} FETCH (UID {} RFC822.SIZE 1)\r\n", i + 1)) + "A0001 OK done\r\n";
+    let mut s = Script::new(sizes);
+    assert_eq!(opened(&mut s, exists, exists + 1).uid_fetch_sizes("1:*").unwrap().len(), exists as usize);
+    // Responses that are not messages still end at the cap for that folder, and the next command is back to the usual one.
+    let noise = "* OK still here\r\n".repeat(2 * exists as usize + FETCH_SLACK + 1) + "A0001 OK done\r\n";
+    let mut s = Script::new(noise);
+    let mut imap = opened(&mut s, exists, exists + 1);
+    assert!(matches!(imap.uid_fetch_flags("1:*"), Err(ProtoError::Protocol(_))));
+    assert_eq!(imap.response_cap, MAX_RESPONSES);
+}

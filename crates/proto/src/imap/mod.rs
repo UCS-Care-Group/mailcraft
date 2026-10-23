@@ -66,6 +66,8 @@ pub struct Imap<S> {
     leaving: bool,
     /// Bytes of text (outside literals) read since the current command was sent.
     text_seen: usize,
+    /// Most responses the current command may bring.
+    response_cap: usize,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -322,6 +324,12 @@ impl Wanted {
         Some(Wanted { ranges, below, cap, over: false })
     }
 
+    /// Most responses a fetch of this mailbox may bring: one for each message it may report, but
+    /// never fewer than any other command.
+    fn responses(&self) -> usize {
+        self.cap.max(MAX_RESPONSES)
+    }
+
     fn wants(&self, uid: u32) -> bool {
         uid != 0 && uid < self.below && self.ranges.iter().any(|(from, to)| (*from..=*to).contains(&uid))
     }
@@ -488,6 +496,7 @@ impl<S: Read + Write> Imap<S> {
             copied: Vec::new(),
             leaving: false,
             text_seen: 0,
+            response_cap: MAX_RESPONSES,
         }
     }
 
@@ -630,7 +639,8 @@ impl<S: Read + Write> Imap<S> {
         let mut found: BTreeMap<u32, Vec<String>> = BTreeMap::new();
         let command = Self::fetch(set, "(UID FLAGS)")?;
         let mut wanted = Wanted::new(set, &self.selected).ok_or_else(|| ProtoError::Protocol("not a set of messages".into()))?;
-        self.run(command, &mut |values| {
+        self.response_cap = wanted.responses();
+        let answered = self.run(command, &mut |values| {
             // A response with a UID shows the message is there, even one that forgot the flags.
             if let Some(item) = Item::from(values)
                 && wanted.wants(item.uid)
@@ -642,7 +652,9 @@ impl<S: Read + Write> Imap<S> {
                     *flags = later;
                 }
             }
-        })?;
+        });
+        self.response_cap = MAX_RESPONSES;
+        answered?;
         wanted.check()?;
         Ok(found.into_iter().map(|(uid, flags)| Fetched { uid, flags, internal_date: None, body: None }).collect())
     }
@@ -652,14 +664,17 @@ impl<S: Read + Write> Imap<S> {
         let mut out: Vec<(u32, u64)> = Vec::new();
         let command = Self::fetch(set, "(UID RFC822.SIZE)")?;
         let mut wanted = Wanted::new(set, &self.selected).ok_or_else(|| ProtoError::Protocol("not a set of messages".into()))?;
-        self.run(command, &mut |values| {
+        self.response_cap = wanted.responses();
+        let answered = self.run(command, &mut |values| {
             if let Some(Item { uid, size: Some(size), .. }) = Item::from(values)
                 && wanted.wants(uid)
                 && wanted.room(out.len())
             {
                 out.push((uid, size));
             }
-        })?;
+        });
+        self.response_cap = MAX_RESPONSES;
+        answered?;
         wanted.check()?;
         out.sort_by_key(|(uid, _)| *uid);
         out.dedup_by_key(|(uid, _)| *uid);
@@ -866,7 +881,7 @@ impl<S: Read + Write> Imap<S> {
     /// Read responses up to the command's tagged answer (`Some`) or, when a literal is waiting to
     /// be sent, the server's go-ahead (`None`).
     fn read_until(&mut self, tag: &str, literal_waiting: bool, on_data: &mut dyn FnMut(Vec<Value>)) -> Result<Option<StatusLine>, ProtoError> {
-        for _ in 0..MAX_RESPONSES {
+        for _ in 0..self.response_cap {
             let response = self.read_response()?;
             if self.text_seen > MAX_COMMAND_TEXT {
                 return Err(ProtoError::Protocol("the server sent too much in answer to one command".into()));

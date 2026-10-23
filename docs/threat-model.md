@@ -60,7 +60,7 @@ Answers IMAP, SMTP or Microsoft Graph with whatever it likes.
 - Server responses are parsed as hostile input under the same never-crash rules and property tests
   (`crates/proto`, `crates/net`); sizes are clamped and allocations capped.
 - **One command can't grow memory without bound.** An IMAP command's answer is read up to 32 MB of
-  text outside literals and 250,000 responses, and a command with its answer gets its time plus at
+  text outside literals and 250,000 responses (a FETCH of a folder, twice its EXISTS plus 1,000 if more), and a command with its answer gets its time plus at
   most 30 more minutes however much moves (`crates/proto/src/imap/mod.rs`,
   `crates/net/src/transport.rs`). A LIST keeps 4,000 mailboxes (the rest are read and dropped),
   none with a name over 1,024 bytes; a flag is cut at 256 bytes. A FETCH of a set keeps only UIDs
