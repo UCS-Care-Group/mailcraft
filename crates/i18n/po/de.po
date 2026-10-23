@@ -3925,7 +3925,7 @@ msgid "List Tasks"
 msgstr "Aufgaben auflisten"
 
 #. interface
-#: crates/ui-egui/src/backstage.rs
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Local mailbox"
 msgstr "Lokales Postfach"
@@ -4113,6 +4113,11 @@ msgstr "MailCraft hält es im Arbeitsspeicher, bis Sie die App schließen. Es wi
 #, fuzzy
 msgid "MailCraft looks for a new version once a day (File › Options). Only GitHub is asked."
 msgstr "MailCraft sucht einmal täglich nach einer neuen Version (Datei › Optionen). Gefragt wird nur GitHub."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "MailCraft will have no account afterwards: File › Add Account sets one up again."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -10674,12 +10679,6 @@ msgid "the folder this message is in isn't on this computer any more"
 msgstr "der Ordner dieser Nachricht ist nicht mehr auf diesem Computer"
 
 #. what a command says
-#: crates/engine/src/cmd/account.rs
-#, fuzzy
-msgid "the last account can't be removed"
-msgstr "das letzte Konto kann nicht entfernt werden"
-
-#. what a command says
 #: crates/engine/src/cmd/calendar.rs
 #, fuzzy
 msgid "the last calendar can't be deleted"
@@ -10852,6 +10851,11 @@ msgstr "es gibt zu viele Signaturen"
 #, fuzzy
 msgid "there is already a signature named \"{to}\""
 msgstr "es gibt bereits eine Signatur namens „{to}“"
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+msgid "there is no account to remove"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/graph_switch.rs
@@ -11953,6 +11957,10 @@ msgstr "{why}, daher werden Anmeldungen nicht gespeichert: MailCraft fragt bei j
 #, fuzzy
 msgid "{why}. {n} changes made in it here wait on this computer."
 msgstr "{why}. {n} hier darin vorgenommene Änderungen warten auf diesem Computer."
+
+#, fuzzy
+#~ msgid "the last account can't be removed"
+#~ msgstr "das letzte Konto kann nicht entfernt werden"
 
 #, fuzzy
 #~ msgid "Check once a day for new versions of MailCraft? Only GitHub is asked; nothing about you or your mail is sent."

@@ -81,16 +81,39 @@ fn a_shared_mailbox_is_added_under_a_microsoft_account_and_removed_again() {
 }
 
 #[test]
-fn the_last_account_is_not_removed_with_its_shared_mailboxes() {
+fn an_account_goes_with_its_shared_mailboxes() {
     let mut s = Session::empty();
     let owner = s.run("account.add", &json!({"email": OWNER, "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
     let shared = add(&mut s, json!({"address": SHARED})).unwrap();
-    assert!(s.run("account.remove", &json!({"id": owner})).unwrap_err().to_string().contains("last account"));
-    assert!(s.mailbox.account(shared).is_some());
     s.run("account.add", &json!({"email": "ada@example.org"})).unwrap();
     s.run("account.remove", &json!({"id": owner})).unwrap();
     assert!(s.mailbox.account(shared).is_none(), "it goes with its owner");
     assert!(s.mailbox.folder(s.view.folder).is_some(), "the folder on screen is one that is there");
+}
+
+/// #313: the only account goes the same way, and leaves an empty mailbox, as at a first start.
+#[test]
+fn the_only_account_goes_with_its_shared_mailboxes_too() {
+    let mut s = Session::empty();
+    let owner = s.run("account.add", &json!({"email": OWNER, "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+    let shared = add(&mut s, json!({"address": SHARED})).unwrap();
+    s.run("account.remove", &json!({"id": owner})).unwrap();
+    assert!(s.mailbox.account(shared).is_none() && s.mailbox.folders.iter().all(|f| f.account != shared));
+    assert!(matches!(s.mailbox.accounts.as_slice(), [a] if a.email.is_empty() && a.kind == AccountKind::Local), "{:?}", s.mailbox.accounts);
+    assert!(s.mailbox.folder(s.view.folder).is_some_and(|f| s.mailbox.placeholder() == Some(f.account)));
+}
+
+/// #313: a mailbox always has an account, even when a file's only one is a shared mailbox whose
+/// owner is missing (a file may say anything) and it is closed.
+#[test]
+fn closing_a_shared_mailbox_that_is_all_there_is_leaves_an_empty_mailbox() {
+    let mut mb = mailcraft_model::Mailbox::default();
+    let shared =
+        mb.add_account(mailcraft_model::Account { email: SHARED.into(), kind: AccountKind::Microsoft, shared_of: Some(4_242), ..Default::default() });
+    let mut s = Session::at(mb, 1_800_000_000, 0);
+    s.run("account.removeSharedMailbox", &json!({"id": shared})).unwrap();
+    assert!(s.mailbox.placeholder().is_some(), "{:?}", s.mailbox.accounts);
+    assert!(s.mailbox.folder(s.view.folder).is_some());
 }
 
 #[test]

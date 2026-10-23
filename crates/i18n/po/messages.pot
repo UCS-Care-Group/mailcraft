@@ -3272,7 +3272,7 @@ msgid "List Tasks"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/backstage.rs
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs
 msgid "Local mailbox"
 msgstr ""
 
@@ -3429,6 +3429,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/updates.rs
 msgid "MailCraft looks for a new version once a day (File › Options). Only GitHub is asked."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "MailCraft will have no account afterwards: File › Add Account sets one up again."
 msgstr ""
 
 #. interface
@@ -8916,11 +8921,6 @@ msgid "the folder this message is in isn't on this computer any more"
 msgstr ""
 
 #. what a command says
-#: crates/engine/src/cmd/account.rs
-msgid "the last account can't be removed"
-msgstr ""
-
-#. what a command says
 #: crates/engine/src/cmd/calendar.rs
 msgid "the last calendar can't be deleted"
 msgstr ""
@@ -9063,6 +9063,11 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/signature.rs
 msgid "there is already a signature named \"{to}\""
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+msgid "there is no account to remove"
 msgstr ""
 
 #. what a command says

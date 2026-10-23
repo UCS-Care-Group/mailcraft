@@ -913,6 +913,16 @@ impl Mailbox {
         self.accounts.iter_mut().find(|a| a.id == id).ok_or(not_found("account", id))
     }
 
+    /// The placeholder of an empty mailbox, when that is what it has: its only account, with no
+    /// address and no mail. A first start makes one; the first account added takes its place, and
+    /// removing the only account leaves a fresh one (#313).
+    pub fn placeholder(&self) -> Option<Id> {
+        match self.accounts.as_slice() {
+            [only] if only.email.is_empty() && self.messages.is_empty() => Some(only.id),
+            _ => None,
+        }
+    }
+
     /// The account new mail is written from: the first one.
     pub fn default_account(&self) -> Option<&Account> {
         self.accounts.first()

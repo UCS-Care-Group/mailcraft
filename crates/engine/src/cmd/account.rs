@@ -25,7 +25,7 @@ pub fn specs() -> Vec<CommandSpec> {
     vec![
         CommandSpec::new("account.add", "Add Account", "File › Info", add).params(ACCOUNT),
         CommandSpec::new("account.edit", "Account Settings", "File › Info", edit).params(r#"{"id": number, …the fields of account.add, "downloadInFull"?: "upTo10Mb"|"upTo25Mb"|"upTo50Mb"|"everything" (a Microsoft account: which messages are fetched whole in the background), "keepOffline"?: "3d"|"1w"|"2w"|"1m"|"3m"|"6m"|"12m"|"2y"|"5y"|"10y"|"all" (a Microsoft account's mail to keep offline: how far back, by received date, mail is kept in full on this computer; older mail keeps its headers and preview. A shared mailbox follows its owner's. Shortening it removes nothing by itself: account.thinOffline does)}"#),
-        CommandSpec::new("account.remove", "Remove Account", "File › Info", remove).params(r#"{"id": number} — removes the account, its mail and what is kept for it on this computer (bodies and attachments leave the content folder once a state without it is saved; no Undo step is kept); nothing on the server is touched. Answers {"deleted": id, "leftToSweep": n (content files the sweep removes later)}"#),
+        CommandSpec::new("account.remove", "Remove Account", "File › Info", remove).params(r#"{"id": number} — removes the account, its mail and what is kept for it on this computer (bodies and attachments leave the content folder once a state without it is saved; no Undo step is kept); nothing on the server is touched. The only account leaves an empty mailbox, as at a first start. Answers {"deleted": id, "leftToSweep": n (content files the sweep removes later)}"#),
         CommandSpec::new("account.list", "List Accounts", "File › Info", list).pure(),
         CommandSpec::new("account.preset", "Suggest Account Settings", "File › Info", preset)
             .pure()
@@ -272,11 +272,7 @@ fn add(s: &mut Session, v: &Value) -> CmdResult {
         return Err(fail("there are too many accounts"));
     }
     // The placeholder account of an empty mailbox makes way for the first real one.
-    if let [only] = s.mailbox.accounts.as_slice()
-        && only.email.is_empty()
-        && s.mailbox.messages.is_empty()
-    {
-        let placeholder = only.id;
+    if let Some(placeholder) = s.mailbox.placeholder() {
         s.mailbox.remove_account(placeholder)?;
     }
     let id = s.mailbox.add_account(a);
@@ -323,9 +319,9 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
 
 fn remove(s: &mut Session, v: &Value) -> CmdResult {
     let id = p::req_id(v, "id")?;
-    // (The shared mailboxes opened through it go with it.)
-    if s.mailbox.accounts.iter().all(|a| a.id == id || a.shared_of == Some(id)) {
-        return Err(fail("the last account can't be removed"));
+    // The placeholder of an empty mailbox is all there is: there is no account to remove.
+    if s.mailbox.placeholder() == Some(id) {
+        return Err(fail("there is no account to remove"));
     }
     let left = remove_with_content(s, id)?;
     if s.mailbox.folder(s.view.folder).is_none() {
@@ -349,7 +345,8 @@ fn in_memory(m: &Message) -> u64 {
 /// for its mail (#177): the bodies and attachments that only its messages name go from the
 /// mailbox's content folder once a state without the account is saved ([`crate::store::forget_when_saved`]),
 /// not hours later with the sweep. Content another account's mail names too stays for it. No
-/// Undo step is kept (`Session::run`), as it would hold the mail on disk.
+/// Undo step is kept (`Session::run`), as it would hold the mail on disk. The last account makes
+/// way for a fresh placeholder, as at a first start (#313).
 ///
 /// Answers how many content files were left to the sweep (hours later, the same result): those
 /// of messages past [`HASH_BUDGET`] and names past the store's waiting list.
@@ -383,6 +380,10 @@ pub(crate) fn remove_within(s: &mut Session, id: Id, budget: u64) -> Result<usiz
     };
     let gone: HashSet<Id> = s.mailbox.messages.iter().filter(|(_, m)| going.contains(&m.account)).map(|(mid, _)| *mid).collect();
     s.mailbox.remove_account(id)?;
+    // A mailbox always has an account (#313).
+    if s.mailbox.accounts.is_empty() {
+        s.mailbox.add_account(Account::default());
+    }
     s.let_go(&gone);
     s.mailbox_changed();
     #[cfg(not(target_arch = "wasm32"))]

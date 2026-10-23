@@ -3929,7 +3929,7 @@ msgid "List Tasks"
 msgstr "Elenca attività"
 
 #. interface
-#: crates/ui-egui/src/backstage.rs
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Local mailbox"
 msgstr "Cassetta postale locale"
@@ -4117,6 +4117,11 @@ msgstr "MailCraft la conserva in memoria fino alla chiusura dell'app. Non viene 
 #, fuzzy
 msgid "MailCraft looks for a new version once a day (File › Options). Only GitHub is asked."
 msgstr "MailCraft cerca una nuova versione una volta al giorno (File › Opzioni). Viene interpellato solo GitHub."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "MailCraft will have no account afterwards: File › Add Account sets one up again."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -10690,12 +10695,6 @@ msgid "the folder this message is in isn't on this computer any more"
 msgstr "la cartella che contiene questo messaggio non è più su questo computer"
 
 #. what a command says
-#: crates/engine/src/cmd/account.rs
-#, fuzzy
-msgid "the last account can't be removed"
-msgstr "l'ultimo account non può essere rimosso"
-
-#. what a command says
 #: crates/engine/src/cmd/calendar.rs
 #, fuzzy
 msgid "the last calendar can't be deleted"
@@ -10868,6 +10867,11 @@ msgstr "ci sono troppe firme"
 #, fuzzy
 msgid "there is already a signature named \"{to}\""
 msgstr "esiste già una firma denominata «{to}»"
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+msgid "there is no account to remove"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/graph_switch.rs
@@ -11969,6 +11973,10 @@ msgstr "{why}, quindi gli accessi non vengono memorizzati: MailCraft li richiede
 #, fuzzy
 msgid "{why}. {n} changes made in it here wait on this computer."
 msgstr "{why}. {n} modifiche apportate qui sono in attesa su questo computer."
+
+#, fuzzy
+#~ msgid "the last account can't be removed"
+#~ msgstr "l'ultimo account non può essere rimosso"
 
 #, fuzzy
 #~ msgid "Check once a day for new versions of MailCraft? Only GitHub is asked; nothing about you or your mail is sent."
