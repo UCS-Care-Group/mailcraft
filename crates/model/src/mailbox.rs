@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! The mailbox: everything MailCraft keeps, with the primitives that edit it.
 
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
@@ -16,6 +16,12 @@ const MAX_DEPTH: usize = 32;
 const MAX_ID: Id = 1 << 53;
 /// Most changes waiting for the mail server that a file may hold ([`Mailbox::pending`]).
 const MAX_PENDING: usize = 100_000;
+
+/// Most accounts, folders and colour categories a mailbox file is read with; more are dropped on
+/// load ([`Mailbox::repair`]), so that a hostile file can't make the work on it grow without end.
+pub const MAX_ACCOUNTS: usize = 1_000;
+pub const MAX_FOLDERS: usize = 50_000;
+pub const MAX_CATEGORIES: usize = 1_000;
 /// Most shared mailboxes one account opens ([`Mailbox::add_shared_mailbox`]).
 pub const MAX_SHARED: usize = 20;
 /// Most folders one account's Favorites from its server hold ([`Mailbox::server_favorites`]).
@@ -351,7 +357,7 @@ struct Identity {
 /// its servers or its sign-in, which nothing here could use for it, and every other field is kept
 /// as it was ([`AsWritten`]). Every other account is read as it always was.
 fn read_accounts<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<Vec<Account>, D::Error> {
-    let written = Vec::<serde_json::Value>::deserialize(deserializer)?;
+    let written = crate::load_limit::capped_vec::<_, serde_json::Value>(deserializer)?;
     let mut accounts = Vec::with_capacity(written.len());
     for value in written {
         // (Only an object has a `kind`; one without says nothing, which is a local account.)
@@ -737,12 +743,18 @@ pub struct Mailbox {
     /// ([`Account::as_written`]).
     #[serde(serialize_with = "write_accounts", deserialize_with = "read_accounts")]
     pub accounts: Vec<Account>,
+    #[serde(deserialize_with = "crate::load_limit::capped_vec")]
     pub folders: Vec<Folder>,
+    #[serde(deserialize_with = "crate::load_limit::capped_map")]
     pub messages: BTreeMap<Id, Arc<Message>>,
+    #[serde(deserialize_with = "crate::load_limit::capped_map")]
     pub contacts: BTreeMap<Id, Arc<Contact>>,
     pub calendars: Vec<Calendar>,
+    #[serde(deserialize_with = "crate::load_limit::capped_map")]
     pub events: BTreeMap<Id, Arc<Event>>,
+    #[serde(deserialize_with = "crate::load_limit::capped_map")]
     pub tasks: BTreeMap<Id, Arc<Task>>,
+    #[serde(deserialize_with = "crate::load_limit::capped_vec")]
     pub categories: Vec<Category>,
     pub rules: Vec<Rule>,
     pub signatures: Vec<Signature>,
@@ -949,17 +961,20 @@ impl Mailbox {
     /// by the shared mailboxes opened through it. A shared mailbox whose owner is gone comes
     /// last, as it is (it can't be read, and says so when it is).
     pub fn accounts_in_order(&self) -> Vec<&Account> {
+        let mut shared: HashMap<Id, Vec<&Account>> = HashMap::new();
+        for a in self.accounts.iter().filter(|a| a.shared_of.is_some_and(|o| o != a.id)) {
+            if let Some(owner) = a.shared_of {
+                shared.entry(owner).or_default().push(a);
+            }
+        }
         let mut out: Vec<&Account> = Vec::with_capacity(self.accounts.len());
         for a in self.accounts.iter().filter(|a| !a.is_shared()) {
             out.push(a);
-            out.extend(self.shared_mailboxes(a.id).into_iter().filter(|s| self.owner_of(s.id).is_some()));
+            out.extend(shared.get(&a.id).into_iter().flatten().filter(|s| self.owner_of(s.id).is_some()));
         }
         // (A shared mailbox whose owner is missing.)
-        for a in &self.accounts {
-            if !out.iter().any(|o| o.id == a.id) {
-                out.push(a);
-            }
-        }
+        let placed: HashSet<Id> = out.iter().map(|a| a.id).collect();
+        out.extend(self.accounts.iter().filter(|a| !placed.contains(&a.id)));
         out
     }
 
@@ -2045,6 +2060,22 @@ impl Mailbox {
         if rehomed + rekeyed > 0 {
             fixed.push(format!("{} item id(s) corrected", rehomed.max(rekeyed)));
         }
+        // A file can't hold more accounts, folders or colour categories than a person has: the
+        // rest are dropped (their messages go to the Inbox below), so the work on a hostile file
+        // stays bounded.
+        if self.accounts.len() > MAX_ACCOUNTS || self.folders.len() > MAX_FOLDERS || self.categories.len() > MAX_CATEGORIES {
+            self.accounts.truncate(MAX_ACCOUNTS);
+            self.folders.truncate(MAX_FOLDERS);
+            self.categories.truncate(MAX_CATEGORIES);
+            fixed.push("accounts, folders or categories beyond the limits dropped".into());
+        }
+        for c in &mut self.categories {
+            if let Some(clean) = clean_name(&c.name)
+                && clean != c.name
+            {
+                c.name = clean;
+            }
+        }
         // Accounts and folders with duplicate, missing or out-of-range ids get new ones.
         let mut seen = std::collections::BTreeSet::new();
         for c in &mut self.calendars {
@@ -2062,8 +2093,9 @@ impl Mailbox {
             }
         }
         let accounts: Vec<Id> = self.accounts.iter().map(|a| a.id).collect();
+        let known_accounts: HashSet<Id> = accounts.iter().copied().collect();
         let before = self.folders.len();
-        self.folders.retain(|f| accounts.contains(&f.account));
+        self.folders.retain(|f| known_accounts.contains(&f.account));
         if self.folders.len() != before {
             fixed.push(format!("{} folder(s) of unknown accounts removed", before - self.folders.len()));
         }
@@ -2074,23 +2106,27 @@ impl Mailbox {
                 seen.insert(f.id);
                 fixed.push("a folder id corrected".into());
             }
-            if clean_name(&f.name).is_none() {
-                f.name = f.kind.default_name().into();
+            match clean_name(&f.name) {
+                Some(clean) => f.name = clean,
+                None => f.name = f.kind.default_name().into(),
             }
         }
         // Parents must exist, be in the same account and not loop.
-        let snapshot = self.folders.clone();
+        let mut snapshot: HashMap<Id, (Id, Option<Id>)> = HashMap::with_capacity(self.folders.len());
+        for f in &self.folders {
+            snapshot.entry(f.id).or_insert((f.account, f.parent));
+        }
         for f in &mut self.folders {
             let mut cur = f.parent;
             let mut steps = 0;
             let ok = loop {
                 let Some(p) = cur else { break true };
-                let Some(pf) = snapshot.iter().find(|x| x.id == p) else { break false };
+                let Some(&(parent_account, grandparent)) = snapshot.get(&p) else { break false };
                 steps += 1;
-                if pf.account != f.account || p == f.id || steps > MAX_DEPTH {
+                if parent_account != f.account || p == f.id || steps > MAX_DEPTH {
                     break false;
                 }
-                cur = pf.parent;
+                cur = grandparent;
             };
             if !ok {
                 f.parent = None;
@@ -2101,16 +2137,20 @@ impl Mailbox {
                 f.kind = FolderKind::Custom;
             }
         }
+        // Only one folder of an account is its Inbox (and so on); a second one is an ordinary
+        // folder. One pass over the folders, one lookup per account and kind.
+        let mut has: HashSet<(Id, FolderKind)> = HashSet::new();
+        for f in &mut self.folders {
+            if f.kind != FolderKind::Custom && !has.insert((f.account, f.kind)) {
+                f.kind = FolderKind::Custom;
+            }
+        }
         for account in accounts {
             for kind in FolderKind::STANDARD {
-                if !self.folders.iter().any(|f| f.account == account && f.kind == kind) {
+                if !has.contains(&(account, kind)) {
                     let id = self.alloc_id();
                     self.folders.push(Folder { id, account, name: kind.default_name().into(), kind, ..Default::default() });
                     fixed.push(format!("{} recreated", kind.default_name()));
-                }
-                // Only one folder is the Inbox; a second one is an ordinary folder.
-                for extra in self.folders.iter_mut().filter(|f| f.account == account && f.kind == kind).skip(1) {
-                    extra.kind = FolderKind::Custom;
                 }
             }
         }
@@ -2165,7 +2205,7 @@ impl Mailbox {
             self.calendars.push(Calendar { id, name: "Calendar".into(), color: Rgb(0x2F, 0x6F, 0xD0), visible: true, ..Default::default() });
         }
         if let Some(default) = self.default_calendar() {
-            let known: Vec<Id> = self.calendars.iter().map(|c| c.id).collect();
+            let known: HashSet<Id> = self.calendars.iter().map(|c| c.id).collect();
             for e in self.events.values_mut().filter(|e| !known.contains(&e.calendar)) {
                 Arc::make_mut(e).calendar = default;
             }

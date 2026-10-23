@@ -1993,3 +1993,23 @@ fn private_folders_and_files_for_the_app() {
     assert!(make_private(&to_shared).is_err());
     assert_eq!(mode(&shared), 0o755);
 }
+
+#[test]
+fn a_json_file_of_empty_messages_is_refused_while_it_is_read() {
+    let t = Temp::new("empty-messages");
+    let mut json = String::from("{\"messages\":{");
+    for i in 1..=600_000 {
+        if i > 1 {
+            json.push(',');
+        }
+        json.push_str(&format!("\"{i}\":{{}}"));
+    }
+    json.push_str("}}");
+    fs::write(t.file(), json).unwrap();
+    // (A small budget still reads 250,000 items; 600,000 are more.)
+    let err = with_budget(64 << 20, || open(&t.file())).err().unwrap();
+    assert!(err.contains("more items"), "{err}");
+    // A reasonable file opens under the same budget.
+    fs::write(t.file(), "{\"messages\":{\"1\":{},\"2\":{}}}").unwrap();
+    assert!(with_budget(64 << 20, || open(&t.file())).is_ok());
+}

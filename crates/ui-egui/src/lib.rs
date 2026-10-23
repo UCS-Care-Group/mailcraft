@@ -3574,6 +3574,13 @@ fn feedback(id: &str, v: &Value) -> Option<String> {
                     &[("what", &what)],
                 ));
             }
+            if let Some(c) = n("stoppedAfter") {
+                let count = tln!(c, "{n} message", "{n} messages");
+                return Some(i18n::fmt(
+                    tl!("Imported {what}; stopped after {count}: the file has more than one import takes"),
+                    &[("what", &what), ("count", &count)],
+                ));
+            }
             (!parts.is_empty()).then(|| i18n::fmt(tl!("Imported {what}"), &[("what", &what)]))
         }
         "people.fromMessage" if v.get("existing").and_then(Value::as_bool) == Some(true) => Some(tl!("Already in your contacts").to_string()),

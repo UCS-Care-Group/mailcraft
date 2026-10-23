@@ -1215,7 +1215,8 @@ pub fn open(path: &Path) -> Result<Opened, String> {
         return Err(format!("{show} is larger than {} MB", MAX_FILE >> 20));
     }
     let bytes = fs::read(&file).map_err(|e| format!("{show}: {e}"))?;
-    let mut mailbox: Mailbox = serde_json::from_slice(&bytes).map_err(|e| format!("{show}: this isn't a MailCraft mailbox ({e})"))?;
+    let mut mailbox: Mailbox =
+        mailcraft_model::from_json(&bytes, max_json_items()).map_err(|e| format!("{show}: this isn't a MailCraft mailbox ({e})"))?;
     let version = mailbox.version;
     let (split, filled) = match version {
         0 | 1 => (false, Filled::default()),
@@ -1284,7 +1285,7 @@ fn open_index(st: &mut State, file: &Path, len: u64) -> Result<Opened, String> {
     // What its bytes are, when all of them were read.
     let sum = (summed.len == len).then_some(summed.sum);
     let (rest, rest_sum) = replayed.rest.ok_or("this mailbox file is damaged (it has no mailbox record)")?;
-    let mut mailbox: Mailbox = serde_json::from_slice(&rest).map_err(|e| format!("this mailbox file is damaged ({e})"))?;
+    let mut mailbox: Mailbox = mailcraft_model::from_json(&rest, max_json_items()).map_err(|e| format!("this mailbox file is damaged ({e})"))?;
     let rest_fp = (rest_sum, index::FRAME + rest.len() as u64);
     drop(rest);
     // Items are their own records: whatever the rest says of them is no part of the mailbox.
@@ -1466,6 +1467,18 @@ pub fn body_budget() -> u64 {
         }
     }
     physical_memory().map_or(FALLBACK_BUDGET, |m| m / 16).min(MAX_CONTENT)
+}
+
+/// Items a mailbox is always read with from JSON, whatever the budget (250 MB at a kilobyte each).
+const MIN_JSON_ITEMS: usize = 250_000;
+
+/// Most items (messages, contacts, events, tasks, accounts, folders and categories) a mailbox is
+/// read with from JSON: what [`body_budget`] allows four times over at the least a kilobyte an item,
+/// and never fewer than [`MIN_JSON_ITEMS`],
+/// which a one-line `{}` message already costs. A file with more is refused while it is read, not
+/// after it has used the memory.
+pub(crate) fn max_json_items() -> usize {
+    usize::try_from(body_budget().saturating_mul(4) / mailcraft_model::MIN_ITEM_BYTES).unwrap_or(usize::MAX).max(MIN_JSON_ITEMS)
 }
 
 /// What [`fill`] did with the content the mailbox file names.
@@ -2649,7 +2662,7 @@ fn named_by(path: &Path) -> Result<Option<HashSet<Digest>>, String> {
             return Ok(None);
         }
         // Only a file that opens is believed about what it names.
-        serde_json::from_slice::<Mailbox>(&replayed.rest.as_ref().ok_or("no mailbox record")?.0).map_err(|e| e.to_string())?;
+        mailcraft_model::from_json(&replayed.rest.as_ref().ok_or("no mailbox record")?.0, max_json_items()).map_err(|e| e.to_string())?;
         let items: Vec<(&Key, &index::Item)> = replayed.items.iter().collect();
         let mut named = HashSet::new();
         for parsed in fan_out(items.len(), |i| items.get(i).map(|(key, item)| parse_item(key, item))) {

@@ -1,6 +1,6 @@
 # Threat model
 
-> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-10-23 · **Change:** minor (releases build and sign only from `main` after a passing CI, compile and sign in separate steps, check WiX by hash and use `--locked`; a mail server's answer to one command is capped in text, responses, folders, messages and time, so it can't make MailCraft keep memory without bound; a daily cargo-deny run; Dependabot for crates; CODEOWNERS covers the workflows, packaging, xtask, the lock files, the updater and the agent gate; `--control-agents-only`: no control request passes for the owner's script; the whitelist adds padding, margins, lines, rounded corners and a line height, all clamped, #71; the whitelist adds width, max-width and centring by automatic margins, #150; an assurance case: claim, trust boundaries, design principles, common weaknesses and the evidence; releases carry MailCraft's own signature; agents with a shell or the owner's files are outside the agent gate; the settings folder, logs and kept pictures are the owner's alone) · **Target:** Microsoft Outlook (Microsoft 365)
+> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-10-23 · **Change:** minor (releases build and sign only from `main` after a passing CI, compile and sign in separate steps, check WiX by hash and use `--locked`; PR-e: a message keeps at most 2,000 recipients and 500 categories and 4 MB of header, a long list is cut in the reading pane and in a quote, an mbox import stops at 200,000 messages, a mailbox file is checked for its item count while it is read, repairing a mailbox is linear; a mail server's answer to one command is capped in text, responses, folders, messages and time, so it can't make MailCraft keep memory without bound; a daily cargo-deny run; Dependabot for crates; CODEOWNERS covers the workflows, packaging, xtask, the lock files, the updater and the agent gate; `--control-agents-only`: no control request passes for the owner's script; the whitelist adds padding, margins, lines, rounded corners and a line height, all clamped, #71; the whitelist adds width, max-width and centring by automatic margins, #150; an assurance case: claim, trust boundaries, design principles, common weaknesses and the evidence; releases carry MailCraft's own signature; agents with a shell or the owner's files are outside the agent gate; the settings folder, logs and kept pictures are the owner's alone) · **Target:** Microsoft Outlook (Microsoft 365)
 
 What MailCraft protects, from whom, and how, with the code that does it. Rules for working in the
 code are in [`CLAUDE.md`](../CLAUDE.md) and [`AGENTS.md`](../AGENTS.md); how to report a
@@ -94,6 +94,16 @@ An `.eml`, `.mbox`, `.ics`, `.vcf` or `.mailcraft` file from somewhere else.
 - Read by the same parsers, under the same never-crash rules and property tests; a file that can't
   be read is an error, never a crash, and a command that fails leaves the mailbox as it was.
 - `crates/engine/src/tests.rs::hostile_params_never_panic` runs every command with junk parameters.
+- Counts are bounded as well as sizes. A message keeps at most 2,000 recipients (`To`, `Cc` and
+  `Bcc` together; `Reply-To` as many again), 500 categories and 4 MB of header fields
+  (`crates/mime/src/parse.rs`, `header.rs`); the reading pane lists the first 50 names and draws 8
+  category chips, and a quote under a reply or forward the first 100 names, each with a count of the
+  rest. An mbox import takes 200,000 messages and says it stopped (`crates/engine/src/io.rs`).
+  A `.mailcraft` file is counted while it is read (`crates/model/src/load_limit.rs`): one that holds
+  more items (messages, contacts, events, tasks, accounts, folders, categories) than four times the
+  body budget allows at a kilobyte each is refused before it uses the memory. Loading keeps at most
+  1,000 accounts, 50,000 folders and 1,000 categories, cleans their names, and repairs in time
+  linear in the file (`Mailbox::repair`).
 
 ### Other programs and users on the same computer
 
@@ -231,6 +241,7 @@ settings files (`crates/engine/src/store.rs`); commands from the control channel
 | Date | Change | Summary |
 |---|---|---|
 | 2026-10-23 | minor | Supply chain: release builds only from `main` after CI; compile and sign in separate steps; WiX checked by hash; `--locked`; daily cargo-deny; Dependabot for crates; wider CODEOWNERS |
+| 2026-10-23 | minor | Counts bounded: recipients, categories and header bytes per message, mbox import, items while a mailbox file is read, accounts, folders and categories on load; repair linear (PR-e) |
 | 2026-10-23 | minor | An IMAP server's answer to one command is capped in text, responses, folders, messages and time; flags and mailbox names are cut short |
 | 2026-10-21 | minor | The HTML whitelist adds padding and margins (0 to 64 px), lines (1 to 4 px, solid, dashed or dotted), `border-radius` (up to 24 px) and `line-height` (1 to 2.5 times), all clamped, functions refused (#71) |
 | 2026-10-21 | minor | The HTML whitelist adds `width` (tables, cells), `max-width` and centring by automatic margins, all clamped (#150) |
