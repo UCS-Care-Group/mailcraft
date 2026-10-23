@@ -48,6 +48,7 @@ fn action(s: &Session, v: &Value) -> Result<Action, CmdError> {
     Ok(match p::req_str(v, "type")? {
         "moveTo" => {
             let folder = p::req_id(v, "value")?;
+            refuse_send_queue(s, folder)?;
             Action::MoveTo(s.mailbox.folder(folder).map(|f| f.id).ok_or_else(|| failed!("no folder with id {id}", id = folder))?)
         }
         "categorize" => Action::Categorize(clean_name(p::str(v, "value").unwrap_or("")).ok_or_else(|| bad("categorize needs a category name"))?),
@@ -61,7 +62,13 @@ fn action(s: &Session, v: &Value) -> Result<Action, CmdError> {
     })
 }
 
-fn add(s: &mut Session, v: &Value) -> CmdResult {
+/// A rule never moves mail into an Outbox: the next Send/Receive would send it.
+fn refuse_send_queue(s: &Session, folder: Id) -> Result<(), CmdError> {
+    if s.mailbox.is_send_queue(folder) { Err(fail("a rule can't move mail to an Outbox: that would send it")) } else { Ok(()) }
+}
+
+/// The rule `v` asks for, with no id yet (shared by the command and the agent's question).
+pub(crate) fn rule_from_params(s: &Session, v: &Value) -> Result<Rule, CmdError> {
     let name = clean_name(p::req_str(v, "name")?).ok_or_else(|| bad("`name` is empty"))?;
     let conditions = v
         .get("conditions")
@@ -82,11 +89,17 @@ fn add(s: &mut Session, v: &Value) -> CmdResult {
     if conditions.is_empty() || actions.is_empty() {
         return Err(bad("a rule needs at least one condition and one action"));
     }
+    Ok(Rule { id: 0, name, enabled: true, conditions, actions, stop: p::bool(v, "stop").unwrap_or(false) })
+}
+
+fn add(s: &mut Session, v: &Value) -> CmdResult {
+    let mut rule = rule_from_params(s, v)?;
     if s.mailbox.rules.len() >= MAX_RULES {
         return Err(fail("there are too many rules"));
     }
     let id = s.mailbox.alloc_id();
-    s.mailbox.rules.push(Rule { id, name, enabled: true, conditions, actions, stop: p::bool(v, "stop").unwrap_or(false) });
+    rule.id = id;
+    s.mailbox.rules.push(rule);
     Ok(json!({"id": id}))
 }
 
@@ -145,6 +158,7 @@ fn run(s: &mut Session, v: &Value) -> CmdResult {
 fn from_message(s: &mut Session, v: &Value) -> CmdResult {
     let folder = p::req_id(v, "folder")?;
     let target = s.mailbox.folder(folder).map(|f| f.name.clone()).ok_or_else(|| failed!("no folder with id {id}", id = folder))?;
+    refuse_send_queue(s, folder)?;
     let mid = p::id(v, "id").or(s.sel.focus()).ok_or_else(|| fail("select a message first"))?;
     let m = s.mailbox.message(mid).ok_or_else(|| failed!("no message with id {id}", id = mid))?;
     let (from, source) = (m.from.clone(), m.folder);

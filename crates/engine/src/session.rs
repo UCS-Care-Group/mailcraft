@@ -1596,6 +1596,19 @@ impl Session {
         cur
     }
 
+    /// What undoing (`redo`: redoing) would put back besides mail and the like: the accounts, or
+    /// the rules and signatures, as they were. For the agent gate, which asks the owner first.
+    pub fn undo_reverts(&self, redo: bool) -> Option<crate::agent::Class> {
+        let step = if redo { self.redo.last() } else { self.history.last() }?;
+        if step.mailbox.accounts != self.mailbox.accounts {
+            Some(crate::agent::Class::Accounts)
+        } else if step.mailbox.rules != self.mailbox.rules || step.mailbox.signatures != self.mailbox.signatures {
+            Some(crate::agent::Class::Settings)
+        } else {
+            None
+        }
+    }
+
     pub fn undo(&mut self) -> bool {
         let Some(u) = self.history.pop() else { return false };
         let cur = self.swap(u);

@@ -1,6 +1,6 @@
 # Threat model
 
-> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-10-23 · **Change:** minor (C1 PR-a: a mailbox in mail is saved, never opened; secrets in memory dropped when a mailbox is replaced; agent questions name servers; the whitelist adds padding, margins, lines, rounded corners and a line height, all clamped, #71; the whitelist adds width, max-width and centring by automatic margins, #150; an assurance case: claim, trust boundaries, design principles, common weaknesses and the evidence; releases carry MailCraft's own signature; agents with a shell or the owner's files are outside the agent gate; the settings folder, logs and kept pictures are the owner's alone) · **Target:** Microsoft Outlook (Microsoft 365)
+> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-10-23 · **Change:** minor (batch 4: no rule moves mail into an Outbox; agents are asked before deleting contacts, tasks, events and categories, and before an undo that reverts rules, signatures or accounts; questions show complete parameters or are refused; calendar questions name the event and the people invited; Copy Diagnostics is not for agents; C1 PR-a: a mailbox in mail is saved, never opened; secrets in memory dropped when a mailbox is replaced; agent questions name servers; the whitelist adds padding, margins, lines, rounded corners and a line height, all clamped, #71; the whitelist adds width, max-width and centring by automatic margins, #150; an assurance case: claim, trust boundaries, design principles, common weaknesses and the evidence; releases carry MailCraft's own signature; agents with a shell or the owner's files are outside the agent gate; the settings folder, logs and kept pictures are the owner's alone) · **Target:** Microsoft Outlook (Microsoft 365)
 
 What MailCraft protects, from whom, and how, with the code that does it. Rules for working in the
 code are in [`CLAUDE.md`](../CLAUDE.md) and [`AGENTS.md`](../AGENTS.md); how to report a
@@ -97,6 +97,15 @@ An `.eml`, `.mbox`, `.ics`, `.vcf` or `.mailcraft` file from somewhere else.
   names the servers the account would connect to, read from the file for an open
   (`crates/engine/src/agent.rs`).
 - A file's rules are cut to the most a mailbox keeps (500) when it is repaired.
+- No rule moves mail into an Outbox, or a folder under one, whoever made it: `rules.add` and
+  `rules.fromMessage` refuse it, and applying rules skips such a target (a rule from a file or an
+  older version), so incoming mail is never relayed by the owner's SMTP account
+  (`Mailbox::is_send_queue`).
+- An agent is asked before it deletes a contact, task, event or category (class `delete`; none
+  has a Deleted Items to come back from), and before an Undo or Redo that would put back the
+  accounts, rules or signatures of before. The question shows the call in full: one too long to
+  show (`MAX_QUESTION`) is refused, never cut; a calendar question names the event and the people
+  it writes to. `ui.copyDiagnostics` is not available to agents.
 
 ### Other programs and users on the same computer
 
@@ -222,6 +231,7 @@ settings files (`crates/engine/src/store.rs`); commands from the control channel
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-23 | minor | Batch 4: no rule moves mail into an Outbox; agents are asked before deleting contacts, tasks, events and categories, and before an undo that reverts rules, signatures or accounts; questions show complete parameters or are refused; calendar questions name the event and the people invited; Copy Diagnostics is not for agents |
 | 2026-10-23 | minor | C1 PR-a: a `.mailcraft` attachment is saved, never opened; secrets in memory dropped when a mailbox is replaced; agent questions for account and open commands name servers; rules trimmed on repair |
 | 2026-10-21 | minor | The HTML whitelist adds padding and margins (0 to 64 px), lines (1 to 4 px, solid, dashed or dotted), `border-radius` (up to 24 px) and `line-height` (1 to 2.5 times), all clamped, functions refused (#71) |
 | 2026-10-21 | minor | The HTML whitelist adds `width` (tables, cells), `max-width` and centring by automatic margins, all clamped (#150) |

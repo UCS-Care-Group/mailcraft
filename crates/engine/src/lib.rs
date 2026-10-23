@@ -276,4 +276,6 @@ pub mod p {
 }
 
 #[cfg(test)]
+mod agent_tests;
+#[cfg(test)]
 mod tests;

@@ -4,6 +4,7 @@
 - **Report a Problem**, in the title bar beside Copy Diagnostics and in Help: say what went wrong, and MailCraft starts the report for you, on GitHub (the problem form filled in, in your browser, with the diagnostics saved to a file to attach; public) or by email (a new message to the maintainers from your own account, with the diagnostics attached; private). You read everything first, and nothing goes until you submit it or press Send.
 
 **Fixes**
+- An agent is asked before it deletes a contact, task, event or category, or undoes a change to rules, signatures or accounts; its questions show everything it asked for, and a calendar question names the event and the people invited; no rule moves mail into an Outbox (which would send it); Copy Diagnostics is not available to agents (batch 4).
 - A `.mailcraft` file received as an attachment is only saved, never opened from the message; opening another mailbox forgets the passwords and sign-ins held in memory; an agent that asks to add or change an account, or to open a mailbox file, is asked about with the mail servers named (C1 PR-a).
 - Move to Folder, Copy to Folder and the other folder menus have a search box at the top, so a folder is found by typing part of its name ([#74](https://github.com/GITHUB_REPOSITORY/issues/74), thanks to @strikerz5).
 - Show in Groups (View › Arrange By) turns the date headings off for one continuous list, and Single Line (View › Message Preview) shows each message on one line; thanks to @Schintilla for asking ([#214](https://github.com/GITHUB_REPOSITORY/issues/214)).
