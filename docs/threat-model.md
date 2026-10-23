@@ -29,13 +29,19 @@ Writes any bytes into a message: crafted MIME, HTML, headers, attachments, pictu
   the web only on the owner's say-so, and only `<img>` addresses (no backgrounds, style sheets,
   fonts or frames, nothing 2 px or smaller), so a tracking pixel doesn't fire.
 - **"Always download pictures" is not a trust in a `From:` line.** A remembered sender or domain
-  holds only for a message whose topmost `Authentication-Results` header (the receiving server's own)
-  says `dmarc=pass` (or `compauth=pass`) for the sender's domain (`crates/ui-egui/src/reading/remote.rs`,
-  `vouched`); a message without that is asked about one message at a time. Addresses are kept and
+  holds only for a message whose topmost `Authentication-Results` header says `dmarc=pass` (or
+  `compauth=pass`) for the sender's domain **and was written by the account's own server**
+  (`crates/ui-egui/src/reading/remote.rs`, `vouched`, `from_own_server`): for a Microsoft account any
+  topmost header (Exchange Online stamps its own, with no authserv-id); for another account one whose
+  authserv-id (RFC 8601) is a known id of its IMAP host's provider
+  (`mailcraft_model::provider::authserv_ids`: `mx.google.com` for `imap.gmail.com`) or is the IMAP
+  host's domain one label up, or a name under it (`imap.lumen.example` takes `mx.lumen.example`; a bare
+  suffix such as `co.uk` never matches). Anything else, a message without that, or an account that
+  is not IMAP or Microsoft is asked about one message at a time. Addresses are kept and
   compared as ASCII (the Kelvin sign is not a "k"), and mail anywhere under Junk E-mail, not only in
-  it, never takes the lists or the switch for all mail. The limit: a server that adds no such header
-  gives the sender nothing to forge but also the owner nothing to rely on; a header written by the
-  sender at the top of a message, where the receiving server adds none, is believed.
+  it, never takes the lists or the switch for all mail. The limits: a provider whose id is neither
+  in the table nor under its IMAP host's domain asks every time (nothing is guessed); the
+  public-suffix check is a short list of common two-label suffixes, not the full list.
 - **A meeting invitation does not rewrite a meeting it isn't about.** An invitation carrying the
   `UID` of a meeting on a local calendar changes or removes it only when it names the same
   organizer (`crates/engine/src/cmd/calendar/invitation.rs`, `same_organizer`); the bar shows the

@@ -46,6 +46,27 @@ pub fn microsoft(consumer: bool) -> Preset {
     }
 }
 
+/// Whether `host` is the IMAP server of Microsoft's own mail (Exchange Online, Outlook.com).
+pub fn is_microsoft_imap_host(host: &str) -> bool {
+    let host = host.trim().trim_end_matches('.').to_ascii_lowercase();
+    matches!(host.as_str(), "outlook.office365.com" | "outlook.office.com" | "imap-mail.outlook.com")
+}
+
+/// The `Authentication-Results` authserv-ids (RFC 8601) that a provider's own servers write,
+/// by the IMAP host of an account there; empty where none is known for certain.
+///
+/// Only what the provider publishes: Google documents `mx.google.com` as the authserv-id of the
+/// header Gmail adds (Gmail help, "Trace an email with its full headers"), and Gmail and Google
+/// Workspace share `imap.gmail.com`. Other providers are left out until their ids are
+/// documented: for them (and for an unknown host) the caller falls back to the IMAP host's own
+/// domain, or asks the owner.
+pub fn authserv_ids(imap_host: &str) -> &'static [&'static str] {
+    match imap_host.trim().trim_end_matches('.').to_ascii_lowercase().as_str() {
+        "imap.gmail.com" => &["mx.google.com"],
+        _ => &[],
+    }
+}
+
 /// A host name fit to look up or connect to: letters, digits, dots and dashes, with a dot in it.
 pub fn is_domain(domain: &str) -> bool {
     !domain.is_empty()

@@ -321,9 +321,18 @@ fn the_whole_corpus_lays_out_in_both_themes_at_every_width() {
 
 // ---- the corpus in a window ----
 
+/// Its server is the one that wrote the `mx.example.org` line the corpus carries.
+fn served_by_example_org(mailbox: &mut Mailbox) {
+    for account in &mut mailbox.accounts {
+        account.kind = mailcraft_model::AccountKind::Imap;
+        account.incoming = Some(mailcraft_model::Server { host: "imap.example.org".into(), port: 993, security: mailcraft_model::Security::Tls });
+    }
+}
+
 /// A window on a mailbox that holds the corpus, and the id of each message by its name.
 fn corpus_app(large: bool) -> (MailApp, Vec<(&'static str, u64)>) {
     let mut mailbox = Mailbox::with_local_account("Avery Quinn", "avery@lumen-works.example");
+    served_by_example_org(&mut mailbox);
     let inbox = mailbox.inbox().unwrap();
     let mut ids = Vec::new();
     let mut messages = corpus_messages();
@@ -1113,6 +1122,7 @@ fn web_pictures(host: &str, count: usize) -> Vec<String> {
 /// A window on a mailbox that holds `messages`, and their ids.
 fn app_with(messages: Vec<Message>) -> (MailApp, Vec<u64>) {
     let mut mailbox = Mailbox::with_local_account("Avery Quinn", "avery@lumen-works.example");
+    served_by_example_org(&mut mailbox);
     let inbox = mailbox.inbox().unwrap();
     let ids = messages.into_iter().map(|m| mailbox.add_message(Message { folder: inbox, ..m }).unwrap()).collect();
     let mut app = MailApp::new(Session::at(mailbox, NOW, 0), Services::default());
@@ -3509,6 +3519,7 @@ fn the_selection_commands_take_anything_and_never_panic() {
 // ---- meetings that arrive as mail ----
 
 mod invitation;
+mod remote_server;
 
 /// The original under a reply to HTML mail is laid out as the reading pane lays it out (its
 /// heading, its list), not as text; and a remote picture in it stays a stand-in until the owner
