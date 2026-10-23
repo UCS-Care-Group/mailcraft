@@ -119,6 +119,8 @@ pub(crate) mod b64 {
 
 #[cfg(test)]
 mod mailbox_tests;
+#[cfg(test)]
+mod recurrence_tests;
 
 #[cfg(test)]
 mod tests {

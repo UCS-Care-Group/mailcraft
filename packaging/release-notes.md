@@ -4,6 +4,7 @@
 - **Report a Problem**, in the title bar beside Copy Diagnostics and in Help: say what went wrong, and MailCraft starts the report for you, on GitHub (the problem form filled in, in your browser, with the diagnostics saved to a file to attach; public) or by email (a new message to the maintainers from your own account, with the diagnostics attached; private). You read everything first, and nothing goes until you submit it or press Send.
 
 **Fixes**
+- A calendar invitation or .ics file built to be slow (a time zone with hundreds of parts, thousands of excluded days, or a series counting from 1970) no longer freezes the window: the work a file may cost is bounded, the card still shows, and a note says when a file's time zones were only partly used (PR-d).
 - Move to Folder, Copy to Folder and the other folder menus have a search box at the top, so a folder is found by typing part of its name ([#74](https://github.com/GITHUB_REPOSITORY/issues/74), thanks to @strikerz5).
 - Show in Groups (View › Arrange By) turns the date headings off for one continuous list, and Single Line (View › Message Preview) shows each message on one line; thanks to @Schintilla for asking ([#214](https://github.com/GITHUB_REPOSITORY/issues/214)).
 - Removing an account now removes its mail, attachments and remembered sign-in from this computer, and File › Info › Remove MailCraft's data from this computer removes everything MailCraft keeps here, for an installed or a portable copy; mail on the servers is never touched ([#177](https://github.com/GITHUB_REPOSITORY/issues/177)).

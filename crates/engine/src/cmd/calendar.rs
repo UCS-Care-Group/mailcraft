@@ -9,6 +9,8 @@ use serde_json::{Value, json};
 use super::{bad, done, fail, needs_message, remote};
 use crate::{CmdError, CmdResult, CommandSpec, Module, Session, p};
 
+#[cfg(test)]
+mod hostile_tests;
 mod invitation;
 mod meeting;
 
