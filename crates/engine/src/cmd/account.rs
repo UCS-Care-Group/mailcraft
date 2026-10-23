@@ -232,6 +232,35 @@ fn apply_fields(a: &mut Account, v: &Value) -> Result<(), CmdError> {
     Ok(())
 }
 
+/// The account `account.add` would make from these params (for the question put to the owner
+/// when an agent asks; `None` when they are not valid).
+pub(crate) fn from_params(v: &Value) -> Option<Account> {
+    let mut a = Account::default();
+    apply_fields(&mut a, v).ok()?;
+    Some(a)
+}
+
+/// The account `account.edit` would leave of `old` with these params (`None` when not valid).
+pub(crate) fn edited(old: &Account, v: &Value) -> Option<Account> {
+    let mut a = old.clone();
+    apply_fields(&mut a, v).ok()?;
+    Some(a)
+}
+
+/// Where an account's mail goes, in words: `imap host:port, smtp host:port`, or Microsoft.
+pub(crate) fn servers_text(a: &Account) -> String {
+    let one = |name: &str, s: &Option<Server>| match s {
+        Some(s) if s.port == 0 => Some(format!("{name} {}", s.host)),
+        Some(s) => Some(format!("{name} {}:{}", s.host, s.port)),
+        None => None,
+    };
+    if a.kind == AccountKind::Microsoft {
+        return "Microsoft".to_string();
+    }
+    let parts: Vec<String> = [one("imap", &a.incoming), one("smtp", &a.outgoing)].into_iter().flatten().collect();
+    if parts.is_empty() { "no server".to_string() } else { parts.join(", ") }
+}
+
 fn add(s: &mut Session, v: &Value) -> CmdResult {
     // A new account keeps a year of mail in full (#143); one from before keeps all of it.
     let mut a = Account { keep_offline: mailcraft_model::KeepOffline::NEW_ACCOUNT, ..Default::default() };

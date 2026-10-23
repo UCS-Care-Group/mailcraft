@@ -2341,3 +2341,56 @@ fn a_windows_1250_contact_file_keeps_its_letters() {
     let c = s.mailbox.contact(s.sel.contact.unwrap()).unwrap();
     assert_eq!((c.display_name.as_str(), c.last.as_str(), c.company.as_str()), ("Ivana Gvođćič", "Gvođćič", "Škola češće"));
 }
+
+// ---- C1 PR-a: a mailbox in mail is saved, never opened; questions name servers ----
+
+#[test]
+fn a_mailcraft_attachment_is_never_opened_from_a_message() {
+    use crate::opening::{Verdict, verdict};
+    for name in ["backup.mailcraft", "Backup.MAILCRAFT", "x/../y.mailcraft", "backup.mailcraft."] {
+        assert_eq!(verdict(name), Verdict::Blocked, "{name}");
+    }
+}
+
+#[test]
+fn the_question_for_account_add_names_the_servers() {
+    let s = session();
+    let d = crate::agent::describe(
+        &s,
+        "account.add",
+        &json!({"email": "me@example.org", "incoming": {"host": "imap.evil.example", "port": 993}, "outgoing": {"host": "smtp.evil.example", "port": 465}}),
+    );
+    assert!(d.contains("me@example.org") && d.contains("imap imap.evil.example:993") && d.contains("smtp smtp.evil.example:465"), "{d}");
+}
+
+#[test]
+fn the_question_for_account_edit_names_the_new_host_only_when_it_changes() {
+    let mut s = session();
+    let id = run(
+        &mut s,
+        "account.add",
+        json!({"email": "me@example.org", "incoming": {"host": "imap.example.org", "port": 993}, "outgoing": {"host": "smtp.example.org", "port": 465}}),
+    )["id"]
+        .as_u64()
+        .unwrap();
+    let moved = crate::agent::describe(&s, "account.edit", &json!({"id": id, "incoming": {"host": "imap.evil.example", "port": 993}}));
+    assert!(moved.contains("imap imap.example.org:993") && moved.contains("imap imap.evil.example:993"), "{moved}");
+    let same = crate::agent::describe(&s, "account.edit", &json!({"id": id, "displayName": "Me"}));
+    assert!(!same.contains("servers change"), "{same}");
+}
+
+#[test]
+fn the_question_for_file_open_reads_the_servers_from_the_file() {
+    let mut s = Session::empty();
+    run(&mut s, "account.add", json!({"email": "owner@example.org", "incoming": {"host": "imap.evil.example", "port": 993}}));
+    let dir = std::env::temp_dir().join(format!("mailcraft-c1a-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("crafted.mailcraft");
+    run(&mut s, "file.saveAs", json!({"path": path.to_string_lossy()}));
+    let asker = Session::empty();
+    let d = crate::agent::describe(&asker, "file.open", &json!({"path": path.to_string_lossy()}));
+    assert!(d.contains("owner@example.org") && d.contains("imap.evil.example:993"), "{d}");
+    let missing = crate::agent::describe(&asker, "file.open", &json!({"path": dir.join("none.mailcraft").to_string_lossy()}));
+    assert!(missing.contains("can't be read"), "{missing}");
+    let _ = std::fs::remove_dir_all(&dir);
+}

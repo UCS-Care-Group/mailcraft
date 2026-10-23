@@ -72,6 +72,9 @@ mod report_problem;
 pub mod ribbon;
 pub mod scheduling;
 mod search_pills;
+#[cfg(test)]
+#[path = "secrets_replaced_tests.rs"]
+mod secrets_replaced_tests;
 pub mod server_search;
 mod shared_mailboxes;
 mod signatures;
@@ -938,6 +941,9 @@ pub struct MailApp {
     pub(crate) reveal_selection: bool,
     /// Passwords typed this session, per account. Never saved.
     passwords: std::collections::HashMap<Id, String>,
+    /// [`mailcraft_engine::Session::openings`] when the secrets in memory were last checked
+    /// against the mailbox they belong to.
+    secrets_opening: u64,
     /// Why the system's credential store couldn't be used this session, once that has been found
     /// out; the owner has been told.
     pub(crate) secrets_trouble: Option<StoreTrouble>,
@@ -1169,6 +1175,7 @@ impl MailApp {
             input_trail: std::collections::VecDeque::new(),
             reveal_selection: false,
             passwords: Default::default(),
+            secrets_opening: 0,
             secrets_trouble: None,
             tokens: Default::default(),
             graph_tokens: Default::default(),
@@ -1427,6 +1434,7 @@ impl MailApp {
             return r;
         }
         let r = self.session.run(id, &params);
+        self.drop_secrets_if_replaced();
         self.last_error = r.as_ref().err().cloned();
         let r = r.map_err(|e| e.to_string());
         // Asked for the reminders: their window comes up, due or not.
@@ -1886,6 +1894,7 @@ impl MailApp {
     /// password the first time, or has the owner sign in on the provider's page; the answer is
     /// kept in memory until the app closes, and by the operating system when that is wanted.
     fn start_sync(&mut self, p: &Value) -> Result<Value, String> {
+        self.drop_secrets_if_replaced();
         if self.data_removed {
             return Err(tl!("MailCraft's data has been removed: nothing is sent or received").to_string());
         }
@@ -2120,6 +2129,19 @@ impl MailApp {
     /// seconds ([`MailApp::auto_sync`]), whichever way the account is kept in step.
     pub(crate) fn note_pushed(&mut self, account: Id) {
         self.push_seen.insert(account, (self.waiting_to_go(account), now_ms()));
+    }
+
+    /// The passwords and sign-ins in memory belong to the accounts of the mailbox they were given
+    /// for: a mailbox that takes its place (File › Open, File › New, whatever the way) drops them
+    /// all, since its accounts have ids of their own choosing and servers of their own naming.
+    pub(crate) fn drop_secrets_if_replaced(&mut self) {
+        let opening = self.session.openings();
+        if opening != self.secrets_opening {
+            self.secrets_opening = opening;
+            self.passwords.clear();
+            self.tokens.clear();
+            self.graph_tokens.clear();
+        }
     }
 
     /// Whether a Send/Receive for `account` can go ahead without asking anybody anything: its
@@ -2901,6 +2923,7 @@ impl MailApp {
         // An administrator's approval that was waited for ([`approval`]).
         self.poll_admin_consent();
         self.sweep_admin_consent();
+        self.drop_secrets_if_replaced();
         self.poll_graph();
         self.drive_fetch();
         self.offline_tick();
