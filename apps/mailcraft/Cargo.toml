@@ -25,9 +25,6 @@ eframe = { workspace = true, features = ["default_fonts", "wgpu", "accesskit", "
 egui = { workspace = true }
 serde_json = { workspace = true }
 log = { workspace = true }
-# Quitting the platform's own way: on macOS `-[NSApplication terminate:]` and an app menu whose
-# Quit asks first; elsewhere it does nothing (`quit.rs`).
-craft-quit = { workspace = true }
 # The system's language (the interface's when it is left on Automatic).
 sys-locale = "0.3"
 
@@ -53,7 +50,7 @@ winresource = "0.1"
 # which our workspace forbids) behind a safe API. Pinned exactly: review the diff before bumping.
 fmv-macos-events = "=0.1.0"
 # The menu bar at the top of the screen (`menubar.rs`, #253), made natively from the commands'
-# table. MIT OR Apache-2.0 (tauri's), already in the tree through craft-quit's app menu: the same
+# table. MIT OR Apache-2.0 (tauri's), already in the tree through the GUI stack: the same
 # version, with no default features (no image or serde).
 muda = { version = "0.21.2", default-features = false }
 # The macOS keychain (the owner's login keychain), for the credential store below.
@@ -67,7 +64,12 @@ block2 = { version = "0.6", default-features = false, features = ["std"] }
 # AppKit's window, for one safe class call: no automatic window tabs (#253: the View menu's greyed
 # Show Tab Bar). The same project's bindings, already in the tree through winit and muda, with
 # the same features.
-objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSResponder", "NSWindow"] }
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSResponder", "NSWindow", "NSApplication"] }
+# Quitting the macOS way (`quit_macos.rs`): `-[NSApplication terminate:]` is scheduled on the main
+# queue, because eframe closing the window can crash AppKit (its Touch Bar). The scheduling is
+# `dispatch_async` on the main queue, from the same project as objc2 (MIT, Zlib or Apache-2.0),
+# already in the tree through winit and the UI stack; `std` only, safe calls only.
+dispatch2 = { version = "0.3", default-features = false, features = ["std"] }
 objc2-user-notifications = { version = "0.3", default-features = false, features = [
     "std",
     "block2",

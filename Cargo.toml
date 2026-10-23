@@ -77,13 +77,6 @@ arboard = { version = "3.6", default-features = false }
 # throughout, builds for the browser; already in the tree (the desktop's `webbrowser` uses it).
 url = "2.5"
 
-# craft-libs (https://github.com/storytold/craft-libs): code shared by the Craft apps, taken from
-# git pinned to one commit (`rev`); review the diff before moving the pin. Only `craft-quit`, in
-# the desktop app alone: on macOS MailCraft quits through `-[NSApplication terminate:]` rather
-# than by closing its window, which can crash AppKit (its Touch Bar), and its app menu's Quit (⌘Q)
-# asks first, as the close button does. `menu` brings muda on macOS only. Needs Rust 1.95.
-craft-quit = { git = "https://github.com/storytold/craft-libs", rev = "8f5a2831614e632f91ad367f7af2a6e5b61b9529", features = ["menu"] }
-
 [workspace.lints.rust]
 unsafe_code = "forbid"
 

@@ -869,18 +869,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "craft-quit"
-version = "0.1.0"
-source = "git+https://github.com/storytold/craft-libs?rev=8f5a2831614e632f91ad367f7af2a6e5b61b9529#8f5a2831614e632f91ad367f7af2a6e5b61b9529"
-dependencies = [
- "dispatch2",
- "egui",
- "muda",
- "objc2 0.6.5",
- "objc2-app-kit 0.3.2",
-]
-
-[[package]]
 name = "crc32fast"
 version = "1.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2286,7 +2274,7 @@ dependencies = [
  "arboard",
  "base64",
  "block2 0.6.2",
- "craft-quit",
+ "dispatch2",
  "eframe",
  "egui",
  "fmv-macos-events",
