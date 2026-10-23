@@ -414,6 +414,9 @@ pub struct AccountSetup {
     /// and as the slider has it now (#143). Saved through `ui.keepOffline`, which asks first
     /// when it is shorter.
     keep_offline: Option<(KeepOffline, KeepOffline)>,
+    /// The settings are of an account kept in step through Microsoft Graph (R3): it has no user
+    /// name or mail servers to show, and the page says how its mail comes instead (#312).
+    graph: bool,
     /// The settings are of an account a newer MailCraft added: nothing of it can be changed
     /// here, and the page says why.
     newer: bool,
@@ -496,20 +499,22 @@ impl AccountSetup {
             directory: Directory::Unknown,
             edit: None,
             keep_offline: None,
+            graph: false,
             newer: false,
             ctx: None,
         }
     }
 
     /// The wizard, with `p.email` and `p.displayName` filled in when given; or, with `p.id`, the
-    /// settings of that account. `None` for an account that isn't there, and for the nameless
-    /// mailbox of a new installation, which has nothing to change until an address is added.
+    /// settings of that account. `None` for an account that isn't there, for the nameless
+    /// mailbox of a new installation, which has nothing to change until an address is added, and
+    /// for a shared mailbox, which has no settings of its own: its owner's sign-in reads it (#70).
     pub fn open(app: &MailApp, p: &Value) -> Option<AccountSetup> {
         match p.get("id").and_then(Value::as_u64).filter(|id| *id != 0) {
             // What to do when its organisation has to approve MailCraft first, for an account
             // that exists and signs in with Microsoft (`ui.approvalHelp`).
             Some(id) if p.get("page").and_then(Value::as_str) == Some("approval") => AccountSetup::approval_for(app, id),
-            Some(id) => app.session.mailbox.account(id).filter(|a| !a.email.is_empty()).map(AccountSetup::edit),
+            Some(id) => app.session.mailbox.account(id).filter(|a| !a.email.is_empty() && !a.is_shared()).map(AccountSetup::edit),
             None => Some(AccountSetup::new(app, p)),
         }
     }
@@ -542,6 +547,7 @@ impl AccountSetup {
         if a.kind == AccountKind::Microsoft && !a.is_shared() {
             w.keep_offline = Some((a.keep_offline, a.keep_offline));
         }
+        w.graph = a.kind == AccountKind::Microsoft;
         w.newer = a.kind == AccountKind::Unknown;
         w
     }
@@ -1459,11 +1465,17 @@ impl AccountSetup {
         page(ui, &t, |ui| {
             heading(ui, &shown(self.email.trim(), 120), &t);
             note(ui, &how, t.text_dim);
+            if self.graph {
+                note(ui, tl!("Its mail is kept in step through Microsoft Graph, without mail servers"), t.text_dim);
+            }
             field(ui, pass, "name", tl!("Your name"), &mut self.name, tl!("As the people you write to see it"), LINE);
             if asks {
                 self.password_field(ui, pass, tl!("Leave empty to keep the one in use"));
             }
-            self.settings(ui, pass);
+            // (An account still on IMAP that signs in with Microsoft keeps them: it uses them.)
+            if !self.graph {
+                self.settings(ui, pass);
+            }
             if self.oauth.is_some() {
                 field(ui, pass, "clientId", tl!("Application (client) ID"), &mut self.client_id, tl!("The one in File › Options"), 200);
                 field(ui, pass, "tenant", tl!("Tenant"), &mut self.tenant, "common", 64);
@@ -2956,10 +2968,41 @@ mod tests {
         assert_eq!(page(&h), Some(Page::Settings));
         assert!(says(&h, "Signs in on the Microsoft page") && says(&h, "Application (client) ID") && says(&h, "Tenant"));
         assert!(h.query_by_role(Role::PasswordInput).is_none());
+        // Still on IMAP, it keeps its servers (#312).
+        assert!(says(&h, "Incoming mail (IMAP)") && !says(&h, "through Microsoft Graph"));
         click(&mut h, "Cancel");
         assert_eq!(page(&h), None);
         // An account that isn't there has no settings to open.
         assert!(h.state_mut().execute("ui.dialog", json!({"name": "account", "id": 999_999})).is_err());
+    }
+
+    /// (#312) The settings of an account kept in step through Microsoft Graph show what applies
+    /// to it: its name, its Microsoft sign-in and its mail to keep offline, and say how its mail
+    /// comes; no user name and no mail servers, which it doesn't have. Save keeps it on Graph. A
+    /// shared mailbox opened through it has no settings to open (#70).
+    #[test]
+    fn graph_account_settings_have_no_mail_servers() {
+        let mut a = app(true);
+        let id = a.execute("account.add", json!({"email": "ada@lumen.example", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+        let mut h = open(a, json!({"id": id}));
+        assert_eq!(page(&h), Some(Page::Settings));
+        assert!(says(&h, "Signs in on the Microsoft page") && says(&h, "kept in step through Microsoft Graph"));
+        assert!(says(&h, "Application (client) ID") && says(&h, "Tenant") && says(&h, "Mail to keep offline"));
+        assert!(!says(&h, "User name") && !says(&h, "Incoming mail (IMAP)") && !says(&h, "Outgoing mail (SMTP)"));
+        assert!(h.query_by_role(Role::PasswordInput).is_none());
+        wizard_mut(&mut h).name = "Ada Lovelace".into();
+        click(&mut h, "Save");
+        assert_eq!(page(&h), None);
+        let account = h.state().session.mailbox.account(id).unwrap();
+        assert_eq!((account.display_name.as_str(), account.kind), ("Ada Lovelace", AccountKind::Microsoft));
+        assert_eq!((account.incoming.as_ref(), account.outgoing.as_ref()), (None, None));
+
+        let shared = h.state_mut().execute("account.addSharedMailbox", json!({"account": id, "address": "team@lumen.example"})).unwrap()["id"]
+            .as_u64()
+            .unwrap();
+        assert!(h.state_mut().execute("ui.dialog", json!({"name": "account", "id": shared})).is_err());
+        h.run_steps(4);
+        assert_eq!(page(&h), None);
     }
 
     /// The settings of an account a newer MailCraft added say what it is and offer nothing to
