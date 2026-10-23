@@ -39,7 +39,6 @@ base64 = "0.22"
 # (windows-1250, iso-8859-2, koi8-r, shift_jis, iso-2022-jp…), and vCard files: `mailcraft-charset`.
 # (Apache-2.0 OR MIT) AND BSD-3-Clause, Rust throughout, builds for the browser.
 encoding_rs = "0.8"
-getrandom = "0.3"
 # Time zones: the IANA Time Zone Database compiled in (`tzdb-bundle-always`: the same rules on
 # every platform and in the browser) and the system's own zone. Unlicense OR MIT; the database is
 # in the public domain. Used by `mailcraft-time` only, which wraps it (`Zone`); calendar maths is

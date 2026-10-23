@@ -35,8 +35,6 @@ sys-locale = "0.3"
 mailcraft-net = { workspace = true, features = ["stand-in"] }
 # A sign-in the provider refuses, as `mailcraft-net` says it.
 mailcraft-proto = { workspace = true }
-# A release signed with a key made in the test, for the stand-in release server (`update_flow`).
-ring = { workspace = true }
 base64 = { workspace = true }
 
 [build-dependencies]
@@ -124,12 +122,13 @@ winit = { version = "0.30", default-features = false, features = ["wayland", "x1
 zbus = { version = "5", default-features = false, features = ["async-io", "blocking-api"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+# The control server's random key (the operating system's source, as the sign-in's); also signs a
+# release in the update test (`update_flow`).
+ring = { workspace = true }
 rfd = { workspace = true }
 # Waits for an `rfd::AsyncFileDialog` on a background thread (the dialogs don't block the UI);
 # rfd itself already depends on it.
 pollster = "0.4"
-# The control server's random key.
-getrandom = "0.3"
 # Opens Microsoft's sign-in and approval pages in the system's browser, and says when no browser
 # could be started (egui's own way of opening a link doesn't). Already in the tree: eframe's
 # `links` feature runs on it.
