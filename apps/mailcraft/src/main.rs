@@ -57,6 +57,8 @@ mod quit_macos;
 mod secrets;
 mod self_update;
 #[cfg(test)]
+mod settings_unread_tests;
+#[cfg(test)]
 mod shared_send_flow;
 mod single_instance;
 mod system_locale;
@@ -76,7 +78,7 @@ use mailcraft_model::Mailbox;
 use mailcraft_model::sync::Tokens;
 use mailcraft_ui_egui::{
     AdminConsentAnswer, AdminConsentRequest, CalendarCheckRequest, CalendarCheckResult, CalendarCheckStep, FreeBusyRequest, FreeBusyResult,
-    GraphRequest, GraphResult, MailApp, Services, SignInRequest, UiState,
+    GraphRequest, GraphResult, MailApp, Services, SettingsUnread, SignInRequest, UiState,
     window_geometry::{WindowGeometry, take_rescue},
 };
 
@@ -266,27 +268,58 @@ fn prefs_enabled() -> bool {
     std::env::var_os("MAILCRAFT_NO_PREFS").is_none()
 }
 
-fn load_prefs(app: &mut MailApp) {
-    if !prefs_enabled() {
-        return;
-    }
-    if let Some(ui) = prefs_path().and_then(|p| read_prefs(&p)) {
-        app.apply_prefs(ui);
+/// The preferences, read once at start (before the window opens, for its size and place), and
+/// what became of the file when it couldn't be read. Nothing for a run without preferences.
+fn load_prefs() -> (Option<UiState>, Option<SettingsUnread>) {
+    match prefs_path() {
+        Some(path) if prefs_enabled() => read_prefs(&path),
+        _ => (None, None),
     }
 }
 
+/// A settings file that couldn't be set aside stays where it was, and this run's settings
+/// aren't saved over it.
+static PREFS_LEFT_IN_PLACE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
 /// The preferences in `path`. A file that can't be read as them (damaged, or written by a version
-/// that keeps them otherwise) is moved aside to `ui.json.damaged`, so the next save doesn't
-/// overwrite what the owner had set and it can still be looked at.
-fn read_prefs(path: &std::path::Path) -> Option<UiState> {
-    let bytes = std::fs::read(path).ok()?;
-    let ui = serde_json::from_slice::<UiState>(&bytes);
-    if ui.is_err() {
+/// that keeps them otherwise) is moved aside to `ui.json.damaged` (or `.damaged-2` and on, so an
+/// earlier one is kept), so the next save doesn't overwrite what the owner had set and it can
+/// still be looked at; the window says so. One that can't be read at all, or can't be moved
+/// aside, is left where it is and not saved over. The log names the kind of error and where in
+/// the file it is, never what the file says.
+fn read_prefs(path: &std::path::Path) -> (Option<UiState>, Option<SettingsUnread>) {
+    let bytes = match std::fs::read(path) {
+        Ok(bytes) => bytes,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return (None, None),
+        Err(e) => {
+            log::warn!("the settings file couldn't be read ({:?}); it is left as it is and not saved over", e.kind());
+            PREFS_LEFT_IN_PLACE.store(true, std::sync::atomic::Ordering::Relaxed);
+            return (None, Some(SettingsUnread::LeftInPlace));
+        }
+    };
+    let e = match serde_json::from_slice::<UiState>(&bytes) {
+        Ok(ui) => return (Some(ui), None),
+        Err(e) => e,
+    };
+    let at = format!("{:?} error at line {}, column {}", e.classify(), e.line(), e.column());
+    let free = (1..=20).map(|n| if n == 1 { ".damaged".to_string() } else { format!(".damaged-{n}") }).find_map(|suffix| {
         let mut aside = path.as_os_str().to_os_string();
-        aside.push(".damaged");
-        let _ = std::fs::rename(path, aside);
+        aside.push(&suffix);
+        let aside = PathBuf::from(aside);
+        (!aside.exists()).then_some(aside)
+    });
+    match free.map(|aside| std::fs::rename(path, &aside).map(|()| aside)) {
+        Some(Ok(aside)) => {
+            let name = aside.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+            log::warn!("the settings file couldn't be read ({at}); set aside as {name}, started with MailCraft's own settings");
+            (None, Some(SettingsUnread::SetAside(name)))
+        }
+        _ => {
+            log::warn!("the settings file couldn't be read ({at}) nor set aside; it is left as it is and not saved over");
+            PREFS_LEFT_IN_PLACE.store(true, std::sync::atomic::Ordering::Relaxed);
+            (None, Some(SettingsUnread::LeftInPlace))
+        }
     }
-    ui.ok()
 }
 
 /// Write the preferences so that a crash leaves the old file or the whole new one, readable by
@@ -298,17 +331,9 @@ fn write_prefs(path: &std::path::Path, ui: &UiState) -> std::io::Result<()> {
     mailcraft_engine::store::write_atomic(path, &serde_json::to_vec_pretty(ui).map_err(std::io::Error::other)?)
 }
 
-/// The saved window geometry, read before the window opens (`load_prefs` runs after).
-fn saved_window() -> Option<WindowGeometry> {
-    if !prefs_enabled() {
-        return None;
-    }
-    read_prefs(&prefs_path()?)?.window?.sanitized()
-}
-
 fn save_prefs(app: &MailApp) {
     // Its data was removed from this computer (File › Info): nothing is written back.
-    if !prefs_enabled() || app.data_removed {
+    if !prefs_enabled() || app.data_removed || PREFS_LEFT_IN_PLACE.load(std::sync::atomic::Ordering::Relaxed) {
         return;
     }
     if let Some(p) = prefs_path() {
@@ -1410,7 +1435,8 @@ fn main() -> eframe::Result {
     // DirectX 12 has no GPU driver (see graphics.rs).
     #[cfg(target_os = "windows")]
     graphics::configure(&mut options, eframe::wgpu::Backends::from_env());
-    let restored = saved_window();
+    let (prefs, settings_unread) = load_prefs();
+    let restored = prefs.as_ref().and_then(|ui| ui.window).and_then(WindowGeometry::sanitized);
     if let Some(window) = restored {
         options.viewport = window.apply(options.viewport);
     }
@@ -1471,7 +1497,10 @@ fn main() -> eframe::Result {
             // A Microsoft account still on IMAP is offered the switch to Graph (R3.7): only for a
             // mailbox kept in a file, which is where the copy from before the switch goes.
             app.offer_graph_switch = kept && !sample;
-            load_prefs(&mut app);
+            if let Some(ui) = prefs {
+                app.apply_prefs(ui);
+            }
+            app.settings_unread = settings_unread;
             app.ui.window = restored;
             app.integrated_titlebar = cfg!(target_os = "macos");
             let mut key_file = None;
@@ -1517,28 +1546,4 @@ fn main() -> eframe::Result {
             )))
         }),
     )
-}
-
-#[cfg(test)]
-mod prefs_tests {
-    use super::*;
-
-    #[test]
-    fn prefs_written_whole_and_a_damaged_file_kept_aside() {
-        let dir = std::env::temp_dir().join(format!("mailcraft-prefs-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&dir);
-        let path = dir.join("ui.json");
-        let ui = UiState::default();
-        write_prefs(&path, &ui).unwrap();
-        let back = read_prefs(&path).unwrap();
-        assert_eq!(serde_json::to_value(&back).unwrap(), serde_json::to_value(&ui).unwrap());
-        // Nothing left beside it but the file itself.
-        assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 1);
-
-        std::fs::write(&path, b"{\"theme\": ").unwrap();
-        assert!(read_prefs(&path).is_none());
-        assert!(!path.exists());
-        assert_eq!(std::fs::read(dir.join("ui.json.damaged")).unwrap(), b"{\"theme\": ");
-        let _ = std::fs::remove_dir_all(&dir);
-    }
 }

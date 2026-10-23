@@ -79,6 +79,7 @@ mod secrets_bound_tests;
 #[path = "secrets_replaced_tests.rs"]
 mod secrets_replaced_tests;
 pub mod server_search;
+pub mod settings_notice;
 mod shared_mailboxes;
 mod signatures;
 mod sync_panel;
@@ -103,6 +104,7 @@ pub use approval::{AdminConsentAnswer, AdminConsentRequest};
 pub use control::ControlRequest;
 pub use files::FileDialogRequest;
 pub use scheduling::{FreeBusyRequest, FreeBusyResult};
+pub use settings_notice::SettingsUnread;
 pub use unconfirmed::ConfirmedMailbox;
 
 /// Platform services injected by the host (file dialogs, downloads, servers, storage).
@@ -906,6 +908,12 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         r#"{} — offered when a newly installed version didn't start twice running and the one it replaced is kept: closes the window as quitting does, puts the kept version back (and the mailbox file as it was before the new version changed its format, when it did) and starts it; the version gone back from is never installed by itself again. The owner's click only: refused for agents and the control channel"#,
     ),
     (
+        "ui.dismissSettingsNotice",
+        "Dismiss Settings Notice",
+        "Above the status bar",
+        r#"{} — puts away the line that says the settings file couldn't be read at start, so MailCraft started with its own settings (for this run). Answers {"dismissed": bool}"#,
+    ),
+    (
         "ui.dismissUpdateNotice",
         "Dismiss Update Notice",
         "Above the status bar",
@@ -966,6 +974,9 @@ pub struct MailApp {
     /// The open mailbox came from a file whose servers nobody has confirmed: nothing of it
     /// reaches a server ([`unconfirmed`]).
     pub(crate) unconfirmed: bool,
+    /// The settings file couldn't be read at start, and the line saying so hasn't been put away
+    /// ([`settings_notice`]).
+    pub settings_unread: Option<settings_notice::SettingsUnread>,
     /// The jobs that reach servers, put aside while the mailbox is unconfirmed.
     pub(crate) held: unconfirmed::Held,
     /// The file the window started with (the owner's own mailbox, or the one `--mailbox` named),
@@ -1207,6 +1218,7 @@ impl MailApp {
             passwords: Default::default(),
             secrets_opening: 0,
             unconfirmed: false,
+            settings_unread: None,
             held: Default::default(),
             own_mailbox,
             secrets_trouble: None,
@@ -1522,6 +1534,7 @@ impl MailApp {
         Some(match id {
             "ui.removeAllData" => self.remove_all_data(),
             "ui.confirmServers" => self.confirm_servers(),
+            "ui.dismissSettingsNotice" => settings_notice::dismiss(self),
             "ui.tab" => {
                 let Some(tab) = s("tab") else { return Some(Err("missing `tab`".into())) };
                 if tab == "File" {
@@ -3470,6 +3483,7 @@ impl MailApp {
             chrome::status_bar(self, ui);
             // The question about checking for new versions, at the first starts: above the status bar.
             updates::question(self, ui);
+            settings_notice::bar(self, ui);
             unconfirmed::bar(self, ui);
             nav::module_bar(self, ui);
             ribbon::show(self, ui);

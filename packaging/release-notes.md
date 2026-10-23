@@ -4,6 +4,7 @@
 - **Report a Problem**, in the title bar beside Copy Diagnostics and in Help: say what went wrong, and MailCraft starts the report for you, on GitHub (the problem form filled in, in your browser, with the diagnostics saved to a file to attach; public) or by email (a new message to the maintainers from your own account, with the diagnostics attached; private). You read everything first, and nothing goes until you submit it or press Send.
 
 **Fixes**
+- When the settings file can't be read (a hand edit, or settings saved by a newer version), MailCraft still sets it aside and starts with its own settings, but now says so in a line above the status bar, with the name of the copy it kept; an earlier copy is no longer overwritten.
 - "Always download pictures" from a sender or a domain now holds only for mail your mail server says really came from that domain (its `dmarc=pass`), the address is compared as plain ASCII, and mail in a subfolder of Junk E-mail counts as Junk; other mail from a remembered sender asks first, and says why. Your lists are kept.
 - A meeting invitation that carries the ID of a meeting already on your calendar, but names another organizer, no longer replaces or removes it; the invitation bar and its question show the organizer's address and say when the message came from another one.
 - The question about checking for updates says that Yes also downloads and installs them when you quit.
