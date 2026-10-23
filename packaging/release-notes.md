@@ -5,6 +5,7 @@
 
 **Fixes**
 - A `.mailcraft` file received as an attachment is only saved, never opened from the message; opening another mailbox forgets the passwords and sign-ins held in memory; an agent that asks to add or change an account, or to open a mailbox file, is asked about with the mail servers named (C1 PR-a).
+- A mail server that answers one request with an endless stream of mail lists or folders can no longer make MailCraft run out of memory or keep working for hours: an answer is read up to a limit in size, count and time, and past it the request fails and nothing of it is taken in.
 - Move to Folder, Copy to Folder and the other folder menus have a search box at the top, so a folder is found by typing part of its name ([#74](https://github.com/GITHUB_REPOSITORY/issues/74), thanks to @strikerz5).
 - Show in Groups (View › Arrange By) turns the date headings off for one continuous list, and Single Line (View › Message Preview) shows each message on one line; thanks to @Schintilla for asking ([#214](https://github.com/GITHUB_REPOSITORY/issues/214)).
 - Removing an account now removes its mail, attachments and remembered sign-in from this computer, and File › Info › Remove MailCraft's data from this computer removes everything MailCraft keeps here, for an installed or a portable copy; mail on the servers is never touched ([#177](https://github.com/GITHUB_REPOSITORY/issues/177)).
