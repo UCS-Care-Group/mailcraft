@@ -90,7 +90,7 @@ keyring-core = "1"
 windows-native-keyring-store = "1.1"
 # Two registry values read, never written: where the `.msi` put the program (whether this copy
 # updates itself) and an organisation's policy that turns updating off (`install.rs`, `updater.rs`).
-winreg = "0.55"
+winreg = "0.56"
 # Desktop alerts as toasts (`alerts.rs`): Windows.UI.Notifications and the XML they are made of.
 # Already in the tree (the GUI stack's), the same version; only these features are added.
 windows = { version = "0.62", features = ["Foundation", "Data_Xml_Dom", "UI_Notifications"] }
@@ -125,9 +125,9 @@ zbus = { version = "5", default-features = false, features = ["async-io", "block
 rfd = { workspace = true }
 # Waits for an `rfd::AsyncFileDialog` on a background thread (the dialogs don't block the UI);
 # rfd itself already depends on it.
-pollster = "0.4"
+pollster = "1.0"
 # The control server's random key.
-getrandom = "0.3"
+getrandom = "0.4"
 # Opens Microsoft's sign-in and approval pages in the system's browser, and says when no browser
 # could be started (egui's own way of opening a link doesn't). Already in the tree: eframe's
 # `links` feature runs on it.
