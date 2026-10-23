@@ -84,6 +84,7 @@ mod signatures;
 mod sync_panel;
 pub mod tasks_view;
 pub mod theme;
+pub mod unconfirmed;
 pub mod updates;
 pub mod widgets;
 pub mod window_geometry;
@@ -102,6 +103,7 @@ pub use approval::{AdminConsentAnswer, AdminConsentRequest};
 pub use control::ControlRequest;
 pub use files::FileDialogRequest;
 pub use scheduling::{FreeBusyRequest, FreeBusyResult};
+pub use unconfirmed::ConfirmedMailbox;
 
 /// Platform services injected by the host (file dialogs, downloads, servers, storage).
 #[derive(Default)]
@@ -570,6 +572,9 @@ pub struct UiState {
     /// Passwords and sign-ins kept by the system are filed under the servers they go to; the
     /// ones kept before that were moved (once, for the mailbox opened at start).
     pub sign_ins_bound: bool,
+    /// Mailbox files whose accounts' servers the owner confirmed, with a fingerprint of the
+    /// addresses and servers confirmed ([`unconfirmed`]).
+    pub confirmed_mailboxes: Vec<ConfirmedMailbox>,
     /// Reminders the owner dismissed (`event@occurrence`), so they don't come back at the next start.
     pub dismissed_reminders: Vec<String>,
     /// Download the pictures mail refers to on the web without being asked. Off unless the owner
@@ -628,6 +633,7 @@ impl Default for UiState {
             microsoft_client_id: String::new(),
             remember_sign_in: true,
             sign_ins_bound: false,
+            confirmed_mailboxes: Vec::new(),
             dismissed_reminders: Vec::new(),
             download_pictures: false,
             picture_senders: Vec::new(),
@@ -672,6 +678,12 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         "Remove MailCraft's Data from This Computer",
         "File › Info",
         "{} — removes everything MailCraft keeps on this computer, for an installed or a portable copy alike: every account's mail and the settings (the mailbox file and its content, the settings, the logs), the sign-ins remembered in the system's credential store, the downloaded pictures and the opened attachments; then quits. Mail on the servers is not touched. By hand it asks first; never for an agent",
+    ),
+    (
+        "ui.confirmServers",
+        "Confirm Servers",
+        "File › Info",
+        "{} — the owner's yes to a mailbox opened from a file (File › Open, a double-click, a drop) once they have seen where each of its accounts connects to: until then nothing of it reaches a server (no Send/Receive, its Outbox stays, its changes wait, its rules don't run). Kept for that file while its accounts' addresses and servers stay the same. Asks first, listing the servers. Answers {\"confirmed\": bool, \"accounts\": [string]}",
     ),
     (
         "ui.sync",
@@ -951,6 +963,14 @@ pub struct MailApp {
     /// [`mailcraft_engine::Session::openings`] when the secrets in memory were last checked
     /// against the mailbox they belong to.
     secrets_opening: u64,
+    /// The open mailbox came from a file whose servers nobody has confirmed: nothing of it
+    /// reaches a server ([`unconfirmed`]).
+    pub(crate) unconfirmed: bool,
+    /// The jobs that reach servers, put aside while the mailbox is unconfirmed.
+    pub(crate) held: unconfirmed::Held,
+    /// The file the window started with (the owner's own mailbox, or the one `--mailbox` named),
+    /// which is never unconfirmed.
+    pub(crate) own_mailbox: Option<String>,
     /// Why the system's credential store couldn't be used this session, once that has been found
     /// out; the owner has been told.
     pub(crate) secrets_trouble: Option<StoreTrouble>,
@@ -1166,6 +1186,7 @@ pub struct MailApp {
 impl MailApp {
     pub fn new(session: Session, services: Services) -> Self {
         let saved_rev = session.rev();
+        let own_mailbox = session.path.as_ref().map(|p| unconfirmed::kept_path(&p.to_string_lossy()));
         MailApp {
             session,
             ui: UiState::default(),
@@ -1183,6 +1204,9 @@ impl MailApp {
             reveal_selection: false,
             passwords: Default::default(),
             secrets_opening: 0,
+            unconfirmed: false,
+            held: Default::default(),
+            own_mailbox,
             secrets_trouble: None,
             tokens: Default::default(),
             graph_tokens: Default::default(),
@@ -1305,6 +1329,7 @@ impl MailApp {
         (self.ui.sync_panel_width, self.ui.sync_panel_height) = sync_panel::sane_size(self.ui.sync_panel_width, self.ui.sync_panel_height);
         self.ui.collapsed_folders.truncate(10_000);
         self.ui.recent.truncate(20);
+        self.ui.confirmed_mailboxes.truncate(200);
         self.ui.collapsed_calendar_groups.truncate(200);
         updates::sanitize(&mut self.ui);
         self.session.prefs = self.ui.options.clone();
@@ -1493,6 +1518,7 @@ impl MailApp {
         let b = |k: &str| p.get(k).and_then(Value::as_bool);
         Some(match id {
             "ui.removeAllData" => self.remove_all_data(),
+            "ui.confirmServers" => self.confirm_servers(),
             "ui.tab" => {
                 let Some(tab) = s("tab") else { return Some(Err("missing `tab`".into())) };
                 if tab == "File" {
@@ -1977,6 +2003,13 @@ impl MailApp {
     /// kept in memory until the app closes, and by the operating system when that is wanted.
     fn start_sync(&mut self, p: &Value) -> Result<Value, String> {
         self.drop_secrets_if_replaced();
+        // A mailbox from a file: the owner confirms where it connects to first.
+        if self.unconfirmed {
+            if p.get("quiet").and_then(Value::as_bool) == Some(true) {
+                return Err(tl!("This mailbox was opened from a file: confirm its servers first").to_string());
+            }
+            return self.ask_to_confirm_servers();
+        }
         if self.data_removed {
             return Err(tl!("MailCraft's data has been removed: nothing is sent or received").to_string());
         }
@@ -2223,6 +2256,8 @@ impl MailApp {
             self.passwords.clear();
             self.tokens.clear();
             self.graph_tokens.clear();
+            // And a mailbox from a file is held back until its servers are confirmed.
+            self.judge_mailbox();
         }
     }
 
@@ -2822,7 +2857,7 @@ impl MailApp {
     /// Take in what a Send/Receive has brought so far. It arrives in pieces (what was sent, what
     /// the server was told, then mail folder by folder, the Inbox first), each applied as it
     /// comes, so mail shows up while the rest is still on its way; the last piece ends the run.
-    fn poll_sync(&mut self) {
+    pub fn poll_sync(&mut self) {
         // A few pieces a frame: each one redraws the lists, and the window should stay quick.
         for _ in 0..4 {
             let Some(rx) = &self.sync_rx else { return };
@@ -3007,7 +3042,7 @@ impl MailApp {
         self.sweep_admin_consent();
         self.drop_secrets_if_replaced();
         // The mailbox the window started with: secrets kept the old way are filed under its servers.
-        if self.session.openings() == 0 {
+        if self.session.openings() == 0 && !self.unconfirmed {
             self.migrate_secrets();
         }
         self.poll_graph();
@@ -3432,6 +3467,7 @@ impl MailApp {
             chrome::status_bar(self, ui);
             // The question about checking for new versions, at the first starts: above the status bar.
             updates::question(self, ui);
+            unconfirmed::bar(self, ui);
             nav::module_bar(self, ui);
             ribbon::show(self, ui);
             egui::CentralPanel::default().frame(egui::Frame::NONE.fill(t.canvas)).show(ui, |ui| match self.session.view.module {

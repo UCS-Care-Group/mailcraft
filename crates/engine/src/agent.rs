@@ -353,6 +353,8 @@ const ACCOUNTS: &[&str] = &[
     "ui.rememberSignIn",
     "ui.graphSwitch",
     "ui.switchToGraph",
+    // The owner's yes to the servers of a mailbox opened from a file.
+    "ui.confirmServers",
 ];
 
 const MAILBOX: &[&str] = &["file.new", "file.open", "file.save", "file.saveAs"];
@@ -740,6 +742,17 @@ pub fn describe(s: &Session, id: &str, params: &Value) -> String {
             format!("add the account {}, which connects to {to}", clip(st("email"), 80))
         }
         "file.open" => format!("open the mailbox {} as the mailbox in view; its {}", clip(st("path"), 160), crate::cmd::file::servers_in(params)),
+        "ui.confirmServers" => {
+            let to: Vec<String> = s
+                .mailbox
+                .accounts
+                .iter()
+                .filter(|a| a.kind.has_server())
+                .take(10)
+                .map(|a| format!("{} ({})", clip(&a.email, 80), crate::cmd::account::servers_text(a)))
+                .collect();
+            format!("confirm the servers of the mailbox opened from a file, so that it connects to {}", to.join("; "))
+        }
         "account.addSharedMailbox" => format!("open the shared mailbox {}", clip(st("address"), 80)),
         "account.removeSharedMailbox" => {
             let a = p::id(params, "id").and_then(|a| s.mailbox.account(a)).map(|a| a.email.clone()).unwrap_or_else(|| st("address").to_string());

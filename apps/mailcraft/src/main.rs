@@ -58,6 +58,8 @@ mod single_instance;
 #[cfg(test)]
 mod token_renew_flow;
 #[cfg(test)]
+mod unconfirmed_flow;
+#[cfg(test)]
 mod update_flow;
 mod updater;
 mod wipe;
