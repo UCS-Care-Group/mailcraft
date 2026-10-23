@@ -14,6 +14,7 @@ workspace = true
 mailcraft-time = { workspace = true }
 mailcraft-model = { workspace = true }
 mailcraft-engine = { workspace = true }
+url = { workspace = true }
 image = { workspace = true }
 mailcraft-ui-egui = { workspace = true }
 # The control key file's location (shared with the MCP bridge).

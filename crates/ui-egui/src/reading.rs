@@ -37,7 +37,7 @@ use std::sync::Arc;
 
 use egui::{Align2, Rect, Sense, Stroke, Ui, pos2, vec2};
 use mailcraft_html::Block;
-use mailcraft_model::{FlagStatus, Importance, Message, format_list};
+use mailcraft_model::{FlagStatus, Importance, Message, format_list_capped};
 use serde_json::json;
 
 pub(crate) use invitation::{list_marks, options as invitation_options, question as invitation_question};
@@ -47,6 +47,10 @@ pub(crate) use select::{inspect as selection_inspect, select_all_params};
 
 use crate::theme::{Tokens, paint_clipped, regular, semibold};
 use crate::{MailApp, icons};
+
+/// Most recipient names the header of the reading pane lists, and most category chips it paints.
+const SHOWN_NAMES: usize = 50;
+const SHOWN_CATEGORIES: usize = 8;
 
 /// The widest a picture in a message's body is shown, in points. Its text fills the pane, as
 /// Outlook's does, and as the body of a reply being written does above the original (#47).
@@ -336,7 +340,12 @@ fn header(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Place, pictur
                 // (`said` is the line in the interface language, with `{names}` still to fill.)
                 let mut line = |ui: &mut Ui, field: select::Field, said: &str, list: &[mailcraft_model::Address]| {
                     if !list.is_empty() {
-                        let said = crate::i18n::fmt(said, &[("names", &format_list(list))]);
+                        // (A sender can write thousands of names; the first ones are shown.)
+                        let (mut names, more) = format_list_capped(list, SHOWN_NAMES);
+                        if more > 0 {
+                            names.push_str(&format!("; {}", tln!(more, "and {n} more", "and {n} more")));
+                        }
+                        let said = crate::i18n::fmt(said, &[("names", &names)]);
                         let text = egui::RichText::new(said).font(regular(11.5)).color(t.text_dim);
                         fields.add(ui, field, egui::Label::new(text).truncate());
                     }
@@ -393,7 +402,7 @@ fn notes(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, t: &Tokens, pictures:
     if !m.categories.is_empty() {
         let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), 20.0), Sense::hover());
         let mut x = r.min.x;
-        for c in &m.categories {
+        for c in m.categories.iter().take(SHOWN_CATEGORIES) {
             x += crate::widgets::category_chip(ui, pos2(x, r.center().y), c, crate::theme::c32(app.session.mailbox.category_color(c))) + 6.0;
         }
     }

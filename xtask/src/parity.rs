@@ -7,7 +7,7 @@ use std::path::Path;
 
 pub fn run(root: &Path) -> Result<(), String> {
     let out = crate::cargo()
-        .args(["run", "-q", "-p", "mailcraft-cli", "--", "parity", "--markdown"])
+        .args(["run", "--locked", "-q", "-p", "mailcraft-cli", "--", "parity", "--markdown"])
         .output()
         .map_err(|e| format!("cargo run mailcraft-cli: {e}"))?;
     if !out.status.success() {

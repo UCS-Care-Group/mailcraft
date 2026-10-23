@@ -221,6 +221,27 @@ pub const BLOCKED: &[&str] = &[
     "rpm",
     "so",
     "ko",
+    // Add-in libraries, provisioning and profile packages, task and management files, and the
+    // connection files and queries that connect when opened.
+    "wll",
+    "ppkg",
+    "provxml",
+    "job",
+    "ops",
+    "mof",
+    "inx",
+    "dqy",
+    "oqy",
+    "rqy",
+    "ica",
+    "mobileconfig",
+    "mobileprovision",
+    "rdg",
+    "term",
+    "wflow",
+    "flatpakrepo",
+    "cdxml",
+    "swf",
     // MailCraft's own mailbox: its accounts name servers, so one sent in mail is saved, never
     // opened from the message.
     "mailcraft",
@@ -229,11 +250,25 @@ pub const BLOCKED: &[&str] = &[
 /// Office files that can carry macros.
 pub const MACROS: &[&str] = &[
     "docm", "dotm", "xlsm", "xltm", "xlam", "xlsb", "xla", "xlm", "pptm", "potm", "ppam", "ppsm", "sldm", "accdb", "one", "onepkg", "vsdm", "vstm",
-    "vssm",
+    "vssm", "doc", "dot", "xls", "xlt", "xlw", "ppt", "pot", "pps", "ppa", "pub", "wbk", "vsd", "vss", "vst", "vdx",
 ];
+
+/// Whether a file of this kind (the part after the last dot, in lower case) runs, or runs what is
+/// in it, when it is opened: the one list ([`BLOCKED`]) the opener refuses by and the files an
+/// agent may not have written are refused by.
+pub fn is_launchable(ext: &str) -> bool {
+    BLOCKED.contains(&ext)
+}
 
 /// Web pages and drawings that open in the browser, where what is in them runs.
 pub const SCRIPTS: &[&str] = &["htm", "html", "xhtml", "shtml", "mht", "mhtml", "svg", "svgz", "xht", "xml", "xsl"];
+
+/// Whether a file of this kind (the part after the last dot, in lower case) is one the opener
+/// refuses or asks about first ([`BLOCKED`], [`MACROS`] and [`SCRIPTS`] together): the one list
+/// the files an agent may not have written are refused by.
+pub fn is_risky(ext: &str) -> bool {
+    BLOCKED.contains(&ext) || MACROS.contains(&ext) || SCRIPTS.contains(&ext)
+}
 
 /// Names Windows keeps for devices: a file with one of these before its first dot is no file.
 const RESERVED: &[&str] = &[

@@ -420,7 +420,13 @@ fn save_attachment(s: &mut Session, v: &Value) -> CmdResult {
     let name = crate::opening::save_name(&a.name);
     // The file's bytes, from where the mailbox keeps them when they aren't in memory.
     let bytes = s.content(id, crate::Part::Attachment(index))?;
-    deliver(v, &name, bytes.as_ref().clone())
+    let out = deliver(v, &name, bytes.as_ref().clone())?;
+    // A saved attachment came from mail: mark it as a browser marks a download.
+    #[cfg(not(target_arch = "wasm32"))]
+    if let Some(path) = p::str(v, "path") {
+        crate::mark::mark_from_internet(std::path::Path::new(path));
+    }
+    Ok(out)
 }
 
 /// The window opens attachments (through its host); everywhere else this says why nothing was

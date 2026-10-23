@@ -4,8 +4,8 @@
 //!
 //! Nothing here waits for ever. Connecting has a time limit, and so has the handshake; every
 //! read and every write gives up after [`IO_TIMEOUT`] of silence; and a command with its answer
-//! gets [`COMMAND_TIMEOUT`] and a second more for every [`BYTES_PER_SECOND`] bytes that moved, so
-//! that a server which lets a byte through now and then can't keep the thread either. A
+//! gets [`COMMAND_TIMEOUT`] and a second more for every [`BYTES_PER_SECOND`] bytes that moved (at
+//! most [`MAX_EXTRA_SECONDS`] more), so that a server which lets a byte through now and then can't keep the thread either. A
 //! connection can also be told to [`watch`](Stream::watch) a flag, and then stops at the next
 //! read or write once the flag is set.
 
@@ -30,6 +30,15 @@ const COMMAND_TIMEOUT: Duration = Duration::from_secs(300);
 /// ...and how many bytes have to move for it to be given another second: a large message over a
 /// slow line takes the time it takes.
 const BYTES_PER_SECOND: u64 = 1024;
+/// The most seconds that moved bytes add to a command's time, so that a server which keeps
+/// sending can't keep the thread for ever.
+const MAX_EXTRA_SECONDS: u64 = 1800;
+/// How long a command may take when `moved` bytes have gone through it: its patience, and a second
+/// more for every [`BYTES_PER_SECOND`] bytes, up to [`MAX_EXTRA_SECONDS`] more.
+fn allowed_time(patience: Duration, moved: u64) -> Duration {
+    patience.saturating_add(Duration::from_secs((moved / BYTES_PER_SECOND).min(MAX_EXTRA_SECONDS)))
+}
+
 /// How long the TLS handshake may take.
 const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(30);
 /// How long saying goodbye may take: nobody waits for the answer.
@@ -129,7 +138,7 @@ impl<'a> Stream<'a> {
             (self.since, self.moved) = (Instant::now(), 0);
         }
         self.answered = !writing;
-        let allowed = self.patience.saturating_add(Duration::from_secs(self.moved / BYTES_PER_SECOND));
+        let allowed = allowed_time(self.patience, self.moved);
         if self.since.elapsed() > allowed {
             return Err(ErrorKind::TimedOut.into());
         }
@@ -520,6 +529,16 @@ mod tests {
         let mut large = vec![0u8; 4 * 1024 + 4];
         stream.read_exact(&mut large).unwrap();
         assert!(large.ends_with(b"done"));
+    }
+
+    #[test]
+    fn traffic_buys_a_command_only_so_much_more_time() {
+        let base = Duration::from_secs(300);
+        assert_eq!(allowed_time(base, 0), base);
+        assert_eq!(allowed_time(base, 10 * 1024), base + Duration::from_secs(10));
+        let most = base + Duration::from_secs(MAX_EXTRA_SECONDS);
+        assert_eq!(allowed_time(base, u64::MAX), most);
+        assert_eq!(allowed_time(base, 64 * 1024 * 1024 * 1024), most);
     }
 
     #[test]

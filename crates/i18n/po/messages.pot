@@ -1126,6 +1126,11 @@ msgid "Change this account's name, servers and sign-in"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Change this account's name, sign-in and mail to keep offline"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/signatures.rs
 msgid "Changed: saved when you choose another signature or leave this page."
 msgstr ""
@@ -2832,6 +2837,11 @@ msgid "Imported {what} into a local folder: Microsoft doesn't let a mail program
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/lib.rs
+msgid "Imported {what}; stopped after {count}: the file has more than one import takes"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/signatures.rs
 msgid "In a plain-text message"
 msgstr ""
@@ -3009,6 +3019,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 msgid "Its mail can be read here. What you change in it is kept in this mailbox, and this version tells no mail server about it."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Its mail is kept in step through Microsoft Graph, without mail servers"
 msgstr ""
 
 #. interface
@@ -8256,6 +8271,11 @@ msgid "a personal Microsoft account (Outlook.com) has no shared mailboxes: they 
 msgstr ""
 
 #. what a command says
+#: crates/engine/src/cmd/rules.rs
+msgid "a rule can't move mail to an Outbox: that would send it"
+msgstr ""
+
+#. what a command says
 #: crates/model/src/mailbox.rs
 msgid "a shared mailbox can't open another one: name the account it is opened through"
 msgstr ""
@@ -8309,6 +8329,13 @@ msgstr ""
 #: crates/ui-egui/src/forms.rs
 msgid "and"
 msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading.rs
+msgid "and {n} more"
+msgid_plural "and {n} more"
+msgstr[0] ""
+msgstr[1] ""
 
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs

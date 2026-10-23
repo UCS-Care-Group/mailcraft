@@ -1357,6 +1357,12 @@ msgid "Change this account's name, servers and sign-in"
 msgstr "Modifica nome, server e accesso di questo account"
 
 #. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Change this account's name, sign-in and mail to keep offline"
+msgstr "Modifica nome, accesso e posta da conservare offline di questo account"
+
+#. interface
 #: crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Changed: saved when you choose another signature or leave this page."
@@ -3407,6 +3413,11 @@ msgid "Imported {what} into a local folder: Microsoft doesn't let a mail program
 msgstr "Importato {what} in una cartella locale: Microsoft non consente a un programma di posta di inserire posta ricevuta nella cassetta postale"
 
 #. interface
+#: crates/ui-egui/src/lib.rs
+msgid "Imported {what}; stopped after {count}: the file has more than one import takes"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "In a plain-text message"
@@ -3619,6 +3630,12 @@ msgstr "Gli elementi di questo calendario sono conservati su questo computer e d
 #, fuzzy
 msgid "Its mail can be read here. What you change in it is kept in this mailbox, and this version tells no mail server about it."
 msgstr "La sua posta può essere letta qui. Le modifiche apportate vengono conservate in questa cassetta postale e questa versione non le comunica ad alcun server di posta."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "Its mail is kept in step through Microsoft Graph, without mail servers"
+msgstr "La sua posta è sincronizzata tramite Microsoft Graph, senza server di posta"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -9915,6 +9932,11 @@ msgid "a personal Microsoft account (Outlook.com) has no shared mailboxes: they 
 msgstr "un account Microsoft personale (Outlook.com) non ha cassette postali condivise: sono una funzione di Microsoft 365"
 
 #. what a command says
+#: crates/engine/src/cmd/rules.rs
+msgid "a rule can't move mail to an Outbox: that would send it"
+msgstr ""
+
+#. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
 msgid "a shared mailbox can't open another one: name the account it is opened through"
@@ -9979,6 +10001,13 @@ msgstr "un evento richiede un titolo"
 #, fuzzy
 msgid "and"
 msgstr "e"
+
+#. interface
+#: crates/ui-egui/src/reading.rs
+msgid "and {n} more"
+msgid_plural "and {n} more"
+msgstr[0] ""
+msgstr[1] ""
 
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs

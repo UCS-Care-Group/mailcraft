@@ -121,7 +121,7 @@ A crate may only depend on lower layers, and nothing below L6 knows about the UI
 
 ## Contributing
 
-Read [CONTRIBUTING.md](CONTRIBUTING.md) and [AGENTS.md](AGENTS.md) first (it is for people as much as for agents): the never-crash rules, the asset policy and the quality gates are short and not negotiable. Work to beta is a list of issues, one per task in the plan: claim one before you build it.
+Read [CONTRIBUTING.md](CONTRIBUTING.md) and [AGENTS.md](AGENTS.md) first (it is for people as much as for agents): the never-crash rules, the asset policy and the quality gates are short and not negotiable. Work to beta is a list of issues, one per task in the plan: claim one before you build it. Found a bug and fixed it? Open the report and the pull request together.
 
 **Want to test it on your own mail?** [Sign up as a tester](https://github.com/UCS-Care-Group/mailcraft/issues/new?template=tester-signup.yml), for the alpha now or the beta later.
 
