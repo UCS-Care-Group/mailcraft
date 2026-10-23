@@ -710,6 +710,7 @@ fn folder(app: &MailApp) -> Tab {
                 Item::big("import", "Import", "ui.import", no()).at(4, 5),
             ],
         ),
+        g("Properties", vec![Item::big("info", "Folder\nProperties", "folder.properties", no()).at(5, 5)]),
     ])
 }
 

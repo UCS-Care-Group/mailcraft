@@ -88,6 +88,12 @@ msgid "(none)"
 msgstr "(ninguna)"
 
 #. interface
+#: crates/ui-egui/src/folder_properties.rs
+#, fuzzy
+msgid "* The sizes leave out messages whose size isn't known here: only their headers are on this computer and their server gave no size, or they were too large to download."
+msgstr "* Los tamaños no incluyen los mensajes cuyo tamaño no se conoce aquí: de ellos solo están los encabezados en este equipo y su servidor no indicó ningún tamaño, o eran demasiado grandes para descargarlos."
+
+#. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "+ action"
@@ -1690,7 +1696,7 @@ msgid "Clipboard"
 msgstr "Portapapeles"
 
 #. interface, ribbon
-#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/sync_panel.rs crates/ui-egui/src/tasks_view.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/sync_panel.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Close"
 msgstr "Cerrar"
@@ -2986,8 +2992,8 @@ msgstr "Marcados"
 msgid "Fold the calendars of this group away"
 msgstr "Contraer los calendarios de este grupo"
 
-#. name, ribbon location
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/rules.rs crates/model/src/mailbox.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
+#. interface, name, ribbon location
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/rules.rs crates/model/src/mailbox.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
 msgid "Folder"
 msgstr "Carpeta"
@@ -3002,11 +3008,27 @@ msgstr ""
 "Panel de\n"
 "carpetas"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid ""
+"Folder\n"
+"Properties"
+msgstr ""
+"Propiedades\n"
+"de carpeta"
+
 #. command label
 #: crates/engine/src/cmd/view.rs
 #, fuzzy
 msgid "Folder Pane"
 msgstr "Panel de carpetas"
+
+#. command label
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "Folder Properties"
+msgstr "Propiedades de carpeta"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -3310,6 +3332,12 @@ msgid "Go to Folder"
 msgstr "Ir a la carpeta"
 
 #. interface
+#: crates/ui-egui/src/folder_properties.rs
+#, fuzzy
+msgid "Go to the folder"
+msgstr "Ir a la carpeta"
+
+#. interface
 #: crates/ui-egui/src/reading/view.rs
 #, fuzzy
 msgid "Goes to {host}"
@@ -3534,6 +3562,12 @@ msgstr "En línea con el texto"
 #, fuzzy
 msgid "In the Outbox: it is on its way"
 msgstr "En la Bandeja de salida: está en camino"
+
+#. interface
+#: crates/ui-egui/src/folder_properties.rs
+#, fuzzy
+msgid "In the folder pane's order"
+msgstr "En el orden del panel de carpetas"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -4271,7 +4305,7 @@ msgid "MailCraft's data has been removed: nothing is sent or received"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/nav.rs
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/nav.rs
 #, fuzzy
 msgid "Mailbox"
 msgstr "Buzón"
@@ -4438,8 +4472,8 @@ msgstr ""
 msgid "Message Preview"
 msgstr "Vista previa del mensaje"
 
-#. ribbon, ribbon location
-#: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
+#. interface, ribbon, ribbon location
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Messages"
 msgstr "Mensajes"
@@ -4460,6 +4494,24 @@ msgstr "Los mensajes se muestran sin ejecutar nada de lo que contienen, y las im
 #: crates/engine/src/cmd/mail.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
 msgid "Messages from Sender"
 msgstr ""
+
+#. interface
+#: crates/ui-egui/src/folder_properties.rs
+#, fuzzy
+msgid "Messages in the folder and the folders under it"
+msgstr "Mensajes de la carpeta y de sus subcarpetas"
+
+#. interface
+#: crates/ui-egui/src/folder_properties.rs
+#, fuzzy
+msgid "Messages in the folder as its server counted them at the last Send/Receive that read it to the end"
+msgstr "Mensajes de la carpeta según los contó su servidor en el último Enviar y recibir que la leyó por completo"
+
+#. interface
+#: crates/ui-egui/src/folder_properties.rs
+#, fuzzy
+msgid "Messages in the folder itself"
+msgstr "Mensajes de la propia carpeta"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -5454,7 +5506,7 @@ msgid "On the"
 msgstr "El"
 
 #. interface
-#: crates/ui-egui/src/mail_view/server_rows.rs
+#: crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/mail_view/server_rows.rs
 #, fuzzy
 msgid "On the server"
 msgstr "En el servidor"
@@ -6062,6 +6114,18 @@ msgstr "Mensaje anterior"
 #, fuzzy
 msgid "Private"
 msgstr "Privado"
+
+#. ribbon, ribbon location
+#: crates/engine/src/cmd/folder.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Properties"
+msgstr "Propiedades"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "Properties…"
+msgstr "Propiedades…"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -7760,7 +7824,7 @@ msgid "Single Line"
 msgstr "Una sola línea"
 
 #. interface, name
-#: crates/engine/src/session.rs crates/ui-egui/src/signatures.rs
+#: crates/engine/src/session.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Size"
 msgstr "Tamaño"
@@ -8624,6 +8688,18 @@ msgid "The sign-in to {address} waiting in your browser was stopped so the share
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/folder_properties.rs
+#, fuzzy
+msgid "The space the folder and the folders under it take on this computer"
+msgstr "El espacio que ocupan en este equipo la carpeta y sus subcarpetas"
+
+#. interface
+#: crates/ui-egui/src/folder_properties.rs
+#, fuzzy
+msgid "The space the folder's own messages take on this computer"
+msgstr "El espacio que ocupan en este equipo los mensajes de la propia carpeta"
+
+#. interface
 #: crates/ui-egui/src/graph_switch.rs
 #, fuzzy
 msgid "The switch of {account} to Microsoft Graph waits until MailCraft can reach the server."
@@ -9397,6 +9473,18 @@ msgid "Top Level"
 msgstr "Nivel superior"
 
 #. interface
+#: crates/ui-egui/src/folder_properties.rs
+#, fuzzy
+msgid "Total messages"
+msgstr "Mensajes en total"
+
+#. interface
+#: crates/ui-egui/src/folder_properties.rs
+#, fuzzy
+msgid "Total size"
+msgstr "Tamaño total"
+
+#. interface
 #: crates/ui-egui/src/account_setup/help.rs
 #, fuzzy
 msgid "Trouble on that page? Sign in for mail only"
@@ -9498,11 +9586,17 @@ msgstr "Deshacer escritura"
 msgid "Undo {what}"
 msgstr "Deshacer {what}"
 
-#. name
-#: crates/engine/src/session.rs
+#. interface, name
+#: crates/engine/src/session.rs crates/ui-egui/src/folder_properties.rs
 #, fuzzy
 msgid "Unread"
 msgstr "No leído"
+
+#. interface
+#: crates/ui-egui/src/folder_properties.rs
+#, fuzzy
+msgid "Unread messages in the folder itself"
+msgstr "Mensajes no leídos de la propia carpeta"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -10619,7 +10713,7 @@ msgid "no account is kept in step through Microsoft Graph"
 msgstr "ninguna cuenta se sincroniza a través de Microsoft Graph"
 
 #. what a command says
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs
 #, fuzzy
 msgid "no account with id {id}"
 msgstr "no hay ninguna cuenta con el id. {id}"
@@ -11534,6 +11628,12 @@ msgstr "{done} de {total}"
 msgid "{folder} - {mailbox}"
 msgstr "{folder} - {mailbox}"
 
+#. interface
+#: crates/ui-egui/src/folder_properties.rs
+#, fuzzy
+msgid "{folder} Properties"
+msgstr "Propiedades de {folder}"
+
 #. what a command says
 #: crates/model/src/sync/progress.rs
 #, fuzzy
@@ -11959,7 +12059,7 @@ msgstr[0] "{n} elemento seleccionado"
 msgstr[1] "{n} elementos seleccionados"
 
 #. interface
-#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/mail_view.rs
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/mail_view.rs
 #, fuzzy
 msgid "{n} message"
 msgid_plural "{n} messages"
@@ -11991,6 +12091,14 @@ msgstr[0] "{n} mensaje coincidió"
 msgstr[1] "{n} mensajes coincidieron"
 
 #. interface
+#: crates/ui-egui/src/folder_properties.rs
+#, fuzzy
+msgid "{n} message of unknown size"
+msgid_plural "{n} messages of unknown size"
+msgstr[0] "{n} mensaje de tamaño desconocido"
+msgstr[1] "{n} mensajes de tamaño desconocido"
+
+#. interface
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "{n} message removed"
@@ -12013,6 +12121,14 @@ msgid "{n} minute"
 msgid_plural "{n} minutes"
 msgstr[0] "{n} minuto"
 msgstr[1] "{n} minutos"
+
+#. interface
+#: crates/ui-egui/src/folder_properties.rs
+#, fuzzy
+msgid "{n} more folder isn't listed."
+msgid_plural "{n} more folders aren't listed."
+msgstr[0] "{n} carpeta más no aparece en la lista."
+msgstr[1] "{n} carpetas más no aparecen en la lista."
 
 #. interface
 #: crates/ui-egui/src/agent_gate.rs
@@ -12158,12 +12274,20 @@ msgstr[0] "{n} tarea"
 msgstr[1] "{n} tareas"
 
 #. interface
-#: crates/ui-egui/src/backstage.rs
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/folder_properties.rs
 #, fuzzy
 msgid "{n} unread"
 msgid_plural "{n} unread"
 msgstr[0] "{n} no leído"
 msgstr[1] "{n} no leídos"
+
+#. interface
+#: crates/ui-egui/src/folder_properties.rs
+#, fuzzy
+msgid "{n} unread on the server"
+msgid_plural "{n} unread on the server"
+msgstr[0] "{n} no leído en el servidor"
+msgstr[1] "{n} no leídos en el servidor"
 
 #. interface
 #: crates/ui-egui/src/lib.rs

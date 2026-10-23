@@ -104,6 +104,8 @@ pub enum Dialog {
     ReportProblem(Box<crate::report_problem::Draft>),
     /// Propose New Time, Forward, or the list of what was proposed ([`crate::meeting_dialogs`]).
     Meeting(crate::meeting_dialogs::MeetingDialog),
+    /// What a folder and its subfolders, or an account, hold ([`crate::folder_properties`]).
+    FolderProperties(Box<crate::folder_properties::FolderProperties>),
 }
 
 /// The tabs of About: the program, the people who made it, and the people who test it
@@ -173,6 +175,7 @@ impl Dialog {
             Dialog::Form(f) => f.name(),
             Dialog::ReportProblem(_) => "reportProblem",
             Dialog::Meeting(d) => d.name(),
+            Dialog::FolderProperties(_) => "folderProperties",
         }
     }
 
@@ -244,9 +247,13 @@ impl Dialog {
     }
 }
 
-/// [`Dialog::open`], and the dialogs of a meeting beside it (`proposeTime`, `forwardMeeting`,
-/// `proposals`), which ask the engine what they are about.
+/// [`Dialog::open`], and the dialogs beside it that ask the engine what they are about: those of
+/// a meeting (`proposeTime`, `forwardMeeting`, `proposals`) and Folder Properties
+/// (`folderProperties`).
 pub(crate) fn open_dialog(app: &mut MailApp, name: &str, params: &Value) -> Option<Dialog> {
+    if name == "folderProperties" {
+        return crate::folder_properties::FolderProperties::open(app, params).map(|d| Dialog::FolderProperties(Box::new(d)));
+    }
     match crate::meeting_dialogs::MeetingDialog::open(name, app, params) {
         Some(dialog) => Some(Dialog::Meeting(dialog)),
         None => Dialog::open(name, app, params),
@@ -748,6 +755,8 @@ pub fn input_dialog(id: &str, params: &Value) -> Option<&'static str> {
         "calendar.openShared" if !has("address") => Some("openCalendar"),
         "rules.list" => Some("rules"),
         "category.list" => Some("categories"),
+        // (What it answers is a table to look at.)
+        "folder.properties" => Some("folderProperties"),
         "ui.reportProblem" if !has("what") => Some("reportProblem"),
         _ => None,
     }
@@ -1370,6 +1379,12 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
         Dialog::Meeting(dialog) => {
             let mut done = false;
             let open = window(ctx, dialog.title(), dialog.width(), |ui| done = dialog.show(app, ui));
+            close |= !open || done;
+        }
+        Dialog::FolderProperties(dialog) => {
+            let mut done = false;
+            let (title, width) = (dialog.title.clone(), dialog.width());
+            let open = window(ctx, &title, width, |ui| done = dialog.show(app, ui));
             close |= !open || done;
         }
     }

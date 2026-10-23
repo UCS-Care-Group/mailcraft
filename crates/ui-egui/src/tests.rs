@@ -252,6 +252,7 @@ fn everything_lays_out_without_panicking() {
         "account",
         "categories",
         "rules",
+        "folderProperties",
     ];
     for theme in ["light", "dark"] {
         for size in [(1280.0, 800.0), (320.0, 200.0)] {

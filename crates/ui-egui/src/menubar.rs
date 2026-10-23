@@ -194,6 +194,7 @@ const FOLDER: &[Row] = &[
     Cmd("folder.empty"),
     Cmd("mail.markAllRead"),
     Cmd("rules.run"),
+    Cmd("folder.properties"),
     Sep,
     Cmd("sync.request"),
 ];

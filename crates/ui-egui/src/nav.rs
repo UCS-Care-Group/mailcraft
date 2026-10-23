@@ -7,6 +7,7 @@ use std::collections::HashMap;
 
 use egui::{Align2, Color32, CornerRadius, Painter, Pos2, Rect, Sense, Shape, Stroke, Ui, pos2, vec2};
 use mailcraft_engine::Module;
+use mailcraft_engine::cmd::folder::sort_as_listed;
 use mailcraft_model::{Folder, FolderKind, Id, Mailbox};
 use serde_json::json;
 
@@ -83,21 +84,6 @@ pub fn module_bar(app: &mut MailApp, ui: &mut Ui) {
             }
         }
     });
-}
-
-/// The rank of the folders that lead an account's list, in the order they lead it.
-fn lead_rank(kind: FolderKind) -> usize {
-    const LEAD: [FolderKind; 4] = [FolderKind::Inbox, FolderKind::Drafts, FolderKind::Sent, FolderKind::Deleted];
-    LEAD.iter().position(|k| *k == kind).unwrap_or(LEAD.len())
-}
-
-/// Put folders that share a parent (`top`: none, they are an account's top level) in the order
-/// the pane lists them: at the top level Inbox, Drafts, Sent Items and Deleted Items lead; every
-/// other folder, Archive, Junk Email and Outbox among them, follows by name without regard to
-/// case. Subfolders are by name alone.
-fn sort_as_listed(list: &mut [&Folder], top: bool) {
-    // The id last: two folders of one name keep their places from frame to frame.
-    list.sort_by_cached_key(|f| (if top { lead_rank(f.kind) } else { 0 }, f.name.to_lowercase(), f.id));
 }
 
 /// How deep the pane follows subfolders, and how many rows it lists for one account: a mailbox
@@ -231,6 +217,16 @@ fn heading(app: &mut MailApp, ui: &mut Ui, id: Id, name: &str, height: f32, text
     if resp.clicked() {
         let _ = app.execute("ui.toggleFolder", json!({"id": id}));
     }
+    // An account's heading (not the Favorites').
+    if id != FAVORITES {
+        resp.context_menu(|ui| {
+            ui.set_min_width(190.0);
+            if ui.add(egui::Button::new(tl!("Properties…")).min_size(vec2(180.0, 0.0))).clicked() {
+                let _ = app.run("folder.properties", json!({"account": id}));
+                ui.close();
+            }
+        });
+    }
     open
 }
 
@@ -319,6 +315,8 @@ fn folder_row(app: &mut MailApp, ui: &mut Ui, f: &Folder, depth: usize, has_chil
         } else {
             item(ui, app, if favorite { "Remove from Favorites" } else { "Add to Favorites" }, "folder.favorite", json!({"id": id}), true);
         }
+        ui.separator();
+        item(ui, app, "Properties…", "folder.properties", json!({"id": id}), true);
     });
 }
 

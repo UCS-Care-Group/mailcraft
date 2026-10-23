@@ -173,6 +173,7 @@ const SAFE: &[&str] = &[
     // Folders.
     "folder.select",
     "folder.list",
+    "folder.properties",
     "folder.new",
     "folder.rename",
     "folder.move",

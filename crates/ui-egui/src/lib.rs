@@ -53,6 +53,7 @@ pub mod dates;
 pub mod dialogs;
 pub mod favorites_sync;
 pub mod files;
+mod folder_properties;
 pub mod forms;
 pub mod graph_fetch;
 mod graph_switch;
