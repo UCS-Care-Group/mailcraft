@@ -4125,8 +4125,9 @@ msgstr "MailCraft recherche une nouvelle version une fois par jour (Fichier › 
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
+#, fuzzy
 msgid "MailCraft will have no account afterwards: File › Add Account sets one up again."
-msgstr ""
+msgstr "MailCraft n'aura plus aucun compte ensuite : Fichier › Ajouter un compte en configure un de nouveau."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -10887,8 +10888,9 @@ msgstr "il existe déjà une signature nommée « {to} »"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
+#, fuzzy
 msgid "there is no account to remove"
-msgstr ""
+msgstr "il n'y a aucun compte à supprimer"
 
 #. what a command says
 #: crates/engine/src/cmd/graph_switch.rs

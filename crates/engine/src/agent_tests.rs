@@ -149,3 +149,36 @@ fn undo_that_would_revert_rules_or_accounts_asks() {
 fn diagnostics_are_not_for_agents() {
     assert_eq!(access("ui.copyDiagnostics"), Some(Access::Never));
 }
+
+/// Removing or changing an account names it, a local mailbox (which has no address) as "Local
+/// mailbox", and removing the only account says that it leaves an empty mailbox (#313).
+#[test]
+fn the_account_question_names_a_local_mailbox_and_the_only_account() {
+    use mailcraft_model::{Account, Mailbox, Message};
+    let mut s = Session::new(Mailbox::with_local_account("", ""));
+    let local = s.mailbox.accounts[0].id;
+    // The placeholder of an empty mailbox isn't removed (the command says so): no empty mailbox is promised.
+    assert_eq!(s.mailbox.placeholder(), Some(local));
+    assert_eq!(describe(&s, "account.remove", &json!({"id": local})), "remove the account Local mailbox");
+    // With mail in it, it is a local mailbox, and the only account.
+    let inbox = folder_of(&s, FolderKind::Inbox);
+    s.mailbox.add_message(Message { account: local, folder: inbox, ..Default::default() }).unwrap();
+    let only = "remove the account Local mailbox (the only account: leaves an empty mailbox)";
+    assert_eq!(describe(&s, "account.remove", &json!({"id": local})), only);
+    assert_eq!(describe(&s, "account.edit", &json!({"id": local, "name": "Home"})), "change the account Local mailbox");
+    assert!(matches!(check(&s, "account.remove", &json!({"id": local}), &[]), Verdict::Ask(Class::Accounts, q) if q.contains(only)));
+    // Its shared mailboxes go with it: still the only account.
+    let shared = s.mailbox.add_account(Account { email: "team@example.org".into(), shared_of: Some(local), ..Default::default() });
+    assert_eq!(describe(&s, "account.remove", &json!({"id": local})), only);
+    // Beside another account, neither is the only one.
+    let other = s.run("account.add", &json!({"email": "ada@example.org"})).unwrap()["id"].as_u64().unwrap();
+    assert_eq!(describe(&s, "account.remove", &json!({"id": local})), "remove the account Local mailbox");
+    assert_eq!(describe(&s, "account.remove", &json!({"id": other})), "remove the account ada@example.org");
+    assert_ne!(shared, other);
+    // An address made only of spaces or control characters is no name either; an account that
+    // isn't there leaves nothing dangling.
+    s.mailbox.account_mut(other).unwrap().email = " \u{7}\t".into();
+    assert_eq!(describe(&s, "account.remove", &json!({"id": other})), "remove the account Local mailbox");
+    assert_eq!(describe(&s, "account.remove", &json!({"id": 999_999})), "remove an account that isn't there");
+    assert_eq!(describe(&s, "account.edit", &json!({"id": 999_999})), "change an account that isn't there");
+}
