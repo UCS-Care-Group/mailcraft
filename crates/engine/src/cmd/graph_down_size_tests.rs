@@ -97,6 +97,10 @@ fn a_draft_fetched_again_has_its_new_size() {
     let longer = [MIME, b"A paragraph added on the web.\r\n".as_slice()].concat();
     assert!(take_fetched(&mut mb, &mut index, account, "AAkA1", &longer));
     assert_eq!(size(&mb, id), longer.len() as u64);
+    // Fetched once more, as it is after the paragraph was taken out again: a size already
+    // known gives way to the one measured.
+    assert!(take_fetched(&mut mb, &mut index, account, "AAkA1", MIME));
+    assert_eq!(size(&mb, id), MIME.len() as u64);
 }
 
 /// A message being moved out of the account has no server state of its own here, and fetching
