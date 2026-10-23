@@ -40,6 +40,7 @@
 - The only account can now be removed in File › Info; before, it couldn't be ([#313](https://github.com/GITHUB_REPOSITORY/issues/313), thanks to @kartas39).
 - Properties… in a folder's or an account's right-click menu shows what it is, where it is and how many messages it holds; its Folder Size… button lists each folder's messages and the space they take ([#314](https://github.com/GITHUB_REPOSITORY/issues/314), thanks to @kartas39).
 - A horizontal line in a message (`<hr>`) is drawn again, in the reading pane and above the original in a reply or forward ([#349](https://github.com/GITHUB_REPOSITORY/issues/349)).
+- The search box suggests as you type: keywords (`cat` gives `category:`), your categories after `category:`, and what `is:` and `has:` take ([#308](https://github.com/GITHUB_REPOSITORY/issues/308), thanks to @kartas39).
 
 **Public beta.** For Microsoft accounts (personal, or work or school) MailCraft is a working mail, calendar and contacts program, kept in step with Outlook on the web; keep Outlook to hand while you try it, and tell us in an issue if anything is lost or out of step. Much of what a daily mail program needs is still to come, and other kinds of account are welcome but not part of the beta. What works is in the [README](https://github.com/GITHUB_REPOSITORY#what-works-today).
 

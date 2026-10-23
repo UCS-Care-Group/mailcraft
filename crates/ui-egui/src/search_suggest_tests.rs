@@ -1,0 +1,216 @@
+// SPDX-FileCopyrightText: MailCraft contributors
+// SPDX-License-Identifier: MIT OR Apache-2.0
+//! #308 in the window: the list under the search box, its keys, a click, and Escape.
+
+use egui_kittest::Harness;
+use egui_kittest::kittest::Queryable;
+use mailcraft_engine::Session;
+use serde_json::json;
+
+use super::Suggesting;
+use crate::{MailApp, Services};
+
+/// Wednesday 2026-10-14 16:00 UTC.
+const NOW: i64 = 1_791_993_600;
+
+/// The sample mailbox with the keyboard in the search box.
+fn window() -> Harness<'static, MailApp> {
+    let mut app = MailApp::new(Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0), Services::default());
+    app.autosave = false;
+    let _ = app.execute("ui.dismissReminder", json!({"all": true}));
+    app.execute("ui.focusSearch", json!({})).unwrap();
+    let mut harness = Harness::builder().with_accessibility_check(false).allow_missing_glyphs().with_size(egui::vec2(1280.0, 900.0)).build_ui_state(
+        |ui, app: &mut MailApp| {
+            let ctx = ui.ctx().clone();
+            app.logic(&ctx);
+            app.ui(ui);
+        },
+        app,
+    );
+    harness.run_steps(4);
+    harness
+}
+
+fn typed(h: &mut Harness<'static, MailApp>, text: &str) {
+    h.event(egui::Event::Text(text.into()));
+    h.run_steps(3);
+}
+
+fn key(h: &mut Harness<'static, MailApp>, key: egui::Key) {
+    for pressed in [true, false] {
+        h.event(egui::Event::Key { key, physical_key: None, pressed, repeat: false, modifiers: egui::Modifiers::NONE });
+        h.step();
+    }
+    h.run_steps(2);
+}
+
+/// What the list offers now.
+fn offered(h: &Harness<'static, MailApp>) -> Vec<String> {
+    Suggesting::load(&h.ctx).items.into_iter().map(|s| s.label).collect()
+}
+
+fn search(h: &Harness<'static, MailApp>) -> String {
+    h.state().session.view.search.clone()
+}
+
+/// The start of a keyword offers it; Tab takes it and the mailbox's categories follow; the arrow
+/// keys and Enter take one, which is searched for at once.
+#[test]
+fn a_keyword_then_a_category_from_the_keyboard() {
+    let mut h = window();
+    typed(&mut h, "cat");
+    assert_eq!(offered(&h), ["category:"]);
+    assert!(h.query_by_label("category:").is_some(), "the list is drawn");
+    key(&mut h, egui::Key::Tab);
+    assert_eq!(search(&h), "category:");
+    let names: Vec<String> = h.state().session.mailbox.categories.iter().map(|c| c.name.clone()).collect();
+    assert_eq!(offered(&h), names.iter().take(8).cloned().collect::<Vec<_>>());
+    typed(&mut h, "gr");
+    assert_eq!(offered(&h), ["Green category"]);
+    key(&mut h, egui::Key::ArrowDown);
+    key(&mut h, egui::Key::Enter);
+    assert_eq!(search(&h), "category:\"Green category\" ");
+    assert!(offered(&h).is_empty(), "nothing for the next word yet");
+    let rows = h.state_mut().session.rows();
+    assert!(!rows.is_empty());
+    // The keyboard is still in the box: typing goes on after it.
+    typed(&mut h, "is:u");
+    assert_eq!(search(&h), "category:\"Green category\" is:u");
+    assert_eq!(offered(&h), ["unread"]);
+}
+
+/// Until an arrow key chooses one, Enter takes nothing and the search is as typed.
+#[test]
+fn enter_takes_only_what_was_chosen() {
+    let mut h = window();
+    typed(&mut h, "to");
+    assert_eq!(offered(&h), ["to:"]);
+    key(&mut h, egui::Key::Enter);
+    assert_eq!(search(&h), "to");
+    assert!(offered(&h).is_empty(), "the box gave up the keyboard, as before, and the list went");
+}
+
+/// Up from nothing chosen goes to the last, and round.
+#[test]
+fn up_goes_round_to_the_last() {
+    let mut h = window();
+    typed(&mut h, "is:");
+    key(&mut h, egui::Key::ArrowUp);
+    key(&mut h, egui::Key::Enter);
+    assert_eq!(search(&h), "is:important ");
+}
+
+/// With Shift held, Tab is not the list's: nothing is taken.
+#[test]
+fn shift_tab_takes_nothing() {
+    let mut h = window();
+    typed(&mut h, "cat");
+    h.key_press_modifiers(egui::Modifiers::SHIFT, egui::Key::Tab);
+    h.run_steps(3);
+    assert_eq!(search(&h), "cat");
+}
+
+/// With no list, Tab leaves the box as it did: what is typed next doesn't go in.
+#[test]
+fn tab_with_no_list_leaves_the_box() {
+    let mut h = window();
+    typed(&mut h, "budget");
+    assert!(offered(&h).is_empty());
+    key(&mut h, egui::Key::Tab);
+    typed(&mut h, "x");
+    assert_eq!(search(&h), "budget");
+}
+
+/// A key that comes in the same frame as typing takes nothing offered for the text before it:
+/// `c` then `a` and Tab at once is `ca`, never `cc:` with the `a` after it.
+#[test]
+fn a_take_is_only_of_what_was_offered_for_the_text_now() {
+    let mut h = window();
+    typed(&mut h, "c");
+    assert_eq!(offered(&h), ["cc:", "category:"]);
+    h.input_mut().events.extend([
+        egui::Event::Text("a".into()),
+        egui::Event::Key { key: egui::Key::Tab, physical_key: None, pressed: true, repeat: false, modifiers: egui::Modifiers::NONE },
+    ]);
+    h.step();
+    h.run_steps(3);
+    assert_eq!(search(&h), "ca");
+    // The list offered for `ca` takes Tab from the very next frame.
+    assert_eq!(offered(&h), ["category:"]);
+    h.input_mut().events.extend([
+        egui::Event::Text("t".into()),
+        egui::Event::Key { key: egui::Key::Tab, physical_key: None, pressed: true, repeat: false, modifiers: egui::Modifiers::NONE },
+    ]);
+    h.step();
+    h.run_steps(3);
+    key(&mut h, egui::Key::Tab);
+    assert_eq!(search(&h), "category:");
+}
+
+/// While a message is being written, Escape in the search box closes the list and nothing
+/// else: the message stays open.
+#[test]
+fn escape_closes_the_list_and_not_the_message_being_written() {
+    let mut h = window();
+    h.state_mut().execute("mail.new", json!({"subject": "Half written"})).unwrap();
+    h.state_mut().search_focus = true;
+    h.run_steps(3);
+    typed(&mut h, "has:");
+    assert_eq!(offered(&h), ["attachment"]);
+    key(&mut h, egui::Key::Escape);
+    assert!(h.state().session.compose.is_some(), "the message is still open");
+    assert_eq!(search(&h), "has:");
+    assert!(h.query_by_label("attachment").is_none());
+}
+
+/// Every row of the list has a name a screen reader says, and the list adds no control without
+/// one (egui 0.37's check, which the window's harness leaves off).
+#[test]
+fn the_list_adds_nothing_without_a_name() {
+    let mut h = window();
+    let before = h.unnamed_widgets();
+    typed(&mut h, "category:");
+    assert!(h.query_by_label("Green category").is_some());
+    let added: Vec<String> = h.unnamed_widgets().into_iter().filter(|w| !before.contains(w)).collect();
+    assert_eq!(added, Vec::<String>::new());
+}
+
+/// A click on a suggestion takes it.
+#[test]
+fn a_click_takes_one() {
+    let mut h = window();
+    typed(&mut h, "is:");
+    h.get_by_label("flagged").click();
+    h.run_steps(3);
+    assert_eq!(search(&h), "is:flagged ");
+    assert!(!h.state_mut().session.rows().is_empty());
+}
+
+/// Escape closes the list and leaves the search; typing opens it again; Escape with the list
+/// closed clears the search, as before.
+#[test]
+fn escape_closes_the_list_then_clears() {
+    let mut h = window();
+    typed(&mut h, "has:");
+    assert!(h.query_by_label("attachment").is_some());
+    key(&mut h, egui::Key::Escape);
+    assert_eq!(search(&h), "has:");
+    assert!(h.query_by_label("attachment").is_none(), "closed");
+    key(&mut h, egui::Key::Backspace);
+    typed(&mut h, ":");
+    assert!(h.query_by_label("attachment").is_some(), "open again once the text changes");
+    key(&mut h, egui::Key::Escape);
+    key(&mut h, egui::Key::Escape);
+    assert_eq!(search(&h), "");
+}
+
+/// People has no keywords: nothing is offered there.
+#[test]
+fn people_search_offers_nothing() {
+    let mut h = window();
+    h.state_mut().execute("view.people", json!({})).unwrap();
+    h.state_mut().search_focus = true;
+    h.run_steps(3);
+    typed(&mut h, "cat");
+    assert!(h.query_by_label("category:").is_none());
+}

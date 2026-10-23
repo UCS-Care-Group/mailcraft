@@ -230,8 +230,8 @@ pub fn global_shortcuts(app: &mut MailApp, ctx: &egui::Context) {
             if in_body && modifiers.command && crate::compose::editor::owns_chord(key) {
                 continue;
             }
-            // Escape in the search box is the box's: it clears the search, and leaves a message
-            // being written open (#365).
+            // Escape in the search box is for the box: it closes the list under it (#308) or clears
+            // the search. A message being written stays open (#365).
             if key == Key::Escape && ctx.memory(|m| m.has_focus(crate::chrome::search_box_id())) {
                 continue;
             }

@@ -22,7 +22,7 @@ use std::ops::Range;
 use mailcraft_time::{Date, DateTime};
 
 use crate::words::{self, ATTACHMENT, BODY, CC, FROM, SUBJECT, TO};
-use crate::{FlagStatus, Importance, Message, contains_ci};
+use crate::{Category, FlagStatus, Importance, Message, Rgb, contains_ci};
 
 /// Longest query read and most terms kept (the rest is ignored).
 const MAX_QUERY: usize = 2_000;
@@ -289,6 +289,147 @@ pub fn keyword_value(value: &str) -> String {
     }
     out.push('"');
     out
+}
+
+/// Most suggestions offered at once, most of a mailbox's categories looked through for them, and
+/// the longest category name offered (a longer one is typed).
+const MAX_SUGGESTIONS: usize = 8;
+const MAX_CATEGORIES_READ: usize = 1_000;
+const MAX_SUGGESTED_NAME: usize = 256;
+
+/// The keywords offered while the start of one is typed: each once, without the other names it
+/// may be written by (`categories:`, `received:`).
+const OFFERED: &[&str] = &["from", "to", "cc", "subject", "body", "category", "attachment", "has", "is", "importance", "before", "after", "on"];
+
+/// What `is:` and `has:` take.
+const IS_VALUES: &[&str] = &["unread", "read", "flagged", "important"];
+const HAS_VALUES: &[&str] = &["attachment"];
+
+/// A suggestion for the word being typed in the search box (#308): what the list shows, and what
+/// goes in place of that word when it is taken.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Suggestion {
+    /// What the list shows: `category:`, `Green category`, `unread`.
+    pub label: String,
+    /// The bytes of the query it takes the place of: the word being typed, with its keyword.
+    pub range: Range<usize>,
+    /// What goes there: `category:`, or `category:"Green category"` and a space to go on with.
+    pub text: String,
+    /// A category's colour, for the mark beside its name.
+    pub color: Option<Rgb>,
+}
+
+/// What to offer for the word being typed in `query` (#308), the one the cursor (a byte offset)
+/// is at the end of: the keywords it is the start of (`cat` → `category:`, `-cat` →
+/// `-category:`); after `category:`, the mailbox's `categories` whose name starts with what was
+/// typed, then those that hold it elsewhere, ignoring case and accents; after `is:` and `has:`,
+/// what they take. Nothing after the other keywords, for a word that starts no keyword, or with
+/// the cursor inside a word. A value goes in quotes when it needs them ([`keyword_value`]); one
+/// that would leave the query as it is isn't offered. At most [`MAX_SUGGESTIONS`].
+pub fn suggestions(query: &str, cursor: usize, categories: &[Category]) -> Vec<Suggestion> {
+    let mut cursor = cursor.min(query.len());
+    while !query.is_char_boundary(cursor) {
+        cursor = cursor.saturating_sub(1);
+    }
+    let all = tokens(query);
+    let at = all.iter().position(|(_, at)| at.end == cursor);
+    // `category: |`: a keyword with nothing after it yet but spaces.
+    let bare_before = |i: usize| -> Option<usize> {
+        let (token, _) = all.get(i)?;
+        let key = token.strip_prefix('-').unwrap_or(token).strip_suffix(':')?;
+        is_keyword(key).then_some(i)
+    };
+    let (key_at, value) = match at.and_then(|i| all.get(i).map(|(token, range)| (i, token, range))) {
+        Some((i, token, range)) => {
+            let body = token.strip_prefix('-').unwrap_or(token);
+            match body.split_once(':') {
+                Some((key, value)) if is_keyword(key) => (i, value.to_string()),
+                Some(_) => return Vec::new(),
+                // `from: stu`: the keyword before it takes it.
+                None => match i.checked_sub(1).and_then(bare_before) {
+                    Some(k) => (k, token.clone()),
+                    None => return keywords_starting(query, token, range.clone()),
+                },
+            }
+        }
+        None => {
+            // Only at the end of the query or of a run of spaces, not at the start of a word.
+            let ahead = query.get(cursor..).is_some_and(|rest| rest.is_empty() || rest.starts_with(char::is_whitespace));
+            let before = all.iter().rposition(|(_, at)| at.end <= cursor);
+            let spaces =
+                before.and_then(|b| all.get(b)).and_then(|(_, at)| query.get(at.end..cursor)).is_some_and(|gap| gap.chars().all(char::is_whitespace));
+            match before.filter(|_| spaces && ahead).and_then(bare_before) {
+                Some(k) => (k, String::new()),
+                None => return Vec::new(),
+            }
+        }
+    };
+    let Some((key_token, key_range)) = all.get(key_at) else { return Vec::new() };
+    let range = key_range.start..cursor;
+    let head = key_token.split_once(':').map_or("", |(head, _)| head);
+    let space = if query.get(cursor..).is_some_and(|rest| rest.starts_with(char::is_whitespace)) { "" } else { " " };
+    let offer = |label: &str, color: Option<Rgb>| Suggestion {
+        label: label.to_string(),
+        range: range.clone(),
+        text: format!("{head}:{}{space}", keyword_value(label)),
+        color,
+    };
+    let key = head.strip_prefix('-').unwrap_or(head).to_ascii_lowercase();
+    let typed = value.to_lowercase();
+    let mut out: Vec<Suggestion> = match key.as_str() {
+        "category" | "categories" => {
+            // Words folded as search compares them, a space between: `green c` starts "Green
+            // category", and `ctat` isn't in "Project Atlas".
+            let fold = |text: &str| words::words(text).join(" ");
+            let wanted = fold(&value);
+            let named: Vec<(&Category, String)> = categories
+                .iter()
+                .take(MAX_CATEGORIES_READ)
+                .filter(|c| !c.name.trim().is_empty() && c.name.chars().nth(MAX_SUGGESTED_NAME).is_none() && !c.name.chars().any(char::is_control))
+                .map(|c| (c, fold(&c.name)))
+                .collect();
+            let mut picked: Vec<&Category> = named.iter().filter(|(_, f)| f.starts_with(&wanted)).map(|(c, _)| *c).collect();
+            picked.extend(named.iter().filter(|(_, f)| !f.starts_with(&wanted) && f.contains(&wanted)).map(|(c, _)| *c));
+            let mut seen: Vec<&str> = Vec::new();
+            picked
+                .into_iter()
+                .filter(|c| {
+                    let new = !seen.contains(&c.name.as_str());
+                    if new {
+                        seen.push(&c.name);
+                    }
+                    new
+                })
+                .take(MAX_SUGGESTIONS.saturating_add(1))
+                .map(|c| offer(&c.name, Some(c.color)))
+                .collect()
+        }
+        "is" => IS_VALUES.iter().filter(|v| v.starts_with(&typed)).map(|v| offer(v, None)).collect(),
+        "has" => HAS_VALUES.iter().filter(|v| v.starts_with(&typed)).map(|v| offer(v, None)).collect(),
+        _ => Vec::new(),
+    };
+    out.retain(|s| query.get(s.range.clone()) != Some(s.text.trim_end()));
+    out.truncate(MAX_SUGGESTIONS);
+    out
+}
+
+/// The keywords that `token` (the word the cursor is at the end of, standing at `range`) is the
+/// start of, each with its colon: `cat` → `category:`. Not a word in quotes, nor `-` alone.
+fn keywords_starting(query: &str, token: &str, range: Range<usize>) -> Vec<Suggestion> {
+    let written = query.get(range.clone()).unwrap_or_default();
+    let (dash, body) = match token.strip_prefix('-') {
+        Some(rest) => ("-", rest),
+        None => ("", token),
+    };
+    if body.is_empty() || written.contains('"') {
+        return Vec::new();
+    }
+    OFFERED
+        .iter()
+        .filter(|k| k.len() >= body.len() && k.get(..body.len()).is_some_and(|start| start.eq_ignore_ascii_case(body)))
+        .map(|k| Suggestion { label: format!("{dash}{k}:"), range: range.clone(), text: format!("{dash}{k}:"), color: None })
+        .take(MAX_SUGGESTIONS)
+        .collect()
 }
 
 /// Whether a server's search takes `word` as it is: letters, digits and `@._-'+`, which keep an
