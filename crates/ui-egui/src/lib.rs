@@ -73,6 +73,9 @@ pub mod ribbon;
 pub mod scheduling;
 mod search_pills;
 #[cfg(test)]
+#[path = "secrets_bound_tests.rs"]
+mod secrets_bound_tests;
+#[cfg(test)]
 #[path = "secrets_replaced_tests.rs"]
 mod secrets_replaced_tests;
 pub mod server_search;
@@ -564,6 +567,9 @@ pub struct UiState {
     pub microsoft_client_id: String,
     /// Keep passwords and sign-ins in the operating system's credential store between runs.
     pub remember_sign_in: bool,
+    /// Passwords and sign-ins kept by the system are filed under the servers they go to; the
+    /// ones kept before that were moved (once, for the mailbox opened at start).
+    pub sign_ins_bound: bool,
     /// Reminders the owner dismissed (`event@occurrence`), so they don't come back at the next start.
     pub dismissed_reminders: Vec<String>,
     /// Download the pictures mail refers to on the web without being asked. Off unless the owner
@@ -621,6 +627,7 @@ impl Default for UiState {
             recent: Vec::new(),
             microsoft_client_id: String::new(),
             remember_sign_in: true,
+            sign_ins_bound: false,
             dismissed_reminders: Vec::new(),
             download_pictures: false,
             picture_senders: Vec::new(),
@@ -1426,10 +1433,12 @@ impl MailApp {
         let composing = self.session.compose.is_some();
         // An account that goes takes what was remembered for it along.
         let leaving = if id == "account.remove" {
-            params.get("id").and_then(Value::as_u64).and_then(|a| self.session.mailbox.account(a)).map(|a| (a.id, a.email.clone()))
+            params.get("id").and_then(Value::as_u64).and_then(|a| self.session.mailbox.account(a)).cloned()
         } else {
             None
         };
+        let edited =
+            if id == "account.edit" { params.get("id").and_then(Value::as_u64).and_then(|a| self.session.mailbox.account(a)).cloned() } else { None };
         if let Some(r) = self.through_saver(id, &params) {
             return r;
         }
@@ -1447,7 +1456,8 @@ impl MailApp {
                 self.favorites_due(account);
             }
         }
-        if let (Ok(_), Some((account, address))) = (&r, leaving) {
+        if let (Ok(_), Some(gone)) = (&r, leaving) {
+            let account = gone.id;
             // Its calendar and contacts were the server's, not the owner's own.
             let _ = mailcraft_engine::cmd::remote::forget(&mut self.session, account);
             self.forget_favorites(account);
@@ -1456,7 +1466,18 @@ impl MailApp {
             self.graph_consent_needed.remove(&account);
             self.passwords.remove(&account);
             self.tokens.remove(&account);
-            self.forget_secrets(&address);
+            self.forget_account_secrets(&gone);
+        }
+        // Servers changed: what was kept for the old ones is not given to the new, and the owner
+        // is asked again.
+        if let (Ok(_), Some(before)) = (&r, edited)
+            && let Some(after) = self.session.mailbox.account(before.id).cloned()
+            && ["password", "refresh"].into_iter().any(|k| Self::secret_key(k, &before) != Self::secret_key(k, &after))
+        {
+            self.forget_account_secrets(&before);
+            self.passwords.remove(&before.id);
+            self.tokens.remove(&before.id);
+            self.graph_tokens.remove(&before.id);
         }
         // Starting to write brings up the Message tab; finishing goes back to Home.
         if r.is_ok() && composing != self.session.compose.is_some() {
@@ -1735,16 +1756,43 @@ impl MailApp {
         })
     }
 
-    fn secret_key(kind: &str, address: &str) -> String {
+    /// The name a secret is kept under in the system's credential store: its kind (`password` or
+    /// `refresh`), the account's address and the servers it goes to, so that an account that
+    /// names other servers (a mailbox from a file, a changed setting) is not given the secret.
+    /// A Microsoft account kept in step through Graph goes to Microsoft alone: its sign-in page
+    /// and Graph are fixed. The one place this name is made.
+    pub(crate) fn secret_key(kind: &str, a: &mailcraft_model::Account) -> String {
+        let address = a.email.trim().to_ascii_lowercase();
+        let server = |s: &Option<mailcraft_model::Server>| match s {
+            Some(s) => format!("{}:{}", s.host.trim().to_ascii_lowercase(), s.port),
+            None => "none".to_string(),
+        };
+        if a.kind == mailcraft_model::AccountKind::Microsoft || a.shared_of.is_some() {
+            format!("{kind}:{address}|graph")
+        } else {
+            format!("{kind}:{address}|imap={}|smtp={}", server(&a.incoming), server(&a.outgoing))
+        }
+    }
+
+    /// The name secrets were kept under before they were bound to servers.
+    pub(crate) fn legacy_secret_key(kind: &str, address: &str) -> String {
         format!("{kind}:{}", address.trim().to_ascii_lowercase())
     }
 
-    /// What the owner had the operating system remember for `address` (`password` or `refresh`).
+    /// The account in this mailbox with this address.
+    fn account_at(&self, address: &str) -> Option<&mailcraft_model::Account> {
+        let address = address.trim();
+        self.session.mailbox.accounts.iter().find(|a| a.email.trim().eq_ignore_ascii_case(address))
+    }
+
+    /// What the owner had the operating system remember for `address` (`password` or `refresh`),
+    /// for the account of that address with the servers it has now.
     fn remembered(&self, kind: &str, address: &str) -> Option<String> {
         if !self.ui.remember_sign_in {
             return None;
         }
-        self.services.secrets.as_ref()?.get(&Self::secret_key(kind, address)).filter(|secret| !secret.is_empty())
+        let key = Self::secret_key(kind, self.account_at(address)?);
+        self.services.secrets.as_ref()?.get(&key).filter(|secret| !secret.is_empty())
     }
 
     /// Have the operating system remember a secret for `address`, when the owner wants that.
@@ -1752,8 +1800,9 @@ impl MailApp {
         if !self.ui.remember_sign_in || secret.is_empty() || self.data_removed {
             return;
         }
+        let Some(account) = self.account_at(address) else { return };
         if let Some(store) = &self.services.secrets
-            && let Err(e) = store.set(&Self::secret_key(kind, address), secret)
+            && let Err(e) = store.set(&Self::secret_key(kind, account), secret)
         {
             log::warn!("couldn't keep the sign-in for next time: {e}");
         }
@@ -1773,11 +1822,44 @@ impl MailApp {
 
     /// Drop everything the operating system remembers for `address`.
     pub(crate) fn forget_secrets(&self, address: &str) {
+        if let Some(account) = self.account_at(address) {
+            self.forget_account_secrets(account);
+        }
+    }
+
+    /// Drop everything the operating system remembers for this account as it is, and under the
+    /// name from before secrets were bound to servers.
+    pub(crate) fn forget_account_secrets(&self, a: &mailcraft_model::Account) {
         if let Some(store) = &self.services.secrets {
             for kind in ["password", "refresh"] {
-                store.delete(&Self::secret_key(kind, address));
+                store.delete(&Self::secret_key(kind, a));
+                store.delete(&Self::legacy_secret_key(kind, &a.email));
             }
         }
+    }
+
+    /// Secrets kept before they were bound to servers move, once, to the name made from the
+    /// servers of the account in this mailbox, and the old name goes. Only for a mailbox the
+    /// owner has not been asked to confirm; the owner's setting says when it has been done.
+    pub(crate) fn migrate_secrets(&mut self) {
+        if self.ui.sign_ins_bound {
+            return;
+        }
+        if let Some(store) = &self.services.secrets {
+            for a in &self.session.mailbox.accounts {
+                for kind in ["password", "refresh"] {
+                    let old = Self::legacy_secret_key(kind, &a.email);
+                    if let Some(secret) = store.get(&old).filter(|s| !s.is_empty()) {
+                        if let Err(e) = store.set(&Self::secret_key(kind, a), &secret) {
+                            log::warn!("couldn't move a remembered sign-in: {e}");
+                            continue;
+                        }
+                        store.delete(&old);
+                    }
+                }
+            }
+        }
+        self.ui.sign_ins_bound = true;
     }
 
     /// The sign-in settings as the host should use them: an account that names no application id
@@ -2791,8 +2873,8 @@ impl MailApp {
                 // Forget the password so the next try asks again, and the access token so the
                 // next try renews it (the refresh token stays for that).
                 self.passwords.remove(&account);
-                if let Some(store) = &self.services.secrets {
-                    store.delete(&Self::secret_key("password", &address));
+                if let (Some(store), Some(a)) = (&self.services.secrets, self.account_at(&address)) {
+                    store.delete(&Self::secret_key("password", a));
                 }
                 if let Some(tokens) = self.tokens.get_mut(&account) {
                     tokens.access.clear();
@@ -2924,6 +3006,10 @@ impl MailApp {
         self.poll_admin_consent();
         self.sweep_admin_consent();
         self.drop_secrets_if_replaced();
+        // The mailbox the window started with: secrets kept the old way are filed under its servers.
+        if self.session.openings() == 0 {
+            self.migrate_secrets();
+        }
         self.poll_graph();
         self.drive_fetch();
         self.offline_tick();

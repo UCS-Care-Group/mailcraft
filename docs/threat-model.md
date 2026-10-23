@@ -1,6 +1,6 @@
 # Threat model
 
-> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-10-23 · **Change:** minor (C1 PR-a: a mailbox in mail is saved, never opened; secrets in memory dropped when a mailbox is replaced; agent questions name servers; the whitelist adds padding, margins, lines, rounded corners and a line height, all clamped, #71; the whitelist adds width, max-width and centring by automatic margins, #150; an assurance case: claim, trust boundaries, design principles, common weaknesses and the evidence; releases carry MailCraft's own signature; agents with a shell or the owner's files are outside the agent gate; the settings folder, logs and kept pictures are the owner's alone) · **Target:** Microsoft Outlook (Microsoft 365)
+> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-10-23 · **Change:** minor (C1 PR-b: a remembered password or sign-in is filed under the address and the servers it goes to; C1 PR-a: a mailbox in mail is saved, never opened; secrets in memory dropped when a mailbox is replaced; agent questions name servers; the whitelist adds padding, margins, lines, rounded corners and a line height, all clamped, #71; the whitelist adds width, max-width and centring by automatic margins, #150; an assurance case: claim, trust boundaries, design principles, common weaknesses and the evidence; releases carry MailCraft's own signature; agents with a shell or the owner's files are outside the agent gate; the settings folder, logs and kept pictures are the owner's alone) · **Target:** Microsoft Outlook (Microsoft 365)
 
 What MailCraft protects, from whom, and how, with the code that does it. Rules for working in the
 code are in [`CLAUDE.md`](../CLAUDE.md) and [`AGENTS.md`](../AGENTS.md); how to report a
@@ -97,6 +97,13 @@ An `.eml`, `.mbox`, `.ics`, `.vcf` or `.mailcraft` file from somewhere else.
   names the servers the account would connect to, read from the file for an open
   (`crates/engine/src/agent.rs`).
 - A file's rules are cut to the most a mailbox keeps (500) when it is repaired.
+- A password or sign-in the system remembers is filed under the account's address and the
+  servers it goes to (IMAP and SMTP host and port; a Microsoft account kept in step through Graph
+  under the address alone, Graph and Microsoft's sign-in page being fixed): an account that names
+  other servers, such as one in a mailbox from a file, finds nothing and asks. Changing an
+  account's server drops what was kept for the old one, and so does removing the account.
+  Secrets kept before this move once, for the mailbox the window starts with, to the servers of
+  its accounts (`MailApp::secret_key`, `MailApp::migrate_secrets`).
 
 ### Other programs and users on the same computer
 
@@ -222,6 +229,7 @@ settings files (`crates/engine/src/store.rs`); commands from the control channel
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-23 | minor | C1 PR-b: remembered passwords and sign-ins are filed under the address and the servers they go to; changing a server asks again; older entries move once |
 | 2026-10-23 | minor | C1 PR-a: a `.mailcraft` attachment is saved, never opened; secrets in memory dropped when a mailbox is replaced; agent questions for account and open commands name servers; rules trimmed on repair |
 | 2026-10-21 | minor | The HTML whitelist adds padding and margins (0 to 64 px), lines (1 to 4 px, solid, dashed or dotted), `border-radius` (up to 24 px) and `line-height` (1 to 2.5 times), all clamped, functions refused (#71) |
 | 2026-10-21 | minor | The HTML whitelist adds `width` (tables, cells), `max-width` and centring by automatic margins, all clamped (#150) |

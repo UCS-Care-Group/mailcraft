@@ -4,6 +4,7 @@
 - **Report a Problem**, in the title bar beside Copy Diagnostics and in Help: say what went wrong, and MailCraft starts the report for you, on GitHub (the problem form filled in, in your browser, with the diagnostics saved to a file to attach; public) or by email (a new message to the maintainers from your own account, with the diagnostics attached; private). You read everything first, and nothing goes until you submit it or press Send.
 
 **Fixes**
+- A password or sign-in the system remembers for an account is now tied to the mail servers it was given for: an account set to other servers asks again instead of being handed it, and changing an account's server asks again. Entries kept by earlier versions move once, so a downgrade asks once more (C1 PR-b).
 - A `.mailcraft` file received as an attachment is only saved, never opened from the message; opening another mailbox forgets the passwords and sign-ins held in memory; an agent that asks to add or change an account, or to open a mailbox file, is asked about with the mail servers named (C1 PR-a).
 - Move to Folder, Copy to Folder and the other folder menus have a search box at the top, so a folder is found by typing part of its name ([#74](https://github.com/GITHUB_REPOSITORY/issues/74), thanks to @strikerz5).
 - Show in Groups (View › Arrange By) turns the date headings off for one continuous list, and Single Line (View › Message Preview) shows each message on one line; thanks to @Schintilla for asking ([#214](https://github.com/GITHUB_REPOSITORY/issues/214)).
