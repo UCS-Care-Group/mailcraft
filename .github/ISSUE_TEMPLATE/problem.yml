@@ -6,6 +6,8 @@ body:
     attributes:
       value: |
         This issue is **public**. Don't paste messages, addresses, names or anything from your mail. Describe what happened in your own words, with invented examples if you need them.
+
+        Have a fix? Open the pull request now, with `Closes #` and this issue's number, rather than offering to fix it. No need to wait for a yes (CONTRIBUTING.md).
   - type: dropdown
     id: kind
     attributes:

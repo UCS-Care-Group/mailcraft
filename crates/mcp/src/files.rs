@@ -10,12 +10,12 @@
 //! - what is written goes into a folder that, with every link followed, lies in DIR, as a new
 //!   file (`create_new`: an existing file, or a link of any kind in its place, is never written
 //!   through or over), never hidden (a leading dot), with the extension the command produces
-//!   (any but programs and scripts for an attachment).
+//!   (any but programs, scripts, web pages and macro-capable Office files, the kinds the attachment opener refuses or asks about, for an attachment).
 
 use std::io::{Read, Write};
 use std::path::{Component, Path, PathBuf};
 
-use mailcraft_engine::agent::RUNNABLE;
+use mailcraft_engine::opening::is_risky;
 
 /// Largest file read for an agent.
 pub const MAX_READ: u64 = 64 << 20;
@@ -109,8 +109,8 @@ impl FilesDir {
         if !ext.is_empty() && e.as_deref() != Some(ext) {
             return Err(format!("{given}: this command writes a .{ext} file; the name must end in .{ext}"));
         }
-        if e.as_deref().is_some_and(|e| RUNNABLE.contains(&e)) {
-            return Err(format!("{given}: programs and scripts are not written for an agent"));
+        if e.as_deref().is_some_and(is_risky) {
+            return Err(format!("{given}: programs, scripts, web pages and Office files that can run macros are not written for an agent"));
         }
         let parent = joined.parent().ok_or_else(|| format!("{given}: no folder"))?;
         let real_parent = parent.canonicalize().map_err(|e| format!("{given}: {e}"))?;

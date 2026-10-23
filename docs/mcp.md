@@ -44,8 +44,9 @@ given. With `--files DIR`, an agent may name files inside DIR: the server reads 
 itself and hands the command `data`. A path is taken relative to DIR (an absolute one must lie in
 it); `..` is refused; a link that leads out of DIR is not followed; files are written as new files
 only (never over an existing file, never through a link), never hidden, with the extension the
-command writes (`.eml`, `.mbox`, `.ics`, `.vcf`; for an attachment, any but programs and
-scripts). The mailbox file itself is never named by an agent: `save_mailbox` saves in place
+command writes (`.eml`, `.mbox`, `.ics`, `.vcf`; for an attachment, any but the kinds the
+attachment opener refuses or asks about first: programs and scripts, web pages (`.html`, `.svg`,
+`.xml`), and Office files that can carry macros, `.docm` and legacy `.doc`, `.xls`, `.ppt`). The mailbox file itself is never named by an agent: `save_mailbox` saves in place
 (class `mailbox`). `screenshot` comes back in the answer; nothing is written.
 
 **`--allow`.** `--allow send`, `delete`, `accounts`, `mailbox`, `settings` or `input`, repeated
