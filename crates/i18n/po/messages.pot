@@ -982,6 +982,11 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs
+msgid "By Categories"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/mail_view.rs
 msgid "By Date"
 msgstr ""
 
@@ -1080,8 +1085,8 @@ msgstr ""
 msgid "Cancelled"
 msgstr ""
 
-#. interface
-#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/tasks_view.rs
+#. interface, name
+#: crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/tasks_view.rs
 msgid "Categories"
 msgstr ""
 

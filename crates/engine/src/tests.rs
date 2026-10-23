@@ -416,6 +416,57 @@ fn folders_and_views() {
     assert_eq!((s.mailbox.message(thread.id).unwrap().subject.as_str(), thread.members.len()), ("RE: Release checklist", 2));
 }
 
+/// Arranged by categories, messages run A to Z by the categories they carry, those with the same
+/// ones together whatever order or capitals they were given in, after those with none.
+#[test]
+fn the_list_arranges_by_categories() {
+    let mut s = session();
+    run(&mut s, "folder.select", json!({"kind": "inbox"}));
+    let ids: Vec<Id> = s.rows().iter().map(|r| r.id).filter(|id| !s.mailbox.message(*id).unwrap().pinned).collect();
+    for (id, names) in ids.iter().zip([vec!["Red category", "Blue category"], vec!["blue category", "red category"], vec!["Green category"]]) {
+        s.mailbox.message_mut(*id).unwrap().categories = names.into_iter().map(String::from).collect();
+    }
+    let r = run(&mut s, "view.sort", json!({"by": "categories"}));
+    assert_eq!((&r["by"], &r["descending"]), (&json!("categories"), &json!(false)));
+    let rows = s.rows();
+    let groups: Vec<&str> = rows.iter().filter_map(|r| r.group.as_deref()).filter(|g| *g != "Pinned").collect();
+    // As Outlook arranges them: a message is listed under each of its categories.
+    assert_eq!(groups, ["No category", "Blue category", "Green category", "Red category"]);
+    let copies = |id: Id| rows.iter().filter(|r| r.id == id).map(|r| r.copy).collect::<Vec<_>>();
+    assert_eq!((copies(ids[0]), copies(ids[1]), copies(ids[2])), (vec![0, 1], vec![0, 1], vec![0]));
+    assert_eq!(crate::list::listed(&rows), rows.len() - 2, "a message listed twice counts once");
+
+    // Down from a message's second row goes on from there, not from its first.
+    let second = crate::list::position_of(&rows, ids[0], 1).unwrap();
+    run(&mut s, "mail.select", json!({"id": ids[0], "copy": 1}));
+    assert_eq!(s.sel.focus_copy(), 1);
+    run(&mut s, "mail.next", json!({}));
+    let after = rows.get(second + 1).unwrap_or(&rows[second]);
+    assert_eq!((s.sel.focus(), s.sel.focus_copy()), (Some(after.id), after.copy));
+    // Select All and a range take each message once.
+    run(&mut s, "mail.selectAll", json!({}));
+    assert_eq!(s.sel.messages.len(), crate::list::listed(&rows));
+    run(&mut s, "mail.select", json!({"id": rows[0].id}));
+    run(&mut s, "mail.select", json!({"id": rows[rows.len() - 1].id, "range": true}));
+    let mut unique = s.sel.messages.clone();
+    unique.sort_unstable();
+    unique.dedup();
+    assert_eq!(unique.len(), s.sel.messages.len());
+
+    // Turned over, Z to A and no category last; still newest first under each.
+    run(&mut s, "view.reverseSort", json!({}));
+    let rows = s.rows();
+    let groups: Vec<&str> = rows.iter().filter_map(|r| r.group.as_deref()).filter(|g| *g != "Pinned").collect();
+    assert_eq!(groups, ["Red category", "Green category", "Blue category", "No category"]);
+
+    // Show in Groups off changes nothing here, as in Outlook: the headings stay, and a message is
+    // still under each of its categories.
+    run(&mut s, "view.groups", json!({"value": false}));
+    assert_eq!(s.rows(), rows);
+    run(&mut s, "view.groups", json!({"value": true}));
+    assert!(s.run("view.sort", &json!({"by": "colour"})).is_err());
+}
+
 #[test]
 fn search_filters_the_list_and_can_look_everywhere() {
     let mut s = session();

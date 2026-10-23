@@ -1184,6 +1184,12 @@ msgstr "Finaliza el"
 #. interface
 #: crates/ui-egui/src/mail_view.rs
 #, fuzzy
+msgid "By Categories"
+msgstr "Por categorías"
+
+#. interface
+#: crates/ui-egui/src/mail_view.rs
+#, fuzzy
 msgid "By Date"
 msgstr "Por fecha"
 
@@ -1301,8 +1307,8 @@ msgstr "¿Cancelar esta reunión?"
 msgid "Cancelled"
 msgstr "Cancelada"
 
-#. interface
-#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/tasks_view.rs
+#. interface, name
+#: crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Categories"
 msgstr "Categorías"
@@ -11971,6 +11977,22 @@ msgstr "{why}, así que no se recuerdan los inicios de sesión: MailCraft vuelve
 #, fuzzy
 msgid "{why}. {n} changes made in it here wait on this computer."
 msgstr "{why}. {n} cambios hechos aquí en él esperan en este equipo."
+
+#, fuzzy
+#~ msgid "Arrange Contacts By"
+#~ msgstr "Organizar contactos por"
+
+#, fuzzy
+#~ msgid "Arrange Tasks By"
+#~ msgstr "Organizar tareas por"
+
+#, fuzzy
+#~ msgid "Due Date"
+#~ msgstr "Fecha de vencimiento"
+
+#, fuzzy
+#~ msgid "No category"
+#~ msgstr "Sin categoría"
 
 #, fuzzy
 #~ msgid "Check once a day for new versions of MailCraft? Only GitHub is asked; nothing about you or your mail is sent."
