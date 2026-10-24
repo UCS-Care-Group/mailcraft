@@ -4141,6 +4141,11 @@ msgid "No categories yet"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/mail_view.rs
+msgid "No category"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/graph_switch.rs
 msgid "No changes are left behind: only mail in the Outbox is waiting."
 msgstr ""

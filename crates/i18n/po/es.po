@@ -4983,6 +4983,12 @@ msgid "No categories yet"
 msgstr "Aún no hay categorías"
 
 #. interface
+#: crates/ui-egui/src/mail_view.rs
+#, fuzzy
+msgid "No category"
+msgstr "Sin categoría"
+
+#. interface
 #: crates/ui-egui/src/graph_switch.rs
 #, fuzzy
 msgid "No changes are left behind: only mail in the Outbox is waiting."
@@ -12015,10 +12021,6 @@ msgstr "{why}. {n} cambios hechos aquí en él esperan en este equipo."
 #, fuzzy
 #~ msgid "Due Date"
 #~ msgstr "Fecha de vencimiento"
-
-#, fuzzy
-#~ msgid "No category"
-#~ msgstr "Sin categoría"
 
 #, fuzzy
 #~ msgid "the last account can't be removed"
