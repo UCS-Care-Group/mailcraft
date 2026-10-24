@@ -916,7 +916,7 @@ pub const NOT_MOVING_YET: &str = "MailCraft doesn't move or delete a JMAP accoun
 /// Why a JMAP account's folders keep their names and places ([`Mailbox::folder_stays_on_server`]):
 /// a rename or a move reaches the server only once the engine sends changes, and until then it
 /// would stay on this computer alone.
-pub const FOLDERS_STAY_YET: &str = "MailCraft doesn't rename or move a JMAP account's folders yet: its server wouldn't hear of it";
+pub const FOLDERS_STAY_YET: &str = "MailCraft doesn't rename or move a JMAP account's folders yet: its server wouldn't be told";
 
 fn not_found(what: &'static str, id: Id) -> ModelError {
     ModelError::NotFound(what, id)

@@ -4324,7 +4324,7 @@ msgstr ""
 
 #. what a command says
 #: crates/model/src/mailbox.rs
-msgid "MailCraft doesn't rename or move a JMAP account's folders yet: its server wouldn't hear of it"
+msgid "MailCraft doesn't rename or move a JMAP account's folders yet: its server wouldn't be told"
 msgstr ""
 
 #. what a command says
