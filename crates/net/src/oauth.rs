@@ -97,6 +97,13 @@ const MAX_LIFETIME: i64 = 7 * 24 * 3_600;
 const MAX_IDENTITY: usize = 254;
 
 const MICROSOFT_LOGIN: &str = "https://login.microsoftonline.com";
+const GOOGLE_AUTHORIZE: &str = "https://accounts.google.com/o/oauth2/v2/auth";
+const GOOGLE_TOKEN: &str = "https://oauth2.googleapis.com/token";
+const GOOGLE_SCOPE: &str = "https://mail.google.com/ openid email";
+const GOOGLE_DESKTOP_SECRET: &str = match option_env!("MAILCRAFT_GOOGLE_CLIENT_SECRET") {
+    Some(secret) => secret,
+    None => "",
+};
 /// IMAP and SMTP, a refresh token to go with the access token, and who it is that signed in.
 const MICROSOFT_SCOPE: &str =
     "https://outlook.office.com/IMAP.AccessAsUser.All https://outlook.office.com/SMTP.Send offline_access openid profile email";
@@ -260,6 +267,13 @@ impl Endpoints {
                     lesser,
                 }
             }
+            OAuthProvider::Google => Endpoints {
+                authorize: GOOGLE_AUTHORIZE.into(),
+                token: GOOGLE_TOKEN.into(),
+                scope: GOOGLE_SCOPE.into(),
+                consent: String::new(),
+                lesser: String::new(),
+            },
         }
     }
 }
@@ -290,6 +304,9 @@ pub fn sign_in(oauth: &OAuth, login_hint: &str, open: &dyn Fn(&str), cancel: &At
 /// ([`Tokens::email`]): the owner picks the account on the page, and it may not be the one the
 /// tokens were wanted for.
 pub fn sign_in_for(oauth: &OAuth, login_hint: &str, open: &dyn Fn(&str), cancel: &AtomicBool, resource: Resource) -> Result<Tokens, NetError> {
+    if oauth.provider == OAuthProvider::Google && resource != Resource::Mail {
+        return Err(NetError::Config("Google sign-in supports mail only, not Microsoft Graph".into()));
+    }
     sign_in_at(&Endpoints::for_resource(oauth, resource), oauth, login_hint, open, cancel)
 }
 
@@ -297,6 +314,9 @@ pub fn sign_in_for(oauth: &OAuth, login_hint: &str, open: &dyn Fn(&str), cancel:
 /// (with [`Endpoints::consent`] empty, nothing but the tokens' own scopes is put to the owner).
 /// The addresses must be `https://` ones, or `http://` ones on this machine.
 pub fn sign_in_at(endpoints: &Endpoints, oauth: &OAuth, login_hint: &str, open: &dyn Fn(&str), cancel: &AtomicBool) -> Result<Tokens, NetError> {
+    if oauth.provider == OAuthProvider::Google {
+        return sign_in_google_at(endpoints, oauth, GOOGLE_DESKTOP_SECRET, login_hint, open, cancel);
+    }
     sign_in_within(endpoints, oauth, login_hint, open, cancel, SIGN_IN_TIMEOUT)
 }
 
@@ -309,6 +329,10 @@ pub fn sign_in_explained(
     open: &dyn Fn(&str),
     cancel: &AtomicBool,
 ) -> Result<Tokens, SignInEnd> {
+    if oauth.provider == OAuthProvider::Google {
+        return google::sign_in_google_refused(endpoints, oauth, GOOGLE_DESKTOP_SECRET, login_hint, open, cancel, SIGN_IN_TIMEOUT)
+            .map_err(SignInEnd::from);
+    }
     sign_in_refused(endpoints, oauth, login_hint, open, cancel, SIGN_IN_TIMEOUT).map_err(SignInEnd::from)
 }
 
@@ -742,6 +766,12 @@ pub fn refresh_at(endpoints: &Endpoints, oauth: &OAuth, refresh_token: &str) -> 
 /// [`refresh_for`] at endpoints other than the provider's usual ones: the tokens are asked for
 /// [`Endpoints::scope`], and a refusal is read as one of a token for `resource`.
 pub fn refresh_for_at(endpoints: &Endpoints, oauth: &OAuth, refresh_token: &str, resource: Resource) -> Result<Tokens, NetError> {
+    if oauth.provider == OAuthProvider::Google {
+        if resource != Resource::Mail {
+            return Err(NetError::Config("Google sign-in supports mail only, not Microsoft Graph".into()));
+        }
+        return refresh_google_at(endpoints, oauth, GOOGLE_DESKTOP_SECRET, refresh_token);
+    }
     let client_id = client_id(oauth)?;
     tenant(oauth)?;
     let token_endpoint = Url::parse(&endpoints.token)?;
@@ -1488,5 +1518,10 @@ impl Redirect {
     }
 }
 
+mod google;
+pub use google::{refresh_google_at, sign_in_google_at};
+
+#[cfg(test)]
+mod google_tests;
 #[cfg(test)]
 mod tests;
