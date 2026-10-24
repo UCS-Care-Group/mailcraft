@@ -34,6 +34,8 @@ serde = { version = "1", features = ["derive", "rc"] }
 serde_json = { version = "1", features = ["float_roundtrip"] }
 log = "0.4"
 proptest = "1"
+# Runtime-generated loopback certificates for tests only.
+rcgen = { version = "0.14.10", default-features = false, features = ["crypto", "ring"] }
 base64 = "0.22"
 # Character sets by the WHATWG Encoding Standard, for mail in any of the sets it names
 # (windows-1250, iso-8859-2, koi8-r, shift_jis, iso-2022-jp…), and vCard files: `mailcraft-charset`.

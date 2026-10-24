@@ -39,3 +39,5 @@ stand-in = []
 
 [dev-dependencies]
 proptest = { workspace = true }
+# Runtime-generated certificates for the loopback STARTTLS fake only.
+rcgen = { workspace = true }
