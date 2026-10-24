@@ -75,6 +75,8 @@ jobs:
       # tests still build every platform's code.
       - run: cargo run --locked --package xtask -- ci
         env:
+          # Timing trial (do not merge): less debug info in the dev/test profile.
+          CARGO_PROFILE_DEV_DEBUG: line-tables-only
           XTASK_CI_SKIP: ${{ runner.os != 'Linux' && 'clippy,wasm,deny' || 'deny' }}
 
   # cargo-deny (deny.toml): RustSec advisories, licences, duplicate crates, sources. Its own job,
