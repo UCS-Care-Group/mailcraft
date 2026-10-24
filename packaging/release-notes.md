@@ -1,13 +1,13 @@
 **MailCraft 0.7.0 in short** (an alpha for testers; sign up in [#11](https://github.com/GITHUB_REPOSITORY/issues/11))
 - New mail from Microsoft accounts arrives sooner: every Inbox first, and checked every minute ([#276](https://github.com/GITHUB_REPOSITORY/issues/276)).
 - Shared mailboxes' calendars, and a colleague's calendar opened by address ([#70](https://github.com/GITHUB_REPOSITORY/issues/70)).
-- A proper menu bar on the Mac.
+- A proper menu bar on the Mac (thanks to @HerbJul and @pick2510).
 - Report a Problem from inside MailCraft.
-- Sender images in the message list, off unless you turn them on.
+- Sender images in the message list, off unless you turn them on ([#363](https://github.com/GITHUB_REPOSITORY/issues/363)).
 - Mail, People and Tasks arranged by Categories ([#327](https://github.com/GITHUB_REPOSITORY/issues/327)).
 - Safer: a mailbox file from elsewhere connects to nothing until you confirm its servers, and a remembered sign-in only goes to the servers it was given for.
 - Sturdier: a hostile invitation, a huge message or an endless server answer no longer freezes MailCraft or runs it out of memory.
-- And 48 fixes in all, listed below.
+- And many more fixes, listed below.
 
 **What's new**
 - **Mail arrives sooner.** For a Microsoft account, Send/Receive does every Inbox first, shared mailboxes included, skips folders that haven't changed and keeps its connection open. Between runs, MailCraft checks each Inbox every minute ([#276](https://github.com/GITHUB_REPOSITORY/issues/276)).
