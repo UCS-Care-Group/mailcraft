@@ -82,7 +82,7 @@ pub const MAC_CONTENT_LEFT: f32 = MAC_LIGHTS_LEFT + 2.0 * MAC_LIGHT_PITCH + MAC_
 /// The search box: typing filters the message list as you go; Escape clears it.
 fn search_box(app: &mut MailApp, ui: &mut Ui, rect: Rect) {
     let t = Tokens::get(ui.ctx());
-    let id = ui.scope_id().with("search_box");
+    let id = search_box_id();
     let focused = ui.memory(|m| m.has_focus(id));
     // A box in the ribbon's colour on the window's, with an edge that shows on both: a bright one
     // on the near-black of the dark window, a quiet one on the light.
@@ -99,6 +99,8 @@ fn search_box(app: &mut MailApp, ui: &mut Ui, rect: Rect) {
     if !focused && app.search_text != app.session.view.search {
         app.search_text = app.session.view.search.clone();
     }
+    // A dialog over the window takes the keys, Escape first.
+    let free = crate::keys::takes_commands(app);
     // The scope menu is about mail folders, so People (which searches contacts) goes without it.
     let mail_search = app.session.view.module != Module::People;
     let scope_w = if mail_search { 104.0 } else { 0.0 };
@@ -127,6 +129,10 @@ fn search_box(app: &mut MailApp, ui: &mut Ui, rect: Rect) {
         .align(egui::Align2::LEFT_CENTER)
         .desired_width(edit_rect.width())
         .layouter(&mut layouter);
+    // Escape is the box's own: it clears the search and never reaches the window, where it would
+    // close a message being written (#365).
+    let keys = egui::EventFilter { escape: true, ..edit.get_event_filter() };
+    let edit = edit.event_filter(keys);
     let output = ui
         .scope_builder(egui::UiBuilder::new().max_rect(edit_rect).layout(egui::Layout::centered_and_justified(egui::Direction::TopDown)), |ui| {
             edit.show(ui)
@@ -145,7 +151,18 @@ fn search_box(app: &mut MailApp, ui: &mut Ui, rect: Rect) {
             _ => app.execute("view.search", json!({"query": text})),
         };
     }
-    if focused && ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+    // Every Escape is the box's while it has the keyboard, a held one's repeats too, so that nothing
+    // drawn after it does something with the same key (a selection in the message being read
+    // stays). Only a press clears the search: the repeats of one that closed a dialog leave it.
+    let pressed = focused
+        && free
+        && ui.input_mut(|i| {
+            let press = i.events.iter().any(|e| {
+                matches!(e, egui::Event::Key { key: egui::Key::Escape, pressed: true, repeat: false, modifiers, .. } if modifiers.matches_logically(egui::Modifiers::NONE))
+            });
+            i.consume_key(egui::Modifiers::NONE, egui::Key::Escape) && press
+        });
+    if pressed {
         app.search_text.clear();
         let _ = app.execute("view.clearSearch", json!({}));
         let _ = app.execute("people.search", json!({"query": ""}));
@@ -172,6 +189,11 @@ fn search_box(app: &mut MailApp, ui: &mut Ui, rect: Rect) {
             }
         }
     });
+}
+
+/// The search box, for the window's keys (`keys.rs`).
+pub(crate) fn search_box_id() -> egui::Id {
+    egui::Id::unique("search_box")
 }
 
 pub fn title_bar(app: &mut MailApp, ui: &mut Ui) {
@@ -520,6 +542,10 @@ pub fn pane_title(ui: &mut Ui, title: &str, detail: &str) {
         );
     }
 }
+
+#[cfg(test)]
+#[path = "search_box_tests.rs"]
+mod search_box_tests;
 
 #[cfg(test)]
 mod tests {
