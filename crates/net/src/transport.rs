@@ -294,6 +294,10 @@ fn dial(host: &str, port: u16, loopback_only: bool, connect: Duration, io: Durat
 /// The TLS settings every connection shares: certificates must chain to one of Mozilla's roots
 /// and match the server's name.
 fn tls_config() -> Result<Arc<ClientConfig>, String> {
+    #[cfg(test)]
+    if let Some(config) = crate::tls_test_support::client_config() {
+        return Ok(config);
+    }
     static CONFIG: OnceLock<Result<Arc<ClientConfig>, String>> = OnceLock::new();
     CONFIG
         .get_or_init(|| {

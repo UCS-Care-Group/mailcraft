@@ -189,3 +189,10 @@ mod native {
         Ok(())
     }
 }
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod password_tests;
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+#[path = "tls_test_support_tests.rs"]
+mod tls_test_support;
