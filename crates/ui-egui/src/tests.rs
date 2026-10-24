@@ -2220,6 +2220,19 @@ fn signature_picture_over_the_cap_is_made_smaller() {
     assert!(a.signature_note.as_ref().is_some_and(|n| !n.error));
 }
 
+/// #363: a signature takes the kinds of picture a message shows, never an icon or the bitmap one
+/// holds, which are decoded for a sender's picture alone.
+#[test]
+fn signature_picture_is_no_icon_or_bitmap() {
+    for format in [image::ImageFormat::Ico, image::ImageFormat::Bmp] {
+        let mut bytes = std::io::Cursor::new(Vec::new());
+        image::RgbaImage::from_pixel(16, 16, image::Rgba([0, 90, 200, 255])).write_to(&mut bytes, format).unwrap();
+        let mut a = signature_app();
+        crate::signatures::add_picture(&mut a, json!({"data": crate::files::base64_lite::encode(&bytes.into_inner()), "file": "logo.png"}));
+        assert!(a.session.signature_edit.as_ref().unwrap().signature.pictures().is_empty(), "{format:?}");
+    }
+}
+
 /// #270: a refusal shows on the Signatures page (the status bar is hidden behind File).
 #[test]
 fn signature_picture_refusal_is_on_the_page() {

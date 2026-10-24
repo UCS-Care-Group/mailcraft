@@ -82,6 +82,7 @@ mod secrets_bound_tests;
 #[cfg(test)]
 #[path = "secrets_replaced_tests.rs"]
 mod secrets_replaced_tests;
+mod sender_images;
 pub mod server_search;
 mod shared_calendars;
 #[cfg(test)]
@@ -197,6 +198,14 @@ pub struct Services {
     /// any download; this is only for saying how much is kept and for forgetting it. Absent
     /// where nothing is kept (the browser, the tests, the sample mailbox).
     pub picture_cache: Option<Box<dyn PictureCache>>,
+    /// Desktop: the picture of a sender, by their address, on a background thread, once the
+    /// owner turned sender images on ([`sender_images`]): what Gravatar has for the address,
+    /// else the icon favicon.im (or else Google) has for its domain, downloaded and kept like
+    /// the pictures in mail. The bytes, or why there are none, arrive through the channel.
+    /// Once the token can't be upgraded (sender images turned off, the pictures cleared) the
+    /// window no longer wants it, and the host asks nothing more for it.
+    /// Absent in the browser and the tests: senders keep their initials.
+    pub sender_images: Option<Box<dyn Fn(String, std::sync::Weak<()>) -> Receiver<Result<Vec<u8>, String>>>>,
     /// Desktop: remove everything MailCraft keeps on this computer, in the folders the host
     /// itself works in ([`data_removal::DataWipe`], File › Info › Remove MailCraft's data from
     /// this computer, #177). Absent in the browser and the tests.
@@ -604,6 +613,10 @@ pub struct UiState {
     /// Domains whose senders' pictures are downloaded without asking (`shop.example`: what
     /// follows the `@` of an address, in lower case, and that domain only).
     pub picture_domains: Vec<String>,
+    /// Show the pictures of the senders the owner knows, or whose mail's pictures are downloaded,
+    /// in the message list, from Gravatar, favicon.im and Google. Off unless the owner turns it on:
+    /// asking tells those services whose pictures are looked at.
+    pub sender_images: bool,
     /// The groups of the calendar list that are folded away under their headings.
     pub collapsed_calendar_groups: Vec<String>,
     /// Whether MailCraft looks for new versions once a day ([`updates`]): off until the owner says.
@@ -657,6 +670,7 @@ impl Default for UiState {
             download_pictures: false,
             picture_senders: Vec::new(),
             picture_domains: Vec::new(),
+            sender_images: false,
             collapsed_calendar_groups: Vec::new(),
             update_check: updates::UpdateCheck::default(),
             update_asked: 0,
@@ -863,6 +877,12 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         r#"{"sender": address} | {"domain": name (what follows the @; everybody at that domain)} | {"message"?: number} (its sender), "value"?: bool (default: true; false forgets the sender or the domain)"#,
     ),
     ("ui.downloadPicturesAutomatically", "Download Pictures in Mail Automatically", "File › Options", r#"{"value"?: bool (default: toggle)}"#),
+    (
+        "ui.senderImages",
+        "Show Sender Images",
+        "File › Options",
+        r#"{"value"?: bool (default: toggle)} — the pictures of the senders you know (your contacts, and whoever mail in Sent Items went to), and of those whose mail's pictures are downloaded (for all mail, the sender, the domain or the message), in the message list, from Gravatar, else their domain's icon from favicon.im or Google; never for mail in Junk E-mail"#,
+    ),
     (
         "ui.retryPictures",
         "Try Downloading Pictures Again",
@@ -1207,6 +1227,8 @@ pub struct MailApp {
     pub(crate) windows: windows::Windows,
     /// Pictures from the web: which messages may show them, and the ones on their way.
     pub(crate) remote_pictures: reading::RemotePictures,
+    /// The pictures of the senders in the message list, as far as they have come.
+    pub(crate) sender_images: sender_images::SenderImages,
     /// The text selected in the messages that are being read, in the pane and in windows.
     pub(crate) text_selection: reading::Selections,
     /// The last calendar command the owner ran to its end ([`MailApp::run`]), numbered, with how
@@ -1335,6 +1357,7 @@ impl MailApp {
             refused: None,
             windows: Default::default(),
             remote_pictures: Default::default(),
+            sender_images: Default::default(),
             text_selection: Default::default(),
             ran: (0, String::new(), Ok(Value::Null)),
             free_busy: Default::default(),
@@ -1859,7 +1882,8 @@ impl MailApp {
                     .or_else(|| graph_switch::ui_command(self, id, p))
                     .or_else(|| updates::ui_command(self, id, p))
                     .or_else(|| attachment_open::ui_command(self, id, p))
-                    .or_else(|| report_problem::ui_command(self, id, p));
+                    .or_else(|| report_problem::ui_command(self, id, p))
+                    .or_else(|| sender_images::ui_command(self, id, p));
             }
         })
     }

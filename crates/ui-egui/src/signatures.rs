@@ -113,10 +113,16 @@ fn source(params: &serde_json::Value) -> Option<(String, Vec<u8>)> {
 
 /// `bytes` as a picture within [`MAX_PICTURE_BYTES`] and [`MAX_WIDTH`] px: PNG, or JPEG when it has
 /// no transparency and PNG is still too big, at half the width again until it fits (a few tries).
-/// And the width and the extension to name it by. `None` when it can't be read (limits on what it may decode to) or won't fit.
+/// And the width and the extension to name it by. `None` when it is no PNG, JPEG, GIF or WebP,
+/// can't be read (limits on what it may decode to) or won't fit.
 fn shrink(bytes: &[u8]) -> Option<(Vec<u8>, u32, &'static str)> {
     use image::{ImageDecoder as _, ImageEncoder as _};
-    let mut decoder = image::ImageReader::new(std::io::Cursor::new(bytes)).with_guessed_format().ok()?.into_decoder().ok()?;
+    let reader = image::ImageReader::new(std::io::Cursor::new(bytes)).with_guessed_format().ok()?;
+    // Only the kinds a message shows, by what the bytes are: never another decoder the build has.
+    if !crate::reading::images::KINDS.contains(&reader.format()?) {
+        return None;
+    }
+    let mut decoder = reader.into_decoder().ok()?;
     let mut limits = image::Limits::default();
     limits.max_image_width = Some(16_384);
     limits.max_image_height = Some(16_384);

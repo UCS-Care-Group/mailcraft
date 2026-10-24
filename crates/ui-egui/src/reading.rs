@@ -325,7 +325,7 @@ fn header(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Place, pictur
         // Who and when.
         ui.horizontal(|ui| {
             let (r, _) = ui.allocate_exact_size(vec2(36.0, 36.0), Sense::hover());
-            crate::widgets::avatar(ui, r.center(), 17.0, &m.from);
+            crate::sender_images::avatar(app, ui, r.center(), 17.0, m, &m.from);
             ui.vertical(|ui| {
                 ui.spacing_mut().item_spacing = vec2(0.0, 1.0);
                 let when = crate::dates::header_label(m.date, app.session.offset_at(m.date), app.session.prefs.twelve_hour);

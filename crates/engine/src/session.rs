@@ -627,6 +627,8 @@ pub struct Session {
     pub(crate) kept_for_now: std::collections::HashSet<Id>,
     /// How many times a mailbox took the place of the one before ([`Session::replace_mailbox`]).
     openings: u64,
+    /// How many times an undo or redo put another version of the mailbox in place.
+    restored: u64,
     /// Messages being moved out of a Microsoft account that were whole in the mailbox file when
     /// it was last saved: only for those is the server's copy removed (R3 spec S19). Never saved.
     pub(crate) saved_whole: std::collections::HashSet<Id>,
@@ -764,6 +766,7 @@ impl Session {
             graph_unfetchable: Default::default(),
             kept_for_now: Default::default(),
             openings: 0,
+            restored: 0,
             saved_whole: Default::default(),
             graph_said: Vec::new(),
             graph_swept: Default::default(),
@@ -920,6 +923,12 @@ impl Session {
     /// something once a mailbox is opened looks for it to change.
     pub fn openings(&self) -> u64 {
         self.openings
+    }
+
+    /// Changes each time an undo or redo puts another version of the mailbox in place: what a
+    /// front end keeps up to date from the mailbox change by change is worked out afresh.
+    pub fn restored(&self) -> u64 {
+        self.restored
     }
 
     /// The message the reading pane shows.
@@ -1623,6 +1632,7 @@ impl Session {
         let cur = Undo { label: u.label, mailbox: now, touched, sel: std::mem::replace(&mut self.sel, u.sel), folder: self.view.folder };
         self.view.folder = u.folder;
         self.rev += 1;
+        self.restored = self.restored.wrapping_add(1);
         self.dirty = true;
         self.normalize();
         cur

@@ -99,14 +99,21 @@ fn percent_decode(text: &str) -> String {
     String::from_utf8(out).unwrap_or_else(|_| text.to_string())
 }
 
-/// The reader of a picture's bytes, when they are a kind that is decoded and within the caps.
-fn reader(data: &[u8]) -> Option<image::ImageReader<std::io::Cursor<&[u8]>>> {
+/// The kinds of picture shown, by what their bytes are: in a message (and in a signature), and
+/// for a sender, whose picture may be a web site's icon as well ([`crate::sender_images`]).
+pub(crate) const KINDS: &[image::ImageFormat] =
+    &[image::ImageFormat::Png, image::ImageFormat::Jpeg, image::ImageFormat::Gif, image::ImageFormat::WebP];
+const ICON_KINDS: &[image::ImageFormat] =
+    &[image::ImageFormat::Png, image::ImageFormat::Jpeg, image::ImageFormat::Gif, image::ImageFormat::WebP, image::ImageFormat::Ico];
+
+/// The reader of a picture's bytes, when they are one of `kinds` and within the caps.
+fn reader<'a>(data: &'a [u8], kinds: &[image::ImageFormat]) -> Option<image::ImageReader<std::io::Cursor<&'a [u8]>>> {
     if data.len() > MAX_PICTURE_BYTES {
         return None;
     }
     let mut reader = image::ImageReader::new(std::io::Cursor::new(data)).with_guessed_format().ok()?;
     // By what the bytes are, never by what their name or their server says they are.
-    if !matches!(reader.format()?, image::ImageFormat::Png | image::ImageFormat::Jpeg | image::ImageFormat::Gif | image::ImageFormat::WebP) {
+    if !kinds.contains(&reader.format()?) {
         return None;
     }
     let mut limits = image::Limits::default();
@@ -120,8 +127,17 @@ fn reader(data: &[u8]) -> Option<image::ImageReader<std::io::Cursor<&[u8]>>> {
 /// A picture's size in pixels, from its header alone. `None` for bytes that are not a picture
 /// that is decoded here, and for one over the caps.
 pub fn probe(data: &[u8]) -> Option<[u32; 2]> {
+    probe_as(data, KINDS)
+}
+
+/// [`probe`], for a sender's picture: a web site's icon (ICO) too.
+pub fn probe_icon(data: &[u8]) -> Option<[u32; 2]> {
+    probe_as(data, ICON_KINDS)
+}
+
+fn probe_as(data: &[u8], kinds: &[image::ImageFormat]) -> Option<[u32; 2]> {
     // A decoder is somebody else's code reading hostile bytes: should it panic, that is a damaged picture.
-    let size = std::panic::catch_unwind(|| reader(data).and_then(|r| r.into_dimensions().ok())).ok().flatten()?;
+    let size = std::panic::catch_unwind(|| reader(data, kinds).and_then(|r| r.into_dimensions().ok())).ok().flatten()?;
     let (w, h) = size;
     let within = w >= 1 && h >= 1 && w <= MAX_PICTURE_SIDE && h <= MAX_PICTURE_SIDE && u64::from(w) * u64::from(h) <= MAX_PICTURE_PIXELS;
     within.then_some([w, h])
@@ -138,8 +154,17 @@ fn kept_size(size: [u32; 2], max_side: u32, max_width: u32) -> [u32; 2] {
 
 /// Decode a picture, scaled down to fit a texture. `None` when it cannot be decoded.
 pub fn decode(data: &[u8], max_side: u32, max_width: u32) -> Option<egui::ColorImage> {
-    let size = probe(data)?;
-    let decoded = std::panic::catch_unwind(|| reader(data).and_then(|r| r.decode().ok())).ok().flatten()?;
+    decode_as(data, max_side, max_width, KINDS)
+}
+
+/// [`decode`], for a sender's picture: a web site's icon (ICO) too.
+pub fn decode_icon(data: &[u8], max_side: u32) -> Option<egui::ColorImage> {
+    decode_as(data, max_side, max_side, ICON_KINDS)
+}
+
+fn decode_as(data: &[u8], max_side: u32, max_width: u32, kinds: &[image::ImageFormat]) -> Option<egui::ColorImage> {
+    let size = probe_as(data, kinds)?;
+    let decoded = std::panic::catch_unwind(|| reader(data, kinds).and_then(|r| r.decode().ok())).ok().flatten()?;
     let rgba = decoded.into_rgba8();
     let [w, h] = kept_size(size, max_side, max_width);
     let rgba = if [w, h] == [rgba.width(), rgba.height()] { rgba } else { image::imageops::thumbnail(&rgba, w, h) };
