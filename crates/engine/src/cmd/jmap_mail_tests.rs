@@ -145,16 +145,18 @@ fn an_account_doesnt_turn_into_a_jmap_account_or_out_of_one() {
     assert_eq!(s.mailbox.account(account).unwrap().jmap, Some(JmapServer { session: SESSION.into(), bearer: false }));
     assert!(s.run("account.edit", &json!({"id": account, "jmap": {"session": "http://jmap.example.org/jmap"}})).is_err());
     assert_eq!(s.mailbox.account(account).unwrap().jmap.as_ref().map(|j| j.session.as_str()), Some(SESSION));
-    // Until its mail is here, it may be pointed anywhere; once it is, at another path of the same
-    // server only, and its address stays.
+    // Until its mail is here, it may be pointed anywhere; once it is, its session address and its
+    // own stay, even for another path on the same server.
     s.run("account.edit", &json!({"id": account, "jmap": {"session": "https://mail.example.net/jmap"}})).unwrap();
     s.run("account.edit", &json!({"id": account, "jmap": {"session": SESSION}})).unwrap();
     run(&mut s, account, vec![], true);
     let why = s.run("account.edit", &json!({"id": account, "jmap": {"session": "https://mail.example.net/jmap"}})).unwrap_err().to_string();
     assert_eq!(why, "a JMAP account's server and address can't be changed once its mail is here: remove it and add the other one");
     assert!(s.run("account.edit", &json!({"id": account, "email": "bo@example.org"})).is_err());
-    s.run("account.edit", &json!({"id": account, "jmap": {"session": "https://jmap.example.org/.well-known/jmap"}, "name": "Ada at work"})).unwrap();
-    assert_eq!(s.mailbox.account(account).map(|a| a.name.as_str()), Some("Ada at work"));
+    assert!(s.run("account.edit", &json!({"id": account, "jmap": {"session": "https://jmap.example.org/.well-known/jmap"}})).is_err());
+    s.run("account.edit", &json!({"id": account, "jmap": {"session": format!(" {SESSION} "), "bearer": true}, "name": "Ada at work"})).unwrap();
+    let a = s.mailbox.account(account).unwrap();
+    assert_eq!((a.name.as_str(), a.jmap.as_ref().map(|j| j.session.as_str())), ("Ada at work", Some(SESSION)));
 }
 
 #[test]

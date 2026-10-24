@@ -369,13 +369,14 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
     if (before.kind == AccountKind::Jmap) != (a.kind == AccountKind::Jmap) {
         return Err(fail("an account becomes a JMAP account, or stops being one, only by being removed and added again"));
     }
-    // And once its mail is here, those ids are one account's on one server: another server, or
-    // another address there, would be another account under the same ids.
-    // (A server address that can't be used, as a mailbox file may bring, may be put right.)
+    // And once its mail is here, those ids are one account's at one session: another session
+    // address, even on the same server, or another address of the owner's, may be another account
+    // under the same ids. (A session address that can't be used, as a mailbox file may bring, may
+    // be put right.)
     let listed = s.mailbox.folders.iter().any(|f| f.account == id && f.server.is_some());
     if listed && a.kind == AccountKind::Jmap {
-        let origin = |x: &Account| x.jmap.as_ref().filter(|server| server.problem().is_none()).map(|server| jmap_origin(&server.session));
-        let moved = origin(&before).is_some_and(|was| Some(was) != origin(&a));
+        let session = |x: &Account| x.jmap.as_ref().filter(|server| server.problem().is_none()).map(|server| server.session.trim().to_string());
+        let moved = session(&before).is_some_and(|was| Some(was) != session(&a));
         if moved || !before.email.trim().eq_ignore_ascii_case(a.email.trim()) {
             return Err(fail("a JMAP account's server and address can't be changed once its mail is here: remove it and add the other one"));
         }
