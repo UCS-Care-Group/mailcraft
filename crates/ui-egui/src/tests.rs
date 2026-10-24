@@ -3,7 +3,7 @@
 //! The window without a window: what `run` does around commands, and frames laid out headlessly in
 //! every module, page and dialog (nothing may panic, whatever is on screen).
 
-use mailcraft_engine::Session;
+use mailcraft_engine::{PeopleSort, Session, TaskSort};
 use serde_json::{Value, json};
 
 use crate::{MailApp, Services, UiState};
@@ -158,13 +158,26 @@ fn saved_settings_come_back_and_bad_ones_are_tamed() {
     a.execute("ui.theme", json!({"value": "dark"})).unwrap();
     a.execute("view.conversations", json!({"value": true})).unwrap();
     a.execute("view.search", json!({"query": "secret"})).unwrap();
+    a.execute("people.arrange", json!({"by": "categories"})).unwrap();
+    a.execute("tasks.arrange", json!({"by": "categories"})).unwrap();
     let saved = serde_json::to_string(&a.prefs()).unwrap();
+    let fields = serde_json::to_value(a.prefs()).unwrap();
+    assert_eq!((&fields["view"]["peopleSort"], &fields["view"]["taskSort"]), (&json!("categories"), &json!("categories")));
     // What was searched for is not written down.
     assert!(!saved.contains("secret"));
     let mut b = app();
     b.apply_prefs(serde_json::from_str(&saved).unwrap());
     assert_eq!(b.ui.theme, crate::theme::Appearance::Dark);
     assert!(b.session.view.conversations);
+    // How People and Tasks were arranged carries over too (#327).
+    assert_eq!((b.session.view.people_sort, b.session.view.task_sort), (PeopleSort::Categories, TaskSort::Categories));
+    // A file from before they were kept starts them on Name and Due Date.
+    let mut older = fields.clone();
+    older["view"].as_object_mut().unwrap().retain(|k, _| k != "peopleSort" && k != "taskSort");
+    let mut c = app();
+    c.apply_prefs(serde_json::from_value(older).unwrap());
+    assert_eq!((c.session.view.people_sort, c.session.view.task_sort), (PeopleSort::Name, TaskSort::DueDate));
+    assert!(c.session.view.conversations);
     // A hand-edited file with nonsense in it still loads.
     let odd: UiState = serde_json::from_value(
         json!({"theme": 7_i32.to_string(), "interfaceSize": "huge", "folderPaneWidth": -5.0, "listWidth": 1e30, "tab": 3, "nonsense": true}),

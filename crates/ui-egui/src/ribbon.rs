@@ -8,7 +8,7 @@
 //! fit first loses its label and then goes behind `…` ([`plan`]).
 
 use egui::{Align2, Rect, Sense, Shape, Stroke, Ui, pos2, vec2};
-use mailcraft_engine::{CalView, Filter, Module, Pane, SortBy, TaskFilter};
+use mailcraft_engine::{CalView, Filter, Module, Pane, PeopleSort, SortBy, TaskFilter, TaskSort};
 use mailcraft_model::{FolderKind, Id, Importance};
 use serde_json::{Value, json};
 
@@ -1089,6 +1089,19 @@ fn menu_contents(ui: &mut Ui, app: &mut MailApp, menu: Menu) {
             ui.separator();
             let one = app.session.prefs.one_line;
             mi_check(ui, app, "Single Line", one, "view.oneLine", json!({"value": !one}));
+        }
+        // Tasks and People have their own arrangements.
+        Menu::ArrangeBy if app.session.view.module == Module::Tasks => {
+            let sort = app.session.view.task_sort;
+            for s in TaskSort::ALL {
+                mi_check(ui, app, s.label(), sort == s, "tasks.arrange", json!({"by": s}));
+            }
+        }
+        Menu::ArrangeBy if app.session.view.module == Module::People => {
+            let sort = app.session.view.people_sort;
+            for s in PeopleSort::ALL {
+                mi_check(ui, app, s.label(), sort == s, "people.arrange", json!({"by": s}));
+            }
         }
         Menu::ArrangeBy => {
             let sort = app.session.view.sort;

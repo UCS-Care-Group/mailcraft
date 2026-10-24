@@ -467,6 +467,50 @@ fn the_list_arranges_by_categories() {
     assert!(s.run("view.sort", &json!({"by": "colour"})).is_err());
 }
 
+/// Names that differ only in case are one category, beyond ASCII too (`Été` and `été`), spelt as
+/// the mailbox's list spells it; a name the list doesn't have is headed as the first message under
+/// it spells it.
+#[test]
+fn categories_that_differ_only_in_case_are_one_heading() {
+    let mut s = session();
+    run(&mut s, "folder.select", json!({"kind": "inbox"}));
+    s.mailbox.categories.push(mailcraft_model::Category { name: "Été".into(), color: Default::default() });
+    let ids: Vec<Id> = s.rows().iter().map(|r| r.id).filter(|id| !s.mailbox.message(*id).unwrap().pinned).collect();
+    for id in &ids {
+        s.mailbox.message_mut(*id).unwrap().categories.clear();
+    }
+    for (id, names) in ids.iter().zip([vec!["été", "ÉTÉ"], vec!["Été"], vec!["Ölfarbe"], vec!["ölfarbe"]]) {
+        s.mailbox.message_mut(*id).unwrap().categories = names.into_iter().map(String::from).collect();
+    }
+    run(&mut s, "view.sort", json!({"by": "categories"}));
+    let rows = s.rows();
+    let groups: Vec<&str> = rows.iter().filter_map(|r| r.group.as_deref()).filter(|g| *g != "Pinned").collect();
+    assert_eq!(groups, ["No category", "Été", "Ölfarbe"]);
+    assert_eq!(rows.iter().filter(|r| r.id == ids[0]).count(), 1, "one message, one heading");
+}
+
+/// Contacts arranged by categories are listed by name, each once (the People list puts each
+/// under each of its categories); arranged by name, favourites come first.
+#[test]
+fn contacts_arrange_by_categories() {
+    let mut s = session();
+    let by_name = crate::cmd::people::sorted(&s, "");
+    let (a, b) = (by_name[0], by_name[1]);
+    s.mailbox.contact_mut(a).unwrap().categories = vec!["Red category".into()];
+    s.mailbox.contact_mut(b).unwrap().categories = vec!["Blue category".into(), "Red category".into()];
+    assert_eq!(run(&mut s, "people.arrange", json!({"by": "categories"}))["by"], "categories");
+    let order = crate::cmd::people::sorted(&s, "");
+    let mut alphabetical = order.clone();
+    alphabetical.sort_by_key(|id| {
+        let c = s.mailbox.contact(*id).unwrap();
+        (c.file_as().to_lowercase(), c.id)
+    });
+    assert_eq!(order, alphabetical, "by name alone, each once");
+    assert!(s.run("people.arrange", &json!({"by": "colour"})).is_err());
+    run(&mut s, "people.arrange", json!({"by": "name"}));
+    assert_eq!(crate::cmd::people::sorted(&s, ""), by_name);
+}
+
 #[test]
 fn search_filters_the_list_and_can_look_everywhere() {
     let mut s = session();

@@ -75,8 +75,21 @@ pub const NO_CATEGORY: &str = "No category";
 
 /// How a category name is compared: Unicode lower case, for sorting, for telling two spellings
 /// apart and for its heading alike.
-fn fold(name: &str) -> String {
+pub fn fold(name: &str) -> String {
     name.to_lowercase()
+}
+
+/// One spelling for each category name however it was written, by its [`fold`]: the mailbox's
+/// list of categories first, then the first spelling met among `items`' categories. One map per
+/// list build, so no name is searched for item by item.
+pub fn category_spellings<'a>(s: &'a Session, items: impl IntoIterator<Item = &'a [String]>) -> HashMap<String, &'a str> {
+    let mut spelling: HashMap<String, &str> = s.mailbox.categories.iter().map(|k| (fold(&k.name), k.name.as_str())).collect();
+    for categories in items {
+        for c in categories.iter().map(|c| c.trim()).filter(|c| !c.is_empty()) {
+            spelling.entry(fold(c)).or_insert(c);
+        }
+    }
+    spelling
 }
 
 /// An item's categories one by one, A to Z, each once whatever capitals it was given in (folded
@@ -212,14 +225,7 @@ pub fn rows_with(s: &Session, decided: &HashMap<Id, bool>, searched: &HashMap<Id
 /// the headings, so they stay. Outlook does the same: unticking it there leaves a list arranged by
 /// categories grouped as it was (observed 2026-10-22).
 fn by_category(s: &Session, shown: &[&Message], desc: bool) -> Vec<Row> {
-    // One spelling for each name however it was written: the mailbox's list of categories first,
-    // then the first spelling met.
-    let mut spelling: HashMap<String, &str> = s.mailbox.categories.iter().map(|k| (fold(&k.name), k.name.as_str())).collect();
-    for m in shown {
-        for c in m.categories.iter().map(|c| c.trim()).filter(|c| !c.is_empty()) {
-            spelling.entry(fold(c)).or_insert(c);
-        }
-    }
+    let spelling = category_spellings(s, shown.iter().map(|m| m.categories.as_slice()));
     // (heading's folded name, message); the sort is stable, so under each heading `shown`'s order stays.
     let mut placed: Vec<(Option<String>, &Message)> = Vec::new();
     for m in shown {

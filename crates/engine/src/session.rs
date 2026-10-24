@@ -101,6 +101,50 @@ impl SortBy {
     }
 }
 
+/// How the contact list is arranged.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum PeopleSort {
+    /// A to Z by the name each is filed as, favourites first, under their first letters.
+    #[default]
+    Name,
+    /// A to Z by the categories each carries, those with none first, then by name.
+    Categories,
+}
+
+impl PeopleSort {
+    pub const ALL: [PeopleSort; 2] = [PeopleSort::Name, PeopleSort::Categories];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            PeopleSort::Name => "Name",
+            PeopleSort::Categories => "Categories",
+        }
+    }
+}
+
+/// How the task list is arranged.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum TaskSort {
+    /// By when each is due, under Overdue, Today, Tomorrow and the like.
+    #[default]
+    DueDate,
+    /// Under each of its categories, those with none first, then by when each is due.
+    Categories,
+}
+
+impl TaskSort {
+    pub const ALL: [TaskSort; 2] = [TaskSort::DueDate, TaskSort::Categories];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            TaskSort::DueDate => "Due Date",
+            TaskSort::Categories => "Categories",
+        }
+    }
+}
+
 /// What the message list is narrowed to.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -245,7 +289,9 @@ pub struct ViewState {
     /// for the first of them.
     pub overlay_front: Id,
     pub people_search: String,
+    pub people_sort: PeopleSort,
     pub task_filter: TaskFilter,
+    pub task_sort: TaskSort,
 }
 
 impl Default for ViewState {
@@ -268,7 +314,9 @@ impl Default for ViewState {
             overlay: Vec::new(),
             overlay_front: 0,
             people_search: String::new(),
+            people_sort: PeopleSort::Name,
             task_filter: TaskFilter::Active,
+            task_sort: TaskSort::DueDate,
         }
     }
 }

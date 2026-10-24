@@ -19,6 +19,7 @@ pub fn specs() -> Vec<CommandSpec> {
             .selection(needs_task),
         CommandSpec::new("tasks.select", "Select Task", "Tasks", select).pure().params(r#"{"id": number | null}"#),
         CommandSpec::new("tasks.get", "Get Task", "Tasks", get).pure().params(ONE),
+        CommandSpec::new("tasks.arrange", "Arrange Tasks By", "View › Arrangement", arrange).pure().params(r#"{"by": "dueDate"|"categories"}"#),
         CommandSpec::new("tasks.list", "List Tasks", "Tasks", list).pure().params(r#"{"filter"?: "active"|"today"|"overdue"|"completed"|"all"}"#),
         CommandSpec::new("tasks.categorize", "Categorize", "Home › Tags", categorize)
             .params(r#"{"category": string, "value"?: bool, "id"?: number}"#)
@@ -164,6 +165,11 @@ pub fn sorted(s: &Session, filter: TaskFilter) -> Vec<Id> {
             .then(a.id.cmp(&b.id))
     });
     v.into_iter().map(|t| t.id).collect()
+}
+
+fn arrange(s: &mut Session, v: &Value) -> CmdResult {
+    s.view.task_sort = crate::session::parse_enum::<crate::TaskSort>(p::req_str(v, "by")?).ok_or_else(|| bad("`by` is dueDate or categories"))?;
+    Ok(json!({"by": s.view.task_sort}))
 }
 
 fn list(s: &mut Session, v: &Value) -> CmdResult {
