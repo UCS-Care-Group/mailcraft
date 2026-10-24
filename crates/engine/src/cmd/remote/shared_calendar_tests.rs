@@ -190,21 +190,6 @@ fn with_edit_rights_a_shared_mailboxs_calendar_is_written_to_as_the_owners_own_i
 }
 
 #[test]
-fn an_event_can_not_cross_between_the_owners_calendar_and_a_shared_mailboxs() {
-    let (mut s, owner, shared) = editable();
-    apply_events(&mut s, &download(owner, OWNER, "", vec![event("mine", "Mine", NOW + 600)])).unwrap();
-    let mine = s.mailbox.events.values().find(|e| e.title == "Mine").map(|e| e.id).unwrap();
-    let shared_main = s.mailbox.calendars.iter().find(|c| c.origin.account == shared && c.origin.id.is_empty()).map(|c| c.id).unwrap();
-    let own_main = s.mailbox.calendars.iter().find(|c| c.origin.account == owner && c.origin.id.is_empty()).map(|c| c.id).unwrap();
-    let said = s.run("calendar.edit", &json!({"id": mine, "calendar": shared_main})).unwrap_err().to_string();
-    assert!(said.contains("kept by the server") && said.contains("not out of it"), "{said}");
-    let theirs = s.mailbox.events.values().find(|e| e.title == "Stand-up").map(|e| e.id).unwrap();
-    let said = s.run("calendar.edit", &json!({"id": theirs, "calendar": own_main})).unwrap_err().to_string();
-    assert!(said.contains("kept by the server"), "{said}");
-    assert!(s.mailbox.event_changes.is_empty());
-}
-
-#[test]
 fn when_the_rights_shrink_what_waits_is_held_and_told_not_dropped_and_goes_if_they_come_back() {
     let (mut s, _, shared) = editable();
     let stand_up = s.mailbox.events.values().find(|e| e.title == "Stand-up").map(|e| e.id).unwrap();

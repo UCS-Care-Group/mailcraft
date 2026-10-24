@@ -225,6 +225,11 @@ msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/meeting.rs
+msgid "A meeting can't be moved to another mailbox's calendar: that would send everyone invited a cancellation, and their replies would no longer reach it. Forward the meeting, or create it again in that calendar."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/calendar/meeting.rs
 msgid "A meeting is forwarded to {n} people at most at once."
 msgstr ""
 
@@ -4305,6 +4310,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/forms.rs
 msgid "No categories yet"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/mail_view.rs
+msgid "No category"
 msgstr ""
 
 #. interface

@@ -1,6 +1,6 @@
 # Calendar: matching Outlook
 
-Status: working list, 2026-10-24 (twelfth revision: calendars opened by address, on the shared mailboxes' code; eleventh revision: a shared mailbox's calendars are written to, and its meeting requests answered; tenth revision: a shared mailbox's calendars are read; ninth revision: calendars know whose they are and what the account may do with them; eighth revision: the views on View › Arrangement too; seventh: the fourth wave is in; sixth: time zones; fifth: a change that doesn't reach the server can't go unnoticed). The owner's bar for the
+Status: working list, 2026-10-24 (thirteenth revision: an appointment moves between your calendar and a shared mailbox's or one opened by address; twelfth revision: calendars opened by address, on the shared mailboxes' code; eleventh revision: a shared mailbox's calendars are written to, and its meeting requests answered; tenth revision: a shared mailbox's calendars are read; ninth revision: calendars know whose they are and what the account may do with them; eighth revision: the views on View › Arrangement too; seventh: the fourth wave is in; sixth: time zones; fifth: a change that doesn't reach the server can't go unnoticed). The owner's bar for the
 calendar is "behaves exactly like Outlook"; this is the list that bar is checked against.
 Behaviour is written down from using Outlook for Windows (classic) as a black box; nothing of it
 is copied but how it behaves.
@@ -178,6 +178,16 @@ server; what has met the real Microsoft 365 service is only what the owner has u
   on the server, and the move is taken back and said if either half is refused. A meeting, a
   guest's item, a series, one day of a series and an item with attachments are not moved; each
   says why.
+- The same holds between your own calendar and a shared mailbox's, or one you opened by address
+  (#70), and between two of those, where you may edit both: the copy is made at the target's
+  own address, and the original is deleted at its own only after the copy has been seen. A
+  meeting is not moved to another mailbox's calendar (it would send everyone invited a
+  cancellation and break their replies): forward it or create it again there. A series and an
+  item with files are refused as within one account. If the copy is refused, the item stays
+  where it was; if the original then can't be deleted, the item is in both calendars and a line
+  says so (the copy is not taken out of somebody else's mailbox behind their back). One Undo
+  puts a move back while nothing has been sent; once the copy is made, the move is not an Undo
+  step any more (as for every change the server has been told), and moving the item back does it.
 - A Teams meeting the server has made can't be turned back into a plain one (the service doesn't
   allow it); an account that can't make Teams meetings says so, and the meeting is made without.
 - Whether proposals of another time are allowed is told the server when a meeting is made; the
@@ -218,6 +228,7 @@ item's original zone when another program made the item.
 
 | Date | Change |
 |---|---|
+| 2026-10-24 | #70 calendars 5: an appointment moves between your calendar and a shared mailbox's or one opened by address, copy first and the original deleted once the copy is seen; a meeting stays |
 | 2026-10-24 | #70 calendars 4: Open Shared Calendar by address, `calendar.openShared` and `calendar.removeShared` |
 | 2026-10-12 | First version, when the owner made the calendar the top priority |
 | 2026-10-12 | After a change of time made here didn't show in the owner's Outlook: sent changes are checked against what comes down, nothing is dropped silently, items that are only on this computer say so and can be moved, events of other calendars go through their calendar, and the owner can check the connection on the real account |

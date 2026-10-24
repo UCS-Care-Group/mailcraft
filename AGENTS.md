@@ -45,7 +45,7 @@ People trust MailCraft with years of correspondence; a crash loses their work an
 | L0 | `time`, `control-key`, `charset`, `i18n` | calendar maths, date text, the clock; control-port key files; bytes in any WHATWG character set to text; interface text in other languages (`.po` catalogues, plural rules) |
 | L1 | `model`, `html` | the mailbox and its edit primitives, recurrence, search, sync data; hostile HTML to display blocks |
 | L2 | `mime`, `ical`, `vcard` | Internet messages and mbox; iCalendar; vCard |
-| L3 | `proto`, `net` | IMAP and SMTP over any `Read + Write`; TLS sockets, sending, synchronising |
+| L3 | `proto`, `net`, `jmap` | IMAP and SMTP over any `Read + Write`; TLS sockets, sending, synchronising; JMAP requests and answers, no I/O of its own |
 | L4 | `engine` | Session, undo, **command registry**, Outlook feature catalog, sample, I/O dispatch |
 | L5 | `mcp` | MCP server (headless or bridged to the app) |
 | L6 | `ui-egui` | Outlook-style egui front end (swappable) |

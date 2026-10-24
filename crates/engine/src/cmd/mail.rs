@@ -92,7 +92,7 @@ fn select(s: &mut Session, v: &Value) -> CmdResult {
         // From the anchor (the first selected message) to this one, in list order.
         let rows = s.rows();
         let anchor = s.sel.messages.first().copied().unwrap_or(last);
-        if let (Some(a), Some(b)) = (position(&rows, anchor), position_of(&rows, last, copy)) {
+        if let (Some(a), Some(b)) = (position_of(&rows, anchor, s.sel.anchor_copy(anchor)), position_of(&rows, last, copy)) {
             let (lo, hi) = (a.min(b), a.max(b));
             let mut seen = std::collections::HashSet::new();
             let mut picked: Vec<Id> =
@@ -117,6 +117,10 @@ fn select(s: &mut Session, v: &Value) -> CmdResult {
         s.sel.messages = ids;
     }
     s.sel.focus_row = s.sel.focus().map(|id| (id, copy));
+    // A range keeps its anchor; any other click is the next one's.
+    if p::bool(v, "range") != Some(true) || s.sel.anchor_row.is_none_or(|(id, _)| !s.sel.messages.contains(&id)) {
+        s.sel.anchor_row = s.sel.messages.first().map(|id| (*id, if Some(*id) == s.sel.focus() { copy } else { 0 }));
+    }
     // Follow the message to its folder (a search result, a conversation member elsewhere).
     if let Some(m) = s.sel.focus().and_then(|id| s.mailbox.message(id))
         && s.view.search.is_empty()
@@ -415,7 +419,7 @@ fn find_related(s: &mut Session, _: &Value) -> CmdResult {
     // closing quote from being read as part of it (#301).
     s.view.search = format!("subject:{}", mailcraft_model::search::keyword_value(&topic));
     s.view.scope = crate::Scope::Everywhere;
-    Ok(json!({"search": s.view.search, "found": s.rows().len()}))
+    Ok(json!({"search": s.view.search, "found": listed(&s.rows())}))
 }
 
 /// Mail from the sender of a message (the one in focus, or `id`), in every mailbox: a search for

@@ -58,7 +58,7 @@ pub mod zones;
 use mailcraft_model::{Id, Message};
 use serde_json::{Value, json};
 
-use crate::list::{Row, position};
+use crate::list::{Row, position, position_of};
 use crate::{CmdError, CmdResult, Registry, Session, p};
 
 /// The full registry.
@@ -141,7 +141,17 @@ pub(crate) fn select_after_removal(s: &mut Session, before: &[Row], removed: &[I
     if !s.sel.messages.iter().any(|id| removed.contains(id)) {
         return;
     }
-    let first = removed.iter().filter_map(|id| position(before, *id)).min();
+    // The row the owner was on counts for the message it shows, which may be listed more than once.
+    let focus = s.sel.focus().map(|id| (id, s.sel.focus_copy()));
+    let first = removed
+        .iter()
+        .filter_map(|id| match focus {
+            Some((f, copy)) if f == *id => position_of(before, *id, copy),
+            _ => position(before, *id),
+        })
+        .min()
+        // Rows of removed messages above it are gone too, which moves it up.
+        .map(|i| i.saturating_sub(before.iter().take(i).filter(|r| removed.contains(&r.id)).count()));
     s.sel.messages.retain(|id| !removed.contains(id));
     if !s.sel.messages.is_empty() {
         return;
