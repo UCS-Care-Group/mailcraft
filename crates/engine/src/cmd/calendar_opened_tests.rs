@@ -255,10 +255,120 @@ fn an_older_mailbox_and_a_saved_one_keep_the_list() {
 
 #[test]
 fn an_agent_is_asked_first() {
-    for id in ["calendar.openShared", "calendar.removeShared"] {
+    for id in ["calendar.openShared", "calendar.removeShared", "calendar.hideListedCopy"] {
         assert_eq!(access(id), Some(Access::Owner(Class::Accounts)), "{id}");
     }
     let (s, _) = served();
     let said = crate::agent::describe(&s, "calendar.openShared", &json!({"address": "cy@example.org"}));
     assert!(said.contains("cy@example.org"), "{said}");
+    let said = crate::agent::describe(&s, "calendar.hideListedCopy", &json!({"address": "ops@example.org"}));
+    assert!(said.starts_with("hide") && said.contains("ops@example.org"), "{said}");
+    let said = crate::agent::describe(&s, "calendar.hideListedCopy", &json!({"address": "ops@example.org", "hide": false}));
+    assert!(said.starts_with("show again"), "{said}");
+}
+
+const OPS: &str = "operations@example.org";
+
+/// The copy of the shared mailbox's calendar the server lists among the account's own (an
+/// invitation accepted in Outlook), named as the server names it.
+fn ops_copy() -> RemoteCalendar {
+    RemoteCalendar {
+        id: "AAMk-ops".into(),
+        name: "Example Operations".into(),
+        group: "Other Calendars".into(),
+        rights: Rights::Edit,
+        owner: Some(CalendarOwner { address: "Operations@Example.org".into(), name: "Example Operations".into() }),
+        ..Default::default()
+    }
+}
+
+fn copy_event(s: &mut Session, account: Id) {
+    let event = RemoteEvent { id: "e-ops".into(), title: "Ops stand-up".into(), start: NOW + 3_600, end: NOW + 7_200, ..Default::default() };
+    let download = EventsDownload {
+        account,
+        email: OWNER.into(),
+        calendar: "AAMk-ops".into(),
+        from: NOW,
+        to: NOW + 86_400,
+        complete: true,
+        events: vec![event],
+        ..Default::default()
+    };
+    remote::apply_events(s, &download).unwrap();
+}
+
+fn has_copy(s: &Session) -> bool {
+    s.mailbox.calendars.iter().any(|c| c.origin.id == "AAMk-ops")
+}
+
+#[test]
+fn a_shared_mailboxs_calendar_listed_twice_is_offered_until_answered_and_hidden_stays_hidden() {
+    let (mut s, account) = served();
+    // Without the shared mailbox open here, it is somebody's calendar like any other.
+    assert!(list(&mut s, account, vec![ops_copy()], vec![])["listedTwice"].as_array().unwrap().is_empty());
+    assert!(s.run("calendar.hideListedCopy", &json!({"address": OPS})).is_err(), "no shared mailbox is open");
+    let shared = s.run("account.addSharedMailbox", &json!({"address": OPS})).unwrap()["id"].as_u64().unwrap();
+    let said = list(&mut s, account, vec![ops_copy()], vec![]);
+    let twice = said["listedTwice"].as_array().unwrap();
+    assert_eq!(twice.len(), 1);
+    assert_eq!(
+        (twice[0]["address"].as_str(), twice[0]["name"].as_str(), twice[0]["mailbox"].as_u64()),
+        (Some(OPS), Some("Example Operations"), Some(shared))
+    );
+    // Not answered yet: said again with the next list.
+    assert_eq!(list(&mut s, account, vec![ops_copy()], vec![])["listedTwice"].as_array().unwrap().len(), 1);
+    copy_event(&mut s, account);
+    assert!(s.mailbox.events.values().any(|e| e.title == "Ops stand-up"));
+
+    // Hidden: the copy and its events go, the shared mailbox's own calendar stays, and an
+    // address of another case is the same mailbox.
+    let hid = s.run("calendar.hideListedCopy", &json!({"address": "OPERATIONS@example.org"})).unwrap();
+    assert_eq!((hid["hidden"].as_bool(), hid["calendars"].as_u64(), hid["events"].as_u64()), (Some(true), Some(1), Some(1)));
+    assert!(!has_copy(&s) && !s.mailbox.events.values().any(|e| e.title == "Ops stand-up"));
+    assert!(s.mailbox.calendars.iter().any(|c| c.origin.account == shared), "the shared mailbox's own calendar stays");
+    // The next list brings it no more, and doesn't ask again.
+    let said = list(&mut s, account, vec![ops_copy()], vec![]);
+    assert!(said["listedTwice"].as_array().unwrap().is_empty() && !has_copy(&s));
+    // A save and a reload keep it hidden.
+    let back = mailcraft_model::from_json(&serde_json::to_vec(&s.mailbox).unwrap(), 1_000_000).unwrap();
+    assert_eq!(back.account(account).unwrap().listed_twice_answer(OPS), Some(true));
+
+    // Undone, as another calendar setting is: the copy and its events are back.
+    s.run("edit.undo", &json!({})).unwrap();
+    assert!(has_copy(&s) && s.mailbox.events.values().any(|e| e.title == "Ops stand-up"));
+    assert_eq!(s.mailbox.account(account).unwrap().listed_twice_answer(OPS), None);
+    s.run("edit.redo", &json!({})).unwrap();
+    assert!(!has_copy(&s));
+
+    // Shown again: the next list brings it back, and asks nothing.
+    let shown = s.run("calendar.hideListedCopy", &json!({"address": OPS, "hide": false})).unwrap();
+    assert_eq!(shown["hidden"].as_bool(), Some(false));
+    let said = list(&mut s, account, vec![ops_copy()], vec![]);
+    assert!(has_copy(&s) && said["listedTwice"].as_array().unwrap().is_empty());
+}
+
+#[test]
+fn keeping_both_is_remembered_and_closing_the_shared_mailbox_forgets_it() {
+    let (mut s, account) = served();
+    let shared = s.run("account.addSharedMailbox", &json!({"address": OPS})).unwrap()["id"].as_u64().unwrap();
+    list(&mut s, account, vec![ops_copy()], vec![]);
+    s.run("calendar.hideListedCopy", &json!({"address": OPS, "hide": false})).unwrap();
+    let said = list(&mut s, account, vec![ops_copy()], vec![]);
+    assert!(has_copy(&s) && said["listedTwice"].as_array().unwrap().is_empty(), "offered once");
+    // Junk is refused before anything changes.
+    for junk in
+        [json!({}), json!({"address": 5}), json!({"address": OPS, "hide": "yes"}), json!({"address": "nobody"}), json!({"address": "cy@example.org"})]
+    {
+        assert!(s.run("calendar.hideListedCopy", &junk).is_err(), "{junk}");
+    }
+    // The owner's own account's address isn't a shared mailbox.
+    assert!(s.run("calendar.hideListedCopy", &json!({"address": OWNER})).is_err());
+    s.run("calendar.hideListedCopy", &json!({"address": OPS})).unwrap();
+    // Closed: nothing is hidden for it any more, and opened again it is offered again.
+    s.run("account.removeSharedMailbox", &json!({"id": shared})).unwrap();
+    assert!(s.mailbox.account(account).unwrap().listed_twice.is_empty());
+    list(&mut s, account, vec![ops_copy()], vec![]);
+    assert!(has_copy(&s));
+    s.run("account.addSharedMailbox", &json!({"address": OPS})).unwrap();
+    assert_eq!(list(&mut s, account, vec![ops_copy()], vec![])["listedTwice"].as_array().unwrap().len(), 1);
 }

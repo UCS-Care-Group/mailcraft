@@ -110,6 +110,21 @@ pub struct OpenedCalendar {
 /// Most calendars one account may have opened by address.
 pub const MAX_OPENED_CALENDARS: usize = 20;
 
+/// A shared mailbox open under an account whose calendar the account's server lists among the
+/// account's own calendars too (#70: a sharing invitation accepted in Outlook puts it there, under
+/// Shared Calendars), and what the owner said when MailCraft offered, once, to hide that copy:
+/// the shared mailbox's own calendar, read at its own address, is the fuller one. Kept on this
+/// computer only; nothing on the server changes.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ListedTwice {
+    /// The shared mailbox's address: the owner the server names for the copy.
+    pub address: String,
+    /// The copy under Shared Calendars is hidden: it isn't read from the server, nor shown.
+    /// `false`: the owner kept both (or showed it again).
+    pub hidden: bool,
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, from = "CalendarFile")]
 pub struct Calendar {

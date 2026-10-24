@@ -1331,6 +1331,11 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/shared_calendars.rs
+msgid "Calendars: allowed, reading them…"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/shared_calendars.rs
 msgid "Calendars: asking for your permission…"
 msgstr ""
 
@@ -3417,10 +3422,25 @@ msgstr "Trattenuto:"
 msgid "Help"
 msgstr "Guida"
 
+#. command label
+#: crates/engine/src/cmd/calendar_opened.rs
+msgid "Hide Calendar Listed Twice"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/menubar.rs
 msgid "Hide MailCraft"
 msgstr "Nascondi MailCraft"
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+msgid "Hide This Copy"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/open_shared.rs
+msgid "Hide the Copy"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/nav.rs
@@ -3901,6 +3921,11 @@ msgstr "Posta indesiderata"
 #, fuzzy
 msgid "Just This One"
 msgstr "Solo questo"
+
+#. interface
+#: crates/ui-egui/src/open_shared.rs
+msgid "Keep Both"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/graph_switch.rs
@@ -7619,6 +7644,11 @@ msgid "Show in the time bar"
 msgstr "Mostra nella barra dell'orario"
 
 #. interface
+#: crates/ui-egui/src/calendar_view.rs
+msgid "Show the Copy under Shared Calendars"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/favorites_sync.rs
 #, fuzzy
 msgid "Show the Favorites from Outlook in the folder pane"
@@ -8355,6 +8385,11 @@ msgstr "L'account non c'è più"
 msgid "The account that signed in on Microsoft's page is not an administrator of your organisation, so it could not approve MailCraft. Copy the message for an administrator instead."
 msgstr "L'account che ha effettuato l'accesso nella pagina di Microsoft non è un amministratore dell'organizzazione, quindi non ha potuto approvare MailCraft. Copiare invece il messaggio per un amministratore."
 
+#. what a command says
+#: crates/engine/src/cmd/calendar_opened.rs
+msgid "The account {address} is opened through is gone."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
 #, fuzzy
@@ -8471,6 +8506,14 @@ msgstr "Il calendario è in fase di aggiornamento: riprovare tra un momento."
 #. interface
 #: crates/ui-egui/src/open_shared.rs
 msgid "The calendar needs your permission first: File › Info › Connect calendar and contacts"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/open_shared.rs
+msgid ""
+"The calendar of the shared mailbox {address} is shown twice: under My Calendars with the shared mailbox, and under Shared Calendars as \"{name}\", because it was also shared with you and accepted.\n"
+"\n"
+"Hide the copy under Shared Calendars? The shared mailbox's own calendar stays, and lets you change events, answer meeting requests and send from the mailbox where you may. Nothing on the server changes: right-click the shared mailbox's calendar to show the copy again."
 msgstr ""
 
 #. interface
@@ -9518,6 +9561,11 @@ msgstr "Domani"
 #, fuzzy
 msgid "Too many calendar changes are waiting to be sent to the server. Let Send/Receive get them through first."
 msgstr "Troppe modifiche al calendario sono in attesa di essere inviate al server. Lasciare prima che Invia/Ricevi le trasmetta."
+
+#. what a command says
+#: crates/engine/src/cmd/calendar_opened.rs
+msgid "Too many shared mailboxes are listed twice"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/windows.rs
@@ -10861,7 +10909,7 @@ msgid "no rule with id {id}"
 msgstr "nessuna regola con id {id}"
 
 #. why a command can't run
-#: crates/engine/src/cmd/shared.rs
+#: crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/shared.rs
 #, fuzzy
 msgid "no shared mailbox is open"
 msgstr "nessuna cassetta postale condivisa è aperta"
@@ -11626,6 +11674,11 @@ msgstr "{address} è già configurato"
 #, fuzzy
 msgid "{address} is set up"
 msgstr "{address} è configurato"
+
+#. what a command says
+#: crates/engine/src/cmd/calendar_opened.rs
+msgid "{address} isn't a shared mailbox open here."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs

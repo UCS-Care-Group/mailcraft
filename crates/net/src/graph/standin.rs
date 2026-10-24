@@ -403,6 +403,10 @@ pub struct State {
     pub others: Vec<OtherMailbox>,
     /// The people whose calendars were shared with the owner (#70), at `/users/{address}/calendar…`.
     pub people: Vec<Person>,
+    /// Calendars of the owner's list that somebody else shares, with the owner the list names for
+    /// each (its id, the address, the name): an invitation accepted in Outlook ([`State::add_shared_by`]).
+    /// Any other calendar that is shared names `else@example.org`.
+    pub shared_by: Vec<(String, String, String)>,
     /// Whose mailbox is being answered for: empty for the owner's (`me`), else
     /// `users/{address}` as the links it writes name it.
     at: String,
@@ -840,6 +844,15 @@ impl State {
         );
         let online = vec!["teamsForBusiness".to_string()];
         self.calendars.push(Calendar { id: id.clone(), name: name.to_string(), main: false, can_edit, shared, online });
+        id
+    }
+
+    /// A calendar in the owner's list that the mailbox at `address` shares (#70: a sharing
+    /// invitation accepted in Outlook puts it there), listed as owned by `address` and `name`:
+    /// its id. Its events are at `/me/calendars/{id}/…`.
+    pub fn add_shared_by(&mut self, calendar: &str, address: &str, name: &str, can_edit: bool) -> String {
+        let id = self.add_calendar(calendar, can_edit, true);
+        self.shared_by.push((id.clone(), address.to_string(), name.to_string()));
         id
     }
 
@@ -2021,12 +2034,18 @@ impl State {
                     .calendars
                     .iter()
                     .map(|calendar| {
+                        let by = self.shared_by.iter().find(|(id, _, _)| *id == calendar.id);
+                        let (address, name) = match by {
+                            Some((_, address, name)) => (address.as_str(), name.as_str()),
+                            None if calendar.shared => ("else@example.org", "Somebody Else"),
+                            None => (self.owner.as_str(), "Owner"),
+                        };
                         json!({
                             "id": calendar.id, "name": calendar.name, "color": "auto", "hexColor": "", "canEdit": calendar.can_edit,
                             "canShare": !calendar.shared, "isDefaultCalendar": calendar.main,
                             "allowedOnlineMeetingProviders": calendar.online,
                             "defaultOnlineMeetingProvider": calendar.online.first().map_or("unknown", String::as_str),
-                            "owner": {"name": if calendar.shared { "Somebody Else" } else { "Owner" }, "address": if calendar.shared { "else@example.org" } else { self.owner.as_str() }},
+                            "owner": {"name": name, "address": address},
                         })
                     })
                     .collect();

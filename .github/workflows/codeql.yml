@@ -2,6 +2,8 @@
 # setup never analysed a pull request from a fork, and protection of main waits for CodeQL's
 # results, so a contributor's pull request waited for ever. This one runs on every pull request,
 # a fork's included once its workflows are approved, on main and weekly.
+# Every language is analysed on every pull request, docs-only ones included: main's ruleset waits
+# for CodeQL's results for each pull request, and a skipped analysis leaves it waiting (#396).
 # What is read: .github/codeql/codeql-config.yml (test-only code is left out).
 name: CodeQL
 

@@ -3555,6 +3555,11 @@ pub fn apply_calendars(s: &mut Session, download: &CalendarsDownload) -> CmdResu
     let opened: Vec<mailcraft_model::OpenedCalendar> = s.mailbox.account(account).map(|a| a.opened_calendars.clone()).unwrap_or_default();
     let is_opened = |id: &str| mailcraft_model::remote::opened_address(id).is_some_and(|a| opened.iter().any(|o| o.address.eq_ignore_ascii_case(&a)));
     download.calendars.retain(|calendar| !calendar.id.starts_with(mailcraft_model::remote::OPENED_PREFIX) || is_opened(&calendar.id));
+    // The copy of a shared mailbox's calendar that the owner hid (#70: the server lists it too,
+    // under Shared Calendars) is neither kept nor shown; the shared mailbox has its own.
+    if let Some(owner) = s.mailbox.account(account).filter(|a| !a.is_shared()) {
+        download.calendars.retain(|calendar| calendar.main || is_opened(&calendar.id) || !owner.hides_listed(calendar.owner.as_ref()));
+    }
     // A list that doesn't say which calendar is the main one can't be told from the calendar
     // that is here already (its events would come a second time, under another calendar's
     // name): nothing is made of it.
@@ -3641,7 +3646,7 @@ pub fn apply_calendars(s: &mut Session, download: &CalendarsDownload) -> CmdResu
     }
     Ok(json!({
         "added": added, "updated": updated, "removed": gone.len(), "complete": download.complete, "dropped": dropped_json(&dropped),
-        "refused": about_opened["refused"], "duplicates": about_opened["duplicates"],
+        "refused": about_opened["refused"], "duplicates": about_opened["duplicates"], "listedTwice": about_opened["listedTwice"],
     }))
 }
 

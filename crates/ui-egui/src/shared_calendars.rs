@@ -32,6 +32,10 @@ use crate::{MailApp, Tokens};
 pub(crate) enum Permission {
     /// A run read them with it.
     Given,
+    /// The owner allowed it on Microsoft's page just now, and no run has read them with it yet:
+    /// the next one does (it isn't held back), and says [`Permission::Given`] or
+    /// [`Permission::Needed`].
+    Allowed,
     /// A run found the owner's sign-in doesn't cover it: the owner is to be asked.
     Needed,
     /// The owner is being asked: the question, or Microsoft's page.
@@ -145,7 +149,7 @@ impl MailApp {
             Ok(tokens) => {
                 self.keep_shared_calendar_tokens(shared, owner, &address, tokens);
                 // Allowed, as far as is known: the next look at the calendar finds out.
-                self.shared_calendar_perm.remove(&shared);
+                self.shared_calendar_perm.insert(shared, Permission::Allowed);
                 self.calendar.failures.remove(&shared);
                 self.calendar.checked.remove(&shared);
                 self.graph_checked.remove(&shared);
@@ -247,6 +251,7 @@ impl MailApp {
         self.session.mailbox.account(shared).filter(|a| a.is_shared())?;
         match self.shared_calendar_perm.get(&shared) {
             Some(Permission::Given) => Some((tl!("Calendars: allowed").to_string(), false)),
+            Some(Permission::Allowed) => Some((tl!("Calendars: allowed, reading them…").to_string(), false)),
             Some(Permission::Needed) => Some((tl!("Calendars: waiting for your permission").to_string(), true)),
             Some(Permission::Asking) => Some((tl!("Calendars: asking for your permission…").to_string(), false)),
             Some(Permission::Refused(why)) => {

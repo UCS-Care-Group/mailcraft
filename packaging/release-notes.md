@@ -6,6 +6,7 @@
 
 **Fixes**
 - Signing in with a password now works with mail servers that turn away the older LOGIN command: MailCraft uses the server's PLAIN sign-in when it offers one ([#375](https://github.com/GITHUB_REPOSITORY/issues/375)).
+- Escape in the search box clears the search and no longer closes a message you are writing ([#365](https://github.com/GITHUB_REPOSITORY/issues/365), thanks to @kartas39).
 - In Calendar, an appointment can be moved between your calendar and a shared mailbox's, or one you opened by address, where you may edit both: it is made in the other calendar first and taken out of the old one only once the copy is there. A meeting is not moved to another mailbox's calendar (it would send everyone invited a cancellation); forward it or create it again there ([#70](https://github.com/GITHUB_REPOSITORY/issues/70)).
 - In Calendar, Open Shared Calendar (File › Open & Export, Home › Manage Calendars) opens a colleague's calendar by address with your work or school sign-in; it is kept on this computer only, and a sharing invitation has an Open this calendar button ([#70](https://github.com/GITHUB_REPOSITORY/issues/70)).
 - In Calendar, calendars that colleagues have shared with you are listed under Shared Calendars, apart from your own, and a calendar you may only read has a lock and says so when you try to add to it ([#70](https://github.com/GITHUB_REPOSITORY/issues/70)).

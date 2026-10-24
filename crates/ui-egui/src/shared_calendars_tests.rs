@@ -208,9 +208,12 @@ fn the_owner_is_asked_once_by_itself_when_the_sign_in_does_not_cover_shared_cale
     assert_eq!(app.run("ui.allowSharedCalendars", json!({"account": shared, "confirmed": true})).unwrap()["account"], owner);
     assert_eq!(*sign_ins.lock().unwrap(), [(owner, true, true)]);
     app.poll_sign_in();
-    // Allowed: read at once, with what came back, and never asked again.
+    // Allowed: read at once, with what came back, and never asked again. File › Info says it was
+    // allowed (not "not asked yet") until the job that reads them says more.
     assert_eq!(app.shared_calendar_tokens.get(&shared).map(|t| t.access.as_str()), Some("cal-access"));
-    assert!(!app.shared_calendar_perm.contains_key(&shared));
+    assert_eq!(app.shared_calendar_perm.get(&shared), Some(&Permission::Allowed));
+    assert!(!app.shared_calendars_blocked(shared));
+    assert_eq!(app.shared_calendar_line(shared), Some(("Calendars: allowed, reading them…".to_string(), false)));
     answers.lock().unwrap().push_back(GraphResult { account: shared, events: Some(events(shared, "", "Stand-up")), ..Default::default() });
     assert!(tick(&mut app));
     assert_eq!(jobs.lock().unwrap()[1].3, "cal-access", "the token that covers it goes along");
@@ -252,6 +255,7 @@ fn file_info_says_where_the_permission_stands() {
     assert_eq!(say(&app), ("Calendars: not asked yet (ticking one of them asks)".to_string(), false));
     for (perm, line, again) in [
         (Permission::Given, "Calendars: allowed", false),
+        (Permission::Allowed, "Calendars: allowed, reading them…", false),
         (Permission::Needed, "Calendars: waiting for your permission", true),
         (Permission::Asking, "Calendars: asking for your permission…", false),
         (Permission::Refused("by the organisation".into()), "Calendars: not allowed (by the organisation)", true),
@@ -284,4 +288,12 @@ fn removing_the_shared_mailbox_takes_its_calendars_and_events_off_this_computer(
     // And nothing more is asked for it.
     app.calendar.checked.clear();
     assert!(app.shared_calendar_accounts().is_empty());
+}
+
+#[test]
+fn the_log_says_which_permission_a_calendar_job_waits_for() {
+    let shared = crate::calendar_sync::consent_wait(true);
+    assert!(shared.contains("shared mailboxes' calendars") && !shared.contains("Connect calendar"), "{shared}");
+    assert!(crate::calendar_sync::consent_wait(false).contains("Connect calendar and contacts"));
+    assert!(!shared.contains('@'));
 }

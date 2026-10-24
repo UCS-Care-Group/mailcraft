@@ -142,7 +142,7 @@ impl Question {
     }
 
     /// One more way of going ahead.
-    fn or(mut self, action: &str, with: Value) -> Question {
+    pub(crate) fn or(mut self, action: &str, with: Value) -> Question {
         self.more.push((action.to_string(), with));
         self
     }

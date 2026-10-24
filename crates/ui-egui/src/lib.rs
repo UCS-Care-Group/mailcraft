@@ -1528,6 +1528,24 @@ impl MailApp {
         {
             self.read_opened_now(account);
         }
+        // The copy of a shared mailbox's calendar shown again (#70): the account's list brings it
+        // back at once.
+        if let (Ok(shown), "calendar.hideListedCopy") = (&r, id)
+            && shown.get("hidden").and_then(Value::as_bool) == Some(false)
+            && let Some(account) = shown.get("account").and_then(Value::as_u64)
+        {
+            // (Kept both when asked: it is here already, and nothing need be asked.)
+            let address = shown.get("address").and_then(Value::as_str).unwrap_or_default();
+            let here = self
+                .session
+                .mailbox
+                .calendars
+                .iter()
+                .any(|c| c.origin.account == account && c.owner.as_ref().is_some_and(|o| o.address.trim().eq_ignore_ascii_case(address)));
+            if !here {
+                self.read_opened_now(account);
+            }
+        }
         // Outlook's Favorites are wanted again: they are read at once.
         if r.is_ok() && id == "view.favorites" && params.get("own").and_then(Value::as_bool) == Some(false) {
             for account in self.session.mailbox.accounts.iter().map(|a| a.id).collect::<Vec<_>>() {
