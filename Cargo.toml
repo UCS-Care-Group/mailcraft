@@ -92,6 +92,10 @@ opt-level = 2
 
 [profile.dev]
 opt-level = 1
+# File and line in a backtrace or a debugger's stack, no variables: a clean test build is about a
+# quarter quicker and a rebuild about a third, and target/ half the size. `debug = true` locally
+# (`CARGO_PROFILE_DEV_DEBUG=true`) when a debugger needs the variables.
+debug = "line-tables-only"
 
 [profile.release]
 opt-level = 3
