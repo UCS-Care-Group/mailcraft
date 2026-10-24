@@ -18,8 +18,15 @@ timezone definitions and unchanged nested components retain their original bytes
 returns the original bytes, after validating them.
 
 The helper refuses malformed documents, multiple events or cards in one resource, changed
-UIDs, changed document versions, meetings with ORGANIZER or ATTENDEE, changes to nested
-components, introduction of a new timezone and ambiguous grouped contact properties/labels.
+UIDs, changed document versions (including a source/writer version mismatch), meetings with
+direct VEVENT ORGANIZER or ATTENDEE properties, changes to nested components, edited properties
+whose source differs from the writer, and ambiguous grouped contact properties/labels. A change
+to a repeated property preserves equal occurrences, including their parameters and physical folds.
+Nested email reminders remain untouched and do not make an event a meeting.
+
+Time edits keep the source date, floating, UTC or TZID form. A named zone must have its
+VTIMEZONE definition in the source. A writer that converts the source DURATION to DTEND
+cannot safely edit its times; conflicting DTEND and DURATION are refused.
 These cases return an error rather than silently discard information. They can be handled by
 later, separately reviewed operations. A text is limited to 4 MiB, 65,536 physical lines,
 256 KiB per unfolded line and 16 nested components.
@@ -38,7 +45,9 @@ contain no input text. The XML dependency is already used by the network crate; 
 
 ## Validation and sources
 
-Tests use synthetic documents and arbitrary generated input, never a real mailbox or DAV
+Tests include parse/edit/write round trips through the real iCalendar and vCard writers,
+repeated-value preservation, email reminders, and recurrence time-form changes around a
+daylight-saving boundary. They use synthetic documents and arbitrary generated input, never a real mailbox or DAV
 server. They exercise preservation, conservative refusals, namespace separation, successful
 and failed propstats, hostile XML and the size/depth/count budgets.
 
@@ -52,4 +61,5 @@ Protocol sources: [WebDAV, RFC 4918](https://www.rfc-editor.org/rfc/rfc4918),
 
 | Date | Change |
 |---|---|
+| 2026-10-24 | Review fixes: time/end forms, repeated properties, source versions, email alarms and real-writer tests |
 | 2026-10-24 | Pure model/document foundation; no network or sync behavior |

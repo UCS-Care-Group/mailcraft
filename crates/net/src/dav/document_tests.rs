@@ -102,3 +102,150 @@ fn unrelated_group_labels_do_not_prevent_a_name_edit() {
     assert!(got.contains("item1.PHOTO:data\r\nitem1.X-ABLabel:Portrait\r\n"));
     assert!(got.contains("FN:New"));
 }
+
+#[test]
+fn a_moved_event_never_carries_both_dtend_and_duration() {
+    // The server's copy gives the length; the model writes an end.
+    let original = EVENT.replace("SUMMARY:Old", "SUMMARY:Old\r\nDTSTART:20261024T120000Z\r\nDURATION:PT1H");
+    let before = EVENT.replace("SUMMARY:Old", "SUMMARY:Old\r\nDTSTART:20261024T120000Z\r\nDTEND:20261024T130000Z");
+    let after = before.replace("T120000Z", "T140000Z").replace("T130000Z", "T150000Z");
+    // Refusing is fine; RFC 5545 forbids writing both.
+    if let Ok(got) = patch(&original, &before, &after, Component::Event) {
+        assert!(!(got.contains("\nDTEND") && got.contains("\nDURATION")), "{got}");
+    }
+}
+
+#[test]
+fn editing_one_phone_keeps_the_other_phones_bytes() {
+    let original = "BEGIN:VCARD\r\nVERSION:4.0\r\nUID:stable\r\nFN:A\r\nTEL;VALUE=uri;TYPE=\"voice,cell\";PREF=1:tel:+1-555-0101\r\nTEL;TYPE=work:+1-555-0102\r\nEND:VCARD\r\n";
+    // What a 3.0 writer makes of the same card, before and after the second number changes.
+    let before = "BEGIN:VCARD\r\nVERSION:3.0\r\nUID:stable\r\nFN:A\r\nTEL;TYPE=CELL:+1-555-0101\r\nTEL;TYPE=WORK:+1-555-0102\r\nEND:VCARD\r\n";
+    let after = before.replace("0102", "0199");
+    if let Ok(got) = patch(original, before, &after, Component::Card) {
+        assert!(got.contains("TEL;VALUE=uri;TYPE=\"voice,cell\";PREF=1:tel:+1-555-0101\r\n"), "{got}");
+        assert!(!got.contains("TYPE=CELL"), "3.0 lines spliced into a 4.0 card: {got}");
+    }
+}
+
+#[test]
+fn an_email_reminder_is_not_a_meeting() {
+    let alarm = "BEGIN:VALARM\r\nACTION:EMAIL\r\nTRIGGER:-PT15M\r\nSUMMARY:Reminder\r\nDESCRIPTION:Reminder\r\nATTENDEE:mailto:me@example.org\r\nEND:VALARM\r\n";
+    let original = EVENT.replace("END:VEVENT", &format!("{alarm}END:VEVENT"));
+    assert!(patch(&original, EVENT, &EVENT.replace("Old", "New"), Component::Event).is_ok());
+}
+
+#[test]
+fn editing_a_repeated_property_keeps_untouched_folds_and_duplicate_counts() {
+    let first = "TEL;TYPE=CELL;PREF=1:+1-555-\r\n 0101\r\nX-BETWEEN:opaque\r\n";
+    let original = CARD.replace("FN:Old\r\n", &format!("FN:Old\r\n{first}TEL;TYPE=WORK:+1-555-0102\r\nTEL;TYPE=WORK:+1-555-0102\r\n"));
+    let before = original.replace("+1-555-\r\n 0101", "+1-555-0101");
+    let after = before.replacen("TEL;TYPE=WORK:+1-555-0102", "TEL;TYPE=WORK:+1-555-0199", 1);
+    let got = patch(&original, &before, &after, Component::Card).unwrap();
+    assert!(got.contains(first));
+    assert_eq!(got.matches("TEL;TYPE=WORK:+1-555-0102\r\n").count(), 1);
+    assert_eq!(got.matches("TEL;TYPE=WORK:+1-555-0199\r\n").count(), 1);
+    let after = before.replacen("TEL;TYPE=WORK:+1-555-0102\r\n", "", 1);
+    let got = patch(&original, &before, &after, Component::Card).unwrap();
+    assert!(got.contains(first));
+    assert_eq!(got.matches("TEL;TYPE=WORK:+1-555-0102\r\n").count(), 1);
+}
+
+#[test]
+fn a_same_version_writer_cannot_discard_unmodelled_phone_parameters() {
+    let original = CARD.replace("FN:Old", "FN:Old\r\nTEL;PREF=1;TYPE=CELL:123\r\nTEL;TYPE=WORK:456");
+    let before = original.replace(";PREF=1", "");
+    assert!(patch(&original, &before, &before.replace("456", "789"), Component::Card).is_err());
+}
+
+#[test]
+fn a_recurring_events_time_form_and_zone_are_not_changed() {
+    let fields = "SUMMARY:Old\r\nRRULE:FREQ=WEEKLY;COUNT=3\r\nDTSTART;TZID=Europe/London:20261024T120000\r\nDTEND;TZID=Europe/London:20261024T130000";
+    let before = EVENT.replace("SUMMARY:Old", fields);
+    let zone = "BEGIN:VTIMEZONE\r\nTZID:Europe/London\r\nEND:VTIMEZONE\r\n";
+    let source = before.replace("BEGIN:VEVENT", &format!("{zone}BEGIN:VEVENT"));
+    for (key, time) in [("DTSTART", "120000"), ("DTEND", "130000")] {
+        for replacement in [
+            format!("{key}:20261024T{time}Z"),
+            format!("{key}:20261024T{time}"),
+            format!("{key};VALUE=DATE:20261024"),
+            format!("{key};TZID=Europe/Paris:20261024T{time}"),
+        ] {
+            let after = before.replace(&format!("{key};TZID=Europe/London:20261024T{time}"), &replacement);
+            assert!(patch(&source, &before, &after, Component::Event).is_err(), "{replacement}");
+        }
+    }
+    let after = before.replace("T120000", "T140000").replace("T130000", "T150000");
+    assert!(patch(&source, &before, &after, Component::Event).unwrap().contains(zone));
+}
+
+#[test]
+fn a_zone_reference_without_its_definition_is_not_enough_for_a_time_edit() {
+    let before = EVENT.replace("SUMMARY:Old", "SUMMARY:Old\r\nDTSTART;TZID=Europe/London:20261024T120000");
+    assert!(patch(&before, &before, &before.replace("T120000", "T130000"), Component::Event).is_err());
+    // An unrelated edit leaves the existing zone representation alone.
+    assert!(patch(&before, &before, &before.replace("SUMMARY:Old", "SUMMARY:New"), Component::Event).is_ok());
+}
+
+#[test]
+fn real_ical_writer_duration_conversion_is_refused_before_it_can_mix_end_forms() {
+    let source = EVENT.replace("SUMMARY:Old", "SUMMARY:Old\r\nDTSTART:20261024T120000Z\r\nDURATION:PT1H");
+    let mut file = mailcraft_ical::parse(&source, &|_| 0);
+    let event = file.events.first_mut().unwrap();
+    let options = mailcraft_ical::WriteOptions::default();
+    let before = mailcraft_ical::write_in(&[event], &[], &options, Some(mailcraft_time::Zone::UTC));
+    assert!(before.contains("DTEND:"));
+    assert!(!before.contains("DURATION:"));
+    event.start = event.start.add_minutes(120);
+    event.end = event.end.add_minutes(120);
+    let after = mailcraft_ical::write_in(&[event], &[], &options, Some(mailcraft_time::Zone::UTC));
+    assert!(patch(&source, &before, &after, Component::Event).is_err());
+}
+
+#[test]
+fn real_vcard_writer_version_conversion_is_refused() {
+    let source = "BEGIN:VCARD\r\nVERSION:4.0\r\nUID:stable\r\nFN:A\r\nTEL;VALUE=uri;TYPE=\"voice,cell\";PREF=1:tel:+1-555-0101\r\nTEL;TYPE=work:+1-555-0102\r\nEND:VCARD\r\n";
+    let mut contacts = mailcraft_vcard::parse(source);
+    let contact = contacts.first_mut().unwrap();
+    assert_eq!(contact.phones.len(), 2);
+    let before = mailcraft_vcard::write(&[contact]);
+    assert!(before.contains("VERSION:3.0"));
+    contact.phones.get_mut(1).unwrap().value = "+1-555-0199".into();
+    let after = mailcraft_vcard::write(&[contact]);
+    assert!(patch(source, &before, &after, Component::Card).is_err());
+}
+
+#[test]
+fn real_vcard_writer_edits_a_canonical_card_without_rewriting_the_other_phone() {
+    let seed = CARD.replace("FN:Old", "FN:Old\r\nTEL;TYPE=CELL:+1-555-0101\r\nTEL;TYPE=WORK:+1-555-0102");
+    let contacts = mailcraft_vcard::parse(&seed);
+    let canonical = mailcraft_vcard::write(&[contacts.first().unwrap()]);
+    let preserved = "TEL;TYPE=CELL:+1-555-\r\n 0101\r\nX-BETWEEN:opaque\r\n";
+    let source = canonical.replace("TEL;TYPE=CELL:+1-555-0101\r\n", preserved);
+    assert!(source.contains(preserved));
+    let mut contacts = mailcraft_vcard::parse(&source);
+    let contact = contacts.first_mut().unwrap();
+    let before = mailcraft_vcard::write(&[contact]);
+    contact.phones.get_mut(1).unwrap().value = "+1-555-0199".into();
+    let after = mailcraft_vcard::write(&[contact]);
+    let got = patch(&source, &before, &after, Component::Card).unwrap();
+    assert!(got.contains(preserved));
+    let contacts = mailcraft_vcard::parse(&got);
+    assert_eq!(contacts.first().unwrap().phones.get(1).unwrap().value, "+1-555-0199");
+}
+
+#[test]
+fn real_ical_writer_title_edit_preserves_an_email_alarm() {
+    let alarm = "BEGIN:VALARM\r\nACTION:EMAIL\r\nTRIGGER:-PT15M\r\nSUMMARY:Reminder\r\nDESCRIPTION:Reminder\r\nATTENDEE:mailto:me@example.org\r\nEND:VALARM\r\n";
+    let source = EVENT
+        .replace("SUMMARY:Old", "SUMMARY:Old\r\nDTSTART:20261024T120000Z\r\nDTEND:20261024T130000Z")
+        .replace("END:VEVENT", &format!("{alarm}END:VEVENT"));
+    let mut file = mailcraft_ical::parse(&source, &|_| 0);
+    let event = file.events.first_mut().unwrap();
+    let opts = mailcraft_ical::WriteOptions::default();
+    let before = mailcraft_ical::write_in(&[event], &[], &opts, Some(mailcraft_time::Zone::UTC));
+    event.title = "New".into();
+    let after = mailcraft_ical::write_in(&[event], &[], &opts, Some(mailcraft_time::Zone::UTC));
+    let got = patch(&source, &before, &after, Component::Event).unwrap();
+    assert!(got.contains(alarm));
+    assert!(got.contains("SUMMARY:New\r\n"));
+}
