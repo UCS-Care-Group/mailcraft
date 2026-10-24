@@ -945,6 +945,17 @@ pub(crate) mod testing {
         window.run_steps(2);
     }
 
+    /// `key` held down: the press, then the repeats the system sends, a frame apart, then the
+    /// release. A held key is one press (#391, #393).
+    pub fn held(window: &mut Harness<'_, MailApp>, key: Key) {
+        for repeat in [false, true, true, true] {
+            window.input_mut().events.push(Event::Key { key, physical_key: None, pressed: true, repeat, modifiers: Modifiers::NONE });
+            window.run_steps(2);
+        }
+        window.input_mut().events.push(Event::Key { key, physical_key: None, pressed: false, repeat: false, modifiers: Modifiers::NONE });
+        window.run_steps(2);
+    }
+
     pub fn text(window: &mut Harness<'_, MailApp>, text: &str) {
         window.input_mut().events.push(Event::Text(text.to_string()));
         window.run_steps(2);

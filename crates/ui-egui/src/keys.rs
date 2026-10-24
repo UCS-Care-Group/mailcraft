@@ -109,6 +109,21 @@ fn module_of(id: &str) -> Option<Module> {
     }
 }
 
+/// Whether `key` was pressed this frame. A held key's repeats don't count: a held key is one press
+/// (#391, #393). (`key_pressed` counts the repeats.)
+pub(crate) fn pressed_once(i: &egui::InputState, key: Key) -> bool {
+    i.events.iter().any(|e| matches!(e, egui::Event::Key { key: k, pressed: true, repeat: false, .. } if *k == key))
+}
+
+/// Takes `key` (with no Shift, Ctrl or Alt), its repeats too, so nothing later in the frame gets it.
+/// True only for a new press: a held key is one press (#391, #393).
+pub(crate) fn take_once(i: &mut egui::InputState, key: Key) -> bool {
+    let once = i.events.iter().any(
+        |e| matches!(e, egui::Event::Key { key: k, pressed: true, repeat: false, modifiers, .. } if *k == key && modifiers.matches_logically(Modifiers::NONE)),
+    );
+    i.consume_key(Modifiers::NONE, key) && once
+}
+
 /// Whether the window takes command keys now: not while File (backstage) or a dialog is open. The
 /// menu bar asks the same, so its items are greyed then.
 pub fn takes_commands(app: &MailApp) -> bool {
@@ -155,7 +170,9 @@ fn module_delete(app: &MailApp) -> Option<&'static str> {
 /// function keys) also work while typing, except the ones text editing needs.
 pub fn global_shortcuts(app: &mut MailApp, ctx: &egui::Context) {
     if !takes_commands(app) {
-        if app.ui.backstage && ctx.input(|i| i.key_pressed(Key::Escape)) {
+        // Escape closes File, but not when a dialog or a menu is open over it, and not on the
+        // repeats of a held Escape (#393).
+        if app.ui.backstage && app.dialog.is_none() && !egui::Popup::is_any_open(ctx) && ctx.input_mut(|i| take_once(i, Key::Escape)) {
             app.ui.backstage = false;
         }
         return;
@@ -182,6 +199,10 @@ pub fn global_shortcuts(app: &mut MailApp, ctx: &egui::Context) {
         // A held Escape is one press: its repeats come once the search box or a dialog has had
         // it, and would close a message being written (#365).
         if key == Key::Escape && repeat {
+            continue;
+        }
+        // With a menu open, Escape only closes the menu (#393).
+        if key == Key::Escape && egui::Popup::is_any_open(ctx) {
             continue;
         }
         let Some(name) = key_name(key) else { continue };

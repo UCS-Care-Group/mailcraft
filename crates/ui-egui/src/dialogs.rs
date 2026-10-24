@@ -892,8 +892,12 @@ pub(crate) fn buttons(ui: &mut Ui, ok_label: &str, ok_enabled: bool) -> (bool, b
 
 pub fn show(app: &mut MailApp, ctx: &egui::Context) {
     let Some(mut dialog) = app.dialog.take() else { return };
-    let escape = ctx.input(|i| i.key_pressed(Key::Escape));
-    let enter = ctx.input(|i| i.key_pressed(Key::Enter));
+    // A held key is one press (#393): its repeats don't close the dialog or press OK. They may be
+    // left from a key that closed what was over the dialog. Escape's repeats are taken here, so
+    // nothing later gets them. Enter's are left, since a box of several lines in a dialog needs
+    // them for new lines.
+    let escape = ctx.input_mut(|i| crate::keys::take_once(i, Key::Escape));
+    let enter = ctx.input(|i| crate::keys::pressed_once(i, Key::Enter));
     let t = Tokens::get(ctx);
     // A scrim: what is behind the dialog is out of reach until it is answered.
     let screen = ctx.content_rect();

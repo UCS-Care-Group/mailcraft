@@ -66,6 +66,8 @@ pub mod mail_view;
 mod meeting_dialogs;
 pub mod menubar;
 pub mod nav;
+#[cfg(test)]
+mod on_top_tests;
 mod open_shared;
 #[cfg(test)]
 mod open_shared_tests;
@@ -3582,6 +3584,8 @@ impl MailApp {
         // mailbox's times are put by the new clock before anything of it is drawn, and so are
         // the appointments that stand open.
         self.follow_zone();
+        // The agent's question is on top of everything, so it gets Enter and Escape first.
+        agent_gate::keys(self, &ctx);
         // Windows of their own (a message, an appointment), before the shortcuts: Escape closes
         // the one in front where they are inside this window.
         windows::show(self, &ctx);
