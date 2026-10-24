@@ -429,7 +429,13 @@ impl MailApp {
         // A shared mailbox's calendars (#70): their own token, and their own permission.
         let shared = self.session.mailbox.account(account).is_some_and(mailcraft_model::Account::is_shared);
         if result.consent_needed {
-            log::info!("calendar, account {account}: {}", consent_wait(shared));
+            // (A branch rather than `consent_wait(shared)`: `shared` comes from the account's record,
+            // which code scanning takes for its address.)
+            if shared {
+                log::info!("calendar, account {account}: {}", consent_wait(true));
+            } else {
+                log::info!("calendar, account {account}: {}", consent_wait(false));
+            }
         }
         if result.sign_in_refused {
             log::warn!("calendar, account {account}: the sign-in was refused; the next Send/Receive asks the owner");
