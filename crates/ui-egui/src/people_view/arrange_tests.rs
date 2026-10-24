@@ -102,3 +102,22 @@ fn the_selection_stays_on_a_row_when_its_row_goes() {
     w.run_steps(2);
     assert_eq!(highlighted(&w), [(id, 0)]);
 }
+
+/// A row of the same item under another category is a new selection to scroll to: Down from a
+/// contact's last row under one category can reach its row under the next.
+#[test]
+fn another_row_of_the_same_item_is_scrolled_to() {
+    // (the row selected each frame, what the list made of it)
+    type Frames = (Vec<Option<(Id, u16)>>, Vec<bool>);
+    let rows = vec![Some((7, 0)), Some((7, 0)), Some((7, 1)), Some((7, 1)), None];
+    let mut w = egui_kittest::Harness::builder().build_ui_state(
+        |ui, (rows, seen): &mut Frames| {
+            if let Some(row) = rows.get(seen.len()).copied() {
+                seen.push(selection_changed(ui, "test_list_seen", row));
+            }
+        },
+        (rows, Vec::new()),
+    );
+    w.run_steps(5);
+    assert_eq!(w.state().1, [true, false, true, false, true]);
+}

@@ -344,7 +344,7 @@ fn list(app: &mut MailApp, ui: &mut Ui, lists: &Lists) {
     }
     let selected = app.session.sel.task;
     let at = chosen_row(ui.ctx(), TASK_ROW, &lists.layout, selected);
-    let reveal = selection_changed(ui, "task_list_seen", selected).then_some(at).flatten();
+    let reveal = selection_changed(ui, "task_list_seen", at).then_some(at).flatten();
     let today = app.session.today();
     let names = lists.names.clone();
     let label = move |h: Heading| match h {

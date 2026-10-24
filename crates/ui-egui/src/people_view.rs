@@ -237,11 +237,12 @@ pub(crate) fn choose_copy(ctx: &egui::Context, slot: &'static str, id: Id, copy:
     ctx.data_mut(|d| d.insert_temp(egui::Id::unique(slot), (id, copy)));
 }
 
-/// Whether the selection is not the one this list showed last frame: a selection that changed
-/// (the keyboard, a command, a new item) is scrolled into view.
-pub(crate) fn selection_changed(ui: &Ui, slot: &'static str, selected: Option<Id>) -> bool {
+/// Whether the selected row is not the one this list showed last frame: a selection that changed
+/// (the keyboard, a command, a new item) is scrolled into view. The row, not only the item: Down
+/// from an item's last row under one category may reach its row under the next.
+pub(crate) fn selection_changed(ui: &Ui, slot: &'static str, selected: Option<(Id, u16)>) -> bool {
     let slot = egui::Id::unique(slot);
-    let changed = ui.data(|d| d.get_temp::<Option<Id>>(slot)) != Some(selected);
+    let changed = ui.data(|d| d.get_temp::<Option<(Id, u16)>>(slot)) != Some(selected);
     ui.data_mut(|d| d.insert_temp(slot, selected));
     changed
 }
@@ -539,7 +540,7 @@ fn list(app: &mut MailApp, ui: &mut Ui, layout: &PeopleList) {
     }
     let selected = app.session.sel.contact;
     let at = chosen_row(ui.ctx(), PEOPLE_ROW, &layout.layout, selected);
-    let reveal = selection_changed(ui, "people_list_seen", selected).then_some(at).flatten();
+    let reveal = selection_changed(ui, "people_list_seen", at).then_some(at).flatten();
     show_rows(ui, layout, reveal, |g| group_label(g, &layout.names), |ui, id, copy, rect| contact_row(app, ui, id, copy, rect));
 }
 
