@@ -43,6 +43,7 @@
 - Messages from Sender, in a message's context menu and Home › Find, finds the sender's mail in every mailbox; a search for a whole address (`from:ada@example.org`) finds that address alone ([#301](https://github.com/GITHUB_REPOSITORY/issues/301)). Inside double quotes in a search, `\"` is now a quote and `\\` a backslash, so a quoted search that ends in a backslash needs it written twice (`subject:"C:\\"`).
 - Arranged by size, a message that is only partly here says, and sorts by, its whole size: a Microsoft account's message kept as its preview the size it had when it was downloaded, and a message too large to download from a mail server the size that server gave ([#300](https://github.com/GITHUB_REPOSITORY/issues/300)).
 - The only account can now be removed in File › Info; before, it couldn't be ([#313](https://github.com/GITHUB_REPOSITORY/issues/313), thanks to @kartas39).
+- A horizontal line in a message (`<hr>`) is drawn again, in the reading pane and above the original in a reply or forward ([#349](https://github.com/GITHUB_REPOSITORY/issues/349)).
 
 **Early alpha.** The foundations are in place and tested, but much of what a daily mail program needs is not there yet, and most of the Microsoft 365 behaviour has only been tested against stand-ins. What works is in the [README](https://github.com/GITHUB_REPOSITORY#what-works-today).
 

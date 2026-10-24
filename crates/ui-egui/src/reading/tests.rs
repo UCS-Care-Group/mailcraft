@@ -3678,6 +3678,36 @@ fn a_character_that_couldnt_be_read_is_explained_once() {
     }
 }
 
+/// #349: an `<hr>` is a line that can be seen, in light and dark: a bare one, the one above a
+/// reply's quoted original (whose own border is ignored), and one inside a quote.
+#[test]
+fn a_rule_is_drawn() {
+    const HTML: &str = "<p>One</p><hr><p>Two</p><hr style=\"border:none;border-top:solid #E1E1E1 1.0pt\"><p>Three</p>\
+                        <blockquote><p>Four</p><hr><p>Five</p></blockquote>";
+    for dark in [false, true] {
+        in_frame(dark, |ctx| {
+            let laid = lay_out(ctx, &html_message(1, ("Ada", "ada@example.org"), "Rules", HTML), 700.0);
+            let paper = if dark { Tokens::dark().surface } else { Tokens::light().surface };
+            for (above, below) in [("One", "Two"), ("Two", "Three"), ("Four", "Five")] {
+                let (top, bottom) = (find_exact(&laid, above).rect.max.y, find_exact(&laid, below).rect.min.y);
+                let (rect, color) = laid
+                    .items
+                    .iter()
+                    .find_map(|i| match i.kind {
+                        ItemKind::Fill { color, .. } if i.rect.min.y >= top && i.rect.max.y <= bottom && i.rect.width() > 300.0 => {
+                            Some((i.rect, color))
+                        }
+                        _ => None,
+                    })
+                    .unwrap_or_else(|| panic!("no rule between {above:?} and {below:?}"));
+                assert!(rect.height() >= 1.0, "{rect:?}");
+                // (`contrast` doesn't look at alpha: a transparent fill reads as black.)
+                assert!(color.a() == 255 && contrast(color, paper) >= 1.2, "{above:?}: {color:?} on {paper:?}");
+            }
+        });
+    }
+}
+
 /// #71: a bulletin's padding, margins, dashed and dotted lines, rounded corners and line height are
 /// drawn, within the room there is, and its lines stay visible on the paper in light and dark.
 #[test]
