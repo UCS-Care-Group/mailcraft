@@ -2345,6 +2345,7 @@ dependencies = [
  "mailcraft-charset",
  "mailcraft-control-key",
  "mailcraft-engine",
+ "mailcraft-jmap",
  "mailcraft-model",
  "mailcraft-net",
  "mailcraft-proto",
