@@ -1,13 +1,14 @@
 # The gates every change must pass: formatting, clippy with warnings as errors, the tests, asset
 # attribution, crate layering, the wasm build and cargo-deny (`cargo xtask ci`), on the three desktop systems
-# (clippy and wasm on Linux only). Changes to documentation alone don't run it; `ci-ok` reports
+# (clippy and wasm on Linux only). Changes to documentation alone don't run it, nor changes under
+# .github/ alone (other workflows, templates, the CodeQL set-up), save to this file; `ci-ok` reports
 # on every pull request either way, and is the check that protection of main requires.
 name: CI
 
 on:
   push:
     branches: [main]
-    paths: ['**', '!docs/**', '!**/*.md', 'ATTRIBUTION.md']
+    paths: ['**', '!docs/**', '!**/*.md', '!.github/**', 'ATTRIBUTION.md', '.github/workflows/ci.yml']
   pull_request:
   workflow_dispatch:
 
@@ -20,7 +21,8 @@ concurrency:
 
 jobs:
   # Whether a pull request changes anything but documentation (Markdown files and docs/;
-  # ATTRIBUTION.md counts as code, since `cargo xtask assets` reads it).
+  # ATTRIBUTION.md counts as code, since `cargo xtask assets` reads it) and .github/ (nothing the
+  # build reads; this workflow counts as code).
   changes:
     runs-on: ubuntu-24.04
     outputs:
@@ -37,7 +39,7 @@ jobs:
         run: |
           if [ "$EVENT" != pull_request ]; then echo code=true >> "$GITHUB_OUTPUT"; exit 0; fi
           files=$(git diff --name-only "$BASE"...HEAD)
-          if printf '%s\n' "$files" | grep -qvE '^docs/|\.md$|^$' || printf '%s\n' "$files" | grep -qx ATTRIBUTION.md; then
+          if printf '%s\n' "$files" | grep -qvE '^docs/|^\.github/|\.md$|^$' || printf '%s\n' "$files" | grep -qxE 'ATTRIBUTION\.md|\.github/workflows/ci\.yml'; then
             echo code=true >> "$GITHUB_OUTPUT"
           else
             echo code=false >> "$GITHUB_OUTPUT"
