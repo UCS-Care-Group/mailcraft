@@ -122,6 +122,8 @@ fn either_servers_host_or_port_invalidates_every_cached_sign_in() {
         let other_key = MailApp::secret_key("password", &other_account);
         store.set(&other_key, "unrelated").unwrap();
         a.passwords.insert(other, "unrelated".into());
+        a.tokens.insert(other, Default::default());
+        a.graph_tokens.insert(other, Default::default());
         a.passwords.insert(id, "invented".into());
         a.tokens.insert(id, Default::default());
         a.graph_tokens.insert(id, Default::default());
@@ -139,6 +141,8 @@ fn either_servers_host_or_port_invalidates_every_cached_sign_in() {
         assert!(!a.graph_tokens.contains_key(&id));
         assert_eq!(store.get(&other_key).as_deref(), Some("unrelated"));
         assert_eq!(a.passwords.get(&other).map(String::as_str), Some("unrelated"));
+        assert!(a.tokens.contains_key(&other));
+        assert!(a.graph_tokens.contains_key(&other));
         assert!(!a.can_sync_quietly(id));
         assert_eq!(a.execute("ui.sync", json!({"account": id})).unwrap()["pending"], "password");
         a.poll_sync();
