@@ -11,6 +11,7 @@
 mod address;
 mod calendar;
 mod contact;
+pub mod dav;
 mod jmap_server;
 mod load_limit;
 mod mailbox;
