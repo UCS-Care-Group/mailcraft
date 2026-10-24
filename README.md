@@ -18,7 +18,7 @@
 
 MailCraft is a clean-room reimplementation of the mail client people already know how to use: the ribbon, the folder pane, the message list with its reading pane, conversations, flags, categories, rules, a calendar with recurring meetings, people and to-dos. It is a native, GPU-rendered app (no Electron, no web view), it also runs in a browser tab through WebAssembly, and every action in it is a command that scripts and AI agents can run too.
 
-> **Status: early alpha (0.5).** The foundations are in place and tested; a lot of what a daily driver needs is not there yet. See [ROADMAP.md](ROADMAP.md) and [docs/gaps.md](docs/gaps.md) for an honest list.
+> **Status: public beta (0.8).** For Microsoft accounts (personal, or work or school) on Windows, macOS and Linux, kept in step with Outlook on the web; keep Outlook to hand while you try it. A lot of what a daily driver needs is still to come. See [ROADMAP.md](ROADMAP.md) and [docs/gaps.md](docs/gaps.md) for an honest list.
 
 MailCraft follows the architecture and conventions of [WordCraft](https://github.com/storytold/wordcraft) and the other Craft apps: the same layered crates, the same "everything is a command" engine, the same egui front end and design tokens, the same control channel, MCP server, tooling and packaging.
 

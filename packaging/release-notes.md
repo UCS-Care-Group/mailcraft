@@ -1,4 +1,4 @@
-**MailCraft 0.8.0 in short** (an alpha for testers; sign up in [#11](https://github.com/GITHUB_REPOSITORY/issues/11))
+**MailCraft 0.8.0 in short**: the first public beta, for Microsoft accounts (testers welcome; sign up in [#11](https://github.com/GITHUB_REPOSITORY/issues/11))
 - Shared mailboxes' calendars, and a colleague's calendar opened by address ([#70](https://github.com/GITHUB_REPOSITORY/issues/70)).
 - Sender images in the message list, off unless you turn them on ([#363](https://github.com/GITHUB_REPOSITORY/issues/363)).
 - Mail, People and Tasks arranged by Categories ([#327](https://github.com/GITHUB_REPOSITORY/issues/327)).
@@ -41,7 +41,7 @@
 - Properties… in a folder's or an account's right-click menu shows what it is, where it is and how many messages it holds; its Folder Size… button lists each folder's messages and the space they take ([#314](https://github.com/GITHUB_REPOSITORY/issues/314), thanks to @kartas39).
 - A horizontal line in a message (`<hr>`) is drawn again, in the reading pane and above the original in a reply or forward ([#349](https://github.com/GITHUB_REPOSITORY/issues/349)).
 
-**Early alpha.** The foundations are in place and tested, but much of what a daily mail program needs is not there yet, and most of the Microsoft 365 behaviour has only been tested against stand-ins. What works is in the [README](https://github.com/GITHUB_REPOSITORY#what-works-today).
+**Public beta.** For Microsoft accounts (personal, or work or school) MailCraft is a working mail, calendar and contacts program, kept in step with Outlook on the web; keep Outlook to hand while you try it, and tell us in an issue if anything is lost or out of step. Much of what a daily mail program needs is still to come, and other kinds of account are welcome but not part of the beta. What works is in the [README](https://github.com/GITHUB_REPOSITORY#what-works-today).
 
 MailCraft for Windows, macOS, Linux, FreeBSD and the web. Every file is listed with its SHA-256 in `SHA256SUMS.txt`.
 
