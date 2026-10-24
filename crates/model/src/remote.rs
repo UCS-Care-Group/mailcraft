@@ -516,6 +516,15 @@ pub struct EventChange {
     /// which goes again should the server refuse to delete the original.
     #[serde(skip_serializing_if = "String::is_empty")]
     pub moved: String,
+    /// For that deletion when the copy was made in a calendar of another account (or of another
+    /// mailbox's, #70): the account that has the copy, which is not this change's. 0 for a move
+    /// within one account.
+    #[serde(skip_serializing_if = "is_no_id")]
+    pub copy_account: Id,
+}
+
+fn is_no_id(id: &Id) -> bool {
+    *id == 0
 }
 
 fn is_no_response(response: &Response) -> bool {
@@ -989,6 +998,9 @@ pub struct EventCheck {
     /// still.
     #[serde(skip_serializing_if = "String::is_empty")]
     pub moved: String,
+    /// The account that has that copy, when it is not this check's ([`EventChange::copy_account`]).
+    #[serde(skip_serializing_if = "is_no_id")]
+    pub copy_account: Id,
 }
 
 impl EventCheck {

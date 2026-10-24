@@ -2232,6 +2232,9 @@ mod people_tests;
 mod shared_calendar_tests;
 #[cfg(test)]
 mod shared_calendar_write_tests;
+
+#[cfg(test)]
+mod shared_calendar_move_tests;
 #[cfg(test)]
 mod standin_tests;
 #[cfg(test)]

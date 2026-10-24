@@ -35,6 +35,13 @@
 //! [`waits_for_copy`]). Should the server refuse either step, or turn out not to have the copy
 //! it said it made, the appointment is put back where it was, and that is said.
 //!
+//! The same holds into and out of another mailbox's calendar (#70: a shared mailbox's, or one
+//! opened by address), where the owner may edit both: the copy is noted against the account that
+//! keeps the target, the deletion against the one that kept the original ([`EventChange::copy_account`]
+//! says where the copy is), and a download of the original's account leaves it out meanwhile. A
+//! copy in another mailbox is never taken out again behind its owner's back: should the original
+//! not go, the appointment is in both calendars and that is said. A meeting is not moved there.
+//!
 //! Events go back to the server, as mail does ([`Mailbox::pending`]): a calendar command makes
 //! its change here at once and notes an [`EventChange`] in [`Mailbox::event_changes`]
 //! ([`note_created`], [`note_changed`], [`note_deleted`]). `sync.eventChanges`
@@ -946,6 +953,8 @@ pub(crate) fn note_deleted(mailbox: &mut Mailbox, before: &Event) -> Result<(), 
         let original = original.map(|change| (change.replaces.clone(), change.base.clone()));
         mailbox.event_changes.retain(|change| !(change.kind == EventChangeKind::Create && change.account == account && change.event == before.id));
         if let Some((remote, base)) = original {
+            // (The original is on the server it was moved from, which may not be this one.)
+            let account = base.as_deref().map_or(account, |base| base.origin.account);
             mailbox.event_changes.push(EventChange { account, kind: EventChangeKind::Delete, event: before.id, remote, base, ..Default::default() });
         }
         // One occurrence of a series that was changed here and not sent yet: what the server
@@ -1965,9 +1974,12 @@ pub(crate) fn note_forward(
 /// there after all, it is put back as it was ([`move_refused`], [`take_back_copy`],
 /// [`move_not_seen`]). Until then a download leaves the original out.
 pub(crate) fn note_moved(s: &mut Session, id: Id, before: &Event) -> Result<(), CmdError> {
-    let account = before.origin.account;
     room_for_change(&s.mailbox)?;
     let token = new_token(id, s.rev() ^ s.now().unsigned_abs().rotate_left(16));
+    // The account that keeps the calendar it is in now: the original's, or (#70) another's, a
+    // shared mailbox's say, when the appointment goes across.
+    let target = s.mailbox.event(id).and_then(|event| s.mailbox.calendar(event.calendar)).map(|calendar| calendar.origin.account);
+    let account = target.filter(|account| *account != 0).unwrap_or(before.origin.account);
     let event = s.mailbox.event_mut(id)?;
     // A new event as far as the server goes, with a name of its own to come.
     event.origin = Origin { account, ..Default::default() };
@@ -1990,13 +2002,17 @@ fn finish_move(mailbox: &mut Mailbox, account: Id, id: Id, noted: EventChange, c
     if noted.replaces.is_empty() {
         return;
     }
+    // The original is deleted where it is: on the server it was moved from, which (#70) may be
+    // another account's than the copy's.
+    let source = noted.base.as_deref().map_or(account, |base| base.origin.account);
     mailbox.event_changes.push(EventChange {
-        account,
+        account: source,
         kind: EventChangeKind::Delete,
         event: id,
         remote: noted.replaces,
         base: noted.base,
         moved: copy.to_string(),
+        copy_account: if source == account { 0 } else { account },
         ..Default::default()
     });
 }
@@ -2062,7 +2078,8 @@ fn waits_for_copy(mailbox: &Mailbox, change: &EventChange, now: Timestamp) -> Op
     if change.kind != EventChangeKind::Delete || change.moved.is_empty() {
         return None;
     }
-    let of_copy = |check: &&EventCheck| check.account == change.account && check.kind != EventChangeKind::Delete && check.remote == change.moved;
+    let copy_of = if change.copy_account == 0 { change.account } else { change.copy_account };
+    let of_copy = |check: &&EventCheck| check.account == copy_of && check.kind != EventChangeKind::Delete && check.remote == change.moved;
     let until = mailbox.event_checks.iter().find(of_copy).map(|check| check.made.saturating_add(COPY_WAIT))?;
     (now <= until).then_some(until.saturating_add(1))
 }
@@ -2071,7 +2088,10 @@ fn waits_for_copy(mailbox: &Mailbox, change: &EventChange, now: Timestamp) -> Op
 /// all, and the original has not been deleted yet: the move is taken back. The appointment is
 /// as it was, in the calendar the server still has it in. Its name, when that is what was done.
 fn move_not_seen(mailbox: &mut Mailbox, account: Id, copy: &str) -> Option<String> {
-    let ends = |change: &EventChange| change.kind == EventChangeKind::Delete && change.account == account && change.moved == copy;
+    let ends = |change: &EventChange| {
+        let copy_of = if change.copy_account == 0 { change.account } else { change.copy_account };
+        change.kind == EventChangeKind::Delete && copy_of == account && change.moved == copy
+    };
     let at = mailbox.event_changes.iter().position(ends)?;
     // (Only an original that can be put back: its place here is the copy's.)
     let base = mailbox.event_changes.get(at).and_then(|change| change.base.clone())?;
@@ -2548,6 +2568,7 @@ fn deleted(mailbox: &mut Mailbox, account: Id, outcome: &EventOutcome, now: Time
                         base: change.base,
                         not_found: outcome.result == EventResult::Gone,
                         moved: change.moved,
+                        copy_account: change.copy_account,
                         ..Default::default()
                     },
                 );
@@ -2595,7 +2616,10 @@ fn deleted(mailbox: &mut Mailbox, account: Id, outcome: &EventOutcome, now: Time
             let name = called(change.base.as_deref());
             // The end of a move to another calendar: the copy that was made there goes again.
             let moving = !change.moved.is_empty();
-            let taken_back = moving && take_back_copy(mailbox, account, &change.moved);
+            // (A copy in another mailbox's calendar stays: it is a good copy, and the owner is
+            // told that the original is still where it was, rather than something being undone
+            // in a calendar of somebody else's behind their back.)
+            let taken_back = moving && change.copy_account == 0 && take_back_copy(mailbox, account, &change.moved);
             // Back in its calendar, under the id it had when that is still free.
             let back = change.base.is_some_and(|base| mailbox.add_event(*base).is_ok());
             let then = if back { " It is back in the calendar." } else { "" };
@@ -2835,7 +2859,7 @@ fn check_sent(
                         // the copy goes again, and the appointment is where the server has it.
                         let line = if check.moved.is_empty() {
                             format!("{name} was deleted here and {said}, but it still has it. It is back in the calendar.")
-                        } else if take_back_copy(mailbox, account, &check.moved) {
+                        } else if check.copy_account == 0 && take_back_copy(mailbox, account, &check.moved) {
                             format!(
                                 "{name} was moved to another calendar here, and when it was to be taken out of the one it was in {said}, but it still has it there. It wasn't moved: it is back there, and the copy in the other calendar was removed."
                             )
@@ -2985,6 +3009,13 @@ pub fn merge_events(mailbox: &mut Mailbox, download: &EventsDownload, offset_at:
     let mut waiting: HashMap<String, EventChangeKind> = HashMap::new();
     let mut made: HashMap<String, Id> = HashMap::new();
     let mut waiting_days: HashMap<String, Vec<Timestamp>> = HashMap::new();
+    // (An appointment on its way here from another account's calendar leaves the original on
+    // that server until the copy is seen: the download of that one leaves it out too.)
+    for change in mailbox.event_changes.iter().filter(|change| change.account != account && !change.replaces.is_empty()) {
+        if change.base.as_deref().is_some_and(|base| base.origin.account == account) {
+            waiting.insert(change.replaces.clone(), EventChangeKind::Delete);
+        }
+    }
     for change in mailbox.event_changes.iter().filter(|change| change.account == account) {
         // An appointment on its way into another calendar: its original, which the server still
         // has, is as good as deleted here. And a meeting that is being forwarded is as it is on
@@ -3800,3 +3831,6 @@ mod tests;
 
 #[cfg(test)]
 mod shared_calendar_tests;
+
+#[cfg(test)]
+mod cross_move_tests;

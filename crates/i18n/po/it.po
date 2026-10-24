@@ -260,6 +260,11 @@ msgstr "Non è possibile spostare una riunione in un altro calendario: il server
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/meeting.rs
+msgid "A meeting can't be moved to another mailbox's calendar: that would send everyone invited a cancellation, and their replies would no longer reach it. Forward the meeting, or create it again in that calendar."
+msgstr "Una riunione non può essere spostata nel calendario di un'altra casella: verrebbe inviata una cancellazione a tutti gli invitati e le loro risposte non la raggiungerebbero più. Inoltra la riunione o creala di nuovo in quel calendario."
+
+#. what a command says
+#: crates/engine/src/cmd/calendar/meeting.rs
 #, fuzzy
 msgid "A meeting is forwarded to {n} people at most at once."
 msgstr "Una riunione viene inoltrata al massimo a {n} persone alla volta."
