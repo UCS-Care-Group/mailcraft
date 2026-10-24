@@ -115,6 +115,12 @@ pub(crate) fn pressed_once(i: &egui::InputState, key: Key) -> bool {
     i.events.iter().any(|e| matches!(e, egui::Event::Key { key: k, pressed: true, repeat: false, .. } if *k == key))
 }
 
+/// Drops the repeats of `keys` held down, so that what reads them later in the frame sees only the
+/// press: a held key is one press (#391, #393).
+pub(crate) fn drop_repeats(i: &mut egui::InputState, keys: &[Key]) {
+    i.events.retain(|e| !matches!(e, egui::Event::Key { key, pressed: true, repeat: true, .. } if keys.contains(key)));
+}
+
 /// Takes `key` (with no Shift, Ctrl or Alt), its repeats too, so nothing later in the frame gets it.
 /// True only for a new press: a held key is one press (#391, #393).
 pub(crate) fn take_once(i: &mut egui::InputState, key: Key) -> bool {

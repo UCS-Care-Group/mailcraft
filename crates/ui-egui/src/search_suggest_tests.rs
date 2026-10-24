@@ -139,6 +139,7 @@ fn a_take_is_only_of_what_was_offered_for_the_text_now() {
     h.input_mut().events.extend([
         egui::Event::Text("a".into()),
         egui::Event::Key { key: egui::Key::Tab, physical_key: None, pressed: true, repeat: false, modifiers: egui::Modifiers::NONE },
+        egui::Event::Key { key: egui::Key::Tab, physical_key: None, pressed: false, repeat: false, modifiers: egui::Modifiers::NONE },
     ]);
     h.step();
     h.run_steps(3);
@@ -148,6 +149,7 @@ fn a_take_is_only_of_what_was_offered_for_the_text_now() {
     h.input_mut().events.extend([
         egui::Event::Text("t".into()),
         egui::Event::Key { key: egui::Key::Tab, physical_key: None, pressed: true, repeat: false, modifiers: egui::Modifiers::NONE },
+        egui::Event::Key { key: egui::Key::Tab, physical_key: None, pressed: false, repeat: false, modifiers: egui::Modifiers::NONE },
     ]);
     h.step();
     h.run_steps(3);
@@ -311,4 +313,34 @@ fn enter_with_the_pointer_on_the_list_closes_it() {
     assert!(!in_the_box(&h), "Enter left the box");
     assert!(h.query_by_label("flagged").is_none(), "the list closed");
     assert_eq!(search(&h), "is:");
+}
+
+/// A held key is one press on the list too (#391, #393): Escape closes the list and leaves the
+/// search and the message being written; Tab or Enter takes one suggestion and the keyboard stays
+/// in the box.
+#[test]
+fn a_held_key_is_one_press_on_the_list() {
+    use crate::people_view::testing::held;
+    let mut h = window();
+    h.state_mut().execute("mail.new", json!({"subject": "Half written"})).unwrap();
+    h.state_mut().search_focus = true;
+    h.run_steps(3);
+    typed(&mut h, "has:");
+    assert_eq!(offered(&h), ["attachment"]);
+    held(&mut h, egui::Key::Escape);
+    assert!(h.query_by_label("attachment").is_none(), "the list closed");
+    assert_eq!(search(&h), "has:");
+    assert!(h.state().session.compose.is_some(), "the message is still open");
+
+    for (how, keys) in [("Tab", &[][..]), ("Enter", &[egui::Key::ArrowDown][..])] {
+        let mut h = window();
+        typed(&mut h, "cat");
+        for k in keys {
+            key(&mut h, *k);
+        }
+        held(&mut h, if how == "Tab" { egui::Key::Tab } else { egui::Key::Enter });
+        assert_eq!(search(&h), "category:", "{how}: one suggestion taken");
+        assert!(in_the_box(&h), "{how}: the keyboard is still in the box");
+        assert!(!offered(&h).is_empty(), "{how}: the categories are offered");
+    }
 }

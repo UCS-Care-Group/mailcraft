@@ -117,6 +117,11 @@ fn search_box(app: &mut MailApp, ui: &mut Ui, rect: Rect) {
     let font = if rect.height() >= 30.0 { regular(13.0) } else { TypeRung::Control.regular() };
     // Keywords as pills (#196), drawn under the text in a place kept for them.
     let cursor = if focused { egui::TextEdit::load_state(ui.ctx(), id).and_then(|s| s.cursor.char_range()).map(|r| r.primary.index.0) } else { None };
+    // A held Enter or Tab is one press in the box (#391, #393): its repeats would take one
+    // suggestion after another, or leave the box once one is taken.
+    if focused {
+        ui.input_mut(|i| crate::keys::drop_repeats(i, &[egui::Key::Enter, egui::Key::Tab]));
+    }
     // What the word being typed may be (#308), for mail: the list's keys come before the box's.
     let mut suggesting = crate::search_suggest::Suggesting::load(ui.ctx());
     let over = suggesting.pointer_over(ui);
