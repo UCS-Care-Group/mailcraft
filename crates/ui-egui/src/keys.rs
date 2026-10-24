@@ -155,7 +155,8 @@ fn module_delete(app: &MailApp) -> Option<&'static str> {
 /// function keys) also work while typing, except the ones text editing needs.
 pub fn global_shortcuts(app: &mut MailApp, ctx: &egui::Context) {
     if !takes_commands(app) {
-        if app.ui.backstage && ctx.input(|i| i.key_pressed(Key::Escape)) {
+        // Escape closes File, but not when a dialog is open over it (#393).
+        if app.ui.backstage && app.dialog.is_none() && ctx.input(|i| i.key_pressed(Key::Escape)) {
             app.ui.backstage = false;
         }
         return;
@@ -182,6 +183,10 @@ pub fn global_shortcuts(app: &mut MailApp, ctx: &egui::Context) {
         // A held Escape is one press: its repeats come once the search box or a dialog has had
         // it, and would close a message being written (#365).
         if key == Key::Escape && repeat {
+            continue;
+        }
+        // With a menu open, Escape only closes the menu (#393).
+        if key == Key::Escape && egui::Popup::is_any_open(ctx) {
             continue;
         }
         let Some(name) = key_name(key) else { continue };
@@ -238,6 +243,10 @@ pub fn global_shortcuts(app: &mut MailApp, ctx: &egui::Context) {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "on_top_tests.rs"]
+mod on_top_tests;
 
 #[cfg(test)]
 mod tests {

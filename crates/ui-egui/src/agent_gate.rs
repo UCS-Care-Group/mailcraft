@@ -151,7 +151,19 @@ fn verbs(class: Class) -> (&'static str, &'static str) {
     }
 }
 
-/// The question over the window, when there is one. Enter and Escape say no.
+/// Enter or Escape answers no to the agent's question. This runs first in the frame, so nothing
+/// under the question gets the same key (#393).
+pub fn keys(app: &mut MailApp, ctx: &egui::Context) {
+    if app.asking.is_empty() {
+        return;
+    }
+    let (enter, escape) = ctx.input_mut(|i| (i.consume_key(egui::Modifiers::NONE, Key::Enter), i.consume_key(egui::Modifiers::NONE, Key::Escape)));
+    if enter || escape {
+        answer(app, false);
+    }
+}
+
+/// The question over the window, when there is one. Enter and Escape say no ([`keys`]).
 pub fn show(app: &mut MailApp, ctx: &egui::Context) {
     expire(app, crate::now_ms());
     let Some(a) = app.asking.front() else { return };
