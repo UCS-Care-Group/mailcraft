@@ -6,11 +6,14 @@ use super::*;
 
 impl<S: Read + Write> Imap<S> {
     /// Prefer the server's advertised PLAIN mechanism; otherwise use LOGIN. The host must
-    /// secure the stream first. Unknown capabilities are queried here; known capabilities are reused. A refusal never triggers
-    /// a second attempt with another mechanism.
+    /// secure the stream first. Unknown capabilities are queried here; known ones are reused.
+    /// A refusal never triggers a second attempt with another mechanism.
     pub fn authenticate_password(&mut self, user: &str, password: &str) -> Result<(), ProtoError> {
         if password.is_empty() {
             return Err(ProtoError::Auth("enter a password to sign in".into()));
+        }
+        if user.is_empty() {
+            return Err(ProtoError::Auth("enter a user name to sign in".into()));
         }
         if self.capabilities.is_none() {
             self.capabilities()?;
@@ -18,7 +21,7 @@ impl<S: Read + Write> Imap<S> {
         if !self.offers("AUTH=PLAIN") {
             return self.login(user, password);
         }
-        if user.is_empty() || password.is_empty() || user.contains('\0') || password.contains('\0') {
+        if user.contains('\0') || password.contains('\0') {
             return Err(ProtoError::Auth("PLAIN needs a user name and password without NUL characters".into()));
         }
         if user.len().saturating_add(password.len()) > 32 * 1024 {

@@ -97,3 +97,14 @@ fn a_missing_password_has_its_own_message_without_network_commands() {
     assert!(!error.to_string().contains("NUL"));
     assert!(stream.sent().is_empty());
 }
+
+#[test]
+fn an_empty_user_name_is_explained_before_any_commands() {
+    for text in ["* OK ready\r\n".to_string(), greeting("AUTH=PLAIN", ""), greeting("", "")] {
+        let mut stream = Script::new(text);
+        let error = Imap::connect(&mut stream).unwrap().authenticate_password("", "invented").unwrap_err();
+        assert!(error.to_string().contains("enter a user name"));
+        assert!(!error.to_string().contains("NUL"));
+        assert!(stream.sent().is_empty());
+    }
+}

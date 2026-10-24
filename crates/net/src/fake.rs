@@ -311,10 +311,10 @@ pub(crate) struct ImapWorld {
 
 impl ImapWorld {
     /// What the server says it can do.
-    fn capabilities(&self) -> String {
+    fn capabilities(&self, secured: bool) -> String {
         let xoauth2 = if self.token.is_empty() { "" } else { " AUTH=XOAUTH2" };
         let sasl_ir = if self.sasl_ir { " SASL-IR" } else { "" };
-        let plain = if self.plain { " AUTH=PLAIN" } else { "" };
+        let plain = if self.plain && (!self.offer_starttls || secured) { " AUTH=PLAIN" } else { "" };
         let starttls = if self.offer_starttls { " STARTTLS" } else { "" };
         let can_move = if self.can_move { " MOVE" } else { "" };
         let uidplus = if self.uidplus { " UIDPLUS" } else { "" };
@@ -482,10 +482,7 @@ fn serve_imap(stream: TcpStream, shared: Arc<Mutex<ImapWorld>>) {
         let mut world = shared.lock().unwrap();
         world.connections += 1;
         // STARTTLS is only told to those who ask.
-        format!(
-            "* OK [CAPABILITY {}] fake ready\r\n",
-            world.capabilities().replace(" STARTTLS", "").replace(if world.offer_starttls { " AUTH=PLAIN" } else { "\0" }, "")
-        )
+        format!("* OK [CAPABILITY {}] fake ready\r\n", world.capabilities(false).replace(" STARTTLS", ""))
     };
     let _ = reader.get_mut().write_all(greeting.as_bytes());
     let mut signed_in = false;
@@ -525,13 +522,7 @@ fn serve_imap(stream: TcpStream, shared: Arc<Mutex<ImapWorld>>) {
             continue;
         }
         match verb.to_ascii_uppercase().as_str() {
-            "CAPABILITY" => reply.extend(
-                format!(
-                    "* CAPABILITY {}\r\n{tag} OK done\r\n",
-                    world.capabilities().replace(if world.offer_starttls && !secured { " AUTH=PLAIN" } else { "\0" }, "")
-                )
-                .bytes(),
-            ),
+            "CAPABILITY" => reply.extend(format!("* CAPABILITY {}\r\n{tag} OK done\r\n", world.capabilities(secured)).bytes()),
             "STARTTLS" if world.offer_starttls => {
                 let upgrade = world.starttls_upgrade.clone();
                 drop(world);
