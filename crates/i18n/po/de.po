@@ -1134,6 +1134,11 @@ msgstr "Aug."
 msgid "August"
 msgstr "August"
 
+#. interface, name
+#: crates/ui-egui/src/folder_properties.rs
+msgid "AutoArchive"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -3027,6 +3032,16 @@ msgid "Folder Properties"
 msgstr "Ordnereigenschaften"
 
 #. interface
+#: crates/ui-egui/src/folder_properties.rs
+msgid "Folder Size"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/folder_properties.rs
+msgid "Folder Size…"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Folder name"
@@ -3229,8 +3244,8 @@ msgstr "Von:"
 msgid "Full messages: {done} of {total}"
 msgstr "Vollständige Nachrichten: {done} von {total}"
 
-#. interface
-#: crates/ui-egui/src/backstage.rs
+#. interface, name
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/folder_properties.rs
 #, fuzzy
 msgid "General"
 msgstr "Allgemein"
@@ -3457,6 +3472,11 @@ msgstr "Wie weit zurück E-Mails vollständig auf diesem Computer gespeichert we
 #, fuzzy
 msgid "How it repeats is for its organizer to say."
 msgstr "Wie sich die Serie wiederholt, legt der Organisator fest."
+
+#. interface
+#: crates/ui-egui/src/folder_properties.rs
+msgid "How many messages each folder holds and the space they take"
+msgstr ""
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -4066,7 +4086,7 @@ msgid "Local mailbox"
 msgstr "Lokales Postfach"
 
 #. interface
-#: crates/ui-egui/src/forms.rs
+#: crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Location"
 msgstr "Ort"
@@ -4130,6 +4150,16 @@ msgstr "E-Mail"
 #, fuzzy
 msgid "Mail can't be moved or copied into a Microsoft account from another account or a local folder yet: this version can't put a message on Microsoft's server"
 msgstr "E-Mails können noch nicht aus einem anderen Konto oder einem lokalen Ordner in ein Microsoft-Konto verschoben oder kopiert werden: Diese Version kann keine Nachricht auf den Microsoft-Server legen"
+
+#. interface
+#: crates/ui-egui/src/folder_properties.rs
+msgid "Mail folder"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/folder_properties.rs
+msgid "Mail folder: the account's {folder}"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
@@ -4793,7 +4823,7 @@ msgid "My organisation has to approve MailCraft first: what to do"
 msgstr "Meine Organisation muss MailCraft zuerst genehmigen: Was ist zu tun?"
 
 #. interface
-#: crates/ui-egui/src/forms.rs
+#: crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Name"
 msgstr "Name"
@@ -5947,6 +5977,11 @@ msgstr "Bild einfügen"
 msgid "Pattern"
 msgstr "Muster"
 
+#. interface
+#: crates/ui-egui/src/folder_properties.rs
+msgid "Pending development"
+msgstr ""
+
 #. command label, interface, name, ribbon location
 #: crates/engine/src/cmd/people.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/people_view.rs
 #, fuzzy
@@ -5958,6 +5993,11 @@ msgstr "Kontakte"
 #, fuzzy
 msgid "Permanently Delete"
 msgstr "Endgültig löschen"
+
+#. interface, name
+#: crates/ui-egui/src/folder_properties.rs
+msgid "Permissions"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -6072,6 +6112,11 @@ msgstr "Zeigen Sie darauf, um den Grund zu sehen."
 #, fuzzy
 msgid "Point at one to see why."
 msgstr "Zeigen Sie auf eines, um den Grund zu sehen."
+
+#. interface, name
+#: crates/ui-egui/src/folder_properties.rs
+msgid "Policy"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -8078,6 +8123,11 @@ msgstr "Zu Microsoft Graph wechseln"
 msgid "Switch without Them"
 msgstr "Ohne sie wechseln"
 
+#. interface, name
+#: crates/ui-egui/src/folder_properties.rs
+msgid "Synchronization"
+msgstr ""
+
 #. name
 #: crates/model/src/rich.rs
 #, fuzzy
@@ -9522,8 +9572,8 @@ msgstr "Wird heute {age}"
 msgid "Two Weeks Ago"
 msgstr "Vor zwei Wochen"
 
-#. command label
-#: crates/engine/src/cmd/format.rs
+#. command label, interface
+#: crates/engine/src/cmd/format.rs crates/ui-egui/src/folder_properties.rs
 #, fuzzy
 msgid "Type"
 msgstr "Eingeben"

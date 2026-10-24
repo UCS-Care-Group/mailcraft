@@ -1136,6 +1136,11 @@ msgstr "août"
 msgid "August"
 msgstr "août"
 
+#. interface, name
+#: crates/ui-egui/src/folder_properties.rs
+msgid "AutoArchive"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -3031,6 +3036,16 @@ msgid "Folder Properties"
 msgstr "Propriétés du dossier"
 
 #. interface
+#: crates/ui-egui/src/folder_properties.rs
+msgid "Folder Size"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/folder_properties.rs
+msgid "Folder Size…"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Folder name"
@@ -3233,8 +3248,8 @@ msgstr "De :"
 msgid "Full messages: {done} of {total}"
 msgstr "Messages complets : {done} sur {total}"
 
-#. interface
-#: crates/ui-egui/src/backstage.rs
+#. interface, name
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/folder_properties.rs
 #, fuzzy
 msgid "General"
 msgstr "Général"
@@ -3461,6 +3476,11 @@ msgstr "Jusqu'à quand le courrier est conservé en entier sur cet ordinateur. L
 #, fuzzy
 msgid "How it repeats is for its organizer to say."
 msgstr "C'est à l'organisateur de décider de sa périodicité."
+
+#. interface
+#: crates/ui-egui/src/folder_properties.rs
+msgid "How many messages each folder holds and the space they take"
+msgstr ""
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -4070,7 +4090,7 @@ msgid "Local mailbox"
 msgstr "Boîte aux lettres locale"
 
 #. interface
-#: crates/ui-egui/src/forms.rs
+#: crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Location"
 msgstr "Lieu"
@@ -4134,6 +4154,16 @@ msgstr "Courrier"
 #, fuzzy
 msgid "Mail can't be moved or copied into a Microsoft account from another account or a local folder yet: this version can't put a message on Microsoft's server"
 msgstr "Le courrier ne peut pas encore être déplacé ou copié dans un compte Microsoft depuis un autre compte ou un dossier local : cette version ne peut pas placer de message sur le serveur de Microsoft"
+
+#. interface
+#: crates/ui-egui/src/folder_properties.rs
+msgid "Mail folder"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/folder_properties.rs
+msgid "Mail folder: the account's {folder}"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
@@ -4799,7 +4829,7 @@ msgid "My organisation has to approve MailCraft first: what to do"
 msgstr "Mon organisation doit d'abord approuver MailCraft : que faire"
 
 #. interface
-#: crates/ui-egui/src/forms.rs
+#: crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Name"
 msgstr "Nom"
@@ -5953,6 +5983,11 @@ msgstr "Coller une image"
 msgid "Pattern"
 msgstr "Modèle"
 
+#. interface
+#: crates/ui-egui/src/folder_properties.rs
+msgid "Pending development"
+msgstr ""
+
 #. command label, interface, name, ribbon location
 #: crates/engine/src/cmd/people.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/people_view.rs
 #, fuzzy
@@ -5964,6 +5999,11 @@ msgstr "Contacts"
 #, fuzzy
 msgid "Permanently Delete"
 msgstr "Supprimer définitivement"
+
+#. interface, name
+#: crates/ui-egui/src/folder_properties.rs
+msgid "Permissions"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -6078,6 +6118,11 @@ msgstr "Pointez dessus pour savoir pourquoi."
 #, fuzzy
 msgid "Point at one to see why."
 msgstr "Pointez sur l'une d'elles pour savoir pourquoi."
+
+#. interface, name
+#: crates/ui-egui/src/folder_properties.rs
+msgid "Policy"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -8092,6 +8137,11 @@ msgstr "Passer à Microsoft Graph"
 msgid "Switch without Them"
 msgstr "Basculer sans eux"
 
+#. interface, name
+#: crates/ui-egui/src/folder_properties.rs
+msgid "Synchronization"
+msgstr ""
+
 #. name
 #: crates/model/src/rich.rs
 #, fuzzy
@@ -9538,8 +9588,8 @@ msgstr "A {age} ans aujourd'hui"
 msgid "Two Weeks Ago"
 msgstr "Il y a deux semaines"
 
-#. command label
-#: crates/engine/src/cmd/format.rs
+#. command label, interface
+#: crates/engine/src/cmd/format.rs crates/ui-egui/src/folder_properties.rs
 #, fuzzy
 msgid "Type"
 msgstr "Saisir"

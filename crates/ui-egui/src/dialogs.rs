@@ -104,7 +104,8 @@ pub enum Dialog {
     ReportProblem(Box<crate::report_problem::Draft>),
     /// Propose New Time, Forward, or the list of what was proposed ([`crate::meeting_dialogs`]).
     Meeting(crate::meeting_dialogs::MeetingDialog),
-    /// What a folder and its subfolders, or an account, hold ([`crate::folder_properties`]).
+    /// A folder's or an account's Properties, with Folder Size… over them
+    /// ([`crate::folder_properties`]).
     FolderProperties(Box<crate::folder_properties::FolderProperties>),
 }
 
@@ -1381,10 +1382,18 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
             let open = window(ctx, dialog.title(), dialog.width(), |ui| done = dialog.show(app, ui));
             close |= !open || done;
         }
+        // Folder Size, open over the tabs, takes Escape and Enter; Enter on a button that has the
+        // keyboard is that button's.
         Dialog::FolderProperties(dialog) => {
+            let enter = enter && ctx.memory(|m| m.focused().is_none());
+            let over = dialog.size_open;
             let mut done = false;
-            let (title, width) = (dialog.title.clone(), dialog.width());
-            let open = window(ctx, &title, width, |ui| done = dialog.show(app, ui));
+            let title = dialog.title.clone();
+            let open = window(ctx, &title, crate::folder_properties::WIDTH, |ui| done = dialog.show(ui, enter && !over));
+            if over {
+                close = false;
+                done |= dialog.show_size(app, ctx, escape, enter);
+            }
             close |= !open || done;
         }
     }

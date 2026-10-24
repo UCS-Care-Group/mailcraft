@@ -1136,6 +1136,11 @@ msgstr "ago."
 msgid "August"
 msgstr "agosto"
 
+#. interface, name
+#: crates/ui-egui/src/folder_properties.rs
+msgid "AutoArchive"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -3031,6 +3036,16 @@ msgid "Folder Properties"
 msgstr "Propiedades de carpeta"
 
 #. interface
+#: crates/ui-egui/src/folder_properties.rs
+msgid "Folder Size"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/folder_properties.rs
+msgid "Folder Size…"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Folder name"
@@ -3233,8 +3248,8 @@ msgstr "De:"
 msgid "Full messages: {done} of {total}"
 msgstr "Mensajes completos: {done} de {total}"
 
-#. interface
-#: crates/ui-egui/src/backstage.rs
+#. interface, name
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/folder_properties.rs
 #, fuzzy
 msgid "General"
 msgstr "General"
@@ -3461,6 +3476,11 @@ msgstr "Hasta qué fecha se conserva el correo completo en este equipo. El corre
 #, fuzzy
 msgid "How it repeats is for its organizer to say."
 msgstr "Su periodicidad la decide su organizador."
+
+#. interface
+#: crates/ui-egui/src/folder_properties.rs
+msgid "How many messages each folder holds and the space they take"
+msgstr ""
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -4070,7 +4090,7 @@ msgid "Local mailbox"
 msgstr "Buzón local"
 
 #. interface
-#: crates/ui-egui/src/forms.rs
+#: crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Location"
 msgstr "Ubicación"
@@ -4134,6 +4154,16 @@ msgstr "Correo"
 #, fuzzy
 msgid "Mail can't be moved or copied into a Microsoft account from another account or a local folder yet: this version can't put a message on Microsoft's server"
 msgstr "Todavía no se puede mover ni copiar correo a una cuenta de Microsoft desde otra cuenta o desde una carpeta local: esta versión no puede poner un mensaje en el servidor de Microsoft"
+
+#. interface
+#: crates/ui-egui/src/folder_properties.rs
+msgid "Mail folder"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/folder_properties.rs
+msgid "Mail folder: the account's {folder}"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
@@ -4799,7 +4829,7 @@ msgid "My organisation has to approve MailCraft first: what to do"
 msgstr "Mi organización tiene que aprobar primero MailCraft: qué hacer"
 
 #. interface
-#: crates/ui-egui/src/forms.rs
+#: crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Name"
 msgstr "Nombre"
@@ -5953,6 +5983,11 @@ msgstr "Pegar imagen"
 msgid "Pattern"
 msgstr "Patrón"
 
+#. interface
+#: crates/ui-egui/src/folder_properties.rs
+msgid "Pending development"
+msgstr ""
+
 #. command label, interface, name, ribbon location
 #: crates/engine/src/cmd/people.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/people_view.rs
 #, fuzzy
@@ -5964,6 +5999,11 @@ msgstr "Personas"
 #, fuzzy
 msgid "Permanently Delete"
 msgstr "Eliminar permanentemente"
+
+#. interface, name
+#: crates/ui-egui/src/folder_properties.rs
+msgid "Permissions"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -6078,6 +6118,11 @@ msgstr "Señálela para ver por qué."
 #, fuzzy
 msgid "Point at one to see why."
 msgstr "Señale una para ver por qué."
+
+#. interface, name
+#: crates/ui-egui/src/folder_properties.rs
+msgid "Policy"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -8092,6 +8137,11 @@ msgstr "Cambiar a Microsoft Graph"
 msgid "Switch without Them"
 msgstr "Cambiar sin ellos"
 
+#. interface, name
+#: crates/ui-egui/src/folder_properties.rs
+msgid "Synchronization"
+msgstr ""
+
 #. name
 #: crates/model/src/rich.rs
 #, fuzzy
@@ -9538,8 +9588,8 @@ msgstr "Cumple {age} hoy"
 msgid "Two Weeks Ago"
 msgstr "Hace dos semanas"
 
-#. command label
-#: crates/engine/src/cmd/format.rs
+#. command label, interface
+#: crates/engine/src/cmd/format.rs crates/ui-egui/src/folder_properties.rs
 #, fuzzy
 msgid "Type"
 msgstr "Escribir"

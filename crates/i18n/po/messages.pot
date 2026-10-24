@@ -950,6 +950,11 @@ msgstr ""
 msgid "August"
 msgstr ""
 
+#. interface, name
+#: crates/ui-egui/src/folder_properties.rs
+msgid "AutoArchive"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/ribbon.rs
 msgid "Automatic"
@@ -2528,6 +2533,16 @@ msgid "Folder Properties"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/folder_properties.rs
+msgid "Folder Size"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/folder_properties.rs
+msgid "Folder Size…"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 msgid "Folder name"
 msgstr ""
@@ -2698,8 +2713,8 @@ msgstr ""
 msgid "Full messages: {done} of {total}"
 msgstr ""
 
-#. interface
-#: crates/ui-egui/src/backstage.rs
+#. interface, name
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/folder_properties.rs
 msgid "General"
 msgstr ""
 
@@ -2891,6 +2906,11 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
 msgid "How it repeats is for its organizer to say."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/folder_properties.rs
+msgid "How many messages each folder holds and the space they take"
 msgstr ""
 
 #. command label
@@ -3404,7 +3424,7 @@ msgid "Local mailbox"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/forms.rs
+#: crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs
 msgid "Location"
 msgstr ""
 
@@ -3456,6 +3476,16 @@ msgstr ""
 #. what a command says
 #: crates/model/src/mailbox.rs
 msgid "Mail can't be moved or copied into a Microsoft account from another account or a local folder yet: this version can't put a message on Microsoft's server"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/folder_properties.rs
+msgid "Mail folder"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/folder_properties.rs
+msgid "Mail folder: the account's {folder}"
 msgstr ""
 
 #. interface
@@ -4012,7 +4042,7 @@ msgid "My organisation has to approve MailCraft first: what to do"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/forms.rs
+#: crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs
 msgid "Name"
 msgstr ""
 
@@ -4974,6 +5004,11 @@ msgstr ""
 msgid "Pattern"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/folder_properties.rs
+msgid "Pending development"
+msgstr ""
+
 #. command label, interface, name, ribbon location
 #: crates/engine/src/cmd/people.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/people_view.rs
 msgid "People"
@@ -4982,6 +5017,11 @@ msgstr ""
 #. command label, ribbon
 #: crates/engine/src/cmd/mail.rs crates/ui-egui/src/ribbon.rs
 msgid "Permanently Delete"
+msgstr ""
+
+#. interface, name
+#: crates/ui-egui/src/folder_properties.rs
+msgid "Permissions"
 msgstr ""
 
 #. interface
@@ -5077,6 +5117,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
 msgid "Point at one to see why."
+msgstr ""
+
+#. interface, name
+#: crates/ui-egui/src/folder_properties.rs
+msgid "Policy"
 msgstr ""
 
 #. interface
@@ -6755,6 +6800,11 @@ msgstr ""
 msgid "Switch without Them"
 msgstr ""
 
+#. interface, name
+#: crates/ui-egui/src/folder_properties.rs
+msgid "Synchronization"
+msgstr ""
+
 #. name
 #: crates/model/src/rich.rs
 msgid "System"
@@ -7987,8 +8037,8 @@ msgstr ""
 msgid "Two Weeks Ago"
 msgstr ""
 
-#. command label
-#: crates/engine/src/cmd/format.rs
+#. command label, interface
+#: crates/engine/src/cmd/format.rs crates/ui-egui/src/folder_properties.rs
 msgid "Type"
 msgstr ""
 
