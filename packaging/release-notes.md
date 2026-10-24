@@ -49,6 +49,7 @@
 - Arranged by size, a message that is only partly here says, and sorts by, its whole size: a Microsoft account's message kept as its preview the size it had when it was downloaded, and a message too large to download from a mail server the size that server gave ([#300](https://github.com/GITHUB_REPOSITORY/issues/300)).
 - The only account can now be removed in File › Info; before, it couldn't be ([#313](https://github.com/GITHUB_REPOSITORY/issues/313), thanks to @kartas39).
 - Properties… in a folder's or an account's right-click menu shows what it is, where it is and how many messages it holds; its Folder Size… button lists each folder's messages and the space they take ([#314](https://github.com/GITHUB_REPOSITORY/issues/314), thanks to @kartas39).
+- A horizontal line in a message (`<hr>`) is drawn again, in the reading pane and above the original in a reply or forward ([#349](https://github.com/GITHUB_REPOSITORY/issues/349)).
 
 **Early alpha.** The foundations are in place and tested, but much of what a daily mail program needs is not there yet, and most of the Microsoft 365 behaviour has only been tested against stand-ins. What works is in the [README](https://github.com/GITHUB_REPOSITORY#what-works-today).
 
