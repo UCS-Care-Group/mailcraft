@@ -2303,6 +2303,18 @@ name = "mailcraft-control-key"
 version = "0.7.0"
 
 [[package]]
+name = "mailcraft-dav"
+version = "0.7.0"
+dependencies = [
+ "mailcraft-ical",
+ "mailcraft-model",
+ "mailcraft-time",
+ "mailcraft-vcard",
+ "proptest",
+ "quick-xml 0.42.0",
+]
+
+[[package]]
 name = "mailcraft-engine"
 version = "0.7.0"
 dependencies = [
@@ -2401,12 +2413,10 @@ dependencies = [
  "flate2",
  "log",
  "mailcraft-charset",
- "mailcraft-ical",
  "mailcraft-mime",
  "mailcraft-model",
  "mailcraft-proto",
  "mailcraft-time",
- "mailcraft-vcard",
  "proptest",
  "quick-xml 0.42.0",
  "ring",

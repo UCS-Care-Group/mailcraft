@@ -39,5 +39,3 @@ stand-in = []
 
 [dev-dependencies]
 proptest = { workspace = true }
-mailcraft-ical = { workspace = true }
-mailcraft-vcard = { workspace = true }

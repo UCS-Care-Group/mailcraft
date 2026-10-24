@@ -248,4 +248,59 @@ fn real_ical_writer_title_edit_preserves_an_email_alarm() {
     let got = patch(&source, &before, &after, Component::Event).unwrap();
     assert!(got.contains(alarm));
     assert!(got.contains("SUMMARY:New\r\n"));
+    assert!(got.find("SUMMARY:New").unwrap() < got.find("BEGIN:VALARM").unwrap());
+}
+
+#[test]
+fn edited_and_added_properties_precede_alarms() {
+    let alarm = "BEGIN:VALARM\r\nACTION:DISPLAY\r\nDESCRIPTION:Keep\r\nEND:VALARM\r\n";
+    let original = EVENT.replace("END:VEVENT", &format!("{alarm}END:VEVENT"));
+    for after in [EVENT.replace("Old", "New"), EVENT.replace("SUMMARY:Old", "SUMMARY:Old\r\nLOCATION:New")] {
+        let got = patch(&original, EVENT, &after, Component::Event).unwrap();
+        assert!(got.find(":New\r\n").unwrap() < got.find("BEGIN:VALARM").unwrap());
+        assert!(got.contains(alarm));
+    }
+}
+#[test]
+fn a_duration_replaced_with_an_end_keeps_the_effective_start_form() {
+    let original = EVENT.replace("SUMMARY:Old", "SUMMARY:Old\r\nDTSTART:20261024T120000\r\nDURATION:PT1H");
+    for end in ["DTEND:20261024T130000Z", "DTEND;VALUE=DATE:20261025"] {
+        let after = original.replace("DURATION:PT1H", end);
+        assert!(patch(&original, &original, &after, Component::Event).is_err());
+    }
+    let after = original.replace("DURATION:PT1H", "DTEND:20261024T130000");
+    let got = patch(&original, &original, &after, Component::Event).unwrap();
+    assert!(got.contains("DTEND:20261024T130000\r\n"));
+    assert!(!got.contains("DURATION:"));
+    // An unchanged normalised writer DTSTART is not the DTSTART kept in the output.
+    let source = original
+        .replace("DTSTART:", "DTSTART;TZID=Europe/London:")
+        .replace("BEGIN:VEVENT", "BEGIN:VTIMEZONE\r\nTZID:Europe/London\r\nEND:VTIMEZONE\r\nBEGIN:VEVENT");
+    assert!(patch(&source, &original, &after, Component::Event).is_err());
+}
+proptest! {
+    #[test]
+    fn mutations_of_structured_documents_remain_bounded_and_keep_edited_properties_before_alarms(
+        card in any::<bool>(), mode in 0u8..8, offset in 0usize..256,
+        value in "[a-zA-Z0-9 :;\"\r\n]{0,64}"
+    ) {
+        let seed = if card { CARD.to_string() } else { EVENT.replace("END:VEVENT", "BEGIN:VALARM\r\nACTION:DISPLAY\r\nEND:VALARM\r\nEND:VEVENT") };
+        let text = match mode {
+            0 => seed.replace("Old", "Ol\r\n d"),
+            1 => seed.replace("Old", "Ol\rd"),
+            2 => seed.replace(":Old", ";X=\"unterminated:Old"),
+            3 => seed.replacen("END:", "BROKEN:", 1),
+            4 => seed.repeat(2),
+            5 => seed.replace("Old", &value),
+            6 => seed.get(..offset.min(seed.len())).unwrap().to_string(),
+            _ => seed.clone(),
+        };
+        let component = if card { Component::Card } else { Component::Event };
+        if let Ok(got) = patch(&text, &seed, &seed.replace("Old", "New"), component) {
+            prop_assert!(got.len() <= MAX_BYTES);
+            if let (Some(property), Some(alarm)) = (got.find("SUMMARY:New\r\n"), got.find("BEGIN:VALARM")) {
+                prop_assert!(property < alarm);
+            }
+        }
+    }
 }

@@ -44,7 +44,7 @@ struct Property {
 }
 struct Document {
     properties: Vec<Property>,
-    end: usize,
+    properties_end: usize,
     meeting: bool,
     zones: BTreeSet<String>,
     nested: Vec<String>,
@@ -106,6 +106,7 @@ fn parse(text: &str, component: Component) -> Result<Document, InvalidDocument> 
     let mut zones = BTreeSet::new();
     let mut nested = Vec::new();
     let mut nested_start = None;
+    let mut first_nested = None;
     for line in lines(text)? {
         if line.text.is_empty() && stack.is_empty() {
             continue;
@@ -114,6 +115,7 @@ fn parse(text: &str, component: Component) -> Result<Document, InvalidDocument> 
         if head.eq_ignore_ascii_case("BEGIN") {
             if stack.last().is_some_and(|s| s == component.name()) {
                 nested_start = Some(line.span.start);
+                first_nested.get_or_insert(line.span.start);
             }
             if stack.is_empty() {
                 roots += 1;
@@ -165,7 +167,7 @@ fn parse(text: &str, component: Component) -> Result<Document, InvalidDocument> 
     if !stack.is_empty() || targets != 1 {
         return Err(InvalidDocument);
     }
-    Ok(Document { properties, end, meeting, zones, nested })
+    Ok(Document { properties, properties_end: first_nested.unwrap_or(end), meeting, zones, nested })
 }
 
 fn timezone(line: &str) -> Result<Option<String>, InvalidDocument> {
@@ -287,6 +289,16 @@ pub fn patch(original: &str, before: &str, after: &str, component: Component) ->
             if source_lines.len() > 1 || new_lines.len() > 1 {
                 return Err(InvalidDocument);
             }
+            // A new DTEND must match the DTSTART that will actually survive in the output,
+            // not a normalised start from a writer whose unchanged lines are never spliced in.
+            if key == "DTEND" && source_lines.is_empty() {
+                let start_values = if changed.contains("DTSTART") { &new_values } else { &source_values };
+                if let (Some(start), Some(end)) = (start_values.get("DTSTART").and_then(|v| v.first()), new_lines.first())
+                    && time_form(start)? != time_form(end)?
+                {
+                    return Err(InvalidDocument);
+                }
+            }
             if let (Some(before), Some(after)) = (source_lines.first(), new_lines.first())
                 && time_form(before)? != time_form(after)?
             {
@@ -310,26 +322,38 @@ pub fn patch(original: &str, before: &str, after: &str, component: Component) ->
     // its original position, parameters and physical folding, even beside an edited line.
     let mut remove = difference(&source, &new, &changed);
     let mut add = difference(&new, &old, &changed);
-    // Every replacement consists of bytes already present in the bounded `after` document.
-    let mut output = String::new();
-    let mut cursor = 0;
-    for p in &source.properties {
-        if !take(&mut remove, &p.line.text) {
-            continue;
-        }
-        output.push_str(original.get(cursor..p.line.span.start).ok_or(InvalidDocument)?);
-        cursor = p.line.span.end;
-    }
-    output.push_str(original.get(cursor..source.end).ok_or(InvalidDocument)?);
+    // Insert property replacements before any nested alarms, preferably at the first
+    // removed line. RFC 5545 §3.6.1 puts event properties before its nested components.
+    let mut insertions = String::new();
     for p in &new.properties {
         if take(&mut add, &p.line.text) {
-            output.push_str(after.get(p.line.span.clone()).ok_or(InvalidDocument)?);
-            if !output.ends_with('\n') {
-                output.push_str("\r\n");
+            insertions.push_str(after.get(p.line.span.clone()).ok_or(InvalidDocument)?);
+            if !insertions.ends_with('\n') {
+                insertions.push_str("\r\n");
             }
         }
     }
-    output.push_str(original.get(source.end..).ok_or(InvalidDocument)?);
+    let removed: Vec<_> = source.properties.iter().filter(|p| take(&mut remove, &p.line.text)).map(|p| p.line.span.clone()).collect();
+    let insertion = removed.first().map_or(source.properties_end, |span| span.start.min(source.properties_end));
+    let mut output = String::new();
+    let mut cursor = 0;
+    let mut inserted = false;
+    for span in removed {
+        if !inserted && insertion <= span.start {
+            output.push_str(original.get(cursor..insertion).ok_or(InvalidDocument)?);
+            output.push_str(&insertions);
+            cursor = insertion;
+            inserted = true;
+        }
+        output.push_str(original.get(cursor..span.start).ok_or(InvalidDocument)?);
+        cursor = span.end;
+    }
+    if !inserted {
+        output.push_str(original.get(cursor..insertion).ok_or(InvalidDocument)?);
+        output.push_str(&insertions);
+        cursor = insertion;
+    }
+    output.push_str(original.get(cursor..).ok_or(InvalidDocument)?);
     if output.len() > MAX_BYTES {
         return Err(InvalidDocument);
     }
