@@ -56,6 +56,7 @@ mod quit;
 mod quit_macos;
 mod secrets;
 mod self_update;
+mod sender_images;
 #[cfg(test)]
 mod shared_send_flow;
 mod single_instance;
@@ -1074,6 +1075,7 @@ fn services(
 ) -> Services {
     let pictures_ctx = ctx.clone();
     let pictures_kept = kept_pictures.clone();
+    let (images_ctx, images_kept) = (ctx.clone(), kept_pictures.clone());
     let wipe_pictures = kept_pictures.clone();
     let busy_ctx = ctx.clone();
     let check_ctx = ctx.clone();
@@ -1144,6 +1146,12 @@ fn services(
         pictures: Some(Box::new(move |url| {
             let kept = pictures_kept.clone();
             background(&pictures_ctx, "picture", move || picture_cache::picture(&url, kept.as_ref()))
+        })),
+        // A sender's picture for the message list, once the owner turned that on: from
+        // Gravatar, favicon.im or Google, downloaded and kept like a message's pictures.
+        sender_images: Some(Box::new(move |address, wanted| {
+            let kept = images_kept.clone();
+            background(&images_ctx, "sender image", move || sender_images::look_up(&address, kept.as_ref(), &wanted))
         })),
         picture_cache: kept_pictures.map(|kept| Box::new(picture_cache::Kept(kept)) as Box<dyn mailcraft_ui_egui::PictureCache>),
         // When the people of a meeting are free and busy, while its Scheduling Assistant is open.

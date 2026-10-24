@@ -715,6 +715,7 @@ fn clear(app: &mut MailApp) -> Result<Value, String> {
         None => 0,
     };
     app.remote_pictures.forget_all = true;
+    app.sender_images = Default::default();
     Ok(json!({"cleared": on_disk}))
 }
 
