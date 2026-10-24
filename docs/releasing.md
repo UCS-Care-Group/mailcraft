@@ -1,6 +1,6 @@
 # Releasing MailCraft
 
-> **Last reviewed:** 2026-10-18 · **Last updated:** 2026-10-23 · **Change:** minor (a tag builds and signs only from `main` with a passing CI; compiling and signing in separate steps; WiX checked by hash; `--locked`; the release announced to the testers in #11; the 0.6.0 Fixes lines brought up to date; a Fixes section in the release notes, each issue linked, checked against what merged since the last tag; build provenance as a file beside each release; reproducible builds, checked weekly; one pinned Rust version, 1.98.1, for every build; what to do when a release key leaks: there is no taking it back from copies already out; v0.5.0, the first release with MailCraft's own signature; how a copy that updates itself installs a release; `DISABLEAUTOMATICUPDATES=1`; MailCraft's own release signature: `SHA256SUMS.txt.sig`, the `MAILCRAFT_RELEASE_KEY` secret, `cargo xtask release-key`) · **Status:** releases v0.1.0 to v0.5.0 were built and published by `release.yml` and `package.yml` on GitHub's runners, for every platform in the table below; v0.5.0 is the first with MailCraft's own release signature (`SHA256SUMS.txt.sig`, verified by the in-use key), and none is signed by the operating systems' signatures yet (gap #18).
+> **Last reviewed:** 2026-10-18 · **Last updated:** 2026-10-24 · **Change:** minor (release notes open with a headline list, **in short**; a tag builds and signs only from `main` with a passing CI; compiling and signing in separate steps; WiX checked by hash; `--locked`; the release announced to the testers in #11; the 0.6.0 Fixes lines brought up to date; a Fixes section in the release notes, each issue linked, checked against what merged since the last tag; build provenance as a file beside each release; reproducible builds, checked weekly; one pinned Rust version, 1.98.1, for every build; what to do when a release key leaks: there is no taking it back from copies already out; v0.5.0, the first release with MailCraft's own signature; how a copy that updates itself installs a release; `DISABLEAUTOMATICUPDATES=1`; MailCraft's own release signature: `SHA256SUMS.txt.sig`, the `MAILCRAFT_RELEASE_KEY` secret, `cargo xtask release-key`) · **Status:** releases v0.1.0 to v0.5.0 were built and published by `release.yml` and `package.yml` on GitHub's runners, for every platform in the table below; v0.5.0 is the first with MailCraft's own release signature (`SHA256SUMS.txt.sig`, verified by the in-use key), and none is signed by the operating systems' signatures yet (gap #18).
 
 The canonical recipe is [craftrules `release/playbook.md`](https://github.com/storytold/craftrules/blob/main/release/playbook.md);
 this file has the MailCraft specifics. The scripts in `packaging/` are WordCraft's with MailCraft's
@@ -16,10 +16,14 @@ organisation, call `storytold/craft-common-actions/.github/workflows/release.yml
 WordCraft does.
 
 1. Release notes: `packaging/release-notes.md` is the release's text on GitHub and on the
-   website's changelog, which shows it as written. Under **Fixes**, one line for each user-visible
-   fix, each linking the issue it resolves (or its PR when there was no issue) in full,
-   `[#123](https://github.com/GITHUB_REPOSITORY/issues/123)`, because the website does not link
-   a bare `#123`; thank whoever reported it. Check the list against everything merged since the
+   website's changelog, which shows it as written. It opens with **MailCraft <version> in short**:
+   a headline list of six to ten lines, a few words each, of what a tester would notice (the main
+   new features, then safety and sturdiness in a line each, then the number of fixes), each with
+   its issue linked where there is one. **What's new** then says what each feature does. Under
+   **Fixes**, one line for each user-visible fix, each linking the issue it resolves (or its PR
+   when there was no issue) in full, `[#123](https://github.com/GITHUB_REPOSITORY/issues/123)`,
+   because the website does not link a bare `#123`; thank whoever reported it. Check the list
+   against everything merged since the
    last tag, `gh pr list --state merged --search "merged:>YYYY-MM-DD" --json number,title,closingIssuesReferences`:
    every user-visible change is in the notes, and a security fix always is. Lines are added as
    fixes merge and cleared when the next release's notes start.
@@ -47,7 +51,7 @@ WordCraft does.
    Nothing is public until then.
 6. Announce it to the testers: a comment on [#11](https://github.com/UCS-Care-Group/mailcraft/issues/11)
    headed `## MailCraft v<version> is out`, with the download link and the release's headlines
-   (the tester welcome promises it). Add anyone who signed up since to #11's Testers table.
+   (the tester welcome promises it): the notes' **in short** list. Add anyone who signed up since to #11's Testers table.
 
 A pushed tag builds and signs only if its commit is on `main` and `ci-ok` passed on it: the first
 job of `release.yml` (`version`) checks both and every other job needs it, so a tag on a branch
@@ -262,6 +266,7 @@ and in the Flatpak (which is granted `org.freedesktop.secrets` for it).
 
 | Date | Change |
 |---|---|
+| 2026-10-24 | Release notes open with **MailCraft <version> in short**, a headline list, before What's new and Fixes; the announcement in #11 uses it |
 | 2026-10-23 | A tag builds and signs only from `main` with a passing `ci-ok`; compile and sign in separate steps; WiX checked by hash; no build cache in release builds; `--locked` everywhere; a daily cargo-deny run and Dependabot for crates |
 | 2026-10-21 | Step 6: each release announced to the testers in #11, and new sign-ups added to its table |
 | 2026-10-21 | Release notes: a Fixes section, each fix's issue linked in full for the website's changelog; checked against what merged since the last tag |

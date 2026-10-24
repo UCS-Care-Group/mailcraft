@@ -1,4 +1,15 @@
-**What's new in 0.7.0** (an alpha for testers; sign up in [#11](https://github.com/GITHUB_REPOSITORY/issues/11)): new mail from Microsoft accounts sooner, a proper menu bar on the Mac, and a way to report a problem from inside MailCraft.
+**MailCraft 0.7.0 in short** (an alpha for testers; sign up in [#11](https://github.com/GITHUB_REPOSITORY/issues/11))
+- New mail from Microsoft accounts arrives sooner: every Inbox first, and checked every minute ([#276](https://github.com/GITHUB_REPOSITORY/issues/276)).
+- Shared mailboxes' calendars, and a colleague's calendar opened by address ([#70](https://github.com/GITHUB_REPOSITORY/issues/70)).
+- A proper menu bar on the Mac.
+- Report a Problem from inside MailCraft.
+- Sender images in the message list, off unless you turn them on.
+- Mail, People and Tasks arranged by Categories ([#327](https://github.com/GITHUB_REPOSITORY/issues/327)).
+- Safer: a mailbox file from elsewhere connects to nothing until you confirm its servers, and a remembered sign-in only goes to the servers it was given for.
+- Sturdier: a hostile invitation, a huge message or an endless server answer no longer freezes MailCraft or runs it out of memory.
+- And 48 fixes in all, listed below.
+
+**What's new**
 - **Mail arrives sooner.** For a Microsoft account, Send/Receive does every Inbox first, shared mailboxes included, skips folders that haven't changed and keeps its connection open. Between runs, MailCraft checks each Inbox every minute ([#276](https://github.com/GITHUB_REPOSITORY/issues/276)).
 - **On the Mac**, the menu bar at the top of the screen has MailCraft's menus, and the message list has the thin scroll bar Mac programs use (thanks to @HerbJul and @pick2510).
 - **Report a Problem**, in the title bar beside Copy Diagnostics and in Help: say what went wrong, and MailCraft starts the report for you, on GitHub (the problem form filled in, in your browser, with the diagnostics saved to a file to attach; public) or by email (a new message to the maintainers from your own account, with the diagnostics attached; private). You read everything first, and nothing goes until you submit it or press Send.
