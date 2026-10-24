@@ -640,9 +640,10 @@ pub struct Session {
     /// Microsoft and JMAP accounts whose last folder listing was cut short (#276): a folder it left
     /// out wasn't read, so the run that follows is no full sweep (and a JMAP run lists again).
     pub(crate) graph_listed_short: std::collections::HashSet<Id>,
-    /// The mailboxes of each JMAP account whose whole window the run under way took in (M6): at its
-    /// end, only what those windows left out is removed. Never saved.
-    pub(crate) jmap_read: std::collections::HashMap<Id, std::collections::HashSet<String>>,
+    /// The mailboxes of each JMAP account the run under way took in a window of (M6), and whether
+    /// that was the whole of the mailbox, once: at its end, only what those whole windows left out is
+    /// removed. Never saved.
+    pub(crate) jmap_read: std::collections::HashMap<Id, std::collections::HashMap<String, bool>>,
     /// Set while a command an agent asked for runs (with what the owner allowed it): what the
     /// command did is checked against that ([`crate::agent`]), and undone when it oversteps.
     pub agent: Option<Vec<crate::agent::Class>>,

@@ -29,6 +29,8 @@
 //! mail, but not a standard folder, nor one holding mail only this computer has
 //! ([`jmap_down::keep_what_is_only_here`]).
 
+use std::collections::HashSet;
+
 use mailcraft_model::sync::{GraphFetchResult, JmapFetchRequest, JmapMailRequest, JmapMailResult, JmapScope, MAX_JMAP_WINDOW, SyncPhase};
 use mailcraft_model::{AccountKind, FolderKind, Id, JmapServer, Mailbox};
 use serde_json::{Value, json};
@@ -227,17 +229,20 @@ pub fn apply_jmap_mail(s: &mut Session, result: JmapMailResult) -> CmdResult {
     }
     let mut index = std::mem::take(&mut s.graph_index);
     for page in &result.pages {
-        jmap_down::take_window(&mut s.mailbox, &mut index, account, page, &mut down);
-        if page.afresh {
-            s.jmap_read.entry(account).or_default().insert(page.folder.clone());
-        }
+        // A mailbox that turns up twice in a run is read in part: neither of its windows is taken
+        // as all of it, so that nothing in it goes for what one of them lacks.
+        let read = s.jmap_read.entry(account).or_default();
+        let first = !read.contains_key(&page.folder);
+        read.insert(page.folder.clone(), first && page.afresh);
+        jmap_down::take_window(&mut s.mailbox, &mut index, account, page, first, &mut down);
     }
     s.graph_index = index;
     // The run's end: what its complete windows left out goes, when it went well (and not after a
     // listing cut short: what left a mailbox may be in one it missed). Either way the next run
     // begins afresh.
     if !result.partial {
-        let read = s.jmap_read.remove(&account).unwrap_or_default();
+        let read: HashSet<String> =
+            s.jmap_read.remove(&account).unwrap_or_default().into_iter().filter_map(|(mailbox, whole)| whole.then_some(mailbox)).collect();
         if result.whole && !s.graph_listed_short.contains(&account) {
             jmap_down::sweep(&mut s.mailbox, account, &read, &mut down);
         }

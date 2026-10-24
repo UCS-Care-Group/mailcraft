@@ -287,7 +287,9 @@ fn nothing_is_removed_for_a_window_read_in_part_or_a_run_that_went_wrong() {
         apply_jmap_mail(&mut s, JmapMailResult { whole: true, ..trouble }).unwrap();
         assert!(here(&s, account, "E1").is_some() && here(&s, account, "E2").is_some(), "trouble {n}");
     }
-    // The next run that reads the Inbox whole and goes well removes them.
+    // The next run that reads the Inbox whole and goes well removes them. (It begins with its
+    // request: the one before never came to its end, and what it read is no part of this one.)
+    s.run("sync.jmapRequest", &json!({})).unwrap();
     let answer = run(&mut s, account, vec![window("M1", vec![marks("E3", false, false)], true)], true);
     assert_eq!(answer["removedMessages"].as_u64(), Some(2));
     assert!(here(&s, account, "E1").is_none() && here(&s, account, "E3").is_some());
@@ -690,6 +692,26 @@ fn what_a_jmap_account_holds_only_here_moves_and_goes_as_any_mail() {
     // And a folder made here, with nothing of the server's in it.
     let ours = s.run("folder.new", &json!({"name": "Ours", "parent": inbox})).unwrap()["id"].as_u64().unwrap();
     s.run("folder.delete", &json!({"id": ours})).unwrap();
+}
+
+#[test]
+fn a_mailbox_that_turns_up_twice_in_a_run_is_read_in_part() {
+    let (mut s, account) = session();
+    run(&mut s, account, vec![window("M1", vec![email("E1", "One", 1), email("E2", "Two", 2)], true)], true);
+    let both = || vec![marks("E1", false, false), marks("E2", false, false)];
+    // In two pieces of one run, the second without E1: neither is taken as the whole Inbox.
+    let answer = run(&mut s, account, vec![window("M1", both(), true), window("M1", vec![marks("E2", false, false)], true)], true);
+    assert_eq!(answer["removedMessages"].as_u64(), Some(0));
+    assert!(here(&s, account, "E1").is_some());
+    // In one piece, the second without E1: the same.
+    let twice = vec![window("M1", both(), true), window("M1", vec![marks("E2", false, false)], true)];
+    apply_jmap_mail(&mut s, JmapMailResult { listing: Some(FolderListing { folders: mailboxes(), complete: true }), ..piece(account) }).unwrap();
+    apply_jmap_mail(&mut s, JmapMailResult { pages: twice, ..piece(account) }).unwrap();
+    let answer = apply_jmap_mail(&mut s, JmapMailResult { whole: true, partial: false, ..piece(account) }).unwrap();
+    assert_eq!(answer["removedMessages"].as_u64(), Some(0));
+    // The next run that reads it once, whole, finds both there.
+    assert_eq!(run(&mut s, account, vec![window("M1", both(), true)], true)["removedMessages"].as_u64(), Some(0));
+    assert!(here(&s, account, "E1").is_some_and(|m| !m.server.as_ref().is_some_and(|server| server.gone)));
 }
 
 #[test]

@@ -243,6 +243,9 @@ pub(crate) fn bounded(mut result: JmapMailResult) -> JmapMailResult {
     let before = result.pages.len();
     result.pages.retain(|page| is_id(&page.folder));
     cut |= result.pages.len() != before;
+    // Two windows of one mailbox in a piece: neither is all of it.
+    let mut seen: HashSet<&str> = HashSet::new();
+    cut |= !result.pages.iter().all(|page| seen.insert(page.folder.as_str()));
     for page in &mut result.pages {
         if !bounded_page(page) {
             cut = true;
@@ -311,9 +314,11 @@ fn more_than_marks(there: &GraphMessage) -> bool {
 /// server said of the message: what the message has of that stays (whether it has attachments, for
 /// one not fetched yet). Such an entry for a message that isn't here (removed here while the run was
 /// under way) is passed over, so that no empty message is made of it; the next run, which no longer
-/// says it is here, brings it whole.
-pub(crate) fn take_window(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, page: &MessagePage, down: &mut Down) {
+/// says it is here, brings it whole. A window that isn't the first of its mailbox in the run
+/// (`first` false) is taken as one read in part, whatever it says.
+pub(crate) fn take_window(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, page: &MessagePage, first: bool, down: &mut Down) {
     let mut window = page.clone();
+    window.afresh &= first;
     window.messages.retain_mut(|there| {
         if more_than_marks(there) {
             return true;
