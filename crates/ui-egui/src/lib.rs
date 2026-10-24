@@ -3824,6 +3824,11 @@ fn feedback(id: &str, v: &Value) -> Option<String> {
         }
         "compose.send" => Some(tl!("Sent").to_string()),
         "compose.saveDraft" => Some(tl!("Draft saved").to_string()),
+        // A draft its JMAP account's server has isn't deleted yet (M6): the editor closes, and why
+        // the draft is still in Drafts is said, as the Move menu says it.
+        "compose.discard" => {
+            v.get("stays").and_then(Value::as_str).map(|why| i18n::fmt(tl!("The draft stays in Drafts. {why}"), &[("why", tl!(why))]))
+        }
         "mail.markAllRead" | "rules.run" => n("changed").or(n("matched")).map(|c| tln!(c, "{n} message changed", "{n} messages changed")),
         "file.import" => {
             let mut parts = Vec::new();

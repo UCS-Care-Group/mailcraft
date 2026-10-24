@@ -672,6 +672,77 @@ fn a_move_or_a_deletion_of_mail_the_server_has_is_refused_until_changes_go_up() 
     assert_eq!(s.mailbox.message(one).map(|m| m.folder), Some(inbox));
 }
 
+/// The server's mailboxes keep their names and places until changes go up: Rename Folder and Move
+/// Folder say why, change nothing and are greyed with one in view. A folder made here, even inside
+/// one of them, is renamed and moved as any.
+#[test]
+fn a_folder_the_server_has_is_neither_renamed_nor_moved_until_changes_go_up() {
+    let (mut s, account) = session();
+    run(&mut s, account, vec![], true);
+    let (inbox, projects, apollo) = (folder_here(&s, account, "M1"), folder_here(&s, account, "M5"), folder_here(&s, account, "M6"));
+    for (command, params) in [
+        ("folder.rename", json!({"id": apollo, "name": "Artemis"})),
+        ("folder.move", json!({"id": apollo, "parent": null})),
+        ("folder.move", json!({"id": projects, "parent": inbox})),
+    ] {
+        let before = s.mailbox.clone();
+        let why = s.run(command, &params).unwrap_err().to_string();
+        assert_eq!(why, mailcraft_model::FOLDERS_STAY_YET, "{command}");
+        assert!(s.mailbox == before, "{command} changed the mailbox");
+    }
+    s.view.folder = apollo;
+    assert!(!s.enabled("folder.rename") && !s.enabled("folder.move"));
+    let ours = s.run("folder.new", &json!({"name": "Ours", "parent": projects})).unwrap()["id"].as_u64().unwrap();
+    s.view.folder = ours;
+    assert!(s.enabled("folder.rename") && s.enabled("folder.move"));
+    s.run("folder.rename", &json!({"id": ours, "name": "Mine"})).unwrap();
+    s.run("folder.move", &json!({"id": ours, "parent": inbox})).unwrap();
+    assert_eq!(s.mailbox.folder(ours).map(|f| (f.name.as_str(), f.parent)), Some(("Mine", Some(inbox))));
+}
+
+/// Discard on a draft the server has closes the editor and keeps the draft, and says why, for the
+/// window to tell the owner; one written here alone is deleted as before.
+#[test]
+fn discarding_a_draft_the_server_has_keeps_it_and_says_why() {
+    let (mut s, account) = session();
+    let mut draft = email("D1", "Plan", 1);
+    draft.draft = true;
+    run(&mut s, account, vec![window("M3", vec![draft], true)], true);
+    let id = here(&s, account, "D1").unwrap().id;
+    let mime = b"From: Ada <ada@example.org>\r\nSubject: Plan\r\n\r\nWhat I wrote.\r\n".to_vec();
+    let fetched = vec![GraphFetched { id: "D1".into(), mime }];
+    apply_jmap_fetch(&mut s, GraphFetchResult { account, email: ME.into(), fetched, ..Default::default() }).unwrap();
+    s.run("mail.editDraft", &json!({"id": id})).unwrap();
+    let answer = s.run("compose.discard", &json!({})).unwrap();
+    assert_eq!(answer, json!({"draftDeleted": false, "draft": id, "stays": mailcraft_model::NOT_MOVING_YET}));
+    assert!(s.compose.is_none() && s.mailbox.message(id).is_some());
+    // A draft only this computer has goes, and nothing is said of it.
+    s.run("mail.new", &json!({"account": account, "subject": "Mine"})).unwrap();
+    let mine = s.run("compose.saveDraft", &json!({})).unwrap()["draft"].as_u64().unwrap();
+    assert_eq!(s.run("compose.discard", &json!({})).unwrap(), json!({"draftDeleted": true}));
+    assert!(s.mailbox.message(mine).is_none());
+}
+
+/// Without a JMAP account the selection isn't walked (the ribbon asks every frame); with one, a
+/// message its server has greys the commands that would move it.
+#[test]
+fn whether_mail_may_move_is_known_without_walking_a_selection_without_a_jmap_account() {
+    let mut s = Session::empty();
+    let local = s.mailbox.local_account();
+    let inbox = s.mailbox.folder_of_kind(local, FolderKind::Inbox).unwrap();
+    let mut m = Message { folder: inbox, account: local, subject: "Here".into(), ..Default::default() };
+    // Even a message that says it is a server's (a damaged file) doesn't count without one.
+    m.server = Some(ServerMessage { id: "E1".into(), ..Default::default() });
+    let id = s.mailbox.add_message(m).unwrap();
+    s.sel.messages = vec![id; 10_000];
+    assert!(!s.mailbox.has_jmap_account());
+    assert_eq!(crate::cmd::needs_movable(&s), None);
+    let (mut s, account) = session();
+    run(&mut s, account, vec![window("M1", vec![email("E1", "One", 1)], true)], true);
+    s.sel.messages = vec![here(&s, account, "E1").unwrap().id];
+    assert_eq!(crate::cmd::needs_movable(&s), Some(mailcraft_model::NOT_MOVING_YET));
+}
+
 #[test]
 fn what_a_jmap_account_holds_only_here_moves_and_goes_as_any_mail() {
     let (mut s, account) = session();

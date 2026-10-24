@@ -122,8 +122,11 @@ pub(crate) fn needs_message(s: &Session) -> Option<&'static str> {
 
 /// Enabled only with messages selected that may move or go: none that a JMAP account's server has,
 /// which stays where it is until moves and deletions go up (M6).
+/// A mailbox without a JMAP account isn't walked: this runs every frame for the ribbon and menus.
 pub(crate) fn needs_movable(s: &Session) -> Option<&'static str> {
-    needs_message(s).or_else(|| s.sel.messages.iter().any(|id| s.mailbox.stays_on_server(*id)).then_some(mailcraft_model::NOT_MOVING_YET))
+    needs_message(s).or_else(|| {
+        (s.mailbox.has_jmap_account() && s.sel.messages.iter().any(|id| s.mailbox.stays_on_server(*id))).then_some(mailcraft_model::NOT_MOVING_YET)
+    })
 }
 
 /// Enabled only while a message is being written.

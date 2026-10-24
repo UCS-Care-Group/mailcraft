@@ -22,8 +22,8 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("folder.new", "New Folder", "Folder › New", new)
             .key("Mod+Shift+E")
             .params(r#"{"name": string, "parent"?: number | null (default: the folder in view; null: top level), "account"?: number}"#),
-        CommandSpec::new("folder.rename", "Rename Folder", "Folder › Actions", rename).key("F2").params(r#"{"name": string, "id"?: number}"#),
-        CommandSpec::new("folder.move", "Move Folder", "Folder › Actions", move_folder).params(r#"{"parent": number | null, "id"?: number}"#),
+        CommandSpec::new("folder.rename", "Rename Folder", "Folder › Actions", rename).key("F2").params(r#"{"name": string, "id"?: number}"#).selection(can_rename),
+        CommandSpec::new("folder.move", "Move Folder", "Folder › Actions", move_folder).params(r#"{"parent": number | null, "id"?: number}"#).selection(can_move),
         CommandSpec::new("folder.delete", "Delete Folder", "Folder › Actions", delete).params(FOLDER).selection(can_delete),
         CommandSpec::new("folder.favorite", "Add to Favorites", "Folder › Favorites", favorite).params(
             r#"{"value"?: bool (default: toggle), "id"?: number} — refused for a folder of an account whose Favorites come from its server (Outlook's list, which is changed in Outlook; `view.favorites` says which accounts those are). A shared mailbox's folders are favourites kept in MailCraft, whatever the account it is opened through has: nothing is written to any server for them"#,
@@ -124,6 +124,16 @@ fn can_empty(s: &Session) -> Option<&'static str> {
     }
     // Not of what a JMAP account's server has (M6): the next run would bring it back.
     s.mailbox.emptying_stays_on_server(s.view.folder).then_some(mailcraft_model::NOT_MOVING_YET)
+}
+
+/// Not one of a JMAP account's server's mailboxes (M6): its server wouldn't hear of the new name.
+fn can_rename(s: &Session) -> Option<&'static str> {
+    s.mailbox.renaming_stays_on_server(s.view.folder).then_some(mailcraft_model::FOLDERS_STAY_YET)
+}
+
+/// Not a folder holding what a JMAP account's server has (M6): its server wouldn't hear of the move.
+fn can_move(s: &Session) -> Option<&'static str> {
+    s.mailbox.folder_stays_on_server(s.view.folder).then_some(mailcraft_model::FOLDERS_STAY_YET)
 }
 
 /// Not a folder holding what a JMAP account's server has (M6): the next run would bring it back.

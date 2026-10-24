@@ -913,6 +913,11 @@ pub const NOT_SENDING_YET: &str = "MailCraft doesn't send mail from a JMAP accou
 /// run would bring the message back where it was.
 pub const NOT_MOVING_YET: &str = "MailCraft doesn't move or delete a JMAP account's mail yet: the next Send/Receive would bring it back";
 
+/// Why a JMAP account's folders keep their names and places ([`Mailbox::folder_stays_on_server`]):
+/// a rename or a move reaches the server only once the engine sends changes, and until then it
+/// would stay on this computer alone.
+pub const FOLDERS_STAY_YET: &str = "MailCraft doesn't rename or move a JMAP account's folders yet: its server wouldn't hear of it";
+
 fn not_found(what: &'static str, id: Id) -> ModelError {
     ModelError::NotFound(what, id)
 }
@@ -1366,6 +1371,10 @@ impl Mailbox {
         if f.kind != FolderKind::Custom {
             return Err(invalid(format!("{} can't be renamed", f.name)));
         }
+        // Nor one of a JMAP account's server's mailboxes: its server wouldn't hear of the new name.
+        if self.renaming_stays_on_server(id) {
+            return Err(invalid(FOLDERS_STAY_YET));
+        }
         if self.name_taken(f.account, f.parent, &name, Some(id)) {
             return Err(invalid(format!("a folder named \"{name}\" already exists here")));
         }
@@ -1378,6 +1387,10 @@ impl Mailbox {
         let f = self.folder(id).ok_or(not_found("folder", id))?.clone();
         if f.kind != FolderKind::Custom {
             return Err(invalid(format!("{} can't be moved", f.name)));
+        }
+        // Nor one holding what a JMAP account's server has: its server wouldn't hear of the move.
+        if self.folder_stays_on_server(id) {
+            return Err(invalid(FOLDERS_STAY_YET));
         }
         if let Some(p) = parent {
             let pf = self.folder(p).ok_or(not_found("folder", p))?;
@@ -1552,6 +1565,19 @@ impl Mailbox {
     /// account's folders (a draft saved here, mail imported there) moves and goes as any other.
     pub fn stays_on_server(&self, id: Id) -> bool {
         self.message(id).is_some_and(|m| m.server.is_some() && self.account(m.account).is_some_and(|a| a.kind == AccountKind::Jmap))
+    }
+
+    /// Whether any account is a JMAP account: without one, nothing stays on a server
+    /// ([`Mailbox::stays_on_server`]), and a selection needn't be walked to know it.
+    pub fn has_jmap_account(&self) -> bool {
+        self.accounts.iter().any(|a| a.kind == AccountKind::Jmap)
+    }
+
+    /// Whether the folder `id` is one of a JMAP account's server's mailboxes, whose name stays as the
+    /// server has it until changes go up ([`FOLDERS_STAY_YET`]). A folder made here keeps its name
+    /// to itself, whatever is in it.
+    pub fn renaming_stays_on_server(&self, id: Id) -> bool {
+        self.folder(id).is_some_and(|f| f.server.is_some() && self.account(f.account).is_some_and(|a| a.kind == AccountKind::Jmap))
     }
 
     /// Whether the folder `id`, with the folders in it, holds what a JMAP account's server has: a

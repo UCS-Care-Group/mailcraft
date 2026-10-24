@@ -3634,6 +3634,11 @@ msgid "MailCraft doesn't move or delete a JMAP account's mail yet: the next Send
 msgstr ""
 
 #. what a command says
+#: crates/model/src/mailbox.rs
+msgid "MailCraft doesn't rename or move a JMAP account's folders yet: its server wouldn't hear of it"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/compose.rs
 msgid "MailCraft doesn't send mail from a JMAP account yet"
 msgstr ""
@@ -7259,6 +7264,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/report_problem.rs
 msgid "The diagnostics weren't saved, so GitHub's page wasn't opened. Try again, or untick Include diagnostics."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+msgid "The draft stays in Drafts. {why}"
 msgstr ""
 
 #. interface

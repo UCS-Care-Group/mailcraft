@@ -1949,6 +1949,16 @@ fn copy_diagnostics_takes_the_hosts_report_or_says_what_it_can() {
     assert!(text.starts_with("the host's report") && text.contains("Send/Receive timings"), "{text}");
 }
 
+/// Discard on a draft a JMAP account's server has keeps it in Drafts (M6), and the status bar says
+/// why, in the words the Move menu greys with; a draft that went says nothing.
+#[test]
+fn discarding_a_draft_that_stays_says_why() {
+    let why = mailcraft_model::NOT_MOVING_YET;
+    let said = crate::feedback("compose.discard", &json!({"draftDeleted": false, "draft": 4, "stays": why})).unwrap();
+    assert!(said.starts_with("The draft stays in Drafts.") && said.ends_with(why), "{said}");
+    assert_eq!(crate::feedback("compose.discard", &json!({"draftDeleted": true})), None);
+}
+
 #[test]
 fn opening_a_damaged_mailbox_file_says_what_was_left_out() {
     let said = |v: Value| crate::feedback("file.open", &v);

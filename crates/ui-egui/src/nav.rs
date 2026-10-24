@@ -301,8 +301,9 @@ fn folder_row(app: &mut MailApp, ui: &mut Ui, f: &Folder, depth: usize, has_chil
             }
         };
         item(ui, app, "New Folder…", "ui.dialog", json!({"name": "folder", "mode": "new", "parent": id}), true);
-        item(ui, app, "Rename Folder…", "ui.dialog", json!({"name": "folder", "mode": "rename", "id": id}), custom);
-        // (Not one that holds what a JMAP account's server has, which stays for now.)
+        // (Not one that is or holds what a JMAP account's server has, which stays for now.)
+        let renamable = custom && !app.session.mailbox.renaming_stays_on_server(id);
+        item(ui, app, "Rename Folder…", "ui.dialog", json!({"name": "folder", "mode": "rename", "id": id}), renamable);
         let deletable = custom && !app.session.mailbox.folder_stays_on_server(id);
         item(ui, app, "Delete Folder", "folder.delete", json!({"id": id}), deletable);
         ui.separator();
