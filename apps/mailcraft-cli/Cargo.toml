@@ -26,3 +26,5 @@ serde_json = { workspace = true }
 mailcraft-charset = { workspace = true }
 # The Graph stand-in, for `tests/graph_folders.rs`: in a test's build only.
 mailcraft-net = { workspace = true, features = ["stand-in"] }
+# The JMAP client and its server in the process, for `tests/jmap_mail.rs`: in a test's build only.
+mailcraft-jmap = { workspace = true, features = ["stand-in"] }
