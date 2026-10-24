@@ -22,6 +22,9 @@ pub struct Row {
     pub unread: usize,
     /// The group heading above this row, when it starts a group (`Today`, `Last Week`).
     pub group: Option<String>,
+    /// Whether the heading is one of the owner's categories (to be drawn as spelt, never
+    /// translated) and not a date, importance or one of the program's own (`Pinned`, no category).
+    pub category: bool,
     /// Which of the message's rows this is: arranged by categories, a message filed under two
     /// categories is listed under each, as Outlook lists it, and the second row is copy 1.
     pub copy: u16,
@@ -70,17 +73,18 @@ fn group_label(s: &Session, m: &Message) -> Option<String> {
 /// The heading of the things that have no category, in a list arranged by categories.
 pub const NO_CATEGORY: &str = "No category";
 
-/// An item's categories one by one, A to Z, each once and spelt as the mailbox's list of
-/// categories spells it: the headings an item arranged by categories is listed under.
-pub fn category_names<'a>(s: &'a Session, categories: &'a [String]) -> Vec<&'a str> {
-    let mut names: Vec<&str> = categories
-        .iter()
-        .map(|c| c.trim())
-        .filter(|c| !c.is_empty())
-        .map(|c| s.mailbox.categories.iter().find(|k| k.name.eq_ignore_ascii_case(c)).map_or(c, |k| k.name.as_str()))
-        .collect();
-    names.sort_by_key(|c| c.to_lowercase());
-    names.dedup_by(|a, b| a.eq_ignore_ascii_case(b));
+/// How a category name is compared: Unicode lower case, for sorting, for telling two spellings
+/// apart and for its heading alike.
+fn fold(name: &str) -> String {
+    name.to_lowercase()
+}
+
+/// An item's categories one by one, A to Z, each once whatever capitals it was given in (folded
+/// names, see [`fold`]): the headings an item arranged by categories is listed under.
+pub fn category_names(categories: &[String]) -> Vec<String> {
+    let mut names: Vec<String> = categories.iter().map(|c| c.trim()).filter(|c| !c.is_empty()).map(fold).collect();
+    names.sort();
+    names.dedup();
     names
 }
 
@@ -172,7 +176,7 @@ pub fn rows_with(s: &Session, decided: &HashMap<Id, bool>, searched: &HashMap<Id
                 }
                 None => {
                     index.insert((m.account, m.thread_key()), out.len());
-                    out.push(Row { id: m.id, members: vec![m.id], unread: usize::from(!m.read), group: None, copy: 0 });
+                    out.push(Row { id: m.id, members: vec![m.id], unread: usize::from(!m.read), group: None, category: false, copy: 0 });
                 }
             }
         }
@@ -184,7 +188,7 @@ pub fn rows_with(s: &Session, decided: &HashMap<Id, bool>, searched: &HashMap<Id
             }
         }
     } else {
-        out.extend(shown.iter().map(|m| Row { id: m.id, members: vec![m.id], unread: usize::from(!m.read), group: None, copy: 0 }));
+        out.extend(shown.iter().map(|m| Row { id: m.id, members: vec![m.id], unread: usize::from(!m.read), group: None, category: false, copy: 0 }));
     }
 
     let mut last: Option<String> = None;
@@ -208,30 +212,44 @@ pub fn rows_with(s: &Session, decided: &HashMap<Id, bool>, searched: &HashMap<Id
 /// the headings, so they stay. Outlook does the same: unticking it there leaves a list arranged by
 /// categories grouped as it was (observed 2026-10-22).
 fn by_category(s: &Session, shown: &[&Message], desc: bool) -> Vec<Row> {
-    // (heading, message); the sort is stable, so under each heading `shown`'s order stays.
+    // One spelling for each name however it was written: the mailbox's list of categories first,
+    // then the first spelling met.
+    let mut spelling: HashMap<String, &str> = s.mailbox.categories.iter().map(|k| (fold(&k.name), k.name.as_str())).collect();
+    for m in shown {
+        for c in m.categories.iter().map(|c| c.trim()).filter(|c| !c.is_empty()) {
+            spelling.entry(fold(c)).or_insert(c);
+        }
+    }
+    // (heading's folded name, message); the sort is stable, so under each heading `shown`'s order stays.
     let mut placed: Vec<(Option<String>, &Message)> = Vec::new();
     for m in shown {
-        let names = if m.pinned { Vec::new() } else { category_names(s, &m.categories) };
+        let names = if m.pinned { Vec::new() } else { category_names(&m.categories) };
         if names.is_empty() {
             placed.push((None, m));
         }
-        placed.extend(names.into_iter().map(|name| (Some(name.to_string()), *m)));
+        placed.extend(names.into_iter().map(|name| (Some(name), *m)));
     }
-    placed.sort_by_cached_key(|(name, m)| {
-        let key = name.as_ref().map(|n| n.to_lowercase());
-        (std::cmp::Reverse(m.pinned), if desc { Err(std::cmp::Reverse(key)) } else { Ok(key) })
-    });
+    placed.sort_by_cached_key(|(name, m)| (std::cmp::Reverse(m.pinned), if desc { Err(std::cmp::Reverse(name.clone())) } else { Ok(name.clone()) }));
     let mut copies: HashMap<Id, u16> = HashMap::new();
-    let mut last: Option<String> = None;
+    let mut last: Option<(String, bool)> = None;
     let mut out = Vec::with_capacity(placed.len());
     for (name, m) in placed {
         let copy = copies.entry(m.id).or_default();
-        let mut row = Row { id: m.id, members: vec![m.id], unread: usize::from(!m.read), group: None, copy: *copy };
+        let mut row = Row { id: m.id, members: vec![m.id], unread: usize::from(!m.read), group: None, category: false, copy: *copy };
         *copy = copy.saturating_add(1);
-        let label = Some(if m.pinned { "Pinned".to_string() } else { name.unwrap_or_else(|| NO_CATEGORY.into()) });
-        if label != last {
-            row.group = label.clone();
-            last = label;
+        let (label, category) = if m.pinned {
+            ("Pinned".to_string(), false)
+        } else {
+            match name {
+                Some(n) => (spelling.get(&n).map_or(n.clone(), |k| k.to_string()), true),
+                None => (NO_CATEGORY.to_string(), false),
+            }
+        };
+        let key = (fold(&label), category);
+        if last.as_ref() != Some(&key) {
+            row.group = Some(label);
+            row.category = category;
+            last = Some(key);
         }
         out.push(row);
     }

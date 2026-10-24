@@ -174,8 +174,17 @@ fn one_line_sender_width(room: f32) -> f32 {
 
 /// A group heading of the list in the interface language: the engine's dates (`Today`) are
 /// names the catalogue has, and so is the heading of what is pinned.
-fn group_name(group: &str) -> &str {
-    if group == "Pinned" { tl!("Pinned") } else { tl!(group) }
+/// The owner's category names are drawn as they are spelt, never through the catalogue.
+fn group_name(group: &str, category: bool) -> &str {
+    if category {
+        group
+    } else if group == "Pinned" {
+        tl!("Pinned")
+    } else if group == mailcraft_engine::list::NO_CATEGORY {
+        tl!("No category")
+    } else {
+        tl!(group)
+    }
 }
 
 /// What the arrangement is called in the list's header, in the interface language.
@@ -611,7 +620,14 @@ fn list(app: &mut MailApp, ui: &mut Ui) {
                 if i == 0 {
                     ui.painter().line_segment([pos2(gr.min.x, top), pos2(gr.max.x, top)], line);
                 }
-                paint_clipped(ui.painter(), pos2(gr.min.x + 10.0, gr.center().y), gr.width() - 16.0, group_name(group), semibold(GROUP_TEXT), t.text);
+                paint_clipped(
+                    ui.painter(),
+                    pos2(gr.min.x + 10.0, gr.center().y),
+                    gr.width() - 16.0,
+                    group_name(group, row.category),
+                    semibold(GROUP_TEXT),
+                    t.text,
+                );
             }
             let rect = Rect::from_min_size(pos2(origin.x, origin.y + top), vec2(width, row_h));
             if reveal && Some((row.id, row.copy)) == focus {

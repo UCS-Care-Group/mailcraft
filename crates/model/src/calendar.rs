@@ -22,8 +22,96 @@ use crate::{Address, Id, Importance, Origin, Rgb};
 const MAX_STEPS: i64 = 20_000;
 const MAX_RESULTS: usize = 2_000;
 
+/// What the account may do with a calendar, as its server (or, one day, a CalDAV server) says.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Rights {
+    /// Only when the owner is busy, never what with: no events can be listed.
+    FreeBusy,
+    /// Shown, never changed here.
+    Read,
+    /// Shown and changed, as the owner's own calendar is.
+    #[default]
+    Edit,
+}
+
+impl Rights {
+    /// Whether the calendar's events can be changed here.
+    pub fn can_edit(self) -> bool {
+        self == Rights::Edit
+    }
+
+    /// The rights a file from before there were any says: `read_only` was all it knew.
+    pub fn from_read_only(read_only: bool) -> Rights {
+        if read_only { Rights::Read } else { Rights::Edit }
+    }
+
+    /// The rights a word names; anything that isn't one of them is the least that shows events.
+    pub fn parse(word: &str) -> Rights {
+        match word.trim().to_ascii_lowercase().as_str() {
+            "edit" => Rights::Edit,
+            "freebusy" => Rights::FreeBusy,
+            _ => Rights::Read,
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for Rights {
+    /// A file that holds something odd in place of the rights reads as [`Rights::Read`]: never
+    /// more than it asked for.
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Rights, D::Error> {
+        Ok(match serde_json::Value::deserialize(deserializer)? {
+            serde_json::Value::String(word) => Rights::parse(&word),
+            _ => Rights::Read,
+        })
+    }
+}
+
+/// Whose a calendar is, when it isn't the account's own: the person it belongs to.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
+pub struct CalendarOwner {
+    pub address: String,
+    pub name: String,
+}
+
+/// Most characters of an owner's address and of a calendar's name or owner's name that are kept.
+pub const MAX_OWNER_ADDRESS: usize = 254;
+
+/// One line of text from outside, at most `max` characters, control characters as spaces.
+pub(crate) fn flat_line(text: &str, max: usize) -> String {
+    let flat: String = text.chars().map(|c| if c.is_control() { ' ' } else { c }).collect();
+    flat.trim().chars().take(max).collect::<String>().trim_end().to_string()
+}
+
+impl CalendarOwner {
+    /// The owner as it can be kept: one line each, bounded; `None` when there is nothing in it.
+    pub fn cleaned(&self) -> Option<CalendarOwner> {
+        let owner =
+            CalendarOwner { address: flat_line(&self.address, MAX_OWNER_ADDRESS).replace(' ', ""), name: flat_line(&self.name, crate::MAX_NAME) };
+        (!owner.address.is_empty() || !owner.name.is_empty()).then_some(owner)
+    }
+}
+
+/// A calendar the owner of an account opened by its owner's address (Open Shared Calendar),
+/// kept here and on this computer only.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct OpenedCalendar {
+    /// The person's address: what it is read through.
+    pub address: String,
+    /// What it is called (the person's name).
+    pub name: String,
+    pub color: Rgb,
+    /// Whether it is ticked in the folder pane.
+    pub ticked: bool,
+}
+
+/// Most calendars one account may have opened by address.
+pub const MAX_OPENED_CALENDARS: usize = 20;
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, from = "CalendarFile")]
 pub struct Calendar {
     pub id: Id,
     pub name: String,
@@ -33,10 +121,15 @@ pub struct Calendar {
     /// copies of the server's, brought by a download.
     #[serde(skip_serializing_if = "Origin::is_local")]
     pub origin: Origin,
-    /// For a calendar that a server keeps: the account may read it and not change it (a calendar
-    /// of holidays or birthdays, somebody else's that is shared for reading).
-    #[serde(skip_serializing_if = "std::ops::Not::not")]
-    pub read_only: bool,
+    /// What the account may do with it: a calendar of holidays or birthdays, or somebody else's
+    /// that is shared for reading, is read and never changed here. A file from before there were
+    /// rights says `read_only`, which reads as [`Rights::Read`] (or [`Rights::Edit`]).
+    #[serde(skip_serializing_if = "is_edit")]
+    pub rights: Rights,
+    /// Whose it is, when it isn't the account's own (a colleague's or a shared mailbox's); `None`
+    /// for the account's own and for a calendar kept on this computer.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub owner: Option<CalendarOwner>,
     /// The group the server lists it under (`My Calendars`, `Other Calendars`); empty for none.
     #[serde(skip_serializing_if = "String::is_empty")]
     pub group: String,
@@ -52,7 +145,51 @@ pub struct Calendar {
     pub online_providers: Option<Vec<OnlineProvider>>,
 }
 
+fn is_edit(rights: &Rights) -> bool {
+    *rights == Rights::Edit
+}
+
+/// A calendar as a file writes it, including the `read_only` that files from before rights wrote.
+#[derive(Default, Deserialize)]
+#[serde(default)]
+struct CalendarFile {
+    id: Id,
+    name: String,
+    color: Rgb,
+    visible: bool,
+    origin: Origin,
+    read_only: bool,
+    rights: Option<Rights>,
+    #[serde(deserialize_with = "crate::sync::lenient")]
+    owner: Option<CalendarOwner>,
+    group: String,
+    own_color: Option<Rgb>,
+    online_providers: Option<Vec<OnlineProvider>>,
+}
+
+impl From<CalendarFile> for Calendar {
+    fn from(file: CalendarFile) -> Calendar {
+        Calendar {
+            id: file.id,
+            name: file.name,
+            color: file.color,
+            visible: file.visible,
+            origin: file.origin,
+            rights: file.rights.unwrap_or_else(|| Rights::from_read_only(file.read_only)),
+            owner: file.owner.and_then(|owner| owner.cleaned()),
+            group: file.group,
+            own_color: file.own_color,
+            online_providers: file.online_providers,
+        }
+    }
+}
+
 impl Calendar {
+    /// Whether the events of this calendar may be changed here.
+    pub fn can_edit(&self) -> bool {
+        self.rights.can_edit()
+    }
+
     /// Whether a meeting in this calendar may be made a Teams meeting, as far as is known: its
     /// server didn't say which services it allows, or Teams is one of them.
     pub fn allows_teams(&self) -> bool {

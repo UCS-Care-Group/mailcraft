@@ -20,7 +20,7 @@
 //! never followed here.
 
 use mailcraft_model::remote::{EventTime, MAX_FORWARD, forward_recipients};
-use mailcraft_model::{Address, Event, Id, Importance, OnlineMeeting, Response};
+use mailcraft_model::{Address, Calendar, Event, Id, Importance, OnlineMeeting, Response};
 use mailcraft_time::DateTime;
 use serde_json::{Value, json};
 
@@ -113,13 +113,22 @@ pub(super) fn online_fits(s: &Session, e: &Event, before: Option<&Event>) -> Res
     }
 }
 
+/// Whose a server calendar is: the account that keeps it and, for one opened by address (#70),
+/// the person's address. Two calendars with the same of these are one mailbox's.
+fn mailbox_of(c: &Calendar) -> (Id, Option<String>) {
+    (c.origin.account, mailcraft_model::remote::opened_address(&c.origin.id).map(|address| address.to_ascii_lowercase()))
+}
+
 /// Whether an event that an account's server keeps (`before`) may go into the calendar `e`
-/// names: an appointment, into another calendar of the same account. The server has no way of
-/// moving an event, so it is made again there and the original deleted; what would not arrive
-/// whole, or would write to other people on the way, stays where it is and is told why.
+/// names: an appointment, into another calendar of the same account, or (#70) of a shared
+/// mailbox's or of one opened by address, which the owner may edit. The server has no way of
+/// moving an event, so it is made again there and the original deleted once the copy is there
+/// (in a mailbox that is not the same, only an appointment: a meeting would send cancellations
+/// and break its replies); what would not arrive whole, or would write to other people on the
+/// way, stays where it is and is told why.
 pub(super) fn movable(s: &Session, before: &Event, e: &Event, who: &str) -> Result<(), CmdError> {
     let target = s.mailbox.calendar(e.calendar).ok_or_else(|| fail("the calendar is gone"))?;
-    if target.origin.account != before.origin.account || remote::keeper(&s.mailbox, &target.origin).is_none() {
+    if remote::keeper(&s.mailbox, &target.origin).is_none() {
         return Err(failed!(
             "This event is kept by the server of {who}. It can be moved to another calendar of that account, not out of it: taking it out would delete it there.",
             who
@@ -127,6 +136,12 @@ pub(super) fn movable(s: &Session, before: &Event, e: &Event, who: &str) -> Resu
     }
     remote::writable(&s.mailbox, target.id)?;
     remote::writable(&s.mailbox, before.calendar)?;
+    let across = s.mailbox.calendar(before.calendar).is_none_or(|from| mailbox_of(from) != mailbox_of(target));
+    if across && (before.origin.guest || !before.attendees.is_empty() || !e.attendees.is_empty()) {
+        return Err(fail(
+            "A meeting can't be moved to another mailbox's calendar: that would send everyone invited a cancellation, and their replies would no longer reach it. Forward the meeting, or create it again in that calendar.",
+        ));
+    }
     if before.origin.guest {
         return Err(fail("Somebody else organizes this meeting: it stays in the calendar its invitation came to."));
     }

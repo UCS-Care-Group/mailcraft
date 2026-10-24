@@ -346,6 +346,14 @@ pub(super) fn stands_for(info: Option<&Info>, index: usize) -> bool {
 /// when that hasn't been done too often already (`asked_for`: the owner asks, whenever).
 fn look_for(app: &mut MailApp, ctx: &egui::Context, message: Id, info: &Info, asked_for: bool) -> Result<(), String> {
     let Some(when) = info.when() else { return Err(tl!("This invitation doesn't say when the meeting is.").to_string()) };
+    // A shared mailbox's calendar is read once the owner has ticked it (#70), and this meeting
+    // is in its main one.
+    if app.session.mailbox.account(info.account).is_some_and(mailcraft_model::Account::is_shared) {
+        let ticked = app.session.mailbox.calendars.iter().any(|c| c.origin.account == info.account && c.origin.id.is_empty() && c.visible);
+        if !ticked {
+            return Err(tl!("Tick this shared mailbox's calendar in the calendar's folder pane to answer its meeting requests.").to_string());
+        }
+    }
     if !(-FIND_BEHIND..=FIND_AHEAD).contains(&app.session.today().days_until(when.start.date)) {
         return Err(tl!("The day of this meeting is not one the account's calendar can be asked about.").to_string());
     }

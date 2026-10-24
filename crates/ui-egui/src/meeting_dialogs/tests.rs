@@ -482,6 +482,7 @@ fn the_menu_of_an_item_offers_what_can_be_done_with_a_meeting() {
             RemoteCalendar { id: "c-main".into(), name: "Calendar".into(), main: true, ..Default::default() },
             RemoteCalendar { id: "c-side".into(), name: "Side".into(), ..Default::default() },
         ],
+        ..Default::default()
     };
     mailcraft_engine::cmd::remote::apply_calendars(&mut harness.state_mut().session, &list).unwrap();
     harness.state_mut().execute("view.calendar", json!({})).unwrap();

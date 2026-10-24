@@ -18,6 +18,9 @@ use crate::{CmdError, CmdResult, CommandSpec, Session, p};
 /// places it follows. (What is kept here is listed under [`remote::LOCAL_CALENDAR`].)
 pub const MY_CALENDARS: &str = "My Calendars";
 pub const OTHER_CALENDARS: &str = "Other Calendars";
+/// What the calendars of other people that the server lists (somebody's that was shared with the
+/// account) are listed under, whatever group the server puts them in.
+pub const SHARED_CALENDARS: &str = "Shared Calendars";
 
 /// Most calendars that are listed, most groups of one account, and most blocks of calendars side
 /// by side (the calendars beyond that share the last block).
@@ -47,7 +50,7 @@ pub fn specs() -> Vec<CommandSpec> {
     vec![
         CommandSpec::new("calendar.calendars", "List Calendars", "Calendar", list)
             .pure()
-            .params(r##"{} — the calendars as the side pane lists them, and how those that are shown are arranged: {"groups": [{"title", "account": number | null, "calendars": [{"id", "name", "color": "#RRGGBB" (as shown), "ownColor": bool, "visible", "readOnly", "current"}]}], "panes": [{"calendars": [number], "front": number}], "overlay": bool}"##),
+            .params(r##"{} — the calendars as the side pane lists them, and how those that are shown are arranged: {"groups": [{"title", "account": number | null, "calendars": [{"id", "name", "color": "#RRGGBB" (as shown), "ownColor": bool, "visible", "readOnly", "rights": "freeBusy"|"read"|"edit", "owner": {"address", "name"} | null, "current"}]}], "panes": [{"calendars": [number], "front": number}], "overlay": bool}"##),
         CommandSpec::new("calendar.showOnly", "Show Only This Calendar", "Home › Manage Calendars", show_only)
             .params(r#"{"id": number} — that calendar is shown and every other one hidden"#),
         CommandSpec::new("calendar.color", "Calendar Colour", "Home › Manage Calendars", color)
@@ -94,9 +97,17 @@ pub fn calendar_groups(s: &Session) -> Vec<CalendarGroup> {
     let keeper = |c: &Calendar| remote::keeper(mailbox, &c.origin).map(|account| account.id);
     let listed: Vec<&Calendar> = mailbox.calendars.iter().take(MAX_LISTED).collect();
     let accounts: Vec<&Account> = mailbox.accounts.iter().take(50).filter(|a| listed.iter().any(|c| keeper(c) == Some(a.id))).collect();
-    let group_of = |c: &Calendar| if c.group.trim().is_empty() { MY_CALENDARS.to_string() } else { c.group.trim().to_string() };
     let mut groups: Vec<CalendarGroup> = Vec::new();
     for account in &accounts {
+        let group_of = |c: &Calendar| {
+            if is_shared_with(account, c) {
+                SHARED_CALENDARS.to_string()
+            } else if c.group.trim().is_empty() {
+                MY_CALENDARS.to_string()
+            } else {
+                c.group.trim().to_string()
+            }
+        };
         let own: Vec<&Calendar> = listed.iter().copied().filter(|c| keeper(c) == Some(account.id)).collect();
         let mut names: Vec<String> = Vec::new();
         for name in own.iter().map(|c| group_of(c)) {
@@ -109,10 +120,12 @@ pub fn calendar_groups(s: &Session) -> Vec<CalendarGroup> {
         let rank = |name: &str| {
             if name.eq_ignore_ascii_case(MY_CALENDARS) || own.iter().any(|c| c.origin.id.is_empty() && holds(name, c)) {
                 0
-            } else if name.eq_ignore_ascii_case(OTHER_CALENDARS) {
-                2
-            } else {
+            } else if name.eq_ignore_ascii_case(SHARED_CALENDARS) {
                 1
+            } else if name.eq_ignore_ascii_case(OTHER_CALENDARS) {
+                3
+            } else {
+                2
             }
         };
         names.sort_by_key(|name| (rank(name), name.to_lowercase()));
@@ -131,6 +144,15 @@ pub fn calendar_groups(s: &Session) -> Vec<CalendarGroup> {
         groups.push(CalendarGroup { title: title.to_string(), account: 0, calendars: here });
     }
     groups
+}
+
+/// Whether `calendar`, one that `account`'s server lists, is somebody else's, shared with the
+/// account: its owner is a person other than the account's own address. Never the account's main
+/// calendar, and never one whose owner the server didn't say.
+pub(crate) fn is_shared_with(account: &Account, calendar: &Calendar) -> bool {
+    let own = account.email.trim();
+    let Some(owner) = calendar.owner.as_ref() else { return false };
+    !calendar.origin.id.is_empty() && !own.is_empty() && !owner.address.is_empty() && !owner.address.eq_ignore_ascii_case(own)
 }
 
 /// The calendars that are shown, in the order of the list.
@@ -199,6 +221,7 @@ fn list(s: &mut Session, _: &Value) -> CmdResult {
         Some(json!({
             "id": c.id, "name": c.name, "color": c.shown_color().hex(), "ownColor": c.own_color.is_some(),
             "visible": c.visible, "readOnly": remote::writable(&s.mailbox, c.id).is_err(), "current": c.id == current,
+            "rights": c.rights, "owner": c.owner,
         }))
     };
     let groups: Vec<Value> = calendar_groups(s)
@@ -497,6 +520,9 @@ fn apply_settings_command(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 #[cfg(test)]
+mod shared_tests;
+
+#[cfg(test)]
 mod tests {
     use mailcraft_model::{Mailbox, Origin};
 
@@ -517,7 +543,15 @@ mod tests {
         let add = |s: &mut Session, account: Id, remote: &str, name: &str, group: &str, read_only: bool| {
             let id = s.mailbox.alloc_id();
             let origin = Origin { account, id: remote.into(), ..Default::default() };
-            s.mailbox.calendars.push(Calendar { id, name: name.into(), visible: true, origin, read_only, group: group.into(), ..Default::default() });
+            s.mailbox.calendars.push(Calendar {
+                id,
+                name: name.into(),
+                visible: true,
+                origin,
+                rights: if read_only { mailcraft_model::Rights::Read } else { mailcraft_model::Rights::Edit },
+                group: group.into(),
+                ..Default::default()
+            });
             id
         };
         add(&mut s, first, "c-hol", "Holidays", "Other Calendars", true);
@@ -675,8 +709,8 @@ mod tests {
         // What the server says its colour is next changes what is under it, not what is shown.
         let account = calendar.origin.account;
         let download = json!({"account": account, "complete": false, "calendars": [
-            {"id": "c-main", "name": "Calendar", "main": true, "readOnly": false},
-            {"id": "c-team", "name": "Team", "color": [1, 2, 3], "group": "Projects", "readOnly": false, "main": false},
+            {"id": "c-main", "name": "Calendar", "main": true, "rights": "edit"},
+            {"id": "c-team", "name": "Team", "color": [1, 2, 3], "group": "Projects", "rights": "edit", "main": false},
         ]});
         s.run("sync.applyCalendars", &json!({"download": download})).unwrap();
         let calendar = s.mailbox.calendar(team).cloned().unwrap();

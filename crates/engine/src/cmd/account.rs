@@ -379,6 +379,12 @@ pub(crate) fn remove_within(s: &mut Session, id: Id, budget: u64) -> Result<usiz
         Vec::new()
     };
     let gone: HashSet<Id> = s.mailbox.messages.iter().filter(|(_, m)| going.contains(&m.account)).map(|(mid, _)| *mid).collect();
+    // A shared mailbox's calendars and their events go with it (#70): they are copies of what its
+    // server keeps, and nothing would ever update them again.
+    let shared: Vec<Id> = s.mailbox.accounts.iter().filter(|a| a.is_shared() && going.contains(&a.id)).map(|a| a.id).collect();
+    for account in shared {
+        super::remote::forget(s, account)?;
+    }
     s.mailbox.remove_account(id)?;
     // A mailbox always has an account (#313). The placeholder goes in before `mailbox_changed`,
     // whose `normalize` moves the folder on screen to its Inbox and a message being written to

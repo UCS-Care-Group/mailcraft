@@ -445,6 +445,8 @@ fn home_calendar(app: &MailApp) -> Tab {
             groups.push(g("Respond", answers));
         }
     }
+    // Somebody else's calendar, by their address (#70).
+    groups.push(g("Manage Calendars", vec![Item::big("calendar", "Open\nCalendar", "calendar.openShared", no()).at(4, 9)]));
     groups.push(g("Share", vec![Item::big("export", "Save\nCalendar", "file.exportCalendar", no()).at(5, 6)]));
     Tab::of(groups)
 }

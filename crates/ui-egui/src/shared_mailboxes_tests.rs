@@ -552,6 +552,7 @@ fn add_shared_mailbox_waits_for_a_sign_in_being_renewed() {
         account: owner,
         shared: None,
         shared_send: false,
+        shared_calendars: false,
         browser: false,
         rx,
         cancel: cancel.clone(),

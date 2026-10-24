@@ -288,9 +288,12 @@ pub fn due_reminders(s: &Session, now: mailcraft_time::DateTime) -> Vec<Reminder
     let here = super::remote::offset_of(s);
     let instant = |wall: mailcraft_time::DateTime| mailcraft_model::zoned::instant_at(wall, &here);
     let at = instant(now);
+    // Only the owner's own calendars remind (#70): not a shared mailbox's, not one somebody shares.
+    let not_theirs: std::collections::HashSet<mailcraft_model::Id> =
+        s.mailbox.calendars.iter().filter(|c| !super::remote::is_own_calendar(&s.mailbox, c)).map(|c| c.id).collect();
     for e in s.mailbox.events.values() {
         let Some(ahead) = e.reminder_minutes else { continue };
-        if e.cancelled {
+        if e.cancelled || not_theirs.contains(&e.calendar) {
             continue;
         }
         for o in e.occurrences_in(from, to, &here) {
