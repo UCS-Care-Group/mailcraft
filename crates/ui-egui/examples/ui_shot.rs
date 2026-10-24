@@ -41,7 +41,9 @@
 //! mailbox's mail waits for permission to send from shared mailboxes, #70), `"opened"` (the
 //! calendars opened by address are listed, each named from its address, with read rights, #70),
 //! `"openedRefused"` (the server wouldn't give them) or `"openedConsent"` (the sign-in doesn't
-//! cover reading other people's calendars); anything else answers with nothing.
+//! cover reading other people's calendars), `"listedTwice operations@example.org Example Operations"`
+//! (the account's list has the calendar of the shared mailbox at that address too, by that name,
+//! unless the owner hid it); anything else answers with nothing.
 //! With a stand-in host, the copy of the mailbox kept before a switch to Microsoft Graph is never
 //! finished, so the switch's page keeps saying that it is being saved. And the background
 //! saver (`{"host": {"saving": …}}`): `"messages 12000 200000"` or `"content 3 90000"` (a save
@@ -400,7 +402,23 @@ fn stand_in(host: &Arc<Mutex<Host>>) -> Services {
                     });
                 }
             }
-            let listed = how.starts_with("opened") && how != "openedConsent";
+            // "listedTwice address Name": the account's list has, besides its own calendar, the
+            // calendar of the shared mailbox at that address as well (an invitation accepted in
+            // Outlook, #70), called Name, unless the owner hid it (the host leaves it out then).
+            let twice = how.strip_prefix("listedTwice ").and_then(|rest| rest.split_once(' '));
+            if let Some((address, name)) = twice {
+                let owner = mailcraft_model::CalendarOwner { address: address.to_string(), name: name.to_string() };
+                if !request.account.hides_listed(Some(&owner)) {
+                    calendars.push(mailcraft_model::remote::RemoteCalendar {
+                        id: "AAMk-listed-twice".into(),
+                        name: name.to_string(),
+                        group: "Other Calendars".into(),
+                        owner: Some(owner),
+                        ..Default::default()
+                    });
+                }
+            }
+            let listed = (how.starts_with("opened") && how != "openedConsent") || twice.is_some();
             let calendars = listed.then(|| mailcraft_model::remote::CalendarsDownload {
                 account: request.account.id,
                 email: request.account.email.clone(),
