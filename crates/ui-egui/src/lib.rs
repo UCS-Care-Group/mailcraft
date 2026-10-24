@@ -2452,7 +2452,11 @@ impl MailApp {
                 RunState::Waiting => {
                     self.session.sync_progress.leave_out(account);
                 }
-                RunState::Running => self.session.sync_progress.end(account, false),
+                RunState::Running => {
+                    let now = self.session.now();
+                    self.session.sync_progress.count_full_if_due(&self.session.mailbox, account, now);
+                    self.session.sync_progress.end(account, false);
+                }
                 RunState::Done | RunState::Stopped | RunState::Skipped => {}
             }
         }
