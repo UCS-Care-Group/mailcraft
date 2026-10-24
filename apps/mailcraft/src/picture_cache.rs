@@ -20,7 +20,8 @@
 //!   Not the address (only its hash: the folder doesn't list what was read), not the message,
 //!   not who sent it, nothing a server said besides the bytes. The same picture at two addresses
 //!   is one file.
-//! - **Only pictures:** bytes are kept when they begin as a PNG, a JPEG, a GIF or a WebP does and
+//! - **Only pictures:** bytes are kept when they begin as a PNG, a JPEG, a GIF, a WebP or an ICO
+//!   (a web site's icon, for a sender's picture: `sender_images`) does and
 //!   are no larger than a download may be; the window, which decodes them, takes back what turns
 //!   out to be none ([`Cache::forget`]). Nothing here is ever run, opened by another program on
 //!   our say-so, or served to anyone: a file is read back as bytes, and only when it is a plain
@@ -122,13 +123,15 @@ fn clock() -> u64 {
     SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |since| since.as_secs())
 }
 
-/// Whether bytes begin the way a picture that is shown begins: PNG, JPEG, GIF or WebP.
+/// Whether bytes begin the way a picture that is shown begins: PNG, JPEG, GIF or WebP, or ICO,
+/// a web site's icon, for a sender's picture (one or more pictures in it).
 pub fn looks_like_a_picture(bytes: &[u8]) -> bool {
     bytes.starts_with(b"\x89PNG\r\n\x1a\n")
         || bytes.starts_with(b"\xff\xd8\xff")
         || bytes.starts_with(b"GIF87a")
         || bytes.starts_with(b"GIF89a")
         || (bytes.starts_with(b"RIFF") && bytes.get(8..12) == Some(&b"WEBP"[..]))
+        || (bytes.starts_with(b"\0\0\x01\0") && bytes.get(4..6).is_some_and(|count| count != b"\0\0"))
 }
 
 /// What an address is kept under: the SHA-256 of it as the message wrote it, less the white
@@ -727,9 +730,13 @@ mod tests {
             bytes.extend([7u8; 60]);
             bytes
         };
-        for (name, bytes) in
-            [("png", png(2, 64)), ("jpeg", b"\xff\xd8\xff\xe0\0\x10JFIF\0rest".to_vec()), ("gif", b"GIF89a\x01\0\x01\0rest".to_vec()), ("webp", webp)]
-        {
+        for (name, bytes) in [
+            ("png", png(2, 64)),
+            ("jpeg", b"\xff\xd8\xff\xe0\0\x10JFIF\0rest".to_vec()),
+            ("gif", b"GIF89a\x01\0\x01\0rest".to_vec()),
+            ("webp", webp),
+            ("ico", b"\0\0\x01\0\x01\0rest".to_vec()),
+        ] {
             assert!(looks_like_a_picture(&bytes) && cache.put(&format!("https://img.example/{name}"), &bytes), "{name}");
         }
         let too_large = png(3, MAX_PICTURE + 1);
@@ -743,13 +750,14 @@ mod tests {
             ("an archive", b"PK\x03\x04\x14\0\0\0\x08\0"),
             ("riff that is no webp", b"RIFF\x24\0\0\0WAVEfmt "),
             ("almost a png", b"\x89PNG\r\n\x1a"),
+            ("an icon of no pictures", b"\0\0\x01\0\0\0rest"),
             ("too large", &too_large[..]),
         ] {
             assert!(!cache.put("https://img.example/other", bytes), "{what}");
         }
         assert_eq!(cache.get("https://img.example/other"), None);
         assert!(!cache.put("", &png(4, 64)) && !cache.put(&"a".repeat(MAX_ADDRESS + 1), &png(4, 64)));
-        assert_eq!(cache.usage().0, 4);
+        assert_eq!(cache.usage().0, 5);
         // Every file kept has a name of 64 hex digits and nothing after it: nothing to run.
         for file in temp.files().iter().filter(|file| *file != "index") {
             let name = file.rsplit('/').next().unwrap();
