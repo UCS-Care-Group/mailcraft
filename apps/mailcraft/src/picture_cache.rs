@@ -21,7 +21,8 @@
 //!   not who sent it, nothing a server said besides the bytes. The same picture at two addresses
 //!   is one file.
 //! - **Only pictures:** bytes are kept when they begin as a PNG, a JPEG, a GIF or a WebP does
-//!   (or an ICO, a web site's icon, for a sender's picture: [`Cache::get_as`]) and are no larger than a download may be; the window, which decodes them, takes back what turns
+//!   (or an ICO, a web site's icon, for a sender's picture: [`Cache::get_as`]) and are no
+//!   larger than a download may be; the window, which decodes them, takes back what turns
 //!   out to be none ([`Cache::forget`]). Nothing here is ever run, opened by another program on
 //!   our say-so, or served to anyone: a file is read back as bytes, and only when it is a plain
 //!   file of the length and SHA-256 its line names. What comes back goes to the window the way a
