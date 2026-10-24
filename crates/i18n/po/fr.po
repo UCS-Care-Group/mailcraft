@@ -432,6 +432,11 @@ msgstr "Accepté : {title}"
 msgid "Accepting a proposal opens the meeting with that time filled in. Nothing is sent until you send the update there."
 msgstr "Accepter une proposition ouvre la réunion avec cet horaire déjà renseigné. Rien n'est envoyé tant que vous n'y envoyez pas la mise à jour."
 
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "Access token for {account}"
+msgstr ""
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -7423,7 +7428,7 @@ msgid "Send/Receive signs in to Microsoft; then the server can be searched."
 msgstr "Envoyer/Recevoir se connecte à Microsoft ; la recherche sur le serveur devient alors possible."
 
 #. interface
-#: crates/ui-egui/src/lib.rs
+#: crates/ui-egui/src/jmap_mail.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Send/Receive stopped unexpectedly"
 msgstr "Envoyer/Recevoir s'est arrêté de façon inattendue"
@@ -7446,7 +7451,7 @@ msgid "Sending"
 msgstr "Envoi"
 
 #. interface
-#: crates/ui-egui/src/chrome.rs crates/ui-egui/src/inbox_pass.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/shared_mailboxes.rs
+#: crates/ui-egui/src/chrome.rs crates/ui-egui/src/inbox_pass.rs crates/ui-egui/src/jmap_mail.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/shared_mailboxes.rs
 #, fuzzy
 msgid "Sending and receiving…"
 msgstr "Envoi et réception…"
@@ -9046,7 +9051,7 @@ msgid "This build can't connect to Microsoft"
 msgstr "Cette version ne peut pas se connecter à Microsoft"
 
 #. interface
-#: crates/ui-egui/src/lib.rs
+#: crates/ui-egui/src/jmap_mail.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "This build can't connect to mail servers"
 msgstr "Cette version ne peut pas se connecter aux serveurs de messagerie"

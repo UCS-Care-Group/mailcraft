@@ -432,6 +432,11 @@ msgstr "Zugesagt: {title}"
 msgid "Accepting a proposal opens the meeting with that time filled in. Nothing is sent until you send the update there."
 msgstr "Wenn Sie einen Vorschlag annehmen, wird die Besprechung mit dieser Zeit geöffnet. Gesendet wird erst, wenn Sie dort die Aktualisierung senden."
 
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "Access token for {account}"
+msgstr ""
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -7411,7 +7416,7 @@ msgid "Send/Receive signs in to Microsoft; then the server can be searched."
 msgstr "Senden/Empfangen meldet Sie bei Microsoft an; danach kann der Server durchsucht werden."
 
 #. interface
-#: crates/ui-egui/src/lib.rs
+#: crates/ui-egui/src/jmap_mail.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Send/Receive stopped unexpectedly"
 msgstr "Senden/Empfangen wurde unerwartet abgebrochen"
@@ -7434,7 +7439,7 @@ msgid "Sending"
 msgstr "Senden"
 
 #. interface
-#: crates/ui-egui/src/chrome.rs crates/ui-egui/src/inbox_pass.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/shared_mailboxes.rs
+#: crates/ui-egui/src/chrome.rs crates/ui-egui/src/inbox_pass.rs crates/ui-egui/src/jmap_mail.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/shared_mailboxes.rs
 #, fuzzy
 msgid "Sending and receiving…"
 msgstr "Senden und Empfangen…"
@@ -9032,7 +9037,7 @@ msgid "This build can't connect to Microsoft"
 msgstr "Dieser Build kann keine Verbindung zu Microsoft herstellen"
 
 #. interface
-#: crates/ui-egui/src/lib.rs
+#: crates/ui-egui/src/jmap_mail.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "This build can't connect to mail servers"
 msgstr "Dieser Build kann keine Verbindung zu Mailservern herstellen"

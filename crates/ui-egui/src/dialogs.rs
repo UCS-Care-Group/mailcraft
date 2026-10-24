@@ -1168,9 +1168,12 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
         }
         Dialog::Password { account, password } => {
             let who = app.session.mailbox.account(*account).map(|a| a.email.clone()).unwrap_or_default();
+            // (A JMAP server may take a bearer token instead.)
+            let token = app.session.mailbox.account(*account).and_then(|a| a.jmap.as_ref()).is_some_and(|server| server.bearer);
+            let asked = if token { tl!("Access token for {account}") } else { tl!("Password for {account}") };
             let mut submit = false;
             let open = window(ctx, tl!("Sign In"), 380.0, |ui| {
-                ui.label(crate::i18n::fmt(tl!("Password for {account}"), &[("account", &who)]));
+                ui.label(crate::i18n::fmt(asked, &[("account", &who)]));
                 let resp = ui.add(egui::TextEdit::singleline(password).password(true).desired_width(f32::INFINITY));
                 if !resp.has_focus() {
                     resp.request_focus();
