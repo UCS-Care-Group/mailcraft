@@ -3115,7 +3115,8 @@ fn escape_a_click_and_another_message_let_go_of_the_selection() {
     assert_eq!(whole(&harness, id).0, "Short.");
 }
 
-/// Escape in the search box is the box's (#365): a selection in the message being read stays.
+/// Escape in the search box is the box's (#365): a selection in the message being read stays,
+/// when Escape is held down too.
 #[test]
 fn escape_in_the_search_box_leaves_the_selection() {
     let (app, ids) = corpus_app(false);
@@ -3127,9 +3128,11 @@ fn escape_in_the_search_box_leaves_the_selection() {
     harness.state_mut().execute("ui.focusSearch", json!({})).unwrap();
     harness.run_steps(3);
     assert!(selection(&harness, Place::Pane).is_some());
-    harness.key_press(egui::Key::Escape);
-    harness.run_steps(2);
-    assert!(selection(&harness, Place::Pane).is_some());
+    for repeat in [false, true, true] {
+        harness.event(egui::Event::Key { key: egui::Key::Escape, physical_key: None, pressed: true, repeat, modifiers: egui::Modifiers::NONE });
+        harness.run_steps(2);
+        assert!(selection(&harness, Place::Pane).is_some(), "repeat: {repeat}");
+    }
 }
 
 #[test]

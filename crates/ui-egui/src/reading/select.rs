@@ -796,7 +796,8 @@ pub(super) fn begin(app: &mut MailApp, ui: &Ui, m: &Message, place: Place) {
         (
             i.pointer.any_pressed(),
             i.events.iter().any(|e| matches!(e, egui::Event::Copy)),
-            i.key_pressed(egui::Key::Escape),
+            // A press, not a held one's repeats: those come after the search box has had it (#365).
+            i.events.iter().any(|e| matches!(e, egui::Event::Key { key: egui::Key::Escape, pressed: true, repeat: false, .. })),
             i.events.iter().any(select_all),
         )
     });

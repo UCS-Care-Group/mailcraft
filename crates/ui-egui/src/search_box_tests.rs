@@ -69,12 +69,18 @@ fn escape_for_a_dialog_leaves_the_search() {
     assert!(writing(&h));
 }
 
-/// A held Escape is one press: once the search box or a dialog has had it, its repeats don't
-/// close the message.
+/// A held Escape is one press. Over a dialog, its repeats leave the search in the box; in the
+/// box, they don't close the message once the box has cleared the search; nor over a dialog when
+/// the box doesn't have the keyboard.
 #[test]
 fn a_held_escape_is_one_press() {
     let mut h = window();
     testing::text(&mut h, "budget");
+    refused(&mut h);
+    held_escape(&mut h);
+    assert!(h.state().dialog.is_none());
+    assert_eq!(search(&h), "budget", "the dialog had it");
+    assert!(writing(&h));
     held_escape(&mut h);
     assert_eq!(search(&h), "");
     assert!(writing(&h), "the search box had it");
