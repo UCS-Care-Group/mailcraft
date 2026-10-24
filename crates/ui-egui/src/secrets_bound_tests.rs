@@ -102,6 +102,75 @@ fn an_edit_that_leaves_the_servers_keeps_the_secret() {
 }
 
 #[test]
+fn either_servers_host_or_port_invalidates_every_cached_sign_in() {
+    for change in [
+        json!({"incoming": {"host": "imap.other.example", "port": 993}}),
+        json!({"incoming": {"host": "imap.mail.example", "port": 1993}}),
+        json!({"outgoing": {"host": "smtp.other.example", "port": 465}}),
+        json!({"outgoing": {"host": "smtp.mail.example", "port": 1465}}),
+    ] {
+        let (store, seen) = (Store::default(), Seen::default());
+        let mut a = app(&store, &seen);
+        let id = add(&mut a);
+        let before = a.session.mailbox.account(id).unwrap().clone();
+        for kind in ["password", "refresh"] {
+            store.set(&MailApp::secret_key(kind, &before), "invented").unwrap();
+            store.set(&MailApp::legacy_secret_key(kind, &before.email), "invented").unwrap();
+        }
+        let other = a.execute("account.add", json!({"email": "other@example.org", "incoming": {"host": "imap.other.example", "port": 993}, "outgoing": {"host": "smtp.other.example", "port": 465}})).unwrap()["id"].as_u64().unwrap();
+        let other_account = a.session.mailbox.account(other).unwrap().clone();
+        let other_key = MailApp::secret_key("password", &other_account);
+        store.set(&other_key, "unrelated").unwrap();
+        a.passwords.insert(other, "unrelated".into());
+        a.tokens.insert(other, Default::default());
+        a.graph_tokens.insert(other, Default::default());
+        a.passwords.insert(id, "invented".into());
+        a.tokens.insert(id, Default::default());
+        a.graph_tokens.insert(id, Default::default());
+
+        let mut edit = change;
+        edit["id"] = json!(id);
+        a.execute("account.edit", edit).unwrap();
+
+        for kind in ["password", "refresh"] {
+            assert!(store.get(&MailApp::secret_key(kind, &before)).is_none());
+            assert!(store.get(&MailApp::legacy_secret_key(kind, &before.email)).is_none());
+        }
+        assert!(!a.passwords.contains_key(&id));
+        assert!(!a.tokens.contains_key(&id));
+        assert!(!a.graph_tokens.contains_key(&id));
+        assert_eq!(store.get(&other_key).as_deref(), Some("unrelated"));
+        assert_eq!(a.passwords.get(&other).map(String::as_str), Some("unrelated"));
+        assert!(a.tokens.contains_key(&other));
+        assert!(a.graph_tokens.contains_key(&other));
+        assert!(!a.can_sync_quietly(id));
+        assert_eq!(a.execute("ui.sync", json!({"account": id})).unwrap()["pending"], "password");
+        a.poll_sync();
+        assert!(seen.lock().unwrap().is_empty());
+    }
+}
+
+#[test]
+fn an_edit_that_fails_validation_keeps_the_remembered_password() {
+    let (store, seen) = (Store::default(), Seen::default());
+    let mut a = app(&store, &seen);
+    let id = add(&mut a);
+    store.set(OLD, "invented").unwrap();
+    a.passwords.insert(id, "invented".into());
+    a.tokens.insert(id, Default::default());
+    a.graph_tokens.insert(id, Default::default());
+    let before = a.session.mailbox.account(id).unwrap().clone();
+    assert!(
+        a.execute("account.edit", json!({"id": id, "email": "not an address", "incoming": {"host": "imap.other.example", "port": 993}})).is_err()
+    );
+    assert_eq!(a.session.mailbox.account(id).unwrap(), &before);
+    assert!(a.tokens.contains_key(&id));
+    assert!(a.graph_tokens.contains_key(&id));
+    assert_eq!(store.get(OLD).as_deref(), Some("invented"));
+    assert_eq!(a.passwords.get(&id).map(String::as_str), Some("invented"));
+}
+
+#[test]
 fn a_password_never_goes_to_another_host() {
     let (store, seen) = (Store::default(), Seen::default());
     let mut a = app(&store, &seen);
