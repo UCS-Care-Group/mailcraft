@@ -66,6 +66,8 @@ pub mod mail_view;
 mod meeting_dialogs;
 pub mod menubar;
 pub mod nav;
+#[cfg(test)]
+mod on_top_tests;
 mod open_shared;
 #[cfg(test)]
 mod open_shared_tests;

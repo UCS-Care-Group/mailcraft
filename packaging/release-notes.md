@@ -7,7 +7,7 @@
 - Mail, People and Tasks arranged by Categories ([#327](https://github.com/GITHUB_REPOSITORY/issues/327)).
 - Safer: a mailbox file from elsewhere connects to nothing until you confirm its servers, and a remembered sign-in only goes to the servers it was given for.
 - Sturdier: a hostile invitation, a huge message or an endless server answer no longer freezes MailCraft or runs it out of memory.
-- And 48 fixes in all, listed below.
+- And 49 fixes in all, listed below.
 
 **What's new**
 - **Mail arrives sooner.** For a Microsoft account, Send/Receive does every Inbox first, shared mailboxes included, skips folders that haven't changed and keeps its connection open. Between runs, MailCraft checks each Inbox every minute ([#276](https://github.com/GITHUB_REPOSITORY/issues/276)).
@@ -17,7 +17,7 @@
 - **Sender images** (File › Options, off unless you turn it on): the people you know, your contacts and whoever you have written to, and the senders whose pictures you download (for all mail, a sender or a domain), have their picture in the message list and over the message you read: their Gravatar (told a hash of the address), else their domain's icon from favicon.im or Google (told the domain). Asking tells those services whose pictures you look at, so nobody else's picture is asked for, and none for mail in Junk E-mail; a sender's picture is shown only for mail your mail server says really came from them, so a forged sender keeps their initials. Turning it off stops the asking before the next request ([#363](https://github.com/GITHUB_REPOSITORY/issues/363)).
 
 **Fixes**
-- One press of Escape or Enter no longer does two things at once. With an agent's question on screen, it only answers the question (before, it could also close the message you were writing, a dialog, File or Send/Receive Progress). With a menu open, Escape only closes the menu; with a dialog open in File, only the dialog ([#393](https://github.com/GITHUB_REPOSITORY/issues/393), thanks to @kartas39).
+- One press of Escape or Enter no longer does two things at once. With an agent's question on screen, it only answers the question (before, it could also close the message you were writing, a dialog, File or Send/Receive Progress). With a menu open, Escape only closes the menu; with a dialog open in File, only the dialog. Holding a key down counts as one press, and a key you were already holding when an agent's question appears doesn't answer it ([#393](https://github.com/GITHUB_REPOSITORY/issues/393), thanks to @kartas39).
 - Signing in with a password now works with mail servers that turn away the older LOGIN command: MailCraft uses the server's PLAIN sign-in when it offers one ([#375](https://github.com/GITHUB_REPOSITORY/issues/375)).
 - Escape in the search box clears the search and no longer closes a message you are writing ([#365](https://github.com/GITHUB_REPOSITORY/issues/365), thanks to @kartas39).
 - In Calendar, an appointment can be moved between your calendar and a shared mailbox's, or one you opened by address, where you may edit both: it is made in the other calendar first and taken out of the old one only once the copy is there. A meeting is not moved to another mailbox's calendar (it would send everyone invited a cancellation); forward it or create it again there ([#70](https://github.com/GITHUB_REPOSITORY/issues/70)).

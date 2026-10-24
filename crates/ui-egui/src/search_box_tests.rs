@@ -3,7 +3,7 @@
 //! Escape in the search box while a message is being written (#365): the box's, not the
 //! message's; and a dialog's when one is over the window.
 
-use egui::{Event, Key, Modifiers};
+use egui::Key;
 use serde_json::json;
 
 use crate::people_view::testing::{self, Window};
@@ -17,16 +17,6 @@ fn window() -> Window {
     app.execute("ui.focusSearch", json!({})).unwrap();
     h.run_steps(4);
     h
-}
-
-/// Escape held down: the press, then the repeats the system sends, a frame apart.
-fn held_escape(h: &mut Window) {
-    for repeat in [false, true, true, true] {
-        h.event(Event::Key { key: Key::Escape, physical_key: None, pressed: true, repeat, modifiers: Modifiers::NONE });
-        h.run_steps(2);
-    }
-    h.event(Event::Key { key: Key::Escape, physical_key: None, pressed: false, repeat: false, modifiers: Modifiers::NONE });
-    h.run_steps(2);
 }
 
 fn search(h: &Window) -> String {
@@ -77,15 +67,15 @@ fn a_held_escape_is_one_press() {
     let mut h = window();
     testing::text(&mut h, "budget");
     refused(&mut h);
-    held_escape(&mut h);
+    testing::held(&mut h, Key::Escape);
     assert!(h.state().dialog.is_none());
     assert_eq!(search(&h), "budget", "the dialog had it");
     assert!(writing(&h));
-    held_escape(&mut h);
+    testing::held(&mut h, Key::Escape);
     assert_eq!(search(&h), "");
     assert!(writing(&h), "the search box had it");
     refused(&mut h);
-    held_escape(&mut h);
+    testing::held(&mut h, Key::Escape);
     assert!(h.state().dialog.is_none());
     assert!(writing(&h), "the dialog had it");
 }
