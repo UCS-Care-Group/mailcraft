@@ -147,8 +147,8 @@ fn a_take_is_only_of_what_was_offered_for_the_text_now() {
     assert_eq!(search(&h), "category:");
 }
 
-/// While a message is being written, Escape in the search box closes the list and nothing
-/// else: the message stays open.
+/// While a message is being written, Escape in the search box closes the list, then clears the
+/// search, and the message stays open (#365).
 #[test]
 fn escape_closes_the_list_and_not_the_message_being_written() {
     let mut h = window();
@@ -161,6 +161,24 @@ fn escape_closes_the_list_and_not_the_message_being_written() {
     assert!(h.state().session.compose.is_some(), "the message is still open");
     assert_eq!(search(&h), "has:");
     assert!(h.query_by_label("attachment").is_none());
+    key(&mut h, egui::Key::Escape);
+    assert_eq!(search(&h), "");
+    assert!(h.state().session.compose.is_some(), "still open");
+}
+
+/// Escape with a dialog over the window is the dialog's: it closes the dialog, and the search, and
+/// the list under the box, stay as they were.
+#[test]
+fn escape_for_a_dialog_leaves_the_search() {
+    for text in ["budget", "cat"] {
+        let mut h = window();
+        typed(&mut h, text);
+        h.state_mut().dialog = Some(crate::dialogs::Dialog::Refused { text: "Not now".into() });
+        h.run_steps(3);
+        key(&mut h, egui::Key::Escape);
+        assert!(h.state().dialog.is_none(), "{text}");
+        assert_eq!(search(&h), text);
+    }
 }
 
 /// Every row of the list has a name a screen reader says, and the list adds no control without

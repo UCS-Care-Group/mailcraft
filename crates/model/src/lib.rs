@@ -125,6 +125,8 @@ mod mailbox_tests;
 #[cfg(test)]
 mod recurrence_tests;
 #[cfg(test)]
+mod search_quotes_tests;
+#[cfg(test)]
 mod search_suggest_tests;
 #[cfg(test)]
 mod search_tests;

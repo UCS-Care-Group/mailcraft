@@ -135,9 +135,13 @@ pub fn keyword_spans(s: &str) -> Vec<KeywordSpan> {
     let mut out = Vec::new();
     let mut tokens = tokens(s).into_iter().take(MAX_TERMS).peekable();
     while let Some((token, at)) = tokens.next() {
-        let body = token.strip_prefix('-').filter(|rest| !rest.is_empty()).unwrap_or(&token);
+        let (negate, quoted) = opening(s, &at);
+        if quoted {
+            continue;
+        }
+        let body = if negate { token.strip_prefix('-').unwrap_or(&token) } else { token.as_str() };
         let (body, range) = match body.strip_suffix(':') {
-            Some(key) if is_keyword(key) => match tokens.next_if(|(next, _)| !starts_with_keyword(next)) {
+            Some(key) if is_keyword(key) => match tokens.next_if(|(next, at)| !starts_with_keyword_at(s, next, at)) {
                 Some((value, next)) => (format!("{body}{value}"), at.start..next.end),
                 None => continue,
             },
@@ -174,7 +178,7 @@ pub fn keyword_pills(s: &str, cursor: Option<usize>) -> Vec<Range<usize>> {
         let mut end = at.end;
         let mut last = i >= all.len();
         if head.end == at.end
-            && let Some((_, next)) = all.get(i).filter(|(next, _)| !starts_with_keyword(next))
+            && let Some((_, next)) = all.get(i).filter(|(next, at)| !starts_with_keyword_at(s, next, at))
         {
             end = next.end;
             i = i.saturating_add(1);
@@ -335,7 +339,7 @@ pub fn suggestions(query: &str, cursor: usize, categories: &[Category]) -> Vec<S
     let at = all.iter().position(|(_, at)| at.end == cursor);
     // `category: |`: a keyword with nothing after it yet but spaces.
     let bare_before = |i: usize| -> Option<usize> {
-        let (token, _) = all.get(i)?;
+        let (token, _) = all.get(i).filter(|(_, at)| !opening(query, at).1)?;
         let key = token.strip_prefix('-').unwrap_or(token).strip_suffix(':')?;
         is_keyword(key).then_some(i)
     };
@@ -343,7 +347,8 @@ pub fn suggestions(query: &str, cursor: usize, categories: &[Category]) -> Vec<S
         Some((i, token, range)) => {
             let body = token.strip_prefix('-').unwrap_or(token);
             match body.split_once(':') {
-                Some((key, value)) if is_keyword(key) => (i, value.to_string()),
+                // In quotes it is text, not a keyword (#367).
+                Some((key, value)) if is_keyword(key) && !opening(query, range).1 => (i, value.to_string()),
                 Some(_) => return Vec::new(),
                 // `from: stu`: the keyword before it takes it.
                 None => match i.checked_sub(1).and_then(bare_before) {
@@ -552,30 +557,48 @@ fn starts_with_keyword(token: &str) -> bool {
     body.split_once(':').is_some_and(|(key, _)| is_keyword(key))
 }
 
+/// How the token standing at `at` in `s` begins: with a `-` before any quote (it is left out),
+/// and with a quote after that. What is in quotes is text, even when it reads like a keyword or a
+/// `-`: `"is:unread"` looks for those words (#367).
+fn opening(s: &str, at: &Range<usize>) -> (bool, bool) {
+    let raw = s.get(at.clone()).unwrap_or_default();
+    let rest = raw.strip_prefix('-').filter(|rest| !rest.is_empty());
+    (rest.is_some(), rest.unwrap_or(raw).starts_with('"'))
+}
+
+/// Whether the token at `at` is a keyword's value or a keyword of its own: one in quotes never is.
+fn starts_with_keyword_at(s: &str, token: &str, at: &Range<usize>) -> bool {
+    !opening(s, at).1 && starts_with_keyword(token)
+}
+
 impl Query {
     pub fn parse(s: &str) -> Query {
         let mut terms = Vec::new();
-        let mut tokens = tokens(s).into_iter().map(|(token, _)| token).take(MAX_TERMS).peekable();
-        while let Some(token) = tokens.next() {
-            let (negate, body) = match token.strip_prefix('-') {
-                Some(rest) if !rest.is_empty() => (true, rest),
-                _ => (false, token.as_str()),
-            };
+        let mut tokens = tokens(s).into_iter().take(MAX_TERMS).peekable();
+        while let Some((token, at)) = tokens.next() {
+            let (negate, quoted) = opening(s, &at);
+            let body = if negate { token.strip_prefix('-').unwrap_or(&token) } else { token.as_str() };
             // `from: stuart` is `from:stuart`, as Outlook reads it: a keyword with nothing after
             // its colon takes what comes next. With nothing next (the owner is still typing it),
             // or another keyword, it asks for nothing (#194).
             let joined;
             let body = match body.strip_suffix(':') {
-                Some(key) if is_keyword(key) => match tokens.next_if(|next| !starts_with_keyword(next)) {
-                    Some(value) => {
-                        joined = format!("{body}{value}");
-                        joined.as_str()
+                Some(key) if !quoted && is_keyword(key) => {
+                    match tokens.next_if(|(next, at)| !starts_with_keyword_at(s, next, at)).map(|(value, _)| value) {
+                        Some(value) => {
+                            joined = format!("{body}{value}");
+                            joined.as_str()
+                        }
+                        None => continue,
                     }
-                    None => continue,
-                },
+                }
                 _ => body,
             };
-            let kind = keyword_kind(body).unwrap_or_else(|| Kind::Words { fields: words::ALL, words: words::words(body), raw: raw_words(body) });
+            let kind = keyword_kind(body).filter(|_| !quoted).unwrap_or_else(|| Kind::Words {
+                fields: words::ALL,
+                words: words::words(body),
+                raw: raw_words(body),
+            });
             // Text with no words in it asks for nothing.
             if !kind.asks_nothing() {
                 terms.push(Term { negate, kind });
