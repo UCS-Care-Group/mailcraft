@@ -11,8 +11,8 @@
 //!
 //! **Reading only, for now.** A run lists the server's mailboxes and reads a window of each, its
 //! newest messages; nothing made here goes up yet, and nothing is sent from such an account
-//! ([`AccountKind::sends_mail`]). A mark or a move made here stays here, and a message deleted
-//! here comes back with the next run that reads it.
+//! ([`AccountKind::sends_mail`]). A mark made here stays here; mail the server has isn't moved or
+//! deleted here until those go up ([`mailcraft_model::Mailbox::stays_on_server`]).
 //!
 //! **What comes back is hostile** (a host may hand over anything): every list and string of a
 //! result is held to a size before it is taken in, ids are held to the JMAP alphabet (RFC 8620

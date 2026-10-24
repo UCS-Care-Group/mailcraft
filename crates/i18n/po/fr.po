@@ -4299,6 +4299,11 @@ msgid "MailCraft doesn't look for new versions by itself; File › Options can h
 msgstr "MailCraft ne recherche pas de nouvelles versions de lui-même ; Fichier › Options permet de lui faire vérifier une fois par jour."
 
 #. what a command says
+#: crates/model/src/mailbox.rs
+msgid "MailCraft doesn't move or delete a JMAP account's mail yet: the next Send/Receive would bring it back"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/compose.rs
 #, fuzzy
 msgid "MailCraft doesn't send mail from a JMAP account yet"

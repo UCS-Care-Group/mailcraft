@@ -302,12 +302,15 @@ fn folder_row(app: &mut MailApp, ui: &mut Ui, f: &Folder, depth: usize, has_chil
         };
         item(ui, app, "New Folder…", "ui.dialog", json!({"name": "folder", "mode": "new", "parent": id}), true);
         item(ui, app, "Rename Folder…", "ui.dialog", json!({"name": "folder", "mode": "rename", "id": id}), custom);
-        item(ui, app, "Delete Folder", "folder.delete", json!({"id": id}), custom);
+        // (Not one that holds what a JMAP account's server has, which stays for now.)
+        let deletable = custom && !app.session.mailbox.folder_stays_on_server(id);
+        item(ui, app, "Delete Folder", "folder.delete", json!({"id": id}), deletable);
         ui.separator();
         item(ui, app, "Mark All as Read", "mail.markAllRead", json!({"folder": id}), true);
         item(ui, app, "Run Rules Now", "rules.run", json!({"folder": id}), true);
         if matches!(kind, FolderKind::Deleted | FolderKind::Junk) {
-            item(ui, app, "Empty Folder", "folder.empty", json!({"id": id}), true);
+            let emptiable = !app.session.mailbox.emptying_stays_on_server(id);
+            item(ui, app, "Empty Folder", "folder.empty", json!({"id": id}), emptiable);
         }
         ui.separator();
         if from_outlook {

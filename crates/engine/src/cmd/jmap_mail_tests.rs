@@ -480,7 +480,8 @@ fn marks_for_a_message_removed_here_meanwhile_make_no_message() {
     let (mut s, account) = session();
     run(&mut s, account, vec![window("M1", vec![email("E1", "One", 1)], true)], true);
     let id = here(&s, account, "E1").unwrap().id;
-    s.mailbox.remove_message(id).unwrap();
+    // (Gone here by other means than a command, which leaves such mail where it is.)
+    s.mailbox.forget_message(id).unwrap();
     run(&mut s, account, vec![window("M1", vec![marks("E1", true, false)], true)], true);
     assert!(here(&s, account, "E1").is_none());
     // The next run doesn't say it is here: its window brings it whole.
@@ -620,6 +621,75 @@ fn a_server_address_a_mailbox_file_spoiled_can_be_put_right() {
     assert!(jmap_mail_request(&s, account, false).is_err());
     s.run("account.edit", &json!({"id": account, "jmap": {"session": SESSION}})).unwrap();
     assert!(jmap_mail_request(&s, account, false).is_ok());
+}
+
+/// Until moves and deletions go up to the server, a JMAP account's mail stays where its server has
+/// it: each command that would change a message's place says why and changes nothing, and is shown
+/// greyed while such a message is selected (or such a folder is in view).
+#[test]
+fn a_move_or_a_deletion_of_mail_the_server_has_is_refused_until_changes_go_up() {
+    let (mut s, account) = session();
+    run(&mut s, account, vec![window("M1", vec![email("E1", "One", 1)], true), window("M5", vec![email("P1", "Plan", 2)], true)], true);
+    let (one, plan) = (here(&s, account, "E1").unwrap().id, here(&s, account, "P1").unwrap().id);
+    let (inbox, projects) = (folder_here(&s, account, "M1"), folder_here(&s, account, "M5"));
+    let local = s.mailbox.local_account();
+    let elsewhere = s.mailbox.folder_of_kind(local, FolderKind::Inbox).unwrap();
+    for (command, params) in [
+        ("mail.move", json!({"ids": [one], "folder": projects})),
+        ("mail.move", json!({"ids": [one], "folder": elsewhere})),
+        ("mail.delete", json!({"ids": [one]})),
+        ("mail.deletePermanently", json!({"ids": [one]})),
+        ("mail.archive", json!({"ids": [one]})),
+        ("mail.junk", json!({"ids": [one]})),
+        ("mail.notJunk", json!({"ids": [plan]})),
+        ("folder.empty", json!({"id": inbox})),
+        ("folder.delete", json!({"id": projects})),
+    ] {
+        let before = s.mailbox.clone();
+        let why = s.run(command, &params).unwrap_err().to_string();
+        assert_eq!(why, mailcraft_model::NOT_MOVING_YET, "{command}");
+        assert!(s.mailbox == before, "{command} changed the mailbox");
+    }
+    // Greyed in the window, with the reason.
+    s.run("mail.select", &json!({"id": one})).unwrap();
+    for command in ["mail.delete", "mail.deletePermanently", "mail.archive", "mail.move", "mail.junk", "mail.notJunk"] {
+        assert!(!s.enabled(command), "{command}");
+    }
+    let why = s.run("mail.delete", &json!({})).unwrap_err().to_string();
+    assert_eq!(why, format!("not available: {}", mailcraft_model::NOT_MOVING_YET));
+    s.view.folder = inbox;
+    assert!(!s.enabled("folder.empty"));
+    s.view.folder = projects;
+    assert!(!s.enabled("folder.delete"));
+    // A rule that would move it leaves it where it is.
+    let rule = json!({"name": "Plans", "conditions": [{"type": "fromContains", "value": "zoe"}], "actions": [{"type": "moveTo", "value": projects}]});
+    s.run("rules.add", &rule).unwrap();
+    let _ = s.run("rules.run", &json!({"folder": inbox}));
+    assert_eq!(s.mailbox.message(one).map(|m| m.folder), Some(inbox));
+}
+
+#[test]
+fn what_a_jmap_account_holds_only_here_moves_and_goes_as_any_mail() {
+    let (mut s, account) = session();
+    run(&mut s, account, vec![window("M1", vec![email("E1", "One", 1)], true)], true);
+    let (inbox, one) = (folder_here(&s, account, "M1"), here(&s, account, "E1").unwrap().id);
+    // Its marks change, and a copy of it goes to a folder of this computer.
+    s.run("mail.markRead", &json!({"ids": [one]})).unwrap();
+    let local = s.mailbox.local_account();
+    let elsewhere = s.mailbox.folder_of_kind(local, FolderKind::Inbox).unwrap();
+    let copies = s.run("mail.copy", &json!({"ids": [one], "folder": elsewhere})).unwrap();
+    assert_eq!(copies["copies"].as_array().map(Vec::len), Some(1));
+    // Mail only this computer has, in the account's Inbox: deleted, then deleted for good.
+    let mine = s.mailbox.add_message(Message { folder: inbox, subject: "Mine".into(), ..Default::default() }).unwrap();
+    s.run("mail.select", &json!({"id": mine})).unwrap();
+    assert!(s.enabled("mail.delete"));
+    s.run("mail.delete", &json!({"ids": [mine]})).unwrap();
+    assert_eq!(s.mailbox.message(mine).map(|m| m.folder), s.mailbox.folder_of_kind(account, FolderKind::Deleted));
+    s.run("mail.deletePermanently", &json!({"ids": [mine]})).unwrap();
+    assert!(s.mailbox.message(mine).is_none() && s.mailbox.message(one).is_some());
+    // And a folder made here, with nothing of the server's in it.
+    let ours = s.run("folder.new", &json!({"name": "Ours", "parent": inbox})).unwrap()["id"].as_u64().unwrap();
+    s.run("folder.delete", &json!({"id": ours})).unwrap();
 }
 
 #[test]

@@ -24,7 +24,7 @@ pub fn specs() -> Vec<CommandSpec> {
             .params(r#"{"name": string, "parent"?: number | null (default: the folder in view; null: top level), "account"?: number}"#),
         CommandSpec::new("folder.rename", "Rename Folder", "Folder › Actions", rename).key("F2").params(r#"{"name": string, "id"?: number}"#),
         CommandSpec::new("folder.move", "Move Folder", "Folder › Actions", move_folder).params(r#"{"parent": number | null, "id"?: number}"#),
-        CommandSpec::new("folder.delete", "Delete Folder", "Folder › Actions", delete).params(FOLDER),
+        CommandSpec::new("folder.delete", "Delete Folder", "Folder › Actions", delete).params(FOLDER).selection(can_delete),
         CommandSpec::new("folder.favorite", "Add to Favorites", "Folder › Favorites", favorite).params(
             r#"{"value"?: bool (default: toggle), "id"?: number} — refused for a folder of an account whose Favorites come from its server (Outlook's list, which is changed in Outlook; `view.favorites` says which accounts those are). A shared mailbox's folders are favourites kept in MailCraft, whatever the account it is opened through has: nothing is written to any server for them"#,
         ),
@@ -119,7 +119,16 @@ pub const FROM_OUTLOOK: &str =
     "This account's Favorites come from Outlook and are changed there (File › Options can show the ones kept in MailCraft instead)";
 
 fn can_empty(s: &Session) -> Option<&'static str> {
-    if s.mailbox.count(s.view.folder) == 0 { Some("the folder is already empty") } else { None }
+    if s.mailbox.count(s.view.folder) == 0 {
+        return Some("the folder is already empty");
+    }
+    // Not of what a JMAP account's server has (M6): the next run would bring it back.
+    s.mailbox.emptying_stays_on_server(s.view.folder).then_some(mailcraft_model::NOT_MOVING_YET)
+}
+
+/// Not a folder holding what a JMAP account's server has (M6): the next run would bring it back.
+fn can_delete(s: &Session) -> Option<&'static str> {
+    s.mailbox.folder_stays_on_server(s.view.folder).then_some(mailcraft_model::NOT_MOVING_YET)
 }
 
 fn target(s: &Session, v: &Value) -> Result<Id, CmdError> {

@@ -118,6 +118,12 @@ pub(crate) fn needs_message(s: &Session) -> Option<&'static str> {
     if s.sel.messages.is_empty() { Some("select a message first") } else { None }
 }
 
+/// Enabled only with messages selected that may move or go: none that a JMAP account's server has,
+/// which stays where it is until moves and deletions go up (M6).
+pub(crate) fn needs_movable(s: &Session) -> Option<&'static str> {
+    needs_message(s).or_else(|| s.sel.messages.iter().any(|id| s.mailbox.stays_on_server(*id)).then_some(mailcraft_model::NOT_MOVING_YET))
+}
+
 /// Enabled only while a message is being written.
 pub(crate) fn needs_compose(s: &Session) -> Option<&'static str> {
     if s.compose.is_none() { Some("no message is being written") } else { None }
