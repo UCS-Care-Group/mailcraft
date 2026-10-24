@@ -2,9 +2,8 @@
 # setup never analysed a pull request from a fork, and protection of main waits for CodeQL's
 # results, so a contributor's pull request waited for ever. This one runs on every pull request,
 # a fork's included once its workflows are approved, on main and weekly.
-# On a pull request each language is analysed only when the pull request touches it (Rust and
-# Cargo files, Python files, workflows and actions; the CodeQL set-up counts for all three), so a
-# docs-only one runs none; on main, weekly and by hand all three run.
+# Every language is analysed on every pull request, docs-only ones included: main's ruleset waits
+# for CodeQL's results for each pull request, and a skipped analysis leaves it waiting (#396).
 # What is read: .github/codeql/codeql-config.yml (test-only code is left out).
 name: CodeQL
 
@@ -24,34 +23,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # Which languages this run analyses, as a JSON list.
-  languages:
-    runs-on: ubuntu-24.04
-    outputs:
-      list: ${{ steps.pick.outputs.list }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-          fetch-depth: 0
-      - id: pick
-        env:
-          EVENT: ${{ github.event_name }}
-          BASE: ${{ github.event.pull_request.base.sha }}
-        run: |
-          if [ "$EVENT" != pull_request ]; then echo 'list=["actions","python","rust"]' >> "$GITHUB_OUTPUT"; exit 0; fi
-          files=$(git diff --name-only "$BASE"...HEAD)
-          has() { printf '%s\n' "$files" | grep -qE "$1"; }
-          all='^\.github/(codeql/|workflows/codeql\.yml$)'
-          list=()
-          if has '^\.github/' || has '(^|/)action\.ya?ml$'; then list+=('"actions"'); fi
-          if has '\.py$' || has "$all"; then list+=('"python"'); fi
-          if has '\.rs$|(^|/)Cargo\.(toml|lock)$|^\.cargo/|^rust-toolchain' || has "$all"; then list+=('"rust"'); fi
-          echo "list=[$(IFS=,; echo "${list[*]}")]" >> "$GITHUB_OUTPUT"
-
   analyze:
-    needs: languages
-    if: needs.languages.outputs.list != '[]'
     name: Analyze (${{ matrix.language }})
     runs-on: ubuntu-24.04
     permissions:
@@ -60,7 +32,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        language: ${{ fromJSON(needs.languages.outputs.list) }}
+        language: [actions, python, rust]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
