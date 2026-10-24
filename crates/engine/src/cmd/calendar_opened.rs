@@ -34,7 +34,77 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("calendar.removeShared", "Remove Shared Calendar", "Folder › Actions", remove)
             .params(r#"{"address": string, "account"?: number} | {"id": number (the calendar's id)} — takes a calendar that was opened by address off the list and removes it, its events, and any changes of it that still waited, from this computer. Nothing on the server is touched. Answers {"removed": string (the address), "events": number}"#)
             .when(has_opened),
+        CommandSpec::new("calendar.hideListedCopy", "Hide Calendar Listed Twice", "Folder › Actions", hide_listed_copy)
+            .params(r#"{"address": string (a shared mailbox open here), "hide"?: bool (default true; false shows the copy again, or keeps both when the owner is asked)} — a shared mailbox's calendar that the server also lists among the calendars of the account it is opened through (a sharing invitation accepted in Outlook puts it under Shared Calendars) is there twice. Hidden, that copy and its events go from this computer and it isn't read from the server any more; the shared mailbox's own calendar, read at its own address, stays. Shown again, it comes back with the account's next calendar job. Either answer is remembered in the mailbox file, so the owner is offered this once. Nothing on the server changes. Answers {"account": number, "address": string, "hidden": bool, "calendars": number, "events": number}"#)
+            .when(has_shared_mailbox),
     ]
+}
+
+fn has_shared_mailbox(s: &Session) -> Option<&'static str> {
+    if s.mailbox.accounts.iter().any(|a| a.is_shared() && s.mailbox.owner_of(a.id).is_some()) { None } else { Some("no shared mailbox is open") }
+}
+
+/// The calendars the server lists for `account` (not its main one, nor one opened by address)
+/// whose owner is at `address`: copies of a shared mailbox's calendar under Shared Calendars.
+fn listed_copies(s: &Session, account: Id, address: &str) -> Vec<Id> {
+    s.mailbox
+        .calendars
+        .iter()
+        .filter(|c| {
+            c.origin.account == account
+                && !c.origin.id.is_empty()
+                && opened_address(&c.origin.id).is_none()
+                && c.owner.as_ref().is_some_and(|o| o.address.trim().eq_ignore_ascii_case(address))
+        })
+        .map(|c| c.id)
+        .collect()
+}
+
+/// `calendar.hideListedCopy`: hide (or show again) the copy, among the calendars the server lists
+/// for the account, of a shared mailbox's calendar (#70). Local only.
+fn hide_listed_copy(s: &mut Session, v: &Value) -> CmdResult {
+    let address = address(v)?;
+    let hide = v.get("hide").map_or(Ok(true), |h| h.as_bool().ok_or_else(|| bad("`hide` is true or false")))?;
+    let mailbox = &s.mailbox;
+    let shared = mailbox.accounts.iter().find(|a| a.is_shared() && a.email.trim().eq_ignore_ascii_case(&address));
+    let Some(shared) = shared else { return Err(failed!("{address} isn't a shared mailbox open here.", address)) };
+    let Some(account) = mailbox.owner_of(shared.id).map(|o| o.id) else {
+        return Err(failed!("The account {address} is opened through is gone.", address));
+    };
+    let kept = shared.email.trim().to_string();
+    let owner = s.mailbox.account_mut(account).map_err(|e| fail(e.to_string()))?;
+    let room = owner.listed_twice.len() < mailcraft_model::MAX_SHARED;
+    match owner.listed_twice.iter_mut().find(|entry| entry.address.eq_ignore_ascii_case(&kept)) {
+        Some(entry) => entry.hidden = hide,
+        None if room => owner.listed_twice.push(mailcraft_model::ListedTwice { address: kept.clone(), hidden: hide }),
+        None => return Err(fail("Too many shared mailboxes are listed twice")),
+    }
+    let (calendars, events) = if hide {
+        let copies = listed_copies(s, account, &kept);
+        let events = super::remote::forget_calendars(&mut s.mailbox, &copies);
+        (copies.len(), events)
+    } else {
+        (0, 0)
+    };
+    Ok(json!({"account": account, "address": kept, "hidden": hide, "calendars": calendars, "events": events}))
+}
+
+/// The shared mailboxes open under `account` whose calendar its server lists as well, which the
+/// owner wasn't asked about yet: `[{"address", "name", "calendar", "mailbox"}]`, one per mailbox.
+fn listed_twice(s: &Session, account: Id) -> Vec<Value> {
+    let Some(owner) = s.mailbox.account(account) else { return Vec::new() };
+    let mut said: Vec<Value> = Vec::new();
+    for shared in s.mailbox.shared_mailboxes(account).into_iter().take(mailcraft_model::MAX_SHARED) {
+        let address = shared.email.trim();
+        if address.is_empty() || owner.listed_twice_answer(address).is_some() {
+            continue;
+        }
+        let first = listed_copies(s, account, address).into_iter().find_map(|id| s.mailbox.calendar(id));
+        if let Some(copy) = first {
+            said.push(json!({"address": address, "name": copy.name, "calendar": copy.id, "mailbox": shared.id}));
+        }
+    }
+    said
 }
 
 /// Whether `account` is one a calendar can be opened by address under: an account that signs in
@@ -177,7 +247,9 @@ fn forget(s: &mut Session, account: Id, address: &str) -> Result<usize, CmdError
 /// account's calendars was taken in ([`super::remote::apply_calendars`] calls this): what each
 /// opened calendar now is (its name, colour and tick are kept on the list too, so that they
 /// outlive the calendar), the refusals, and any that the server lists as well. Answers
-/// `{"refused": [{"address", "why", "removed"}], "duplicates": [{"address", "name", "calendar", "listed"}]}`.
+/// `{"refused": [{"address", "why", "removed"}], "duplicates": [{"address", "name", "calendar", "listed"}],
+/// "listedTwice": [{"address", "name", "calendar", "mailbox"}]}` (the last: shared mailboxes whose
+/// calendar the server lists for the account as well, not asked about yet).
 pub(crate) fn after_list(s: &mut Session, account: Id, refused: &[OpenedRefusal]) -> Value {
     let mut said: Vec<Value> = Vec::new();
     for refusal in refused.iter().take(MAX_OPENED_CALENDARS) {
@@ -224,7 +296,7 @@ pub(crate) fn after_list(s: &mut Session, account: Id, refused: &[OpenedRefusal]
             }
         }
     }
-    json!({"refused": said, "duplicates": duplicates})
+    json!({"refused": said, "duplicates": duplicates, "listedTwice": listed_twice(s, account)})
 }
 
 #[cfg(test)]

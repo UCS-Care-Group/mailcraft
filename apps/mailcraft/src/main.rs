@@ -46,6 +46,8 @@ mod graph_mail_flow;
 #[cfg(any(target_os = "windows", test))]
 mod graphics;
 mod install;
+#[cfg(test)]
+mod listed_twice_flow;
 mod logging;
 #[cfg(target_os = "macos")]
 mod menubar;
@@ -995,6 +997,10 @@ fn graph_sending_with(mut request: GraphRequest, zone: &str, renew: Renew<'_>, r
                 // those that can be read are in the list as calendars of the account, and those
                 // that can't are said, with why. (Not for a shared mailbox's job.)
                 if shared_address.is_none() {
+                    // The copy of a shared mailbox's calendar that the owner hid (the server lists
+                    // it among the account's own too, #70) isn't read: the shared mailbox's job
+                    // reads its calendar at its own address.
+                    list.calendars.retain(|calendar| calendar.main || !request.account.hides_listed(calendar.owner.as_ref()));
                     let (opened, no_good) = open_by_address(&access, &request.account.opened_calendars);
                     list.calendars.extend(opened);
                     list.refused = no_good.0;

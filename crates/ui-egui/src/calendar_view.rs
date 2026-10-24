@@ -1423,6 +1423,39 @@ fn calendar_menu(ui: &mut Ui, app: &mut MailApp, row: &CalendarRow, several: boo
         ui.separator();
         mi(ui, app, "Remove Shared Calendar", "calendar.removeShared", json!({"id": row.id}));
     }
+    // A shared mailbox's calendar that the server lists under Shared Calendars too (#70): the
+    // copy is hidden, or shown again, here.
+    match listed_twice(app, row.id) {
+        Some((address, true)) => {
+            ui.separator();
+            mi(ui, app, "Show the Copy under Shared Calendars", "calendar.hideListedCopy", json!({"address": address, "hide": false}));
+        }
+        Some((address, false)) => {
+            ui.separator();
+            mi(ui, app, "Hide This Copy", "calendar.hideListedCopy", json!({"address": address, "hide": true}));
+        }
+        None => {}
+    }
+}
+
+/// For a calendar of the list that is a shared mailbox's (#70): the mailbox's address and `true`
+/// when the copy of its calendar under Shared Calendars is hidden. For that copy itself: the
+/// mailbox's address and `false`. `None` for any other calendar.
+pub(crate) fn listed_twice(app: &MailApp, calendar: Id) -> Option<(String, bool)> {
+    let mailbox = &app.session.mailbox;
+    let calendar = mailbox.calendar(calendar)?;
+    let account = mailbox.account(calendar.origin.account)?;
+    if account.is_shared() {
+        let owner = mailbox.owner_of(account.id)?;
+        let address = account.email.trim().to_string();
+        return (owner.listed_twice_answer(&address) == Some(true)).then_some((address, true));
+    }
+    if calendar.origin.id.is_empty() || mailcraft_model::remote::opened_address(&calendar.origin.id).is_some() {
+        return None;
+    }
+    let by = calendar.owner.as_ref()?.address.trim().to_string();
+    let shared = mailbox.shared_mailboxes(account.id).into_iter().find(|s| s.email.trim().eq_ignore_ascii_case(&by))?;
+    Some((shared.email.trim().to_string(), false))
 }
 
 /// The account whose sign-in covers everything but the optional extras (the mailbox's own

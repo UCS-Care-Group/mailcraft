@@ -317,6 +317,12 @@ pub struct Account {
     /// other account, and in a file from before there were any.
     #[serde(skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::sync::lenient_list")]
     pub opened_calendars: Vec<crate::OpenedCalendar>,
+    /// For a Microsoft account: the shared mailboxes open under it whose calendar its server lists
+    /// among its own calendars as well, and whether that copy is hidden ([`crate::ListedTwice`],
+    /// #70), at most [`MAX_SHARED`]. An entry says the owner was asked: MailCraft offers once.
+    /// Empty for every other account, and in a file from before there were any.
+    #[serde(skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::sync::lenient_list")]
+    pub listed_twice: Vec<crate::ListedTwice>,
     /// For a [`AccountKind::Jmap`] account: where its server's session resource is and how the
     /// secret is sent ([`JmapServer`]). Plain settings: the secret is never kept here. `None` for
     /// every other account, and in a file from before there were any.
@@ -344,6 +350,30 @@ impl Account {
             kept.push(opened);
         }
         self.opened_calendars = kept;
+        let mut twice: Vec<crate::ListedTwice> = Vec::new();
+        for mut entry in std::mem::take(&mut self.listed_twice) {
+            entry.address = crate::calendar::flat_line(&entry.address, crate::calendar::MAX_OWNER_ADDRESS).replace(' ', "");
+            let known = twice.iter().any(|have| have.address.eq_ignore_ascii_case(&entry.address));
+            if entry.address.is_empty() || known || twice.len() >= MAX_SHARED {
+                continue;
+            }
+            twice.push(entry);
+        }
+        self.listed_twice = twice;
+    }
+
+    /// What the owner said of the copy, under Shared Calendars, of the calendar of the shared
+    /// mailbox at `address` (#70): `Some(true)` hidden, `Some(false)` kept, `None` not asked yet.
+    /// Addresses compare without regard to ASCII case.
+    pub fn listed_twice_answer(&self, address: &str) -> Option<bool> {
+        let address = address.trim();
+        self.listed_twice.iter().find(|entry| entry.address.eq_ignore_ascii_case(address)).map(|entry| entry.hidden)
+    }
+
+    /// Whether a calendar the server lists for this account, owned by `owner`, is the hidden copy
+    /// of a shared mailbox's calendar (#70): it isn't read from the server, nor shown.
+    pub fn hides_listed(&self, owner: Option<&crate::CalendarOwner>) -> bool {
+        owner.is_some_and(|owner| !owner.address.trim().is_empty() && self.listed_twice_answer(&owner.address) == Some(true))
     }
 }
 
@@ -973,10 +1003,23 @@ impl Mailbox {
         self.event_checks.retain(|check| !going.contains(&check.account));
         self.queued.retain(|queued| !going.contains(&queued.account()));
         self.favorites_from_server.retain(|list| !going.contains(&list.account));
+        self.tidy_listed_twice();
         Ok(())
     }
 
     // ---- shared mailboxes ----
+
+    /// Keep each account's [`Account::listed_twice`] to the shared mailboxes open under it: one
+    /// that is closed has nothing hidden for it (its calendar is listed again), and is offered
+    /// again if it is opened again.
+    pub fn tidy_listed_twice(&mut self) {
+        let open: Vec<(Id, String)> =
+            self.accounts.iter().filter(|a| a.is_shared()).filter_map(|a| a.shared_of.map(|owner| (owner, a.email.trim().to_string()))).collect();
+        for account in &mut self.accounts {
+            let id = account.id;
+            account.listed_twice.retain(|entry| open.iter().any(|(owner, address)| *owner == id && address.eq_ignore_ascii_case(&entry.address)));
+        }
+    }
 
     /// The shared mailboxes opened through `account` ([`Account::shared_of`]), in the order they
     /// were added.
@@ -2174,6 +2217,7 @@ impl Mailbox {
                 fixed.push("an account id corrected".into());
             }
         }
+        self.tidy_listed_twice();
         let accounts: Vec<Id> = self.accounts.iter().map(|a| a.id).collect();
         let known_accounts: HashSet<Id> = accounts.iter().copied().collect();
         let before = self.folders.len();
