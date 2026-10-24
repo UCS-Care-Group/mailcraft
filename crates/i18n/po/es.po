@@ -3392,6 +3392,11 @@ msgstr "Google no aceptó la contraseña. Una cuenta con verificación en dos pa
 msgid "Grab bag"
 msgstr "Mezcla"
 
+#. interface
+#: crates/ui-egui/src/sender_images.rs
+msgid "Gravatar is asked for the sender's picture and told a hash of their address; else favicon.im, then Google, are asked for their website's icon and told the sender's domain. This tells those services whose pictures you look at. Only for the people you know (your contacts, and whoever you have written to) and the mail whose pictures you download, never for Junk E-mail, and a sender's picture only when your mail server confirms the mail is from them."
+msgstr ""
+
 #. command label, ribbon
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -7587,6 +7592,11 @@ msgstr "Mostrar pestaña de la cinta"
 msgid "Show Send/Receive Progress"
 msgstr "Mostrar progreso de envío y recepción"
 
+#. command label
+#: crates/ui-egui/src/lib.rs
+msgid "Show Sender Images"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/shared_calendars.rs
 msgid "Show a Shared Mailbox's Calendars"
@@ -7642,6 +7652,11 @@ msgstr "Mostrar en grupos"
 #, fuzzy
 msgid "Show in the time bar"
 msgstr "Mostrar en la barra de horas"
+
+#. interface
+#: crates/ui-egui/src/sender_images.rs
+msgid "Show sender images from Gravatar, favicon.im and Google"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs

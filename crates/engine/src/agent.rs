@@ -392,6 +392,7 @@ const SETTINGS: &[&str] = &[
     "signature.close",
     "ui.alwaysDownloadPictures",
     "ui.downloadPicturesAutomatically",
+    "ui.senderImages",
     "ui.desktopAlerts",
     "ui.updateCheck",
     "ui.updateInstall",

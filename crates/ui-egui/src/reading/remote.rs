@@ -230,14 +230,6 @@ fn in_junk(app: &MailApp, m: &Message) -> bool {
     app.session.mailbox.in_junk(m.folder)
 }
 
-/// Two-label public suffixes a host's domain must not be cut down to. ponytail: a short list of
-/// the common ones, not the Public Suffix List; a rarer one lets an id under that suffix match
-/// a mail host sitting directly under it.
-const TWO_LABEL_SUFFIXES: &[&str] = &[
-    "co.uk", "org.uk", "ac.uk", "gov.uk", "me.uk", "com.au", "net.au", "org.au", "co.nz", "co.jp", "co.za", "com.br", "com.cn", "co.in", "com.mx",
-    "com.tr", "co.kr", "com.sg", "com.hk",
-];
-
 /// The authserv-id (RFC 8601) an `Authentication-Results` value starts with: the first word before
 /// the first `;`, after comments, ignoring an optional version number. `None` when the value
 /// starts with a result instead (Exchange Online writes no id), or the id is no host name.
@@ -273,9 +265,7 @@ fn from_own_server(account: Option<&Account>, value: &str) -> bool {
         return true;
     }
     let Some((_, rest)) = host.split_once('.') else { return false };
-    rest.split('.').count() >= 2
-        && !TWO_LABEL_SUFFIXES.contains(&rest)
-        && (id == rest || id.strip_suffix(rest).is_some_and(|head| head.ends_with('.')))
+    rest.split('.').count() >= 2 && !provider::is_public_suffix(rest) && (id == rest || id.strip_suffix(rest).is_some_and(|head| head.ends_with('.')))
 }
 
 /// Whether the server that received `m` vouches that it came from the domain it says it did:
@@ -715,6 +705,7 @@ fn clear(app: &mut MailApp) -> Result<Value, String> {
         None => 0,
     };
     app.remote_pictures.forget_all = true;
+    app.sender_images = Default::default();
     Ok(json!({"cleared": on_disk}))
 }
 

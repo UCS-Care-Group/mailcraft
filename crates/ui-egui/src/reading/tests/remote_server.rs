@@ -68,9 +68,9 @@ fn a_company_host_vouches_for_names_under_its_domain() {
 
 #[test]
 fn a_bare_suffix_is_not_a_company() {
-    for host in ["imap.co.uk", "mail.com.au", "localhost", "lumen.example", "imap"] {
+    for host in ["imap.co.uk", "mail.com.au", "imap.github.io", "localhost", "lumen.example", "imap"] {
         let account = imap(host);
-        for id in ["mx.co.uk", "co.uk", "mx.com.au", "mx.example", "example", "evil.co.uk"] {
+        for id in ["mx.co.uk", "co.uk", "mx.com.au", "mx.example", "example", "evil.co.uk", "evil.github.io"] {
             assert!(!vouched(Some(&account), &message(&[&format!("{id}; {PASS}")])), "{host} {id}");
         }
     }

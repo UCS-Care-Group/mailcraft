@@ -500,6 +500,7 @@ fn options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     }
     section(ui, tl!("Pictures in mail"), t);
     crate::reading::remote::options(app, ui, t);
+    crate::sender_images::options(app, ui, t);
     section(ui, tl!("Accounts"), t);
     let mut remember = app.ui.remember_sign_in;
     if ui

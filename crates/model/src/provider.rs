@@ -75,6 +75,93 @@ pub fn is_domain(domain: &str) -> bool {
         && domain.split('.').all(|label| !label.is_empty() && label.len() <= 63 && label.chars().all(|c| c.is_ascii_alphanumeric() || c == '-'))
 }
 
+/// The second level under a country's domain that is a suffix of its own (`co.uk`, `com.au`).
+const COUNTRY_SECOND_LEVELS: &[&str] = &["co", "com", "net", "org", "gov", "edu", "ac", "or", "ne", "go", "me"];
+
+/// Hosting platforms that give each customer a name under their own (`contoso.sharepoint.com`).
+const HOSTING_PLATFORMS: &[&str] = &[
+    "onmicrosoft.com",
+    "sharepoint.com",
+    "azurewebsites.net",
+    "cloudapp.net",
+    "github.io",
+    "gitlab.io",
+    "blogspot.com",
+    "wordpress.com",
+    "herokuapp.com",
+    "netlify.app",
+    "vercel.app",
+    "pages.dev",
+    "web.app",
+    "firebaseapp.com",
+    "appspot.com",
+    // Help desks and shops that send their customers' mail from a name of their own.
+    "zendesk.com",
+    "freshdesk.com",
+    "atlassian.net",
+    "service-now.com",
+    "myshopify.com",
+];
+
+/// Whether `domain` (in lower case) is a suffix anybody may have a name of their own under: a
+/// country's second level (`co.uk`) or a hosting platform (`github.io`). A name under it is
+/// somebody's; the suffix is nobody's.
+// shortcut: the common ones, not the Public Suffix List; take that list if sites or servers come out wrong.
+pub fn is_public_suffix(domain: &str) -> bool {
+    HOSTING_PLATFORMS.contains(&domain)
+        || domain
+            .split_once('.')
+            .is_some_and(|(second, top)| top.len() == 2 && top.bytes().all(|b| b.is_ascii_lowercase()) && COUNTRY_SECOND_LEVELS.contains(&second))
+}
+
+/// Whether `domain` (in lower case) is a hosting platform's or a name its customers have under
+/// it: what it serves there, its icon among the rest, is the platform's as much as theirs.
+pub fn on_hosting_platform(domain: &str) -> bool {
+    HOSTING_PLATFORMS.iter().any(|platform| domain.strip_suffix(platform).is_some_and(|head| head.is_empty() || head.ends_with('.')))
+}
+
+/// Mail anybody can have an address at, besides the providers [`by_domain`] knows; and Apple's
+/// relay for hidden addresses (`privaterelay.appleid.com`).
+const MAIL_PROVIDERS: &[&str] = &[
+    "proton.me",
+    "protonmail.com",
+    "pm.me",
+    "tutanota.com",
+    "tuta.io",
+    "posteo.de",
+    "mailbox.org",
+    "hey.com",
+    "duck.com",
+    "appleid.com",
+    "web.de",
+    "t-online.de",
+    "freenet.de",
+    "orange.fr",
+    "free.fr",
+    "laposte.net",
+    "libero.it",
+    "seznam.cz",
+    "wp.pl",
+    "mail.ru",
+    "yandex.ru",
+    "yandex.com",
+    "qq.com",
+    "163.com",
+    "126.com",
+    "naver.com",
+    "comcast.net",
+    "att.net",
+    "verizon.net",
+    "btinternet.com",
+];
+
+/// Whether `domain` (in lower case) is a mail provider's, where anybody can have an address:
+/// its icon says nothing of the sender.
+// shortcut: the providers of most addresses, not every one; add one when its logo turns up as a sender's picture.
+pub fn is_mail_provider(domain: &str) -> bool {
+    MAIL_PROVIDERS.contains(&domain) || by_domain(domain).is_some()
+}
+
 /// Mail Microsoft hosts for anyone: Outlook.com and its older names, in every country
 /// (`outlook.com`, `hotmail.co.uk`, `live.com.au`; not `live.somecompany.example`).
 fn is_microsoft_consumer(domain: &str) -> bool {
