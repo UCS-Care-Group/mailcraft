@@ -1,6 +1,6 @@
 # DAV model and documents
 
-> **Last reviewed:** 2026-10-24 · **Last updated:** 2026-10-24 · **Change:** minor (review fixes, portable DAV crate and fuzz coverage)
+> **Last reviewed:** 2026-10-24 · **Last updated:** 2026-10-24 · **Change:** minor (source line endings, portable DAV crate and review fixes)
 
 **Status:** foundation only.
 
@@ -26,6 +26,8 @@ whose source differs from the writer, and ambiguous grouped contact properties/l
 to a repeated property preserves equal occurrences, including their parameters and physical folds.
 Nested email reminders remain untouched and do not make an event a meeting. Replaced or added
 event properties are inserted before the first nested alarm, preserving RFC 5545 property order.
+Inserted physical lines use the first line-ending style of the source; unchanged bytes, including
+folds and their line endings, remain untouched.
 
 Time edits keep the source date, floating, UTC or TZID form. A named zone must have its
 VTIMEZONE definition in the source. An added DTEND must match the effective DTSTART form. A writer that converts the source DURATION to DTEND
@@ -69,6 +71,7 @@ Protocol sources: [WebDAV, RFC 4918](https://www.rfc-editor.org/rfc/rfc4918),
 
 | Date | Change |
 |---|---|
+| 2026-10-24 | Inserted properties and folds use the source line endings |
 | 2026-10-24 | Separate portable DAV crate, property ordering, end-form guards and fuzz coverage |
 | 2026-10-24 | Review fixes: time/end forms, repeated properties, source versions, email alarms and real-writer tests |
 | 2026-10-24 | Pure model/document foundation; no network or sync behaviour |

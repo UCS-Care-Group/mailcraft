@@ -324,12 +324,14 @@ pub fn patch(original: &str, before: &str, after: &str, component: Component) ->
     let mut add = difference(&new, &old, &changed);
     // Insert property replacements before any nested alarms, preferably at the first
     // removed line. RFC 5545 §3.6.1 puts event properties before its nested components.
+    let ending = if original.split_inclusive('\n').next().is_some_and(|line| line.ends_with("\r\n")) { "\r\n" } else { "\n" };
     let mut insertions = String::new();
     for p in &new.properties {
         if take(&mut add, &p.line.text) {
-            insertions.push_str(after.get(p.line.span.clone()).ok_or(InvalidDocument)?);
-            if !insertions.ends_with('\n') {
-                insertions.push_str("\r\n");
+            for physical in after.get(p.line.span.clone()).ok_or(InvalidDocument)?.split_inclusive('\n') {
+                let content = physical.strip_suffix("\r\n").or_else(|| physical.strip_suffix('\n')).unwrap_or(physical);
+                insertions.push_str(content);
+                insertions.push_str(ending);
             }
         }
     }

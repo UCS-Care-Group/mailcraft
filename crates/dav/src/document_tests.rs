@@ -304,3 +304,17 @@ proptest! {
         }
     }
 }
+
+#[test]
+fn inserted_properties_and_folds_use_the_sources_line_endings() {
+    for source_ending in ["\r\n", "\n"] {
+        let writer_ending = if source_ending == "\r\n" { "\n" } else { "\r\n" };
+        let source = CARD.replace("\r\n", source_ending);
+        let after = CARD.replace("FN:Old", "FN:Ne\r\n w\r\nEMAIL:new@example.org").replace("\r\n", writer_ending);
+        let got = patch(&source, CARD, &after, Component::Card).unwrap();
+        let expected = source.replace("FN:Old", &format!("FN:Ne{source_ending} w{source_ending}EMAIL:new@example.org"));
+        assert_eq!(got, expected);
+        let writer_before = CARD.replace("\r\n", writer_ending);
+        assert_eq!(patch(&source, CARD, &writer_before, Component::Card).unwrap(), source);
+    }
+}
