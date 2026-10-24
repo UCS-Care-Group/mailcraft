@@ -120,7 +120,8 @@ fn search_box(app: &mut MailApp, ui: &mut Ui, rect: Rect) {
     // What the word being typed may be (#308), for mail: the list's keys come before the box's.
     let mut suggesting = crate::search_suggest::Suggesting::load(ui.ctx());
     let over = suggesting.pointer_over(ui);
-    let open = mail_search && suggesting.is_open(&app.search_text, focused || over);
+    // With a dialog open, the list is not drawn: it would be on top of the dialog.
+    let open = mail_search && free && suggesting.is_open(&app.search_text, focused || over);
     let mut take = if open && focused && free { suggesting.keys(ui, &app.search_text) } else { None };
     let pill_slot = ui.painter().add(egui::Shape::Noop);
     let mut drawn: Vec<crate::search_pills::Pill> = Vec::new();
@@ -146,6 +147,11 @@ fn search_box(app: &mut MailApp, ui: &mut Ui, rect: Rect) {
     let shapes = crate::search_pills::shapes(&output.galley, output.galley_pos, &drawn, &t);
     ui.painter().with_clip_rect(output.text_clip_rect).set(pill_slot, egui::Shape::Vec(shapes));
     let resp = output.response.response;
+    // The box gave up the keyboard without a click (Enter, Shift+Tab): the list closes too. After a
+    // click the list stays for that frame, so a click on it can still take a suggestion.
+    if resp.lost_focus() && !ui.input(|i| i.pointer.any_down() || i.pointer.any_released()) {
+        suggesting.clear();
+    }
     if std::mem::take(&mut app.search_focus) {
         resp.request_focus();
     }
@@ -189,10 +195,12 @@ fn search_box(app: &mut MailApp, ui: &mut Ui, rect: Rect) {
         Some(at) if mail_search && (resp.has_focus() || ui.memory(|m| m.has_focus(id))) => {
             suggesting.offer(&app.search_text, at, &app.session.mailbox.categories);
             // The keys of a list that shows from the next frame are its own from that frame on.
-            let next = suggesting.is_open(&app.search_text, true);
+            let next = free && suggesting.is_open(&app.search_text, true);
             ui.memory_mut(|m| m.set_focus_lock_filter(id, list_keys(next)));
         }
         _ if suggesting.pointer_over(ui) => {}
+        // The box was left: an Escape in it is forgotten, so the list shows again on coming back.
+        _ if !ui.memory(|m| m.has_focus(id)) => suggesting = crate::search_suggest::Suggesting::default(),
         _ => suggesting.clear(),
     }
     suggesting.store(ui.ctx());

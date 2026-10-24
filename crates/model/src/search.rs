@@ -524,7 +524,7 @@ fn parse_date(s: &str) -> Option<Date> {
 }
 
 /// The keywords the search box knows (what comes before a `:`), in small letters.
-const KEYWORDS: &[&str] = &[
+pub(crate) const KEYWORDS: &[&str] = &[
     "from",
     "to",
     "cc",

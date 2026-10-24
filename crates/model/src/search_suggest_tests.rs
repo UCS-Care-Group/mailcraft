@@ -199,3 +199,21 @@ proptest::proptest! {
         }
     }
 }
+
+/// Each keyword the search reads is offered from its start, except the other names of one that
+/// is. Each value offered after `is:` and `has:` is read as that keyword's, not as text.
+#[test]
+fn what_is_offered_is_what_the_search_reads() {
+    const OTHER_NAMES: [&str; 6] = ["categories", "attachments", "hasattachment", "hasattachments", "received", "sent"];
+    for k in crate::search::KEYWORDS.iter().filter(|k| !OTHER_NAMES.contains(k)) {
+        assert!(offered(k).contains(&format!("{k}:")), "{k}: is not offered");
+    }
+    for keyword in ["is:", "has:"] {
+        let values = offered(keyword);
+        assert!(!values.is_empty(), "{keyword}");
+        for v in values {
+            let q = format!("{keyword}{v}");
+            assert_ne!(Query::parse(&q), Query::parse(&format!("\"{q}\"")), "{q} is read as text");
+        }
+    }
+}

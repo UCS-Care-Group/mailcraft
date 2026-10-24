@@ -6,7 +6,8 @@
 //! choose; Enter takes the one chosen, Tab that one or the first, a click the one under it. Until
 //! an arrow key is pressed nothing is chosen, so Enter does what it did. Escape closes the list
 //! and leaves the search (and a message being written open); the next Escape clears it, as
-//! before. With Shift, Ctrl or Alt held, the keys are not the list's.
+//! before. The list stays closed until the search or the cursor changes, or the box is left. With
+//! Shift, Ctrl or Alt held, the keys are not the list's; Shift+Tab leaves the box, as without it.
 
 use egui::{Context, Rect, Sense, Stroke, Ui, pos2, vec2};
 use mailcraft_model::search::Suggestion;
@@ -26,13 +27,14 @@ pub(crate) struct Suggesting {
     /// Where it was drawn, so a click on it isn't taken for a click away from the box; `None`
     /// while it isn't.
     rect: Option<Rect>,
-    /// The search as Escape found it: the list stays closed until it changes.
-    dismissed: Option<String>,
-    /// What `items` are for: the search, the cursor in it, and how many categories the mailbox
-    /// had. A take is only of items for the search as it is now.
+    /// The search and the cursor as Escape found them: the list stays closed until one changes.
+    /// The cursor is filled in by the next `offer`.
+    dismissed: Option<(String, Option<usize>)>,
+    /// What `items` are for: the search, the cursor in it, and the mailbox's categories (a
+    /// renamed one is offered by its new name). A take is only of items for the search as it is now.
     pub for_text: String,
     for_cursor: usize,
-    for_categories: usize,
+    for_categories: Vec<mailcraft_model::Category>,
 }
 
 impl Suggesting {
@@ -56,7 +58,7 @@ impl Suggesting {
     /// Whether the list shows for `text`, with the box in use (`active`: it has the keyboard or the
     /// pointer is over the list).
     pub fn is_open(&self, text: &str, active: bool) -> bool {
-        active && !self.items.is_empty() && self.dismissed.as_deref() != Some(text)
+        active && !self.items.is_empty() && self.dismissed.as_ref().is_none_or(|(d, _)| d != text)
     }
 
     /// The keys meant for the list while it shows, taken before the box sees them; which item to
@@ -64,7 +66,13 @@ impl Suggesting {
     pub fn keys(&mut self, ui: &Ui, text: &str) -> Option<usize> {
         let n = self.items.len();
         let mut take = None;
+        let mut back = false;
         ui.input_mut(|i| {
+            // The box keeps every Tab while the list shows, so Shift+Tab is done here.
+            if i.consume_key(egui::Modifiers::SHIFT, egui::Key::Tab) {
+                back = true;
+                return;
+            }
             if !i.modifiers.is_none() {
                 return;
             }
@@ -81,9 +89,12 @@ impl Suggesting {
                 take = Some(self.selected.unwrap_or(0));
             }
             if i.consume_key(egui::Modifiers::NONE, egui::Key::Escape) {
-                self.dismissed = Some(text.to_string());
+                self.dismissed = Some((text.to_string(), None));
             }
         });
+        if back {
+            ui.memory_mut(|m| m.move_focus(egui::FocusDirection::Previous));
+        }
         take
     }
 
@@ -133,10 +144,14 @@ impl Suggesting {
 
     /// What to offer next frame, for `text` with the cursor at character `cursor`.
     pub fn offer(&mut self, text: &str, cursor: usize, categories: &[mailcraft_model::Category]) {
-        if self.dismissed.as_deref().is_some_and(|d| d != text) {
-            self.dismissed = None;
+        if let Some((d, at)) = &mut self.dismissed {
+            if d != text || at.is_some_and(|at| at != cursor) {
+                self.dismissed = None;
+            } else {
+                *at = Some(cursor);
+            }
         }
-        if (self.for_text.as_str(), self.for_cursor, self.for_categories) == (text, cursor, categories.len()) {
+        if (self.for_text.as_str(), self.for_cursor, self.for_categories.as_slice()) == (text, cursor, categories) {
             return;
         }
         let byte = text.char_indices().nth(cursor).map_or(text.len(), |(b, _)| b);
@@ -145,7 +160,7 @@ impl Suggesting {
             self.selected = None;
         }
         self.items = items;
-        (self.for_text, self.for_cursor, self.for_categories) = (text.to_string(), cursor, categories.len());
+        (self.for_text, self.for_cursor, self.for_categories) = (text.to_string(), cursor, categories.to_vec());
     }
 
     pub fn clear(&mut self) {

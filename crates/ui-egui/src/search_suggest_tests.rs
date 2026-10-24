@@ -53,6 +53,11 @@ fn search(h: &Harness<'static, MailApp>) -> String {
     h.state().session.view.search.clone()
 }
 
+/// Whether the search box has the keyboard.
+fn in_the_box(h: &Harness<'static, MailApp>) -> bool {
+    h.ctx.memory(|m| m.has_focus(crate::chrome::search_box_id()))
+}
+
 /// The start of a keyword offers it; Tab takes it and the mailbox's categories follow; the arrow
 /// keys and Enter take one, which is searched for at once.
 #[test]
@@ -100,7 +105,8 @@ fn up_goes_round_to_the_last() {
     assert_eq!(search(&h), "is:important ");
 }
 
-/// With Shift held, Tab is not the list's: nothing is taken.
+/// With Shift held, Tab is not the list's: nothing is taken, and the keyboard leaves the box, as
+/// it does with no list. The list closes.
 #[test]
 fn shift_tab_takes_nothing() {
     let mut h = window();
@@ -108,6 +114,8 @@ fn shift_tab_takes_nothing() {
     h.key_press_modifiers(egui::Modifiers::SHIFT, egui::Key::Tab);
     h.run_steps(3);
     assert_eq!(search(&h), "cat");
+    assert!(!in_the_box(&h), "the keyboard left the box");
+    assert!(h.query_by_label("category:").is_none(), "the list closed");
 }
 
 /// With no list, Tab leaves the box as it did: what is typed next doesn't go in.
@@ -231,4 +239,76 @@ fn people_search_offers_nothing() {
     h.run_steps(3);
     typed(&mut h, "cat");
     assert!(h.query_by_label("category:").is_none());
+}
+
+/// A dialog is open while the list shows. The list is not drawn over the dialog. When the dialog
+/// closes, the list is back.
+#[test]
+fn the_list_is_not_drawn_over_a_dialog() {
+    let mut h = window();
+    typed(&mut h, "cat");
+    assert!(h.query_by_label("category:").is_some());
+    h.state_mut().dialog = Some(crate::dialogs::Dialog::Refused { text: "Not now".into() });
+    h.run_steps(3);
+    assert!(h.query_by_label("category:").is_none(), "not over the dialog");
+    key(&mut h, egui::Key::Escape);
+    assert!(h.state().dialog.is_none());
+    assert!(h.query_by_label("category:").is_some(), "back once the dialog is closed");
+}
+
+/// A category is renamed while the list shows it. The list then shows the new name.
+#[test]
+fn a_renamed_category_is_offered_by_its_new_name() {
+    let mut h = window();
+    typed(&mut h, "category:gr");
+    assert_eq!(offered(&h), ["Green category"]);
+    h.state_mut().execute("category.rename", json!({"from": "Green category", "to": "Grass"})).unwrap();
+    h.run_steps(3);
+    assert_eq!(offered(&h), ["Grass"]);
+}
+
+/// Escape closes the list. Moving the cursor to another word opens it again, for that word.
+#[test]
+fn escape_closes_the_list_until_the_cursor_moves() {
+    let mut h = window();
+    typed(&mut h, "cat is:");
+    assert!(h.query_by_label("unread").is_some());
+    key(&mut h, egui::Key::Escape);
+    assert!(h.query_by_label("unread").is_none(), "closed");
+    for _ in 0..4 {
+        key(&mut h, egui::Key::ArrowLeft);
+    }
+    assert_eq!(offered(&h), ["category:"]);
+    assert!(h.query_by_label("category:").is_some(), "open again, for `cat`");
+    assert_eq!(search(&h), "cat is:");
+}
+
+/// Escape closes the list. After leaving the box and coming back, the list shows again.
+#[test]
+fn escape_is_forgotten_when_the_box_is_left() {
+    let mut h = window();
+    typed(&mut h, "is:");
+    key(&mut h, egui::Key::Escape);
+    assert!(h.query_by_label("unread").is_none(), "closed");
+    h.ctx.memory_mut(|m| m.surrender_focus(crate::chrome::search_box_id()));
+    h.run_steps(3);
+    assert!(!in_the_box(&h));
+    h.state_mut().search_focus = true;
+    h.run_steps(3);
+    assert!(h.query_by_label("unread").is_some(), "open again");
+    assert_eq!(search(&h), "is:");
+}
+
+/// The pointer is on the list and Enter is pressed with nothing chosen. The box gives up the
+/// keyboard, as it did before the list, and the list closes with it.
+#[test]
+fn enter_with_the_pointer_on_the_list_closes_it() {
+    let mut h = window();
+    typed(&mut h, "is:");
+    h.get_by_label("flagged").hover();
+    h.run_steps(3);
+    key(&mut h, egui::Key::Enter);
+    assert!(!in_the_box(&h), "Enter left the box");
+    assert!(h.query_by_label("flagged").is_none(), "the list closed");
+    assert_eq!(search(&h), "is:");
 }
