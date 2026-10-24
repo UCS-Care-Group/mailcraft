@@ -21,7 +21,9 @@ mailcraft-ui-egui = { workspace = true }
 mailcraft-control-key = { workspace = true }
 # Sockets: Send/Receive runs on a background thread.
 mailcraft-net = { workspace = true }
-eframe = { workspace = true, features = ["default_fonts", "wgpu", "accesskit", "wayland", "x11", "links"] }
+# `clipboard`: since 0.37 eframe has copy and paste behind a feature of its own (on by default, and
+# we turn the defaults off); without it nothing is copied, on any platform.
+eframe = { workspace = true, features = ["default_fonts", "wgpu", "accesskit", "wayland", "x11", "links", "clipboard"] }
 egui = { workspace = true }
 serde_json = { workspace = true }
 log = { workspace = true }

@@ -58,7 +58,7 @@ People trust MailCraft with years of correspondence; a crash loses their work an
 - **Rust only** (no handwritten JS/TS). **Never break wasm** (`cargo xtask wasm`).
 
 ## Quality gates
-Before every commit: `cargo xtask ci` (fmt, clippy -D warnings, tests, assets, spdx (every Rust file starts with its SPDX copyright and licence lines; `cargo xtask spdx --fix` adds them), layers, wasm, deny: advisories, licences and sources of the dependencies through `cargo-deny`, which CI requires). Commit after every arc of work that builds, with a task id in the message (`M2.1: recurrence editor`).
+Before every commit: `cargo xtask ci` (fmt, clippy -D warnings, tests, assets, spdx (every Rust file starts with its SPDX copyright and licence lines; `cargo xtask spdx --fix` adds them), test-files (no new inline test module; `xtask/inline-tests.txt` lists the older ones and only shrinks), layers, wasm, deny: advisories, licences and sources of the dependencies through `cargo-deny`, which CI requires). Commit after every arc of work that builds, with a task id in the message (`M2.1: recurrence editor`).
 
 ## Running and looking at the app
 - `cargo run --release -p mailcraft -- --sample --control 7991` (sample mailbox + control channel).

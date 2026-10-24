@@ -13,6 +13,7 @@ mod parity;
 mod release_key;
 mod spdx;
 mod stats;
+mod test_files;
 mod version;
 
 use std::path::{Path, PathBuf};
@@ -24,10 +25,11 @@ usage: cargo xtask <command>
 commands:
   assets          check that every icon/image/font/asset is attributed in ATTRIBUTION.md
   spdx [--fix]    check that every Rust file starts with its SPDX copyright and licence lines
+  test-files      tests live in files of their own: no new inline `#[cfg(test)] mod … { }` (CONTRIBUTING.md)
   layers          enforce the crate dependency layering (docs/architecture.md)
   wasm            cargo check --target wasm32-unknown-unknown for the wasm-safe crates
   deny            cargo deny check (advisories, licences, bans, sources; see deny.toml)
-  ci              fmt --check, clippy -D warnings, test, assets, spdx, layers, wasm, deny, i18n --check
+  ci              fmt --check, clippy -D warnings, test, assets, spdx, test-files, layers, wasm, deny, i18n --check
                   (stops at first failure)
   stats [--exact] count tests and lines per crate (--exact: ask the test harness via `-- --list`)
   i18n [--check]  gather the interface's English into crates/i18n/po/messages.pot and merge it into
@@ -49,6 +51,7 @@ fn main() -> ExitCode {
     let result = match args.first().map(String::as_str) {
         Some("assets") => assets::run(&root()),
         Some("spdx") => spdx::run(&root(), rest.contains(&"--fix")),
+        Some("test-files") => test_files::run(&root()),
         Some("layers") => cmd_layers(),
         Some("wasm") => cmd_wasm(),
         Some("deny") => cmd_deny(),
@@ -215,6 +218,7 @@ fn cmd_ci() -> Result<(), String> {
         ),
         ("assets", Box::new(|| assets::run(&root()))),
         ("spdx", Box::new(|| spdx::run(&root(), false))),
+        ("test-files", Box::new(|| test_files::run(&root()))),
         ("layers", Box::new(cmd_layers)),
         ("wasm", Box::new(cmd_wasm)),
         ("deny", Box::new(cmd_deny)),

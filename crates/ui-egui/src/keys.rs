@@ -178,7 +178,12 @@ pub fn global_shortcuts(app: &mut MailApp, ctx: &egui::Context) {
     let in_body = typing && crate::compose::editor::has_focus(ctx);
     let events = ctx.input(|i| i.events.clone());
     for e in events {
-        let egui::Event::Key { key, pressed: true, modifiers, .. } = e else { continue };
+        let egui::Event::Key { key, pressed: true, repeat, modifiers, .. } = e else { continue };
+        // A held Escape is one press: its repeats come once the search box or a dialog has had
+        // it, and would close a message being written (#365).
+        if key == Key::Escape && repeat {
+            continue;
+        }
         let Some(name) = key_name(key) else { continue };
         let function = name.len() > 1 && name.starts_with('F') && name[1..].chars().all(|c| c.is_ascii_digit());
         if typing {
@@ -202,6 +207,11 @@ pub fn global_shortcuts(app: &mut MailApp, ctx: &egui::Context) {
             );
             let chord = modifiers.command || modifiers.alt;
             if in_body && modifiers.command && crate::compose::editor::owns_chord(key) {
+                continue;
+            }
+            // Escape in the search box is the box's: it clears the search, and leaves a message
+            // being written open (#365).
+            if key == Key::Escape && ctx.memory(|m| m.has_focus(crate::chrome::search_box_id())) {
                 continue;
             }
             if !(function || chord && !editing) && !(key == Key::Escape && app.session.compose.is_some()) {
