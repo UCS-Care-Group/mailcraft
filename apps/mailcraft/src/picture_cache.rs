@@ -20,8 +20,9 @@
 //!   Not the address (only its hash: the folder doesn't list what was read), not the message,
 //!   not who sent it, nothing a server said besides the bytes. The same picture at two addresses
 //!   is one file.
-//! - **Only pictures:** bytes are kept when they begin as a PNG, a JPEG, a GIF or a WebP does and
-//!   are no larger than a download may be; the window, which decodes them, takes back what turns
+//! - **Only pictures:** bytes are kept when they begin as a PNG, a JPEG, a GIF or a WebP does
+//!   (or an ICO, a web site's icon, for a sender's picture: [`Cache::get_as`]) and are no
+//!   larger than a download may be; the window, which decodes them, takes back what turns
 //!   out to be none ([`Cache::forget`]). Nothing here is ever run, opened by another program on
 //!   our say-so, or served to anyone: a file is read back as bytes, and only when it is a plain
 //!   file of the length and SHA-256 its line names. What comes back goes to the window the way a
@@ -300,6 +301,12 @@ impl Cache {
 
     /// The picture kept for `url`, when there is one and it is still what it was.
     pub fn get(&self, url: &str) -> Option<Vec<u8>> {
+        self.get_as(url, looks_like_a_picture)
+    }
+
+    /// [`Cache::get`], with `looks` saying what begins as a picture: a sender's may be a web
+    /// site's icon as well (`sender_images`).
+    pub fn get_as(&self, url: &str, looks: fn(&[u8]) -> bool) -> Option<Vec<u8>> {
         let address = key(url)?;
         let entry = {
             let mut state = self.lock();
@@ -314,7 +321,7 @@ impl Cache {
             entry
         };
         // The file is read without holding anything: other downloads go on meanwhile.
-        match self.read(&entry) {
+        match self.read(&entry, looks) {
             Some(bytes) => {
                 let mut state = self.lock();
                 if let Some(kept) = state.entries.get_mut(&address) {
@@ -331,8 +338,8 @@ impl Cache {
     }
 
     /// The bytes an entry names, when its file is there and is that: a plain file of that
-    /// length with that SHA-256, which begins as a picture does.
-    fn read(&self, entry: &Entry) -> Option<Vec<u8>> {
+    /// length with that SHA-256, which begins as a picture does (`looks`).
+    fn read(&self, entry: &Entry, looks: fn(&[u8]) -> bool) -> Option<Vec<u8>> {
         let (_, path) = self.path(&entry.content)?;
         let len = usize::try_from(entry.len).ok().filter(|len| *len <= MAX_PICTURE)?;
         let file = open_plain(&path, entry.len)?;
@@ -340,14 +347,19 @@ impl Cache {
         bytes.try_reserve_exact(len.checked_add(1)?).ok()?;
         // Never more than was promised, however the file grows while it is read.
         file.take(entry.len.checked_add(1)?).read_to_end(&mut bytes).ok()?;
-        (bytes.len() == len && Digest::of(&bytes) == entry.content && looks_like_a_picture(&bytes)).then_some(bytes)
+        (bytes.len() == len && Digest::of(&bytes) == entry.content && looks(&bytes)).then_some(bytes)
     }
 
     /// Keep `bytes` as the picture at `url`, when they begin as a picture does and are not too
     /// large. Whether they were kept; trouble with the disk only means they were not.
     pub fn put(self: &Arc<Self>, url: &str, bytes: &[u8]) -> bool {
+        self.put_as(url, bytes, looks_like_a_picture)
+    }
+
+    /// [`Cache::put`], with `looks` saying what begins as a picture ([`Cache::get_as`]).
+    pub fn put_as(self: &Arc<Self>, url: &str, bytes: &[u8], looks: fn(&[u8]) -> bool) -> bool {
         let Some(address) = key(url) else { return false };
-        if self.is_stopped() || bytes.is_empty() || bytes.len() > MAX_PICTURE || bytes.len() as u64 > self.max_total || !looks_like_a_picture(bytes) {
+        if self.is_stopped() || bytes.is_empty() || bytes.len() > MAX_PICTURE || bytes.len() as u64 > self.max_total || !looks(bytes) {
             return false;
         }
         let content = Digest::of(bytes);
@@ -743,6 +755,7 @@ mod tests {
             ("an archive", b"PK\x03\x04\x14\0\0\0\x08\0"),
             ("riff that is no webp", b"RIFF\x24\0\0\0WAVEfmt "),
             ("almost a png", b"\x89PNG\r\n\x1a"),
+            ("a web site's icon, which no message shows", b"\0\0\x01\0\x01\0rest"),
             ("too large", &too_large[..]),
         ] {
             assert!(!cache.put("https://img.example/other", bytes), "{what}");

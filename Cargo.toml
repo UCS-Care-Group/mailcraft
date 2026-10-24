@@ -63,8 +63,10 @@ flate2 = { version = "1", default-features = false, features = ["rust_backend"] 
 quick-xml = { version = "0.42", default-features = false }
 
 # images (screenshots, inline pictures). WebP for the pictures of mail that are kept as nothing
-# else on the web; its decoder (image-webp) is Rust all the way down, like the others here.
-image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp"] }
+# else on the web; its decoder (image-webp) is Rust all the way down, like the others here. ICO
+# (which brings BMP, the pictures inside one) for a sender's picture that is a web site's icon
+# alone: everything else names the kinds it decodes (`reading::images::KINDS`).
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp", "ico"] }
 
 # ui
 egui = "0.37"
@@ -92,6 +94,10 @@ opt-level = 2
 
 [profile.dev]
 opt-level = 1
+# File and line in a backtrace or a debugger's stack, no variables: a clean test build is about a
+# quarter quicker and a rebuild about a third, and target/ half the size. `debug = true` locally
+# (`CARGO_PROFILE_DEV_DEBUG=true`) when a debugger needs the variables.
+debug = "line-tables-only"
 
 [profile.release]
 opt-level = 3

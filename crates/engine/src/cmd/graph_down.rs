@@ -320,23 +320,35 @@ fn fetch_queue_of_account(mb: &Mailbox, account: Id, most: usize, now: Timestamp
     waiting.into_iter().map(|(_, id)| id.to_string()).collect()
 }
 
-/// How many messages of `account` within its mail to keep offline at `now` aren't fetched, and
-/// how many of those are larger than its "Download messages in full" (they wait until they are
-/// opened). Older mail isn't counted: it stays as its headers and preview (#143).
-pub fn not_fetched(mb: &Mailbox, account: Id, now: Timestamp) -> (usize, usize) {
-    let limit = keeps_whole(mb, account);
-    let window = OfflineWindow::of(mb, now);
-    mb.messages.values().filter(|m| m.account == account && m.unfetched && window.within(m)).fold((0, 0), |(all, large), m| {
-        let size = m.server.as_ref().map_or(0, |s| s.size);
-        (all + 1, large + usize::from(limit.is_some_and(|limit| size > limit)))
-    })
+/// How many messages of `account` are kept in full here, and how many of them are still to be
+/// fetched ([`full_counts`]).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct FullCounts {
+    /// Messages from its server kept in full here, fetched or waiting to be: those within its
+    /// mail to keep offline (#143).
+    pub all: usize,
+    /// Of those, the ones not fetched yet.
+    pub waiting: usize,
+    /// Of those waiting, the ones larger than its "Download messages in full" (they wait until
+    /// they are opened).
+    pub large: usize,
 }
 
-/// How many messages of `account` from its server are kept in full here at `now`, fetched or
-/// waiting to be: those within its mail to keep offline (#143).
-pub fn kept_in_full(mb: &Mailbox, account: Id, now: Timestamp) -> usize {
+/// [`FullCounts`] of `account` at `now`, in one pass over the mailbox. Older mail isn't counted:
+/// it stays as its headers and preview (#143).
+pub fn full_counts(mb: &Mailbox, account: Id, now: Timestamp) -> FullCounts {
+    let limit = keeps_whole(mb, account);
     let window = OfflineWindow::of(mb, now);
-    mb.messages.values().filter(|m| m.account == account && (m.server.is_some() || m.unfetched) && window.within(m)).count()
+    let mut counts = FullCounts::default();
+    for m in mb.messages.values().filter(|m| m.account == account && (m.server.is_some() || m.unfetched) && window.within(m)) {
+        counts.all = counts.all.saturating_add(1);
+        if m.unfetched {
+            let size = m.server.as_ref().map_or(0, |s| s.size);
+            counts.waiting = counts.waiting.saturating_add(1);
+            counts.large = counts.large.saturating_add(usize::from(limit.is_some_and(|limit| size > limit)));
+        }
+    }
+    counts
 }
 
 /// Take in a message fetched whole: its text, attachments and headers from its MIME, with what
@@ -491,10 +503,10 @@ mod tests {
         // Number 4 is fetched; number 2 is larger than 10 MB; number 3 didn't say its size.
         assert_eq!(fetch_queue(&mb, account, 10, 0), ["AAkA3", "AAkA1"]);
         assert_eq!(fetch_queue(&mb, account, 1, 0), ["AAkA3"]);
-        assert_eq!(not_fetched(&mb, account, 0), (3, 1));
+        assert_eq!(full_counts(&mb, account, 0), FullCounts { all: 4, waiting: 3, large: 1 });
         mb.accounts[0].download_in_full = DownloadInFull::Everything;
         assert_eq!(fetch_queue(&mb, account, 10, 0), ["AAkA3", "AAkA2", "AAkA1"]);
-        assert_eq!(not_fetched(&mb, account, 0), (3, 0));
+        assert_eq!(full_counts(&mb, account, 0), FullCounts { all: 4, waiting: 3, large: 0 });
     }
 
     #[test]

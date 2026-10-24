@@ -44,6 +44,8 @@
 //! cover reading other people's calendars), `"listedTwice operations@example.org Example Operations"`
 //! (the account's list has the calendar of the shared mailbox at that address too, by that name,
 //! unless the owner hid it); anything else answers with nothing.
+//! With a stand-in host, every sender the owner knows has a picture drawn for them, for
+//! `ui.senderImages`.
 //! With a stand-in host, the copy of the mailbox kept before a switch to Microsoft Graph is never
 //! finished, so the switch's page keeps saying that it is being saved. And the background
 //! saver (`{"host": {"saving": …}}`): `"messages 12000 200000"` or `"content 3 90000"` (a save
@@ -507,8 +509,24 @@ fn stand_in(host: &Arc<Mutex<Host>>) -> Services {
         // is downloaded and nothing is kept).
         update_download: Some(Box::new(|_| answered(Ok(std::path::PathBuf::from("updates"))))),
         saver: Some(Box::new(StandInSaver(host.clone()))),
+        // Every sender has a picture: a disc on a ground of two colours from their address,
+        // drawn here (nothing is downloaded).
+        sender_images: Some(Box::new(|address: String, _| answered(Ok(stand_in_picture(&address))))),
         ..Default::default()
     }
+}
+
+/// A sender's stand-in picture, as PNG.
+fn stand_in_picture(address: &str) -> Vec<u8> {
+    let seed = address.bytes().fold(7u32, |h, b| h.wrapping_mul(31).wrapping_add(u32::from(b)));
+    let [r, g, b, _] = seed.to_le_bytes();
+    let picture = image::RgbaImage::from_fn(96, 96, |x, y| {
+        let inside = (x as i32 - 48).pow(2) + (y as i32 - 40).pow(2) < 22 * 22 || (y > 70 && (x as i32 - 48).abs() < 34);
+        if inside { image::Rgba([255, 255, 255, 255]) } else { image::Rgba([r, g / 2, b, 255]) }
+    });
+    let mut png = std::io::Cursor::new(Vec::new());
+    let _ = picture.write_to(&mut png, image::ImageFormat::Png);
+    png.into_inner()
 }
 
 fn main() {

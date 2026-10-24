@@ -21,6 +21,8 @@ mod folder_properties_tests;
 pub mod format;
 #[cfg(test)]
 mod format_tests;
+#[cfg(test)]
+mod full_count_tests;
 pub mod graph_down;
 pub mod graph_drafts;
 pub mod graph_mail;
