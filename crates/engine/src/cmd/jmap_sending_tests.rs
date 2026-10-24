@@ -1,9 +1,9 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! A JMAP account (M6) is kept in step with its server, and sends nothing yet: a message written
-//! from it is neither queued, where it would wait in its Outbox for ever, nor filed as sent, and
-//! no Send/Receive is made of it until the engine has its commands, while the accounts beside it
-//! go on as before. (Its invitations: `calendar/invitation.rs`.)
+//! from it is neither queued, where it would wait in its Outbox for ever, nor filed as sent; a
+//! Send/Receive of it is its own request, which reads and sends nothing, while the accounts beside
+//! it go on as before. (Its invitations: `calendar/invitation.rs`; its reading: `jmap_mail_tests.rs`.)
 
 use mailcraft_model::{Account, AccountKind, FolderKind, Id, JmapServer, Mailbox};
 use serde_json::json;
@@ -55,15 +55,17 @@ fn an_account_that_sends_its_mail_still_queues_it() {
 }
 
 #[test]
-fn no_send_receive_is_made_of_a_jmap_account_yet() {
+fn a_send_receive_of_a_jmap_account_is_its_own_request() {
     let (mut s, _, jmap, imap) = mailbox();
-    // With none named, the IMAP account's, though the JMAP account comes before it.
-    assert_eq!(s.run("sync.request", &json!({})).unwrap()["account"]["id"].as_u64(), Some(imap));
-    // Named, it is refused with its reason: no IMAP request is made of settings it doesn't have.
-    let why = s.run("sync.request", &json!({"account": jmap})).unwrap_err().to_string();
+    // With none named, the first account with a server: the JMAP account, with the request of its
+    // own (every mailbox read, nothing to send).
+    let first = s.run("sync.request", &json!({})).unwrap();
+    assert_eq!((first["jmap"].as_bool(), first["account"].as_u64(), first["scope"].as_str()), (Some(true), Some(jmap), Some("all")));
+    assert!(first.get("sends").is_none() && first.get("changes").is_none(), "{first}");
+    // Named, the IMAP account's is the request it always was.
+    assert_eq!(s.run("sync.request", &json!({"account": imap})).unwrap()["account"]["id"].as_u64(), Some(imap));
+    // No IMAP request is made of settings a JMAP account doesn't have: the window and the command
+    // line, which run no JMAP account yet, say so.
+    let why = crate::cmd::account::sync_request(&s, jmap).unwrap_err().to_string();
     assert_eq!(why, "ada@jmap.example is a JMAP account, and this version doesn't send and receive with one yet");
-    assert!(crate::cmd::account::sync_request(&s, jmap).is_err());
-    // As the only account with a server, it is refused for the same reason.
-    s.run("account.remove", &json!({"id": imap})).unwrap();
-    assert_eq!(s.run("sync.request", &json!({})).unwrap_err().to_string(), why);
 }

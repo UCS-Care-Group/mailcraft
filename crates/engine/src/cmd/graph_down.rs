@@ -45,7 +45,7 @@ impl ServerIndex {
     }
 
     /// The message of `account` the server calls `id`.
-    fn find(&mut self, mb: &Mailbox, account: Id, id: &str) -> Option<Id> {
+    pub(crate) fn find(&mut self, mb: &Mailbox, account: Id, id: &str) -> Option<Id> {
         let is = |m: Id| mb.message(m).is_some_and(|m| m.account == account && m.server.as_ref().is_some_and(|s| s.id == id));
         if self.count != mb.messages.len() {
             self.rebuild(mb);
@@ -160,6 +160,8 @@ pub(crate) fn new_message(folder: Id, server_folder: &str, there: &GraphMessage)
         received: there.received,
         body: Body { text: there.preview.clone(), html: None },
         read: server.read,
+        answered: server.answered,
+        forwarded: server.forwarded,
         flag: server.flag,
         flag_due: server.flag_due,
         importance: server.importance,
@@ -193,6 +195,14 @@ fn update(mb: &mut Mailbox, account: Id, id: Id, folder: Id, server_folder: &str
     let now = &there.server;
     if m.read == last.read {
         m.read = now.read;
+    }
+    // The marks a JMAP server keeps as keywords, as the read state (a Graph server says neither:
+    // they stay false on both sides, and what is set here stays).
+    if m.answered == last.answered {
+        m.answered = now.answered;
+    }
+    if m.forwarded == last.forwarded {
+        m.forwarded = now.forwarded;
     }
     // The flag is its status and its due date: changed here, both stay as they are.
     if m.flag == last.flag && m.flag_due == last.flag_due {

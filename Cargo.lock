@@ -2384,6 +2384,7 @@ version = "0.7.0"
 dependencies = [
  "mailcraft-charset",
  "mailcraft-engine",
+ "mailcraft-jmap",
  "mailcraft-mcp",
  "mailcraft-model",
  "mailcraft-net",
