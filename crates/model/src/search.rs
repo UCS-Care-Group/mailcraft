@@ -393,8 +393,15 @@ pub fn suggestions(query: &str, cursor: usize, categories: &[Category]) -> Vec<S
                 .filter(|c| !c.name.trim().is_empty() && c.name.chars().nth(MAX_SUGGESTED_NAME).is_none() && !c.name.chars().any(char::is_control))
                 .map(|c| (c, fold(&c.name)))
                 .collect();
-            let mut picked: Vec<&Category> = named.iter().filter(|(_, f)| f.starts_with(&wanted)).map(|(c, _)| *c).collect();
-            picked.extend(named.iter().filter(|(_, f)| !f.starts_with(&wanted) && f.contains(&wanted)).map(|(c, _)| *c));
+            // A value with no letter or digit in it (`&`) folds to nothing, which every name starts
+            // with: it is matched as it was typed, as the search matches it.
+            let marks = value.trim_matches(|c: char| c == '"' || c.is_whitespace());
+            let mut picked: Vec<&Category> = if wanted.is_empty() && !marks.is_empty() {
+                named.iter().filter(|(c, _)| crate::contains_ci(&c.name, marks)).map(|(c, _)| *c).collect()
+            } else {
+                named.iter().filter(|(_, f)| f.starts_with(&wanted)).map(|(c, _)| *c).collect()
+            };
+            picked.extend(named.iter().filter(|(_, f)| !wanted.is_empty() && !f.starts_with(&wanted) && f.contains(&wanted)).map(|(c, _)| *c));
             let mut seen: Vec<&str> = Vec::new();
             picked
                 .into_iter()

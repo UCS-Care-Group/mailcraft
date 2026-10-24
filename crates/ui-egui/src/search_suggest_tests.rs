@@ -191,6 +191,21 @@ fn escape_for_a_dialog_leaves_the_search() {
     }
 }
 
+/// A held Escape that closed a dialog over the window leaves the list under the box open, as it
+/// leaves the search: its repeats are not a press of their own (#393).
+#[test]
+fn a_held_escape_for_a_dialog_leaves_the_list() {
+    let mut h = window();
+    typed(&mut h, "cat");
+    assert!(h.query_by_label("category:").is_some());
+    h.state_mut().dialog = Some(crate::dialogs::Dialog::Refused { text: "Not now".into() });
+    h.run_steps(3);
+    crate::people_view::testing::held(&mut h, egui::Key::Escape);
+    assert!(h.state().dialog.is_none());
+    assert_eq!(search(&h), "cat");
+    assert!(h.query_by_label("category:").is_some(), "the list is still open");
+}
+
 /// Every row of the list has a name a screen reader says, and the list adds no control without
 /// one (egui 0.37's check, which the window's harness leaves off).
 #[test]

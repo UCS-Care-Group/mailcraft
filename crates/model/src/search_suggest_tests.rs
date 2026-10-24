@@ -87,6 +87,22 @@ fn after_category_the_mailboxs_categories() {
     assert_eq!(first("category:grü").text, "category:Grüße ");
 }
 
+/// A value with no letter or digit in it (`&`) is matched as it was typed, as the search matches
+/// it: only the categories that hold it are offered, not every one.
+#[test]
+fn a_value_of_marks_offers_the_categories_that_hold_it() {
+    let cats: Vec<Category> = ["R&D", "Red category", "Q&A"].iter().map(|n| Category { name: n.to_string(), color: Rgb(1, 2, 3) }).collect();
+    let offered = |q: &str| suggestions(q, q.len(), &cats).into_iter().map(|s| s.label).collect::<Vec<_>>();
+    assert_eq!(offered("category:&"), ["R&D", "Q&A"]);
+    assert_eq!(offered("category:\"&"), ["R&D", "Q&A"], "in quotes too");
+    assert!(offered("category:#").is_empty());
+    assert_eq!(offered("category:").len(), 3, "nothing typed: all of them");
+    for name in offered("category:&") {
+        let m = Message { categories: vec![name.clone()], ..Default::default() };
+        assert!(Query::parse("category:&").matches(&m, 0), "{name} is found by what was typed");
+    }
+}
+
 /// Taken, a category's suggestion finds the mail of that category, and the search box reads it
 /// as a keyword.
 #[test]
