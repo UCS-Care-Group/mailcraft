@@ -340,13 +340,26 @@ fn secure<'a>(mut tcp: TcpStream, host: &str) -> Result<Stream<'a>, NetError> {
 }
 
 /// Why a handshake failed, in a few words.
-fn handshake_problem(e: &std::io::Error) -> String {
+pub(crate) fn handshake_problem(e: &std::io::Error) -> String {
+    use rustls::{CertificateError as Cert, Error};
     match e.kind() {
-        ErrorKind::TimedOut | ErrorKind::WouldBlock => "the server took too long".into(),
-        ErrorKind::UnexpectedEof | ErrorKind::ConnectionReset | ErrorKind::ConnectionAborted => "the server closed the connection".into(),
-        // rustls says what is wrong with the certificate or the protocol.
-        _ => e.to_string().chars().filter(|c| !c.is_control()).take(200).collect(),
+        ErrorKind::TimedOut | ErrorKind::WouldBlock => return "the server took too long".into(),
+        ErrorKind::UnexpectedEof | ErrorKind::ConnectionReset | ErrorKind::ConnectionAborted => return "the server closed the connection".into(),
+        _ => {}
     }
+    // The text of the library says all of it, with times to the second and every name a certificate has.
+    let plain = match e.get_ref().and_then(|inner| inner.downcast_ref::<Error>()) {
+        Some(Error::InvalidCertificate(Cert::Expired | Cert::ExpiredContext { .. })) => "its certificate has run out",
+        Some(Error::InvalidCertificate(Cert::NotValidYet | Cert::NotValidYetContext { .. })) => "its certificate isn't good yet",
+        Some(Error::InvalidCertificate(Cert::NotValidForName | Cert::NotValidForNameContext { .. })) => "its certificate is for another name",
+        // Most often a server that sends its own certificate without the one it was issued by (#404).
+        Some(Error::InvalidCertificate(Cert::UnknownIssuer)) => "its certificate doesn't lead back to an authority that is trusted",
+        Some(Error::InvalidCertificate(Cert::Revoked)) => "its certificate was taken back",
+        Some(Error::InvalidCertificate(_)) => "its certificate isn't good",
+        Some(Error::AlertReceived(_) | Error::PeerIncompatible(_)) => "the server and this program have no way of encrypting in common",
+        _ => return e.to_string().chars().filter(|c| !c.is_control()).take(200).collect(),
+    };
+    plain.into()
 }
 
 #[cfg(test)]

@@ -47,6 +47,7 @@ use rustls::{ClientConfig, ClientConnection, RootCertStore, StreamOwned};
 
 use crate::NetError;
 use crate::http::{self, Url};
+use crate::transport::handshake_problem;
 
 /// Largest picture taken, in bytes; what the redirects on the way to it answered counts too.
 pub const MAX_BYTES: usize = 8 * 1024 * 1024;
@@ -675,27 +676,6 @@ fn tls_config() -> Result<Arc<ClientConfig>, String> {
         .clone()
 }
 
-/// What went wrong in a handshake, in a few plain words: the text of the library says all of
-/// it, with times to the second and every name a certificate has.
-fn handshake_trouble(error: &std::io::Error) -> String {
-    use rustls::{CertificateError as Cert, Error};
-    match error.kind() {
-        ErrorKind::UnexpectedEof | ErrorKind::ConnectionReset | ErrorKind::ConnectionAborted => return "the server closed the connection".into(),
-        _ => {}
-    }
-    let plain = match error.get_ref().and_then(|inner| inner.downcast_ref::<Error>()) {
-        Some(Error::InvalidCertificate(Cert::Expired | Cert::ExpiredContext { .. })) => "its certificate has run out",
-        Some(Error::InvalidCertificate(Cert::NotValidYet | Cert::NotValidYetContext { .. })) => "its certificate isn't good yet",
-        Some(Error::InvalidCertificate(Cert::NotValidForName | Cert::NotValidForNameContext { .. })) => "its certificate is for another name",
-        Some(Error::InvalidCertificate(Cert::UnknownIssuer)) => "its certificate doesn't lead back to an authority that is trusted",
-        Some(Error::InvalidCertificate(Cert::Revoked)) => "its certificate was taken back",
-        Some(Error::InvalidCertificate(_)) => "its certificate isn't good",
-        Some(Error::AlertReceived(_) | Error::PeerIncompatible(_)) => "the server and this program have no way of encrypting in common",
-        _ => return error.to_string().chars().filter(|c| !c.is_control()).take(200).collect(),
-    };
-    plain.into()
-}
-
 /// Shake hands over `line` and check the server's certificate against `host`.
 fn secure(mut line: Timed, host: &str) -> Result<Line, PictureError> {
     let failed = |reason: String| PictureError::Net(NetError::Tls { host: host.to_string(), reason });
@@ -706,7 +686,7 @@ fn secure(mut line: Timed, host: &str) -> Result<Line, PictureError> {
     while connection.is_handshaking() {
         connection.complete_io(&mut line).map_err(|e| match e.kind() {
             ErrorKind::TimedOut | ErrorKind::WouldBlock => PictureError::TimedOut,
-            _ => failed(handshake_trouble(&e)),
+            _ => failed(handshake_problem(&e)),
         })?;
     }
     Ok(Line::Tls(Box::new(StreamOwned::new(connection, line))))
@@ -1777,7 +1757,7 @@ mod tests {
     #[test]
     fn a_handshake_that_fails_says_why_in_a_few_words() {
         use rustls::{AlertDescription, CertificateError, Error};
-        let through = |error: Error| handshake_trouble(&std::io::Error::new(ErrorKind::InvalidData, error));
+        let through = |error: Error| handshake_problem(&std::io::Error::new(ErrorKind::InvalidData, error));
         assert_eq!(through(Error::InvalidCertificate(CertificateError::Expired)), "its certificate has run out");
         assert_eq!(through(Error::InvalidCertificate(CertificateError::NotValidForName)), "its certificate is for another name");
         assert_eq!(
@@ -1789,9 +1769,9 @@ mod tests {
             through(Error::AlertReceived(AlertDescription::HandshakeFailure)),
             "the server and this program have no way of encrypting in common"
         );
-        assert_eq!(handshake_trouble(&ErrorKind::ConnectionReset.into()), "the server closed the connection");
+        assert_eq!(handshake_problem(&ErrorKind::ConnectionReset.into()), "the server closed the connection");
         // Anything else in the library's words: one line, and not much of it.
-        let other = handshake_trouble(&std::io::Error::other(format!("odd\r\n{}", "x".repeat(900))));
+        let other = handshake_problem(&std::io::Error::other(format!("odd\r\n{}", "x".repeat(900))));
         assert!(other.starts_with("oddx") && other.chars().count() == 200, "{other}");
     }
 
