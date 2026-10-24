@@ -130,10 +130,13 @@ const MICROSOFT_GRAPH_SHARED: &str = "https://graph.microsoft.com/Mail.ReadWrite
 /// [`refresh_graph_shared_send`]), never on the page of a sign-in, and never for a run that has
 /// nothing of a shared mailbox's to send.
 const MICROSOFT_GRAPH_SHARED_SEND: &str = "https://graph.microsoft.com/Mail.Send.Shared";
-/// What keeping a shared mailbox's calendar in step will take (#70, after beta). Not asked of an
-/// owner yet; only in what an administrator is asked to approve, so that their one approval
-/// already covers it when it comes.
-const MICROSOFT_GRAPH_SHARED_LATER: &str = "https://graph.microsoft.com/Calendars.ReadWrite.Shared";
+/// What reading a shared mailbox's calendars takes (#70): the calendars of the mailboxes the
+/// owner was given access to, read and, once writing comes, changed (`Calendars.Read.Shared`
+/// alone is never asked for). Asked for by itself the first time the owner shows one of them
+/// ([`sign_in_for_shared_calendars`], [`refresh_graph_shared_calendars`]), never on the page of a
+/// sign-in: an account without a shared mailbox's calendar shown is never asked for it. It is on
+/// the administrator's list too, so that one approval covers it.
+const MICROSOFT_GRAPH_SHARED_CALENDARS: &str = "https://graph.microsoft.com/Calendars.ReadWrite.Shared";
 /// Whether the page of an ordinary sign-in also puts the Favorites' permissions to the owner,
 /// so that one page settles everything. **Off**: Microsoft's permissions reference lists
 /// `MailboxConfigItem.Read` as one that takes an administrator's consent in an organisation
@@ -411,7 +414,7 @@ pub enum FavoritesRefusal {
 /// too. That is what a sign-in's page asks for (IMAP, SMTP, a refresh token and who signs in;
 /// Microsoft Graph's sending, calendar, contacts, mailbox settings and, for an account kept in step
 /// through Graph, its mail), what reading the Favorites of Outlook through Graph takes, and what
-/// reading a shared mailbox and sending from one take, and what its calendar will take.
+/// reading a shared mailbox and sending from one take, and what reading its calendars takes.
 ///
 /// A sign-in asks for no more than is here: a page that asked for one permission an
 /// administrator had not approved would send the owner to find one again.
@@ -425,7 +428,7 @@ fn admin_scope() -> String {
         MICROSOFT_GRAPH_FAVORITES,
         MICROSOFT_GRAPH_SHARED,
         MICROSOFT_GRAPH_SHARED_SEND,
-        MICROSOFT_GRAPH_SHARED_LATER,
+        MICROSOFT_GRAPH_SHARED_CALENDARS,
         SIGN_IN_SCOPE,
     ]);
     all.collect::<Vec<_>>().join(" ")
@@ -662,6 +665,96 @@ pub fn refresh_graph_shared_send(oauth: &OAuth, refresh_token: &str) -> Result<G
 pub fn refresh_graph_shared_send_at(endpoints: &Endpoints, oauth: &OAuth, refresh_token: &str) -> Result<GraphTokens, NetError> {
     let endpoints = Endpoints { scope: shared_send_scope(), ..endpoints.clone() };
     let tokens = refresh_for_at(&endpoints, oauth, refresh_token, Resource::GraphMail)?;
+    Ok(GraphTokens { tokens, extras_missing: true, covers_favorites: false })
+}
+
+/// What the tokens of a Graph run for a shared mailbox's calendars are asked for (#70): what
+/// reading a shared mailbox takes, and its calendars on top.
+fn shared_calendar_scope() -> String {
+    format!("{MICROSOFT_GRAPH} {MICROSOFT_GRAPH_MAIL} {MICROSOFT_GRAPH_SHARED} {MICROSOFT_GRAPH_SHARED_CALENDARS} {SIGN_IN_SCOPE}")
+}
+
+/// Ask the owner, on the provider's page, to let this program read the calendars of the shared
+/// mailboxes he was given access to (`Calendars.ReadWrite.Shared`), beside what reading their mail
+/// takes. Only when he first shows one of them (#70), after the window has asked him, and never
+/// with an ordinary sign-in. A no says whose it is ([`FavoritesRefusal`]); nothing is tried a
+/// second time.
+pub fn sign_in_for_shared_calendars(oauth: &OAuth, login_hint: &str, open: &dyn Fn(&str), cancel: &AtomicBool) -> Result<Tokens, FavoritesRefusal> {
+    let plain = Endpoints::for_resource(oauth, Resource::GraphMail);
+    let endpoints = Endpoints { scope: shared_calendar_scope(), consent: String::new(), lesser: String::new(), ..plain };
+    sign_in_for_favorites_within(&endpoints, oauth, login_hint, open, cancel, SIGN_IN_TIMEOUT)
+}
+
+/// [`refresh_graph_shared`] for a Graph run of a shared mailbox's calendars (#70): the tokens are
+/// asked for with `Calendars.ReadWrite.Shared` too, and for nothing less. A sign-in that doesn't
+/// cover it gets [`NetError::ConsentNeeded`]: nothing of the calendars is read, and the window
+/// asks the owner ([`sign_in_for_shared_calendars`]).
+pub fn refresh_graph_shared_calendars(oauth: &OAuth, refresh_token: &str) -> Result<GraphTokens, NetError> {
+    refresh_graph_shared_calendars_at(&Endpoints::for_resource(oauth, Resource::GraphMail), oauth, refresh_token)
+}
+
+/// [`refresh_graph_shared_calendars`] at endpoints other than the provider's usual ones (their
+/// scope is replaced by what a shared mailbox's calendars take).
+pub fn refresh_graph_shared_calendars_at(endpoints: &Endpoints, oauth: &OAuth, refresh_token: &str) -> Result<GraphTokens, NetError> {
+    let endpoints = Endpoints { scope: shared_calendar_scope(), ..endpoints.clone() };
+    let tokens = refresh_for_at(&endpoints, oauth, refresh_token, Resource::GraphMail)?;
+    Ok(GraphTokens { tokens, extras_missing: true, covers_favorites: false })
+}
+
+/// What the tokens of a Graph run for a shared mailbox's calendars are asked for when it has
+/// something to send: a meeting answered, called off or forwarded, or a meeting with people
+/// invited (#70). What its calendars take, and sending from the mailbox on top.
+fn shared_calendar_send_scope() -> String {
+    format!(
+        "{MICROSOFT_GRAPH} {MICROSOFT_GRAPH_MAIL} {MICROSOFT_GRAPH_SHARED} {MICROSOFT_GRAPH_SHARED_CALENDARS} {MICROSOFT_GRAPH_SHARED_SEND} {SIGN_IN_SCOPE}"
+    )
+}
+
+/// [`refresh_graph_shared_calendars`] for a run that has something of a shared mailbox's calendar
+/// to send (#70): the tokens are asked for with `Mail.Send.Shared` too, and for nothing less. A
+/// sign-in that doesn't cover it gets [`NetError::ConsentNeeded`]: nothing is sent, and the window
+/// asks the owner as it does for mail ([`sign_in_for_shared_send`]).
+pub fn refresh_graph_shared_calendars_send(oauth: &OAuth, refresh_token: &str) -> Result<GraphTokens, NetError> {
+    refresh_graph_shared_calendars_send_at(&Endpoints::for_resource(oauth, Resource::GraphMail), oauth, refresh_token)
+}
+
+/// [`refresh_graph_shared_calendars_send`] at endpoints other than the provider's usual ones
+/// (their scope is replaced).
+pub fn refresh_graph_shared_calendars_send_at(endpoints: &Endpoints, oauth: &OAuth, refresh_token: &str) -> Result<GraphTokens, NetError> {
+    let endpoints = Endpoints { scope: shared_calendar_send_scope(), ..endpoints.clone() };
+    let tokens = refresh_for_at(&endpoints, oauth, refresh_token, Resource::GraphMail)?;
+    Ok(GraphTokens { tokens, extras_missing: true, covers_favorites: false })
+}
+
+/// What the tokens of a calendar job for an account with calendars opened by address are asked
+/// for (#70, Open Shared Calendar): what its calendar takes, and `Calendars.ReadWrite.Shared` on
+/// top, the same permission as a shared mailbox's calendars take. Not the mail permissions of
+/// shared mailboxes: an account that only opened somebody's calendar is never asked for those.
+fn opened_calendars_scope() -> String {
+    format!("{MICROSOFT_GRAPH} {MICROSOFT_GRAPH_SHARED_CALENDARS} {SIGN_IN_SCOPE}")
+}
+
+/// [`sign_in_for_shared_calendars`] for an account that opened somebody's calendar by address:
+/// the same one permission, asked for by itself and never with a sign-in, without what reading a
+/// shared mailbox's mail takes.
+pub fn sign_in_for_opened_calendars(oauth: &OAuth, login_hint: &str, open: &dyn Fn(&str), cancel: &AtomicBool) -> Result<Tokens, FavoritesRefusal> {
+    let plain = Endpoints::for_resource(oauth, Resource::Graph);
+    let endpoints = Endpoints { scope: opened_calendars_scope(), consent: String::new(), lesser: String::new(), ..plain };
+    sign_in_for_favorites_within(&endpoints, oauth, login_hint, open, cancel, SIGN_IN_TIMEOUT)
+}
+
+/// [`refresh_graph_shared_calendars`] for a calendar job of an account with calendars opened by
+/// address (#70): asked for with `Calendars.ReadWrite.Shared` too, and for nothing less. A sign-in
+/// that doesn't cover it gets [`NetError::ConsentNeeded`], and the job goes on with the account's
+/// own calendars while the owner is asked ([`sign_in_for_opened_calendars`]).
+pub fn refresh_graph_opened_calendars(oauth: &OAuth, refresh_token: &str) -> Result<GraphTokens, NetError> {
+    refresh_graph_opened_calendars_at(&Endpoints::for_resource(oauth, Resource::Graph), oauth, refresh_token)
+}
+
+/// [`refresh_graph_opened_calendars`] at endpoints other than the provider's usual ones.
+pub fn refresh_graph_opened_calendars_at(endpoints: &Endpoints, oauth: &OAuth, refresh_token: &str) -> Result<GraphTokens, NetError> {
+    let endpoints = Endpoints { scope: opened_calendars_scope(), ..endpoints.clone() };
+    let tokens = refresh_for_at(&endpoints, oauth, refresh_token, Resource::Graph)?;
     Ok(GraphTokens { tokens, extras_missing: true, covers_favorites: false })
 }
 

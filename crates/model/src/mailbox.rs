@@ -312,6 +312,11 @@ pub struct Account {
     /// in). `None` for every other account, and in a file from before there were any.
     #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
     pub shared_of: Option<Id>,
+    /// For a Microsoft account: the calendars its owner opened by their owner's address (Open
+    /// Shared Calendar), kept here only, at most [`crate::MAX_OPENED_CALENDARS`]. Empty for every
+    /// other account, and in a file from before there were any.
+    #[serde(skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::sync::lenient_list")]
+    pub opened_calendars: Vec<crate::OpenedCalendar>,
     /// For a [`AccountKind::Jmap`] account: where its server's session resource is and how the
     /// secret is sent ([`JmapServer`]). Plain settings: the secret is never kept here. `None` for
     /// every other account, and in a file from before there were any.
@@ -322,6 +327,24 @@ pub struct Account {
     /// ([`Mailbox::accounts`]). `None` for every other account.
     #[serde(skip)]
     pub as_written: Option<AsWritten>,
+}
+
+impl Account {
+    /// Keep the calendars opened by address to what can be kept: an address that could be one
+    /// (once, whatever its case), a one-line name, at most [`crate::MAX_OPENED_CALENDARS`].
+    pub fn clamp_opened_calendars(&mut self) {
+        let mut kept: Vec<crate::OpenedCalendar> = Vec::new();
+        for mut opened in std::mem::take(&mut self.opened_calendars) {
+            opened.address = crate::calendar::flat_line(&opened.address, crate::calendar::MAX_OWNER_ADDRESS).replace(' ', "");
+            opened.name = crate::calendar::flat_line(&opened.name, crate::MAX_NAME);
+            let known = kept.iter().any(|have| have.address.eq_ignore_ascii_case(&opened.address));
+            if opened.address.is_empty() || known || kept.len() >= crate::MAX_OPENED_CALENDARS {
+                continue;
+            }
+            kept.push(opened);
+        }
+        self.opened_calendars = kept;
+    }
 }
 
 /// An account of a kind this version doesn't know, as a mailbox file had it: every field but its
@@ -529,6 +552,12 @@ impl Account {
     /// Whether it is a shared mailbox opened through another account ([`Account::shared_of`]).
     pub fn is_shared(&self) -> bool {
         self.shared_of.is_some()
+    }
+
+    /// The shared mailbox's own address, when this is one. Read here rather than at each call
+    /// site so that callers hold a "mailbox" and not an address.
+    pub fn shared_mailbox(&self) -> Option<String> {
+        self.shared_of.as_ref().map(|_| self.email.clone())
     }
 
     /// The name the servers know the owner by: the login name, or else the address.
@@ -2133,7 +2162,11 @@ impl Mailbox {
                 self.next_id += 1;
             }
         }
+        for c in &mut self.calendars {
+            c.owner = c.owner.as_ref().and_then(|owner| owner.cleaned());
+        }
         for a in &mut self.accounts {
+            a.clamp_opened_calendars();
             if a.id == 0 || !sane(&a.id) || !seen.insert(a.id) {
                 a.id = self.next_id;
                 self.next_id = self.next_id.saturating_add(1);

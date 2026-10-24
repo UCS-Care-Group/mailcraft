@@ -29,6 +29,9 @@ mod invitation;
 mod layout;
 pub(crate) mod remote;
 mod select;
+mod sharing;
+#[cfg(test)]
+mod sharing_tests;
 #[cfg(test)]
 mod tests;
 mod view;
@@ -133,6 +136,8 @@ pub fn show_message(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Pla
     });
     // A meeting that came with the message: what it is, and the ways to answer it.
     invitation::bar(app, ui, m, place);
+    // A calendar that was shared with the owner, and the way to open it (#70).
+    sharing::bar(app, ui, m);
     // Only its headers and a preview are here yet (R3.2): say so, and why.
     if m.unfetched {
         let t = Tokens::get(ui.ctx());

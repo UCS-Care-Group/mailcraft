@@ -289,12 +289,24 @@ pub struct Selection {
     /// [`copy`](crate::list::Row::copy).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub focus_row: Option<(Id, u16)>,
+    /// The row a range (Shift-click) runs from: the message and the row's copy, for one listed
+    /// under several categories.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub anchor_row: Option<(Id, u16)>,
 }
 
 impl Selection {
     /// The message in the reading pane.
     pub fn focus(&self) -> Option<Id> {
         self.messages.last().copied()
+    }
+
+    /// Which of `id`'s rows a range runs from: the anchor's chosen row, else its first.
+    pub fn anchor_copy(&self, id: Id) -> u16 {
+        match self.anchor_row {
+            Some((a, copy)) if a == id => copy,
+            _ => 0,
+        }
     }
 
     /// Which of the focused message's rows has the focus: its first unless another was chosen.

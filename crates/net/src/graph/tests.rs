@@ -1296,7 +1296,7 @@ proptest! {
             comment: title.clone(),
         }).collect::<Vec<_>>();
         let upload = EventsUpload { account: 3, email: "ada@example.org".into(), ops, ..Default::default() };
-        let uploaded = push_events_at(&server.url(""), TOKEN, &upload, &EventOptions { zone });
+        let uploaded = push_events_at(&server.url(""), TOKEN, &upload, &EventOptions { zone, ..Default::default() });
         prop_assert!(uploaded.outcomes.len() <= upload.ops.len());
         for outcome in &uploaded.outcomes {
             prop_assert!(!outcome.error.contains('\n') && outcome.error.chars().count() < 300, "{}", outcome.error);
@@ -1463,7 +1463,7 @@ fn times_and_whole_days_are_written_as_graph_takes_them() {
     let sent = |time: EventTime, zone: &str| {
         let before = server.asked();
         let fields = EventFields { time: Some(time), ..Default::default() };
-        push_events_at(&server.url(""), TOKEN, &upload(vec![update("e-1", fields)]), &EventOptions { zone: zone.into() });
+        push_events_at(&server.url(""), TOKEN, &upload(vec![update("e-1", fields)]), &EventOptions { zone: zone.into(), ..Default::default() });
         body_of(&server.request(before))
     };
     let stamp = |text: &str, zone: &str| json!({"dateTime": text, "timeZone": zone});
@@ -1511,17 +1511,19 @@ fn times_and_whole_days_are_written_as_graph_takes_them() {
         }
     });
     let whole_day = create(EventFields { title: Some("Offsite".into()), time: Some(days), ..Default::default() });
-    let uploaded = push_events_at(&picky.url(""), TOKEN, &upload(vec![whole_day.clone()]), &EventOptions { zone: "Mars/Olympus".into() });
+    let uploaded =
+        push_events_at(&picky.url(""), TOKEN, &upload(vec![whole_day.clone()]), &EventOptions { zone: "Mars/Olympus".into(), ..Default::default() });
     assert_eq!((uploaded.outcomes[0].result, uploaded.outcomes[0].remote.as_str(), picky.asked()), (EventResult::Done, "e-new", 2));
     assert_eq!(body_of(&picky.request(0))["start"], stamp("2026-10-31T00:00:00", "Mars/Olympus"));
     assert_eq!(body_of(&picky.request(1))["start"], stamp("2026-10-31T00:00:00", "UTC"));
     // Refused in UTC too, it is refused; and an event with times is not asked about twice.
     let never = FakeHttp::answering(answer("400 Bad Request", "", &graph_error("ErrorInvalidRequest", "No.")));
-    let uploaded = push_events_at(&never.url(""), TOKEN, &upload(vec![whole_day]), &EventOptions { zone: "Mars/Olympus".into() });
+    let uploaded =
+        push_events_at(&never.url(""), TOKEN, &upload(vec![whole_day]), &EventOptions { zone: "Mars/Olympus".into(), ..Default::default() });
     assert_eq!((uploaded.outcomes[0].result, never.asked()), (EventResult::Refused, 2));
     let timed =
         create(EventFields { title: Some("Lunch".into()), time: Some(EventTime { start: 0, end: 60, all_day: false }), ..Default::default() });
-    let uploaded = push_events_at(&never.url(""), TOKEN, &upload(vec![timed]), &EventOptions { zone: "Mars/Olympus".into() });
+    let uploaded = push_events_at(&never.url(""), TOKEN, &upload(vec![timed]), &EventOptions { zone: "Mars/Olympus".into(), ..Default::default() });
     assert_eq!((uploaded.outcomes[0].result, never.asked()), (EventResult::Refused, 3));
 }
 
@@ -2049,7 +2051,7 @@ fn meetings_series_and_answers_are_written_as_graph_takes_them() {
         respond(Response::Declined, false),
         respond(Response::None, true),
     ];
-    let options = EventOptions { zone: "Pacific Standard Time".into() };
+    let options = EventOptions { zone: "Pacific Standard Time".into(), ..Default::default() };
     let uploaded = push_events_at(&server.url(""), TOKEN, &upload(ops), &options);
     assert_eq!(server.asked(), 8);
     // A series with people invited: by the clock in the owner's zone, with its rule and who is asked.
@@ -2101,7 +2103,8 @@ fn meetings_series_and_answers_are_written_as_graph_takes_them() {
         0 => answer("400 Bad Request", "", &graph_error("TimeZoneNotSupportedException", "A valid TimeZone value must be specified.")),
         _ => json_answer("201 Created", r#"{"id":"made"}"#),
     });
-    let uploaded = push_events_at(&server.url(""), TOKEN, &upload(vec![create(meeting)]), &EventOptions { zone: "Nowhere/Land".into() });
+    let uploaded =
+        push_events_at(&server.url(""), TOKEN, &upload(vec![create(meeting)]), &EventOptions { zone: "Nowhere/Land".into(), ..Default::default() });
     assert_eq!((server.asked(), uploaded.outcomes[0].result), (2, EventResult::Done));
     let again = body_of(&server.request(1));
     assert_eq!(again["start"], json!({"dateTime": "2026-10-12T16:00:00", "timeZone": "UTC"}));
@@ -2117,7 +2120,7 @@ fn the_accounts_calendars_come_with_their_groups_and_colours() {
         1 => {
             assert!(
                 request.starts_with(
-                    "GET /v1.0/me/calendarGroups/g%2F1%3D/calendars?%24top=50&%24select=id%2Cname%2Ccolor%2ChexColor%2CcanEdit%2CisDefaultCalendar%2CallowedOnlineMeetingProviders "
+                    "GET /v1.0/me/calendarGroups/g%2F1%3D/calendars?%24top=50&%24select=id%2Cname%2Ccolor%2ChexColor%2CcanEdit%2CcanViewPrivateItems%2Cowner%2CisDefaultCalendar%2CallowedOnlineMeetingProviders "
                 ),
                 "{request}"
             );
@@ -2125,7 +2128,8 @@ fn the_accounts_calendars_come_with_their_groups_and_colours() {
                 vec![
                     json!({"id": "c-main", "name": "Calendar", "color": "auto", "hexColor": "", "canEdit": true, "isDefaultCalendar": true,
                         "allowedOnlineMeetingProviders": ["teamsForBusiness", "skypeForBusiness", "somethingNew", 7]}),
-                    json!({"id": "c-team", "name": "Team\r\nplans", "color": "lightGreen", "hexColor": "#2e8b57", "canEdit": true, "isDefaultCalendar": false}),
+                    json!({"id": "c-team", "name": "Team\r\nplans", "color": "lightGreen", "hexColor": "#2e8b57", "canEdit": true, "isDefaultCalendar": false,
+                        "owner": {"name": "Bo\r\nExample", "address": "bo@example.org"}}),
                     json!({"id": "c-pink", "name": "Pink", "color": "lightPink", "hexColor": "", "canEdit": true}),
                 ],
                 None,
@@ -2133,7 +2137,7 @@ fn the_accounts_calendars_come_with_their_groups_and_colours() {
         }
         _ => page(
             vec![
-                json!({"id": "c-holidays", "name": "Holidays", "color": "auto", "canEdit": false, "isDefaultCalendar": true}),
+                json!({"id": "c-holidays", "name": "Holidays", "color": "auto", "canEdit": false, "isDefaultCalendar": true, "owner": "nobody"}),
                 json!({"id": "c-team", "name": "Said twice"}),
                 json!({"name": "No id"}),
                 json!("noise"),
@@ -2141,11 +2145,12 @@ fn the_accounts_calendars_come_with_their_groups_and_colours() {
             None,
         ),
     });
-    let download = calendars_at(&server.url(""), TOKEN).unwrap();
+    let download = calendars_at(&server.url(""), TOKEN, None).unwrap();
     assert_eq!((server.asked(), download.complete, download.account), (3, true, 0));
     assert!(server.request(0).starts_with("GET /v1.0/me/calendarGroups?%24top=50&%24select=id%2Cname HTTP/1.1\r\n"), "{}", server.request(0));
     assert!(server.request(0).contains(&format!("Authorization: Bearer {TOKEN}\r\n")));
-    let read: Vec<_> = download.calendars.iter().map(|c| (c.id.as_str(), c.name.as_str(), c.group.as_str(), c.color, c.read_only, c.main)).collect();
+    let read: Vec<_> =
+        download.calendars.iter().map(|c| (c.id.as_str(), c.name.as_str(), c.group.as_str(), c.color, !c.rights.can_edit(), c.main)).collect();
     assert_eq!(
         read,
         [
@@ -2161,16 +2166,22 @@ fn the_accounts_calendars_come_with_their_groups_and_colours() {
     use mailcraft_model::OnlineProvider::{SkypeForBusiness, Teams};
     assert_eq!(download.calendars[0].online_providers, Some(vec![Teams, SkypeForBusiness]));
     assert_eq!(download.calendars[1].online_providers, None);
+    // Whose each is, as Graph says: one line, bounded; nothing when it isn't a name and an address.
+    let owners: Vec<_> = download.calendars.iter().map(|c| c.owner.as_ref().map(|o| (o.address.as_str(), o.name.as_str()))).collect();
+    assert_eq!(owners, [None, Some(("bo@example.org", "Bo  Example")), None, None]);
     // Should Graph not have the question with that in it (400), the calendars come without.
     let server = FakeHttp::start(|n, request| match n {
         0 => page(vec![json!({"id": "g-1", "name": "My Calendars"})], None),
         1 => answer("400 Bad Request", "", &graph_error("BadRequest", "Could not find a property named 'allowedOnlineMeetingProviders'.")),
         _ => {
-            assert!(request.contains("%24select=id%2Cname%2Ccolor%2ChexColor%2CcanEdit%2CisDefaultCalendar "), "{request}");
+            assert!(
+                request.contains("%24select=id%2Cname%2Ccolor%2ChexColor%2CcanEdit%2CcanViewPrivateItems%2Cowner%2CisDefaultCalendar "),
+                "{request}"
+            );
             page(vec![json!({"id": "c-main", "name": "Calendar", "isDefaultCalendar": true})], None)
         }
     });
-    let download = calendars_at(&server.url(""), TOKEN).unwrap();
+    let download = calendars_at(&server.url(""), TOKEN, None).unwrap();
     assert_eq!((server.asked(), download.calendars.len(), download.complete, &download.calendars[0].online_providers), (3, 1, true, &None));
 
     // No groups to be had: the calendars as one list. Nothing at all: no reason to take every
@@ -2179,15 +2190,15 @@ fn the_accounts_calendars_come_with_their_groups_and_colours() {
         0 => answer("400 Bad Request", "", &graph_error("BadRequest", "no groups here")),
         _ => page(vec![json!({"id": "c-main", "name": "Calendar", "isDefaultCalendar": true})], None),
     });
-    let download = calendars_at(&server.url(""), TOKEN).unwrap();
+    let download = calendars_at(&server.url(""), TOKEN, None).unwrap();
     assert!(server.request(1).starts_with("GET /v1.0/me/calendars?%24top=50&"), "{}", server.request(1));
     assert_eq!((download.calendars.len(), download.calendars[0].group.as_str(), download.complete), (1, "", true));
     let server = FakeHttp::answering(page(Vec::new(), None));
-    let download = calendars_at(&server.url(""), TOKEN).unwrap();
+    let download = calendars_at(&server.url(""), TOKEN, None).unwrap();
     assert_eq!((download.calendars.len(), download.complete), (0, false));
     // A sign-in that is no longer taken is that, and nothing more is asked.
     let server = FakeHttp::answering(answer("401 Unauthorized", "", "{}"));
-    let refused = calendars_at(&server.url(""), TOKEN).unwrap_err();
+    let refused = calendars_at(&server.url(""), TOKEN, None).unwrap_err();
     assert!(refused.is_refused_sign_in() && server.asked() == 1, "{refused:?}");
     assert_no_token(&refused);
 }
@@ -2318,7 +2329,7 @@ proptest! {
         if let Ok(download) = events_in_at(&server.url(""), TOKEN, &EventsQuery { from, to, series: vec!["s-1".into()], ..Default::default() }) {
             prop_assert!(download.events.iter().all(|event| !event.id.is_empty() && event.categories.len() <= 50));
         }
-        if let Ok(list) = calendars_at(&server.url(""), TOKEN) {
+        if let Ok(list) = calendars_at(&server.url(""), TOKEN, None) {
             prop_assert!(list.calendars.iter().all(|calendar| !calendar.id.is_empty()));
         }
         let _ = categories_at(&server.url(""), TOKEN);
@@ -2372,7 +2383,7 @@ fn an_event_with_zones_of_its_own_is_written_by_their_clocks() {
     let sent = |fields: EventFields, shown: &str| {
         let before = server.asked();
         let upload = EventsUpload { zone: shown.into(), ..upload(vec![update("e-1", fields)]) };
-        let uploaded = push_events_at(&server.url(""), TOKEN, &upload, &EventOptions { zone: "Hawaiian Standard Time".into() });
+        let uploaded = push_events_at(&server.url(""), TOKEN, &upload, &EventOptions { zone: "Hawaiian Standard Time".into(), ..Default::default() });
         (uploaded.outcomes[0].result, (server.asked() > before).then(|| body_of(&server.request(before))))
     };
     let stamp = |text: &str, zone: &str| json!({"dateTime": text, "timeZone": zone});

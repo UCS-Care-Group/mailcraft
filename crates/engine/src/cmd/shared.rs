@@ -39,7 +39,10 @@
 //! Outbox with why, and never sent from the owner's own address. It has its own signatures, none
 //! until the owner chooses one (File › Options › Mail › Signatures).
 //!
-//! Not yet: its calendar.
+//! Its calendars are listed under **My Calendars** with the mailbox's address, unticked: ticking one
+//! reads them, through the owner's sign-in at the mailbox's own address, after the owner has been
+//! asked, by itself, for `Calendars.ReadWrite.Shared`. They are only shown and read here: a change
+//! to one is refused, and none of them raises a reminder (they are the mailbox's, not the owner's).
 
 use mailcraft_model::{AccountKind, FolderKind, Id};
 use serde_json::{Value, json};
@@ -110,6 +113,8 @@ fn add(s: &mut Session, v: &Value) -> CmdResult {
     if let Ok(a) = s.mailbox.account_mut(id) {
         a.display_name = name.trim().to_string();
     }
+    // Its calendar can be ticked from now on; nothing of it is asked of the server until then.
+    super::remote::ensure_shared_calendars(s);
     Ok(json!({"id": id, "account": owner, "address": address}))
 }
 

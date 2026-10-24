@@ -38,8 +38,10 @@
 //! kept to go back to.
 //! And a Graph job (`{"host": {"graph": …}}`): `"consent"` (Microsoft wants the owner's
 //! permission first), `"refused"` (it refused the sign-in) or `"sendConsent"` (a shared
-//! mailbox's mail waits for permission to send from shared mailboxes, #70); anything else
-//! answers with nothing.
+//! mailbox's mail waits for permission to send from shared mailboxes, #70), `"opened"` (the
+//! calendars opened by address are listed, each named from its address, with read rights, #70),
+//! `"openedRefused"` (the server wouldn't give them) or `"openedConsent"` (the sign-in doesn't
+//! cover reading other people's calendars); anything else answers with nothing.
 //! With a stand-in host, the copy of the mailbox kept before a switch to Microsoft Graph is never
 //! finished, so the switch's page keeps saying that it is being saved. And the background
 //! saver (`{"host": {"saving": …}}`): `"messages 12000 200000"` or `"content 3 90000"` (a save
@@ -369,7 +371,52 @@ fn stand_in(host: &Arc<Mutex<Host>>) -> Services {
         graph: Some(Box::new(move |request| {
             let how = graphing.lock().map(|host| host.graph.clone()).unwrap_or_default();
             let (consent_needed, sign_in_refused, send_consent_needed) = (how == "consent", how == "refused", how == "sendConsent");
-            answered(GraphResult { account: request.account.id, consent_needed, sign_in_refused, send_consent_needed, ..Default::default() })
+            // Calendars opened by address (#70): "opened" lists each with a name made of its address
+            // (read rights), "openedRefused" says the server wouldn't give any, "openedConsent" says
+            // the sign-in doesn't cover reading other people's calendars.
+            let main = mailcraft_model::remote::RemoteCalendar { id: "c-main".into(), name: "Calendar".into(), main: true, ..Default::default() };
+            let mut calendars = vec![main];
+            let mut refused = Vec::new();
+            for one in &request.account.opened_calendars {
+                if how == "opened" {
+                    let local = one.address.split('@').next().unwrap_or_default();
+                    let name: String = local
+                        .split('.')
+                        .map(|w| w.chars().next().map(|c| c.to_uppercase().collect::<String>() + &w[c.len_utf8()..]).unwrap_or_default())
+                        .collect::<Vec<_>>()
+                        .join(" ");
+                    let owner = mailcraft_model::CalendarOwner { address: one.address.clone(), name: name.clone() };
+                    calendars.push(mailcraft_model::remote::RemoteCalendar {
+                        id: mailcraft_model::remote::opened_id(&one.address),
+                        name,
+                        rights: mailcraft_model::Rights::Read,
+                        owner: Some(owner),
+                        ..Default::default()
+                    });
+                } else if how == "openedRefused" {
+                    refused.push(mailcraft_model::remote::OpenedRefusal {
+                        address: one.address.clone(),
+                        why: mailcraft_model::remote::OpenedWhy::NoRights,
+                    });
+                }
+            }
+            let listed = how.starts_with("opened") && how != "openedConsent";
+            let calendars = listed.then(|| mailcraft_model::remote::CalendarsDownload {
+                account: request.account.id,
+                email: request.account.email.clone(),
+                complete: true,
+                calendars,
+                refused,
+            });
+            answered(GraphResult {
+                account: request.account.id,
+                consent_needed,
+                sign_in_refused,
+                send_consent_needed,
+                shared_calendars_consent_needed: how == "openedConsent",
+                calendars,
+                ..Default::default()
+            })
         })),
         sync: Some(Box::new(move |request| {
             let (account, (tx, rx)) = (request.account.id, channel());
