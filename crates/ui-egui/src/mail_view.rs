@@ -1099,9 +1099,13 @@ fn clicks(app: &mut MailApp, ui: &Ui, resp: &egui::Response, row: &Row, m: &Mess
             );
         });
         ui.separator();
-        ui.menu_button(tl!("Move"), |ui| {
-            crate::ribbon::folder_menu(ui, app, |app, folder| {
-                let _ = app.run("mail.move", json!({"folder": folder}));
+        // (Greyed for mail a JMAP account's server has, which stays where it is for now.)
+        let movable = app.session.enabled("mail.move");
+        ui.add_enabled_ui(movable, |ui| {
+            ui.menu_button(tl!("Move"), |ui| {
+                crate::ribbon::folder_menu(ui, app, |app, folder| {
+                    let _ = app.run("mail.move", json!({"folder": folder}));
+                });
             });
         });
         mi(ui, app, "Archive", "mail.archive", json!({}));

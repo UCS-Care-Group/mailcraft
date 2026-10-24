@@ -664,10 +664,11 @@ pub struct Session {
     /// Send/Receive Progress: the run under way, or the last one, account by account. Kept up
     /// to date by `sync.apply` and `sync.applyGraph`; in memory only, never saved.
     pub sync_progress: crate::cmd::sync_progress::SyncProgress,
-    /// Messages kept in step through Graph, by server id: kept between the pages of a run.
+    /// Messages kept in step by server id (through Graph, over JMAP): kept between the pages of a run.
     pub(crate) graph_index: crate::cmd::graph_down::ServerIndex,
-    /// Messages of Microsoft accounts the server wouldn't give whole this session, by account and
-    /// server id: the background passes them over (opening one still asks). Never saved.
+    /// Messages of Microsoft and JMAP accounts the server wouldn't give whole this session (or, for
+    /// JMAP, said it no longer has), by account and server id: the background passes them over
+    /// (opening one still asks). Never saved.
     pub(crate) graph_unfetchable: std::collections::HashSet<(Id, String)>,
     /// Messages fetched whole this session although they are outside their account's mail to
     /// keep offline (the owner opened, answered or saved one, #143): kept in full until the
@@ -686,9 +687,13 @@ pub struct Session {
     /// for having the counts it had (#276): the next full sweep is due an hour later. Empty when
     /// a mailbox is opened, so the first run reads everything. Never saved.
     pub(crate) graph_swept: std::collections::HashMap<Id, Timestamp>,
-    /// Microsoft accounts whose last folder listing was cut short (#276): a folder it left out
-    /// wasn't read, so the run that follows is no full sweep.
+    /// Microsoft and JMAP accounts whose last folder listing was cut short (#276): a folder it left
+    /// out wasn't read, so the run that follows is no full sweep (and a JMAP run lists again).
     pub(crate) graph_listed_short: std::collections::HashSet<Id>,
+    /// The mailboxes of each JMAP account the run under way took in a window of (M6), and whether
+    /// that was the whole of the mailbox, once: at its end, only what those whole windows left out is
+    /// removed. Never saved.
+    pub(crate) jmap_read: std::collections::HashMap<Id, std::collections::HashMap<String, bool>>,
     /// Set while a command an agent asked for runs (with what the owner allowed it): what the
     /// command did is checked against that ([`crate::agent`]), and undone when it oversteps.
     pub agent: Option<Vec<crate::agent::Class>>,
@@ -819,6 +824,7 @@ impl Session {
             graph_said: Vec::new(),
             graph_swept: Default::default(),
             graph_listed_short: Default::default(),
+            jmap_read: Default::default(),
             agent: None,
             graph_switch_backup: None,
             server_search: Default::default(),
@@ -1618,6 +1624,7 @@ impl Session {
         self.kept_for_now.clear();
         self.graph_swept.clear();
         self.graph_listed_short.clear();
+        self.jmap_read.clear();
         self.openings = self.openings.wrapping_add(1);
         self.history.clear();
         self.redo.clear();

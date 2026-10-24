@@ -329,3 +329,29 @@ fn a_mailbox_file_of_0_2_1_opens_as_it_was() {
     assert!(mb.folders.iter().all(|f| f.server.is_none()) && mb.queued.is_empty());
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// The answered and forwarded marks go through the update a JMAP account's window shares (M6).
+/// Graph says neither, so a mark set here on a Microsoft account (a reply sent, a message forwarded)
+/// stays when a delta brings the message again.
+#[test]
+fn answered_and_forwarded_set_here_survive_a_delta() {
+    use mailcraft_model::sync::{GraphMessage, MessagePage, ServerMessage};
+    let (mut s, account) = session();
+    take(&mut s, account, listed(server(), true));
+    let page = |read: bool| {
+        let server = ServerMessage { id: "AAkM1".into(), folder: "in".into(), read, ..Default::default() };
+        let message = GraphMessage { server, subject: "Budget".into(), ..Default::default() };
+        GraphMailResult {
+            email: ACCOUNT_EMAIL.into(),
+            pages: vec![MessagePage { folder: "in".into(), messages: vec![message], ..Default::default() }],
+            ..Default::default()
+        }
+    };
+    take(&mut s, account, page(false));
+    let id = s.mailbox.messages.values().find(|m| m.subject == "Budget").unwrap().id;
+    let m = s.mailbox.message_mut(id).unwrap();
+    (m.answered, m.forwarded) = (true, true);
+    take(&mut s, account, page(true));
+    let m = s.mailbox.message(id).unwrap();
+    assert_eq!((m.answered, m.forwarded, m.read), (true, true, true));
+}

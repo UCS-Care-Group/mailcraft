@@ -30,6 +30,8 @@ pub mod graph_place;
 pub mod graph_send;
 pub mod graph_switch;
 pub mod graph_up;
+mod jmap_down;
+pub mod jmap_mail;
 #[cfg(test)]
 mod jmap_sending_tests;
 pub mod mail;
@@ -86,6 +88,7 @@ pub fn registry() -> Registry {
     v.extend(offline::specs());
     v.extend(signature::specs());
     v.extend(graph_mail::specs());
+    v.extend(jmap_mail::specs());
     v.extend(shared::specs());
     v.extend(graph_switch::specs());
     v.extend(graph_send::specs());
@@ -115,6 +118,12 @@ pub(crate) fn done() -> CmdResult {
 /// Enabled only with a message selected.
 pub(crate) fn needs_message(s: &Session) -> Option<&'static str> {
     if s.sel.messages.is_empty() { Some("select a message first") } else { None }
+}
+
+/// Enabled only with messages selected that may move or go: none that a JMAP account's server has,
+/// which stays where it is until moves and deletions go up (M6).
+pub(crate) fn needs_movable(s: &Session) -> Option<&'static str> {
+    needs_message(s).or_else(|| s.sel.messages.iter().any(|id| s.mailbox.stays_on_server(*id)).then_some(mailcraft_model::NOT_MOVING_YET))
 }
 
 /// Enabled only while a message is being written.

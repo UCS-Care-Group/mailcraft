@@ -12,8 +12,8 @@ use mailcraft_model::sync::{
     Deleted, FlagsPushed, FolderDelta, FolderState, Moved, RemoteFlags, RemoteOp, SyncRequest, SyncResult, SyncStage, summary_line_in,
 };
 use mailcraft_model::{
-    Account, AccountKind, Directory, FlagStatus, Folder, FolderKind, Id, Mailbox, Message, OAuth, OAuthProvider, Pending, Security, Server,
-    clean_name,
+    Account, AccountKind, Directory, FlagStatus, Folder, FolderKind, Id, JmapServer, Mailbox, Message, OAuth, OAuthProvider, Pending, Security,
+    Server, clean_name,
 };
 use serde_json::{Value, json};
 
@@ -39,7 +39,7 @@ pub fn specs() -> Vec<CommandSpec> {
     ]
 }
 
-const ACCOUNT: &str = r#"{"email": string, "displayName"?: string, "name"?: string, "username"?: string, "incoming"?: {"host": string, "port"?: number, "security"?: "tls"|"starttls"|"none"} | null, "outgoing"?: same | null, "auth"?: "password"|"oauth2" (oauth2: sign in on the provider's page), "provider"?: "microsoft", "clientId"?: string, "tenant"?: string, "directory"?: "organisation"|"personal" (which kind of Microsoft account signs in, when the sign-in said), "kind"?: "imap"|"local"|"microsoft" (microsoft: kept in step through Microsoft Graph, no mail servers)}"#;
+const ACCOUNT: &str = r#"{"email": string, "displayName"?: string, "name"?: string, "username"?: string, "incoming"?: {"host": string, "port"?: number, "security"?: "tls"|"starttls"|"none"} | null, "outgoing"?: same | null, "auth"?: "password"|"oauth2" (oauth2: sign in on the provider's page), "provider"?: "microsoft", "clientId"?: string, "tenant"?: string, "directory"?: "organisation"|"personal" (which kind of Microsoft account signs in, when the sign-in said), "kind"?: "imap"|"local"|"microsoft"|"jmap" (microsoft: kept in step through Microsoft Graph, no mail servers; jmap: kept in step over JMAP, no mail servers), "jmap"?: {"session": string (the https:// address of the server's JMAP session resource), "bearer"?: bool (the secret is a bearer token, not the account's password)} (a JMAP account's server; the secret is never a setting)}"#;
 
 fn has_server(s: &Session) -> Option<&'static str> {
     if s.mailbox.accounts.iter().any(|a| a.kind.has_server()) {
@@ -206,22 +206,36 @@ fn apply_fields(a: &mut Account, v: &Value) -> Result<(), CmdError> {
         a.keep_offline =
             mailcraft_model::KeepOffline::parse(keep).ok_or_else(|| bad("`keepOffline` is 3d, 1w, 2w, 1m, 3m, 6m, 12m, 2y, 5y, 10y or all"))?;
     }
-    // A Microsoft account kept in step through Graph (R3): asked for by name; one that is that
-    // already stays it. (One kept in step by IMAP becomes one by switching: `account.graphSwitch`.)
-    let microsoft = match p::str(v, "kind").map(|k| k.trim().to_ascii_lowercase()) {
-        None => a.kind == AccountKind::Microsoft,
-        Some(k) if k == "microsoft" || k == "graph" => true,
-        Some(k) if k == "imap" || k == "local" => false,
-        Some(_) => return Err(bad("`kind` is imap, local or microsoft")),
+    // A Microsoft account kept in step through Graph (R3), or an account kept in step over JMAP
+    // (M6): asked for by name; one that is that already stays it. (One kept in step by IMAP becomes
+    // one through Graph by switching: `account.graphSwitch`.) Otherwise the servers say: IMAP, or
+    // local.
+    let kind = match p::str(v, "kind").map(|k| k.trim().to_ascii_lowercase()) {
+        None => a.kind,
+        Some(k) if k == "microsoft" || k == "graph" => AccountKind::Microsoft,
+        Some(k) if k == "jmap" => AccountKind::Jmap,
+        Some(k) if k == "imap" || k == "local" => AccountKind::Imap,
+        Some(_) => return Err(bad("`kind` is imap, local, microsoft or jmap")),
     };
-    if microsoft {
-        // Graph and nothing else: no mail servers, and a sign-in with Microsoft.
-        a.kind = AccountKind::Microsoft;
-        (a.incoming, a.outgoing) = (None, None);
-        let o = a.oauth.get_or_insert_with(OAuth::default);
-        o.provider = OAuthProvider::Microsoft;
-    } else {
-        a.kind = if a.incoming.is_some() || a.outgoing.is_some() { AccountKind::Imap } else { AccountKind::Local };
+    match kind {
+        AccountKind::Microsoft => {
+            // Graph and nothing else: no mail servers, and a sign-in with Microsoft.
+            a.kind = AccountKind::Microsoft;
+            (a.incoming, a.outgoing, a.jmap) = (None, None, None);
+            let o = a.oauth.get_or_insert_with(OAuth::default);
+            o.provider = OAuthProvider::Microsoft;
+        }
+        AccountKind::Jmap => {
+            // JMAP and nothing else: no mail servers and no sign-in with a provider, but where the
+            // server's session resource is (RFC 8620 §2) and how the secret goes.
+            a.jmap = Some(jmap_server(v, a.jmap.as_ref())?);
+            a.kind = AccountKind::Jmap;
+            (a.incoming, a.outgoing, a.oauth) = (None, None, None);
+        }
+        _ => {
+            a.kind = if a.incoming.is_some() || a.outgoing.is_some() { AccountKind::Imap } else { AccountKind::Local };
+            a.jmap = None;
+        }
     }
     if !a.address().is_valid() {
         return Err(bad(format!("\"{}\" isn't an e-mail address", a.email)));
@@ -230,6 +244,37 @@ fn apply_fields(a: &mut Account, v: &Value) -> Result<(), CmdError> {
         a.name = a.email.clone();
     }
     Ok(())
+}
+
+/// A JMAP account's server from `jmap` in a command's params, over `before` (what it has, when it
+/// has a server): `session`, the address of the session resource, and `bearer`, whether the secret
+/// is a bearer token. An address that is given, or that a new server has, must be one the model
+/// takes ([`JmapServer::check_session`]: `https://`, plain `http://` to this computer only, no
+/// user name in it); nothing is sent to it. (One a mailbox file brought, and that is kept, is
+/// refused when a run is asked for, so that the account can still be put right.)
+fn jmap_server(v: &Value, before: Option<&JmapServer>) -> Result<JmapServer, CmdError> {
+    let mut server = before.cloned().unwrap_or_default();
+    let mut given_session = false;
+    match v.get("jmap") {
+        None => {}
+        Some(given @ Value::Object(_)) => {
+            match given.get("session") {
+                None => {}
+                Some(Value::String(session)) => (server.session, given_session) = (session.trim().to_string(), true),
+                Some(_) => return Err(bad("`jmap.session` is a string")),
+            }
+            match given.get("bearer") {
+                None => {}
+                Some(Value::Bool(bearer)) => server.bearer = *bearer,
+                Some(_) => return Err(bad("`jmap.bearer` is true or false")),
+            }
+        }
+        Some(_) => return Err(bad("`jmap` is {\"session\": string, \"bearer\"?: bool}")),
+    }
+    if given_session || before.is_none() {
+        JmapServer::check_session(&server.session).map_err(|why| bad(format!("`jmap.session` {why}")))?;
+    }
+    Ok(server)
 }
 
 /// The account `account.add` would make from these params (for the question put to the owner
@@ -257,8 +302,29 @@ pub fn servers_text(a: &Account) -> String {
     if a.kind == AccountKind::Microsoft {
         return "Microsoft".to_string();
     }
+    if a.kind == AccountKind::Jmap {
+        return match a.jmap.as_ref().filter(|server| server.problem().is_none()) {
+            Some(server) => format!("jmap {}", jmap_origin(&server.session)),
+            None => "jmap, no server address that can be used".to_string(),
+        };
+    }
     let parts: Vec<String> = [one("imap", &a.incoming), one("smtp", &a.outgoing)].into_iter().flatten().collect();
     if parts.is_empty() { "no server".to_string() } else { parts.join(", ") }
+}
+
+/// The scheme and the server, with its port, of a JMAP session address that may be used
+/// (`https://mail.example.org:8443`): where the account connects, without the rest of the address,
+/// which may hold the account's own (no user name can be in front of the server's name).
+fn jmap_origin(session: &str) -> String {
+    let Some((scheme, rest)) = session.split_once("://") else { return String::new() };
+    let server = rest.split(['/', '?', '#']).next().unwrap_or_default();
+    format!("{}://{}", scheme.to_ascii_lowercase(), server.to_ascii_lowercase())
+}
+
+/// What `account.list` says of a JMAP account's server: where it connects and whether the secret
+/// is a bearer token, not the rest of the session's address (it may hold the account's own).
+fn jmap_shown(a: &Account) -> Option<Value> {
+    a.jmap.as_ref().map(|server| json!({"server": server.problem().is_none().then(|| jmap_origin(&server.session)), "bearer": server.bearer}))
 }
 
 fn add(s: &mut Session, v: &Value) -> CmdResult {
@@ -298,6 +364,23 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
     }
     let before = a.clone();
     apply_fields(&mut a, v)?;
+    // A JMAP account's folders and mail are known to its server by the ids it hands out, and any
+    // other account's by paths and UIDs, or by nobody: an account doesn't turn from one to the other.
+    if (before.kind == AccountKind::Jmap) != (a.kind == AccountKind::Jmap) {
+        return Err(fail("an account becomes a JMAP account, or stops being one, only by being removed and added again"));
+    }
+    // And once its mail is here, those ids are one account's at one session: another session
+    // address, even on the same server, or another address of the owner's, may be another account
+    // under the same ids. (A session address that can't be used, as a mailbox file may bring, may
+    // be put right.)
+    let listed = s.mailbox.folders.iter().any(|f| f.account == id && f.server.is_some());
+    if listed && a.kind == AccountKind::Jmap {
+        let session = |x: &Account| x.jmap.as_ref().filter(|server| server.problem().is_none()).map(|server| server.session.trim().to_string());
+        let moved = session(&before).is_some_and(|was| Some(was) != session(&a));
+        if moved || !before.email.trim().eq_ignore_ascii_case(a.email.trim()) {
+            return Err(fail("a JMAP account's server and address can't be changed once its mail is here: remove it and add the other one"));
+        }
+    }
     // A shared mailbox is its address, read with its owner's sign-in (#70): another address
     // would be another mailbox under the same folders' ids.
     if before.is_shared() {
@@ -410,7 +493,7 @@ fn list(s: &mut Session, _: &Value) -> CmdResult {
         .accounts
         .iter()
         .map(|a| {
-            json!({"id": a.id, "name": a.name, "email": a.email, "displayName": a.display_name, "kind": a.kind, "username": a.username, "incoming": a.incoming, "outgoing": a.outgoing, "signature": a.signature, "replySignature": a.reply_signature(), "auth": if a.oauth.is_some() { "oauth2" } else { "password" }, "oauth": a.oauth, "downloadInFull": a.download_in_full, "keepOffline": s.mailbox.keep_offline_of(a.id), "sharedOf": a.shared_of})
+            json!({"id": a.id, "name": a.name, "email": a.email, "displayName": a.display_name, "kind": a.kind, "username": a.username, "incoming": a.incoming, "outgoing": a.outgoing, "signature": a.signature, "replySignature": a.reply_signature(), "auth": if a.oauth.is_some() { "oauth2" } else { "password" }, "oauth": a.oauth, "downloadInFull": a.download_in_full, "keepOffline": s.mailbox.keep_offline_of(a.id), "sharedOf": a.shared_of, "jmap": jmap_shown(a)})
         })
         .collect();
     Ok(json!({"accounts": accounts, "signatures": s.mailbox.signatures}))
@@ -429,8 +512,8 @@ pub fn sync_request(s: &Session, account: Id) -> Result<SyncRequest, CmdError> {
     if a.kind == AccountKind::Unknown {
         return Err(added_by_newer(a, "which sends and receives its mail: this version leaves it as it is"));
     }
-    // A JMAP account is kept in step over JMAP alone, and no run of it is made here yet: nothing
-    // is asked of IMAP or SMTP servers it doesn't have.
+    // A JMAP account is kept in step over JMAP alone (`sync.jmapRequest`), which neither the window
+    // nor the command line runs yet: nothing is asked of IMAP or SMTP servers it doesn't have.
     if a.kind == AccountKind::Jmap {
         return Err(failed!("{name} is a JMAP account, and this version doesn't send and receive with one yet", name = a.name));
     }
@@ -570,16 +653,20 @@ fn remote_ops(mb: &Mailbox, account: Id, limit: usize) -> (Vec<RemoteOp>, usize)
 }
 
 fn request(s: &mut Session, v: &Value) -> CmdResult {
-    // With none named, an account a run is made for comes before a JMAP account, for which none is
-    // made here yet (and `sync_request` says so).
     let account = p::id(v, "account")
-        .or_else(|| s.mailbox.accounts.iter().find(|a| a.kind.has_server() && a.kind != AccountKind::Jmap).map(|a| a.id))
         .or_else(|| s.mailbox.accounts.iter().find(|a| a.kind.has_server()).map(|a| a.id))
         .ok_or_else(|| fail("no account is connected to a mail server"))?;
     // One kept in step through Microsoft Graph has a request of its own (`sync.graphRequest`).
     if s.mailbox.account(account).is_some_and(|a| a.kind == AccountKind::Microsoft) {
         let mut req = serde_json::to_value(super::graph_mail::graph_mail_request(s, account)?).map_err(|e| fail(e.to_string()))?;
         req["graph"] = json!(true);
+        return Ok(req);
+    }
+    // So has one kept in step over JMAP (`sync.jmapRequest`): every mailbox is read.
+    if s.mailbox.account(account).is_some_and(|a| a.kind == AccountKind::Jmap) {
+        s.jmap_read.remove(&account);
+        let mut req = serde_json::to_value(super::jmap_mail::jmap_mail_request(s, account, false)?).map_err(|e| fail(e.to_string()))?;
+        req["jmap"] = json!(true);
         return Ok(req);
     }
     let req = sync_request(s, account)?;

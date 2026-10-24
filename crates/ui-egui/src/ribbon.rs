@@ -956,9 +956,16 @@ fn menu_contents(ui: &mut Ui, app: &mut MailApp, menu: Menu) {
                 ui.label(tl!("Select a message first"));
                 return;
             }
-            folder_menu(ui, app, |app, folder| {
-                let _ = app.run("mail.move", json!({"folder": folder}));
-            });
+            // (Not mail a JMAP account's server has, which stays where it is for now: why, instead.)
+            let refused = app.session.registry.get("mail.move").and_then(|c| (c.enabled)(&app.session));
+            match refused {
+                Some(why) => {
+                    ui.label(tl!(why));
+                }
+                None => folder_menu(ui, app, |app, folder| {
+                    let _ = app.run("mail.move", json!({"folder": folder}));
+                }),
+            }
             ui.separator();
             ui.menu_button(tl!("Copy to Folder"), |ui| {
                 folder_menu(ui, app, |app, folder| {

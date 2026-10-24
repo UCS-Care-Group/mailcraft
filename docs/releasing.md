@@ -18,7 +18,7 @@ WordCraft does.
 1. Release notes: `packaging/release-notes.md` is the release's text on GitHub and on the
    website's changelog, which shows it as written. It opens with **MailCraft <version> in short**:
    a headline list of six to ten lines, a few words each, of what a tester would notice (the main
-   new features, then safety and sturdiness in a line each, then the number of fixes), each with
+   new features, then safety and sturdiness in a line each, then a line pointing to the fixes), each with
    its issue linked where there is one. **What's new** then says what each feature does. Under
    **Fixes**, one line for each user-visible fix, each linking the issue it resolves (or its PR
    when there was no issue) in full, `[#123](https://github.com/GITHUB_REPOSITORY/issues/123)`,

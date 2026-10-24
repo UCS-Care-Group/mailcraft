@@ -2163,9 +2163,10 @@ fn an_account_a_newer_version_added_is_said_to_be_one_and_left_out_of_send_recei
     assert!(h.state().ui.backstage && h.state().session.mailbox.account(newer).is_some());
 }
 
-/// A JMAP account (M6): no Send/Receive of the window takes it in until the engine has its
-/// commands. Asked for by name, it is refused with its reason, nothing is handed to the host and
-/// nothing is asked of the owner; the accounts beside it go on as before.
+/// A JMAP account (M6): no Send/Receive of the window takes it in until the window has a runner
+/// for one. Asked for by name, it is refused with its reason, nothing is handed to the host and
+/// nothing is asked of the owner; the accounts beside it go on as before. Deleting its mail for
+/// good doesn't say it goes from the server: nothing done here reaches a JMAP server yet.
 #[test]
 fn a_jmap_account_is_left_out_of_send_receive_until_one_can_be_run() {
     let mut a = app();
@@ -2192,6 +2193,11 @@ fn a_jmap_account_is_left_out_of_send_receive_until_one_can_be_run() {
     // A Send/Receive of every account is the IMAP account's alone.
     a.execute("ui.sync", json!({"password": "not-a-real-password"})).unwrap();
     assert_eq!(*handed.lock().unwrap(), ["ada@imap.example"]);
+    let inbox = a.session.mailbox.folder_of_kind(jmap, mailcraft_model::FolderKind::Inbox).unwrap();
+    let kept = mailcraft_model::Message { folder: inbox, subject: "Kept there".into(), ..Default::default() };
+    let kept = a.session.mailbox.add_message(kept).unwrap();
+    let ask = crate::dialogs::confirmation(&a, "mail.deletePermanently", &json!({"ids": [kept]})).unwrap();
+    assert_eq!(ask.text, "This message will be deleted for good.");
 }
 
 /// A noisy PNG far over a signature picture's cap.

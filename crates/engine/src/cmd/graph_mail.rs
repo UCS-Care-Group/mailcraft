@@ -301,13 +301,13 @@ fn apply(s: &mut Session, v: &Value) -> CmdResult {
     apply_graph_mail(s, result)
 }
 
-/// What taking in a Graph run changed.
+/// What taking in a Graph run changed (a JMAP run's listing too, [`super::jmap_mail`]).
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
-struct Taken {
-    pushed: usize,
-    added: usize,
-    updated: usize,
-    removed: usize,
+pub(super) struct Taken {
+    pub(super) pushed: usize,
+    pub(super) added: usize,
+    pub(super) updated: usize,
+    pub(super) removed: usize,
 }
 
 /// Take in what a Graph run brought back: what became of the changes sent, then the listing.
@@ -560,8 +560,9 @@ fn change_done(mb: &mut Mailbox, account: Id, change: &FolderChange, outcome: &C
     }
 }
 
-/// Take in every folder the server listed, by server id.
-fn take_listing(mb: &mut Mailbox, account: Id, listing: &FolderListing, taken: &mut Taken) {
+/// Take in every folder the server listed, by server id (a JMAP server's too: its mailboxes are
+/// known by their ids as Graph's folders are).
+pub(super) fn take_listing(mb: &mut Mailbox, account: Id, listing: &FolderListing, taken: &mut Taken) {
     let mut listed: HashSet<&str> = HashSet::new();
     // The server's folders as this mailbox has them, by server id, as they are found or made.
     let mut here: HashMap<String, Id> =

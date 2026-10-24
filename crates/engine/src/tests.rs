@@ -2210,7 +2210,7 @@ fn parity_has_a_floor_that_only_rises() {
 /// Never-crash: every command, with junk for every parameter it might read, returns `Ok` or `Err`.
 #[test]
 fn hostile_params_never_panic() {
-    let junk = [
+    let mut junk = vec![
         json!(null),
         json!({}),
         json!([]),
@@ -2259,6 +2259,29 @@ fn hostile_params_never_panic() {
     let _ = s.run("account.add", &json!({"email": "owner@example.org", "kind": "microsoft"}));
     // And one open, so that the folder pane's commands (Favorites, counts) meet its folders.
     let _ = s.run("account.addSharedMailbox", &json!({"address": "support@example.org"}));
+    // And a JMAP account (M6), so that its commands get past the door too, with answers for it
+    // that make no sense: ids that are none, a folder of its own, what only Graph says, sizes far
+    // over any cap.
+    let session = "https://jmap.example.org/.well-known/jmap";
+    let jmap = json!({"email": "jmap@example.org", "kind": "jmap", "jmap": {"session": session, "bearer": true}});
+    let jmap = s.run("account.add", &jmap).unwrap()["id"].as_u64().unwrap();
+    junk.push(json!({"result": {
+        "account": jmap, "email": "jmap@example.org", "whole": true, "busyFor": 4294967295u32,
+        "listing": {"complete": true, "folders": [
+            {"id": "M1", "parent": "M1", "name": "In\u{0}box", "kind": "outbox"}, {"id": "M3", "name": "\u{0}"}, {"id": "../x", "name": "x"}, {"id": "M2", "parent": "M9", "name": "x".repeat(10_000)},
+        ]},
+        "pages": [
+            {"folder": "M1", "afresh": true, "link": "https://evil.example/", "removed": ["E1"], "messages": [
+                {"server": {"id": "E1", "changeKey": "k", "categories": ["x"], "flag": "complete"}, "subject": "\r\nBcc: x@example.org", "from": {"email": "\u{0}"}},
+                {"server": {"id": "E1"}}, {"server": {"id": ""}}, {},
+            ]},
+            {"folder": "\u{0}", "messages": [{"server": {"id": "E2"}, "size": 1}]}, {"folder": "M2", "messages": [{"server": {"id": "E3"}}]},
+        ],
+        "progress": {"folder": "\u{0}", "read": 4294967295u32, "total": 1, "number": 9, "folders": 0},
+        "errors": ["\u{0}", "x".repeat(100_000)],
+    }}));
+    junk.push(json!({"result": {"account": jmap, "email": "jmap@example.org", "fetched": [{"id": "E1", "mime": []}, {"id": "\u{0}", "mime": [1]}], "missing": ["E1", ""]}}));
+    junk.push(json!({"account": jmap, "message": 18446744073709551615u64, "most": 1e300, "light": "yes", "jmap": {"session": 5, "bearer": "no"}, "kind": "jmap"}));
     let ids: Vec<&'static str> = s.registry.all().iter().map(|c| c.id).collect();
     for round in 0..2 {
         for id in &ids {
