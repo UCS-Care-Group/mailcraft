@@ -16,8 +16,7 @@
 use std::io::Write as _;
 use std::path::{Path, PathBuf};
 
-use base64::Engine as _;
-use base64::engine::general_purpose::STANDARD;
+use mailcraft_charset::base64::STANDARD;
 use ring::rand::SystemRandom;
 use ring::signature::{Ed25519KeyPair, KeyPair as _};
 

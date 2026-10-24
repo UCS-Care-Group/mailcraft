@@ -11,6 +11,9 @@ const MAX_FIELDS: usize = 2000;
 /// Longest header value kept, in bytes; continuation lines past it are dropped.
 const MAX_VALUE: usize = 256 * 1024;
 
+/// Most header bytes kept from one header block in all (names and values together).
+const MAX_BLOCK: usize = 4 * 1024 * 1024;
+
 /// Most parameters read from one `Content-Type` or `Content-Disposition`.
 const MAX_PARAMS: usize = 64;
 
@@ -51,14 +54,17 @@ pub(crate) fn line_at(bytes: &[u8], pos: usize) -> (&[u8], usize) {
 /// empty line, or at the first line that can't be a header field (some senders forget the empty
 /// line). At the `top` of a message a leading mbox `From ` line is skipped.
 pub(crate) fn split(bytes: &[u8], top: bool) -> (Headers, &[u8]) {
-    fn push(fields: &mut Vec<Field>, current: Option<(String, Vec<u8>)>) {
+    fn push(fields: &mut Vec<Field>, kept: &mut usize, current: Option<(String, Vec<u8>)>) {
         if let Some((name, value)) = current
             && fields.len() < MAX_FIELDS
+            && *kept + name.len() + value.len() <= MAX_BLOCK
         {
+            *kept += name.len() + value.len();
             fields.push(Field { name, value: charset::guess(value.trim_ascii()) });
         }
     }
     let mut fields = Vec::new();
+    let mut kept = 0usize;
     let mut current: Option<(String, Vec<u8>)> = None;
     let mut pos = 0;
     let mut first = true;
@@ -81,7 +87,7 @@ pub(crate) fn split(bytes: &[u8], top: bool) -> (Headers, &[u8]) {
                 None => break pos,
             }
         } else if let Some((name, value)) = field(line) {
-            push(&mut fields, current.take());
+            push(&mut fields, &mut kept, current.take());
             current = Some((name, value.get(..MAX_VALUE).unwrap_or(value).to_vec()));
         } else if !(top && first && (line.starts_with(b"From ") || line.starts_with(b">From "))) {
             break pos;
@@ -89,7 +95,7 @@ pub(crate) fn split(bytes: &[u8], top: bool) -> (Headers, &[u8]) {
         first = false;
         pos = next;
     };
-    push(&mut fields, current.take());
+    push(&mut fields, &mut kept, current.take());
     (Headers(fields), bytes.get(body..).unwrap_or_default())
 }
 

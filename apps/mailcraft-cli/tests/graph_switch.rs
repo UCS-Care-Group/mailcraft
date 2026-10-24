@@ -14,7 +14,6 @@ mod fake;
 
 use std::sync::atomic::AtomicBool;
 
-use base64::Engine as _;
 use fake::{Fake, FakeImap, FakeMailbox, FakeMessage, ImapWorld};
 use mailcraft_engine::Session;
 use mailcraft_engine::cmd::account::{apply_sync, sync_request};
@@ -185,7 +184,7 @@ fn a_mailbox_of_0_2_1_switches_and_keeps_its_offline_changes_local_folder_draft_
     // A local folder, with a message in it.
     let local = rig.run("account.add", json!({"email": "me@example.org", "displayName": "Me"}))["id"].as_u64().unwrap();
     let recipes = rig.run("folder.new", json!({"name": "Recipes", "account": local, "parent": null}))["id"].as_u64().unwrap();
-    let data = base64::engine::general_purpose::STANDARD.encode(eml("Lentil soup", "lentil-soup"));
+    let data = mailcraft_charset::base64::STANDARD.encode(eml("Lentil soup", "lentil-soup"));
     rig.run("file.import", json!({"name": "soup.eml", "data": data, "folder": recipes}));
     let soup = rig.s.mailbox.messages_in(recipes).find(|m| m.subject == "Lentil soup").map(|m| m.as_ref().clone()).unwrap();
     // A draft never sent.

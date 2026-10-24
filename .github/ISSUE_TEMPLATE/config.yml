@@ -2,7 +2,7 @@ blank_issues_enabled: true
 contact_links:
   - name: How to contribute
     url: https://github.com/UCS-Care-Group/mailcraft/blob/main/CONTRIBUTING.md
-    about: Claim an issue before you build; one issue, one pull request.
+    about: Found a bug with a fix? Open the report and the pull request together. Anything else, claim an issue before you build.
   - name: Report a security vulnerability
     url: https://github.com/UCS-Care-Group/mailcraft/security/advisories/new
     about: Please report security problems privately, not in a public issue.

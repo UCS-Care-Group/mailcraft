@@ -1,5 +1,8 @@
 # Dependabot keeps the pinned GitHub Actions current: every third-party `uses:` in
 # .github/workflows is a full commit SHA with its tag as a comment, and Dependabot moves both.
+# It also proposes updates to the Rust crates (the workspace lock and the fuzz targets' own lock),
+# so a fix for an advisory arrives as a pull request that CI (cargo-deny included) and a reviewer
+# see; CODEOWNERS asks the owners to review every Cargo.lock change.
 version: 2
 updates:
   - package-ecosystem: github-actions
@@ -14,3 +17,25 @@ updates:
         patterns: ["*"]
     commit-message:
       prefix: "ci"
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      crates:
+        patterns: ["*"]
+    commit-message:
+      prefix: "deps"
+  - package-ecosystem: cargo
+    directory: /fuzz
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      fuzz-crates:
+        patterns: ["*"]
+    commit-message:
+      prefix: "deps"

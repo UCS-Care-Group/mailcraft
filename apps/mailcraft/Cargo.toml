@@ -14,6 +14,7 @@ workspace = true
 mailcraft-time = { workspace = true }
 mailcraft-model = { workspace = true }
 mailcraft-engine = { workspace = true }
+url = { workspace = true }
 image = { workspace = true }
 mailcraft-ui-egui = { workspace = true }
 # The control key file's location (shared with the MCP bridge).
@@ -24,11 +25,6 @@ eframe = { workspace = true, features = ["default_fonts", "wgpu", "accesskit", "
 egui = { workspace = true }
 serde_json = { workspace = true }
 log = { workspace = true }
-# Quitting the platform's own way: on macOS `-[NSApplication terminate:]` and an app menu whose
-# Quit asks first; elsewhere it does nothing (`quit.rs`).
-craft-quit = { workspace = true }
-# The system's language (the interface's when it is left on Automatic).
-sys-locale = "0.3"
 
 [dev-dependencies]
 # The tests run the whole way of a calendar change, and of reading Outlook's Favorites, against
@@ -37,13 +33,11 @@ sys-locale = "0.3"
 mailcraft-net = { workspace = true, features = ["stand-in"] }
 # A sign-in the provider refuses, as `mailcraft-net` says it.
 mailcraft-proto = { workspace = true }
-# A release signed with a key made in the test, for the stand-in release server (`update_flow`).
-ring = { workspace = true }
-base64 = { workspace = true }
+mailcraft-charset = { workspace = true }
 
 [build-dependencies]
 # Icon + VERSIONINFO for mailcraft.exe; build.rs only uses it when the target is Windows.
-winresource = "0.1"
+winresource = "0.1.34"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 # Finder double-click, Open With, Dock drops and `open -a MailCraft note.eml` arrive as a
@@ -52,7 +46,7 @@ winresource = "0.1"
 # which our workspace forbids) behind a safe API. Pinned exactly: review the diff before bumping.
 fmv-macos-events = "=0.1.0"
 # The menu bar at the top of the screen (`menubar.rs`, #253), made natively from the commands'
-# table. MIT OR Apache-2.0 (tauri's), already in the tree through craft-quit's app menu: the same
+# table. MIT OR Apache-2.0 (tauri's), already in the tree through the GUI stack: the same
 # version, with no default features (no image or serde).
 muda = { version = "0.21.2", default-features = false }
 # The macOS keychain (the owner's login keychain), for the credential store below.
@@ -61,12 +55,17 @@ apple-native-keyring-store = { version = "1", features = ["keychain"] }
 # bindings' safe calls only. objc2, its Foundation and block2 are already in the tree (the GUI
 # stack's); the UserNotifications bindings are the same project's (MIT, Zlib or Apache-2.0).
 objc2 = { version = "0.6", default-features = false, features = ["std"] }
-objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSBundle", "NSError", "NSString"] }
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSArray", "NSBundle", "NSError", "NSLocale", "NSString"] }
 block2 = { version = "0.6", default-features = false, features = ["std"] }
 # AppKit's window, for one safe class call: no automatic window tabs (#253: the View menu's greyed
 # Show Tab Bar). The same project's bindings, already in the tree through winit and muda, with
 # the same features.
-objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSResponder", "NSWindow"] }
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSResponder", "NSWindow", "NSApplication"] }
+# Quitting the macOS way (`quit_macos.rs`): `-[NSApplication terminate:]` is scheduled on the main
+# queue, because eframe closing the window can crash AppKit (its Touch Bar). The scheduling is
+# `dispatch_async` on the main queue, from the same project as objc2 (MIT, Zlib or Apache-2.0),
+# already in the tree through winit and the UI stack; `std` only, safe calls only.
+dispatch2 = { version = "0.3", default-features = false, features = ["std"] }
 objc2-user-notifications = { version = "0.3", default-features = false, features = [
     "std",
     "block2",
@@ -89,7 +88,7 @@ keyring-core = "1"
 windows-native-keyring-store = "1.1"
 # Two registry values read, never written: where the `.msi` put the program (whether this copy
 # updates itself) and an organisation's policy that turns updating off (`install.rs`, `updater.rs`).
-winreg = "0.55"
+winreg = "0.56"
 # Desktop alerts as toasts (`alerts.rs`): Windows.UI.Notifications and the XML they are made of.
 # Already in the tree (the GUI stack's), the same version; only these features are added.
 windows = { version = "0.62", features = ["Foundation", "Data_Xml_Dom", "UI_Notifications"] }
@@ -104,7 +103,7 @@ zbus-secret-service-keyring-store = { version = "1", features = ["rt-async-io-cr
 # Under Wayland the clipboard is the compositor's (its data-control protocol, which KDE Plasma
 # and the wlroots compositors have); where it isn't offered (GNOME), arboard falls back to the
 # X11 clipboard through XWayland.
-arboard = { version = "3.6", default-features = false, features = ["wayland-data-control", "image-data"] }
+arboard = { version = "3.7", default-features = false, features = ["wayland-data-control", "image-data"] }
 # A program started from MailCraft (the browser, for a sign-in or a link) only comes in front
 # when it is handed an activation token (xdg-activation under Wayland, startup notification under
 # X11), which the window asks winit for and winit hands back as a window event that eframe drops
@@ -121,21 +120,15 @@ winit = { version = "0.30", default-features = false, features = ["wayland", "x1
 zbus = { version = "5", default-features = false, features = ["async-io", "blocking-api"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+# The control server's random key (the operating system's source, as the sign-in's); also signs a
+# release in the update test (`update_flow`).
+ring = { workspace = true }
 rfd = { workspace = true }
-# Waits for an `rfd::AsyncFileDialog` on a background thread (the dialogs don't block the UI);
-# rfd itself already depends on it.
-pollster = "0.4"
-# The control server's random key.
-getrandom = "0.3"
 # Opens Microsoft's sign-in and approval pages in the system's browser, and says when no browser
 # could be started (egui's own way of opening a link doesn't). Already in the tree: eframe's
 # `links` feature runs on it.
 webbrowser = "1.2"
-# Opens an attachment the owner asked to open with the system's program for its kind (#126):
-# ShellExecute on Windows, `open` on macOS, `xdg-open` and the like elsewhere, never through a
-# shell. Already in the tree (egui_kittest's).
-open = { version = "5.4", features = ["shellexecute-on-windows"] }
 # The system's clipboard with HTML on it, for copying and pasting formatted text in a message
 # being written (egui's own clipboard carries text only). Already in the tree: egui's window
 # layer copies text through it.
-arboard = { version = "3.6", default-features = false, features = ["image-data"] }
+arboard = { version = "3.7", default-features = false, features = ["image-data"] }

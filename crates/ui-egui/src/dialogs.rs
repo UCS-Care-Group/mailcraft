@@ -243,6 +243,8 @@ pub fn confirmation(app: &MailApp, id: &str, params: &Value) -> Option<Question>
     match id {
         // Everything MailCraft keeps on this computer (#177).
         "ui.removeAllData" if app.services.data_wipe.is_some() && !app.data_removed => Some(crate::data_removal::question()),
+        // A mailbox from a file: where its accounts connect to.
+        "ui.confirmServers" if app.unconfirmed => Some(app.confirm_servers_question()),
         // An Office file with macros, or a web page, from a message (#126).
         "mail.openAttachment" => {
             let (title, text, action) = crate::attachment_open::question(app, params)?;
@@ -311,11 +313,14 @@ pub fn confirmation(app: &MailApp, id: &str, params: &Value) -> Option<Question>
                 crate::i18n::fmt(tl!("The folder \"{folder}\" and everything in it will be deleted."), &[("folder", crate::nav::folder_name(f))]);
             question(tl!("Delete Folder"), text, tl!("Delete"))
         }
+        // (The placeholder of an empty mailbox isn't removed, and the command says so.)
         "account.remove" => {
-            let a = mb.account(params.get("id").and_then(Value::as_u64)?)?;
+            let a = mb.account(params.get("id").and_then(Value::as_u64)?).filter(|a| mb.placeholder() != Some(a.id))?;
+            // A local mailbox has no address: it is called as File › Info calls it.
+            let who = if a.email.is_empty() { tl!("Local mailbox").to_string() } else { a.email.clone() };
             let text = crate::i18n::fmt(
                 tl!("{address} and the mail kept for it on this device will be removed. Mail on the server is not touched."),
-                &[("address", &a.email)],
+                &[("address", &who)],
             );
             // Pictures and opened attachments are kept by their address and by file, not by account.
             let text = format!(
@@ -334,6 +339,12 @@ pub fn confirmation(app: &MailApp, id: &str, params: &Value) -> Option<Question>
                     "{text} {}",
                     crate::i18n::fmt(tl!("The {n} shared mailboxes opened through it are removed from this device too."), &[("n", &n.to_string())])
                 ),
+            };
+            // The only account leaves an empty mailbox, as at a first start (#313).
+            let text = if mb.accounts.iter().all(|x| x.id == a.id || x.shared_of == Some(a.id)) {
+                format!("{text} {}", tl!("MailCraft will have no account afterwards: File › Add Account sets one up again."))
+            } else {
+                text
             };
             question(tl!("Remove Account"), text, tl!("Remove"))
         }
@@ -797,7 +808,7 @@ fn score(query: &str, label: &str, location: &str, id: &str) -> Option<u32> {
 pub(crate) fn window(ctx: &egui::Context, title: &str, width: f32, add: impl FnOnce(&mut Ui)) -> bool {
     let mut open = true;
     egui::Window::new(egui::RichText::new(title).font(semibold(14.0)))
-        .id(egui::Id::new("dialog"))
+        .id(egui::Id::unique("dialog"))
         .open(&mut open)
         .collapsible(false)
         .resizable(false)
@@ -837,7 +848,7 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
     let t = Tokens::get(ctx);
     // A scrim: what is behind the dialog is out of reach until it is answered.
     let screen = ctx.content_rect();
-    egui::Area::new(egui::Id::new("dialog_scrim")).order(egui::Order::Middle).fixed_pos(screen.min).show(ctx, |ui| {
+    egui::Area::new(egui::Id::unique("dialog_scrim")).order(egui::Order::Middle).fixed_pos(screen.min).show(ctx, |ui| {
         let resp = ui.allocate_response(screen.size(), egui::Sense::click());
         ui.painter().rect_filled(screen, 0.0, egui::Color32::from_black_alpha(if t.dark { 110 } else { 60 }));
         resp
@@ -1320,7 +1331,7 @@ pub(crate) fn unsaved_changes(ctx: &egui::Context, hit: &mut crate::control::Hit
     };
     let frame = egui::Frame::window(&ctx.global_style()).fill(t.surface).inner_margin(egui::Margin::same(16));
     let width = (ctx.content_rect().width() - 48.0).clamp(120.0, 420.0);
-    egui::Modal::new(egui::Id::new(("unsaved-changes", window)))
+    egui::Modal::new(egui::Id::unique(("unsaved-changes", window)))
         .frame(frame)
         .backdrop_color(egui::Color32::from_black_alpha(if t.dark { 110 } else { 60 }))
         .show(ctx, |ui| {

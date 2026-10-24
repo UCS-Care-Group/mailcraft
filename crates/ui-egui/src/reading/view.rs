@@ -209,7 +209,7 @@ fn same_body(a: &Message, b: &Message) -> bool {
 
 impl Store {
     fn of(ctx: &egui::Context) -> Arc<Mutex<Store>> {
-        ctx.data_mut(|d| d.get_temp_mut_or_default::<Arc<Mutex<Store>>>(egui::Id::new("mailcraft-reading-bodies")).clone())
+        ctx.data_mut(|d| d.get_temp_mut_or_default::<Arc<Mutex<Store>>>(egui::Id::unique("mailcraft-reading-bodies")).clone())
     }
 
     /// The entry for `message` shown at `place`, parsing its body when it is not known yet
@@ -414,7 +414,7 @@ pub fn paint(ui: &mut Ui, laid: &Laid, t: &Tokens, access: Access, mut state: Op
     let ctx = ui.ctx().clone();
     // The pointer is sensed over all of the body that is in view, its margins and the room under
     // a short message too: a drag that selects begins and ends wherever the pointer happens to be.
-    let response = ui.interact(clip, ui.id().with("body"), select::sense(ui));
+    let response = ui.interact(clip, ui.scope_id().with("body"), select::sense(ui));
     if let Some(state) = state.as_deref_mut() {
         select::body(ui, &response, laid, area.min, state);
     }

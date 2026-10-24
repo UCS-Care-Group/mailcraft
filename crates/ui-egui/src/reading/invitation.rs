@@ -210,6 +210,10 @@ impl When {
     }
 }
 
+/// How long the engine may take to read a meeting before the answer is kept until the mailbox
+/// changes.
+const SLOW: std::time::Duration = std::time::Duration::from_millis(100);
+
 /// What is kept between frames.
 #[derive(Default)]
 struct Store {
@@ -224,13 +228,16 @@ struct Kept {
     message: Id,
     rev: u64,
     minute: i64,
+    /// It took long to work out: it is kept until the mailbox changes, not asked again by the
+    /// minute (a message built to be slow must not keep the window busy).
+    slow: bool,
     info: Option<Arc<Info>>,
     used: u64,
 }
 
 impl Store {
     fn of(ctx: &egui::Context) -> Arc<Mutex<Store>> {
-        ctx.data_mut(|d| d.get_temp_mut_or_default::<Arc<Mutex<Store>>>(egui::Id::new("mailcraft-reading-invitations")).clone())
+        ctx.data_mut(|d| d.get_temp_mut_or_default::<Arc<Mutex<Store>>>(egui::Id::unique("mailcraft-reading-invitations")).clone())
     }
 }
 
@@ -261,13 +268,15 @@ pub(super) fn info(app: &mut MailApp, ctx: &egui::Context, m: &Message) -> Optio
     let store = Store::of(ctx);
     {
         let mut store = store.lock().unwrap_or_else(|e| e.into_inner());
-        if let Some(kept) = store.infos.iter_mut().find(|kept| kept.message == m.id && kept.rev == rev && kept.minute == minute) {
+        if let Some(kept) = store.infos.iter_mut().find(|kept| kept.message == m.id && kept.rev == rev && (kept.slow || kept.minute == minute)) {
             kept.used = frame;
             return kept.info.clone();
         }
     }
     // (Asked with the store let go of: the command is the engine's, and may take its time.)
+    let began = std::time::Instant::now();
     let info = engine_says(app, m.id).map(Arc::new);
+    let slow = began.elapsed() > SLOW;
     let mut store = store.lock().unwrap_or_else(|e| e.into_inner());
     store.infos.retain(|kept| kept.message != m.id);
     if store.infos.len() >= KEPT
@@ -275,7 +284,7 @@ pub(super) fn info(app: &mut MailApp, ctx: &egui::Context, m: &Message) -> Optio
     {
         store.infos.swap_remove(oldest);
     }
-    store.infos.push(Kept { message: m.id, rev, minute, info: info.clone(), used: frame });
+    store.infos.push(Kept { message: m.id, rev, minute, slow, info: info.clone(), used: frame });
     info
 }
 
@@ -397,6 +406,18 @@ pub(crate) fn ui_command(app: &mut MailApp, id: &str, p: &Value) -> Option<Resul
     Some(look_for(app, &ctx, message, &info, true).map(|()| json!({"message": message, "asked": true})))
 }
 
+/// A person as the bar shows them: `Name <address>`, the address always whole (it is what an
+/// answer is mailed to), the name cut to fit and free of control characters.
+fn person_text(who: &Person) -> String {
+    let clean = |text: &str, max: usize| text.chars().filter(|c| !c.is_control()).take(max).collect::<String>();
+    let (name, email) = (clean(who.name.trim(), 80), clean(who.email.trim(), 254));
+    match (name.is_empty(), email.is_empty()) {
+        (_, true) => name,
+        (true, false) => email,
+        (false, false) => format!("{name} <{email}>"),
+    }
+}
+
 // ---- the question a plain click on an answer asks ----
 
 /// What a user-run `calendar.respond` for a message is asked first: whether the organizer is to
@@ -417,10 +438,14 @@ pub(crate) fn question(app: &mut MailApp, id: &str, params: &Value) -> Option<Op
     if !info.answerable || !info.can_send {
         return Some(None);
     }
-    let organizer = info.people.organizer.as_ref().map(|who| who.name.trim().chars().take(80).collect::<String>()).filter(|who| !who.is_empty());
+    // Who the answer goes to, by name and by address: the name is anything the sender wrote.
+    let organizer = info.people.organizer.as_ref().map(person_text).filter(|who| !who.is_empty());
     let who = organizer.unwrap_or_else(|| tl!("Somebody else").to_string());
     let lead = crate::i18n::fmt(tl!("{name} organizes this meeting; you are invited to it."), &[("name", &who)]);
-    let text = format!("{lead} {}", tl!("Send your answer to the organizer? You can write a note to go with it."));
+    let mut text = format!("{lead} {}", tl!("Send your answer to the organizer? You can write a note to go with it."));
+    if !info.from_organizer {
+        text = format!("{text} {}", tl!("This message didn't come from the address of the meeting's organizer."));
+    }
     Some(Some(Question {
         title: tl!("Send a Response?").to_string(),
         text,
@@ -490,13 +515,13 @@ fn button(ui: &mut Ui, t: &Tokens, icon: &str, label: &str, checked: bool, menu:
     let main_w = 8.0 + 16.0 + 5.0 + text_width(ui, label, 12.0) + 9.0;
     let (rect, _) = ui.allocate_exact_size(vec2(main_w + if menu { 18.0 } else { 0.0 }, 26.0), Sense::hover());
     let main_rect = Rect::from_min_max(rect.min, pos2(rect.min.x + main_w, rect.max.y));
-    let id = ui.id().with(("invitation", label));
+    let id = ui.scope_id().with(("invitation", label));
     let main = ui.interact(main_rect, id.with("main"), Sense::click());
-    main.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, label));
+    main.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, label));
     let more = menu.then(|| {
         let more = ui.interact(Rect::from_min_max(pos2(main_rect.max.x, rect.min.y), rect.max), id.with("menu"), Sense::click());
         more.widget_info(|| {
-            egui::WidgetInfo::labeled(egui::WidgetType::Button, true, crate::i18n::fmt(tl!("{answer}: more ways to answer"), &[("answer", label)]))
+            egui::WidgetInfo::labeled(egui::Role::Button, true, crate::i18n::fmt(tl!("{answer}: more ways to answer"), &[("answer", label)]))
         });
         more
     });
@@ -554,7 +579,7 @@ fn row(ui: &mut Ui, t: &Tokens, name: &str, text: &str, rows: usize, width: f32)
     };
     let galley = ui.painter().layout_job(job);
     let (r, resp) = ui.allocate_exact_size(vec2(width, galley.size().y.max(16.0)), Sense::hover());
-    resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Label, true, format!("{name} {text}")));
+    resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Label, true, format!("{name} {text}")));
     ui.painter().text(r.min, Align2::LEFT_TOP, name, regular(12.0), t.text_dim);
     let cut = galley.elided || text.chars().count() > PEOPLE_CHARS;
     ui.painter().galley(pos2(r.min.x + NAME_W, r.min.y), galley, t.text);
@@ -623,6 +648,11 @@ fn headlines(app: &MailApp, info: &Info) -> Vec<(&'static str, String, bool)> {
                 Some("organizer") => lines.push(("meeting", tl!("You organize this meeting: there is nothing to answer.").to_string(), false)),
                 Some("past") => lines.push(("clock", tl!("This meeting is over.").to_string(), false)),
                 Some("readOnly") => lines.push(("private", tl!("This meeting is in a calendar that can't be changed from here.").to_string(), false)),
+                Some("mismatch") => lines.push((
+                    "info",
+                    tl!("A meeting on your calendar has this ID but another organizer, so this invitation can't change it.").to_string(),
+                    false,
+                )),
                 Some("incomplete") => {
                     lines.push(("info", tl!("This invitation doesn't say which meeting it is about, so it can't be answered.").to_string(), false))
                 }
@@ -631,6 +661,10 @@ fn headlines(app: &MailApp, info: &Info) -> Vec<(&'static str, String, bool)> {
                 None if info.update => lines.push(("sync", tl!("The organizer has changed this meeting.").to_string(), info.answered.is_none())),
                 None if info.answered.is_none() => lines.push(("meetingRequest", tl!("You haven't answered this invitation yet.").to_string(), true)),
                 None => {}
+            }
+            // An answer goes to the organizer, whoever sent the message.
+            if !info.from_organizer {
+                lines.push(("info", tl!("This message didn't come from the address of the meeting's organizer.").to_string(), false));
             }
             if info.occurrence.is_some() {
                 lines.push(("recurrence", tl!("This is about one occurrence of a series.").to_string(), false));
@@ -1010,7 +1044,7 @@ fn details(app: &MailApp, ui: &mut Ui, t: &Tokens, info: &Info, when: Option<&Wh
         return;
     }
     if let Some(organizer) = &info.people.organizer {
-        row(ui, t, tl!("Organizer"), if organizer.name.trim().is_empty() { organizer.email.trim() } else { organizer.name.trim() }, 1, width);
+        row(ui, t, tl!("Organizer"), &person_text(organizer), 1, width);
     }
     if info.people.required_count > 0 {
         row(ui, t, tl!("Required"), &names(&info.people.required, info.people.required_count), 2, width);

@@ -172,7 +172,7 @@ struct Lists {
 /// The counts beside the filters and the list in view. Sorting every task five times is the slow
 /// part, so the result is kept until the mailbox, the day or the filter changes.
 fn lists(app: &MailApp, ctx: &egui::Context) -> Lists {
-    let slot = egui::Id::new("task_lists");
+    let slot = egui::Id::unique("task_lists");
     let today = app.session.today();
     let filter = app.session.view.task_filter;
     let week_start = app.session.prefs.week_start;
@@ -311,7 +311,7 @@ fn quick_add(app: &mut MailApp, ui: &mut Ui) {
     let filter = app.session.view.task_filter;
     let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), ADD_H), Sense::hover());
     let field = Rect::from_min_max(pos2(r.min.x + 10.0, r.min.y + 4.0), pos2(r.max.x - 10.0, r.max.y - 8.0));
-    let id = egui::Id::new("task_quick_add");
+    let id = egui::Id::unique("task_quick_add");
     let focused = ui.memory(|m| m.has_focus(id));
     ui.painter().rect(
         field,
@@ -343,7 +343,7 @@ fn quick_add(app: &mut MailApp, ui: &mut Ui) {
         .char_limit(500)
         .desired_width(edit_rect.width())
         .min_size(vec2(0.0, edit_rect.height()))
-        .vertical_align(egui::Align::Center);
+        .align(egui::Align2::LEFT_CENTER);
     // In a child of its own, so the field doesn't move what is laid out after this row.
     let resp = ui.new_child(egui::UiBuilder::new().max_rect(edit_rect)).add(edit);
     // Enter and Escape both take the keyboard away from the field: Enter adds, Escape gives up.
@@ -412,11 +412,11 @@ fn task_row(app: &mut MailApp, ui: &mut Ui, id: Id, rect: Rect, today: Date) {
     let t = Tokens::get(ui.ctx());
     // The shared pointer, not a copy of the task.
     let Some(task) = app.session.mailbox.tasks.get(&id).cloned() else { return };
-    let resp = ui.interact(rect, ui.id().with(("task", id)), Sense::click());
+    let resp = ui.interact(rect, ui.scope_id().with(("task", id)), Sense::click());
     app.hit.add("task", id, rect);
     // The check box has its own click target, on top of the row's.
     let check = check_rect(rect);
-    let check_resp = ui.interact(check, ui.id().with(("task_check", id)), Sense::click());
+    let check_resp = ui.interact(check, ui.scope_id().with(("task_check", id)), Sense::click());
     let selected = app.session.sel.task == Some(id);
     let done = task.is_complete();
     let p = ui.painter();
@@ -860,7 +860,7 @@ mod tests {
         use crate::people_view::testing;
         let mut w = testing::window("view.tasks");
         let ctx = w.state().ctx.clone().unwrap();
-        let field = egui::Id::new("task_quick_add");
+        let field = egui::Id::unique("task_quick_add");
         let typed = || ctx.data(|d| d.get_temp::<String>(field)).unwrap_or_default();
         let count = w.state().session.mailbox.tasks.len();
         let first = tasks::sorted(&w.state().session, TaskFilter::Active)[0];

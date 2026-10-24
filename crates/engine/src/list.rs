@@ -22,6 +22,9 @@ pub struct Row {
     pub unread: usize,
     /// The group heading above this row, when it starts a group (`Today`, `Last Week`).
     pub group: Option<String>,
+    /// Which of the message's rows this is: arranged by categories, a message filed under two
+    /// categories is listed under each, as Outlook lists it, and the second row is copy 1.
+    pub copy: u16,
 }
 
 /// When a message counts as having arrived: its received time, or its date when it has none.
@@ -58,8 +61,27 @@ fn group_label(s: &Session, m: &Message) -> Option<String> {
             }
             .to_string(),
         ),
+        // Each row of a message arranged by categories has a heading of its own (`by_category`).
+        SortBy::Categories => None,
         SortBy::Subject | SortBy::Size => None,
     }
+}
+
+/// The heading of the things that have no category, in a list arranged by categories.
+pub const NO_CATEGORY: &str = "No category";
+
+/// An item's categories one by one, A to Z, each once and spelt as the mailbox's list of
+/// categories spells it: the headings an item arranged by categories is listed under.
+pub fn category_names<'a>(s: &'a Session, categories: &'a [String]) -> Vec<&'a str> {
+    let mut names: Vec<&str> = categories
+        .iter()
+        .map(|c| c.trim())
+        .filter(|c| !c.is_empty())
+        .map(|c| s.mailbox.categories.iter().find(|k| k.name.eq_ignore_ascii_case(c)).map_or(c, |k| k.name.as_str()))
+        .collect();
+    names.sort_by_key(|c| c.to_lowercase());
+    names.dedup_by(|a, b| a.eq_ignore_ascii_case(b));
+    names
 }
 
 pub fn rows(s: &Session) -> Vec<Row> {
@@ -122,11 +144,19 @@ pub fn rows_with(s: &Session, decided: &HashMap<Id, bool>, searched: &HashMap<Id
             // counts as the smallest.
             SortBy::Size => a.list_size().cmp(&b.list_size()),
             SortBy::Importance => a.importance.cmp(&b.importance).then(when(a).cmp(&when(b))),
+            // Newest first; `by_category` then lists each under its categories.
+            SortBy::Categories => when(b).cmp(&when(a)),
         };
         // Pinned messages stay on top whichever way the list is sorted; ids break ties so the
         // order never depends on the map's iteration.
-        b.pinned.cmp(&a.pinned).then(if desc { key.reverse() } else { key }).then(b.id.cmp(&a.id))
+        // The categories, not the dates, are what turning the list over turns over.
+        let key = if desc && s.view.sort != SortBy::Categories { key.reverse() } else { key };
+        b.pinned.cmp(&a.pinned).then(key).then(b.id.cmp(&a.id))
     });
+
+    if s.view.sort == SortBy::Categories {
+        return by_category(s, &shown, desc);
+    }
 
     let mut out: Vec<Row> = Vec::new();
     if s.view.conversations && s.view.sort == SortBy::Date {
@@ -142,7 +172,7 @@ pub fn rows_with(s: &Session, decided: &HashMap<Id, bool>, searched: &HashMap<Id
                 }
                 None => {
                     index.insert((m.account, m.thread_key()), out.len());
-                    out.push(Row { id: m.id, members: vec![m.id], unread: usize::from(!m.read), group: None });
+                    out.push(Row { id: m.id, members: vec![m.id], unread: usize::from(!m.read), group: None, copy: 0 });
                 }
             }
         }
@@ -154,7 +184,7 @@ pub fn rows_with(s: &Session, decided: &HashMap<Id, bool>, searched: &HashMap<Id
             }
         }
     } else {
-        out.extend(shown.iter().map(|m| Row { id: m.id, members: vec![m.id], unread: usize::from(!m.read), group: None }));
+        out.extend(shown.iter().map(|m| Row { id: m.id, members: vec![m.id], unread: usize::from(!m.read), group: None, copy: 0 }));
     }
 
     let mut last: Option<String> = None;
@@ -169,7 +199,57 @@ pub fn rows_with(s: &Session, decided: &HashMap<Id, bool>, searched: &HashMap<Id
     out
 }
 
-/// The row a message is in.
+/// The list arranged by categories, as Outlook arranges it: a message is listed under each of its
+/// categories, those with none under "No category" first, then the categories A to Z (Z to A
+/// turned over), newest first under each. A pinned message is listed once, on top. `shown` is
+/// sorted already: pinned first, then newest first.
+///
+/// Show in Groups off doesn't apply: a message is listed under each of its categories, which takes
+/// the headings, so they stay. Outlook does the same: unticking it there leaves a list arranged by
+/// categories grouped as it was (observed 2026-10-22).
+fn by_category(s: &Session, shown: &[&Message], desc: bool) -> Vec<Row> {
+    // (heading, message); the sort is stable, so under each heading `shown`'s order stays.
+    let mut placed: Vec<(Option<String>, &Message)> = Vec::new();
+    for m in shown {
+        let names = if m.pinned { Vec::new() } else { category_names(s, &m.categories) };
+        if names.is_empty() {
+            placed.push((None, m));
+        }
+        placed.extend(names.into_iter().map(|name| (Some(name.to_string()), *m)));
+    }
+    placed.sort_by_cached_key(|(name, m)| {
+        let key = name.as_ref().map(|n| n.to_lowercase());
+        (std::cmp::Reverse(m.pinned), if desc { Err(std::cmp::Reverse(key)) } else { Ok(key) })
+    });
+    let mut copies: HashMap<Id, u16> = HashMap::new();
+    let mut last: Option<String> = None;
+    let mut out = Vec::with_capacity(placed.len());
+    for (name, m) in placed {
+        let copy = copies.entry(m.id).or_default();
+        let mut row = Row { id: m.id, members: vec![m.id], unread: usize::from(!m.read), group: None, copy: *copy };
+        *copy = copy.saturating_add(1);
+        let label = Some(if m.pinned { "Pinned".to_string() } else { name.unwrap_or_else(|| NO_CATEGORY.into()) });
+        if label != last {
+            row.group = label.clone();
+            last = label;
+        }
+        out.push(row);
+    }
+    out
+}
+
+/// The row a message is in (its first, when it is listed more than once).
 pub fn position(rows: &[Row], id: Id) -> Option<usize> {
     rows.iter().position(|r| r.id == id || r.members.contains(&id))
+}
+
+/// The row numbered `copy` of a message's rows, or its first when it has fewer.
+pub fn position_of(rows: &[Row], id: Id, copy: u16) -> Option<usize> {
+    rows.iter().position(|r| r.id == id && r.copy == copy).or_else(|| position(rows, id))
+}
+
+/// How many messages (or conversations) the list shows: one listed under several categories
+/// counts once.
+pub fn listed(rows: &[Row]) -> usize {
+    rows.iter().filter(|r| r.copy == 0).count()
 }

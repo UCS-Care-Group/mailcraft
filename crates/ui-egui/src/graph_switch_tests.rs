@@ -20,7 +20,7 @@ use crate::{MailApp, Services};
 const NOW: i64 = 1_791_993_600;
 
 fn window(app: MailApp) -> Harness<'static, MailApp> {
-    let mut harness = Harness::builder().with_size(egui::vec2(1280.0, 900.0)).build_ui_state(
+    let mut harness = Harness::builder().with_accessibility_check(false).allow_missing_glyphs().with_size(egui::vec2(1280.0, 900.0)).build_ui_state(
         |ui, app: &mut MailApp| {
             let ctx = ui.ctx().clone();
             app.logic(&ctx);

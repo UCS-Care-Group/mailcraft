@@ -112,6 +112,21 @@ fn read(v: &Value) -> Result<(Mailbox, Left), crate::CmdError> {
     Ok((crate::io::read_mailbox(&bytes).map_err(fail)?, Left::default()))
 }
 
+/// What a mailbox file would connect to, for the question put to the owner when an agent asks to
+/// open it: each account's address and servers as the file has them, or that it can't be read.
+/// Nothing is kept of what is read.
+pub(crate) fn servers_in(v: &Value) -> String {
+    let Ok((mailbox, _)) = read(v) else { return "(the file can't be read)".to_string() };
+    let accounts: Vec<String> = mailbox
+        .accounts
+        .iter()
+        .filter(|a| a.kind.has_server())
+        .take(10)
+        .map(|a| format!("{} ({})", a.email.chars().take(80).collect::<String>(), super::account::servers_text(a)))
+        .collect();
+    if accounts.is_empty() { "no account connects to a server".to_string() } else { format!("accounts connect to {}", accounts.join("; ")) }
+}
+
 fn open(s: &mut Session, v: &Value) -> CmdResult {
     // First, so that opening the file the mailbox is kept in reads what was just written.
     settle(s)?;

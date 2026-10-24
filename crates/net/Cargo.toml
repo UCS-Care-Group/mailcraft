@@ -24,9 +24,9 @@ webpki-roots = { workspace = true }
 # is unpacked: in Rust all the way down, and already in the tree (the PNG decoder runs on it).
 flate2 = { workspace = true }
 # The OAuth sign-in: the token endpoint answers in JSON, and PKCE takes random bytes, SHA-256
-# (ring, which rustls runs on) and base64.
+# (ring, which rustls runs on) and base64 (`mailcraft-charset`).
 serde_json = { workspace = true }
-base64 = { workspace = true }
+mailcraft-charset = { workspace = true }
 ring = { workspace = true }
 # The Favorites of Outlook come inside an XML document (`graph::favorites`): read by a reader
 # that takes no DTD and expands no entity.

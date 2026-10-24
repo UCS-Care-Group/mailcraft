@@ -96,8 +96,8 @@ fn the_remembered_sign_ins_of_every_account_go_and_nothing_is_remembered_again()
     let mut a = app(&host, &store);
     a.execute("account.add", json!({"email": "Avery@Mail.example", "incoming": {"host": "imap.mail.example"}})).unwrap();
     a.execute("account.add", json!({"email": "quinn@mail.example", "auth": "oauth2", "incoming": {"host": "imap.mail.example"}})).unwrap();
-    store.set("password:avery@mail.example", "pw").unwrap();
-    store.set("refresh:quinn@mail.example", "ref").unwrap();
+    store.set("password:avery@mail.example|imap=imap.mail.example:0|smtp=none", "pw").unwrap();
+    store.set("refresh:quinn@mail.example|imap=imap.mail.example:0|smtp=none", "ref").unwrap();
     // Someone else's entry in the same store is none of ours.
     store.set("password:other", "x").ok();
     a.passwords.insert(7, "in memory".into());
@@ -110,7 +110,7 @@ fn the_remembered_sign_ins_of_every_account_go_and_nothing_is_remembered_again()
     assert!(a.passwords.is_empty() && a.tokens.is_empty());
     // A Send/Receive that was still under way can't put one back.
     a.remember("password", "avery@mail.example", "late");
-    assert!(store.get("password:avery@mail.example").is_none());
+    assert!(store.get("password:avery@mail.example|imap=imap.mail.example:0|smtp=none").is_none());
     // And nothing is written on the way out.
     assert_eq!(a.save_on_exit(), Ok(()));
     assert!(a.session.path.is_none() && !a.autosave);
@@ -183,12 +183,29 @@ fn removing_an_account_forgets_its_sign_in_and_cannot_be_undone_into_its_mail() 
     let mut a = app(&host, &store);
     let id =
         a.execute("account.add", json!({"email": "avery@mail.example", "incoming": {"host": "imap.mail.example"}})).unwrap()["id"].as_u64().unwrap();
-    store.set("password:avery@mail.example", "pw").unwrap();
-    store.set("refresh:avery@mail.example", "ref").unwrap();
+    store.set("password:avery@mail.example|imap=imap.mail.example:0|smtp=none", "pw").unwrap();
+    store.set("refresh:avery@mail.example|imap=imap.mail.example:0|smtp=none", "ref").unwrap();
     a.execute("account.remove", json!({"id": id})).unwrap();
     assert!(store.0.lock().unwrap().is_empty());
     assert!(!a.session.can_undo() && !a.session.can_redo());
     assert!(a.session.mailbox.account(id).is_none());
+}
+
+#[test]
+fn removing_the_only_account_forgets_its_sign_in_and_leaves_an_empty_mailbox() {
+    let (host, store) = (Host::default(), Store::default());
+    let mut a = app(&host, &store);
+    a.session = Session::at(mailcraft_model::Mailbox::with_local_account("", ""), NOW, 0);
+    let id =
+        a.execute("account.add", json!({"email": "avery@mail.example", "incoming": {"host": "imap.mail.example"}})).unwrap()["id"].as_u64().unwrap();
+    store.set("password:avery@mail.example", "pw").unwrap();
+    store.set("refresh:avery@mail.example", "ref").unwrap();
+    a.execute("account.remove", json!({"id": id})).unwrap();
+    assert!(store.0.lock().unwrap().is_empty());
+    assert!(matches!(a.session.mailbox.accounts.as_slice(), [fresh] if fresh.email.is_empty() && fresh.id != id));
+    assert!(!a.session.can_undo() && !a.session.can_redo());
+    // Nothing of a run of it is left waiting either: there is no account here to sync.
+    assert!(a.server_accounts().is_empty());
 }
 
 // ---- the review of #294 ----

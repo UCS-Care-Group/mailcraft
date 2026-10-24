@@ -213,7 +213,15 @@ const OPENED: [&str; 4] = ["http:", "https:", "mailto:", "tel:"];
 /// read; this is the last check before anything leaves the program, whoever asked, so that a
 /// `file:`, `smb:` or `ms-msdt:` address can't be launched by a way in that forgot the first.
 pub fn openable(url: &str) -> bool {
-    !url.chars().any(char::is_control) && OPENED.iter().any(|s| url.get(..s.len()).is_some_and(|p| p.eq_ignore_ascii_case(s)))
+    if url.chars().any(char::is_control) || !OPENED.iter().any(|s| url.get(..s.len()).is_some_and(|p| p.eq_ignore_ascii_case(s))) {
+        return false;
+    }
+    // A web address the parser rejects would be taken for a relative file path by the opener
+    // (and become a `file:` address): refuse it here.
+    if url.get(..4).is_some_and(|p| p.eq_ignore_ascii_case("http")) {
+        return url::Url::parse(url).is_ok_and(|u| matches!(u.scheme(), "http" | "https") && u.host_str().is_some_and(|h| !h.is_empty()));
+    }
+    true
 }
 
 /// The system's own way of opening a page (ShellExecute, Launch Services, the desktop's opener).
@@ -399,6 +407,16 @@ mod tests {
     }
 
     #[test]
+    fn web_addresses_the_parser_rejects_are_refused() {
+        // `webbrowser` would take these for relative file paths and open a `file:` address.
+        for url in ["http://a b/../../../etc/hosts", "https://x:99999/", "http://[bad/x", "http://", "https://"] {
+            assert!(!openable(url), "{url:?}");
+            assert!(!system_open(url), "{url:?}");
+        }
+        assert!(openable("https://a.example:8443/x?y#z"));
+    }
+
+    #[test]
     fn only_web_mail_and_phone_addresses_reach_the_system() {
         for url in ["https://a.example/", "HTTP://a.example", "mailto:ada@example.org", "tel:+441234"] {
             assert!(openable(url), "{url:?}");
@@ -449,7 +467,12 @@ mod tests {
                 stack.extend(std::fs::read_dir(&path).unwrap().map(|e| e.unwrap().path()));
             // ponytail: opened_files.rs opens saved attachments (files, not pages) with `open`;
             // it could take the activation token too if those programs should come in front.
-            } else if path.extension().is_some_and(|e| e == "rs") && !path.ends_with("src/browser.rs") && !path.ends_with("src/opened_files.rs") {
+            } else if path.extension().is_some_and(|e| e == "rs")
+                && !path.ends_with("src/browser.rs")
+                && !path.ends_with("src/opened_files.rs")
+                && !path.ends_with("src/file_launcher.rs")
+                && !path.ends_with("src/file_launcher_tests.rs")
+            {
                 let text = std::fs::read_to_string(&path).unwrap();
                 if text.contains(concat!("webbrowser", "::"))
                     || text.contains(concat!("open", "::that"))

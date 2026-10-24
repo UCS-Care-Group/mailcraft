@@ -416,6 +416,57 @@ fn folders_and_views() {
     assert_eq!((s.mailbox.message(thread.id).unwrap().subject.as_str(), thread.members.len()), ("RE: Release checklist", 2));
 }
 
+/// Arranged by categories, messages run A to Z by the categories they carry, those with the same
+/// ones together whatever order or capitals they were given in, after those with none.
+#[test]
+fn the_list_arranges_by_categories() {
+    let mut s = session();
+    run(&mut s, "folder.select", json!({"kind": "inbox"}));
+    let ids: Vec<Id> = s.rows().iter().map(|r| r.id).filter(|id| !s.mailbox.message(*id).unwrap().pinned).collect();
+    for (id, names) in ids.iter().zip([vec!["Red category", "Blue category"], vec!["blue category", "red category"], vec!["Green category"]]) {
+        s.mailbox.message_mut(*id).unwrap().categories = names.into_iter().map(String::from).collect();
+    }
+    let r = run(&mut s, "view.sort", json!({"by": "categories"}));
+    assert_eq!((&r["by"], &r["descending"]), (&json!("categories"), &json!(false)));
+    let rows = s.rows();
+    let groups: Vec<&str> = rows.iter().filter_map(|r| r.group.as_deref()).filter(|g| *g != "Pinned").collect();
+    // As Outlook arranges them: a message is listed under each of its categories.
+    assert_eq!(groups, ["No category", "Blue category", "Green category", "Red category"]);
+    let copies = |id: Id| rows.iter().filter(|r| r.id == id).map(|r| r.copy).collect::<Vec<_>>();
+    assert_eq!((copies(ids[0]), copies(ids[1]), copies(ids[2])), (vec![0, 1], vec![0, 1], vec![0]));
+    assert_eq!(crate::list::listed(&rows), rows.len() - 2, "a message listed twice counts once");
+
+    // Down from a message's second row goes on from there, not from its first.
+    let second = crate::list::position_of(&rows, ids[0], 1).unwrap();
+    run(&mut s, "mail.select", json!({"id": ids[0], "copy": 1}));
+    assert_eq!(s.sel.focus_copy(), 1);
+    run(&mut s, "mail.next", json!({}));
+    let after = rows.get(second + 1).unwrap_or(&rows[second]);
+    assert_eq!((s.sel.focus(), s.sel.focus_copy()), (Some(after.id), after.copy));
+    // Select All and a range take each message once.
+    run(&mut s, "mail.selectAll", json!({}));
+    assert_eq!(s.sel.messages.len(), crate::list::listed(&rows));
+    run(&mut s, "mail.select", json!({"id": rows[0].id}));
+    run(&mut s, "mail.select", json!({"id": rows[rows.len() - 1].id, "range": true}));
+    let mut unique = s.sel.messages.clone();
+    unique.sort_unstable();
+    unique.dedup();
+    assert_eq!(unique.len(), s.sel.messages.len());
+
+    // Turned over, Z to A and no category last; still newest first under each.
+    run(&mut s, "view.reverseSort", json!({}));
+    let rows = s.rows();
+    let groups: Vec<&str> = rows.iter().filter_map(|r| r.group.as_deref()).filter(|g| *g != "Pinned").collect();
+    assert_eq!(groups, ["Red category", "Green category", "Blue category", "No category"]);
+
+    // Show in Groups off changes nothing here, as in Outlook: the headings stay, and a message is
+    // still under each of its categories.
+    run(&mut s, "view.groups", json!({"value": false}));
+    assert_eq!(s.rows(), rows);
+    run(&mut s, "view.groups", json!({"value": true}));
+    assert!(s.run("view.sort", &json!({"by": "colour"})).is_err());
+}
+
 #[test]
 fn search_filters_the_list_and_can_look_everywhere() {
     let mut s = session();
@@ -2340,4 +2391,83 @@ fn a_windows_1250_contact_file_keeps_its_letters() {
     assert_eq!(read["contacts"], 1);
     let c = s.mailbox.contact(s.sel.contact.unwrap()).unwrap();
     assert_eq!((c.display_name.as_str(), c.last.as_str(), c.company.as_str()), ("Ivana Gvođćič", "Gvođćič", "Škola češće"));
+}
+
+// ---- C1 PR-a: a mailbox in mail is saved, never opened; questions name servers ----
+
+#[test]
+fn a_mailcraft_attachment_is_never_opened_from_a_message() {
+    use crate::opening::{Verdict, verdict};
+    for name in ["backup.mailcraft", "Backup.MAILCRAFT", "x/../y.mailcraft", "backup.mailcraft."] {
+        assert_eq!(verdict(name), Verdict::Blocked, "{name}");
+    }
+}
+
+#[test]
+fn the_question_for_account_add_names_the_servers() {
+    let s = session();
+    let d = crate::agent::describe(
+        &s,
+        "account.add",
+        &json!({"email": "me@example.org", "incoming": {"host": "imap.evil.example", "port": 993}, "outgoing": {"host": "smtp.evil.example", "port": 465}}),
+    );
+    assert!(d.contains("me@example.org") && d.contains("imap imap.evil.example:993") && d.contains("smtp smtp.evil.example:465"), "{d}");
+}
+
+#[test]
+fn the_question_for_account_edit_names_the_new_host_only_when_it_changes() {
+    let mut s = session();
+    let id = run(
+        &mut s,
+        "account.add",
+        json!({"email": "me@example.org", "incoming": {"host": "imap.example.org", "port": 993}, "outgoing": {"host": "smtp.example.org", "port": 465}}),
+    )["id"]
+        .as_u64()
+        .unwrap();
+    let moved = crate::agent::describe(&s, "account.edit", &json!({"id": id, "incoming": {"host": "imap.evil.example", "port": 993}}));
+    assert!(moved.contains("imap imap.example.org:993") && moved.contains("imap imap.evil.example:993"), "{moved}");
+    let same = crate::agent::describe(&s, "account.edit", &json!({"id": id, "displayName": "Me"}));
+    assert!(!same.contains("servers change"), "{same}");
+}
+
+#[test]
+fn the_question_for_file_open_reads_the_servers_from_the_file() {
+    let mut s = Session::empty();
+    run(&mut s, "account.add", json!({"email": "owner@example.org", "incoming": {"host": "imap.evil.example", "port": 993}}));
+    let dir = std::env::temp_dir().join(format!("mailcraft-c1a-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("crafted.mailcraft");
+    run(&mut s, "file.saveAs", json!({"path": path.to_string_lossy()}));
+    let asker = Session::empty();
+    let d = crate::agent::describe(&asker, "file.open", &json!({"path": path.to_string_lossy()}));
+    assert!(d.contains("owner@example.org") && d.contains("imap.evil.example:993"), "{d}");
+    let missing = crate::agent::describe(&asker, "file.open", &json!({"path": dir.join("none.mailcraft").to_string_lossy()}));
+    assert!(missing.contains("can't be read"), "{missing}");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn an_mbox_import_stops_after_the_most_it_takes() {
+    let mut s = session();
+    let one = b"From a@example.org Tue Jul  1 08:52:37 2003\nSubject: x\n\nx\n\n";
+    let file = one.repeat(crate::io::MAX_IMPORT_MESSAGES + 50);
+    let r = crate::io::import(&mut s, "big.mbox", &file, None).unwrap();
+    assert_eq!(r["messages"], crate::io::MAX_IMPORT_MESSAGES);
+    assert_eq!(r["stoppedAfter"], crate::io::MAX_IMPORT_MESSAGES);
+    // A file within the limit says nothing of it.
+    let r = crate::io::import(&mut s, "small.mbox", &one.repeat(3), None).unwrap();
+    assert_eq!(r["messages"], 3);
+    assert!(r["stoppedAfter"].is_null());
+}
+
+#[test]
+fn a_reply_quotes_only_the_first_names_of_a_long_list() {
+    let mut s = session();
+    let inbox = kind(&s, FolderKind::Inbox);
+    let to = (0..5000).map(|i| mailcraft_model::Address::new("", format!("u{i}@example.org"))).collect();
+    let id = s.mailbox.add_message(mailcraft_model::Message { folder: inbox, subject: "many".into(), to, ..Default::default() }).unwrap();
+    run(&mut s, "mail.reply", json!({"id": id}));
+    let c = s.compose.as_ref().unwrap();
+    let body = c.quote.as_ref().map_or_else(|| c.body.plain(), |q| q.text.clone());
+    assert!(body.contains("(+4900)") && !body.contains("u4999@"), "{}", body.len());
 }

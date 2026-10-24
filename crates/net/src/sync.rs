@@ -497,7 +497,7 @@ fn planned<'a>(mailboxes: &'a [Mailbox], tied: &[(&str, FolderKind)], microsoft:
         plan.retain(|(mailbox, _)| {
             let keep = !not_mail(mailbox) || tied.iter().any(|(remote, _)| *remote == kinds::remote_name(mailbox));
             if !keep {
-                log::debug!("{}: not a folder of mail, left out", shown(&mailbox.name));
+                log::debug!("a folder that is not a folder of mail is left out");
             }
             keep
         });
@@ -662,8 +662,10 @@ fn message_from(fetched: Fetched) -> Message {
 
 /// What is kept of a message that is too large to download (`size` bytes, where `largest` is
 /// what is taken): its header as the server handed it over, and in place of its text a note
-/// that says so. It has its UID like any other message, so it is not asked for again; flags,
-/// moves and deletions reach the whole message on the server.
+/// that says so, and its size on the server (#300: [`Message::not_downloaded`], which the list
+/// shows, and the header [`NOT_DOWNLOADED`] for other programs). It has its UID like any other
+/// message, so it is not asked for again; flags, moves and deletions reach the whole message on
+/// the server.
 fn too_large(header: Fetched, size: u64, largest: u64) -> Message {
     let mut message = message_from(header);
     message.attachments.clear();
@@ -679,6 +681,7 @@ fn too_large(header: Fetched, size: u64, largest: u64) -> Message {
     };
     message.headers.retain(|(name, _)| !name.eq_ignore_ascii_case(NOT_DOWNLOADED));
     message.headers.push((NOT_DOWNLOADED.into(), size.to_string()));
+    message.not_downloaded = size;
     message
 }
 
@@ -854,7 +857,7 @@ impl FolderSync<'_> {
             _ => uid_from,
         };
         delta.new.sort_by_key(|m| m.uid);
-        log::debug!("{name}: {total} wanted, {} gone, read up to {}", delta.removed.len(), delta.uid_seen);
+        log::debug!("a folder: {total} wanted, {} gone, read up to {}", delta.removed.len(), delta.uid_seen);
         // It goes with the next piece: the next mailbox's first line, or the end of the run.
         run.out.folders.push(delta);
         alive
@@ -928,6 +931,10 @@ pub(crate) fn internal_date(text: &str) -> Option<Timestamp> {
     let clock = DateTime::new(Date::new(year, month, day)?, hour, minute, second.min(59))?;
     Some(clock.to_timestamp(sign * (zone_hours * 60 + zone_minutes)))
 }
+
+#[cfg(test)]
+#[path = "sync_size_tests.rs"]
+mod size_tests;
 
 #[cfg(test)]
 mod tests {

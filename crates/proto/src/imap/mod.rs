@@ -22,7 +22,18 @@ use crate::line::Wire;
 use crate::{MAX_LINE, MAX_LITERAL, ProtoError, Secrets, for_trace, tidy, xoauth2};
 
 /// Most responses the server may send to one command.
-const MAX_RESPONSES: usize = 1_000_000;
+const MAX_RESPONSES: usize = 250_000;
+/// Most text (everything outside literals) the server may send in answer to one command.
+const MAX_COMMAND_TEXT: usize = 32 << 20;
+/// Most mailboxes one LIST keeps; the ones after are read and dropped.
+const MAX_MAILBOXES: usize = 4_000;
+/// Longest mailbox name kept (as the server wrote it); a mailbox with a longer one is left out,
+/// since a name cut short would name another mailbox or none.
+const MAX_MAILBOX_NAME: usize = 1_024;
+/// Longest flag kept, in bytes.
+const MAX_FLAG_LEN: usize = 256;
+/// Most distinct messages a FETCH may report, beyond twice the mailbox's `EXISTS`.
+const FETCH_SLACK: usize = 1_000;
 /// Most literals one response may carry.
 const MAX_LITERALS: usize = 32;
 /// Most text one response may carry outside its literals.
@@ -53,6 +64,10 @@ pub struct Imap<S> {
     copied: Vec<Option<Copied>>,
     /// LOGOUT was sent, so BYE is the answer we asked for.
     leaving: bool,
+    /// Bytes of text (outside literals) read since the current command was sent.
+    text_seen: usize,
+    /// Most responses the current command may bring.
+    response_cap: usize,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -229,7 +244,7 @@ impl Item {
             let Some(value) = pairs.next() else { break };
             match (name.as_str(), value) {
                 ("UID", value) => item.uid = value.number().unwrap_or(0),
-                ("FLAGS", Value::List(flags)) => item.flags = Some(flags.into_iter().filter_map(Value::into_text).take(MAX_FLAGS).collect()),
+                ("FLAGS", Value::List(flags)) => item.flags = Some(short_flags(flags)),
                 ("INTERNALDATE", Value::Str(date)) => item.internal_date = Some(String::from_utf8_lossy(&date).into_owned()),
                 ("RFC822.SIZE", value) => item.size = value.atom().and_then(|n| n.parse().ok()),
                 ("BODY[]" | "RFC822", Value::Str(body)) => item.body = Some(body),
@@ -253,7 +268,83 @@ fn mailbox_from(values: Vec<Value>) -> Option<Mailbox> {
         _ => None,
     };
     let raw = values.next()?.into_text()?;
-    Some(Mailbox { name: decode_utf7(&raw), raw, delimiter, flags: flags.into_iter().filter_map(Value::into_text).take(MAX_FLAGS).collect() })
+    if raw.len() > MAX_MAILBOX_NAME {
+        return None;
+    }
+    Some(Mailbox { name: decode_utf7(&raw), raw, delimiter, flags: short_flags(flags) })
+}
+
+/// The flags of a list, as many as are kept and each cut at a character boundary.
+fn short_flags(flags: Vec<Value>) -> Vec<String> {
+    flags
+        .into_iter()
+        .filter_map(Value::into_text)
+        .take(MAX_FLAGS)
+        .map(|mut flag| {
+            if flag.len() > MAX_FLAG_LEN {
+                let mut end = MAX_FLAG_LEN;
+                while !flag.is_char_boundary(end) {
+                    end = end.saturating_sub(1);
+                }
+                flag.truncate(end);
+            }
+            flag
+        })
+        .collect()
+}
+
+/// A message set as ranges of UIDs (`*` as `top`); `None` when it can't be read.
+fn set_ranges(set: &str, top: u32) -> Option<Vec<(u32, u32)>> {
+    let bound = |text: &str| if text == "*" { Some(top) } else { number(text) };
+    set.split(',')
+        .map(|part| {
+            let (a, b) = match part.split_once(':') {
+                Some((a, b)) => (bound(a)?, bound(b)?),
+                None => (bound(part)?, bound(part)?),
+            };
+            Some((a.min(b), a.max(b)))
+        })
+        .collect()
+}
+
+/// What a FETCH of a set may report: only UIDs in the set and below UIDNEXT, and not more distinct
+/// ones than a mailbox of this size can hold.
+struct Wanted {
+    ranges: Vec<(u32, u32)>,
+    below: u32,
+    cap: usize,
+    over: bool,
+}
+
+impl Wanted {
+    fn new(set: &str, selected: &Selected) -> Option<Wanted> {
+        let below = if selected.uid_next == 0 { u32::MAX } else { selected.uid_next };
+        let ranges = set_ranges(set, below.saturating_sub(1))?;
+        let cap = usize::try_from(selected.exists).unwrap_or(usize::MAX).saturating_mul(2).saturating_add(FETCH_SLACK);
+        Some(Wanted { ranges, below, cap, over: false })
+    }
+
+    /// Most responses a fetch of this mailbox may bring: one for each message it may report, but
+    /// never fewer than any other command.
+    fn responses(&self) -> usize {
+        self.cap.max(MAX_RESPONSES)
+    }
+
+    fn wants(&self, uid: u32) -> bool {
+        uid != 0 && uid < self.below && self.ranges.iter().any(|(from, to)| (*from..=*to).contains(&uid))
+    }
+
+    /// Whether one more distinct UID fits after `count`; if not, the command fails.
+    fn room(&mut self, count: usize) -> bool {
+        if count >= self.cap {
+            self.over = true;
+        }
+        !self.over
+    }
+
+    fn check(&self) -> Result<(), ProtoError> {
+        if self.over { Err(ProtoError::Protocol("the server reported more messages than the mailbox holds".into())) } else { Ok(()) }
+    }
 }
 
 /// A message set: `1:*`, `5,9,12:20`.
@@ -404,6 +495,8 @@ impl<S: Read + Write> Imap<S> {
             selected: Selected::default(),
             copied: Vec::new(),
             leaving: false,
+            text_seen: 0,
+            response_cap: MAX_RESPONSES,
         }
     }
 
@@ -520,8 +613,9 @@ impl<S: Read + Write> Imap<S> {
         let mut out: Vec<Mailbox> = Vec::new();
         let mut seen = HashSet::new();
         self.run(Command::new("LIST").arg("\"\"").arg("\"*\""), &mut |values| {
-            // A mailbox the server names twice is listed once.
-            if let Some(mailbox) = mailbox_from(values)
+            // A mailbox the server names twice is listed once; past the cap, nothing is kept.
+            if out.len() < MAX_MAILBOXES
+                && let Some(mailbox) = mailbox_from(values)
                 && seen.insert(mailbox.raw.clone())
             {
                 out.push(mailbox);
@@ -543,10 +637,14 @@ impl<S: Read + Write> Imap<S> {
     /// The messages come back in UID order, each once.
     pub fn uid_fetch_flags(&mut self, set: &str) -> Result<Vec<Fetched>, ProtoError> {
         let mut found: BTreeMap<u32, Vec<String>> = BTreeMap::new();
-        self.run(Self::fetch(set, "(UID FLAGS)")?, &mut |values| {
+        let command = Self::fetch(set, "(UID FLAGS)")?;
+        let mut wanted = Wanted::new(set, &self.selected).ok_or_else(|| ProtoError::Protocol("not a set of messages".into()))?;
+        self.response_cap = wanted.responses();
+        let answered = self.run(command, &mut |values| {
             // A response with a UID shows the message is there, even one that forgot the flags.
             if let Some(item) = Item::from(values)
-                && item.uid != 0
+                && wanted.wants(item.uid)
+                && (found.contains_key(&item.uid) || wanted.room(found.len()))
             {
                 let flags = found.entry(item.uid).or_default();
                 // When the server speaks of a message twice, its later word counts.
@@ -554,20 +652,30 @@ impl<S: Read + Write> Imap<S> {
                     *flags = later;
                 }
             }
-        })?;
+        });
+        self.response_cap = MAX_RESPONSES;
+        answered?;
+        wanted.check()?;
         Ok(found.into_iter().map(|(uid, flags)| Fetched { uid, flags, internal_date: None, body: None }).collect())
     }
 
     /// UID FETCH <set> (UID RFC822.SIZE): the size in bytes of every message in the set, in UID order.
     pub fn uid_fetch_sizes(&mut self, set: &str) -> Result<Vec<(u32, u64)>, ProtoError> {
         let mut out: Vec<(u32, u64)> = Vec::new();
-        self.run(Self::fetch(set, "(UID RFC822.SIZE)")?, &mut |values| {
+        let command = Self::fetch(set, "(UID RFC822.SIZE)")?;
+        let mut wanted = Wanted::new(set, &self.selected).ok_or_else(|| ProtoError::Protocol("not a set of messages".into()))?;
+        self.response_cap = wanted.responses();
+        let answered = self.run(command, &mut |values| {
             if let Some(Item { uid, size: Some(size), .. }) = Item::from(values)
-                && uid != 0
+                && wanted.wants(uid)
+                && wanted.room(out.len())
             {
                 out.push((uid, size));
             }
-        })?;
+        });
+        self.response_cap = MAX_RESPONSES;
+        answered?;
+        wanted.check()?;
         out.sort_by_key(|(uid, _)| *uid);
         out.dedup_by_key(|(uid, _)| *uid);
         Ok(out)
@@ -735,6 +843,7 @@ impl<S: Read + Write> Imap<S> {
             return Err(ProtoError::Protocol("the text has a character that can't be sent".into()));
         }
         let tag = self.tag();
+        self.text_seen = 0;
         if log::log_enabled!(log::Level::Trace) {
             log::trace!("C: {tag} {}", for_trace(&self.secrets.hide(&command.for_log())));
         }
@@ -772,8 +881,12 @@ impl<S: Read + Write> Imap<S> {
     /// Read responses up to the command's tagged answer (`Some`) or, when a literal is waiting to
     /// be sent, the server's go-ahead (`None`).
     fn read_until(&mut self, tag: &str, literal_waiting: bool, on_data: &mut dyn FnMut(Vec<Value>)) -> Result<Option<StatusLine>, ProtoError> {
-        for _ in 0..MAX_RESPONSES {
-            match self.read_response()? {
+        for _ in 0..self.response_cap {
+            let response = self.read_response()?;
+            if self.text_seen > MAX_COMMAND_TEXT {
+                return Err(ProtoError::Protocol("the server sent too much in answer to one command".into()));
+            }
+            match response {
                 Response::GoAhead if literal_waiting => return Ok(None),
                 Response::GoAhead => return Err(ProtoError::Protocol("the server asked for more than the command had".into())),
                 Response::Status { tag: Some(answered), line } => {
@@ -798,8 +911,15 @@ impl<S: Read + Write> Imap<S> {
         Err(ProtoError::Protocol("the server sent too many responses to one command".into()))
     }
 
-    fn read_response(&mut self) -> Result<Response, ProtoError> {
+    /// A line of the server's text, counted against what one command may take.
+    fn read_text(&mut self) -> Result<Vec<u8>, ProtoError> {
         let line = self.wire.read_line()?;
+        self.text_seen = self.text_seen.saturating_add(line.len()).saturating_add(2);
+        Ok(line)
+    }
+
+    fn read_response(&mut self) -> Result<Response, ProtoError> {
+        let line = self.read_text()?;
         if log::log_enabled!(log::Level::Trace) {
             log::trace!("S: {}", for_trace(&self.secrets.hide(&String::from_utf8_lossy(&line))));
         }
@@ -845,7 +965,7 @@ impl<S: Read + Write> Imap<S> {
             log::trace!("S: ({size} bytes)");
             pieces.push(Piece::Text(text));
             pieces.push(Piece::Literal(literal));
-            text = self.wire.read_line()?;
+            text = self.read_text()?;
             text_bytes = text_bytes.saturating_add(text.len());
             if text_bytes > MAX_TEXT {
                 return Err(ProtoError::Protocol("the server's response is too long".into()));
@@ -884,5 +1004,7 @@ impl<S: Read + Write> Imap<S> {
     }
 }
 
+#[cfg(test)]
+mod limits_tests;
 #[cfg(test)]
 mod tests;

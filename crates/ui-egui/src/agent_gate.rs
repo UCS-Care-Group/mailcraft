@@ -158,16 +158,17 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
     // Nothing from the control channel reaches the window while the owner is asked.
     app.synthetic.clear();
     let t = Tokens::get(ctx);
-    let what: String = a.what.chars().filter(|c| !c.is_control()).take(400).collect();
+    let what: String = a.what.chars().filter(|c| !c.is_control()).take(agent::MAX_QUESTION).collect();
     let text = crate::i18n::fmt(tl!("An agent wants to {what}."), &[("what", what.trim())]);
     let (yes_label, no_label) = verbs(a.class);
     let waiting = app.asking.len();
     let mut said = None;
     let frame = egui::Frame::window(&ctx.global_style()).fill(t.surface).inner_margin(egui::Margin::same(16));
     let width = (ctx.content_rect().width() - 48.0).clamp(160.0, 460.0);
-    egui::Modal::new(egui::Id::new("agent-asks")).frame(frame).backdrop_color(egui::Color32::from_black_alpha(if t.dark { 110 } else { 60 })).show(
-        ctx,
-        |ui| {
+    egui::Modal::new(egui::Id::unique("agent-asks"))
+        .frame(frame)
+        .backdrop_color(egui::Color32::from_black_alpha(if t.dark { 110 } else { 60 }))
+        .show(ctx, |ui| {
             ui.set_width(width);
             ui.spacing_mut().item_spacing = vec2(8.0, 8.0);
             ui.label(egui::RichText::new(tl!("An Agent Is Asking")).font(semibold(14.0)).color(t.text));
@@ -195,8 +196,7 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
                     said = Some(true);
                 }
             });
-        },
-    );
+        });
     let (enter, escape) = ctx.input_mut(|i| (i.consume_key(egui::Modifiers::NONE, Key::Enter), i.consume_key(egui::Modifiers::NONE, Key::Escape)));
     if enter || escape {
         said = Some(false);

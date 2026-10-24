@@ -734,6 +734,9 @@ fn of_a_message_too_large_to_take_the_header_is_kept_with_a_note() {
     // A program knows it by its header, which says how large the message is.
     assert_eq!(two.headers.iter().find(|(name, _)| name == "X-MailCraft-Not-Downloaded").map(|(_, size)| size.as_str()), Some("62914560"));
     assert!(result.folders[0].new[0].headers.iter().all(|(name, _)| name != "X-MailCraft-Not-Downloaded"));
+    // And by its size on the server, kept apart from the header for the list (#300).
+    assert_eq!((two.not_downloaded, two.list_size()), (62_914_560, Some(62_914_560)));
+    assert_eq!(result.folders[0].new[0].not_downloaded, 0);
     // Only its header was asked for.
     assert_eq!(sent(&imap, "UID FETCH 2 (UID FLAGS INTERNALDATE BODY.PEEK[HEADER])"), 1);
     assert_eq!((sent(&imap, "UID FETCH 2 (UID FLAGS INTERNALDATE BODY.PEEK[])"), downloads(&imap)), (0, 4));
@@ -2423,4 +2426,25 @@ fn mail_sent_is_counted_in_the_sending_phase() {
     assert_eq!(result.sent.len(), 1, "{:?}", result.errors);
     let sending = result.timings.phases.iter().find(|p| p.phase == SyncPhase::Sending).map_or(0, |p| p.requests);
     assert_eq!(sending, 1);
+}
+
+#[test]
+fn a_server_that_floods_one_answer_is_given_up_on() {
+    let pad = "x".repeat(60 * 1024);
+    // About 38 MB of FETCH lines at invented UIDs, and about as much of LIST lines: more than one
+    // command may bring, and nothing of it is kept.
+    let fetch: String = (0..640).map(|n| format!("* {n} FETCH (UID {} FLAGS ({pad}))\r\n", 1_000 + n)).collect::<String>() + "{tag} OK done\r\n";
+    let list: String = (0..640).map(|n| format!("* LIST () \"/\" \"{n}{pad}\"\r\n")).collect::<String>() + "{tag} OK done\r\n";
+    for (at, answer) in [("UID FETCH 1:* (UID FLAGS)", fetch), ("LIST", list)] {
+        let imap = Fake::imap(imap_world());
+        imap.world().answers = vec![(at.to_string(), answer)];
+        let ada = account(Some(&imap), None);
+        let started = Instant::now();
+        let result = sync(&request(ada, local_folders()));
+        assert!(started.elapsed() < Duration::from_secs(60), "{at}: {:?}", started.elapsed());
+        assert!(!result.errors.is_empty(), "{at}");
+        assert!(result.errors.iter().all(|line| line.len() < 600 && !line.chars().any(char::is_control)), "{at}: {:?}", result.errors);
+        // Nothing of the flood is taken in.
+        assert!(result.folders.iter().all(|folder| folder.new.is_empty()), "{at}");
+    }
 }

@@ -23,14 +23,15 @@ fn first_message(app: &mut MailApp) -> u64 {
 
 /// Lay out `frames` frames of the whole window at `size`.
 fn frames(app: MailApp, size: (f32, f32), frames: usize) -> MailApp {
-    let mut harness = egui_kittest::Harness::builder().with_size(egui::vec2(size.0, size.1)).build_ui_state(
-        |ui, app: &mut MailApp| {
-            let ctx = ui.ctx().clone();
-            app.logic(&ctx);
-            app.ui(ui);
-        },
-        app,
-    );
+    let mut harness =
+        egui_kittest::Harness::builder().with_accessibility_check(false).allow_missing_glyphs().with_size(egui::vec2(size.0, size.1)).build_ui_state(
+            |ui, app: &mut MailApp| {
+                let ctx = ui.ctx().clone();
+                app.logic(&ctx);
+                app.ui(ui);
+            },
+            app,
+        );
     for _ in 0..frames {
         harness.step();
     }
@@ -293,14 +294,18 @@ fn about_credits_the_contributors() {
     for (id, params) in [("ui.dialog", json!({"name": "about"})), ("ui.backstage", json!({"value": true, "page": "about"}))] {
         let mut a = app();
         a.execute(id, params).unwrap();
-        let mut harness = egui_kittest::Harness::builder().with_size(egui::vec2(1280.0, 800.0)).build_ui_state(
-            |ui, app: &mut MailApp| {
-                let ctx = ui.ctx().clone();
-                app.logic(&ctx);
-                app.ui(ui);
-            },
-            a,
-        );
+        let mut harness = egui_kittest::Harness::builder()
+            .with_accessibility_check(false)
+            .allow_missing_glyphs()
+            .with_size(egui::vec2(1280.0, 800.0))
+            .build_ui_state(
+                |ui, app: &mut MailApp| {
+                    let ctx = ui.ctx().clone();
+                    app.logic(&ctx);
+                    app.ui(ui);
+                },
+                a,
+            );
         harness.run_steps(4);
         assert!(harness.query_by_label_contains("Made by its contributors").is_some(), "{id}");
         assert!(harness.query_by_label_contains("github.com/UCS-Care-Group/mailcraft/graphs/contributors").is_some(), "{id}");
@@ -316,14 +321,18 @@ fn about_thanks_the_testers() {
         let mut a = app();
         a.execute("ui.dialog", params.clone()).unwrap();
         assert_eq!(a.dialog.as_ref().map(|d| d.name()), Some("testers"), "{params}");
-        let mut harness = egui_kittest::Harness::builder().with_size(egui::vec2(1280.0, 800.0)).build_ui_state(
-            |ui, app: &mut MailApp| {
-                let ctx = ui.ctx().clone();
-                app.logic(&ctx);
-                app.ui(ui);
-            },
-            a,
-        );
+        let mut harness = egui_kittest::Harness::builder()
+            .with_accessibility_check(false)
+            .allow_missing_glyphs()
+            .with_size(egui::vec2(1280.0, 800.0))
+            .build_ui_state(
+                |ui, app: &mut MailApp| {
+                    let ctx = ui.ctx().clone();
+                    app.logic(&ctx);
+                    app.ui(ui);
+                },
+                a,
+            );
         harness.run_steps(4);
         assert!(harness.query_by_label_contains("tell us what goes wrong. Thank you.").is_some(), "{params}");
         if crate::credits::TESTERS.is_empty() {
@@ -370,14 +379,15 @@ fn a_large_mailbox_lays_out() {
 
 /// The whole window in a harness that is kept, for tests that click and look at the result.
 fn window(app: MailApp) -> egui_kittest::Harness<'static, MailApp> {
-    let mut harness = egui_kittest::Harness::builder().with_size(egui::vec2(1280.0, 800.0)).build_ui_state(
-        |ui, app: &mut MailApp| {
-            let ctx = ui.ctx().clone();
-            app.logic(&ctx);
-            app.ui(ui);
-        },
-        app,
-    );
+    let mut harness =
+        egui_kittest::Harness::builder().with_accessibility_check(false).allow_missing_glyphs().with_size(egui::vec2(1280.0, 800.0)).build_ui_state(
+            |ui, app: &mut MailApp| {
+                let ctx = ui.ctx().clone();
+                app.logic(&ctx);
+                app.ui(ui);
+            },
+            app,
+        );
     harness.run_steps(3);
     harness
 }
@@ -646,14 +656,14 @@ fn the_system_remembers_passwords_and_sign_ins_only_when_wanted() {
 
     // A password is remembered once it has worked, not when it is typed.
     a.execute("ui.sync", json!({"account": plain, "password": "pw-one"})).unwrap();
-    assert_eq!(kept("password:avery@mail.example"), None);
+    assert_eq!(kept("password:avery@mail.example|imap=imap.mail.example:0|smtp=none"), None);
     a.poll_sync();
-    assert_eq!(kept("password:avery@mail.example").as_deref(), Some("pw-one"));
+    assert_eq!(kept("password:avery@mail.example|imap=imap.mail.example:0|smtp=none").as_deref(), Some("pw-one"));
     // A sign-in is remembered as its refresh token; the access token is not kept anywhere.
     a.execute("ui.sync", json!({"account": signed})).unwrap();
     a.poll_sign_in();
     a.poll_sync();
-    assert_eq!(kept("refresh:quinn@mail.example").as_deref(), Some("ref-kept"));
+    assert_eq!(kept("refresh:quinn@mail.example|imap=imap.mail.example:0|smtp=none").as_deref(), Some("ref-kept"));
     assert!(!store.0.lock().unwrap().values().any(|v| v == "tok"));
     // Neither reaches the settings or the mailbox.
     let written = format!("{}{}", serde_json::to_string(&a.prefs()).unwrap(), serde_json::to_string(&a.session.mailbox).unwrap());
@@ -675,14 +685,14 @@ fn the_system_remembers_passwords_and_sign_ins_only_when_wanted() {
     b.execute("ui.sync", json!({"account": plain})).unwrap();
     b.poll_sync();
     refuse.store(false, Ordering::Relaxed);
-    assert_eq!(kept("password:avery@mail.example"), None);
+    assert_eq!(kept("password:avery@mail.example|imap=imap.mail.example:0|smtp=none"), None);
     assert_eq!(b.execute("ui.sync", json!({"account": plain})).unwrap()["pending"], "password");
     b.dialog = None;
 
     // Switched off: what was kept goes, and nothing new is kept.
     b.execute("ui.sync", json!({"account": plain, "password": "pw-two"})).unwrap();
     b.poll_sync();
-    assert_eq!(kept("password:avery@mail.example").as_deref(), Some("pw-two"));
+    assert_eq!(kept("password:avery@mail.example|imap=imap.mail.example:0|smtp=none").as_deref(), Some("pw-two"));
     assert_eq!(b.execute("ui.rememberSignIn", json!({"value": false})).unwrap()["value"], false);
     assert!(store.0.lock().unwrap().is_empty());
     b.execute("ui.sync", json!({"account": plain})).unwrap();
@@ -693,9 +703,9 @@ fn the_system_remembers_passwords_and_sign_ins_only_when_wanted() {
     b.execute("ui.rememberSignIn", json!({"value": true})).unwrap();
     b.execute("ui.sync", json!({"account": plain})).unwrap();
     b.poll_sync();
-    assert!(kept("password:avery@mail.example").is_some());
+    assert!(kept("password:avery@mail.example|imap=imap.mail.example:0|smtp=none").is_some());
     b.execute("account.remove", json!({"id": plain})).unwrap();
-    assert_eq!(kept("password:avery@mail.example"), None);
+    assert_eq!(kept("password:avery@mail.example|imap=imap.mail.example:0|smtp=none"), None);
 }
 
 /// (#103) An account that exists is signed in again, and on the provider's page the owner picks
@@ -776,7 +786,10 @@ fn a_sign_in_as_somebody_else_is_never_taken_for_an_account_that_exists() {
     a.execute("ui.sync", json!({"account": id})).unwrap();
     a.poll_sign_in();
     assert_eq!(a.tokens.get(&id).map(|t| t.access.as_str()), Some("tok-other"));
-    assert_eq!(store.0.lock().unwrap().get("refresh:quinn@mail.example").map(String::as_str), Some("ref-other"));
+    assert_eq!(
+        store.0.lock().unwrap().get("refresh:quinn@mail.example|imap=outlook.office365.com:0|smtp=none").map(String::as_str),
+        Some("ref-other")
+    );
     assert_eq!(synced.lock().unwrap().as_slice(), ["tok-other"]);
     a.poll_sync();
     // A sign-in that names nobody: the account's, as it always was.
@@ -2043,6 +2056,50 @@ fn info_account_card_keeps_what_follows_below_it() {
     // card's bottom edge, with the page's spacing between them.
     let card_bottom = settings.center().y + 29.0;
     assert!(download.min.y >= card_bottom + 8.0, "download {download:?} under the card ending at {card_bottom}");
+}
+
+/// #313: File › Info has Remove for the only account too, beside its Settings, and the question
+/// says MailCraft will have no account afterwards. The empty mailbox left has nothing to remove.
+#[test]
+fn the_only_account_can_be_removed_in_file_info() {
+    use egui_kittest::kittest::Queryable;
+    let mut a = app();
+    let _ = a.execute("ui.dismissReminder", json!({"all": true}));
+    let only = match a.session.mailbox.accounts.as_slice() {
+        [only] => only.id,
+        more => panic!("the sample has one account: {more:?}"),
+    };
+    a.execute("ui.backstage", json!({"value": true, "page": "info"})).unwrap();
+    let mut h = window(a);
+    h.run_steps(3);
+    let (settings, remove) = (h.get_by_label("Settings").rect(), h.get_by_label("Remove").rect());
+    assert!(settings.max.x < remove.min.x, "Settings {settings:?} beside Remove {remove:?}");
+    h.get_by_label("Remove").click();
+    h.run_steps(3);
+    let Some(crate::dialogs::Dialog::Confirm { ask, .. }) = &h.state().dialog else { panic!("no question") };
+    assert!(ask.text.contains("MailCraft will have no account afterwards"), "{}", ask.text);
+    assert!(h.state().session.mailbox.account(only).is_some(), "only asked so far");
+
+    // Not said for an account that isn't the last.
+    let a = h.state_mut();
+    a.dialog = None;
+    let other = a.execute("account.add", json!({"email": "ada@lumen.example"})).unwrap()["id"].as_u64().unwrap();
+    a.run("account.remove", json!({"id": other})).unwrap();
+    let Some(crate::dialogs::Dialog::Confirm { ask, .. }) = &a.dialog else { panic!("no question") };
+    assert!(!ask.text.contains("no account afterwards"), "{}", ask.text);
+    a.dialog = None;
+    a.execute("account.remove", json!({"id": other})).unwrap();
+
+    a.run("account.remove", json!({"id": only, "confirmed": true})).unwrap();
+    assert!(matches!(a.session.mailbox.accounts.as_slice(), [fresh] if fresh.email.is_empty()), "{:?}", a.session.mailbox.accounts);
+    h.run_steps(3);
+    assert!(h.state().ui.backstage && h.state().ui.backstage_page == "info");
+    assert!(h.query_by_label("Remove").is_none() && h.query_by_label("Settings").is_none());
+    // Asked for anyway, nothing is asked: the command says there is nothing to remove.
+    let a = h.state_mut();
+    let placeholder = a.session.mailbox.placeholder().unwrap();
+    assert!(a.run("account.remove", json!({"id": placeholder})).is_err());
+    assert!(a.dialog.is_none());
 }
 
 /// #196: the search box draws keywords as pills, and the query stays what was typed: the pills'

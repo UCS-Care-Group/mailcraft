@@ -266,7 +266,7 @@ fn name_link(ui: &mut egui::Ui, c: &Contributor, names: NameMode) {
 
 /// About ▸ Contributors: a name toggle, a sort, and the list as a grab bag or a table.
 pub fn contributors_ui(ui: &mut egui::Ui, t: &Tokens) {
-    let id = egui::Id::new("credits_view");
+    let id = egui::Id::unique("credits_view");
     let mut v = ui.data_mut(|d| d.get_temp::<View>(id)).unwrap_or_default();
     ui.horizontal_wrapped(|ui| {
         if ui.button(tl!(v.names.label())).on_hover_text(tl!("Show usernames, display names or real names")).clicked() {

@@ -23,9 +23,7 @@ mod help;
 use std::sync::mpsc::{Receiver, TryRecvError};
 use std::time::Duration;
 
-use egui::{
-    Align, Align2, Key, Layout, Margin, Rect, Response, RichText, Sense, Stroke, StrokeKind, TextEdit, Ui, WidgetInfo, WidgetType, pos2, vec2,
-};
+use egui::{Align, Align2, Key, Layout, Margin, Rect, Response, RichText, Role, Sense, Stroke, StrokeKind, TextEdit, Ui, WidgetInfo, pos2, vec2};
 use mailcraft_model::{Account, AccountKind, Directory, Id, KeepOffline, OAuth, OAuthProvider, Security, Server, provider};
 use serde_json::{Map, Value, json};
 
@@ -444,7 +442,7 @@ fn password_id() -> egui::Id {
 
 /// Where a wizard that went while its owner was in the browser says so.
 fn left_waiting() -> egui::Id {
-    egui::Id::new("account_setup_left_waiting")
+    egui::Id::unique("account_setup_left_waiting")
 }
 
 /// Drop what the password field keeps between frames: its undo history holds what was typed.
@@ -1673,9 +1671,9 @@ fn encryption(ui: &mut Ui, key: &'static str, value: &mut Security, choices: &[(
     let gap = std::mem::replace(&mut ui.spacing_mut().item_spacing.x, 0.0);
     for (i, (choice, label)) in choices.iter().enumerate() {
         let (_, r) = ui.allocate_space(vec2(78.0, height));
-        let resp = ui.interact(r, ui.id().with((key, choice.code())), Sense::click());
+        let resp = ui.interact(r, ui.scope_id().with((key, choice.code())), Sense::click());
         let on = *value == *choice;
-        resp.widget_info(|| WidgetInfo::selected(WidgetType::RadioButton, true, on, *label));
+        resp.widget_info(|| WidgetInfo::selected(Role::RadioButton, true, on, *label));
         let (left, right) = (if i == 0 { 4 } else { 0 }, if i + 1 == choices.len() { 4 } else { 0 });
         let corners = egui::CornerRadius { nw: left, sw: left, ne: right, se: right };
         let fill = if on {
@@ -1738,8 +1736,8 @@ fn button(ui: &mut Ui, label: &str, primary: bool, enabled: bool) -> Response {
     let width = text_width(ui, label, medium(12.5)).max(52.0) + 30.0;
     let (_, r) = ui.allocate_space(vec2(width, 30.0));
     // Known by what it says, not by where it sits.
-    let resp = ui.interact(r, ui.id().with(label), if enabled { Sense::click() } else { Sense::hover() });
-    resp.widget_info(|| WidgetInfo::labeled(WidgetType::Button, enabled, label));
+    let resp = ui.interact(r, ui.scope_id().with(label), if enabled { Sense::click() } else { Sense::hover() });
+    resp.widget_info(|| WidgetInfo::labeled(Role::Button, enabled, label));
     let lit = if resp.hovered() { t.accent_text } else { t.accent };
     let (fill, edge, ink) = match (primary, enabled) {
         (_, false) => (t.pressed, t.pressed, t.text_disabled),
@@ -1758,7 +1756,7 @@ fn button(ui: &mut Ui, label: &str, primary: bool, enabled: bool) -> Response {
 fn disclosure(ui: &mut Ui, label: &str, open: &mut bool, t: &Tokens) {
     let width = text_width(ui, label, regular(12.5)) + 22.0;
     let (r, resp) = ui.allocate_exact_size(vec2(width, 24.0), Sense::click());
-    resp.widget_info(|| WidgetInfo::labeled(WidgetType::Button, true, label));
+    resp.widget_info(|| WidgetInfo::labeled(Role::Button, true, label));
     let ink = if resp.hovered() || resp.has_focus() { t.accent } else { t.accent_text };
     icons::paint(
         ui.painter(),
@@ -1777,7 +1775,7 @@ fn disclosure(ui: &mut Ui, label: &str, open: &mut bool, t: &Tokens) {
 fn tile(ui: &mut Ui, kind: Kind, width: f32, t: &Tokens) -> Response {
     let (title, detail) = (tl!(kind.title()), tl!(kind.detail()));
     let (r, resp) = ui.allocate_exact_size(vec2(width, 50.0), Sense::click());
-    resp.widget_info(|| WidgetInfo::labeled(WidgetType::Button, true, title));
+    resp.widget_info(|| WidgetInfo::labeled(Role::Button, true, title));
     let lit = resp.hovered() || resp.has_focus();
     ui.painter().rect(r, 6.0, if lit { t.hover } else { t.panel }, Stroke::new(1.0, if lit { t.accent } else { t.border }), StrokeKind::Inside);
     icons::paint(ui.painter(), Rect::from_center_size(pos2(r.min.x + 24.0, r.center().y), vec2(24.0, 24.0)), kind.icon(), t.icon, t.accent);
@@ -1911,14 +1909,15 @@ mod tests {
 
     /// The whole window, laid out a few frames so the dialog is up and its first field has the keyboard.
     fn window(app: MailApp, size: (f32, f32)) -> Harness<'static, MailApp> {
-        let mut harness = Harness::builder().with_size(egui::vec2(size.0, size.1)).build_ui_state(
-            |ui, app: &mut MailApp| {
-                let ctx = ui.ctx().clone();
-                app.logic(&ctx);
-                app.ui(ui);
-            },
-            app,
-        );
+        let mut harness =
+            Harness::builder().with_accessibility_check(false).allow_missing_glyphs().with_size(egui::vec2(size.0, size.1)).build_ui_state(
+                |ui, app: &mut MailApp| {
+                    let ctx = ui.ctx().clone();
+                    app.logic(&ctx);
+                    app.ui(ui);
+                },
+                app,
+            );
         harness.run_steps(6);
         harness
     }
@@ -2635,7 +2634,7 @@ mod tests {
         assert!(account.incoming.is_none() && account.outgoing.is_none() && account.oauth.is_none() && account.username.is_empty());
         assert!(looked.lock().unwrap().is_empty() && tried.lock().unwrap().is_empty() && synced.lock().unwrap().is_empty() && !h.state().syncing());
         // One more: the wizard starts over, with the owner's name from the account just added.
-        h.get_by_role_and_label(Role::Label, "Add another account").click();
+        h.get_by_role_and_label(Role::Link, "Add another account").click();
         h.run_steps(4);
         assert_eq!(wizard(&h).map(|w| (w.page, w.email.as_str(), w.name.as_str(), w.manual)), Some((Page::Address, "", "Noor Haddad", false)));
         // The same address again is refused where it is asked for.

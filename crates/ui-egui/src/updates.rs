@@ -530,7 +530,9 @@ pub(crate) fn question(app: &mut MailApp, ui: &mut Ui) {
             let _ = app.run("ui.dismissUpdateNotice", json!({"notice": "installsItself"}));
         });
     } else if app.updates.asking {
-        let said = tl!("Check once a day for new versions of MailCraft? Only GitHub is asked; nothing about you or your mail is sent.");
+        let said = tl!(
+            "Check daily for new versions of MailCraft, and download and install them when you quit? Only GitHub is asked; nothing about you or your mail is sent."
+        );
         bar(app, ui, "update_question", said, &[("updateYes", tl!("Yes"), true), ("updateNo", tl!("No"), false)], |app, which| {
             let _ = app.run("ui.updateCheck", json!({"value": which == "updateYes"}));
         });
@@ -539,7 +541,7 @@ pub(crate) fn question(app: &mut MailApp, ui: &mut Ui) {
 
 /// A line across the window above the status bar: `said`, then its buttons (hit name, label,
 /// whether it is the primary one); `pressed` gets the hit name of the one pressed.
-fn bar(
+pub(crate) fn bar(
     app: &mut MailApp,
     ui: &mut Ui,
     id: &'static str,
@@ -1136,14 +1138,18 @@ mod tests {
     fn the_question_options_and_about_are_laid_out() {
         let (_host, services) = stand_in(Ok(release(&newer(), true)));
         let app = start(services, &UiState::default(), NOW);
-        let mut harness = egui_kittest::Harness::builder().with_size(egui::vec2(1200.0, 800.0)).build_ui_state(
-            |ui, app: &mut MailApp| {
-                let ctx = ui.ctx().clone();
-                app.logic(&ctx);
-                app.ui(ui);
-            },
-            app,
-        );
+        let mut harness = egui_kittest::Harness::builder()
+            .with_accessibility_check(false)
+            .allow_missing_glyphs()
+            .with_size(egui::vec2(1200.0, 800.0))
+            .build_ui_state(
+                |ui, app: &mut MailApp| {
+                    let ctx = ui.ctx().clone();
+                    app.logic(&ctx);
+                    app.ui(ui);
+                },
+                app,
+            );
         harness.run_steps(4);
         assert!(harness.state().updates.asking);
         assert!(harness.state().hit.rect("updateYes", 0).is_some());
@@ -1283,14 +1289,18 @@ mod tests {
         for update_start in [UpdateStart::default(), UpdateStart { didnt_start: Some((here.into(), "0.1.0".into())), ..Default::default() }] {
             let offer = update_start.didnt_start.is_some();
             let app = ready_app(false, update_start);
-            let mut harness = egui_kittest::Harness::builder().with_size(egui::vec2(1400.0, 800.0)).build_ui_state(
-                |ui, app: &mut MailApp| {
-                    let ctx = ui.ctx().clone();
-                    app.logic(&ctx);
-                    app.ui(ui);
-                },
-                app,
-            );
+            let mut harness = egui_kittest::Harness::builder()
+                .with_accessibility_check(false)
+                .allow_missing_glyphs()
+                .with_size(egui::vec2(1400.0, 800.0))
+                .build_ui_state(
+                    |ui, app: &mut MailApp| {
+                        let ctx = ui.ctx().clone();
+                        app.logic(&ctx);
+                        app.ui(ui);
+                    },
+                    app,
+                );
             harness.run_steps(4);
             assert!(harness.state().hit.rect("restartToUpdate", 0).is_some());
             assert_eq!(harness.state().hit.rect("goBack", 0).is_some(), offer);

@@ -575,7 +575,7 @@ fn the_address_the_method_and_the_content_type_are_held_to() {
 #[test]
 fn only_the_credentials_it_knows_are_let_in() {
     let (stand_in, _) = filled();
-    let basic = |user: &str, pass: &str| format!("Basic {}", base64::engine::general_purpose::STANDARD.encode(format!("{user}:{pass}")));
+    let basic = |user: &str, pass: &str| format!("Basic {}", mailcraft_charset::base64::STANDARD.encode(format!("{user}:{pass}")));
     let status_with = |authorization: Option<&str>| {
         let fields: Vec<(&str, &str)> = authorization.map(|value| ("authorization", value)).into_iter().collect();
         get(&stand_in, SESSION_URL, &fields).unwrap().status()
@@ -593,8 +593,8 @@ fn only_the_credentials_it_knows_are_let_in() {
         (Some("Bearer".to_string()), 401),
         (Some(TOKEN.to_string()), 401),
         (Some("Basic !!!not-base64".to_string()), 401),
-        (Some(format!("Basic {}", base64::engine::general_purpose::STANDARD.encode([0xff, b':', 0xfe]))), 401),
-        (Some(format!("Basic {}", base64::engine::general_purpose::STANDARD.encode(USER))), 401),
+        (Some(format!("Basic {}", mailcraft_charset::base64::STANDARD.encode([0xff, b':', 0xfe]))), 401),
+        (Some(format!("Basic {}", mailcraft_charset::base64::STANDARD.encode(USER))), 401),
         (Some("Digest x".to_string()), 401),
     ]
     .into_iter()
@@ -696,7 +696,7 @@ fn a_blob_is_the_octets_of_its_email_at_the_address_the_session_names() {
     // Either way of signing in is let in; the size `Email/get` states is the number of octets.
     let blob = blob_of(&stand_in, &ids.first);
     let path = format!("/jmap/download/{ACCOUNT}/{blob}/message.eml");
-    let basic = format!("Basic {}", base64::engine::general_purpose::STANDARD.encode(format!("{USER}:{PASSWORD}")));
+    let basic = format!("Basic {}", mailcraft_charset::base64::STANDARD.encode(format!("{USER}:{PASSWORD}")));
     assert_eq!(download(&stand_in, &path, Some(&basic)).unwrap().body().len(), mail("first").len());
     let sized = one(&stand_in, json!(["Email/get", {"accountId": ACCOUNT, "ids": [ids.first], "properties": ["size"]}, "c0"])).unwrap();
     assert_eq!(sized["list"][0]["size"], mail("first").len());

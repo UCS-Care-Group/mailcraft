@@ -14,7 +14,9 @@
 //!   and the body, as the reference says. `OR`, `NOT`, parentheses and any other property are not
 //!   answered here (400): the client is to send none of them.
 //! - A word matches the start of a word of the property, whatever its case; a phrase, its words
-//!   one after another.
+//!   one after another. A property of people (`from`, `to`, `cc`, `bcc`, `participants`,
+//!   `recipients`) given a whole address (`from:ada@example.org`, `from:"ada+news@example.org"`)
+//!   matches that address, whatever its case, and no other (#301).
 //! - Results are sorted by when each message was sent, newest first, and there are at most 1,000
 //!   of them; they come in pages (`$top`, 1 to 1,000) with an `@odata.nextLink` that carries the
 //!   rest of the request. `$select` names message properties only. `$filter` and `$orderby` are
@@ -39,8 +41,19 @@ enum Clause {
         properties: Vec<&'static str>,
         words: Vec<String>,
     },
+    /// One whole address, in small letters, among the people of the properties named.
+    Address {
+        properties: Vec<&'static str>,
+        address: String,
+    },
     HasAttachments(bool),
     Importance(&'static str),
+}
+
+/// Whether `text` is one whole address, as MailCraft's search has it, so that a test of both
+/// finds the same mail ([`mailcraft_model::search::is_address`]).
+fn is_whole_address(text: &str) -> bool {
+    mailcraft_model::search::is_address(text)
 }
 
 /// The words of `text` as a search reads them: runs of letters and digits, in lower case.
@@ -135,7 +148,11 @@ fn clauses(value: &str) -> Result<Vec<Clause>, Refusal> {
                     "recipients" => vec!["to", "cc", "bcc"],
                     _ => return Err(bad(format!("'{named}' is not a property this stand-in searches."))),
                 };
-                Clause::Words { properties, words }
+                let people = properties.iter().all(|p| ["from", "to", "cc", "bcc"].contains(p));
+                match people && is_whole_address(&text) {
+                    true => Clause::Address { properties, address: mailcraft_model::search::address_key(&text) },
+                    false => Clause::Words { properties, words },
+                }
             }
         };
         if matches!(&clause, Clause::Words { words, .. } if words.is_empty()) {
@@ -154,6 +171,16 @@ fn matches(m: &super::Message, clause: &Clause) -> bool {
     match clause {
         Clause::HasAttachments(has) => m.attachments.iter().any(|a| !a.inline) == *has,
         Clause::Importance(importance) => m.importance == *importance,
+        Clause::Address { properties, address } => properties.iter().any(|property| {
+            let people = |list: &[String]| list.iter().any(|p| mailcraft_model::search::address_key(p) == *address);
+            match *property {
+                "from" => people(std::slice::from_ref(&m.from)),
+                "to" => people(&m.to),
+                "cc" => people(&m.cc),
+                "bcc" => people(&m.bcc),
+                _ => false,
+            }
+        }),
         Clause::Words { properties, words } => properties.iter().any(|property| {
             let people = |list: &[String]| list.iter().any(|p| found_in(p, words) || found_in(p.split('@').next().unwrap_or(""), words));
             match *property {
@@ -320,11 +347,19 @@ mod tests {
     fn a_search_value_is_read_as_the_reference_writes_one() {
         let words = |p: &[&'static str], w: &[&str]| Clause::Words { properties: p.to_vec(), words: w.iter().map(|w| w.to_string()).collect() };
         assert_eq!(clauses("\"pizza\"").unwrap(), [words(&["from", "subject", "body"], &["pizza"])]);
+        // A part of an address, or an address after a property that isn't people's, is words.
+        assert_eq!(clauses("\"from:ada@\"").unwrap(), [words(&["from"], &["ada"])]);
+        assert_eq!(clauses("\"subject:ada@example.org\"").unwrap(), [words(&["subject"], &["ada", "example", "org"])]);
+        assert_eq!(
+            clauses("\"participants:\\\"Ada@Example.org\\\"\"").unwrap(),
+            [Clause::Address { properties: vec!["from", "to", "cc", "bcc"], address: "ada@example.org".into() }]
+        );
         assert_eq!(
             clauses(r#""budget AND from:ada@example.org AND subject:\"q4 plan\" hasAttachments:true importance:high""#).unwrap(),
             [
                 words(&["from", "subject", "body"], &["budget"]),
-                words(&["from"], &["ada", "example", "org"]),
+                // A whole address is that address (#301).
+                Clause::Address { properties: vec!["from"], address: "ada@example.org".into() },
                 words(&["subject"], &["q4", "plan"]),
                 Clause::HasAttachments(true),
                 Clause::Importance("high"),

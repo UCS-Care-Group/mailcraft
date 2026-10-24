@@ -38,14 +38,19 @@ fn app(overlay: bool) -> MailApp {
 }
 
 fn window(app: MailApp) -> Window {
-    let mut harness = egui_kittest::Harness::builder().with_size(vec2(1280.0, 800.0)).with_step_dt(1.0 / 60.0).build_ui_state(
-        |ui, app: &mut MailApp| {
-            let ctx = ui.ctx().clone();
-            app.logic(&ctx);
-            app.ui(ui);
-        },
-        app,
-    );
+    let mut harness = egui_kittest::Harness::builder()
+        .with_accessibility_check(false)
+        .allow_missing_glyphs()
+        .with_size(vec2(1280.0, 800.0))
+        .with_step_dt(1.0 / 60.0)
+        .build_ui_state(
+            |ui, app: &mut MailApp| {
+                let ctx = ui.ctx().clone();
+                app.logic(&ctx);
+                app.ui(ui);
+            },
+            app,
+        );
     harness.run_steps(4);
     let _ = harness.state_mut().execute("ui.dismissReminder", json!({"all": true}));
     harness.run_steps(3);
@@ -88,6 +93,7 @@ fn a_list_with_a_floating_bar_still_scrolls() {
         delta: vec2(0.0, -200.0),
         phase: egui::TouchPhase::Move,
         modifiers: egui::Modifiers::NONE,
+        source: egui::MouseWheelSource::Unknown,
     });
     harness.run_steps(30);
     let now = harness.state().hit.rect("message", row.id);

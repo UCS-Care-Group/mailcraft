@@ -12,6 +12,7 @@ mod address;
 mod calendar;
 mod contact;
 mod jmap_server;
+mod load_limit;
 mod mailbox;
 mod message;
 mod offline;
@@ -29,17 +30,18 @@ pub mod zoned;
 
 use serde::{Deserialize, Serialize};
 
-pub use address::{Address, MAX_ADDRESS, format_list, mailbox_address};
+pub use address::{Address, MAX_ADDRESS, format_list, format_list_capped, mailbox_address};
 pub use calendar::{
     Attendee, Calendar, Event, Freq, MAX_JOIN_LINK, Occurrence, OnlineMeeting, OnlineProvider, Proposal, Recurrence, Response, ResponseOptions,
     ShowAs,
 };
 pub use contact::{Contact, Labeled, PostalAddress};
 pub use jmap_server::JmapServer;
+pub use load_limit::{MIN_ITEM_BYTES, from_json};
 pub use mailbox::{
     Account, AccountKind, AsWritten, BETWEEN_MAILBOXES, Category, Directory, DownloadInFull, Folder, FolderCounts, FolderKind, GraphSwitch, IMPORTED,
-    INTO_GRAPH, MAX_SHARED, Mailbox, NOT_SENDING_YET, OAuth, OAuthProvider, Pending, Queued, STAYS_LOCAL, Security, Server, ServerFavorites,
-    ServerFolder,
+    INTO_GRAPH, MAX_RULES, MAX_SHARED, Mailbox, NOT_SENDING_YET, OAuth, OAuthProvider, Pending, Queued, STAYS_LOCAL, Security, Server,
+    ServerFavorites, ServerFolder,
 };
 pub use mailcraft_time as time;
 pub use message::{
@@ -104,21 +106,24 @@ pub fn contains_ci(haystack: &str, needle: &str) -> bool {
 pub(crate) mod b64 {
     use std::sync::Arc;
 
-    use base64::Engine as _;
     use serde::{Deserialize as _, Deserializer, Serializer};
 
     pub fn serialize<S: Serializer>(v: &Arc<Vec<u8>>, s: S) -> Result<S::Ok, S::Error> {
-        s.serialize_str(&base64::engine::general_purpose::STANDARD.encode(v.as_slice()))
+        s.serialize_str(&mailcraft_charset::base64::STANDARD.encode(v.as_slice()))
     }
 
     pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<Arc<Vec<u8>>, D::Error> {
         let text = String::deserialize(d)?;
-        base64::engine::general_purpose::STANDARD.decode(text.trim()).map(Arc::new).map_err(serde::de::Error::custom)
+        mailcraft_charset::base64::STANDARD.decode(text.trim()).map(Arc::new).map_err(serde::de::Error::custom)
     }
 }
 
 #[cfg(test)]
 mod mailbox_tests;
+#[cfg(test)]
+mod recurrence_tests;
+#[cfg(test)]
+mod search_tests;
 
 #[cfg(test)]
 mod tests {

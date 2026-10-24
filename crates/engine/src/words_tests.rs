@@ -380,6 +380,42 @@ mod in_step {
         found(guard.as_ref().unwrap(), query, words::ALL)
     }
 
+    /// #301: a whole address after `from:` finds that sender's mail alone, answered from the word
+    /// index: its words narrow the messages, and the address is looked at on each.
+    #[test]
+    fn a_whole_address_finds_one_sender_from_the_index() {
+        let tmp = Temp::new("address");
+        let path = tmp.0.join("mailbox.mailcraft");
+        let mut mb = Mailbox::with_local_account("Avery", "avery@mail.example");
+        let account = mb.accounts[0].id;
+        let folder = mb.folders.iter().find(|f| f.account == account && f.kind == FolderKind::Inbox).unwrap().id;
+        let senders = [
+            ("One", "ada@example.org"),
+            ("Two", "ADA@Example.org"),
+            ("Three", "adam@example.org"),
+            ("Four", "ada.smith@example.org"),
+            ("Five", "ada@example.org.example"),
+        ];
+        for (subject, email) in senders {
+            mb.add_message(Message { folder, account, from: Address::new("Ada", email), ..message(0, subject, "Ada", "Hello.") }).unwrap();
+        }
+        crate::store::save(&path, &mb).unwrap();
+        let mut s = session(&path);
+        let subjects = |s: &mut Session, query: &str| {
+            s.view.search = query.into();
+            s.view.scope = crate::Scope::Everywhere;
+            s.wait_for_word_index();
+            let mut out: Vec<String> = s.rows().iter().map(|r| s.mailbox.message(r.id).unwrap().subject.clone()).collect();
+            out.sort();
+            out
+        };
+        assert_eq!(subjects(&mut s, "from:ada@example.org"), ["One", "Two"]);
+        assert!(s.words().unwrap().complete(), "answered from the index");
+        // Words of it find more, as before.
+        assert_eq!(subjects(&mut s, "from:ada"), ["Five", "Four", "One", "Three", "Two"]);
+        assert_eq!(subjects(&mut s, "from:ada@example.org -subject:two"), ["One"]);
+    }
+
     pub(crate) fn id_of(s: &Session, subject: &str) -> Id {
         s.mailbox.messages.values().find(|m| m.subject == subject).unwrap().id
     }

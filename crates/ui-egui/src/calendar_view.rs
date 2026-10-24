@@ -150,8 +150,8 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
         // For the next frame: where everything was, and whether the keyboard was the calendar's.
         let free = has_keyboard(app, ui.ctx());
         ui.ctx().data_mut(|d| {
-            d.insert_temp(egui::Id::new(ZONES_ID), frame.zones);
-            d.insert_temp(egui::Id::new(KEYS_ID), free);
+            d.insert_temp(egui::Id::unique(ZONES_ID), frame.zones);
+            d.insert_temp(egui::Id::unique(KEYS_ID), free);
         });
     });
 }
@@ -370,11 +370,11 @@ impl Slot {
 }
 
 fn load_slot(ctx: &egui::Context) -> Option<Slot> {
-    ctx.data(|d| d.get_temp(egui::Id::new(SLOT_ID)))
+    ctx.data(|d| d.get_temp(egui::Id::unique(SLOT_ID)))
 }
 
 fn store_slot(ctx: &egui::Context, slot: Option<Slot>) {
-    let id = egui::Id::new(SLOT_ID);
+    let id = egui::Id::unique(SLOT_ID);
     ctx.data_mut(|d| match slot {
         Some(slot) => {
             d.insert_temp(id, slot);
@@ -413,7 +413,7 @@ fn has_keyboard(app: &MailApp, ctx: &egui::Context) -> bool {
         && !app.windows.over_main()
         && ctx.memory(|m| m.focused().is_none())
         && !egui::Popup::is_any_open(ctx)
-        && ctx.data(|d| d.get_temp::<DropMenu>(egui::Id::new(DROP_MENU_ID)).is_none())
+        && ctx.data(|d| d.get_temp::<DropMenu>(egui::Id::unique(DROP_MENU_ID)).is_none())
 }
 
 /// What became of a picked-out slot this frame.
@@ -440,7 +440,7 @@ fn slot_entry(app: &mut MailApp, ui: &mut Ui, rect: Rect, slot: &mut Slot, mark:
         p.rect_filled(rect, 2.0, t.selection);
         p.rect_stroke(rect, 2.0, Stroke::new(1.5, t.accent), StrokeKind::Inside);
     }
-    let entry = egui::Id::new(SLOT_ENTRY_ID);
+    let entry = egui::Id::unique(SLOT_ENTRY_ID);
     let (enter, escape) = ui.input(|i| (i.key_pressed(egui::Key::Enter), i.key_pressed(egui::Key::Escape)));
     if slot.text.is_none() {
         // The keyboard is the calendar's while nothing else has it.
@@ -1034,7 +1034,7 @@ fn date_navigator(app: &mut MailApp, ui: &mut Ui, months: usize) {
     let span = i32::try_from(months).unwrap_or(1) - 1;
     // The months shown follow the calendar when it goes to a day they don't show, and until
     // then stay where the arrows put them.
-    let memory = egui::Id::new(MINI_MONTH_ID);
+    let memory = egui::Id::unique(MINI_MONTH_ID);
     let kept: Option<(Date, Date)> = ui.ctx().data(|d| d.get_temp(memory));
     let shows = |first: Date, day: Date| (first..=first.add_months(span).end_of_month()).contains(&day);
     let mut first_month = match kept {
@@ -1062,7 +1062,7 @@ fn date_navigator(app: &mut MailApp, ui: &mut Ui, months: usize) {
     }
     let is_busy = |day: Date| busy.get(to_index(first_day.days_until(day))).copied().unwrap_or(false) && day >= first_day;
 
-    let drag_id = egui::Id::new(NAV_DRAG_ID);
+    let drag_id = egui::Id::unique(NAV_DRAG_ID);
     let mut drag: Option<NavDrag> = ui.ctx().data(|d| d.get_temp(drag_id));
     let (mut held, mut let_go) = (false, false);
     // Where each day was drawn, for the day under the pointer while days are dragged over.
@@ -1075,7 +1075,7 @@ fn date_navigator(app: &mut MailApp, ui: &mut Ui, months: usize) {
         if m == 0 {
             for (i, (icon, tip, by)) in [("next", "Next Month", 1), ("previous", "Previous Month", -1)].into_iter().enumerate() {
                 let br = Rect::from_center_size(pos2(r.max.x - pad - 12.0 - i as f32 * 26.0, r.center().y), vec2(24.0, 24.0));
-                let resp = ui.interact(br, ui.id().with(("mini_step", by)), Sense::click());
+                let resp = ui.interact(br, ui.scope_id().with(("mini_step", by)), Sense::click());
                 app.hit.add("miniStep", if by > 0 { 1 } else { 0 }, br);
                 if resp.hovered() {
                     ui.painter().rect_filled(br, 4.0, if resp.is_pointer_button_down_on() { t.pressed } else { t.hover });
@@ -1121,7 +1121,7 @@ fn date_navigator(app: &mut MailApp, ui: &mut Ui, months: usize) {
             }
             // Left of the week: a click shows that week; its number in the year, when wanted.
             let margin = Rect::from_min_max(pos2(x0 - MINI_MARGIN - 4.0, top), pos2(x0 - 2.0, top + MINI_ROW_H));
-            let resp = ui.interact(margin, ui.id().with(("mini_week", m, row)), Sense::click());
+            let resp = ui.interact(margin, ui.scope_id().with(("mini_week", m, row)), Sense::click());
             if let Ok(id) = u64::try_from(week_first.to_days()) {
                 app.hit.add("miniWeek", id, margin);
             }
@@ -1143,7 +1143,7 @@ fn date_navigator(app: &mut MailApp, ui: &mut Ui, months: usize) {
                 }
                 let cell = Rect::from_min_size(pos2(x0 + col as f32 * cell_w, top), vec2(cell_w, MINI_ROW_H));
                 let center = cell.center();
-                let resp = ui.interact(cell, ui.id().with(("mini_day", m, row * 7 + col)), Sense::click_and_drag());
+                let resp = ui.interact(cell, ui.scope_id().with(("mini_day", m, row * 7 + col)), Sense::click_and_drag());
                 cells.push((cell, day));
                 if let Ok(id) = u64::try_from(day.to_days()) {
                     app.hit.add("miniDay", id, cell);
@@ -1350,7 +1350,7 @@ fn local_line(app: &mut MailApp, ui: &mut Ui, t: &Tokens, calendar: Id) {
     app.hit.add("calendarLocalLine", calendar, r);
     let tip =
         tl!("Items in this calendar are kept on this computer and nowhere else. Above the calendar you can move them to your account's calendar.");
-    ui.interact(r, ui.id().with(("calendar_local_line", calendar)), Sense::hover()).on_hover_text(tip);
+    ui.interact(r, ui.scope_id().with(("calendar_local_line", calendar)), Sense::hover()).on_hover_text(tip);
 }
 
 /// The engine's names of the groups of calendars in the interface language; any other is the
@@ -1367,7 +1367,7 @@ fn group_title(title: &str) -> &str {
 /// The heading of a group of calendars: a click folds the group away, or brings it back.
 fn group_heading(app: &mut MailApp, ui: &mut Ui, t: &Tokens, n: usize, group: &ListGroup) {
     let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), 24.0), Sense::hover());
-    let resp = ui.interact(r, ui.id().with(("calendar_group", n)), Sense::click());
+    let resp = ui.interact(r, ui.scope_id().with(("calendar_group", n)), Sense::click());
     app.hit.add("calendarGroup", n as u64, r);
     if resp.hovered() {
         ui.painter().rect_filled(r.shrink2(vec2(4.0, 1.0)), 4.0, t.hover);
@@ -1423,7 +1423,7 @@ fn extras_line(app: &mut MailApp, ui: &mut Ui, account: Id) {
     let t = Tokens::get(ui.ctx());
     let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), EXTRAS_H), Sense::hover());
     let inner = r.shrink2(vec2(12.0, 5.0));
-    let resp = ui.interact(inner, ui.id().with("calendar_extras"), Sense::click());
+    let resp = ui.interact(inner, ui.scope_id().with("calendar_extras"), Sense::click());
     app.hit.add("calendarExtras", account, inner);
     // Its first word is the link.
     let text = tl!("Connect to show your category colours and working hours");
@@ -1458,8 +1458,8 @@ fn calendar_row(app: &mut MailApp, ui: &mut Ui, t: &Tokens, row: &CalendarRow, c
     {
         let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), 26.0), Sense::hover());
         let (check, label) = (Rect::from_min_max(r.min, pos2(r.min.x + 36.0, r.max.y)), Rect::from_min_max(pos2(r.min.x + 36.0, r.min.y), r.max));
-        let resp = ui.interact(check, ui.id().with(("calendar", id)), Sense::click());
-        let named = ui.interact(label, ui.id().with(("calendar_name", id)), Sense::click());
+        let resp = ui.interact(check, ui.scope_id().with(("calendar", id)), Sense::click());
+        let named = ui.interact(label, ui.scope_id().with(("calendar_name", id)), Sense::click());
         app.hit.add("calendar", id, check);
         app.hit.add("calendarName", id, label);
         if current {
@@ -1559,7 +1559,7 @@ fn connect_notice(app: &mut MailApp, ui: &mut Ui) {
     let action = tl!("Connect");
     let wide = text_w(ui, action, medium(12.0)) + 26.0;
     let button = Rect::from_min_size(pos2(r.max.x - 12.0 - wide, r.center().y - 11.0), vec2(wide, 22.0));
-    let resp = ui.interact(button, ui.id().with("calendar_connect"), Sense::click());
+    let resp = ui.interact(button, ui.scope_id().with("calendar_connect"), Sense::click());
     let fill = if resp.is_pointer_button_down_on() {
         t.pressed
     } else if resp.hovered() {
@@ -1616,7 +1616,7 @@ fn local_notice(app: &mut MailApp, ui: &mut Ui) {
     let action = tl!("Move to My Account's Calendar");
     let wide = text_w(ui, action, medium(12.0)) + 26.0;
     let button = Rect::from_min_size(pos2(r.max.x - 12.0 - wide, r.center().y - 11.0), vec2(wide, 22.0));
-    let resp = ui.interact(button, ui.id().with("calendar_local_only"), Sense::click());
+    let resp = ui.interact(button, ui.scope_id().with("calendar_local_only"), Sense::click());
     let fill = if resp.is_pointer_button_down_on() {
         t.pressed
     } else if resp.hovered() {
@@ -1649,7 +1649,7 @@ fn header(app: &mut MailApp, ui: &mut Ui) {
 
     let label = tl!("Today");
     let tr = Rect::from_min_size(pos2(r.min.x + 12.0, top), vec2(text_w(ui, label, medium(12.0)) + 26.0, height));
-    let resp = ui.interact(tr, ui.id().with("calendar_today"), Sense::click());
+    let resp = ui.interact(tr, ui.scope_id().with("calendar_today"), Sense::click());
     let fill = if resp.is_pointer_button_down_on() {
         t.pressed
     } else if resp.hovered() {
@@ -1666,7 +1666,7 @@ fn header(app: &mut MailApp, ui: &mut Ui) {
     let mut x = tr.max.x + 8.0;
     for (icon, tip, command) in [("previous", "Back", "view.previous"), ("next", "Forward", "view.next")] {
         let br = Rect::from_min_size(pos2(x, top), vec2(28.0, height));
-        let resp = ui.interact(br, ui.id().with(command), Sense::click());
+        let resp = ui.interact(br, ui.scope_id().with(command), Sense::click());
         if resp.hovered() {
             p.rect_filled(br, 4.0, if resp.is_pointer_button_down_on() { t.pressed } else { t.hover });
         }
@@ -2209,7 +2209,7 @@ fn open_day(app: &mut MailApp, day: Date) {
 /// `+3 more` in `rect`; a click shows the day.
 fn more_link(app: &mut MailApp, ui: &Ui, rect: Rect, salt: (&str, usize), count: usize, day: Date) {
     let t = Tokens::get(ui.ctx());
-    let resp = ui.interact(rect, ui.id().with(salt), Sense::click());
+    let resp = ui.interact(rect, ui.scope_id().with(salt), Sense::click());
     if let Ok(id) = u64::try_from(day.to_days()) {
         app.hit.add("more", id, rect);
     }
@@ -2502,8 +2502,8 @@ impl Frame {
     fn begin(ui: &Ui) -> Frame {
         Frame {
             zones: Zones::default(),
-            before: ui.ctx().data(|d| d.get_temp(egui::Id::new(ZONES_ID))).unwrap_or_default(),
-            drag: ui.ctx().data(|d| d.get_temp(egui::Id::new(DRAG_ID))),
+            before: ui.ctx().data(|d| d.get_temp(egui::Id::unique(ZONES_ID))).unwrap_or_default(),
+            drag: ui.ctx().data(|d| d.get_temp(egui::Id::unique(DRAG_ID))),
             alive: false,
             dropped: false,
             pointer: ui.input(|i| i.pointer.interact_pos()),
@@ -2568,7 +2568,7 @@ impl Frame {
     /// The drag at the end of the frame, when every part has been drawn: where the event would
     /// land now, its ghost there, and the drop when the button was let go.
     fn finish(&mut self, app: &mut MailApp, ui: &Ui, items: &[Item]) {
-        let id = egui::Id::new(DRAG_ID);
+        let id = egui::Id::unique(DRAG_ID);
         let Some(mut drag) = self.drag.take() else { return };
         if !self.alive {
             // The dragged event went away (deleted, hidden, another view).
@@ -2598,7 +2598,7 @@ impl Frame {
                 Some(span) if drag.menu => {
                     if span != drag.here() || drag.into != 0 {
                         let ask = DropMenu { drag, span, pos: self.pointer.unwrap_or_default() };
-                        ui.ctx().data_mut(|d| d.insert_temp(egui::Id::new(DROP_MENU_ID), ask));
+                        ui.ctx().data_mut(|d| d.insert_temp(egui::Id::unique(DROP_MENU_ID), ask));
                     }
                 }
                 Some(span) => drop_event(app, &drag, span, drag.copy),
@@ -2651,8 +2651,8 @@ fn keyboard(app: &mut MailApp, ui: &Ui, frame: &mut Frame, items: &[Item]) -> bo
     let free = has_keyboard(app, &ctx);
     // Tab is egui's key for going from field to field, and by now it has given the keyboard to
     // one: what counts is whether the calendar had it before.
-    let had = ctx.data(|d| d.get_temp::<bool>(egui::Id::new(KEYS_ID))).unwrap_or(false);
-    let asking = ctx.data(|d| d.get_temp::<DropMenu>(egui::Id::new(DROP_MENU_ID)).is_some());
+    let had = ctx.data(|d| d.get_temp::<bool>(egui::Id::unique(KEYS_ID))).unwrap_or(false);
+    let asking = ctx.data(|d| d.get_temp::<DropMenu>(egui::Id::unique(DROP_MENU_ID)).is_some());
     let open = app.dialog.is_none() && !app.ui.backstage && !app.windows.over_main() && !egui::Popup::is_any_open(&ctx) && !asking;
     let mut moved = false;
     for event in events {
@@ -2963,7 +2963,7 @@ fn clip(app: &mut MailApp, ctx: &egui::Context, cut: bool) {
     let text = if title.is_empty() { tl!("(No title)").to_string() } else { title.to_string() };
     ctx.copy_text(text.clone());
     let start = to_minute(DateTime { date: day, ..ev.start });
-    ctx.data_mut(|d| d.insert_temp(egui::Id::new(CLIP_ID), Clip { event: ev.id, start, cut, text }));
+    ctx.data_mut(|d| d.insert_temp(egui::Id::unique(CLIP_ID), Clip { event: ev.id, start, cut, text }));
 }
 
 /// Ctrl+V: put the event that was copied (a copy of it) or cut (the event itself) where a time
@@ -2971,7 +2971,7 @@ fn clip(app: &mut MailApp, ctx: &egui::Context, cut: bool) {
 /// days on the day that is picked. `text` is what the system's clipboard holds, when the Paste
 /// came with it.
 fn paste(app: &mut MailApp, ctx: &egui::Context, text: Option<&str>) {
-    let id = egui::Id::new(CLIP_ID);
+    let id = egui::Id::unique(CLIP_ID);
     let Some(clip) = ctx.data(|d| d.get_temp::<Clip>(id)) else { return };
     // Something else was copied since: the clipboard isn't the calendar's any more.
     if text.is_some_and(|text| text.trim() != clip.text.trim()) {
@@ -2979,7 +2979,7 @@ fn paste(app: &mut MailApp, ctx: &egui::Context, text: Option<&str>) {
         return;
     }
     // One Paste can come twice, as the key and as the clipboard's text: once is enough.
-    let (now, guard) = (ctx.input(|i| i.time), egui::Id::new((CLIP_ID, "pasted")));
+    let (now, guard) = (ctx.input(|i| i.time), egui::Id::unique((CLIP_ID, "pasted")));
     if ctx.data(|d| d.get_temp::<f64>(guard)).is_some_and(|at| (now - at).abs() < 0.4) {
         return;
     }
@@ -3201,7 +3201,7 @@ fn zone_labels(app: &mut MailApp, ui: &mut Ui, g: &Grid, area: Rect) {
         let p = ui.painter().with_clip_rect(cell.intersect(ui.clip_rect()));
         p.text(pos2(cell.max.x - 8.0, cell.max.y - 6.0), Align2::RIGHT_BOTTOM, clip_text(&text, 16), regular(10.5), t.text_dim);
         app.hit.add("zoneLabel", key, cell);
-        ui.interact(cell, ui.id().with(("zone_label", key)), Sense::hover()).on_hover_text(crate::zones::row(zone, at));
+        ui.interact(cell, ui.scope_id().with(("zone_label", key)), Sense::hover()).on_hover_text(crate::zones::row(zone, at));
     };
     if let Some(second) = second {
         label(second, &prefs.second_zone_label, Rect::from_min_max(area.min, pos2(split, area.max.y)), 2);
@@ -3267,7 +3267,7 @@ fn tab_strip(app: &mut MailApp, ui: &mut Ui, blocks: &Blocks, panes: &[PaneView]
             let x0 = left + 1.0 + i as f32 * each;
             let rect = Rect::from_min_max(pos2(x0, r.min.y + 3.0), pos2(x0 + width.max(4.0), r.max.y - 3.0));
             let is_front = tab.id == front.id;
-            let resp = ui.interact(rect, ui.id().with(("pane_tab", tab.id)), Sense::click());
+            let resp = ui.interact(rect, ui.scope_id().with(("pane_tab", tab.id)), Sense::click());
             app.hit.add("paneTab", tab.id, rect);
             let strength = match (is_front, resp.hovered()) {
                 (true, _) => 0.62,
@@ -3281,7 +3281,7 @@ fn tab_strip(app: &mut MailApp, ui: &mut Ui, blocks: &Blocks, panes: &[PaneView]
             let roomy = rect.width() >= MIN_TAB_W + 44.0;
             if let (Some(over), true) = (arrow, roomy) {
                 let at = Rect::from_center_size(pos2(rect.min.x + 12.0, rect.center().y), vec2(16.0, 16.0));
-                let arrow = ui.interact(at, ui.id().with(("pane_arrow", tab.id)), Sense::click());
+                let arrow = ui.interact(at, ui.scope_id().with(("pane_arrow", tab.id)), Sense::click());
                 app.hit.add("paneArrow", tab.id, at);
                 if arrow.hovered() {
                     p.rect_filled(at, 3.0, mix(fill, ink, 0.2));
@@ -3295,7 +3295,7 @@ fn tab_strip(app: &mut MailApp, ui: &mut Ui, blocks: &Blocks, panes: &[PaneView]
             }
             if roomy {
                 let at = Rect::from_center_size(pos2(rect.max.x - 11.0, rect.center().y), vec2(16.0, 16.0));
-                let close = ui.interact(at, ui.id().with(("pane_close", tab.id)), Sense::click());
+                let close = ui.interact(at, ui.scope_id().with(("pane_close", tab.id)), Sense::click());
                 app.hit.add("paneClose", tab.id, at);
                 if close.hovered() {
                     p.rect_filled(at, 3.0, mix(fill, ink, 0.2));
@@ -3409,7 +3409,7 @@ fn all_day_row(app: &mut MailApp, ui: &mut Ui, g: &Grid, frame: &mut Frame, bars
                 }
             }
             p.vline(cell.min.x, r.y_range(), Stroke::new(1.0, t.border));
-            let resp = ui.interact(cell, ui.id().with(("all_day", k, i)), Sense::click_and_drag());
+            let resp = ui.interact(cell, ui.scope_id().with(("all_day", k, i)), Sense::click_and_drag());
             if let Ok(id) = u64::try_from(day.to_days()) {
                 app.hit.add("allDay", id, cell);
             }
@@ -3440,7 +3440,7 @@ fn all_day_row(app: &mut MailApp, ui: &mut Ui, g: &Grid, frame: &mut Frame, bars
                 pos2(span.min.x + if bar.starts { 3.0 } else { 0.0 }, span.min.y),
                 pos2(span.max.x - if bar.ends { 3.0 } else { 0.0 }, span.max.y),
             );
-            let resp = ui.interact(rect, ui.id().with(("bar", item.ev.id, item.occ.start.date.to_days())), Sense::click_and_drag());
+            let resp = ui.interact(rect, ui.scope_id().with(("bar", item.ev.id, item.occ.start.date.to_days())), Sense::click_and_drag());
             app.hit.add("event", item.ev.id, rect);
             // Dragging moves it by days, its ends change its first and last day, and down into
             // the hours it becomes an appointment there.
@@ -3490,7 +3490,7 @@ fn hour_grid(app: &mut MailApp, ui: &mut Ui, g: &Grid, frame: &mut Frame, segs: 
     // The first time, and when the view or the time scale changes, the working day starts near
     // the top.
     let view = (app.session.view.calendar, scale.slot);
-    let memory = egui::Id::new(GRID_VIEW_ID);
+    let memory = egui::Id::unique(GRID_VIEW_ID);
     let shown: Option<(CalView, i64)> = ui.ctx().data(|d| d.get_temp(memory));
     ui.ctx().data_mut(|d| d.insert_temp(memory, view));
     let mut area = egui::ScrollArea::vertical().id_salt("calendar_hours").auto_shrink([false, false]);
@@ -3571,7 +3571,7 @@ fn hour_grid(app: &mut MailApp, ui: &mut Ui, g: &Grid, frame: &mut Frame, segs: 
         // The time bar, left of the days: its menu (the right button) changes the time scale.
         let bar = Rect::from_min_max(pos2(rect.min.x, seen.min.y.max(top)), pos2(blocks.left() - 1.0, seen.max.y.min(rect.max.y)));
         if bar.is_positive() {
-            let resp = ui.interact(bar, ui.id().with("time_bar"), Sense::click());
+            let resp = ui.interact(bar, ui.scope_id().with("time_bar"), Sense::click());
             app.hit.add("timeBar", 0, bar);
             resp.context_menu(|ui| {
                 ui.set_min_width(200.0);
@@ -3633,7 +3633,8 @@ fn hour_grid(app: &mut MailApp, ui: &mut Ui, g: &Grid, frame: &mut Frame, segs: 
                     let y0 = top + scale.y(seg.start);
                     let y1 = (top + scale.y(seg.end)).max(y0 + MIN_BLOCK_H);
                     let block = Rect::from_min_max(pos2(x0 + column as f32 * w, y0 + 1.0), pos2(x0 + (column + 1) as f32 * w - 1.0, y1 - 1.0));
-                    let resp = ui.interact(block, ui.id().with(("block", item.ev.id, item.occ.start.date.to_days(), d)), Sense::click_and_drag());
+                    let resp =
+                        ui.interact(block, ui.scope_id().with(("block", item.ev.id, item.occ.start.date.to_days(), d)), Sense::click_and_drag());
                     // Dragging moves the event: to another time down the column, to another day
                     // across, up into the row of whole days, into another calendar's block. Its
                     // upper and lower edge, on the days it starts and ends, change when it does.
@@ -3936,7 +3937,7 @@ struct DropMenu {
 /// Cancel. A press anywhere else, or Escape, is Cancel. Until it is answered the event's ghost
 /// stays where it would go.
 fn drop_menu(app: &mut MailApp, ui: &Ui, zones: &Zones, items: &[Item]) {
-    let id = egui::Id::new(DROP_MENU_ID);
+    let id = egui::Id::unique(DROP_MENU_ID);
     let Some(ask) = ui.ctx().data(|d| d.get_temp::<DropMenu>(id)) else { return };
     let ctx = ui.ctx().clone();
     let t = Tokens::get(&ctx);
@@ -3984,7 +3985,7 @@ fn drop_menu(app: &mut MailApp, ui: &Ui, zones: &Zones, items: &[Item]) {
 fn month_grid(app: &mut MailApp, ui: &mut Ui, frame: &mut Frame, from: Date, to: Date, items: &[Item], panes: &[PaneView]) {
     let t = Tokens::get(ui.ctx());
     // Coming back to a time grid scrolls it to the working day again.
-    ui.ctx().data_mut(|d| d.insert_temp(egui::Id::new(GRID_VIEW_ID), (CalView::Month, 0i64)));
+    ui.ctx().data_mut(|d| d.insert_temp(egui::Id::unique(GRID_VIEW_ID), (CalView::Month, 0i64)));
     let days = days_of(from, to, 42);
     let weeks = days.len().div_ceil(7).clamp(1, 6);
     let today = app.session.today();
@@ -4053,7 +4054,7 @@ fn month_grid(app: &mut MailApp, ui: &mut Ui, frame: &mut Frame, from: Date, to:
         // Which week of the year it is, when that is wanted: a click on it shows the week.
         if let Some(first) = day_at(0).filter(|_| numbers) {
             let cell = Rect::from_min_max(pos2(full.min.x, top), pos2(area.min.x, top + cell_h));
-            let resp = ui.interact(cell, ui.id().with(("month_week", week)), Sense::click());
+            let resp = ui.interact(cell, ui.scope_id().with(("month_week", week)), Sense::click());
             if let Ok(id) = u64::try_from(first.to_days()) {
                 app.hit.add("weekNumber", id, cell);
             }
@@ -4125,7 +4126,7 @@ fn month_grid(app: &mut MailApp, ui: &mut Ui, frame: &mut Frame, from: Date, to:
                     t.text
                 };
                 clipped.text(at, Align2::LEFT_CENTER, label, font, ink);
-                let resp = ui.interact(cell, ui.id().with(("month_cell", k, week, d)), Sense::click_and_drag());
+                let resp = ui.interact(cell, ui.scope_id().with(("month_cell", k, week, d)), Sense::click_and_drag());
                 if let Ok(id) = u64::try_from(day.to_days()) {
                     app.hit.add("day", id, cell);
                 }
@@ -4177,8 +4178,11 @@ fn month_grid(app: &mut MailApp, ui: &mut Ui, frame: &mut Frame, from: Date, to:
                         pos2(span.min.x + if starts { 3.0 } else { 0.0 }, span.min.y),
                         pos2(span.max.x - if ends { 3.0 } else { 1.0 }, span.max.y),
                     );
-                    let resp =
-                        ui.interact(rect, ui.id().with(("month_bar", item.ev.id, item.occ.start.date.to_days(), week, d)), Sense::click_and_drag());
+                    let resp = ui.interact(
+                        rect,
+                        ui.scope_id().with(("month_bar", item.ev.id, item.occ.start.date.to_days(), week, d)),
+                        Sense::click_and_drag(),
+                    );
                     app.hit.add("event", item.ev.id, rect);
                     // Dragging moves it by days; its ends change its first and its last day.
                     frame.track(ui, &resp, item, rect, Piece { bar: true, starts, ends }, &under);
@@ -4201,7 +4205,8 @@ fn month_grid(app: &mut MailApp, ui: &mut Ui, frame: &mut Frame, from: Date, to:
                 }
                 let span = cols.span(d, d, row_top(row), row_top(row) + BAR_H);
                 let rect = Rect::from_min_max(pos2(span.min.x + 3.0, span.min.y), pos2(span.max.x - 3.0, span.max.y));
-                let resp = ui.interact(rect, ui.id().with(("month_chip", item.ev.id, item.occ.start.date.to_days(), week)), Sense::click_and_drag());
+                let resp =
+                    ui.interact(rect, ui.scope_id().with(("month_chip", item.ev.id, item.occ.start.date.to_days(), week)), Sense::click_and_drag());
                 app.hit.add("event", item.ev.id, rect);
                 // Dragged to another day it keeps its time of day.
                 frame.track(ui, &resp, item, rect, Piece { bar: false, starts: false, ends: false }, &under);
@@ -4659,7 +4664,7 @@ mod tests {
         }
 
         fn dragging(&self) -> Option<Drag> {
-            self.ctx.data(|data| data.get_temp(egui::Id::new(DRAG_ID)))
+            self.ctx.data(|data| data.get_temp(egui::Id::unique(DRAG_ID)))
         }
 
         /// When the event that is being dragged would be if it were dropped now.
@@ -5019,16 +5024,16 @@ mod tests {
             target: Some(Span { start: far, end: at(d(1, 1, 1), 0, 0), all_day: true }),
             ..grabbed(at(today, 9, 0), far, false, Grip::End, Under::Time { day: d(1, 1, 1), minute: i64::MAX })
         };
-        rig.ctx.data_mut(|data| data.insert_temp(egui::Id::new(DRAG_ID), stale));
+        rig.ctx.data_mut(|data| data.insert_temp(egui::Id::unique(DRAG_ID), stale));
         rig.frames(2);
         assert_eq!(rig.dragging(), None);
         // A question about a drop of an event that is gone is not asked.
         let ask = DropMenu { drag: stale, span: stale.here(), pos: pos2(f32::NAN, -1.0e9) };
-        rig.ctx.data_mut(|data| data.insert_temp(egui::Id::new(DROP_MENU_ID), ask));
+        rig.ctx.data_mut(|data| data.insert_temp(egui::Id::unique(DROP_MENU_ID), ask));
         rig.frames(2);
-        assert!(rig.ctx.data(|data| data.get_temp::<DropMenu>(egui::Id::new(DROP_MENU_ID))).is_none());
+        assert!(rig.ctx.data(|data| data.get_temp::<DropMenu>(egui::Id::unique(DROP_MENU_ID))).is_none());
         // And so is a pick of days that are not in view, or that nothing draws any more.
-        rig.ctx.data_mut(|data| data.insert_temp(egui::Id::new(SLOT_ID), Slot::timed(d(9999, 12, 31), i64::MAX, i64::MAX)));
+        rig.ctx.data_mut(|data| data.insert_temp(egui::Id::unique(SLOT_ID), Slot::timed(d(9999, 12, 31), i64::MAX, i64::MAX)));
         rig.frames(3);
         assert_eq!(rig.slot(), None);
         // A pick from the first day of the calendar to the last, with text nobody would type.
@@ -5037,7 +5042,7 @@ mod tests {
             odd.stretch_to_day(d(9999, 12, 31));
             odd.text = Some("x\n\u{202e}é".repeat(2_000));
             odd.frame = u64::MAX;
-            rig.ctx.data_mut(|data| data.insert_temp(egui::Id::new(SLOT_ID), odd));
+            rig.ctx.data_mut(|data| data.insert_temp(egui::Id::unique(SLOT_ID), odd));
             rig.run(view, json!({}));
         }
     }
@@ -6631,6 +6636,9 @@ mod tests {
         rig.key(Key::Enter);
         rig.frames(2);
         assert_eq!(rig.event("Half an hour").duration_minutes(), 30);
+        // The grid scrolls to what was picked, by an animation; let it settle, then measure.
+        rig.frames(60);
+        let block = rig.at("Design review");
         // A drag over the grid picks rows of that scale; a dragged event still goes by a quarter.
         let from = pos2(block.center().x, block.min.y - 10.0 * ROW_H + 8.0);
         rig.drag(from, from + vec2(0.0, 2.0 * ROW_H));
@@ -6654,6 +6662,7 @@ mod tests {
         rig.run("view.timeScale", json!({"minutes": 5}));
         rig.keys(Key::ArrowDown, 3);
         assert_eq!(rig.pick(), Some((at(wednesday, 8, 10), at(wednesday, 8, 15), false)));
+        rig.frames(60);
         assert!(rig.day("slot", wednesday).is_some_and(|mark| mark.min.y > 200.0 && mark.max.y < 800.0 && (mark.height() - ROW_H).abs() < 3.0));
         // Every scale draws every view, in both themes, and so do the other ways to look at it.
         rig.run("view.weekNumbers", json!({"value": true}));
@@ -6710,14 +6719,19 @@ mod tests {
         assert_eq!(invitation(&app, &event(&app, "Q4 roadmap")), (true, Some(Reply::Accepted)));
         assert_eq!(invitation(&app, &event(&app, "Design review")), (false, None));
         assert_eq!(invitation(&app, &event(&app, "Lunch with Dev")), (false, None));
-        let mut harness = egui_kittest::Harness::builder().with_size(vec2(1280.0, 800.0)).with_step_dt(1.0 / 60.0).build_ui_state(
-            |ui, app: &mut MailApp| {
-                let ctx = ui.ctx().clone();
-                app.logic(&ctx);
-                app.ui(ui);
-            },
-            app,
-        );
+        let mut harness = egui_kittest::Harness::builder()
+            .with_accessibility_check(false)
+            .allow_missing_glyphs()
+            .with_size(vec2(1280.0, 800.0))
+            .with_step_dt(1.0 / 60.0)
+            .build_ui_state(
+                |ui, app: &mut MailApp| {
+                    let ctx = ui.ctx().clone();
+                    app.logic(&ctx);
+                    app.ui(ui);
+                },
+                app,
+            );
         harness.run_steps(4);
         let _ = harness.state_mut().execute("ui.dismissReminder", json!({"all": true}));
         harness.run_steps(3);
@@ -7418,14 +7432,19 @@ mod tests {
         app.auto_sync = false;
         app.execute("view.calendar", json!({})).unwrap();
         app.execute("view.week", json!({})).unwrap();
-        let mut harness = egui_kittest::Harness::builder().with_size(vec2(1280.0, 800.0)).with_step_dt(1.0 / 60.0).build_ui_state(
-            |ui, app: &mut MailApp| {
-                let ctx = ui.ctx().clone();
-                app.logic(&ctx);
-                app.ui(ui);
-            },
-            app,
-        );
+        let mut harness = egui_kittest::Harness::builder()
+            .with_accessibility_check(false)
+            .allow_missing_glyphs()
+            .with_size(vec2(1280.0, 800.0))
+            .with_step_dt(1.0 / 60.0)
+            .build_ui_state(
+                |ui, app: &mut MailApp| {
+                    let ctx = ui.ctx().clone();
+                    app.logic(&ctx);
+                    app.ui(ui);
+                },
+                app,
+            );
         harness.run_steps(4);
         let _ = harness.state_mut().execute("ui.dismissReminder", json!({"all": true}));
         harness.run_steps(3);
@@ -7619,14 +7638,14 @@ mod tests {
         // A pick in a calendar that is gone, a drag from a block that isn't there.
         let mut odd = Slot::timed(d(2026, 10, 14), 600, 30).in_calendar(u64::MAX);
         odd.frame = u64::MAX;
-        rig.ctx.data_mut(|data| data.insert_temp(egui::Id::new(SLOT_ID), odd));
+        rig.ctx.data_mut(|data| data.insert_temp(egui::Id::unique(SLOT_ID), odd));
         let stale = Drag {
             pane: usize::MAX,
             over: usize::MAX,
             into: u64::MAX,
             ..grabbed(at(d(2026, 10, 14), 9, 0), at(d(2026, 10, 14), 10, 0), false, Grip::Move, Under::Day(d(1, 1, 1)))
         };
-        rig.ctx.data_mut(|data| data.insert_temp(egui::Id::new(DRAG_ID), stale));
+        rig.ctx.data_mut(|data| data.insert_temp(egui::Id::unique(DRAG_ID), stale));
         rig.frames(3);
         let review = Drag { event: rig.event("Design review").id, ..stale };
         drop_event(&mut rig.app, &review, stale.here(), false);

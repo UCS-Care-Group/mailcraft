@@ -451,9 +451,8 @@ mod tests {
 
     #[test]
     fn the_shipped_release_keys_are_keys() {
-        use base64::Engine as _;
         for key in RELEASE_KEYS {
-            assert!(base64::engine::general_purpose::STANDARD.decode(key).is_ok_and(|k| k.len() == 32), "{key}");
+            assert!(mailcraft_charset::base64::STANDARD.decode(key).is_ok_and(|k| k.len() == 32), "{key}");
         }
     }
 

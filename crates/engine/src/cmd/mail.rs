@@ -6,14 +6,14 @@ use mailcraft_model::{FlagStatus, FolderKind, Id, Rgb};
 use serde_json::{Value, json};
 
 use super::{bad, deliver, done, fail, message_json, message_summary, needs_message, select_after_removal, targets};
-use crate::list::position;
+use crate::list::{listed, position, position_of};
 use crate::{CmdResult, CommandSpec, Session, p};
 
 pub fn specs() -> Vec<CommandSpec> {
     vec![
         CommandSpec::new("mail.select", "Select Message", "Mail", select)
             .pure()
-            .params(r#"{"id": number} | {"ids": [number]}, "extend"?: bool (add to the selection), "range"?: bool (select up to it)"#),
+            .params(r#"{"id": number} | {"ids": [number]}, "extend"?: bool (add to the selection), "range"?: bool (select up to it), "copy"?: number (which of its rows, arranged by categories)"#),
         CommandSpec::new("mail.selectAll", "Select All", "Folder › Actions", select_all).pure().key("Mod+A"),
         CommandSpec::new("mail.next", "Next Message", "Mail", next).pure().key("ArrowDown"),
         CommandSpec::new("mail.previous", "Previous Message", "Mail", previous).pure().key("ArrowUp"),
@@ -55,6 +55,10 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("mail.junk", "Block Sender", "Home › Delete", junk).params(IDS).selection(needs_message),
         CommandSpec::new("mail.notJunk", "Not Junk", "Home › Delete", not_junk).key("Mod+Alt+J").params(IDS).selection(needs_message),
         CommandSpec::new("mail.findRelated", "Find Related Messages", "Home › Find", find_related).pure().selection(needs_message),
+        CommandSpec::new("mail.findFromSender", "Messages from Sender", "Home › Find", find_from_sender)
+            .pure()
+            .params(r#"{"id"?: number} (a message; default: the selected one)"#)
+            .selection(needs_message),
         CommandSpec::new("mail.openAttachment", "Open Attachment", "Attachments › Actions", open_attachment)
             .pure()
             .params(
@@ -82,13 +86,17 @@ fn select(s: &mut Session, v: &Value) -> CmdResult {
         s.sel.messages.clear();
         return done();
     };
+    // Which of the message's rows was clicked, for one listed under several categories.
+    let copy = p::u64(v, "copy").and_then(|c| u16::try_from(c).ok()).unwrap_or(0);
     if p::bool(v, "range") == Some(true) {
         // From the anchor (the first selected message) to this one, in list order.
         let rows = s.rows();
         let anchor = s.sel.messages.first().copied().unwrap_or(last);
-        if let (Some(a), Some(b)) = (position(&rows, anchor), position(&rows, last)) {
+        if let (Some(a), Some(b)) = (position(&rows, anchor), position_of(&rows, last, copy)) {
             let (lo, hi) = (a.min(b), a.max(b));
-            let mut picked: Vec<Id> = rows.iter().skip(lo).take(hi - lo + 1).map(|r| r.id).filter(|id| *id != anchor && *id != last).collect();
+            let mut seen = std::collections::HashSet::new();
+            let mut picked: Vec<Id> =
+                rows.iter().skip(lo).take(hi - lo + 1).map(|r| r.id).filter(|id| *id != anchor && *id != last && seen.insert(*id)).collect();
             picked.insert(0, anchor);
             if last != anchor {
                 picked.push(last);
@@ -108,6 +116,7 @@ fn select(s: &mut Session, v: &Value) -> CmdResult {
     } else {
         s.sel.messages = ids;
     }
+    s.sel.focus_row = s.sel.focus().map(|id| (id, copy));
     // Follow the message to its folder (a search result, a conversation member elsewhere).
     if let Some(m) = s.sel.focus().and_then(|id| s.mailbox.message(id))
         && s.view.search.is_empty()
@@ -136,7 +145,7 @@ fn mark_opened(s: &mut Session) {
 fn select_all(s: &mut Session, _: &Value) -> CmdResult {
     let rows = s.rows();
     let focus = s.sel.focus();
-    let mut ids: Vec<Id> = rows.iter().map(|r| r.id).filter(|id| Some(*id) != focus).collect();
+    let mut ids: Vec<Id> = rows.iter().filter(|r| r.copy == 0).map(|r| r.id).filter(|id| Some(*id) != focus).collect();
     // The message in the reading pane stays the focus.
     ids.extend(focus.filter(|f| position(&rows, *f).is_some()));
     s.sel.messages = ids;
@@ -148,7 +157,7 @@ fn step(s: &mut Session, by: i64) -> CmdResult {
     if rows.is_empty() {
         return done();
     }
-    let at = s.sel.focus().and_then(|id| position(&rows, id));
+    let at = s.sel.focus().and_then(|id| position_of(&rows, id, s.sel.focus_copy()));
     let i = match at {
         Some(i) => (i as i64).saturating_add(by).clamp(0, rows.len() as i64 - 1) as usize,
         None if by >= 0 => 0,
@@ -156,6 +165,7 @@ fn step(s: &mut Session, by: i64) -> CmdResult {
     };
     if let Some(row) = rows.get(i) {
         s.sel.messages = vec![row.id];
+        s.sel.focus_row = Some((row.id, row.copy));
     }
     mark_opened(s);
     Ok(json!({"selected": s.sel.messages}))
@@ -196,11 +206,14 @@ fn list(s: &mut Session, v: &Value) -> CmdResult {
                 if let Some(g) = &r.group {
                     o.insert("group".into(), json!(g));
                 }
+                if r.copy > 0 {
+                    o.insert("copy".into(), json!(r.copy));
+                }
             }
             Some(m)
         })
         .collect();
-    Ok(json!({"folder": s.view.folder, "total": rows.len(), "messages": items}))
+    Ok(json!({"folder": s.view.folder, "total": listed(&rows), "rows": rows.len(), "messages": items}))
 }
 
 fn delete(s: &mut Session, v: &Value) -> CmdResult {
@@ -398,9 +411,35 @@ fn find_related(s: &mut Session, _: &Value) -> CmdResult {
     if topic.is_empty() {
         return Err(fail("this message has no subject to look for"));
     }
-    s.view.search = format!("subject:\"{}\"", topic.replace('"', ""));
+    // Written so that the search reads it back as it is: a backslash at its end keeps its
+    // closing quote from being read as part of it (#301).
+    s.view.search = format!("subject:{}", mailcraft_model::search::keyword_value(&topic));
     s.view.scope = crate::Scope::Everywhere;
     Ok(json!({"search": s.view.search, "found": s.rows().len()}))
+}
+
+/// Mail from the sender of a message (the one in focus, or `id`), in every mailbox: a search for
+/// its address, which finds that address and no other (#301), left in the search box to be
+/// narrowed. A quoted name (`"ada smith"@example.org`) is written so that the search reads it
+/// back whole.
+fn find_from_sender(s: &mut Session, v: &Value) -> CmdResult {
+    use mailcraft_model::search::{Query, is_address, keyword_value};
+    let id = p::id(v, "id").or(s.sel.focus()).ok_or_else(|| fail("select a message first"))?;
+    let m = s.mailbox.message(id).ok_or_else(|| failed!("no message with id {id}", id))?;
+    let address = m.from.email.trim();
+    if address.is_empty() {
+        return Err(fail("this message has no sender address to look for"));
+    }
+    let search = format!("from:{}", keyword_value(address));
+    // What is written is read back as that one address, or not written at all: an address the
+    // search doesn't take as a whole one (`ada@[192.0.2.1]`) is said to be one.
+    let query = Query::parse(&search);
+    if !is_address(address) || query.len() != 1 || !query.is_address_term(0) || !query.matches(m, 0) {
+        return Err(fail("the search can't look for this sender's address as a whole address"));
+    }
+    s.view.search = search;
+    s.view.scope = crate::Scope::Everywhere;
+    Ok(json!({"search": s.view.search, "found": listed(&s.rows())}))
 }
 
 fn attachment_target(s: &Session, v: &Value) -> Result<(Id, usize), crate::CmdError> {
@@ -420,7 +459,13 @@ fn save_attachment(s: &mut Session, v: &Value) -> CmdResult {
     let name = crate::opening::save_name(&a.name);
     // The file's bytes, from where the mailbox keeps them when they aren't in memory.
     let bytes = s.content(id, crate::Part::Attachment(index))?;
-    deliver(v, &name, bytes.as_ref().clone())
+    let out = deliver(v, &name, bytes.as_ref().clone())?;
+    // A saved attachment came from mail: mark it as a browser marks a download.
+    #[cfg(not(target_arch = "wasm32"))]
+    if let Some(path) = p::str(v, "path") {
+        crate::mark::mark_from_internet(std::path::Path::new(path));
+    }
+    Ok(out)
 }
 
 /// The window opens attachments (through its host); everywhere else this says why nothing was
@@ -440,3 +485,7 @@ fn remove_attachment(s: &mut Session, v: &Value) -> CmdResult {
     let removed = m.attachments.remove(index);
     Ok(json!({"removed": removed.name}))
 }
+
+#[cfg(test)]
+#[path = "from_sender_tests.rs"]
+mod from_sender_tests;

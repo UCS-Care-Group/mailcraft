@@ -77,10 +77,11 @@ pub enum SortBy {
     Subject,
     Size,
     Importance,
+    Categories,
 }
 
 impl SortBy {
-    pub const ALL: [SortBy; 5] = [SortBy::Date, SortBy::From, SortBy::Subject, SortBy::Size, SortBy::Importance];
+    pub const ALL: [SortBy; 6] = [SortBy::Date, SortBy::From, SortBy::Subject, SortBy::Size, SortBy::Importance, SortBy::Categories];
 
     pub fn label(self) -> &'static str {
         match self {
@@ -89,13 +90,14 @@ impl SortBy {
             SortBy::Subject => "Subject",
             SortBy::Size => "Size",
             SortBy::Importance => "Importance",
+            SortBy::Categories => "Categories",
         }
     }
 
     /// Whether a list arranged this way starts at the top of the scale until it is turned over:
-    /// the newest, the largest, the most important. Senders and subjects start at A.
+    /// the newest, the largest, the most important. Senders, subjects and categories start at A.
     pub fn starts_high(self) -> bool {
-        !matches!(self, SortBy::From | SortBy::Subject)
+        !matches!(self, SortBy::From | SortBy::Subject | SortBy::Categories)
     }
 }
 
@@ -282,12 +284,25 @@ pub struct Selection {
     /// The day of the selected occurrence, for an event that repeats.
     pub event_day: Option<Date>,
     pub task: Option<Id>,
+    /// Which of the focused message's rows has the focus, for a message the list shows more than
+    /// once (arranged by categories, under each of its categories): the message and the row's
+    /// [`copy`](crate::list::Row::copy).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub focus_row: Option<(Id, u16)>,
 }
 
 impl Selection {
     /// The message in the reading pane.
     pub fn focus(&self) -> Option<Id> {
         self.messages.last().copied()
+    }
+
+    /// Which of the focused message's rows has the focus: its first unless another was chosen.
+    pub fn focus_copy(&self) -> u16 {
+        match self.focus_row {
+            Some((id, copy)) if self.focus() == Some(id) => copy,
+            _ => 0,
+        }
     }
 }
 
@@ -1024,6 +1039,11 @@ impl Session {
                     if !set.has(slot) {
                         return Some(false);
                     }
+                    // A whole address (#301): its words only narrow the messages down, and the
+                    // address itself is looked at on each.
+                    if query.is_address_term(i) {
+                        return None;
+                    }
                     let (fields, w) = query.words_of(i)?;
                     if w.len() <= 1 {
                         return Some(true);
@@ -1594,6 +1614,19 @@ impl Session {
         self.dirty = true;
         self.normalize();
         cur
+    }
+
+    /// What undoing (`redo`: redoing) would put back besides mail and the like: the accounts, or
+    /// the rules and signatures, as they were. For the agent gate, which asks the owner first.
+    pub fn undo_reverts(&self, redo: bool) -> Option<crate::agent::Class> {
+        let step = if redo { self.redo.last() } else { self.history.last() }?;
+        if step.mailbox.accounts != self.mailbox.accounts {
+            Some(crate::agent::Class::Accounts)
+        } else if step.mailbox.rules != self.mailbox.rules || step.mailbox.signatures != self.mailbox.signatures {
+            Some(crate::agent::Class::Settings)
+        } else {
+            None
+        }
     }
 
     pub fn undo(&mut self) -> bool {

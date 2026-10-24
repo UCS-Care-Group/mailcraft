@@ -351,6 +351,7 @@ fn home_mail(app: &MailApp) -> Tab {
             vec![
                 Item::big_menu("filter", "filter", "Filter\nEmail", "Filter Email", Menu::FilterMail).at(4, 4),
                 Item::small("findRelated", "Related", "Find Related Messages", "mail.findRelated", no()).at(5, 7),
+                Item::small("findFromSender", "From Sender", "Messages from Sender", "mail.findFromSender", no()).at(5, 7),
             ],
         ),
         g("Send/Receive", vec![Item::big("sync", "Send/Receive\nAll Folders", "ui.sync", no()).at(5, 5)]),
@@ -827,7 +828,7 @@ pub fn folder_menu(ui: &mut Ui, app: &mut MailApp, mut pick: impl FnMut(&mut Mai
     let mut list = Vec::new();
     walk(app, account, None, 0, &mut list);
 
-    let key = ui.id().with("folder-search");
+    let key = ui.scope_id().with("folder-search");
     let frame = ui.ctx().cumulative_frame_nr();
     let mut st: FolderSearch = ui.data(|d| d.get_temp(key)).unwrap_or_default();
     let fresh = st.seen.is_none_or(|seen| frame > seen.saturating_add(2));
@@ -1178,7 +1179,7 @@ pub(crate) fn color_menu(ui: &mut Ui, app: &mut MailApp) {
         }
     });
     ui.horizontal(|ui| {
-        let key = egui::Id::new("mailcraft-custom-color");
+        let key = egui::Id::unique("mailcraft-custom-color");
         let mut typed: String = ui.data(|d| d.get_temp(key)).unwrap_or_else(|| now.clone().flatten().unwrap_or_default());
         ui.add(egui::TextEdit::singleline(&mut typed).hint_text("#rrggbb").desired_width(90.0).char_limit(7));
         let valid = mailcraft_model::rich::safe_color(&typed);
@@ -1370,7 +1371,7 @@ fn drop_mark(ui: &Ui, c: egui::Pos2, color: egui::Color32) {
 /// One button of the simplified row, in `rect`.
 fn simple_button(app: &mut MailApp, ui: &mut Ui, t: &Tokens, b: &Button<'_>, labelled: bool, rect: Rect) {
     let item = b.item;
-    let id = ui.id().with(("ribbon", item.key));
+    let id = ui.scope_id().with(("ribbon", item.key));
     let on = item.command.as_ref().is_none_or(|(command, _)| app.enabled(command));
     let drop_rect = Rect::from_min_max(pos2(rect.max.x - DROP_W, rect.min.y), rect.max);
     let main_rect = if b.is_split() { Rect::from_min_max(rect.min, pos2(drop_rect.min.x, rect.max.y)) } else { rect };
@@ -1412,7 +1413,7 @@ fn simple_button(app: &mut MailApp, ui: &mut Ui, t: &Tokens, b: &Button<'_>, lab
 /// The keys of the buttons that were behind `…` in the frame just laid out.
 #[cfg(test)]
 pub(crate) fn behind_more(ctx: &egui::Context) -> Vec<&'static str> {
-    ctx.data(|d| d.get_temp::<Vec<&'static str>>(egui::Id::new("ribbon_more"))).unwrap_or_default()
+    ctx.data(|d| d.get_temp::<Vec<&'static str>>(egui::Id::unique("ribbon_more"))).unwrap_or_default()
 }
 
 /// The simplified layout: one row of `tab` in `area`, with `…` at its end for what doesn't fit.
@@ -1445,11 +1446,11 @@ fn simplified(app: &mut MailApp, ui: &mut Ui, t: &Tokens, tab: &Tab, area: Rect)
         before = Some(b.item.section);
     }
     let more: Vec<&Button<'_>> = plan.more.iter().filter_map(|i| buttons.get(*i)).collect();
-    ui.data_mut(|d| d.insert_temp(egui::Id::new("ribbon_more"), more.iter().map(|b| b.item.key).collect::<Vec<&'static str>>()));
+    ui.data_mut(|d| d.insert_temp(egui::Id::unique("ribbon_more"), more.iter().map(|b| b.item.key).collect::<Vec<&'static str>>()));
     if !more.is_empty() {
         // What didn't fit, behind `…` at the end of the row.
         let rect = Rect::from_min_size(pos2(area.max.x - MORE_W, area.min.y), vec2(MORE_W, area.height()));
-        let resp = ui.interact(rect, ui.id().with("ribbon_more"), Sense::click());
+        let resp = ui.interact(rect, ui.scope_id().with("ribbon_more"), Sense::click());
         app.hit.add("ribbonMore", 0, rect);
         bg(ui, rect, &resp, false, t);
         icons::paint(ui.painter(), Rect::from_center_size(rect.center(), vec2(ICON, ICON)), "more", t.icon, t.accent);
@@ -1469,7 +1470,7 @@ fn simplified(app: &mut MailApp, ui: &mut Ui, t: &Tokens, tab: &Tab, area: Rect)
         // Room is left: the tab's line of explanation, as much of it as fits (all of it in the tooltip).
         let rect = Rect::from_min_max(pos2(x + 16.0, area.min.y), area.max);
         paint_clipped(ui.painter(), pos2(rect.min.x, rect.center().y), rect.width(), tl!(tab.note), regular(12.0), t.text_dim);
-        ui.interact(rect, ui.id().with("ribbon_note"), Sense::hover()).on_hover_text(tl!(tab.note));
+        ui.interact(rect, ui.scope_id().with("ribbon_note"), Sense::hover()).on_hover_text(tl!(tab.note));
     }
 }
 
@@ -1660,7 +1661,7 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
                 Mode::Simplified => pos2(sheet.max.x - 4.0 - side / 2.0, sheet.center().y),
             };
             let rect = Rect::from_center_size(centre, vec2(side, side));
-            let resp = ui.interact(rect, ui.id().with("ribbon_mode"), Sense::click());
+            let resp = ui.interact(rect, ui.scope_id().with("ribbon_mode"), Sense::click());
             app.hit.add("ribbonMode", 0, rect);
             bg(ui, rect, &resp, false, &t);
             ui.painter().add(Shape::line(
@@ -1724,14 +1725,15 @@ mod tests {
     }
 
     fn window(app: MailApp, width: f32) -> Window {
-        let mut harness = egui_kittest::Harness::builder().with_size(vec2(width, 700.0)).build_ui_state(
-            |ui, app: &mut MailApp| {
-                let ctx = ui.ctx().clone();
-                app.logic(&ctx);
-                app.ui(ui);
-            },
-            app,
-        );
+        let mut harness =
+            egui_kittest::Harness::builder().with_accessibility_check(false).allow_missing_glyphs().with_size(vec2(width, 700.0)).build_ui_state(
+                |ui, app: &mut MailApp| {
+                    let ctx = ui.ctx().clone();
+                    app.logic(&ctx);
+                    app.ui(ui);
+                },
+                app,
+            );
         harness.run_steps(4);
         // The sample has reminders due, and their window would lie over the ribbon.
         let _ = harness.state_mut().execute("ui.dismissReminder", json!({"all": true}));
@@ -2073,7 +2075,13 @@ mod tests {
             let more = check_row(&harness, "mail home");
             match width as u32 {
                 1200 => assert!(more.is_empty(), "{more:?}"),
-                800 => assert!(more.contains(&"mail.findRelated") && !more.contains(&"mail.delete") && most >= more.len(), "{more:?}"),
+                800 => assert!(
+                    more.contains(&"mail.findRelated")
+                        && more.contains(&"mail.findFromSender")
+                        && !more.contains(&"mail.delete")
+                        && most >= more.len(),
+                    "{more:?}"
+                ),
                 _ => {}
             }
         }
@@ -2096,9 +2104,9 @@ mod tests {
         click(&mut harness, pos);
         assert_eq!(message(&harness).read, !read);
 
-        // Behind `…`: Pin and Related are there, and run.
+        // Behind `…`: Pin, Related and From Sender are there, and run.
         let more = check_row(&harness, "mail home at 800");
-        assert!(more.contains(&"mail.pin") && more.contains(&"mail.findRelated"), "{more:?}");
+        assert!(more.contains(&"mail.pin") && more.contains(&"mail.findRelated") && more.contains(&"mail.findFromSender"), "{more:?}");
         assert!(harness.query_by_label("Pin").is_none(), "the menu is shut");
         let dots = harness.state().hit.rect("ribbonMore", 0).unwrap().center();
         click(&mut harness, dots);
@@ -2115,6 +2123,14 @@ mod tests {
         harness.get_by_label("Related").click();
         harness.run_steps(3);
         assert!(harness.state().session.view.search.starts_with("subject:"), "{:?}", harness.state().session.view.search);
+        harness.state_mut().execute("view.clearSearch", json!({})).unwrap();
+        harness.state_mut().execute("mail.select", json!({"id": focus})).unwrap();
+        harness.run_steps(3);
+        let sender = mailcraft_model::search::keyword_value(message(&harness).from.email.trim());
+        click(&mut harness, dots);
+        harness.get_by_label("From Sender").click();
+        harness.run_steps(3);
+        assert_eq!(harness.state().session.view.search, format!("from:{sender}"));
         harness.state_mut().execute("view.clearSearch", json!({})).unwrap();
         harness.state_mut().execute("mail.select", json!({"id": focus})).unwrap();
         harness.run_steps(3);
@@ -2290,7 +2306,7 @@ mod tests {
                 ("Respond", vec!["Reply", "Reply\nAll", "Forward", "Meeting", "Add Sender"]),
                 ("Move", vec!["Move", "Rules"]),
                 ("Tags", vec!["Unread/\nRead", "Categorize", "Follow\nUp", "Pin"]),
-                ("Find", vec!["Filter\nEmail", "Related"]),
+                ("Find", vec!["Filter\nEmail", "Related", "From Sender"]),
                 ("Send/Receive", vec!["Send/Receive\nAll Folders"]),
             ]
         );
@@ -2300,12 +2316,13 @@ mod tests {
     type Picker = egui_kittest::Harness<'static, (MailApp, Option<Id>)>;
 
     fn picker(app: MailApp) -> Picker {
-        let mut h = egui_kittest::Harness::builder().with_size(vec2(400.0, 500.0)).build_ui_state(
-            |ui, (app, picked): &mut (MailApp, Option<Id>)| {
-                folder_menu(ui, app, |_, id| *picked = Some(id));
-            },
-            (app, None),
-        );
+        let mut h =
+            egui_kittest::Harness::builder().with_accessibility_check(false).allow_missing_glyphs().with_size(vec2(400.0, 500.0)).build_ui_state(
+                |ui, (app, picked): &mut (MailApp, Option<Id>)| {
+                    folder_menu(ui, app, |_, id| *picked = Some(id));
+                },
+                (app, None),
+            );
         h.run_steps(3);
         h
     }
