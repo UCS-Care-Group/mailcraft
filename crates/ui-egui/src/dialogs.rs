@@ -46,6 +46,16 @@ pub enum Dialog {
         /// kept when that works, and removed again when it doesn't.
         checking: Option<Id>,
     },
+    /// The address of a person whose calendar is to be opened under a Microsoft account (#70):
+    /// it only collects the address, then runs `calendar.openShared`, and says how reading it
+    /// went ([`crate::open_shared`]).
+    OpenCalendar {
+        account: Id,
+        address: String,
+        error: String,
+        /// The address that was asked for and is being read.
+        reading: Option<String>,
+    },
     /// Where the selected text of the message being written leads (Ctrl+K).
     Link {
         url: String,
@@ -149,6 +159,7 @@ impl Dialog {
             Dialog::Folder { .. } => "folder",
             Dialog::GoToDate { .. } => "goToDate",
             Dialog::SharedMailbox { .. } => "sharedMailbox",
+            Dialog::OpenCalendar { .. } => "openCalendar",
             Dialog::Link { .. } => "link",
             Dialog::Password { .. } => "password",
             Dialog::DiscardDraft { .. } => "discardDraft",
@@ -195,6 +206,17 @@ impl Dialog {
                     None => mailbox.accounts.iter().find(can)?.id,
                 };
                 Dialog::SharedMailbox { account, address: String::new(), error: String::new(), checking: None }
+            }
+            "openCalendar" => {
+                // Under the account named, else the first that can open one.
+                let can = |a: &&mailcraft_model::Account| crate::open_shared::can_open(a);
+                let mailbox = &app.session.mailbox;
+                let account = match id("account") {
+                    Some(id) => mailbox.account(id).filter(can)?.id,
+                    None => mailbox.accounts.iter().find(can)?.id,
+                };
+                let address = params.get("address").and_then(Value::as_str).unwrap_or_default().to_string();
+                Dialog::OpenCalendar { account, address, error: String::new(), reading: None }
             }
             "link" => {
                 let c = app.session.compose.as_ref().filter(|c| c.format == mailcraft_engine::BodyFormat::Html)?;
@@ -347,6 +369,20 @@ pub fn confirmation(app: &MailApp, id: &str, params: &Value) -> Option<Question>
                 text
             };
             question(tl!("Remove Account"), text, tl!("Remove"))
+        }
+        // A calendar opened by address is removed here only: the server's is not touched (#70).
+        "calendar.removeShared" => {
+            let address = match params.get("id").and_then(Value::as_u64).and_then(|c| mb.calendar(c)) {
+                Some(calendar) => mailcraft_model::remote::opened_address(&calendar.origin.id)?,
+                None => params.get("address").and_then(Value::as_str)?.to_string(),
+            };
+            let text = crate::i18n::fmt(
+                tl!(
+                    "The calendar of {address} and its events kept on this computer will be removed. Their calendar on the server is not touched, and you can open it again."
+                ),
+                &[("address", &address)],
+            );
+            question(tl!("Remove Shared Calendar"), text, tl!("Remove"))
         }
         // A shared mailbox is closed here only; what waits to go to it is named first (#70).
         "account.removeSharedMailbox" => {
@@ -709,6 +745,7 @@ pub fn input_dialog(id: &str, params: &Value) -> Option<&'static str> {
         // (Without an address, a script's `compose.link` removes the link; a person is asked.)
         "compose.link" if !has("url") => Some("link"),
         "account.add" if !has("email") => Some("account"),
+        "calendar.openShared" if !has("address") => Some("openCalendar"),
         "rules.list" => Some("rules"),
         "category.list" => Some("categories"),
         "ui.reportProblem" if !has("what") => Some("reportProblem"),
@@ -1025,6 +1062,52 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
                         },
                         None => *error = tl!("The shared mailbox couldn't be added").to_string(),
                     },
+                    Err(e) => *error = e,
+                }
+            }
+        }
+        Dialog::OpenCalendar { account, address, error, reading } => {
+            let mut submit = false;
+            let owner = app.session.mailbox.account(*account).map(|a| a.email.clone()).unwrap_or_default();
+            // (The answer to what was asked for: the calendar came in, or why not.)
+            if reading.is_some() && app.open_shared.waiting.is_none() {
+                match app.open_shared.outcome.take() {
+                    Some(Ok(_)) => close = true,
+                    Some(Err(why)) => *error = why,
+                    None => {}
+                }
+                *reading = None;
+            }
+            let open = window(ctx, tl!("Open Shared Calendar"), 420.0, |ui| {
+                ui.label(tl!("The e-mail address of the person whose calendar you want to open"));
+                let field = egui::TextEdit::singleline(address).hint_text("colleague@example.org").desired_width(f32::INFINITY);
+                let resp = ui.add_enabled(reading.is_none(), field);
+                if reading.is_none() && !resp.has_focus() && error.is_empty() {
+                    resp.request_focus();
+                }
+                ui.label(
+                    egui::RichText::new(crate::i18n::fmt(
+                        tl!("Read with {owner}'s sign-in, for as long as you keep it: the person has to have shared their calendar with you. It is kept on this computer only: it won't appear in Outlook or on your other devices. Microsoft asks you once to let MailCraft read other people's calendars."),
+                        &[("owner", &owner)],
+                    ))
+                    .color(t.text_dim)
+                    .size(11.0),
+                );
+                if reading.is_some() {
+                    ui.label(egui::RichText::new(tl!("Reading the calendar from Microsoft…")).color(t.text_dim));
+                }
+                if !error.is_empty() {
+                    ui.label(egui::RichText::new(error.as_str()).color(t.red));
+                }
+                let (ok, cancel) = buttons(ui, tl!("Open"), reading.is_none() && !address.trim().is_empty());
+                submit = reading.is_none() && (ok || enter) && !address.trim().is_empty();
+                close |= cancel;
+            });
+            close |= !open;
+            if submit && !close {
+                error.clear();
+                match app.begin_open_shared(*account, address.trim()) {
+                    Ok(()) => *reading = app.open_shared.waiting.as_ref().map(|(_, wanted)| wanted.clone()),
                     Err(e) => *error = e,
                 }
             }

@@ -804,7 +804,7 @@ fn pane_of(panes: &[PaneView], calendar: Id) -> usize {
 /// Whether a calendar is one the account may read and not change.
 fn read_only(app: &MailApp, calendar: Id) -> bool {
     let mailbox = &app.session.mailbox;
-    mailbox.calendar(calendar).is_some_and(|c| c.read_only && mailcraft_engine::cmd::remote::keeper(mailbox, &c.origin).is_some())
+    mailbox.calendar(calendar).is_some_and(|c| !c.can_edit() && mailcraft_engine::cmd::remote::keeper(mailbox, &c.origin).is_some())
 }
 
 /// Working in a block makes its calendar the one being worked in (where the ribbon's New
@@ -830,6 +830,9 @@ struct Item {
     pane: usize,
     /// Its calendar lies under another one: it is drawn dimmer.
     dim: bool,
+    /// Its calendar shows only when its owner is busy (#70): a block with no title of its own,
+    /// which says how the time shows.
+    free_busy: bool,
 }
 
 impl Item {
@@ -848,7 +851,13 @@ impl Item {
 
     fn title(&self) -> &str {
         let title = self.ev.title.trim();
-        if title.is_empty() { tl!("(No title)") } else { clip_text(title, 200) }
+        if !title.is_empty() {
+            clip_text(title, 200)
+        } else if self.free_busy {
+            tl!(self.ev.show_as.label())
+        } else {
+            tl!("(No title)")
+        }
     }
 
     fn times(&self, twelve: bool) -> String {
@@ -874,7 +883,8 @@ fn gather(app: &MailApp, from: Date, to: Date, t: &Tokens, panes: &[PaneView]) -
             let tags = ev.categories.iter().skip(1).take(3).map(|name| c32(mailbox.category_color(name))).collect();
             let pane = pane_of(panes, ev.calendar);
             let dim = panes.get(pane).is_some_and(|pane| pane.tabs.len() > 1 && pane.front != ev.calendar);
-            Some(Item { occ, ev, color, edge, tags, pane, dim })
+            let free_busy = mailbox.calendar(ev.calendar).is_some_and(|c| c.rights == mailcraft_model::Rights::FreeBusy);
+            Some(Item { occ, ev, color, edge, tags, pane, dim, free_busy })
         })
         .collect()
 }
@@ -1359,6 +1369,7 @@ fn group_title(title: &str) -> &str {
     match title {
         "My Calendars" => tl!("My Calendars"),
         "Other Calendars" => tl!("Other Calendars"),
+        "Shared Calendars" => tl!("Shared Calendars"),
         "On this computer" => tl!("On this computer"),
         other => other,
     }
@@ -1406,6 +1417,12 @@ fn calendar_menu(ui: &mut Ui, app: &mut MailApp, row: &CalendarRow, several: boo
             }
         }
     });
+    // One opened by address is the owner's own list's: it comes off it here (#70).
+    let opened = app.session.mailbox.calendar(row.id).is_some_and(|c| mailcraft_model::remote::opened_address(&c.origin.id).is_some());
+    if opened {
+        ui.separator();
+        mi(ui, app, "Remove Shared Calendar", "calendar.removeShared", json!({"id": row.id}));
+    }
 }
 
 /// The account whose sign-in covers everything but the optional extras (the mailbox's own
@@ -2072,7 +2089,7 @@ fn event_input(app: &mut MailApp, resp: Response, item: &Item, tips: bool) {
     let account = item.ev.origin.account;
     let others: Vec<(Id, String)> = {
         let calendars = app.session.mailbox.calendars.iter().take(50).filter(|c| c.id != item.ev.calendar);
-        let fits = |c: &&mailcraft_model::Calendar| own || (c.origin.account == account && !c.read_only);
+        let fits = |c: &&mailcraft_model::Calendar| own || (c.origin.account == account && c.can_edit());
         calendars.filter(fits).map(|c| (c.id, calendar_label(&app.session, c))).collect()
     };
     let importance = item.ev.importance;
@@ -7188,6 +7205,7 @@ mod tests {
                 RemoteCalendar { id: "c-main".into(), name: "Calendar".into(), main: true, ..Default::default() },
                 RemoteCalendar { id: "c-side".into(), name: "Side".into(), ..Default::default() },
             ],
+            ..Default::default()
         };
         mailcraft_engine::cmd::remote::apply_calendars(&mut rig.app.session, &list).unwrap();
         let of = |rig: &Rig, name: &str| {
@@ -7312,9 +7330,9 @@ mod tests {
         use crate::calendar_sync::testing::event as on_server;
         let (mut rig, _server, account) = Rig::served(vec![on_server("e-1", "Dentist", NOW + 18 * 3600)]);
         let download = json!({"account": account, "complete": true, "calendars": [
-            {"id": "c-hol", "name": "Holidays", "main": false, "readOnly": true, "group": "Other Calendars"},
-            {"id": "c-team", "name": "Team", "main": false, "readOnly": false, "group": "Projects", "color": [46, 139, 87]},
-            {"id": "c-main", "name": "Calendar", "main": true, "readOnly": false, "group": "My Calendars"},
+            {"id": "c-hol", "name": "Holidays", "main": false, "rights": "read", "group": "Other Calendars"},
+            {"id": "c-team", "name": "Team", "main": false, "rights": "edit", "group": "Projects", "color": [46, 139, 87]},
+            {"id": "c-main", "name": "Calendar", "main": true, "rights": "edit", "group": "My Calendars"},
         ]});
         rig.run("sync.applyCalendars", json!({"download": download}));
         let id_of = |rig: &Rig, name: &str| rig.app.session.mailbox.calendars.iter().find(|c| c.name == name).map(|c| c.id).unwrap();

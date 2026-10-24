@@ -7,6 +7,7 @@ pub mod account;
 mod answered_tests;
 pub mod calendar;
 pub mod calendar_extra;
+pub mod calendar_opened;
 pub mod calendar_settings;
 pub mod category;
 pub mod compose;
@@ -70,6 +71,7 @@ pub fn registry() -> Registry {
     v.extend(view::specs());
     v.extend(calendar::specs());
     v.extend(calendar_extra::specs());
+    v.extend(calendar_opened::specs());
     v.extend(calendar_settings::specs());
     v.extend(zones::specs());
     v.extend(people::specs());

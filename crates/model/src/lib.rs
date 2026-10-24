@@ -32,8 +32,8 @@ use serde::{Deserialize, Serialize};
 
 pub use address::{Address, MAX_ADDRESS, format_list, format_list_capped, mailbox_address};
 pub use calendar::{
-    Attendee, Calendar, Event, Freq, MAX_JOIN_LINK, Occurrence, OnlineMeeting, OnlineProvider, Proposal, Recurrence, Response, ResponseOptions,
-    ShowAs,
+    Attendee, Calendar, CalendarOwner, Event, Freq, MAX_JOIN_LINK, MAX_OPENED_CALENDARS, Occurrence, OnlineMeeting, OnlineProvider, OpenedCalendar,
+    Proposal, Recurrence, Response, ResponseOptions, Rights, ShowAs,
 };
 pub use contact::{Contact, Labeled, PostalAddress};
 pub use jmap_server::JmapServer;
@@ -118,6 +118,8 @@ pub(crate) mod b64 {
     }
 }
 
+#[cfg(test)]
+mod calendar_rights_tests;
 #[cfg(test)]
 mod mailbox_tests;
 #[cfg(test)]

@@ -174,6 +174,16 @@ msgid "A calendar change couldn't be sent yet and will be tried again: {error}"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/calendar_sync.rs
+msgid "A change to a shared mailbox's calendar was refused: this account may not edit it. It is tried once more, and then put back."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "A colleague's calendar, by their address, with your work or school account. Kept on this computer only"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/graph_switch.rs
 msgid "A copy of the mailbox is being saved for a switch already: wait for it to finish."
 msgstr ""
@@ -198,9 +208,19 @@ msgstr ""
 msgid "A mailbox kept here, with no mail server"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/shared_calendars.rs
+msgid "A meeting answer or invitation from this shared mailbox waits: sending from shared mailboxes needs your permission. Use Send/Receive."
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/calendar/meeting.rs
 msgid "A meeting can't be moved to another calendar: the account's server has no way of moving one, and making it again there would send everyone invited a cancellation and a new invitation."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/calendar/meeting.rs
+msgid "A meeting can't be moved to another mailbox's calendar: that would send everyone invited a cancellation, and their replies would no longer reach it. Forward the meeting, or create it again in that calendar."
 msgstr ""
 
 #. what a command says
@@ -358,7 +378,7 @@ msgid "Accounts"
 msgstr ""
 
 #. ribbon, ribbon location
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/ui-egui/src/ribbon.rs
 msgid "Actions"
 msgstr ""
 
@@ -547,8 +567,18 @@ msgid "Allow"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/open_shared.rs
+msgid "Allow MailCraft to read other people's calendars on the page that opened in your browser…"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
 msgid "Allow MailCraft to read shared mailboxes on the page that opened in your browser…"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/shared_calendars.rs
+msgid "Allow MailCraft to read shared mailboxes' calendars on the page that opened in your browser…"
 msgstr ""
 
 #. interface
@@ -559,6 +589,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/forms.rs
 msgid "Allow New Time Proposals"
+msgstr ""
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+msgid "Allow Reading Other People's Calendars"
 msgstr ""
 
 #. command label
@@ -809,6 +844,11 @@ msgid "As the people you write to see it"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Ask again"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/reading/remote.rs
 msgid "Ask before downloading pictures from this domain's senders again"
 msgstr ""
@@ -816,6 +856,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
 msgid "Ask before downloading this sender's pictures again"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Ask for permission to read the calendars of shared mailboxes: Microsoft's page opens in your browser. Without it, nothing of this mailbox's calendars is read."
 msgstr ""
 
 #. interface
@@ -846,6 +891,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
 msgid "Asks for mail alone, without the calendar and contacts, which can be connected later"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/calendar_opened.rs
+msgid "At most {n} calendars can be opened by address: remove one first."
 msgstr ""
 
 #. interface
@@ -982,6 +1032,11 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs
+msgid "By Categories"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/mail_view.rs
 msgid "By Date"
 msgstr ""
 
@@ -1025,6 +1080,11 @@ msgstr ""
 msgid "Calendar Connection Check"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/open_shared.rs
+msgid "Calendar Listed Twice"
+msgstr ""
+
 #. name
 #: crates/model/src/sync/progress.rs
 msgid "Calendar and contacts"
@@ -1033,6 +1093,36 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/lib.rs
 msgid "Calendar and contacts need your permission: File › Info › Connect calendar and contacts"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/open_shared.rs
+msgid "Calendars you opened by address need your permission to be read: open one again to be asked"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/shared_calendars.rs
+msgid "Calendars: allowed"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/shared_calendars.rs
+msgid "Calendars: asking for your permission…"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/shared_calendars.rs
+msgid "Calendars: not allowed ({why})"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/shared_calendars.rs
+msgid "Calendars: not asked yet (ticking one of them asks)"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/shared_calendars.rs
+msgid "Calendars: waiting for your permission"
 msgstr ""
 
 #. interface
@@ -1080,8 +1170,8 @@ msgstr ""
 msgid "Cancelled"
 msgstr ""
 
-#. interface
-#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/tasks_view.rs
+#. interface, name
+#: crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/tasks_view.rs
 msgid "Categories"
 msgstr ""
 
@@ -1478,7 +1568,7 @@ msgid "Contacts don't go to Deleted Items."
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/shared_mailboxes.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/shared_calendars.rs crates/ui-egui/src/shared_mailboxes.rs
 msgid "Continue"
 msgstr ""
 
@@ -1572,6 +1662,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/updates.rs
 msgid "Couldn't find out whether a new version is out: {why}."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/open_shared.rs
+msgid "Couldn't reach Microsoft to open the calendar of {address}. Try again in a moment."
 msgstr ""
 
 #. what a command says
@@ -2312,7 +2407,7 @@ msgid "February"
 msgstr ""
 
 #. command label, name, ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
 msgid "File"
 msgstr ""
 
@@ -2404,7 +2499,7 @@ msgid "Fold the calendars of this group away"
 msgstr ""
 
 #. name, ribbon location
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/rules.rs crates/model/src/mailbox.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/rules.rs crates/model/src/mailbox.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
 msgid "Folder"
 msgstr ""
 
@@ -2909,6 +3004,11 @@ msgstr ""
 #. command label, interface, name, ribbon location
 #: crates/engine/src/cmd/account.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/shared.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
 msgid "Info"
+msgstr ""
+
+#. ribbon location
+#: crates/ui-egui/src/lib.rs
+msgid "Info and File"
 msgstr ""
 
 #. interface
@@ -3427,6 +3527,11 @@ msgid "MailCraft is up to date ({version})."
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/open_shared.rs
+msgid "MailCraft isn't allowed to read other people's calendars yet."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/dialogs.rs
 msgid "MailCraft keeps it in memory until you close the app. It is never written to disk."
 msgstr ""
@@ -3501,8 +3606,8 @@ msgstr ""
 msgid "Makes one test appointment a year from today in your account's calendar, changes it and deletes it again, and shows what the server answered"
 msgstr ""
 
-#. ribbon location
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_settings.rs
+#. ribbon, ribbon location
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_settings.rs crates/ui-egui/src/ribbon.rs
 msgid "Manage Calendars"
 msgstr ""
 
@@ -4551,12 +4656,19 @@ msgid "Only while MailCraft isn't the window in front, and only for the Inboxes 
 msgstr ""
 
 #. interface, ribbon
-#: crates/ui-egui/src/attachment_open.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/ribbon.rs
+#: crates/ui-egui/src/attachment_open.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/ribbon.rs
 msgid "Open"
 msgstr ""
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid ""
+"Open\n"
+"Calendar"
+msgstr ""
+
 #. interface, ribbon location
-#: crates/engine/src/cmd/file.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs
+#: crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/file.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs
 msgid "Open & Export"
 msgstr ""
 
@@ -4593,6 +4705,11 @@ msgstr ""
 #. command label
 #: crates/engine/src/cmd/search_server.rs
 msgid "Open Result from the Server"
+msgstr ""
+
+#. command label, interface
+#: crates/engine/src/cmd/calendar_opened.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/open_shared.rs
+msgid "Open Shared Calendar"
 msgstr ""
 
 #. interface
@@ -4641,8 +4758,18 @@ msgid "Open the page again"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/reading/sharing.rs
+msgid "Open this calendar"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/attachment_open.rs
 msgid "Open {name}? {why}"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/open_shared.rs
+msgid "Opened the calendar of {name}. It is listed under Shared Calendars, on this computer only."
 msgstr ""
 
 #. interface
@@ -4663,6 +4790,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/report_problem.rs
 msgid "Opens GitHub's page in your browser, filled in: you check it and submit it there."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/sharing.rs
+msgid "Opens it by their address, on this computer only: it won't appear in Outlook or on your other devices"
 msgstr ""
 
 #. interface
@@ -4703,6 +4835,16 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
 msgid "Other Calendars"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/calendar_opened.rs
+msgid "Other people's calendars can be opened under a Microsoft work or school account"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/open_shared.rs
+msgid "Other people's calendars weren't allowed: {error}"
 msgstr ""
 
 #. name
@@ -5005,6 +5147,11 @@ msgstr ""
 msgid "Read the Favorites from Outlook again now"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "Read with {owner}'s sign-in, for as long as you keep it: the person has to have shared their calendar with you. It is kept on this computer only: it won't appear in Outlook or on your other devices. Microsoft asks you once to let MailCraft read other people's calendars."
+msgstr ""
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid ""
@@ -5020,6 +5167,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
 msgid "Reading shared mailboxes needs your permission: use Send/Receive"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "Reading the calendar from Microsoft…"
 msgstr ""
 
 #. name
@@ -5120,7 +5272,7 @@ msgid "Reminders Window"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/reading/remote.rs
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/reading/remote.rs
 msgid "Remove"
 msgstr ""
 
@@ -5172,6 +5324,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/forms.rs
 msgid "Remove Recurrence"
+msgstr ""
+
+#. command label, interface
+#: crates/engine/src/cmd/calendar_opened.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs
+msgid "Remove Shared Calendar"
 msgstr ""
 
 #. command label, interface
@@ -5567,6 +5724,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/lib.rs
 msgid "Saving the mailbox… {done} of {total} messages"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+msgid "Say that this is meant with \"confirmed\": true."
 msgstr ""
 
 #. interface
@@ -5981,6 +6143,11 @@ msgid "Share"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/calendar_view.rs
+msgid "Shared Calendars"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "Shared mailbox · No access: Microsoft won't open it for you. Send/Receive tries again"
 msgstr ""
@@ -5998,6 +6165,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
 msgid "Shared mailboxes weren't allowed: {error}"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/shared_calendars.rs
+msgid "Shared mailboxes' calendars weren't allowed: {error}"
 msgstr ""
 
 #. ribbon
@@ -6045,6 +6217,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/chrome.rs
 msgid "Show Send/Receive Progress"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/shared_calendars.rs
+msgid "Show a Shared Mailbox's Calendars"
 msgstr ""
 
 #. interface
@@ -6636,6 +6813,11 @@ msgstr ""
 msgid "That calendar isn't shown: tick it in the list of calendars first."
 msgstr ""
 
+#. what a command says
+#: crates/engine/src/cmd/calendar_opened.rs
+msgid "That calendar wasn't opened by address: it is in the account's own list."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/windows.rs
 msgid "That can't be opened in a window of its own"
@@ -6656,13 +6838,18 @@ msgstr ""
 msgid "That is not a sender's address"
 msgstr ""
 
+#. what a command says
+#: crates/engine/src/cmd/calendar_opened.rs
+msgid "That is this account's own address: its own calendar is there already."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/report_problem.rs
 msgid "That is too long for a report: shorten it"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/shared_mailboxes.rs
+#: crates/ui-egui/src/shared_calendars.rs crates/ui-egui/src/shared_mailboxes.rs
 msgid "That isn't a shared mailbox"
 msgstr ""
 
@@ -6741,6 +6928,11 @@ msgstr ""
 msgid "The calendar \"{name}\" can only be read: its owner hasn't let this account change it."
 msgstr ""
 
+#. what a command says
+#: crates/engine/src/cmd/remote.rs
+msgid "The calendar \"{name}\" only shows when its owner is busy: this account can't change it."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs
 msgid "The calendar changes couldn't be taken in: {error}"
@@ -6787,6 +6979,44 @@ msgid "The calendar is being updated: try again in a moment."
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/open_shared.rs
+msgid "The calendar needs your permission first: File › Info › Connect calendar and contacts"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "The calendar of {address} and its events kept on this computer will be removed. Their calendar on the server is not touched, and you can open it again."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/calendar_opened.rs
+msgid "The calendar of {address} is in the list of calendars already: it was shared with you and accepted."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/calendar_opened.rs
+msgid "The calendar of {address} is open already."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/calendar_opened.rs
+msgid "The calendar of {address} wasn't opened by address."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/open_shared.rs
+msgid ""
+"The calendar of {name} is in your calendar list now, because it was shared with you and accepted. You also opened it by address, so it is there twice.\n"
+"\n"
+"Remove the copy opened by address? The other one stays, and nothing on the server changes."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/shared_calendars.rs
+msgid "The calendars of the shared mailbox wait: {error}"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/calendar_sync.rs
 msgid "The categories couldn't be taken in: {error}"
 msgstr ""
@@ -6824,6 +7054,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/report_problem.rs
 msgid "The diagnostics weren't saved, so GitHub's page wasn't opened. Try again, or untick Include diagnostics."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "The e-mail address of the person whose calendar you want to open"
 msgstr ""
 
 #. interface
@@ -6966,13 +7201,18 @@ msgstr ""
 msgid "The shared mailbox opened through it is removed from this device too."
 msgstr ""
 
+#. what a command says
+#: crates/engine/src/cmd/remote.rs
+msgid "The shared mailbox's calendar \"{name}\" only shows when its owner is busy: this account can't change it."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 msgid "The shared mailbox's e-mail address"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/shared_mailboxes.rs
+#: crates/ui-egui/src/shared_calendars.rs crates/ui-egui/src/shared_mailboxes.rs
 msgid "The sign-in of the account this shared mailbox is opened through was refused: sign in again with Send/Receive"
 msgstr ""
 
@@ -7042,6 +7282,11 @@ msgid "There is no such account"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/open_shared.rs
+msgid "There's no mailbox at {address}, or its calendar can't be reached through Microsoft."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
 msgid "There's no mailbox at {address}."
 msgstr ""
@@ -7087,8 +7332,13 @@ msgid "This account has no mail server to send the answer through."
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/lib.rs crates/ui-egui/src/shared_mailboxes.rs
+#: crates/ui-egui/src/lib.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/shared_calendars.rs crates/ui-egui/src/shared_mailboxes.rs
 msgid "This account has no sign-in with Microsoft"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/remote.rs
+msgid "This account may only read the shared mailbox's calendar \"{name}\": the mailbox's owner hasn't given it edit rights (or they haven't been read yet)."
 msgstr ""
 
 #. interface
@@ -7462,7 +7712,7 @@ msgid "This series is still on its way to the account's server. Change one of it
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/shared_mailboxes.rs
+#: crates/ui-egui/src/shared_calendars.rs crates/ui-egui/src/shared_mailboxes.rs
 msgid "This shared mailbox's account is gone"
 msgstr ""
 
@@ -7489,6 +7739,11 @@ msgstr ""
 #. date and time, name
 #: crates/i18n/src/date.rs crates/time/src/lib.rs
 msgid "Thursday"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/invitation.rs
+msgid "Tick this shared mailbox's calendar in the calendar's folder pane to answer its meeting requests."
 msgstr ""
 
 #. interface
@@ -7556,9 +7811,33 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
 msgid ""
+"To answer or send meetings from {address}, MailCraft needs your permission to send from shared mailboxes. Microsoft's page opens in your browser to ask you, once.\n"
+"\n"
+"Whether the answer goes as {address} or on its behalf is your organisation's choice. Until you allow it, the answer waits on this computer, and nothing is sent from your own address."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/open_shared.rs
+msgid ""
+"To open other people's calendars, MailCraft needs your permission to read the calendars people share with you. Microsoft's page opens in your browser to ask you, once.\n"
+"\n"
+"What you open is kept on this computer only: it doesn't appear in Outlook or on your other devices."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/shared_mailboxes.rs
+msgid ""
 "To send from {address}, MailCraft needs your permission to send from shared mailboxes. Microsoft's page opens in your browser to ask you, once.\n"
 "\n"
 "Whether your mail goes as {address} or on its behalf is your organisation's choice. Until you allow it, the mail waits in its Outbox, and nothing is sent from your own address."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/shared_calendars.rs
+msgid ""
+"To show the calendars of {address}, MailCraft needs your permission to read the calendars of shared mailboxes. Microsoft's page opens in your browser to ask you, once.\n"
+"\n"
+"What you may see of a calendar is for its owner and your organisation to decide: this changes nothing about that. Until you allow it, nothing of {address}'s calendars is read."
 msgstr ""
 
 #. what a command says
@@ -8081,6 +8360,11 @@ msgid "You declined this meeting."
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/open_shared.rs
+msgid "You don't have access to the calendar of {address}. They need to share it with you; if they just did, try again in an hour."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
 msgid "You don't have access to {address}. If access was just given, try again in an hour."
 msgstr ""
@@ -8166,6 +8450,11 @@ msgid "Your name"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/shared_calendars.rs
+msgid "Your organisation doesn't allow MailCraft to read shared mailboxes' calendars"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/approval.rs
 msgid "Your organisation has approved MailCraft"
 msgstr ""
@@ -8186,8 +8475,18 @@ msgid "Your organisation keeps this permission for its administrators to give. O
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/open_shared.rs
+msgid "Your organisation's administrator has to approve reading other people's calendars once: File › Info"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
 msgid "Your organisation's administrator has to approve reading shared mailboxes once: File › Info"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/shared_calendars.rs
+msgid "Your organisation's administrator has to approve reading shared mailboxes' calendars once: File › Info"
 msgstr ""
 
 #. interface
@@ -8611,7 +8910,7 @@ msgid "no account is kept in step through Microsoft Graph"
 msgstr ""
 
 #. what a command says
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs
 msgid "no account with id {id}"
 msgstr ""
 
@@ -8620,8 +8919,13 @@ msgstr ""
 msgid "no answer"
 msgstr ""
 
+#. why a command can't run
+#: crates/engine/src/cmd/calendar_opened.rs
+msgid "no calendar was opened by address"
+msgstr ""
+
 #. what a command says
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/file.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/file.rs
 msgid "no calendar with id {id}"
 msgstr ""
 
@@ -8780,6 +9084,11 @@ msgstr ""
 msgid "organizer"
 msgstr ""
 
+#. why a command can't run
+#: crates/engine/src/cmd/calendar_opened.rs
+msgid "other people's calendars open under a Microsoft work or school account"
+msgstr ""
+
 #. name
 #: crates/engine/src/agent.rs
 msgid "owner"
@@ -8876,7 +9185,7 @@ msgid "that message isn't held"
 msgstr ""
 
 #. what a command says
-#: crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/compose.rs
+#: crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/compose.rs
 msgid "the account is gone"
 msgstr ""
 
@@ -9305,6 +9614,11 @@ msgid "{address} couldn't be opened: {error}"
 msgstr ""
 
 #. what a command says
+#: crates/engine/src/cmd/calendar_opened.rs
+msgid "{address} is a shared mailbox that is open here: its calendars are listed with it."
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/account.rs
 msgid "{address} is already set up"
 msgstr ""
@@ -9570,6 +9884,16 @@ msgid "{name} proposes another time: {start} – {end}."
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/reading/sharing.rs
+msgid "{name} shared a calendar with you."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/sharing.rs
+msgid "{name} shared a calendar with you. It is in your calendar list."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/reading/invitation.rs
 msgid "{name} tentatively accepted this meeting."
 msgstr ""
@@ -9633,6 +9957,11 @@ msgid "{n} change waiting for the IMAP server won't reach it; it stays in the ba
 msgid_plural "{n} changes waiting for the IMAP server won't reach it; they stay in the backup copy."
 msgstr[0] ""
 msgstr[1] ""
+
+#. interface
+#: crates/ui-egui/src/calendar_sync.rs
+msgid "{n} changes to the calendar \"{name}\" are held here, not sent: this account may no longer change it. They are sent if it may again."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/lib.rs

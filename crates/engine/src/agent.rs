@@ -340,6 +340,10 @@ const ACCOUNTS: &[&str] = &[
     "account.graphSwitch",
     "account.addSharedMailbox",
     "account.removeSharedMailbox",
+    // Another person's calendar, opened by address (#70): it reaches that person's mailbox with
+    // the owner's sign-in, and removing one removes what is kept of it here.
+    "calendar.openShared",
+    "calendar.removeShared",
     // Mail to keep offline (#143): what is kept on this computer; the server keeps it all.
     "account.thinOffline",
     "ui.keepOffline",
@@ -347,6 +351,7 @@ const ACCOUNTS: &[&str] = &[
     "ui.connectMicrosoft",
     "ui.connectFavorites",
     "ui.allowSharedSend",
+    "ui.allowSharedCalendars",
     "ui.checkCalendar",
     "ui.adminConsent",
     "ui.signInAgain",
@@ -755,6 +760,16 @@ pub fn describe(s: &Session, id: &str, params: &Value) -> String {
             format!("confirm the servers of the mailbox opened from a file, so that it connects to {}", to.join("; "))
         }
         "account.addSharedMailbox" => format!("open the shared mailbox {}", clip(st("address"), 80)),
+        "calendar.openShared" => {
+            format!("open the calendar of {} (its events are read from that person's mailbox with the account's sign-in)", clip(st("address"), 80))
+        }
+        "calendar.removeShared" => {
+            let named = p::id(params, "id")
+                .and_then(|c| s.mailbox.calendar(c))
+                .and_then(|c| mailcraft_model::remote::opened_address(&c.origin.id))
+                .unwrap_or_else(|| st("address").to_string());
+            format!("remove the calendar of {} opened by address, and its events from this computer", clip(&named, 80))
+        }
         "account.removeSharedMailbox" => {
             let a = p::id(params, "id").and_then(|a| s.mailbox.account(a)).map(|a| a.email.clone()).unwrap_or_else(|| st("address").to_string());
             format!("close the shared mailbox {} and remove its mail from this computer", clip(&a, 80))

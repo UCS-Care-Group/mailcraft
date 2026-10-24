@@ -1424,7 +1424,7 @@ mod tests {
         let mine = mail(&mut s, account, "REQUEST", "uid-mine", "");
         assert_eq!(blocked(&mut s, mine), (Some("organizer".into()), Some(false)));
         let calendar = s.mailbox.events.values().find(|e| e.uid == "uid-there").map(|e| e.calendar).unwrap();
-        s.mailbox.calendars.iter_mut().find(|c| c.id == calendar).unwrap().read_only = true;
+        s.mailbox.calendars.iter_mut().find(|c| c.id == calendar).unwrap().rights = mailcraft_model::Rights::Read;
         assert_eq!(blocked(&mut s, there), (Some("readOnly".into()), Some(false)));
     }
 

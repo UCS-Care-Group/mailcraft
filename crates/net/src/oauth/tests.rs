@@ -1695,7 +1695,9 @@ fn one_approval_covers_everything_the_program_asks_an_owner_for() {
     }
     // And what the Favorites take through Graph, which an owner is asked for later, and what a
     // shared mailbox takes, read and sent from (#70).
-    for asked in format!("{GRAPH_SCOPES} {FAVORITES_SCOPES} {} {}", shared_scope(), shared_send_scope()).split(' ') {
+    for asked in
+        format!("{GRAPH_SCOPES} {FAVORITES_SCOPES} {} {}", shared_scope(), shared_send_scope()).split(' ').chain(shared_calendar_scope().split(' '))
+    {
         assert!(approved.iter().any(|scope| scope == asked), "{asked}");
     }
     // No permission twice.
@@ -2093,4 +2095,58 @@ fn a_shared_mailboxs_tokens_are_asked_for_with_its_permission_and_nothing_less()
     let server = FakeHttp::answering(response("400 Bad Request", unasked));
     assert!(refresh_graph_shared_at(&endpoints_of(&server), &oauth(), "re-fresh").unwrap_err().is_consent_needed());
     assert_eq!(server.asked(), 1);
+}
+
+const SHARED_CALENDARS_SCOPE: &str = "https://graph.microsoft.com/Calendars.ReadWrite.Shared";
+
+#[test]
+fn a_shared_mailboxs_calendars_are_asked_for_by_themselves_and_never_with_a_sign_in() {
+    for resource in [Resource::Mail, Resource::Graph, Resource::GraphMail] {
+        let endpoints = Endpoints::for_resource(&oauth(), resource);
+        let asked = format!("{} {} {}", endpoints.scope, endpoints.consent, endpoints.lesser);
+        assert!(!asked.contains(SHARED_CALENDARS_SCOPE), "{resource:?}: {asked}");
+    }
+    // Reading mail from a shared mailbox, or sending from one, doesn't ask for its calendars.
+    assert!(!shared_scope().contains(SHARED_CALENDARS_SCOPE) && !shared_send_scope().contains(SHARED_CALENDARS_SCOPE));
+    let calendars = shared_calendar_scope();
+    // `Calendars.ReadWrite.Shared` alone: never the read-only twin.
+    assert!(calendars.split(' ').any(|scope| scope == SHARED_CALENDARS_SCOPE) && !calendars.contains("Calendars.Read.Shared"), "{calendars}");
+    assert!(
+        calendars.split(' ').any(|scope| scope == SHARED_SCOPE) && calendars.contains("offline_access") && !calendars.contains(SHARED_SEND_SCOPE)
+    );
+    // The administrator's one approval covers it.
+    assert!(admin_scope().split(' ').any(|scope| scope == SHARED_CALENDARS_SCOPE));
+}
+
+#[test]
+fn a_shared_mailboxs_calendars_need_their_permission_and_nothing_less() {
+    let granted = r#"{"token_type":"Bearer","expires_in":3600,"access_token":"calendar-access","refresh_token":"re-fresh-4"}"#;
+    let unasked = r#"{"error":"invalid_grant","error_description":"AADSTS65001: The user or administrator has not consented to use the application with ID 'client-1' named 'MailCraft'.","error_codes":[65001],"suberror":"consent_required"}"#;
+    let server = FakeHttp::answering(ok(granted));
+    let got = refresh_graph_shared_calendars_at(&endpoints_of(&server), &oauth(), "re-fresh").unwrap();
+    assert_eq!((got.tokens.access.as_str(), got.tokens.refresh.as_str(), server.asked()), ("calendar-access", "re-fresh-4", 1));
+    assert_eq!(form_of(&server, 0)["scope"], shared_calendar_scope());
+    // Not agreed to yet: the owner is asked on the page, by itself; nothing is had without it.
+    let server = FakeHttp::answering(response("400 Bad Request", unasked));
+    assert!(refresh_graph_shared_calendars_at(&endpoints_of(&server), &oauth(), "re-fresh").unwrap_err().is_consent_needed());
+    assert_eq!(server.asked(), 1);
+}
+
+#[test]
+fn calendars_opened_by_address_are_asked_for_with_their_permission_and_nothing_more() {
+    let granted = r#"{"token_type":"Bearer","expires_in":3600,"access_token":"calendars-access","refresh_token":"re-fresh-2"}"#;
+    let unasked = r#"{"error":"invalid_grant","error_description":"AADSTS65001: The user or administrator has not consented to use the application with ID 'client-1' named 'MailCraft'.","error_codes":[65001],"suberror":"consent_required"}"#;
+    let server = FakeHttp::answering(ok(granted));
+    let got = refresh_graph_opened_calendars_at(&endpoints_of(&server), &oauth(), "re-fresh").unwrap();
+    assert_eq!((got.tokens.access.as_str(), got.tokens.refresh.as_str(), server.asked()), ("calendars-access", "re-fresh-2", 1));
+    let scope = form_of(&server, 0)["scope"].to_string();
+    assert!(scope.contains("Calendars.ReadWrite.Shared") && scope.contains("Calendars.ReadWrite "), "{scope}");
+    // Never the mail permissions of shared mailboxes, nor the read-only twin.
+    assert!(!scope.contains("Mail.ReadWrite") && !scope.contains("Mail.Send.Shared") && !scope.contains("Calendars.Read.Shared"), "{scope}");
+    // Not agreed to yet: the owner is to be asked on the page; nothing is asked without it.
+    let server = FakeHttp::answering(response("400 Bad Request", unasked));
+    assert!(refresh_graph_opened_calendars_at(&endpoints_of(&server), &oauth(), "re-fresh").unwrap_err().is_consent_needed());
+    assert_eq!(server.asked(), 1);
+    // An ordinary sign-in and the others' refreshes don't carry it.
+    assert!(!shared_scope().contains("Calendars.ReadWrite.Shared"));
 }

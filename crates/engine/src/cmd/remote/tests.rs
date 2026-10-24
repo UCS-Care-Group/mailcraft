@@ -2372,12 +2372,18 @@ fn every_calendar_of_the_account_is_a_calendar_here() {
     use mailcraft_model::Rgb;
     use mailcraft_model::remote::{CalendarsDownload, CategoriesDownload, RemoteCalendar};
     let (mut s, account, first, _, main) = served();
-    let list = |calendars: Vec<RemoteCalendar>, complete: bool| CalendarsDownload { account, email: "ada@example.org".into(), complete, calendars };
+    let list = |calendars: Vec<RemoteCalendar>, complete: bool| CalendarsDownload {
+        account,
+        email: "ada@example.org".into(),
+        complete,
+        calendars,
+        ..Default::default()
+    };
     let entry = |id: &str, name: &str, group: &str| RemoteCalendar { id: id.into(), name: name.into(), group: group.into(), ..Default::default() };
     let all = vec![
         RemoteCalendar { main: true, color: Some(Rgb(1, 2, 3)), ..entry("cal-main", "Calendar", "My Calendars") },
         RemoteCalendar { color: Some(Rgb(4, 5, 6)), ..entry("cal-team", "Team", "My Calendars") },
-        RemoteCalendar { read_only: true, ..entry("cal-holidays", "Holidays\r\nin Wonderland", "Other Calendars") },
+        RemoteCalendar { rights: mailcraft_model::Rights::Read, ..entry("cal-holidays", "Holidays\r\nin Wonderland", "Other Calendars") },
         // Said twice, or with no name the server could call it by: passed over.
         entry("cal-team", "Team again", ""),
         entry("two words", "Odd", ""),
@@ -2385,7 +2391,7 @@ fn every_calendar_of_the_account_is_a_calendar_here() {
     let merged = super::apply_calendars(&mut s, &list(all.clone(), true)).unwrap();
     assert_eq!((merged["added"].as_u64(), merged["updated"].as_u64(), merged["removed"].as_u64()), (Some(2), Some(1), Some(0)));
     let of_account: Vec<_> = s.mailbox.calendars.iter().filter(|c| c.origin.account == account).cloned().collect();
-    let shape: Vec<_> = of_account.iter().map(|c| (c.name.as_str(), c.origin.id.as_str(), c.group.as_str(), c.read_only, c.visible)).collect();
+    let shape: Vec<_> = of_account.iter().map(|c| (c.name.as_str(), c.origin.id.as_str(), c.group.as_str(), !c.can_edit(), c.visible)).collect();
     assert_eq!(
         shape,
         // Only the account's own calendar is ticked to begin with: the rest are listed, and
@@ -2427,6 +2433,7 @@ fn every_calendar_of_the_account_is_a_calendar_here() {
         email: "bo@example.org".into(),
         complete: true,
         calendars: vec![RemoteCalendar { main: true, ..entry("cal-only", "Calendar", "") }],
+        ..Default::default()
     };
     assert_eq!(super::apply_calendars(&mut alone, &one).unwrap()["added"], 1);
     assert_eq!(alone.mailbox.calendars.iter().filter(|c| c.origin.account == only).map(|c| c.visible).collect::<Vec<_>>(), [true]);
@@ -2829,6 +2836,7 @@ fn an_event_of_another_calendar_is_sent_through_that_calendar() {
         email: "ada@example.org".into(),
         complete: true,
         calendars: vec![entry("cal-main", "Calendar", true), entry("cal-team", "Team", false)],
+        ..Default::default()
     };
     super::apply_calendars(&mut s, &list).unwrap();
     let in_team = EventsDownload { calendar: "cal-team".into(), ..october(account, vec![remote("t-1", "Retro", at(2026, 10, 15, 13, 0), 60)]) };

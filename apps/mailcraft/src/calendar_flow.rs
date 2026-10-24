@@ -963,7 +963,13 @@ fn a_series_keeps_its_hour_across_a_change_of_the_clock_here_and_on_the_server()
 
     // On the server: each at nine by its own clock every week, whatever that is in UTC.
     let on_server = |title: &str| -> Vec<i64> {
-        let query = mailcraft_net::graph::EventsQuery { calendar: String::new(), from: utc(10, 18, 0, 0), to: utc(11, 10, 0, 0), series: Vec::new() };
+        let query = mailcraft_net::graph::EventsQuery {
+            calendar: String::new(),
+            from: utc(10, 18, 0, 0),
+            to: utc(11, 10, 0, 0),
+            series: Vec::new(),
+            shared: String::new(),
+        };
         let down = mailcraft_net::graph::events_in(TOKEN, &query).unwrap();
         let mut starts: Vec<i64> =
             down.events.iter().filter(|e| e.title == title && e.kind == RemoteEventKind::Occurrence).map(|e| e.start).collect();

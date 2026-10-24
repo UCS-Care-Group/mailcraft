@@ -186,6 +186,7 @@ fn sort_label(sort: SortBy) -> &'static str {
         SortBy::Subject => tl!("By Subject"),
         SortBy::Size => tl!("By Size"),
         SortBy::Importance => tl!("By Importance"),
+        SortBy::Categories => tl!("By Categories"),
     }
 }
 
@@ -194,8 +195,8 @@ fn direction_label(sort: SortBy, descending: bool) -> &'static str {
     match (sort, descending) {
         (SortBy::Date, true) => tl!("Newest on top"),
         (SortBy::Date, false) => tl!("Oldest on top"),
-        (SortBy::From | SortBy::Subject, false) => tl!("A on top"),
-        (SortBy::From | SortBy::Subject, true) => tl!("Z on top"),
+        (SortBy::From | SortBy::Subject | SortBy::Categories, false) => tl!("A on top"),
+        (SortBy::From | SortBy::Subject | SortBy::Categories, true) => tl!("Z on top"),
         (SortBy::Size, true) => tl!("Largest on top"),
         (SortBy::Size, false) => tl!("Smallest on top"),
         (SortBy::Importance, true) => tl!("High on top"),
@@ -474,7 +475,7 @@ fn list(app: &mut MailApp, ui: &mut Ui) {
     ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
     list_header(app, ui);
     let rows = app.session.rows();
-    search_bar(app, ui, rows.len());
+    search_bar(app, ui, mailcraft_engine::list::listed(&rows));
     // A search covers what is here: of a message not fetched yet, its headers and preview (R3.2).
     if !app.session.view.search.trim().is_empty() {
         let folder = app.session.view.folder;
@@ -558,7 +559,7 @@ fn list(app: &mut MailApp, ui: &mut Ui) {
     let rows_end = y;
     let total = y + below;
     let reveal = std::mem::take(&mut app.reveal_selection);
-    let focus = app.session.sel.focus();
+    let focus = app.session.sel.focus().map(|id| (id, app.session.sel.focus_copy()));
     let outer = ui.available_rect_before_wrap();
     let lane = scroll_lane(outer);
     let scrolls = total > outer.height();
@@ -613,7 +614,7 @@ fn list(app: &mut MailApp, ui: &mut Ui) {
                 paint_clipped(ui.painter(), pos2(gr.min.x + 10.0, gr.center().y), gr.width() - 16.0, group_name(group), semibold(GROUP_TEXT), t.text);
             }
             let rect = Rect::from_min_size(pos2(origin.x, origin.y + top), vec2(width, row_h));
-            if reveal && Some(row.id) == focus {
+            if reveal && Some((row.id, row.copy)) == focus {
                 ui.scroll_to_rect(rect, None);
             }
             message_row(app, ui, row, rect);
@@ -766,14 +767,16 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect) {
     let t = Tokens::get(ui.ctx());
     // The shared pointer, not a copy of the message.
     let Some(m) = app.session.mailbox.messages.get(&row.id).cloned() else { return };
-    let resp = ui.interact(rect, ui.scope_id().with(("msg", row.id)), Sense::click_and_drag());
+    // A message listed under two categories is two rows, each with ids of its own.
+    let key = (row.id, row.copy);
+    let resp = ui.interact(rect, ui.scope_id().with(("msg", key)), Sense::click_and_drag());
     app.hit.add("message", row.id, rect);
     let unread = row.unread > 0;
     // The strip down the left edge is a switch between read and unread. It sits on top of the
     // row, so a click there changes the mark and leaves the selection alone.
     let strip = Rect::from_min_max(rect.min, pos2(rect.min.x + READ_STRIP, rect.max.y));
     let read_resp = ui
-        .interact(strip, ui.scope_id().with(("msg_read", row.id)), Sense::click())
+        .interact(strip, ui.scope_id().with(("msg_read", key)), Sense::click())
         .on_hover_cursor(egui::CursorIcon::PointingHand)
         .on_hover_text(if unread { tl!("Mark as read") } else { tl!("Mark as unread") });
     app.hit.add("messageRead", row.id, strip);
@@ -790,8 +793,8 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect) {
     let delete_rect = flag_rect.translate(vec2(-(QUICK_TARGET.x + QUICK_GAP), 0.0));
     let flagged = m.flag == FlagStatus::Flagged;
     let quick = over.then(|| {
-        let delete = ui.interact(delete_rect, ui.scope_id().with(("msg_delete", row.id)), Sense::click()).on_hover_text(tl!("Delete"));
-        let flag = ui.interact(flag_rect, ui.scope_id().with(("msg_flag", row.id)), Sense::click()).on_hover_text(if flagged {
+        let delete = ui.interact(delete_rect, ui.scope_id().with(("msg_delete", key)), Sense::click()).on_hover_text(tl!("Delete"));
+        let flag = ui.interact(flag_rect, ui.scope_id().with(("msg_flag", key)), Sense::click()).on_hover_text(if flagged {
             tl!("Clear flag")
         } else {
             tl!("Flag for follow-up")
@@ -801,7 +804,8 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect) {
         (delete, flag)
     });
     let selected = app.session.sel.messages.contains(&row.id);
-    let focus = app.session.sel.focus() == Some(row.id);
+    // The focus is on one of a message's rows: the one clicked or stepped to.
+    let focus = app.session.sel.focus() == Some(row.id) && app.session.sel.focus_copy() == row.copy;
     let p = ui.painter();
     // The row is what is above the line under it; its content starts a little in from the list's edge.
     let body = Rect::from_min_max(pos2(rect.min.x + ROW_INSET, rect.min.y), pos2(rect.max.x, rect.max.y - 1.0));
@@ -1020,13 +1024,14 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect) {
         let (command, ids) = if unread { ("mail.markRead", row.members.clone()) } else { ("mail.markUnread", vec![row.id]) };
         let _ = app.run(command, json!({"ids": ids}));
     }
-    clicks(app, ui, &resp, row.id, &m);
+    clicks(app, ui, &resp, row, &m);
 }
 
-fn clicks(app: &mut MailApp, ui: &Ui, resp: &egui::Response, id: Id, m: &Message) {
+fn clicks(app: &mut MailApp, ui: &Ui, resp: &egui::Response, row: &Row, m: &Message) {
+    let (id, copy) = (row.id, row.copy);
     let mods = ui.input(|i| i.modifiers);
     if resp.clicked() {
-        let _ = app.run("mail.select", json!({"id": id, "extend": mods.command, "range": mods.shift}));
+        let _ = app.run("mail.select", json!({"id": id, "copy": copy, "extend": mods.command, "range": mods.shift}));
     }
     // A double click opens the message: a draft in the composer, any other in a window of its own.
     if resp.double_clicked() {
@@ -1034,7 +1039,7 @@ fn clicks(app: &mut MailApp, ui: &Ui, resp: &egui::Response, id: Id, m: &Message
     }
     // A right click on a row outside the selection acts on that row.
     if resp.secondary_clicked() && !app.session.sel.messages.contains(&id) {
-        let _ = app.execute("mail.select", json!({"id": id}));
+        let _ = app.execute("mail.select", json!({"id": id, "copy": copy}));
     }
     let (read, flagged, pinned) = (m.read, m.flag == FlagStatus::Flagged, m.pinned);
     let in_junk = app.session.mailbox.folder(m.folder).is_some_and(|f| f.kind == FolderKind::Junk);

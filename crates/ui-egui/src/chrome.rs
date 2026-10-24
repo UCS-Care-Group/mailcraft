@@ -308,7 +308,7 @@ pub fn status_bar(app: &mut MailApp, ui: &mut Ui) {
                 let st = |ui: &mut Ui, s: &str, color: egui::Color32| st_most(ui, s, color, f32::INFINITY);
                 match app.session.view.module {
                     Module::Mail => {
-                        let shown = app.session.rows().len();
+                        let shown = mailcraft_engine::list::listed(&app.session.rows());
                         let folder = app.session.view.folder;
                         st(ui, &tln!(shown, "{n} item", "{n} items"), t.text_dim);
                         let unread = app.session.mailbox.unread_count(folder);
