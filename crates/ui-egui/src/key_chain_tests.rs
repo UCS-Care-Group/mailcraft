@@ -1,10 +1,12 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! Escape and Enter go only to the layer on top (#406): a list open in a dialog, the recurrence
-//! editor of an appointment in a dialog, the front one of several windows, a window's question
-//! about its unsaved changes, Send/Receive Progress over a window. And the repeats of a held key
-//! that closed a dialog don't reach what is under it (a contact, a task, an appointment, a search,
-//! a picked slot). Where both apply, each test is run with one press and with the key held down.
+//! Escape and Enter go to one place (#406): a modal layer on top (a dialog, the recurrence editor
+//! of an appointment, a window's question about its unsaved changes, an agent's question), a list
+//! open, Send/Receive Progress, the widget with the keyboard, or the window last clicked or typed
+//! in. Nothing under a dialog gets keys or typing, and the keyboard goes back once it closes. The
+//! repeats of a held key that closed a dialog don't reach what is under it (a contact, a task, an
+//! appointment, a search, a picked slot), nor press OK in what its press opened; they type new
+//! lines where Enter does. Where both apply, a test is run with one press and with the key held.
 
 use egui::Key;
 use egui_kittest::kittest::{NodeT as _, Queryable};
@@ -340,4 +342,367 @@ fn escape_lets_go_of_text_picked_out_in_the_main_window() {
     assert!(picked(&h), "the notes are picked out");
     testing::key(&mut h, Key::Escape);
     assert!(!picked(&h));
+}
+
+fn focus(h: &Window) -> Option<egui::Id> {
+    h.ctx.memory(|m| m.focused())
+}
+
+/// A new appointment in a window inside the main one, `Lunch` typed in its title; how many
+/// appointments there were before it.
+fn appointment(h: &mut Window) -> usize {
+    let before = h.state().session.mailbox.events.len();
+    run(h, "ui.openWindow", json!({"new": "appointment"}));
+    testing::text(h, "Lunch");
+    assert!(focus(h).is_some(), "the title has the keyboard");
+    before
+}
+
+/// The title of a new appointment had the keyboard, or nothing had it, and a message box comes
+/// up over the window: what is typed doesn't go into the title under it, and Enter, one press or
+/// held, closes the message box and saves nothing.
+#[test]
+fn a_message_box_over_an_appointment_window_has_the_keys() {
+    for keep in [true, false] {
+        for (how, press) in PRESSES {
+            let mut h = window("view.calendar");
+            let before = appointment(&mut h);
+            if !keep {
+                let id = focus(&h).unwrap();
+                h.ctx.memory_mut(|m| m.surrender_focus(id));
+                h.run_steps(2);
+            }
+            refused(&mut h);
+            testing::text(&mut h, "X");
+            assert!(h.query_all_by_value("LunchX").next().is_none(), "{how}, {keep}: nothing typed under the box");
+            press(&mut h, Key::Enter);
+            assert_eq!(dialog(&h), None, "{how}, {keep}");
+            assert_eq!((windows(&h).len(), h.state().session.mailbox.events.len()), (1, before), "{how}, {keep}: nothing saved");
+        }
+    }
+}
+
+/// Enter in the pass after a message box came up over a form is the box's: the form under it
+/// doesn't save.
+#[test]
+fn enter_right_after_a_message_box_came_up_is_its() {
+    let mut h = window("view.calendar");
+    let before = appointment(&mut h);
+    h.state_mut().dialog = Some(Dialog::Refused { text: "Not now".into() });
+    h.step();
+    testing::key(&mut h, Key::Enter);
+    assert_eq!(dialog(&h), None);
+    assert_eq!((windows(&h).len(), h.state().session.mailbox.events.len()), (1, before));
+}
+
+/// Window A has its recurrence editor open, and window B, with a title typed, is in front with
+/// nothing focused: Enter is the editor's OK, and B isn't saved.
+#[test]
+fn enter_under_another_windows_editor_is_the_editors() {
+    let mut h = window("view.calendar");
+    let before = h.state().session.mailbox.events.len();
+    run(&mut h, "ui.openWindow", json!({"new": "appointment"}));
+    let a = windows(&h)[0]["id"].as_u64().unwrap();
+    run(&mut h, "ui.openWindow", json!({"new": "appointment"}));
+    testing::text(&mut h, "Dinner");
+    let id = focus(&h).unwrap();
+    h.ctx.memory_mut(|m| m.surrender_focus(id));
+    h.state_mut().windows.form_mut(a).and_then(Form::event_mut).unwrap().open_recurrence();
+    h.run_steps(3);
+    testing::key(&mut h, Key::Enter);
+    assert!(!h.state_mut().windows.form_mut(a).is_some_and(|f| f.modal()), "the editor took OK");
+    assert_eq!((windows(&h).len(), h.state().session.mailbox.events.len()), (2, before), "B isn't saved");
+}
+
+/// A held Enter in New Contact's notes, a box of several lines, types four new lines: the press
+/// and each repeat.
+#[test]
+fn a_held_enter_types_new_lines_in_notes() {
+    let mut h = window("view.people");
+    run(&mut h, "ui.dialog", json!({"name": "contact"}));
+    let notes = crate::forms::kit::field_id("notes");
+    h.ctx.memory_mut(|m| m.request_focus(notes));
+    h.run_steps(2);
+    testing::text(&mut h, "one");
+    testing::held(&mut h, Key::Enter);
+    testing::text(&mut h, "two");
+    assert!(h.query_all_by_value("one\n\n\n\ntwo").next().is_some());
+    assert_eq!(dialog(&h), Some("contact"));
+}
+
+/// A held Enter in the body of a message being written types four new lines.
+#[test]
+fn a_held_enter_types_new_lines_in_a_message() {
+    let mut h = window("view.mail");
+    run(&mut h, "mail.new", json!({"to": "maya@lumen.example"}));
+    run(&mut h, "compose.set", json!({"body": ""}));
+    h.state_mut().body_focus_wanted = true;
+    h.run_steps(3);
+    assert!(crate::compose::editor::has_focus(&h.ctx));
+    testing::text(&mut h, "Hi");
+    testing::held(&mut h, Key::Enter);
+    testing::text(&mut h, "there");
+    assert_eq!(h.state().session.compose.as_ref().map(|c| c.body.plain()).unwrap_or_default(), "Hi\n\n\n\nthere");
+}
+
+/// A held Enter in New Contact's name saves one contact and closes the dialog, and its repeats
+/// open nothing after it.
+#[test]
+fn a_held_enter_in_a_one_line_field_saves_once() {
+    let mut h = window("view.people");
+    let before = h.state().session.mailbox.contacts.len();
+    run(&mut h, "ui.dialog", json!({"name": "contact"}));
+    testing::text(&mut h, "Ada Probe");
+    testing::held(&mut h, Key::Enter);
+    assert_eq!(dialog(&h), None);
+    assert_eq!(h.state().session.mailbox.contacts.len(), before + 1);
+}
+
+/// A held Enter that opens the selected contact, task or appointment: its repeats don't press
+/// OK in what opened.
+#[test]
+fn a_held_enter_that_opens_something_leaves_it_open() {
+    for (module, select) in [("view.people", "people.select"), ("view.tasks", "tasks.select")] {
+        let mut h = window(module);
+        let mb = &h.state().session.mailbox;
+        let id = if module == "view.people" { *mb.contacts.keys().next().unwrap() } else { *mb.tasks.keys().next().unwrap() };
+        run(&mut h, select, json!({"id": id}));
+        testing::held(&mut h, Key::Enter);
+        assert!(dialog(&h).is_some(), "{module}: it stays open");
+    }
+    let mut h = window("view.calendar");
+    let today = h.state().session.today();
+    let id = h.state().session.mailbox.events.iter().find(|(_, e)| e.start.date == today && e.recurrence.is_none()).map(|(id, _)| *id).unwrap();
+    run(&mut h, "calendar.select", json!({"id": id, "day": today.iso()}));
+    testing::held(&mut h, Key::Enter);
+    assert_eq!(windows(&h).len() + usize::from(dialog(&h).is_some()), 1, "the appointment stays open");
+}
+
+/// A held Enter in the entry of a picked stretch of the calendar makes one appointment.
+#[test]
+fn a_held_enter_in_a_calendar_slot_makes_one_appointment() {
+    let mut h = window("view.calendar");
+    run(&mut h, "view.day", json!({}));
+    let before = h.state().session.mailbox.events.len();
+    testing::key(&mut h, Key::ArrowDown);
+    testing::text(&mut h, "Standup");
+    h.run_steps(2);
+    testing::held(&mut h, Key::Enter);
+    assert_eq!(h.state().session.mailbox.events.len(), before + 1);
+    assert_eq!((windows(&h).len(), dialog(&h)), (0, None));
+}
+
+/// Two presses of Enter in the pass a message box closes in: the second doesn't open the contact
+/// under it.
+#[test]
+fn two_presses_in_the_pass_a_dialog_closes_in() {
+    let mut h = window("view.people");
+    let id = *h.state().session.mailbox.contacts.keys().next().unwrap();
+    run(&mut h, "people.select", json!({"id": id}));
+    refused(&mut h);
+    for pressed in [true, false, true, false] {
+        h.input_mut().events.push(egui::Event::Key { key: Key::Enter, physical_key: None, pressed, repeat: false, modifiers: egui::Modifiers::NONE });
+    }
+    h.step();
+    h.run_steps(2);
+    assert_eq!(dialog(&h), None);
+}
+
+/// The search box has the keyboard, and a message box comes up: the box gives it up, and has it
+/// again once the message box closes, so that the next Escape is the search box's.
+#[test]
+fn the_keyboard_goes_back_after_a_message_box() {
+    let mut h = window("view.mail");
+    run(&mut h, "mail.new", json!({"subject": "Half written"}));
+    run(&mut h, "ui.focusSearch", json!({}));
+    testing::text(&mut h, "budget");
+    let search = crate::chrome::search_box_id();
+    assert_eq!(focus(&h), Some(search));
+    refused(&mut h);
+    assert_eq!(focus(&h), None, "not under the message box");
+    testing::key(&mut h, Key::Escape);
+    assert_eq!((dialog(&h), focus(&h)), (None, Some(search)));
+    // (egui lets a widget keep the keyboard on Escape from its second pass with it.)
+    h.step();
+    testing::key(&mut h, Key::Escape);
+    assert_eq!(h.state().session.view.search, "");
+    assert!(h.state().session.compose.is_some(), "the message being written stays");
+}
+
+/// A window that opens while a message box is up stays under it, out of reach: Escape closes the
+/// message box, and then the window, which came up after the main window was last used.
+#[test]
+fn a_window_that_opens_under_a_dialog_waits() {
+    let mut h = window("view.mail");
+    refused(&mut h);
+    let message = *h.state().session.mailbox.messages.keys().next().unwrap();
+    run(&mut h, "ui.openWindow", json!({"message": message}));
+    let id = windows(&h)[0]["id"].as_u64().unwrap();
+    assert!(!h.ctx.memory(|m| m.allows_interaction(crate::windows::embedded_layer(id))));
+    testing::key(&mut h, Key::Escape);
+    assert_eq!((dialog(&h), windows(&h).len()), (None, 1));
+    testing::key(&mut h, Key::Escape);
+    assert_eq!(windows(&h).len(), 0);
+}
+
+/// A list is open in New Contact, and an agent's question comes up over both: Escape is the
+/// question's, and the list stays open for the next one.
+#[test]
+fn a_list_under_an_agents_question_waits() {
+    let mut h = window("view.people");
+    run(&mut h, "ui.dialog", json!({"name": "contact"}));
+    h.get_all_by_role(egui::accesskit::Role::ComboBox).next().unwrap().click();
+    h.run_steps(3);
+    assert!(egui::Popup::is_any_open(&h.ctx));
+    h.state_mut().execute("mail.new", json!({"to": "x@attacker.example", "subject": "Re: Invoice"})).unwrap();
+    let (req, rx) = crate::control::ControlRequest::new("engine.execute", json!({"command": "compose.send"}));
+    let ctx = h.ctx.clone();
+    let _ = crate::control::handle(h.state_mut(), &ctx, &req.from_agent(vec![]));
+    h.run_steps(3);
+    assert_eq!(h.state().asking.len(), 1);
+    testing::key(&mut h, Key::Escape);
+    assert!(h.state().asking.is_empty() && rx.try_recv().is_ok_and(|v| v["ok"] == false), "the question said no");
+    assert!(egui::Popup::is_any_open(&h.ctx), "the list stays");
+    testing::key(&mut h, Key::Escape);
+    assert!(!egui::Popup::is_any_open(&h.ctx));
+    assert_eq!(dialog(&h), Some("contact"));
+}
+
+/// In a dialog, Enter on the button that has the keyboard presses that button: Cancel, not OK.
+#[test]
+fn enter_on_a_button_with_the_keyboard_presses_it() {
+    let mut h = window("view.people");
+    let before = h.state().session.mailbox.contacts.len();
+    run(&mut h, "ui.dialog", json!({"name": "contact"}));
+    testing::text(&mut h, "Ada Probe");
+    h.get_by_label("Cancel").focus();
+    h.run_steps(2);
+    testing::key(&mut h, Key::Enter);
+    assert_eq!(dialog(&h), None);
+    assert_eq!(h.state().session.mailbox.contacts.len(), before, "nothing saved");
+}
+
+/// A message window is open, and the owner clicks into the search box of the main window and
+/// types: Escape is the search box's, and the window stays (A+).
+#[test]
+fn escape_in_a_field_of_the_main_window_is_its_with_a_window_open() {
+    let mut h = window("view.mail");
+    let message = *h.state().session.mailbox.messages.keys().next().unwrap();
+    run(&mut h, "ui.openWindow", json!({"message": message}));
+    let r = h.ctx.read_response(crate::chrome::search_box_id()).unwrap().rect;
+    testing::click(&mut h, r.center(), egui::PointerButton::Primary, 1);
+    testing::text(&mut h, "budget");
+    assert_eq!(h.state().session.view.search, "budget");
+    testing::key(&mut h, Key::Escape);
+    assert_eq!(h.state().session.view.search, "");
+    assert_eq!(windows(&h).len(), 1);
+}
+
+/// A new appointment is open in a window inside the main one, with a title typed; the owner
+/// clicks a row of the main window's list: Enter is the main window's now (it opens what was
+/// clicked), and the appointment isn't saved (A+).
+#[test]
+fn enter_after_a_click_on_the_main_list_is_the_main_windows() {
+    for (module, kind) in [("view.people", "contact"), ("view.tasks", "task"), ("view.calendar", "event")] {
+        let mut h = window(module);
+        let before = appointment(&mut h);
+        let id = windows(&h)[0]["id"].as_u64().unwrap();
+        let area = h.ctx.memory(|m| m.area_rect(crate::windows::embedded_layer(id).id)).unwrap();
+        let mb = &h.state().session.mailbox;
+        let ids: Vec<u64> = match kind {
+            "contact" => mb.contacts.keys().copied().collect(),
+            "task" => mb.tasks.keys().copied().collect(),
+            _ => mb.events.keys().copied().collect(),
+        };
+        let row = ids.iter().find_map(|id| h.state().hit.rect(kind, *id).filter(|r| !area.expand(8.0).contains(r.center()))).unwrap();
+        testing::click(&mut h, row.center(), egui::PointerButton::Primary, 1);
+        testing::key(&mut h, Key::Enter);
+        assert_eq!(h.state().session.mailbox.events.len(), before, "{module}: the appointment isn't saved");
+        let opened = windows(&h).len() - 1 + usize::from(dialog(&h).is_some());
+        assert_eq!(opened, 1, "{module}: what was clicked opened");
+    }
+}
+
+/// The source of the crate without its tests: the files of their own, and the modules of tests
+/// inside a file.
+fn sources() -> Vec<(String, String)> {
+    fn walk(dir: &std::path::Path, root: &std::path::Path, out: &mut Vec<(String, String)>) {
+        for entry in std::fs::read_dir(dir).unwrap() {
+            let path = entry.unwrap().path();
+            let name =
+                path.strip_prefix(root).unwrap().components().map(|c| c.as_os_str().to_string_lossy().into_owned()).collect::<Vec<_>>().join("/");
+            if path.is_dir() {
+                if !name.ends_with("tests") {
+                    walk(&path, root, out);
+                }
+            } else if name.ends_with(".rs") && !name.ends_with("tests.rs") {
+                out.push((name, without_tests(&std::fs::read_to_string(&path).unwrap())));
+            }
+        }
+    }
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    let mut out = Vec::new();
+    walk(&root, &root, &mut out);
+    out
+}
+
+/// `src` without its comments and its inline modules of tests.
+fn without_tests(src: &str) -> String {
+    let mut out = String::new();
+    let mut lines = src.lines().peekable();
+    while let Some(line) = lines.next() {
+        let inline = |l: &&str| {
+            let l = l.trim();
+            (l.starts_with("mod ") || l.starts_with("pub(crate) mod ")) && l.ends_with('{')
+        };
+        if line.trim() == "#[cfg(test)]" && lines.peek().is_some_and(inline) {
+            let mut depth = 0i64;
+            for l in lines.by_ref() {
+                depth += l.matches('{').count() as i64 - l.matches('}').count() as i64;
+                if depth <= 0 {
+                    break;
+                }
+            }
+        } else if !line.trim_start().starts_with("//") {
+            out.push_str(line);
+            out.push('\n');
+        }
+    }
+    out
+}
+
+/// Escape and Enter are read through [`crate::keys`] only, which gives each press to one place
+/// (#406). The few reads of the keys themselves left are by a widget that has the keyboard, in
+/// a list that is open, with a modifier held, or no reads at all.
+#[test]
+fn escape_and_enter_are_read_through_the_gate_only() {
+    let allowed: &[(&str, usize)] = &[
+        ("keys.rs", usize::MAX),
+        // The names of the keys the control channel presses.
+        ("control.rs", 2),
+        // A line with suggestions under it has the keyboard: Enter takes the one chosen.
+        ("compose.rs", 1),
+        ("forms.rs", 1),
+        ("search_suggest.rs", 1),
+        // The search box has the keyboard: a held Enter is one press in it.
+        ("chrome.rs", 1),
+        // The body of a message being written has the keyboard: Enter is a new line.
+        ("compose/editor.rs", 1),
+        // The search box of the Move menu, a list that is open: Escape clears it, Enter moves.
+        ("ribbon.rs", 2),
+        // Ctrl+Enter.
+        ("windows.rs", 1),
+    ];
+    let mut wrong = Vec::new();
+    for (name, src) in sources() {
+        let reads = ["Key::Escape", "Key::Enter"]
+            .iter()
+            .map(|key| src.match_indices(key).filter(|(at, _)| !src[at + key.len()..].starts_with(|c: char| c.is_alphanumeric() || c == '_')).count())
+            .sum::<usize>();
+        let may = allowed.iter().find(|(file, _)| *file == name).map_or(0, |(_, n)| *n);
+        if reads > may {
+            wrong.push(format!("{name}: {reads} (at most {may})"));
+        }
+    }
+    assert!(wrong.is_empty(), "Escape or Enter read outside keys.rs; ask crate::keys (escape, enter…) instead: {wrong:?}");
 }
