@@ -22,6 +22,8 @@ use crate::MailApp;
 pub enum FileDialogRequest {
     /// Pick a file to open; `purpose` says what for (`mailbox`, `import`, `attach`).
     Open { purpose: String },
+    /// Pick a folder (to import the mbox files under it).
+    Folder,
     /// Pick a path to save to, given a suggested file name.
     Save { name: String },
 }
@@ -32,6 +34,8 @@ pub(crate) enum AfterPick {
     Open(String),
     /// Run this command with the picked path as `path`.
     Export { command: String, params: Value },
+    /// Show what is in the picked folder, ready to import ([`crate::import_tree`]).
+    Tree,
 }
 
 pub struct PendingDialog {
@@ -70,6 +74,11 @@ fn export_name(app: &MailApp, id: &str, params: &Value) -> Option<String> {
 /// what it produces (browser). `None` for every other command.
 pub(crate) fn intercept(app: &mut MailApp, id: &str, params: &Value) -> Option<Result<Value, String>> {
     // Open, Import and Attach without a file: pick one.
+    if id == "file.importFolderTree" && params.get("path").is_none() && params.get("entries").is_none() && params.get("staged").is_none() {
+        // A host that can't ask for a folder lets the command say what it needs.
+        app.services.file_dialog.as_ref()?;
+        return Some(ask(app, FileDialogRequest::Folder, AfterPick::Tree));
+    }
     if params.get("path").is_none() && params.get("data").is_none() {
         let purpose = match id {
             "file.open" => Some("mailbox"),
@@ -144,6 +153,7 @@ pub(crate) fn poll(app: &mut MailApp) -> Option<Result<Value, String>> {
     let Some(path) = picked else { return Some(Ok(json!({"cancelled": true}))) };
     let r = match d.after {
         AfterPick::Open(purpose) => opened_path(app, &purpose, &path),
+        AfterPick::Tree => app.run("ui.dialog", json!({"name": "importTree", "path": path})),
         AfterPick::Export { command, mut params } => {
             if let Some(o) = params.as_object_mut() {
                 o.insert("path".into(), json!(path));

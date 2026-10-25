@@ -18,6 +18,7 @@ File|Backstage|Open Mailbox File|file.open
 File|Backstage|Save Mailbox|file.save
 File|Backstage|Save Mailbox As|file.saveAs
 File|Backstage|Import|file.import
+File|Backstage|Import a Folder of Mailboxes|file.importFolderTree
 File|Backstage|Export Folder|file.exportFolder
 File|Backstage|Save Message As|file.exportMessage
 File|Backstage|Save Calendar|file.exportCalendar
