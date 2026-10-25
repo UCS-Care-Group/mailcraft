@@ -1480,6 +1480,11 @@ mod event {
             // Before the line itself sees the keys: they are for the list while it is showing.
             let n = st.items.len().max(1);
             ui.input_mut(|i| {
+                // With Shift, Ctrl or Alt held the keys are not the list's: Shift+Tab goes back, as
+                // without the list (`consume_key` takes Shift+Tab for Tab).
+                if !i.modifiers.is_none() {
+                    return;
+                }
                 if i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowDown) {
                     st.selected = (st.selected + 1) % n;
                 }
@@ -1599,6 +1604,7 @@ mod event {
         } else if st.key == key && !over {
             st.items.clear();
             st.typed = false;
+            st.asked = None;
         }
         ui.data_mut(|d| d.insert_temp(store, st));
     }

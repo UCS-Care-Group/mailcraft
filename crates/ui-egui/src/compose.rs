@@ -110,6 +110,11 @@ fn recipient_field(app: &mut MailApp, ui: &mut Ui, key: &str, label: &str, text:
         // Before the line itself sees the keys: they are for the list while it is showing.
         let n = st.items.len();
         ui.input_mut(|i| {
+            // With Shift, Ctrl or Alt held the keys are not the list's: Shift+Tab goes back, as
+            // without the list (`consume_key` takes Shift+Tab for Tab).
+            if !i.modifiers.is_none() {
+                return;
+            }
             if i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowDown) {
                 st.selected = (st.selected + 1) % n;
             }

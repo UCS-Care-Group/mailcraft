@@ -88,10 +88,11 @@ It opens nothing. The problems may name a message by its subject, which is messa
 are framed as untrusted, like the text above.
 
 **Search suggestions.** `view.searchSuggestions {"query", "cursor"?}` (class `safe`, through
-`execute`) answers what the search box offers for the word being typed (#308): keywords,
-categories, what `is:` and `has:` take, and after `from:`, `to:` and `cc:` people from the
-contacts and the mail on this computer, then the owner's own addresses. It asks no server and changes nothing. A person's name and
-address come from mail, so the answer is framed as untrusted, like the text above.
+`execute`) answers what the search box offers for the word being typed (#308): keywords, categories,
+what `is:` and `has:` take, and after `from:`, `to:` and `cc:` people from the contacts and the mail
+on this computer, then, while the list has room, the owner's own addresses. It asks no server and
+changes nothing. A person's name and address come from mail, so the answer is framed as untrusted,
+like the text above.
 
 A headless session works on the mailbox file only. It does not connect to mail servers: sending
 from an account with a server puts the message in its Outbox, and `mailcraft-cli sync` (or the

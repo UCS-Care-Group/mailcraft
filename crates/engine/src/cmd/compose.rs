@@ -840,13 +840,15 @@ pub(crate) struct Typed {
 }
 
 impl Typed {
-    /// `None` for nothing, or for more than 200 characters.
+    /// `None` for nothing, or for more than 200 characters. With an `@` in it, it is an address
+    /// being typed and is not taken apart into words: `ada@` is not Ada Smith at another address.
     pub(crate) fn new(query: &str) -> Option<Typed> {
         let q = query.trim().to_lowercase();
         if q.is_empty() || q.chars().count() > 200 {
             return None;
         }
-        Some(Typed { wanted: mailcraft_model::words::words(&q), q })
+        let wanted = if q.contains('@') { Vec::new() } else { mailcraft_model::words::words(&q) };
+        Some(Typed { wanted, q })
     }
 
     /// Whether it is the start of the address, of the name, or of words of the name one after

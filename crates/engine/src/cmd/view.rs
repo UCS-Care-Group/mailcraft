@@ -129,12 +129,12 @@ fn search(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 /// What the search box offers for the word being typed in `query`, the cursor at byte `cursor`
-/// (#308): keywords, the mailbox's categories, what `is:` and `has:` take, and after `from:`,
-/// `to:` and `cc:` the people a new message's recipients are suggested from
+/// (#308): keywords, the mailbox's categories, what `is:` and `has:` take, and after `from:`, `to:`
+/// and `cc:` the people a new message's recipients are suggested from
 /// ([`compose::suggest`](super::compose::suggest)): the contacts and the mail on this computer,
-/// nothing asked of a server; then the owner's own addresses, which a new message leaves out
-/// (`from:` one finds what was sent from it, `to:` what came to it). The window's list and
-/// `view.searchSuggestions` both ask this.
+/// nothing asked of a server; then, while the list has room, the owner's own addresses, which a new
+/// message leaves out (`from:` one finds what was sent from it, `to:` what came to it). The
+/// window's list and `view.searchSuggestions` both ask this.
 pub fn search_suggestions(s: &Session, query: &str, cursor: usize) -> Vec<Suggestion> {
     mailcraft_model::search::suggestions_with(query, cursor, &s.mailbox.categories, |typed| {
         let mut people: Vec<Address> = super::compose::suggest(s, typed, 20).into_iter().map(|who| Address::new(who.name, who.email)).collect();

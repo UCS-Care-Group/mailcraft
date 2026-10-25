@@ -67,6 +67,20 @@ fn accents_are_left_out_of_names() {
     assert!(suggest(&s, "ozd", 6).is_empty() && people(&s, "from:ozd").is_empty());
 }
 
+/// An address being typed is the start of an address or of a name, not words of a name: `ada@`
+/// is not Ada Smith at another address, though `ada` and `o'brien` find names by their words.
+#[test]
+fn an_address_being_typed_is_not_words_of_a_name() {
+    let mut s = session();
+    contact(&mut s, "Ada Smith", "asmith@other.example");
+    contact(&mut s, "Sean O'Brien", "sean@example.org");
+    let found = |q: &str, email: &str| suggest(&s, q, 20).iter().any(|x| x.email == email);
+    assert!(found("ada", "asmith@other.example") && found("o'brien", "sean@example.org"));
+    assert!(!found("ada@", "asmith@other.example") && !found("ada@sm", "asmith@other.example"));
+    assert!(people(&s, "from:ada@").iter().all(|(_, a)| a != "asmith@other.example"));
+    assert!(found("asmith@oth", "asmith@other.example"));
+}
+
 /// `view.searchSuggestions` answers what the window's list offers, with places in characters, and
 /// changes nothing.
 #[test]

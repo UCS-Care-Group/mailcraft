@@ -104,3 +104,26 @@ fn an_attendee_line_asks_once_for_what_is_typed() {
         assert_eq!(attendees, json!(if told { "Zed One <zed1@example.org>; " } else { "zed" }), "told: {told}");
     }
 }
+
+/// Shift+Tab, with the list showing, goes back from the line as it does without the list: it
+/// takes nobody, in a new message's To line and in a meeting's Required line alike.
+#[test]
+fn shift_tab_takes_nobody() {
+    let back = |h: &mut Harness<'static, MailApp>| {
+        let line = h.ctx.memory(|m| m.focused());
+        h.key_press_modifiers(egui::Modifiers::SHIFT, egui::Key::Tab);
+        h.run_steps(4);
+        assert!(line.is_some() && h.ctx.memory(|m| m.focused()) != line, "the keyboard left the line");
+    };
+    let mut h = window("mail.new", json!({}));
+    zeds_come(&mut h, true);
+    back(&mut h);
+    assert_eq!(h.state().session.compose.as_ref().map(|c| c.to.as_str()), Some("zed"));
+
+    let mut h = window("ui.dialog", json!({"name": "meeting"}));
+    press(&mut h, egui::Key::Tab);
+    zeds_come(&mut h, true);
+    back(&mut h);
+    let Some(Dialog::Form(Form::Event(form))) = &h.state().dialog else { panic!("the meeting's form is open") };
+    assert_eq!(form.command().1["attendees"], json!("zed"));
+}
