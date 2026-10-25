@@ -696,7 +696,9 @@ impl AccountSetup {
             return Some(tl!("A port is a number from 1 to 65535").to_string());
         }
         if !incoming.host.trim().is_empty() && mailcraft_model::pop::looks_like_pop(&incoming.host, incoming.port().unwrap_or(0)) {
-            return Some(tl!("MailCraft doesn't support POP yet. Use your provider's IMAP server instead (usually imap.<your domain>, port 993).").to_string());
+            return Some(
+                tl!("MailCraft doesn't support POP yet. Use your provider's IMAP server instead (usually imap.<your domain>, port 993).").to_string(),
+            );
         }
         if self.edit.is_some() && self.oauth.is_some() && !(is_identifier(self.client_id.trim(), 200) && is_identifier(self.tenant.trim(), 64)) {
             return Some(tl!("An application ID and a tenant are letters, digits, dots and dashes").to_string());
