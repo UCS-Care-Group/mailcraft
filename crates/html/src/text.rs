@@ -89,6 +89,8 @@ fn autolink(text: &str) -> Vec<Span> {
         match hit {
             Hit::None => i += 1,
             Hit::Skip(end) => i = end.max(i + 1),
+            // Only what the safety check accepts is a link, so it is never offered to be opened and then refused.
+            Hit::Link { end, ref url, .. } if !crate::is_safe_url(url) => i = end.max(i + 1),
             Hit::Link { start, end, url } => {
                 if let Some(before) = text.get(plain..start).filter(|s| !s.is_empty()) {
                     spans.push(Span::plain(before));
