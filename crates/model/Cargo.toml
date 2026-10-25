@@ -11,6 +11,7 @@ workspace = true
 [dependencies]
 mailcraft-i18n = { workspace = true }
 mailcraft-time = { workspace = true }
+url = { workspace = true }
 serde = { workspace = true }
 # An account of a kind this version doesn't know is kept as its file has it, field for field, to
 # be written back so (`Account::as_written`).
