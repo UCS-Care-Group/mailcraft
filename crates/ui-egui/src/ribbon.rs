@@ -640,7 +640,7 @@ fn message(app: &MailApp) -> Tab {
 }
 
 fn send_receive(app: &MailApp) -> Tab {
-    let note = if app.services.sync.is_none() {
+    let note = if !app.services.can_sync() {
         "This build can't connect to mail servers. Use the desktop app, or bring mail in with File › Import."
     } else if !app.session.enabled("sync.request") {
         "No account is connected to a mail server yet."

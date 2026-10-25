@@ -33,6 +33,9 @@ log = { workspace = true }
 # a stand-in for Microsoft Graph that takes only what the documented service takes
 # (`mailcraft_net::graph::standin`).
 mailcraft-net = { workspace = true, features = ["stand-in"] }
+# The window reading a JMAP account through a host, against the JMAP client and its server in the
+# process (`mailcraft_jmap::standin`): in a test's build only.
+mailcraft-jmap = { workspace = true, features = ["stand-in"] }
 # A sign-in the provider refuses, as `mailcraft-net` says it.
 mailcraft-proto = { workspace = true }
 mailcraft-charset = { workspace = true }
