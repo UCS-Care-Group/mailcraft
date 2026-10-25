@@ -51,6 +51,9 @@ pub mod credits;
 pub mod data_removal;
 pub mod dates;
 pub mod dialogs;
+mod drag_pointer;
+#[cfg(test)]
+mod drag_pointer_tests;
 pub mod favorites_sync;
 pub mod files;
 mod folder_properties;
@@ -3756,6 +3759,8 @@ impl MailApp {
         reminders::show(self, &ctx);
         // Over everything: what an agent wants that needs the owner.
         agent_gate::show(self, &ctx);
+        // While messages are dragged: the pointer for what is under it (#430).
+        drag_pointer::apply(&ctx);
         self.by_hand = false;
         self.refusal();
         let title = format!("{} - MailCraft", self.title_stem());
