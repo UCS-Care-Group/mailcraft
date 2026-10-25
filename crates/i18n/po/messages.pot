@@ -2719,6 +2719,11 @@ msgstr ""
 msgid "Forward This Occurrence…"
 msgstr ""
 
+#. command label, interface, ribbon
+#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
+msgid "Forward as Attachment"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
 msgid "Forwarded to {n} person"
@@ -9570,6 +9575,11 @@ msgstr ""
 msgid "on"
 msgstr ""
 
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+msgid "only the headers of this message are here, so it can't be forwarded as an attachment"
+msgstr ""
+
 #. why a command can't run
 #: crates/engine/src/cmd/calendar/invitation.rs
 msgid "organizer"
@@ -9633,6 +9643,11 @@ msgstr ""
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_extra.rs
 msgid "select an appointment first"
+msgstr ""
+
+#. why a command can't run
+#: crates/engine/src/cmd/compose.rs
+msgid "select only one message to forward as an attachment"
 msgstr ""
 
 #. what a command says, why a command can't run
@@ -9850,6 +9865,11 @@ msgstr ""
 msgid "the task is gone"
 msgstr ""
 
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+msgid "the text of this message can't be read on this computer, so it can't be forwarded as an attachment"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 msgid "the top level"
@@ -9988,6 +10008,16 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/mail.rs
 msgid "this message has no subject to look for"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+msgid "this message isn't downloaded yet: open it once you're online, then forward it as an attachment"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+msgid "this message was too large to download: only its header is here, so it can't be forwarded as an attachment"
 msgstr ""
 
 #. what a command says

@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! Work started for one mailbox stays with it (a sign-in that comes back late), and a link from
-//! outside does not destroy a message being written.
+//! Work started for one mailbox stays with it (a sign-in that comes back late, a command waiting
+//! for its message to download), and a link from outside does not destroy a message being written.
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, mpsc};
@@ -110,4 +110,33 @@ fn a_link_with_nothing_being_written_says_nothing_extra() {
     crate::files::dropped_path(&mut a, "mailto:lin@example.org");
     assert!(a.session.compose.is_some());
     assert!(a.status_msg.as_ref().is_none_or(|(s, _)| !s.contains("saved to Drafts")));
+}
+
+/// A command waiting for its message to download was asked of the mailbox open then: once another
+/// has taken its place, it doesn't run, not even on the new mailbox's message with the same id.
+#[test]
+fn a_command_waiting_for_a_download_stays_with_its_mailbox() {
+    let mut a = MailApp::new(Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0), Services::default());
+    a.autosave = false;
+    let (tx, rx) = mpsc::channel();
+    let rx = Mutex::new(Some(rx));
+    a.services.graph_fetch = Some(Box::new(move |_| rx.lock().unwrap().take().unwrap_or_else(|| mpsc::channel().1)));
+    let account = a.execute("account.add", json!({"email": "avery@mail.example", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+    let fresh = Tokens { expires_at: mailcraft_time::now() + 3600, ..tokens() };
+    a.seed_graph_token(account, fresh);
+    let id = a.session.mailbox.messages.values().find(|m| !m.subject.is_empty()).unwrap().id;
+    let m = a.session.mailbox.message_mut(id).unwrap();
+    m.account = account;
+    m.server = Some(mailcraft_model::sync::ServerMessage { id: "AAMk1".into(), ..Default::default() });
+    m.unfetched = true;
+    a.session.sel.messages = vec![id];
+    let pending = a.run("mail.forwardAsAttachment", json!({})).unwrap();
+    assert_eq!(pending["pending"], "download");
+
+    // Another mailbox takes its place, with a message of that id, whole; then the answer comes.
+    a.session.replace_mailbox(mailcraft_engine::sample::mailbox(NOW, 0));
+    assert!(a.session.mailbox.message(id).is_some_and(|m| !m.unfetched));
+    tx.send(mailcraft_model::sync::GraphFetchResult { offline: true, ..Default::default() }).unwrap();
+    a.drive_fetch();
+    assert!(a.session.compose.is_none(), "nothing ran on the new mailbox's message {id}");
 }
