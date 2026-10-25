@@ -356,11 +356,16 @@ pub fn save_name(name: &str) -> String {
 /// The name a file made from the mailbox is offered under: `stem` (a message's subject, a
 /// folder's name, an event's title; at most 80 characters of it) made safe as [`file_name`]
 /// makes a name, a slash in it being a character and not a folder, then `.ext`. `untitled` when
-/// nothing of `stem` is left.
+/// nothing of `stem` is left ([`export_name_or`] names another).
 pub fn export_name(stem: &str, ext: &str) -> String {
+    export_name_or(stem, ext, "untitled")
+}
+
+/// [`export_name`], named `fallback` when nothing of `stem` is left.
+pub fn export_name_or(stem: &str, ext: &str, fallback: &str) -> String {
     let stem: String = stem.chars().take(80).map(|c| if matches!(c, '/' | '\\') { '_' } else { c }).collect();
     let stem = clean(&stem);
-    let stem = if stem.is_empty() { "untitled" } else { stem.as_str() };
+    let stem = if stem.is_empty() { fallback } else { stem.as_str() };
     let ext: String = ext.chars().filter(|c| c.is_alphanumeric()).take(16).collect();
     if ext.is_empty() { clean(stem) } else { clean(&format!("{stem}.{ext}")) }
 }

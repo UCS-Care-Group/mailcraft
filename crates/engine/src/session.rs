@@ -413,6 +413,10 @@ pub struct Compose {
     pub mode: ComposeMode,
     /// The message replied to or forwarded.
     pub source: Option<Id>,
+    /// It forwards `source` whole, as an attachment (#315): a Microsoft account's draft of it is
+    /// made as a message of its own, not as a forward of `source`.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub as_attachment: bool,
     /// The saved draft this message continues.
     pub draft: Option<Id>,
     /// The account it is sent from.
@@ -702,6 +706,9 @@ pub struct Session {
     /// instead of writing one itself ([`crate::cmd::graph_switch::prepare_backup`]). Set only by
     /// the window once the copy is on disk, never by a command's params. Never saved.
     pub graph_switch_backup: Option<(Id, PathBuf)>,
+    /// A folder tree of mbox files read and parsed by the host off the window's thread, waiting
+    /// for `file.importFolderTree` with `staged` to put it in (#420). Never saved.
+    pub staged_tree: Option<crate::import_tree::Parsed>,
     /// More results on the server for the search in view (R6.2): what was asked of the servers
     /// and what they found, never in the mailbox. Never saved.
     pub server_search: crate::cmd::search_server::ServerSearch,
@@ -827,6 +834,7 @@ impl Session {
             jmap_read: Default::default(),
             agent: None,
             graph_switch_backup: None,
+            staged_tree: None,
             server_search: Default::default(),
             history: Vec::new(),
             redo: Vec::new(),
@@ -1800,6 +1808,11 @@ impl Session {
         };
         match &result {
             Ok(_) => {
+                // The working hours of an account just removed go with it (#325): here, once
+                // nothing can turn the removal back, as preferences aren't put back with the mailbox.
+                if wipes_history(id) {
+                    crate::cmd::calendar_settings::forget_gone_hours(self);
+                }
                 if self.mailbox != before.mailbox {
                     self.hold_replaced(&before.mailbox);
                     self.rev += 1;

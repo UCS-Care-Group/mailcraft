@@ -419,3 +419,18 @@ fn removing_an_account_leaves_its_tasks_as_tasks_of_this_computer() {
     let t = titled(&s, "Kept");
     assert!(t.origin.is_local() && t.list.is_empty() && t.synced.is_none());
 }
+
+#[test]
+fn removing_the_account_takes_its_to_dos_but_keeps_what_was_changed_here_and_not_sent() {
+    let (mut s, a) = session();
+    merge_tasks(&mut s.mailbox, &download(a, vec![remote("t1", "Call Bo"), remote("t2", "From the server")])).unwrap();
+    let id = titled(&s, "Call Bo").id;
+    // Changed here, then deleted on the server: it waits to be made again, with no id yet.
+    run(&mut s, "tasks.edit", json!({"id": id, "notes": "bring tea"}));
+    merge_tasks(&mut s.mailbox, &download(a, vec![remote("t2", "From the server")])).unwrap();
+    assert!(s.mailbox.task(id).is_some_and(|t| t.origin.account == a && t.origin.id.is_empty()));
+    run(&mut s, "account.remove", json!({"id": a}));
+    assert!(!s.mailbox.tasks.values().any(|t| t.title == "From the server"), "the server's to-do goes with the account");
+    let t = s.mailbox.task(id).unwrap_or_else(|| panic!("the owner's change is kept"));
+    assert!(t.origin.is_local() && t.notes.contains("bring tea"), "kept as this computer's own: {t:?}");
+}
