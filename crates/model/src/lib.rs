@@ -46,8 +46,8 @@ pub use mailbox::{
 };
 pub use mailcraft_time as time;
 pub use message::{
-    Answers, Attachment, Body, ContentRef, FlagStatus, Importance, KeptBody, Message, NOT_DOWNLOADED, normalize_subject, size_label, size_label_in,
-    text_hash,
+    Answers, Attachment, Body, ContentRef, FlagStatus, Importance, KeptBody, Message, NOT_DOWNLOADED, NOT_DOWNLOADED_NOTE, normalize_subject,
+    size_label, size_label_in, text_hash,
 };
 pub use offline::{KeepOffline, OfflineWindow};
 pub use remote::Origin;
@@ -127,6 +127,8 @@ mod mailbox_tests;
 mod pop_tests;
 #[cfg(test)]
 mod recurrence_tests;
+#[cfg(test)]
+mod search_people_tests;
 #[cfg(test)]
 mod search_quotes_tests;
 #[cfg(test)]

@@ -8,7 +8,7 @@ use serde_json::{Value, json};
 
 use super::{bad, deliver, fail, source};
 use crate::io::{Format, MAILBOX_EXT};
-use crate::opening::export_name;
+use crate::opening::{export_name, export_name_or};
 use crate::{CmdResult, CommandSpec, Session, p};
 
 pub fn specs() -> Vec<CommandSpec> {
@@ -245,8 +245,14 @@ fn export_message(s: &mut Session, v: &Value) -> CmdResult {
     let m = s.loaded_message(id)?;
     // A draft keeps its Bcc line; a sent or received message never had one to show.
     let opts = mailcraft_mime::WriteOptions { include_bcc: m.draft, offset_minutes: s.offset_at(m.date) };
-    let name = export_name(if m.subject.trim().is_empty() { "message" } else { &m.subject }, "eml");
+    let name = eml_name(&m);
     deliver(v, &name, mailcraft_mime::write(&m, &opts))
+}
+
+/// The name of a message as a file of its own: its subject, fit for a file name, as `.eml`;
+/// `message.eml` when nothing of the subject is left (none, or only what a name can't keep).
+pub fn eml_name(m: &mailcraft_model::Message) -> String {
+    export_name_or(&m.subject, "eml", "message")
 }
 
 fn export_folder(s: &mut Session, v: &Value) -> CmdResult {

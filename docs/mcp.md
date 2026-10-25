@@ -1,6 +1,6 @@
 # MCP server
 
-> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-10-25 · **Change:** minor (the agent gate covers undo and redo of deleted contacts, events, tasks, calendars and categories and of meeting sends, `ui.copySelection` is never, and the appointment window's save and send ask `send`; the bridge makes the app prove it holds the control key before it sends the key or a request; agents are asked before deleting contacts, tasks, events and categories and before an undo that reverts rules, signatures or accounts; `--control-agents-only`: the control channel takes every request for an agent's; questions are complete or refused; `ui.copyDiagnostics` never; #276: `sync.progress`'s `timings`; whom the gate binds: agents with a shell or the owner's files are outside it; `mail.openAttachment` never for agents, #126; `sync.progress`'s `fullMessages`, `ui.skipSync` allowed, #120) · **Target:** Microsoft Outlook (Microsoft 365)
+> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-10-25 · **Change:** minor (`view.searchSuggestions` (#308): safe for agents, its answer framed as untrusted message content; the agent gate covers undo and redo of deleted contacts, events, tasks, calendars and categories and of meeting sends, `ui.copySelection` is never, and the appointment window's save and send ask `send`; the bridge makes the app prove it holds the control key before it sends the key or a request; agents are asked before deleting contacts, tasks, events and categories and before an undo that reverts rules, signatures or accounts; `--control-agents-only`: the control channel takes every request for an agent's; questions are complete or refused; `ui.copyDiagnostics` never; #276: `sync.progress`'s `timings`; whom the gate binds: agents with a shell or the owner's files are outside it; `mail.openAttachment` never for agents, #126; `sync.progress`'s `fullMessages`, `ui.skipSync` allowed, #120) · **Target:** Microsoft Outlook (Microsoft 365)
 
 MailCraft speaks the [Model Context Protocol](https://modelcontextprotocol.io) over stdio, so
 agents can read, file and write mail and keep a calendar.
@@ -87,6 +87,13 @@ With the window, `ui.skipSync {"account"}` (allowed) leaves an account that wait
 It opens nothing. The problems may name a message by its subject, which is message content: they
 are framed as untrusted, like the text above.
 
+**Search suggestions.** `view.searchSuggestions {"query", "cursor"?}` (class `safe`, through
+`execute`) answers what the search box offers for the word being typed (#308): keywords, categories,
+what `is:` and `has:` take, and after `from:`, `to:` and `cc:` people from the contacts and the mail
+on this computer, then, while the list has room, the owner's own addresses. It asks no server and
+changes nothing. A person's name and address come from mail, so the answer is framed as untrusted,
+like the text above.
+
 A headless session works on the mailbox file only. It does not connect to mail servers: sending
 from an account with a server puts the message in its Outbox, and `mailcraft-cli sync` (or the
 app's Send/Receive) delivers it.
@@ -132,3 +139,4 @@ parameters.
 | 2026-10-19 | minor | Whom the gate binds: agents that reach MailCraft only through MCP; one with a shell or the owner's files is outside it |
 | 2026-10-21 | minor | `sync.progress`'s `timings` (#276) |
 | 2026-10-22 | minor | `--control-agents-only`: every control-channel request is an agent's, allowed nothing in advance |
+| 2026-10-25 | minor | `view.searchSuggestions` (#308): what the search box offers, safe for agents, its answer framed as untrusted message content |

@@ -359,3 +359,64 @@ fn a_held_key_is_one_press_on_the_list() {
         assert!(!offered(&h).is_empty(), "{how}: the categories are offered");
     }
 }
+
+/// After `from:`, people from the contacts and the mail, each with the address beside the name
+/// (a screen reader is told both); the one taken is searched for by address, and only that
+/// sender's mail is listed (#308, part 2).
+#[test]
+fn a_person_from_the_keyboard() {
+    let mut h = window();
+    typed(&mut h, "from:pri");
+    assert_eq!(offered(&h).first().map(String::as_str), Some("Priya Nair"));
+    assert!(h.query_by_label("Priya Nair, priya@lumen.example").is_some(), "the list is drawn, with the address");
+    key(&mut h, egui::Key::ArrowDown);
+    key(&mut h, egui::Key::Enter);
+    assert_eq!(search(&h), "from:priya@lumen.example ");
+    assert!(in_the_box(&h) && offered(&h).is_empty());
+    let rows = h.state_mut().session.rows();
+    let s = &h.state().session;
+    assert!(!rows.is_empty() && rows.iter().all(|r| s.mailbox.message(r.id).is_some_and(|m| m.from.email == "priya@lumen.example")));
+    // A contact added while the search waits is offered from the next key on.
+    h.state_mut().session.mailbox.add_contact(mailcraft_model::Contact {
+        display_name: "Ivana Gvožđar".into(),
+        emails: vec![mailcraft_model::Labeled::new("work", "ivana@example.org")],
+        ..Default::default()
+    });
+    typed(&mut h, "-cc:gvoz");
+    assert_eq!(offered(&h), ["Ivana Gvožđar"]);
+    key(&mut h, egui::Key::Tab);
+    assert_eq!(search(&h), "from:priya@lumen.example -cc:ivana@example.org ");
+}
+
+/// The address is beside a name, not beside itself.
+#[test]
+fn the_address_is_shown_beside_a_name() {
+    let person = |label: &str| mailcraft_model::search::Suggestion {
+        label: label.into(),
+        range: 0..0,
+        text: String::new(),
+        color: None,
+        address: Some("ada@example.org".into()),
+    };
+    assert_eq!(super::shows_address(&person("Ada")), Some("ada@example.org"));
+    assert_eq!(super::shows_address(&person("ADA@example.org")), None);
+    assert_eq!(super::shows_address(&mailcraft_model::search::Suggestion { address: None, ..person("category:") }), None);
+}
+
+/// Someone who arrives while the search waits (a Send/Receive brings their mail or contact) is
+/// offered without a key being pressed.
+#[test]
+fn people_who_arrive_are_offered_without_a_key() {
+    let mut h = window();
+    typed(&mut h, "to:zed");
+    assert!(offered(&h).is_empty());
+    let s = &mut h.state_mut().session;
+    s.mailbox.add_contact(mailcraft_model::Contact {
+        display_name: "Zed Quill".into(),
+        emails: vec![mailcraft_model::Labeled::new("work", "zed@example.org")],
+        ..Default::default()
+    });
+    s.mailbox_changed();
+    h.run_steps(3);
+    assert_eq!(offered(&h), ["Zed Quill"]);
+}

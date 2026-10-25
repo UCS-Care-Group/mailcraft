@@ -51,7 +51,12 @@ fn export_name(app: &MailApp, id: &str, params: &Value) -> Option<String> {
     Some(match id {
         "file.saveAs" => format!("mailbox.{}", mailcraft_engine::io::MAILBOX_EXT),
         "file.save" if s.path.is_none() && app.services.persist.is_none() => format!("mailbox.{}", mailcraft_engine::io::MAILBOX_EXT),
-        "file.exportMessage" => clean(&s.focused_message().map(|m| m.subject.clone()).unwrap_or_default(), "eml"),
+        // The message named (a Save As that waited for its download names it), else the selected,
+        // by the name the command gives it.
+        "file.exportMessage" => {
+            let message = params.get("id").and_then(Value::as_u64).and_then(|id| s.mailbox.message(id)).or_else(|| s.focused_message());
+            message.map_or_else(|| clean("message", "eml"), mailcraft_engine::cmd::file::eml_name)
+        }
         "file.exportFolder" => clean(&s.mailbox.folder(s.view.folder).map(|f| f.name.clone()).unwrap_or_default(), "mbox"),
         "file.exportCalendar" => clean(
             &params.get("id").and_then(Value::as_u64).and_then(|id| s.mailbox.event(id)).map_or("calendar".to_string(), |e| e.title.clone()),
@@ -327,6 +332,9 @@ pub(crate) mod base64_lite {
         Some(out)
     }
 }
+
+#[cfg(test)]
+mod export_name_tests;
 
 #[cfg(test)]
 mod tests {

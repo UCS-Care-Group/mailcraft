@@ -247,6 +247,51 @@ fn messages_download_whole_in_the_background_on_opening_and_before_a_reply() {
     assert!(app.session.compose.as_ref().unwrap().subject.contains("Late"));
     assert!(!app.session.mailbox.message(late).unwrap().unfetched);
 
+    // So does a forward as an attachment, which attaches the message whole (#315).
+    app.execute("compose.close", json!({})).unwrap();
+    let later = server.state().mailbox.add(&inbox_there, "Later", NOW + 120);
+    synced(&mut app);
+    let later = by(&app, &later);
+    assert!(app.session.mailbox.message(later).unwrap().unfetched);
+    // Chosen in the window, it is the selected one; once it is here it is that one still, though
+    // another was selected meanwhile.
+    app.session.sel.messages = vec![later];
+    let pending = app.run("mail.forwardAsAttachment", json!({})).unwrap();
+    assert_eq!(pending["pending"], "download");
+    app.session.sel.messages = vec![late];
+    wait(&mut app, &|app| app.session.compose.is_some());
+    assert_eq!(app.session.compose.as_ref().unwrap().source, Some(later));
+    assert!(!app.session.mailbox.message(later).unwrap().unfetched);
+    let c = app.session.compose.as_ref().unwrap();
+    assert_eq!(c.subject, "FW: Later");
+    match c.attachments.as_slice() {
+        [eml] => assert!(eml.name == "Later.eml" && eml.mime == "message/rfc822" && String::from_utf8_lossy(&eml.data).contains("Subject: Later")),
+        other => panic!("{} attachments", other.len()),
+    }
+    // A reply chosen in the window keeps its message too, as every command that waits does.
+    app.execute("compose.close", json!({})).unwrap();
+    let again = server.state().mailbox.add(&inbox_there, "Once more", NOW + 150);
+    synced(&mut app);
+    let again = by(&app, &again);
+    app.session.sel.messages = vec![again];
+    let pending = app.run("mail.reply", json!({})).unwrap();
+    assert_eq!(pending["pending"], "download");
+    app.session.sel.messages = vec![late];
+    wait(&mut app, &|app| app.session.compose.is_some());
+    assert_eq!(app.session.compose.as_ref().unwrap().source, Some(again));
+    assert!(app.session.compose.as_ref().unwrap().subject.contains("Once more"));
+    // A call that names its message wrongly waits for the selected one, and is then refused: what
+    // it named stays, never swapped for the selected message.
+    app.execute("compose.close", json!({})).unwrap();
+    let latest = server.state().mailbox.add(&inbox_there, "Latest", NOW + 180);
+    synced(&mut app);
+    let latest = by(&app, &latest);
+    app.session.sel.messages = vec![latest];
+    let pending = app.run("mail.forwardAsAttachment", json!({"id": latest.to_string()})).unwrap();
+    assert_eq!(pending["pending"], "download");
+    wait(&mut app, &|app| !app.session.mailbox.message(latest).unwrap().unfetched);
+    assert!(app.session.compose.is_none(), "a message id as text is refused");
+
     // In the background: all the rest (a delta says no sizes, so none is held back as large).
     app.session.sync_progress.full_paused = false;
     wait(&mut app, &|app| app.session.mailbox.messages.values().all(|m| !m.unfetched));

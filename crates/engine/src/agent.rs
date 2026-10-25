@@ -137,6 +137,7 @@ const SAFE: &[&str] = &[
     "mail.reply",
     "mail.replyAll",
     "mail.forward",
+    "mail.forwardAsAttachment",
     "mail.editDraft",
     // Writing (sending is not).
     "compose.set",
@@ -194,6 +195,7 @@ const SAFE: &[&str] = &[
     "view.filter",
     "view.search",
     "view.clearSearch",
+    "view.searchSuggestions",
     "view.previewLines",
     "view.groups",
     "view.oneLine",
