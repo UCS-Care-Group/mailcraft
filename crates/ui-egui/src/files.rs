@@ -74,7 +74,7 @@ fn export_name(app: &MailApp, id: &str, params: &Value) -> Option<String> {
 /// what it produces (browser). `None` for every other command.
 pub(crate) fn intercept(app: &mut MailApp, id: &str, params: &Value) -> Option<Result<Value, String>> {
     // Open, Import and Attach without a file: pick one.
-    if id == "file.importFolderTree" && params.get("path").is_none() && params.get("entries").is_none() {
+    if id == "file.importFolderTree" && params.get("path").is_none() && params.get("entries").is_none() && params.get("staged").is_none() {
         // A host that can't ask for a folder lets the command say what it needs.
         app.services.file_dialog.as_ref()?;
         return Some(ask(app, FileDialogRequest::Folder, AfterPick::Tree));

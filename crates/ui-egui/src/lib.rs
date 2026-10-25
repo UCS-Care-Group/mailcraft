@@ -59,7 +59,7 @@ pub mod graph_fetch;
 mod graph_switch;
 pub mod i18n;
 pub mod icons;
-mod import_tree;
+pub mod import_tree;
 mod inbox_pass;
 pub mod jmap_mail;
 mod keep_offline;
@@ -206,6 +206,11 @@ pub struct Services {
     /// take a while for a large mailbox. Without one (tests, scripts) the copy is written in
     /// place by `account.graphSwitch`.
     pub write_copy: Option<Box<dyn Fn(std::path::PathBuf, mailcraft_model::Mailbox) -> Receiver<Result<(), String>>>>,
+    /// Desktop: walk, read and parse a folder of mbox files on a background thread
+    /// (`mailcraft_engine::import_tree::load_path`), so that neither the look at it nor the
+    /// import holds the window up (#420). The job carries the folder and a shared progress the
+    /// window shows and cancels through. Without one (tests, scripts) the window does it in place.
+    pub import_tree: Option<Box<dyn Fn(import_tree::TreeJob) -> Receiver<Result<mailcraft_engine::import_tree::Parsed, String>>>>,
     /// Desktop: download one picture a message refers to on the web, on a background thread,
     /// once the owner has asked for that message's pictures ([`reading::remote`]). The address
     /// is the message's own choice: the host checks where it leads before going there, takes

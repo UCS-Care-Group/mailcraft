@@ -52,6 +52,7 @@
 //! that has been at it for a minute, at that stage, done of total; it never ends), `"sweeping"`,
 //! or `""` (nothing being written).
 //!
+//! A folder of mailboxes being looked at (#420, `ui.dialog` `importTree`) never finishes; `{"host": {"treeProgress": [folders, files, messages]}}` sets the counts it shows, and `{"host": {"treeDir": "/path"}}` has it look into that folder at once.
 //! And Send/Receive, for Send/Receive Progress (`{"host": {"sync": [[piece, …], …]}}`): one list
 //! of pieces for each run of an account from that line on, in turn, each piece a `sync.apply`
 //! result (`docs/control-protocol.md`) with its account filled in, and `"newMessages": n` to have
@@ -111,6 +112,10 @@ struct Host {
     approvals: Vec<Sender<AdminConsentAnswer>>,
     /// How far the background saver has got (see the header).
     saving: Option<SaveProgress>,
+    /// The folder imports begun (#420): their progress, never finished; `treeProgress` moves it.
+    tree_jobs: Vec<(Arc<mailcraft_engine::import_tree::Progress>, Sender<Result<mailcraft_engine::import_tree::Parsed, String>>)>,
+    /// A folder the import looks into at once instead of waiting (`treeDir`).
+    tree_dir: String,
     /// Copies of the mailbox being "written": never finished (see the header).
     copies: Vec<Sender<Result<(), String>>>,
     /// The pieces of the Send/Receive runs to come, one list for each, and whether the script
@@ -287,6 +292,17 @@ impl Host {
         if let Some(found) = said.get("serverSearch") {
             self.server_search = Some(found.clone());
         }
+        if let Some(dir) = said.get("treeDir").and_then(|v| v.as_str()) {
+            self.tree_dir = dir.to_string();
+        }
+        if let Some(n) = said.get("treeProgress").and_then(|v| v.as_array()) {
+            let n: Vec<usize> = n.iter().map(|v| v.as_u64().unwrap_or(0) as usize).collect();
+            if let (Some(job), [folders, files, messages]) = (self.tree_jobs.last().map(|(p, _)| p), n.as_slice()) {
+                job.folders.store(*folders, std::sync::atomic::Ordering::Relaxed);
+                job.files.store(*files, std::sync::atomic::Ordering::Relaxed);
+                job.messages.store(*messages, std::sync::atomic::Ordering::Relaxed);
+            }
+        }
         if let Some(how) = said.get("saving").and_then(|v| v.as_str()) {
             let mut words = how.split_whitespace();
             let stage = match words.next() {
@@ -342,6 +358,7 @@ fn stand_in(host: &Arc<Mutex<Host>>) -> Services {
     let (signing, approving, updating, graphing, copying) = (host.clone(), host.clone(), host.clone(), host.clone(), host.clone());
     let syncing = host.clone();
     let searching = host.clone();
+    let tree = host.clone();
     Services {
         microsoft_client_id: "11111111-2222-3333-4444-555555555555".into(),
         lookup_mx: Some(Box::new(|_| answered(Ok(vec!["example-org.mail.protection.outlook.com".to_string()])))),
@@ -481,6 +498,19 @@ fn stand_in(host: &Arc<Mutex<Host>>) -> Services {
             })
         })),
         secrets: Some(Box::new(StandInSecrets(host.clone()))),
+        // A folder import that is looked at for ever: `{"host": {"treeProgress": [folders, files, messages]}}` moves its counts.
+        import_tree: Some(Box::new(move |job| {
+            let dir = tree.lock().map(|host| host.tree_dir.clone()).unwrap_or_default();
+            if !dir.is_empty() {
+                // Answered at once from a folder on this computer (`treeDir`).
+                return answered(mailcraft_engine::import_tree::load_path(&dir, None, job.count_only, &job.progress).map_err(|e| e.to_string()));
+            }
+            let (tx, rx) = channel();
+            if let Ok(mut host) = tree.lock() {
+                host.tree_jobs.push((job.progress, tx));
+            }
+            rx
+        })),
         write_copy: Some(Box::new(move |_, _| {
             let (tx, rx) = channel();
             if let Ok(mut host) = copying.lock() {

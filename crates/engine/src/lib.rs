@@ -290,6 +290,8 @@ mod category_rows_tests;
 #[cfg(test)]
 mod import_tests;
 #[cfg(test)]
+mod import_tree_progress_tests;
+#[cfg(test)]
 mod import_tree_tests;
 #[cfg(test)]
 mod tests;

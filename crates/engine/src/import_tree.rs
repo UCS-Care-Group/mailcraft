@@ -11,8 +11,9 @@
 //! (`path`); the browser build and agents hand the files over as `entries`.
 
 use std::collections::HashSet;
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
-use mailcraft_model::{AccountKind, FolderKind, Id, Mailbox};
+use mailcraft_model::{AccountKind, FolderKind, Id, Mailbox, Message};
 use serde_json::{Value, json};
 
 use crate::cmd::{base64_decode, fail};
@@ -34,6 +35,61 @@ pub const MAX_TREE_BYTES: u64 = 4 << 30;
 const MAX_LISTED: usize = 50;
 /// Longest a folder's name is kept, in characters.
 const MAX_FOLDER_NAME: usize = 120;
+
+/// How far a scan or an import has come, and whether its owner has had enough. Shared between the
+/// thread that does the work and the window that shows it: counts only go up, and `cancel` is
+/// looked at between files and between messages.
+#[derive(Default)]
+pub struct Progress {
+    /// Folders looked into.
+    pub folders: AtomicUsize,
+    /// Mailbox files found.
+    pub files: AtomicUsize,
+    /// Messages found so far.
+    pub messages: AtomicUsize,
+    cancelled: AtomicBool,
+}
+
+impl Progress {
+    /// Ask the work to stop; it ends with an error and changes nothing.
+    pub fn cancel(&self) {
+        self.cancelled.store(true, Ordering::Relaxed);
+    }
+
+    pub fn is_cancelled(&self) -> bool {
+        self.cancelled.load(Ordering::Relaxed)
+    }
+
+    /// (folders, files, messages) so far.
+    pub fn counts(&self) -> (usize, usize, usize) {
+        (self.folders.load(Ordering::Relaxed), self.files.load(Ordering::Relaxed), self.messages.load(Ordering::Relaxed))
+    }
+
+    fn check(&self) -> Result<(), CmdError> {
+        if self.is_cancelled() { Err(fail("cancelled")) } else { Ok(()) }
+    }
+}
+
+/// A mailbox file read and parsed, off the window's thread, waiting to be put into the mailbox.
+pub struct ParsedFile {
+    dirs: Vec<String>,
+    name: String,
+    /// Every message's Message-ID, in order ("" when it has none).
+    ids: Vec<String>,
+    /// The messages themselves; empty when only counting (a preview).
+    messages: Vec<Message>,
+}
+
+/// A whole tree read and parsed: what [`load_path`] and [`load_entries`] hand to the window, and
+/// [`finish`] puts into the mailbox in one go.
+pub struct Parsed {
+    top: String,
+    files: Vec<ParsedFile>,
+    skipped: Vec<(String, &'static str)>,
+    notes: Vec<String>,
+    stopped: bool,
+    count_only: bool,
+}
 
 /// Where a file's bytes are.
 enum Source {
@@ -107,7 +163,7 @@ fn file_name(raw: &str) -> String {
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-fn walk_dir(root: &std::path::Path, w: &mut Walk) -> Result<(), CmdError> {
+fn walk_dir(root: &std::path::Path, w: &mut Walk, progress: &Progress) -> Result<(), CmdError> {
     use std::io::Read;
     let meta = std::fs::symlink_metadata(root).map_err(|e| fail(format!("{}: {e}", root.display())))?;
     if !meta.is_dir() {
@@ -117,6 +173,8 @@ fn walk_dir(root: &std::path::Path, w: &mut Walk) -> Result<(), CmdError> {
     // (directory, names of the folders above it, depth)
     let mut stack = vec![(root.to_path_buf(), Vec::<String>::new(), 0usize)];
     while let Some((dir, dirs, depth)) = stack.pop() {
+        progress.check()?;
+        progress.folders.fetch_add(1, Ordering::Relaxed);
         let mut names: Vec<std::ffi::OsString> = match std::fs::read_dir(&dir) {
             Ok(rd) => rd.filter_map(|e| e.ok()).map(|e| e.file_name()).collect(),
             Err(_) => {
@@ -129,6 +187,7 @@ fn walk_dir(root: &std::path::Path, w: &mut Walk) -> Result<(), CmdError> {
         let mut subdirs = Vec::new();
         for os in names {
             seen += 1;
+            progress.check()?;
             if seen > MAX_TREE_ENTRIES {
                 w.notes.push(format!("stopped looking after {MAX_TREE_ENTRIES} files and folders"));
                 return Ok(());
@@ -166,6 +225,7 @@ fn walk_dir(root: &std::path::Path, w: &mut Walk) -> Result<(), CmdError> {
                     w.skip(shown, "over the size one import takes");
                 } else {
                     w.bytes += meta.len();
+                    progress.files.fetch_add(1, Ordering::Relaxed);
                     w.found.push(Found { dirs: dirs.clone(), name, source: Source::File(path) });
                 }
             } else {
@@ -178,8 +238,9 @@ fn walk_dir(root: &std::path::Path, w: &mut Walk) -> Result<(), CmdError> {
 }
 
 /// Files handed over as `{"path": "Mail/Inbox.sbd/Sent", "data": base64}`.
-fn from_entries(list: &[Value], w: &mut Walk) -> Result<(), CmdError> {
+fn from_entries(list: &[Value], w: &mut Walk, progress: &Progress) -> Result<(), CmdError> {
     for (i, e) in list.iter().enumerate() {
+        progress.check()?;
         if i >= MAX_TREE_ENTRIES {
             w.notes.push(format!("stopped looking after {MAX_TREE_ENTRIES} files"));
             break;
@@ -209,6 +270,7 @@ fn from_entries(list: &[Value], w: &mut Walk) -> Result<(), CmdError> {
             w.skip(raw.chars().take(80).collect(), "over the size one import takes");
         } else {
             w.bytes += bytes.len() as u64;
+            progress.files.fetch_add(1, Ordering::Relaxed);
             w.found.push(Found { dirs: dirs.iter().map(|d| dir_name(d)).collect(), name: (*name).to_string(), source: Source::Bytes(bytes) });
         }
     }
@@ -259,61 +321,18 @@ fn child(mb: &mut Mailbox, account: Id, parent: Option<Id>, name: &str, create: 
     Err(fail(format!("no free name for the folder {name}")))
 }
 
-#[derive(Default)]
-struct Tally {
-    path: String,
-    files: usize,
-    found: usize,
-    added: usize,
-    duplicates: usize,
-}
-
-/// `file.importFolderTree`: see the command's params.
-pub fn run(s: &mut Session, v: &Value) -> Result<Value, CmdError> {
-    let dry = p::bool(v, "dryRun").unwrap_or(false);
-    let mut w = Walk::default();
-    let mut top = p::str(v, "name").map(tidy_name);
-    if let Some(list) = v.get("entries").and_then(Value::as_array) {
-        from_entries(list, &mut w)?;
-    } else if let Some(path) = p::str(v, "path") {
-        #[cfg(not(target_arch = "wasm32"))]
-        {
-            let root = std::path::Path::new(path);
-            walk_dir(root, &mut w)?;
-            if top.is_none() {
-                top = root.file_name().map(|n| tidy_name(&n.to_string_lossy()));
-            }
-        }
-        #[cfg(target_arch = "wasm32")]
-        {
-            let _ = path;
-            return Err(fail("the browser can't read folders by path; pass `entries`"));
-        }
-    } else {
-        return Err(fail("name a folder (`path`) or hand over its files (`entries`)"));
-    }
-    let top = top.unwrap_or_else(|| "Imported mail".to_string());
+/// Read and parse what the walk found. This is the heavy part (every file is read and every
+/// message parsed), which is why it takes no `Session`: a host runs it on a thread.
+fn parse_found(mut w: Walk, top: String, count_only: bool, progress: &Progress) -> Result<Parsed, CmdError> {
     w.found.sort_by(|a, b| (&a.dirs, &a.name).cmp(&(&b.dirs, &b.name)));
-
-    // Mail brought in from files lands in the local account, in folders of its own: never an
-    // Outbox, never a folder a server keeps. A dry run only looks.
-    let local = if dry { s.mailbox.accounts.iter().find(|a| a.kind == AccountKind::Local).map(|a| a.id) } else { Some(s.mailbox.local_account()) };
-    let mut made = 0usize;
-    let mut tallies: Vec<Tally> = Vec::new();
+    let found = std::mem::take(&mut w.found);
+    let mut files = Vec::new();
     let mut messages_total = 0usize;
     let mut stopped = false;
-    let now = s.now();
-    let top_id = match local {
-        Some(account) => child(&mut s.mailbox, account, None, &top, !dry, &mut made)?,
-        None => None,
-    };
-    let mut have: std::collections::HashMap<Option<Id>, HashSet<String>> = std::collections::HashMap::new();
-    let found = std::mem::take(&mut w.found);
     for f in found {
-        let mut names: Vec<String> = vec![top.clone()];
-        names.extend(f.dirs.iter().cloned());
-        names.push(file_name(&f.name));
-        let shown = names.get(1..).unwrap_or_default().join("/");
+        progress.check()?;
+        let fname = file_name(&f.name);
+        let shown = f.dirs.iter().map(String::as_str).chain(std::iter::once(fname.as_str())).collect::<Vec<_>>().join("/");
         if messages_total >= MAX_TREE_MESSAGES {
             stopped = true;
             w.skip(shown, "over the number of messages one import takes");
@@ -327,6 +346,111 @@ pub fn run(s: &mut Session, v: &Value) -> Result<Value, CmdError> {
             w.skip(shown, "not a mailbox file");
             continue;
         }
+        let limit = MAX_FILE_MESSAGES.min(MAX_TREE_MESSAGES - messages_total);
+        let mut ids = Vec::new();
+        let mut messages = Vec::new();
+        let mut more = false;
+        for m in mailcraft_mime::mbox_messages(&bytes) {
+            if ids.len() >= limit {
+                more = true;
+                break;
+            }
+            progress.check()?;
+            progress.messages.fetch_add(1, Ordering::Relaxed);
+            ids.push(m.message_id.clone());
+            if !count_only {
+                messages.push(m);
+            }
+        }
+        if more {
+            stopped = true;
+            w.notes.push(format!("{shown}: stopped after {limit} messages"));
+        }
+        messages_total += ids.len();
+        files.push(ParsedFile { dirs: f.dirs, name: fname, ids, messages });
+    }
+    Ok(Parsed { top, files, skipped: w.skipped, notes: w.notes, stopped, count_only })
+}
+
+/// Walk the folder at `path`, read every mbox file in it and parse the messages: no `Session`, so
+/// a host can do it on a thread. `count_only` keeps only the Message-IDs (for a preview).
+#[cfg(not(target_arch = "wasm32"))]
+pub fn load_path(path: &str, name: Option<&str>, count_only: bool, progress: &Progress) -> Result<Parsed, CmdError> {
+    let root = std::path::Path::new(path);
+    let mut w = Walk::default();
+    walk_dir(root, &mut w, progress)?;
+    let top =
+        name.map(tidy_name).or_else(|| root.file_name().map(|n| tidy_name(&n.to_string_lossy()))).unwrap_or_else(|| "Imported mail".to_string());
+    parse_found(w, top, count_only, progress)
+}
+
+/// The same for files handed over as `entries`.
+pub fn load_entries(list: &[Value], name: Option<&str>, count_only: bool, progress: &Progress) -> Result<Parsed, CmdError> {
+    let mut w = Walk::default();
+    from_entries(list, &mut w, progress)?;
+    let top = name.map(tidy_name).unwrap_or_else(|| "Imported mail".to_string());
+    parse_found(w, top, count_only, progress)
+}
+
+#[derive(Default)]
+struct Tally {
+    path: String,
+    files: usize,
+    found: usize,
+    added: usize,
+    duplicates: usize,
+}
+
+/// `file.importFolderTree`: see the command's params.
+pub fn run(s: &mut Session, v: &Value) -> Result<Value, CmdError> {
+    let dry = p::bool(v, "dryRun").unwrap_or(false);
+    let name = p::str(v, "name");
+    let progress = Progress::default();
+    let parsed = if p::bool(v, "staged").unwrap_or(false) {
+        // Read and parsed by the window, off its thread, and handed over by `Session::stage_tree`.
+        s.staged_tree.take().ok_or_else(|| fail("nothing is waiting to be imported"))?
+    } else if let Some(list) = v.get("entries").and_then(Value::as_array) {
+        load_entries(list, name, dry, &progress)?
+    } else if let Some(path) = p::str(v, "path") {
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            load_path(path, name, dry, &progress)?
+        }
+        #[cfg(target_arch = "wasm32")]
+        {
+            let _ = path;
+            return Err(fail("the browser can't read folders by path; pass `entries`"));
+        }
+    } else {
+        return Err(fail("name a folder (`path`) or hand over its files (`entries`)"));
+    };
+    finish(s, parsed, dry)
+}
+
+/// Put a tree read by [`load_path`] or [`load_entries`] into the mailbox (or, `dry`, say what
+/// would go in). Nothing here reads a file: it is quick enough for the window's thread.
+pub fn finish(s: &mut Session, parsed: Parsed, dry: bool) -> Result<Value, CmdError> {
+    if !dry && parsed.count_only {
+        return Err(fail("that was only looked at, not read in full"));
+    }
+    let Parsed { top, files, skipped, notes, stopped, .. } = parsed;
+    let mut w = Walk { skipped, notes, ..Walk::default() };
+    // Mail brought in from files lands in the local account, in folders of its own: never an
+    // Outbox, never a folder a server keeps. A dry run only looks.
+    let local = if dry { s.mailbox.accounts.iter().find(|a| a.kind == AccountKind::Local).map(|a| a.id) } else { Some(s.mailbox.local_account()) };
+    let mut made = 0usize;
+    let mut tallies: Vec<Tally> = Vec::new();
+    let now = s.now();
+    let top_id = match local {
+        Some(account) => child(&mut s.mailbox, account, None, &top, !dry, &mut made)?,
+        None => None,
+    };
+    let mut have: std::collections::HashMap<Option<Id>, HashSet<String>> = std::collections::HashMap::new();
+    for f in files {
+        let mut names: Vec<String> = vec![top.clone()];
+        names.extend(f.dirs.iter().cloned());
+        names.push(f.name.clone());
+        let shown = names.get(1..).unwrap_or_default().join("/");
         // The folder this file is (made only for a real import).
         let mut at = top_id;
         let mut failed_folder = None;
@@ -362,32 +486,24 @@ pub fn run(s: &mut Session, v: &Value) -> Result<Value, CmdError> {
         let ids = have.entry(at).or_insert_with(|| {
             at.map(|f| s.mailbox.messages_in(f).map(|m| m.message_id.clone()).filter(|i| !i.is_empty()).collect()).unwrap_or_default()
         });
-        let room = MAX_TREE_MESSAGES - messages_total;
-        let limit = MAX_FILE_MESSAGES.min(room);
-        let mut parsed: Vec<_> = mailcraft_mime::mbox_messages(&bytes).take(limit + 1).collect();
-        let more = parsed.len() > limit;
-        parsed.truncate(limit);
-        if more {
-            stopped = true;
-            w.notes.push(format!("{shown}: stopped after {limit} messages"));
-        }
-        let path = names.get(1..).unwrap_or_default().join("/");
-        let slot = match tallies.iter().position(|t| t.path == path) {
+        let slot = match tallies.iter().position(|t| t.path == shown) {
             Some(i) => i,
             None => {
-                tallies.push(Tally { path, ..Default::default() });
+                tallies.push(Tally { path: shown, ..Default::default() });
                 tallies.len() - 1
             }
         };
         let (mut found_n, mut added, mut dups) = (0, 0, 0);
-        for mut m in parsed {
+        let mut messages = f.messages.into_iter();
+        for id in f.ids {
             found_n += 1;
-            if !m.message_id.is_empty() && !ids.insert(m.message_id.clone()) {
+            let m = messages.next();
+            if !id.is_empty() && !ids.insert(id) {
                 dups += 1;
                 continue;
             }
             added += 1;
-            if let (false, Some(folder)) = (dry, at) {
+            if let (false, Some(folder), Some(mut m)) = (dry, at, m) {
                 m.id = 0;
                 m.uid = 0;
                 m.folder = folder;
@@ -398,7 +514,6 @@ pub fn run(s: &mut Session, v: &Value) -> Result<Value, CmdError> {
                 s.mailbox.add_message(m).map_err(|e| fail(e.to_string()))?;
             }
         }
-        messages_total += found_n;
         if let Some(t) = tallies.get_mut(slot) {
             t.files += 1;
             t.found += found_n;

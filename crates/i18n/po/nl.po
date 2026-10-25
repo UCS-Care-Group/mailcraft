@@ -1429,7 +1429,7 @@ msgid "Calibri"
 msgstr "Calibri"
 
 #. interface
-#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/report_problem.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_tree.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/report_problem.rs
 #, fuzzy
 msgid "Cancel"
 msgstr "Annuleren"
@@ -3713,6 +3713,11 @@ msgid "Imported {what}; stopped after {count}: the file has more than one import
 msgstr "{what} geïmporteerd; gestopt na {count}: het bestand vergt meer dan één import"
 
 #. interface
+#: crates/ui-egui/src/import_tree.rs
+msgid "Importing… {messages} of {total}"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "In a plain-text message"
@@ -4269,6 +4274,11 @@ msgstr "Deze vergadering in de agenda zoeken"
 #, fuzzy
 msgid "Looking for this meeting on your calendar…"
 msgstr "Deze vergadering wordt in uw agenda gezocht…"
+
+#. interface
+#: crates/ui-egui/src/import_tree.rs
+msgid "Looking… {folders}, {files}, {messages} so far"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -5635,6 +5645,11 @@ msgstr "Hier nog niets."
 #, fuzzy
 msgid "Nothing in it: replaces what is open here"
 msgstr "Niets erin: vervangt wat hier open is"
+
+#. interface
+#: crates/ui-egui/src/import_tree.rs
+msgid "Nothing is added to your mail until it has all been read."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/mail_view.rs
@@ -10877,6 +10892,11 @@ msgid "calendar"
 msgstr "agenda"
 
 #. what a command says
+#: crates/engine/src/import_tree.rs
+msgid "cancelled"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/people.rs
 #, fuzzy
 msgid "contact"
@@ -11100,7 +11120,7 @@ msgid "it opens, replaces or saves the mailbox file"
 msgstr "het opent, vervangt of slaat het postvakbestand op"
 
 #. interface
-#: crates/ui-egui/src/graph_switch.rs
+#: crates/ui-egui/src/graph_switch.rs crates/ui-egui/src/import_tree.rs
 #, fuzzy
 msgid "it stopped unexpectedly"
 msgstr "het is onverwacht gestopt"
@@ -11321,6 +11341,11 @@ msgstr "geen map {folder}"
 msgid "nothing is selected in the message"
 msgstr "er is niets geselecteerd in het bericht"
 
+#. what a command says
+#: crates/engine/src/import_tree.rs
+msgid "nothing is waiting to be imported"
+msgstr ""
+
 #. why a command can't run
 #: crates/engine/src/cmd/search_server.rs
 #, fuzzy
@@ -11502,6 +11527,11 @@ msgid "that message isn't held"
 msgstr "dat bericht wordt niet vastgehouden"
 
 #. what a command says
+#: crates/engine/src/import_tree.rs
+msgid "that was only looked at, not read in full"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/compose.rs
 #, fuzzy
 msgid "the account is gone"
@@ -11512,6 +11542,11 @@ msgstr "het account is verdwenen"
 #, fuzzy
 msgid "the browser can't keep a copy of the mailbox beside it: switch in the desktop app"
 msgstr "de browser kan geen kopie van het postvak ernaast bewaren: schakel over in de desktopapp"
+
+#. interface
+#: crates/ui-egui/src/import_tree.rs
+msgid "the browser can't read folders by path"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/meeting.rs
@@ -12570,6 +12605,13 @@ msgid "{n} item selected"
 msgid_plural "{n} items selected"
 msgstr[0] "{n} item geselecteerd"
 msgstr[1] "{n} items geselecteerd"
+
+#. interface
+#: crates/ui-egui/src/import_tree.rs
+msgid "{n} mailbox file"
+msgid_plural "{n} mailbox files"
+msgstr[0] ""
+msgstr[1] ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/import_tree.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/mail_view.rs
