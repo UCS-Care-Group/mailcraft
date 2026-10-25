@@ -563,6 +563,7 @@ fn change_done(mb: &mut Mailbox, account: Id, change: &FolderChange, outcome: &C
 /// Take in every folder the server listed, by server id (a JMAP server's too: its mailboxes are
 /// known by their ids as Graph's folders are).
 pub(super) fn take_listing(mb: &mut Mailbox, account: Id, listing: &FolderListing, taken: &mut Taken) {
+    release_outbox(mb, account, listing);
     let mut listed: HashSet<&str> = HashSet::new();
     // The server's folders as this mailbox has them, by server id, as they are found or made.
     let mut here: HashMap<String, Id> =
@@ -610,6 +611,30 @@ pub(super) fn take_listing(mb: &mut Mailbox, account: Id, listing: &FolderListin
         taken.removed += gone.len();
         mb.remove_folders(&gone);
         taken.removed += super::graph_switch::sweep_unlisted(mb, account);
+    }
+}
+
+/// The Outbox here is the queue mail is sent from; it follows no folder of the server (AU2-V2).
+/// 0.8.0 and before bound it to the server's Outbox, whose items were then sent from here with
+/// the owner's rights. A listing that now has that folder as a folder like another lets go of the
+/// bond; what the server delivered into it is forgotten here (it comes down again into the
+/// server's Outbox as a folder of its own) and is not sent.
+fn release_outbox(mb: &mut Mailbox, account: Id, listing: &FolderListing) {
+    let bound: Vec<Id> = mb
+        .folders
+        .iter()
+        .filter(|f| f.account == account && f.kind == FolderKind::Outbox)
+        .filter(|f| f.server.as_ref().is_some_and(|s| listing.folders.iter().any(|l| l.id == s.id && l.kind != FolderKind::Outbox)))
+        .map(|f| f.id)
+        .collect();
+    for folder in bound {
+        let delivered: Vec<Id> = mb.messages_in(folder).filter(|m| super::graph_send::from_server(m)).map(|m| m.id).collect();
+        for id in delivered {
+            let _ = mb.forget_message(id);
+        }
+        if let Ok(f) = mb.folder_mut(folder) {
+            f.server = None;
+        }
     }
 }
 

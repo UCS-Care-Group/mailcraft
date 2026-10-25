@@ -141,7 +141,7 @@ fn switching_waits_while_anything_waits_for_the_imap_server() {
     s.path = Some(dir.join("mailbox.mailcraft"));
     // A flag changed here that the server hasn't been told, and a deletion it hasn't either.
     s.mailbox.message_mut(ids.on_server).unwrap().flag = FlagStatus::None;
-    s.mailbox.pending.push(Pending::Delete { account: ids.account, from: "INBOX".into(), uid: 4, message_id: String::new() });
+    s.mailbox.pending.push(Pending::Delete { account: ids.account, from: "INBOX".into(), uid: 4, message_id: String::new(), seen: None });
     let said = answer(&mut s, ids.account, "switch").unwrap();
     assert_eq!((said["switched"].clone(), said["waiting"].clone()), (json!(false), json!(2)));
     // Noted, so that the switch goes ahead once a Send/Receive has told the server; nothing else.
@@ -163,7 +163,7 @@ fn switch_without_them_leaves_what_waits_in_the_backup() {
     s.path = Some(dir.join("mailbox.mailcraft"));
     // A flag and a deletion the IMAP server can't be told (it is turned off, say).
     s.mailbox.message_mut(ids.on_server).unwrap().flag = FlagStatus::None;
-    s.mailbox.pending.push(Pending::Delete { account: ids.account, from: "INBOX".into(), uid: 4, message_id: String::new() });
+    s.mailbox.pending.push(Pending::Delete { account: ids.account, from: "INBOX".into(), uid: 4, message_id: String::new(), seen: None });
     assert_eq!(answer(&mut s, ids.account, "switch").unwrap()["waiting"], json!(2));
     let before = s.mailbox.clone();
     let said = answer(&mut s, ids.account, "switchWithout").unwrap();

@@ -82,7 +82,7 @@ fn folders_of_the_owners_whose_counts_are_the_same_are_passed_over_and_empty_pag
     let pieces = run(&r.server, r.links.clone(), false);
     let last = pieces.last().unwrap();
     assert!(last.whole && last.errors.is_empty(), "{:?}", last.errors);
-    assert_eq!(last.timings.skipped, 2);
+    assert_eq!(last.timings.skipped, 3);
     assert_eq!((deltas_of(&r.server, &r.projects, before), deltas_of(&r.server, &r.receipts, before)), (0, 0));
     // The Inbox and the other special folders are always read; nothing came, so no page.
     assert_eq!(deltas_of(&r.server, &r.inbox, before), 1);
@@ -97,7 +97,7 @@ fn a_folder_that_changed_is_read_and_its_counts_move_on() {
     let some_receipt = r.server.state().mailbox.messages.values().find(|m| m.folder == r.receipts).unwrap().id.clone();
     r.server.state().mailbox.update(&some_receipt, |m| m.read = true);
     let pieces = run(&r.server, r.links.clone(), false);
-    assert_eq!(pieces.last().unwrap().timings.skipped, 0);
+    assert_eq!(pieces.last().unwrap().timings.skipped, 1);
     assert_eq!(messages_of(&pieces, &r.projects), [fresh]);
     let receipts = pieces.iter().flat_map(|p| &p.pages).filter(|p| p.folder == r.receipts).count();
     assert_eq!(receipts, 1, "the read state came");
@@ -106,7 +106,7 @@ fn a_folder_that_changed_is_read_and_its_counts_move_on() {
     assert_eq!((counts(&r.projects), counts(&r.receipts)), (Some((8, 8)), Some((5, 4))));
     // Nothing more: both passed over again.
     let again = run(&r.server, links, false);
-    assert_eq!(again.last().unwrap().timings.skipped, 2);
+    assert_eq!(again.last().unwrap().timings.skipped, 3);
 }
 
 /// Counts can hide a change (here a flag, which moves neither count): a folder passed over
@@ -117,7 +117,7 @@ fn what_leaves_the_counts_as_they_were_comes_with_the_full_sweep() {
     let flagged = r.server.state().mailbox.messages.values().find(|m| m.folder == r.projects).unwrap().id.clone();
     r.server.state().mailbox.update(&flagged, |m| m.flag = "flagged".into());
     let skipping = run(&r.server, r.links.clone(), false);
-    assert_eq!(skipping.last().unwrap().timings.skipped, 2);
+    assert_eq!(skipping.last().unwrap().timings.skipped, 3);
     assert!(messages_of(&skipping, &r.projects).is_empty());
     let links = links_after(&skipping, r.links.clone());
     let before = r.server.state().requests.len();
@@ -164,7 +164,7 @@ fn mail_that_turned_up_in_a_folder_read_leaves_the_others_passed_over() {
     let pieces = run(&r.server, r.links.clone(), false);
     let last = pieces.last().unwrap();
     assert!(last.whole);
-    assert_eq!(last.timings.skipped, 1, "Receipts");
+    assert_eq!(last.timings.skipped, 2, "Receipts");
     assert_eq!(deltas_of(&r.server, &r.receipts, before), 0);
     assert_eq!(messages_of(&pieces, &r.inbox), [moved]);
 }
@@ -213,7 +213,7 @@ fn a_folder_with_a_round_under_way_is_never_passed_over() {
     let pretend: Vec<GraphLink> = r.links.iter().map(|l| GraphLink { caught_up: l.folder != r.projects, ..l.clone() }).collect();
     let before = r.server.state().requests.len();
     let pieces = run(&r.server, pretend, false);
-    assert_eq!(pieces.last().unwrap().timings.skipped, 1, "Receipts alone");
+    assert_eq!(pieces.last().unwrap().timings.skipped, 2, "Receipts alone");
     assert!(deltas_of(&r.server, &r.projects, before) >= 1);
 }
 
