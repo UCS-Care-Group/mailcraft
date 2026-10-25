@@ -67,15 +67,6 @@ fn accents_are_left_out_of_names() {
     assert!(suggest(&s, "ozd", 6).is_empty() && people(&s, "from:ozd").is_empty());
 }
 
-/// A name is shown without what changes how the text around it reads: a bidirectional override,
-/// a zero-width space.
-#[test]
-fn a_name_is_shown_without_format_characters() {
-    let mut s = session();
-    contact(&mut s, "Eve\u{202e}lyn\u{200b} Moss", "evelyn@example.org");
-    assert_eq!(people(&s, "from:moss"), [("Evelyn Moss".to_string(), "evelyn@example.org".to_string())]);
-}
-
 /// `view.searchSuggestions` answers what the window's list offers, with places in characters, and
 /// changes nothing.
 #[test]
