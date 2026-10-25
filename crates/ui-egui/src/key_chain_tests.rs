@@ -600,16 +600,17 @@ fn escape_in_a_field_of_the_main_window_is_its_with_a_window_open() {
 
 /// A new appointment is open in a window inside the main one, with a title typed; the owner
 /// clicks a row of the main window's list: Enter is the main window's now (it opens what was
-/// clicked), and the appointment isn't saved (A+).
+/// clicked, but a message), and the appointment isn't saved (A+).
 #[test]
 fn enter_after_a_click_on_the_main_list_is_the_main_windows() {
-    for (module, kind) in [("view.people", "contact"), ("view.tasks", "task"), ("view.calendar", "event")] {
+    for (module, kind) in [("view.mail", "message"), ("view.people", "contact"), ("view.tasks", "task"), ("view.calendar", "event")] {
         let mut h = window(module);
         let before = appointment(&mut h);
         let id = windows(&h)[0]["id"].as_u64().unwrap();
         let area = h.ctx.memory(|m| m.area_rect(crate::windows::embedded_layer(id).id)).unwrap();
         let mb = &h.state().session.mailbox;
         let ids: Vec<u64> = match kind {
+            "message" => mb.messages.keys().copied().collect(),
             "contact" => mb.contacts.keys().copied().collect(),
             "task" => mb.tasks.keys().copied().collect(),
             _ => mb.events.keys().copied().collect(),
@@ -618,8 +619,11 @@ fn enter_after_a_click_on_the_main_list_is_the_main_windows() {
         testing::click(&mut h, row.center(), egui::PointerButton::Primary, 1);
         testing::key(&mut h, Key::Enter);
         assert_eq!(h.state().session.mailbox.events.len(), before, "{module}: the appointment isn't saved");
-        let opened = windows(&h).len() - 1 + usize::from(dialog(&h).is_some());
-        assert_eq!(opened, 1, "{module}: what was clicked opened");
+        assert!(windows(&h).iter().any(|w| w["id"].as_u64() == Some(id)), "{module}: its window stays");
+        if kind != "message" {
+            let opened = windows(&h).len() - 1 + usize::from(dialog(&h).is_some());
+            assert_eq!(opened, 1, "{module}: what was clicked opened");
+        }
     }
 }
 

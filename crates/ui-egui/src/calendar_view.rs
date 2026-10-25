@@ -2699,12 +2699,13 @@ fn keyboard(app: &mut MailApp, ui: &Ui, frame: &mut Frame, items: &[Item]) -> bo
     let ctx = ui.ctx().clone();
     // Enter on a pick is the pick's own ([`slot_entry`]); with an event selected it opens it. Only
     // a new press that is the main window's (#406), which is no longer among the events.
-    if load_slot(&ctx).is_none() && has_keyboard(app, &ctx) && crate::keys::take_enter_alone(&ctx, ui.layer_id()) {
-        if let Some(id) = app.session.sel.event
-            && app.run_or_else("ui.openWindow", json!({"event": id})).is_err()
-        {
-            let _ = app.run("calendar.edit", json!({}));
-        }
+    if let Some(id) = app.session.sel.event
+        && load_slot(&ctx).is_none()
+        && has_keyboard(app, &ctx)
+        && crate::keys::take_enter_alone(&ctx, ui.layer_id())
+        && app.run_or_else("ui.openWindow", json!({"event": id})).is_err()
+    {
+        let _ = app.run("calendar.edit", json!({}));
     }
     let wanted = |e: &egui::Event| matches!(e, egui::Event::Key { pressed: true, .. } | egui::Event::Copy | egui::Event::Cut | egui::Event::Paste(_));
     let events: Vec<egui::Event> = ctx.input(|i| i.events.iter().filter(|e| wanted(e)).take(32).cloned().collect());
