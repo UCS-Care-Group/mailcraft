@@ -243,6 +243,7 @@ dependencies = [
  "mailcraft-i18n",
  "mailcraft-ical",
  "mailcraft-jmap",
+ "mailcraft-link",
  "mailcraft-mime",
  "mailcraft-proto",
  "mailcraft-vcard",
@@ -252,6 +253,7 @@ dependencies = [
 name = "mailcraft-html"
 version = "0.8.0"
 dependencies = [
+ "mailcraft-link",
  "serde",
 ]
 
@@ -277,6 +279,10 @@ dependencies = [
  "mailcraft-time",
  "serde_json",
 ]
+
+[[package]]
+name = "mailcraft-link"
+version = "0.8.0"
 
 [[package]]
 name = "mailcraft-mime"

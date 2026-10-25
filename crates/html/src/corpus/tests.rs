@@ -802,8 +802,8 @@ fn this_crate_has_no_way_to_fetch_anything() {
         .map(str::trim)
         .filter(|l| !l.is_empty() && !l.starts_with('#'))
         .collect();
-    // `url` only parses an address: it opens nothing.
-    assert_eq!(dependencies, ["url", "serde"], "a new dependency: can it reach the network?");
+    // `mailcraft-link` only reads an address (and has no dependency of its own): it opens nothing.
+    assert_eq!(dependencies, ["mailcraft-link", "serde"], "a new dependency: can it reach the network?");
     let mut files = vec![root.join("src")];
     let mut checked = 0;
     while let Some(path) = files.pop() {

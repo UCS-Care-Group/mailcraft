@@ -2,7 +2,6 @@
 # Only ever shrinks: move a file's tests to `<name>_tests.rs` and take its line off.
 apps/mailcraft-cli/src/main.rs
 apps/mailcraft/src/alerts.rs
-apps/mailcraft/src/browser.rs
 apps/mailcraft/src/clipboard.rs
 apps/mailcraft/src/control_server.rs
 apps/mailcraft/src/desktop_theme.rs

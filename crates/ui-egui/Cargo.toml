@@ -20,7 +20,7 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 log = { workspace = true }
 # The host a link really goes to, for its tip.
-url = { workspace = true }
+mailcraft-link = { workspace = true }
 # Window screenshots for the control channel are saved as PNG.
 image = { workspace = true }
 

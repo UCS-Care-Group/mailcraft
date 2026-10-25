@@ -456,7 +456,7 @@ pub fn is_safe_url(url: &str) -> bool {
     // A web address the parser rejects, or that has no host, would be taken by the system's
     // opener for a relative file path (and become a `file:` address): it is no link.
     if scheme.eq_ignore_ascii_case("http") || scheme.eq_ignore_ascii_case("https") {
-        return url::Url::parse(url).is_ok_and(|u| matches!(u.scheme(), "http" | "https") && u.host_str().is_some_and(|h| !h.is_empty()));
+        return mailcraft_link::WebLink::parse(url).is_some();
     }
     true
 }
