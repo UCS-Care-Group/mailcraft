@@ -87,6 +87,19 @@ fn after_category_the_mailboxs_categories() {
     assert_eq!(first("category:grü").text, "category:Grüße ");
 }
 
+/// One letter that starts a name offers only the names it starts, not every one that holds it
+/// (`category:g` and the "… category" names); the others come when none starts with it, or from
+/// two letters on.
+#[test]
+fn names_that_only_hold_one_letter_wait_for_a_second() {
+    let cats: Vec<Category> = ["Green", "Red category", "Agenda"].iter().map(|n| Category { name: n.to_string(), color: Rgb(1, 2, 3) }).collect();
+    let offered = |q: &str| suggestions(q, q.len(), &cats).into_iter().map(|s| s.label).collect::<Vec<_>>();
+    assert_eq!(offered("category:g"), ["Green"]);
+    assert_eq!(offered("category:a"), ["Agenda"]);
+    assert_eq!(offered("category:d"), ["Red category", "Agenda"], "none starts with it");
+    assert_eq!(offered("category:re"), ["Red category", "Green"], "two letters");
+}
+
 /// A value with no letter or digit in it (`&`) is matched as it was typed, as the search matches
 /// it: only the categories that hold it are offered, not every one.
 #[test]
@@ -123,7 +136,8 @@ fn in_the_middle_of_a_query_the_rest_stays() {
     assert_eq!(taken(q, &s), "category:\"Green category\" is:unread");
 }
 
-/// After `is:` and `has:`, what they take; nothing after the other keywords (people come later).
+/// After `is:` and `has:`, what they take; nothing after the other keywords (people need someone
+/// to ask: `search_people_tests`).
 #[test]
 fn after_is_and_has_what_they_take() {
     assert_eq!(offered("is:"), ["unread", "read", "flagged", "important"]);

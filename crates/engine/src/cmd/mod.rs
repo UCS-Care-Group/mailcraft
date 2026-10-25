@@ -52,6 +52,8 @@ mod quote_tests;
 pub mod remote;
 pub mod rules;
 pub mod search_server;
+#[cfg(test)]
+mod search_suggest_tests;
 pub mod shared;
 pub mod signature;
 #[cfg(test)]

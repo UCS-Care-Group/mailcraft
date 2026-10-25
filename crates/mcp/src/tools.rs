@@ -36,6 +36,8 @@ const CONTENT: &[&str] = &[
     "tasks.list",
     "view.reminders",
     "compose.suggest",
+    // People's names and addresses, from mail.
+    "view.searchSuggestions",
     "edit.copy",
     "edit.cut",
     // Send/Receive problems may name a message by its subject.

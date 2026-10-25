@@ -6109,6 +6109,11 @@ msgstr ""
 msgid "Search People"
 msgstr ""
 
+#. command label
+#: crates/engine/src/cmd/view.rs
+msgid "Search Suggestions"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/ribbon.rs
 msgid "Search commands"

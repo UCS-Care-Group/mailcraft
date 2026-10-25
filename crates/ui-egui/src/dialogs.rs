@@ -812,6 +812,7 @@ fn all_commands(app: &MailApp) -> Vec<(String, String, String, String, bool)> {
                     | "sync.applyEventChanges"
                     | "compose.set"
                     | "compose.suggest"
+                    | "view.searchSuggestions"
                     | "account.preset"
                     | "mail.select"
                     | "calendar.select"
