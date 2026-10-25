@@ -833,22 +833,42 @@ pub struct Suggestion {
     pub contact: bool,
 }
 
-/// Who `query` (the start of a name, of a word in it, or of an address) could be: contacts first,
-/// then the people mail was exchanged with, the latest first. The owner's own addresses and
-/// addresses that don't look like one are left out. One pass over the mailbox, so it can run on
-/// every key press.
-pub fn suggest(s: &Session, query: &str, limit: usize) -> Vec<Suggestion> {
-    let q = query.trim().to_lowercase();
-    if q.is_empty() || q.chars().count() > 200 {
-        return Vec::new();
+/// What was typed for a person, as [`suggest`] compares a name and an address with it.
+pub(crate) struct Typed {
+    q: String,
+    wanted: Vec<String>,
+}
+
+impl Typed {
+    /// `None` for nothing, or for more than 200 characters. With an `@` in it, it is an address
+    /// being typed and is not taken apart into words: `ada@` is not Ada Smith at another address.
+    pub(crate) fn new(query: &str) -> Option<Typed> {
+        let q = query.trim().to_lowercase();
+        if q.is_empty() || q.chars().count() > 200 {
+            return None;
+        }
+        let wanted = if q.contains('@') { Vec::new() } else { mailcraft_model::words::words(&q) };
+        Some(Typed { wanted, q })
     }
+
+    /// Whether it is the start of the address, of the name, or of words of the name one after
+    /// another, compared as the search compares them, ignoring case and accents (`gvoz` is
+    /// Gvožđar, #308).
+    pub(crate) fn fits(&self, name: &str, email: &str) -> bool {
+        email.to_lowercase().starts_with(&self.q)
+            || name.to_lowercase().starts_with(&self.q)
+            || (!self.wanted.is_empty() && mailcraft_model::words::starts_in(name, &self.wanted))
+    }
+}
+
+/// Who `query` (the start of a name, of a word in it, or of an address) could be: contacts first,
+/// then the people mail was exchanged with, the latest first, matched as [`Typed::fits`] says. The
+/// owner's own addresses and addresses that don't look like one are left out. One pass over the
+/// mailbox, so it can run on every key press.
+pub fn suggest(s: &Session, query: &str, limit: usize) -> Vec<Suggestion> {
+    let Some(typed) = Typed::new(query) else { return Vec::new() };
     let limit = limit.clamp(1, 20);
-    let fits = |name: &str, email: &str| {
-        let (name, email) = (name.to_lowercase(), email.to_lowercase());
-        email.starts_with(&q)
-            || name.starts_with(&q)
-            || name.split(|c: char| !c.is_alphanumeric()).any(|word| !word.is_empty() && word.starts_with(&q))
-    };
+    let fits = |name: &str, email: &str| typed.fits(name, email);
     let own: Vec<String> = s.mailbox.accounts.iter().map(|a| a.email.trim().to_lowercase()).filter(|e| !e.is_empty()).collect();
     let mut seen: std::collections::HashSet<String> = own.into_iter().collect();
     let mut out: Vec<Suggestion> = Vec::new();
@@ -874,6 +894,8 @@ pub fn suggest(s: &Session, query: &str, limit: usize) -> Vec<Suggestion> {
         };
         let now = s.now();
         let mut recent: std::collections::HashMap<String, (bool, i64, &mailcraft_model::Address)> = std::collections::HashMap::new();
+        // A name and an address are matched once, however many messages carry them.
+        let mut matched: std::collections::HashMap<(&str, &str), bool> = std::collections::HashMap::new();
         for m in s.mailbox.messages.values().filter(|m| !junk.contains(&m.folder)) {
             let written = sent.contains(&m.folder);
             let date = m.date.min(now);
@@ -883,8 +905,11 @@ pub fn suggest(s: &Session, query: &str, limit: usize) -> Vec<Suggestion> {
                 std::iter::once(&m.from).chain(&m.to).chain(&m.cc).map(|a| (a, false)).collect()
             };
             for (a, to) in people {
+                if !*matched.entry((a.name.as_str(), a.email.as_str())).or_insert_with(|| fits(&a.name, &a.email)) {
+                    continue;
+                }
                 let key = a.email.trim().to_lowercase();
-                if !seen.contains(&key) && a.is_valid() && fits(&a.name, &a.email) {
+                if !seen.contains(&key) && a.is_valid() {
                     let known = recent.entry(key).or_insert((to, date, a));
                     if (to, date) >= (known.0, known.1) {
                         *known = (to || known.0, date, a);

@@ -22,7 +22,7 @@ use std::ops::Range;
 use mailcraft_time::{Date, DateTime};
 
 use crate::words::{self, ATTACHMENT, BODY, CC, FROM, SUBJECT, TO};
-use crate::{Category, FlagStatus, Importance, Message, Rgb, contains_ci};
+use crate::{Address, Category, FlagStatus, Importance, Message, Rgb, contains_ci};
 
 /// Longest query read and most terms kept (the rest is ignored).
 const MAX_QUERY: usize = 2_000;
@@ -295,10 +295,12 @@ pub fn keyword_value(value: &str) -> String {
     out
 }
 
-/// Most suggestions offered at once, most of a mailbox's categories looked through for them, and
-/// the longest category name offered (a longer one is typed).
+/// Most suggestions offered at once, most of a mailbox's categories and of the people found
+/// looked through for them, and the longest category name or address offered (a longer one is
+/// typed; a longer name of a person is cut).
 const MAX_SUGGESTIONS: usize = 8;
 const MAX_CATEGORIES_READ: usize = 1_000;
+const MAX_PEOPLE_READ: usize = 100;
 const MAX_SUGGESTED_NAME: usize = 256;
 
 /// The keywords offered while the start of one is typed: each once, without the other names it
@@ -321,16 +323,31 @@ pub struct Suggestion {
     pub text: String,
     /// A category's colour, for the mark beside its name.
     pub color: Option<Rgb>,
+    /// A person's address, what goes after the keyword; `label` is their name, or the address
+    /// when they have none.
+    pub address: Option<String>,
 }
 
 /// What to offer for the word being typed in `query` (#308), the one the cursor (a byte offset)
 /// is at the end of: the keywords it is the start of (`cat` → `category:`, `-cat` →
 /// `-category:`); after `category:`, the mailbox's `categories` whose name starts with what was
-/// typed, then those that hold it elsewhere, ignoring case and accents; after `is:` and `has:`,
-/// what they take. Nothing after the other keywords, for a word that starts no keyword, or with
-/// the cursor inside a word. A value goes in quotes when it needs them ([`keyword_value`]); one
-/// that would leave the query as it is isn't offered. At most [`MAX_SUGGESTIONS`].
+/// typed, then those that hold it elsewhere (when none starts with it, or two letters or digits
+/// were typed), ignoring case and accents; after `is:` and `has:`,
+/// what they take. Nothing after the other keywords (nor after `from:`, `to:` and `cc:`: see
+/// [`suggestions_with`]), for a word that starts no keyword, or with the cursor inside a word. A
+/// value goes in quotes when it needs them ([`keyword_value`]); one that would leave the query as
+/// it is isn't offered. At most [`MAX_SUGGESTIONS`].
 pub fn suggestions(query: &str, cursor: usize, categories: &[Category]) -> Vec<Suggestion> {
+    suggestions_with(query, cursor, categories, |_| Vec::new())
+}
+
+/// [`suggestions`], and after `from:`, `to:` and `cc:` (with a `-` too) the people `people` says
+/// what was typed after it could be, in its order, once something was typed (#308): each by
+/// their name, and their address goes after the keyword. Only an address the search reads back
+/// as that one address ([`is_address`]) is offered, so that, taken, it finds that address and no
+/// other (#301); each address once. A name is shown without control characters, its spaces run
+/// together, at most [`MAX_SUGGESTED_NAME`] characters of it.
+pub fn suggestions_with(query: &str, cursor: usize, categories: &[Category], people: impl FnOnce(&str) -> Vec<Address>) -> Vec<Suggestion> {
     let mut cursor = cursor.min(query.len());
     while !query.is_char_boundary(cursor) {
         cursor = cursor.saturating_sub(1);
@@ -378,6 +395,7 @@ pub fn suggestions(query: &str, cursor: usize, categories: &[Category]) -> Vec<S
         range: range.clone(),
         text: format!("{head}:{}{space}", keyword_value(label)),
         color,
+        address: None,
     };
     let key = head.strip_prefix('-').unwrap_or(head).to_ascii_lowercase();
     let typed = value.to_lowercase();
@@ -401,7 +419,11 @@ pub fn suggestions(query: &str, cursor: usize, categories: &[Category]) -> Vec<S
             } else {
                 named.iter().filter(|(_, f)| f.starts_with(&wanted)).map(|(c, _)| *c).collect()
             };
-            picked.extend(named.iter().filter(|(_, f)| !wanted.is_empty() && !f.starts_with(&wanted) && f.contains(&wanted)).map(|(c, _)| *c));
+            // Those that hold it elsewhere only when none starts with it, or from two letters on:
+            // `category:g` isn't every "… category".
+            if picked.is_empty() || wanted.chars().nth(1).is_some() {
+                picked.extend(named.iter().filter(|(_, f)| !wanted.is_empty() && !f.starts_with(&wanted) && f.contains(&wanted)).map(|(c, _)| *c));
+            }
             let mut seen: Vec<&str> = Vec::new();
             picked
                 .into_iter()
@@ -414,6 +436,30 @@ pub fn suggestions(query: &str, cursor: usize, categories: &[Category]) -> Vec<S
                 })
                 .take(MAX_SUGGESTIONS.saturating_add(1))
                 .map(|c| offer(&c.name, Some(c.color)))
+                .collect()
+        }
+        "from" | "to" | "cc" if !value.trim().is_empty() => {
+            let mut seen: Vec<String> = Vec::new();
+            people(value.trim())
+                .into_iter()
+                .take(MAX_PEOPLE_READ)
+                .filter_map(|person| {
+                    let email = person.email.trim();
+                    let key = address_key(email);
+                    if !is_address(email) || email.chars().nth(MAX_SUGGESTED_NAME).is_some() || seen.contains(&key) {
+                        return None;
+                    }
+                    seen.push(key);
+                    let name = shown_name(&person.name);
+                    Some(Suggestion {
+                        label: if name.is_empty() { email.to_string() } else { name },
+                        range: range.clone(),
+                        text: format!("{head}:{}{space}", keyword_value(email)),
+                        color: None,
+                        address: Some(email.to_string()),
+                    })
+                })
+                .take(MAX_SUGGESTIONS.saturating_add(1))
                 .collect()
         }
         "is" => IS_VALUES.iter().filter(|v| v.starts_with(&typed)).map(|v| offer(v, None)).collect(),
@@ -439,9 +485,16 @@ fn keywords_starting(query: &str, token: &str, range: Range<usize>) -> Vec<Sugge
     OFFERED
         .iter()
         .filter(|k| k.len() >= body.len() && k.get(..body.len()).is_some_and(|start| start.eq_ignore_ascii_case(body)))
-        .map(|k| Suggestion { label: format!("{dash}{k}:"), range: range.clone(), text: format!("{dash}{k}:"), color: None })
+        .map(|k| Suggestion { label: format!("{dash}{k}:"), range: range.clone(), text: format!("{dash}{k}:"), color: None, address: None })
         .take(MAX_SUGGESTIONS)
         .collect()
+}
+
+/// A person's name as the list shows it: no control characters, spaces run together, at most
+/// [`MAX_SUGGESTED_NAME`] characters.
+fn shown_name(name: &str) -> String {
+    let words: Vec<&str> = name.split(|c: char| c.is_whitespace() || c.is_control()).filter(|w| !w.is_empty()).collect();
+    words.join(" ").chars().take(MAX_SUGGESTED_NAME).collect::<String>().trim_end().to_string()
 }
 
 /// Whether a server's search takes `word` as it is: letters, digits and `@._-'+`, which keep an

@@ -194,6 +194,7 @@ const SAFE: &[&str] = &[
     "view.filter",
     "view.search",
     "view.clearSearch",
+    "view.searchSuggestions",
     "view.previewLines",
     "view.groups",
     "view.oneLine",
