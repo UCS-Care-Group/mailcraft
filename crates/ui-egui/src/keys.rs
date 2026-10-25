@@ -61,6 +61,9 @@ struct Chain {
     pass: u64,
     escape: Option<Owner>,
     enter: Option<Owner>,
+    /// The layers this pass's presses were given to, and whether anything of the layer asked for
+    /// the key: if nothing did and the layer wasn't drawn, the press is made again.
+    sent: Vec<(Key, LayerId, bool)>,
 }
 
 /// Most windows the gate remembers the order of.
@@ -166,19 +169,30 @@ fn activate(ctx: &egui::Context, chain: &mut Chain, focus: Option<egui::Id>) {
 /// this waits for egui to say so. While the Escape that closed it is held, it is given again
 /// when a repeat takes it away (egui lets a widget keep the keyboard on Escape only from its
 /// second pass with it).
-fn give_back(ctx: &egui::Context, chain: &mut Chain, modal: Option<LayerId>, focus: Option<egui::Id>) {
-    let back = match modal {
+fn give_back(ctx: &egui::Context, chain: &mut Chain, modal: Option<LayerId>, mut focus: Option<egui::Id>) {
+    let closed: Vec<(LayerId, Option<egui::Id>)> = match modal {
         Some(top) => match chain.modals.iter().position(|(layer, _)| *layer == top) {
-            Some(at) => chain.modals.drain(at + 1..).next(),
+            Some(at) => chain.modals.drain(at + 1..).collect(),
             None => {
                 chain.modals.push((top, focus));
-                None
+                if chain.modals.len() > REMEMBERED {
+                    chain.modals.remove(0);
+                }
+                Vec::new()
             }
         },
-        None => chain.modals.drain(..).next(),
+        None => std::mem::take(&mut chain.modals),
     };
-    if let Some((_, id)) = back {
-        chain.back = id;
+    // A button of the dialog that closed (OK, reached with Tab) has the keyboard until egui sees,
+    // at the end of this pass, that it is gone: it is nothing's to keep.
+    if let Some(id) = focus
+        && layer_of(ctx, id).is_some_and(|l| closed.iter().any(|(layer, _)| *layer == l))
+    {
+        ctx.memory_mut(|m| m.surrender_focus(id));
+        focus = None;
+    }
+    if let Some((_, id)) = closed.first() {
+        chain.back = *id;
     }
     match (chain.back, focus) {
         (Some(id), None) => ctx.memory_mut(|m| m.request_focus(id)),
@@ -210,6 +224,24 @@ pub(crate) fn gate(ctx: &egui::Context, blocked: bool) {
         focus = None;
     }
     activate(ctx, &mut chain, focus);
+    // A press given to a layer that nothing asked it of, and that wasn't drawn in its pass, went
+    // nowhere: egui still showed the layer at the gate, but it had closed in the pass before (a
+    // window, a dialog, the recurrence editor, with Escape a pass earlier). It is pressed again
+    // now, once, as a press with no widget's keyboard in it (egui let go of that one then).
+    let again: Vec<Key> = std::mem::take(&mut chain.sent)
+        .into_iter()
+        .filter(|(_, l, heard)| !heard && !ctx.memory(|m| m.areas().is_visible(l)))
+        .map(|(key, _, _)| key)
+        .collect();
+    ctx.input_mut(|i| {
+        i.events.extend(again.iter().map(|key| Event::Key {
+            key: *key,
+            physical_key: None,
+            pressed: true,
+            repeat: false,
+            modifiers: Modifiers::NONE,
+        }))
+    });
     let (escape, enter) = ctx.input(|i| {
         let new = |key| i.events.iter().any(|e| alone(e, key) && matches!(e, Event::Key { repeat: false, .. }));
         (new(Key::Escape), new(Key::Enter))
@@ -242,8 +274,14 @@ pub(crate) fn gate(ctx: &egui::Context, blocked: bool) {
         Some(Owner { layer: chain.active.first().copied().unwrap_or(main_layer()), field: None })
     };
     chain.pass = ctx.cumulative_pass_nr();
-    chain.escape = if escape { owner(Key::Escape) } else { None };
-    chain.enter = if enter { owner(Key::Enter) } else { None };
+    let fresh = |key: Key, o: Option<Owner>| if again.contains(&key) { o.map(|o| Owner { field: None, ..o }) } else { o };
+    chain.escape = fresh(Key::Escape, if escape { owner(Key::Escape) } else { None });
+    chain.enter = fresh(Key::Enter, if enter { owner(Key::Enter) } else { None });
+    chain.sent = [(Key::Escape, chain.escape), (Key::Enter, chain.enter)]
+        .into_iter()
+        .filter_map(|(key, o)| o.map(|o| (key, o.layer, false)))
+        .filter(|(key, layer, _)| *layer != main_layer() && !again.contains(key))
+        .collect();
     // Enter's repeats type on in the text field the key went down in, while it has the keyboard.
     let typing_on = !blocked && matches!(chain.held, Some((Key::Enter, Some(id))) if focus == Some(id) && types(ctx, id));
     // A new press stays for an open list (egui closes it on Escape), and Enter for the widget with
@@ -299,6 +337,9 @@ fn ask(ctx: &egui::Context, layer: LayerId, key: Key, want: Want, take: bool) ->
         let Some(chain) = d.get_temp_mut_or_default::<ViewportIdMap<Chain>>(store()).get_mut(&viewport) else { return false };
         if chain.pass != pass {
             return false;
+        }
+        for sent in chain.sent.iter_mut().filter(|(k, l, _)| *k == key && *l == layer) {
+            sent.2 = true;
         }
         let slot = if key == Key::Escape { &mut chain.escape } else { &mut chain.enter };
         let mine = slot.is_some_and(|o| {

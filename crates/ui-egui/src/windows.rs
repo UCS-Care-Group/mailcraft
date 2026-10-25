@@ -166,12 +166,6 @@ impl Windows {
         self.open.iter().filter(|w| matches!(w.what, What::Event { event: None, .. })).count()
     }
 
-    /// Whether a window is shown inside the main one, where it shares the main window's
-    /// keyboard: what is typed is then that window's, not the main window's.
-    pub fn over_main(&self) -> bool {
-        self.open.iter().any(|w| w.embedded)
-    }
-
     /// How many windows have something in them that was changed and is not saved.
     pub fn unsaved(&self) -> usize {
         self.open.iter().filter(|w| w.what.dirty()).count()

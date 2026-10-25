@@ -681,7 +681,6 @@ fn without_tests(src: &str) -> String {
 #[test]
 fn escape_and_enter_are_read_through_the_gate_only() {
     let allowed: &[(&str, usize)] = &[
-        ("keys.rs", usize::MAX),
         // The names of the keys the control channel presses.
         ("control.rs", 2),
         // A line with suggestions under it has the keyboard: Enter takes the one chosen.
@@ -704,9 +703,84 @@ fn escape_and_enter_are_read_through_the_gate_only() {
             .map(|key| src.match_indices(key).filter(|(at, _)| !src[at + key.len()..].starts_with(|c: char| c.is_alphanumeric() || c == '_')).count())
             .sum::<usize>();
         let may = allowed.iter().find(|(file, _)| *file == name).map_or(0, |(_, n)| *n);
-        if reads > may {
-            wrong.push(format!("{name}: {reads} (at most {may})"));
+        if name != "keys.rs" && reads != may {
+            wrong.push(format!("{name}: {reads}, listed {may}"));
         }
     }
-    assert!(wrong.is_empty(), "Escape or Enter read outside keys.rs; ask crate::keys (escape, enter…) instead: {wrong:?}");
+    assert!(wrong.is_empty(), "Escape or Enter read outside keys.rs; ask crate::keys (escape, enter…) instead, or correct the list: {wrong:?}");
+}
+
+/// One press of `key` in the next pass alone.
+fn press_now(h: &mut Window, key: Key) {
+    for pressed in [true, false] {
+        h.input_mut().events.push(egui::Event::Key { key, physical_key: None, pressed, repeat: false, modifiers: egui::Modifiers::NONE });
+    }
+    h.step();
+}
+
+/// Two message windows, and Escape in two passes one after the other (an agent's `ui.key`, a
+/// quick double press): each closes one, though egui still shows the first in the pass after.
+#[test]
+fn escape_in_the_pass_after_a_window_closed_closes_the_next() {
+    let mut h = window("view.mail");
+    let ids: Vec<u64> = h.state().session.mailbox.messages.keys().take(2).copied().collect();
+    for id in &ids {
+        run(&mut h, "ui.openWindow", json!({"message": id}));
+    }
+    press_now(&mut h, Key::Escape);
+    press_now(&mut h, Key::Escape);
+    h.run_steps(3);
+    assert_eq!(windows(&h).len(), 0);
+}
+
+/// The same with the recurrence editor of an appointment in a dialog: the first Escape closes the
+/// editor, the next, in the pass after, the dialog.
+#[test]
+fn escape_in_the_pass_after_the_editor_closed_closes_the_dialog() {
+    let mut h = window("view.calendar");
+    run(&mut h, "ui.dialog", json!({"name": "event", "title": "Planning"}));
+    if let Some(Dialog::Form(form)) = &mut h.state_mut().dialog {
+        form.event_mut().unwrap().open_recurrence();
+    }
+    h.run_steps(3);
+    press_now(&mut h, Key::Escape);
+    assert!(matches!(&h.state().dialog, Some(Dialog::Form(form)) if !form.modal()), "the editor closed");
+    press_now(&mut h, Key::Escape);
+    h.run_steps(3);
+    assert_eq!(dialog(&h), None);
+}
+
+/// The search box had the keyboard, and the message box over it is closed with Enter on its OK
+/// button, reached with the keyboard: the search box has the keyboard again.
+#[test]
+fn the_keyboard_goes_back_after_ok_pressed_with_the_keyboard() {
+    let mut h = window("view.mail");
+    run(&mut h, "mail.new", json!({"subject": "Half written"}));
+    run(&mut h, "ui.focusSearch", json!({}));
+    testing::text(&mut h, "budget");
+    refused(&mut h);
+    h.get_by_label("OK").focus();
+    h.run_steps(2);
+    assert!(focus(&h).is_some(), "OK has the keyboard");
+    testing::key(&mut h, Key::Enter);
+    assert_eq!((dialog(&h), focus(&h)), (None, Some(crate::chrome::search_box_id())));
+}
+
+/// A message window is open, a search is going in Mail, and the owner clicks a message of the
+/// list: the main window is the active one, so Escape ends the search, and the window in front
+/// stays open (A+).
+#[test]
+fn escape_after_a_click_on_the_main_list_is_the_main_windows() {
+    let mut h = window("view.mail");
+    run(&mut h, "view.search", json!({"query": "the"}));
+    let ids: Vec<u64> = h.state().session.mailbox.messages.keys().copied().collect();
+    run(&mut h, "ui.openWindow", json!({"message": ids[0]}));
+    let id = windows(&h)[0]["id"].as_u64().unwrap();
+    let area = h.ctx.memory(|m| m.area_rect(crate::windows::embedded_layer(id).id)).unwrap();
+    let row = ids.iter().find_map(|id| h.state().hit.rect("message", *id).filter(|r| !area.expand(8.0).contains(r.center()))).unwrap();
+    testing::click(&mut h, row.center(), egui::PointerButton::Primary, 1);
+    assert_eq!(focus(&h), None);
+    testing::key(&mut h, Key::Escape);
+    assert_eq!(h.state().session.view.search, "");
+    assert_eq!(windows(&h).len(), 1);
 }
