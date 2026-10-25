@@ -105,19 +105,28 @@ fn full_sweep_due(s: &Session, account: Id) -> bool {
 
 /// The Inbox pass of `account` (#276): only its Inbox's delta, from the link kept for it, to be
 /// run before anything else of a Send/Receive. `None` for an account with no Inbox pass: not one
-/// kept in step through Graph, one that can't be read, or one whose Inbox has no delta link yet
-/// (never read to its end, or a round under way: the run itself brings it in).
+/// kept in step through Graph, one that can't be read, or one whose Inbox is part-way through a
+/// round (its link is the next page of it: the run itself brings it in). An Inbox whose id is
+/// known but that has never been read (no link yet) is read from its start. One the server's id
+/// isn't known for (never listed) has none: the run lists the folders first.
 pub fn graph_inbox_request(s: &Session, account: Id) -> Option<GraphMailRequest> {
     let a = s.mailbox.account(account).filter(|a| a.kind == AccountKind::Microsoft)?;
     let shared = shared_mailbox(s, account).ok()?;
     let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).and_then(|id| s.mailbox.folder(id))?;
-    let server = inbox.server.as_ref().filter(|server| !server.id.is_empty() && !server.delta.is_empty() && server.caught_up)?;
+    let (id, links) = match inbox.server.as_ref()? {
+        server if server.id.is_empty() => return None,
+        server if server.delta.is_empty() => (server.id.clone(), Vec::new()),
+        server if server.caught_up => {
+            (server.id.clone(), vec![GraphLink { folder: server.id.clone(), link: server.delta.clone(), caught_up: true, counts: None }])
+        }
+        _ => return None,
+    };
     Some(GraphMailRequest {
         account,
         email: a.email.clone(),
         shared,
-        links: vec![GraphLink { folder: server.id.clone(), link: server.delta.clone(), caught_up: true, counts: None }],
-        inbox_pass: Some(GraphFolder { id: server.id.clone(), name: inbox.name.clone(), kind: FolderKind::Inbox, ..Default::default() }),
+        links,
+        inbox_pass: Some(GraphFolder { id, name: inbox.name.clone(), kind: FolderKind::Inbox, ..Default::default() }),
         ..Default::default()
     })
 }
@@ -698,3 +707,7 @@ mod tests;
 #[cfg(test)]
 #[path = "graph_sweep_tests.rs"]
 mod sweep_tests;
+
+#[cfg(test)]
+#[path = "graph_inbox_first_tests.rs"]
+mod inbox_first_tests;
