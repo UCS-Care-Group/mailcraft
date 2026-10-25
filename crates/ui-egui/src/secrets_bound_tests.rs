@@ -92,6 +92,18 @@ fn a_secret_is_not_found_after_a_server_changes_and_the_old_one_goes() {
 }
 
 #[test]
+fn undo_of_a_server_change_drops_what_was_typed_for_the_new_one() {
+    let (store, seen) = (Store::default(), Seen::default());
+    let mut a = app(&store, &seen);
+    let id = add(&mut a);
+    a.execute("account.edit", json!({"id": id, "incoming": {"host": "imap.other.example", "port": 993}})).unwrap();
+    a.passwords.insert(id, "typed for the other".into());
+    a.execute("edit.undo", json!({})).unwrap();
+    assert_eq!(a.session.mailbox.account(id).and_then(|x| x.incoming.as_ref()).map(|s| s.host.as_str()), Some("imap.mail.example"));
+    assert!(!a.passwords.contains_key(&id));
+}
+
+#[test]
 fn an_edit_that_leaves_the_servers_keeps_the_secret() {
     let (store, seen) = (Store::default(), Seen::default());
     let mut a = app(&store, &seen);

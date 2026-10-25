@@ -49,6 +49,8 @@ mod graph_mail_flow;
 mod graphics;
 mod install;
 #[cfg(test)]
+mod jmap_mail_flow;
+#[cfg(test)]
 mod listed_twice_flow;
 mod logging;
 #[cfg(target_os = "macos")]
