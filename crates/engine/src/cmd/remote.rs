@@ -176,13 +176,13 @@ impl Merged {
             || !self.dropped.is_empty()
     }
 
-    fn say(&mut self, line: String) {
+    pub(super) fn say(&mut self, line: String) {
         if self.messages.len() < MAX_MESSAGES {
             self.messages.push(line);
         }
     }
 
-    fn json(&self, complete: bool) -> Value {
+    pub(super) fn json(&self, complete: bool) -> Value {
         json!({
             "added": self.added,
             "updated": self.updated,
@@ -529,7 +529,7 @@ fn put_fields(event: &mut Event, fields: &EventFields, offset_at: &dyn Fn(Timest
 }
 
 /// The account a download is for, when the mailbox has it and it is the one the download names.
-fn owner<'a>(mailbox: &'a Mailbox, account: Id, email: &str) -> Result<&'a Account, CmdError> {
+pub(super) fn owner<'a>(mailbox: &'a Mailbox, account: Id, email: &str) -> Result<&'a Account, CmdError> {
     let owner = mailbox.account(account).ok_or_else(|| failed!("no account with id {id}", id = account))?;
     // A download for another account (the mailbox was replaced while it was under way) would fill
     // this one's calendar with a stranger's.
@@ -3510,6 +3510,14 @@ pub fn forget(s: &mut Session, account: Id) -> CmdResult {
     for id in &contacts {
         let _ = mailbox.remove_contact(*id);
     }
+    // And its to-dos (the server isn't told: it is no longer followed), with the deletions that waited.
+    let tasks: Vec<Id> = mailbox.tasks.values().filter(|task| task.origin.account == account).map(|task| task.id).collect();
+    for id in &tasks {
+        let _ = mailbox.remove_task_quietly(*id);
+    }
+    let waiting = mailbox.task_gone.len();
+    mailbox.task_gone.retain(|gone| gone.account != account);
+    let tasks_gone = tasks.len() + (waiting - mailbox.task_gone.len());
     // What was waiting to be sent to that server has nowhere to go.
     let unsent = mailbox.event_changes.len();
     mailbox.event_changes.retain(|change| change.account != account);
@@ -3532,7 +3540,7 @@ pub fn forget(s: &mut Session, account: Id) -> CmdResult {
         }
     }
     mailbox.calendars.retain(|calendar| !followed(calendar));
-    if !events.is_empty() || !contacts.is_empty() || calendars > 0 || unsent > 0 {
+    if !events.is_empty() || !contacts.is_empty() || calendars > 0 || unsent > 0 || tasks_gone > 0 {
         s.mailbox_changed();
     }
     Ok(json!({"events": events.len(), "contacts": contacts.len(), "calendars": gone.len()}))

@@ -76,7 +76,7 @@ fn a_sign_in_that_lacks_the_newest_permission_keeps_everything_it_had() {
         wanted.scope.starts_with(&format!("{GRAPH_SCOPES_BEFORE} offline_access")) && GRAPH_SCOPES.starts_with(GRAPH_SCOPES_BEFORE),
         "{wanted:?}"
     );
-    assert_eq!(format!("{GRAPH_SCOPES_BEFORE} {}", wanted.consent), GRAPH_SCOPES);
+    assert_eq!(format!("{GRAPH_SCOPES_BEFORE} {}", wanted.consent), format!("{GRAPH_SCOPES} https://graph.microsoft.com/Tasks.ReadWrite"));
 
     // The owner agreed to all of it: one question.
     let server = FakeHttp::answering(ok(granted));
@@ -316,7 +316,7 @@ fn microsoft_endpoints() {
     assert!(Url::parse(&common.authorize).is_ok() && Url::parse(&common.token).is_ok());
 
     // The page of a sign-in to mail is also asked for what Graph's tokens will be for.
-    assert_eq!(common.consent, GRAPH_SCOPES);
+    assert_eq!(common.consent, format!("{GRAPH_SCOPES} https://graph.microsoft.com/Tasks.ReadWrite"));
     assert_eq!(Endpoints::for_resource(&oauth(), Resource::Mail), common);
     // Graph's own: the same addresses, its own scopes, and the one optional extra for the owner
     // to agree to on the page (a page that won't have it is asked again without it).
@@ -324,7 +324,7 @@ fn microsoft_endpoints() {
     assert_eq!(graph.authorize, "https://login.microsoftonline.com/consumers/oauth2/v2.0/authorize");
     assert_eq!(graph.token, "https://login.microsoftonline.com/consumers/oauth2/v2.0/token");
     assert_eq!(graph.scope, format!("{GRAPH_SCOPES_BEFORE} offline_access openid profile email"));
-    assert_eq!(graph.consent, "https://graph.microsoft.com/MailboxSettings.Read");
+    assert_eq!(graph.consent, "https://graph.microsoft.com/MailboxSettings.Read https://graph.microsoft.com/Tasks.ReadWrite");
     // A request for tokens names one resource: neither asks for a scope of the other's.
     assert!(!common.scope.contains("graph.microsoft.com") && !graph.scope.contains("outlook.office.com"));
     // Reading and changing mail through Graph is asked for only for an account kept in step that
@@ -652,7 +652,7 @@ fn the_page_is_asked_for_more_than_the_tokens_are_for() {
     assert_eq!(
         fields(url.split_once('?').unwrap().1)["scope"],
         format!(
-            "https://outlook.office.com/IMAP.AccessAsUser.All https://outlook.office.com/SMTP.Send offline_access openid profile email {GRAPH_SCOPES}"
+            "https://outlook.office.com/IMAP.AccessAsUser.All https://outlook.office.com/SMTP.Send offline_access openid profile email {GRAPH_SCOPES} https://graph.microsoft.com/Tasks.ReadWrite"
         )
     );
 }
@@ -670,7 +670,10 @@ fn graph_can_be_signed_in_to_on_its_own() {
     // The tokens are for what Graph was always asked for; the page is asked for one thing more
     // (the mailbox's settings, for its categories), which the refresh token then covers too.
     let expected = format!("{GRAPH_SCOPES_BEFORE} offline_access openid profile email");
-    assert_eq!(visit_asked(&visits, 0)["scope"], format!("{expected} https://graph.microsoft.com/MailboxSettings.Read"));
+    assert_eq!(
+        visit_asked(&visits, 0)["scope"],
+        format!("{expected} https://graph.microsoft.com/MailboxSettings.Read https://graph.microsoft.com/Tasks.ReadWrite")
+    );
     assert_eq!(visit_asked(&visits, 0)["login_hint"], "ada@example.org");
     let form = form_of(&server, 0);
     assert_eq!((form["code"].as_str(), form["scope"].as_str()), ("graph-code", expected.as_str()));
@@ -1667,11 +1670,11 @@ fn the_identity_token_says_which_directory_signed_in() {
 
 /// What an administrator is asked to approve: everything the program asks an owner for, and what
 /// later shared-mailbox slices will ask for.
-const ADMIN_SCOPES: &str = "https://outlook.office.com/IMAP.AccessAsUser.All https://outlook.office.com/SMTP.Send https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/Calendars.ReadWrite https://graph.microsoft.com/Contacts.Read https://graph.microsoft.com/MailboxSettings.Read https://graph.microsoft.com/Mail.ReadWrite https://graph.microsoft.com/MailboxConfigItem.Read https://graph.microsoft.com/Mail.ReadBasic https://graph.microsoft.com/Mail.ReadWrite.Shared https://graph.microsoft.com/Mail.Send.Shared https://graph.microsoft.com/Calendars.ReadWrite.Shared offline_access openid profile email";
+const ADMIN_SCOPES: &str = "https://outlook.office.com/IMAP.AccessAsUser.All https://outlook.office.com/SMTP.Send https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/Calendars.ReadWrite https://graph.microsoft.com/Contacts.Read https://graph.microsoft.com/MailboxSettings.Read https://graph.microsoft.com/Mail.ReadWrite https://graph.microsoft.com/MailboxConfigItem.Read https://graph.microsoft.com/Mail.ReadBasic https://graph.microsoft.com/Mail.ReadWrite.Shared https://graph.microsoft.com/Mail.Send.Shared https://graph.microsoft.com/Calendars.ReadWrite.Shared https://graph.microsoft.com/Tasks.ReadWrite offline_access openid profile email";
 /// The same, service by service.
 const ADMIN_SCOPES_MAIL: &str =
     "https://outlook.office.com/IMAP.AccessAsUser.All https://outlook.office.com/SMTP.Send offline_access openid profile email";
-const ADMIN_SCOPES_GRAPH: &str = "https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/Calendars.ReadWrite https://graph.microsoft.com/Contacts.Read https://graph.microsoft.com/MailboxSettings.Read https://graph.microsoft.com/Mail.ReadWrite https://graph.microsoft.com/MailboxConfigItem.Read https://graph.microsoft.com/Mail.ReadBasic https://graph.microsoft.com/Mail.ReadWrite.Shared https://graph.microsoft.com/Mail.Send.Shared https://graph.microsoft.com/Calendars.ReadWrite.Shared offline_access openid profile email";
+const ADMIN_SCOPES_GRAPH: &str = "https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/Calendars.ReadWrite https://graph.microsoft.com/Contacts.Read https://graph.microsoft.com/MailboxSettings.Read https://graph.microsoft.com/Mail.ReadWrite https://graph.microsoft.com/MailboxConfigItem.Read https://graph.microsoft.com/Mail.ReadBasic https://graph.microsoft.com/Mail.ReadWrite.Shared https://graph.microsoft.com/Mail.Send.Shared https://graph.microsoft.com/Calendars.ReadWrite.Shared https://graph.microsoft.com/Tasks.ReadWrite offline_access openid profile email";
 /// A directory's id and an application's, both invented.
 const DIRECTORY: &str = "3a1c5e7b-9d2f-4a6c-8e0b-1d3f5a7c9e2b";
 const APPLICATION: &str = "0f6c8d2a-1b3e-4c5d-9e7f-a1b2c3d4e5f6";
@@ -2149,4 +2152,42 @@ fn calendars_opened_by_address_are_asked_for_with_their_permission_and_nothing_m
     assert_eq!(server.asked(), 1);
     // An ordinary sign-in and the others' refreshes don't carry it.
     assert!(!shared_scope().contains("Calendars.ReadWrite.Shared"));
+}
+
+const TASKS_SCOPE: &str = "https://graph.microsoft.com/Tasks.ReadWrite";
+
+#[test]
+fn tasks_are_put_to_the_owner_on_a_sign_in_page_but_never_asked_of_a_token_for_the_rest() {
+    // The page of a new sign-in asks for it beside the rest (and a page that won't have it is asked
+    // again without, as for the settings); the tokens of a sign-in are not asked for it.
+    for resource in [Resource::Mail, Resource::Graph, Resource::GraphMail] {
+        let endpoints = Endpoints::for_resource(&oauth(), resource);
+        assert!(endpoints.consent.split(' ').any(|scope| scope == TASKS_SCOPE), "{resource:?}: {}", endpoints.consent);
+        assert!(!endpoints.scope.contains("Tasks"), "{resource:?}: {}", endpoints.scope);
+    }
+    // A refresh for calendar and contacts, as a sign-in from before asks for it, doesn't mention it.
+    let granted = r#"{"token_type":"Bearer","expires_in":3600,"access_token":"graph-access","refresh_token":"re-fresh-2"}"#;
+    let server = FakeHttp::answering(ok(granted));
+    let all = Endpoints { scope: format!("{GRAPH_SCOPES} offline_access openid profile email"), ..endpoints_of(&server) };
+    refresh_graph_at(&all, &all, &endpoints_of(&server), &oauth(), "re-fresh").unwrap();
+    assert!(!form_of(&server, 0)["scope"].contains("Tasks"));
+    // The administrator's one approval covers it.
+    assert!(admin_scope().split(' ').any(|scope| scope == TASKS_SCOPE));
+}
+
+#[test]
+fn a_tasks_job_needs_its_permission_and_nothing_less() {
+    let granted = r#"{"token_type":"Bearer","expires_in":3600,"access_token":"tasks-access","refresh_token":"re-fresh-5"}"#;
+    let unasked = r#"{"error":"invalid_grant","error_description":"AADSTS65001: The user or administrator has not consented to use the application with ID 'client-1' named 'MailCraft'.","error_codes":[65001],"suberror":"consent_required"}"#;
+    let server = FakeHttp::answering(ok(granted));
+    let got = refresh_graph_tasks_at(&endpoints_of(&server), &oauth(), "re-fresh").unwrap();
+    assert_eq!((got.tokens.access.as_str(), got.tokens.refresh.as_str(), server.asked()), ("tasks-access", "re-fresh-5", 1));
+    let scope = form_of(&server, 0)["scope"].to_string();
+    assert!(scope.split(' ').any(|s| s == TASKS_SCOPE) && scope.contains("Calendars.ReadWrite"), "{scope}");
+    // Never the permissions that are asked for by themselves for other things.
+    assert!(!scope.contains("Mail.ReadWrite") && !scope.contains("Shared"), "{scope}");
+    // A sign-in from before: the owner is to be asked on the page; nothing is read without it.
+    let server = FakeHttp::answering(response("400 Bad Request", unasked));
+    assert!(refresh_graph_tasks_at(&endpoints_of(&server), &oauth(), "re-fresh").unwrap_err().is_consent_needed());
+    assert_eq!(server.asked(), 1);
 }

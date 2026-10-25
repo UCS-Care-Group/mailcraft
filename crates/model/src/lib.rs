@@ -18,6 +18,7 @@ mod message;
 mod offline;
 pub mod provider;
 pub mod remote;
+pub mod remote_tasks;
 pub mod rich;
 mod rule;
 pub mod search;
@@ -53,7 +54,7 @@ pub use remote::Origin;
 pub use rich::{RichBody, RichText};
 pub use rule::{Action, Condition, Rule};
 pub use signature::Signature;
-pub use task::Task;
+pub use task::{MAX_TASK_GONE, Task, TaskFields, TaskGone, TaskPatch};
 
 /// An item's identity inside one mailbox. 0 means "not assigned yet".
 pub type Id = u64;
