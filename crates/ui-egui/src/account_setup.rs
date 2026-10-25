@@ -695,6 +695,9 @@ impl AccountSetup {
         if incoming.port().is_none() || outgoing.port().is_none() {
             return Some(tl!("A port is a number from 1 to 65535").to_string());
         }
+        if !incoming.host.trim().is_empty() && mailcraft_model::pop::looks_like_pop(&incoming.host, incoming.port().unwrap_or(0)) {
+            return Some(tl!("MailCraft doesn't support POP yet. Use your provider's IMAP server instead (usually imap.<your domain>, port 993).").to_string());
+        }
         if self.edit.is_some() && self.oauth.is_some() && !(is_identifier(self.client_id.trim(), 200) && is_identifier(self.tenant.trim(), 64)) {
             return Some(tl!("An application ID and a tenant are letters, digits, dots and dashes").to_string());
         }
@@ -1783,6 +1786,9 @@ fn tile(ui: &mut Ui, kind: Kind, width: f32, t: &Tokens) -> Response {
     paint_clipped(ui.painter(), pos2(r.min.x + 46.0, r.min.y + 34.0), r.width() - 54.0, detail, regular(11.0), t.text_dim);
     resp
 }
+
+#[cfg(test)]
+mod pop_tests;
 
 #[cfg(test)]
 mod tests {

@@ -4442,6 +4442,11 @@ msgid "MailCraft doesn't send mail from a JMAP account yet"
 msgstr "MailCraft verzendt nog geen e-mail vanuit een JMAP-account"
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "MailCraft doesn't support POP yet. Use your provider's IMAP server instead (usually imap.<your domain>, port 993)."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/credits.rs
 #, fuzzy
 msgid "MailCraft is tested on real mail, by people who use it every day and tell us what goes wrong. Thank you."

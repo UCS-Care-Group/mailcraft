@@ -169,19 +169,20 @@ fn every_graph_accounts_inbox_pass_comes_before_the_other_phases_of_the_round() 
 }
 
 #[test]
-fn an_account_with_no_stored_inbox_link_has_no_pass() {
-    // The owner was never in step; the shared mailbox was.
+fn an_account_with_no_stored_inbox_link_has_a_pass_from_the_start_of_its_inbox() {
+    // The owner's Inbox was never read; the shared mailbox's was.
     let (mut app, owner, shared, host) = window((false, true));
     app.execute("ui.sync", json!({})).unwrap();
     drive(&mut app, 200);
     let jobs = jobs(&host);
-    assert_eq!(jobs.iter().filter(|j| j.pass).map(|j| j.account).collect::<Vec<_>>(), [shared]);
+    assert_eq!(jobs.iter().filter(|j| j.pass).map(|j| j.account).collect::<Vec<_>>(), [owner, shared]);
     assert_eq!(jobs.iter().filter(|j| !j.pass).map(|j| j.account).collect::<Vec<_>>(), [owner, shared]);
-    assert_eq!(jobs[0], Job { account: shared, pass: true, inbox_link: Some(FIRST_LINK.into()) });
-    assert!(mailcraft_engine::cmd::graph_mail::graph_inbox_request(&app.session, owner).is_none());
+    assert_eq!(jobs[0], Job { account: owner, pass: true, inbox_link: None });
+    assert_eq!(jobs[1], Job { account: shared, pass: true, inbox_link: Some(FIRST_LINK.into()) });
     // Nor a pass for a round under way, whose Inbox link is the next page of it.
     let owner_inbox = app.session.mailbox.folder_of_kind(owner, FolderKind::Inbox).unwrap();
-    app.session.mailbox.folder_mut(owner_inbox).unwrap().server.as_mut().unwrap().delta = FIRST_LINK.into();
+    let server = app.session.mailbox.folder_mut(owner_inbox).unwrap().server.as_mut().unwrap();
+    (server.delta, server.caught_up) = (FIRST_LINK.into(), false);
     assert!(mailcraft_engine::cmd::graph_mail::graph_inbox_request(&app.session, owner).is_none(), "not caught up");
 }
 
