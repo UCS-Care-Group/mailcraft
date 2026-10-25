@@ -3,6 +3,8 @@
 //! The view: which module is in front, how the message list is sorted and filtered, the search,
 //! the calendar's range, the panes.
 
+use mailcraft_model::Address;
+use mailcraft_model::search::Suggestion;
 use serde_json::{Value, json};
 
 use super::{bad, done, mac_or};
@@ -33,6 +35,9 @@ pub fn specs() -> Vec<CommandSpec> {
             .key("Mod+E / F3")
             .params(r#"{"query": string, "scope"?: "folder"|"everywhere"}"#),
         CommandSpec::new("view.clearSearch", "Close Search", "Search", clear_search).pure(),
+        CommandSpec::new("view.searchSuggestions", "Search Suggestions", "Search", search_suggestions_command).pure().params(
+            r#"{"query": string, "cursor"?: number (characters; default: the end)} — answers what the search box offers for the word the cursor is at the end of: keywords, categories, what is: and has: take, and after from:, to: and cc: people from the contacts and the mail on this computer. Each with "name" (what the list shows), "text" (what goes in place of characters "start" to "end"), and "email" (a person's address) or "color" (a category)"#,
+        ),
         CommandSpec::new("view.previewLines", "Message Preview", "View › Arrangement", preview_lines).pure().params(r#"{"value": 0-3}"#),
         CommandSpec::new("view.groups", "Show in Groups", "View › Arrangement", groups).pure().params(TOGGLE),
         CommandSpec::new("view.oneLine", "Single Line", "View › Arrangement", one_line).pure().params(TOGGLE),
@@ -121,6 +126,45 @@ fn search(s: &mut Session, v: &Value) -> CmdResult {
     s.view.search = query;
     s.view.module = Module::Mail;
     Ok(json!({"query": s.view.search, "scope": s.view.scope, "found": crate::list::listed(&s.rows())}))
+}
+
+/// What the search box offers for the word being typed in `query`, the cursor at byte `cursor`
+/// (#308): keywords, the mailbox's categories, what `is:` and `has:` take, and after `from:`,
+/// `to:` and `cc:` the people a new message's recipients are suggested from
+/// ([`compose::suggest`](super::compose::suggest)): the contacts and the mail on this computer,
+/// nothing asked of a server. A name is shown without the characters that change how the text
+/// around them reads (bidirectional overrides, zero-width marks). The window's list and
+/// `view.searchSuggestions` both ask this.
+pub fn search_suggestions(s: &Session, query: &str, cursor: usize) -> Vec<Suggestion> {
+    mailcraft_model::search::suggestions_with(query, cursor, &s.mailbox.categories, |typed| {
+        super::compose::suggest(s, typed, 20)
+            .into_iter()
+            .map(|who| Address::new(who.name.chars().filter(|c| !mailcraft_html::is_format(*c)).collect::<String>(), who.email))
+            .collect()
+    })
+}
+
+fn search_suggestions_command(s: &mut Session, v: &Value) -> CmdResult {
+    let query: String = p::req_str(v, "query")?.chars().take(2000).collect();
+    // The cursor and the answer's places in characters, as the search box counts them.
+    let chars = query.chars().count();
+    let cursor = p::u64(v, "cursor").map_or(chars, |c| usize::try_from(c).unwrap_or(usize::MAX).min(chars));
+    let byte = query.char_indices().nth(cursor).map_or(query.len(), |(b, _)| b);
+    let at = |b: usize| query.get(..b).map_or(0, |before| before.chars().count());
+    let found: Vec<Value> = search_suggestions(s, &query, byte)
+        .into_iter()
+        .map(|x| {
+            let mut one = json!({"name": x.label, "text": x.text, "start": at(x.range.start), "end": at(x.range.end)});
+            if let Some(address) = x.address {
+                one["email"] = json!(address);
+            }
+            if let Some(color) = x.color {
+                one["color"] = json!(color.hex());
+            }
+            one
+        })
+        .collect();
+    Ok(json!({"suggestions": found}))
 }
 
 fn clear_search(s: &mut Session, _: &Value) -> CmdResult {

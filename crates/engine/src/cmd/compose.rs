@@ -834,20 +834,21 @@ pub struct Suggestion {
 }
 
 /// Who `query` (the start of a name, of a word in it, or of an address) could be: contacts first,
-/// then the people mail was exchanged with, the latest first. The owner's own addresses and
-/// addresses that don't look like one are left out. One pass over the mailbox, so it can run on
-/// every key press.
+/// then the people mail was exchanged with, the latest first. A name's words are compared as the
+/// search compares them, ignoring case and accents (`gvoz` is Gvožđar, #308). The owner's own
+/// addresses and addresses that don't look like one are left out. One pass over the mailbox, so
+/// it can run on every key press.
 pub fn suggest(s: &Session, query: &str, limit: usize) -> Vec<Suggestion> {
     let q = query.trim().to_lowercase();
     if q.is_empty() || q.chars().count() > 200 {
         return Vec::new();
     }
     let limit = limit.clamp(1, 20);
+    let wanted = mailcraft_model::words::words(&q);
     let fits = |name: &str, email: &str| {
-        let (name, email) = (name.to_lowercase(), email.to_lowercase());
-        email.starts_with(&q)
-            || name.starts_with(&q)
-            || name.split(|c: char| !c.is_alphanumeric()).any(|word| !word.is_empty() && word.starts_with(&q))
+        email.to_lowercase().starts_with(&q)
+            || name.to_lowercase().starts_with(&q)
+            || (!wanted.is_empty() && mailcraft_model::words::starts_in(name, &wanted))
     };
     let own: Vec<String> = s.mailbox.accounts.iter().map(|a| a.email.trim().to_lowercase()).filter(|e| !e.is_empty()).collect();
     let mut seen: std::collections::HashSet<String> = own.into_iter().collect();

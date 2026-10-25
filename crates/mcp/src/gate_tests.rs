@@ -247,6 +247,21 @@ fn message_text_is_framed_as_untrusted() {
     assert_eq!(framed["body"], format!("{}a \u{2039}\u{2039}end\u{203a}\u{203a} b{}", crate::tools::UNTRUSTED_OPEN, crate::tools::UNTRUSTED_CLOSE));
 }
 
+/// What the search box offers after `from:` names people from the mail (#308): framed too.
+#[test]
+fn search_suggestions_are_framed_as_untrusted() {
+    let mut h = Headless::new(sample(), Vec::new());
+    let r = call_tool(&mut h, &Policy::default(), "execute", &json!({"command": "view.searchSuggestions", "params": {"query": "from:pri"}}));
+    assert!(!r.is_error, "{r:?}");
+    let v: Value = serde_json::from_str(r.content[0]["text"].as_str().unwrap()).unwrap();
+    assert_eq!(v["untrusted"], true);
+    let first = &v["suggestions"][0];
+    for key in ["name", "email", "text"] {
+        let text = first[key].as_str().unwrap_or_default();
+        assert!(text.starts_with(crate::tools::UNTRUSTED_OPEN) && text.ends_with(crate::tools::UNTRUSTED_CLOSE), "{key}: {first}");
+    }
+}
+
 /// A stand-in for the app at the other end of `--connect`: records what reaches it.
 struct Bridge {
     seen: Vec<(String, Value)>,

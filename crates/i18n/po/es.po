@@ -7164,6 +7164,12 @@ msgstr "Buscar comandos"
 msgid "Search People"
 msgstr "Buscar personas"
 
+#. command label
+#: crates/engine/src/cmd/view.rs
+#, fuzzy
+msgid "Search Suggestions"
+msgstr "Sugerencias de búsqueda"
+
 #. interface
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy

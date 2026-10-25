@@ -136,7 +136,8 @@ fn in_the_middle_of_a_query_the_rest_stays() {
     assert_eq!(taken(q, &s), "category:\"Green category\" is:unread");
 }
 
-/// After `is:` and `has:`, what they take; nothing after the other keywords (people come later).
+/// After `is:` and `has:`, what they take; nothing after the other keywords (people need someone
+/// to ask: `search_people_tests`).
 #[test]
 fn after_is_and_has_what_they_take() {
     assert_eq!(offered("is:"), ["unread", "read", "flagged", "important"]);
