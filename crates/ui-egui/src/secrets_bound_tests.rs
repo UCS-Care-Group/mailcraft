@@ -73,6 +73,17 @@ fn the_key_names_the_address_and_the_servers() {
         ..Default::default()
     };
     assert_eq!(MailApp::secret_key("refresh", &microsoft), "refresh:me@example.org|graph");
+    // AU2-V8: a mailbox file's IMAP account that says it is shared does not get the owner's Graph token.
+    let shared = mailcraft_model::Account {
+        kind: mailcraft_model::AccountKind::Imap,
+        shared_of: Some(1),
+        incoming: Some(mailcraft_model::Server { host: "imap.elsewhere.example".into(), port: 993, security: Default::default() }),
+        ..microsoft.clone()
+    };
+    assert_ne!(MailApp::secret_key("refresh", &shared), MailApp::secret_key("refresh", &microsoft));
+    assert!(MailApp::secret_key("refresh", &shared).contains("imap=imap.elsewhere.example:993"));
+    let shared_microsoft = mailcraft_model::Account { shared_of: Some(1), ..microsoft.clone() };
+    assert_eq!(MailApp::secret_key("refresh", &shared_microsoft), MailApp::secret_key("refresh", &microsoft));
 }
 
 #[test]

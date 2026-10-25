@@ -2569,6 +2569,7 @@ dependencies = [
  "js-sys",
  "log",
  "mailcraft-engine",
+ "mailcraft-html",
  "mailcraft-model",
  "mailcraft-time",
  "mailcraft-ui-egui",

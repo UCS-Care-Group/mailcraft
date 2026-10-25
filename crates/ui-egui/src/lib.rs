@@ -1897,14 +1897,16 @@ impl MailApp {
     /// `refresh`), the account's address and the servers it goes to, so that an account that
     /// names other servers (a mailbox from a file, a changed setting) is not given the secret.
     /// A Microsoft account kept in step through Graph goes to Microsoft alone: its sign-in page
-    /// and Graph are fixed. The one place this name is made.
+    /// and Graph are fixed (a shared mailbox is such an account too; one of another kind that a
+    /// file calls shared is not, and gets the name of its servers, never the owner's token).
+    /// The one place this name is made.
     pub(crate) fn secret_key(kind: &str, a: &mailcraft_model::Account) -> String {
         let address = a.email.trim().to_ascii_lowercase();
         let server = |s: &Option<mailcraft_model::Server>| match s {
             Some(s) => format!("{}:{}", s.host.trim().to_ascii_lowercase(), s.port),
             None => "none".to_string(),
         };
-        if a.kind == mailcraft_model::AccountKind::Microsoft || a.shared_of.is_some() {
+        if a.kind == mailcraft_model::AccountKind::Microsoft {
             format!("{kind}:{address}|graph")
         } else {
             format!("{kind}:{address}|imap={}|smtp={}", server(&a.incoming), server(&a.outgoing))
