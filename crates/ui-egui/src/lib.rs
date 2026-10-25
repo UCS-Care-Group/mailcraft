@@ -1648,8 +1648,7 @@ impl MailApp {
         }
         if let (Ok(_), Some(gone)) = (&r, leaving) {
             let account = gone.id;
-            // Its calendar and contacts were the server's, not the owner's own.
-            let _ = mailcraft_engine::cmd::remote::forget(&mut self.session, account);
+            // What the window keeps for it (the command took what came from its server).
             self.forget_favorites(account);
             self.graph_tokens.remove(&account);
             self.graph_checked.remove(&account);
@@ -2071,9 +2070,12 @@ impl MailApp {
     /// Tell the owner, once a session, when the system's credential store can't be used, so that
     /// being asked again at the next start is no surprise.
     pub(crate) fn check_secret_store(&mut self) {
-        let Some(trouble) = self.services.secrets.as_ref().and_then(|store| store.take_trouble()) else {
-            return;
-        };
+        if let Some(trouble) = self.services.secrets.as_ref().and_then(|store| store.take_trouble()) {
+            self.note_secret_trouble(trouble);
+        }
+    }
+
+    fn note_secret_trouble(&mut self, trouble: StoreTrouble) {
         if self.secrets_trouble.is_none() {
             self.secrets_trouble = Some(trouble);
             self.status(trouble.notice());
@@ -2081,13 +2083,25 @@ impl MailApp {
     }
 
     /// Drop everything the operating system remembers for this account as it is, and under the
-    /// name from before secrets were bound to servers.
-    pub(crate) fn forget_account_secrets(&self, a: &mailcraft_model::Account) {
-        if let Some(store) = &self.services.secrets {
-            for kind in ["password", "refresh"] {
-                store.delete(&Self::secret_key(kind, a));
-                store.delete(&Self::legacy_secret_key(kind, &a.email));
+    /// name from before secrets were bound to servers; and the names of the entries that went
+    /// from `remembered_keys`, so that the settings don't name the account any more (#325). A
+    /// name whose entry is still there stays, for the full removal to try again; so does every
+    /// name when the store couldn't be used (locked, or not answering), which says nothing then.
+    pub(crate) fn forget_account_secrets(&mut self, a: &mailcraft_model::Account) {
+        let Some(store) = &self.services.secrets else { return };
+        let mut gone = Vec::new();
+        for kind in ["password", "refresh"] {
+            for key in [Self::secret_key(kind, a), Self::legacy_secret_key(kind, &a.email)] {
+                store.delete(&key);
+                if store.get(&key).is_none() {
+                    gone.push(key);
+                }
             }
+        }
+        // (Taken here, the owner hears of it as `check_secret_store` would have said it.)
+        match store.take_trouble() {
+            Some(trouble) => self.note_secret_trouble(trouble),
+            None => self.ui.remembered_keys.retain(|key| !gone.contains(key)),
         }
     }
 

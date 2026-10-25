@@ -1808,6 +1808,11 @@ impl Session {
         };
         match &result {
             Ok(_) => {
+                // The working hours of an account just removed go with it (#325): here, once
+                // nothing can turn the removal back, as preferences aren't put back with the mailbox.
+                if wipes_history(id) {
+                    crate::cmd::calendar_settings::forget_gone_hours(self);
+                }
                 if self.mailbox != before.mailbox {
                     self.hold_replaced(&before.mailbox);
                     self.rev += 1;
