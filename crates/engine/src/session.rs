@@ -633,9 +633,9 @@ pub struct Clock {
     pub zone: Option<Zone>,
 }
 
-struct Undo {
+pub(crate) struct Undo {
     label: &'static str,
-    mailbox: Mailbox,
+    pub(crate) mailbox: Mailbox,
     /// What the step did to the Microsoft accounts' mail, for keeping them in step when it is
     /// undone ([`crate::undo`]).
     touched: crate::undo::Touched,
@@ -705,8 +705,8 @@ pub struct Session {
     /// More results on the server for the search in view (R6.2): what was asked of the servers
     /// and what they found, never in the mailbox. Never saved.
     pub server_search: crate::cmd::search_server::ServerSearch,
-    history: Vec<Undo>,
-    redo: Vec<Undo>,
+    pub(crate) history: Vec<Undo>,
+    pub(crate) redo: Vec<Undo>,
     /// What the last undo or redo couldn't do there (a delete for good, a message sent).
     undo_said: Vec<String>,
     rev: u64,
@@ -1696,14 +1696,32 @@ impl Session {
     /// What undoing (`redo`: redoing) would put back besides mail and the like: the accounts, or
     /// the rules and signatures, as they were. For the agent gate, which asks the owner first.
     pub fn undo_reverts(&self, redo: bool) -> Option<crate::agent::Class> {
+        use crate::agent::Class;
         let step = if redo { self.redo.last() } else { self.history.last() }?;
-        if step.mailbox.accounts != self.mailbox.accounts {
-            Some(crate::agent::Class::Accounts)
-        } else if step.mailbox.rules != self.mailbox.rules || step.mailbox.signatures != self.mailbox.signatures {
-            Some(crate::agent::Class::Settings)
-        } else {
-            None
+        let (to, now) = (&step.mailbox, &self.mailbox);
+        if to.accounts != now.accounts {
+            return Some(Class::Accounts);
         }
+        // A send-bearing change to an event that the mailbox hasn't got: the step brings it back.
+        let same = |a: &mailcraft_model::remote::EventChange, b: &mailcraft_model::remote::EventChange| {
+            b.send && a.account == b.account && a.kind == b.kind && a.event == b.event && a.token == b.token
+        };
+        if to.event_changes.iter().any(|c| c.send && !now.event_changes.iter().any(|n| same(c, n))) {
+            return Some(Class::Send);
+        }
+        // Things that go for good (they don't go to Deleted Items) and that the step lacks.
+        let gone = now.contacts.keys().any(|k| !to.contacts.contains_key(k))
+            || now.events.keys().any(|k| !to.events.contains_key(k))
+            || now.tasks.keys().any(|k| !to.tasks.contains_key(k))
+            || now.calendars.iter().any(|c| !to.calendars.iter().any(|t| t.id == c.id))
+            || now.categories.iter().any(|c| !to.categories.iter().any(|t| t.name.to_lowercase() == c.name.to_lowercase()));
+        if gone {
+            return Some(Class::Delete);
+        }
+        if to.rules != now.rules || to.signatures != now.signatures {
+            return Some(Class::Settings);
+        }
+        None
     }
 
     pub fn undo(&mut self) -> bool {
