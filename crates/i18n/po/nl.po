@@ -88,6 +88,12 @@ msgid "(none)"
 msgstr "(geen)"
 
 #. interface
+#: crates/ui-egui/src/folder_properties.rs
+#, fuzzy
+msgid "* The sizes leave out messages whose size isn't known here: only their headers are on this computer and their server gave no size, or they were too large to download."
+msgstr "* De groottes laten berichten weg waarvan de grootte hier niet bekend is: alleen hun kopteksten staan op deze computer en hun server gaf geen grootte, of ze waren te groot om te downloaden."
+
+#. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "+ action"
@@ -209,13 +215,15 @@ msgstr "Een agendawijziging kan nog niet worden verzonden en wordt opnieuw gepro
 
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs
+#, fuzzy
 msgid "A change to a shared mailbox's calendar was refused: this account may not edit it. It is tried once more, and then put back."
-msgstr ""
+msgstr "Een wijziging van de agenda van een gedeeld postvak is geweigerd: dit account mag die niet bewerken. Er wordt nog één keer geprobeerd, en daarna wordt die teruggezet."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "A colleague's calendar, by their address, with your work or school account. Kept on this computer only"
-msgstr ""
+msgstr "De agenda van een collega, op diens adres, met uw werk- of schoolaccount. Alleen op deze computer bewaard"
 
 #. interface
 #: crates/ui-egui/src/graph_switch.rs
@@ -249,8 +257,9 @@ msgstr "Een postvak dat hier wordt bewaard, zonder e-mailserver"
 
 #. interface
 #: crates/ui-egui/src/shared_calendars.rs
+#, fuzzy
 msgid "A meeting answer or invitation from this shared mailbox waits: sending from shared mailboxes needs your permission. Use Send/Receive."
-msgstr ""
+msgstr "Een antwoord op een vergadering of een uitnodiging vanuit dit gedeelde postvak wacht: verzenden vanuit gedeelde postvakken heeft uw toestemming nodig. Gebruik Verzenden/ontvangen."
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/meeting.rs
@@ -260,8 +269,9 @@ msgstr "Een vergadering kan niet naar een andere agenda worden verplaatst: de se
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/meeting.rs
+#, fuzzy
 msgid "A meeting can't be moved to another mailbox's calendar: that would send everyone invited a cancellation, and their replies would no longer reach it. Forward the meeting, or create it again in that calendar."
-msgstr ""
+msgstr "Een vergadering kan niet naar de agenda van een ander postvak worden verplaatst: daardoor zou iedereen die is uitgenodigd een annulering krijgen, en hun antwoorden zouden de vergadering niet meer bereiken. Stuur de vergadering door, of maak die opnieuw aan in die agenda."
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/meeting.rs
@@ -683,8 +693,9 @@ msgstr "Toestaan"
 
 #. interface
 #: crates/ui-egui/src/open_shared.rs
+#, fuzzy
 msgid "Allow MailCraft to read other people's calendars on the page that opened in your browser…"
-msgstr ""
+msgstr "Sta MailCraft toe de agenda's van anderen te lezen op de pagina die in uw browser is geopend…"
 
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
@@ -694,8 +705,9 @@ msgstr "MailCraft toestaan gedeelde postvakken te lezen op de pagina die in uw b
 
 #. interface
 #: crates/ui-egui/src/shared_calendars.rs
+#, fuzzy
 msgid "Allow MailCraft to read shared mailboxes' calendars on the page that opened in your browser…"
-msgstr ""
+msgstr "Sta MailCraft toe de agenda's van gedeelde postvakken te lezen op de pagina die in uw browser is geopend…"
 
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
@@ -711,8 +723,9 @@ msgstr "Nieuwe tijdvoorstellen toestaan"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Allow Reading Other People's Calendars"
-msgstr ""
+msgstr "Lezen van agenda's van anderen toestaan"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -889,6 +902,12 @@ msgid "Apply Downloaded Favorites"
 msgstr "Gedownloade favorieten toepassen"
 
 #. command label
+#: crates/engine/src/cmd/jmap_mail.rs
+#, fuzzy
+msgid "Apply Downloaded JMAP Messages"
+msgstr "Gedownloade JMAP-berichten toepassen"
+
+#. command label
 #: crates/engine/src/cmd/calendar_settings.rs
 #, fuzzy
 msgid "Apply Downloaded Mailbox Settings"
@@ -911,6 +930,12 @@ msgstr "Resultaten van de server toepassen"
 #, fuzzy
 msgid "Apply Send/Receive"
 msgstr "Verzenden/ontvangen toepassen"
+
+#. command label
+#: crates/engine/src/cmd/jmap_mail.rs
+#, fuzzy
+msgid "Apply Send/Receive with JMAP"
+msgstr "Verzenden/ontvangen met JMAP toepassen"
 
 #. command label
 #: crates/engine/src/cmd/graph_mail.rs
@@ -994,8 +1019,20 @@ msgstr ""
 msgid "Arrange By"
 msgstr "Rangschikken op"
 
+#. command label
+#: crates/engine/src/cmd/people.rs
+#, fuzzy
+msgid "Arrange Contacts By"
+msgstr "Contactpersonen rangschikken op"
+
+#. command label
+#: crates/engine/src/cmd/tasks.rs
+#, fuzzy
+msgid "Arrange Tasks By"
+msgstr "Taken rangschikken op"
+
 #. ribbon, ribbon location
-#: crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Arrangement"
 msgstr "Rangschikking"
@@ -1014,8 +1051,9 @@ msgstr "Zoals de personen aan wie u schrijft het zien"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Ask again"
-msgstr ""
+msgstr "Opnieuw vragen"
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
@@ -1031,8 +1069,9 @@ msgstr "Opnieuw vragen voordat afbeeldingen van deze afzender worden gedownload"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Ask for permission to read the calendars of shared mailboxes: Microsoft's page opens in your browser. Without it, nothing of this mailbox's calendars is read."
-msgstr ""
+msgstr "Vraag toestemming om de agenda's van gedeelde postvakken te lezen: de pagina van Microsoft opent in uw browser. Zonder die toestemming wordt niets van de agenda's van dit postvak gelezen."
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
@@ -1072,8 +1111,9 @@ msgstr "Vraagt alleen om e-mail, zonder de agenda en de contactpersonen, die lat
 
 #. what a command says
 #: crates/engine/src/cmd/calendar_opened.rs
+#, fuzzy
 msgid "At most {n} calendars can be opened by address: remove one first."
-msgstr ""
+msgstr "Er kunnen hoogstens {n} agenda's op adres worden geopend: verwijder er eerst een."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
@@ -1138,6 +1178,12 @@ msgstr "aug"
 #, fuzzy
 msgid "August"
 msgstr "augustus"
+
+#. interface, name
+#: crates/ui-egui/src/folder_properties.rs
+#, fuzzy
+msgid "AutoArchive"
+msgstr "AutoArchive"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/ribbon.rs
@@ -1297,8 +1343,9 @@ msgstr "Controle van de agendaverbinding"
 
 #. interface
 #: crates/ui-egui/src/open_shared.rs
+#, fuzzy
 msgid "Calendar Listed Twice"
-msgstr ""
+msgstr "Agenda twee keer vermeld"
 
 #. name
 #: crates/model/src/sync/progress.rs
@@ -1314,33 +1361,45 @@ msgstr "Agenda en contactpersonen hebben uw toestemming nodig: Bestand › Info 
 
 #. interface
 #: crates/ui-egui/src/open_shared.rs
+#, fuzzy
 msgid "Calendars you opened by address need your permission to be read: open one again to be asked"
-msgstr ""
+msgstr "Agenda's die u op adres hebt geopend, hebben uw toestemming nodig om te worden gelezen: open er opnieuw een om te worden gevraagd"
 
 #. interface
 #: crates/ui-egui/src/shared_calendars.rs
+#, fuzzy
 msgid "Calendars: allowed"
-msgstr ""
+msgstr "Agenda's: toegestaan"
 
 #. interface
 #: crates/ui-egui/src/shared_calendars.rs
+#, fuzzy
+msgid "Calendars: allowed, reading them…"
+msgstr "Agenda's: toegestaan, ze worden gelezen…"
+
+#. interface
+#: crates/ui-egui/src/shared_calendars.rs
+#, fuzzy
 msgid "Calendars: asking for your permission…"
-msgstr ""
+msgstr "Agenda's: uw toestemming wordt gevraagd…"
 
 #. interface
 #: crates/ui-egui/src/shared_calendars.rs
+#, fuzzy
 msgid "Calendars: not allowed ({why})"
-msgstr ""
+msgstr "Agenda's: niet toegestaan ({why})"
 
 #. interface
 #: crates/ui-egui/src/shared_calendars.rs
+#, fuzzy
 msgid "Calendars: not asked yet (ticking one of them asks)"
-msgstr ""
+msgstr "Agenda's: nog niet gevraagd (een ervan aanvinken vraagt het)"
 
 #. interface
 #: crates/ui-egui/src/shared_calendars.rs
+#, fuzzy
 msgid "Calendars: waiting for your permission"
-msgstr ""
+msgstr "Agenda's: wacht op uw toestemming"
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -1701,7 +1760,7 @@ msgid "Clipboard"
 msgstr "Klembord"
 
 #. interface, ribbon
-#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/sync_panel.rs crates/ui-egui/src/tasks_view.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/sync_panel.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Close"
 msgstr "Sluiten"
@@ -1994,8 +2053,9 @@ msgstr "Kan niet worden vastgesteld of er een nieuwe versie beschikbaar is: {why
 
 #. interface
 #: crates/ui-egui/src/open_shared.rs
+#, fuzzy
 msgid "Couldn't reach Microsoft to open the calendar of {address}. Try again in a moment."
-msgstr ""
+msgstr "Microsoft kon niet worden bereikt om de agenda van {address} te openen. Probeer het zo meteen opnieuw."
 
 #. what a command says
 #: crates/engine/src/cmd/graph_drafts.rs
@@ -2440,6 +2500,12 @@ msgid "Double-click to open {name}; right-click to save it"
 msgstr "Dubbelklik om {name} te openen; klik met de rechtermuisknop om het op te slaan"
 
 #. command label
+#: crates/engine/src/cmd/jmap_mail.rs
+#, fuzzy
+msgid "Download JMAP Messages in Full"
+msgstr "JMAP-berichten volledig downloaden"
+
+#. command label
 #: crates/engine/src/cmd/graph_mail.rs
 #, fuzzy
 msgid "Download Messages in Full"
@@ -2546,6 +2612,12 @@ msgstr "Concepten die u nog niet hebt verzonden, gaan naar uw Concepten op de se
 #, fuzzy
 msgid "Due"
 msgstr "Vervalt"
+
+#. name
+#: crates/engine/src/session.rs
+#, fuzzy
+msgid "Due Date"
+msgstr "Einddatum"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -3003,8 +3075,8 @@ msgstr "Gemarkeerd"
 msgid "Fold the calendars of this group away"
 msgstr "De agenda's van deze groep invouwen"
 
-#. name, ribbon location
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/rules.rs crates/model/src/mailbox.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
+#. interface, name, ribbon location
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/rules.rs crates/model/src/mailbox.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
 msgid "Folder"
 msgstr "Map"
@@ -3019,11 +3091,39 @@ msgstr ""
 "Mappen\n"
 "venster"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid ""
+"Folder\n"
+"Properties"
+msgstr ""
+"Map\n"
+"eigenschappen"
+
 #. command label
 #: crates/engine/src/cmd/view.rs
 #, fuzzy
 msgid "Folder Pane"
 msgstr "Mappenvenster"
+
+#. command label
+#: crates/engine/src/cmd/folder.rs
+#, fuzzy
+msgid "Folder Properties"
+msgstr "Mapeigenschappen"
+
+#. interface
+#: crates/ui-egui/src/folder_properties.rs
+#, fuzzy
+msgid "Folder Size"
+msgstr "Mapgrootte"
+
+#. interface
+#: crates/ui-egui/src/folder_properties.rs
+#, fuzzy
+msgid "Folder Size…"
+msgstr "Mapgrootte…"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -3229,8 +3329,8 @@ msgstr "Van:"
 msgid "Full messages: {done} of {total}"
 msgstr "Volledige berichten: {done} van {total}"
 
-#. interface
-#: crates/ui-egui/src/backstage.rs
+#. interface, name
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/folder_properties.rs
 #, fuzzy
 msgid "General"
 msgstr "Algemeen"
@@ -3332,6 +3432,12 @@ msgid "Go to Folder"
 msgstr "Naar map gaan"
 
 #. interface
+#: crates/ui-egui/src/folder_properties.rs
+#, fuzzy
+msgid "Go to the folder"
+msgstr "Naar de map gaan"
+
+#. interface
 #: crates/ui-egui/src/reading/view.rs
 #, fuzzy
 msgid "Goes to {host}"
@@ -3360,6 +3466,12 @@ msgstr "Google heeft het wachtwoord niet geaccepteerd. Een account met verificat
 #, fuzzy
 msgid "Grab bag"
 msgstr "Allerlei"
+
+#. interface
+#: crates/ui-egui/src/sender_images.rs
+#, fuzzy
+msgid "Gravatar is asked for the sender's picture and told a hash of their address; else favicon.im, then Google, are asked for their website's icon and told the sender's domain. This tells those services whose pictures you look at. Only for the people you know (your contacts, and whoever you have written to) and the mail whose pictures you download, never for Junk E-mail, and a sender's picture only when your mail server confirms the mail is from them."
+msgstr "Aan Gravatar wordt de afbeelding van de afzender gevraagd, en een hash van diens adres doorgegeven; anders wordt aan favicon.im, en daarna aan Google, het pictogram van diens website gevraagd, en het domein van de afzender doorgegeven. Dit vertelt die diensten van wie u afbeeldingen bekijkt. Alleen voor de personen die u kent (uw contactpersonen, en iedereen aan wie u hebt geschreven) en de e-mail waarvan u afbeeldingen downloadt, nooit voor Ongewenste e-mail, en een afbeelding van een afzender alleen wanneer uw e-mailserver bevestigt dat de e-mail van die afzender is."
 
 #. command label, ribbon
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
@@ -3391,11 +3503,29 @@ msgstr "Aangehouden:"
 msgid "Help"
 msgstr "Help"
 
+#. command label
+#: crates/engine/src/cmd/calendar_opened.rs
+#, fuzzy
+msgid "Hide Calendar Listed Twice"
+msgstr "Twee keer vermelde agenda verbergen"
+
 #. interface
 #: crates/ui-egui/src/menubar.rs
 #, fuzzy
 msgid "Hide MailCraft"
 msgstr "Verberg MailCraft"
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "Hide This Copy"
+msgstr "Deze kopie verbergen"
+
+#. interface
+#: crates/ui-egui/src/open_shared.rs
+#, fuzzy
+msgid "Hide the Copy"
+msgstr "De kopie verbergen"
 
 #. interface
 #: crates/ui-egui/src/nav.rs
@@ -3456,6 +3586,12 @@ msgstr "Hoe ver terug e-mail volledig op deze computer wordt bewaard. Oudere e-m
 #, fuzzy
 msgid "How it repeats is for its organizer to say."
 msgstr "Hoe het terugkeert, is aan de organisator."
+
+#. interface
+#: crates/ui-egui/src/folder_properties.rs
+#, fuzzy
+msgid "How many messages each folder holds and the space they take"
+msgstr "Hoeveel berichten elke map bevat en hoeveel ruimte ze innemen"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -3560,6 +3696,12 @@ msgid "In the Outbox: it is on its way"
 msgstr "In het Postvak UIT: het is onderweg"
 
 #. interface
+#: crates/ui-egui/src/folder_properties.rs
+#, fuzzy
+msgid "In the folder pane's order"
+msgstr "In de volgorde van het mappenvenster"
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "In {place}"
@@ -3615,8 +3757,9 @@ msgstr "Info"
 
 #. ribbon location
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Info and File"
-msgstr ""
+msgstr "Info en bestand"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -3871,6 +4014,12 @@ msgid "Just This One"
 msgstr "Alleen deze"
 
 #. interface
+#: crates/ui-egui/src/open_shared.rs
+#, fuzzy
+msgid "Keep Both"
+msgstr "Beide behouden"
+
+#. interface
 #: crates/ui-egui/src/graph_switch.rs
 #, fuzzy
 msgid "Keep Waiting"
@@ -4063,7 +4212,7 @@ msgid "Local mailbox"
 msgstr "Lokaal postvak"
 
 #. interface
-#: crates/ui-egui/src/forms.rs
+#: crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Location"
 msgstr "Locatie"
@@ -4127,6 +4276,18 @@ msgstr "E-mail"
 #, fuzzy
 msgid "Mail can't be moved or copied into a Microsoft account from another account or a local folder yet: this version can't put a message on Microsoft's server"
 msgstr "E-mail kan nog niet vanuit een ander account of een lokale map naar een Microsoft-account worden verplaatst of gekopieerd: deze versie kan geen bericht op de server van Microsoft plaatsen"
+
+#. interface
+#: crates/ui-egui/src/folder_properties.rs
+#, fuzzy
+msgid "Mail folder"
+msgstr "E-mailmap"
+
+#. interface
+#: crates/ui-egui/src/folder_properties.rs
+#, fuzzy
+msgid "Mail folder: the account's {folder}"
+msgstr "E-mailmap: {folder} van het account"
 
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
@@ -4219,6 +4380,18 @@ msgid "MailCraft doesn't look for new versions by itself; File › Options can h
 msgstr "MailCraft zoekt niet zelf naar nieuwe versies; via Bestand › Opties kan het één keer per dag zoeken."
 
 #. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "MailCraft doesn't move or delete a JMAP account's mail yet: the next Send/Receive would bring it back"
+msgstr "MailCraft verplaatst of verwijdert nog geen e-mail van een JMAP-account: de volgende Verzenden/ontvangen zou die terugbrengen"
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "MailCraft doesn't rename or move a JMAP account's folders yet: its server wouldn't be told"
+msgstr "MailCraft hernoemt of verplaatst nog geen mappen van een JMAP-account: de server ervan zou dat niet te horen krijgen"
+
+#. what a command says
 #: crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/compose.rs
 #, fuzzy
 msgid "MailCraft doesn't send mail from a JMAP account yet"
@@ -4238,8 +4411,9 @@ msgstr "MailCraft is actueel ({version})."
 
 #. interface
 #: crates/ui-egui/src/open_shared.rs
+#, fuzzy
 msgid "MailCraft isn't allowed to read other people's calendars yet."
-msgstr ""
+msgstr "MailCraft mag de agenda's van anderen nog niet lezen."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/dialogs.rs
@@ -4302,7 +4476,7 @@ msgid "MailCraft's data has been removed: nothing is sent or received"
 msgstr "De gegevens van MailCraft zijn verwijderd: er wordt niets verzonden of ontvangen"
 
 #. interface
-#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/nav.rs
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/nav.rs
 #, fuzzy
 msgid "Mailbox"
 msgstr "Postvak"
@@ -4469,8 +4643,8 @@ msgstr ""
 msgid "Message Preview"
 msgstr "Berichtvoorbeeld"
 
-#. ribbon, ribbon location
-#: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
+#. interface, ribbon, ribbon location
+#: crates/engine/src/cmd/view.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Messages"
 msgstr "Berichten"
@@ -4492,6 +4666,24 @@ msgstr "Berichten worden getoond zonder dat er iets in wordt uitgevoerd, en de a
 #, fuzzy
 msgid "Messages from Sender"
 msgstr "Berichten van afzender"
+
+#. interface
+#: crates/ui-egui/src/folder_properties.rs
+#, fuzzy
+msgid "Messages in the folder and the folders under it"
+msgstr "Berichten in de map en in de mappen daaronder"
+
+#. interface
+#: crates/ui-egui/src/folder_properties.rs
+#, fuzzy
+msgid "Messages in the folder as its server counted them at the last Send/Receive that read it to the end"
+msgstr "Berichten in de map, zoals de server die telde bij de laatste Verzenden/ontvangen die de map tot het einde las"
+
+#. interface
+#: crates/ui-egui/src/folder_properties.rs
+#, fuzzy
+msgid "Messages in the folder itself"
+msgstr "Berichten in de map zelf"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -4779,8 +4971,8 @@ msgstr "Mijn taken"
 msgid "My organisation has to approve MailCraft first: what to do"
 msgstr "Mijn organisatie moet MailCraft eerst goedkeuren: wat u moet doen"
 
-#. interface
-#: crates/ui-egui/src/forms.rs
+#. interface, name
+#: crates/engine/src/session.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Name"
 msgstr "Naam"
@@ -5112,9 +5304,10 @@ msgid "No categories yet"
 msgstr "Nog geen categorieën"
 
 #. interface
-#: crates/ui-egui/src/mail_view.rs
+#: crates/ui-egui/src/mail_view.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/tasks_view.rs
+#, fuzzy
 msgid "No category"
-msgstr ""
+msgstr "Geen categorie"
 
 #. interface
 #: crates/ui-egui/src/graph_switch.rs
@@ -5495,7 +5688,7 @@ msgid "On the"
 msgstr "Op de"
 
 #. interface
-#: crates/ui-egui/src/mail_view/server_rows.rs
+#: crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/mail_view/server_rows.rs
 #, fuzzy
 msgid "On the server"
 msgstr "Op de server"
@@ -5622,10 +5815,13 @@ msgstr "Openen"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid ""
 "Open\n"
 "Calendar"
 msgstr ""
+"Agenda\n"
+"openen"
 
 #. interface, ribbon location
 #: crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/file.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs
@@ -5677,8 +5873,9 @@ msgstr "Resultaat van de server openen"
 
 #. command label, interface
 #: crates/engine/src/cmd/calendar_opened.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/open_shared.rs
+#, fuzzy
 msgid "Open Shared Calendar"
-msgstr ""
+msgstr "Gedeelde agenda openen"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -5736,8 +5933,9 @@ msgstr "De pagina opnieuw openen"
 
 #. interface
 #: crates/ui-egui/src/reading/sharing.rs
+#, fuzzy
 msgid "Open this calendar"
-msgstr ""
+msgstr "Deze agenda openen"
 
 #. interface
 #: crates/ui-egui/src/attachment_open.rs
@@ -5747,8 +5945,9 @@ msgstr "{name} openen? {why}"
 
 #. interface
 #: crates/ui-egui/src/open_shared.rs
+#, fuzzy
 msgid "Opened the calendar of {name}. It is listed under Shared Calendars, on this computer only."
-msgstr ""
+msgstr "De agenda van {name} is geopend. Die staat onder Gedeelde agenda's, alleen op deze computer."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -5776,8 +5975,9 @@ msgstr "Opent de pagina van GitHub in uw browser, al ingevuld: u controleert die
 
 #. interface
 #: crates/ui-egui/src/reading/sharing.rs
+#, fuzzy
 msgid "Opens it by their address, on this computer only: it won't appear in Outlook or on your other devices"
-msgstr ""
+msgstr "Opent die op diens adres, alleen op deze computer: die verschijnt niet in Outlook of op uw andere apparaten"
 
 #. interface
 #: crates/ui-egui/src/forms.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/scheduling.rs
@@ -5829,13 +6029,15 @@ msgstr "Andere agenda's"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar_opened.rs
+#, fuzzy
 msgid "Other people's calendars can be opened under a Microsoft work or school account"
-msgstr ""
+msgstr "Agenda's van anderen kunnen worden geopend onder een werk- of schoolaccount van Microsoft"
 
 #. interface
 #: crates/ui-egui/src/open_shared.rs
+#, fuzzy
 msgid "Other people's calendars weren't allowed: {error}"
-msgstr ""
+msgstr "Agenda's van anderen waren niet toegestaan: {error}"
 
 #. name
 #: crates/model/src/calendar.rs
@@ -5945,6 +6147,12 @@ msgstr "Afbeelding plakken"
 msgid "Pattern"
 msgstr "Patroon"
 
+#. interface
+#: crates/ui-egui/src/folder_properties.rs
+#, fuzzy
+msgid "Pending development"
+msgstr "In ontwikkeling"
+
 #. command label, interface, name, ribbon location
 #: crates/engine/src/cmd/people.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/people_view.rs
 #, fuzzy
@@ -5956,6 +6164,12 @@ msgstr "Personen"
 #, fuzzy
 msgid "Permanently Delete"
 msgstr "Definitief verwijderen"
+
+#. interface, name
+#: crates/ui-egui/src/folder_properties.rs
+#, fuzzy
+msgid "Permissions"
+msgstr "Machtigingen"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -6071,6 +6285,12 @@ msgstr "Plaats de aanwijzer erop om te zien waarom."
 msgid "Point at one to see why."
 msgstr "Plaats de aanwijzer op een ervan om te zien waarom."
 
+#. interface, name
+#: crates/ui-egui/src/folder_properties.rs
+#, fuzzy
+msgid "Policy"
+msgstr "Beleid"
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -6106,6 +6326,18 @@ msgstr "Vorig bericht"
 #, fuzzy
 msgid "Private"
 msgstr "Persoonlijk"
+
+#. ribbon, ribbon location
+#: crates/engine/src/cmd/folder.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Properties"
+msgstr "Eigenschappen"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "Properties…"
+msgstr "Eigenschappen…"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -6199,8 +6431,9 @@ msgstr "Favorieten uit Outlook nu opnieuw lezen"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
+#, fuzzy
 msgid "Read with {owner}'s sign-in, for as long as you keep it: the person has to have shared their calendar with you. It is kept on this computer only: it won't appear in Outlook or on your other devices. Microsoft asks you once to let MailCraft read other people's calendars."
-msgstr ""
+msgstr "Lezen met de aanmelding van {owner}, zolang u die bewaart: de persoon moet diens agenda met u hebben gedeeld. De agenda wordt alleen op deze computer bewaard: die verschijnt niet in Outlook of op uw andere apparaten. Microsoft vraagt u één keer om MailCraft de agenda's van anderen te laten lezen."
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -6226,8 +6459,9 @@ msgstr "Het lezen van gedeelde postvakken vereist uw toestemming: gebruik Verzen
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
+#, fuzzy
 msgid "Reading the calendar from Microsoft…"
-msgstr ""
+msgstr "De agenda wordt van Microsoft gelezen…"
 
 #. name
 #: crates/ui-egui/src/credits.rs
@@ -6415,8 +6649,9 @@ msgstr "Terugkeerpatroon verwijderen"
 
 #. command label, interface
 #: crates/engine/src/cmd/calendar_opened.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs
+#, fuzzy
 msgid "Remove Shared Calendar"
-msgstr ""
+msgstr "Gedeelde agenda verwijderen"
 
 #. command label, interface
 #: crates/engine/src/cmd/shared.rs crates/ui-egui/src/dialogs.rs
@@ -6910,8 +7145,9 @@ msgstr "Bezig met opslaan van het postvak… {done} van {total} berichten"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Say that this is meant with \"confirmed\": true."
-msgstr ""
+msgstr "Zeg dat dit wordt bedoeld met \"confirmed\": true."
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
@@ -7146,7 +7382,7 @@ msgid "Send & Receive"
 msgstr "Verzenden & ontvangen"
 
 #. ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/sync_progress.rs crates/ui-egui/src/lib.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/sync_progress.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Send / Receive"
 msgstr "Verzenden/ontvangen"
@@ -7294,6 +7530,12 @@ msgid "Send/Receive stopped unexpectedly"
 msgstr "Verzenden/ontvangen is onverwacht gestopt"
 
 #. command label
+#: crates/engine/src/cmd/jmap_mail.rs
+#, fuzzy
+msgid "Send/Receive with JMAP"
+msgstr "Verzenden/ontvangen met JMAP"
+
+#. command label
 #: crates/engine/src/cmd/graph_mail.rs
 #, fuzzy
 msgid "Send/Receive with Microsoft Graph"
@@ -7411,8 +7653,9 @@ msgstr "Delen"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
 msgid "Shared Calendars"
-msgstr ""
+msgstr "Gedeelde agenda's"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -7440,8 +7683,9 @@ msgstr "Gedeelde postvakken waren niet toegestaan: {error}"
 
 #. interface
 #: crates/ui-egui/src/shared_calendars.rs
+#, fuzzy
 msgid "Shared mailboxes' calendars weren't allowed: {error}"
-msgstr ""
+msgstr "Agenda's van gedeelde postvakken waren niet toegestaan: {error}"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -7501,10 +7745,17 @@ msgstr "Linttabblad weergeven"
 msgid "Show Send/Receive Progress"
 msgstr "Voortgang van verzenden/ontvangen weergeven"
 
+#. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Show Sender Images"
+msgstr "Afbeeldingen van afzenders tonen"
+
 #. interface
 #: crates/ui-egui/src/shared_calendars.rs
+#, fuzzy
 msgid "Show a Shared Mailbox's Calendars"
-msgstr ""
+msgstr "Agenda's van een gedeeld postvak tonen"
 
 #. interface
 #: crates/ui-egui/src/alerts.rs
@@ -7557,6 +7808,18 @@ msgstr "Weergeven in groepen"
 #, fuzzy
 msgid "Show in the time bar"
 msgstr "Weergeven in de tijdbalk"
+
+#. interface
+#: crates/ui-egui/src/sender_images.rs
+#, fuzzy
+msgid "Show sender images from Gravatar, favicon.im and Google"
+msgstr "Afbeeldingen van afzenders van Gravatar, favicon.im en Google tonen"
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
+msgid "Show the Copy under Shared Calendars"
+msgstr "De kopie onder Gedeelde agenda's tonen"
 
 #. interface
 #: crates/ui-egui/src/favorites_sync.rs
@@ -7821,7 +8084,7 @@ msgid "Single Line"
 msgstr "Eén regel"
 
 #. interface, name
-#: crates/engine/src/session.rs crates/ui-egui/src/signatures.rs
+#: crates/engine/src/session.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Size"
 msgstr "Grootte"
@@ -8013,7 +8276,7 @@ msgid "Stopped ({line})"
 msgstr "Gestopt ({line})"
 
 #. what a command says
-#: crates/engine/src/cmd/graph_mail.rs
+#: crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs
 #, fuzzy
 msgid "Stopped; carries on from here next time"
 msgstr "Gestopt; gaat de volgende keer vanaf hier verder"
@@ -8089,6 +8352,12 @@ msgstr "Overschakelen naar Microsoft Graph"
 #, fuzzy
 msgid "Switch without Them"
 msgstr "Overschakelen zonder deze"
+
+#. interface, name
+#: crates/ui-egui/src/folder_properties.rs
+#, fuzzy
+msgid "Synchronization"
+msgstr "Synchronisatie"
 
 #. name
 #: crates/model/src/rich.rs
@@ -8218,8 +8487,9 @@ msgstr "Die agenda wordt niet weergegeven: vink deze eerst aan in de lijst met a
 
 #. what a command says
 #: crates/engine/src/cmd/calendar_opened.rs
+#, fuzzy
 msgid "That calendar wasn't opened by address: it is in the account's own list."
-msgstr ""
+msgstr "Die agenda is niet op adres geopend: die staat in de eigen lijst van het account."
 
 #. interface
 #: crates/ui-egui/src/windows.rs
@@ -8247,8 +8517,9 @@ msgstr "Dat is geen adres van een afzender"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar_opened.rs
+#, fuzzy
 msgid "That is this account's own address: its own calendar is there already."
-msgstr ""
+msgstr "Dat is het eigen adres van dit account: de eigen agenda staat er al."
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
@@ -8297,6 +8568,12 @@ msgstr "Het account is verdwenen"
 #, fuzzy
 msgid "The account that signed in on Microsoft's page is not an administrator of your organisation, so it could not approve MailCraft. Copy the message for an administrator instead."
 msgstr "Het account dat zich heeft aangemeld op de pagina van Microsoft, is geen beheerder van uw organisatie en kon MailCraft daarom niet goedkeuren. Kopieer in plaats daarvan het bericht voor een beheerder."
+
+#. what a command says
+#: crates/engine/src/cmd/calendar_opened.rs
+#, fuzzy
+msgid "The account {address} is opened through is gone."
+msgstr "Het account waarmee {address} is geopend, is verdwenen."
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
@@ -8354,8 +8631,9 @@ msgstr "De agenda „{name}” kan alleen worden gelezen: de eigenaar heeft dit 
 
 #. what a command says
 #: crates/engine/src/cmd/remote.rs
+#, fuzzy
 msgid "The calendar \"{name}\" only shows when its owner is busy: this account can't change it."
-msgstr ""
+msgstr "De agenda „{name}” toont alleen wanneer de eigenaar bezet is: dit account kan die niet wijzigen."
 
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs
@@ -8413,41 +8691,63 @@ msgstr "De agenda wordt bijgewerkt: probeer het zo meteen opnieuw."
 
 #. interface
 #: crates/ui-egui/src/open_shared.rs
+#, fuzzy
 msgid "The calendar needs your permission first: File › Info › Connect calendar and contacts"
-msgstr ""
-
-#. interface
-#: crates/ui-egui/src/dialogs.rs
-msgid "The calendar of {address} and its events kept on this computer will be removed. Their calendar on the server is not touched, and you can open it again."
-msgstr ""
-
-#. what a command says
-#: crates/engine/src/cmd/calendar_opened.rs
-msgid "The calendar of {address} is in the list of calendars already: it was shared with you and accepted."
-msgstr ""
-
-#. what a command says
-#: crates/engine/src/cmd/calendar_opened.rs
-msgid "The calendar of {address} is open already."
-msgstr ""
-
-#. what a command says
-#: crates/engine/src/cmd/calendar_opened.rs
-msgid "The calendar of {address} wasn't opened by address."
-msgstr ""
+msgstr "De agenda heeft eerst uw toestemming nodig: Bestand › Info › Agenda en contactpersonen verbinden"
 
 #. interface
 #: crates/ui-egui/src/open_shared.rs
+#, fuzzy
+msgid ""
+"The calendar of the shared mailbox {address} is shown twice: under My Calendars with the shared mailbox, and under Shared Calendars as \"{name}\", because it was also shared with you and accepted.\n"
+"\n"
+"Hide the copy under Shared Calendars? The shared mailbox's own calendar stays, and lets you change events, answer meeting requests and send from the mailbox where you may. Nothing on the server changes: right-click the shared mailbox's calendar to show the copy again."
+msgstr ""
+"De agenda van het gedeelde postvak {address} wordt twee keer getoond: onder Mijn agenda's bij het gedeelde postvak, en onder Gedeelde agenda's als „{name}”, omdat die ook met u is gedeeld en geaccepteerd.\n"
+"\n"
+"De kopie onder Gedeelde agenda's verbergen? De eigen agenda van het gedeelde postvak blijft, en daarmee kunt u gebeurtenissen wijzigen, vergaderverzoeken beantwoorden en verzenden vanuit het postvak waar u dat mag. Op de server verandert niets: klik met de rechtermuisknop op de agenda van het gedeelde postvak om de kopie weer te tonen."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "The calendar of {address} and its events kept on this computer will be removed. Their calendar on the server is not touched, and you can open it again."
+msgstr "De agenda van {address} en de gebeurtenissen ervan die op deze computer zijn bewaard, worden verwijderd. De agenda op de server blijft onaangeroerd, en u kunt die opnieuw openen."
+
+#. what a command says
+#: crates/engine/src/cmd/calendar_opened.rs
+#, fuzzy
+msgid "The calendar of {address} is in the list of calendars already: it was shared with you and accepted."
+msgstr "De agenda van {address} staat al in de lijst met agenda's: die is met u gedeeld en geaccepteerd."
+
+#. what a command says
+#: crates/engine/src/cmd/calendar_opened.rs
+#, fuzzy
+msgid "The calendar of {address} is open already."
+msgstr "De agenda van {address} is al geopend."
+
+#. what a command says
+#: crates/engine/src/cmd/calendar_opened.rs
+#, fuzzy
+msgid "The calendar of {address} wasn't opened by address."
+msgstr "De agenda van {address} is niet op adres geopend."
+
+#. interface
+#: crates/ui-egui/src/open_shared.rs
+#, fuzzy
 msgid ""
 "The calendar of {name} is in your calendar list now, because it was shared with you and accepted. You also opened it by address, so it is there twice.\n"
 "\n"
 "Remove the copy opened by address? The other one stays, and nothing on the server changes."
 msgstr ""
+"De agenda van {name} staat nu in uw agendalijst, omdat die met u is gedeeld en geaccepteerd. U hebt die ook op adres geopend, dus die staat er twee keer.\n"
+"\n"
+"De kopie die op adres is geopend verwijderen? De andere blijft, en op de server verandert niets."
 
 #. interface
 #: crates/ui-egui/src/shared_calendars.rs
+#, fuzzy
 msgid "The calendars of the shared mailbox wait: {error}"
-msgstr ""
+msgstr "De agenda's van het gedeelde postvak wachten: {error}"
 
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs
@@ -8498,9 +8798,16 @@ msgid "The diagnostics weren't saved, so GitHub's page wasn't opened. Try again,
 msgstr "De diagnosegegevens zijn niet opgeslagen, dus de pagina van GitHub is niet geopend. Probeer het opnieuw, of vink Diagnose opnemen uit."
 
 #. interface
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "The draft stays in Drafts. {why}"
+msgstr "Het concept blijft in Concepten. {why}"
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
+#, fuzzy
 msgid "The e-mail address of the person whose calendar you want to open"
-msgstr ""
+msgstr "Het e-mailadres van de persoon van wie u de agenda wilt openen"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -8652,6 +8959,12 @@ msgstr "Het voorgestelde einde moet na het voorgestelde begin liggen."
 msgid "The server didn't say when other people are busy"
 msgstr "De server heeft niet aangegeven wanneer andere personen bezet zijn"
 
+#. what a command says
+#: crates/engine/src/cmd/jmap_mail.rs
+#, fuzzy
+msgid "The server turned down the sign-in for {name}: sign in again"
+msgstr "De server heeft de aanmelding voor {name} geweigerd: meld u opnieuw aan"
+
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
@@ -8672,8 +8985,9 @@ msgstr "Het gedeelde postvak dat hiermee is geopend, wordt ook van dit apparaat 
 
 #. what a command says
 #: crates/engine/src/cmd/remote.rs
+#, fuzzy
 msgid "The shared mailbox's calendar \"{name}\" only shows when its owner is busy: this account can't change it."
-msgstr ""
+msgstr "De agenda „{name}” van het gedeelde postvak toont alleen wanneer de eigenaar bezet is: dit account kan die niet wijzigen."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -8692,6 +9006,18 @@ msgstr "De aanmelding van het account waarmee dit gedeelde postvak wordt geopend
 #, fuzzy
 msgid "The sign-in to {address} waiting in your browser was stopped so the shared mailbox could be read. Send/Receive will ask you to sign in again."
 msgstr "De aanmelding bij {address} die in uw browser wachtte, is gestopt zodat het gedeelde postvak kon worden gelezen. Verzenden/ontvangen vraagt u om opnieuw aan te melden."
+
+#. interface
+#: crates/ui-egui/src/folder_properties.rs
+#, fuzzy
+msgid "The space the folder and the folders under it take on this computer"
+msgstr "De ruimte die de map en de mappen daaronder op deze computer innemen"
+
+#. interface
+#: crates/ui-egui/src/folder_properties.rs
+#, fuzzy
+msgid "The space the folder's own messages take on this computer"
+msgstr "De ruimte die de eigen berichten van de map op deze computer innemen"
 
 #. interface
 #: crates/ui-egui/src/graph_switch.rs
@@ -8767,8 +9093,9 @@ msgstr "Er is niet zo'n account"
 
 #. interface
 #: crates/ui-egui/src/open_shared.rs
+#, fuzzy
 msgid "There's no mailbox at {address}, or its calendar can't be reached through Microsoft."
-msgstr ""
+msgstr "Er is geen postvak op {address}, of de agenda ervan kan niet via Microsoft worden bereikt."
 
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
@@ -8832,8 +9159,9 @@ msgstr "Dit account heeft geen aanmelding bij Microsoft"
 
 #. what a command says
 #: crates/engine/src/cmd/remote.rs
+#, fuzzy
 msgid "This account may only read the shared mailbox's calendar \"{name}\": the mailbox's owner hasn't given it edit rights (or they haven't been read yet)."
-msgstr ""
+msgstr "Dit account mag de agenda „{name}” van het gedeelde postvak alleen lezen: de eigenaar van het postvak heeft dit account geen bewerkrechten gegeven (of die zijn nog niet gelezen)."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -9317,8 +9645,9 @@ msgstr "donderdag"
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
+#, fuzzy
 msgid "Tick this shared mailbox's calendar in the calendar's folder pane to answer its meeting requests."
-msgstr ""
+msgstr "Vink de agenda van dit gedeelde postvak aan in het mappenvenster van de agenda om de vergaderverzoeken ervan te beantwoorden."
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -9398,19 +9727,27 @@ msgstr "Aan mij"
 
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
+#, fuzzy
 msgid ""
 "To answer or send meetings from {address}, MailCraft needs your permission to send from shared mailboxes. Microsoft's page opens in your browser to ask you, once.\n"
 "\n"
 "Whether the answer goes as {address} or on its behalf is your organisation's choice. Until you allow it, the answer waits on this computer, and nothing is sent from your own address."
 msgstr ""
+"Om vergaderingen te beantwoorden of te verzenden vanuit {address}, heeft MailCraft uw toestemming nodig om vanuit gedeelde postvakken te verzenden. De pagina van Microsoft opent in uw browser om het u te vragen, één keer.\n"
+"\n"
+"Of het antwoord als {address} of namens dat adres gaat, is de keuze van uw organisatie. Totdat u het toestaat, wacht het antwoord op deze computer, en er wordt niets verzonden vanaf uw eigen adres."
 
 #. interface
 #: crates/ui-egui/src/open_shared.rs
+#, fuzzy
 msgid ""
 "To open other people's calendars, MailCraft needs your permission to read the calendars people share with you. Microsoft's page opens in your browser to ask you, once.\n"
 "\n"
 "What you open is kept on this computer only: it doesn't appear in Outlook or on your other devices."
 msgstr ""
+"Om agenda's van anderen te openen, heeft MailCraft uw toestemming nodig om de agenda's te lezen die personen met u delen. De pagina van Microsoft opent in uw browser om het u te vragen, één keer.\n"
+"\n"
+"Wat u opent, wordt alleen op deze computer bewaard: het verschijnt niet in Outlook of op uw andere apparaten."
 
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
@@ -9426,11 +9763,15 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/shared_calendars.rs
+#, fuzzy
 msgid ""
 "To show the calendars of {address}, MailCraft needs your permission to read the calendars of shared mailboxes. Microsoft's page opens in your browser to ask you, once.\n"
 "\n"
 "What you may see of a calendar is for its owner and your organisation to decide: this changes nothing about that. Until you allow it, nothing of {address}'s calendars is read."
 msgstr ""
+"Om de agenda's van {address} te tonen, heeft MailCraft uw toestemming nodig om de agenda's van gedeelde postvakken te lezen. De pagina van Microsoft opent in uw browser om het u te vragen, één keer.\n"
+"\n"
+"Wat u van een agenda mag zien, bepalen de eigenaar en uw organisatie: dit verandert daar niets aan. Totdat u het toestaat, wordt niets van de agenda's van {address} gelezen."
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -9462,6 +9803,12 @@ msgstr "Morgen"
 msgid "Too many calendar changes are waiting to be sent to the server. Let Send/Receive get them through first."
 msgstr "Te veel agendawijzigingen wachten om naar de server te worden verzonden. Laat ze eerst door Verzenden/ontvangen verwerken."
 
+#. what a command says
+#: crates/engine/src/cmd/calendar_opened.rs
+#, fuzzy
+msgid "Too many shared mailboxes are listed twice"
+msgstr "Te veel gedeelde postvakken worden twee keer vermeld"
+
 #. interface
 #: crates/ui-egui/src/windows.rs
 #, fuzzy
@@ -9473,6 +9820,18 @@ msgstr "Er zijn te veel vensters geopend: sluit er eerst een"
 #, fuzzy
 msgid "Top Level"
 msgstr "Bovenste niveau"
+
+#. interface
+#: crates/ui-egui/src/folder_properties.rs
+#, fuzzy
+msgid "Total messages"
+msgstr "Totaal aantal berichten"
+
+#. interface
+#: crates/ui-egui/src/folder_properties.rs
+#, fuzzy
+msgid "Total size"
+msgstr "Totale grootte"
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
@@ -9528,8 +9887,8 @@ msgstr "Wordt vandaag {age}"
 msgid "Two Weeks Ago"
 msgstr "Twee weken geleden"
 
-#. command label
-#: crates/engine/src/cmd/format.rs
+#. command label, interface
+#: crates/engine/src/cmd/format.rs crates/ui-egui/src/folder_properties.rs
 #, fuzzy
 msgid "Type"
 msgstr "Typen"
@@ -9576,11 +9935,17 @@ msgstr "Typen ongedaan maken"
 msgid "Undo {what}"
 msgstr "{what} ongedaan maken"
 
-#. name
-#: crates/engine/src/session.rs
+#. interface, name
+#: crates/engine/src/session.rs crates/ui-egui/src/folder_properties.rs
 #, fuzzy
 msgid "Unread"
 msgstr "Ongelezen"
+
+#. interface
+#: crates/ui-egui/src/folder_properties.rs
+#, fuzzy
+msgid "Unread messages in the folder itself"
+msgstr "Ongelezen berichten in de map zelf"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -9635,7 +10000,7 @@ msgid "Up to 50 MB"
 msgstr "Tot 50 MB"
 
 #. what a command says
-#: crates/engine/src/cmd/graph_mail.rs crates/model/src/sync.rs
+#: crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/model/src/sync.rs
 #, fuzzy
 msgid "Up to date"
 msgstr "Actueel"
@@ -9743,7 +10108,7 @@ msgid "Version {version} is ready:"
 msgstr "Versie {version} is gereed:"
 
 #. name, ribbon location
-#: crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
+#: crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
 msgid "View"
 msgstr "Beeld"
@@ -10060,8 +10425,9 @@ msgstr "U hebt deze vergadering geweigerd."
 
 #. interface
 #: crates/ui-egui/src/open_shared.rs
+#, fuzzy
 msgid "You don't have access to the calendar of {address}. They need to share it with you; if they just did, try again in an hour."
-msgstr ""
+msgstr "U hebt geen toegang tot de agenda van {address}. De persoon moet de agenda met u delen; als dat net is gebeurd, probeer het over een uur opnieuw."
 
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
@@ -10167,8 +10533,9 @@ msgstr "Uw naam"
 
 #. interface
 #: crates/ui-egui/src/shared_calendars.rs
+#, fuzzy
 msgid "Your organisation doesn't allow MailCraft to read shared mailboxes' calendars"
-msgstr ""
+msgstr "Uw organisatie staat MailCraft niet toe de agenda's van gedeelde postvakken te lezen"
 
 #. interface
 #: crates/ui-egui/src/approval.rs
@@ -10196,8 +10563,9 @@ msgstr "Uw organisatie laat deze machtiging alleen door haar beheerders verlenen
 
 #. interface
 #: crates/ui-egui/src/open_shared.rs
+#, fuzzy
 msgid "Your organisation's administrator has to approve reading other people's calendars once: File › Info"
-msgstr ""
+msgstr "De beheerder van uw organisatie moet het lezen van agenda's van anderen één keer goedkeuren: Bestand › Info"
 
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
@@ -10207,8 +10575,9 @@ msgstr "De beheerder van uw organisatie moet het lezen van gedeelde postvakken e
 
 #. interface
 #: crates/ui-egui/src/shared_calendars.rs
+#, fuzzy
 msgid "Your organisation's administrator has to approve reading shared mailboxes' calendars once: File › Info"
-msgstr ""
+msgstr "De beheerder van uw organisatie moet het lezen van agenda's van gedeelde postvakken één keer goedkeuren: Bestand › Info"
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
@@ -10281,6 +10650,12 @@ msgstr "`notice` is installsItself of didntStart"
 #, fuzzy
 msgid "`value` is true or false"
 msgstr "`value` is true of false"
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "a JMAP account's server and address can't be changed once its mail is here: remove it and add the other one"
+msgstr "de server en het adres van een JMAP-account kunnen niet meer worden gewijzigd zodra de e-mail ervan hier is: verwijder het en voeg het andere toe"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
@@ -10401,6 +10776,12 @@ msgstr "voeg eerst een account toe (Bestand › Account toevoegen)"
 #, fuzzy
 msgid "add at least one recipient"
 msgstr "voeg minstens één ontvanger toe"
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "an account becomes a JMAP account, or stops being one, only by being removed and added again"
+msgstr "een account wordt een JMAP-account, of houdt op dat te zijn, alleen door het te verwijderen en opnieuw toe te voegen"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
@@ -10707,13 +11088,19 @@ msgid "no account is connected to a mail server (File › Add Account)"
 msgstr "geen account is verbonden met een e-mailserver (Bestand › Account toevoegen)"
 
 #. what a command says, why a command can't run
+#: crates/engine/src/cmd/jmap_mail.rs
+#, fuzzy
+msgid "no account is kept in step over JMAP"
+msgstr "geen account wordt via JMAP bijgehouden"
+
+#. what a command says, why a command can't run
 #: crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/offline.rs
 #, fuzzy
 msgid "no account is kept in step through Microsoft Graph"
 msgstr "geen account wordt via Microsoft Graph bijgehouden"
 
 #. what a command says
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs
 #, fuzzy
 msgid "no account with id {id}"
 msgstr "geen account met id {id}"
@@ -10726,8 +11113,9 @@ msgstr "geen antwoord"
 
 #. why a command can't run
 #: crates/engine/src/cmd/calendar_opened.rs
+#, fuzzy
 msgid "no calendar was opened by address"
-msgstr ""
+msgstr "geen agenda is op adres geopend"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/file.rs
@@ -10778,7 +11166,7 @@ msgid "no message with id {id}"
 msgstr "geen bericht met id {id}"
 
 #. what a command says
-#: crates/engine/src/cmd/graph_mail.rs
+#: crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs
 #, fuzzy
 msgid "no message with id {id} in {name}"
 msgstr "geen bericht met id {id} in {name}"
@@ -10802,7 +11190,7 @@ msgid "no rule with id {id}"
 msgstr "geen regel met id {id}"
 
 #. why a command can't run
-#: crates/engine/src/cmd/shared.rs
+#: crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/shared.rs
 #, fuzzy
 msgid "no shared mailbox is open"
 msgstr "er is geen gedeeld postvak geopend"
@@ -10923,8 +11311,9 @@ msgstr "organisator"
 
 #. why a command can't run
 #: crates/engine/src/cmd/calendar_opened.rs
+#, fuzzy
 msgid "other people's calendars open under a Microsoft work or school account"
-msgstr ""
+msgstr "agenda's van anderen worden geopend onder een werk- of schoolaccount van Microsoft"
 
 #. name
 #: crates/engine/src/agent.rs
@@ -11329,7 +11718,7 @@ msgid "these settings are for another account, not for {who}"
 msgstr "deze instellingen zijn voor een ander account, niet voor {who}"
 
 #. what a command says
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/graph_mail.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs
 #, fuzzy
 msgid "this Send/Receive was for another account, not for {name}"
 msgstr "deze Verzenden/ontvangen was voor een ander account, niet voor {name}"
@@ -11556,8 +11945,9 @@ msgstr "{address} kon niet worden geopend: {error}"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar_opened.rs
+#, fuzzy
 msgid "{address} is a shared mailbox that is open here: its calendars are listed with it."
-msgstr ""
+msgstr "{address} is een gedeeld postvak dat hier geopend is: de agenda's ervan worden daarbij vermeld."
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
@@ -11570,6 +11960,12 @@ msgstr "{address} is al ingesteld"
 #, fuzzy
 msgid "{address} is set up"
 msgstr "{address} is ingesteld"
+
+#. what a command says
+#: crates/engine/src/cmd/calendar_opened.rs
+#, fuzzy
+msgid "{address} isn't a shared mailbox open here."
+msgstr "{address} is geen gedeeld postvak dat hier geopend is."
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -11630,6 +12026,12 @@ msgstr "{done} van {total}"
 #, fuzzy
 msgid "{folder} - {mailbox}"
 msgstr "{folder} - {mailbox}"
+
+#. interface
+#: crates/ui-egui/src/folder_properties.rs
+#, fuzzy
+msgid "{folder} Properties"
+msgstr "Eigenschappen van {folder}"
 
 #. what a command says
 #: crates/model/src/sync/progress.rs
@@ -11752,6 +12154,12 @@ msgid "{name} has declined this meeting."
 msgstr "{name} heeft deze vergadering geweigerd."
 
 #. what a command says
+#: crates/engine/src/cmd/jmap_mail.rs
+#, fuzzy
+msgid "{name} has no JMAP server address that can be used"
+msgstr "{name} heeft geen JMAP-serveradres dat kan worden gebruikt"
+
+#. what a command says
 #: crates/engine/src/io.rs
 #, fuzzy
 msgid "{name} has no contacts"
@@ -11842,6 +12250,12 @@ msgid "{name} isn't connected to a mail server"
 msgstr "{name} is niet verbonden met een e-mailserver"
 
 #. what a command says
+#: crates/engine/src/cmd/jmap_mail.rs
+#, fuzzy
+msgid "{name} isn't kept in step over JMAP"
+msgstr "{name} wordt niet via JMAP bijgehouden"
+
+#. what a command says
 #: crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/offline.rs
 #, fuzzy
 msgid "{name} isn't kept in step through Microsoft Graph"
@@ -11879,13 +12293,15 @@ msgstr "{name} stelt een ander tijdstip voor: {start} – {end}."
 
 #. interface
 #: crates/ui-egui/src/reading/sharing.rs
+#, fuzzy
 msgid "{name} shared a calendar with you."
-msgstr ""
+msgstr "{name} heeft een agenda met u gedeeld."
 
 #. interface
 #: crates/ui-egui/src/reading/sharing.rs
+#, fuzzy
 msgid "{name} shared a calendar with you. It is in your calendar list."
-msgstr ""
+msgstr "{name} heeft een agenda met u gedeeld. Die staat in uw agendalijst."
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -11965,8 +12381,9 @@ msgstr[1] "{n} wijzigingen die op de IMAP-server wachten, bereiken die niet; ze 
 
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs
+#, fuzzy
 msgid "{n} changes to the calendar \"{name}\" are held here, not sent: this account may no longer change it. They are sent if it may again."
-msgstr ""
+msgstr "{n} wijzigingen van de agenda „{name}” worden hier aangehouden, niet verzonden: dit account mag die niet meer wijzigen. Ze worden verzonden als dat weer mag."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/chrome.rs crates/ui-egui/src/lib.rs
@@ -12057,7 +12474,7 @@ msgstr[0] "{n} item geselecteerd"
 msgstr[1] "{n} items geselecteerd"
 
 #. interface
-#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/mail_view.rs
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/mail_view.rs
 #, fuzzy
 msgid "{n} message"
 msgid_plural "{n} messages"
@@ -12089,6 +12506,14 @@ msgstr[0] "{n} bericht komt overeen"
 msgstr[1] "{n} berichten komen overeen"
 
 #. interface
+#: crates/ui-egui/src/folder_properties.rs
+#, fuzzy
+msgid "{n} message of unknown size"
+msgid_plural "{n} messages of unknown size"
+msgstr[0] "{n} bericht van onbekende grootte"
+msgstr[1] "{n} berichten van onbekende grootte"
+
+#. interface
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "{n} message removed"
@@ -12111,6 +12536,14 @@ msgid "{n} minute"
 msgid_plural "{n} minutes"
 msgstr[0] "{n} minuut"
 msgstr[1] "{n} minuten"
+
+#. interface
+#: crates/ui-egui/src/folder_properties.rs
+#, fuzzy
+msgid "{n} more folder isn't listed."
+msgid_plural "{n} more folders aren't listed."
+msgstr[0] "Nog {n} map wordt niet vermeld."
+msgstr[1] "Nog {n} mappen worden niet vermeld."
 
 #. interface
 #: crates/ui-egui/src/agent_gate.rs
@@ -12257,12 +12690,20 @@ msgstr[0] "{n} taak"
 msgstr[1] "{n} taken"
 
 #. interface
-#: crates/ui-egui/src/backstage.rs
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/folder_properties.rs
 #, fuzzy
 msgid "{n} unread"
 msgid_plural "{n} unread"
 msgstr[0] "{n} ongelezen"
 msgstr[1] "{n} ongelezen"
+
+#. interface
+#: crates/ui-egui/src/folder_properties.rs
+#, fuzzy
+msgid "{n} unread on the server"
+msgid_plural "{n} unread on the server"
+msgstr[0] "{n} ongelezen op de server"
+msgstr[1] "{n} ongelezen op de server"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -12423,4 +12864,3 @@ msgstr "{why}, waardoor aanmeldingen niet worden onthouden: MailCraft vraagt het
 #, fuzzy
 msgid "{why}. {n} changes made in it here wait on this computer."
 msgstr "{why}. {n} wijzigingen die hierin zijn gemaakt, wachten op deze computer."
-
