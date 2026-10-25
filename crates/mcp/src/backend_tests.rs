@@ -108,9 +108,8 @@ const WAIT: Duration = Duration::from_secs(5);
 
 #[test]
 fn sends_the_key_to_loopback() {
-    let (port, seen) = fake_app(|req| {
-        Some(if req["method"] == "auth.challenge" { (prove(req, "k1"), false) } else { (json!({"ok": true, "result": 7}), false) })
-    });
+    let (port, seen) =
+        fake_app(|req| Some(if req["method"] == "auth.challenge" { (prove(req, "k1"), false) } else { (json!({"ok": true, "result": 7}), false) }));
     for host in ["127.0.0.1", "localhost"] {
         let mut r = Remote::connect_with(&format!("{host}:{port}"), fixed_key("k1")).unwrap();
         assert!(r.key_warning().is_none(), "{host}");
@@ -121,11 +120,9 @@ fn sends_the_key_to_loopback() {
 
 #[test]
 fn every_request_is_marked_as_an_agents() {
-    let (port, seen) = fake_app(|req| {
-        Some(if req["method"] == "auth.challenge" { (prove(req, "k1"), false) } else { (json!({"ok": true, "result": 1}), false) })
-    });
-    let mut r =
-        Remote::connect_with(&format!("127.0.0.1:{port}"), fixed_key("k1")).unwrap().with_allow(vec![mailcraft_engine::agent::Class::Input]);
+    let (port, seen) =
+        fake_app(|req| Some(if req["method"] == "auth.challenge" { (prove(req, "k1"), false) } else { (json!({"ok": true, "result": 1}), false) }));
+    let mut r = Remote::connect_with(&format!("127.0.0.1:{port}"), fixed_key("k1")).unwrap().with_allow(vec![mailcraft_engine::agent::Class::Input]);
     // Whatever the params say.
     r.call("engine.execute", json!({"command": "mail.flag", "agent": null, "params": {"agent": false}})).unwrap();
     let req = seen.recv_timeout(WAIT).unwrap();
@@ -181,11 +178,7 @@ fn no_key_for_other_hosts_and_a_clear_error() {
     // There is no LAN address to test with here: same stand-in, with the decision a LAN
     // address gets.
     let (port, seen) = fake_app(|req| {
-        Some(if req.get("key").is_some() {
-            (json!({"ok": true, "result": 1}), false)
-        } else {
-            (json!({"ok": false, "error": "unauthorized"}), true)
-        })
+        Some(if req.get("key").is_some() { (json!({"ok": true, "result": 1}), false) } else { (json!({"ok": false, "error": "unauthorized"}), true) })
     });
     let finder: KeyFinder = Box::new(|_| Err("the key must not be read for another host".to_string()));
     let mut r = Remote::connect_with(&format!("127.0.0.1:{port}"), finder).unwrap();

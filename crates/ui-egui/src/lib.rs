@@ -3625,6 +3625,8 @@ impl MailApp {
             ctx.send_viewport_cmd(egui::ViewportCommand::Title(title.clone()));
             self.sent_title = title;
         }
+        // Pictures are kept as textures only while something on screen shows them.
+        reading::images::Pictures::of(&ctx).lock().unwrap_or_else(|e| e.into_inner()).release_unseen(&ctx);
         self.frame_ms = now_ms() - t0;
         self.report_dirty();
     }
