@@ -27,6 +27,9 @@ use mailcraft_i18n::po::{self, Entry};
 /// Functions whose `&'static str` is a name the window shows through `tl!`.
 const NAME_FNS: &[&str] = &["label", "title", "detail", "about", "default_name", "notice", "said", "what", "unit"];
 
+/// Window constants that reach `tl!` through a variable (`tl!(error)`), not by name.
+const SHOWN_CONSTS: &[&str] = &["NEEDS_APPROVAL", "REFUSED_BY_ORGANISATION", "REFUSED_FOR_ACCOUNT", "FAVORITES_NOW_GRAPH"];
+
 pub fn run(root: &Path, check: bool) -> Result<(), String> {
     let found = gather(root)?;
     let pot = template(&found);
@@ -137,8 +140,18 @@ fn gather(root: &Path) -> Result<Texts, String> {
     for (_, toks) in &ui {
         translating_params(toks, &mut through);
     }
+    // `tl!(NAME)` for a `const NAME: &str = "…";` of the window.
+    let mut ui_consts = BTreeMap::new();
+    for (_, toks) in &ui {
+        constants(toks, &mut ui_consts);
+    }
+    for name in SHOWN_CONSTS {
+        if let Some(s) = ui_consts.get(*name) {
+            add(&mut texts, s, None, "crates/ui-egui/src", "interface");
+        }
+    }
     for (file, toks) in &ui {
-        literals(toks, file, &through, &mut texts);
+        literals(toks, file, &through, &ui_consts, &mut texts);
         if file.ends_with("ui-egui/src/lib.rs") {
             window_commands(toks, file, &mut texts);
         }
@@ -492,10 +505,14 @@ fn ribbon(toks: &[Tok], file: &str, texts: &mut Texts) {
 
 /// `tl!("…")`, `tlc!("context", "…")`, `tln!(n, "…", "…")`, and a literal where a function
 /// translates that parameter.
-fn literals(toks: &[Tok], file: &str, through: &BTreeMap<String, BTreeSet<usize>>, texts: &mut Texts) {
+fn literals(toks: &[Tok], file: &str, through: &BTreeMap<String, BTreeSet<usize>>, consts: &BTreeMap<String, String>, texts: &mut Texts) {
     for i in 0..toks.len() {
         if is(toks, i, &["tl", "!", "("]) {
             if let Some(s) = args(toks, i + 2).first().and_then(|a| lit(a)) {
+                add(texts, s, None, file, "interface");
+            } else if let (Some(Tok::Ident(name)), Some(Tok::Punct(')'))) = (toks.get(i + 3), toks.get(i + 4))
+                && let Some(s) = consts.get(name)
+            {
                 add(texts, s, None, file, "interface");
             }
         } else if is(toks, i, &["tlc", "!", "("]) {
@@ -910,9 +927,11 @@ mod tests {
                 let f = tlc!("folder", "Archive");
                 mi(ui, "New Message", "mail.new");
                 let c = tl!(r#"Say "hi""#);
+                let g = tl!(NOTE);
                 let d = '"'; let e = tl!("Line \
                     two");
             }
+            const NOTE: &str = "A named note";
             fn label(self) -> &'static str { match self { A => "Upcoming", B => "Today" } }
             mod tests { fn t() { tl!("Only in a test"); } }
         "##;
@@ -921,10 +940,12 @@ mod tests {
         translating_params(&toks, &mut through);
         assert_eq!(through.get("mi"), Some(&BTreeSet::from([1])));
         let mut texts = Texts::new();
-        literals(&toks, "a.rs", &through, &mut texts);
+        let mut consts = BTreeMap::new();
+        constants(&toks, &mut consts);
+        literals(&toks, "a.rs", &through, &consts, &mut texts);
         names(&toks, "a.rs", &mut texts);
         let ids: Vec<&str> = texts.keys().map(String::as_str).collect();
-        assert_eq!(ids, ["Line two", "New Message", "Reply", "Say \"hi\"", "Today", "Upcoming", "folder\u{4}Archive", "{n} message"]);
+        assert_eq!(ids, ["A named note", "Line two", "New Message", "Reply", "Say \"hi\"", "Today", "Upcoming", "folder\u{4}Archive", "{n} message"]);
         assert_eq!(texts.get("{n} message").and_then(|f| f.plural.as_deref()), Some("{n} messages"));
     }
 

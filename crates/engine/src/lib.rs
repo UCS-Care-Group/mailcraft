@@ -28,6 +28,7 @@ pub mod agent;
 pub mod arrivals;
 pub mod catalog;
 pub mod cmd;
+pub mod import_tree;
 pub mod io;
 #[cfg(test)]
 mod launchable_tests;
@@ -288,5 +289,9 @@ mod agent_tests;
 mod category_rows_tests;
 #[cfg(test)]
 mod import_tests;
+#[cfg(test)]
+mod import_tree_progress_tests;
+#[cfg(test)]
+mod import_tree_tests;
 #[cfg(test)]
 mod tests;

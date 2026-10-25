@@ -706,6 +706,9 @@ pub struct Session {
     /// instead of writing one itself ([`crate::cmd::graph_switch::prepare_backup`]). Set only by
     /// the window once the copy is on disk, never by a command's params. Never saved.
     pub graph_switch_backup: Option<(Id, PathBuf)>,
+    /// A folder tree of mbox files read and parsed by the host off the window's thread, waiting
+    /// for `file.importFolderTree` with `staged` to put it in (#420). Never saved.
+    pub staged_tree: Option<crate::import_tree::Parsed>,
     /// More results on the server for the search in view (R6.2): what was asked of the servers
     /// and what they found, never in the mailbox. Never saved.
     pub server_search: crate::cmd::search_server::ServerSearch,
@@ -831,6 +834,7 @@ impl Session {
             jmap_read: Default::default(),
             agent: None,
             graph_switch_backup: None,
+            staged_tree: None,
             server_search: Default::default(),
             history: Vec::new(),
             redo: Vec::new(),
