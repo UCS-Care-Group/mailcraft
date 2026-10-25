@@ -13,7 +13,7 @@
 
 **Fixes**
 - A reply, forward or Save As of a message that was still downloading now opens on that message, even if you select another one meanwhile ([#315](https://github.com/GITHUB_REPOSITORY/issues/315)).
-- Forward as Attachment, in a message's right-click menu and under Forward's ▾ (Ctrl+Alt+F), attaches the whole message to a new one as an `.eml` file ([#315](https://github.com/GITHUB_REPOSITORY/issues/315), thanks to @kartas39).
+- Forward as Attachment, in a message's right-click menu and under Forward's ▾ (Ctrl+Alt+F), attaches the whole message to a new one as an `.eml` file ([#315](https://github.com/GITHUB_REPOSITORY/issues/315)).
 - While you drag messages, the pointer is the ordinary arrow over a folder that takes them and the system's "not allowed" pointer over the folder they are in already or anywhere that is not a folder, instead of the four-arrow move cursor everywhere on Windows ([#430](https://github.com/UCS-Care-Group/mailcraft/issues/430)).
 - Typing a POP server (port 110 or 995, or a name starting `pop`) into Add Account now says that MailCraft doesn't support POP yet and to use the provider's IMAP server instead, instead of a certificate error ([#402](https://github.com/GITHUB_REPOSITORY/issues/402)).
 - A Microsoft account, or a shared mailbox, whose Inbox is known but was never read now has it read first in Send/Receive, before the folders are listed, so mail shows within seconds (#276).
@@ -27,8 +27,8 @@
 - More kinds of file that can run or connect when opened (theme packs, server location files and a few others) are saved, never opened from a message.
 - A Microsoft sign-in is only ever presented to Microsoft's own mail servers: a mailbox file that names another server for a Microsoft account gets an error, and a stored sign-in is no longer found for an account of another kind that a file says is a shared mailbox.
 - In the browser build, links open in a new tab that has no handle on MailCraft's page, and starting from `?sample` or `?empty` no longer overwrites the mailbox kept in the browser.
-- The search box suggests as you type: keywords (`cat` gives `category:`), your categories after `category:`, and what `is:` and `has:` take ([#308](https://github.com/GITHUB_REPOSITORY/issues/308), thanks to @kartas39).
-- A keyword in quotes is now searched as text: `"is:unread"` finds those words, not unread mail ([#367](https://github.com/GITHUB_REPOSITORY/issues/367), thanks to @kartas39).
+- The search box suggests as you type: keywords (`cat` gives `category:`), your categories after `category:`, and what `is:` and `has:` take ([#308](https://github.com/GITHUB_REPOSITORY/issues/308)).
+- A keyword in quotes is now searched as text: `"is:unread"` finds those words, not unread mail ([#367](https://github.com/GITHUB_REPOSITORY/issues/367)).
 - An agent connected through MCP is now asked before an undo or redo that would bring back or remove what the owner made: contacts, events, tasks, calendars and categories that were deleted or made, or a change to a meeting that writes to the people invited. Copying text you selected in a message is no longer something an agent can do, and an agent that saves or sends an appointment in its window is asked first, with the people it would write to named.
 - The MCP bridge (`mailcraft-cli mcp --connect`) no longer hands the control key to whatever listens on the port: the app has to prove it holds the key first.
 - A message with many large pictures declared tiny can no longer use up memory: each picture takes only the room it is shown at, the 160 MB and 64-picture limits hold for pictures on screen too, and pictures are let go after a few seconds with none shown (AU2-02).
