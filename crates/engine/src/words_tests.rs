@@ -500,6 +500,33 @@ mod in_step {
         assert!(!holds(&file), "gone without a search");
         assert_eq!(finds(&mut s, "zymurgy").len(), 1);
     }
+
+    /// #325: an account removed where no word index is kept (`mailcraft-cli`, an agent without
+    /// the window) has its mail's words taken off the disk the first time the index is brought in
+    /// step after it is opened again, not only once enough has been taken out.
+    #[test]
+    fn mail_gone_while_the_index_was_closed_takes_its_words_off_the_disk() {
+        let tmp = Temp::new("closed");
+        let (path, _, work) = kept(&tmp);
+        let file = crate::store::words_file(&path);
+        let holds = |file: &std::path::Path| std::fs::read(file).unwrap().windows(11).any(|w| w == b"nightingale");
+        assert_eq!(finds(&mut session(&path), "nightingale").len(), 1);
+        assert!(holds(&file));
+
+        // Removed, and saved, by a session that keeps no index, as the command line does.
+        let mut cli = session(&path);
+        cli.index_words = false;
+        cli.run("account.remove", &json!({"id": work})).unwrap();
+        cli.run("file.save", &json!({})).unwrap();
+        drop(cli);
+        assert!(holds(&file), "nothing touched the index");
+
+        let mut s = session(&path);
+        s.wait_for_word_index();
+        assert!(!holds(&file), "gone at the first step");
+        assert_eq!(finds(&mut s, "zymurgy").len(), 1);
+        assert!(finds(&mut s, "nightingale").is_empty());
+    }
 }
 
 // ---- built in the background ----

@@ -93,7 +93,6 @@ fn drag_ghost(ui: &Ui) {
     let Some(drag) = egui::DragAndDrop::payload::<MessageDrag>(ui.ctx()) else { return };
     let Some(pos) = ui.ctx().pointer_interact_pos() else { return };
     let t = Tokens::get(ui.ctx());
-    ui.ctx().set_cursor_icon(egui::CursorIcon::Grabbing);
     let text = tln!(drag.0.len(), "{n} message", "{n} messages");
     egui::Area::new(egui::Id::unique("message_drag_ghost")).order(egui::Order::Tooltip).fixed_pos(pos + vec2(14.0, 16.0)).interactable(false).show(
         ui.ctx(),
@@ -1084,6 +1083,7 @@ fn clicks(app: &mut MailApp, ui: &Ui, resp: &egui::Response, row: &Row, m: &Mess
         mi(ui, app, "Reply", "mail.reply", json!({}));
         mi(ui, app, "Reply All", "mail.replyAll", json!({}));
         mi(ui, app, "Forward", "mail.forward", json!({}));
+        mi(ui, app, "Forward as Attachment", "mail.forwardAsAttachment", json!({}));
         ui.separator();
         mi(ui, app, if read { "Mark as Unread" } else { "Mark as Read" }, if read { "mail.markUnread" } else { "mail.markRead" }, json!({}));
         mi(ui, app, if flagged { "Clear Flag" } else { "Follow Up" }, if flagged { "mail.clearFlag" } else { "mail.flag" }, json!({}));
@@ -1126,6 +1126,8 @@ fn clicks(app: &mut MailApp, ui: &Ui, resp: &egui::Response, row: &Row, m: &Mess
 
 #[cfg(test)]
 mod focus_stays_tests;
+#[cfg(test)]
+mod forward_attachment_tests;
 #[cfg(test)]
 mod from_sender_menu_tests;
 #[cfg(test)]

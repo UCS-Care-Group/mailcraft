@@ -6,7 +6,8 @@ use mailcraft_model::rich::RichText;
 use mailcraft_model::signature::Picture;
 use mailcraft_model::sync::{DraftKind, DraftOf, DraftState, ServerDraft};
 use mailcraft_model::{
-    AccountKind, Address, Answers, Attachment, Body, FolderKind, Id, Importance, Message, NOT_SENDING_YET, RichBody, Signature, format_list,
+    AccountKind, Address, Answers, Attachment, Body, FlagStatus, FolderKind, Id, Importance, Message, NOT_DOWNLOADED, NOT_DOWNLOADED_NOTE,
+    NOT_SENDING_YET, RichBody, Signature, format_list,
 };
 use serde_json::{Value, json};
 
@@ -28,6 +29,11 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("mail.reply", "Reply", "Home › Respond", reply).pure().key("Mod+R").params(SOURCE).selection(needs_message),
         CommandSpec::new("mail.replyAll", "Reply All", "Home › Respond", reply_all).pure().key("Mod+Shift+R").params(SOURCE).selection(needs_message),
         CommandSpec::new("mail.forward", "Forward", "Home › Respond", forward).pure().key("Mod+F").params(SOURCE).selection(needs_message),
+        CommandSpec::new("mail.forwardAsAttachment", "Forward as Attachment", "Home › Respond", forward_as_attachment)
+            .pure()
+            .key("Mod+Alt+F")
+            .params(SOURCE)
+            .selection(needs_one_message),
         CommandSpec::new("mail.editDraft", "Open Draft", "Mail", edit_draft).pure().params(SOURCE).selection(needs_message),
         CommandSpec::new("compose.set", "Edit Message", "Message", set)
             .pure()
@@ -336,6 +342,142 @@ fn reply_all(s: &mut Session, v: &Value) -> CmdResult {
 
 fn forward(s: &mut Session, v: &Value) -> CmdResult {
     respond(s, v, ComposeMode::Forward)
+}
+
+/// Forward a message as an attachment (#315): a new message from its account, with nothing
+/// quoted and the message attached whole as an `.eml`, its headers and all, as Save Message As
+/// writes it. A forward all the same: its original is marked forwarded once it has gone.
+fn forward_as_attachment(s: &mut Session, v: &Value) -> CmdResult {
+    let id = one_message(s, v)?;
+    let m = s.mailbox.message(id).ok_or_else(|| failed!("no message with id {id}", id))?;
+    // What goes is the message itself, never what stands in for it here.
+    if m.incomplete {
+        return Err(fail("only the headers of this message are here, so it can't be forwarded as an attachment"));
+    }
+    if m.unfetched {
+        return Err(fail("this message isn't downloaded yet: open it once you're online, then forward it as an attachment"));
+    }
+    // Too large already as it is kept, before any of it is read in: written out it is no smaller.
+    let name = super::file::eml_name(m);
+    let too_large = || failed!("{name} is larger than {mb} MB", name = name.clone(), mb = MAX_ATTACHMENT >> 20);
+    if m.size() > u64::try_from(MAX_ATTACHMENT).unwrap_or(u64::MAX) {
+        return Err(too_large());
+    }
+    let m = s.loaded_message(id)?;
+    if m.kept.as_deref().is_some_and(|k| k.failed) {
+        return Err(fail("the text of this message can't be read on this computer, so it can't be forwarded as an attachment"));
+    }
+    if not_downloaded(&m) {
+        return Err(fail("this message was too large to download: only its header is here, so it can't be forwarded as an attachment"));
+    }
+    // What is attached goes to other people: a draft's Bcc, the owner's own marks on the message
+    // (read, answered, flagged, categorised), and every header kept with it but those known to
+    // come from the sender or the servers on the way, stay here.
+    let opts = mailcraft_mime::WriteOptions { include_bcc: false, offset_minutes: s.offset_at(m.date) };
+    let unmarked = Message {
+        read: false,
+        answered: false,
+        flag: FlagStatus::None,
+        categories: Vec::new(),
+        headers: m.headers.iter().filter(|(name, _)| goes_along(name)).cloned().collect(),
+        ..Message::clone(&m)
+    };
+    let bytes = mailcraft_mime::write(&unmarked, &opts);
+    if bytes.len() > MAX_ATTACHMENT {
+        return Err(too_large());
+    }
+    let sig = chosen_signature(s, m.account, None, true);
+    let mut c = Compose {
+        mode: ComposeMode::Forward,
+        source: Some(m.id),
+        as_attachment: true,
+        account: m.account,
+        subject: prefixed("FW", &m.subject),
+        // A line to write on, a blank one, then the signature.
+        body: RichBody::from_plain(if sig.is_some() { "\n" } else { "" }),
+        attachments: vec![Attachment::new(name, "message/rfc822", bytes)],
+        ..Default::default()
+    };
+    if let Some(sig) = &sig {
+        start_with(&mut c, sig, 1)?;
+    }
+    s.compose = Some(c);
+    Ok(json!({"composing": true, "mode": ComposeMode::Forward}))
+}
+
+/// The message Forward as Attachment takes: the one `id` names, else the one selected. A caller
+/// that names messages is let past the selection ([`Session::run`]), so anything else named
+/// (`ids`, `message`, an `id` that is no id) is refused, never taken to mean the selection.
+fn one_message(s: &Session, v: &Value) -> Result<Id, CmdError> {
+    let named = |k: &str| v.get(k).is_some_and(|x| !x.is_null());
+    if named("ids") || named("message") {
+        return Err(bad("name the message to forward as an attachment by `id`: one message at a time"));
+    }
+    if named("id") {
+        return p::req_id(v, "id");
+    }
+    s.sel.focus().ok_or_else(|| fail("select a message first"))
+}
+
+/// Enabled with one message selected: several are not forwarded as attachments at once yet.
+fn needs_one_message(s: &Session) -> Option<&'static str> {
+    match s.sel.messages.len() {
+        0 => Some("select a message first"),
+        1 => None,
+        _ => Some("select only one message to forward as an attachment"),
+    }
+}
+
+/// Whether `m` is what is kept of an IMAP message too large to download: its header and, in
+/// place of its text, a note that says so, with the mark `mailcraft-net` gives it. A sender can
+/// write that mark into a message of their own; only plain text that opens as the note does,
+/// with no file, is taken for it.
+fn not_downloaded(m: &Message) -> bool {
+    m.body.html.is_none()
+        && m.attachments.is_empty()
+        && m.body.text.starts_with(NOT_DOWNLOADED_NOTE)
+        && m.headers.iter().any(|(name, _)| name.eq_ignore_ascii_case(NOT_DOWNLOADED))
+}
+
+/// Whether a header kept with a message goes with it when it is forwarded as an attachment. Its
+/// own fields (From, To, Cc, Reply-To, Subject, Date, Message-ID, In-Reply-To, References,
+/// Importance, the MIME fields) are written from what it is, never a Bcc; of the other headers
+/// only those known to come from the sender or the servers on the way go:
+/// - the rest of RFC 5322: `Sender`, `Comments`, the trace (`Return-Path`, `Received`) and a
+///   resend's `Resent-…` fields, but never `Resent-Bcc`;
+/// - the checks of where it came from: `Authentication-Results`, `DKIM-Signature`, `ARC-…` and a
+///   spam filter's `X-Spam-…`;
+/// - a mailing list's `List-…`.
+///
+/// Everything else stays here: what a mail program or the owner's server wrote for the owner
+/// (folders, labels, flags, every other `X-…`), the headers that name the address it was
+/// delivered to (`Delivered-To`, `X-Original-To`, `Envelope-To`, `Received-SPF`; a `Received`
+/// line's `for <…>` can name it too, and goes as it is), a request for a receipt
+/// (`Disposition-Notification-To`, `Return-Receipt-To`), which the recipient's program could
+/// answer to the sender, and the sender's organisation and mail program (`Organization`,
+/// `User-Agent`, `X-Mailer`), which aren't needed to tell where it came from.
+fn goes_along(name: &str) -> bool {
+    let name = name.to_ascii_lowercase();
+    name.starts_with("list-")
+        || name.starts_with("x-spam-")
+        || matches!(
+            name.as_str(),
+            "sender"
+                | "comments"
+                | "return-path"
+                | "received"
+                | "resent-date"
+                | "resent-from"
+                | "resent-sender"
+                | "resent-to"
+                | "resent-cc"
+                | "resent-message-id"
+                | "authentication-results"
+                | "dkim-signature"
+                | "arc-seal"
+                | "arc-message-signature"
+                | "arc-authentication-results"
+        )
 }
 
 fn edit_draft(s: &mut Session, v: &Value) -> CmdResult {
@@ -766,16 +908,19 @@ fn save_draft(s: &mut Session, _: &Value) -> CmdResult {
     let graph = s.mailbox.account(m.account).is_some_and(|a| a.kind == AccountKind::Microsoft);
     if graph {
         // Begun as an answer to, or a forward of, a message its server has: made there as one.
-        let of = c.source.and_then(|src| s.mailbox.message(src)).filter(|src| src.account == m.account).and_then(|src| {
-            let id = src.server.as_ref().filter(|server| !server.gone)?.id.clone();
-            let kind = match c.mode {
-                ComposeMode::Reply => DraftKind::Reply,
-                ComposeMode::ReplyAll => DraftKind::ReplyAll,
-                ComposeMode::Forward => DraftKind::Forward,
-                _ => return None,
-            };
-            Some(DraftOf { id, kind })
-        });
+        // Not a forward as an attachment: made as a forward, it would have the source's files
+        // beside the attached message, and a meeting request would be forwarded as itself (#315).
+        let of =
+            c.source.filter(|_| !c.as_attachment).and_then(|src| s.mailbox.message(src)).filter(|src| src.account == m.account).and_then(|src| {
+                let id = src.server.as_ref().filter(|server| !server.gone)?.id.clone();
+                let kind = match c.mode {
+                    ComposeMode::Reply => DraftKind::Reply,
+                    ComposeMode::ReplyAll => DraftKind::ReplyAll,
+                    ComposeMode::Forward => DraftKind::Forward,
+                    _ => return None,
+                };
+                Some(DraftOf { id, kind })
+            });
         let mut sd = m.server_draft.take().unwrap_or_else(|| ServerDraft { of, ..Default::default() });
         // A draft the server had from elsewhere, edited here for the first time: what the server
         // had is what it was before.
@@ -833,22 +978,42 @@ pub struct Suggestion {
     pub contact: bool,
 }
 
-/// Who `query` (the start of a name, of a word in it, or of an address) could be: contacts first,
-/// then the people mail was exchanged with, the latest first. The owner's own addresses and
-/// addresses that don't look like one are left out. One pass over the mailbox, so it can run on
-/// every key press.
-pub fn suggest(s: &Session, query: &str, limit: usize) -> Vec<Suggestion> {
-    let q = query.trim().to_lowercase();
-    if q.is_empty() || q.chars().count() > 200 {
-        return Vec::new();
+/// What was typed for a person, as [`suggest`] compares a name and an address with it.
+pub(crate) struct Typed {
+    q: String,
+    wanted: Vec<String>,
+}
+
+impl Typed {
+    /// `None` for nothing, or for more than 200 characters. With an `@` in it, it is an address
+    /// being typed and is not taken apart into words: `ada@` is not Ada Smith at another address.
+    pub(crate) fn new(query: &str) -> Option<Typed> {
+        let q = query.trim().to_lowercase();
+        if q.is_empty() || q.chars().count() > 200 {
+            return None;
+        }
+        let wanted = if q.contains('@') { Vec::new() } else { mailcraft_model::words::words(&q) };
+        Some(Typed { wanted, q })
     }
+
+    /// Whether it is the start of the address, of the name, or of words of the name one after
+    /// another, compared as the search compares them, ignoring case and accents (`gvoz` is
+    /// Gvožđar, #308).
+    pub(crate) fn fits(&self, name: &str, email: &str) -> bool {
+        email.to_lowercase().starts_with(&self.q)
+            || name.to_lowercase().starts_with(&self.q)
+            || (!self.wanted.is_empty() && mailcraft_model::words::starts_in(name, &self.wanted))
+    }
+}
+
+/// Who `query` (the start of a name, of a word in it, or of an address) could be: contacts first,
+/// then the people mail was exchanged with, the latest first, matched as [`Typed::fits`] says. The
+/// owner's own addresses and addresses that don't look like one are left out. One pass over the
+/// mailbox, so it can run on every key press.
+pub fn suggest(s: &Session, query: &str, limit: usize) -> Vec<Suggestion> {
+    let Some(typed) = Typed::new(query) else { return Vec::new() };
     let limit = limit.clamp(1, 20);
-    let fits = |name: &str, email: &str| {
-        let (name, email) = (name.to_lowercase(), email.to_lowercase());
-        email.starts_with(&q)
-            || name.starts_with(&q)
-            || name.split(|c: char| !c.is_alphanumeric()).any(|word| !word.is_empty() && word.starts_with(&q))
-    };
+    let fits = |name: &str, email: &str| typed.fits(name, email);
     let own: Vec<String> = s.mailbox.accounts.iter().map(|a| a.email.trim().to_lowercase()).filter(|e| !e.is_empty()).collect();
     let mut seen: std::collections::HashSet<String> = own.into_iter().collect();
     let mut out: Vec<Suggestion> = Vec::new();
@@ -874,6 +1039,8 @@ pub fn suggest(s: &Session, query: &str, limit: usize) -> Vec<Suggestion> {
         };
         let now = s.now();
         let mut recent: std::collections::HashMap<String, (bool, i64, &mailcraft_model::Address)> = std::collections::HashMap::new();
+        // A name and an address are matched once, however many messages carry them.
+        let mut matched: std::collections::HashMap<(&str, &str), bool> = std::collections::HashMap::new();
         for m in s.mailbox.messages.values().filter(|m| !junk.contains(&m.folder)) {
             let written = sent.contains(&m.folder);
             let date = m.date.min(now);
@@ -883,8 +1050,11 @@ pub fn suggest(s: &Session, query: &str, limit: usize) -> Vec<Suggestion> {
                 std::iter::once(&m.from).chain(&m.to).chain(&m.cc).map(|a| (a, false)).collect()
             };
             for (a, to) in people {
+                if !*matched.entry((a.name.as_str(), a.email.as_str())).or_insert_with(|| fits(&a.name, &a.email)) {
+                    continue;
+                }
                 let key = a.email.trim().to_lowercase();
-                if !seen.contains(&key) && a.is_valid() && fits(&a.name, &a.email) {
+                if !seen.contains(&key) && a.is_valid() {
                     let known = recent.entry(key).or_insert((to, date, a));
                     if (to, date) >= (known.0, known.1) {
                         *known = (to || known.0, date, a);

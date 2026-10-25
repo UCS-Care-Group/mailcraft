@@ -51,6 +51,9 @@ pub mod credits;
 pub mod data_removal;
 pub mod dates;
 pub mod dialogs;
+mod drag_pointer;
+#[cfg(test)]
+mod drag_pointer_tests;
 pub mod favorites_sync;
 pub mod files;
 mod folder_properties;
@@ -59,6 +62,7 @@ pub mod graph_fetch;
 mod graph_switch;
 pub mod i18n;
 pub mod icons;
+pub mod import_tree;
 mod inbox_pass;
 pub mod jmap_mail;
 mod keep_offline;
@@ -91,6 +95,7 @@ mod secrets_bound_tests;
 mod secrets_replaced_tests;
 mod sender_images;
 pub mod server_search;
+pub mod settings_notice;
 mod shared_calendars;
 #[cfg(test)]
 mod shared_calendars_tests;
@@ -118,6 +123,7 @@ pub use approval::{AdminConsentAnswer, AdminConsentRequest};
 pub use control::ControlRequest;
 pub use files::FileDialogRequest;
 pub use scheduling::{FreeBusyRequest, FreeBusyResult};
+pub use settings_notice::SettingsUnread;
 pub use unconfirmed::ConfirmedMailbox;
 
 /// Platform services injected by the host (file dialogs, downloads, servers, storage).
@@ -205,6 +211,11 @@ pub struct Services {
     /// take a while for a large mailbox. Without one (tests, scripts) the copy is written in
     /// place by `account.graphSwitch`.
     pub write_copy: Option<Box<dyn Fn(std::path::PathBuf, mailcraft_model::Mailbox) -> Receiver<Result<(), String>>>>,
+    /// Desktop: walk, read and parse a folder of mbox files on a background thread
+    /// (`mailcraft_engine::import_tree::load_path`), so that neither the look at it nor the
+    /// import holds the window up (#420). The job carries the folder and a shared progress the
+    /// window shows and cancels through. Without one (tests, scripts) the window does it in place.
+    pub import_tree: Option<Box<dyn Fn(import_tree::TreeJob) -> Receiver<Result<mailcraft_engine::import_tree::Parsed, String>>>>,
     /// Desktop: download one picture a message refers to on the web, on a background thread,
     /// once the owner has asked for that message's pictures ([`reading::remote`]). The address
     /// is the message's own choice: the host checks where it leads before going there, takes
@@ -986,6 +997,12 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         r#"{} — offered when a newly installed version didn't start twice running and the one it replaced is kept: closes the window as quitting does, puts the kept version back (and the mailbox file as it was before the new version changed its format, when it did) and starts it; the version gone back from is never installed by itself again. The owner's click only: refused for agents and the control channel"#,
     ),
     (
+        "ui.dismissSettingsNotice",
+        "Dismiss Settings Notice",
+        "Above the status bar",
+        r#"{} — puts away the line that says the settings file couldn't be read at start, so MailCraft started with its own settings (for this run). Answers {"dismissed": bool}"#,
+    ),
+    (
         "ui.dismissUpdateNotice",
         "Dismiss Update Notice",
         "Above the status bar",
@@ -1046,6 +1063,9 @@ pub struct MailApp {
     /// The open mailbox came from a file whose servers nobody has confirmed: nothing of it
     /// reaches a server ([`unconfirmed`]).
     pub(crate) unconfirmed: bool,
+    /// The settings file couldn't be read at start, and the line saying so hasn't been put away
+    /// ([`settings_notice`]).
+    pub settings_unread: Option<settings_notice::SettingsUnread>,
     /// The jobs that reach servers, put aside while the mailbox is unconfirmed.
     pub(crate) held: unconfirmed::Held,
     /// The file the window started with (the owner's own mailbox, or the one `--mailbox` named),
@@ -1308,6 +1328,7 @@ impl MailApp {
             passwords: Default::default(),
             secrets_opening: 0,
             unconfirmed: false,
+            settings_unread: None,
             held: Default::default(),
             own_mailbox,
             secrets_trouble: None,
@@ -1627,8 +1648,7 @@ impl MailApp {
         }
         if let (Ok(_), Some(gone)) = (&r, leaving) {
             let account = gone.id;
-            // Its calendar and contacts were the server's, not the owner's own.
-            let _ = mailcraft_engine::cmd::remote::forget(&mut self.session, account);
+            // What the window keeps for it (the command took what came from its server).
             self.forget_favorites(account);
             self.graph_tokens.remove(&account);
             self.graph_checked.remove(&account);
@@ -1674,6 +1694,7 @@ impl MailApp {
         Some(match id {
             "ui.removeAllData" => self.remove_all_data(),
             "ui.confirmServers" => self.confirm_servers(),
+            "ui.dismissSettingsNotice" => settings_notice::dismiss(self),
             "ui.tab" => {
                 let Some(tab) = s("tab") else { return Some(Err("missing `tab`".into())) };
                 if tab == "File" {
@@ -2049,9 +2070,12 @@ impl MailApp {
     /// Tell the owner, once a session, when the system's credential store can't be used, so that
     /// being asked again at the next start is no surprise.
     pub(crate) fn check_secret_store(&mut self) {
-        let Some(trouble) = self.services.secrets.as_ref().and_then(|store| store.take_trouble()) else {
-            return;
-        };
+        if let Some(trouble) = self.services.secrets.as_ref().and_then(|store| store.take_trouble()) {
+            self.note_secret_trouble(trouble);
+        }
+    }
+
+    fn note_secret_trouble(&mut self, trouble: StoreTrouble) {
         if self.secrets_trouble.is_none() {
             self.secrets_trouble = Some(trouble);
             self.status(trouble.notice());
@@ -2059,13 +2083,25 @@ impl MailApp {
     }
 
     /// Drop everything the operating system remembers for this account as it is, and under the
-    /// name from before secrets were bound to servers.
-    pub(crate) fn forget_account_secrets(&self, a: &mailcraft_model::Account) {
-        if let Some(store) = &self.services.secrets {
-            for kind in ["password", "refresh"] {
-                store.delete(&Self::secret_key(kind, a));
-                store.delete(&Self::legacy_secret_key(kind, &a.email));
+    /// name from before secrets were bound to servers; and the names of the entries that went
+    /// from `remembered_keys`, so that the settings don't name the account any more (#325). A
+    /// name whose entry is still there stays, for the full removal to try again; so does every
+    /// name when the store couldn't be used (locked, or not answering), which says nothing then.
+    pub(crate) fn forget_account_secrets(&mut self, a: &mailcraft_model::Account) {
+        let Some(store) = &self.services.secrets else { return };
+        let mut gone = Vec::new();
+        for kind in ["password", "refresh"] {
+            for key in [Self::secret_key(kind, a), Self::legacy_secret_key(kind, &a.email)] {
+                store.delete(&key);
+                if store.get(&key).is_none() {
+                    gone.push(key);
+                }
             }
+        }
+        // (Taken here, the owner hears of it as `check_secret_store` would have said it.)
+        match store.take_trouble() {
+            Some(trouble) => self.note_secret_trouble(trouble),
+            None => self.ui.remembered_keys.retain(|key| !gone.contains(key)),
         }
     }
 
@@ -3741,6 +3777,7 @@ impl MailApp {
             chrome::status_bar(self, ui);
             // The question about checking for new versions, at the first starts: above the status bar.
             updates::question(self, ui);
+            settings_notice::bar(self, ui);
             unconfirmed::bar(self, ui);
             nav::module_bar(self, ui);
             ribbon::show(self, ui);
@@ -3756,6 +3793,8 @@ impl MailApp {
         reminders::show(self, &ctx);
         // Over everything: what an agent wants that needs the owner.
         agent_gate::show(self, &ctx);
+        // While messages are dragged: the pointer for what is under it (#430).
+        drag_pointer::apply(&ctx);
         self.by_hand = false;
         self.refusal();
         let title = format!("{} - MailCraft", self.title_stem());
@@ -3974,6 +4013,24 @@ fn feedback(id: &str, v: &Value) -> Option<String> {
             v.get("stays").and_then(Value::as_str).map(|why| i18n::fmt(tl!("The draft stays in Drafts. {why}"), &[("why", tl!(why))]))
         }
         "mail.markAllRead" | "rules.run" => n("changed").or(n("matched")).map(|c| tln!(c, "{n} message changed", "{n} messages changed")),
+        "file.importFolderTree" => {
+            let messages = n("messages")?;
+            let what = tln!(messages, "{n} message", "{n} messages");
+            let left = n("skippedCount").unwrap_or(0);
+            let name = v.get("name").and_then(Value::as_str).unwrap_or_default();
+            let said = i18n::fmt(tl!("Imported {what} into the new folder {name}"), &[("what", &what), ("name", name)]);
+            let stopped = v.get("stopped").and_then(Value::as_bool) == Some(true);
+            Some(match (left, stopped) {
+                (0, false) => said,
+                (left, _) => {
+                    let left = tln!(left, "{n} file left out", "{n} files left out");
+                    i18n::fmt(
+                        tl!("{said}; {left}{more}"),
+                        &[("said", &said), ("left", &left), ("more", if stopped { tl!(", stopped at a limit") } else { "" })],
+                    )
+                }
+            })
+        }
         "file.import" => {
             let mut parts = Vec::new();
             let counts: [(&str, fn(u64) -> String); 4] = [

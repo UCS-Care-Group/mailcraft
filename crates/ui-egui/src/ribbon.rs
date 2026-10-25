@@ -326,6 +326,7 @@ fn home_mail(app: &MailApp) -> Tab {
                 Item::big("reply", "Reply", "mail.reply", no()).at(2, 1).plain(),
                 Item::big("replyAll", "Reply\nAll", "mail.replyAll", no()).at(2, 2).plain(),
                 Item::big("forward", "Forward", "mail.forward", no()).at(2, 2).plain(),
+                Item::small("forwardAsAttachment", "Forward as Attachment", "", "mail.forwardAsAttachment", no()).under("mail.forward"),
                 Item::small("meeting", "Meeting", "Reply with Meeting", "calendar.fromMessage", no()).at(5, 6),
                 Item::small("newContact", "Add Sender", "Add to Contacts", "people.fromMessage", no()).at(5, 7),
             ],
@@ -2326,7 +2327,7 @@ mod tests {
             [
                 ("New", vec!["New\nEmail", "New\nItems"]),
                 ("Delete", vec!["Delete", "Archive", "Junk", "Delete for Good"]),
-                ("Respond", vec!["Reply", "Reply\nAll", "Forward", "Meeting", "Add Sender"]),
+                ("Respond", vec!["Reply", "Reply\nAll", "Forward", "Forward as Attachment", "Meeting", "Add Sender"]),
                 ("Move", vec!["Move", "Rules"]),
                 ("Tags", vec!["Unread/\nRead", "Categorize", "Follow\nUp", "Pin"]),
                 ("Find", vec!["Filter\nEmail", "Related", "From Sender"]),

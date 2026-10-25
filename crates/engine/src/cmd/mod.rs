@@ -24,6 +24,10 @@ pub mod format;
 #[cfg(test)]
 mod format_tests;
 #[cfg(test)]
+mod forward_attachment_headers_tests;
+#[cfg(test)]
+mod forward_attachment_tests;
+#[cfg(test)]
 mod full_count_tests;
 pub mod graph_down;
 pub mod graph_drafts;
@@ -48,6 +52,8 @@ mod quote_tests;
 pub mod remote;
 pub mod rules;
 pub mod search_server;
+#[cfg(test)]
+mod search_suggest_tests;
 pub mod shared;
 pub mod signature;
 #[cfg(test)]

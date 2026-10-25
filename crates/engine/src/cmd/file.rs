@@ -8,7 +8,7 @@ use serde_json::{Value, json};
 
 use super::{bad, deliver, fail, source};
 use crate::io::{Format, MAILBOX_EXT};
-use crate::opening::export_name;
+use crate::opening::{export_name, export_name_or};
 use crate::{CmdResult, CommandSpec, Session, p};
 
 pub fn specs() -> Vec<CommandSpec> {
@@ -23,6 +23,9 @@ pub fn specs() -> Vec<CommandSpec> {
             .params(r#"{"path": string} — everything in one self-contained file; a copy, unless the mailbox wasn't kept anywhere yet"#),
         CommandSpec::new("file.import", "Import", "File › Open & Export", import)
             .params(r#"{"path": string} | {"name": string, "data": base64}, "folder"?: number — .eml, .mbox, .ics, .vcf; messages meant for a Microsoft account go to the local folder Imported (`local`)"#),
+        CommandSpec::new("file.importFolderTree", "Import a Folder of Mailboxes", "File › Open & Export", import_tree).params(
+            r#"{"path": string (a folder) | "entries": [{"path": "Mail/Inbox.sbd/Sent", "data": base64}], "name"?: string (the new top folder; default the folder's name), "dryRun"?: bool (only say what would come in)} — every mbox file under the folder, found by its first bytes, into subfolders of one folder On this computer; a second import adds nothing already there (Message-ID)"#,
+        ),
         CommandSpec::new("file.exportMessage", "Save Message As", "File › Save As", export_message).pure().params(r#"{"id"?: number, "path"?: string} — one message as .eml"#),
         CommandSpec::new("file.exportFolder", "Export Folder", "File › Open & Export", export_folder).pure().params(r#"{"id"?: number, "path"?: string} — a folder's messages as .mbox"#),
         CommandSpec::new("file.exportCalendar", "Save Calendar", "File › Save Calendar", export_calendar).pure().params(r#"{"calendar"?: number, "id"?: number (one event), "path"?: string} — .ics"#),
@@ -229,6 +232,10 @@ fn import(s: &mut Session, v: &Value) -> CmdResult {
     crate::io::import(s, &name, &bytes, p::id(v, "folder"))
 }
 
+fn import_tree(s: &mut Session, v: &Value) -> CmdResult {
+    crate::import_tree::run(s, v)
+}
+
 fn export_message(s: &mut Session, v: &Value) -> CmdResult {
     let id = p::id(v, "id").or(s.sel.focus()).ok_or_else(|| fail("select a message first"))?;
     if s.mailbox.message(id).is_none() {
@@ -238,8 +245,14 @@ fn export_message(s: &mut Session, v: &Value) -> CmdResult {
     let m = s.loaded_message(id)?;
     // A draft keeps its Bcc line; a sent or received message never had one to show.
     let opts = mailcraft_mime::WriteOptions { include_bcc: m.draft, offset_minutes: s.offset_at(m.date) };
-    let name = export_name(if m.subject.trim().is_empty() { "message" } else { &m.subject }, "eml");
+    let name = eml_name(&m);
     deliver(v, &name, mailcraft_mime::write(&m, &opts))
+}
+
+/// The name of a message as a file of its own: its subject, fit for a file name, as `.eml`;
+/// `message.eml` when nothing of the subject is left (none, or only what a name can't keep).
+pub fn eml_name(m: &mailcraft_model::Message) -> String {
+    export_name_or(&m.subject, "eml", "message")
 }
 
 fn export_folder(s: &mut Session, v: &Value) -> CmdResult {

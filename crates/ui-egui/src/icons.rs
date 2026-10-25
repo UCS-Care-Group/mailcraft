@@ -512,6 +512,13 @@ pub fn paint(p: &Painter, r: Rect, name: &str, c: Color32, accent: Color32) {
             tail.draw(&pen, c);
             pen.head(16.5, 8.5, 0.0, 4.0, c);
         }
+        // Forward, higher, and the message it carries whole: an envelope in the modifier's corner.
+        "forwardAsAttachment" => {
+            let tail = pen.path().m(&pen, 16.5, 5.5).l(&pen, 10.0, 5.5).c(&pen, (6.5, 5.5), (3.5, 8.0), 3.5, 12.5);
+            tail.draw(&pen, c);
+            pen.head(16.5, 5.5, 0.0, 4.0, c);
+            pen.envelope(11.5, 12.0, 18.0, 17.0, c);
+        }
         "delete" | "deleted" | "discard" | "remove" => {
             pen.lid(false, c);
             pen.rounded(&[(5.0, 5.5), (5.0, 16.5), (15.0, 16.5), (15.0, 5.5)], false, 1.0, c);
@@ -1116,6 +1123,7 @@ pub const NAMES: &[&str] = &[
     "reply",
     "replyAll",
     "forward",
+    "forwardAsAttachment",
     "delete",
     "deleted",
     "discard",

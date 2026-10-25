@@ -678,25 +678,30 @@ impl AccountSetup {
         m
     }
 
-    /// What keeps the servers from being used, in English; nothing when they can be. A new
+    /// What keeps the servers from being used, in the interface language; nothing when they can be. A new
     /// account needs its incoming server (`connected`); an existing one may have none.
-    fn settings_problem(&self, connected: bool) -> Option<&'static str> {
+    fn settings_problem(&self, connected: bool) -> Option<String> {
         let (incoming, outgoing) = (&self.incoming, &self.outgoing);
         if incoming.host.trim().is_empty() {
             if connected {
-                return Some("Type the name of the incoming mail server");
+                return Some(tl!("Type the name of the incoming mail server").to_string());
             }
         } else if !incoming.host_ok() {
-            return Some("The incoming mail server isn't a host name (letters, digits, dots and dashes)");
+            return Some(tl!("The incoming mail server isn't a host name (letters, digits, dots and dashes)").to_string());
         }
         if !outgoing.host.trim().is_empty() && !outgoing.host_ok() {
-            return Some("The outgoing mail server isn't a host name (letters, digits, dots and dashes)");
+            return Some(tl!("The outgoing mail server isn't a host name (letters, digits, dots and dashes)").to_string());
         }
         if incoming.port().is_none() || outgoing.port().is_none() {
-            return Some("A port is a number from 1 to 65535");
+            return Some(tl!("A port is a number from 1 to 65535").to_string());
+        }
+        if !incoming.host.trim().is_empty() && mailcraft_model::pop::looks_like_pop(&incoming.host, incoming.port().unwrap_or(0)) {
+            return Some(
+                tl!("MailCraft doesn't support POP yet. Use your provider's IMAP server instead (usually imap.<your domain>, port 993).").to_string(),
+            );
         }
         if self.edit.is_some() && self.oauth.is_some() && !(is_identifier(self.client_id.trim(), 200) && is_identifier(self.tenant.trim(), 64)) {
-            return Some("An application ID and a tenant are letters, digits, dots and dashes");
+            return Some(tl!("An application ID and a tenant are letters, digits, dots and dashes").to_string());
         }
         None
     }
@@ -933,7 +938,7 @@ impl AccountSetup {
     /// nothing can.
     fn try_password(&mut self, app: &mut MailApp) {
         let Some(account) = self.account() else {
-            self.error = tl!(self.settings_problem(true).unwrap_or("Check the account's settings")).to_string();
+            self.error = self.settings_problem(true).unwrap_or_else(|| tl!("Check the account's settings").to_string());
             self.settings_open = true;
             return;
         };
@@ -1053,7 +1058,7 @@ impl AccountSetup {
     /// Save on Account Settings: run `account.edit` with what changed. `true` when it is done.
     fn save(&mut self, app: &mut MailApp) -> bool {
         if let Some(problem) = self.settings_problem(false) {
-            self.error = tl!(problem).to_string();
+            self.error = problem;
             return false;
         }
         let Some(id) = self.edit.as_ref().map(|e| e.id) else { return true };
@@ -1783,6 +1788,9 @@ fn tile(ui: &mut Ui, kind: Kind, width: f32, t: &Tokens) -> Response {
     paint_clipped(ui.painter(), pos2(r.min.x + 46.0, r.min.y + 34.0), r.width() - 54.0, detail, regular(11.0), t.text_dim);
     resp
 }
+
+#[cfg(test)]
+mod pop_tests;
 
 #[cfg(test)]
 mod tests {

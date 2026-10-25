@@ -1455,6 +1455,11 @@ mod event {
         /// Something was typed into the line since the keyboard came to it. A line that is only
         /// passed through (with Tab, say) is offered nothing and stays exactly as it is.
         typed: bool,
+        /// What `items` were asked for: whether something was typed, what is being typed, and
+        /// the mailbox as it was ([`Session::rev`], [`Session::openings`]). They are asked for
+        /// again only when one of these changes: a line with the keyboard is drawn at least twice
+        /// a second (its cursor blinks), and asking reads the whole mailbox.
+        asked: Option<(bool, String, u64, u64)>,
     }
 
     /// An attendee line. As it is typed in, the people it could be are offered underneath, as
@@ -1475,6 +1480,11 @@ mod event {
             // Before the line itself sees the keys: they are for the list while it is showing.
             let n = st.items.len().max(1);
             ui.input_mut(|i| {
+                // With Shift, Ctrl or Alt held the keys are not the list's: Shift+Tab goes back, as
+                // without the list (`consume_key` takes Shift+Tab for Tab).
+                if !i.modifiers.is_none() {
+                    return;
+                }
                 if i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowDown) {
                     st.selected = (st.selected + 1) % n;
                 }
@@ -1582,14 +1592,19 @@ mod event {
         // What to offer next frame, for what is being typed now.
         if resp.has_focus() || ui.memory(|m| m.has_focus(id)) {
             let (_, last) = crate::compose::typing(text);
-            let items = if !typed || last.trim().is_empty() { Vec::new() } else { mailcraft_engine::cmd::compose::suggest(s, last, 6) };
-            st.selected = if st.key == key { st.selected.min(items.len().saturating_sub(1)) } else { 0 };
-            st.key = key;
-            st.items = items;
+            let asking = (typed, last.to_string(), s.rev(), s.openings());
+            if st.key != key || st.asked.as_ref() != Some(&asking) {
+                let items = if !typed || last.trim().is_empty() { Vec::new() } else { mailcraft_engine::cmd::compose::suggest(s, last, 6) };
+                st.selected = if st.key == key { st.selected.min(items.len().saturating_sub(1)) } else { 0 };
+                st.key = key;
+                st.items = items;
+                st.asked = Some(asking);
+            }
             st.typed = typed;
         } else if st.key == key && !over {
             st.items.clear();
             st.typed = false;
+            st.asked = None;
         }
         ui.data_mut(|d| d.insert_temp(store, st));
     }
