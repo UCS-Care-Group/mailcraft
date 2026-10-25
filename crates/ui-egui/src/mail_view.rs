@@ -93,7 +93,6 @@ fn drag_ghost(ui: &Ui) {
     let Some(drag) = egui::DragAndDrop::payload::<MessageDrag>(ui.ctx()) else { return };
     let Some(pos) = ui.ctx().pointer_interact_pos() else { return };
     let t = Tokens::get(ui.ctx());
-    ui.ctx().set_cursor_icon(egui::CursorIcon::Grabbing);
     let text = tln!(drag.0.len(), "{n} message", "{n} messages");
     egui::Area::new(egui::Id::unique("message_drag_ghost")).order(egui::Order::Tooltip).fixed_pos(pos + vec2(14.0, 16.0)).interactable(false).show(
         ui.ctx(),
