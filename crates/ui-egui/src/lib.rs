@@ -79,6 +79,7 @@ mod report_problem;
 pub mod ribbon;
 pub mod scheduling;
 mod search_pills;
+mod search_suggest;
 #[cfg(test)]
 #[path = "secrets_bound_tests.rs"]
 mod secrets_bound_tests;

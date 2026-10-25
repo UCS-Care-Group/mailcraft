@@ -22,7 +22,7 @@ use std::ops::Range;
 use mailcraft_time::{Date, DateTime};
 
 use crate::words::{self, ATTACHMENT, BODY, CC, FROM, SUBJECT, TO};
-use crate::{FlagStatus, Importance, Message, contains_ci};
+use crate::{Category, FlagStatus, Importance, Message, Rgb, contains_ci};
 
 /// Longest query read and most terms kept (the rest is ignored).
 const MAX_QUERY: usize = 2_000;
@@ -135,9 +135,13 @@ pub fn keyword_spans(s: &str) -> Vec<KeywordSpan> {
     let mut out = Vec::new();
     let mut tokens = tokens(s).into_iter().take(MAX_TERMS).peekable();
     while let Some((token, at)) = tokens.next() {
-        let body = token.strip_prefix('-').filter(|rest| !rest.is_empty()).unwrap_or(&token);
+        let (negate, quoted) = opening(s, &at);
+        if quoted {
+            continue;
+        }
+        let body = if negate { token.strip_prefix('-').unwrap_or(&token) } else { token.as_str() };
         let (body, range) = match body.strip_suffix(':') {
-            Some(key) if is_keyword(key) => match tokens.next_if(|(next, _)| !starts_with_keyword(next)) {
+            Some(key) if is_keyword(key) => match tokens.next_if(|(next, at)| !starts_with_keyword_at(s, next, at)) {
                 Some((value, next)) => (format!("{body}{value}"), at.start..next.end),
                 None => continue,
             },
@@ -174,7 +178,7 @@ pub fn keyword_pills(s: &str, cursor: Option<usize>) -> Vec<Range<usize>> {
         let mut end = at.end;
         let mut last = i >= all.len();
         if head.end == at.end
-            && let Some((_, next)) = all.get(i).filter(|(next, _)| !starts_with_keyword(next))
+            && let Some((_, next)) = all.get(i).filter(|(next, at)| !starts_with_keyword_at(s, next, at))
         {
             end = next.end;
             i = i.saturating_add(1);
@@ -291,6 +295,155 @@ pub fn keyword_value(value: &str) -> String {
     out
 }
 
+/// Most suggestions offered at once, most of a mailbox's categories looked through for them, and
+/// the longest category name offered (a longer one is typed).
+const MAX_SUGGESTIONS: usize = 8;
+const MAX_CATEGORIES_READ: usize = 1_000;
+const MAX_SUGGESTED_NAME: usize = 256;
+
+/// The keywords offered while the start of one is typed: each once, without the other names it
+/// may be written by (`categories:`, `received:`).
+const OFFERED: &[&str] = &["from", "to", "cc", "subject", "body", "category", "attachment", "has", "is", "importance", "before", "after", "on"];
+
+/// What `is:` and `has:` take.
+const IS_VALUES: &[&str] = &["unread", "read", "flagged", "important"];
+const HAS_VALUES: &[&str] = &["attachment"];
+
+/// A suggestion for the word being typed in the search box (#308): what the list shows, and what
+/// goes in place of that word when it is taken.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Suggestion {
+    /// What the list shows: `category:`, `Green category`, `unread`.
+    pub label: String,
+    /// The bytes of the query it takes the place of: the word being typed, with its keyword.
+    pub range: Range<usize>,
+    /// What goes there: `category:`, or `category:"Green category"` and a space to go on with.
+    pub text: String,
+    /// A category's colour, for the mark beside its name.
+    pub color: Option<Rgb>,
+}
+
+/// What to offer for the word being typed in `query` (#308), the one the cursor (a byte offset)
+/// is at the end of: the keywords it is the start of (`cat` → `category:`, `-cat` →
+/// `-category:`); after `category:`, the mailbox's `categories` whose name starts with what was
+/// typed, then those that hold it elsewhere, ignoring case and accents; after `is:` and `has:`,
+/// what they take. Nothing after the other keywords, for a word that starts no keyword, or with
+/// the cursor inside a word. A value goes in quotes when it needs them ([`keyword_value`]); one
+/// that would leave the query as it is isn't offered. At most [`MAX_SUGGESTIONS`].
+pub fn suggestions(query: &str, cursor: usize, categories: &[Category]) -> Vec<Suggestion> {
+    let mut cursor = cursor.min(query.len());
+    while !query.is_char_boundary(cursor) {
+        cursor = cursor.saturating_sub(1);
+    }
+    let all = tokens(query);
+    let at = all.iter().position(|(_, at)| at.end == cursor);
+    // `category: |`: a keyword with nothing after it yet but spaces.
+    let bare_before = |i: usize| -> Option<usize> {
+        let (token, _) = all.get(i).filter(|(_, at)| !opening(query, at).1)?;
+        let key = token.strip_prefix('-').unwrap_or(token).strip_suffix(':')?;
+        is_keyword(key).then_some(i)
+    };
+    let (key_at, value) = match at.and_then(|i| all.get(i).map(|(token, range)| (i, token, range))) {
+        Some((i, token, range)) => {
+            let body = token.strip_prefix('-').unwrap_or(token);
+            match body.split_once(':') {
+                // In quotes it is text, not a keyword (#367).
+                Some((key, value)) if is_keyword(key) && !opening(query, range).1 => (i, value.to_string()),
+                Some(_) => return Vec::new(),
+                // `from: stu`: the keyword before it takes it.
+                None => match i.checked_sub(1).and_then(bare_before) {
+                    Some(k) => (k, token.clone()),
+                    None => return keywords_starting(query, token, range.clone()),
+                },
+            }
+        }
+        None => {
+            // Only at the end of the query or of a run of spaces, not at the start of a word.
+            let ahead = query.get(cursor..).is_some_and(|rest| rest.is_empty() || rest.starts_with(char::is_whitespace));
+            let before = all.iter().rposition(|(_, at)| at.end <= cursor);
+            let spaces =
+                before.and_then(|b| all.get(b)).and_then(|(_, at)| query.get(at.end..cursor)).is_some_and(|gap| gap.chars().all(char::is_whitespace));
+            match before.filter(|_| spaces && ahead).and_then(bare_before) {
+                Some(k) => (k, String::new()),
+                None => return Vec::new(),
+            }
+        }
+    };
+    let Some((key_token, key_range)) = all.get(key_at) else { return Vec::new() };
+    let range = key_range.start..cursor;
+    let head = key_token.split_once(':').map_or("", |(head, _)| head);
+    let space = if query.get(cursor..).is_some_and(|rest| rest.starts_with(char::is_whitespace)) { "" } else { " " };
+    let offer = |label: &str, color: Option<Rgb>| Suggestion {
+        label: label.to_string(),
+        range: range.clone(),
+        text: format!("{head}:{}{space}", keyword_value(label)),
+        color,
+    };
+    let key = head.strip_prefix('-').unwrap_or(head).to_ascii_lowercase();
+    let typed = value.to_lowercase();
+    let mut out: Vec<Suggestion> = match key.as_str() {
+        "category" | "categories" => {
+            // Words folded as search compares them, a space between: `green c` starts "Green
+            // category", and `ctat` isn't in "Project Atlas".
+            let fold = |text: &str| words::words(text).join(" ");
+            let wanted = fold(&value);
+            let named: Vec<(&Category, String)> = categories
+                .iter()
+                .take(MAX_CATEGORIES_READ)
+                .filter(|c| !c.name.trim().is_empty() && c.name.chars().nth(MAX_SUGGESTED_NAME).is_none() && !c.name.chars().any(char::is_control))
+                .map(|c| (c, fold(&c.name)))
+                .collect();
+            // A value with no letter or digit in it (`&`) folds to nothing, which every name starts
+            // with: it is matched as it was typed, as the search matches it.
+            let marks = value.trim_matches(|c: char| c == '"' || c.is_whitespace());
+            let mut picked: Vec<&Category> = if wanted.is_empty() && !marks.is_empty() {
+                named.iter().filter(|(c, _)| crate::contains_ci(&c.name, marks)).map(|(c, _)| *c).collect()
+            } else {
+                named.iter().filter(|(_, f)| f.starts_with(&wanted)).map(|(c, _)| *c).collect()
+            };
+            picked.extend(named.iter().filter(|(_, f)| !wanted.is_empty() && !f.starts_with(&wanted) && f.contains(&wanted)).map(|(c, _)| *c));
+            let mut seen: Vec<&str> = Vec::new();
+            picked
+                .into_iter()
+                .filter(|c| {
+                    let new = !seen.contains(&c.name.as_str());
+                    if new {
+                        seen.push(&c.name);
+                    }
+                    new
+                })
+                .take(MAX_SUGGESTIONS.saturating_add(1))
+                .map(|c| offer(&c.name, Some(c.color)))
+                .collect()
+        }
+        "is" => IS_VALUES.iter().filter(|v| v.starts_with(&typed)).map(|v| offer(v, None)).collect(),
+        "has" => HAS_VALUES.iter().filter(|v| v.starts_with(&typed)).map(|v| offer(v, None)).collect(),
+        _ => Vec::new(),
+    };
+    out.retain(|s| query.get(s.range.clone()) != Some(s.text.trim_end()));
+    out.truncate(MAX_SUGGESTIONS);
+    out
+}
+
+/// The keywords that `token` (the word the cursor is at the end of, standing at `range`) is the
+/// start of, each with its colon: `cat` → `category:`. Not a word in quotes, nor `-` alone.
+fn keywords_starting(query: &str, token: &str, range: Range<usize>) -> Vec<Suggestion> {
+    let written = query.get(range.clone()).unwrap_or_default();
+    let (dash, body) = match token.strip_prefix('-') {
+        Some(rest) => ("-", rest),
+        None => ("", token),
+    };
+    if body.is_empty() || written.contains('"') {
+        return Vec::new();
+    }
+    OFFERED
+        .iter()
+        .filter(|k| k.len() >= body.len() && k.get(..body.len()).is_some_and(|start| start.eq_ignore_ascii_case(body)))
+        .map(|k| Suggestion { label: format!("{dash}{k}:"), range: range.clone(), text: format!("{dash}{k}:"), color: None })
+        .take(MAX_SUGGESTIONS)
+        .collect()
+}
+
 /// Whether a server's search takes `word` as it is: letters, digits and `@._-'+`, which keep an
 /// address whole ([`raw_words`]), and no longer than a word that goes to a server.
 fn server_takes(word: &str) -> bool {
@@ -378,7 +531,7 @@ fn parse_date(s: &str) -> Option<Date> {
 }
 
 /// The keywords the search box knows (what comes before a `:`), in small letters.
-const KEYWORDS: &[&str] = &[
+pub(crate) const KEYWORDS: &[&str] = &[
     "from",
     "to",
     "cc",
@@ -411,30 +564,48 @@ fn starts_with_keyword(token: &str) -> bool {
     body.split_once(':').is_some_and(|(key, _)| is_keyword(key))
 }
 
+/// How the token standing at `at` in `s` begins: with a `-` before any quote (it is left out),
+/// and with a quote after that. What is in quotes is text, even when it reads like a keyword or a
+/// `-`: `"is:unread"` looks for those words (#367).
+fn opening(s: &str, at: &Range<usize>) -> (bool, bool) {
+    let raw = s.get(at.clone()).unwrap_or_default();
+    let rest = raw.strip_prefix('-').filter(|rest| !rest.is_empty());
+    (rest.is_some(), rest.unwrap_or(raw).starts_with('"'))
+}
+
+/// Whether the token at `at` is a keyword's value or a keyword of its own: one in quotes never is.
+fn starts_with_keyword_at(s: &str, token: &str, at: &Range<usize>) -> bool {
+    !opening(s, at).1 && starts_with_keyword(token)
+}
+
 impl Query {
     pub fn parse(s: &str) -> Query {
         let mut terms = Vec::new();
-        let mut tokens = tokens(s).into_iter().map(|(token, _)| token).take(MAX_TERMS).peekable();
-        while let Some(token) = tokens.next() {
-            let (negate, body) = match token.strip_prefix('-') {
-                Some(rest) if !rest.is_empty() => (true, rest),
-                _ => (false, token.as_str()),
-            };
+        let mut tokens = tokens(s).into_iter().take(MAX_TERMS).peekable();
+        while let Some((token, at)) = tokens.next() {
+            let (negate, quoted) = opening(s, &at);
+            let body = if negate { token.strip_prefix('-').unwrap_or(&token) } else { token.as_str() };
             // `from: stuart` is `from:stuart`, as Outlook reads it: a keyword with nothing after
             // its colon takes what comes next. With nothing next (the owner is still typing it),
             // or another keyword, it asks for nothing (#194).
             let joined;
             let body = match body.strip_suffix(':') {
-                Some(key) if is_keyword(key) => match tokens.next_if(|next| !starts_with_keyword(next)) {
-                    Some(value) => {
-                        joined = format!("{body}{value}");
-                        joined.as_str()
+                Some(key) if !quoted && is_keyword(key) => {
+                    match tokens.next_if(|(next, at)| !starts_with_keyword_at(s, next, at)).map(|(value, _)| value) {
+                        Some(value) => {
+                            joined = format!("{body}{value}");
+                            joined.as_str()
+                        }
+                        None => continue,
                     }
-                    None => continue,
-                },
+                }
                 _ => body,
             };
-            let kind = keyword_kind(body).unwrap_or_else(|| Kind::Words { fields: words::ALL, words: words::words(body), raw: raw_words(body) });
+            let kind = keyword_kind(body).filter(|_| !quoted).unwrap_or_else(|| Kind::Words {
+                fields: words::ALL,
+                words: words::words(body),
+                raw: raw_words(body),
+            });
             // Text with no words in it asks for nothing.
             if !kind.asks_nothing() {
                 terms.push(Term { negate, kind });
