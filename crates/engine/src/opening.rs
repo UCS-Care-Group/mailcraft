@@ -337,7 +337,9 @@ pub fn blocked_message(name: &str) -> String {
 /// name seen is the name written.
 pub fn file_name(name: &str) -> String {
     let leaf = name.rsplit(['/', '\\']).next().unwrap_or_default();
-    let out = clean(leaf);
+    // Explorer reads a comma as the end of an argument and a semicolon is no better: neither
+    // stays in a name an opener may be handed. (Names of exported files keep them, see [`export_name`].)
+    let out = clean(&leaf.replace([',', ';'], "_"));
     if out.is_empty() { "attachment".to_string() } else { out }
 }
 
@@ -365,7 +367,7 @@ pub fn export_name(stem: &str, ext: &str) -> String {
 
 /// [`file_name`] of a name with no folders in it, which may come out empty.
 fn clean(leaf: &str) -> String {
-    let cleaned: String = leaf.chars().map(|c| if c.is_control() || "\\/:*?\"<>|,;".contains(c) || is_invisible(c) { '_' } else { c }).collect();
+    let cleaned: String = leaf.chars().map(|c| if c.is_control() || "\\/:*?\"<>|".contains(c) || is_invisible(c) { '_' } else { c }).collect();
     let trimmed = cleaned.trim_start_matches(['.', '-', ' ', '_', '~']).trim_end_matches(['.', ' ']);
     let mut out = shorten(trimmed);
     let stem_lower = out.split('.').next().unwrap_or_default().trim_end().to_lowercase();
