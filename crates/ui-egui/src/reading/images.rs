@@ -39,6 +39,9 @@ pub const MAX_TEXTURE_PIXELS: u64 = 8_000_000;
 pub const CACHE_PICTURES: usize = 64;
 pub const CACHE_BYTES: usize = 160 * 1024 * 1024;
 
+/// Seconds without a picture being shown after which the textures are let go.
+const IDLE_SECONDS: f64 = 5.0;
+
 /// Textures are made in steps of this many pixels of width.
 const WIDTH_STEP: u32 = 64;
 
@@ -279,8 +282,11 @@ pub struct Pictures {
     entries: Vec<Entry>,
     /// The frame in which a picture was last decoded.
     decoded_in: Option<u64>,
-    /// The frame in which a texture was last asked for.
-    asked_in: Option<u64>,
+    /// The time (egui's, in seconds) at which a texture was last asked for.
+    asked_at: Option<f64>,
+    /// How many pictures have been decoded.
+    #[cfg(test)]
+    decodes: usize,
     /// Pictures from the web, by their address as the message wrote it.
     remote: HashMap<Arc<str>, RemoteEntry>,
 }
@@ -363,7 +369,7 @@ impl Pictures {
     /// is not made: the picture is a stand-in.
     pub fn texture(&mut self, ctx: &egui::Context, data: &Arc<Vec<u8>>, shown: egui::Vec2) -> Picture {
         let frame = frame(ctx);
-        self.asked_in = Some(frame);
+        self.asked_at = Some(ctx.input(|i| i.time));
         let busy = self.decoded_in == Some(frame);
         if self.entry(data, frame).is_none() {
             return Picture::Failed;
@@ -415,17 +421,34 @@ impl Pictures {
             }
         };
         self.decoded_in = Some(frame);
+        #[cfg(test)]
+        {
+            self.decodes += 1;
+        }
         picture
     }
 
-    /// At the end of a frame: when no picture was asked for in it (the pane shows none, or no
-    /// message), let go of every texture. They are made again when wanted.
+    /// At the end of a frame: once no picture has been asked for for [`IDLE_SECONDS`] (no message
+    /// with pictures is shown), let go of every texture; they are made again when wanted. Until
+    /// then the cache is bounded by [`CACHE_BYTES`] and [`CACHE_PICTURES`] alone, so scrolling
+    /// away from a picture and back does not decode it again. Nothing repaints an idle window, so
+    /// one is asked for when the time is up.
     pub fn release_unseen(&mut self, ctx: &egui::Context) {
-        if self.asked_in != Some(frame(ctx)) {
+        let now = ctx.input(|i| i.time);
+        if self.release_at(now) {
+            ctx.request_repaint_after(std::time::Duration::from_secs_f64(IDLE_SECONDS + 1.0));
+        }
+    }
+
+    /// [`Pictures::release_unseen`] at the time `now`; whether textures are still held.
+    fn release_at(&mut self, now: f64) -> bool {
+        let idle = self.asked_at.is_none_or(|at| now - at > IDLE_SECONDS);
+        if idle {
             for entry in &mut self.entries {
                 entry.texture = None;
             }
         }
+        !idle && self.entries.iter().any(|e| e.texture.is_some())
     }
 
     /// Forget the pictures shown longest ago while there are too many or they take too much.
@@ -448,6 +471,19 @@ impl Pictures {
     #[cfg(test)]
     pub fn counts(&self) -> (usize, usize) {
         (self.entries.len(), self.entries.iter().filter(|e| e.texture.is_some()).count())
+    }
+
+    /// How many pictures have been decoded, and the time of the last ask, for a test to move.
+    #[cfg(test)]
+    pub fn decodes(&self) -> usize {
+        self.decodes
+    }
+
+    /// [`Pictures::release_unseen`] as of `seconds` after the last picture was asked for.
+    #[cfg(test)]
+    pub fn release_after(&mut self, seconds: f64) {
+        let at = self.asked_at.unwrap_or(0.0);
+        self.release_at(at + seconds);
     }
 
     /// The bytes the textures of the pictures take.

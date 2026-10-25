@@ -114,13 +114,33 @@ fn a_picture_is_given_a_texture_for_the_size_it_is_shown_at() {
 }
 
 #[test]
-fn textures_are_let_go_when_the_pane_shows_no_picture() {
+fn pictures_scrolled_out_and_back_are_not_decoded_again() {
+    let (mut harness, id, plain) = window(message(10, 64, 64, 32));
+    harness.state_mut().execute("mail.select", json!({"id": id})).unwrap();
+    harness.run_steps(40);
+    let (_, decoded, _) = held(&harness);
+    let decodes = Pictures::of(&harness.ctx).lock().unwrap().decodes();
+    assert!(decoded > 0 && decodes >= decoded);
+    // Frames with no picture in them (a gap in a long message, or another message) keep them.
+    harness.state_mut().execute("mail.select", json!({"id": plain})).unwrap();
+    harness.run_steps(10);
+    assert_eq!(held(&harness).1, decoded);
+    harness.state_mut().execute("mail.select", json!({"id": id})).unwrap();
+    harness.run_steps(10);
+    assert_eq!(held(&harness).1, decoded);
+    assert_eq!(Pictures::of(&harness.ctx).lock().unwrap().decodes(), decodes);
+}
+
+#[test]
+fn textures_are_let_go_when_no_picture_has_been_shown_for_a_while() {
     let (mut harness, id, plain) = window(message(10, 64, 64, 32));
     harness.state_mut().execute("mail.select", json!({"id": id})).unwrap();
     harness.run_steps(40);
     assert!(held(&harness).1 > 0);
     harness.state_mut().execute("mail.select", json!({"id": plain})).unwrap();
     harness.run_steps(4);
+    assert!(held(&harness).1 > 0);
+    Pictures::of(&harness.ctx).lock().unwrap().release_after(6.0);
     assert_eq!(held(&harness).1, 0);
     assert_eq!(held(&harness).2, 0);
     // And they come back with the message.
