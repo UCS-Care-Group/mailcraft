@@ -79,10 +79,12 @@ const MAC_LIGHTS_LEFT: f32 = 10.0;
 /// Where title-bar content starts to the right of the traffic lights.
 pub const MAC_CONTENT_LEFT: f32 = MAC_LIGHTS_LEFT + 2.0 * MAC_LIGHT_PITCH + MAC_LIGHT + (MAC_TITLE_BAR - MAC_LIGHT) / 2.0;
 
-/// The search box: typing filters the message list as you go; Escape clears it.
+/// The search box: typing filters the message list as you go; Escape clears it. In mail, a list
+/// under it offers what the word being typed may be (#308; `search_suggest`), and Escape closes
+/// that first.
 fn search_box(app: &mut MailApp, ui: &mut Ui, rect: Rect) {
     let t = Tokens::get(ui.ctx());
-    let id = ui.scope_id().with("search_box");
+    let id = search_box_id();
     let focused = ui.memory(|m| m.has_focus(id));
     // A box in the ribbon's colour on the window's, with an edge that shows on both: a bright one
     // on the near-black of the dark window, a quiet one on the light.
@@ -99,6 +101,8 @@ fn search_box(app: &mut MailApp, ui: &mut Ui, rect: Rect) {
     if !focused && app.search_text != app.session.view.search {
         app.search_text = app.session.view.search.clone();
     }
+    // A dialog over the window takes the keys, Escape first.
+    let free = crate::keys::takes_commands(app);
     // The scope menu is about mail folders, so People (which searches contacts) goes without it.
     let mail_search = app.session.view.module != Module::People;
     let scope_w = if mail_search { 104.0 } else { 0.0 };
@@ -113,6 +117,17 @@ fn search_box(app: &mut MailApp, ui: &mut Ui, rect: Rect) {
     let font = if rect.height() >= 30.0 { regular(13.0) } else { TypeRung::Control.regular() };
     // Keywords as pills (#196), drawn under the text in a place kept for them.
     let cursor = if focused { egui::TextEdit::load_state(ui.ctx(), id).and_then(|s| s.cursor.char_range()).map(|r| r.primary.index.0) } else { None };
+    // A held Enter or Tab is one press in the box (#391, #393): its repeats would take one
+    // suggestion after another, or leave the box once one is taken.
+    if focused {
+        ui.input_mut(|i| crate::keys::drop_repeats(i, &[egui::Key::Enter, egui::Key::Tab]));
+    }
+    // What the word being typed may be (#308), for mail: the list's keys come before the box's.
+    let mut suggesting = crate::search_suggest::Suggesting::load(ui.ctx());
+    let over = suggesting.pointer_over(ui);
+    // With a dialog open, the list is not drawn: it would be on top of the dialog.
+    let open = mail_search && free && suggesting.is_open(&app.search_text, focused || over);
+    let mut take = if open && focused && free { suggesting.keys(ui, &app.search_text) } else { None };
     let pill_slot = ui.painter().add(egui::Shape::Noop);
     let mut drawn: Vec<crate::search_pills::Pill> = Vec::new();
     let mut layouter = |ui: &Ui, text: &dyn egui::TextBuffer, _wrap: f32| {
@@ -126,6 +141,8 @@ fn search_box(app: &mut MailApp, ui: &mut Ui, rect: Rect) {
         .font(font.clone())
         .align(egui::Align2::LEFT_CENTER)
         .desired_width(edit_rect.width())
+        // Tab is for the list while it shows. Escape is always the box's.
+        .event_filter(list_keys(open))
         .layouter(&mut layouter);
     let output = ui
         .scope_builder(egui::UiBuilder::new().max_rect(edit_rect).layout(egui::Layout::centered_and_justified(egui::Direction::TopDown)), |ui| {
@@ -135,6 +152,11 @@ fn search_box(app: &mut MailApp, ui: &mut Ui, rect: Rect) {
     let shapes = crate::search_pills::shapes(&output.galley, output.galley_pos, &drawn, &t);
     ui.painter().with_clip_rect(output.text_clip_rect).set(pill_slot, egui::Shape::Vec(shapes));
     let resp = output.response.response;
+    // The box gave up the keyboard without a click (Enter, Shift+Tab): the list closes too. After a
+    // click the list stays for that frame, so a click on it can still take a suggestion.
+    if resp.lost_focus() && !ui.input(|i| i.pointer.any_down() || i.pointer.any_released()) {
+        suggesting.clear();
+    }
     if std::mem::take(&mut app.search_focus) {
         resp.request_focus();
     }
@@ -145,12 +167,48 @@ fn search_box(app: &mut MailApp, ui: &mut Ui, rect: Rect) {
             _ => app.execute("view.search", json!({"query": text})),
         };
     }
-    if focused && ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+    // Every Escape is the box's while it has the keyboard, a held one's repeats too, so that nothing
+    // drawn after it does something with the same key (a selection in the message being read
+    // stays). Only a press clears the search: the repeats of one that closed a dialog leave it.
+    let pressed = focused && free && ui.input_mut(|i| crate::keys::take_once(i, egui::Key::Escape));
+    if pressed {
         app.search_text.clear();
         let _ = app.execute("view.clearSearch", json!({}));
         let _ = app.execute("people.search", json!({"query": ""}));
         resp.surrender_focus();
     }
+    if open {
+        take = suggesting.show(ui, rect).or(take);
+    } else {
+        suggesting.hidden();
+    }
+    let mut cursor = output.cursor_range.map(|r| r.primary.index.0);
+    // Only what was offered for the search as it is now: not for one this frame's typing changed.
+    let fresh = app.search_text == suggesting.for_text;
+    if let Some(s) = take.filter(|_| fresh).and_then(|i| suggesting.items.get(i).cloned()) {
+        let (text, at) = crate::search_suggest::taken(&app.search_text, &s);
+        app.search_text = text.clone();
+        let _ = app.execute("view.search", json!({"query": text}));
+        // Go on typing after it: the keyboard stays in the box.
+        let mut state = egui::TextEdit::load_state(ui.ctx(), id).unwrap_or_default();
+        state.cursor.set_char_range(Some(egui::text::CCursorRange::one(egui::text::CCursor::new(at))));
+        state.store(ui.ctx(), id);
+        ui.memory_mut(|m| m.request_focus(id));
+        cursor = Some(at);
+    }
+    match cursor {
+        Some(at) if mail_search && (resp.has_focus() || ui.memory(|m| m.has_focus(id))) => {
+            suggesting.offer(&app.search_text, at, &app.session.mailbox.categories);
+            // The keys of a list that shows from the next frame are its own from that frame on.
+            let next = free && suggesting.is_open(&app.search_text, true);
+            ui.memory_mut(|m| m.set_focus_lock_filter(id, list_keys(next)));
+        }
+        _ if suggesting.pointer_over(ui) => {}
+        // The box was left: an Escape in it is forgotten, so the list shows again on coming back.
+        _ if !ui.memory(|m| m.has_focus(id)) => suggesting = crate::search_suggest::Suggesting::default(),
+        _ => suggesting.clear(),
+    }
+    suggesting.store(ui.ctx());
     if !mail_search {
         return;
     }
@@ -172,6 +230,18 @@ fn search_box(app: &mut MailApp, ui: &mut Ui, rect: Rect) {
             }
         }
     });
+}
+
+/// The search box's own keys: the arrows, and Tab while the list under it shows. Escape is always
+/// the box's: it closes the list or clears the search. It never reaches the window, where it would
+/// close a message being written (#365).
+fn list_keys(open: bool) -> egui::EventFilter {
+    egui::EventFilter { horizontal_arrows: true, vertical_arrows: true, tab: open, escape: true }
+}
+
+/// The search box, for the window's keys (`keys.rs`).
+pub(crate) fn search_box_id() -> egui::Id {
+    egui::Id::unique("search_box")
 }
 
 pub fn title_bar(app: &mut MailApp, ui: &mut Ui) {
@@ -308,7 +378,7 @@ pub fn status_bar(app: &mut MailApp, ui: &mut Ui) {
                 let st = |ui: &mut Ui, s: &str, color: egui::Color32| st_most(ui, s, color, f32::INFINITY);
                 match app.session.view.module {
                     Module::Mail => {
-                        let shown = app.session.rows().len();
+                        let shown = mailcraft_engine::list::listed(&app.session.rows());
                         let folder = app.session.view.folder;
                         st(ui, &tln!(shown, "{n} item", "{n} items"), t.text_dim);
                         let unread = app.session.mailbox.unread_count(folder);
@@ -520,6 +590,10 @@ pub fn pane_title(ui: &mut Ui, title: &str, detail: &str) {
         );
     }
 }
+
+#[cfg(test)]
+#[path = "search_box_tests.rs"]
+mod search_box_tests;
 
 #[cfg(test)]
 mod tests {

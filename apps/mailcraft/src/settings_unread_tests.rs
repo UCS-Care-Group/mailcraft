@@ -97,3 +97,58 @@ fn a_file_that_cant_be_set_aside_is_left_in_place() {
     assert_eq!(unread, Some(SettingsUnread::LeftInPlace));
     assert_eq!(std::fs::read_to_string(&path).unwrap(), "{broken");
 }
+
+/// A dangling link on a name must not be replaced: the next free name is used.
+#[cfg(unix)]
+#[test]
+fn a_dangling_link_on_a_name_is_not_replaced() {
+    let s = Scratch::new("dangling");
+    std::os::unix::fs::symlink(s.0.join("nowhere"), s.0.join("ui.json.damaged")).unwrap();
+    let path = s.file("ui.json", "{broken");
+    assert_eq!(read_prefs(&path).1, Some(SettingsUnread::SetAside("ui.json.damaged-2".into())));
+    assert!(std::fs::symlink_metadata(s.0.join("ui.json.damaged")).unwrap().file_type().is_symlink());
+    assert!(!s.0.join("nowhere").exists());
+}
+
+/// Past the cap the oldest copy is replaced, and settings go on being saved.
+#[test]
+fn past_the_cap_the_oldest_copy_is_replaced() {
+    let s = Scratch::new("cap");
+    for n in 1..=MAX_DAMAGED_COPIES {
+        let name = if n == 1 { "ui.json.damaged".to_string() } else { format!("ui.json.damaged-{n}") };
+        s.file(&name, &format!("copy {n}"));
+        let when = std::time::UNIX_EPOCH + std::time::Duration::from_secs(1_000_000 + (MAX_DAMAGED_COPIES - n) as u64);
+        std::fs::File::options().write(true).open(s.0.join(&name)).unwrap().set_modified(when).unwrap();
+    }
+    let path = s.file("ui.json", "{newest");
+    let last = format!("ui.json.damaged-{MAX_DAMAGED_COPIES}");
+    // The highest number is the oldest here.
+    let unread = read_prefs(&path).1;
+    assert_eq!(unread, Some(SettingsUnread::SetAside(last.clone())));
+    assert_eq!(std::fs::read_to_string(s.0.join(&last)).unwrap(), "{newest");
+    assert!(!path.exists());
+    assert_eq!(names(&s.0).len(), MAX_DAMAGED_COPIES);
+}
+
+/// A name that is a folder is never replaced, and if every name is such, the file stays.
+#[test]
+fn nothing_is_replaced_that_is_not_a_plain_file() {
+    let s = Scratch::new("dirs");
+    for n in 1..=MAX_DAMAGED_COPIES {
+        let name = if n == 1 { "ui.json.damaged".to_string() } else { format!("ui.json.damaged-{n}") };
+        std::fs::create_dir(s.0.join(name)).unwrap();
+    }
+    let path = s.file("ui.json", "{broken");
+    assert!(set_aside(&path).is_err());
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), "{broken");
+}
+
+/// A settings file that can't be read at all (here a folder) says so, not "couldn't be renamed".
+#[test]
+fn a_file_that_cant_be_read_is_said_so() {
+    let s = Scratch::new("unreadable");
+    let path = s.0.join("ui.json");
+    std::fs::create_dir(&path).unwrap();
+    assert_eq!(read_prefs(&path).1, Some(SettingsUnread::CouldntRead));
+    assert!(path.is_dir());
+}

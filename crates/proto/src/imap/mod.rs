@@ -3,13 +3,16 @@
 //! An IMAP4rev1 client (RFC 3501) with the commands a two-way synchronisation needs: reading
 //! mailboxes, and changing flags, moving, copying, removing and filing messages (UID MOVE of
 //! RFC 6851; UID EXPUNGE and the `COPYUID` answer of RFC 4315). Special-use mailbox flags
-//! (RFC 6154) come through in [`Mailbox::flags`] as the server wrote them. Signing in is LOGIN
-//! with a password, or AUTHENTICATE XOAUTH2 with an OAuth access token.
+//! (RFC 6154) come through in [`Mailbox::flags`] as the server wrote them. Password sign-in prefers
+//! advertised SASL PLAIN, with LOGIN as a fallback when PLAIN is not offered; OAuth uses XOAUTH2.
 //!
 //! There is no plain EXPUNGE and no CLOSE here, on purpose: both remove every message marked
 //! `\Deleted` in the mailbox, also those another program marked.
 
 mod parse;
+mod password;
+#[cfg(test)]
+mod password_tests;
 mod utf7;
 
 use std::collections::{BTreeMap, HashSet};

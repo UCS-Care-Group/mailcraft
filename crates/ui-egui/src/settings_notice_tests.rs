@@ -37,3 +37,10 @@ fn nothing_is_said_when_the_settings_were_read() {
     let w = window(None);
     assert!(w.query_by_label_contains("settings file").is_none());
 }
+
+#[test]
+fn a_file_that_couldnt_be_read_is_not_said_to_be_unrenamable() {
+    let w = window(Some(SettingsUnread::CouldntRead));
+    assert!(w.query_by_label_contains("It was left as it is").is_some());
+    assert!(w.query_by_label_contains("couldn't be renamed").is_none());
+}

@@ -3,7 +3,7 @@
 //! The window without a window: what `run` does around commands, and frames laid out headlessly in
 //! every module, page and dialog (nothing may panic, whatever is on screen).
 
-use mailcraft_engine::Session;
+use mailcraft_engine::{PeopleSort, Session, TaskSort};
 use serde_json::{Value, json};
 
 use crate::{MailApp, Services, UiState};
@@ -158,13 +158,26 @@ fn saved_settings_come_back_and_bad_ones_are_tamed() {
     a.execute("ui.theme", json!({"value": "dark"})).unwrap();
     a.execute("view.conversations", json!({"value": true})).unwrap();
     a.execute("view.search", json!({"query": "secret"})).unwrap();
+    a.execute("people.arrange", json!({"by": "categories"})).unwrap();
+    a.execute("tasks.arrange", json!({"by": "categories"})).unwrap();
     let saved = serde_json::to_string(&a.prefs()).unwrap();
+    let fields = serde_json::to_value(a.prefs()).unwrap();
+    assert_eq!((&fields["view"]["peopleSort"], &fields["view"]["taskSort"]), (&json!("categories"), &json!("categories")));
     // What was searched for is not written down.
     assert!(!saved.contains("secret"));
     let mut b = app();
     b.apply_prefs(serde_json::from_str(&saved).unwrap());
     assert_eq!(b.ui.theme, crate::theme::Appearance::Dark);
     assert!(b.session.view.conversations);
+    // How People and Tasks were arranged carries over too (#327).
+    assert_eq!((b.session.view.people_sort, b.session.view.task_sort), (PeopleSort::Categories, TaskSort::Categories));
+    // A file from before they were kept starts them on Name and Due Date.
+    let mut older = fields.clone();
+    older["view"].as_object_mut().unwrap().retain(|k, _| k != "peopleSort" && k != "taskSort");
+    let mut c = app();
+    c.apply_prefs(serde_json::from_value(older).unwrap());
+    assert_eq!((c.session.view.people_sort, c.session.view.task_sort), (PeopleSort::Name, TaskSort::DueDate));
+    assert!(c.session.view.conversations);
     // A hand-edited file with nonsense in it still loads.
     let odd: UiState = serde_json::from_value(
         json!({"theme": 7_i32.to_string(), "interfaceSize": "huge", "folderPaneWidth": -5.0, "listWidth": 1e30, "tab": 3, "nonsense": true}),
@@ -252,6 +265,7 @@ fn everything_lays_out_without_panicking() {
         "account",
         "categories",
         "rules",
+        "folderProperties",
     ];
     for theme in ["light", "dark"] {
         for size in [(1280.0, 800.0), (320.0, 200.0)] {
@@ -1935,6 +1949,16 @@ fn copy_diagnostics_takes_the_hosts_report_or_says_what_it_can() {
     assert!(text.starts_with("the host's report") && text.contains("Send/Receive timings"), "{text}");
 }
 
+/// Discard on a draft a JMAP account's server has keeps it in Drafts (M6), and the status bar says
+/// why, in the words the Move menu greys with; a draft that went says nothing.
+#[test]
+fn discarding_a_draft_that_stays_says_why() {
+    let why = mailcraft_model::NOT_MOVING_YET;
+    let said = crate::feedback("compose.discard", &json!({"draftDeleted": false, "draft": 4, "stays": why})).unwrap();
+    assert!(said.starts_with("The draft stays in Drafts.") && said.ends_with(why), "{said}");
+    assert_eq!(crate::feedback("compose.discard", &json!({"draftDeleted": true})), None);
+}
+
 #[test]
 fn opening_a_damaged_mailbox_file_says_what_was_left_out() {
     let said = |v: Value| crate::feedback("file.open", &v);
@@ -2149,9 +2173,10 @@ fn an_account_a_newer_version_added_is_said_to_be_one_and_left_out_of_send_recei
     assert!(h.state().ui.backstage && h.state().session.mailbox.account(newer).is_some());
 }
 
-/// A JMAP account (M6): no Send/Receive of the window takes it in until the engine has its
-/// commands. Asked for by name, it is refused with its reason, nothing is handed to the host and
-/// nothing is asked of the owner; the accounts beside it go on as before.
+/// A JMAP account (M6): no Send/Receive of the window takes it in until the window has a runner
+/// for one. Asked for by name, it is refused with its reason, nothing is handed to the host and
+/// nothing is asked of the owner; the accounts beside it go on as before. Deleting its mail for
+/// good doesn't say it goes from the server: nothing done here reaches a JMAP server yet.
 #[test]
 fn a_jmap_account_is_left_out_of_send_receive_until_one_can_be_run() {
     let mut a = app();
@@ -2178,6 +2203,11 @@ fn a_jmap_account_is_left_out_of_send_receive_until_one_can_be_run() {
     // A Send/Receive of every account is the IMAP account's alone.
     a.execute("ui.sync", json!({"password": "not-a-real-password"})).unwrap();
     assert_eq!(*handed.lock().unwrap(), ["ada@imap.example"]);
+    let inbox = a.session.mailbox.folder_of_kind(jmap, mailcraft_model::FolderKind::Inbox).unwrap();
+    let kept = mailcraft_model::Message { folder: inbox, subject: "Kept there".into(), ..Default::default() };
+    let kept = a.session.mailbox.add_message(kept).unwrap();
+    let ask = crate::dialogs::confirmation(&a, "mail.deletePermanently", &json!({"ids": [kept]})).unwrap();
+    assert_eq!(ask.text, "This message will be deleted for good.");
 }
 
 /// A noisy PNG far over a signature picture's cap.
@@ -2217,6 +2247,19 @@ fn signature_picture_over_the_cap_is_made_smaller() {
     assert!(p.data.len() <= MAX_PICTURE_BYTES);
     assert!(image::load_from_memory(&p.data).unwrap().width() <= u32::from(MAX_WIDTH));
     assert!(a.signature_note.as_ref().is_some_and(|n| !n.error));
+}
+
+/// #363: a signature takes the kinds of picture a message shows, never an icon or the bitmap one
+/// holds, which are decoded for a sender's picture alone.
+#[test]
+fn signature_picture_is_no_icon_or_bitmap() {
+    for format in [image::ImageFormat::Ico, image::ImageFormat::Bmp] {
+        let mut bytes = std::io::Cursor::new(Vec::new());
+        image::RgbaImage::from_pixel(16, 16, image::Rgba([0, 90, 200, 255])).write_to(&mut bytes, format).unwrap();
+        let mut a = signature_app();
+        crate::signatures::add_picture(&mut a, json!({"data": crate::files::base64_lite::encode(&bytes.into_inner()), "file": "logo.png"}));
+        assert!(a.session.signature_edit.as_ref().unwrap().signature.pictures().is_empty(), "{format:?}");
+    }
 }
 
 /// #270: a refusal shows on the Signatures page (the status bar is hidden behind File).

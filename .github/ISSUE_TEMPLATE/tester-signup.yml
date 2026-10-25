@@ -1,5 +1,5 @@
 name: Sign up to test
-description: Use MailCraft on your own mail and tell us what goes wrong. For the alpha now and the beta later.
+description: Use MailCraft on your own mail and tell us what goes wrong. For the public beta.
 title: "Tester: <your GitHub name>"
 labels: ["tester"]
 body:
@@ -8,16 +8,16 @@ body:
       value: |
         Thank you. This issue is **public**: don't write your email address, your organisation's name or anything from your mail here. Your GitHub name is enough; we'll reach you here.
 
-        **Alpha** is now: the builds on the [Releases page](https://github.com/UCS-Care-Group/mailcraft/releases), unsigned, and they can still get things wrong. What you do in MailCraft (moves, deletions, read marks) reaches your server. Keep Outlook or Outlook on the web to hand, and don't test on a mailbox you can't afford to have disturbed.
+        **The public beta** is now: the builds on the [Releases page](https://github.com/UCS-Care-Group/mailcraft/releases), not yet signed, and they can still get things wrong. What you do in MailCraft (moves, deletions, read marks) reaches your server. Keep Outlook or Outlook on the web to hand, and don't test on a mailbox you can't afford to have disturbed.
 
-        **Beta** is later: at least 5 testers, each on a Microsoft account, using MailCraft on 14 working days (Monday to Friday) on at least 2 devices, with signed builds. See [ROADMAP.md](https://github.com/UCS-Care-Group/mailcraft/blob/main/ROADMAP.md).
+        **Leaving beta** takes at least 5 testers, each on a Microsoft account, using MailCraft on 14 working days (Monday to Friday) on at least 2 devices with nothing lost, and signed builds. See [ROADMAP.md](https://github.com/UCS-Care-Group/mailcraft/blob/main/ROADMAP.md).
   - type: checkboxes
     id: phase
     attributes:
       label: When can you test?
       options:
-        - label: Alpha, now
-        - label: Beta, when it starts (14 working days, about three weeks)
+        - label: Now, as much or as little as I like
+        - label: The beta run: 14 working days (about three weeks) on at least 2 devices
   - type: checkboxes
     id: platforms
     attributes:
@@ -40,7 +40,7 @@ body:
     id: account
     attributes:
       label: Which kind of mail account?
-      description: Beta is for Microsoft accounts. Other accounts are welcome in the alpha.
+      description: The beta is for Microsoft accounts. Other accounts are welcome too, outside the beta run.
       multiple: true
       options:
         - Personal Microsoft account (Outlook.com, Hotmail, Live)

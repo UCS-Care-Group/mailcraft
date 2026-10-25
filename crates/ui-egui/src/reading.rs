@@ -25,10 +25,15 @@
 
 pub(crate) mod colors;
 pub(crate) mod images;
+#[cfg(test)]
+mod images_tests;
 mod invitation;
 mod layout;
 pub(crate) mod remote;
 mod select;
+mod sharing;
+#[cfg(test)]
+mod sharing_tests;
 #[cfg(test)]
 mod tests;
 mod view;
@@ -133,6 +138,8 @@ pub fn show_message(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Pla
     });
     // A meeting that came with the message: what it is, and the ways to answer it.
     invitation::bar(app, ui, m, place);
+    // A calendar that was shared with the owner, and the way to open it (#70).
+    sharing::bar(app, ui, m);
     // Only its headers and a preview are here yet (R3.2): say so, and why.
     if m.unfetched {
         let t = Tokens::get(ui.ctx());
@@ -320,7 +327,7 @@ fn header(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Place, pictur
         // Who and when.
         ui.horizontal(|ui| {
             let (r, _) = ui.allocate_exact_size(vec2(36.0, 36.0), Sense::hover());
-            crate::widgets::avatar(ui, r.center(), 17.0, &m.from);
+            crate::sender_images::avatar(app, ui, r.center(), 17.0, m, &m.from);
             ui.vertical(|ui| {
                 ui.spacing_mut().item_spacing = vec2(0.0, 1.0);
                 let when = crate::dates::header_label(m.date, app.session.offset_at(m.date), app.session.prefs.twelve_hour);

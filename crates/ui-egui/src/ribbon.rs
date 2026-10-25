@@ -8,7 +8,7 @@
 //! fit first loses its label and then goes behind `…` ([`plan`]).
 
 use egui::{Align2, Rect, Sense, Shape, Stroke, Ui, pos2, vec2};
-use mailcraft_engine::{CalView, Filter, Module, Pane, SortBy, TaskFilter};
+use mailcraft_engine::{CalView, Filter, Module, Pane, PeopleSort, SortBy, TaskFilter, TaskSort};
 use mailcraft_model::{FolderKind, Id, Importance};
 use serde_json::{Value, json};
 
@@ -445,6 +445,8 @@ fn home_calendar(app: &MailApp) -> Tab {
             groups.push(g("Respond", answers));
         }
     }
+    // Somebody else's calendar, by their address (#70).
+    groups.push(g("Manage Calendars", vec![Item::big("calendar", "Open\nCalendar", "calendar.openShared", no()).at(4, 9)]));
     groups.push(g("Share", vec![Item::big("export", "Save\nCalendar", "file.exportCalendar", no()).at(5, 6)]));
     Tab::of(groups)
 }
@@ -638,7 +640,7 @@ fn message(app: &MailApp) -> Tab {
 }
 
 fn send_receive(app: &MailApp) -> Tab {
-    let note = if app.services.sync.is_none() {
+    let note = if !app.services.can_sync() {
         "This build can't connect to mail servers. Use the desktop app, or bring mail in with File › Import."
     } else if !app.session.enabled("sync.request") {
         "No account is connected to a mail server yet."
@@ -708,6 +710,7 @@ fn folder(app: &MailApp) -> Tab {
                 Item::big("import", "Import", "ui.import", no()).at(4, 5),
             ],
         ),
+        g("Properties", vec![Item::big("info", "Folder\nProperties", "folder.properties", no()).at(5, 5)]),
     ])
 }
 
@@ -953,9 +956,16 @@ fn menu_contents(ui: &mut Ui, app: &mut MailApp, menu: Menu) {
                 ui.label(tl!("Select a message first"));
                 return;
             }
-            folder_menu(ui, app, |app, folder| {
-                let _ = app.run("mail.move", json!({"folder": folder}));
-            });
+            // (Not mail a JMAP account's server has, which stays where it is for now: why, instead.)
+            let refused = app.session.registry.get("mail.move").and_then(|c| (c.enabled)(&app.session));
+            match refused {
+                Some(why) => {
+                    ui.label(tl!(why));
+                }
+                None => folder_menu(ui, app, |app, folder| {
+                    let _ = app.run("mail.move", json!({"folder": folder}));
+                }),
+            }
             ui.separator();
             ui.menu_button(tl!("Copy to Folder"), |ui| {
                 folder_menu(ui, app, |app, folder| {
@@ -1086,6 +1096,19 @@ fn menu_contents(ui: &mut Ui, app: &mut MailApp, menu: Menu) {
             ui.separator();
             let one = app.session.prefs.one_line;
             mi_check(ui, app, "Single Line", one, "view.oneLine", json!({"value": !one}));
+        }
+        // Tasks and People have their own arrangements.
+        Menu::ArrangeBy if app.session.view.module == Module::Tasks => {
+            let sort = app.session.view.task_sort;
+            for s in TaskSort::ALL {
+                mi_check(ui, app, s.label(), sort == s, "tasks.arrange", json!({"by": s}));
+            }
+        }
+        Menu::ArrangeBy if app.session.view.module == Module::People => {
+            let sort = app.session.view.people_sort;
+            for s in PeopleSort::ALL {
+                mi_check(ui, app, s.label(), sort == s, "people.arrange", json!({"by": s}));
+            }
         }
         Menu::ArrangeBy => {
             let sort = app.session.view.sort;

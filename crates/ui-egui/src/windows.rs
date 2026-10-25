@@ -370,6 +370,15 @@ fn event_state(window: &Open) -> Value {
 /// (`recurrence`), and does what its keys and its close button do (`do`): whatever asks the
 /// owner first there, asks first here. `freeBusy` hands the Scheduling Assistant an answer
 /// about the people invited in a server's place (a stand-in: nothing is asked of anybody).
+/// The people the appointment window `p` names (default: the one in front) is to invite, as the
+/// form has them now: for the question an agent's save or send is asked first.
+pub(crate) fn event_window_people(app: &MailApp, p: &Value) -> Vec<String> {
+    let wanted = p.get("window").and_then(Value::as_u64);
+    let form = app.windows.open.iter().rev().filter(|w| wanted.is_none_or(|id| w.id == id)).find_map(|w| w.what.form().and_then(Form::event));
+    let Some(meeting) = form.map(|f| f.meeting()) else { return Vec::new() };
+    meeting.required.iter().chain(meeting.optional.iter()).map(|a| a.email.clone()).collect()
+}
+
 fn event_window(app: &mut MailApp, p: &Value) -> Result<Value, String> {
     let wanted = match p.get("window").filter(|v| !v.is_null()) {
         Some(v) => Some(v.as_u64().ok_or_else(|| "`window` is a number".to_string())?),

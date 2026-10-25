@@ -46,6 +46,16 @@ pub enum Dialog {
         /// kept when that works, and removed again when it doesn't.
         checking: Option<Id>,
     },
+    /// The address of a person whose calendar is to be opened under a Microsoft account (#70):
+    /// it only collects the address, then runs `calendar.openShared`, and says how reading it
+    /// went ([`crate::open_shared`]).
+    OpenCalendar {
+        account: Id,
+        address: String,
+        error: String,
+        /// The address that was asked for and is being read.
+        reading: Option<String>,
+    },
     /// Where the selected text of the message being written leads (Ctrl+K).
     Link {
         url: String,
@@ -94,6 +104,9 @@ pub enum Dialog {
     ReportProblem(Box<crate::report_problem::Draft>),
     /// Propose New Time, Forward, or the list of what was proposed ([`crate::meeting_dialogs`]).
     Meeting(crate::meeting_dialogs::MeetingDialog),
+    /// A folder's or an account's Properties, with Folder Size… over them
+    /// ([`crate::folder_properties`]).
+    FolderProperties(Box<crate::folder_properties::FolderProperties>),
 }
 
 /// The tabs of About: the program, the people who made it, and the people who test it
@@ -129,7 +142,7 @@ impl Question {
     }
 
     /// One more way of going ahead.
-    fn or(mut self, action: &str, with: Value) -> Question {
+    pub(crate) fn or(mut self, action: &str, with: Value) -> Question {
         self.more.push((action.to_string(), with));
         self
     }
@@ -149,6 +162,7 @@ impl Dialog {
             Dialog::Folder { .. } => "folder",
             Dialog::GoToDate { .. } => "goToDate",
             Dialog::SharedMailbox { .. } => "sharedMailbox",
+            Dialog::OpenCalendar { .. } => "openCalendar",
             Dialog::Link { .. } => "link",
             Dialog::Password { .. } => "password",
             Dialog::DiscardDraft { .. } => "discardDraft",
@@ -162,6 +176,7 @@ impl Dialog {
             Dialog::Form(f) => f.name(),
             Dialog::ReportProblem(_) => "reportProblem",
             Dialog::Meeting(d) => d.name(),
+            Dialog::FolderProperties(_) => "folderProperties",
         }
     }
 
@@ -196,6 +211,17 @@ impl Dialog {
                 };
                 Dialog::SharedMailbox { account, address: String::new(), error: String::new(), checking: None }
             }
+            "openCalendar" => {
+                // Under the account named, else the first that can open one.
+                let can = |a: &&mailcraft_model::Account| crate::open_shared::can_open(a);
+                let mailbox = &app.session.mailbox;
+                let account = match id("account") {
+                    Some(id) => mailbox.account(id).filter(can)?.id,
+                    None => mailbox.accounts.iter().find(can)?.id,
+                };
+                let address = params.get("address").and_then(Value::as_str).unwrap_or_default().to_string();
+                Dialog::OpenCalendar { account, address, error: String::new(), reading: None }
+            }
             "link" => {
                 let c = app.session.compose.as_ref().filter(|c| c.format == mailcraft_engine::BodyFormat::Html)?;
                 let sel = c.body.selection();
@@ -222,9 +248,13 @@ impl Dialog {
     }
 }
 
-/// [`Dialog::open`], and the dialogs of a meeting beside it (`proposeTime`, `forwardMeeting`,
-/// `proposals`), which ask the engine what they are about.
+/// [`Dialog::open`], and the dialogs beside it that ask the engine what they are about: those of
+/// a meeting (`proposeTime`, `forwardMeeting`, `proposals`) and Folder Properties
+/// (`folderProperties`).
 pub(crate) fn open_dialog(app: &mut MailApp, name: &str, params: &Value) -> Option<Dialog> {
+    if name == "folderProperties" {
+        return crate::folder_properties::FolderProperties::open(app, params).map(|d| Dialog::FolderProperties(Box::new(d)));
+    }
     match crate::meeting_dialogs::MeetingDialog::open(name, app, params) {
         Some(dialog) => Some(Dialog::Meeting(dialog)),
         None => Dialog::open(name, app, params),
@@ -237,7 +267,9 @@ pub(crate) fn open_dialog(app: &mut MailApp, name: &str, params: &Value) -> Opti
 pub fn confirmation(app: &MailApp, id: &str, params: &Value) -> Option<Question> {
     let mb = &app.session.mailbox;
     let folder = |key: &str| params.get(key).and_then(Value::as_u64).or(Some(app.session.view.folder)).and_then(|f| mb.folder(f));
-    let on_server = |account: u64| mb.account(account).is_some_and(|a| a.kind.has_server());
+    // (Not a JMAP account's yet: nothing done here goes up to its server until the engine sends its
+    // changes, so nothing is removed there.)
+    let on_server = |account: u64| mb.account(account).is_some_and(|a| a.kind.has_server() && a.kind != mailcraft_model::AccountKind::Jmap);
     let server_too = |yes: bool| if yes { format!(" {}", tl!("They are removed from the mail server too.")) } else { String::new() };
     let question = |title: &str, text: String, action: &str| Some(Question::new(title, text, action, Value::Null));
     match id {
@@ -347,6 +379,20 @@ pub fn confirmation(app: &MailApp, id: &str, params: &Value) -> Option<Question>
                 text
             };
             question(tl!("Remove Account"), text, tl!("Remove"))
+        }
+        // A calendar opened by address is removed here only: the server's is not touched (#70).
+        "calendar.removeShared" => {
+            let address = match params.get("id").and_then(Value::as_u64).and_then(|c| mb.calendar(c)) {
+                Some(calendar) => mailcraft_model::remote::opened_address(&calendar.origin.id)?,
+                None => params.get("address").and_then(Value::as_str)?.to_string(),
+            };
+            let text = crate::i18n::fmt(
+                tl!(
+                    "The calendar of {address} and its events kept on this computer will be removed. Their calendar on the server is not touched, and you can open it again."
+                ),
+                &[("address", &address)],
+            );
+            question(tl!("Remove Shared Calendar"), text, tl!("Remove"))
         }
         // A shared mailbox is closed here only; what waits to go to it is named first (#70).
         "account.removeSharedMailbox" => {
@@ -709,8 +755,11 @@ pub fn input_dialog(id: &str, params: &Value) -> Option<&'static str> {
         // (Without an address, a script's `compose.link` removes the link; a person is asked.)
         "compose.link" if !has("url") => Some("link"),
         "account.add" if !has("email") => Some("account"),
+        "calendar.openShared" if !has("address") => Some("openCalendar"),
         "rules.list" => Some("rules"),
         "category.list" => Some("categories"),
+        // (What it answers is a table to look at.)
+        "folder.properties" => Some("folderProperties"),
         "ui.reportProblem" if !has("what") => Some("reportProblem"),
         _ => None,
     }
@@ -843,8 +892,12 @@ pub(crate) fn buttons(ui: &mut Ui, ok_label: &str, ok_enabled: bool) -> (bool, b
 
 pub fn show(app: &mut MailApp, ctx: &egui::Context) {
     let Some(mut dialog) = app.dialog.take() else { return };
-    let escape = ctx.input(|i| i.key_pressed(Key::Escape));
-    let enter = ctx.input(|i| i.key_pressed(Key::Enter));
+    // A held key is one press (#393): its repeats don't close the dialog or press OK. They may be
+    // left from a key that closed what was over the dialog. Escape's repeats are taken here, so
+    // nothing later gets them. Enter's are left, since a box of several lines in a dialog needs
+    // them for new lines.
+    let escape = ctx.input_mut(|i| crate::keys::take_once(i, Key::Escape));
+    let enter = ctx.input(|i| crate::keys::pressed_once(i, Key::Enter));
     let t = Tokens::get(ctx);
     // A scrim: what is behind the dialog is out of reach until it is answered.
     let screen = ctx.content_rect();
@@ -1029,6 +1082,52 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
                 }
             }
         }
+        Dialog::OpenCalendar { account, address, error, reading } => {
+            let mut submit = false;
+            let owner = app.session.mailbox.account(*account).map(|a| a.email.clone()).unwrap_or_default();
+            // (The answer to what was asked for: the calendar came in, or why not.)
+            if reading.is_some() && app.open_shared.waiting.is_none() {
+                match app.open_shared.outcome.take() {
+                    Some(Ok(_)) => close = true,
+                    Some(Err(why)) => *error = why,
+                    None => {}
+                }
+                *reading = None;
+            }
+            let open = window(ctx, tl!("Open Shared Calendar"), 420.0, |ui| {
+                ui.label(tl!("The e-mail address of the person whose calendar you want to open"));
+                let field = egui::TextEdit::singleline(address).hint_text("colleague@example.org").desired_width(f32::INFINITY);
+                let resp = ui.add_enabled(reading.is_none(), field);
+                if reading.is_none() && !resp.has_focus() && error.is_empty() {
+                    resp.request_focus();
+                }
+                ui.label(
+                    egui::RichText::new(crate::i18n::fmt(
+                        tl!("Read with {owner}'s sign-in, for as long as you keep it: the person has to have shared their calendar with you. It is kept on this computer only: it won't appear in Outlook or on your other devices. Microsoft asks you once to let MailCraft read other people's calendars."),
+                        &[("owner", &owner)],
+                    ))
+                    .color(t.text_dim)
+                    .size(11.0),
+                );
+                if reading.is_some() {
+                    ui.label(egui::RichText::new(tl!("Reading the calendar from Microsoft…")).color(t.text_dim));
+                }
+                if !error.is_empty() {
+                    ui.label(egui::RichText::new(error.as_str()).color(t.red));
+                }
+                let (ok, cancel) = buttons(ui, tl!("Open"), reading.is_none() && !address.trim().is_empty());
+                submit = reading.is_none() && (ok || enter) && !address.trim().is_empty();
+                close |= cancel;
+            });
+            close |= !open;
+            if submit && !close {
+                error.clear();
+                match app.begin_open_shared(*account, address.trim()) {
+                    Ok(()) => *reading = app.open_shared.waiting.as_ref().map(|(_, wanted)| wanted.clone()),
+                    Err(e) => *error = e,
+                }
+            }
+        }
         Dialog::Link { url, error, linked } => {
             let (mut submit, mut remove) = (false, false);
             let open = window(ctx, tl!("Insert Link"), 420.0, |ui| {
@@ -1069,9 +1168,12 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
         }
         Dialog::Password { account, password } => {
             let who = app.session.mailbox.account(*account).map(|a| a.email.clone()).unwrap_or_default();
+            // (A JMAP server may take a bearer token instead.)
+            let token = app.session.mailbox.account(*account).and_then(|a| a.jmap.as_ref()).is_some_and(|server| server.bearer);
+            let asked = if token { tl!("Access token for {account}") } else { tl!("Password for {account}") };
             let mut submit = false;
             let open = window(ctx, tl!("Sign In"), 380.0, |ui| {
-                ui.label(crate::i18n::fmt(tl!("Password for {account}"), &[("account", &who)]));
+                ui.label(crate::i18n::fmt(asked, &[("account", &who)]));
                 let resp = ui.add(egui::TextEdit::singleline(password).password(true).desired_width(f32::INFINITY));
                 if !resp.has_focus() {
                     resp.request_focus();
@@ -1287,6 +1389,20 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
         Dialog::Meeting(dialog) => {
             let mut done = false;
             let open = window(ctx, dialog.title(), dialog.width(), |ui| done = dialog.show(app, ui));
+            close |= !open || done;
+        }
+        // Folder Size, open over the tabs, takes Escape and Enter; Enter on a button that has the
+        // keyboard is that button's.
+        Dialog::FolderProperties(dialog) => {
+            let enter = enter && ctx.memory(|m| m.focused().is_none());
+            let over = dialog.size_open;
+            let mut done = false;
+            let title = dialog.title.clone();
+            let open = window(ctx, &title, crate::folder_properties::WIDTH, |ui| done = dialog.show(ui, enter && !over));
+            if over {
+                close = false;
+                done |= dialog.show_size(app, ctx, escape, enter);
+            }
             close |= !open || done;
         }
     }

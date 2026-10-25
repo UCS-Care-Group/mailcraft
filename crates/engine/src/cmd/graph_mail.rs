@@ -273,9 +273,9 @@ pub fn apply_graph_fetch(s: &mut Session, result: GraphFetchResult) -> CmdResult
         s.mailbox_changed();
     }
     let now = s.now();
-    let (waiting, large) = graph_down::not_fetched(&s.mailbox, account, now);
-    s.sync_progress.count_full(&s.mailbox, account, now);
-    let all = graph_down::kept_in_full(&s.mailbox, account, now);
+    let counts = graph_down::full_counts(&s.mailbox, account, now);
+    s.sync_progress.counted_as(&s.mailbox, account, counts, now);
+    let graph_down::FullCounts { all, waiting, large } = counts;
     Ok(
         json!({"fetched": taken, "missing": result.missing.len(), "failed": result.failed.len(), "waiting": waiting, "large": large, "all": all, "errors": result.errors, "offline": result.offline, "busyFor": result.busy_for}),
     )
@@ -301,13 +301,13 @@ fn apply(s: &mut Session, v: &Value) -> CmdResult {
     apply_graph_mail(s, result)
 }
 
-/// What taking in a Graph run changed.
+/// What taking in a Graph run changed (a JMAP run's listing too, [`super::jmap_mail`]).
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
-struct Taken {
-    pushed: usize,
-    added: usize,
-    updated: usize,
-    removed: usize,
+pub(super) struct Taken {
+    pub(super) pushed: usize,
+    pub(super) added: usize,
+    pub(super) updated: usize,
+    pub(super) removed: usize,
 }
 
 /// Take in what a Graph run brought back: what became of the changes sent, then the listing.
@@ -423,20 +423,19 @@ pub fn apply_graph_mail(s: &mut Session, result: GraphMailResult) -> CmdResult {
         (None, None, true) => result.inbox_pass.then(|| (SyncPhase::Inbox, String::new(), 0, 0)),
     };
     let folders = result.progress.as_ref().map(|p| (p.number, p.folders));
-    let piece = Piece {
-        step,
-        folders,
-        new: down.new,
-        sent,
-        problems: &errors,
-        // (The Inbox pass is never the end of the account's part of the run.)
-        last: !result.partial && !result.inbox_pass,
-        stopped: result.stopped,
-        timings: Some(&result.timings),
-    };
+    // (The Inbox pass is never the end of the account's part of the run.)
+    let last = !result.partial && !result.inbox_pass;
+    let piece = Piece { step, folders, new: down.new, sent, problems: &errors, last, stopped: result.stopped, timings: Some(&result.timings) };
     s.sync_progress.take(account, piece);
-    if !result.pages.is_empty() || result.whole {
-        s.sync_progress.count_full(&s.mailbox, account, s.now());
+    // Full messages: counting them goes through every message, so a run's pages are counted at
+    // most once a second while it goes on, and exactly when the account's part of it ends.
+    let now = s.now();
+    if result.whole || (last && !result.pages.is_empty()) {
+        s.sync_progress.count_full(&s.mailbox, account, now);
+    } else if !result.pages.is_empty() {
+        s.sync_progress.count_full_now_and_then(&s.mailbox, account, now);
+    } else if last {
+        s.sync_progress.count_full_if_due(&s.mailbox, account, now);
     }
     let summary = match (errors.first(), taken.pushed + taken.added + taken.updated + taken.removed) {
         (Some(e), _) => e.clone(),
@@ -561,8 +560,9 @@ fn change_done(mb: &mut Mailbox, account: Id, change: &FolderChange, outcome: &C
     }
 }
 
-/// Take in every folder the server listed, by server id.
-fn take_listing(mb: &mut Mailbox, account: Id, listing: &FolderListing, taken: &mut Taken) {
+/// Take in every folder the server listed, by server id (a JMAP server's too: its mailboxes are
+/// known by their ids as Graph's folders are).
+pub(super) fn take_listing(mb: &mut Mailbox, account: Id, listing: &FolderListing, taken: &mut Taken) {
     let mut listed: HashSet<&str> = HashSet::new();
     // The server's folders as this mailbox has them, by server id, as they are found or made.
     let mut here: HashMap<String, Id> =

@@ -7,17 +7,24 @@ pub mod account;
 mod answered_tests;
 pub mod calendar;
 pub mod calendar_extra;
+pub mod calendar_opened;
 pub mod calendar_settings;
 pub mod category;
 pub mod compose;
+#[cfg(test)]
+mod compose_trust_tests;
 pub mod edit;
 #[cfg(test)]
 mod favorites_tests;
 pub mod file;
 pub mod folder;
+#[cfg(test)]
+mod folder_properties_tests;
 pub mod format;
 #[cfg(test)]
 mod format_tests;
+#[cfg(test)]
+mod full_count_tests;
 pub mod graph_down;
 pub mod graph_drafts;
 pub mod graph_mail;
@@ -25,6 +32,8 @@ pub mod graph_place;
 pub mod graph_send;
 pub mod graph_switch;
 pub mod graph_up;
+mod jmap_down;
+pub mod jmap_mail;
 #[cfg(test)]
 mod jmap_sending_tests;
 pub mod mail;
@@ -55,7 +64,7 @@ pub mod zones;
 use mailcraft_model::{Id, Message};
 use serde_json::{Value, json};
 
-use crate::list::{Row, position};
+use crate::list::{Row, position, position_of};
 use crate::{CmdError, CmdResult, Registry, Session, p};
 
 /// The full registry.
@@ -70,6 +79,7 @@ pub fn registry() -> Registry {
     v.extend(view::specs());
     v.extend(calendar::specs());
     v.extend(calendar_extra::specs());
+    v.extend(calendar_opened::specs());
     v.extend(calendar_settings::specs());
     v.extend(zones::specs());
     v.extend(people::specs());
@@ -80,6 +90,7 @@ pub fn registry() -> Registry {
     v.extend(offline::specs());
     v.extend(signature::specs());
     v.extend(graph_mail::specs());
+    v.extend(jmap_mail::specs());
     v.extend(shared::specs());
     v.extend(graph_switch::specs());
     v.extend(graph_send::specs());
@@ -111,6 +122,15 @@ pub(crate) fn needs_message(s: &Session) -> Option<&'static str> {
     if s.sel.messages.is_empty() { Some("select a message first") } else { None }
 }
 
+/// Enabled only with messages selected that may move or go: none that a JMAP account's server has,
+/// which stays where it is until moves and deletions go up (M6).
+/// A mailbox without a JMAP account isn't walked: this runs every frame for the ribbon and menus.
+pub(crate) fn needs_movable(s: &Session) -> Option<&'static str> {
+    needs_message(s).or_else(|| {
+        (s.mailbox.has_jmap_account() && s.sel.messages.iter().any(|id| s.mailbox.stays_on_server(*id))).then_some(mailcraft_model::NOT_MOVING_YET)
+    })
+}
+
 /// Enabled only while a message is being written.
 pub(crate) fn needs_compose(s: &Session) -> Option<&'static str> {
     if s.compose.is_none() { Some("no message is being written") } else { None }
@@ -137,7 +157,17 @@ pub(crate) fn select_after_removal(s: &mut Session, before: &[Row], removed: &[I
     if !s.sel.messages.iter().any(|id| removed.contains(id)) {
         return;
     }
-    let first = removed.iter().filter_map(|id| position(before, *id)).min();
+    // The row the owner was on counts for the message it shows, which may be listed more than once.
+    let focus = s.sel.focus().map(|id| (id, s.sel.focus_copy()));
+    let first = removed
+        .iter()
+        .filter_map(|id| match focus {
+            Some((f, copy)) if f == *id => position_of(before, *id, copy),
+            _ => position(before, *id),
+        })
+        .min()
+        // Rows of removed messages above it are gone too, which moves it up.
+        .map(|i| i.saturating_sub(before.iter().take(i).filter(|r| removed.contains(&r.id)).count()));
     s.sel.messages.retain(|id| !removed.contains(id));
     if !s.sel.messages.is_empty() {
         return;

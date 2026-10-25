@@ -953,6 +953,31 @@ fn only_a_jmap_or_microsoft_account_has_server_ids() {
     assert_eq!([Local, Imap, Microsoft, Jmap, Unknown].map(AccountKind::sends_mail), [false, true, true, false, false]);
 }
 
+/// A JMAP account's server's mailboxes keep their names and places until changes go up: a rename
+/// or a move made here would stay here alone. A folder made here is renamed and moved as any.
+#[test]
+fn a_jmap_servers_folder_is_neither_renamed_nor_moved_until_changes_go_up() {
+    let mut mb = Mailbox::with_local_account("Ada Lovelace", "ada@example.org");
+    assert!(!mb.has_jmap_account());
+    let account = mb.add_account(Account { email: "ada@example.org".into(), kind: AccountKind::Jmap, ..Default::default() });
+    assert!(mb.has_jmap_account());
+    let theirs = mb.add_folder(account, None, "Projects").unwrap();
+    mb.folder_mut(theirs).unwrap().server = Some(ServerFolder { id: "M5".into(), name: "Projects".into(), ..Default::default() });
+    let ours = mb.add_folder(account, None, "Ours").unwrap();
+    let before = mb.clone();
+    assert!(mb.renaming_stays_on_server(theirs) && mb.folder_stays_on_server(theirs));
+    assert_eq!(mb.rename_folder(theirs, "Plans").unwrap_err().to_string(), FOLDERS_STAY_YET);
+    assert_eq!(mb.move_folder(theirs, Some(ours)).unwrap_err().to_string(), FOLDERS_STAY_YET);
+    assert_eq!(mb, before);
+    // Ours is renamed, goes inside theirs and back out (the server's folder isn't changed by it).
+    assert!(!mb.renaming_stays_on_server(ours) && !mb.folder_stays_on_server(ours));
+    mb.rename_folder(ours, "Mine").unwrap();
+    mb.move_folder(ours, Some(theirs)).unwrap();
+    mb.move_folder(ours, None).unwrap();
+    assert_eq!(mb.folder(ours).map(|f| (f.name.as_str(), f.parent)), Some(("Mine", None)));
+    assert_eq!(mb.folder(theirs), before.folder(theirs));
+}
+
 #[test]
 fn repair_trims_rules_to_the_most_a_mailbox_keeps() {
     let (mut mb, _) = mailbox();

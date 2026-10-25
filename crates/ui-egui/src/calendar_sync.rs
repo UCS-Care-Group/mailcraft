@@ -64,6 +64,18 @@ const WIDE_BEHIND: i64 = 31 * 86_400;
 const WIDE_AHEAD: i64 = 366 * 86_400;
 /// Most calendars of one account that a job asks for, and takes in.
 const MAX_ASKED: usize = 20;
+
+/// What the log says a calendar job waits for when the sign-in lacks a permission: a shared
+/// mailbox's calendars wait for the one to read shared mailboxes' calendars (asked for by itself,
+/// #70), an account's own for Connect calendar and contacts. (No address: the account's id is
+/// said beside it.)
+pub(crate) fn consent_wait(shared: bool) -> &'static str {
+    if shared {
+        "waiting for the owner's permission to read shared mailboxes' calendars"
+    } else {
+        "waiting for the owner's permission (Connect calendar and contacts)"
+    }
+}
 /// How often the working hours the mailbox has set are asked for (milliseconds): they change
 /// when the owner changes them in the mailbox's settings, which is seldom.
 const SETTINGS_MS: f64 = 3_600_000.0;
@@ -104,6 +116,15 @@ pub(crate) struct CalendarSync {
     /// The state of the mailbox at which the waiting changes were last looked over for ones
     /// that can't be sent any more.
     settled_rev: Option<u64>,
+    /// The state of the mailbox at which every shared mailbox was last given a calendar to tick.
+    shared_rev: Option<u64>,
+    /// The shared mailboxes whose calendar changes that make the server send mail wait for the
+    /// owner's permission to send from them (#70): until it is given, or the owner asks again
+    /// with a Send/Receive, those changes are not handed to the host.
+    pub(crate) send_waits: std::collections::HashSet<Id>,
+    /// The calendars that changes are held back for, for want of rights, and how many were
+    /// told to the owner (#70): said again only when that changes.
+    held_told: HashMap<Id, usize>,
     /// A check of an account's calendar connection that the host is making.
     check_rx: Option<(Id, Receiver<CalendarCheckResult>)>,
     /// What the last check of the calendar connection came to, as its report says it.
@@ -126,7 +147,7 @@ impl MailApp {
         if self.calendar.rx.is_some() {
             // An answer is on its way (the host wakes the window when it is there, too).
             ctx.request_repaint_after(std::time::Duration::from_millis(250));
-        } else if !self.microsoft_accounts().is_empty() {
+        } else if !self.calendar_accounts().is_empty() {
             // Nothing is happening: look again in a while, sooner when a change waits to go.
             let waits = self.calendar.waiting.values().any(|(n, _)| *n > 0);
             ctx.request_repaint_after(std::time::Duration::from_secs(if waits { 1 } else { 5 }));
@@ -145,6 +166,16 @@ impl MailApp {
     pub(crate) fn calendar_after_round(&mut self, account: Id) {
         self.calendar.checked.remove(&account);
         self.calendar.by_hand.insert(account);
+        // (What waited for the permission to send from a shared mailbox is tried again.)
+        self.calendar.send_waits.remove(&account);
+    }
+
+    /// The accounts whose calendar is kept in step now: those whose calendar a Microsoft server
+    /// keeps, and the shared mailboxes with a calendar ticked (#70).
+    fn calendar_accounts(&self) -> Vec<Id> {
+        let mut accounts = self.microsoft_accounts();
+        accounts.extend(self.shared_calendar_accounts());
+        accounts
     }
 
     /// The accounts whose calendar a Microsoft server keeps.
@@ -156,6 +187,11 @@ impl MailApp {
     /// [`calendar_tick`](Self::calendar_tick) at `now` (milliseconds), with the window in front
     /// or not. Whether a job was started. (Public for a host's tests, which have no window.)
     pub fn calendar_tick_at(&mut self, focused: bool, now: f64) -> bool {
+        // A shared mailbox has a calendar to tick from the moment it is there (#70).
+        if self.calendar.shared_rev != Some(self.session.rev()) {
+            remote::ensure_shared_calendars(&mut self.session);
+            self.calendar.shared_rev = Some(self.session.rev());
+        }
         let in_front = self.session.view.module == Module::Calendar && !self.ui.backstage;
         let came_back = (focused && !self.calendar.focused) || (in_front && !self.calendar.in_front);
         (self.calendar.focused, self.calendar.in_front) = (focused, in_front);
@@ -177,7 +213,9 @@ impl MailApp {
             self.calendar.settled_rev = Some(self.session.rev());
             self.tell_dropped(&dropped);
         }
-        for account in self.microsoft_accounts() {
+        // A calendar ticked in a shared mailbox that the owner's permission is missing for: asked.
+        self.shared_calendars_ask_tick();
+        for account in self.calendar_accounts() {
             // What is ready to go, and for how long it has been: a change gets a quiet moment.
             let ready = remote::events_waiting(&self.session, account).due;
             let since = match self.calendar.waiting.get(&account) {
@@ -206,7 +244,7 @@ impl MailApp {
             // The wide stretch with the contacts, every quarter of an hour: after the mail.
             let wide = self.directory_due(account, now);
             let refresh = ((self.calendar.due || elsewhere) && in_front) || asked.is_none_or(|at| now - at >= every) || wide;
-            if !(push || refresh) || self.graph_consent_needed.contains(&account) {
+            if !(push || refresh) || self.graph_consent_needed.contains(&account) || self.shared_calendars_blocked(account) {
                 continue;
             }
             // A server that didn't answer the last time is given longer each time.
@@ -244,7 +282,33 @@ impl MailApp {
 
     /// What of the calendar waits to go to `account`'s server now; `None` when nothing does.
     pub(crate) fn calendar_changes(&self, account: Id) -> Option<EventsUpload> {
-        remote::event_upload(&self.session, account).ok().filter(|upload| !upload.ops.is_empty())
+        let mut upload = remote::event_upload(&self.session, account).ok()?;
+        // What makes the server send mail from a shared mailbox waits for the owner's permission.
+        if self.calendar.send_waits.contains(&account) {
+            upload.ops.retain(|op| !op.mails_others());
+        }
+        Some(upload).filter(|upload| !upload.ops.is_empty())
+    }
+
+    /// Tell the owner of changes to `account`'s calendars that are held back because the account
+    /// may no longer change them (#70): its rights on the calendar shrank. They wait here, they
+    /// are not sent and not dropped, and each calendar is told once for as long as it stays so.
+    pub(crate) fn tell_held_for_rights(&mut self, account: Id) {
+        let held = remote::held_for_rights(&self.session.mailbox, account);
+        self.calendar.held_told.retain(|calendar, _| held.iter().any(|(id, ..)| id == calendar));
+        for (calendar, name, n) in held {
+            if self.calendar.held_told.insert(calendar, n) == Some(n) {
+                continue;
+            }
+            let said = crate::i18n::fmt(
+                tl!(
+                    "{n} changes to the calendar \"{name}\" are held here, not sent: this account may no longer change it. They are sent if it may again."
+                ),
+                &[("n", &n.to_string()), ("name", &crate::forms::kit::shown(&name, 60))],
+            );
+            self.status(said.clone());
+            self.keep_sync_problems(account, std::slice::from_ref(&said));
+        }
     }
 
     /// Hand the host a calendar job for `account`: its changes when `push`, then the days on
@@ -289,25 +353,31 @@ impl MailApp {
     /// screen were last asked for (and brings no settings along).
     fn calendar_job(&mut self, account: Id, push: bool, now: f64, round: Option<(Timestamp, Timestamp)>) -> bool {
         let Some(owner) = self.session.mailbox.account(account).cloned() else { return false };
-        let Some(oauth) = owner.oauth.clone() else { return false };
-        let kept = self.tokens.get(&account).map(|t| t.refresh.clone()).filter(|r| !r.is_empty());
-        let refresh = kept.or_else(|| self.remembered("refresh", &owner.email)).unwrap_or_default();
-        if refresh.is_empty() && self.graph_access(account, false).is_empty() {
+        // A shared mailbox's calendars are read with the sign-in of the account it is opened
+        // through, and with a token of their own (#70).
+        let shared = owner.is_shared();
+        let signer = if shared { self.session.mailbox.owner_of(account).cloned() } else { Some(owner.clone()) };
+        let Some(signer) = signer else { return false };
+        let Some(oauth) = signer.oauth.clone() else { return false };
+        let kept = self.tokens.get(&signer.id).map(|t| t.refresh.clone()).filter(|r| !r.is_empty());
+        let refresh = kept.or_else(|| self.remembered("refresh", &signer.email)).unwrap_or_default();
+        let held = if shared { self.shared_calendar_access(account) } else { self.graph_access(account, false) };
+        if refresh.is_empty() && held.is_empty() {
             return false;
         }
         // The Favorites as Outlook has them ride along when they are due ([`crate::favorites_sync`]).
         let by_hand = self.calendar.by_hand.remove(&account);
-        let favorites = round.is_none() && self.favorites_ask(account, now, by_hand);
+        let favorites = !shared && round.is_none() && self.favorites_ask(account, now, by_hand);
         // (A token that is known not to be good for them is not handed on when one that is can
         // be had; without a way of getting another, the one there is has to do.)
-        let access = if refresh.is_empty() { self.graph_access(account, false) } else { self.graph_access_for(account, favorites) };
+        let access = if shared || refresh.is_empty() { held } else { self.graph_access_for(account, favorites) };
         let changes = if push { self.calendar_changes(account) } else { None };
         let carried = changes.is_some();
         if let Some(changes) = &changes {
             self.calendar.sent.insert(account, (changes.clone(), now));
         }
         // The working hours the mailbox has set come along once an hour (and after "Connect").
-        let settings = round.is_none() && self.calendar.settings_asked.get(&account).is_none_or(|at| now - at >= SETTINGS_MS);
+        let settings = !shared && round.is_none() && self.calendar.settings_asked.get(&account).is_none_or(|at| now - at >= SETTINGS_MS);
         let stretch = round.unwrap_or_else(|| self.calendar_window());
         // The wide stretch and the contacts, with a job for the days on screen when they are due.
         let directory = round.is_none() && self.directory_due(account, now);
@@ -356,30 +426,52 @@ impl MailApp {
             }
         };
         self.calendar.rx = None;
+        // A shared mailbox's calendars (#70): their own token, and their own permission.
+        let shared = self.session.mailbox.account(account).is_some_and(mailcraft_model::Account::is_shared);
         if result.consent_needed {
-            log::info!("calendar, account {account}: waiting for the owner's permission (Connect calendar and contacts)");
+            log::info!("calendar, account {account}: {}", consent_wait(shared));
         }
         if result.sign_in_refused {
             log::warn!("calendar, account {account}: the sign-in was refused; the next Send/Receive asks the owner");
         }
         let mut errors = std::mem::take(&mut result.errors);
         if result.token_refused {
-            self.graph_tokens.remove(&account);
+            if shared {
+                self.shared_calendar_tokens.remove(&account);
+            } else {
+                self.graph_tokens.remove(&account);
+            }
         }
         if let Some(tokens) = result.tokens.take() {
-            self.keep_graph_tokens(account, tokens);
+            if shared {
+                let owner = self.session.mailbox.owner_of(account).map(|o| (o.id, o.email.clone()));
+                if let Some((owner, address)) = owner.filter(|(owner, _)| !self.signed_in_as_other(*owner, &tokens)) {
+                    self.keep_shared_calendar_tokens(account, owner, &address, tokens);
+                }
+            } else {
+                self.keep_graph_tokens(account, tokens);
+            }
         }
-        if result.consent_needed && self.graph_consent_needed.insert(account) {
+        if shared {
+            self.shared_calendars_answered(account, &result, &mut errors);
+        } else if result.consent_needed && self.graph_consent_needed.insert(account) {
             self.status(tl!("Calendar and contacts need your permission: File › Info › Connect calendar and contacts"));
         }
         // The Favorites as Outlook has them, when they came along ([`crate::favorites_sync`]).
         self.take_in_favorites(account, &mut result);
         self.take_in_calendar_list(account, result.calendars.as_ref(), result.categories.as_ref(), result.extras_missing, &mut errors);
+        // Calendars opened by address that the sign-in doesn't let be read yet: the owner is asked (#70).
+        if result.shared_calendars_consent_needed {
+            self.shared_calendars_consent(account);
+        }
         if let Some(hours) = result.mailbox_hours.take() {
             self.take_in_mailbox_hours(account, &hours);
         }
-        let taken = self.take_in_calendar(account, result.uploaded.as_ref(), result.events.as_ref(), &mut errors);
+        let mut taken = self.take_in_calendar(account, result.uploaded.as_ref(), result.events.as_ref(), &mut errors);
         self.take_in_more_calendars(&result.more_events, &mut errors);
+        self.tell_held_for_rights(account);
+        // (A shared mailbox's job may bring only calendars other than its main one.)
+        taken |= shared && !result.more_events.is_empty();
         // The contacts came with the wide stretch: both in, and it is a quarter of an hour
         // until the next.
         if let Some(contacts) = &result.contacts {
@@ -456,7 +548,16 @@ impl MailApp {
                     self.keep_sync_problems(account, &applied.messages);
                     // The server says the account may not write to its calendar: the owner
                     // agreed to less, once. Nothing more is asked until that is put right.
-                    if applied.denied && self.graph_consent_needed.insert(account) {
+                    // (Not for a shared mailbox's calendar, #70: there it is the rights the owner
+                    // has on that calendar, which its owner sets and which are read again at every
+                    // listing, and not a permission to ask for; everything else of the mailbox goes
+                    // on, and the change is tried once more.)
+                    let shared = self.session.mailbox.account(account).is_some_and(mailcraft_model::Account::is_shared);
+                    if applied.denied && shared {
+                        self.status(tl!(
+                            "A change to a shared mailbox's calendar was refused: this account may not edit it. It is tried once more, and then put back."
+                        ));
+                    } else if applied.denied && self.graph_consent_needed.insert(account) {
                         self.status(tl!("Changing the calendar needs your permission: File › Info › Connect calendar and contacts"));
                     }
                 }
@@ -715,11 +816,16 @@ impl MailApp {
         // (And one that holds something which was sent and is yet to be seen on the server,
         // shown or not: an appointment that was just put into a calendar that isn't ticked.)
         let unseen = remote::unverified_calendars(&self.session, account);
+        // A shared mailbox's calendars are read once they are ticked, and not before (#70).
+        let shared = self.session.mailbox.account(account).is_some_and(mailcraft_model::Account::is_shared);
         let followed = |c: &&mailcraft_model::Calendar| {
-            c.origin.account == account && (c.origin.id.is_empty() || c.visible || directory || unseen.contains(&c.id))
+            c.origin.account == account && if shared { c.visible } else { c.origin.id.is_empty() || c.visible || directory || unseen.contains(&c.id) }
         };
         let mut asks: Vec<mailcraft_model::remote::CalendarAsk> = Vec::new();
-        for calendar in self.session.mailbox.calendars.iter().filter(followed).take(MAX_ASKED) {
+        // (Those the owner opened by address first: they count within the same cap, #70.)
+        let mut ordered: Vec<&mailcraft_model::Calendar> = self.session.mailbox.calendars.iter().filter(followed).collect();
+        ordered.sort_by_key(|c| !c.origin.id.starts_with(mailcraft_model::remote::OPENED_PREFIX));
+        for calendar in ordered.into_iter().take(MAX_ASKED) {
             if !asks.iter().any(|ask| ask.calendar == calendar.origin.id) {
                 let series = remote::expected_series(&self.session, account, &calendar.origin.id, from, to);
                 asks.push(mailcraft_model::remote::CalendarAsk { calendar: calendar.origin.id.clone(), series });
@@ -738,10 +844,14 @@ impl MailApp {
         extras_missing: bool,
         errors: &mut Vec<String>,
     ) {
-        if let Some(list) = calendars
-            && let Err(e) = remote::apply_calendars(&mut self.session, list)
-        {
-            errors.push(crate::i18n::fmt(tl!("The list of calendars couldn't be taken in: {error}"), &[("error", &e.to_string())]));
+        if let Some(list) = calendars {
+            match remote::apply_calendars(&mut self.session, list) {
+                // What came of the calendars opened by address (#70).
+                Ok(applied) => self.take_in_opened(account, &applied),
+                Err(e) => {
+                    errors.push(crate::i18n::fmt(tl!("The list of calendars couldn't be taken in: {error}"), &[("error", &e.to_string())]));
+                }
+            }
         }
         if let Some(list) = categories {
             // They came: the sign-in covers them.

@@ -173,6 +173,7 @@ const SAFE: &[&str] = &[
     // Folders.
     "folder.select",
     "folder.list",
+    "folder.properties",
     "folder.new",
     "folder.rename",
     "folder.move",
@@ -253,6 +254,7 @@ const SAFE: &[&str] = &[
     "people.get",
     "people.list",
     "people.search",
+    "people.arrange",
     "people.favorite",
     "people.categorize",
     "people.email",
@@ -263,6 +265,7 @@ const SAFE: &[&str] = &[
     "tasks.select",
     "tasks.get",
     "tasks.list",
+    "tasks.arrange",
     "tasks.categorize",
     "tasks.fromMessage",
     "category.set",
@@ -298,7 +301,6 @@ const SAFE: &[&str] = &[
     "ui.openWindow",
     "ui.eventWindow",
     "ui.clearPictureCache",
-    "ui.copySelection",
     "ui.selectAllInMessage",
     // (Refused by the window itself unless the owner has the daily check on.)
     "ui.checkForUpdates",
@@ -340,6 +342,13 @@ const ACCOUNTS: &[&str] = &[
     "account.graphSwitch",
     "account.addSharedMailbox",
     "account.removeSharedMailbox",
+    // Another person's calendar, opened by address (#70): it reaches that person's mailbox with
+    // the owner's sign-in, and removing one removes what is kept of it here.
+    "calendar.openShared",
+    "calendar.removeShared",
+    // A shared mailbox's calendar listed twice (#70): hiding the copy removes it and its events
+    // from this computer.
+    "calendar.hideListedCopy",
     // Mail to keep offline (#143): what is kept on this computer; the server keeps it all.
     "account.thinOffline",
     "ui.keepOffline",
@@ -347,6 +356,7 @@ const ACCOUNTS: &[&str] = &[
     "ui.connectMicrosoft",
     "ui.connectFavorites",
     "ui.allowSharedSend",
+    "ui.allowSharedCalendars",
     "ui.checkCalendar",
     "ui.adminConsent",
     "ui.signInAgain",
@@ -383,6 +393,7 @@ const SETTINGS: &[&str] = &[
     "signature.close",
     "ui.alwaysDownloadPictures",
     "ui.downloadPicturesAutomatically",
+    "ui.senderImages",
     "ui.desktopAlerts",
     "ui.updateCheck",
     "ui.updateInstall",
@@ -398,6 +409,10 @@ const NEVER: &[&str] = &[
     "sync.applyGraph",
     "sync.graphFetchRequest",
     "sync.applyGraphFetch",
+    "sync.jmapRequest",
+    "sync.applyJmap",
+    "sync.jmapFetchRequest",
+    "sync.applyJmapFetch",
     // A search of the server goes only on the owner's own click (R6.2).
     "sync.graphSearchRequest",
     "sync.applyGraphSearch",
@@ -418,6 +433,7 @@ const NEVER: &[&str] = &[
     "ui.attach",
     // Anything an agent chooses onto the owner's clipboard.
     "ui.copyLinkAddress",
+    "ui.copySelection",
     // A file from a message opened with another program: only ever the owner's own doing.
     "mail.openAttachment",
     // Installing a new version, or going back to the one before: only the owner's click.
@@ -511,6 +527,9 @@ pub fn classify(s: &Session, id: &str, params: &Value) -> Access {
     match id {
         // Undoing can put back the accounts, rules or signatures of before.
         "edit.undo" | "edit.redo" => s.undo_reverts(id == "edit.redo").map_or(Access::Safe, Access::Owner),
+        // Saving or sending the appointment in a window runs later, as the owner, and the
+        // account's server writes to the people invited: that is a send.
+        "ui.eventWindow" if matches!(p::str(params, "do"), Some("send" | "save" | "saveAndClose")) => Access::Owner(Class::Send),
         _ if id.starts_with("calendar.") && sends => Access::Owner(Class::Send),
         "mail.move" | "mail.copy" | "file.import" => {
             let folder = p::id(params, "folder").or(if id == "file.import" { Some(s.view.folder) } else { None });
@@ -700,6 +719,15 @@ pub fn describe(s: &Session, id: &str, params: &Value) -> String {
             };
             format!("{label}: {}, and write to {to}", event_title(s, id, params))
         }
+        "ui.eventWindow" => {
+            let who = addresses(params.get("attendees"));
+            let to = if who.is_empty() {
+                "nobody (no one is invited)".to_string()
+            } else {
+                format!("{} ({})", plural(who.len(), "{n} person", "{n} people"), some(&who, 8))
+            };
+            format!("{} the appointment or meeting in its window, which can make the account's server write to {to}", clip(st("do"), 20))
+        }
         "calendar.delete" => format!("delete {} from the calendar", event_title(s, id, params)),
         "people.delete" => {
             let c = p::id(params, "id").or(s.sel.contact).and_then(|c| s.mailbox.contact(c));
@@ -718,6 +746,8 @@ pub fn describe(s: &Session, id: &str, params: &Value) -> String {
             let label = if redo { s.redo_label() } else { s.undo_label() };
             let what = match s.undo_reverts(redo) {
                 Some(Class::Accounts) => "the accounts",
+                Some(Class::Send) => "a change to a meeting, which writes to the people invited",
+                Some(Class::Delete) => "contacts, events, tasks, calendars or categories that were deleted",
                 _ => "the rules or signatures",
             };
             format!("{} {}, which also puts {what} back as they were", if redo { "redo" } else { "undo" }, quoted(label.unwrap_or("the last change")))
@@ -756,6 +786,26 @@ pub fn describe(s: &Session, id: &str, params: &Value) -> String {
             format!("confirm the servers of the mailbox opened from a file, so that it connects to {}", to.join("; "))
         }
         "account.addSharedMailbox" => format!("open the shared mailbox {}", clip(st("address"), 80)),
+        "calendar.openShared" => {
+            format!("open the calendar of {} (its events are read from that person's mailbox with the account's sign-in)", clip(st("address"), 80))
+        }
+        "calendar.removeShared" => {
+            let named = p::id(params, "id")
+                .and_then(|c| s.mailbox.calendar(c))
+                .and_then(|c| mailcraft_model::remote::opened_address(&c.origin.id))
+                .unwrap_or_else(|| st("address").to_string());
+            format!("remove the calendar of {} opened by address, and its events from this computer", clip(&named, 80))
+        }
+        "calendar.hideListedCopy" => {
+            let address = clip(st("address"), 80);
+            if params.get("hide").and_then(Value::as_bool) == Some(false) {
+                format!("show again the copy of the calendar of the shared mailbox {address} that is listed under Shared Calendars")
+            } else {
+                format!(
+                    "hide the copy of the calendar of the shared mailbox {address} that is listed under Shared Calendars, and remove its events from this computer (the shared mailbox's own calendar stays)"
+                )
+            }
+        }
         "account.removeSharedMailbox" => {
             let a = p::id(params, "id").and_then(|a| s.mailbox.account(a)).map(|a| a.email.clone()).unwrap_or_else(|| st("address").to_string());
             format!("close the shared mailbox {} and remove its mail from this computer", clip(&a, 80))
@@ -859,6 +909,15 @@ pub(crate) fn overstep(before: &Mailbox, after: &Mailbox, allow: &[Class]) -> Op
         let gone = before.messages.iter().any(|(id, m)| !m.draft && !after.messages.contains_key(id));
         if gone {
             return Some(Class::Delete);
+        }
+    }
+    if !allow.contains(&Class::Send) {
+        // A change that makes the server write to people, which the mailbox didn't have.
+        let new = after.event_changes.iter().filter(|c| c.send).any(|c| {
+            !before.event_changes.iter().any(|b| b.send && b.account == c.account && b.kind == c.kind && b.event == c.event && b.token == c.token)
+        });
+        if new {
+            return Some(Class::Send);
         }
     }
     None

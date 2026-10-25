@@ -214,6 +214,23 @@ fn info(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         {
             let _ = app.run("account.remove", json!({"id": a.id}));
         }
+        // Whether the owner's permission for a shared mailbox's calendars was given, with a way to
+        // ask again (#70).
+        if a.is_shared()
+            && let Some((line, again)) = app.shared_calendar_line(a.id)
+        {
+            ui.horizontal(|ui| {
+                ui.add_space(36.0);
+                ui.label(egui::RichText::new(line).font(regular(11.5)).color(t.text_dim));
+                let tip = tl!(
+                    "Ask for permission to read the calendars of shared mailboxes: Microsoft's page opens in your browser. Without it, nothing of this mailbox's calendars is read."
+                );
+                if again && ui.link(tl!("Ask again")).on_hover_text(tip).clicked() {
+                    app.ask_shared_calendars_again(a.id);
+                }
+            });
+            ui.add_space(4.0);
+        }
         // Which messages are kept whole on this computer (R3.2); a shared mailbox keeps as much
         // as its owner's account (#70).
         if a.kind == AccountKind::Microsoft && !a.is_shared() {
@@ -339,6 +356,18 @@ fn open(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     }
     if tile(ui, "open", tl!("Open Mailbox File"), tl!("Replace what is open with a .mailcraft file"), t) {
         let _ = app.run("ui.open", json!({}));
+    }
+    // A colleague's calendar, by address (#70); kept on this computer only.
+    if app.session.mailbox.accounts.iter().any(crate::open_shared::can_open)
+        && tile(
+            ui,
+            "calendar",
+            tl!("Open Shared Calendar"),
+            tl!("A colleague's calendar, by their address, with your work or school account. Kept on this computer only"),
+            t,
+        )
+    {
+        let _ = app.run("ui.dialog", json!({"name": "openCalendar"}));
     }
     section(ui, tl!("Save out"), t);
     if tile(ui, "save", tl!("Save Mailbox As"), tl!("Everything here in one .mailcraft file"), t) {
@@ -471,6 +500,7 @@ fn options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     }
     section(ui, tl!("Pictures in mail"), t);
     crate::reading::remote::options(app, ui, t);
+    crate::sender_images::options(app, ui, t);
     section(ui, tl!("Accounts"), t);
     let mut remember = app.ui.remember_sign_in;
     if ui

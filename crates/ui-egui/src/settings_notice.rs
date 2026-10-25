@@ -17,6 +17,9 @@ pub enum SettingsUnread {
     /// It couldn't be moved aside, so it stays where it was and this run's settings aren't saved
     /// over it.
     LeftInPlace,
+    /// It couldn't be read at all (no permission, or it isn't a file), so nothing was moved; it
+    /// stays where it was and this run's settings aren't saved over it.
+    CouldntRead,
 }
 
 /// The line, for as long as the owner hasn't put it away. Worded when drawn, so it is in the
@@ -30,6 +33,10 @@ pub(crate) fn bar(app: &mut MailApp, ui: &mut Ui) {
         ),
         SettingsUnread::LeftInPlace => tl!(
             "The settings file (ui.json) couldn't be read, so the default settings were restored. It couldn't be renamed, so it was left as it is and won't be overwritten."
+        )
+        .to_string(),
+        SettingsUnread::CouldntRead => tl!(
+            "The settings file (ui.json) couldn't be read, so the default settings were restored. It was left as it is and won't be overwritten."
         )
         .to_string(),
     };

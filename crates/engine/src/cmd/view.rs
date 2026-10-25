@@ -23,7 +23,7 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("view.conversations", "Show as Conversations", "View › Messages", conversations).pure().params(TOGGLE),
         CommandSpec::new("view.sort", "Arrange By", "View › Arrangement", sort)
             .pure()
-            .params(r#"{"by": "date"|"from"|"subject"|"size"|"importance", "descending"?: bool}"#),
+            .params(r#"{"by": "date"|"from"|"subject"|"size"|"importance"|"categories", "descending"?: bool}"#),
         CommandSpec::new("view.reverseSort", "Reverse Sort", "View › Arrangement", reverse_sort).pure(),
         CommandSpec::new("view.filter", "Filter Email", "Home › Find", filter)
             .pure()
@@ -91,7 +91,7 @@ fn conversations(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 fn sort(s: &mut Session, v: &Value) -> CmdResult {
-    let by = parse_enum::<SortBy>(p::req_str(v, "by")?).ok_or_else(|| bad("`by` is date, from, subject, size or importance"))?;
+    let by = parse_enum::<SortBy>(p::req_str(v, "by")?).ok_or_else(|| bad("`by` is date, from, subject, size, importance or categories"))?;
     // Names start at A; dates, sizes and importance start at the top.
     let natural = by.starts_high();
     s.view.sort_descending = p::bool(v, "descending").unwrap_or(if s.view.sort == by { s.view.sort_descending } else { natural });
@@ -106,7 +106,7 @@ fn reverse_sort(s: &mut Session, _: &Value) -> CmdResult {
 
 fn filter(s: &mut Session, v: &Value) -> CmdResult {
     s.view.filter = parse_enum::<Filter>(p::req_str(v, "value")?).ok_or_else(|| bad("`value` is all, unread, flagged, attachments or toMe"))?;
-    Ok(json!({"value": s.view.filter, "shown": s.rows().len()}))
+    Ok(json!({"value": s.view.filter, "shown": crate::list::listed(&s.rows())}))
 }
 
 fn search(s: &mut Session, v: &Value) -> CmdResult {
@@ -120,7 +120,7 @@ fn search(s: &mut Session, v: &Value) -> CmdResult {
     }
     s.view.search = query;
     s.view.module = Module::Mail;
-    Ok(json!({"query": s.view.search, "scope": s.view.scope, "found": s.rows().len()}))
+    Ok(json!({"query": s.view.search, "scope": s.view.scope, "found": crate::list::listed(&s.rows())}))
 }
 
 fn clear_search(s: &mut Session, _: &Value) -> CmdResult {
@@ -288,9 +288,12 @@ pub fn due_reminders(s: &Session, now: mailcraft_time::DateTime) -> Vec<Reminder
     let here = super::remote::offset_of(s);
     let instant = |wall: mailcraft_time::DateTime| mailcraft_model::zoned::instant_at(wall, &here);
     let at = instant(now);
+    // Only the owner's own calendars remind (#70): not a shared mailbox's, not one somebody shares.
+    let not_theirs: std::collections::HashSet<mailcraft_model::Id> =
+        s.mailbox.calendars.iter().filter(|c| !super::remote::is_own_calendar(&s.mailbox, c)).map(|c| c.id).collect();
     for e in s.mailbox.events.values() {
         let Some(ahead) = e.reminder_minutes else { continue };
-        if e.cancelled {
+        if e.cancelled || not_theirs.contains(&e.calendar) {
             continue;
         }
         for o in e.occurrences_in(from, to, &here) {

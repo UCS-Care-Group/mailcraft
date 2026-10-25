@@ -495,7 +495,8 @@ fn place(cx: &mut Cx<'_>, flow: &mut Flow, blocks: &[Block], index: usize, depth
             (bottom, PrevKind::Text)
         }
         (BlockKind::Rule, None) => {
-            let look = edge_of(&cx.t, block.line, false, flow.paper);
+            // An `<hr>` has no line of its own: it is the reader's thin one.
+            let look = edge_of(&cx.t, block.line, true, flow.paper);
             let thick = look.width.max(1.0);
             let line = Rect::from_min_size(pos2(x, top + ((RULE_HEIGHT - thick) / 2.0).floor().max(0.0)), vec2(width, thick));
             put_edge(cx, line, look);

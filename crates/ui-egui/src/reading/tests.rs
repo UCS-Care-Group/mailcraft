@@ -131,6 +131,8 @@ fn message(n: usize, from: (&str, &str), subject: &str, html: Option<String>, te
         received: date,
         read: true,
         body: Body { text, html },
+        // On the server (mail from a file is never vouched for).
+        uid: 1,
         // The server vouched for every sender (a test of the lists would be of nothing otherwise).
         headers: vec![(
             "Authentication-Results".into(),
@@ -999,7 +1001,7 @@ fn the_reading_pane_names_nothing_that_could_fetch() {
         }
         checked += 1;
     }
-    assert_eq!(checked, 8, "reading.rs, colors, images, invitation, layout, remote, select and view");
+    assert_eq!(checked, 11, "reading.rs, colors, images (and its tests), invitation, layout, remote, select, sharing (and its tests) and view");
 }
 
 /// The symbols these files write as text have glyphs in the interface fonts (the check of the
@@ -3115,6 +3117,26 @@ fn escape_a_click_and_another_message_let_go_of_the_selection() {
     assert_eq!(whole(&harness, id).0, "Short.");
 }
 
+/// Escape in the search box is the box's (#365): a selection in the message being read stays,
+/// when Escape is held down too.
+#[test]
+fn escape_in_the_search_box_leaves_the_selection() {
+    let (app, ids) = corpus_app(false);
+    let id = id_of(&ids, "gmail reply");
+    let mut harness = window(app, (1280.0, 1400.0));
+    select(&mut harness, id);
+    let (from, to) = (gap(&harness, id, "Hi Priya", 3), gap(&harness, id, "Yes to both", 6));
+    drag(&mut harness, from, to);
+    harness.state_mut().execute("ui.focusSearch", json!({})).unwrap();
+    harness.run_steps(3);
+    assert!(selection(&harness, Place::Pane).is_some());
+    for repeat in [false, true, true] {
+        harness.event(egui::Event::Key { key: egui::Key::Escape, physical_key: None, pressed: true, repeat, modifiers: egui::Modifiers::NONE });
+        harness.run_steps(2);
+        assert!(selection(&harness, Place::Pane).is_some(), "repeat: {repeat}");
+    }
+}
+
 #[test]
 fn ctrl_a_selects_the_text_of_the_message_when_the_keys_are_its() {
     let (app, ids) = corpus_app(false);
@@ -3675,6 +3697,36 @@ fn a_character_that_couldnt_be_read_is_explained_once() {
     for id in &ids[1..] {
         select(&mut harness, *id);
         assert_eq!(harness.query_all_by_label_contains(SAID).count(), 1, "message {id}");
+    }
+}
+
+/// #349: an `<hr>` is a line that can be seen, in light and dark: a bare one, the one above a
+/// reply's quoted original (whose own border is ignored), and one inside a quote.
+#[test]
+fn a_rule_is_drawn() {
+    const HTML: &str = "<p>One</p><hr><p>Two</p><hr style=\"border:none;border-top:solid #E1E1E1 1.0pt\"><p>Three</p>\
+                        <blockquote><p>Four</p><hr><p>Five</p></blockquote>";
+    for dark in [false, true] {
+        in_frame(dark, |ctx| {
+            let laid = lay_out(ctx, &html_message(1, ("Ada", "ada@example.org"), "Rules", HTML), 700.0);
+            let paper = if dark { Tokens::dark().surface } else { Tokens::light().surface };
+            for (above, below) in [("One", "Two"), ("Two", "Three"), ("Four", "Five")] {
+                let (top, bottom) = (find_exact(&laid, above).rect.max.y, find_exact(&laid, below).rect.min.y);
+                let (rect, color) = laid
+                    .items
+                    .iter()
+                    .find_map(|i| match i.kind {
+                        ItemKind::Fill { color, .. } if i.rect.min.y >= top && i.rect.max.y <= bottom && i.rect.width() > 300.0 => {
+                            Some((i.rect, color))
+                        }
+                        _ => None,
+                    })
+                    .unwrap_or_else(|| panic!("no rule between {above:?} and {below:?}"));
+                assert!(rect.height() >= 1.0, "{rect:?}");
+                // (`contrast` doesn't look at alpha: a transparent fill reads as black.)
+                assert!(color.a() == 255 && contrast(color, paper) >= 1.2, "{above:?}: {color:?} on {paper:?}");
+            }
+        });
     }
 }
 

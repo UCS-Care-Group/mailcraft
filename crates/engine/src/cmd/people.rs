@@ -7,7 +7,8 @@ use mailcraft_time::Date;
 use serde_json::{Value, json};
 
 use super::{bad, done, fail, needs_message};
-use crate::{CmdError, CmdResult, CommandSpec, Module, Session, p};
+use crate::session::parse_enum;
+use crate::{CmdError, CmdResult, CommandSpec, Module, PeopleSort, Session, p};
 
 pub fn specs() -> Vec<CommandSpec> {
     vec![
@@ -26,6 +27,7 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("people.categorize", "Categorize", "Home › Tags", categorize)
             .params(r#"{"category": string, "value"?: bool, "id"?: number}"#)
             .selection(needs_contact),
+        CommandSpec::new("people.arrange", "Arrange Contacts By", "View › Arrangement", arrange).pure().params(r#"{"by": "name"|"categories"}"#),
         CommandSpec::new("people.email", "Email", "Home › Communicate", email).pure().params(ONE).selection(needs_contact),
         CommandSpec::new("people.fromMessage", "Add to Contacts", "Home › Actions", from_message)
             .params(r#"{"id"?: number} (a message; default: the selected one)"#)
@@ -176,11 +178,22 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
     Ok(json!({"id": id}))
 }
 
-/// Contacts as the People list shows them: favourites first, then by name.
+/// Contacts in the People list's order: by name, favourites first; arranged by categories, by name
+/// alone (the list then puts each under each of its categories, and favourites have no heading of
+/// their own there). Each contact once: `people.list` and the neighbour a delete selects use it.
 pub fn sorted(s: &Session, query: &str) -> Vec<Id> {
     let mut v: Vec<&Contact> = s.mailbox.contacts.values().map(|c| c.as_ref()).filter(|c| c.matches(query)).collect();
-    v.sort_by(|a, b| b.favorite.cmp(&a.favorite).then_with(|| a.file_as().to_lowercase().cmp(&b.file_as().to_lowercase())).then(a.id.cmp(&b.id)));
+    let by_name = |a: &Contact, b: &Contact| a.file_as().to_lowercase().cmp(&b.file_as().to_lowercase()).then(a.id.cmp(&b.id));
+    match s.view.people_sort {
+        PeopleSort::Name => v.sort_by(|a, b| b.favorite.cmp(&a.favorite).then_with(|| by_name(a, b))),
+        PeopleSort::Categories => v.sort_by(|a, b| by_name(a, b)),
+    }
     v.into_iter().map(|c| c.id).collect()
+}
+
+fn arrange(s: &mut Session, v: &Value) -> CmdResult {
+    s.view.people_sort = parse_enum::<PeopleSort>(p::req_str(v, "by")?).ok_or_else(|| bad("`by` is name or categories"))?;
+    Ok(json!({"by": s.view.people_sort}))
 }
 
 fn delete(s: &mut Session, v: &Value) -> CmdResult {

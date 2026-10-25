@@ -310,3 +310,59 @@ fn nothing_starts_sending_or_receiving_once_the_data_is_removed() {
     }
     assert_eq!(started.load(Ordering::SeqCst), 0, "a Send/Receive started after the removal");
 }
+
+#[test]
+fn what_was_remembered_for_a_mailbox_that_is_no_longer_open_goes_too() {
+    let (host, store) = (Host::default(), Store::default());
+    let mut a = app(&host, &store);
+    a.ui.remember_sign_in = true;
+    a.execute("account.add", json!({"email": "avery@mail.example", "auth": "oauth2", "incoming": {"host": "imap.mail.example"}})).unwrap();
+    a.remember("refresh", "avery@mail.example", "invented-refresh-token");
+    assert_eq!(store.0.lock().unwrap().len(), 1);
+    // Another mailbox takes its place; the entry is still in the store.
+    a.session.replace_mailbox(mailcraft_model::Mailbox::with_local_account("", ""));
+    // The settings file names the entry and holds nothing secret.
+    let saved = serde_json::to_string(&a.ui).unwrap();
+    assert!(saved.contains("avery@mail.example") && !saved.contains("invented-refresh-token"));
+
+    a.execute("ui.removeAllData", json!({})).unwrap();
+    assert!(store.0.lock().unwrap().is_empty(), "{:?}", store.0.lock().unwrap().keys());
+}
+
+#[test]
+fn turning_remembering_off_forgets_the_entries_of_other_mailboxes_too() {
+    let (host, store) = (Host::default(), Store::default());
+    let mut a = app(&host, &store);
+    a.ui.remember_sign_in = true;
+    a.execute("account.add", json!({"email": "avery@mail.example", "incoming": {"host": "imap.mail.example"}})).unwrap();
+    a.remember("password", "avery@mail.example", "invented");
+    a.session.replace_mailbox(mailcraft_model::Mailbox::with_local_account("", ""));
+    a.execute("ui.rememberSignIn", json!({"value": false})).unwrap();
+    assert!(store.0.lock().unwrap().is_empty());
+    assert!(a.ui.remembered_keys.is_empty());
+}
+
+/// A store that cannot delete.
+struct Stuck(Store);
+
+impl SecretStore for Stuck {
+    fn get(&self, key: &str) -> Option<String> {
+        self.0.get(key)
+    }
+    fn set(&self, key: &str, secret: &str) -> Result<(), String> {
+        self.0.set(key, secret)
+    }
+    fn delete(&self, _: &str) {}
+}
+
+#[test]
+fn an_entry_that_cannot_be_removed_is_in_the_report() {
+    let (host, store) = (Host::default(), Store::default());
+    let mut a = app(&host, &store);
+    a.services.secrets = Some(Box::new(Stuck(store.clone())));
+    a.ui.remember_sign_in = true;
+    a.execute("account.add", json!({"email": "avery@mail.example", "incoming": {"host": "imap.mail.example"}})).unwrap();
+    a.remember("password", "avery@mail.example", "invented");
+    let said = a.execute("ui.removeAllData", json!({})).unwrap();
+    assert!(said["failed"].as_array().is_some_and(|f| f.iter().any(|l| l.as_str().is_some_and(|l| l.contains("avery@mail.example")))), "{said}");
+}
