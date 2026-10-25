@@ -1,6 +1,6 @@
 # Contributing to MailCraft
 
-> **Status:** current · **Written:** 2026-10-15 · **Last updated:** 2026-10-23 · **Change:** minor (a bug and its fix come together: report and pull request at once, no claim)
+> **Status:** current · **Written:** 2026-10-15 · **Last updated:** 2026-10-24 · **Change:** minor (`cargo xtask test-files` holds the rule that tests go in files of their own)
 
 Thank you for wanting to help. MailCraft holds people's mail, so the way work comes in matters as
 much as the work.
@@ -35,13 +35,15 @@ Issues labelled `post-beta` are parked: they aren't open to claims until beta is
 - **One issue, one pull request**, based on current `main`, small enough to review in one sitting.
   Say `Closes #<issue>` in the description.
 - **`cargo xtask ci` passes** on your machine before every commit (fmt, clippy, tests, assets,
-  spdx, layers, wasm, and cargo-deny when it is installed). Commits carry the task id (`R3.2: messages come down by delta`).
+  spdx, test-files, layers, wasm, and cargo-deny when it is installed). Commits carry the task id (`R3.2: messages come down by delta`).
 - **Every crash fix and every data-loss fix comes with a regression test.**
 - **Tests go in files of their own**: `tests.rs`, `<name>_tests.rs` or a `tests/` directory,
   brought in with `#[cfg(test)] mod <name>_tests;`, not an inline `mod tests { … }` in a source
   file. Code scanning ([`.github/codeql/codeql-config.yml`](.github/codeql/codeql-config.yml))
   skips those files; in a source file, a test's made-up passwords and assertion messages are
-  flagged as if they were production code.
+  flagged as if they were production code. `cargo xtask test-files` (part of `cargo xtask ci`)
+  fails on a new inline test module. The older ones are listed in `xtask/inline-tests.txt`; when
+  you move one out, take its line off the list (the check says so), and never add one.
 - **New Rust files start with the two SPDX lines** (copyright and licence); `cargo xtask spdx --fix`
   adds them.
 - **Tests never touch a real mailbox.** Use the fake servers in `crates/net/src/fake.rs` and the
@@ -83,6 +85,7 @@ Found something wrong? Use the
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-24 | minor | `cargo xtask test-files` fails on a new inline test module; older ones listed in `xtask/inline-tests.txt` until moved |
 | 2026-10-23 | minor | A bug fix needs no claim: the problem report and its pull request come together |
 | 2026-10-20 | minor | A first contribution (`good first issue`); how pull requests are reviewed; SPDX lines in new Rust files |
 | 2026-10-15 | major | First version: claim before you build, one issue per pull request, decisions kept for the owners, tester sign-up |

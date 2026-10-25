@@ -317,6 +317,12 @@ pub struct Account {
     /// other account, and in a file from before there were any.
     #[serde(skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::sync::lenient_list")]
     pub opened_calendars: Vec<crate::OpenedCalendar>,
+    /// For a Microsoft account: the shared mailboxes open under it whose calendar its server lists
+    /// among its own calendars as well, and whether that copy is hidden ([`crate::ListedTwice`],
+    /// #70), at most [`MAX_SHARED`]. An entry says the owner was asked: MailCraft offers once.
+    /// Empty for every other account, and in a file from before there were any.
+    #[serde(skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::sync::lenient_list")]
+    pub listed_twice: Vec<crate::ListedTwice>,
     /// For a [`AccountKind::Jmap`] account: where its server's session resource is and how the
     /// secret is sent ([`JmapServer`]). Plain settings: the secret is never kept here. `None` for
     /// every other account, and in a file from before there were any.
@@ -344,6 +350,30 @@ impl Account {
             kept.push(opened);
         }
         self.opened_calendars = kept;
+        let mut twice: Vec<crate::ListedTwice> = Vec::new();
+        for mut entry in std::mem::take(&mut self.listed_twice) {
+            entry.address = crate::calendar::flat_line(&entry.address, crate::calendar::MAX_OWNER_ADDRESS).replace(' ', "");
+            let known = twice.iter().any(|have| have.address.eq_ignore_ascii_case(&entry.address));
+            if entry.address.is_empty() || known || twice.len() >= MAX_SHARED {
+                continue;
+            }
+            twice.push(entry);
+        }
+        self.listed_twice = twice;
+    }
+
+    /// What the owner said of the copy, under Shared Calendars, of the calendar of the shared
+    /// mailbox at `address` (#70): `Some(true)` hidden, `Some(false)` kept, `None` not asked yet.
+    /// Addresses compare without regard to ASCII case.
+    pub fn listed_twice_answer(&self, address: &str) -> Option<bool> {
+        let address = address.trim();
+        self.listed_twice.iter().find(|entry| entry.address.eq_ignore_ascii_case(address)).map(|entry| entry.hidden)
+    }
+
+    /// Whether a calendar the server lists for this account, owned by `owner`, is the hidden copy
+    /// of a shared mailbox's calendar (#70): it isn't read from the server, nor shown.
+    pub fn hides_listed(&self, owner: Option<&crate::CalendarOwner>) -> bool {
+        owner.is_some_and(|owner| !owner.address.trim().is_empty() && self.listed_twice_answer(&owner.address) == Some(true))
     }
 }
 
@@ -878,6 +908,16 @@ pub const IMPORTED: &str = "Imported";
 /// is filed as sent that wasn't.
 pub const NOT_SENDING_YET: &str = "MailCraft doesn't send mail from a JMAP account yet";
 
+/// Why a JMAP account's mail stays where its server has it ([`Mailbox::stays_on_server`]): a move
+/// or a deletion reaches the server only once the engine sends changes, and until then the next
+/// run would bring the message back where it was.
+pub const NOT_MOVING_YET: &str = "MailCraft doesn't move or delete a JMAP account's mail yet: the next Send/Receive would bring it back";
+
+/// Why a JMAP account's folders keep their names and places ([`Mailbox::folder_stays_on_server`]):
+/// a rename or a move reaches the server only once the engine sends changes, and until then it
+/// would stay on this computer alone.
+pub const FOLDERS_STAY_YET: &str = "MailCraft doesn't rename or move a JMAP account's folders yet: its server wouldn't be told";
+
 fn not_found(what: &'static str, id: Id) -> ModelError {
     ModelError::NotFound(what, id)
 }
@@ -973,10 +1013,23 @@ impl Mailbox {
         self.event_checks.retain(|check| !going.contains(&check.account));
         self.queued.retain(|queued| !going.contains(&queued.account()));
         self.favorites_from_server.retain(|list| !going.contains(&list.account));
+        self.tidy_listed_twice();
         Ok(())
     }
 
     // ---- shared mailboxes ----
+
+    /// Keep each account's [`Account::listed_twice`] to the shared mailboxes open under it: one
+    /// that is closed has nothing hidden for it (its calendar is listed again), and is offered
+    /// again if it is opened again.
+    pub fn tidy_listed_twice(&mut self) {
+        let open: Vec<(Id, String)> =
+            self.accounts.iter().filter(|a| a.is_shared()).filter_map(|a| a.shared_of.map(|owner| (owner, a.email.trim().to_string()))).collect();
+        for account in &mut self.accounts {
+            let id = account.id;
+            account.listed_twice.retain(|entry| open.iter().any(|(owner, address)| *owner == id && address.eq_ignore_ascii_case(&entry.address)));
+        }
+    }
 
     /// The shared mailboxes opened through `account` ([`Account::shared_of`]), in the order they
     /// were added.
@@ -1318,6 +1371,10 @@ impl Mailbox {
         if f.kind != FolderKind::Custom {
             return Err(invalid(format!("{} can't be renamed", f.name)));
         }
+        // Nor one of a JMAP account's server's mailboxes: its server wouldn't hear of the new name.
+        if self.renaming_stays_on_server(id) {
+            return Err(invalid(FOLDERS_STAY_YET));
+        }
         if self.name_taken(f.account, f.parent, &name, Some(id)) {
             return Err(invalid(format!("a folder named \"{name}\" already exists here")));
         }
@@ -1330,6 +1387,10 @@ impl Mailbox {
         let f = self.folder(id).ok_or(not_found("folder", id))?.clone();
         if f.kind != FolderKind::Custom {
             return Err(invalid(format!("{} can't be moved", f.name)));
+        }
+        // Nor one holding what a JMAP account's server has: its server wouldn't hear of the move.
+        if self.folder_stays_on_server(id) {
+            return Err(invalid(FOLDERS_STAY_YET));
         }
         if let Some(p) = parent {
             let pf = self.folder(p).ok_or(not_found("folder", p))?;
@@ -1363,6 +1424,10 @@ impl Mailbox {
         let f = self.folder(id).ok_or(not_found("folder", id))?.clone();
         if f.kind != FolderKind::Custom {
             return Err(invalid(format!("{} can't be deleted", f.name)));
+        }
+        // Nor one holding what a JMAP account's server has: the next run would bring it back.
+        if self.folder_stays_on_server(id) {
+            return Err(invalid(NOT_MOVING_YET));
         }
         let deleted = self.folder_of_kind(f.account, FolderKind::Deleted);
         let in_deleted = deleted.is_some_and(|d| self.subtree(d).contains(&id));
@@ -1485,14 +1550,65 @@ impl Mailbox {
         self.pending.iter().position(|p| matches!(p, Pending::Move { message, .. } if *message == id))
     }
 
-    /// Move a message to another folder.
+    /// Move a message to another folder, but not one a JMAP account's server has
+    /// ([`Mailbox::stays_on_server`]): its server isn't told of the move yet.
+    pub fn move_message(&mut self, id: Id, folder: Id) -> Result<(), ModelError> {
+        let moves = self.message(id).is_some_and(|m| m.folder != folder) && self.folder(folder).is_some();
+        if moves && self.stays_on_server(id) {
+            return Err(invalid(NOT_MOVING_YET));
+        }
+        self.move_message_anyway(id, folder)
+    }
+
+    /// Whether `id` is a message a JMAP account's server has. It stays where it is until moves and
+    /// deletions go up to the server ([`NOT_MOVING_YET`]); mail only this computer has in such an
+    /// account's folders (a draft saved here, mail imported there) moves and goes as any other.
+    pub fn stays_on_server(&self, id: Id) -> bool {
+        self.message(id).is_some_and(|m| m.server.is_some() && self.account(m.account).is_some_and(|a| a.kind == AccountKind::Jmap))
+    }
+
+    /// Whether any account is a JMAP account: without one, nothing stays on a server
+    /// ([`Mailbox::stays_on_server`]), and a selection needn't be walked to know it.
+    pub fn has_jmap_account(&self) -> bool {
+        self.accounts.iter().any(|a| a.kind == AccountKind::Jmap)
+    }
+
+    /// Whether the folder `id` is one of a JMAP account's server's mailboxes, whose name stays as the
+    /// server has it until changes go up ([`FOLDERS_STAY_YET`]). A folder made here keeps its name
+    /// to itself, whatever is in it.
+    pub fn renaming_stays_on_server(&self, id: Id) -> bool {
+        self.folder(id).is_some_and(|f| f.server.is_some() && self.account(f.account).is_some_and(|a| a.kind == AccountKind::Jmap))
+    }
+
+    /// Whether the folder `id`, with the folders in it, holds what a JMAP account's server has: a
+    /// mailbox of its, or mail it has. Such a folder isn't deleted here yet.
+    pub fn folder_stays_on_server(&self, id: Id) -> bool {
+        let Some(f) = self.folder(id) else { return false };
+        if !self.account(f.account).is_some_and(|a| a.kind == AccountKind::Jmap) {
+            return false;
+        }
+        let tree: HashSet<Id> = self.subtree(id).into_iter().collect();
+        self.folders.iter().any(|g| tree.contains(&g.id) && g.server.is_some())
+            || self.messages.values().any(|m| tree.contains(&m.folder) && m.server.is_some())
+    }
+
+    /// Whether emptying the folder `id` would take what a JMAP account's server has: mail in it, or,
+    /// in Deleted Items, a folder that holds some ([`Mailbox::folder_stays_on_server`]).
+    pub fn emptying_stays_on_server(&self, id: Id) -> bool {
+        let deleted = self.folder(id).is_some_and(|f| f.kind == FolderKind::Deleted);
+        self.messages_in(id).any(|m| self.stays_on_server(m.id))
+            || (deleted && self.folders.iter().any(|c| c.parent == Some(id) && self.folder_stays_on_server(c.id)))
+    }
+
+    /// Move a message to another folder, whatever it is (what [`Mailbox::move_message`] refuses
+    /// too: a repair puts a message that has no folder somewhere).
     ///
     /// A message the server has (it has a UID in a folder that follows a server mailbox) gets a
     /// [`Pending::Move`] for the next synchronisation to push; until then it has no UID in its
     /// new folder. One that already has a move waiting keeps it with the new destination, and
     /// moving it back to where the server still has it calls the move off. A message moved to
     /// another account's folder stays where it is on its own server: nothing is pushed.
-    pub fn move_message(&mut self, id: Id, folder: Id) -> Result<(), ModelError> {
+    fn move_message_anyway(&mut self, id: Id, folder: Id) -> Result<(), ModelError> {
         let (account, remote) = {
             let f = self.folder(folder).ok_or(not_found("folder", folder))?;
             (f.account, f.remote.clone())
@@ -1800,6 +1916,10 @@ impl Mailbox {
     /// [`Pending::Delete`] tells the next synchronisation to delete it there too; a message with
     /// a move still waiting is deleted where the server has it.
     pub fn remove_message(&mut self, id: Id) -> Result<Message, ModelError> {
+        // Not one a JMAP account's server has: the next run would bring it back.
+        if self.stays_on_server(id) {
+            return Err(invalid(NOT_MOVING_YET));
+        }
         let (was_in, account, uid, message_id) = {
             let m = self.message(id).ok_or(not_found("message", id))?;
             (m.folder, m.account, m.uid, m.message_id.clone())
@@ -2174,6 +2294,7 @@ impl Mailbox {
                 fixed.push("an account id corrected".into());
             }
         }
+        self.tidy_listed_twice();
         let accounts: Vec<Id> = self.accounts.iter().map(|a| a.id).collect();
         let known_accounts: HashSet<Id> = accounts.iter().copied().collect();
         let before = self.folders.len();
@@ -2253,7 +2374,7 @@ impl Mailbox {
         for id in homeless {
             match fallback {
                 Some(f) => {
-                    let _ = self.move_message(id, f);
+                    let _ = self.move_message_anyway(id, f);
                 }
                 None => {
                     self.messages.remove(&id);

@@ -173,6 +173,7 @@ const SAFE: &[&str] = &[
     // Folders.
     "folder.select",
     "folder.list",
+    "folder.properties",
     "folder.new",
     "folder.rename",
     "folder.move",
@@ -253,6 +254,7 @@ const SAFE: &[&str] = &[
     "people.get",
     "people.list",
     "people.search",
+    "people.arrange",
     "people.favorite",
     "people.categorize",
     "people.email",
@@ -263,6 +265,7 @@ const SAFE: &[&str] = &[
     "tasks.select",
     "tasks.get",
     "tasks.list",
+    "tasks.arrange",
     "tasks.categorize",
     "tasks.fromMessage",
     "category.set",
@@ -344,6 +347,9 @@ const ACCOUNTS: &[&str] = &[
     // the owner's sign-in, and removing one removes what is kept of it here.
     "calendar.openShared",
     "calendar.removeShared",
+    // A shared mailbox's calendar listed twice (#70): hiding the copy removes it and its events
+    // from this computer.
+    "calendar.hideListedCopy",
     // Mail to keep offline (#143): what is kept on this computer; the server keeps it all.
     "account.thinOffline",
     "ui.keepOffline",
@@ -388,6 +394,7 @@ const SETTINGS: &[&str] = &[
     "signature.close",
     "ui.alwaysDownloadPictures",
     "ui.downloadPicturesAutomatically",
+    "ui.senderImages",
     "ui.desktopAlerts",
     "ui.updateCheck",
     "ui.updateInstall",
@@ -402,6 +409,10 @@ const NEVER: &[&str] = &[
     "sync.applyGraph",
     "sync.graphFetchRequest",
     "sync.applyGraphFetch",
+    "sync.jmapRequest",
+    "sync.applyJmap",
+    "sync.jmapFetchRequest",
+    "sync.applyJmapFetch",
     // A search of the server goes only on the owner's own click (R6.2).
     "sync.graphSearchRequest",
     "sync.applyGraphSearch",
@@ -769,6 +780,16 @@ pub fn describe(s: &Session, id: &str, params: &Value) -> String {
                 .and_then(|c| mailcraft_model::remote::opened_address(&c.origin.id))
                 .unwrap_or_else(|| st("address").to_string());
             format!("remove the calendar of {} opened by address, and its events from this computer", clip(&named, 80))
+        }
+        "calendar.hideListedCopy" => {
+            let address = clip(st("address"), 80);
+            if params.get("hide").and_then(Value::as_bool) == Some(false) {
+                format!("show again the copy of the calendar of the shared mailbox {address} that is listed under Shared Calendars")
+            } else {
+                format!(
+                    "hide the copy of the calendar of the shared mailbox {address} that is listed under Shared Calendars, and remove its events from this computer (the shared mailbox's own calendar stays)"
+                )
+            }
         }
         "account.removeSharedMailbox" => {
             let a = p::id(params, "id").and_then(|a| s.mailbox.account(a)).map(|a| a.email.clone()).unwrap_or_else(|| st("address").to_string());

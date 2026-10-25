@@ -802,11 +802,13 @@ fn close(s: &mut Session, _: &Value) -> CmdResult {
 
 fn discard(s: &mut Session, _: &Value) -> CmdResult {
     let draft = s.compose.take().and_then(|c| c.draft);
-    if let Some(d) = draft {
-        // Already gone is fine.
-        let _ = s.mailbox.remove_message(d);
+    // Already gone is fine; one a JMAP account's server has stays (M6), and the answer says so.
+    let deleted = draft.is_some_and(|d| s.mailbox.remove_message(d).is_ok() || s.mailbox.message(d).is_none());
+    // Why it stays in Drafts, for the window to say: the reason the Move menu greys for it.
+    if let Some(d) = draft.filter(|d| !deleted && s.mailbox.stays_on_server(*d)) {
+        return Ok(json!({"draftDeleted": false, "draft": d, "stays": mailcraft_model::NOT_MOVING_YET}));
     }
-    Ok(json!({"draftDeleted": draft.is_some()}))
+    Ok(json!({"draftDeleted": deleted}))
 }
 
 /// Someone a name or address being typed could be.

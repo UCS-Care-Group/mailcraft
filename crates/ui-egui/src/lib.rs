@@ -53,6 +53,7 @@ pub mod dates;
 pub mod dialogs;
 pub mod favorites_sync;
 pub mod files;
+mod folder_properties;
 pub mod forms;
 pub mod graph_fetch;
 mod graph_switch;
@@ -65,6 +66,8 @@ pub mod mail_view;
 mod meeting_dialogs;
 pub mod menubar;
 pub mod nav;
+#[cfg(test)]
+mod on_top_tests;
 mod open_shared;
 #[cfg(test)]
 mod open_shared_tests;
@@ -81,6 +84,7 @@ mod secrets_bound_tests;
 #[cfg(test)]
 #[path = "secrets_replaced_tests.rs"]
 mod secrets_replaced_tests;
+mod sender_images;
 pub mod server_search;
 mod shared_calendars;
 #[cfg(test)]
@@ -196,6 +200,14 @@ pub struct Services {
     /// any download; this is only for saying how much is kept and for forgetting it. Absent
     /// where nothing is kept (the browser, the tests, the sample mailbox).
     pub picture_cache: Option<Box<dyn PictureCache>>,
+    /// Desktop: the picture of a sender, by their address, on a background thread, once the
+    /// owner turned sender images on ([`sender_images`]): what Gravatar has for the address,
+    /// else the icon favicon.im (or else Google) has for its domain, downloaded and kept like
+    /// the pictures in mail. The bytes, or why there are none, arrive through the channel.
+    /// Once the token can't be upgraded (sender images turned off, the pictures cleared) the
+    /// window no longer wants it, and the host asks nothing more for it.
+    /// Absent in the browser and the tests: senders keep their initials.
+    pub sender_images: Option<Box<dyn Fn(String, std::sync::Weak<()>) -> Receiver<Result<Vec<u8>, String>>>>,
     /// Desktop: remove everything MailCraft keeps on this computer, in the folders the host
     /// itself works in ([`data_removal::DataWipe`], File › Info › Remove MailCraft's data from
     /// this computer, #177). Absent in the browser and the tests.
@@ -603,6 +615,10 @@ pub struct UiState {
     /// Domains whose senders' pictures are downloaded without asking (`shop.example`: what
     /// follows the `@` of an address, in lower case, and that domain only).
     pub picture_domains: Vec<String>,
+    /// Show the pictures of the senders the owner knows, or whose mail's pictures are downloaded,
+    /// in the message list, from Gravatar, favicon.im and Google. Off unless the owner turns it on:
+    /// asking tells those services whose pictures are looked at.
+    pub sender_images: bool,
     /// The groups of the calendar list that are folded away under their headings.
     pub collapsed_calendar_groups: Vec<String>,
     /// Whether MailCraft looks for new versions once a day ([`updates`]): off until the owner says.
@@ -656,6 +672,7 @@ impl Default for UiState {
             download_pictures: false,
             picture_senders: Vec::new(),
             picture_domains: Vec::new(),
+            sender_images: false,
             collapsed_calendar_groups: Vec::new(),
             update_check: updates::UpdateCheck::default(),
             update_asked: 0,
@@ -862,6 +879,12 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         r#"{"sender": address} | {"domain": name (what follows the @; everybody at that domain)} | {"message"?: number} (its sender), "value"?: bool (default: true; false forgets the sender or the domain)"#,
     ),
     ("ui.downloadPicturesAutomatically", "Download Pictures in Mail Automatically", "File › Options", r#"{"value"?: bool (default: toggle)}"#),
+    (
+        "ui.senderImages",
+        "Show Sender Images",
+        "File › Options",
+        r#"{"value"?: bool (default: toggle)} — the pictures of the senders you know (your contacts, and whoever mail in Sent Items went to), and of those whose mail's pictures are downloaded (for all mail, the sender, the domain or the message), in the message list, from Gravatar, else their domain's icon from favicon.im or Google; never for mail in Junk E-mail"#,
+    ),
     (
         "ui.retryPictures",
         "Try Downloading Pictures Again",
@@ -1206,6 +1229,8 @@ pub struct MailApp {
     pub(crate) windows: windows::Windows,
     /// Pictures from the web: which messages may show them, and the ones on their way.
     pub(crate) remote_pictures: reading::RemotePictures,
+    /// The pictures of the senders in the message list, as far as they have come.
+    pub(crate) sender_images: sender_images::SenderImages,
     /// The text selected in the messages that are being read, in the pane and in windows.
     pub(crate) text_selection: reading::Selections,
     /// The last calendar command the owner ran to its end ([`MailApp::run`]), numbered, with how
@@ -1334,6 +1359,7 @@ impl MailApp {
             refused: None,
             windows: Default::default(),
             remote_pictures: Default::default(),
+            sender_images: Default::default(),
             text_selection: Default::default(),
             ran: (0, String::new(), Ok(Value::Null)),
             free_busy: Default::default(),
@@ -1380,6 +1406,9 @@ impl MailApp {
         let v = &mut self.session.view;
         (v.sort, v.sort_descending, v.conversations, v.reading_pane, v.folder_pane, v.calendar, v.task_filter) =
             (saved.sort, saved.sort_descending, saved.conversations, saved.reading_pane, saved.folder_pane, saved.calendar, saved.task_filter);
+        // How People and Tasks are arranged, likewise.
+        v.people_sort = saved.people_sort;
+        v.task_sort = saved.task_sort;
         // Which calendars lie over one another is a layout choice too (calendars that this
         // mailbox doesn't have are simply not found).
         (v.overlay, v.overlay_front) = (saved.overlay.iter().copied().take(200).collect(), saved.overlay_front);
@@ -1421,7 +1450,11 @@ impl MailApp {
                 return opened;
             }
             self.dialog = dialogs::open_dialog(self, name, &params);
-            return Ok(json!({"pending": name}));
+            // Folder Properties asks the engine first: when the engine refuses, there is no
+            // dialog, and the command runs below so that the refusal is said as any command's is.
+            if self.dialog.is_some() || name != "folderProperties" {
+                return Ok(json!({"pending": name}));
+            }
         }
         // A message not fetched yet is fetched first, and then the command goes on (R3.2).
         if let Some(r) = self.fetch_first(id, &params) {
@@ -1522,6 +1555,24 @@ impl MailApp {
             && let Some(account) = opened.get("account").and_then(Value::as_u64)
         {
             self.read_opened_now(account);
+        }
+        // The copy of a shared mailbox's calendar shown again (#70): the account's list brings it
+        // back at once.
+        if let (Ok(shown), "calendar.hideListedCopy") = (&r, id)
+            && shown.get("hidden").and_then(Value::as_bool) == Some(false)
+            && let Some(account) = shown.get("account").and_then(Value::as_u64)
+        {
+            // (Kept both when asked: it is here already, and nothing need be asked.)
+            let address = shown.get("address").and_then(Value::as_str).unwrap_or_default();
+            let here = self
+                .session
+                .mailbox
+                .calendars
+                .iter()
+                .any(|c| c.origin.account == account && c.owner.as_ref().is_some_and(|o| o.address.trim().eq_ignore_ascii_case(address)));
+            if !here {
+                self.read_opened_now(account);
+            }
         }
         // Outlook's Favorites are wanted again: they are read at once.
         if r.is_ok() && id == "view.favorites" && params.get("own").and_then(Value::as_bool) == Some(false) {
@@ -1836,7 +1887,8 @@ impl MailApp {
                     .or_else(|| graph_switch::ui_command(self, id, p))
                     .or_else(|| updates::ui_command(self, id, p))
                     .or_else(|| attachment_open::ui_command(self, id, p))
-                    .or_else(|| report_problem::ui_command(self, id, p));
+                    .or_else(|| report_problem::ui_command(self, id, p))
+                    .or_else(|| sender_images::ui_command(self, id, p));
             }
         })
     }
@@ -2281,8 +2333,8 @@ impl MailApp {
     }
 
     fn server_accounts(&self) -> Vec<Id> {
-        // (Not a JMAP account yet: no run of one is made until the engine has its commands, and
-        // every run would end in a refusal.)
+        // (Not a JMAP account yet: the window has no runner for one, so every run of it would end
+        // in a refusal.)
         let runs = |a: &&mailcraft_model::Account| a.kind.has_server() && a.kind != mailcraft_model::AccountKind::Jmap;
         self.session.mailbox.accounts.iter().filter(runs).map(|a| a.id).collect()
     }
@@ -2429,7 +2481,11 @@ impl MailApp {
                 RunState::Waiting => {
                     self.session.sync_progress.leave_out(account);
                 }
-                RunState::Running => self.session.sync_progress.end(account, false),
+                RunState::Running => {
+                    let now = self.session.now();
+                    self.session.sync_progress.count_full_if_due(&self.session.mailbox, account, now);
+                    self.session.sync_progress.end(account, false);
+                }
                 RunState::Done | RunState::Stopped | RunState::Skipped => {}
             }
         }
@@ -3528,6 +3584,8 @@ impl MailApp {
         // mailbox's times are put by the new clock before anything of it is drawn, and so are
         // the appointments that stand open.
         self.follow_zone();
+        // The agent's question is on top of everything, so it gets Enter and Escape first.
+        agent_gate::keys(self, &ctx);
         // Windows of their own (a message, an appointment), before the shortcuts: Escape closes
         // the one in front where they are inside this window.
         windows::show(self, &ctx);
@@ -3770,6 +3828,11 @@ fn feedback(id: &str, v: &Value) -> Option<String> {
         }
         "compose.send" => Some(tl!("Sent").to_string()),
         "compose.saveDraft" => Some(tl!("Draft saved").to_string()),
+        // A draft its JMAP account's server has isn't deleted yet (M6): the editor closes, and why
+        // the draft is still in Drafts is said, as the Move menu says it.
+        "compose.discard" => {
+            v.get("stays").and_then(Value::as_str).map(|why| i18n::fmt(tl!("The draft stays in Drafts. {why}"), &[("why", tl!(why))]))
+        }
         "mail.markAllRead" | "rules.run" => n("changed").or(n("matched")).map(|c| tln!(c, "{n} message changed", "{n} messages changed")),
         "file.import" => {
             let mut parts = Vec::new();

@@ -16,6 +16,7 @@
 use std::collections::HashMap;
 
 use mailcraft_model::sync::{SyncPhase, SyncStage, SyncStep, Timings};
+use mailcraft_model::time::Timestamp;
 use mailcraft_model::{AccountKind, Id, Mailbox};
 use serde_json::{Value, json};
 
@@ -158,6 +159,12 @@ pub struct SyncProgress {
     held: HashMap<Id, bool>,
     /// Full messages of each Microsoft account, as last counted.
     full: HashMap<Id, FullMessages>,
+    /// When each account's full messages were last counted from the mailbox, and whether pages
+    /// came since that weren't counted (a run's pages are counted at most once a second).
+    counted: HashMap<Id, (Timestamp, bool)>,
+    /// How many times full messages were counted from the mailbox: each count goes through every
+    /// message, so a run doesn't count after every page it brings.
+    recounts: u64,
     /// Stop paused the fetching of full messages, until the next run starts.
     pub full_paused: bool,
 }
@@ -269,23 +276,59 @@ impl SyncProgress {
 
     /// Count the account's full messages again, from the mailbox (nothing kept for an account
     /// that isn't a Microsoft one).
-    pub fn count_full(&mut self, mb: &Mailbox, account: Id, now: mailcraft_model::time::Timestamp) {
+    pub fn count_full(&mut self, mb: &Mailbox, account: Id, now: Timestamp) {
         if mb.account(account).is_none_or(|a| a.kind != AccountKind::Microsoft) {
             self.full.remove(&account);
+            self.counted.remove(&account);
             return;
         }
-        let all = graph_down::kept_in_full(mb, account, now);
-        let (waiting, large) = graph_down::not_fetched(mb, account, now);
-        let total = all.saturating_sub(large);
-        let done = total.saturating_sub(waiting.saturating_sub(large));
+        self.counted_as(mb, account, graph_down::full_counts(mb, account, now), now);
+    }
+
+    /// Keep `counts`, just counted from the mailbox at `now`, as the account's full messages
+    /// (nothing for an account that isn't a Microsoft one).
+    pub(crate) fn counted_as(&mut self, mb: &Mailbox, account: Id, counts: graph_down::FullCounts, now: Timestamp) {
+        if mb.account(account).is_none_or(|a| a.kind != AccountKind::Microsoft) {
+            self.full.remove(&account);
+            self.counted.remove(&account);
+            return;
+        }
+        let total = counts.all.saturating_sub(counts.large);
+        let done = total.saturating_sub(counts.waiting.saturating_sub(counts.large));
         let count = |n: usize| u32::try_from(n).unwrap_or(u32::MAX);
         self.full.insert(account, FullMessages { done: count(done), total: count(total) });
+        self.counted.insert(account, (now, false));
+        self.recounts = self.recounts.saturating_add(1);
+    }
+
+    /// Pages of a run came for the account and the run goes on: its full messages are counted
+    /// again unless they already were in this second of the clock, in which case they are counted
+    /// when the next page comes in a later one, or when the account's part of the run ends
+    /// ([`SyncProgress::count_full_if_due`]).
+    pub fn count_full_now_and_then(&mut self, mb: &Mailbox, account: Id, now: Timestamp) {
+        match self.counted.get_mut(&account) {
+            Some((at, due)) if *at == now => *due = true,
+            _ => self.count_full(mb, account, now),
+        }
+    }
+
+    /// Count the account's full messages again if pages came since they were last counted.
+    pub fn count_full_if_due(&mut self, mb: &Mailbox, account: Id, now: Timestamp) {
+        if self.counted.get(&account).is_some_and(|(_, due)| *due) {
+            self.count_full(mb, account, now);
+        }
+    }
+
+    /// How many times full messages were counted from the mailbox, every message gone through.
+    pub fn recounts(&self) -> u64 {
+        self.recounts
     }
 
     /// Count every Microsoft account's full messages again (what a host said of another account
     /// stays; what was kept for an account that is gone goes).
-    pub fn count_all_full(&mut self, mb: &Mailbox, now: mailcraft_model::time::Timestamp) {
+    pub fn count_all_full(&mut self, mb: &Mailbox, now: Timestamp) {
         self.full.retain(|account, _| mb.account(*account).is_some());
+        self.counted.retain(|account, _| mb.account(*account).is_some());
         let accounts: Vec<Id> = mb.accounts.iter().filter(|a| a.kind == AccountKind::Microsoft).map(|a| a.id).collect();
         for account in accounts {
             self.count_full(mb, account, now);

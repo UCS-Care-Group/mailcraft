@@ -36,7 +36,7 @@ pub(crate) struct OpenShared {
     /// How it came out, for the dialog to say: the calendar's name, or why not.
     pub(crate) outcome: Option<Result<String, String>>,
     /// The people whose copy opened by address was offered for removal already.
-    offered: HashSet<String>,
+    pub(crate) offered: HashSet<String>,
     /// The accounts whose owner said no to the permission since the window opened: a job that
     /// starts by itself doesn't ask again.
     declined: HashSet<Id>,
@@ -121,6 +121,33 @@ impl MailApp {
                 self.offer_to_remove_copy(&address, &name);
             }
         }
+        // A shared mailbox open here whose calendar the server lists as well (an invitation
+        // accepted in Outlook): offered once to hide that copy. The answer is kept in the
+        // mailbox file; a question closed without one is asked again the next time the window
+        // opens, not before.
+        let twice = applied.get("listedTwice").and_then(Value::as_array).map(Vec::as_slice).unwrap_or_default();
+        for one in twice.iter().take(20) {
+            let address = one.get("address").and_then(Value::as_str).unwrap_or_default().to_string();
+            let name = one.get("name").and_then(Value::as_str).unwrap_or_default().to_string();
+            if !address.is_empty() && self.dialog.is_none() && self.open_shared.offered.insert(format!("twice:{}", address.to_ascii_lowercase())) {
+                self.offer_to_hide_copy(&address, &name);
+            }
+        }
+    }
+
+    /// The server lists the calendar of the shared mailbox at `address` among the account's own
+    /// calendars too, as `name`: offer, once, to hide that copy, the shared mailbox's own calendar
+    /// being the fuller one.
+    fn offer_to_hide_copy(&mut self, address: &str, name: &str) {
+        let text = crate::i18n::fmt(
+            tl!(
+                "The calendar of the shared mailbox {address} is shown twice: under My Calendars with the shared mailbox, and under Shared Calendars as \"{name}\", because it was also shared with you and accepted.\n\nHide the copy under Shared Calendars? The shared mailbox's own calendar stays, and lets you change events, answer meeting requests and send from the mailbox where you may. Nothing on the server changes: right-click the shared mailbox's calendar to show the copy again."
+            ),
+            &[("address", address), ("name", name)],
+        );
+        let ask = Question::new(tl!("Calendar Listed Twice"), text, tl!("Hide the Copy"), json!({"hide": true}))
+            .or(tl!("Keep Both"), json!({"hide": false}));
+        self.dialog = Some(Dialog::Confirm { command: "calendar.hideListedCopy".to_string(), params: json!({"address": address}), ask });
     }
 
     /// The server lists the calendar of the person at `address` too: offer, once, to remove the

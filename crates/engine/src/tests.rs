@@ -467,6 +467,50 @@ fn the_list_arranges_by_categories() {
     assert!(s.run("view.sort", &json!({"by": "colour"})).is_err());
 }
 
+/// Names that differ only in case are one category, beyond ASCII too (`Été` and `été`), spelt as
+/// the mailbox's list spells it; a name the list doesn't have is headed as the first message under
+/// it spells it.
+#[test]
+fn categories_that_differ_only_in_case_are_one_heading() {
+    let mut s = session();
+    run(&mut s, "folder.select", json!({"kind": "inbox"}));
+    s.mailbox.categories.push(mailcraft_model::Category { name: "Été".into(), color: Default::default() });
+    let ids: Vec<Id> = s.rows().iter().map(|r| r.id).filter(|id| !s.mailbox.message(*id).unwrap().pinned).collect();
+    for id in &ids {
+        s.mailbox.message_mut(*id).unwrap().categories.clear();
+    }
+    for (id, names) in ids.iter().zip([vec!["été", "ÉTÉ"], vec!["Été"], vec!["Ölfarbe"], vec!["ölfarbe"]]) {
+        s.mailbox.message_mut(*id).unwrap().categories = names.into_iter().map(String::from).collect();
+    }
+    run(&mut s, "view.sort", json!({"by": "categories"}));
+    let rows = s.rows();
+    let groups: Vec<&str> = rows.iter().filter_map(|r| r.group.as_deref()).filter(|g| *g != "Pinned").collect();
+    assert_eq!(groups, ["No category", "Été", "Ölfarbe"]);
+    assert_eq!(rows.iter().filter(|r| r.id == ids[0]).count(), 1, "one message, one heading");
+}
+
+/// Contacts arranged by categories are listed by name, each once (the People list puts each
+/// under each of its categories); arranged by name, favourites come first.
+#[test]
+fn contacts_arrange_by_categories() {
+    let mut s = session();
+    let by_name = crate::cmd::people::sorted(&s, "");
+    let (a, b) = (by_name[0], by_name[1]);
+    s.mailbox.contact_mut(a).unwrap().categories = vec!["Red category".into()];
+    s.mailbox.contact_mut(b).unwrap().categories = vec!["Blue category".into(), "Red category".into()];
+    assert_eq!(run(&mut s, "people.arrange", json!({"by": "categories"}))["by"], "categories");
+    let order = crate::cmd::people::sorted(&s, "");
+    let mut alphabetical = order.clone();
+    alphabetical.sort_by_key(|id| {
+        let c = s.mailbox.contact(*id).unwrap();
+        (c.file_as().to_lowercase(), c.id)
+    });
+    assert_eq!(order, alphabetical, "by name alone, each once");
+    assert!(s.run("people.arrange", &json!({"by": "colour"})).is_err());
+    run(&mut s, "people.arrange", json!({"by": "name"}));
+    assert_eq!(crate::cmd::people::sorted(&s, ""), by_name);
+}
+
 #[test]
 fn search_filters_the_list_and_can_look_everywhere() {
     let mut s = session();
@@ -2166,7 +2210,7 @@ fn parity_has_a_floor_that_only_rises() {
 /// Never-crash: every command, with junk for every parameter it might read, returns `Ok` or `Err`.
 #[test]
 fn hostile_params_never_panic() {
-    let junk = [
+    let mut junk = vec![
         json!(null),
         json!({}),
         json!([]),
@@ -2215,6 +2259,29 @@ fn hostile_params_never_panic() {
     let _ = s.run("account.add", &json!({"email": "owner@example.org", "kind": "microsoft"}));
     // And one open, so that the folder pane's commands (Favorites, counts) meet its folders.
     let _ = s.run("account.addSharedMailbox", &json!({"address": "support@example.org"}));
+    // And a JMAP account (M6), so that its commands get past the door too, with answers for it
+    // that make no sense: ids that are none, a folder of its own, what only Graph says, sizes far
+    // over any cap.
+    let session = "https://jmap.example.org/.well-known/jmap";
+    let jmap = json!({"email": "jmap@example.org", "kind": "jmap", "jmap": {"session": session, "bearer": true}});
+    let jmap = s.run("account.add", &jmap).unwrap()["id"].as_u64().unwrap();
+    junk.push(json!({"result": {
+        "account": jmap, "email": "jmap@example.org", "whole": true, "busyFor": 4294967295u32,
+        "listing": {"complete": true, "folders": [
+            {"id": "M1", "parent": "M1", "name": "In\u{0}box", "kind": "outbox"}, {"id": "M3", "name": "\u{0}"}, {"id": "../x", "name": "x"}, {"id": "M2", "parent": "M9", "name": "x".repeat(10_000)},
+        ]},
+        "pages": [
+            {"folder": "M1", "afresh": true, "link": "https://evil.example/", "removed": ["E1"], "messages": [
+                {"server": {"id": "E1", "changeKey": "k", "categories": ["x"], "flag": "complete"}, "subject": "\r\nBcc: x@example.org", "from": {"email": "\u{0}"}},
+                {"server": {"id": "E1"}}, {"server": {"id": ""}}, {},
+            ]},
+            {"folder": "\u{0}", "messages": [{"server": {"id": "E2"}, "size": 1}]}, {"folder": "M2", "messages": [{"server": {"id": "E3"}}]},
+        ],
+        "progress": {"folder": "\u{0}", "read": 4294967295u32, "total": 1, "number": 9, "folders": 0},
+        "errors": ["\u{0}", "x".repeat(100_000)],
+    }}));
+    junk.push(json!({"result": {"account": jmap, "email": "jmap@example.org", "fetched": [{"id": "E1", "mime": []}, {"id": "\u{0}", "mime": [1]}], "missing": ["E1", ""]}}));
+    junk.push(json!({"account": jmap, "message": 18446744073709551615u64, "most": 1e300, "light": "yes", "jmap": {"session": 5, "bearer": "no"}, "kind": "jmap"}));
     let ids: Vec<&'static str> = s.registry.all().iter().map(|c| c.id).collect();
     for round in 0..2 {
         for id in &ids {

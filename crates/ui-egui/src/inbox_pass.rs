@@ -293,6 +293,8 @@ impl MailApp {
         }
         // Stop ends the round: nothing is left in line.
         if self.services.sync_cancel.load(Ordering::Relaxed) && self.sync_queue.is_empty() {
+            let now = self.session.now();
+            self.session.sync_progress.count_full_if_due(&self.session.mailbox, account, now);
             self.session.sync_progress.end(account, true);
             self.session.sync_status.clear();
         } else {

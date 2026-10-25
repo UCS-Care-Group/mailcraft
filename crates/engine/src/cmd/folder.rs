@@ -1,8 +1,10 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! Folders: choosing the one in view, making, renaming, moving, emptying.
+//! Folders: choosing the one in view, making, renaming, moving, emptying, and what they hold.
 
-use mailcraft_model::{FolderKind, Id};
+use std::collections::{HashMap, HashSet};
+
+use mailcraft_model::{Folder, FolderKind, Id, Message};
 use serde_json::{Value, json};
 
 use super::{bad, fail};
@@ -20,9 +22,9 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("folder.new", "New Folder", "Folder › New", new)
             .key("Mod+Shift+E")
             .params(r#"{"name": string, "parent"?: number | null (default: the folder in view; null: top level), "account"?: number}"#),
-        CommandSpec::new("folder.rename", "Rename Folder", "Folder › Actions", rename).key("F2").params(r#"{"name": string, "id"?: number}"#),
-        CommandSpec::new("folder.move", "Move Folder", "Folder › Actions", move_folder).params(r#"{"parent": number | null, "id"?: number}"#),
-        CommandSpec::new("folder.delete", "Delete Folder", "Folder › Actions", delete).params(FOLDER),
+        CommandSpec::new("folder.rename", "Rename Folder", "Folder › Actions", rename).key("F2").params(r#"{"name": string, "id"?: number}"#).selection(can_rename),
+        CommandSpec::new("folder.move", "Move Folder", "Folder › Actions", move_folder).params(r#"{"parent": number | null, "id"?: number}"#).selection(can_move),
+        CommandSpec::new("folder.delete", "Delete Folder", "Folder › Actions", delete).params(FOLDER).selection(can_delete),
         CommandSpec::new("folder.favorite", "Add to Favorites", "Folder › Favorites", favorite).params(
             r#"{"value"?: bool (default: toggle), "id"?: number} — refused for a folder of an account whose Favorites come from its server (Outlook's list, which is changed in Outlook; `view.favorites` says which accounts those are). A shared mailbox's folders are favourites kept in MailCraft, whatever the account it is opened through has: nothing is written to any server for them"#,
         ),
@@ -30,11 +32,29 @@ pub fn specs() -> Vec<CommandSpec> {
             r#"{"own"?: bool} — "own": true shows the Favorites that are marked here even for an account whose server has a list of its own, false the server's list where there is one (default: as it is). Answers what the folder pane lists under Favorites, in its order: {"own": bool, "favorites": [{"id", "name", "account", "path"}], "accounts": [{"account": number, "from": "server" | "mailbox", "listed": number}]}"#,
         ),
         CommandSpec::new("folder.empty", "Empty Folder", "Folder › Clean Up", empty).params(FOLDER).selection(can_empty),
+        CommandSpec::new("folder.properties", "Folder Properties", "Folder › Properties", properties).pure().params(
+            r#"{"id"?: number (a folder; default: the folder in view)} | {"account": number (all of the account's folders)} — how many messages a folder and each folder under it hold, how many unread, and how much space they take, from what is on this computer; nothing is asked of a server. For an IMAP account that is what was downloaded, which can be only the newest of each folder. Answers {"account", "folder": number | null (null: the account), "name", "rows": [{"id", "name", "path" (the names of the folders from the top, joined by "/"; a name may hold a "/" itself, so "parent" is what to rely on), "parent": number | null, "depth" (0: the folder named, or the account's top folders), "kind", "messages", "unread", "size" (bytes), "unknownSize" (messages whose size isn't known here: a Microsoft account's message of which only the headers are here and whose size its server didn't say, or one too large to download from an IMAP server), "total": {"messages", "unread", "size", "unknownSize"} (with the folders under it), "server"?: {"messages", "unread"} (what a Microsoft account's server counted in it at the last Send/Receive that read it to the end)}] in the folder pane's order, at most 10000 and as deep as the folder pane lists them (32 folders under the top), "total": {"messages", "unread", "size", "unknownSize"} (everything it is about), "more": number (folders left out past 10000)}"#,
+        ),
     ]
 }
 
 /// Most folders the pane lists under Favorites.
 const MAX_FAVORITES: usize = 1_000;
+
+/// The rank of the folders that lead an account's list, in the order they lead it.
+fn lead_rank(kind: FolderKind) -> usize {
+    const LEAD: [FolderKind; 4] = [FolderKind::Inbox, FolderKind::Drafts, FolderKind::Sent, FolderKind::Deleted];
+    LEAD.iter().position(|k| *k == kind).unwrap_or(LEAD.len())
+}
+
+/// Put folders that share a parent (`top`: none, they are an account's top level) in the order
+/// the folder pane lists them: at the top level Inbox, Drafts, Sent Items and Deleted Items lead;
+/// every other folder, Archive, Junk Email and Outbox among them, follows by name without regard
+/// to case. Subfolders are by name alone.
+pub fn sort_as_listed(list: &mut [&Folder], top: bool) {
+    // The id last: two folders of one name keep their places from frame to frame.
+    list.sort_by_cached_key(|f| (if top { lead_rank(f.kind) } else { 0 }, f.name.to_lowercase(), f.id));
+}
 
 /// Whether the Favorites of `account` are the ones its server lists (the folders Outlook shows
 /// under Favorites, taken in with `sync.applyFavorites`) rather than the ones marked here: the
@@ -99,7 +119,26 @@ pub const FROM_OUTLOOK: &str =
     "This account's Favorites come from Outlook and are changed there (File › Options can show the ones kept in MailCraft instead)";
 
 fn can_empty(s: &Session) -> Option<&'static str> {
-    if s.mailbox.count(s.view.folder) == 0 { Some("the folder is already empty") } else { None }
+    if s.mailbox.count(s.view.folder) == 0 {
+        return Some("the folder is already empty");
+    }
+    // Not of what a JMAP account's server has (M6): the next run would bring it back.
+    s.mailbox.emptying_stays_on_server(s.view.folder).then_some(mailcraft_model::NOT_MOVING_YET)
+}
+
+/// Not one of a JMAP account's server's mailboxes (M6): its server wouldn't hear of the new name.
+fn can_rename(s: &Session) -> Option<&'static str> {
+    s.mailbox.renaming_stays_on_server(s.view.folder).then_some(mailcraft_model::FOLDERS_STAY_YET)
+}
+
+/// Not a folder holding what a JMAP account's server has (M6): its server wouldn't hear of the move.
+fn can_move(s: &Session) -> Option<&'static str> {
+    s.mailbox.folder_stays_on_server(s.view.folder).then_some(mailcraft_model::FOLDERS_STAY_YET)
+}
+
+/// Not a folder holding what a JMAP account's server has (M6): the next run would bring it back.
+fn can_delete(s: &Session) -> Option<&'static str> {
+    s.mailbox.folder_stays_on_server(s.view.folder).then_some(mailcraft_model::NOT_MOVING_YET)
 }
 
 fn target(s: &Session, v: &Value) -> Result<Id, CmdError> {
@@ -274,4 +313,167 @@ fn empty(s: &mut Session, v: &Value) -> CmdResult {
     }
     s.sel.messages.clear();
     Ok(json!({"removed": ids.len()}))
+}
+
+/// Most rows `folder.properties` answers, and how deep it follows subfolders (the folder pane's
+/// depth): a mailbox may come from anywhere, and may hold 50,000 folders.
+const MOST_ROWS: usize = 10_000;
+const MOST_DEPTH: usize = 32;
+
+/// What some messages come to: how many, how many unread, and their size where it is known.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct Tally {
+    messages: u64,
+    unread: u64,
+    size: u64,
+    /// Messages whose size isn't known here ([`known_size`]).
+    unknown: u64,
+}
+
+impl Tally {
+    fn count(&mut self, m: &Message) {
+        self.messages = self.messages.saturating_add(1);
+        self.unread = self.unread.saturating_add(u64::from(!m.read));
+        match known_size(m) {
+            Some(size) => self.size = self.size.saturating_add(size),
+            None => self.unknown = self.unknown.saturating_add(1),
+        }
+    }
+
+    fn add(&mut self, other: &Tally) {
+        self.messages = self.messages.saturating_add(other.messages);
+        self.unread = self.unread.saturating_add(other.unread);
+        self.size = self.size.saturating_add(other.size);
+        self.unknown = self.unknown.saturating_add(other.unknown);
+    }
+
+    fn json(&self) -> Value {
+        json!({"messages": self.messages, "unread": self.unread, "size": self.size, "unknownSize": self.unknown})
+    }
+}
+
+/// A message's size as Folder Properties counts it: [`Message::list_size`], except for one of
+/// which only the headers and a preview are here (older than its account's mail to keep
+/// offline, or not fetched yet) and whose size its server didn't say. Graph's delta gives none,
+/// and what is here of it is no measure of the message: its size isn't known.
+///
+/// A message marked to be fetched again that is still whole here (#185) keeps its size: it has
+/// its HTML, its attachments or content kept on disk, which a preview never has. (One of plain
+/// text alone can't be told from a preview, and counts as unknown until its new copy comes.)
+pub fn known_size(m: &Message) -> Option<u64> {
+    let preview_only = m.body.html.is_none() && m.attachments.is_empty() && m.kept.is_none();
+    if (m.unfetched || m.incomplete) && preview_only && m.server.as_ref().is_none_or(|s| s.size == 0) {
+        return None;
+    }
+    m.list_size()
+}
+
+fn properties(s: &mut Session, v: &Value) -> CmdResult {
+    let named = |k: &str| v.get(k).is_some_and(|x| !x.is_null());
+    if named("id") && named("account") {
+        return Err(bad("name a folder by `id` or an account by `account`, not both"));
+    }
+    let mb = &s.mailbox;
+    // What it is about: a folder, or an account's top level.
+    let (account, folder, name) = if named("account") {
+        let id = p::req_id(v, "account")?;
+        let a = mb.account(id).ok_or_else(|| failed!("no account with id {id}", id))?;
+        (a.id, None, a.name.clone())
+    } else {
+        // (An `id` that names no folder is refused, never taken for the folder in view.)
+        let id = if named("id") { p::req_id(v, "id")? } else { s.view.folder };
+        let f = mb.folder(id).ok_or_else(|| failed!("no folder with id {id}", id))?;
+        (f.account, Some(f.id), f.name.clone())
+    };
+    // The account's folders by parent, each list in the pane's order.
+    let mut under: HashMap<Option<Id>, Vec<&Folder>> = HashMap::new();
+    for f in mb.folders.iter().filter(|f| f.account == account) {
+        under.entry(f.parent).or_default().push(f);
+    }
+    for (parent, list) in under.iter_mut() {
+        sort_as_listed(list, parent.is_none());
+    }
+    // Depth first, as the pane lists them: each folder with its depth and the row of its parent.
+    let mut start: Vec<&Folder> = match folder {
+        Some(id) => mb.folder(id).into_iter().collect(),
+        None => under.get(&None).cloned().unwrap_or_default(),
+    };
+    start.reverse();
+    // How deep the folder named lies: the walk stops where the pane does, 32 folders from the top.
+    let mut above = 0usize;
+    let mut cur = folder.and_then(|id| mb.folder(id)).and_then(|f| f.parent);
+    while let Some(p) = cur.and_then(|p| mb.folder(p)) {
+        above = above.saturating_add(1);
+        if above >= MOST_DEPTH {
+            break;
+        }
+        cur = p.parent;
+    }
+    let mut stack: Vec<(&Folder, usize, Option<usize>)> = start.into_iter().map(|f| (f, 0, None)).collect();
+    let mut seen: HashSet<Id> = HashSet::new();
+    let mut walked: Vec<(&Folder, usize, Option<usize>)> = Vec::new();
+    while let Some((f, depth, parent)) = stack.pop() {
+        // (A folder is walked once, however its parents are tangled in the file.)
+        if !seen.insert(f.id) {
+            continue;
+        }
+        let row = walked.len();
+        walked.push((f, depth, parent));
+        if above.saturating_add(depth) < MOST_DEPTH {
+            stack.extend(under.get(&Some(f.id)).into_iter().flatten().rev().map(|c| (*c, depth + 1, Some(row))));
+        }
+    }
+    // What each holds, in one pass over the mail.
+    let mut own: HashMap<Id, Tally> = walked.iter().map(|(f, _, _)| (f.id, Tally::default())).collect();
+    for m in mb.messages.values() {
+        if let Some(t) = own.get_mut(&m.folder) {
+            t.count(m);
+        }
+    }
+    // With the folders under each: a parent's row is always before its folders'.
+    let mut totals: Vec<Tally> = walked.iter().map(|(f, _, _)| own.get(&f.id).copied().unwrap_or_default()).collect();
+    let mut total = Tally::default();
+    for row in (0..walked.len()).rev() {
+        let Some(t) = totals.get(row).copied() else { continue };
+        match walked.get(row).and_then(|w| w.2) {
+            Some(parent) => {
+                if let Some(p) = totals.get_mut(parent) {
+                    p.add(&t);
+                }
+            }
+            None => total.add(&t),
+        }
+    }
+    // Each path from its parent's, which comes first: no folder is looked for again.
+    let mut paths: Vec<String> = Vec::with_capacity(walked.len().min(MOST_ROWS));
+    for (f, _, parent) in walked.iter().take(MOST_ROWS) {
+        let path = match parent.and_then(|p| paths.get(p)) {
+            Some(above) => format!("{above}/{}", f.name),
+            // (Only the folder named can have a parent above the rows.)
+            None if f.parent.is_none() => f.name.clone(),
+            None => mb.folder_path(f.id),
+        };
+        paths.push(path);
+    }
+    let rows: Vec<Value> = walked
+        .iter()
+        .zip(&totals)
+        .zip(paths)
+        .map(|(((f, depth, _), all), path)| {
+            let here = own.get(&f.id).copied().unwrap_or_default();
+            let mut row = json!({
+                "id": f.id, "name": f.name, "path": path, "parent": f.parent, "depth": depth, "kind": f.kind,
+                "messages": here.messages, "unread": here.unread, "size": here.size, "unknownSize": here.unknown,
+                "total": all.json(),
+            });
+            if let (Some(counts), Some(o)) = (f.server.as_ref().and_then(|server| server.counts), row.as_object_mut()) {
+                o.insert("server".into(), json!({"messages": counts.total, "unread": counts.unread}));
+            }
+            row
+        })
+        .collect();
+    Ok(json!({
+        "account": account, "folder": folder, "name": name, "rows": rows, "total": total.json(),
+        "more": walked.len().saturating_sub(MOST_ROWS),
+    }))
 }

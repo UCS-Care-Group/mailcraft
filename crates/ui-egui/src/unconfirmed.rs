@@ -44,18 +44,23 @@ pub(crate) struct Held {
     graph_search: Option<Box<dyn Fn(crate::server_search::GraphSearchJob) -> Receiver<mailcraft_model::sync::GraphSearchResult>>>,
 }
 
-/// A hash of what a mailbox's accounts connect to: each account's address, kind and servers,
-/// sorted, so the order in the file does not matter. SHA-256, so that a file cannot be made to
-/// match one the owner confirmed with other servers.
+/// A hash of what a mailbox's accounts connect to: each account's address, kind and servers (a JMAP
+/// account's session address too, and how its secret goes), sorted, so the order in the file does
+/// not matter. SHA-256, so that a file cannot be made to match one the owner confirmed with other
+/// servers.
 pub fn fingerprint(mailbox: &Mailbox) -> String {
     let server = |s: &Option<mailcraft_model::Server>| match s {
         Some(s) => format!("{}:{}:{:?}", s.host.trim().to_ascii_lowercase(), s.port, s.security),
         None => "-".to_string(),
     };
+    // (Only for an account that has one: what every other account's line was stays as it was.)
+    let jmap = |a: &Account| a.jmap.as_ref().map(|j| format!("\u{1}{}\u{1}{}", j.session.trim(), j.bearer)).unwrap_or_default();
     let mut lines: Vec<String> = mailbox
         .accounts
         .iter()
-        .map(|a| format!("{}\u{1}{:?}\u{1}{}\u{1}{}", a.email.trim().to_ascii_lowercase(), a.kind, server(&a.incoming), server(&a.outgoing)))
+        .map(|a| {
+            format!("{}\u{1}{:?}\u{1}{}\u{1}{}{}", a.email.trim().to_ascii_lowercase(), a.kind, server(&a.incoming), server(&a.outgoing), jmap(a))
+        })
         .collect();
     lines.sort();
     // Each line behind its length: no two different lists make the same bytes.

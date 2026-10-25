@@ -416,6 +416,9 @@ pub(crate) fn open_imap_with<'a>(
     if account.oauth.is_some() && secret.is_empty() {
         return Err(not_signed_in(account));
     }
+    if account.oauth.is_none() && secret.is_empty() {
+        return Err(NetError::Config("enter a password to sign in".into()));
+    }
     let (mut stream, host) = transport::open(server, Service::Imap, patience)?;
     stream.watch(cancel);
     let mut imap = Imap::connect(stream)?;
@@ -433,7 +436,7 @@ pub(crate) fn open_imap_with<'a>(
     if account.oauth.is_some() {
         imap.authenticate_xoauth2(user, secret)?;
     } else {
-        imap.login(user, secret)?;
+        imap.authenticate_password(user, secret)?;
     }
     Ok(imap)
 }

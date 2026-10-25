@@ -104,6 +104,9 @@ pub enum Dialog {
     ReportProblem(Box<crate::report_problem::Draft>),
     /// Propose New Time, Forward, or the list of what was proposed ([`crate::meeting_dialogs`]).
     Meeting(crate::meeting_dialogs::MeetingDialog),
+    /// A folder's or an account's Properties, with Folder Size… over them
+    /// ([`crate::folder_properties`]).
+    FolderProperties(Box<crate::folder_properties::FolderProperties>),
 }
 
 /// The tabs of About: the program, the people who made it, and the people who test it
@@ -139,7 +142,7 @@ impl Question {
     }
 
     /// One more way of going ahead.
-    fn or(mut self, action: &str, with: Value) -> Question {
+    pub(crate) fn or(mut self, action: &str, with: Value) -> Question {
         self.more.push((action.to_string(), with));
         self
     }
@@ -173,6 +176,7 @@ impl Dialog {
             Dialog::Form(f) => f.name(),
             Dialog::ReportProblem(_) => "reportProblem",
             Dialog::Meeting(d) => d.name(),
+            Dialog::FolderProperties(_) => "folderProperties",
         }
     }
 
@@ -244,9 +248,13 @@ impl Dialog {
     }
 }
 
-/// [`Dialog::open`], and the dialogs of a meeting beside it (`proposeTime`, `forwardMeeting`,
-/// `proposals`), which ask the engine what they are about.
+/// [`Dialog::open`], and the dialogs beside it that ask the engine what they are about: those of
+/// a meeting (`proposeTime`, `forwardMeeting`, `proposals`) and Folder Properties
+/// (`folderProperties`).
 pub(crate) fn open_dialog(app: &mut MailApp, name: &str, params: &Value) -> Option<Dialog> {
+    if name == "folderProperties" {
+        return crate::folder_properties::FolderProperties::open(app, params).map(|d| Dialog::FolderProperties(Box::new(d)));
+    }
     match crate::meeting_dialogs::MeetingDialog::open(name, app, params) {
         Some(dialog) => Some(Dialog::Meeting(dialog)),
         None => Dialog::open(name, app, params),
@@ -259,7 +267,9 @@ pub(crate) fn open_dialog(app: &mut MailApp, name: &str, params: &Value) -> Opti
 pub fn confirmation(app: &MailApp, id: &str, params: &Value) -> Option<Question> {
     let mb = &app.session.mailbox;
     let folder = |key: &str| params.get(key).and_then(Value::as_u64).or(Some(app.session.view.folder)).and_then(|f| mb.folder(f));
-    let on_server = |account: u64| mb.account(account).is_some_and(|a| a.kind.has_server());
+    // (Not a JMAP account's yet: nothing done here goes up to its server until the engine sends its
+    // changes, so nothing is removed there.)
+    let on_server = |account: u64| mb.account(account).is_some_and(|a| a.kind.has_server() && a.kind != mailcraft_model::AccountKind::Jmap);
     let server_too = |yes: bool| if yes { format!(" {}", tl!("They are removed from the mail server too.")) } else { String::new() };
     let question = |title: &str, text: String, action: &str| Some(Question::new(title, text, action, Value::Null));
     match id {
@@ -748,6 +758,8 @@ pub fn input_dialog(id: &str, params: &Value) -> Option<&'static str> {
         "calendar.openShared" if !has("address") => Some("openCalendar"),
         "rules.list" => Some("rules"),
         "category.list" => Some("categories"),
+        // (What it answers is a table to look at.)
+        "folder.properties" => Some("folderProperties"),
         "ui.reportProblem" if !has("what") => Some("reportProblem"),
         _ => None,
     }
@@ -880,8 +892,12 @@ pub(crate) fn buttons(ui: &mut Ui, ok_label: &str, ok_enabled: bool) -> (bool, b
 
 pub fn show(app: &mut MailApp, ctx: &egui::Context) {
     let Some(mut dialog) = app.dialog.take() else { return };
-    let escape = ctx.input(|i| i.key_pressed(Key::Escape));
-    let enter = ctx.input(|i| i.key_pressed(Key::Enter));
+    // A held key is one press (#393): its repeats don't close the dialog or press OK. They may be
+    // left from a key that closed what was over the dialog. Escape's repeats are taken here, so
+    // nothing later gets them. Enter's are left, since a box of several lines in a dialog needs
+    // them for new lines.
+    let escape = ctx.input_mut(|i| crate::keys::take_once(i, Key::Escape));
+    let enter = ctx.input(|i| crate::keys::pressed_once(i, Key::Enter));
     let t = Tokens::get(ctx);
     // A scrim: what is behind the dialog is out of reach until it is answered.
     let screen = ctx.content_rect();
@@ -1370,6 +1386,20 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
         Dialog::Meeting(dialog) => {
             let mut done = false;
             let open = window(ctx, dialog.title(), dialog.width(), |ui| done = dialog.show(app, ui));
+            close |= !open || done;
+        }
+        // Folder Size, open over the tabs, takes Escape and Enter; Enter on a button that has the
+        // keyboard is that button's.
+        Dialog::FolderProperties(dialog) => {
+            let enter = enter && ctx.memory(|m| m.focused().is_none());
+            let over = dialog.size_open;
+            let mut done = false;
+            let title = dialog.title.clone();
+            let open = window(ctx, &title, crate::folder_properties::WIDTH, |ui| done = dialog.show(ui, enter && !over));
+            if over {
+                close = false;
+                done |= dialog.show_size(app, ctx, escape, enter);
+            }
             close |= !open || done;
         }
     }

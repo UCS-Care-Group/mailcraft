@@ -78,3 +78,41 @@ fn calendars_opened_by_address_are_capped_and_cleaned() {
     value["accounts"][0]["openedCalendars"] = json!("junk");
     assert!(serde_json::from_value::<Mailbox>(value).is_ok());
 }
+
+/// A Microsoft account with the shared mailbox `ops@example.org` open under it.
+fn with_shared_mailbox() -> (Mailbox, Id, Id) {
+    let mut mb = Mailbox::with_local_account("Ada", "ada@example.org");
+    let owner = mb.alloc_id();
+    mb.accounts.push(Account { id: owner, email: "noor@example.org".into(), kind: AccountKind::Microsoft, ..Default::default() });
+    let shared = mb.add_shared_mailbox(owner, "ops@example.org").unwrap();
+    (mb, owner, shared)
+}
+
+#[test]
+fn a_calendar_listed_twice_is_remembered_cleaned_and_forgotten_with_its_shared_mailbox() {
+    let (mut mb, owner, shared) = with_shared_mailbox();
+    // An older file has none, and says nothing of it.
+    assert!(mb.account(owner).unwrap().listed_twice.is_empty());
+    assert!(serde_json::to_value(mb.account(owner).unwrap()).unwrap().get("listedTwice").is_none());
+    mb.account_mut(owner).unwrap().listed_twice = vec![ListedTwice { address: "OPS@example.org".into(), hidden: true }];
+    let a = mb.account(owner).unwrap();
+    assert_eq!((a.listed_twice_answer("ops@EXAMPLE.org"), a.listed_twice_answer("cy@example.org")), (Some(true), None));
+    let ops = CalendarOwner { address: "Ops@Example.org".into(), name: "Operations".into() };
+    assert!(a.hides_listed(Some(&ops)) && !a.hides_listed(None));
+    assert!(!a.hides_listed(Some(&CalendarOwner { address: "cy@example.org".into(), name: String::new() })));
+    // A save and a reload keep it.
+    let back = from_json(&serde_json::to_vec(&mb).unwrap(), 10_000).unwrap();
+    assert_eq!(back.account(owner).unwrap().listed_twice, mb.account(owner).unwrap().listed_twice);
+    // Junk, duplicates and entries for no shared mailbox open under the account are cleaned away.
+    let mut value = serde_json::to_value(&mb).unwrap();
+    let at = mb.accounts.iter().position(|a| a.id == owner).unwrap();
+    value["accounts"][at]["listedTwice"] = json!([{"address": "ops@example.org", "hidden": true}, {"address": "OPS@example.org"}, {"address": "gone@example.org", "hidden": true}, 5, "x", {"address": "  "}]);
+    let mut back: Mailbox = serde_json::from_value(value.clone()).unwrap();
+    back.repair();
+    assert_eq!(back.account(owner).unwrap().listed_twice, [ListedTwice { address: "ops@example.org".into(), hidden: true }]);
+    value["accounts"][at]["listedTwice"] = json!("junk");
+    assert!(serde_json::from_value::<Mailbox>(value).is_ok());
+    // Closing the shared mailbox forgets it: opened again, it is offered again.
+    mb.remove_account(shared).unwrap();
+    assert!(mb.account(owner).unwrap().listed_twice.is_empty());
+}

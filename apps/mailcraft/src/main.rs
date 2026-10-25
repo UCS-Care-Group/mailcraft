@@ -46,6 +46,8 @@ mod graph_mail_flow;
 #[cfg(any(target_os = "windows", test))]
 mod graphics;
 mod install;
+#[cfg(test)]
+mod listed_twice_flow;
 mod logging;
 #[cfg(target_os = "macos")]
 mod menubar;
@@ -58,6 +60,7 @@ mod quit;
 mod quit_macos;
 mod secrets;
 mod self_update;
+mod sender_images;
 #[cfg(test)]
 mod shared_calendar_flow;
 #[cfg(test)]
@@ -995,6 +998,10 @@ fn graph_sending_with(mut request: GraphRequest, zone: &str, renew: Renew<'_>, r
                 // those that can be read are in the list as calendars of the account, and those
                 // that can't are said, with why. (Not for a shared mailbox's job.)
                 if shared_address.is_none() {
+                    // The copy of a shared mailbox's calendar that the owner hid (the server lists
+                    // it among the account's own too, #70) isn't read: the shared mailbox's job
+                    // reads its calendar at its own address.
+                    list.calendars.retain(|calendar| calendar.main || !request.account.hides_listed(calendar.owner.as_ref()));
                     let (opened, no_good) = open_by_address(&access, &request.account.opened_calendars);
                     list.calendars.extend(opened);
                     list.refused = no_good.0;
@@ -1250,6 +1257,7 @@ fn services(
 ) -> Services {
     let pictures_ctx = ctx.clone();
     let pictures_kept = kept_pictures.clone();
+    let (images_ctx, images_kept) = (ctx.clone(), kept_pictures.clone());
     let wipe_pictures = kept_pictures.clone();
     let busy_ctx = ctx.clone();
     let check_ctx = ctx.clone();
@@ -1320,6 +1328,12 @@ fn services(
         pictures: Some(Box::new(move |url| {
             let kept = pictures_kept.clone();
             background(&pictures_ctx, "picture", move || picture_cache::picture(&url, kept.as_ref()))
+        })),
+        // A sender's picture for the message list, once the owner turned that on: from
+        // Gravatar, favicon.im or Google, downloaded and kept like a message's pictures.
+        sender_images: Some(Box::new(move |address, wanted| {
+            let kept = images_kept.clone();
+            background(&images_ctx, "sender image", move || sender_images::look_up(&address, kept.as_ref(), &wanted, mailcraft_net::pictures::fetch))
         })),
         picture_cache: kept_pictures.map(|kept| Box::new(picture_cache::Kept(kept)) as Box<dyn mailcraft_ui_egui::PictureCache>),
         // When the people of a meeting are free and busy, while its Scheduling Assistant is open.

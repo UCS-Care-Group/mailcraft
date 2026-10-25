@@ -151,7 +151,20 @@ fn verbs(class: Class) -> (&'static str, &'static str) {
     }
 }
 
-/// The question over the window, when there is one. Enter and Escape say no.
+/// Enter or Escape answers no to the agent's question. This runs first in the frame, so nothing
+/// under the question gets the same key, its repeats included (#393). Only a new press answers: a
+/// key that was already held down when the question came up doesn't answer it unseen.
+pub fn keys(app: &mut MailApp, ctx: &egui::Context) {
+    if app.asking.is_empty() {
+        return;
+    }
+    let (enter, escape) = ctx.input_mut(|i| (crate::keys::take_once(i, Key::Enter), crate::keys::take_once(i, Key::Escape)));
+    if enter || escape {
+        answer(app, false);
+    }
+}
+
+/// The question over the window, when there is one. Enter and Escape say no ([`keys`]).
 pub fn show(app: &mut MailApp, ctx: &egui::Context) {
     expire(app, crate::now_ms());
     let Some(a) = app.asking.front() else { return };
@@ -197,10 +210,6 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
                 }
             });
         });
-    let (enter, escape) = ctx.input_mut(|i| (i.consume_key(egui::Modifiers::NONE, Key::Enter), i.consume_key(egui::Modifiers::NONE, Key::Escape)));
-    if enter || escape {
-        said = Some(false);
-    }
     if let Some(yes) = said {
         answer(app, yes);
     }

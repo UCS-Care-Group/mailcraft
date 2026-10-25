@@ -251,6 +251,11 @@ impl FakeMailbox {
     }
 }
 
+/// A shared fake stream; TLS is supplied by a test closure, not a dependency of this fake.
+pub(crate) trait MailIo: Read + Write {}
+impl<T: Read + Write> MailIo for T {}
+type StartTls = Arc<dyn Fn(Box<dyn MailIo>) -> Box<dyn MailIo> + Send + Sync>;
+
 #[derive(Default)]
 pub(crate) struct ImapWorld {
     pub(crate) user: String,
@@ -259,6 +264,10 @@ pub(crate) struct ImapWorld {
     pub(crate) token: String,
     /// Say the token may come with the command (SASL-IR).
     pub(crate) sasl_ir: bool,
+    /// Offer the password-based PLAIN mechanism.
+    pub(crate) plain: bool,
+    /// A real TLS server for STARTTLS tests; none keeps the existing broken-handshake peer.
+    pub(crate) starttls_upgrade: Option<StartTls>,
     pub(crate) mailboxes: Vec<FakeMailbox>,
     /// Say STARTTLS is on offer (it isn't: what follows the go-ahead is no handshake).
     pub(crate) offer_starttls: bool,
@@ -302,14 +311,15 @@ pub(crate) struct ImapWorld {
 
 impl ImapWorld {
     /// What the server says it can do.
-    fn capabilities(&self) -> String {
+    fn capabilities(&self, secured: bool) -> String {
         let xoauth2 = if self.token.is_empty() { "" } else { " AUTH=XOAUTH2" };
         let sasl_ir = if self.sasl_ir { " SASL-IR" } else { "" };
+        let plain = if self.plain && (!self.offer_starttls || secured) { " AUTH=PLAIN" } else { "" };
         let starttls = if self.offer_starttls { " STARTTLS" } else { "" };
         let can_move = if self.can_move { " MOVE" } else { "" };
         let uidplus = if self.uidplus { " UIDPLUS" } else { "" };
         let gmail = if self.gmail { " X-GM-EXT-1" } else { "" };
-        format!("IMAP4rev1 SPECIAL-USE{xoauth2}{sasl_ir}{starttls}{can_move}{uidplus}{gmail}")
+        format!("IMAP4rev1 SPECIAL-USE{xoauth2}{plain}{sasl_ir}{starttls}{can_move}{uidplus}{gmail}")
     }
 
     pub(crate) fn mailbox(&mut self, raw: &str) -> &mut FakeMailbox {
@@ -393,7 +403,7 @@ impl Fake<SmtpWorld> {
 }
 
 /// The next line without its line ending; `None` when the client is gone.
-fn read_line(reader: &mut BufReader<TcpStream>) -> Option<String> {
+fn read_line<S: Read>(reader: &mut BufReader<S>) -> Option<String> {
     let mut line = Vec::new();
     match reader.read_until(b'\n', &mut line) {
         Ok(n) if n > 0 => Some(String::from_utf8_lossy(&line).trim_end_matches(['\r', '\n']).to_string()),
@@ -466,15 +476,15 @@ fn quote(name: &str) -> String {
 }
 
 fn serve_imap(stream: TcpStream, shared: Arc<Mutex<ImapWorld>>) {
-    let mut out = stream.try_clone().unwrap();
-    let mut reader = BufReader::new(stream);
+    let mut reader: BufReader<Box<dyn MailIo>> = BufReader::new(Box::new(stream));
+    let mut secured = false;
     let greeting = {
         let mut world = shared.lock().unwrap();
         world.connections += 1;
         // STARTTLS is only told to those who ask.
-        format!("* OK [CAPABILITY {}] fake ready\r\n", world.capabilities().replace(" STARTTLS", ""))
+        format!("* OK [CAPABILITY {}] fake ready\r\n", world.capabilities(false).replace(" STARTTLS", ""))
     };
-    let _ = out.write_all(greeting.as_bytes());
+    let _ = reader.get_mut().write_all(greeting.as_bytes());
     let mut signed_in = false;
     let mut open: Option<usize> = None;
     // The open mailbox was opened to be looked at only (EXAMINE).
@@ -499,23 +509,31 @@ fn serve_imap(stream: TcpStream, shared: Arc<Mutex<ImapWorld>>) {
             world.answers.iter().find(|(text, _)| signed_in && line.contains(text.as_str())).map(|(_, answer)| answer.replace("{tag}", tag));
         if let Some(answer) = scripted {
             drop(world);
-            if out.write_all(answer.as_bytes()).is_err() {
+            if reader.get_mut().write_all(answer.as_bytes()).is_err() {
                 return;
             }
             continue;
         }
         if signed_in && world.refuse.iter().any(|text| line.contains(text.as_str())) {
             drop(world);
-            if out.write_all(format!("{tag} NO [SERVERBUG] that can't be done\r\n").as_bytes()).is_err() {
+            if reader.get_mut().write_all(format!("{tag} NO [SERVERBUG] that can't be done\r\n").as_bytes()).is_err() {
                 return;
             }
             continue;
         }
         match verb.to_ascii_uppercase().as_str() {
-            "CAPABILITY" => reply.extend(format!("* CAPABILITY {}\r\n{tag} OK done\r\n", world.capabilities()).bytes()),
+            "CAPABILITY" => reply.extend(format!("* CAPABILITY {}\r\n{tag} OK done\r\n", world.capabilities(secured)).bytes()),
             "STARTTLS" if world.offer_starttls => {
+                let upgrade = world.starttls_upgrade.clone();
                 drop(world);
-                pretend_tls(&mut out, &mut reader, &format!("{tag} OK begin TLS now\r\n"));
+                let _ = reader.get_mut().write_all(format!("{tag} OK begin TLS now\r\n").as_bytes());
+                if let Some(upgrade) = upgrade {
+                    reader = BufReader::new(upgrade(reader.into_inner()));
+                    secured = true;
+                    continue;
+                }
+                let _ = reader.fill_buf();
+                let _ = reader.get_mut().write_all(b"this is no handshake\r\n");
                 return;
             }
             "LOGIN" => {
@@ -531,6 +549,23 @@ fn serve_imap(stream: TcpStream, shared: Arc<Mutex<ImapWorld>>) {
             }
             "AUTHENTICATE" => {
                 let (mechanism, with_command) = args.split_once(' ').unwrap_or((args, ""));
+                if world.plain && mechanism.eq_ignore_ascii_case("PLAIN") {
+                    let (user, password) = (world.user.clone(), world.password.clone());
+                    drop(world);
+                    let payload = if with_command.is_empty() {
+                        let _ = reader.get_mut().write_all(b"+ \r\n");
+                        let Some(line) = read_line(&mut reader) else { return };
+                        shared.lock().unwrap().log.push(line.clone());
+                        line
+                    } else {
+                        with_command.to_string()
+                    };
+                    let expected = mailcraft_charset::base64::STANDARD.encode(format!("\0{user}\0{password}").as_bytes());
+                    signed_in = payload == expected;
+                    let verdict = if signed_in { "OK welcome" } else { "NO [AUTHENTICATIONFAILED] refused" };
+                    let _ = reader.get_mut().write_all(format!("{tag} {verdict}\r\n").as_bytes());
+                    continue;
+                }
                 if world.token.is_empty() || !mechanism.eq_ignore_ascii_case("XOAUTH2") {
                     reply.extend(format!("{tag} NO [CANNOT] no such way to sign in\r\n").bytes());
                 } else {
@@ -538,7 +573,7 @@ fn serve_imap(stream: TcpStream, shared: Arc<Mutex<ImapWorld>>) {
                     // The rest of the exchange is read without holding the state.
                     drop(world);
                     let payload = if with_command.is_empty() {
-                        let _ = out.write_all(b"+ \r\n");
+                        let _ = reader.get_mut().write_all(b"+ \r\n");
                         let Some(line) = read_line(&mut reader) else { return };
                         shared.lock().unwrap().log.push(line.clone());
                         line
@@ -548,20 +583,22 @@ fn serve_imap(stream: TcpStream, shared: Arc<Mutex<ImapWorld>>) {
                     let (given_user, given_token) = bearer(&payload);
                     if (given_user, &given_token) == (user, &token) {
                         signed_in = true;
-                        let _ = out.write_all(format!("{tag} OK welcome\r\n").as_bytes());
+                        let _ = reader.get_mut().write_all(format!("{tag} OK welcome\r\n").as_bytes());
                     } else {
                         // The reasons, and after the client's empty line the verdict. A careless
                         // server: it repeats the token it was sent.
-                        let _ = out.write_all(format!("+ {REASONS}\r\n").as_bytes());
+                        let _ = reader.get_mut().write_all(format!("+ {REASONS}\r\n").as_bytes());
                         let Some(line) = read_line(&mut reader) else { return };
                         shared.lock().unwrap().log.push(line);
-                        let _ = out.write_all(format!("{tag} NO [AUTHENTICATIONFAILED] no user with the token {given_token}\r\n").as_bytes());
+                        let _ = reader
+                            .get_mut()
+                            .write_all(format!("{tag} NO [AUTHENTICATIONFAILED] no user with the token {given_token}\r\n").as_bytes());
                     }
                     continue;
                 }
             }
             "LOGOUT" => {
-                let _ = out.write_all(format!("* BYE see you\r\n{tag} OK done\r\n").as_bytes());
+                let _ = reader.get_mut().write_all(format!("* BYE see you\r\n{tag} OK done\r\n").as_bytes());
                 return;
             }
             _ if !signed_in => reply.extend(format!("{tag} BAD sign in first\r\n").bytes()),
@@ -625,7 +662,7 @@ fn serve_imap(stream: TcpStream, shared: Arc<Mutex<ImapWorld>>) {
                     let uidplus = world.uidplus;
                     // The message is read without holding the state.
                     drop(world);
-                    let _ = out.write_all(b"+ go ahead\r\n");
+                    let _ = reader.get_mut().write_all(b"+ go ahead\r\n");
                     let mut body = vec![0u8; size];
                     if reader.read_exact(&mut body).is_err() || read_line(&mut reader).is_none() {
                         return;
@@ -636,7 +673,7 @@ fn serve_imap(stream: TcpStream, shared: Arc<Mutex<ImapWorld>>) {
                     let code = if uidplus { format!("[APPENDUID {} {uid}] ", mailbox.uid_validity) } else { String::new() };
                     mailbox.messages.push(FakeMessage { uid, flags, internal_date: " 1-Jul-2003 09:52:37 +0000".into(), body, claimed_size: None });
                     drop(world);
-                    let _ = out.write_all(format!("{tag} OK {code}kept\r\n").as_bytes());
+                    let _ = reader.get_mut().write_all(format!("{tag} OK {code}kept\r\n").as_bytes());
                     continue;
                 }
             }
@@ -743,7 +780,7 @@ fn serve_imap(stream: TcpStream, shared: Arc<Mutex<ImapWorld>>) {
                     if whole && world.cut_at_uid == Some(uid) {
                         reply.extend(format!("* {seq} FETCH (UID {uid} FLAGS ({flags}) BODY[] {{{}}}\r\n", message.body.len()).bytes());
                         reply.extend(&message.body[..message.body.len() / 2]);
-                        let _ = out.write_all(&reply);
+                        let _ = reader.get_mut().write_all(&reply);
                         return;
                     }
                     if whole && world.refuse_uid == Some(uid) {
@@ -778,9 +815,9 @@ fn serve_imap(stream: TcpStream, shared: Arc<Mutex<ImapWorld>>) {
         let written = match drip {
             Some(pause) => reply.iter().try_for_each(|byte| {
                 std::thread::sleep(pause);
-                out.write_all(&[*byte])
+                reader.get_mut().write_all(&[*byte])
             }),
-            None => out.write_all(&reply),
+            None => reader.get_mut().write_all(&reply),
         };
         if written.is_err() {
             return;
