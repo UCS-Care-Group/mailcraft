@@ -1279,6 +1279,7 @@ fn services(
     let update_ctx = ctx.clone();
     let download_ctx = ctx.clone();
     let copy_ctx = ctx.clone();
+    let tree_ctx = ctx.clone();
     let alert_ctx = ctx.clone();
     let (sync_ctx, sign_in_ctx, graph_ctx, mx_ctx, test_ctx) = (ctx.clone(), ctx.clone(), ctx.clone(), ctx.clone(), ctx);
     let sync_cancel = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
@@ -1331,6 +1332,13 @@ fn services(
         // mailbox takes a while to write, and the window shows a spinner meanwhile (#118).
         write_copy: Some(Box::new(move |path, mailbox| {
             background(&copy_ctx, "mailbox copy", move || mailcraft_engine::store::save_single(&path, &mailbox).map(|_| ()))
+        })),
+        // A folder of mbox files, walked, read and parsed off the window's thread (#420); the
+        // window shows its progress and cancels it.
+        import_tree: Some(Box::new(move |job: mailcraft_ui_egui::import_tree::TreeJob| {
+            background(&tree_ctx, "folder import", move || {
+                mailcraft_engine::import_tree::load_path(&job.path, None, job.count_only, &job.progress).map_err(|e| e.to_string())
+            })
         })),
         // A picture a message keeps on the web, once the owner asked for that message's pictures.
         // The address is the message's choice, so `fetch` checks where it leads before it goes

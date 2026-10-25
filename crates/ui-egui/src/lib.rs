@@ -62,6 +62,7 @@ pub mod graph_fetch;
 mod graph_switch;
 pub mod i18n;
 pub mod icons;
+pub mod import_tree;
 mod inbox_pass;
 pub mod jmap_mail;
 mod keep_offline;
@@ -208,6 +209,11 @@ pub struct Services {
     /// take a while for a large mailbox. Without one (tests, scripts) the copy is written in
     /// place by `account.graphSwitch`.
     pub write_copy: Option<Box<dyn Fn(std::path::PathBuf, mailcraft_model::Mailbox) -> Receiver<Result<(), String>>>>,
+    /// Desktop: walk, read and parse a folder of mbox files on a background thread
+    /// (`mailcraft_engine::import_tree::load_path`), so that neither the look at it nor the
+    /// import holds the window up (#420). The job carries the folder and a shared progress the
+    /// window shows and cancels through. Without one (tests, scripts) the window does it in place.
+    pub import_tree: Option<Box<dyn Fn(import_tree::TreeJob) -> Receiver<Result<mailcraft_engine::import_tree::Parsed, String>>>>,
     /// Desktop: download one picture a message refers to on the web, on a background thread,
     /// once the owner has asked for that message's pictures ([`reading::remote`]). The address
     /// is the message's own choice: the host checks where it leads before going there, takes
@@ -3979,6 +3985,24 @@ fn feedback(id: &str, v: &Value) -> Option<String> {
             v.get("stays").and_then(Value::as_str).map(|why| i18n::fmt(tl!("The draft stays in Drafts. {why}"), &[("why", tl!(why))]))
         }
         "mail.markAllRead" | "rules.run" => n("changed").or(n("matched")).map(|c| tln!(c, "{n} message changed", "{n} messages changed")),
+        "file.importFolderTree" => {
+            let messages = n("messages")?;
+            let what = tln!(messages, "{n} message", "{n} messages");
+            let left = n("skippedCount").unwrap_or(0);
+            let name = v.get("name").and_then(Value::as_str).unwrap_or_default();
+            let said = i18n::fmt(tl!("Imported {what} into the new folder {name}"), &[("what", &what), ("name", name)]);
+            let stopped = v.get("stopped").and_then(Value::as_bool) == Some(true);
+            Some(match (left, stopped) {
+                (0, false) => said,
+                (left, _) => {
+                    let left = tln!(left, "{n} file left out", "{n} files left out");
+                    i18n::fmt(
+                        tl!("{said}; {left}{more}"),
+                        &[("said", &said), ("left", &left), ("more", if stopped { tl!(", stopped at a limit") } else { "" })],
+                    )
+                }
+            })
+        }
         "file.import" => {
             let mut parts = Vec::new();
             let counts: [(&str, fn(u64) -> String); 4] = [
