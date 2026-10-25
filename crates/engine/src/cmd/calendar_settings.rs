@@ -449,6 +449,19 @@ fn work_hours_command(s: &mut Session, v: &Value) -> CmdResult {
     Ok(work_hours_json(s))
 }
 
+/// Let go of the working hours kept for an account the mailbox no longer has: they were its
+/// mailbox's, and go with it (#325).
+pub(crate) fn forget_gone_hours(s: &mut Session) {
+    let gone = s
+        .prefs
+        .mailbox_hours
+        .as_ref()
+        .is_some_and(|hours| !s.mailbox.accounts.iter().any(|a| a.email.trim().eq_ignore_ascii_case(hours.email.trim())));
+    if gone {
+        s.prefs.mailbox_hours = None;
+    }
+}
+
 /// Take in the working hours of an account's mailbox (`None`: it has none, and what was kept
 /// goes). What isn't working hours (no days, an end before the start) is refused, and what was
 /// kept stays. Not an undo step, and nothing of the mailbox changes: they are a preference.

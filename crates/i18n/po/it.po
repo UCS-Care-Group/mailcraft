@@ -3247,6 +3247,12 @@ msgstr "Inoltra"
 msgid "Forward This Occurrence…"
 msgstr "Inoltra questa occorrenza…"
 
+#. command label, interface, ribbon
+#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Forward as Attachment"
+msgstr "Inoltra come allegato"
+
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
 #, fuzzy
@@ -3625,6 +3631,11 @@ msgstr "Sono un amministratore: approvalo per la mia organizzazione"
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
+msgid "If no browser opened, check that this computer has a default browser (on Windows: Settings, Apps, Default apps), then press Open the page again."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/help.rs
 #, fuzzy
 msgid "If that page said you need admin approval"
 msgstr "Se quella pagina indicava che serve l'approvazione dell'amministratore"
@@ -3942,8 +3953,9 @@ msgstr "La sua posta è sincronizzata tramite Microsoft Graph, senza server di p
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
-msgid "Its messages, attachments, settings and remembered sign-in go with it."
-msgstr ""
+#, fuzzy
+msgid "Its messages, attachments, settings and remembered sign-in go with it, and so do the calendar, contacts and working hours that came from its server."
+msgstr "I suoi messaggi, allegati, impostazioni e l'accesso memorizzato vengono rimossi con esso, così come il calendario, i contatti e l'orario di lavoro arrivati dal suo server."
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -11365,6 +11377,12 @@ msgstr "ogni"
 msgid "on"
 msgstr "il"
 
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "only the headers of this message are here, so it can't be forwarded as an attachment"
+msgstr "qui ci sono solo le intestazioni di questo messaggio, quindi non può essere inoltrato come allegato"
+
 #. why a command can't run
 #: crates/engine/src/cmd/calendar/invitation.rs
 #, fuzzy
@@ -11441,6 +11459,12 @@ msgstr "selezionare prima un'attività"
 #, fuzzy
 msgid "select an appointment first"
 msgstr "selezionare prima un appuntamento"
+
+#. why a command can't run
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "select only one message to forward as an attachment"
+msgstr "selezionare un solo messaggio da inoltrare come allegato"
 
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/shared.rs
@@ -11697,6 +11721,12 @@ msgstr "la firma non c'è più"
 msgid "the task is gone"
 msgstr "l'attività non c'è più"
 
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "the text of this message can't be read on this computer, so it can't be forwarded as an attachment"
+msgstr "il testo di questo messaggio non può essere letto su questo computer, quindi non può essere inoltrato come allegato"
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
@@ -11863,6 +11893,18 @@ msgstr ""
 #, fuzzy
 msgid "this message has no subject to look for"
 msgstr "questo messaggio non ha un oggetto da cercare"
+
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "this message isn't downloaded yet: open it once you're online, then forward it as an attachment"
+msgstr "questo messaggio non è ancora stato scaricato: aprirlo quando si è online, poi inoltrarlo come allegato"
+
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "this message was too large to download: only its header is here, so it can't be forwarded as an attachment"
+msgstr "questo messaggio era troppo grande per essere scaricato: qui c'è solo la sua intestazione, quindi non può essere inoltrato come allegato"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs

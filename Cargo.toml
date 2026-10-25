@@ -14,6 +14,7 @@ repository = "https://github.com/UCS-Care-Group/mailcraft"
 # internal
 mailcraft-time = { path = "crates/time" }
 mailcraft-charset = { path = "crates/charset" }
+mailcraft-link = { path = "crates/link" }
 mailcraft-i18n = { path = "crates/i18n" }
 mailcraft-model = { path = "crates/model" }
 mailcraft-html = { path = "crates/html" }
@@ -75,10 +76,6 @@ eframe = { version = "0.37", default-features = false }
 egui_kittest = "0.37"
 rfd = "0.17"
 arboard = { version = "3.7", default-features = false }
-# Reading a link's address the way a browser does (WHATWG URL), for the host it really goes to,
-# an international name in its ASCII (`xn--`) form: the tip over a link. MIT OR Apache-2.0, Rust
-# throughout, builds for the browser; already in the tree (the desktop's `webbrowser` uses it).
-url = "2.5"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

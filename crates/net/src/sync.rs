@@ -46,6 +46,7 @@ const BATCH_WAIT: Duration = Duration::from_secs(1);
 /// The header a message kept without its text has, for a program to know it by: its size on
 /// the server, in bytes.
 const NOT_DOWNLOADED: &str = mailcraft_model::NOT_DOWNLOADED;
+const NOT_DOWNLOADED_NOTE: &str = mailcraft_model::NOT_DOWNLOADED_NOTE;
 
 /// How far one run goes, and how its answer is cut into pieces.
 #[derive(Clone, Debug)]
@@ -695,7 +696,7 @@ fn too_large(header: Fetched, size: u64, largest: u64) -> Message {
     message.attachments.clear();
     message.body = Body {
         text: format!(
-            "This message is too large to download: it is {} on the server, and MailCraft takes messages of up to {}.\n\n\
+            "{NOT_DOWNLOADED_NOTE} it is {} on the server, and MailCraft takes messages of up to {}.\n\n\
              What is here comes from its header alone: who sent it, when, and what it is about. The message itself, \
              with anything attached to it, is still on the server. Read it there with another mail program or on the web.\n",
             megabytes(size),

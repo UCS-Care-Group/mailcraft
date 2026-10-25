@@ -22,8 +22,10 @@
 //! - **The file** is a header and a log of records, each with its length and a checksum, written
 //!   as the index changes (appended; [`Index::flush`]): the words not yet in it, the messages
 //!   read (each a list of word numbers and the parts they are in), and the messages taken out.
-//!   When what was taken out outweighs what is left, or an account is removed, the file is
-//!   written again whole without it ([`Index::compact`]), to a temporary file renamed over. A
+//!   When what was taken out outweighs what is left, an account is removed, or mail is found
+//!   gone that went while the file was closed (removed where no index is kept, as by
+//!   `mailcraft-cli`), the file is written again whole without it ([`Index::compact`]), to a
+//!   temporary file renamed over. A
 //!   record cut short at the end (the program stopped while writing) is left out, and so is
 //!   everything after it; any other damage makes the whole file go.
 //! - **Private as the mail:** the file is for its owner only (as the mailbox file is), and
@@ -864,6 +866,9 @@ pub struct Words {
     /// The accounts of the mailbox when it was last brought in step: one gone since takes its
     /// words off the disk at once.
     accounts: Vec<Id>,
+    /// Brought in step since its file was read: mail gone before that (removed where no index
+    /// is kept, as by `mailcraft-cli`) takes its words off the disk at the first step (#325).
+    stepped: bool,
     /// Messages the last [`Words::in_step`] left out of the index (for the background to read).
     left: usize,
 }
@@ -920,7 +925,7 @@ impl Words {
             finished: AtomicU64::new(0),
         });
         // Not complete until it has been brought in step with the mailbox as it is once read.
-        let mut words = Words { mailbox: mailbox.to_path_buf(), shared, thread: None, accounts: Vec::new(), left: 1 };
+        let mut words = Words { mailbox: mailbox.to_path_buf(), shared, thread: None, accounts: Vec::new(), stepped: false, left: 1 };
         words.build(messages, true);
         words
     }
@@ -1018,7 +1023,10 @@ impl Words {
                 out.left = self.left;
                 return out;
             };
+            let first = !self.stepped;
+            self.stepped = true;
             let mut held = 0;
+            let mut went = false;
             let mut left: Vec<(&Arc<Message>, u64)> = Vec::new();
             for m in mb.messages.values() {
                 if index.seen(m) {
@@ -1035,6 +1043,7 @@ impl Words {
             }
             if index.len() > held {
                 let gone: Vec<Id> = index.ids().filter(|id| !mb.messages.contains_key(id)).collect();
+                went = !gone.is_empty();
                 out.removed += gone.len();
                 for id in gone {
                     index.remove(id);
@@ -1061,7 +1070,9 @@ impl Words {
                     out.read += 1;
                 }
             }
-            if gone_account || index.wants_compacting() {
+            // Mail gone while the file was closed: its words leave the disk now, as an account
+            // removed here does, not only once enough has been taken out.
+            if gone_account || (first && went) || index.wants_compacting() {
                 index.compact();
             } else {
                 index.flush();

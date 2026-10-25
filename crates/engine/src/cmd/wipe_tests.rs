@@ -2,14 +2,18 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! Removing an account wipes its local copy (#177): the bodies and attachments only its mail
 //! names leave the mailbox's content folder as soon as a state without the account is saved,
-//! and content another account's mail names too stays.
+//! and content another account's mail names too stays. What came from its server goes with it
+//! too, whoever removes it (#325): its events, contacts and calendars, Outlook's list of
+//! categories, and, where the session holds the window's settings, its mailbox's working hours.
 
 use std::path::{Path, PathBuf};
 
-use mailcraft_model::{AccountKind, Attachment, Body, FolderKind, Id, Mailbox, Message};
+use mailcraft_model::{AccountKind, Attachment, Body, Calendar, Contact, Event, FolderKind, Id, Mailbox, Message, Origin, Rights};
+use mailcraft_time::Weekday;
 use serde_json::json;
 
 use crate::Session;
+use crate::cmd::calendar_settings::{MailboxHours, apply_mailbox_hours};
 
 /// A folder of this test's own in the system's temporary folder, removed afterwards.
 struct Scratch(PathBuf);
@@ -199,4 +203,156 @@ fn names_past_the_waiting_list_are_counted_not_dropped_silently() {
     let path = tmp.0.join("mailbox.mailcraft");
     let refs: Vec<mailcraft_model::ContentRef> = (0..5u8).map(|i| mailcraft_model::ContentRef { sha256: [i; 32], len: 1 }).collect();
     assert_eq!(crate::store::forget_with_cap_for_test(&path, 1, refs, 3), 2);
+}
+
+/// What `account`'s server gave, as a download leaves it: a calendar of its own with an event in
+/// it, and a contact. Answers the calendar.
+fn from_server(s: &mut Session, account: Id, who: &str) -> Id {
+    let calendar = s.mailbox.alloc_id();
+    let origin = |id: &str| Origin { account, id: format!("{who}-{id}"), ..Default::default() };
+    s.mailbox.calendars.push(Calendar {
+        id: calendar,
+        name: format!("{who}'s calendar"),
+        visible: true,
+        origin: origin("calendar"),
+        ..Default::default()
+    });
+    s.mailbox.add_event(Event { calendar, title: format!("{who}'s meeting"), origin: origin("meeting"), ..Default::default() }).unwrap();
+    s.mailbox.add_contact(Contact { display_name: format!("{who}'s colleague"), origin: origin("colleague"), ..Default::default() });
+    calendar
+}
+
+fn titles(s: &Session) -> Vec<String> {
+    let mut titles: Vec<String> = s.mailbox.events.values().map(|e| e.title.clone()).collect();
+    titles.sort();
+    titles
+}
+
+fn people(s: &Session) -> Vec<String> {
+    let mut people: Vec<String> = s.mailbox.contacts.values().map(|c| c.display_name.clone()).collect();
+    people.sort();
+    people
+}
+
+fn hours() -> MailboxHours {
+    MailboxHours { days: vec![Weekday::Mon, Weekday::Tue], start: 540, end: 1_020, ..Default::default() }
+}
+
+/// #325: the command takes what came from the account's server, not only the window after it, so
+/// the CLI and an agent without the window leave nothing of it either.
+#[test]
+fn removing_an_account_takes_what_came_from_its_server() {
+    let mut s = Session::at(Mailbox::with_local_account("", ""), 1_800_000_000, 0);
+    let keep = s.run("account.add", &json!({"email": "ada@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+    let going = s.run("account.add", &json!({"email": "grace@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+    let shared = s.run("account.addSharedMailbox", &json!({"account": going, "address": "team@example.org"})).unwrap()["id"].as_u64().unwrap();
+    from_server(&mut s, keep, "Ada");
+    let graces = from_server(&mut s, going, "Grace");
+    from_server(&mut s, shared, "Team");
+    // Ada's calendar first in the list, before the mailbox's own.
+    s.mailbox.calendars.sort_by_key(|c| c.origin.account != keep);
+    // Made here, and the mailbox's; and one made here in Grace's calendar that her server hasn't
+    // been given yet, which is the owner's and not the server's.
+    s.run("calendar.new", &json!({"title": "Dentist", "start": "2027-01-15T15:00"})).unwrap();
+    s.run("calendar.new", &json!({"title": "Lunch", "start": "2027-01-15T12:00", "calendar": graces})).unwrap();
+    assert_eq!(s.mailbox.event_changes.len(), 1, "waiting to go to Grace's server");
+    s.mailbox.add_contact(Contact { display_name: "Neighbour".into(), ..Default::default() });
+    s.mailbox.outlook_categories = vec!["Red category".into()];
+    apply_mailbox_hours(&mut s, going, Some(&hours())).unwrap();
+    assert!(s.prefs.mailbox_hours.is_some());
+
+    s.run("account.remove", &json!({"id": going})).unwrap();
+    // Its own and its shared mailbox's go; the other account's, and what was made here, stay.
+    assert_eq!(titles(&s), ["Ada's meeting", "Dentist", "Lunch"]);
+    let lunch = s.mailbox.events.values().find(|e| e.title == "Lunch").unwrap();
+    assert!(lunch.origin.is_local() && s.mailbox.calendar(lunch.calendar).is_some_and(|c| c.origin.is_local()));
+    assert!(s.mailbox.event_changes.is_empty());
+    assert_eq!(people(&s), ["Ada's colleague", "Neighbour"]);
+    assert!(s.mailbox.calendars.iter().all(|c| c.origin.is_local() || c.origin.account == keep), "{:?}", s.mailbox.calendars);
+    assert!(s.mailbox.calendars.iter().any(|c| c.origin.is_local()));
+    // Outlook's list goes: Ada's next calendar run reads hers again.
+    assert!(s.mailbox.outlook_categories.is_empty());
+    assert_eq!(s.prefs.mailbox_hours, None);
+    assert!(s.mailbox.clone().repair().is_empty());
+
+    // An account that isn't Microsoft's leaves Outlook's list, and another account's hours stay.
+    let imap = s.run("account.add", &json!({"email": "lin@example.org"})).unwrap()["id"].as_u64().unwrap();
+    assert_ne!(s.mailbox.account(imap).unwrap().kind, AccountKind::Microsoft);
+    s.mailbox.outlook_categories = vec!["Red category".into()];
+    apply_mailbox_hours(&mut s, keep, Some(&hours())).unwrap();
+    s.run("account.remove", &json!({"id": imap})).unwrap();
+    assert_eq!(s.mailbox.outlook_categories, ["Red category"]);
+    assert_eq!(s.prefs.mailbox_hours.as_ref().map(|h| h.email.as_str()), Some("ada@example.org"));
+
+    // The last one: the empty mailbox keeps a calendar of its own, and nothing of the account.
+    s.run("account.remove", &json!({"id": keep})).unwrap();
+    assert_eq!(titles(&s), ["Dentist", "Lunch"]);
+    assert_eq!(people(&s), ["Neighbour"]);
+    assert!(!s.mailbox.calendars.is_empty() && s.mailbox.calendars.iter().all(|c| c.origin.is_local()));
+    assert!(s.mailbox.outlook_categories.is_empty() && s.prefs.mailbox_hours.is_none());
+}
+
+/// Closing a shared mailbox takes what came from its server, and leaves its owner's.
+#[test]
+fn closing_a_shared_mailbox_takes_what_came_from_its_server() {
+    let mut s = Session::at(Mailbox::with_local_account("", ""), 1_800_000_000, 0);
+    let owner = s.run("account.add", &json!({"email": "owner@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+    let shared = s.run("account.addSharedMailbox", &json!({"account": owner, "address": "team@example.org"})).unwrap()["id"].as_u64().unwrap();
+    from_server(&mut s, owner, "Owner");
+    from_server(&mut s, shared, "Team");
+    s.mailbox.outlook_categories = vec!["Red category".into()];
+    apply_mailbox_hours(&mut s, owner, Some(&hours())).unwrap();
+
+    s.run("account.removeSharedMailbox", &json!({"id": shared})).unwrap();
+    assert_eq!(titles(&s), ["Owner's meeting"]);
+    assert_eq!(people(&s), ["Owner's colleague"]);
+    assert!(!s.mailbox.calendars.iter().any(|c| c.origin.account == shared));
+    // The list and the hours are the owner's: a shared mailbox reads neither.
+    assert_eq!(s.mailbox.outlook_categories, ["Red category"]);
+    assert!(s.prefs.mailbox_hours.is_some());
+}
+
+/// The working hours go once the removal has gone through: an agent's removal that is refused
+/// after the command ran (it would delete mail for good) leaves them, with the account.
+#[test]
+fn a_refused_removal_keeps_the_working_hours() {
+    let mut s = Session::at(Mailbox::with_local_account("", ""), 1_800_000_000, 0);
+    let going = s.run("account.add", &json!({"email": "grace@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+    add(&mut s, going, "hello", &[1u8; 10]);
+    apply_mailbox_hours(&mut s, going, Some(&hours())).unwrap();
+    s.agent = Some(vec![crate::agent::Class::Accounts]);
+    assert!(s.run("account.remove", &json!({"id": going})).is_err());
+    assert!(s.mailbox.account(going).is_some() && s.prefs.mailbox_hours.is_some());
+    s.agent = Some(vec![crate::agent::Class::Accounts, crate::agent::Class::Delete]);
+    s.run("account.remove", &json!({"id": going})).unwrap();
+    assert!(s.mailbox.account(going).is_none() && s.prefs.mailbox_hours.is_none());
+}
+
+/// The last account's calendars all go, and the empty mailbox keeps one to put events in: the
+/// account's main one, shown, in no group, and its own, though a hidden Birthdays comes first.
+#[test]
+fn the_calendar_an_empty_mailbox_keeps_is_shown_and_its_own() {
+    let mut s = Session::at(Mailbox::with_local_account("", ""), 1_800_000_000, 0);
+    let only = s.run("account.add", &json!({"email": "grace@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+    let (birthdays, main) = (s.mailbox.alloc_id(), s.mailbox.alloc_id());
+    let origin = |id: &str| Origin { account: only, id: id.into(), ..Default::default() };
+    s.mailbox.calendars = vec![
+        Calendar {
+            id: birthdays,
+            name: "Birthdays".into(),
+            group: "Other Calendars".into(),
+            rights: Rights::Read,
+            origin: origin("birthdays"),
+            ..Default::default()
+        },
+        Calendar { id: main, name: "Calendar".into(), visible: true, group: "My Calendars".into(), origin: origin(""), ..Default::default() },
+    ];
+    s.mailbox.add_event(Event { calendar: main, title: "Grace's meeting".into(), origin: origin("meeting"), ..Default::default() }).unwrap();
+
+    s.run("account.remove", &json!({"id": only})).unwrap();
+    let [kept] = s.mailbox.calendars.as_slice() else { panic!("{:?}", s.mailbox.calendars) };
+    assert_eq!((kept.id, kept.visible, kept.group.as_str(), kept.rights), (main, true, "", Rights::Edit));
+    assert!(kept.origin.is_local() && s.mailbox.events.is_empty());
+    s.run("calendar.new", &json!({"title": "Dentist", "start": "2027-01-15T15:00"})).unwrap();
+    assert_eq!(titles(&s), ["Dentist"]);
 }
