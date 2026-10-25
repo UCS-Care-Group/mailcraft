@@ -21,7 +21,9 @@ you.
   desktop's Secret Service, such as GNOME Keyring or KWallet) and nowhere else: not into the
   mailbox file, the settings, a log or a command line. Where no such store is running, or it
   stays locked, nothing is remembered: you sign in each time the program starts, and the program
-  says why.
+  says why. MailCraft notes the names (never the contents) of the entries it puts there in its
+  settings, so that Remove MailCraft's data, and turning remembering off, can remove every one,
+  also those of mailboxes you opened earlier, and list any that could not be removed.
 - **Pictures you asked to download**, and senders' pictures when sender images are on, are kept
   on your computer for up to 30 days so they are not asked for again; File › Options shows how
   many and clears them.

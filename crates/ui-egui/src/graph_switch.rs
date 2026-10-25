@@ -36,6 +36,8 @@ pub(crate) struct Copying {
     account: Id,
     answer: String,
     path: std::path::PathBuf,
+    /// The mailbox opening the copy was written for ([`mailcraft_engine::Session::openings`]).
+    opening: u64,
     rx: std::sync::mpsc::Receiver<Result<(), String>>,
 }
 
@@ -228,6 +230,11 @@ impl MailApp {
             Err(std::sync::mpsc::TryRecvError::Disconnected) => Err(tl!("it stopped unexpectedly").to_string()),
         };
         let Some(c) = self.graph_switch_copy.take() else { return };
+        // A copy of another mailbox, which was replaced while it was written: nothing switches.
+        if c.opening != self.session.openings() {
+            self.session.graph_switch_backup = None;
+            return;
+        }
         // The page that said the copy was being saved has said all it had to.
         if matches!(self.dialog, Some(Dialog::GraphSwitch { account }) if account == c.account) {
             self.dialog = None;
@@ -249,11 +256,25 @@ impl MailApp {
         }
     }
 
+    /// Another mailbox took the place of the open one: a switch to Graph that was under way for
+    /// the old one, its copy and its backup, belong to it alone.
+    pub(crate) fn forget_graph_switch(&mut self) {
+        self.graph_switch_copy = None;
+        self.session.graph_switch_backup = None;
+        self.graph_switch_shown.clear();
+        self.graph_switch_tried.clear();
+        self.graph_switch_waiting_shown.clear();
+        if matches!(self.dialog, Some(Dialog::GraphSwitch { .. })) {
+            self.dialog = None;
+        }
+    }
+
     /// Each frame, when nothing else is on screen: a switch that waits goes ahead once nothing
     /// waits for the IMAP server any more, and an account its owner wasn't asked about gets the
     /// page.
     pub(crate) fn tick_graph_switch(&mut self) {
-        if self.dialog.is_some() || self.needs_setup() || self.graph_switch_busy() {
+        // (A mailbox from a file waits for its servers to be confirmed: nothing starts by itself.)
+        if self.dialog.is_some() || self.needs_setup() || self.unconfirmed || self.graph_switch_busy() {
             return;
         }
         let accounts: Vec<(Id, GraphSwitch)> =
@@ -319,7 +340,7 @@ impl MailApp {
                 let (path, copy) = mailcraft_engine::cmd::graph_switch::prepare_backup(&self.session, account)
                     .map_err(|e| fmt(tl!("{account} couldn't switch to Microsoft Graph: {why}"), &[("account", &whose), ("why", &e.to_string())]))?;
                 let rx = write(path.clone(), copy);
-                self.graph_switch_copy = Some(Copying { account, answer: answer.to_string(), path, rx });
+                self.graph_switch_copy = Some(Copying { account, answer: answer.to_string(), path, opening: self.session.openings(), rx });
                 if self.dialog.is_none() {
                     self.dialog = Some(Dialog::GraphSwitch { account });
                 }

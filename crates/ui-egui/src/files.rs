@@ -205,8 +205,20 @@ fn opened_path(app: &mut MailApp, purpose: &str, path: &str) -> Result<Value, St
 /// named the way desktops name one (`file://`), or a `mailto:` link, which starts a new message.
 pub(crate) fn dropped_path(app: &mut MailApp, path: &str) {
     if path.trim().get(..7).is_some_and(|scheme| scheme.eq_ignore_ascii_case("mailto:")) {
+        // A link from outside doesn't destroy a message being written: it is saved to Drafts
+        // first, and if it can't be, the link waits for the owner.
+        let saved = app.session.compose.as_ref().is_some_and(|c| c.dirty);
+        if saved && let Err(e) = app.run("compose.saveDraft", json!({})) {
+            app.status(crate::i18n::fmt(
+                tl!("A link asked for a new message, but the one you are writing couldn't be saved first: {why}"),
+                &[("why", &e)],
+            ));
+            return;
+        }
         if let Err(e) = app.run("mail.new", json!({"mailto": path.trim()})) {
             app.status(e);
+        } else if saved {
+            app.status(tl!("The message you were writing was saved to Drafts; a link opened a new one"));
         }
         return;
     }
