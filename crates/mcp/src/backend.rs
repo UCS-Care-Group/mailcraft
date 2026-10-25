@@ -32,6 +32,9 @@ pub struct Remote {
     send_key: bool,
     /// The control key, looked up once per connection (the app picks a new one at every start).
     key: Option<String>,
+    /// The app at the other end has proved it holds the key (`auth.challenge`): until it has,
+    /// neither the key nor a request is sent.
+    verified: bool,
     find_key: KeyFinder,
     /// What the owner allowed the agent in advance (`--allow`). Every request carries it in its
     /// `agent` field, set here and never from a tool's arguments: the app knows the request is
@@ -82,6 +85,14 @@ fn may_send_key(addr: &str, peer: Option<SocketAddr>) -> bool {
     is_loopback_addr(addr) && peer.is_some_and(|p| p.ip().to_canonical().is_loopback())
 }
 
+/// Why the app could not be made to prove itself.
+enum Auth {
+    /// The connection failed: tried again on a new one.
+    Io(std::io::Error),
+    /// It answered, wrongly, or the key could not be read: nothing was sent.
+    Refused(String),
+}
+
 impl Remote {
     /// Connect to `addr` (`127.0.0.1:7981`), failing fast when nothing is listening.
     pub fn connect(addr: &str) -> std::io::Result<Self> {
@@ -89,12 +100,20 @@ impl Remote {
     }
 
     fn connect_with(addr: &str, find_key: KeyFinder) -> std::io::Result<Self> {
-        let mut r = Self { addr: addr.to_string(), conn: None, next_id: 1, send_key: false, key: None, find_key, allow: Vec::new() };
+        let mut r = Self { addr: addr.to_string(), conn: None, next_id: 1, send_key: false, key: None, verified: false, find_key, allow: Vec::new() };
         r.reconnect()?;
         if let Some(w) = r.key_warning() {
             log::warn!("{w}");
         }
         Ok(r)
+    }
+
+    /// As [`Remote::connect`], with the control key given instead of looked up (for tests of the
+    /// bridge from outside the crate).
+    #[doc(hidden)]
+    pub fn connect_with_key(addr: &str, key: &str) -> std::io::Result<Self> {
+        let key = key.to_string();
+        Self::connect_with(addr, Box::new(move |_| Ok(key.clone())))
     }
 
     /// What the owner allows the agent without being asked (`--allow`).
@@ -120,6 +139,7 @@ impl Remote {
     fn reconnect(&mut self) -> std::io::Result<()> {
         self.conn = None;
         self.key = None;
+        self.verified = false;
         let mut last = std::io::Error::new(std::io::ErrorKind::NotFound, format!("cannot resolve {}", self.addr));
         for sa in self.addr.to_socket_addrs()? {
             match TcpStream::connect_timeout(&sa, Duration::from_millis(800)) {
@@ -138,19 +158,44 @@ impl Remote {
         Err(last)
     }
 
-    /// The request line; it carries the key when this connection may (looked up once per
-    /// connection).
+    /// Make the program at the other end prove it holds the control key, before the key or any
+    /// request is sent to it: it must answer HMAC-SHA256 over a fresh nonce, keyed with the key
+    /// read from the environment or the key file (`mailcraft_control_key::proof`). Anything else
+    /// that listens on the port, started before the app or instead of it, cannot. A stale key (the
+    /// app restarted on this port) is read again once, on a new connection.
+    fn authenticate(&mut self) -> Result<(), Auth> {
+        for attempt in 0..2 {
+            let key = (self.find_key)(&self.addr).map_err(Auth::Refused)?;
+            let nonce = mailcraft_control_key::proof::new_nonce().ok_or_else(|| Auth::Refused("no random bytes for the challenge".to_string()))?;
+            let line = json!({"id": 0, "method": "auth.challenge", "params": {"nonce": nonce}}).to_string();
+            let reply = self.roundtrip(&line).map_err(Auth::Io)?;
+            let v: Value = serde_json::from_str(reply.trim()).unwrap_or(Value::Null);
+            let proof = v.pointer("/result/proof").and_then(Value::as_str).unwrap_or("");
+            if v.get("ok").and_then(Value::as_bool) == Some(true) && mailcraft_control_key::proof::proof_ok(&key, &nonce, proof) {
+                self.key = Some(key);
+                self.verified = true;
+                return Ok(());
+            }
+            if attempt == 0 {
+                self.reconnect().map_err(Auth::Io)?;
+            }
+        }
+        self.conn = None;
+        Err(Auth::Refused(format!(
+            "the program at {} did not prove it is the MailCraft app that wrote the control key, so neither the key nor any request was sent to it (an older MailCraft that cannot answer the challenge, or another program on that port)",
+            self.addr
+        )))
+    }
+
+    /// The request line; it carries the key when this connection may (the app has proved it holds
+    /// it: [`Remote::authenticate`]).
     fn request_line(&mut self, id: u64, method: &str, params: &Value) -> Result<String, String> {
         // Marked as an agent's (`docs/control-protocol.md`, Agents).
         let allow: Vec<&str> = self.allow.iter().map(|c| c.as_str()).collect();
         let mut req = json!({"id": id, "method": method, "params": params, "agent": {"allow": allow}});
         if self.send_key {
-            let key = match &self.key {
-                Some(k) => k.clone(),
-                None => (self.find_key)(&self.addr)?,
-            };
+            let Some(key) = &self.key else { return Err("the control key was not read".to_string()) };
             req["key"] = json!(key);
-            self.key = Some(key);
         }
         Ok(req.to_string())
     }
@@ -176,6 +221,14 @@ impl Remote {
         let mut first = true;
         let reply = loop {
             let tried = if self.conn.is_some() { Ok(()) } else { self.reconnect() };
+            let tried = match tried {
+                Ok(()) if self.send_key && !self.verified => match self.authenticate() {
+                    Ok(()) => Ok(()),
+                    Err(Auth::Io(e)) => Err(e),
+                    Err(Auth::Refused(why)) => return Err(why),
+                },
+                other => other,
+            };
             let result = match tried {
                 Ok(()) => {
                     let line = self.request_line(id, method, params)?;
@@ -316,7 +369,10 @@ mod tests {
                     let mut out = stream.try_clone().unwrap();
                     for line in BufReader::new(stream).lines() {
                         let Ok(req) = serde_json::from_str::<Value>(&line.unwrap_or_default()) else { return };
-                        let _ = tx.send(req.clone());
+                        // The challenge is the bridge's own; the tests look at the requests.
+                        if req["method"] != "auth.challenge" {
+                            let _ = tx.send(req.clone());
+                        }
                         let Some((mut reply, close)) = answer(&req) else { return };
                         reply["id"] = req["id"].clone();
                         if writeln!(out, "{reply}").is_err() || close {
@@ -329,6 +385,11 @@ mod tests {
         (port, rx)
     }
 
+    /// What the real app answers to a challenge, holding `key`.
+    fn prove(req: &Value, key: &str) -> Value {
+        json!({"ok": true, "result": {"proof": mailcraft_control_key::proof::proof(key, req["params"]["nonce"].as_str().unwrap_or(""))}})
+    }
+
     fn fixed_key(key: &'static str) -> KeyFinder {
         Box::new(move |_| Ok(key.to_string()))
     }
@@ -337,7 +398,9 @@ mod tests {
 
     #[test]
     fn sends_the_key_to_loopback() {
-        let (port, seen) = fake_app(|_| Some((json!({"ok": true, "result": 7}), false)));
+        let (port, seen) = fake_app(|req| {
+            Some(if req["method"] == "auth.challenge" { (prove(req, "k1"), false) } else { (json!({"ok": true, "result": 7}), false) })
+        });
         for host in ["127.0.0.1", "localhost"] {
             let mut r = Remote::connect_with(&format!("{host}:{port}"), fixed_key("k1")).unwrap();
             assert!(r.key_warning().is_none(), "{host}");
@@ -348,7 +411,9 @@ mod tests {
 
     #[test]
     fn every_request_is_marked_as_an_agents() {
-        let (port, seen) = fake_app(|_| Some((json!({"ok": true, "result": 1}), false)));
+        let (port, seen) = fake_app(|req| {
+            Some(if req["method"] == "auth.challenge" { (prove(req, "k1"), false) } else { (json!({"ok": true, "result": 1}), false) })
+        });
         let mut r =
             Remote::connect_with(&format!("127.0.0.1:{port}"), fixed_key("k1")).unwrap().with_allow(vec![mailcraft_engine::agent::Class::Input]);
         // Whatever the params say.
@@ -361,14 +426,20 @@ mod tests {
     fn reads_the_key_again_on_a_new_connection() {
         // The app restarted with a new key: the old key is refused (and the connection closed).
         let (port, seen) = fake_app(|req| {
-            Some(if req["key"] == "new" { (json!({"ok": true, "result": 1}), false) } else { (json!({"ok": false, "error": "unauthorized"}), true) })
+            Some(if req["method"] == "auth.challenge" {
+                (prove(req, "new"), false)
+            } else if req["key"] == "new" {
+                (json!({"ok": true, "result": 1}), false)
+            } else {
+                (json!({"ok": false, "error": "unauthorized"}), true)
+            })
         });
         let reads = Arc::new(AtomicUsize::new(0));
         let n = reads.clone();
         let finder: KeyFinder = Box::new(move |_| Ok(if n.fetch_add(1, Ordering::SeqCst) == 0 { "old" } else { "new" }.to_string()));
         let mut r = Remote::connect_with(&format!("127.0.0.1:{port}"), finder).unwrap();
         assert_eq!(r.call("mailbox.inspect", json!({})).unwrap(), json!(1));
-        assert_eq!(seen.recv_timeout(WAIT).unwrap()["key"], "old");
+        // The stale key is never sent: the app cannot prove it holds it.
         assert_eq!(seen.recv_timeout(WAIT).unwrap()["key"], "new");
         assert_eq!(reads.load(Ordering::SeqCst), 2);
         // The new key is kept for the next requests on the same connection.
@@ -376,7 +447,14 @@ mod tests {
         assert_eq!(reads.load(Ordering::SeqCst), 2);
 
         // The app quits mid-session (connection closed): the retry reads the key again.
-        let (port, seen) = fake_app(|req| if req["id"] == 2 { None } else { Some((json!({"ok": true, "result": 1}), false)) });
+        let challenges = Arc::new(AtomicUsize::new(0));
+        let c = challenges.clone();
+        let (port, seen) = fake_app(move |req| {
+            if req["method"] == "auth.challenge" {
+                return Some((prove(req, &format!("key-{}", c.fetch_add(1, Ordering::SeqCst))), false));
+            }
+            if req["id"] == 2 { None } else { Some((json!({"ok": true, "result": 1}), false)) }
+        });
         let reads = Arc::new(AtomicUsize::new(0));
         let n = reads.clone();
         let finder: KeyFinder = Box::new(move |_| Ok(format!("key-{}", n.fetch_add(1, Ordering::SeqCst))));
