@@ -37,5 +37,5 @@ web-sys = { version = "0.3", features = [
     "CssStyleDeclaration", "Storage", "Navigator",
     # `fetch`, for JMAP (src/fetch.rs).
     "Headers", "RequestInit", "RequestMode", "RequestCredentials", "RequestCache", "RequestRedirect", "ReferrerPolicy", "Response", "ResponseType",
-    "ReadableStream", "ReadableStreamDefaultReader", "ReadableStreamReadResult", "AbortSignal",
+    "ReadableStream", "ReadableStreamDefaultReader", "ReadableStreamReadResult", "AbortController", "AbortSignal", "DomException",
 ] }

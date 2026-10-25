@@ -311,7 +311,9 @@ impl MailApp {
             return;
         }
         self.fetching.offline = result.offline;
-        let stuck = result.offline || result.busy_for.is_some() || (result.fetched.is_empty() && !result.errors.is_empty());
+        // (Stopped by the owner, it is no server's doing: nothing to wait out.)
+        let stuck = !self.session.sync_progress.full_paused
+            && (result.offline || result.busy_for.is_some() || (result.fetched.is_empty() && !result.errors.is_empty()));
         if stuck {
             // Not now: this account is tried again in a while, longer each time it stops again
             // (a Send/Receive renews the token too, and starts the waits afresh); the others go on.
@@ -350,7 +352,8 @@ impl MailApp {
         }
     }
 
-    /// Cancel: the background stops after the message in hand, until the next Send/Receive.
+    /// Cancel: the background stops after the message in hand (at once where the host calls the
+    /// exchange under way off, as the browser's does), until the next Send/Receive.
     pub(crate) fn pause_fetch(&mut self) {
         self.session.sync_progress.full_paused = true;
         self.fetching.cancel.store(true, Ordering::Relaxed);

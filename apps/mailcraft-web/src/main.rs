@@ -16,6 +16,9 @@
 //! names JMAP accounts of its own).
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
+mod jmap_rules;
+#[cfg(test)]
+mod jmap_rules_tests;
 mod page;
 #[cfg(test)]
 mod page_tests;

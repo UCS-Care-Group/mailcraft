@@ -16,14 +16,22 @@
 //! };
 //! ```
 //!
+//! `session` is the address of the session resource itself: a page follows no redirect, so a
+//! server's name alone, or a `/.well-known/jmap` that sends the client on (RFC 8620 §2.2), comes to
+//! nothing here, and the account's Send/Receive says which address to give instead.
+//!
 //! Its accounts are added to the mailbox when they aren't in it yet. With `secret`, the window
 //! never asks for the credential of one of them (at the server the page named): each job asks the
 //! page for it at its start, and a run the server turns it down for asks the page once more, so
 //! that the page can hand over a renewed one, before the run gives up. A page that hasn't answered
 //! in thirty seconds has none to give. MailCraft keeps none of it beyond the job. Without
 //! `secret`, the owner types it, as for any other JMAP account.
+//!
+//! Stop, and another mailbox opened, call off the exchange under way at once ([`Fetch`]). What is
+//! decided here without the browser is in `jmap_rules.rs`, tested on the host.
 
 use std::rc::Rc;
+use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::Sender;
 
@@ -38,19 +46,12 @@ use wasm_bindgen::{JsCast as _, JsValue};
 use wasm_bindgen_futures::JsFuture;
 
 use crate::fetch::Fetch;
+use crate::jmap_rules::{Next, PageAccount, again, named, redirect_line, stopped};
 
 /// The most accounts a page may name.
 const MAX_ACCOUNTS: usize = 50;
 /// How long the page has to hand over a credential, in milliseconds.
 const PAGE_ANSWERS_MS: i32 = 30_000;
-
-/// An account the page named.
-struct PageAccount {
-    email: String,
-    session: String,
-    bearer: bool,
-    name: String,
-}
 
 /// What the page that serves MailCraft says of its JMAP accounts: `window.mailcraftJmap`.
 pub(crate) struct Hook {
@@ -92,7 +93,7 @@ impl Hook {
     /// Whether the page holds the credential of the account at `email` on the server whose session
     /// address is `session`: one of its accounts, at the server it named.
     fn holds_at(&self, email: &str, session: &str) -> bool {
-        self.secret.is_some() && self.accounts.iter().any(|p| p.email.eq_ignore_ascii_case(email.trim()) && p.session == session.trim())
+        self.secret.is_some() && named(&self.accounts, email, session)
     }
 
     /// Whether the page holds the credential of `a`.
@@ -183,20 +184,17 @@ async fn run(job: JmapJob, hook: Option<Rc<Hook>>, ctx: egui::Context, tx: Sende
     let (mut turned_down, mut tried_again): (Option<(String, JmapMailResult)>, bool) = (None, false);
     loop {
         let fresh = if held { asked(hook.as_deref(), &request.email, &request.session).await } else { Some(typed.clone()) };
-        let secret = match (fresh, turned_down.take()) {
-            // The page has nothing newer: the run ends as the server said.
-            (Some(secret), Some((before, last))) if secret == before => return send(last),
-            (None, Some((_, last))) => return send(last),
-            (None, None) => return send(failed_run(&request, &Error::CredentialsRefused)),
-            (Some(secret), _) => secret,
+        let secret = match crate::jmap_rules::next(fresh, turned_down.take()) {
+            Next::Go(secret) => secret,
+            Next::End(last) => return send(*last),
+            Next::NoSecret => return send(failed_run(&request, &Error::CredentialsRefused)),
         };
         // Stopped while the page was asked: nothing is read.
         if cancel.load(Ordering::Relaxed) {
-            let (account, email, session) = (request.account, request.email.clone(), request.session.clone());
-            return send(JmapMailResult { account, email, session, stopped: true, ..Default::default() });
+            return send(stopped(&request));
         }
         let last = one_run(&request, &secret, &cancel, &send).await;
-        if last.auth_refused && held && !tried_again {
+        if again(&last, held, tried_again) {
             (turned_down, tried_again) = (Some((secret, last)), true);
             continue;
         }
@@ -205,11 +203,11 @@ async fn run(job: JmapJob, hook: Option<Rc<Hook>>, ctx: egui::Context, tx: Sende
 }
 
 /// One run with `secret`: every piece but the last goes to the window; the last is answered.
-async fn one_run(request: &JmapMailRequest, secret: &str, cancel: &AtomicBool, send: &dyn Fn(JmapMailResult)) -> JmapMailResult {
+async fn one_run(request: &JmapMailRequest, secret: &str, cancel: &Arc<AtomicBool>, send: &dyn Fn(JmapMailResult)) -> JmapMailResult {
     let Some(credentials) = credentials(&request.email, request.bearer, secret) else {
         return failed_run(request, &Error::CredentialsRefused);
     };
-    match Connection::connect(Fetch, &request.session, credentials).await {
+    match Connection::connect(Fetch::new(cancel.clone()), &request.session, credentials).await {
         Ok(connection) => {
             let mut last = None;
             sync_mail(&connection, request, cancel, &mut |piece| {
@@ -222,7 +220,20 @@ async fn one_run(request: &JmapMailRequest, secret: &str, cancel: &AtomicBool, s
             .await;
             last.unwrap_or_else(|| failed_run(request, &Error::Transport(TransportError::Other)))
         }
-        Err(error) => failed_run(request, &error),
+        // Stopped while signing in (the exchange called off): as before anything was read.
+        Err(Error::Transport(TransportError::Aborted)) if cancel.load(Ordering::Relaxed) => stopped(request),
+        Err(error) => {
+            let mut failed = failed_run(request, &error);
+            said_in_a_browser(&mut failed.errors, &error, false);
+            failed
+        }
+    }
+}
+
+/// The line of a failure that is the browser's doing, in place of the client's.
+fn said_in_a_browser(errors: &mut Vec<String>, error: &Error, downloading: bool) {
+    if let Some(line) = redirect_line(error, downloading) {
+        *errors = vec![line.to_string()];
     }
 }
 
@@ -231,9 +242,17 @@ async fn fetch_whole(job: JmapFetchJob, hook: Option<Rc<Hook>>, ctx: egui::Conte
     let JmapFetchJob { request, secret, cancel } = job;
     let secret = if secret.is_empty() { asked(hook.as_deref(), &request.email, &request.session).await } else { Some(secret) };
     let fetched = match secret.and_then(|secret| credentials(&request.email, request.bearer, &secret)) {
-        Some(credentials) => match Connection::connect(Fetch, &request.session, credentials).await {
+        // Called off while the page was asked: nothing is read.
+        Some(_) if cancel.load(Ordering::Relaxed) => {
+            GraphFetchResult { account: request.account, email: request.email.clone(), session: request.session.clone(), ..Default::default() }
+        }
+        Some(credentials) => match Connection::connect(Fetch::new(cancel.clone()), &request.session, credentials).await {
             Ok(connection) => fetch_messages(&connection, &request, &cancel).await,
-            Err(error) => failed_fetch(&request, &error),
+            Err(error) => {
+                let mut failed = failed_fetch(&request, &error);
+                said_in_a_browser(&mut failed.errors, &error, true);
+                failed
+            }
         },
         None => failed_fetch(&request, &Error::CredentialsRefused),
     };
