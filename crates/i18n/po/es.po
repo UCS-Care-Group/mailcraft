@@ -345,8 +345,9 @@ msgstr "Una imagen que haya pedido se conserva durante un mes, para que al volve
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
+#, fuzzy
 msgid "A port is a number from 1 to 65535"
-msgstr ""
+msgstr "Un puerto es un número del 1 al 65535"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -804,8 +805,9 @@ msgstr "Un agente quiere {what}."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
+#, fuzzy
 msgid "An application ID and a tenant are letters, digits, dots and dashes"
-msgstr ""
+msgstr "Un identificador de aplicación y un inquilino contienen letras, dígitos, puntos y guiones"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -3496,6 +3498,7 @@ msgstr "Retenido:"
 
 #. interface
 #: crates/ui-egui/src/approval.rs
+#, fuzzy
 msgid ""
 "Hello,\n"
 "\n"
@@ -3507,6 +3510,15 @@ msgid ""
 "\n"
 "Thank you"
 msgstr ""
+"Hola:\n"
+"\n"
+"Me gustaría usar MailCraft con mi cuenta del trabajo. MailCraft es un programa de correo y calendario de código abierto que se ejecuta en mi propio equipo. En nuestra organización solo un administrador puede aprobar un programa nuevo, así que necesita su aprobación una vez, para toda la organización. La página de Microsoft para ello está aquí:\n"
+"\n"
+"{link}\n"
+"\n"
+"Después de aprobarlo, puede que su navegador muestre una página a la que no se puede acceder. Es lo esperado: es una dirección de su propio equipo en la que no escucha nada, y la aprobación ya se ha dado para entonces.\n"
+"\n"
+"Gracias"
 
 #. interface, name, ribbon, ribbon location
 #: crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs
@@ -4423,8 +4435,9 @@ msgstr "MailCraft todavía no envía correo desde una cuenta JMAP"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
+#, fuzzy
 msgid "MailCraft doesn't support POP yet. Use your provider's IMAP server instead (usually imap.<your domain>, port 993)."
-msgstr ""
+msgstr "MailCraft aún no admite POP. Use en su lugar el servidor IMAP de su proveedor (normalmente imap.<su dominio>, puerto 993)."
 
 #. interface
 #: crates/ui-egui/src/credits.rs
@@ -4457,8 +4470,9 @@ msgstr "MailCraft busca una nueva versión una vez al día (Archivo › Opciones
 
 #. interface
 #: crates/ui-egui/src/updates.rs
+#, fuzzy
 msgid "MailCraft now installs its updates itself. Turn this off in File › Options."
-msgstr ""
+msgstr "MailCraft ahora instala sus actualizaciones por sí mismo. Puede desactivarlo en Archivo › Opciones."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -5524,8 +5538,9 @@ msgstr "No es correo no deseado"
 
 #. interface
 #: crates/ui-egui/src
+#, fuzzy
 msgid "Not allowed by your organisation"
-msgstr ""
+msgstr "No lo permite su organización"
 
 #. interface
 #: crates/ui-egui/src/scheduling.rs
@@ -5541,8 +5556,9 @@ msgstr "No es una dirección de correo electrónico: {names}"
 
 #. interface
 #: crates/ui-egui/src
+#, fuzzy
 msgid "Not available for this account"
-msgstr ""
+msgstr "No disponible para esta cuenta"
 
 #. interface
 #: crates/ui-egui/src/widgets.rs
@@ -5825,8 +5841,9 @@ msgstr "Solo los"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
 msgid "Only on this computer: not in your Outlook calendar"
-msgstr ""
+msgstr "Solo en este equipo: no está en su calendario de Outlook"
 
 #. interface
 #: crates/ui-egui/src/reading.rs
@@ -6099,8 +6116,9 @@ msgstr "Favoritos de Outlook"
 
 #. interface
 #: crates/ui-egui/src
+#, fuzzy
 msgid "Outlook's Favorites are now read through Microsoft Graph. To show MailCraft's own instead, turn them off in File › Options."
-msgstr ""
+msgstr "Los Favoritos de Outlook ahora se leen a través de Microsoft Graph. Para mostrar los de MailCraft, desactívelos en Archivo › Opciones."
 
 #. interface
 #: crates/ui-egui/src/favorites_sync.rs
@@ -6908,8 +6926,9 @@ msgstr "Reiniciar para actualizar"
 
 #. interface
 #: crates/ui-egui/src/updates.rs
+#, fuzzy
 msgid "Restart to update is the owner's click."
-msgstr ""
+msgstr "Solo el propietario puede hacer clic en Reiniciar para actualizar."
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -8802,8 +8821,9 @@ msgstr "Se eliminarán la carpeta «{folder}» y todo su contenido."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
+#, fuzzy
 msgid "The incoming mail server isn't a host name (letters, digits, dots and dashes)"
-msgstr ""
+msgstr "El servidor de correo entrante no es un nombre de host (letras, dígitos, puntos y guiones)"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -8932,13 +8952,15 @@ msgstr "El organizador de esta reunión no admite propuestas de otra hora."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
+#, fuzzy
 msgid "The outgoing mail server isn't a host name (letters, digits, dots and dashes)"
-msgstr ""
+msgstr "El servidor de correo saliente no es un nombre de host (letras, dígitos, puntos y guiones)"
 
 #. interface
 #: crates/ui-egui/src/updates.rs
+#, fuzzy
 msgid "The owner hasn't allowed update checks."
-msgstr ""
+msgstr "El propietario no ha permitido buscar actualizaciones."
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -9873,8 +9895,9 @@ msgstr "martes"
 
 #. interface
 #: crates/ui-egui/src/updates.rs
+#, fuzzy
 msgid "Turned off by your organisation"
-msgstr ""
+msgstr "Desactivado por su organización"
 
 #. interface
 #: crates/ui-egui/src/people_view.rs
@@ -9902,8 +9925,9 @@ msgstr "Escribir"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
+#, fuzzy
 msgid "Type the name of the incoming mail server"
-msgstr ""
+msgstr "Escriba el nombre del servidor de correo entrante"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -10569,18 +10593,21 @@ msgstr "Su organización reserva a sus administradores la concesión de este per
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
+#, fuzzy
 msgid "Your organisation lets only an administrator approve a new program, and none has approved MailCraft yet. Nothing is wrong with your account or your password."
-msgstr ""
+msgstr "En su organización solo un administrador puede aprobar un programa nuevo, y ninguno ha aprobado MailCraft todavía. Su cuenta y su contraseña están bien."
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
+#, fuzzy
 msgid "Your organisation lets only an administrator approve a new program. Nothing is wrong with your account or your password, and there is nothing to wait for here."
-msgstr ""
+msgstr "En su organización solo un administrador puede aprobar un programa nuevo. Su cuenta y su contraseña están bien, y aquí no hay nada que esperar."
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
+#, fuzzy
 msgid "Your organisation then lets only an administrator approve a new program. Nothing is wrong with your account or your password."
-msgstr ""
+msgstr "En ese caso, en su organización solo un administrador puede aprobar un programa nuevo. Su cuenta y su contraseña están bien."
 
 #. interface
 #: crates/ui-egui/src/open_shared.rs
@@ -10600,8 +10627,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src
+#, fuzzy
 msgid "Your organisation's administrator has to approve this once"
-msgstr ""
+msgstr "El administrador de su organización tiene que aprobarlo una vez"
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
