@@ -16,7 +16,8 @@
 //!   server last had: subject, body, To, Cc, Bcc, importance.
 //! - **Its attachments** brought in step with those here: the server's are listed, those it
 //!   should keep are matched by what was put there before (or, for those that came from
-//!   elsewhere, by name), the rest are deleted, and what is missing is added: directly under
+//!   elsewhere, a copy of a forwarded message's, by name, type **and content**: a name alone
+//!   says nothing of what a file holds), the rest are deleted, and what is missing is added: directly under
 //!   3 MB, else through an upload session, in pieces that carry no sign-in. An attachment whose
 //!   answer was lost is found by the next listing, so nothing is added twice.
 //! - **Its change key** is read last: what tells an edit made elsewhere from this one (S26).
@@ -330,15 +331,25 @@ fn fields(d: &DraftUp) -> Map<String, Value> {
 pub(super) struct There {
     id: String,
     name: String,
+    /// The size the server states (it counts a little beyond the bytes).
+    size: u64,
+    content_type: String,
+    inline: bool,
 }
 
 /// The attachments the server has on the draft `id`.
 pub(super) fn listed(graph: &Graph<'_>, id: &str) -> Result<Vec<There>, NetError> {
-    let query = http::form(&[("$select", "id,name"), ("$top", "100")]);
+    let query = http::form(&[("$select", "id,name,size,contentType,isInline"), ("$top", "100")]);
     let mut out = Vec::new();
     graph.list(Doing::Mail, graph.url(&format!("{}/{id}/attachments?{query}", messages(graph))), &[], MAX_LISTED, &mut |value| {
         if let Some(aid) = id_of(text(value, "id")) {
-            out.push(There { id: aid, name: text(value, "name").chars().take(255).collect() });
+            out.push(There {
+                id: aid,
+                name: text(value, "name").chars().take(255).collect(),
+                size: value.get("size").and_then(Value::as_u64).unwrap_or(u64::MAX),
+                content_type: text(value, "contentType").chars().take(255).collect(),
+                inline: value.get("isInline").and_then(Value::as_bool).unwrap_or(false),
+            });
         }
     })?;
     Ok(out)
@@ -376,8 +387,17 @@ pub(super) fn attachments(
             extra.push(t.id.clone());
         }
     }
+    // (Their bytes are read and compared: a file of the same name may be another file.)
     for t in unknown {
-        if !claim(&mut have, &t.id, &|a: &AttachmentUp| a.name == t.name) {
+        let like = |a: &AttachmentUp| {
+            a.name == t.name
+                && a.inline == t.inline
+                && (a.mime.is_empty() || t.content_type.is_empty() || a.mime.eq_ignore_ascii_case(&t.content_type))
+        };
+        let wanted = here.iter().zip(have.iter()).any(|(a, slot)| slot.is_none() && like(a));
+        let bytes = if wanted { content_of(graph, id, t)? } else { None };
+        let claimed = bytes.is_some_and(|bytes| claim(&mut have, &t.id, &|a: &AttachmentUp| like(a) && a.data.as_slice() == bytes.as_slice()));
+        if !claimed {
             extra.push(t.id.clone());
         }
     }
@@ -414,8 +434,13 @@ pub(super) fn attachments(
             Added::Id(aid) => Some(aid),
             // Perhaps there after all: the next listing says.
             Added::Lost => {
+                // One that was not there before this run's listing, so none of a forward's own.
                 let taken: Vec<&str> = have.iter().flatten().map(|s| s.id.as_str()).collect();
-                listed(graph, id)?.into_iter().find(|t| t.name == a.name && !taken.contains(&t.id.as_str())).map(|t| t.id)
+                let before: Vec<&str> = there.iter().map(|t| t.id.as_str()).collect();
+                listed(graph, id)?
+                    .into_iter()
+                    .find(|t| t.name == a.name && !taken.contains(&t.id.as_str()) && !before.contains(&t.id.as_str()))
+                    .map(|t| t.id)
             }
             Added::Not => None,
         };
@@ -425,6 +450,23 @@ pub(super) fn attachments(
         }
     }
     Ok(whole.then(|| have.into_iter().flatten().collect()))
+}
+
+/// The most an attachment may be (by the size the server states) to be read back to be compared.
+const COMPARE_LIMIT: u64 = 2800 * 1024;
+
+/// The bytes of the server's attachment `t`, when they can be had and are not too many to read.
+/// `None` is "can't tell": the attachment is then not taken for the owner's.
+fn content_of(graph: &Graph<'_>, id: &str, t: &There) -> Result<Option<Vec<u8>>, NetError> {
+    let Some(aid) = piece(&t.id).filter(|_| t.size <= COMPARE_LIMIT) else { return Ok(None) };
+    let url = graph.url(&format!("{}/{id}/attachments/{aid}", messages(graph)));
+    let reply = graph.call(Kind::Read, &url, "GET", &[], None, WRITE_TIMEOUT, MAX_PAGE)?;
+    super::refusing(graph, &reply)?;
+    if reply.status != 200 {
+        return Ok(None);
+    }
+    let json = serde_json::from_slice::<Value>(&reply.body).unwrap_or(Value::Null);
+    Ok(STANDARD.decode(text(&json, "contentBytes")).ok())
 }
 
 /// What adding an attachment came to.

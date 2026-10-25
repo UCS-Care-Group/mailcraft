@@ -32,13 +32,20 @@ pub fn specs() -> Vec<CommandSpec> {
     ]
 }
 
+/// Whether `m` was delivered by the server (into a folder 0.8.0 and before followed as the
+/// Outbox) rather than queued here: it has a server copy and is not a draft saved from here
+/// (those carry MailCraft's marker). Only what the owner queued here is ever sent (AU2-V2).
+pub fn from_server(m: &mailcraft_model::Message) -> bool {
+    m.server.is_some() && m.server_draft.as_ref().is_none_or(|sd| sd.marker.is_empty())
+}
+
 /// What `account` has waiting to be sent: every message of its Outbox that isn't held, whole.
 /// What a message keeps on disk is read for it (R6.1); one whose content can't be read waits in
 /// the Outbox for the next run, with a line in the log, rather than going without its files.
 pub fn sends(s: &Session, account: Id) -> Vec<SendUp> {
     let mb = &s.mailbox;
     let Some(outbox) = mb.folder_of_kind(account, FolderKind::Outbox) else { return Vec::new() };
-    let mut waiting: Vec<_> = mb.messages_in(outbox).filter(|m| m.held.is_empty()).map(|m| m.id).collect();
+    let mut waiting: Vec<_> = mb.messages_in(outbox).filter(|m| m.held.is_empty() && !from_server(m)).map(|m| m.id).collect();
     waiting.sort_unstable();
     waiting
         .into_iter()
@@ -50,8 +57,9 @@ pub fn sends(s: &Session, account: Id) -> Vec<SendUp> {
                 None
             }
         })
-        .map(|m| match m.server_draft.as_ref().and(super::graph_drafts::draft_up(&m)) {
-            // Sent as it is here: whatever was changed on the server meanwhile is the owner's to lose.
+        .map(|m| match m.server_draft.as_ref().and(super::graph_drafts::draft_up_whole(&m)) {
+            // Sent as it is here, every field and attachment written over what the server has:
+            // whatever was changed on the server meanwhile is the owner's to lose (AU2-14).
             Some(draft) => SendUp { message: m.id, draft: Some(mailcraft_model::sync::DraftUp { change_key: String::new(), ..draft }), mime: None },
             None => SendUp { message: m.id, draft: None, mime: Some(Box::new(m.as_ref().clone())) },
         })
@@ -60,7 +68,7 @@ pub fn sends(s: &Session, account: Id) -> Vec<SendUp> {
 
 /// How many messages of `account` wait in its Outbox to be sent (held ones aren't).
 pub fn waiting(mb: &Mailbox, account: Id) -> usize {
-    mb.folder_of_kind(account, FolderKind::Outbox).map_or(0, |outbox| mb.messages_in(outbox).filter(|m| m.held.is_empty()).count())
+    mb.folder_of_kind(account, FolderKind::Outbox).map_or(0, |outbox| mb.messages_in(outbox).filter(|m| m.held.is_empty() && !from_server(m)).count())
 }
 
 /// Take in what became of one message sent. Whether anything changed; a line for the owner when
@@ -156,3 +164,7 @@ fn send_again(s: &mut Session, v: &Value) -> CmdResult {
     s.mailbox_changed();
     Ok(json!({"id": id, "held": false}))
 }
+
+#[cfg(test)]
+#[path = "graph_send_tests.rs"]
+mod tests;
