@@ -692,14 +692,15 @@ impl Builder {
         let mut spans = spans;
         if beside {
             // The spaces between the picture and the text are the gap between them, drawn as such.
-            while let Some(first) = spans.first_mut() {
-                let kept = first.text.trim_start_matches(is_blank).len();
-                let cut = first.text.len().saturating_sub(kept);
-                first.text = first.text.get(cut..).unwrap_or_default().to_string();
-                if !first.text.is_empty() {
-                    break;
+            // One pass: drop the blank spans in front in a single drain, then trim the first
+            // span that has text (at a char boundary: `trim_start_matches` ends on one).
+            let lead = spans.iter().position(|s| !s.text.chars().all(is_blank)).unwrap_or(spans.len());
+            spans.drain(..lead);
+            if let Some(first) = spans.first_mut() {
+                let trimmed = first.text.trim_start_matches(is_blank);
+                if trimmed.len() != first.text.len() {
+                    first.text = trimmed.to_string();
                 }
-                spans.remove(0);
             }
         }
         let block = Block { quote: self.quote_depth(), align: self.align, beside, line_height: self.line_height, ..Block::new(kind, spans) };

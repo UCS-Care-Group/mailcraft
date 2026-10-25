@@ -13,6 +13,7 @@
 
 **Fixes**
 - A message with many large pictures declared tiny can no longer use up memory: each picture takes only the room it is shown at, the 160 MB and 64-picture limits hold for pictures on screen too, and pictures are let go after a few seconds with none shown (AU2-02).
+- A message with a picture followed by a huge run of blank spans no longer freezes the reading pane or a Send/Receive: HTML is read in time that grows with the message, not with its square (AU2-01).
 - One press of Escape or Enter no longer does two things at once. With an agent's question on screen, it only answers the question (before, it could also close the message you were writing, a dialog, File or Send/Receive Progress). With a menu open, Escape only closes the menu; with a dialog open in File, only the dialog. Holding a key down counts as one press there, and a key you were already holding when an agent's question appears doesn't answer it ([#393](https://github.com/GITHUB_REPOSITORY/issues/393), thanks to @kartas39).
 - Signing in with a password now works with mail servers that turn away the older LOGIN command: MailCraft uses the server's PLAIN sign-in when it offers one ([#375](https://github.com/GITHUB_REPOSITORY/issues/375)).
 - Escape in the search box clears the search and no longer closes a message you are writing ([#365](https://github.com/GITHUB_REPOSITORY/issues/365), thanks to @kartas39).
