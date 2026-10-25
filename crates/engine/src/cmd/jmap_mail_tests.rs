@@ -524,6 +524,11 @@ fn an_answer_from_the_server_the_account_named_before_is_refused() {
     apply_jmap_mail(&mut s, JmapMailResult { session: now.into(), listing: listing.clone(), ..piece(account) }).unwrap();
     apply_jmap_mail(&mut s, JmapMailResult { listing, ..piece(account) }).unwrap();
     assert!(s.mailbox.folders.iter().any(|f| f.account == account && f.server.is_some()));
+    // Nor are messages fetched whole from the server it named before.
+    let fetched = vec![GraphFetched { id: "E1".into(), mime: b"Subject: Then\r\n\r\nFrom the other server.\r\n".to_vec() }];
+    let late = GraphFetchResult { account, email: ME.into(), session: SESSION.into(), fetched, ..Default::default() };
+    let why = apply_jmap_fetch(&mut s, late).unwrap_err();
+    assert_eq!(why.to_string(), format!("this Send/Receive was for the server {ME} named before"));
 }
 
 #[test]

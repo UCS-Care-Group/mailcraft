@@ -320,14 +320,15 @@ pub fn apply_jmap_mail(s: &mut Session, result: JmapMailResult) -> CmdResult {
 
 /// Take in messages of a JMAP account fetched whole, as a Microsoft account's are
 /// ([`graph_mail::apply_graph_fetch`]), once the result is held to sizes ([`jmap_down::bounded_fetch`]).
-/// Not an undo step.
+/// Not an undo step. As for a run's pieces, only for the account they were fetched for, and from the
+/// server it names now when the result says which (`session`): a server's ids say nothing of another's.
 ///
 /// A message the server said it no longer has stays as it is (its window says whether it is gone,
 /// and a run that reads it whole removes it), and the background doesn't ask for it again this
 /// session; nor for one the server wouldn't give, as for Graph.
 pub fn apply_jmap_fetch(s: &mut Session, result: GraphFetchResult) -> CmdResult {
     let account = result.account;
-    receiving(&s.mailbox, account, &result.email, "")?;
+    receiving(&s.mailbox, account, &result.email, &result.session)?;
     let result = jmap_down::bounded_fetch(result);
     let missing: Vec<(Id, String)> = result.missing.iter().map(|id| (account, id.clone())).collect();
     let answer = graph_mail::apply_graph_fetch(s, result)?;

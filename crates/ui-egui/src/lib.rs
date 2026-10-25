@@ -2523,8 +2523,14 @@ impl MailApp {
             self.tokens.clear();
             self.graph_tokens.clear();
             self.jmap_refused.clear();
-            // Work started for the old mailbox stays with it: a sign-in on its way is called
-            // off, and a switch to Graph (its copy, its backup) is forgotten.
+            // Work started for the old mailbox stays with it: a JMAP run and the messages being
+            // fetched whole are called off (what they still bring is thrown away, `jmap_mail`,
+            // `graph_fetch`), a sign-in on its way is called off, and a switch to Graph (its copy,
+            // its backup) is forgotten.
+            if matches!(self.sync_rx, Some(MailRun::Jmap { .. })) {
+                self.services.sync_cancel.store(true, std::sync::atomic::Ordering::Relaxed);
+            }
+            self.fetching.forget();
             if let Some(s) = self.signing_in.take() {
                 s.cancel.store(true, std::sync::atomic::Ordering::Relaxed);
                 self.session.sync_status.clear();

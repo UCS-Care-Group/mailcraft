@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! The window's side of a JMAP account's Send/Receive (M6), with a host that keeps every job for
 //! the test to answer: the secret asked for or the host's own, Cancel, a round by itself, a run
-//! whose task ended early, a secret turned down, and a mailbox from a file held back. (The whole
-//! way, through `mailcraft_jmap` and its server in the process: the desktop app's
-//! `jmap_mail_flow`.)
+//! whose task ended early, a secret turned down, a mailbox from a file held back, and messages
+//! being downloaded whole when another mailbox takes the place of theirs. (The whole way, through
+//! `mailcraft_jmap` and its server in the process: the desktop app's `jmap_mail_flow`.)
 
 use std::sync::atomic::Ordering;
 use std::sync::mpsc;
@@ -12,8 +12,8 @@ use std::sync::{Arc, Mutex};
 
 use mailcraft_engine::Session;
 use mailcraft_engine::cmd::sync_progress::RunState;
-use mailcraft_model::sync::{FolderListing, GraphFolder, JmapMailResult};
-use mailcraft_model::{FolderKind, Id, Mailbox};
+use mailcraft_model::sync::{FolderListing, GraphFetchResult, GraphFetched, GraphFolder, JmapMailResult, ServerMessage};
+use mailcraft_model::{FolderKind, Id, Mailbox, Message};
 use serde_json::json;
 
 use super::*;
@@ -64,6 +64,41 @@ impl SecretStore for Recording {
 /// The jobs the host was handed so far, taken.
 fn taken(jobs: &Jobs) -> Vec<(JmapJob, mpsc::Sender<JmapMailResult>)> {
     std::mem::take(&mut *jobs.lock().unwrap())
+}
+
+type Fetches = Arc<Mutex<Vec<(JmapFetchJob, mpsc::Sender<GraphFetchResult>)>>>;
+
+/// A host that downloads messages whole by keeping every job for the test to answer.
+fn downloads_kept(app: &mut MailApp) -> Fetches {
+    let fetches: Fetches = Default::default();
+    let kept = fetches.clone();
+    app.services.jmap_fetch = Some(Box::new(move |job: JmapFetchJob| {
+        let (tx, rx) = mpsc::channel();
+        kept.lock().unwrap().push((job, tx));
+        rx
+    }));
+    fetches
+}
+
+/// A message of `account` in its Inbox whose headers alone are here, at the server id `id`.
+fn not_here_whole(app: &mut MailApp, account: Id, id: &str) -> Id {
+    let inbox = app.session.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    let server = ServerMessage { id: id.into(), folder: "M1".into(), ..Default::default() };
+    let m = Message { account, folder: inbox, subject: "Kickoff".into(), received: NOW, unfetched: true, server: Some(server), ..Default::default() };
+    app.session.mailbox.add_message(m).unwrap()
+}
+
+/// What the host brings back for a download: each message it asked for, whole.
+fn whole(job: &JmapFetchJob) -> GraphFetchResult {
+    let fetched =
+        job.request.ids.iter().map(|id| GraphFetched { id: id.clone(), mime: b"Subject: Kickoff\r\n\r\nFrom before.\r\n".to_vec() }).collect();
+    GraphFetchResult {
+        account: job.request.account,
+        email: job.request.email.clone(),
+        session: job.request.session.clone(),
+        fetched,
+        ..Default::default()
+    }
 }
 
 /// The last piece of a run, as the host sends it.
@@ -232,6 +267,64 @@ fn a_run_under_way_when_another_mailbox_is_opened_brings_nothing_into_it() {
     assert!(!app.session.mailbox.folders.iter().any(|f| f.server.is_some()), "nothing of the old run is here");
     // The new mailbox's account goes its own way: its Send/Receive asks for its own password.
     assert_eq!(app.execute("ui.sync", json!({"account": other})).unwrap()["pending"], "password");
+}
+
+#[test]
+fn a_download_under_way_when_another_mailbox_is_opened_brings_nothing_into_it() {
+    let (mut app, accounts, _jobs) = window(&["ada@example.org"]);
+    let ada = accounts[0];
+    let fetches = downloads_kept(&mut app);
+    app.passwords.insert(ada, "typed here".into());
+    let kickoff = not_here_whole(&mut app, ada, "E1");
+    // Opened: it is asked for at once.
+    app.session.sel.messages = vec![kickoff];
+    app.drive_fetch();
+    let asked = std::mem::take(&mut *fetches.lock().unwrap());
+    let (job, tx) = asked.into_iter().find(|(job, _)| !job.request.background).unwrap();
+    assert_eq!(job.request.ids, ["E1"]);
+    // Another mailbox takes its place, with an account at the same address on the same server and
+    // a message at the same server id, opened too.
+    app.execute("file.new", json!({})).unwrap();
+    let other = json!({"email": "ada@example.org", "kind": "jmap", "jmap": {"session": SESSION}});
+    let other = app.execute("account.add", other).unwrap()["id"].as_u64().unwrap();
+    let theirs = not_here_whole(&mut app, other, "E1");
+    // The download is called off, and what it still brings, for the mailbox before, is listened
+    // for no longer.
+    assert!(job.cancel.load(Ordering::Relaxed));
+    assert!(tx.send(whole(&job)).is_err(), "the window stopped listening");
+    // The new mailbox's message, opened, is asked for at once with its own password: the old
+    // download neither holds it up nor stands for it.
+    app.passwords.insert(other, "typed for the new one".into());
+    app.session.sel.messages = vec![theirs];
+    app.drive_fetch();
+    let asked = std::mem::take(&mut *fetches.lock().unwrap());
+    let (new, _tx) = asked.into_iter().find(|(job, _)| !job.request.background).unwrap();
+    assert!(new.request.account == other && new.request.ids == ["E1"] && !new.cancel.load(Ordering::Relaxed));
+    assert!(app.fetching.fetching(theirs) && app.session.mailbox.message(theirs).unwrap().unfetched);
+}
+
+#[test]
+fn a_download_that_comes_back_after_the_mailbox_was_replaced_is_thrown_away() {
+    let (mut app, accounts, _jobs) = window(&["ada@example.org"]);
+    let ada = accounts[0];
+    let fetches = downloads_kept(&mut app);
+    app.passwords.insert(ada, "typed here".into());
+    let kickoff = not_here_whole(&mut app, ada, "E1");
+    not_here_whole(&mut app, ada, "E2");
+    let before = app.session.mailbox.clone();
+    // The one opened and the background's batch, both under way.
+    app.session.sel.messages = vec![kickoff];
+    app.drive_fetch();
+    let asked = std::mem::take(&mut *fetches.lock().unwrap());
+    assert_eq!(asked.iter().map(|(job, _)| job.request.background).collect::<Vec<_>>(), [false, true]);
+    // The mailbox is replaced under the window by one with the same account and messages, and the
+    // answers come before the window has looked.
+    app.session.replace_mailbox(before);
+    for (job, tx) in &asked {
+        tx.send(whole(job)).unwrap();
+    }
+    app.drive_fetch();
+    assert!(app.session.mailbox.messages.values().all(|m| m.unfetched), "nothing of the old downloads is here");
 }
 
 #[test]
