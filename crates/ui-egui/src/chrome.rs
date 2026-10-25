@@ -170,7 +170,7 @@ fn search_box(app: &mut MailApp, ui: &mut Ui, rect: Rect) {
     // Escape is the box's while it has the keyboard and nothing is over it (#406), so nothing
     // drawn after it does something with the same key (a selection in the message being read
     // stays). Only a press clears the search: the repeats of one that closed a dialog leave it.
-    let pressed = focused && free && crate::layers::take_escape(ui.ctx(), crate::layers::Layer::Search);
+    let pressed = focused && free && crate::keys::take_escape_in(ui.ctx(), ui.layer_id(), id);
     if pressed {
         app.search_text.clear();
         let _ = app.execute("view.clearSearch", json!({}));

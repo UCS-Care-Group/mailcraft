@@ -281,8 +281,10 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
         });
     }
     ui.painter().line_segment([pos2(bar.min.x, bar.max.y), pos2(bar.max.x, bar.max.y)], Stroke::new(1.0, t.border));
-    // A message that just opened has the keyboard: To for a new one, the body for a reply.
-    let fresh = !c.dirty && ui.memory(|m| m.focused().is_none());
+    // A message that just opened has the keyboard: To for a new one, the body for a reply. Not
+    // while a dialog is over it: what is typed would go under the dialog, and the keyboard goes
+    // back to what had it when the dialog closes (#406).
+    let fresh = !c.dirty && ui.memory(|m| m.focused().is_none() && m.allows_interaction(ui.layer_id()));
     let focus_to = fresh && c.to.is_empty();
 
     // From, when there is a choice.

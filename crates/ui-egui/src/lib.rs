@@ -66,13 +66,12 @@ pub mod import_tree;
 mod inbox_pass;
 pub mod jmap_mail;
 mod keep_offline;
+#[cfg(test)]
+mod key_chain_tests;
 pub mod keys;
 #[cfg(test)]
 #[path = "late_work_tests.rs"]
 mod late_work_tests;
-mod layers;
-#[cfg(test)]
-mod layers_tests;
 pub mod mail_view;
 mod meeting_dialogs;
 pub mod menubar;
@@ -3747,9 +3746,9 @@ impl MailApp {
         // mailbox's times are put by the new clock before anything of it is drawn, and so are
         // the appointments that stand open.
         self.follow_zone();
-        // Escape and Enter go to what is on top, and to nothing under it: worked out here, before
+        // Escape and Enter go to one place, and to nothing under it: worked out here, before
         // anything reads them (#406). The agent's question is on top of everything.
-        layers::resolve_main(self, &ctx);
+        keys::gate_main(self, &ctx);
         agent_gate::keys(self, &ctx);
         // Windows of their own (a message, an appointment), before the shortcuts: their keys are
         // not also the main window's where they are inside it.

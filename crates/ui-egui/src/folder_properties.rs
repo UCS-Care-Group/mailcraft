@@ -292,10 +292,9 @@ impl FolderProperties {
         let name = self.general.name.clone();
         let mut closed = escape || enter;
         let mut picked = None;
-        egui::Modal::new(egui::Id::unique("folder-size"))
-            .frame(frame)
-            .backdrop_color(egui::Color32::from_black_alpha(if t.dark { 110 } else { 60 }))
-            .show(ctx, |ui| {
+        egui::Modal::new(size_layer().id).frame(frame).backdrop_color(egui::Color32::from_black_alpha(if t.dark { 110 } else { 60 })).show(
+            ctx,
+            |ui| {
                 ui.set_width(width);
                 ui.spacing_mut().item_spacing = vec2(8.0, 8.0);
                 ui.label(RichText::new(tl!("Folder Size")).font(semibold(14.0)).color(t.text));
@@ -303,7 +302,8 @@ impl FolderProperties {
                 let (close, pick) = self.size.show(ui, &t, height);
                 closed |= close;
                 picked = pick;
-            });
+            },
+        );
         // A folder removed since the table was made can't be gone to: Folder Size stays open.
         if let Some(id) = picked
             && app.run_or_else("folder.select", serde_json::json!({"id": id})).is_ok()
@@ -516,6 +516,11 @@ fn cell<R>(ui: &mut Ui, width: f32, right: bool, add: impl FnOnce(&mut Ui) -> R)
 
 fn size(bytes: u64) -> String {
     mailcraft_model::size_label_in(crate::i18n::current(), bytes)
+}
+
+/// The layer of Folder Size, over Properties: a modal one.
+pub(crate) fn size_layer() -> egui::LayerId {
+    crate::keys::modal_layer(egui::Id::unique("folder-size"))
 }
 
 /// A size, marked when some of the messages it is of have a size not known here.

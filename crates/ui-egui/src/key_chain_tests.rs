@@ -7,12 +7,11 @@
 //! a picked slot). Where both apply, each test is run with one press and with the key held down.
 
 use egui::Key;
-use egui_kittest::kittest::Queryable;
+use egui_kittest::kittest::{NodeT as _, Queryable};
 use serde_json::{Value, json};
 
 use crate::dialogs::Dialog;
 use crate::forms::Form;
-use crate::layers::{Layer, Open, top};
 use crate::people_view::testing::{self, Window};
 
 /// One press, and the key held down.
@@ -313,57 +312,32 @@ fn only_the_key_alone_counts() {
     assert_eq!(dialog(&h), None);
 }
 
-/// The order of the layers, from the top.
+/// The pointer pressed at `from`, moved to `to` and let go there.
+fn drag(h: &mut Window, from: egui::Pos2, to: egui::Pos2) {
+    let button = |pos, pressed| egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed, modifiers: egui::Modifiers::NONE };
+    h.input_mut().events.extend([egui::Event::PointerMoved(from), button(from, true)]);
+    h.run_steps(2);
+    h.input_mut().events.push(egui::Event::PointerMoved(to));
+    h.run_steps(2);
+    h.input_mut().events.push(button(to, false));
+    h.run_steps(2);
+}
+
+/// Text picked out in a label of the main window (a contact's notes): Escape lets go of it, as
+/// egui has it do.
 #[test]
-fn what_is_on_top() {
-    let everything = Open {
-        agent: true,
-        unsaved: Some(4),
-        menu: true,
-        dialog: true,
-        dialog_inner: true,
-        progress: true,
-        window: Some(3),
-        window_inner: Some(3),
-        window_waits: true,
-        file: true,
-        search: true,
-    };
-    let mut open = everything;
-    let mut seen = Vec::new();
-    for peel in 0..12 {
-        seen.push(top(&open));
-        match peel {
-            0 => open.agent = false,
-            1 => open.unsaved = None,
-            2 => open.menu = false,
-            3 => open.dialog_inner = false,
-            4 => open.dialog = false,
-            5 => open.progress = false,
-            6 => open.window_inner = None,
-            7 => open.window_waits = false,
-            8 => open.window = None,
-            9 => open.file = false,
-            10 => open.search = false,
-            _ => {}
-        }
-    }
-    assert_eq!(
-        seen,
-        [
-            Layer::Agent,
-            Layer::Unsaved(4),
-            Layer::Menu,
-            Layer::Inner(0),
-            Layer::Dialog,
-            Layer::Progress,
-            Layer::Inner(3),
-            Layer::Nobody,
-            Layer::Window(3),
-            Layer::File,
-            Layer::Search,
-            Layer::Main,
-        ]
-    );
-    assert_eq!(top(&Open::default()), Layer::Main);
+fn escape_lets_go_of_text_picked_out_in_the_main_window() {
+    let mut h = window("view.people");
+    let id = *h.state().session.mailbox.contacts.keys().next().unwrap();
+    run(&mut h, "people.select", json!({"id": id}));
+    let notes = h
+        .get_all_by_value("Prefers feedback as comments on the file, not in mail.")
+        .find(|n| n.accesskit_node().role() == egui::accesskit::Role::Label)
+        .unwrap()
+        .rect();
+    drag(&mut h, egui::pos2(notes.min.x + 2.0, notes.center().y), egui::pos2(notes.max.x - 2.0, notes.center().y));
+    let picked = |h: &Window| h.ctx.with_plugin(|labels: &mut egui::text_selection::LabelSelectionState| labels.has_selection()).unwrap_or(false);
+    assert!(picked(&h), "the notes are picked out");
+    testing::key(&mut h, Key::Escape);
+    assert!(!picked(&h));
 }

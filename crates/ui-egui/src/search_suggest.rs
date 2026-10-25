@@ -99,7 +99,7 @@ impl Suggesting {
         });
         // Only a press: the repeats of an Escape that closed a dialog over the window leave the
         // list (#393, #406).
-        if !back && crate::layers::take_escape(ui.ctx(), crate::layers::Layer::Search) {
+        if !back && crate::keys::take_escape_in(ui.ctx(), ui.layer_id(), crate::chrome::search_box_id()) {
             self.dismissed = Some((text.to_string(), None));
         }
         if back {

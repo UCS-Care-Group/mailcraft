@@ -23,7 +23,7 @@ mod help;
 use std::sync::mpsc::{Receiver, TryRecvError};
 use std::time::Duration;
 
-use egui::{Align, Align2, Key, Layout, Margin, Rect, Response, RichText, Role, Sense, Stroke, StrokeKind, TextEdit, Ui, WidgetInfo, pos2, vec2};
+use egui::{Align, Align2, Layout, Margin, Rect, Response, RichText, Role, Sense, Stroke, StrokeKind, TextEdit, Ui, WidgetInfo, pos2, vec2};
 use mailcraft_model::{Account, AccountKind, Directory, Id, KeepOffline, OAuth, OAuthProvider, Security, Server, provider};
 use serde_json::{Map, Value, json};
 
@@ -1219,9 +1219,9 @@ impl AccountSetup {
             self.ctx = Some(ui.ctx().clone());
             self.sweep(app);
         }
-        // Escape (when the dialog is on top, #406) and the window's own close button close the
+        // Escape (when it is the dialog's, #406) and the window's own close button close the
         // dialog after this pass.
-        if crate::layers::escape(ui.ctx(), crate::layers::Layer::Dialog) || closed_by_window(ui) {
+        if crate::keys::escape(ui.ctx(), ui.layer_id()) || closed_by_window(ui) {
             self.give_up(app);
             return true;
         }
@@ -1274,7 +1274,7 @@ impl AccountSetup {
         let ready = !self.email.trim().is_empty();
         let mut go = false;
         strip(ui, self.page, |ui| go = button(ui, tl!("Connect"), true, ready).clicked());
-        (ready && (go || entered(ui, pass))).then_some(Action::Go)
+        (ready && (go || pass.submit)).then_some(Action::Go)
     }
 
     fn choose_page(&mut self, ui: &mut Ui, pass: &Pass) -> Option<Action> {
@@ -1340,7 +1340,7 @@ impl AccountSetup {
             go = button(ui, tl!("Continue"), true, ready).clicked();
             back = button(ui, tl!("Back"), false, true).clicked();
         });
-        if back { Some(Action::Back) } else { (ready && (go || entered(ui, pass))).then_some(Action::Go) }
+        if back { Some(Action::Back) } else { (ready && (go || pass.submit)).then_some(Action::Go) }
     }
 
     fn password_page(&mut self, app: &MailApp, ui: &mut Ui, pass: &mut Pass) -> Option<Action> {
@@ -1385,7 +1385,7 @@ impl AccountSetup {
             go = button(ui, tl!("Connect"), true, ready).clicked();
             back = button(ui, tl!("Back"), false, true).clicked();
         });
-        if back { Some(Action::Back) } else { (ready && (go || entered(ui, pass))).then_some(Action::Go) }
+        if back { Some(Action::Back) } else { (ready && (go || pass.submit)).then_some(Action::Go) }
     }
 
     /// The owner signed in as somebody other than the address typed (#103): who, and the two
@@ -1414,7 +1414,7 @@ impl AccountSetup {
             again = button(ui, tl!("Sign in again"), true, true).clicked();
             take = button(ui, &use_label, false, usable).clicked();
         });
-        if take { Some(Action::UseSignedIn) } else { (again || entered(ui, pass)).then_some(Action::Go) }
+        if take { Some(Action::UseSignedIn) } else { (again || pass.submit).then_some(Action::Go) }
     }
 
     fn done_page(&mut self, ui: &mut Ui, pass: &Pass) -> Option<Action> {
@@ -1450,7 +1450,7 @@ impl AccountSetup {
                 another = ui.link(tl!("Add another account")).clicked();
             });
         });
-        if another { Some(Action::Another) } else { (done || entered(ui, pass)).then_some(Action::Go) }
+        if another { Some(Action::Another) } else { (done || pass.submit).then_some(Action::Go) }
     }
 
     fn settings_page(&mut self, app: &MailApp, ui: &mut Ui, pass: &mut Pass) -> Option<Action> {
@@ -1504,7 +1504,7 @@ impl AccountSetup {
             save = button(ui, tl!("Save"), true, true).clicked();
             cancel = button(ui, tl!("Cancel"), false, true).clicked();
         });
-        if cancel { Some(Action::Back) } else { (save || entered(ui, pass)).then_some(Action::Go) }
+        if cancel { Some(Action::Back) } else { (save || pass.submit).then_some(Action::Go) }
     }
 
     /// The settings of an account a newer MailCraft added: what it is, and nothing to change (its
@@ -1528,7 +1528,7 @@ impl AccountSetup {
         });
         let mut close = false;
         strip(ui, self.page, |ui| close = button(ui, tl!("Close"), true, true).clicked());
-        (close || entered(ui, pass)).then_some(Action::Back)
+        (close || pass.submit).then_some(Action::Back)
     }
 
     /// The password, masked. It is never shown, copied or spoken.
@@ -1551,12 +1551,6 @@ impl AccountSetup {
         server_row(ui, pass, tl!("Incoming mail (IMAP)"), "incoming", &mut self.incoming, "imap.example.org", (993, 143));
         server_row(ui, pass, tl!("Outgoing mail (SMTP)"), "outgoing", &mut self.outgoing, "smtp.example.org", (465, 587));
     }
-}
-
-/// Whether Enter asked for the page's main button. A key that is held down repeats, and a repeat
-/// doesn't count: it mustn't carry the owner from page to page.
-fn entered(ui: &Ui, pass: &Pass) -> bool {
-    pass.submit && ui.input(|i| i.events.iter().any(|e| matches!(e, egui::Event::Key { key: Key::Enter, pressed: true, repeat: false, .. })))
 }
 
 /// Where a password that works is kept, for the line under its field.
@@ -1808,6 +1802,7 @@ mod tests {
     use crate::dialogs::Dialog;
     use crate::forms::Form;
     use crate::{Services, SignInRequest};
+    use egui::Key;
 
     /// What the wizard says about a sign-in on Microsoft's page, and the approval help (M4.4).
     mod help;

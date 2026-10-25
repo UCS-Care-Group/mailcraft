@@ -186,7 +186,7 @@ pub(crate) mod kit {
     use std::fmt::Debug;
     use std::hash::Hash;
 
-    use egui::{Align, Align2, Color32, CornerRadius, Key, Response, Sense, Stroke, StrokeKind, Ui, pos2, vec2};
+    use egui::{Align, Align2, Color32, CornerRadius, Response, Sense, Stroke, StrokeKind, Ui, pos2, vec2};
     use mailcraft_engine::Session;
     use mailcraft_model::Category;
     use mailcraft_time::{Date, parse_time, time_short};
@@ -201,22 +201,20 @@ pub(crate) mod kit {
     pub const ROW_H: f32 = 24.0;
 
     /// Where a form is laid out when that isn't the dialog: a window of its own
-    /// ([`crate::windows`]). Forms in different windows don't share their fields, only the one
-    /// in front acts on an Enter that no field took, and a form that has a window of the system
-    /// to itself fills it.
+    /// ([`crate::windows`]). Forms in different windows don't share their fields, and a form that
+    /// has a window of the system to itself fills it. (Which of them an Enter is for is
+    /// [`crate::keys`]'s to say.)
     #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
     pub struct Host {
         /// Tells this form's fields from those of the same form in another window; 0 for the dialog.
         pub id: u64,
-        /// Another window is in front of this one: the keyboard is that one's.
-        pub background: bool,
         /// The form has the height of its window, and fills it.
         pub fill: bool,
     }
 
     thread_local! {
         /// The host of the form that is being laid out.
-        static HOST: std::cell::Cell<Host> = const { std::cell::Cell::new(Host { id: 0, background: false, fill: false }) };
+        static HOST: std::cell::Cell<Host> = const { std::cell::Cell::new(Host { id: 0, fill: false }) };
         /// Where the fields of the form being laid out end when it fills its window (a height
         /// on the page of its fields); not a number otherwise.
         static BODY_END: std::cell::Cell<f32> = const { std::cell::Cell::new(f32::NAN) };
@@ -353,15 +351,16 @@ pub(crate) mod kit {
     impl Pass {
         /// Start a frame. `focus` is taken: the form's first field gets the keyboard once.
         pub fn new(ui: &Ui, s: &Session, focus: &mut bool) -> Pass {
-            let enter = ui.input(|i| i.key_pressed(Key::Enter));
-            let idle = ui.memory(|m| m.focused().is_none()) && !egui::Popup::is_any_open(ui.ctx());
+            // Enter is the form's when its window (or dialog) is where the key went (#406): not
+            // under a dialog or a question, not in a window behind the active one, not while a
+            // list is open, and never a held key's repeats.
+            let layer = ui.layer_id();
             Pass {
                 t: Tokens::get(ui.ctx()),
                 today: s.today(),
                 twelve: s.prefs.twelve_hour,
-                enter,
-                // (A form in a window that another one is in front of leaves it to that one.)
-                submit: enter && idle && !host().background,
+                enter: crate::keys::enter(ui.ctx(), layer),
+                submit: crate::keys::enter_alone(ui.ctx(), layer),
                 focus: std::mem::take(focus),
             }
         }
@@ -1976,7 +1975,7 @@ mod event {
                 });
             // Escape leaves it as it was (when it is on top: a list open in it closes first, #406);
             // Enter in one of its fields, or with none, is OK.
-            let escape = crate::layers::escape(ctx, crate::layers::Layer::Inner(kit::window()));
+            let escape = crate::keys::escape(ctx, crate::keys::modal_layer(kit::field_id("recurrence_dialog")));
             left.or(if escape {
                 Some(Left::Cancel)
             } else if enter && self.wrong().is_none() {
@@ -5322,7 +5321,7 @@ mod account {
 
 /// The Categories dialog: recolour, rename, delete, add.
 mod categories {
-    use egui::{Key, Sense, Stroke, StrokeKind, Ui, vec2};
+    use egui::{Sense, Stroke, StrokeKind, Ui, vec2};
     use mailcraft_engine::Session;
     use mailcraft_model::{Category, Rgb};
     use serde_json::{Value, json};
@@ -5415,7 +5414,7 @@ mod categories {
         /// Lay out the form. Returns `true` when the dialog should close.
         pub fn show(&mut self, app: &mut MailApp, ui: &mut Ui) -> bool {
             let t = Tokens::get(ui.ctx());
-            let enter = ui.input(|i| i.key_pressed(Key::Enter));
+            let enter = crate::keys::enter(ui.ctx(), ui.layer_id());
             let list = app.session.mailbox.categories.clone();
             // Once Outlook's list of categories was read, those not on it say so (R3 spec S18).
             let outlook = &app.session.mailbox.outlook_categories;
