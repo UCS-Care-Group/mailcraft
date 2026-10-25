@@ -875,6 +875,8 @@ pub fn suggest(s: &Session, query: &str, limit: usize) -> Vec<Suggestion> {
         };
         let now = s.now();
         let mut recent: std::collections::HashMap<String, (bool, i64, &mailcraft_model::Address)> = std::collections::HashMap::new();
+        // A name and an address are matched once, however many messages carry them.
+        let mut matched: std::collections::HashMap<(&str, &str), bool> = std::collections::HashMap::new();
         for m in s.mailbox.messages.values().filter(|m| !junk.contains(&m.folder)) {
             let written = sent.contains(&m.folder);
             let date = m.date.min(now);
@@ -884,8 +886,11 @@ pub fn suggest(s: &Session, query: &str, limit: usize) -> Vec<Suggestion> {
                 std::iter::once(&m.from).chain(&m.to).chain(&m.cc).map(|a| (a, false)).collect()
             };
             for (a, to) in people {
+                if !*matched.entry((a.name.as_str(), a.email.as_str())).or_insert_with(|| fits(&a.name, &a.email)) {
+                    continue;
+                }
                 let key = a.email.trim().to_lowercase();
-                if !seen.contains(&key) && a.is_valid() && fits(&a.name, &a.email) {
+                if !seen.contains(&key) && a.is_valid() {
                     let known = recent.entry(key).or_insert((to, date, a));
                     if (to, date) >= (known.0, known.1) {
                         *known = (to || known.0, date, a);

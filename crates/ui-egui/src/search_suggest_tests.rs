@@ -402,3 +402,21 @@ fn the_address_is_shown_beside_a_name() {
     assert_eq!(super::shows_address(&person("ADA@example.org")), None);
     assert_eq!(super::shows_address(&mailcraft_model::search::Suggestion { address: None, ..person("category:") }), None);
 }
+
+/// Someone who arrives while the search waits (a Send/Receive brings their mail or contact) is
+/// offered without a key being pressed.
+#[test]
+fn people_who_arrive_are_offered_without_a_key() {
+    let mut h = window();
+    typed(&mut h, "to:zed");
+    assert!(offered(&h).is_empty());
+    let s = &mut h.state_mut().session;
+    s.mailbox.add_contact(mailcraft_model::Contact {
+        display_name: "Zed Quill".into(),
+        emails: vec![mailcraft_model::Labeled::new("work", "zed@example.org")],
+        ..Default::default()
+    });
+    s.mailbox_changed();
+    h.run_steps(3);
+    assert_eq!(offered(&h), ["Zed Quill"]);
+}

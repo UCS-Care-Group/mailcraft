@@ -32,12 +32,17 @@ pub(crate) struct Suggesting {
     /// The search and the cursor as Escape found them: the list stays closed until one changes.
     /// The cursor is filled in by the next `offer`.
     dismissed: Option<(String, Option<usize>)>,
-    /// What `items` are for: the search, the cursor in it, and the mailbox's categories (a
-    /// renamed one is offered by its new name). A take is only of items for the search as it is
-    /// now. (The people are looked up again when the search or the cursor changes.)
+    /// What `items` are for: the search, the cursor in it, the mailbox's categories (a renamed
+    /// one is offered by its new name), and the mailbox as it was ([`Session::rev`] and
+    /// [`Session::openings`]: the people that mail arriving, or another mailbox, brings are
+    /// offered without a key being pressed). A take is only of items for the search as it is now.
+    ///
+    /// [`Session::rev`]: mailcraft_engine::Session::rev
+    /// [`Session::openings`]: mailcraft_engine::Session::openings
     pub for_text: String,
     for_cursor: usize,
     for_categories: Vec<mailcraft_model::Category>,
+    for_mailbox: (u64, u64),
 }
 
 impl Suggesting {
@@ -177,7 +182,8 @@ impl Suggesting {
                 *at = Some(cursor);
             }
         }
-        if (self.for_text.as_str(), self.for_cursor, self.for_categories.as_slice()) == (text, cursor, categories) {
+        let mailbox = (session.rev(), session.openings());
+        if (self.for_text.as_str(), self.for_cursor, self.for_categories.as_slice(), self.for_mailbox) == (text, cursor, categories, mailbox) {
             return;
         }
         let byte = text.char_indices().nth(cursor).map_or(text.len(), |(b, _)| b);
@@ -186,7 +192,7 @@ impl Suggesting {
             self.selected = None;
         }
         self.items = items;
-        (self.for_text, self.for_cursor, self.for_categories) = (text.to_string(), cursor, categories.to_vec());
+        (self.for_text, self.for_cursor, self.for_categories, self.for_mailbox) = (text.to_string(), cursor, categories.to_vec(), mailbox);
     }
 
     pub fn clear(&mut self) {
