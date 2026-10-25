@@ -12864,3 +12864,4 @@ msgstr "{why}, waardoor aanmeldingen niet worden onthouden: MailCraft vraagt het
 #, fuzzy
 msgid "{why}. {n} changes made in it here wait on this computer."
 msgstr "{why}. {n} wijzigingen die hierin zijn gemaakt, wachten op deze computer."
+
