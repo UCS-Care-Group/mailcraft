@@ -14,6 +14,7 @@ cargo-fuzz = true
 
 [dependencies]
 libfuzzer-sys = "0.4"
+mailcraft-dav = { path = "../crates/dav" }
 mailcraft-charset = { path = "../crates/charset" }
 mailcraft-i18n = { path = "../crates/i18n" }
 mailcraft-html = { path = "../crates/html" }
@@ -106,6 +107,20 @@ bench = false
 [[bin]]
 name = "jmap_response"
 path = "fuzz_targets/jmap_response.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "dav_xml"
+path = "fuzz_targets/dav_xml.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "dav_document"
+path = "fuzz_targets/dav_document.rs"
 test = false
 doc = false
 bench = false

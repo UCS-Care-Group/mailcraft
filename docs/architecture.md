@@ -1,6 +1,6 @@
 # MailCraft architecture
 
-> **Last reviewed:** 2026-10-11 · **Last updated:** 2026-10-23 · **Change:** minor (`jmap`, L3: JMAP requests and answers without I/O, M6; quitting on macOS is MailCraft's own code, no craft-libs dependency; #253: the macOS menu bar, a table of command ids in `ui-egui` made native with `muda` in the desktop app; `i18n`, L0: interface text, `.po` catalogues and plural rules in a crate of their own, i18n-1; an account of a kind this program doesn't know, one a newer MailCraft added, is kept as its file has it and written back so, `AccountKind::Unknown`; fuzz targets for every reader, run in CI; `charset`, L0: one decoder of character sets for mail and vCard files, #180; R6: the mailbox file is a log of records, format 3, `store_index.rs`; a damaged later save stops the reading there, a damaged item of the first save costs only itself, and `file.open` says so; files kept aside are never removed and keep their content from the sweep; no citations of private decision records; R3.7: the switch from IMAP to Graph, no switch for testing; quitting on macOS through `-[NSApplication terminate:]`, MailCraft's own code in the desktop app; cargo-deny, pinned actions, zizmor, Scorecard, the threat model; R3.1: a Microsoft account kept in step through Graph behind a switch for testing, server ids, `graph::pace`; the Secret Service on Linux and FreeBSD behind `Services::secrets`; `StoreTrouble`; Exchange Web Services removed: the Favorites of Outlook are read through Microsoft Graph alone, and there is no choice of a way) · **Target:** Microsoft Outlook (Microsoft 365)
+> **Last reviewed:** 2026-10-11 · **Last updated:** 2026-10-24 · **Change:** minor (DAV crate count and fuzz targets; `dav`, L3: pure, browser-ready DAV documents and XML, #376; `jmap`, L3: JMAP requests and answers without I/O, M6; quitting on macOS is MailCraft's own code, no craft-libs dependency; #253: the macOS menu bar, a table of command ids in `ui-egui` made native with `muda` in the desktop app; `i18n`, L0: interface text, `.po` catalogues and plural rules in a crate of their own, i18n-1; an account of a kind this program doesn't know, one a newer MailCraft added, is kept as its file has it and written back so, `AccountKind::Unknown`; fuzz targets for every reader, run in CI; `charset`, L0: one decoder of character sets for mail and vCard files, #180; R6: the mailbox file is a log of records, format 3, `store_index.rs`; a damaged later save stops the reading there, a damaged item of the first save costs only itself, and `file.open` says so; files kept aside are never removed and keep their content from the sweep; no citations of private decision records; R3.7: the switch from IMAP to Graph, no switch for testing; quitting on macOS through `-[NSApplication terminate:]`, MailCraft's own code in the desktop app; cargo-deny, pinned actions, zizmor, Scorecard, the threat model; R3.1: a Microsoft account kept in step through Graph behind a switch for testing, server ids, `graph::pace`; the Secret Service on Linux and FreeBSD behind `Services::secrets`; `StoreTrouble`; Exchange Web Services removed: the Favorites of Outlook are read through Microsoft Graph alone, and there is no choice of a way) · **Target:** Microsoft Outlook (Microsoft 365)
 
 How MailCraft is built today. Rules for working in the code are in [`AGENTS.md`](../AGENTS.md). The
 shape — layers, "everything is a command", the swappable egui front end, the control channel, MCP,
@@ -8,7 +8,7 @@ shape — layers, "everything is a command", the swappable egui front end, the c
 
 ## Layers
 
-15 crates, 3 apps and `xtask` (`cargo xtask stats` prints lines and tests per crate). Layering is
+16 crates, 3 apps and `xtask` (`cargo xtask stats` prints lines and tests per crate). Layering is
 enforced by `cargo xtask layers`: a crate may only depend on crates in lower layers (one exception
 inside L3: `net` drives `proto`), and nothing below L6 depends on egui, eframe, winit or rfd.
 `dispatch2`, which the desktop app uses to quit the macOS way, is for the apps alone.
@@ -25,6 +25,7 @@ inside L3: `net` drives `proto`), and nothing below L6 depends on egui, eframe, 
 | L2 | `ical` | iCalendar reader and writer: events, to-dos, recurrence rules, alarms, attendees |
 | L2 | `vcard` | vCard 2.1/3.0/4.0 reader, 3.0 writer |
 | L3 | `proto` | IMAP4rev1 and SMTP clients over any `Read + Write` stream (no sockets, so they test against scripted transcripts and build for wasm) |
+| L3 | `dav` | Bounded DAV XML and byte-preserving iCalendar/vCard edits over model snapshots; no sockets or browser APIs, builds for wasm |
 | L3 | `net` | TCP + TLS (rustls), sending through SMTP, two-way IMAP synchronisation, OAuth sign-in, MX lookup, Microsoft Graph (`graph`); empty on wasm |
 | L3 | `jmap` | JMAP (RFC 8620, 8621) without sockets or browser APIs: builds each HTTP request and judges the answer, the program does the exchange (`HttpExchange`); an in-process server for tests (`stand-in` feature). Nothing calls it yet (M6) |
 | L4 | `engine` | `Session` (mailbox, selection, view, the message being written, undo), the **command registry** (`cmd/*.rs`), the message list (`list.rs`), the Outlook feature catalog (`catalog.rs`), the sample mailbox, file dispatch (`io.rs`) |
@@ -188,7 +189,7 @@ inside L3: `net` drives `proto`), and nothing below L6 depends on egui, eframe, 
 - Unit tests in every crate; property tests feeding arbitrary bytes to the readers (`mime`,
   `ical`, `vcard`, `proto`) and round-tripping what the writers produce; in-process fake IMAP and
   SMTP servers on loopback for `net`; cargo-fuzz targets in `fuzz/` (its own workspace, nightly)
-  for each reader (`mime`, `html`, `ical`, `vcard`, `charset`, IMAP and SMTP replies), run a minute
+  for each reader (`mime`, `html`, `ical`, `vcard`, `charset`, IMAP and SMTP replies, `dav_xml` and `dav_document`), run a minute
   each by `fuzz.yml` weekly and when a pull request changes a reader; `engine/src/tests.rs::hostile_params_never_panic` runs every
   command with junk params; an MCP acceptance test drives a realistic triage through the protocol.
 - `cargo xtask ci`: fmt, clippy `-D warnings`, tests, asset attribution, layering, wasm build,
@@ -206,6 +207,7 @@ inside L3: `net` drives `proto`), and nothing below L6 depends on egui, eframe, 
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-24 | minor | Pure DAV readers/edits at layer 3, the sixteenth crate; DAV XML/document fuzz targets (#376) |
 | 2026-10-11 | major | First architecture doc |
 | 2026-10-23 | minor | `jmap`, L3: JMAP requests and answers without I/O (M6); 15 crates |
 | 2026-10-15 | minor | Supply-chain gates: cargo-deny in `cargo xtask ci` and CI, pinned actions, zizmor, Scorecard; link to the threat model |
