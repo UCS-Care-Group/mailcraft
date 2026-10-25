@@ -999,7 +999,7 @@ fn the_reading_pane_names_nothing_that_could_fetch() {
         }
         checked += 1;
     }
-    assert_eq!(checked, 10, "reading.rs, colors, images, invitation, layout, remote, select, sharing (and its tests) and view");
+    assert_eq!(checked, 11, "reading.rs, colors, images (and its tests), invitation, layout, remote, select, sharing (and its tests) and view");
 }
 
 /// The symbols these files write as text have glyphs in the interface fonts (the check of the
