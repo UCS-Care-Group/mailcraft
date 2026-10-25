@@ -188,6 +188,7 @@ pub(crate) fn timings_report(app: &MailApp) -> String {
         let kind = match account.kind {
             mailcraft_model::AccountKind::Microsoft => "Microsoft Graph",
             mailcraft_model::AccountKind::Imap => "mail server",
+            mailcraft_model::AccountKind::Jmap => "JMAP",
             _ => "other",
         };
         let t = &run.timings;

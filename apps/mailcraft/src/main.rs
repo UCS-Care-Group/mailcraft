@@ -29,6 +29,8 @@ mod browser;
 #[cfg(test)]
 mod calendar_flow;
 mod clipboard;
+#[cfg(test)]
+mod control_challenge_flow;
 mod control_server;
 #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd", target_os = "dragonfly"))]
 mod desktop_theme;
@@ -46,6 +48,8 @@ mod graph_mail_flow;
 #[cfg(any(target_os = "windows", test))]
 mod graphics;
 mod install;
+#[cfg(test)]
+mod jmap_mail_flow;
 #[cfg(test)]
 mod listed_twice_flow;
 mod logging;

@@ -164,7 +164,7 @@ fn frame(app: &mut MailApp, ctx: &egui::Context, focused: bool) {
 fn run(app: &mut MailApp, ctx: &egui::Context, focused: bool, account: Id, inbox: Id, messages: &[(u32, &str, &str)]) {
     frame(app, ctx, focused);
     let (_tx, rx) = std::sync::mpsc::channel();
-    app.sync_rx = Some(rx);
+    app.sync_rx = Some(crate::MailRun::Imap(rx));
     frame(app, ctx, focused);
     deliver(app, account, inbox, messages);
     app.sync_rx = None;
@@ -224,7 +224,7 @@ fn a_mailbox_opened_during_a_run_is_not_compared_with_the_one_before() {
     let ctx = egui::Context::default();
     frame(&mut app, &ctx, false);
     let (_tx, rx) = std::sync::mpsc::channel();
-    app.sync_rx = Some(rx);
+    app.sync_rx = Some(crate::MailRun::Imap(rx));
     frame(&mut app, &ctx, false);
     deliver(&mut app, account, inbox, &[(2, "A", "B")]);
     app.session.path = Some(std::path::PathBuf::from("another.mailcraft"));
