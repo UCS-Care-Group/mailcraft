@@ -18,7 +18,7 @@ use std::time::{Duration, Instant};
 
 use mailcraft_mime::WriteOptions;
 use mailcraft_model::sync::{FolderDelta, FolderState, RemoteFlags, SyncPhase, SyncRequest, SyncResult, SyncStage, SyncStep};
-use mailcraft_model::{Account, Body, FlagStatus, FolderKind, Id, Message, Security};
+use mailcraft_model::{Account, Body, FlagStatus, FolderKind, Id, Message, Security, Server};
 use mailcraft_proto::ProtoError;
 use mailcraft_proto::imap::{Fetched, Imap, Mailbox, uid_sets};
 use mailcraft_time::{Date, DateTime, Timestamp};
@@ -358,11 +358,29 @@ impl Host {
     pub(crate) fn of(account: &Account) -> Host {
         let Some(server) = &account.incoming else { return Host::default() };
         let host = server.host.trim().trim_end_matches('.').to_ascii_lowercase();
-        let one_of =
-            |domains: &[&str]| domains.iter().any(|domain| host == *domain || host.strip_suffix(domain).is_some_and(|rest| rest.ends_with('.')));
-        let microsoft = one_of(&["office365.com", "outlook.com"]);
-        Host { files_sent: microsoft || one_of(&["gmail.com", "googlemail.com"]), microsoft }
+        let microsoft = is_microsoft_host(&host);
+        Host { files_sent: microsoft || host_in(&host, &["gmail.com", "googlemail.com"]), microsoft }
     }
+}
+
+/// Whether `host` (lower case, no trailing dot) is `domain` or a name under it.
+fn host_in(host: &str, domains: &[&str]) -> bool {
+    domains.iter().any(|domain| host == *domain || host.strip_suffix(domain).is_some_and(|rest| rest.ends_with('.')))
+}
+
+/// Whether a mail server's name is Microsoft's (Microsoft 365, Outlook.com).
+pub(crate) fn is_microsoft_host(host: &str) -> bool {
+    host_in(&host.trim().trim_end_matches('.').to_ascii_lowercase(), &["office365.com", "outlook.com"])
+}
+
+/// A sign-in with a Microsoft access token (XOAUTH2) goes only to Microsoft's own mail servers
+/// (or to this computer, for tests): an account that names another server, from a mailbox file
+/// say, is refused before a connection is made, so that the token never leaves for a stranger.
+pub(crate) fn token_may_go_to(server: &Server) -> Result<(), NetError> {
+    if is_microsoft_host(&server.host) || crate::transport::is_loopback(&server.host) {
+        return Ok(());
+    }
+    Err(NetError::Config("a Microsoft sign-in is only used with Microsoft's own mail servers: this account names another server".into()))
 }
 
 /// Put a copy of each message that was sent into the server's mailbox for sent mail, marked as
@@ -418,6 +436,9 @@ pub(crate) fn open_imap_with<'a>(
     }
     if account.oauth.is_none() && secret.is_empty() {
         return Err(NetError::Config("enter a password to sign in".into()));
+    }
+    if account.oauth.is_some() {
+        token_may_go_to(server)?;
     }
     let (mut stream, host) = transport::open(server, Service::Imap, patience)?;
     stream.watch(cancel);

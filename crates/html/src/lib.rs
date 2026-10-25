@@ -450,7 +450,15 @@ pub fn is_safe_url(url: &str) -> bool {
         return false;
     }
     let Some((scheme, rest)) = url.split_once(':') else { return false };
-    !rest.is_empty() && ["http", "https", "mailto", "tel", "cid"].iter().any(|s| scheme.eq_ignore_ascii_case(s))
+    if rest.is_empty() || !["http", "https", "mailto", "tel", "cid"].iter().any(|s| scheme.eq_ignore_ascii_case(s)) {
+        return false;
+    }
+    // A web address the parser rejects, or that has no host, would be taken by the system's
+    // opener for a relative file path (and become a `file:` address): it is no link.
+    if scheme.eq_ignore_ascii_case("http") || scheme.eq_ignore_ascii_case("https") {
+        return url::Url::parse(url).is_ok_and(|u| matches!(u.scheme(), "http" | "https") && u.host_str().is_some_and(|h| !h.is_empty()));
+    }
+    true
 }
 
 /// Unicode's format characters (general category Cf), which are not seen but change how what is
@@ -507,6 +515,9 @@ pub(crate) fn truncate(s: &str, max: usize) -> &str {
 pub(crate) fn is_blank(c: char) -> bool {
     c.is_whitespace() || matches!(c, '\u{ad}' | '\u{34f}' | '\u{61c}' | '\u{180e}' | '\u{200b}'..='\u{200f}' | '\u{2060}' | '\u{feff}')
 }
+
+#[cfg(test)]
+mod url_tests;
 
 #[cfg(test)]
 mod tests {

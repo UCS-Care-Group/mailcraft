@@ -176,6 +176,14 @@ impl<S: PartialEq + Clone + Send + 'static> Browser<S> {
     /// Start the opener on a thread of its own (it can take a moment to say whether it started),
     /// and answer whoever waits.
     fn start(&self, url: String, token: Option<String>, reply: Option<Sender<bool>>) {
+        // The last check before anything leaves the program, for every way in and every system.
+        let Some(url) = normalised(&url) else {
+            log::warn!("browser: an address of a kind that is never opened was refused");
+            if let Some(reply) = reply {
+                let _ = reply.send(false);
+            }
+            return;
+        };
         let launcher = self.launcher.clone();
         let work = move || {
             let opened = launcher.launch(&url, token.as_deref());
@@ -224,13 +232,25 @@ pub fn openable(url: &str) -> bool {
     true
 }
 
-/// The system's own way of opening a page (ShellExecute, Launch Services, the desktop's opener).
-pub fn system_open(url: &str) -> bool {
+/// The address as the opener is handed it: a web address as the URL parser writes it (what is
+/// launched is what was checked), anything else as it came; `None` when it may not be opened.
+pub fn normalised(url: &str) -> Option<String> {
     if !openable(url) {
+        return None;
+    }
+    if url.get(..4).is_some_and(|p| p.eq_ignore_ascii_case("http")) {
+        return url::Url::parse(url).ok().map(String::from);
+    }
+    Some(url.to_string())
+}
+
+/// The system's own way of opening a page (ShellExecute,Launch Services, the desktop's opener).
+pub fn system_open(url: &str) -> bool {
+    let Some(url) = normalised(url) else {
         log::warn!("browser: an address of a kind that is never opened was refused");
         return false;
-    }
-    match webbrowser::open(url) {
+    };
+    match webbrowser::open(&url) {
         Ok(()) => true,
         Err(e) => {
             log::warn!("couldn't start a browser ({:?})", e.kind());
@@ -414,6 +434,26 @@ mod tests {
             assert!(!system_open(url), "{url:?}");
         }
         assert!(openable("https://a.example:8443/x?y#z"));
+    }
+
+    #[test]
+    fn a_followed_link_is_checked_and_launched_as_the_parser_writes_it() {
+        // AU2-V1: every way in passes the same last check, on every system.
+        let (fake, browser) = browser();
+        browser.follow(vec!["file:///etc/passwd".into(), "http://[bad/x".into(), "HTTP://EXAMPLE.org/a b".into(), "mailto:a@example.org".into()]);
+        let _ = browser.pump(&mut || None, Instant::now());
+        for _ in 0..100 {
+            if fake.0.lock().unwrap().len() >= 2 {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        std::thread::sleep(Duration::from_millis(50));
+        let mut launched: Vec<String> = fake.0.lock().unwrap().iter().map(|(u, _)| u.clone()).collect();
+        launched.sort();
+        assert_eq!(launched, ["http://example.org/a%20b", "mailto:a@example.org"]);
+        assert_eq!(normalised("file:///x"), None);
+        assert_eq!(normalised("HTTPS://Example.org").as_deref(), Some("https://example.org/"));
     }
 
     #[test]

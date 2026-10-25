@@ -1127,6 +1127,8 @@ mod tests {
             "mailto:a@example.org",
             "example.org:8080",
             "https://",
+            "https://[::1",
+            "https://[zz]/",
             "https://exa mple.org",
             "https://example.org/\u{0}",
             "ms-settings://x",

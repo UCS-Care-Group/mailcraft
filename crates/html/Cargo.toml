@@ -9,6 +9,7 @@ description = "MailCraft HTML for mail: hostile HTML to safe display blocks and 
 workspace = true
 
 [dependencies]
+url = { workspace = true }
 serde = { workspace = true }
 
 [dev-dependencies]
