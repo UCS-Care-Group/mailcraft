@@ -279,12 +279,16 @@ fn folder_row(app: &mut MailApp, ui: &mut Ui, f: &Folder, depth: usize, has_chil
         let _ = app.run("folder.select", json!({"id": f.id}));
     }
     // Messages dragged out of the list are filed in the folder they are let go over.
-    if resp.dnd_hover_payload::<crate::mail_view::MessageDrag>().is_some() {
-        ui.painter().rect_stroke(row, 0.0, Stroke::new(1.5, t.accent), egui::StrokeKind::Inside);
+    if let Some(drag) = resp.dnd_hover_payload::<crate::mail_view::MessageDrag>() {
+        let takes = !crate::drag_pointer::movable(&app.session.mailbox, &drag.0, f.id).is_empty();
+        crate::drag_pointer::note_folder(ui.ctx(), takes);
+        if takes {
+            ui.painter().rect_stroke(row, 0.0, Stroke::new(1.5, t.accent), egui::StrokeKind::Inside);
+        }
     }
     if let Some(drag) = resp.dnd_release_payload::<crate::mail_view::MessageDrag>() {
         // Only what isn't here already.
-        let ids: Vec<Id> = drag.0.iter().copied().filter(|m| app.session.mailbox.message(*m).is_some_and(|m| m.folder != f.id)).collect();
+        let ids = crate::drag_pointer::movable(&app.session.mailbox, &drag.0, f.id);
         if !ids.is_empty() {
             let _ = app.run("mail.move", json!({"ids": ids, "folder": f.id}));
         }
