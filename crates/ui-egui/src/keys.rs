@@ -115,6 +115,12 @@ pub(crate) fn pressed_once(i: &egui::InputState, key: Key) -> bool {
     i.events.iter().any(|e| matches!(e, egui::Event::Key { key: k, pressed: true, repeat: false, .. } if *k == key))
 }
 
+/// Drops the repeats of `keys` held down, so that what reads them later in the frame sees only the
+/// press: a held key is one press (#391, #393).
+pub(crate) fn drop_repeats(i: &mut egui::InputState, keys: &[Key]) {
+    i.events.retain(|e| !matches!(e, egui::Event::Key { key, pressed: true, repeat: true, .. } if keys.contains(key)));
+}
+
 /// Takes `key` (with no Shift, Ctrl or Alt), its repeats too, so nothing later in the frame gets it.
 /// True only for a new press: a held key is one press (#391, #393).
 pub(crate) fn take_once(i: &mut egui::InputState, key: Key) -> bool {
@@ -230,8 +236,8 @@ pub fn global_shortcuts(app: &mut MailApp, ctx: &egui::Context) {
             if in_body && modifiers.command && crate::compose::editor::owns_chord(key) {
                 continue;
             }
-            // Escape in the search box is the box's: it clears the search, and leaves a message
-            // being written open (#365).
+            // Escape in the search box is for the box: it closes the list under it (#308) or clears
+            // the search. A message being written stays open (#365).
             if key == Key::Escape && ctx.memory(|m| m.has_focus(crate::chrome::search_box_id())) {
                 continue;
             }
