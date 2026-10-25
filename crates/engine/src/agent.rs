@@ -98,6 +98,7 @@ const SAFE: &[&str] = &[
     "search.openServerResult",
     // File: content goes in and out as `data`; a path is refused separately.
     "file.import",
+    "file.importFolderTree",
     "file.exportMessage",
     "file.exportFolder",
     "file.exportCalendar",
@@ -193,6 +194,7 @@ const SAFE: &[&str] = &[
     "view.filter",
     "view.search",
     "view.clearSearch",
+    "view.searchSuggestions",
     "view.previewLines",
     "view.groups",
     "view.oneLine",
@@ -398,6 +400,7 @@ const SETTINGS: &[&str] = &[
     "ui.updateCheck",
     "ui.updateInstall",
     "ui.dismissUpdateNotice",
+    "ui.dismissSettingsNotice",
 ];
 
 const NEVER: &[&str] = &[
@@ -483,6 +486,7 @@ pub enum FileUse {
 pub const FILE_PARAMS: &[(&str, &str, FileUse)] = &[
     ("file.open", "path", FileUse::Reads { name_key: "name" }),
     ("file.import", "path", FileUse::Reads { name_key: "name" }),
+    ("file.importFolderTree", "path", FileUse::Reads { name_key: "name" }),
     ("compose.attach", "path", FileUse::Reads { name_key: "name" }),
     ("signature.picture.add", "path", FileUse::Reads { name_key: "file" }),
     ("file.save", "path", FileUse::Refused),

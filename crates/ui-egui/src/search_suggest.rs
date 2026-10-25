@@ -1,8 +1,10 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! The list under the search box that offers what the word being typed may be (#308): a keyword
-//! from its start (`cat` → `category:`), the mailbox's categories after `category:`, and what
-//! `is:` and `has:` take ([`mailcraft_model::search::suggestions`] says what). The arrow keys
+//! from its start (`cat` → `category:`), the mailbox's categories after `category:`, what `is:`
+//! and `has:` take, and people after `from:`, `to:` and `cc:`, each by name with the address
+//! beside it, from the contacts and the mail on this computer
+//! ([`mailcraft_engine::cmd::view::search_suggestions`] says what). The arrow keys
 //! choose; Enter takes the one chosen, Tab that one or the first, a click the one under it. Until
 //! an arrow key is pressed nothing is chosen, so Enter does what it did. Escape closes the list
 //! and leaves the search (and a message being written open); the next Escape clears it, as
@@ -30,11 +32,17 @@ pub(crate) struct Suggesting {
     /// The search and the cursor as Escape found them: the list stays closed until one changes.
     /// The cursor is filled in by the next `offer`.
     dismissed: Option<(String, Option<usize>)>,
-    /// What `items` are for: the search, the cursor in it, and the mailbox's categories (a
-    /// renamed one is offered by its new name). A take is only of items for the search as it is now.
+    /// What `items` are for: the search, the cursor in it, the mailbox's categories (a renamed
+    /// one is offered by its new name), and the mailbox as it was ([`Session::rev`] and
+    /// [`Session::openings`]: the people that mail arriving, or another mailbox, brings are
+    /// offered without a key being pressed). A take is only of items for the search as it is now.
+    ///
+    /// [`Session::rev`]: mailcraft_engine::Session::rev
+    /// [`Session::openings`]: mailcraft_engine::Session::openings
     pub for_text: String,
     for_cursor: usize,
     for_categories: Vec<mailcraft_model::Category>,
+    for_mailbox: (u64, u64),
 }
 
 impl Suggesting {
@@ -114,7 +122,8 @@ impl Suggesting {
                         ui.set_width((under.width() - 8.0).max(160.0));
                         for (i, s) in self.items.iter().enumerate() {
                             let (r, row) = ui.allocate_exact_size(vec2(ui.available_width(), ROW_H), Sense::click());
-                            row.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, &s.label));
+                            let named = shows_address(s).map_or_else(|| s.label.clone(), |address| format!("{}, {address}", s.label));
+                            row.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, &named));
                             if self.selected == Some(i) || row.hovered() {
                                 ui.painter().rect_filled(r, 4.0, if self.selected == Some(i) { t.selection } else { t.hover });
                             }
@@ -127,7 +136,26 @@ impl Suggesting {
                                 );
                                 x += MARK + 8.0;
                             }
-                            paint_clipped(ui.painter(), pos2(x, r.center().y), (r.max.x - x - 8.0).max(0.0), &s.label, regular(12.5), t.text);
+                            // A person: the name, and the address beside it, as a new message's list has them.
+                            let room = (r.max.x - x - 8.0).max(0.0);
+                            let w = paint_clipped(
+                                ui.painter(),
+                                pos2(x, r.center().y),
+                                if shows_address(s).is_some() { room * 0.6 } else { room },
+                                &s.label,
+                                regular(12.5),
+                                t.text,
+                            );
+                            if let Some(address) = shows_address(s) {
+                                paint_clipped(
+                                    ui.painter(),
+                                    pos2(x + w + 8.0, r.center().y),
+                                    (room - w - 8.0).max(0.0),
+                                    address,
+                                    regular(11.5),
+                                    t.text_dim,
+                                );
+                            }
                             if row.clicked() {
                                 take = Some(i);
                             }
@@ -145,7 +173,8 @@ impl Suggesting {
     }
 
     /// What to offer next frame, for `text` with the cursor at character `cursor`.
-    pub fn offer(&mut self, text: &str, cursor: usize, categories: &[mailcraft_model::Category]) {
+    pub fn offer(&mut self, text: &str, cursor: usize, session: &mailcraft_engine::Session) {
+        let categories = session.mailbox.categories.as_slice();
         if let Some((d, at)) = &mut self.dismissed {
             if d != text || at.is_some_and(|at| at != cursor) {
                 self.dismissed = None;
@@ -153,21 +182,27 @@ impl Suggesting {
                 *at = Some(cursor);
             }
         }
-        if (self.for_text.as_str(), self.for_cursor, self.for_categories.as_slice()) == (text, cursor, categories) {
+        let mailbox = (session.rev(), session.openings());
+        if (self.for_text.as_str(), self.for_cursor, self.for_categories.as_slice(), self.for_mailbox) == (text, cursor, categories, mailbox) {
             return;
         }
         let byte = text.char_indices().nth(cursor).map_or(text.len(), |(b, _)| b);
-        let items = mailcraft_model::search::suggestions(text, byte, categories);
+        let items = mailcraft_engine::cmd::view::search_suggestions(session, text, byte);
         if items != self.items {
             self.selected = None;
         }
         self.items = items;
-        (self.for_text, self.for_cursor, self.for_categories) = (text.to_string(), cursor, categories.to_vec());
+        (self.for_text, self.for_cursor, self.for_categories, self.for_mailbox) = (text.to_string(), cursor, categories.to_vec(), mailbox);
     }
 
     pub fn clear(&mut self) {
         *self = Suggesting { dismissed: self.dismissed.take(), ..Suggesting::default() };
     }
+}
+
+/// The address shown beside a person's name: not when the name is the address.
+fn shows_address(s: &Suggestion) -> Option<&str> {
+    s.address.as_deref().filter(|address| !address.eq_ignore_ascii_case(&s.label))
 }
 
 /// `text` with `s` taken, and where the cursor goes after it (in characters).

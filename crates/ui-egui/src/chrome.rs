@@ -198,7 +198,7 @@ fn search_box(app: &mut MailApp, ui: &mut Ui, rect: Rect) {
     }
     match cursor {
         Some(at) if mail_search && (resp.has_focus() || ui.memory(|m| m.has_focus(id))) => {
-            suggesting.offer(&app.search_text, at, &app.session.mailbox.categories);
+            suggesting.offer(&app.search_text, at, &app.session);
             // The keys of a list that shows from the next frame are its own from that frame on.
             let next = free && suggesting.is_open(&app.search_text, true);
             ui.memory_mut(|m| m.set_focus_lock_filter(id, list_keys(next)));
