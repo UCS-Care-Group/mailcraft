@@ -3763,3 +3763,23 @@ fn boxes_are_drawn_with_their_room_lines_and_corners() {
         });
     }
 }
+
+/// The line of a link's tip that says where it goes.
+fn goes_to(href: &str) -> String {
+    let tip = super::view::link_tip(href);
+    tip.lines().next().unwrap_or_default().to_string()
+}
+
+#[test]
+fn a_link_tip_shows_the_host_of_addresses_written_to_mislead() {
+    // Numbers for a host are the address they are.
+    assert!(goes_to("http://2130706433/login").ends_with(" 127.0.0.1"));
+    assert!(goes_to("http://0x7f.1/").ends_with(" 127.0.0.1"));
+    assert!(goes_to("https://[2001:DB8::1]:8443/x").ends_with(" [2001:db8::1]"));
+    // A user name that looks like a host, and an `@` hidden after the path starts.
+    assert!(goes_to("https://paypal.com:secret@evil.example/").ends_with(" evil.example"));
+    assert!(goes_to("https://evil.example/https://paypal.com@x").ends_with(" evil.example"));
+    // A full stop of another script is no full stop, and the name is not shown as ours.
+    assert_eq!(super::view::link_tip("https://paypal\u{3002}com/"), "https://paypal\u{3002}com/");
+    assert!(goes_to("https://\u{1f4a9}.example/").contains("xn--"));
+}
