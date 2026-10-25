@@ -178,7 +178,8 @@ fn the_first_look_uploads_no_local_task_and_asks_the_owner() {
     let Some(crate::dialogs::Dialog::Confirm { command, ask, .. }) = &app.dialog else { panic!("the owner is asked") };
     assert_eq!(command, "tasks.sendLocal");
     assert!(ask.title.contains("Send your 1 local task to noor@example.org"), "{}", ask.title);
-    assert!(ask.more.iter().any(|(label, with)| label == "Not now" && with["account"].is_null()));
+    assert_eq!(ask.cancel.as_deref(), Some("Not now"), "one button that goes nowhere, not Not now and Cancel");
+    assert!(ask.more.is_empty());
     assert_eq!(app.session.mailbox.local_tasks, mailcraft_model::LocalTasks::Unasked);
     // Still pending, still nothing sent.
     assert_eq!(tasks_remote_waiting(&app, owner), 0);
@@ -207,9 +208,10 @@ fn yes_uploads_to_the_chosen_account() {
 fn not_now_keeps_them_here_and_is_not_asked_on_every_sync() {
     let (mut app, owner, answers, jobs) = first_look_with_local_tasks();
     app.tasks_tick_at(1_000.0);
-    let Some(crate::dialogs::Dialog::Confirm { command, params, ask }) = app.dialog.take() else { panic!("asked") };
-    let (_, with) = ask.more.iter().find(|(label, _)| label == "Not now").unwrap();
-    app.run(&command, crate::dialogs::answered(&params, with, None)).unwrap();
+    assert!(matches!(&app.dialog, Some(crate::dialogs::Dialog::Confirm { ask, .. }) if ask.cancel.as_deref() == Some("Not now")));
+    // Not now closes the question, which the next tick notes.
+    app.dialog = None;
+    app.tasks_tick_at(2_000.0);
     for n in 1..4 {
         answers.lock().unwrap().push_back(nothing(owner));
         assert!(app.tasks_tick_at(f64::from(n) * 10.0 * 60_000.0));

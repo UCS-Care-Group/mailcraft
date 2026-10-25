@@ -461,6 +461,7 @@ pub(crate) fn question(app: &mut MailApp, id: &str, params: &Value) -> Option<Op
         with: json!({"send": true}),
         more: vec![(tl!("Don't Send a Response").to_string(), json!({"send": false}))],
         note: Some(("comment", String::new(), tl!("A note to go with it (optional)").to_string())),
+        cancel: None,
     }))
 }
 

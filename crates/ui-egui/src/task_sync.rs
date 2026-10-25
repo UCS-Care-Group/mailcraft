@@ -352,11 +352,12 @@ impl MailApp {
             with: json!({"account": first}),
             more: Vec::new(),
             note: None,
+            // Closing it is the same as Not now (`tasks_ask_tick`), so there is no other Cancel.
+            cancel: Some(tl!("Not now").to_string()),
         };
         for id in accounts.iter().skip(1) {
             ask.more.push((label(*id), json!({"account": id})));
         }
-        ask.more.push((tl!("Not now").to_string(), json!({"account": null})));
         self.tasks.offer_open = true;
         self.dialog = Some(Dialog::Confirm { command: "tasks.sendLocal".to_string(), params: json!({}), ask });
         true
@@ -389,6 +390,7 @@ impl MailApp {
             with: Value::Null,
             more: Vec::new(),
             note: None,
+            cancel: None,
         };
         self.tasks.perm.insert(account, Permission::Asking);
         self.dialog = Some(Dialog::Confirm { command: "ui.allowTasks".to_string(), params: json!({"account": account}), ask });

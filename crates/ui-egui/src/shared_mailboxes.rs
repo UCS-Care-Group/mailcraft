@@ -326,6 +326,7 @@ impl MailApp {
             with: Value::Null,
             more: Vec::new(),
             note: None,
+            cancel: None,
         };
         self.dialog = Some(Dialog::Confirm { command: "ui.allowSharedSend".to_string(), params: json!({"account": shared}), ask });
         true
