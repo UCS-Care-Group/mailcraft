@@ -2395,6 +2395,9 @@ dependencies = [
 [[package]]
 name = "mailcraft-control-key"
 version = "0.8.0"
+dependencies = [
+ "ring",
+]
 
 [[package]]
 name = "mailcraft-engine"

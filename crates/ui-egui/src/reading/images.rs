@@ -39,6 +39,12 @@ pub const MAX_TEXTURE_PIXELS: u64 = 8_000_000;
 pub const CACHE_PICTURES: usize = 64;
 pub const CACHE_BYTES: usize = 160 * 1024 * 1024;
 
+/// Seconds without a picture being shown after which the textures are let go.
+const IDLE_SECONDS: f64 = 5.0;
+
+/// Textures are made in steps of this many pixels of width.
+const WIDTH_STEP: u32 = 64;
+
 /// Most different pictures of one message that are shown; the rest are placeholders.
 pub const MAX_PICTURES_PER_MESSAGE: usize = 200;
 
@@ -276,6 +282,11 @@ pub struct Pictures {
     entries: Vec<Entry>,
     /// The frame in which a picture was last decoded.
     decoded_in: Option<u64>,
+    /// The time (egui's, in seconds) at which a texture was last asked for.
+    asked_at: Option<f64>,
+    /// How many pictures have been decoded.
+    #[cfg(test)]
+    decodes: usize,
     /// Pictures from the web, by their address as the message wrote it.
     remote: HashMap<Arc<str>, RemoteEntry>,
 }
@@ -351,24 +362,53 @@ impl Pictures {
         }
     }
 
-    /// The texture of a picture, decoding it when no other picture was decoded in this frame.
-    pub fn texture(&mut self, ctx: &egui::Context, data: &Arc<Vec<u8>>) -> Picture {
+    /// The texture of a picture shown in a rectangle of `shown` points, decoding it when no other
+    /// picture was decoded in this frame. The texture is made for that rectangle (in steps of
+    /// [`WIDTH_STEP`] pixels), and again only when a larger one is asked for. One that would take
+    /// the cache over [`CACHE_BYTES`] or [`CACHE_PICTURES`], once what is not on screen is let go,
+    /// is not made: the picture is a stand-in.
+    pub fn texture(&mut self, ctx: &egui::Context, data: &Arc<Vec<u8>>, shown: egui::Vec2) -> Picture {
         let frame = frame(ctx);
+        self.asked_at = Some(ctx.input(|i| i.time));
         let busy = self.decoded_in == Some(frame);
-        let Some(entry) = self.entry(data, frame) else { return Picture::Failed };
-        if let Some(texture) = &entry.texture {
-            return Picture::Ready(texture.clone());
-        }
-        if entry.failed || entry.size.is_none() {
+        if self.entry(data, frame).is_none() {
             return Picture::Failed;
         }
-        if busy {
-            return Picture::Pending;
-        }
+        let Some(index) = self.entries.iter().position(|e| Arc::ptr_eq(&e.data, data)) else { return Picture::Failed };
+        let (size, failed, have) = match self.entries.get(index) {
+            Some(e) => (e.size, e.failed, e.texture.clone()),
+            None => return Picture::Failed,
+        };
+        let ready = |have: Option<egui::TextureHandle>| have.map_or(Picture::Failed, Picture::Ready);
+        let Some(size) = size.filter(|_| !failed) else { return ready(have) };
         let max_side = u32::try_from(ctx.input(|i| i.max_texture_side)).unwrap_or(MAX_TEXTURE_SIDE);
-        // Never wider than the widest the reading pane shows a picture, in physical pixels.
-        let max_width = (super::MAX_BODY_WIDTH * ctx.pixels_per_point()).ceil().clamp(1.0, MAX_TEXTURE_SIDE as f32) as u32;
-        let picture = match decode(&entry.data, max_side, max_width) {
+        // The width the rectangle needs, in physical pixels (a picture is stretched to its
+        // rectangle, so a tall one in a narrow rectangle needs the width its height asks for),
+        // never wider than the widest the reading pane shows a picture.
+        let [w, h] = size.map(|v| v.max(1) as f32);
+        let points = shown.x.max(shown.y * w / h);
+        let points = if points.is_finite() { points.clamp(1.0, super::MAX_BODY_WIDTH) } else { 1.0 };
+        let wanted = (points * ctx.pixels_per_point()).ceil().clamp(1.0, MAX_TEXTURE_SIDE as f32) as u32;
+        let wanted = wanted.div_ceil(WIDTH_STEP).saturating_mul(WIDTH_STEP).min(MAX_TEXTURE_SIDE);
+        let [kw, kh] = kept_size(size, max_side, wanted);
+        if have.as_ref().is_some_and(|t| t.size()[0] >= usize::try_from(kw).unwrap_or(usize::MAX)) {
+            return ready(have);
+        }
+        // What the others take, once what is not on screen is let go.
+        self.trim(frame);
+        let Some(index) = self.entries.iter().position(|e| Arc::ptr_eq(&e.data, data)) else { return Picture::Failed };
+        let others = self.entries.iter().enumerate().filter(|(i, _)| *i != index);
+        let bytes: usize = others.clone().map(|(_, e)| e.bytes()).fold(0, usize::saturating_add);
+        let textures = others.filter(|(_, e)| e.texture.is_some()).count();
+        let cost = usize::try_from(kw).unwrap_or(usize::MAX).saturating_mul(usize::try_from(kh).unwrap_or(usize::MAX)).saturating_mul(4);
+        if bytes.saturating_add(cost) > CACHE_BYTES || (have.is_none() && textures >= CACHE_PICTURES) {
+            return ready(have);
+        }
+        if busy {
+            return have.map_or(Picture::Pending, Picture::Ready);
+        }
+        let Some(entry) = self.entries.get_mut(index) else { return Picture::Failed };
+        let picture = match decode(&entry.data, max_side, wanted) {
             Some(image) => {
                 let texture = ctx.load_texture("mailcraft-inline-picture", image, egui::TextureOptions::LINEAR);
                 entry.texture = Some(texture.clone());
@@ -376,12 +416,39 @@ impl Pictures {
             }
             None => {
                 entry.failed = true;
+                entry.texture = None;
                 Picture::Failed
             }
         };
         self.decoded_in = Some(frame);
-        self.trim(frame);
+        #[cfg(test)]
+        {
+            self.decodes += 1;
+        }
         picture
+    }
+
+    /// At the end of a frame: once no picture has been asked for for [`IDLE_SECONDS`] (no message
+    /// with pictures is shown), let go of every texture; they are made again when wanted. Until
+    /// then the cache is bounded by [`CACHE_BYTES`] and [`CACHE_PICTURES`] alone, so scrolling
+    /// away from a picture and back does not decode it again. Nothing repaints an idle window, so
+    /// one is asked for when the time is up.
+    pub fn release_unseen(&mut self, ctx: &egui::Context) {
+        let now = ctx.input(|i| i.time);
+        if self.release_at(now) {
+            ctx.request_repaint_after(std::time::Duration::from_secs_f64(IDLE_SECONDS + 1.0));
+        }
+    }
+
+    /// [`Pictures::release_unseen`] at the time `now`; whether textures are still held.
+    fn release_at(&mut self, now: f64) -> bool {
+        let idle = self.asked_at.is_none_or(|at| now - at > IDLE_SECONDS);
+        if idle {
+            for entry in &mut self.entries {
+                entry.texture = None;
+            }
+        }
+        !idle && self.entries.iter().any(|e| e.texture.is_some())
     }
 
     /// Forget the pictures shown longest ago while there are too many or they take too much.
@@ -404,6 +471,25 @@ impl Pictures {
     #[cfg(test)]
     pub fn counts(&self) -> (usize, usize) {
         (self.entries.len(), self.entries.iter().filter(|e| e.texture.is_some()).count())
+    }
+
+    /// How many pictures have been decoded, and the time of the last ask, for a test to move.
+    #[cfg(test)]
+    pub fn decodes(&self) -> usize {
+        self.decodes
+    }
+
+    /// [`Pictures::release_unseen`] as of `seconds` after the last picture was asked for.
+    #[cfg(test)]
+    pub fn release_after(&mut self, seconds: f64) {
+        let at = self.asked_at.unwrap_or(0.0);
+        self.release_at(at + seconds);
+    }
+
+    /// The bytes the textures of the pictures take.
+    #[cfg(test)]
+    pub fn texture_bytes(&self) -> usize {
+        self.entries.iter().map(Entry::bytes).sum()
     }
 
     /// How many pictures from the web are kept, and how many bytes of them.

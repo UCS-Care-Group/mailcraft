@@ -29,6 +29,8 @@ mod browser;
 #[cfg(test)]
 mod calendar_flow;
 mod clipboard;
+#[cfg(test)]
+mod control_challenge_flow;
 mod control_server;
 #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd", target_os = "dragonfly"))]
 mod desktop_theme;
