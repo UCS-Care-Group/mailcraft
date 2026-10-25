@@ -1,6 +1,6 @@
 # Threat model
 
-> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-10-23 · **Change:** minor (always-download pictures hold only for mail the receiving server vouches for, by ASCII addresses, and not under Junk E-mail; C1 PR-c: a mailbox opened from a file is unconfirmed until its servers are confirmed; C1 PR-b: a remembered password or sign-in is filed under the address and the servers it goes to; Batch 5b: agents are not written anything that asks before opening; Batch 5: saved attachments marked from the Internet, more launchable kinds blocked, one list for agents and the opener, unparseable web links refused; batch 4: no rule moves mail into an Outbox; agents are asked before deleting contacts, tasks, events and categories, and before an undo that reverts rules, signatures or accounts; questions show complete parameters or are refused; calendar questions name the event and the people invited; Copy Diagnostics is not for agents; C1 PR-a: a mailbox in mail is saved, never opened; releases build and sign only from `main` after a passing CI, compile and sign in separate steps, check WiX by hash and use `--locked`; a daily cargo-deny run; Dependabot for crates; CODEOWNERS covers the workflows, packaging, xtask, the lock files, the updater and the agent gate; a calendar file's time zone definitions, dates and series cost bounded work: a hostile invitation or calendar file can't freeze the window, PR-d; PR-e: a message keeps at most 2,000 recipients and 500 categories and 4 MB of header, a long list is cut in the reading pane and in a quote, an mbox import stops at 200,000 messages, a mailbox file is checked for its item count while it is read, repairing a mailbox is linear; a mail server's answer to one command is capped in text, responses, folders, messages and time, so it can't make MailCraft keep memory without bound; secrets in memory dropped when a mailbox is replaced; agent questions name servers; an invitation changes a local meeting only for its organizer; the log keeps no subjects, addresses or folder names; `--control-agents-only`: no control request passes for the owner's script; the whitelist adds padding, margins, lines, rounded corners and a line height, all clamped, #71; the whitelist adds width, max-width and centring by automatic margins, #150; an assurance case: claim, trust boundaries, design principles, common weaknesses and the evidence; releases carry MailCraft's own signature; agents with a shell or the owner's files are outside the agent gate; the settings folder, logs and kept pictures are the owner's alone) · **Target:** Microsoft Outlook (Microsoft 365)
+> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-10-25 · **Change:** minor (security run 2, batch P3: a cancellation calls off a meeting only from its organizer or the account that keeps it, an .ics import replaces only the same organizer's meeting, an import never lands in an Outbox, autocomplete skips Junk and ignores a sender's future date, replies quote what the HTML reads as, and "vouched" reads only the dmarc clause's own result and header.from of mail the server holds; always-download pictures hold only for mail the receiving server vouches for, by ASCII addresses, and not under Junk E-mail; C1 PR-c: a mailbox opened from a file is unconfirmed until its servers are confirmed; C1 PR-b: a remembered password or sign-in is filed under the address and the servers it goes to; Batch 5b: agents are not written anything that asks before opening; Batch 5: saved attachments marked from the Internet, more launchable kinds blocked, one list for agents and the opener, unparseable web links refused; batch 4: no rule moves mail into an Outbox; agents are asked before deleting contacts, tasks, events and categories, and before an undo that reverts rules, signatures or accounts; questions show complete parameters or are refused; calendar questions name the event and the people invited; Copy Diagnostics is not for agents; C1 PR-a: a mailbox in mail is saved, never opened; releases build and sign only from `main` after a passing CI, compile and sign in separate steps, check WiX by hash and use `--locked`; a daily cargo-deny run; Dependabot for crates; CODEOWNERS covers the workflows, packaging, xtask, the lock files, the updater and the agent gate; a calendar file's time zone definitions, dates and series cost bounded work: a hostile invitation or calendar file can't freeze the window, PR-d; PR-e: a message keeps at most 2,000 recipients and 500 categories and 4 MB of header, a long list is cut in the reading pane and in a quote, an mbox import stops at 200,000 messages, a mailbox file is checked for its item count while it is read, repairing a mailbox is linear; a mail server's answer to one command is capped in text, responses, folders, messages and time, so it can't make MailCraft keep memory without bound; secrets in memory dropped when a mailbox is replaced; agent questions name servers; an invitation changes a local meeting only for its organizer; the log keeps no subjects, addresses or folder names; `--control-agents-only`: no control request passes for the owner's script; the whitelist adds padding, margins, lines, rounded corners and a line height, all clamped, #71; the whitelist adds width, max-width and centring by automatic margins, #150; an assurance case: claim, trust boundaries, design principles, common weaknesses and the evidence; releases carry MailCraft's own signature; agents with a shell or the owner's files are outside the agent gate; the settings folder, logs and kept pictures are the owner's alone) · **Target:** Microsoft Outlook (Microsoft 365)
 
 What MailCraft protects, from whom, and how, with the code that does it. Rules for working in the
 code are in [`CLAUDE.md`](../CLAUDE.md) and [`AGENTS.md`](../AGENTS.md); how to report a
@@ -37,7 +37,13 @@ Writes any bytes into a message: crafted MIME, HTML, headers, attachments, pictu
   (`mailcraft_model::provider::authserv_ids`: `mx.google.com` for `imap.gmail.com`) or is the IMAP
   host's domain one label up, or a name under it (`imap.lumen.example` takes `mx.lumen.example`; a bare
   suffix such as `co.uk` never matches). Anything else, a message without that, or an account that
-  is not IMAP or Microsoft is asked about one message at a time. Addresses are kept and
+  is not IMAP or Microsoft is asked about one message at a time. Mail the server does not hold
+  (brought in from a file: no UID on a server, no server record) is never vouched for, whatever
+  headers the file carries. The header is read as RFC 8601 clauses: only a `dmarc` (or
+  `compauth`) clause whose own result is `pass` counts, with the `header.from` of that same clause,
+  which must be present and the sender's domain; a `dmarc=pass` inside a comment, a quoted string
+  or another method's clause is only text. A `compauth=pass` that names no `header.from` is not
+  enough. Addresses are kept and
   compared as ASCII (the Kelvin sign is not a "k"), and mail anywhere under Junk E-mail, not only in
   it, never takes the lists or the switch for all mail. The limits: a provider whose id is neither
   in the table nor under its IMAP host's domain asks every time (nothing is guessed); the
@@ -46,6 +52,13 @@ Writes any bytes into a message: crafted MIME, HTML, headers, attachments, pictu
   `UID` of a meeting on a local calendar changes or removes it only when it names the same
   organizer (`crates/engine/src/cmd/calendar/invitation.rs`, `same_organizer`); the bar shows the
   organizer's name and address, and says when the message did not come from that address.
+- **A cancellation calls off only what its sender may.** "Remove from Calendar" is offered, and
+  `calendar.removeCancelled` acts, only for a meeting that is somebody else's and, on a local
+  calendar, when the cancellation names the meeting's organizer **and** comes from that address; a
+  meeting an account's server keeps only for a cancellation received in that account
+  (`may_call_off`). Any other cancellation is shown and the owner removes the meeting
+  themselves. No DMARC word is needed: the organizer and the From line must agree, and the
+  limit is that both are written by the sender.
 - **Links** are shown with their real destination; only `http`, `https`, `mailto`, `tel` and `cid`
   are followed.
 - **Parsers never crash.** No `unwrap`, `expect`, `panic!` or `unsafe` in production code
@@ -112,6 +125,18 @@ An `.eml`, `.mbox`, `.ics`, `.vcf` or `.mailcraft` file from somewhere else.
 - Read by the same parsers, under the same never-crash rules and property tests; a file that can't
   be read is an error, never a crash, and a command that fails leaves the mailbox as it was.
 - `crates/engine/src/tests.rs::hostile_params_never_panic` runs every command with junk parameters.
+- An `.ics` file replaces an event already on a local calendar only when it names the same
+  organizer (two that name nobody are the owner's own appointment, exported and imported again);
+  another organizer's event with the same `UID` is added beside it. Its events are cut to size as an
+  invitation's are (`tidy_imported`).
+- Mail from an `.eml` or `.mbox` file is never put in an Outbox or a folder under one: with an
+  Outbox in view it goes to the account's Drafts (as drafts, not queued), else its Inbox; naming an
+  Outbox is refused (`crates/engine/src/io.rs`).
+- Autocomplete (`compose.suggest`) takes nobody from mail in Junk E-mail, counts a date after now as
+  now, and puts addresses the owner has written to (Sent Items) above those that only wrote.
+- A reply, forward or reopened draft quotes an HTML original as its HTML reads
+  (`quote_text`), never the text/plain alternative the sender wrote beside it, which the owner
+  never saw.
 - A `.mailcraft` attachment is never opened from a message: it can only be saved
   (`crates/engine/src/opening.rs`), so a sender cannot put a mailbox with accounts of their
   choosing in front of the owner with one click.
@@ -293,6 +318,7 @@ settings files (`crates/engine/src/store.rs`); commands from the control channel
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-25 | minor | Security run 2, batch P3: cancellations need the organizer's address or the keeping account; an `.ics` import replaces only the same organizer's meeting; no import into an Outbox; autocomplete skips Junk and clamps dates; replies quote what the HTML reads as; vouching reads the `dmarc` clause alone and never for mail from a file |
 | 2026-10-23 | minor | C1 PR-c: a mailbox opened from a file is unconfirmed until its servers are confirmed; nothing of it reaches a server meanwhile |
 | 2026-10-23 | minor | C1 PR-b: remembered passwords and sign-ins are filed under the address and the servers they go to; changing a server asks again; older entries move once |
 | 2026-10-23 | minor | Batch 5: attachments saved with Save As are marked from the Internet (Windows zone, macOS quarantine; Linux has no such mark); the launchable kinds that are never opened grow, legacy Office binaries ask first, and the same list bars the files an agent may have written; a web link the parser rejects is never handed to the opener |
