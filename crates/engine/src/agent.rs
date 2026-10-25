@@ -301,7 +301,6 @@ const SAFE: &[&str] = &[
     "ui.openWindow",
     "ui.eventWindow",
     "ui.clearPictureCache",
-    "ui.copySelection",
     "ui.selectAllInMessage",
     // (Refused by the window itself unless the owner has the daily check on.)
     "ui.checkForUpdates",
@@ -433,6 +432,7 @@ const NEVER: &[&str] = &[
     "ui.attach",
     // Anything an agent chooses onto the owner's clipboard.
     "ui.copyLinkAddress",
+    "ui.copySelection",
     // A file from a message opened with another program: only ever the owner's own doing.
     "mail.openAttachment",
     // Installing a new version, or going back to the one before: only the owner's click.
@@ -526,6 +526,9 @@ pub fn classify(s: &Session, id: &str, params: &Value) -> Access {
     match id {
         // Undoing can put back the accounts, rules or signatures of before.
         "edit.undo" | "edit.redo" => s.undo_reverts(id == "edit.redo").map_or(Access::Safe, Access::Owner),
+        // Saving or sending the appointment in a window runs later, as the owner, and the
+        // account's server writes to the people invited: that is a send.
+        "ui.eventWindow" if matches!(p::str(params, "do"), Some("send" | "save" | "saveAndClose")) => Access::Owner(Class::Send),
         _ if id.starts_with("calendar.") && sends => Access::Owner(Class::Send),
         "mail.move" | "mail.copy" | "file.import" => {
             let folder = p::id(params, "folder").or(if id == "file.import" { Some(s.view.folder) } else { None });
@@ -715,6 +718,15 @@ pub fn describe(s: &Session, id: &str, params: &Value) -> String {
             };
             format!("{label}: {}, and write to {to}", event_title(s, id, params))
         }
+        "ui.eventWindow" => {
+            let who = addresses(params.get("attendees"));
+            let to = if who.is_empty() {
+                "nobody (no one is invited)".to_string()
+            } else {
+                format!("{} ({})", plural(who.len(), "{n} person", "{n} people"), some(&who, 8))
+            };
+            format!("{} the appointment or meeting in its window, which can make the account's server write to {to}", clip(st("do"), 20))
+        }
         "calendar.delete" => format!("delete {} from the calendar", event_title(s, id, params)),
         "people.delete" => {
             let c = p::id(params, "id").or(s.sel.contact).and_then(|c| s.mailbox.contact(c));
@@ -733,6 +745,8 @@ pub fn describe(s: &Session, id: &str, params: &Value) -> String {
             let label = if redo { s.redo_label() } else { s.undo_label() };
             let what = match s.undo_reverts(redo) {
                 Some(Class::Accounts) => "the accounts",
+                Some(Class::Send) => "a change to a meeting, which writes to the people invited",
+                Some(Class::Delete) => "contacts, events, tasks, calendars or categories that were deleted",
                 _ => "the rules or signatures",
             };
             format!("{} {}, which also puts {what} back as they were", if redo { "redo" } else { "undo" }, quoted(label.unwrap_or("the last change")))
@@ -894,6 +908,15 @@ pub(crate) fn overstep(before: &Mailbox, after: &Mailbox, allow: &[Class]) -> Op
         let gone = before.messages.iter().any(|(id, m)| !m.draft && !after.messages.contains_key(id));
         if gone {
             return Some(Class::Delete);
+        }
+    }
+    if !allow.contains(&Class::Send) {
+        // A change that makes the server write to people, which the mailbox didn't have.
+        let new = after.event_changes.iter().filter(|c| c.send).any(|c| {
+            !before.event_changes.iter().any(|b| b.send && b.account == c.account && b.kind == c.kind && b.event == c.event && b.token == c.token)
+        });
+        if new {
+            return Some(Class::Send);
         }
     }
     None

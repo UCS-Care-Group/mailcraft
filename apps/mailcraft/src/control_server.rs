@@ -106,7 +106,7 @@ pub(crate) fn keys_match(given: &str, key: &str) -> bool {
     !b.is_empty() && a.len() == b.len() && a.iter().zip(b).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
 }
 
-fn serve_on(listener: TcpListener, ctx: egui::Context, key: String, first: Duration, agents_only: bool) -> Receiver<ControlRequest> {
+pub(crate) fn serve_on(listener: TcpListener, ctx: egui::Context, key: String, first: Duration, agents_only: bool) -> Receiver<ControlRequest> {
     let (tx, rx) = channel::<ControlRequest>();
     let key: Arc<str> = key.into();
     std::thread::spawn(move || {
@@ -223,6 +223,21 @@ fn serve(stream: TcpStream, tx: Sender<ControlRequest>, ctx: egui::Context, key:
             }
             writeln!(out, "{v}").is_ok()
         };
+        // The bridge asks the app to prove it holds the key before it sends the key (or anything
+        // else): HMAC over the bridge's nonce. It needs no key itself and does not authorise the
+        // connection; the deadline for a first authorised request still runs.
+        if method == "auth.challenge" {
+            let nonce = params.get("nonce").and_then(Value::as_str).filter(|n| mailcraft_control_key::proof::valid_nonce(n));
+            let ok = nonce.map(|n| reply(json!({"ok": true, "result": {"proof": mailcraft_control_key::proof::proof(key, n)}})));
+            match ok {
+                Some(true) => continue,
+                Some(false) => break,
+                None => {
+                    let _ = reply(json!({"ok": false, "error": "`nonce` is 16 to 128 hex digits"}));
+                    break;
+                }
+            }
+        }
         // Checked on every request.
         let k = given.or(conn_key.as_deref()).unwrap_or("");
         if !keys_match(k, key) {

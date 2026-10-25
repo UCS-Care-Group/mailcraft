@@ -281,6 +281,8 @@ pub mod p {
 }
 
 #[cfg(test)]
+mod agent_gate_tests;
+#[cfg(test)]
 mod agent_tests;
 #[cfg(test)]
 mod category_rows_tests;

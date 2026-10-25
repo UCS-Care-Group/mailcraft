@@ -80,7 +80,12 @@ pub fn screen(app: &mut MailApp, req: &ControlRequest, allow: &[Class]) -> Optio
     }
 }
 
-fn gate(app: &mut MailApp, req: &ControlRequest, id: &str, params: Value, allow: &[Class]) -> Outcome {
+fn gate(app: &mut MailApp, req: &ControlRequest, id: &str, mut params: Value, allow: &[Class]) -> Outcome {
+    // The question names the people the window would write to, as the form has them now.
+    if id == "ui.eventWindow" && params.is_object() {
+        let people = crate::windows::event_window_people(app, &params);
+        params["attendees"] = json!(people);
+    }
     match agent::check(&app.session, id, &params, allow) {
         Verdict::Run => run(app, id, params, allow),
         Verdict::Refuse(why) => err(why),
@@ -307,6 +312,7 @@ mod tests {
             ("engine.execute", json!({"command": "file.exportMessage", "params": {"id": 1, "path": bat.to_string_lossy()}})),
             ("engine.execute", json!({"command": "sync.apply", "params": {}})),
             ("engine.execute", json!({"command": "ui.copyLinkAddress", "params": {"url": "https://x.example"}})),
+            ("engine.execute", json!({"command": "ui.copySelection", "params": {"pane": true}})),
             ("engine.execute", json!({"command": "no.such"})),
             ("ui.screenshot", json!({"path": "/tmp/evil.png"})),
             ("app.quit", json!({})),
