@@ -442,3 +442,54 @@ fn a_run_whose_mail_came_in_pieces_doesnt_say_it_ended_without_the_mail() {
     let said = format!("graph mail, account {account}: the run ended without the mail");
     assert!(lines.lock().unwrap().iter().all(|l| !l.contains(&said)), "{:?}", lines.lock().unwrap());
 }
+
+/// The mailbox of `app`, built the same way again: an account of the same id, in the same state.
+fn same_mailbox_again() -> mailcraft_model::Mailbox {
+    let (other, _, _) = app("again");
+    other.session.mailbox.clone()
+}
+
+#[test]
+fn a_copy_written_for_a_mailbox_that_was_replaced_switches_nobody() {
+    let (mut app, account, dir) = app("swap-copy");
+    let (tx, rx) = mpsc::channel();
+    let rx = Mutex::new(Some(rx));
+    app.services.write_copy = Some(Box::new(move |_, _| rx.lock().unwrap().take().unwrap_or_else(|| mpsc::channel().1)));
+    app.switch_to_graph(account, "switchWithout").unwrap();
+    assert!(app.graph_switch_copy.is_some());
+    // Another file is opened, with an account of the same id that is on IMAP with Microsoft.
+    app.session.replace_mailbox(same_mailbox_again());
+    app.drop_secrets_if_replaced();
+    tx.send(Ok(())).ok();
+    app.poll_graph_switch_copy();
+    assert!(app.graph_switch_copy.is_none() && app.session.graph_switch_backup.is_none());
+    assert!(app.session.mailbox.account(account).is_some_and(|a| a.on_imap_with_microsoft()), "switched without being asked");
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn a_copy_that_finishes_after_a_swap_the_window_has_not_noticed_yet_is_dropped() {
+    let (mut app, account, dir) = app("swap-late");
+    let (tx, rx) = mpsc::channel();
+    let rx = Mutex::new(Some(rx));
+    app.services.write_copy = Some(Box::new(move |_, _| rx.lock().unwrap().take().unwrap_or_else(|| mpsc::channel().1)));
+    app.switch_to_graph(account, "switchWithout").unwrap();
+    app.session.replace_mailbox(same_mailbox_again());
+    tx.send(Ok(())).unwrap();
+    app.poll_graph_switch_copy();
+    assert!(app.session.mailbox.account(account).is_some_and(|a| a.on_imap_with_microsoft()), "switched without being asked");
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn a_mailbox_waiting_for_its_servers_to_be_confirmed_starts_no_switch() {
+    let (mut app, account, dir) = app("unconfirmed");
+    if let Some(a) = app.session.mailbox.accounts.iter_mut().find(|a| a.id == account) {
+        a.graph_switch = GraphSwitch::Switching;
+    }
+    app.unconfirmed = true;
+    app.tick_graph_switch();
+    assert!(app.graph_switch_tried.is_empty());
+    assert!(app.session.mailbox.account(account).is_some_and(|a| a.on_imap_with_microsoft()));
+    let _ = std::fs::remove_dir_all(dir);
+}
