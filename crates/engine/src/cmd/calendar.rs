@@ -12,6 +12,9 @@ use crate::{CmdError, CmdResult, CommandSpec, Module, Session, p};
 #[cfg(test)]
 mod hostile_tests;
 mod invitation;
+#[cfg(test)]
+mod invitation_tests;
+pub(crate) use invitation::{same_organizer, tidy_imported};
 mod meeting;
 
 pub use meeting::teams_refusal;
