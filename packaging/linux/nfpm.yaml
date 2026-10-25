@@ -45,6 +45,8 @@ overrides:
       - libxrandr2
       - mesa-vulkan-drivers
       - xdg-desktop-portal
+      # xdg-open, the first opener tried for an attachment (#445).
+      - xdg-utils
     # Remembered sign-ins go to the desktop's Secret Service over D-Bus (pure Rust, nothing
     # linked). GNOME and KDE come with one; elsewhere this is the usual one to add. Without one
     # the program asks for sign-ins at each start and says why.
@@ -63,6 +65,8 @@ overrides:
       - libXrandr
       - mesa-vulkan-drivers
       - xdg-desktop-portal
+      # xdg-open, the first opener tried for an attachment (#445).
+      - xdg-utils
     suggests:
       - gnome-keyring
 
