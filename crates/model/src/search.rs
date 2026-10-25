@@ -326,7 +326,8 @@ pub struct Suggestion {
 /// What to offer for the word being typed in `query` (#308), the one the cursor (a byte offset)
 /// is at the end of: the keywords it is the start of (`cat` → `category:`, `-cat` →
 /// `-category:`); after `category:`, the mailbox's `categories` whose name starts with what was
-/// typed, then those that hold it elsewhere, ignoring case and accents; after `is:` and `has:`,
+/// typed, then those that hold it elsewhere (when none starts with it, or two letters or digits
+/// were typed), ignoring case and accents; after `is:` and `has:`,
 /// what they take. Nothing after the other keywords, for a word that starts no keyword, or with
 /// the cursor inside a word. A value goes in quotes when it needs them ([`keyword_value`]); one
 /// that would leave the query as it is isn't offered. At most [`MAX_SUGGESTIONS`].
@@ -401,7 +402,11 @@ pub fn suggestions(query: &str, cursor: usize, categories: &[Category]) -> Vec<S
             } else {
                 named.iter().filter(|(_, f)| f.starts_with(&wanted)).map(|(c, _)| *c).collect()
             };
-            picked.extend(named.iter().filter(|(_, f)| !wanted.is_empty() && !f.starts_with(&wanted) && f.contains(&wanted)).map(|(c, _)| *c));
+            // Those that hold it elsewhere only when none starts with it, or from two letters on:
+            // `category:g` isn't every "… category".
+            if picked.is_empty() || wanted.chars().nth(1).is_some() {
+                picked.extend(named.iter().filter(|(_, f)| !wanted.is_empty() && !f.starts_with(&wanted) && f.contains(&wanted)).map(|(c, _)| *c));
+            }
             let mut seen: Vec<&str> = Vec::new();
             picked
                 .into_iter()

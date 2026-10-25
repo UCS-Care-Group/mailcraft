@@ -87,6 +87,19 @@ fn after_category_the_mailboxs_categories() {
     assert_eq!(first("category:grü").text, "category:Grüße ");
 }
 
+/// One letter that starts a name offers only the names it starts, not every one that holds it
+/// (`category:g` and the "… category" names); the others come when none starts with it, or from
+/// two letters on.
+#[test]
+fn names_that_only_hold_one_letter_wait_for_a_second() {
+    let cats: Vec<Category> = ["Green", "Red category", "Agenda"].iter().map(|n| Category { name: n.to_string(), color: Rgb(1, 2, 3) }).collect();
+    let offered = |q: &str| suggestions(q, q.len(), &cats).into_iter().map(|s| s.label).collect::<Vec<_>>();
+    assert_eq!(offered("category:g"), ["Green"]);
+    assert_eq!(offered("category:a"), ["Agenda"]);
+    assert_eq!(offered("category:d"), ["Red category", "Agenda"], "none starts with it");
+    assert_eq!(offered("category:re"), ["Red category", "Green"], "two letters");
+}
+
 /// A value with no letter or digit in it (`&`) is matched as it was typed, as the search matches
 /// it: only the categories that hold it are offered, not every one.
 #[test]
