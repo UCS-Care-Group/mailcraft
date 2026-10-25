@@ -27,9 +27,125 @@ fn refused(c: char) -> bool {
 fn is_format(c: char) -> bool {
     matches!(c as u32,
         0xad | 0x600..=0x605 | 0x61c | 0x6dd | 0x70f | 0x890 | 0x891 | 0x8e2 | 0x180e
-        | 0x200b..=0x200f | 0x202a..=0x202e | 0x2060..=0x2064 | 0x2066..=0x206f
+        | 0x200b | 0x200e | 0x200f | 0x202a..=0x202e | 0x2060..=0x2064 | 0x2066..=0x206f
         | 0xfeff | 0xfff9..=0xfffb | 0x110bd | 0x110cd | 0x13430..=0x1343f | 0x1bca0..=0x1bca3
         | 0x1d173..=0x1d17a | 0xe0001 | 0xe0020..=0xe007f)
+}
+
+/// A virama: the mark of an Indic script that joins the consonant before it to the next
+/// (canonical combining class 9; the common scripts).
+fn virama(c: char) -> bool {
+    matches!(
+        c as u32,
+        0x94d
+            | 0x9cd
+            | 0xa4d
+            | 0xacd
+            | 0xb4d
+            | 0xbcd
+            | 0xc4d
+            | 0xccd
+            | 0xd3b
+            | 0xd3c
+            | 0xd4d
+            | 0xdca
+            | 0xe3a
+            | 0xeba
+            | 0xf84
+            | 0x1039
+            | 0x103a
+            | 0x1714
+            | 0x1734
+            | 0x17d2
+            | 0x1a60
+            | 0x1b44
+            | 0x1baa
+            | 0x1bab
+            | 0x1bf2
+            | 0x1bf3
+            | 0x2d7f
+            | 0xa806
+            | 0xa82c
+            | 0xa8c4
+            | 0xa953
+            | 0xa9c0
+            | 0xaaf6
+            | 0xabed
+            | 0x10a3f
+            | 0x11046
+            | 0x1107f
+            | 0x110b9
+            | 0x11133
+            | 0x111c0
+            | 0x11235
+            | 0x112ea
+            | 0x1134d
+            | 0x11442
+            | 0x114c2
+            | 0x115bf
+            | 0x1163f
+            | 0x116b6
+            | 0x1172b
+            | 0x11839
+            | 0x1193d
+            | 0x1193e
+            | 0x119e0
+            | 0x11a34
+            | 0x11a47
+            | 0x11a99
+            | 0x11c3f
+            | 0x11d44
+            | 0x11d45
+            | 0x11d97
+    )
+}
+
+/// A mark that does not break a joining run in the Arabic script (joining type T).
+fn transparent(c: char) -> bool {
+    matches!(c as u32, 0x610..=0x61a | 0x64b..=0x65f | 0x670 | 0x6d6..=0x6dc | 0x6df..=0x6e4 | 0x6e7 | 0x6e8 | 0x6ea..=0x6ed)
+}
+
+/// An Arabic-script letter that joins to the letter after it (joining type D, or L).
+fn joins_forward(c: char) -> bool {
+    let n = c as u32;
+    let letter = matches!(n, 0x620..=0x64a | 0x66e..=0x66f | 0x671..=0x6d3 | 0x6fa..=0x6fc | 0x6ff | 0x750..=0x77f | 0x8a0..=0x8c9);
+    // The right-joining letters (alef, dal, reh, waw and their kin) do not join forward.
+    let right_only = matches!(n,
+        0x622..=0x625 | 0x627 | 0x629 | 0x62f..=0x632 | 0x648 | 0x671..=0x673 | 0x675..=0x677
+        | 0x688..=0x699 | 0x6c0 | 0x6c3..=0x6cb | 0x6cd | 0x6cf | 0x6d2 | 0x6d3 | 0x6d5 | 0x6ff
+        | 0x759..=0x75b | 0x76b | 0x76c | 0x771 | 0x773 | 0x774 | 0x778 | 0x779 | 0x8aa..=0x8ac | 0x8ae | 0x8b1 | 0x8b2 | 0x8b9);
+    letter && !right_only
+}
+
+/// An Arabic-script letter that joins to the letter before it (joining type D or R).
+fn joins_backward(c: char) -> bool {
+    let n = c as u32;
+    matches!(n, 0x620..=0x64a | 0x66e..=0x66f | 0x671..=0x6d3 | 0x6d5 | 0x6fa..=0x6fc | 0x6ff | 0x750..=0x77f | 0x8a0..=0x8c9)
+}
+
+/// Whether the zero-width non-joiner and joiner in a label are where IDNA2008 allows them
+/// (RFC 5892, appendix A.1 and A.2, CONTEXTJ): either after a virama, or the non-joiner between
+/// joining letters of the Arabic script (what Persian writes). A label with none is fine.
+fn joiners_allowed(label: &str) -> bool {
+    if !label.contains(['\u{200c}', '\u{200d}']) {
+        return true;
+    }
+    let chars: Vec<char> = label.chars().collect();
+    chars.iter().enumerate().all(|(i, &c)| {
+        if c != '\u{200c}' && c != '\u{200d}' {
+            return true;
+        }
+        let before = i.checked_sub(1).and_then(|j| chars.get(j)).copied();
+        if before.is_some_and(virama) {
+            return true;
+        }
+        if c == '\u{200d}' {
+            return false;
+        }
+        let previous = chars.get(..i).and_then(|p| p.iter().rev().find(|&&x| !transparent(x))).copied();
+        let next = chars.get(i + 1..).and_then(|n| n.iter().find(|&&x| !transparent(x))).copied();
+        previous.is_some_and(joins_forward) && next.is_some_and(joins_backward)
+    })
 }
 
 /// The host name `text` (not an IPv6 literal) as it is written and looked up: lower case, ASCII.
@@ -43,7 +159,7 @@ pub(crate) fn domain(text: &str) -> Option<String> {
     };
     let mut labels: Vec<String> = Vec::new();
     for label in text.split('.') {
-        if label.is_empty() || label.chars().any(refused) {
+        if label.is_empty() || label.chars().any(refused) || !joiners_allowed(label) {
             return None;
         }
         let lower: String = label.chars().flat_map(char::to_lowercase).collect();

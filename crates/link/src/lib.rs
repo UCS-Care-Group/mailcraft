@@ -12,8 +12,12 @@
 //!
 //! The host is lower-cased ASCII. An international label is written in Punycode (RFC 3492) as
 //! `xn--…`, so that a letter from another script that looks like ours shows. There is no
-//! UTS #46 mapping or normalisation: characters it would map (compatibility forms, NFD) are
-//! written as they are, and the label shown is the label launched. An IPv4 address in any of
+//! UTS #46 mapping or Unicode normalisation (no tables, no dependency): characters it would map
+//! (compatibility forms such as `ﬁ` or a full-width `Ａ`, or a letter written as base plus
+//! combining mark) are written as they are, so they give a different `xn--` host from the
+//! composed or plain form, and the label shown is the label launched. A zero-width non-joiner
+//! or joiner is accepted only where IDNA2008 allows one (RFC 5892 appendix A.1, A.2: after a
+//! virama, or between joining Arabic-script letters). An IPv4 address in any of
 //! the forms a browser reads (`2130706433`, `0x7f.1`) is written as dotted decimal.
 //!
 //! Everything is bounded (an address of at most [`MAX_LINK`] bytes; a host of at most 253) and

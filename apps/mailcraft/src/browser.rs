@@ -236,7 +236,8 @@ pub fn openable(url: &str) -> bool {
 /// for an option, for more than one argument, or (a web address the parser rejects, which an
 /// opener takes for a relative file path and turns into a `file:` address) for a file.
 pub fn normalised(url: &str) -> Option<String> {
-    if url.chars().any(char::is_control) {
+    // Before anything is encoded, so that no address is written out at unbounded length.
+    if url.len() > mailcraft_link::MAX_LINK || url.chars().any(char::is_control) {
         return None;
     }
     let (scheme, rest) = url.split_once(':')?;
@@ -257,6 +258,11 @@ fn plain_argument(url: &str) -> bool {
         && url.bytes().all(|b| b.is_ascii_graphic() && !matches!(b, b'"' | b'\\'))
 }
 
+/// The longest address given to a Windows launcher: `CreateProcess` takes a command line of at
+/// most 32,767 characters, and the program's path and `url.dll,FileProtocolHandler` come first.
+/// A longer address is refused (and said so as a browser that couldn't be started), not cut.
+pub const WINDOWS_MAX_ARGUMENT: usize = 32_000;
+
 /// `rundll32.exe url.dll,FileProtocolHandler <url>`: how a page is opened on Windows.
 ///
 /// `url.dll`'s `FileProtocolHandler` hands the address to the shell's own handler for its scheme
@@ -273,7 +279,7 @@ fn plain_argument(url: &str) -> bool {
 #[cfg_attr(not(windows), allow(dead_code))]
 pub fn windows_command(url: &str, system_root: Option<std::ffi::OsString>) -> Option<std::process::Command> {
     use std::process::{Command, Stdio};
-    if !plain_argument(url) {
+    if !plain_argument(url) || url.len() > WINDOWS_MAX_ARGUMENT {
         return None;
     }
     let program = match system_root.filter(|r| !r.is_empty()) {

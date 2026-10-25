@@ -32,17 +32,16 @@ impl Part {
     }
 }
 
-fn hex(b: u8) -> bool {
-    b.is_ascii_hexdigit()
-}
-
 /// `text` written for `part`: spaces, controls, non-ASCII bytes (as UTF-8) and the part's
-/// special characters as `%XX`; a `%` that starts a `%XX` stays, any other is written `%25`.
+/// special characters as `%XX`; every `%` stays as it is.
 pub(crate) fn push(out: &mut String, text: &str, part: Part) {
     let bytes = text.as_bytes();
-    for (i, &b) in bytes.iter().enumerate() {
+    for &b in bytes {
         let escape = match b {
-            b'%' => !(bytes.get(i + 1).is_some_and(|&x| hex(x)) && bytes.get(i + 2).is_some_and(|&x| hex(x))),
+            // A `%` stays as written, followed by two hex digits or not: a browser keeps a stray
+            // one, and a signed or tracking link would break if it were rewritten. It is safe as
+            // it is (a launcher's argument is checked separately).
+            b'%' => false,
             0..=0x20 | 0x7f..=0xff => true,
             _ => part.encodes(b),
         };

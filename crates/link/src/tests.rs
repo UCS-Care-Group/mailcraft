@@ -39,9 +39,9 @@ fn addresses_are_written_the_way_a_browser_writes_them() {
         ("https://a.example/../..", "https://a.example/"),
         ("https://a.example/a b?q=\"x\" y#f g", "https://a.example/a%20b?q=%22x%22%20y#f%20g"),
         ("https://a.example/caf\u{e9}", "https://a.example/caf%C3%A9"),
-        ("https://a.example/100%", "https://a.example/100%25"),
+        ("https://a.example/100%", "https://a.example/100%"),
         ("https://a.example/100%25", "https://a.example/100%25"),
-        ("https://a.example/%zz", "https://a.example/%25zz"),
+        ("https://a.example/%zz", "https://a.example/%zz"),
         ("https://a.example/{x}|", "https://a.example/%7Bx%7D|"),
         ("https://a.example/?a=1&b='2'", "https://a.example/?a=1&b=%272%27"),
         ("https://a.example_b/", "https://a.example_b/"),
@@ -289,7 +289,7 @@ fn the_rest_of_a_mail_or_phone_address_holds_no_space_or_quote() {
     assert_eq!(encode_opaque("a@example.org?subject=Hi there"), "a@example.org?subject=Hi%20there");
     assert_eq!(encode_opaque("\"A B\" <a@example.org>"), "%22A%20B%22%20%3Ca@example.org%3E");
     assert_eq!(encode_opaque("+441234"), "+441234");
-    assert_eq!(encode_opaque("a%20b%zz"), "a%20b%25zz");
+    assert_eq!(encode_opaque("a%20b%zz"), "a%20b%zz");
     assert_eq!(encode_opaque("caf\u{e9}"), "caf%C3%A9");
 }
 
@@ -347,4 +347,46 @@ fn check(link: &WebLink) {
     assert!(hostport.starts_with(host), "{text:?} {host:?}");
     // Reading it again changes nothing.
     assert_eq!(WebLink::parse(text).map(WebLink::into_string).as_deref(), Some(text));
+}
+
+#[test]
+fn a_stray_percent_sign_stays_as_written() {
+    assert_eq!(written("https://example.com/50%off?x=100%&y=%zz#f%"), "https://example.com/50%off?x=100%&y=%zz#f%");
+    assert_eq!(written("https://u%s:p%@example.com/"), "https://u%s:p%@example.com/");
+    assert_eq!(encode_opaque("a@b.example?subject=100%"), "a@b.example?subject=100%");
+    // Writing it again changes nothing.
+    assert_eq!(written(&written("https://example.com/50%off?x=100%")), "https://example.com/50%off?x=100%");
+}
+
+#[test]
+fn a_joiner_is_accepted_only_where_idna2008_allows_it() {
+    // Persian: heh, ZWNJ, alef (joining context).
+    assert!(host("http://\u{646}\u{627}\u{645}\u{647}\u{200c}\u{627}\u{6cc}.ir/").starts_with("xn--"));
+    // Hindi: after a virama, ZWNJ and ZWJ.
+    assert!(host("http://\u{915}\u{94d}\u{200c}\u{937}.example/").starts_with("xn--"));
+    assert!(host("http://\u{915}\u{94d}\u{200d}\u{937}.example/").starts_with("xn--"));
+    // Anywhere else they hide in a name that looks like another.
+    for bad in [
+        "http://pay\u{200c}pal.example/",
+        "http://pay\u{200d}pal.example/",
+        "http://\u{200c}\u{627}.ir/",
+        "http://\u{627}\u{200c}\u{628}.ir/",
+        "http://\u{628}\u{200c}.ir/",
+        "http://\u{915}\u{200d}\u{937}.example/",
+    ] {
+        assert!(WebLink::parse(bad).is_none(), "{bad:?}");
+    }
+    // Other invisible characters stay refused.
+    assert!(WebLink::parse("http://a\u{200b}b.example/").is_none());
+}
+
+#[test]
+fn forms_that_are_not_normalised_are_shown_as_themselves() {
+    // No UTS #46 mapping: each is its own host, never the composed or plain one.
+    assert!(host("http://e\u{301}.com/").starts_with("xn--"));
+    assert_ne!(host("http://e\u{301}.com/"), host("http://\u{e9}.com/"));
+    assert!(host("http://\u{fb01}sh.com/").starts_with("xn--"));
+    assert_ne!(host("http://\u{fb01}sh.com/"), "fish.com");
+    assert!(host("http://\u{ff21}.com/").starts_with("xn--"));
+    assert_ne!(host("http://\u{ff21}.com/"), "a.com");
 }

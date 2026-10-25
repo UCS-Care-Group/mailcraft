@@ -297,3 +297,23 @@ fn the_other_systems_run_the_browser_variable_and_the_desktops_openers_without_a
     let commands = unix_commands("https://a.example/", Some("br --url=%s"));
     assert_eq!(arguments(&commands[0]), ["--url=https://a.example/"]);
 }
+
+#[test]
+fn an_address_too_long_for_windows_command_line_is_refused_not_cut() {
+    let fits = format!("https://a.example/{}", "x".repeat(WINDOWS_MAX_ARGUMENT - 30));
+    assert!(windows_command(&fits, None).is_some());
+    let too_long = format!("https://a.example/{}", "x".repeat(WINDOWS_MAX_ARGUMENT));
+    assert!(normalised(&too_long).is_some(), "other systems still take it");
+    assert!(windows_command(&too_long, None).is_none());
+    // The least that is refused is under the limit of a command line, with the program in front.
+    const { assert!(WINDOWS_MAX_ARGUMENT + 200 < 32_767) };
+}
+
+#[test]
+fn an_address_over_the_link_limit_is_refused_before_it_is_written_out() {
+    let huge = "%".repeat(mailcraft_link::MAX_LINK + 1);
+    for scheme in ["mailto:", "tel:", "https://a.example/"] {
+        assert!(normalised(&format!("{scheme}{huge}")).is_none(), "{scheme}");
+    }
+    assert!(normalised("mailto:noor@example.org?subject=100%").is_some_and(|u| u.ends_with("100%")));
+}
