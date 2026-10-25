@@ -286,6 +286,7 @@ settings files (`crates/engine/src/store.rs`); commands from the control channel
   checksums, which the program checks before it installs an update, but the Windows and macOS
   builds aren't code-signed yet, so the systems warn before running them; check a first download
   against the release's checksums.
+- **Message-IDs are not identities.** A sender chooses a Message-ID, so after a server numbers an IMAP mailbox anew, a deletion or move that waits is made again only on the one arrival with that id that also has the same date, sender, subject and recipients; otherwise it is dropped and the owner told. A Graph forward's attachment is taken for the owner's only when its bytes match, and a saved draft is written whole before it is sent, so an edit made on the server meanwhile is not sent. A Microsoft server's Outbox is an ordinary folder: only mail queued on this computer is sent.
 - **The web build** runs in the browser's sandbox and inherits the browser's security; it has no
   connection to mail servers of its own.
 
@@ -293,6 +294,7 @@ settings files (`crates/engine/src/store.rs`); commands from the control channel
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-25 | minor | Batch P4: a change waiting over an IMAP renumbering is made only on a message that is the same mail, not by Message-ID alone; a forward's attachments are matched by content; a saved Graph draft is sent as the owner has it; a Microsoft server's Outbox is never the send queue |
 | 2026-10-23 | minor | C1 PR-c: a mailbox opened from a file is unconfirmed until its servers are confirmed; nothing of it reaches a server meanwhile |
 | 2026-10-23 | minor | C1 PR-b: remembered passwords and sign-ins are filed under the address and the servers they go to; changing a server asks again; older entries move once |
 | 2026-10-23 | minor | Batch 5: attachments saved with Save As are marked from the Internet (Windows zone, macOS quarantine; Linux has no such mark); the launchable kinds that are never opened grow, legacy Office binaries ask first, and the same list bars the files an agent may have written; a web link the parser rejects is never handed to the opener |

@@ -83,7 +83,7 @@ fn a_saved_draft_goes_up_whole_before_it_is_sent() {
         let m = s.mailbox.message_mut(id).unwrap();
         m.body.text = "Hello.".into();
         m.attachments =
-            vec![Attachment { name: "rota.pdf".into(), mime: "application/pdf".into(), data: vec![1, 2, 3].into(), ..Default::default() }.into()];
+            vec![Attachment { name: "rota.pdf".into(), mime: "application/pdf".into(), data: vec![1, 2, 3].into(), ..Default::default() }];
     }
     // What the server last had is what is here: nothing differs, so nothing would be named.
     let state = DraftState::of(s.mailbox.message(id).unwrap());
