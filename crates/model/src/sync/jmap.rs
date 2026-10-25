@@ -221,6 +221,11 @@ pub struct JmapMailResult {
     /// that happens to have the id.
     #[serde(skip_serializing_if = "String::is_empty")]
     pub email: String,
+    /// The address of the server's session resource the run read (its request's): an answer is
+    /// not taken in once the account names another server. It may carry the account's address, so
+    /// it is never logged.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub session: String,
     /// What became of the changes of messages sent.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub changes: Vec<JmapChangeDone>,
@@ -268,6 +273,9 @@ impl JmapMailResult {
         self.account = piece.account;
         if !piece.email.is_empty() {
             self.email = piece.email;
+        }
+        if !piece.session.is_empty() {
+            self.session = piece.session;
         }
         self.changes.extend(piece.changes);
         self.sent.extend(piece.sent);

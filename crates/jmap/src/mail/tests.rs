@@ -106,7 +106,7 @@ fn well_formed(pieces: &[JmapMailResult]) {
     let (last, rest) = pieces.split_last().expect("a run ends with a piece");
     assert!(!last.partial && last.pages.is_empty() && last.listing.is_none() && last.progress.is_none(), "{last:?}");
     assert!(rest.iter().all(|piece| piece.partial && piece.errors.is_empty() && !piece.whole && !piece.stopped), "{rest:?}");
-    assert!(pieces.iter().all(|piece| (piece.account, piece.email.as_str()) == (ID, ME)));
+    assert!(pieces.iter().all(|piece| (piece.account, piece.email.as_str(), piece.session.as_str()) == (ID, ME, SESSION)));
     assert!(pieces.iter().skip(1).all(|piece| piece.listing.is_none()), "the listing comes first");
     // A piece is the list, or one window with how far the run has got.
     for piece in rest {
@@ -1675,6 +1675,7 @@ fn a_run_that_could_not_begin_ends_as_a_run_would_have() {
     let asked = JmapMailRequest { account: ID, email: ME.into(), session: FAKE_SESSION.into(), ..Default::default() };
     let refused = failed_run(&asked, &Error::CredentialsRefused);
     assert_eq!((refused.account, refused.email.as_str(), refused.auth_refused, refused.partial, refused.whole), (ID, ME, true, false, false));
+    assert_eq!(refused.session, FAKE_SESSION);
     assert!(refused.errors.is_empty() && refused.busy_for.is_none());
     let busy = failed_run(&asked, &Error::Busy { retry_after: RetryAfter::parse("9") });
     assert_eq!((busy.busy_for, busy.auth_refused), (Some(9), false));

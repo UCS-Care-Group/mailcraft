@@ -511,6 +511,22 @@ fn an_answer_for_another_account_or_kind_is_refused_and_changes_nothing() {
 }
 
 #[test]
+fn an_answer_from_the_server_the_account_named_before_is_refused() {
+    let (mut s, account) = session();
+    let listing = Some(FolderListing { folders: mailboxes(), complete: true });
+    // The run read SESSION; meanwhile the account was pointed at another server.
+    s.run("account.edit", &json!({"id": account, "jmap": {"session": "https://other.example.org/jmap/session"}})).unwrap();
+    let why = apply_jmap_mail(&mut s, JmapMailResult { session: SESSION.into(), listing: listing.clone(), ..piece(account) }).unwrap_err();
+    assert_eq!(why.to_string(), format!("this Send/Receive was for the server {ME} named before"));
+    assert!(!s.mailbox.folders.iter().any(|f| f.account == account && f.server.is_some()));
+    // From the server it names now, spaces around the address or not, and from a host that doesn't say.
+    let now = " https://other.example.org/jmap/session ";
+    apply_jmap_mail(&mut s, JmapMailResult { session: now.into(), listing: listing.clone(), ..piece(account) }).unwrap();
+    apply_jmap_mail(&mut s, JmapMailResult { listing, ..piece(account) }).unwrap();
+    assert!(s.mailbox.folders.iter().any(|f| f.account == account && f.server.is_some()));
+}
+
+#[test]
 fn the_status_says_how_the_run_ended() {
     let (mut s, account) = session();
     let answer = apply_jmap_mail(&mut s, JmapMailResult { auth_refused: true, partial: false, ..piece(account) }).unwrap();
