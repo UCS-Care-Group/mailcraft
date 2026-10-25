@@ -12,8 +12,8 @@ use std::sync::{Arc, Mutex};
 
 use mailcraft_engine::Session;
 use mailcraft_engine::cmd::sync_progress::RunState;
-use mailcraft_model::sync::JmapMailResult;
-use mailcraft_model::{Id, Mailbox};
+use mailcraft_model::sync::{FolderListing, GraphFolder, JmapMailResult};
+use mailcraft_model::{FolderKind, Id, Mailbox};
 use serde_json::json;
 
 use super::*;
@@ -124,22 +124,48 @@ fn a_password_turned_down_is_forgotten_and_a_round_by_itself_leaves_the_account_
 }
 
 #[test]
-fn a_host_that_holds_the_credential_runs_by_itself_with_no_secret() {
-    let (mut app, accounts, jobs) = window(&["ada@example.org"]);
-    let ada = accounts[0];
-    app.services.jmap_host_credentials = true;
-    assert!(app.can_sync_quietly(ada));
+fn a_host_that_holds_an_account_s_credential_runs_it_by_itself_with_no_secret() {
+    let (mut app, accounts, jobs) = window(&["ada@example.org", "bo@example.org"]);
+    let [ada, bo] = [accounts[0], accounts[1]];
+    // The host holds Ada's; Bo's, at a server the host has nothing to do with, is the owner's.
+    app.services.jmap_host_credentials = Some(Box::new(|a: &mailcraft_model::Account| a.email == "ada@example.org"));
+    assert!(app.can_sync_quietly(ada) && !app.can_sync_quietly(bo));
     (app.auto_sync, app.session.prefs.sync_minutes) = (true, 5);
     // The first frame lines the round up, the next starts it.
     app.auto_sync();
     app.auto_sync();
     let [(job, tx)]: [_; 1] = taken(&jobs).try_into().ok().unwrap();
-    assert!(job.secret.is_empty() && job.request.background);
+    assert!(job.request.account == ada && job.secret.is_empty() && job.request.background);
     assert!(app.dialog.is_none());
     tx.send(last(&job, JmapMailResult { whole: true, ..Default::default() })).unwrap();
     app.poll_sync();
-    assert!(!app.syncing());
-    assert_eq!(app.session.sync_progress.accounts.iter().find(|r| r.account == ada).map(|r| r.state), Some(RunState::Done));
+    // Bo is left out of the round, its row with it: it would have to ask.
+    app.auto_sync();
+    assert!(taken(&jobs).is_empty() && app.dialog.is_none());
+    let state = |account: Id| app.session.sync_progress.accounts.iter().find(|r| r.account == account).map(|r| r.state);
+    assert_eq!((state(ada), state(bo)), (Some(RunState::Done), None));
+    assert_eq!(app.execute("ui.sync", json!({"account": bo})).unwrap()["pending"], "password");
+}
+
+#[test]
+fn a_host_credential_turned_down_keeps_rounds_by_themselves_away_until_the_owner_asks() {
+    let (mut app, accounts, jobs) = window(&["ada@example.org"]);
+    let ada = accounts[0];
+    app.services.jmap_host_credentials = Some(Box::new(|_: &mailcraft_model::Account| true));
+    app.execute("ui.sync", json!({"account": ada})).unwrap();
+    let [(job, tx)]: [_; 1] = taken(&jobs).try_into().ok().unwrap();
+    tx.send(last(&job, JmapMailResult { auth_refused: true, ..Default::default() })).unwrap();
+    app.poll_sync();
+    assert!(!app.can_sync_quietly(ada));
+    (app.auto_sync, app.session.prefs.sync_minutes) = (true, 5);
+    app.auto_sync();
+    app.auto_sync();
+    assert!(taken(&jobs).is_empty() && app.dialog.is_none());
+    // The owner asks: it goes again, with the host's own, and rounds by themselves may follow.
+    app.execute("ui.sync", json!({"account": ada})).unwrap();
+    let [(job, _tx)]: [_; 1] = taken(&jobs).try_into().ok().unwrap();
+    assert!(job.secret.is_empty());
+    assert!(app.can_sync_quietly(ada));
 }
 
 #[test]
@@ -180,6 +206,32 @@ fn a_run_whose_task_ended_early_says_so_and_the_round_goes_on() {
     app.auto_sync();
     let [(job, _tx)]: [_; 1] = taken(&jobs).try_into().ok().unwrap();
     assert_eq!(job.request.account, bo);
+}
+
+#[test]
+fn a_run_under_way_when_another_mailbox_is_opened_brings_nothing_into_it() {
+    let (mut app, accounts, jobs) = window(&["ada@example.org"]);
+    let ada = accounts[0];
+    app.execute("ui.sync", json!({"account": ada, "password": "typed here"})).unwrap();
+    let [(job, tx)]: [_; 1] = taken(&jobs).try_into().ok().unwrap();
+    // Another mailbox takes its place, with an account at the same address on the same server.
+    app.execute("file.new", json!({})).unwrap();
+    let other = json!({"email": "ada@example.org", "kind": "jmap", "jmap": {"session": SESSION}});
+    let other = app.execute("account.add", other).unwrap()["id"].as_u64().unwrap();
+    assert!(app.passwords.is_empty(), "what was typed for the mailbox before is gone with it");
+    // What the run still brings was for the mailbox before: none of it is taken in, the run is
+    // called off and ends.
+    let inbox = GraphFolder { id: "M1".into(), name: "Inbox".into(), kind: FolderKind::Inbox, ..Default::default() };
+    let listing = Some(FolderListing { folders: vec![inbox], complete: true });
+    let session = job.request.session.clone();
+    tx.send(JmapMailResult { partial: true, listing, session: session.clone(), ..last(&job, JmapMailResult::default()) }).unwrap();
+    tx.send(last(&job, JmapMailResult { whole: true, session, ..Default::default() })).unwrap();
+    app.poll_sync();
+    assert!(job.cancel.load(Ordering::Relaxed));
+    assert!(!app.syncing());
+    assert!(!app.session.mailbox.folders.iter().any(|f| f.server.is_some()), "nothing of the old run is here");
+    // The new mailbox's account goes its own way: its Send/Receive asks for its own password.
+    assert_eq!(app.execute("ui.sync", json!({"account": other})).unwrap()["pending"], "password");
 }
 
 #[test]

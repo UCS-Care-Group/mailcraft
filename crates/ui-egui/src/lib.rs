@@ -181,9 +181,10 @@ pub struct Services {
     /// The same host: fetch messages of a JMAP account whole, as `graph_fetch` does for a Microsoft
     /// account (`mailcraft_jmap::fetch::fetch_messages`).
     pub jmap_fetch: Option<Box<dyn Fn(jmap_mail::JmapFetchJob) -> Receiver<mailcraft_model::sync::GraphFetchResult>>>,
-    /// The host holds the credential of its JMAP accounts itself (a page that signed the owner in):
-    /// the window never asks for a password, and its JMAP jobs go without one.
-    pub jmap_host_credentials: bool,
+    /// Whether the host holds the credential of this JMAP account itself (a page that signed the
+    /// owner in to its server): for such an account the window never asks for a password, and its
+    /// jobs go without one. Absent, or false for an account: the owner types it.
+    pub jmap_host_credentials: Option<Box<dyn Fn(&mailcraft_model::Account) -> bool>>,
     /// Desktop: ask the DNS for a domain's mail exchangers on a background thread (best first),
     /// so account setup can tell whose servers an address at a company's own domain uses. Only
     /// the domain is given, never the mailbox name.
@@ -1157,6 +1158,9 @@ pub struct MailApp {
     sync_run: Option<(Id, Option<usize>, bool, bool)>,
     /// A piece of the run in flight said the server refused the sign-in.
     sync_refused: bool,
+    /// JMAP accounts whose server turned their credential down this session: no round that starts
+    /// by itself goes back to one until the owner asks for its Send/Receive ([`jmap_mail`]).
+    jmap_refused: std::collections::HashSet<Id>,
     control_rx: Option<Receiver<ControlRequest>>,
     shot_token: u64,
     queued_shots: Vec<(u64, f64, u32)>,
@@ -1303,7 +1307,12 @@ pub struct MailApp {
 /// itself, the calendar's job) waits for it too.
 pub(crate) enum MailRun {
     Imap(Receiver<SyncResult>),
-    Jmap { account: Id, pieces: Receiver<mailcraft_model::sync::JmapMailResult> },
+    /// `opening`: the mailbox opening it was started under ([`Session::openings`]).
+    Jmap {
+        account: Id,
+        opening: u64,
+        pieces: Receiver<mailcraft_model::sync::JmapMailResult>,
+    },
 }
 
 impl MailApp {
@@ -1366,6 +1375,7 @@ impl MailApp {
             sync_totals: Default::default(),
             sync_run: None,
             sync_refused: false,
+            jmap_refused: Default::default(),
             control_rx: None,
             shot_token: 0,
             queued_shots: Vec::new(),
@@ -1656,6 +1666,7 @@ impl MailApp {
             self.graph_consent_needed.remove(&account);
             self.passwords.remove(&account);
             self.tokens.remove(&account);
+            self.jmap_refused.remove(&account);
             self.forget_account_secrets(&gone);
         }
         // Servers changed: what was kept for the old ones is not given to the new, and the owner
@@ -1668,6 +1679,7 @@ impl MailApp {
             self.passwords.remove(&before.id);
             self.tokens.remove(&before.id);
             self.graph_tokens.remove(&before.id);
+            self.jmap_refused.remove(&before.id);
         }
         // Likewise when Undo or Redo changed them: what was typed for the ones it had goes to none
         // of the others.
@@ -1677,6 +1689,7 @@ impl MailApp {
                     self.passwords.remove(&account);
                     self.tokens.remove(&account);
                     self.graph_tokens.remove(&account);
+                    self.jmap_refused.remove(&account);
                 }
             }
         }
@@ -2232,6 +2245,7 @@ impl MailApp {
     /// Account setup: the password that was just shown to work, for this session's Send/Receive
     /// (it is remembered for later runs once the first one has gone through).
     pub(crate) fn adopt_password(&mut self, account: Id, password: String) {
+        self.jmap_refused.remove(&account);
         self.passwords.insert(account, password);
     }
 
@@ -2508,6 +2522,7 @@ impl MailApp {
             self.passwords.clear();
             self.tokens.clear();
             self.graph_tokens.clear();
+            self.jmap_refused.clear();
             // Work started for the old mailbox stays with it: a sign-in on its way is called
             // off, and a switch to Graph (its copy, its backup) is forgotten.
             if let Some(s) = self.signing_in.take() {
@@ -2530,9 +2545,10 @@ impl MailApp {
         }
         let account = self.session.mailbox.owner_of(account).map_or(account, |owner| owner.id);
         let Some(a) = self.session.mailbox.account(account) else { return false };
-        // (A JMAP account's secret is in memory only, never with the operating system.)
+        // (A JMAP account's secret is in memory only, never with the operating system; and one its
+        // server turned down waits for the owner.)
         if a.kind == mailcraft_model::AccountKind::Jmap {
-            return self.jmap_secret(account).is_some();
+            return !self.jmap_refused.contains(&account) && self.jmap_secret(account).is_some();
         }
         if a.oauth.is_some() {
             let kept = self.tokens.get(&account).is_some_and(|t| t.fresh(mailcraft_time::now()) || !t.refresh.is_empty());

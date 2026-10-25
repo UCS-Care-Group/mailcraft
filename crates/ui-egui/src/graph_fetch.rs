@@ -123,7 +123,8 @@ enum Way {
 fn way(app: &MailApp, account: Id) -> Option<Way> {
     match app.session.mailbox.account(account)?.kind {
         AccountKind::Microsoft if app.services.graph_fetch.is_some() => access(app, account).map(Way::Graph),
-        AccountKind::Jmap if app.services.jmap_fetch.is_some() => app.jmap_secret(account).map(Way::Jmap),
+        // (Not with a credential its server turned down: the next Send/Receive the owner asks for first.)
+        AccountKind::Jmap if app.services.jmap_fetch.is_some() && !app.jmap_refused.contains(&account) => app.jmap_secret(account).map(Way::Jmap),
         _ => None,
     }
 }
