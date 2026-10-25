@@ -135,7 +135,7 @@ An `.eml`, `.mbox`, `.ics`, `.vcf` or `.mailcraft` file from somewhere else.
 - Autocomplete (`compose.suggest`) takes nobody from mail in Junk E-mail, counts a date after now as
   now, and puts addresses the owner has written to (Sent Items) above those that only wrote. The
   people the search box offers after `from:`, `to:` and `cc:` (#308) come from it, so the same
-  holds for them; nothing is asked of a server for them, and a name is shown without control or
+  holds for them (and then the owner's own addresses, which it leaves out); nothing is asked of a server for them, and a name is shown without control or
   format characters.
 - A reply, forward or reopened draft quotes an HTML original as its HTML reads
   (`quote_text`), never the text/plain alternative the sender wrote beside it, which the owner

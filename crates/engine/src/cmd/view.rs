@@ -132,15 +132,20 @@ fn search(s: &mut Session, v: &Value) -> CmdResult {
 /// (#308): keywords, the mailbox's categories, what `is:` and `has:` take, and after `from:`,
 /// `to:` and `cc:` the people a new message's recipients are suggested from
 /// ([`compose::suggest`](super::compose::suggest)): the contacts and the mail on this computer,
-/// nothing asked of a server. A name is shown without the characters that change how the text
-/// around them reads (bidirectional overrides, zero-width marks). The window's list and
-/// `view.searchSuggestions` both ask this.
+/// nothing asked of a server; then the owner's own addresses, which a new message leaves out
+/// (`from:` one finds what was sent from it, `to:` what came to it). A name is shown without the
+/// characters that change how the text around them reads (bidirectional overrides, zero-width
+/// marks). The window's list and `view.searchSuggestions` both ask this.
 pub fn search_suggestions(s: &Session, query: &str, cursor: usize) -> Vec<Suggestion> {
+    let shown = |name: &str| name.chars().filter(|c| !mailcraft_html::is_format(*c)).collect::<String>();
     mailcraft_model::search::suggestions_with(query, cursor, &s.mailbox.categories, |typed| {
-        super::compose::suggest(s, typed, 20)
-            .into_iter()
-            .map(|who| Address::new(who.name.chars().filter(|c| !mailcraft_html::is_format(*c)).collect::<String>(), who.email))
-            .collect()
+        let mut people: Vec<Address> =
+            super::compose::suggest(s, typed, 20).into_iter().map(|who| Address::new(shown(&who.name), who.email)).collect();
+        if let Some(typed) = super::compose::Typed::new(typed) {
+            let own = s.mailbox.accounts.iter().filter(|a| typed.fits(&a.display_name, &a.email));
+            people.extend(own.map(|a| Address::new(shown(&a.display_name), a.email.as_str())));
+        }
+        people
     })
 }
 

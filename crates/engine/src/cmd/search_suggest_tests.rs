@@ -32,8 +32,8 @@ fn people(s: &Session, q: &str) -> Vec<(String, String)> {
     search_suggestions(s, q, q.len()).into_iter().filter_map(|x| Some((x.label, x.address?))).collect()
 }
 
-/// After `from:`, the people a new message's recipients come from, contacts first; the owner is
-/// left out; taken, the search finds that sender's mail and no other.
+/// After `from:`, the people a new message's recipients come from, contacts first; taken, the
+/// search finds that sender's mail and no other.
 #[test]
 fn after_from_the_people_a_message_is_written_to() {
     let mut s = session();
@@ -43,7 +43,6 @@ fn after_from_the_people_a_message_is_written_to() {
     assert_eq!(first.text, "from:priya@lumen.example ");
     let composer: Vec<String> = suggest(&s, "pri", 20).into_iter().map(|x| x.email).collect();
     assert_eq!(people(&s, "to:pri").into_iter().map(|(_, a)| a).collect::<Vec<_>>(), composer[..composer.len().min(8)]);
-    assert!(people(&s, "from:aver").iter().all(|(_, a)| a != "avery@lumen.example"), "not the owner");
     assert!(people(&s, "subject:pri").is_empty() && people(&s, "from:").is_empty());
     let said = run(&mut s, "view.search", json!({"query": first.text, "scope": "everywhere"}));
     assert!(said["found"].as_u64().unwrap() > 0, "{said}");
@@ -100,4 +99,25 @@ fn the_command_answers_what_the_list_offers() {
     assert!(s.mailbox == before && !s.registry.get("view.searchSuggestions").unwrap().mutates);
     // An agent may ask it without the owner.
     assert_eq!(crate::agent::access("view.searchSuggestions"), Some(crate::agent::Access::Safe));
+}
+
+/// The owner's own addresses are offered too, after everyone else: `from:` one finds what was sent
+/// from it. A new message's recipients still leave them out.
+#[test]
+fn the_owners_own_addresses_come_last() {
+    let mut s = session();
+    contact(&mut s, "Ava Stone", "ava@example.org");
+    let me = ("Avery Quinn".to_string(), "avery@lumen.example".to_string());
+    let found = people(&s, "from:av");
+    assert_eq!(found.first().map(|(_, a)| a.as_str()), Some("ava@example.org"), "{found:?}");
+    assert_eq!(found.last(), Some(&me), "{found:?}");
+    assert_eq!(people(&s, "to:quinn"), std::slice::from_ref(&me));
+    assert_eq!(people(&s, "cc:AVERY@"), [me]);
+    assert!(suggest(&s, "av", 20).iter().chain(&suggest(&s, "quinn", 20)).all(|x| x.email != "avery@lumen.example"), "not in a new message");
+    let q = "from:avery";
+    let own = search_suggestions(&s, q, q.len()).pop().unwrap();
+    assert_eq!(own.text, "from:avery@lumen.example ");
+    run(&mut s, "view.search", json!({"query": own.text, "scope": "everywhere"}));
+    let rows = s.rows();
+    assert!(!rows.is_empty() && rows.iter().all(|row| s.mailbox.message(row.id).unwrap().from.email == "avery@lumen.example"));
 }

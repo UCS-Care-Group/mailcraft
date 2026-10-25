@@ -833,23 +833,40 @@ pub struct Suggestion {
     pub contact: bool,
 }
 
-/// Who `query` (the start of a name, of a word in it, or of an address) could be: contacts first,
-/// then the people mail was exchanged with, the latest first. A name's words are compared as the
-/// search compares them, ignoring case and accents (`gvoz` is Gvožđar, #308). The owner's own
-/// addresses and addresses that don't look like one are left out. One pass over the mailbox, so
-/// it can run on every key press.
-pub fn suggest(s: &Session, query: &str, limit: usize) -> Vec<Suggestion> {
-    let q = query.trim().to_lowercase();
-    if q.is_empty() || q.chars().count() > 200 {
-        return Vec::new();
+/// What was typed for a person, as [`suggest`] compares a name and an address with it.
+pub(crate) struct Typed {
+    q: String,
+    wanted: Vec<String>,
+}
+
+impl Typed {
+    /// `None` for nothing, or for more than 200 characters.
+    pub(crate) fn new(query: &str) -> Option<Typed> {
+        let q = query.trim().to_lowercase();
+        if q.is_empty() || q.chars().count() > 200 {
+            return None;
+        }
+        Some(Typed { wanted: mailcraft_model::words::words(&q), q })
     }
+
+    /// Whether it is the start of the address, of the name, or of words of the name one after
+    /// another, compared as the search compares them, ignoring case and accents (`gvoz` is
+    /// Gvožđar, #308).
+    pub(crate) fn fits(&self, name: &str, email: &str) -> bool {
+        email.to_lowercase().starts_with(&self.q)
+            || name.to_lowercase().starts_with(&self.q)
+            || (!self.wanted.is_empty() && mailcraft_model::words::starts_in(name, &self.wanted))
+    }
+}
+
+/// Who `query` (the start of a name, of a word in it, or of an address) could be: contacts first,
+/// then the people mail was exchanged with, the latest first, matched as [`Typed::fits`] says. The
+/// owner's own addresses and addresses that don't look like one are left out. One pass over the
+/// mailbox, so it can run on every key press.
+pub fn suggest(s: &Session, query: &str, limit: usize) -> Vec<Suggestion> {
+    let Some(typed) = Typed::new(query) else { return Vec::new() };
     let limit = limit.clamp(1, 20);
-    let wanted = mailcraft_model::words::words(&q);
-    let fits = |name: &str, email: &str| {
-        email.to_lowercase().starts_with(&q)
-            || name.to_lowercase().starts_with(&q)
-            || (!wanted.is_empty() && mailcraft_model::words::starts_in(name, &wanted))
-    };
+    let fits = |name: &str, email: &str| typed.fits(name, email);
     let own: Vec<String> = s.mailbox.accounts.iter().map(|a| a.email.trim().to_lowercase()).filter(|e| !e.is_empty()).collect();
     let mut seen: std::collections::HashSet<String> = own.into_iter().collect();
     let mut out: Vec<Suggestion> = Vec::new();
