@@ -3948,8 +3948,9 @@ msgstr "Su correo se sincroniza mediante Microsoft Graph, sin servidores de corr
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
-msgid "Its messages, attachments, settings and remembered sign-in go with it."
-msgstr ""
+#, fuzzy
+msgid "Its messages, attachments, settings and remembered sign-in go with it, and so do the calendar, contacts and working hours that came from its server."
+msgstr "Sus mensajes, datos adjuntos, configuración e inicio de sesión recordado se quitan con ella, y también el calendario, los contactos y el horario laboral que llegaron de su servidor."
 
 #. interface
 #: crates/ui-egui/src/signatures.rs

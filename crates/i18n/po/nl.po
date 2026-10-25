@@ -4001,8 +4001,8 @@ msgstr "De e-mail ervan wordt bijgehouden via Microsoft Graph, zonder e-mailserv
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
-msgid "Its messages, attachments, settings and remembered sign-in go with it."
-msgstr "De berichten, bijlagen, instellingen en de onthouden aanmelding gaan mee."
+msgid "Its messages, attachments, settings and remembered sign-in go with it, and so do the calendar, contacts and working hours that came from its server."
+msgstr "De berichten, bijlagen, instellingen en de onthouden aanmelding gaan mee, net als de agenda, de contactpersonen en de werktijden die van de server kwamen."
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -13217,4 +13217,8 @@ msgstr "{why}, waardoor aanmeldingen niet worden onthouden: MailCraft vraagt het
 #, fuzzy
 msgid "{why}. {n} changes made in it here wait on this computer."
 msgstr "{why}. {n} wijzigingen die hierin zijn gemaakt, wachten op deze computer."
+
+#, fuzzy
+#~ msgid "Its messages, attachments, settings and remembered sign-in go with it."
+#~ msgstr "De berichten, bijlagen, instellingen en de onthouden aanmelding gaan mee."
 

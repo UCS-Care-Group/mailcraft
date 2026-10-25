@@ -154,21 +154,24 @@ fn what_could_not_be_removed_is_reported_and_the_window_waits_for_it_to_be_read(
     assert!(a.quit_requested);
 }
 
+/// A store that is locked: it gives nothing back, removes nothing, and says why.
+struct Locked;
+
+impl SecretStore for Locked {
+    fn get(&self, _: &str) -> Option<String> {
+        None
+    }
+    fn set(&self, _: &str, _: &str) -> Result<(), String> {
+        Err("locked".into())
+    }
+    fn delete(&self, _: &str) {}
+    fn take_trouble(&self) -> Option<crate::StoreTrouble> {
+        Some(crate::StoreTrouble::Locked)
+    }
+}
+
 #[test]
 fn an_unreachable_credential_store_is_reported_not_hidden() {
-    struct Locked;
-    impl SecretStore for Locked {
-        fn get(&self, _: &str) -> Option<String> {
-            None
-        }
-        fn set(&self, _: &str, _: &str) -> Result<(), String> {
-            Err("locked".into())
-        }
-        fn delete(&self, _: &str) {}
-        fn take_trouble(&self) -> Option<crate::StoreTrouble> {
-            Some(crate::StoreTrouble::Locked)
-        }
-    }
     let (host, store) = (Host::default(), Store::default());
     let mut a = app(&host, &store);
     a.services.secrets = Some(Box::new(Locked));
@@ -365,4 +368,65 @@ fn an_entry_that_cannot_be_removed_is_in_the_report() {
     a.remember("password", "avery@mail.example", "invented");
     let said = a.execute("ui.removeAllData", json!({})).unwrap();
     assert!(said["failed"].as_array().is_some_and(|f| f.iter().any(|l| l.as_str().is_some_and(|l| l.contains("avery@mail.example")))), "{said}");
+}
+
+/// #325: removing an account also takes the names of its entries in the credential store off the
+/// settings, so nothing there names the account any more; another account's stay.
+#[test]
+fn removing_an_account_takes_its_entry_names_off_the_settings() {
+    let (host, store) = (Host::default(), Store::default());
+    let mut a = app(&host, &store);
+    a.ui.remember_sign_in = true;
+    let id =
+        a.execute("account.add", json!({"email": "avery@mail.example", "auth": "oauth2", "incoming": {"host": "imap.mail.example"}})).unwrap()["id"]
+            .as_u64()
+            .unwrap();
+    a.execute("account.add", json!({"email": "kit@mail.example", "incoming": {"host": "imap.mail.example"}})).unwrap();
+    a.remember("refresh", "avery@mail.example", "invented-refresh-token");
+    a.remember("password", "kit@mail.example", "invented");
+    assert_eq!(a.ui.remembered_keys.len(), 2);
+
+    a.execute("account.remove", json!({"id": id})).unwrap();
+    let saved = serde_json::to_string(&a.ui).unwrap();
+    assert!(!saved.contains("avery@mail.example"), "{saved}");
+    assert!(matches!(a.ui.remembered_keys.as_slice(), [kit] if kit.contains("kit@mail.example")), "{:?}", a.ui.remembered_keys);
+    assert_eq!(store.0.lock().unwrap().len(), 1);
+}
+
+/// A name whose entry the store couldn't remove stays, for Remove MailCraft's data to try again.
+#[test]
+fn a_name_whose_entry_stays_stays_too() {
+    let (host, store) = (Host::default(), Store::default());
+    let mut a = app(&host, &store);
+    a.ui.remember_sign_in = true;
+    let id =
+        a.execute("account.add", json!({"email": "avery@mail.example", "incoming": {"host": "imap.mail.example"}})).unwrap()["id"].as_u64().unwrap();
+    a.remember("password", "avery@mail.example", "invented");
+    let names = a.ui.remembered_keys.clone();
+    assert_eq!(names.len(), 1);
+    a.services.secrets = Some(Box::new(Stuck(store.clone())));
+
+    a.execute("account.remove", json!({"id": id})).unwrap();
+    assert_eq!(a.ui.remembered_keys, names);
+    assert_eq!(store.0.lock().unwrap().len(), 1);
+}
+
+/// A store that couldn't be used (locked, or not answering) says nothing of what it keeps: every
+/// name stays, and the owner hears why.
+#[test]
+fn a_store_that_cannot_be_used_keeps_every_name() {
+    let (host, store) = (Host::default(), Store::default());
+    let mut a = app(&host, &store);
+    a.ui.remember_sign_in = true;
+    let id =
+        a.execute("account.add", json!({"email": "avery@mail.example", "incoming": {"host": "imap.mail.example"}})).unwrap()["id"].as_u64().unwrap();
+    a.remember("password", "avery@mail.example", "invented");
+    let names = a.ui.remembered_keys.clone();
+    assert_eq!(names.len(), 1);
+    a.services.secrets = Some(Box::new(Locked));
+
+    a.execute("account.remove", json!({"id": id})).unwrap();
+    assert_eq!(a.ui.remembered_keys, names);
+    assert_eq!(a.secrets_trouble, Some(crate::StoreTrouble::Locked));
+    assert_eq!(a.status_msg.as_ref().map(|(text, _)| text.clone()), Some(crate::StoreTrouble::Locked.notice()));
 }

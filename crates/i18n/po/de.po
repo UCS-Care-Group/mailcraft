@@ -3944,8 +3944,9 @@ msgstr "Seine E-Mails werden über Microsoft Graph abgeglichen, ohne Mailserver"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
-msgid "Its messages, attachments, settings and remembered sign-in go with it."
-msgstr ""
+#, fuzzy
+msgid "Its messages, attachments, settings and remembered sign-in go with it, and so do the calendar, contacts and working hours that came from its server."
+msgstr "Seine Nachrichten, Anlagen, Einstellungen und die gespeicherte Anmeldung werden mit entfernt, ebenso der Kalender, die Kontakte und die Arbeitszeiten, die von seinem Server kamen."
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
