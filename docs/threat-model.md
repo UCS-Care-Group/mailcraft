@@ -329,6 +329,7 @@ settings files (`crates/engine/src/store.rs`); commands from the control channel
   checksums, which the program checks before it installs an update, but the Windows and macOS
   builds aren't code-signed yet, so the systems warn before running them; check a first download
   against the release's checksums.
+- **Message-IDs are not identities.** A sender chooses a Message-ID, so after a server numbers an IMAP mailbox anew, a deletion or move that waits is made again only on the one arrival with that id that also has the same date, sender, subject and recipients; otherwise it is dropped and the owner told. A Graph forward's attachment is taken for the owner's only when its bytes match, and a saved draft is written whole before it is sent, so an edit made on the server meanwhile is not sent. A Microsoft server's Outbox is an ordinary folder: only mail queued on this computer is sent.
 - **The web build** runs in the browser's sandbox and inherits the browser's security; it has no
   connection to mail servers of its own. Links open in a new tab with `noopener,noreferrer`
   (only `http`, `https`, `mailto` and `tel`), its headers send `Cross-Origin-Opener-Policy:
@@ -338,6 +339,7 @@ settings files (`crates/engine/src/store.rs`); commands from the control channel
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-25 | minor | Batch P4: a change waiting over an IMAP renumbering is made only on a message that is the same mail, not by Message-ID alone; a forward's attachments are matched by content; a saved Graph draft is sent as the owner has it; a Microsoft server's Outbox is never the send queue |
 | 2026-10-25 | minor | Security run 2, batch P3: cancellations need the organizer's address or the keeping account; an `.ics` import replaces only the same organizer's meeting; no import into an Outbox; autocomplete skips Junk and clamps dates; replies quote what the HTML reads as; vouching reads the `dmarc` clause alone and never for mail from a file |
 | 2026-10-25 | minor | AU2-P6: every link the window follows passes the opener's check on every system (the web address is parsed, needs a host, and what is launched is the parser's text); a comma or semicolon in an attachment's name becomes an underscore, so Explorer is never handed a second argument; .deskthemepack, .afploc, .ftploc, .vncloc, .wcx, .its, .cdr and .smi are never opened; a Microsoft sign-in (XOAUTH2) is made only to Microsoft's own mail servers or this computer, and a shared mailbox's name for a stored sign-in belongs to a Microsoft account alone; in the browser build links open in a new tab with `noopener,noreferrer`, pages are served with `Cross-Origin-Opener-Policy: same-origin`, and `?sample` or `?empty` never writes the mailbox kept in the browser |
 | 2026-10-23 | minor | C1 PR-c: a mailbox opened from a file is unconfirmed until its servers are confirmed; nothing of it reaches a server meanwhile |

@@ -741,7 +741,40 @@ pub enum Pending {
         uid: u32,
         #[serde(default, rename = "messageId", skip_serializing_if = "String::is_empty")]
         message_id: String,
+        /// What the message said of itself when it was deleted. A Message-ID is chosen by the
+        /// sender, so a numbered-anew mailbox only gives its UID to a copy that is also the same
+        /// mail by this. Absent in a mailbox file of 0.8.0 and before: such a change is not
+        /// carried over a renumbering.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        seen: Option<MailIdentity>,
     },
+}
+
+/// What a message says of itself apart from its Message-ID: when it was sent, by whom, about
+/// what and to whom. Two arrivals with one Message-ID are one mail only if these agree too.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct MailIdentity {
+    pub date: i64,
+    pub from: String,
+    pub subject: String,
+    pub people: Vec<String>,
+}
+
+impl MailIdentity {
+    pub fn of(m: &Message) -> MailIdentity {
+        MailIdentity {
+            date: m.date,
+            from: m.from.email.to_ascii_lowercase(),
+            subject: m.subject.split_whitespace().collect::<Vec<_>>().join(" "),
+            people: m.to.iter().chain(&m.cc).map(|a| a.email.to_ascii_lowercase()).take(200).collect(),
+        }
+    }
+
+    /// Whether `m` is the mail this was taken from (a mail with no date is never known again).
+    pub fn fits(&self, m: &Message) -> bool {
+        self.date != 0 && *self == MailIdentity::of(m)
+    }
 }
 
 impl Pending {
@@ -1920,22 +1953,22 @@ impl Mailbox {
         if self.stays_on_server(id) {
             return Err(invalid(NOT_MOVING_YET));
         }
-        let (was_in, account, uid, message_id) = {
+        let (was_in, account, uid, message_id, seen) = {
             let m = self.message(id).ok_or(not_found("message", id))?;
-            (m.folder, m.account, m.uid, m.message_id.clone())
+            (m.folder, m.account, m.uid, m.message_id.clone(), (!m.message_id.is_empty()).then(|| MailIdentity::of(m)))
         };
         self.queue_graph_delete(id);
         match self.waiting_move(id).and_then(|at| self.pending.get_mut(at)) {
             Some(op) => {
                 if let Pending::Move { account, from, uid, .. } = &mut *op {
-                    let delete = Pending::Delete { account: *account, from: std::mem::take(from), uid: *uid, message_id };
+                    let delete = Pending::Delete { account: *account, from: std::mem::take(from), uid: *uid, message_id, seen };
                     *op = delete;
                 }
             }
             None => {
                 let from = self.folder(was_in).filter(|f| f.account == account && !f.remote.is_empty()).map(|f| f.remote.clone());
                 if let (Some(from), true) = (from, uid != 0) {
-                    self.pending.push(Pending::Delete { account, from, uid, message_id });
+                    self.pending.push(Pending::Delete { account, from, uid, message_id, seen });
                 }
             }
         }
@@ -2454,7 +2487,7 @@ impl Mailbox {
             let waiting = uid == 0
                 && match &op {
                     Pending::Move { message, .. } => self.messages.get(message).is_some_and(|m| !m.message_id.is_empty()),
-                    Pending::Delete { message_id, .. } => !message_id.is_empty(),
+                    Pending::Delete { message_id, seen, .. } => !message_id.is_empty() && seen.is_some(),
                 };
             let Some(source) = source.filter(|source| (uid != 0 || waiting) && !on_server.contains(&(*source, uid))) else { continue };
             if let Pending::Move { message, synced, to, .. } = &mut op {

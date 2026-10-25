@@ -61,7 +61,11 @@ const MAX_ID: usize = 1_024;
 const MAX_NAME: usize = 255;
 /// The folders asked for by their well-known names, with what each is here. `msgfolderroot` is
 /// the top of the mailbox: what lies in it directly is at the top here.
-const WELL_KNOWN: [(&str, Option<FolderKind>); 8] = [
+///
+/// The server's Outbox is not among them: what Exchange holds there is queued for sending with
+/// the owner's rights, and MailCraft's own Outbox (the queue it sends from) is never bound to
+/// it. It is listed as any folder is (AU2-V2).
+const WELL_KNOWN: [(&str, Option<FolderKind>); 7] = [
     ("msgfolderroot", None),
     ("inbox", Some(FolderKind::Inbox)),
     ("drafts", Some(FolderKind::Drafts)),
@@ -69,7 +73,6 @@ const WELL_KNOWN: [(&str, Option<FolderKind>); 8] = [
     ("deleteditems", Some(FolderKind::Deleted)),
     ("archive", Some(FolderKind::Archive)),
     ("junkemail", Some(FolderKind::Junk)),
-    ("outbox", Some(FolderKind::Outbox)),
 ];
 
 /// Make the folder changes of `request` on the server and list the mailbox's folders, as the
@@ -875,6 +878,8 @@ pub use search::search_messages;
 
 #[cfg(test)]
 mod down_tests;
+#[cfg(test)]
+mod draft_content_tests;
 #[cfg(test)]
 mod renew_tests;
 #[cfg(test)]

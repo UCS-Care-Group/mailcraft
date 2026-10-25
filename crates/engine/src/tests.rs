@@ -1400,7 +1400,8 @@ mod two_way {
             ..Default::default()
         };
         apply(&mut s, partly);
-        assert_eq!(s.mailbox.pending, [Pending::Delete { account: a, from: "INBOX".into(), uid: 3, message_id: "three@mail.example".into() }]);
+        let pending = s.mailbox.pending.clone();
+        assert!(matches!(pending.as_slice(), [Pending::Delete { uid: 3, message_id, seen: Some(_), .. }] if message_id == "three@mail.example"));
         assert_eq!((s.mailbox.count(inbox), s.mailbox.count(deleted), unpushed(&s, a)), (0, 0, 1));
         // A download that still lists the message a deletion is waiting for doesn't bring it back.
         let still_there = SyncResult {
@@ -1473,6 +1474,11 @@ mod two_way {
         run(&mut s, "mail.markUnread", json!({"id": one}));
         run(&mut s, "mail.delete", json!({"id": filed}));
         assert_eq!(unpushed(&s, a), 4);
+        let three_seen = s.mailbox.pending.iter().find_map(|p| match p {
+            Pending::Delete { seen, .. } => seen.clone(),
+            _ => None,
+        });
+        assert!(three_seen.is_some());
         // The Inbox has a new UIDVALIDITY: its UIDs name other messages now, or none.
         let anew = SyncResult {
             account: a,
@@ -1499,7 +1505,7 @@ mod two_way {
             s.mailbox.pending,
             [
                 Pending::Move { account: a, message: two, from: "INBOX".into(), uid: 0, synced: Some(has(0, false, false)), to: archive },
-                Pending::Delete { account: a, from: "INBOX".into(), uid: 0, message_id: "three@mail.example".into() },
+                Pending::Delete { account: a, from: "INBOX".into(), uid: 0, message_id: "three@mail.example".into(), seen: three_seen.clone() },
                 Pending::Move { account: a, message: filed, from: "Archive".into(), uid: 1, synced: Some(has(1, false, false)), to: deleted },
             ]
         );
@@ -1518,6 +1524,49 @@ mod two_way {
         assert_eq!((f.uid_validity, f.uid_seen), (70, 2));
         // The message that was moved out before stays where it was put, off the server.
         assert_eq!((state(&s, two).0, state(&s, two).1), (archive, 0));
+    }
+
+    /// A Message-ID is the sender's to choose: after a renumbering a deletion goes only to the one
+    /// arrival that is also the same mail, never to a different message that carries the id.
+    #[test]
+    fn a_deletion_is_never_carried_to_another_message_with_the_same_message_id() {
+        let anew_with = |arrivals: Vec<Message>, s: &mut Session, a: Id, inbox: Id| {
+            apply(
+                s,
+                SyncResult { account: a, folders: vec![news(Some(inbox), "INBOX", FolderKind::Inbox, 70, arrivals, vec![])], ..Default::default() },
+            )
+        };
+        let deletes = |s: &Session, a: Id| request(s, a).ops.iter().any(|op| matches!(op, RemoteOp::Delete { .. }));
+        // Two arrivals share the id: the legitimate one first (lower UID), the copy of the deleted one after it.
+        let (mut s, a, inbox, _) = synced();
+        let three = titled(&s, a, "Three");
+        let spoof = s.mailbox.message(three).cloned().unwrap();
+        run(&mut s, "mail.deletePermanently", json!({"id": three}));
+        let legit = Message { from: Address::new("", "real@example.org"), date: 5_000, ..from_server(21, "Three") };
+        let r = anew_with(vec![legit, Message { uid: 22, ..spoof.clone() }], &mut s, a, inbox);
+        assert!(!deletes(&s, a), "{:?}", request(&s, a).ops);
+        assert!(s.mailbox.pending.is_empty());
+        assert!(r["errors"].as_array().is_some_and(|e| e.iter().any(|n| n.as_str().is_some_and(|n| n.contains("not made on the server")))), "{r}");
+        assert_eq!(s.mailbox.count(inbox), 2);
+
+        // One arrival with the id, but another mail: dropped too.
+        let (mut s, a, inbox, _) = synced();
+        let three = titled(&s, a, "Three");
+        run(&mut s, "mail.deletePermanently", json!({"id": three}));
+        anew_with(vec![Message { from: Address::new("", "real@example.org"), date: 5_000, ..from_server(21, "Three") }], &mut s, a, inbox);
+        assert!(!deletes(&s, a) && s.mailbox.pending.is_empty());
+        assert_eq!(s.mailbox.messages_in(inbox).filter(|m| m.uid == 21).count(), 1);
+
+        // A change of 0.8.0 (no record of the mail) is not carried over a renumbering either.
+        let (mut s, a, inbox, _) = synced();
+        let three = titled(&s, a, "Three");
+        let again = s.mailbox.message(three).cloned().unwrap();
+        run(&mut s, "mail.deletePermanently", json!({"id": three}));
+        if let Some(Pending::Delete { seen, .. }) = s.mailbox.pending.first_mut() {
+            *seen = None;
+        }
+        anew_with(vec![Message { uid: 23, ..again }], &mut s, a, inbox);
+        assert!(!deletes(&s, a) && s.mailbox.pending.is_empty());
     }
 
     #[test]
@@ -2095,12 +2144,10 @@ mod two_way {
         assert_eq!(unpushed(&s, a), 4);
 
         // The server's INBOX comes back numbered anew, every message on it under another UID.
-        let anew = vec![
-            from_server(11, "One"),
-            from_server(12, "Two"),
-            from_server(13, "Three"),
-            Message { message_id: String::new(), ..from_server(14, "Four") },
-        ];
+        // (The same mails, so each keeps the date it was sent.)
+        let again = |uid: u32, was: u32, subject: &str| Message { date: 100 + i64::from(was), ..from_server(uid, subject) };
+        let anew =
+            vec![again(11, 1, "One"), again(12, 2, "Two"), again(13, 3, "Three"), Message { message_id: String::new(), ..from_server(14, "Four") }];
         let r = apply(
             &mut s,
             SyncResult { account: a, folders: vec![news(Some(inbox), "INBOX", FolderKind::Inbox, 70, anew, vec![])], ..Default::default() },

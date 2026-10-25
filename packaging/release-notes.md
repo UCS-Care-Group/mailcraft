@@ -13,6 +13,10 @@
 
 **Fixes**
 - While you drag messages, the pointer is the ordinary arrow over a folder that takes them and the system's "not allowed" pointer over the folder they are in already or anywhere that is not a folder, instead of the four-arrow move cursor everywhere on Windows ([#430](https://github.com/UCS-Care-Group/mailcraft/issues/430)).
+- A message deleted or moved just before a mail server renumbers its mailbox can no longer be mistaken for a different message that carries the same Message-ID: the change is made only on a message that is also the same mail, and otherwise dropped, with a note.
+- A forward through a Microsoft account no longer keeps the original's attachment when you replaced it with a file of the same name: attachments are compared by content.
+- A draft saved on a Microsoft account is sent exactly as you have it here, not as someone else edited it on the server (a Bcc, the body or an attachment added meanwhile).
+- A Microsoft account's server Outbox is now a folder like any other: MailCraft sends only the mail you queued on this computer, never what is waiting in the server's Outbox.
 - A cancellation in the mail now offers Remove from Calendar only when it comes from the meeting's organizer (or, for a meeting your mail server keeps, from that account); a calendar file you import replaces a meeting only when it names the same organizer; mail you import from a file never goes into an Outbox; replies and forwards quote what you saw in an HTML message, not the plain-text version its sender wrote beside it; address suggestions ignore Junk E-mail and a sender's future date; and "always download pictures" trusts only mail your server holds, by its `dmarc` result.
 - Links in mail and in MailCraft's own windows now go through the same check before the system opens them on Windows and macOS as on Linux, and a web address that can't be read properly, or has no host, is no longer a link.
 - A comma or semicolon in an attachment's name is replaced when it is opened or saved, so Windows can't take the rest of the name for something else to open; the name shown is the name used.
