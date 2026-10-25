@@ -56,6 +56,14 @@ struct Suggesting {
     selected: usize,
     /// Where they were drawn, so a click on one isn't taken for a click away from the line.
     rect: Option<Rect>,
+    /// What `items` were asked for: what was being typed, and the mailbox as it was
+    /// ([`Session::rev`], [`Session::openings`]). They are asked for again only when one of these
+    /// changes: a line with the keyboard is drawn at least twice a second (its cursor blinks),
+    /// and asking reads the whole mailbox.
+    ///
+    /// [`Session::rev`]: mailcraft_engine::Session::rev
+    /// [`Session::openings`]: mailcraft_engine::Session::openings
+    asked: Option<(String, u64, u64)>,
 }
 
 /// What is being typed at the end of a recipient line: the part after the last `;` or `,`.
@@ -168,12 +176,17 @@ fn recipient_field(app: &mut MailApp, ui: &mut Ui, key: &str, label: &str, text:
     // What to offer next frame, for what is being typed now.
     if resp.has_focus() || ui.memory(|m| m.has_focus(id)) {
         let (_, last) = typing(&now);
-        let items = if last.trim().is_empty() { Vec::new() } else { mailcraft_engine::cmd::compose::suggest(&app.session, last, 6) };
-        st.selected = if st.field == key { st.selected.min(items.len().saturating_sub(1)) } else { 0 };
-        st.field = key.to_string();
-        st.items = items;
+        let asking = (last.to_string(), app.session.rev(), app.session.openings());
+        if st.field != key || st.asked.as_ref() != Some(&asking) {
+            let items = if last.trim().is_empty() { Vec::new() } else { mailcraft_engine::cmd::compose::suggest(&app.session, last, 6) };
+            st.selected = if st.field == key { st.selected.min(items.len().saturating_sub(1)) } else { 0 };
+            st.field = key.to_string();
+            st.items = items;
+            st.asked = Some(asking);
+        }
     } else if st.field == key && !over {
         st.items.clear();
+        st.asked = None;
     }
     ui.data_mut(|d| d.insert_temp(store, st));
 }
@@ -369,3 +382,7 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
         });
     });
 }
+
+#[cfg(test)]
+#[path = "recipient_suggest_tests.rs"]
+mod recipient_suggest_tests;

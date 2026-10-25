@@ -13,6 +13,7 @@
 
 **Fixes**
 - The search box now suggests people after `from:`, `to:` and `cc:`, from your contacts and the mail on this computer, and your own addresses last. Part of a name is found without its accents (`gvoz` finds Gvožđar), in a new message's recipients too, and one letter after `category:` shows only the categories that start with it, when some do ([#308](https://github.com/GITHUB_REPOSITORY/issues/308)).
+- Typing a name in a new message's To, Cc or Bcc line, or in a meeting's attendees, no longer slows the window down in a large mailbox: the people it could be are looked up when you type, not again every time the window is drawn ([#308](https://github.com/GITHUB_REPOSITORY/issues/308)).
 - While you drag messages, the pointer is the ordinary arrow over a folder that takes them and the system's "not allowed" pointer over the folder they are in already or anywhere that is not a folder, instead of the four-arrow move cursor everywhere on Windows ([#430](https://github.com/UCS-Care-Group/mailcraft/issues/430)).
 - Typing a POP server (port 110 or 995, or a name starting `pop`) into Add Account now says that MailCraft doesn't support POP yet and to use the provider's IMAP server instead, instead of a certificate error ([#402](https://github.com/GITHUB_REPOSITORY/issues/402)).
 - A Microsoft account, or a shared mailbox, whose Inbox is known but was never read now has it read first in Send/Receive, before the folders are listed, so mail shows within seconds (#276).
