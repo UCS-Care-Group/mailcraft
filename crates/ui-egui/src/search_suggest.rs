@@ -88,12 +88,12 @@ impl Suggesting {
             if i.consume_key(egui::Modifiers::NONE, egui::Key::Tab) {
                 take = Some(self.selected.unwrap_or(0));
             }
-            // Only a press: the repeats of an Escape that closed a dialog over the window leave the
-            // list (#393).
-            if crate::keys::take_once(i, egui::Key::Escape) {
-                self.dismissed = Some((text.to_string(), None));
-            }
         });
+        // Only a press: the repeats of an Escape that closed a dialog over the window leave the
+        // list (#393, #406).
+        if !back && crate::layers::take_escape(ui.ctx(), crate::layers::Layer::Search) {
+            self.dismissed = Some((text.to_string(), None));
+        }
         if back {
             ui.memory_mut(|m| m.move_focus(egui::FocusDirection::Previous));
         }

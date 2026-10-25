@@ -7,6 +7,7 @@ use mailcraft_engine::Module;
 use serde_json::json;
 
 use crate::MailApp;
+use crate::layers::Layer;
 
 /// The registry's name for a key.
 pub fn key_name(k: Key) -> Option<&'static str> {
@@ -109,25 +110,10 @@ fn module_of(id: &str) -> Option<Module> {
     }
 }
 
-/// Whether `key` was pressed this frame. A held key's repeats don't count: a held key is one press
-/// (#391, #393). (`key_pressed` counts the repeats.)
-pub(crate) fn pressed_once(i: &egui::InputState, key: Key) -> bool {
-    i.events.iter().any(|e| matches!(e, egui::Event::Key { key: k, pressed: true, repeat: false, .. } if *k == key))
-}
-
 /// Drops the repeats of `keys` held down, so that what reads them later in the frame sees only the
 /// press: a held key is one press (#391, #393).
 pub(crate) fn drop_repeats(i: &mut egui::InputState, keys: &[Key]) {
     i.events.retain(|e| !matches!(e, egui::Event::Key { key, pressed: true, repeat: true, .. } if keys.contains(key)));
-}
-
-/// Takes `key` (with no Shift, Ctrl or Alt), its repeats too, so nothing later in the frame gets it.
-/// True only for a new press: a held key is one press (#391, #393).
-pub(crate) fn take_once(i: &mut egui::InputState, key: Key) -> bool {
-    let once = i.events.iter().any(
-        |e| matches!(e, egui::Event::Key { key: k, pressed: true, repeat: false, modifiers, .. } if *k == key && modifiers.matches_logically(Modifiers::NONE)),
-    );
-    i.consume_key(Modifiers::NONE, key) && once
 }
 
 /// Whether the window takes command keys now: not while File (backstage) or a dialog is open. The
@@ -176,39 +162,42 @@ fn module_delete(app: &MailApp) -> Option<&'static str> {
 /// function keys) also work while typing, except the ones text editing needs.
 pub fn global_shortcuts(app: &mut MailApp, ctx: &egui::Context) {
     if !takes_commands(app) {
-        // Escape closes File, but not when a dialog or a menu is open over it, and not on the
-        // repeats of a held Escape (#393).
-        if app.ui.backstage && app.dialog.is_none() && !egui::Popup::is_any_open(ctx) && ctx.input_mut(|i| take_once(i, Key::Escape)) {
+        // Escape closes File when it is on top: not when a dialog, a menu or a window is over
+        // it, and not on the repeats of a held Escape (#393, #406).
+        if app.ui.backstage && crate::layers::take_escape(ctx, Layer::File) {
             app.ui.backstage = false;
         }
         return;
     }
     let typing = ctx.egui_wants_keyboard_input();
-    // Esc ends a search, as the ✕ on the bar over the list does (#115). (In the search box
-    // itself, the box does it; an open menu takes Esc for itself.)
+    // Escape is the main window's only when nothing is over it (#406); it is taken only by what
+    // acts on it, so that what else of the window reads it later still can. It ends a search, as
+    // the ✕ on the bar over the list does (#115). (In the search box itself, the box does it.)
     if !typing
-        && !egui::Popup::is_any_open(ctx)
         && app.session.compose.is_none()
         && app.session.view.module == mailcraft_engine::Module::Mail
         && !app.session.view.search.trim().is_empty()
-        && ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, Key::Escape))
+        && crate::layers::take_escape(ctx, Layer::Main)
     {
         app.search_text.clear();
         let _ = app.run("view.clearSearch", json!({}));
+    }
+    // Otherwise it is the registry's: it closes a message being written, from one of its fields
+    // too (#365).
+    if (!typing || app.session.compose.is_some())
+        && let Some(id) = resolve(app, "Escape").and_then(|id| window_command(app, id))
+        && crate::layers::take_escape(ctx, Layer::Main)
+    {
+        let _ = app.run(id, json!({}));
     }
     // The body of a message being written has keys of its own (Ctrl+B, U, Z…), which mean
     // something else everywhere else.
     let in_body = typing && crate::compose::editor::has_focus(ctx);
     let events = ctx.input(|i| i.events.clone());
     for e in events {
-        let egui::Event::Key { key, pressed: true, repeat, modifiers, .. } = e else { continue };
-        // A held Escape is one press: its repeats come once the search box or a dialog has had
-        // it, and would close a message being written (#365).
-        if key == Key::Escape && repeat {
-            continue;
-        }
-        // With a menu open, Escape only closes the menu (#393).
-        if key == Key::Escape && egui::Popup::is_any_open(ctx) {
+        let egui::Event::Key { key, pressed: true, modifiers, .. } = e else { continue };
+        // Escape alone is handed out above (an open menu keeps it, to close).
+        if key == Key::Escape && modifiers.is_none() {
             continue;
         }
         let Some(name) = key_name(key) else { continue };
@@ -236,12 +225,7 @@ pub fn global_shortcuts(app: &mut MailApp, ctx: &egui::Context) {
             if in_body && modifiers.command && crate::compose::editor::owns_chord(key) {
                 continue;
             }
-            // Escape in the search box is for the box: it closes the list under it (#308) or clears
-            // the search. A message being written stays open (#365).
-            if key == Key::Escape && ctx.memory(|m| m.has_focus(crate::chrome::search_box_id())) {
-                continue;
-            }
-            if !(function || chord && !editing) && !(key == Key::Escape && app.session.compose.is_some()) {
+            if !(function || chord && !editing) {
                 continue;
             }
         }

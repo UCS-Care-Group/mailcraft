@@ -234,14 +234,10 @@ pub(crate) fn rows(app: &MailApp) -> Vec<Row> {
     rows
 }
 
-/// Escape closes the panel, before anything else hears it (a search, the selection). With a menu
-/// open, Escape closes only the menu. A held Escape is one press (#393).
+/// Escape closes the panel when it is on top: over the windows, the search and the selection,
+/// under a dialog and an open menu (#393, #406). A held Escape is one press.
 pub(crate) fn escape(app: &mut MailApp, ctx: &egui::Context) {
-    if app.sync_panel.is_some()
-        && app.dialog.is_none()
-        && !egui::Popup::is_any_open(ctx)
-        && ctx.input_mut(|i| crate::keys::take_once(i, egui::Key::Escape))
-    {
+    if app.sync_panel.is_some() && crate::layers::take_escape(ctx, crate::layers::Layer::Progress) {
         app.sync_panel = None;
     }
 }

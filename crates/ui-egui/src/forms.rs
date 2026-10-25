@@ -151,6 +151,11 @@ impl Form {
     pub(crate) fn waiting(&self) -> bool {
         self.event().is_some_and(event::EventForm::waiting)
     }
+
+    /// Whether the form has a dialog of its own open over it (the recurrence editor).
+    pub(crate) fn modal(&self) -> bool {
+        self.event().is_some_and(event::EventForm::modal)
+    }
 }
 
 /// What a window asks of the form it hosts beyond laying it out: what its keys stand for.
@@ -1954,8 +1959,9 @@ mod event {
                         }
                     });
                 });
-            // Escape leaves it as it was; Enter in one of its fields, or with none, is OK.
-            let escape = !egui::Popup::is_any_open(ctx) && ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape));
+            // Escape leaves it as it was (when it is on top: a list open in it closes first, #406);
+            // Enter in one of its fields, or with none, is OK.
+            let escape = crate::layers::escape(ctx, crate::layers::Layer::Inner(kit::window()));
             left.or(if escape {
                 Some(Left::Cancel)
             } else if enter && self.wrong().is_none() {

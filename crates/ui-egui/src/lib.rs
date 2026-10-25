@@ -69,6 +69,9 @@ pub mod keys;
 #[cfg(test)]
 #[path = "late_work_tests.rs"]
 mod late_work_tests;
+mod layers;
+#[cfg(test)]
+mod layers_tests;
 pub mod mail_view;
 mod meeting_dialogs;
 pub mod menubar;
@@ -3725,12 +3728,13 @@ impl MailApp {
         // mailbox's times are put by the new clock before anything of it is drawn, and so are
         // the appointments that stand open.
         self.follow_zone();
-        // The agent's question is on top of everything, so it gets Enter and Escape first.
+        // Escape and Enter go to what is on top, and to nothing under it: worked out here, before
+        // anything reads them (#406). The agent's question is on top of everything.
+        layers::resolve_main(self, &ctx);
         agent_gate::keys(self, &ctx);
-        // Windows of their own (a message, an appointment), before the shortcuts: Escape closes
-        // the one in front where they are inside this window.
+        // Windows of their own (a message, an appointment), before the shortcuts: their keys are
+        // not also the main window's where they are inside it.
         windows::show(self, &ctx);
-        // Escape closes Send/Receive Progress before anything else hears it.
         sync_panel::escape(self, &ctx);
         // Shortcuts first, so the frame shows what the key did.
         keys::global_shortcuts(self, &ctx);

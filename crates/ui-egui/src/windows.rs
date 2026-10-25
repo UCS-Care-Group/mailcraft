@@ -99,6 +99,10 @@ struct Open {
     raise: bool,
     /// It was last shown inside the main window rather than as a window of the system.
     embedded: bool,
+    /// It was last laid out inside the main window: shown there, or a window of the system that
+    /// egui put inside after all (a backend without windows of its own). Its keys are then the
+    /// main window's ([`keys_on_top`]).
+    inside: bool,
     title: String,
     /// It was to close with unsaved changes, and asks about them.
     asking: bool,
@@ -117,6 +121,12 @@ pub struct Windows {
 }
 
 impl Windows {
+    /// The form of the window numbered `id`, when it shows one.
+    #[cfg(test)]
+    pub(crate) fn form_mut(&mut self, id: u64) -> Option<&mut Form> {
+        self.open.iter_mut().find(|w| w.id == id)?.what.form_mut()
+    }
+
     /// How many windows are open.
     pub fn len(&self) -> usize {
         self.open.len()
@@ -138,7 +148,7 @@ impl Windows {
 
     fn add(&mut self, what: What) -> u64 {
         self.last = self.last.saturating_add(1);
-        self.open.push(Open { id: self.last, what, raise: true, embedded: true, title: String::new(), asking: false, ask: None });
+        self.open.push(Open { id: self.last, what, raise: true, embedded: true, inside: true, title: String::new(), asking: false, ask: None });
         self.last
     }
 
@@ -502,19 +512,17 @@ struct Keys {
 }
 
 /// The keys of a window, taken out of what was pressed so that they are nobody else's: Escape
-/// (once nothing in it is open that Escape closes first) and Ctrl+W close it; in an
-/// appointment's, Ctrl+S saves, and Ctrl+Enter and Alt+S send (a meeting) or save and close (an
-/// appointment). While a window asks about its unsaved changes, or its form has a dialog of its
-/// own open, Escape and Enter are that question's or that dialog's, and the others are nobody's.
+/// (when the window is on top, [`crate::layers`]) and Ctrl+W close it; in an appointment's,
+/// Ctrl+S saves, and Ctrl+Enter and Alt+S send (a meeting) or save and close (an appointment).
+/// While a window asks about its unsaved changes, or its form has a dialog of its own open, Escape
+/// and Enter are that question's or that dialog's, and the others are nobody's. A held key is one
+/// press: its repeats are taken, and do nothing (#406).
 fn keys_of(ctx: &egui::Context, window: &Open) -> Keys {
     let engaged = window.asking || window.what.form().is_some_and(Form::engaged);
-    let popup = egui::Popup::is_any_open(ctx);
     let form = window.what.form().is_some();
+    let escape = crate::layers::take_escape(ctx, crate::layers::Layer::Window(window.id));
     ctx.input_mut(|i| {
-        let mut keys = Keys { close: take_key(i, Modifiers::COMMAND, Key::W), ask: None };
-        if !engaged && !popup {
-            keys.close |= take_key(i, Modifiers::NONE, Key::Escape);
-        }
+        let mut keys = Keys { close: take_key(i, Modifiers::COMMAND, Key::W) | escape, ask: None };
         if form {
             if take_key(i, Modifiers::COMMAND, Key::S) {
                 keys.ask = Some(Ask::Save);
@@ -528,13 +536,68 @@ fn keys_of(ctx: &egui::Context, window: &Open) -> Keys {
     })
 }
 
-/// Take `key`, pressed with exactly `modifiers`, out of what was pressed. Whether it was there.
-/// (Exactly: a letter typed with AltGr, which a keyboard reports as Ctrl+Alt, is a letter and
-/// nobody's shortcut.)
+/// Take `key`, pressed with exactly `modifiers`, out of what was pressed, its repeats too. Whether
+/// it was pressed anew: a held key is one press. (Exactly: a letter typed with AltGr, which a
+/// keyboard reports as Ctrl+Alt, is a letter and nobody's shortcut.)
 fn take_key(input: &mut egui::InputState, modifiers: Modifiers, key: Key) -> bool {
-    let before = input.events.len();
-    input.events.retain(|event| !matches!(event, egui::Event::Key { key: pressed, pressed: true, modifiers: held, .. } if *pressed == key && held.matches_exact(modifiers)));
-    input.events.len() != before
+    let this = |event: &egui::Event| matches!(event, egui::Event::Key { key: pressed, pressed: true, modifiers: held, .. } if *pressed == key && held.matches_exact(modifiers));
+    let new = input.events.iter().any(|event| this(event) && matches!(event, egui::Event::Key { repeat: false, .. }));
+    input.events.retain(|event| !this(event));
+    new
+}
+
+/// The window in front, where windows are shown inside the main one: the one egui paints last,
+/// which is the one that was last clicked on; one that is to come forward this frame is in front
+/// before it is painted there.
+fn front(open: &[&Open], ctx: &egui::Context) -> Option<u64> {
+    let order: Vec<egui::LayerId> = ctx.memory(|m| m.layer_ids().collect());
+    let painted = |w: &&Open| order.iter().position(|layer| layer.id == area(w.id)).map(|at| (at, w.id));
+    let raised = open.iter().rev().find(|w| w.raise).map(|w| w.id);
+    raised.or(open.iter().filter_map(painted).max().map(|(_, id)| id)).or(open.last().map(|w| w.id))
+}
+
+/// What of the windows inside the main one is on top, for the keys ([`crate::layers`]). Their
+/// questions and the recurrence editor cover the whole of it, whichever window they are in.
+pub(crate) fn keys_on_top(app: &MailApp, ctx: &egui::Context) -> crate::layers::Open {
+    let open: Vec<&Open> = app.windows.open.iter().filter(|w| w.inside).collect();
+    if open.is_empty() {
+        return crate::layers::Open::default();
+    }
+    let front = front(&open, ctx);
+    let in_front = |w: &&&Open| Some(w.id) == front;
+    let unsaved = open.iter().find(in_front).filter(|w| w.asking).or_else(|| open.iter().rev().find(|w| w.asking)).map(|w| w.id);
+    // The recurrence editor of the one in front, else of another: it is drawn over all of them.
+    let editing = |w: &&&Open| w.what.form().is_some_and(Form::modal);
+    let inner = open.iter().find(in_front).filter(editing).or_else(|| open.iter().rev().find(editing)).map(|w| w.id);
+    crate::layers::Open {
+        unsaved,
+        window: front,
+        window_inner: inner,
+        window_waits: open.iter().find(in_front).is_some_and(|w| w.what.form().is_some_and(Form::waiting)),
+        ..Default::default()
+    }
+}
+
+/// What is on top in a window of the system, which has the keyboard to itself.
+fn keys_on_top_alone(window: &Open, ctx: &egui::Context) -> crate::layers::Open {
+    crate::layers::Open {
+        unsaved: window.asking.then_some(window.id),
+        menu: egui::Popup::is_any_open(ctx),
+        window: Some(window.id),
+        window_inner: window.what.form().is_some_and(Form::modal).then_some(window.id),
+        window_waits: window.what.form().is_some_and(Form::waiting),
+        ..Default::default()
+    }
+}
+
+/// The viewport of the window numbered `id`, where it is a window of the system.
+fn viewport_of(id: u64) -> egui::ViewportId {
+    egui::ViewportId::from_hash_of(("mailcraft-window", id))
+}
+
+/// The viewports of the windows that are open.
+pub(crate) fn viewports(app: &MailApp) -> Vec<egui::ViewportId> {
+    app.windows.open.iter().map(|w| viewport_of(w.id)).collect()
 }
 
 /// Show the windows that are open, and close the ones whose subject is gone. Once a frame,
@@ -564,20 +627,11 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
         // What is being made is there until it is saved or given up.
         What::Event { event: None, .. } => true,
     });
-    // The one in front: the one egui paints last, which is the one that was last clicked on.
-    // Inside the main window it is the one of them that has the keyboard.
-    let front = if embedded && !open.is_empty() {
-        let order: Vec<egui::LayerId> = ctx.memory(|m| m.layer_ids().collect());
-        let painted = |w: &Open| order.iter().position(|layer| layer.id == area(w.id)).map(|at| (at, w.id));
-        // One that is to come forward this frame is in front before it is painted there.
-        let raised = open.iter().rev().find(|w| w.raise).map(|w| w.id);
-        raised.or(open.iter().filter_map(painted).max().map(|(_, id)| id)).or(open.last().map(|w| w.id))
-    } else {
-        None
-    };
+    // Inside the main window the one in front is the one of them that has the keyboard.
+    let front = if embedded && !open.is_empty() { front(&open.iter().collect::<Vec<_>>(), ctx) } else { None };
     let mut kept = Vec::with_capacity(open.len());
     for mut window in open {
-        window.embedded = embedded;
+        (window.embedded, window.inside) = (embedded, embedded);
         window.title = title(app, &window.what);
         // A dialog of the main window is answered first: it has the keyboard.
         let behind = embedded && (front != Some(window.id) || app.dialog.is_some());
@@ -697,7 +751,7 @@ pub(crate) fn like_main(ctx: &egui::Context, mut builder: egui::ViewportBuilder)
 
 /// A window of the system. `true` when it is to close.
 fn show_native(app: &mut MailApp, ctx: &egui::Context, window: &mut Open) -> bool {
-    let viewport = egui::ViewportId::from_hash_of(("mailcraft-window", window.id));
+    let viewport = viewport_of(window.id);
     let size = match window.what.form() {
         None => MESSAGE_SIZE,
         Some(form) => [form.window_width(), FORM_HEIGHT],
@@ -713,8 +767,12 @@ fn show_native(app: &mut MailApp, ctx: &egui::Context, window: &mut Open) -> boo
         let t = Tokens::get(&ctx);
         // A backend that has no windows after all puts this inside the main one itself.
         let inside = class == egui::ViewportClass::EmbeddedWindow;
+        window.inside = inside;
         let closing = !inside && ctx.input(|i| i.viewport().close_requested());
-        // The window has the keyboard to itself.
+        // The window has the keyboard to itself: what is on top in it gets Escape and Enter.
+        if !inside {
+            crate::layers::resolve(&ctx, &keys_on_top_alone(window, &ctx));
+        }
         let wish = keys_of(&ctx, window);
         egui::CentralPanel::default().frame(egui::Frame::NONE.fill(t.surface)).show(ui, |ui| {
             close |= frame(app, ui, window, wish, closing, !inside, false);

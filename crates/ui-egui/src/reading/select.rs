@@ -37,6 +37,7 @@ use super::Place;
 use super::layout::{ItemKind, Laid};
 use super::view::Doc;
 use crate::MailApp;
+use crate::layers::Layer;
 use crate::theme::Tokens;
 
 /// How many places a selection is kept for: the reading pane and the message windows.
@@ -792,15 +793,16 @@ pub(super) fn begin(app: &mut MailApp, ui: &Ui, m: &Message, place: Place) {
     let menus = egui::Popup::is_any_open(ctx);
     // Ctrl+A (Cmd+A on a Mac), by the modifiers the key's own event names.
     let select_all = |e: &egui::Event| matches!(e, egui::Event::Key { key: egui::Key::A, pressed: true, modifiers, .. } if modifiers.command && !modifiers.alt && !modifiers.shift);
-    let (pressed, copy, escape, all) = ui.input(|i| {
-        (
-            i.pointer.any_pressed(),
-            i.events.iter().any(|e| matches!(e, egui::Event::Copy)),
-            // A press, not a held one's repeats: those come after the search box has had it (#365).
-            crate::keys::pressed_once(i, egui::Key::Escape),
-            i.events.iter().any(select_all),
-        )
-    });
+    let (pressed, copy, all) =
+        ui.input(|i| (i.pointer.any_pressed(), i.events.iter().any(|e| matches!(e, egui::Event::Copy)), i.events.iter().any(select_all)));
+    // Escape when what the message is in is on top, and nothing there took it (the search box,
+    // the window's own close) (#365, #406).
+    let layer = match place {
+        Place::Window(id) => Layer::Window(id),
+        Place::Preview => Layer::File,
+        Place::Pane | Place::Quote => Layer::Main,
+    };
+    let escape = crate::layers::escape(ctx, layer);
     let selections = &mut app.text_selection;
     let had_keys = selections.focus == Some(place);
     let Some(state) = selections.open(place) else { return };

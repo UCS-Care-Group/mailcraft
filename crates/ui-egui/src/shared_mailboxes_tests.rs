@@ -219,8 +219,15 @@ fn add_in_dialog(app: &mut MailApp, answers: &Answers, owner: Id, address: &str,
     }
     let ctx = egui::Context::default();
     crate::theme::install_fonts(&ctx);
-    let mut out = ctx.run_ui(egui::RawInput { events: vec![enter()], ..Default::default() }, |ui| crate::dialogs::show(app, &ui.ctx().clone()));
+    let mut out = ctx.run_ui(egui::RawInput { events: vec![enter()], ..Default::default() }, |ui| dialog_frame(app, ui));
     out.textures_delta.clear();
+}
+
+/// One frame of the dialog alone: what is on top gets the keys first, as in the window (#406).
+fn dialog_frame(app: &mut MailApp, ui: &mut egui::Ui) {
+    let ctx = ui.ctx().clone();
+    crate::layers::resolve_main(app, &ctx);
+    crate::dialogs::show(app, &ctx);
 }
 
 fn enter() -> egui::Event {
@@ -260,7 +267,7 @@ fn add_shared_mailbox_keeps_only_a_mailbox_whose_inbox_could_be_read() {
     let ctx = egui::Context::default();
     crate::theme::install_fonts(&ctx);
     let escape = egui::Event::Key { key: egui::Key::Escape, physical_key: None, pressed: true, repeat: false, modifiers: egui::Modifiers::NONE };
-    let mut out = ctx.run_ui(egui::RawInput { events: vec![escape], ..Default::default() }, |ui| crate::dialogs::show(&mut app, &ui.ctx().clone()));
+    let mut out = ctx.run_ui(egui::RawInput { events: vec![escape], ..Default::default() }, |ui| dialog_frame(&mut app, ui));
     out.textures_delta.clear();
     assert!(app.dialog.is_none() && app.session.mailbox.accounts.iter().all(|a| a.email != SHARED));
     app.poll_graph();
@@ -653,7 +660,7 @@ fn a_refused_sign_in_of_the_owner_is_said_and_the_mailbox_being_added_is_not_kep
     }
     let ctx = egui::Context::default();
     crate::theme::install_fonts(&ctx);
-    let mut out = ctx.run_ui(egui::RawInput { events: vec![enter()], ..Default::default() }, |ui| crate::dialogs::show(&mut app, &ui.ctx().clone()));
+    let mut out = ctx.run_ui(egui::RawInput { events: vec![enter()], ..Default::default() }, |ui| dialog_frame(&mut app, ui));
     out.textures_delta.clear();
     app.poll_graph();
     assert!(app.session.mailbox.accounts.iter().all(|a| a.email != SHARED));

@@ -11,6 +11,7 @@ use mailcraft_model::Id;
 use serde_json::{Value, json};
 
 use crate::forms::Form;
+use crate::layers::Layer;
 use crate::theme::{Tokens, regular, semibold};
 use crate::widgets::primary_button;
 use crate::{MailApp, UI_COMMANDS};
@@ -177,6 +178,16 @@ impl Dialog {
             Dialog::ReportProblem(_) => "reportProblem",
             Dialog::Meeting(d) => d.name(),
             Dialog::FolderProperties(_) => "folderProperties",
+        }
+    }
+
+    /// Whether it has something of its own open over it, which gets Escape and Enter before it
+    /// does ([`crate::layers`]): the recurrence editor of an appointment, Folder Size.
+    pub(crate) fn inner_open(&self) -> bool {
+        match self {
+            Dialog::Form(form) => form.modal(),
+            Dialog::FolderProperties(dialog) => dialog.size_open,
+            _ => false,
         }
     }
 
@@ -892,12 +903,12 @@ pub(crate) fn buttons(ui: &mut Ui, ok_label: &str, ok_enabled: bool) -> (bool, b
 
 pub fn show(app: &mut MailApp, ctx: &egui::Context) {
     let Some(mut dialog) = app.dialog.take() else { return };
-    // A held key is one press (#393): its repeats don't close the dialog or press OK. They may be
-    // left from a key that closed what was over the dialog. Escape's repeats are taken here, so
-    // nothing later gets them. Enter's are left, since a box of several lines in a dialog needs
-    // them for new lines.
-    let escape = ctx.input_mut(|i| crate::keys::take_once(i, Key::Escape));
-    let enter = ctx.input(|i| crate::keys::pressed_once(i, Key::Enter));
+    // Escape and Enter are the dialog's when it is on top: not while a list in it is open, or
+    // something of its own over it, which get them first (#406). A held key is one press (#393):
+    // its repeats don't close the dialog or press OK. (Enter's repeats are still in the input for
+    // the boxes of several lines that type them.)
+    let escape = crate::layers::escape(ctx, Layer::Dialog);
+    let enter = crate::layers::enter(ctx, Layer::Dialog);
     let t = Tokens::get(ctx);
     // A scrim: what is behind the dialog is out of reach until it is answered.
     let screen = ctx.content_rect();
@@ -1394,13 +1405,13 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
         // Folder Size, open over the tabs, takes Escape and Enter; Enter on a button that has the
         // keyboard is that button's.
         Dialog::FolderProperties(dialog) => {
-            let enter = enter && ctx.memory(|m| m.focused().is_none());
+            let idle = ctx.memory(|m| m.focused().is_none());
             let over = dialog.size_open;
             let mut done = false;
             let title = dialog.title.clone();
-            let open = window(ctx, &title, crate::folder_properties::WIDTH, |ui| done = dialog.show(ui, enter && !over));
+            let open = window(ctx, &title, crate::folder_properties::WIDTH, |ui| done = dialog.show(ui, enter && idle));
             if over {
-                close = false;
+                let (escape, enter) = (crate::layers::escape(ctx, Layer::Inner(0)), crate::layers::enter(ctx, Layer::Inner(0)) && idle);
                 done |= dialog.show_size(app, ctx, escape, enter);
             }
             close |= !open || done;
@@ -1473,8 +1484,10 @@ pub(crate) fn unsaved_changes(ctx: &egui::Context, hit: &mut crate::control::Hit
             });
         });
     // Saving is what Enter means, staying what Escape means; neither is anything else's key
-    // while the question is up.
-    let (enter, escape) = ctx.input_mut(|i| (i.consume_key(egui::Modifiers::NONE, Key::Enter), i.consume_key(egui::Modifiers::NONE, Key::Escape)));
+    // while the question is up. Only a new press answers: not the repeats of the Escape that
+    // asked to close, which nobody has read the question for yet (#406).
+    let layer = Layer::Unsaved(window);
+    let (enter, escape) = (crate::layers::take_enter(ctx, layer), crate::layers::take_escape(ctx, layer));
     answer.or(if escape {
         Some(Unsaved::Cancel)
     } else if enter {

@@ -24,6 +24,7 @@ use mailcraft_model::{Event, Freq, Id, Importance, Occurrence, Recurrence, Respo
 use mailcraft_time::{Date, DateTime, Weekday};
 use serde_json::{Value, json};
 
+use crate::layers::Layer;
 use crate::theme::{Tokens, c32, medium, paint_clipped, regular, semibold};
 use crate::{MailApp, icons};
 
@@ -441,7 +442,9 @@ fn slot_entry(app: &mut MailApp, ui: &mut Ui, rect: Rect, slot: &mut Slot, mark:
         p.rect_stroke(rect, 2.0, Stroke::new(1.5, t.accent), StrokeKind::Inside);
     }
     let entry = egui::Id::unique(SLOT_ENTRY_ID);
-    let (enter, escape) = ui.input(|i| (i.key_pressed(egui::Key::Enter), i.key_pressed(egui::Key::Escape)));
+    // Only when the main window is on top, and a new press (#406): not the repeats of a key that
+    // closed a dialog over the calendar.
+    let (enter, escape) = (crate::layers::enter(ui.ctx(), Layer::Main), crate::layers::escape(ui.ctx(), Layer::Main));
     if slot.text.is_none() {
         // The keyboard is the calendar's while nothing else has it.
         if !has_keyboard(app, ui.ctx()) {
@@ -1198,8 +1201,8 @@ fn date_navigator(app: &mut MailApp, ui: &mut Ui, months: usize) {
     ui.ctx().data_mut(|d| d.insert_temp(memory, (view_date, first_month)));
 
     // Days being dragged over: they are marked as the pointer goes, and shown when it lets go.
-    // Escape gives the drag up.
-    let escape = ui.input(|i| i.key_pressed(egui::Key::Escape));
+    // Escape gives the drag up (when the main window is on top, #406).
+    let escape = crate::layers::escape(ui.ctx(), Layer::Main);
     match drag.filter(|_| held && !escape) {
         Some(mut over) => {
             let pointer = ui.input(|i| i.pointer.interact_pos());
@@ -2628,10 +2631,12 @@ impl Frame {
         let scale = Scale::of(time_scale(&app.session));
         // Ctrl as the keyboard holds it, or as the button that was let go came with it (which
         // is all a script's drag says).
-        let (escape, copy) = ui.input(|i| {
+        let copy = ui.input(|i| {
             let let_go = |e: &egui::Event| matches!(e, egui::Event::PointerButton { pressed: false, modifiers, .. } if copy_key(*modifiers));
-            (i.key_pressed(egui::Key::Escape), copy_key(i.modifiers) || i.events.iter().any(let_go))
+            copy_key(i.modifiers) || i.events.iter().any(let_go)
         });
+        // Escape gives the drag up, when the main window is on top (#406).
+        let escape = crate::layers::escape(ui.ctx(), Layer::Main);
         drag.cancelled |= escape;
         drag.copy = copy && drag.grip == Grip::Move && !drag.menu;
         let under = self.pointer.and_then(|pos| self.zones.under(pos));
@@ -2762,7 +2767,8 @@ fn key_pressed(app: &mut MailApp, ctx: &egui::Context, frame: &mut Frame, key: e
             false
         }
         // Enter on a pick is the pick's own ([`slot_entry`]); with an event selected it opens it.
-        Key::Enter if !alt && !command && load_slot(ctx).is_none() => {
+        // Only a new press, when the main window is on top (#406).
+        Key::Enter if !alt && !command && load_slot(ctx).is_none() && crate::layers::take_enter(ctx, Layer::Main) => {
             if let Some(id) = app.session.sel.event
                 && app.run_or_else("ui.openWindow", json!({"event": id})).is_err()
             {
@@ -4020,7 +4026,7 @@ fn drop_menu(app: &mut MailApp, ui: &Ui, zones: &Zones, items: &[Item]) {
         });
     });
     let away = ctx.input(|i| i.pointer.any_pressed() && i.pointer.interact_pos().is_some_and(|pos| !area.response.rect.contains(pos)));
-    if answer.is_none() && (away || ctx.input(|i| i.key_pressed(egui::Key::Escape))) {
+    if answer.is_none() && (away || crate::layers::escape(&ctx, Layer::Main)) {
         answer = Some(None);
     }
     let Some(deed) = answer else { return };

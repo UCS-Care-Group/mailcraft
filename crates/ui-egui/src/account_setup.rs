@@ -1217,8 +1217,9 @@ impl AccountSetup {
             self.ctx = Some(ui.ctx().clone());
             self.sweep(app);
         }
-        // Escape and the window's own close button close the dialog after this pass.
-        if ui.input(|i| i.key_pressed(Key::Escape)) || closed_by_window(ui) {
+        // Escape (when the dialog is on top, #406) and the window's own close button close the
+        // dialog after this pass.
+        if crate::layers::escape(ui.ctx(), crate::layers::Layer::Dialog) || closed_by_window(ui) {
             self.give_up(app);
             return true;
         }

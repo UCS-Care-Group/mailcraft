@@ -500,7 +500,9 @@ fn keyboard(app: &mut MailApp, ui: &Ui, layout: &Layout<Group>) {
             let _ = app.run("people.select", json!({"id": id}));
         }
     }
-    if enter && app.session.sel.contact.is_some() {
+    // Only a new press, when the main window is on top: not the repeats of an Enter that closed a
+    // dialog (#406).
+    if enter && app.session.sel.contact.is_some() && crate::layers::take_enter(ui.ctx(), crate::layers::Layer::Main) {
         let _ = app.run("people.edit", json!({}));
     }
 }

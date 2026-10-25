@@ -11,12 +11,13 @@
 use std::collections::VecDeque;
 use std::sync::mpsc::Sender;
 
-use egui::{Key, vec2};
+use egui::vec2;
 use mailcraft_engine::agent::{self, Class, Verdict};
 use serde_json::{Value, json};
 
 use crate::MailApp;
 use crate::control::{ControlRequest, Outcome};
+use crate::layers::Layer;
 use crate::theme::{Tokens, semibold};
 use crate::widgets::primary_button;
 
@@ -156,14 +157,14 @@ fn verbs(class: Class) -> (&'static str, &'static str) {
     }
 }
 
-/// Enter or Escape answers no to the agent's question. This runs first in the frame, so nothing
-/// under the question gets the same key, its repeats included (#393). Only a new press answers: a
-/// key that was already held down when the question came up doesn't answer it unseen.
+/// Enter or Escape answers no to the agent's question. It is on top of everything, so nothing
+/// under the question gets the same key, its repeats included (#393, #406). Only a new press
+/// answers: a key that was already held down when the question came up doesn't answer it unseen.
 pub fn keys(app: &mut MailApp, ctx: &egui::Context) {
     if app.asking.is_empty() {
         return;
     }
-    let (enter, escape) = ctx.input_mut(|i| (crate::keys::take_once(i, Key::Enter), crate::keys::take_once(i, Key::Escape)));
+    let (enter, escape) = (crate::layers::take_enter(ctx, Layer::Agent), crate::layers::take_escape(ctx, Layer::Agent));
     if enter || escape {
         answer(app, false);
     }

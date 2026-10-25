@@ -267,7 +267,9 @@ fn keyboard(app: &mut MailApp, ui: &Ui, layout: &Layout<Heading>) {
     if space && app.session.sel.task.is_some() {
         let _ = app.run("tasks.complete", json!({}));
     }
-    if enter && app.session.sel.task.is_some() {
+    // Only a new press, when the main window is on top: not the repeats of an Enter that closed a
+    // dialog (#406).
+    if enter && app.session.sel.task.is_some() && crate::layers::take_enter(ui.ctx(), crate::layers::Layer::Main) {
         let _ = app.run("tasks.edit", json!({}));
     }
 }
@@ -397,7 +399,8 @@ fn quick_add(app: &mut MailApp, ui: &mut Ui) {
     // In a child of its own, so the field doesn't move what is laid out after this row.
     let resp = ui.new_child(egui::UiBuilder::new().max_rect(edit_rect)).add(edit);
     // Enter and Escape both take the keyboard away from the field: Enter adds, Escape gives up.
-    let (enter, escape) = ui.input(|i| (i.key_pressed(egui::Key::Enter), i.key_pressed(egui::Key::Escape)));
+    // (Escape is handed out by what is on top, #406.)
+    let (enter, escape) = (ui.input(|i| i.key_pressed(egui::Key::Enter)), crate::layers::escape(ui.ctx(), crate::layers::Layer::Main));
     if resp.lost_focus() && enter {
         let title = text.trim().to_string();
         if title.is_empty() {
