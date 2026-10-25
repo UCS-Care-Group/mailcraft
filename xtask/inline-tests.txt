@@ -47,7 +47,6 @@ crates/ical/src/rrule.rs
 crates/ical/src/values.rs
 crates/ical/src/write.rs
 crates/ical/src/zones.rs
-crates/mcp/src/backend.rs
 crates/mcp/src/files.rs
 crates/mime/src/address.rs
 crates/mime/src/charset.rs
