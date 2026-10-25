@@ -13,6 +13,7 @@
 
 **Fixes**
 - Typing a POP server (port 110 or 995, or a name starting `pop`) into Add Account now says that MailCraft doesn't support POP yet and to use the provider's IMAP server instead, instead of a certificate error ([#402](https://github.com/GITHUB_REPOSITORY/issues/402)).
+- A Microsoft account, or a shared mailbox, whose Inbox is known but was never read now has it read first in Send/Receive, before the folders are listed, so mail shows within seconds (#276).
 - A message deleted or moved just before a mail server renumbers its mailbox can no longer be mistaken for a different message that carries the same Message-ID: the change is made only on a message that is also the same mail, and otherwise dropped, with a note.
 - A forward through a Microsoft account no longer keeps the original's attachment when you replaced it with a file of the same name: attachments are compared by content.
 - A draft saved on a Microsoft account is sent exactly as you have it here, not as someone else edited it on the server (a Bcc, the body or an attachment added meanwhile).
