@@ -328,6 +328,23 @@ fn a_download_that_comes_back_after_the_mailbox_was_replaced_is_thrown_away() {
 }
 
 #[test]
+fn a_message_of_an_account_whose_sign_in_was_turned_down_says_why_it_is_not_here() {
+    let (mut app, accounts, _jobs) = window(&["ada@example.org"]);
+    let ada = accounts[0];
+    let fetches = downloads_kept(&mut app);
+    app.passwords.insert(ada, "typed here".into());
+    let kickoff = not_here_whole(&mut app, ada, "E1");
+    app.jmap_refused.insert(ada);
+    let why = "The server turned down the sign-in for this account. Use Send/Receive to sign in again.";
+    assert_eq!(app.run("mail.reply", json!({"id": kickoff})).unwrap_err(), why);
+    app.session.sel.messages = vec![kickoff];
+    app.drive_fetch();
+    assert!(fetches.lock().unwrap().is_empty());
+    let m = app.session.mailbox.message(kickoff).unwrap().clone();
+    assert_eq!(crate::reading::unfetched_said(&app, &m), why);
+}
+
+#[test]
 fn a_mailbox_from_a_file_reaches_no_jmap_server_until_its_servers_are_confirmed() {
     let (mut app, accounts, jobs) = window(&["ada@example.org"]);
     let ada = accounts[0];

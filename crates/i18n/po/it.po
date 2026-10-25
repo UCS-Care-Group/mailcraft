@@ -8995,6 +8995,11 @@ msgstr "La fine proposta deve essere successiva all'inizio proposto."
 msgid "The server didn't say when other people are busy"
 msgstr "Il server non ha indicato quando gli altri sono occupati"
 
+#. interface
+#: crates/ui-egui/src/graph_fetch.rs crates/ui-egui/src/reading.rs
+msgid "The server turned down the sign-in for this account. Use Send/Receive to sign in again."
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/jmap_mail.rs
 msgid "The server turned down the sign-in for {name}: sign in again"

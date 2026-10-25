@@ -170,6 +170,9 @@ impl MailApp {
         let message = needs_whole(self, id, params)?;
         let account = self.session.mailbox.message(message)?.account;
         if !self.fetch_now(account, message) {
+            if self.jmap_refused.contains(&account) {
+                return Some(Err(tl!("The server turned down the sign-in for this account. Use Send/Receive to sign in again.").to_string()));
+            }
             return Some(Err(tl!("This message isn't on this computer yet. It will download when you're online.").to_string()));
         }
         // Named, for the selection may have moved on by the time it is here. An `id` the call
