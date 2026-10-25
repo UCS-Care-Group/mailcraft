@@ -12,8 +12,8 @@ use mailcraft_model::sync::{
     Deleted, FlagsPushed, FolderDelta, FolderState, Moved, RemoteFlags, RemoteOp, SyncRequest, SyncResult, SyncStage, summary_line_in,
 };
 use mailcraft_model::{
-    Account, AccountKind, Directory, FlagStatus, Folder, FolderKind, Id, JmapServer, Mailbox, Message, OAuth, OAuthProvider, Pending, Security,
-    Server, clean_name,
+    Account, AccountKind, Directory, FlagStatus, Folder, FolderKind, Id, JmapServer, MailIdentity, Mailbox, Message, OAuth, OAuthProvider, Pending,
+    Security, Server, clean_name,
 };
 use serde_json::{Value, json};
 
@@ -1030,7 +1030,9 @@ fn move_finished(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, moved:
             mb.pending.push(Pending::Move { account, message, from, uid, synced: synced.map(|flags| flags.at(uid)), to });
         }
         // Deleted for good meanwhile: the next run deletes it where the server has it now.
-        (Some(Pending::Delete { message_id, .. }), Some((from, uid))) => mb.pending.push(Pending::Delete { account, from, uid, message_id }),
+        (Some(Pending::Delete { message_id, seen, .. }), Some((from, uid))) => {
+            mb.pending.push(Pending::Delete { account, from, uid, message_id, seen })
+        }
         // Put back meanwhile: the next run moves it back on the server too.
         (None, Some((from, uid))) => {
             let back = on_server.by_remote.get(&moved.from).copied().filter(|folder| *folder != moved.to_folder);
@@ -1108,9 +1110,7 @@ fn original_id(m: &Message) -> Option<&str> {
 /// the same thing, from and to the same people. For a copy that came back without the
 /// Message-ID it left with.
 fn same_mail(a: &Message, b: &Message) -> bool {
-    let words = |m: &Message| m.subject.split_whitespace().collect::<Vec<_>>().join(" ");
-    let people = |m: &Message| m.to.iter().chain(&m.cc).map(|address| address.email.to_ascii_lowercase()).collect::<Vec<_>>();
-    a.date != 0 && a.date == b.date && a.from.email.eq_ignore_ascii_case(&b.from.email) && words(a) == words(b) && people(a) == people(b)
+    MailIdentity::of(a).fits(b)
 }
 
 /// The message here that `theirs`, just come down into `folder`, is the server's copy of: one
@@ -1156,7 +1156,7 @@ fn renumbered(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, folder: I
         }
         let findable = match &*p {
             Pending::Move { message, .. } => mb.message(*message).is_some_and(|m| !m.message_id.is_empty()),
-            Pending::Delete { message_id, .. } => !message_id.is_empty(),
+            Pending::Delete { message_id, seen, .. } => !message_id.is_empty() && seen.is_some(),
         };
         match p {
             Pending::Move { uid, synced, .. } if findable => (*uid, *synced) = (0, synced.map(|flags| flags.at(0))),
@@ -1196,7 +1196,7 @@ fn renumbered(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, folder: I
             note += &format!(" {kept} change(s) made here will be made again as its messages come back.");
         }
         if lost > 0 {
-            note += &format!(" {lost} change(s) made here could not be kept: the message had no Message-ID to find it by.");
+            note += &format!(" {lost} change(s) made here could not be kept: the message could not be found again for certain.");
         }
         counts.notes.push(note);
     }
@@ -1205,23 +1205,40 @@ fn renumbered(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, folder: I
 
 /// Whether `theirs`, come down from server mailbox `remote` after it was numbered anew, is the
 /// copy a move or a deletion made here waits for ([`renumbered`]): it then gets its UID, and the
-/// next run pushes it.
-fn waited_for(mb: &mut Mailbox, account: Id, remote: &str, theirs: &Message) -> bool {
+/// next run pushes it. A Message-ID is the sender's to choose, so the change goes only to the
+/// one arrival with that id that is also the same mail (date, sender, subject and recipients).
+/// When several arrivals share the id, or the one that does is not that mail, the change is
+/// dropped, and the owner told: it must never reach another message. `shared` is how many
+/// arrivals of this run have `theirs`'s Message-ID.
+fn waited_for(mb: &mut Mailbox, account: Id, remote: &str, theirs: &Message, shared: usize, counts: &mut Counts) -> bool {
     if theirs.message_id.is_empty() {
         return false;
     }
-    let original = original_id(theirs);
-    let same = |id: &str| !id.is_empty() && (id == theirs.message_id || Some(id) == original);
     let messages = &mb.messages;
-    let found = mb.pending.iter_mut().find(|p| {
+    let at = mb.pending.iter().position(|p| {
         p.account() == account
             && p.source() == (remote, 0)
             && match p {
-                Pending::Move { message, .. } => messages.get(message).is_some_and(|m| same(&m.message_id)),
-                Pending::Delete { message_id, .. } => same(message_id),
+                Pending::Move { message, .. } => messages.get(message).is_some_and(|m| m.message_id == theirs.message_id),
+                Pending::Delete { message_id, .. } => *message_id == theirs.message_id,
             }
     });
-    match found {
+    let Some(at) = at else { return false };
+    let is_it = shared == 1
+        && match mb.pending.get(at) {
+            Some(Pending::Move { message, .. }) => messages.get(message).is_some_and(|m| MailIdentity::of(m).fits(theirs)),
+            Some(Pending::Delete { seen, .. }) => seen.as_ref().is_some_and(|seen| seen.fits(theirs)),
+            None => false,
+        };
+    if !is_it {
+        mb.pending.remove(at);
+        counts.notes.push(
+            "A change made here to a message could not be matched to its new copy for certain (more than one message has its Message-ID, or the copy differs), so it was not made on the server."
+                .to_string(),
+        );
+        return false;
+    }
+    match mb.pending.get_mut(at) {
         Some(Pending::Move { uid, synced, .. }) => (*uid, *synced) = (theirs.uid, synced.map(|flags| flags.at(theirs.uid))),
         Some(Pending::Delete { uid, .. }) => *uid = theirs.uid,
         None => return false,
@@ -1353,6 +1370,13 @@ fn take_in(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, delta: Folde
     // up in Deleted Items, Junk, Sent and the rest was put there (a message deleted on a phone
     // was "1 new message").
     let arriving = matches!(delta.kind, FolderKind::Inbox | FolderKind::Custom) || old_seen == 0;
+    // How many of these arrivals have each Message-ID: only a lone one can be the copy a change waits for.
+    let mut shared: HashMap<String, usize> = HashMap::new();
+    if reset {
+        for m in &delta.new {
+            *shared.entry(m.message_id.clone()).or_default() += 1;
+        }
+    }
     for mut m in delta.new {
         let uid = m.uid;
         // Here already, or on its way out of that mailbox by a change still to be pushed.
@@ -1360,7 +1384,7 @@ fn take_in(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, delta: Folde
             continue;
         }
         // The copy a move or deletion made here was waiting for, the mailbox numbered anew.
-        if uid != 0 && waited_for(mb, account, &delta.remote, &m) {
+        if uid != 0 && waited_for(mb, account, &delta.remote, &m, shared.get(&m.message_id).copied().unwrap_or(1), counts) {
             on_server.leaving.insert((folder, uid));
             counts.matched += 1;
             continue;

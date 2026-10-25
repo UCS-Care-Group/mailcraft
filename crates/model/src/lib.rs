@@ -40,8 +40,8 @@ pub use jmap_server::JmapServer;
 pub use load_limit::{MIN_ITEM_BYTES, from_json};
 pub use mailbox::{
     Account, AccountKind, AsWritten, BETWEEN_MAILBOXES, Category, Directory, DownloadInFull, FOLDERS_STAY_YET, Folder, FolderCounts, FolderKind,
-    GraphSwitch, IMPORTED, INTO_GRAPH, MAX_RULES, MAX_SHARED, Mailbox, NOT_MOVING_YET, NOT_SENDING_YET, OAuth, OAuthProvider, Pending, Queued,
-    STAYS_LOCAL, Security, Server, ServerFavorites, ServerFolder,
+    GraphSwitch, IMPORTED, INTO_GRAPH, MAX_RULES, MAX_SHARED, MailIdentity, Mailbox, NOT_MOVING_YET, NOT_SENDING_YET, OAuth, OAuthProvider, Pending,
+    Queued, STAYS_LOCAL, Security, Server, ServerFavorites, ServerFolder,
 };
 pub use mailcraft_time as time;
 pub use message::{
