@@ -7,16 +7,22 @@
 //! each Send/Receive renews it. Cancel (Stop) stops it all until the next Send/Receive starts,
 //! the owner's or one by itself; Send/Receive Progress says how far it has got, account by account
 //! (the engine counts them as they come in, [`mailcraft_engine::cmd::sync_progress::FullMessages`]).
+//!
+//! A JMAP account's messages come the same way (M6), at once and before a reply alike, through
+//! [`crate::Services::jmap_fetch`] with the secret its Send/Receive went with
+//! ([`crate::jmap_mail`]), and are taken in by the engine's JMAP side, which holds them to sizes
+//! first.
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::Receiver;
 
-use mailcraft_engine::cmd::graph_mail;
+use mailcraft_engine::cmd::{graph_mail, jmap_mail};
 use mailcraft_model::sync::{GraphFetchRequest, GraphFetchResult};
 use mailcraft_model::{AccountKind, Id};
 use serde_json::{Value, json};
 
+use crate::jmap_mail::JmapFetchJob;
 use crate::{MailApp, now_ms};
 
 /// Messages asked for at a time in the background.
@@ -96,6 +102,40 @@ fn access(app: &MailApp, account: Id) -> Option<String> {
     app.graph_tokens.get(&account).filter(|t| t.fresh(mailcraft_time::now())).map(|t| t.access.clone())
 }
 
+/// How messages of an account are fetched now, when they can be: by a host that fetches for its
+/// kind, with a Graph token of this session that is still good, or with a JMAP account's secret.
+enum Way {
+    Graph(String),
+    Jmap(String),
+}
+
+fn way(app: &MailApp, account: Id) -> Option<Way> {
+    match app.session.mailbox.account(account)?.kind {
+        AccountKind::Microsoft if app.services.graph_fetch.is_some() => access(app, account).map(Way::Graph),
+        AccountKind::Jmap if app.services.jmap_fetch.is_some() => app.jmap_secret(account).map(Way::Jmap),
+        _ => None,
+    }
+}
+
+/// Whether the host fetches messages of accounts of this kind.
+fn fetched(app: &MailApp, kind: AccountKind) -> bool {
+    match kind {
+        AccountKind::Microsoft => app.services.graph_fetch.is_some(),
+        AccountKind::Jmap => app.services.jmap_fetch.is_some(),
+        _ => false,
+    }
+}
+
+/// Take in messages fetched whole, as their account's kind is taken in (a JMAP account's are held
+/// to sizes first).
+fn take_in(app: &mut MailApp, result: GraphFetchResult) -> Result<Value, mailcraft_engine::CmdError> {
+    if app.session.mailbox.account(result.account).is_some_and(|a| a.kind == AccountKind::Jmap) {
+        jmap_mail::apply_jmap_fetch(&mut app.session, result)
+    } else {
+        graph_mail::apply_graph_fetch(&mut app.session, result)
+    }
+}
+
 impl MailApp {
     /// A command that needs its message whole waits for it to be fetched, and then runs.
     pub(crate) fn fetch_first(&mut self, id: &str, params: &Value) -> Option<Result<Value, String>> {
@@ -114,17 +154,30 @@ impl MailApp {
         if self.fetching.fetching(message) {
             return true;
         }
-        let (Some(fetch), Some(access)) = (&self.services.graph_fetch, access(self, account)) else {
+        let Some(way) = way(self, account) else {
             self.fetching.offline = true;
             return false;
         };
-        let Ok(request) = graph_mail::graph_fetch_request(&self.session, account, Some(message), 1) else { return false };
-        if request.ids.is_empty() {
-            return false;
-        }
-        let job = GraphFetchJob { request, access, cancel: Arc::new(AtomicBool::new(false)) };
-        self.fetching.now = Some((message, fetch(job)));
+        let Some(answer) = self.hand_over(account, way, Some(message), 1, Arc::new(AtomicBool::new(false))) else { return false };
+        self.fetching.now = Some((message, answer));
         true
+    }
+
+    /// Hand the host a fetch of `account`'s messages: `message` alone, or the next `most` in the
+    /// background. `None` when there is nothing to fetch.
+    fn hand_over(&self, account: Id, way: Way, message: Option<Id>, most: usize, cancel: Arc<AtomicBool>) -> Option<Receiver<GraphFetchResult>> {
+        match way {
+            Way::Graph(access) => {
+                let fetch = self.services.graph_fetch.as_ref()?;
+                let request = graph_mail::graph_fetch_request(&self.session, account, message, most).ok().filter(|r| !r.ids.is_empty())?;
+                Some(fetch(GraphFetchJob { request, access, cancel }))
+            }
+            Way::Jmap(secret) => {
+                let fetch = self.services.jmap_fetch.as_ref()?;
+                let request = jmap_mail::jmap_fetch_request(&self.session, account, message, most).ok().filter(|r| !r.ids.is_empty())?;
+                Some(fetch(JmapFetchJob { request, secret, cancel }))
+            }
+        }
     }
 
     /// Each frame: take in what came, fetch what the owner opened, and keep the background going.
@@ -132,8 +185,7 @@ impl MailApp {
     pub fn drive_fetch(&mut self) {
         self.poll_fetch_now();
         self.poll_fetch_background();
-        let graph = self.session.mailbox.accounts.iter().any(|a| a.kind == mailcraft_model::AccountKind::Microsoft);
-        if !graph || self.services.graph_fetch.is_none() {
+        if !self.session.mailbox.accounts.iter().any(|a| fetched(self, a.kind)) {
             return;
         }
         // The message the reading pane shows, at once.
@@ -154,21 +206,17 @@ impl MailApp {
         if self.fetching.background.is_some() || self.session.sync_progress.full_paused || now_ms() < self.fetching.idle_until {
             return;
         }
-        let accounts: Vec<Id> = self.session.mailbox.accounts.iter().filter(|a| a.kind == AccountKind::Microsoft).map(|a| a.id).collect();
+        let accounts: Vec<Id> = self.session.mailbox.accounts.iter().filter(|a| fetched(self, a.kind)).map(|a| a.id).collect();
         let now = now_ms();
         for account in accounts {
             if self.fetching.stuck.get(&account).is_some_and(|(_, until)| now < *until) {
                 continue;
             }
-            let Some(token) = access(self, account) else { continue };
-            let Ok(request) = graph_mail::graph_fetch_request(&self.session, account, None, BATCH) else { continue };
-            if request.ids.is_empty() {
-                continue;
-            }
-            let Some(fetch) = &self.services.graph_fetch else { return };
-            self.fetching.cancel = Arc::new(AtomicBool::new(false));
-            let job = GraphFetchJob { request, access: token, cancel: self.fetching.cancel.clone() };
-            self.fetching.background = Some((account, fetch(job)));
+            let Some(way) = way(self, account) else { continue };
+            let cancel = Arc::new(AtomicBool::new(false));
+            let Some(answer) = self.hand_over(account, way, None, BATCH, cancel.clone()) else { continue };
+            self.fetching.cancel = cancel;
+            self.fetching.background = Some((account, answer));
             return;
         }
         self.fetching.idle_until = now_ms() + IDLE_MS;
@@ -187,7 +235,7 @@ impl MailApp {
         self.fetching.offline = result.offline;
         let account = result.account;
         if account != 0
-            && let Err(e) = graph_mail::apply_graph_fetch(&mut self.session, result)
+            && let Err(e) = take_in(self, result)
         {
             self.status(e.to_string());
         }
@@ -229,7 +277,7 @@ impl MailApp {
         } else if !result.fetched.is_empty() || !result.missing.is_empty() || !result.failed.is_empty() {
             self.fetching.stuck.remove(&account);
         }
-        match graph_mail::apply_graph_fetch(&mut self.session, result) {
+        match take_in(self, result) {
             Ok(said) => {
                 let (waiting, large) = (said["waiting"].as_u64().unwrap_or(0), said["large"].as_u64().unwrap_or(0));
                 let all = said["all"].as_u64().unwrap_or(0);
