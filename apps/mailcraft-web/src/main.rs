@@ -11,8 +11,13 @@
 //! the browser's file picker (bytes arrive through `Services::inbox`); Save and the exports
 //! download.
 //! URL flags: `?webgl` forces WebGL2; `?sample` starts from the sample mailbox; `?empty` from an
-//! empty one. Without a flag the mailbox kept in this browser opens, or the sample the first time.
+//! empty one; neither of those ever writes the mailbox kept in this browser. Without a flag the
+//! mailbox kept in this browser opens, or the sample the first time.
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
+
+mod page;
+#[cfg(test)]
+mod page_tests;
 
 #[cfg(target_arch = "wasm32")]
 mod web;

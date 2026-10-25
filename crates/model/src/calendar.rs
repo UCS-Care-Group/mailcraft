@@ -392,7 +392,8 @@ impl OnlineMeeting {
         let host = rest.split(['/', '?', '#']).next().unwrap_or("");
         let plain = url.len() <= MAX_JOIN_LINK && !url.chars().any(|c| c.is_control() || c.is_whitespace() || matches!(c, '"' | '<' | '>' | '\\'));
         let named = !host.is_empty() && host.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | ':' | '[' | ']'));
-        (plain && named).then(|| format!("https://{rest}"))
+        let parses = || url::Url::parse(url).is_ok_and(|u| u.scheme() == "https" && u.host_str().is_some_and(|h| !h.is_empty()));
+        (plain && named && parses()).then(|| format!("https://{rest}"))
     }
 
     /// The same meeting with a link that can be one, or with none.
@@ -888,6 +889,9 @@ mod tests {
             "",
             "https://",
             "https:///path",
+            "https://[::1",
+            "https://[zz]/x",
+            "https://:443/x",
             "http://teams.example.org/x",
             "javascript:alert(1)",
             "file:///C:/Windows/System32/calc.exe",

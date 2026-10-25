@@ -88,6 +88,7 @@ pub(crate) fn open_smtp_with<'a>(
         if secret.is_empty() {
             return Err(not_signed_in(account));
         }
+        crate::sync::token_may_go_to(server)?;
     }
     let (mut stream, host) = transport::open(server, Service::Smtp, patience)?;
     stream.watch(cancel);

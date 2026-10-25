@@ -66,6 +66,9 @@ fn links_are_web_mail_and_phone_only() {
         "mailto:",
         "example.org",
         "//example.org",
+        "https://[::1",
+        "http://:80/x",
+        "https://[zz]/",
     ] {
         assert!(safe_link(bad).is_none(), "{bad:?}");
     }

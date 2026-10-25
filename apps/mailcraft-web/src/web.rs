@@ -8,6 +8,8 @@ use mailcraft_model::Mailbox;
 use mailcraft_ui_egui::{Inbox, MailApp, Services, UiState};
 use wasm_bindgen::JsCast as _;
 
+use crate::page;
+
 const MAILBOX_EXTS: &[&str] = &["mailcraft", "json"];
 const IMPORT_EXTS: &[&str] = &["eml", "mbox", "mbx", "ics", "ical", "vcf", "vcard"];
 const CANVAS_ID: &str = "mailcraft_canvas";
@@ -81,10 +83,10 @@ fn sample() -> Mailbox {
 /// sample (an empty mail program in a browser tab has nothing to show).
 fn first_mailbox() -> Mailbox {
     let q = query();
-    if q.contains("empty") {
+    if page::has_flag(&q, "empty") {
         return Mailbox::with_local_account("", "");
     }
-    if q.contains("sample") {
+    if page::has_flag(&q, "sample") {
         return sample();
     }
     match stored(MAILBOX_KEY).map(|text| mailcraft_engine::io::read_mailbox(text.as_bytes())) {
@@ -125,6 +127,7 @@ impl eframe::App for WebShell {
             });
         }
         self.app.logic(ctx);
+        open_links(ctx);
         // Interface settings: stored when they change, checked every couple of seconds.
         let now = mailcraft_ui_egui::now_ms();
         if now - self.checked > 2000.0 {
@@ -146,6 +149,33 @@ impl eframe::App for WebShell {
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         self.app.ui(ui);
+        open_links(ui.ctx());
+    }
+}
+
+/// Open the links the window followed in this frame, in place of eframe, which would open them
+/// with a handle on this page left in the new one (`window.opener`): in a new tab with
+/// `noopener,noreferrer`, and only `http`, `https`, `mailto` and `tel` (`page::web_link`).
+fn open_links(ctx: &egui::Context) {
+    let links = ctx.output_mut(|o| {
+        let mut links = Vec::new();
+        o.commands.retain(|c| match c {
+            egui::OutputCommand::OpenUrl(open) => {
+                links.push((open.url.clone(), open.new_tab));
+                false
+            }
+            _ => true,
+        });
+        links
+    });
+    let Some(window) = web_sys::window() else { return };
+    for (url, new_tab) in links {
+        let Some(url) = page::web_link(&url) else { continue };
+        let _ = if new_tab {
+            window.open_with_url_and_target_and_features(&url, "_blank", "noopener,noreferrer")
+        } else {
+            window.open_with_url_and_target(&url, "_self")
+        };
     }
 }
 
@@ -188,6 +218,10 @@ fn services(inbox: Inbox, ctx: egui::Context) -> Services {
 
 /// Keep the mailbox in the browser's storage. A full store is the usual failure: say so plainly.
 fn persist(bytes: &[u8]) -> Result<(), String> {
+    // A look around (`?sample`, `?empty`) never overwrites the mailbox kept in this browser.
+    if page::is_ephemeral(&query()) {
+        return Ok(());
+    }
     let text = std::str::from_utf8(bytes).map_err(|e| e.to_string())?;
     let store = storage().ok_or("this browser has no storage for the page (private window?)")?;
     store

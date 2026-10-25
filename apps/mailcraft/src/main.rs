@@ -388,8 +388,16 @@ fn open_pages(ctx: &egui::Context, frame: &eframe::Frame) {
     }
 }
 
+/// Everywhere else the system's own way brings the browser forward; the links are taken out of
+/// the frame all the same, so that each is checked (`browser::normalised`) on the way out and
+/// nothing reaches the opener unchecked (AU2-V1).
 #[cfg(not(any(target_os = "linux", target_os = "freebsd")))]
-fn open_pages(_ctx: &egui::Context, _frame: &eframe::Frame) {}
+fn open_pages(ctx: &egui::Context, _frame: &eframe::Frame) {
+    for url in browser::take_links(ctx) {
+        // A thread of its own: the opener can take a moment. No thread, no page.
+        let _ = std::thread::Builder::new().name("browser".into()).spawn(move || browser::system_open(&url));
+    }
+}
 
 /// eframe's own handling of winit's events, and the activation tokens the window asked for
 /// (`open_pages`), which eframe would drop, handed to the pages waiting for them.
