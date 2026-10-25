@@ -242,6 +242,16 @@ pub const BLOCKED: &[&str] = &[
     "flatpakrepo",
     "cdxml",
     "swf",
+    // Theme packs, location files that connect to a server, plug-ins and kinds that open in a
+    // program that runs what they hold.
+    "deskthemepack",
+    "afploc",
+    "ftploc",
+    "vncloc",
+    "wcx",
+    "its",
+    "cdr",
+    "smi",
     // MailCraft's own mailbox: its accounts name servers, so one sent in mail is saved, never
     // opened from the message.
     "mailcraft",
@@ -355,7 +365,7 @@ pub fn export_name(stem: &str, ext: &str) -> String {
 
 /// [`file_name`] of a name with no folders in it, which may come out empty.
 fn clean(leaf: &str) -> String {
-    let cleaned: String = leaf.chars().map(|c| if c.is_control() || "\\/:*?\"<>|".contains(c) || is_invisible(c) { '_' } else { c }).collect();
+    let cleaned: String = leaf.chars().map(|c| if c.is_control() || "\\/:*?\"<>|,;".contains(c) || is_invisible(c) { '_' } else { c }).collect();
     let trimmed = cleaned.trim_start_matches(['.', '-', ' ', '_', '~']).trim_end_matches(['.', ' ']);
     let mut out = shorten(trimmed);
     let stem_lower = out.split('.').next().unwrap_or_default().trim_end().to_lowercase();
@@ -479,6 +489,19 @@ mod tests {
     }
 
     #[test]
+    fn commas_and_semicolons_never_reach_the_opener() {
+        // AU2-V3: Explorer takes a comma as the end of its argument; the verdict and the file
+        // written are of the same name.
+        for name in ["a,b.pdf", "x /select,C:\\Windows\\calc.exe.pdf", ",,evil.exe", "a;b.txt"] {
+            let safe = file_name(name);
+            assert!(!safe.contains([',', ';']), "{safe}");
+            assert_eq!(verdict(name), verdict(&safe), "{name}");
+        }
+        assert_eq!(file_name("a,b;c.pdf"), "a_b_c.pdf");
+        assert_eq!(save_name("a,b.pdf"), "a_b.pdf");
+    }
+
+    #[test]
     fn programs_are_never_opened() {
         for name in [
             "setup.exe",
@@ -510,6 +533,16 @@ mod tests {
             "group.grp",
             "backup.mailcraft",
             "Backup.MAILCRAFT",
+            "look.deskthemepack",
+            "x.AFPLOC",
+            "x.ftploc",
+            "x.vncloc",
+            "pack.wcx",
+            "x.its",
+            "drawing.cdr",
+            "x.smi",
+            "a,b.exe",
+            "a;b.exe",
         ] {
             assert_eq!(verdict(name), Verdict::Blocked, "{name}");
         }

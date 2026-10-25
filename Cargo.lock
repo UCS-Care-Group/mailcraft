@@ -1230,7 +1230,6 @@ dependencies = [
  "raw-window-handle",
  "smithay-clipboard",
  "web-time",
- "webbrowser",
  "windows-sys 0.61.2",
  "winit",
 ]
@@ -2422,6 +2421,7 @@ version = "0.8.0"
 dependencies = [
  "proptest",
  "serde",
+ "url",
 ]
 
 [[package]]
@@ -2486,6 +2486,7 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.21",
+ "url",
 ]
 
 [[package]]
