@@ -105,7 +105,9 @@ impl MailApp {
             let accounts: Vec<Id> = self.session.mailbox.accounts.iter().filter(graph).map(|a| a.id).collect();
             self.inbox_check.queue = accounts
                 .into_iter()
-                .filter(|account| mailcraft_engine::cmd::graph_mail::graph_inbox_request(&self.session, *account).is_some())
+                .filter(|account| {
+                    mailcraft_engine::cmd::graph_mail::graph_inbox_request(&self.session, *account).is_some_and(|r| !r.links.is_empty())
+                })
                 .collect();
         }
         while let Some(account) = self.inbox_check.queue.pop_front() {
