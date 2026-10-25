@@ -131,6 +131,8 @@ fn message(n: usize, from: (&str, &str), subject: &str, html: Option<String>, te
         received: date,
         read: true,
         body: Body { text, html },
+        // On the server (mail from a file is never vouched for).
+        uid: 1,
         // The server vouched for every sender (a test of the lists would be of nothing otherwise).
         headers: vec![(
             "Authentication-Results".into(),

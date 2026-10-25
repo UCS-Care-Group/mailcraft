@@ -35,6 +35,8 @@ fn window(answer: impl Fn(&str) -> Result<Vec<u8>, String> + 'static) -> (MailAp
         from: Address::new("", from),
         to: vec![Address::new("", to)],
         date: NOW,
+        // On the server (mail from a file is never vouched for).
+        uid: 1,
         headers: vec![("Authentication-Results".into(), format!("mx.example.org; dmarc=pass header.from={}", from.rsplit('@').next().unwrap_or("")))],
         ..Default::default()
     };

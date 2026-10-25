@@ -21,6 +21,8 @@ fn imap(host: &str) -> Account {
 fn message(headers: &[&str]) -> Message {
     Message {
         from: Address::new("Shop", "news@shop.example"),
+        // (As the server has it: mail from a file is nobody's word.)
+        uid: 7,
         headers: headers.iter().map(|value| ("Authentication-Results".to_string(), value.to_string())).collect(),
         ..Message::default()
     }
@@ -106,4 +108,59 @@ fn an_id_that_is_no_host_name_is_nobody() {
     {
         assert!(!vouched(Some(&lumen), &message(&[value])), "{value}");
     }
+}
+
+/// Where the server's verdict stands in the header, not just that the words occur: only the
+/// result of the `dmarc` (or `compauth`) clause counts, with the `header.from` of that clause.
+#[test]
+fn only_the_dmarc_clause_and_its_own_header_from_count() {
+    let lumen = imap("imap.lumen.example");
+    let says = |rest: &str| vouched(Some(&lumen), &message(&[&format!("mx.lumen.example; {rest}")]));
+    assert!(says("dmarc=pass header.from=shop.example"));
+    assert!(says("spf=pass smtp.mailfrom=shop.example; DMARC=PASS (p=none) HEADER.FROM=Shop.Example"));
+    assert!(says("dmarc=pass header.from=\"shop.example\""));
+    assert!(says("dmarc=pass reason=\"all ok\" header.from=shop.example; dkim=none"));
+    // The verdict inside a comment or a quoted string is the sender's text, not the server's.
+    assert!(!says("spf=pass (dmarc=pass header.from=shop.example); dmarc=fail header.from=shop.example"));
+    assert!(!says("dkim=pass header.i=\"dmarc=pass header.from=shop.example\""));
+    assert!(!says("dkim=pass reason=\"x; dmarc=pass header.from=shop.example\""));
+    assert!(!says("dkim=pass header.i=@\"a b\"; spf=fail smtp.helo=dmarc=pass header.from=shop.example"));
+    // Another method's pass is not DMARC's.
+    assert!(!says("dkim=pass header.from=shop.example"));
+    assert!(!says("spf=pass dmarc=pass header.from=shop.example"));
+    // The domain it judged must be named, and be the sender's.
+    assert!(!says("dmarc=pass"));
+    assert!(!says("dmarc=pass action=none"));
+    assert!(!says("dmarc=pass header.from=elsewhere.example"));
+    assert!(!says("dmarc=pass header.from=shop.example.evil.example"));
+    // A header.from of another clause is not this clause's.
+    assert!(!says("dmarc=pass; dkim=pass header.from=shop.example"));
+    assert!(!says("dkim=pass header.from=shop.example; dmarc=pass"));
+    // A fail, a quoted pass, a pass that only starts the word.
+    assert!(!says("dmarc=fail header.from=shop.example"));
+    assert!(!says("dmarc=passed header.from=shop.example"));
+    // Exchange Online's verdict, with the domain it judged.
+    assert!(says("compauth=pass header.from=shop.example reason=100"));
+    assert!(!says("compauth=pass reason=100"));
+    assert!(!says("compauth=fail header.from=shop.example reason=000"));
+}
+
+/// Mail brought in from a file has no place on a server: whatever Authentication-Results it
+/// carries, it is the file's own.
+#[test]
+fn mail_imported_from_a_file_is_never_vouched_for() {
+    let lumen = imap("imap.lumen.example");
+    let forged = ["mx.lumen.example; dmarc=pass header.from=shop.example"];
+    let mut file = message(&forged);
+    (file.uid, file.server) = (0, None);
+    assert!(!vouched(Some(&lumen), &file));
+    // The same with a UID on the server (IMAP), or a server's own record of it (Graph).
+    file.uid = 12;
+    assert!(vouched(Some(&lumen), &file));
+    file.uid = 0;
+    file.server = Some(mailcraft_model::sync::ServerMessage::default());
+    assert!(vouched(Some(&account(AccountKind::Microsoft, "")), &file));
+    // (A Microsoft account's mail from a file is just as much the file's.)
+    (file.uid, file.server) = (0, None);
+    assert!(!vouched(Some(&account(AccountKind::Microsoft, "")), &file));
 }

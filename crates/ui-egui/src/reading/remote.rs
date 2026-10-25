@@ -268,33 +268,89 @@ fn from_own_server(account: Option<&Account>, value: &str) -> bool {
     rest.split('.').count() >= 2 && !provider::is_public_suffix(rest) && (id == rest || id.strip_suffix(rest).is_some_and(|head| head.ends_with('.')))
 }
 
+/// The clauses of an `Authentication-Results` value (RFC 8601), each as its words: split at the
+/// `;` that is neither in a comment (nested, with `\` quoting) nor in a quoted string, a comment
+/// being a gap between words and a quoted string staying whole inside its word. What a sender
+/// can put into a value (a `reason="…"`, a `(comment)`) therefore stays inside its own word.
+fn clauses(value: &str) -> Vec<Vec<String>> {
+    let (mut out, mut words, mut word) = (Vec::new(), Vec::new(), String::new());
+    let (mut depth, mut quoted, mut escaped) = (0usize, false, false);
+    for c in value.chars().take(MAX_HEADER_CHARS) {
+        if escaped {
+            escaped = false;
+            if quoted {
+                word.push(c);
+            }
+            continue;
+        }
+        match c {
+            '\\' if depth > 0 || quoted => escaped = true,
+            _ if depth > 0 => match c {
+                '(' => depth = depth.saturating_add(1),
+                ')' => depth = depth.saturating_sub(1),
+                _ => {}
+            },
+            '"' => {
+                quoted = !quoted;
+                word.push(c);
+            }
+            _ if quoted => word.push(c),
+            '(' => {
+                depth = 1;
+                if !word.is_empty() {
+                    words.push(std::mem::take(&mut word));
+                }
+            }
+            ';' | ' ' | '\t' | '\r' | '\n' => {
+                if !word.is_empty() {
+                    words.push(std::mem::take(&mut word));
+                }
+                if c == ';' {
+                    out.push(std::mem::take(&mut words));
+                    if out.len() >= MAX_TOKENS {
+                        return out;
+                    }
+                }
+            }
+            _ => word.push(c),
+        }
+    }
+    if !word.is_empty() {
+        words.push(word);
+    }
+    out.push(words);
+    out
+}
+
 /// Whether the server that received `m` vouches that it came from the domain it says it did:
-/// the topmost `Authentication-Results` header (the receiving server puts its own on top; the
-/// ones below were written before it), written by the server of the account `m` is in
-/// ([`from_own_server`]), holds `dmarc=pass` (or Exchange Online's `compauth=pass`), and, when
-/// it names the `header.from` it judged, that is the sender's domain. A header the sender
-/// could have written is not read.
+/// `m` is on the server (it has a UID there, or the server's own record of it: mail brought in
+/// from a file has the file's word and nothing else); the topmost `Authentication-Results`
+/// header (the receiving server puts its own on top; the ones below were written before it),
+/// written by the server of the account `m` is in ([`from_own_server`]), has a clause whose
+/// result is `dmarc=pass` (or Exchange Online's `compauth=pass`), and that clause names the
+/// `header.from` it judged, which is the sender's domain. Only the clause's own words are read,
+/// not what a comment or quoted string in the header says. A header the sender could have
+/// written is not read.
 pub fn vouched(account: Option<&Account>, m: &Message) -> bool {
+    if m.uid == 0 && m.server.is_none() {
+        return false;
+    }
     let Some((_, value)) = m.headers.iter().take(MAX_HEADERS_READ).find(|(name, _)| name.eq_ignore_ascii_case("Authentication-Results")) else {
         return false;
     };
     if !from_own_server(account, value) {
         return false;
     }
-    let mut passed = false;
-    let mut of_domain: Option<String> = None;
-    for token in value.split(|c: char| c.is_whitespace() || c == ';').take(MAX_TOKENS) {
-        let token = token.trim_matches(['(', ')', ',']);
-        if token.eq_ignore_ascii_case("dmarc=pass") || token.eq_ignore_ascii_case("compauth=pass") {
-            passed = true;
-        } else if let Some((key, name)) = token.split_once('=')
-            && key.eq_ignore_ascii_case("header.from")
-        {
-            of_domain = domain(name);
-        }
-    }
-    let sender_domain = sender(&m.from.email).and_then(|address| domain(&address));
-    passed && sender_domain.is_some() && of_domain.as_ref().is_none_or(|named| Some(named) == sender_domain.as_ref())
+    let Some(sender_domain) = sender(&m.from.email).and_then(|address| domain(&address)) else { return false };
+    clauses(value).iter().any(|words| {
+        let passes = words.first().is_some_and(|result| result.eq_ignore_ascii_case("dmarc=pass") || result.eq_ignore_ascii_case("compauth=pass"));
+        passes
+            && words.iter().skip(1).any(|word| {
+                word.split_once('=').is_some_and(|(key, name)| {
+                    key.eq_ignore_ascii_case("header.from") && domain(name.trim_matches('"')).as_deref() == Some(&sender_domain)
+                })
+            })
+    })
 }
 
 /// Whether a remembered sender or domain stands for `m`'s sender, and the server vouches for it.
