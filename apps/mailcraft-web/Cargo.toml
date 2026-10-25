@@ -18,6 +18,7 @@ mailcraft-engine = { workspace = true }
 mailcraft-ui-egui = { workspace = true }
 mailcraft-model = { workspace = true }
 mailcraft-html = { workspace = true }
+mailcraft-link = { workspace = true }
 mailcraft-time = { workspace = true }
 egui = { workspace = true }
 log = { workspace = true }

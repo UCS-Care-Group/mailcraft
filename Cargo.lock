@@ -2461,6 +2461,7 @@ dependencies = [
  "log",
  "mailcraft-engine",
  "mailcraft-html",
+ "mailcraft-link",
  "mailcraft-model",
  "mailcraft-time",
  "mailcraft-ui-egui",
