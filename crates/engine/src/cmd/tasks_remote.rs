@@ -27,7 +27,7 @@ use std::collections::{HashMap, HashSet};
 use mailcraft_model::remote_tasks::{
     MAX_TASK_CREATES, MAX_TASK_OPS, MAX_TASKS, RemoteTask, TaskOp, TaskOpKind, TaskResult, TasksDownload, TasksUpload, TasksUploaded,
 };
-use mailcraft_model::{AccountKind, Id, Mailbox, Origin, Task, TaskFields};
+use mailcraft_model::{AccountKind, Id, LocalTasks, Mailbox, Origin, Task, TaskFields};
 use serde_json::{Value, json};
 
 use super::remote::{Merged, owner};
@@ -39,6 +39,8 @@ const MAX_SHOWN: usize = 200;
 
 pub fn specs() -> Vec<CommandSpec> {
     vec![
+        CommandSpec::new("tasks.sendLocal", "Send Local Tasks to To Do", "File › Info", send_local_command)
+            .params(r#"{"account": number | null} — the owner's answer to "Send your local tasks to <account>'s To Do?": a Microsoft account sends the to-dos that exist only on this computer, and every one made from now on, to its default list at the next Send/Receive of tasks; null ("Not now") keeps them here. Until it is answered nothing local is sent. Answers {"sent": number (how many are to go), "keptHere": number}"#),
         CommandSpec::new("sync.taskChanges", "To-do Changes to Send", "Send / Receive", task_changes_command)
             .pure()
             .params(r#"{"account": number} — what that Microsoft account's server (Microsoft To Do) is to be told of to-dos made, changed or deleted here: {"account", "email", "ops": [{"kind": "create"|"update"|"delete", "task": number, "id"?: string, "list"?: string, "patch": {title?, notes?, start?, due?, completed?, importance?, categories?, reminder?}}]}"#),
@@ -59,9 +61,24 @@ fn keeps_tasks(mailbox: &Mailbox, account: Id) -> bool {
     })
 }
 
-/// The account that to-dos made here (with no account yet) go up to: the first that keeps to-dos.
+/// The account that to-dos made here (with no account yet) go up to: the one the owner said yes
+/// to ([`LocalTasks::SendTo`]); none before that, so nothing local leaves the computer unasked.
 pub fn tasks_home(mailbox: &Mailbox) -> Option<Id> {
-    mailbox.accounts.iter().map(|a| a.id).find(|id| keeps_tasks(mailbox, *id))
+    match mailbox.local_tasks {
+        LocalTasks::SendTo(account) if keeps_tasks(mailbox, account) => Some(account),
+        _ => None,
+    }
+}
+
+/// How many to-dos exist only on this computer and could go to an account's To Do.
+pub fn local_task_count(mailbox: &Mailbox) -> usize {
+    mailbox.tasks.values().filter(|t| t.origin.is_local() && t.origin.id.is_empty() && !t.local_only).count()
+}
+
+/// Where a to-do made here lives: the address of the account whose To Do it goes to, or `None`
+/// for this computer only.
+pub fn tasks_kept_at(mailbox: &Mailbox) -> Option<String> {
+    tasks_home(mailbox).and_then(|a| mailbox.account(a)).map(|a| a.email.trim().to_string())
 }
 
 /// The accounts whose to-dos are kept in step now.
@@ -83,7 +100,7 @@ fn task_upload_of(mailbox: &Mailbox, account: Id) -> Result<Vec<TaskOp>, CmdErro
     for gone in mailbox.task_gone.iter().filter(|gone| gone.account == account) {
         ops.push(TaskOp { kind: TaskOpKind::Delete, task: 0, id: gone.id.clone(), list: gone.list.clone(), patch: Default::default() });
     }
-    for task in mailbox.tasks.values().filter(|t| t.origin.account == account && !t.origin.id.is_empty()) {
+    for task in mailbox.tasks.values().filter(|t| t.origin.account == account && !t.origin.id.is_empty() && !t.local_only) {
         if let Some(patch) = task.patch() {
             ops.push(TaskOp { kind: TaskOpKind::Update, task: task.id, id: task.origin.id.clone(), list: task.list.clone(), patch });
         }
@@ -102,6 +119,15 @@ pub fn task_upload(mailbox: &Mailbox, account: Id) -> Result<TasksUpload, CmdErr
     let ops = task_upload_of(mailbox, account)?;
     let a = mailbox.account(account).ok_or_else(|| fail("no such account"))?;
     Ok(TasksUpload { account, email: a.email.trim().to_string(), ops })
+}
+
+/// Whether two sets of fields are the same to-do for adopting one the server made (the title is
+/// cut to what To Do keeps).
+fn same_todo(here: &TaskFields, there: &TaskFields) -> bool {
+    let cut = |s: &str| s.trim().chars().take(255).collect::<String>();
+    cut(&here.title) == cut(&there.title)
+        && here.notes.trim() == there.notes.trim()
+        && (here.start, here.due, here.importance, here.completed.is_some()) == (there.start, there.due, there.importance, there.completed.is_some())
 }
 
 fn from_remote(remote: &RemoteTask) -> TaskFields {
@@ -132,6 +158,7 @@ pub fn merge_tasks(mailbox: &mut Mailbox, download: &TasksDownload) -> Result<Me
     let told: HashSet<&str> = mailbox.task_gone.iter().filter(|g| g.account == account).map(|g| g.id.as_str()).collect();
     let told: HashSet<String> = told.into_iter().map(str::to_string).collect();
     let mut seen: HashSet<String> = HashSet::new();
+    let home = tasks_home(mailbox);
     for remote in download.tasks.iter().take(MAX_TASKS) {
         let mut remote = remote.clone();
         remote.tidy();
@@ -159,6 +186,27 @@ pub fn merge_tasks(mailbox: &mut Mailbox, download: &TasksDownload) -> Result<Me
                 }
             }
             None => {
+                // A to-do made here whose answer was lost (the server made it, the word didn't
+                // come) is the same one: taken in, not made twice.
+                let twin = mailbox
+                    .tasks
+                    .values()
+                    .find(|t| {
+                        t.origin.id.is_empty()
+                            && (t.origin.account == account || t.origin.is_local() && home == Some(account))
+                            && same_todo(&t.fields(), &there)
+                    })
+                    .map(|t| t.id);
+                if let Some(twin) = twin
+                    && let Ok(task) = mailbox.task_mut(twin)
+                {
+                    task.origin = origin;
+                    task.list = remote.list.clone();
+                    task.synced = Some(there);
+                    task.local_only = false;
+                    merged.unchanged += 1;
+                    continue;
+                }
                 let mut task = Task { origin, list: remote.list.clone(), synced: Some(there.clone()), ..Default::default() };
                 task.set_fields(there);
                 mailbox.add_task(task);
@@ -249,21 +297,21 @@ pub fn apply_task_outcomes(mailbox: &mut Mailbox, uploaded: &TasksUploaded) -> R
                     merged.updated += 1;
                 }
             }
-            // Refused for good: the change is given up and the server's copy comes back with the
-            // next download.
+            // Refused: the change stays here (a download does not undo it) and is held, not sent
+            // over and over; changing the to-do again tries again.
             (TaskOpKind::Update, TaskResult::Refused) => {
                 if let Ok(task) = mailbox.task_mut(outcome.task) {
-                    let fields = task.fields();
-                    task.synced = Some(fields);
+                    task.local_only = true;
                 }
-                merged.say(format!("Microsoft To Do didn't take a change to a to-do{}", why()));
+                merged
+                    .say(format!("Microsoft To Do didn't take a change to a to-do; it is kept on this computer until you change it again{}", why()));
                 failed += 1;
             }
             (TaskOpKind::Create, TaskResult::Refused) => {
                 if let Ok(task) = mailbox.task_mut(outcome.task) {
                     task.local_only = true;
                 }
-                merged.say(format!("Microsoft To Do didn't take a new to-do; it stays on this computer{}", why()));
+                merged.say(format!("Microsoft To Do didn't take a new to-do; it stays on this computer until you change it{}", why()));
                 failed += 1;
             }
             (_, TaskResult::Denied) => {
@@ -295,6 +343,11 @@ pub fn apply_tasks(s: &mut Session, download: &TasksDownload) -> Result<Merged, 
 /// Take in what a host heard from the server ([`apply_task_outcomes`]).
 pub fn apply_task_changes(s: &mut Session, uploaded: &TasksUploaded) -> Result<Merged, CmdError> {
     let merged = apply_task_outcomes(&mut s.mailbox, uploaded)?;
+    // What a server was told can't be undone there: going back to a mailbox from before would
+    // undo it here only (the events do the same).
+    if uploaded.outcomes.iter().any(|o| matches!(o.result, TaskResult::Done | TaskResult::Gone)) {
+        s.forget_history();
+    }
     s.mailbox_changed();
     Ok(merged)
 }
@@ -314,6 +367,26 @@ fn apply_task_changes_command(s: &mut Session, v: &Value) -> CmdResult {
     Ok(json!({
         "done": merged.added + merged.updated + merged.removed, "failed": merged.skipped, "messages": merged.messages,
     }))
+}
+
+fn send_local_command(s: &mut Session, v: &Value) -> CmdResult {
+    let answer = match v.get("account") {
+        None | Some(Value::Null) => LocalTasks::NotNow,
+        Some(_) => {
+            let account = crate::p::req_id(v, "account")?;
+            if !keeps_tasks(&s.mailbox, account) {
+                return Err(bad("that account doesn't keep its to-dos with Microsoft"));
+            }
+            LocalTasks::SendTo(account)
+        }
+    };
+    s.mailbox.local_tasks = answer;
+    s.mailbox_changed();
+    let waiting = local_task_count(&s.mailbox);
+    Ok(match answer {
+        LocalTasks::SendTo(_) => json!({"sent": waiting, "keptHere": 0}),
+        _ => json!({"sent": 0, "keptHere": waiting}),
+    })
 }
 
 fn task_changes_command(s: &mut Session, v: &Value) -> CmdResult {

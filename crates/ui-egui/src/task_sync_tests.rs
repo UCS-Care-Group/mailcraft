@@ -91,6 +91,7 @@ fn a_change_made_here_goes_after_a_quiet_moment() {
     answers.lock().unwrap().push_back(nothing());
     assert!(app.tasks_tick_at(0.0));
     app.poll_tasks();
+    app.execute("tasks.sendLocal", json!({"account": owner})).unwrap();
     app.execute("tasks.new", json!({"title": "Write the report"})).unwrap();
     assert!(!app.tasks_tick_at(1_000.0));
     assert!(app.tasks_tick_at(10_000.0));
@@ -151,4 +152,91 @@ fn a_sign_in_the_server_refuses_to_read_for_makes_no_changes_and_says_so() {
     app.poll_tasks();
     assert!(matches!(app.tasks.perm.get(&owner), Some(Permission::Refused(_))));
     assert!(!app.tasks_tick_at(10.0 * 60_000.0));
+}
+
+fn nothing(owner: Id) -> TasksResult {
+    TasksResult { account: owner, download: Some(TasksDownload { account: owner, complete: true, ..Default::default() }), ..Default::default() }
+}
+
+/// The first look at an account with to-dos made here: the question is pending, nothing goes.
+fn first_look_with_local_tasks() -> (MailApp, Id, Answers, Jobs) {
+    let (mut app, owner, answers, jobs, _) = window();
+    app.execute("tasks.new", json!({"title": "Write the report"})).unwrap();
+    answers.lock().unwrap().push_back(nothing(owner));
+    assert!(app.tasks_tick_at(0.0));
+    // The permission is not known yet: nobody is asked.
+    assert!(app.dialog.is_none());
+    app.poll_tasks();
+    assert_eq!(jobs.lock().unwrap()[0], (owner, "ref-1".to_string(), 0), "nothing local is told on the first look");
+    (app, owner, answers, jobs)
+}
+
+#[test]
+fn the_first_look_uploads_no_local_task_and_asks_the_owner() {
+    let (mut app, owner, _, _) = first_look_with_local_tasks();
+    app.tasks_tick_at(1_000.0);
+    let Some(crate::dialogs::Dialog::Confirm { command, ask, .. }) = &app.dialog else { panic!("the owner is asked") };
+    assert_eq!(command, "tasks.sendLocal");
+    assert!(ask.title.contains("Send your 1 local task to noor@example.org"), "{}", ask.title);
+    assert!(ask.more.iter().any(|(label, with)| label == "Not now" && with["account"].is_null()));
+    assert_eq!(app.session.mailbox.local_tasks, mailcraft_model::LocalTasks::Unasked);
+    // Still pending, still nothing sent.
+    assert_eq!(tasks_remote_waiting(&app, owner), 0);
+}
+
+fn tasks_remote_waiting(app: &MailApp, owner: Id) -> usize {
+    mailcraft_engine::cmd::tasks_remote::tasks_waiting(&app.session.mailbox, owner)
+}
+
+#[test]
+fn yes_uploads_to_the_chosen_account() {
+    let (mut app, owner, answers, jobs) = first_look_with_local_tasks();
+    app.tasks_tick_at(1_000.0);
+    let Some(crate::dialogs::Dialog::Confirm { command, params, ask }) = app.dialog.take() else { panic!("asked") };
+    let with = crate::dialogs::answered(&params, &ask.with, None);
+    app.run(&command, with).unwrap();
+    app.tasks.offer_open = false;
+    assert_eq!(tasks_remote_waiting(&app, owner), 1);
+    answers.lock().unwrap().push_back(nothing(owner));
+    assert!(!app.tasks_tick_at(60_000.0));
+    assert!(app.tasks_tick_at(64_000.0));
+    assert_eq!(jobs.lock().unwrap().last().unwrap().2, 1, "the local task goes up now");
+}
+
+#[test]
+fn not_now_keeps_them_here_and_is_not_asked_on_every_sync() {
+    let (mut app, owner, answers, jobs) = first_look_with_local_tasks();
+    app.tasks_tick_at(1_000.0);
+    let Some(crate::dialogs::Dialog::Confirm { command, params, ask }) = app.dialog.take() else { panic!("asked") };
+    let (_, with) = ask.more.iter().find(|(label, _)| label == "Not now").unwrap();
+    app.run(&command, crate::dialogs::answered(&params, with, None)).unwrap();
+    for n in 1..4 {
+        answers.lock().unwrap().push_back(nothing(owner));
+        assert!(app.tasks_tick_at(f64::from(n) * 10.0 * 60_000.0));
+        app.poll_tasks();
+        assert!(app.dialog.is_none(), "not asked again");
+    }
+    assert!(jobs.lock().unwrap().iter().all(|job| job.2 == 0), "nothing local was sent");
+    // File › Info offers it again.
+    assert_eq!(app.local_tasks_line().map(|l| l.1), Some(true));
+    assert!(app.offer_local_tasks());
+}
+
+#[test]
+fn a_question_that_goes_away_counts_as_not_now() {
+    let (mut app, _, _, _) = first_look_with_local_tasks();
+    app.tasks_tick_at(1_000.0);
+    assert!(app.dialog.is_some());
+    app.dialog = None;
+    app.tasks_tick_at(2_000.0);
+    assert_eq!(app.session.mailbox.local_tasks, mailcraft_model::LocalTasks::NotNow);
+    assert!(app.dialog.is_none());
+}
+
+#[test]
+fn a_programmatic_call_does_not_open_the_question_or_answer_it() {
+    let (app, _, _, _) = first_look_with_local_tasks();
+    // An agent is not let through to answer it.
+    assert!(matches!(mailcraft_engine::agent::access("tasks.sendLocal"), Some(mailcraft_engine::agent::Access::Owner(_))));
+    assert_eq!(app.session.mailbox.local_tasks, mailcraft_model::LocalTasks::Unasked);
 }

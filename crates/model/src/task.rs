@@ -178,6 +178,27 @@ pub struct TaskGone {
     pub list: String,
 }
 
+/// What the owner said about the to-dos that exist only in this mailbox when an account that
+/// keeps to-dos (Microsoft To Do) comes along. Nothing local goes to a server before the owner
+/// has said yes.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum LocalTasks {
+    /// Not asked, or not answered: they stay on this computer.
+    #[default]
+    Unasked,
+    /// "Not now": they stay on this computer, and the owner can offer them again.
+    NotNow,
+    /// Sent to that account's default list; so is every to-do made here from now on.
+    SendTo(Id),
+}
+
+impl LocalTasks {
+    pub fn is_unasked(&self) -> bool {
+        *self == LocalTasks::Unasked
+    }
+}
+
 /// Most deletions that wait for a server at once; the rest are forgotten.
 pub const MAX_TASK_GONE: usize = 5_000;
 

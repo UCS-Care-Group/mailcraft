@@ -255,12 +255,9 @@ impl Endpoints {
                 // tokens are for: a provider that won't have them there is asked again without
                 // them ([`sign_in`]), so that asking for more never costs what was to be had.
                 let (scope, consent) = match resource {
-                    Resource::Mail => (MICROSOFT_SCOPE.to_string(), format!("{MICROSOFT_GRAPH} {MICROSOFT_GRAPH_EXTRAS} {MICROSOFT_GRAPH_TASKS}")),
-                    Resource::Graph => (format!("{MICROSOFT_GRAPH} {SIGN_IN_SCOPE}"), format!("{MICROSOFT_GRAPH_EXTRAS} {MICROSOFT_GRAPH_TASKS}")),
-                    Resource::GraphMail => (
-                        format!("{MICROSOFT_GRAPH} {MICROSOFT_GRAPH_MAIL} {SIGN_IN_SCOPE}"),
-                        format!("{MICROSOFT_GRAPH_EXTRAS} {MICROSOFT_GRAPH_TASKS}"),
-                    ),
+                    Resource::Mail => (MICROSOFT_SCOPE.to_string(), format!("{MICROSOFT_GRAPH} {MICROSOFT_GRAPH_EXTRAS}")),
+                    Resource::Graph => (format!("{MICROSOFT_GRAPH} {SIGN_IN_SCOPE}"), MICROSOFT_GRAPH_EXTRAS.to_string()),
+                    Resource::GraphMail => (format!("{MICROSOFT_GRAPH} {MICROSOFT_GRAPH_MAIL} {SIGN_IN_SCOPE}"), MICROSOFT_GRAPH_EXTRAS.to_string()),
                 };
                 // (With the Favorites' permissions on the same page, were that wanted: what was
                 // asked for before them is then what a refused page falls back to.)

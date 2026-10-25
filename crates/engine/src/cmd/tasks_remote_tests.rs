@@ -138,8 +138,9 @@ fn hostile_downloads_are_cut_to_size() {
 }
 
 #[test]
-fn local_tasks_go_up_to_the_first_microsoft_account_and_are_claimed_by_its_answer() {
+fn local_tasks_go_up_to_the_account_the_owner_chose_and_are_claimed_by_its_answer() {
     let (mut s, a) = session();
+    run(&mut s, "tasks.sendLocal", json!({"account": a}));
     let local = s.mailbox.tasks.len();
     let up = task_upload(&s.mailbox, a).unwrap();
     assert_eq!(up.ops.len(), local);
@@ -193,6 +194,7 @@ fn a_deletion_is_told_once_and_a_download_does_not_bring_the_task_back() {
 #[test]
 fn what_the_server_refuses_is_not_sent_over_and_over() {
     let (mut s, a) = session();
+    run(&mut s, "tasks.sendLocal", json!({"account": a}));
     let up = task_upload(&s.mailbox, a).unwrap();
     let (first, second) = (up.ops[0].clone(), up.ops[1].clone());
     let refused = |op: &mailcraft_model::remote_tasks::TaskOp, result| TaskOutcome {
@@ -251,4 +253,169 @@ fn old_mailbox_files_without_the_new_fields_still_load() {
     // And a task that is only local writes nothing of them.
     let written = serde_json::to_string(&task).unwrap();
     assert!(!written.contains("origin") && !written.contains("synced") && !written.contains("list"), "{written}");
+}
+
+#[test]
+fn local_tasks_are_not_uploaded_before_the_owner_says_yes() {
+    let (mut s, a) = session();
+    assert!(!s.mailbox.tasks.is_empty());
+    assert!(task_upload(&s.mailbox, a).unwrap().ops.is_empty());
+    // A task made now stays here too, and says so.
+    let made = run(&mut s, "tasks.new", json!({"title": "Local one"}));
+    assert_eq!(made["keptAt"], "this computer");
+    assert!(task_upload(&s.mailbox, a).unwrap().ops.is_empty());
+    // The server's own to-dos come in, and still nothing goes.
+    merge_tasks(&mut s.mailbox, &download(a, vec![remote("t1", "Call Bo")])).unwrap();
+    assert!(task_upload(&s.mailbox, a).unwrap().ops.is_empty());
+}
+
+#[test]
+fn yes_sends_them_to_the_chosen_account_and_new_tasks_follow() {
+    let (mut s, a) = session();
+    let local = s.mailbox.tasks.len();
+    let said = run(&mut s, "tasks.sendLocal", json!({"account": a}));
+    assert_eq!(said["sent"], local);
+    let up = task_upload(&s.mailbox, a).unwrap();
+    assert_eq!(up.ops.len(), local);
+    assert!(up.ops.iter().all(|op| op.kind == TaskOpKind::Create));
+    let made = run(&mut s, "tasks.new", json!({"title": "After the yes"}));
+    assert_eq!(made["keptAt"], "ada@example.org");
+    assert_eq!(task_upload(&s.mailbox, a).unwrap().ops.len(), local + 1);
+}
+
+#[test]
+fn not_now_keeps_them_here_on_every_later_sync() {
+    let (mut s, a) = session();
+    let said = run(&mut s, "tasks.sendLocal", json!({"account": null}));
+    assert_eq!(said["sent"], 0);
+    for _ in 0..3 {
+        merge_tasks(&mut s.mailbox, &download(a, vec![remote("t1", "Call Bo")])).unwrap();
+        assert!(task_upload(&s.mailbox, a).unwrap().ops.is_empty());
+    }
+    assert_eq!(run(&mut s, "tasks.new", json!({"title": "Still here"}))["keptAt"], "this computer");
+    // Changed their mind.
+    run(&mut s, "tasks.sendLocal", json!({"account": a}));
+    assert!(!task_upload(&s.mailbox, a).unwrap().ops.is_empty());
+}
+
+#[test]
+fn only_a_microsoft_account_can_be_chosen_and_removing_it_asks_again() {
+    let (mut s, a) = session();
+    let imap = run(&mut s, "account.add", json!({"email": "bo@example.org", "incoming": {"host": "imap.example.org"}}))["id"].as_u64().unwrap();
+    assert!(s.run("tasks.sendLocal", &json!({"account": imap})).is_err());
+    assert!(s.run("tasks.sendLocal", &json!({"account": 12_345})).is_err());
+    run(&mut s, "tasks.sendLocal", json!({"account": a}));
+    s.mailbox.remove_account(a).unwrap();
+    assert_eq!(s.mailbox.local_tasks, mailcraft_model::LocalTasks::Unasked);
+}
+
+#[test]
+fn an_agent_cannot_answer_for_the_owner() {
+    use crate::agent::{Access, Class, access};
+    assert_eq!(access("tasks.sendLocal"), Some(Access::Owner(Class::Send)));
+}
+
+#[test]
+fn old_mailbox_files_load_with_the_question_not_yet_asked() {
+    let (s, _) = session();
+    let mut value = serde_json::to_value(&s.mailbox).unwrap();
+    assert!(value.get("localTasks").is_none());
+    let back: mailcraft_model::Mailbox = serde_json::from_value(value.clone()).unwrap();
+    assert_eq!(back.local_tasks, mailcraft_model::LocalTasks::Unasked);
+    value["localTasks"] = json!({"sendTo": 7});
+    let back: mailcraft_model::Mailbox = serde_json::from_value(value).unwrap();
+    assert_eq!(back.local_tasks, mailcraft_model::LocalTasks::SendTo(7));
+}
+
+fn outcome(op: &mailcraft_model::remote_tasks::TaskOp, result: TaskResult) -> TaskOutcome {
+    TaskOutcome {
+        kind: op.kind,
+        task: op.task,
+        id: op.id.clone(),
+        list: op.list.clone(),
+        patch: op.patch.clone(),
+        result,
+        error: "no".into(),
+        ..Default::default()
+    }
+}
+
+fn told(account: Id, outcomes: Vec<TaskOutcome>) -> Value {
+    json!({"result": TasksUploaded { account, outcomes, ..Default::default() }})
+}
+
+#[test]
+fn a_refused_change_is_kept_not_reverted_and_tried_again_after_an_edit() {
+    let (mut s, a) = session();
+    merge_tasks(&mut s.mailbox, &download(a, vec![remote("t1", "Call Bo")])).unwrap();
+    let id = titled(&s, "Call Bo").id;
+    run(&mut s, "tasks.edit", json!({"id": id, "title": "Call Bo today", "due": "2026-11-02"}));
+    let op = task_upload(&s.mailbox, a).unwrap().ops.into_iter().find(|op| op.task == id).unwrap();
+    run(&mut s, "sync.applyTaskChanges", told(a, vec![outcome(&op, TaskResult::Refused)]));
+    // The valid part of the edit is not lost to the next download, and nothing is sent over and over.
+    merge_tasks(&mut s.mailbox, &download(a, vec![remote("t1", "Call Bo")])).unwrap();
+    assert_eq!(s.mailbox.task(id).unwrap().title, "Call Bo today");
+    assert!(task_upload(&s.mailbox, a).unwrap().ops.iter().all(|op| op.task != id));
+    run(&mut s, "tasks.edit", json!({"id": id, "due": "2026-11-03"}));
+    assert!(task_upload(&s.mailbox, a).unwrap().ops.iter().any(|op| op.task == id));
+}
+
+#[test]
+fn a_refused_new_task_is_tried_again_once_it_is_changed() {
+    let (mut s, a) = session();
+    run(&mut s, "tasks.sendLocal", json!({"account": a}));
+    let id = run(&mut s, "tasks.new", json!({"title": "Odd one"}))["id"].as_u64().unwrap();
+    let op = task_upload(&s.mailbox, a).unwrap().ops.into_iter().find(|op| op.task == id).unwrap();
+    run(&mut s, "sync.applyTaskChanges", told(a, vec![outcome(&op, TaskResult::Refused)]));
+    assert!(task_upload(&s.mailbox, a).unwrap().ops.iter().all(|op| op.task != id));
+    run(&mut s, "tasks.edit", json!({"id": id, "start": null}));
+    assert!(task_upload(&s.mailbox, a).unwrap().ops.iter().any(|op| op.task == id));
+}
+
+#[test]
+fn a_task_the_server_made_without_the_answer_arriving_is_taken_in_not_made_twice() {
+    let (mut s, a) = session();
+    run(&mut s, "tasks.sendLocal", json!({"account": a}));
+    let id = run(&mut s, "tasks.new", json!({"title": "Lost answer", "due": "2026-11-05"}))["id"].as_u64().unwrap();
+    let mut there = remote("srv-9", "Lost answer");
+    there.due = Date::new(2026, 11, 5);
+    let before = s.mailbox.tasks.len();
+    merge_tasks(&mut s.mailbox, &download(a, vec![there])).unwrap();
+    assert_eq!(s.mailbox.tasks.len(), before, "no second copy");
+    let t = s.mailbox.task(id).unwrap();
+    assert_eq!((t.origin.id.as_str(), t.list.as_str()), ("srv-9", "L1"));
+    assert!(task_upload(&s.mailbox, a).unwrap().ops.iter().all(|op| op.task != id));
+}
+
+#[test]
+fn undo_cannot_bring_back_what_the_server_was_told_was_gone_or_made() {
+    let (mut s, a) = session();
+    // (a) a delete that went up
+    merge_tasks(&mut s.mailbox, &download(a, vec![remote("t1", "One")])).unwrap();
+    let id = titled(&s, "One").id;
+    run(&mut s, "tasks.delete", json!({"id": id}));
+    let gone = TaskOutcome { kind: TaskOpKind::Delete, id: "t1".into(), list: "L1".into(), result: TaskResult::Done, ..Default::default() };
+    run(&mut s, "sync.applyTaskChanges", told(a, vec![gone]));
+    assert!(!s.undo(), "nothing to undo after the server was told");
+    merge_tasks(&mut s.mailbox, &download(a, vec![])).unwrap();
+    assert!(s.mailbox.tasks.values().all(|t| t.title != "One"));
+    // (b) a create that went up
+    run(&mut s, "tasks.sendLocal", json!({"account": a}));
+    let made = run(&mut s, "tasks.new", json!({"title": "Fresh"}))["id"].as_u64().unwrap();
+    let op = task_upload(&s.mailbox, a).unwrap().ops.into_iter().find(|op| op.task == made).unwrap();
+    let mut done = outcome(&op, TaskResult::Done);
+    done.id = "t9".into();
+    done.list = "L1".into();
+    run(&mut s, "sync.applyTaskChanges", told(a, vec![done]));
+    assert!(!s.undo());
+    assert!(s.mailbox.tasks.values().any(|t| t.title == "Fresh"));
+}
+
+#[test]
+fn removing_an_account_leaves_its_tasks_as_tasks_of_this_computer() {
+    let (mut s, a) = session();
+    merge_tasks(&mut s.mailbox, &download(a, vec![remote("t1", "Kept")])).unwrap();
+    s.mailbox.remove_account(a).unwrap();
+    let t = titled(&s, "Kept");
+    assert!(t.origin.is_local() && t.list.is_empty() && t.synced.is_none());
 }

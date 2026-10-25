@@ -76,7 +76,7 @@ fn a_sign_in_that_lacks_the_newest_permission_keeps_everything_it_had() {
         wanted.scope.starts_with(&format!("{GRAPH_SCOPES_BEFORE} offline_access")) && GRAPH_SCOPES.starts_with(GRAPH_SCOPES_BEFORE),
         "{wanted:?}"
     );
-    assert_eq!(format!("{GRAPH_SCOPES_BEFORE} {}", wanted.consent), format!("{GRAPH_SCOPES} https://graph.microsoft.com/Tasks.ReadWrite"));
+    assert_eq!(format!("{GRAPH_SCOPES_BEFORE} {}", wanted.consent), GRAPH_SCOPES);
 
     // The owner agreed to all of it: one question.
     let server = FakeHttp::answering(ok(granted));
@@ -316,7 +316,7 @@ fn microsoft_endpoints() {
     assert!(Url::parse(&common.authorize).is_ok() && Url::parse(&common.token).is_ok());
 
     // The page of a sign-in to mail is also asked for what Graph's tokens will be for.
-    assert_eq!(common.consent, format!("{GRAPH_SCOPES} https://graph.microsoft.com/Tasks.ReadWrite"));
+    assert_eq!(common.consent, GRAPH_SCOPES);
     assert_eq!(Endpoints::for_resource(&oauth(), Resource::Mail), common);
     // Graph's own: the same addresses, its own scopes, and the one optional extra for the owner
     // to agree to on the page (a page that won't have it is asked again without it).
@@ -324,7 +324,7 @@ fn microsoft_endpoints() {
     assert_eq!(graph.authorize, "https://login.microsoftonline.com/consumers/oauth2/v2.0/authorize");
     assert_eq!(graph.token, "https://login.microsoftonline.com/consumers/oauth2/v2.0/token");
     assert_eq!(graph.scope, format!("{GRAPH_SCOPES_BEFORE} offline_access openid profile email"));
-    assert_eq!(graph.consent, "https://graph.microsoft.com/MailboxSettings.Read https://graph.microsoft.com/Tasks.ReadWrite");
+    assert_eq!(graph.consent, "https://graph.microsoft.com/MailboxSettings.Read");
     // A request for tokens names one resource: neither asks for a scope of the other's.
     assert!(!common.scope.contains("graph.microsoft.com") && !graph.scope.contains("outlook.office.com"));
     // Reading and changing mail through Graph is asked for only for an account kept in step that
@@ -652,7 +652,7 @@ fn the_page_is_asked_for_more_than_the_tokens_are_for() {
     assert_eq!(
         fields(url.split_once('?').unwrap().1)["scope"],
         format!(
-            "https://outlook.office.com/IMAP.AccessAsUser.All https://outlook.office.com/SMTP.Send offline_access openid profile email {GRAPH_SCOPES} https://graph.microsoft.com/Tasks.ReadWrite"
+            "https://outlook.office.com/IMAP.AccessAsUser.All https://outlook.office.com/SMTP.Send offline_access openid profile email {GRAPH_SCOPES}"
         )
     );
 }
@@ -670,10 +670,7 @@ fn graph_can_be_signed_in_to_on_its_own() {
     // The tokens are for what Graph was always asked for; the page is asked for one thing more
     // (the mailbox's settings, for its categories), which the refresh token then covers too.
     let expected = format!("{GRAPH_SCOPES_BEFORE} offline_access openid profile email");
-    assert_eq!(
-        visit_asked(&visits, 0)["scope"],
-        format!("{expected} https://graph.microsoft.com/MailboxSettings.Read https://graph.microsoft.com/Tasks.ReadWrite")
-    );
+    assert_eq!(visit_asked(&visits, 0)["scope"], format!("{expected} https://graph.microsoft.com/MailboxSettings.Read"));
     assert_eq!(visit_asked(&visits, 0)["login_hint"], "ada@example.org");
     let form = form_of(&server, 0);
     assert_eq!((form["code"].as_str(), form["scope"].as_str()), ("graph-code", expected.as_str()));
@@ -2157,12 +2154,12 @@ fn calendars_opened_by_address_are_asked_for_with_their_permission_and_nothing_m
 const TASKS_SCOPE: &str = "https://graph.microsoft.com/Tasks.ReadWrite";
 
 #[test]
-fn tasks_are_put_to_the_owner_on_a_sign_in_page_but_never_asked_of_a_token_for_the_rest() {
-    // The page of a new sign-in asks for it beside the rest (and a page that won't have it is asked
-    // again without, as for the settings); the tokens of a sign-in are not asked for it.
+fn tasks_are_never_put_on_a_sign_in_page_so_a_mail_sign_in_never_waits_on_them() {
+    // Asked for by itself, after the window has asked the owner, for new accounts and old alike: a
+    // tenant that makes an administrator approve it must not stop a plain mail sign-in.
     for resource in [Resource::Mail, Resource::Graph, Resource::GraphMail] {
         let endpoints = Endpoints::for_resource(&oauth(), resource);
-        assert!(endpoints.consent.split(' ').any(|scope| scope == TASKS_SCOPE), "{resource:?}: {}", endpoints.consent);
+        assert!(!endpoints.consent.contains("Tasks") && !endpoints.lesser.contains("Tasks"), "{resource:?}: {}", endpoints.consent);
         assert!(!endpoints.scope.contains("Tasks"), "{resource:?}: {}", endpoints.scope);
     }
     // A refresh for calendar and contacts, as a sign-in from before asks for it, doesn't mention it.

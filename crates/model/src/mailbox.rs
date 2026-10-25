@@ -863,6 +863,10 @@ pub struct Mailbox {
     /// oldest first ([`crate::TaskGone`]).
     #[serde(skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::sync::lenient_list")]
     pub task_gone: Vec<crate::TaskGone>,
+    /// What the owner said about the to-dos that exist only here (#248): until a yes, none goes
+    /// to a server.
+    #[serde(skip_serializing_if = "crate::LocalTasks::is_unasked")]
+    pub local_tasks: crate::LocalTasks,
     /// Changes to events that a server said it took and that no download has shown yet
     /// ([`crate::remote::EventCheck`]).
     #[serde(skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::sync::lenient_list")]
@@ -914,6 +918,7 @@ impl Default for Mailbox {
             pending: Vec::new(),
             event_changes: Vec::new(),
             task_gone: Vec::new(),
+            local_tasks: crate::LocalTasks::Unasked,
             event_checks: Vec::new(),
             favorites_from_server: Vec::new(),
             queued: Vec::new(),
@@ -1050,6 +1055,17 @@ impl Mailbox {
         self.event_changes.retain(|change| !going.contains(&change.account));
         self.event_checks.retain(|check| !going.contains(&check.account));
         self.task_gone.retain(|gone| !going.contains(&gone.account));
+        // Its to-dos stay, as to-dos of this computer only.
+        for task in self.tasks.values_mut().filter(|t| going.contains(&t.origin.account)) {
+            let task = Arc::make_mut(task);
+            task.origin = crate::Origin::default();
+            task.list.clear();
+            task.synced = None;
+            task.local_only = false;
+        }
+        if matches!(self.local_tasks, crate::LocalTasks::SendTo(a) if going.contains(&a)) {
+            self.local_tasks = crate::LocalTasks::Unasked;
+        }
         self.queued.retain(|queued| !going.contains(&queued.account()));
         self.favorites_from_server.retain(|list| !going.contains(&list.account));
         self.tidy_listed_twice();

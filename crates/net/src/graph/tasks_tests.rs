@@ -267,3 +267,11 @@ fn at_most_a_hundred_changes_go_in_one_upload() {
     let done = push_tasks_at(&server.url(""), TOKEN, &upload((0..150).map(|n| create(&format!("t{n}"))).collect()));
     assert_eq!(done.outcomes.len(), 100);
 }
+
+#[test]
+fn a_due_date_written_in_a_zone_stays_on_its_day() {
+    let entry =
+        serde_json::json!({"id": "t1", "title": "x", "dueDateTime": {"dateTime": "2026-07-14T00:00:00.0000000", "timeZone": "Europe/London"}});
+    let task = super::tasks::task_of(&entry, "L1").unwrap();
+    assert_eq!(task.due, mailcraft_time::Date::new(2026, 7, 14));
+}

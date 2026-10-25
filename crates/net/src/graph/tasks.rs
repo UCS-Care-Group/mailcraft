@@ -28,8 +28,6 @@ use crate::NetError;
 use crate::http;
 
 const LISTS: &str = "/v1.0/me/todo/lists";
-/// How times are asked for: in UTC.
-const TIME_PREFERENCE: &str = "outlook.timezone=\"UTC\"";
 /// The longest title Microsoft To Do keeps.
 const MAX_TITLE: usize = 255;
 /// Longest id of a list or a task that is put into an address.
@@ -48,7 +46,8 @@ pub fn tasks(token: &str) -> Result<TasksDownload, NetError> {
 /// - 403: [`TaskResult::Denied`]; the rest of the upload is left untried.
 /// - 429, 503, 504, any other 5xx, no connection, an answer that makes no sense:
 ///   [`TaskResult::Failed`], to be tried again; the rest is left untried.
-/// - any other refusal (400, 409, 412, 413…): [`TaskResult::Refused`], for good.
+/// - 409 and 412 (something changed there meanwhile): [`TaskResult::Failed`], to be tried again.
+/// - any other refusal (400, 413…): [`TaskResult::Refused`], for good.
 /// - 401: nothing more is sent, and the upload says the sign-in was refused.
 pub fn push_tasks(token: &str, upload: &TasksUpload) -> TasksUploaded {
     push_tasks_at(&super::graph_base(), token, upload)
@@ -75,7 +74,7 @@ pub(super) fn tasks_at(base: &str, token: &str) -> Result<TasksDownload, NetErro
         let read = if room == 0 {
             Ok(false)
         } else {
-            graph.list(Doing::Tasks, first, &[("Prefer", TIME_PREFERENCE)], most, &mut |entry| match task_of(entry, list) {
+            graph.list(Doing::Tasks, first, &[], most, &mut |entry| match task_of(entry, list) {
                 Some(task) if seen.insert(task.id.clone()) => download.tasks.push(task),
                 Some(_) => {}
                 None => unread += 1,
@@ -98,8 +97,10 @@ fn valid_id(id: &str) -> bool {
     !id.is_empty() && id.len() <= MAX_ID && !id.chars().any(|c| c.is_control() || c.is_whitespace())
 }
 
-/// The date a `{"dateTime": "2026-10-12T00:00:00.0000000", "timeZone": "UTC"}` falls on, as
-/// written (the days of a task are days, not instants).
+/// The date a `{"dateTime": "2026-10-12T00:00:00.0000000", "timeZone": "Europe/London"}` falls
+/// on, as written in the zone it was written in: nothing is converted, because the days of a
+/// task are days, not instants (a conversion to UTC moved a London midnight to the day before
+/// in summer). Instants (reminder, done) are read with their own zone by `when`.
 fn day_of(value: Option<&Value>) -> Option<mailcraft_time::Date> {
     let written = text(value?, "dateTime");
     mailcraft_time::Date::parse_iso(written.get(..10)?)
@@ -273,10 +274,10 @@ pub(super) fn push_tasks_at(base: &str, token: &str, upload: &TasksUpload) -> Ta
                     done.id = text(&json, "id").to_string();
                     done.list = list.clone();
                     done.change_key = text(&json, "@odata.etag").to_string();
-                    // Made, and no word of what it is called: it can't be told from the next
-                    // download's, and is made again; better said than hidden.
+                    // Made, and no word of what it is called: not made again (the next download
+                    // shows the copy, which is taken in as this one); said, not hidden.
                     if !valid_id(&done.id) {
-                        done.result = TaskResult::Failed;
+                        done.result = TaskResult::Refused;
                         done.error = "the server made it and didn't say what it is called".into();
                     }
                 } else if op.kind == TaskOpKind::Update {
@@ -294,9 +295,9 @@ pub(super) fn push_tasks_at(base: &str, token: &str, upload: &TasksUpload) -> Ta
                 done.error = "this account may not change its to-dos".into();
                 true
             }
-            429 | 503 | 504 => {
+            409 | 412 | 429 | 503 | 504 => {
                 done.result = TaskResult::Failed;
-                done.error = "Microsoft Graph is busy".into();
+                done.error = "Microsoft Graph is busy or the to-do changed there meanwhile".into();
                 true
             }
             status if status >= 500 => {
