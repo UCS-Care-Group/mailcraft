@@ -247,6 +247,11 @@ msgstr "Ya hay un cuadro de diálogo de archivos abierto."
 msgid "A large mailbox takes a while. {account} switches to Microsoft Graph as soon as the copy is saved; nothing has changed yet."
 msgstr "Un buzón grande tarda un rato. {account} pasará a Microsoft Graph en cuanto se guarde la copia; todavía no ha cambiado nada."
 
+#. interface
+#: crates/ui-egui/src/files.rs
+msgid "A link asked for a new message, but the one you are writing couldn't be saved first: {why}"
+msgstr ""
+
 #. name
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
@@ -8766,6 +8771,11 @@ msgid "The message you are writing has changes that aren't saved."
 msgstr "El mensaje que está escribiendo tiene cambios sin guardar."
 
 #. interface
+#: crates/ui-egui/src/files.rs
+msgid "The message you were writing was saved to Drafts; a link opened a new one"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "The messages of the folder in view, as .mbox"
@@ -8897,6 +8907,11 @@ msgstr ""
 #, fuzzy
 msgid "The system's credential store is locked, or unlocking it was refused"
 msgstr "El almacén de credenciales del sistema está bloqueado, o se rechazó su desbloqueo"
+
+#. interface
+#: crates/ui-egui/src/data_removal.rs
+msgid "The system's credential store: {key}"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs
@@ -10802,6 +10817,11 @@ msgstr "cambia opciones, firmas o reglas"
 msgid "it clicks or types in the window"
 msgstr "hace clic o escribe en la ventana"
 
+#. interface
+#: crates/ui-egui/src/data_removal.rs
+msgid "it could not be removed"
+msgstr ""
+
 #. name
 #: crates/engine/src/agent.rs
 #, fuzzy
@@ -12444,6 +12464,13 @@ msgid "{n} problem"
 msgid_plural "{n} problems"
 msgstr[0] "{n} problema"
 msgstr[1] "{n} problemas"
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+msgid "{n} remembered sign-in could not be removed from the credential store"
+msgid_plural "{n} remembered sign-ins could not be removed from the credential store"
+msgstr[0] ""
+msgstr[1] ""
 
 #. interface
 #: crates/ui-egui/src/alerts.rs

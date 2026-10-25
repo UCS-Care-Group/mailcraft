@@ -208,6 +208,11 @@ msgstr ""
 msgid "A large mailbox takes a while. {account} switches to Microsoft Graph as soon as the copy is saved; nothing has changed yet."
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/files.rs
+msgid "A link asked for a new message, but the one you are writing couldn't be saved first: {why}"
+msgstr ""
+
 #. name
 #: crates/ui-egui/src/account_setup.rs
 msgid "A mailbox kept here, with no mail server"
@@ -7357,6 +7362,11 @@ msgid "The message you are writing has changes that aren't saved."
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/files.rs
+msgid "The message you were writing was saved to Drafts; a link opened a new one"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "The messages of the folder in view, as .mbox"
 msgstr ""
@@ -7469,6 +7479,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/lib.rs
 msgid "The system's credential store is locked, or unlocking it was refused"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/data_removal.rs
+msgid "The system's credential store: {key}"
 msgstr ""
 
 #. interface
@@ -9084,6 +9099,11 @@ msgstr ""
 msgid "it clicks or types in the window"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/data_removal.rs
+msgid "it could not be removed"
+msgstr ""
+
 #. name
 #: crates/engine/src/agent.rs
 msgid "it deletes for good"
@@ -10475,6 +10495,13 @@ msgstr ""
 #: crates/ui-egui/src/sync_panel.rs
 msgid "{n} problem"
 msgid_plural "{n} problems"
+msgstr[0] ""
+msgstr[1] ""
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+msgid "{n} remembered sign-in could not be removed from the credential store"
+msgid_plural "{n} remembered sign-ins could not be removed from the credential store"
 msgstr[0] ""
 msgstr[1] ""
 

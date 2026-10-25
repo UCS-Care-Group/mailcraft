@@ -247,6 +247,11 @@ msgstr "Una finestra di selezione file è già aperta."
 msgid "A large mailbox takes a while. {account} switches to Microsoft Graph as soon as the copy is saved; nothing has changed yet."
 msgstr "Una cassetta postale grande richiede un po' di tempo. {account} passa a Microsoft Graph non appena la copia è salvata; per ora non è cambiato nulla."
 
+#. interface
+#: crates/ui-egui/src/files.rs
+msgid "A link asked for a new message, but the one you are writing couldn't be saved first: {why}"
+msgstr ""
+
 #. name
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
@@ -8764,6 +8769,11 @@ msgid "The message you are writing has changes that aren't saved."
 msgstr "Il messaggio che si sta scrivendo contiene modifiche non salvate."
 
 #. interface
+#: crates/ui-egui/src/files.rs
+msgid "The message you were writing was saved to Drafts; a link opened a new one"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "The messages of the folder in view, as .mbox"
@@ -8895,6 +8905,11 @@ msgstr ""
 #, fuzzy
 msgid "The system's credential store is locked, or unlocking it was refused"
 msgstr "L'archivio credenziali del sistema è bloccato, oppure lo sblocco è stato rifiutato"
+
+#. interface
+#: crates/ui-egui/src/data_removal.rs
+msgid "The system's credential store: {key}"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs
@@ -10800,6 +10815,11 @@ msgstr "modifica opzioni, firme o regole"
 msgid "it clicks or types in the window"
 msgstr "fa clic o digita nella finestra"
 
+#. interface
+#: crates/ui-egui/src/data_removal.rs
+msgid "it could not be removed"
+msgstr ""
+
 #. name
 #: crates/engine/src/agent.rs
 #, fuzzy
@@ -12442,6 +12462,13 @@ msgid "{n} problem"
 msgid_plural "{n} problems"
 msgstr[0] "{n} problema"
 msgstr[1] "{n} problemi"
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+msgid "{n} remembered sign-in could not be removed from the credential store"
+msgid_plural "{n} remembered sign-ins could not be removed from the credential store"
+msgstr[0] ""
+msgstr[1] ""
 
 #. interface
 #: crates/ui-egui/src/alerts.rs

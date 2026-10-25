@@ -121,13 +121,15 @@ impl MailApp {
         let mailbox = self.session.path.take();
         self.autosave = false;
         self.session.compose = None;
-        let addresses: Vec<String> = self.session.mailbox.accounts.iter().map(|a| a.email.clone()).filter(|e| !e.trim().is_empty()).collect();
         let Some(host) = self.services.data_wipe.as_ref() else { return Err(String::new()) };
         let mut report = host.erase(mailbox.as_deref());
-        // Only now the sign-ins the system remembers, for every account here (and so for each
-        // shared mailbox's address, which only ever had its owner's).
-        for address in &addresses {
-            self.forget_secrets(address);
+        // Only now the sign-ins the system remembers: every entry MailCraft noted putting there,
+        // whichever mailbox it was for, and those of the accounts here. What stays is listed.
+        for key in self.forget_every_secret() {
+            report.failed.push((
+                crate::i18n::fmt(tl!("The system's credential store: {key}"), &[("key", &key)]),
+                Why::Io(tl!("it could not be removed").to_string()),
+            ));
         }
         self.passwords.clear();
         self.tokens.clear();

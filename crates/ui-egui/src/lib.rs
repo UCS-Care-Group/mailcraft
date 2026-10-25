@@ -63,6 +63,9 @@ mod inbox_pass;
 pub mod jmap_mail;
 mod keep_offline;
 pub mod keys;
+#[cfg(test)]
+#[path = "late_work_tests.rs"]
+mod late_work_tests;
 pub mod mail_view;
 mod meeting_dialogs;
 pub mod menubar;
@@ -580,6 +583,9 @@ struct SigningIn {
     shared_calendars: bool,
     /// The owner signs in on a page in the browser (no kept token to renew it with).
     browser: bool,
+    /// The mailbox opening it was started under ([`Session::openings`]): an answer that comes
+    /// after another mailbox took its place is thrown away.
+    opening: u64,
     rx: Receiver<Result<Tokens, String>>,
     cancel: std::sync::Arc<std::sync::atomic::AtomicBool>,
 }
@@ -624,6 +630,10 @@ pub struct UiState {
     /// Passwords and sign-ins kept by the system are filed under the servers they go to; the
     /// ones kept before that were moved (once, for the mailbox opened at start).
     pub sign_ins_bound: bool,
+    /// The names (never the secrets) of every entry MailCraft has put in the credential store,
+    /// so that removing the data, or turning remembering off, finds the ones of mailboxes that
+    /// are no longer open.
+    pub remembered_keys: Vec<String>,
     /// Mailbox files whose accounts' servers the owner confirmed, with a fingerprint of the
     /// addresses and servers confirmed ([`unconfirmed`]).
     pub confirmed_mailboxes: Vec<ConfirmedMailbox>,
@@ -689,6 +699,7 @@ impl Default for UiState {
             microsoft_client_id: String::new(),
             remember_sign_in: true,
             sign_ins_bound: false,
+            remembered_keys: Vec::new(),
             confirmed_mailboxes: Vec::new(),
             dismissed_reminders: Vec::new(),
             download_pictures: false,
@@ -1784,9 +1795,13 @@ impl MailApp {
                 self.ui.remember_sign_in = on;
                 if !on {
                     // Switched off: what was kept goes too.
-                    let addresses: Vec<String> = self.session.mailbox.accounts.iter().map(|a| a.email.clone()).collect();
-                    for address in addresses {
-                        self.forget_secrets(&address);
+                    let left = self.forget_every_secret();
+                    if !left.is_empty() {
+                        self.status(tln!(
+                            left.len(),
+                            "{n} remembered sign-in could not be removed from the credential store",
+                            "{n} remembered sign-ins could not be removed from the credential store"
+                        ));
                     }
                 }
                 Ok(json!({"value": on}))
@@ -1985,16 +2000,50 @@ impl MailApp {
     }
 
     /// Have the operating system remember a secret for `address`, when the owner wants that.
-    fn remember(&self, kind: &str, address: &str, secret: &str) {
+    fn remember(&mut self, kind: &str, address: &str, secret: &str) {
         if !self.ui.remember_sign_in || secret.is_empty() || self.data_removed {
             return;
         }
         let Some(account) = self.account_at(address) else { return };
-        if let Some(store) = &self.services.secrets
-            && let Err(e) = store.set(&Self::secret_key(kind, account), secret)
-        {
-            log::warn!("couldn't keep the sign-in for next time: {e}");
+        let key = Self::secret_key(kind, account);
+        let Some(store) = &self.services.secrets else { return };
+        match store.set(&key, secret) {
+            Ok(()) => self.index_secret_key(key),
+            Err(e) => log::warn!("couldn't keep the sign-in for next time: {e}"),
         }
+    }
+
+    /// Note the name of an entry put in the credential store (the name alone, in `ui.json`).
+    fn index_secret_key(&mut self, key: String) {
+        // (A bound: a mailbox's accounts are few, and a file can't make this list grow.)
+        if self.ui.remembered_keys.len() < 1000 && !self.ui.remembered_keys.contains(&key) {
+            self.ui.remembered_keys.push(key);
+        }
+    }
+
+    /// Delete every entry MailCraft put in the credential store: those noted in `remembered_keys`
+    /// (whichever mailbox they were for), those of this mailbox's accounts, and the old names.
+    /// Gives the names of the ones that are still there afterwards.
+    pub(crate) fn forget_every_secret(&mut self) -> Vec<String> {
+        let mut keys: Vec<String> = std::mem::take(&mut self.ui.remembered_keys);
+        for a in &self.session.mailbox.accounts {
+            for kind in ["password", "refresh"] {
+                keys.push(Self::secret_key(kind, a));
+                keys.push(Self::legacy_secret_key(kind, &a.email));
+            }
+        }
+        keys.sort();
+        keys.dedup();
+        let Some(store) = &self.services.secrets else { return Vec::new() };
+        let mut left = Vec::new();
+        for key in keys {
+            store.delete(&key);
+            if store.get(&key).is_some() {
+                left.push(key);
+            }
+        }
+        self.ui.remembered_keys = left.clone();
+        left
     }
 
     /// Tell the owner, once a session, when the system's credential store can't be used, so that
@@ -2006,13 +2055,6 @@ impl MailApp {
         if self.secrets_trouble.is_none() {
             self.secrets_trouble = Some(trouble);
             self.status(trouble.notice());
-        }
-    }
-
-    /// Drop everything the operating system remembers for `address`.
-    pub(crate) fn forget_secrets(&self, address: &str) {
-        if let Some(account) = self.account_at(address) {
-            self.forget_account_secrets(account);
         }
     }
 
@@ -2034,19 +2076,25 @@ impl MailApp {
         if self.ui.sign_ins_bound {
             return;
         }
+        let mut moved = Vec::new();
         if let Some(store) = &self.services.secrets {
             for a in &self.session.mailbox.accounts {
                 for kind in ["password", "refresh"] {
                     let old = Self::legacy_secret_key(kind, &a.email);
                     if let Some(secret) = store.get(&old).filter(|s| !s.is_empty()) {
-                        if let Err(e) = store.set(&Self::secret_key(kind, a), &secret) {
+                        let new = Self::secret_key(kind, a);
+                        if let Err(e) = store.set(&new, &secret) {
                             log::warn!("couldn't move a remembered sign-in: {e}");
                             continue;
                         }
                         store.delete(&old);
+                        moved.push(new);
                     }
                 }
             }
+        }
+        for key in moved {
+            self.index_secret_key(key);
         }
         self.ui.sign_ins_bound = true;
     }
@@ -2104,7 +2152,8 @@ impl MailApp {
             shared_calendars,
         };
         let rx = sign_in(request);
-        self.signing_in = Some(SigningIn { graph, favorites, quiet, account, shared, shared_send, shared_calendars, browser, rx, cancel });
+        let opening = self.session.openings();
+        self.signing_in = Some(SigningIn { graph, favorites, quiet, account, shared, shared_send, shared_calendars, browser, opening, rx, cancel });
         self.session.sync_status = waiting.to_string();
         Ok(())
     }
@@ -2437,6 +2486,13 @@ impl MailApp {
             self.passwords.clear();
             self.tokens.clear();
             self.graph_tokens.clear();
+            // Work started for the old mailbox stays with it: a sign-in on its way is called
+            // off, and a switch to Graph (its copy, its backup) is forgotten.
+            if let Some(s) = self.signing_in.take() {
+                s.cancel.store(true, std::sync::atomic::Ordering::Relaxed);
+                self.session.sync_status.clear();
+            }
+            self.forget_graph_switch();
             // And a mailbox from a file is held back until its servers are confirmed.
             self.judge_mailbox();
         }
@@ -2838,7 +2894,14 @@ impl MailApp {
         let (account, for_graph, for_favorites) = (waiting.account, waiting.graph, waiting.favorites);
         let asked_for = !waiting.quiet;
         let (for_shared, for_shared_send, for_shared_calendars) = (waiting.shared, waiting.shared_send, waiting.shared_calendars);
+        let started_under = waiting.opening;
         self.signing_in = None;
+        // Another mailbox took the place of the one it was for: its accounts are other accounts,
+        // whatever their ids, and this answer is nobody's.
+        if started_under != self.session.openings() {
+            self.session.sync_status.clear();
+            return;
+        }
         // A day at most, whatever the provider said; a sign-in is asked for again after.
         let now = mailcraft_time::now();
         let answer = answer.and_then(|tokens| {
@@ -3124,9 +3187,9 @@ impl MailApp {
                     tokens.access.clear();
                 }
             } else if totals.errors.is_empty() {
-                if let Some(password) = self.passwords.get(&account) {
+                if let Some(password) = self.passwords.get(&account).cloned() {
                     // It went through: this password is worth remembering.
-                    self.remember("password", &address, password);
+                    self.remember("password", &address, &password);
                 }
                 // And nothing is left of the last run's problems.
                 self.note_sync_problems(account, &[], true);
