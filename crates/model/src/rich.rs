@@ -189,8 +189,7 @@ pub fn safe_link(url: &str) -> Option<String> {
     let web = ["http", "https"].iter().any(|s| scheme.eq_ignore_ascii_case(s));
     let other = ["mailto", "tel"].iter().any(|s| scheme.eq_ignore_ascii_case(s));
     let ok = if web {
-        rest.strip_prefix("//").is_some_and(|host| !host.is_empty() && !host.starts_with('/'))
-            && url::Url::parse(url).is_ok_and(|u| matches!(u.scheme(), "http" | "https") && u.host_str().is_some_and(|h| !h.is_empty()))
+        rest.strip_prefix("//").is_some_and(|host| !host.is_empty() && !host.starts_with('/')) && mailcraft_link::WebLink::parse(url).is_some()
     } else {
         other && !rest.is_empty()
     };

@@ -93,7 +93,7 @@ const ATTACH_HERE: &str = "Drag the diagnostics file MailCraft saved for this re
 
 /// `text` for a query string: everything but letters, digits and `-._*` as `%XX`, a space as `%20`.
 fn encode(text: &str) -> String {
-    url::form_urlencoded::byte_serialize(text.as_bytes()).collect::<String>().replace('+', "%20")
+    mailcraft_link::encode_component(text)
 }
 
 /// The new-issue page for `typed`, with the problem form chosen and its fields filled: the

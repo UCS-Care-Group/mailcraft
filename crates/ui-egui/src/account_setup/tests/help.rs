@@ -175,6 +175,8 @@ fn the_waiting_page_says_what_to_do_about_an_approval_without_waiting() {
     assert_eq!((page(&h), wizard(&h).map(|w| w.waiting), h.state().signing_in()), (Some(Page::SignIn), Some(true), true));
     // What is happening, and for whom.
     assert!(says(&h, "Microsoft's sign-in page is open in your browser") && says(&h, "Sign in there as noor@example.org"));
+    // Some systems can't say that no browser started, so the page says what to do if none did.
+    assert!(says(&h, "If no browser opened, check that this computer has a default browser"));
     // Nothing is said of a step about Outlook's Favorites: there is none.
     assert!(!says(&h, "First you sign in at Microsoft") && !says(&h, "Favorites"));
     // And what to do if that page says no: why, in plain words, and the things to do, in view.

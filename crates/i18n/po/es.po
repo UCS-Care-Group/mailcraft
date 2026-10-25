@@ -3631,6 +3631,11 @@ msgstr "Soy administrador: aprobarlo para mi organización"
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
+msgid "If no browser opened, check that this computer has a default browser (on Windows: Settings, Apps, Default apps), then press Open the page again."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup/help.rs
 #, fuzzy
 msgid "If that page said you need admin approval"
 msgstr "Si esa página indicó que necesita la aprobación de un administrador"
