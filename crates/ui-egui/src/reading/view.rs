@@ -456,7 +456,7 @@ pub fn paint(ui: &mut Ui, laid: &Laid, t: &Tokens, access: Access, mut state: Op
             }
             ItemKind::Picture(picture) => {
                 let store = pictures.get_or_insert_with(|| Pictures::of(&ctx));
-                let state = store.lock().unwrap_or_else(|e| e.into_inner()).texture(&ctx, &picture.data);
+                let state = store.lock().unwrap_or_else(|e| e.into_inner()).texture(&ctx, &picture.data, rect.size());
                 match state {
                     Picture::Ready(texture) => {
                         painter.image(texture.id(), rect, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
