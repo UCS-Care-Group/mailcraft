@@ -13,6 +13,9 @@
 
 **Fixes**
 - Plain-text mail no longer shows a link that MailCraft would then refuse to open (an address such as `www.a@.`); only an address that passes the same check as every other link is a link.
+- While you drag messages, the pointer is the ordinary arrow over a folder that takes them and the system's "not allowed" pointer over the folder they are in already or anywhere that is not a folder, instead of the four-arrow move cursor everywhere on Windows ([#430](https://github.com/UCS-Care-Group/mailcraft/issues/430)).
+- Typing a POP server (port 110 or 995, or a name starting `pop`) into Add Account now says that MailCraft doesn't support POP yet and to use the provider's IMAP server instead, instead of a certificate error ([#402](https://github.com/GITHUB_REPOSITORY/issues/402)).
+- A Microsoft account, or a shared mailbox, whose Inbox is known but was never read now has it read first in Send/Receive, before the folders are listed, so mail shows within seconds (#276).
 - A message deleted or moved just before a mail server renumbers its mailbox can no longer be mistaken for a different message that carries the same Message-ID: the change is made only on a message that is also the same mail, and otherwise dropped, with a note.
 - A forward through a Microsoft account no longer keeps the original's attachment when you replaced it with a file of the same name: attachments are compared by content.
 - A draft saved on a Microsoft account is sent exactly as you have it here, not as someone else edited it on the server (a Bcc, the body or an attachment added meanwhile).
