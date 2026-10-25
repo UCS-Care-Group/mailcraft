@@ -287,4 +287,6 @@ mod agent_tests;
 #[cfg(test)]
 mod category_rows_tests;
 #[cfg(test)]
+mod import_tests;
+#[cfg(test)]
 mod tests;

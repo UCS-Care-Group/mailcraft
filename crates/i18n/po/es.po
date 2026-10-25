@@ -4228,6 +4228,16 @@ msgid "Mail"
 msgstr "Correo"
 
 #. what a command says
+#: crates/engine/src/io.rs
+msgid "Mail can't be imported into an Outbox: it would be sent."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/io.rs
+msgid "Mail can't be imported into an Outbox: it would be sent. Choose another folder."
+msgstr ""
+
+#. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
 msgid "Mail can't be moved or copied into a Microsoft account from another account or a local folder yet: this version can't put a message on Microsoft's server"
@@ -9402,6 +9412,11 @@ msgstr "Este mensaje tiene imágenes en la web. Esta compilación no puede desca
 #, fuzzy
 msgid "This message isn't an invitation that can be answered."
 msgstr "Este mensaje no es una invitación que se pueda responder."
+
+#. what a command says
+#: crates/engine/src/cmd/calendar/invitation.rs
+msgid "This message isn't from the organizer of that meeting, so it can't call it off: take the meeting out of the calendar yourself."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/graph_fetch.rs crates/ui-egui/src/reading.rs

@@ -1,6 +1,6 @@
 # Where MailCraft falls short of Outlook
 
-> **Last reviewed:** 2026-10-20 · **Last updated:** 2026-10-25 · **Change:** minor (the full wipe removes every noted credential-store entry; gap 17: rules, forwarding and automatic replies kept on the server, through Graph or Sieve)
+> **Last reviewed:** 2026-10-20 · **Last updated:** 2026-10-25 · **Change:** minor (security run 2, batch P3: a cancellation calls off a meeting only from its organizer or the account that keeps it, an .ics import replaces only the same organizer's meeting, an import never lands in an Outbox, autocomplete skips Junk and ignores a sender's future date, replies quote what the HTML reads as, and "vouched" reads only the dmarc clause's own result and header.from of mail the server holds; the full wipe removes every noted credential-store entry; gap 17: rules, forwarding and automatic replies kept on the server, through Graph or Sieve)
 
 The ranked list of shortfalls and rough edges. The direction is in [`ROADMAP.md`](../ROADMAP.md):
 where MailCraft stands, the beta checklist and the steps to it, and what comes after beta; the order
@@ -143,3 +143,4 @@ this code base.
 | 2026-10-24 | minor | #70 calendars 5: an appointment moves between the owner's calendar and a shared mailbox's or an opened one, copy first |
 | 2026-10-24 | minor | #70 calendars 4: calendars opened by address, one permission and one free/busy path with the shared mailboxes' calendars |
 | 2026-10-24 | minor | Gap 17: rules, forwarding and automatic replies kept on the server, through Graph for Microsoft accounts and Sieve (ManageSieve, JMAP) elsewhere |
+| 2026-10-25 | minor | Security run 2, batch P3: a cancellation is removed from the calendar only for its organizer or the keeping account (gap 9); imports and vouching tightened |

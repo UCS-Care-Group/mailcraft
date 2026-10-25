@@ -215,9 +215,26 @@ pub const MAX_IMPORT_MESSAGES: usize = 200_000;
 /// view, or the Inbox), events to the default calendar, contacts and to-dos to their lists.
 pub fn import(s: &mut Session, name: &str, bytes: &[u8], folder: Option<Id>) -> Result<Value, CmdError> {
     let format = Format::detect(name, bytes).ok_or_else(|| failed!("{name}: not a message, calendar or contact file MailCraft reads", name))?;
+    let explicit = folder.is_some();
     let folder = match folder {
         Some(f) => s.mailbox.folder(f).map(|f| f.id).ok_or_else(|| failed!("no folder with id {id}", id = f))?,
         None => s.mailbox.folder(s.view.folder).map(|f| f.id).or_else(|| s.mailbox.inbox()).ok_or_else(|| fail("the mailbox has no folders"))?,
+    };
+    // Mail brought in from a file is mail the owner has not written: it never lands where the next
+    // Send/Receive would send it. With an Outbox in view it goes to the account's Drafts instead
+    // (or its Inbox); an Outbox named outright is refused.
+    let folder = if matches!(format, Format::Eml | Format::Mbox) && s.mailbox.is_send_queue(folder) {
+        if explicit {
+            return Err(fail("Mail can't be imported into an Outbox: it would be sent. Choose another folder."));
+        }
+        let account = s.mailbox.folder(folder).map_or(0, |f| f.account);
+        [FolderKind::Drafts, FolderKind::Inbox]
+            .into_iter()
+            .find_map(|kind| s.mailbox.folder_of_kind(account, kind))
+            .filter(|id| !s.mailbox.is_send_queue(*id))
+            .ok_or_else(|| fail("Mail can't be imported into an Outbox: it would be sent."))?
+    } else {
+        folder
     };
     let now = s.now();
     match format {
@@ -283,12 +300,17 @@ pub fn import(s: &mut Session, name: &str, bytes: &[u8], folder: Option<Id>) -> 
                     own_uids.entry(x.uid.clone()).or_insert((x.id, x.calendar));
                 }
             }
-            for mut e in file.events {
-                e.id = 0;
-                // The same event again (same UID) replaces the one already here. One that a server
-                // keeps is not the owner's to replace (the next download would bring it back as
-                // well): the imported event is added beside it.
+            let offset_at = crate::cmd::remote::offset_of(s);
+            for e in file.events {
+                // What a file says is cut to size as an invitation's is.
+                let mut e = crate::cmd::calendar::tidy_imported(e, &offset_at);
+                // The same event again (same UID, same organizer) replaces the one already here.
+                // A file can carry any UID: one that names another organizer, or none, is a
+                // different meeting and is added beside it. One that a server keeps is not the
+                // owner's to replace (the next download would bring it back as well) either.
                 let existing = if e.uid.is_empty() { None } else { own_uids.get(&e.uid).copied() };
+                // (Two that name nobody are the owner's own appointment, exported and imported again.)
+                let existing = existing.filter(|(id, _)| s.mailbox.event(*id).is_some_and(|have| crate::cmd::calendar::same_organizer(have, &e)));
                 match existing {
                     Some((id, calendar)) => {
                         e.id = id;

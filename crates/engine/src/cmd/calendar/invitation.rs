@@ -181,6 +181,20 @@ fn tidy(mut event: Event, offset_at: &dyn Fn(Timestamp) -> i32) -> (Event, Optio
     (event, instance)
 }
 
+/// An event of a file the owner imports, cut to size as an invitation is. What the owner filed it
+/// under and the calendar it goes to are kept; a changed day of a series keeps its `<uid>#<day>`.
+pub(crate) fn tidy_imported(event: Event, offset_at: &dyn Fn(Timestamp) -> i32) -> Event {
+    let categories = event.categories.clone();
+    let (mut event, instance) = tidy(event, offset_at);
+    if let Some((written, _)) = instance
+        && !event.uid.is_empty()
+    {
+        event.uid = format!("{}#{written}", event.uid);
+    }
+    event.categories = categories;
+    event
+}
+
 /// The meeting the message named in `v` (or the selected one) carries.
 fn read(s: &Session, v: &Value) -> Result<Invitation, CmdError> {
     let id = p::id(v, "message").or(s.sel.focus()).ok_or_else(|| fail("select a message first"))?;
@@ -417,11 +431,30 @@ fn is_theirs(s: &Session, event: &Event) -> bool {
 /// meeting: both name the same organizer. A message can carry any `UID`; the organizer is who
 /// is entitled to change a meeting, so an invitation from another one (or from none) is not an
 /// update of the meeting here, and must not replace it.
-fn same_organizer<'a>(on_calendar: &'a Event, invitation: &'a Event) -> bool {
+pub(crate) fn same_organizer<'a>(on_calendar: &'a Event, invitation: &'a Event) -> bool {
     // (An invitation that names nobody is the update of one that named nobody: the meeting the owner
     // made names the owner.)
     let who = |event: &'a Event| event.organizer.as_ref().map_or("", |who| who.email.trim());
     who(on_calendar).eq_ignore_ascii_case(who(invitation))
+}
+
+/// Whether the message may call off the meeting that is on the calendar. The organizer written
+/// in a message is the sender's word, so it is not enough: a meeting on a local calendar is called
+/// off only by a message that names its organizer and comes from that address; one that a server
+/// keeps only by a message of the account that server belongs to. Anything else is shown, and
+/// the owner takes the meeting out of the calendar themselves.
+fn may_call_off(s: &Session, invitation: &Invitation, on_calendar: &Event) -> bool {
+    if !is_theirs(s, on_calendar) {
+        return false;
+    }
+    if remote::keeper(&s.mailbox, &on_calendar.origin).is_some() {
+        return on_calendar.origin.account == invitation.account;
+    }
+    let Some(organizer) = on_calendar.organizer.as_ref().map(|who| who.email.trim()).filter(|email| !email.is_empty()) else {
+        return false;
+    };
+    let from = s.mailbox.message(invitation.message).map_or("", |message| message.from.email.trim());
+    same_organizer(on_calendar, &invitation.event) && from.eq_ignore_ascii_case(organizer)
 }
 
 /// Why an invitation can't be answered from here; `None` when it can. `event` is the meeting
@@ -561,7 +594,7 @@ fn invitation(s: &mut Session, v: &Value) -> CmdResult {
     let removable = kind == "cancellation"
         && on_calendar.is_some_and(|on_calendar| {
             let writable = remote::keeper(&s.mailbox, &on_calendar.origin).is_none() || remote::writable(&s.mailbox, on_calendar.calendar).is_ok();
-            is_theirs(s, on_calendar) && writable
+            may_call_off(s, &invitation, on_calendar) && writable
         });
     // Whether another time may be proposed with an answer: the organizer takes proposals (what
     // the calendar says of that, else what the message does), and the answer can be sent.
@@ -1005,6 +1038,11 @@ fn remove_cancelled(s: &mut Session, v: &Value) -> CmdResult {
     // not an appointment nobody organizes.
     if !is_theirs(s, &before) {
         return Err(fail("This is not somebody else's meeting: a message can't call it off."));
+    }
+    if !may_call_off(s, &invitation, &before) {
+        return Err(fail(
+            "This message isn't from the organizer of that meeting, so it can't call it off: take the meeting out of the calendar yourself.",
+        ));
     }
     let kept = remote::keeper(&s.mailbox, &before.origin).is_some();
     if kept {

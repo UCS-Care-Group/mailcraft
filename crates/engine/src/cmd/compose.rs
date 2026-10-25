@@ -153,13 +153,8 @@ fn prefixed(prefix: &str, subject: &str) -> String {
 }
 
 /// The line that opens the quoted original in plain text, in English; a language has its own
-/// (`-----Message d'origine-----`), which a draft reopening knows too ([`original_at`]).
+/// (`-----Message d'origine-----`), which a draft reopening knows too.
 const ORIGINAL: &str = "-----Original Message-----";
-
-/// Where the quoted original starts in a plain-text body: the opening line in any language.
-fn original_at(text: &str) -> Option<usize> {
-    mailcraft_i18n::Lang::ALL.iter().filter_map(|l| text.find(&format!("\n\n{}", l.t(ORIGINAL)))).min()
-}
 
 /// The names of the header lines above a quoted original, with their colons, in the interface
 /// language: the recipient reads them as the owner's program wrote them (French puts a narrow
@@ -203,6 +198,16 @@ fn quoted(s: &Session, m: &Message) -> String {
     out.push_str(m.body.text.trim_end());
     out.push('\n');
     out
+}
+
+/// The quoted original as plain text for the text part of a message that carries it in HTML: what
+/// its HTML reads as, under the opening line. Never the text alternative its sender wrote beside
+/// it (the owner never saw that one, and it can say something else).
+fn quote_text(marker: &str, quoted_html: &str) -> String {
+    let text = mailcraft_html::to_text(quoted_html);
+    // (The rule above the header lines is for the eye.)
+    let text = text.trim_start_matches('-').trim();
+    format!("\n\n{marker}\n{text}\n")
 }
 
 /// Where the quoted original starts in the HTML MailCraft writes; what is above it is the
@@ -287,9 +292,10 @@ fn respond(s: &mut Session, v: &Value, mode: ComposeMode) -> CmdResult {
     let quote = match &m.body.html {
         Some(html) if quoting => {
             let html = quoted_html(s, &m, html);
+            let text = quote_text(s.interface_language.t(ORIGINAL), &html);
             // The pictures the quote still shows: not those of what was left out of it.
             let pictures = if mode == ComposeMode::Forward { Vec::new() } else { shown_pictures(&m, &html) };
-            Some(Quote { text: quoted(s, &m), html, pictures })
+            Some(Quote { text, html, pictures })
         }
         _ => None,
     };
@@ -349,7 +355,14 @@ fn edit_draft(s: &mut Session, v: &Value) -> CmdResult {
         Some((html, at)) => {
             let end = html.rfind("</body>").filter(|end| *end >= at).unwrap_or(html.len());
             let quoted = mailcraft_html::quotable(html.get(at..end).unwrap_or("")).trim_end().to_string();
-            let text = original_at(&m.body.text).and_then(|at| m.body.text.get(at..)).unwrap_or("").to_string();
+            // (Its text part is what the HTML reads as: the text part the draft file carries is
+            // only asked which language the opening line is in.)
+            let marker = mailcraft_i18n::Lang::ALL
+                .iter()
+                .map(|l| l.t(ORIGINAL))
+                .find(|marker| m.body.text.contains(&format!("\n\n{marker}")))
+                .unwrap_or_else(|| s.interface_language.t(ORIGINAL));
+            let text = quote_text(marker, &quoted);
             let pictures = shown_pictures(&m, &quoted);
             (Some(html.get(..at).unwrap_or("").to_string()), Some(Quote { text, html: quoted, pictures }))
         }
@@ -852,21 +865,36 @@ pub fn suggest(s: &Session, query: &str, limit: usize) -> Vec<Suggestion> {
     }
     if out.len() < limit {
         // Whoever wrote, or was written to: each address once, as it was last seen.
-        let mut recent: std::collections::HashMap<String, (i64, &mailcraft_model::Address)> = std::collections::HashMap::new();
-        for m in s.mailbox.messages.values() {
-            for a in std::iter::once(&m.from).chain(&m.to).chain(&m.cc) {
+        // A sender writes the date, the From line and the folder rules put mail in Junk E-mail:
+        // mail there is not a source, a date after now counts as now, and an address the owner
+        // has written to (Sent Items) ranks above one that only wrote.
+        let (junk, sent): (Vec<Id>, Vec<Id>) = {
+            let ids = |keep: &dyn Fn(&mailcraft_model::Folder) -> bool| s.mailbox.folders.iter().filter(|f| keep(f)).map(|f| f.id).collect();
+            (ids(&|f| s.mailbox.in_junk(f.id)), ids(&|f| f.kind == FolderKind::Sent))
+        };
+        let now = s.now();
+        let mut recent: std::collections::HashMap<String, (bool, i64, &mailcraft_model::Address)> = std::collections::HashMap::new();
+        for m in s.mailbox.messages.values().filter(|m| !junk.contains(&m.folder)) {
+            let written = sent.contains(&m.folder);
+            let date = m.date.min(now);
+            let people: Vec<(&mailcraft_model::Address, bool)> = if written {
+                m.to.iter().chain(&m.cc).chain(&m.bcc).map(|a| (a, true)).collect()
+            } else {
+                std::iter::once(&m.from).chain(&m.to).chain(&m.cc).map(|a| (a, false)).collect()
+            };
+            for (a, to) in people {
                 let key = a.email.trim().to_lowercase();
                 if !seen.contains(&key) && a.is_valid() && fits(&a.name, &a.email) {
-                    let known = recent.entry(key).or_insert((m.date, a));
-                    if m.date >= known.0 {
-                        *known = (m.date, a);
+                    let known = recent.entry(key).or_insert((to, date, a));
+                    if (to, date) >= (known.0, known.1) {
+                        *known = (to || known.0, date, a);
                     }
                 }
             }
         }
-        let mut recent: Vec<(i64, &mailcraft_model::Address)> = recent.into_values().collect();
-        recent.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.email.cmp(&b.1.email)));
-        out.extend(recent.into_iter().map(|(_, a)| Suggestion {
+        let mut recent: Vec<(bool, i64, &mailcraft_model::Address)> = recent.into_values().collect();
+        recent.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| b.1.cmp(&a.1)).then_with(|| a.2.email.cmp(&b.2.email)));
+        out.extend(recent.into_iter().map(|(_, _, a)| Suggestion {
             name: a.name.trim().to_string(),
             email: a.email.trim().to_string(),
             contact: false,
