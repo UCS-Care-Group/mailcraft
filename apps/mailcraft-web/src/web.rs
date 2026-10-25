@@ -1,7 +1,9 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! The browser shell: web `Services` (file picker, downloads, storage), drag-and-drop and the
-//! eframe web runner.
+//! The browser shell: web `Services` (file picker, downloads, storage, JMAP), drag-and-drop and
+//! the eframe web runner.
+
+use std::rc::Rc;
 
 use mailcraft_engine::Session;
 use mailcraft_model::Mailbox;
@@ -29,6 +31,8 @@ pub fn start() {
             log::error!("missing <canvas id=\"{CANVAS_ID}\">");
             return;
         };
+        // The JMAP accounts of the page that serves MailCraft, when it names some (`jmap.rs`).
+        let hook = crate::jmap::Hook::read().map(Rc::new);
         let mut options = eframe::WebOptions::default();
         if query().contains("webgl")
             && let eframe::egui_wgpu::WgpuSetup::CreateNew(create) = &mut options.wgpu_options.wgpu_setup
@@ -44,9 +48,15 @@ pub fn start() {
                         log::info!("mailcraft-web: wgpu backend {:?}", rs.adapter.get_info().backend);
                     }
                     let inbox: Inbox = Inbox::default();
-                    let mut app = MailApp::new(Session::new(first_mailbox()), services(inbox.clone(), cc.egui_ctx.clone()));
+                    let mut services = services(inbox.clone(), cc.egui_ctx.clone());
+                    crate::jmap::install(&mut services, &cc.egui_ctx, hook.clone());
+                    let named = hook.as_ref().is_some_and(|hook| hook.names_accounts());
+                    let mut app = MailApp::new(Session::new(first_mailbox(named)), services);
                     if let Some(ui) = stored(UI_KEY).and_then(|text| serde_json::from_str::<UiState>(&text).ok()) {
                         app.apply_prefs(ui);
+                    }
+                    if let Some(hook) = &hook {
+                        hook.add_accounts(&mut app);
                     }
                     let saved_ui = serde_json::to_string(&app.prefs()).unwrap_or_default();
                     Ok(Box::new(WebShell { app, inbox, saved_ui, checked: 0.0 }))
@@ -80,8 +90,9 @@ fn sample() -> Mailbox {
 }
 
 /// The mailbox to start with: what the URL asks for, else the one kept in this browser, else the
-/// sample (an empty mail program in a browser tab has nothing to show).
-fn first_mailbox() -> Mailbox {
+/// sample (an empty mail program in a browser tab has nothing to show), or an empty one when the
+/// page names accounts of its own (`named`), which are added to it.
+fn first_mailbox(named: bool) -> Mailbox {
     let q = query();
     if page::has_flag(&q, "empty") {
         return Mailbox::with_local_account("", "");
@@ -89,13 +100,14 @@ fn first_mailbox() -> Mailbox {
     if page::has_flag(&q, "sample") {
         return sample();
     }
+    let fresh = || if named { Mailbox::with_local_account("", "") } else { sample() };
     match stored(MAILBOX_KEY).map(|text| mailcraft_engine::io::read_mailbox(text.as_bytes())) {
         Some(Ok(mailbox)) => mailbox,
         Some(Err(e)) => {
             log::error!("the stored mailbox couldn't be read: {e}");
-            sample()
+            fresh()
         }
-        None => sample(),
+        None => fresh(),
     }
 }
 
