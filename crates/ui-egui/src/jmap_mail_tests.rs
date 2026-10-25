@@ -199,7 +199,7 @@ fn a_mailbox_from_a_file_reaches_no_jmap_server_until_its_servers_are_confirmed(
 }
 
 #[test]
-fn a_secret_goes_only_to_the_session_address_it_was_typed_for() {
+fn a_secret_goes_only_where_and_as_it_was_typed_for() {
     let (mut app, accounts, _jobs) = window(&["ada@example.org"]);
     let ada = accounts[0];
     app.passwords.insert(ada, "typed here".into());
@@ -211,5 +211,9 @@ fn a_secret_goes_only_to_the_session_address_it_was_typed_for() {
     app.passwords.insert(ada, "typed for the other".into());
     app.execute("edit.undo", json!({})).unwrap();
     assert_eq!(app.session.mailbox.account(ada).and_then(|a| a.jmap.as_ref()).map(|j| j.session.as_str()), Some(SESSION));
+    assert!(!app.passwords.contains_key(&ada));
+    // Nor as a bearer token what was typed as a password.
+    app.passwords.insert(ada, "typed as a password".into());
+    app.execute("account.edit", json!({"id": ada, "jmap": {"bearer": true}})).unwrap();
     assert!(!app.passwords.contains_key(&ada));
 }

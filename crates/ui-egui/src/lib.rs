@@ -1951,8 +1951,10 @@ impl MailApp {
         if a.kind == mailcraft_model::AccountKind::Microsoft || a.shared_of.is_some() {
             format!("{kind}:{address}|graph")
         } else if a.kind == mailcraft_model::AccountKind::Jmap {
-            // (Its whole session address: another one, on the same server or not, is another server.)
-            format!("{kind}:{address}|jmap={}", a.jmap.as_ref().map_or("none", |j| j.session.trim()))
+            // (Its whole session address: another one, on the same server or not, is another server;
+            // and a bearer token is no password.)
+            let (session, bearer) = a.jmap.as_ref().map_or(("none", false), |j| (j.session.trim(), j.bearer));
+            format!("{kind}:{address}|jmap={session}|bearer={bearer}")
         } else {
             format!("{kind}:{address}|imap={}|smtp={}", server(&a.incoming), server(&a.outgoing))
         }

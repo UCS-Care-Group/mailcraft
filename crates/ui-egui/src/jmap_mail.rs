@@ -96,7 +96,7 @@ impl MailApp {
                 Ok(piece) => piece,
                 Err(TryRecvError::Empty) => return,
                 Err(TryRecvError::Disconnected) => {
-                    log::warn!("jmap mail, account {account}: the run stopped without its last piece (its task ended early)");
+                    log::warn!("jmap mail: the run stopped without its last piece (its task ended early)");
                     (self.sync_rx, self.sync_refused) = (None, false);
                     self.session.sync_status = tl!("Send/Receive stopped unexpectedly").to_string();
                     return;
