@@ -708,7 +708,7 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
             let r = b.rect.translate(at.to_vec2());
             let picture = shown.iter().find(|x| x.id == b.id);
             let cache = crate::reading::images::Pictures::of(&ctx);
-            let texture = picture.and_then(|x| cache.lock().ok().map(|mut c| c.texture(&ctx, &x.data)));
+            let texture = picture.and_then(|x| cache.lock().ok().map(|mut c| c.texture(&ctx, &x.data, r.size())));
             match texture {
                 Some(crate::reading::images::Picture::Ready(tex)) => {
                     painter.image(tex.id(), r, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), egui::Color32::WHITE);

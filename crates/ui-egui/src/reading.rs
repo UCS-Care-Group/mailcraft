@@ -25,6 +25,8 @@
 
 pub(crate) mod colors;
 pub(crate) mod images;
+#[cfg(test)]
+mod images_tests;
 mod invitation;
 mod layout;
 pub(crate) mod remote;
