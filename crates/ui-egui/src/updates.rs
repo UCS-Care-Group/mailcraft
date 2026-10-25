@@ -571,7 +571,20 @@ pub(crate) fn bar(
                     t.accent,
                 );
                 ui.add_space(24.0);
-                ui.label(egui::RichText::new(said).color(t.text));
+                // A line too long for the window (or longer in another language) is cut short
+                // and whole on hover, so the buttons stay on screen.
+                let room = (ui.available_width() - buttons.len() as f32 * 84.0).max(80.0);
+                let font = egui::TextStyle::Body.resolve(ui.style());
+                let wide = ui.painter().layout_no_wrap(said.to_string(), font, t.text).size().x;
+                let text = egui::RichText::new(said).color(t.text);
+                if wide <= room {
+                    ui.label(text);
+                } else {
+                    ui.scope(|ui| {
+                        ui.set_max_width(room);
+                        ui.add(egui::Label::new(text).truncate()).on_hover_text(said);
+                    });
+                }
                 for (name, label, primary) in buttons {
                     let button =
                         if *primary { primary_button(ui, label, true) } else { ui.add(egui::Button::new(*label).min_size(vec2(64.0, 26.0))) };

@@ -354,6 +354,10 @@ fn open(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     if tile(ui, "import", tl!("Import"), tl!("Messages (.eml, .mbox), calendars (.ics) and contacts (.vcf)"), t) {
         let _ = app.run("ui.import", json!({}));
     }
+    if tile(ui, "import", tl!("Import a Folder of Mailboxes"), tl!("Every mbox file under a folder, keeping its subfolders, into one new folder"), t)
+    {
+        let _ = app.run("file.importFolderTree", json!({}));
+    }
     if tile(ui, "open", tl!("Open Mailbox File"), tl!("Replace what is open with a .mailcraft file"), t) {
         let _ = app.run("ui.open", json!({}));
     }

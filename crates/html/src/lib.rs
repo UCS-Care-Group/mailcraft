@@ -517,6 +517,9 @@ pub(crate) fn is_blank(c: char) -> bool {
 }
 
 #[cfg(test)]
+mod text_link_tests;
+
+#[cfg(test)]
 mod url_tests;
 
 #[cfg(test)]
