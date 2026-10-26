@@ -69,11 +69,16 @@ Writes any bytes into a message: crafted MIME, HTML, headers, attachments, pictu
   Proofpoint's URL Defense (`urldefense.proofpoint.com/v2/…`, `urldefense.com/v3/…`) as the link
   it carries, read as Proofpoint describes in public; one of those that can't be read whole, and
   one through Mimecast, which hides where it goes, is not compared (`LINK_REWRITERS`: a host there
-  or one under it, never a name that merely contains it). Names, addresses and link texts are
-  read as they are seen: what draws nothing (zero-width spaces and joiners, direction marks, soft
-  hyphens, variation selectors, tags) is left out, `＠` and `﹫` count as `@`, `．` and `․` as
-  `.`, and a name's words are compared by their skeletons, without the punctuation round them;
-  names and domains shown in the banner lose their direction marks. The rules are
+  or one under it, never a name that merely contains it); a Safe Links address whose target is
+  another rewriter's is unwrapped once more. Names, addresses and link texts are read as they are
+  seen: what draws nothing (zero-width spaces and joiners, direction marks, soft hyphens,
+  variation selectors, tags) is left out and takes up none of the room read, a blank filler
+  (the Hangul fillers, the blank braille pattern) is a space, `＠` and `﹫` count as `@`, `．`,
+  `․`, `ꓸ` and the like as `.`, and a name's words are compared by their skeletons (Cyrillic
+  and Greek capitals and mathematical letters too), without the punctuation round them. A name
+  or a link's text with more characters that aren't shown than are, or longer than 65,536
+  characters, is a warning by itself (padded to slip past what reads it); names and domains
+  shown in the banner lose their direction marks. The rules are
   `crates/model/src/sender_warnings.rs`; the known correspondents are gathered in
   `crates/engine/src/sender_warnings.rs`. What they rely on: the server's verdict (a server that
   writes none, or a message from a file, gives no failed check: MailCraft does no DNS, DKIM or SPF
@@ -402,6 +407,7 @@ settings files (`crates/engine/src/store.rs`); commands from the control channel
 | 2026-10-26 | minor | #508: sender warnings (a failed check, a name that hides another address, a lookalike sender, a link that goes somewhere else, External), what they rest on and what they don't; vouching's reading of the server's verdict moved to `crates/model/src/auth_results.rs` |
 | 2026-10-26 | minor | #508: a failed check reads any sender's address and holds for the owner's own addresses, `compauth=pass` overrides it; Safe Links unwrapped, other link rewriters not compared; only exact `xn--` labels read; direction marks stripped, full-width `＠`, one-word names |
 | 2026-10-26 | minor | #508: what draws nothing and look-alike `@`/`.` read as seen in names, addresses and link texts; `p=none` failures are cautions; names from Sent Items and list members' names not compared; URL Defense links read, several Safe Links targets compared |
+| 2026-10-26 | minor | #508: padding of what isn't shown is a warning and takes no room; blank fillers are spaces; Cyrillic and Greek capitals and mathematical letters in skeletons; Safe Links round another rewriter unwrapped; only registered DMARC policy properties |
 | 2026-10-26 | minor | #501: server certificates are checked by the operating system's verifier instead of a built-in Mozilla root set: Windows and macOS trust what the system trusts and may fetch a missing intermediate; Linux and FreeBSD use the system's certificate store |
 | 2026-10-26 | minor | #458: a `dmarc=pass` whose `header.from` is the organisation's domain (Gmail's way: `shop.example` for `news.shop.example`) vouches for the names under it; a bare suffix or a hosting platform's domain never does |
 | 2026-10-25 | minor | #308: the people the search box offers after `from:`, `to:` and `cc:` come from autocomplete's source, on this computer only |

@@ -23,7 +23,7 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use serde_json::{Value, json};
 
 use crate::auth_results::{self, Failed, MAX_HEADERS_READ};
-use crate::confusables::{as_seen, skeleton};
+use crate::confusables::{as_seen, hides, skeleton};
 use crate::{Account, FolderKind, Message, provider};
 
 /// The most characters of a display name that are read.
@@ -69,6 +69,8 @@ pub enum NameReason {
     KnownName,
     /// It is the owner's own name, on an address that is not theirs.
     OwnName,
+    /// More of it is not shown than is ([`hides`]): padded to slip past what reads it.
+    HiddenCharacters,
 }
 
 /// One reason a message may not be what it seems.
@@ -83,8 +85,9 @@ pub enum Warning {
     /// The sender's domain (`domain`, written as it goes over the wire) is one character, or one
     /// look-alike character, away from `like`, a known correspondent's.
     LookalikeSender { domain: String, like: String },
-    /// A link whose text names `text_host` and which goes to `host`; `url` is where it goes, in
-    /// full (an agent is given its first characters).
+    /// A link whose text names `text_host` (empty when its text hides more than it shows,
+    /// [`hides`]) and which goes to `host`; `url` is where it goes, in full (an agent is given its
+    /// first characters).
     LinkMismatch { text_host: String, host: String, url: String },
 }
 
@@ -119,6 +122,7 @@ impl Warning {
                 NameReason::AddressInName(address) => json!({"name": name, "reason": "addressInName", "address": address}),
                 NameReason::KnownName => json!({"name": name, "reason": "knownName"}),
                 NameReason::OwnName => json!({"name": name, "reason": "ownName"}),
+                NameReason::HiddenCharacters => json!({"name": name, "reason": "hiddenCharacters"}),
             },
             Warning::External { domain } => json!({"domain": domain}),
             Warning::LookalikeSender { domain, like } => json!({"domain": domain, "like": like}),
@@ -361,6 +365,9 @@ fn addresses_in(name: &str) -> Vec<String> {
 fn name_hides(facts: &Facts, m: &Message) -> Option<Warning> {
     let address = m.from.email.trim().to_lowercase();
     let name = detail(&m.from.name);
+    if hides(&m.from.name) {
+        return Some(Warning::NameHidesAddress { name, reason: NameReason::HiddenCharacters });
+    }
     // A list writes its members' names as "Maya Okafor via Lumen Team": the name is the
     // member's, the address the list's.
     let via = via_list(&as_seen(&m.from.name, MAX_NAME_CHARS));
@@ -386,9 +393,6 @@ fn via_list(name: &str) -> bool {
 /// (`https://lumen.example/pay`, `www.lumen.example`, `lumen.example/pay`); `None` for words
 /// ("Click here"), an e-mail address, and anything else.
 fn named_host(text: &str) -> Option<String> {
-    if text.len() > MAX_LINK_TEXT.saturating_mul(4) {
-        return None;
-    }
     // As it reads: `www.lumen\u{200b}.example` is shown as `www.lumen.example`.
     let text = as_seen(text, MAX_LINK_TEXT.saturating_add(1));
     let text = text.trim().trim_end_matches(['.', ',', ';', ':', ')', '>']).trim_start_matches(['(', '<']);
@@ -510,6 +514,27 @@ fn proofpoint(link: &mailcraft_link::WebLink, host: &str) -> Option<mailcraft_li
 /// `link` itself. None for a link through one of the [`LINK_REWRITERS`], or a URL Defense link
 /// that can't be read whole: those are not compared.
 fn real_links(link: mailcraft_link::WebLink) -> Vec<mailcraft_link::WebLink> {
+    if !is_at(&host_key(link.host()).to_ascii_lowercase(), SAFE_LINKS) {
+        return unwrapped(link);
+    }
+    // Safe Links round another rewriter (an organisation behind Proofpoint as well) is
+    // unwrapped once more; no deeper.
+    let (mut inner, mut named) = (Vec::<mailcraft_link::WebLink>::new(), false);
+    for value in query_values(link.as_str(), "url").take(MAX_INNER_LINKS) {
+        let Some(target) = mailcraft_link::WebLink::parse(percent_decoded(value).trim()) else { continue };
+        named = true;
+        for target in unwrapped(target) {
+            if !inner.iter().any(|known| known.as_str() == target.as_str()) {
+                inner.push(target);
+            }
+        }
+    }
+    if named { inner } else { vec![link] }
+}
+
+/// Where `link` goes, through a rewriter other than Safe Links: the link URL Defense carries,
+/// nothing for one that hides it or can't be read, else `link` itself.
+fn unwrapped(link: mailcraft_link::WebLink) -> Vec<mailcraft_link::WebLink> {
     let host = host_key(link.host()).to_ascii_lowercase();
     if LINK_REWRITERS.iter().any(|rewriter| is_at(&host, rewriter)) {
         return Vec::new();
@@ -517,18 +542,7 @@ fn real_links(link: mailcraft_link::WebLink) -> Vec<mailcraft_link::WebLink> {
     if is_at(&host, PROOFPOINT_V2) || is_at(&host, PROOFPOINT_V3) {
         return proofpoint(&link, &host).into_iter().collect();
     }
-    if !is_at(&host, SAFE_LINKS) {
-        return vec![link];
-    }
-    let mut inner: Vec<mailcraft_link::WebLink> = Vec::new();
-    for value in query_values(link.as_str(), "url").take(MAX_INNER_LINKS) {
-        if let Some(target) = mailcraft_link::WebLink::parse(percent_decoded(value).trim())
-            && !inner.iter().any(|known| known.as_str() == target.as_str())
-        {
-            inner.push(target);
-        }
-    }
-    if inner.is_empty() { vec![link] } else { inner }
+    vec![link]
 }
 
 /// Where the link to `href` really goes, as [`link_mismatches`] compares it: none for no web
@@ -547,10 +561,13 @@ pub fn link_targets(href: &str) -> Vec<mailcraft_link::WebLink> {
 pub fn link_mismatches<'a>(links: impl IntoIterator<Item = (&'a str, &'a str)>) -> Vec<Warning> {
     let mut out: Vec<Warning> = Vec::new();
     for (text, href) in links.into_iter().take(MAX_LINKS) {
-        let Some(named) = named_host(text) else { continue };
+        // A text that hides more than it shows names nothing that can be believed: wherever the
+        // link goes, it is said, with the host the text shows when it shows one.
+        let hidden = hides(text);
+        let Some(named) = named_host(text).or_else(|| hidden.then(String::new)) else { continue };
         for link in link_targets(href) {
             let (named, real) = (host_key(&named), host_key(link.host()));
-            if named == real || registrable(named) == registrable(real) {
+            if !hidden && (named == real || registrable(named) == registrable(real)) {
                 continue;
             }
             let same = |w: &Warning| matches!(w, Warning::LinkMismatch { url, .. } if url == link.as_str());

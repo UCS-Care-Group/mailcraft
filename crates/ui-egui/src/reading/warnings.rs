@@ -59,6 +59,10 @@ fn said(w: &Warning, m: &Message, links: usize) -> (String, String) {
                 &[("name", &short(name)), ("real", &real)],
             ),
         ),
+        Warning::NameHidesAddress { reason: NameReason::HiddenCharacters, .. } => (
+            tl!("The name hides characters.").to_string(),
+            fill(tl!("Most of the sender's name is characters that aren't shown, and the message came from {real}."), &[("real", &real)]),
+        ),
         Warning::NameHidesAddress { reason: NameReason::OwnName, .. } => (
             tl!("Your own name.").to_string(),
             fill(tl!("The sender uses your name, but this message came from {real}, which isn't one of your addresses."), &[("real", &real)]),
@@ -71,7 +75,11 @@ fn said(w: &Warning, m: &Message, links: usize) -> (String, String) {
             ),
         ),
         Warning::LinkMismatch { text_host, host, .. } => {
-            let first = fill(tl!("A link that reads {named} goes to {host}."), &[("named", &short(text_host)), ("host", &short(host))]);
+            let first = if text_host.is_empty() {
+                fill(tl!("A link whose text is mostly characters that aren't shown goes to {host}."), &[("host", &short(host))])
+            } else {
+                fill(tl!("A link that reads {named} goes to {host}."), &[("named", &short(text_host)), ("host", &short(host))])
+            };
             let more = links.saturating_sub(1);
             let rest = if more > 0 { format!(" {}", tln!(more, "And {n} more link like it.", "And {n} more links like it.")) } else { String::new() };
             (tl!("A link goes somewhere else.").to_string(), format!("{first}{rest} {}", tl!("Point at a link to see where it goes.")))

@@ -83,8 +83,8 @@ fn prototype(c: char) -> Option<&'static str> {
 /// Whether `c` draws nothing, or changes only how what is around it is drawn: Unicode's format
 /// characters (zero-width spaces and joiners, direction marks, overrides and isolates, the soft
 /// hyphen, the byte-order mark, invisible operators, tags), variation selectors, the combining
-/// grapheme joiner and the Hangul fillers. A name or address with one of these in it looks just
-/// like the one without.
+/// grapheme joiner. A name or address with one of these in it looks just like the one without.
+/// (The blank fillers, which a font draws as a gap, are [`blank`].)
 pub fn draws_nothing(c: char) -> bool {
     matches!(
         c,
@@ -94,16 +94,13 @@ pub fn draws_nothing(c: char) -> bool {
             | '\u{061c}'
             | '\u{06dd}'
             | '\u{070f}'
-            | '\u{115f}'..='\u{1160}'
             | '\u{17b4}'..='\u{17b5}'
             | '\u{180b}'..='\u{180f}'
             | '\u{200b}'..='\u{200f}'
             | '\u{202a}'..='\u{202e}'
             | '\u{2060}'..='\u{206f}'
-            | '\u{3164}'
             | '\u{fe00}'..='\u{fe0f}'
             | '\u{feff}'
-            | '\u{ffa0}'
             | '\u{fff9}'..='\u{fffb}'
             | '\u{1d173}'..='\u{1d17a}'
             | '\u{e0000}'..='\u{e007f}'
@@ -111,19 +108,61 @@ pub fn draws_nothing(c: char) -> bool {
     )
 }
 
-/// `text` as it reads on the screen, of its first `limit` characters: without what
-/// [draws nothing](draws_nothing), and with the characters drawn as an at sign (`＠`, `﹫`) or a
-/// full stop (`．`, `․`, `﹒`, `。`, `｡`) as `@` and `.`.
-pub fn as_seen(text: &str, limit: usize) -> String {
-    text.chars()
-        .take(limit)
-        .filter(|c| !draws_nothing(*c))
-        .map(|c| match c {
+/// Whether `c` is a blank filler, which is no space to Unicode but which a font draws as a gap:
+/// the Hangul fillers and the blank braille pattern.
+fn blank(c: char) -> bool {
+    matches!(c, '\u{115f}' | '\u{1160}' | '\u{3164}' | '\u{ffa0}' | '\u{2800}')
+}
+
+/// The most characters of a text [`as_seen`] and [`hides`] read, seen or not.
+pub const MAX_READ: usize = 65_536;
+
+/// `text` as it reads on the screen, at most `keep` characters of it: without what
+/// [draws nothing](draws_nothing), a run of blanks (spaces, [blank fillers](blank)) as one space,
+/// and the characters drawn as an at sign (`＠`, `﹫`) or a full stop (`．`, `․`, `﹒`, `。`, `｡`,
+/// `ꓸ`, `܁`, `۔`, `⸱`) as `@` and `.`. Only `keep` characters of what is seen are kept, of at
+/// most [`MAX_READ`] read: what draws nothing doesn't use up the room of what is seen.
+pub fn as_seen(text: &str, keep: usize) -> String {
+    let mut out = String::new();
+    let mut kept = 0usize;
+    let mut gap = false;
+    for c in text.chars().take(MAX_READ).filter(|c| !draws_nothing(*c)) {
+        if kept >= keep {
+            break;
+        }
+        if c.is_whitespace() || blank(c) {
+            if !gap {
+                out.push(' ');
+                kept += 1;
+            }
+            gap = true;
+            continue;
+        }
+        gap = false;
+        out.push(match c {
             '\u{ff20}' | '\u{fe6b}' => '@',
-            '\u{ff0e}' | '\u{2024}' | '\u{fe52}' | '\u{3002}' | '\u{ff61}' => '.',
+            '\u{ff0e}' | '\u{2024}' | '\u{fe52}' | '\u{3002}' | '\u{ff61}' | '\u{a4f8}' | '\u{701}' | '\u{6d4}' | '\u{2e31}' => '.',
             c => c,
-        })
-        .collect()
+        });
+        kept += 1;
+    }
+    out
+}
+
+/// Whether `text` hides more than it shows: it is longer than [`MAX_READ`] characters, or more of
+/// its characters [draw nothing](draws_nothing) than are seen. A name or a link's text like that
+/// is padded to slip past what reads it, and is a reason to warn by itself.
+pub fn hides(text: &str) -> bool {
+    let (mut read, mut unseen, mut seen) = (0usize, 0usize, 0usize);
+    for c in text.chars().take(MAX_READ.saturating_add(1)) {
+        read += 1;
+        if draws_nothing(c) {
+            unseen += 1;
+        } else if !c.is_whitespace() && !blank(c) {
+            seen += 1;
+        }
+    }
+    read > MAX_READ || unseen > seen
 }
 
 /// Whether `c` draws nothing of its own: what [draws nothing](draws_nothing), or a combining
@@ -132,11 +171,50 @@ fn invisible(c: char) -> bool {
     matches!(c, '\u{300}'..='\u{36f}') || draws_nothing(c)
 }
 
-/// The skeleton of `text`: lower case, each character as the Latin letter it is drawn like,
-/// what draws nothing left out, and `rn`, `vv` and `cl` read as `m`, `w` and `d`.
+/// The Latin capital a Cyrillic or Greek capital is drawn like, in lower case (taken before
+/// lower case, which would make most of them letters drawn otherwise: `М` is `м`).
+fn capital(c: char) -> Option<char> {
+    Some(match c {
+        'А' | 'Α' => 'a',
+        'В' | 'Β' => 'b',
+        'Е' | 'Ε' => 'e',
+        'Ζ' => 'z',
+        'Н' | 'Η' => 'h',
+        'І' | 'Ι' => 'i',
+        'Ј' => 'j',
+        'К' | 'Κ' => 'k',
+        'М' | 'Μ' => 'm',
+        'Ν' => 'n',
+        'О' | 'Ο' => 'o',
+        'Р' | 'Ρ' => 'p',
+        'С' | 'Ϲ' => 'c',
+        'Ѕ' => 's',
+        'Т' | 'Τ' => 't',
+        'У' | 'Υ' => 'y',
+        'Х' | 'Χ' => 'x',
+        _ => return None,
+    })
+}
+
+/// A mathematical letter or digit (bold, italic, script, sans-serif, monospace…: U+1D400 to
+/// U+1D6A3 and U+1D7CE to U+1D7FF) as the plain one it is a style of, letters in lower case.
+/// Each style is the 26 capitals then the 26 small letters, or the ten digits, in order.
+fn plain(c: char) -> char {
+    let n = u32::from(c);
+    let at = |base: u32, count: u32| n.checked_sub(base).map(|i| i % count);
+    match n {
+        0x1d400..=0x1d6a3 => at(0x1d400, 52).and_then(|i| char::from_u32(0x61 + i % 26)).unwrap_or(c),
+        0x1d7ce..=0x1d7ff => at(0x1d7ce, 10).and_then(|i| char::from_u32(0x30 + i)).unwrap_or(c),
+        _ => c,
+    }
+}
+
+/// The skeleton of `text`: lower case, each character as the Latin letter it is drawn like
+/// (capitals too), what draws nothing left out, and `rn`, `vv` and `cl` read as `m`, `w` and `d`.
 pub fn skeleton(text: &str) -> String {
     let mut out = String::with_capacity(text.len().min(MAX_CHARS * 2));
-    for c in text.chars().take(MAX_CHARS).flat_map(char::to_lowercase) {
+    let read = text.chars().take(MAX_CHARS).map(plain);
+    for c in read.flat_map(|c| capital(c).map_or_else(|| c.to_lowercase().collect::<Vec<_>>(), |l| vec![l])) {
         if invisible(c) {
             continue;
         }

@@ -463,9 +463,10 @@ fn a_name_reads_as_it_is_seen() {
         assert!(as_seen(name, 1_000).contains('@'), "{name:?}");
     }
     assert_eq!(as_seen("maya@lu\u{ad}men\u{2024}example", 1_000), "maya@lumen.example");
-    // The limit counts what is read, seen or not.
-    assert_eq!(as_seen("M\u{200d}aya\u{e0041}", 2), "M");
+    // The limit counts what is kept: what isn't seen takes no room, and blanks run together.
+    assert_eq!(as_seen("M\u{200d}aya\u{e0041}", 2), "Ma");
     assert_eq!(as_seen("M\u{200d}aya\u{e0041}", 9), "Maya");
+    assert_eq!(as_seen("Maya \u{3164}\u{2800}  Okafor", 100), "Maya Okafor");
     assert_eq!(name_key("\u{201c}M\u{430}ya\u{201d}  Okafor."), name_key("Maya Okafor"));
     assert_eq!(name_key("Maya\u{200b}"), None);
 }
@@ -570,6 +571,87 @@ fn links_alike_in_their_first_characters_are_told_apart() {
     assert!(matches!(found.first(), Some(Warning::LinkMismatch { url, .. }) if *url == one));
     let json = found.first().map(Warning::json).unwrap_or_default();
     assert!(json["url"].as_str().is_some_and(|url| url.chars().count() <= 200));
+}
+
+// ---- padding, capitals, blank fillers, links wrapped twice ----
+
+fn hides_a_name(name: &str) -> bool {
+    kinds(&from(name, "maya.okafor@freemail.example")).contains(&"nameHidesAddress")
+}
+
+#[test]
+fn padding_of_what_draws_nothing_hides_nothing() {
+    let pad = |n: usize| "\u{200b}".repeat(n);
+    assert!(hides_a_name(&format!("{}Maya Okafor", pad(1_000))));
+    assert!(hides_a_name(&format!("{}maya@lumen.example", pad(1_000))));
+    assert!(hides_a_name(&format!("{}Someone", pad(70_000))));
+    let evil = "https://evil.example/";
+    let leading = format!("{}www.lumen.example/pay", pad(2_049));
+    let trailing = format!("www.lumen.example/pay{}", pad(3_000));
+    for text in [leading.as_str(), trailing.as_str()] {
+        assert!(matches!(&link_mismatches([(text, evil)])[..], [Warning::LinkMismatch { host, .. }] if host == "evil.example"), "{}", text.len());
+    }
+    // A link's text made mostly of what isn't shown is no plain text either.
+    let hidden = format!("{}Pay", pad(70_000));
+    assert_eq!(link_mismatches([(hidden.as_str(), evil)]).len(), 1);
+    // A word or two that a joiner holds together is nothing to say.
+    assert!(!hides_a_name("Ma\u{200d}ya Someone"));
+    assert!(link_mismatches([("Click\u{200b} here", evil)]).is_empty());
+}
+
+#[test]
+fn capitals_drawn_like_latin_ones_are_read_as_them() {
+    let mut b = FactsBuilder::default().accounts([&imap("avery@lumen.example", "Avery Quinn")]);
+    b.known("maya@lumen.example", "Maya Okafor");
+    b.known("nick@lumen.example", "Nick Hale");
+    b.known("ben@lumen.example", "Ben Ito");
+    let facts = b.build();
+    let account = imap("avery@lumen.example", "Avery Quinn");
+    for name in ["\u{41c}aya Okafor", "\u{39c}aya Okafor", "\u{39d}ick Hale", "\u{412}en Ito", "\u{1d40c}aya Okafor", "\u{1d5ac}aya \u{1d5ae}kafor"] {
+        let m = from(name, "x@freemail.example");
+        let found = check(&m, Some(&account), Some(FolderKind::Inbox), &facts, None::<Vec<(&str, &str)>>);
+        assert!(found.iter().any(|w| matches!(w, Warning::NameHidesAddress { reason: NameReason::KnownName, .. })), "{name:?}: {found:?}");
+    }
+}
+
+#[test]
+fn a_blank_filler_is_a_gap_between_words() {
+    for gap in ['\u{3164}', '\u{115f}', '\u{ffa0}', '\u{2800}'] {
+        let m = from(&format!("Maya{gap}Okafor"), "maya.okafor@freemail.example");
+        assert!(matches!(&warnings(&m)[..], [Warning::NameHidesAddress { reason: NameReason::KnownName, .. }, ..]), "{gap:?}: {:?}", kinds(&m));
+    }
+}
+
+#[test]
+fn more_full_stops_that_are_drawn_as_one() {
+    for dot in ['\u{a4f8}', '\u{701}', '\u{6d4}', '\u{2e31}'] {
+        let m = from(&format!("maya@lumen{dot}example"), "maya.okafor@freemail.example");
+        assert!(
+            matches!(&warnings(&m)[..], [Warning::NameHidesAddress { reason: NameReason::AddressInName(a), .. }, ..] if a == "maya@lumen.example"),
+            "{dot:?}"
+        );
+    }
+}
+
+#[test]
+fn safe_links_round_another_rewriter_are_unwrapped_once_more() {
+    let safe = |target: &str| format!("https://eur01.safelinks.protection.outlook.com/?url={target}&data=05");
+    let home = safe("https%3A%2F%2Furldefense.com%2Fv3%2F__https%3A%2F%2Flumen.example%2Fpay__%3B%21%21abc%24");
+    assert!(link_mismatches([("lumen.example", home.as_str())]).is_empty());
+    let away = safe("https%3A%2F%2Furldefense.com%2Fv3%2F__https%3A%2F%2Flumen-pay.example%2Flogin__%3B%21%21abc%24");
+    assert!(matches!(&link_mismatches([("lumen.example", away.as_str())])[..], [Warning::LinkMismatch { host, .. }] if host == "lumen-pay.example"));
+    let mimecast = safe("https%3A%2F%2Fprotect-eu.mimecast.com%2Fs%2FAbCdEf");
+    assert!(link_mismatches([("lumen.example", mimecast.as_str())]).is_empty());
+}
+
+#[test]
+fn only_the_registered_policy_properties_are_read() {
+    let account = imap("avery@lumen.example", "Avery Quinn");
+    let says = |value: &str| failed_check(Some(&account), &with_results(from("Shop", "news@shop.example"), &format!("mx.lumen.example; {value}")));
+    assert_eq!(says("dmarc=fail policy.published-domain-policy=none header.from=shop.example"), Some(Failed::DmarcPolicyNone));
+    assert_eq!(says("dmarc=fail policy.whatever=none header.from=shop.example"), Some(Failed::Dmarc));
+    // Exchange Online's `action=none` says what it did, not the domain's policy: still red.
+    assert_eq!(says("dmarc=fail action=none header.from=shop.example"), Some(Failed::Dmarc));
 }
 
 proptest! {

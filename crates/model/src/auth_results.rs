@@ -274,12 +274,17 @@ pub fn failed_check(account: Option<&Account>, m: &Message) -> Option<Failed> {
 }
 
 /// Whether a `dmarc` clause says the domain's policy is `none`: in the server's comment
-/// (`(p=NONE sp=NONE dis=NONE)`) or a `policy.` property (`policy.dmarc=none`). Another policy, or
-/// none said, is not.
+/// (`(p=NONE sp=NONE dis=NONE)`) or the registered property for it (`policy.dmarc`, or DMARCbis's
+/// `policy.published-domain-policy`). Another policy, or none said, is not. Exchange Online's
+/// `action=none` says what it did with the message, not the domain's policy, and is not read:
+/// that keeps the warning red, which is the safe way to be wrong.
 fn policy_none(words: &[String]) -> bool {
     words.iter().skip(1).any(|word| {
         let word = word.to_ascii_lowercase();
-        word == "(p=none" || word.split_once('=').is_some_and(|(key, value)| key.starts_with("policy.") && value.trim_matches('"') == "none")
+        word == "(p=none"
+            || word
+                .split_once('=')
+                .is_some_and(|(key, value)| matches!(key, "policy.dmarc" | "policy.published-domain-policy") && value.trim_matches('"') == "none")
     })
 }
 

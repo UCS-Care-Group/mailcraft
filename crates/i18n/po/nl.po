@@ -269,6 +269,11 @@ msgstr ""
 msgid "A link that reads {named} goes to {host}."
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+msgid "A link whose text is mostly characters that aren't shown goes to {host}."
+msgstr ""
+
 #. name
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
@@ -5073,6 +5078,11 @@ msgstr "Meer resultaten op de server worden niet aangeboden: {why}"
 msgid "More results on the server can't be asked for now"
 msgstr "Meer resultaten op de server kunnen nu niet worden opgevraagd"
 
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+msgid "Most of the sender's name is characters that aren't shown, and the message came from {real}."
+msgstr ""
+
 #. interface, ribbon, ribbon location
 #: crates/engine/src/cmd/mail.rs crates/engine/src/cmd/rules.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -9333,6 +9343,11 @@ msgstr "De berichten van de map in beeld, als .mbox"
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
 msgid "The name hides another address."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+msgid "The name hides characters."
 msgstr ""
 
 #. interface
