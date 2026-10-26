@@ -731,7 +731,7 @@ fn appending_with_a_date_says_where_the_message_went() {
     );
     // An answer that doesn't pair one message with one UID beyond doubt is no answer.
     for code in ["[APPENDUID 0 5]", "[APPENDUID 38505 0]", "[APPENDUID 38505 1:3]", "[APPENDUID 38505]", "[APPENDUID 38505 7 8]", "[APPENDUID x 7]"] {
-        let mut s = Script::new(&format!("+ go\r\nA0001 OK {code} done\r\n"));
+        let mut s = Script::new(format!("+ go\r\nA0001 OK {code} done\r\n"));
         assert_eq!(Imap::resume(&mut s).append_at("INBOX", &[], None, message), Ok(None), "{code}");
     }
     // Two answers to one message might disagree: neither is taken.
