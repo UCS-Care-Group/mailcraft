@@ -28,9 +28,9 @@ fn not_found() -> std::io::Error {
 fn the_desktop_openers_are_tried_in_turn_each_with_the_path_alone() {
     let p = "/home/u/.cache/MailCraft/Attachments/1/a b.pdf";
     let commands = commands_for(Opener::XdgOpen, Path::new(p));
-    assert_eq!(programs(&commands), ["xdg-open", "gio", "kde-open", "gnome-open"]);
+    assert_eq!(programs(&commands), ["xdg-open", "gio", "kde-open"]);
     let all: Vec<Vec<String>> = commands.iter().map(args).collect();
-    assert_eq!(all, [vec![p], vec!["open", p], vec![p], vec![p]]);
+    assert_eq!(all, [vec![p], vec!["open", "--", p], vec!["--", p]]);
 }
 
 #[test]
@@ -67,7 +67,7 @@ fn when_no_opener_is_installed_the_answer_is_not_found() {
         Err(not_found())
     });
     assert_eq!(started.unwrap_err().kind(), std::io::ErrorKind::NotFound);
-    assert_eq!(tried, 4);
+    assert_eq!(tried, 3);
 }
 
 #[test]

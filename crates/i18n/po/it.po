@@ -3507,11 +3507,16 @@ msgstr "Miscellanea"
 msgid "Gravatar is asked for the sender's picture and told a hash of their address; else favicon.im, then Google, are asked for their website's icon and told the sender's domain. This tells those services whose pictures you look at. Only for the people you know (your contacts, and whoever you have written to) and the mail whose pictures you download, never for Junk E-mail, and a sender's picture only when your mail server confirms the mail is from them."
 msgstr ""
 
-#. command label, ribbon
-#: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
+#. command label, interface, ribbon
+#: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "HTML"
 msgstr "HTML"
+
+#. command label
+#: crates/engine/src/cmd/signature.rs
+msgid "HTML Signature"
+msgstr ""
 
 #. name
 #: crates/engine/src/session.rs
@@ -6284,6 +6289,11 @@ msgid "Paste Picture"
 msgstr "Incolla immagine"
 
 #. interface
+#: crates/ui-egui/src/signatures.rs
+msgid "Paste or write the signature's HTML"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Pattern"
@@ -7060,6 +7070,11 @@ msgid "Ribbon Layout"
 msgstr "Layout barra multifunzione"
 
 #. interface
+#: crates/ui-egui/src/signatures.rs
+msgid "Rich text"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/reading/invitation.rs
 #, fuzzy
 msgid "Right before or after: {items}"
@@ -7754,6 +7769,11 @@ msgstr "Inviato"
 #, fuzzy
 msgid "Sent Items"
 msgstr "Posta inviata"
+
+#. interface
+#: crates/ui-egui/src/signatures.rs
+msgid "Sent as written, without anything that runs or tracks. Pictures come from their web address, and recipients' programs decide whether to load them. A message you write shows a simpler copy of this signature; if you edit it there, that copy is sent instead."
+msgstr ""
 
 #. name
 #: crates/ui-egui/src/forms.rs
@@ -11068,6 +11088,16 @@ msgstr "aggiungere prima un account (File › Aggiungi account)"
 #, fuzzy
 msgid "add at least one recipient"
 msgstr "aggiungere almeno un destinatario"
+
+#. what a command says
+#: crates/model/src/signature.rs
+msgid "an HTML signature shows pictures from their web address only: remove this signature's pictures first"
+msgstr ""
+
+#. what a command says
+#: crates/model/src/signature.rs
+msgid "an HTML signature shows pictures from their web address: switch it to rich text to add one"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
