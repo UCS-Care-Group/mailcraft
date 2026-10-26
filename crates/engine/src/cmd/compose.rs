@@ -65,7 +65,7 @@ pub fn specs() -> Vec<CommandSpec> {
 const SOURCE: &str =
     r#"{"id"?: number} (default: the selected message; a message being written with changes that aren't saved is saved to Drafts first)"#;
 
-const FORWARD: &str = r#"{"id"?: number} | {"ids"?: [number]} (default: the selected messages; a message being written with changes that aren't saved is saved to Drafts first). One message: Forward quotes it, Forward as Attachment attaches it whole as an .eml. Several, at most 200 and 64 MB together, are each attached whole as an .eml, in the message list's order, in a message from the account of the last one named (the one in focus); its subject is FW: with that one's when they all have the same subject (without RE: and FW:), else empty"#;
+const FORWARD: &str = r#"{"id"?: number} | {"ids"?: [number]} (default: the selected messages; a message being written with changes that aren't saved is saved to Drafts first). One message: Forward quotes it, Forward as Attachment attaches it whole as an .eml. Several, at most 200 and 64 MB together, are each attached whole as an .eml, in the message list's order, in a message from the account of the last one named (the one in focus), with no subject for the owner to write"#;
 
 /// The commands that close the message being written or put another in its place (#442).
 pub const LEAVING: [&str; 7] =
@@ -480,9 +480,10 @@ fn forward_attached(s: &mut Session, ids: &[Id], focus: Id) -> CmdResult {
     }
     let m = s.mailbox.message(focus).ok_or_else(|| failed!("no message with id {id}", id = focus))?;
     let account = m.account;
+    // Several have no subject: one message's would name the others wrongly. The owner writes it.
     let subject = match ids {
         [_] => prefixed("FW", &m.subject),
-        _ => together(s, ids, m),
+        _ => String::new(),
     };
     let sig = chosen_signature(s, account, None, true);
     let mut c = Compose {
@@ -572,15 +573,6 @@ fn numbered(name: String, taken: &[Attachment]) -> String {
     }
     let stem = name.strip_suffix(".eml").unwrap_or(&name);
     (2..).map(|k| format!("{stem} ({k}).eml")).find(|n| !used(n)).unwrap_or(name)
-}
-
-/// The subject of a forward of several messages: `FW:` with the subject of the one in focus when
-/// they are all about the same (their subjects without `RE:` and `FW:`), else none, for the
-/// owner to write: one message's subject would name the others wrongly.
-fn together(s: &Session, ids: &[Id], focus: &Message) -> String {
-    let topic = focus.topic().to_lowercase();
-    let same = !topic.is_empty() && ids.iter().filter_map(|id| s.mailbox.message(*id)).all(|m| m.topic().to_lowercase() == topic);
-    if same { prefixed("FW", &focus.subject) } else { String::new() }
 }
 
 /// Whether `m` is what is kept of an IMAP message too large to download: its header and, in

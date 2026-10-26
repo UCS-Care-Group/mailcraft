@@ -65,7 +65,7 @@ fn several_go_each_whole_as_an_eml_in_the_lists_order() {
         assert_eq!(compose.account, s.mailbox.message(b).unwrap().account);
         assert!(compose.to.is_empty() && compose.cc.is_empty() && compose.bcc.is_empty());
         assert!(compose.quote.is_none() && compose.in_reply_to.is_empty() && compose.references.is_empty(), "{command}: nothing quoted");
-        // Their subjects differ: none is chosen for them.
+        // No subject is chosen for them: the owner writes it.
         assert_eq!(compose.subject, "", "{command}");
         // A line to write on, then the signature for replies and forwards, and nothing of them.
         let signature = s.mailbox.accounts[0].reply_signature().to_string();
@@ -175,30 +175,21 @@ fn messages_named_otherwise_than_by_ids_are_refused() {
 }
 
 #[test]
-fn a_subject_is_chosen_only_when_they_are_all_about_the_same() {
+fn several_have_no_subject_for_the_owner_to_write_one() {
     let mut s = session();
     let inbox = by_subject(&s, "Release checklist");
     let sent = by_subject(&s, "RE: Release checklist");
-    select(&mut s, &[sent, inbox]);
-    s.run("mail.forwardAsAttachment", &json!({})).unwrap();
-    assert_eq!(s.compose.as_ref().unwrap().subject, "FW: Release checklist", "the focus's");
-    select(&mut s, &[inbox, sent]);
-    s.run("mail.forward", &json!({})).unwrap();
-    assert_eq!(s.compose.as_ref().unwrap().subject, "FW: RE: Release checklist");
-    // Whatever capitals, and a forward's prefix, are the same subject.
-    s.mailbox.message_mut(inbox).unwrap().subject = "fw: RELEASE checklist".into();
-    s.run("mail.forward", &json!({})).unwrap();
-    assert_eq!(s.compose.as_ref().unwrap().subject, "FW: RE: Release checklist");
-    // One of another subject, or none: there is none for them.
-    let other = by_subject(&s, MOCKUPS);
-    s.run("mail.forward", &json!({"ids": [inbox, other, sent]})).unwrap();
-    assert_eq!(s.compose.as_ref().unwrap().subject, "");
-    for subject in ["", "RE: "] {
-        s.mailbox.message_mut(inbox).unwrap().subject = subject.into();
-        s.mailbox.message_mut(sent).unwrap().subject = subject.into();
-        s.run("mail.forward", &json!({"ids": [inbox, sent]})).unwrap();
-        assert_eq!(s.compose.as_ref().unwrap().subject, "", "{subject:?}");
+    // Not even when they are all about the same.
+    for command in ["mail.forwardAsAttachment", "mail.forward"] {
+        select(&mut s, &[sent, inbox]);
+        s.run(command, &json!({})).unwrap();
+        assert_eq!(s.compose.as_ref().unwrap().subject, "", "{command}");
+        s.run(command, &json!({"ids": [inbox, by_subject(&s, MOCKUPS), sent]})).unwrap();
+        assert_eq!(s.compose.as_ref().unwrap().subject, "", "{command}");
     }
+    // One alone has its own, as before.
+    s.run("mail.forwardAsAttachment", &json!({"ids": [inbox]})).unwrap();
+    assert_eq!(s.compose.as_ref().unwrap().subject, "FW: Release checklist");
 }
 
 #[test]

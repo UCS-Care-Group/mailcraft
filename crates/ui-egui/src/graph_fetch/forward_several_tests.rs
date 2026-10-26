@@ -196,3 +196,23 @@ fn offline_the_window_says_so() {
     assert!(app.status_msg.as_ref().is_some_and(|(text, _)| *text == e), "{e}");
     assert!(asked(&jobs).is_empty());
 }
+
+#[test]
+fn more_than_a_host_takes_at_once_come_a_hundred_at_a_time() {
+    let (mut app, [[a, ..], _], jobs) = window();
+    let account = app.session.mailbox.message(a).unwrap().account;
+    let inbox = app.session.mailbox.message(a).unwrap().folder;
+    let mut ids = Vec::new();
+    for n in 0..150 {
+        let server = ServerMessage { id: format!("MANY{n}"), folder: "inbox".into(), size: 2_000, ..Default::default() };
+        let m = Message { account, folder: inbox, subject: format!("Many {n}"), unfetched: true, server: Some(server), ..Default::default() };
+        ids.push(app.session.mailbox.add_message(m).unwrap());
+    }
+    app.session.sel.messages = ids;
+    app.run("mail.forwardAsAttachment", json!({})).unwrap();
+    assert_eq!(asked(&jobs).iter().map(|(_, ids)| ids.len()).collect::<Vec<_>>(), [100]);
+    answer(&mut app, &jobs, &[], &[]);
+    assert_eq!(asked(&jobs).iter().map(|(_, ids)| ids.len()).collect::<Vec<_>>(), [50], "the rest, once the first hundred came");
+    answer(&mut app, &jobs, &[], &[]);
+    assert_eq!(app.session.compose.as_ref().map(|c| c.attachments.len()), Some(150));
+}
