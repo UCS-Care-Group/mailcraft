@@ -860,6 +860,9 @@ pub struct Session {
     /// (its Undo step, and what a failed command goes back to) has them as they are now. Bringing
     /// content in is not a change to the mailbox.
     swaps: Option<Swaps>,
+    /// While a command runs: whether it chose what is selected and showed it ([`Session::show_selected`]),
+    /// so that the list it went to keeps it, though it may be what was selected before (#485).
+    chose_selection: bool,
     /// Since a search that reads bodies brought them in: the query, and whether each message
     /// whose body was let go of since matched it ([`Session::load_bodies_for_search`]). Kept
     /// while the list stays as it was searched (`searched_for`), so that a result opened, whose
@@ -968,6 +971,7 @@ impl Session {
             resident_bytes: 0,
             display_failed: std::collections::HashSet::new(),
             swaps: None,
+            chose_selection: false,
             search_pass: None,
             searched_for: None,
             index_words: false,
@@ -1152,7 +1156,7 @@ impl Session {
     /// (#428).
     pub(crate) fn keep_clicked(&mut self) {
         let selection = self.sel.messages.clone();
-        let ids = self.listed(&selection);
+        let ids = self.in_list(&selection);
         self.sel.stays = Some(Arc::new(Stays::of(ids, &selection, &self.view)));
     }
 
@@ -1161,7 +1165,7 @@ impl Session {
     /// the list wasn't shown, would have it built each time). What a search finds, only the list
     /// says: the rows built for the mailbox as it is (in the window, those on screen), but for
     /// those kept for a selection let go of since.
-    pub(crate) fn listed(&mut self, ids: &[Id]) -> HashSet<Id> {
+    pub(crate) fn in_list(&mut self, ids: &[Id]) -> HashSet<Id> {
         if mailcraft_model::search::Query::parse(&self.view.search).is_empty() {
             return crate::list::lists(self, ids);
         }
@@ -1177,16 +1181,26 @@ impl Session {
         }
     }
 
-    /// What is selected is in the list (#485): when the list in view doesn't show all of it (the
-    /// tab, a search), it shows the whole folder, which has what of it is there; what is in
-    /// another folder is let go of.
+    /// What is selected is in the list (#485): when the list in view doesn't show the message
+    /// being read, its folder is shown, in the All tab and with no search; when it doesn't show
+    /// the rest, the whole folder, which has what of it is there; what is in another folder is
+    /// let go of. And it stays in the list while it is selected (#428).
     pub(crate) fn show_selected(&mut self) {
+        if let Some((id, folder)) = self.focused_message().map(|m| (m.id, m.folder))
+            && !self.in_list(&[id]).contains(&id)
+        {
+            self.view.folder = folder;
+            self.show_whole_folder();
+        }
         self.select_in_view();
         let selection = self.sel.messages.clone();
-        if self.listed(&selection).len() < selection.len() {
+        let shown = self.in_list(&selection);
+        if !selection.iter().all(|id| shown.contains(id)) {
             self.show_whole_folder();
             self.select_in_view();
         }
+        self.keep_clicked();
+        self.chose_selection = true;
     }
 
     /// The list shows the whole folder in view: the All tab, and no search.
@@ -2021,7 +2035,10 @@ impl Session {
         let run = spec.run;
         // Last-resort guard (never-crash): a panic in a command becomes an error and the state is restored.
         let outer = self.swaps.replace(Swaps::default());
+        let outer_chose = std::mem::take(&mut self.chose_selection);
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| run(self, params)));
+        let chose_selection = self.chose_selection;
+        self.chose_selection = outer_chose || chose_selection;
         // Content the command brought in or let go of is in the state it started from too: it
         // is no change to undo, and a command that fails keeps it (and what is counted of it).
         let swaps = std::mem::replace(&mut self.swaps, outer).unwrap_or_default();
@@ -2055,8 +2072,8 @@ impl Session {
             Ok(_) => {
                 // Another list (a folder, a tab, a search) is a place of its own: what was selected
                 // in the one left isn't taken into it (#485), unless the command chose what is
-                // selected there (a message opened in its folder).
-                if self.sel.messages == before.sel.messages && ListOf::of(&view) != ListOf::of(&self.view) {
+                // selected there (a message opened in its folder, Undo).
+                if !chose_selection && self.sel.messages == before.sel.messages && ListOf::of(&view) != ListOf::of(&self.view) {
                     self.sel.clear_messages();
                 }
                 // The working hours of an account just removed go with it (#325): here, once

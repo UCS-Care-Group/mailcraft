@@ -103,7 +103,7 @@ fn select(s: &mut Session, v: &Value) -> CmdResult {
     // doesn't show (#485).
     if p::bool(v, "range") == Some(true) || p::bool(v, "extend") == Some(true) {
         let before = s.sel.messages.clone();
-        let shown = s.listed(&before);
+        let shown = s.in_list(&before);
         s.sel.messages.retain(|id| shown.contains(id));
     }
     if p::bool(v, "range") == Some(true) {
@@ -138,21 +138,18 @@ fn select(s: &mut Session, v: &Value) -> CmdResult {
     {
         s.view.folder = m.folder;
     }
-    // What is selected is in the list (#485): opened from outside it (a conversation in the
-    // reading pane, an agent), the message is shown in its folder, in the All tab and with no
-    // search, when the list doesn't show it there; from a task, a contact or an alert
-    // (`elsewhere`), always. So is what else is selected there, and what is selected elsewhere
-    // is let go of.
-    if let Some((id, folder)) = s.focused_message().map(|m| (m.id, m.folder))
-        && (p::bool(v, "elsewhere") == Some(true) || !s.listed(&[id]).contains(&id))
+    // Opened from a task, a contact or an alert (`elsewhere`): in its folder, in the All tab and
+    // with no search, always (#485).
+    if let Some(folder) = s.focused_message().map(|m| m.folder)
+        && p::bool(v, "elsewhere") == Some(true)
     {
         s.view.folder = folder;
         s.show_whole_folder();
     }
+    // What is selected is in the list (#485), and stays in it while it is selected (#428): opened
+    // from outside it (a conversation in the reading pane, an agent), in its folder, in the All
+    // tab and with no search, when the list doesn't show it there.
     s.show_selected();
-    // What is selected stays in the list while it is selected, if it is in it (#428): the one
-    // clicked in, or its folder's when it was opened there.
-    s.keep_clicked();
     mark_opened(s);
     Ok(json!({"selected": s.sel.messages}))
 }

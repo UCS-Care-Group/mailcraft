@@ -260,9 +260,76 @@ fn importing_a_tree_of_folders_lets_the_old_folders_selection_go() {
     assert!(s.sel.messages.is_empty());
 }
 
+#[test]
+fn a_message_selected_already_and_opened_from_its_task_stays_selected() {
+    // Opened in the Unread tab, which keeps it, then from its task: the same selection, in the
+    // All tab.
+    let mut s = Session::at(sample::mailbox(now(), 0), now(), 0);
+    run(&mut s, "folder.select", json!({"kind": "inbox"}));
+    run(&mut s, "view.filter", json!({"value": "unread"}));
+    let opened = shown(&mut s)[0];
+    run(&mut s, "mail.select", json!({"id": opened}));
+    run(&mut s, "view.tasks", json!({}));
+    run(&mut s, "mail.select", json!({"id": opened, "elsewhere": true}));
+    assert_eq!(s.view.filter, Filter::All);
+    assert_eq!(s.sel.messages, [opened]);
+}
+
+#[test]
+fn undo_that_selects_again_what_is_selected_shows_it() {
+    let (mut s, read) = read_one_selected();
+    run(&mut s, "mail.markUnread", json!({}));
+    run(&mut s, "view.filter", json!({"value": "unread"}));
+    run(&mut s, "mail.select", json!({"id": read}));
+    // Read again by Undo, which the Unread tab doesn't list: the All tab, with it selected.
+    run(&mut s, "edit.undo", json!({}));
+    assert_eq!(s.view.filter, Filter::All);
+    assert_eq!(s.sel.messages, [read]);
+    assert!(shown(&mut s).contains(&read));
+}
+
+#[test]
+fn a_message_selected_twice_over_is_shown_where_it_is() {
+    let mut s = Session::at(sample::mailbox(now(), 0), now(), 0);
+    run(&mut s, "folder.select", json!({"kind": "inbox"}));
+    run(&mut s, "view.filter", json!({"value": "unread"}));
+    let unread = shown(&mut s)[0];
+    run(&mut s, "mail.select", json!({"ids": [unread, unread]}));
+    assert_eq!(s.view.filter, Filter::Unread);
+}
+
+#[test]
+fn an_imported_message_is_shown_in_the_folder_it_went_to() {
+    let mut s = Session::at(sample::mailbox(now(), 0), now(), 0);
+    run(&mut s, "folder.select", json!({"kind": "inbox"}));
+    let archive = folder(&s, FolderKind::Archive);
+    let eml = "From: a@example.org\r\nTo: b@example.org\r\nSubject: Kept\r\nMessage-ID: <in-2@example.org>\r\n\r\nBody\r\n";
+    let r = run(&mut s, "file.import", json!({"name": "in.eml", "data": crate::cmd::base64_encode(eml.as_bytes()), "folder": archive}));
+    let id = r["ids"][0].as_u64().unwrap();
+    assert_eq!((s.view.folder, s.sel.messages.as_slice()), (archive, [id].as_slice()));
+    assert!(shown(&mut s).contains(&id));
+}
+
+#[test]
+fn an_imported_message_read_where_it_is_selected_stays_in_the_list() {
+    // In the Unread tab, read with no list built in between (an agent, the command line): it
+    // stays, as one clicked does (#428).
+    let mut s = Session::at(sample::mailbox(now(), 0), now(), 0);
+    run(&mut s, "folder.select", json!({"kind": "inbox"}));
+    run(&mut s, "view.filter", json!({"value": "unread"}));
+    let eml = "From: a@example.org\r\nTo: b@example.org\r\nSubject: Read\r\nMessage-ID: <in-3@example.org>\r\n\r\nBody\r\n";
+    let r = run(&mut s, "file.import", json!({"name": "in.eml", "data": crate::cmd::base64_encode(eml.as_bytes())}));
+    let id = r["ids"][0].as_u64().unwrap();
+    run(&mut s, "mail.markRead", json!({}));
+    assert!(s.mailbox.message(id).unwrap().read);
+    assert_eq!((s.view.filter, s.sel.messages.as_slice()), (Filter::Unread, [id].as_slice()));
+    assert!(shown(&mut s).contains(&id));
+}
+
 /// What every command leaves (#485): from a selection the list shows, in each of a few lists, the
-/// selection is in the folder in view (or where its search looks), and the list shows each of
-/// its messages. A command that breaks that, now or later, fails here.
+/// selection is in the folder in view (or where its search looks), the list shows each of its
+/// messages, and what a command says it selected is still selected. A command that breaks that,
+/// now or later, fails here.
 #[test]
 fn every_command_leaves_only_what_the_list_shows_selected() {
     use std::collections::HashSet;
@@ -331,6 +398,7 @@ fn every_command_leaves_only_what_the_list_shows_selected() {
                 json!({"id": in_folder, "extend": true}),
                 json!({"id": in_folder, "range": true}),
                 json!({"ids": [in_folder, first]}),
+                json!({"id": second, "elsewhere": true}),
                 json!({"value": "flagged", "query": "a", "scope": "everywhere"}),
             ];
             for params in &all_params {
@@ -339,10 +407,15 @@ fn every_command_leaves_only_what_the_list_shows_selected() {
                     s = fresh();
                     setup(&mut s);
                 }
-                if s.run(id, params).is_err() || SELECTS_AS_IT_IS.contains(id) {
+                let Ok(answer) = s.run(id, params) else { continue };
+                if SELECTS_AS_IT_IS.contains(id) {
                     continue;
                 }
                 checked += 1;
+                // What a command says it selected is what is selected once it has run.
+                if let Some(said) = answer.get("selected").filter(|said| said.is_array()) {
+                    assert_eq!(*said, json!(s.sel.messages), "{id} {params}, from {setup_name}: {:?}", s.view);
+                }
                 let listed: HashSet<Id> = s.rows().iter().flat_map(|r| r.members.iter()).copied().collect();
                 let in_view = crate::list::in_view(&s);
                 for m in &s.sel.messages {
