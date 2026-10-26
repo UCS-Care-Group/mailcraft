@@ -699,10 +699,9 @@ fn place_ops(s: &Session, account: Id, limit: usize) -> (Vec<ImapPlace>, usize) 
         if *a != account {
             continue;
         }
-        let Some(m) = mb.message(*message).filter(|m| m.account == account && m.uid == 0 && !m.unfetched && !m.incomplete && m.not_downloaded == 0)
-        else {
-            continue;
-        };
+        // (Not one whose text couldn't be read here: the server's original is all there is of it.)
+        let whole = |m: &Message| !m.unfetched && !m.incomplete && m.not_downloaded == 0 && !m.kept.as_deref().is_some_and(|k| k.failed);
+        let Some(m) = mb.message(*message).filter(|m| m.account == account && m.uid == 0 && whole(m)) else { continue };
         let Some(folder) = mb.folder(m.folder).filter(|f| f.account == account && f.kind != FolderKind::Outbox) else { continue };
         count += 1;
         if out.len() >= limit || (!out.is_empty() && spent.saturating_add(m.size()) > PLACE_BYTES) {
@@ -1540,6 +1539,16 @@ fn take_in(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, delta: Folde
         if delta.uid_validity != 0 {
             f.uid_validity = delta.uid_validity;
         }
+    }
+    if !reset && !delta.removed.is_empty() {
+        // Moved out of the account, its original gone from the server meanwhile (deleted on
+        // another device): there is nothing left there to delete, or to go back to (#451).
+        let removed: HashSet<u32> = delta.removed.iter().copied().collect();
+        let messages = &mb.messages;
+        mb.pending.retain(|p| {
+            !matches!(p, Pending::Move { account: owner, message, from, uid, .. }
+                if *owner == account && *from == delta.remote && removed.contains(uid) && messages.get(message).is_some_and(|m| m.account != account))
+        });
     }
     let gone: Vec<Id> = if reset {
         renumbered(mb, account, on_server, folder, &delta.remote, counts)

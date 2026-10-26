@@ -43,7 +43,11 @@ pub fn place_changes(s: &Session, account: Id, limit: usize) -> (Vec<PlaceUp>, u
         if *a != account {
             continue;
         }
-        let Some(m) = mb.message(*message).filter(|m| m.account == account && m.server.is_none() && Some(m.folder) != outbox) else { continue };
+        // (Not one whose text couldn't be read here: the original is all there is of it.)
+        let readable = |m: &Message| !m.kept.as_deref().is_some_and(|k| k.failed);
+        let Some(m) = mb.message(*message).filter(|m| m.account == account && m.server.is_none() && Some(m.folder) != outbox && readable(m)) else {
+            continue;
+        };
         let Some((to, to_folder)) = destination(mb, account, m.folder) else { continue };
         count += 1;
         if out.len() >= limit || (!out.is_empty() && spent.saturating_add(m.size()) > PLACE_BYTES) {
@@ -61,15 +65,16 @@ pub fn place_changes(s: &Session, account: Id, limit: usize) -> (Vec<PlaceUp>, u
 /// Whether `m`, moved here out of an account whose server still has the original, is safe where
 /// it is now, so that the original may go (R3 spec S19, #70, #451): made on the server of the
 /// Microsoft account it is in; on the server of the IMAP account it is in, under its UID there;
-/// in an account whose server is given no copy, whole here and kept in the mailbox file
-/// (`saved`: the file holds what is here now).
+/// in an account whose server is given no copy, whole here (its text read, not lost) and kept in
+/// the mailbox file (`saved`: the file holds what is here now).
 pub(crate) fn safe_here(s: &Session, m: &Message, saved: bool) -> bool {
     if s.mailbox.is_graph(m.account) {
         m.server.as_ref().is_some_and(|server| !server.gone && !server.id.is_empty())
     } else if s.mailbox.puts_on_server(m.account) {
         m.uid != 0
     } else {
-        !m.unfetched && !m.incomplete && m.not_downloaded == 0 && (saved || s.saved_whole.contains(&m.id))
+        let lost = m.kept.as_deref().is_some_and(|k| k.failed);
+        !m.unfetched && !m.incomplete && m.not_downloaded == 0 && !lost && (saved || s.saved_whole.contains(&m.id))
     }
 }
 
@@ -179,7 +184,7 @@ pub(crate) fn put_back_waiting(mb: &mut Mailbox, going: impl Fn(&Mailbox, Id, Id
 /// a move whose original is gone kept on this computer.
 pub(crate) fn put_back(mb: &mut Mailbox, id: Id, copy: bool, from: Option<Id>) {
     let Some(m) = mb.message(id) else { return };
-    let out = m.moving_out.clone().filter(|out| mb.is_graph(out.account) && !out.id.is_empty());
+    let out = m.moving_out.clone().filter(|out| mb.is_graph(out.account) && !out.id.is_empty() && !out.left);
     match out {
         Some(out) => {
             let folder = mb.folder_by_server(out.account, &out.folder).or_else(|| mb.folder_of_kind(out.account, FolderKind::Inbox));

@@ -95,7 +95,18 @@ pub fn take_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, page: &
         }
     }
     for id in &page.removed {
-        let Some(m) = index.find(mb, account, id) else { continue };
+        let Some(m) = index.find(mb, account, id) else {
+            // Being moved out of the account, and gone from where it was: a refused move has
+            // nothing to go back to there, unless it turns up in another folder (#451).
+            if moving_out.contains(id)
+                && let Some(m) = self::moving_out(mb, account, id)
+                && let Ok(m) = mb.message_mut(m)
+                && let Some(out) = m.moving_out.as_mut().filter(|out| out.folder == page.folder)
+            {
+                out.left = true;
+            }
+            continue;
+        };
         if let Ok(m) = mb.message_mut(m)
             && let Some(s) = m.server.as_mut().filter(|s| s.folder == page.folder && !s.gone)
         {
@@ -126,7 +137,15 @@ pub fn take_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, page: &
                     down.changed += 1;
                 }
             }
-            None if moving_out.contains(&there.server.id) => {}
+            None if moving_out.contains(&there.server.id) => {
+                // Moved on there by another program while being moved out: it is in this folder now.
+                if let Some(m) = self::moving_out(mb, account, &there.server.id)
+                    && let Ok(m) = mb.message_mut(m)
+                    && let Some(out) = m.moving_out.as_mut()
+                {
+                    (out.folder, out.left) = (page.folder.clone(), false);
+                }
+            }
             None => {
                 if let Ok(m) = mb.add_message(new_message(folder, &page.folder, there)) {
                     index.note(mb, account, &there.server.id, m);

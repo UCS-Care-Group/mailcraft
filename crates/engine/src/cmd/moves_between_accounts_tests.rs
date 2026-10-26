@@ -9,7 +9,7 @@ use mailcraft_model::sync::{
     Deleted, FolderDelta, FolderListing, GraphFolder, GraphMailResult, GraphMessage, MessageChange, MessageChangeDone, MessageOutcome, MessagePage,
     PlaceDone, Placed, RemoteFlags, RemoteOp, ServerMessage, SyncRequest, SyncResult,
 };
-use mailcraft_model::{Address, Body, FolderKind, Id, Message, Pending, Queued};
+use mailcraft_model::{Address, Body, FolderKind, Id, KeptBody, Message, Pending, Queued};
 use serde_json::json;
 
 use crate::Session;
@@ -285,10 +285,7 @@ fn a_move_out_of_an_imap_account_is_kept_when_the_mailbox_is_opened_again() {
 fn a_move_out_of_an_imap_account_whose_copy_is_there_already_is_kept_when_the_mailbox_is_opened_again() {
     let (mut s, a, _) = imap();
     let ms = microsoft(&mut s, OWNER);
-    let servers = json!({"email": "blake@other.example", "incoming": {"host": "imap.other.example"}, "outgoing": {"host": "smtp.other.example"}});
-    let b = s.run("account.add", &servers).unwrap()["id"].as_u64().unwrap();
-    let inbox = FolderDelta { remote: "INBOX".into(), kind: FolderKind::Inbox, uid_validity: 9, ..Default::default() };
-    apply_sync(&mut s, SyncResult { account: b, folders: vec![inbox], ..Default::default() }).unwrap();
+    let b = second_imap(&mut s);
     let (theirs, others) = (s.mailbox.folder_of_kind(ms, FolderKind::Inbox).unwrap(), s.mailbox.folder_of_kind(b, FolderKind::Inbox).unwrap());
     // "One" is on the other IMAP server already, as UID 50 there: its original waits to be deleted.
     let one = titled(&s, "One");
@@ -308,6 +305,145 @@ fn a_move_out_of_an_imap_account_whose_copy_is_there_already_is_kept_when_the_ma
     assert_eq!(opened.repair(), Vec::<String>::new());
     s.mailbox = opened;
     assert_eq!(ops(&s, a), [delete(1), delete(2)]);
+}
+
+/// A second IMAP account, whose Inbox follows its server's "INBOX".
+fn second_imap(s: &mut Session) -> Id {
+    let servers = json!({"email": "blake@other.example", "incoming": {"host": "imap.other.example"}, "outgoing": {"host": "smtp.other.example"}});
+    let b = s.run("account.add", &servers).unwrap()["id"].as_u64().unwrap();
+    let inbox = FolderDelta { remote: "INBOX".into(), kind: FolderKind::Inbox, uid_validity: 9, ..Default::default() };
+    apply_sync(s, SyncResult { account: b, folders: vec![inbox], ..Default::default() }).unwrap();
+    b
+}
+
+#[test]
+fn a_refused_move_whose_original_was_deleted_elsewhere_stays_on_this_computer() {
+    let gone =
+        |uid| FolderDelta { remote: "INBOX".into(), kind: FolderKind::Inbox, uid_validity: 7, uid_seen: 4, removed: vec![uid], ..Default::default() };
+    let in_imported = |s: &Session, id: Id, local: Id| {
+        let m = s.mailbox.message(id).unwrap();
+        let f = s.mailbox.folder(m.folder).unwrap();
+        assert_eq!((m.account, f.name.as_str()), (local, "Imported"));
+        assert!(s.mailbox.pending.is_empty() && s.mailbox.queued.is_empty(), "{:?} {:?}", s.mailbox.pending, s.mailbox.queued);
+    };
+    // Into another IMAP account, which won't take it, while its original was deleted on a phone.
+    let (mut s, a, kept) = imap();
+    let local = s.mailbox.folder(kept).unwrap().account;
+    let b = second_imap(&mut s);
+    let two = titled(&s, "Two");
+    s.run("mail.move", &json!({"ids": [two], "folder": s.mailbox.folder_of_kind(b, FolderKind::Inbox).unwrap()})).unwrap();
+    apply_sync(&mut s, SyncResult { account: a, folders: vec![gone(2)], ..Default::default() }).unwrap();
+    apply_sync(&mut s, SyncResult { account: b, unplaced: vec![two], ..Default::default() }).unwrap();
+    apply_sync(&mut s, SyncResult { account: a, folders: vec![gone(2)], ..Default::default() }).unwrap();
+    in_imported(&s, two, local);
+    // Into a Microsoft account, which won't take it.
+    let (mut s, a, kept) = imap();
+    let local = s.mailbox.folder(kept).unwrap().account;
+    let ms = microsoft(&mut s, OWNER);
+    let three = titled(&s, "Three");
+    s.run("mail.move", &json!({"ids": [three], "folder": s.mailbox.folder_of_kind(ms, FolderKind::Inbox).unwrap()})).unwrap();
+    apply_sync(&mut s, SyncResult { account: a, folders: vec![gone(3)], ..Default::default() }).unwrap();
+    placed(&mut s, ms, OWNER, &[MessageOutcome::Refused { status: 403 }]);
+    apply_sync(&mut s, SyncResult { account: a, folders: vec![gone(3)], ..Default::default() }).unwrap();
+    in_imported(&s, three, local);
+}
+
+#[test]
+fn a_refused_move_goes_back_to_the_folder_on_this_computer_it_came_from() {
+    let (mut s, a, kept) = imap();
+    let b = second_imap(&mut s);
+    let two = titled(&s, "Two");
+    // Onto this computer, saved, and on into the other IMAP account while the first server
+    // deletes its original.
+    s.run("mail.move", &json!({"ids": [two], "folder": kept})).unwrap();
+    s.note_saved();
+    assert_eq!(ops(&s, a), [delete(2)]);
+    s.run("mail.move", &json!({"ids": [two], "folder": s.mailbox.folder_of_kind(b, FolderKind::Inbox).unwrap()})).unwrap();
+    deleted(&mut s, a, &[2]);
+    apply_sync(&mut s, SyncResult { account: b, unplaced: vec![two], ..Default::default() }).unwrap();
+    assert_eq!(s.mailbox.message(two).unwrap().folder, kept);
+}
+
+#[test]
+fn a_message_whose_text_couldnt_be_read_here_leaves_no_server() {
+    let unreadable =
+        |s: &mut Session, id: Id| s.mailbox.message_mut(id).unwrap().kept = Some(Box::new(KeptBody { failed: true, ..Default::default() }));
+    let (mut s, _, _) = imap();
+    let ms = microsoft(&mut s, OWNER);
+    let theirs = s.mailbox.folder_of_kind(ms, FolderKind::Inbox).unwrap();
+    // Not into another account.
+    let one = titled(&s, "One");
+    unreadable(&mut s, one);
+    let refused = s.run("mail.move", &json!({"ids": [one], "folder": theirs})).unwrap_err();
+    assert!(refused.to_string().contains("The text of \"One\" couldn't be read on this computer"), "{refused}");
+    // Not put on a server while it waits to go there.
+    let two = titled(&s, "Two");
+    s.run("mail.move", &json!({"ids": [two], "folder": theirs})).unwrap();
+    unreadable(&mut s, two);
+    assert!(graph_mail_request(&s, ms).unwrap().places.is_empty());
+    let (mut s, a, kept) = imap();
+    let b = second_imap(&mut s);
+    let two = titled(&s, "Two");
+    s.run("mail.move", &json!({"ids": [two], "folder": s.mailbox.folder_of_kind(b, FolderKind::Inbox).unwrap()})).unwrap();
+    unreadable(&mut s, two);
+    assert!(sync_request(&s, b).unwrap().places.is_empty());
+    assert!(ops(&s, a).is_empty(), "{:?}", ops(&s, a));
+    // Onto this computer: its original stays on the server, saved or not.
+    let three = titled(&s, "Three");
+    s.run("mail.move", &json!({"ids": [three], "folder": kept})).unwrap();
+    unreadable(&mut s, three);
+    s.note_saved();
+    assert!(ops(&s, a).is_empty(), "{:?}", ops(&s, a));
+}
+
+/// Microsoft's message "Two" (AAkA2, in its Inbox), moved into the IMAP account's Inbox, and what
+/// Microsoft's delta then says of its folders (`pages`) before the IMAP server refuses the copy:
+/// the session, the Microsoft account and the message.
+fn refused_after(pages: Vec<MessagePage>) -> (Session, Id, Id) {
+    let (mut s, a, ms, two) = moved_out_of_microsoft(pages);
+    apply_sync(&mut s, SyncResult { account: a, unplaced: vec![two], ..Default::default() }).unwrap();
+    (s, ms, two)
+}
+
+/// [`refused_after`] up to the refusal: the session, the IMAP account, the Microsoft account and
+/// the message.
+fn moved_out_of_microsoft(pages: Vec<MessagePage>) -> (Session, Id, Id, Id) {
+    let (mut s, a, _) = imap();
+    let ms = microsoft(&mut s, OWNER);
+    let (theirs, inbox) = (s.mailbox.folder_of_kind(ms, FolderKind::Inbox).unwrap(), s.mailbox.folder_of_kind(a, FolderKind::Inbox).unwrap());
+    let two = titled(&s, "Two");
+    s.run("mail.move", &json!({"ids": [two], "folder": theirs})).unwrap();
+    placed(&mut s, ms, OWNER, &[made("AAkA2")]);
+    deleted(&mut s, a, &[2]);
+    s.run("mail.move", &json!({"ids": [two], "folder": inbox})).unwrap();
+    apply_graph_mail(&mut s, GraphMailResult { account: ms, email: OWNER.into(), pages, ..Default::default() }).unwrap();
+    (s, a, ms, two)
+}
+
+#[test]
+fn a_refused_move_out_of_microsoft_goes_back_only_where_the_original_still_is() {
+    let removed = || MessagePage { folder: "in".into(), removed: vec!["AAkA2".into()], ..Default::default() };
+    // Deleted on a phone meanwhile: kept on this computer.
+    let (s, _, two) = refused_after(vec![removed()]);
+    let m = s.mailbox.message(two).unwrap();
+    assert_eq!((m.server.as_ref(), s.mailbox.folder(m.folder).unwrap().name.as_str()), (None, "Imported"));
+    assert!(s.mailbox.pending.is_empty() && s.mailbox.queued.is_empty(), "{:?} {:?}", s.mailbox.pending, s.mailbox.queued);
+    // Moved back into Microsoft instead: made there again, from the whole message here.
+    let (mut s, _, ms, two) = moved_out_of_microsoft(vec![removed()]);
+    s.run("mail.move", &json!({"ids": [two], "folder": s.mailbox.folder_of_kind(ms, FolderKind::Inbox).unwrap()})).unwrap();
+    assert!(s.mailbox.message(two).unwrap().server.is_none());
+    assert_eq!(graph_mail_request(&s, ms).unwrap().places.iter().map(|p| p.message).collect::<Vec<_>>(), [two]);
+    // Moved into the Archive in Outlook meanwhile (its folders read in either order): back there.
+    let archived = || {
+        let there = GraphMessage { server: ServerMessage { id: "AAkA2".into(), folder: "ar".into(), ..Default::default() }, ..Default::default() };
+        MessagePage { folder: "ar".into(), messages: vec![there], ..Default::default() }
+    };
+    for pages in [vec![removed(), archived()], vec![archived(), removed()]] {
+        let (s, ms, two) = refused_after(pages);
+        let m = s.mailbox.message(two).unwrap();
+        assert_eq!(m.folder, s.mailbox.folder_of_kind(ms, FolderKind::Archive).unwrap());
+        assert_eq!(m.server.as_ref().map(|x| (x.id.as_str(), x.folder.as_str())), Some(("AAkA2", "ar")));
+    }
 }
 
 /// A message on this computer, whole, in `folder`.

@@ -1827,6 +1827,8 @@ impl Mailbox {
         let subject = subject_said(m);
         if m.incomplete || m.not_downloaded > 0 {
             Some(format!("Only the headers of \"{subject}\" are here, so it can't be {doing} to another mailbox"))
+        } else if m.kept.as_deref().is_some_and(|k| k.failed) {
+            Some(format!("The text of \"{subject}\" couldn't be read on this computer, so it can't be {doing} to another mailbox"))
         } else if m.unfetched {
             Some(not_downloaded_yet(&subject))
         } else if m.draft || m.server_draft.is_some() || !m.held.is_empty() {
@@ -1872,7 +1874,7 @@ impl Mailbox {
         if m.moving_out.is_none() {
             // The original is on an IMAP server, whose run may be deleting it already (#451):
             // this copy goes as that one does, once the message is safe where it goes.
-            let out = crate::sync::MovingOut { account: m.account, id: server.id.clone(), folder: server.folder.clone() };
+            let out = crate::sync::MovingOut { account: m.account, id: server.id.clone(), folder: server.folder.clone(), ..Default::default() };
             if let Ok(m) = self.message_mut(id) {
                 m.moving_out = Some(out);
             }
@@ -1915,7 +1917,7 @@ impl Mailbox {
             return Ok(true);
         }
         if self.is_graph(to_account)
-            && let Some(out) = m.moving_out.clone().filter(|out| out.account == to_account)
+            && let Some(out) = m.moving_out.clone().filter(|out| out.account == to_account && !out.left)
         {
             // Where the server has it isn't known here when it wasn't said: the next run moves it
             // where it is now.
@@ -1946,19 +1948,21 @@ impl Mailbox {
             }
             let source = m.server.clone().filter(|s| !s.gone && !s.id.is_empty());
             let first = self.original_elsewhere(id);
-            // Where it lay when no server had it: a refused one goes back there.
+            // Where it lay when no server had it: a refused one goes back there (to a folder on
+            // this computer also while its first original's deletion is still on its way).
             let waited = self.queued.iter().find_map(|q| match q {
                 Queued::PlaceMessage { message, from, .. } if *message == id => Some(*from),
                 _ => None,
             });
-            let from = waited.unwrap_or((source.is_none() && !first && m.uid == 0).then_some(m.folder));
+            let here_only = source.is_none() && m.uid == 0 && (!first || !self.puts_on_server(from_account));
+            let from = waited.unwrap_or(here_only.then_some(m.folder));
             self.place_called_off(id);
             let marker = self.place_marker(id, source.as_ref().map_or("", |s| s.id.as_str()));
             let (uid, synced) = self.imap_side(id, folder, to_account, remote)?;
             let m = self.message_mut(id)?;
             // Being moved out of where it lay first, it goes on being moved out of there.
             if let (Some(server), false) = (source, first) {
-                m.moving_out = Some(crate::sync::MovingOut { account: from_account, id: server.id, folder: server.folder });
+                m.moving_out = Some(crate::sync::MovingOut { account: from_account, id: server.id, folder: server.folder, ..Default::default() });
             }
             m.server = None;
             (m.folder, m.account, m.uid, m.synced) = (folder, to_account, uid, synced);
@@ -1979,7 +1983,7 @@ impl Mailbox {
         let (uid, synced) = self.imap_side(id, folder, to_account, remote)?;
         let m = self.message_mut(id)?;
         if !server.gone && !first {
-            m.moving_out = Some(crate::sync::MovingOut { account: from_account, id: server.id, folder: server.folder });
+            m.moving_out = Some(crate::sync::MovingOut { account: from_account, id: server.id, folder: server.folder, ..Default::default() });
         }
         m.server = None;
         (m.folder, m.account, m.uid, m.synced) = (folder, to_account, uid, synced);

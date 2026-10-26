@@ -132,7 +132,7 @@ fn a_move_out_of_the_account_waits_for_the_whole_message_and_the_save() {
     s.mailbox.message_mut(m).unwrap().unfetched = true;
     s.run("mail.move", &json!({"ids": [m], "folder": kept})).unwrap();
     let moved = s.mailbox.message(m).unwrap();
-    assert_eq!(moved.moving_out, Some(MovingOut { account, id: "M-1".into(), folder: "F-in".into() }));
+    assert_eq!(moved.moving_out, Some(MovingOut { account, id: "M-1".into(), folder: "F-in".into(), left: false }));
     assert!(moved.server.is_none() && moved.folder == kept);
     // Fetched first of all, whatever its size.
     assert_eq!(super::super::graph_down::fetch_queue(&s.mailbox, account, 5, s.now()), ["M-1"]);
@@ -180,6 +180,17 @@ fn moved_back_while_the_servers_copy_was_removed_it_is_made_there_again() {
     let here = s.mailbox.message(m).unwrap();
     assert!(here.folder == inbox && here.server.is_none());
     assert_eq!(graph_mail_request(&s, account).unwrap().places.iter().map(|p| p.message).collect::<Vec<_>>(), [m]);
+}
+
+/// A message whose text couldn't be read here, moved out of the account: the server's copy is
+/// all there is of it, and stays (#451).
+#[test]
+fn a_message_whose_text_couldnt_be_read_keeps_its_server_copy_when_moved_out() {
+    let (mut s, account, m, kept) = setup();
+    s.run("mail.move", &json!({"ids": [m], "folder": kept})).unwrap();
+    s.mailbox.message_mut(m).unwrap().kept = Some(Box::new(mailcraft_model::KeptBody { failed: true, ..Default::default() }));
+    s.note_saved();
+    assert_eq!(changes(&s, account), []);
 }
 
 /// #451: received mail in a local folder goes into a Microsoft account by its server's own run

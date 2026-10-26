@@ -289,6 +289,10 @@ pub struct MovingOut {
     /// back to when its move into another mailbox of the same owner's is refused (#70).
     #[serde(skip_serializing_if = "String::is_empty")]
     pub folder: String,
+    /// The server said the copy left that folder (deleted, or moved on by another program) and
+    /// hasn't shown it in another since: there may be nothing there to go back to (#451).
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub left: bool,
 }
 
 /// Whether two names are the same category's. Outlook's categories are matched by name and a

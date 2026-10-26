@@ -349,11 +349,11 @@ fn fields(t: &Message, a: &Message, c: &Arc<Message>, now: &Mailbox, g: &BTreeSe
                 copy: false,
                 from: None,
             });
-            m.moving_out = Some(MovingOut { account: c.account, id: placed.id.clone(), folder: placed.folder.clone() });
+            m.moving_out = Some(MovingOut { account: c.account, id: placed.id.clone(), folder: placed.folder.clone(), ..Default::default() });
             (m.server, m.uid, m.synced) = (None, 0, None);
         } else if g.contains(&t.account) {
             // Moved out of a Microsoft account: back while the server's copy is still there.
-            let Some(out) = c.moving_out.clone().filter(|out| out.account == t.account) else {
+            let Some(out) = c.moving_out.clone().filter(|out| out.account == t.account && !out.left) else {
                 said.moved_out.push(t.subject.clone());
                 return Some(c.clone());
             };
@@ -379,7 +379,7 @@ fn fields(t: &Message, a: &Message, c: &Arc<Message>, now: &Mailbox, g: &BTreeSe
                 .server
                 .as_ref()
                 .filter(|s| !s.gone)
-                .map(|s| MovingOut { account: c.account, id: s.id.clone(), folder: s.folder.clone() })
+                .map(|s| MovingOut { account: c.account, id: s.id.clone(), folder: s.folder.clone(), ..Default::default() })
                 .or_else(|| t.moving_out.clone());
             (m.server, m.uid, m.synced) = (None, t.uid, t.synced);
         }
