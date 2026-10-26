@@ -400,10 +400,10 @@ fn deleting_mail_the_server_has_waits_to_be_pushed() {
 fn mail_moved_to_another_account_stays_on_its_own_server() {
     let (mut mb, account, a) = synced_mailbox();
     let archive = mb.folder_of_kind(account, FolderKind::Archive).unwrap();
-    let other = mb.add_account(Account { email: "work@example.org".into(), ..Default::default() });
+    let other = mb.add_account(Account { email: "work@example.org".into(), kind: AccountKind::Imap, ..Default::default() });
     let other_inbox = mb.folder_of_kind(other, FolderKind::Inbox).unwrap();
     mb.folder_mut(other_inbox).unwrap().remote = "INBOX".into();
-    // A server can't hand a message to another one.
+    // A server can't hand a message to another IMAP server.
     mb.move_message(a, other_inbox).unwrap();
     assert!(mb.pending.is_empty());
     assert_eq!(mb.message(a).map(|m| (m.account, m.uid, m.synced)), Some((other, 0, None)));

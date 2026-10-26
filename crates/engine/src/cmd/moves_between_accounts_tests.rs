@@ -263,3 +263,17 @@ fn a_refused_move_from_this_computer_goes_back_to_its_folder() {
     placed(&mut s, ms, OWNER, &[MessageOutcome::Refused { status: 400 }]);
     assert_eq!(at(&s, m), (local, notes, 0));
 }
+
+#[test]
+fn a_move_out_of_an_imap_account_is_kept_when_the_mailbox_is_opened_again() {
+    let (mut s, _, kept) = imap();
+    let ms = microsoft(&mut s, OWNER);
+    let theirs = s.mailbox.folder_of_kind(ms, FolderKind::Inbox).unwrap();
+    s.run("mail.move", &json!({"ids": [titled(&s, "Two")], "folder": kept})).unwrap();
+    s.run("mail.move", &json!({"ids": [titled(&s, "Three")], "folder": theirs})).unwrap();
+    assert_eq!(s.mailbox.pending.len(), 2);
+    // What opening the file does to it: the moves waiting are what they were.
+    let mut opened: mailcraft_model::Mailbox = serde_json::from_value(serde_json::to_value(&s.mailbox).unwrap()).unwrap();
+    assert_eq!(opened.repair(), Vec::<String>::new());
+    assert_eq!(opened.pending, s.mailbox.pending);
+}

@@ -2607,7 +2607,11 @@ impl Mailbox {
                 };
             let Some(source) = source.filter(|source| (uid != 0 || waiting) && !on_server.contains(&(*source, uid))) else { continue };
             if let Pending::Move { message, synced, to, .. } = &mut op {
-                let fits = self.messages.get(message).is_some_and(|m| m.account == account && m.folder == *to && m.uid == 0);
+                // In its account, or being moved out of it into one that keeps it (#451).
+                let fits = self
+                    .messages
+                    .get(message)
+                    .is_some_and(|m| m.folder == *to && m.uid == 0 && (m.account == account || self.takes_over(account, m.account)));
                 if !fits || *to == source || moved.contains(message) {
                     continue;
                 }
