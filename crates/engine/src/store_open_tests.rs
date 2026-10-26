@@ -166,6 +166,29 @@ fn a_file_this_program_saved_since_it_was_read_ahead_is_read_again() {
 }
 
 #[test]
+fn a_save_while_a_read_ahead_is_being_kept_is_never_lost() {
+    let tmp = Temp::new("ahead-race");
+    let path = tmp.file();
+    save(&path, &mailbox(4)).unwrap();
+    // Just as what was read is about to be kept, another thread saves a newer state; it is given
+    // time enough to finish, unless the read-ahead holds the file until it is kept.
+    let saver = Arc::new(Mutex::new(None));
+    let handle = saver.clone();
+    let newer = path.clone();
+    *lock(&READ_AHEAD_HOOK) = Some((
+        path.clone(),
+        Box::new(move || {
+            *lock(&handle) = Some(std::thread::spawn(move || save(&newer, &mailbox(9)).unwrap()));
+            std::thread::sleep(Duration::from_millis(300));
+        }),
+    ));
+    open_ahead(&path, &OpenProgress::default()).unwrap();
+    let thread = lock(&saver).take();
+    thread.unwrap().join().unwrap();
+    assert_eq!(open(&path).unwrap().mailbox.messages.len(), 9, "not the read-ahead from before the save");
+}
+
+#[test]
 fn a_message_file_read_ahead_is_sent_to_import() {
     let tmp = Temp::new("ahead-eml");
     let path = tmp.0.join("message.eml");

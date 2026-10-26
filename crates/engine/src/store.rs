@@ -1246,20 +1246,43 @@ pub fn open_ahead(path: &Path, progress: &OpenProgress) -> Result<(), String> {
     if crate::io::Format::from_extension(&path.to_string_lossy()).is_some_and(|f| f != crate::io::Format::Mailbox) {
         return Err(format!("{show} isn't a mailbox; bring it in with File › Import"));
     }
-    let opened = open_with(path, progress)?;
+    // Read and kept under one lock: a save of the file waits until what was read is kept, and
+    // then drops it, so nothing read before a save is taken after it.
     let shared = shared(path);
     let mut st = lock(&shared.state);
-    // (Under the lock that `forget_ahead` takes after cancelling: one or the other drops it.)
+    let started = Instant::now();
+    let (opened, read_now) = open_locked(&mut st, path, progress)?;
+    if read_now {
+        log::info!("{}", open_line(started.elapsed(), opened.bytes, &opened.mailbox, opened.repaired));
+    }
+    #[cfg(test)]
+    read_ahead_hook(path);
+    // (Under the lock that `forget_ahead` tries after cancelling: one or the other drops it.)
     if progress.cancelled() {
         return Err(CANCELLED.into());
     }
-    // The file as it was read; written to since (by a save here between the read and this
-    // lock), it is read again when it is opened.
     let Some(stamp) = st.stamp.as_ref().map(|s| Stamp { len: s.len, modified: s.modified, sum: None }) else {
         return Ok(());
     };
     st.ahead = Some((Box::new(opened), stamp));
     Ok(())
+}
+
+/// For a test: run once when [`open_ahead`] of `path` has read the file and is about to keep it.
+#[cfg(test)]
+type AheadHook = Mutex<Option<(PathBuf, Box<dyn FnOnce() + Send>)>>;
+#[cfg(test)]
+static READ_AHEAD_HOOK: AheadHook = Mutex::new(None);
+
+#[cfg(test)]
+fn read_ahead_hook(path: &Path) {
+    let hook = {
+        let mut held = lock(&READ_AHEAD_HOOK);
+        if held.as_ref().is_some_and(|(p, _)| p == path) { held.take() } else { None }
+    };
+    if let Some((_, run)) = hook {
+        run();
+    }
 }
 
 /// Let go of what [`open_ahead`] read of the file at `path`, if it is still kept. Never waits:
@@ -1301,6 +1324,11 @@ impl<R: std::io::Read> std::io::Read for Counted<'_, R> {
 fn open_file(path: &Path, progress: &OpenProgress) -> Result<(Opened, bool), String> {
     let shared = shared(path);
     let mut st = lock(&shared.state);
+    open_locked(&mut st, path, progress)
+}
+
+/// [`open_file`], its file's lock held (`st`).
+fn open_locked(st: &mut State, path: &Path, progress: &OpenProgress) -> Result<(Opened, bool), String> {
     let show = path.display();
     let file = resolve(path);
     let len = fs::metadata(&file).map_err(|e| format!("{show}: {e}"))?.len();
@@ -1319,7 +1347,7 @@ fn open_file(path: &Path, progress: &OpenProgress) -> Result<(Opened, bool), Str
     let (pins, named_before) = (std::mem::take(&mut st.pins), std::mem::take(&mut st.named_before));
     *st = State { newest: st.newest, swept: st.swept, pins, named_before, ..State::default() };
     if is_index(&file).map_err(|e| format!("{show}: {e}"))? {
-        let opened = open_index(&mut st, &file, len, progress).map_err(|e| format!("{show}: {e}"))?;
+        let opened = open_index(st, &file, len, progress).map_err(|e| format!("{show}: {e}"))?;
         if progress.cancelled() {
             return Err(CANCELLED.into());
         }
@@ -1338,7 +1366,7 @@ fn open_file(path: &Path, progress: &OpenProgress) -> Result<(Opened, bool), Str
         0 | 1 => (false, Filled::default()),
         SPLIT_VERSION => {
             let head: Head = serde_json::from_slice(&bytes).map_err(|e| format!("{show}: this mailbox file is damaged ({e})"))?;
-            (true, fill(&mut st, &blob_dir(&file), &mut mailbox, head, None))
+            (true, fill(st, &blob_dir(&file), &mut mailbox, head, None))
         }
         newer => return Err(format!("{show}: this mailbox was written by a newer MailCraft (format {newer})")),
     };
