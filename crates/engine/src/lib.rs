@@ -255,15 +255,17 @@ pub mod p {
         id(v, "id").map(|i| vec![i])
     }
     /// `ids` (an array of ids) or `id` (one), read strictly, for a command whose mistake reaches
-    /// other people (#360): `None` when neither is given. Anything else under those names (an id
-    /// as text, zero, a fraction, `ids` that isn't a list or names no message or has an entry that
-    /// isn't an id, or more than [`MAX_IDS`], both at once) is refused, never taken to mean the
-    /// selection, as [`ids`] takes it.
+    /// other people (#360): `None` when neither is given. Anything else under those names (`null`,
+    /// which a look-up that found nothing gives (#512), an id as text, zero, a fraction, `ids`
+    /// that isn't a list or names no message or has an entry that isn't an id, or more than
+    /// [`MAX_IDS`], both at once) is refused, never taken to mean the selection, as [`ids`] takes it.
     pub fn ids_strict(v: &Value) -> Result<Option<Vec<Id>>, CmdError> {
-        let given = |k: &str| v.get(k).filter(|x| !x.is_null());
-        match (given("id"), given("ids")) {
+        let null = |k: &str| CmdError::Params(format!("`{k}` is null, which names no message"));
+        match (v.get("id"), v.get("ids")) {
             (None, None) => Ok(None),
             (Some(_), Some(_)) => Err(CmdError::Params("name the messages by `id` (one) or by `ids` (several), not both".into())),
+            (Some(Value::Null), None) => Err(null("id")),
+            (None, Some(Value::Null)) => Err(null("ids")),
             (Some(x), None) => whole(x)
                 .filter(|i| *i != 0)
                 .map(|i| Some(vec![i]))

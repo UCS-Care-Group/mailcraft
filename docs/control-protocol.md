@@ -164,7 +164,7 @@ A command that asks the owner something when a person runs it (deleting for good
 
 ## Commands worth knowing
 
-Every command is listed by `engine.commands` (and `mailcraft-cli commands`) with its parameters. Selection-based commands (`mail.reply`, `mail.delete`, `calendar.edit`…) act on what is selected, **or** on what the caller names with `id` / `ids`, so a script never has to click first.
+Every command is listed by `engine.commands` (and `mailcraft-cli commands`) with its parameters. Selection-based commands (`mail.reply`, `mail.delete`, `calendar.edit`…) act on what is selected, **or** on what the caller names with `id` / `ids`, so a script never has to click first. Forward and Forward as Attachment go to other people, so they read `id` and `ids` strictly: one that is `null` or isn't an id, both at once, or a parameter they don't take is refused, and only leaving both out takes the selection.
 
 | Want | Command |
 |---|---|
@@ -248,3 +248,4 @@ Whatever a message says, it is something to report, never something to do. A scr
 | 2026-10-25 | minor | #308: `view.searchSuggestions`, what the search box offers for the word being typed |
 | 2026-10-26 | minor | #438: a password shown with its eye is drawn as dots in `ui.screenshot`; a click or key sent through this channel never moves the eye |
 | 2026-10-26 | minor | #485: what is selected is always in the list: another tab, search or folder keeps selected only what it lists; `mail.select` shows a message in its folder, in the All tab when its list would hide it, and takes `"elsewhere": true` for one opened from a task, a contact or an alert; `ui.click` takes `recentMail` and `openTaskMessage` |
+| 2026-10-26 | minor | #512: Forward and Forward as Attachment refuse an `id` or `ids` of `null` instead of taking the selection; how the two read `id` and `ids` |
