@@ -462,6 +462,11 @@ msgstr ""
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+msgid "Accessibility"
+msgstr ""
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid ""
 "Account\n"
@@ -1302,6 +1307,11 @@ msgstr "Hoofdtekst bevat"
 msgid "Bold"
 msgstr "Vet"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Bookmark"
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/calendar_settings.rs
 #, fuzzy
@@ -1325,6 +1335,11 @@ msgstr "De index waar zoeken de antwoorden uit haalt, wordt opgebouwd; totdat di
 #, fuzzy
 msgid "Bullets"
 msgstr "Opsommingstekens"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Business Card"
+msgstr ""
 
 #. name
 #: crates/model/src/calendar.rs
@@ -1608,6 +1623,11 @@ msgstr ""
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+msgid "Chart"
+msgstr ""
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid ""
 "Check\n"
@@ -1615,6 +1635,11 @@ msgid ""
 msgstr ""
 "Namen\n"
 "controleren"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Check Accessibility"
+msgstr ""
 
 #. command label, interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/lib.rs
@@ -2834,6 +2859,11 @@ msgstr "E-mailbericht"
 msgid "Email address"
 msgstr "E-mailadres"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Emoji"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
@@ -2879,6 +2909,11 @@ msgstr "Einde"
 #, fuzzy
 msgid "Ends"
 msgstr "Eindigt"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Equation"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -3723,6 +3758,11 @@ msgstr "Onverzonden e-mail vasthouden"
 msgid "Home"
 msgstr "Start"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Horizontal Line"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/keep_offline.rs
 #, fuzzy
@@ -3752,6 +3792,11 @@ msgstr "Ik ben beheerder: MailCraft voor mijn organisatie goedkeuren"
 #, fuzzy
 msgid "I'm an administrator: approve it for my organisation"
 msgstr "Ik ben beheerder: het voor mijn organisatie goedkeuren"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Icons"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
@@ -3787,6 +3832,11 @@ msgstr "Als u zelf een beheerdersaccount hebt, kunt u zich met de eerste keuze d
 #, fuzzy
 msgid "If you have one, paste its application (client) ID here. It comes from a Microsoft Entra app registration: a public client with the redirect URI http://localhost, for accounts in any directory and personal accounts."
 msgstr "Als u er een hebt, plak hier de toepassings-id (client). Die komt uit een app-registratie in Microsoft Entra: een openbare client met de omleidings-URI http://localhost, voor accounts in een willekeurige directory en persoonlijke accounts."
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Illustrations"
+msgstr ""
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/file.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/import_tree.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/ribbon.rs
@@ -4260,8 +4310,8 @@ msgstr "Alleen op deze computer bewaard: uitnodigingen en terugkerende gebeurten
 msgid "Label"
 msgstr "Label"
 
-#. interface
-#: crates/ui-egui/src/backstage.rs
+#. interface, ribbon
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Language"
 msgstr "Taal"
@@ -6324,6 +6374,11 @@ msgstr "Postvak UIT"
 msgid "Outgoing mail (SMTP)"
 msgstr "Uitgaande e-mail (SMTP)"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Outlook Item"
+msgstr ""
+
 #. command label
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
@@ -6441,7 +6496,7 @@ msgid "Pattern"
 msgstr "Patroon"
 
 #. interface
-#: crates/ui-egui/src/folder_properties.rs
+#: crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Pending development"
 msgstr "In ontwikkeling"
@@ -6511,6 +6566,11 @@ msgstr "Afbeelding boven de tekst"
 #, fuzzy
 msgid "Picture beside text"
 msgstr "Afbeelding naast de tekst"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Pictures"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
@@ -6702,6 +6762,11 @@ msgstr "Plaats ze in de agenda van uw account, waar Outlook en uw andere apparat
 #, fuzzy
 msgid "Quick Access"
 msgstr "Snelle toegang"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Quick Parts"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/menubar.rs
@@ -7523,6 +7588,11 @@ msgstr "Geeft aan wat u en de beheerder van uw organisatie kunnen doen, en laat 
 msgid "Scheduling Assistant"
 msgstr "Planningassistent"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Screenshot"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
@@ -8001,6 +8071,11 @@ msgstr "Instellingen"
 #, fuzzy
 msgid "Settings…"
 msgstr "Instellingen…"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Shapes"
+msgstr ""
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -8557,6 +8632,11 @@ msgstr "Sorteren op"
 msgid "Space Older Mail Takes"
 msgstr "Ruimte die oudere e-mail inneemt"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Spelling & Grammar"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
@@ -8730,6 +8810,16 @@ msgstr "Overschakelen naar Microsoft Graph"
 msgid "Switch without Them"
 msgstr "Overschakelen zonder deze"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Symbol"
+msgstr ""
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Symbols"
+msgstr ""
+
 #. interface, name
 #: crates/ui-egui/src/folder_properties.rs
 #, fuzzy
@@ -8742,11 +8832,16 @@ msgstr "Synchronisatie"
 msgid "System"
 msgstr "System"
 
-#. interface
-#: crates/ui-egui/src/credits.rs
+#. interface, ribbon
+#: crates/ui-egui/src/credits.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Table"
 msgstr "Tabel"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Tables"
+msgstr ""
 
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/meeting.rs crates/engine/src/cmd/category.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/tasks.rs crates/ui-egui/src/ribbon.rs
@@ -8881,6 +8976,11 @@ msgstr "Testers worden vermeld wanneer zij dat aangeven; zie docs/contributors.m
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/writing_tools.rs crates/ui-egui/src/ribbon.rs
 msgid "Text"
+msgstr ""
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Text Box"
 msgstr ""
 
 #. interface
@@ -9597,6 +9697,11 @@ msgstr "Er is geen postvak op {address}, of de agenda ervan kan niet via Microso
 #, fuzzy
 msgid "There's no mailbox at {address}."
 msgstr "Er is geen postvak op {address}."
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Thesaurus"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
@@ -10360,6 +10465,11 @@ msgstr "Totaal aantal berichten"
 #, fuzzy
 msgid "Total size"
 msgstr "Totale grootte"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Translate"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs

@@ -57,7 +57,7 @@ fn date_and_time_lists_the_formats_and_ok_puts_one_in() {
     h.state_mut().run("insert.dateTime", json!({})).unwrap();
     h.run_steps(3);
     match h.state().dialog.as_ref() {
-        Some(Dialog::DateTime { choices, selected: 0 }) => {
+        Some(Dialog::DateTime { choices, selected: 0, .. }) => {
             assert_eq!(choices.len(), 8);
             assert_eq!(choices[0], ("long", "Wednesday, October 14, 2026".to_string()));
         }
@@ -71,6 +71,63 @@ fn date_and_time_lists_the_formats_and_ok_puts_one_in() {
     h.run_steps(3);
     assert!(h.state().dialog.is_none());
     assert_eq!(body(h.state()), "Hello worldOctober 14, 2026");
+}
+
+/// OK puts in what the dialog showed, though the clock has gone on to another day since.
+#[test]
+fn date_and_time_puts_in_what_it_showed() {
+    let mut h = window(writing());
+    h.state_mut().run("insert.dateTime", json!({})).unwrap();
+    h.run_steps(3);
+    h.state_mut().session.clock.now = Some(NOW + 86_400);
+    h.get_by_label("OK").click();
+    h.run_steps(3);
+    assert_eq!(body(h.state()), "Hello worldWednesday, October 14, 2026");
+}
+
+/// Ctrl+Shift+G (Cmd+Shift+G on a Mac) is Word Count while a message is being written, and
+/// nothing else has it.
+#[test]
+fn ctrl_shift_g_counts_the_words() {
+    let app = writing();
+    assert_eq!(crate::keys::resolve(&app, "Mod+Shift+G"), Some("review.wordCount"));
+    let bound: Vec<&str> =
+        app.session.registry.all().iter().filter(|c| c.shortcut.split(" / ").any(|k| k.eq_ignore_ascii_case("Mod+Shift+G"))).map(|c| c.id).collect();
+    assert_eq!(bound, ["review.wordCount"]);
+    let mut app = writing();
+    app.execute("compose.discard", json!({})).unwrap();
+    assert_eq!(crate::keys::resolve(&app, "Mod+Shift+G"), None);
+}
+
+/// The rest of the two tabs is there, greyed, and runs nothing.
+#[test]
+fn the_rest_of_insert_and_review_is_pending() {
+    let mut app = writing();
+    for (tab, pending) in
+        [("Insert", ["Table", "Pictures", "Quick Parts", "Symbol"]), ("Review", ["Spelling & Grammar", "Thesaurus", "Translate", "Language"])]
+    {
+        app.execute("ui.tab", json!({"tab": tab})).unwrap();
+        let described = crate::ribbon::describe(&app);
+        for label in pending {
+            let item = described.items().find(|item| item.label == label).unwrap_or_else(|| panic!("{tab}: no {label}"));
+            assert!(item.pending && item.command.is_none() && item.menu.is_none(), "{tab}: {label}");
+        }
+    }
+    let mut h = window(app);
+    h.state_mut().execute("ui.ribbonMode", json!({"value": "classic"})).unwrap();
+    h.run_steps(3);
+    let before = body(h.state());
+    let rect = h.state().hit.rect("ribbon", crate::ribbon::hit_id("review.thesaurus")).unwrap();
+    let pos = rect.center();
+    h.event(egui::Event::PointerMoved(pos));
+    h.step();
+    for pressed in [true, false] {
+        h.event(egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed, modifiers: egui::Modifiers::NONE });
+        h.step();
+    }
+    h.run_steps(3);
+    assert!(h.state().dialog.is_none());
+    assert_eq!(body(h.state()), before);
 }
 
 #[test]

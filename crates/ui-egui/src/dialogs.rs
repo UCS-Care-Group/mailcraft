@@ -68,6 +68,9 @@ pub enum Dialog {
         /// The format and what it puts in.
         choices: Vec<(&'static str, String)>,
         selected: usize,
+        /// The instant the choices are of: OK puts in the one shown, whatever the clock says by
+        /// then.
+        at: i64,
     },
     /// Review › Word Count (#507): what `review.wordCount` counted.
     WordCount {
@@ -266,7 +269,8 @@ impl Dialog {
             }
             "dateTime" => {
                 app.session.doc()?;
-                Dialog::DateTime { choices: mailcraft_engine::cmd::writing_tools::date_time_choices(&app.session), selected: 0 }
+                let at = app.session.now();
+                Dialog::DateTime { choices: mailcraft_engine::cmd::writing_tools::date_time_choices(&app.session, at), selected: 0, at }
             }
             "password" => Dialog::Password { account: id("account")?, password: String::new(), shown: false },
             // Opened by name (`ui.dialog`, which an agent may run), it has nothing waiting for its
@@ -1275,7 +1279,7 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
             // The keyboard goes back to the text.
             app.body_focus_wanted |= close;
         }
-        Dialog::DateTime { choices, selected } => {
+        Dialog::DateTime { choices, selected, at } => {
             let mut submit = false;
             let open = window(ctx, tl!("Date and Time"), 360.0, |ui| {
                 ui.label(tl!("Available formats:"));
@@ -1317,7 +1321,7 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
             });
             close |= !open;
             if submit && let Some((format, _)) = choices.get(*selected) {
-                if let Err(e) = app.execute("insert.dateTime", json!({"format": format})) {
+                if let Err(e) = app.execute("insert.dateTime", json!({"format": format, "at": *at})) {
                     app.status(e);
                 }
                 close = true;

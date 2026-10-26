@@ -387,6 +387,11 @@ msgstr ""
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+msgid "Accessibility"
+msgstr ""
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
 msgid ""
 "Account\n"
 "Settings"
@@ -1085,6 +1090,11 @@ msgstr ""
 msgid "Bold"
 msgstr ""
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Bookmark"
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/calendar_settings.rs
 msgid "Bring Calendar to Front"
@@ -1103,6 +1113,11 @@ msgstr ""
 #. command label, ribbon
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
 msgid "Bullets"
+msgstr ""
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Business Card"
 msgstr ""
 
 #. name
@@ -1342,9 +1357,19 @@ msgstr ""
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+msgid "Chart"
+msgstr ""
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
 msgid ""
 "Check\n"
 "Names"
+msgstr ""
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Check Accessibility"
 msgstr ""
 
 #. command label, interface
@@ -2362,6 +2387,11 @@ msgstr ""
 msgid "Email address"
 msgstr ""
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Emoji"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 msgid "Empty"
@@ -2397,6 +2427,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/forms.rs
 msgid "Ends"
+msgstr ""
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Equation"
 msgstr ""
 
 #. interface
@@ -3094,6 +3129,11 @@ msgstr ""
 msgid "Home"
 msgstr ""
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Horizontal Line"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/keep_offline.rs
 msgid "How far back mail is kept in full on this computer. Older mail keeps its headers and a preview, and downloads when you open it. It stays on the server."
@@ -3117,6 +3157,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
 msgid "I'm an administrator: approve it for my organisation"
+msgstr ""
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Icons"
 msgstr ""
 
 #. interface
@@ -3147,6 +3192,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 msgid "If you have one, paste its application (client) ID here. It comes from a Microsoft Entra app registration: a public client with the redirect URI http://localhost, for accounts in any directory and personal accounts."
+msgstr ""
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Illustrations"
 msgstr ""
 
 #. command label, interface, ribbon
@@ -3549,8 +3599,8 @@ msgstr ""
 msgid "Label"
 msgstr ""
 
-#. interface
-#: crates/ui-egui/src/backstage.rs
+#. interface, ribbon
+#: crates/ui-egui/src/backstage.rs crates/ui-egui/src/ribbon.rs
 msgid "Language"
 msgstr ""
 
@@ -5260,6 +5310,11 @@ msgstr ""
 msgid "Outgoing mail (SMTP)"
 msgstr ""
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Outlook Item"
+msgstr ""
+
 #. command label
 #: crates/ui-egui/src/lib.rs
 msgid "Outlook's Favorites"
@@ -5361,7 +5416,7 @@ msgid "Pattern"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/folder_properties.rs
+#: crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/ribbon.rs
 msgid "Pending development"
 msgstr ""
 
@@ -5418,6 +5473,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/signatures.rs
 msgid "Picture beside text"
+msgstr ""
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Pictures"
 msgstr ""
 
 #. interface
@@ -5578,6 +5638,11 @@ msgstr ""
 #. ribbon location
 #: crates/engine/src/cmd/edit.rs
 msgid "Quick Access"
+msgstr ""
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Quick Parts"
 msgstr ""
 
 #. interface
@@ -6249,6 +6314,11 @@ msgstr ""
 msgid "Scheduling Assistant"
 msgstr ""
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Screenshot"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "Scripts and agents"
@@ -6650,6 +6720,11 @@ msgstr ""
 #. name
 #: crates/ui-egui/src/menubar.rs
 msgid "Settings…"
+msgstr ""
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Shapes"
 msgstr ""
 
 #. ribbon
@@ -7113,6 +7188,11 @@ msgstr ""
 msgid "Space Older Mail Takes"
 msgstr ""
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Spelling & Grammar"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
 msgid "Stand this calendar beside the others"
@@ -7258,6 +7338,16 @@ msgstr ""
 msgid "Switch without Them"
 msgstr ""
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Symbol"
+msgstr ""
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Symbols"
+msgstr ""
+
 #. interface, name
 #: crates/ui-egui/src/folder_properties.rs
 msgid "Synchronization"
@@ -7268,9 +7358,14 @@ msgstr ""
 msgid "System"
 msgstr ""
 
-#. interface
-#: crates/ui-egui/src/credits.rs
+#. interface, ribbon
+#: crates/ui-egui/src/credits.rs crates/ui-egui/src/ribbon.rs
 msgid "Table"
+msgstr ""
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Tables"
 msgstr ""
 
 #. ribbon, ribbon location
@@ -7391,6 +7486,11 @@ msgstr ""
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/writing_tools.rs crates/ui-egui/src/ribbon.rs
 msgid "Text"
+msgstr ""
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Text Box"
 msgstr ""
 
 #. interface
@@ -7992,6 +8092,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
 msgid "There's no mailbox at {address}."
+msgstr ""
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Thesaurus"
 msgstr ""
 
 #. interface
@@ -8624,6 +8729,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/folder_properties.rs
 msgid "Total size"
+msgstr ""
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Translate"
 msgstr ""
 
 #. interface
