@@ -415,3 +415,17 @@ fn an_older_file_s_folders_read_before_are_taken_as_read_whole() {
     take(&mut s, a, first);
     assert_eq!(folder_of(&s, "Lunch?"), Some(junk));
 }
+
+/// #504 review: a mailbox whose first save was damaged forgets how far its folders were read and
+/// fetches them again; that is a first download too, and sorts nothing.
+#[test]
+fn mail_fetched_again_after_a_damaged_save_is_not_sorted() {
+    let (mut s, a) = fresh_imap();
+    let [inbox, junk] = [FolderKind::Inbox, FolderKind::Junk].map(|k| s.mailbox.folder_of_kind(a, k).unwrap());
+    take(&mut s, a, inbox_piece(10, vec![], true));
+    crate::store::forget_how_far_fetched(&mut s.mailbox);
+    take(&mut s, a, inbox_piece(10, vec![arriving(5, "offers@shop.example", "Old"), arriving(10, "offers@shop.example", "Older")], true));
+    assert_eq!((folder_of(&s, "Old"), folder_of(&s, "Older")), (Some(inbox), Some(inbox)));
+    take(&mut s, a, inbox_piece(11, vec![arriving(11, "offers@shop.example", "New")], true));
+    assert_eq!(folder_of(&s, "New"), Some(junk));
+}

@@ -429,6 +429,8 @@ fn a_damaged_item_of_the_first_save_costs_that_item_and_the_mail_is_fetched_agai
     expect.messages.remove(&id);
     for f in &mut expect.folders {
         f.uid_seen = 0;
+        // Fetched again, it is a first download, which the junk lists leave alone (#504).
+        f.whole = Some(false);
         if let Some(server) = &mut f.server {
             server.delta.clear();
             server.caught_up = false;
