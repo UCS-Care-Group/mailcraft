@@ -189,6 +189,7 @@ pub(crate) fn select_after_removal(s: &mut Session, before: &[Row], removed: &[I
     let rows = crate::list::rows(s);
     if let Some(row) = first.and_then(|i| rows.get(i).or_else(|| rows.last())) {
         s.sel.messages = vec![row.id];
+        s.keep_selected(&rows);
     }
 }
 

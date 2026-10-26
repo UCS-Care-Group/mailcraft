@@ -125,28 +125,65 @@ pub(crate) fn in_view(s: &Session) -> impl Fn(&Message) -> bool + '_ {
 /// was brought in and let go of again while the search ran did (`Session::load_bodies_for_search`),
 /// which a body named only can no longer say.
 pub fn rows_with(s: &Session, decided: &HashMap<Id, bool>, searched: &HashMap<Id, bool>) -> Vec<Row> {
+    listing(s, decided, searched).0
+}
+
+/// The addresses of the owner's accounts, for To Me.
+fn me(s: &Session) -> Vec<&str> {
+    s.mailbox.accounts.iter().map(|a| a.email.as_str()).filter(|e| !e.is_empty()).collect()
+}
+
+/// Whether `m` matches the filter in view (All, Unread, Flagged…); `me` as from [`me`].
+fn filtered(s: &Session, m: &Message, me: &[&str]) -> bool {
+    match s.view.filter {
+        Filter::All => true,
+        Filter::Unread => !m.read,
+        Filter::Flagged => m.flag == FlagStatus::Flagged,
+        Filter::Attachments => m.has_attachments(),
+        Filter::ToMe => m.to.iter().any(|a| me.iter().any(|e| a.email.eq_ignore_ascii_case(e))),
+    }
+}
+
+/// Of `ids`, those the list in view lists now, without building it (#428): in the folder in view,
+/// and matching the filter or kept. For a list with no search: what a search finds, only the
+/// list can say.
+pub(crate) fn lists(s: &Session, ids: &[Id]) -> std::collections::HashSet<Id> {
+    let in_view = in_view(s);
+    let me = me(s);
+    let kept = s.kept();
+    let shows = |m: &Message| in_view(m) && (filtered(s, m, &me) || kept.as_ref().is_some_and(|kept| kept.contains(&m.id)));
+    ids.iter().copied().filter(|id| s.mailbox.message(*id).is_some_and(shows)).collect()
+}
+
+/// [`rows_with`], and the messages the rows list only because they are selected (#428): they were
+/// in this list when they were selected and no longer match the filter or the search.
+pub(crate) fn listing(s: &Session, decided: &HashMap<Id, bool>, searched: &HashMap<Id, bool>) -> (Vec<Row>, Vec<Id>) {
     let mb = &s.mailbox;
     let query = Query::parse(&s.view.search);
     let in_view = in_view(s);
-    let me: Vec<&str> = mb.accounts.iter().map(|a| a.email.as_str()).filter(|e| !e.is_empty()).collect();
+    let me = me(s);
+    let kept = s.kept();
+    let mut kept_only = Vec::new();
     let mut shown: Vec<&Message> = mb
         .messages
         .values()
         .map(|m| m.as_ref())
         .filter(|m| in_view(m))
-        .filter(|m| match s.view.filter {
-            Filter::All => true,
-            Filter::Unread => !m.read,
-            Filter::Flagged => m.flag == FlagStatus::Flagged,
-            Filter::Attachments => m.has_attachments(),
-            Filter::ToMe => m.to.iter().any(|a| me.iter().any(|e| a.email.eq_ignore_ascii_case(e))),
-        })
         .filter(|m| {
-            query.is_empty()
-                || match decided.get(&m.id).or_else(|| searched.get(&m.id).filter(|_| m.body_is_kept())) {
-                    Some(hit) => *hit,
-                    None => query.matches(m, s.offset_at(m.date)),
-                }
+            let hit = filtered(s, m, &me)
+                && (query.is_empty()
+                    || match decided.get(&m.id).or_else(|| searched.get(&m.id).filter(|_| m.body_is_kept())) {
+                        Some(hit) => *hit,
+                        None => query.matches(m, s.offset_at(m.date)),
+                    });
+            // A selected message stays while it is selected, though it was read or its flag was
+            // cleared; `in_view` above still applies, so one deleted, or moved out of the folder in
+            // view, is gone.
+            if !hit && kept.as_ref().is_some_and(|kept| kept.contains(&m.id)) {
+                kept_only.push(m.id);
+                return true;
+            }
+            hit
         })
         .collect();
 
@@ -172,7 +209,7 @@ pub fn rows_with(s: &Session, decided: &HashMap<Id, bool>, searched: &HashMap<Id
     });
 
     if s.view.sort == SortBy::Categories {
-        return by_category(s, &shown, desc);
+        return (by_category(s, &shown, desc), kept_only);
     }
 
     let mut out: Vec<Row> = Vec::new();
@@ -213,7 +250,7 @@ pub fn rows_with(s: &Session, decided: &HashMap<Id, bool>, searched: &HashMap<Id
             last = label;
         }
     }
-    out
+    (out, kept_only)
 }
 
 /// The list arranged by categories, as Outlook arranges it: a message is listed under each of its

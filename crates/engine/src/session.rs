@@ -3,6 +3,8 @@
 //! The session: the mailbox, what is selected, how it is viewed, the message being written, and
 //! undo/redo.
 
+use std::borrow::Cow;
+use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -341,6 +343,109 @@ pub struct Selection {
     /// under several categories.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub anchor_row: Option<(Id, u16)>,
+    /// The selected messages that were in the list while they were selected, and that list: they
+    /// stay in it while they stay selected, even when they no longer match the filter or the
+    /// search (read, a flag cleared), so the list doesn't change under the owner while they read
+    /// or pick messages (#428). See [`Session::kept`]. Shared with the undo steps that hold it.
+    #[serde(skip)]
+    pub stays: Option<Arc<Stays>>,
+}
+
+/// The messages the message list keeps while they are selected, and the list it keeps them in.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Stays {
+    ids: HashSet<Id>,
+    /// The selection they were taken from: one changed since keeps what it still has of them.
+    selection: Vec<Id>,
+    folder: Id,
+    filter: Filter,
+    /// What the search looks for and where; `None` without one, whatever the scope says.
+    search: Option<(mailcraft_model::search::Query, Scope)>,
+}
+
+impl Stays {
+    /// The messages `selection` has that `rows` lists, in the list `view` shows.
+    fn take(selection: &[Id], rows: &[Row], view: &ViewState) -> Self {
+        let selected: HashSet<Id> = selection.iter().copied().collect();
+        let ids = rows.iter().flat_map(|r| r.members.iter()).copied().filter(|id| selected.contains(id)).collect();
+        Stays::of(ids, selection, view)
+    }
+
+    /// `ids`, of `selection`, kept in the list `view` shows.
+    fn of(ids: HashSet<Id>, selection: &[Id], view: &ViewState) -> Self {
+        let query = mailcraft_model::search::Query::parse(&view.search);
+        let search = (!query.is_empty()).then_some((query, view.scope));
+        Stays { ids, selection: selection.to_vec(), folder: view.folder, filter: view.filter, search }
+    }
+
+    /// Whether `view` shows the list they are kept in: the same folder, filter and search, in
+    /// any order or grouping. The search is what it looks for, not how it is typed (a space
+    /// after a word), and one with nothing to look for lists the folder, wherever it says to look
+    /// (`list::in_view`).
+    fn is_of(&self, view: &ViewState) -> bool {
+        let query = mailcraft_model::search::Query::parse(&view.search);
+        self.folder == view.folder
+            && self.filter == view.filter
+            && match &self.search {
+                Some((search, scope)) => *search == query && *scope == view.scope,
+                None => query.is_empty(),
+            }
+    }
+
+    /// What is kept for `selection` in the list `view` shows.
+    fn kept(&self, selection: &[Id], view: &ViewState) -> Option<Cow<'_, HashSet<Id>>> {
+        if !self.is_of(view) {
+            return None;
+        }
+        if self.selection == selection {
+            return Some(Cow::Borrowed(&self.ids));
+        }
+        let selected: HashSet<Id> = selection.iter().copied().collect();
+        Some(Cow::Owned(self.ids.iter().copied().filter(|id| selected.contains(id)).collect()))
+    }
+
+    /// After a command, and before the list is built or looked at: another folder, filter or
+    /// search is a list of its own, which keeps nothing, and going back to the first one doesn't
+    /// bring them back; a selection changed since keeps what it still has of them, worked out once
+    /// here rather than at each look.
+    fn follow(stays: &mut Option<Arc<Stays>>, selection: &[Id], view: &ViewState) {
+        match stays {
+            Some(st) if !st.is_of(view) => *stays = None,
+            Some(st) if st.selection != selection => {
+                let selected: HashSet<Id> = selection.iter().copied().collect();
+                let st = Arc::make_mut(st);
+                st.ids.retain(|id| selected.contains(id));
+                st.selection = selection.to_vec();
+            }
+            _ => {}
+        }
+    }
+
+    /// The list `view` shows has just been built as `rows`: the selected messages it lists stay
+    /// in it too, those selected before it was shown and those that came into it since.
+    fn listed(stays: &mut Option<Arc<Stays>>, selection: &[Id], rows: &[Row], view: &ViewState) {
+        Stays::follow(stays, selection, view);
+        // Each selected message kept already (one opened, or Select All): the rows add nothing.
+        if stays.as_ref().is_some_and(|st| selection.iter().all(|id| st.ids.contains(id))) {
+            return;
+        }
+        let now = Stays::take(selection, rows, view);
+        match stays {
+            Some(st) if !now.ids.is_subset(&st.ids) => Arc::make_mut(st).ids.extend(now.ids),
+            Some(_) => {}
+            None => *stays = Some(Arc::new(now)),
+        }
+    }
+}
+
+/// The message list last built ([`Session::rows`]).
+struct ListCache {
+    key: String,
+    /// The messages it lists only because they are selected (#428).
+    kept: Vec<Id>,
+    /// What was kept when it was built.
+    stays: Option<Arc<Stays>>,
+    rows: Arc<Vec<Row>>,
 }
 
 impl Selection {
@@ -717,7 +822,7 @@ pub struct Session {
     /// What the last undo or redo couldn't do there (a delete for good, a message sent).
     undo_said: Vec<String>,
     rev: u64,
-    list_cache: Option<(String, Arc<Vec<Row>>)>,
+    list_cache: Option<ListCache>,
     /// Where the content that isn't in memory comes from ([`Session::content`]). `None`: the
     /// content folder beside the mailbox file, where there is one (the desktop); the browser,
     /// which keeps everything in memory, never asks.
@@ -1016,6 +1121,47 @@ impl Session {
         self.sel.focus().and_then(|id| self.mailbox.message(id))
     }
 
+    /// The messages the list in view keeps though they may no longer match the filter or the
+    /// search (#428): those selected that were in it when they were selected, while they stay
+    /// selected and the list is the one they were selected in. Being in view is still asked of
+    /// them (`list::in_view`): one deleted, or moved out of the folder in view, leaves at once.
+    pub fn kept(&self) -> Option<Cow<'_, HashSet<Id>>> {
+        self.sel.stays.as_ref().and_then(|stays| stays.kept(&self.sel.messages, &self.view))
+    }
+
+    /// The selection has just changed: keep those of its messages that `rows` lists (the list in
+    /// view as the owner saw it when they selected them) while they stay selected (#428).
+    pub fn keep_selected(&mut self, rows: &[Row]) {
+        self.sel.stays = Some(Arc::new(Stays::take(&self.sel.messages, rows, &self.view)));
+    }
+
+    /// A click has just changed the selection: keep those of its messages the list in view lists
+    /// (#428), asking of each whether the list shows it rather than building the list for a click
+    /// (an agent's clicks, or mail that came while the list wasn't shown, would have it built
+    /// each time). What a search finds, only the list says: the rows built for the mailbox as it
+    /// is (in the window, those on screen), but for those kept for a selection let go of since.
+    pub(crate) fn keep_clicked(&mut self) {
+        let stays = if mailcraft_model::search::Query::parse(&self.view.search).is_empty() {
+            Stays::of(crate::list::lists(self, &self.sel.messages), &self.sel.messages, &self.view)
+        } else {
+            let key = self.list_key();
+            match &self.list_cache {
+                Some(c) if c.key == key => {
+                    let now = self.kept();
+                    let gone: HashSet<Id> = c.kept.iter().copied().filter(|id| !now.as_ref().is_some_and(|now| now.contains(id))).collect();
+                    let selected: HashSet<Id> = self.sel.messages.iter().copied().collect();
+                    let ids = c.rows.iter().flat_map(|r| r.members.iter()).copied().filter(|id| selected.contains(id) && !gone.contains(id));
+                    Stays::of(ids.collect(), &self.sel.messages, &self.view)
+                }
+                _ => {
+                    let rows = self.rows();
+                    Stays::take(&self.sel.messages, &rows, &self.view)
+                }
+            }
+        };
+        self.sel.stays = Some(Arc::new(stays));
+    }
+
     /// Counts the times content was brought into memory or let go of ([`Session::load_where`]):
     /// not a change to the mailbox, but what is shown of it (a preview, a search) may differ.
     pub fn loads(&self) -> u64 {
@@ -1027,23 +1173,34 @@ impl Session {
     /// as [`Session::search_time`] allows; what it didn't get to is counted in
     /// [`Session::unsearched`].
     pub fn rows(&mut self) -> Arc<Vec<Row>> {
-        let list = |s: &Session| {
-            format!(
-                "{}|{}|{}|{}|{}",
-                s.rev,
-                s.today().to_days(),
-                s.words_finished(),
-                s.prefs.show_groups,
-                serde_json::to_string(&s.view).unwrap_or_default()
-            )
-        };
-        let key = |s: &Session| format!("{}|{}", s.loads, list(s));
-        if let Some((k, rows)) = &self.list_cache
-            && *k == key(self)
-        {
-            return rows.clone();
+        let key = |s: &Session| s.list_key();
+        Stays::follow(&mut self.sel.stays, &self.sel.messages, &self.view);
+        // The rows stand while what is kept is what they were built for, or while every message
+        // they list only because it is selected is still kept: a message comes to be kept only
+        // from a list it is in, so one kept since is in these rows already (a command that fails
+        // puts back what was kept before it, and these rows go then).
+        let fresh = self.list_cache.as_ref().filter(|c| c.key == key(self)).and_then(|c| {
+            let same = match (&c.stays, &self.sel.stays) {
+                (Some(then), Some(now)) => Arc::ptr_eq(then, now),
+                (then, now) => then.is_none() && now.is_none(),
+            };
+            let still = || {
+                let now = self.kept();
+                c.kept.iter().all(|id| now.as_ref().is_some_and(|now| now.contains(id)))
+            };
+            (same || still()).then(|| (c.rows.clone(), same))
+        });
+        if let Some((rows, same)) = fresh {
+            if !same {
+                // What they list of a selection made since stays in them too.
+                Stays::listed(&mut self.sel.stays, &self.sel.messages, &rows, &self.view);
+                if let Some(c) = &mut self.list_cache {
+                    c.stays = self.sel.stays.clone();
+                }
+            }
+            return rows;
         }
-        let list_now = list(self);
+        let list_now = self.list_state();
         #[cfg(not(target_arch = "wasm32"))]
         self.words_in_step(!mailcraft_model::search::Query::parse(&self.view.search).is_empty());
         #[cfg(not(target_arch = "wasm32"))]
@@ -1062,9 +1219,30 @@ impl Session {
             }
         };
         let key = key(self);
-        let rows = Arc::new(crate::list::rows_with(self, &decided, &searched));
-        self.list_cache = Some((key, rows.clone()));
+        let (rows, kept) = crate::list::listing(self, &decided, &searched);
+        // What it lists of the selection stays in it too: the rows don't change for that, as each
+        // of those matches or is kept already.
+        Stays::listed(&mut self.sel.stays, &self.sel.messages, &rows, &self.view);
+        let rows = Arc::new(rows);
+        self.list_cache = Some(ListCache { key, kept, stays: self.sel.stays.clone(), rows: rows.clone() });
         rows
+    }
+
+    /// What the message list is built from, but for the content brought into memory or let go of.
+    fn list_state(&self) -> String {
+        format!(
+            "{}|{}|{}|{}|{}",
+            self.rev,
+            self.today().to_days(),
+            self.words_finished(),
+            self.prefs.show_groups,
+            serde_json::to_string(&self.view).unwrap_or_default()
+        )
+    }
+
+    /// The key the message list is kept under ([`Session::rows`]).
+    fn list_key(&self) -> String {
+        format!("{}|{}", self.loads, self.list_state())
     }
 
     /// Keep the word index of the mailbox file ([`crate::words`]) while [`Session::index_words`]
@@ -1577,6 +1755,8 @@ impl Session {
         let mb = &self.mailbox;
         self.sel.messages.retain(|id| mb.message(*id).is_some());
         self.sel.messages.dedup();
+        // A kept message is kept only in the list it was selected in, while it is selected (#428).
+        Stays::follow(&mut self.sel.stays, &self.sel.messages, &self.view);
         if self.sel.contact.is_some_and(|c| mb.contact(c).is_none()) {
             self.sel.contact = None;
         }
@@ -1853,6 +2033,10 @@ impl Session {
                     self.rev += 1;
                 }
                 self.mailbox = before.mailbox;
+                // A list built for what the command kept may lack what was kept before it (#428).
+                if self.sel.stays != before.sel.stays {
+                    self.list_cache = None;
+                }
                 self.sel = before.sel;
                 self.compose = compose;
                 self.signature_edit = signature_edit;
