@@ -279,6 +279,9 @@ pub fn import(s: &mut Session, name: &str, bytes: &[u8], folder: Option<Id>) -> 
             }
             if let Some(last) = ids.last() {
                 s.sel.messages = vec![*last];
+                // Selected, it is in the list (#485): the whole folder, if the tab or the search
+                // leave it out.
+                s.show_selected();
             }
             Ok(
                 json!({"format": if format == Format::Eml { "eml" } else { "mbox" }, "messages": ids.len(), "ids": ids, "folder": folder, "local": microsoft, "stoppedAfter": stopped.then_some(ids.len())}),

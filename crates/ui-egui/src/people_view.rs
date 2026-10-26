@@ -871,7 +871,7 @@ fn card_recent(app: &mut MailApp, ui: &mut Ui, c: &Contact) {
             t.text,
         );
         if resp.clicked() {
-            let _ = app.run("mail.select", json!({"id": id}));
+            let _ = app.run("mail.select", json!({"id": id, "elsewhere": true}));
             let _ = app.run("view.mail", json!({}));
         }
     }

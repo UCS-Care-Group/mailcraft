@@ -357,10 +357,26 @@ pub struct Stays {
     ids: HashSet<Id>,
     /// The selection they were taken from: one changed since keeps what it still has of them.
     selection: Vec<Id>,
+    list: ListOf,
+}
+
+/// Which list a view shows: its folder, its filter, and what its search looks for and where
+/// (`None` without one, whatever the scope says), in any order or grouping. The search is what
+/// it looks for, not how it is typed (a space after a word), and one with nothing to look for
+/// lists the folder, wherever it says to look (`list::in_view`).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct ListOf {
     folder: Id,
     filter: Filter,
-    /// What the search looks for and where; `None` without one, whatever the scope says.
     search: Option<(mailcraft_model::search::Query, Scope)>,
+}
+
+impl ListOf {
+    pub(crate) fn of(view: &ViewState) -> Self {
+        let query = mailcraft_model::search::Query::parse(&view.search);
+        let search = (!query.is_empty()).then_some((query, view.scope));
+        ListOf { folder: view.folder, filter: view.filter, search }
+    }
 }
 
 impl Stays {
@@ -373,23 +389,12 @@ impl Stays {
 
     /// `ids`, of `selection`, kept in the list `view` shows.
     fn of(ids: HashSet<Id>, selection: &[Id], view: &ViewState) -> Self {
-        let query = mailcraft_model::search::Query::parse(&view.search);
-        let search = (!query.is_empty()).then_some((query, view.scope));
-        Stays { ids, selection: selection.to_vec(), folder: view.folder, filter: view.filter, search }
+        Stays { ids, selection: selection.to_vec(), list: ListOf::of(view) }
     }
 
-    /// Whether `view` shows the list they are kept in: the same folder, filter and search, in
-    /// any order or grouping. The search is what it looks for, not how it is typed (a space
-    /// after a word), and one with nothing to look for lists the folder, wherever it says to look
-    /// (`list::in_view`).
+    /// Whether `view` shows the list they are kept in ([`ListOf`]).
     fn is_of(&self, view: &ViewState) -> bool {
-        let query = mailcraft_model::search::Query::parse(&view.search);
-        self.folder == view.folder
-            && self.filter == view.filter
-            && match &self.search {
-                Some((search, scope)) => *search == query && *scope == view.scope,
-                None => query.is_empty(),
-            }
+        self.list == ListOf::of(view)
     }
 
     /// What is kept for `selection` in the list `view` shows.
@@ -468,6 +473,14 @@ impl Selection {
             Some((id, copy)) if self.focus() == Some(id) => copy,
             _ => 0,
         }
+    }
+
+    /// No message selected, and nothing kept for one.
+    fn clear_messages(&mut self) {
+        self.messages.clear();
+        self.focus_row = None;
+        self.anchor_row = None;
+        self.stays = None;
     }
 }
 
@@ -1136,30 +1149,58 @@ impl Session {
     }
 
     /// A click has just changed the selection: keep those of its messages the list in view lists
-    /// (#428), asking of each whether the list shows it rather than building the list for a click
-    /// (an agent's clicks, or mail that came while the list wasn't shown, would have it built
-    /// each time). What a search finds, only the list says: the rows built for the mailbox as it
-    /// is (in the window, those on screen), but for those kept for a selection let go of since.
+    /// (#428).
     pub(crate) fn keep_clicked(&mut self) {
-        let stays = if mailcraft_model::search::Query::parse(&self.view.search).is_empty() {
-            Stays::of(crate::list::lists(self, &self.sel.messages), &self.sel.messages, &self.view)
-        } else {
-            let key = self.list_key();
-            match &self.list_cache {
-                Some(c) if c.key == key => {
-                    let now = self.kept();
-                    let gone: HashSet<Id> = c.kept.iter().copied().filter(|id| !now.as_ref().is_some_and(|now| now.contains(id))).collect();
-                    let selected: HashSet<Id> = self.sel.messages.iter().copied().collect();
-                    let ids = c.rows.iter().flat_map(|r| r.members.iter()).copied().filter(|id| selected.contains(id) && !gone.contains(id));
-                    Stays::of(ids.collect(), &self.sel.messages, &self.view)
-                }
-                _ => {
-                    let rows = self.rows();
-                    Stays::take(&self.sel.messages, &rows, &self.view)
-                }
+        let selection = self.sel.messages.clone();
+        let ids = self.listed(&selection);
+        self.sel.stays = Some(Arc::new(Stays::of(ids, &selection, &self.view)));
+    }
+
+    /// Of `ids`, those the list in view lists (#428, #485), asking of each whether the list shows
+    /// it rather than building the list for a click (an agent's clicks, or mail that came while
+    /// the list wasn't shown, would have it built each time). What a search finds, only the list
+    /// says: the rows built for the mailbox as it is (in the window, those on screen), but for
+    /// those kept for a selection let go of since.
+    pub(crate) fn listed(&mut self, ids: &[Id]) -> HashSet<Id> {
+        if mailcraft_model::search::Query::parse(&self.view.search).is_empty() {
+            return crate::list::lists(self, ids);
+        }
+        let wanted: HashSet<Id> = ids.iter().copied().collect();
+        let key = self.list_key();
+        match &self.list_cache {
+            Some(c) if c.key == key => {
+                let now = self.kept();
+                let gone: HashSet<Id> = c.kept.iter().copied().filter(|id| !now.as_ref().is_some_and(|now| now.contains(id))).collect();
+                c.rows.iter().flat_map(|r| r.members.iter()).copied().filter(|id| wanted.contains(id) && !gone.contains(id)).collect()
             }
-        };
-        self.sel.stays = Some(Arc::new(stays));
+            _ => self.rows().iter().flat_map(|r| r.members.iter()).copied().filter(|id| wanted.contains(id)).collect(),
+        }
+    }
+
+    /// What is selected is in the list (#485): when the list in view doesn't show all of it (the
+    /// tab, a search), it shows the whole folder, which has what of it is there; what is in
+    /// another folder is let go of.
+    pub(crate) fn show_selected(&mut self) {
+        self.select_in_view();
+        let selection = self.sel.messages.clone();
+        if self.listed(&selection).len() < selection.len() {
+            self.show_whole_folder();
+            self.select_in_view();
+        }
+    }
+
+    /// The list shows the whole folder in view: the All tab, and no search.
+    pub(crate) fn show_whole_folder(&mut self) {
+        self.view.filter = Filter::All;
+        self.clear_search();
+    }
+
+    /// No search: the list is the folder's again, and what the servers found for the search is
+    /// forgotten.
+    pub(crate) fn clear_search(&mut self) {
+        self.view.search.clear();
+        self.server_search.forget();
+        self.view.scope = Scope::Folder;
     }
 
     /// Counts the times content was brought into memory or let go of ([`Session::load_where`]):
@@ -1747,13 +1788,22 @@ impl Session {
         self.search_pass.as_ref().map(|(_, hits)| hits.clone()).unwrap_or_default()
     }
 
+    /// What is selected is in the folder in view, or where its search looks (#485): one gone,
+    /// taken elsewhere by a run, or left in a folder the view has left, is let go of.
+    fn select_in_view(&mut self) {
+        self.sel.messages = {
+            let in_view = crate::list::in_view(self);
+            self.sel.messages.iter().copied().filter(|id| self.mailbox.message(*id).is_some_and(&in_view)).collect()
+        };
+    }
+
     /// Keep the view and the selection pointing at things that exist.
     pub fn normalize(&mut self) {
         if self.mailbox.folder(self.view.folder).is_none() {
             self.view.folder = self.mailbox.inbox().unwrap_or(0);
         }
+        self.select_in_view();
         let mb = &self.mailbox;
-        self.sel.messages.retain(|id| mb.message(*id).is_some());
         self.sel.messages.dedup();
         // A kept message is kept only in the list it was selected in, while it is selected (#428).
         Stays::follow(&mut self.sel.stays, &self.sel.messages, &self.view);
@@ -1877,7 +1927,7 @@ impl Session {
         self.rev += 1;
         self.restored = self.restored.wrapping_add(1);
         self.dirty = true;
-        self.normalize();
+        self.show_selected();
         cur
     }
 
@@ -2001,6 +2051,12 @@ impl Session {
         };
         match &result {
             Ok(_) => {
+                // Another list (a folder, a tab, a search) is a place of its own: what was selected
+                // in the one left isn't taken into it (#485), unless the command chose what is
+                // selected there (a message opened in its folder).
+                if self.sel.messages == before.sel.messages && ListOf::of(&view) != ListOf::of(&self.view) {
+                    self.sel.clear_messages();
+                }
                 // The working hours of an account just removed go with it (#325): here, once
                 // nothing can turn the removal back, as preferences aren't put back with the mailbox.
                 if wipes_history(id) {

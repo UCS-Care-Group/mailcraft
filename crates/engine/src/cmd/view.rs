@@ -170,9 +170,7 @@ fn search_suggestions_command(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 fn clear_search(s: &mut Session, _: &Value) -> CmdResult {
-    s.view.search.clear();
-    s.server_search.forget();
-    s.view.scope = Scope::Folder;
+    s.clear_search();
     done()
 }
 
