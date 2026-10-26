@@ -1,6 +1,6 @@
 # File formats and protocols
 
-> **Last reviewed:** 2026-10-20 · **Last updated:** 2026-10-25 · **Change:** minor (#420: import a whole folder tree of mbox files, File › Open & Export › Import a Folder of Mailboxes; #402: POP3 is not yet, tracked in #437; password-based IMAP prefers advertised PLAIN, #375; #300: a message too large to download keeps its size on the server in the mailbox file, with no new format; #70: shared mailboxes out of testing, mail moved between mailboxes; protocols brought up to date: IMAP two-way with MOVE and UIDPLUS, XOAUTH2 for IMAP and SMTP, Microsoft Graph as the protocol of Microsoft accounts, no Exchange Web Services; vCard 2.1's raw 8-bit values in their own `CHARSET`, #185; the word index beside the mailbox file, R6.2; vCard files in every character set of the WHATWG Encoding Standard, #180; mail in every character set of the WHATWG Encoding Standard, #178; the mailbox file in format 3, a log of records, R6; files kept aside never removed; earlier: time zones in the mailbox file and in `.ics`) · **Target:** Microsoft Outlook (Microsoft 365, classic desktop)
+> **Last reviewed:** 2026-10-20 · **Last updated:** 2026-10-25 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365, classic desktop)
 
 What MailCraft reads, writes and speaks, and how far each goes. Everything is implemented from the
 public specifications; every reader is fed arbitrary bytes by property tests and must never panic.
