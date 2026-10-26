@@ -1134,6 +1134,8 @@ fn clicks(app: &mut MailApp, ui: &Ui, resp: &egui::Response, row: &Row, m: &Mess
 }
 
 #[cfg(test)]
+mod focus_stays_tests;
+#[cfg(test)]
 mod forward_attachment_tests;
 #[cfg(test)]
 mod from_sender_menu_tests;

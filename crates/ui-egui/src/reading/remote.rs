@@ -328,9 +328,9 @@ fn clauses(value: &str) -> Vec<Vec<String>> {
 /// header (the receiving server puts its own on top; the ones below were written before it),
 /// written by the server of the account `m` is in ([`from_own_server`]), has a clause whose
 /// result is `dmarc=pass` (or Exchange Online's `compauth=pass`), and that clause names the
-/// `header.from` it judged, which is the sender's domain. Only the clause's own words are read,
-/// not what a comment or quoted string in the header says. A header the sender could have
-/// written is not read.
+/// `header.from` it judged, which is the sender's domain or one above it ([`judged_for`]). Only
+/// the clause's own words are read, not what a comment or quoted string in the header says. A
+/// header the sender could have written is not read.
 pub fn vouched(account: Option<&Account>, m: &Message) -> bool {
     if m.uid == 0 && m.server.is_none() {
         return false;
@@ -347,10 +347,19 @@ pub fn vouched(account: Option<&Account>, m: &Message) -> bool {
         passes
             && words.iter().skip(1).any(|word| {
                 word.split_once('=').is_some_and(|(key, name)| {
-                    key.eq_ignore_ascii_case("header.from") && domain(name.trim_matches('"')).as_deref() == Some(&sender_domain)
+                    key.eq_ignore_ascii_case("header.from")
+                        && domain(name.trim_matches('"')).is_some_and(|judged| judged_for(&judged, &sender_domain))
                 })
             })
     })
+}
+
+/// Whether a verdict on the domain `judged` stands for mail from `sender_domain`: the same name,
+/// or a name under it, as Gmail names the organisation's domain (`shop.example` for mail from
+/// `news.shop.example`); never a bare suffix such as `co.uk`, which is nobody's organisation.
+fn judged_for(judged: &str, sender_domain: &str) -> bool {
+    judged == sender_domain
+        || (judged.contains('.') && !provider::is_public_suffix(judged) && sender_domain.strip_suffix(judged).is_some_and(|head| head.ends_with('.')))
 }
 
 /// Whether a remembered sender or domain stands for `m`'s sender, and the server vouches for it.

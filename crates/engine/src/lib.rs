@@ -57,7 +57,7 @@ pub use mailcraft_model as model;
 pub use mailcraft_time as time;
 pub use session::{
     BodyFormat, CalView, Clock, Compose, ComposeMode, Doc, Filter, InsertedSignature, Module, Pane, Part, PeopleSort, Prefs, Quote, Scope, Selection,
-    Session, SignatureEdit, SortBy, TaskFilter, TaskSort, ViewState, WordIndex,
+    Session, SignatureEdit, SortBy, Stays, TaskFilter, TaskSort, ViewState, WordIndex,
 };
 
 /// What a message says instead of text that couldn't be read back from where the mailbox keeps
@@ -287,6 +287,8 @@ mod agent_gate_tests;
 mod agent_tests;
 #[cfg(test)]
 mod category_rows_tests;
+#[cfg(test)]
+mod focus_stays_tests;
 #[cfg(test)]
 mod import_tests;
 #[cfg(test)]

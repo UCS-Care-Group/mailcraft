@@ -145,6 +145,31 @@ fn only_the_dmarc_clause_and_its_own_header_from_count() {
     assert!(!says("compauth=fail header.from=shop.example reason=000"));
 }
 
+/// Gmail names the organisation's domain it judged (`shop.example` for mail from
+/// `news.shop.example`): a verdict on a domain stands for the names under it, never for those
+/// under a bare suffix.
+#[test]
+fn a_verdict_on_the_organisations_domain_stands_for_the_names_under_it() {
+    let gmail = imap("imap.gmail.com");
+    let says = |address: &str, judged: &str| {
+        let m = Message { from: Address::new("Shop", address), ..message(&[&format!("mx.google.com; dmarc=pass header.from={judged}")]) };
+        vouched(Some(&gmail), &m)
+    };
+    assert!(says("hello@news.shop.example", "shop.example"));
+    assert!(says("hello@a.b.shop.example", "Shop.Example"));
+    // Not the other way round, nor a name that only ends the same.
+    assert!(!says("hello@shop.example", "news.shop.example"));
+    assert!(!says("hello@badshop.example", "shop.example"));
+    // A bare suffix or a hosting platform is nobody's organisation.
+    for (address, judged) in [("hello@bank.co.uk", "co.uk"), ("hello@evil.github.io", "github.io"), ("hello@shop.example", "example")] {
+        assert!(!says(address, judged), "{address} {judged}");
+    }
+    // A fail on the organisation's domain is still a fail.
+    let failed =
+        Message { from: Address::new("Shop", "hello@news.shop.example"), ..message(&["mx.google.com; dmarc=fail header.from=shop.example"]) };
+    assert!(!vouched(Some(&gmail), &failed));
+}
+
 /// Mail brought in from a file has no place on a server: whatever Authentication-Results it
 /// carries, it is the file's own.
 #[test]

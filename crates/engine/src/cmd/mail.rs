@@ -131,6 +131,9 @@ fn select(s: &mut Session, v: &Value) -> CmdResult {
     {
         s.view.folder = m.folder;
     }
+    // What is selected stays in the list while it is selected, if it is in it (#428): the one
+    // clicked in, or its folder's when it was opened there.
+    s.keep_clicked();
     mark_opened(s);
     Ok(json!({"selected": s.sel.messages}))
 }
@@ -156,6 +159,7 @@ fn select_all(s: &mut Session, _: &Value) -> CmdResult {
     // The message in the reading pane stays the focus.
     ids.extend(focus.filter(|f| position(&rows, *f).is_some()));
     s.sel.messages = ids;
+    s.keep_selected(&rows);
     Ok(json!({"selected": s.sel.messages.len()}))
 }
 
@@ -197,6 +201,7 @@ fn land(s: &mut Session, rows: &[Row], i: usize, extend: bool) -> CmdResult {
         }
     }
     s.sel.focus_row = Some((row.id, row.copy));
+    s.keep_selected(rows);
     mark_opened(s);
     Ok(json!({"selected": s.sel.messages}))
 }
