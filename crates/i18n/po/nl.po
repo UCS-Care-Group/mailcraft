@@ -1485,6 +1485,11 @@ msgstr "Vergadering annuleren"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
+msgid "Cancel Opening the Mailbox"
+msgstr ""
+
+#. command label
+#: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Cancel Send/Receive"
 msgstr "Verzenden/ontvangen annuleren"
@@ -1985,7 +1990,7 @@ msgid "Contacts don't go to Deleted Items."
 msgstr "Contactpersonen gaan niet naar Verwijderde items."
 
 #. interface
-#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/shared_calendars.rs crates/ui-egui/src/shared_mailboxes.rs crates/ui-egui/src/task_sync.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/opening.rs crates/ui-egui/src/shared_calendars.rs crates/ui-egui/src/shared_mailboxes.rs crates/ui-egui/src/task_sync.rs
 #, fuzzy
 msgid "Continue"
 msgstr "Doorgaan"
@@ -2101,6 +2106,11 @@ msgstr "Kopiëren naar map"
 #, fuzzy
 msgid "Couldn't find out whether a new version is out: {why}."
 msgstr "Kan niet worden vastgesteld of er een nieuwe versie beschikbaar is: {why}."
+
+#. interface
+#: crates/ui-egui/src/opening.rs
+msgid "Couldn't open {name}: {error}"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/open_shared.rs
@@ -2914,6 +2924,11 @@ msgid "Everything"
 msgstr "Alles"
 
 #. interface
+#: crates/ui-egui/src/opening.rs
+msgid "Everything else in it opens as usual."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/data_removal.rs
 #, fuzzy
 msgid "Everything else is gone. MailCraft quits when you close this."
@@ -3452,6 +3467,11 @@ msgstr "Bericht ophalen"
 #, fuzzy
 msgid "Get Task"
 msgstr "Taak ophalen"
+
+#. interface
+#: crates/ui-egui/src/opening.rs
+msgid "Getting ready…"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
@@ -4606,6 +4626,16 @@ msgid "MailCraft now installs its updates itself. Turn this off in File › Opti
 msgstr "MailCraft installeert zijn updates nu zelf. U kunt dit uitzetten via Bestand › Opties."
 
 #. interface
+#: crates/ui-egui/src/opening.rs
+msgid "MailCraft starts with an empty mailbox and leaves the file as it is."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/opening.rs
+msgid "MailCraft stopped reading it before it was done."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "MailCraft will have no account afterwards: File › Add Account sets one up again."
@@ -5559,6 +5589,11 @@ msgid "No information"
 msgstr "Geen informatie"
 
 #. interface
+#: crates/ui-egui/src/lib.rs
+msgid "No mailbox is being opened"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/reading/select.rs
 #, fuzzy
 msgid "No message is being read there"
@@ -6183,10 +6218,30 @@ msgid "Opening Mail Attachment"
 msgstr "E-mailbijlage openen"
 
 #. interface
+#: crates/ui-egui/src/opening.rs
+msgid "Opening your mailbox…"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/attachment_open.rs
 #, fuzzy
 msgid "Opening {name}"
 msgstr "{name} wordt geopend"
+
+#. interface
+#: crates/ui-egui/src/opening.rs
+msgid "Opening {name}…"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/opening.rs
+msgid "Opening {name}… {percent}%"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/opening.rs
+msgid "Opening…"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
@@ -6353,6 +6408,11 @@ msgstr "Pagina's zoals deze openen in de browser, waarin scripts worden uitgevoe
 #, fuzzy
 msgid "Part of the mailbox file is damaged and was left out, so some recent changes may be missing. The file as it was is kept beside it the next time the mailbox is saved."
 msgstr "Een deel van het postvakbestand is beschadigd en is weggelaten, waardoor sommige recente wijzigingen kunnen ontbreken. Het bestand zoals het was, wordt ernaast bewaard de volgende keer dat het postvak wordt opgeslagen."
+
+#. interface
+#: crates/ui-egui/src/opening.rs
+msgid "Part of your mailbox is damaged"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -8546,6 +8606,11 @@ msgstr "Staat of regio"
 
 #. ribbon location
 #: crates/ui-egui/src/lib.rs
+msgid "Status bar"
+msgstr ""
+
+#. ribbon location
+#: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Status bar · File"
 msgstr "Statusbalk · Bestand"
@@ -8561,6 +8626,11 @@ msgstr "Nog bezig met indexeren: een deel van de oudere e-mail wordt trager door
 #, fuzzy
 msgid "Stop"
 msgstr "Stoppen"
+
+#. interface
+#: crates/ui-egui/src/chrome.rs
+msgid "Stop opening it; the mailbox that is open stays"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -11012,10 +11082,20 @@ msgid "Your mail stays yours"
 msgstr "Uw e-mail blijft van u"
 
 #. interface
+#: crates/ui-egui/src/opening.rs
+msgid "Your mailbox couldn't be opened"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
 msgid "Your mailbox has: {days} · {from} – {to}"
 msgstr "Uw postvak heeft: {days} · {from} – {to}"
+
+#. interface
+#: crates/ui-egui/src/opening.rs
+msgid "Your mailbox was repaired"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -13362,6 +13442,13 @@ msgstr[0] ""
 msgstr[1] ""
 
 #. interface
+#: crates/ui-egui/src/opening.rs
+msgid "{n} thing in it didn't fit with the rest and was put right."
+msgid_plural "{n} things in it didn't fit with the rest and were put right."
+msgstr[0] ""
+msgstr[1] ""
+
+#. interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/folder_properties.rs
 #, fuzzy
 msgid "{n} unread"
@@ -13438,6 +13525,11 @@ msgstr "{phase}: {detail}"
 #, fuzzy
 msgid "{provider}'s sign-in page is open in your browser"
 msgstr "De aanmeldpagina van {provider} is geopend in uw browser"
+
+#. interface
+#: crates/ui-egui/src/opening.rs
+msgid "{read} of {total} MB"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/sync_panel.rs

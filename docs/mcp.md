@@ -113,6 +113,7 @@ app's Send/Receive) delivers it.
 | `send_message` | write and send a new message |
 | `list_events` / `list_contacts` / `list_tasks` | the calendar between two days; people; to-dos |
 | `parity` | feature coverage |
+| `status` | whether the mailbox is open; while the window still opens it at launch, every other tool is answered "the mailbox is still opening" |
 | `screenshot`, `click`, `key`, `ui_inspect` | the window (with `--connect` only) |
 
 Everything else goes through `execute`: replying (`mail.reply`, `compose.set`, `compose.send`),
@@ -140,4 +141,5 @@ parameters.
 | 2026-10-21 | minor | `sync.progress`'s `timings` (#276) |
 | 2026-10-26 | minor | An agent's change to a to-do in a To Do list shared with other people (edit, complete, categorise, delete, and an undo or redo of one) asks `send`, deleting one too (rather than `delete`), as do renaming or deleting a category one has; another way of changing one is an overstep; lists count as not shared until the first tasks download (#461) |
 | 2026-10-22 | minor | `--control-agents-only`: every control-channel request is an agent's, allowed nothing in advance |
+| 2026-10-26 | minor | #519: `status`; while the window opens its mailbox (`--connect`), every other tool is answered "the mailbox is still opening" |
 | 2026-10-25 | minor | `view.searchSuggestions` (#308): what the search box offers, safe for agents, its answer framed as untrusted message content |

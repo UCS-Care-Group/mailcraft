@@ -1237,6 +1237,11 @@ msgstr ""
 
 #. command label
 #: crates/ui-egui/src/lib.rs
+msgid "Cancel Opening the Mailbox"
+msgstr ""
+
+#. command label
+#: crates/ui-egui/src/lib.rs
 msgid "Cancel Send/Receive"
 msgstr ""
 
@@ -1653,7 +1658,7 @@ msgid "Contacts don't go to Deleted Items."
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/shared_calendars.rs crates/ui-egui/src/shared_mailboxes.rs crates/ui-egui/src/task_sync.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/opening.rs crates/ui-egui/src/shared_calendars.rs crates/ui-egui/src/shared_mailboxes.rs crates/ui-egui/src/task_sync.rs
 msgid "Continue"
 msgstr ""
 
@@ -1747,6 +1752,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/updates.rs
 msgid "Couldn't find out whether a new version is out: {why}."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/opening.rs
+msgid "Couldn't open {name}: {error}"
 msgstr ""
 
 #. interface
@@ -2423,6 +2433,11 @@ msgid "Everything"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/opening.rs
+msgid "Everything else in it opens as usual."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/data_removal.rs
 msgid "Everything else is gone. MailCraft quits when you close this."
 msgstr ""
@@ -2866,6 +2881,11 @@ msgstr ""
 #. command label
 #: crates/engine/src/cmd/tasks.rs
 msgid "Get Task"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/opening.rs
+msgid "Getting ready…"
 msgstr ""
 
 #. interface
@@ -3833,6 +3853,16 @@ msgid "MailCraft now installs its updates itself. Turn this off in File › Opti
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/opening.rs
+msgid "MailCraft starts with an empty mailbox and leaves the file as it is."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/opening.rs
+msgid "MailCraft stopped reading it before it was done."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 msgid "MailCraft will have no account afterwards: File › Add Account sets one up again."
 msgstr ""
@@ -4612,6 +4642,11 @@ msgid "No information"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/lib.rs
+msgid "No mailbox is being opened"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/reading/select.rs
 msgid "No message is being read there"
 msgstr ""
@@ -5134,8 +5169,28 @@ msgid "Opening Mail Attachment"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/opening.rs
+msgid "Opening your mailbox…"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/attachment_open.rs
 msgid "Opening {name}"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/opening.rs
+msgid "Opening {name}…"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/opening.rs
+msgid "Opening {name}… {percent}%"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/opening.rs
+msgid "Opening…"
 msgstr ""
 
 #. interface
@@ -5276,6 +5331,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/lib.rs
 msgid "Part of the mailbox file is damaged and was left out, so some recent changes may be missing. The file as it was is kept beside it the next time the mailbox is saved."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/opening.rs
+msgid "Part of your mailbox is damaged"
 msgstr ""
 
 #. interface
@@ -7093,6 +7153,11 @@ msgstr ""
 
 #. ribbon location
 #: crates/ui-egui/src/lib.rs
+msgid "Status bar"
+msgstr ""
+
+#. ribbon location
+#: crates/ui-egui/src/lib.rs
 msgid "Status bar · File"
 msgstr ""
 
@@ -7104,6 +7169,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/sync_panel.rs
 msgid "Stop"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/chrome.rs
+msgid "Stop opening it; the mailbox that is open stays"
 msgstr ""
 
 #. interface
@@ -9154,8 +9224,18 @@ msgid "Your mail stays yours"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/opening.rs
+msgid "Your mailbox couldn't be opened"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/calendar_view.rs
 msgid "Your mailbox has: {days} · {from} – {to}"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/opening.rs
+msgid "Your mailbox was repaired"
 msgstr ""
 
 #. interface
@@ -11149,6 +11229,13 @@ msgstr[0] ""
 msgstr[1] ""
 
 #. interface
+#: crates/ui-egui/src/opening.rs
+msgid "{n} thing in it didn't fit with the rest and was put right."
+msgid_plural "{n} things in it didn't fit with the rest and were put right."
+msgstr[0] ""
+msgstr[1] ""
+
+#. interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/folder_properties.rs
 msgid "{n} unread"
 msgid_plural "{n} unread"
@@ -11212,6 +11299,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
 msgid "{provider}'s sign-in page is open in your browser"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/opening.rs
+msgid "{read} of {total} MB"
 msgstr ""
 
 #. interface
