@@ -164,7 +164,7 @@ A command that asks the owner something when a person runs it (deleting for good
 
 ## Commands worth knowing
 
-Every command is listed by `engine.commands` (and `mailcraft-cli commands`) with its parameters. Selection-based commands (`mail.reply`, `mail.delete`, `calendar.edit`…) act on what is selected, **or** on what the caller names with `id` / `ids`, so a script never has to click first. Forward and Forward as Attachment go to other people, so they read `id` and `ids` strictly: one that is `null` or isn't an id, both at once, or a parameter they don't take is refused, and only leaving both out takes the selection.
+Every command is listed by `engine.commands` (and `mailcraft-cli commands`) with its parameters. Selection-based commands (`mail.reply`, `mail.delete`, `calendar.edit`…) act on what is selected, **or** on what the caller names with `id` / `ids`, so a script never has to click first. `mail.forward` and `mail.forwardAsAttachment` start a message to other people, so they read `id` and `ids` strictly: one that is `null` or isn't an id, both at once, or a parameter they don't take is refused, and only leaving both out takes the selection.
 
 | Want | Command |
 |---|---|
