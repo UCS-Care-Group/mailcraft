@@ -94,11 +94,12 @@ impl From<Mode> for String {
     }
 }
 
-/// The tabs in order. `File` opens Backstage; `Message` is there while a message is being written.
+/// The tabs in order. `File` opens Backstage; `Message`, `Insert` and `Review` are there while a
+/// message is being written.
 pub fn tabs(app: &MailApp) -> Vec<&'static str> {
     let mut tabs = vec!["File", "Home", "Send / Receive", "Folder", "View", "Help"];
     if app.session.compose.is_some() {
-        tabs.insert(1, "Message");
+        tabs.splice(1..1, ["Message", "Insert", "Review"]);
     }
     tabs
 }
@@ -278,6 +279,8 @@ impl Tab {
 pub(crate) fn describe(app: &MailApp) -> Tab {
     match app.ui.tab.as_str() {
         "Message" => message(app),
+        "Insert" => insert(),
+        "Review" => review(),
         "Send / Receive" => send_receive(app),
         "Folder" => folder(app),
         "View" => view(app),
@@ -638,6 +641,26 @@ fn message(app: &MailApp) -> Tab {
             ],
         ),
     ])
+}
+
+/// Insert, while a message is being written: what Message › Include has, and the date or the time.
+fn insert() -> Tab {
+    Tab::of(vec![
+        g(
+            "Include",
+            vec![
+                Item::big("attach", "Attach\nFile", "ui.attach", no()).at(0, 2),
+                Item::big_menu("signature", "signature", "Signature", "Signature", Menu::Signature).at(0, 3),
+            ],
+        ),
+        g("Links", vec![Item::big("insertLink", "Link", "compose.link", no()).at(1, 3)]),
+        g("Text", vec![Item::big("dateTime", "Date &\nTime", "insert.dateTime", no()).at(2, 3)]),
+    ])
+}
+
+/// Review, while a message is being written.
+fn review() -> Tab {
+    Tab::of(vec![g("Proofing", vec![Item::big("wordCount", "Word\nCount", "review.wordCount", no()).at(0, 3)])])
 }
 
 fn send_receive(app: &MailApp) -> Tab {
@@ -1783,7 +1806,9 @@ mod tests {
                 out.push((format!("{module} › {tab}"), vec![(module, json!({})), ("ui.tab", json!({"tab": tab}))]));
             }
         }
-        out.push(("Message".to_string(), vec![("view.mail", json!({})), ("mail.new", json!({}))]));
+        for tab in ["Message", "Insert", "Review"] {
+            out.push((tab.to_string(), vec![("view.mail", json!({})), ("mail.new", json!({})), ("ui.tab", json!({"tab": tab}))]));
+        }
         out
     }
 
@@ -1854,7 +1879,7 @@ mod tests {
             assert!(tab.groups.iter().all(|group| !group.title.is_empty() && !group.items.is_empty()), "{name}");
             seen += 1;
         }
-        assert_eq!(seen, 21);
+        assert_eq!(seen, 23);
     }
 
     /// Mail › Home in the order the simplified row has it, with its split buttons.
