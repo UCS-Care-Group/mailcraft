@@ -3348,8 +3348,8 @@ impl MailApp {
     }
 
     /// Open what the system handed MailCraft (the command line, a later start, the Finder): a
-    /// `mailto:` link starts a new message, a message file opens in a window of its own (brought
-    /// into the folder in view first, as an import), a calendar or contact file is imported only
+    /// `mailto:` link starts a new message, a message file opens read-only in a window of its own
+    /// (kept in the local folder Imported, once: `file.import`'s `opened`), a calendar or contact file is imported only
     /// once the owner says so, and a mailbox or a folder of mail as [`open_path`](Self::open_path).
     pub fn open_from_system(&mut self, what: &str) {
         files::from_system(self, what);

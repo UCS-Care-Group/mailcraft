@@ -245,6 +245,10 @@ pub(crate) fn dropped_path(app: &mut MailApp, path: &str) {
 /// The most calendar and contact files waiting to be asked about; more are left alone.
 const MOST_WAITING: usize = 32;
 
+/// Message files the system asks to open get a window each until this many windows are open; the
+/// ones after are only selected in the list.
+pub(crate) const MOST_WINDOWS: usize = 32;
+
 /// [`MailApp::open_from_system`].
 pub(crate) fn from_system(app: &mut MailApp, what: &str) {
     use mailcraft_engine::io::Format;
@@ -254,10 +258,18 @@ pub(crate) fn from_system(app: &mut MailApp, what: &str) {
     let path = local_path(what);
     match Format::from_extension(&path) {
         Some(Format::Eml) => {
-            let Ok(r) = opened_path(app, "import", &path) else { return };
-            let id = r.get("ids").and_then(Value::as_array).and_then(|ids| ids.last()).and_then(Value::as_u64);
-            if let Some(id) = id {
-                // A window of its own where there are windows; else it stays selected in the list.
+            // Into the local folder Imported, as a received message, or the copy already there
+            // (`file.import`'s `opened`): never the folder in view, never a draft.
+            let r = match app.run("file.import", json!({"path": path, "opened": true})) {
+                Ok(r) => r,
+                Err(e) => return app.status(e),
+            };
+            app.ui.backstage = false;
+            let Some(id) = r.get("opened").and_then(Value::as_u64) else { return };
+            let readable = app.session.mailbox.message(id).is_some_and(|m| !m.draft);
+            // Read in a window of its own where there are windows, up to a bound; else it stays
+            // selected in the list.
+            if readable && app.windows.count() < MOST_WINDOWS {
                 let _ = app.run_or_else("ui.openWindow", json!({"message": id}));
             }
         }

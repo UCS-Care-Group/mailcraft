@@ -10778,6 +10778,11 @@ msgstr ""
 
 #. what a command says
 #: crates/engine/src/io.rs
+msgid "{name}: not a message file"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/io.rs
 msgid "{name}: not a message, calendar or contact file MailCraft reads"
 msgstr ""
 

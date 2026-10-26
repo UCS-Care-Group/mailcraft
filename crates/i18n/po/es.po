@@ -12736,6 +12736,11 @@ msgstr "{name} aceptó provisionalmente esta reunión."
 
 #. what a command says
 #: crates/engine/src/io.rs
+msgid "{name}: not a message file"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/io.rs
 #, fuzzy
 msgid "{name}: not a message, calendar or contact file MailCraft reads"
 msgstr "{name}: no es un archivo de mensaje, calendario o contacto que MailCraft pueda leer"

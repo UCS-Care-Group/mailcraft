@@ -20,11 +20,15 @@
 //! message, a calendar or contact file, a folder of mail, a MailCraft mailbox) named by its whole
 //! path, that is there, is a file and can be read. Everything else is dropped and counted.
 //!
-//! Which runs take part: one on a mailbox file takes part, `--control` or not (two windows on one
-//! file never, so a run for a test that names the owner's mailbox hands over and exits); one on
-//! the sample mailbox, and one without preferences (`MAILCRAFT_NO_PREFS`) that names no
-//! `--mailbox`, keep nothing in a file and neither take a lock nor listen, so they never meet the
-//! owner's window. A run without preferences that names a mailbox file is guarded for that file.
+//! Which runs take part: one started on a mailbox file takes part, `--control` or not (a second
+//! start on the same file never opens it again, so a run for a test that names the owner's mailbox
+//! hands over and exits); one on the sample mailbox, and one without preferences
+//! (`MAILCRAFT_NO_PREFS`) that names no `--mailbox`, keep nothing in a file and neither take a
+//! lock nor listen, so they never meet the owner's window. A run without preferences that names a
+//! mailbox file is guarded for that file. The lock is taken for the mailbox a run starts with
+//! only: a `.mailcraft` file opened later in the window (File › Open, a drop, or handed over
+//! here) is opened with `file.open` without its own lock, and another window may have that one
+//! open.
 //! A lock left by a run that crashed was let go of by the system; its `.instance` file names a
 //! port nobody answers on and is replaced by the next first start.
 
@@ -46,6 +50,8 @@ pub(crate) const MAX_LINE: usize = 1 << 20;
 /// The most things one start can hand over, and the longest of them.
 pub(crate) const MAX_ARGS: usize = 256;
 pub(crate) const MAX_ARG: usize = 32 * 1024;
+/// The most message files one start can hand over (each is an import and a window).
+pub(crate) const MAX_MESSAGES: usize = 32;
 /// How long either side waits for the other on the connection.
 const ANSWER: Duration = Duration::from_secs(5);
 /// How long a later start keeps trying to reach the first (which may itself be starting).
@@ -220,13 +226,24 @@ pub(crate) fn sorted(open: Option<&Value>) -> Handed {
         return handed;
     };
     handed.refused = list.len().saturating_sub(MAX_ARGS);
+    let mut messages = 0usize;
     for item in list.iter().take(MAX_ARGS) {
         match item.as_str().and_then(checked) {
-            Some(ok) => handed.open.push(ok),
+            // Each message file is an import and a window: no more than [`MAX_MESSAGES`] at once.
+            Some(ok) if is_message_file(&ok) && messages >= MAX_MESSAGES => handed.refused = handed.refused.saturating_add(1),
+            Some(ok) => {
+                messages = messages.saturating_add(usize::from(is_message_file(&ok)));
+                handed.open.push(ok);
+            }
             None => handed.refused = handed.refused.saturating_add(1),
         }
     }
     handed
+}
+
+/// Whether `what` names a message file (`.eml`), which opens in a window of its own.
+fn is_message_file(what: &str) -> bool {
+    Format::from_extension(what) == Some(Format::Eml) && !what.get(..7).is_some_and(|scheme| scheme.eq_ignore_ascii_case("mailto:"))
 }
 
 /// One thing a later start handed over, as the window is to open it, or `None` when it isn't
@@ -252,11 +269,10 @@ pub(crate) fn checked(arg: &str) -> Option<String> {
     if Format::from_extension(&path)? == Format::Mailbox && !mailbox {
         return None;
     }
-    let meta = std::fs::metadata(&path).ok()?;
-    if !meta.is_file() {
-        return None;
-    }
-    File::open(&path).ok()?;
+    // Opened without waiting and checked through that handle: a pipe or a device where a file was
+    // named neither passes nor holds this thread. (The window reads it again the same way, so a
+    // file swapped after this check is refused there too.)
+    mailcraft_engine::io::regular_file(Path::new(&path)).ok()?;
     Some(path)
 }
 

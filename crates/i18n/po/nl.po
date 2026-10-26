@@ -12937,6 +12937,11 @@ msgstr "{name} heeft deze vergadering voorlopig geaccepteerd."
 
 #. what a command says
 #: crates/engine/src/io.rs
+msgid "{name}: not a message file"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/io.rs
 #, fuzzy
 msgid "{name}: not a message, calendar or contact file MailCraft reads"
 msgstr "{name}: geen bericht-, agenda- of contactbestand dat MailCraft leest"

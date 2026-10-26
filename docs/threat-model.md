@@ -230,8 +230,8 @@ An `.eml`, `.mbox`, `.ics`, `.vcf` or `.mailcraft` file from somewhere else.
   0600 on Unix and compared in constant time (`apps/mailcraft/src/control_server.rs`,
   `crates/control-key`). Another user can't drive the app; another program running as the owner
   can read the key, which is the next item's problem.
-- **The hand-over between two starts** (#505). One MailCraft has a mailbox file open at a time: the
-  first start holds a lock beside it (`<mailbox>.lock`, let go of by the system however the
+- **The hand-over between two starts** (#505). A second start on the mailbox file a MailCraft
+  started with doesn't open it again: the first start holds a lock beside it (`<mailbox>.lock`, let go of by the system however the
   program ends) and listens on `127.0.0.1`, on a port the system picks, for a later start's one
   line; the port and 32 random bytes from the operating system are in `<mailbox>.instance`,
   created 0600 on Unix (elsewhere the owner's own settings folder) and removed on exit. A later
@@ -241,14 +241,23 @@ An `.eml`, `.mbox`, `.ics`, `.vcf` or `.mailcraft` file from somewhere else.
   one line of at most 1 MB, at most 256 things of at most 32 KB each, and each kept only when it
   is a `mailto:` link (which the compose command reads as RFC 6068 says, taking only the
   recipients, the subject and the body, without line breaks in a header) or the whole path of a
-  message, calendar, contact, mbox or `.mailcraft` file that is there, is a file and can be read;
-  anything else is dropped, and only how many is logged. A message file opens in a window of its
-  own, and a calendar or contact file is imported only when the owner answers the window's
-  question (an agent names no file to import). Another user can't reach the window: the key file
+  message, calendar, contact, mbox or `.mailcraft` file that is there and can be read, at most 32
+  message files at a time; anything else is dropped, and only how many is logged. A file is opened
+  once, without waiting (`O_NONBLOCK` on Unix), checked through that handle to be a regular file
+  and read from it (`mailcraft_engine::io::read_regular_file`), so a pipe or device swapped in
+  for it is refused rather than read or waited on. A message file is put into the local folder
+  Imported, never a server's folder, Drafts, the Outbox, Sent, Junk or Deleted Items, as a read,
+  received message that is never a draft (a file that says it is unsent too), and opens read-only
+  in a window of its own; opened again it is the copy already there (by Message-ID, else by the
+  file's SHA-256, kept in a header of MailCraft's own that a file can't bring in). A calendar or
+  contact file is imported only when the owner answers the window's question (an agent names no
+  file to import). Another user can't reach the window: the key file
   is not theirs to read. A start that finds the lock held but nobody answering says MailCraft is
   already open and does not open the mailbox twice; a crashed run's lock is gone, and its stale
   `.instance` is replaced. The sample mailbox and a run without preferences that names no
-  `--mailbox` take no lock and don't listen (`apps/mailcraft/src/single_instance.rs`).
+  `--mailbox` take no lock and don't listen (`apps/mailcraft/src/single_instance.rs`). The lock covers the
+  mailbox a run started with only: a `.mailcraft` file opened later in the window (File › Open, a
+  drop, a hand-over) takes no lock of its own, so another window may have that one open.
 - **Agents on the same computer.** The agent gate ([MCP](mcp.md#agents-get-only-what-the-owner-allows))
   binds agents that reach MailCraft only through MCP. The control channel takes a request without
   the bridge's `agent` marking for the owner's own script, so an agent that can run a shell or read
@@ -370,6 +379,7 @@ settings files (`crates/engine/src/store.rs`); commands from the control channel
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-26 | minor | #505 (review): a message file from the system goes to the local folder Imported, once, never as a draft; files named from outside are opened without waiting and checked through their handle; at most 32 message files a hand-over; what the lock covers |
 | 2026-10-26 | minor | #505: the hand-over between two starts (loopback, a key file for the owner alone, bounded and checked like anything from outside); a calendar or contact file from the system is imported only on the owner's word |
 | 2026-10-26 | minor | #458: a `dmarc=pass` whose `header.from` is the organisation's domain (Gmail's way: `shop.example` for `news.shop.example`) vouches for the names under it; a bare suffix or a hosting platform's domain never does |
 | 2026-10-25 | minor | #308: the people the search box offers after `from:`, `to:` and `cc:` come from autocomplete's source, on this computer only |

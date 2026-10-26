@@ -73,6 +73,37 @@ fn a_message_file_from_the_system_opens_in_a_window() {
     let _ = std::fs::remove_dir_all(dir);
 }
 
+/// The review of #505: with Drafts in view, a message file opened from the system became a draft
+/// and opened in the composer, ready to send; opened twice it made two copies; and it landed in
+/// whatever folder was in view, a server's too.
+#[test]
+fn a_message_file_from_the_system_lands_in_the_local_folder_once_and_is_never_a_draft() {
+    use mailcraft_model::FolderKind;
+    let dir = scratch("drafts");
+    let path = dir.join("handed.eml");
+    std::fs::write(&path, EML).unwrap();
+    let mut a = app();
+    let account = a.session.mailbox.default_account().unwrap().id;
+    let drafts = a.session.mailbox.folder_of_kind(account, FolderKind::Drafts).unwrap();
+    a.run("folder.select", json!({"id": drafts})).unwrap();
+    assert_eq!(a.session.view.folder, drafts);
+    let before = a.session.mailbox.messages.len();
+    a.open_from_system(&path.to_string_lossy());
+    a.open_from_system(&format!("file://{}", path.to_string_lossy()));
+    assert_eq!(a.session.mailbox.messages.len(), before + 1, "opened twice, one copy");
+    let local = a.session.mailbox.local_account();
+    let m = a.session.mailbox.messages.values().find(|m| m.subject == "Handed over").unwrap().clone();
+    assert!(!m.draft && m.folder != drafts);
+    let folder = a.session.mailbox.folder(m.folder).unwrap();
+    assert!(folder.account == local && folder.name == mailcraft_model::IMPORTED, "{folder:?}");
+    assert!(a.session.compose.is_none(), "no composer");
+    let windows = crate::windows::inspect(&a);
+    let mine: Vec<&Value> = windows.as_array().unwrap().iter().filter(|w| w["message"] == json!(m.id)).collect();
+    assert_eq!(mine.len(), 1, "{windows}");
+    assert_eq!(mine[0]["kind"], "message");
+    let _ = std::fs::remove_dir_all(dir);
+}
+
 #[test]
 fn calendar_and_contact_files_from_the_system_are_imported_only_on_the_owners_word() {
     let dir = scratch("ask");

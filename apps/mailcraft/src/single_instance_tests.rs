@@ -237,3 +237,33 @@ fn what_is_handed_over_is_sorted_strictly() {
     let h = sorted(Some(&json!(many)));
     assert_eq!((h.open.len(), h.refused), (MAX_ARGS, 3));
 }
+
+/// Each message file is an import and a window: one start hands over no more than
+/// [`MAX_MESSAGES`] of them; calendar and contact files and links are not counted with them.
+#[test]
+fn message_files_are_bounded_per_hand_over() {
+    let mailbox = temp_mailbox("messages");
+    let eml = file_beside(&mailbox, "m.eml");
+    let ics = file_beside(&mailbox, "m.ics");
+    let mut list: Vec<String> = std::iter::repeat_n(eml.clone(), MAX_MESSAGES + 8).collect();
+    list.push(ics.clone());
+    list.push("mailto:a@lumen.example?subject=x.eml".to_string());
+    let h = sorted(Some(&json!(list)));
+    assert_eq!(h.refused, 8);
+    assert_eq!(h.open.iter().filter(|o| **o == eml).count(), MAX_MESSAGES);
+    assert!(h.open.contains(&ics) && h.open.iter().any(|o| o.starts_with("mailto:")));
+    let _ = std::fs::remove_dir_all(mailbox.parent().unwrap());
+}
+
+#[cfg(unix)]
+#[test]
+fn a_pipe_where_a_file_was_named_is_refused_at_once() {
+    let mailbox = temp_mailbox("pipe");
+    std::fs::create_dir_all(mailbox.parent().unwrap()).unwrap();
+    let fifo = mailbox.parent().unwrap().join("p.eml");
+    if std::process::Command::new("mkfifo").arg(&fifo).status().is_ok_and(|s| s.success()) {
+        // (Opening it to read would wait for somebody to write; it is opened without waiting.)
+        assert_eq!(checked(&fifo.to_string_lossy()), None);
+    }
+    let _ = std::fs::remove_dir_all(mailbox.parent().unwrap());
+}
