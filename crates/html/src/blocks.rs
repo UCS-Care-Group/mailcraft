@@ -60,8 +60,9 @@ pub fn parse(html: &str) -> Vec<Block> {
     build(html, true)
 }
 
-/// [`parse`], without decoding the pictures written into the message: for text.
-pub(crate) fn parse_text(html: &str) -> Vec<Block> {
+/// [`parse`], without decoding the pictures written into the message: for when only the text
+/// and the look are wanted (plain text, an HTML draft or a paste in the composer).
+pub fn parse_text(html: &str) -> Vec<Block> {
     build(html, false)
 }
 

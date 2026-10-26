@@ -820,7 +820,7 @@ fn tile<'a>(cx: &mut Cx<'_>, block: &'a Block, room: f32, shown: bool) -> Tile<'
     // One of the message's own, written into it or attached to it; or one from the web, when
     // the owner asked and it has come.
     let asked_for = cx.remote && images::is_remote(src);
-    let mut bytes = data.clone().or_else(|| cx.message.and_then(|m| images::attachment(m, src)).map(|a| a.data.clone()));
+    let mut bytes = data.as_ref().map(|p| p.0.clone()).or_else(|| cx.message.and_then(|m| images::attachment(m, src)).map(|a| a.data.clone()));
     if bytes.is_none()
         && asked_for
         && let Some(images::Remote::Ready(data)) = cx.pictures.remote(src.trim(), cx.frame)

@@ -35,8 +35,8 @@ mod tokenizer;
 
 use serde::{Deserialize, Serialize};
 
-pub use blocks::parse;
-pub use data::{MAX_DATA_PICTURE_BYTES, MAX_DATA_PICTURES, MAX_DATA_PICTURES_BYTES};
+pub use blocks::{parse, parse_text};
+pub use data::{MAX_DATA_PICTURE_BYTES, MAX_DATA_PICTURES, MAX_DATA_PICTURES_BYTES, Picture};
 pub use entities::{escape, unescape};
 pub use preview::{MAX_PREVIEW_CHARS, preview, text_preview};
 pub use quote::quotable;
@@ -283,7 +283,7 @@ pub enum BlockKind {
         /// A picture written into the message: its bytes, a PNG, JPEG, GIF or WebP by what they
         /// are, within [`MAX_DATA_PICTURE_BYTES`] and the caps for a message.
         #[serde(skip)]
-        data: Option<std::sync::Arc<Vec<u8>>>,
+        data: Option<Picture>,
     },
     /// A table, or a block with a background of its own (one row, one cell). No spans.
     Table(Table),

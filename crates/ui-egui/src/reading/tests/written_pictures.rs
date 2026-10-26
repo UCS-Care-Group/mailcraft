@@ -97,3 +97,37 @@ fn what_is_written_in_but_is_no_picture_of_ours_is_a_stand_in() {
         assert!(Pictures::of(ctx).lock().map(|p| p.counts().0 <= 2).unwrap_or(false));
     });
 }
+
+/// A message read again is parsed again, and its pictures come as new bytes: each picture is
+/// kept once, and nothing of it is held once no message read holds it.
+#[test]
+fn a_message_read_again_keeps_its_pictures_once() {
+    let m = mailcraft_mime::parse(&raw_message(&[data_png(64, 40), data_png(32, 32)]));
+    in_frame(false, |ctx| {
+        let store = Pictures::of(ctx);
+        for _ in 0..6 {
+            let laid = lay_out(ctx, &m, 820.0);
+            assert_eq!(laid.stats.pictures, 2);
+            assert_eq!(store.lock().unwrap().counts().0, 2, "one entry for each picture, however often it is read");
+        }
+        // The last reading is gone: so are its pictures, at the end of the next frame.
+        store.lock().unwrap().release_after(0.0);
+        assert_eq!(store.lock().unwrap().counts().0, 0);
+    });
+}
+
+/// HTML that is nothing but pictures written into it, with a text part beside it, is shown as
+/// HTML: the pictures are what it says.
+#[test]
+fn a_message_of_pictures_alone_shows_them_rather_than_its_text() {
+    let html = format!("<html><body><img src=\"{}\"><img src=\"{}\"></body></html>", data_png(64, 40), data_png(32, 32));
+    let m = mailcraft_model::Message {
+        body: mailcraft_model::Body { text: "See the pictures in the HTML version.".into(), html: Some(html) },
+        ..mailcraft_model::Message::default()
+    };
+    in_frame(false, |ctx| {
+        let laid = lay_out(ctx, &m, 820.0);
+        assert_eq!((laid.stats.pictures, laid.stats.placeholders), (2, 0), "{:?}", laid.stats);
+        assert!(!laid.items.iter().any(|i| super::text_of(i).contains("HTML version")));
+    });
+}

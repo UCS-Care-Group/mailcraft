@@ -29,6 +29,25 @@ pub(crate) const MAX_DATA_TEXT: usize = MAX_DATA_PICTURES_BYTES / 3 * 4 / 8 * 9;
 /// The text of one picture past which it isn't looked at.
 const MAX_PICTURE_TEXT: usize = MAX_DATA_PICTURE_BYTES / 3 * 4 / 8 * 9;
 
+/// The bytes of a picture written into a message. Shown by its length alone when debugged, so
+/// that a log or a failed test is not ten megabytes long.
+#[derive(Clone, PartialEq, Eq)]
+pub struct Picture(pub Arc<Vec<u8>>);
+
+impl std::fmt::Debug for Picture {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Picture({} bytes)", self.0.len())
+    }
+}
+
+impl std::ops::Deref for Picture {
+    type Target = [u8];
+
+    fn deref(&self) -> &[u8] {
+        &self.0
+    }
+}
+
 /// What the pictures written into a message have taken so far.
 #[derive(Debug, Default)]
 pub(crate) struct Budget {
@@ -46,7 +65,7 @@ pub(crate) fn is_data(src: &str) -> bool {
 /// The address kept of a picture written into the message (`data:` and its type when it is one
 /// of the four, never its content), and its bytes when it is shown: decoded within `budget`
 /// when `decode`, and a PNG, JPEG, GIF or WebP by its own bytes.
-pub(crate) fn picture(src: &str, decode: bool, budget: &mut Budget) -> (String, Option<Arc<Vec<u8>>>) {
+pub(crate) fn picture(src: &str, decode: bool, budget: &mut Budget) -> (String, Option<Picture>) {
     let Some((head, text)) = src.trim_start().split_once(',') else { return ("data:".into(), None) };
     let head: String = head.chars().filter(|c| !matches!(c, '\t' | '\n' | '\r')).collect();
     let head = head.trim();
@@ -70,7 +89,7 @@ pub(crate) fn picture(src: &str, decode: bool, budget: &mut Budget) -> (String, 
     }
     budget.pictures += 1;
     budget.bytes = budget.bytes.saturating_add(size);
-    let data = base64(text, size).filter(|bytes| is_picture(bytes)).map(Arc::new);
+    let data = base64(text, size).filter(|bytes| is_picture(bytes)).map(|bytes| Picture(Arc::new(bytes)));
     (kept, data)
 }
 

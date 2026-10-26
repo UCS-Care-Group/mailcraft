@@ -446,9 +446,9 @@ fn remote_pictures_are_stand_ins_and_nothing_is_looked_at_for_them() {
             assert_eq!((remote.stats.placeholders, remote.stats.remote), (8, 7));
             assert!(stand_ins(&remote).contains(&("missing part", false)));
             // No picture on the web was kept, because no bytes of one were ever looked at: there
-            // were none to look at. The one written into the message was looked at, once for
-            // each time the message was read here (twice).
-            assert_eq!(Pictures::of(ctx).lock().unwrap().counts(), (2, 0));
+            // were none to look at. The one written into the message was looked at, and is kept
+            // once though the message was read here twice.
+            assert_eq!(Pictures::of(ctx).lock().unwrap().counts(), (1, 0));
             // A part that claims a web address as its Content-ID does not stand in for that address.
             let mut sneaky = corpus_message("newsletter");
             sneaky.attachments = vec![Attachment {

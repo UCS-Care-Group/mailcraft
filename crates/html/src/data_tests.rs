@@ -2,10 +2,9 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! #533: pictures written into a message's HTML (`data:image/…;base64,…`).
 
-use std::sync::Arc;
-
 use crate::{
-    Block, BlockKind, MAX_DATA_PICTURE_BYTES, MAX_DATA_PICTURES, MAX_DATA_PICTURES_BYTES, MAX_INPUT, images, is_embedded, is_safe_url, parse, to_text,
+    Block, BlockKind, MAX_DATA_PICTURE_BYTES, MAX_DATA_PICTURES, MAX_DATA_PICTURES_BYTES, MAX_INPUT, Picture, images, is_embedded, is_safe_url,
+    parse, to_text,
 };
 
 /// A 1×1 PNG, made for this test (69 bytes: a whole number of base64 groups).
@@ -33,7 +32,7 @@ fn b64(bytes: &[u8]) -> String {
 }
 
 /// The pictures of `html`: the address kept, and the bytes when it is shown.
-fn pictures(html: &str) -> Vec<(String, Option<Arc<Vec<u8>>>)> {
+fn pictures(html: &str) -> Vec<(String, Option<Picture>)> {
     images(&parse(html))
         .into_iter()
         .filter_map(|b| match &b.kind {
@@ -61,11 +60,14 @@ fn a_picture_written_into_the_message_is_shown() {
     // The address kept says what it is, never its content.
     assert_eq!(src, "data:image/png");
     assert!(is_embedded(src));
-    assert_eq!(data.as_deref().map(Vec::as_slice), Some(&PNG[..]));
+    assert_eq!(data.as_deref(), Some(&PNG[..]));
     // Its description stays with it.
     let blocks = parse(&img(&format!("data:image/png;base64,{}", b64(&PNG))));
     let picture: Vec<&Block> = images(&blocks);
     assert_eq!(picture[0].text(), "Chart");
+    // Debugged, the bytes are their length alone.
+    let debugged = format!("{blocks:?}");
+    assert!(debugged.contains("Picture(69 bytes)") && !debugged.contains("137, 80"), "{debugged}");
 }
 
 #[test]
@@ -78,7 +80,7 @@ fn the_scheme_and_type_in_any_letter_case_with_parameters() {
         format!("data:image/jpeg;base64,{}", b64(&PNG)),
     ] {
         let shown = pictures(&img(&src));
-        assert_eq!(shown.first().and_then(|(_, d)| d.as_deref()).map(Vec::as_slice), Some(&PNG[..]), "{src}");
+        assert_eq!(shown.first().and_then(|(_, d)| d.as_deref()), Some(&PNG[..]), "{src}");
     }
 }
 
@@ -88,10 +90,10 @@ fn line_breaks_and_spaces_inside_the_base64_are_skipped() {
     let text = b64(&PNG);
     let broken: String = text.as_bytes().chunks(20).map(|c| String::from_utf8_lossy(c).into_owned()).collect::<Vec<_>>().join("\r\n ");
     let shown = pictures(&img(&format!("data:image/png;base64,{broken}")));
-    assert_eq!(shown.first().and_then(|(_, d)| d.as_deref()).map(Vec::as_slice), Some(&PNG[..]));
+    assert_eq!(shown.first().and_then(|(_, d)| d.as_deref()), Some(&PNG[..]));
     // Without its padding, too.
     let shown = pictures(&img(&format!("data:image/png;base64,{}", b64(&PNG[..68]).trim_end_matches('='))));
-    assert_eq!(shown.first().and_then(|(_, d)| d.as_deref()).map(Vec::as_slice), Some(&PNG[..68]));
+    assert_eq!(shown.first().and_then(|(_, d)| d.as_deref()), Some(&PNG[..68]));
 }
 
 #[test]
