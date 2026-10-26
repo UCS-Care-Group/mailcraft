@@ -74,12 +74,7 @@ pub fn message_changes(s: &Session, account: Id, limit: usize) -> (Vec<MessageCh
     let current = s.file_is_current();
     for m in mb.messages.values() {
         let Some(out) = m.moving_out.as_ref().filter(|out| out.account == account) else { continue };
-        let safe = if mb.is_graph(m.account) {
-            m.server.as_ref().is_some_and(|server| !server.gone && !server.id.is_empty())
-        } else {
-            !m.unfetched && !m.incomplete && (current || s.saved_whole.contains(&m.id))
-        };
-        if safe {
+        if super::graph_place::safe_here(s, m, current) {
             note(&|| MessageChange::MovedOut { message: m.id, id: out.id.clone() });
         }
     }

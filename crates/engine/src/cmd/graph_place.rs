@@ -1,27 +1,30 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! Mail moved or copied between two mailboxes of one owner's (#70): a shared mailbox and its
-//! owner's, or two shared mailboxes of his.
+//! Mail moved or copied into a Microsoft account from elsewhere: between two mailboxes of one
+//! owner's (#70: a shared mailbox and its owner's, or two shared mailboxes of his), and from an
+//! IMAP account or a folder on this computer (#451).
 //!
 //! Microsoft moves and copies a message only within its own mailbox. What goes to another is
 //! made there by that mailbox's own run, at its own address, from the whole message here
 //! ([`PlaceUp`]): the message waits here, in its new folder, until it is
 //! ([`Queued::PlaceMessage`]). Of a move, the original stays on its own server, **being moved**
-//! ([`mailcraft_model::sync::MovingOut`]), and goes from there only once the copy is confirmed on
-//! the destination's server (`graph_up`'s moved-out changes): a copy that fails never loses
-//! the message.
+//! ([`mailcraft_model::sync::MovingOut`] in a Microsoft account, a [`Pending::Move`] out of an
+//! IMAP account), and goes from there only once the copy is confirmed on the destination's
+//! server ([`safe_here`]: `graph_up`'s moved-out changes, the IMAP run's deletions): a copy that
+//! fails never loses the message.
 //!
 //! - **Made**: the message here takes the copy's server id, and is that server message from then on.
 //! - **Refused** (403, 400, or a folder that is gone): a move goes back to where its original
-//!   still is, as that server message; a copy is taken away here again (its source is where it
-//!   was). Said once per run and kind, as other refusals are (R3 spec S20). A move whose original
-//!   was gone already is kept in a folder on this computer: it is all there is of it.
+//!   still is, as that server message, or to the folder on this computer it came from; a copy is
+//!   taken away here again (its source is where it was). Said once per run and kind, as other
+//!   refusals are (R3 spec S20). A move whose original was gone already is kept in a folder on
+//!   this computer: it is all there is of it.
 //! - **No answer**, or a shared mailbox's 403 that isn't "no access": it waits for the next run,
 //!   where the copy is looked for by its marker before it is made again.
 //! - Moved on, deleted or undone meanwhile: a copy made all the same is deleted there again.
 
 use mailcraft_model::sync::{FlagUp, MessageOutcome, PlaceDone, PlaceUp, ServerMessage};
-use mailcraft_model::{FlagStatus, FolderKind, Id, Mailbox, Message, Queued};
+use mailcraft_model::{FlagStatus, FolderKind, Id, Mailbox, Message, Pending, Queued};
 use mailcraft_time::{DateTime, Timestamp};
 
 use super::graph_up::{Kind, Refusals, Why, destination, folder_name};
@@ -52,6 +55,18 @@ pub fn place_changes(s: &Session, account: Id, limit: usize) -> (Vec<PlaceUp>, u
         }
     }
     (out, count)
+}
+
+/// Whether `m`, moved here out of an account whose server still has the original, is safe where
+/// it is now, so that the original may go (R3 spec S19, #70, #451): made on the server of the
+/// Microsoft account it is in; in an account whose server is given no copy, whole here and kept
+/// in the mailbox file (`saved`: the file holds what is here now).
+pub(crate) fn safe_here(s: &Session, m: &Message, saved: bool) -> bool {
+    if s.mailbox.is_graph(m.account) {
+        m.server.as_ref().is_some_and(|server| !server.gone && !server.id.is_empty())
+    } else {
+        !m.unfetched && !m.incomplete && (saved || s.saved_whole.contains(&m.id))
+    }
 }
 
 /// The flag of `m` as it goes with the copy.
@@ -90,7 +105,10 @@ pub fn place_done(mb: &mut Mailbox, account: Id, done: &PlaceDone, refusals: &mu
         // Made, but which one isn't said: found by its marker next time.
         return false;
     }
-    let copy = matches!(mb.queued.get(entry), Some(Queued::PlaceMessage { copy: true, .. }));
+    let (copy, from) = match mb.queued.get(entry) {
+        Some(Queued::PlaceMessage { copy, from, .. }) => (*copy, *from),
+        _ => (false, None),
+    };
     mb.queued.remove(entry);
     let to_name = folder_name(mb, account, &change.to, change.to_folder);
     match (&done.outcome, made) {
@@ -128,15 +146,16 @@ pub fn place_done(mb: &mut Mailbox, account: Id, done: &PlaceDone, refusals: &mu
             let Some(m) = mb.message(id) else { return true };
             let subject = m.subject.clone();
             refusals.note(if copy { Kind::Copy } else { Kind::Move }, why, &subject, to_name);
-            put_back(mb, id, copy);
+            put_back(mb, id, copy, from);
             true
         }
     }
 }
 
 /// A message the destination wouldn't take: a move back to where its original still is, as that
-/// server message; a copy taken away; a move whose original is gone kept on this computer.
-fn put_back(mb: &mut Mailbox, id: Id, copy: bool) {
+/// server message, or to the folder on this computer it came from (`from`); a copy taken away;
+/// a move whose original is gone kept on this computer.
+fn put_back(mb: &mut Mailbox, id: Id, copy: bool, from: Option<Id>) {
     let Some(m) = mb.message(id) else { return };
     let out = m.moving_out.clone().filter(|out| mb.is_graph(out.account) && !out.id.is_empty());
     match out {
@@ -161,7 +180,14 @@ fn put_back(mb: &mut Mailbox, id: Id, copy: bool) {
             let _ = mb.forget_message(id);
         }
         None => {
-            if let Ok(folder) = mb.imported_folder(false)
+            if back_on_imap(mb, id) {
+                return;
+            }
+            let folder = match from.filter(|f| mb.folder(*f).is_some()) {
+                Some(folder) => Ok(folder),
+                None => mb.imported_folder(false),
+            };
+            if let Ok(folder) = folder
                 && let Some(account) = mb.folder(folder).map(|f| f.account)
                 && let Ok(m) = mb.message_mut(id)
             {
@@ -169,4 +195,42 @@ fn put_back(mb: &mut Mailbox, id: Id, copy: bool) {
             }
         }
     }
+}
+
+/// A move out of an IMAP account that was refused (#451): the message goes back to the folder
+/// that follows the mailbox its original is still in, as that server message, and nothing is
+/// deleted there. When that folder is gone here, it goes to the account's Inbox, as a move there.
+/// Whether it was one.
+fn back_on_imap(mb: &mut Mailbox, id: Id) -> bool {
+    let Some(account) = mb.message(id).map(|m| m.account) else { return false };
+    let at = mb.pending.iter().position(|p| matches!(p, Pending::Move { message, .. } if *message == id));
+    let Some(Pending::Move { account: owner, from, uid, synced, .. }) = at.and_then(|at| mb.pending.get(at)).cloned() else { return false };
+    if owner == account {
+        return false;
+    }
+    let there = mb.folders.iter().find(|f| f.account == owner && !f.remote.is_empty() && f.remote == from).map(|f| f.id);
+    let (folder, uid, synced) = match there.or_else(|| mb.folder_of_kind(owner, FolderKind::Inbox)) {
+        Some(folder) if there == Some(folder) => {
+            if let Some(at) = at {
+                mb.pending.remove(at);
+            }
+            (folder, uid, synced)
+        }
+        Some(inbox) => {
+            if let Some(Pending::Move { to, .. }) = at.and_then(|at| mb.pending.get_mut(at)) {
+                *to = inbox;
+            }
+            (inbox, 0, None)
+        }
+        None => {
+            // Nowhere in its account to go: the original stays where it is, untouched.
+            if let Some(at) = at {
+                mb.pending.remove(at);
+            }
+            return false;
+        }
+    };
+    let Ok(m) = mb.message_mut(id) else { return true };
+    (m.folder, m.account, m.uid, m.synced) = (folder, owner, uid, synced);
+    true
 }

@@ -161,27 +161,38 @@ fn a_move_out_of_the_account_waits_for_the_whole_message_and_the_save() {
     assert!(super::super::graph_down::fetch_queue(&s.mailbox, account, 5, s.now()).is_empty());
 }
 
+/// #451: received mail in a local folder goes into a Microsoft account by its server's own run
+/// (made there from the whole message, as received mail); a draft stays out.
 #[test]
-fn nothing_comes_into_a_microsoft_account_from_elsewhere_and_an_unfetched_message_isnt_copied_out() {
+fn local_mail_waits_to_be_made_in_a_microsoft_account_and_an_unfetched_message_isnt_copied_out() {
     let (mut s, account, m, kept) = setup();
     let local = s.mailbox.add_message(Message { folder: kept, subject: "Here only".into(), draft: true, ..Default::default() }).unwrap();
     let received = s.mailbox.add_message(Message { folder: kept, subject: "Received".into(), ..Default::default() }).unwrap();
     let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
     for command in ["mail.move", "mail.copy"] {
         let refused = s.run(command, &json!({"ids": [local], "folder": inbox})).unwrap_err();
-        assert!(refused.to_string().contains(mailcraft_model::INTO_GRAPH), "{refused}");
-        // Received mail in a local folder never goes (S30).
-        let refused = s.run(command, &json!({"ids": [received], "folder": inbox})).unwrap_err();
-        assert_eq!(refused.to_string(), mailcraft_model::STAYS_LOCAL);
+        assert!(refused.to_string().contains("The draft \"Here only\" stays in its own mailbox"), "{refused}");
     }
+    let copy = s.run("mail.copy", &json!({"ids": [received], "folder": inbox})).unwrap()["copies"][0].as_u64().unwrap();
+    assert!(
+        matches!(s.mailbox.queued.as_slice(), [Queued::PlaceMessage { account: a, message, copy: true, from: None, .. }] if *a == account && *message == copy)
+    );
+    s.run("mail.move", &json!({"ids": [received], "folder": inbox})).unwrap();
+    let moved = s.mailbox.message(received).unwrap();
+    assert_eq!((moved.account, moved.folder, moved.server.is_none()), (account, inbox, true));
+    // Where it lay, for a refused one to go back to.
+    let waits =
+        |q: &Queued| matches!(q, Queued::PlaceMessage { message, copy: false, from: Some(from), .. } if *message == received && *from == kept);
+    assert!(s.mailbox.queued.iter().any(waits), "{:?}", s.mailbox.queued);
     s.mailbox.message_mut(m).unwrap().unfetched = true;
     let refused = s.run("mail.copy", &json!({"ids": [m], "folder": kept})).unwrap_err();
     assert!(refused.to_string().contains("\"Invoice 42\" isn't downloaded yet"), "{refused}");
     // Whole, it is copied out as any message is: a copy of its own, not on a server.
     s.mailbox.message_mut(m).unwrap().unfetched = false;
+    let queued = s.mailbox.queued.len();
     let copy = s.run("mail.copy", &json!({"ids": [m], "folder": kept})).unwrap()["copies"][0].as_u64().unwrap();
     let c = s.mailbox.message(copy).unwrap();
-    assert!(c.server.is_none() && c.moving_out.is_none() && s.mailbox.queued.is_empty());
+    assert!(c.server.is_none() && c.moving_out.is_none() && s.mailbox.queued.len() == queued);
 }
 
 /// R3 spec S30: mail imported for a Microsoft account goes to a local folder, and stays there.
@@ -209,12 +220,15 @@ fn mail_imported_for_a_microsoft_account_goes_to_a_local_folder_and_stays_there(
     let local_drafts = s.mailbox.folder(draft["folder"].as_u64().unwrap()).unwrap();
     assert_eq!((local_drafts.account, local_drafts.kind), (f.account, FolderKind::Drafts));
     assert!(s.mailbox.message(draft["ids"][0].as_u64().unwrap()).unwrap().draft);
-    // Moving it into the account is refused with the reason, and changes nothing.
-    for command in ["mail.move", "mail.copy"] {
-        let refused = s.run(command, &json!({"ids": [imported], "folder": inbox})).unwrap_err();
-        assert_eq!(refused.to_string(), mailcraft_model::STAYS_LOCAL);
-        assert_eq!(s.mailbox.message(imported).unwrap().folder, local);
-    }
+    // Moved into the account by hand, it waits to be made there by the account's own run (#451).
+    s.run("mail.move", &json!({"ids": [imported], "folder": inbox})).unwrap();
+    assert_eq!(s.mailbox.message(imported).unwrap().folder, inbox);
+    assert!(
+        s.mailbox
+            .queued
+            .iter()
+            .any(|q| matches!(q, Queued::PlaceMessage { message, from: Some(from), .. } if *message == imported && *from == local))
+    );
     // Mail imported into another account's folder lands there, as before.
     let kept = s.mailbox.folders.iter().find(|f| f.name == "Kept").unwrap().id;
     let there = s.run("file.import", &json!({"name": "in.eml", "data": eml["data"], "folder": kept})).unwrap();

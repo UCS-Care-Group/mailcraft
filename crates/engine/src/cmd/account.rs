@@ -570,7 +570,7 @@ pub fn sync_request(s: &Session, account: Id) -> Result<SyncRequest, CmdError> {
             known_uids: known.remove(&f.id).unwrap_or_default(),
         })
         .collect();
-    let (ops, _) = remote_ops(&s.mailbox, account, MAX_OPS);
+    let (ops, _) = remote_ops(s, account, MAX_OPS);
     // What is sent goes whole: the files a message keeps on disk are read for it.
     let outbox = s.loaded_outbox(outbox);
     Ok(SyncRequest { account: a.clone(), folders, outbox, max_per_folder: s.prefs.sync_limit, ops, ..Default::default() })
@@ -586,7 +586,7 @@ pub fn unpushed(s: &Session, account: Id) -> usize {
     if s.mailbox.account(account).is_some_and(|a| a.kind == AccountKind::Microsoft) {
         return super::graph_mail::unpushed(s, account);
     }
-    remote_ops(&s.mailbox, account, 0).1
+    remote_ops(s, account, 0).1
 }
 
 /// The flags of `m` that are not as the server has them (`base`), with what they are here; `None`
@@ -623,9 +623,15 @@ fn destination(mb: &Mailbox, folder: &Folder) -> (String, Vec<String>) {
 /// flags that are not as the server last had them. At most `limit` of them are spelled out; the
 /// number is of all there are.
 ///
+/// A message moved out of the account into one whose server makes a copy of it (#451) is
+/// deleted here once that copy is there ([`super::graph_place::safe_here`]); until then nothing
+/// is asked of the server for it.
+///
 /// A change is only asked for in a mailbox one of the account's folders follows with a
 /// `UIDVALIDITY` (the UIDs kept of it are good for that life of the mailbox only).
-fn remote_ops(mb: &Mailbox, account: Id, limit: usize) -> (Vec<RemoteOp>, usize) {
+fn remote_ops(s: &Session, account: Id, limit: usize) -> (Vec<RemoteOp>, usize) {
+    let mb = &s.mailbox;
+    let saved = s.file_is_current();
     let (mut ops, mut count) = (Vec::new(), 0usize);
     let mut note = |op: &dyn Fn() -> RemoteOp| {
         if ops.len() < limit {
@@ -644,7 +650,15 @@ fn remote_ops(mb: &Mailbox, account: Id, limit: usize) -> (Vec<RemoteOp>, usize)
         match pending {
             Pending::Delete { .. } => note(&|| RemoteOp::Delete { from: from.to_string(), uid }),
             Pending::Move { message, synced, to, .. } => {
-                let Some(m) = mb.message(*message).filter(|m| m.account == account && m.folder == *to && m.uid == 0) else { continue };
+                let Some(m) = mb.message(*message) else { continue };
+                if m.account != account {
+                    // Moved out of the account: the original goes once the copy is there.
+                    if mb.placed_into(account, m.account) && super::graph_place::safe_here(s, m, saved) {
+                        note(&|| RemoteOp::Delete { from: from.to_string(), uid });
+                    }
+                    continue;
+                }
+                let Some(m) = Some(m).filter(|m| m.folder == *to && m.uid == 0) else { continue };
                 // The Outbox is no place on a server: the move waits until the message is elsewhere.
                 let Some(folder) = folders.get(to).copied().filter(|f| f.kind != FolderKind::Outbox) else { continue };
                 // What was changed about the message before or after it was moved goes first, so
@@ -1071,7 +1085,13 @@ fn deletes_finished(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, del
         return;
     }
     let finished: HashSet<(&str, u32)> = deleted.iter().map(|d| (d.from.as_str(), d.uid)).collect();
-    mb.pending.retain(|p| !(matches!(p, Pending::Delete { .. }) && p.account() == account && finished.contains(&p.source())));
+    // A deletion asked for, or the original of a message moved out of the account (#451).
+    let messages = &mb.messages;
+    let asked = |p: &Pending| match p {
+        Pending::Delete { .. } => true,
+        Pending::Move { message, .. } => messages.get(message).is_some_and(|m| m.account != account),
+    };
+    mb.pending.retain(|p| !(asked(p) && p.account() == account && finished.contains(&p.source())));
     for gone in deleted {
         let here = on_server.by_remote.get(&gone.from).and_then(|folder| on_server.by_uid.remove(&(*folder, gone.uid)));
         if let Some(Ok(m)) = here.map(|id| mb.message_mut(id)) {
