@@ -46,8 +46,9 @@ Writes any bytes into a message: crafted MIME, HTML, headers, attachments, pictu
   domain: `shop.example` for mail from `news.shop.example`; a bare suffix such as `co.uk`, or a
   hosting platform's domain, never stands for the names under it); a `dmarc=pass` inside a
   comment, a quoted string or another method's clause is only text. Authentication results are
-  read as the receiving server wrote them, never decoded: encoded-words (RFC 2047) are decoded only
-  in unstructured text and in the names of addresses, never in a trace or authentication header
+  read as the receiving server wrote them, never decoded: encoded-words (RFC 2047) are decoded where
+  that RFC allows them (unstructured text, the names of addresses, Keywords, and the names of
+  attachments), never in a trace or authentication header
   (`crates/mime/src/words.rs`, `has_words`). A `compauth=pass` that names
   no `header.from` is not enough. Where the server gave no DMARC verdict (no `dmarc` or
   `compauth` clause in that header, read to its end, nor in another `Authentication-Results`
@@ -379,7 +380,7 @@ settings files (`crates/engine/src/store.rs`); commands from the control channel
 
 | Date | Change | Summary |
 |---|---|---|
-| 2026-10-26 | patch | Authentication results, and every other trace or authentication header, are read as the receiving server wrote them: encoded-words are decoded only in unstructured text (`Subject`, `Comments`, `Organization`, `Thread-Topic`) and in the names of addresses |
+| 2026-10-26 | patch | Authentication results, and every other trace or authentication header, are read as the receiving server wrote them: encoded-words are decoded only where RFC 2047 allows them (`Subject`, `Comments`, `Organization`, `Thread-Topic`, `Keywords`, the names of addresses and of attachments) |
 | 2026-10-26 | minor | #459: where the account's own server gives no DMARC verdict, its `dkim=pass` whose `header.d` (or `header.i`) is the sender's domain, or the organisation's above it, vouches as a `dmarc=pass` does; a verdict it gave is never overruled; another domain's signature, a signer in a comment and SPF do not count; a clause cut off at 4,000 characters or left open is not read, and a header not read to its end, or with a DMARC verdict in another header of the same server's, takes no signature; `header.i` is read only where the clause names no `header.d`; the short public-suffix list is a limit for a signer's own `d=` |
 | 2026-10-26 | minor | #501: server certificates are checked by the operating system's verifier instead of a built-in Mozilla root set: Windows and macOS trust what the system trusts and may fetch a missing intermediate; Linux and FreeBSD use the system's certificate store |
 | 2026-10-26 | minor | #458: a `dmarc=pass` whose `header.from` is the organisation's domain (Gmail's way: `shop.example` for `news.shop.example`) vouches for the names under it; a bare suffix or a hosting platform's domain never does |
