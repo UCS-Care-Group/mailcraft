@@ -9248,6 +9248,11 @@ msgstr "Het voorgestelde einde moet na het voorgestelde begin liggen."
 msgid "The server didn't say when other people are busy"
 msgstr "De server heeft niet aangegeven wanneer andere personen bezet zijn"
 
+#. interface
+#: crates/ui-egui/src/graph_fetch.rs crates/ui-egui/src/reading.rs
+msgid "The server turned down the sign-in for this account. Use Send/Receive to sign in again."
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/jmap_mail.rs
 #, fuzzy
@@ -12180,6 +12185,11 @@ msgstr "deze instellingen zijn voor een ander account, niet voor {who}"
 #, fuzzy
 msgid "this Send/Receive was for another account, not for {name}"
 msgstr "deze Verzenden/ontvangen was voor een ander account, niet voor {name}"
+
+#. what a command says
+#: crates/engine/src/cmd/jmap_mail.rs
+msgid "this Send/Receive was for the server {name} named before"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs

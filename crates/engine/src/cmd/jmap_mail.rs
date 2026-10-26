@@ -187,16 +187,21 @@ fn apply_fetch(s: &mut Session, v: &Value) -> CmdResult {
     apply_jmap_fetch(s, result)
 }
 
-/// The account a result is for, when it may take it in: a JMAP account, and the one the run was
-/// for. (An answer for another account, the mailbox having been replaced while the run was under
-/// way, would tie this one's folders to a stranger's server.)
-fn receiving(mb: &Mailbox, account: Id, email: &str) -> Result<String, CmdError> {
+/// The account a result is for, when it may take it in: a JMAP account, the one the run was for,
+/// and at the server the run read when the result says which (`session`). (An answer for another
+/// account, the mailbox having been replaced while the run was under way, would tie this one's
+/// folders to a stranger's server; so would an answer from the server an account named before its
+/// session address was changed.)
+fn receiving(mb: &Mailbox, account: Id, email: &str, session: &str) -> Result<String, CmdError> {
     let a = mb.account(account).ok_or_else(|| failed!("no account with id {id}", id = account))?;
     if a.kind != AccountKind::Jmap {
         return Err(failed!("{name} isn't kept in step over JMAP", name = a.name));
     }
     if !email.is_empty() && !a.email.trim().eq_ignore_ascii_case(email.trim()) {
         return Err(failed!("this Send/Receive was for another account, not for {name}", name = a.name));
+    }
+    if !session.is_empty() && a.jmap.as_ref().map(|server| server.session.trim()) != Some(session.trim()) {
+        return Err(failed!("this Send/Receive was for the server {name} named before", name = a.name));
     }
     Ok(a.name.clone())
 }
@@ -214,7 +219,7 @@ fn receiving(mb: &Mailbox, account: Id, email: &str) -> Result<String, CmdError>
 /// `busyFor`, `complete`, `summary`), and `authRefused` when the server turned the secret down.
 pub fn apply_jmap_mail(s: &mut Session, result: JmapMailResult) -> CmdResult {
     let account = result.account;
-    let name = receiving(&s.mailbox, account, &result.email)?;
+    let name = receiving(&s.mailbox, account, &result.email, &result.session)?;
     let result = jmap_down::bounded(result);
     let mut taken = Taken::default();
     let mut down = Down::default();
@@ -315,14 +320,15 @@ pub fn apply_jmap_mail(s: &mut Session, result: JmapMailResult) -> CmdResult {
 
 /// Take in messages of a JMAP account fetched whole, as a Microsoft account's are
 /// ([`graph_mail::apply_graph_fetch`]), once the result is held to sizes ([`jmap_down::bounded_fetch`]).
-/// Not an undo step.
+/// Not an undo step. As for a run's pieces, only for the account they were fetched for, and from the
+/// server it names now when the result says which (`session`): a server's ids say nothing of another's.
 ///
 /// A message the server said it no longer has stays as it is (its window says whether it is gone,
 /// and a run that reads it whole removes it), and the background doesn't ask for it again this
 /// session; nor for one the server wouldn't give, as for Graph.
 pub fn apply_jmap_fetch(s: &mut Session, result: GraphFetchResult) -> CmdResult {
     let account = result.account;
-    receiving(&s.mailbox, account, &result.email)?;
+    receiving(&s.mailbox, account, &result.email, &result.session)?;
     let result = jmap_down::bounded_fetch(result);
     let missing: Vec<(Id, String)> = result.missing.iter().map(|id| (account, id.clone())).collect();
     let answer = graph_mail::apply_graph_fetch(s, result)?;

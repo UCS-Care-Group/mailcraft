@@ -6,19 +6,27 @@
 //! (wgpu: WebGPU where available, WebGL2 otherwise). Build with `trunk build --release` from this
 //! directory (output in `dist/web`).
 //!
-//! Differences from the desktop app: no mail-server connections (a browser can't open sockets) and
-//! no TCP control channel; the mailbox lives in the browser's storage; Open, Import and Attach use
-//! the browser's file picker (bytes arrive through `Services::inbox`); Save and the exports
-//! download.
+//! Differences from the desktop app: no IMAP or SMTP (a browser can't open sockets), but JMAP
+//! accounts over `fetch` (`jmap.rs`), and no TCP control channel; the mailbox lives in the
+//! browser's storage; Open, Import and Attach use the browser's file picker (bytes arrive through
+//! `Services::inbox`); Save and the exports download.
 //! URL flags: `?webgl` forces WebGL2; `?sample` starts from the sample mailbox; `?empty` from an
 //! empty one; neither of those ever writes the mailbox kept in this browser. Without a flag the
-//! mailbox kept in this browser opens, or the sample the first time.
+//! mailbox kept in this browser opens, or the first time the sample (an empty mailbox when the page
+//! names JMAP accounts of its own).
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
+mod jmap_rules;
+#[cfg(test)]
+mod jmap_rules_tests;
 mod page;
 #[cfg(test)]
 mod page_tests;
 
+#[cfg(target_arch = "wasm32")]
+mod fetch;
+#[cfg(target_arch = "wasm32")]
+mod jmap;
 #[cfg(target_arch = "wasm32")]
 mod web;
 

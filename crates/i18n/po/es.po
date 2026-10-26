@@ -9109,6 +9109,11 @@ msgstr "El fin propuesto debe ser posterior al inicio propuesto."
 msgid "The server didn't say when other people are busy"
 msgstr "El servidor no indicó cuándo están ocupadas otras personas"
 
+#. interface
+#: crates/ui-egui/src/graph_fetch.rs crates/ui-egui/src/reading.rs
+msgid "The server turned down the sign-in for this account. Use Send/Receive to sign in again."
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/jmap_mail.rs
 msgid "The server turned down the sign-in for {name}: sign in again"
@@ -11988,6 +11993,11 @@ msgstr "esta configuración es para otra cuenta, no para {who}"
 #, fuzzy
 msgid "this Send/Receive was for another account, not for {name}"
 msgstr "este envío y recepción era para otra cuenta, no para {name}"
+
+#. what a command says
+#: crates/engine/src/cmd/jmap_mail.rs
+msgid "this Send/Receive was for the server {name} named before"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
