@@ -275,8 +275,12 @@ fn open_lock(folders: &Folders) -> io::Result<File> {
     fs::OpenOptions::new().create(true).truncate(false).write(true).open(folders.lock())
 }
 
-/// Take the lock a new version waits on, for as long as this program runs.
+/// Take the lock a new version waits on, for as long as this program runs. Taken once, it is
+/// held: a second open of the file would be a lock of its own, refused.
 pub fn hold_lock(folders: &Folders) -> bool {
+    if HELD.get().is_some() {
+        return true;
+    }
     let Ok(file) = open_lock(folders) else { return false };
     if file.try_lock().is_err() {
         return false;
@@ -740,6 +744,10 @@ pub fn replace(
     staged_ok.map_err(fail)?;
     if fs::symlink_metadata(running).map_err(fail)?.is_dir() {
         let aside = beside(running, "old").map_err(fail)?;
+        // What a swap that didn't finish left is the owner's to put right, not to be removed.
+        if beside(running, "unfinished").is_ok_and(|marker| fs::symlink_metadata(marker).is_ok()) && fs::symlink_metadata(&aside).is_ok() {
+            return Err(fail(io::Error::other(format!("an earlier update didn't finish; the version it replaced is at {}", aside.display()))));
+        }
         remove_any(&aside).map_err(fail)?;
         fs::rename(running, &aside).map_err(fail)?;
         if let Err(e) = fs::rename(&staged, running) {
@@ -748,6 +756,7 @@ pub fn replace(
         if !check(running) {
             // Out of its place again (where it was staged), and the one replaced back.
             if let Err(e) = fs::rename(running, &staged) {
+                mark_unfinished(running);
                 log::error!("the new app doesn't pass its check in its place and couldn't be taken out of it: {e}");
                 return Err(io::Error::other(format!(
                     "the new copy doesn't pass its check in its place and couldn't be taken out of it ({e}); the version that was there is at {}",
@@ -802,37 +811,97 @@ fn keep_folder(aside: &Path, keep: &Path) -> io::Result<()> {
     })
 }
 
-/// The new one isn't in `running` after all: the one moved `aside` goes back, the copy staged is
-/// removed, and `cause` is the error; unless the one moved aside couldn't be put back, which is
-/// an error of its own that says where it is.
+/// The new one isn't in `running` after all: the one moved `aside` goes back, then the copy
+/// `staged` is removed, and `cause` is the error. When the one moved aside can't be put back,
+/// both are left where they are, the swap is marked unfinished (so that [`clear_leftovers`]
+/// keeps them), and the error says where they are.
 fn put_back(running: &Path, aside: &Path, staged: &Path, cause: io::Error) -> io::Error {
-    let _ = remove_any(staged);
     match fs::rename(aside, running) {
-        Ok(()) => cause,
+        Ok(()) => {
+            let _ = remove_any(staged);
+            cause
+        }
         Err(back) => {
+            mark_unfinished(running);
             log::error!("the version that was in place couldn't be put back ({back}); it is at {}", aside.display());
             io::Error::other(format!(
-                "{cause}; and the version that was in place couldn't be put back ({back}): it is at {}, to be renamed {}",
+                "{cause}; and the version that was in place couldn't be put back ({back}): it is at {}, to be renamed {}; the new one is at {}",
                 aside.display(),
-                running.display()
+                running.display(),
+                staged.display()
             ))
         }
     }
 }
 
+/// A swap of `running` that didn't finish: `.<name>.unfinished` beside it, so that what is
+/// beside it is kept until the owner has put it right. Best effort.
+fn mark_unfinished(running: &Path) {
+    if let Ok(marker) = beside(running, "unfinished")
+        && let Err(e) = fs::write(&marker, b"An update of MailCraft didn't finish: see the log.\n")
+    {
+        log::warn!("the unfinished update couldn't be marked: {}", e.kind());
+    }
+}
+
 /// What an update that stopped partway may have left beside `target` (`.<name>.new`,
-/// `.<name>.old`), removed at start. Best effort, logged.
-pub fn clear_leftovers(target: &Path) {
-    for what in ["new", "old"] {
-        let Ok(path) = beside(target, what) else { continue };
-        if fs::symlink_metadata(&path).is_err() {
+/// `.<name>.old`), removed at start; best effort, logged. Not while another program holds the
+/// update lock (one that is installing, [`on_exit`]): whether it ran. Not either while the old
+/// version is there and a swap is marked unfinished or `target` isn't there: that is the
+/// owner's copy to put back, which the error of that swap named.
+pub fn clear_leftovers(folders: &Folders, target: &Path) -> bool {
+    let Ok(lock) = open_lock(folders) else { return false };
+    if lock.try_lock().is_err() {
+        log::info!("an update is being installed; what is beside MailCraft is left for now");
+        return false;
+    }
+    let (Ok(marker), Ok(new), Ok(old)) = (beside(target, "unfinished"), beside(target, "new"), beside(target, "old")) else {
+        return true;
+    };
+    let there = |path: &Path| fs::symlink_metadata(path).is_ok();
+    if there(&old) && (there(&marker) || !there(target)) {
+        log::warn!("an earlier update didn't finish: the version that was in place is kept at {}", old.display());
+        let _ = lock.unlock();
+        return true;
+    }
+    for (what, path) in [("unfinished", &marker), ("new", &new), ("old", &old)] {
+        if !there(path) {
             continue;
         }
-        match remove_stubborn(&path) {
+        match remove_stubborn(path) {
             Ok(()) => log::info!("removed what an earlier update left beside MailCraft (.{what})"),
             Err(e) => log::warn!("what an earlier update left beside MailCraft (.{what}) couldn't be removed: {}", e.kind()),
         }
     }
+    let _ = lock.unlock();
+    true
+}
+
+/// A Mac copy that doesn't install updates itself ([`crate::install::MAC_SELF_INSTALL`] off):
+/// what earlier versions that did left in the data folder (disk images downloaded, the place
+/// one was attached, the copies handed over, the version kept for going back), removed at start;
+/// best effort, and not while another program holds the update lock.
+pub fn clear_mac_data(folders: &Folders) {
+    let Ok(lock) = open_lock(folders) else { return };
+    if lock.try_lock().is_err() {
+        return;
+    }
+    if let Ok(entries) = fs::read_dir(folders.updates()) {
+        for entry in entries.flatten().take(1_000) {
+            let path = entry.path();
+            if path.extension() == Some(OsStr::new("dmg")) {
+                let _ = remove_any(&path);
+            }
+        }
+    }
+    for path in [folders.mount(), folders.handed(), folders.previous()] {
+        if fs::symlink_metadata(&path).is_ok()
+            && let Err(e) = remove_stubborn(&path)
+        {
+            log::debug!("what an earlier update left in the data folder couldn't be removed: {}", e.kind());
+        }
+    }
+    let _ = lock.unlock();
 }
 
 /// What this copy is installed as: the AppImage file, the `.app` folder, or `mailcraft.exe`.
@@ -853,6 +922,11 @@ pub fn target(install: Install) -> Option<PathBuf> {
 pub fn on_exit(folders: &Folders, install: Install, what: OnExit, verified: Option<Verified>, mailbox: Option<&Path>) -> Result<(), String> {
     let running = env!("CARGO_PKG_VERSION");
     let target = target(install).ok_or("this copy doesn't update itself")?;
+    // Held from here until this program has gone: another start leaves what is beside the app
+    // alone meanwhile ([`clear_leftovers`]), and a new version waits for it.
+    if !hold_lock(folders) {
+        log::warn!("the update lock couldn't be taken; another start may tidy beside MailCraft meanwhile");
+    }
     match what {
         OnExit::Install { version, restart } => {
             let verified = verified.filter(|v| v.version == version).ok_or("nothing downloaded and checked for that version")?;

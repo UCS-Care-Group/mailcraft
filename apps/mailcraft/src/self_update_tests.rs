@@ -419,11 +419,85 @@ fn leftovers_beside_the_app_are_removed_at_start() {
     chmod(&old.join("Contents").join("MacOS"), 0o555);
     chmod(&old.join("Contents"), 0o555);
     make_app(&apps.join(".Other.app.old"), "somebody else's");
-    clear_leftovers(&app);
+    let folders = Folders::new(dir.join("data"));
+    // Another program installing holds the update lock: nothing is touched meanwhile.
+    let installing = open_lock(&folders).unwrap();
+    installing.try_lock().unwrap();
+    assert!(!clear_leftovers(&folders, &app));
+    assert_eq!(hidden_in(&apps).len(), 3);
+    drop(installing);
+    assert!(clear_leftovers(&folders, &app));
     assert_eq!(hidden_in(&apps), vec![".Other.app.old".to_string()]);
     assert_eq!(fs::read(app.join("Contents/MacOS/mailcraft")).unwrap(), b"app");
     // Nothing there: nothing done.
-    clear_leftovers(&app);
+    assert!(clear_leftovers(&folders, &app));
+    let _ = fs::remove_dir_all(&dir);
+}
+
+// #497: a swap that couldn't put the old version back leaves both where they are, says where,
+// and the next start keeps them until the owner has put it right.
+#[test]
+#[cfg(unix)]
+fn an_old_version_that_couldnt_be_put_back_is_kept() {
+    let dir = scratch("put-back");
+    let apps = dir.join("Applications");
+    let app = apps.join("MailCraft.app");
+    let (old, new, marker) = (apps.join(".MailCraft.app.old"), apps.join(".MailCraft.app.new"), apps.join(".MailCraft.app.unfinished"));
+    // It can be put back: it is, then the new one goes.
+    make_app(&old, "old");
+    make_app(&new, "new");
+    let e = put_back(&app, &old, &new, io::Error::other("cause"));
+    assert_eq!(e.to_string(), "cause");
+    assert_eq!(fs::read(app.join("Contents/MacOS/mailcraft")).unwrap(), b"old");
+    assert_eq!(hidden_in(&apps), Vec::<String>::new());
+    // It can't (here: something is in its place): the new one stays, and the error says where.
+    make_app(&old, "older");
+    make_app(&new, "new");
+    let e = put_back(&app, &old, &new, io::Error::other("cause")).to_string();
+    assert!(e.contains(&old.display().to_string()) && e.contains(&new.display().to_string()), "{e}");
+    assert!(new.is_dir() && old.is_dir() && marker.is_file());
+    let folders = Folders::new(dir.join("data"));
+    assert!(clear_leftovers(&folders, &app));
+    assert!(new.is_dir() && old.is_dir() && marker.is_file(), "kept for the owner");
+    // Nor is it removed by the next update.
+    let source = dir.join("source.app");
+    make_app(&source, "newest");
+    assert!(replace(&app, &source, None, None, &mut |_| true).is_err());
+    assert!(old.is_dir());
+    assert!(!fs::read(app.join("Contents/MacOS/mailcraft")).unwrap().starts_with(b"newest"));
+    // The app isn't there at all: what is beside it is kept too, marked or not.
+    fs::remove_file(&marker).unwrap();
+    fs::rename(&app, dir.join("elsewhere.app")).unwrap();
+    assert!(clear_leftovers(&folders, &app));
+    assert!(old.is_dir());
+    // Once the owner has put the old one back, the rest goes.
+    fs::write(&marker, b"x").unwrap();
+    fs::rename(&old, &app).unwrap();
+    assert!(clear_leftovers(&folders, &app));
+    assert_eq!(hidden_in(&apps), Vec::<String>::new());
+    let _ = fs::remove_dir_all(&dir);
+}
+
+// #497: a Mac copy that doesn't install updates removes what earlier versions left in the data
+// folder for them, and nothing else.
+#[test]
+#[cfg(unix)]
+fn a_mac_copy_that_doesnt_update_clears_its_update_folders() {
+    let dir = scratch("mac-data");
+    let folders = Folders::new(dir.clone());
+    fs::create_dir_all(folders.updates()).unwrap();
+    fs::write(folders.updates().join("mailcraft-0.8.1-macos-universal.dmg"), b"image").unwrap();
+    fs::write(folders.updates().join("other.txt"), b"other").unwrap();
+    fs::create_dir_all(folders.mount()).unwrap();
+    fs::create_dir_all(folders.handed().join("x")).unwrap();
+    make_app(&folders.previous().join("MailCraft.app"), "kept");
+    chmod(&folders.previous().join("MailCraft.app").join("Contents"), 0o555);
+    fs::write(dir.join("mailbox.mailcraft"), b"mail").unwrap();
+    clear_mac_data(&folders);
+    assert!(!folders.mount().exists() && !folders.handed().exists() && !folders.previous().exists());
+    let left: Vec<_> = fs::read_dir(folders.updates()).unwrap().flatten().map(|e| e.file_name()).collect();
+    assert_eq!(left, vec![OsString::from("other.txt")]);
+    assert!(dir.join("mailbox.mailcraft").is_file());
     let _ = fs::remove_dir_all(&dir);
 }
 

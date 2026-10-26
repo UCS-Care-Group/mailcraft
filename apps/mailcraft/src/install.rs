@@ -23,9 +23,12 @@ use mailcraft_model::update::Version;
 ///
 /// Turn it on only when all of this is true: releases are signed with the project's Developer ID
 /// and notarized (with the ticket stapled to the app); `self_update::mac_swap` requires the new
-/// app's signature to be the project's Team ID (`codesign -R`), not any valid signature; and an
-/// update from the previous release has been tried on a real Mac, from `/Applications` and from
-/// a folder of the owner's. The code that installs it is built and tested meanwhile.
+/// app's signature to be the project's Team ID (`codesign -R`), not any valid signature; the
+/// check after the swap also asks Gatekeeper (`spctl -a -vv` on the app in its place) or checks
+/// for a stapled notarization ticket (`stapler validate`), because `codesign --verify` alone is
+/// not enough: it passed on the reporter's app that wouldn't start, which `spctl -a` rejected;
+/// and an update from the previous release has been tried on a real Mac, from `/Applications`
+/// and from a folder of the owner's. The code that installs it is built and tested meanwhile.
 pub const MAC_SELF_INSTALL: bool = false;
 
 /// How this copy came to be installed, as far as updating it goes.

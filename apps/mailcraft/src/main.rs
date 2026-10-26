@@ -124,13 +124,6 @@ impl HostUpdates {
         if build_sha() == "dev" || !prefs_enabled() {
             return None;
         }
-        // What an update that stopped partway left beside a copy replaced by this program, also
-        // where it no longer updates itself (a Mac app, #497).
-        if let found @ (install::Install::MacApp | install::Install::AppImage) = install::found()
-            && let Some(target) = self_update::target(found)
-        {
-            self_update::clear_leftovers(&target);
-        }
         let install = install::this_copy();
         if install == install::Install::NoticeOnly {
             return None;
@@ -1705,6 +1698,22 @@ fn main() -> eframe::Result {
         }
         None => Default::default(),
     };
+    // What an update that stopped partway left beside a copy this program replaces, also where it
+    // no longer updates itself (a Mac app, #497), and a Mac copy's leftovers in the data folder.
+    // Not while another start is installing (the update lock).
+    if build_sha() != "dev"
+        && prefs_enabled()
+        && let found @ (install::Install::MacApp | install::Install::AppImage) = install::found()
+        && let Some(dir) = mailcraft_control_key::settings_dir()
+    {
+        let folders = self_update::Folders::new(dir);
+        if let Some(target) = self_update::target(found) {
+            self_update::clear_leftovers(&folders, &target);
+        }
+        if found == install::Install::MacApp && updates.is_none() {
+            self_update::clear_mac_data(&folders);
+        }
+    }
     // The settings folder holds the mailbox, the control key and the logs: for the owner alone.
     // One an earlier version left open to others is closed; best effort, never a reason not to
     // start (a folder of somebody else's, named by `--mailbox`, is not touched).
