@@ -11,17 +11,21 @@
 //! its last [`PHONE_TAIL`] digits count, so that `+44 20 7946 0000` and `020 7946 0000`, or
 //! `+1 (555) 010-0100` and `555 010 0100`, are the same number. Matches chain: when A shares an
 //! address with B and B a number with C, the three are one group. An address or a number that more
-//! than [`MAX_LINK`] contacts have (a switchboard, a family's landline, `info@`) links nobody: it
-//! belongs to many people, not to one. Finding them is two passes over the contacts with an index
-//! by address and number, never a comparison of every pair.
+//! than [`MAX_LINK`] contacts have (a switchboard, a family's landline, `info@`) belongs to many
+//! people, not to one: it links only those of them with the same name (trimmed, in small letters,
+//! one space between words), so that the same card imported six times is still one group. Finding
+//! them is two passes over the contacts with an index by address and number, never a comparison of
+//! every pair.
 //!
 //! **What a merge does.** One contact is kept; it takes, field by field, the value the owner chose
 //! (`fields`). Without a choice, a field of one value (a name, the company, the birthday) keeps the
 //! kept contact's, or when that is empty the first of the others' that isn't; the fields of
 //! several values (e-mail addresses, phone numbers, postal addresses, web pages, categories) and the
-//! notes take everybody's, each once. A favourite stays one. Nothing the kept contact has is ever
-//! cut: a merged field that would be longer than [`MAX_NOTES`] characters or hold more than
-//! [`MAX_VALUES`] values, where the kept contact's own didn't, is refused and named. Then the others are removed: one
+//! notes take everybody's, each once (phone numbers by all their digits: grouping looks at the last
+//! ten, keeping looks at them all). A favourite stays one. Nothing the kept contact has is ever
+//! cut, then or later: a merged field that would hold more than `people.edit` and the vCard reader
+//! keep ([`MAX_VALUES`], [`MAX_CATEGORIES`], notes whose vCard line is longer than [`MAX_NOTES`]
+//! bytes), where the kept contact's own didn't, is refused and named. Then the others are removed: one
 //! command, so one undo step brings them all back. A contact that an account's server keeps (a
 //! Microsoft account's contacts are read from it, and nothing changed here goes back) is never
 //! merged, kept or removed: the command refuses it, and the list of groups says why.
@@ -47,12 +51,15 @@ pub const MAX_GROUPS: usize = 500;
 pub const MAX_LINK: usize = 5;
 /// Of each contact, the addresses and numbers looked at (an import may give one hundreds).
 const KEYS_EACH: usize = 50;
-/// Most values a merged field of several holds: what `people.edit` takes of a list (categories,
-/// 1,000), above what a vCard brings (500 categories, 100 of the rest).
-pub const MAX_VALUES: usize = 1000;
-/// Most characters merged notes hold: above a vCard's longest line (1 MB), and as much as a
-/// mailbox would sensibly keep for one contact.
-pub const MAX_NOTES: usize = 4 << 20;
+/// Most e-mail addresses, phone numbers, postal addresses and web pages a merged contact holds:
+/// what `people.edit` keeps of each list (and the contact form sends the whole list back), and
+/// what the vCard reader keeps.
+pub const MAX_VALUES: usize = 100;
+/// Most categories a merged contact holds: the vCard reader's 500 (`people.edit` keeps 1,000).
+pub const MAX_CATEGORIES: usize = 500;
+/// Longest the notes' vCard line may be, in bytes, escapes and `NOTE:` included: the vCard
+/// reader's longest line, so that an export read back keeps all of them.
+pub const MAX_NOTES: usize = 1 << 20;
 /// Characters of a value `people.findDuplicates` shows; a longer one is cut and marked.
 const SHOWN_CHARS: usize = 2000;
 
@@ -185,6 +192,12 @@ fn keys(c: &Contact) -> Vec<(String, &str)> {
     out
 }
 
+/// A contact's name as two copies of one card are compared by: trimmed, in small letters, one
+/// space between words.
+fn same_name(c: &Contact) -> String {
+    c.name().chars().take(300).collect::<String>().split_whitespace().collect::<Vec<_>>().join(" ").to_lowercase()
+}
+
 /// Every group of two or more contacts that share an e-mail address or a phone number (that no
 /// more than [`MAX_LINK`] contacts have), the first [`MAX_GROUPS`] by their first contact's id,
 /// and how many more there are.
@@ -198,14 +211,27 @@ pub fn find(mailbox: &Mailbox) -> (Vec<Group>, usize) {
             seen.entry(key).and_modify(|(n, _, _)| *n = n.saturating_add(1)).or_insert_with(|| (1, i, written.to_string()));
         }
     }
-    // What many have links nobody.
-    seen.retain(|_, (n, _, _)| (2..=MAX_LINK).contains(n));
+    // What links: an address or a number of a few, or of many with the same name. Who has it
+    // first, as what, and whether anybody else joined them by it.
+    let mut links: HashMap<String, (usize, String, bool)> = HashMap::new();
     for (i, c) in all.iter().enumerate() {
-        for (key, _) in keys(c) {
-            if let Some((_, first, _)) = seen.get(&key)
-                && *first != i
-            {
-                join(&mut parent, *first, i);
+        let name = same_name(c);
+        for (key, written) in keys(c) {
+            let many = seen.get(&key).is_some_and(|(n, _, _)| *n > MAX_LINK);
+            let link = match (many, name.is_empty()) {
+                (false, _) => key,
+                (true, false) => format!("{key}\u{0}{name}"),
+                (true, true) => continue,
+            };
+            match links.get_mut(&link) {
+                Some((first, _, joined)) if *first != i => {
+                    *joined = true;
+                    join(&mut parent, *first, i);
+                }
+                Some(_) => {}
+                None => {
+                    links.insert(link, (i, written.to_string(), false));
+                }
             }
         }
     }
@@ -216,7 +242,7 @@ pub fn find(mailbox: &Mailbox) -> (Vec<Group>, usize) {
     }
     // What each group shares, by its root.
     let mut shares: HashMap<usize, Vec<String>> = HashMap::new();
-    for (_, first, written) in seen.values() {
+    for (first, written, _) in links.values().filter(|(_, _, joined)| *joined) {
         let r = root(&mut parent, *first);
         let list = shares.entry(r).or_default();
         if list.len() < 20 {
@@ -348,10 +374,15 @@ fn dedup_push<T, K: Eq + std::hash::Hash>(into: &mut Vec<T>, seen: &mut HashSet<
     }
 }
 
-/// What two addresses or numbers are the same by: as they are compared when finding duplicates,
-/// else (a short number, something that isn't an address) the text in small letters.
+/// What two addresses or numbers are kept once by: an address as it is compared when finding
+/// duplicates, a number by all its digits (not the last ten that grouping looks at: two numbers in
+/// different countries are both kept), else the text in small letters.
 fn labeled_key(l: &Labeled, phone: bool) -> String {
-    let k = if phone { phone_key(&l.value) } else { email_key(&l.value) };
+    let k = if phone {
+        Some(l.value.chars().take(200).filter(char::is_ascii_digit).collect::<String>()).filter(|d| !d.is_empty())
+    } else {
+        email_key(&l.value)
+    };
     k.unwrap_or_else(|| l.value.trim().to_lowercase())
 }
 
@@ -495,14 +526,25 @@ fn size(c: &Contact, field: &str) -> usize {
         "addresses" => c.addresses.len(),
         "websites" => c.websites.len(),
         "categories" => c.categories.len(),
-        "notes" => c.notes.chars().count(),
+        "notes" => notes_line(&c.notes),
         _ => 0,
     }
 }
 
+/// How long the notes' line of a vCard is, in bytes: `NOTE:`, and each backslash, comma,
+/// semicolon and line break written as two.
+fn notes_line(notes: &str) -> usize {
+    let escaped = notes.chars().filter(|c| matches!(c, '\\' | ',' | ';' | '\n')).count();
+    if notes.trim().is_empty() { 0 } else { notes.len().saturating_add(escaped).saturating_add(5) }
+}
+
 /// The most a merge makes a field of several values.
 fn cap(field: &str) -> usize {
-    if field == "notes" { MAX_NOTES } else { MAX_VALUES }
+    match field {
+        "notes" => MAX_NOTES,
+        "categories" => MAX_CATEGORIES,
+        _ => MAX_VALUES,
+    }
 }
 
 /// What a field of several values is called in a refusal.

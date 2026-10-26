@@ -105,7 +105,7 @@ fn merge_takes_choices_unions_lists_and_one_undo_brings_all_back() {
             favorite: true,
             notes: "Prefers letters.".into(),
             emails: vec![Labeled::new("home", "ADA@example.org"), Labeled::new("work", "countess@example.org")],
-            phones: vec![Labeled::new("work", "020 7946 0000"), Labeled::new("home", "020 7946 0999")],
+            phones: vec![Labeled::new("work", "+44 (20) 7946-0000"), Labeled::new("home", "020 7946 0999")],
             ..person("Augusta", "Lovelace", "", "")
         },
     );
@@ -283,4 +283,54 @@ fn long_values_are_shown_cut_and_marked() {
     let long = notes.as_array().unwrap().iter().find(|v| v["id"] == json!(a)).unwrap().clone();
     assert_eq!((long["value"].as_str().unwrap().chars().count(), &long["truncated"]), (2000, &json!(true)));
     assert!(notes.as_array().unwrap().iter().any(|v| v["value"] == "short" && v.get("truncated").is_none()));
+}
+
+#[test]
+fn copies_of_one_card_are_a_group_however_many() {
+    let mut s = Session::empty();
+    // The same card imported six times: its address and number are on more than five contacts,
+    // but the names are the same (whatever the spaces and capitals).
+    let names = ["Ada Lovelace", " ada  lovelace", "ADA LOVELACE", "Ada Lovelace", "Ada Lovelace ", "Ada lovelace"];
+    let copies: Vec<Id> =
+        names.iter().map(|n| add(&mut s, Contact { display_name: (*n).into(), ..person("", "", "ada@example.org", "+44 20 7946 0000") })).collect();
+    // A switchboard of six different people is still nobody's group.
+    for i in 0..6 {
+        add(&mut s, person("Desk", &i.to_string(), "", "+1 555 010 0100"));
+    }
+    let (found, _) = find(&s.mailbox);
+    assert_eq!(found.len(), 1, "{found:?}");
+    assert_eq!(found[0].ids, copies);
+    assert!(!found[0].shares.is_empty());
+}
+
+#[test]
+fn numbers_of_different_countries_are_both_kept() {
+    let mut s = Session::empty();
+    // The same last ten digits, two countries: one group (the owner's call), two numbers kept.
+    let a = add(&mut s, person("Ada", "", "ada@example.org", "+44 20 7946 0000"));
+    let b = add(&mut s, person("Ada", "", "", "+1 207 946 0000"));
+    assert_eq!(find(&s.mailbox).0.len(), 1);
+    s.run("people.merge", &json!({"keep": a, "others": [b]})).unwrap();
+    let phones: Vec<String> = s.mailbox.contact(a).unwrap().phones.iter().map(|p| p.value.clone()).collect();
+    assert_eq!(phones, ["+44 20 7946 0000", "+1 207 946 0000"]);
+}
+
+#[test]
+fn a_merge_past_what_an_edit_keeps_is_refused_and_one_within_survives_an_edit() {
+    let mut s = Session::empty();
+    let mails = |from: u32, n: u32| (from..from + n).map(|i| Labeled::new("work", format!("a{i}@example.org"))).collect::<Vec<_>>();
+    let a = add(&mut s, Contact { emails: mails(0, 60), ..person("Ada", "", "", "") });
+    let b = add(&mut s, Contact { emails: [mails(0, 1), mails(100, 60)].concat(), ..person("Ada", "L", "", "") });
+    let before = s.mailbox.contacts.clone();
+    let why = err(&mut s, "people.merge", json!({"keep": a, "others": [b]}));
+    assert!(why.contains("e-mail addresses would be too large (120, at most 100)"), "{why}");
+    assert_eq!(s.mailbox.contacts, before);
+    // 60 and 40 more: 100, which the contact form sends back whole and people.edit keeps.
+    s.mailbox.contact_mut(b).unwrap().emails = [mails(0, 1), mails(100, 40)].concat();
+    s.run("people.merge", &json!({"keep": a, "others": [b]})).unwrap();
+    let merged = s.mailbox.contact(a).unwrap().clone();
+    assert_eq!(merged.emails.len(), 100);
+    let emails: Vec<Value> = merged.emails.iter().map(|e| json!({"label": e.label, "value": e.value})).collect();
+    s.run("people.edit", &json!({"id": a, "emails": emails, "phones": [], "categories": merged.categories, "notes": merged.notes})).unwrap();
+    assert_eq!(s.mailbox.contact(a).unwrap(), &merged);
 }
