@@ -1779,6 +1779,21 @@ impl Session {
         self.settle_zone();
     }
 
+    /// Takes out of the selection the messages the list in view doesn't show.
+    fn unselect_hidden(&mut self) {
+        if self.sel.messages.is_empty() {
+            return;
+        }
+        let rows = self.rows();
+        let shown: HashSet<Id> = rows.iter().map(|r| r.id).collect();
+        self.sel.messages.retain(|id| shown.contains(id));
+        for row in [&mut self.sel.focus_row, &mut self.sel.anchor_row] {
+            if row.is_some_and(|(id, _)| !shown.contains(&id)) {
+                *row = None;
+            }
+        }
+    }
+
     /// The mailbox was changed outside a command (mail arriving from a server): everything worked
     /// out from it (the message list, what is saved) is due again.
     pub fn mailbox_changed(&mut self) {
@@ -2030,6 +2045,11 @@ impl Session {
                     }
                 }
                 self.normalize();
+                // Another tab or search shows another list: what it doesn't show is no longer
+                // selected, so Delete and Move take only what the owner sees selected (#485).
+                if (&self.view.filter, &self.view.search, &self.view.scope) != (&view.filter, &view.search, &view.scope) {
+                    self.unselect_hidden();
+                }
             }
             Err(_) => {
                 if self.mailbox != before.mailbox {

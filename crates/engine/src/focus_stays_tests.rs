@@ -655,6 +655,7 @@ fn another_tab_and_back_starts_the_list_afresh() {
     run(&mut s, "mail.select", json!({"id": listed[1]}));
     run(&mut s, "view.filter", json!({"value": "all"}));
     run(&mut s, "view.filter", json!({"value": "unread"}));
-    assert_eq!(s.sel.focus(), Some(listed[1]));
     assert!(!ids(&mut s).contains(&listed[1]));
+    // What the list no longer shows is no longer selected (#485).
+    assert_eq!(s.sel.focus(), None);
 }
