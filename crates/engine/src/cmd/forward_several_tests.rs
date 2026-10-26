@@ -328,6 +328,21 @@ fn over_64_mb_together_is_refused_before_any_is_read_in() {
 }
 
 #[test]
+fn over_64_mb_together_as_written_out_is_refused() {
+    let mut s = session();
+    let [a, b, _] = three(&mut s);
+    // 49 MB of files as kept, under the limit; written out (base64) they come to more than 64 MB.
+    for id in [a, b] {
+        let scan = Attachment::new("scan.tiff", "image/tiff", vec![7; 49 << 19]);
+        s.mailbox.message_mut(id).unwrap().attachments.push(scan);
+    }
+    assert!(super::compose::forward_check(&s, &[a, b], false).is_ok(), "under it as they are kept");
+    let e = s.run("mail.forwardAsAttachment", &json!({"ids": [a, b]})).unwrap_err().to_string();
+    assert!(e.contains("larger than 64 MB together"), "{e}");
+    assert!(s.compose.is_none());
+}
+
+#[test]
 fn each_original_is_marked_forwarded_once_it_has_gone() {
     for command in ["mail.forward", "mail.forwardAsAttachment"] {
         let mut s = session();
