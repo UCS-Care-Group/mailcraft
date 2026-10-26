@@ -65,6 +65,8 @@ pub struct Imap<S> {
     /// Every `COPYUID` answer since the last copy or move was sent (`None` for one that couldn't
     /// be read); two are as many as it takes to know there was more than one.
     copied: Vec<Option<Copied>>,
+    /// Every `APPENDUID` answer since the last APPEND was sent, as [`Imap::copied`] is kept.
+    appended: Vec<Option<Appended>>,
     /// LOGOUT was sent, so BYE is the answer we asked for.
     leaving: bool,
     /// Bytes of text (outside literals) read since the current command was sent.
@@ -116,6 +118,16 @@ pub struct Copied {
     pub uid_validity: u32,
     /// Each message's UID where it was, and its UID where it is now.
     pub uids: Vec<(u32, u32)>,
+}
+
+/// Where a message given with APPEND went, when the server says (the `APPENDUID` response code
+/// of RFC 4315).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Appended {
+    /// `UIDVALIDITY` of the mailbox it went to.
+    pub uid_validity: u32,
+    /// Its UID there.
+    pub uid: u32,
 }
 
 /// Neither the stream nor anything secret is shown.
@@ -430,6 +442,38 @@ fn copied_from(arg: &str) -> Option<Copied> {
     Some(Copied { uid_validity, uids: from.into_iter().zip(to).collect() })
 }
 
+/// From the text of an `APPENDUID` code: `<uidvalidity> <uid>`, for one message. `None` for
+/// anything else (a set of UIDs speaks of more than the one message given).
+fn appended_from(arg: &str) -> Option<Appended> {
+    let mut words = arg.split_whitespace();
+    let uid_validity = number(words.next()?).filter(|validity| *validity != 0)?;
+    let uid = number(words.next()?).filter(|uid| *uid != 0)?;
+    words.next().is_none().then_some(Appended { uid_validity, uid })
+}
+
+/// Whether `text` is an IMAP `date-time` without its quotes (RFC 3501): `01-Jul-2003 09:52:37
+/// +0000`, the day padded with a space or a nought.
+fn is_date_time(text: &str) -> bool {
+    let b = text.as_bytes();
+    let digits = |range: std::ops::Range<usize>| b.get(range).is_some_and(|d| d.iter().all(u8::is_ascii_digit));
+    let at = |i: usize, c: u8| b.get(i) == Some(&c);
+    b.len() == 26
+        && (digits(0..2) || (at(0, b' ') && digits(1..2)))
+        && at(2, b'-')
+        && b.get(3..6).is_some_and(|m| m.iter().all(u8::is_ascii_alphabetic))
+        && at(6, b'-')
+        && digits(7..11)
+        && at(11, b' ')
+        && digits(12..14)
+        && at(14, b':')
+        && digits(15..17)
+        && at(17, b':')
+        && digits(18..20)
+        && at(20, b' ')
+        && (at(21, b'+') || at(21, b'-'))
+        && digits(22..26)
+}
+
 /// UIDs as message sets for commands (`4,7:9,12`), each with the UIDs it names: sorted, each UID
 /// once, consecutive numbers as ranges, and no set longer than one command should carry. A
 /// range only ever spans numbers that were asked for.
@@ -497,6 +541,7 @@ impl<S: Read + Write> Imap<S> {
             authenticated: false,
             selected: Selected::default(),
             copied: Vec::new(),
+            appended: Vec::new(),
             leaving: false,
             text_seen: 0,
             response_cap: MAX_RESPONSES,
@@ -796,11 +841,32 @@ impl<S: Read + Write> Imap<S> {
 
     /// APPEND with a literal (handles the `+` continuation).
     pub fn append(&mut self, raw_name: &str, flags: &[&str], message: &[u8]) -> Result<(), ProtoError> {
+        self.append_at(raw_name, flags, None, message).map(|_| ())
+    }
+
+    /// [`append`](Self::append), with the time the server is to keep as the message's arrival
+    /// (its `INTERNALDATE`, an IMAP `date-time` such as `01-Jul-2003 09:52:37 +0000`) when one is
+    /// given. Answers where the message went when the server says so beyond doubt (`APPENDUID`),
+    /// `None` otherwise.
+    pub fn append_at(&mut self, raw_name: &str, flags: &[&str], date: Option<&str>, message: &[u8]) -> Result<Option<Appended>, ProtoError> {
         let mut command = Command::new("APPEND").string(raw_name.as_bytes());
         if !flags.is_empty() {
             command = command.arg(&flag_list(flags)?);
         }
-        self.run(command.literal(message), &mut ignore).map(|_| ())
+        if let Some(date) = date {
+            if !is_date_time(date) {
+                return Err(ProtoError::Protocol(format!("\"{}\" is not a date and time IMAP can carry", tidy(date))));
+            }
+            command = command.arg(&format!("\"{date}\""));
+        }
+        self.appended.clear();
+        let done = self.run(command.literal(message), &mut ignore);
+        // One answer that could be read, or nothing is known.
+        let appended = match std::mem::take(&mut self.appended).as_mut_slice() {
+            [only] => only.take(),
+            _ => None,
+        };
+        done.map(|_| appended)
     }
 
     /// LOGOUT. A server that hangs up without answering has logged us out all the same.
@@ -983,6 +1049,7 @@ impl<S: Read + Write> Imap<S> {
             "UIDVALIDITY" => self.selected.uid_validity = line.arg.parse().unwrap_or(0),
             "UIDNEXT" => self.selected.uid_next = line.arg.parse().unwrap_or(0),
             "COPYUID" if self.copied.len() < 2 => self.copied.push(copied_from(&line.arg)),
+            "APPENDUID" if self.appended.len() < 2 => self.appended.push(appended_from(&line.arg)),
             "CAPABILITY" => self.capabilities = Some(line.arg.split_whitespace().take(MAX_CAPABILITIES).map(str::to_ascii_uppercase).collect()),
             _ => {}
         }

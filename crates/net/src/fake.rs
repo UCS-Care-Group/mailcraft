@@ -652,9 +652,13 @@ fn serve_imap(stream: TcpStream, shared: Arc<Mutex<ImapWorld>>) {
                 reply.extend(format!("{tag} OK done\r\n").bytes());
             }
             "APPEND" => {
-                // `"name" (flags) {size}`: the message follows the go-ahead.
+                // `"name" (flags) "date" {size}`, flags and date as the client likes: the message
+                // follows the go-ahead.
                 let name = words(args).into_iter().next().unwrap_or_default();
                 let flags = args.split_once('(').and_then(|(_, rest)| rest.split_once(')')).map_or("", |(flags, _)| flags).to_string();
+                let before_size = args.rsplit_once('{').map_or(args, |(head, _)| head);
+                let date = words(before_size).into_iter().skip(1).find(|w| w.len() == 26 && w.contains(':'));
+                let internal_date = date.unwrap_or_else(|| " 1-Jul-2003 09:52:37 +0000".to_string());
                 let size: usize = args.rsplit_once('{').and_then(|(_, n)| n.trim_end_matches('}').parse().ok()).unwrap_or(0);
                 if !world.mailboxes.iter().any(|m| m.raw == name) {
                     reply.extend(format!("{tag} NO [TRYCREATE] no such mailbox\r\n").bytes());
@@ -671,7 +675,7 @@ fn serve_imap(stream: TcpStream, shared: Arc<Mutex<ImapWorld>>) {
                     let mailbox = world.mailbox(&name);
                     let uid = mailbox.take_uid();
                     let code = if uidplus { format!("[APPENDUID {} {uid}] ", mailbox.uid_validity) } else { String::new() };
-                    mailbox.messages.push(FakeMessage { uid, flags, internal_date: " 1-Jul-2003 09:52:37 +0000".into(), body, claimed_size: None });
+                    mailbox.messages.push(FakeMessage { uid, flags, internal_date, body, claimed_size: None });
                     drop(world);
                     let _ = reader.get_mut().write_all(format!("{tag} OK {code}kept\r\n").as_bytes());
                     continue;
