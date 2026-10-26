@@ -110,15 +110,16 @@ fn a_message_opened_from_a_contact_is_in_the_all_tab() {
         w.run_steps(3);
         let s = &w.state().session;
         let inbox = s.view.folder;
-        found = s.mailbox.messages_in(inbox).filter(|m| m.read).map(|m| m.id).find(|id| w.state().hit.rect("recentMail", *id).is_some());
+        found = s.mailbox.messages_in(inbox).filter(|m| !m.read).map(|m| m.id).find(|id| w.state().hit.rect("recentMail", *id).is_some());
         if found.is_some() {
             break;
         }
     }
-    let read = found.expect("a contact of the sample has read mail in the Inbox among its recent mail");
-    let pos = w.state().hit.rect("recentMail", read).unwrap().center();
+    // An unread one, which the Unread tab would list: the All tab all the same.
+    let unread = found.expect("a contact of the sample has unread mail in the Inbox among its recent mail");
+    let pos = w.state().hit.rect("recentMail", unread).unwrap().center();
     testing::click(&mut w, pos, PointerButton::Primary, 1);
-    opened_in_the_all_tab(&mut w, read);
+    opened_in_the_all_tab(&mut w, unread);
 }
 
 #[test]

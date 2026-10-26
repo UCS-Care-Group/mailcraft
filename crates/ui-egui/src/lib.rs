@@ -1758,7 +1758,7 @@ impl MailApp {
         r
     }
 
-    /// Open a message from outside the message list (a task, a contact, an alert): in Mail, in
+    /// Open a message from outside the message list (a task, a contact's recent mail): in Mail, in
     /// its folder's All tab with no search, the list scrolled to it (#485).
     pub(crate) fn open_in_mail(&mut self, id: Id) {
         self.ui.backstage = false;
