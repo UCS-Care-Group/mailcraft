@@ -24,6 +24,10 @@ mailcraft-link = { workspace = true }
 # Window screenshots for the control channel are saved as PNG.
 image = { workspace = true }
 
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+# A system font is opened as egui will open it before egui is given it (`theme::is_font`).
+skrifa = { workspace = true }
+
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 # The browser clock (the std clocks panic on wasm32).
 js-sys = "0.3"

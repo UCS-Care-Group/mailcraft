@@ -74,6 +74,9 @@ egui = "0.37"
 egui_extras = { version = "0.37", default-features = false }
 eframe = { version = "0.37", default-features = false }
 egui_kittest = "0.37"
+# The font reader egui uses, at egui's version: a system font is opened with it before egui is
+# given it, so that egui never meets one it cannot open (#217). Already in the tree through epaint.
+skrifa = "0.44"
 rfd = "0.17"
 arboard = { version = "3.7", default-features = false }
 
