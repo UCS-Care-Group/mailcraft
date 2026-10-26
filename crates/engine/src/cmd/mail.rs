@@ -13,7 +13,7 @@ pub fn specs() -> Vec<CommandSpec> {
     vec![
         CommandSpec::new("mail.select", "Select Message", "Mail", select)
             .pure()
-            .params(r#"{"id": number} | {"ids": [number]}, "extend"?: bool (add to the selection), "range"?: bool (select up to it), "copy"?: number (which of its rows, arranged by categories)"#),
+            .params(r#"{"id": number} | {"ids": [number]}, "extend"?: bool (add to the selection), "range"?: bool (select up to it), "copy"?: number (which of its rows, arranged by categories), "elsewhere"?: bool (opened from outside the list, as from a task: shown in its folder, in the All tab, with no search)"#),
         CommandSpec::new("mail.selectAll", "Select All", "Folder › Actions", select_all).pure().key("Mod+A"),
         CommandSpec::new("mail.next", "Next Message", "Mail", next).pure().key("ArrowDown / Shift+ArrowDown").params(EXTEND),
         CommandSpec::new("mail.previous", "Previous Message", "Mail", previous).pure().key("ArrowUp / Shift+ArrowUp").params(EXTEND),
@@ -94,11 +94,18 @@ fn select(s: &mut Session, v: &Value) -> CmdResult {
         return Err(failed!("no message with id {id}", id = missing));
     }
     let Some(last) = ids.last().copied() else {
-        s.sel.messages.clear();
+        s.sel.clear_messages();
         return done();
     };
     // Which of the message's rows was clicked, for one listed under several categories.
     let copy = p::u64(v, "copy").and_then(|c| u16::try_from(c).ok()).unwrap_or(0);
+    // A Ctrl+click or a Shift+click adds to what the list shows selected, never to a message it
+    // doesn't show (#485).
+    if p::bool(v, "range") == Some(true) || p::bool(v, "extend") == Some(true) {
+        let before = s.sel.messages.clone();
+        let shown = s.in_list(&before);
+        s.sel.messages.retain(|id| shown.contains(id));
+    }
     if p::bool(v, "range") == Some(true) {
         // From the anchor (the first selected message) to this one, in list order.
         let rows = s.rows();
@@ -131,9 +138,18 @@ fn select(s: &mut Session, v: &Value) -> CmdResult {
     {
         s.view.folder = m.folder;
     }
-    // What is selected stays in the list while it is selected, if it is in it (#428): the one
-    // clicked in, or its folder's when it was opened there.
-    s.keep_clicked();
+    // Opened from a task, a contact or an alert (`elsewhere`): in its folder, in the All tab and
+    // with no search, always (#485).
+    if let Some(folder) = s.focused_message().map(|m| m.folder)
+        && p::bool(v, "elsewhere") == Some(true)
+    {
+        s.view.folder = folder;
+        s.show_whole_folder();
+    }
+    // What is selected is in the list (#485), and stays in it while it is selected (#428): opened
+    // from outside it (a conversation in the reading pane, an agent), in its folder, in the All
+    // tab and with no search, when the list doesn't show it there.
+    s.show_selected();
     mark_opened(s);
     Ok(json!({"selected": s.sel.messages}))
 }

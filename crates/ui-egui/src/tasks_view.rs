@@ -659,9 +659,10 @@ fn details(app: &mut MailApp, ui: &mut Ui, task: &Task) {
                 ui.add(egui::Label::new(RichText::new(subject).font(regular(12.5)).color(t.text)).truncate());
                 ui.add(egui::Label::new(RichText::new(from).font(regular(11.5)).color(t.text_dim)).truncate());
                 ui.add_space(4.0);
-                if widgets::icon_text_button(ui, "mail", tl!("Open the message"), true).clicked() {
-                    let _ = app.run("mail.select", json!({"id": m.id}));
-                    let _ = app.run("view.mail", json!({}));
+                let open = widgets::icon_text_button(ui, "mail", tl!("Open the message"), true);
+                app.hit.add("openTaskMessage", m.id, open.rect);
+                if open.clicked() {
+                    app.open_in_mail(m.id);
                 }
             }
         });
