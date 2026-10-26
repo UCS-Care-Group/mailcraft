@@ -1790,16 +1790,10 @@ msgid "Clipboard"
 msgstr "Presse-papiers"
 
 #. interface, ribbon
-#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/sync_panel.rs crates/ui-egui/src/tasks_view.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/sync_panel.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Close"
 msgstr "Fermer"
-
-#. interface
-#: crates/ui-egui/src/compose.rs
-#, fuzzy
-msgid "Close (the draft stays as last saved)"
-msgstr "Fermer (le brouillon reste tel qu'enregistré la dernière fois)"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -5467,6 +5461,11 @@ msgid "No end date"
 msgstr "Pas de date de fin"
 
 #. interface
+#: crates/ui-egui/src/data_removal.rs
+msgid "No file manager could be started to show the folder."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/ribbon.rs
 msgid "No folders match"
 msgstr ""
@@ -5957,6 +5956,11 @@ msgstr "Ouvrir la pièce jointe"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
+msgid "Open Data Folder"
+msgstr ""
+
+#. command label
+#: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Open Dialog"
 msgstr "Ouvrir la boîte de dialogue"
@@ -5966,6 +5970,11 @@ msgstr "Ouvrir la boîte de dialogue"
 #, fuzzy
 msgid "Open Draft"
 msgstr "Ouvrir le brouillon"
+
+#. interface
+#: crates/ui-egui/src/data_removal.rs
+msgid "Open MailCraft's data folder"
+msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/file.rs crates/ui-egui/src/lib.rs
@@ -6030,6 +6039,11 @@ msgstr "Open source sous licence MIT ou licence Apache 2.0, au choix."
 #, fuzzy
 msgid "Open source under the MIT License or the Apache License 2.0, at your option. The interface fonts are Inter, Source Sans 3 and JetBrains Mono (SIL Open Font License). Every icon is drawn in code."
 msgstr "Open source sous licence MIT ou licence Apache 2.0, au choix. Les polices de l'interface sont Inter, Source Sans 3 et JetBrains Mono (SIL Open Font License). Chaque icône est dessinée par le code."
+
+#. interface
+#: crates/ui-egui/src/data_removal.rs
+msgid "Open the mailbox's folder"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -8022,6 +8036,16 @@ msgstr "Afficher les numéros de semaine dans l'affichage Mois et le navigateur 
 msgid "Shown as First Last when empty"
 msgstr "Affiché sous la forme Prénom Nom s'il est vide"
 
+#. interface
+#: crates/ui-egui/src/data_removal.rs
+msgid "Shows {path}, which holds the mailbox and the settings, in your file manager."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/data_removal.rs
+msgid "Shows {path}, which holds the mailbox open now, in your file manager. MailCraft's settings are in a folder of their own."
+msgstr ""
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -8974,6 +8998,11 @@ msgid "The folder \"{folder}\" and everything in it will be deleted."
 msgstr "Le dossier « {folder} » et tout son contenu seront supprimés."
 
 #. interface
+#: crates/ui-egui/src/data_removal.rs
+msgid "The folder isn't there."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "The incoming mail server isn't a host name (letters, digits, dots and dashes)"
@@ -9282,6 +9311,11 @@ msgstr "Les {n} boîtes aux lettres partagées ouvertes par son intermédiaire s
 #, fuzzy
 msgid "Theme"
 msgstr "Thème"
+
+#. interface
+#: crates/ui-egui/src/data_removal.rs
+msgid "There is no data folder to open here"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/updates.rs
@@ -13233,6 +13267,10 @@ msgstr "{why} ; les connexions ne sont donc pas mémorisées : MailCraft les
 #, fuzzy
 msgid "{why}. {n} changes made in it here wait on this computer."
 msgstr "{why}. {n} modifications faites ici attendent sur cet ordinateur."
+
+#, fuzzy
+#~ msgid "Close (the draft stays as last saved)"
+#~ msgstr "Fermer (le brouillon reste tel qu'enregistré la dernière fois)"
 
 #, fuzzy
 #~ msgid "Its messages, attachments, settings and remembered sign-in go with it, and so do the calendar, contacts and working hours that came from its server."

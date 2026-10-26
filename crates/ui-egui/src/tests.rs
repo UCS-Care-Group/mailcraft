@@ -73,7 +73,11 @@ fn writing_brings_up_the_message_tab_and_errors_reach_the_status_bar() {
     a.run("compose.set", json!({"to": "not an address"})).unwrap();
     let e = a.run("compose.send", json!({})).unwrap_err();
     assert_eq!(a.status_msg.as_ref().map(|(m, _)| m.as_str()), Some(e.as_str()));
-    a.run("compose.close", json!({})).unwrap();
+    // Changed, it asks first (#442); let go of, it closes.
+    assert_eq!(a.run("compose.close", json!({})).unwrap()["pending"], "discardDraft");
+    a.dialog = None;
+    crate::dialogs::leave_message(&mut a, "discard", "compose.close", json!({}));
+    assert!(a.session.compose.is_none());
     assert_eq!(a.ui.tab, "Home");
     assert!(a.run("ui.tab", json!({"tab": "Message"})).is_err());
     assert!(a.run("ui.tab", json!({"tab": "View"})).is_ok());

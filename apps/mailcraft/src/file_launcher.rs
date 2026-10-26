@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! Opening a file with the system's program for its kind (#126), without a shell.
+//! Opening a file with the system's program for its kind (#126), and a folder in the system's
+//! file manager (#460: File › Info › Open MailCraft's data folder), without a shell.
 //!
 //! The system's own opener is started as a program with the file's whole path as one argument:
 //!
@@ -20,6 +21,8 @@
 use std::ffi::OsStr;
 use std::path::Path;
 use std::process::{Command, Stdio};
+
+use mailcraft_ui_egui::data_removal::FolderTrouble;
 
 /// Which opener a platform has.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -102,6 +105,23 @@ pub(crate) fn open_detached(path: &Path) -> std::io::Result<()> {
     // Reaped when it is done, so that no process is left behind it.
     let _ = std::thread::Builder::new().name("opener".into()).spawn(move || child.wait());
     Ok(())
+}
+
+/// Show the folder `path` in the system's file manager (each opener opens a folder there). A path
+/// that isn't absolute, or isn't a folder, is refused before anything is started.
+pub(crate) fn open_folder(path: &Path) -> Result<(), FolderTrouble> {
+    open_folder_with(path, open_detached)
+}
+
+/// [`open_folder`], with the opener given (the tests' stand-in).
+fn open_folder_with(path: &Path, open: impl FnOnce(&Path) -> std::io::Result<()>) -> Result<(), FolderTrouble> {
+    if !absolute_for(Opener::this_platform(), path) || !path.is_dir() {
+        return Err(FolderTrouble::NotThere);
+    }
+    open(path).map_err(|e| {
+        log::warn!("couldn't open a folder in the file manager ({:?})", e.kind());
+        FolderTrouble::NoFileManager
+    })
 }
 
 #[cfg(test)]

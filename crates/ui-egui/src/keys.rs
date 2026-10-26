@@ -280,6 +280,11 @@ pub fn global_shortcuts(app: &mut MailApp, ctx: &egui::Context) {
         if let Some(id) = resolve(app, &k).and_then(|id| window_command(app, id)) {
             let params = key_params(app, id, modifiers);
             let _ = app.run(id, params);
+            // The Escape that asked about a message being written (#442) isn't also the
+            // question's Cancel.
+            if key == Key::Escape && app.dialog.is_some() {
+                ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, Key::Escape));
+            }
         }
     }
 }

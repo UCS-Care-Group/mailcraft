@@ -430,3 +430,140 @@ fn a_store_that_cannot_be_used_keeps_every_name() {
     assert_eq!(a.secrets_trouble, Some(crate::StoreTrouble::Locked));
     assert_eq!(a.status_msg.as_ref().map(|(text, _)| text.clone()), Some(crate::StoreTrouble::Locked.notice()));
 }
+
+/// Open MailCraft's data folder (#460): a host that opens nothing and notes which folder it was
+/// asked to show, and fails when told to.
+fn folder_host(path: impl Into<PathBuf>, fails: bool) -> (DataFolder, Arc<Mutex<Vec<PathBuf>>>) {
+    let asked: Arc<Mutex<Vec<PathBuf>>> = Default::default();
+    let noted = asked.clone();
+    let open = Box::new(move |p: &Path| {
+        noted.lock().unwrap().push(p.to_path_buf());
+        if fails { Err(FolderTrouble::NoFileManager) } else { Ok(()) }
+    });
+    (DataFolder { path: path.into(), open }, asked)
+}
+
+/// A whole path on this platform: `at("home/ada")` is `/home/ada`, or `C:\home\ada` on Windows.
+fn at(parts: &str) -> PathBuf {
+    let root = if cfg!(windows) { PathBuf::from("C:\\") } else { PathBuf::from("/") };
+    parts.split('/').fold(root, |path, part| path.join(part))
+}
+
+#[test]
+fn the_data_folder_the_host_resolved_is_the_one_it_is_asked_to_show() {
+    let (host, store) = (Host::default(), Store::default());
+    let mut a = app(&host, &store);
+    let (folder, asked) = folder_host(at("home/ada/.config/mailcraft"), false);
+    a.services.data_folder = Some(folder);
+    assert!(a.enabled("ui.openDataFolder"));
+    // No mailbox file (the sample): the settings folder.
+    assert!(a.session.path.is_none());
+    // By hand nothing is asked first: it only shows a folder.
+    assert_eq!(a.run("ui.openDataFolder", json!({})).unwrap()["opened"], "settings");
+    assert!(a.dialog.is_none());
+    // A param naming another folder is not looked at.
+    a.execute("ui.openDataFolder", json!({"path": "/etc"})).unwrap();
+    assert_eq!(asked.lock().unwrap().as_slice(), [at("home/ada/.config/mailcraft"), at("home/ada/.config/mailcraft")]);
+    // Nothing of the data was touched.
+    assert!(host.asked.lock().unwrap().is_empty() && !a.data_removed);
+}
+
+#[test]
+fn the_data_folder_is_refused_without_a_host_for_an_agent_and_once_the_data_is_gone() {
+    assert_eq!(mailcraft_engine::agent::access("ui.openDataFolder"), Some(mailcraft_engine::agent::Access::Never));
+    let (host, store) = (Host::default(), Store::default());
+    // The browser and a run that keeps nothing: no folder, so nothing is offered.
+    let mut a = app(&host, &store);
+    assert!(!a.enabled("ui.openDataFolder"));
+    assert!(a.execute("ui.openDataFolder", json!({})).is_err());
+    // A folder that isn't a whole path is never handed to the opener.
+    let (folder, asked) = folder_host("relative/mailcraft", false);
+    a.services.data_folder = Some(folder);
+    assert!(a.execute("ui.openDataFolder", json!({})).is_err());
+    assert!(asked.lock().unwrap().is_empty());
+    // What the host couldn't do is said.
+    let (folder, _) = folder_host(at("home/ada/.config/mailcraft"), true);
+    a.services.data_folder = Some(folder);
+    assert_eq!(a.execute("ui.openDataFolder", json!({})).unwrap_err(), FolderTrouble::NoFileManager.text());
+    // Once the data is removed there is no folder to show.
+    let (folder, asked) = folder_host(at("home/ada/.config/mailcraft"), false);
+    a.services.data_folder = Some(folder);
+    a.execute("ui.removeAllData", json!({})).unwrap();
+    assert!(!a.enabled("ui.openDataFolder"));
+    assert!(a.execute("ui.openDataFolder", json!({})).is_err());
+    assert!(asked.lock().unwrap().is_empty());
+}
+
+#[test]
+fn a_mailbox_kept_outside_the_settings_folder_has_its_own_folder_shown() {
+    let (host, store) = (Host::default(), Store::default());
+    let mut a = app(&host, &store);
+    let (folder, asked) = folder_host(at("home/ada/.config/mailcraft"), false);
+    a.services.data_folder = Some(folder);
+    // `mailcraft --mailbox ~/Documents/work.mailcraft`: that mailbox's folder, and the button says so.
+    a.session.path = Some(at("home/ada/Documents/work.mailcraft"));
+    assert_eq!(a.data_folder_shown(false), Some(Shown::Mailbox(at("home/ada/Documents"))));
+    assert_eq!(a.execute("ui.openDataFolder", json!({})).unwrap()["opened"], "mailbox");
+    assert_eq!(asked.lock().unwrap().last(), Some(&at("home/ada/Documents")));
+    // A mailbox in the settings folder (the usual one): the settings folder itself.
+    a.session.path = Some(at("home/ada/.config/mailcraft/mailbox.mailcraft"));
+    assert_eq!(a.data_folder_shown(false), Some(Shown::Settings(at("home/ada/.config/mailcraft"))));
+    assert_eq!(a.execute("ui.openDataFolder", json!({})).unwrap()["opened"], "settings");
+    assert_eq!(asked.lock().unwrap().last(), Some(&at("home/ada/.config/mailcraft")));
+    // A mailbox in a folder whose name only begins like the settings folder's is elsewhere.
+    a.session.path = Some(at("home/ada/.config/mailcraft-old/mailbox.mailcraft"));
+    assert_eq!(a.data_folder_shown(false), Some(Shown::Mailbox(at("home/ada/.config/mailcraft-old"))));
+    // `mailcraft --mailbox work.mailcraft` (or `sub/x.mailcraft`): relative to where MailCraft
+    // was started, so that folder, made whole.
+    let here = std::env::current_dir().unwrap();
+    a.session.path = Some(PathBuf::from("work.mailcraft"));
+    assert_eq!(a.data_folder_shown(false), Some(Shown::Mailbox(here.clone())));
+    assert_eq!(a.execute("ui.openDataFolder", json!({})).unwrap()["opened"], "mailbox");
+    assert_eq!(asked.lock().unwrap().last(), Some(&here));
+    a.session.path = Some(PathBuf::from("sub/x.mailcraft"));
+    assert_eq!(a.data_folder_shown(false), Some(Shown::Mailbox(here.join("sub"))));
+}
+
+#[test]
+fn a_mailbox_really_in_the_settings_folder_is_shown_as_the_settings_folder() {
+    // The settings folder spelt another way (`..`) is still the settings folder.
+    let (host, store) = (Host::default(), Store::default());
+    let mut a = app(&host, &store);
+    let settings = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src");
+    let (folder, asked) = folder_host(settings.clone(), false);
+    a.services.data_folder = Some(folder);
+    a.session.path = Some(settings.join("..").join("src").join("lib.rs"));
+    assert_eq!(a.data_folder_shown(true), Some(Shown::Settings(settings.clone())));
+    // The button's label doesn't look at the disk (see `data_folder_shown`): with `..` in the
+    // path it can't tell, and says the mailbox's folder; the click settles it. (Windows makes a
+    // path whole by folding `..` away, so there the label already knows.)
+    let label = a.data_folder_shown(false);
+    if cfg!(windows) {
+        assert_eq!(label, Some(Shown::Settings(settings.clone())));
+    } else {
+        assert!(matches!(label, Some(Shown::Mailbox(_))));
+    }
+    assert_eq!(a.execute("ui.openDataFolder", json!({})).unwrap()["opened"], "settings");
+    // And a mailbox beside it is not.
+    a.session.path = Some(settings.join("..").join("Cargo.toml"));
+    assert!(matches!(a.data_folder_shown(true), Some(Shown::Mailbox(_))));
+    assert!(matches!(a.data_folder_shown(false), Some(Shown::Mailbox(_))));
+    assert_eq!(asked.lock().unwrap().as_slice(), [settings]);
+}
+
+#[test]
+fn the_folder_shown_follows_the_mailbox_opened_since_start() {
+    let (host, store) = (Host::default(), Store::default());
+    let mut a = app(&host, &store);
+    let (folder, asked) = folder_host(at("home/ada/.config/mailcraft"), false);
+    a.services.data_folder = Some(folder);
+    a.session.path = Some(at("home/ada/.config/mailcraft/mailbox.mailcraft"));
+    a.execute("ui.openDataFolder", json!({})).unwrap();
+    // File › Open of another mailbox changes where the open mailbox is: decided at the click.
+    a.session.path = Some(at("media/usb/archive/2019.mailcraft"));
+    a.execute("ui.openDataFolder", json!({})).unwrap();
+    // And back to one in the settings folder.
+    a.session.path = Some(at("home/ada/.config/mailcraft/mailbox.mailcraft"));
+    a.execute("ui.openDataFolder", json!({})).unwrap();
+    assert_eq!(asked.lock().unwrap().as_slice(), [at("home/ada/.config/mailcraft"), at("media/usb/archive"), at("home/ada/.config/mailcraft")]);
+}

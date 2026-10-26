@@ -279,6 +279,15 @@ fn prefs_enabled() -> bool {
     std::env::var_os("MAILCRAFT_NO_PREFS").is_none()
 }
 
+/// File › Info › Open MailCraft's data folder (#460): the settings folder (the one Remove
+/// MailCraft's data clears first), and the system's own opener for whichever folder the window
+/// shows: that one, or the open mailbox's own when it is kept elsewhere. None for a run that keeps
+/// nothing.
+fn data_folder(keeps_data: bool) -> Option<mailcraft_ui_egui::data_removal::DataFolder> {
+    let path = mailcraft_control_key::settings_dir().filter(|_| keeps_data)?;
+    Some(mailcraft_ui_egui::data_removal::DataFolder { path, open: Box::new(file_launcher::open_folder) })
+}
+
 /// The preferences, read once at start (before the window opens, for its size and place), and
 /// what became of the file when it couldn't be read. Nothing for a run without preferences.
 fn load_prefs() -> (Option<UiState>, Option<SettingsUnread>) {
@@ -1498,6 +1507,10 @@ fn services(
             Box::new(wipe::Wipe { roots: wipe::Roots::of_this_program(), pictures: wipe_pictures })
                 as Box<dyn mailcraft_ui_egui::data_removal::DataWipe>
         }),
+        // File › Info › Open MailCraft's data folder (#460): the settings folder, and the opener
+        // for whichever folder the window shows (that one, or the open mailbox's own when it is
+        // kept elsewhere). Not for a run that keeps nothing.
+        data_folder: data_folder(prefs_enabled()),
         // Desktop alerts, through the system's notifications (`alerts`).
         alert: alerts::host(alert_ctx),
         clipboard: clipboard::board(),

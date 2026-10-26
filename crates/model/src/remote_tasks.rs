@@ -77,6 +77,15 @@ impl RemoteTask {
 pub struct RemoteTaskList {
     pub id: String,
     pub complete: bool,
+    /// Shared with other people (Graph's `isShared`).
+    pub shared: bool,
+}
+
+impl RemoteTaskList {
+    /// Cut to the size the mailbox keeps.
+    pub fn tidy(&mut self) {
+        self.id = key(&self.id);
+    }
 }
 
 /// An account's to-dos, as its server has them.

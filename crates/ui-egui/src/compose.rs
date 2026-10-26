@@ -267,7 +267,7 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
             let _ = app.run("compose.discard", json!({}));
         }
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            if crate::widgets::icon_button(ui, "close", tl!("Close (the draft stays as last saved)"), 14.0, true).clicked() {
+            if crate::widgets::icon_button(ui, "close", tl!("Close"), 14.0, true).clicked() {
                 let _ = app.run("compose.close", json!({}));
             }
             let state = if c.dirty {

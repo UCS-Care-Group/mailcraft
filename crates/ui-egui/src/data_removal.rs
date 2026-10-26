@@ -17,6 +17,12 @@
 //! - **A failure is a line in a report, never a panic**, and the rest still goes. MailCraft quits
 //!   once the report is read, or at once when there is nothing to report.
 //! - Removing one account is `account.remove` (the same files, for that account alone).
+//! - **Beside it, Open MailCraft's data folder** (#460, `ui.openDataFolder`): the host shows a
+//!   folder in the system's file manager ([`DataFolder`]): the folder of the mailbox open now when
+//!   the owner keeps it outside MailCraft's own folder (File › Open, `--mailbox`), else the
+//!   settings folder the host resolved, which holds the mailbox and the settings. Decided when it
+//!   is pressed, never from a param; an agent may never run it (it starts another program on the
+//!   owner's screen, as opening an attachment does).
 
 use egui::Ui;
 use serde_json::{Value, json};
@@ -90,6 +96,52 @@ pub trait DataWipe {
     fn erase(&self, mailbox: Option<&std::path::Path>) -> WipeReport;
 }
 
+/// The folder MailCraft keeps its settings (and, unless the owner keeps it elsewhere, the
+/// mailbox) in, and the host's way of showing a folder in the system's file manager
+/// ([`Services::data_folder`], #460).
+pub struct DataFolder {
+    /// The settings folder, as the host resolved it.
+    pub path: std::path::PathBuf,
+    /// Show a folder in the file manager.
+    pub open: Box<dyn Fn(&std::path::Path) -> Result<(), FolderTrouble>>,
+}
+
+/// Why a folder couldn't be shown ([`DataFolder::open`]); the window says it in the interface
+/// language.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FolderTrouble {
+    /// Not a whole path, or no folder is there.
+    NotThere,
+    /// No file manager could be started.
+    NoFileManager,
+}
+
+impl FolderTrouble {
+    pub fn text(self) -> String {
+        match self {
+            FolderTrouble::NotThere => tl!("The folder isn't there.").to_string(),
+            FolderTrouble::NoFileManager => tl!("No file manager could be started to show the folder.").to_string(),
+        }
+    }
+}
+
+/// Which folder Open MailCraft's data folder shows now.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum Shown {
+    /// The settings folder, which holds the mailbox too (or there is no mailbox file).
+    Settings(std::path::PathBuf),
+    /// The folder of the open mailbox, kept outside the settings folder.
+    Mailbox(std::path::PathBuf),
+}
+
+impl Shown {
+    pub(crate) fn path(&self) -> &std::path::Path {
+        match self {
+            Shown::Settings(p) | Shown::Mailbox(p) => p,
+        }
+    }
+}
+
 /// How long the saver is waited for to be idle, after its flush: a sweep may still be queued.
 const IDLE_WAIT: std::time::Duration = if cfg!(test) { std::time::Duration::from_millis(100) } else { std::time::Duration::from_secs(5) };
 
@@ -144,6 +196,51 @@ impl MailApp {
         Ok(json!({"removed": report.removed, "failed": said(&report.failed), "left": said(&report.left)}))
     }
 
+    /// The folder Open MailCraft's data folder shows now: the open mailbox's own folder when it
+    /// is kept outside the settings folder, else the settings folder. `None` without a host.
+    ///
+    /// A mailbox named relative to where MailCraft was started (`--mailbox work.mailcraft`) is
+    /// made whole first (by the path alone). Whether it is inside the settings folder is asked
+    /// of the paths as they are (one with `..` in it is elsewhere), and with `resolve` also of
+    /// them as they really are (`..`, links, `\\?\` and letter case on Windows): inside by
+    /// either, it is the settings folder.
+    ///
+    /// ponytail: the button's label asks without `resolve`, every frame File › Info is drawn,
+    /// so it never touches the disk: resolving a path on a network share that has gone away
+    /// blocks until the network gives up (or for ever on a hard NFS mount), and the window would
+    /// freeze. Only the click resolves.
+    pub(crate) fn data_folder_shown(&self, resolve: bool) -> Option<Shown> {
+        use std::path::Path;
+        let settings = &self.services.data_folder.as_ref()?.path;
+        let real = |p: &Path| std::fs::canonicalize(p).unwrap_or_else(|_| p.to_path_buf());
+        let mailbox = self.session.path.as_deref().map(|p| std::path::absolute(p).unwrap_or_else(|_| p.to_path_buf()));
+        // (As they are only without `..`: `<settings>/../x` begins with the settings folder's name
+        // and is beside it.)
+        let plainly_in = |m: &Path| m.starts_with(settings) && !m.components().any(|c| c == std::path::Component::ParentDir);
+        let elsewhere = mailbox.filter(|m| !plainly_in(m) && !(resolve && real(m).starts_with(real(settings))));
+        Some(match elsewhere.as_deref().and_then(Path::parent) {
+            Some(folder) => Shown::Mailbox(folder.to_path_buf()),
+            None => Shown::Settings(settings.clone()),
+        })
+    }
+
+    /// `ui.openDataFolder`: show the folder MailCraft keeps its data in, in the file manager.
+    pub(crate) fn open_data_folder(&mut self) -> Result<Value, String> {
+        if self.data_removed {
+            return Err(tl!("MailCraft's data has been removed already").to_string());
+        }
+        let (Some(folder), Some(shown)) = (&self.services.data_folder, self.data_folder_shown(true)) else {
+            return Err(tl!("There is no data folder to open here").to_string());
+        };
+        // Only ever a whole path, so that no program could take it for an option.
+        if !shown.path().is_absolute() {
+            return Err(FolderTrouble::NotThere.text());
+        }
+        (folder.open)(shown.path()).map_err(FolderTrouble::text)?;
+        let which = if matches!(shown, Shown::Mailbox(_)) { "mailbox" } else { "settings" };
+        Ok(json!({"opened": which}))
+    }
+
     /// Once the data is gone and nothing is left to read, MailCraft goes.
     pub(crate) fn data_removal_tick(&mut self) {
         if self.data_removed && self.dialog.is_none() {
@@ -191,7 +288,7 @@ pub(crate) fn question() -> Question {
 
 /// File › Info: the section with the button.
 pub(crate) fn section(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
-    if app.services.data_wipe.is_none() {
+    if app.services.data_wipe.is_none() && app.services.data_folder.is_none() {
         return;
     }
     ui.add_space(10.0);
@@ -202,9 +299,34 @@ pub(crate) fn section(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         ))
         .color(t.text_dim),
     );
-    if ui.button(tl!("Remove MailCraft's data from this computer…")).on_hover_text(tl!("Mail on the servers is not touched.")).clicked() {
-        let _ = app.run("ui.removeAllData", json!({}));
-    }
+    ui.horizontal_wrapped(|ui| {
+        if let Some(shown) = app.data_folder_shown(false) {
+            let path = shown.path().to_string_lossy().to_string();
+            let (label, tip) = match &shown {
+                Shown::Settings(_) => (
+                    tl!("Open MailCraft's data folder"),
+                    crate::i18n::fmt(tl!("Shows {path}, which holds the mailbox and the settings, in your file manager."), &[("path", &path)]),
+                ),
+                Shown::Mailbox(_) => (
+                    tl!("Open the mailbox's folder"),
+                    crate::i18n::fmt(
+                        tl!(
+                            "Shows {path}, which holds the mailbox open now, in your file manager. MailCraft's settings are in a folder of their own."
+                        ),
+                        &[("path", &path)],
+                    ),
+                ),
+            };
+            if ui.button(label).on_hover_text(tip).clicked() {
+                let _ = app.run("ui.openDataFolder", json!({}));
+            }
+        }
+        if app.services.data_wipe.is_some()
+            && ui.button(tl!("Remove MailCraft's data from this computer…")).on_hover_text(tl!("Mail on the servers is not touched.")).clicked()
+        {
+            let _ = app.run("ui.removeAllData", json!({}));
+        }
+    });
 }
 
 #[cfg(test)]

@@ -22,10 +22,11 @@
 //! Everything from outside is hostile: ids and text are cut by [`RemoteTask::tidy`], counts are
 //! capped, and a download or an answer for another account is refused whole.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 
 use mailcraft_model::remote_tasks::{
-    MAX_TASK_CREATES, MAX_TASK_OPS, MAX_TASKS, RemoteTask, TaskOp, TaskOpKind, TaskResult, TasksDownload, TasksUpload, TasksUploaded,
+    MAX_TASK_CREATES, MAX_TASK_LISTS, MAX_TASK_OPS, MAX_TASKS, RemoteTask, RemoteTaskList, TaskOp, TaskOpKind, TaskResult, TasksDownload,
+    TasksUpload, TasksUploaded,
 };
 use mailcraft_model::{AccountKind, Id, LocalTasks, Mailbox, Origin, Task, TaskFields};
 use serde_json::{Value, json};
@@ -150,6 +151,7 @@ pub fn merge_tasks(mailbox: &mut Mailbox, download: &TasksDownload) -> Result<Me
     if !keeps_tasks(mailbox, account) {
         return Err(bad("that account doesn't keep its to-dos with Microsoft"));
     }
+    note_shared_lists(mailbox, account, download);
     let mut merged = Merged::default();
     let mut known: HashMap<String, Id> = HashMap::new();
     for task in mailbox.tasks.values().filter(|t| t.origin.account == account && !t.origin.id.is_empty()) {
@@ -240,6 +242,33 @@ pub fn merge_tasks(mailbox: &mut Mailbox, download: &TasksDownload) -> Result<Me
         }
     }
     Ok(merged)
+}
+
+/// Which of the account's lists are shared with other people (#461), as the download says: a list
+/// it names is as it says; one it doesn't name is forgotten only when the download names them all.
+/// A remembered list that a download doesn't name stays while a to-do of the account is in it (so
+/// the gate never forgets a list it may yet be asked about), and otherwise while there is room
+/// for it among [`MAX_TASK_LISTS`].
+fn note_shared_lists(mailbox: &mut Mailbox, account: Id, download: &TasksDownload) {
+    let mut lists: Vec<RemoteTaskList> = download.lists.iter().take(MAX_TASK_LISTS).cloned().collect();
+    lists.iter_mut().for_each(RemoteTaskList::tidy);
+    let had = mailbox.shared_task_lists.remove(&account).unwrap_or_default();
+    let mut shared: BTreeSet<String> = lists.iter().filter(|l| l.shared && !l.id.is_empty()).map(|l| l.id.clone()).collect();
+    if !download.complete {
+        let in_use: HashSet<&str> = mailbox.tasks.values().filter(|t| t.origin.account == account).map(|t| t.list.as_str()).collect();
+        let (used, unused): (Vec<String>, Vec<String>) =
+            had.into_iter().filter(|id| !lists.iter().any(|l| l.id == *id)).partition(|id| in_use.contains(id.as_str()));
+        shared.extend(used);
+        for id in unused {
+            if shared.len() >= MAX_TASK_LISTS {
+                break;
+            }
+            shared.insert(id);
+        }
+    }
+    if !shared.is_empty() {
+        mailbox.shared_task_lists.insert(account, shared);
+    }
 }
 
 /// Take in what a server made of the changes it was told. Not an undo step.

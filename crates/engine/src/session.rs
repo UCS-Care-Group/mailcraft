@@ -1897,6 +1897,10 @@ impl Session {
         if to.event_changes.iter().any(|c| c.send && !now.event_changes.iter().any(|n| same(c, n))) {
             return Some(Class::Send);
         }
+        // A to-do in a list shared with other people that the step changes, brings back or removes.
+        if crate::agent::changes_shared_tasks(now, to) {
+            return Some(Class::Send);
+        }
         // Things that go for good (they don't go to Deleted Items) and that the step lacks.
         let gone = now.contacts.keys().any(|k| !to.contacts.contains_key(k))
             || now.events.keys().any(|k| !to.events.contains_key(k))
@@ -1934,6 +1938,10 @@ impl Session {
     }
 
     /// Run a command by id. A command that fails, or panics, leaves the mailbox as it was.
+    ///
+    /// A command that leaves a message being written with changes that aren't saved
+    /// (`cmd::compose::saves_first`, #442) saves it to Drafts first, as a Save Draft step of its
+    /// own; when the command then fails, that Save Draft step stays behind, and the draft with it.
     pub fn run(&mut self, id: &str, params: &Value) -> Result<Value, CmdError> {
         let reg = self.registry.clone();
         let Some(spec) = reg.get(id) else { return Err(CmdError::Unknown(id.to_string())) };
@@ -1943,6 +1951,11 @@ impl Session {
             if !named {
                 return Err(CmdError::Disabled(reason.to_string()));
             }
+        }
+        // A message being written isn't let go of with what isn't saved of it (#442): it goes to
+        // Drafts first, in a step of its own, and a save that fails stops here.
+        if crate::cmd::compose::saves_first(self, id, params) {
+            self.run("compose.saveDraft", &Value::Null)?;
         }
         // Undo and redo manage the history themselves.
         let history = spec.mutates && !matches!(id, "edit.undo" | "edit.redo");

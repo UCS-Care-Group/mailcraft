@@ -863,6 +863,14 @@ pub struct Mailbox {
     /// oldest first ([`crate::TaskGone`]).
     #[serde(skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::sync::lenient_list")]
     pub task_gone: Vec<crate::TaskGone>,
+    /// The lists of a Microsoft account's To Do that are shared with other people (#461): what an
+    /// agent changes in them, they see.
+    #[serde(
+        skip_serializing_if = "BTreeMap::is_empty",
+        serialize_with = "crate::task::write_shared_lists",
+        deserialize_with = "crate::task::read_shared_lists"
+    )]
+    pub shared_task_lists: crate::SharedTaskLists,
     /// What the owner said about the to-dos that exist only here (#248): until a yes, none goes
     /// to a server.
     #[serde(skip_serializing_if = "crate::LocalTasks::is_unasked")]
@@ -918,6 +926,7 @@ impl Default for Mailbox {
             pending: Vec::new(),
             event_changes: Vec::new(),
             task_gone: Vec::new(),
+            shared_task_lists: BTreeMap::new(),
             local_tasks: crate::LocalTasks::Unasked,
             event_checks: Vec::new(),
             favorites_from_server: Vec::new(),
@@ -1055,6 +1064,7 @@ impl Mailbox {
         self.event_changes.retain(|change| !going.contains(&change.account));
         self.event_checks.retain(|check| !going.contains(&check.account));
         self.task_gone.retain(|gone| !going.contains(&gone.account));
+        self.shared_task_lists.retain(|account, _| !going.contains(account));
         // Its to-dos stay, as to-dos of this computer only.
         for task in self.tasks.values_mut().filter(|t| going.contains(&t.origin.account)) {
             let task = Arc::make_mut(task);
@@ -2159,6 +2169,11 @@ impl Mailbox {
 
     pub fn task(&self, id: Id) -> Option<&Task> {
         self.tasks.get(&id).map(Arc::as_ref)
+    }
+
+    /// Whether the to-do is in a server's list that is shared with other people.
+    pub fn in_shared_task_list(&self, task: &Task) -> bool {
+        task.origin.is_remote() && self.shared_task_lists.get(&task.origin.account).is_some_and(|lists| lists.contains(task.list.as_str()))
     }
 
     pub fn task_mut(&mut self, id: Id) -> Result<&mut Task, ModelError> {

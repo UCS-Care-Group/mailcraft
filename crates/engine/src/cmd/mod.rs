@@ -42,6 +42,8 @@ pub mod jmap_mail;
 mod jmap_sending_tests;
 #[cfg(test)]
 mod keyboard_selection_tests;
+#[cfg(test)]
+mod leave_compose_tests;
 pub mod mail;
 #[cfg(test)]
 mod newer_account_tests;

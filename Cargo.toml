@@ -4,7 +4,7 @@ members = ["crates/*", "apps/*", "xtask"]
 default-members = ["crates/*", "apps/mailcraft", "apps/mailcraft-cli", "xtask"]
 
 [workspace.package]
-version = "0.8.0"
+version = "0.8.1"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 rust-version = "1.95"
@@ -74,6 +74,9 @@ egui = "0.37"
 egui_extras = { version = "0.37", default-features = false }
 eframe = { version = "0.37", default-features = false }
 egui_kittest = "0.37"
+# The font reader egui uses, at egui's version: a system font is opened with it before egui is
+# given it, so that egui never meets one it cannot open (#217). Already in the tree through epaint.
+skrifa = "0.44"
 rfd = "0.17"
 arboard = { version = "3.7", default-features = false }
 
