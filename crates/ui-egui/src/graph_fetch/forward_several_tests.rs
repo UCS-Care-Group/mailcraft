@@ -392,6 +392,19 @@ fn a_reply_waiting_on_a_forwards_batch_opens_once_its_own_message_is_here() {
 }
 
 #[test]
+fn a_forward_that_joined_anothers_batch_is_judged_by_its_own_messages() {
+    let (mut app, [[a, b, c], _], jobs) = window();
+    app.session.sel.messages = vec![a, b, c];
+    app.run("mail.forwardAsAttachment", json!({})).unwrap();
+    // Another forward, of two of them, the one still to come of which is on its way already.
+    assert_eq!(app.run("mail.forwardAsAttachment", json!({"ids": [b, c]})).unwrap()["pending"], "download");
+    assert_eq!(asked(&jobs).len(), 1, "already asked for");
+    // The first forward's other one is gone from the server; this one's are all here.
+    answer(&mut app, &jobs, &["AA0M0"], &[]);
+    assert_eq!(subjects(&app), ["Account 0 message 1", "Whole AA0M2"]);
+}
+
+#[test]
 fn those_deleted_meanwhile_are_said_to_be_gone() {
     let (mut app, [[a, b, c], _], jobs) = window();
     app.session.sel.messages = vec![a, b, c];
