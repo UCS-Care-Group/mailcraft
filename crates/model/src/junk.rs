@@ -131,10 +131,12 @@ impl JunkLists {
         let address = junk_key(address);
         let (_, domain) = address.rsplit_once('@')?;
         let domain = format!("@{domain}");
+        // Entries are kept lower case and trimmed ([`junk_entry`]), so an ASCII one is its own
+        // key: only an entry with a non-ASCII domain is keyed afresh, once a call.
         let on = |list: &[String]| {
             list.iter().any(|e| {
-                let key = junk_key(e);
-                key == address || key == domain
+                let key = if e.is_ascii() { std::borrow::Cow::Borrowed(e.as_str()) } else { std::borrow::Cow::Owned(junk_key(e)) };
+                key == address.as_str() || key == domain.as_str()
             })
         };
         if on(&self.safe) {
@@ -175,12 +177,14 @@ impl JunkLists {
 
 /// What an entry or a sender's address is compared by: lower case, and its domain in the ASCII
 /// form it is looked up by (IDNA's `xn--` labels, through `mailcraft-link`'s Punycode), so that
-/// `@bücher.example` and `@xn--bcher-kva.example` are the same domain. A label that can't be
-/// written so is compared as it is.
+/// `@bücher.example` and `@xn--bcher-kva.example` are the same domain, and without the one
+/// trailing dot of a fully qualified name. A label that can't be written so is compared as it
+/// is. No Unicode normalisation (NFC): the workspace has no normaliser, so a domain typed in
+/// decomposed form matches only itself.
 pub fn junk_key(text: &str) -> String {
     let text = text.trim().to_lowercase();
     let (local, domain) = match text.rsplit_once('@') {
-        Some((local, domain)) => (local, domain),
+        Some((local, domain)) => (local, domain.strip_suffix('.').unwrap_or(domain)),
         None => return text,
     };
     let labels: Vec<String> = domain

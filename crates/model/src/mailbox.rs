@@ -101,6 +101,13 @@ pub struct Folder {
     /// How far down the folder was last read ([`crate::sync::FolderState::uid_from`]).
     #[serde(skip_serializing_if = "is_zero")]
     pub uid_from: u32,
+    /// An IMAP folder's first download has ended with all of it here, or it was empty when first
+    /// read (#504): what arrives in it from then on is new mail, which the Safe and Blocked
+    /// Senders lists sort. `false` again when the server numbers it anew. A file from before
+    /// this was kept has none: [`Folder::read_whole`] takes a folder read up to some UID as
+    /// read whole.
+    #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
+    pub whole: Option<bool>,
     /// For a folder of a [`AccountKind::Microsoft`] account that the server has: what the
     /// server calls it and what it last said of it ([`ServerFolder`]). `None` for a folder that
     /// only exists here (one made here that the server is yet to hear of, or a folder of any
@@ -160,6 +167,14 @@ pub struct FolderCounts {
 
 fn is_false(b: &bool) -> bool {
     !*b
+}
+
+impl Folder {
+    /// Whether the folder has been read whole once ([`Folder::whole`]); for a folder of a file
+    /// from before that was kept, whether it was read up to some UID.
+    pub fn read_whole(&self) -> bool {
+        self.whole.unwrap_or(self.uid_seen > 0)
+    }
 }
 
 fn is_zero(n: &u32) -> bool {
@@ -2061,8 +2076,9 @@ impl Mailbox {
     /// Sort a message that has just arrived by the Safe and Blocked Senders lists (#504): from a
     /// blocked sender into the Inbox, it moves to the account's Junk E-mail; from a safe sender
     /// into Junk E-mail, to the Inbox. The move is noted for the server as the owner's own is.
-    /// Whether it moved. Never in a shared mailbox, and the callers leave out an account's first
-    /// download: mail that was here before (or before a list changed) stays where it is.
+    /// Whether it moved. Never in a shared mailbox, and the callers sort only new mail of a folder
+    /// read whole once ([`Folder::read_whole`], Graph's `caught_up`), never a first download:
+    /// mail that was here before (or before a list changed) stays where it is.
     pub fn sort_junk(&mut self, id: Id) -> bool {
         if self.junk.is_empty() {
             return false;

@@ -105,15 +105,15 @@ fn an_agent_is_asked_before_it_changes_or_reads_a_list() {
     let _ = s.run("mail.select", &json!({"id": id}));
 }
 
-/// An IMAP account whose Inbox and Junk E-mail have been read once.
+/// An IMAP account whose Inbox and Junk E-mail have been read whole once.
 fn imap() -> (Session, Id) {
     let mut s = Session::empty();
     let a = s.run("account.add", &json!({"email": "ada@mail.example", "incoming": {"host": "imap.mail.example"}})).unwrap()["id"].as_u64().unwrap();
     let first = SyncResult {
         account: a,
         folders: vec![
-            FolderDelta { remote: "INBOX".into(), kind: FolderKind::Inbox, uid_validity: 7, uid_seen: 1, ..Default::default() },
-            FolderDelta { remote: "Junk".into(), kind: FolderKind::Junk, uid_validity: 7, uid_seen: 1, ..Default::default() },
+            FolderDelta { remote: "INBOX".into(), kind: FolderKind::Inbox, uid_validity: 7, uid_seen: 1, complete: true, ..Default::default() },
+            FolderDelta { remote: "Junk".into(), kind: FolderKind::Junk, uid_validity: 7, uid_seen: 1, complete: true, ..Default::default() },
         ],
         ..Default::default()
     };
@@ -263,8 +263,8 @@ fn an_account_s_first_download_is_left_as_its_server_has_it() {
     let first = SyncResult {
         account: a,
         folders: vec![
-            delta("INBOX", FolderKind::Inbox, 1, vec![arriving(1, "offers@shop.example", "Old deals")]),
-            delta("Junk", FolderKind::Junk, 1, vec![arriving(1, "friend@example.net", "Old lunch")]),
+            FolderDelta { complete: true, ..delta("INBOX", FolderKind::Inbox, 1, vec![arriving(1, "offers@shop.example", "Old deals")]) },
+            FolderDelta { complete: true, ..delta("Junk", FolderKind::Junk, 1, vec![arriving(1, "friend@example.net", "Old lunch")]) },
         ],
         ..Default::default()
     };
@@ -327,4 +327,91 @@ fn a_safe_sender_s_mail_out_of_junk_goes_through_the_inbox_rules() {
     let junk = s.mailbox.folder_of_kind(a, FolderKind::Junk).unwrap();
     assert_eq!(folder_of(&s, "Lunch?"), Some(archive));
     assert_eq!(folder_of(&s, "Win"), Some(junk));
+}
+
+/// An IMAP account with the Blocked Senders list naming `@shop.example`, nothing of it read yet.
+fn fresh_imap() -> (Session, Id) {
+    let mut s = Session::empty();
+    let a = s.run("account.add", &json!({"email": "ada@mail.example", "incoming": {"host": "imap.mail.example"}})).unwrap()["id"].as_u64().unwrap();
+    s.run("junk.add", &json!({"list": "blocked", "entry": "@shop.example"})).unwrap();
+    (s, a)
+}
+
+/// One piece of a run that reads the Inbox.
+fn take(s: &mut Session, a: Id, piece: FolderDelta) {
+    let result = SyncResult { account: a, folders: vec![piece], ..Default::default() };
+    s.run("sync.apply", &json!({"result": result})).unwrap();
+}
+
+fn inbox_piece(seen: u32, new: Vec<Message>, complete: bool) -> FolderDelta {
+    FolderDelta { complete, ..delta("INBOX", FolderKind::Inbox, seen, new) }
+}
+
+/// #504 re-review: a first download comes in pieces, each saying how far the folder is read
+/// (just below the lowest message still to come). None of them is new mail.
+#[test]
+fn a_first_download_in_pieces_sorts_nothing() {
+    let (mut s, a) = fresh_imap();
+    let [inbox, junk] = [FolderKind::Inbox, FolderKind::Junk].map(|k| s.mailbox.folder_of_kind(a, k).unwrap());
+    take(&mut s, a, inbox_piece(200, vec![arriving(250, "offers@shop.example", "Piece one")], false));
+    take(&mut s, a, inbox_piece(100, vec![arriving(150, "offers@shop.example", "Piece two")], false));
+    take(&mut s, a, inbox_piece(250, vec![arriving(101, "offers@shop.example", "Piece three")], true));
+    for subject in ["Piece one", "Piece two", "Piece three"] {
+        assert_eq!(folder_of(&s, subject), Some(inbox), "{subject}");
+    }
+    assert!(s.mailbox.pending.is_empty());
+    take(&mut s, a, inbox_piece(251, vec![arriving(251, "offers@shop.example", "New")], true));
+    assert_eq!(folder_of(&s, "New"), Some(junk));
+    // Older mail a raised limit brings down afterwards isn't new either.
+    take(&mut s, a, inbox_piece(251, vec![arriving(50, "offers@shop.example", "Older")], true));
+    assert_eq!(folder_of(&s, "Older"), Some(inbox));
+}
+
+#[test]
+fn a_folder_empty_at_its_first_reading_sorts_what_arrives_next() {
+    let (mut s, a) = fresh_imap();
+    let junk = s.mailbox.folder_of_kind(a, FolderKind::Junk).unwrap();
+    take(&mut s, a, inbox_piece(0, vec![], true));
+    take(&mut s, a, inbox_piece(1, vec![arriving(1, "offers@shop.example", "First ever")], true));
+    assert_eq!(folder_of(&s, "First ever"), Some(junk));
+}
+
+#[test]
+fn a_first_download_cut_short_and_taken_up_again_sorts_nothing() {
+    let (mut s, a) = fresh_imap();
+    let [inbox, junk] = [FolderKind::Inbox, FolderKind::Junk].map(|k| s.mailbox.folder_of_kind(a, k).unwrap());
+    take(&mut s, a, inbox_piece(100, vec![arriving(150, "offers@shop.example", "Before")], false));
+    // The program is closed and opened again: the mailbox comes back from its file.
+    let file = serde_json::to_value(&s.mailbox).unwrap();
+    let mut s = Session::new(serde_json::from_value(file).unwrap());
+    // The next run brings the rest, in a piece of its own and then the last one.
+    take(&mut s, a, inbox_piece(100, vec![arriving(120, "offers@shop.example", "After")], false));
+    take(&mut s, a, inbox_piece(150, vec![arriving(101, "offers@shop.example", "Last")], true));
+    for subject in ["Before", "After", "Last"] {
+        assert_eq!(folder_of(&s, subject), Some(inbox), "{subject}");
+    }
+    take(&mut s, a, inbox_piece(151, vec![arriving(151, "offers@shop.example", "New")], true));
+    assert_eq!(folder_of(&s, "New"), Some(junk));
+}
+
+/// A file from before a folder said it was read whole: one read up to some UID was.
+#[test]
+fn an_older_file_s_folders_read_before_are_taken_as_read_whole() {
+    let (mut s, a) = fresh_imap();
+    let [inbox, junk] = [FolderKind::Inbox, FolderKind::Junk].map(|k| s.mailbox.folder_of_kind(a, k).unwrap());
+    take(&mut s, a, inbox_piece(10, vec![arriving(10, "bo@example.org", "Old")], true));
+    let mut file = serde_json::to_value(&s.mailbox).unwrap();
+    for folder in file["folders"].as_array_mut().unwrap() {
+        folder.as_object_mut().unwrap().remove("whole");
+    }
+    let mut s = Session::new(serde_json::from_value(file).unwrap());
+    assert!(s.mailbox.folder(inbox).unwrap().whole.is_none());
+    take(&mut s, a, inbox_piece(11, vec![arriving(11, "offers@shop.example", "New")], true));
+    assert_eq!(folder_of(&s, "New"), Some(junk));
+    // Junk E-mail was never read: its first reading is left alone.
+    let mut first = delta("Junk", FolderKind::Junk, 3, vec![arriving(3, "friend@example.net", "Lunch?")]);
+    first.complete = true;
+    s.run("junk.add", &json!({"list": "safe", "entry": "friend@example.net"})).unwrap();
+    take(&mut s, a, first);
+    assert_eq!(folder_of(&s, "Lunch?"), Some(junk));
 }

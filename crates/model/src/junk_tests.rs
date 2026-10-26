@@ -117,6 +117,9 @@ fn an_international_domain_is_the_same_in_its_own_letters_and_in_xn_form() {
     assert!(matches!(l.add(JunkList::Blocked, "@bücher.example"), Added::Added(_)));
     assert_eq!(l.verdict("shop@xn--bcher-kva.example"), Some(JunkList::Blocked));
     assert_eq!(l.verdict("shop@BÜCHER.example"), Some(JunkList::Blocked));
+    // A fully qualified name's one trailing dot is the same domain.
+    assert_eq!(junk_key("Ada@Example.org."), "ada@example.org");
+    assert_eq!(l.verdict("shop@bücher.example."), Some(JunkList::Blocked));
     // One entry, whichever way it is written, on one list.
     assert!(matches!(l.add(JunkList::Blocked, "@xn--bcher-kva.example"), Added::There(_)));
     assert!(matches!(l.add(JunkList::Safe, "@XN--BCHER-KVA.example"), Added::Added(_)));
