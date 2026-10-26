@@ -7,6 +7,7 @@
 //!
 //! The script is JSON lines: control-channel requests (`{"method": …, "params": …}`, see
 //! `docs/control-protocol.md`), `{"shot": "/abs/out.png"}` to save the window as PNG,
+//! `{"open": "/abs/file.ics"}` (or a `mailto:` link) as a later start would hand it over (#505),
 //! `{"steps": n}` to run extra frames (a request with `"agent": {"allow": [...]}` comes as the MCP
 //! bridge's would: what needs the owner puts its question over the window), or `{"wait": ms}` to keep running frames for a while. The
 //! window is 1440×900 pt at 2× (override with `{"width": w, "height": h}` and `{"scale": s}` on
@@ -669,6 +670,11 @@ fn main() {
                 let count = |k: usize| u32::try_from(n(k)).unwrap_or(u32::MAX);
                 harness.state_mut().session.sync_progress.set_full(n(0), count(1), count(2));
             }
+            step_n(&mut harness, 2);
+        }
+        // What the system hands the program (a later start, the command line): `{"open": "…"}`.
+        if let Some(what) = l.get("open").and_then(|v| v.as_str()) {
+            harness.state_mut().open_from_system(what);
             step_n(&mut harness, 2);
         }
         if let Some(p) = l.get("shot").and_then(|v| v.as_str()) {

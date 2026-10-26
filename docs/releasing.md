@@ -104,6 +104,17 @@ must keep its `UpgradeCode` and `AllowDowngrades` (going back installs the older
 newer). An organisation installs the `.msi` with `DISABLEAUTOMATICUPDATES=1` to turn updating by
 itself off for every user of the computer.
 
+**On macOS a copy doesn't install updates by itself for now** (#497): it says a new version is
+out, with a link to its page, as a copy installed by a package manager does. The builds are signed
+ad hoc and not notarized (the project has no Apple Team ID yet), and an app swapped in place by
+the program, in a folder it may not fully control, is what macOS's checks then judge; one update
+that went wrong (0.8.1) left an app that wouldn't start. The code that installs from the disk
+image is still built and tested, and comes back on with one switch, `MAC_SELF_INSTALL` in
+`apps/mailcraft/src/install.rs`, once releases are signed with a Developer ID and notarized and
+`mac_swap` requires the project's Team ID of the new app. On every system, a copy whose folder
+(the one holding the app or the AppImage) it can't write to is told of new versions and installs
+nothing; the `.msi`, installed by Windows Installer, isn't affected.
+
 - **Making the keys (once):** `cargo xtask release-key new <folder>` writes two private keys,
   `mailcraft-release-key-in-use.pkcs8.b64` and `mailcraft-release-key-spare.pkcs8.b64` (base64
   PKCS#8, readable by their owner only), and prints the two public keys. It never writes over
@@ -193,9 +204,15 @@ MailCraft, and where each part stands:
 - **Linux (`.deb`, `.rpm`, `.AppImage`, `.tar.gz`):** `/usr/bin/mailcraft` and `mailcraft-cli`, a
   desktop entry that offers MailCraft for `mailto:` links, messages, calendar files and contact
   cards, AppStream metadata and the icons. The binaries need glibc 2.35 or later.
+- **macOS (the app in a disk image):** `Info.plist` declares messages, calendar files and contact
+  cards, each as an alternative (`LSHandlerRank` Alternate), so MailCraft is offered in Open With
+  and never takes a type over. There is no `mailto:` declaration yet: a link would arrive as an
+  Apple event the app can't receive (#505).
 - **One window per mailbox:** started a second time (the shortcut again, a link, a file from the
-  file manager), MailCraft hands what it was started with to the window already open and exits
-  (`apps/mailcraft/src/single_instance.rs`), so two windows never save over each other.
+  file manager), MailCraft hands what it was started with to the window already open, which comes
+  to the front, and exits (`apps/mailcraft/src/single_instance.rs`), so two windows never save
+  over each other. No installer makes MailCraft the default for anything but its own
+  `.mailcraft`: the owner chooses it in the system's settings.
 - **Product identity:** the MSI's UpgradeCode and component GUIDs are MailCraft's own. Never copy
   them from or into a sibling Craft app (Windows would treat the two as one product).
 
@@ -277,6 +294,8 @@ and in the Flatpak (which is granted `org.freedesktop.secrets` for it).
 
 | Date | Change |
 |---|---|
+| 2026-10-26 | #497: macOS copies don't install updates by themselves until the builds are signed with a Developer ID and notarized (`MAC_SELF_INSTALL`); a copy that can't write to its own folder is told of new versions only |
+| 2026-10-26 | #505: the macOS bundle's file types, one per kind and never the default; the hand-over brings the window to the front |
 | 2026-10-26 | #464: Fixes and What's new lines are fragments, `packaging/release-notes.d/{fixes,new}/<issue>.md`, joined into the notes by `cargo xtask release-notes --write` before tagging, so pull requests don't conflict over the notes; `cargo xtask ci` checks they join |
 | 2026-10-24 | Release notes open with **MailCraft <version> in short**, a headline list, before What's new and Fixes; the announcement in #11 uses it |
 | 2026-10-23 | A tag builds and signs only from `main` with a passing `ci-ok`; compile and sign in separate steps; WiX checked by hash; no build cache in release builds; `--locked` everywhere; a daily cargo-deny run and Dependabot for crates |
