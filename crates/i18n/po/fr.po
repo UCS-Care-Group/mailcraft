@@ -3741,8 +3741,8 @@ msgstr "{what} importé(s)"
 #. interface
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
-msgid "Imported {what} into a local folder: Microsoft doesn't let a mail program put received mail into your mailbox"
-msgstr "{what} importé(s) dans un dossier local : Microsoft ne permet pas à un programme de messagerie de placer du courrier reçu dans votre boîte aux lettres"
+msgid "Imported {what} into a local folder: move it into the account to put it on Microsoft's server"
+msgstr "{what} importé(s) dans un dossier local : déplacez-le dans le compte pour le placer sur le serveur de Microsoft"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -4373,12 +4373,6 @@ msgstr ""
 msgid "Mail can't be imported into an Outbox: it would be sent. Choose another folder."
 msgstr ""
 
-#. what a command says
-#: crates/model/src/mailbox.rs
-#, fuzzy
-msgid "Mail can't be moved or copied into a Microsoft account from another account or a local folder yet: this version can't put a message on Microsoft's server"
-msgstr "Le courrier ne peut pas encore être déplacé ou copié dans un compte Microsoft depuis un autre compte ou un dossier local : cette version ne peut pas placer de message sur le serveur de Microsoft"
-
 #. interface
 #: crates/ui-egui/src/folder_properties.rs
 msgid "Mail folder"
@@ -4824,12 +4818,6 @@ msgstr "Microsoft a répondu : {words}"
 #, fuzzy
 msgid "Microsoft application ID"
 msgstr "ID d'application Microsoft"
-
-#. what a command says
-#: crates/model/src/mailbox.rs
-#, fuzzy
-msgid "Microsoft doesn't let a mail program put received mail into your mailbox; it stays in a local folder."
-msgstr "Microsoft ne permet pas à un programme de messagerie de placer du courrier reçu dans votre boîte aux lettres ; il reste dans un dossier local."
 
 #. name
 #: crates/model/src/sync.rs
@@ -13297,6 +13285,18 @@ msgstr "{why} ; les connexions ne sont donc pas mémorisées : MailCraft les
 #, fuzzy
 msgid "{why}. {n} changes made in it here wait on this computer."
 msgstr "{why}. {n} modifications faites ici attendent sur cet ordinateur."
+
+#, fuzzy
+#~ msgid "Imported {what} into a local folder: Microsoft doesn't let a mail program put received mail into your mailbox"
+#~ msgstr "{what} importé(s) dans un dossier local : Microsoft ne permet pas à un programme de messagerie de placer du courrier reçu dans votre boîte aux lettres"
+
+#, fuzzy
+#~ msgid "Mail can't be moved or copied into a Microsoft account from another account or a local folder yet: this version can't put a message on Microsoft's server"
+#~ msgstr "Le courrier ne peut pas encore être déplacé ou copié dans un compte Microsoft depuis un autre compte ou un dossier local : cette version ne peut pas placer de message sur le serveur de Microsoft"
+
+#, fuzzy
+#~ msgid "Microsoft doesn't let a mail program put received mail into your mailbox; it stays in a local folder."
+#~ msgstr "Microsoft ne permet pas à un programme de messagerie de placer du courrier reçu dans votre boîte aux lettres ; il reste dans un dossier local."
 
 #, fuzzy
 #~ msgid "Close (the draft stays as last saved)"

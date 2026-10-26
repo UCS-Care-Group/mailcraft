@@ -1977,10 +1977,10 @@ fn opening_a_damaged_mailbox_file_says_what_was_left_out() {
     assert_eq!(said(json!({"lostSaves": 0, "unfinished": 0, "unavailable": 0})), None);
 }
 
-/// R3 spec S30: mail imported for a Microsoft account goes to a local folder, and moving it into
-/// the account's folders is refused, with the reason in the status bar.
+/// R3 spec S30: mail imported for a Microsoft account goes to a local folder, and the status bar
+/// says how it gets into the account: moved there, it is put on the server by the next run (#451).
 #[test]
-fn imported_mail_for_a_microsoft_account_stays_in_a_local_folder_and_says_why() {
+fn imported_mail_for_a_microsoft_account_goes_to_a_local_folder_and_says_how_it_gets_there() {
     let mut a = app();
     let account = a.run("account.add", json!({"email": "owner@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
     let inbox = a.session.mailbox.folder_of_kind(account, mailcraft_model::FolderKind::Inbox).unwrap();
@@ -1988,13 +1988,13 @@ fn imported_mail_for_a_microsoft_account_stays_in_a_local_folder_and_says_why() 
     let eml = a.execute("file.exportMessage", json!({"id": id})).unwrap();
     let r = a.run("file.import", json!({"name": "in.eml", "data": eml["data"], "folder": inbox})).unwrap();
     let said = a.status_msg.as_ref().map(|(text, _)| text.clone()).unwrap_or_default();
-    assert_eq!(said, "Imported 1 message into a local folder: Microsoft doesn't let a mail program put received mail into your mailbox");
+    assert_eq!(said, "Imported 1 message into a local folder: move it into the account to put it on Microsoft's server");
     let imported = r["ids"][0].as_u64().unwrap();
     assert_ne!(a.session.mailbox.message(imported).unwrap().folder, inbox);
-    assert!(a.run("mail.move", json!({"ids": [imported], "folder": inbox})).is_err());
-    let said = a.status_msg.as_ref().map(|(text, _)| text.clone()).unwrap_or_default();
-    assert_eq!(said, "Microsoft doesn't let a mail program put received mail into your mailbox; it stays in a local folder.");
-    assert_ne!(a.session.mailbox.message(imported).unwrap().folder, inbox);
+    a.run("mail.move", json!({"ids": [imported], "folder": inbox})).unwrap();
+    assert_eq!(a.session.mailbox.message(imported).unwrap().folder, inbox);
+    let waits = |q: &mailcraft_model::Queued| matches!(q, mailcraft_model::Queued::PlaceMessage { message, .. } if *message == imported);
+    assert!(a.session.mailbox.queued.iter().any(waits));
 }
 
 /// A search says so over the list: how many it found and where; ✕ or Esc ends it (#115).

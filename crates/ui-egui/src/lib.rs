@@ -4152,10 +4152,11 @@ fn feedback(id: &str, v: &Value) -> Option<String> {
                 }
             }
             let what = parts.join(", ");
-            // Mail meant for a Microsoft account went to a local folder (R3 spec S30).
+            // Mail meant for a Microsoft account went to a local folder (R3 spec S30); moved into
+            // the account from there, it is put on the server (#451).
             if v.get("local").and_then(Value::as_bool) == Some(true) {
                 return Some(i18n::fmt(
-                    tl!("Imported {what} into a local folder: Microsoft doesn't let a mail program put received mail into your mailbox"),
+                    tl!("Imported {what} into a local folder: move it into the account to put it on Microsoft's server"),
                     &[("what", &what)],
                 ));
             }

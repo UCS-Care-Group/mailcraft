@@ -3144,7 +3144,7 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/lib.rs
-msgid "Imported {what} into a local folder: Microsoft doesn't let a mail program put received mail into your mailbox"
+msgid "Imported {what} into a local folder: move it into the account to put it on Microsoft's server"
 msgstr ""
 
 #. interface
@@ -3682,11 +3682,6 @@ msgstr ""
 msgid "Mail can't be imported into an Outbox: it would be sent. Choose another folder."
 msgstr ""
 
-#. what a command says
-#: crates/model/src/mailbox.rs
-msgid "Mail can't be moved or copied into a Microsoft account from another account or a local folder yet: this version can't put a message on Microsoft's server"
-msgstr ""
-
 #. interface
 #: crates/ui-egui/src/folder_properties.rs
 msgid "Mail folder"
@@ -4061,11 +4056,6 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "Microsoft application ID"
-msgstr ""
-
-#. what a command says
-#: crates/model/src/mailbox.rs
-msgid "Microsoft doesn't let a mail program put received mail into your mailbox; it stays in a local folder."
 msgstr ""
 
 #. name
