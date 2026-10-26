@@ -298,18 +298,17 @@ fn messages_download_whole_in_the_background_on_opening_and_before_a_reply() {
     let names: Vec<&str> = c.attachments.iter().map(|a| a.name.as_str()).collect();
     assert_eq!(names, ["Second of two.eml", "First of two.eml", "Late.eml"], "the list's order: newest first");
     assert!(c.attachments.iter().all(|eml| String::from_utf8_lossy(&eml.data).contains("The words of")), "each whole");
-    // A call that names its message by no id is read as the other mail commands read it: it is
-    // the selected one, which is fetched first.
+    // A call that names its message wrongly is refused at once, with another message selected:
+    // nothing is fetched for it, and the selected message is never taken for it (#487).
     app.execute("compose.close", json!({})).unwrap();
     let latest = server.state().mailbox.add(&inbox_there, "Latest", NOW + 180);
     synced(&mut app);
     let latest = by(&app, &latest);
     app.session.sel.messages = vec![latest];
-    let pending = app.run("mail.forwardAsAttachment", json!({"id": latest.to_string()})).unwrap();
-    assert_eq!(pending["pending"], "download");
-    wait(&mut app, &|app| app.session.compose.is_some());
-    assert_eq!(app.session.compose.as_ref().unwrap().source, Some(latest));
-    assert!(!app.session.mailbox.message(latest).unwrap().unfetched);
+    let e = app.run("mail.forwardAsAttachment", json!({"id": first.to_string()})).unwrap_err();
+    assert!(e.contains("`id` is a message id"), "{e}");
+    assert!(app.session.compose.is_none(), "a message id as text is refused");
+    assert!(app.session.mailbox.message(latest).unwrap().unfetched, "nothing waited for");
 
     // In the background: all the rest (a delta says no sizes, so none is held back as large).
     app.session.sync_progress.full_paused = false;

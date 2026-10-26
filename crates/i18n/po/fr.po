@@ -9009,6 +9009,12 @@ msgid "The folder isn't there."
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/graph_fetch.rs
+#, fuzzy
+msgid "The forward of several messages that was waiting was called off: another download took its place."
+msgstr "Le transfert de plusieurs messages en attente a été annulé : un autre téléchargement a pris sa place."
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "The incoming mail server isn't a host name (letters, digits, dots and dashes)"

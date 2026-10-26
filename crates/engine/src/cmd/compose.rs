@@ -65,7 +65,7 @@ pub fn specs() -> Vec<CommandSpec> {
 const SOURCE: &str =
     r#"{"id"?: number} (default: the selected message; a message being written with changes that aren't saved is saved to Drafts first)"#;
 
-const FORWARD: &str = r#"{"id"?: number} | {"ids"?: [number]} (default: the selected messages; a message being written with changes that aren't saved is saved to Drafts first). One message: Forward quotes it, Forward as Attachment attaches it whole as an .eml. Several, at most 200 and 64 MB together, are each attached whole as an .eml, in the message list's order, in a message from the account of the last one named (the one in focus), with no subject for the owner to write"#;
+const FORWARD: &str = r#"{"id"?: number} | {"ids"?: [number]}, "discard"?: bool (default: the selected messages; a message being written with changes that aren't saved is saved to Drafts first, unless discard). An id of another kind, both, or any other parameter is refused. One message: Forward quotes it, Forward as Attachment attaches it whole as an .eml. Several, at most 200 and 64 MB together, are each attached whole as an .eml, in the message list's order, in a message from the account of the last one named (the one in focus), with no subject for the owner to write"#;
 
 /// The commands that close the message being written or put another in its place (#442).
 pub const LEAVING: [&str; 7] =
@@ -373,12 +373,15 @@ fn forward_as_attachment(s: &mut Session, v: &Value) -> CmdResult {
     forward_attached(s, &ids, focus)
 }
 
-/// The messages a forward takes (#360), read as the other mail commands read them
-/// ([`targets`](super::targets)): each once, in the message list's order (those it doesn't
-/// show after them, as named), and the one in focus, the last named, as for a selection. How
-/// many it may be is [`forward_check`]'s to say.
+/// The messages a forward takes (#360): those `id` or `ids` names, else the selected ones, read
+/// strictly ([`targets_strict`](super::targets_strict)): a forward goes to other people, so what a
+/// caller named wrongly, or a parameter it doesn't take, is refused, never taken to mean the
+/// selection. Each once, in the message list's order (those it doesn't show after them, as
+/// named), and the one in focus, the last named, as for a selection. How many it may be is
+/// [`forward_check`]'s to say.
 pub fn forwarded(s: &mut Session, v: &Value) -> Result<(Vec<Id>, Id), CmdError> {
-    let mut ids = super::targets(s, v)?;
+    p::only(v, &["id", "ids", "discard"])?;
+    let mut ids = super::targets_strict(s, v)?;
     // Each once, where it was named last.
     let mut seen = std::collections::HashSet::new();
     ids.reverse();

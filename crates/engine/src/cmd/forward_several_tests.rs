@@ -149,24 +149,29 @@ fn named_messages_go_in_the_lists_order_from_the_last_ones_account() {
 }
 
 #[test]
-fn ids_are_read_as_the_other_mail_commands_read_them() {
+fn ids_named_wrongly_are_refused_whatever_is_selected() {
     let mut s = session();
     let [a, b, c] = three(&mut s);
     select(&mut s, &[a, c]);
     for command in ["mail.forward", "mail.forwardAsAttachment"] {
-        // What isn't an id among them is passed over: the others go.
-        s.run(command, &json!({"ids": [b, "7", 0, -1, 1.5, null, {"id": c}, a]})).unwrap();
-        let compose = s.compose.as_ref().unwrap();
-        assert_eq!((compose.source, compose.also.as_slice()), (Some(a), &[b][..]), "{command}");
+        // One entry that isn't an id refuses them all: the selected ones aren't taken instead.
+        for junk in [json!([b, "7", a]), json!([b, 0]), json!([b, -1]), json!([b, 1.5]), json!([b, null]), json!([b, {"id": c}]), json!([b, [a]])] {
+            let e = s.run(command, &json!({"ids": junk})).unwrap_err().to_string();
+            assert!(e.contains("`ids` is a list of"), "{command} {junk}: {e}");
+            assert!(s.compose.is_none(), "{command} {junk}");
+        }
+        // More than a command takes is refused before any is looked at.
+        let e = s.run(command, &json!({"ids": vec![b; 100_001]})).unwrap_err().to_string();
+        assert!(e.contains("`ids` is a list of"), "{command}: {e}");
         // One that is no message is refused, and nothing is written.
-        s.compose = None;
         let e = s.run(command, &json!({"ids": [a, 999_999, b]})).unwrap_err().to_string();
         assert!(e.contains("no message with id 999999"), "{command}: {e}");
         assert!(s.compose.is_none(), "{command}");
-        // Naming none of them is no message at all.
-        let e = s.run(command, &json!({"ids": ["7", 0]})).unwrap_err().to_string();
-        assert!(e.contains("select a message first"), "{command}: {e}");
-        assert!(s.compose.is_none(), "{command}");
+        // Named rightly, they go, whatever is selected.
+        s.run(command, &json!({"ids": [b, a]})).unwrap();
+        let compose = s.compose.as_ref().unwrap();
+        assert_eq!((compose.source, compose.also.as_slice()), (Some(a), &[b][..]), "{command}");
+        s.compose = None;
     }
 }
 

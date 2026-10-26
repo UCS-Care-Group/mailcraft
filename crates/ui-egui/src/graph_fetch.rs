@@ -224,6 +224,7 @@ impl MailApp {
         match &forward {
             Some((ids, focus)) => {
                 let named: Vec<Id> = ids.iter().copied().filter(|m| m != focus).chain([*focus]).collect();
+                then.remove("id");
                 then.insert("ids".into(), json!(named));
             }
             None if then.get("id").is_none_or(Value::is_null) => {
@@ -232,8 +233,17 @@ impl MailApp {
             None => {}
         }
         let tried = several.then(|| tried.unwrap_or_default());
+        // One command waits at a time: a forward of several still waiting is called off, and said
+        // to be, for its download can take a while (#360).
+        let called_off = self.fetching.then.as_ref().is_some_and(|(.., waiting)| waiting.is_some());
         self.fetching.then = Some((id.to_string(), Value::Object(then), self.session.openings(), tried));
-        self.status(if several { tl!("Downloading the messages first…") } else { tl!("Downloading the message first…") });
+        self.status(if called_off {
+            tl!("The forward of several messages that was waiting was called off: another download took its place.")
+        } else if several {
+            tl!("Downloading the messages first…")
+        } else {
+            tl!("Downloading the message first…")
+        });
         Some(Ok(json!({"pending": "download", "message": first})))
     }
 

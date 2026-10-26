@@ -114,7 +114,8 @@ fn reply(app: &mut MailApp, jobs: &Jobs, says: &dyn Fn(&str) -> Reply) {
         if result.fetched.len() + result.missing.len() + result.failed.len() < job.request.ids.len() {
             result.busy_for = Some(30);
         }
-        tx.send(result).unwrap();
+        // (A job the window let go of has nobody to answer.)
+        let _ = tx.send(result);
     }
     app.drive_fetch();
 }
@@ -371,4 +372,19 @@ fn those_deleted_meanwhile_are_said_to_be_gone() {
     reply(&mut app, &jobs, &|_| Reply::None);
     assert!(asked(&jobs).is_empty() && app.session.compose.is_none());
     assert!(said(&app).contains(&format!("no message with id {a}")), "{}", said(&app));
+}
+
+#[test]
+fn a_forward_called_off_by_another_download_is_said_to_be() {
+    let (mut app, [[a, b, c], [x, ..]], jobs) = window();
+    app.session.sel.messages = vec![a, b, c];
+    app.run("mail.forwardAsAttachment", json!({})).unwrap();
+    // A reply to a message of which only the headers are here, before the forward's have come.
+    assert_eq!(app.run("mail.reply", json!({"id": x})).unwrap()["pending"], "download");
+    assert!(said(&app).contains("The forward of several messages that was waiting was called off"), "{}", said(&app));
+    // What comes is for the reply, which opens; the forward doesn't.
+    answer(&mut app, &jobs, &[], &[]);
+    let compose = app.session.compose.as_ref().unwrap();
+    assert_eq!((compose.source, compose.as_attachment), (Some(x), false));
+    assert!(asked(&jobs).is_empty());
 }

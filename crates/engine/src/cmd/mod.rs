@@ -154,7 +154,18 @@ pub(crate) fn needs_compose(s: &Session) -> Option<&'static str> {
 
 /// The messages a command acts on: `ids` / `id` when given, else the selection.
 pub(crate) fn targets(s: &Session, v: &Value) -> Result<Vec<Id>, CmdError> {
-    let ids = match p::ids(v) {
+    named_or_selected(s, p::ids(v))
+}
+
+/// As [`targets`], but `ids` / `id` read strictly ([`p::ids_strict`]): for a command whose mistake
+/// reaches other people, which never takes the selection for what a caller named wrongly.
+pub(crate) fn targets_strict(s: &Session, v: &Value) -> Result<Vec<Id>, CmdError> {
+    named_or_selected(s, p::ids_strict(v)?)
+}
+
+/// The messages `named`, else the selected ones; each must be here.
+fn named_or_selected(s: &Session, named: Option<Vec<Id>>) -> Result<Vec<Id>, CmdError> {
+    let ids = match named {
         Some(ids) => ids,
         None => s.sel.messages.clone(),
     };
