@@ -137,6 +137,14 @@ const MICROSOFT_GRAPH_SHARED_SEND: &str = "https://graph.microsoft.com/Mail.Send
 /// sign-in: an account without a shared mailbox's calendar shown is never asked for it. It is on
 /// the administrator's list too, so that one approval covers it.
 const MICROSOFT_GRAPH_SHARED_CALENDARS: &str = "https://graph.microsoft.com/Calendars.ReadWrite.Shared";
+/// What keeping the owner's to-dos in step with Microsoft To Do takes (#248): reading and
+/// changing the lists and tasks of the signed-in owner. Put to the owner on the page of a new
+/// sign-in beside the rest ([`Endpoints::consent`]; a page that won't have it is asked again
+/// without), and on the administrator's list. It is **not** part of [`MICROSOFT_GRAPH`]: a sign-in
+/// from before it was asked for would get no token at all for calendar and contacts. A job for
+/// the to-dos asks for it by itself ([`refresh_graph_tasks`]); a sign-in that doesn't cover it
+/// gets [`NetError::ConsentNeeded`], and the window asks the owner ([`sign_in_for_tasks`]).
+const MICROSOFT_GRAPH_TASKS: &str = "https://graph.microsoft.com/Tasks.ReadWrite";
 /// Whether the page of an ordinary sign-in also puts the Favorites' permissions to the owner,
 /// so that one page settles everything. **Off**: Microsoft's permissions reference lists
 /// `MailboxConfigItem.Read` as one that takes an administrator's consent in an organisation
@@ -414,7 +422,8 @@ pub enum FavoritesRefusal {
 /// too. That is what a sign-in's page asks for (IMAP, SMTP, a refresh token and who signs in;
 /// Microsoft Graph's sending, calendar, contacts, mailbox settings and, for an account kept in step
 /// through Graph, its mail), what reading the Favorites of Outlook through Graph takes, and what
-/// reading a shared mailbox and sending from one take, and what reading its calendars takes.
+/// reading a shared mailbox and sending from one take, what reading its calendars takes, and what
+/// keeping the to-dos in step with Microsoft To Do takes.
 ///
 /// A sign-in asks for no more than is here: a page that asked for one permission an
 /// administrator had not approved would send the owner to find one again.
@@ -429,6 +438,7 @@ fn admin_scope() -> String {
         MICROSOFT_GRAPH_SHARED,
         MICROSOFT_GRAPH_SHARED_SEND,
         MICROSOFT_GRAPH_SHARED_CALENDARS,
+        MICROSOFT_GRAPH_TASKS,
         SIGN_IN_SCOPE,
     ]);
     all.collect::<Vec<_>>().join(" ")
@@ -754,6 +764,38 @@ pub fn refresh_graph_opened_calendars(oauth: &OAuth, refresh_token: &str) -> Res
 /// [`refresh_graph_opened_calendars`] at endpoints other than the provider's usual ones.
 pub fn refresh_graph_opened_calendars_at(endpoints: &Endpoints, oauth: &OAuth, refresh_token: &str) -> Result<GraphTokens, NetError> {
     let endpoints = Endpoints { scope: opened_calendars_scope(), ..endpoints.clone() };
+    let tokens = refresh_for_at(&endpoints, oauth, refresh_token, Resource::Graph)?;
+    Ok(GraphTokens { tokens, extras_missing: true, covers_favorites: false })
+}
+
+/// What the tokens of a to-do job are asked for (#248): what Graph is asked for, and the lists
+/// and tasks of the owner on top.
+fn tasks_scope() -> String {
+    format!("{MICROSOFT_GRAPH} {MICROSOFT_GRAPH_TASKS} {SIGN_IN_SCOPE}")
+}
+
+/// Ask the owner, on the provider's page, to let this program read and change the to-dos of the
+/// signed-in owner (`Tasks.ReadWrite`). Only when a to-do job found the sign-in doesn't cover
+/// it, after the window has asked him, and never with an ordinary sign-in of an account that
+/// was made before it was asked for. A no says whose it is ([`FavoritesRefusal`]); nothing is
+/// tried a second time.
+pub fn sign_in_for_tasks(oauth: &OAuth, login_hint: &str, open: &dyn Fn(&str), cancel: &AtomicBool) -> Result<Tokens, FavoritesRefusal> {
+    let plain = Endpoints::for_resource(oauth, Resource::Graph);
+    let endpoints = Endpoints { scope: tasks_scope(), consent: String::new(), lesser: String::new(), ..plain };
+    sign_in_for_favorites_within(&endpoints, oauth, login_hint, open, cancel, SIGN_IN_TIMEOUT)
+}
+
+/// [`refresh_graph`] for a to-do job (#248): the tokens are asked for with `Tasks.ReadWrite`,
+/// and for nothing less. A sign-in that doesn't cover it gets [`NetError::ConsentNeeded`]: the
+/// to-dos are neither read nor sent, everything else goes on, and the window asks the owner
+/// ([`sign_in_for_tasks`]).
+pub fn refresh_graph_tasks(oauth: &OAuth, refresh_token: &str) -> Result<GraphTokens, NetError> {
+    refresh_graph_tasks_at(&Endpoints::for_resource(oauth, Resource::Graph), oauth, refresh_token)
+}
+
+/// [`refresh_graph_tasks`] at endpoints other than the provider's usual ones.
+pub fn refresh_graph_tasks_at(endpoints: &Endpoints, oauth: &OAuth, refresh_token: &str) -> Result<GraphTokens, NetError> {
+    let endpoints = Endpoints { scope: tasks_scope(), ..endpoints.clone() };
     let tokens = refresh_for_at(&endpoints, oauth, refresh_token, Resource::Graph)?;
     Ok(GraphTokens { tokens, extras_missing: true, covers_favorites: false })
 }

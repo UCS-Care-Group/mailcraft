@@ -75,7 +75,9 @@ fn new(s: &mut Session, v: &Value) -> CmdResult {
     }
     let id = s.mailbox.add_task(t);
     s.sel.task = Some(id);
-    Ok(json!({"id": id}))
+    // Where it lives: with the account's To Do once the owner has said so, else here only.
+    let kept_at = super::tasks_remote::tasks_kept_at(&s.mailbox);
+    Ok(json!({"id": id, "keptAt": kept_at.as_deref().unwrap_or("this computer")}))
 }
 
 fn edit(s: &mut Session, v: &Value) -> CmdResult {
@@ -85,12 +87,19 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
     if t.title.is_empty() {
         return Err(fail("a task needs a title"));
     }
+    // Changed again: a change the server refused is tried again.
+    t.local_only = false;
     *s.mailbox.task_mut(id)? = t;
     Ok(json!({"id": id}))
 }
 
 fn delete(s: &mut Session, v: &Value) -> CmdResult {
     let id = target(s, v)?;
+    if s.mailbox.task(id).is_some_and(|t| t.origin.is_remote() && !t.origin.id.is_empty())
+        && s.mailbox.task_gone.len() >= mailcraft_model::MAX_TASK_GONE
+    {
+        return Err(fail("too many deletions are waiting to be sent to Microsoft To Do; wait for them to go first"));
+    }
     let order = sorted(s, s.view.task_filter);
     let at = order.iter().position(|x| *x == id);
     s.mailbox.remove_task(id)?;
@@ -104,6 +113,7 @@ fn complete(s: &mut Session, v: &Value) -> CmdResult {
     let id = target(s, v)?;
     let now = s.now();
     let t = s.mailbox.task_mut(id)?;
+    t.local_only = false;
     let done = p::bool(v, "value").unwrap_or(!t.is_complete());
     t.completed = if done { Some(t.completed.unwrap_or(now)) } else { None };
     let message = t.message;

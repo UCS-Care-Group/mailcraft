@@ -560,6 +560,7 @@ mod tests {
             reminder: Some(at(2026, 10, 15, 16, 0).to_timestamp(0)),
             message: Some(77),
             uid: "task-1@example.org".into(),
+            ..Default::default()
         };
         assert_eq!(
             task_lines(&done).get(3..19).unwrap(),

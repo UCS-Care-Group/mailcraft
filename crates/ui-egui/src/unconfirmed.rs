@@ -42,6 +42,7 @@ pub(crate) struct Held {
     graph: Option<Box<dyn Fn(GraphRequest) -> Receiver<GraphResult>>>,
     graph_fetch: Option<Box<dyn Fn(crate::graph_fetch::GraphFetchJob) -> Receiver<mailcraft_model::sync::GraphFetchResult>>>,
     graph_search: Option<Box<dyn Fn(crate::server_search::GraphSearchJob) -> Receiver<mailcraft_model::sync::GraphSearchResult>>>,
+    graph_tasks: Option<Box<dyn Fn(crate::task_sync::TasksJob) -> Receiver<crate::task_sync::TasksResult>>>,
     jmap: Option<Box<dyn Fn(crate::jmap_mail::JmapJob) -> Receiver<mailcraft_model::sync::JmapMailResult>>>,
     jmap_fetch: Option<Box<dyn Fn(crate::jmap_mail::JmapFetchJob) -> Receiver<mailcraft_model::sync::GraphFetchResult>>>,
 }
@@ -133,6 +134,7 @@ impl MailApp {
             graph: s.graph.take(),
             graph_fetch: s.graph_fetch.take(),
             graph_search: s.graph_search.take(),
+            graph_tasks: s.graph_tasks.take(),
             jmap: s.jmap.take(),
             jmap_fetch: s.jmap_fetch.take(),
         };
@@ -146,6 +148,7 @@ impl MailApp {
         s.graph = held.graph.or(s.graph.take());
         s.graph_fetch = held.graph_fetch.or(s.graph_fetch.take());
         s.graph_search = held.graph_search.or(s.graph_search.take());
+        s.graph_tasks = held.graph_tasks.or(s.graph_tasks.take());
         s.jmap = held.jmap.or(s.jmap.take());
         s.jmap_fetch = held.jmap_fetch.or(s.jmap_fetch.take());
     }

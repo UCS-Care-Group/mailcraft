@@ -231,6 +231,31 @@ fn info(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
             });
             ui.add_space(4.0);
         }
+        // Where keeping the tasks in step with Microsoft To Do stands, with a way to ask again (#248).
+        if let Some((line, again)) = app.tasks_line(a.id) {
+            ui.horizontal(|ui| {
+                ui.add_space(36.0);
+                ui.label(egui::RichText::new(line).font(regular(11.5)).color(t.text_dim));
+                let tip = tl!(
+                    "Ask for permission to read and change your To Do lists and tasks: Microsoft's page opens in your browser. Without it, tasks stay on this computer."
+                );
+                if again && ui.link(tl!("Ask again")).on_hover_text(tip).clicked() {
+                    app.ask_tasks_again(a.id);
+                }
+            });
+            if let Some((line, _)) = app.local_tasks_line().filter(|_| app.tasks_working_first() == Some(a.id)) {
+                ui.horizontal(|ui| {
+                    ui.add_space(36.0);
+                    ui.label(egui::RichText::new(line).font(regular(11.5)).color(t.text_dim));
+                    let tip = tl!("Choose whether these tasks are sent to a Microsoft account's To Do. Nothing is sent unless you say so.");
+                    if ui.link(tl!("Send to To Do…")).on_hover_text(tip).clicked() {
+                        app.ui.backstage = false;
+                        app.offer_local_tasks();
+                    }
+                });
+            }
+            ui.add_space(4.0);
+        }
         // Which messages are kept whole on this computer (R3.2); a shared mailbox keeps as much
         // as its owner's account (#70).
         if a.kind == AccountKind::Microsoft && !a.is_shared() {

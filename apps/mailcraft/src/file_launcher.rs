@@ -9,7 +9,9 @@
 //!   association, with the file's zone honoured). No `cmd.exe`, so no `start` and no quoting
 //!   rules of a command line; the path is one argument that Rust quotes for the program.
 //! - **macOS:** `open -- <path>` (Launch Services); `--` ends the options.
-//! - **Linux, FreeBSD and the like:** `xdg-open <path>` (the desktop's opener).
+//! - **Linux, FreeBSD and the like:** `xdg-open <path>` (the desktop's opener), or where it isn't
+//!   installed (it comes with `xdg-utils`), the first of `gio open`, `kde-open` and `gnome-open`
+//!   that is (#445).
 //!
 //! The path must be absolute, so it can never be read as an option (a Unix path starts with `/`,
 //! a Windows one with a drive letter and `:\` or with `\\`), and nothing in it is looked at by a
@@ -56,30 +58,47 @@ fn absolute_for(opener: Opener, path: &Path) -> bool {
     }
 }
 
-/// The command that opens `path` with `opener`, or `None` for a path that is not absolute.
-pub(crate) fn command_for(opener: Opener, path: &Path) -> Option<Command> {
+/// The commands that open `path` with `opener`, in the order they are tried; none for a path that
+/// is not absolute.
+pub(crate) fn commands_for(opener: Opener, path: &Path) -> Vec<Command> {
     if !absolute_for(opener, path) {
-        return None;
+        return Vec::new();
     }
-    let mut command = match opener {
-        Opener::Explorer => Command::new("explorer.exe"),
-        Opener::MacOpen => {
-            let mut c = Command::new("open");
-            c.arg("--");
-            c
-        }
-        Opener::XdgOpen => Command::new("xdg-open"),
+    let programs: Vec<(&str, Option<&str>)> = match opener {
+        Opener::Explorer => vec![("explorer.exe", None)],
+        Opener::MacOpen => vec![("open", Some("--"))],
+        Opener::XdgOpen => vec![("xdg-open", None), ("gio", Some("open")), ("kde-open", None), ("gnome-open", None)],
     };
-    command.arg(OsStr::new(path.as_os_str()));
-    command.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
-    Some(command)
+    programs
+        .into_iter()
+        .map(|(program, first)| {
+            let mut command = Command::new(program);
+            if let Some(first) = first {
+                command.arg(first);
+            }
+            command.arg(OsStr::new(path.as_os_str()));
+            command.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
+            command
+        })
+        .collect()
+}
+
+/// Start the first of `commands` whose program is there: one that isn't found gives way to the
+/// next, and any other failure is the answer.
+fn first_started<T>(commands: Vec<Command>, mut spawn: impl FnMut(&mut Command) -> std::io::Result<T>) -> std::io::Result<T> {
+    let mut last = std::io::Error::new(std::io::ErrorKind::InvalidInput, "not an absolute path");
+    for mut command in commands {
+        match spawn(&mut command) {
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => last = e,
+            started => return started,
+        }
+    }
+    Err(last)
 }
 
 /// Open `path` with the system's program and leave it running on its own.
 pub(crate) fn open_detached(path: &Path) -> std::io::Result<()> {
-    let mut command =
-        command_for(Opener::this_platform(), path).ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidInput, "not an absolute path"))?;
-    let mut child = command.spawn()?;
+    let mut child = first_started(commands_for(Opener::this_platform(), path), Command::spawn)?;
     // Reaped when it is done, so that no process is left behind it.
     let _ = std::thread::Builder::new().name("opener".into()).spawn(move || child.wait());
     Ok(())
