@@ -167,6 +167,9 @@ fn over_a_limit_is_refused_before_anything_is_fetched() {
         m.server.as_mut().unwrap().size = 40 << 20;
     }
     app.session.sel.messages = vec![a, b, c];
+    // The engine's refusal is kept, for the window to say in the interface language.
+    let e = app.fetch_first("mail.forwardAsAttachment", &json!({})).unwrap().unwrap_err();
+    assert_eq!(app.last_error.take().map(|said| said.to_string()), Some(e));
     app.by_hand = true;
     let e = app.run("mail.forwardAsAttachment", json!({})).unwrap_err();
     assert!(e.contains("larger than 64 MB together"), "{e}");
