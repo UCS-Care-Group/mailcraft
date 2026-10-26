@@ -530,6 +530,34 @@ fn a_command_that_fails_leaves_the_list_as_it_was() {
     assert_eq!(ids(&mut s), listed);
 }
 
+#[test]
+fn a_message_being_written_saved_first_leaves_the_list_as_it_was() {
+    let (mut s, listed) = unread_tab();
+    run(&mut s, "mail.select", json!({"id": listed[1]}));
+    let write = |s: &mut Session| {
+        run(s, "mail.new", json!({}));
+        run(s, "compose.set", json!({"to": "ada@example.org", "subject": "Half", "body": "Half a thought"}));
+    };
+    let drafts = |s: &Session| s.mailbox.messages.values().filter(|m| m.draft && m.subject == "Half").count();
+    // Each of these saves the message being written to Drafts first (#442), a change to the
+    // mailbox of its own, so the list is built again: the opened message is still in it.
+    for (command, params) in [("mail.new", json!({})), ("compose.close", json!({})), ("mail.reply", json!({}))] {
+        write(&mut s);
+        let before = drafts(&s);
+        run(&mut s, command, params);
+        assert_eq!(drafts(&s), before + 1, "{command}: saved to Drafts first");
+        assert_eq!(s.sel.focus(), Some(listed[1]), "{command}");
+        assert_eq!(ids(&mut s), listed, "{command}");
+    }
+    // Also when the command then fails: the draft stays saved, and the list as it was.
+    write(&mut s);
+    let before = drafts(&s);
+    assert!(s.run("mail.reply", &json!({"id": 999_999})).is_err());
+    assert_eq!(drafts(&s), before + 1);
+    assert_eq!(s.sel.focus(), Some(listed[1]));
+    assert_eq!(ids(&mut s), listed);
+}
+
 // Guards: what isn't kept.
 
 #[test]
