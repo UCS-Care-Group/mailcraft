@@ -134,6 +134,53 @@ pub fn open_path(path: &std::path::Path) -> Result<Mailbox, String> {
 
 /// A host's way of keeping a mailbox file up to date without whoever changed the mailbox waiting
 /// for the disk: the desktop app hands each state to a background thread (`store::Saver`).
+/// How far opening a mailbox has got, shared between the thread that reads it and the window that
+/// shows it (#519): the bytes of the file read, of how many, and whether the window gave up
+/// waiting, which stops the reading at its next read.
+#[derive(Debug, Default)]
+pub struct OpenProgress {
+    read: std::sync::atomic::AtomicU64,
+    total: std::sync::atomic::AtomicU64,
+    cancelled: std::sync::atomic::AtomicBool,
+}
+
+impl OpenProgress {
+    const ORDER: std::sync::atomic::Ordering = std::sync::atomic::Ordering::Relaxed;
+
+    /// Bytes read so far.
+    pub fn read(&self) -> u64 {
+        self.read.load(Self::ORDER)
+    }
+
+    /// Bytes there are to read (0: not known, or not known yet).
+    pub fn total(&self) -> u64 {
+        self.total.load(Self::ORDER)
+    }
+
+    pub fn set_total(&self, total: u64) {
+        self.total.store(total, Self::ORDER);
+    }
+
+    pub fn add_read(&self, n: u64) {
+        let _ = self.read.fetch_update(Self::ORDER, Self::ORDER, |r| Some(r.saturating_add(n)));
+    }
+
+    /// Every byte is read: what is left is making a mailbox of them.
+    pub fn reading_done(&self) -> bool {
+        let total = self.total();
+        total > 0 && self.read() >= total
+    }
+
+    /// Stop reading: the reading ends with an error at its next read.
+    pub fn cancel(&self) {
+        self.cancelled.store(true, Self::ORDER);
+    }
+
+    pub fn cancelled(&self) -> bool {
+        self.cancelled.load(Self::ORDER)
+    }
+}
+
 pub trait BackgroundSave {
     /// The mailbox file at `path` is kept up to date through [`BackgroundSave::submit`] from now
     /// on. Whatever replaces the mailbox in its session (File › Open, File › New) writes the last

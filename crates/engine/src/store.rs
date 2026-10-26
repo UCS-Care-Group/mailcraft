@@ -73,7 +73,7 @@ use std::time::{Duration, Instant, SystemTime};
 use mailcraft_model::{Contact, ContentRef, Event, Id, KeptBody, Mailbox, Message, Task};
 use serde::{Deserialize, Serialize};
 
-use crate::io::{BackgroundSave, ContentSource, MAX_FILE, SaveProgress, SaveReport, SaveStage};
+use crate::io::{BackgroundSave, ContentSource, MAX_FILE, OpenProgress, SaveProgress, SaveReport, SaveStage};
 
 #[path = "store_index.rs"]
 mod index;
@@ -621,6 +621,8 @@ struct State {
     /// Content the mailbox file named at some time while this program ran. A message that names
     /// it again is this mailbox's, not one carried over from another ([`on_disk_here`]).
     named_before: HashSet<Digest>,
+    /// The file as [`open_ahead`] read it, for the next [`open`] of it to take.
+    ahead: Option<Box<Opened>>,
 }
 
 /// Messages the mailbox file no longer says as they are in memory, held by nothing but a weak
@@ -1206,8 +1208,14 @@ fn is_index(file: &Path) -> Result<bool, String> {
 /// folder hold, the result is consistent (`Mailbox::repair`). Each open logs one line of how long
 /// it took and how much it read ([`open_line`]).
 pub fn open(path: &Path) -> Result<Opened, String> {
+    open_with(path, &OpenProgress::default())
+}
+
+/// [`open`], counting the bytes read in `progress` (the file's length is its total), and stopping
+/// with an error once `progress` is cancelled.
+pub fn open_with(path: &Path, progress: &OpenProgress) -> Result<Opened, String> {
     let started = Instant::now();
-    let opened = open_file(path)?;
+    let opened = open_file(path, progress)?;
     log::info!("{}", open_line(started.elapsed(), opened.bytes, &opened.mailbox, opened.repaired));
     Ok(opened)
 }
@@ -1226,24 +1234,81 @@ fn open_line(took: Duration, bytes: u64, mailbox: &Mailbox, repaired: usize) -> 
     )
 }
 
-/// [`open`], without the line in the log.
-fn open_file(path: &Path) -> Result<Opened, String> {
+/// Read the mailbox file at `path` ahead of its being opened (File › Open in the window, #519):
+/// the next [`open`] of the same file takes what was read, unless the file has changed since. A
+/// cancelled `progress` keeps nothing; nor does [`forget_ahead`].
+pub fn open_ahead(path: &Path, progress: &OpenProgress) -> Result<(), String> {
+    let opened = open_with(path, progress)?;
+    let shared = shared(path);
+    let mut st = lock(&shared.state);
+    // (Under the lock that `forget_ahead` takes after cancelling: one or the other drops it.)
+    if progress.cancelled() {
+        return Err(CANCELLED.into());
+    }
+    st.ahead = Some(Box::new(opened));
+    Ok(())
+}
+
+/// Let go of what [`open_ahead`] read of the file at `path`, if it is still kept.
+pub fn forget_ahead(path: &Path) {
+    let shared = shared(path);
+    let ahead = lock(&shared.state).ahead.take();
+    drop(ahead);
+}
+
+/// Why an open stopped when it was cancelled.
+const CANCELLED: &str = "opening the mailbox was cancelled";
+
+/// A reader that counts what it reads in an [`OpenProgress`], and stops once it is cancelled.
+struct Counted<'a, R> {
+    inner: R,
+    progress: &'a OpenProgress,
+}
+
+impl<R: std::io::Read> std::io::Read for Counted<'_, R> {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        if self.progress.cancelled() {
+            return Err(std::io::Error::other(CANCELLED));
+        }
+        let n = self.inner.read(buf)?;
+        self.progress.add_read(n as u64);
+        Ok(n)
+    }
+}
+
+/// [`open_with`], without the line in the log.
+fn open_file(path: &Path, progress: &OpenProgress) -> Result<Opened, String> {
     let shared = shared(path);
     let mut st = lock(&shared.state);
     let show = path.display();
     let file = resolve(path);
     let len = fs::metadata(&file).map_err(|e| format!("{show}: {e}"))?.len();
+    // Read ahead, and the file is still what was read: that is the mailbox.
+    if let Some(ahead) = st.ahead.take()
+        && st.stamp.as_ref().is_some_and(|stamp| stamp.still(&file))
+    {
+        progress.set_total(len);
+        progress.add_read(len);
+        return Ok(*ahead);
+    }
+    progress.set_total(len);
     // Whatever was known about this file was about another state of it.
     // (Except what is still in memory from before, which an Undo step may bring back.)
     let (pins, named_before) = (std::mem::take(&mut st.pins), std::mem::take(&mut st.named_before));
     *st = State { newest: st.newest, swept: st.swept, pins, named_before, ..State::default() };
     if is_index(&file).map_err(|e| format!("{show}: {e}"))? {
-        return open_index(&mut st, &file, len).map_err(|e| format!("{show}: {e}"));
+        let opened = open_index(&mut st, &file, len, progress).map_err(|e| format!("{show}: {e}"))?;
+        if progress.cancelled() {
+            return Err(CANCELLED.into());
+        }
+        return Ok(opened);
     }
     if len > MAX_FILE {
         return Err(format!("{show} is larger than {} MB", MAX_FILE >> 20));
     }
-    let bytes = fs::read(&file).map_err(|e| format!("{show}: {e}"))?;
+    let mut bytes = Vec::with_capacity(usize::try_from(len).unwrap_or(0));
+    let f = fs::File::open(&file).map_err(|e| format!("{show}: {e}"))?;
+    Counted { inner: f, progress }.read_to_end(&mut bytes).map_err(|e| format!("{show}: {e}"))?;
     let mut mailbox: Mailbox =
         mailcraft_model::from_json(&bytes, max_json_items()).map_err(|e| format!("{show}: this isn't a MailCraft mailbox ({e})"))?;
     let version = mailbox.version;
@@ -1307,12 +1372,12 @@ fn parse_item(key: &Key, item: &index::Item) -> Result<(Parsed, Fp), String> {
 }
 
 /// Open a mailbox file in this form, `len` bytes long.
-fn open_index(st: &mut State, file: &Path, len: u64) -> Result<Opened, String> {
+fn open_index(st: &mut State, file: &Path, len: u64, progress: &OpenProgress) -> Result<Opened, String> {
     if len > MAX_INDEX {
         return Err(format!("the mailbox file is larger than {} GB", MAX_INDEX >> 30));
     }
     let f = fs::File::open(file).map_err(|e| e.to_string())?;
-    let mut summed = Summed::new(std::io::BufReader::with_capacity(1 << 20, f));
+    let mut summed = Summed::new(std::io::BufReader::with_capacity(1 << 20, Counted { inner: f, progress }));
     let replayed = index::replay(&mut summed, len)?;
     // What its bytes are, when all of them were read.
     let sum = (summed.len == len).then_some(summed.sum);

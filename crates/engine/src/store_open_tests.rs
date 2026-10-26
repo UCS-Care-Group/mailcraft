@@ -76,3 +76,77 @@ fn an_open_says_how_big_the_file_was_and_that_nothing_was_repaired() {
     assert_eq!(opened.repaired, 0);
     assert_eq!(opened.mailbox.messages.len(), 5);
 }
+
+#[test]
+fn opening_counts_the_bytes_it_reads_of_the_file() {
+    let tmp = Temp::new("count");
+    let path = tmp.file();
+    save(&path, &mailbox(40)).unwrap();
+    let len = fs::metadata(&path).unwrap().len();
+    let progress = OpenProgress::default();
+    let opened = open_with(&path, &progress).unwrap();
+    assert_eq!(opened.mailbox.messages.len(), 40);
+    assert_eq!((progress.read(), progress.total()), (len, len));
+    assert!(progress.reading_done());
+}
+
+#[test]
+fn an_old_single_file_counts_its_bytes_too() {
+    let tmp = Temp::new("single");
+    let path = tmp.file();
+    save_single(&path, &mailbox(3)).unwrap();
+    let len = fs::metadata(&path).unwrap().len();
+    let progress = OpenProgress::default();
+    assert_eq!(open_with(&path, &progress).unwrap().mailbox.messages.len(), 3);
+    assert_eq!((progress.read(), progress.total()), (len, len));
+}
+
+#[test]
+fn a_cancelled_open_stops_with_an_error() {
+    let tmp = Temp::new("cancel");
+    let path = tmp.file();
+    save(&path, &mailbox(3)).unwrap();
+    let progress = OpenProgress::default();
+    progress.cancel();
+    let e = open_with(&path, &progress).unwrap_err();
+    assert!(e.contains("cancelled"), "{e}");
+}
+
+#[test]
+fn what_was_read_ahead_is_taken_by_the_next_open_of_the_file_once() {
+    let tmp = Temp::new("ahead");
+    let path = tmp.file();
+    save(&path, &mailbox(4)).unwrap();
+    open_ahead(&path, &OpenProgress::default()).unwrap();
+    // Nothing is read again, so not even a cancelled reader is asked.
+    let cancelled = OpenProgress::default();
+    cancelled.cancel();
+    assert_eq!(open_with(&path, &cancelled).unwrap().mailbox.messages.len(), 4);
+    // Taken once: the next open reads the file.
+    assert!(open_with(&path, &cancelled).is_err());
+    assert_eq!(open(&path).unwrap().mailbox.messages.len(), 4);
+}
+
+#[test]
+fn a_file_changed_since_it_was_read_ahead_is_read_again() {
+    let tmp = Temp::new("ahead-changed");
+    let path = tmp.file();
+    save(&path, &mailbox(4)).unwrap();
+    open_ahead(&path, &OpenProgress::default()).unwrap();
+    save_single(&path, &mailbox(9)).unwrap();
+    assert_eq!(open(&path).unwrap().mailbox.messages.len(), 9);
+}
+
+#[test]
+fn a_read_ahead_cancelled_or_forgotten_keeps_nothing() {
+    let tmp = Temp::new("ahead-gone");
+    let path = tmp.file();
+    save(&path, &mailbox(2)).unwrap();
+    let cancelled = OpenProgress::default();
+    cancelled.cancel();
+    open_ahead(&path, &OpenProgress::default()).unwrap();
+    forget_ahead(&path);
+    assert!(open_with(&path, &cancelled).is_err(), "forgotten: it is read again");
+    assert!(open_ahead(&path, &cancelled).is_err());
+    assert!(open_with(&path, &cancelled).is_err(), "cancelled: nothing was kept");
+}
