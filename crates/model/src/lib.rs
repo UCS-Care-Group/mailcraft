@@ -9,7 +9,9 @@
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
 mod address;
+pub mod auth_results;
 mod calendar;
+pub mod confusables;
 mod contact;
 mod jmap_server;
 mod load_limit;
@@ -23,6 +25,7 @@ pub mod remote_tasks;
 pub mod rich;
 mod rule;
 pub mod search;
+pub mod sender_warnings;
 pub mod signature;
 pub mod sync;
 mod task;
@@ -136,6 +139,8 @@ mod search_quotes_tests;
 mod search_suggest_tests;
 #[cfg(test)]
 mod search_tests;
+#[cfg(test)]
+mod sender_warnings_tests;
 
 #[cfg(test)]
 mod tests {
