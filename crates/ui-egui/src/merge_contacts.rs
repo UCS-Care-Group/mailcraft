@@ -26,7 +26,7 @@ const SHOWN: usize = 70;
 
 /// What the choices come to, worked out again only when one of them or the mailbox changes.
 struct Worked {
-    key: (usize, Id, BTreeMap<String, Pick>, BTreeSet<Id>, u64),
+    key: (usize, usize, Id, BTreeMap<String, Pick>, BTreeSet<Id>, u64),
     differ: Vec<(&'static str, Vec<(Id, String)>)>,
     /// The kept contact as the merge would leave it, or why the merge would be refused.
     preview: Result<Contact, String>,
@@ -127,6 +127,30 @@ impl MergeContacts {
         self.error.clear();
     }
 
+    /// Leave out of the group shown the contacts that have gone since it was found (a Send/Receive,
+    /// an undo): they are no longer listed, ticked, kept or chosen from.
+    fn prune(&mut self, app: &MailApp) {
+        let mailbox = &app.session.mailbox;
+        let Some(group) = self.groups.get_mut(self.at) else { return };
+        if group.ids.iter().all(|id| mailbox.contact(*id).is_some()) {
+            return;
+        }
+        group.ids.retain(|id| mailbox.contact(*id).is_some());
+        group.locked.retain(|(id, _)| mailbox.contact(*id).is_some());
+        if mailbox.contact(self.keep).is_none() {
+            self.keep = group.free().first().copied().unwrap_or(0);
+            self.left_out.remove(&self.keep);
+        }
+        self.left_out.retain(|id| mailbox.contact(*id).is_some());
+        self.picks.retain(|_, p| !matches!(p, Pick::From(id) if mailbox.contact(*id).is_none()));
+    }
+
+    /// Untick `id` (it is not the same person): it is merged no more, nor any field taken from it.
+    fn leave_out(&mut self, id: Id) {
+        self.left_out.insert(id);
+        self.picks.retain(|_, p| *p != Pick::From(id));
+    }
+
     /// The contacts of the group that are merged: those that can change and are ticked, the kept
     /// one always.
     fn ticked(&self) -> Vec<Id> {
@@ -144,7 +168,8 @@ impl MergeContacts {
     /// What differs and what the merge would come to: the last frame's, unless a choice or the
     /// mailbox changed since.
     fn work(&mut self, app: &MailApp) -> Worked {
-        let key = (self.at, self.keep, self.picks.clone(), self.left_out.clone(), app.session.rev());
+        let listed = self.groups.get(self.at).map_or(0, |g| g.ids.len());
+        let key = (self.at, listed, self.keep, self.picks.clone(), self.left_out.clone(), app.session.rev());
         match self.worked.take() {
             Some(w) if w.key == key => w,
             _ => {
@@ -198,6 +223,7 @@ impl MergeContacts {
 
     fn contents(&mut self, app: &mut MailApp, ui: &mut Ui, enter: bool) -> bool {
         let t = Tokens::get(ui.ctx());
+        self.prune(app);
         let Some(group) = self.groups.get(self.at).cloned() else {
             // Nothing (left) to merge.
             let text = if !self.note.is_empty() {
@@ -240,7 +266,7 @@ impl MergeContacts {
                         if on {
                             self.left_out.remove(id);
                         } else {
-                            self.left_out.insert(*id);
+                            self.leave_out(*id);
                         }
                         self.error.clear();
                     }
@@ -309,25 +335,38 @@ impl MergeContacts {
         let can = mergeable && preview.is_ok();
         // Kept for the next frame.
         self.worked = Some(worked);
-        let (mut merge, mut skip, mut close) = (false, false, false);
+        let (mut merge, mut skip, mut close) = (None, None, false);
         ui.add_space(4.0);
-        // (Merge is a plain button: it deletes contacts, so Enter is not a way to it.)
+        // (Merge is a plain button: it deletes contacts, so Enter is not a way to it. Each group's
+        // buttons are widgets of their own, so that the keyboard on one group's Merge is not on
+        // the next one's.)
+        let at = self.at;
         button_row(ui, |ui| {
-            close = ui.add(egui::Button::new(tl!("Close")).min_size(vec2(72.0, 26.0))).clicked();
-            if self.groups.len() > 1 || self.more > 0 {
-                skip = ui.add(egui::Button::new(tl!("Skip")).min_size(vec2(72.0, 26.0))).clicked();
-            }
-            merge = ui.add_enabled(can, egui::Button::new(tl!("Merge")).min_size(vec2(72.0, 26.0))).clicked();
+            ui.push_id(("merge_group", at), |ui| {
+                close = ui.add(egui::Button::new(tl!("Close")).min_size(vec2(72.0, 26.0))).clicked();
+                if self.groups.len() > 1 || self.more > 0 {
+                    skip = Some(ui.add(egui::Button::new(tl!("Skip")).min_size(vec2(72.0, 26.0))));
+                }
+                merge = Some(ui.add_enabled(can, egui::Button::new(tl!("Merge")).min_size(vec2(72.0, 26.0))));
+            });
         });
         if close {
             return true;
         }
-        if merge && self.press_merge(app) {
+        let pressed = |r: &Option<egui::Response>| r.as_ref().is_some_and(egui::Response::clicked);
+        let moved = if pressed(&merge) && self.press_merge(app) {
             if self.picked {
                 return true;
             }
-            self.go_to(self.at.saturating_add(1));
-        } else if skip {
+            true
+        } else {
+            pressed(&skip)
+        };
+        if moved {
+            // Nothing of this group keeps the keyboard: Enter or Space must not go on to the next.
+            for r in [&merge, &skip].into_iter().flatten() {
+                r.surrender_focus();
+            }
             self.go_to(self.at.saturating_add(1));
         }
         false
