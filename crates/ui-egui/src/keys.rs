@@ -46,7 +46,7 @@ struct Owner {
 #[derive(Clone, Debug, Default)]
 struct Chain {
     /// A held Escape or Enter, and the widget that had the keyboard when it went down (none when
-    /// it went down in an open list, which took it).
+    /// a list was open then: the press was the list's, not the widget's).
     held: Option<(Key, Option<egui::Id>)>,
     /// The windows in the order they were last made active, the latest first; the main window
     /// (or the window of the system) is always there under them.

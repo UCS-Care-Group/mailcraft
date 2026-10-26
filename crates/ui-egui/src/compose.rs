@@ -78,7 +78,7 @@ pub(crate) fn recipient_line(
 ) -> egui::CompletionOutput {
     let ctx = ui.ctx().clone();
     let shown = id.with("suggestions_shown");
-    // egui keeps Tab in the line while the list shows, for the list; Shift+Tab still goes back.
+    // The line keeps Tab while the list shows, for the list (below); Shift+Tab still goes back.
     if ctx.data(|d| d.get_temp::<bool>(shown)).unwrap_or(false)
         && ctx.memory(|m| m.has_focus(id))
         && ctx.input_mut(|i| i.consume_key(egui::Modifiers::SHIFT, egui::Key::Tab))
