@@ -1467,18 +1467,15 @@ fn deleting_a_contact_is_asked_about_first() {
 /// arrows mark another, and typing carries on after it.
 #[test]
 fn recipients_are_suggested_as_they_are_typed() {
-    use crate::compose::{completed, typing};
+    use crate::compose::completed;
     use mailcraft_engine::cmd::compose::{Suggestion, suggest};
 
-    // The pieces.
-    assert_eq!(typing("Maya <maya@lumen.example>; pri"), ("Maya <maya@lumen.example>;", "pri"));
-    assert_eq!(typing("pri"), ("", "pri"));
-    assert_eq!(typing("a@b.example,"), ("a@b.example,", ""));
+    // The pieces: what takes the place of the name being typed.
     let who = |name: &str, email: &str| Suggestion { name: name.into(), email: email.into(), contact: true };
-    assert_eq!(completed("pri", &who("Priya Nair", "priya@lumen.example")), "Priya Nair <priya@lumen.example>; ");
-    assert_eq!(completed("a@b.example; x", &who("", "x@y.example")), "a@b.example; x@y.example; ");
-    assert_eq!(completed("x", &who("Nair, Priya", "priya@lumen.example")), "\"Nair, Priya\" <priya@lumen.example>; ");
-    assert_eq!(completed("x", &who("Evil\" <evil@x.example>\r\n", "priya@lumen.example")), "Evil evil@x.example <priya@lumen.example>; ");
+    assert_eq!(completed(true, &who("Priya Nair", "priya@lumen.example")), "Priya Nair <priya@lumen.example>; ");
+    assert_eq!(completed(false, &who("", "x@y.example")), " x@y.example; ");
+    assert_eq!(completed(true, &who("Nair, Priya", "priya@lumen.example")), "\"Nair, Priya\" <priya@lumen.example>; ");
+    assert_eq!(completed(true, &who("Evil\" <evil@x.example>\r\n", "priya@lumen.example")), "Evil evil@x.example <priya@lumen.example>; ");
 
     // The engine's answer: contacts by any word of the name or the address, then people mail was
     // exchanged with, never the owner, never twice.

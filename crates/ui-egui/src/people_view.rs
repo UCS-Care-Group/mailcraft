@@ -481,13 +481,7 @@ fn keyboard(app: &mut MailApp, ui: &Ui, layout: &Layout<Group>) {
         return;
     }
     let none = egui::Modifiers::NONE;
-    let (down, up, enter) = ui.input_mut(|i| {
-        (
-            i.count_and_consume_key(none, egui::Key::ArrowDown),
-            i.count_and_consume_key(none, egui::Key::ArrowUp),
-            i.consume_key(none, egui::Key::Enter),
-        )
-    });
+    let (down, up) = ui.input_mut(|i| (i.count_and_consume_key(none, egui::Key::ArrowDown), i.count_and_consume_key(none, egui::Key::ArrowUp)));
     let step = down.min(1000) as i64 - up.min(1000) as i64;
     let selected = app.session.sel.contact;
     let at = chosen_row(ui.ctx(), PEOPLE_ROW, layout, selected);
@@ -500,7 +494,9 @@ fn keyboard(app: &mut MailApp, ui: &Ui, layout: &Layout<Group>) {
             let _ = app.run("people.select", json!({"id": id}));
         }
     }
-    if enter && app.session.sel.contact.is_some() {
+    // Only a new press that is the main window's: not the repeats of an Enter that closed a dialog
+    // (#406).
+    if app.session.sel.contact.is_some() && crate::keys::take_enter_alone(ui.ctx(), ui.layer_id()) {
         let _ = app.run("people.edit", json!({}));
     }
 }

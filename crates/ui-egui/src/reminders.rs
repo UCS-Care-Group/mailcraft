@@ -128,6 +128,15 @@ pub fn snooze(app: &mut MailApp, one: Option<(u64, &str)>, minutes: u64) -> usiz
     n
 }
 
+fn viewport() -> egui::ViewportId {
+    egui::ViewportId::from_hash_of("mailcraft_reminders")
+}
+
+/// The window's layer where egui draws it inside the main one (in a browser).
+pub(crate) fn embedded_layer() -> egui::LayerId {
+    egui::LayerId::new(egui::Order::Middle, egui::Id::unique(viewport()))
+}
+
 /// The window, while something is due or the owner asked for it: a window of its own, which
 /// can be put wherever the owner likes (where the system has no separate windows, as in a
 /// browser, a movable window inside the main one).
@@ -147,7 +156,7 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
         ctx,
         egui::ViewportBuilder::default().with_title(title).with_inner_size([420.0, height]).with_min_inner_size([340.0, 150.0]),
     );
-    ctx.show_viewport_immediate(egui::ViewportId::from_hash_of("mailcraft_reminders"), builder, |ui, class| {
+    ctx.show_viewport_immediate(viewport(), builder, |ui, class| {
         let own_window = class != egui::ViewportClass::EmbeddedWindow;
         if own_window {
             closed = ui.ctx().input(|i| i.viewport().close_requested());

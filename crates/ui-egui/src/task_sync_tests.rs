@@ -242,3 +242,62 @@ fn a_programmatic_call_does_not_open_the_question_or_answer_it() {
     assert!(matches!(mailcraft_engine::agent::access("tasks.sendLocal"), Some(mailcraft_engine::agent::Access::Owner(_))));
     assert_eq!(app.session.mailbox.local_tasks, mailcraft_model::LocalTasks::Unasked);
 }
+
+/// Allowed on Microsoft's page, then refused for a while all the same, as a permission given a
+/// moment ago can be until Microsoft has taken it in everywhere (#491): the job tries again
+/// quietly, later each time, and the owner is not asked again. Refused after all of those, the
+/// owner is asked.
+#[test]
+fn a_refusal_just_after_the_owner_allowed_tasks_is_tried_again_before_asking() {
+    let (mut app, owner, answers, jobs, sign_ins) = window();
+    let refused = || TasksResult { account: owner, consent_needed: true, ..Default::default() };
+    answers.lock().unwrap().push_back(refused());
+    assert!(app.tasks_tick_at(0.0));
+    app.poll_tasks();
+    app.tasks_tick_at(1.0);
+    app.dialog = None;
+    app.run("ui.allowTasks", json!({"account": owner, "confirmed": true})).unwrap();
+    app.poll_sign_in();
+    // Refused twice more, then read.
+    answers.lock().unwrap().extend([refused(), refused(), nothing(owner)]);
+    let mut at = 2.0;
+    for _ in 0..3 {
+        // A job as soon as it may run, and no question while it is tried again.
+        while !app.tasks_tick_at(at) {
+            assert!(app.dialog.is_none(), "asked again {at} ms after allowing");
+            at += 1_000.0;
+            assert!(at < 10.0 * 60_000.0, "no job was tried again");
+        }
+        app.poll_tasks();
+        app.tasks_tick_at(at);
+        assert!(app.dialog.is_none(), "asked again after a refusal right after allowing");
+    }
+    assert_eq!(app.tasks.perm.get(&owner), Some(&Permission::Given));
+    assert_eq!(jobs.lock().unwrap().len(), 4);
+    assert_eq!(sign_ins.lock().unwrap().len(), 1);
+}
+
+/// Still refused after the tries again: the owner is asked, as for any refusal.
+#[test]
+fn a_refusal_that_lasts_after_allowing_asks_the_owner_in_the_end() {
+    let (mut app, owner, answers, _, _) = window();
+    let refused = || TasksResult { account: owner, consent_needed: true, ..Default::default() };
+    answers.lock().unwrap().push_back(refused());
+    assert!(app.tasks_tick_at(0.0));
+    app.poll_tasks();
+    app.tasks_tick_at(1.0);
+    app.dialog = None;
+    app.run("ui.allowTasks", json!({"account": owner, "confirmed": true})).unwrap();
+    app.poll_sign_in();
+    answers.lock().unwrap().extend((0..10).map(|_| refused()));
+    let mut at = 2.0;
+    while app.dialog.is_none() && at < 30.0 * 60_000.0 {
+        if app.tasks_tick_at(at) {
+            app.poll_tasks();
+            app.tasks_tick_at(at);
+        }
+        at += 1_000.0;
+    }
+    let Some(crate::dialogs::Dialog::Confirm { command, .. }) = &app.dialog else { panic!("the owner was never asked") };
+    assert_eq!(command, "ui.allowTasks");
+}

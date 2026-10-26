@@ -97,6 +97,14 @@ impl Form {
         }
     }
 
+    /// The dialog was closed with the window's own close button: Add Account gives up what it
+    /// has under way, as on Escape.
+    pub fn closed(&mut self, app: &mut MailApp) {
+        if let Form::Account(f) = self {
+            f.give_up(app);
+        }
+    }
+
     /// Lay out the form in a window of its own ([`crate::windows`]): an appointment or a meeting
     /// under that window's bar of commands. `ask` is what the window's keys asked for.
     pub(crate) fn show_in_window(&mut self, app: &mut MailApp, ui: &mut Ui, ask: Option<Ask>) -> Verdict {
@@ -151,6 +159,11 @@ impl Form {
     pub(crate) fn waiting(&self) -> bool {
         self.event().is_some_and(event::EventForm::waiting)
     }
+
+    /// Whether the form has a dialog of its own open over it (the recurrence editor).
+    pub(crate) fn modal(&self) -> bool {
+        self.event().is_some_and(event::EventForm::modal)
+    }
 }
 
 /// What a window asks of the form it hosts beyond laying it out: what its keys stand for.
@@ -181,7 +194,7 @@ pub(crate) mod kit {
     use std::fmt::Debug;
     use std::hash::Hash;
 
-    use egui::{Align, Align2, Color32, CornerRadius, Key, Response, Sense, Stroke, StrokeKind, Ui, pos2, vec2};
+    use egui::{Align, Align2, Color32, CornerRadius, Response, Sense, Stroke, StrokeKind, Ui, pos2, vec2};
     use mailcraft_engine::Session;
     use mailcraft_model::Category;
     use mailcraft_time::{Date, parse_time, time_short};
@@ -196,22 +209,20 @@ pub(crate) mod kit {
     pub const ROW_H: f32 = 24.0;
 
     /// Where a form is laid out when that isn't the dialog: a window of its own
-    /// ([`crate::windows`]). Forms in different windows don't share their fields, only the one
-    /// in front acts on an Enter that no field took, and a form that has a window of the system
-    /// to itself fills it.
+    /// ([`crate::windows`]). Forms in different windows don't share their fields, and a form that
+    /// has a window of the system to itself fills it. (Which of them an Enter is for is
+    /// [`crate::keys`]'s to say.)
     #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
     pub struct Host {
         /// Tells this form's fields from those of the same form in another window; 0 for the dialog.
         pub id: u64,
-        /// Another window is in front of this one: the keyboard is that one's.
-        pub background: bool,
         /// The form has the height of its window, and fills it.
         pub fill: bool,
     }
 
     thread_local! {
         /// The host of the form that is being laid out.
-        static HOST: std::cell::Cell<Host> = const { std::cell::Cell::new(Host { id: 0, background: false, fill: false }) };
+        static HOST: std::cell::Cell<Host> = const { std::cell::Cell::new(Host { id: 0, fill: false }) };
         /// Where the fields of the form being laid out end when it fills its window (a height
         /// on the page of its fields); not a number otherwise.
         static BODY_END: std::cell::Cell<f32> = const { std::cell::Cell::new(f32::NAN) };
@@ -348,15 +359,16 @@ pub(crate) mod kit {
     impl Pass {
         /// Start a frame. `focus` is taken: the form's first field gets the keyboard once.
         pub fn new(ui: &Ui, s: &Session, focus: &mut bool) -> Pass {
-            let enter = ui.input(|i| i.key_pressed(Key::Enter));
-            let idle = ui.memory(|m| m.focused().is_none()) && !egui::Popup::is_any_open(ui.ctx());
+            // Enter is the form's when its window (or dialog) is where the key went (#406): not
+            // under a dialog or a question, not in a window behind the active one, not while a
+            // list is open, and never a held key's repeats.
+            let layer = ui.layer_id();
             Pass {
                 t: Tokens::get(ui.ctx()),
                 today: s.today(),
                 twelve: s.prefs.twelve_hour,
-                enter,
-                // (A form in a window that another one is in front of leaves it to that one.)
-                submit: enter && idle && !host().background,
+                enter: crate::keys::enter(ui.ctx(), layer),
+                submit: crate::keys::enter_alone(ui.ctx(), layer),
                 focus: std::mem::take(focus),
             }
         }
@@ -1443,59 +1455,18 @@ mod event {
         job
     }
 
-    /// What an attendee line offers for the name that is being typed, from one frame to the next.
-    #[derive(Clone, Default)]
-    struct Offering {
-        /// Which line they are for (`required`, `optional`).
-        key: &'static str,
-        items: Vec<mailcraft_engine::cmd::compose::Suggestion>,
-        selected: usize,
-        /// Where they were drawn, so a click on one isn't taken for a click away from the line.
-        rect: Option<egui::Rect>,
-        /// Something was typed into the line since the keyboard came to it. A line that is only
-        /// passed through (with Tab, say) is offered nothing and stays exactly as it is.
-        typed: bool,
-        /// What `items` were asked for: whether something was typed, what is being typed, and
-        /// the mailbox as it was ([`Session::rev`], [`Session::openings`]). They are asked for
-        /// again only when one of these changes: a line with the keyboard is drawn at least twice
-        /// a second (its cursor blinks), and asking reads the whole mailbox.
-        asked: Option<(bool, String, u64, u64)>,
-    }
-
-    /// An attendee line. As it is typed in, the people it could be are offered underneath, as
-    /// the composer offers them (contacts, then whoever mail was exchanged with): the arrow keys
-    /// choose, Enter or Tab or a click takes one. When it is left, the names on it that stand
-    /// for one contact become that contact, and from then on it reads as the people it names.
+    /// An attendee line. As it is typed in, recipients are suggested underneath, as the composer
+    /// suggests them ([`crate::compose::recipient_line`]); a line that is only passed through
+    /// (with Tab, say) is suggested nothing and stays exactly as it is. When it is left,
+    /// the names on it that stand for one contact become that contact, and from then on it reads
+    /// as the people it names.
     fn attendee_line(ui: &mut Ui, pass: &mut Pass, s: &Session, key: &'static str, text: &mut String, hint: &str) {
         let t = pass.t;
         let id = kit::field_id(key);
-        let store = kit::field_id("attendee_offering");
-        let mut st: Offering = ui.data(|d| d.get_temp(store)).unwrap_or_default();
-        let mine = st.key == key && !st.items.is_empty();
         let focused = ui.memory(|m| m.has_focus(id));
-        let over = st.rect.is_some_and(|r| ui.rect_contains_pointer(r));
-        let open = mine && (focused || over);
-        let mut take: Option<usize> = None;
-        if open && focused {
-            // Before the line itself sees the keys: they are for the list while it is showing.
-            let n = st.items.len().max(1);
-            ui.input_mut(|i| {
-                // With Shift, Ctrl or Alt held the keys are not the list's: Shift+Tab goes back, as
-                // without the list (`consume_key` takes Shift+Tab for Tab).
-                if !i.modifiers.is_none() {
-                    return;
-                }
-                if i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowDown) {
-                    st.selected = (st.selected + 1) % n;
-                }
-                if i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowUp) {
-                    st.selected = (st.selected + n - 1) % n;
-                }
-                if i.consume_key(egui::Modifiers::NONE, egui::Key::Enter) || i.consume_key(egui::Modifiers::NONE, egui::Key::Tab) {
-                    take = Some(st.selected.min(n - 1));
-                }
-            });
-        }
+        // Something was typed into the line since the keyboard came to it.
+        let typing = id.with("typed");
+        let typed = focused && ui.data(|d| d.get_temp::<bool>(typing)).unwrap_or(false);
         // While nobody types in it, it reads as the people it names. (Laid out once for a text,
         // not every frame: finding a contact's name looks through the contacts.)
         let reading = !focused && !text.trim().is_empty();
@@ -1520,93 +1491,18 @@ mod event {
         if reading {
             edit = edit.layouter(&mut as_names);
         }
-        let resp = ui.add(edit);
+        let resp = crate::compose::recipient_line(ui, s, id, edit, typed).text_edit.response;
         pass.field(&resp);
-        let typed = (st.key == key && st.typed) || resp.changed();
-        let at = resp.rect;
-        if open {
-            let shown = egui::Area::new(store.with(key)).order(egui::Order::Foreground).fixed_pos(egui::pos2(at.min.x, at.max.y + 2.0)).show(
-                ui.ctx(),
-                |ui| {
-                    egui::Frame::NONE
-                        .fill(t.menu)
-                        .stroke(egui::Stroke::new(1.0, t.border_strong))
-                        .corner_radius(6.0)
-                        .inner_margin(egui::Margin::same(4))
-                        .show(ui, |ui| {
-                            ui.set_width(at.width().clamp(240.0, 440.0));
-                            for (i, who) in st.items.iter().enumerate() {
-                                let (r, line) = ui.allocate_exact_size(vec2(ui.available_width(), 26.0), egui::Sense::click());
-                                if i == st.selected || line.hovered() {
-                                    ui.painter().rect_filled(r, 4.0, if i == st.selected { t.selection } else { t.hover });
-                                }
-                                let name = if who.name.is_empty() { who.email.as_str() } else { who.name.as_str() };
-                                let font = crate::theme::regular(12.5);
-                                let w = crate::theme::paint_clipped(
-                                    ui.painter(),
-                                    egui::pos2(r.min.x + 8.0, r.center().y),
-                                    r.width() * 0.5,
-                                    name,
-                                    font,
-                                    t.text,
-                                );
-                                if !who.name.is_empty() {
-                                    let room = (r.width() - w - 24.0).max(0.0);
-                                    let font = crate::theme::regular(11.5);
-                                    crate::theme::paint_clipped(
-                                        ui.painter(),
-                                        egui::pos2(r.min.x + 16.0 + w, r.center().y),
-                                        room,
-                                        &who.email,
-                                        font,
-                                        t.text_dim,
-                                    );
-                                }
-                                if line.clicked() {
-                                    take = Some(i);
-                                }
-                            }
-                        });
-                },
-            );
-            st.rect = Some(shown.response.rect);
-        } else {
-            st.rect = None;
-        }
-        if let Some(who) = take.and_then(|i| st.items.get(i)) {
-            *text = crate::compose::completed(text, who);
-            // Carry on typing after it: the keyboard stays in the line, at its end.
-            let mut state = egui::TextEdit::load_state(ui.ctx(), id).unwrap_or_default();
-            let end = egui::text::CCursor::new(text.chars().count());
-            state.cursor.set_char_range(Some(egui::text::CCursorRange::one(end)));
-            state.store(ui.ctx(), id);
-            ui.memory_mut(|m| m.request_focus(id));
-            st.items.clear();
-        } else if resp.lost_focus() && !over && typed {
+        let typed = typed || resp.changed();
+        if resp.lost_focus() && typed {
             // Left, after something was typed: what stands for one contact becomes that contact.
             let (checked, _) = check_names(s, text);
             if Address::parse_list(text) != Address::parse_list(&checked) {
                 *text = checked;
             }
         }
-        // What to offer next frame, for what is being typed now.
-        if resp.has_focus() || ui.memory(|m| m.has_focus(id)) {
-            let (_, last) = crate::compose::typing(text);
-            let asking = (typed, last.to_string(), s.rev(), s.openings());
-            if st.key != key || st.asked.as_ref() != Some(&asking) {
-                let items = if !typed || last.trim().is_empty() { Vec::new() } else { mailcraft_engine::cmd::compose::suggest(s, last, 6) };
-                st.selected = if st.key == key { st.selected.min(items.len().saturating_sub(1)) } else { 0 };
-                st.key = key;
-                st.items = items;
-                st.asked = Some(asking);
-            }
-            st.typed = typed;
-        } else if st.key == key && !over {
-            st.items.clear();
-            st.typed = false;
-            st.asked = None;
-        }
-        ui.data_mut(|d| d.insert_temp(store, st));
+        let typed = typed && ui.memory(|m| m.has_focus(id));
+        ui.data_mut(|d| d.insert_temp(typing, typed));
     }
 
     /// A menu entry with a mark when it is the current choice. `true` when it was chosen.
@@ -1969,8 +1865,9 @@ mod event {
                         }
                     });
                 });
-            // Escape leaves it as it was; Enter in one of its fields, or with none, is OK.
-            let escape = !egui::Popup::is_any_open(ctx) && ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape));
+            // Escape leaves it as it was (when it is on top: a list open in it closes first, #406);
+            // Enter in one of its fields, or with none, is OK.
+            let escape = crate::keys::escape(ctx, crate::keys::modal_layer(kit::field_id("recurrence_dialog")));
             left.or(if escape {
                 Some(Left::Cancel)
             } else if enter && self.wrong().is_none() {
@@ -5316,7 +5213,7 @@ mod account {
 
 /// The Categories dialog: recolour, rename, delete, add.
 mod categories {
-    use egui::{Key, Sense, Stroke, StrokeKind, Ui, vec2};
+    use egui::{Sense, Stroke, StrokeKind, Ui, vec2};
     use mailcraft_engine::Session;
     use mailcraft_model::{Category, Rgb};
     use serde_json::{Value, json};
@@ -5409,7 +5306,7 @@ mod categories {
         /// Lay out the form. Returns `true` when the dialog should close.
         pub fn show(&mut self, app: &mut MailApp, ui: &mut Ui) -> bool {
             let t = Tokens::get(ui.ctx());
-            let enter = ui.input(|i| i.key_pressed(Key::Enter));
+            let enter = crate::keys::enter(ui.ctx(), ui.layer_id());
             let list = app.session.mailbox.categories.clone();
             // Once Outlook's list of categories was read, those not on it say so (R3 spec S18).
             let outlook = &app.session.mailbox.outlook_categories;

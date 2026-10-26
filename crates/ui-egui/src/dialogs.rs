@@ -190,6 +190,16 @@ impl Dialog {
         }
     }
 
+    /// Whether it has something of its own open over it, which gets Escape and Enter before it
+    /// does ([`crate::keys`]): the recurrence editor of an appointment, Folder Size.
+    pub(crate) fn inner_open(&self) -> bool {
+        match self {
+            Dialog::Form(form) => form.modal(),
+            Dialog::FolderProperties(dialog) => dialog.size_open,
+            _ => false,
+        }
+    }
+
     /// The dialog called `name`, set up from the app's state and `params`; `None` when it can't
     /// open now (nothing selected to edit, an unknown name).
     pub fn open(name: &str, app: &MailApp, params: &Value) -> Option<Dialog> {
@@ -912,12 +922,21 @@ fn score(query: &str, label: &str, location: &str, id: &str) -> Option<u32> {
     Some(total)
 }
 
+/// The shade over the window under a dialog: a layer of its own, not a window ([`crate::keys`]).
+pub(crate) fn scrim_layer() -> egui::LayerId {
+    egui::LayerId::new(egui::Order::Middle, egui::Id::unique("dialog_scrim"))
+}
+
 /// The frame shared by the dialogs: a centred window with a title. Returns `false` when it was
 /// closed with its close button.
 pub(crate) fn window(ctx: &egui::Context, title: &str, width: f32, add: impl FnOnce(&mut Ui)) -> bool {
     let mut open = true;
+    let id = egui::Id::unique("dialog");
+    // A click on the scrim lifts it to the top of its order, over the dialog, where it would take
+    // every click after (Escape alone still answered): the dialog goes back above it each frame.
+    ctx.move_to_top(egui::LayerId::new(egui::Order::Middle, id));
     egui::Window::new(egui::RichText::new(title).font(semibold(14.0)))
-        .id(egui::Id::unique("dialog"))
+        .id(id)
         .open(&mut open)
         .collapsible(false)
         .resizable(false)
@@ -952,16 +971,17 @@ pub(crate) fn buttons(ui: &mut Ui, ok_label: &str, ok_enabled: bool) -> (bool, b
 
 pub fn show(app: &mut MailApp, ctx: &egui::Context) {
     let Some(mut dialog) = app.dialog.take() else { return };
-    // A held key is one press (#393): its repeats don't close the dialog or press OK. They may be
-    // left from a key that closed what was over the dialog. Escape's repeats are taken here, so
-    // nothing later gets them. Enter's are left, since a box of several lines in a dialog needs
-    // them for new lines.
-    let escape = ctx.input_mut(|i| crate::keys::take_once(i, Key::Escape));
-    let enter = ctx.input(|i| crate::keys::pressed_once(i, Key::Enter));
+    // Escape and Enter are the dialog's when it is on top: not while a list in it is open, or
+    // something of its own over it, which get them first (#406). A held key is one press (#393):
+    // its repeats don't close the dialog or press OK. (Enter's repeats are still in the input for
+    // the boxes of several lines that type them.)
+    let layer = crate::keys::dialog_layer();
+    let escape = crate::keys::escape(ctx, layer);
+    let enter = crate::keys::enter(ctx, layer);
     let t = Tokens::get(ctx);
     // A scrim: what is behind the dialog is out of reach until it is answered.
     let screen = ctx.content_rect();
-    egui::Area::new(egui::Id::unique("dialog_scrim")).order(egui::Order::Middle).fixed_pos(screen.min).show(ctx, |ui| {
+    egui::Area::new(scrim_layer().id).order(scrim_layer().order).fixed_pos(screen.min).show(ctx, |ui| {
         let resp = ui.allocate_response(screen.size(), egui::Sense::click());
         ui.painter().rect_filled(screen, 0.0, egui::Color32::from_black_alpha(if t.dark { 110 } else { 60 }));
         resp
@@ -1434,6 +1454,9 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
             let title = form.title();
             let mut done = false;
             let open = window(ctx, &title, form.width(), |ui| done = form.show(app, ui));
+            if !open {
+                form.closed(app);
+            }
             close |= !open || done;
         }
         // (Enter is nobody's in this one either: it has boxes of several lines.)
@@ -1456,19 +1479,27 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
             close |= !open || done;
         }
         Dialog::FolderProperties(dialog) => {
-            let enter = enter && ctx.memory(|m| m.focused().is_none());
+            let idle = ctx.memory(|m| m.focused().is_none());
             let over = dialog.size_open;
             let mut done = false;
             let title = dialog.title.clone();
-            let open = window(ctx, &title, crate::folder_properties::WIDTH, |ui| done = dialog.show(ui, enter && !over));
+            let open = window(ctx, &title, crate::folder_properties::WIDTH, |ui| done = dialog.show(ui, enter && idle));
             if over {
-                close = false;
+                let size = crate::folder_properties::size_layer();
+                let (escape, enter) = (crate::keys::escape(ctx, size), crate::keys::enter(ctx, size) && idle);
                 done |= dialog.show_size(app, ctx, escape, enter);
             }
             close |= !open || done;
         }
     }
     if !close {
+        // While it stays open the dialog is a modal layer: egui keeps the keyboard and the pointer
+        // from what is under it (#406), and it is in front of a window that opened meanwhile.
+        // (What it has open over itself is a modal layer of its own, then.)
+        if !dialog.inner_open() {
+            ctx.memory_mut(|m| m.set_modal_layer(layer));
+        }
+        ctx.move_to_top(layer);
         app.dialog = Some(dialog);
         return;
     }
@@ -1509,34 +1540,31 @@ pub(crate) fn unsaved_changes(ctx: &egui::Context, hit: &mut crate::control::Hit
     };
     let frame = egui::Frame::window(&ctx.global_style()).fill(t.surface).inner_margin(egui::Margin::same(16));
     let width = (ctx.content_rect().width() - 48.0).clamp(120.0, 420.0);
-    egui::Modal::new(egui::Id::unique(("unsaved-changes", window)))
-        .frame(frame)
-        .backdrop_color(egui::Color32::from_black_alpha(if t.dark { 110 } else { 60 }))
-        .show(ctx, |ui| {
-            ui.set_width(width);
-            ui.spacing_mut().item_spacing = vec2(8.0, 8.0);
-            ui.label(egui::RichText::new(tl!("Unsaved Changes")).font(semibold(14.0)));
-            ui.label(text);
-            ui.add_space(6.0);
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                let cancel = ui.add(egui::Button::new(tl!("Cancel")).min_size(vec2(72.0, 26.0)));
-                let discard = ui.add(egui::Button::new(tl!("Don't Save")).min_size(vec2(72.0, 26.0)));
-                let save = primary_button(ui, tl!("Save"), true);
-                for (kind, button, said) in [
-                    ("unsavedCancel", &cancel, Unsaved::Cancel),
-                    ("unsavedDiscard", &discard, Unsaved::Discard),
-                    ("unsavedSave", &save, Unsaved::Save),
-                ] {
-                    hit.add(kind, window, button.rect);
-                    if button.clicked() {
-                        answer = Some(said);
-                    }
+    // Saving is what Enter means, staying what Escape means, whatever has the keyboard in it;
+    // neither is anything else's key while the question is up. Only a new press answers: not the
+    // repeats of the Escape that asked to close, which nobody has read the question for yet (#406).
+    let layer = crate::keys::modal_layer(egui::Id::unique(("unsaved-changes", window)));
+    let (enter, escape) = (crate::keys::take_enter_out(ctx, layer), crate::keys::take_escape(ctx, layer));
+    egui::Modal::new(layer.id).frame(frame).backdrop_color(egui::Color32::from_black_alpha(if t.dark { 110 } else { 60 })).show(ctx, |ui| {
+        ui.set_width(width);
+        ui.spacing_mut().item_spacing = vec2(8.0, 8.0);
+        ui.label(egui::RichText::new(tl!("Unsaved Changes")).font(semibold(14.0)));
+        ui.label(text);
+        ui.add_space(6.0);
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            let cancel = ui.add(egui::Button::new(tl!("Cancel")).min_size(vec2(72.0, 26.0)));
+            let discard = ui.add(egui::Button::new(tl!("Don't Save")).min_size(vec2(72.0, 26.0)));
+            let save = primary_button(ui, tl!("Save"), true);
+            for (kind, button, said) in
+                [("unsavedCancel", &cancel, Unsaved::Cancel), ("unsavedDiscard", &discard, Unsaved::Discard), ("unsavedSave", &save, Unsaved::Save)]
+            {
+                hit.add(kind, window, button.rect);
+                if button.clicked() {
+                    answer = Some(said);
                 }
-            });
+            }
         });
-    // Saving is what Enter means, staying what Escape means; neither is anything else's key
-    // while the question is up.
-    let (enter, escape) = ctx.input_mut(|i| (i.consume_key(egui::Modifiers::NONE, Key::Enter), i.consume_key(egui::Modifiers::NONE, Key::Escape)));
+    });
     answer.or(if escape {
         Some(Unsaved::Cancel)
     } else if enter {

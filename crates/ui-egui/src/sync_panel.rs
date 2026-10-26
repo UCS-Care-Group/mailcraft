@@ -234,14 +234,15 @@ pub(crate) fn rows(app: &MailApp) -> Vec<Row> {
     rows
 }
 
-/// Escape closes the panel, before anything else hears it (a search, the selection). With a menu
-/// open, Escape closes only the menu. A held Escape is one press (#393).
+/// The panel's layer: over the windows.
+pub(crate) fn layer() -> egui::LayerId {
+    egui::LayerId::new(egui::Order::Foreground, egui::Id::unique("sync_progress_panel"))
+}
+
+/// Escape closes the panel when it is shown: over the windows, the search and the selection,
+/// under a dialog and an open menu (#393, #406). A held Escape is one press.
 pub(crate) fn escape(app: &mut MailApp, ctx: &egui::Context) {
-    if app.sync_panel.is_some()
-        && app.dialog.is_none()
-        && !egui::Popup::is_any_open(ctx)
-        && ctx.input_mut(|i| crate::keys::take_once(i, egui::Key::Escape))
-    {
+    if app.sync_panel.is_some() && crate::keys::take_escape(ctx, layer()) {
         app.sync_panel = None;
     }
 }
@@ -271,136 +272,127 @@ pub(crate) fn show(app: &mut MailApp, ctx: &egui::Context) {
     let mut skip = None;
     let mut close = false;
     let mut scrolled = false;
-    let shown = egui::Area::new(egui::Id::unique("sync_progress_panel"))
-        .order(egui::Order::Foreground)
-        .anchor(Align2::RIGHT_BOTTOM, vec2(-12.0, -32.0))
-        .show(ctx, |ui| {
-            let framed =
-                egui::Frame::popup(ui.style()).fill(t.surface).stroke(egui::Stroke::new(1.0, t.border_strong)).inner_margin(12).show(ui, |ui| {
-                    ui.set_width(width);
-                    ui.spacing_mut().item_spacing = vec2(8.0, 4.0);
-                    // The heading, with Stop while a run goes on, and the way out.
-                    ui.horizontal(|ui| {
-                        ui.label(RichText::new(tl!("Send/Receive Progress")).font(semibold(14.0)).color(t.text));
-                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            let shut = crate::widgets::icon_button(ui, "close", tl!("Close"), 12.0, true);
-                            app.hit.add("syncPanelClose", 0, shut.rect);
-                            close |= shut.clicked();
-                            if syncing {
-                                let r = ui
-                                    .add(egui::Button::new(tl!("Stop")).min_size(vec2(60.0, 24.0)))
-                                    .on_hover_text(tl!("Stop this Send/Receive; what has arrived stays"));
-                                app.hit.add("syncStop", 0, r.rect);
-                                stop |= r.clicked();
-                            }
-                            if app.has_sync_problems() && ui.link(RichText::new(tl!("Copy problems")).font(regular(12.0))).clicked() {
-                                ui.ctx().copy_text(app.sync_problem_lines().join("\n"));
-                            }
-                        });
-                    });
-                    ui.add_space(2.0);
-                    if rows.is_empty() {
-                        let none = if app.server_accounts().is_empty() {
-                            tl!("No account is connected to a mail server (File › Add Account)")
-                        } else {
-                            tl!("Nothing has been sent or received yet.")
-                        };
-                        ui.label(RichText::new(none).font(regular(12.5)).color(t.text_dim));
-                        return;
+    let shown = egui::Area::new(layer().id).order(egui::Order::Foreground).anchor(Align2::RIGHT_BOTTOM, vec2(-12.0, -32.0)).show(ctx, |ui| {
+        let framed = egui::Frame::popup(ui.style()).fill(t.surface).stroke(egui::Stroke::new(1.0, t.border_strong)).inner_margin(12).show(ui, |ui| {
+            ui.set_width(width);
+            ui.spacing_mut().item_spacing = vec2(8.0, 4.0);
+            // The heading, with Stop while a run goes on, and the way out.
+            ui.horizontal(|ui| {
+                ui.label(RichText::new(tl!("Send/Receive Progress")).font(semibold(14.0)).color(t.text));
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    let shut = crate::widgets::icon_button(ui, "close", tl!("Close"), 12.0, true);
+                    app.hit.add("syncPanelClose", 0, shut.rect);
+                    close |= shut.clicked();
+                    if syncing {
+                        let r = ui
+                            .add(egui::Button::new(tl!("Stop")).min_size(vec2(60.0, 24.0)))
+                            .on_hover_text(tl!("Stop this Send/Receive; what has arrived stays"));
+                        app.hit.add("syncStop", 0, r.rect);
+                        stop |= r.clicked();
                     }
-                    let most = (screen.height() - 220.0).clamp(120.0, 520.0);
-                    // As tall as the owner made it, else as tall as what it lists up to `most`; never
-                    // taller than the window has room for.
-                    let room = (screen.height() - 140.0).max(MIN_HEIGHT);
-                    let scroll = egui::ScrollArea::vertical().scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::VisibleWhenNeeded);
-                    let limit = if kept_height > 0.0 { kept_height.min(room) } else { most };
-                    let scroll = if kept_height > 0.0 {
-                        scroll.min_scrolled_height(limit).max_height(limit).auto_shrink([false, false])
-                    } else {
-                        // As tall as what it listed the frame before: the panel grows to that,
-                        // rather than keeping its last height and scrolling the last few points.
-                        let listed = ui.data(|d| d.get_temp::<f32>(egui::Id::unique("sync_panel_listed"))).unwrap_or(0.0);
-                        scroll.min_scrolled_height(listed.min(limit)).max_height(limit).auto_shrink([false, true])
-                    };
-                    // The bar stands out against the panel, in light and in dark, and stays at its
-                    // full width while there is more to see.
-                    let own = ui.style().clone();
-                    let style = ui.style_mut();
-                    style.spacing.scroll = egui::style::ScrollStyle { bar_width: 8.0, ..egui::style::ScrollStyle::solid() };
-                    style.visuals.extreme_bg_color = t.panel;
-                    style.visuals.widgets.inactive.bg_fill = t.text_dim;
-                    style.visuals.widgets.hovered.bg_fill = t.text;
-                    style.visuals.widgets.active.bg_fill = t.accent;
-                    // (What egui leaves it: no more than the room below, either.)
-                    let cap = limit.min(ui.available_height());
-                    let out = scroll.show(ui, |ui| {
-                        // (What is in the list keeps the window's own look: Skip is a button as anywhere.)
-                        ui.set_style(own);
-                        let mut said = 0u64;
-                        for (n, row) in rows.iter().enumerate() {
-                            if n > 0 {
-                                ui.add_space(4.0);
-                                let y = ui.cursor().min.y;
-                                ui.painter().hline(ui.max_rect().x_range(), y, egui::Stroke::new(1.0, t.border));
-                                ui.add_space(6.0);
-                            }
-                            let top = ui.cursor().min.y;
-                            if let Some(r) = account_row(ui, &t, row) {
-                                app.hit.add("syncSkip", row.account, r.rect);
-                                if r.clicked() {
-                                    skip = Some(row.account);
-                                }
-                            }
-                            for (k, problem) in row.problems.iter().enumerate() {
-                                let r = problem_line(ui, &t, problem);
-                                app.hit.add("syncProblem", said, r);
-                                if said == 0 && k == 0 && panel.to_problem {
-                                    ui.scroll_to_rect(r, Some(egui::Align::TOP));
-                                    scrolled = true;
-                                }
-                                said += 1;
-                            }
-                            let rect = Rect::from_min_max(pos2(ui.max_rect().min.x, top), pos2(ui.max_rect().max.x, ui.cursor().min.y));
-                            app.hit.add("syncRow", row.account, rect);
-                        }
-                    });
-                    list_height = Some(out.inner_rect.height());
-                    ui.data_mut(|d| d.insert_temp(egui::Id::unique("sync_panel_listed"), out.content_size.y));
-                    app.hit.add("syncList", 0, out.inner_rect);
-                    // Whether there is more than it shows: the bar is there (as egui reckons it).
-                    if out.content_size.y > cap.ceil() {
-                        let bar =
-                            Rect::from_min_max(pos2(out.inner_rect.max.x - ui.spacing().scroll.bar_width, out.inner_rect.min.y), out.inner_rect.max);
-                        app.hit.add("syncScrollBar", 0, bar);
+                    if app.has_sync_problems() && ui.link(RichText::new(tl!("Copy problems")).font(regular(12.0))).clicked() {
+                        ui.ctx().copy_text(app.sync_problem_lines().join("\n"));
                     }
                 });
-            // The panel stands on the window's foot at the right: it is made wider by its left
-            // edge and taller by its top edge, or both at its top left corner.
-            let r = framed.response.rect;
-            let grip = 5.0;
-            let edges = [
-                (
-                    "syncPanelLeft",
-                    Rect::from_min_max(pos2(r.min.x, r.min.y + grip), pos2(r.min.x + grip, r.max.y)),
-                    egui::CursorIcon::ResizeHorizontal,
-                ),
-                ("syncPanelTop", Rect::from_min_max(pos2(r.min.x + grip, r.min.y), pos2(r.max.x, r.min.y + grip)), egui::CursorIcon::ResizeVertical),
-                ("syncPanelCorner", Rect::from_min_size(r.min, vec2(grip * 2.0, grip * 2.0)), egui::CursorIcon::ResizeNwSe),
-            ];
-            for (name, rect, cursor) in edges {
-                let edge = ui.interact(rect, egui::Id::unique(("sync_panel_edge", name)), Sense::drag()).on_hover_cursor(cursor);
-                app.hit.add(name, 0, rect);
-                if edge.dragged() {
-                    let d = edge.drag_delta();
-                    if name != "syncPanelTop" {
-                        wider -= d.x;
+            });
+            ui.add_space(2.0);
+            if rows.is_empty() {
+                let none = if app.server_accounts().is_empty() {
+                    tl!("No account is connected to a mail server (File › Add Account)")
+                } else {
+                    tl!("Nothing has been sent or received yet.")
+                };
+                ui.label(RichText::new(none).font(regular(12.5)).color(t.text_dim));
+                return;
+            }
+            let most = (screen.height() - 220.0).clamp(120.0, 520.0);
+            // As tall as the owner made it, else as tall as what it lists up to `most`; never
+            // taller than the window has room for.
+            let room = (screen.height() - 140.0).max(MIN_HEIGHT);
+            let scroll = egui::ScrollArea::vertical().scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::VisibleWhenNeeded);
+            let limit = if kept_height > 0.0 { kept_height.min(room) } else { most };
+            let scroll = if kept_height > 0.0 {
+                scroll.min_scrolled_height(limit).max_height(limit).auto_shrink([false, false])
+            } else {
+                // As tall as what it listed the frame before: the panel grows to that,
+                // rather than keeping its last height and scrolling the last few points.
+                let listed = ui.data(|d| d.get_temp::<f32>(egui::Id::unique("sync_panel_listed"))).unwrap_or(0.0);
+                scroll.min_scrolled_height(listed.min(limit)).max_height(limit).auto_shrink([false, true])
+            };
+            // The bar stands out against the panel, in light and in dark, and stays at its
+            // full width while there is more to see.
+            let own = ui.style().clone();
+            let style = ui.style_mut();
+            style.spacing.scroll = egui::style::ScrollStyle { bar_width: 8.0, ..egui::style::ScrollStyle::solid() };
+            style.visuals.extreme_bg_color = t.panel;
+            style.visuals.widgets.inactive.bg_fill = t.text_dim;
+            style.visuals.widgets.hovered.bg_fill = t.text;
+            style.visuals.widgets.active.bg_fill = t.accent;
+            // (What egui leaves it: no more than the room below, either.)
+            let cap = limit.min(ui.available_height());
+            let out = scroll.show(ui, |ui| {
+                // (What is in the list keeps the window's own look: Skip is a button as anywhere.)
+                ui.set_style(own);
+                let mut said = 0u64;
+                for (n, row) in rows.iter().enumerate() {
+                    if n > 0 {
+                        ui.add_space(4.0);
+                        let y = ui.cursor().min.y;
+                        ui.painter().hline(ui.max_rect().x_range(), y, egui::Stroke::new(1.0, t.border));
+                        ui.add_space(6.0);
                     }
-                    if name != "syncPanelLeft" {
-                        taller -= d.y;
+                    let top = ui.cursor().min.y;
+                    if let Some(r) = account_row(ui, &t, row) {
+                        app.hit.add("syncSkip", row.account, r.rect);
+                        if r.clicked() {
+                            skip = Some(row.account);
+                        }
                     }
+                    for (k, problem) in row.problems.iter().enumerate() {
+                        let r = problem_line(ui, &t, problem);
+                        app.hit.add("syncProblem", said, r);
+                        if said == 0 && k == 0 && panel.to_problem {
+                            ui.scroll_to_rect(r, Some(egui::Align::TOP));
+                            scrolled = true;
+                        }
+                        said += 1;
+                    }
+                    let rect = Rect::from_min_max(pos2(ui.max_rect().min.x, top), pos2(ui.max_rect().max.x, ui.cursor().min.y));
+                    app.hit.add("syncRow", row.account, rect);
                 }
+            });
+            list_height = Some(out.inner_rect.height());
+            ui.data_mut(|d| d.insert_temp(egui::Id::unique("sync_panel_listed"), out.content_size.y));
+            app.hit.add("syncList", 0, out.inner_rect);
+            // Whether there is more than it shows: the bar is there (as egui reckons it).
+            if out.content_size.y > cap.ceil() {
+                let bar = Rect::from_min_max(pos2(out.inner_rect.max.x - ui.spacing().scroll.bar_width, out.inner_rect.min.y), out.inner_rect.max);
+                app.hit.add("syncScrollBar", 0, bar);
             }
         });
+        // The panel stands on the window's foot at the right: it is made wider by its left
+        // edge and taller by its top edge, or both at its top left corner.
+        let r = framed.response.rect;
+        let grip = 5.0;
+        let edges = [
+            ("syncPanelLeft", Rect::from_min_max(pos2(r.min.x, r.min.y + grip), pos2(r.min.x + grip, r.max.y)), egui::CursorIcon::ResizeHorizontal),
+            ("syncPanelTop", Rect::from_min_max(pos2(r.min.x + grip, r.min.y), pos2(r.max.x, r.min.y + grip)), egui::CursorIcon::ResizeVertical),
+            ("syncPanelCorner", Rect::from_min_size(r.min, vec2(grip * 2.0, grip * 2.0)), egui::CursorIcon::ResizeNwSe),
+        ];
+        for (name, rect, cursor) in edges {
+            let edge = ui.interact(rect, egui::Id::unique(("sync_panel_edge", name)), Sense::drag()).on_hover_cursor(cursor);
+            app.hit.add(name, 0, rect);
+            if edge.dragged() {
+                let d = edge.drag_delta();
+                if name != "syncPanelTop" {
+                    wider -= d.x;
+                }
+                if name != "syncPanelLeft" {
+                    taller -= d.y;
+                }
+            }
+        }
+    });
     if wider != 0.0 {
         app.ui.sync_panel_width = (width + wider).clamp(MIN_WIDTH, MAX_WIDTH.min((screen.width() - 48.0).max(MIN_WIDTH)));
     }

@@ -265,3 +265,32 @@ fn nothing_goes_to_the_server_for_a_search_it_cant_understand() {
     assert!(crate::cmd::search_server::offered_reason(&s).is_some());
     assert!(s.run("sync.graphSearchRequest", &json!({})).is_err());
 }
+
+/// #493: Current Mailbox and Subfolders ask the account in view alone, for all of it; what comes
+/// back is kept as the search here keeps it: the mailbox without Deleted Items, or what is under
+/// the folder in view.
+#[test]
+fn current_mailbox_and_subfolders_ask_the_account_in_view_and_keep_what_they_look_at() {
+    let (mut s, _, owner, shared) = session();
+    let replies = || {
+        vec![
+            found("AAkA-in", "in", "Budget in", NOW),
+            found("AAkA-ar", "ar", "Budget archived", NOW - 60),
+            found("AAkA-de", "de", "Budget deleted", NOW - 120),
+        ]
+    };
+    s.view.folder = s.mailbox.folder_by_server(owner, "in").unwrap();
+    search(&mut s, "budget", "mailbox");
+    let requests = asked(&mut s);
+    assert_eq!(requests.iter().map(|r| (r.account, r.folder.as_str())).collect::<Vec<_>>(), [(owner, "")]);
+    answer(&mut s, &requests[0], replies(), "");
+    assert_eq!(subjects(&s), ["Budget in", "Budget archived"]);
+
+    // Subfolders of the shared mailbox's Inbox: that mailbox asked, only its Inbox kept.
+    s.view.folder = s.mailbox.folder_by_server(shared, "in").unwrap();
+    search(&mut s, "budget", "subfolders");
+    let requests = asked(&mut s);
+    assert_eq!(requests.iter().map(|r| (r.account, r.folder.as_str())).collect::<Vec<_>>(), [(shared, "")]);
+    answer(&mut s, &requests[0], replies(), "");
+    assert_eq!(subjects(&s), ["Budget in"]);
+}
