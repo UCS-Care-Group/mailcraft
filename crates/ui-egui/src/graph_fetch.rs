@@ -369,6 +369,9 @@ impl MailApp {
             None => messages.clone(),
         };
         let came = Came::of(self, &judged, &result);
+        // Whether the batch brought any of its messages: one cut short before it came to those
+        // the command waits for is asked for again, as for its own.
+        let brought = !Came::of(self, &messages, &result).answered.is_empty();
         self.fetching.offline = result.offline;
         let account = result.account;
         let mut refused = if account != 0 { take_in(self, result).err() } else { None };
@@ -384,7 +387,7 @@ impl MailApp {
             }
             // A forward of several stops when what came wasn't taken in, saying why, and at the
             // first, in the order asked, that its server didn't send or that came but wasn't kept
-            // here, and when a batch brought none of them; else it goes on with the rest, if
+            // here, and when a batch brought none of its messages; else it goes on with the rest, if
             // there are any, and runs once none is left to fetch.
             if let Some(mut tried) = tried {
                 let not_kept = came.sent.iter().find(|m| self.session.mailbox.message(**m).is_some_and(|m| m.unfetched)).copied();
@@ -400,7 +403,7 @@ impl MailApp {
                 if let Some(e) = stop {
                     let said = self.kept(e);
                     self.say_refused(&command, &said);
-                } else if came.answered.is_empty() {
+                } else if !brought {
                     match came.why {
                         Some(why) => self.status(why),
                         None => self.status(tl!("The server didn't send the messages. Try again in a few minutes.")),

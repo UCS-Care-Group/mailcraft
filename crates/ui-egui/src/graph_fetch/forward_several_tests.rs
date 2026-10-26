@@ -405,6 +405,31 @@ fn a_forward_that_joined_anothers_batch_is_judged_by_its_own_messages() {
 }
 
 #[test]
+fn a_forward_that_joined_anothers_batch_goes_on_as_its_own_would() {
+    // Cut short before its own message came: that is asked for again.
+    let (mut app, [[a, b, c], _], jobs) = window();
+    let one = app.session.mailbox.message(a).unwrap().account;
+    app.session.sel.messages = vec![a, b, c];
+    app.run("mail.forwardAsAttachment", json!({})).unwrap();
+    app.run("mail.forwardAsAttachment", json!({"ids": [b, c]})).unwrap();
+    reply(&mut app, &jobs, &|id| if id == "AA0M0" { Reply::Whole(String::new()) } else { Reply::None });
+    assert_eq!(asked(&jobs), [(one, vec!["AA0M2".to_string()])]);
+    answer(&mut app, &jobs, &[], &[]);
+    assert_eq!(subjects(&app), ["Account 0 message 1", "Whole AA0M2"]);
+    // With another account's message too: that comes in a batch of its own once these are here.
+    let (mut app, [[a, b, c], [x, ..]], jobs) = window();
+    let two = app.session.mailbox.message(x).unwrap().account;
+    app.session.sel.messages = vec![a, b, c];
+    app.run("mail.forwardAsAttachment", json!({})).unwrap();
+    app.run("mail.forwardAsAttachment", json!({"ids": [c, x]})).unwrap();
+    assert_eq!(asked(&jobs).len(), 1, "on its way already");
+    answer(&mut app, &jobs, &[], &[]);
+    assert_eq!(asked(&jobs), [(two, vec!["AA1M0".to_string()])]);
+    answer(&mut app, &jobs, &[], &[]);
+    assert_eq!(subjects(&app), ["Whole AA0M2", "Whole AA1M0"]);
+}
+
+#[test]
 fn those_deleted_meanwhile_are_said_to_be_gone() {
     let (mut app, [[a, b, c], _], jobs) = window();
     app.session.sel.messages = vec![a, b, c];
