@@ -244,8 +244,8 @@ fn panel_id() -> Id {
 }
 
 /// A field of the panel, named by `label` for screen readers; Enter in it searches.
-fn field(ui: &mut Ui, label: egui::Id, salt: &str, value: &mut String, width: f32, hint: &str, enter: &mut bool) -> Response {
-    let resp = ui.add(egui::TextEdit::singleline(value).id_salt(salt).desired_width(width).hint_text(hint.to_owned())).labelled_by(label);
+fn field(ui: &mut Ui, label: egui::Id, id: &str, value: &mut String, width: f32, hint: &str, enter: &mut bool) -> Response {
+    let resp = ui.add(egui::TextEdit::singleline(value).id_salt(id).desired_width(width).hint_text(hint.to_owned())).labelled_by(label);
     if resp.lost_focus() && crate::keys::enter(ui.ctx(), ui.layer_id()) {
         *enter = true;
     }
@@ -253,9 +253,9 @@ fn field(ui: &mut Ui, label: egui::Id, salt: &str, value: &mut String, width: f3
 }
 
 /// A choice of `options` (value, label) in a drop-down `width` wide, named by `label`.
-fn choice<T: Clone + PartialEq>(ui: &mut Ui, label: egui::Id, salt: &str, value: &mut T, options: &[(T, &str)], width: f32) {
+fn choice<T: Clone + PartialEq>(ui: &mut Ui, label: egui::Id, id: &str, value: &mut T, options: &[(T, &str)], width: f32) {
     let shown = options.iter().find(|(v, _)| v == value).map_or("", |(_, l)| *l);
-    let resp = egui::ComboBox::from_id_salt(salt)
+    let resp = egui::ComboBox::from_id_salt(id)
         .width(width)
         .selected_text(shown)
         .show_ui(ui, |ui| {
@@ -357,16 +357,16 @@ pub(crate) fn show(app: &mut MailApp, ctx: &egui::Context, anchor: Rect, button:
                     ui.vertical(|ui| {
                         ui.horizontal(|ui| {
                             let w = ((field_w - 24.0) / 2.0).max(60.0);
-                            for (salt, text, problem) in [
+                            for (id, text, problem) in [
                                 ("advanced_received_from", &mut panel.received_from, problems.0),
                                 ("advanced_received_to", &mut panel.received_to, problems.1),
                             ] {
-                                let resp = field(ui, l, salt, text, w, &today, &mut enter);
+                                let resp = field(ui, l, id, text, w, &today, &mut enter);
                                 // (What is wrong is said in words under the two, for screen readers too.)
                                 if problem.is_some() {
                                     ui.painter().rect_stroke(resp.rect, 4.0, Stroke::new(1.0, t.red), StrokeKind::Inside);
                                 }
-                                if salt == "advanced_received_from" {
+                                if id == "advanced_received_from" {
                                     ui.label("–");
                                 }
                             }
