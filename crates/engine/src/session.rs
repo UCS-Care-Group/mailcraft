@@ -180,6 +180,11 @@ pub enum Scope {
     /// The folder in view.
     #[default]
     Folder,
+    /// The folder in view and every folder under it (#493).
+    Subfolders,
+    /// Every folder of the account in view, except Deleted Items, Junk and their subfolders; a
+    /// shared mailbox is an account of its own (#493).
+    Mailbox,
     /// Every folder of every account, except Deleted Items and Junk.
     Everywhere,
 }

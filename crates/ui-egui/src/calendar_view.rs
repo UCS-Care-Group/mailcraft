@@ -410,10 +410,9 @@ fn keep_slot(ctx: &egui::Context, was: &Option<Slot>, mut now: Option<Slot>, min
 fn has_keyboard(app: &MailApp, ctx: &egui::Context) -> bool {
     app.dialog.is_none()
         && !app.ui.backstage
-        && !app.windows.over_main()
+        && crate::keys::active(ctx) == crate::keys::main_layer()
         && ctx.memory(|m| m.focused().is_none())
         && !egui::Popup::is_any_open(ctx)
-        && ctx.data(|d| d.get_temp::<DropMenu>(egui::Id::unique(DROP_MENU_ID)).is_none())
 }
 
 /// What became of a picked-out slot this frame.
@@ -441,7 +440,9 @@ fn slot_entry(app: &mut MailApp, ui: &mut Ui, rect: Rect, slot: &mut Slot, mark:
         p.rect_stroke(rect, 2.0, Stroke::new(1.5, t.accent), StrokeKind::Inside);
     }
     let entry = egui::Id::unique(SLOT_ENTRY_ID);
-    let (enter, escape) = ui.input(|i| (i.key_pressed(egui::Key::Enter), i.key_pressed(egui::Key::Escape)));
+    // Only when they are the main window's, and a new press (#406): not the repeats of a key that
+    // closed a dialog over the calendar.
+    let (enter, escape) = (crate::keys::enter(ui.ctx(), ui.layer_id()), crate::keys::escape(ui.ctx(), ui.layer_id()));
     if slot.text.is_none() {
         // The keyboard is the calendar's while nothing else has it.
         if !has_keyboard(app, ui.ctx()) {
@@ -1198,8 +1199,8 @@ fn date_navigator(app: &mut MailApp, ui: &mut Ui, months: usize) {
     ui.ctx().data_mut(|d| d.insert_temp(memory, (view_date, first_month)));
 
     // Days being dragged over: they are marked as the pointer goes, and shown when it lets go.
-    // Escape gives the drag up.
-    let escape = ui.input(|i| i.key_pressed(egui::Key::Escape));
+    // Escape gives the drag up (when it is the main window's, #406).
+    let escape = crate::keys::escape(ui.ctx(), ui.layer_id());
     match drag.filter(|_| held && !escape) {
         Some(mut over) => {
             let pointer = ui.input(|i| i.pointer.interact_pos());
@@ -2628,10 +2629,12 @@ impl Frame {
         let scale = Scale::of(time_scale(&app.session));
         // Ctrl as the keyboard holds it, or as the button that was let go came with it (which
         // is all a script's drag says).
-        let (escape, copy) = ui.input(|i| {
+        let copy = ui.input(|i| {
             let let_go = |e: &egui::Event| matches!(e, egui::Event::PointerButton { pressed: false, modifiers, .. } if copy_key(*modifiers));
-            (i.key_pressed(egui::Key::Escape), copy_key(i.modifiers) || i.events.iter().any(let_go))
+            copy_key(i.modifiers) || i.events.iter().any(let_go)
         });
+        // Escape gives the drag up, when it is the main window's (#406).
+        let escape = crate::keys::escape(ui.ctx(), ui.layer_id());
         drag.cancelled |= escape;
         drag.copy = copy && drag.grip == Grip::Move && !drag.menu;
         let under = self.pointer.and_then(|pos| self.zones.under(pos));
@@ -2649,6 +2652,7 @@ impl Frame {
                     if span != drag.here() || drag.into != 0 {
                         let ask = DropMenu { drag, span, pos: self.pointer.unwrap_or_default() };
                         ui.ctx().data_mut(|d| d.insert_temp(egui::Id::unique(DROP_MENU_ID), ask));
+                        egui::Popup::open_id(ui.ctx(), egui::Id::unique(DROP_MENU_ID));
                     }
                 }
                 Some(span) => drop_event(app, &drag, span, drag.copy),
@@ -2693,6 +2697,16 @@ struct Clip {
 /// event.) Returns whether the days in view changed.
 fn keyboard(app: &mut MailApp, ui: &Ui, frame: &mut Frame, items: &[Item]) -> bool {
     let ctx = ui.ctx().clone();
+    // Enter on a pick is the pick's own ([`slot_entry`]); with an event selected it opens it. Only
+    // a new press that is the main window's (#406), which is no longer among the events.
+    if let Some(id) = app.session.sel.event
+        && load_slot(&ctx).is_none()
+        && has_keyboard(app, &ctx)
+        && crate::keys::take_enter_alone(&ctx, ui.layer_id())
+        && app.run_or_else("ui.openWindow", json!({"event": id})).is_err()
+    {
+        let _ = app.run("calendar.edit", json!({}));
+    }
     let wanted = |e: &egui::Event| matches!(e, egui::Event::Key { pressed: true, .. } | egui::Event::Copy | egui::Event::Cut | egui::Event::Paste(_));
     let events: Vec<egui::Event> = ctx.input(|i| i.events.iter().filter(|e| wanted(e)).take(32).cloned().collect());
     if events.is_empty() {
@@ -2702,8 +2716,7 @@ fn keyboard(app: &mut MailApp, ui: &Ui, frame: &mut Frame, items: &[Item]) -> bo
     // Tab is egui's key for going from field to field, and by now it has given the keyboard to
     // one: what counts is whether the calendar had it before.
     let had = ctx.data(|d| d.get_temp::<bool>(egui::Id::unique(KEYS_ID))).unwrap_or(false);
-    let asking = ctx.data(|d| d.get_temp::<DropMenu>(egui::Id::unique(DROP_MENU_ID)).is_some());
-    let open = app.dialog.is_none() && !app.ui.backstage && !app.windows.over_main() && !egui::Popup::is_any_open(&ctx) && !asking;
+    let open = app.dialog.is_none() && !app.ui.backstage && crate::keys::active(&ctx) == crate::keys::main_layer() && !egui::Popup::is_any_open(&ctx);
     let mut moved = false;
     for event in events {
         match event {
@@ -2759,15 +2772,6 @@ fn key_pressed(app: &mut MailApp, ctx: &egui::Context, frame: &mut Frame, key: e
         }
         Key::V if command && !alt && !shift => {
             paste(app, ctx, None);
-            false
-        }
-        // Enter on a pick is the pick's own ([`slot_entry`]); with an event selected it opens it.
-        Key::Enter if !alt && !command && load_slot(ctx).is_none() => {
-            if let Some(id) = app.session.sel.event
-                && app.run_or_else("ui.openWindow", json!({"event": id})).is_err()
-            {
-                let _ = app.run("calendar.edit", json!({}));
-            }
             false
         }
         Key::ArrowUp | Key::ArrowDown | Key::ArrowLeft | Key::ArrowRight | Key::Home | Key::End | Key::PageUp | Key::PageDown if !alt && !command => {
@@ -3984,8 +3988,9 @@ struct DropMenu {
 }
 
 /// The question a drop with the right button asks, where the button was let go: Move, Copy or
-/// Cancel. A press anywhere else, or Escape, is Cancel. Until it is answered the event's ghost
-/// stays where it would go.
+/// Cancel, egui's menu. What closes a menu of egui's (a click anywhere else, Escape) is Cancel;
+/// the arrow keys and Enter choose, as in a menu. Until it is answered the event's ghost stays
+/// where it would go.
 fn drop_menu(app: &mut MailApp, ui: &Ui, zones: &Zones, items: &[Item]) {
     let id = egui::Id::unique(DROP_MENU_ID);
     let Some(ask) = ui.ctx().data(|d| d.get_temp::<DropMenu>(id)) else { return };
@@ -3995,36 +4000,36 @@ fn drop_menu(app: &mut MailApp, ui: &Ui, zones: &Zones, items: &[Item]) {
     // The event went away, or a dialog came up: nothing is asked any more.
     if item.is_none() || app.dialog.is_some() {
         ctx.data_mut(|d| d.remove::<DropMenu>(id));
+        egui::Popup::close_id(&ctx, id);
         return;
     }
     paint_ghost(ui, zones, item, ask.span, false, app.session.prefs.twelve_hour, ask.drag.over);
     // `Some(copy)` for Move and Copy, `None` for Cancel.
     let mut answer: Option<Option<bool>> = None;
-    let area = egui::Area::new(id).order(egui::Order::Foreground).fixed_pos(ask.pos).constrain(true).show(&ctx, |ui| {
-        egui::Frame::popup(ui.style()).show(ui, |ui| {
-            ui.spacing_mut().item_spacing = vec2(0.0, 1.0);
-            for (n, (label, deed)) in [("Move", Some(false)), ("Copy", Some(true)), ("Cancel", None)].into_iter().enumerate() {
-                if deed.is_none() {
-                    ui.separator();
-                }
-                let (r, resp) = ui.allocate_exact_size(vec2(150.0, 26.0), Sense::click());
-                app.hit.add("dropMenu", n as u64, r);
-                if resp.hovered() {
-                    ui.painter().rect_filled(r, 4.0, if resp.is_pointer_button_down_on() { t.pressed } else { t.hover });
-                }
-                ui.painter().text(pos2(r.min.x + 10.0, r.center().y), Align2::LEFT_CENTER, tl!(label), regular(12.5), t.text);
-                if resp.clicked() {
-                    answer = Some(deed);
-                }
+    egui::Popup::new(id, ctx.clone(), egui::PopupAnchor::Position(ask.pos), ui.layer_id()).kind(egui::PopupKind::Menu).open_memory(None).show(|ui| {
+        ui.spacing_mut().item_spacing = vec2(0.0, 1.0);
+        for (n, (label, deed)) in [("Move", Some(false)), ("Copy", Some(true)), ("Cancel", None)].into_iter().enumerate() {
+            if deed.is_none() {
+                ui.separator();
             }
-        });
+            let (r, resp) = ui.allocate_exact_size(vec2(150.0, 26.0), Sense::click());
+            resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::MenuItem, true, tl!(label)));
+            app.hit.add("dropMenu", n as u64, r);
+            if resp.hovered() || resp.has_focus() {
+                ui.painter().rect_filled(r, 4.0, if resp.is_pointer_button_down_on() { t.pressed } else { t.hover });
+            }
+            ui.painter().text(pos2(r.min.x + 10.0, r.center().y), Align2::LEFT_CENTER, tl!(label), regular(12.5), t.text);
+            if resp.clicked() {
+                answer = Some(deed);
+            }
+        }
     });
-    let away = ctx.input(|i| i.pointer.any_pressed() && i.pointer.interact_pos().is_some_and(|pos| !area.response.rect.contains(pos)));
-    if answer.is_none() && (away || ctx.input(|i| i.key_pressed(egui::Key::Escape))) {
+    if answer.is_none() && !egui::Popup::is_id_open(&ctx, id) {
         answer = Some(None);
     }
     let Some(deed) = answer else { return };
     ctx.data_mut(|d| d.remove::<DropMenu>(id));
+    egui::Popup::close_id(&ctx, id);
     if let Some(copy) = deed {
         drop_event(app, &ask.drag, ask.span, copy);
     }
@@ -5775,6 +5780,15 @@ mod tests {
             (rig.app.session.mailbox.event(lunch.id).map(|e| e.start), asked(&rig), copies(&rig, &lunch).len()),
             (Some(lunch.start), false, 0)
         );
+        // It is egui's menu: the arrow keys choose and Enter takes, Down to Move and on to Copy.
+        rig.run("calendar.select", json!({"id": null}));
+        ask(&mut rig);
+        for key in [egui::Key::ArrowDown, egui::Key::ArrowDown, egui::Key::Enter] {
+            rig.key(key);
+        }
+        let made = copies(&rig, &lunch);
+        assert_eq!((made.len(), asked(&rig), rig.event("Lunch with Dev").start), (1, false, lunch.start));
+        rig.run("calendar.delete", json!({"id": made[0].id}));
         // Copy.
         rig.run("calendar.select", json!({"id": null}));
         let menu = ask(&mut rig);

@@ -40,6 +40,10 @@ const REFRESH_MS: f64 = 5.0 * 60_000.0;
 const QUIET_MS: f64 = 3_000.0;
 const FIRST_RETRY_MS: f64 = 30_000.0;
 const LONGEST_RETRY_MS: f64 = 15.0 * 60_000.0;
+/// How many times a job tries again, quietly, when the to-dos are refused right after the owner
+/// allowed them (#491): a permission given a moment ago can be refused until Microsoft has taken
+/// it in everywhere. With [`FIRST_RETRY_MS`] doubling, the last try is some minutes after.
+const SETTLING_TRIES: u32 = 3;
 
 /// What the host is asked to do for one account's to-dos ([`crate::Services::graph_tasks`]).
 pub struct TasksJob {
@@ -94,6 +98,9 @@ pub struct TaskSync {
     checked: HashMap<Id, f64>,
     failures: HashMap<Id, (u32, f64)>,
     pub(crate) perm: HashMap<Id, Permission>,
+    /// The owner allowed the to-dos on Microsoft's page: how many refusals are still taken for
+    /// Microsoft not having taken it in yet, rather than for a no.
+    settling: HashMap<Id, u32>,
     /// How many changes were waiting the last time, and since when.
     waiting: HashMap<Id, (usize, f64)>,
     /// The question about the to-dos that exist only here is on screen.
@@ -225,7 +232,17 @@ impl MailApp {
                 mail.refresh = tokens.refresh.clone();
             }
         }
-        if result.consent_needed {
+        let settling = self.tasks.settling.get(&account).copied().unwrap_or(0);
+        if !result.consent_needed {
+            self.tasks.settling.remove(&account);
+        }
+        if result.consent_needed && settling > 0 {
+            log::info!("tasks, account {account}: refused just after the owner allowed them; trying again ({settling} more)");
+            self.tasks.settling.insert(account, settling - 1);
+            let (n, _) = self.tasks.failures.get(&account).copied().unwrap_or((0, 0.0));
+            self.tasks.failures.insert(account, (n.saturating_add(1), started));
+            self.tasks.checked.remove(&account);
+        } else if result.consent_needed {
             log::info!("tasks, account {account}: the sign-in doesn't cover to-dos; the owner is to be asked");
             if !matches!(self.tasks.perm.get(&account), Some(Permission::Asking | Permission::Declined | Permission::Refused(_))) {
                 self.tasks.perm.insert(account, Permission::Needed);
@@ -442,7 +459,9 @@ impl MailApp {
                     }
                 }
                 // Allowed, as far as is known: the next job finds out.
+                log::info!("tasks, account {account}: the owner allowed to-dos; the next job finds out");
                 self.tasks.perm.remove(&account);
+                self.tasks.settling.insert(account, SETTLING_TRIES);
                 self.tasks.failures.remove(&account);
                 self.tasks.checked.remove(&account);
             }

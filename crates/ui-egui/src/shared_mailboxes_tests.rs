@@ -217,10 +217,22 @@ fn add_in_dialog(app: &mut MailApp, answers: &Answers, owner: Id, address: &str,
     if let Some(crate::dialogs::Dialog::SharedMailbox { address: typed, .. }) = app.dialog.as_mut() {
         *typed = address.into();
     }
+    press_in_dialog(app, enter());
+}
+
+/// The dialog shown alone, then `key` pressed in it: once egui has it on top, the keys are the
+/// dialog's, as in the window (#406).
+fn press_in_dialog(app: &mut MailApp, key: egui::Event) {
     let ctx = egui::Context::default();
     crate::theme::install_fonts(&ctx);
-    let mut out = ctx.run_ui(egui::RawInput { events: vec![enter()], ..Default::default() }, |ui| crate::dialogs::show(app, &ui.ctx().clone()));
-    out.textures_delta.clear();
+    for events in [Vec::new(), vec![key]] {
+        let mut out = ctx.run_ui(egui::RawInput { events, ..Default::default() }, |ui| {
+            let ctx = ui.ctx().clone();
+            crate::keys::gate_main(app, &ctx);
+            crate::dialogs::show(app, &ctx);
+        });
+        out.textures_delta.clear();
+    }
 }
 
 fn enter() -> egui::Event {
@@ -257,11 +269,8 @@ fn add_shared_mailbox_keeps_only_a_mailbox_whose_inbox_could_be_read() {
     app.dialog = None;
     // Called off while it is checked: not kept.
     add_in_dialog(&mut app, &answers, owner, SHARED, vec![inbox_read(SHARED)]);
-    let ctx = egui::Context::default();
-    crate::theme::install_fonts(&ctx);
     let escape = egui::Event::Key { key: egui::Key::Escape, physical_key: None, pressed: true, repeat: false, modifiers: egui::Modifiers::NONE };
-    let mut out = ctx.run_ui(egui::RawInput { events: vec![escape], ..Default::default() }, |ui| crate::dialogs::show(&mut app, &ui.ctx().clone()));
-    out.textures_delta.clear();
+    press_in_dialog(&mut app, escape);
     assert!(app.dialog.is_none() && app.session.mailbox.accounts.iter().all(|a| a.email != SHARED));
     app.poll_graph();
     assert!(app.session.mailbox.accounts.iter().all(|a| a.email != SHARED), "an answer that comes after adds nothing");
@@ -652,10 +661,7 @@ fn a_refused_sign_in_of_the_owner_is_said_and_the_mailbox_being_added_is_not_kep
     if let Some(crate::dialogs::Dialog::SharedMailbox { address, .. }) = app.dialog.as_mut() {
         *address = SHARED.into();
     }
-    let ctx = egui::Context::default();
-    crate::theme::install_fonts(&ctx);
-    let mut out = ctx.run_ui(egui::RawInput { events: vec![enter()], ..Default::default() }, |ui| crate::dialogs::show(&mut app, &ui.ctx().clone()));
-    out.textures_delta.clear();
+    press_in_dialog(&mut app, enter());
     app.poll_graph();
     assert!(app.session.mailbox.accounts.iter().all(|a| a.email != SHARED));
     assert!(matches!(&app.dialog, Some(crate::dialogs::Dialog::SharedMailbox { error, .. }) if error.contains("sign in again")));

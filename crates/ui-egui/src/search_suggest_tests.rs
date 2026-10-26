@@ -311,7 +311,8 @@ fn escape_is_forgotten_when_the_box_is_left() {
     h.run_steps(3);
     assert!(!in_the_box(&h));
     h.state_mut().search_focus = true;
-    h.run_steps(3);
+    // (egui lays a popup out unseen in the frame it opens.)
+    h.run_steps(4);
     assert!(h.query_by_label("unread").is_some(), "open again");
     assert_eq!(search(&h), "is:");
 }

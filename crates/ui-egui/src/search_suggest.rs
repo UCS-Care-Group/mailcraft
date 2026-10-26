@@ -6,10 +6,11 @@
 //! beside it, from the contacts and the mail on this computer
 //! ([`mailcraft_engine::cmd::view::search_suggestions`] says what). The arrow keys
 //! choose; Enter takes the one chosen, Tab that one or the first, a click the one under it. Until
-//! an arrow key is pressed nothing is chosen, so Enter does what it did. Escape closes the list
-//! and leaves the search (and a message being written open); the next Escape clears it, as
-//! before. The list stays closed until the search or the cursor changes, or the box is left. With
-//! Shift, Ctrl or Alt held, the keys are not the list's; Shift+Tab leaves the box, as without it.
+//! an arrow key is pressed nothing is chosen, so Enter does what it did. The list is egui's popup:
+//! Escape closes it and leaves the search (and a message being written open); the next Escape
+//! clears it, as before. It stays closed until the search or the cursor changes, or the box is
+//! left. With Shift, Ctrl or Alt held, the keys are not the list's; Shift+Tab leaves the box, as
+//! without it.
 
 use egui::{Context, Rect, Sense, Stroke, Ui, pos2, vec2};
 use mailcraft_model::search::Suggestion;
@@ -26,12 +27,11 @@ pub(crate) struct Suggesting {
     pub items: Vec<Suggestion>,
     /// The one the arrow keys chose.
     pub selected: Option<usize>,
-    /// Where it was drawn, so a click on it isn't taken for a click away from the box; `None`
-    /// while it isn't.
-    rect: Option<Rect>,
-    /// The search and the cursor as Escape found them: the list stays closed until one changes.
-    /// The cursor is filled in by the next `offer`.
-    dismissed: Option<(String, Option<usize>)>,
+    /// Whether the list was to show in the frame before, and whether the search or the cursor
+    /// changed since: it is opened only then (when it comes to be wanted, and for a search or
+    /// a cursor that changed), not on every frame, so that what egui closed (Escape) stays closed.
+    wanted: bool,
+    moved: bool,
     /// What `items` are for: the search, the cursor in it, the mailbox's categories (a renamed
     /// one is offered by its new name), and the mailbox as it was ([`Session::rev`] and
     /// [`Session::openings`]: the people that mail arriving, or another mailbox, brings are
@@ -50,6 +50,11 @@ impl Suggesting {
         egui::Id::unique("search_suggesting")
     }
 
+    /// The list's popup, and its area.
+    fn list_id() -> egui::Id {
+        Self::store_id().with("list")
+    }
+
     pub fn load(ctx: &Context) -> Suggesting {
         ctx.data(|d| d.get_temp(Self::store_id())).unwrap_or_default()
     }
@@ -58,20 +63,25 @@ impl Suggesting {
         ctx.data_mut(|d| d.insert_temp(Self::store_id(), self));
     }
 
-    /// Whether the pointer is over the list.
-    pub fn pointer_over(&self, ui: &Ui) -> bool {
-        self.rect.is_some_and(|r| ui.ctx().pointer_hover_pos().is_some_and(|p| r.contains(p)))
+    /// Whether the list shows, as egui last drew it.
+    pub fn is_open(ctx: &Context) -> bool {
+        egui::Popup::is_id_open(ctx, Self::list_id())
     }
 
-    /// Whether the list shows for `text`, with the box in use (`active`: it has the keyboard or the
-    /// pointer is over the list).
-    pub fn is_open(&self, text: &str, active: bool) -> bool {
-        active && !self.items.is_empty() && self.dismissed.as_ref().is_none_or(|(d, _)| d != text)
+    /// Whether the list will show in the next frame, while the search may be offered for (`free`).
+    pub fn will_show(&self, ctx: &Context, free: bool) -> bool {
+        free && !self.items.is_empty() && (Self::is_open(ctx) || self.moved || !self.wanted)
+    }
+
+    /// Whether the pointer is over the list.
+    pub fn pointer_over(&self, ui: &Ui) -> bool {
+        let list = egui::LayerId::new(egui::Order::Foreground, Self::list_id());
+        ui.ctx().pointer_hover_pos().and_then(|p| ui.ctx().layer_id_at(p)) == Some(list)
     }
 
     /// The keys meant for the list while it shows, taken before the box sees them; which item to
-    /// take, if one.
-    pub fn keys(&mut self, ui: &Ui, text: &str) -> Option<usize> {
+    /// take, if one. (Escape is egui's: it closes the list.)
+    pub fn keys(&mut self, ui: &Ui) -> Option<usize> {
         let n = self.items.len();
         let mut take = None;
         let mut back = false;
@@ -96,11 +106,6 @@ impl Suggesting {
             if i.consume_key(egui::Modifiers::NONE, egui::Key::Tab) {
                 take = Some(self.selected.unwrap_or(0));
             }
-            // Only a press: the repeats of an Escape that closed a dialog over the window leave the
-            // list (#393).
-            if crate::keys::take_once(i, egui::Key::Escape) {
-                self.dismissed = Some((text.to_string(), None));
-            }
         });
         if back {
             ui.memory_mut(|m| m.move_focus(egui::FocusDirection::Previous));
@@ -108,80 +113,66 @@ impl Suggesting {
         take
     }
 
-    /// Draw the list under `under` (the search box); the item clicked, if one.
-    pub fn show(&mut self, ui: &Ui, under: Rect) -> Option<usize> {
+    /// The list under `under` (the search box), when it is `wanted`: opened when it comes to be,
+    /// or for a search or a cursor that changed; closed when it isn't. The item clicked, if one.
+    /// A click outside it is no matter of the list's: one away from the box takes the keyboard
+    /// from it, and that closes the list.
+    pub fn show(&mut self, ui: &Ui, under: Rect, wanted: bool) -> Option<usize> {
         let t = Tokens::get(ui.ctx());
+        let open = if !wanted {
+            Some(egui::SetOpenCommand::Bool(false))
+        } else if !self.wanted || self.moved {
+            Some(egui::SetOpenCommand::Bool(true))
+        } else {
+            None
+        };
+        (self.wanted, self.moved) = (wanted, false);
+        let frame = egui::Frame::NONE.fill(t.menu).stroke(Stroke::new(1.0, t.border_strong)).corner_radius(6.0).inner_margin(egui::Margin::same(4));
         let mut take = None;
-        let shown = egui::Area::new(Self::store_id().with("list"))
-            .order(egui::Order::Foreground)
-            .fixed_pos(pos2(under.min.x, under.max.y + 2.0))
-            .show(ui.ctx(), |ui| {
-                egui::Frame::NONE.fill(t.menu).stroke(Stroke::new(1.0, t.border_strong)).corner_radius(6.0).inner_margin(egui::Margin::same(4)).show(
-                    ui,
-                    |ui| {
-                        ui.set_width((under.width() - 8.0).max(160.0));
-                        for (i, s) in self.items.iter().enumerate() {
-                            let (r, row) = ui.allocate_exact_size(vec2(ui.available_width(), ROW_H), Sense::click());
-                            let named = shows_address(s).map_or_else(|| s.label.clone(), |address| format!("{}, {address}", s.label));
-                            row.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, &named));
-                            if self.selected == Some(i) || row.hovered() {
-                                ui.painter().rect_filled(r, 4.0, if self.selected == Some(i) { t.selection } else { t.hover });
-                            }
-                            let mut x = r.min.x + 8.0;
-                            if let Some(color) = s.color {
-                                ui.painter().rect_filled(
-                                    Rect::from_center_size(pos2(x + MARK / 2.0, r.center().y), vec2(MARK, MARK)),
-                                    2.0,
-                                    c32(color),
-                                );
-                                x += MARK + 8.0;
-                            }
-                            // A person: the name, and the address beside it, as a new message's list has them.
-                            let room = (r.max.x - x - 8.0).max(0.0);
-                            let w = paint_clipped(
-                                ui.painter(),
-                                pos2(x, r.center().y),
-                                if shows_address(s).is_some() { room * 0.6 } else { room },
-                                &s.label,
-                                regular(12.5),
-                                t.text,
-                            );
-                            if let Some(address) = shows_address(s) {
-                                paint_clipped(
-                                    ui.painter(),
-                                    pos2(x + w + 8.0, r.center().y),
-                                    (room - w - 8.0).max(0.0),
-                                    address,
-                                    regular(11.5),
-                                    t.text_dim,
-                                );
-                            }
-                            if row.clicked() {
-                                take = Some(i);
-                            }
-                        }
-                    },
-                );
+        egui::Popup::new(Self::list_id(), ui.ctx().clone(), under, ui.layer_id())
+            .gap(2.0)
+            .frame(frame)
+            .close_behavior(egui::PopupCloseBehavior::IgnoreClicks)
+            .open_memory(open)
+            .show(|ui| {
+                ui.set_width((under.width() - 8.0).max(160.0));
+                for (i, s) in self.items.iter().enumerate() {
+                    let (r, row) = ui.allocate_exact_size(vec2(ui.available_width(), ROW_H), Sense::click());
+                    let named = shows_address(s).map_or_else(|| s.label.clone(), |address| format!("{}, {address}", s.label));
+                    row.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, &named));
+                    if self.selected == Some(i) || row.hovered() {
+                        ui.painter().rect_filled(r, 4.0, if self.selected == Some(i) { t.selection } else { t.hover });
+                    }
+                    let mut x = r.min.x + 8.0;
+                    if let Some(color) = s.color {
+                        ui.painter().rect_filled(Rect::from_center_size(pos2(x + MARK / 2.0, r.center().y), vec2(MARK, MARK)), 2.0, c32(color));
+                        x += MARK + 8.0;
+                    }
+                    // Somebody: the name, and the address beside it, as the recipient suggestions show them.
+                    let room = (r.max.x - x - 8.0).max(0.0);
+                    let w = paint_clipped(
+                        ui.painter(),
+                        pos2(x, r.center().y),
+                        if shows_address(s).is_some() { room * 0.6 } else { room },
+                        &s.label,
+                        regular(12.5),
+                        t.text,
+                    );
+                    if let Some(address) = shows_address(s) {
+                        paint_clipped(ui.painter(), pos2(x + w + 8.0, r.center().y), (room - w - 8.0).max(0.0), address, regular(11.5), t.text_dim);
+                    }
+                    if row.clicked() {
+                        take = Some(i);
+                    }
+                }
             });
-        self.rect = Some(shown.response.rect);
         take
-    }
-
-    /// Closed: nothing drawn, so nothing to click.
-    pub fn hidden(&mut self) {
-        self.rect = None;
     }
 
     /// What to offer next frame, for `text` with the cursor at character `cursor`.
     pub fn offer(&mut self, text: &str, cursor: usize, session: &mailcraft_engine::Session) {
         let categories = session.mailbox.categories.as_slice();
-        if let Some((d, at)) = &mut self.dismissed {
-            if d != text || at.is_some_and(|at| at != cursor) {
-                self.dismissed = None;
-            } else {
-                *at = Some(cursor);
-            }
-        }
+        self.moved |= (self.for_text.as_str(), self.for_cursor) != (text, cursor);
         let mailbox = (session.rev(), session.openings());
         if (self.for_text.as_str(), self.for_cursor, self.for_categories.as_slice(), self.for_mailbox) == (text, cursor, categories, mailbox) {
             return;
@@ -196,7 +187,7 @@ impl Suggesting {
     }
 
     pub fn clear(&mut self) {
-        *self = Suggesting { dismissed: self.dismissed.take(), ..Suggesting::default() };
+        *self = Suggesting { wanted: self.wanted, ..Suggesting::default() };
     }
 }
 

@@ -11,7 +11,7 @@
 use std::collections::VecDeque;
 use std::sync::mpsc::Sender;
 
-use egui::{Key, vec2};
+use egui::vec2;
 use mailcraft_engine::agent::{self, Class, Verdict};
 use serde_json::{Value, json};
 
@@ -156,14 +156,21 @@ fn verbs(class: Class) -> (&'static str, &'static str) {
     }
 }
 
-/// Enter or Escape answers no to the agent's question. This runs first in the frame, so nothing
-/// under the question gets the same key, its repeats included (#393). Only a new press answers: a
-/// key that was already held down when the question came up doesn't answer it unseen.
+/// The question's layer: a modal one, over everything.
+fn layer() -> egui::LayerId {
+    crate::keys::modal_layer(egui::Id::unique("agent-asks"))
+}
+
+/// Enter or Escape answers no to the agent's question. It is on top of everything, so nothing
+/// under the question gets the same key, its repeats included (#393, #406). Only a new press
+/// answers, once the question was on the screen: not a key that was already held down when it
+/// came up, nor one pressed before it was drawn.
 pub fn keys(app: &mut MailApp, ctx: &egui::Context) {
     if app.asking.is_empty() {
         return;
     }
-    let (enter, escape) = ctx.input_mut(|i| (crate::keys::take_once(i, Key::Enter), crate::keys::take_once(i, Key::Escape)));
+    // (Not a button of the question either: the next question's would be pressed with it.)
+    let (enter, escape) = (crate::keys::take_enter_out(ctx, layer()), crate::keys::take_escape(ctx, layer()));
     if enter || escape {
         answer(app, false);
     }
@@ -183,38 +190,33 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
     let mut said = None;
     let frame = egui::Frame::window(&ctx.global_style()).fill(t.surface).inner_margin(egui::Margin::same(16));
     let width = (ctx.content_rect().width() - 48.0).clamp(160.0, 460.0);
-    egui::Modal::new(egui::Id::unique("agent-asks"))
-        .frame(frame)
-        .backdrop_color(egui::Color32::from_black_alpha(if t.dark { 110 } else { 60 }))
-        .show(ctx, |ui| {
-            ui.set_width(width);
-            ui.spacing_mut().item_spacing = vec2(8.0, 8.0);
-            ui.label(egui::RichText::new(tl!("An Agent Is Asking")).font(semibold(14.0)).color(t.text));
-            ui.label(egui::RichText::new(text).color(t.text));
-            ui.label(
-                egui::RichText::new(tl!(
-                    "Say yes only if you asked the agent for this. Text in a message can tell an agent to do things you didn't ask for."
-                ))
-                .color(t.text_dim),
-            );
-            if waiting > 1 {
-                ui.label(
-                    egui::RichText::new(tln!(waiting - 1, "{n} more question is waiting.", "{n} more questions are waiting.")).color(t.text_dim),
-                );
+    egui::Modal::new(layer().id).frame(frame).backdrop_color(egui::Color32::from_black_alpha(if t.dark { 110 } else { 60 })).show(ctx, |ui| {
+        ui.set_width(width);
+        ui.spacing_mut().item_spacing = vec2(8.0, 8.0);
+        ui.label(egui::RichText::new(tl!("An Agent Is Asking")).font(semibold(14.0)).color(t.text));
+        ui.label(egui::RichText::new(text).color(t.text));
+        ui.label(
+            egui::RichText::new(tl!(
+                "Say yes only if you asked the agent for this. Text in a message can tell an agent to do things you didn't ask for."
+            ))
+            .color(t.text_dim),
+        );
+        if waiting > 1 {
+            ui.label(egui::RichText::new(tln!(waiting - 1, "{n} more question is waiting.", "{n} more questions are waiting.")).color(t.text_dim));
+        }
+        ui.add_space(6.0);
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            let no = primary_button(ui, no_label, true);
+            let yes = ui.add(egui::Button::new(yes_label).min_size(vec2(72.0, 26.0)));
+            app.hit.add("agentNo", 0, no.rect);
+            app.hit.add("agentYes", 0, yes.rect);
+            if no.clicked() {
+                said = Some(false);
+            } else if yes.clicked() {
+                said = Some(true);
             }
-            ui.add_space(6.0);
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                let no = primary_button(ui, no_label, true);
-                let yes = ui.add(egui::Button::new(yes_label).min_size(vec2(72.0, 26.0)));
-                app.hit.add("agentNo", 0, no.rect);
-                app.hit.add("agentYes", 0, yes.rect);
-                if no.clicked() {
-                    said = Some(false);
-                } else if yes.clicked() {
-                    said = Some(true);
-                }
-            });
         });
+    });
     if let Some(yes) = said {
         answer(app, yes);
     }
