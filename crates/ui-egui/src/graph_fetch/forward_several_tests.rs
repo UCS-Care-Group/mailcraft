@@ -1,9 +1,11 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! A forward of several messages in the window (#360): those of which only the headers are here
-//! are fetched first, an account's at a time, and the new message opens once they are all here,
-//! with the messages chosen however the selection moved meanwhile; one that doesn't come stops it,
-//! named, and isn't asked for again; what is over a limit is refused before anything is fetched.
+//! are fetched first, an account's at a time and ten at a time, and the new message opens once
+//! they are all here, with the messages chosen however the selection moved meanwhile. One its
+//! server didn't send stops it, named, with the reason; a batch cut short is asked for again, and
+//! one that brought nothing stops it. What is over a limit is refused before anything is fetched,
+//! or, for sizes the server didn't say, as soon as a batch shows it.
 
 use std::sync::mpsc;
 use std::sync::{Arc, Mutex};
@@ -72,21 +74,54 @@ fn asked(jobs: &Jobs) -> Vec<(Id, Vec<String>)> {
 /// Answer every job: each message whole, but those in `missing` (gone from the server) and in
 /// `failed` (refused), then let the window take it in.
 fn answer(app: &mut MailApp, jobs: &Jobs, missing: &[&str], failed: &[&str]) {
+    reply(app, jobs, &|id| {
+        if missing.contains(&id) {
+            Reply::Missing
+        } else if failed.contains(&id) {
+            Reply::Failed
+        } else {
+            Reply::Whole(String::new())
+        }
+    });
+}
+
+/// What a test's server says of a message it is asked for.
+enum Reply {
+    /// Whole, with this much more text.
+    Whole(String),
+    Missing,
+    Failed,
+    /// Nothing: it stopped before it.
+    None,
+}
+
+/// Answer every job as `says` says of each message, then let the window take it in.
+fn reply(app: &mut MailApp, jobs: &Jobs, says: &dyn Fn(&str) -> Reply) {
     for (job, tx) in std::mem::take(&mut *jobs.lock().unwrap()) {
         let mut result = GraphFetchResult { account: job.request.account, email: job.request.email.clone(), ..Default::default() };
         for id in &job.request.ids {
-            if missing.contains(&id.as_str()) {
-                result.missing.push(id.clone());
-            } else if failed.contains(&id.as_str()) {
-                result.failed.push(id.clone());
-            } else {
-                let mime = format!("From: someone@example.org\r\nSubject: Whole {id}\r\nMessage-ID: <{id}@example.org>\r\n\r\nAll of {id}.\r\n");
-                result.fetched.push(GraphFetched { id: id.clone(), mime: mime.into_bytes() });
+            match says(id) {
+                Reply::Whole(more) => {
+                    let mime =
+                        format!("From: someone@example.org\r\nSubject: Whole {id}\r\nMessage-ID: <{id}@example.org>\r\n\r\nAll of {id}.\r\n{more}");
+                    result.fetched.push(GraphFetched { id: id.clone(), mime: mime.into_bytes() });
+                }
+                Reply::Missing => result.missing.push(id.clone()),
+                Reply::Failed => result.failed.push(id.clone()),
+                Reply::None => {}
             }
+        }
+        if result.fetched.len() + result.missing.len() + result.failed.len() < job.request.ids.len() {
+            result.busy_for = Some(30);
         }
         tx.send(result).unwrap();
     }
     app.drive_fetch();
+}
+
+/// What the status bar says.
+fn said(app: &MailApp) -> String {
+    app.status_msg.as_ref().map(|(text, _)| text.clone()).unwrap_or_default()
 }
 
 /// The subjects of the messages attached, by their names.
@@ -139,10 +174,13 @@ fn several_of_two_accounts_come_an_account_at_a_time() {
 }
 
 #[test]
-fn one_that_doesnt_come_stops_them_and_is_named_once() {
-    // Gone from its server (a Send/Receive takes it away here), or refused by it.
-    let says = "“Account 0 message 2” isn't downloaded yet";
-    for (missing, failed) in [(&["AA0M2"][..], &[][..]), (&[], &["AA0M2"][..])] {
+fn one_its_server_didnt_send_stops_them_and_is_named_with_the_reason() {
+    for (missing, failed, says) in [
+        // Gone from its server (deleted or moved meanwhile).
+        (&["AA0M2"][..], &[][..], "“Account 0 message 2” wasn't found on its server, so it can't be forwarded"),
+        // Refused by it.
+        (&[], &["AA0M2"][..], "the server wouldn't send “Account 0 message 2” whole, so it can't be forwarded"),
+    ] {
         let (mut app, [[a, b, c], _], jobs) = window();
         app.session.sel.messages = vec![a, b, c];
         app.by_hand = true;
@@ -151,11 +189,79 @@ fn one_that_doesnt_come_stops_them_and_is_named_once() {
         answer(&mut app, &jobs, missing, failed);
         assert!(app.session.compose.is_none(), "{says}");
         assert!(asked(&jobs).is_empty(), "{says}: not asked for again");
-        let status = app.status_msg.as_ref().map(|(text, _)| text.clone()).unwrap_or_default();
-        assert!(status.contains(says), "{status}");
+        assert!(said(&app).contains(says), "{}", said(&app));
         // The one that came is here whole, for the next try.
         assert!(!app.session.mailbox.message(a).unwrap().unfetched);
     }
+}
+
+#[test]
+fn a_batch_cut_short_is_asked_for_again_and_one_that_brings_none_stops() {
+    for offline in [false, true] {
+        let (mut app, [[a, b, c], _], jobs) = window();
+        let one = app.session.mailbox.message(a).unwrap().account;
+        app.session.sel.messages = vec![a, b, c];
+        app.run("mail.forwardAsAttachment", json!({})).unwrap();
+        // The server busy after the first: the other is asked for again.
+        reply(&mut app, &jobs, &|id| if id == "AA0M0" { Reply::Whole(String::new()) } else { Reply::None });
+        assert_eq!(asked(&jobs), [(one, vec!["AA0M2".to_string()])], "offline {offline}");
+        assert!(app.session.compose.is_none());
+        // A batch that brings none of them stops it, saying why, and asks for nothing more.
+        for (job, tx) in std::mem::take(&mut *jobs.lock().unwrap()) {
+            let result = GraphFetchResult { account: job.request.account, offline, busy_for: (!offline).then_some(30), ..Default::default() };
+            tx.send(result).unwrap();
+        }
+        app.drive_fetch();
+        assert!(asked(&jobs).is_empty() && app.session.compose.is_none(), "offline {offline}");
+        let says = if offline {
+            "“Account 0 message 2” isn't downloaded yet: open it once you're online"
+        } else {
+            "The server didn't send the messages. Try again in a few minutes."
+        };
+        assert!(said(&app).contains(says), "{}", said(&app));
+    }
+}
+
+#[test]
+fn one_named_by_ids_is_fetched_first_too() {
+    let (mut app, [[a, b, c], _], jobs) = window();
+    let one = app.session.mailbox.message(a).unwrap().account;
+    app.session.sel.messages = vec![b];
+    for (command, message, on_server) in [("mail.forward", a, "AA0M0"), ("mail.forwardAsAttachment", c, "AA0M2")] {
+        app.session.compose = None;
+        assert_eq!(app.run(command, json!({"ids": [message]})).unwrap()["pending"], "download", "{command}");
+        assert_eq!(app.status_msg.as_ref().map(|(text, _)| text.as_str()), Some("Downloading the message first…"));
+        assert_eq!(asked(&jobs), [(one, vec![on_server.to_string()])], "{command}");
+        answer(&mut app, &jobs, &[], &[]);
+        assert_eq!(app.session.compose.as_ref().and_then(|c| c.source), Some(message), "{command}");
+    }
+    // Forward quoted it whole; Forward as Attachment attached it whole.
+    assert_eq!(subjects(&app), ["Whole AA0M2"]);
+    app.session.compose = None;
+    app.run("mail.forward", json!({"ids": [a]})).unwrap();
+    assert!(app.session.compose.as_ref().unwrap().body.plain().contains("All of AA0M0."));
+}
+
+#[test]
+fn without_sizes_over_64_mb_together_is_found_out_after_a_batch() {
+    let (mut app, [[a, ..], _], jobs) = window();
+    let (account, inbox) = app.session.mailbox.message(a).map(|m| (m.account, m.folder)).unwrap();
+    // A Microsoft account's delta says no sizes.
+    let mut ids = Vec::new();
+    for n in 0..12 {
+        let server = ServerMessage { id: format!("BIG{n}"), folder: "inbox".into(), size: 0, ..Default::default() };
+        let m = Message { account, folder: inbox, subject: format!("Big {n}"), unfetched: true, server: Some(server), ..Default::default() };
+        ids.push(app.session.mailbox.add_message(m).unwrap());
+    }
+    app.session.sel.messages = ids;
+    app.run("mail.forwardAsAttachment", json!({})).unwrap();
+    assert_eq!(asked(&jobs).iter().map(|(_, ids)| ids.len()).collect::<Vec<_>>(), [10]);
+    // Each is 7 MB: the ten that came are over 64 MB together, and the other two aren't asked for.
+    let line = format!("{}\r\n", "x".repeat(76));
+    let seven = line.repeat((7 << 20) / line.len());
+    reply(&mut app, &jobs, &|_| Reply::Whole(seven.clone()));
+    assert!(asked(&jobs).is_empty() && app.session.compose.is_none());
+    assert!(said(&app).contains("larger than 64 MB together"), "{}", said(&app));
 }
 
 #[test]
@@ -190,13 +296,22 @@ fn over_a_limit_is_refused_before_anything_is_fetched() {
 
 #[test]
 fn offline_the_window_says_so() {
+    let (mut app, [[a, ..], [x, ..]], jobs) = window();
+    let two = app.session.mailbox.message(x).unwrap().account;
+    // The other account's sign-in is gone: the first's come, and the other's first is named.
+    app.graph_tokens.remove(&two);
+    app.session.sel.messages = vec![a, x];
+    app.run("mail.forwardAsAttachment", json!({})).unwrap();
+    answer(&mut app, &jobs, &[], &[]);
+    assert!(said(&app).contains("“Account 1 message 0” isn't downloaded yet: open it once you're online"), "{}", said(&app));
+    assert!(asked(&jobs).is_empty() && app.session.compose.is_none());
+    // None of them can come: the first is named.
     let (mut app, [[a, b, c], _], jobs) = window();
     app.graph_tokens.clear();
     app.session.sel.messages = vec![a, b, c];
     let e = app.run("mail.forwardAsAttachment", json!({})).unwrap_err();
-    assert!(e.contains("It will download when you're online"), "{e}");
-    let status = app.status_msg.as_ref().map(|(text, _)| text.clone()).unwrap_or_default();
-    assert!(status.contains("It will download when you're online"), "{status}");
+    assert!(e.contains("“Account 0 message 0” isn't downloaded yet: open it once you're online"), "{e}");
+    assert_eq!(said(&app), e);
     // As for one message (a reply, here), which said nothing before.
     app.status_msg = None;
     let e = app.run("mail.reply", json!({"id": a})).unwrap_err();
@@ -205,21 +320,36 @@ fn offline_the_window_says_so() {
 }
 
 #[test]
-fn more_than_a_host_takes_at_once_come_a_hundred_at_a_time() {
+fn more_than_ten_come_ten_at_a_time() {
     let (mut app, [[a, ..], _], jobs) = window();
     let account = app.session.mailbox.message(a).unwrap().account;
     let inbox = app.session.mailbox.message(a).unwrap().folder;
     let mut ids = Vec::new();
-    for n in 0..150 {
+    for n in 0..25 {
         let server = ServerMessage { id: format!("MANY{n}"), folder: "inbox".into(), size: 2_000, ..Default::default() };
         let m = Message { account, folder: inbox, subject: format!("Many {n}"), unfetched: true, server: Some(server), ..Default::default() };
         ids.push(app.session.mailbox.add_message(m).unwrap());
     }
     app.session.sel.messages = ids;
     app.run("mail.forwardAsAttachment", json!({})).unwrap();
-    assert_eq!(asked(&jobs).iter().map(|(_, ids)| ids.len()).collect::<Vec<_>>(), [100]);
-    answer(&mut app, &jobs, &[], &[]);
-    assert_eq!(asked(&jobs).iter().map(|(_, ids)| ids.len()).collect::<Vec<_>>(), [50], "the rest, once the first hundred came");
-    answer(&mut app, &jobs, &[], &[]);
-    assert_eq!(app.session.compose.as_ref().map(|c| c.attachments.len()), Some(150));
+    for batch in [10, 10, 5] {
+        assert_eq!(asked(&jobs).iter().map(|(_, ids)| ids.len()).collect::<Vec<_>>(), [batch], "the next, once those before came");
+        answer(&mut app, &jobs, &[], &[]);
+    }
+    assert_eq!(app.session.compose.as_ref().map(|c| c.attachments.len()), Some(25));
+}
+
+#[test]
+fn one_sent_but_not_taken_in_isnt_asked_for_again() {
+    let (mut app, [[a, b, c], _], jobs) = window();
+    app.session.sel.messages = vec![a, b, c];
+    app.run("mail.forwardAsAttachment", json!({})).unwrap();
+    // The answer is for another address than the account's now: nothing of it is taken in.
+    for (job, tx) in std::mem::take(&mut *jobs.lock().unwrap()) {
+        let fetched = job.request.ids.iter().map(|id| GraphFetched { id: id.clone(), mime: b"Subject: x\r\n\r\nx\r\n".to_vec() }).collect();
+        tx.send(GraphFetchResult { account: job.request.account, email: "someone.else@example.org".into(), fetched, ..Default::default() }).unwrap();
+    }
+    app.drive_fetch();
+    assert!(asked(&jobs).is_empty() && app.session.compose.is_none());
+    assert!(said(&app).contains("“Account 0 message 0” isn't downloaded yet"), "{}", said(&app));
 }

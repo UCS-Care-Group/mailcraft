@@ -9175,6 +9175,12 @@ msgid "The server didn't say when other people are busy"
 msgstr "Le serveur n'a pas indiqué quand les autres personnes sont occupées"
 
 #. interface
+#: crates/ui-egui/src/graph_fetch.rs
+#, fuzzy
+msgid "The server didn't send the messages. Try again in a few minutes."
+msgstr "Le serveur n'a pas envoyé les messages. Réessayez dans quelques minutes."
+
+#. interface
 #: crates/ui-egui/src/graph_fetch.rs crates/ui-egui/src/reading.rs
 msgid "The server turned down the sign-in for this account. Use Send/Receive to sign in again."
 msgstr ""
@@ -11951,6 +11957,12 @@ msgid "the server sent nothing"
 msgstr "le serveur n'a rien envoyé"
 
 #. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "the server wouldn't send “{subject}” whole, so it can't be forwarded as an attachment"
+msgstr "le serveur n'a pas voulu envoyer « {subject} » en entier, il ne peut donc pas être transféré en tant que pièce jointe"
+
+#. what a command says
 #: crates/engine/src/cmd/signature.rs
 #, fuzzy
 msgid "the signature has changes: save it, or close it with discard"
@@ -13279,6 +13291,12 @@ msgstr "« {subject} » n'est pas encore téléchargé : ouvrez-le une fois en l
 #, fuzzy
 msgid "“{subject}” was too large to download: only its header is here, so it can't be forwarded as an attachment"
 msgstr "« {subject} » était trop volumineux pour être téléchargé : seul son en-tête est ici, il ne peut donc pas être transféré en tant que pièce jointe"
+
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
+msgstr "« {subject} » est introuvable sur son serveur, il ne peut donc pas être transféré en tant que pièce jointe"
 
 #, fuzzy
 #~ msgid "only the headers of this message are here, so it can't be forwarded as an attachment"

@@ -507,6 +507,17 @@ pub fn forward_check(s: &Session, ids: &[Id], fetched_first: bool) -> Result<(),
     Ok(())
 }
 
+/// Why message `id`, which a forward of several waited for (#360), can't go: its server answered
+/// that it hasn't it (`gone`: deleted or moved meanwhile), or wouldn't give it whole.
+pub fn not_sent(s: &Session, id: Id, gone: bool) -> CmdError {
+    let Some(m) = s.mailbox.message(id) else { return failed!("no message with id {id}", id) };
+    if gone {
+        failed!("“{subject}” wasn't found on its server, so it can't be forwarded as an attachment", subject = subject_of(m))
+    } else {
+        failed!("the server wouldn't send “{subject}” whole, so it can't be forwarded as an attachment", subject = subject_of(m))
+    }
+}
+
 /// The message `ids` names, or the messages together, are larger than one message may carry
 /// attached.
 fn too_large(s: &Session, ids: &[Id]) -> CmdError {

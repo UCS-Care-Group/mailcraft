@@ -9314,6 +9314,12 @@ msgid "The server didn't say when other people are busy"
 msgstr "De server heeft niet aangegeven wanneer andere personen bezet zijn"
 
 #. interface
+#: crates/ui-egui/src/graph_fetch.rs
+#, fuzzy
+msgid "The server didn't send the messages. Try again in a few minutes."
+msgstr "De server heeft de berichten niet verzonden. Probeer het over een paar minuten opnieuw."
+
+#. interface
 #: crates/ui-egui/src/graph_fetch.rs crates/ui-egui/src/reading.rs
 msgid "The server turned down the sign-in for this account. Use Send/Receive to sign in again."
 msgstr ""
@@ -12143,6 +12149,12 @@ msgid "the server sent nothing"
 msgstr "de server stuurde niets"
 
 #. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "the server wouldn't send “{subject}” whole, so it can't be forwarded as an attachment"
+msgstr "de server wilde ‘{subject}’ niet volledig verzenden, dus het kan niet als bijlage worden doorgestuurd"
+
+#. what a command says
 #: crates/engine/src/cmd/signature.rs
 #, fuzzy
 msgid "the signature has changes: save it, or close it with discard"
@@ -13484,6 +13496,12 @@ msgstr "‘{subject}’ is nog niet gedownload: open het zodra u online bent en 
 #, fuzzy
 msgid "“{subject}” was too large to download: only its header is here, so it can't be forwarded as an attachment"
 msgstr "‘{subject}’ was te groot om te downloaden: alleen de kopregels zijn hier, dus het kan niet als bijlage worden doorgestuurd"
+
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
+msgstr "‘{subject}’ is niet gevonden op de server, dus het kan niet als bijlage worden doorgestuurd"
 
 #, fuzzy
 #~ msgid "only the headers of this message are here, so it can't be forwarded as an attachment"

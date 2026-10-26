@@ -7733,6 +7733,11 @@ msgid "The server didn't say when other people are busy"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/graph_fetch.rs
+msgid "The server didn't send the messages. Try again in a few minutes."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/graph_fetch.rs crates/ui-egui/src/reading.rs
 msgid "The server turned down the sign-in for this account. Use Send/Receive to sign in again."
 msgstr ""
@@ -10101,6 +10106,11 @@ msgid "the server sent nothing"
 msgstr ""
 
 #. what a command says
+#: crates/engine/src/cmd/compose.rs
+msgid "the server wouldn't send “{subject}” whole, so it can't be forwarded as an attachment"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/signature.rs
 msgid "the signature has changes: save it, or close it with discard"
 msgstr ""
@@ -11244,5 +11254,10 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
 msgid "“{subject}” was too large to download: only its header is here, so it can't be forwarded as an attachment"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr ""
 
