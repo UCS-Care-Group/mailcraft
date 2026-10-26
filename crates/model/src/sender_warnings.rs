@@ -237,7 +237,7 @@ pub fn sender_domain(address: &str) -> Option<String> {
 }
 
 /// `domain` as domains are compared ([`sender_domain`]).
-fn normal_domain(domain: &str) -> Option<String> {
+pub(crate) fn normal_domain(domain: &str) -> Option<String> {
     let domain = domain.trim().trim_end_matches('.');
     if domain.is_empty() || domain.len() > 253 || domain.chars().any(|c| c.is_whitespace() || c.is_control() || matches!(c, '@' | '/' | '\\')) {
         return None;
@@ -322,7 +322,16 @@ fn detail(text: &str) -> String {
 /// The addresses written in a display name (what has an `@` with something on either side and a
 /// dot after it), in lower case.
 fn addresses_in(name: &str) -> Vec<String> {
-    let chars: Vec<char> = name.chars().take(MAX_NAME_CHARS).collect();
+    // A full-width `＠` or `．` reads as `@` or `.` to whoever looks at the name.
+    let chars: Vec<char> = name
+        .chars()
+        .take(MAX_NAME_CHARS)
+        .map(|c| match c {
+            '\u{ff20}' => '@',
+            '\u{ff0e}' => '.',
+            c => c,
+        })
+        .collect();
     let local = |c: char| c.is_alphanumeric() || matches!(c, '.' | '_' | '%' | '+' | '-' | '\'');
     let host = |c: char| c.is_alphanumeric() || matches!(c, '.' | '-');
     let mut out = Vec::new();
@@ -385,14 +394,69 @@ fn host_key(host: &str) -> &str {
     host.strip_prefix("www.").unwrap_or(host)
 }
 
+/// Microsoft's Safe Links, which rewrites a link to go through `*.safelinks.protection.outlook.com`
+/// with the link it stands for in its `url` parameter. That link is the one compared.
+const SAFE_LINKS: &str = "safelinks.protection.outlook.com";
+
+/// The registrable domains of the other services an organisation may have rewrite every link of
+/// its mail to pass through them (Proofpoint's URL Defense, Mimecast's URL Protect). Where such a
+/// link really goes is not written plainly in it, so a link through them is not compared at all.
+/// Kept short: only services that rewrite a whole organisation's mail belong here.
+const LINK_REWRITERS: [&str; 4] = ["urldefense.com", "proofpoint.com", "mimecast.com", "mimecastprotect.com"];
+
+/// `text` with its `%XX` escapes read back (`+` left as it is), as UTF-8 at most loosely.
+fn percent_decoded(text: &str) -> String {
+    let bytes = text.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while let Some(&b) = bytes.get(i) {
+        let hex = bytes.get(i + 1..i + 3).and_then(|h| std::str::from_utf8(h).ok()).and_then(|h| u8::from_str_radix(h, 16).ok());
+        match (b, hex) {
+            (b'%', Some(v)) => {
+                out.push(v);
+                i += 3;
+            }
+            _ => {
+                out.push(b);
+                i += 1;
+            }
+        }
+    }
+    String::from_utf8_lossy(&out).into_owned()
+}
+
+/// Where `link` really goes: through Safe Links, the link it stands for; else `link` itself.
+/// `None` for a link through one of the [`LINK_REWRITERS`], which is not compared.
+fn real_link(link: mailcraft_link::WebLink) -> Option<mailcraft_link::WebLink> {
+    let host = host_key(link.host()).to_ascii_lowercase();
+    if LINK_REWRITERS.contains(&registrable(&host)) {
+        return None;
+    }
+    let safe = host == SAFE_LINKS || host.strip_suffix(SAFE_LINKS).is_some_and(|head| head.ends_with('.'));
+    if !safe {
+        return Some(link);
+    }
+    let query = link.as_str().split_once('?').map(|(_, q)| q.split('#').next().unwrap_or(q)).unwrap_or("");
+    let inner = query.split('&').find_map(|pair| pair.strip_prefix("url=")).map(percent_decoded);
+    Some(inner.and_then(|inner| mailcraft_link::WebLink::parse(inner.trim())).unwrap_or(link))
+}
+
+/// Where the link to `href` really goes, as [`link_mismatches`] compares it; `None` for no web
+/// address, or one through a [`LINK_REWRITERS`] service.
+pub fn link_target(href: &str) -> Option<mailcraft_link::WebLink> {
+    mailcraft_link::WebLink::parse(href.trim()).and_then(real_link)
+}
+
 /// The links whose text names one place and which go to another, of `links` (each its text and
 /// where it goes). Two hosts of the same registrable domain are one place (`lumen.example` and
-/// `pay.lumen.example`). A link that is no web address (`mailto:`, `cid:`) is not one of them.
+/// `pay.lumen.example`). A link that is no web address (`mailto:`, `cid:`) is not one of them; a
+/// link rewritten by Safe Links is compared as the link it stands for, and one through another
+/// service that rewrites links ([`LINK_REWRITERS`]) not at all.
 pub fn link_mismatches<'a>(links: impl IntoIterator<Item = (&'a str, &'a str)>) -> Vec<Warning> {
     let mut out: Vec<Warning> = Vec::new();
     for (text, href) in links.into_iter().take(MAX_LINKS) {
         let Some(named) = named_host(text) else { continue };
-        let Some(link) = mailcraft_link::WebLink::parse(href.trim()) else { continue };
+        let Some(link) = link_target(href) else { continue };
         let (named, real) = (host_key(&named), host_key(link.host()));
         if named == real || registrable(named) == registrable(real) {
             continue;
@@ -411,7 +475,9 @@ pub fn link_mismatches<'a>(links: impl IntoIterator<Item = (&'a str, &'a str)>) 
 /// The sender warnings of `m`, in the account `account` and a folder of `kind`, measured against
 /// `facts`; with `links` (each link's text and where it goes) when the body was looked at. In
 /// order: warnings, cautions, then the External tag. Nothing for mail in Sent Items, Drafts or
-/// the Outbox, nor for mail from the owner's own addresses.
+/// the Outbox. Mail from the owner's own addresses (a shared mailbox's too) is only checked for a
+/// failed check: anybody can write the owner's address on a message, and only the server can say
+/// it was not the owner who sent it.
 pub fn check<'a>(
     m: &Message,
     account: Option<&Account>,
@@ -419,12 +485,15 @@ pub fn check<'a>(
     facts: &Facts,
     links: Option<impl IntoIterator<Item = (&'a str, &'a str)>>,
 ) -> Vec<Warning> {
-    if matches!(kind, Some(FolderKind::Sent | FolderKind::Drafts | FolderKind::Outbox)) || facts.is_own(&m.from.email) {
+    if matches!(kind, Some(FolderKind::Sent | FolderKind::Drafts | FolderKind::Outbox)) {
         return Vec::new();
     }
     let mut out = Vec::new();
     if let Some(failed) = auth_results::failed_check(account, m) {
         out.push(Warning::FailedCheck(failed));
+    }
+    if facts.is_own(&m.from.email) {
+        return out;
     }
     out.extend(name_hides(facts, m));
     let domain = sender_domain(&m.from.email);

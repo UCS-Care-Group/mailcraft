@@ -9,7 +9,8 @@ use proptest::prelude::*;
 use crate::auth_results::{Failed, failed_check};
 use crate::confusables::skeleton;
 use crate::sender_warnings::{
-    Facts, FactsBuilder, Level, NameReason, Warning, banner_level, check, link_mismatches, name_key, registrable, sender_domain, within_one_edit,
+    Facts, FactsBuilder, Level, NameReason, Warning, banner_level, check, link_mismatches, link_target, name_key, registrable, sender_domain,
+    within_one_edit,
 };
 use crate::{Account, AccountKind, Address, FolderKind, Message, Security, Server};
 
@@ -123,6 +124,12 @@ fn a_name_that_carries_another_address() {
     );
     let m = from("Cloudline (billing@cloudline.example) team", "x@billing-desk.example");
     assert!(kinds(&m).contains(&"nameHidesAddress"));
+    // A full-width at sign reads as one.
+    let m = from("billing\u{ff20}cloudline.example", "x@billing-desk.example");
+    assert!(
+        matches!(&warnings(&m)[..], [Warning::NameHidesAddress { reason: NameReason::AddressInName(a), .. }, ..] if a == "billing@cloudline.example")
+    );
+    assert!(!kinds(&from("dev.patel\u{ff20}example\u{ff0e}org", "dev.patel@example.org")).contains(&"nameHidesAddress"));
     // The sender's own address in the name says nothing new.
     for name in ["dev.patel@example.org", "Dev Patel <Dev.Patel@example.org>", "Dev Patel", "", "@", "a@b", "x@.example"] {
         assert!(!kinds(&from(name, "dev.patel@example.org")).contains(&"nameHidesAddress"), "{name}");
@@ -266,6 +273,44 @@ fn a_link_that_names_one_place_and_goes_to_another() {
 }
 
 #[test]
+fn a_link_rewritten_by_safe_links_is_compared_as_the_link_it_stands_for() {
+    let safe = |target: &str| format!("https://eur01.safelinks.protection.outlook.com/?url={target}&data=05%7C02&reserved=0");
+    let agrees = safe("https%3A%2F%2Fpay.lumen.example%2Finvoice%3Fn%3D4");
+    assert!(link_mismatches([("lumen.example", agrees.as_str())]).is_empty());
+    let disagrees = safe("https%3A%2F%2Flumen-pay.example%2Flogin");
+    let found = link_mismatches([("https://lumen.example/pay", disagrees.as_str())]);
+    assert_eq!(found.len(), 1);
+    let Some(Warning::LinkMismatch { host, url, .. }) = found.first() else { panic!("{found:?}") };
+    assert_eq!(host, "lumen-pay.example");
+    assert_eq!(url, "https://lumen-pay.example/login");
+    assert_eq!(link_target(&disagrees).map(|link| link.host().to_string()).as_deref(), Some("lumen-pay.example"));
+}
+
+#[test]
+fn a_link_through_a_service_that_rewrites_links_is_not_compared() {
+    for href in [
+        "https://urldefense.com/v3/__https://lumen.example/pay__;!!abc$",
+        "https://urldefense.proofpoint.com/v2/url?u=https-3A__lumen.example&d=x",
+        "https://protect-eu.mimecast.com/s/AbCdEf?domain=lumen.example",
+    ] {
+        assert!(link_mismatches([("https://lumen.example/pay", href)]).is_empty(), "{href}");
+    }
+}
+
+#[test]
+fn a_host_that_only_looks_like_safe_links_is_not_unwrapped() {
+    for href in [
+        "https://safelinks.protection.outlook.com.evil.example/?url=https%3A%2F%2Flumen.example",
+        "https://eur01-safelinks-protection-outlook.example/?url=https%3A%2F%2Flumen.example",
+        "https://urldefense.com.evil.example/?url=https%3A%2F%2Flumen.example",
+    ] {
+        let found = link_mismatches([("lumen.example", href)]);
+        assert_eq!(found.len(), 1, "{href}");
+        assert!(matches!(found.first(), Some(Warning::LinkMismatch { text_host, .. }) if text_host == "lumen.example"));
+    }
+}
+
+#[test]
 fn a_link_never_fires_for_words_the_same_place_or_what_is_no_web_address() {
     let found = link_mismatches([
         ("Click here", "https://evil.example/"),
@@ -306,6 +351,61 @@ fn own_mail_and_outgoing_folders_are_never_checked() {
     assert!(!check(&bad, Some(&account), Some(FolderKind::Junk), &facts, None::<Vec<(&str, &str)>>).is_empty());
     let own = from("Someone Else", "Avery@Lumen.example");
     assert!(check(&own, Some(&account), Some(FolderKind::Inbox), &facts, Some([("lumen.example", "https://evil.example/")])).is_empty());
+}
+
+#[test]
+fn mail_in_the_owners_name_that_failed_its_check_is_still_warned_of() {
+    let facts =
+        FactsBuilder::default().accounts_by([("avery@lumen.example", "Avery Quinn", false), ("help@lumen.example", "Help Desk", true)]).build();
+    let account = imap("avery@lumen.example", "Avery Quinn");
+    for address in ["Avery@Lumen.example", "help@lumen.example"] {
+        let forged = with_results(from("Someone Else", address), "mx.lumen.example; dmarc=fail header.from=lumen.example");
+        // Only the failed check: the other rules still leave the owner's own mail alone.
+        let found = check(&forged, Some(&account), Some(FolderKind::Inbox), &facts, Some([("lumen.example", "https://evil.example/")]));
+        assert_eq!(found, [Warning::FailedCheck(Failed::Dmarc)], "{address}");
+        let fine = with_results(from("Someone Else", address), "mx.lumen.example; dmarc=pass header.from=lumen.example");
+        assert!(check(&fine, Some(&account), Some(FolderKind::Inbox), &facts, None::<Vec<(&str, &str)>>).is_empty());
+    }
+}
+
+#[test]
+fn a_sender_written_in_other_letters_still_fails_its_check() {
+    // A Cyrillic "е" in the mailbox name; the server judged the domain all the same.
+    let m = with_results(from("IT Desk", "itd\u{435}sk@lumen.example"), "mx.lumen.example; dmarc=fail header.from=lumen.example");
+    assert!(warnings(&m).contains(&Warning::FailedCheck(Failed::Dmarc)));
+    // The server may name the domain in letters or in `xn--`, the sender either way too.
+    let m = with_results(from("Shop", "orders@b\u{fc}cher.example"), "mx.lumen.example; dmarc=fail header.from=xn--bcher-kva.example");
+    assert!(warnings(&m).contains(&Warning::FailedCheck(Failed::Dmarc)));
+    let m = with_results(from("Shop", "orders@xn--bcher-kva.example"), "mx.lumen.example; dmarc=fail header.from=b\u{fc}cher.example");
+    assert!(warnings(&m).contains(&Warning::FailedCheck(Failed::Dmarc)));
+    // Another domain's failure is still not the sender's.
+    let m = with_results(from("IT Desk", "itd\u{435}sk@lumen.example"), "mx.lumen.example; dmarc=fail header.from=other.example");
+    assert!(!warnings(&m).iter().any(|w| matches!(w, Warning::FailedCheck(_))));
+}
+
+#[test]
+fn exchanges_composite_pass_overrides_a_dmarc_failure() {
+    let m = with_results(
+        from("Lin", "lin@harborworks.example"),
+        "mx.lumen.example; dmarc=fail action=oreject header.from=harborworks.example; compauth=pass reason=105",
+    );
+    assert!(!warnings(&m).iter().any(|w| matches!(w, Warning::FailedCheck(_))));
+    let m = with_results(
+        from("Lin", "lin@harborworks.example"),
+        "mx.lumen.example; dmarc=fail action=oreject header.from=harborworks.example; compauth=fail reason=000",
+    );
+    assert!(warnings(&m).contains(&Warning::FailedCheck(Failed::Dmarc)));
+}
+
+#[test]
+fn a_label_that_is_not_what_it_would_be_written_as_is_read_as_sent() {
+    // `xn--lumen-` is no Punycode of anything; it must not pass for `lumen`.
+    assert_eq!(sender_domain("it@xn--lumen-.example").as_deref(), Some("xn--lumen-.example"));
+    assert_eq!(sender_domain("pay@xn--paypal-.com").as_deref(), Some("xn--paypal-.com"));
+    let m = from("IT Desk", "it@xn--lumen-.example");
+    assert!(warnings(&m).iter().any(|w| matches!(w, Warning::External { domain } if domain == "xn--lumen-.example")));
+    // A real one is still read.
+    assert_eq!(sender_domain("x@xn--bcher-kva.example").as_deref(), Some("b\u{fc}cher.example"));
 }
 
 #[test]

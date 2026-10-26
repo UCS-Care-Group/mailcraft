@@ -284,7 +284,10 @@ fn punycode_reads_back_the_standard_examples() {
     assert_eq!(decode("Proprostnemluvesky-uyb24dma41a").as_deref(), Some("Pro\u{10d}prost\u{11b}nemluv\u{ed}\u{10d}esky"));
     assert_eq!(decode("bcher-kva").as_deref(), Some("b\u{fc}cher"));
     assert_eq!(decode("tda").as_deref(), Some("\u{fc}"));
-    assert_eq!(decode("abc-").as_deref(), Some("abc"));
+    // Labels that are not what their letters would be written as (IDNA 2008 §5.4).
+    for loose in ["abc-", "lumen-", "paypal-", "a-b-"] {
+        assert_eq!(decode(loose), None, "{loose}");
+    }
     // A Cyrillic "а" among Latin letters, as a lookalike domain has it, there and back.
     let lookalike: Vec<char> = "p\u{430}ypal".chars().collect();
     assert_eq!(punycode::encode(&lookalike).and_then(|text| punycode::decode(&text)), Some(lookalike));
@@ -348,7 +351,7 @@ proptest! {
 
     #[test]
     fn punycode_reads_back_what_it_writes(chars in prop::collection::vec(any::<char>(), 1..80), junk in "[ -~]{0,200}") {
-        if let Some(text) = punycode::encode(&chars) {
+        if let Some(text) = punycode::encode(&chars).filter(|_| chars.iter().any(|c| !c.is_ascii())) {
             prop_assert_eq!(punycode::decode(&text), Some(chars));
         }
         let _ = punycode::decode(&junk);

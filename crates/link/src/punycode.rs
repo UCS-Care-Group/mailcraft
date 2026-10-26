@@ -95,6 +95,9 @@ fn value(c: char) -> Option<u32> {
 
 /// The label `text` (the part after `xn--`) stands for (RFC 3492 §6.2); `None` when it is no
 /// Punycode, would overflow, or names something that is no character. Bounded like [`encode`].
+/// As IDNA 2008 (RFC 5891 §5.4) asks, a label is only read when what it stands for has a letter
+/// outside ASCII and writes back to exactly `text`: `abc-` is not `abc`, and a name read through
+/// it can never pass for one written plainly.
 pub fn decode(text: &str) -> Option<Vec<char>> {
     if text.is_empty() || text.len() > 4096 || !text.is_ascii() {
         return None;
@@ -136,5 +139,6 @@ pub fn decode(text: &str) -> Option<Vec<char>> {
         out.insert(usize::try_from(i).ok()?.min(out.len()), c);
         i = i.checked_add(1)?;
     }
-    (!out.is_empty()).then_some(out)
+    let exact = out.iter().any(|c| !c.is_ascii()) && encode(&out).is_some_and(|again| again.eq_ignore_ascii_case(text));
+    exact.then_some(out)
 }

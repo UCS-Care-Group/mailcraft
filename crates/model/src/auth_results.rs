@@ -18,7 +18,7 @@
 //! Everything is bounded: so many headers looked through, so many characters of the value, so
 //! many clauses.
 
-use crate::{Account, AccountKind, Message, provider};
+use crate::{Account, AccountKind, Message, provider, sender_warnings};
 
 /// How many of a message's headers are looked through for the server's verdict, and how many
 /// clauses and characters of it are read.
@@ -149,15 +149,19 @@ fn clauses(value: &str) -> Vec<Vec<String>> {
 /// file's word and nothing else) and that header was written by the server of `account`
 /// ([`from_own_server`]); with the sender's domain. `None` otherwise: nothing to go by.
 fn own_verdict(account: Option<&Account>, m: &Message) -> Option<(Vec<Vec<String>>, String)> {
+    let clauses = own_clauses(account, m)?;
+    let sender_domain = sender(&m.from.email).and_then(|address| domain(&address))?;
+    Some((clauses, sender_domain))
+}
+
+/// The clauses of the topmost `Authentication-Results` header of `m`, when `m` is on the server
+/// and that header was written by the server of `account` ([`own_verdict`] without the sender).
+fn own_clauses(account: Option<&Account>, m: &Message) -> Option<Vec<Vec<String>>> {
     if m.uid == 0 && m.server.is_none() {
         return None;
     }
     let (_, value) = m.headers.iter().take(MAX_HEADERS_READ).find(|(name, _)| name.eq_ignore_ascii_case("Authentication-Results"))?;
-    if !from_own_server(account, value) {
-        return None;
-    }
-    let sender_domain = sender(&m.from.email).and_then(|address| domain(&address))?;
-    Some((clauses(value), sender_domain))
+    from_own_server(account, value).then(|| clauses(value))
 }
 
 /// The value of the property `key` (`header.from`, `smtp.mailfrom`) in a clause's words, with any
@@ -215,9 +219,21 @@ impl Failed {
 /// `Authentication-Results` ([`own_verdict`]) has `dmarc=fail` for the sender's domain (a clause
 /// that names no `header.from` judged the `From:` it had, which is the sender's), or, when it has
 /// no `dmarc` clause at all, `spf=fail` for a `smtp.mailfrom` at the sender's domain or one under
-/// the domain it judged. A server that says nothing, or says it of another domain, gives `None`.
+/// the domain it judged. A server that says nothing, or says it of another domain, gives `None`,
+/// and so does Exchange Online's `compauth=pass` for the sender, which is its last word.
 pub fn failed_check(account: Option<&Account>, m: &Message) -> Option<Failed> {
-    let (clauses, sender_domain) = own_verdict(account, m)?;
+    let clauses = own_clauses(account, m)?;
+    // Unlike `vouched`, any address is read: a sender whose name is written in other letters
+    // (`itd\u{435}sk@lumen.example`) must not slip by for it. Domains compare as letters, with
+    // `xn--` labels read back into them, so `header.from` may be written either way.
+    let sender_domain = sender_warnings::sender_domain(&m.from.email)?;
+    let judged =
+        |words: &[String], key: &str| property(words, key).map(|v| sender_warnings::sender_domain(v).or_else(|| sender_warnings::normal_domain(v)));
+    let of_sender = |words: &[String]| judged(words, "header.from").is_none_or(|j| j.is_some_and(|j| judged_for(&j, &sender_domain)));
+    // Exchange Online's composite verdict overrides a DMARC failure it chose to let through.
+    if clauses.iter().any(|words| result(words).is_some_and(|(method, outcome)| method == "compauth" && outcome == "pass") && of_sender(words)) {
+        return None;
+    }
     let mut dmarc_said = false;
     for words in &clauses {
         let Some((method, outcome)) = result(words) else { continue };
@@ -225,8 +241,7 @@ pub fn failed_check(account: Option<&Account>, m: &Message) -> Option<Failed> {
             continue;
         }
         dmarc_said = true;
-        let of_sender = property(words, "header.from").is_none_or(|judged| domain(judged).is_some_and(|judged| judged_for(&judged, &sender_domain)));
-        if outcome == "fail" && of_sender {
+        if outcome == "fail" && of_sender(words) {
             return Some(Failed::Dmarc);
         }
     }
@@ -235,7 +250,7 @@ pub fn failed_check(account: Option<&Account>, m: &Message) -> Option<Failed> {
     }
     let spf_fails = clauses.iter().any(|words| {
         result(words).is_some_and(|(method, outcome)| method == "spf" && outcome == "fail")
-            && property(words, "smtp.mailfrom").and_then(domain).is_some_and(|judged| judged == sender_domain || judged_for(&sender_domain, &judged))
+            && judged(words, "smtp.mailfrom").flatten().is_some_and(|j| j == sender_domain || judged_for(&sender_domain, &j))
     });
     spf_fails.then_some(Failed::Spf)
 }
