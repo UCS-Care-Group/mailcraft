@@ -70,7 +70,7 @@ msgid "(no recipients)"
 msgstr "(nessun destinatario)"
 
 #. interface, what a command says
-#: crates/engine/src/cmd/graph_drafts.rs crates/engine/src/cmd/graph_send.rs crates/ui-egui/src/alerts.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/mail_view/server_rows.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/windows.rs
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/graph_drafts.rs crates/engine/src/cmd/graph_send.rs crates/ui-egui/src/alerts.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/mail_view/server_rows.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/windows.rs
 #, fuzzy
 msgid "(no subject)"
 msgstr "(nessun oggetto)"
@@ -2127,7 +2127,7 @@ msgid "Current Folder"
 msgstr "Cartella corrente"
 
 #. interface
-#: crates/ui-egui/src/chrome.rs
+#: crates/ui-egui/src/chrome.rs crates/ui-egui/src/mail_view.rs
 msgid "Current Mailbox"
 msgstr ""
 
@@ -2592,6 +2592,12 @@ msgstr "Download delle immagini…"
 #, fuzzy
 msgid "Downloading the message first…"
 msgstr "Download preliminare del messaggio…"
+
+#. interface
+#: crates/ui-egui/src/graph_fetch.rs
+#, fuzzy
+msgid "Downloading the messages first…"
+msgstr "Download preliminare dei messaggi…"
 
 #. interface
 #: crates/ui-egui/src/reading.rs
@@ -9058,6 +9064,12 @@ msgid "The folder isn't there."
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/graph_fetch.rs
+#, fuzzy
+msgid "The forward of several messages that was waiting was called off: another download took its place."
+msgstr "L'inoltro di più messaggi in attesa è stato annullato: un altro download ha preso il suo posto."
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "The incoming mail server isn't a host name (letters, digits, dots and dashes)"
@@ -9222,6 +9234,12 @@ msgstr "La fine proposta deve essere successiva all'inizio proposto."
 #, fuzzy
 msgid "The server didn't say when other people are busy"
 msgstr "Il server non ha indicato quando gli altri sono occupati"
+
+#. interface
+#: crates/ui-egui/src/graph_fetch.rs
+#, fuzzy
+msgid "The server didn't send the messages. Try again in a few minutes."
+msgstr "Il server non ha inviato i messaggi. Riprova tra qualche minuto."
 
 #. interface
 #: crates/ui-egui/src/graph_fetch.rs crates/ui-egui/src/reading.rs
@@ -9828,6 +9846,12 @@ msgstr "Questo messaggio non annulla una riunione."
 #, fuzzy
 msgid "This message doesn't propose another time for a meeting."
 msgstr "Questo messaggio non propone un altro orario per una riunione."
+
+#. interface
+#: crates/ui-egui/src/reading.rs
+#, fuzzy
+msgid "This message downloads once the messages being downloaded now are here."
+msgstr "Questo messaggio verrà scaricato non appena saranno qui i messaggi che si stanno scaricando ora."
 
 #. interface
 #: crates/ui-egui/src/reading/view.rs
@@ -11167,6 +11191,12 @@ msgid_plural "and {n} more folders"
 msgstr[0] ""
 msgstr[1] ""
 
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "at most 200 messages can be forwarded together"
+msgstr "si possono inoltrare insieme al massimo 200 messaggi"
+
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs
 #, fuzzy
@@ -11680,8 +11710,8 @@ msgstr "il"
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
 #, fuzzy
-msgid "only the headers of this message are here, so it can't be forwarded as an attachment"
-msgstr "qui ci sono solo le intestazioni di questo messaggio, quindi non può essere inoltrato come allegato"
+msgid "only the headers of “{subject}” are here, so it can't be forwarded as an attachment"
+msgstr "di «{subject}» qui ci sono solo le intestazioni, quindi non può essere inoltrato come allegato"
 
 #. why a command can't run
 #: crates/engine/src/cmd/calendar/invitation.rs
@@ -11759,12 +11789,6 @@ msgstr "selezionare prima un'attività"
 #, fuzzy
 msgid "select an appointment first"
 msgstr "selezionare prima un appuntamento"
-
-#. why a command can't run
-#: crates/engine/src/cmd/compose.rs
-#, fuzzy
-msgid "select only one message to forward as an attachment"
-msgstr "selezionare un solo messaggio da inoltrare come allegato"
 
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/shared.rs
@@ -11939,6 +11963,12 @@ msgid "the message is plain text; switch it to HTML first"
 msgstr "il messaggio è in testo normale; passare prima a HTML"
 
 #. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "the messages to forward are larger than {mb} MB together"
+msgstr "i messaggi da inoltrare superano insieme {mb} MB"
+
+#. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
 msgid "the parent folder belongs to another account"
@@ -12004,6 +12034,12 @@ msgid "the server sent nothing"
 msgstr "il server non ha inviato nulla"
 
 #. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "the server wouldn't send “{subject}” whole, so it can't be forwarded as an attachment"
+msgstr "il server non ha voluto inviare «{subject}» per intero, quindi non può essere inoltrato come allegato"
+
+#. what a command says
 #: crates/engine/src/cmd/signature.rs
 #, fuzzy
 msgid "the signature has changes: save it, or close it with discard"
@@ -12024,8 +12060,8 @@ msgstr "l'attività non c'è più"
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
 #, fuzzy
-msgid "the text of this message can't be read on this computer, so it can't be forwarded as an attachment"
-msgstr "il testo di questo messaggio non può essere letto su questo computer, quindi non può essere inoltrato come allegato"
+msgid "the text of “{subject}” can't be read on this computer, so it can't be forwarded as an attachment"
+msgstr "il testo di «{subject}» non può essere letto su questo computer, quindi non può essere inoltrato come allegato"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -12198,18 +12234,6 @@ msgstr ""
 #, fuzzy
 msgid "this message has no subject to look for"
 msgstr "questo messaggio non ha un oggetto da cercare"
-
-#. what a command says
-#: crates/engine/src/cmd/compose.rs
-#, fuzzy
-msgid "this message isn't downloaded yet: open it once you're online, then forward it as an attachment"
-msgstr "questo messaggio non è ancora stato scaricato: aprirlo quando si è online, poi inoltrarlo come allegato"
-
-#. what a command says
-#: crates/engine/src/cmd/compose.rs
-#, fuzzy
-msgid "this message was too large to download: only its header is here, so it can't be forwarded as an attachment"
-msgstr "questo messaggio era troppo grande per essere scaricato: qui c'è solo la sua intestazione, quindi non può essere inoltrato come allegato"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs
@@ -13342,6 +13366,50 @@ msgstr "{why}, quindi gli accessi non vengono memorizzati: MailCraft li richiede
 #, fuzzy
 msgid "{why}. {n} changes made in it here wait on this computer."
 msgstr "{why}. {n} modifiche apportate qui sono in attesa su questo computer."
+
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "“{subject}” came from its server but couldn't be kept on this computer, so it can't be forwarded as an attachment"
+msgstr "«{subject}» è arrivato dal suo server, ma non è stato possibile conservarlo su questo computer, quindi non può essere inoltrato come allegato"
+
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "“{subject}” isn't downloaded yet: open it once you're online, then forward it as an attachment"
+msgstr "«{subject}» non è ancora stato scaricato: aprilo quando sei online, poi inoltralo come allegato"
+
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "“{subject}” was too large to download: only its header is here, so it can't be forwarded as an attachment"
+msgstr "«{subject}» era troppo grande da scaricare: qui c'è solo la sua intestazione, quindi non può essere inoltrato come allegato"
+
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
+msgstr "«{subject}» non è stato trovato sul suo server, quindi non può essere inoltrato come allegato"
+
+#, fuzzy
+#~ msgid "only the headers of this message are here, so it can't be forwarded as an attachment"
+#~ msgstr "qui ci sono solo le intestazioni di questo messaggio, quindi non può essere inoltrato come allegato"
+
+#, fuzzy
+#~ msgid "select only one message to forward as an attachment"
+#~ msgstr "selezionare un solo messaggio da inoltrare come allegato"
+
+#, fuzzy
+#~ msgid "the text of this message can't be read on this computer, so it can't be forwarded as an attachment"
+#~ msgstr "il testo di questo messaggio non può essere letto su questo computer, quindi non può essere inoltrato come allegato"
+
+#, fuzzy
+#~ msgid "this message isn't downloaded yet: open it once you're online, then forward it as an attachment"
+#~ msgstr "questo messaggio non è ancora stato scaricato: aprirlo quando si è online, poi inoltrarlo come allegato"
+
+#, fuzzy
+#~ msgid "this message was too large to download: only its header is here, so it can't be forwarded as an attachment"
+#~ msgstr "questo messaggio era troppo grande per essere scaricato: qui c'è solo la sua intestazione, quindi non può essere inoltrato come allegato"
 
 #, fuzzy
 #~ msgid "Close (the draft stays as last saved)"

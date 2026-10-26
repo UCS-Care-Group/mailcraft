@@ -19,7 +19,7 @@ log = { workspace = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 rustls = { workspace = true }
-webpki-roots = { workspace = true }
+rustls-platform-verifier = { workspace = true }
 # A picture that a web server sends packed although nobody asked it to (`Content-Encoding: gzip`)
 # is unpacked: in Rust all the way down, and already in the tree (the PNG decoder runs on it).
 flate2 = { workspace = true }

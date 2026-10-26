@@ -283,6 +283,11 @@ pub struct Answers {
     /// It is a forward (the original is marked forwarded); otherwise a reply (marked replied).
     #[serde(skip_serializing_if = "is_false")]
     pub forward: bool,
+    /// A forward of several messages, each attached whole (#360): the others it forwards, each
+    /// marked as its own entry says (their own `also` is not looked at). Empty for every other
+    /// reply or forward; a build from before reads the first original alone.
+    #[serde(skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::sync::lenient_list")]
+    pub also: Vec<Answers>,
 }
 
 fn is_false(b: &bool) -> bool {

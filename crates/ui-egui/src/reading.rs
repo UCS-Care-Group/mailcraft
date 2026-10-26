@@ -191,6 +191,8 @@ pub(crate) fn unfetched_said(app: &MailApp, m: &Message) -> &'static str {
         tl!("Not connected: the rest of this message is on the server")
     } else if app.fetching.offline {
         tl!("This message isn't on this computer yet. It will download when you're online.")
+    } else if app.opened_after_batch(m.id) {
+        tl!("This message downloads once the messages being downloaded now are here.")
     } else {
         tl!("Only the beginning of this message is here. The rest downloads with the next Send/Receive.")
     }

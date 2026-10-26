@@ -35,15 +35,17 @@ fn mail_from_the_sender_of_the_selected_message_or_of_the_one_named() {
     let found = senders(&mut s);
     assert!(!found.is_empty() && said["found"] == found.len());
     assert!(found.iter().all(|f| f.eq_ignore_ascii_case(&sender)));
+    // It is in what is found, so it stays selected (#485).
+    assert_eq!(s.sel.messages, [first_id]);
 
-    // Another message, named by its id; the selection is left as it is.
+    // Another message, named by its id: the one selected isn't found, and isn't selected (#485).
     run(&mut s, "view.clearSearch", json!({}));
     let other: Id = s.mailbox.messages.values().find(|m| !m.from.email.eq_ignore_ascii_case(&sender)).unwrap().id;
     let other_sender = s.mailbox.message(other).unwrap().from.email.clone();
     let said = run(&mut s, "mail.findFromSender", json!({"id": other}));
     assert_eq!(said["search"], format!("from:{other_sender}"));
     assert!(senders(&mut s).iter().all(|f| f.eq_ignore_ascii_case(&other_sender)));
-    assert_eq!(s.sel.focus(), Some(first_id));
+    assert!(s.sel.messages.is_empty());
 
     // No such message, or one with no sender address: said, and the search is as it was.
     assert!(s.run("mail.findFromSender", &json!({"id": 999_999})).is_err());

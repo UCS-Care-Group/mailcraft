@@ -8,7 +8,7 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 
 use crate::sync::RemoteFlags;
-use crate::{Action, Calendar, Contact, Event, Id, JmapServer, KeepOffline, Message, ModelError, Rgb, Rule, Signature, Task, clean_name};
+use crate::{Action, Answers, Calendar, Contact, Event, Id, JmapServer, KeepOffline, Message, ModelError, Rgb, Rule, Signature, Task, clean_name};
 
 /// Deepest a folder tree may nest (a hostile file could otherwise chain folders without end).
 const MAX_DEPTH: usize = 32;
@@ -1566,13 +1566,22 @@ impl Mailbox {
     }
 
     /// Message `id` has been sent: the original it answers or forwards ([`Message::answers`]) is
-    /// marked replied or forwarded now, and `id` no longer waits to do so (#154). Nothing for a
-    /// message that answers nothing, or whose original is gone. Whether anything changed.
+    /// marked replied or forwarded now, and so is each other one a forward of several forwards
+    /// (#360); `id` no longer waits to do so (#154). Nothing for a message that answers nothing,
+    /// or for an original that is gone. Whether anything changed.
     pub fn mark_answered(&mut self, id: Id) -> bool {
         let Some(answers) = self.message(id).and_then(|m| m.answers.clone()) else { return false };
         if let Ok(m) = self.message_mut(id) {
             m.answers = None;
         }
+        for original in std::iter::once(&answers).chain(&answers.also) {
+            self.mark_original(id, original);
+        }
+        true
+    }
+
+    /// The original `answers` names marked replied or forwarded, for message `id` that went.
+    fn mark_original(&mut self, id: Id, answers: &Answers) {
         let marked = |m: &Message| if answers.forward { m.forwarded } else { m.answered };
         let same = |m: &Message| answers.message_id.is_empty() || m.message_id == answers.message_id;
         if answers.message != id
@@ -1585,7 +1594,6 @@ impl Mailbox {
                 orig.answered = true;
             }
         }
-        true
     }
 
     pub fn messages_in(&self, folder: Id) -> impl Iterator<Item = &Arc<Message>> {

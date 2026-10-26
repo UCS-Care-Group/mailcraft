@@ -38,12 +38,12 @@
 
 use std::io::{ErrorKind, Read, Write};
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, TcpStream, ToSocketAddrs};
-use std::sync::{Arc, OnceLock, mpsc};
+use std::sync::{Arc, mpsc};
 use std::time::{Duration, Instant};
 
 use mailcraft_proto::ProtoError;
 use rustls::pki_types::ServerName;
-use rustls::{ClientConfig, ClientConnection, RootCertStore, StreamOwned};
+use rustls::{ClientConfig, ClientConnection, StreamOwned};
 
 use crate::NetError;
 use crate::http::{self, Url};
@@ -655,24 +655,10 @@ impl Write for Line {
     }
 }
 
-/// The TLS settings, the same as for mail: certificates must chain to one of Mozilla's roots
-/// and match the server's name.
+/// The TLS settings, the same check as for mail: the system's check of the certificate, which
+/// must also match the server's name (`crate::tls`).
 fn tls_config() -> Result<Arc<ClientConfig>, String> {
-    static CONFIG: OnceLock<Result<Arc<ClientConfig>, String>> = OnceLock::new();
-    CONFIG
-        .get_or_init(|| {
-            let roots = RootCertStore::from_iter(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
-            let mut config = ClientConfig::builder_with_provider(Arc::new(rustls::crypto::ring::default_provider()))
-                .with_safe_default_protocol_versions()
-                .map_err(|e| e.to_string())?
-                .with_root_certificates(roots)
-                .with_no_client_auth();
-            // The one way of speaking that is spoken here, said during the handshake: a server
-            // that has others as well then knows which to use.
-            config.alpn_protocols = vec![b"http/1.1".to_vec()];
-            Ok(Arc::new(config))
-        })
-        .clone()
+    crate::tls::client_config(crate::tls::Purpose::Picture)
 }
 
 /// What went wrong in a handshake, in a few plain words: the text of the library says all of
@@ -1801,7 +1787,7 @@ mod tests {
         /// Whatever a server sends, the answer is an error or bytes within the limit.
         #[test]
         fn arbitrary_answers_never_panic(bytes in proptest::collection::vec(any::<u8>(), 0..400), after_head in any::<bool>()) {
-            static SERVER: OnceLock<(FakeHttp, Arc<Mutex<Vec<u8>>>, AtomicUsize)> = OnceLock::new();
+            static SERVER: std::sync::OnceLock<(FakeHttp, Arc<Mutex<Vec<u8>>>, AtomicUsize)> = std::sync::OnceLock::new();
             let (server, next, asked) = SERVER.get_or_init(|| {
                 let next: Arc<Mutex<Vec<u8>>> = Default::default();
                 let from = next.clone();
