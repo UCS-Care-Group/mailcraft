@@ -949,10 +949,6 @@ impl Default for Mailbox {
     }
 }
 
-/// Why mail doesn't go from one Microsoft account into another that a sign-in of its own reaches
-/// (R3 spec S19).
-pub const INTO_GRAPH: &str = "Mail can't be moved or copied from one Microsoft account into another yet: move it into a folder on this computer, or into the account from there";
-
 /// Why mail doesn't move or copy between a shared mailbox and a mailbox of another account's
 /// (#70): it goes between a shared mailbox and its owner's mailbox, or another shared mailbox of
 /// the same owner's, whose sign-in reaches both.
@@ -1781,13 +1777,16 @@ impl Mailbox {
 
     /// Whether mail that goes from the account `from` into the account `to` is made on `to`'s
     /// server by `to`'s own run, from the whole message here ([`Queued::PlaceMessage`]): into a
-    /// Microsoft account from any account that isn't one, or from a folder on this computer
-    /// (#451), and between two mailboxes of one owner's (#70).
+    /// Microsoft account from any other account or from a folder on this computer (#451). A
+    /// shared mailbox only takes mail from, and gives it to, the mailboxes its owner's sign-in
+    /// reaches (#70, [`BETWEEN_MAILBOXES`]).
     pub fn placed_into(&self, from: Id, to: Id) -> bool {
         if from == to || !self.is_graph(to) {
             return false;
         }
-        !self.is_graph(from) || self.between_mailboxes(from, to)
+        let shared = |id: Id| self.account(id).is_some_and(Account::is_shared);
+        let through_a_shared = self.is_graph(from) && (shared(from) || shared(to));
+        !through_a_shared || self.between_mailboxes(from, to)
     }
 
     /// Whether a server has the original of `id` elsewhere than where it lies here: it is being
@@ -1842,15 +1841,14 @@ impl Mailbox {
     /// - Out of a Microsoft account (into a local folder or another account): the message is
     ///   there at once, **being moved** ([`Message::moving_out`]); the server's copy is removed
     ///   once it is fetched whole and saved here.
-    /// - Into a Microsoft account from elsewhere ([`Mailbox::placed_into`]): from an IMAP account
-    ///   or a folder on this computer (#451), or between two mailboxes of one owner's (a shared
-    ///   mailbox and its owner's, or two of his shared mailboxes, #70): there at once, being
+    /// - Into a Microsoft account from elsewhere ([`Mailbox::placed_into`]): from another
+    ///   account or a folder on this computer (#451), or between two mailboxes of one owner's (a
+    ///   shared mailbox and its owner's, or two of his shared mailboxes, #70): there at once, being
     ///   moved, and waiting to be made on the destination's server ([`Queued::PlaceMessage`]);
     ///   the original is removed from its own server once that copy is there. Refused for a
     ///   message that isn't whole here, and for a draft.
     /// - Back into the account it is being moved out of: it is that server message again.
-    /// - From one Microsoft account into another that isn't reached the same way: refused, with
-    ///   the reason.
+    /// - Between a shared mailbox and a mailbox of another sign-in's: refused, with the reason.
     fn move_across_graph(&mut self, id: Id, folder: Id, to_account: Id, remote: &str) -> Result<bool, ModelError> {
         let m = self.message(id).ok_or(not_found("message", id))?;
         let from_account = m.account;
@@ -1878,7 +1876,7 @@ impl Mailbox {
                 return Ok(true);
             }
             if !self.placed_into(from_account, to_account) {
-                return Err(invalid(self.refusal_into_graph(from_account, to_account)));
+                return Err(invalid(BETWEEN_MAILBOXES));
             }
             if let Some(why) = Mailbox::not_whole(m, "moved") {
                 return Err(invalid(why));
@@ -1921,15 +1919,6 @@ impl Mailbox {
         m.server = None;
         (m.folder, m.account, m.uid, m.synced) = (folder, to_account, uid, synced);
         Ok(true)
-    }
-
-    /// Why mail can't go from the Microsoft account `from` into the Microsoft account `to`:
-    /// between a shared mailbox and another account's mailbox, Microsoft reaches only the
-    /// mailboxes of the one sign-in (#70); between two accounts that sign in by themselves, not
-    /// yet.
-    fn refusal_into_graph(&self, from: Id, to: Id) -> &'static str {
-        let shared = |id: Id| self.account(id).is_some_and(Account::is_shared);
-        if shared(from) || shared(to) { BETWEEN_MAILBOXES } else { INTO_GRAPH }
     }
 
     /// The first local account, made ("On this computer") when the mailbox has none.
@@ -1987,7 +1976,7 @@ impl Mailbox {
             return Ok(new);
         }
         if from_account != to_account && self.is_graph(to_account) {
-            return Err(invalid(self.refusal_into_graph(from_account, to_account)));
+            return Err(invalid(BETWEEN_MAILBOXES));
         }
         if from_account != to_account && self.is_graph(from_account) && m.unfetched {
             return Err(invalid(not_downloaded_yet(&subject_said(m))));
