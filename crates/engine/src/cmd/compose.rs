@@ -397,12 +397,12 @@ fn forwarded(s: &mut Session, v: &Value) -> Result<Forwarded, CmdError> {
     } else if named("ids") {
         let list = v.get("ids").and_then(Value::as_array).ok_or_else(|| bad("`ids` is a list of message ids"))?;
         if list.len() > MAX_ATTACHMENTS {
-            return Err(fail(TOO_MANY));
+            return Err(fail(TOO_MANY_TO_FORWARD));
         }
         list.iter().map(|x| x.as_u64().filter(|id| *id != 0).ok_or_else(|| bad("`ids` is a list of message ids"))).collect::<Result<_, _>>()?
     } else {
         if s.sel.messages.len() > MAX_ATTACHMENTS {
-            return Err(fail(TOO_MANY));
+            return Err(fail(TOO_MANY_TO_FORWARD));
         }
         s.sel.messages.clone()
     };
@@ -431,11 +431,11 @@ fn forwarded(s: &mut Session, v: &Value) -> Result<Forwarded, CmdError> {
 }
 
 /// Why more messages than one can carry aren't forwarded together.
-const TOO_MANY: &str = "at most 200 messages can be forwarded together";
+const TOO_MANY_TO_FORWARD: &str = "at most 200 messages can be forwarded together";
 
 /// Enabled with messages selected, as many as one message can carry as attachments.
 fn needs_forwardable(s: &Session) -> Option<&'static str> {
-    needs_message(s).or_else(|| (s.sel.messages.len() > MAX_ATTACHMENTS).then_some(TOO_MANY))
+    needs_message(s).or_else(|| (s.sel.messages.len() > MAX_ATTACHMENTS).then_some(TOO_MANY_TO_FORWARD))
 }
 
 /// Forward messages as attachments (#315, #360): a new message from the account of the one in
@@ -512,7 +512,7 @@ fn forward_attached(s: &mut Session, ids: &[Id], focus: Id) -> CmdResult {
 /// server said meanwhile.
 pub fn forward_check(s: &Session, ids: &[Id], fetched_first: bool) -> Result<(), CmdError> {
     if ids.len() > MAX_ATTACHMENTS {
-        return Err(fail(TOO_MANY));
+        return Err(fail(TOO_MANY_TO_FORWARD));
     }
     let mut total = 0u64;
     for id in ids {
