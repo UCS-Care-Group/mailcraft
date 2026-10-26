@@ -70,7 +70,7 @@ msgid "(no recipients)"
 msgstr "(geen ontvangers)"
 
 #. interface, what a command says
-#: crates/engine/src/cmd/graph_drafts.rs crates/engine/src/cmd/graph_send.rs crates/ui-egui/src/alerts.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/mail_view/server_rows.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/windows.rs
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/graph_drafts.rs crates/engine/src/cmd/graph_send.rs crates/ui-egui/src/alerts.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/mail_view/server_rows.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/windows.rs
 #, fuzzy
 msgid "(no subject)"
 msgstr "(geen onderwerp)"
@@ -2179,7 +2179,7 @@ msgid "Current Folder"
 msgstr "Huidige map"
 
 #. interface
-#: crates/ui-egui/src/chrome.rs
+#: crates/ui-egui/src/chrome.rs crates/ui-egui/src/mail_view.rs
 msgid "Current Mailbox"
 msgstr ""
 
@@ -2647,6 +2647,12 @@ msgstr "Bezig afbeeldingen te downloaden…"
 #, fuzzy
 msgid "Downloading the message first…"
 msgstr "Bezig eerst het bericht te downloaden…"
+
+#. interface
+#: crates/ui-egui/src/graph_fetch.rs
+#, fuzzy
+msgid "Downloading the messages first…"
+msgstr "Bezig eerst de berichten te downloaden…"
 
 #. interface
 #: crates/ui-egui/src/reading.rs
@@ -9218,6 +9224,12 @@ msgid "The folder isn't there."
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/graph_fetch.rs
+#, fuzzy
+msgid "The forward of several messages that was waiting was called off: another download took its place."
+msgstr "Het doorsturen van meerdere berichten dat wachtte, is geannuleerd: een andere download heeft de plaats ingenomen."
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "The incoming mail server isn't a host name (letters, digits, dots and dashes)"
@@ -9413,6 +9425,12 @@ msgstr ""
 #, fuzzy
 msgid "The server didn't say when other people are busy"
 msgstr "De server heeft niet aangegeven wanneer andere personen bezet zijn"
+
+#. interface
+#: crates/ui-egui/src/graph_fetch.rs
+#, fuzzy
+msgid "The server didn't send the messages. Try again in a few minutes."
+msgstr "De server heeft de berichten niet verzonden. Probeer het over een paar minuten opnieuw."
 
 #. interface
 #: crates/ui-egui/src/graph_fetch.rs crates/ui-egui/src/reading.rs
@@ -10041,6 +10059,12 @@ msgstr "Dit bericht zegt geen vergadering af."
 #, fuzzy
 msgid "This message doesn't propose another time for a meeting."
 msgstr "Dit bericht stelt geen andere tijd voor een vergadering voor."
+
+#. interface
+#: crates/ui-egui/src/reading.rs
+#, fuzzy
+msgid "This message downloads once the messages being downloaded now are here."
+msgstr "Dit bericht wordt gedownload zodra de berichten die nu worden gedownload er zijn."
 
 #. interface
 #: crates/ui-egui/src/reading/view.rs
@@ -11424,6 +11448,12 @@ msgid_plural "and {n} more folders"
 msgstr[0] ""
 msgstr[1] ""
 
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "at most 200 messages can be forwarded together"
+msgstr "er kunnen hoogstens 200 berichten samen worden doorgestuurd"
+
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs
 #, fuzzy
@@ -11947,8 +11977,8 @@ msgstr "op"
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
 #, fuzzy
-msgid "only the headers of this message are here, so it can't be forwarded as an attachment"
-msgstr "alleen de kopteksten van dit bericht staan hier, dus het kan niet als bijlage worden doorgestuurd"
+msgid "only the headers of “{subject}” are here, so it can't be forwarded as an attachment"
+msgstr "alleen de kopregels van ‘{subject}’ zijn hier, dus het kan niet als bijlage worden doorgestuurd"
 
 #. why a command can't run
 #: crates/engine/src/cmd/calendar/invitation.rs
@@ -12027,12 +12057,6 @@ msgstr "selecteer eerst een taak"
 #, fuzzy
 msgid "select an appointment first"
 msgstr "selecteer eerst een afspraak"
-
-#. why a command can't run
-#: crates/engine/src/cmd/compose.rs
-#, fuzzy
-msgid "select only one message to forward as an attachment"
-msgstr "selecteer slechts één bericht om als bijlage door te sturen"
 
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/shared.rs
@@ -12207,6 +12231,12 @@ msgid "the message is plain text; switch it to HTML first"
 msgstr "het bericht is platte tekst; zet het eerst om naar HTML"
 
 #. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "the messages to forward are larger than {mb} MB together"
+msgstr "de door te sturen berichten zijn samen groter dan {mb} MB"
+
+#. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
 msgid "the parent folder belongs to another account"
@@ -12273,6 +12303,12 @@ msgid "the server sent nothing"
 msgstr "de server stuurde niets"
 
 #. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "the server wouldn't send “{subject}” whole, so it can't be forwarded as an attachment"
+msgstr "de server wilde ‘{subject}’ niet volledig verzenden, dus het kan niet als bijlage worden doorgestuurd"
+
+#. what a command says
 #: crates/engine/src/cmd/signature.rs
 #, fuzzy
 msgid "the signature has changes: save it, or close it with discard"
@@ -12293,8 +12329,8 @@ msgstr "de taak is verdwenen"
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
 #, fuzzy
-msgid "the text of this message can't be read on this computer, so it can't be forwarded as an attachment"
-msgstr "de tekst van dit bericht kan op deze computer niet worden gelezen, dus het kan niet als bijlage worden doorgestuurd"
+msgid "the text of “{subject}” can't be read on this computer, so it can't be forwarded as an attachment"
+msgstr "de tekst van ‘{subject}’ kan op deze computer niet worden gelezen, dus het kan niet als bijlage worden doorgestuurd"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -12468,18 +12504,6 @@ msgstr "dit bericht heeft geen afzenderadres om naar te zoeken"
 #, fuzzy
 msgid "this message has no subject to look for"
 msgstr "dit bericht heeft geen onderwerp om naar te zoeken"
-
-#. what a command says
-#: crates/engine/src/cmd/compose.rs
-#, fuzzy
-msgid "this message isn't downloaded yet: open it once you're online, then forward it as an attachment"
-msgstr "dit bericht is nog niet gedownload: open het zodra u online bent en stuur het daarna door als bijlage"
-
-#. what a command says
-#: crates/engine/src/cmd/compose.rs
-#, fuzzy
-msgid "this message was too large to download: only its header is here, so it can't be forwarded as an attachment"
-msgstr "dit bericht was te groot om te downloaden: alleen de koptekst staat hier, dus het kan niet als bijlage worden doorgestuurd"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs
@@ -13624,6 +13648,50 @@ msgstr "{why}, waardoor aanmeldingen niet worden onthouden: MailCraft vraagt het
 #, fuzzy
 msgid "{why}. {n} changes made in it here wait on this computer."
 msgstr "{why}. {n} wijzigingen die hierin zijn gemaakt, wachten op deze computer."
+
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "“{subject}” came from its server but couldn't be kept on this computer, so it can't be forwarded as an attachment"
+msgstr "‘{subject}’ is van de server gekomen, maar kon niet op deze computer worden bewaard, dus het kan niet als bijlage worden doorgestuurd"
+
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "“{subject}” isn't downloaded yet: open it once you're online, then forward it as an attachment"
+msgstr "‘{subject}’ is nog niet gedownload: open het zodra u online bent en stuur het dan als bijlage door"
+
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "“{subject}” was too large to download: only its header is here, so it can't be forwarded as an attachment"
+msgstr "‘{subject}’ was te groot om te downloaden: alleen de kopregels zijn hier, dus het kan niet als bijlage worden doorgestuurd"
+
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
+msgstr "‘{subject}’ is niet gevonden op de server, dus het kan niet als bijlage worden doorgestuurd"
+
+#, fuzzy
+#~ msgid "only the headers of this message are here, so it can't be forwarded as an attachment"
+#~ msgstr "alleen de kopteksten van dit bericht staan hier, dus het kan niet als bijlage worden doorgestuurd"
+
+#, fuzzy
+#~ msgid "select only one message to forward as an attachment"
+#~ msgstr "selecteer slechts één bericht om als bijlage door te sturen"
+
+#, fuzzy
+#~ msgid "the text of this message can't be read on this computer, so it can't be forwarded as an attachment"
+#~ msgstr "de tekst van dit bericht kan op deze computer niet worden gelezen, dus het kan niet als bijlage worden doorgestuurd"
+
+#, fuzzy
+#~ msgid "this message isn't downloaded yet: open it once you're online, then forward it as an attachment"
+#~ msgstr "dit bericht is nog niet gedownload: open het zodra u online bent en stuur het daarna door als bijlage"
+
+#, fuzzy
+#~ msgid "this message was too large to download: only its header is here, so it can't be forwarded as an attachment"
+#~ msgstr "dit bericht was te groot om te downloaden: alleen de koptekst staat hier, dus het kan niet als bijlage worden doorgestuurd"
 
 #, fuzzy
 #~ msgid "Close (the draft stays as last saved)"
