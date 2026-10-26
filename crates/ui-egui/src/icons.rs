@@ -664,6 +664,12 @@ pub fn paint(p: &Painter, r: Rect, name: &str, c: Color32, accent: Color32) {
                 pen.rounded(&[(6.0, 16.5), (6.0, 11.5), (14.0, 11.5), (14.0, 16.5)], false, 1.0, c);
             }
         }
+        // A sender warning: a triangle with an exclamation mark in it.
+        "warning" => {
+            pen.rounded(&[(10.0, 2.5), (18.0, 16.5), (2.0, 16.5)], true, 1.0, red);
+            pen.line_c(&[(10.0, 7.0), (10.0, 11.0)], red);
+            pen.fcircle(10.0, 13.75, 1.0, red);
+        }
         "highImportance" | "importanceHigh" => {
             pen.frect_r(9.0, 2.5, 11.0, 12.5, 1.0, red);
             pen.fcircle(10.0, 15.75, 1.25, red);
@@ -1182,6 +1188,7 @@ pub const NAMES: &[&str] = &[
     "starOn",
     "save",
     "saveDraft",
+    "warning",
     "highImportance",
     "importanceHigh",
     "lowImportance",

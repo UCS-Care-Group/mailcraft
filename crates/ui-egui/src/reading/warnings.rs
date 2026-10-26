@@ -1,0 +1,158 @@
+// SPDX-FileCopyrightText: MailCraft contributors
+// SPDX-License-Identifier: MIT OR Apache-2.0
+//! **Sender warnings** where a message is read (#508): one banner above it with each reason,
+//! red when any is a **warning** and amber when they are only **cautions**; the quiet
+//! **External** tag beside the sender's name; a mark on a link whose text names one place and
+//! which goes to another; and a mark on the message's row in the list for a failed check or a
+//! name that hides another address.
+//!
+//! What the warnings are, and what they rest on, is the engine's
+//! ([`mailcraft_engine::Session::sender_warnings`]): this only shows them. Each says what it is
+//! about in plain words; the sender's own words are shown as data, cut short, never as ours.
+
+use egui::{Sense, Ui, vec2};
+use mailcraft_model::Message;
+use mailcraft_model::sender_warnings::{Level, NameReason, Warning, banner_level};
+
+use super::Place;
+use super::remote::notice;
+use crate::theme::{Tokens, regular, semibold};
+use crate::{MailApp, icons};
+
+/// The most characters of a name, an address or a host a line of the banner shows.
+const SHOWN: usize = 60;
+
+/// `text` cut to [`SHOWN`] characters, with an ellipsis when it is longer.
+fn short(text: &str) -> String {
+    if text.chars().count() > SHOWN { text.chars().take(SHOWN - 1).chain(['…']).collect() } else { text.to_string() }
+}
+
+/// What a reason is called, and what it means for this message.
+fn said(w: &Warning, m: &Message, links: usize) -> (String, String) {
+    let real = short(m.from.email.trim());
+    let fill = |template: &str, pairs: &[(&str, &str)]| crate::i18n::fmt(template, pairs);
+    match w {
+        Warning::FailedCheck(_) => (
+            tl!("Failed check.").to_string(),
+            tl!("Your mail server checked where this message came from, and the check failed: the sender's address may be forged.").to_string(),
+        ),
+        Warning::NameHidesAddress { reason: NameReason::AddressInName(other), .. } => (
+            tl!("The name hides another address.").to_string(),
+            fill(tl!("The sender's name shows {shown}, but the message came from {real}."), &[("shown", &short(other)), ("real", &real)]),
+        ),
+        Warning::NameHidesAddress { reason: NameReason::KnownName, name } => (
+            tl!("The name of someone you know.").to_string(),
+            fill(
+                tl!("{name} is the name of someone you know, but this message came from {real}, which isn't one of their addresses."),
+                &[("name", &short(name)), ("real", &real)],
+            ),
+        ),
+        Warning::NameHidesAddress { reason: NameReason::OwnName, .. } => (
+            tl!("Your own name.").to_string(),
+            fill(tl!("The sender uses your name, but this message came from {real}, which isn't one of your addresses."), &[("real", &real)]),
+        ),
+        Warning::LookalikeSender { domain, like } => (
+            tl!("Lookalike address.").to_string(),
+            fill(
+                tl!("The sender's domain, {domain}, looks like {like}, which you correspond with, but it isn't the same."),
+                &[("domain", &short(domain)), ("like", &short(like))],
+            ),
+        ),
+        Warning::LinkMismatch { text_host, host, .. } => {
+            let first = fill(tl!("A link that reads {named} goes to {host}."), &[("named", &short(text_host)), ("host", &short(host))]);
+            let more = links.saturating_sub(1);
+            let rest = if more > 0 { format!(" {}", tln!(more, "And {n} more link like it.", "And {n} more links like it.")) } else { String::new() };
+            (tl!("A link goes somewhere else.").to_string(), format!("{first}{rest} {}", tl!("Point at a link to see where it goes.")))
+        }
+        Warning::External { domain } => {
+            (tl!("From outside your organisation.").to_string(), fill(tl!("The sender's address is at {domain}."), &[("domain", &short(domain))]))
+        }
+    }
+}
+
+/// The banner above `m` when it has a warning or a caution: one line for each reason, the first
+/// link that goes somewhere else standing for the rest, and External folded in as a line of its
+/// own. Nothing for a message that has none, or only the External tag.
+pub(super) fn banner(app: &mut MailApp, ui: &mut Ui, m: &Message, place: Place, t: &Tokens) {
+    let warnings = app.session.sender_warnings(m, true);
+    let Some(level) = banner_level(&warnings) else { return };
+    let (hue, lead) = match level {
+        Level::Warning => (t.red, tl!("This message may not be what it seems.")),
+        _ => (t.orange, tl!("Be careful with this message.")),
+    };
+    let links = warnings.iter().filter(|w| matches!(w, Warning::LinkMismatch { .. })).count();
+    let mut link_said = false;
+    let shown = notice(hue, t).show(ui, |ui| {
+        ui.set_width(ui.available_width());
+        ui.spacing_mut().item_spacing = vec2(6.0, 3.0);
+        ui.horizontal(|ui| {
+            let (r, _) = ui.allocate_exact_size(vec2(16.0, 16.0), Sense::hover());
+            icons::paint(ui.painter(), r.shrink(1.0), "warning", hue, hue);
+            ui.add(egui::Label::new(egui::RichText::new(lead).font(semibold(11.5)).color(t.text)).wrap());
+        });
+        for w in warnings.iter() {
+            if matches!(w, Warning::LinkMismatch { .. }) {
+                if link_said {
+                    continue;
+                }
+                link_said = true;
+            }
+            let (title, why) = said(w, m, links);
+            // Under the lead, every line of it.
+            egui::Frame::NONE.inner_margin(egui::Margin { left: 22, right: 0, top: 0, bottom: 0 }).show(ui, |ui| {
+                ui.horizontal_wrapped(|ui| {
+                    ui.spacing_mut().item_spacing = vec2(6.0, 2.0);
+                    ui.add(egui::Label::new(egui::RichText::new(title).font(semibold(11.5)).color(t.text)).wrap());
+                    ui.add(egui::Label::new(egui::RichText::new(why).font(regular(11.5)).color(t.text_dim)).wrap());
+                });
+            });
+        }
+    });
+    if place == Place::Pane {
+        app.hit.add("senderWarnings", m.id, shown.response.rect);
+    }
+}
+
+/// Whether `m` is from outside the owner's organisation.
+pub(super) fn external(app: &mut MailApp, m: &Message) -> bool {
+    app.session.sender_warnings(m, true).iter().any(|w| matches!(w, Warning::External { .. }))
+}
+
+/// The External tag beside the sender's name: small and quiet, a word in a thin frame.
+pub(super) fn external_tag(ui: &mut Ui, t: &Tokens) -> egui::Response {
+    egui::Frame::NONE
+        .stroke(egui::Stroke::new(1.0, t.border_strong))
+        .corner_radius(3.0)
+        .inner_margin(egui::Margin { left: 4, right: 4, top: 0, bottom: 0 })
+        .show(ui, |ui| ui.add(egui::Label::new(egui::RichText::new(tl!("External")).font(regular(10.5)).color(t.text_dim)).selectable(false)))
+        .response
+        .on_hover_text(tl!("This message came from outside your organisation."))
+}
+
+/// Whether `m`'s row in the list wears the warning mark: the server says its checks failed, or
+/// its name hides another address. Worked out for the rows on screen, without reading bodies.
+pub(crate) fn row_mark(app: &mut MailApp, m: &Message) -> bool {
+    app.session.sender_warnings(m, false).iter().any(|w| matches!(w, Warning::FailedCheck(_) | Warning::NameHidesAddress { .. }))
+}
+
+/// The addresses of `m`'s links that go somewhere other than their text says, as the links of
+/// the laid-out body have them, for their mark and their tip.
+pub(super) fn mismatched(app: &mut MailApp, m: &Message) -> Vec<String> {
+    app.session
+        .sender_warnings(m, true)
+        .iter()
+        .filter_map(|w| match w {
+            Warning::LinkMismatch { url, .. } => Some(url.clone()),
+            _ => None,
+        })
+        .collect()
+}
+
+/// Whether the link to `url` (as a message's link has it) is one of `mismatched`.
+pub(super) fn is_mismatched(url: &str, mismatched: &[String]) -> bool {
+    !mismatched.is_empty()
+        && mailcraft_link::WebLink::parse(url.trim()).is_some_and(|link| {
+            let shown: String = link.as_str().chars().take(200).collect();
+            mismatched.contains(&shown)
+        })
+}

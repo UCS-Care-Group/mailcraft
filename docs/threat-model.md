@@ -31,7 +31,7 @@ Writes any bytes into a message: crafted MIME, HTML, headers, attachments, pictu
 - **"Always download pictures" is not a trust in a `From:` line.** A remembered sender or domain
   holds only for a message whose topmost `Authentication-Results` header says `dmarc=pass` (or
   `compauth=pass`) for the sender's domain **and was written by the account's own server**
-  (`crates/ui-egui/src/reading/remote.rs`, `vouched`, `from_own_server`): for a Microsoft account any
+  (`crates/model/src/auth_results.rs`, `vouched`, `from_own_server`): for a Microsoft account any
   topmost header (Exchange Online stamps its own, with no authserv-id); for another account one whose
   authserv-id (RFC 8601) is a known id of its IMAP host's provider
   (`mailcraft_model::provider::authserv_ids`: `mx.google.com` for `imap.gmail.com`) or is the IMAP
@@ -50,6 +50,27 @@ Writes any bytes into a message: crafted MIME, HTML, headers, attachments, pictu
   it, never takes the lists or the switch for all mail. The limits: a provider whose id is neither
   in the table nor under its IMAP host's domain asks every time (nothing is guessed); the
   public-suffix check is a short list of common two-label suffixes, not the full list.
+- **Sender warnings say what the server said, and what MailCraft can see, nothing more** (#508).
+  Above a message, a red banner for a **warning**: the account's own server's topmost
+  `Authentication-Results` (read as for vouching, above) says `dmarc=fail` for the sender's domain,
+  or, with no DMARC verdict at all, `spf=fail` for it; or the sender's name carries another
+  address, or is a contact's, a known correspondent's or the owner's own name on an address that
+  isn't theirs. Amber for **cautions** alone: the sender's domain is one character (an edit, or two
+  letters swapped) or one look-alike character (MailCraft's own small skeleton table after Unicode
+  TR39, `crates/model/src/confusables.rs`, Cyrillic and Greek letters, accents, full-width forms,
+  `0`/`1`, `rn`/`vv`/`cl`) from a known correspondent's, measured between registrable parts; or a
+  link's text is a web address or a domain and the link goes to another registrable domain. The
+  rules are `crates/model/src/sender_warnings.rs`; the known correspondents are gathered in
+  `crates/engine/src/sender_warnings.rs`. What they rely on: the server's verdict (a server that
+  writes none, or a message from a file, gives no failed check: MailCraft does no DNS, DKIM or SPF
+  of its own); the owner's contacts and Sent Items (an attacker who was once written to is known);
+  a short look-alike table and a short public-suffix list (a lookalike they miss is not caught;
+  neither makes a known domain look strange). A public mail provider's domain is nobody's
+  lookalike, names of one word are nobody's in particular, and the External tag alone is never a
+  warning. Mail from the owner's own addresses and in Sent Items, Drafts and the Outbox is not
+  checked; Junk E-mail is. Everything is bounded (so many characters of a name or header, 1,000
+  links, 20 link warnings, edit distance only between names one character apart in length). An
+  agent gets the warnings with `mail.get` as data, their details framed as message content.
 - **A meeting invitation does not rewrite a meeting it isn't about.** An invitation carrying the
   `UID` of a meeting on a local calendar changes or removes it only when it names the same
   organizer (`crates/engine/src/cmd/calendar/invitation.rs`, `same_organizer`); the bar shows the
@@ -351,6 +372,7 @@ settings files (`crates/engine/src/store.rs`); commands from the control channel
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-26 | minor | #508: sender warnings (a failed check, a name that hides another address, a lookalike sender, a link that goes somewhere else, External), what they rest on and what they don't; vouching's reading of the server's verdict moved to `crates/model/src/auth_results.rs` |
 | 2026-10-26 | minor | #458: a `dmarc=pass` whose `header.from` is the organisation's domain (Gmail's way: `shop.example` for `news.shop.example`) vouches for the names under it; a bare suffix or a hosting platform's domain never does |
 | 2026-10-25 | minor | #308: the people the search box offers after `from:`, `to:` and `cc:` come from autocomplete's source, on this computer only |
 | 2026-10-25 | minor | #350: web addresses are read by MailCraft's own strict reader (`crates/link`), not the `url` crate, and opened by a program with the address as its one argument on every system (`rundll32 url.dll,FileProtocolHandler` on Windows, `open` on macOS, `$BROWSER` and the desktops' openers elsewhere), not the `webbrowser` crate; `mailto:` and `tel:` are written without spaces or quotes before they are launched; ambiguous addresses (backslash, no `//`, a percent sign or a full stop of another script in a host) are no links |

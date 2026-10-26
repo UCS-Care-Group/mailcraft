@@ -257,6 +257,16 @@ msgstr "Ein großes Postfach braucht etwas Zeit. {account} wechselt zu Microsoft
 msgid "A link asked for a new message, but the one you are writing couldn't be saved first: {why}"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+msgid "A link goes somewhere else."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+msgid "A link that reads {named} goes to {host}."
+msgstr ""
+
 #. name
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
@@ -835,6 +845,13 @@ msgstr "Eine Anwendungs-ID besteht aus Buchstaben, Ziffern, Punkten und Bindestr
 msgid "An item that repeats can't be taken to another calendar this way. Hold Ctrl to copy this occurrence there, or use Move to Calendar in its menu for the whole series."
 msgstr "Ein Serienelement kann so nicht in einen anderen Kalender gebracht werden. Halten Sie Strg gedrückt, um dieses Vorkommen dorthin zu kopieren, oder verwenden Sie „In Kalender verschieben“ in seinem Menü für die ganze Serie."
 
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+msgid "And {n} more link like it."
+msgid_plural "And {n} more links like it."
+msgstr[0] ""
+msgstr[1] ""
+
 #. interface, what a command says
 #: crates/engine/src/cmd/calendar.rs crates/ui-egui/src/meeting_dialogs.rs
 #, fuzzy
@@ -1247,6 +1264,11 @@ msgstr "Bcc"
 #, fuzzy
 msgid "Bcc: {names}"
 msgstr "Bcc: {names}"
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+msgid "Be careful with this message."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/graph_switch.rs
@@ -2952,10 +2974,20 @@ msgid "Export…"
 msgstr "Exportieren…"
 
 #. interface
+#: crates/ui-egui/src/reading/warnings.rs
+msgid "External"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/calendar_sync.rs
 #, fuzzy
 msgid "FAILED"
 msgstr "FEHLGESCHLAGEN"
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+msgid "Failed check."
+msgstr ""
 
 #. interface, ribbon
 #: crates/ui-egui/src/forms.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/ribbon.rs
@@ -3350,6 +3382,11 @@ msgstr ""
 #, fuzzy
 msgid "From contains"
 msgstr "Von enthält"
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+msgid "From outside your organisation."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/tasks_view.rs
@@ -4316,6 +4353,11 @@ msgstr "Erneut suchen"
 #, fuzzy
 msgid "Look for This Meeting on the Calendar"
 msgstr "Diese Besprechung im Kalender suchen"
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+msgid "Lookalike address."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -6421,6 +6463,11 @@ msgstr "Angeheftet"
 #, fuzzy
 msgid "Plain Text"
 msgstr "Nur-Text"
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+msgid "Point at a link to see where it goes."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
@@ -9120,6 +9167,16 @@ msgid "The messages of the folder in view, as .mbox"
 msgstr "Die Nachrichten des angezeigten Ordners als .mbox"
 
 #. interface
+#: crates/ui-egui/src/reading/warnings.rs
+msgid "The name hides another address."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+msgid "The name of someone you know."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "The one in File › Options"
@@ -9177,6 +9234,26 @@ msgstr "Der Port; leer lassen für den üblichen"
 #, fuzzy
 msgid "The proposed end has to be after the proposed start."
 msgstr "Das vorgeschlagene Ende muss nach dem vorgeschlagenen Beginn liegen."
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+msgid "The sender uses your name, but this message came from {real}, which isn't one of your addresses."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+msgid "The sender's address is at {domain}."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+msgid "The sender's domain, {domain}, looks like {like}, which you correspond with, but it isn't the same."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+msgid "The sender's name shows {shown}, but the message came from {real}."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/scheduling.rs
@@ -9679,6 +9756,11 @@ msgid "This item is still on its way to the account's server. Move it once it is
 msgstr "Dieses Element ist noch unterwegs zum Server des Kontos. Verschieben Sie es, sobald es dort ist (gleich)."
 
 #. interface
+#: crates/ui-egui/src/reading/view.rs
+msgid "This link goes somewhere other than its text says."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/chrome.rs
 #, fuzzy
 msgid "This mailbox is on this device only"
@@ -9766,6 +9848,11 @@ msgstr "Der Kalender dieser Besprechung liegt auf diesem Computer, der nicht wis
 msgid "This meeting's link isn't one that can be opened."
 msgstr "Der Link dieser Besprechung kann nicht geöffnet werden."
 
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+msgid "This message came from outside your organisation."
+msgstr ""
+
 #. interface, what a command says
 #: crates/engine/src/cmd/calendar/invitation.rs crates/ui-egui/src/reading/invitation.rs
 #, fuzzy
@@ -9818,6 +9905,11 @@ msgstr ""
 #, fuzzy
 msgid "This message isn't on this computer yet. It will download when you're online."
 msgstr "Diese Nachricht ist noch nicht auf diesem Computer. Sie wird heruntergeladen, sobald Sie online sind."
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+msgid "This message may not be what it seems."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading.rs
@@ -10793,6 +10885,11 @@ msgid "Your mail is downloading now. The first time can take a few minutes."
 msgstr "Ihre E-Mails werden jetzt heruntergeladen. Beim ersten Mal kann das einige Minuten dauern."
 
 #. interface
+#: crates/ui-egui/src/reading/warnings.rs
+msgid "Your mail server checked where this message came from, and the check failed: the sender's address may be forged."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Your mail stays yours"
@@ -10888,6 +10985,11 @@ msgstr ""
 #, fuzzy
 msgid "Your organisation's administrator has to approve this once"
 msgstr "Der Administrator Ihrer Organisation muss das einmal genehmigen"
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+msgid "Your own name."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
@@ -12589,6 +12691,11 @@ msgstr "{name} wird gerade gesendet und empfangen. Verwenden Sie „Anhalten“.
 #, fuzzy
 msgid "{name} is larger than {mb} MB"
 msgstr "{name} ist größer als {mb} MB"
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+msgid "{name} is the name of someone you know, but this message came from {real}, which isn't one of their addresses."
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/file.rs

@@ -218,6 +218,16 @@ msgstr ""
 msgid "A link asked for a new message, but the one you are writing couldn't be saved first: {why}"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+msgid "A link goes somewhere else."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+msgid "A link that reads {named} goes to {host}."
+msgstr ""
+
 #. name
 #: crates/ui-egui/src/account_setup.rs
 msgid "A mailbox kept here, with no mail server"
@@ -706,6 +716,13 @@ msgstr ""
 msgid "An item that repeats can't be taken to another calendar this way. Hold Ctrl to copy this occurrence there, or use Move to Calendar in its menu for the whole series."
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+msgid "And {n} more link like it."
+msgid_plural "And {n} more links like it."
+msgstr[0] ""
+msgstr[1] ""
+
 #. interface, what a command says
 #: crates/engine/src/cmd/calendar.rs crates/ui-egui/src/meeting_dialogs.rs
 msgid "Another time can be proposed for a meeting that the account's server keeps, or from the invitation in the mail."
@@ -1053,6 +1070,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/reading.rs
 msgid "Bcc: {names}"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+msgid "Be careful with this message."
 msgstr ""
 
 #. interface
@@ -2482,8 +2504,18 @@ msgid "Export…"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/reading/warnings.rs
+msgid "External"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/calendar_sync.rs
 msgid "FAILED"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+msgid "Failed check."
 msgstr ""
 
 #. interface, ribbon
@@ -2816,6 +2848,11 @@ msgstr ""
 #. name
 #: crates/ui-egui/src/forms.rs
 msgid "From contains"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+msgid "From outside your organisation."
 msgstr ""
 
 #. interface
@@ -3635,6 +3672,11 @@ msgstr ""
 #. command label
 #: crates/ui-egui/src/lib.rs
 msgid "Look for This Meeting on the Calendar"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+msgid "Lookalike address."
 msgstr ""
 
 #. interface
@@ -5406,6 +5448,11 @@ msgstr ""
 #. command label, ribbon
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
 msgid "Plain Text"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+msgid "Point at a link to see where it goes."
 msgstr ""
 
 #. interface
@@ -7703,6 +7750,16 @@ msgid "The messages of the folder in view, as .mbox"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/reading/warnings.rs
+msgid "The name hides another address."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+msgid "The name of someone you know."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs
 msgid "The one in File › Options"
 msgstr ""
@@ -7750,6 +7807,26 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
 msgid "The proposed end has to be after the proposed start."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+msgid "The sender uses your name, but this message came from {real}, which isn't one of your addresses."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+msgid "The sender's address is at {domain}."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+msgid "The sender's domain, {domain}, looks like {like}, which you correspond with, but it isn't the same."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+msgid "The sender's name shows {shown}, but the message came from {real}."
 msgstr ""
 
 #. interface
@@ -8188,6 +8265,11 @@ msgid "This item is still on its way to the account's server. Move it once it is
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/reading/view.rs
+msgid "This link goes somewhere other than its text says."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/chrome.rs
 msgid "This mailbox is on this device only"
 msgstr ""
@@ -8262,6 +8344,11 @@ msgstr ""
 msgid "This meeting's link isn't one that can be opened."
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+msgid "This message came from outside your organisation."
+msgstr ""
+
 #. interface, what a command says
 #: crates/engine/src/cmd/calendar/invitation.rs crates/ui-egui/src/reading/invitation.rs
 msgid "This message carries no invitation."
@@ -8305,6 +8392,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/graph_fetch.rs crates/ui-egui/src/reading.rs
 msgid "This message isn't on this computer yet. It will download when you're online."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+msgid "This message may not be what it seems."
 msgstr ""
 
 #. interface
@@ -9129,6 +9221,11 @@ msgid "Your mail is downloading now. The first time can take a few minutes."
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/reading/warnings.rs
+msgid "Your mail server checked where this message came from, and the check failed: the sender's address may be forged."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "Your mail stays yours"
 msgstr ""
@@ -9211,6 +9308,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src
 msgid "Your organisation's administrator has to approve this once"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+msgid "Your own name."
 msgstr ""
 
 #. interface
@@ -10662,6 +10764,11 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
 msgid "{name} is larger than {mb} MB"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+msgid "{name} is the name of someone you know, but this message came from {real}, which isn't one of their addresses."
 msgstr ""
 
 #. what a command says
