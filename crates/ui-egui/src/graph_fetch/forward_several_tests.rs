@@ -519,6 +519,8 @@ fn a_message_opened_while_another_downloads_comes_after_it() {
     app.session.sel.messages = vec![c];
     app.drive_fetch();
     assert_eq!(asked(&jobs), [(one, vec!["AA0M0".to_string()])]);
+    let said = crate::reading::unfetched_said(&app, app.session.mailbox.message(c).unwrap());
+    assert_eq!(said, "This message downloads once the messages being downloaded now are here.");
     assert_eq!(called_off(&jobs), [false]);
     answer(&mut app, &jobs, &[], &[]);
     assert_eq!(asked(&jobs), [(one, vec!["AA0M2".to_string()])]);
