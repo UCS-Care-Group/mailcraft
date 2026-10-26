@@ -739,7 +739,7 @@ fn review() -> Tab {
 /// have no name for it yet: tests that look for a menu's or a dialog's items by name count on that.)
 fn pending_tip(resp: egui::Response, item: &Item) -> egui::Response {
     let name = crate::i18n::fmt(tl!("{name}, pending development"), &[("name", &item.name())]);
-    resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, false, name.clone()));
+    resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, false, name.clone()));
     resp.on_hover_ui(|ui| {
         ui.label(egui::RichText::new(item.name()).font(semibold(12.0)));
         ui.label(egui::RichText::new(tl!("Pending development")).small().weak());
