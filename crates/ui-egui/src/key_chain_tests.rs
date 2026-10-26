@@ -687,9 +687,7 @@ fn escape_and_enter_are_read_through_the_gate_only() {
         // The names of the keys the control channel presses.
         ("control.rs", r#""enter" | "return" => Some(egui::Key::Enter),"#),
         ("control.rs", r#""esc" | "escape" => Some(egui::Key::Escape),"#),
-        // A line with suggestions under it has the keyboard: Enter takes the one chosen.
-        ("compose.rs", "if i.consume_key(egui::Modifiers::NONE, egui::Key::Enter) || i.consume_key(egui::Modifiers::NONE, egui::Key::Tab) {"),
-        ("forms.rs", "if i.consume_key(egui::Modifiers::NONE, egui::Key::Enter) || i.consume_key(egui::Modifiers::NONE, egui::Key::Tab) {"),
+        // The search box, with the list under it open: Enter takes the one an arrow chose.
         ("search_suggest.rs", "if self.selected.is_some() && i.consume_key(egui::Modifiers::NONE, egui::Key::Enter) {"),
         // The search box has the keyboard: a held Enter is one press in it.
         ("chrome.rs", "ui.input_mut(|i| crate::keys::drop_repeats(i, &[egui::Key::Enter, egui::Key::Tab]));"),

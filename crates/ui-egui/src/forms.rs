@@ -97,6 +97,14 @@ impl Form {
         }
     }
 
+    /// The dialog was closed with the window's own close button: Add Account gives up what it
+    /// has under way, as on Escape.
+    pub fn closed(&mut self, app: &mut MailApp) {
+        if let Form::Account(f) = self {
+            f.give_up(app);
+        }
+    }
+
     /// Lay out the form in a window of its own ([`crate::windows`]): an appointment or a meeting
     /// under that window's bar of commands. `ask` is what the window's keys asked for.
     pub(crate) fn show_in_window(&mut self, app: &mut MailApp, ui: &mut Ui, ask: Option<Ask>) -> Verdict {

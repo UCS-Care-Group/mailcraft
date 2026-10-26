@@ -1450,6 +1450,9 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
             let title = form.title();
             let mut done = false;
             let open = window(ctx, &title, form.width(), |ui| done = form.show(app, ui));
+            if !open {
+                form.closed(app);
+            }
             close |= !open || done;
         }
         // (Enter is nobody's in this one either: it has boxes of several lines.)

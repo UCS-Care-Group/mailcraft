@@ -454,15 +454,6 @@ fn forget_field(ctx: &egui::Context) {
     ctx.data_mut(|d| d.remove::<egui::text_edit::TextEditState>(password_id()));
 }
 
-/// Whether the window's own close button was clicked in this pass. The dialog goes right after,
-/// and nothing else tells a form so; the button is the one thing to click in the window above
-/// the form.
-fn closed_by_window(ui: &Ui) -> bool {
-    let ctx = ui.ctx();
-    let Some(clicked) = ctx.interaction_snapshot(|s| s.clicked) else { return false };
-    ctx.read_response(clicked).is_some_and(|r| r.layer_id == ui.layer_id() && r.rect.bottom() <= ui.max_rect().top())
-}
-
 impl AccountSetup {
     fn blank(page: Page) -> AccountSetup {
         AccountSetup {
@@ -1201,7 +1192,7 @@ impl AccountSetup {
     }
 
     /// The dialog is closing: stop what is under way and keep nothing that was typed in confidence.
-    fn give_up(&mut self, app: &mut MailApp) {
+    pub(crate) fn give_up(&mut self, app: &mut MailApp) {
         (self.lookup, self.check) = (None, None);
         self.stop_sign_in(app);
         // An administrator's approval that Microsoft's page is open for is given up with it.
@@ -1229,9 +1220,9 @@ impl AccountSetup {
             self.ctx = Some(ui.ctx().clone());
             self.sweep(app);
         }
-        // Escape (when it is the dialog's, #406) and the window's own close button close the
-        // dialog after this pass.
-        if crate::keys::escape(ui.ctx(), ui.layer_id()) || closed_by_window(ui) {
+        // Escape (when it is the dialog's, #406) closes the dialog after this pass. (The window's
+        // own close button is the dialog's to see: `Form::closed`.)
+        if crate::keys::escape(ui.ctx(), ui.layer_id()) {
             self.give_up(app);
             return true;
         }
