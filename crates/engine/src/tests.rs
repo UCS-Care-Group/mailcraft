@@ -2200,6 +2200,9 @@ fn files_round_trip() {
         (archive, &orig.subject, &orig.from, &orig.to, &orig.body.text, 1)
     );
     assert_eq!(copy.attachments[0].data, orig.attachments[0].data);
+    // Selected, it is shown where it went (#485).
+    assert_eq!(s.view.folder, archive);
+    run(&mut s, "folder.select", json!({"kind": "inbox"}));
 
     // A folder as .mbox, the calendar as .ics, the contacts as .vcf.
     let mbox = run(&mut s, "file.exportFolder", json!({}));

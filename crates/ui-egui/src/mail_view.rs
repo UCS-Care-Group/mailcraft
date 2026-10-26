@@ -1150,6 +1150,8 @@ mod forward_attachment_tests;
 #[cfg(test)]
 mod from_sender_menu_tests;
 #[cfg(test)]
+mod hidden_selection_tests;
+#[cfg(test)]
 mod overlay_scroll_tests;
 
 #[cfg(test)]
