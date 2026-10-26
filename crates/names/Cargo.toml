@@ -1,0 +1,14 @@
+[package]
+name = "mailcraft-names"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "MailCraft's names: one list of Unicode's format characters, and the two steps a name takes, coming in and being shown"
+
+[lints]
+workspace = true
+
+[dependencies]
+
+[dev-dependencies]
+proptest = { workspace = true }
