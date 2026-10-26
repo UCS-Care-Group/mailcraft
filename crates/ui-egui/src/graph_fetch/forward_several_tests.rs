@@ -380,39 +380,46 @@ fn those_deleted_meanwhile_are_said_to_be_gone() {
 
 #[test]
 fn a_forward_called_off_by_another_download_is_said_to_be() {
-    // A reply, or a forward of another message, of which only the headers are here, before the
-    // forward's have come.
-    for (command, attached) in [("mail.reply", false), ("mail.forwardAsAttachment", true)] {
+    // A reply, or a forward of another message, of which only the headers are here, or another
+    // forward of these: with another in focus, of fewer of them, or letting go of what is being
+    // written. Each is asked for before the forward's have come.
+    let other = |[a, b, c]: [Id; 3], x: Id| {
+        [
+            ("mail.reply", json!({"id": x}), x, false),
+            ("mail.forwardAsAttachment", json!({"id": x}), x, true),
+            ("mail.forward", json!({"ids": [a, c, b]}), b, true),
+            ("mail.forwardAsAttachment", json!({"ids": [b, c]}), c, true),
+            ("mail.forwardAsAttachment", json!({"ids": [a, b, c], "discard": true}), c, true),
+        ]
+    };
+    for n in 0..5 {
         let (mut app, [[a, b, c], [x, ..]], jobs) = window();
+        let (command, params, source, attached) = other([a, b, c], x)[n].clone();
         app.session.sel.messages = vec![a, b, c];
         app.run("mail.forwardAsAttachment", json!({})).unwrap();
-        assert_eq!(app.run(command, json!({"id": x})).unwrap()["pending"], "download", "{command}");
-        assert!(said(&app).contains("The forward of several messages that was waiting was called off"), "{command}: {}", said(&app));
-        // What comes is for it, which opens; the forward doesn't.
+        assert_eq!(app.run(command, params.clone()).unwrap()["pending"], "download", "{command} {params}");
+        assert!(said(&app).contains("The forward of several messages that was waiting was called off"), "{command} {params}: {}", said(&app));
+        // What comes is for it, which opens; the forward that waited doesn't.
         answer(&mut app, &jobs, &[], &[]);
-        let compose = app.session.compose.as_ref().unwrap();
-        assert_eq!((compose.source, compose.as_attachment), (Some(x), attached), "{command}");
-        assert!(asked(&jobs).is_empty(), "{command}");
+        let compose = app.session.compose.as_ref().unwrap_or_else(|| panic!("{command} {params}: {:?}", app.status_msg));
+        assert_eq!((compose.source, compose.as_attachment), (Some(source), attached), "{command} {params}");
+        assert!(asked(&jobs).is_empty(), "{command} {params}");
     }
 }
 
 #[test]
 fn the_same_forward_asked_for_again_goes_on() {
-    // Pressed again, as the other forward (with several they do the same), named in another
-    // order, with the list sorted the other way meanwhile, or with `discard` said to be false:
-    // nothing is called off, nor asked for twice.
-    let again = |[a, b, c]: [Id; 3]| {
-        [
-            ("mail.forwardAsAttachment", json!({}), false),
-            ("mail.forward", json!({}), false),
-            ("mail.forwardAsAttachment", json!({"ids": [b, a, c]}), false),
-            ("mail.forwardAsAttachment", json!({}), true),
-            ("mail.forwardAsAttachment", json!({"discard": false}), false),
-        ]
-    };
-    for n in 0..5 {
+    // Pressed again, as the other forward (with several they do the same), with the list sorted
+    // the other way meanwhile, or with `discard` said to be false: nothing is called off, nor
+    // asked for twice.
+    let again = [
+        ("mail.forwardAsAttachment", json!({}), false),
+        ("mail.forward", json!({}), false),
+        ("mail.forwardAsAttachment", json!({}), true),
+        ("mail.forwardAsAttachment", json!({"discard": false}), false),
+    ];
+    for (command, params, resorted) in again {
         let (mut app, [[a, b, c], _], jobs) = window();
-        let (command, params, resorted) = again([a, b, c])[n].clone();
         app.session.sel.messages = vec![a, b, c];
         app.run("mail.forwardAsAttachment", json!({})).unwrap();
         assert_eq!(asked(&jobs).len(), 1);
