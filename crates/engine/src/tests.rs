@@ -2291,6 +2291,13 @@ fn hostile_params_never_panic() {
         json!({"account": 2, "address": "x".repeat(100_000)}),
         json!({"id": 2, "address": "\u{0}@example.org", "email": "\u{202e}@example.org"}),
         json!({"account": 1, "download": {"account": 1, "calendar": "\u{0}", "from": 1e300, "events": [{"id": 5}, null], "contacts": {"id": "c"}}}),
+        json!({"account": 1, "download": {"account": 1, "complete": true, "lists": [{"id": "\u{0}"}, null, {"id": "L", "complete": true}], "tasks": [
+            {"id": "t\r\n", "list": "L", "title": "\u{0}"}, {"id": "t1", "list": "L", "title": "x", "due": {"year": 0, "month": 99, "day": 0}, "reminder": i64::MAX}, {}, null, {"id": "t1", "list": "L"},
+        ]}}),
+        json!({"account": 1, "result": {"account": 1, "outcomes": [
+            {"kind": "create", "task": 18446744073709551615u64, "result": "done", "id": "", "list": "L", "patch": {"title": null, "due": 5}},
+            {"kind": "update", "task": 0, "result": "gone"}, {"kind": "delete", "id": "\u{0}", "result": "refused"}, {"kind": "create", "task": 1, "result": "done", "id": "x", "list": "L", "patch": {"title": "t"}}, null, {},
+        ]}}),
         json!({"account": 1, "download": {
             "account": 1, "complete": true, "from": i64::MIN, "to": i64::MAX,
             "events": [

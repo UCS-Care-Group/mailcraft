@@ -176,13 +176,13 @@ impl Merged {
             || !self.dropped.is_empty()
     }
 
-    fn say(&mut self, line: String) {
+    pub(super) fn say(&mut self, line: String) {
         if self.messages.len() < MAX_MESSAGES {
             self.messages.push(line);
         }
     }
 
-    fn json(&self, complete: bool) -> Value {
+    pub(super) fn json(&self, complete: bool) -> Value {
         json!({
             "added": self.added,
             "updated": self.updated,
@@ -529,7 +529,7 @@ fn put_fields(event: &mut Event, fields: &EventFields, offset_at: &dyn Fn(Timest
 }
 
 /// The account a download is for, when the mailbox has it and it is the one the download names.
-fn owner<'a>(mailbox: &'a Mailbox, account: Id, email: &str) -> Result<&'a Account, CmdError> {
+pub(super) fn owner<'a>(mailbox: &'a Mailbox, account: Id, email: &str) -> Result<&'a Account, CmdError> {
     let owner = mailbox.account(account).ok_or_else(|| failed!("no account with id {id}", id = account))?;
     // A download for another account (the mailbox was replaced while it was under way) would fill
     // this one's calendar with a stranger's.
@@ -3496,20 +3496,55 @@ pub fn apply_contacts(s: &mut Session, download: &ContactsDownload) -> CmdResult
 
 /// Remove everything that came from the server of `account`: its events, its contacts and the
 /// calendars that follow it. For an account that is no longer to be followed, or is being
-/// removed. What was made here stays, and the mailbox keeps a calendar to put events in.
+/// removed. What was made here stays, an event made in one of its calendars that the server
+/// wasn't given yet too, and the mailbox keeps a calendar to put events in.
 pub fn forget(s: &mut Session, account: Id) -> CmdResult {
     if account == 0 {
         return Err(bad("`account` (id) is required"));
     }
     let mailbox = &mut s.mailbox;
-    let events: Vec<Id> = mailbox.events.values().filter(|event| event.origin.account == account).map(|event| event.id).collect();
+    // An event made here that the server has no id for yet ([`note_created`]) is the owner's,
+    // not the server's: it stays, as the mailbox's own.
+    let (made_here, events): (Vec<&Event>, Vec<&Event>) = mailbox
+        .events
+        .values()
+        .map(|event| event.as_ref())
+        .filter(|event| event.origin.account == account)
+        .partition(|event| event.origin.id.is_empty());
+    let (made_here, events): (Vec<Id>, Vec<Id>) = (made_here.iter().map(|event| event.id).collect(), events.iter().map(|event| event.id).collect());
     let contacts: Vec<Id> = mailbox.contacts.values().filter(|contact| contact.origin.account == account).map(|contact| contact.id).collect();
     for id in &events {
         let _ = mailbox.remove_event(*id);
     }
+    for id in &made_here {
+        if let Ok(event) = mailbox.event_mut(*id) {
+            event.origin = Origin::default();
+        }
+    }
     for id in &contacts {
         let _ = mailbox.remove_contact(*id);
     }
+    // And its to-dos (the server isn't told: it is no longer followed), with the deletions that
+    // waited. A to-do the server has no id for yet was made here, as an event above: it stays.
+    let (tasks_made_here, tasks): (Vec<(Id, bool)>, Vec<(Id, bool)>) = mailbox
+        .tasks
+        .values()
+        .filter(|task| task.origin.account == account)
+        .map(|task| (task.id, task.origin.id.is_empty()))
+        .partition(|(_, made_here)| *made_here);
+    let (tasks_made_here, tasks): (Vec<Id>, Vec<Id>) =
+        (tasks_made_here.into_iter().map(|(id, _)| id).collect(), tasks.into_iter().map(|(id, _)| id).collect());
+    for id in &tasks {
+        let _ = mailbox.remove_task_quietly(*id);
+    }
+    for id in &tasks_made_here {
+        if let Some(task) = mailbox.tasks.get_mut(id) {
+            std::sync::Arc::make_mut(task).origin = Origin::default();
+        }
+    }
+    let waiting = mailbox.task_gone.len();
+    mailbox.task_gone.retain(|gone| gone.account != account);
+    let tasks_gone = tasks.len() + (waiting - mailbox.task_gone.len());
     // What was waiting to be sent to that server has nowhere to go.
     let unsent = mailbox.event_changes.len();
     mailbox.event_changes.retain(|change| change.account != account);
@@ -3517,22 +3552,39 @@ pub fn forget(s: &mut Session, account: Id) -> CmdResult {
     mailbox.event_checks.retain(|check| check.account != account);
     let followed = |calendar: &Calendar| calendar.origin.account == account;
     let calendars = mailbox.calendars.iter().filter(|calendar| followed(calendar)).count();
-    if calendars > 0 && calendars == mailbox.calendars.len() {
-        // No calendar of the mailbox's own would be left: the first one becomes that.
-        if let Some(first) = mailbox.calendars.first_mut() {
-            first.origin = Origin::default();
-            first.name = "Calendar".into();
+    // What is left in its calendars now was made here, and needs one of the mailbox's own to go
+    // to: not another account's, whose server would never be sent it.
+    let left_in = |event: &std::sync::Arc<Event>| mailbox.calendars.iter().any(|calendar| calendar.id == event.calendar && followed(calendar));
+    let homeless = mailbox.events.values().any(left_in);
+    let own_stays = mailbox.calendars.iter().any(|calendar| !followed(calendar) && calendar.origin.is_local());
+    if calendars > 0 && (calendars == mailbox.calendars.len() || (homeless && !own_stays)) {
+        // No calendar of the mailbox's own would be left (for what was made here, or at all):
+        // one becomes that, the account's main one when it is here (not a Birthdays it lists
+        // unticked), shown, in no group, and the owner's to change. Its colour, and the one
+        // chosen for it here, stay.
+        let main = mailbox.calendars.iter().position(|calendar| followed(calendar) && calendar.origin.id.is_empty());
+        if let Some(kept) = main.or_else(|| mailbox.calendars.iter().position(followed)).and_then(|main| mailbox.calendars.get_mut(main)) {
+            *kept =
+                Calendar { id: kept.id, name: "Calendar".into(), color: kept.color, visible: true, own_color: kept.own_color, ..Default::default() };
         }
     }
     let gone: Vec<Id> = mailbox.calendars.iter().filter(|calendar| followed(calendar)).map(|calendar| calendar.id).collect();
-    if let Some(home) = mailbox.calendars.iter().find(|calendar| !followed(calendar)).map(|calendar| calendar.id) {
-        // Events made here that sat in a calendar that goes move to one that stays.
+    // Events made here that sat in a calendar that goes move to one of the mailbox's own.
+    let home = mailbox.calendars.iter().find(|calendar| !followed(calendar) && calendar.origin.is_local());
+    if let Some(home) = home.map(|calendar| calendar.id) {
         for event in mailbox.events.values_mut().filter(|event| gone.contains(&event.calendar)) {
             std::sync::Arc::make_mut(event).calendar = home;
         }
     }
     mailbox.calendars.retain(|calendar| !followed(calendar));
-    if !events.is_empty() || !contacts.is_empty() || calendars > 0 || unsent > 0 {
+    if !events.is_empty()
+        || !made_here.is_empty()
+        || !contacts.is_empty()
+        || calendars > 0
+        || unsent > 0
+        || tasks_gone > 0
+        || !tasks_made_here.is_empty()
+    {
         s.mailbox_changed();
     }
     Ok(json!({"events": events.len(), "contacts": contacts.len(), "calendars": gone.len()}))

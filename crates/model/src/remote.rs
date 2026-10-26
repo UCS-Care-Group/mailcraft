@@ -1373,14 +1373,14 @@ fn mark(text: &str) -> String {
 }
 
 /// An id or a change key from outside: as it came, or nothing when it couldn't be one.
-fn key(text: &str) -> String {
+pub(crate) fn key(text: &str) -> String {
     let text = text.trim();
     if text.len() > MAX_KEY || text.chars().any(|c| c.is_control() || c.is_whitespace()) { String::new() } else { text.to_string() }
 }
 
 /// One line of text from outside: line breaks and control characters read as spaces, and it is
 /// at most `max` characters long.
-fn line(text: &str, max: usize) -> String {
+pub(crate) fn line(text: &str, max: usize) -> String {
     let flat: String = text.chars().map(|c| if c.is_control() { ' ' } else { c }).collect();
     let short: String = flat.trim().chars().take(max).collect();
     short.trim_end().to_string()
@@ -1388,7 +1388,7 @@ fn line(text: &str, max: usize) -> String {
 
 /// Text of several lines from outside: its line ends are `\n`, it has no other control
 /// characters, and it is at most `max` characters long.
-fn text(text: &str, max: usize) -> String {
+pub(crate) fn text(text: &str, max: usize) -> String {
     let clean: String = text.chars().filter(|c| *c == '\n' || *c == '\t' || !c.is_control()).take(max).collect();
     clean.trim().to_string()
 }

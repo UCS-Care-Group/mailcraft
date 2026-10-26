@@ -18,6 +18,7 @@ mailcraft-engine = { workspace = true }
 mailcraft-ui-egui = { workspace = true }
 mailcraft-model = { workspace = true }
 mailcraft-html = { workspace = true }
+mailcraft-link = { workspace = true }
 mailcraft-time = { workspace = true }
 # JMAP accounts, over the browser's `fetch` (`src/fetch.rs`, `src/jmap.rs`).
 mailcraft-jmap = { workspace = true }

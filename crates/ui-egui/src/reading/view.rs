@@ -562,13 +562,9 @@ fn clipped(text: &str, max: usize) -> std::borrow::Cow<'_, str> {
 /// address as it is. Each line at most [`TIP_ADDRESS`] characters.
 pub(super) fn link_tip(href: &str) -> String {
     let as_is = || clipped(href, TIP_ADDRESS).into_owned();
-    let Ok(url) = url::Url::parse(href.trim()) else { return as_is() };
-    if !matches!(url.scheme(), "http" | "https") {
-        return as_is();
-    }
-    let Some(host) = url.host_str().filter(|h| !h.is_empty()) else { return as_is() };
-    let goes = crate::i18n::fmt(tl!("Goes to {host}"), &[("host", clipped(host, TIP_ADDRESS).as_ref())]);
-    format!("{goes}\n{}", clipped(url.as_str(), TIP_ADDRESS))
+    let Some(link) = mailcraft_link::WebLink::parse(href.trim()) else { return as_is() };
+    let goes = crate::i18n::fmt(tl!("Goes to {host}"), &[("host", clipped(link.host(), TIP_ADDRESS).as_ref())]);
+    format!("{goes}\n{}", clipped(link.as_str(), TIP_ADDRESS))
 }
 
 /// What is said of a picture that is not shown, and where it would come from.

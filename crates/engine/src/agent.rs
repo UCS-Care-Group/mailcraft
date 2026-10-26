@@ -316,6 +316,8 @@ const SEND: &[&str] = &[
     "mail.sendAgain",
     "calendar.propose",
     "calendar.forward",
+    // The owner's yes to sending the tasks that exist only here to a Microsoft account's To Do.
+    "tasks.sendLocal",
     "ui.downloadPictures",
     "ui.retryPictures",
     "ui.joinMeeting",
@@ -329,7 +331,7 @@ const DELETE: &[&str] = &[
     "folder.empty",
     "calendar.removeCalendar",
     // Local contacts, tasks, events and categories have no Deleted Items to come back from, and
-    // undo is short-lived (a pushing sync clears it).
+    // undo is short-lived (what a server has been told of events and tasks clears it).
     "calendar.delete",
     "people.delete",
     "tasks.delete",
@@ -360,6 +362,7 @@ const ACCOUNTS: &[&str] = &[
     "ui.connectFavorites",
     "ui.allowSharedSend",
     "ui.allowSharedCalendars",
+    "ui.allowTasks",
     "ui.checkCalendar",
     "ui.adminConsent",
     "ui.signInAgain",
@@ -425,6 +428,9 @@ const NEVER: &[&str] = &[
     "sync.applyEventChanges",
     "sync.applyEvents",
     "sync.applyContacts",
+    "sync.taskChanges",
+    "sync.applyTaskChanges",
+    "sync.applyTasks",
     "sync.applyCalendars",
     "sync.applyCategories",
     "sync.applyFavorites",

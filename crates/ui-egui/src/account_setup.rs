@@ -1159,6 +1159,8 @@ impl AccountSetup {
         match answer {
             Ok(()) => self.add_with_password(app),
             Err(e) => {
+                // The dialog says it once; the log keeps it for a problem report.
+                log::warn!("add account: the servers couldn't be checked: {e}");
                 let google = self.incoming.server().is_some_and(|s| is_google(&s.host));
                 self.refuse(e);
                 if google && self.error.starts_with("sign-in failed") {
@@ -2496,6 +2498,7 @@ mod tests {
     /// (b) A provider that takes a password: the servers are tried before the account is added.
     #[test]
     fn a_password_account_is_tried_before_it_is_added() {
+        let logged = crate::graph_switch::tests::logged();
         let mut a = app(false);
         lookups(&mut a, Some(Ok(vec!["aspmx.l.google.com"])));
         let tried = checks(&mut a, Some(Err("imap.gmail.com refused the sign-in")));
@@ -2515,6 +2518,12 @@ mod tests {
         // Refused: back on the page with the reason and the servers in view, and no account.
         assert_eq!(page(&h), Some(Page::Password));
         assert!(says(&h, "refused the sign-in") && wizard(&h).is_some_and(|w| w.settings_open) && addresses(&h) == [""]);
+        // The log keeps why, for a problem report, and never the password.
+        {
+            let log = logged.lock().unwrap().join("\n");
+            assert!(log.contains("add account: the servers couldn't be checked: imap.gmail.com refused the sign-in"), "{log}");
+            assert!(!log.contains(TYPED), "the password reached the log");
+        }
         {
             let tried = tried.lock().unwrap();
             let (account, secret) = &tried[0];
