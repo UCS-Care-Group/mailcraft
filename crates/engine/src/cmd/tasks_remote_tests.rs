@@ -4,7 +4,7 @@
 //! what the server made of them taken in. The server's side is written out by hand, as
 //! `mailcraft-net` brings it.
 
-use mailcraft_model::remote_tasks::{RemoteTask, RemoteTaskList, TaskOpKind, TaskOutcome, TaskResult, TasksDownload, TasksUploaded};
+use mailcraft_model::remote_tasks::{MAX_TASK_LISTS, RemoteTask, RemoteTaskList, TaskOpKind, TaskOutcome, TaskResult, TasksDownload, TasksUploaded};
 use mailcraft_model::{Id, Importance, Task};
 use mailcraft_time::Date;
 use serde_json::{Value, json};
@@ -25,7 +25,13 @@ fn remote(id: &str, title: &str) -> RemoteTask {
 }
 
 fn download(account: Id, tasks: Vec<RemoteTask>) -> TasksDownload {
-    TasksDownload { account, email: "ada@example.org".into(), complete: true, lists: vec![RemoteTaskList { id: "L1".into(), complete: true }], tasks }
+    TasksDownload {
+        account,
+        email: "ada@example.org".into(),
+        complete: true,
+        lists: vec![RemoteTaskList { id: "L1".into(), complete: true, shared: false }],
+        tasks,
+    }
 }
 
 fn run(s: &mut Session, id: &str, params: Value) -> Value {
@@ -433,4 +439,254 @@ fn removing_the_account_takes_its_to_dos_but_keeps_what_was_changed_here_and_not
     assert!(!s.mailbox.tasks.values().any(|t| t.title == "From the server"), "the server's to-do goes with the account");
     let t = s.mailbox.task(id).unwrap_or_else(|| panic!("the owner's change is kept"));
     assert!(t.origin.is_local() && t.notes.contains("bring tea"), "kept as this computer's own: {t:?}");
+}
+
+/// Ada's account with one list of her own (L1) and one shared with other people (L2), a to-do in
+/// each: "Mine" and "Ours".
+fn shared_lists() -> (Session, Id, Id, Id) {
+    let (mut s, a) = session();
+    let mut ours = remote("t2", "Ours");
+    ours.list = "L2".into();
+    let mut d = download(a, vec![remote("t1", "Mine"), ours]);
+    d.lists.push(RemoteTaskList { id: "L2".into(), complete: true, shared: true });
+    merge_tasks(&mut s.mailbox, &d).unwrap();
+    let (mine, ours) = (titled(&s, "Mine").id, titled(&s, "Ours").id);
+    (s, a, mine, ours)
+}
+
+#[test]
+fn a_shared_list_is_remembered_until_the_server_says_otherwise() {
+    let (mut s, a, ..) = shared_lists();
+    assert_eq!(s.mailbox.shared_task_lists, [(a, ["L2".to_string()].into())].into());
+    assert!(s.mailbox.in_shared_task_list(&titled(&s, "Ours")) && !s.mailbox.in_shared_task_list(&titled(&s, "Mine")));
+    // Saved with the mailbox, and a mailbox of before (none named) loads with none.
+    let saved = serde_json::to_value(&s.mailbox).unwrap();
+    assert_eq!(saved["sharedTaskLists"], json!([{"account": a, "id": "L2"}]));
+    let mut old = saved.clone();
+    old.as_object_mut().unwrap().remove("sharedTaskLists");
+    assert!(serde_json::from_value::<mailcraft_model::Mailbox>(old).unwrap().shared_task_lists.is_empty());
+    // Junk in its place doesn't stop the mailbox loading.
+    let mut junk = saved;
+    junk["sharedTaskLists"] = json!([7, "x", {"account": "no"}]);
+    assert!(serde_json::from_value::<mailcraft_model::Mailbox>(junk).is_ok());
+    // A download that doesn't name every list leaves L2 as it was.
+    let mut partial = download(a, vec![remote("t1", "Mine")]);
+    partial.complete = false;
+    merge_tasks(&mut s.mailbox, &partial).unwrap();
+    assert!(s.mailbox.in_shared_task_list(&titled(&s, "Ours")));
+    // One that names L2 as no longer shared forgets it.
+    let mut ours = remote("t2", "Ours");
+    ours.list = "L2".into();
+    let mut d = download(a, vec![remote("t1", "Mine"), ours]);
+    d.lists.push(RemoteTaskList { id: "L2".into(), complete: true, shared: false });
+    merge_tasks(&mut s.mailbox, &d).unwrap();
+    assert!(s.mailbox.shared_task_lists.is_empty());
+    // Removing the account forgets its lists.
+    let (mut s, a, ..) = shared_lists();
+    run(&mut s, "account.remove", json!({"id": a}));
+    assert!(s.mailbox.shared_task_lists.is_empty());
+}
+
+#[test]
+fn an_agents_change_to_a_task_in_a_shared_list_asks_for_send() {
+    use crate::agent::{Class, Verdict, check};
+    let (mut s, _, mine, ours) = shared_lists();
+    for (id, params) in [
+        ("tasks.edit", json!({"title": "Renamed"})),
+        ("tasks.complete", json!({})),
+        ("tasks.categorize", json!({"category": "Red category"})),
+        ("tasks.delete", json!({})),
+    ] {
+        let with = |task: Id| {
+            let mut p = params.clone();
+            p["id"] = json!(task);
+            p
+        };
+        // In the shared list: the owner is asked, and the question says who sees it.
+        match check(&s, id, &with(ours), &[]) {
+            Verdict::Ask(Class::Send, what) => assert!(what.contains("shared with other people") && what.contains("Ours"), "{id}: {what}"),
+            other => panic!("{id} in a shared list: {other:?}"),
+        }
+        assert_eq!(check(&s, id, &with(ours), &[Class::Send]), Verdict::Run, "{id}");
+        // In a list of the owner's own: as before.
+        let mine_now = check(&s, id, &with(mine), &[]);
+        if id == "tasks.delete" {
+            assert!(matches!(mine_now, Verdict::Ask(Class::Delete, _)), "{id}: {mine_now:?}");
+        } else {
+            assert_eq!(mine_now, Verdict::Run, "{id} in a list that isn't shared");
+        }
+    }
+    // No id: the selected to-do, as the command takes it; a junk id means the same.
+    run(&mut s, "tasks.select", json!({"id": ours}));
+    for junk in [json!({}), json!({"id": "seven"}), json!({"id": -1}), json!({"id": null}), json!({"id": 1.5}), json!([1]), json!(null)] {
+        assert!(matches!(check(&s, "tasks.edit", &junk, &[]), Verdict::Ask(Class::Send, _)), "{junk}");
+    }
+    // A to-do that isn't there: the command changes nothing, and nothing is asked.
+    assert_eq!(check(&s, "tasks.edit", &json!({"id": u64::MAX, "title": "x"}), &[]), Verdict::Run);
+    run(&mut s, "tasks.select", json!({"id": null}));
+    assert_eq!(check(&s, "tasks.complete", &json!({}), &[]), Verdict::Run);
+    // The owner's own change runs as ever.
+    run(&mut s, "tasks.edit", json!({"id": ours, "title": "Renamed by the owner"}));
+    assert_eq!(titled(&s, "Renamed by the owner").id, ours);
+    // An undo that would change it back asks too.
+    match check(&s, "edit.undo", &json!({}), &[]) {
+        Verdict::Ask(Class::Send, what) => assert!(what.contains("shared list"), "{what}"),
+        other => panic!("undo of a shared to-do: {other:?}"),
+    }
+    run(&mut s, "tasks.edit", json!({"id": mine, "title": "Mine, renamed"}));
+    assert_eq!(check(&s, "edit.undo", &json!({}), &[]), Verdict::Run);
+}
+
+/// [`shared_lists`] with "Red category" on both to-dos, or on "Mine" alone.
+fn categorised(on_ours: bool) -> Session {
+    let (mut s, _, mine, ours) = shared_lists();
+    if s.mailbox.category("Red category").is_none() {
+        run(&mut s, "category.set", json!({"name": "Red category", "color": "#cc3333"}));
+    }
+    s.mailbox.task_mut(mine).unwrap().categories = vec!["Red category".into()];
+    if on_ours {
+        s.mailbox.task_mut(ours).unwrap().categories = vec!["Red category".into()];
+    }
+    s
+}
+
+#[test]
+fn renaming_or_deleting_a_category_a_shared_to_do_has_asks_for_send() {
+    use crate::agent::{Class, Verdict, check};
+    let rename = json!({"from": "Red category", "to": "Agent was here"});
+    let remove = json!({"name": " red CATEGORY "});
+    let s = categorised(true);
+    match check(&s, "category.rename", &rename, &[]) {
+        Verdict::Ask(Class::Send, what) => assert!(what.contains("shared with other people"), "{what}"),
+        other => panic!("rename: {other:?}"),
+    }
+    match check(&s, "category.remove", &remove, &[Class::Delete]) {
+        Verdict::Ask(Class::Send, what) => assert!(what.contains("shared with other people"), "{what}"),
+        other => panic!("remove: {other:?}"),
+    }
+    assert_eq!(check(&s, "category.rename", &rename, &[Class::Send]), Verdict::Run);
+    // Only on a to-do in a list that isn't shared: as before.
+    let s = categorised(false);
+    assert_eq!(check(&s, "category.rename", &rename, &[]), Verdict::Run);
+    assert!(matches!(check(&s, "category.remove", &remove, &[]), Verdict::Ask(Class::Delete, _)));
+    // Junk params change nothing and don't panic.
+    for junk in [json!({}), json!({"from": 7}), json!(null), json!([1]), json!({"name": null})] {
+        let _ = check(&s, "category.rename", &junk, &[]);
+        let _ = check(&s, "category.remove", &junk, &[]);
+    }
+}
+
+#[test]
+fn an_agents_command_that_changes_a_shared_to_do_by_another_way_is_undone() {
+    use crate::agent::{Class, overstep};
+    let s = categorised(true);
+    let before = s.mailbox.clone();
+    let mut after = before.clone();
+    after.rename_category("Red category", "Agent was here").unwrap();
+    assert_eq!(overstep(&before, &after, &[]), Some(Class::Send));
+    assert_eq!(overstep(&before, &after, &[Class::Send]), None);
+    // A deletion from a shared list, which the server is to be told of.
+    let mut gone = before.clone();
+    let ours = titled(&s, "Ours").id;
+    gone.remove_task(ours).unwrap();
+    assert_eq!(overstep(&before, &gone, &[Class::Delete]), Some(Class::Send));
+    // The same to a list that isn't shared, and nothing at all: fine.
+    let s = categorised(false);
+    let mut mine = s.mailbox.clone();
+    mine.rename_category("Red category", "Agent was here").unwrap();
+    assert_eq!(overstep(&s.mailbox, &mine, &[]), None);
+    assert_eq!(overstep(&s.mailbox, &s.mailbox, &[]), None);
+    // Run as an agent, the rename is refused and nothing changes.
+    let mut s = categorised(true);
+    let was = s.mailbox.clone();
+    s.agent = Some(Vec::new());
+    assert!(s.run("category.rename", &json!({"from": "Red category", "to": "Agent was here"})).is_err());
+    s.agent = None;
+    assert_eq!(s.mailbox, was);
+}
+
+/// A to-do of `account`'s in its list `list`.
+fn in_list(account: Id, list: &str) -> Task {
+    Task { origin: mailcraft_model::Origin { account, id: "x".into(), ..Default::default() }, list: list.into(), ..Default::default() }
+}
+
+#[test]
+fn every_accounts_shared_lists_are_kept_however_many_accounts_have_them() {
+    use crate::agent::{Class, Verdict, check};
+    let (mut s, a, _, ours) = shared_lists();
+    // Many other accounts, each with as many shared lists as a download names.
+    for other in 1_000..1_020 {
+        s.mailbox.shared_task_lists.insert(other, (0..MAX_TASK_LISTS).map(|n| format!("S{n}")).collect());
+    }
+    // Ada's next download still has L2 shared, and an agent's edit there is still asked about.
+    let mut ours_task = remote("t2", "Ours");
+    ours_task.list = "L2".into();
+    let mut d = download(a, vec![remote("t1", "Mine"), ours_task]);
+    d.lists.push(RemoteTaskList { id: "L2".into(), complete: true, shared: true });
+    merge_tasks(&mut s.mailbox, &d).unwrap();
+    assert!(matches!(check(&s, "tasks.edit", &json!({"id": ours, "title": "x"}), &[]), Verdict::Ask(Class::Send, _)));
+    for other in 1_000..1_020 {
+        assert!(s.mailbox.in_shared_task_list(&in_list(other, &format!("S{}", MAX_TASK_LISTS - 1))), "{other}");
+    }
+    // Saved and read back: all of them.
+    let back: mailcraft_model::Mailbox = serde_json::from_value(serde_json::to_value(&s.mailbox).unwrap()).unwrap();
+    assert_eq!(back.shared_task_lists, s.mailbox.shared_task_lists);
+}
+
+#[test]
+fn a_mailbox_file_with_too_many_shared_lists_for_one_account_keeps_the_others() {
+    let too_many = mailcraft_model::remote_tasks::MAX_TASKS + 500;
+    let mut lists: Vec<Value> = (0..too_many * 2).map(|i| json!({"account": 1, "id": format!("L{}", i % too_many)})).collect();
+    lists.extend([json!({"account": 1, "id": ""}), json!({"account": 2, "id": "Bell\u{7}"}), json!({"account": 2, "id": "Kept"})]);
+    let mb: mailcraft_model::Mailbox = serde_json::from_value(json!({"sharedTaskLists": lists})).unwrap();
+    let one = mb.shared_task_lists.get(&1).unwrap();
+    assert_eq!(one.len(), mailcraft_model::remote_tasks::MAX_TASKS);
+    // What was kept of that account's is gated; the other account's are all there.
+    let first = one.iter().next().unwrap().clone();
+    assert!(mb.in_shared_task_list(&in_list(1, &first)));
+    assert!(mb.in_shared_task_list(&in_list(2, "Kept")));
+    // Ids are cut as a download's are.
+    assert!(mb.shared_task_lists.values().flatten().all(|id| !id.is_empty() && !id.chars().any(char::is_control)));
+}
+
+#[test]
+fn deleting_the_message_a_shared_to_do_was_made_from_is_not_a_send() {
+    let (mut s, _, _, ours) = shared_lists();
+    let m = *s.mailbox.messages.keys().next().unwrap();
+    s.mailbox.task_mut(ours).unwrap().message = Some(m);
+    s.agent = Some(vec![crate::agent::Class::Delete]);
+    let deleted = s.run("mail.deletePermanently", &json!({"ids": [m]}));
+    s.agent = None;
+    assert!(deleted.is_ok(), "{deleted:?}");
+    assert!(s.mailbox.message(m).is_none());
+    assert_eq!(s.mailbox.task(ours).unwrap().message, None);
+}
+
+#[test]
+fn a_shared_list_with_a_to_do_in_it_is_not_forgotten_for_lack_of_room() {
+    use crate::agent::{Class, Verdict, check};
+    let (mut s, a) = session();
+    // Two downloads that can't name every list, each naming a different 50 shared ones.
+    let half = |from: usize, task: Option<RemoteTask>| {
+        let lists = (from..from + MAX_TASK_LISTS).map(|n| RemoteTaskList { id: format!("A{n:02}"), complete: true, shared: true }).collect();
+        TasksDownload { account: a, email: "ada@example.org".into(), complete: false, lists, tasks: task.into_iter().collect() }
+    };
+    let mut first = remote("t0", "In A00");
+    first.list = "A00".into();
+    merge_tasks(&mut s.mailbox, &half(0, Some(first))).unwrap();
+    merge_tasks(&mut s.mailbox, &half(MAX_TASK_LISTS, None)).unwrap();
+    let t = titled(&s, "In A00");
+    assert!(s.mailbox.in_shared_task_list(&t), "the list a to-do is in is kept");
+    assert!(matches!(check(&s, "tasks.edit", &json!({"id": t.id, "title": "x"}), &[]), Verdict::Ask(Class::Send, _)));
+    // Lists with no to-do in them are kept only while there is room.
+    assert_eq!(s.mailbox.shared_task_lists.get(&a).map(|l| l.len()), Some(MAX_TASK_LISTS + 1));
+}
+
+#[test]
+fn a_to_do_taken_out_of_a_shared_list_by_another_way_is_an_overstep() {
+    use crate::agent::{Class, overstep};
+    let (s, _, _, ours) = shared_lists();
+    let mut after = s.mailbox.clone();
+    after.task_mut(ours).unwrap().list = "L1".into();
+    assert_eq!(overstep(&s.mailbox, &after, &[]), Some(Class::Send));
 }

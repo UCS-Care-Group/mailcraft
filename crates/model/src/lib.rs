@@ -55,7 +55,7 @@ pub use remote::Origin;
 pub use rich::{RichBody, RichText};
 pub use rule::{Action, Condition, Rule};
 pub use signature::Signature;
-pub use task::{LocalTasks, MAX_TASK_GONE, Task, TaskFields, TaskGone, TaskPatch};
+pub use task::{LocalTasks, MAX_TASK_GONE, SharedTaskList, SharedTaskLists, Task, TaskFields, TaskGone, TaskPatch};
 
 /// An item's identity inside one mailbox. 0 means "not assigned yet".
 pub type Id = u64;

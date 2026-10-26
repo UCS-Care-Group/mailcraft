@@ -535,6 +535,11 @@ pub fn classify(s: &Session, id: &str, params: &Value) -> Access {
     if id == "calendar.delete" && sends {
         return Access::Owner(Class::Send);
     }
+    // The people a To Do list is shared with see what is done to its to-dos (#461); deleting
+    // one asks this too, the stronger question.
+    if shared_task(s, id, params).is_some() || shared_category(s, id, params) {
+        return Access::Owner(Class::Send);
+    }
     if base != Access::Safe {
         return base;
     }
@@ -559,6 +564,51 @@ pub fn classify(s: &Session, id: &str, params: &Value) -> Access {
         "compose.close" if p::bool(params, "discard") == Some(true) && s.compose.as_ref().is_some_and(|c| c.dirty) => Access::Owner(Class::Delete),
         _ => Access::Safe,
     }
+}
+
+/// The to-do that `id` would change, when it is in a list shared with other people. The to-do is
+/// found as the command finds it (`id`, else the selected one); one that isn't there is left to
+/// the command, which changes nothing and says so.
+fn shared_task<'a>(s: &'a Session, id: &str, params: &Value) -> Option<&'a mailcraft_model::Task> {
+    if !matches!(id, "tasks.edit" | "tasks.complete" | "tasks.categorize" | "tasks.delete") {
+        return None;
+    }
+    p::id(params, "id").or(s.sel.task).and_then(|t| s.mailbox.task(t)).filter(|t| s.mailbox.in_shared_task_list(t))
+}
+
+/// Whether `id` renames or deletes a category that a to-do in a shared list has: the to-do is
+/// changed with it, and the people the list is shared with see that.
+fn shared_category(s: &Session, id: &str, params: &Value) -> bool {
+    let key = match id {
+        "category.rename" => "from",
+        "category.remove" => "name",
+        _ => return false,
+    };
+    let Some(name) = p::str(params, key).map(str::trim) else { return false };
+    s.mailbox.tasks.values().any(|t| t.categories.iter().any(|c| c.eq_ignore_ascii_case(name)) && s.mailbox.in_shared_task_list(t))
+}
+
+/// Whether going from `before` to `after` changes what a list shared with other people has, as
+/// the next Send/Receive of to-dos would tell its server: a to-do in one changed, brought back or
+/// added, or one deleted from one.
+pub(crate) fn changes_shared_tasks(before: &Mailbox, after: &Mailbox) -> bool {
+    if after.shared_task_lists.is_empty() && before.shared_task_lists.is_empty() {
+        return false;
+    }
+    // Only what goes to the server counts (a to-do's message, say, doesn't); one moved out of a
+    // shared list counts too.
+    let changed = after.tasks.iter().any(|(k, t)| match before.tasks.get(k) {
+        None => after.in_shared_task_list(t),
+        Some(b) => (after.in_shared_task_list(t) || before.in_shared_task_list(b)) && !std::sync::Arc::ptr_eq(b, t) && !b.same_on_server(t),
+    });
+    if changed || after.task_gone == before.task_gone {
+        return changed;
+    }
+    let told: std::collections::HashSet<(Id, &str)> = before.task_gone.iter().map(|g| (g.account, g.id.as_str())).collect();
+    after
+        .task_gone
+        .iter()
+        .any(|g| !told.contains(&(g.account, g.id.as_str())) && before.shared_task_lists.get(&g.account).is_some_and(|l| l.contains(g.list.as_str())))
 }
 
 fn is_outbox(mb: &Mailbox, folder: Id) -> bool {
@@ -755,9 +805,20 @@ pub fn describe(s: &Session, id: &str, params: &Value) -> String {
         }
         "tasks.delete" => {
             let t = p::id(params, "id").or(s.sel.task).and_then(|t| s.mailbox.task(t));
-            format!("delete the task {} for good", t.map(|t| quoted(&t.title)).unwrap_or_else(|| "(none selected)".to_string()))
+            let shared = if shared_task(s, id, params).is_some() { SHARED_TASK } else { "" };
+            format!("delete the task {} for good{shared}", t.map(|t| quoted(&t.title)).unwrap_or_else(|| "(none selected)".to_string()))
         }
-        "category.remove" => format!("delete the category {}, taking it off everything that has it", quoted(st("name"))),
+        "tasks.edit" | "tasks.complete" | "tasks.categorize" if shared_task(s, id, params).is_some() => {
+            let t = shared_task(s, id, params).map(|t| quoted(&t.title)).unwrap_or_default();
+            format!("{} on the task {t}{SHARED_TASK}", run_text(label, id, params))
+        }
+        "category.remove" => {
+            let shared = if shared_category(s, id, params) { SHARED_CATEGORY } else { "" };
+            format!("delete the category {}, taking it off everything that has it{shared}", quoted(st("name")))
+        }
+        "category.rename" if shared_category(s, id, params) => {
+            format!("rename the category {} to {}{SHARED_CATEGORY}", quoted(st("from")), quoted(st("to")))
+        }
         "compose.close" => match &s.compose {
             Some(c) => format!("close the message {} without saving what the owner wrote in it", quoted(&c.subject)),
             None => "close the message being written without saving it".to_string(),
@@ -767,7 +828,7 @@ pub fn describe(s: &Session, id: &str, params: &Value) -> String {
             let label = if redo { s.redo_label() } else { s.undo_label() };
             let what = match s.undo_reverts(redo) {
                 Some(Class::Accounts) => "the accounts",
-                Some(Class::Send) => "a change to a meeting, which writes to the people invited",
+                Some(Class::Send) => "a change to a meeting or to a task in a shared list, which other people see",
                 Some(Class::Delete) => "contacts, events, tasks, calendars or categories that were deleted",
                 _ => "the rules or signatures",
             };
@@ -868,17 +929,26 @@ pub fn describe(s: &Session, id: &str, params: &Value) -> String {
                 && s.mailbox.accounts.iter().all(|x| x.id == account.id || x.shared_of == Some(account.id));
             if only { format!("remove the account {a} (the only account: leaves an empty mailbox)") } else { format!("remove the account {a}") }
         }
-        _ => {
-            let mut shown = params.to_string();
-            if shown == "{}" || shown == "null" {
-                shown.clear();
-            }
-            // In full: `check` refuses what is too long to show, rather than a cut hiding the end.
-            let shown = if shown.is_empty() { String::new() } else { format!(" {}", plain(&shown)) };
-            format!("run \u{201c}{label}\u{201d} ({id}){shown}")
-        }
+        _ => run_text(label, id, params),
     }
 }
+
+/// A command and its params, as they came.
+fn run_text(label: &str, id: &str, params: &Value) -> String {
+    let mut shown = params.to_string();
+    if shown == "{}" || shown == "null" {
+        shown.clear();
+    }
+    // In full: `check` refuses what is too long to show, rather than a cut hiding the end.
+    let shown = if shown.is_empty() { String::new() } else { format!(" {}", plain(&shown)) };
+    format!("run \u{201c}{label}\u{201d} ({id}){shown}")
+}
+
+/// Said of a category that to-dos in a list shared with other people have.
+const SHARED_CATEGORY: &str = ", which to-dos in a To Do list shared with other people have: they see the change";
+
+/// Said of a to-do in a list shared with other people.
+const SHARED_TASK: &str = ", which is in a To Do list shared with other people: they see the change";
 
 /// A rule as it would be made, in words, naming the folders by their paths.
 fn rule_words(s: &Session, r: &mailcraft_model::Rule) -> String {
@@ -938,6 +1008,10 @@ pub(crate) fn overstep(before: &Mailbox, after: &Mailbox, allow: &[Class]) -> Op
             !before.event_changes.iter().any(|b| b.send && b.account == c.account && b.kind == c.kind && b.event == c.event && b.token == c.token)
         });
         if new {
+            return Some(Class::Send);
+        }
+        // A to-do in a list shared with other people, changed by whatever path.
+        if changes_shared_tasks(before, after) {
             return Some(Class::Send);
         }
     }

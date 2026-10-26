@@ -58,17 +58,20 @@ pub fn push_tasks(token: &str, upload: &TasksUpload) -> TasksUploaded {
 pub(super) fn tasks_at(base: &str, token: &str) -> Result<TasksDownload, NetError> {
     let graph = Graph::at(base, token)?;
     let mut download = TasksDownload::default();
-    let mut found: Vec<(String, String)> = Vec::new();
+    // Each list's id, its well-known name, and whether it is shared with other people.
+    let mut found: Vec<(String, String, bool)> = Vec::new();
     let query = http::form(&[("$top", "100")]);
     let whole = graph.list(Doing::Tasks, graph.url(&format!("{LISTS}?{query}")), &[], MAX_TASK_LISTS, &mut |entry| {
         let id = text(entry, "id");
-        if valid_id(id) && !found.iter().any(|(have, _)| have == id) {
-            found.push((id.to_string(), text(entry, WELL_KNOWN).to_string()));
+        if valid_id(id) && !found.iter().any(|(have, ..)| have == id) {
+            let shared = entry.get("isShared").and_then(Value::as_bool).unwrap_or(false);
+            found.push((id.to_string(), text(entry, WELL_KNOWN).to_string(), shared));
         }
     })?;
     download.complete = whole;
     let mut seen: HashSet<String> = HashSet::new();
-    for (list, _) in found.iter().filter(|(_, well_known)| well_known != "flaggedEmails") {
+    for (list, _, shared) in found.iter().filter(|(_, well_known, _)| well_known != "flaggedEmails") {
+        let shared = *shared;
         let room = MAX_TASKS.saturating_sub(download.tasks.len());
         let mut unread = 0usize;
         let first = graph.url(&format!("{LISTS}/{}/tasks?{}", http::encode(list), http::form(&[("$top", PAGE_SIZE)])));
@@ -83,10 +86,10 @@ pub(super) fn tasks_at(base: &str, token: &str) -> Result<TasksDownload, NetErro
             })
         };
         match read {
-            Ok(whole) => download.lists.push(RemoteTaskList { id: list.clone(), complete: whole && unread == 0 }),
+            Ok(whole) => download.lists.push(RemoteTaskList { id: list.clone(), complete: whole && unread == 0, shared }),
             // A list that went while it was being read is not there any more: the next run knows.
             Err(NetError::Proto(mailcraft_proto::ProtoError::Rejected(_))) => {
-                download.lists.push(RemoteTaskList { id: list.clone(), complete: false });
+                download.lists.push(RemoteTaskList { id: list.clone(), complete: false, shared });
             }
             Err(e) => return Err(e),
         }

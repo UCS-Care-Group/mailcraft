@@ -52,8 +52,11 @@ fn serve(todo: &Arc<Mutex<Todo>>) -> FakeHttp {
         let json = serde_json::from_str::<Value>(body).unwrap_or(Value::Null);
         match (method, pieces.get(5), pieces.get(6), pieces.get(7)) {
             ("GET", None, ..) => {
-                let value: Vec<Value> =
-                    todo.lists.iter().map(|(id, well, _)| json!({"id": id, "wellknownListName": well, "displayName": "x"})).collect();
+                let value: Vec<Value> = todo
+                    .lists
+                    .iter()
+                    .map(|(id, well, _)| json!({"id": id, "wellknownListName": well, "displayName": "x", "isShared": *id == "L2"}))
+                    .collect();
                 json_answer("200 OK", &json!({"value": value}).to_string())
             }
             ("GET", Some(list), Some(&"tasks"), None) => match todo.lists.iter().find(|l| l.0 == *list) {
@@ -137,6 +140,8 @@ fn lists_and_tasks_are_read_with_their_fields() {
     assert!(got.complete);
     // The flagged-mail list is not read, and not named.
     assert_eq!(got.lists.iter().map(|l| (l.id.as_str(), l.complete)).collect::<Vec<_>>(), [("L1", true), ("L2", true)]);
+    // Whether a list is shared with other people comes with it (#461).
+    assert_eq!(got.lists.iter().map(|l| l.shared).collect::<Vec<_>>(), [false, true]);
     assert_eq!(got.tasks.len(), 3);
     let a = &got.tasks[0];
     assert_eq!((a.id.as_str(), a.list.as_str(), a.title.as_str(), a.importance), ("A", "L1", "Call Bo", Importance::High));

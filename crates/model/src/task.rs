@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! To-do items.
 
+use std::collections::{BTreeMap, BTreeSet};
+
 use mailcraft_time::{Date, Timestamp};
 use serde::{Deserialize, Serialize};
 
@@ -178,6 +180,44 @@ pub struct TaskGone {
     pub list: String,
 }
 
+/// The lists of each account's to-dos that its server shares with other people (To Do's
+/// `isShared`): the account, and what the server calls each list. What a download names is at
+/// most [`MAX_TASK_LISTS`](crate::remote_tasks::MAX_TASK_LISTS); a list one doesn't name stays
+/// while a to-do is in it.
+pub type SharedTaskLists = BTreeMap<Id, BTreeSet<String>>;
+
+/// Written as a list of [`SharedTaskList`]s.
+pub(crate) fn write_shared_lists<S: serde::Serializer>(lists: &SharedTaskLists, serializer: S) -> Result<S::Ok, S::Error> {
+    serializer.collect_seq(lists.iter().flat_map(|(account, ids)| ids.iter().map(|id| SharedTaskList { account: *account, id: id.clone() })))
+}
+
+/// The shared lists a mailbox file names: each id cut as a download's is, and at most
+/// [`MAX_TASKS`](crate::remote_tasks::MAX_TASKS) an account (no more lists can have one of its
+/// to-dos in them; the rest of that account's are dropped).
+pub(crate) fn read_shared_lists<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<SharedTaskLists, D::Error> {
+    let read: Vec<SharedTaskList> = crate::sync::lenient_list(deserializer)?;
+    let mut kept = SharedTaskLists::new();
+    for list in read {
+        let id = crate::remote::key(&list.id);
+        let ids = kept.entry(list.account).or_default();
+        if !id.is_empty() && ids.len() < crate::remote_tasks::MAX_TASKS {
+            ids.insert(id);
+        }
+    }
+    kept.retain(|_, ids| !ids.is_empty());
+    Ok(kept)
+}
+
+/// A list of an account's to-dos that its server shares with other people, as a mailbox file
+/// names it ([`SharedTaskLists`]).
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct SharedTaskList {
+    pub account: Id,
+    /// What the server calls the list.
+    pub id: String,
+}
+
 /// What the owner said about the to-dos that exist only in this mailbox when an account that
 /// keeps to-dos (Microsoft To Do) comes along. Nothing local goes to a server before the owner
 /// has said yes.
@@ -203,6 +243,22 @@ impl LocalTasks {
 pub const MAX_TASK_GONE: usize = 5_000;
 
 impl Task {
+    /// Whether the two would be the same to a server: what it keeps of a to-do
+    /// ([`Task::fields`]), its list and what it calls it. Nothing is copied.
+    pub fn same_on_server(&self, other: &Task) -> bool {
+        self.title == other.title
+            && self.notes == other.notes
+            && self.start == other.start
+            && self.due == other.due
+            && self.completed == other.completed
+            && self.importance == other.importance
+            && self.categories == other.categories
+            && self.reminder == other.reminder
+            && self.list == other.list
+            && self.origin.account == other.origin.account
+            && self.origin.id == other.origin.id
+    }
+
     /// What of the to-do a server keeps.
     pub fn fields(&self) -> TaskFields {
         TaskFields {
