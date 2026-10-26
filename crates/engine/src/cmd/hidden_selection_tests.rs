@@ -359,6 +359,34 @@ fn the_message_being_read_is_kept_when_the_rest_is_not_found() {
     assert_eq!((s.view.folder, s.sel.messages.as_slice()), (sent, [found].as_slice()));
 }
 
+#[test]
+fn an_import_a_search_finds_is_selected_in_the_search() {
+    let mut s = Session::at(sample::mailbox(now(), 0), now(), 0);
+    run(&mut s, "folder.select", json!({"kind": "inbox"}));
+    run(&mut s, "view.search", json!({"query": "Brought"}));
+    shown(&mut s);
+    let eml = "From: a@example.org\r\nTo: b@example.org\r\nSubject: Brought in\r\nMessage-ID: <in-4@example.org>\r\n\r\nBody\r\n";
+    let r = run(&mut s, "file.import", json!({"name": "in.eml", "data": crate::cmd::base64_encode(eml.as_bytes())}));
+    let id = r["ids"][0].as_u64().unwrap();
+    assert_eq!((s.view.search.as_str(), s.sel.messages.as_slice()), ("Brought", [id].as_slice()));
+    assert!(shown(&mut s).contains(&id));
+}
+
+#[test]
+fn redo_shows_what_it_selects_again() {
+    let (mut s, read) = read_one_selected();
+    run(&mut s, "mail.delete", json!({}));
+    let next = s.sel.messages.clone();
+    run(&mut s, "edit.undo", json!({}));
+    assert_eq!(s.sel.messages, [read]);
+    run(&mut s, "view.filter", json!({"value": "flagged"}));
+    // Deleted again, with what was selected after it: listed, in the All tab.
+    run(&mut s, "edit.redo", json!({}));
+    assert_eq!((s.view.filter, &s.sel.messages), (Filter::All, &next));
+    let listed = shown(&mut s);
+    assert!(!next.is_empty() && next.iter().all(|id| listed.contains(id)), "{next:?} {listed:?}");
+}
+
 /// What every command leaves (#485): from a selection the list shows, in each of a few lists, the
 /// selection is in the folder in view (or where its search looks), the list shows each of its
 /// messages, and what a command says it selected is still selected. A command that breaks that,
@@ -410,6 +438,7 @@ fn every_command_leaves_only_what_the_list_shows_selected() {
         }),
     ];
     let fresh = || Session::at(sample::mailbox(now(), 0), now(), 0);
+    let eml = crate::cmd::base64_encode(b"From: a@example.org\r\nSubject: In\r\nMessage-ID: <sweep@example.org>\r\n\r\nBody\r\n");
     let ids: Vec<&'static str> = fresh().registry.all().iter().map(|c| c.id).collect();
     let mut checked = 0;
     for id in &ids {
@@ -432,6 +461,7 @@ fn every_command_leaves_only_what_the_list_shows_selected() {
                 json!({"id": in_folder, "range": true}),
                 json!({"ids": [in_folder, first]}),
                 json!({"id": second, "elsewhere": true}),
+                json!({"name": "in.eml", "data": eml}),
                 json!({"value": "flagged", "query": "a", "scope": "everywhere"}),
             ];
             for params in &all_params {

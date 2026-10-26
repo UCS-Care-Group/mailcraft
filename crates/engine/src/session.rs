@@ -1843,6 +1843,12 @@ impl Session {
         self.settle_zone();
     }
 
+    /// A command changed the mailbox and goes on to ask of the list (a message it brought in, to
+    /// show): the list is built afresh when next asked for, not from before the change.
+    pub(crate) fn list_due(&mut self) {
+        self.rev += 1;
+    }
+
     /// The mailbox was changed outside a command (mail arriving from a server): everything worked
     /// out from it (the message list, what is saved) is due again.
     pub fn mailbox_changed(&mut self) {
@@ -2040,8 +2046,7 @@ impl Session {
         let outer = self.swaps.replace(Swaps::default());
         let outer_chose = std::mem::take(&mut self.chose_selection);
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| run(self, params)));
-        let chose_selection = self.chose_selection;
-        self.chose_selection = outer_chose || chose_selection;
+        let chose_selection = std::mem::replace(&mut self.chose_selection, outer_chose);
         // Content the command brought in or let go of is in the state it started from too: it
         // is no change to undo, and a command that fails keeps it (and what is counted of it).
         let swaps = std::mem::replace(&mut self.swaps, outer).unwrap_or_default();
@@ -2079,6 +2084,8 @@ impl Session {
                 if !chose_selection && self.sel.messages == before.sel.messages && ListOf::of(&view) != ListOf::of(&self.view) {
                     self.sel.clear_messages();
                 }
+                // A command run by another chose for that one too.
+                self.chose_selection |= chose_selection;
                 // The working hours of an account just removed go with it (#325): here, once
                 // nothing can turn the removal back, as preferences aren't put back with the mailbox.
                 if wipes_history(id) {
