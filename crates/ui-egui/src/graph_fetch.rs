@@ -353,19 +353,19 @@ impl MailApp {
             // batch brought none of them; else it goes on with the rest, if there are any, and
             // runs once none is left to fetch.
             if let Some(mut tried) = tried {
-                let stop = match (came.gone, came.refused) {
-                    (Some(m), _) => Some(compose::not_sent(&self.session, m, true)),
-                    (None, Some(m)) => Some(compose::not_sent(&self.session, m, false)),
-                    (None, None) if came.answered.is_empty() && self.fetching.offline => {
-                        compose::forward_check(&self.session, &messages, false).err()
-                    }
-                    (None, None) => None,
+                let stop = match came.not_sent {
+                    Some((m, gone)) => Some(compose::not_sent(&self.session, m, gone)),
+                    None if came.answered.is_empty() && self.fetching.offline => compose::forward_check(&self.session, &messages, false).err(),
+                    None => None,
                 };
                 if let Some(e) = stop {
                     let said = self.kept(e);
                     self.say_refused(&command, &said);
                 } else if came.answered.is_empty() {
-                    self.status(tl!("The server didn't send the messages. Try again in a few minutes."));
+                    match came.why {
+                        Some(why) => self.status(why),
+                        None => self.status(tl!("The server didn't send the messages. Try again in a few minutes.")),
+                    }
                 } else {
                     tried.extend(came.answered);
                     self.fetching.tried = Some(tried);
@@ -452,16 +452,15 @@ impl MailApp {
     }
 }
 
-/// The engine's request for `messages` alone (the first one's, with the others' ids in it too), or
-/// with none, for the background's next. `None` when there is nothing in it to fetch.
 /// What a fetch of messages for the owner brought of each of them: those it answered for (whole,
-/// gone or refused), and the first, in the order asked, gone from the server and refused by it.
-/// One it didn't answer for (the server busy, or a host that stops at a batch's size) is asked for
-/// again.
+/// gone or refused), the first of them, in the order asked, that it didn't send (`true`: gone from
+/// the server), and the server's own word on why it stopped, if it said one. One it didn't answer
+/// for (the server busy, or a host that stops at a batch's size) is asked for again; one no longer
+/// here (deleted meanwhile) is nothing to wait for, and the engine says so when the command runs.
 struct Came {
     answered: Vec<Id>,
-    gone: Option<Id>,
-    refused: Option<Id>,
+    not_sent: Option<(Id, bool)>,
+    why: Option<String>,
 }
 
 impl Came {
@@ -469,13 +468,14 @@ impl Came {
         let fetched: HashSet<&str> = result.fetched.iter().map(|f| f.id.as_str()).collect();
         let missing: HashSet<&str> = result.missing.iter().map(String::as_str).collect();
         let failed: HashSet<&str> = result.failed.iter().map(String::as_str).collect();
-        let mut came = Came { answered: Vec::new(), gone: None, refused: None };
+        let mut came = Came { answered: Vec::new(), not_sent: None, why: result.errors.first().cloned() };
         for m in messages {
-            let Some(on_server) = app.session.mailbox.message(*m).and_then(|m| m.server.as_ref()).map(|s| s.id.as_str()) else { continue };
-            if missing.contains(on_server) {
-                came.gone = came.gone.or(Some(*m));
-            } else if failed.contains(on_server) {
-                came.refused = came.refused.or(Some(*m));
+            let Some(on_server) = app.session.mailbox.message(*m).and_then(|m| m.server.as_ref()).map(|s| s.id.as_str()) else {
+                came.answered.push(*m);
+                continue;
+            };
+            if missing.contains(on_server) || failed.contains(on_server) {
+                came.not_sent = came.not_sent.or(Some((*m, missing.contains(on_server))));
             } else if !fetched.contains(on_server) {
                 continue;
             }
@@ -485,6 +485,8 @@ impl Came {
     }
 }
 
+/// The engine's request for `messages` alone (the first one's, with the others' ids in it too), or
+/// with none, for the background's next. `None` when there is nothing in it to fetch.
 fn asked<R>(messages: &[Id], request: impl Fn(Option<Id>) -> Option<R>, ids: fn(&mut R) -> &mut Vec<String>) -> Option<R> {
     let mut all = request(messages.first().copied())?;
     for m in messages.iter().skip(1) {

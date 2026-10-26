@@ -180,8 +180,9 @@ fn one_its_server_didnt_send_stops_them_and_is_named_with_the_reason() {
         (&["AA0M2"][..], &[][..], "“Account 0 message 2” wasn't found on its server, so it can't be forwarded"),
         // Refused by it.
         (&[], &["AA0M2"][..], "the server wouldn't send “Account 0 message 2” whole, so it can't be forwarded"),
-        // Two of them: the first in the list is named.
+        // Two of them: the first in the list is named, whatever the reason of each.
         (&["AA0M2", "AA0M0"][..], &[][..], "“Account 0 message 0” wasn't found on its server"),
+        (&["AA0M2"][..], &["AA0M0"][..], "the server wouldn't send “Account 0 message 0” whole"),
     ] {
         let (mut app, [[a, b, c], _], jobs) = window();
         app.session.sel.messages = vec![a, b, c];
@@ -193,13 +194,19 @@ fn one_its_server_didnt_send_stops_them_and_is_named_with_the_reason() {
         assert!(asked(&jobs).is_empty(), "{says}: not asked for again");
         assert!(said(&app).contains(says), "{}", said(&app));
         // The one that came is here whole, for the next try.
-        assert_eq!(app.session.mailbox.message(a).unwrap().unfetched, missing.contains(&"AA0M0"));
+        assert_eq!(app.session.mailbox.message(a).unwrap().unfetched, missing.contains(&"AA0M0") || failed.contains(&"AA0M0"));
     }
 }
 
 #[test]
 fn a_batch_cut_short_is_asked_for_again_and_one_that_brings_none_stops() {
-    for offline in [false, true] {
+    let refused = "Couldn't download the messages from Microsoft: the server refused the sign-in";
+    for (offline, why, says) in [
+        (false, None, "The server didn't send the messages. Try again in a few minutes."),
+        (true, None, "“Account 0 message 2” isn't downloaded yet: open it once you're online"),
+        // What the server said, when it said why.
+        (false, Some(refused), refused),
+    ] {
         let (mut app, [[a, b, c], _], jobs) = window();
         let one = app.session.mailbox.message(a).unwrap().account;
         app.session.sel.messages = vec![a, b, c];
@@ -210,16 +217,12 @@ fn a_batch_cut_short_is_asked_for_again_and_one_that_brings_none_stops() {
         assert!(app.session.compose.is_none());
         // A batch that brings none of them stops it, saying why, and asks for nothing more.
         for (job, tx) in std::mem::take(&mut *jobs.lock().unwrap()) {
-            let result = GraphFetchResult { account: job.request.account, offline, busy_for: (!offline).then_some(30), ..Default::default() };
+            let errors = why.iter().map(|why| why.to_string()).collect();
+            let result = GraphFetchResult { account: job.request.account, offline, errors, busy_for: (!offline).then_some(30), ..Default::default() };
             tx.send(result).unwrap();
         }
         app.drive_fetch();
         assert!(asked(&jobs).is_empty() && app.session.compose.is_none(), "offline {offline}");
-        let says = if offline {
-            "“Account 0 message 2” isn't downloaded yet: open it once you're online"
-        } else {
-            "The server didn't send the messages. Try again in a few minutes."
-        };
         assert!(said(&app).contains(says), "{}", said(&app));
     }
 }
@@ -354,4 +357,18 @@ fn one_sent_but_not_taken_in_isnt_asked_for_again() {
     app.drive_fetch();
     assert!(asked(&jobs).is_empty() && app.session.compose.is_none());
     assert!(said(&app).contains("“Account 0 message 0” isn't downloaded yet"), "{}", said(&app));
+}
+
+#[test]
+fn those_deleted_meanwhile_are_said_to_be_gone() {
+    let (mut app, [[a, b, c], _], jobs) = window();
+    app.session.sel.messages = vec![a, b, c];
+    app.run("mail.forwardAsAttachment", json!({})).unwrap();
+    // Deleted for good while they come, and the server stops before them.
+    for id in [a, c] {
+        app.session.mailbox.remove_message(id).unwrap();
+    }
+    reply(&mut app, &jobs, &|_| Reply::None);
+    assert!(asked(&jobs).is_empty() && app.session.compose.is_none());
+    assert!(said(&app).contains(&format!("no message with id {a}")), "{}", said(&app));
 }
