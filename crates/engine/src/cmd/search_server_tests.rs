@@ -285,6 +285,10 @@ fn current_mailbox_and_subfolders_ask_the_account_in_view_and_keep_what_they_loo
     assert_eq!(requests.iter().map(|r| (r.account, r.folder.as_str())).collect::<Vec<_>>(), [(owner, "")]);
     answer(&mut s, &requests[0], replies(), "");
     assert_eq!(subjects(&s), ["Budget in", "Budget archived"]);
+    // Another folder of the same mailbox: the same search, so what was found is kept.
+    s.view.folder = s.mailbox.folder_by_server(owner, "ar").unwrap();
+    asked(&mut s);
+    assert_eq!(subjects(&s), ["Budget in", "Budget archived"]);
 
     // Subfolders of the shared mailbox's Inbox: that mailbox asked, only its Inbox kept.
     s.view.folder = s.mailbox.folder_by_server(shared, "in").unwrap();

@@ -2157,7 +2157,7 @@ msgid "Current Folder"
 msgstr "Huidige map"
 
 #. interface
-#: crates/ui-egui/src/chrome.rs
+#: crates/ui-egui/src/chrome.rs crates/ui-egui/src/mail_view.rs
 msgid "Current Mailbox"
 msgstr ""
 

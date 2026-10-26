@@ -471,18 +471,16 @@ fn messages_selected_before_the_unread_tab_was_shown_stay_in_it() {
 }
 
 #[test]
-fn a_selected_message_that_comes_into_the_list_stays_in_it() {
+fn a_message_selected_that_the_tab_does_not_list_is_shown_in_the_all_tab() {
     let (mut s, listed) = unread_tab();
     let seen = s.mailbox.messages_in(s.view.folder).find(|m| m.read).map(|m| m.id).unwrap();
-    // Selected though the Unread tab doesn't list it (from the reading pane, an alert), then
-    // marked unread: it comes into the list, and stays when it is marked read again.
+    assert!(!listed.contains(&seen));
+    // Selected though the Unread tab doesn't list it (from the reading pane, an agent): the
+    // list shows it, in the All tab (#485).
     run(&mut s, "mail.select", json!({"id": seen}));
-    assert_eq!(ids(&mut s), listed);
-    run(&mut s, "mail.markUnread", json!({}));
-    let with = ids(&mut s);
-    assert!(with.contains(&seen));
-    run(&mut s, "mail.markRead", json!({}));
-    assert_eq!(ids(&mut s), with);
+    assert_eq!(s.view.filter, Filter::All);
+    assert_eq!(s.sel.messages, [seen]);
+    assert!(ids(&mut s).contains(&seen));
 }
 
 #[test]
@@ -581,32 +579,32 @@ fn a_deleted_or_moved_message_leaves_at_once() {
 }
 
 #[test]
-fn only_a_message_that_was_in_the_list_is_kept() {
+fn a_message_the_list_does_not_show_is_shown_when_it_is_selected() {
     let mut s = Session::at(sample::mailbox(now(), 0), now(), 0);
     run(&mut s, "folder.select", json!({"kind": "inbox"}));
     let seen = ids(&mut s).into_iter().find(|id| read(&s, *id)).unwrap();
     let unread = s.mailbox.unread_count(s.view.folder);
-    // Read and with the focus, then the Unread tab: not in it, nor counted.
+    // Read and with the focus, then the Unread tab: not in it, nor counted, nor selected (#485).
     run(&mut s, "mail.select", json!({"id": seen}));
     let shown = run(&mut s, "view.filter", json!({"value": "unread"}));
     assert_eq!(shown["shown"], json!(unread));
+    assert!(s.sel.messages.is_empty());
     assert!(!ids(&mut s).contains(&seen));
-    // Nor when it is given the focus there (the list as it is built afresh too).
+    // Given the focus there, it is shown in the All tab.
     run(&mut s, "mail.select", json!({"id": seen}));
-    assert!(!ids(&mut s).contains(&seen));
-    assert!(!list::rows(&s).iter().any(|r| r.id == seen));
-    // Nor when the tab changed with no list built for it yet: the one built for All isn't the
-    // list it was clicked in.
-    run(&mut s, "view.filter", json!({"value": "all"}));
+    assert_eq!(s.view.filter, Filter::All);
     assert!(ids(&mut s).contains(&seen));
+    // So when the tab changed with no list built for it yet: the one built for All isn't the list
+    // it was clicked in.
     s.view.filter = Filter::Unread;
     run(&mut s, "mail.select", json!({"id": seen}));
-    assert!(!ids(&mut s).contains(&seen));
-    // Nor one a search doesn't find.
-    run(&mut s, "view.filter", json!({"value": "all"}));
+    assert_eq!(s.view.filter, Filter::All);
+    assert!(ids(&mut s).contains(&seen));
+    // And one a search doesn't find: the search goes.
     run(&mut s, "view.search", json!({"query": "is:unread"}));
     run(&mut s, "mail.select", json!({"id": seen}));
-    assert!(!ids(&mut s).contains(&seen));
+    assert!(s.view.search.is_empty());
+    assert!(ids(&mut s).contains(&seen));
 }
 
 #[test]
@@ -624,20 +622,20 @@ fn one_selected_in_another_folder_is_not_kept_here() {
 }
 
 #[test]
-fn one_selected_again_after_it_left_is_not_kept() {
+fn one_selected_again_after_it_left_is_shown_in_the_whole_folder() {
     let (mut s, listed) = unread_tab();
     let (a, b) = (listed[0], listed[1]);
     // An agent's clicks, with no look at the list between them: the first, read, left when the
-    // second was opened, and isn't brought back by opening it again.
+    // second was opened, and opening it again shows it in the All tab (#485), not kept in this one.
     run(&mut s, "mail.select", json!({"id": a}));
     run(&mut s, "mail.select", json!({"id": b}));
-    run(&mut s, "mail.select", json!({"id": a}));
     assert!(!ids(&mut s).contains(&a));
-    run(&mut s, "mail.markRead", json!({"ids": [listed[2]]}));
-    run(&mut s, "mail.select", json!({"id": listed[2]}));
-    assert!(!ids(&mut s).contains(&listed[2]));
+    run(&mut s, "mail.select", json!({"id": a}));
+    assert_eq!(s.view.filter, Filter::All);
+    assert!(ids(&mut s).contains(&a));
 
-    // In a search, by the list built while it was kept: Ctrl+click took it out, so it left.
+    // In a search, by the list built while it was kept: Ctrl+click took it out, so it left, and
+    // opening it again lets the search go.
     let mut s = Session::at(sample::mailbox(now(), 0), now(), 0);
     run(&mut s, "folder.select", json!({"kind": "inbox"}));
     run(&mut s, "view.search", json!({"query": "is:unread"}));
@@ -645,8 +643,10 @@ fn one_selected_again_after_it_left_is_not_kept() {
     run(&mut s, "mail.select", json!({"id": found[1]}));
     assert_eq!(ids(&mut s), found);
     run(&mut s, "mail.select", json!({"id": found[1], "extend": true}));
-    run(&mut s, "mail.select", json!({"id": found[1]}));
     assert!(!ids(&mut s).contains(&found[1]));
+    run(&mut s, "mail.select", json!({"id": found[1]}));
+    assert!(s.view.search.is_empty());
+    assert!(ids(&mut s).contains(&found[1]));
 }
 
 #[test]
@@ -655,6 +655,7 @@ fn another_tab_and_back_starts_the_list_afresh() {
     run(&mut s, "mail.select", json!({"id": listed[1]}));
     run(&mut s, "view.filter", json!({"value": "all"}));
     run(&mut s, "view.filter", json!({"value": "unread"}));
-    assert_eq!(s.sel.focus(), Some(listed[1]));
+    // Read now, so the Unread tab doesn't show it: it isn't selected there (#485).
+    assert!(s.sel.messages.is_empty());
     assert!(!ids(&mut s).contains(&listed[1]));
 }

@@ -2127,7 +2127,7 @@ msgid "Current Folder"
 msgstr "Cartella corrente"
 
 #. interface
-#: crates/ui-egui/src/chrome.rs
+#: crates/ui-egui/src/chrome.rs crates/ui-egui/src/mail_view.rs
 msgid "Current Mailbox"
 msgstr ""
 

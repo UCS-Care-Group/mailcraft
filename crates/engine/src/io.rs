@@ -278,7 +278,12 @@ pub fn import(s: &mut Session, name: &str, bytes: &[u8], folder: Option<Id>) -> 
                 ids.push(s.mailbox.add_message(m)?);
             }
             if let Some(last) = ids.last() {
+                // What a search in view finds is asked of the mailbox with them in it.
+                s.list_due();
                 s.sel.messages = vec![*last];
+                // Selected, it is in the list (#485): its folder's, whole, if the list in view
+                // leaves it out.
+                s.show_selected();
             }
             Ok(
                 json!({"format": if format == Format::Eml { "eml" } else { "mbox" }, "messages": ids.len(), "ids": ids, "folder": folder, "local": microsoft, "stoppedAfter": stopped.then_some(ids.len())}),

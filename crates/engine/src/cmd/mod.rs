@@ -36,6 +36,8 @@ pub mod graph_place;
 pub mod graph_send;
 pub mod graph_switch;
 pub mod graph_up;
+#[cfg(test)]
+mod hidden_selection_tests;
 mod jmap_down;
 pub mod jmap_mail;
 #[cfg(test)]
