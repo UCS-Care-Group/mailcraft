@@ -92,6 +92,12 @@ pub fn take_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, page: &
             {
                 s.gone = true;
             }
+            // Being moved out of the account: still in that folder only if the listing has it (#451).
+            if m.moving_out.as_ref().is_some_and(|out| out.account == account && out.folder == page.folder && !out.left)
+                && let Some(out) = std::sync::Arc::make_mut(m).moving_out.as_mut()
+            {
+                out.left = true;
+            }
         }
     }
     for id in &page.removed {
@@ -151,6 +157,21 @@ pub fn take_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, page: &
                     index.note(mb, account, &there.server.id, m);
                     down.new += 1;
                 }
+            }
+        }
+    }
+    if page.caught_up {
+        // What was put back here after a refused copy and is still there at the end of a round:
+        // one round nearer to being the server's message as any other (#451).
+        let returned: Vec<Id> = mb
+            .messages
+            .values()
+            .filter(|m| m.account == account && m.returned > 0 && m.server.as_ref().is_some_and(|s| s.folder == page.folder && !s.gone))
+            .map(|m| m.id)
+            .collect();
+        for id in returned {
+            if let Ok(m) = mb.message_mut(id) {
+                m.returned = m.returned.saturating_sub(1);
             }
         }
     }
@@ -275,6 +296,12 @@ pub fn sweep(mb: &mut Mailbox, account: Id, down: &mut Down) {
                 sd.synced = None;
             }
         }
+    }
+    // Put back after a refused copy, and gone from the server since: kept here instead (#451).
+    let returned: Vec<Id> =
+        mb.messages.values().filter(|m| m.account == account && m.returned > 0 && m.server.as_ref().is_some_and(|s| s.gone)).map(|m| m.id).collect();
+    for id in returned {
+        super::graph_place::kept_instead(mb, id);
     }
     let before = mb.messages.len();
     mb.messages.retain(|_, m| !(m.account == account && m.server.as_ref().is_some_and(|s| s.gone)));

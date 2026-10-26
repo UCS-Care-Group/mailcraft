@@ -24,7 +24,7 @@
 //! - Moved on, deleted or undone meanwhile: a copy made all the same is deleted there again.
 
 use mailcraft_model::sync::{FlagUp, MessageOutcome, PLACE_BYTES, PlaceDone, PlaceUp, ServerMessage};
-use mailcraft_model::{FlagStatus, FolderKind, Id, Mailbox, Message, Pending, Queued};
+use mailcraft_model::{FlagStatus, FolderKind, Id, Mailbox, Message, Pending, Queued, RETURNED_LISTINGS};
 use mailcraft_time::{DateTime, Timestamp};
 
 use super::graph_up::{Kind, Refusals, Why, destination, folder_name};
@@ -200,7 +200,7 @@ pub(crate) fn put_back(mb: &mut Mailbox, id: Id, copy: bool, from: Option<Id>) {
                 importance: m.importance,
                 ..Default::default()
             };
-            (m.server, m.moving_out) = (Some(server), None);
+            (m.server, m.moving_out, m.returned) = (Some(server), None, RETURNED_LISTINGS);
             (m.folder, m.account, m.uid, m.synced) = (folder, out.account, 0, None);
         }
         None if copy => {
@@ -259,5 +259,21 @@ fn back_on_imap(mb: &mut Mailbox, id: Id) -> bool {
     };
     let Ok(m) = mb.message_mut(id) else { return true };
     (m.folder, m.account, m.uid, m.synced) = (folder, owner, uid, synced);
+    m.returned = if uid != 0 { RETURNED_LISTINGS } else { 0 };
+    true
+}
+
+/// A message put back as its server's message after a refused copy ([`Message::returned`]) that
+/// the server says is gone since (deleted elsewhere meanwhile): kept on this computer, in
+/// Imported, as all there is of it (#451). Whether it was one.
+pub(crate) fn kept_instead(mb: &mut Mailbox, id: Id) -> bool {
+    if !mb.message(id).is_some_and(|m| m.returned > 0) {
+        return false;
+    }
+    let Ok(folder) = mb.imported_folder(false) else { return false };
+    let Some(account) = mb.folder(folder).map(|f| f.account) else { return false };
+    let Ok(m) = mb.message_mut(id) else { return false };
+    (m.folder, m.account, m.uid, m.synced) = (folder, account, 0, None);
+    (m.server, m.moving_out, m.returned) = (None, None, 0);
     true
 }

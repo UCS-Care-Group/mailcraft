@@ -1698,6 +1698,10 @@ impl Mailbox {
         if m.folder == folder {
             return Ok(());
         }
+        if m.returned > 0 {
+            // Moved on by its owner: what its server says of it from here on goes as for any other.
+            self.message_mut(id)?.returned = 0;
+        }
         if self.move_between_accounts(id, folder, account, &remote)? {
             return Ok(());
         }

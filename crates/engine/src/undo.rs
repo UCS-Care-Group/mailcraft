@@ -380,7 +380,11 @@ fn fields(t: &Message, a: &Message, c: &Arc<Message>, now: &Mailbox, g: &BTreeSe
                 .as_ref()
                 .filter(|s| !s.gone)
                 .map(|s| MovingOut { account: c.account, id: s.id.clone(), folder: s.folder.clone(), ..Default::default() })
-                .or_else(|| t.moving_out.clone());
+                // What is known now of the same original (where it is, whether it left) stands.
+                .or_else(|| match (&t.moving_out, &c.moving_out) {
+                    (Some(then), Some(now)) if now.account == then.account && now.id == then.id => Some(now.clone()),
+                    (then, _) => then.clone(),
+                });
             (m.server, m.uid, m.synced) = (None, t.uid, t.synced);
         }
         m.account = t.account;

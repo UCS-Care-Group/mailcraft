@@ -972,13 +972,16 @@ struct OnServer {
     /// Server copies a move or deletion made here is still waiting to be pushed for: they are
     /// not new mail, whatever a download says.
     leaving: HashSet<(Id, u32)>,
+    /// Messages put back as the server's after a refused copy ([`Message::returned`]).
+    returned: Vec<Id>,
 }
 
 impl OnServer {
     fn of(mb: &Mailbox, account: Id) -> OnServer {
         let by_uid = mb.messages.values().filter(|m| m.account == account && m.uid != 0).map(|m| ((m.folder, m.uid), m.id)).collect();
         let by_remote = mb.folders.iter().filter(|f| f.account == account && !f.remote.is_empty()).map(|f| (f.remote.clone(), f.id)).collect();
-        OnServer { by_uid, by_remote, expected: HashMap::new(), leaving: HashSet::new() }
+        let returned = mb.messages.values().filter(|m| m.account == account && m.returned > 0).map(|m| m.id).collect();
+        OnServer { by_uid, by_remote, expected: HashMap::new(), leaving: HashSet::new(), returned }
     }
 
     /// Work out `expected` and `leaving`, once the finished changes are taken in.
@@ -1556,10 +1559,26 @@ fn take_in(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, delta: Folde
         delta.removed.iter().filter_map(|uid| on_server.by_uid.get(&(folder, *uid)).copied()).collect()
     };
     for id in gone {
+        let uid = mb.message(id).map_or(0, |m| m.uid);
+        // Put back after a refused copy: kept here instead (#451).
+        if super::graph_place::kept_instead(mb, id) {
+            on_server.by_uid.remove(&(folder, uid));
+            continue;
+        }
         // The server no longer has it: taken out without a word back to the server.
         if let Ok(m) = mb.forget_message(id) {
             on_server.by_uid.remove(&(folder, m.uid));
             counts.removed += 1;
+        }
+    }
+    // What was put back here after a refused copy is still there: one listing nearer to being
+    // the server's message as any other.
+    for id in &on_server.returned {
+        if let Ok(m) = mb.message_mut(*id)
+            && m.folder == folder
+            && m.returned > 0
+        {
+            m.returned -= 1;
         }
     }
     for theirs in &delta.flags {

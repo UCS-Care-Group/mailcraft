@@ -446,6 +446,91 @@ fn a_refused_move_out_of_microsoft_goes_back_only_where_the_original_still_is() 
     }
 }
 
+/// The IMAP server listed its Inbox (UIDVALIDITY 7) without these UIDs.
+fn listed(s: &mut Session, account: Id, removed: Vec<u32>) {
+    let inbox = FolderDelta { remote: "INBOX".into(), kind: FolderKind::Inbox, uid_validity: 7, uid_seen: 4, removed, ..Default::default() };
+    apply_sync(s, SyncResult { account, folders: vec![inbox], ..Default::default() }).unwrap();
+}
+
+/// Microsoft's delta for its Inbox: a round ended, or (`removed`) a message gone and the sweep.
+fn microsoft_listed(s: &mut Session, ms: Id, removed: bool) {
+    let page = if removed {
+        MessagePage { folder: "in".into(), removed: vec!["AAkA2".into()], ..Default::default() }
+    } else {
+        MessagePage { folder: "in".into(), caught_up: true, link: "https://graph.example.org/delta?$deltatoken=2".into(), ..Default::default() }
+    };
+    apply_graph_mail(s, GraphMailResult { account: ms, email: OWNER.into(), pages: vec![page], whole: removed, ..Default::default() }).unwrap();
+}
+
+#[test]
+fn put_back_after_a_refused_copy_it_is_kept_should_its_original_go_before_its_server_lists_it_again() {
+    let imported = |s: &Session, id: Id| s.mailbox.message(id).and_then(|m| s.mailbox.folder(m.folder)).map(|f| f.name.clone());
+    // IMAP: refused, back as the server's UID 2; then the server lists its Inbox (`clean` times
+    // with it, the first of which may have been asked for before), and then without it.
+    for (clean, kept) in [(0, true), (1, true), (2, false)] {
+        let (mut s, a, _) = imap();
+        let b = second_imap(&mut s);
+        let two = titled(&s, "Two");
+        s.run("mail.move", &json!({"ids": [two], "folder": s.mailbox.folder_of_kind(b, FolderKind::Inbox).unwrap()})).unwrap();
+        apply_sync(&mut s, SyncResult { account: b, unplaced: vec![two], ..Default::default() }).unwrap();
+        assert_eq!(at(&s, two).2, 2);
+        // (Kept in the mailbox file.)
+        let opened: mailcraft_model::Mailbox = serde_json::from_value(serde_json::to_value(&s.mailbox).unwrap()).unwrap();
+        assert_eq!(opened.message(two).unwrap().returned, 2);
+        for _ in 0..clean {
+            listed(&mut s, a, vec![]);
+        }
+        listed(&mut s, a, vec![2]);
+        assert_eq!(imported(&s, two), kept.then(|| "Imported".to_string()), "after {clean} listings");
+    }
+    // Microsoft: the same, by rounds of its delta.
+    for (clean, kept) in [(0, true), (1, true), (2, false)] {
+        let (mut s, ms, two) = refused_after(vec![]);
+        for _ in 0..clean {
+            microsoft_listed(&mut s, ms, false);
+        }
+        microsoft_listed(&mut s, ms, true);
+        assert_eq!(imported(&s, two), kept.then(|| "Imported".to_string()), "after {clean} rounds");
+    }
+    // A folder listed afresh without the original before the refusal: kept here too.
+    let afresh = MessagePage {
+        folder: "in".into(),
+        afresh: true,
+        caught_up: true,
+        link: "https://graph.example.org/delta?$deltatoken=3".into(),
+        ..Default::default()
+    };
+    let (s, _, two) = refused_after(vec![afresh]);
+    assert_eq!(imported(&s, two).as_deref(), Some("Imported"));
+    // Moved on by its owner, it is the server's message as any other.
+    let (mut s, ms, two) = refused_after(vec![]);
+    s.run("mail.move", &json!({"ids": [two], "folder": s.mailbox.folder_of_kind(ms, FolderKind::Archive).unwrap()})).unwrap();
+    assert_eq!(s.mailbox.message(two).unwrap().returned, 0);
+}
+
+#[test]
+fn undoing_a_move_on_keeps_what_is_known_of_the_original_since() {
+    let (mut s, a, _) = imap();
+    let ms = microsoft(&mut s, OWNER);
+    let other = microsoft(&mut s, "second@example.org");
+    let (mut s, two) = {
+        let (theirs, inbox) = (s.mailbox.folder_of_kind(ms, FolderKind::Inbox).unwrap(), s.mailbox.folder_of_kind(a, FolderKind::Inbox).unwrap());
+        let two = titled(&s, "Two");
+        s.run("mail.move", &json!({"ids": [two], "folder": theirs})).unwrap();
+        placed(&mut s, ms, OWNER, &[made("AAkA2")]);
+        deleted(&mut s, a, &[2]);
+        s.run("mail.move", &json!({"ids": [two], "folder": inbox})).unwrap();
+        (s, two)
+    };
+    // On into the other Microsoft account; meanwhile the first says its copy left its Inbox.
+    s.run("mail.move", &json!({"ids": [two], "folder": s.mailbox.folder_of_kind(other, FolderKind::Inbox).unwrap()})).unwrap();
+    microsoft_listed(&mut s, ms, true);
+    s.run("edit.undo", &json!({})).unwrap();
+    let m = s.mailbox.message(two).unwrap();
+    assert_eq!(m.account, a);
+    assert!(m.moving_out.as_ref().is_some_and(|out| out.id == "AAkA2" && out.left), "{:?}", m.moving_out);
+}
+
 /// A message on this computer, whole, in `folder`.
 fn kept_here(s: &mut Session, folder: Id, subject: &str) -> Id {
     let m = Message { folder, uid: 0, read: true, ..from_server(0, subject) };

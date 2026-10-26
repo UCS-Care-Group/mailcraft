@@ -291,7 +291,7 @@ pub struct MovingOut {
     pub folder: String,
     /// The server said the copy left that folder (deleted, or moved on by another program) and
     /// hasn't shown it in another since: there may be nothing there to go back to (#451).
-    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    #[serde(skip_serializing_if = "is_false")]
     pub left: bool,
 }
 

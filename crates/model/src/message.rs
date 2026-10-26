@@ -247,6 +247,13 @@ pub struct Message {
     /// whole and the mailbox file holding it is saved. `None` for every other message.
     #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
     pub moving_out: Option<MovingOut>,
+    /// Put back as its server's message when a copy of it in another account was refused (#451):
+    /// how many more times that server is to list its folder with it still there before it is
+    /// the server's message as any other ([`RETURNED_LISTINGS`] at first, since the first listing
+    /// may have been asked for before it was put back). Should the server say meanwhile that it
+    /// is gone (deleted elsewhere), it is kept on this computer instead of going with it.
+    #[serde(skip_serializing_if = "none_left")]
+    pub returned: u8,
     /// The server's copy was gone before it could be fetched: only the headers and preview it
     /// had are here, kept as they are, and nothing will fetch the rest (R3 spec S19).
     #[serde(skip_serializing_if = "is_false")]
@@ -283,6 +290,14 @@ pub struct Answers {
     /// It is a forward (the original is marked forwarded); otherwise a reply (marked replied).
     #[serde(skip_serializing_if = "is_false")]
     pub forward: bool,
+}
+
+/// How many listings of its folder a message put back after a refused copy waits for
+/// ([`Message::returned`]).
+pub const RETURNED_LISTINGS: u8 = 2;
+
+fn none_left(n: &u8) -> bool {
+    *n == 0
 }
 
 fn is_false(b: &bool) -> bool {
