@@ -180,6 +180,8 @@ fn one_its_server_didnt_send_stops_them_and_is_named_with_the_reason() {
         (&["AA0M2"][..], &[][..], "“Account 0 message 2” wasn't found on its server, so it can't be forwarded"),
         // Refused by it.
         (&[], &["AA0M2"][..], "the server wouldn't send “Account 0 message 2” whole, so it can't be forwarded"),
+        // Two of them: the first in the list is named.
+        (&["AA0M2", "AA0M0"][..], &[][..], "“Account 0 message 0” wasn't found on its server"),
     ] {
         let (mut app, [[a, b, c], _], jobs) = window();
         app.session.sel.messages = vec![a, b, c];
@@ -191,7 +193,7 @@ fn one_its_server_didnt_send_stops_them_and_is_named_with_the_reason() {
         assert!(asked(&jobs).is_empty(), "{says}: not asked for again");
         assert!(said(&app).contains(says), "{}", said(&app));
         // The one that came is here whole, for the next try.
-        assert!(!app.session.mailbox.message(a).unwrap().unfetched);
+        assert_eq!(app.session.mailbox.message(a).unwrap().unfetched, missing.contains(&"AA0M0"));
     }
 }
 
