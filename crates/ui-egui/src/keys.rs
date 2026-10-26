@@ -123,8 +123,14 @@ fn layer_of(ctx: &egui::Context, id: egui::Id) -> Option<LayerId> {
 }
 
 /// The list (a combo box's, a menu) that is open, as egui last drew it: a popup's area has the
-/// popup's own id.
-fn open_list(ctx: &egui::Context) -> Option<LayerId> {
+/// popup's own id. The people a line could be, under the field `focus` (egui's
+/// `CompletionPopup`), are a list too: egui keeps no note of it among its popups, and its area
+/// is the field's id with "completion_popup".
+fn open_list(ctx: &egui::Context, focus: Option<egui::Id>) -> Option<LayerId> {
+    let under = focus.map(|id| LayerId::new(Order::Foreground, id.with("completion_popup")));
+    if let Some(list) = under.filter(|l| ctx.memory(|m| m.areas().is_visible(l))) {
+        return Some(list);
+    }
     if !egui::Popup::is_any_open(ctx) {
         return None;
     }
@@ -295,7 +301,7 @@ pub(crate) fn gate(ctx: &egui::Context, blocked: bool) {
             chain.held = Some((key, focus));
         }
     }
-    let list = open_list(ctx).filter(|l| ctx.memory(|m| m.is_above_modal_layer(*l)));
+    let list = open_list(ctx, focus).filter(|l| ctx.memory(|m| m.is_above_modal_layer(*l)));
     let owner = |key: Key| -> Option<Owner> {
         if blocked || list.is_some() {
             return None;

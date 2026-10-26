@@ -126,8 +126,8 @@ fn search_box(app: &mut MailApp, ui: &mut Ui, rect: Rect) {
     let mut suggesting = crate::search_suggest::Suggesting::load(ui.ctx());
     let over = suggesting.pointer_over(ui);
     // With a dialog open, the list is not drawn: it would be on top of the dialog.
-    let open = mail_search && free && suggesting.is_open(&app.search_text, focused || over);
-    let mut take = if open && focused && free { suggesting.keys(ui, &app.search_text) } else { None };
+    let open = mail_search && free && crate::search_suggest::Suggesting::is_open(ui.ctx());
+    let mut take = if open && focused { suggesting.keys(ui) } else { None };
     let pill_slot = ui.painter().add(egui::Shape::Noop);
     let mut drawn: Vec<crate::search_pills::Pill> = Vec::new();
     let mut layouter = |ui: &Ui, text: &dyn egui::TextBuffer, _wrap: f32| {
@@ -167,9 +167,10 @@ fn search_box(app: &mut MailApp, ui: &mut Ui, rect: Rect) {
             _ => app.execute("view.search", json!({"query": text})),
         };
     }
-    // Escape is the box's while it has the keyboard and nothing is over it (#406), so nothing
-    // drawn after it does something with the same key (a selection in the message being read
-    // stays). Only a press clears the search: the repeats of one that closed a dialog leave it.
+    // Escape is the box's while it has the keyboard and nothing is over it, the list under it
+    // either (#406), so nothing drawn after it does something with the same key (a selection in
+    // the message being read stays). Only a press clears the search: the repeats of one that
+    // closed a dialog leave it.
     let pressed = focused && free && crate::keys::take_escape_in(ui.ctx(), ui.layer_id(), id);
     if pressed {
         app.search_text.clear();
@@ -177,11 +178,8 @@ fn search_box(app: &mut MailApp, ui: &mut Ui, rect: Rect) {
         let _ = app.execute("people.search", json!({"query": ""}));
         resp.surrender_focus();
     }
-    if open {
-        take = suggesting.show(ui, rect).or(take);
-    } else {
-        suggesting.hidden();
-    }
+    let wanted = mail_search && free && (focused || over) && !suggesting.items.is_empty();
+    take = suggesting.show(ui, rect, wanted).or(take);
     let mut cursor = output.cursor_range.map(|r| r.primary.index.0);
     // Only what was offered for the search as it is now: not for one this frame's typing changed.
     let fresh = app.search_text == suggesting.for_text;
@@ -200,11 +198,11 @@ fn search_box(app: &mut MailApp, ui: &mut Ui, rect: Rect) {
         Some(at) if mail_search && (resp.has_focus() || ui.memory(|m| m.has_focus(id))) => {
             suggesting.offer(&app.search_text, at, &app.session);
             // The keys of a list that shows from the next frame are its own from that frame on.
-            let next = free && suggesting.is_open(&app.search_text, true);
+            let next = suggesting.will_show(ui.ctx(), free);
             ui.memory_mut(|m| m.set_focus_lock_filter(id, list_keys(next)));
         }
         _ if suggesting.pointer_over(ui) => {}
-        // The box was left: an Escape in it is forgotten, so the list shows again on coming back.
+        // The box was left: the list shows again on coming back, after an Escape too.
         _ if !ui.memory(|m| m.has_focus(id)) => suggesting = crate::search_suggest::Suggesting::default(),
         _ => suggesting.clear(),
     }

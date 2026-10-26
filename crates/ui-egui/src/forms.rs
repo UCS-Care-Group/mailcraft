@@ -1447,59 +1447,18 @@ mod event {
         job
     }
 
-    /// What an attendee line offers for the name that is being typed, from one frame to the next.
-    #[derive(Clone, Default)]
-    struct Offering {
-        /// Which line they are for (`required`, `optional`).
-        key: &'static str,
-        items: Vec<mailcraft_engine::cmd::compose::Suggestion>,
-        selected: usize,
-        /// Where they were drawn, so a click on one isn't taken for a click away from the line.
-        rect: Option<egui::Rect>,
-        /// Something was typed into the line since the keyboard came to it. A line that is only
-        /// passed through (with Tab, say) is offered nothing and stays exactly as it is.
-        typed: bool,
-        /// What `items` were asked for: whether something was typed, what is being typed, and
-        /// the mailbox as it was ([`Session::rev`], [`Session::openings`]). They are asked for
-        /// again only when one of these changes: a line with the keyboard is drawn at least twice
-        /// a second (its cursor blinks), and asking reads the whole mailbox.
-        asked: Option<(bool, String, u64, u64)>,
-    }
-
     /// An attendee line. As it is typed in, the people it could be are offered underneath, as
-    /// the composer offers them (contacts, then whoever mail was exchanged with): the arrow keys
-    /// choose, Enter or Tab or a click takes one. When it is left, the names on it that stand
-    /// for one contact become that contact, and from then on it reads as the people it names.
+    /// the composer offers them ([`crate::compose::people_line`]); a line that is only passed
+    /// through (with Tab, say) is offered nothing and stays exactly as it is. When it is left,
+    /// the names on it that stand for one contact become that contact, and from then on it reads
+    /// as the people it names.
     fn attendee_line(ui: &mut Ui, pass: &mut Pass, s: &Session, key: &'static str, text: &mut String, hint: &str) {
         let t = pass.t;
         let id = kit::field_id(key);
-        let store = kit::field_id("attendee_offering");
-        let mut st: Offering = ui.data(|d| d.get_temp(store)).unwrap_or_default();
-        let mine = st.key == key && !st.items.is_empty();
         let focused = ui.memory(|m| m.has_focus(id));
-        let over = st.rect.is_some_and(|r| ui.rect_contains_pointer(r));
-        let open = mine && (focused || over);
-        let mut take: Option<usize> = None;
-        if open && focused {
-            // Before the line itself sees the keys: they are for the list while it is showing.
-            let n = st.items.len().max(1);
-            ui.input_mut(|i| {
-                // With Shift, Ctrl or Alt held the keys are not the list's: Shift+Tab goes back, as
-                // without the list (`consume_key` takes Shift+Tab for Tab).
-                if !i.modifiers.is_none() {
-                    return;
-                }
-                if i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowDown) {
-                    st.selected = (st.selected + 1) % n;
-                }
-                if i.consume_key(egui::Modifiers::NONE, egui::Key::ArrowUp) {
-                    st.selected = (st.selected + n - 1) % n;
-                }
-                if i.consume_key(egui::Modifiers::NONE, egui::Key::Enter) || i.consume_key(egui::Modifiers::NONE, egui::Key::Tab) {
-                    take = Some(st.selected.min(n - 1));
-                }
-            });
-        }
+        // Something was typed into the line since the keyboard came to it.
+        let typing = id.with("typed");
+        let typed = focused && ui.data(|d| d.get_temp::<bool>(typing)).unwrap_or(false);
         // While nobody types in it, it reads as the people it names. (Laid out once for a text,
         // not every frame: finding a contact's name looks through the contacts.)
         let reading = !focused && !text.trim().is_empty();
@@ -1524,93 +1483,18 @@ mod event {
         if reading {
             edit = edit.layouter(&mut as_names);
         }
-        let resp = ui.add(edit);
+        let resp = crate::compose::people_line(ui, s, id, edit, typed).text_edit.response;
         pass.field(&resp);
-        let typed = (st.key == key && st.typed) || resp.changed();
-        let at = resp.rect;
-        if open {
-            let shown = egui::Area::new(store.with(key)).order(egui::Order::Foreground).fixed_pos(egui::pos2(at.min.x, at.max.y + 2.0)).show(
-                ui.ctx(),
-                |ui| {
-                    egui::Frame::NONE
-                        .fill(t.menu)
-                        .stroke(egui::Stroke::new(1.0, t.border_strong))
-                        .corner_radius(6.0)
-                        .inner_margin(egui::Margin::same(4))
-                        .show(ui, |ui| {
-                            ui.set_width(at.width().clamp(240.0, 440.0));
-                            for (i, who) in st.items.iter().enumerate() {
-                                let (r, line) = ui.allocate_exact_size(vec2(ui.available_width(), 26.0), egui::Sense::click());
-                                if i == st.selected || line.hovered() {
-                                    ui.painter().rect_filled(r, 4.0, if i == st.selected { t.selection } else { t.hover });
-                                }
-                                let name = if who.name.is_empty() { who.email.as_str() } else { who.name.as_str() };
-                                let font = crate::theme::regular(12.5);
-                                let w = crate::theme::paint_clipped(
-                                    ui.painter(),
-                                    egui::pos2(r.min.x + 8.0, r.center().y),
-                                    r.width() * 0.5,
-                                    name,
-                                    font,
-                                    t.text,
-                                );
-                                if !who.name.is_empty() {
-                                    let room = (r.width() - w - 24.0).max(0.0);
-                                    let font = crate::theme::regular(11.5);
-                                    crate::theme::paint_clipped(
-                                        ui.painter(),
-                                        egui::pos2(r.min.x + 16.0 + w, r.center().y),
-                                        room,
-                                        &who.email,
-                                        font,
-                                        t.text_dim,
-                                    );
-                                }
-                                if line.clicked() {
-                                    take = Some(i);
-                                }
-                            }
-                        });
-                },
-            );
-            st.rect = Some(shown.response.rect);
-        } else {
-            st.rect = None;
-        }
-        if let Some(who) = take.and_then(|i| st.items.get(i)) {
-            *text = crate::compose::completed(text, who);
-            // Carry on typing after it: the keyboard stays in the line, at its end.
-            let mut state = egui::TextEdit::load_state(ui.ctx(), id).unwrap_or_default();
-            let end = egui::text::CCursor::new(text.chars().count());
-            state.cursor.set_char_range(Some(egui::text::CCursorRange::one(end)));
-            state.store(ui.ctx(), id);
-            ui.memory_mut(|m| m.request_focus(id));
-            st.items.clear();
-        } else if resp.lost_focus() && !over && typed {
+        let typed = typed || resp.changed();
+        if resp.lost_focus() && typed {
             // Left, after something was typed: what stands for one contact becomes that contact.
             let (checked, _) = check_names(s, text);
             if Address::parse_list(text) != Address::parse_list(&checked) {
                 *text = checked;
             }
         }
-        // What to offer next frame, for what is being typed now.
-        if resp.has_focus() || ui.memory(|m| m.has_focus(id)) {
-            let (_, last) = crate::compose::typing(text);
-            let asking = (typed, last.to_string(), s.rev(), s.openings());
-            if st.key != key || st.asked.as_ref() != Some(&asking) {
-                let items = if !typed || last.trim().is_empty() { Vec::new() } else { mailcraft_engine::cmd::compose::suggest(s, last, 6) };
-                st.selected = if st.key == key { st.selected.min(items.len().saturating_sub(1)) } else { 0 };
-                st.key = key;
-                st.items = items;
-                st.asked = Some(asking);
-            }
-            st.typed = typed;
-        } else if st.key == key && !over {
-            st.items.clear();
-            st.typed = false;
-            st.asked = None;
-        }
-        ui.data_mut(|d| d.insert_temp(store, st));
+        let typed = typed && ui.memory(|m| m.has_focus(id));
+        ui.data_mut(|d| d.insert_temp(typing, typed));
     }
 
     /// A menu entry with a mark when it is the current choice. `true` when it was chosen.
