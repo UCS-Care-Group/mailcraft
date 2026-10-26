@@ -1,6 +1,6 @@
 # Contributing to MailCraft
 
-> **Status:** current · **Written:** 2026-10-15 · **Last updated:** 2026-10-24 · **Change:** minor (`cargo xtask test-files` holds the rule that tests go in files of their own)
+> **Status:** current · **Written:** 2026-10-15 · **Last updated:** 2026-10-24 · **Change:** minor
 
 Thank you for wanting to help. MailCraft holds people's mail, so the way work comes in matters as
 much as the work.
