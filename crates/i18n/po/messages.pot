@@ -4582,6 +4582,11 @@ msgid "No end date"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/data_removal.rs
+msgid "No file manager could be started to show the folder."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/ribbon.rs
 msgid "No folders match"
 msgstr ""
@@ -4995,12 +5000,22 @@ msgstr ""
 
 #. command label
 #: crates/ui-egui/src/lib.rs
+msgid "Open Data Folder"
+msgstr ""
+
+#. command label
+#: crates/ui-egui/src/lib.rs
 msgid "Open Dialog"
 msgstr ""
 
 #. command label, interface
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/mail_view.rs
 msgid "Open Draft"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/data_removal.rs
+msgid "Open MailCraft's data folder"
 msgstr ""
 
 #. command label
@@ -5056,6 +5071,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 msgid "Open source under the MIT License or the Apache License 2.0, at your option. The interface fonts are Inter, Source Sans 3 and JetBrains Mono (SIL Open Font License). Every icon is drawn in code."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/data_removal.rs
+msgid "Open the mailbox's folder"
 msgstr ""
 
 #. interface
@@ -6734,6 +6754,16 @@ msgstr ""
 msgid "Shown as First Last when empty"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/data_removal.rs
+msgid "Shows {path}, which holds the mailbox and the settings, in your file manager."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/data_removal.rs
+msgid "Shows {path}, which holds the mailbox open now, in your file manager. MailCraft's settings are in a folder of their own."
+msgstr ""
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid ""
@@ -7553,6 +7583,11 @@ msgid "The folder \"{folder}\" and everything in it will be deleted."
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/data_removal.rs
+msgid "The folder isn't there."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs
 msgid "The incoming mail server isn't a host name (letters, digits, dots and dashes)"
 msgstr ""
@@ -7820,6 +7855,11 @@ msgstr ""
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid "Theme"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/data_removal.rs
+msgid "There is no data folder to open here"
 msgstr ""
 
 #. interface

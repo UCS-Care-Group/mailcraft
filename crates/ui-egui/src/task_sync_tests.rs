@@ -62,7 +62,7 @@ fn a_job_runs_when_the_tasks_are_due_and_brings_them_in() {
         account: owner,
         email: OWNER.into(),
         complete: true,
-        lists: vec![RemoteTaskList { id: "L1".into(), complete: true }],
+        lists: vec![RemoteTaskList { id: "L1".into(), complete: true, shared: false }],
         tasks: vec![remote("t1", "Call Bo")],
     };
     answers.lock().unwrap().push_back(TasksResult { account: owner, download: Some(download), ..Default::default() });

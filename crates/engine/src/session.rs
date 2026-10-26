@@ -1717,6 +1717,10 @@ impl Session {
         if to.event_changes.iter().any(|c| c.send && !now.event_changes.iter().any(|n| same(c, n))) {
             return Some(Class::Send);
         }
+        // A to-do in a list shared with other people that the step changes, brings back or removes.
+        if crate::agent::changes_shared_tasks(now, to) {
+            return Some(Class::Send);
+        }
         // Things that go for good (they don't go to Deleted Items) and that the step lacks.
         let gone = now.contacts.keys().any(|k| !to.contacts.contains_key(k))
             || now.events.keys().any(|k| !to.events.contains_key(k))

@@ -5526,6 +5526,11 @@ msgid "No end date"
 msgstr "Geen einddatum"
 
 #. interface
+#: crates/ui-egui/src/data_removal.rs
+msgid "No file manager could be started to show the folder."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "No folders match"
@@ -6022,6 +6027,11 @@ msgstr "Bijlage openen"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
+msgid "Open Data Folder"
+msgstr ""
+
+#. command label
+#: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Open Dialog"
 msgstr "Dialoogvenster openen"
@@ -6031,6 +6041,11 @@ msgstr "Dialoogvenster openen"
 #, fuzzy
 msgid "Open Draft"
 msgstr "Concept openen"
+
+#. interface
+#: crates/ui-egui/src/data_removal.rs
+msgid "Open MailCraft's data folder"
+msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/file.rs crates/ui-egui/src/lib.rs
@@ -6097,6 +6112,11 @@ msgstr "Open source onder de MIT License of de Apache License 2.0, naar uw keuze
 #, fuzzy
 msgid "Open source under the MIT License or the Apache License 2.0, at your option. The interface fonts are Inter, Source Sans 3 and JetBrains Mono (SIL Open Font License). Every icon is drawn in code."
 msgstr "Open source onder de MIT License of de Apache License 2.0, naar uw keuze. De lettertypen van de interface zijn Inter, Source Sans 3 en JetBrains Mono (SIL Open Font License). Elk pictogram wordt in code getekend."
+
+#. interface
+#: crates/ui-egui/src/data_removal.rs
+msgid "Open the mailbox's folder"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -8125,6 +8145,16 @@ msgstr "Weeknummers weergeven in de maandweergave en de datumnavigator"
 msgid "Shown as First Last when empty"
 msgstr "Weergegeven als Voornaam Achternaam wanneer leeg"
 
+#. interface
+#: crates/ui-egui/src/data_removal.rs
+msgid "Shows {path}, which holds the mailbox and the settings, in your file manager."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/data_removal.rs
+msgid "Shows {path}, which holds the mailbox open now, in your file manager. MailCraft's settings are in a folder of their own."
+msgstr ""
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -9106,6 +9136,11 @@ msgid "The folder \"{folder}\" and everything in it will be deleted."
 msgstr "De map „{folder}” en alles daarin worden verwijderd."
 
 #. interface
+#: crates/ui-egui/src/data_removal.rs
+msgid "The folder isn't there."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "The incoming mail server isn't a host name (letters, digits, dots and dashes)"
@@ -9419,6 +9454,11 @@ msgstr "De {n} gedeelde postvakken die hiermee zijn geopend, worden ook van dit 
 #, fuzzy
 msgid "Theme"
 msgstr "Thema"
+
+#. interface
+#: crates/ui-egui/src/data_removal.rs
+msgid "There is no data folder to open here"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/updates.rs
