@@ -120,6 +120,11 @@ fn reply(app: &mut MailApp, jobs: &Jobs, says: &dyn Fn(&str) -> Reply) {
     app.drive_fetch();
 }
 
+/// Of the jobs handed over since the last answer, which were called off.
+fn called_off(jobs: &Jobs) -> Vec<bool> {
+    jobs.lock().unwrap().iter().map(|(job, _)| job.cancel.load(Ordering::Relaxed)).collect()
+}
+
 /// What the status bar says.
 fn said(app: &MailApp) -> String {
     app.status_msg.as_ref().map(|(text, _)| text.clone()).unwrap_or_default()
@@ -430,6 +435,74 @@ fn a_forward_that_joined_anothers_batch_goes_on_as_its_own_would() {
 }
 
 #[test]
+fn a_forward_that_joined_anothers_batch_stops_as_its_own_would() {
+    // The batch brings none of them, the server busy; what came isn't taken in; offline.
+    for (case, says) in [
+        ("busy", "The server didn't send the messages. Try again in a few minutes."),
+        ("refused", "these messages were for another account"),
+        ("offline", "“Account 0 message 2” isn't downloaded yet"),
+    ] {
+        let (mut app, [[a, b, c], _], jobs) = window();
+        app.session.sel.messages = vec![a, b, c];
+        app.run("mail.forwardAsAttachment", json!({})).unwrap();
+        app.run("mail.forwardAsAttachment", json!({"ids": [b, c]})).unwrap();
+        assert_eq!(asked(&jobs).len(), 1, "{case}: on its way already");
+        for (job, tx) in std::mem::take(&mut *jobs.lock().unwrap()) {
+            let account = job.request.account;
+            let result = match case {
+                "busy" => GraphFetchResult { account, email: job.request.email.clone(), busy_for: Some(30), ..Default::default() },
+                "refused" => {
+                    let fetched =
+                        job.request.ids.iter().map(|id| GraphFetched { id: id.clone(), mime: b"Subject: x\r\n\r\nx\r\n".to_vec() }).collect();
+                    GraphFetchResult { account, email: "someone.else@example.org".into(), fetched, ..Default::default() }
+                }
+                _ => GraphFetchResult { account, offline: true, ..Default::default() },
+            };
+            tx.send(result).unwrap();
+        }
+        app.drive_fetch();
+        assert!(asked(&jobs).is_empty() && app.session.compose.is_none(), "{case}");
+        assert!(said(&app).contains(says), "{case}: {}", said(&app));
+    }
+}
+
+#[test]
+fn those_come_by_other_means_meanwhile_go_on() {
+    for offline in [false, true] {
+        let (mut app, [[a, b, c], _], jobs) = window();
+        let one = app.session.mailbox.message(a).unwrap().account;
+        app.session.sel.messages = vec![a, b, c];
+        app.run("mail.forwardAsAttachment", json!({})).unwrap();
+        // The background brings them while the batch asked for is on its way, and that one
+        // brings none: the server busy, or the network gone.
+        let fetched =
+            ["AA0M0", "AA0M2"].map(|id| GraphFetched { id: id.into(), mime: format!("Subject: Whole {id}\r\n\r\nAll of {id}.\r\n").into_bytes() });
+        take_in(&mut app, GraphFetchResult { account: one, email: "one@example.org".into(), fetched: fetched.to_vec(), ..Default::default() })
+            .unwrap();
+        for (job, tx) in std::mem::take(&mut *jobs.lock().unwrap()) {
+            let result = GraphFetchResult { account: job.request.account, offline, busy_for: (!offline).then_some(30), ..Default::default() };
+            tx.send(result).unwrap();
+        }
+        app.drive_fetch();
+        assert_eq!(subjects(&app), ["Whole AA0M0", "Account 0 message 1", "Whole AA0M2"], "offline {offline}: {}", said(&app));
+    }
+}
+
+#[test]
+fn a_message_opened_while_a_batch_is_on_its_way_is_fetched_after_it() {
+    let (mut app, [[a, b, c], [x, ..]], jobs) = window();
+    let two = app.session.mailbox.message(x).unwrap().account;
+    app.session.sel.messages = vec![a, b, c];
+    app.run("mail.forwardAsAttachment", json!({})).unwrap();
+    // Another message of which only the headers are here, opened meanwhile: one batch at a time.
+    app.session.sel.messages = vec![x];
+    app.drive_fetch();
+    assert_eq!(asked(&jobs).len(), 1);
+    answer(&mut app, &jobs, &[], &[]);
+    assert_eq!(asked(&jobs), [(two, vec!["AA1M0".to_string()])]);
+}
+
+#[test]
 fn those_deleted_meanwhile_are_said_to_be_gone() {
     let (mut app, [[a, b, c], _], jobs) = window();
     app.session.sel.messages = vec![a, b, c];
@@ -448,22 +521,25 @@ fn a_forward_called_off_by_another_download_is_said_to_be() {
     // A reply, or a forward of another message, of which only the headers are here, or another
     // forward of these: with another in focus, of fewer of them, or letting go of what is being
     // written. Each is asked for before the forward's have come.
+    // What another message is fetched for calls the forward's batch off; one of these goes on
+    // with it.
     let other = |[a, b, c]: [Id; 3], x: Id| {
         [
-            ("mail.reply", json!({"id": x}), x, false),
-            ("mail.forwardAsAttachment", json!({"id": x}), x, true),
-            ("mail.forward", json!({"ids": [a, c, b]}), b, true),
-            ("mail.forwardAsAttachment", json!({"ids": [b, c]}), c, true),
-            ("mail.forwardAsAttachment", json!({"ids": [a, b, c], "discard": true}), c, true),
+            ("mail.reply", json!({"id": x}), x, false, vec![true, false]),
+            ("mail.forwardAsAttachment", json!({"id": x}), x, true, vec![true, false]),
+            ("mail.forward", json!({"ids": [a, c, b]}), b, true, vec![false]),
+            ("mail.forwardAsAttachment", json!({"ids": [b, c]}), c, true, vec![false]),
+            ("mail.forwardAsAttachment", json!({"ids": [a, b, c], "discard": true}), c, true, vec![false]),
         ]
     };
     for n in 0..5 {
         let (mut app, [[a, b, c], [x, ..]], jobs) = window();
-        let (command, params, source, attached) = other([a, b, c], x)[n].clone();
+        let (command, params, source, attached, batches) = other([a, b, c], x)[n].clone();
         app.session.sel.messages = vec![a, b, c];
         app.run("mail.forwardAsAttachment", json!({})).unwrap();
         assert_eq!(app.run(command, params.clone()).unwrap()["pending"], "download", "{command} {params}");
         assert!(said(&app).contains("The forward of several messages that was waiting was called off"), "{command} {params}: {}", said(&app));
+        assert_eq!(called_off(&jobs), batches, "{command} {params}");
         // What comes is for it, which opens; the forward that waited doesn't.
         answer(&mut app, &jobs, &[], &[]);
         let compose = app.session.compose.as_ref().unwrap_or_else(|| panic!("{command} {params}: {:?}", app.status_msg));

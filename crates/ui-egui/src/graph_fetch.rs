@@ -285,7 +285,10 @@ impl MailApp {
         };
         let cancel = Arc::new(AtomicBool::new(false));
         let Some(answer) = self.hand_over(account, way, messages, 1, cancel.clone()) else { return false };
-        self.fetching.now = Some((messages.to_vec(), self.session.openings(), cancel, answer));
+        // What these take the place of is called off: nobody waits for it now.
+        if let Some((_, _, before, _)) = self.fetching.now.replace((messages.to_vec(), self.session.openings(), cancel, answer)) {
+            before.store(true, Ordering::Relaxed);
+        }
         true
     }
 
@@ -319,13 +322,17 @@ impl MailApp {
             [one] => Some(*one),
             _ => None,
         };
+        // (Once those under way have come, when there are: a forward's batch can take a while.)
         if shown != self.fetching.opened {
-            self.fetching.opened = shown;
-            if let Some(m) =
-                shown.and_then(|m| self.session.mailbox.message(m)).filter(|m| m.unfetched && m.server.is_some()).map(|m| (m.account, m.id))
-                && self.fetching.now.is_none()
-            {
-                self.fetch_now(m.0, &[m.1]);
+            let to_fetch =
+                shown.and_then(|m| self.session.mailbox.message(m)).filter(|m| m.unfetched && m.server.is_some()).map(|m| (m.account, m.id));
+            match to_fetch {
+                Some(_) if self.fetching.now.is_some() => {}
+                Some((account, m)) => {
+                    self.fetching.opened = shown;
+                    self.fetch_now(account, &[m]);
+                }
+                None => self.fetching.opened = shown,
             }
         }
         // The background, a few at a time.
@@ -390,6 +397,9 @@ impl MailApp {
             // here, and when a batch brought none of its messages; else it goes on with the rest, if
             // there are any, and runs once none is left to fetch.
             if let Some(mut tried) = tried {
+                // Those of this batch it waits for may have come by other means meanwhile (the
+                // background): then it goes on.
+                let here = !judged.is_empty() && judged.iter().all(|m| whole(self, m));
                 let not_kept = came.sent.iter().find(|m| self.session.mailbox.message(**m).is_some_and(|m| m.unfetched)).copied();
                 let at = |m: Id| judged.iter().position(|x| *x == m);
                 let stop = match (came.not_sent, not_kept) {
@@ -403,7 +413,7 @@ impl MailApp {
                 if let Some(e) = stop {
                     let said = self.kept(e);
                     self.say_refused(&command, &said);
-                } else if !brought {
+                } else if !brought && !here {
                     match came.why {
                         Some(why) => self.status(why),
                         None => self.status(tl!("The server didn't send the messages. Try again in a few minutes.")),
