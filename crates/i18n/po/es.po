@@ -3060,6 +3060,11 @@ msgid "Find Related Messages"
 msgstr "Buscar mensajes relacionados"
 
 #. interface
+#: crates/ui-egui/src/forms.rs
+msgid "Find a Time"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "Finding your account settings…"
@@ -5900,9 +5905,8 @@ msgstr "Reunión en línea"
 
 #. interface
 #: crates/ui-egui/src/windows.rs
-#, fuzzy
-msgid "Only a meeting you organize has a Scheduling Assistant"
-msgstr "Solo las reuniones que organiza usted tienen Asistente para programación"
+msgid "Only a meeting you organize has Find a Time"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/unconfirmed.rs
@@ -7357,12 +7361,6 @@ msgstr "Diga que sí solo si se lo pidió al agente. El texto de un mensaje pued
 #, fuzzy
 msgid "Says what you and your organisation's administrator can do, and lets an administrator approve MailCraft on Microsoft's page from here."
 msgstr "Indica lo que pueden hacer usted y el administrador de su organización, y permite que un administrador apruebe MailCraft en la página de Microsoft desde aquí."
-
-#. interface
-#: crates/ui-egui/src/forms.rs
-#, fuzzy
-msgid "Scheduling Assistant"
-msgstr "Asistente para programación"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -13360,6 +13358,14 @@ msgstr "«{subject}» era demasiado grande para descargarlo: solo está aquí su
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "«{subject}» no se encontró en su servidor, así que no se puede reenviar como datos adjuntos"
+
+#, fuzzy
+#~ msgid "Only a meeting you organize has a Scheduling Assistant"
+#~ msgstr "Solo las reuniones que organiza usted tienen Asistente para programación"
+
+#, fuzzy
+#~ msgid "Scheduling Assistant"
+#~ msgstr "Asistente para programación"
 
 #, fuzzy
 #~ msgid "only the headers of this message are here, so it can't be forwarded as an attachment"

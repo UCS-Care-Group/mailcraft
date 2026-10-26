@@ -2079,7 +2079,7 @@ mod event {
         recurrence: Option<RecurrenceDialog>,
         /// A command that waits for the owner's answer to a question.
         waiting: Option<Waiting>,
-        /// The Scheduling Assistant's own state.
+        /// Find a Time's own state.
         assistant: crate::scheduling::View,
         /// Which of a series it is about, when that was said on opening it.
         scope: Option<Scope>,
@@ -2339,7 +2339,7 @@ mod event {
             self.page == page
         }
 
-        /// The meeting as the Scheduling Assistant needs to know it.
+        /// The meeting as Find a Time needs to know it.
         pub(crate) fn meeting(&self) -> crate::scheduling::Meeting {
             let people = |line: &str| Address::parse_list(line).into_iter().take(500).collect();
             // (Everybody's time is drawn by the calendar's clock: so is the meeting's, whatever
@@ -2359,7 +2359,7 @@ mod event {
             }
         }
 
-        /// What the Scheduling Assistant drew the last time it was in view.
+        /// What Find a Time drew the last time it was in view.
         pub(crate) fn scheduling(&self) -> &crate::scheduling::Drawn {
             &self.assistant.drawn
         }
@@ -2373,7 +2373,7 @@ mod event {
             (end >= start).then_some((start, end))
         }
 
-        /// The meeting was moved or stretched in the Scheduling Assistant: the fields say so.
+        /// The meeting was moved or stretched in Find a Time: the fields say so.
         fn set_span_of_day(&mut self, start: DateTime, end: DateTime, twelve: bool) {
             if self.all_day || end < start {
                 return;
@@ -2394,7 +2394,7 @@ mod event {
             self.last_start = Some(start.date);
         }
 
-        /// The Scheduling Assistant's page: when the meeting is, over when everybody is free.
+        /// The Find a Time page: when the meeting is, over when everybody is free.
         fn scheduling_page(&mut self, app: &mut MailApp, ui: &mut Ui, pass: &mut Pass, below: f32) {
             let twelve = pass.twelve;
             self.time_rows(ui, pass, &app.session);
@@ -2858,10 +2858,7 @@ mod event {
             }
             if organizes {
                 items.push(bar::Item { checked: self.page == Page::Appointment, ..item("appointment", "appointment", tl!("Appointment"), 1, 5) });
-                items.push(bar::Item {
-                    checked: self.page == Page::Scheduling,
-                    ..item("scheduling", "scheduling", tl!("Scheduling Assistant"), 1, 2)
-                });
+                items.push(bar::Item { checked: self.page == Page::Scheduling, ..item("scheduling", "scheduling", tl!("Find a Time"), 1, 2) });
             }
             items.push(bar::Item { menu: true, tip: tl!("Show As").to_string(), ..item("showAs", "showAs", tl!(self.show_as.label()), 2, 5) });
             items.push(bar::Item {

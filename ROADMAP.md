@@ -59,7 +59,7 @@ not yet run against any other server.
 | **Rendering mail** | Display blocks of our own: tables, colours, alignment, lists and pictures (the message's own shown, the web's on the owner's say-so), adjusted for the dark theme, nothing run. Missing: style rules, background pictures, right-to-left text (gap 6) |
 | **Writing mail** | A rich-text editor; HTML with a plain-text part; a reply or forward carries the original's look without what runs or tracks; rich signatures with a logo, and HTML signatures sent as written; drafts, attachments, name checking. Missing: pictures in the body, spell check, templates, Delay Delivery and Undo Send, receipts (gaps 7, 17) |
 | **Servers** | Microsoft accounts kept in step through Microsoft Graph (folders, mail down, changes up, drafts, sending, undo, calendars, contacts read-only, Outlook's Favorites, search on the server, shared mailboxes); other accounts over IMAP and SMTP, two-way for read marks, flags, moves, deletes and sent copies. In daily use on one Microsoft 365 mailbox, otherwise proven against stand-ins; no connection in the browser build (gaps 1–5) |
-| **Calendar** | Day, work week, week and month; recurrence; time zones; meetings through Microsoft 365 with invitations, updates, cancellations and answers, Propose New Time, forwarding and Teams meetings; a Scheduling Assistant for one day; reminders with desktop alerts. Missing: rooms, the Scheduling Assistant over several days, shared calendars, alerts while MailCraft is closed (gaps 9–11, [calendar-parity.md](docs/calendar-parity.md)) |
+| **Calendar** | Day, work week, week and month; recurrence; time zones; meetings through Microsoft 365 with invitations, updates, cancellations and answers, Propose New Time, forwarding and Teams meetings; Find a Time (everyone's free and busy time) for one day; reminders with desktop alerts. Missing: rooms, Find a Time over several days, shared calendars, alerts while MailCraft is closed (gaps 9–11, [calendar-parity.md](docs/calendar-parity.md)) |
 | **People** | Contacts with several addresses and phones, favourites, categories, `.vcf` in and out in every character set, a Microsoft account's contacts read. Missing: contact groups, photos, the organisation's directory (gap 17) |
 | **Tasks** | To-dos with dates, importance, categories, completion, links to flagged mail. Kept in step with Microsoft To Do for Microsoft accounts, both ways (#248). Missing: recurrence, assignment, My Day, the To-Do bar (gap 17) |
 | **Files** | `.eml`, `.mbox`, `.ics`, `.vcf` and MailCraft's own mailbox (a log of records, with message content in files beside it). Missing: `.pst`, `.ost`, `.msg`, `.olm` (gap 12), printing (gap 15) |
@@ -141,7 +141,7 @@ the first people MailCraft is for. Each is a shortfall in [`docs/gaps.md`](docs/
 10. Microsoft To Do's My Day and flagged mail (the tasks themselves are kept in step since #248); the organisation's directory, and LDAP, when
    addressing (gap 17).
 11. Focused Inbox kept in step with Outlook; Automatic Replies; rules kept on the server (gap 17).
-12. Sweep, Ignore and Clean Up Conversation, Search Folders, Quick Steps (gap 17).
+12. Sweep, Ignore and Clean Up Conversation, Search Folders, Action Shortcuts (gap 17).
 13. Read receipts, one-click unsubscribe, attachments inside `winmail.dat` (gap 17).
 14. Free/busy across the organisation, rooms (gaps 9, 17).
 15. Spell checking while writing (gap 7); native review of the French, German, Spanish and Italian
@@ -178,12 +178,13 @@ follows:
 | M4 | **Schedules** | Invitations by mail, answers from the reading pane, time zones, reminders that fire | Done for Microsoft 365, desktop alerts included (R7.1); what is left is in gaps 9–11 |
 | M5 | **Scales** | A large mailbox stays quick | Became R6, for 200,000 messages (B8): met on the reference machine; every message's headers are still held in memory (gap 8) |
 | M6 | **Beyond IMAP** | JMAP and Microsoft Graph over HTTPS, which also gives the browser build a server connection | Graph for Microsoft accounts done (R3); JMAP being contributed, for the browser build first (see above) |
-| M7 | **Switchers** | `.pst`/`.msg` import, languages, printing, Quick Steps and the long tail of the catalog | After beta (items 3, 4, 12 and 15 above); languages partly done: four preview languages |
+| M7 | **Switchers** | `.pst`/`.msg` import, languages, printing, Action Shortcuts and the long tail of the catalog | After beta (items 3, 4, 12 and 15 above); languages partly done: four preview languages |
 
 ## Progress log
 
 | Date | What landed |
 |---|---|
+| 2026-10-26 | #521: features MailCraft names for itself have plain names: Account (was Office Account), Saved Text (Quick Parts), Action Shortcuts (Quick Steps), Focus Reading (Immersive Reader), Find a Time (Scheduling Assistant). Command ids are unchanged. A test fails the build when a catalog, ribbon or command label uses another company's product name, except the few that say what MailCraft connects to |
 | 2026-10-26 | #485: what is selected is always in the list, so Delete and Move take only the messages you can see. Another tab, search or folder keeps selected only what it shows. Ctrl+click and Shift+click add only what the list shows. A message opened from Tasks, People or a new-mail alert is shown in its folder's All tab, with no search. Undo of a task or an appointment leaves the message list as it is. A test runs every command and checks that nothing selected is hidden. |
 | 2026-10-26 | #360: with several messages selected, Forward and Forward as Attachment open one new message with each of them attached whole as an `.eml`, in the message list's order, from the account of the message in focus (an agent names them with `ids`; the last one named is the one in focus). The subject is left empty for the owner to write. At most 200 messages and 64 MB together, judged before any message is read in. In the window, those of which only the headers are here are fetched first, an account's at a time and ten at a time, and the limits are judged before anything is fetched by the sizes the servers gave; a Microsoft account's server gives none for mail that came down by delta, so those are judged again as each ten come. If one can't be attached whole, or its server didn't send it, no message opens and the window names it and says why; a batch that brings none of them stops it too, saying so. Each original is marked forwarded once the message has gone; a draft of it keeps them all. With one message nothing changed: Forward quotes it |
 | 2026-10-26 | #428: a message stays in the list while it is selected, once the list has shown it. Opened in the Unread tab or an `is:unread` search, it is drawn as read and stays; so does one whose flag is cleared in the Flagged tab, and one whatever else changed while it was selected; Down and Up go on from it, where Down went back to the first row and Up to the last, and so do Page Down and Page Up; one that Home or End opens stays too, and a range made with Shift and these keys runs from it. Several picked with Ctrl or Shift all stay in the list they were picked in while that list is shown, so a range goes on from its first one, and none of them is out of sight there when Delete takes it. One you delete or move leaves at once, and another folder, filter or search starts the list afresh. The unread counts change at once; the list's own counts (items, found) count the rows shown |
@@ -350,6 +351,7 @@ follows:
 
 | Date | Change |
 |---|---|
+| 2026-10-26 | #521: generic feature names in the calendar assessment and the steps after beta (progress log) |
 | 2026-10-26 | #485: what is selected is always in the list; another tab or search keeps selected what it shows (progress log) |
 | 2026-10-26 | #360: Forward and Forward as Attachment of several messages (progress log); After beta item 13 no longer lists it |
 | 2026-10-26 | #428: selected messages stay in the list while they are selected (progress log) |
