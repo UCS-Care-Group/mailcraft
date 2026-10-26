@@ -1571,12 +1571,14 @@ fn take_in(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, delta: Folde
             counts.removed += 1;
         }
     }
-    // What was put back here after a refused copy is still there: one listing nearer to being
-    // the server's message as any other.
+    // What was put back here after a refused copy and is listed as still there (the first piece
+    // of a listing names every UID known that the server has): one listing nearer to being the
+    // server's message as any other.
     for id in &on_server.returned {
         if let Ok(m) = mb.message_mut(*id)
             && m.folder == folder
             && m.returned > 0
+            && delta.flags.iter().any(|f| f.uid == m.uid)
         {
             m.returned -= 1;
         }

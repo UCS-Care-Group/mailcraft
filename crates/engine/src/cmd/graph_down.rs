@@ -160,21 +160,6 @@ pub fn take_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, page: &
             }
         }
     }
-    if page.caught_up {
-        // What was put back here after a refused copy and is still there at the end of a round:
-        // one round nearer to being the server's message as any other (#451).
-        let returned: Vec<Id> = mb
-            .messages
-            .values()
-            .filter(|m| m.account == account && m.returned > 0 && m.server.as_ref().is_some_and(|s| s.folder == page.folder && !s.gone))
-            .map(|m| m.id)
-            .collect();
-        for id in returned {
-            if let Ok(m) = mb.message_mut(id) {
-                m.returned = m.returned.saturating_sub(1);
-            }
-        }
-    }
     if !page.link.is_empty()
         && let Ok(f) = mb.folder_mut(folder)
         && let Some(s) = f.server.as_mut()
@@ -306,6 +291,13 @@ pub fn sweep(mb: &mut Mailbox, account: Id, down: &mut Down) {
     let before = mb.messages.len();
     mb.messages.retain(|_, m| !(m.account == account && m.server.as_ref().is_some_and(|s| s.gone)));
     down.removed += before - mb.messages.len();
+    // What was put back after a refused copy and is still there once every folder was read (or
+    // passed over, its counts the same): one run nearer to being the server's message as any other.
+    for m in mb.messages.values_mut() {
+        if m.account == account && m.returned > 0 {
+            std::sync::Arc::make_mut(m).returned -= 1;
+        }
+    }
 }
 
 /// The message being moved out of `account` whose server copy is `id`.

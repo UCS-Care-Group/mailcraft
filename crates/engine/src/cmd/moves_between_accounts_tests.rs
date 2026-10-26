@@ -446,20 +446,19 @@ fn a_refused_move_out_of_microsoft_goes_back_only_where_the_original_still_is() 
     }
 }
 
-/// The IMAP server listed its Inbox (UIDVALIDITY 7) without these UIDs.
+/// The IMAP server listed its Inbox (UIDVALIDITY 7) without these UIDs, and with the flags of
+/// the others it was asked about, as the first piece of a listing has them.
 fn listed(s: &mut Session, account: Id, removed: Vec<u32>) {
-    let inbox = FolderDelta { remote: "INBOX".into(), kind: FolderKind::Inbox, uid_validity: 7, uid_seen: 4, removed, ..Default::default() };
+    let flags = (1..=4).filter(|uid| !removed.contains(uid)).map(|uid| RemoteFlags { uid, ..Default::default() }).collect();
+    let inbox = FolderDelta { remote: "INBOX".into(), kind: FolderKind::Inbox, uid_validity: 7, uid_seen: 4, removed, flags, ..Default::default() };
     apply_sync(s, SyncResult { account, folders: vec![inbox], ..Default::default() }).unwrap();
 }
 
-/// Microsoft's delta for its Inbox: a round ended, or (`removed`) a message gone and the sweep.
+/// A whole run of the Microsoft account, every folder read or passed over: with nothing new, or
+/// (`removed`) with its Inbox's AAkA2 gone.
 fn microsoft_listed(s: &mut Session, ms: Id, removed: bool) {
-    let page = if removed {
-        MessagePage { folder: "in".into(), removed: vec!["AAkA2".into()], ..Default::default() }
-    } else {
-        MessagePage { folder: "in".into(), caught_up: true, link: "https://graph.example.org/delta?$deltatoken=2".into(), ..Default::default() }
-    };
-    apply_graph_mail(s, GraphMailResult { account: ms, email: OWNER.into(), pages: vec![page], whole: removed, ..Default::default() }).unwrap();
+    let pages = if removed { vec![MessagePage { folder: "in".into(), removed: vec!["AAkA2".into()], ..Default::default() }] } else { vec![] };
+    apply_graph_mail(s, GraphMailResult { account: ms, email: OWNER.into(), pages, whole: true, ..Default::default() }).unwrap();
 }
 
 #[test]
@@ -477,20 +476,30 @@ fn put_back_after_a_refused_copy_it_is_kept_should_its_original_go_before_its_se
         // (Kept in the mailbox file.)
         let opened: mailcraft_model::Mailbox = serde_json::from_value(serde_json::to_value(&s.mailbox).unwrap()).unwrap();
         assert_eq!(opened.message(two).unwrap().returned, 2);
+        // (A listing in pieces is one listing: only its first piece names what is still there.)
+        let rest = FolderDelta {
+            remote: "INBOX".into(),
+            kind: FolderKind::Inbox,
+            uid_validity: 7,
+            uid_seen: 6,
+            new: vec![from_server(6, "Six")],
+            ..Default::default()
+        };
+        apply_sync(&mut s, SyncResult { account: a, folders: vec![rest], ..Default::default() }).unwrap();
         for _ in 0..clean {
             listed(&mut s, a, vec![]);
         }
         listed(&mut s, a, vec![2]);
         assert_eq!(imported(&s, two), kept.then(|| "Imported".to_string()), "after {clean} listings");
     }
-    // Microsoft: the same, by rounds of its delta.
+    // Microsoft: the same, by whole runs (a folder with nothing new sends no page).
     for (clean, kept) in [(0, true), (1, true), (2, false)] {
         let (mut s, ms, two) = refused_after(vec![]);
         for _ in 0..clean {
             microsoft_listed(&mut s, ms, false);
         }
         microsoft_listed(&mut s, ms, true);
-        assert_eq!(imported(&s, two), kept.then(|| "Imported".to_string()), "after {clean} rounds");
+        assert_eq!(imported(&s, two), kept.then(|| "Imported".to_string()), "after {clean} runs");
     }
     // A folder listed afresh without the original before the refusal: kept here too.
     let afresh = MessagePage {
