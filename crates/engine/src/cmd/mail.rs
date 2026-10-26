@@ -94,7 +94,7 @@ fn select(s: &mut Session, v: &Value) -> CmdResult {
         return Err(failed!("no message with id {id}", id = missing));
     }
     let Some(last) = ids.last().copied() else {
-        s.sel.messages.clear();
+        s.sel.clear_messages();
         return done();
     };
     // Which of the message's rows was clicked, for one listed under several categories.

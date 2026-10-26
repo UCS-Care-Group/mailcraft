@@ -476,7 +476,7 @@ impl Selection {
     }
 
     /// No message selected, and nothing kept for one.
-    fn clear_messages(&mut self) {
+    pub(crate) fn clear_messages(&mut self) {
         self.messages.clear();
         self.focus_row = None;
         self.anchor_row = None;
@@ -1183,8 +1183,8 @@ impl Session {
 
     /// What is selected is in the list (#485): when the list in view doesn't show the message
     /// being read, its folder is shown, in the All tab and with no search; when it doesn't show
-    /// the rest, the whole folder, which has what of it is there; what is in another folder is
-    /// let go of. And it stays in the list while it is selected (#428).
+    /// the rest, the whole of that folder, which has what of it is there; what is in another
+    /// folder is let go of. And it stays in the list while it is selected (#428).
     pub(crate) fn show_selected(&mut self) {
         if let Some((id, folder)) = self.focused_message().map(|m| (m.id, m.folder))
             && !self.in_list(&[id]).contains(&id)
@@ -1196,6 +1196,9 @@ impl Session {
         let selection = self.sel.messages.clone();
         let shown = self.in_list(&selection);
         if !selection.iter().all(|id| shown.contains(id)) {
+            if let Some(folder) = self.focused_message().map(|m| m.folder) {
+                self.view.folder = folder;
+            }
             self.show_whole_folder();
             self.select_in_view();
         }
@@ -1941,9 +1944,9 @@ impl Session {
         self.rev += 1;
         self.restored = self.restored.wrapping_add(1);
         self.dirty = true;
-        self.normalize();
-        // What it selects again is in the list (#485).
+        // What it selects again is in the list (#485), in its folder when that isn't the one in view.
         self.show_selected();
+        self.normalize();
         cur
     }
 

@@ -326,6 +326,39 @@ fn an_imported_message_read_where_it_is_selected_stays_in_the_list() {
     assert!(shown(&mut s).contains(&id));
 }
 
+#[test]
+fn undo_shows_what_it_selects_again_in_its_folder() {
+    // Deleted from a search of every mailbox, in Sent Items, and the search cleared: Undo selects
+    // it again in Sent Items.
+    let mut s = Session::at(sample::mailbox(now(), 0), now(), 0);
+    run(&mut s, "folder.select", json!({"kind": "inbox"}));
+    let sent = folder(&s, FolderKind::Sent);
+    run(&mut s, "view.search", json!({"query": "e", "scope": "everywhere"}));
+    let found = shown(&mut s).into_iter().find(|id| s.mailbox.message(*id).is_some_and(|m| m.folder == sent)).unwrap();
+    run(&mut s, "mail.select", json!({"id": found}));
+    run(&mut s, "mail.delete", json!({}));
+    run(&mut s, "view.clearSearch", json!({}));
+    run(&mut s, "edit.undo", json!({}));
+    assert_eq!((s.view.folder, s.sel.messages.as_slice()), (sent, [found].as_slice()));
+    assert!(shown(&mut s).contains(&found));
+}
+
+#[test]
+fn the_message_being_read_is_kept_when_the_rest_is_not_found() {
+    // A search of every mailbox finds one in Sent Items, not one in the Inbox: both selected by an
+    // agent, the one being read is shown in its folder.
+    let mut s = Session::at(sample::mailbox(now(), 0), now(), 0);
+    run(&mut s, "folder.select", json!({"kind": "inbox"}));
+    let inbox = s.view.folder;
+    let sent = folder(&s, FolderKind::Sent);
+    run(&mut s, "view.search", json!({"query": "Lisbon", "scope": "everywhere"}));
+    let listed = shown(&mut s);
+    let found = listed.iter().copied().find(|id| s.mailbox.message(*id).is_some_and(|m| m.folder == sent)).unwrap();
+    let not_found = s.mailbox.messages_in(inbox).map(|m| m.id).find(|id| !listed.contains(id)).unwrap();
+    run(&mut s, "mail.select", json!({"ids": [not_found, found]}));
+    assert_eq!((s.view.folder, s.sel.messages.as_slice()), (sent, [found].as_slice()));
+}
+
 /// What every command leaves (#485): from a selection the list shows, in each of a few lists, the
 /// selection is in the folder in view (or where its search looks), the list shows each of its
 /// messages, and what a command says it selected is still selected. A command that breaks that,
