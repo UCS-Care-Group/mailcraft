@@ -51,3 +51,70 @@ fn delete_after_the_unread_tab_takes_only_what_the_list_shows() {
     assert_eq!(kind(other), Some(FolderKind::Deleted));
     assert_eq!(kind(read), Some(FolderKind::Inbox), "{read} wasn't shown, and stays in the Inbox");
 }
+
+/// The sample's Inbox in the Unread tab, and a read message of it, which the tab doesn't list.
+fn unread_tab_and_a_read_one(w: &mut testing::Window) -> Id {
+    w.state_mut().execute("ui.dismissReminder", json!({"all": true})).unwrap();
+    w.state_mut().execute("folder.select", json!({"kind": "inbox"})).unwrap();
+    let read = w.state_mut().session.rows().iter().find(|r| r.unread == 0).map(|r| r.id).unwrap();
+    w.state_mut().execute("view.filter", json!({"value": "unread"})).unwrap();
+    w.run_steps(3);
+    assert!(!drawn(w).contains(&read));
+    read
+}
+
+/// The message opened is in the list, selected, in its folder's All tab.
+fn opened_in_the_all_tab(w: &mut testing::Window, id: Id) {
+    w.run_steps(3);
+    let s = &w.state().session;
+    assert_eq!((s.view.module, s.view.filter), (mailcraft_engine::Module::Mail, mailcraft_engine::Filter::All));
+    assert_eq!(s.sel.messages, vec![id]);
+    assert!(drawn(w).contains(&id), "{id} is in the list");
+}
+
+#[test]
+fn a_message_opened_from_its_task_is_in_the_all_tab() {
+    let mut w = testing::window("view.mail");
+    let read = unread_tab_and_a_read_one(&mut w);
+    let task = w.state_mut().execute("tasks.fromMessage", json!({"id": read})).unwrap()["id"].as_u64().unwrap();
+    w.state_mut().execute("view.tasks", json!({})).unwrap();
+    w.state_mut().execute("tasks.select", json!({"id": task})).unwrap();
+    w.run_steps(3);
+    let pos = w.state().hit.rect("openTaskMessage", read).unwrap().center();
+    testing::click(&mut w, pos, PointerButton::Primary, 1);
+    opened_in_the_all_tab(&mut w, read);
+}
+
+#[test]
+fn a_message_opened_from_a_contact_is_in_the_all_tab() {
+    let mut w = testing::window("view.mail");
+    unread_tab_and_a_read_one(&mut w);
+    w.state_mut().execute("view.people", json!({})).unwrap();
+    let contacts: Vec<Id> = w.state().session.mailbox.contacts.keys().copied().collect();
+    let mut found = None;
+    for c in contacts {
+        w.state_mut().execute("people.select", json!({"id": c})).unwrap();
+        w.run_steps(3);
+        let s = &w.state().session;
+        let inbox = s.view.folder;
+        found = s.mailbox.messages_in(inbox).filter(|m| m.read).map(|m| m.id).find(|id| w.state().hit.rect("recentMail", *id).is_some());
+        if found.is_some() {
+            break;
+        }
+    }
+    let read = found.expect("a contact of the sample has read mail in the Inbox among its recent mail");
+    let pos = w.state().hit.rect("recentMail", read).unwrap().center();
+    testing::click(&mut w, pos, PointerButton::Primary, 1);
+    opened_in_the_all_tab(&mut w, read);
+}
+
+#[test]
+fn a_message_opened_from_its_alert_is_in_the_all_tab() {
+    let mut w = testing::window("view.mail");
+    let read = unread_tab_and_a_read_one(&mut w);
+    let inbox = w.state().session.view.folder;
+    w.state_mut().execute("view.calendar", json!({})).unwrap();
+    let ctx = w.state().ctx.clone().unwrap();
+    crate::alerts::open(w.state_mut(), &ctx, crate::alerts::Opens::Message { message: read, folder: inbox });
+    opened_in_the_all_tab(&mut w, read);
+}
