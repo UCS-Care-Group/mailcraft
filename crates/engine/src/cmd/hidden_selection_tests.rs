@@ -259,3 +259,107 @@ fn importing_a_tree_of_folders_lets_the_old_folders_selection_go() {
     assert_ne!(s.mailbox.message(read).unwrap().folder, s.view.folder, "the view went to the folders brought in");
     assert!(s.sel.messages.is_empty());
 }
+
+/// What every command leaves (#485): from a selection the list shows, in each of a few lists, the
+/// selection is in the folder in view (or where its search looks), and the list shows each of
+/// its messages. A command that breaks that, now or later, fails here.
+#[test]
+fn every_command_leaves_only_what_the_list_shows_selected() {
+    use std::collections::HashSet;
+    // A server search result opened is put into its folder and selected as it is: what the
+    // server found it by (its body) may not be what the search here finds it by, and the
+    // window lists the server's results apart. A Ctrl+click lets it go
+    // (`ctrl_or_shift_click_adds_only_to_what_the_list_shows`).
+    const SELECTS_AS_IT_IS: [&str; 1] = ["search.openServerResult"];
+    type Setup = fn(&mut Session) -> Option<()>;
+    let setups: [(&str, Setup); 5] = [
+        ("a read message and an unread one, in the All tab", |s| {
+            s.run("folder.select", &json!({"kind": "inbox"})).ok()?;
+            let rows = s.rows();
+            let read = rows.iter().find(|r| r.unread == 0)?.id;
+            let unread = rows.iter().find(|r| r.unread > 0)?.id;
+            s.run("mail.select", &json!({"id": read})).ok()?;
+            s.run("mail.select", &json!({"id": unread, "extend": true})).ok().map(|_| ())
+        }),
+        ("one opened in the Unread tab, which keeps it", |s| {
+            s.run("folder.select", &json!({"kind": "inbox"})).ok()?;
+            s.run("view.filter", &json!({"value": "unread"})).ok()?;
+            let id = s.rows().first()?.id;
+            s.run("mail.select", &json!({"id": id})).ok().map(|_| ())
+        }),
+        ("one found by a search of the folder", |s| {
+            s.run("folder.select", &json!({"kind": "inbox"})).ok()?;
+            s.run("view.search", &json!({"query": "e"})).ok()?;
+            let id = s.rows().get(1)?.id;
+            s.run("mail.select", &json!({"id": id})).ok().map(|_| ())
+        }),
+        ("one in Sent Items found by a search of every mailbox", |s| {
+            s.run("folder.select", &json!({"kind": "inbox"})).ok()?;
+            s.run("view.search", &json!({"query": "e", "scope": "everywhere"})).ok()?;
+            let sent = s.mailbox.folder_of_kind(s.mailbox.accounts.first()?.id, FolderKind::Sent)?;
+            let id = s.rows().iter().map(|r| r.id).find(|id| s.mailbox.message(*id).is_some_and(|m| m.folder == sent))?;
+            s.run("mail.select", &json!({"id": id})).ok().map(|_| ())
+        }),
+        ("nothing, after a read message was deleted in the All tab and the Unread tab shown", |s| {
+            s.run("folder.select", &json!({"kind": "inbox"})).ok()?;
+            s.run("view.filter", &json!({"value": "all"})).ok()?;
+            let read = s.rows().iter().find(|r| r.unread == 0)?.id;
+            s.run("mail.select", &json!({"id": read})).ok()?;
+            s.run("mail.delete", &json!({})).ok()?;
+            s.run("view.filter", &json!({"value": "unread"})).ok().map(|_| ())
+        }),
+    ];
+    let fresh = || Session::at(sample::mailbox(now(), 0), now(), 0);
+    let ids: Vec<&'static str> = fresh().registry.all().iter().map(|c| c.id).collect();
+    let mut checked = 0;
+    for id in &ids {
+        for (setup_name, setup) in &setups {
+            let mut s = fresh();
+            if setup(&mut s).is_none() {
+                panic!("{setup_name}: can't be set up on the sample");
+            }
+            // What the list shows and what it doesn't, for the params.
+            let shown: Vec<Id> = s.rows().iter().map(|r| r.id).collect();
+            let in_folder = s.mailbox.messages_in(s.view.folder).map(|m| m.id).find(|m| !shown.contains(m)).unwrap_or(0);
+            let archive = folder(&s, FolderKind::Archive);
+            let first = shown.first().copied().unwrap_or(0);
+            let second = shown.get(1).copied().unwrap_or(first);
+            let all_params = [
+                json!(null),
+                json!({}),
+                json!({"id": first, "ids": [first, second], "folder": archive, "value": "unread", "query": "is:unread", "by": "from", "kind": "sent"}),
+                json!({"id": in_folder, "extend": true}),
+                json!({"id": in_folder, "range": true}),
+                json!({"ids": [in_folder, first]}),
+                json!({"value": "flagged", "query": "a", "scope": "everywhere"}),
+            ];
+            for params in &all_params {
+                // The setup again, for each try, on what the last one left.
+                if setup(&mut s).is_none() {
+                    s = fresh();
+                    setup(&mut s);
+                }
+                if s.run(id, params).is_err() || SELECTS_AS_IT_IS.contains(id) {
+                    continue;
+                }
+                checked += 1;
+                let listed: HashSet<Id> = s.rows().iter().flat_map(|r| r.members.iter()).copied().collect();
+                let in_view = crate::list::in_view(&s);
+                for m in &s.sel.messages {
+                    let place = s.mailbox.message(*m).map(|m| (m.folder, m.read));
+                    assert!(
+                        s.mailbox.message(*m).is_some_and(&in_view),
+                        "{id} {params}, from {setup_name}: {m} {place:?} is selected outside the view {:?}",
+                        s.view
+                    );
+                    assert!(
+                        listed.contains(m),
+                        "{id} {params}, from {setup_name}: {m} {place:?} is selected, and the list doesn't show it ({:?})",
+                        s.view
+                    );
+                }
+            }
+        }
+    }
+    assert!(checked > 1000, "the commands did something: {checked}");
+}
