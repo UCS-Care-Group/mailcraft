@@ -1297,6 +1297,22 @@ fn escape_in_the_pass_after_recipient_suggestions_closed_is_the_windows() {
     }
 }
 
+/// Tab in the pass right after Enter took a suggestion (an agent's `ui.key`) goes on to the next
+/// field, as a later one does: the list is closed, and Tab is the line's again.
+#[test]
+fn tab_in_the_pass_after_a_suggestion_was_taken_moves_on() {
+    for (line, open) in RECIPIENT_LINES {
+        let mut h = window("view.mail");
+        open(&mut h);
+        let field = focus(&h);
+        press_now(&mut h, Key::Enter);
+        press_now(&mut h, Key::Tab);
+        h.run_steps(2);
+        assert_eq!(recipients_typed(&h), "Priya Nair <priya@lumen.example>; ", "{line}");
+        assert!(focus(&h).is_some() && focus(&h) != field, "{line}: the keyboard went on to the next field");
+    }
+}
+
 /// The search box with `text` typed in it, and its list open.
 fn searching(h: &mut Window, text: &str, offered: &str) {
     run(h, "ui.focusSearch", json!({}));

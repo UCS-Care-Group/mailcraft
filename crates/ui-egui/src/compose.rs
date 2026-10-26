@@ -99,12 +99,13 @@ pub(crate) fn recipient_line(
             })
             .collect()
     });
-    // egui's list asks the line to keep the keyboard on Escape and Tab, for the list, only from
-    // its second pass open: from its first too, so that an Escape in the next pass closes the list
-    // and not the window.
-    if out.is_open {
-        ctx.memory_mut(|m| m.set_focus_lock_filter(id, egui::EventFilter { tab: true, escape: true, ..filter }));
-    }
+    // The line keeps the keyboard on Escape and Tab while the list is open, for the list, and only
+    // then. egui's list asks for it as the list was in the pass before, a pass late both ways: an
+    // Escape right after the list came up would go to the window as well, and a Tab right after it
+    // closed would be nobody's. (egui changes the filter only of a line that had the keyboard in
+    // the pass before.)
+    let open = out.is_open;
+    ctx.memory_mut(|m| m.set_focus_lock_filter(id, egui::EventFilter { tab: filter.tab || open, escape: filter.escape || open, ..filter }));
     ctx.data_mut(|d| d.insert_temp(shown, out.is_open));
     out
 }

@@ -73,8 +73,6 @@ struct Chain {
     keepers: Vec<egui::Id>,
     /// What the keyboard went back to in the pass before.
     given: Option<egui::Id>,
-    /// The field whose recipient suggestions were open at the last gate.
-    listed: Option<egui::Id>,
 }
 
 /// Most windows the gate remembers the order of.
@@ -265,19 +263,6 @@ pub(crate) fn gate(ctx: &egui::Context, blocked: bool) {
         ctx.memory_mut(|m| m.surrender_focus(id));
         focus = None;
     }
-    // A new Escape in the pass after one closed the recipient suggestions under a field: egui let
-    // the field keep the keyboard on it, as the list asked in its last pass, but the list is gone
-    // and the press is the window's, as a later one is.
-    let listed = chain.listed.take();
-    if let Some(id) = focus
-        && listed == Some(id)
-        && !ctx.memory(|m| m.areas().is_visible(&suggestions(id)))
-        && ctx.input(|i| i.events.iter().any(|e| alone(e, Key::Escape) && matches!(e, Event::Key { repeat: false, .. })))
-    {
-        ctx.memory_mut(|m| m.surrender_focus(id));
-        focus = None;
-        chain.back = None;
-    }
     activate(ctx, &mut chain, focus);
     // A press given to a layer that nothing asked it of, and that wasn't drawn in its pass, went
     // nowhere: egui still showed the layer at the gate, but it had closed in the pass before (a
@@ -315,7 +300,6 @@ pub(crate) fn gate(ctx: &egui::Context, blocked: bool) {
         (new(Key::Escape), new(Key::Enter))
     });
     let list = open_list(ctx, focus).filter(|l| ctx.memory(|m| m.is_above_modal_layer(*l)));
-    chain.listed = focus.filter(|id| list == Some(suggestions(*id)));
     if chain.held.is_some_and(|(key, _)| !ctx.input(|i| i.key_down(key))) {
         chain.held = None;
     }
