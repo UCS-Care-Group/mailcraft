@@ -156,5 +156,5 @@ this code base.
 | 2026-10-25 | patch | #325: removing an account, or closing a shared mailbox, takes what came from its server and is kept in the mailbox file (events, contacts and calendars, Outlook's list of categories) whoever removes it; the working hours and the remembered sign-in, with its name in `ui.json`, only when the window removes it; the word index drops mail removed elsewhere when the window opens the mailbox; the copies of the mailbox kept aside are listed |
 | 2026-10-26 | minor | #217, #452: system fonts fill in the scripts the bundled ones lack (gap 13 notes it); right-to-left layout stays open in gap 6 |
 | 2026-10-26 | minor | #493: search Subfolders and Current Mailbox beside Current Folder and All Mailboxes (rough edges) |
-| 2026-10-26 | minor | #360: forwarding several messages at once, as attachments, leaves the smaller things (17); row 17, which was there twice, is one row |
 | 2026-10-26 | minor | #493 follow-up: the limit of Subfolders' More results on the server |
+| 2026-10-26 | minor | #360: forwarding several messages at once, as attachments, leaves the smaller things (17); row 17, which was there twice, is one row |
