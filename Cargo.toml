@@ -50,7 +50,10 @@ jiff = { version = "0.2.38", default-features = false, features = ["std", "tz-sy
 
 # network (desktop and CLI only; the browser can't open sockets)
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12", "logging"] }
-webpki-roots = "1"
+# Server certificates are checked by the operating system's own verifier (#501): Windows and macOS
+# trust what the system trusts (and may fetch a missing intermediate themselves); Linux and
+# FreeBSD read the system's certificate store. No default features: rustls with `ring`, as above.
+rustls-platform-verifier = { version = "0.7.1", default-features = false }
 # SHA-256 and random bytes for the OAuth sign-in (already in the tree: rustls runs on it).
 ring = "0.17"
 # gzip and deflate, for a picture a web server sends packed (already in the tree: the PNG decoder
