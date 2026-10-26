@@ -7,6 +7,7 @@
 //! each Send/Receive renews it. Cancel (Stop) stops it all until the next Send/Receive starts,
 //! the owner's or one by itself; Send/Receive Progress says how far it has got, account by account
 //! (the engine counts them as they come in, [`mailcraft_engine::cmd::sync_progress::FullMessages`]).
+//! A forward of several messages (#360) waits for every one of them, an account's at a time.
 //!
 //! A JMAP account's messages come the same way (M6), at once and before a reply alike, through
 //! [`crate::Services::jmap_fetch`] with the secret its Send/Receive went with
@@ -17,7 +18,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::Receiver;
 
-use mailcraft_engine::cmd::{graph_mail, jmap_mail};
+use mailcraft_engine::cmd::{compose, graph_mail, jmap_mail};
 use mailcraft_model::sync::{GraphFetchRequest, GraphFetchResult};
 use mailcraft_model::{AccountKind, Id};
 use serde_json::{Value, json};
@@ -27,6 +28,9 @@ use crate::{MailApp, now_ms};
 
 /// Messages asked for at a time in the background.
 const BATCH: usize = 10;
+/// The most messages a host fetches for one job (`mailcraft-net` and `mailcraft-jmap` take the
+/// first hundred): a forward of more of an account's waits for them a hundred at a time.
+const AT_ONCE: usize = 100;
 /// How long the background waits before looking again when there was nothing to fetch.
 const IDLE_MS: f64 = 20_000.0;
 /// The longest the background waits after batches that brought nothing, one after another: the
@@ -47,12 +51,16 @@ pub struct Fetching {
     /// The background's batch under way: for which account, under which opening of the mailbox
     /// ([`mailcraft_engine::Session::openings`]), and the answer to come.
     background: Option<(Id, u64, Receiver<GraphFetchResult>)>,
-    /// The owner's message under way: which one, under which opening, what calls it off, and the
-    /// answer to come.
-    now: Option<(Id, u64, Arc<AtomicBool>, Receiver<GraphFetchResult>)>,
-    /// What waits for that message: a command, its params, and the mailbox opening it was asked
-    /// under ([`mailcraft_engine::Session::openings`]).
-    then: Option<(String, Value, u64)>,
+    /// The owner's messages under way: which ones (one, or of a forward of several, #360), under
+    /// which opening, what calls it off, and the answer to come.
+    now: Option<(Vec<Id>, u64, Arc<AtomicBool>, Receiver<GraphFetchResult>)>,
+    /// What waits for those messages: a command, its params, the mailbox opening it was asked
+    /// under ([`mailcraft_engine::Session::openings`]), and, for a forward of several, every
+    /// message fetched for it so far.
+    then: Option<(String, Value, u64, Option<Vec<Id>>)>,
+    /// While a forward of several runs again once messages came: those fetched for it already,
+    /// not asked for again ([`MailApp::fetch_first`]).
+    tried: Option<Vec<Id>>,
     /// The message last asked for when it was opened (not asked again while it stays open).
     opened: Option<Id>,
     pub(crate) cancel: Arc<AtomicBool>,
@@ -80,7 +88,7 @@ impl Fetching {
 
     /// Whether `message` is being fetched for the owner now.
     pub fn fetching(&self, message: Id) -> bool {
-        self.now.as_ref().is_some_and(|(m, ..)| *m == message)
+        self.now.as_ref().is_some_and(|(m, ..)| m.contains(&message))
     }
 
     /// Another mailbox took the place of the one these were for: what is under way is called off,
@@ -124,6 +132,32 @@ fn needs_whole(app: &MailApp, id: &str, params: &Value) -> Option<Id> {
     app.session.mailbox.message(message).filter(|m| m.unfetched && !never(m) && m.server.is_some()).map(|m| m.id)
 }
 
+/// The messages a forward of several takes (#360), as the engine takes them: those `ids` names,
+/// else the selected ones, when there is more than one and no `id` is named. `None` for anything
+/// else, `ids` that aren't all ids among it (the engine refuses those).
+fn forwarded_together(app: &MailApp, id: &str, params: &Value) -> Option<Vec<Id>> {
+    if !matches!(id, "mail.forward" | "mail.forwardAsAttachment") || params.get("id").is_some_and(|v| !v.is_null()) {
+        return None;
+    }
+    let mut ids = match params.get("ids").filter(|v| !v.is_null()) {
+        Some(ids) => ids.as_array()?.iter().map(Value::as_u64).collect::<Option<Vec<Id>>>()?,
+        None => app.session.sel.messages.clone(),
+    };
+    let mut seen = std::collections::HashSet::new();
+    ids.retain(|id| seen.insert(*id));
+    (ids.len() > 1).then_some(ids)
+}
+
+/// Of `ids`, those still to fetch first, but `tried`: of the first one's account, at most
+/// [`AT_ONCE`].
+fn still_to_fetch(app: &MailApp, ids: &[Id], tried: &[Id]) -> Vec<Id> {
+    let waiting = |m: &&mailcraft_model::Message| m.unfetched && m.server.is_some() && !tried.contains(&m.id);
+    let mut waiting = ids.iter().filter_map(|id| app.session.mailbox.message(*id)).filter(waiting);
+    let Some(first) = waiting.next() else { return Vec::new() };
+    let account = first.account;
+    std::iter::once(first.id).chain(waiting.filter(|m| m.account == account).map(|m| m.id)).take(AT_ONCE).collect()
+}
+
 /// A Graph token of this session for `account` that is still good.
 fn access(app: &MailApp, account: Id) -> Option<String> {
     app.graph_tokens.get(&account).filter(|t| t.fresh(mailcraft_time::now())).map(|t| t.access.clone())
@@ -165,30 +199,55 @@ fn take_in(app: &mut MailApp, result: GraphFetchResult) -> Result<Value, mailcra
 }
 
 impl MailApp {
-    /// A command that needs its message whole waits for it to be fetched, and then runs.
+    /// A command that needs its message whole waits for it to be fetched, and then runs. A forward
+    /// of several messages (#360) is judged first (as many as one message carries, none that
+    /// stands in for a message for good) and waits for each of them, an account's at a time; once
+    /// none is left to fetch it runs, and the engine says which one didn't come, if one didn't.
     pub(crate) fn fetch_first(&mut self, id: &str, params: &Value) -> Option<Result<Value, String>> {
-        let message = needs_whole(self, id, params)?;
-        let account = self.session.mailbox.message(message)?.account;
-        if !self.fetch_now(account, message) {
+        let tried = self.fetching.tried.take();
+        let together = forwarded_together(self, id, params);
+        let messages = match &together {
+            Some(ids) => {
+                if let Err(e) = compose::forward_check(&self.session, ids, true) {
+                    let said = e.to_string();
+                    self.last_error = Some(e);
+                    return Some(Err(said));
+                }
+                still_to_fetch(self, ids, tried.as_deref().unwrap_or_default())
+            }
+            None => needs_whole(self, id, params).into_iter().collect(),
+        };
+        let first = *messages.first()?;
+        let account = self.session.mailbox.message(first)?.account;
+        if !self.fetch_now(account, &messages) {
             if self.jmap_refused.contains(&account) {
                 return Some(Err(tl!("The server turned down the sign-in for this account. Use Send/Receive to sign in again.").to_string()));
             }
             return Some(Err(tl!("This message isn't on this computer yet. It will download when you're online.").to_string()));
         }
-        // Named, for the selection may have moved on by the time it is here. An `id` the call
-        // gave stays as it was, for the command to judge.
+        // Named, for the selection may have moved on by the time they are here. An `id` the call
+        // gave stays as it was, for the command to judge; the engine puts several in the list's
+        // order, the last named being the one in focus, as in the selection.
         let mut then = params.as_object().cloned().unwrap_or_default();
-        if then.get("id").is_none_or(Value::is_null) {
-            then.insert("id".into(), json!(message));
+        match &together {
+            Some(ids) => {
+                then.insert("ids".into(), json!(ids));
+            }
+            None if then.get("id").is_none_or(Value::is_null) => {
+                then.insert("id".into(), json!(first));
+            }
+            None => {}
         }
-        self.fetching.then = Some((id.to_string(), Value::Object(then), self.session.openings()));
+        let tried = together.map(|_| tried.unwrap_or_default().into_iter().chain(messages.iter().copied()).collect());
+        self.fetching.then = Some((id.to_string(), Value::Object(then), self.session.openings(), tried));
         self.status(tl!("Downloading the message first…"));
-        Some(Ok(json!({"pending": "download", "message": message})))
+        Some(Ok(json!({"pending": "download", "message": first})))
     }
 
-    /// Fetch `message` at once, ahead of the background. Whether it could be asked for.
-    fn fetch_now(&mut self, account: Id, message: Id) -> bool {
-        if self.fetching.fetching(message) {
+    /// Fetch `messages` of `account` at once, ahead of the background. Whether they could be
+    /// asked for.
+    fn fetch_now(&mut self, account: Id, messages: &[Id]) -> bool {
+        if messages.iter().all(|m| self.fetching.fetching(*m)) {
             return true;
         }
         let Some(way) = way(self, account) else {
@@ -196,23 +255,23 @@ impl MailApp {
             return false;
         };
         let cancel = Arc::new(AtomicBool::new(false));
-        let Some(answer) = self.hand_over(account, way, Some(message), 1, cancel.clone()) else { return false };
-        self.fetching.now = Some((message, self.session.openings(), cancel, answer));
+        let Some(answer) = self.hand_over(account, way, messages, 1, cancel.clone()) else { return false };
+        self.fetching.now = Some((messages.to_vec(), self.session.openings(), cancel, answer));
         true
     }
 
-    /// Hand the host a fetch of `account`'s messages: `message` alone, or the next `most` in the
-    /// background. `None` when there is nothing to fetch.
-    fn hand_over(&self, account: Id, way: Way, message: Option<Id>, most: usize, cancel: Arc<AtomicBool>) -> Option<Receiver<GraphFetchResult>> {
+    /// Hand the host a fetch of `account`'s messages: `messages` alone, or, when there are none,
+    /// the next `most` in the background. `None` when there is nothing to fetch.
+    fn hand_over(&self, account: Id, way: Way, messages: &[Id], most: usize, cancel: Arc<AtomicBool>) -> Option<Receiver<GraphFetchResult>> {
         match way {
             Way::Graph(access) => {
                 let fetch = self.services.graph_fetch.as_ref()?;
-                let request = graph_mail::graph_fetch_request(&self.session, account, message, most).ok().filter(|r| !r.ids.is_empty())?;
+                let request = asked(messages, |m| graph_mail::graph_fetch_request(&self.session, account, m, most).ok(), |r| &mut r.ids)?;
                 Some(fetch(GraphFetchJob { request, access, cancel }))
             }
             Way::Jmap(secret) => {
                 let fetch = self.services.jmap_fetch.as_ref()?;
-                let request = jmap_mail::jmap_fetch_request(&self.session, account, message, most).ok().filter(|r| !r.ids.is_empty())?;
+                let request = asked(messages, |m| jmap_mail::jmap_fetch_request(&self.session, account, m, most).ok(), |r| &mut r.ids)?;
                 Some(fetch(JmapFetchJob { request, secret, cancel }))
             }
         }
@@ -237,7 +296,7 @@ impl MailApp {
                 shown.and_then(|m| self.session.mailbox.message(m)).filter(|m| m.unfetched && m.server.is_some()).map(|m| (m.account, m.id))
                 && self.fetching.now.is_none()
             {
-                self.fetch_now(m.0, m.1);
+                self.fetch_now(m.0, &[m.1]);
             }
         }
         // The background, a few at a time.
@@ -252,7 +311,7 @@ impl MailApp {
             }
             let Some(way) = way(self, account) else { continue };
             let cancel = Arc::new(AtomicBool::new(false));
-            let Some(answer) = self.hand_over(account, way, None, BATCH, cancel.clone()) else { continue };
+            let Some(answer) = self.hand_over(account, way, &[], BATCH, cancel.clone()) else { continue };
             self.fetching.cancel = cancel;
             self.fetching.background = Some((account, self.session.openings(), answer));
             return;
@@ -262,14 +321,14 @@ impl MailApp {
     }
 
     fn poll_fetch_now(&mut self) {
-        let Some((message, opening, _, rx)) = &self.fetching.now else { return };
-        let (message, opening) = (*message, *opening);
+        let Some((_, opening, _, rx)) = &self.fetching.now else { return };
+        let opening = *opening;
         let result = match rx.try_recv() {
             Ok(result) => result,
             Err(std::sync::mpsc::TryRecvError::Empty) => return,
             Err(std::sync::mpsc::TryRecvError::Disconnected) => GraphFetchResult { offline: true, ..Default::default() },
         };
-        self.fetching.now = None;
+        let messages = self.fetching.now.take().map(|(messages, ..)| messages).unwrap_or_default();
         // Asked for in a mailbox that another has taken the place of: it is nobody's here (nor is
         // a command that waits for it, below).
         if opening != self.session.openings() {
@@ -282,14 +341,20 @@ impl MailApp {
         {
             self.status(e.to_string());
         }
-        let whole = self.session.mailbox.message(message).is_some_and(|m| !m.unfetched);
-        if let Some((command, params, opening)) = self.fetching.then.take() {
+        let whole = messages.iter().all(|m| self.session.mailbox.message(*m).is_some_and(|m| !m.unfetched));
+        if let Some((command, params, opening, tried)) = self.fetching.then.take() {
             // Asked of a mailbox that another has taken the place of: the message it names is not
             // this one's, whatever has that id here.
             if opening != self.session.openings() {
                 return;
             }
-            if whole {
+            // A forward of several goes on with the next account's, if there are any, else runs
+            // and says which of them didn't come.
+            if let Some(tried) = tried {
+                self.fetching.tried = Some(tried);
+                let _ = self.run(&command, params);
+                self.fetching.tried = None;
+            } else if whole {
                 let _ = self.run(&command, params);
             } else {
                 self.status(tl!("This message isn't on this computer yet. It will download when you're online."));
@@ -369,11 +434,25 @@ impl MailApp {
     }
 }
 
+/// The engine's request for `messages` alone (the first one's, with the others' ids in it too), or
+/// with none, for the background's next. `None` when there is nothing in it to fetch.
+fn asked<R>(messages: &[Id], request: impl Fn(Option<Id>) -> Option<R>, ids: fn(&mut R) -> &mut Vec<String>) -> Option<R> {
+    let mut all = request(messages.first().copied())?;
+    for m in messages.iter().skip(1) {
+        let mut more = request(Some(*m))?;
+        ids(&mut all).append(ids(&mut more));
+    }
+    if ids(&mut all).is_empty() { None } else { Some(all) }
+}
+
 /// How long the background waits after `stuck` batches one after another brought nothing:
 /// [`IDLE_MS`], doubling each time, at most [`MOST_IDLE_MS`].
 fn backoff(stuck: u32) -> f64 {
     (IDLE_MS * 2f64.powi(i32::try_from(stuck.min(10)).unwrap_or(10))).min(MOST_IDLE_MS)
 }
+
+#[cfg(test)]
+mod forward_several_tests;
 
 #[cfg(test)]
 mod tests {

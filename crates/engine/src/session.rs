@@ -417,6 +417,10 @@ pub struct Compose {
     /// made as a message of its own, not as a forward of `source`.
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub as_attachment: bool,
+    /// The other messages it forwards, each attached whole beside `source` (#360), marked
+    /// forwarded too once it has gone. Empty for every other message.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub also: Vec<Id>,
     /// The saved draft this message continues.
     pub draft: Option<Id>,
     /// The account it is sent from.
