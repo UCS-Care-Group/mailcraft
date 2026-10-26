@@ -229,9 +229,11 @@ pub mod p {
         str(v, k).ok_or_else(|| CmdError::Params(format!("`{k}` (string) is required")))
     }
     pub fn u64(v: &Value, k: &str) -> Option<u64> {
-        v.get(k).and_then(|x| {
-            x.as_u64().or_else(|| x.as_f64().filter(|f| *f >= 0.0 && f.is_finite() && f.fract() == 0.0 && *f < 9.1e15).map(|f| f as u64))
-        })
+        v.get(k).and_then(whole)
+    }
+    /// A whole number, as a number (`12` or `12.0`, never `"12"`).
+    fn whole(x: &Value) -> Option<u64> {
+        x.as_u64().or_else(|| x.as_f64().filter(|f| *f >= 0.0 && f.is_finite() && f.fract() == 0.0 && *f < 9.1e15).map(|f| f as u64))
     }
     pub fn i64(v: &Value, k: &str) -> Option<i64> {
         v.get(k).and_then(|x| x.as_i64().or_else(|| x.as_f64().filter(|f| f.is_finite() && f.abs() < 9.1e15).map(|f| f as i64)))
@@ -251,6 +253,42 @@ pub mod p {
             return Some(a.iter().take(MAX_IDS).filter_map(|x| x.as_u64()).filter(|i| *i != 0).collect());
         }
         id(v, "id").map(|i| vec![i])
+    }
+    /// `ids` (an array of ids) or `id` (one), read strictly, for a command whose mistake reaches
+    /// other people (#360): `None` when neither is given. Anything else under those names (an id
+    /// as text, zero, a fraction, `ids` that isn't a list or names no message or has an entry that
+    /// isn't an id, or more than [`MAX_IDS`], both at once) is refused, never taken to mean the
+    /// selection, as [`ids`] takes it.
+    pub fn ids_strict(v: &Value) -> Result<Option<Vec<Id>>, CmdError> {
+        let given = |k: &str| v.get(k).filter(|x| !x.is_null());
+        match (given("id"), given("ids")) {
+            (None, None) => Ok(None),
+            (Some(_), Some(_)) => Err(CmdError::Params("name the messages by `id` (one) or by `ids` (several), not both".into())),
+            (Some(x), None) => whole(x)
+                .filter(|i| *i != 0)
+                .map(|i| Some(vec![i]))
+                .ok_or_else(|| CmdError::Params("`id` is a message id: a whole number above 0".into())),
+            (None, Some(x)) => {
+                let wrong = || CmdError::Params(format!("`ids` is a list of 1 to {MAX_IDS} message ids: whole numbers above 0"));
+                let list = x.as_array().filter(|a| !a.is_empty() && a.len() <= MAX_IDS).ok_or_else(wrong)?;
+                list.iter().map(|x| whole(x).filter(|i| *i != 0).ok_or_else(wrong)).collect::<Result<_, _>>().map(Some)
+            }
+        }
+    }
+    /// Refuses any parameter but `known`: a caller that names what the command doesn't take
+    /// means something by it that the command would not do.
+    pub fn only(v: &Value, known: &[&str]) -> Result<(), CmdError> {
+        match v {
+            Value::Null => Ok(()),
+            Value::Object(map) => match map.keys().find(|k| !known.contains(&k.as_str())) {
+                Some(k) => Err(CmdError::Params(format!(
+                    "`{k}` isn't a parameter of this command (it takes {})",
+                    known.iter().map(|k| format!("`{k}`")).collect::<Vec<_>>().join(", ")
+                ))),
+                None => Ok(()),
+            },
+            _ => Err(CmdError::Params("the parameters are an object".into())),
+        }
     }
     /// A `YYYY-MM-DD` date.
     pub fn date(v: &Value, k: &str) -> Result<Option<Date>, CmdError> {

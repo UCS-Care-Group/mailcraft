@@ -46,6 +46,8 @@ mod send;
 #[cfg(not(target_arch = "wasm32"))]
 mod sync;
 #[cfg(not(target_arch = "wasm32"))]
+mod tls;
+#[cfg(not(target_arch = "wasm32"))]
 mod transport;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod update;
@@ -196,3 +198,8 @@ mod password_tests;
 #[cfg(all(test, not(target_arch = "wasm32")))]
 #[path = "tls_test_support_tests.rs"]
 mod tls_test_support;
+
+// (`cfg(test)` on its own line, so that clippy knows the helpers that unwrap are test code.)
+#[cfg(test)]
+#[cfg(not(target_arch = "wasm32"))]
+mod verifier_tests;

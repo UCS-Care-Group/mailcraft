@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! Forward as Attachment in the window (#315): in a message's right-click menu after Forward,
 //! under Forward's `▾` in Home › Respond, and on Ctrl+Alt+F; each opens the new message with the
-//! message attached as an `.eml`.
+//! message attached as an `.eml`, and with several selected, every one of them (#360).
 
 use egui::accesskit::Role;
 use egui_kittest::kittest::Queryable as _;
@@ -164,4 +164,46 @@ fn a_message_that_will_never_download_is_refused_not_waited_for() {
     app.session.mailbox.message_mut(id).unwrap().incomplete = false;
     let e = app.run("mail.forwardAsAttachment", json!({"id": id})).unwrap_err();
     assert!(e.contains("It will download when you're online"), "{e}");
+}
+
+/// With several selected (#360), the right-click menu's Forward and Forward as Attachment, Forward's
+/// `▾` and Ctrl+Alt+F each open one new message with every one of them attached.
+#[test]
+fn with_several_selected_each_way_attaches_them_all() {
+    let mut harness = window();
+    let subject = |h: &Window, s: &str| h.state().session.mailbox.messages.values().find(|m| m.subject == s).unwrap().id;
+    let ids = [MOCKUPS, "Q4 roadmap review moved to Thursday", "Your October invoice is ready"].map(|s| subject(&harness, s));
+    let all_attached = |h: &Window| {
+        h.state().session.compose.as_ref().is_some_and(|c| {
+            c.as_attachment && c.attachments.len() == 3 && c.attachments.iter().all(|a| a.mime == "message/rfc822") && c.source == Some(ids[2])
+        })
+    };
+    let select = |h: &mut Window| {
+        h.state_mut().execute("compose.close", json!({"discard": true})).ok();
+        h.state_mut().execute("mail.select", json!({"ids": ids})).unwrap();
+        h.run_steps(3);
+    };
+    for label in ["Forward as Attachment", "Forward"] {
+        select(&mut harness);
+        // A right click on one of the selected keeps them all selected.
+        let row = harness.state().hit.rect("message", ids[0]).unwrap().center();
+        press(&mut harness, row, egui::PointerButton::Secondary);
+        assert_eq!(harness.state().session.sel.messages, ids, "{label}");
+        // (Forward is the first of the two whose names hold "Forward".)
+        let node = items(&harness, label).min_by(|a, b| a.rect().top().total_cmp(&b.rect().top()));
+        node.unwrap_or_else(|| panic!("no {label}")).click();
+        harness.run_steps(4);
+        assert!(all_attached(&harness), "the right-click menu's {label}");
+    }
+    select(&mut harness);
+    let drop = harness.state().hit.rect("ribbonMenu", crate::ribbon::hit_id("mail.forward")).expect("Forward has a ▾").center();
+    press(&mut harness, drop, egui::PointerButton::Primary);
+    item(&harness, "Forward as Attachment").click();
+    harness.run_steps(4);
+    assert!(all_attached(&harness), "Forward's ▾");
+    select(&mut harness);
+    let ctrl_alt = egui::Modifiers { alt: true, ctrl: !cfg!(target_os = "macos"), mac_cmd: cfg!(target_os = "macos"), command: true, shift: false };
+    harness.key_press_modifiers(ctrl_alt, egui::Key::F);
+    harness.run_steps(4);
+    assert!(all_attached(&harness), "Ctrl+Alt+F");
 }
