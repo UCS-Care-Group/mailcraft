@@ -618,6 +618,9 @@ pub(super) fn take_listing(mb: &mut Mailbox, account: Id, listing: &FolderListin
             .map(|f| f.id)
             .collect();
         taken.removed += gone.len();
+        // Mail moved in that the server wasn't given yet isn't in the folder there: it goes back
+        // to where it came from, not with the folder (#451).
+        super::graph_place::put_back_waiting(mb, |mb, a, message| a == account && mb.message(message).is_some_and(|m| gone.contains(&m.folder)));
         mb.remove_folders(&gone);
         taken.removed += super::graph_switch::sweep_unlisted(mb, account);
     }

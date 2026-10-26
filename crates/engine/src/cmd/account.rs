@@ -9,8 +9,8 @@
 use std::collections::{HashMap, HashSet};
 
 use mailcraft_model::sync::{
-    Deleted, FlagsPushed, FolderDelta, FolderState, ImapPlace, MAX_PLACES, Moved, Placed, RemoteFlags, RemoteOp, SyncRequest, SyncResult, SyncStage,
-    summary_line_in,
+    Deleted, FlagsPushed, FolderDelta, FolderState, ImapPlace, MAX_PLACES, Moved, PLACE_BYTES, Placed, RemoteFlags, RemoteOp, SyncRequest,
+    SyncResult, SyncStage, summary_line_in,
 };
 use mailcraft_model::{
     Account, AccountKind, Directory, FlagStatus, Folder, FolderKind, Id, JmapServer, MailIdentity, Mailbox, Message, OAuth, OAuthProvider, Pending,
@@ -444,21 +444,8 @@ pub(crate) fn remove_with_content(s: &mut Session, id: Id) -> Result<usize, CmdE
 /// [`remove_with_content`] hashing at most `budget` bytes of content in memory.
 pub(crate) fn remove_within(s: &mut Session, id: Id, budget: u64) -> Result<usize, CmdError> {
     let going: HashSet<Id> = s.mailbox.accounts.iter().filter(|a| a.id == id || a.shared_of == Some(id)).map(|a| a.id).collect();
-    // Mail moved in that their servers haven't been given yet has no other copy here: it goes
-    // back to where it came from (#451).
-    let waiting: Vec<(Id, bool, Option<Id>)> = s
-        .mailbox
-        .queued
-        .iter()
-        .filter_map(|q| match q {
-            Queued::PlaceMessage { account, message, copy, from, .. } if going.contains(account) => Some((*message, *copy, *from)),
-            _ => None,
-        })
-        .collect();
-    for (message, copy, from) in waiting {
-        s.mailbox.queued.retain(|q| !matches!(q, Queued::PlaceMessage { message: other, .. } if *other == message));
-        super::graph_place::put_back(&mut s.mailbox, message, copy, from);
-    }
+    // Mail moved in that their servers haven't been given yet goes back to where it came from.
+    super::graph_place::put_back_waiting(&mut s.mailbox, |_, account, _| going.contains(&account));
     #[allow(unused_mut)]
     let mut left = 0usize;
     #[cfg(target_arch = "wasm32")]
@@ -706,7 +693,7 @@ fn remote_ops(s: &Session, account: Id, limit: usize) -> (Vec<RemoteOp>, usize) 
 /// waits until it is elsewhere.
 fn place_ops(s: &Session, account: Id, limit: usize) -> (Vec<ImapPlace>, usize) {
     let mb = &s.mailbox;
-    let (mut out, mut count) = (Vec::new(), 0usize);
+    let (mut out, mut count, mut spent) = (Vec::new(), 0usize, 0u64);
     for queued in &mb.queued {
         let Queued::PlaceMessage { account: a, message, .. } = queued else { continue };
         if *a != account {
@@ -718,9 +705,10 @@ fn place_ops(s: &Session, account: Id, limit: usize) -> (Vec<ImapPlace>, usize) 
         };
         let Some(folder) = mb.folder(m.folder).filter(|f| f.account == account && f.kind != FolderKind::Outbox) else { continue };
         count += 1;
-        if out.len() >= limit {
+        if out.len() >= limit || (!out.is_empty() && spent.saturating_add(m.size()) > PLACE_BYTES) {
             continue;
         }
+        spent = spent.saturating_add(m.size());
         match s.loaded_message(m.id) {
             Ok(whole) => {
                 let (to, create) = destination(mb, folder);
@@ -1138,13 +1126,22 @@ fn deletes_finished(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, del
         return;
     }
     let finished: HashSet<(&str, u32)> = deleted.iter().map(|d| (d.from.as_str(), d.uid)).collect();
-    // A deletion asked for, or the original of a message moved out of the account (#451).
-    let messages = &mb.messages;
-    let asked = |p: &Pending| match p {
-        Pending::Delete { .. } => true,
-        Pending::Move { message, .. } => messages.get(message).is_some_and(|m| m.account != account),
-    };
-    mb.pending.retain(|p| !(asked(p) && p.account() == account && finished.contains(&p.source())));
+    // A deletion asked for, or the original of a message moved out of the account (#451); a
+    // run deletes nothing else. One moved back into the account meanwhile, into another folder,
+    // has no copy on the server now: it goes there again.
+    let back: Vec<Id> = mb
+        .pending
+        .iter()
+        .filter(|p| p.account() == account && finished.contains(&p.source()))
+        .filter_map(|p| match p {
+            Pending::Move { message, .. } => mb.message(*message).filter(|m| m.account == account).map(|m| m.id),
+            Pending::Delete { .. } => None,
+        })
+        .collect();
+    mb.pending.retain(|p| !(p.account() == account && finished.contains(&p.source())));
+    for id in back {
+        mb.place_again(id);
+    }
     for gone in deleted {
         let here = on_server.by_remote.get(&gone.from).and_then(|folder| on_server.by_uid.remove(&(*folder, gone.uid)));
         let Some(id) = here else { continue };

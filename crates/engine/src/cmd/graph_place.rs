@@ -23,7 +23,7 @@
 //!   where the copy is looked for by its marker before it is made again.
 //! - Moved on, deleted or undone meanwhile: a copy made all the same is deleted there again.
 
-use mailcraft_model::sync::{FlagUp, MessageOutcome, PlaceDone, PlaceUp, ServerMessage};
+use mailcraft_model::sync::{FlagUp, MessageOutcome, PLACE_BYTES, PlaceDone, PlaceUp, ServerMessage};
 use mailcraft_model::{FlagStatus, FolderKind, Id, Mailbox, Message, Pending, Queued};
 use mailcraft_time::{DateTime, Timestamp};
 
@@ -37,7 +37,7 @@ pub fn place_changes(s: &Session, account: Id, limit: usize) -> (Vec<PlaceUp>, u
     let today = s.zone().instant(DateTime::at_midnight(s.today()));
     let now = s.now();
     let outbox = mb.folder_of_kind(account, FolderKind::Outbox);
-    let (mut out, mut count) = (Vec::new(), 0usize);
+    let (mut out, mut count, mut spent) = (Vec::new(), 0usize, 0u64);
     for queued in &mb.queued {
         let Queued::PlaceMessage { account: a, message, marker, copy, .. } = queued else { continue };
         if *a != account {
@@ -46,9 +46,10 @@ pub fn place_changes(s: &Session, account: Id, limit: usize) -> (Vec<PlaceUp>, u
         let Some(m) = mb.message(*message).filter(|m| m.account == account && m.server.is_none() && Some(m.folder) != outbox) else { continue };
         let Some((to, to_folder)) = destination(mb, account, m.folder) else { continue };
         count += 1;
-        if out.len() >= limit {
+        if out.len() >= limit || (!out.is_empty() && spent.saturating_add(m.size()) > PLACE_BYTES) {
             continue;
         }
+        spent = spent.saturating_add(m.size());
         match s.loaded_message(m.id) {
             Ok(m) => out.push(PlaceUp::of(&m, to, to_folder, marker.clone(), !copy, flag_of(&m, today, now))),
             Err(e) => log::warn!("message {} waits to go to another mailbox: {e}", m.id),
@@ -152,6 +153,24 @@ pub fn place_done(mb: &mut Mailbox, account: Id, done: &PlaceDone, refusals: &mu
             put_back(mb, id, copy, from);
             true
         }
+    }
+}
+
+/// Mail moved in that a server wasn't given yet, which is about to go with its account or its
+/// folder (`going`, of the account it waits for and the message): it has no copy there, so it
+/// goes back to where it came from (#451).
+pub(crate) fn put_back_waiting(mb: &mut Mailbox, going: impl Fn(&Mailbox, Id, Id) -> bool) {
+    let waiting: Vec<(Id, bool, Option<Id>)> = mb
+        .queued
+        .iter()
+        .filter_map(|q| match q {
+            Queued::PlaceMessage { account, message, copy, from, .. } if going(mb, *account, *message) => Some((*message, *copy, *from)),
+            _ => None,
+        })
+        .collect();
+    for (message, copy, from) in waiting {
+        mb.queued.retain(|q| !matches!(q, Queued::PlaceMessage { message: other, .. } if *other == message));
+        put_back(mb, message, copy, from);
     }
 }
 

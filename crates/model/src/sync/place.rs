@@ -26,6 +26,11 @@ use crate::{Address, Id, Importance, Message};
 /// Most messages one Graph run puts into its mailbox; more go over several runs.
 pub const MAX_PLACES: usize = 200;
 
+/// Most bytes of mail (text, HTML and files) one run puts on a server, Graph's or IMAP's (#451):
+/// more go over several runs, so that a big import moved into an account isn't read into memory
+/// at once. A message bigger than this goes by itself.
+pub const PLACE_BYTES: u64 = 64 * 1024 * 1024;
+
 /// A message to make in a folder of the run's mailbox, from elsewhere.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]

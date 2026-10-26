@@ -1868,10 +1868,18 @@ impl Mailbox {
         if !elsewhere || !self.is_graph(m.account) {
             return;
         }
-        if let Some(server) = m.server.as_ref().filter(|s| !s.gone && !s.id.is_empty()) {
-            let delete = Queued::DeleteMessage { account: m.account, id: server.id.clone(), kept: None };
-            self.queued.push(delete);
+        let Some(server) = m.server.as_ref().filter(|s| !s.gone && !s.id.is_empty()) else { return };
+        if m.moving_out.is_none() {
+            // The original is on an IMAP server, whose run may be deleting it already (#451):
+            // this copy goes as that one does, once the message is safe where it goes.
+            let out = crate::sync::MovingOut { account: m.account, id: server.id.clone(), folder: server.folder.clone() };
+            if let Ok(m) = self.message_mut(id) {
+                m.moving_out = Some(out);
+            }
+            return;
         }
+        let delete = Queued::DeleteMessage { account: m.account, id: server.id.clone(), kept: None };
+        self.queued.push(delete);
     }
 
     /// A move between accounts where the server of one of them is told of it: out of a

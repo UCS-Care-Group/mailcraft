@@ -6,8 +6,8 @@
 //! stand-in: `apps/mailcraft-cli/tests/moves_between_accounts.rs`.)
 
 use mailcraft_model::sync::{
-    Deleted, FolderDelta, FolderListing, GraphFolder, GraphMailResult, MessageOutcome, PlaceDone, Placed, RemoteFlags, RemoteOp, SyncRequest,
-    SyncResult,
+    Deleted, FolderDelta, FolderListing, GraphFolder, GraphMailResult, MessageChange, MessageOutcome, PlaceDone, Placed, RemoteFlags, RemoteOp,
+    SyncRequest, SyncResult,
 };
 use mailcraft_model::{Address, Body, FolderKind, Id, Message, Pending, Queued};
 use serde_json::json;
@@ -396,10 +396,75 @@ fn moved_back_while_its_original_was_being_deleted_it_goes_on_its_server_again()
     s.run("mail.move", &json!({"ids": [two], "folder": inbox})).unwrap();
     assert_eq!(at(&s, two), (a, inbox, 2));
     deleted(&mut s, a, &[2]);
-    // Only here now: put on the IMAP server again from the whole message; Microsoft's copy goes.
+    // Only here now: put on the IMAP server again from the whole message. Microsoft's copy goes
+    // only once it is there.
     assert_eq!(at(&s, two), (a, inbox, 0));
-    assert_eq!(sync_request(&s, a).unwrap().places.iter().map(|p| p.message.id).collect::<Vec<_>>(), [two]);
-    assert!(s.mailbox.queued.iter().any(|q| matches!(q, Queued::DeleteMessage { id, .. } if id == "AAkA2")), "{:?}", s.mailbox.queued);
+    let asked = sync_request(&s, a).unwrap();
+    assert_eq!(asked.places.iter().map(|p| p.message.id).collect::<Vec<_>>(), [two]);
+    let moved_out =
+        |s: &Session| graph_mail_request(s, ms).unwrap().messages.iter().any(|c| matches!(c, MessageChange::MovedOut { id, .. } if id == "AAkA2"));
+    assert!(!moved_out(&s) && !s.mailbox.queued.iter().any(|q| matches!(q, Queued::DeleteMessage { .. })), "{:?}", s.mailbox.queued);
+    apply_sync(&mut s, SyncResult { account: a, placed: vec![put(&asked, two, 60, 7)], ..Default::default() }).unwrap();
+    assert_eq!(at(&s, two), (a, inbox, 60));
+    assert!(moved_out(&s));
+}
+
+#[test]
+fn moved_back_into_another_folder_of_its_imap_account_while_its_original_was_deleted_it_goes_there_again() {
+    let (mut s, a, kept) = imap();
+    let archive = s.mailbox.folder_of_kind(a, FolderKind::Archive).unwrap();
+    let two = titled(&s, "Two");
+    s.run("mail.move", &json!({"ids": [two], "folder": kept})).unwrap();
+    s.note_saved();
+    assert_eq!(ops(&s, a), [delete(2)]);
+    // While the IMAP server deletes it, it is moved into the account's Archive.
+    s.run("mail.move", &json!({"ids": [two], "folder": archive})).unwrap();
+    deleted(&mut s, a, &[2]);
+    assert_eq!(at(&s, two), (a, archive, 0));
+    assert_eq!(sync_request(&s, a).unwrap().places.iter().map(|p| (p.message.id, p.to.as_str())).collect::<Vec<_>>(), [(two, "Archive")]);
+    assert!(s.mailbox.pending.is_empty() && ops(&s, a).is_empty(), "{:?}", s.mailbox.pending);
+}
+
+#[test]
+fn mail_waiting_for_a_microsoft_folder_that_goes_from_the_server_goes_back_where_it_came_from() {
+    let (mut s, a, kept) = imap();
+    let ms = microsoft(&mut s, OWNER);
+    let (archive, inbox) = (s.mailbox.folder_of_kind(ms, FolderKind::Archive).unwrap(), s.mailbox.folder_of_kind(a, FolderKind::Inbox).unwrap());
+    let here = kept_here(&mut s, kept, "From here");
+    let two = titled(&s, "Two");
+    s.run("mail.move", &json!({"ids": [here, two], "folder": archive})).unwrap();
+    // Archive is deleted in Outlook: a complete listing without it.
+    let folder = |id: &str, name: &str, kind| GraphFolder { id: id.into(), name: name.into(), kind, ..Default::default() };
+    let listing = GraphMailResult {
+        account: ms,
+        email: OWNER.into(),
+        listing: Some(FolderListing { folders: vec![folder("in", "Inbox", FolderKind::Inbox)], complete: true }),
+        ..Default::default()
+    };
+    apply_graph_mail(&mut s, listing).unwrap();
+    assert!(s.mailbox.folder(archive).is_none());
+    assert_eq!(at(&s, here), (s.mailbox.folder(kept).unwrap().account, kept, 0));
+    assert_eq!(at(&s, two), (a, inbox, 2));
+    assert!(s.mailbox.queued.is_empty() && s.mailbox.pending.is_empty(), "{:?} {:?}", s.mailbox.queued, s.mailbox.pending);
+}
+
+#[test]
+fn a_run_takes_so_much_mail_to_put_on_a_server_and_the_rest_waits() {
+    let (mut s, a, kept) = imap();
+    let ms = microsoft(&mut s, OWNER);
+    let (inbox, theirs) = (s.mailbox.folder_of_kind(a, FolderKind::Inbox).unwrap(), s.mailbox.folder_of_kind(ms, FolderKind::Inbox).unwrap());
+    let big = |s: &mut Session, subject: &str| {
+        let m = kept_here(s, kept, subject);
+        s.mailbox.message_mut(m).unwrap().body.text = "x".repeat(usize::try_from(mailcraft_model::sync::PLACE_BYTES / 2).unwrap());
+        m
+    };
+    let imap_ones: Vec<Id> = (0..3).map(|n| big(&mut s, &format!("Big {n}"))).collect();
+    let graph_ones: Vec<Id> = (3..6).map(|n| big(&mut s, &format!("Big {n}"))).collect();
+    s.run("mail.move", &json!({"ids": imap_ones, "folder": inbox})).unwrap();
+    s.run("mail.move", &json!({"ids": graph_ones, "folder": theirs})).unwrap();
+    // Two halves fill a run; the third waits for the next.
+    assert_eq!((sync_request(&s, a).unwrap().places.len(), crate::cmd::account::unpushed(&s, a)), (2, 3));
+    assert_eq!(graph_mail_request(&s, ms).unwrap().places.len(), 2);
 }
 
 #[test]
