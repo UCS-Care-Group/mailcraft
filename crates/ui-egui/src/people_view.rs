@@ -598,7 +598,9 @@ fn contact_row(app: &mut MailApp, ui: &mut Ui, id: Id, copy: u16, rect: Rect) {
     app.hit.add("contact", id, rect);
     // The selection is on one of a contact's rows: the one clicked or stepped to.
     let picked = app.people_picked.contains(&id);
-    let selected = row_selected(ui.ctx(), PEOPLE_ROW, app.session.sel.contact, (id, copy)) || picked;
+    // The selection is the one contact commands act on; the others picked with it have a tick,
+    // not the selection's colour (they are picked to merge, not selected).
+    let selected = row_selected(ui.ctx(), PEOPLE_ROW, app.session.sel.contact, (id, copy));
     if resp.clicked() || resp.secondary_clicked() {
         choose_copy(ui.ctx(), PEOPLE_ROW, id, copy);
     }
@@ -614,6 +616,10 @@ fn contact_row(app: &mut MailApp, ui: &mut Ui, id: Id, copy: u16, rect: Rect) {
     let mut right = rect.max.x - 12.0;
     if c.favorite {
         icons::paint(p, Rect::from_center_size(pos2(right - 7.0, rect.center().y), vec2(16.0, 16.0)), "starOn", t.icon, t.accent);
+        right -= 20.0;
+    }
+    if picked {
+        icons::paint(p, Rect::from_center_size(pos2(right - 7.0, rect.center().y), vec2(16.0, 16.0)), "check", t.icon, t.accent);
         right -= 20.0;
     }
     let width = (right - left).max(0.0);
@@ -635,7 +641,7 @@ fn contact_row(app: &mut MailApp, ui: &mut Ui, id: Id, copy: u16, rect: Rect) {
         let _ = app.run("people.edit", json!({}));
     }
     // A right click acts on the row under the pointer, or on the contacts picked with it.
-    if resp.secondary_clicked() && !selected {
+    if resp.secondary_clicked() && !selected && !picked {
         app.people_picked.clear();
         let _ = app.execute("people.select", json!({"id": id}));
     }

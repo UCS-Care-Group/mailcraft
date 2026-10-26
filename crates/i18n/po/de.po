@@ -3008,6 +3008,11 @@ msgstr "Feb."
 msgid "February"
 msgstr "Februar"
 
+#. interface
+#: crates/ui-egui/src/merge_contacts.rs
+msgid "Fewer than two of these contacts are still here, so there is nothing to merge."
+msgstr ""
+
 #. command label, name, ribbon location
 #: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs crates/engine/src/cmd/tasks_remote.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
@@ -4140,7 +4145,7 @@ msgstr "Weiter warten"
 
 #. interface
 #: crates/ui-egui/src/merge_contacts.rs
-msgid "Keep this contact, and merge the others into it:"
+msgid "Keep this one"
 msgstr ""
 
 #. interface
@@ -4782,6 +4787,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 msgid "Merge Duplicate Contacts"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/merge_contacts.rs
+msgid "Merge this contact"
 msgstr ""
 
 #. interface
@@ -9136,6 +9146,11 @@ msgid "The invitation doesn't say who to answer."
 msgstr "Die Einladung gibt nicht an, wem geantwortet werden soll."
 
 #. interface
+#: crates/ui-egui/src/merge_contacts.rs
+msgid "The kept contact is always merged"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/favorites_sync.rs
 #, fuzzy
 msgid "The link is on the clipboard: send it to your organisation's administrator"
@@ -9182,6 +9197,11 @@ msgstr "Das Postfach {address} ist über Microsoft Graph nicht erreichbar."
 #, fuzzy
 msgid "The meeting these proposals are for isn't on your calendar."
 msgstr "Die Besprechung, für die diese Vorschläge gelten, ist nicht in Ihrem Kalender."
+
+#. what a command says
+#: crates/engine/src/cmd/people_merge.rs
+msgid "The merged contact's {field} would be too large ({now}, at most {max}), so the contacts aren't merged. Choose one contact's {field} for it, or shorten them first."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/attachment_open.rs
@@ -10033,6 +10053,16 @@ msgstr "Do."
 #, fuzzy
 msgid "Thursday"
 msgstr "Donnerstag"
+
+#. interface
+#: crates/ui-egui/src/merge_contacts.rs
+msgid "Tick at least one more contact to merge into the kept one."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/merge_contacts.rs
+msgid "Tick the contacts that are the same person, and choose the one to keep:"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
