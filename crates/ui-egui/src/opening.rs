@@ -216,8 +216,8 @@ fn arrive(app: &mut MailApp, arrival: Arrival) {
     next.fonts_frames = app.fonts_frames;
     next.applied_theme = app.applied_theme;
     *app = next;
-    for path in o.queued {
-        app.open_path(&path);
+    for what in o.queued {
+        app.open_from_system(&what);
     }
 }
 

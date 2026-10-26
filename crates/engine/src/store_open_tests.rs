@@ -51,7 +51,7 @@ fn mailbox(messages: usize) -> Mailbox {
 #[test]
 fn the_open_line_says_how_long_how_big_and_how_many_and_nothing_of_the_mail() {
     let mb = mailbox(3);
-    let line = open_line(Duration::from_millis(1_234), 5_000_000, &mb, 0);
+    let line = open_line(Duration::from_millis(1_234), 5_000_000, counts(&mb), 0);
     assert!(line.contains("1.23 s"), "{line}");
     assert!(line.contains("5000000 bytes"), "{line}");
     assert!(line.contains("3 messages"), "{line}");
@@ -61,7 +61,7 @@ fn the_open_line_says_how_long_how_big_and_how_many_and_nothing_of_the_mail() {
     for secret in ["Avery", "avery@", "Blake", "blake@", "example.org", "Confidential", "merger", "Inbox", "mailcraft"] {
         assert!(!line.contains(secret), "{secret} in {line}");
     }
-    let repaired = open_line(Duration::from_millis(80), 10, &mb, 2);
+    let repaired = open_line(Duration::from_millis(80), 10, counts(&mb), 2);
     assert!(repaired.contains("repaired (2 fixes)"), "{repaired}");
     assert!(!repaired.contains("not repaired"), "{repaired}");
 }

@@ -54,7 +54,10 @@ mod newer_account_tests;
 pub mod offline;
 #[cfg(test)]
 mod offline_tests;
+#[cfg(test)]
+mod opened_file_tests;
 pub mod people;
+pub mod people_merge;
 #[cfg(test)]
 mod quote_tests;
 pub mod remote;
@@ -102,6 +105,7 @@ pub fn registry() -> Registry {
     v.extend(calendar_settings::specs());
     v.extend(zones::specs());
     v.extend(people::specs());
+    v.extend(people_merge::specs());
     v.extend(tasks::specs());
     v.extend(rules::specs());
     v.extend(category::specs());
@@ -293,12 +297,12 @@ pub(crate) fn source(v: &Value) -> Result<(String, Vec<u8>), CmdError> {
     let path = p::req_str(v, "path")?;
     #[cfg(not(target_arch = "wasm32"))]
     {
-        let meta = std::fs::metadata(path).map_err(|e| fail(format!("{path}: {e}")))?;
-        if meta.len() > crate::io::MAX_FILE {
-            return Err(failed!("{path} is larger than {mb} MB", path, mb = crate::io::MAX_FILE >> 20));
+        // Opened once, checked through that handle, read from it (`io::read_regular_file`).
+        match crate::io::read_regular_file(std::path::Path::new(path)) {
+            Ok(bytes) => Ok((name, bytes)),
+            Err(crate::io::ReadError::TooLarge) => Err(failed!("{path} is larger than {mb} MB", path, mb = crate::io::MAX_FILE >> 20)),
+            Err(e) => Err(fail(format!("{path}: {e}"))),
         }
-        let bytes = std::fs::read(path).map_err(|e| fail(format!("{path}: {e}")))?;
-        Ok((name, bytes))
     }
     #[cfg(target_arch = "wasm32")]
     {

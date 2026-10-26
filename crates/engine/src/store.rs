@@ -1193,7 +1193,9 @@ fn report(show: &std::path::Display<'_>, dir: &Path, filled: &Filled) {
 /// one of a form a newer MailCraft writes is an error that says so.
 fn is_index(file: &Path) -> Result<bool, String> {
     let mut head = [0u8; 16];
-    let mut f = fs::File::open(file).map_err(|e| e.to_string())?;
+    // (Without waiting, and only a regular file: a pipe put where a mailbox was named can't hold
+    // the window, `io::regular_file`; so for every open of the file here.)
+    let mut f = crate::io::regular_file(file).map_err(|e| e.to_string())?;
     let got = index::fill(&mut f, &mut head).map_err(|e| e.to_string())?;
     let head = head.get(..got).unwrap_or(&[]);
     if head == crate::io::INDEX_MAGIC {
@@ -1219,7 +1221,8 @@ pub fn open_with(path: &Path, progress: &OpenProgress) -> Result<Opened, String>
     let (opened, read_now) = open_file(path, progress)?;
     // (What was read ahead was logged when it was read.)
     if read_now {
-        log::info!("{}", open_line(started.elapsed(), opened.bytes, &opened.mailbox, opened.repaired));
+        let line = open_line(started.elapsed(), opened.bytes, counts(&opened.mailbox), opened.repaired);
+        log::info!("{line}");
     }
     Ok(opened)
 }
@@ -1227,15 +1230,15 @@ pub fn open_with(path: &Path, progress: &OpenProgress) -> Result<Opened, String>
 /// What an open is logged as: how long it took, how many bytes the file has, how many messages,
 /// folders and accounts came of it and whether anything was put right. Counts only: nothing of
 /// the mail, its people, its folders' names or where the file is.
-fn open_line(took: Duration, bytes: u64, mailbox: &Mailbox, repaired: usize) -> String {
-    let repaired = if repaired == 0 { "not repaired".to_string() } else { format!("repaired ({repaired} fixes)") };
-    format!(
-        "opened a mailbox in {:.2} s: {bytes} bytes, {} messages, {} folders, {} accounts, {repaired}",
-        took.as_secs_f64(),
-        mailbox.messages.len(),
-        mailbox.folders.len(),
-        mailbox.accounts.len()
-    )
+/// It takes numbers alone, worked out by the caller, so that nothing of the mailbox can reach it.
+fn open_line(took: Duration, bytes: u64, [m, f, a]: [usize; 3], fixes: usize) -> String {
+    let fixed = if fixes == 0 { "not repaired".to_string() } else { format!("repaired ({fixes} fixes)") };
+    format!("opened a mailbox in {:.2} s: {bytes} bytes, {m} messages, {f} folders, {a} accounts, {fixed}", took.as_secs_f64())
+}
+
+/// How many messages, folders and accounts `mailbox` has, for [`open_line`].
+fn counts(mailbox: &Mailbox) -> [usize; 3] {
+    [mailbox.messages.len(), mailbox.folders.len(), mailbox.accounts.len()]
 }
 
 /// Read the mailbox file at `path` ahead of its being opened (File › Open in the window, #519):
@@ -1253,7 +1256,8 @@ pub fn open_ahead(path: &Path, progress: &OpenProgress) -> Result<(), String> {
     let started = Instant::now();
     let (opened, read_now) = open_locked(&mut st, path, progress)?;
     if read_now {
-        log::info!("{}", open_line(started.elapsed(), opened.bytes, &opened.mailbox, opened.repaired));
+        let line = open_line(started.elapsed(), opened.bytes, counts(&opened.mailbox), opened.repaired);
+        log::info!("{line}");
     }
     #[cfg(test)]
     read_ahead_hook(path);
@@ -1331,7 +1335,7 @@ fn open_file(path: &Path, progress: &OpenProgress) -> Result<(Opened, bool), Str
 fn open_locked(st: &mut State, path: &Path, progress: &OpenProgress) -> Result<(Opened, bool), String> {
     let show = path.display();
     let file = resolve(path);
-    let len = fs::metadata(&file).map_err(|e| format!("{show}: {e}"))?.len();
+    let len = crate::io::regular_file(&file).and_then(|f| f.metadata().map_err(crate::io::ReadError::Io)).map_err(|e| format!("{show}: {e}"))?.len();
     // Read ahead, and the file is still what was read then: that is the mailbox.
     if let Some((ahead, stamp)) = st.ahead.take()
         && stamp.still(&file)
@@ -1356,9 +1360,13 @@ fn open_locked(st: &mut State, path: &Path, progress: &OpenProgress) -> Result<(
     if len > MAX_FILE {
         return Err(format!("{show} is larger than {} MB", MAX_FILE >> 20));
     }
+    // (Read as `io::read_regular_file` does, its bytes counted.)
+    let f = crate::io::regular_file(&file).map_err(|e| format!("{show}: {e}"))?;
     let mut bytes = Vec::with_capacity(usize::try_from(len).unwrap_or(0));
-    let f = fs::File::open(&file).map_err(|e| format!("{show}: {e}"))?;
-    Counted { inner: f, progress }.read_to_end(&mut bytes).map_err(|e| format!("{show}: {e}"))?;
+    Counted { inner: f.take(MAX_FILE.saturating_add(1)), progress }.read_to_end(&mut bytes).map_err(|e| format!("{show}: {e}"))?;
+    if u64::try_from(bytes.len()).map_or(true, |n| n > MAX_FILE) {
+        return Err(format!("{show} is larger than {} MB", MAX_FILE >> 20));
+    }
     let mut mailbox: Mailbox =
         mailcraft_model::from_json(&bytes, max_json_items()).map_err(|e| format!("{show}: this isn't a MailCraft mailbox ({e})"))?;
     let version = mailbox.version;
@@ -1427,7 +1435,7 @@ fn open_index(st: &mut State, file: &Path, len: u64, progress: &OpenProgress) ->
     if len > MAX_INDEX {
         return Err(format!("the mailbox file is larger than {} GB", MAX_INDEX >> 30));
     }
-    let f = fs::File::open(file).map_err(|e| e.to_string())?;
+    let f = crate::io::regular_file(file).map_err(|e| e.to_string())?;
     let mut summed = Summed::new(std::io::BufReader::with_capacity(1 << 20, Counted { inner: f, progress }));
     let replayed = index::replay(&mut summed, len)?;
     // What its bytes are, when all of them were read.

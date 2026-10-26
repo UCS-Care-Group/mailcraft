@@ -81,6 +81,7 @@ mod list_keys_tests;
 pub mod mail_view;
 mod meeting_dialogs;
 pub mod menubar;
+mod merge_contacts;
 pub mod nav;
 #[cfg(test)]
 mod on_top_tests;
@@ -1088,6 +1089,10 @@ pub struct MailApp {
     pub ui: UiState,
     pub services: Services,
     pub dialog: Option<dialogs::Dialog>,
+    /// The contacts picked together in the People list with Ctrl (⌘ on a Mac) and a click, the
+    /// selected one among them; empty when one contact alone is selected. The window's own: a
+    /// command is given the ids (Merge Contacts…, #506).
+    pub people_picked: Vec<Id>,
     pub status_msg: Option<(String, f64)>,
     /// macOS: the window has no title bar; leave room for the traffic lights.
     pub integrated_titlebar: bool,
@@ -1324,6 +1329,9 @@ pub struct MailApp {
     pub(crate) file_dialog: Option<files::PendingDialog>,
     /// Web: what the file the picker will deliver is for.
     pub(crate) pending_open: Option<String>,
+    /// Calendar and contact files the system asked MailCraft to open, each waiting to be asked
+    /// about ([`files::ask_next`]).
+    pub(crate) opened_waiting: std::collections::VecDeque<String>,
     /// The time zone the calendar was shown in when the window was last laid out: what the
     /// appointments that stand open were read by ([`MailApp::follow_zone`]).
     shown_zone: Option<mailcraft_time::Zone>,
@@ -1394,6 +1402,7 @@ impl MailApp {
             ui: UiState::default(),
             services,
             dialog: None,
+            people_picked: Vec::new(),
             status_msg: None,
             integrated_titlebar: false,
             search_text: String::new(),
@@ -1497,6 +1506,7 @@ impl MailApp {
             ctx: None,
             file_dialog: None,
             pending_open: None,
+            opened_waiting: Default::default(),
             hit: Default::default(),
             reminders: Default::default(),
             sync_problems: Vec::new(),
@@ -3416,6 +3426,30 @@ impl MailApp {
         files::dropped_path(self, path);
     }
 
+    /// Open what the system handed MailCraft (the command line, a later start, the Finder): a
+    /// `mailto:` link starts a new message, a message file opens read-only in a window of its own
+    /// (kept in the local folder Imported, once: `file.import`'s `opened`), a calendar or contact file is imported only
+    /// once the owner says so, and a mailbox or a folder of mail as [`open_path`](Self::open_path).
+    pub fn open_from_system(&mut self, what: &str) {
+        // Handed over while the mailbox opens: opened once it is.
+        if opening::queue(self, what) {
+            return;
+        }
+        files::from_system(self, what);
+    }
+
+    /// `n` things the system handed over were no mail link and no file MailCraft opens, and were
+    /// left alone: the status bar says so.
+    pub fn note_left_alone(&mut self, n: usize) {
+        if n > 0 {
+            self.status(tln!(
+                n,
+                "MailCraft was started with {n} thing that isn't a mail link or a file it opens: it was left alone",
+                "MailCraft was started with {n} things that aren't mail links or files it opens: they were left alone"
+            ));
+        }
+    }
+
     pub fn status(&mut self, s: impl Into<String>) {
         self.status_msg = Some((s.into(), now_ms()));
     }
@@ -3577,6 +3611,7 @@ impl MailApp {
         let _ = files::poll(self);
         files::drain_inbox(self);
         opening::poll_ahead(self, ctx);
+        files::ask_next(self);
         self.autosave_tick(ctx);
         self.draft_autosave_tick(ctx);
         self.collect_screenshots();

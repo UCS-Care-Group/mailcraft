@@ -56,6 +56,9 @@ rustls = { version = "0.23", default-features = false, features = ["ring", "std"
 rustls-platform-verifier = { version = "0.7.1", default-features = false }
 # SHA-256 and random bytes for the OAuth sign-in (already in the tree: rustls runs on it).
 ring = "0.17"
+# The flag that opens a file without waiting (`O_NONBLOCK`), so that a pipe put where a file was
+# named can't hold the window (#505). Constants only (already in the tree).
+libc = "0.2"
 # gzip and deflate, for a picture a web server sends packed (already in the tree: the PNG decoder
 # runs on it); the backend written in Rust.
 flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
