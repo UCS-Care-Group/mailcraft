@@ -1817,16 +1817,10 @@ msgid "Clipboard"
 msgstr "Klembord"
 
 #. interface, ribbon
-#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/sync_panel.rs crates/ui-egui/src/tasks_view.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/sync_panel.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Close"
 msgstr "Sluiten"
-
-#. interface
-#: crates/ui-egui/src/compose.rs
-#, fuzzy
-msgid "Close (the draft stays as last saved)"
-msgstr "Sluiten (het concept blijft zoals het laatst is opgeslagen)"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -13438,6 +13432,10 @@ msgstr "{why}, waardoor aanmeldingen niet worden onthouden: MailCraft vraagt het
 #, fuzzy
 msgid "{why}. {n} changes made in it here wait on this computer."
 msgstr "{why}. {n} wijzigingen die hierin zijn gemaakt, wachten op deze computer."
+
+#, fuzzy
+#~ msgid "Close (the draft stays as last saved)"
+#~ msgstr "Sluiten (het concept blijft zoals het laatst is opgeslagen)"
 
 #, fuzzy
 #~ msgid "Its messages, attachments, settings and remembered sign-in go with it, and so do the calendar, contacts and working hours that came from its server."

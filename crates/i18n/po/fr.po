@@ -1790,16 +1790,10 @@ msgid "Clipboard"
 msgstr "Presse-papiers"
 
 #. interface, ribbon
-#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/sync_panel.rs crates/ui-egui/src/tasks_view.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/sync_panel.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Close"
 msgstr "Fermer"
-
-#. interface
-#: crates/ui-egui/src/compose.rs
-#, fuzzy
-msgid "Close (the draft stays as last saved)"
-msgstr "Fermer (le brouillon reste tel qu'enregistré la dernière fois)"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -13233,6 +13227,10 @@ msgstr "{why} ; les connexions ne sont donc pas mémorisées : MailCraft les
 #, fuzzy
 msgid "{why}. {n} changes made in it here wait on this computer."
 msgstr "{why}. {n} modifications faites ici attendent sur cet ordinateur."
+
+#, fuzzy
+#~ msgid "Close (the draft stays as last saved)"
+#~ msgstr "Fermer (le brouillon reste tel qu'enregistré la dernière fois)"
 
 #, fuzzy
 #~ msgid "Its messages, attachments, settings and remembered sign-in go with it, and so do the calendar, contacts and working hours that came from its server."

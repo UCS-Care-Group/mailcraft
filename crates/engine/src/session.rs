@@ -1754,6 +1754,10 @@ impl Session {
     }
 
     /// Run a command by id. A command that fails, or panics, leaves the mailbox as it was.
+    ///
+    /// A command that leaves a message being written with changes that aren't saved
+    /// (`cmd::compose::saves_first`, #442) saves it to Drafts first, as a Save Draft step of its
+    /// own; when the command then fails, that Save Draft step stays behind, and the draft with it.
     pub fn run(&mut self, id: &str, params: &Value) -> Result<Value, CmdError> {
         let reg = self.registry.clone();
         let Some(spec) = reg.get(id) else { return Err(CmdError::Unknown(id.to_string())) };
@@ -1763,6 +1767,11 @@ impl Session {
             if !named {
                 return Err(CmdError::Disabled(reason.to_string()));
             }
+        }
+        // A message being written isn't let go of with what isn't saved of it (#442): it goes to
+        // Drafts first, in a step of its own, and a save that fails stops here.
+        if crate::cmd::compose::saves_first(self, id, params) {
+            self.run("compose.saveDraft", &Value::Null)?;
         }
         // Undo and redo manage the history themselves.
         let history = spec.mutates && !matches!(id, "edit.undo" | "edit.redo");

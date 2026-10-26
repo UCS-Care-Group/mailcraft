@@ -71,6 +71,8 @@ pub mod keys;
 #[path = "late_work_tests.rs"]
 mod late_work_tests;
 #[cfg(test)]
+mod leave_message_tests;
+#[cfg(test)]
 mod list_keys_tests;
 pub mod mail_view;
 mod meeting_dialogs;
@@ -1552,6 +1554,11 @@ impl MailApp {
     pub fn run(&mut self, id: &str, params: Value) -> Result<Value, String> {
         // (Whether one occurrence or the series was meant when a recurring item was opened.)
         let params = dialogs::as_opened(self, id, params);
+        // A message being written isn't let go of without a word (#442).
+        if dialogs::leaves_message(self, id, &params) {
+            self.dialog = Some(dialogs::leaving(id, params));
+            return Ok(json!({"pending": "discardDraft"}));
+        }
         if let Some(name) = dialogs::input_dialog(id, &params)
             && self.enabled(id)
         {
@@ -3903,7 +3910,7 @@ impl MailApp {
         // whatever the saver is at by then.
         let (ready, anyway) = (std::mem::take(&mut self.close_ready), std::mem::take(&mut self.close_anyway));
         if self.session.compose.as_ref().is_some_and(|c| c.dirty) {
-            self.dialog = dialogs::Dialog::open("discardDraft", self, &json!({"then": "quit"}));
+            self.dialog = Some(dialogs::leaving("quit", json!({})));
             return false;
         }
         // An appointment window with unsaved changes asks about them first.
