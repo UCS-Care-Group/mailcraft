@@ -3106,6 +3106,11 @@ msgstr "Maak het bericht dat u schrijft eerst af, of sluit het."
 msgid "Finish signing in first (your browser is waiting)"
 msgstr "Rond eerst het aanmelden af (uw browser wacht)"
 
+#. command label
+#: crates/engine/src/cmd/mail.rs
+msgid "First Message"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -3622,6 +3627,11 @@ msgstr "Verberg MailCraft"
 #, fuzzy
 msgid "Hide This Copy"
 msgstr "Deze kopie verbergen"
+
+#. interface
+#: crates/ui-egui/src/secret_field.rs
+msgid "Hide password"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/open_shared.rs
@@ -4216,6 +4226,11 @@ msgstr "Grotere berichten worden gedownload wanneer u ze opent. Minder kiezen ve
 #, fuzzy
 msgid "Largest on top"
 msgstr "Grootste bovenaan"
+
+#. command label
+#: crates/engine/src/cmd/mail.rs
+msgid "Last Message"
+msgstr ""
 
 #. name
 #: crates/time/src/lib.rs
@@ -6287,6 +6302,16 @@ msgstr "Overlappen"
 msgid "PM"
 msgstr "p.m."
 
+#. command label
+#: crates/engine/src/cmd/mail.rs
+msgid "Page Down"
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/mail.rs
+msgid "Page Up"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/attachment_open.rs
 #, fuzzy
@@ -8034,6 +8059,11 @@ msgstr "Weergeven in groepen"
 #, fuzzy
 msgid "Show in the time bar"
 msgstr "Weergeven in de tijdbalk"
+
+#. interface
+#: crates/ui-egui/src/secret_field.rs
+msgid "Show password"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/sender_images.rs

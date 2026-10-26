@@ -40,6 +40,8 @@ mod jmap_down;
 pub mod jmap_mail;
 #[cfg(test)]
 mod jmap_sending_tests;
+#[cfg(test)]
+mod keyboard_selection_tests;
 pub mod mail;
 #[cfg(test)]
 mod newer_account_tests;

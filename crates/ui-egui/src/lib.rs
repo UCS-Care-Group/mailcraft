@@ -70,6 +70,8 @@ pub mod keys;
 #[cfg(test)]
 #[path = "late_work_tests.rs"]
 mod late_work_tests;
+#[cfg(test)]
+mod list_keys_tests;
 pub mod mail_view;
 mod meeting_dialogs;
 pub mod menubar;
@@ -87,6 +89,9 @@ pub mod ribbon;
 pub mod scheduling;
 mod search_pills;
 mod search_suggest;
+mod secret_field;
+#[cfg(test)]
+mod secret_field_tests;
 #[cfg(test)]
 #[path = "secrets_bound_tests.rs"]
 mod secrets_bound_tests;
@@ -1073,6 +1078,9 @@ pub struct MailApp {
     pub(crate) input_trail: std::collections::VecDeque<String>,
     /// The message list should scroll to the selected row (after a keyboard move).
     pub(crate) reveal_selection: bool,
+    /// The rows of the message list that fit in it as last drawn: what Page Up and Page Down move
+    /// by (#426).
+    pub(crate) list_page_rows: usize,
     /// Passwords typed this session, per account. Never saved.
     passwords: std::collections::HashMap<Id, String>,
     /// [`mailcraft_engine::Session::openings`] when the secrets in memory were last checked
@@ -1229,6 +1237,12 @@ pub struct MailApp {
     /// is over it, as a Mac's do: the message list keeps no lane for its bar and has no arrows.
     /// On a Mac only; tests and screenshots turn it on anywhere.
     pub overlay_scroll_bars: bool,
+    /// The window is drawn for headless screenshots (`examples/ui_shot`): a password shown with
+    /// its eye is drawn as dots all the same, as while `ui.screenshot` waits for a frame (#438).
+    pub headless_shots: bool,
+    /// This frame's input came from the control channel (`synthetic`): a password's eye doesn't
+    /// answer it (#438).
+    driven: bool,
     /// When the last round that started by itself began (milliseconds; 0 before the first).
     last_auto_sync: f64,
     /// Accounts waiting their turn in a Send/Receive round, and whether nobody asked for it.
@@ -1353,6 +1367,7 @@ impl MailApp {
             signature_note: None,
             input_trail: std::collections::VecDeque::new(),
             reveal_selection: false,
+            list_page_rows: 10,
             passwords: Default::default(),
             secrets_opening: 0,
             unconfirmed: false,
@@ -1422,6 +1437,8 @@ impl MailApp {
             graph_switch_waiting_shown: Default::default(),
             auto_sync: true,
             overlay_scroll_bars: cfg!(target_os = "macos"),
+            headless_shots: false,
+            driven: false,
             last_auto_sync: 0.0,
             sync_queue: Default::default(),
             inbox_queue: Default::default(),
@@ -1604,7 +1621,7 @@ impl MailApp {
                 }
             }
         }
-        if matches!(id, "mail.next" | "mail.previous") {
+        if keys::MOVES_IN_LIST.contains(&id) {
             self.reveal_selection = true;
         }
         // What was done to the text being written leaves the keyboard in it.
@@ -3766,8 +3783,17 @@ impl MailApp {
         })
     }
 
+    /// What a password's eye has to know of the window (#438): whether it is being captured
+    /// (a screenshot is waited for, or every frame is one), and whether this frame's input came
+    /// from the control channel.
+    pub(crate) fn secret_watch(&self) -> secret_field::Watch {
+        let captured = self.headless_shots || !self.queued_shots.is_empty() || !self.pending_shots.is_empty();
+        secret_field::Watch { captured, driven: self.driven }
+    }
+
     /// Inject synthetic input events from the control channel (one pointer event per frame).
     pub fn raw_input_hook(&mut self, raw: &mut egui::RawInput) {
+        self.driven = !self.synthetic.is_empty();
         if self.synthetic.is_empty() {
             return;
         }

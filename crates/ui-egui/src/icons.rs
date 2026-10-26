@@ -1099,6 +1099,16 @@ pub fn paint(p: &Painter, r: Rect, name: &str, c: Color32, accent: Color32) {
             pen.line(&[(3.5, 10.0), (16.5, 10.0)]);
             pen.line(&[(3.5, 14.5), (11.5, 14.5)]);
         }
+        // A password's eye (#438): open, a click shows the password; struck through, it hides
+        // it again.
+        "showPassword" | "hidePassword" => {
+            let lids = pen.path().m(&pen, 2.5, 10.0).c(&pen, (5.5, 4.5), (14.5, 4.5), 17.5, 10.0).c(&pen, (14.5, 15.5), (5.5, 15.5), 2.5, 10.0);
+            lids.draw_closed(&pen, c);
+            pen.circle(10.0, 10.0, 2.5, c);
+            if name == "hidePassword" {
+                pen.line(&[(3.5, 16.5), (16.5, 3.5)]);
+            }
+        }
         // Anything else: a lettered tile, so a missing drawing is visible rather than empty.
         _ => {
             pen.rect(3.5, 3.5, 16.5, 16.5, c);
@@ -1288,4 +1298,6 @@ pub const NAMES: &[&str] = &[
     "formatPlain",
     "increaseIndent",
     "decreaseIndent",
+    "showPassword",
+    "hidePassword",
 ];

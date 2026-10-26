@@ -97,6 +97,23 @@ pub fn combo(m: Modifiers, key: &str) -> String {
     s
 }
 
+/// The commands that move the focus in the message list (#426): the list scrolls to the row they
+/// move to, and with Shift they extend the selection.
+pub const MOVES_IN_LIST: &[&str] = &["mail.next", "mail.previous", "mail.first", "mail.last", "mail.pageDown", "mail.pageUp"];
+
+/// What a key gives the command it runs: with Shift, a move in the message list extends the
+/// selection, and a page is the rows that fit in the list.
+pub fn key_params(app: &MailApp, id: &str, m: Modifiers) -> serde_json::Value {
+    let mut p = serde_json::Map::new();
+    if m.shift && MOVES_IN_LIST.contains(&id) {
+        p.insert("extend".into(), json!(true));
+    }
+    if matches!(id, "mail.pageDown" | "mail.pageUp") {
+        p.insert("rows".into(), json!(app.list_page_rows.max(1)));
+    }
+    serde_json::Value::Object(p)
+}
+
 /// The module a command belongs to, when it only makes sense there (Delete deletes a message in
 /// Mail, a contact in People, a task in Tasks).
 fn module_of(id: &str) -> Option<Module> {
@@ -261,7 +278,8 @@ pub fn global_shortcuts(app: &mut MailApp, ctx: &egui::Context) {
             continue;
         }
         if let Some(id) = resolve(app, &k).and_then(|id| window_command(app, id)) {
-            let _ = app.run(id, json!({}));
+            let params = key_params(app, id, modifiers);
+            let _ = app.run(id, params);
         }
     }
 }
