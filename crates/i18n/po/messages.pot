@@ -158,6 +158,11 @@ msgstr ""
 msgid "3 months"
 msgstr ""
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "3D Models"
+msgstr ""
+
 #. interface, name
 #: crates/model/src/offline.rs crates/ui-egui/src/keep_offline.rs
 msgid "5 years"
@@ -2098,6 +2103,11 @@ msgstr ""
 msgid "Diagnostics copied. Nothing was sent."
 msgstr ""
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Diagram"
+msgstr ""
+
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/ribbon.rs
 msgid "Discard"
@@ -2276,6 +2286,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/graph_switch.rs
 msgid "Drafts you haven't sent go to your Drafts on the server. Folders and messages that are only on this computer stay on this computer, in a folder called \"Kept from {account}\". Your folders in Favorites stay there."
+msgstr ""
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Drop Cap"
 msgstr ""
 
 #. interface
@@ -3442,6 +3457,11 @@ msgstr ""
 #. command label, ribbon
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
 msgid "Italic"
+msgstr ""
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Item"
 msgstr ""
 
 #. interface
@@ -4948,6 +4968,11 @@ msgstr ""
 msgid "OK"
 msgstr ""
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Object"
+msgstr ""
+
 #. date and time
 #: crates/i18n/src/date.rs
 msgid "Oct"
@@ -5310,11 +5335,6 @@ msgstr ""
 msgid "Outgoing mail (SMTP)"
 msgstr ""
 
-#. ribbon
-#: crates/ui-egui/src/ribbon.rs
-msgid "Outlook Item"
-msgstr ""
-
 #. command label
 #: crates/ui-egui/src/lib.rs
 msgid "Outlook's Favorites"
@@ -5638,11 +5658,6 @@ msgstr ""
 #. ribbon location
 #: crates/engine/src/cmd/edit.rs
 msgid "Quick Access"
-msgstr ""
-
-#. ribbon
-#: crates/ui-egui/src/ribbon.rs
-msgid "Quick Parts"
 msgstr ""
 
 #. interface
@@ -6222,6 +6237,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "Save out"
+msgstr ""
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Saved Text"
 msgstr ""
 
 #. interface
@@ -7491,6 +7511,11 @@ msgstr ""
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid "Text Box"
+msgstr ""
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Text Effects"
 msgstr ""
 
 #. interface
@@ -10946,6 +10971,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
 msgid "{name} tentatively accepted this meeting."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+msgid "{name}, pending development"
 msgstr ""
 
 #. what a command says

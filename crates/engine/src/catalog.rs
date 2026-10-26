@@ -186,17 +186,25 @@ Message|Send|Discard|compose.discard
 Message|Send|Close|compose.close
 Message|Send|Edit Message Fields|compose.set
 Message|Send|Open Draft|mail.editDraft
+Insert|Include|Item|insert.outlookItem
+Insert|Include|Business Card|insert.businessCard
+Insert|Include|Calendar|insert.calendar
 Insert|Tables|Table|insert.table
 Insert|Illustrations|Pictures|insert.picture
 Insert|Illustrations|Shapes|insert.shape
 Insert|Illustrations|Icons|insert.icon
+Insert|Illustrations|3D Models|insert.models3d
+Insert|Illustrations|Diagram|insert.diagram
 Insert|Illustrations|Chart|insert.chart
 Insert|Illustrations|Screenshot|insert.screenshot
 Insert|Links|Link|compose.link
 Insert|Links|Bookmark|insert.bookmark
 Insert|Text|Text Box|insert.textBox
 Insert|Text|Quick Parts|insert.quickParts
+Insert|Text|Text Effects|insert.textEffects
+Insert|Text|Drop Cap|insert.dropCap
 Insert|Text|Date & Time|insert.dateTime
+Insert|Text|Object|insert.object
 Insert|Symbols|Symbol|insert.symbol
 Insert|Symbols|Equation|insert.equation
 Insert|Symbols|Horizontal Line|insert.rule

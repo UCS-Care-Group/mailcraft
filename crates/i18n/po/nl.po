@@ -188,6 +188,11 @@ msgstr "3 dagen"
 msgid "3 months"
 msgstr "3 maanden"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "3D Models"
+msgstr ""
+
 #. interface, name
 #: crates/model/src/offline.rs crates/ui-egui/src/keep_offline.rs
 #, fuzzy
@@ -2510,6 +2515,11 @@ msgstr "Details"
 msgid "Diagnostics copied. Nothing was sent."
 msgstr "Diagnose gekopieerd. Er is niets verzonden."
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Diagram"
+msgstr ""
+
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -2724,6 +2734,11 @@ msgstr "Concepten"
 #, fuzzy
 msgid "Drafts you haven't sent go to your Drafts on the server. Folders and messages that are only on this computer stay on this computer, in a folder called \"Kept from {account}\". Your folders in Favorites stay there."
 msgstr "Concepten die u nog niet hebt verzonden, gaan naar uw Concepten op de server. Mappen en berichten die alleen op deze computer staan, blijven op deze computer, in een map met de naam „Bewaard van {account}”. Uw mappen in Favorieten blijven daar."
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Drop Cap"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/tasks_view.rs
@@ -4125,6 +4140,11 @@ msgstr "Het is hetzelfde voor een geïnstalleerde en een draagbare kopie. MailCr
 #, fuzzy
 msgid "Italic"
 msgstr "Cursief"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Item"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -5941,6 +5961,11 @@ msgstr "Nummering"
 msgid "OK"
 msgstr "OK"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Object"
+msgstr ""
+
 #. date and time
 #: crates/i18n/src/date.rs
 #, fuzzy
@@ -6374,11 +6399,6 @@ msgstr "Postvak UIT"
 msgid "Outgoing mail (SMTP)"
 msgstr "Uitgaande e-mail (SMTP)"
 
-#. ribbon
-#: crates/ui-egui/src/ribbon.rs
-msgid "Outlook Item"
-msgstr ""
-
 #. command label
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
@@ -6762,11 +6782,6 @@ msgstr "Plaats ze in de agenda van uw account, waar Outlook en uw andere apparat
 #, fuzzy
 msgid "Quick Access"
 msgstr "Snelle toegang"
-
-#. ribbon
-#: crates/ui-egui/src/ribbon.rs
-msgid "Quick Parts"
-msgstr ""
 
 #. interface
 #: crates/ui-egui/src/menubar.rs
@@ -7479,6 +7494,11 @@ msgstr "Concept opslaan"
 #, fuzzy
 msgid "Save out"
 msgstr "Wegschrijven"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Saved Text"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs
@@ -8981,6 +9001,11 @@ msgstr ""
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid "Text Box"
+msgstr ""
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Text Effects"
 msgstr ""
 
 #. interface
@@ -13106,6 +13131,11 @@ msgstr "{name} heeft een agenda met u gedeeld. Die staat in uw agendalijst."
 #, fuzzy
 msgid "{name} tentatively accepted this meeting."
 msgstr "{name} heeft deze vergadering voorlopig geaccepteerd."
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+msgid "{name}, pending development"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/io.rs

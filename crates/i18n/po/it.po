@@ -188,6 +188,11 @@ msgstr "3 giorni"
 msgid "3 months"
 msgstr "3 mesi"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "3D Models"
+msgstr ""
+
 #. interface, name
 #: crates/model/src/offline.rs crates/ui-egui/src/keep_offline.rs
 #, fuzzy
@@ -2479,6 +2484,11 @@ msgstr "Dettagli"
 msgid "Diagnostics copied. Nothing was sent."
 msgstr "Diagnostica copiata. Non è stato inviato nulla."
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Diagram"
+msgstr ""
+
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -2691,6 +2701,11 @@ msgstr "Bozze"
 #, fuzzy
 msgid "Drafts you haven't sent go to your Drafts on the server. Folders and messages that are only on this computer stay on this computer, in a folder called \"Kept from {account}\". Your folders in Favorites stay there."
 msgstr "Le bozze non inviate vanno nella cartella Bozze sul server. Le cartelle e i messaggi presenti solo su questo computer restano su questo computer, in una cartella denominata «Kept from {account}». Le cartelle nei Preferiti restano lì."
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Drop Cap"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/tasks_view.rs
@@ -4073,6 +4088,11 @@ msgstr ""
 #, fuzzy
 msgid "Italic"
 msgstr "Corsivo"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Item"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -5875,6 +5895,11 @@ msgstr "Elenco numerato"
 msgid "OK"
 msgstr "OK"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Object"
+msgstr ""
+
 #. date and time
 #: crates/i18n/src/date.rs
 #, fuzzy
@@ -6295,11 +6320,6 @@ msgstr "Posta in uscita"
 msgid "Outgoing mail (SMTP)"
 msgstr "Posta in uscita (SMTP)"
 
-#. ribbon
-#: crates/ui-egui/src/ribbon.rs
-msgid "Outlook Item"
-msgstr ""
-
 #. command label
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
@@ -6680,11 +6700,6 @@ msgstr "Li inserisce nel calendario dell'account, dove sono disponibili anche in
 #, fuzzy
 msgid "Quick Access"
 msgstr "Accesso rapido"
-
-#. ribbon
-#: crates/ui-egui/src/ribbon.rs
-msgid "Quick Parts"
-msgstr ""
 
 #. interface
 #: crates/ui-egui/src/menubar.rs
@@ -7384,6 +7399,11 @@ msgstr "Salva bozza"
 #, fuzzy
 msgid "Save out"
 msgstr "Salva ed esporta"
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Saved Text"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs
@@ -8865,6 +8885,11 @@ msgstr ""
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid "Text Box"
+msgstr ""
+
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Text Effects"
 msgstr ""
 
 #. interface
@@ -12903,6 +12928,11 @@ msgstr ""
 #, fuzzy
 msgid "{name} tentatively accepted this meeting."
 msgstr "{name} ha accettato questa riunione come provvisoria."
+
+#. interface
+#: crates/ui-egui/src/ribbon.rs
+msgid "{name}, pending development"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/io.rs

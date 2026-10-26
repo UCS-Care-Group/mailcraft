@@ -4,7 +4,7 @@
 //! being written, the dialogs they open, and what those do.
 
 use egui_kittest::Harness;
-use egui_kittest::kittest::Queryable;
+use egui_kittest::kittest::{NodeT, Queryable};
 use mailcraft_engine::Session;
 use serde_json::json;
 
@@ -104,7 +104,7 @@ fn ctrl_shift_g_counts_the_words() {
 fn the_rest_of_insert_and_review_is_pending() {
     let mut app = writing();
     for (tab, pending) in
-        [("Insert", ["Table", "Pictures", "Quick Parts", "Symbol"]), ("Review", ["Spelling & Grammar", "Thesaurus", "Translate", "Language"])]
+        [("Insert", ["Item", "Table", "Diagram", "Saved Text"]), ("Review", ["Spelling & Grammar", "Thesaurus", "Translate", "Language"])]
     {
         app.execute("ui.tab", json!({"tab": tab})).unwrap();
         let described = crate::ribbon::describe(&app);
@@ -116,6 +116,9 @@ fn the_rest_of_insert_and_review_is_pending() {
     let mut h = window(app);
     h.state_mut().execute("ui.ribbonMode", json!({"value": "classic"})).unwrap();
     h.run_steps(3);
+    // Named for a screen reader, and disabled.
+    let pending = h.get_by_label("Thesaurus, pending development");
+    assert!(pending.accesskit_node().is_disabled());
     let before = body(h.state());
     let rect = h.state().hit.rect("ribbon", crate::ribbon::hit_id("review.thesaurus")).unwrap();
     let pos = rect.center();

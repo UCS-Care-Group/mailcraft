@@ -674,7 +674,7 @@ fn insert() -> Tab {
             "Include",
             vec![
                 Item::big("attach", "Attach\nFile", "ui.attach", no()).at(0, 2),
-                Item::pending("insert.outlookItem", "Outlook Item", 0),
+                Item::pending("insert.outlookItem", "Item", 0),
                 Item::pending("insert.businessCard", "Business Card", 0),
                 Item::pending("insert.calendar", "Calendar", 0),
                 Item::big_menu("signature", "signature", "Signature", "Signature", Menu::Signature).at(0, 3),
@@ -687,6 +687,8 @@ fn insert() -> Tab {
                 Item::pending("insert.picture", "Pictures", 2),
                 Item::pending("insert.shape", "Shapes", 2),
                 Item::pending("insert.icon", "Icons", 2),
+                Item::pending("insert.models3d", "3D Models", 2),
+                Item::pending("insert.diagram", "Diagram", 2),
                 Item::pending("insert.chart", "Chart", 2),
                 Item::pending("insert.screenshot", "Screenshot", 2),
             ],
@@ -696,8 +698,11 @@ fn insert() -> Tab {
             "Text",
             vec![
                 Item::pending("insert.textBox", "Text Box", 4),
-                Item::pending("insert.quickParts", "Quick Parts", 4),
+                Item::pending("insert.quickParts", "Saved Text", 4),
+                Item::pending("insert.textEffects", "Text Effects", 4),
+                Item::pending("insert.dropCap", "Drop Cap", 4),
                 Item::big("dateTime", "Date &\nTime", "insert.dateTime", no()).at(4, 3),
+                Item::pending("insert.object", "Object", 4),
             ],
         ),
         g(
@@ -729,8 +734,12 @@ fn review() -> Tab {
     ])
 }
 
-/// What a control still to be built says when the pointer is on it.
+/// What a control still to be built says when the pointer is on it; a screen reader has it as a
+/// button that can't be used, "<name>, pending development". (The other controls of the ribbon
+/// have no name for it yet: tests that look for a menu's or a dialog's items by name count on that.)
 fn pending_tip(resp: egui::Response, item: &Item) -> egui::Response {
+    let name = crate::i18n::fmt(tl!("{name}, pending development"), &[("name", &item.name())]);
+    resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, false, name.clone()));
     resp.on_hover_ui(|ui| {
         ui.label(egui::RichText::new(item.name()).font(semibold(12.0)));
         ui.label(egui::RichText::new(tl!("Pending development")).small().weak());
@@ -1506,7 +1515,8 @@ fn simple_button(app: &mut MailApp, ui: &mut Ui, t: &Tokens, b: &Button<'_>, lab
     let on = item.command.as_ref().is_none_or(|(command, _)| app.enabled(command));
     let drop_rect = Rect::from_min_max(pos2(rect.max.x - DROP_W, rect.min.y), rect.max);
     let main_rect = if b.is_split() { Rect::from_min_max(rect.min, pos2(drop_rect.min.x, rect.max.y)) } else { rect };
-    let main = ui.interact(main_rect, id, Sense::click());
+    // (A control still to be built takes no clicks and no keyboard.)
+    let main = ui.interact(main_rect, id, if item.pending { Sense::hover() } else { Sense::click() });
     app.hit.add("ribbon", hit_id(item.key), main_rect);
     if item.pending {
         let icon = Rect::from_center_size(pos2(rect.min.x + PAD + ICON / 2.0, rect.center().y), vec2(ICON, ICON));
