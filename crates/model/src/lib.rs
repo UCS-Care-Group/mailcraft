@@ -12,6 +12,7 @@ mod address;
 mod calendar;
 mod contact;
 mod jmap_server;
+mod junk;
 mod load_limit;
 mod mailbox;
 mod message;
@@ -39,6 +40,7 @@ pub use calendar::{
 };
 pub use contact::{Contact, Labeled, PostalAddress};
 pub use jmap_server::JmapServer;
+pub use junk::{Added, JunkList, JunkLists, MAX_JUNK_ENTRIES, junk_entry};
 pub use load_limit::{MIN_ITEM_BYTES, from_json};
 pub use mailbox::{
     Account, AccountKind, AsWritten, BETWEEN_MAILBOXES, Category, Directory, DownloadInFull, FOLDERS_STAY_YET, Folder, FolderCounts, FolderKind,
@@ -122,6 +124,8 @@ pub(crate) mod b64 {
 
 #[cfg(test)]
 mod calendar_rights_tests;
+#[cfg(test)]
+mod junk_tests;
 #[cfg(test)]
 mod mailbox_tests;
 #[cfg(test)]

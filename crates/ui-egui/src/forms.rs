@@ -27,6 +27,8 @@ pub enum Form {
     Categories(Box<categories::CategoriesForm>),
     /// The mail rules, and a builder for a new one.
     Rules(Box<rules::RulesForm>),
+    /// Junk E-mail Options: the Safe and Blocked Senders lists (#504).
+    Junk(Box<junk::JunkForm>),
 }
 
 impl Form {
@@ -46,6 +48,7 @@ impl Form {
             "account" => Form::Account(Box::new(account::AccountForm::open(app, params)?)),
             "categories" => Form::Categories(Box::new(categories::CategoriesForm::new(s))),
             "rules" => Form::Rules(Box::new(rules::RulesForm::new(s))),
+            "junkOptions" => Form::Junk(Box::new(junk::JunkForm::new(params))),
             _ => return None,
         })
     }
@@ -59,6 +62,7 @@ impl Form {
             Form::Account(_) => "account",
             Form::Categories(_) => "categories",
             Form::Rules(_) => "rules",
+            Form::Junk(_) => "junkOptions",
         }
     }
 
@@ -71,6 +75,7 @@ impl Form {
             Form::Account(f) => f.title(),
             Form::Categories(_) => tl!("Categories").to_string(),
             Form::Rules(_) => tl!("Rules").to_string(),
+            Form::Junk(_) => tl!("Junk E-mail Options").to_string(),
         }
     }
 
@@ -82,6 +87,7 @@ impl Form {
             Form::Account(_) => crate::account_setup::WIDTH,
             Form::Categories(_) => 420.0,
             Form::Rules(_) => 620.0,
+            Form::Junk(_) => junk::WIDTH,
         }
     }
 
@@ -94,6 +100,7 @@ impl Form {
             Form::Account(f) => f.show(app, ui),
             Form::Categories(f) => f.show(app, ui),
             Form::Rules(f) => f.show(app, ui),
+            Form::Junk(f) => f.show(app, ui),
         }
     }
 
@@ -5425,6 +5432,10 @@ mod categories {
         }
     }
 }
+
+mod junk;
+#[cfg(test)]
+mod junk_tests;
 
 /// The Rules dialog: the rules, Run Rules Now, and a builder for a new rule.
 mod rules {

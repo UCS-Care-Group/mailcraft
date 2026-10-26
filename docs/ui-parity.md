@@ -154,3 +154,4 @@ be shown when they can't.
 | 2026-10-26 | minor | #438: an eye at the right end of the password field in Add Account, Account Settings and Sign In shows the password until the next click, page or close; never copied, cut, read out or in a screenshot |
 | 2026-10-26 | minor | #428: the selected messages stay in the Unread or Flagged tab, or a search, while they are selected there, and the keys that move in the list go on from them |
 | 2026-10-26 | minor | #493: the search scope menu: Current Folder, Subfolders, Current Mailbox and All Mailboxes; a search of more than one folder names each result's folder under its time, and More results on the server asks only the account in view for the first three |
+| 2026-10-26 | minor | #504: Home › Delete › Junk ▾ (Block Sender, Never Block Sender, Never Block Sender's Domain, Move to Junk or Not Junk, Junk E-mail Options…), also in a message's context menu; Junk E-mail Options with Safe Senders and Blocked Senders pages |

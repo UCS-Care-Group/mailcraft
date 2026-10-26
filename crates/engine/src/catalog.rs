@@ -59,6 +59,10 @@ Home|Delete|Ignore Conversation|mail.ignore
 Home|Delete|Clean Up Conversation|mail.cleanUp
 Home|Delete|Junk|mail.junk
 Home|Delete|Not Junk|mail.notJunk
+Home|Delete|Block Sender|junk.blockSender
+Home|Delete|Never Block Sender|junk.neverBlockSender
+Home|Delete|Never Block Sender's Domain|junk.neverBlockDomain
+Home|Delete|Junk E-mail Options|junk.list
 Home|Delete|Delete|mail.delete
 Home|Delete|Permanently Delete|mail.deletePermanently
 Home|Delete|Archive|mail.archive

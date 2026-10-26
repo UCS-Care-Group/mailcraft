@@ -130,6 +130,9 @@ pub fn take_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, page: &
             None => {
                 if let Ok(m) = mb.add_message(new_message(folder, &page.folder, there)) {
                     index.note(mb, account, &there.server.id, m);
+                    // By the Safe and Blocked Senders lists (#504): the move goes up as the
+                    // owner's own does (R3.3).
+                    mb.sort_junk(m);
                     down.new += 1;
                 }
             }

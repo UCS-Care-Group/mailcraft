@@ -33,7 +33,7 @@ pub enum Class {
     Accounts,
     /// Opens, replaces or saves the mailbox file.
     Mailbox,
-    /// Options, signatures, rules, picture download settings.
+    /// Options, signatures, rules, the Safe and Blocked Senders lists, picture download settings.
     Settings,
     /// Raw pointer and keyboard input into the window (anything, including Send). Never asked
     /// about: only `--allow input` lets it through.
@@ -134,6 +134,7 @@ const SAFE: &[&str] = &[
     "mail.pin",
     "mail.junk",
     "mail.notJunk",
+    "junk.list",
     "mail.findRelated",
     "mail.findFromSender",
     "mail.saveAttachment",
@@ -389,6 +390,12 @@ const SETTINGS: &[&str] = &[
     "rules.list",
     "rules.run",
     "rules.fromMessage",
+    // Junk E-mail Options (#504): what the lists send to Junk E-mail or let through.
+    "junk.blockSender",
+    "junk.neverBlockSender",
+    "junk.neverBlockDomain",
+    "junk.add",
+    "junk.remove",
     "signature.set",
     "signature.remove",
     "signature.rename",
@@ -834,7 +841,7 @@ pub fn describe(s: &Session, id: &str, params: &Value) -> String {
                 Some(Class::Accounts) => "the accounts",
                 Some(Class::Send) => "a change to a meeting or to a task in a shared list, which other people see",
                 Some(Class::Delete) => "contacts, events, tasks, calendars or categories that were deleted",
-                _ => "the rules or signatures",
+                _ => "the rules, signatures or Safe and Blocked Senders",
             };
             format!("{} {}, which also puts {what} back as they were", if redo { "redo" } else { "undo" }, quoted(label.unwrap_or("the last change")))
         }
@@ -852,6 +859,31 @@ pub fn describe(s: &Session, id: &str, params: &Value) -> String {
                 Some(r) => format!("{verb} the rule {}: {}", quoted(&r.name), rule_words(s, r)),
                 None => format!("{verb} a rule that isn't there"),
             }
+        }
+        "junk.blockSender" | "junk.neverBlockSender" | "junk.neverBlockDomain" => {
+            let ids = p::ids(params).unwrap_or_else(|| s.sel.messages.clone());
+            let domain = id == "junk.neverBlockDomain";
+            let mut who: Vec<String> = Vec::new();
+            for m in ids.iter().filter_map(|m| s.mailbox.message(*m)) {
+                let address = m.from.email.trim();
+                let entry = if domain { address.rsplit_once('@').map(|(_, d)| format!("@{d}")) } else { Some(address.to_string()) };
+                if let Some(e) = entry.as_deref().and_then(mailcraft_model::junk_entry)
+                    && !who.contains(&e)
+                {
+                    who.push(e);
+                }
+            }
+            let who = if who.is_empty() { "nobody (the message has no sender's address)".to_string() } else { some(&who, 12) };
+            if id == "junk.blockSender" {
+                format!("add {who} to the Blocked Senders, whose new mail goes to Junk E-mail, and move {} there", messages_text(s, &ids))
+            } else {
+                format!("add {who} to the Safe Senders, whose new mail is never treated as junk")
+            }
+        }
+        "junk.add" | "junk.remove" => {
+            let list = if st("list").eq_ignore_ascii_case("blocked") { "Blocked Senders" } else { "Safe Senders" };
+            let entry = mailcraft_model::junk_entry(st("entry")).unwrap_or_else(|| clip(st("entry"), 80));
+            if id == "junk.add" { format!("add {} to the {list}", quoted(&entry)) } else { format!("remove {} from the {list}", quoted(&entry)) }
         }
         "account.add" => {
             let to = crate::cmd::account::from_params(params)
