@@ -3071,6 +3071,11 @@ msgstr ""
 msgid "Finish signing in first (your browser is waiting)"
 msgstr "Termine primero de iniciar sesión (su navegador está esperando)"
 
+#. command label
+#: crates/engine/src/cmd/mail.rs
+msgid "First Message"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -4168,6 +4173,11 @@ msgstr "Los mensajes más grandes se descargan al abrirlos. Elegir menos no quit
 #, fuzzy
 msgid "Largest on top"
 msgstr "Más grandes arriba"
+
+#. command label
+#: crates/engine/src/cmd/mail.rs
+msgid "Last Message"
+msgstr ""
 
 #. name
 #: crates/time/src/lib.rs
@@ -6212,6 +6222,16 @@ msgstr "Superponer"
 #, fuzzy
 msgid "PM"
 msgstr "p. m."
+
+#. command label
+#: crates/engine/src/cmd/mail.rs
+msgid "Page Down"
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/mail.rs
+msgid "Page Up"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/attachment_open.rs

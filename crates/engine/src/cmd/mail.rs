@@ -6,7 +6,7 @@ use mailcraft_model::{FlagStatus, FolderKind, Id, Rgb};
 use serde_json::{Value, json};
 
 use super::{bad, deliver, done, fail, message_json, message_summary, needs_message, needs_movable, select_after_removal, targets};
-use crate::list::{listed, position, position_of};
+use crate::list::{Row, listed, position, position_of};
 use crate::{CmdResult, CommandSpec, Session, p};
 
 pub fn specs() -> Vec<CommandSpec> {
@@ -15,8 +15,12 @@ pub fn specs() -> Vec<CommandSpec> {
             .pure()
             .params(r#"{"id": number} | {"ids": [number]}, "extend"?: bool (add to the selection), "range"?: bool (select up to it), "copy"?: number (which of its rows, arranged by categories)"#),
         CommandSpec::new("mail.selectAll", "Select All", "Folder › Actions", select_all).pure().key("Mod+A"),
-        CommandSpec::new("mail.next", "Next Message", "Mail", next).pure().key("ArrowDown"),
-        CommandSpec::new("mail.previous", "Previous Message", "Mail", previous).pure().key("ArrowUp"),
+        CommandSpec::new("mail.next", "Next Message", "Mail", next).pure().key("ArrowDown / Shift+ArrowDown").params(EXTEND),
+        CommandSpec::new("mail.previous", "Previous Message", "Mail", previous).pure().key("ArrowUp / Shift+ArrowUp").params(EXTEND),
+        CommandSpec::new("mail.first", "First Message", "Mail", first).pure().key("Home / Shift+Home").params(EXTEND),
+        CommandSpec::new("mail.last", "Last Message", "Mail", last).pure().key("End / Shift+End").params(EXTEND),
+        CommandSpec::new("mail.pageDown", "Page Down", "Mail", page_down).pure().key("PageDown / Shift+PageDown").params(PAGE),
+        CommandSpec::new("mail.pageUp", "Page Up", "Mail", page_up).pure().key("PageUp / Shift+PageUp").params(PAGE),
         CommandSpec::new("mail.get", "Get Message", "Mail", get).pure().params(r#"{"id"?: number} (default: the selected message)"#),
         CommandSpec::new("mail.list", "List Messages", "Mail", list).pure().params(r#"{"limit"?: number} — the message list in view"#),
         CommandSpec::new("mail.delete", "Delete", "Home › Delete", delete).key("Delete / Mod+D").params(IDS).selection(needs_movable),
@@ -76,6 +80,13 @@ pub fn specs() -> Vec<CommandSpec> {
 }
 
 const IDS: &str = r#"{"ids"?: [number]} (default: the selected messages)"#;
+const EXTEND: &str = r#"{"extend"?: bool} — with `extend` (Shift), the selection runs from its anchor to the message moved to, as Shift-click does"#;
+const PAGE: &str = r#"{"rows"?: number (the rows a page of the list holds; default 10, 1 to 10000), "extend"?: bool} — with `extend` (Shift), the selection runs from its anchor to the message moved to"#;
+
+/// The rows a page is when the caller doesn't say (the window says how many fit).
+const PAGE_ROWS: u64 = 10;
+/// The most a page may be, whatever a caller says.
+const MAX_PAGE_ROWS: u64 = 10_000;
 
 fn select(s: &mut Session, v: &Value) -> CmdResult {
     let ids = p::ids(v).ok_or_else(|| bad("`id` or `ids` is required"))?;
@@ -91,17 +102,9 @@ fn select(s: &mut Session, v: &Value) -> CmdResult {
     if p::bool(v, "range") == Some(true) {
         // From the anchor (the first selected message) to this one, in list order.
         let rows = s.rows();
-        let anchor = s.sel.messages.first().copied().unwrap_or(last);
-        if let (Some(a), Some(b)) = (position_of(&rows, anchor, s.sel.anchor_copy(anchor)), position_of(&rows, last, copy)) {
-            let (lo, hi) = (a.min(b), a.max(b));
-            let mut seen = std::collections::HashSet::new();
-            let mut picked: Vec<Id> =
-                rows.iter().skip(lo).take(hi - lo + 1).map(|r| r.id).filter(|id| *id != anchor && *id != last && seen.insert(*id)).collect();
-            picked.insert(0, anchor);
-            if last != anchor {
-                picked.push(last);
-            }
-            s.sel.messages = picked;
+        let (anchor, anchor_copy) = range_anchor(s).unwrap_or((last, 0));
+        if let (Some(a), Some(b)) = (position_of(&rows, anchor, anchor_copy), position_of(&rows, last, copy)) {
+            s.sel.messages = span(&rows, anchor, a, last, b);
         }
     } else if p::bool(v, "extend") == Some(true) {
         for id in ids {
@@ -156,31 +159,99 @@ fn select_all(s: &mut Session, _: &Value) -> CmdResult {
     Ok(json!({"selected": s.sel.messages.len()}))
 }
 
-fn step(s: &mut Session, by: i64) -> CmdResult {
-    let rows = s.rows();
-    if rows.is_empty() {
-        return done();
+/// Where a range runs from: the anchor's row while its message is still selected, else the first
+/// selected message.
+fn range_anchor(s: &Session) -> Option<(Id, u16)> {
+    s.sel.anchor_row.filter(|(id, _)| s.sel.messages.contains(id)).or_else(|| s.sel.messages.first().map(|id| (*id, s.sel.anchor_copy(*id))))
+}
+
+/// The messages of rows `a` (the anchor's) to `b` (the focus's), in list order, each once (a
+/// message listed under several categories has several rows, #327): the anchor first and the
+/// focus last, so that the reading pane shows the focus.
+fn span(rows: &[Row], anchor: Id, a: usize, focus: Id, b: usize) -> Vec<Id> {
+    let (lo, hi) = (a.min(b), a.max(b));
+    let mut seen = std::collections::HashSet::new();
+    let mut picked: Vec<Id> =
+        rows.iter().skip(lo).take((hi - lo).saturating_add(1)).map(|r| r.id).filter(|id| *id != anchor && *id != focus && seen.insert(*id)).collect();
+    if focus != anchor {
+        picked.insert(0, anchor);
     }
-    let at = s.sel.focus().and_then(|id| position_of(&rows, id, s.sel.focus_copy()));
-    let i = match at {
-        Some(i) => (i as i64).saturating_add(by).clamp(0, rows.len() as i64 - 1) as usize,
-        None if by >= 0 => 0,
-        None => rows.len() - 1,
-    };
-    if let Some(row) = rows.get(i) {
-        s.sel.messages = vec![row.id];
-        s.sel.focus_row = Some((row.id, row.copy));
+    picked.push(focus);
+    picked
+}
+
+/// Moves the focus to row `i` of the list. With `extend` (Shift), the selection runs from the
+/// anchor, which stays where it is (so going back makes the range smaller), to it; otherwise it
+/// is that one message, which the next range runs from.
+fn land(s: &mut Session, rows: &[Row], i: usize, extend: bool) -> CmdResult {
+    let Some(row) = rows.get(i) else { return done() };
+    let anchor = if extend { range_anchor(s) } else { None };
+    match anchor.and_then(|(id, copy)| Some((id, copy, position_of(rows, id, copy)?))) {
+        Some((id, copy, at)) => {
+            s.sel.messages = span(rows, id, at, row.id, i);
+            s.sel.anchor_row = Some((id, copy));
+        }
+        None => {
+            s.sel.messages = vec![row.id];
+            s.sel.anchor_row = Some((row.id, row.copy));
+        }
     }
+    s.sel.focus_row = Some((row.id, row.copy));
     mark_opened(s);
     Ok(json!({"selected": s.sel.messages}))
 }
 
-fn next(s: &mut Session, _: &Value) -> CmdResult {
-    step(s, 1)
+fn extend(v: &Value) -> bool {
+    p::bool(v, "extend") == Some(true)
 }
 
-fn previous(s: &mut Session, _: &Value) -> CmdResult {
-    step(s, -1)
+/// Moves the focus `by` rows, clamped to the list; from no focus, down starts at the first row
+/// and up at the last.
+fn step(s: &mut Session, by: i64, v: &Value) -> CmdResult {
+    let rows = s.rows();
+    let Some(end) = rows.len().checked_sub(1) else { return done() };
+    let at = s.sel.focus().and_then(|id| position_of(&rows, id, s.sel.focus_copy()));
+    let i = match at {
+        Some(i) => {
+            let to = i64::try_from(i).unwrap_or(i64::MAX).saturating_add(by).max(0);
+            usize::try_from(to).unwrap_or(end).min(end)
+        }
+        None if by >= 0 => 0,
+        None => end,
+    };
+    land(s, &rows, i, extend(v))
+}
+
+fn next(s: &mut Session, v: &Value) -> CmdResult {
+    step(s, 1, v)
+}
+
+fn previous(s: &mut Session, v: &Value) -> CmdResult {
+    step(s, -1, v)
+}
+
+fn first(s: &mut Session, v: &Value) -> CmdResult {
+    let rows = s.rows();
+    land(s, &rows, 0, extend(v))
+}
+
+fn last(s: &mut Session, v: &Value) -> CmdResult {
+    let rows = s.rows();
+    let Some(end) = rows.len().checked_sub(1) else { return done() };
+    land(s, &rows, end, extend(v))
+}
+
+/// A page: the rows the caller says fit, clamped to 1 to 10,000.
+fn page(v: &Value) -> i64 {
+    i64::try_from(p::u64(v, "rows").unwrap_or(PAGE_ROWS).clamp(1, MAX_PAGE_ROWS)).unwrap_or(1)
+}
+
+fn page_down(s: &mut Session, v: &Value) -> CmdResult {
+    step(s, page(v), v)
+}
+
+fn page_up(s: &mut Session, v: &Value) -> CmdResult {
+    step(s, -page(v), v)
 }
 
 fn get(s: &mut Session, v: &Value) -> CmdResult {

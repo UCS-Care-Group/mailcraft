@@ -70,6 +70,8 @@ pub mod keys;
 #[cfg(test)]
 #[path = "late_work_tests.rs"]
 mod late_work_tests;
+#[cfg(test)]
+mod list_keys_tests;
 pub mod mail_view;
 mod meeting_dialogs;
 pub mod menubar;
@@ -1076,6 +1078,9 @@ pub struct MailApp {
     pub(crate) input_trail: std::collections::VecDeque<String>,
     /// The message list should scroll to the selected row (after a keyboard move).
     pub(crate) reveal_selection: bool,
+    /// The rows of the message list that fit in it as last drawn: what Page Up and Page Down move
+    /// by (#426).
+    pub(crate) list_page_rows: usize,
     /// Passwords typed this session, per account. Never saved.
     passwords: std::collections::HashMap<Id, String>,
     /// [`mailcraft_engine::Session::openings`] when the secrets in memory were last checked
@@ -1362,6 +1367,7 @@ impl MailApp {
             signature_note: None,
             input_trail: std::collections::VecDeque::new(),
             reveal_selection: false,
+            list_page_rows: 10,
             passwords: Default::default(),
             secrets_opening: 0,
             unconfirmed: false,
@@ -1615,7 +1621,7 @@ impl MailApp {
                 }
             }
         }
-        if matches!(id, "mail.next" | "mail.previous") {
+        if keys::MOVES_IN_LIST.contains(&id) {
             self.reveal_selection = true;
         }
         // What was done to the text being written leaves the keyboard in it.

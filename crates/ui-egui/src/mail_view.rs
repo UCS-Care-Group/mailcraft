@@ -574,6 +574,8 @@ fn list(app: &mut MailApp, ui: &mut Ui) {
     let reveal = std::mem::take(&mut app.reveal_selection);
     let focus = app.session.sel.focus().map(|id| (id, app.session.sel.focus_copy()));
     let outer = ui.available_rect_before_wrap();
+    // Page Up and Page Down move by the rows that fit (#426).
+    app.list_page_rows = ((outer.height() / row_h).floor() as usize).max(1);
     let lane = scroll_lane(outer);
     let scrolls = total > outer.height();
     // (A bar that floats over the rows has no lane to paint and no arrows.)
@@ -602,6 +604,16 @@ fn list(app: &mut MailApp, ui: &mut Ui) {
         // Rows end where the scroll bar's lane starts, whether the list scrolls or not (at the
         // list's right edge where the bar floats over them).
         let width = (area.width() - lane_w).max(0.0);
+        // After a move from the keyboard, the row with the focus comes into view, however far it
+        // is (End, Page Down), with its group's heading when it starts one.
+        if reveal
+            && let Some(i) = rows.iter().position(|r| Some((r.id, r.copy)) == focus)
+            && let (Some(top), Some(row)) = (tops.get(i).copied(), rows.get(i))
+        {
+            let above = if row.group.is_some() { GROUP_H } else { 0.0 };
+            let rect = Rect::from_min_max(pos2(origin.x, origin.y + top - above), pos2(origin.x + width, origin.y + top + row_h));
+            ui.scroll_to_rect(rect, None);
+        }
         // Only the rows in view are laid out.
         let first = tops.partition_point(|top| top + row_h < viewport.min.y).saturating_sub(1);
         for (i, row) in rows.iter().enumerate().skip(first) {
@@ -634,9 +646,6 @@ fn list(app: &mut MailApp, ui: &mut Ui) {
                 );
             }
             let rect = Rect::from_min_size(pos2(origin.x, origin.y + top), vec2(width, row_h));
-            if reveal && Some((row.id, row.copy)) == focus {
-                ui.scroll_to_rect(rect, None);
-            }
             message_row(app, ui, row, rect);
         }
         if below > 0.0 {

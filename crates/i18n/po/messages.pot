@@ -2578,6 +2578,11 @@ msgstr ""
 msgid "Finish signing in first (your browser is waiting)"
 msgstr ""
 
+#. command label
+#: crates/engine/src/cmd/mail.rs
+msgid "First Message"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 msgid "First name"
@@ -3505,6 +3510,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/mail_view.rs
 msgid "Largest on top"
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/mail.rs
+msgid "Last Message"
 msgstr ""
 
 #. name
@@ -5216,6 +5226,16 @@ msgstr ""
 #. date and time, interface
 #: crates/i18n/src/date.rs crates/ui-egui/src/calendar_view.rs
 msgid "PM"
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/mail.rs
+msgid "Page Down"
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/mail.rs
+msgid "Page Up"
 msgstr ""
 
 #. interface
