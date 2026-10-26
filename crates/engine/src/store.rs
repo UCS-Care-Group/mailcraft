@@ -1107,6 +1107,10 @@ pub struct Opened {
     /// Every folder's mark of how far its mail was fetched is then forgotten, so that the mail
     /// that is missing comes again from its server.
     pub lost_records: u32,
+    /// How long the mailbox file is, in bytes.
+    pub bytes: u64,
+    /// How many things in the mailbox didn't fit together and were put right (`Mailbox::repair`).
+    pub repaired: usize,
 }
 
 impl Opened {
@@ -1156,7 +1160,7 @@ impl std::fmt::Debug for Opened {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "Opened {{ messages: {}, split: {}, unavailable: {}, loaded: {}, deferred: {}, unfinished: {}, lost_saves: {}, lost_records: {} }}",
+            "Opened {{ messages: {}, split: {}, unavailable: {}, loaded: {}, deferred: {}, unfinished: {}, lost_saves: {}, lost_records: {}, bytes: {}, repaired: {} }}",
             self.mailbox.messages.len(),
             self.split,
             self.unavailable,
@@ -1164,7 +1168,9 @@ impl std::fmt::Debug for Opened {
             self.deferred,
             self.unfinished,
             self.lost_saves,
-            self.lost_records
+            self.lost_records,
+            self.bytes,
+            self.repaired
         )
     }
 }
@@ -1197,8 +1203,31 @@ fn is_index(file: &Path) -> Result<bool, String> {
 }
 
 /// Open the mailbox file at `path`, in any of its forms. Whatever the file and its content
-/// folder hold, the result is consistent (`Mailbox::repair`).
+/// folder hold, the result is consistent (`Mailbox::repair`). Each open logs one line of how long
+/// it took and how much it read ([`open_line`]).
 pub fn open(path: &Path) -> Result<Opened, String> {
+    let started = Instant::now();
+    let opened = open_file(path)?;
+    log::info!("{}", open_line(started.elapsed(), opened.bytes, &opened.mailbox, opened.repaired));
+    Ok(opened)
+}
+
+/// What an open is logged as: how long it took, how many bytes the file has, how many messages,
+/// folders and accounts came of it and whether anything was put right. Counts only: nothing of
+/// the mail, its people, its folders' names or where the file is.
+fn open_line(took: Duration, bytes: u64, mailbox: &Mailbox, repaired: usize) -> String {
+    let repaired = if repaired == 0 { "not repaired".to_string() } else { format!("repaired ({repaired} fixes)") };
+    format!(
+        "opened a mailbox in {:.2} s: {bytes} bytes, {} messages, {} folders, {} accounts, {repaired}",
+        took.as_secs_f64(),
+        mailbox.messages.len(),
+        mailbox.folders.len(),
+        mailbox.accounts.len()
+    )
+}
+
+/// [`open`], without the line in the log.
+fn open_file(path: &Path) -> Result<Opened, String> {
     let shared = shared(path);
     let mut st = lock(&shared.state);
     let show = path.display();
@@ -1228,7 +1257,8 @@ pub fn open(path: &Path) -> Result<Opened, String> {
     };
     // In memory a mailbox is whole, whichever form it came from.
     mailbox.version = 1;
-    for line in mailbox.repair() {
+    let fixed = mailbox.repair();
+    for line in &fixed {
         log::warn!("mailbox repaired: {line}");
     }
     report(&show, &blob_dir(&file), &filled);
@@ -1246,6 +1276,8 @@ pub fn open(path: &Path) -> Result<Opened, String> {
         unfinished: 0,
         lost_saves: 0,
         lost_records: 0,
+        bytes: len,
+        repaired: fixed.len(),
     })
 }
 
@@ -1408,6 +1440,8 @@ fn open_index(st: &mut State, file: &Path, len: u64) -> Result<Opened, String> {
         unfinished,
         lost_saves: replayed.lost_saves,
         lost_records: replayed.lost_records,
+        bytes: len,
+        repaired: fixed.len(),
     })
 }
 
@@ -3138,3 +3172,7 @@ mod tests;
 #[cfg(test)]
 #[path = "store_size_tests.rs"]
 mod size_tests;
+
+#[cfg(test)]
+#[path = "store_open_tests.rs"]
+mod open_tests;
