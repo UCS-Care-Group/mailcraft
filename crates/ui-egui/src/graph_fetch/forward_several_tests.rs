@@ -229,20 +229,24 @@ fn a_batch_cut_short_is_asked_for_again_and_one_that_brings_none_stops() {
 }
 
 #[test]
-fn one_named_by_ids_is_fetched_first_too() {
-    let (mut app, [[a, b, c], _], jobs) = window();
-    let one = app.session.mailbox.message(a).unwrap().account;
+fn one_named_by_id_or_ids_is_fetched_first() {
+    let (mut app, [[a, b, c], [x, ..]], jobs) = window();
+    let (one, two) = (app.session.mailbox.message(a).unwrap().account, app.session.mailbox.message(x).unwrap().account);
     app.session.sel.messages = vec![b];
-    for (command, message, on_server) in [("mail.forward", a, "AA0M0"), ("mail.forwardAsAttachment", c, "AA0M2")] {
+    for (command, params, message, asked_for) in [
+        ("mail.forward", json!({"ids": [a]}), a, (one, "AA0M0")),
+        ("mail.forwardAsAttachment", json!({"ids": [c]}), c, (one, "AA0M2")),
+        ("mail.forwardAsAttachment", json!({"id": x}), x, (two, "AA1M0")),
+    ] {
         app.session.compose = None;
-        assert_eq!(app.run(command, json!({"ids": [message]})).unwrap()["pending"], "download", "{command}");
+        assert_eq!(app.run(command, params.clone()).unwrap()["pending"], "download", "{command} {params}");
         assert_eq!(app.status_msg.as_ref().map(|(text, _)| text.as_str()), Some("Downloading the message first…"));
-        assert_eq!(asked(&jobs), [(one, vec![on_server.to_string()])], "{command}");
+        assert_eq!(asked(&jobs), [(asked_for.0, vec![asked_for.1.to_string()])], "{command} {params}");
         answer(&mut app, &jobs, &[], &[]);
-        assert_eq!(app.session.compose.as_ref().and_then(|c| c.source), Some(message), "{command}");
+        assert_eq!(app.session.compose.as_ref().and_then(|c| c.source), Some(message), "{command} {params}: {}", said(&app));
     }
     // Forward quoted it whole; Forward as Attachment attached it whole.
-    assert_eq!(subjects(&app), ["Whole AA0M2"]);
+    assert_eq!(subjects(&app), ["Whole AA1M0"]);
     app.session.compose = None;
     app.run("mail.forward", json!({"ids": [a]})).unwrap();
     assert!(app.session.compose.as_ref().unwrap().body.plain().contains("All of AA0M0."));
