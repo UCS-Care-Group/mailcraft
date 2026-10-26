@@ -3,7 +3,7 @@
 //! Changes of messages of a Microsoft account, as the engine works them out and takes in what
 //! became of them. (Against the Graph stand-in itself: `apps/mailcraft-cli/tests/graph_changes.rs`.)
 
-use mailcraft_model::sync::{GraphMailResult, GraphMessage, MessageChangeDone, MovingOut};
+use mailcraft_model::sync::{GraphMailResult, GraphMessage, MessageChangeDone, MessagePage, MovingOut};
 use mailcraft_model::{Account, Folder, Importance, ServerFolder};
 use serde_json::json;
 
@@ -159,6 +159,27 @@ fn a_move_out_of_the_account_waits_for_the_whole_message_and_the_save() {
     let kept_here = s.mailbox.message(m).unwrap();
     assert!(kept_here.incomplete && kept_here.moving_out.is_none() && kept_here.unfetched);
     assert!(super::super::graph_down::fetch_queue(&s.mailbox, account, 5, s.now()).is_empty());
+}
+
+/// Moved back after the run that removes the server's copy took it: the copy goes all the same,
+/// and the message, whole here, is made on the server again rather than swept away with it (#451).
+#[test]
+fn moved_back_while_the_servers_copy_was_removed_it_is_made_there_again() {
+    let (mut s, account, m, kept) = setup();
+    s.run("mail.move", &json!({"ids": [m], "folder": kept})).unwrap();
+    s.note_saved();
+    let run = graph_mail_request(&s, account).unwrap();
+    assert_eq!(run.messages, [MessageChange::MovedOut { message: m, id: "M-1".into() }]);
+    let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    s.run("mail.move", &json!({"ids": [m], "folder": inbox})).unwrap();
+    let outcome = MessageOutcome::Done { categories: None, flag: None, folder: String::new(), id: String::new() };
+    let messages = run.messages.into_iter().map(|change| MessageChangeDone { change, outcome: outcome.clone(), there: None }).collect();
+    let pages = vec![MessagePage { folder: "F-in".into(), removed: vec!["M-1".into()], ..Default::default() }];
+    apply_graph_mail(&mut s, GraphMailResult { account, email: "owner@example.org".into(), messages, pages, whole: true, ..Default::default() })
+        .unwrap();
+    let here = s.mailbox.message(m).unwrap();
+    assert!(here.folder == inbox && here.server.is_none());
+    assert_eq!(graph_mail_request(&s, account).unwrap().places.iter().map(|p| p.message).collect::<Vec<_>>(), [m]);
 }
 
 /// #451: received mail in a local folder goes into a Microsoft account by its server's own run

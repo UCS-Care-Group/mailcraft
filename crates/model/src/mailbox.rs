@@ -1836,8 +1836,6 @@ impl Mailbox {
         }
     }
 
-    /// A marker for a copy made in another mailbox: a value used once in this mailbox's life, and
-    /// of the source's server id, so that copies of different messages never share one.
     /// Put `id` on its account's server again, from the whole message here: the server's copy
     /// was deleted while the message was moved back there (#451). Nothing for one that isn't
     /// whole here, a draft, or one that waits to go there already.
@@ -1852,6 +1850,8 @@ impl Mailbox {
         self.queued.push(Queued::PlaceMessage { account, message: id, marker, copy: false, from: None });
     }
 
+    /// A marker for a copy made in another mailbox: a value used once in this mailbox's life, and
+    /// of the source's server id, so that copies of different messages never share one.
     fn place_marker(&mut self, id: Id, source: &str) -> String {
         let n = self.alloc_id();
         let source = crate::sync::fingerprint(source.as_bytes());
@@ -2653,11 +2653,12 @@ impl Mailbox {
                 };
             let Some(source) = source.filter(|source| (uid != 0 || waiting) && !on_server.contains(&(*source, uid))) else { continue };
             if let Pending::Move { message, synced, to, .. } = &mut op {
-                // In its account, or being moved out of it into one that keeps it (#451).
+                // In its account, where it waits to be moved; or being moved out of it into one
+                // that keeps it, in whichever folder it is there now (#451).
                 let fits = self
                     .messages
                     .get(message)
-                    .is_some_and(|m| m.folder == *to && m.uid == 0 && (m.account == account || self.takes_over(account, m.account)));
+                    .is_some_and(|m| if m.account == account { m.folder == *to && m.uid == 0 } else { self.takes_over(account, m.account) });
                 if !fits || *to == source || moved.contains(message) {
                     continue;
                 }

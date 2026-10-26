@@ -6,8 +6,8 @@
 //! stand-in: `apps/mailcraft-cli/tests/moves_between_accounts.rs`.)
 
 use mailcraft_model::sync::{
-    Deleted, FolderDelta, FolderListing, GraphFolder, GraphMailResult, MessageChange, MessageOutcome, PlaceDone, Placed, RemoteFlags, RemoteOp,
-    SyncRequest, SyncResult,
+    Deleted, FolderDelta, FolderListing, GraphFolder, GraphMailResult, GraphMessage, MessageChange, MessageChangeDone, MessageOutcome, MessagePage,
+    PlaceDone, Placed, RemoteFlags, RemoteOp, ServerMessage, SyncRequest, SyncResult,
 };
 use mailcraft_model::{Address, Body, FolderKind, Id, Message, Pending, Queued};
 use serde_json::json;
@@ -281,6 +281,35 @@ fn a_move_out_of_an_imap_account_is_kept_when_the_mailbox_is_opened_again() {
     assert_eq!(opened.pending, s.mailbox.pending);
 }
 
+#[test]
+fn a_move_out_of_an_imap_account_whose_copy_is_there_already_is_kept_when_the_mailbox_is_opened_again() {
+    let (mut s, a, _) = imap();
+    let ms = microsoft(&mut s, OWNER);
+    let servers = json!({"email": "blake@other.example", "incoming": {"host": "imap.other.example"}, "outgoing": {"host": "smtp.other.example"}});
+    let b = s.run("account.add", &servers).unwrap()["id"].as_u64().unwrap();
+    let inbox = FolderDelta { remote: "INBOX".into(), kind: FolderKind::Inbox, uid_validity: 9, ..Default::default() };
+    apply_sync(&mut s, SyncResult { account: b, folders: vec![inbox], ..Default::default() }).unwrap();
+    let (theirs, others) = (s.mailbox.folder_of_kind(ms, FolderKind::Inbox).unwrap(), s.mailbox.folder_of_kind(b, FolderKind::Inbox).unwrap());
+    // "One" is on the other IMAP server already, as UID 50 there: its original waits to be deleted.
+    let one = titled(&s, "One");
+    s.run("mail.move", &json!({"ids": [one], "folder": others})).unwrap();
+    let asked = sync_request(&s, b).unwrap();
+    apply_sync(&mut s, SyncResult { account: b, placed: vec![put(&asked, one, 50, 9)], ..Default::default() }).unwrap();
+    // "Two" is on Microsoft's server, where Outlook moved it on into the Archive.
+    let two = titled(&s, "Two");
+    s.run("mail.move", &json!({"ids": [two], "folder": theirs})).unwrap();
+    placed(&mut s, ms, OWNER, &[made("AAkA2")]);
+    let archived = GraphMessage { server: ServerMessage { id: "AAkA2".into(), folder: "ar".into(), ..Default::default() }, ..Default::default() };
+    let page = MessagePage { folder: "ar".into(), messages: vec![archived], ..Default::default() };
+    apply_graph_mail(&mut s, GraphMailResult { account: ms, email: OWNER.into(), pages: vec![page], ..Default::default() }).unwrap();
+    assert_eq!(s.mailbox.message(two).unwrap().folder, s.mailbox.folder_of_kind(ms, FolderKind::Archive).unwrap());
+    // Opened again before the IMAP server deleted either: both originals still go.
+    let mut opened: mailcraft_model::Mailbox = serde_json::from_value(serde_json::to_value(&s.mailbox).unwrap()).unwrap();
+    assert_eq!(opened.repair(), Vec::<String>::new());
+    s.mailbox = opened;
+    assert_eq!(ops(&s, a), [delete(1), delete(2)]);
+}
+
 /// A message on this computer, whole, in `folder`.
 fn kept_here(s: &mut Session, folder: Id, subject: &str) -> Id {
     let m = Message { folder, uid: 0, read: true, ..from_server(0, subject) };
@@ -488,6 +517,63 @@ fn moved_back_into_microsoft_after_the_imap_server_took_it_the_copy_there_goes()
     assert_eq!(ops(&s, a), [delete(50)]);
     deleted(&mut s, a, &[50]);
     assert!(s.mailbox.pending.is_empty() && s.mailbox.queued.is_empty(), "{:?} {:?}", s.mailbox.pending, s.mailbox.queued);
+}
+
+/// Microsoft's message "Two", moved into the IMAP account, where the server took it as UID 50;
+/// then moved back while Microsoft's run deleted its copy there: the session, the IMAP account,
+/// the Microsoft account, the message, and the deletion the run was asked for.
+fn moved_back_while_microsoft_deleted_it() -> (Session, Id, Id, Id, MessageChange) {
+    let (mut s, a, _) = imap();
+    let ms = microsoft(&mut s, OWNER);
+    let (theirs, inbox) = (s.mailbox.folder_of_kind(ms, FolderKind::Inbox).unwrap(), s.mailbox.folder_of_kind(a, FolderKind::Inbox).unwrap());
+    let two = titled(&s, "Two");
+    s.run("mail.move", &json!({"ids": [two], "folder": theirs})).unwrap();
+    placed(&mut s, ms, OWNER, &[made("AAkA2")]);
+    deleted(&mut s, a, &[2]);
+    s.run("mail.move", &json!({"ids": [two], "folder": inbox})).unwrap();
+    let asked = sync_request(&s, a).unwrap();
+    apply_sync(&mut s, SyncResult { account: a, placed: vec![put(&asked, two, 50, 7)], ..Default::default() }).unwrap();
+    let run = graph_mail_request(&s, ms).unwrap();
+    let gone = run.messages.into_iter().find(|c| matches!(c, MessageChange::MovedOut { id, .. } if id == "AAkA2")).unwrap();
+    s.run("mail.move", &json!({"ids": [two], "folder": theirs})).unwrap();
+    (s, a, ms, two, gone)
+}
+
+/// Microsoft deleted its copy, as asked (`change`), and its delta says so (with `swept`).
+fn microsoft_deleted(s: &mut Session, ms: Id, change: MessageChange, swept: bool) {
+    let outcome = MessageOutcome::Done { categories: None, flag: None, folder: String::new(), id: String::new() };
+    microsoft_answered(s, ms, change, outcome, swept);
+}
+
+/// What Microsoft said (`outcome`) of deleting its copy, as asked (`change`).
+fn microsoft_answered(s: &mut Session, ms: Id, change: MessageChange, outcome: MessageOutcome, swept: bool) {
+    let messages = vec![MessageChangeDone { change, outcome, there: None }];
+    let pages = if swept { vec![MessagePage { folder: "in".into(), removed: vec!["AAkA2".into()], ..Default::default() }] } else { vec![] };
+    apply_graph_mail(s, GraphMailResult { account: ms, email: OWNER.into(), messages, pages, whole: swept, ..Default::default() }).unwrap();
+}
+
+#[test]
+fn moved_back_into_microsoft_while_its_copy_there_was_deleted_it_goes_on_that_server_again() {
+    let server_id = |s: &Session, two| s.mailbox.message(two).and_then(|m| m.server.as_ref()).map(|x| x.id.clone());
+    // The IMAP server deletes its copy first, then Microsoft says its own is gone.
+    let (mut s, a, ms, two, gone) = moved_back_while_microsoft_deleted_it();
+    deleted(&mut s, a, &[50]);
+    microsoft_deleted(&mut s, ms, gone, true);
+    assert_eq!((at(&s, two).0, server_id(&s, two)), (ms, None));
+    placed(&mut s, ms, OWNER, &[made("AAkA9")]);
+    assert_eq!(server_id(&s, two).as_deref(), Some("AAkA9"));
+    // Microsoft answers first: the IMAP server's copy stays until Microsoft has one again.
+    let (mut s, a, ms, two, gone) = moved_back_while_microsoft_deleted_it();
+    microsoft_deleted(&mut s, ms, gone, false);
+    assert!(ops(&s, a).is_empty() && server_id(&s, two).is_none(), "{:?}", ops(&s, a));
+    placed(&mut s, ms, OWNER, &[made("AAkA9")]);
+    assert_eq!(ops(&s, a), [delete(50)]);
+    // Microsoft refuses: its copy is still there, and is the message's.
+    let (mut s, a, ms, two, gone) = moved_back_while_microsoft_deleted_it();
+    microsoft_answered(&mut s, ms, gone, MessageOutcome::Refused { status: 403 }, false);
+    assert_eq!(server_id(&s, two).as_deref(), Some("AAkA2"));
+    assert!(graph_mail_request(&s, ms).unwrap().places.is_empty());
+    assert_eq!(ops(&s, a), [delete(50)]);
 }
 
 #[test]

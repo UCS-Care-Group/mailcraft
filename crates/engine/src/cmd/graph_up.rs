@@ -391,7 +391,15 @@ pub fn message_done(mb: &mut Mailbox, account: Id, done: &MessageChangeDone, ref
         MessageChange::MovedOut { message, id } => {
             let Ok(m) = mb.message_mut(*message) else { return false };
             if !m.moving_out.as_ref().is_some_and(|out| out.account == account && out.id == *id) {
-                return false;
+                // Moved back into the account (or the move undone) while the server's copy was
+                // being removed: it is gone there, and is put on the server again from here (#451).
+                let back = m.account == account && m.server.as_ref().is_some_and(|s| s.id == *id);
+                if !back || matches!(done.outcome, MessageOutcome::Refused { .. }) {
+                    return false;
+                }
+                (m.server, m.uid, m.synced) = (None, 0, None);
+                mb.place_again(*message);
+                return true;
             }
             // Removed, gone already, or refused: either way the copy here is the one there is.
             m.moving_out = None;
