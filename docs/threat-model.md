@@ -53,22 +53,30 @@ Writes any bytes into a message: crafted MIME, HTML, headers, attachments, pictu
 - **Sender warnings say what the server said, and what MailCraft can see, nothing more** (#508).
   Above a message, a red banner for a **warning**: the account's own server's topmost
   `Authentication-Results` (read as for vouching, above) says `dmarc=fail` for the sender's domain,
-  or, with no DMARC verdict at all, `spf=fail` for it; or the sender's name carries another
+  or, with no DMARC verdict at all, `spf=fail` for it, unless Exchange Online's `compauth=pass`
+  overrides it (the sender's domain is read from whatever its address is written in, `xn--`
+  labels as the letters they stand for, and only labels that write back to exactly themselves are
+  read so); or the sender's name carries another
   address, or is a contact's, a known correspondent's or the owner's own name on an address that
   isn't theirs. Amber for **cautions** alone: the sender's domain is one character (an edit, or two
   letters swapped) or one look-alike character (MailCraft's own small skeleton table after Unicode
   TR39, `crates/model/src/confusables.rs`, Cyrillic and Greek letters, accents, full-width forms,
   `0`/`1`, `rn`/`vv`/`cl`) from a known correspondent's, measured between registrable parts; or a
-  link's text is a web address or a domain and the link goes to another registrable domain. The
+  link's text is a web address or a domain and the link goes to another registrable domain (a link
+  through Microsoft's Safe Links, `*.safelinks.protection.outlook.com`, as the link in its `url`;
+  one through Proofpoint's URL Defense or Mimecast, which hide where it goes, not at all: the list
+  is `LINK_REWRITERS`, matched by registrable domain). Names and domains shown in the banner lose
+  their direction marks, and a full-width `＠` in a name counts as `@`. The
   rules are `crates/model/src/sender_warnings.rs`; the known correspondents are gathered in
   `crates/engine/src/sender_warnings.rs`. What they rely on: the server's verdict (a server that
   writes none, or a message from a file, gives no failed check: MailCraft does no DNS, DKIM or SPF
   of its own); the owner's contacts and Sent Items (an attacker who was once written to is known);
   a short look-alike table and a short public-suffix list (a lookalike they miss is not caught;
   neither makes a known domain look strange). A public mail provider's domain is nobody's
-  lookalike, names of one word are nobody's in particular, and the External tag alone is never a
-  warning. Mail from the owner's own addresses and in Sent Items, Drafts and the Outbox is not
-  checked; Junk E-mail is. Everything is bounded (so many characters of a name or header, 1,000
+  lookalike; a name of one word ("Maya") is never compared with anybody's, so it never makes a
+  known-name warning; and the External tag alone is never a warning. Mail in Sent Items, Drafts and
+  the Outbox is not checked, and mail from the owner's own addresses (a shared mailbox's too) only
+  for a failed check, since anybody can write them on a message; Junk E-mail is checked. Everything is bounded (so many characters of a name or header, 1,000
   links, 20 link warnings, edit distance only between names one character apart in length). An
   agent gets the warnings with `mail.get` as data, their details framed as message content.
 - **A meeting invitation does not rewrite a meeting it isn't about.** An invitation carrying the
@@ -373,6 +381,7 @@ settings files (`crates/engine/src/store.rs`); commands from the control channel
 | Date | Change | Summary |
 |---|---|---|
 | 2026-10-26 | minor | #508: sender warnings (a failed check, a name that hides another address, a lookalike sender, a link that goes somewhere else, External), what they rest on and what they don't; vouching's reading of the server's verdict moved to `crates/model/src/auth_results.rs` |
+| 2026-10-26 | minor | #508: a failed check reads any sender's address and holds for the owner's own addresses, `compauth=pass` overrides it; Safe Links unwrapped, other link rewriters not compared; only exact `xn--` labels read; direction marks stripped, full-width `＠`, one-word names |
 | 2026-10-26 | minor | #458: a `dmarc=pass` whose `header.from` is the organisation's domain (Gmail's way: `shop.example` for `news.shop.example`) vouches for the names under it; a bare suffix or a hosting platform's domain never does |
 | 2026-10-25 | minor | #308: the people the search box offers after `from:`, `to:` and `cc:` come from autocomplete's source, on this computer only |
 | 2026-10-25 | minor | #350: web addresses are read by MailCraft's own strict reader (`crates/link`), not the `url` crate, and opened by a program with the address as its one argument on every system (`rundll32 url.dll,FileProtocolHandler` on Windows, `open` on macOS, `$BROWSER` and the desktops' openers elsewhere), not the `webbrowser` crate; `mailto:` and `tel:` are written without spaces or quotes before they are launched; ambiguous addresses (backslash, no `//`, a percent sign or a full stop of another script in a host) are no links |

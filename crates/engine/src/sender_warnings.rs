@@ -15,11 +15,13 @@ use std::sync::Arc;
 
 use mailcraft_html::{Block, BlockKind};
 use mailcraft_model::sender_warnings::{self, Facts, FactsBuilder, Warning};
-use mailcraft_model::{Contact, FolderKind, Id, Message};
+use mailcraft_model::{Account, Contact, FolderKind, Id, Message};
 
 use crate::Session;
 
-/// Most messages whose warnings are kept; past that the oldest kept go.
+/// Most messages whose warnings are kept; past that all of them are forgotten at once, and worked
+/// out again as they are next asked for.
+// ponytail: dropping all is cheaper than ordering them; keep an order if refilling ever shows.
 const MAX_KEPT: usize = 4_000;
 
 /// The addresses the owner knows: the contacts', and whoever mail in Sent Items or the Outbox
@@ -128,13 +130,28 @@ impl Known {
     }
 }
 
-/// What a message's warnings were worked out from: who sent it, where it is, what its server
-/// said, and how much of its body there was.
-fn fingerprint(m: &Message) -> u64 {
+/// How much of the topmost `Authentication-Results` header a fingerprint reads: the rules read
+/// no more than this of it (`auth_results`, 4,000 characters), and it is hashed for every row.
+const MAX_RESULTS_HASHED: usize = 4_096;
+
+/// What a message's warnings were worked out from: who sent it, where it is and the server of
+/// its account, what that server said, and whether its body is here. The body's links are
+/// fingerprinted on their own ([`html_print`]), only when they are looked at.
+fn fingerprint(m: &Message, account: Option<&Account>) -> u64 {
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     (m.id, m.account, m.folder, &m.from.name, &m.from.email, m.uid == 0 && m.server.is_none()).hash(&mut hasher);
-    m.headers.iter().take(2_000).find(|(name, _)| name.eq_ignore_ascii_case("Authentication-Results")).map(|(_, v)| v).hash(&mut hasher);
+    account.map(|a| (a.kind, a.incoming.as_ref().map(|server| &server.host))).hash(&mut hasher);
+    let results = m.headers.iter().take(2_000).find(|(name, _)| name.eq_ignore_ascii_case("Authentication-Results"));
+    results.map(|(_, v)| v.as_bytes().get(..MAX_RESULTS_HASHED).unwrap_or(v.as_bytes())).hash(&mut hasher);
     (m.body.html.as_ref().map(String::len), m.body_is_kept()).hash(&mut hasher);
+    hasher.finish()
+}
+
+/// A fingerprint of the HTML of `m`, whose links the warnings read.
+// ponytail: hashes the whole body, only for the one message on screen; far below painting it.
+fn html_print(m: &Message) -> u64 {
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    m.body.html.hash(&mut hasher);
     hasher.finish()
 }
 
@@ -142,8 +159,8 @@ fn fingerprint(m: &Message) -> u64 {
 struct Kept {
     fingerprint: u64,
     generation: u64,
-    /// The body's links were looked at.
-    links: bool,
+    /// The body's links were looked at, in the body of this [`html_print`].
+    links: Option<u64>,
     warnings: Arc<Vec<Warning>>,
 }
 
@@ -242,18 +259,19 @@ impl Session {
         let mut checks = std::mem::take(&mut self.sender_checks);
         checks.known.update(self);
         let generation = checks.known.generation;
-        let print = fingerprint(m);
+        let account = self.mailbox.account(m.account);
+        let print = fingerprint(m, account);
+        let html = links.then(|| html_print(m));
         if let Some(kept) = checks.kept.get(&m.id)
             && kept.fingerprint == print
             && kept.generation == generation
-            && (kept.links || !links)
+            && (html.is_none() || kept.links == html)
         {
             let warnings = kept.warnings.clone();
             self.sender_checks = checks;
             return warnings;
         }
         let facts = checks.facts();
-        let account = self.mailbox.account(m.account);
         let kind = self.mailbox.folder(m.folder).map(|f| f.kind);
         let body = links.then(|| m.body.html.as_deref().map(|html| self::links(&mailcraft_html::parse(html)))).flatten();
         let pairs = body.as_ref().map(|pairs| pairs.iter().map(|(text, href)| (text.as_str(), href.as_str())));
@@ -261,7 +279,7 @@ impl Session {
         if checks.kept.len() >= MAX_KEPT {
             checks.kept.clear();
         }
-        checks.kept.insert(m.id, Kept { fingerprint: print, generation, links, warnings: warnings.clone() });
+        checks.kept.insert(m.id, Kept { fingerprint: print, generation, links: html, warnings: warnings.clone() });
         self.sender_checks = checks;
         warnings
     }

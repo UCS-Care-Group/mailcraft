@@ -139,6 +139,28 @@ fn warnings_are_kept_until_what_they_rest_on_changes() {
 }
 
 #[test]
+fn a_new_body_of_the_same_length_or_another_server_is_worked_out_again() {
+    let (mut s, _) = imap(vec![mail("Lin", "lin@harborworks.example", "Body")]);
+    let mut m = s.mailbox.messages.get(&id_of(&s, "Body")).cloned().unwrap();
+    std::sync::Arc::make_mut(&mut m).body.html = Some(r#"<a href="https://lumen.example/">lumen.example</a>"#.into());
+    assert!(s.sender_warnings(&m, true).iter().all(|w| w.kind() != "linkMismatch"));
+    // The same length, another place.
+    std::sync::Arc::make_mut(&mut m).body.html = Some(r#"<a href="https://lumen.exampl/">lumen.example</a>"#.into());
+    assert!(s.sender_warnings(&m, true).iter().any(|w| w.kind() == "linkMismatch"));
+    // A row asks without the links, and the pane's answer stands for it.
+    let pane = s.sender_warnings(&m, true);
+    assert!(std::sync::Arc::ptr_eq(&pane, &s.sender_warnings(&m, false)));
+    // The server of the account is part of what the verdict rests on.
+    let account = m.account;
+    if let Some(a) = s.mailbox.accounts.iter_mut().find(|a| a.id == account)
+        && let Some(server) = a.incoming.as_mut()
+    {
+        server.host = "imap.elsewhere.example".into();
+    }
+    assert!(!std::sync::Arc::ptr_eq(&pane, &s.sender_warnings(&m, false)));
+}
+
+#[test]
 fn the_knowledge_follows_another_mailbox() {
     let (mut s, _) = imap(vec![]);
     s.run("people.new", &json!({"displayName": "Lin Zhao", "email": "lin.zhao@harborworks.example"})).unwrap();

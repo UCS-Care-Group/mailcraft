@@ -23,8 +23,15 @@ use crate::{MailApp, icons};
 const SHOWN: usize = 60;
 
 /// `text` cut to [`SHOWN`] characters, with an ellipsis when it is longer.
-fn short(text: &str) -> String {
-    if text.chars().count() > SHOWN { text.chars().take(SHOWN - 1).chain(['…']).collect() } else { text.to_string() }
+/// Whether `c` turns the direction of text round (or marks it), which would let a name or a
+/// domain show its letters in another order than they are written in (`moc.example`).
+fn is_bidi_control(c: char) -> bool {
+    matches!(c, '\u{061c}' | '\u{200e}' | '\u{200f}' | '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}')
+}
+
+pub(super) fn short(text: &str) -> String {
+    let text: String = text.chars().filter(|c| !is_bidi_control(*c)).collect();
+    if text.chars().count() > SHOWN { text.chars().take(SHOWN - 1).chain(['…']).collect() } else { text }
 }
 
 /// What a reason is called, and what it means for this message.
@@ -119,6 +126,12 @@ pub(super) fn external(app: &mut MailApp, m: &Message) -> bool {
 }
 
 /// The External tag beside the sender's name: small and quiet, a word in a thin frame.
+/// The width the External tag takes, its frame and the room before it with it, in the language
+/// the window speaks.
+pub(super) fn external_tag_width(ui: &Ui, t: &Tokens) -> f32 {
+    ui.painter().layout_no_wrap(tl!("External").to_string(), regular(10.5), t.text_dim).size().x + 8.0 + 2.0 + 6.0 + ui.spacing().item_spacing.x
+}
+
 pub(super) fn external_tag(ui: &mut Ui, t: &Tokens) -> egui::Response {
     egui::Frame::NONE
         .stroke(egui::Stroke::new(1.0, t.border_strong))
@@ -151,7 +164,7 @@ pub(super) fn mismatched(app: &mut MailApp, m: &Message) -> Vec<String> {
 /// Whether the link to `url` (as a message's link has it) is one of `mismatched`.
 pub(super) fn is_mismatched(url: &str, mismatched: &[String]) -> bool {
     !mismatched.is_empty()
-        && mailcraft_link::WebLink::parse(url.trim()).is_some_and(|link| {
+        && mailcraft_model::sender_warnings::link_target(url).is_some_and(|link| {
             let shown: String = link.as_str().chars().take(200).collect();
             mismatched.contains(&shown)
         })

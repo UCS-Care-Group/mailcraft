@@ -157,3 +157,10 @@ fn only_a_failed_check_or_a_hidden_address_marks_the_row() {
         assert_eq!(state.hit.rect("messageWarning", id).is_some(), marked, "{subject}");
     }
 }
+
+#[test]
+fn what_the_banner_shows_never_turns_round() {
+    // A right-to-left override would show `lumen.example` for `lumen.elpmaxe`.
+    assert_eq!(super::warnings::short("lumen.\u{202e}elpmaxe"), "lumen.elpmaxe");
+    assert_eq!(super::warnings::short("\u{2067}Maya\u{2069} \u{200f}Okafor\u{061c}"), "Maya Okafor");
+}
