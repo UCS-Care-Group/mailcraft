@@ -233,8 +233,9 @@ impl MailApp {
             None => {}
         }
         let tried = together.map(|_| tried.unwrap_or_default().into_iter().chain(messages.iter().copied()).collect());
+        let several = tried.is_some();
         self.fetching.then = Some((id.to_string(), Value::Object(then), self.session.openings(), tried));
-        self.status(tl!("Downloading the message first…"));
+        self.status(if several { tl!("Downloading the messages first…") } else { tl!("Downloading the message first…") });
         Some(Ok(json!({"pending": "download", "message": first})))
     }
 

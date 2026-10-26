@@ -375,8 +375,8 @@ fn forward_as_attachment(s: &mut Session, v: &Value) -> CmdResult {
 
 /// The messages a forward takes (#360), read as the other mail commands read them
 /// ([`targets`](super::targets)): each once, in the message list's order (those it doesn't
-/// show after them, as named), and the one in focus, the last named, as for a selection. More
-/// than [`MAX_ATTACHMENTS`] are refused before any is read in.
+/// show after them, as named), and the one in focus, the last named, as for a selection. How
+/// many it may be is [`forward_check`]'s to say.
 pub fn forwarded(s: &mut Session, v: &Value) -> Result<(Vec<Id>, Id), CmdError> {
     let mut ids = super::targets(s, v)?;
     // Each once, where it was named last.
@@ -384,9 +384,6 @@ pub fn forwarded(s: &mut Session, v: &Value) -> Result<(Vec<Id>, Id), CmdError> 
     ids.reverse();
     ids.retain(|id| seen.insert(*id));
     ids.reverse();
-    if ids.len() > MAX_ATTACHMENTS {
-        return Err(fail(TOO_MANY_TO_FORWARD));
-    }
     let Some(focus) = ids.last().copied() else { return Err(fail("select a message first")) };
     if ids.len() > 1 {
         let rows = s.rows();

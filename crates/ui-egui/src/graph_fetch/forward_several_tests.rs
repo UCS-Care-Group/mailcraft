@@ -105,6 +105,7 @@ fn several_are_fetched_first_and_open_as_they_were_chosen() {
         let r = app.run(command, json!({})).unwrap();
         assert_eq!(r["pending"], "download", "{command}");
         assert!(app.session.compose.is_none(), "{command}: not before they are here");
+        assert_eq!(app.status_msg.as_ref().map(|(text, _)| text.as_str()), Some("Downloading the messages first…"), "{command}");
         // Both in one job of their account, in the order they go.
         let one = app.session.mailbox.message(a).unwrap().account;
         assert_eq!(asked(&jobs), [(one, vec!["AA0M0".to_string(), "AA0M2".to_string()])], "{command}");

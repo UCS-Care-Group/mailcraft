@@ -2622,6 +2622,12 @@ msgid "Downloading the message first…"
 msgstr "Bezig eerst het bericht te downloaden…"
 
 #. interface
+#: crates/ui-egui/src/graph_fetch.rs
+#, fuzzy
+msgid "Downloading the messages first…"
+msgstr "Bezig eerst de berichten te downloaden…"
+
+#. interface
 #: crates/ui-egui/src/reading.rs
 #, fuzzy
 msgid "Downloading the whole message…"
