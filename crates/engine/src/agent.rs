@@ -111,6 +111,10 @@ const SAFE: &[&str] = &[
     "mail.selectAll",
     "mail.next",
     "mail.previous",
+    "mail.first",
+    "mail.last",
+    "mail.pageDown",
+    "mail.pageUp",
     "mail.get",
     "mail.list",
     "mail.delete",
@@ -550,6 +554,9 @@ pub fn classify(s: &Session, id: &str, params: &Value) -> Access {
             if ids.iter().any(|m| deletes_for_good(&s.mailbox, *m)) { Access::Owner(Class::Delete) } else { Access::Safe }
         }
         "ui.sync" if params.get("password").is_some_and(|v| !v.is_null()) => Access::Owner(Class::Accounts),
+        // Closing a message being written saves what isn't saved of it (#442); letting that go
+        // instead is throwing away what the owner wrote.
+        "compose.close" if p::bool(params, "discard") == Some(true) && s.compose.as_ref().is_some_and(|c| c.dirty) => Access::Owner(Class::Delete),
         _ => Access::Safe,
     }
 }
@@ -751,6 +758,10 @@ pub fn describe(s: &Session, id: &str, params: &Value) -> String {
             format!("delete the task {} for good", t.map(|t| quoted(&t.title)).unwrap_or_else(|| "(none selected)".to_string()))
         }
         "category.remove" => format!("delete the category {}, taking it off everything that has it", quoted(st("name"))),
+        "compose.close" => match &s.compose {
+            Some(c) => format!("close the message {} without saving what the owner wrote in it", quoted(&c.subject)),
+            None => "close the message being written without saving it".to_string(),
+        },
         "edit.undo" | "edit.redo" => {
             let redo = id == "edit.redo";
             let label = if redo { s.redo_label() } else { s.undo_label() };

@@ -1790,16 +1790,10 @@ msgid "Clipboard"
 msgstr "Portapapeles"
 
 #. interface, ribbon
-#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/sync_panel.rs crates/ui-egui/src/tasks_view.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/sync_panel.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Close"
 msgstr "Cerrar"
-
-#. interface
-#: crates/ui-egui/src/compose.rs
-#, fuzzy
-msgid "Close (the draft stays as last saved)"
-msgstr "Cerrar (el borrador queda como se guardó por última vez)"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -3071,6 +3065,11 @@ msgstr ""
 msgid "Finish signing in first (your browser is waiting)"
 msgstr "Termine primero de iniciar sesión (su navegador está esperando)"
 
+#. command label
+#: crates/engine/src/cmd/mail.rs
+msgid "First Message"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -3575,6 +3574,11 @@ msgstr "Ocultar MailCraft"
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
 msgid "Hide This Copy"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/secret_field.rs
+msgid "Hide password"
 msgstr ""
 
 #. interface
@@ -4163,6 +4167,11 @@ msgstr "Los mensajes más grandes se descargan al abrirlos. Elegir menos no quit
 #, fuzzy
 msgid "Largest on top"
 msgstr "Más grandes arriba"
+
+#. command label
+#: crates/engine/src/cmd/mail.rs
+msgid "Last Message"
+msgstr ""
 
 #. name
 #: crates/time/src/lib.rs
@@ -6208,6 +6217,16 @@ msgstr "Superponer"
 msgid "PM"
 msgstr "p. m."
 
+#. command label
+#: crates/engine/src/cmd/mail.rs
+msgid "Page Down"
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/mail.rs
+msgid "Page Up"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/attachment_open.rs
 #, fuzzy
@@ -7927,6 +7946,11 @@ msgstr "Mostrar en grupos"
 #, fuzzy
 msgid "Show in the time bar"
 msgstr "Mostrar en la barra de horas"
+
+#. interface
+#: crates/ui-egui/src/secret_field.rs
+msgid "Show password"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/sender_images.rs
@@ -13203,6 +13227,10 @@ msgstr "{why}, así que no se recuerdan los inicios de sesión: MailCraft vuelve
 #, fuzzy
 msgid "{why}. {n} changes made in it here wait on this computer."
 msgstr "{why}. {n} cambios hechos aquí en él esperan en este equipo."
+
+#, fuzzy
+#~ msgid "Close (the draft stays as last saved)"
+#~ msgstr "Cerrar (el borrador queda como se guardó por última vez)"
 
 #, fuzzy
 #~ msgid "Its messages, attachments, settings and remembered sign-in go with it, and so do the calendar, contacts and working hours that came from its server."

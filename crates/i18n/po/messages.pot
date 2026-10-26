@@ -1513,13 +1513,8 @@ msgid "Clipboard"
 msgstr ""
 
 #. interface, ribbon
-#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/sync_panel.rs crates/ui-egui/src/tasks_view.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/sync_panel.rs crates/ui-egui/src/tasks_view.rs
 msgid "Close"
-msgstr ""
-
-#. interface
-#: crates/ui-egui/src/compose.rs
-msgid "Close (the draft stays as last saved)"
 msgstr ""
 
 #. command label
@@ -2578,6 +2573,11 @@ msgstr ""
 msgid "Finish signing in first (your browser is waiting)"
 msgstr ""
 
+#. command label
+#: crates/engine/src/cmd/mail.rs
+msgid "First Message"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 msgid "First name"
@@ -3000,6 +3000,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
 msgid "Hide This Copy"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/secret_field.rs
+msgid "Hide password"
 msgstr ""
 
 #. interface
@@ -3500,6 +3505,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/mail_view.rs
 msgid "Largest on top"
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/mail.rs
+msgid "Last Message"
 msgstr ""
 
 #. name
@@ -5213,6 +5223,16 @@ msgstr ""
 msgid "PM"
 msgstr ""
 
+#. command label
+#: crates/engine/src/cmd/mail.rs
+msgid "Page Down"
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/mail.rs
+msgid "Page Up"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/attachment_open.rs
 msgid "Pages like this open in the browser, where scripts in them run. Open it only if you know who sent it and expect it."
@@ -6652,6 +6672,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "Show in the time bar"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/secret_field.rs
+msgid "Show password"
 msgstr ""
 
 #. interface

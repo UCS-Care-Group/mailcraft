@@ -2270,6 +2270,10 @@ fn hostile_params_never_panic() {
         json!({"start": "9999-12-31T23:59", "end": "0001-01-01", "date": "9999-12-31", "due": "0000-00-00", "from": "9999-01-01", "to": "0001-01-01", "occurrence": "x", "minutes": 1e300, "reminder": -1}),
         json!({"title": "t", "start": "2026-10-14T10:00", "recurrence": {"freq": "daily", "interval": 4294967295u32, "count": 4294967295u32, "byDay": ["xx", 5], "nth": 99, "until": "0001-01-01"}}),
         json!({"data": "!!!!", "name": "../../etc/passwd", "path": "\u{0}", "mime": "\r\n"}),
+        // The message list's keys (#426): pages of no rows, of more rows than there are, of nonsense.
+        json!({"extend": true, "rows": 18446744073709551615u64}),
+        json!({"extend": "yes", "rows": 1e300, "range": true}),
+        json!({"extend": true, "rows": 0, "copy": 65536}),
         json!({"result": {"account": 1, "folders": [{"id": 1, "remote": "\u{0}", "new": [{"uid": 1}, {"uid": 1}], "flags": [{"uid": 4294967295u32}], "removed": [0, 1]}], "sent": [0, 1, 2]}}),
         json!({"result": {
             "account": 1, "sent": [1, 2, 3], "filed": [1, 3, 18446744073709551615u64],

@@ -67,10 +67,15 @@ pub enum Dialog {
     Password {
         account: Id,
         password: String,
+        /// The owner clicked its eye: shown until the next click or the dialog's end (#438).
+        shown: bool,
     },
-    /// A message being written has unsaved changes and something wants to close it.
+    /// A message being written has unsaved changes and something wants to close it or put
+    /// another in its place (#442).
     DiscardDraft {
+        /// What waits for the answer: `quit`, or a command to run with `params`.
         then: String,
+        params: Value,
     },
     /// Lines to read and copy: what a check of the calendar connection came to
     /// (`calendarCheck`). (What went wrong in a Send/Receive is in Send/Receive Progress.)
@@ -244,8 +249,11 @@ impl Dialog {
                 let url = c.body.text().link_span(sel.start()).map(|(from, _)| c.body.text().style_at(from + 1)).and_then(|s| s.link);
                 Dialog::Link { linked: url.is_some(), url: url.unwrap_or_default(), error: String::new() }
             }
-            "password" => Dialog::Password { account: id("account")?, password: String::new() },
-            "discardDraft" => Dialog::DiscardDraft { then: params.get("then").and_then(Value::as_str).unwrap_or("").to_string() },
+            "password" => Dialog::Password { account: id("account")?, password: String::new(), shown: false },
+            // Opened by name (`ui.dialog`, which an agent may run), it has nothing waiting for its
+            // answer: what runs after it is only ever set by the window itself (`leaving`), or the
+            // owner's click would run what an agent named, past what it may do (#442).
+            "discardDraft" => Dialog::DiscardDraft { then: String::new(), params: json!({}) },
             "about" => match params.get("tab").and_then(Value::as_str) {
                 Some("contributors") => Dialog::About(AboutTab::Contributors),
                 Some("testers") => Dialog::About(AboutTab::Testers),
@@ -544,6 +552,46 @@ pub(crate) fn answered(params: &Value, with: &Value, note: Option<(&str, &str)>)
 /// Run a command whose question was just answered (it may have another: [`MailApp::run`] asks).
 /// A recurring item that is being opened remembers which of it was meant, for what its form
 /// saves ([`as_opened`]); and where an item has no window of its own, it opens in the form.
+/// Whether running `id` as the owner asks first (#442): it closes the message being written, or
+/// puts another in its place, and that message has changes that aren't saved. A caller that
+/// already let them go (`discard`) isn't asked.
+pub(crate) fn leaves_message(app: &MailApp, id: &str, params: &Value) -> bool {
+    mailcraft_engine::cmd::compose::LEAVING.contains(&id)
+        && params.get("discard").and_then(Value::as_bool) != Some(true)
+        && app.session.compose.as_ref().is_some_and(|c| c.dirty)
+        && (app.enabled(id) || ["id", "ids", "message"].iter().any(|k| params.get(*k).is_some_and(|v| !v.is_null())))
+}
+
+/// Unsaved Message, asked before `then` (`quit`, or a command of the owner's with `params`).
+pub(crate) fn leaving(then: &str, params: Value) -> Dialog {
+    Dialog::DiscardDraft { then: then.to_string(), params }
+}
+
+/// The owner's answer to Unsaved Message (`save`, `discard`, or anything else for Cancel), then
+/// what waited for it (`then`: `quit`, or a command with `params`). A draft that can't be saved
+/// leaves the message open, and why is said as any refusal is; Cancel leaves it as it was.
+pub(crate) fn leave_message(app: &mut MailApp, answer: &str, then: &str, params: Value) {
+    let left = match answer {
+        "save" => app.run("compose.saveDraft", json!({})).is_ok(),
+        "discard" => app.execute("compose.close", json!({"discard": true})).is_ok(),
+        _ => false,
+    };
+    if !left {
+        return;
+    }
+    // Saved, it closes without another word; it is saved as it is now.
+    if answer == "save" && matches!(then, "quit" | "compose.close") && app.execute("compose.close", json!({})).is_err() {
+        return;
+    }
+    match then {
+        "quit" => app.quit_requested = true,
+        "compose.close" | "" => {}
+        command => {
+            let _ = app.run(command, params);
+        }
+    }
+}
+
 pub(crate) fn go_ahead(app: &mut MailApp, command: &str, params: Value) {
     let opening = command == "ui.openWindow" || input_dialog(command, &params) == Some("editEvent");
     if opening && let Some(event) = params.get("event").or(params.get("id")).and_then(Value::as_u64).or(app.session.sel.event) {
@@ -1194,7 +1242,8 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
             // The keyboard goes back to the text.
             app.body_focus_wanted |= close;
         }
-        Dialog::Password { account, password } => {
+        Dialog::Password { account, password, shown } => {
+            let watch = app.secret_watch();
             let who = app.session.mailbox.account(*account).map(|a| a.email.clone()).unwrap_or_default();
             // (A JMAP server may take a bearer token instead.)
             let token = app.session.mailbox.account(*account).and_then(|a| a.jmap.as_ref()).is_some_and(|server| server.bearer);
@@ -1202,7 +1251,9 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
             let mut submit = false;
             let open = window(ctx, tl!("Sign In"), 380.0, |ui| {
                 ui.label(crate::i18n::fmt(asked, &[("account", &who)]));
-                let resp = ui.add(egui::TextEdit::singleline(password).password(true).desired_width(f32::INFINITY));
+                // (The room round its text that a field has by default.)
+                let room = egui::Margin::from(ui.spacing().button_padding);
+                let resp = crate::secret_field::field(ui, password, shown, watch, room, |edit| edit);
                 if !resp.has_focus() {
                     resp.request_focus();
                 }
@@ -1313,12 +1364,12 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
                 go_ahead(app, &command, params);
             }
         }
-        Dialog::DiscardDraft { then } => {
+        Dialog::DiscardDraft { then, params } => {
             let mut answer: Option<&str> = None;
             let open = window(ctx, tl!("Unsaved Message"), 400.0, |ui| {
                 ui.label(tl!("The message you are writing has changes that aren't saved."));
                 ui.add_space(4.0);
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                button_row(ui, |ui| {
                     if ui.add(egui::Button::new(tl!("Cancel")).min_size(vec2(72.0, 26.0))).clicked() {
                         answer = Some("cancel");
                     }
@@ -1333,14 +1384,8 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
             close |= !open;
             if let Some(a) = answer {
                 close = true;
-                let done = match a {
-                    "save" => app.execute("compose.saveDraft", json!({})).and_then(|_| app.execute("compose.close", json!({}))).is_ok(),
-                    "discard" => app.execute("compose.close", json!({})).is_ok(),
-                    _ => false,
-                };
-                if done && then == "quit" {
-                    app.quit_requested = true;
-                }
+                let (then, params) = (then.clone(), params.clone());
+                leave_message(app, a, &then, params);
             }
         }
         Dialog::About(tab) => {

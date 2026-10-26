@@ -52,7 +52,8 @@ fn serve(todo: &Arc<Mutex<Todo>>) -> FakeHttp {
         let json = serde_json::from_str::<Value>(body).unwrap_or(Value::Null);
         match (method, pieces.get(5), pieces.get(6), pieces.get(7)) {
             ("GET", None, ..) => {
-                let value: Vec<Value> = todo.lists.iter().map(|(id, well, _)| json!({"id": id, "wellKnownName": well, "displayName": "x"})).collect();
+                let value: Vec<Value> =
+                    todo.lists.iter().map(|(id, well, _)| json!({"id": id, "wellknownListName": well, "displayName": "x"})).collect();
                 json_answer("200 OK", &json!({"value": value}).to_string())
             }
             ("GET", Some(list), Some(&"tasks"), None) => match todo.lists.iter().find(|l| l.0 == *list) {
@@ -189,6 +190,18 @@ fn a_task_made_here_goes_to_the_default_list_and_is_named_by_the_server() {
     let o = &done.outcomes[0];
     assert_eq!((o.result, o.task, o.id.as_str(), o.list.as_str(), o.change_key.as_str()), (TaskResult::Done, 7, "T1", "L1", "W/\"e1\""));
     assert_eq!(state.lock().unwrap().lists[0].2[0]["title"], "Write the report");
+}
+
+#[test]
+fn the_default_list_is_found_by_graphs_own_name_wherever_it_comes() {
+    let state = todo();
+    let flagged = state.lock().unwrap().lists.remove(2);
+    state.lock().unwrap().lists.insert(0, flagged);
+    state.lock().unwrap().lists.insert(0, ("L0".into(), "none".into(), Vec::new()));
+    let server = serve(&state);
+    let done = push_tasks_at(&server.url(""), TOKEN, &upload(vec![create("Write the report")]));
+    assert_eq!(done.outcomes[0].list, "L1");
+    assert_eq!(state.lock().unwrap().lists[2].2[0]["title"], "Write the report");
 }
 
 #[test]

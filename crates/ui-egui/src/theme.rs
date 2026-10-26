@@ -300,16 +300,96 @@ const SYSTEM_FONT_CAP: u64 = 8 * 1024 * 1024;
 #[cfg(not(target_arch = "wasm32"))]
 const SYSTEM_FONT_RAISE: f32 = 0.064;
 
+/// The most of a fallback face that is read: a collection of Chinese, Japanese and Korean faces
+/// is about twenty megabytes.
+#[cfg(not(target_arch = "wasm32"))]
+const FALLBACK_FONT_CAP: u64 = 32 * 1024 * 1024;
+
+/// The most of all the fallback faces together, and how many of them are read.
+#[cfg(not(target_arch = "wasm32"))]
+const FALLBACK_FONTS_CAP: u64 = 64 * 1024 * 1024;
+#[cfg(not(target_arch = "wasm32"))]
+const FALLBACK_FONTS_MAX: usize = 8;
+
+/// How deep into each fonts folder, and through how many of its entries, the fallback faces are
+/// looked for: the folders are the system's, but a link may lead anywhere. Each folder has its
+/// own count, so that a crowded folder of the owner's doesn't keep the system's from being read.
+#[cfg(not(target_arch = "wasm32"))]
+const FONT_DIR_DEPTH: usize = 4;
+#[cfg(not(target_arch = "wasm32"))]
+const FONT_DIR_ENTRIES: usize = 20_000;
+
+/// The system faces that draw the scripts the bundled fonts lack (#217, #452), by the names of
+/// their files: one group for each script, its faces best first, and the first that is there and
+/// readable is used. A face that covers a later group too is read once.
+#[cfg(windows)]
+pub const FALLBACK_FACES: &[&[&str]] = &[
+    // Chinese and Japanese (Microsoft YaHei, Yu Gothic, Meiryo, SimSun), then Korean (Malgun Gothic).
+    &["msyh.ttc", "YuGothR.ttc", "meiryo.ttc", "simsun.ttc"],
+    &["malgun.ttf", "gulim.ttc"],
+    // Segoe UI has Hebrew and Arabic; Thai and the scripts of India come from these.
+    &["LeelawUI.ttf", "leelawad.ttf", "tahoma.ttf"],
+    &["Nirmala.ttf", "mangal.ttf"],
+    // A broad last resort, for when Segoe UI isn't there: Arial has Hebrew and Arabic.
+    &["arial.ttf"],
+];
+
+/// As on Windows, the faces macOS keeps in its fonts folders (`/System/Library/Fonts` and its
+/// `Supplemental`). PingFang is no longer among them on recent systems, so it comes last; Arial
+/// Unicode, with Chinese, Japanese, Korean, Hebrew, Arabic, Thai and Devanagari in one face, stands
+/// behind each script's own face.
+#[cfg(target_os = "macos")]
+pub const FALLBACK_FACES: &[&[&str]] = &[
+    &["Hiragino Sans GB.ttc", "STHeiti Light.ttc", "STHeiti Medium.ttc", "Arial Unicode.ttf", "PingFang.ttc"],
+    &["AppleSDGothicNeo.ttc", "AppleGothic.ttf", "Arial Unicode.ttf"],
+    &["ArialHB.ttc", "Arial Unicode.ttf"],
+    &["GeezaPro.ttc", "Arial Unicode.ttf"],
+    &["Thonburi.ttc", "Arial Unicode.ttf"],
+    &["Kohinoor.ttc", "DevanagariMT.ttc", "Arial Unicode.ttf"],
+];
+
+/// As on Windows, the faces the free desktops' packages install (Noto, Source Han, WenQuanYi,
+/// Nanum, DejaVu), in any of their fonts folders.
+#[cfg(all(not(windows), not(target_os = "macos"), not(target_arch = "wasm32")))]
+pub const FALLBACK_FACES: &[&[&str]] = &[
+    &[
+        "NotoSansCJK-Regular.ttc",
+        "NotoSansCJKsc-Regular.otf",
+        "NotoSansSC-Regular.otf",
+        "NotoSansCJKjp-Regular.otf",
+        "NotoSansJP-Regular.otf",
+        "SourceHanSans-Regular.ttc",
+        "SourceHanSansSC-Regular.otf",
+        "NotoSansCJK-VF.ttc",
+        "wqy-microhei.ttc",
+        "wqy-zenhei.ttc",
+        "DroidSansFallbackFull.ttf",
+        "DroidSansFallback.ttf",
+    ],
+    &["NotoSansCJK-Regular.ttc", "NotoSansCJKkr-Regular.otf", "NotoSansKR-Regular.otf", "NanumGothic.ttf", "UnDotum.ttf"],
+    &["NotoSansHebrew-Regular.ttf"],
+    &["NotoSansArabic-Regular.ttf", "NotoNaskhArabic-Regular.ttf"],
+    &["NotoSansThai-Regular.ttf"],
+    &["NotoSansDevanagari-Regular.ttf"],
+    // A broad last resort: Hebrew, Arabic, Armenian, Georgian and more.
+    &["DejaVuSans.ttf", "FreeSans.ttf"],
+];
+
 /// The system's own interface font, read from the system's fonts folder when the program starts:
 /// on Windows, Segoe UI (regular, semibold and bold). It is never bundled, copied or downloaded.
 /// A face that is missing, unreadable, too big or not a font is left out, and without the regular
 /// face none is used: the bundled Inter then draws everything, as it does on other systems and in
 /// the browser.
+///
+/// Behind every font of the interface come the system's fallback faces ([`FALLBACK_FACES`]), for
+/// the letters none of the others has: Chinese, Japanese, Korean, Hebrew, Arabic, Thai… (#217,
+/// #452). They are last, so that nothing the other fonts draw changes. The browser has none.
 #[derive(Clone, Default)]
 pub struct SystemFont {
     regular: Option<Arc<FontData>>,
     semibold: Option<Arc<FontData>>,
     bold: Option<Arc<FontData>>,
+    fallbacks: Vec<Arc<FontData>>,
 }
 
 impl SystemFont {
@@ -332,13 +412,57 @@ impl SystemFont {
             .filter_map(std::env::var_os)
             .map(|root| std::path::PathBuf::from(root).join("Fonts"))
             .find(|dir| dir.is_dir())
-            .map(|dir| Self::from_dir(&dir))
+            .map(|dir| Self::from_dir(&dir).with_fallbacks_from(&[dir], FALLBACK_FACES))
             .unwrap_or_default()
     }
 
-    #[cfg(not(windows))]
+    #[cfg(all(not(windows), not(target_arch = "wasm32")))]
+    fn read() -> Self {
+        SystemFont::none().with_fallbacks_from(&font_dirs(), FALLBACK_FACES)
+    }
+
+    #[cfg(target_arch = "wasm32")]
     fn read() -> Self {
         SystemFont::none()
+    }
+
+    /// This font with the fallback faces `faces` names (one group for each script, best first)
+    /// that are found in `dirs` or the folders inside them.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn with_fallbacks_from(self, dirs: &[std::path::PathBuf], faces: &[&[&str]]) -> Self {
+        self.with_fallbacks_capped(dirs, faces, FALLBACK_FONT_CAP)
+    }
+
+    /// [`Self::with_fallbacks_from`] with at most `cap` bytes read of each face.
+    #[cfg(not(target_arch = "wasm32"))]
+    fn with_fallbacks_capped(mut self, dirs: &[std::path::PathBuf], faces: &[&[&str]], cap: u64) -> Self {
+        let found = find_font_files(dirs, faces);
+        let mut used: Vec<&std::path::PathBuf> = Vec::new();
+        let mut total: u64 = 0;
+        for group in faces {
+            if self.fallbacks.len() >= FALLBACK_FONTS_MAX {
+                break;
+            }
+            for name in group.iter() {
+                let Some(path) = found.get(&name.to_lowercase()) else { continue };
+                // A face read for an earlier script covers this one.
+                if used.contains(&path) {
+                    break;
+                }
+                let Some(bytes) = read_font(path, cap.min(FALLBACK_FONTS_CAP.saturating_sub(total))) else { continue };
+                total = total.saturating_add(bytes.len() as u64);
+                used.push(path);
+                // The first face of a collection: `FontData::from_owned` takes face 0.
+                self.fallbacks.push(Arc::new(FontData::from_owned(bytes)));
+                break;
+            }
+        }
+        self
+    }
+
+    /// How many fallback faces were found and read.
+    pub fn fallback_count(&self) -> usize {
+        self.fallbacks.len()
     }
 
     /// Segoe UI's faces as a Windows fonts folder names them, from `dir`.
@@ -349,7 +473,7 @@ impl SystemFont {
             read_font(&dir.join(file), SYSTEM_FONT_CAP).map(|bytes| Arc::new(FontData::from_owned(bytes).tweak(tweak)))
         };
         match face("segoeui.ttf") {
-            Some(regular) => SystemFont { regular: Some(regular), semibold: face("seguisb.ttf"), bold: face("segoeuib.ttf") },
+            Some(regular) => SystemFont { regular: Some(regular), semibold: face("seguisb.ttf"), bold: face("segoeuib.ttf"), fallbacks: Vec::new() },
             None => SystemFont::none(),
         }
     }
@@ -357,6 +481,86 @@ impl SystemFont {
     /// Whether the interface is drawn in the system's font rather than the bundled one.
     pub fn is_present(&self) -> bool {
         self.regular.is_some()
+    }
+}
+
+/// Where this system keeps its fonts: the owner's own folders first, then the system's.
+#[cfg(all(not(windows), not(target_arch = "wasm32")))]
+fn font_dirs() -> Vec<std::path::PathBuf> {
+    use std::path::PathBuf;
+    let home = std::env::var_os("HOME").filter(|h| !h.is_empty()).map(PathBuf::from);
+    let mut dirs: Vec<PathBuf> = Vec::new();
+    if cfg!(target_os = "macos") {
+        dirs.extend(home.iter().map(|h| h.join("Library/Fonts")));
+        dirs.push("/Library/Fonts".into());
+        dirs.push("/System/Library/Fonts".into());
+    } else {
+        // The XDG base directories, as fontconfig reads them, and its older `~/.fonts`.
+        let data_home =
+            std::env::var_os("XDG_DATA_HOME").filter(|d| !d.is_empty()).map(PathBuf::from).or_else(|| home.as_ref().map(|h| h.join(".local/share")));
+        dirs.extend(data_home.map(|d| d.join("fonts")));
+        dirs.extend(home.iter().map(|h| h.join(".fonts")));
+        let data_dirs = std::env::var_os("XDG_DATA_DIRS").filter(|d| !d.is_empty()).unwrap_or_else(|| "/usr/local/share:/usr/share".into());
+        dirs.extend(std::env::split_paths(&data_dirs).filter(|d| d.is_absolute()).map(|d| d.join("fonts")));
+        dirs.push("/usr/local/share/fonts".into());
+        dirs.push("/usr/share/fonts".into());
+    }
+    let mut unique: Vec<PathBuf> = Vec::new();
+    for dir in dirs {
+        if !unique.contains(&dir) {
+            unique.push(dir);
+        }
+    }
+    unique
+}
+
+/// The files `faces` names, by their names in lower case, found in `dirs` and the folders in
+/// them; the first of a name that is found is kept. The walk goes [`FONT_DIR_DEPTH`] folders deep
+/// and through [`FONT_DIR_ENTRIES`] entries of each of `dirs` at most, and follows no link to a
+/// folder.
+#[cfg(not(target_arch = "wasm32"))]
+fn find_font_files(dirs: &[std::path::PathBuf], faces: &[&[&str]]) -> std::collections::HashMap<String, std::path::PathBuf> {
+    let wanted: std::collections::HashSet<String> = faces.iter().flat_map(|group| group.iter()).map(|name| name.to_lowercase()).collect();
+    let mut found = std::collections::HashMap::new();
+    for root in dirs {
+        find_font_files_in(root, &wanted, &mut found);
+    }
+    found
+}
+
+/// [`find_font_files`] in one of its folders, with that folder's own count of entries.
+#[cfg(not(target_arch = "wasm32"))]
+fn find_font_files_in(
+    root: &std::path::Path,
+    wanted: &std::collections::HashSet<String>,
+    found: &mut std::collections::HashMap<String, std::path::PathBuf>,
+) {
+    let mut entries = 0usize;
+    let mut pending: Vec<(std::path::PathBuf, usize)> = vec![(root.to_path_buf(), 0)];
+    while let Some((dir, depth)) = pending.pop() {
+        let Ok(list) = std::fs::read_dir(&dir) else { continue };
+        let mut inner = Vec::new();
+        for entry in list.flatten() {
+            entries = entries.saturating_add(1);
+            if entries > FONT_DIR_ENTRIES {
+                return;
+            }
+            let Ok(kind) = entry.file_type() else { continue };
+            if kind.is_dir() {
+                if depth < FONT_DIR_DEPTH {
+                    inner.push((entry.path(), depth.saturating_add(1)));
+                }
+                continue;
+            }
+            let Some(name) = entry.file_name().to_str().map(str::to_lowercase) else { continue };
+            // A plain file, where a link leads (opening anything else, a pipe, could wait forever).
+            if wanted.contains(&name) && !found.contains_key(&name) && std::fs::metadata(entry.path()).is_ok_and(|m| m.is_file()) {
+                found.insert(name, entry.path());
+            }
+        }
+        // The folders inside, in the order of their names.
+        inner.sort();
+        pending.extend(inner.into_iter().rev());
     }
 }
 
@@ -376,23 +580,45 @@ fn read_font(path: &std::path::Path, cap: u64) -> Option<Vec<u8>> {
 }
 
 /// Whether `bytes` are laid out as one TrueType or OpenType face with the tables text needs, all of
-/// them inside the file. egui panics on font data it cannot open, so nothing read from a disk goes
-/// to it unchecked.
+/// them inside the file, or as a collection of faces (`ttcf`) whose first face is; and that the
+/// font reader egui uses opens its first face. egui panics on font data it cannot open, so
+/// nothing read from a disk goes to it unchecked.
 #[cfg(not(target_arch = "wasm32"))]
 fn is_font(bytes: &[u8]) -> bool {
     let u16_at = |at: usize| bytes.get(at..at.checked_add(2)?).and_then(|b| <[u8; 2]>::try_from(b).ok()).map(u16::from_be_bytes);
     let u32_at = |at: usize| bytes.get(at..at.checked_add(4)?).and_then(|b| <[u8; 4]>::try_from(b).ok()).map(u32::from_be_bytes);
-    // TrueType outlines, `OTTO` (CFF outlines) or Apple's `true`: what the font reader takes.
-    if !matches!(u32_at(0), Some(0x0001_0000 | 0x4F54_544F | 0x7472_7565)) {
+    // A collection: its tag, a version, how many faces it has and where each begins, every one of
+    // those places inside the file. The first face is the one used.
+    let start = if u32_at(0) == Some(0x7474_6366) {
+        let Some(faces) = u32_at(8).and_then(|n| usize::try_from(n).ok()).filter(|n| *n >= 1) else { return false };
+        let header_end = faces.checked_mul(4).and_then(|places| places.checked_add(12));
+        if header_end.is_none_or(|end| end > bytes.len()) {
+            return false;
+        }
+        match u32_at(12).and_then(|at| usize::try_from(at).ok()) {
+            Some(first) => first,
+            None => return false,
+        }
+    } else {
+        0
+    };
+    // What egui does with the bytes (`FontData::index` 0); it refuses what is cut off or misnamed.
+    if skrifa::FontRef::from_index(bytes, 0).is_err() {
         return false;
     }
-    let Some(tables) = u16_at(4) else { return false };
+    // TrueType outlines, `OTTO` (CFF outlines) or Apple's `true`: what the font reader takes.
+    if !matches!(u32_at(start), Some(0x0001_0000 | 0x4F54_544F | 0x7472_7565)) {
+        return false;
+    }
+    let Some(tables) = start.checked_add(4).and_then(u16_at) else { return false };
     const NEEDED: [&[u8; 4]; 5] = [b"cmap", b"head", b"hhea", b"hmtx", b"maxp"];
     let mut found = [false; NEEDED.len()];
     for i in 0..usize::from(tables) {
         // The directory: twelve bytes, then sixteen for each table (tag, checksum, offset, length).
-        let record = 12 + i * 16;
-        let (Some(tag), Some(offset), Some(length)) = (bytes.get(record..record + 4), u32_at(record + 8), u32_at(record + 12)) else {
+        // In a collection too, a table's offset is from the start of the file.
+        let Some(record) = start.checked_add(12 + i * 16) else { return false };
+        let tag = record.checked_add(4).and_then(|end| bytes.get(record..end));
+        let (Some(tag), Some(offset), Some(length)) = (tag, u32_at(record.saturating_add(8)), u32_at(record.saturating_add(12))) else {
             return false;
         };
         if u64::from(offset) + u64::from(length) > bytes.len() as u64 {
@@ -468,6 +694,15 @@ pub fn font_definitions_with(system: &SystemFont) -> FontDefinitions {
     fonts.families.insert(FontFamily::Name("bold".into()), chain(&[bold, semibold, Some("InterSemiBold"), regular, Some("Inter")]));
     if let Some(m) = fonts.families.get_mut(&FontFamily::Monospace) {
         m.insert(0, "Mono".into());
+    }
+    // The system's fallback faces, behind everything else in every family, for the scripts none
+    // of the others has (#217, #452).
+    for (i, face) in system.fallbacks.iter().enumerate() {
+        let name = format!("SystemFallback{i}");
+        fonts.font_data.insert(name.clone(), face.clone());
+        for faces in fonts.families.values_mut() {
+            faces.push(name.clone());
+        }
     }
     fonts
 }
@@ -672,6 +907,10 @@ pub fn avatar_color(key: &str, t: &Tokens) -> Color32 {
 }
 
 #[cfg(test)]
+#[path = "theme_font_tests.rs"]
+mod theme_font_tests;
+
+#[cfg(test)]
 mod tests {
     use std::collections::BTreeSet;
 
@@ -804,7 +1043,7 @@ mod tests {
             // A font cut off inside its tables: the directory names what isn't there.
             ("cut off", A_FONT.get(..A_FONT.len() / 2).unwrap().to_vec()),
             ("cut off in the directory", A_FONT.get(..40).unwrap().to_vec()),
-            // A collection of faces is not what is asked for by these names.
+            // A collection of faces whose first face isn't where it says.
             ("collection", [b"ttcf".as_slice(), A_FONT.get(4..).unwrap()].concat()),
         ];
         for (what, bytes) in &cases {

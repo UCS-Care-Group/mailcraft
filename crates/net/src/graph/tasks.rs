@@ -28,6 +28,8 @@ use crate::NetError;
 use crate::http;
 
 const LISTS: &str = "/v1.0/me/todo/lists";
+/// What Graph calls a well-known list (`defaultList`, `flaggedEmails`) on a `todoTaskList`.
+const WELL_KNOWN: &str = "wellknownListName";
 /// The longest title Microsoft To Do keeps.
 const MAX_TITLE: usize = 255;
 /// Longest id of a list or a task that is put into an address.
@@ -61,7 +63,7 @@ pub(super) fn tasks_at(base: &str, token: &str) -> Result<TasksDownload, NetErro
     let whole = graph.list(Doing::Tasks, graph.url(&format!("{LISTS}?{query}")), &[], MAX_TASK_LISTS, &mut |entry| {
         let id = text(entry, "id");
         if valid_id(id) && !found.iter().any(|(have, _)| have == id) {
-            found.push((id.to_string(), text(entry, "wellKnownName").to_string()));
+            found.push((id.to_string(), text(entry, WELL_KNOWN).to_string()));
         }
     })?;
     download.complete = whole;
@@ -333,13 +335,13 @@ fn default_list_of(graph: &Graph<'_>) -> Result<String, NetError> {
     let (mut default, mut first) = (String::new(), String::new());
     graph.list(Doing::Tasks, graph.url(&format!("{LISTS}?{}", http::form(&[("$top", "100")]))), &[], MAX_TASK_LISTS, &mut |entry| {
         let id = text(entry, "id");
-        if !valid_id(id) || text(entry, "wellKnownName") == "flaggedEmails" {
+        if !valid_id(id) || text(entry, WELL_KNOWN) == "flaggedEmails" {
             return;
         }
         if first.is_empty() {
             first = id.to_string();
         }
-        if default.is_empty() && text(entry, "wellKnownName") == "defaultList" {
+        if default.is_empty() && text(entry, WELL_KNOWN) == "defaultList" {
             default = id.to_string();
         }
     })?;
