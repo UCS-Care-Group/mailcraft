@@ -362,72 +362,43 @@ fn reply_all(s: &mut Session, v: &Value) -> CmdResult {
 
 fn forward(s: &mut Session, v: &Value) -> CmdResult {
     match forwarded(s, v)? {
-        Forwarded::One(id) => respond(s, &json!({"id": id}), ComposeMode::Forward),
-        Forwarded::Several(ids, focus) => forward_attached(s, &ids, focus),
+        (ids, focus) if ids.len() > 1 => forward_attached(s, &ids, focus),
+        (_, focus) => respond(s, &json!({"id": focus}), ComposeMode::Forward),
     }
 }
 
 /// Forward as Attachment (#315): as [`forward_attached`] does, for one message too.
 fn forward_as_attachment(s: &mut Session, v: &Value) -> CmdResult {
-    match forwarded(s, v)? {
-        Forwarded::One(id) => forward_attached(s, &[id], id),
-        Forwarded::Several(ids, focus) => forward_attached(s, &ids, focus),
-    }
+    let (ids, focus) = forwarded(s, v)?;
+    forward_attached(s, &ids, focus)
 }
 
-/// What a forward takes (#360).
-enum Forwarded {
-    One(Id),
-    /// Several, in the message list's order, and the one in focus among them.
-    Several(Vec<Id>, Id),
-}
-
-/// The messages a forward takes: the one `id` names, those `ids` names, else the selected ones;
-/// the last of them is the one in focus, as for a selection. A caller that names messages is let
-/// past the selection ([`Session::run`]), so anything else named (`message`, both `id` and
-/// `ids`, an id that is no id) is refused, never taken to mean the selection. More than
-/// [`MAX_ATTACHMENTS`] are refused before anything else is looked at.
-fn forwarded(s: &mut Session, v: &Value) -> Result<Forwarded, CmdError> {
-    let named = |k: &str| v.get(k).is_some_and(|x| !x.is_null());
-    if named("message") || (named("id") && named("ids")) {
-        return Err(bad("name the messages to forward by `id` (one) or by `ids` (several)"));
-    }
-    let mut ids = if named("id") {
-        vec![p::req_id(v, "id")?]
-    } else if named("ids") {
-        let list = v.get("ids").and_then(Value::as_array).ok_or_else(|| bad("`ids` is a list of message ids"))?;
-        if list.len() > MAX_ATTACHMENTS {
-            return Err(fail(TOO_MANY_TO_FORWARD));
-        }
-        list.iter().map(|x| x.as_u64().filter(|id| *id != 0).ok_or_else(|| bad("`ids` is a list of message ids"))).collect::<Result<_, _>>()?
-    } else {
-        if s.sel.messages.len() > MAX_ATTACHMENTS {
-            return Err(fail(TOO_MANY_TO_FORWARD));
-        }
-        s.sel.messages.clone()
-    };
-    // Each once, where it was named last: the last named is the one in focus.
+/// The messages a forward takes (#360), read as the other mail commands read them
+/// ([`targets`](super::targets)): each once, in the message list's order (those it doesn't
+/// show after them, as named), and the one in focus, the last named, as for a selection. More
+/// than [`MAX_ATTACHMENTS`] are refused before any is read in.
+pub fn forwarded(s: &mut Session, v: &Value) -> Result<(Vec<Id>, Id), CmdError> {
+    let mut ids = super::targets(s, v)?;
+    // Each once, where it was named last.
     let mut seen = std::collections::HashSet::new();
     ids.reverse();
     ids.retain(|id| seen.insert(*id));
     ids.reverse();
+    if ids.len() > MAX_ATTACHMENTS {
+        return Err(fail(TOO_MANY_TO_FORWARD));
+    }
     let Some(focus) = ids.last().copied() else { return Err(fail("select a message first")) };
-    if let Some(missing) = ids.iter().find(|id| s.mailbox.message(**id).is_none()) {
-        return Err(failed!("no message with id {id}", id = *missing));
-    }
-    if ids.len() == 1 {
-        return Ok(Forwarded::One(focus));
-    }
-    // In the list's order; what the list doesn't show comes after, as it was named.
-    let rows = s.rows();
-    let mut at: std::collections::HashMap<Id, (usize, usize)> = std::collections::HashMap::new();
-    for (i, row) in rows.iter().enumerate() {
-        for (j, id) in std::iter::once(&row.id).chain(&row.members).enumerate() {
-            at.entry(*id).or_insert((i, j));
+    if ids.len() > 1 {
+        let rows = s.rows();
+        let mut at: std::collections::HashMap<Id, (usize, usize)> = std::collections::HashMap::new();
+        for (i, row) in rows.iter().enumerate() {
+            for (j, id) in std::iter::once(&row.id).chain(&row.members).enumerate() {
+                at.entry(*id).or_insert((i, j));
+            }
         }
+        ids.sort_by_key(|id| at.get(id).copied().unwrap_or((usize::MAX, 0)));
     }
-    ids.sort_by_key(|id| at.get(id).copied().unwrap_or((usize::MAX, 0)));
-    Ok(Forwarded::Several(ids, focus))
+    Ok((ids, focus))
 }
 
 /// Why more messages than one can carry aren't forwarded together.

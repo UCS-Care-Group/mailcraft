@@ -2275,6 +2275,7 @@ fn hostile_params_never_panic() {
         json!({"ids": (0..10_000u64).collect::<Vec<_>>()}),
         json!({"ids": [1, 2, 3, 2, 1, 1, 18446744073709551615u64], "id": null, "message": null}),
         json!({"ids": {"0": 1}, "message": [1, 2]}),
+        json!({"ids": [1, "7", -1, 0, 1.5, null, {"id": 2}, [3], 1e300], "id": "4"}),
         // The message list's keys (#426): pages of no rows, of more rows than there are, of nonsense.
         json!({"extend": true, "rows": 18446744073709551615u64}),
         json!({"extend": "yes", "rows": 1e300, "range": true}),

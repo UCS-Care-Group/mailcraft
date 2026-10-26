@@ -149,28 +149,24 @@ fn named_messages_go_in_the_lists_order_from_the_last_ones_account() {
 }
 
 #[test]
-fn messages_named_otherwise_than_by_ids_are_refused() {
+fn ids_are_read_as_the_other_mail_commands_read_them() {
     let mut s = session();
-    let [a, b, _] = three(&mut s);
-    select(&mut s, &[a, b]);
+    let [a, b, c] = three(&mut s);
+    select(&mut s, &[a, c]);
     for command in ["mail.forward", "mail.forwardAsAttachment"] {
-        for junk in [
-            json!({"ids": [a, "7"]}),
-            json!({"ids": [a, 0]}),
-            json!({"ids": [a, -1]}),
-            json!({"ids": [a, 1.5]}),
-            json!({"ids": [a, null]}),
-            json!({"ids": "1,2"}),
-            json!({"ids": {"0": a}}),
-            json!({"ids": []}),
-            json!({"id": a, "ids": [b]}),
-            json!({"message": a}),
-            json!({"id": "7"}),
-            json!({"ids": [a, 999_999]}),
-        ] {
-            let e = s.run(command, &junk).unwrap_err().to_string();
-            assert!(s.compose.is_none(), "{command} {junk}: nothing composed ({e})");
-        }
+        // What isn't an id among them is passed over: the others go.
+        s.run(command, &json!({"ids": [b, "7", 0, -1, 1.5, null, {"id": c}, a]})).unwrap();
+        let compose = s.compose.as_ref().unwrap();
+        assert_eq!((compose.source, compose.also.as_slice()), (Some(a), &[b][..]), "{command}");
+        // One that is no message is refused, and nothing is written.
+        s.compose = None;
+        let e = s.run(command, &json!({"ids": [a, 999_999, b]})).unwrap_err().to_string();
+        assert!(e.contains("no message with id 999999"), "{command}: {e}");
+        assert!(s.compose.is_none(), "{command}");
+        // Naming none of them is no message at all.
+        let e = s.run(command, &json!({"ids": ["7", 0]})).unwrap_err().to_string();
+        assert!(e.contains("select a message first"), "{command}: {e}");
+        assert!(s.compose.is_none(), "{command}");
     }
 }
 
@@ -261,27 +257,35 @@ fn one_that_cant_go_whole_stops_them_all_and_is_named() {
 }
 
 #[test]
-fn more_than_200_are_refused_before_any_is_looked_at() {
+fn more_than_200_are_refused_before_any_is_read_in() {
     let mut s = session();
     let [a, b, _] = three(&mut s);
-    // None of these is a message: they are never looked for.
-    let many: Vec<Id> = (1_000_000..1_000_201).collect();
+    let mut copies = Vec::new();
+    for k in 0..200 {
+        let m = Message { id: 0, subject: format!("Copy {k}"), ..s.mailbox.message(a).unwrap().clone() };
+        copies.push(s.mailbox.add_message(m).unwrap());
+    }
+    // One whose file is kept beside the mailbox and isn't there: read in, it would say so.
+    let unread = Attachment { kept: Some(ContentRef { sha256: [9; 32], len: 1_000 }), ..Attachment::new("scan.tiff", "image/tiff", Vec::new()) };
+    s.mailbox.message_mut(b).unwrap().attachments.push(unread);
+    let mut many = copies.clone();
+    many.push(b);
     for command in ["mail.forward", "mail.forwardAsAttachment"] {
         let e = s.run(command, &json!({"ids": many})).unwrap_err().to_string();
         assert!(e.contains("at most 200 messages"), "{command}: {e}");
-        // 200 are as many as one message carries: those are looked at.
-        let e = s.run(command, &json!({"ids": many.get(..200).unwrap()})).unwrap_err().to_string();
-        assert!(e.contains("no message with id 1000000"), "{command}: {e}");
+        // 200 are as many as one message carries: those are read in.
+        let e = s.run(command, &json!({"ids": many.get(1..).unwrap()})).unwrap_err().to_string();
+        assert!(!e.contains("at most 200"), "{command}: {e}");
         assert!(s.compose.is_none());
     }
+    // A message named twice is one of them.
+    let mut twice = copies.clone();
+    twice.push(copies[0]);
+    s.run("mail.forwardAsAttachment", &json!({"ids": twice})).unwrap();
+    assert_eq!(attached(&s).len(), 200);
     // Selected, the commands are greyed, saying why, and refused all the same.
-    let mut selected = vec![a; 200];
-    for (k, id) in selected.iter_mut().enumerate() {
-        let m = Message { subject: format!("Copy {k}"), ..s.mailbox.message(a).unwrap().clone() };
-        *id = s.mailbox.add_message(Message { id: 0, ..m }).unwrap();
-    }
-    selected.push(b);
-    s.sel.messages = selected;
+    s.compose = None;
+    s.sel.messages = many;
     for command in ["mail.forward", "mail.forwardAsAttachment"] {
         assert_eq!(greyed(&s, command), Some("at most 200 messages can be forwarded together"), "{command}");
         let e = s.run(command, &json!({})).unwrap_err().to_string();

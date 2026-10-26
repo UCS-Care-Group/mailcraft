@@ -274,22 +274,12 @@ fn a_message_named_is_that_one_whatever_is_selected() {
     let id = by_subject(&s, MOCKUPS);
     let other = by_subject(&s, "Q4 roadmap review moved to Thursday");
     s.sel.messages = vec![id, other];
-    // Named otherwise than by one `id` or by `ids`, it is refused, never the selected taken for it.
-    for junk in [json!({"id": 0}), json!({"id": "7"}), json!({"id": -1}), json!({"message": id})] {
-        assert!(s.run("mail.forwardAsAttachment", &junk).is_err(), "{junk}");
-        assert!(s.compose.is_none(), "{junk}");
-    }
-    // Named, it is that one, whatever is selected.
-    s.run("mail.forwardAsAttachment", &json!({"id": other})).unwrap();
-    assert_eq!(s.compose.as_ref().unwrap().source, Some(other));
-    assert_eq!(s.compose.as_ref().unwrap().attachments.len(), 1);
-    // With one selected, messages named otherwise aren't taken to mean it either.
-    s.compose = None;
-    s.run("mail.select", &json!({"id": id})).unwrap();
-    for junk in [json!({"message": other}), json!({"id": "7"})] {
-        let e = s.run("mail.forwardAsAttachment", &junk).unwrap_err().to_string();
-        assert!(e.contains("`id`"), "{junk}: {e}");
-        assert!(s.compose.is_none(), "{junk}");
+    // Named by `id` or by `ids`, it is that one, whatever is selected; what isn't an id among
+    // `ids` is passed over, as the other mail commands do.
+    for params in [json!({"id": other}), json!({"ids": [other]}), json!({"ids": [other, "7", 0, -1, 1.5, null]})] {
+        s.run("mail.forwardAsAttachment", &params).unwrap();
+        assert_eq!(s.compose.as_ref().unwrap().source, Some(other), "{params}");
+        assert_eq!(s.compose.as_ref().unwrap().attachments.len(), 1, "{params}");
     }
 }
 

@@ -132,20 +132,13 @@ fn needs_whole(app: &MailApp, id: &str, params: &Value) -> Option<Id> {
     app.session.mailbox.message(message).filter(|m| m.unfetched && !never(m) && m.server.is_some()).map(|m| m.id)
 }
 
-/// The messages a forward of several takes (#360), as the engine takes them: those `ids` names,
-/// else the selected ones, when there is more than one and no `id` is named. `None` for anything
-/// else, `ids` that aren't all ids among it (the engine refuses those).
-fn forwarded_together(app: &MailApp, id: &str, params: &Value) -> Option<Vec<Id>> {
-    if !matches!(id, "mail.forward" | "mail.forwardAsAttachment") || params.get("id").is_some_and(|v| !v.is_null()) {
+/// The messages a forward of several takes (#360), as the engine takes them, and the one in focus.
+/// `None` for anything else, and for what the engine refuses.
+fn forwarded_together(app: &mut MailApp, id: &str, params: &Value) -> Option<(Vec<Id>, Id)> {
+    if !matches!(id, "mail.forward" | "mail.forwardAsAttachment") {
         return None;
     }
-    let mut ids = match params.get("ids").filter(|v| !v.is_null()) {
-        Some(ids) => ids.as_array()?.iter().map(Value::as_u64).collect::<Option<Vec<Id>>>()?,
-        None => app.session.sel.messages.clone(),
-    };
-    let mut seen = std::collections::HashSet::new();
-    ids.retain(|id| seen.insert(*id));
-    (ids.len() > 1).then_some(ids)
+    compose::forwarded(&mut app.session, params).ok().filter(|(ids, _)| ids.len() > 1)
 }
 
 /// Of `ids`, those still to fetch first, but `tried`: of the first one's account, at most
@@ -207,7 +200,7 @@ impl MailApp {
         let tried = self.fetching.tried.take();
         let together = forwarded_together(self, id, params);
         let messages = match &together {
-            Some(ids) => {
+            Some((ids, _)) => {
                 if let Err(e) = compose::forward_check(&self.session, ids, true) {
                     let said = e.to_string();
                     self.last_error = Some(e);
@@ -226,12 +219,13 @@ impl MailApp {
             return Some(Err(tl!("This message isn't on this computer yet. It will download when you're online.").to_string()));
         }
         // Named, for the selection may have moved on by the time they are here. An `id` the call
-        // gave stays as it was, for the command to judge; the engine puts several in the list's
-        // order, the last named being the one in focus, as in the selection.
+        // gave stays as it was, for the command to judge; several are named with the one in focus
+        // last, as the engine reads them.
         let mut then = params.as_object().cloned().unwrap_or_default();
         match &together {
-            Some(ids) => {
-                then.insert("ids".into(), json!(ids));
+            Some((ids, focus)) => {
+                let named: Vec<Id> = ids.iter().copied().filter(|m| m != focus).chain([*focus]).collect();
+                then.insert("ids".into(), json!(named));
             }
             None if then.get("id").is_none_or(Value::is_null) => {
                 then.insert("id".into(), json!(first));

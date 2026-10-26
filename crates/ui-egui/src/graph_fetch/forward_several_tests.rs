@@ -105,9 +105,9 @@ fn several_are_fetched_first_and_open_as_they_were_chosen() {
         let r = app.run(command, json!({})).unwrap();
         assert_eq!(r["pending"], "download", "{command}");
         assert!(app.session.compose.is_none(), "{command}: not before they are here");
-        // Both in one job of their account.
+        // Both in one job of their account, in the order they go.
         let one = app.session.mailbox.message(a).unwrap().account;
-        assert_eq!(asked(&jobs), [(one, vec!["AA0M2".to_string(), "AA0M0".to_string()])], "{command}");
+        assert_eq!(asked(&jobs), [(one, vec!["AA0M0".to_string(), "AA0M2".to_string()])], "{command}");
         assert!(app.fetching.fetching(a) && app.fetching.fetching(c) && !app.fetching.fetching(b));
         // The selection moves meanwhile: what was chosen is what goes.
         app.session.sel.messages = vec![b];
@@ -125,10 +125,11 @@ fn several_of_two_accounts_come_an_account_at_a_time() {
     let (one, two) = (app.session.mailbox.message(a).unwrap().account, app.session.mailbox.message(x).unwrap().account);
     app.session.sel.messages = vec![z, a, b, y, x];
     assert_eq!(app.run("mail.forwardAsAttachment", json!({})).unwrap()["pending"], "download");
-    assert_eq!(asked(&jobs), [(two, vec!["AA1M2".to_string(), "AA1M0".to_string()])], "the first one's account first");
+    // In the order they go: the list's first, then the other account's, as they were chosen.
+    assert_eq!(asked(&jobs), [(one, vec!["AA0M0".to_string()])], "the first one's account first");
     answer(&mut app, &jobs, &[], &[]);
     assert!(app.session.compose.is_none(), "the other account's still to come");
-    assert_eq!(asked(&jobs), [(one, vec!["AA0M0".to_string()])]);
+    assert_eq!(asked(&jobs), [(two, vec!["AA1M2".to_string(), "AA1M0".to_string()])]);
     answer(&mut app, &jobs, &[], &[]);
     let compose = app.session.compose.as_ref().unwrap();
     // From the account of the one in focus; the list shows the first account's, then the rest.
@@ -176,7 +177,9 @@ fn over_a_limit_is_refused_before_anything_is_fetched() {
     assert!(e.contains("only the headers of “Account 0 message 0”"), "{e}");
     // More than one message carries.
     app.session.mailbox.message_mut(a).unwrap().incomplete = false;
-    let e = app.run("mail.forward", json!({"ids": (1..=201).collect::<Vec<u64>>()})).unwrap_err();
+    let copy = Message { id: 0, ..app.session.mailbox.message(c).unwrap().clone() };
+    let many: Vec<Id> = (0..201).map(|_| app.session.mailbox.add_message(copy.clone()).unwrap()).collect();
+    let e = app.run("mail.forward", json!({"ids": many})).unwrap_err();
     assert!(e.contains("at most 200 messages"), "{e}");
     assert!(asked(&jobs).is_empty() && app.session.compose.is_none());
 }
