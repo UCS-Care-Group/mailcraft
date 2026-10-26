@@ -494,8 +494,9 @@ fn a_message_opened_while_a_batch_is_on_its_way_is_fetched_after_it() {
     let two = app.session.mailbox.message(x).unwrap().account;
     app.session.sel.messages = vec![a, b, c];
     app.run("mail.forwardAsAttachment", json!({})).unwrap();
-    // Another message of which only the headers are here, opened meanwhile: it comes after the
-    // batch the forward waits for, and the reading pane says so.
+    // Another message of which only the headers are here, opened meanwhile in its own folder: it
+    // comes after the batch the forward waits for, and the reading pane says so.
+    app.session.view.folder = app.session.mailbox.message(x).unwrap().folder;
     app.session.sel.messages = vec![x];
     app.drive_fetch();
     assert_eq!(asked(&jobs).len(), 1);
