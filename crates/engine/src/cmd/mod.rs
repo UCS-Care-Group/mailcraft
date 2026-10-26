@@ -57,6 +57,7 @@ mod offline_tests;
 #[cfg(test)]
 mod opened_file_tests;
 pub mod people;
+pub mod people_merge;
 #[cfg(test)]
 mod quote_tests;
 pub mod remote;
@@ -104,6 +105,7 @@ pub fn registry() -> Registry {
     v.extend(calendar_settings::specs());
     v.extend(zones::specs());
     v.extend(people::specs());
+    v.extend(people_merge::specs());
     v.extend(tasks::specs());
     v.extend(rules::specs());
     v.extend(category::specs());
