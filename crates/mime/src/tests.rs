@@ -526,6 +526,7 @@ fn message() -> impl Strategy<Value = Message> {
             unfetched: false,
             attachments_on_server: false,
             moving_out: None,
+            returned: 0,
             incomplete: false,
             server_draft: None,
             held: String::new(),
