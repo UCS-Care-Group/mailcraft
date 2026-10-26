@@ -113,7 +113,7 @@ server; what has met the real Microsoft 365 service is only what the owner has u
    for real (invitations, updates and cancellations through Microsoft 365, each after a question)
    and answering from the calendar; several appointment windows.
 3. **Done 2026-10-12**: the reading pane's Accept / Tentative / Decline on a meeting request; the
-   calendar list by group, side by side and overlaid; Find a Time; the appointment
+   calendar list by group, side by side and overlaid; the Scheduling Assistant; the appointment
    window's own command bar, its unsaved-changes question and the recurrence dialog; working hours
    from the mailbox.
 4. **Done 2026-10-12** (M3.4): Teams meetings, importance and response options; Propose New

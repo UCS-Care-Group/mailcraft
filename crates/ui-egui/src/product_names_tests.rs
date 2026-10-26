@@ -1,10 +1,12 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! MailCraft names its own features in plain, generic words (#521). Another company's product
-//! name, or a name it coined for one of its features, appears in an interface label only to say
-//! that MailCraft connects to that product, and each such label is listed in [`ALLOWED`] with
-//! its reason. Account setup and help text, which name Microsoft's products to say which account
-//! is meant, are not labels and are not walked here.
+//! name, or a name it coined for one of its features, appears in the interface only to say that
+//! MailCraft connects to that product. Two walks check it: every catalog, ribbon and command
+//! label, where the exceptions are whole labels ([`ALLOWED`]), and every text the window shows
+//! through `tl!`, as `cargo xtask i18n` gathered it into `messages.pot` (CI fails when that is
+//! stale), where the exceptions are phrases ([`ALLOWED_PHRASES`]): account setup and help text
+//! name Microsoft's products to say which account or which server is meant.
 
 use mailcraft_engine::Session;
 use serde_json::{Value, json};
@@ -14,7 +16,11 @@ use crate::{MailApp, Services, ribbon};
 /// Wednesday 2026-10-14 16:00 UTC.
 const NOW: i64 = 1_791_993_600;
 
-/// Names that are not ours to give a feature of our own. Matched case-insensitively.
+/// Names that are not ours to give a feature of our own. Matched case-insensitively. It holds
+/// the names of products MailCraft could be mistaken for, or whose features it has, and names
+/// another company coined for a feature. The brands of services MailCraft connects to, such as
+/// a Teams meeting or Microsoft To Do, are left out: naming them is how the owner knows what
+/// a meeting link or a task list is kept in step with.
 const FORBIDDEN: &[&str] = &[
     "Outlook",
     "Office",
@@ -37,6 +43,52 @@ const ALLOWED: &[(&str, &str)] = &[
     ("Outlook's Favorites", "the same Favorites, read from Outlook on the web: the folder pane's switch for them"),
     ("Show Outlook's Favorites", "turns on reading the Favorites kept in Outlook on the web"),
 ];
+
+/// Phrases of the interface's texts that may name one of those products, each with why. Each is
+/// taken out of a text, exactly as written here, before the text is checked.
+const ALLOWED_PHRASES: &[(&str, &str)] = &[
+    ("Outlook.com", "Microsoft's mail service, named so the owner knows which account to add"),
+    ("Outlook on the web", "where the account's Favorites and signatures are kept on the server"),
+    ("Outlook's Favorites", "the Favorites read from the account's server"),
+    ("Favorites from Outlook", "the Favorites read from the account's server"),
+    ("Favorites in Outlook", "the Favorites read from the account's server"),
+    ("Favorites come from Outlook", "the Favorites read from the account's server"),
+    ("your Outlook calendar", "the account's calendar on Microsoft's server, kept in step"),
+    ("where Outlook and your other devices", "the account's calendar on the server, which other programs show too"),
+    ("appear in Outlook or on your other devices", "what is kept on this computer only and not on the server"),
+    ("Outlook's list", "the categories and their colours, read from the mailbox"),
+    ("set in Outlook", "a category's colour, read from the mailbox"),
+    ("in step with Outlook", "says that signatures are not kept on the server"),
+    ("what you see in Outlook", "an account kept in step through Microsoft Graph shows the same mail"),
+    ("Out of Office", "the plain phrase for being away, a show-as state, not a product"),
+];
+
+/// Every text the window shows through `tl!`, singular and plural, from the template.
+fn texts() -> Vec<String> {
+    let template = mailcraft_i18n::po::parse(include_str!("../../i18n/po/messages.pot"));
+    template
+        .entries
+        .iter()
+        .filter(|e| !e.obsolete)
+        .flat_map(|e| std::iter::once(e.id.clone()).chain(e.id_plural.clone()))
+        .filter(|t| !t.is_empty())
+        .collect()
+}
+
+/// The texts that use a forbidden name outside an allowed phrase.
+fn text_offenders(texts: &[String]) -> Vec<String> {
+    let mut out = Vec::new();
+    for text in texts {
+        let rest = ALLOWED_PHRASES.iter().fold(text.clone(), |t, (phrase, _)| t.replace(phrase, " "));
+        let lower = rest.to_lowercase();
+        if let Some(name) = FORBIDDEN.iter().find(|name| lower.contains(&name.to_lowercase())) {
+            out.push(format!("\"{text}\" ({name})"));
+        }
+    }
+    out.sort();
+    out.dedup();
+    out
+}
 
 fn app() -> MailApp {
     let mut app = MailApp::new(Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0), Services::default());
@@ -116,6 +168,30 @@ fn no_label_uses_another_products_name() {
     assert!(found.is_empty(), "labels that use another company's name (rename them, or add them to ALLOWED with a reason): {found:#?}");
 }
 
+#[test]
+fn no_text_uses_another_products_name() {
+    let found = text_offenders(&texts());
+    assert!(found.is_empty(), "texts that use another company's name (rename them, or add a phrase to ALLOWED_PHRASES with a reason): {found:#?}");
+}
+
+/// A text planted in the template is caught, in any case, and an allowed phrase covers itself
+/// and nothing more.
+#[test]
+fn a_planted_text_is_caught() {
+    let mut all = texts();
+    all.push("Scheduling Assistant".to_string());
+    all.push("Not in your Outlook calendar; ask your ONEDRIVE".to_string());
+    all.push("Outlook.com and Outlook".to_string());
+    assert_eq!(
+        text_offenders(&all),
+        vec![
+            "\"Not in your Outlook calendar; ask your ONEDRIVE\" (OneDrive)".to_string(),
+            "\"Outlook.com and Outlook\" (Outlook)".to_string(),
+            "\"Scheduling Assistant\" (Scheduling Assistant)".to_string()
+        ]
+    );
+}
+
 /// The guard does catch one: a planted label, in any case, fails it, and an exception covers
 /// its own label and nothing more.
 #[test]
@@ -135,12 +211,17 @@ fn a_planted_label_is_caught() {
     );
 }
 
-/// Every allowed label is still there: an exception that nothing needs is taken out.
+/// Every allowed label and phrase is still there: an exception that nothing needs is taken out.
 #[test]
 fn every_exception_is_used() {
     let all = labels();
     for (allowed, reason) in ALLOWED {
         assert!(!reason.is_empty());
         assert!(all.iter().any(|(_, label)| label == allowed), "\"{allowed}\" is no longer a label: take it out of ALLOWED");
+    }
+    let texts = texts();
+    for (phrase, reason) in ALLOWED_PHRASES {
+        assert!(!reason.is_empty());
+        assert!(texts.iter().any(|t| t.contains(phrase)), "\"{phrase}\" is in no text any more: take it out of ALLOWED_PHRASES");
     }
 }
