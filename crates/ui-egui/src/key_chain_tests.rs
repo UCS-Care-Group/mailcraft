@@ -699,6 +699,11 @@ fn escape_and_enter_are_read_through_the_gate_only() {
         ("ribbon.rs", "searching && i.consume_key(egui::Modifiers::NONE, egui::Key::Escape),"),
         // Ctrl+Enter.
         ("windows.rs", "if take_key(i, Modifiers::COMMAND, Key::Enter) | take_key(i, Modifiers::ALT, Key::S) {"),
+        // The names of the keys in the shortcuts, and the key loop, which leaves Escape alone to
+        // what the gate hands it to.
+        ("keys.rs", r#"Key::Enter => "Enter","#),
+        ("keys.rs", r#"Key::Escape => "Escape","#),
+        ("keys.rs", "if key == Key::Escape && modifiers.is_none() {"),
     ];
     let reads = |line: &str| {
         ["Key::Escape", "Key::Enter"]
@@ -708,9 +713,16 @@ fn escape_and_enter_are_read_through_the_gate_only() {
     let mut found = Vec::new();
     let mut wrong = Vec::new();
     for (name, src) in sources() {
-        if name == "keys.rs" {
-            continue;
-        }
+        // keys.rs is the gate down to the names of the keys; the shortcuts under them read
+        // through it like the rest.
+        let src = match name.as_str() {
+            "keys.rs" => {
+                let at = src.find("pub fn key_name(").expect("keys.rs names the keys");
+                assert_eq!(src.matches("pub fn key_name(").count(), 1);
+                src[at..].to_string()
+            }
+            _ => src,
+        };
         for line in src.lines().map(str::trim).filter(|l| reads(l)) {
             if allowed.contains(&(name.as_str(), line)) {
                 found.push((name.clone(), line.to_string()));
@@ -721,7 +733,7 @@ fn escape_and_enter_are_read_through_the_gate_only() {
     }
     assert!(
         wrong.is_empty(),
-        "Escape or Enter read outside keys.rs; ask crate::keys (escape, enter…) instead, or add the line to the list: {wrong:?}"
+        "Escape or Enter read outside the gate; ask crate::keys (escape, enter…) instead, or add the line to the list: {wrong:?}"
     );
     for (file, line) in allowed {
         let times = found.iter().filter(|(f, l)| f == file && l == line).count();
@@ -911,5 +923,157 @@ fn escape_right_after_ok_was_clicked_is_as_a_frame_later() {
                 assert_eq!(windows(&h)[0]["asking"], json!(true), "{wait}: the window asks about its change");
             }
         }
+    }
+}
+
+/// A message being written, `Half a thought` typed in its body, which has the keyboard: a change
+/// that isn't saved, which Escape, the ✕ and New Email ask about first (#442). The body, with the
+/// signature under what was typed.
+fn writing(h: &mut Window) -> String {
+    run(h, "mail.new", json!({"to": "ada@example.org", "subject": "Mine"}));
+    h.state_mut().body_focus_wanted = true;
+    h.run_steps(3);
+    assert!(crate::compose::editor::has_focus(&h.ctx), "the body has the keyboard");
+    testing::text(h, "Half a thought");
+    let compose = h.state().session.compose.as_ref().unwrap();
+    assert!(compose.dirty && compose.body.plain().starts_with("Half a thought"));
+    compose.body.plain()
+}
+
+/// The message is still being written with `body` in it, and nothing of it is in Drafts: none of
+/// the question's answers ran.
+fn untouched(h: &Window, body: &str, how: &str) {
+    let compose = h.state().session.compose.as_ref().map(|c| (c.subject.clone(), c.body.plain()));
+    assert_eq!(compose, Some(("Mine".to_string(), body.to_string())), "{how}");
+    let mb = &h.state().session.mailbox;
+    let drafts = mb.folder_of_kind(mb.default_account().unwrap().id, mailcraft_model::FolderKind::Drafts).unwrap();
+    assert!(!mb.messages.values().any(|m| m.folder == drafts && m.subject == "Mine"), "{how}: nothing went to Drafts");
+}
+
+/// `key` pressed with `modifiers` and then repeated `repeats` times, a frame at a time, as
+/// [`held_with`] has it, and the dialog that is open after each frame.
+fn seen_while_held(h: &mut Window, key: Key, modifiers: egui::Modifiers, repeats: usize) -> Vec<Option<&'static str>> {
+    let mut seen = Vec::new();
+    for repeat in std::iter::once(false).chain(std::iter::repeat_n(true, repeats)) {
+        h.input_mut().events.push(egui::Event::Key { key, physical_key: None, pressed: true, repeat, modifiers });
+        for _ in 0..2 {
+            h.step();
+            seen.push(dialog(h));
+        }
+    }
+    h.input_mut().events.push(egui::Event::Key { key, physical_key: None, pressed: false, repeat: false, modifiers });
+    for _ in 0..2 {
+        h.step();
+        seen.push(dialog(h));
+    }
+    seen
+}
+
+/// How many times Unsaved Message came up in what was `seen`.
+fn times_asked(seen: &[Option<&'static str>]) -> usize {
+    std::iter::once(None)
+        .chain(seen.iter().copied())
+        .zip(seen)
+        .filter(|(before, now)| *before != Some("discardDraft") && **now == Some("discardDraft"))
+        .count()
+}
+
+/// Escape in a message being written that has a change: the question comes up once, and the
+/// repeats of a held Escape don't answer it (Cancel, Discard and Save Draft each leave a mark).
+#[test]
+fn escape_in_a_changed_message_asks_once() {
+    for repeats in [0, 3] {
+        let mut h = window("view.mail");
+        let body = writing(&mut h);
+        let seen = seen_while_held(&mut h, Key::Escape, egui::Modifiers::NONE, repeats);
+        assert_eq!(times_asked(&seen), 1, "{repeats} repeats: {seen:?}");
+        assert_eq!(dialog(&h), Some("discardDraft"), "{repeats} repeats: still asking");
+        untouched(&h, &body, &format!("{repeats} repeats"));
+    }
+}
+
+/// Escape on the question is its Cancel: the message stays, as it was. Also in the very next
+/// frame after the Escape that asked.
+#[test]
+fn escape_on_the_question_is_its_cancel() {
+    for (how, press) in PRESSES {
+        let mut h = window("view.mail");
+        let body = writing(&mut h);
+        testing::key(&mut h, Key::Escape);
+        assert_eq!(dialog(&h), Some("discardDraft"), "{how}");
+        press(&mut h, Key::Escape);
+        assert_eq!(dialog(&h), None, "{how}: cancelled, and not asked again");
+        untouched(&h, &body, how);
+    }
+    let mut h = window("view.mail");
+    let body = writing(&mut h);
+    press_now(&mut h, Key::Escape);
+    assert_eq!(dialog(&h), Some("discardDraft"));
+    press_now(&mut h, Key::Escape);
+    h.run_steps(3);
+    assert_eq!(dialog(&h), None, "a frame apart: cancelled");
+    untouched(&h, &body, "a frame apart");
+}
+
+/// A held Enter on the question presses none of its buttons (Save Draft is the one in colour).
+#[test]
+fn a_held_enter_leaves_the_question() {
+    let mut h = window("view.mail");
+    let body = writing(&mut h);
+    testing::key(&mut h, Key::Escape);
+    testing::held(&mut h, Key::Enter);
+    assert_eq!(dialog(&h), Some("discardDraft"));
+    untouched(&h, &body, "held Enter");
+}
+
+/// Enter is held in the body when the question comes up (the ✕ clicked meanwhile): its repeats
+/// type no more new lines under the question, and answer nothing.
+#[test]
+fn a_held_enter_in_the_body_stops_at_the_question() {
+    let mut h = window("view.mail");
+    let body = writing(&mut h);
+    let enter = |pressed, repeat| egui::Event::Key { key: Key::Enter, physical_key: None, pressed, repeat, modifiers: egui::Modifiers::NONE };
+    h.input_mut().events.push(enter(true, false));
+    h.run_steps(2);
+    // (The click's pass draws the question, as the ✕ does.)
+    let _ = h.state_mut().run("compose.close", json!({}));
+    h.step();
+    for _ in 0..3 {
+        h.input_mut().events.push(enter(true, true));
+        h.run_steps(2);
+    }
+    h.input_mut().events.push(enter(false, false));
+    h.run_steps(2);
+    assert_eq!(dialog(&h), Some("discardDraft"));
+    untouched(&h, &body.replacen("Half a thought", "Half a thought\n", 1), "the one new line of the press");
+}
+
+/// The ✕ on the message's bar and New Email, from the ribbon or with Ctrl+N (held too), ask as
+/// Escape does: once, a held Enter answers nothing, and Escape is the question's Cancel.
+#[test]
+fn the_close_button_and_new_email_ask_as_escape_does() {
+    // What a click on the ✕ and on the ribbon's New Email runs, as the owner.
+    for command in ["compose.close", "mail.new"] {
+        let mut h = window("view.mail");
+        let body = writing(&mut h);
+        let _ = h.state_mut().run(command, json!({}));
+        h.run_steps(3);
+        assert_eq!(dialog(&h), Some("discardDraft"), "{command}");
+        testing::held(&mut h, Key::Enter);
+        assert_eq!(dialog(&h), Some("discardDraft"), "{command}: Enter answers nothing");
+        testing::key(&mut h, Key::Escape);
+        assert_eq!(dialog(&h), None, "{command}: Escape is Cancel");
+        untouched(&h, &body, command);
+    }
+    for repeats in [0, 3] {
+        let mut h = window("view.mail");
+        let body = writing(&mut h);
+        let seen = seen_while_held(&mut h, Key::N, egui::Modifiers::COMMAND, repeats);
+        assert_eq!(times_asked(&seen), 1, "Ctrl+N, {repeats} repeats: {seen:?}");
+        assert_eq!(dialog(&h), Some("discardDraft"));
+        untouched(&h, &body, "Ctrl+N");
+        testing::key(&mut h, Key::Escape);
+        assert_eq!(dialog(&h), None, "Ctrl+N, {repeats} repeats: Escape is Cancel");
+        untouched(&h, &body, "Ctrl+N, then Escape");
     }
 }
