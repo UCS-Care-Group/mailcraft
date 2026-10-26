@@ -56,30 +56,41 @@ Writes any bytes into a message: crafted MIME, HTML, headers, attachments, pictu
   or, with no DMARC verdict at all, `spf=fail` for it, unless Exchange Online's `compauth=pass`
   overrides it (the sender's domain is read from whatever its address is written in, `xn--`
   labels as the letters they stand for, and only labels that write back to exactly themselves are
-  read so); or the sender's name carries another
-  address, or is a contact's, a known correspondent's or the owner's own name on an address that
-  isn't theirs. Amber for **cautions** alone: the sender's domain is one character (an edit, or two
-  letters swapped) or one look-alike character (MailCraft's own small skeleton table after Unicode
-  TR39, `crates/model/src/confusables.rs`, Cyrillic and Greek letters, accents, full-width forms,
-  `0`/`1`, `rn`/`vv`/`cl`) from a known correspondent's, measured between registrable parts; or a
-  link's text is a web address or a domain and the link goes to another registrable domain (a link
-  through Microsoft's Safe Links, `*.safelinks.protection.outlook.com`, as the link in its `url`;
-  one through Proofpoint's URL Defense or Mimecast, which hide where it goes, not at all: the list
-  is `LINK_REWRITERS`: a host there or one under it, never a name that merely contains it, and of
-  Proofpoint only its rewriting host `urldefense.proofpoint.com`). Names and domains shown in the
-  banner lose their direction marks, and a full-width `＠` in a name counts as `@`. The
-  rules are `crates/model/src/sender_warnings.rs`; the known correspondents are gathered in
+  read so); or the sender's name carries another address, or is a contact's or the owner's own
+  name on an address that isn't theirs. Amber for **cautions** alone: a `dmarc=fail` for a domain
+  whose policy is `p=none` (said in the server's comment, `(p=NONE …)`, or a `policy.` property),
+  which asks for nothing to be done about mail that fails; the sender's domain is one character
+  (an edit, or two letters swapped) or one look-alike character (MailCraft's own small skeleton
+  table after Unicode TR39, `crates/model/src/confusables.rs`, Cyrillic and Greek letters,
+  accents, full-width forms, `0`/`1`, `rn`/`vv`/`cl`) from a known correspondent's, measured
+  between registrable parts; or a link's text is a web address or a domain and the link goes to
+  another registrable domain. A link through Microsoft's Safe Links
+  (`*.safelinks.protection.outlook.com`) is compared as each link its `url` names, and one through
+  Proofpoint's URL Defense (`urldefense.proofpoint.com/v2/…`, `urldefense.com/v3/…`) as the link
+  it carries, read as Proofpoint describes in public; one of those that can't be read whole, and
+  one through Mimecast, which hides where it goes, is not compared (`LINK_REWRITERS`: a host there
+  or one under it, never a name that merely contains it). Names, addresses and link texts are
+  read as they are seen: what draws nothing (zero-width spaces and joiners, direction marks, soft
+  hyphens, variation selectors, tags) is left out, `＠` and `﹫` count as `@`, `．` and `․` as
+  `.`, and a name's words are compared by their skeletons, without the punctuation round them;
+  names and domains shown in the banner lose their direction marks. The rules are
+  `crates/model/src/sender_warnings.rs`; the known correspondents are gathered in
   `crates/engine/src/sender_warnings.rs`. What they rely on: the server's verdict (a server that
   writes none, or a message from a file, gives no failed check: MailCraft does no DNS, DKIM or SPF
-  of its own); the owner's contacts and Sent Items (an attacker who was once written to is known);
-  a short look-alike table and a short public-suffix list (a lookalike they miss is not caught;
-  neither makes a known domain look strange). A public mail provider's domain is nobody's
-  lookalike; a name of one word ("Maya") is never compared with anybody's, so it never makes a
-  known-name warning; and the External tag alone is never a warning. Mail in Sent Items, Drafts and
-  the Outbox is not checked, and mail from the owner's own addresses (a shared mailbox's too) only
-  for a failed check, since anybody can write them on a message; Junk E-mail is checked. Everything is bounded (so many characters of a name or header, 1,000
-  links, 20 link warnings, edit distance only between names one character apart in length). An
-  agent gets the warnings with `mail.get` as data, their details framed as message content.
+  of its own); the owner's contacts and Sent Items (an attacker who was once written to is known
+  for lookalikes; for names only contacts and the owner's own count, since a name the owner wrote
+  is not the correspondent's word); a short look-alike table and a short public-suffix list (a
+  lookalike they miss is not caught; neither makes a known domain look strange). A public mail
+  provider's domain is nobody's lookalike; a name of one word ("Maya") is never compared with
+  anybody's, so it never makes a known-name warning; a name of the form "Maya Okafor via Lumen
+  Team" is a list's for its member and makes none either (nor, with the list's own `List-Id` or
+  `List-Post`, does an address in it); and the External tag alone is never a warning. Mail in
+  Sent Items, Drafts and the Outbox is not checked, and mail from the owner's own addresses (a
+  shared mailbox's too) only for a failed check, since anybody can write them on a message; Junk
+  E-mail is checked. Everything is bounded (so many characters of a name, a link's text or a
+  header, 1,000 links, 20 link warnings, 4 links named by one Safe Links address, edit distance
+  only between names one character apart in length). An agent gets the warnings with `mail.get`
+  as data, their details framed as message content.
 - **A meeting invitation does not rewrite a meeting it isn't about.** An invitation carrying the
   `UID` of a meeting on a local calendar changes or removes it only when it names the same
   organizer (`crates/engine/src/cmd/calendar/invitation.rs`, `same_organizer`); the bar shows the
@@ -390,6 +401,7 @@ settings files (`crates/engine/src/store.rs`); commands from the control channel
 |---|---|---|
 | 2026-10-26 | minor | #508: sender warnings (a failed check, a name that hides another address, a lookalike sender, a link that goes somewhere else, External), what they rest on and what they don't; vouching's reading of the server's verdict moved to `crates/model/src/auth_results.rs` |
 | 2026-10-26 | minor | #508: a failed check reads any sender's address and holds for the owner's own addresses, `compauth=pass` overrides it; Safe Links unwrapped, other link rewriters not compared; only exact `xn--` labels read; direction marks stripped, full-width `＠`, one-word names |
+| 2026-10-26 | minor | #508: what draws nothing and look-alike `@`/`.` read as seen in names, addresses and link texts; `p=none` failures are cautions; names from Sent Items and list members' names not compared; URL Defense links read, several Safe Links targets compared |
 | 2026-10-26 | minor | #501: server certificates are checked by the operating system's verifier instead of a built-in Mozilla root set: Windows and macOS trust what the system trusts and may fetch a missing intermediate; Linux and FreeBSD use the system's certificate store |
 | 2026-10-26 | minor | #458: a `dmarc=pass` whose `header.from` is the organisation's domain (Gmail's way: `shop.example` for `news.shop.example`) vouches for the names under it; a bare suffix or a hosting platform's domain never does |
 | 2026-10-25 | minor | #308: the people the search box offers after `from:`, `to:` and `cc:` come from autocomplete's source, on this computer only |

@@ -7,9 +7,9 @@
 use proptest::prelude::*;
 
 use crate::auth_results::{Failed, failed_check};
-use crate::confusables::skeleton;
+use crate::confusables::{as_seen, skeleton};
 use crate::sender_warnings::{
-    Facts, FactsBuilder, Level, NameReason, Warning, banner_level, check, link_mismatches, link_target, name_key, registrable, sender_domain,
+    Facts, FactsBuilder, Level, NameReason, Warning, banner_level, check, link_mismatches, link_targets, name_key, registrable, sender_domain,
     within_one_edit,
 };
 use crate::{Account, AccountKind, Address, FolderKind, Message, Security, Server};
@@ -283,7 +283,7 @@ fn a_link_rewritten_by_safe_links_is_compared_as_the_link_it_stands_for() {
     let Some(Warning::LinkMismatch { host, url, .. }) = found.first() else { panic!("{found:?}") };
     assert_eq!(host, "lumen-pay.example");
     assert_eq!(url, "https://lumen-pay.example/login");
-    assert_eq!(link_target(&disagrees).map(|link| link.host().to_string()).as_deref(), Some("lumen-pay.example"));
+    assert_eq!(link_targets(&disagrees).iter().map(|link| link.host()).collect::<Vec<_>>(), ["lumen-pay.example"]);
 }
 
 #[test]
@@ -422,6 +422,154 @@ fn the_banner_takes_the_heaviest() {
     assert_eq!(json["kind"], "lookalikeSender");
     assert_eq!(json["level"], "caution");
     assert_eq!(json["like"], "harborworks.example");
+}
+
+// ---- what draws nothing, and letters drawn like others ----
+
+#[test]
+fn a_known_name_with_an_invisible_or_lookalike_letter_is_still_known() {
+    // Maya Okafor is a contact at maya@lumen.example.
+    for name in ["Maya\u{200b} Okafor", "Maya\u{200d} Okafor", "M\u{430}ya Okafor", "Maya Okafor."] {
+        let m = from(name, "maya.okafor@freemail.example");
+        assert!(matches!(&warnings(&m)[..], [Warning::NameHidesAddress { reason: NameReason::KnownName, .. }, ..]), "{name:?}: {:?}", kinds(&m));
+    }
+}
+
+#[test]
+fn an_address_in_a_name_with_an_invisible_or_lookalike_mark_is_still_one() {
+    for name in ["maya@lu\u{200b}men.example", "maya@lu\u{ad}men.example", "maya@lumen\u{2024}example", "maya\u{fe6b}lumen.example"] {
+        let m = from(name, "maya.okafor@freemail.example");
+        assert!(
+            matches!(&warnings(&m)[..], [Warning::NameHidesAddress { reason: NameReason::AddressInName(a), .. }, ..] if a == "maya@lumen.example"),
+            "{name:?}: {:?}",
+            kinds(&m)
+        );
+    }
+}
+
+#[test]
+fn a_link_text_with_an_invisible_letter_names_the_host_it_shows() {
+    let found = link_mismatches([("www.lumen\u{200b}.example/pay", "https://evil.example/")]);
+    assert!(
+        matches!(&found[..], [Warning::LinkMismatch { text_host, host, .. }] if text_host == "lumen.example" && host == "evil.example"),
+        "{found:?}"
+    );
+}
+
+#[test]
+fn a_name_reads_as_it_is_seen() {
+    // The window colours a name that looks like an address with this same reading.
+    for name in ["maya@lu\u{200b}men.example", "maya\u{fe6b}lumen.example", "maya\u{ff20}lumen.example"] {
+        assert!(as_seen(name, 1_000).contains('@'), "{name:?}");
+    }
+    assert_eq!(as_seen("maya@lu\u{ad}men\u{2024}example", 1_000), "maya@lumen.example");
+    // The limit counts what is read, seen or not.
+    assert_eq!(as_seen("M\u{200d}aya\u{e0041}", 2), "M");
+    assert_eq!(as_seen("M\u{200d}aya\u{e0041}", 9), "Maya");
+    assert_eq!(name_key("\u{201c}M\u{430}ya\u{201d}  Okafor."), name_key("Maya Okafor"));
+    assert_eq!(name_key("Maya\u{200b}"), None);
+}
+
+// ---- a domain that asks for nothing to be done ----
+
+#[test]
+fn a_dmarc_failure_with_policy_none_is_a_caution() {
+    let account = imap("avery@lumen.example", "Avery Quinn");
+    let says = |value: &str| failed_check(Some(&account), &with_results(from("Shop", "news@shop.example"), &format!("mx.lumen.example; {value}")));
+    assert_eq!(says("dmarc=fail (p=NONE sp=NONE dis=NONE) header.from=shop.example"), Some(Failed::DmarcPolicyNone));
+    assert_eq!(says("dmarc=fail policy.dmarc=none header.from=shop.example"), Some(Failed::DmarcPolicyNone));
+    // Red for any other policy, or none said.
+    assert_eq!(says("dmarc=fail (p=QUARANTINE sp=NONE dis=QUARANTINE) header.from=shop.example"), Some(Failed::Dmarc));
+    assert_eq!(says("dmarc=fail (p=REJECT) header.from=shop.example"), Some(Failed::Dmarc));
+    assert_eq!(says("dmarc=fail header.from=shop.example"), Some(Failed::Dmarc));
+    assert_eq!(says("spf=fail smtp.mailfrom=shop.example"), Some(Failed::Spf));
+    // A comment never gives a property: its `header.from=` is not the judged domain.
+    assert_eq!(says("dmarc=fail (header.from=shop.example) header.from=other.example"), None);
+    let m = with_results(from("Shop", "news@shop.example"), "mx.lumen.example; dmarc=fail (p=NONE sp=NONE dis=NONE) header.from=shop.example");
+    let found = warnings(&m);
+    assert_eq!(found.first(), Some(&Warning::FailedCheck(Failed::DmarcPolicyNone)));
+    assert_eq!(banner_level(&found), Some(Level::Caution));
+    let json = found.first().map(Warning::json).unwrap_or_default();
+    assert_eq!((json["kind"].as_str(), json["level"].as_str(), json["policy"].as_str()), (Some("failedCheck"), Some("caution"), Some("none")));
+}
+
+// ---- names that are not compared ----
+
+#[test]
+fn a_list_writing_a_members_name_is_not_a_hidden_name() {
+    let m = from("Maya Okafor via Lumen Team", "team@groups.example");
+    assert!(!kinds(&m).contains(&"nameHidesAddress"));
+    // An address in the name of a list's mail, with the list's own header, is the member's.
+    let mut m = from("maya@lumen.example via Lumen Team", "team@groups.example");
+    assert!(kinds(&m).contains(&"nameHidesAddress"));
+    m.headers = vec![("List-Id".into(), "Lumen Team <team.groups.example>".into())];
+    assert!(!kinds(&m).contains(&"nameHidesAddress"));
+    // Without the "via", a list's mail in a contact's name is still warned of.
+    let mut m = from("Maya Okafor", "team@groups.example");
+    m.headers = vec![("List-Post".into(), "<mailto:team@groups.example>".into())];
+    assert!(kinds(&m).contains(&"nameHidesAddress"));
+}
+
+#[test]
+fn a_mail_provider_is_nobodys_lookalike() {
+    // email.com is one letter from gmail.com, a known correspondent's.
+    assert!(!kinds(&from("Sam", "sam@email.com")).contains(&"lookalikeSender"));
+}
+
+// ---- rewritten links ----
+
+#[test]
+fn a_url_defense_link_is_compared_as_the_link_it_stands_for() {
+    let away = [
+        "https://urldefense.proofpoint.com/v2/url?u=https-3A__lumen-2Dpay.example_login&d=DwMF&c=abc",
+        "https://urldefense.com/v3/__https://lumen-pay.example/login__;!!abc$",
+    ];
+    for href in away {
+        let found = link_mismatches([("lumen.example", href)]);
+        assert!(matches!(&found[..], [Warning::LinkMismatch { host, .. }] if host == "lumen-pay.example"), "{href}: {found:?}");
+    }
+    let home = [
+        "https://urldefense.proofpoint.com/v2/url?u=https-3A__pay.lumen.example_invoice-3Fn-3D4&d=DwMF",
+        "https://urldefense.com/v3/__https://pay.lumen.example/invoice__;!!abc$",
+    ];
+    for href in home {
+        assert!(link_mismatches([("lumen.example", href)]).is_empty(), "{href}");
+    }
+    // What can't be read whole is not compared, and never a panic.
+    for href in [
+        "https://urldefense.com/v3/__https://lumen-pay.exa*ple/login__;bQ!!abc$",
+        "https://urldefense.com/v3/__https://lumen-pay.example/login",
+        "https://urldefense.com/v3/",
+        "https://urldefense.com/",
+        "https://urldefense.proofpoint.com/v2/url?d=DwMF",
+        "https://urldefense.proofpoint.com/v2/url?u=-ZZ-",
+        "https://urldefense.proofpoint.com/v1/url?u=https-3A__lumen-2Dpay.example",
+        "https://urldefense.proofpoint.com/v2/url?u=",
+        "https://urldefense.proofpoint.com/v2/url?u=-",
+    ] {
+        assert!(link_mismatches([("lumen.example", href)]).is_empty(), "{href}");
+    }
+}
+
+#[test]
+fn safe_links_are_read_in_any_case_and_every_url_they_name_is_compared() {
+    let href = "https://eur01.safelinks.protection.outlook.com/?URL=https%3A%2F%2Flumen-pay.example%2F&data=05";
+    assert!(matches!(&link_mismatches([("lumen.example", href)])[..], [Warning::LinkMismatch { host, .. }] if host == "lumen-pay.example"));
+    let twice = "https://eur01.safelinks.protection.outlook.com/?url=https%3A%2F%2Flumen.example%2F&url=https%3A%2F%2Flumen-pay.example%2F";
+    let found = link_mismatches([("lumen.example", twice)]);
+    assert!(matches!(&found[..], [Warning::LinkMismatch { host, .. }] if host == "lumen-pay.example"), "{found:?}");
+    assert_eq!(link_targets(twice).len(), 2);
+}
+
+#[test]
+fn links_alike_in_their_first_characters_are_told_apart() {
+    let start = format!("https://evil.example/{}", "a".repeat(300));
+    let (one, two) = (format!("{start}/1"), format!("{start}/2"));
+    let found = link_mismatches([("lumen.example", one.as_str()), ("lumen.example", two.as_str()), ("lumen.example", one.as_str())]);
+    assert_eq!(found.len(), 2);
+    assert!(matches!(found.first(), Some(Warning::LinkMismatch { url, .. }) if *url == one));
+    let json = found.first().map(Warning::json).unwrap_or_default();
+    assert!(json["url"].as_str().is_some_and(|url| url.chars().count() <= 200));
 }
 
 proptest! {

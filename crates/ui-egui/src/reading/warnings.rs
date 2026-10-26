@@ -12,6 +12,7 @@
 
 use egui::{Sense, Ui, vec2};
 use mailcraft_model::Message;
+use mailcraft_model::auth_results::Failed;
 use mailcraft_model::sender_warnings::{Level, NameReason, Warning, banner_level};
 
 use super::Place;
@@ -39,6 +40,10 @@ fn said(w: &Warning, m: &Message, links: usize) -> (String, String) {
     let real = short(m.from.email.trim());
     let fill = |template: &str, pairs: &[(&str, &str)]| crate::i18n::fmt(template, pairs);
     match w {
+        Warning::FailedCheck(Failed::DmarcPolicyNone) => (
+            tl!("Failed check.").to_string(),
+            tl!("Your mail server checked where this message came from, and the check failed, though the sender's domain asks for nothing to be done about it: the sender's address may be forged.").to_string(),
+        ),
         Warning::FailedCheck(_) => (
             tl!("Failed check.").to_string(),
             tl!("Your mail server checked where this message came from, and the check failed: the sender's address may be forged.").to_string(),
@@ -142,10 +147,10 @@ pub(super) fn external_tag(ui: &mut Ui, t: &Tokens) -> egui::Response {
         .on_hover_text(tl!("This message came from outside your organisation."))
 }
 
-/// Whether `m`'s row in the list wears the warning mark: the server says its checks failed, or
-/// its name hides another address. Worked out for the rows on screen, without reading bodies.
+/// Whether `m`'s row in the list wears the warning mark: a warning, not a caution (the server
+/// says its checks failed, or its name hides another address). Worked out for the rows on screen, without reading bodies.
 pub(crate) fn row_mark(app: &mut MailApp, m: &Message) -> bool {
-    app.session.sender_warnings(m, false).iter().any(|w| matches!(w, Warning::FailedCheck(_) | Warning::NameHidesAddress { .. }))
+    app.session.sender_warnings(m, false).iter().any(|w| w.level() == Level::Warning)
 }
 
 /// The addresses of `m`'s links that go somewhere other than their text says, as the links of
@@ -163,9 +168,5 @@ pub(super) fn mismatched(app: &mut MailApp, m: &Message) -> Vec<String> {
 
 /// Whether the link to `url` (as a message's link has it) is one of `mismatched`.
 pub(super) fn is_mismatched(url: &str, mismatched: &[String]) -> bool {
-    !mismatched.is_empty()
-        && mailcraft_model::sender_warnings::link_target(url).is_some_and(|link| {
-            let shown: String = link.as_str().chars().take(200).collect();
-            mismatched.contains(&shown)
-        })
+    !mismatched.is_empty() && mailcraft_model::sender_warnings::link_targets(url).iter().any(|link| mismatched.iter().any(|m| m == link.as_str()))
 }

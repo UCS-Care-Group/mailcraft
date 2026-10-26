@@ -369,7 +369,7 @@ fn header(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Place, pictur
                             let external = warnings::external(app, m);
                             let tag_w = if external { warnings::external_tag_width(ui, &t) } else { 0.0 };
                             let name_w = (room - address_w - tag_w - ui.spacing().item_spacing.x).max(room * 0.2);
-                            let looks_like_address = m.from.name.contains(['@', '\u{ff20}']);
+                            let looks_like_address = mailcraft_model::confusables::as_seen(&m.from.name, 1_000).contains('@');
                             let name =
                                 egui::RichText::new(m.from.display()).font(semibold(13.0)).color(if looks_like_address { t.orange } else { t.text });
                             ui.scope(|ui| {

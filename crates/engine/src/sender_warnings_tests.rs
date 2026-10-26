@@ -116,6 +116,19 @@ fn a_known_name_on_a_stranger_address() {
 }
 
 #[test]
+fn a_name_written_in_sent_items_is_not_compared() {
+    let (mut s, _) = imap(vec![mail("Robin Hale", "robin.hale@freemail.example", "Hello")]);
+    // The owner wrote to Robin by that name: the address is known, the name is not.
+    s.run("mail.new", &json!({})).unwrap();
+    s.run("compose.set", &json!({"to": "Robin Hale <robin@cloudline.example>", "subject": "Hi"})).unwrap();
+    s.run("compose.send", &json!({})).unwrap();
+    assert_eq!(kinds(&mut s, "Hello"), ["external"]);
+    // A contact's name is.
+    s.run("people.new", &json!({"displayName": "Robin Hale", "email": "robin@cloudline.example"})).unwrap();
+    assert_eq!(kinds(&mut s, "Hello"), ["nameHidesAddress", "external"]);
+}
+
+#[test]
 fn warnings_are_kept_until_what_they_rest_on_changes() {
     let (mut s, _) = imap(vec![mail("Lin", "lin@harborwork.example", "Lookalike")]);
     let m = s.mailbox.messages.get(&id_of(&s, "Lookalike")).cloned().unwrap();

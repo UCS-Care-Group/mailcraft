@@ -22,7 +22,7 @@ use crate::{Account, AccountKind, Message, provider, sender_warnings};
 
 /// How many of a message's headers are looked through for the server's verdict, and how many
 /// clauses and characters of it are read.
-const MAX_HEADERS_READ: usize = 2_000;
+pub(crate) const MAX_HEADERS_READ: usize = 2_000;
 const MAX_TOKENS: usize = 200;
 const MAX_HEADER_CHARS: usize = 4_000;
 /// Longest address of a sender that is read, and the longest domain.
@@ -94,8 +94,11 @@ fn from_own_server(account: Option<&Account>, value: &str) -> bool {
 /// `;` that is neither in a comment (nested, with `\` quoting) nor in a quoted string, a comment
 /// being a gap between words and a quoted string staying whole inside its word. What a sender
 /// can put into a value (a `reason="…"`, a `(comment)`) therefore stays inside its own word.
+/// The words of a comment that is not nested and follows a clause's first word are kept too,
+/// each with a `(` before it (`(p=NONE`), so that no property is ever read from one.
 fn clauses(value: &str) -> Vec<Vec<String>> {
     let (mut out, mut words, mut word) = (Vec::new(), Vec::new(), String::new());
+    let mut comment = String::new();
     let (mut depth, mut quoted, mut escaped) = (0usize, false, false);
     for c in value.chars().take(MAX_HEADER_CHARS) {
         if escaped {
@@ -107,11 +110,21 @@ fn clauses(value: &str) -> Vec<Vec<String>> {
         }
         match c {
             '\\' if depth > 0 || quoted => escaped = true,
-            _ if depth > 0 => match c {
-                '(' => depth = depth.saturating_add(1),
-                ')' => depth = depth.saturating_sub(1),
-                _ => {}
-            },
+            _ if depth > 0 => {
+                if matches!(c, '(' | ')' | ' ' | '\t' | '\r' | '\n') {
+                    if !comment.is_empty() && !words.is_empty() {
+                        words.push(format!("({comment}"));
+                    }
+                    comment.clear();
+                } else if depth == 1 {
+                    comment.push(c);
+                }
+                match c {
+                    '(' => depth = depth.saturating_add(1),
+                    ')' => depth = depth.saturating_sub(1),
+                    _ => {}
+                }
+            }
             '"' => {
                 quoted = !quoted;
                 word.push(c);
@@ -119,6 +132,7 @@ fn clauses(value: &str) -> Vec<Vec<String>> {
             _ if quoted => word.push(c),
             '(' => {
                 depth = 1;
+                comment.clear();
                 if !word.is_empty() {
                     words.push(std::mem::take(&mut word));
                 }
@@ -201,6 +215,9 @@ pub fn vouched(account: Option<&Account>, m: &Message) -> bool {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Failed {
     Dmarc,
+    /// DMARC, for a domain whose policy (`p=none`) asks for nothing to be done about mail that
+    /// fails: a caution, not a warning.
+    DmarcPolicyNone,
     /// SPF for the sender's domain, when the server gave no DMARC verdict.
     Spf,
 }
@@ -209,7 +226,7 @@ impl Failed {
     /// The method's name as RFC 8601 writes it.
     pub fn as_str(self) -> &'static str {
         match self {
-            Failed::Dmarc => "dmarc",
+            Failed::Dmarc | Failed::DmarcPolicyNone => "dmarc",
             Failed::Spf => "spf",
         }
     }
@@ -219,7 +236,8 @@ impl Failed {
 /// `Authentication-Results` ([`own_verdict`]) has `dmarc=fail` for the sender's domain (a clause
 /// that names no `header.from` judged the `From:` it had, which is the sender's), or, when it has
 /// no `dmarc` clause at all, `spf=fail` for a `smtp.mailfrom` at the sender's domain or one under
-/// the domain it judged. A server that says nothing, or says it of another domain, gives `None`,
+/// the domain it judged; a DMARC failure for a domain whose policy is `p=none` is
+/// [`Failed::DmarcPolicyNone`]. A server that says nothing, or says it of another domain, gives `None`,
 /// and so does Exchange Online's `compauth=pass` for the sender, which is its last word.
 pub fn failed_check(account: Option<&Account>, m: &Message) -> Option<Failed> {
     let clauses = own_clauses(account, m)?;
@@ -242,7 +260,7 @@ pub fn failed_check(account: Option<&Account>, m: &Message) -> Option<Failed> {
         }
         dmarc_said = true;
         if outcome == "fail" && of_sender(words) {
-            return Some(Failed::Dmarc);
+            return Some(if policy_none(words) { Failed::DmarcPolicyNone } else { Failed::Dmarc });
         }
     }
     if dmarc_said {
@@ -253,6 +271,16 @@ pub fn failed_check(account: Option<&Account>, m: &Message) -> Option<Failed> {
             && judged(words, "smtp.mailfrom").flatten().is_some_and(|j| j == sender_domain || judged_for(&sender_domain, &j))
     });
     spf_fails.then_some(Failed::Spf)
+}
+
+/// Whether a `dmarc` clause says the domain's policy is `none`: in the server's comment
+/// (`(p=NONE sp=NONE dis=NONE)`) or a `policy.` property (`policy.dmarc=none`). Another policy, or
+/// none said, is not.
+fn policy_none(words: &[String]) -> bool {
+    words.iter().skip(1).any(|word| {
+        let word = word.to_ascii_lowercase();
+        word == "(p=none" || word.split_once('=').is_some_and(|(key, value)| key.starts_with("policy.") && value.trim_matches('"') == "none")
+    })
 }
 
 /// Whether a verdict on the domain `judged` stands for mail from `sender_domain`: the same name,

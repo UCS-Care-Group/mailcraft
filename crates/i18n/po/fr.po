@@ -10928,6 +10928,11 @@ msgstr "Votre courrier est en cours de téléchargement. La première fois peut 
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
+msgid "Your mail server checked where this message came from, and the check failed, though the sender's domain asks for nothing to be done about it: the sender's address may be forged."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
 msgid "Your mail server checked where this message came from, and the check failed: the sender's address may be forged."
 msgstr ""
 

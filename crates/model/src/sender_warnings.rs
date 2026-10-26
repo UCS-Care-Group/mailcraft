@@ -3,7 +3,8 @@
 //! **Sender warnings**: what MailCraft tells the owner about a message that may not be what it
 //! seems, each with its reason. A **warning** when the account's own server says the sender's
 //! checks failed, or a name hides another address; a **caution** for a **lookalike** sender or
-//! a link whose text names one place and goes to another; and the quiet **External** tag for
+//! a link whose text names one place and goes to another (and a failed check where the
+//! sender's domain asks for nothing to be done about mail that fails); and the quiet **External** tag for
 //! mail from outside the **owner's organisation**, which is never a warning by itself.
 //!
 //! Pure: the rules read a message and the [`Facts`] they are measured against (the owner's own
@@ -21,8 +22,8 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 
 use serde_json::{Value, json};
 
-use crate::auth_results::{self, Failed};
-use crate::confusables::skeleton;
+use crate::auth_results::{self, Failed, MAX_HEADERS_READ};
+use crate::confusables::{as_seen, skeleton};
 use crate::{Account, FolderKind, Message, provider};
 
 /// The most characters of a display name that are read.
@@ -64,7 +65,7 @@ impl Level {
 pub enum NameReason {
     /// The name carries an address that is not the sender's (`"bank@example.org" <x@evil.example>`).
     AddressInName(String),
-    /// It is the name of a contact or someone the owner wrote to, on an address that is none of theirs.
+    /// It is the name of one of the owner's contacts, on an address that is none of theirs.
     KnownName,
     /// It is the owner's own name, on an address that is not theirs.
     OwnName,
@@ -82,7 +83,8 @@ pub enum Warning {
     /// The sender's domain (`domain`, written as it goes over the wire) is one character, or one
     /// look-alike character, away from `like`, a known correspondent's.
     LookalikeSender { domain: String, like: String },
-    /// A link whose text names `text_host` and which goes to `host`; `url` is where it goes.
+    /// A link whose text names `text_host` and which goes to `host`; `url` is where it goes, in
+    /// full (an agent is given its first characters).
     LinkMismatch { text_host: String, host: String, url: String },
 }
 
@@ -100,6 +102,7 @@ impl Warning {
 
     pub fn level(&self) -> Level {
         match self {
+            Warning::FailedCheck(Failed::DmarcPolicyNone) => Level::Caution,
             Warning::FailedCheck(_) | Warning::NameHidesAddress { .. } => Level::Warning,
             Warning::LookalikeSender { .. } | Warning::LinkMismatch { .. } => Level::Caution,
             Warning::External { .. } => Level::Tag,
@@ -110,6 +113,7 @@ impl Warning {
     pub fn json(&self) -> Value {
         let mut v = json!({"kind": self.kind(), "level": self.level().as_str()});
         let detail = match self {
+            Warning::FailedCheck(Failed::DmarcPolicyNone) => json!({"method": "dmarc", "policy": "none"}),
             Warning::FailedCheck(method) => json!({"method": method.as_str()}),
             Warning::NameHidesAddress { name, reason } => match reason {
                 NameReason::AddressInName(address) => json!({"name": name, "reason": "addressInName", "address": address}),
@@ -118,7 +122,7 @@ impl Warning {
             },
             Warning::External { domain } => json!({"domain": domain}),
             Warning::LookalikeSender { domain, like } => json!({"domain": domain, "like": like}),
-            Warning::LinkMismatch { text_host, host, url } => json!({"textHost": text_host, "host": host, "url": url}),
+            Warning::LinkMismatch { text_host, host, url } => json!({"textHost": text_host, "host": host, "url": detail(url)}),
         };
         if let (Some(o), Value::Object(more)) = (v.as_object_mut(), detail) {
             o.extend(more);
@@ -196,8 +200,9 @@ impl FactsBuilder {
         self
     }
 
-    /// A known correspondent: an address the owner keeps as a contact or has written to, with
-    /// the name it goes by there (empty for none).
+    /// A known correspondent: an address the owner keeps as a contact, with the name it goes by
+    /// there, or has written to (with no name: a name in Sent Items is the owner's word for
+    /// somebody, not theirs, and is not compared).
     pub fn known(&mut self, address: &str, name: &str) {
         let address = address.trim().to_lowercase();
         let Some(domain) = sender_domain(&address) else { return };
@@ -220,13 +225,22 @@ impl FactsBuilder {
     }
 }
 
-/// A name as names are compared: quotes taken off, spaces run together, lower case. `None` for
-/// what is no person's name: fewer than two words with letters in them, or an address.
+/// A name as names are compared: as it reads on the screen ([`as_seen`]), each word without the
+/// quotes and punctuation round it and as its [`skeleton`] (so `M\u{430}ya` is `Maya`), the words
+/// with letters in them one space apart. `None` for what is no person's name: fewer than two
+/// such words (a one-word name is never compared with anybody's), or an address.
 pub fn name_key(name: &str) -> Option<String> {
-    let name: String = name.chars().take(MAX_NAME_CHARS).filter(|c| !matches!(c, '"' | '\'')).collect();
-    let words: Vec<&str> = name.split_whitespace().collect();
-    let real = words.iter().filter(|w| w.chars().any(char::is_alphabetic)).count() >= 2 && !name.contains('@');
-    real.then(|| words.join(" ").to_lowercase())
+    let seen = as_seen(name, MAX_NAME_CHARS);
+    if seen.contains('@') {
+        return None;
+    }
+    let words: Vec<String> = seen
+        .split_whitespace()
+        .map(|word| word.trim_matches(|c: char| !c.is_alphanumeric()))
+        .filter(|word| word.chars().any(char::is_alphabetic))
+        .map(skeleton)
+        .collect();
+    (words.len() >= 2).then(|| words.join(" "))
 }
 
 /// The domain of `address` as domains are compared: lower case, without a dot at the end, each
@@ -322,16 +336,8 @@ fn detail(text: &str) -> String {
 /// The addresses written in a display name (what has an `@` with something on either side and a
 /// dot after it), in lower case.
 fn addresses_in(name: &str) -> Vec<String> {
-    // A full-width `＠` or `．` reads as `@` or `.` to whoever looks at the name.
-    let chars: Vec<char> = name
-        .chars()
-        .take(MAX_NAME_CHARS)
-        .map(|c| match c {
-            '\u{ff20}' => '@',
-            '\u{ff0e}' => '.',
-            c => c,
-        })
-        .collect();
+    // As it reads: what draws nothing left out, `＠` and `․` as `@` and `.`.
+    let chars: Vec<char> = as_seen(name, MAX_NAME_CHARS).chars().collect();
     let local = |c: char| c.is_alphanumeric() || matches!(c, '.' | '_' | '%' | '+' | '-' | '\'');
     let host = |c: char| c.is_alphanumeric() || matches!(c, '.' | '-');
     let mut out = Vec::new();
@@ -355,17 +361,36 @@ fn addresses_in(name: &str) -> Vec<String> {
 fn name_hides(facts: &Facts, m: &Message) -> Option<Warning> {
     let address = m.from.email.trim().to_lowercase();
     let name = detail(&m.from.name);
-    if let Some(other) = addresses_in(&m.from.name).into_iter().find(|a| *a != address) {
+    // A list writes its members' names as "Maya Okafor via Lumen Team": the name is the
+    // member's, the address the list's.
+    let via = via_list(&as_seen(&m.from.name, MAX_NAME_CHARS));
+    let list = m.headers.iter().take(MAX_HEADERS_READ).any(|(h, _)| h.eq_ignore_ascii_case("List-Id") || h.eq_ignore_ascii_case("List-Post"));
+    if !(via && list)
+        && let Some(other) = addresses_in(&m.from.name).into_iter().find(|a| *a != address)
+    {
         return Some(Warning::NameHidesAddress { name, reason: NameReason::AddressInName(other) });
+    }
+    if via {
+        return None;
     }
     let (theirs, own) = facts.people.get(&name_key(&m.from.name)?)?;
     (!theirs.contains(&address)).then_some(Warning::NameHidesAddress { name, reason: if *own { NameReason::OwnName } else { NameReason::KnownName } })
+}
+
+/// Whether `name` (as it reads) is a list's for one of its members: "<anything> via <list>".
+fn via_list(name: &str) -> bool {
+    name.to_lowercase().rsplit_once(" via ").is_some_and(|(member, list)| !member.trim().is_empty() && list.chars().any(char::is_alphanumeric))
 }
 
 /// The host a link's text names, when the text is itself a web address or a bare domain
 /// (`https://lumen.example/pay`, `www.lumen.example`, `lumen.example/pay`); `None` for words
 /// ("Click here"), an e-mail address, and anything else.
 fn named_host(text: &str) -> Option<String> {
+    if text.len() > MAX_LINK_TEXT.saturating_mul(4) {
+        return None;
+    }
+    // As it reads: `www.lumen\u{200b}.example` is shown as `www.lumen.example`.
+    let text = as_seen(text, MAX_LINK_TEXT.saturating_add(1));
     let text = text.trim().trim_end_matches(['.', ',', ';', ':', ')', '>']).trim_start_matches(['(', '<']);
     if text.is_empty() || text.len() > MAX_LINK_TEXT || text.chars().any(char::is_whitespace) {
         return None;
@@ -398,13 +423,21 @@ fn host_key(host: &str) -> &str {
 /// with the link it stands for in its `url` parameter. That link is the one compared.
 const SAFE_LINKS: &str = "safelinks.protection.outlook.com";
 
-/// The hosts of the other services an organisation may have rewrite every link of its mail to
-/// pass through them (Proofpoint's URL Defense, Mimecast's URL Protect), each with the hosts under
-/// it: a domain that is wholly the rewriter's, or only the one host of it that rewrites (the rest
-/// of `proofpoint.com` is compared as any site is). Where such a link really goes is not written
-/// plainly in it, so a link through them is not compared at all. Kept short: only services that
-/// rewrite a whole organisation's mail belong here.
-const LINK_REWRITERS: [&str; 4] = ["urldefense.com", "urldefense.proofpoint.com", "mimecast.com", "mimecastprotect.com"];
+/// Proofpoint's URL Defense, whose links carry the link they stand for, written as Proofpoint
+/// describes in public: version 2 at this host, `/v2/url?u=…` with `-` for `%` and `_` for `/`.
+const PROOFPOINT_V2: &str = "urldefense.proofpoint.com";
+/// Version 3, at this domain: `/v3/__<link>__;…`, a `*` in the link standing for characters
+/// given after it.
+const PROOFPOINT_V3: &str = "urldefense.com";
+
+/// The other services an organisation may have rewrite every link of its mail to pass through
+/// them, whose links don't say where they go (Mimecast's URL Protect), each with the hosts under
+/// it. A link through them is not compared at all. Kept short: only services that rewrite a
+/// whole organisation's mail and hide where it goes belong here.
+const LINK_REWRITERS: [&str; 2] = ["mimecast.com", "mimecastprotect.com"];
+
+/// The most links one link is read as standing for (Safe Links' `url`, given more than once).
+const MAX_INNER_LINKS: usize = 4;
 
 /// Whether `host` is `domain` or a host under it (never merely a name that contains it).
 fn is_at(host: &str, domain: &str) -> bool {
@@ -432,47 +465,101 @@ fn percent_decoded(text: &str) -> String {
     String::from_utf8_lossy(&out).into_owned()
 }
 
-/// Where `link` really goes: through Safe Links, the link it stands for; else `link` itself.
-/// `None` for a link through one of the [`LINK_REWRITERS`], which is not compared.
-fn real_link(link: mailcraft_link::WebLink) -> Option<mailcraft_link::WebLink> {
-    let host = host_key(link.host()).to_ascii_lowercase();
-    if LINK_REWRITERS.iter().any(|rewriter| is_at(&host, rewriter)) {
-        return None;
-    }
-    if !is_at(&host, SAFE_LINKS) {
-        return Some(link);
-    }
-    let query = link.as_str().split_once('?').map(|(_, q)| q.split('#').next().unwrap_or(q)).unwrap_or("");
-    let inner = query.split('&').find_map(|pair| pair.strip_prefix("url=")).map(percent_decoded);
-    Some(inner.and_then(|inner| mailcraft_link::WebLink::parse(inner.trim())).unwrap_or(link))
+/// The path and query of `link` (`/v2/url?u=…`), without its fragment.
+fn path_of(link: &str) -> &str {
+    let rest = link.split_once("://").map_or("", |(_, rest)| rest);
+    let path = rest.find('/').and_then(|at| rest.get(at..)).unwrap_or("");
+    path.split('#').next().unwrap_or(path)
 }
 
-/// Where the link to `href` really goes, as [`link_mismatches`] compares it; `None` for no web
-/// address, or one through a [`LINK_REWRITERS`] service.
-pub fn link_target(href: &str) -> Option<mailcraft_link::WebLink> {
-    mailcraft_link::WebLink::parse(href.trim()).and_then(real_link)
+/// The values of the query parameter `key` of `link` (its name in any letter case), as written.
+fn query_values<'a>(link: &'a str, key: &'a str) -> impl Iterator<Item = &'a str> {
+    let query = path_of(link).split_once('?').map_or("", |(_, query)| query);
+    query.split('&').filter_map(move |pair| pair.split_once('=').filter(|(k, _)| k.eq_ignore_ascii_case(key)).map(|(_, v)| v))
+}
+
+/// The link a URL Defense link stands for; `None` when it can't be read whole.
+fn proofpoint(link: &mailcraft_link::WebLink, host: &str) -> Option<mailcraft_link::WebLink> {
+    let path = path_of(link.as_str());
+    if is_at(host, PROOFPOINT_V2) {
+        if !path.get(..7).is_some_and(|p| p.eq_ignore_ascii_case("/v2/url")) {
+            return None;
+        }
+        let written: String = query_values(link.as_str(), "u")
+            .next()?
+            .chars()
+            .map(|c| match c {
+                '-' => '%',
+                '_' => '/',
+                c => c,
+            })
+            .collect();
+        return mailcraft_link::WebLink::parse(percent_decoded(&written).trim());
+    }
+    // ponytail: a `*` stands for characters given after `__;`; such a link stays uncompared
+    // rather than be half read. Read them if rewritten links with one turn out common.
+    let (inner, _) = path.strip_prefix("/v3/__")?.split_once("__;")?;
+    if inner.contains('*') {
+        return None;
+    }
+    mailcraft_link::WebLink::parse(inner.trim())
+}
+
+/// Where `link` really goes: through Safe Links, each link its `url` stands for (the Safe Links
+/// address itself when it stands for none); through URL Defense, the link it stands for; else
+/// `link` itself. None for a link through one of the [`LINK_REWRITERS`], or a URL Defense link
+/// that can't be read whole: those are not compared.
+fn real_links(link: mailcraft_link::WebLink) -> Vec<mailcraft_link::WebLink> {
+    let host = host_key(link.host()).to_ascii_lowercase();
+    if LINK_REWRITERS.iter().any(|rewriter| is_at(&host, rewriter)) {
+        return Vec::new();
+    }
+    if is_at(&host, PROOFPOINT_V2) || is_at(&host, PROOFPOINT_V3) {
+        return proofpoint(&link, &host).into_iter().collect();
+    }
+    if !is_at(&host, SAFE_LINKS) {
+        return vec![link];
+    }
+    let mut inner: Vec<mailcraft_link::WebLink> = Vec::new();
+    for value in query_values(link.as_str(), "url").take(MAX_INNER_LINKS) {
+        if let Some(target) = mailcraft_link::WebLink::parse(percent_decoded(value).trim())
+            && !inner.iter().any(|known| known.as_str() == target.as_str())
+        {
+            inner.push(target);
+        }
+    }
+    if inner.is_empty() { vec![link] } else { inner }
+}
+
+/// Where the link to `href` really goes, as [`link_mismatches`] compares it: none for no web
+/// address, or one whose real place can't be read ([`LINK_REWRITERS`]); more than one for a
+/// Safe Links address that names several.
+pub fn link_targets(href: &str) -> Vec<mailcraft_link::WebLink> {
+    mailcraft_link::WebLink::parse(href.trim()).map(real_links).unwrap_or_default()
 }
 
 /// The links whose text names one place and which go to another, of `links` (each its text and
 /// where it goes). Two hosts of the same registrable domain are one place (`lumen.example` and
 /// `pay.lumen.example`). A link that is no web address (`mailto:`, `cid:`) is not one of them; a
-/// link rewritten by Safe Links is compared as the link it stands for, and one through another
-/// service that rewrites links ([`LINK_REWRITERS`]) not at all.
+/// link rewritten by Safe Links or URL Defense is compared as the link it stands for (each, when
+/// Safe Links names several), and one through a service that hides it ([`LINK_REWRITERS`]) not
+/// at all.
 pub fn link_mismatches<'a>(links: impl IntoIterator<Item = (&'a str, &'a str)>) -> Vec<Warning> {
     let mut out: Vec<Warning> = Vec::new();
     for (text, href) in links.into_iter().take(MAX_LINKS) {
         let Some(named) = named_host(text) else { continue };
-        let Some(link) = link_target(href) else { continue };
-        let (named, real) = (host_key(&named), host_key(link.host()));
-        if named == real || registrable(named) == registrable(real) {
-            continue;
-        }
-        let same = |w: &Warning| matches!(w, Warning::LinkMismatch { url, .. } if url == link.as_str());
-        if !out.iter().any(same) {
-            out.push(Warning::LinkMismatch { text_host: named.to_string(), host: real.to_string(), url: detail(link.as_str()) });
-        }
-        if out.len() >= MAX_LINK_WARNINGS {
-            break;
+        for link in link_targets(href) {
+            let (named, real) = (host_key(&named), host_key(link.host()));
+            if named == real || registrable(named) == registrable(real) {
+                continue;
+            }
+            let same = |w: &Warning| matches!(w, Warning::LinkMismatch { url, .. } if url == link.as_str());
+            if !out.iter().any(same) {
+                out.push(Warning::LinkMismatch { text_host: named.to_string(), host: real.to_string(), url: link.as_str().to_string() });
+            }
+            if out.len() >= MAX_LINK_WARNINGS {
+                return out;
+            }
         }
     }
     out

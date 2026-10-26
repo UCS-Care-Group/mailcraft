@@ -38,10 +38,10 @@ struct Known {
     contacts: BTreeMap<Id, Arc<Contact>>,
     of_contacts: HashSet<String>,
     contact_names: Vec<(String, String)>,
-    /// Whoever the messages in `sent` went to, and the names they went by there. Every message
-    /// below `next` was looked at, and the mailbox held `messages` messages then.
+    /// Whoever the messages in `sent` went to (by address alone: the name the owner wrote is not
+    /// the correspondent's own). Every message below `next` was looked at, and the mailbox held
+    /// `messages` messages then.
     written_to: HashSet<String>,
-    written_names: HashSet<(String, String)>,
     sent: HashSet<Id>,
     next: Id,
     messages: usize,
@@ -101,7 +101,6 @@ impl Known {
                 self.changed();
             }
             self.written_to.clear();
-            self.written_names.clear();
             self.sent.clear();
             0
         } else {
@@ -111,11 +110,7 @@ impl Known {
         for (id, m) in mailbox.messages.range(from..).filter(|(_, m)| outgoing.contains(&m.folder)) {
             self.sent.insert(*id);
             for a in m.to.iter().chain(&m.cc).chain(&m.bcc) {
-                let address = a.email.trim().to_lowercase();
-                if sender_warnings::name_key(&a.name).is_some() {
-                    grew |= self.written_names.insert((address.clone(), a.name.trim().to_string()));
-                }
-                grew |= self.written_to.insert(address);
+                grew |= self.written_to.insert(a.email.trim().to_lowercase());
             }
         }
         if grew {
@@ -148,11 +143,18 @@ fn fingerprint(m: &Message, account: Option<&Account>) -> u64 {
 }
 
 /// A fingerprint of the HTML of `m`, whose links the warnings read.
-// ponytail: hashes the whole body, only for the one message on screen; far below painting it.
 fn html_print(m: &Message) -> u64 {
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     m.body.html.hash(&mut hasher);
     hasher.finish()
+}
+
+/// What tells one body from another without reading it: the message, the mailbox's revision,
+/// the body's length and where it is in memory. A body that is put in place comes with a new
+/// revision; one that is handed in from outside the mailbox, at another place.
+fn html_at(m: &Message, rev: u64) -> (Id, u64, usize, usize) {
+    let html = m.body.html.as_deref().unwrap_or("");
+    (m.id, rev, html.len(), html.as_ptr().addr())
 }
 
 /// A message's warnings as they were worked out.
@@ -171,6 +173,9 @@ pub struct SenderChecks {
     /// What the warnings are measured against, and the generation of `known` it was made at.
     facts: Option<(u64, Arc<Facts>)>,
     kept: HashMap<Id, Kept>,
+    /// The last body fingerprinted ([`html_at`]) and its [`html_print`]: the pane asks for the
+    /// same message's warnings more than once a frame, and its body is read once.
+    last_html: Option<((Id, u64, usize, usize), u64)>,
 }
 
 impl SenderChecks {
@@ -190,9 +195,6 @@ impl SenderChecks {
         }
         for address in &known.written_to {
             b.known(address, "");
-        }
-        for (address, name) in &known.written_names {
-            b.known(address, name);
         }
         let facts = Arc::new(b.build());
         self.facts = Some((generation, facts.clone()));
@@ -261,7 +263,17 @@ impl Session {
         let generation = checks.known.generation;
         let account = self.mailbox.account(m.account);
         let print = fingerprint(m, account);
-        let html = links.then(|| html_print(m));
+        let html = links.then(|| {
+            let at = html_at(m, self.rev());
+            match checks.last_html {
+                Some((seen, print)) if seen == at => print,
+                _ => {
+                    let print = html_print(m);
+                    checks.last_html = Some((at, print));
+                    print
+                }
+            }
+        });
         if let Some(kept) = checks.kept.get(&m.id)
             && kept.fingerprint == print
             && kept.generation == generation
