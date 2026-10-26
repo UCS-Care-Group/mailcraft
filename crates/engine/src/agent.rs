@@ -294,6 +294,7 @@ const SAFE: &[&str] = &[
     "ui.language",
     "ui.interfaceSize",
     "ui.focusSearch",
+    "ui.advancedSearch",
     "ui.sync",
     "ui.cancelSignIn",
     "ui.cancelSync",

@@ -81,7 +81,8 @@ pub const MAC_CONTENT_LEFT: f32 = MAC_LIGHTS_LEFT + 2.0 * MAC_LIGHT_PITCH + MAC_
 
 /// The search box: typing filters the message list as you go; Escape clears it. In mail, a list
 /// under it offers what the word being typed may be (#308; `search_suggest`), and Escape closes
-/// that first.
+/// that first; and the button at its right opens Advanced Search under it (#329), which Escape
+/// closes before it clears anything (`advanced_search::escape`).
 fn search_box(app: &mut MailApp, ui: &mut Ui, rect: Rect) {
     let t = Tokens::get(ui.ctx());
     let id = search_box_id();
@@ -106,7 +107,27 @@ fn search_box(app: &mut MailApp, ui: &mut Ui, rect: Rect) {
     // The scope menu is about mail folders, so People (which searches contacts) goes without it.
     let mail_search = app.session.view.module != Module::People;
     let scope_w = if mail_search { 104.0 } else { 0.0 };
-    let edit_rect = Rect::from_min_max(pos2(rect.min.x + 28.0, rect.min.y + 1.0), pos2(rect.max.x - scope_w - 4.0, rect.max.y - 1.0));
+    // Advanced Search's button, at the right of the text as in Outlook: Mail's alone.
+    let in_mail = app.session.view.module == Module::Mail;
+    let advanced_w = if in_mail { 28.0 } else { 0.0 };
+    let edit_rect = Rect::from_min_max(pos2(rect.min.x + 28.0, rect.min.y + 1.0), pos2(rect.max.x - scope_w - advanced_w - 4.0, rect.max.y - 1.0));
+    app.hit.add("searchBox", 0, rect);
+    let advanced = Rect::from_center_size(pos2(rect.max.x - scope_w - advanced_w / 2.0 - 2.0, rect.center().y), vec2(24.0, 22.0));
+    if in_mail {
+        let aresp = ui.interact(advanced, ui.scope_id().with("advanced_search_button"), Sense::click());
+        aresp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, tl!("Advanced Search")));
+        let aresp = aresp.on_hover_text(tl!("Advanced Search"));
+        app.hit.add("advancedSearchButton", 0, advanced);
+        let open = app.advanced_search.is_some();
+        if aresp.hovered() || open {
+            ui.painter().rect_filled(advanced, 4.0, if open { t.pressed } else { t.hover });
+        }
+        icons::paint(ui.painter(), Rect::from_center_size(advanced.center(), vec2(15.0, 15.0)), "filter", t.text_dim, t.accent);
+        if aresp.clicked() {
+            let _ = crate::advanced_search::set_open(app, !open);
+        }
+    }
+    let panel = app.advanced_search.is_some();
     let hint = match app.session.view.module {
         Module::People => tl!("Search people"),
         // Calendar and Tasks have no search of their own yet: what is typed looks in the mail.
@@ -126,7 +147,7 @@ fn search_box(app: &mut MailApp, ui: &mut Ui, rect: Rect) {
     let mut suggesting = crate::search_suggest::Suggesting::load(ui.ctx());
     let over = suggesting.pointer_over(ui);
     // With a dialog open, the list is not drawn: it would be on top of the dialog.
-    let open = mail_search && free && crate::search_suggest::Suggesting::is_open(ui.ctx());
+    let open = mail_search && free && !panel && crate::search_suggest::Suggesting::is_open(ui.ctx());
     let mut take = if open && focused { suggesting.keys(ui) } else { None };
     let pill_slot = ui.painter().add(egui::Shape::Noop);
     let mut drawn: Vec<crate::search_pills::Pill> = Vec::new();
@@ -178,7 +199,8 @@ fn search_box(app: &mut MailApp, ui: &mut Ui, rect: Rect) {
         let _ = app.execute("people.search", json!({"query": ""}));
         resp.surrender_focus();
     }
-    let wanted = mail_search && free && (focused || over) && !suggesting.items.is_empty();
+    // Not while Advanced Search is open under the box.
+    let wanted = mail_search && free && !panel && (focused || over) && !suggesting.items.is_empty();
     take = suggesting.show(ui, rect, wanted).or(take);
     let mut cursor = output.cursor_range.map(|r| r.primary.index.0);
     // Only what was offered for the search as it is now: not for one this frame's typing changed.
@@ -195,7 +217,7 @@ fn search_box(app: &mut MailApp, ui: &mut Ui, rect: Rect) {
         cursor = Some(at);
     }
     match cursor {
-        Some(at) if mail_search && (resp.has_focus() || ui.memory(|m| m.has_focus(id))) => {
+        Some(at) if mail_search && !panel && (resp.has_focus() || ui.memory(|m| m.has_focus(id))) => {
             suggesting.offer(&app.search_text, at, &app.session);
             // The keys of a list that shows from the next frame are its own from that frame on.
             let next = suggesting.will_show(ui.ctx(), free);
@@ -207,17 +229,15 @@ fn search_box(app: &mut MailApp, ui: &mut Ui, rect: Rect) {
         _ => suggesting.clear(),
     }
     suggesting.store(ui.ctx());
+    if in_mail {
+        crate::advanced_search::show(app, ui.ctx(), rect, advanced);
+    }
     if !mail_search {
         return;
     }
     // Scope: this folder, it and its subfolders, its mailbox, or every mailbox (#493).
     let scope_rect = Rect::from_min_max(pos2(rect.max.x - scope_w, rect.min.y + 2.0), pos2(rect.max.x - 2.0, rect.max.y - 2.0));
-    let scopes = [
-        (Scope::Folder, tl!("Current Folder"), "folder"),
-        (Scope::Subfolders, tl!("Subfolders"), "subfolders"),
-        (Scope::Mailbox, tl!("Current Mailbox"), "mailbox"),
-        (Scope::Everywhere, tl!("All Mailboxes"), "everywhere"),
-    ];
+    let scopes = scopes();
     let now = app.session.view.scope;
     let label = scopes.iter().find(|(scope, ..)| *scope == now).map_or(tl!("Current Folder"), |(_, name, _)| *name);
     let sresp = ui.interact(scope_rect, ui.scope_id().with("search_scope"), Sense::click());
@@ -234,6 +254,17 @@ fn search_box(app: &mut MailApp, ui: &mut Ui, rect: Rect) {
             }
         }
     });
+}
+
+/// Where a search looks, by name and by `view.search`'s code (#493): this folder, it and its
+/// subfolders, its mailbox, or every mailbox.
+pub(crate) fn scopes() -> [(Scope, &'static str, &'static str); 4] {
+    [
+        (Scope::Folder, tl!("Current Folder"), "folder"),
+        (Scope::Subfolders, tl!("Subfolders"), "subfolders"),
+        (Scope::Mailbox, tl!("Current Mailbox"), "mailbox"),
+        (Scope::Everywhere, tl!("All Mailboxes"), "everywhere"),
+    ]
 }
 
 /// The search box's own keys: the arrows, and Tab while the list under it shows. Escape is always
@@ -307,6 +338,7 @@ pub fn title_bar(app: &mut MailApp, ui: &mut Ui) {
             // The search box, centred, as wide as the space allows.
             let room = (right_start - qat_end - 40.0).max(0.0);
             let w = room.min(520.0);
+            app.search_box_shown = w >= 220.0;
             if w >= 220.0 {
                 let cx = full.center().x.clamp(qat_end + 20.0 + w / 2.0, (right_start - 20.0 - w / 2.0).max(qat_end + 20.0 + w / 2.0));
                 search_box(app, ui, Rect::from_center_size(pos2(cx, full.center().y), vec2(w, search_h)));

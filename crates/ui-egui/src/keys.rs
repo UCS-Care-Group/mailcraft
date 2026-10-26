@@ -436,6 +436,12 @@ pub(crate) fn take_escape(ctx: &egui::Context, layer: LayerId) -> bool {
     ask(ctx, layer, Key::Escape, Want::Alone, true)
 }
 
+/// Whether Escape was pressed for `layer`, in one of its widgets or with nothing focused, taken:
+/// a panel that closes on Escape whatever of it has the keyboard (Advanced Search).
+pub(crate) fn take_escape_any(ctx: &egui::Context, layer: LayerId) -> bool {
+    ask(ctx, layer, Key::Escape, Want::Any, true)
+}
+
 /// Whether Escape was pressed in the widget `id` of `layer`, which keeps the keyboard on Escape
 /// (the search box), taken.
 pub(crate) fn take_escape_in(ctx: &egui::Context, layer: LayerId, id: egui::Id) -> bool {

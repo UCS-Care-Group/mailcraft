@@ -32,6 +32,9 @@ use mailcraft_time::{Date, DateTime, Weekday};
 use crate::words::{self, ATTACHMENT, BODY, CC, FROM, SUBJECT, TO};
 use crate::{Address, Category, FlagStatus, Importance, Message, Rgb, contains_ci};
 
+pub mod advanced;
+pub use advanced::{Advanced, Field, Reading};
+
 /// Longest query read and most terms kept (the rest is ignored).
 const MAX_QUERY: usize = 2_000;
 const MAX_TERMS: usize = 64;
@@ -250,25 +253,12 @@ pub struct KeywordSpan {
 /// nothing.
 pub fn keyword_spans(s: &str) -> Vec<KeywordSpan> {
     let mut out = Vec::new();
-    let mut tokens = tokens(s).into_iter().take(MAX_TERMS).peekable();
-    while let Some((token, at)) = tokens.next() {
-        let (negate, quoted) = opening(s, &at);
-        if quoted {
-            continue;
-        }
-        let body = if negate { token.strip_prefix('-').unwrap_or(&token) } else { token.as_str() };
-        let (body, range) = match body.strip_suffix(':') {
-            Some(key) if is_keyword(key) => match tokens.next_if(|(next, at)| !starts_with_keyword_at(s, next, at)) {
-                Some((value, next)) => (format!("{body}{value}"), at.start..next.end),
-                None => continue,
-            },
-            _ => (body.to_string(), at.clone()),
-        };
-        let shown = keyword_kind(&body).is_some_and(|kind| !kind.asks_nothing());
-        let colon = s.get(at.clone()).and_then(|t| t.find(':')).map(|c| at.start.saturating_add(c).saturating_add(1));
+    for term in scan(s) {
+        let shown = term.keyword.as_ref().is_some_and(|kind| !kind.asks_nothing());
+        let colon = s.get(term.range.clone()).and_then(|t| t.find(':')).map(|c| term.range.start.saturating_add(c).saturating_add(1));
         if let Some(colon) = colon.filter(|_| shown) {
-            let key_start = if s.get(at.start..).is_some_and(|t| t.starts_with('-')) { at.start.saturating_add(1) } else { at.start };
-            out.push(KeywordSpan { range, key: key_start..colon });
+            let key_start = if term.negate { term.range.start.saturating_add(1) } else { term.range.start };
+            out.push(KeywordSpan { range: term.range, key: key_start..colon });
         }
     }
     out
@@ -712,6 +702,15 @@ fn parse_day(s: &str) -> Option<Day> {
     Date::new(y, m, d).map(Day::Date)
 }
 
+/// A whole date as the search reads one, `2026-10-22` or `10/22/2026`, around spaces: not one
+/// without a year (Advanced Search's two days, #329).
+pub fn full_date(s: &str) -> Option<Date> {
+    match parse_day(s.trim())? {
+        Day::Date(d) => Some(d),
+        Day::ThisYear { .. } => None,
+    }
+}
+
 /// What `received:` takes (#329): a day, a range of days `A..B` as Outlook's Advanced Search
 /// writes it, one side of a range, `>=A`, `<=B`, `>A`, `<B`, or days Outlook names in words
 /// (`today`, `"last week"`).
@@ -785,39 +784,55 @@ fn starts_with_keyword_at(s: &str, token: &str, at: &Range<usize>) -> bool {
     !opening(s, at).1 && starts_with_keyword(token)
 }
 
+/// A term of a query as it stands in the text: what [`Query::parse`] reads, [`keyword_spans`] draws
+/// and Advanced Search fills its fields from ([`advanced`]), so that the three never read a query
+/// differently.
+#[derive(Clone, Debug)]
+struct Scanned {
+    /// Where it stands (bytes): from its `-`, if it has one, to the end of its value, the word
+    /// after the keyword's colon in `from: ada`.
+    range: Range<usize>,
+    negate: bool,
+    /// The term without its `-`, its quotes taken off: `from:ada`, `budget`.
+    body: String,
+    /// What it asks for as a keyword; `None`: it is text (a word, a phrase, text in quotes).
+    keyword: Option<Kind>,
+}
+
+/// The terms of `s`, within the longest query read and the most terms kept. `from: stuart` is
+/// `from:stuart`, as Outlook reads it: a keyword with nothing after its colon takes what comes
+/// next. With nothing next (the owner is still typing it), or another keyword, it is no term at
+/// all (#194). What is in quotes is text (#367).
+fn scan(s: &str) -> Vec<Scanned> {
+    let mut out = Vec::new();
+    let mut tokens = tokens(s).into_iter().take(MAX_TERMS).peekable();
+    while let Some((token, at)) = tokens.next() {
+        let (negate, quoted) = opening(s, &at);
+        let body = if negate { token.strip_prefix('-').unwrap_or(&token) } else { token.as_str() };
+        let (body, range) = match body.strip_suffix(':') {
+            Some(key) if !quoted && is_keyword(key) => match tokens.next_if(|(next, at)| !starts_with_keyword_at(s, next, at)) {
+                Some((value, next)) => (format!("{body}{value}"), at.start..next.end),
+                None => continue,
+            },
+            _ => (body.to_string(), at),
+        };
+        let keyword = if quoted { None } else { keyword_kind(&body) };
+        out.push(Scanned { range, negate, body, keyword });
+    }
+    out
+}
+
 impl Query {
     pub fn parse(s: &str) -> Query {
-        let mut terms = Vec::new();
-        let mut tokens = tokens(s).into_iter().take(MAX_TERMS).peekable();
-        while let Some((token, at)) = tokens.next() {
-            let (negate, quoted) = opening(s, &at);
-            let body = if negate { token.strip_prefix('-').unwrap_or(&token) } else { token.as_str() };
-            // `from: stuart` is `from:stuart`, as Outlook reads it: a keyword with nothing after
-            // its colon takes what comes next. With nothing next (the owner is still typing it),
-            // or another keyword, it asks for nothing (#194).
-            let joined;
-            let body = match body.strip_suffix(':') {
-                Some(key) if !quoted && is_keyword(key) => {
-                    match tokens.next_if(|(next, at)| !starts_with_keyword_at(s, next, at)).map(|(value, _)| value) {
-                        Some(value) => {
-                            joined = format!("{body}{value}");
-                            joined.as_str()
-                        }
-                        None => continue,
-                    }
-                }
-                _ => body,
-            };
-            let kind = keyword_kind(body).filter(|_| !quoted).unwrap_or_else(|| Kind::Words {
-                fields: words::ALL,
-                words: words::words(body),
-                raw: raw_words(body),
-            });
+        let terms = scan(s)
+            .into_iter()
+            .map(|term| Term {
+                negate: term.negate,
+                kind: term.keyword.unwrap_or_else(|| Kind::Words { fields: words::ALL, words: words::words(&term.body), raw: raw_words(&term.body) }),
+            })
             // Text with no words in it asks for nothing.
-            if !kind.asks_nothing() {
-                terms.push(Term { negate, kind });
-            }
-        }
+            .filter(|t| !t.kind.asks_nothing())
+            .collect();
         Query { terms }
     }
 
