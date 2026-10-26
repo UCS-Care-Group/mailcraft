@@ -1,6 +1,6 @@
 # Releasing MailCraft
 
-> **Last reviewed:** 2026-10-18 · **Last updated:** 2026-10-24 · **Change:** minor (release notes open with a headline list, **in short**; a tag builds and signs only from `main` with a passing CI; compiling and signing in separate steps; WiX checked by hash; `--locked`; the release announced to the testers in #11; the 0.6.0 Fixes lines brought up to date; a Fixes section in the release notes, each issue linked, checked against what merged since the last tag; build provenance as a file beside each release; reproducible builds, checked weekly; one pinned Rust version, 1.98.1, for every build; what to do when a release key leaks: there is no taking it back from copies already out; v0.5.0, the first release with MailCraft's own signature; how a copy that updates itself installs a release; `DISABLEAUTOMATICUPDATES=1`; MailCraft's own release signature: `SHA256SUMS.txt.sig`, the `MAILCRAFT_RELEASE_KEY` secret, `cargo xtask release-key`) · **Status:** releases v0.1.0 to v0.5.0 were built and published by `release.yml` and `package.yml` on GitHub's runners, for every platform in the table below; v0.5.0 is the first with MailCraft's own release signature (`SHA256SUMS.txt.sig`, verified by the in-use key), and none is signed by the operating systems' signatures yet (gap #18).
+> **Last reviewed:** 2026-10-18 · **Last updated:** 2026-10-26 · **Change:** minor (#464: a pull request's Fixes or What's new line is a fragment in `packaging/release-notes.d/`, joined by `cargo xtask release-notes --write` before tagging; release notes open with a headline list, **in short**; a tag builds and signs only from `main` with a passing CI; compiling and signing in separate steps; WiX checked by hash; `--locked`; the release announced to the testers in #11; the 0.6.0 Fixes lines brought up to date; a Fixes section in the release notes, each issue linked, checked against what merged since the last tag; build provenance as a file beside each release; reproducible builds, checked weekly; one pinned Rust version, 1.98.1, for every build; what to do when a release key leaks: there is no taking it back from copies already out; v0.5.0, the first release with MailCraft's own signature; how a copy that updates itself installs a release; `DISABLEAUTOMATICUPDATES=1`; MailCraft's own release signature: `SHA256SUMS.txt.sig`, the `MAILCRAFT_RELEASE_KEY` secret, `cargo xtask release-key`) · **Status:** releases v0.1.0 to v0.5.0 were built and published by `release.yml` and `package.yml` on GitHub's runners, for every platform in the table below; v0.5.0 is the first with MailCraft's own release signature (`SHA256SUMS.txt.sig`, verified by the in-use key), and none is signed by the operating systems' signatures yet (gap #18).
 
 The canonical recipe is [craftrules `release/playbook.md`](https://github.com/storytold/craftrules/blob/main/release/playbook.md);
 this file has the MailCraft specifics. The scripts in `packaging/` are WordCraft's with MailCraft's
@@ -27,6 +27,17 @@ WordCraft does.
    last tag, `gh pr list --state merged --search "merged:>YYYY-MM-DD" --json number,title,closingIssuesReferences`:
    every user-visible change is in the notes, and a security fix always is. Lines are added as
    fixes merge and cleared when the next release's notes start.
+
+   A pull request doesn't edit **Fixes** or **What's new** in `packaging/release-notes.md`: it
+   adds its line as a file of its own, `packaging/release-notes.d/fixes/<issue>.md` (a feature:
+   `new/<issue>.md`), named by the issue it resolves, or its own number, or a short name when it
+   has neither, and holding the line exactly as it reads under the heading (`- …`, more than one
+   if it needs). So two pull requests never conflict over the notes. `cargo xtask release-notes`
+   prints the notes with every fragment joined in, newest first, and changes nothing; `cargo xtask
+   ci` checks that they join. Before tagging, `cargo xtask release-notes --write` puts the
+   fragments' lines at the top of their sections and removes the fragments, in the release's own
+   pull request: what is tagged is what is released, and `release.yml` reads the file as before.
+   **In short** and the closing paragraphs are written in the file itself.
 2. Bump the version: `cargo xtask version set 0.2.0` (the one source of truth is
    `[workspace.package] version`; the app shows it in `--version` and About, with the commit from
    `MAILCRAFT_BUILD_SHA`), commit, and get `cargo xtask ci` green.
@@ -266,6 +277,7 @@ and in the Flatpak (which is granted `org.freedesktop.secrets` for it).
 
 | Date | Change |
 |---|---|
+| 2026-10-26 | #464: Fixes and What's new lines are fragments, `packaging/release-notes.d/{fixes,new}/<issue>.md`, joined into the notes by `cargo xtask release-notes --write` before tagging, so pull requests don't conflict over the notes; `cargo xtask ci` checks they join |
 | 2026-10-24 | Release notes open with **MailCraft <version> in short**, a headline list, before What's new and Fixes; the announcement in #11 uses it |
 | 2026-10-23 | A tag builds and signs only from `main` with a passing `ci-ok`; compile and sign in separate steps; WiX checked by hash; no build cache in release builds; `--locked` everywhere; a daily cargo-deny run and Dependabot for crates |
 | 2026-10-21 | Step 6: each release announced to the testers in #11, and new sign-ups added to its table |
