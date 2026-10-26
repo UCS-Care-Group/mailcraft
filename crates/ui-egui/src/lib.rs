@@ -1595,8 +1595,12 @@ impl MailApp {
                 return Ok(json!({"pending": name}));
             }
         }
-        // A message not fetched yet is fetched first, and then the command goes on (R3.2).
+        // A message not fetched yet is fetched first, and then the command goes on (R3.2); one that
+        // can't be is said, as a refusal of the command's own would be.
         if let Some(r) = self.fetch_first(id, &params) {
+            if let Err(e) = &r {
+                self.say_refused(id, e);
+            }
             return r;
         }
         if let Some(r) = files::intercept(self, id, &params) {
@@ -1630,20 +1634,7 @@ impl MailApp {
             self.ran = (self.ran.0.wrapping_add(1), id.to_string(), r.clone());
         }
         match &r {
-            Err(e) => {
-                // The engine's refusal in the interface language: its template, filled; any other
-                // text is looked up whole.
-                let said = match self.last_error.take() {
-                    Some(err) if err.to_string() == *e => err.in_lang(i18n::current()),
-                    _ => tl!(e).to_string(),
-                };
-                // What the owner has just done by hand and was refused at once is said in a
-                // message box too, as Outlook does (#152).
-                if self.by_hand && refusal_worth_a_box(id, e) {
-                    self.refused = Some(said.clone());
-                }
-                self.status(said);
-            }
+            Err(e) => self.say_refused(id, e),
             Ok(v) => {
                 if let Some(msg) = feedback(id, v).or_else(|| self.stays_here_note(id, v)) {
                     self.status(msg);
@@ -1661,6 +1652,20 @@ impl MailApp {
             self.body_focus_wanted = true;
         }
         r
+    }
+
+    /// Command `id` was refused with `e`: said in the status bar, in the interface language (the
+    /// engine's refusal, its template filled; any other text looked up whole), and, when the
+    /// owner has just done it by hand, in a message box too, as Outlook does (#152).
+    fn say_refused(&mut self, id: &str, e: &str) {
+        let said = match self.last_error.take() {
+            Some(err) if err.to_string() == *e => err.in_lang(i18n::current()),
+            _ => tl!(e).to_string(),
+        };
+        if self.by_hand && refusal_worth_a_box(id, e) {
+            self.refused = Some(said.clone());
+        }
+        self.status(said);
     }
 
     /// Run a command for a script or an agent (control channel, MCP bridge): never asks first.
@@ -1766,6 +1771,15 @@ impl MailApp {
             self.ui.backstage = false;
         }
         r
+    }
+
+    /// Open a message from outside the message list (a task, a contact's recent mail): in Mail, in
+    /// its folder's All tab with no search, the list scrolled to it (#485).
+    pub(crate) fn open_in_mail(&mut self, id: Id) {
+        self.ui.backstage = false;
+        let _ = self.run("mail.select", json!({"id": id, "elsewhere": true}));
+        let _ = self.run("view.mail", json!({}));
+        self.reveal_selection = true;
     }
 
     fn ui_command(&mut self, id: &str, p: &Value) -> Option<Result<Value, String>> {

@@ -1,6 +1,6 @@
 # File formats and protocols
 
-> **Last reviewed:** 2026-10-20 · **Last updated:** 2026-10-25 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365, classic desktop)
+> **Last reviewed:** 2026-10-20 · **Last updated:** 2026-10-26 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365, classic desktop)
 
 What MailCraft reads, writes and speaks, and how far each goes. Everything is implemented from the
 public specifications; every reader is fed arbitrary bytes by property tests and must never panic.
@@ -31,7 +31,7 @@ Output is always UTF-8.
 | **SMTP submission** (RFC 5321, 4954, 3207) | send | EHLO/HELO, STARTTLS or TLS from the start, AUTH PLAIN, LOGIN and XOAUTH2, dot-stuffing, multi-line replies. Used for accounts other than Microsoft's, which send through Microsoft Graph. No SMTPUTF8, DSN, pipelining |
 | **IMAP4rev1** (RFC 3501, special-use 6154, MOVE 6851, UIDPLUS 4315) | two-way | LOGIN and AUTHENTICATE PLAIN (SASL-IR when offered) and XOAUTH2, LIST, SELECT and EXAMINE, UID FETCH (flags, sizes, headers, whole messages with literals), modified UTF-7 names, UIDVALIDITY handling (changes not yet sent are made again on the new copies). Up to the server: read marks and flags (UID STORE), moves (UID MOVE, else UID COPY and UID EXPUNGE, never a plain EXPUNGE), deletes, folders a move needs (CREATE, SUBSCRIBE) and a copy of sent mail (APPEND). Not sent: folder renames, moves and deletes, drafts, copies, categories, importance (gap #2). Gmail's All Mail and Trash for Archive and Delete for good. No IDLE, CONDSTORE/QRESYNC, COMPRESS, partial fetch, SEARCH on the server |
 | **Microsoft Graph** (HTTPS, JSON) | two-way | For accounts that sign in with Microsoft (OAuth 2.0), with no IMAP or SMTP: folders both ways by server id; mail down by delta and fetched whole (`$value`) within Mail to keep offline; changes up (read, flag, categories, importance, moves, copies, deletes, twenty to a `$batch`); drafts and sending (`sendMail`, send-draft); search on the server (`$search`); the calendars both ways (events, series, meetings, free/busy); contacts down, read-only; working hours and the category list read; Outlook's Favorites read. Shared mailboxes at their own address, mail moved and copied between them and their owner's mailbox made at the destination's own address (#70). Immutable ids for mail; requests paced and asked again after `Retry-After` |
-| **TLS** | rustls with the Mozilla root set | Certificate and host name verified; unencrypted connections refused except to loopback; a missing STARTTLS offer is an error |
+| **TLS** | rustls, certificates checked by the operating system's verifier (#501) | Certificate and host name verified; on Windows and macOS a missing intermediate is fetched by the system, on Linux and FreeBSD the system's certificate store is used; unencrypted connections refused except to loopback; a missing STARTTLS offer is an error |
 | POP3 | not yet, tracked in [#437](https://github.com/UCS-Care-Group/mailcraft/issues/437) | An account is IMAP or, for Microsoft, Graph; Add Account says so for a POP port or host name (#402) |
 | Exchange (EWS, MAPI), JMAP, CalDAV, CardDAV | no | Gap #5. Exchange Web Services, used for Outlook's Favorites in 0.2.x, is gone. JMAP is being contributed, for the browser build first ([#226](https://github.com/UCS-Care-Group/mailcraft/issues/226)) |
 
@@ -42,6 +42,7 @@ IMAP and SMTP servers and a Graph stand-in, not yet against other real servers (
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-26 | minor | #501: TLS certificates are checked by the operating system's verifier, not a built-in Mozilla root set |
 | 2026-10-24 | minor | Password IMAP authentication prefers advertised PLAIN; current capabilities are queried only when unknown (#375) |
 | 2026-10-11 | major | First version |
 | 2026-10-12 | minor | Time zones (M3.5): the mailbox file's `zone` and an event's own zones; `VTIMEZONE` read and written |

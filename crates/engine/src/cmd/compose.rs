@@ -28,12 +28,12 @@ pub fn specs() -> Vec<CommandSpec> {
             ),
         CommandSpec::new("mail.reply", "Reply", "Home › Respond", reply).pure().key("Mod+R").params(SOURCE).selection(needs_message),
         CommandSpec::new("mail.replyAll", "Reply All", "Home › Respond", reply_all).pure().key("Mod+Shift+R").params(SOURCE).selection(needs_message),
-        CommandSpec::new("mail.forward", "Forward", "Home › Respond", forward).pure().key("Mod+F").params(SOURCE).selection(needs_message),
+        CommandSpec::new("mail.forward", "Forward", "Home › Respond", forward).pure().key("Mod+F").params(FORWARD).selection(needs_forwardable),
         CommandSpec::new("mail.forwardAsAttachment", "Forward as Attachment", "Home › Respond", forward_as_attachment)
             .pure()
             .key("Mod+Alt+F")
-            .params(SOURCE)
-            .selection(needs_one_message),
+            .params(FORWARD)
+            .selection(needs_forwardable),
         CommandSpec::new("mail.editDraft", "Open Draft", "Mail", edit_draft).pure().params(SOURCE).selection(needs_message),
         CommandSpec::new("compose.set", "Edit Message", "Message", set)
             .pure()
@@ -64,6 +64,8 @@ pub fn specs() -> Vec<CommandSpec> {
 
 const SOURCE: &str =
     r#"{"id"?: number} (default: the selected message; a message being written with changes that aren't saved is saved to Drafts first)"#;
+
+const FORWARD: &str = r#"{"id"?: number, "discard"?: bool} | {"ids"?: [number], "discard"?: bool} (default: the selected messages; a message being written with changes that aren't saved is saved to Drafts first, unless discard). An id of another kind, both, or any other parameter is refused. One message: Forward quotes it, Forward as Attachment attaches it whole as an .eml. Several, at most 200 and 64 MB together, are each attached whole as an .eml, in the message list's order, in a message from the account of the last one named (the one in focus), with no subject for the owner to write"#;
 
 /// The commands that close the message being written or put another in its place (#442).
 pub const LEAVING: [&str; 7] =
@@ -365,61 +367,112 @@ fn reply_all(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 fn forward(s: &mut Session, v: &Value) -> CmdResult {
-    respond(s, v, ComposeMode::Forward)
+    match forwarded(s, v)? {
+        (ids, focus) if ids.len() > 1 => forward_attached(s, &ids, focus),
+        (_, focus) => respond(s, &json!({"id": focus}), ComposeMode::Forward),
+    }
 }
 
-/// Forward a message as an attachment (#315): a new message from its account, with nothing
-/// quoted and the message attached whole as an `.eml`, its headers and all, as Save Message As
-/// writes it. A forward all the same: its original is marked forwarded once it has gone.
+/// Forward as Attachment (#315): as [`forward_attached`] does, for one message too.
 fn forward_as_attachment(s: &mut Session, v: &Value) -> CmdResult {
-    let id = one_message(s, v)?;
-    let m = s.mailbox.message(id).ok_or_else(|| failed!("no message with id {id}", id))?;
-    // What goes is the message itself, never what stands in for it here.
-    if m.incomplete {
-        return Err(fail("only the headers of this message are here, so it can't be forwarded as an attachment"));
+    let (ids, focus) = forwarded(s, v)?;
+    forward_attached(s, &ids, focus)
+}
+
+/// The messages a forward takes (#360): those `id` or `ids` names, else the selected ones, read
+/// strictly ([`targets_strict`](super::targets_strict)): a forward goes to other people, so what a
+/// caller named wrongly, or a parameter it doesn't take, is refused, never taken to mean the
+/// selection. Each once, in the message list's order (those it doesn't show after them, as
+/// named), and the one in focus, the last named, as for a selection. How many it may be is
+/// [`forward_check`]'s to say.
+pub fn forwarded(s: &mut Session, v: &Value) -> Result<(Vec<Id>, Id), CmdError> {
+    p::only(v, &["id", "ids", "discard"])?;
+    let mut ids = super::targets_strict(s, v)?;
+    // Each once, where it was named last.
+    let mut seen = std::collections::HashSet::new();
+    ids.reverse();
+    ids.retain(|id| seen.insert(*id));
+    ids.reverse();
+    let Some(focus) = ids.last().copied() else { return Err(fail("select a message first")) };
+    if ids.len() > 1 {
+        let rows = s.rows();
+        let mut at: std::collections::HashMap<Id, (usize, usize)> = std::collections::HashMap::new();
+        for (i, row) in rows.iter().enumerate() {
+            for (j, id) in std::iter::once(&row.id).chain(&row.members).enumerate() {
+                at.entry(*id).or_insert((i, j));
+            }
+        }
+        ids.sort_by_key(|id| at.get(id).copied().unwrap_or((usize::MAX, 0)));
     }
-    if m.unfetched {
-        return Err(fail("this message isn't downloaded yet: open it once you're online, then forward it as an attachment"));
+    Ok((ids, focus))
+}
+
+/// Why more messages than one can carry aren't forwarded together.
+const TOO_MANY_TO_FORWARD: &str = "at most 200 messages can be forwarded together";
+
+/// Enabled with messages selected, as many as one message can carry as attachments.
+fn needs_forwardable(s: &Session) -> Option<&'static str> {
+    needs_message(s).or_else(|| (s.sel.messages.len() > MAX_ATTACHMENTS).then_some(TOO_MANY_TO_FORWARD))
+}
+
+/// Forward messages as attachments (#315, #360): a new message from the account of the one in
+/// focus, with nothing quoted and each attached whole as an `.eml` in the order given, its
+/// headers and all, as Save Message As writes it. A forward all the same: each original is
+/// marked forwarded once it has gone. Nothing is composed when one of them can't go whole.
+fn forward_attached(s: &mut Session, ids: &[Id], focus: Id) -> CmdResult {
+    forward_check(s, ids, false)?;
+    let mut attachments: Vec<Attachment> = Vec::new();
+    let mut total = 0usize;
+    for id in ids {
+        let m = s.loaded_message(*id)?;
+        if m.kept.as_deref().is_some_and(|k| k.failed) {
+            return Err(failed!(
+                "the text of “{subject}” can't be read on this computer, so it can't be forwarded as an attachment",
+                subject = subject_of(&m)
+            ));
+        }
+        if not_downloaded(&m) {
+            return Err(too_large_to_download(&m));
+        }
+        // What is attached goes to other people: a draft's Bcc, the owner's own marks on the
+        // message (read, answered, flagged, categorised), and every header kept with it but those
+        // known to come from the sender or the servers on the way, stay here.
+        let opts = mailcraft_mime::WriteOptions { include_bcc: false, offset_minutes: s.offset_at(m.date) };
+        let unmarked = Message {
+            read: false,
+            answered: false,
+            flag: FlagStatus::None,
+            categories: Vec::new(),
+            headers: m.headers.iter().filter(|(name, _)| goes_along(name)).cloned().collect(),
+            ..Message::clone(&m)
+        };
+        let bytes = mailcraft_mime::write(&unmarked, &opts);
+        total = total.saturating_add(bytes.len());
+        if total > MAX_ATTACHMENT {
+            return Err(too_large(s, ids));
+        }
+        // Two with the same subject aren't two files of one name.
+        let name = numbered(super::file::eml_name(&m), &attachments);
+        attachments.push(Attachment::new(name, "message/rfc822", bytes));
     }
-    // Too large already as it is kept, before any of it is read in: written out it is no smaller.
-    let name = super::file::eml_name(m);
-    let too_large = || failed!("{name} is larger than {mb} MB", name = name.clone(), mb = MAX_ATTACHMENT >> 20);
-    if m.size() > u64::try_from(MAX_ATTACHMENT).unwrap_or(u64::MAX) {
-        return Err(too_large());
-    }
-    let m = s.loaded_message(id)?;
-    if m.kept.as_deref().is_some_and(|k| k.failed) {
-        return Err(fail("the text of this message can't be read on this computer, so it can't be forwarded as an attachment"));
-    }
-    if not_downloaded(&m) {
-        return Err(fail("this message was too large to download: only its header is here, so it can't be forwarded as an attachment"));
-    }
-    // What is attached goes to other people: a draft's Bcc, the owner's own marks on the message
-    // (read, answered, flagged, categorised), and every header kept with it but those known to
-    // come from the sender or the servers on the way, stay here.
-    let opts = mailcraft_mime::WriteOptions { include_bcc: false, offset_minutes: s.offset_at(m.date) };
-    let unmarked = Message {
-        read: false,
-        answered: false,
-        flag: FlagStatus::None,
-        categories: Vec::new(),
-        headers: m.headers.iter().filter(|(name, _)| goes_along(name)).cloned().collect(),
-        ..Message::clone(&m)
+    let m = s.mailbox.message(focus).ok_or_else(|| failed!("no message with id {id}", id = focus))?;
+    let account = m.account;
+    // Several have no subject: one message's would name the others wrongly. The owner writes it.
+    let subject = match ids {
+        [_] => prefixed("FW", &m.subject),
+        _ => String::new(),
     };
-    let bytes = mailcraft_mime::write(&unmarked, &opts);
-    if bytes.len() > MAX_ATTACHMENT {
-        return Err(too_large());
-    }
-    let sig = chosen_signature(s, m.account, None, true);
+    let sig = chosen_signature(s, account, None, true);
     let mut c = Compose {
         mode: ComposeMode::Forward,
-        source: Some(m.id),
+        source: Some(focus),
+        also: ids.iter().copied().filter(|id| *id != focus).collect(),
         as_attachment: true,
-        account: m.account,
-        subject: prefixed("FW", &m.subject),
+        account,
+        subject,
         // A line to write on, a blank one, then the signature.
         body: RichBody::from_plain(if sig.is_some() { "\n" } else { "" }),
-        attachments: vec![Attachment::new(name, "message/rfc822", bytes)],
+        attachments,
         ..Default::default()
     };
     if let Some(sig) = &sig {
@@ -429,27 +482,94 @@ fn forward_as_attachment(s: &mut Session, v: &Value) -> CmdResult {
     Ok(json!({"composing": true, "mode": ComposeMode::Forward}))
 }
 
-/// The message Forward as Attachment takes: the one `id` names, else the one selected. A caller
-/// that names messages is let past the selection ([`Session::run`]), so anything else named
-/// (`ids`, `message`, an `id` that is no id) is refused, never taken to mean the selection.
-fn one_message(s: &Session, v: &Value) -> Result<Id, CmdError> {
-    let named = |k: &str| v.get(k).is_some_and(|x| !x.is_null());
-    if named("ids") || named("message") {
-        return Err(bad("name the message to forward as an attachment by `id`: one message at a time"));
+/// Whether `ids` can be forwarded as attachments, judged before any of them is read in: at most
+/// [`MAX_ATTACHMENTS`] of them and [`MAX_ATTACHMENT`] together, each one here, and none that
+/// only stands in for a message (only its headers are here for good; too large to download).
+/// One of which only the headers are here, waiting to be fetched, is refused too, unless
+/// `fetched_first`: the window fetches it before the command runs, and judges by the size its
+/// server said meanwhile.
+pub fn forward_check(s: &Session, ids: &[Id], fetched_first: bool) -> Result<(), CmdError> {
+    if ids.len() > MAX_ATTACHMENTS {
+        return Err(fail(TOO_MANY_TO_FORWARD));
     }
-    if named("id") {
-        return p::req_id(v, "id");
+    let mut total = 0u64;
+    for id in ids {
+        let m = s.mailbox.message(*id).ok_or_else(|| failed!("no message with id {id}", id = *id))?;
+        if m.incomplete {
+            return Err(failed!("only the headers of “{subject}” are here, so it can't be forwarded as an attachment", subject = subject_of(m)));
+        }
+        if m.unfetched && !fetched_first {
+            return Err(failed!(
+                "“{subject}” isn't downloaded yet: open it once you're online, then forward it as an attachment",
+                subject = subject_of(m)
+            ));
+        }
+        if m.not_downloaded > 0 {
+            return Err(too_large_to_download(m));
+        }
+        // Too large already as it is kept, or as its server said: written out it is no smaller.
+        total = total.saturating_add(m.list_size().unwrap_or_else(|| m.size()));
     }
-    s.sel.focus().ok_or_else(|| fail("select a message first"))
+    if total > u64::try_from(MAX_ATTACHMENT).unwrap_or(u64::MAX) {
+        return Err(too_large(s, ids));
+    }
+    Ok(())
 }
 
-/// Enabled with one message selected: several are not forwarded as attachments at once yet.
-fn needs_one_message(s: &Session) -> Option<&'static str> {
-    match s.sel.messages.len() {
-        0 => Some("select a message first"),
-        1 => None,
-        _ => Some("select only one message to forward as an attachment"),
+/// Why message `id`, which a forward of several waited for (#360), can't go: its server answered
+/// that it hasn't it (`gone`: deleted or moved meanwhile), or wouldn't give it whole.
+pub fn not_sent(s: &Session, id: Id, gone: bool) -> CmdError {
+    let Some(m) = s.mailbox.message(id) else { return failed!("no message with id {id}", id) };
+    if gone {
+        failed!("“{subject}” wasn't found on its server, so it can't be forwarded as an attachment", subject = subject_of(m))
+    } else {
+        failed!("the server wouldn't send “{subject}” whole, so it can't be forwarded as an attachment", subject = subject_of(m))
     }
+}
+
+/// Message `id` of a forward came from its server whole but wasn't kept here (#360).
+pub fn not_kept(s: &Session, id: Id) -> CmdError {
+    let Some(m) = s.mailbox.message(id) else { return failed!("no message with id {id}", id) };
+    failed!(
+        "“{subject}” came from its server but couldn't be kept on this computer, so it can't be forwarded as an attachment",
+        subject = subject_of(m)
+    )
+}
+
+/// The message `ids` names, or the messages together, are larger than one message may carry
+/// attached.
+fn too_large(s: &Session, ids: &[Id]) -> CmdError {
+    let mb = MAX_ATTACHMENT >> 20;
+    match ids {
+        [one] => failed!("{name} is larger than {mb} MB", name = s.mailbox.message(*one).map(super::file::eml_name).unwrap_or_default(), mb),
+        _ => failed!("the messages to forward are larger than {mb} MB together", mb),
+    }
+}
+
+fn too_large_to_download(m: &Message) -> CmdError {
+    failed!("“{subject}” was too large to download: only its header is here, so it can't be forwarded as an attachment", subject = subject_of(m))
+}
+
+/// A message as a refusal names it: its subject on one line, at most 80 characters of it.
+fn subject_of(m: &Message) -> mailcraft_i18n::Arg {
+    let line = m.subject.split(char::is_control).flat_map(str::split_whitespace).collect::<Vec<_>>().join(" ");
+    if line.is_empty() {
+        return mailcraft_i18n::Arg::words("(no subject)");
+    }
+    match line.char_indices().nth(80) {
+        Some((at, _)) => mailcraft_i18n::Arg::Plain(format!("{}…", line.get(..at).unwrap_or(""))),
+        None => mailcraft_i18n::Arg::Plain(line),
+    }
+}
+
+/// `name`, or `name (2).eml` and on when an attachment has that name already.
+fn numbered(name: String, taken: &[Attachment]) -> String {
+    let used = |n: &str| taken.iter().any(|a| a.name.eq_ignore_ascii_case(n));
+    if !used(&name) {
+        return name;
+    }
+    let stem = name.strip_suffix(".eml").unwrap_or(&name);
+    (2..).map(|k| format!("{stem} ({k}).eml")).find(|n| !used(n)).unwrap_or(name)
 }
 
 /// Whether `m` is what is kept of an IMAP message too large to download: its header and, in
@@ -828,15 +948,22 @@ fn attachments_of(c: &Compose, message_id: &str) -> Vec<Attachment> {
     all
 }
 
-/// The original a reply or forward being written answers or forwards.
+/// The original a reply or forward being written answers or forwards, and the others a forward of
+/// several forwards (#360); those that are gone are left out.
 fn answers_of(s: &Session, c: &Compose) -> Option<Answers> {
     let forward = match c.mode {
         ComposeMode::Forward => true,
         ComposeMode::Reply | ComposeMode::ReplyAll => false,
         _ => return None,
     };
-    let original = s.mailbox.message(c.source?)?;
-    Some(Answers { message: original.id, message_id: original.message_id.clone(), forward })
+    let mut originals = c.source.iter().chain(&c.also).filter_map(|id| s.mailbox.message(*id)).map(|original| Answers {
+        message: original.id,
+        message_id: original.message_id.clone(),
+        forward,
+        also: Vec::new(),
+    });
+    let first = originals.next()?;
+    Some(Answers { also: originals.collect(), ..first })
 }
 
 fn send(s: &mut Session, _: &Value) -> CmdResult {
