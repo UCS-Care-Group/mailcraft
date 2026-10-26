@@ -177,7 +177,8 @@ pub(crate) fn listing(s: &Session, decided: &HashMap<Id, bool>, searched: &HashM
                         None => query.matches(m, s.offset_at(m.date)),
                     });
             // A selected message stays while it is selected, though it was read or its flag was
-            // cleared; one deleted or moved has left the folder above.
+            // cleared; `in_view` above still applies, so one deleted, or moved out of the folder in
+            // view, is gone.
             if !hit && kept.as_ref().is_some_and(|kept| kept.contains(&m.id)) {
                 kept_only.push(m.id);
                 return true;

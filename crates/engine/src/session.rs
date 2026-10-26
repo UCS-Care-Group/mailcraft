@@ -1123,8 +1123,8 @@ impl Session {
 
     /// The messages the list in view keeps though they may no longer match the filter or the
     /// search (#428): those selected that were in it when they were selected, while they stay
-    /// selected and the list is the one they were selected in. Being in the folder in view is
-    /// still asked of them: one deleted or moved leaves at once.
+    /// selected and the list is the one they were selected in. Being in view is still asked of
+    /// them (`list::in_view`): one deleted, or moved out of the folder in view, leaves at once.
     pub fn kept(&self) -> Option<Cow<'_, HashSet<Id>>> {
         self.sel.stays.as_ref().and_then(|stays| stays.kept(&self.sel.messages, &self.view))
     }
