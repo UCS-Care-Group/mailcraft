@@ -1215,16 +1215,18 @@ fn typing_goes_on_under_recipient_suggestions() {
 }
 
 /// Enter, Tab or a click on the first suggestion takes it, as `Name <address>; `, and the
-/// keyboard stays in the line, for the next one.
+/// keyboard stays in the line, for the next one. A held Enter takes it once: its repeats were
+/// the list's, not the line's, and leave the line as it is.
 #[test]
 fn enter_tab_or_a_click_takes_a_suggested_recipient() {
     for (line, open) in RECIPIENT_LINES {
-        for how in ["Enter", "Tab", "click"] {
+        for how in ["Enter", "held Enter", "Tab", "click"] {
             let mut h = window("view.mail");
             open(&mut h);
             let field = focus(&h);
             match how {
                 "Enter" => testing::key(&mut h, Key::Enter),
+                "held Enter" => testing::held(&mut h, Key::Enter),
                 "Tab" => testing::key(&mut h, Key::Tab),
                 _ => {
                     let list = list_under_field(&h).unwrap();
@@ -1239,6 +1241,24 @@ fn enter_tab_or_a_click_takes_a_suggested_recipient() {
             h.run_steps(2);
             assert!(list_under_field(&h).is_some(), "{line}, {how}: the next name is suggested");
         }
+    }
+}
+
+/// Escape in two passes one after the other under the recipient suggestions (an agent's
+/// `ui.key`, a quick double press): the first closes them, the second is the window's, as a
+/// later one is.
+#[test]
+fn escape_in_the_pass_after_recipient_suggestions_closed_is_the_windows() {
+    for (line, open) in RECIPIENT_LINES {
+        let mut h = window("view.mail");
+        open(&mut h);
+        let before = dialog(&h);
+        press_now(&mut h, Key::Escape);
+        assert!(list_under_field(&h).is_none(), "{line}: the list closed");
+        press_now(&mut h, Key::Escape);
+        h.run_steps(3);
+        let after = if before.is_none() { Some("discardDraft") } else { None };
+        assert_eq!(dialog(&h), after, "{line}: the second Escape is the window's");
     }
 }
 
