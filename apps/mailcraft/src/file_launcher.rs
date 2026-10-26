@@ -11,8 +11,8 @@
 //!   rules of a command line; the path is one argument that Rust quotes for the program.
 //! - **macOS:** `open -- <path>` (Launch Services); `--` ends the options.
 //! - **Linux, FreeBSD and the like:** `xdg-open <path>` (the desktop's opener), or where it isn't
-//!   installed (it comes with `xdg-utils`), the first of `gio open`, `kde-open` and `gnome-open`
-//!   that is (#445).
+//!   installed (it comes with `xdg-utils`), `gio open -- <path>` or else `kde-open -- <path>`
+//!   (#445).
 //!
 //! The path must be absolute, so it can never be read as an option (a Unix path starts with `/`,
 //! a Windows one with a drive letter and `:\` or with `\\`), and nothing in it is looked at by a
@@ -67,18 +67,17 @@ pub(crate) fn commands_for(opener: Opener, path: &Path) -> Vec<Command> {
     if !absolute_for(opener, path) {
         return Vec::new();
     }
-    let programs: Vec<(&str, Option<&str>)> = match opener {
-        Opener::Explorer => vec![("explorer.exe", None)],
-        Opener::MacOpen => vec![("open", Some("--"))],
-        Opener::XdgOpen => vec![("xdg-open", None), ("gio", Some("open")), ("kde-open", None), ("gnome-open", None)],
+    // `xdg-open` refuses `--` as an unknown option, so it is given the path alone.
+    let programs: Vec<(&str, &[&str])> = match opener {
+        Opener::Explorer => vec![("explorer.exe", &[])],
+        Opener::MacOpen => vec![("open", &["--"])],
+        Opener::XdgOpen => vec![("xdg-open", &[]), ("gio", &["open", "--"]), ("kde-open", &["--"])],
     };
     programs
         .into_iter()
         .map(|(program, first)| {
             let mut command = Command::new(program);
-            if let Some(first) = first {
-                command.arg(first);
-            }
+            command.args(first);
             command.arg(OsStr::new(path.as_os_str()));
             command.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
             command

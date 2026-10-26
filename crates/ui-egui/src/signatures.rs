@@ -4,14 +4,14 @@
 //! edited on the right with the composer's own editor and formatting, its pictures (Insert
 //! Picture, a dropped file, a pasted picture; a picture's width and description; the layout) and
 //! the size they add to every message; below, each account's signature for new messages and for
-//! replies and forwards.
+//! replies and forwards. An HTML signature is edited as its HTML source instead.
 //!
 //! Choosing a signature opens it (`signature.open`); every change is a command, and the page only
 //! collects input. A signature with changes is saved when another is chosen and when the page is
 //! left.
 
 use egui::{Ui, vec2};
-use mailcraft_model::signature::{HEAVY_BYTES, Layout, MAX_PICTURE_BYTES, MAX_PICTURES_BYTES, MAX_WIDTH};
+use mailcraft_model::signature::{HEAVY_BYTES, Layout, MAX_HTML, MAX_PICTURE_BYTES, MAX_PICTURES_BYTES, MAX_WIDTH};
 use serde_json::json;
 
 use crate::MailApp;
@@ -219,9 +219,71 @@ fn list(app: &mut MailApp, ui: &mut Ui, t: &Tokens, names: &[String], open: Opti
     });
 }
 
-/// The open signature: its formatting bar, the editor, the selected picture's width and
-/// description, and the size its pictures add.
+/// The open signature: rich text or HTML, then its formatting bar, the editor, the selected
+/// picture's width and description, and the size its pictures add; or its HTML source.
 fn editing(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
+    let html = app.session.signature_edit.as_ref().and_then(|e| e.signature.html().map(str::to_string));
+    ui.horizontal(|ui| {
+        for (on, label) in [(html.is_none(), tl!("Rich text")), (html.is_some(), tl!("HTML"))] {
+            if ui.add(egui::Button::selectable(on, label)).clicked() && !on {
+                app.signature_note = None;
+                // HTML starts from what the signature is now.
+                let source = match (&html, app.session.signature_edit.as_ref()) {
+                    (None, Some(e)) => json!(mailcraft_engine::mime::rich::to_html(e.body.text())),
+                    _ => serde_json::Value::Null,
+                };
+                if let Err(why) = app.run("signature.html", json!({"html": source})) {
+                    refuse(app, why);
+                }
+            }
+        }
+    });
+    match html {
+        Some(source) => html_source(app, ui, t, source),
+        None => rich(app, ui, t),
+    }
+    let dirty = app.session.signature_edit.as_ref().is_some_and(|e| e.dirty);
+    ui.horizontal(|ui| {
+        if ui.add_enabled(dirty, egui::Button::new(tl!("Save"))).clicked() {
+            let _ = app.run("signature.save", json!({}));
+        }
+        if dirty {
+            ui.label(egui::RichText::new(tl!("Changed: saved when you choose another signature or leave this page.")).color(t.text_dim));
+        }
+    });
+    if app.session.signature_edit.as_ref().is_some_and(|e| e.signature.html().is_none()) {
+        details_form(app, ui, t);
+    }
+    preview(app, ui, t);
+}
+
+/// An HTML signature's source, as the owner writes it.
+fn html_source(app: &mut MailApp, ui: &mut Ui, t: &Tokens, mut source: String) {
+    let edit = egui::TextEdit::multiline(&mut source)
+        .code_editor()
+        .desired_rows(10)
+        .desired_width(f32::INFINITY)
+        .char_limit(MAX_HTML)
+        .hint_text(tl!("Paste or write the signature's HTML"));
+    if ui.add(edit).changed()
+        && let Err(why) = app.execute("signature.html", json!({"html": source}))
+    {
+        refuse(app, why);
+    }
+    if let Some(note) = &app.signature_note {
+        ui.label(egui::RichText::new(note.text.as_str()).color(if note.error { t.red } else { t.text_dim }));
+    }
+    ui.label(
+        egui::RichText::new(tl!(
+            "Sent as written, without anything that runs or tracks. Pictures come from their web address, and recipients' programs decide whether to load them. A message you write shows a simpler copy of this signature; if you edit it there, that copy is sent instead."
+        ))
+        .font(regular(11.5))
+        .color(t.text_dim),
+    );
+}
+
+/// A rich signature: its formatting bar, the editor, its pictures and the size they add.
+fn rich(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     let look = crate::ribbon::look_now(app);
     ui.horizontal_wrapped(|ui| {
         ui.menu_button(tl!("Font"), |ui| crate::ribbon::font_menu(ui, app));
@@ -275,7 +337,6 @@ fn editing(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     // What its pictures add to every message, counting those its text still holds.
     let held = e.body.text().pictures();
     let bytes: usize = e.signature.pictures().iter().filter(|p| held.contains(&p.id)).map(|p| p.data.len()).sum();
-    let dirty = e.dirty;
     ui.horizontal_wrapped(|ui| {
         let kb = |n: usize| n.div_ceil(1024).to_string();
         let total = crate::i18n::fmt(tl!("Pictures: {n} KB of {max} KB"), &[("n", &kb(bytes)), ("max", &kb(MAX_PICTURES_BYTES))]);
@@ -284,16 +345,6 @@ fn editing(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
             ui.label(egui::RichText::new(tl!("Every message with this signature gets heavier by as much.")).color(t.text_dim));
         }
     });
-    ui.horizontal(|ui| {
-        if ui.add_enabled(dirty, egui::Button::new(tl!("Save"))).clicked() {
-            let _ = app.run("signature.save", json!({}));
-        }
-        if dirty {
-            ui.label(egui::RichText::new(tl!("Changed: saved when you choose another signature or leave this page.")).color(t.text_dim));
-        }
-    });
-    details_form(app, ui, t);
-    preview(app, ui, t);
 }
 
 /// The details as the form holds them while they are typed, for the open signature.
@@ -391,6 +442,7 @@ fn preview(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         mailcraft_model::signature::text_hash(sig.body()),
         format!("{:?}", sig.layout),
         sig.pictures().iter().map(|p| (p.id, p.width, p.alt.clone())).collect::<Vec<_>>(),
+        sig.html().map(str::to_string),
     );
     let kept: Option<(u64, std::sync::Arc<mailcraft_model::Message>)> = ctx.data(|d| d.get_temp(key));
     let hash = {
@@ -403,11 +455,9 @@ fn preview(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         Some((_, m)) => m,
         None => {
             let cid = |p: &mailcraft_model::signature::Picture| format!("sig-{}@preview.invalid", p.id);
-            let html = format!(
-                "<p>{}</p>\r\n{}",
-                tl!("Thanks, Thursday at ten works for me. I'll bring the drawings."),
-                mailcraft_engine::mime::rich::signature_html(&sig, &cid)
-            );
+            // An HTML signature as it is sent: cleaned.
+            let signature = sig.html().map_or_else(|| mailcraft_engine::mime::rich::signature_html(&sig, &cid), mailcraft_engine::html::quotable);
+            let html = format!("<p>{}</p>\r\n{signature}", tl!("Thanks, Thursday at ten works for me. I'll bring the drawings."));
             let m = mailcraft_model::Message {
                 body: mailcraft_model::Body { text: String::new(), html: Some(html) },
                 attachments: sig

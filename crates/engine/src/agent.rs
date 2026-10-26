@@ -398,6 +398,7 @@ const SETTINGS: &[&str] = &[
     "signature.picture.remove",
     "signature.layout",
     "signature.details",
+    "signature.html",
     "signature.open",
     "signature.save",
     "signature.close",
