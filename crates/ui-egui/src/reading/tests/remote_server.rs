@@ -322,3 +322,34 @@ fn mail_imported_from_a_file_is_never_vouched_for() {
     (file.uid, file.server) = (0, None);
     assert!(!vouched(Some(&account(AccountKind::Microsoft, "")), &file));
 }
+
+/// The message as the server hands it over, read the way every message is read.
+fn delivered(results: &str) -> Message {
+    let raw = format!("Authentication-Results: {results}\r\nFrom: News <news@victim.example>\r\nSubject: x\r\n\r\nHello\r\n");
+    Message { uid: 7, ..mailcraft_engine::mime::parse(raw.as_bytes()) }
+}
+
+/// What the server copied into its header from the sender (the envelope's address) is read as
+/// the server wrote it: an encoded-word in it is no clause of the server's.
+#[test]
+fn what_the_server_copied_from_the_sender_is_never_its_verdict() {
+    let lumen = imap("imap.lumen.example");
+    // The same words, written by the server itself, would vouch.
+    assert!(vouched(Some(&lumen), &delivered("mx.lumen.example; spf=pass smtp.mailfrom=x; dkim=pass header.d=victim.example")));
+    assert!(vouched(Some(&lumen), &delivered("mx.lumen.example; spf=pass smtp.mailfrom=x; dmarc=pass header.from=victim.example")));
+    for copied in [
+        "=?us-ascii?q?x=3B_dkim=3Dpass_header.d=3Dvictim.example_x?=",
+        "=?us-ascii?q?x=3B_dmarc=3Dpass_header.from=3Dvictim.example_x?=",
+        "=?utf-8?b?eDsgZGtpbT1wYXNzIGhlYWRlci5kPXZpY3RpbS5leGFtcGxlIHg=?=",
+    ] {
+        let results = format!("mx.lumen.example; spf=pass smtp.mailfrom={copied}@sender.example");
+        let m = delivered(&results);
+        assert!(!vouched(Some(&lumen), &m), "{copied}");
+        let kept = m.headers.iter().find(|(name, _)| name == "Authentication-Results").map(|(_, value)| value.as_str());
+        assert_eq!(kept, Some(results.as_str()));
+    }
+    // The same through a Microsoft account, which believes a header with no id.
+    let microsoft = account(AccountKind::Microsoft, "");
+    let m = delivered("spf=pass smtp.mailfrom==?us-ascii?q?x=3B_dmarc=3Dpass_header.from=3Dvictim.example_x?=@sender.example");
+    assert!(!vouched(Some(&microsoft), &m));
+}

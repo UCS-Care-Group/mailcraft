@@ -1,0 +1,1 @@
+- The results of your mail server's checks of where a message came from (its `Authentication-Results` and other trace headers) are now read exactly as the server wrote them, so sender images and "always download pictures" rely only on what the server itself said.

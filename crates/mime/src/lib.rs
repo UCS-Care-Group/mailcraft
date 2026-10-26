@@ -26,6 +26,8 @@ mod words;
 mod write;
 
 #[cfg(test)]
+mod fields_tests;
+#[cfg(test)]
 mod tests;
 
 pub use mailto::{Mailto, is_mailto, parse_mailto};
