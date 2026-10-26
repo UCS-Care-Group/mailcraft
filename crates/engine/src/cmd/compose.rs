@@ -88,7 +88,7 @@ fn chosen_signature(s: &Session, account: Id, name: Option<&str>, reply: bool) -
     let name = name
         .map(str::to_string)
         .or_else(|| s.mailbox.account(account).map(|a| if reply { a.reply_signature().to_string() } else { a.signature.clone() }))?;
-    s.mailbox.signature(&name).filter(|sig| !sig.plain().trim().is_empty() || !sig.pictures().is_empty()).cloned()
+    s.mailbox.signature(&name).filter(|sig| !sig.plain().trim().is_empty() || !sig.pictures().is_empty() || sig.html().is_some()).cloned()
 }
 
 /// Put `sig` in the message as its signature (in place of the one there, else at `at`), or take
@@ -96,7 +96,13 @@ fn chosen_signature(s: &Session, account: Id, name: Option<&str>, reply: bool) -
 fn put_signature(c: &mut Compose, sig: Option<&Signature>, at: usize) -> Result<(), CmdError> {
     c.body.put_signature(sig.map(Signature::body), at).map_err(|e| fail(e.to_string()))?;
     c.signature = match (sig, c.body.text().signature()) {
-        (Some(sig), Some(text)) => Some(InsertedSignature { name: sig.name.clone(), layout: sig.layout, pictures: sig.pictures().to_vec(), text }),
+        (Some(sig), Some(text)) => Some(InsertedSignature {
+            name: sig.name.clone(),
+            layout: sig.layout,
+            pictures: sig.pictures().to_vec(),
+            text,
+            html: sig.html().map(str::to_string),
+        }),
         _ => None,
     };
     Ok(())
@@ -771,9 +777,11 @@ fn body_of(c: &Compose, message_id: &str) -> Body {
     match c.format {
         BodyFormat::Html => {
             let cid = |p: &Picture| signature_cid(p, message_id);
+            // An HTML signature goes out as the owner wrote it, cleaned, unless they edited it here.
+            let own = c.signature.as_ref().and_then(|i| i.html.as_deref()).filter(|_| signature_unedited(c));
             let html = [
                 before.as_ref().map(mailcraft_mime::rich::to_html),
-                Some(mailcraft_mime::rich::signature_html(&sig, &cid)),
+                Some(own.map_or_else(|| mailcraft_mime::rich::signature_html(&sig, &cid), mailcraft_html::quotable)),
                 after.as_ref().map(mailcraft_mime::rich::to_html),
             ];
             Body { text: plain, html: Some(mailcraft_mime::rich::document(&html.into_iter().flatten().collect::<String>(), quote_html)) }

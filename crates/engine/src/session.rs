@@ -561,6 +561,9 @@ pub struct InsertedSignature {
     pub pictures: Vec<mailcraft_model::signature::Picture>,
     /// Its text as it went in.
     pub text: mailcraft_model::RichText,
+    /// The owner's own HTML, for an HTML signature: what goes out while the text is unedited.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub html: Option<String>,
 }
 
 /// A signature open in File › Signatures (R4.5.3): edited as a message's body is, by the

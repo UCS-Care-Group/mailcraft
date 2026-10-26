@@ -13,6 +13,11 @@
 //! Signatures written by earlier versions (`{name, text}`) open as rich text without formatting,
 //! and every signature is written with its plain text as `text` too, so an earlier version still
 //! reads its words.
+//!
+//! An HTML signature also keeps the owner's own HTML ([`Signature::html`]), at most [`MAX_HTML`]
+//! bytes, as they wrote it: it is cleaned when a message goes out, never here. Its text is then a
+//! stand-in, what a message being written shows of it. It has no pictures of its own: those it
+//! shows are on the web, and the recipient's program decides whether to load them.
 
 use std::sync::Arc;
 
@@ -36,6 +41,8 @@ pub const MAX_WIDTH: u16 = 600;
 pub const MAX_ALT: usize = 200;
 /// Most characters of a signature's text.
 pub const MAX_TEXT: usize = 10_000;
+/// Most bytes of an HTML signature's own HTML.
+pub const MAX_HTML: usize = 64 * 1024;
 
 /// How a signature lays out its first picture against its text.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -236,6 +243,8 @@ pub struct Signature {
     pictures: Vec<Picture>,
     pub layout: Layout,
     pub details: Option<Details>,
+    /// The owner's own HTML, for an HTML signature.
+    html: Option<String>,
 }
 
 /// A signature as a file holds it (any version), before it is checked.
@@ -253,6 +262,8 @@ struct Raw {
     layout: Layout,
     #[serde(deserialize_with = "crate::sync::lenient")]
     details: Option<Details>,
+    #[serde(deserialize_with = "crate::sync::lenient")]
+    html: Option<String>,
 }
 
 /// A signature as it is written: its plain text as `text` too, for earlier versions.
@@ -268,6 +279,8 @@ struct Out<'a> {
     layout: Layout,
     #[serde(skip_serializing_if = "Option::is_none")]
     details: &'a Option<Details>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    html: Option<&'a str>,
 }
 
 fn is_inline(l: &Layout) -> bool {
@@ -276,8 +289,16 @@ fn is_inline(l: &Layout) -> bool {
 
 impl Serialize for Signature {
     fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        Out { name: &self.name, text: self.plain(), body: &self.body, pictures: &self.pictures, layout: self.layout, details: &self.details }
-            .serialize(s)
+        Out {
+            name: &self.name,
+            text: self.plain(),
+            body: &self.body,
+            pictures: &self.pictures,
+            layout: self.layout,
+            details: &self.details,
+            html: self.html.as_deref(),
+        }
+        .serialize(s)
     }
 }
 
@@ -285,7 +306,7 @@ impl<'de> Deserialize<'de> for Signature {
     fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Signature, D::Error> {
         let raw = Raw::deserialize(d)?;
         let body = raw.body.unwrap_or_else(|| RichText::from_plain(&raw.text));
-        let mut sig = Signature { name: raw.name, body, pictures: Vec::new(), layout: raw.layout, details: raw.details };
+        let mut sig = Signature { name: raw.name, body, pictures: Vec::new(), layout: raw.layout, details: raw.details, html: None };
         // Each picture is checked as if it were added now; one that isn't a picture, or is over
         // the caps, is left out, and so is its place in the text.
         let mut seen = std::collections::HashSet::new();
@@ -296,6 +317,10 @@ impl<'de> Deserialize<'de> for Signature {
             }
         }
         sig.tidy();
+        // HTML over the cap is left out, and the signature is its text; one with pictures can't be.
+        if sig.pictures.is_empty() {
+            sig.html = raw.html.filter(|h| h.len() <= MAX_HTML);
+        }
         Ok(sig)
     }
 }
@@ -315,7 +340,7 @@ impl Signature {
     /// A signature from its parts (the text a message holds of it, say), checked as any other:
     /// pictures the text doesn't hold, or that aren't pictures within the caps, are left out.
     pub fn assemble(name: impl Into<String>, body: RichText, pictures: &[Picture], layout: Layout) -> Signature {
-        let mut sig = Signature { name: name.into(), body, pictures: Vec::new(), layout, details: None };
+        let mut sig = Signature { name: name.into(), body, pictures: Vec::new(), layout, details: None, html: None };
         for p in pictures {
             if sig.picture(p.id).is_none()
                 && let Ok(mime) = sig.check(&p.data, None)
@@ -339,11 +364,38 @@ impl Signature {
         self.pictures.iter().find(|p| p.id == id)
     }
 
+    /// The owner's own HTML, when it is an HTML signature.
+    pub fn html(&self) -> Option<&str> {
+        self.html.as_deref()
+    }
+
+    /// Make it an HTML signature of `html` (its text is then a stand-in for it, set apart), or
+    /// with `None` a rich one again, of its text. Refused over [`MAX_HTML`], and while it has
+    /// pictures, which the HTML would lose.
+    pub fn set_html(&mut self, html: Option<String>) -> Result<(), ModelError> {
+        if let Some(h) = &html {
+            if h.len() > MAX_HTML {
+                return Err(ModelError::Invalid(format!("an HTML signature is at most {} KB", MAX_HTML / 1024)));
+            }
+            if !self.pictures.is_empty() {
+                return Err(ModelError::Invalid(
+                    "an HTML signature shows pictures from their web address only: remove this signature's pictures first".into(),
+                ));
+            }
+        }
+        self.html = html;
+        Ok(())
+    }
+
     /// Replace the text. Pictures it no longer holds are let go; a picture run naming a picture
-    /// this signature doesn't have is left out.
+    /// this signature doesn't have is left out. New words make an HTML signature rich text again.
     pub fn set_body(&mut self, body: RichText) -> Result<(), ModelError> {
         if body.len() > MAX_TEXT {
             return Err(ModelError::Invalid(format!("a signature holds at most {MAX_TEXT} characters")));
+        }
+        // The HTML no longer says what the text does: sent beside it, the two would disagree.
+        if body != self.body {
+            self.html = None;
         }
         self.body = body;
         self.tidy();
@@ -366,6 +418,8 @@ impl Signature {
     /// beside the text (or above it, when the owner chose that); without one, in line.
     pub fn lay_out(&mut self, details: Details) -> Result<(), ModelError> {
         let mut details = details.clean();
+        // The details make rich text.
+        self.html = None;
         let logo = self.body.pictures().first().copied().or_else(|| self.pictures.first().map(|p| p.id));
         self.set_body(details.text(logo))?;
         self.layout = match (logo.is_some(), self.layout) {
@@ -380,7 +434,7 @@ impl Signature {
 
     /// Whether there is nothing in it.
     pub fn is_empty(&self) -> bool {
-        self.body.is_empty() && self.pictures.is_empty()
+        self.body.is_empty() && self.pictures.is_empty() && self.html.is_none()
     }
 
     /// Bytes of its pictures together.
@@ -409,6 +463,9 @@ impl Signature {
 
     /// Add a picture at text position `at` (the end when it is past it): its id.
     pub fn add_picture(&mut self, name: &str, data: Vec<u8>, alt: Option<&str>, at: Option<usize>) -> Result<u32, ModelError> {
+        if self.html.is_some() {
+            return Err(ModelError::Invalid("an HTML signature shows pictures from their web address: switch it to rich text to add one".into()));
+        }
         let mime = self.check(&data, None)?;
         let id = self.pictures.iter().map(|p| p.id).max().map_or(1, |n| n.saturating_add(1));
         let name: String = name.chars().filter(|c| !c.is_control()).take(255).collect();
