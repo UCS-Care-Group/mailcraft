@@ -350,18 +350,30 @@ fn more_than_ten_come_ten_at_a_time() {
 }
 
 #[test]
-fn one_sent_but_not_taken_in_isnt_asked_for_again() {
-    let (mut app, [[a, b, c], _], jobs) = window();
-    app.session.sel.messages = vec![a, b, c];
-    app.run("mail.forwardAsAttachment", json!({})).unwrap();
-    // The answer is for another address than the account's now: nothing of it is taken in.
-    for (job, tx) in std::mem::take(&mut *jobs.lock().unwrap()) {
-        let fetched = job.request.ids.iter().map(|id| GraphFetched { id: id.clone(), mime: b"Subject: x\r\n\r\nx\r\n".to_vec() }).collect();
-        tx.send(GraphFetchResult { account: job.request.account, email: "someone.else@example.org".into(), fetched, ..Default::default() }).unwrap();
+fn one_sent_but_not_kept_isnt_asked_for_again_and_is_said_to_be() {
+    // The answer is for another address than the account's now: nothing of it is taken in, and
+    // that is why. Or it is for the other account: none of them is found there. With one gone
+    // from the server too, the first of them in the list is named.
+    for (other, missing, says) in [
+        (false, &[][..], "these messages were for another account"),
+        (true, &[], "“Account 0 message 0” came from its server but couldn't be kept on this computer"),
+        (true, &["AA0M2"], "“Account 0 message 0” came from its server but couldn't be kept on this computer"),
+        (true, &["AA0M0"], "“Account 0 message 0” wasn't found on its server"),
+    ] {
+        let (mut app, [[a, b, c], [x, ..]], jobs) = window();
+        let two = app.session.mailbox.message(x).unwrap().account;
+        app.session.sel.messages = vec![a, b, c];
+        app.run("mail.forwardAsAttachment", json!({})).unwrap();
+        for (job, tx) in std::mem::take(&mut *jobs.lock().unwrap()) {
+            let (gone, sent): (Vec<String>, Vec<String>) = job.request.ids.iter().cloned().partition(|id| missing.contains(&id.as_str()));
+            let fetched = sent.into_iter().map(|id| GraphFetched { id, mime: b"Subject: x\r\n\r\nx\r\n".to_vec() }).collect();
+            let (account, email) = if other { (two, "two@example.org") } else { (job.request.account, "someone.else@example.org") };
+            tx.send(GraphFetchResult { account, email: email.into(), fetched, missing: gone, ..Default::default() }).unwrap();
+        }
+        app.drive_fetch();
+        assert!(asked(&jobs).is_empty() && app.session.compose.is_none(), "{other} {missing:?}");
+        assert!(said(&app).contains(says), "{other} {missing:?}: {}", said(&app));
     }
-    app.drive_fetch();
-    assert!(asked(&jobs).is_empty() && app.session.compose.is_none());
-    assert!(said(&app).contains("“Account 0 message 0” isn't downloaded yet"), "{}", said(&app));
 }
 
 #[test]

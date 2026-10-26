@@ -527,6 +527,15 @@ pub fn not_sent(s: &Session, id: Id, gone: bool) -> CmdError {
     }
 }
 
+/// Message `id` of a forward came from its server whole but wasn't kept here (#360).
+pub fn not_kept(s: &Session, id: Id) -> CmdError {
+    let Some(m) = s.mailbox.message(id) else { return failed!("no message with id {id}", id) };
+    failed!(
+        "“{subject}” came from its server but couldn't be kept on this computer, so it can't be forwarded as an attachment",
+        subject = subject_of(m)
+    )
+}
+
 /// The message `ids` names, or the messages together, are larger than one message may carry
 /// attached.
 fn too_large(s: &Session, ids: &[Id]) -> CmdError {

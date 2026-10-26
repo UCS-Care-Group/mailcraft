@@ -11283,6 +11283,11 @@ msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
+msgid "“{subject}” came from its server but couldn't be kept on this computer, so it can't be forwarded as an attachment"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
 msgid "“{subject}” isn't downloaded yet: open it once you're online, then forward it as an attachment"
 msgstr ""
 

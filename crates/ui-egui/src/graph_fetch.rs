@@ -364,26 +364,30 @@ impl MailApp {
         let came = Came::of(self, &messages, &result);
         self.fetching.offline = result.offline;
         let account = result.account;
-        if account != 0
-            && let Err(e) = take_in(self, result)
-        {
+        let mut refused = if account != 0 { take_in(self, result).err() } else { None };
+        if let Some(e) = &refused {
             self.status(e.to_string());
         }
-        let whole = messages.iter().all(|m| self.session.mailbox.message(*m).is_some_and(|m| !m.unfetched));
+        let unfetched = |app: &MailApp, m: &Id| app.session.mailbox.message(*m).is_some_and(|m| m.unfetched);
+        let whole = !messages.iter().any(|m| unfetched(self, m));
         if let Some((command, params, opening, tried)) = self.fetching.then.take() {
             // Asked of a mailbox that another has taken the place of: the message it names is not
             // this one's, whatever has that id here.
             if opening != self.session.openings() {
                 return;
             }
-            // A forward of several stops at one its server didn't send, saying why, and when a
-            // batch brought none of them; else it goes on with the rest, if there are any, and
-            // runs once none is left to fetch.
+            // A forward of several stops at the first, in the order asked, that its server didn't
+            // send or that came but wasn't kept here, saying why, and when a batch brought none
+            // of them; else it goes on with the rest, if there are any, and runs once none is
+            // left to fetch.
             if let Some(mut tried) = tried {
-                let stop = match came.not_sent {
-                    Some((m, gone)) => Some(compose::not_sent(&self.session, m, gone)),
-                    None if came.answered.is_empty() && self.fetching.offline => compose::forward_check(&self.session, &messages, false).err(),
-                    None => None,
+                let not_kept = came.sent.iter().find(|m| unfetched(self, m)).copied();
+                let at = |m: Id| messages.iter().position(|x| *x == m);
+                let stop = match (came.not_sent, not_kept) {
+                    (Some((m, gone)), k) if k.is_none_or(|k| at(m) < at(k)) => Some(compose::not_sent(&self.session, m, gone)),
+                    (_, Some(k)) => Some(refused.take().unwrap_or_else(|| compose::not_kept(&self.session, k))),
+                    _ if came.answered.is_empty() && self.fetching.offline => compose::forward_check(&self.session, &messages, false).err(),
+                    _ => None,
                 };
                 if let Some(e) = stop {
                     let said = self.kept(e);
@@ -480,12 +484,14 @@ impl MailApp {
 }
 
 /// What a fetch of messages for the owner brought of each of them: those it answered for (whole,
-/// gone or refused), the first of them, in the order asked, that it didn't send (`true`: gone from
-/// the server), and the server's own word on why it stopped, if it said one. One it didn't answer
+/// gone or refused), those it sent whole, the first of them, in the order asked, that it didn't
+/// send (`true`: gone from the server), and the server's own word on why it stopped, if it said
+/// one. One it didn't answer
 /// for (the server busy, or a host that stops at a batch's size) is asked for again; one no longer
 /// here (deleted meanwhile) is nothing to wait for, and the engine says so when the command runs.
 struct Came {
     answered: Vec<Id>,
+    sent: Vec<Id>,
     not_sent: Option<(Id, bool)>,
     why: Option<String>,
 }
@@ -495,7 +501,7 @@ impl Came {
         let fetched: HashSet<&str> = result.fetched.iter().map(|f| f.id.as_str()).collect();
         let missing: HashSet<&str> = result.missing.iter().map(String::as_str).collect();
         let failed: HashSet<&str> = result.failed.iter().map(String::as_str).collect();
-        let mut came = Came { answered: Vec::new(), not_sent: None, why: result.errors.first().cloned() };
+        let mut came = Came { answered: Vec::new(), sent: Vec::new(), not_sent: None, why: result.errors.first().cloned() };
         for m in messages {
             let Some(on_server) = app.session.mailbox.message(*m).and_then(|m| m.server.as_ref()).map(|s| s.id.as_str()) else {
                 came.answered.push(*m);
@@ -503,7 +509,9 @@ impl Came {
             };
             if missing.contains(on_server) || failed.contains(on_server) {
                 came.not_sent = came.not_sent.or(Some((*m, missing.contains(on_server))));
-            } else if !fetched.contains(on_server) {
+            } else if fetched.contains(on_server) {
+                came.sent.push(*m);
+            } else {
                 continue;
             }
             came.answered.push(*m);

@@ -13319,6 +13319,12 @@ msgstr "{why}. {n} cambios hechos aquí en él esperan en este equipo."
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
 #, fuzzy
+msgid "“{subject}” came from its server but couldn't be kept on this computer, so it can't be forwarded as an attachment"
+msgstr "«{subject}» llegó de su servidor, pero no se pudo guardar en este equipo, así que no se puede reenviar como datos adjuntos"
+
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
 msgid "“{subject}” isn't downloaded yet: open it once you're online, then forward it as an attachment"
 msgstr "«{subject}» aún no se ha descargado: ábralo cuando esté en línea y luego reenvíelo como datos adjuntos"
 
