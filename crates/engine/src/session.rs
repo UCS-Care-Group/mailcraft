@@ -1927,6 +1927,8 @@ impl Session {
         self.rev += 1;
         self.restored = self.restored.wrapping_add(1);
         self.dirty = true;
+        self.normalize();
+        // What it selects again is in the list (#485).
         self.show_selected();
         cur
     }
