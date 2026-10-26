@@ -93,6 +93,51 @@ fn junk_in_a_signature_never_stops_the_mailbox_opening() {
     assert_eq!((sig.layout, sig.plain().as_str()), (Layout::Inline, ""));
 }
 
+#[test]
+fn an_html_signature_keeps_its_html_as_written_and_its_words_for_earlier_versions() {
+    let mut sig = Signature::plain_text("Work", "Avery Quinn");
+    let html = r#"<table><tr><td><img src="https://logo.example/l.png" alt="Lumen"></td><td><b>Avery Quinn</b></td></tr></table>"#;
+    sig.set_html(Some(html.to_string())).unwrap();
+    let json = serde_json::to_value(&sig).unwrap();
+    assert_eq!((json["html"].as_str(), json["text"].as_str()), (Some(html), Some("Avery Quinn")));
+    let back: Signature = serde_json::from_value(json).unwrap();
+    assert_eq!(back, sig);
+    // A rich one again keeps its text; a rich one writes no `html`.
+    sig.set_html(None).unwrap();
+    assert!(serde_json::to_value(&sig).unwrap().get("html").is_none());
+    assert_eq!(sig.plain(), "Avery Quinn");
+}
+
+#[test]
+fn new_words_let_an_html_signature_go_and_the_same_words_keep_it() {
+    let mut sig = Signature::plain_text("Work", "Avery Quinn");
+    sig.set_html(Some("<b>Avery Quinn</b>".into())).unwrap();
+    sig.set_body(sig.body().clone()).unwrap();
+    assert_eq!(sig.html(), Some("<b>Avery Quinn</b>"));
+    sig.set_body(RichText::from_plain("Jo Bloggs")).unwrap();
+    assert!(sig.html().is_none() && sig.plain() == "Jo Bloggs");
+}
+
+#[test]
+fn an_html_signature_has_no_pictures_of_its_own_and_stays_in_its_cap() {
+    let mut sig = Signature::plain_text("Work", "Avery Quinn");
+    sig.add_picture("logo.png", png(10), None, None).unwrap();
+    // Its pictures would be lost: refused, and nothing changes.
+    assert!(sig.set_html(Some("<b>Avery</b>".into())).is_err());
+    assert!(sig.html().is_none() && sig.pictures().len() == 1);
+    let mut sig = Signature::plain_text("Work", "Avery Quinn");
+    assert!(sig.set_html(Some("x".repeat(MAX_HTML + 1))).is_err());
+    sig.set_html(Some("<b>Avery</b>".into())).unwrap();
+    assert!(sig.add_picture("logo.png", png(10), None, None).is_err());
+    // A file with too much HTML opens as its text alone.
+    let json = serde_json::json!({"name": "S", "text": "Avery", "html": "x".repeat(MAX_HTML + 1)});
+    let opened: Signature = serde_json::from_value(json).unwrap();
+    assert!(opened.html().is_none() && opened.plain() == "Avery");
+    // Made from details, it is rich text again.
+    sig.lay_out(Details { name: "Avery Quinn".into(), ..Details::default() }).unwrap();
+    assert!(sig.html().is_none());
+}
+
 proptest! {
     /// Whatever pictures and text a file holds, what opens agrees with itself and stays in the caps.
     #[test]
