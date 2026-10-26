@@ -535,8 +535,14 @@ fn a_mailbox_really_in_the_settings_folder_is_shown_as_the_settings_folder() {
     a.session.path = Some(settings.join("..").join("src").join("lib.rs"));
     assert_eq!(a.data_folder_shown(true), Some(Shown::Settings(settings.clone())));
     // The button's label doesn't look at the disk (see `data_folder_shown`): with `..` in the
-    // path it can't tell, and says the mailbox's folder; the click settles it.
-    assert!(matches!(a.data_folder_shown(false), Some(Shown::Mailbox(_))));
+    // path it can't tell, and says the mailbox's folder; the click settles it. (Windows makes a
+    // path whole by folding `..` away, so there the label already knows.)
+    let label = a.data_folder_shown(false);
+    if cfg!(windows) {
+        assert_eq!(label, Some(Shown::Settings(settings.clone())));
+    } else {
+        assert!(matches!(label, Some(Shown::Mailbox(_))));
+    }
     assert_eq!(a.execute("ui.openDataFolder", json!({})).unwrap()["opened"], "settings");
     // And a mailbox beside it is not.
     a.session.path = Some(settings.join("..").join("Cargo.toml"));
