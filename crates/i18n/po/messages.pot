@@ -8288,6 +8288,11 @@ msgid "This message doesn't propose another time for a meeting."
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/reading.rs
+msgid "This message downloads once the messages being downloaded now are here."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/reading/view.rs
 msgid "This message has no text."
 msgstr ""

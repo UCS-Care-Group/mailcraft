@@ -494,12 +494,31 @@ fn a_message_opened_while_a_batch_is_on_its_way_is_fetched_after_it() {
     let two = app.session.mailbox.message(x).unwrap().account;
     app.session.sel.messages = vec![a, b, c];
     app.run("mail.forwardAsAttachment", json!({})).unwrap();
-    // Another message of which only the headers are here, opened meanwhile: one batch at a time.
+    // Another message of which only the headers are here, opened meanwhile: it comes after the
+    // batch the forward waits for, and the reading pane says so.
     app.session.sel.messages = vec![x];
     app.drive_fetch();
     assert_eq!(asked(&jobs).len(), 1);
+    let said = crate::reading::unfetched_said(&app, app.session.mailbox.message(x).unwrap());
+    assert_eq!(said, "This message downloads once the messages being downloaded now are here.");
     answer(&mut app, &jobs, &[], &[]);
     assert_eq!(asked(&jobs), [(two, vec!["AA1M0".to_string()])]);
+}
+
+#[test]
+fn a_message_opened_while_another_downloads_alone_comes_at_once() {
+    let (mut app, [[a, _, c], _], jobs) = window();
+    app.session.sel.messages = vec![a];
+    app.drive_fetch();
+    // The owner goes on to another before the first has come: nothing waits for the first, which
+    // is called off.
+    app.session.sel.messages = vec![c];
+    app.drive_fetch();
+    let ids: Vec<Vec<String>> = asked(&jobs).into_iter().map(|(_, ids)| ids).collect();
+    assert_eq!(ids, [vec!["AA0M0".to_string()], vec!["AA0M2".to_string()]]);
+    assert_eq!(called_off(&jobs), [true, false]);
+    answer(&mut app, &jobs, &[], &[]);
+    assert!(!app.session.mailbox.message(c).unwrap().unfetched);
 }
 
 #[test]

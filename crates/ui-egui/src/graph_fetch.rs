@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! Messages of a Microsoft account fetched whole (R3.2; R3 spec S12, S14, S15): in the
 //! background, newest first, within the account's "Download messages in full"; at once, ahead of
-//! that, for the message the owner opens; and before Reply, Reply All, Forward, Save Message As
+//! that, for the message the owner opens (after the batch under way, when a command waits for
+//! it; else in its place); and before Reply, Reply All, Forward, Save Message As
 //! and Save Attachment, which then go on. Only while a Graph token from this session is good:
 //! each Send/Receive renews it. Cancel (Stop) stops it all until the next Send/Receive starts,
 //! the owner's or one by itself; Send/Receive Progress says how far it has got, account by account
@@ -266,6 +267,13 @@ impl MailApp {
         Some(Ok(json!({"pending": "download", "message": first})))
     }
 
+    /// Whether `message`, the one the reading pane shows, is fetched once the batch under way has
+    /// come: a command waits for that batch (a forward's can take a while). Else what is under way
+    /// is called off for it.
+    pub(crate) fn opened_after_batch(&self, message: Id) -> bool {
+        self.fetching.now.is_some() && self.fetching.then.is_some() && self.fetching.opened != Some(message) && self.session.sel.messages == [message]
+    }
+
     /// The engine's refusal `e`, kept to be said in the interface language ([`MailApp::run`]).
     fn kept(&mut self, e: mailcraft_engine::CmdError) -> String {
         let said = e.to_string();
@@ -322,12 +330,11 @@ impl MailApp {
             [one] => Some(*one),
             _ => None,
         };
-        // (Once those under way have come, when there are: a forward's batch can take a while.)
         if shown != self.fetching.opened {
             let to_fetch =
                 shown.and_then(|m| self.session.mailbox.message(m)).filter(|m| m.unfetched && m.server.is_some()).map(|m| (m.account, m.id));
             match to_fetch {
-                Some(_) if self.fetching.now.is_some() => {}
+                Some((_, m)) if self.opened_after_batch(m) => {}
                 Some((account, m)) => {
                     self.fetching.opened = shown;
                     self.fetch_now(account, &[m]);

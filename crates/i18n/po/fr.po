@@ -9813,6 +9813,12 @@ msgid "This message doesn't propose another time for a meeting."
 msgstr "Ce message ne propose pas d'autre horaire pour une réunion."
 
 #. interface
+#: crates/ui-egui/src/reading.rs
+#, fuzzy
+msgid "This message downloads once the messages being downloaded now are here."
+msgstr "Ce message sera téléchargé dès que les messages en cours de téléchargement seront arrivés."
+
+#. interface
 #: crates/ui-egui/src/reading/view.rs
 #, fuzzy
 msgid "This message has no text."
