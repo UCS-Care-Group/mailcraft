@@ -1,6 +1,6 @@
 # Governance
 
-> **Last reviewed:** 2026-10-20 · **Last updated:** 2026-10-23 · **Change:** minor (a bug fix comes with its report, no claim)
+> **Last reviewed:** 2026-10-20 · **Last updated:** 2026-10-23 · **Change:** minor
 
 How MailCraft is run: who decides what, who does what, and how the project carries on if someone
 can't.
