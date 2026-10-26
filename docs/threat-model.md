@@ -117,8 +117,15 @@ Answers IMAP, SMTP or Microsoft Graph with whatever it likes.
 Watches or changes traffic between MailCraft and its servers.
 
 - **Encrypt or refuse.** Every connection that carries mail or a sign-in is TLS (rustls) or STARTTLS,
-  with certificates checked against the Mozilla root set built in (`webpki-roots`;
-  `crates/net/src/transport.rs`). An unencrypted connection is allowed only to loopback, for tests.
+  with the server's certificate checked by the operating system's own verifier
+  (`rustls-platform-verifier`; `crates/net/src/tls.rs`, the one check for mail, sign-ins and
+  pictures alike) and its name matched. On Windows and macOS what the system trusts is trusted,
+  and the system may fetch an intermediate certificate a server left out from the address its
+  certificate names (it may also ask whether the certificate was revoked); on Linux and FreeBSD
+  the system's certificate store is read and the chain checked against it, and a server that
+  leaves out its intermediate is refused. There is no built-in root set to fall back on: where the
+  system's verifier can't be set up, every secure connection is refused. An unencrypted connection
+  is allowed only to loopback, for tests.
 - **No silent downgrade:** a server that doesn't offer STARTTLS when it was asked for is an error
   ("the server doesn't offer STARTTLS", `crates/net/src/sync.rs`, `crates/net/src/send.rs`).
 - **Provider discovery** asks a DNS-over-HTTPS resolver for the domain's mail exchangers
@@ -351,6 +358,7 @@ settings files (`crates/engine/src/store.rs`); commands from the control channel
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-26 | minor | #501: server certificates are checked by the operating system's verifier instead of a built-in Mozilla root set: Windows and macOS trust what the system trusts and may fetch a missing intermediate; Linux and FreeBSD use the system's certificate store |
 | 2026-10-26 | minor | #458: a `dmarc=pass` whose `header.from` is the organisation's domain (Gmail's way: `shop.example` for `news.shop.example`) vouches for the names under it; a bare suffix or a hosting platform's domain never does |
 | 2026-10-25 | minor | #308: the people the search box offers after `from:`, `to:` and `cc:` come from autocomplete's source, on this computer only |
 | 2026-10-25 | minor | #350: web addresses are read by MailCraft's own strict reader (`crates/link`), not the `url` crate, and opened by a program with the address as its one argument on every system (`rundll32 url.dll,FileProtocolHandler` on Windows, `open` on macOS, `$BROWSER` and the desktops' openers elsewhere), not the `webbrowser` crate; `mailto:` and `tel:` are written without spaces or quotes before they are launched; ambiguous addresses (backslash, no `//`, a percent sign or a full stop of another script in a host) are no links |
