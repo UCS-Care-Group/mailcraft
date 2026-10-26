@@ -392,3 +392,35 @@ fn a_forward_called_off_by_another_download_is_said_to_be() {
     assert_eq!((compose.source, compose.as_attachment), (Some(x), false));
     assert!(asked(&jobs).is_empty());
 }
+
+#[test]
+fn the_same_forward_asked_for_again_goes_on() {
+    let (mut app, [[a, b, c], _], jobs) = window();
+    app.session.sel.messages = vec![a, b, c];
+    app.run("mail.forwardAsAttachment", json!({})).unwrap();
+    assert_eq!(asked(&jobs).len(), 1);
+    // Pressed again before they have come: nothing is called off, nor asked for twice.
+    assert_eq!(app.run("mail.forwardAsAttachment", json!({})).unwrap()["pending"], "download");
+    assert_eq!(said(&app), "Downloading the messages first…");
+    assert_eq!(asked(&jobs).len(), 1);
+    answer(&mut app, &jobs, &[], &[]);
+    assert_eq!(subjects(&app), ["Whole AA0M0", "Account 0 message 1", "Whole AA0M2"]);
+}
+
+#[test]
+fn a_forward_left_waiting_in_another_mailbox_isnt_said_to_be_called_off() {
+    let (mut app, [[a, b, c], [x, ..]], _jobs) = window();
+    app.session.sel.messages = vec![a, b, c];
+    app.run("mail.forwardAsAttachment", json!({})).unwrap();
+    // Another mailbox takes this one's place, and a reply there waits for its message.
+    let mailbox = app.session.mailbox.clone();
+    app.session.replace_mailbox(mailbox);
+    app.drop_secrets_if_replaced();
+    app.judge_mailbox();
+    app.confirm_servers().unwrap();
+    let account = app.session.mailbox.message(x).unwrap().account;
+    let tokens = Tokens { access: "stand-in".into(), refresh: "r".into(), expires_at: mailcraft_time::now() + 3_600, ..Default::default() };
+    app.seed_graph_token(account, tokens);
+    assert_eq!(app.run("mail.reply", json!({"id": x})).unwrap()["pending"], "download");
+    assert_eq!(said(&app), "Downloading the message first…");
+}

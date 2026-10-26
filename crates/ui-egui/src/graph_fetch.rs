@@ -217,9 +217,9 @@ impl MailApp {
             }
             return Some(Err(tl!("This message isn't on this computer yet. It will download when you're online.").to_string()));
         }
-        // Named, for the selection may have moved on by the time they are here. An `id` the call
-        // gave stays as it was, for the command to judge; a forward's messages are named as the
-        // engine took them, the one in focus last.
+        // Named, for the selection may have moved on by the time they are here. Another command's
+        // `id`, if the call gave one, stays as it was, for the command to judge; a forward's
+        // messages are named by `ids` instead, as the engine took them, the one in focus last.
         let mut then = params.as_object().cloned().unwrap_or_default();
         match &forward {
             Some((ids, focus)) => {
@@ -233,10 +233,14 @@ impl MailApp {
             None => {}
         }
         let tried = several.then(|| tried.unwrap_or_default());
-        // One command waits at a time: a forward of several still waiting is called off, and said
-        // to be, for its download can take a while (#360).
-        let called_off = self.fetching.then.as_ref().is_some_and(|(.., waiting)| waiting.is_some());
-        self.fetching.then = Some((id.to_string(), Value::Object(then), self.session.openings(), tried));
+        let then = Value::Object(then);
+        // One command waits at a time: a forward of several still waiting in this mailbox is
+        // called off, and said to be, for its download can take a while (#360). The same forward
+        // asked for again goes on.
+        let called_off = self.fetching.then.as_ref().is_some_and(|(command, params, opening, waiting)| {
+            waiting.is_some() && *opening == self.session.openings() && (command.as_str(), params) != (id, &then)
+        });
+        self.fetching.then = Some((id.to_string(), then, self.session.openings(), tried));
         self.status(if called_off {
             tl!("The forward of several messages that was waiting was called off: another download took its place.")
         } else if several {

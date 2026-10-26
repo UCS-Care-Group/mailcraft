@@ -280,7 +280,7 @@ fn a_message_named_is_that_one_whatever_is_selected() {
         assert_eq!(s.compose.as_ref().unwrap().source, Some(other), "{params}");
         assert_eq!(s.compose.as_ref().unwrap().attachments.len(), 1, "{params}");
     }
-    // Named wrongly, it is refused, never the selected message taken for it (#487): a forward goes
+    // Named wrongly, it is refused, never the selected message taken for it (#360): a forward goes
     // to other people.
     s.compose = None;
     for command in ["mail.forwardAsAttachment", "mail.forward"] {

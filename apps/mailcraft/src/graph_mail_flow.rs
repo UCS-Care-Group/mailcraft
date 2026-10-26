@@ -299,7 +299,7 @@ fn messages_download_whole_in_the_background_on_opening_and_before_a_reply() {
     assert_eq!(names, ["Second of two.eml", "First of two.eml", "Late.eml"], "the list's order: newest first");
     assert!(c.attachments.iter().all(|eml| String::from_utf8_lossy(&eml.data).contains("The words of")), "each whole");
     // A call that names its message wrongly is refused at once, with another message selected:
-    // nothing is fetched for it, and the selected message is never taken for it (#487).
+    // nothing is fetched for it, and the selected message is never taken for it (#360).
     app.execute("compose.close", json!({})).unwrap();
     let latest = server.state().mailbox.add(&inbox_there, "Latest", NOW + 180);
     synced(&mut app);
