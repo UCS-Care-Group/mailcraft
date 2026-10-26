@@ -1141,15 +1141,26 @@ fn recipients_typed(h: &Window) -> String {
 /// title).
 const RECIPIENT_LINES: [(&str, fn(&mut Window)); 2] = [("To", to_line), ("Required", required_line)];
 
+/// The same two lines with the keyboard in them, nothing typed yet.
+const EMPTY_RECIPIENT_LINES: [(&str, fn(&mut Window)); 2] = [("To", to_line_empty), ("Required", required_line_empty)];
+
 fn to_line(h: &mut Window) {
-    run(h, "mail.new", json!({}));
+    to_line_empty(h);
     typed_in_line(h);
 }
 
 fn required_line(h: &mut Window) {
+    required_line_empty(h);
+    typed_in_line(h);
+}
+
+fn to_line_empty(h: &mut Window) {
+    run(h, "mail.new", json!({}));
+}
+
+fn required_line_empty(h: &mut Window) {
     run(h, "ui.dialog", json!({"name": "meeting"}));
     testing::key(h, Key::Tab);
-    typed_in_line(h);
 }
 
 fn typed_in_line(h: &mut Window) {
@@ -1241,6 +1252,30 @@ fn enter_tab_or_a_click_takes_a_suggested_recipient() {
             h.run_steps(2);
             assert!(list_under_field(&h).is_some(), "{line}, {how}: the next name is suggested");
         }
+    }
+}
+
+/// Escape in the pass right after the recipient suggestions came up (an agent's `ui.key`, a key
+/// pressed before the last letter is let go) closes them alone too.
+#[test]
+fn escape_as_soon_as_recipients_are_suggested_closes_them_alone() {
+    for (line, open) in EMPTY_RECIPIENT_LINES {
+        let mut h = window("view.mail");
+        open(&mut h);
+        let (before, field) = (dialog(&h), focus(&h));
+        h.input_mut().events.push(egui::Event::Text("pri".to_string()));
+        for _ in 0..6 {
+            h.step();
+            if list_under_field(&h).is_some() {
+                break;
+            }
+        }
+        assert!(list_under_field(&h).is_some(), "{line}: recipients are suggested");
+        press_now(&mut h, Key::Escape);
+        h.run_steps(2);
+        assert!(list_under_field(&h).is_none(), "{line}: the list closed");
+        assert_eq!(dialog(&h), before, "{line}: nothing asked, nothing closed");
+        assert_eq!((focus(&h), recipients_typed(&h)), (field, "pri".to_string()), "{line}: still typing in the line");
     }
 }
 

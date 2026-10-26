@@ -85,6 +85,7 @@ pub(crate) fn recipient_line(
     {
         ctx.memory_mut(|m| m.move_focus(egui::FocusDirection::Previous));
     }
+    let filter = edit.get_event_filter();
     let out = egui::CompletionPopup::new(id).word_boundary(|c| c == ';' || c == ',').align(egui::RectAlign::BOTTOM_START).show(ui, edit, |q| {
         let typed = q.word.trim_start();
         if !offer || typed.trim().is_empty() {
@@ -98,6 +99,12 @@ pub(crate) fn recipient_line(
             })
             .collect()
     });
+    // egui's list asks the line to keep the keyboard on Escape and Tab, for the list, only from
+    // its second pass open: from its first too, so that an Escape in the next pass closes the list
+    // and not the window.
+    if out.is_open {
+        ctx.memory_mut(|m| m.set_focus_lock_filter(id, egui::EventFilter { tab: true, escape: true, ..filter }));
+    }
     ctx.data_mut(|d| d.insert_temp(shown, out.is_open));
     out
 }
