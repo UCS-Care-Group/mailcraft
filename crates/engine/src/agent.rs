@@ -454,6 +454,9 @@ const NEVER: &[&str] = &[
     "ui.goBackVersion",
     // Everything MailCraft keeps on this computer, gone (#177): only the owner's own click.
     "ui.removeAllData",
+    // Another program (the file manager) started on the owner's screen, as for an attachment
+    // (#460): only ever the owner's own click.
+    "ui.openDataFolder",
     // The redacted log tail, and the clipboard overwritten with it.
     "ui.copyDiagnostics",
 ];

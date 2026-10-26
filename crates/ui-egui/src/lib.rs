@@ -252,6 +252,11 @@ pub struct Services {
     /// itself works in ([`data_removal::DataWipe`], File › Info › Remove MailCraft's data from
     /// this computer, #177). Absent in the browser and the tests.
     pub data_wipe: Option<Box<dyn data_removal::DataWipe>>,
+    /// Desktop: the settings folder, and the host's way of showing a folder in the system's file
+    /// manager ([`data_removal::DataFolder`], File › Info › Open MailCraft's data folder, #460):
+    /// the window shows the open mailbox's own folder instead when it is kept elsewhere. Absent in
+    /// the browser, the tests and a run that keeps nothing.
+    pub data_folder: Option<data_removal::DataFolder>,
     /// Desktop: ask an account's server when people are free and busy, on a background thread,
     /// for a meeting's Scheduling Assistant ([`scheduling`]). It reads and writes nothing. The
     /// answer, or why there is none, arrives through the channel and the host wakes the UI.
@@ -774,6 +779,12 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         "Remove MailCraft's Data from This Computer",
         "File › Info",
         "{} — removes everything MailCraft keeps on this computer, for an installed or a portable copy alike: every account's mail and the settings (the mailbox file and its content, the settings, the logs), the sign-ins remembered in the system's credential store, the downloaded pictures and the opened attachments; then quits. Mail on the servers is not touched. By hand it asks first; never for an agent",
+    ),
+    (
+        "ui.openDataFolder",
+        "Open Data Folder",
+        "File › Info",
+        "{} — shows, in the system's file manager, the folder of the mailbox open now when it is kept outside MailCraft's settings folder, else the settings folder (which holds the mailbox and the settings). Answers {\"opened\": \"mailbox\"|\"settings\"}. Not in the browser; never for an agent",
     ),
     (
         "ui.confirmServers",
@@ -1542,6 +1553,7 @@ impl MailApp {
                 matches!(self.server_link(), server_search::Link::Ask | server_search::Link::NotConnected { retry: true })
             }
             None if id == "ui.copySelection" => self.text_selection.any(),
+            None if id == "ui.openDataFolder" => self.services.data_folder.is_some() && !self.data_removed,
             None => UI_COMMANDS.iter().any(|c| c.0 == id),
         }
     }
@@ -1744,6 +1756,7 @@ impl MailApp {
         let b = |k: &str| p.get(k).and_then(Value::as_bool);
         Some(match id {
             "ui.removeAllData" => self.remove_all_data(),
+            "ui.openDataFolder" => self.open_data_folder(),
             "ui.confirmServers" => self.confirm_servers(),
             "ui.dismissSettingsNotice" => settings_notice::dismiss(self),
             "ui.tab" => {

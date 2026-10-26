@@ -112,3 +112,46 @@ fn a_path_that_could_be_an_option_or_is_not_absolute_is_refused() {
 fn a_relative_path_is_never_started() {
     assert_eq!(open_detached(Path::new("x.pdf")).unwrap_err().kind(), std::io::ErrorKind::InvalidInput);
 }
+
+#[test]
+fn a_folder_that_is_not_absolute_or_not_there_is_refused_before_anything_starts() {
+    let here = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let started = std::cell::RefCell::new(Vec::new());
+    let open = |p: &Path| {
+        open_folder_with(p, |path: &Path| {
+            started.borrow_mut().push(path.to_path_buf());
+            Ok(())
+        })
+    };
+    // `src` is a folder (the tests run in the crate's own), but not a whole path: without the
+    // check it would reach the opener.
+    assert!(Path::new("src").is_dir());
+    for p in ["src", ".", "", "-h", "--help", "relative/folder", "~/x"] {
+        assert_eq!(open(Path::new(p)), Err(FolderTrouble::NotThere), "{p:?}");
+    }
+    assert_eq!(open(&here.join("no-such-folder-460")), Err(FolderTrouble::NotThere));
+    // A file is not a folder.
+    assert_eq!(open(&here.join("Cargo.toml")), Err(FolderTrouble::NotThere));
+    assert!(started.borrow().is_empty(), "{started:?}");
+    // A whole path to a folder reaches it, as it is.
+    let src = here.join("src");
+    assert_eq!(open(&src), Ok(()));
+    assert_eq!(*started.borrow(), [src]);
+}
+
+#[test]
+fn a_file_manager_that_cannot_start_is_said() {
+    let here = Path::new(env!("CARGO_MANIFEST_DIR"));
+    assert_eq!(open_folder_with(here, |_| Err(not_found())), Err(FolderTrouble::NoFileManager));
+}
+
+#[test]
+fn the_data_folder_is_the_settings_folder_that_removing_the_data_clears_and_none_without_one() {
+    // (#460) The folder File › Info opens: where the mailbox and the settings are.
+    let shown = crate::data_folder(true).map(|f| f.path);
+    assert_eq!(shown, mailcraft_control_key::settings_dir());
+    assert_eq!(shown, crate::wipe::Roots::of_this_program().settings);
+    assert!(shown.is_none_or(|p| p.is_absolute()));
+    // A run that keeps nothing has nothing to show.
+    assert!(crate::data_folder(false).is_none());
+}

@@ -590,6 +590,11 @@ fn main() {
     services.alert = Some(Box::new(StandInAlerts(host.clone())));
     // Remove MailCraft's data (#177): offered, and removes nothing here.
     services.data_wipe = Some(Box::new(StandInWipe));
+    // Open MailCraft's data folder (#460): offered, and opens nothing here.
+    services.data_folder = Some(mailcraft_ui_egui::data_removal::DataFolder {
+        path: std::path::PathBuf::from("/home/you/.config/mailcraft"),
+        open: Box::new(|_| Ok(())),
+    });
     // The organisation has turned updating by itself off for the computer.
     services.updates_turned_off_by_organisation = lines.iter().any(|l| l.pointer("/host/updates").and_then(|v| v.as_str()) == Some("organisation"));
     // A newly installed version that didn't start twice running, with the one before it kept.
