@@ -5,8 +5,9 @@
 //!
 //! [`is_format`] is the one list of Unicode's format characters (general category Cf, Unicode
 //! 17.0): bidirectional marks, overrides and isolates, zero-width marks and joiners, the
-//! byte-order mark, the soft hyphen, tags and the rest. They show nothing themselves but can
-//! turn the text around them, or make two names that look the same differ.
+//! byte-order mark, the soft hyphen, tags and the rest. Most show nothing themselves (a few, such
+//! as the Arabic number signs, are drawn across the digits after them), but they can turn the text
+//! around them, or make two names that look the same differ.
 //!
 //! A name takes two steps, both from the same cleaning:
 //! - [`incoming`], for a name as it is kept: one line, without control or format characters,
@@ -27,10 +28,11 @@
 mod tests;
 
 /// Whether `c` is one of Unicode's format characters (general category Cf, Unicode 17.0): the
-/// soft hyphen, the Arabic and Syriac number signs and end marks, the Mongolian vowel separator,
-/// zero-width marks and joiners, bidirectional marks, overrides and isolates, the word joiner and
-/// invisible operators, the byte-order mark, interlinear annotations, the Kaithi number signs,
-/// the Egyptian hieroglyph, shorthand and musical format controls, and tags.
+/// soft hyphen, the Arabic and Syriac number signs and end marks, the Arabic pound and piastre
+/// marks above, the Mongolian vowel separator, zero-width marks and joiners, bidirectional marks,
+/// overrides and isolates, the word joiner and invisible operators, the byte-order mark,
+/// interlinear annotations, the Kaithi number signs, the Egyptian hieroglyph, shorthand and
+/// musical format controls, and tags.
 pub fn is_format(c: char) -> bool {
     matches!(
         c,

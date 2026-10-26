@@ -72,6 +72,8 @@ fn both(text: &str) -> String {
 fn control_characters_go_and_white_space_parts_words() {
     assert_eq!(both("Ada\u{0}\u{7}\u{1b}\u{7f}\u{9b} Lovelace\u{1c}"), "Ada Lovelace");
     assert_eq!(both("A\u{1}da"), "Ada");
+    // The information separators are controls, not white space, as Rust reads them.
+    assert_eq!(both("Ada\u{1c}Love\u{1f}lace"), "AdaLovelace");
     assert_eq!(both("Ada\r\nLovelace\tand\u{2028}Byron\u{85}x\u{b}y\u{c}z"), "Ada Lovelace and Byron x y z");
     assert_eq!(both("  Ada \u{a0}\u{3000}  Lovelace  \n"), "Ada Lovelace");
 }
@@ -193,6 +195,20 @@ fn name_text() -> impl Strategy<Value = String> {
     prop_oneof![prop::collection::vec(piece, 0..48).prop_map(|v| v.into_iter().collect()), any::<String>()]
 }
 
+/// The characters of `text` that show, in order: what a cleaned name holds besides its spaces
+/// and joiners.
+fn showing(text: &str) -> String {
+    text.chars().filter(|c| !c.is_whitespace() && !c.is_control() && !is_format(*c)).collect()
+}
+
+/// Whether `name`, cut from `full` for `max` characters, is as long as it could be: the next
+/// character that shows, with the space or joiner before it, would not have fitted.
+fn cut_late(name: &str, full: &str, max: usize) -> bool {
+    let rest = full.get(name.len()..).unwrap_or_default();
+    let next = rest.chars().take_while(|c| *c == ' ' || is_joiner(*c)).count() + 1;
+    rest.is_empty() || name.chars().count() + next > max
+}
+
 /// What either step makes: one line, a space only between two characters that show, a joiner
 /// only inside a word, and nothing else that shows nothing.
 fn is_clean(name: &str) -> bool {
@@ -211,12 +227,15 @@ proptest! {
     #[test]
     fn incoming_names_are_clean_short_and_stay_as_they_are(text in name_text(), max in 0usize..40) {
         let full = incoming(&text, usize::MAX).unwrap_or_default();
+        prop_assert_eq!(showing(&full), showing(&text));
+        prop_assert!(is_clean(&full), "{:?} from {:?}", full, text);
         match incoming(&text, max) {
             Some(name) => {
                 prop_assert!(!name.is_empty());
                 prop_assert!(name.chars().count() <= max);
                 prop_assert!(is_clean(&name), "{:?} from {:?}", name, text);
                 prop_assert!(full.starts_with(&name), "{:?} is not the start of {:?}", name, full);
+                prop_assert!(cut_late(&name, &full, max), "{:?} from {:?} at {}", name, full, max);
                 prop_assert_eq!(incoming(&name, max), Some(name.clone()));
             }
             None => prop_assert!(full.is_empty() || max == 0),
@@ -235,6 +254,7 @@ proptest! {
         } else if max > 0 {
             let kept = name.strip_suffix('…').unwrap_or_default();
             prop_assert!(name.ends_with('…') && full.starts_with(kept), "{:?} from {:?}", name, full);
+            prop_assert!(cut_late(kept, &full, max - 1), "{:?} from {:?} at {}", name, full, max);
         }
     }
 }
