@@ -197,10 +197,18 @@ fn an_agents_merge_is_asked_about_and_finding_is_not() {
 #[test]
 fn many_contacts_are_grouped_in_one_pass() {
     let mut s = Session::empty();
-    // One number that 300 share (listed as 100, the rest counted), then 20,000 contacts in
-    // 10,000 pairs.
+    // A switchboard number that 300 have links none of them; 150 contacts chained two by two
+    // (each shares an address with the next) are one group, listed as 100 and the rest counted;
+    // then 20,000 contacts in 10,000 pairs.
     for i in 0..300u32 {
         add(&mut s, person("Desk", &i.to_string(), "", "+1 555 010 0100"));
+    }
+    for i in 0..150u32 {
+        let c = Contact {
+            emails: vec![Labeled::new("work", format!("c{i}@example.org")), Labeled::new("home", format!("c{}@example.org", i + 1))],
+            ..person("Chain", &i.to_string(), "", "")
+        };
+        add(&mut s, c);
     }
     for i in 0..10_000u32 {
         let email = format!("p{i}@example.org");
@@ -212,6 +220,67 @@ fn many_contacts_are_grouped_in_one_pass() {
     assert!(started.elapsed().as_secs() < 20);
     assert_eq!(found.len() + more, 10_001);
     assert_eq!(found.len(), super::MAX_GROUPS);
-    assert_eq!((found[0].ids.len(), found[0].more), (MAX_MERGE, 200));
+    assert_eq!((found[0].ids.len(), found[0].more), (MAX_MERGE, 50));
     assert!(found.iter().skip(1).all(|g| g.ids.len() == 2));
+    assert!(found.iter().all(|g| g.ids.iter().all(|id| s.mailbox.contact(*id).is_some_and(|c| c.first != "Desk"))));
+}
+
+#[test]
+fn what_many_share_links_nobody_but_what_else_they_share_does() {
+    let mut s = Session::empty();
+    // info@ on six contacts links none of them; on five it does.
+    let six: Vec<Id> = (0..6).map(|i| add(&mut s, person("Six", &i.to_string(), "info@six.example", ""))).collect();
+    let five: Vec<Id> = (0..5).map(|i| add(&mut s, person("Five", &i.to_string(), "info@five.example", ""))).collect();
+    // Two of the six have a mobile of their own in common, and are a group by it.
+    for id in &six[..2] {
+        s.mailbox.contact_mut(*id).unwrap().phones.push(Labeled::new("mobile", "07700 900123"));
+    }
+    let (found, _) = find(&s.mailbox);
+    let ids: Vec<Vec<Id>> = found.iter().map(|g| g.ids.clone()).collect();
+    assert_eq!(ids, vec![six[..2].to_vec(), five]);
+    assert_eq!(found[0].shares, ["07700 900123"]);
+}
+
+#[test]
+fn a_merge_never_cuts_what_the_kept_contact_has() {
+    let mut s = Session::empty();
+    let long = "n".repeat(super::MAX_NOTES + 20_000);
+    let many: Vec<String> = (0..1200).map(|i| format!("Category {i}")).collect();
+    let keep = add(&mut s, Contact { notes: long.clone(), categories: many.clone(), ..person("Ada", "", "ada@example.org", "") });
+    let other =
+        add(&mut s, Contact { notes: long.to_uppercase(), categories: vec!["category 3".into()], ..person("Ada", "L", "ada@example.org", "") });
+    s.run("people.merge", &json!({"keep": keep, "others": [other]})).unwrap();
+    let c = s.mailbox.contact(keep).unwrap();
+    // (The other's notes and category are the kept one's in other capitals: taken once.)
+    assert_eq!((c.notes.len(), c.categories.len()), (long.len(), many.len()));
+}
+
+#[test]
+fn a_merge_that_would_grow_past_what_a_contact_holds_is_refused_by_name() {
+    let mut s = Session::empty();
+    let half = "a".repeat(super::MAX_NOTES / 2 + 10);
+    let keep = add(&mut s, Contact { notes: half.clone(), ..person("Ada", "", "ada@example.org", "") });
+    let other = add(&mut s, Contact { notes: "b".repeat(super::MAX_NOTES / 2 + 10), ..person("Ada", "L", "ada@example.org", "") });
+    let before = s.mailbox.contacts.clone();
+    let why = err(&mut s, "people.merge", json!({"keep": keep, "others": [other]}));
+    assert!(why.contains("notes would be too large"), "{why}");
+    assert_eq!(s.mailbox.contacts, before);
+    // One contact's notes alone are taken whole.
+    s.run("people.merge", &json!({"keep": keep, "others": [other], "fields": {"notes": keep}})).unwrap();
+    assert_eq!(s.mailbox.contact(keep).unwrap().notes, half);
+    let a = add(&mut s, Contact { categories: (0..600).map(|i| format!("a{i}")).collect(), ..person("Bea", "", "bea@example.org", "") });
+    let b = add(&mut s, Contact { categories: (0..600).map(|i| format!("b{i}")).collect(), ..person("Bea", "B", "bea@example.org", "") });
+    assert!(err(&mut s, "people.merge", json!({"keep": a, "others": [b]})).contains("categories would be too large"));
+}
+
+#[test]
+fn long_values_are_shown_cut_and_marked() {
+    let mut s = Session::empty();
+    let a = add(&mut s, Contact { notes: "é".repeat(5000), ..person("Ada", "", "ada@example.org", "") });
+    add(&mut s, Contact { notes: "short".into(), ..person("Ada", "L", "ada@example.org", "") });
+    let g = groups(&mut s, json!({}));
+    let notes = g[0]["fields"].as_array().unwrap().iter().find(|f| f["field"] == "notes").unwrap()["values"].clone();
+    let long = notes.as_array().unwrap().iter().find(|v| v["id"] == json!(a)).unwrap().clone();
+    assert_eq!((long["value"].as_str().unwrap().chars().count(), &long["truncated"]), (2000, &json!(true)));
+    assert!(notes.as_array().unwrap().iter().any(|v| v["value"] == "short" && v.get("truncated").is_none()));
 }

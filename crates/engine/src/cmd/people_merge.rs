@@ -10,14 +10,18 @@
 //! [`MIN_PHONE_DIGITS`] digits (an extension, a short code) is never compared. Of a longer one only
 //! its last [`PHONE_TAIL`] digits count, so that `+44 20 7946 0000` and `020 7946 0000`, or
 //! `+1 (555) 010-0100` and `555 010 0100`, are the same number. Matches chain: when A shares an
-//! address with B and B a number with C, the three are one group. Finding them is one pass over
-//! the contacts with an index by address and number, never a comparison of every pair.
+//! address with B and B a number with C, the three are one group. An address or a number that more
+//! than [`MAX_LINK`] contacts have (a switchboard, a family's landline, `info@`) links nobody: it
+//! belongs to many people, not to one. Finding them is two passes over the contacts with an index
+//! by address and number, never a comparison of every pair.
 //!
 //! **What a merge does.** One contact is kept; it takes, field by field, the value the owner chose
 //! (`fields`). Without a choice, a field of one value (a name, the company, the birthday) keeps the
 //! kept contact's, or when that is empty the first of the others' that isn't; the fields of
 //! several values (e-mail addresses, phone numbers, postal addresses, web pages, categories) and the
-//! notes take everybody's, each once. A favourite stays one. Then the others are removed: one
+//! notes take everybody's, each once. A favourite stays one. Nothing the kept contact has is ever
+//! cut: a merged field that would be longer than [`MAX_NOTES`] characters or hold more than
+//! [`MAX_VALUES`] values, where the kept contact's own didn't, is refused and named. Then the others are removed: one
 //! command, so one undo step brings them all back. A contact that an account's server keeps (a
 //! Microsoft account's contacts are read from it, and nothing changed here goes back) is never
 //! merged, kept or removed: the command refuses it, and the list of groups says why.
@@ -39,12 +43,18 @@ pub const MIN_PHONE_DIGITS: usize = 7;
 pub const PHONE_TAIL: usize = 10;
 /// Most groups `people.findDuplicates` lists; the rest are counted.
 pub const MAX_GROUPS: usize = 500;
+/// Most contacts an address or a number links: one more of them have it is somebody else's too.
+pub const MAX_LINK: usize = 5;
 /// Of each contact, the addresses and numbers looked at (an import may give one hundreds).
 const KEYS_EACH: usize = 50;
-/// Most values a merged contact keeps of a field of several (as `people.edit` takes).
-const MAX_VALUES: usize = 100;
-/// Most characters the merged notes keep.
-const MAX_NOTES: usize = 100_000;
+/// Most values a merged field of several holds: what `people.edit` takes of a list (categories,
+/// 1,000), above what a vCard brings (500 categories, 100 of the rest).
+pub const MAX_VALUES: usize = 1000;
+/// Most characters merged notes hold: above a vCard's longest line (1 MB), and as much as a
+/// mailbox would sensibly keep for one contact.
+pub const MAX_NOTES: usize = 4 << 20;
+/// Characters of a value `people.findDuplicates` shows; a longer one is cut and marked.
+const SHOWN_CHARS: usize = 2000;
 
 pub fn specs() -> Vec<CommandSpec> {
     vec![
@@ -162,28 +172,40 @@ fn group_of(mailbox: &Mailbox, contacts: &[&Contact], more: usize, shares: Vec<S
     Group { ids: contacts.iter().map(|c| c.id).collect(), keep, shares, locked, more }
 }
 
-/// Every group of two or more contacts that share an e-mail address or a phone number, the
-/// first [`MAX_GROUPS`] by their first contact's id, and how many more there are.
+/// The addresses and numbers of `c` as they are compared, each once, and as `c` writes them.
+fn keys(c: &Contact) -> Vec<(String, &str)> {
+    let emails = c.emails.iter().take(KEYS_EACH).filter_map(|e| email_key(&e.value).map(|k| (format!("e:{k}"), e.value.trim())));
+    let phones = c.phones.iter().take(KEYS_EACH).filter_map(|ph| phone_key(&ph.value).map(|k| (format!("p:{k}"), ph.value.trim())));
+    let mut out: Vec<(String, &str)> = Vec::new();
+    for (k, w) in emails.chain(phones) {
+        if !out.iter().any(|(x, _)| *x == k) {
+            out.push((k, w));
+        }
+    }
+    out
+}
+
+/// Every group of two or more contacts that share an e-mail address or a phone number (that no
+/// more than [`MAX_LINK`] contacts have), the first [`MAX_GROUPS`] by their first contact's id,
+/// and how many more there are.
 pub fn find(mailbox: &Mailbox) -> (Vec<Group>, usize) {
     let all: Vec<&Contact> = mailbox.contacts.values().map(AsRef::as_ref).collect();
     let mut parent: Vec<usize> = (0..all.len()).collect();
-    // Who has each address or number first, and what it is written as there.
-    let mut seen: HashMap<String, (usize, String)> = HashMap::new();
-    let mut shared: HashMap<String, bool> = HashMap::new();
+    // How many contacts have each address or number, who has it first, and as what.
+    let mut seen: HashMap<String, (usize, usize, String)> = HashMap::new();
     for (i, c) in all.iter().enumerate() {
-        let emails = c.emails.iter().take(KEYS_EACH).filter_map(|e| email_key(&e.value).map(|k| (format!("e:{k}"), e.value.trim())));
-        let phones = c.phones.iter().take(KEYS_EACH).filter_map(|ph| phone_key(&ph.value).map(|k| (format!("p:{k}"), ph.value.trim())));
-        for (key, written) in emails.chain(phones) {
-            match seen.get(&key) {
-                Some((first, _)) if *first != i => {
-                    let first = *first;
-                    join(&mut parent, first, i);
-                    shared.insert(key, true);
-                }
-                Some(_) => {}
-                None => {
-                    seen.insert(key, (i, written.to_string()));
-                }
+        for (key, written) in keys(c) {
+            seen.entry(key).and_modify(|(n, _, _)| *n = n.saturating_add(1)).or_insert_with(|| (1, i, written.to_string()));
+        }
+    }
+    // What many have links nobody.
+    seen.retain(|_, (n, _, _)| (2..=MAX_LINK).contains(n));
+    for (i, c) in all.iter().enumerate() {
+        for (key, _) in keys(c) {
+            if let Some((_, first, _)) = seen.get(&key)
+                && *first != i
+            {
+                join(&mut parent, *first, i);
             }
         }
     }
@@ -194,13 +216,11 @@ pub fn find(mailbox: &Mailbox) -> (Vec<Group>, usize) {
     }
     // What each group shares, by its root.
     let mut shares: HashMap<usize, Vec<String>> = HashMap::new();
-    for (key, (first, written)) in &seen {
-        if shared.contains_key(key) {
-            let r = root(&mut parent, *first);
-            let list = shares.entry(r).or_default();
-            if list.len() < 20 {
-                list.push(written.clone());
-            }
+    for (_, first, written) in seen.values() {
+        let r = root(&mut parent, *first);
+        let list = shares.entry(r).or_default();
+        if list.len() < 20 {
+            list.push(written.clone());
         }
     }
     let mut groups = Vec::new();
@@ -323,7 +343,7 @@ pub fn differing(mailbox: &Mailbox, ids: &[Id]) -> Vec<(&'static str, Vec<(Id, S
 }
 
 fn dedup_push<T, K: Eq + std::hash::Hash>(into: &mut Vec<T>, seen: &mut HashSet<K>, item: T, key: K) {
-    if into.len() < MAX_VALUES && seen.insert(key) {
+    if seen.insert(key) {
         into.push(item);
     }
 }
@@ -373,7 +393,7 @@ fn union(to: &mut Contact, from: &[&Contact], field: &str) {
             for n in from.iter().map(|c| c.notes.trim()).filter(|n| !n.is_empty()) {
                 dedup_push(&mut out, &mut seen, n, n.to_lowercase());
             }
-            to.notes = out.join("\n\n").chars().take(MAX_NOTES).collect();
+            to.notes = out.join("\n\n");
         }
         _ => {}
     }
@@ -445,6 +465,18 @@ pub fn merged(mailbox: &Mailbox, keep: Id, others: &[Id], picks: &BTreeMap<Strin
             _ => union(&mut out, &contacts, field),
         }
     }
+    // Nothing is cut: a field that grows past what a contact holds is refused, by name.
+    for field in LISTS {
+        let (now, before) = (size(&out, field), size(first, field));
+        if now > before && now > cap(field) {
+            return Err(failed!(
+                "The merged contact's {field} would be too large ({now}, at most {max}), so the contacts aren't merged. Choose one contact's {field} for it, or shorten them first.",
+                field = mailcraft_i18n::Arg::words(field_label(field)),
+                now,
+                max = cap(field)
+            ));
+        }
+    }
     out.favorite = contacts.iter().any(|c| c.favorite);
     if out.uid.trim().is_empty() {
         out.uid = contacts.iter().map(|c| c.uid.trim()).find(|u| !u.is_empty()).unwrap_or_default().to_string();
@@ -453,6 +485,36 @@ pub fn merged(mailbox: &Mailbox, keep: Id, others: &[Id], picks: &BTreeMap<Strin
         return Err(fail("a contact needs a name, a company or an e-mail address"));
     }
     Ok(out)
+}
+
+/// How large a field of several values is: characters of the notes, else values.
+fn size(c: &Contact, field: &str) -> usize {
+    match field {
+        "emails" => c.emails.len(),
+        "phones" => c.phones.len(),
+        "addresses" => c.addresses.len(),
+        "websites" => c.websites.len(),
+        "categories" => c.categories.len(),
+        "notes" => c.notes.chars().count(),
+        _ => 0,
+    }
+}
+
+/// The most a merge makes a field of several values.
+fn cap(field: &str) -> usize {
+    if field == "notes" { MAX_NOTES } else { MAX_VALUES }
+}
+
+/// What a field of several values is called in a refusal.
+fn field_label(field: &str) -> &'static str {
+    match field {
+        "emails" => "e-mail addresses",
+        "phones" => "phone numbers",
+        "addresses" => "addresses",
+        "websites" => "web pages",
+        "categories" => "categories",
+        _ => "notes",
+    }
 }
 
 /// The ids of `key` in `v`, an array of positive whole numbers.
@@ -483,13 +545,22 @@ fn group_json(mailbox: &Mailbox, g: &Group) -> Value {
     let name = |id: &Id| mailbox.contact(*id).map(Contact::name).unwrap_or_default();
     let fields: Vec<Value> = differing(mailbox, &g.free())
         .into_iter()
-        .map(|(f, values)| json!({"field": f, "values": values.into_iter().map(|(id, value)| json!({"id": id, "value": value})).collect::<Vec<_>>()}))
+        .map(|(f, values)| json!({"field": f, "values": values.into_iter().map(|(id, value)| shown(id, &value)).collect::<Vec<_>>()}))
         .collect();
     json!({
         "ids": g.ids, "keep": g.keep, "names": g.ids.iter().map(name).collect::<Vec<_>>(), "shares": g.shares,
         "locked": g.locked.iter().map(|(id, why)| json!({"id": id, "why": why.to_string()})).collect::<Vec<_>>(),
         "mergeable": g.mergeable(), "fields": fields, "more": g.more,
     })
+}
+
+/// A contact's value of a field as `findDuplicates` lists it: at most [`SHOWN_CHARS`] characters,
+/// with `"truncated": true` when it was longer.
+fn shown(id: Id, value: &str) -> Value {
+    match value.char_indices().nth(SHOWN_CHARS) {
+        Some((cut, _)) => json!({"id": id, "value": value.get(..cut).unwrap_or_default(), "truncated": true}),
+        None => json!({"id": id, "value": value}),
+    }
 }
 
 fn find_duplicates(s: &mut Session, v: &Value) -> CmdResult {
