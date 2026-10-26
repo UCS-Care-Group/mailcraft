@@ -7,7 +7,7 @@
 //! [`gate`] works out whose a new press of either is, from what egui knows: a modal layer on top
 //! takes it; else an open list keeps Escape for egui to close it; else Send/Receive Progress
 //! takes Escape; else the widget with the keyboard (a text field, a button) has it, in its window;
-//! else the active window, the one last clicked or typed in, as with windows of the system (A+).
+//! else the active window, the one last clicked or typed in, as with windows of the system.
 //! The press is kept for that layer and taken out of the input, so that only what asks for it
 //! ([`escape`], [`enter`]) by its layer gets it; Enter stays in the input for a widget that has
 //! the keyboard. A held key is one press (#391, #393): its repeats are nobody's, except Enter's
@@ -64,6 +64,13 @@ struct Chain {
     /// The layers this pass's presses were given to, and whether anything of the layer asked for
     /// the key: if nothing did and the layer wasn't drawn, the press is made again.
     sent: Vec<(Key, LayerId, bool)>,
+    /// Enter, pressed in the pass the keyboard went back to a widget, made again in the next.
+    later: Vec<Key>,
+    /// The widgets that keep the keyboard on Escape and act on it themselves: those that asked
+    /// for it with [`take_escape_in`] (the search box).
+    keepers: Vec<egui::Id>,
+    /// What the keyboard went back to in the pass before.
+    given: Option<egui::Id>,
 }
 
 /// Most windows the gate remembers the order of.
@@ -80,7 +87,8 @@ fn alone(e: &Event, key: Key) -> bool {
 
 /// The window a layer belongs to: a sublayer's parent; the background is the main window's; a
 /// window is a visible layer of the middle order (a dialog's, or one inside the main window).
-/// Anything else (a list, a tooltip, Progress, the shade under a dialog) is nobody's window.
+/// Anything else (a list, a tooltip, Progress, the shade under a dialog, Reminders) is nobody's
+/// window.
 fn window_of(ctx: &egui::Context, layer: LayerId) -> Option<LayerId> {
     let layer = ctx.memory(|m| m.areas().parent_layer(layer)).unwrap_or(layer);
     if layer.order == Order::Background {
@@ -92,9 +100,13 @@ fn window_of(ctx: &egui::Context, layer: LayerId) -> Option<LayerId> {
     }
 }
 
+/// Reminders is no window here: on the desktop it is a window of the system that asks for
+/// attention and leaves the keyboard where it is, and inside the main one (in a browser) it reads
+/// neither Escape nor Enter, so a click on it doesn't take them from the window that has them.
 fn is_window(ctx: &egui::Context, layer: LayerId) -> bool {
     layer.order == Order::Middle
         && layer != crate::dialogs::scrim_layer()
+        && layer != crate::reminders::embedded_layer()
         && ctx.memory(|m| m.areas().is_visible(&layer) && m.areas().parent_layer(layer).is_none())
 }
 
@@ -126,11 +138,9 @@ fn types(ctx: &egui::Context, id: egui::Id) -> bool {
     egui::text_edit::TextEditState::load(ctx, id).is_some() || id == crate::compose::editor::id()
 }
 
-/// Which window is active (A+), from what happened since the last gate: a window that came up
+/// Which window is active, from what happened since the last gate: a window that came up
 /// without a press is (it opened, the lowest of several first; or a command raised it to the
-/// front), as a new window of the system is, except Reminders, which on the desktop is a window
-/// of the system that asks for attention and leaves the keyboard where it is; the window the
-/// keyboard moved to is; a press makes the one under the pointer active, by
+/// front), as a new window of the system is; the window the keyboard moved to is; a press makes the one under the pointer active, by
 /// what egui last drew, which is what the owner saw (a list of a window is that window's, the main
 /// window's panels are the main window's). A window that is gone drops out, so the one active
 /// before it is again.
@@ -142,9 +152,7 @@ fn activate(ctx: &egui::Context, chain: &mut Chain, focus: Option<egui::Id>) {
     let shown: Vec<LayerId> = ctx.memory(|m| m.layer_ids().collect::<Vec<_>>()).into_iter().filter(|l| is_window(ctx, *l)).collect();
     let raised = shown.last().filter(|front| chain.shown.last() != Some(front) && chain.shown.last().is_none_or(|was| shown.contains(was)));
     for window in shown.iter().filter(|l| !chain.shown.contains(l)).chain(raised) {
-        if *window != crate::reminders::embedded_layer() {
-            make(&mut chain.active, *window);
-        }
+        make(&mut chain.active, *window);
     }
     chain.shown = shown;
     if focus != chain.focus
@@ -168,8 +176,12 @@ fn activate(ctx: &egui::Context, chain: &mut Chain, focus: Option<egui::Id>) {
 /// unless something has taken it since. egui's layer outlives an `egui::Modal` by a pass, so
 /// this waits for egui to say so. While the Escape that closed it is held, it is given again
 /// when a repeat takes it away (egui lets a widget keep the keyboard on Escape only from its
-/// second pass with it).
-fn give_back(ctx: &egui::Context, chain: &mut Chain, modal: Option<LayerId>, mut focus: Option<egui::Id>) {
+/// second pass with it). On a new press of Escape it goes back only to a widget that keeps the
+/// keyboard on Escape, for the press; from any other egui takes it away on Escape, a pass later.
+/// egui takes it from that widget too, at the start of the pass after (it lets a widget keep it
+/// only from its second pass with it): then it is given again, for the press. Whether it went
+/// back in this pass.
+fn give_back(ctx: &egui::Context, chain: &mut Chain, modal: Option<LayerId>, mut focus: Option<egui::Id>) -> bool {
     let closed: Vec<(LayerId, Option<egui::Id>)> = match modal {
         Some(top) => match chain.modals.iter().position(|(layer, _)| *layer == top) {
             Some(at) => chain.modals.drain(at + 1..).collect(),
@@ -194,14 +206,30 @@ fn give_back(ctx: &egui::Context, chain: &mut Chain, modal: Option<LayerId>, mut
     if let Some((_, id)) = closed.first() {
         chain.back = *id;
     }
-    match (chain.back, focus) {
-        (Some(id), None) => ctx.memory_mut(|m| m.request_focus(id)),
-        (Some(id), Some(other)) if other != id => chain.back = None,
-        _ => {}
+    let escape = ctx.input(|i| i.events.iter().any(|e| alone(e, Key::Escape) && matches!(e, Event::Key { repeat: false, .. })));
+    let just = chain.given.take();
+    let keeps = |id: egui::Id| chain.keepers.contains(&id);
+    let given = match (chain.back, focus) {
+        (Some(id), None) if escape && !keeps(id) => {
+            chain.back = None;
+            None
+        }
+        (Some(id), None) => Some(id),
+        (Some(id), Some(other)) if other != id => {
+            chain.back = None;
+            None
+        }
+        (None, None) if escape => just.filter(|id| keeps(*id)),
+        _ => None,
+    };
+    if let Some(id) = given {
+        ctx.memory_mut(|m| m.request_focus(id));
+        chain.given = Some(id);
     }
     if !ctx.input(|i| i.key_down(Key::Escape)) {
         chain.back = None;
     }
+    given.is_some()
 }
 
 /// Once a pass of each viewport, before anything reads Escape or Enter: works out whose a new
@@ -213,7 +241,7 @@ pub(crate) fn gate(ctx: &egui::Context, blocked: bool) {
     let mut chain = ctx.data_mut(|d| d.get_temp_mut_or_default::<ViewportIdMap<Chain>>(store()).remove(&viewport)).unwrap_or_default();
     let modal = ctx.memory(|m| m.top_modal_layer());
     let mut focus = ctx.memory(|m| m.focused());
-    give_back(ctx, &mut chain, modal, focus);
+    let given = give_back(ctx, &mut chain, modal, focus);
     focus = ctx.memory(|m| m.focused());
     // A widget under a modal layer gives up the keyboard now: egui sees to it a pass later, and
     // what is typed meanwhile would go under the dialog.
@@ -233,8 +261,21 @@ pub(crate) fn gate(ctx: &egui::Context, blocked: bool) {
         .filter(|(_, l, heard)| !heard && !ctx.memory(|m| m.areas().is_visible(l)))
         .map(|(key, _, _)| key)
         .collect();
+    // Enter pressed in the pass the keyboard went back to a widget waits a pass: egui tells a
+    // widget it let go of the keyboard (a field of one line does on Enter, and its form then
+    // saves) only when it had it in the pass before.
+    let later = std::mem::take(&mut chain.later);
+    if given {
+        ctx.input_mut(|i| {
+            let before = i.events.len();
+            i.events.retain(|e| !(alone(e, Key::Enter) && matches!(e, Event::Key { repeat: false, .. })));
+            if i.events.len() < before {
+                chain.later.push(Key::Enter);
+            }
+        });
+    }
     ctx.input_mut(|i| {
-        i.events.extend(again.iter().map(|key| Event::Key {
+        i.events.extend(again.iter().chain(&later).map(|key| Event::Key {
             key: *key,
             physical_key: None,
             pressed: true,
@@ -335,6 +376,14 @@ fn ask(ctx: &egui::Context, layer: LayerId, key: Key, want: Want, take: bool) ->
     let layer = if layer.order == Order::Background { main_layer() } else { layer };
     ctx.data_mut(|d| {
         let Some(chain) = d.get_temp_mut_or_default::<ViewportIdMap<Chain>>(store()).get_mut(&viewport) else { return false };
+        if let Want::Field(id) = want
+            && !chain.keepers.contains(&id)
+        {
+            chain.keepers.push(id);
+            if chain.keepers.len() > REMEMBERED {
+                chain.keepers.remove(0);
+            }
+        }
         if chain.pass != pass {
             return false;
         }
@@ -407,7 +456,7 @@ pub(crate) fn take_enter_alone(ctx: &egui::Context, layer: LayerId) -> bool {
     ask(ctx, layer, Key::Enter, Want::Alone, true)
 }
 
-/// The window that is active in the viewport being laid out (A+): its own background in a window
+/// The window that is active in the viewport being laid out: its own background in a window
 /// of the system; in the main one, the main window or one of the windows inside it.
 pub(crate) fn active(ctx: &egui::Context) -> LayerId {
     let viewport = ctx.viewport_id();

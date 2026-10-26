@@ -99,10 +99,6 @@ struct Open {
     raise: bool,
     /// It was last shown inside the main window rather than as a window of the system.
     embedded: bool,
-    /// It was last laid out inside the main window: shown there, or a window of the system that
-    /// egui put inside after all (a backend without windows of its own). Its keys are then the
-    /// main window's ([`keys_on_top`]).
-    inside: bool,
     title: String,
     /// It was to close with unsaved changes, and asks about them.
     asking: bool,
@@ -148,7 +144,7 @@ impl Windows {
 
     fn add(&mut self, what: What) -> u64 {
         self.last = self.last.saturating_add(1);
-        self.open.push(Open { id: self.last, what, raise: true, embedded: true, inside: true, title: String::new(), asking: false, ask: None });
+        self.open.push(Open { id: self.last, what, raise: true, embedded: true, title: String::new(), asking: false, ask: None });
         self.last
     }
 
@@ -587,7 +583,7 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
     let active = crate::keys::active(ctx);
     let mut kept = Vec::with_capacity(open.len());
     for mut window in open {
-        (window.embedded, window.inside) = (embedded, embedded);
+        window.embedded = embedded;
         window.title = title(app, &window.what);
         // A dialog of the main window is answered first: it has the keyboard.
         let behind = embedded && (active != embedded_layer(window.id) || app.dialog.is_some());
@@ -723,7 +719,6 @@ fn show_native(app: &mut MailApp, ctx: &egui::Context, window: &mut Open) -> boo
         let t = Tokens::get(&ctx);
         // A backend that has no windows after all puts this inside the main one itself.
         let inside = class == egui::ViewportClass::EmbeddedWindow;
-        window.inside = inside;
         let closing = !inside && ctx.input(|i| i.viewport().close_requested());
         // The window has the keyboard to itself: what is on top in it gets Escape and Enter. While
         // the main window asks something (an agent's question, or a question for this window's

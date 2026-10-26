@@ -583,7 +583,8 @@ fn enter_on_a_button_with_the_keyboard_presses_it() {
 }
 
 /// A message window is open, and the owner clicks into the search box of the main window and
-/// types: Escape is the search box's, and the window stays (A+).
+/// types: the main window is the active one now, so Escape is the search box's, and the window
+/// stays.
 #[test]
 fn escape_in_a_field_of_the_main_window_is_its_with_a_window_open() {
     let mut h = window("view.mail");
@@ -600,7 +601,7 @@ fn escape_in_a_field_of_the_main_window_is_its_with_a_window_open() {
 
 /// A new appointment is open in a window inside the main one, with a title typed; the owner
 /// clicks a row of the main window's list: Enter is the main window's now (it opens what was
-/// clicked, but a message), and the appointment isn't saved (A+).
+/// clicked, but a message), and the appointment isn't saved.
 #[test]
 fn enter_after_a_click_on_the_main_list_is_the_main_windows() {
     for (module, kind) in [("view.mail", "message"), ("view.people", "contact"), ("view.tasks", "task"), ("view.calendar", "event")] {
@@ -677,37 +678,55 @@ fn without_tests(src: &str) -> String {
 
 /// Escape and Enter are read through [`crate::keys`] only, which gives each press to one place
 /// (#406). The few reads of the keys themselves left are by a widget that has the keyboard, in
-/// a list that is open, with a modifier held, or no reads at all.
+/// a list that is open, with a modifier held, or no reads at all: each is named here by its line,
+/// so that a new read is caught, also where it takes the place of one of these.
 #[test]
 fn escape_and_enter_are_read_through_the_gate_only() {
-    let allowed: &[(&str, usize)] = &[
+    let allowed: &[(&str, &str)] = &[
         // The names of the keys the control channel presses.
-        ("control.rs", 2),
+        ("control.rs", r#""enter" | "return" => Some(egui::Key::Enter),"#),
+        ("control.rs", r#""esc" | "escape" => Some(egui::Key::Escape),"#),
         // A line with suggestions under it has the keyboard: Enter takes the one chosen.
-        ("compose.rs", 1),
-        ("forms.rs", 1),
-        ("search_suggest.rs", 1),
+        ("compose.rs", "if i.consume_key(egui::Modifiers::NONE, egui::Key::Enter) || i.consume_key(egui::Modifiers::NONE, egui::Key::Tab) {"),
+        ("forms.rs", "if i.consume_key(egui::Modifiers::NONE, egui::Key::Enter) || i.consume_key(egui::Modifiers::NONE, egui::Key::Tab) {"),
+        ("search_suggest.rs", "if self.selected.is_some() && i.consume_key(egui::Modifiers::NONE, egui::Key::Enter) {"),
         // The search box has the keyboard: a held Enter is one press in it.
-        ("chrome.rs", 1),
+        ("chrome.rs", "ui.input_mut(|i| crate::keys::drop_repeats(i, &[egui::Key::Enter, egui::Key::Tab]));"),
         // The body of a message being written has the keyboard: Enter is a new line.
-        ("compose/editor.rs", 1),
+        ("compose/editor.rs", r#"Key::Enter if !m.command && !m.alt => ask("compose.type", json!({"text": "\n"})),"#),
         // The search box of the Move menu, a list that is open: Escape clears it, Enter moves.
-        ("ribbon.rs", 2),
+        ("ribbon.rs", "i.consume_key(egui::Modifiers::NONE, egui::Key::Enter),"),
+        ("ribbon.rs", "searching && i.consume_key(egui::Modifiers::NONE, egui::Key::Escape),"),
         // Ctrl+Enter.
-        ("windows.rs", 1),
+        ("windows.rs", "if take_key(i, Modifiers::COMMAND, Key::Enter) | take_key(i, Modifiers::ALT, Key::S) {"),
     ];
+    let reads = |line: &str| {
+        ["Key::Escape", "Key::Enter"]
+            .iter()
+            .any(|key| line.match_indices(key).any(|(at, _)| !line[at + key.len()..].starts_with(|c: char| c.is_alphanumeric() || c == '_')))
+    };
+    let mut found = Vec::new();
     let mut wrong = Vec::new();
     for (name, src) in sources() {
-        let reads = ["Key::Escape", "Key::Enter"]
-            .iter()
-            .map(|key| src.match_indices(key).filter(|(at, _)| !src[at + key.len()..].starts_with(|c: char| c.is_alphanumeric() || c == '_')).count())
-            .sum::<usize>();
-        let may = allowed.iter().find(|(file, _)| *file == name).map_or(0, |(_, n)| *n);
-        if name != "keys.rs" && reads != may {
-            wrong.push(format!("{name}: {reads}, listed {may}"));
+        if name == "keys.rs" {
+            continue;
+        }
+        for line in src.lines().map(str::trim).filter(|l| reads(l)) {
+            if allowed.contains(&(name.as_str(), line)) {
+                found.push((name.clone(), line.to_string()));
+            } else {
+                wrong.push(format!("{name}: {line}"));
+            }
         }
     }
-    assert!(wrong.is_empty(), "Escape or Enter read outside keys.rs; ask crate::keys (escape, enter…) instead, or correct the list: {wrong:?}");
+    assert!(
+        wrong.is_empty(),
+        "Escape or Enter read outside keys.rs; ask crate::keys (escape, enter…) instead, or add the line to the list: {wrong:?}"
+    );
+    for (file, line) in allowed {
+        let times = found.iter().filter(|(f, l)| f == file && l == line).count();
+        assert_eq!(times, 1, "{file}: {line}");
+    }
 }
 
 /// One press of `key` in the next pass alone.
@@ -768,7 +787,7 @@ fn the_keyboard_goes_back_after_ok_pressed_with_the_keyboard() {
 
 /// A message window is open, a search is going in Mail, and the owner clicks a message of the
 /// list: the main window is the active one, so Escape ends the search, and the window in front
-/// stays open (A+).
+/// stays open.
 #[test]
 fn escape_after_a_click_on_the_main_list_is_the_main_windows() {
     let mut h = window("view.mail");
@@ -783,4 +802,114 @@ fn escape_after_a_click_on_the_main_list_is_the_main_windows() {
     testing::key(&mut h, Key::Escape);
     assert_eq!(h.state().session.view.search, "");
     assert_eq!(windows(&h).len(), 1);
+}
+
+/// In a browser Reminders is a window inside the main one, which reads neither Escape nor Enter:
+/// a click on it leaves them with the message window that had them, and Escape closes it.
+#[test]
+fn a_click_on_reminders_leaves_the_keys_where_they_were() {
+    let mut h = testing::window("view.mail");
+    h.run_steps(4);
+    let reminders = crate::reminders::embedded_layer();
+    assert!(h.ctx.memory(|m| m.areas().is_visible(&reminders)), "a reminder is showing");
+    let message = *h.state().session.mailbox.messages.keys().next().unwrap();
+    run(&mut h, "ui.openWindow", json!({"message": message}));
+    let id = windows(&h)[0]["id"].as_u64().unwrap();
+    let rect = h.ctx.memory(|m| m.area_rect(reminders.id)).unwrap();
+    testing::click(&mut h, egui::pos2(rect.center().x, rect.min.y + 8.0), egui::PointerButton::Primary, 1);
+    assert_eq!(h.ctx.layer_id_at(egui::pos2(rect.center().x, rect.min.y + 8.0)), Some(reminders), "the click was on Reminders");
+    assert_eq!(crate::keys::active(&h.ctx), crate::windows::embedded_layer(id));
+    testing::key(&mut h, Key::Escape);
+    assert_eq!(windows(&h).len(), 0);
+}
+
+/// The title of a new appointment had the keyboard, and the message box over it is closed with
+/// a click on its OK: Enter in the very next frame is the title's, and saves the appointment, as
+/// it does a frame later. In its description, a box of several lines, it types a new line.
+#[test]
+fn enter_right_after_ok_was_clicked_is_the_fields() {
+    for description in [false, true] {
+        let mut h = window("view.calendar");
+        let before = appointment(&mut h);
+        if description {
+            let id = windows(&h)[0]["id"].as_u64().unwrap();
+            let field = crate::forms::kit::hosted(crate::forms::kit::Host { id, fill: false }, || crate::forms::kit::field_id("description"));
+            h.ctx.memory_mut(|m| m.request_focus(field));
+            h.run_steps(2);
+            testing::text(&mut h, "Bring");
+            assert_eq!(focus(&h), Some(field));
+        }
+        refused(&mut h);
+        let ok = h.get_by_label("OK").rect().center();
+        let button =
+            |pressed| egui::Event::PointerButton { pos: ok, button: egui::PointerButton::Primary, pressed, modifiers: egui::Modifiers::NONE };
+        h.input_mut().events.extend([egui::Event::PointerMoved(ok), button(true)]);
+        h.step();
+        h.input_mut().events.push(button(false));
+        h.step();
+        assert_eq!(dialog(&h), None, "the click closed the message box");
+        for pressed in [true, false] {
+            h.input_mut().events.push(egui::Event::Key {
+                key: Key::Enter,
+                physical_key: None,
+                pressed,
+                repeat: false,
+                modifiers: egui::Modifiers::NONE,
+            });
+        }
+        h.step();
+        h.run_steps(4);
+        if description {
+            assert_eq!((windows(&h).len(), h.state().session.mailbox.events.len()), (1, before), "nothing saved");
+            assert!(h.query_all_by_value("Bring\n").next().is_some(), "a new line in the description");
+        } else {
+            assert_eq!((windows(&h).len(), h.state().session.mailbox.events.len()), (0, before + 1), "Enter saved the appointment");
+        }
+    }
+}
+
+/// The same with Escape, in the very next frame and the one after: it takes the keyboard from
+/// the title, as it does later, and the window asks about the change in it. The search box keeps
+/// the keyboard on Escape: there it ends the search, and a message being written stays.
+#[test]
+fn escape_right_after_ok_was_clicked_is_as_a_frame_later() {
+    for search in [false, true] {
+        for wait in [0, 1] {
+            let mut h = window(if search { "view.mail" } else { "view.calendar" });
+            if search {
+                run(&mut h, "mail.new", json!({"subject": "Half written"}));
+                run(&mut h, "ui.focusSearch", json!({}));
+                testing::text(&mut h, "budget");
+            } else {
+                appointment(&mut h);
+            }
+            refused(&mut h);
+            let ok = h.get_by_label("OK").rect().center();
+            let button =
+                |pressed| egui::Event::PointerButton { pos: ok, button: egui::PointerButton::Primary, pressed, modifiers: egui::Modifiers::NONE };
+            h.input_mut().events.extend([egui::Event::PointerMoved(ok), button(true)]);
+            h.step();
+            h.input_mut().events.push(button(false));
+            h.step();
+            assert_eq!(dialog(&h), None, "the click closed the message box");
+            h.run_steps(wait);
+            for pressed in [true, false] {
+                h.input_mut().events.push(egui::Event::Key {
+                    key: Key::Escape,
+                    physical_key: None,
+                    pressed,
+                    repeat: false,
+                    modifiers: egui::Modifiers::NONE,
+                });
+            }
+            h.step();
+            h.run_steps(4);
+            if search {
+                let state = h.state();
+                assert_eq!((state.session.view.search.as_str(), state.session.compose.is_some()), ("", true), "{wait}: the search ended");
+            } else {
+                assert_eq!(windows(&h)[0]["asking"], json!(true), "{wait}: the window asks about its change");
+            }
+        }
+    }
 }
