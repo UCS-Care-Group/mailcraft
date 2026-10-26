@@ -1,7 +1,9 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! Pushing the changes made here to the IMAP server: flags, moves and deletions
-//! ([`SyncRequest::ops`]), one source mailbox at a time, before anything is downloaded.
+//! ([`SyncRequest::ops`]), one source mailbox at a time, and then the messages moved or copied
+//! into the account from elsewhere ([`SyncRequest::places`], #451), before anything is
+//! downloaded.
 //!
 //! Mail is never lost to a push. A message leaves a mailbox only by UID MOVE, or, on a server
 //! without it, once its copy is in the other mailbox. A message is removed for good only when
@@ -19,12 +21,15 @@
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 
-use mailcraft_model::sync::{Created, Deleted, FlagsPushed, Moved, RemoteOp, SyncRequest, SyncResult, SyncStage, SyncStep};
-use mailcraft_model::{FolderKind, Id};
+use mailcraft_mime::WriteOptions;
+use mailcraft_model::sync::{
+    Created, Deleted, FlagsPushed, ImapPlace, MAX_PLACES, Moved, Placed, RemoteOp, SyncRequest, SyncResult, SyncStage, SyncStep,
+};
+use mailcraft_model::{FlagStatus, FolderKind, Id};
 use mailcraft_proto::ProtoError;
 use mailcraft_proto::imap::{Copied, Imap, Mailbox, decode_utf7, encode_utf7, uid_sets};
 
-use crate::sync::{Run, label, shown};
+use crate::sync::{Run, label, shown, subject_of};
 use crate::transport::Stream;
 use crate::{NetError, kinds};
 
@@ -49,7 +54,7 @@ pub(crate) fn push(run: &mut Run, imap: &mut Imap<Stream<'_>>, mailboxes: &[Mail
     let request = run.request;
     let ops: Vec<&RemoteOp> = request.ops.iter().take(MAX_OPS).collect();
     let mut push = Push { request, mailboxes, can_move: false, uidplus: false, gmail: false, destinations: HashMap::new(), arrived: Arrived::new() };
-    if ops.iter().any(|op| !matches!(op, RemoteOp::Flags { .. })) {
+    if ops.iter().any(|op| !matches!(op, RemoteOp::Flags { .. })) || !request.places.is_empty() {
         // Asked now: what a server can do is often only told once it knows who is asking.
         match imap.capabilities() {
             Ok(capabilities) => {
@@ -81,6 +86,15 @@ pub(crate) fn push(run: &mut Run, imap: &mut Imap<Stream<'_>>, mailboxes: &[Mail
         let alive = push.mailbox(imap, remote, &here, &mut run.out);
         if run.out.has_news() || !run.out.errors.is_empty() {
             run.hand_over_in(imap, SyncStep::new(SyncStage::Updating, &label(remote), 0, 0));
+        }
+        if !alive {
+            return None;
+        }
+    }
+    if !request.places.is_empty() && !run.cancelled() {
+        let alive = push.places(imap, &mut run.out);
+        if run.out.has_news() || !run.out.errors.is_empty() {
+            run.hand_over_in(imap, SyncStep::new(SyncStage::Updating, "", 0, 0));
         }
         if !alive {
             return None;
@@ -442,10 +456,23 @@ impl<'a> Push<'a> {
     /// once however many messages wait for it. `Err`: the connection is gone.
     fn destination(&mut self, imap: &mut Imap<Stream<'_>>, op: &RemoteOp, result: &mut SyncResult) -> Result<Option<Destination>, bool> {
         let RemoteOp::Move { to, to_folder, create, .. } = op else { return Ok(None) };
-        if let Some(known) = self.destinations.get(to_folder) {
+        self.destination_of(imap, to, *to_folder, create, result)
+    }
+
+    /// The mailbox for local folder `to_folder`, as [`RemoteOp::Move`] names it (`to` and
+    /// `create`), worked out once a run: made when it isn't on the server yet.
+    fn destination_of(
+        &mut self,
+        imap: &mut Imap<Stream<'_>>,
+        to: &str,
+        to_folder: Id,
+        create: &[String],
+        result: &mut SyncResult,
+    ) -> Result<Option<Destination>, bool> {
+        if let Some(known) = self.destinations.get(&to_folder) {
             return Ok(known.clone());
         }
-        let found = match self.find_destination(imap, to, *to_folder, create, result) {
+        let found = match self.find_destination(imap, to, to_folder, create, result) {
             Ok(destination) => Some(destination),
             Err((line, alive)) => {
                 result.errors.push(line);
@@ -455,8 +482,61 @@ impl<'a> Push<'a> {
                 None
             }
         };
-        self.destinations.insert(*to_folder, found.clone());
+        self.destinations.insert(to_folder, found.clone());
         Ok(found)
+    }
+
+    /// Put the messages moved or copied into the account from elsewhere into their mailboxes,
+    /// each whole, with its flags and the time it arrived (#451). What the server took is noted
+    /// (`placed`), with where it went when the server says (`APPENDUID`); what it wouldn't take
+    /// too (`unplaced`), and said. A message whose answer is lost with the connection is neither,
+    /// and is put there again by the next run; the ones after it never set out. Returns whether
+    /// the connection is still good.
+    fn places(&mut self, imap: &mut Imap<Stream<'_>>, result: &mut SyncResult) -> bool {
+        let request = self.request;
+        for place in request.places.iter().take(MAX_PLACES) {
+            let ImapPlace { message, to, to_folder, create } = place;
+            let destination = match self.destination_of(imap, to, *to_folder, create, result) {
+                Ok(Some(destination)) => destination,
+                // Said already: it waits.
+                Ok(None) => continue,
+                Err(alive) => return alive,
+            };
+            let mut flags = Vec::new();
+            if message.read {
+                flags.push("\\Seen");
+            }
+            if message.flag == FlagStatus::Flagged {
+                flags.push("\\Flagged");
+            }
+            if message.answered {
+                flags.push("\\Answered");
+            }
+            let received = if message.received > 0 { message.received } else { message.date };
+            let date = crate::sync::imap_date_time(received);
+            // A copy of the owner's own mail says who got a blind copy, as the one they sent did.
+            let options = WriteOptions { include_bcc: true, offset_minutes: mailcraft_time::local_offset_minutes(message.date) };
+            match imap.append_at(&destination.raw, &flags, date.as_deref(), &mailcraft_mime::write(message, &options)) {
+                Ok(appended) => {
+                    let (uid_validity, uid) = appended.map_or((0, 0), |a| (a.uid_validity, a.uid));
+                    if uid != 0 {
+                        self.arrived.entry(destination.remote.clone()).or_default().push((uid_validity, uid));
+                    }
+                    result.placed.push(Placed { message: message.id, to_folder: *to_folder, uid, uid_validity });
+                }
+                Err(e) => {
+                    let e = NetError::from(e);
+                    result.errors.push(format!("Couldn't put \"{}\" in \"{}\" on the server: {e}", subject_of(message), shown(&destination.remote)));
+                    if e.is_fatal() {
+                        // The connection went while it was on its way: it may have got there all
+                        // the same, and nothing is known of it.
+                        return false;
+                    }
+                    result.unplaced.push(message.id);
+                }
+            }
+        }
+        true
     }
 
     /// See [`destination`](Self::destination). `Err` is what to tell the owner, and whether the

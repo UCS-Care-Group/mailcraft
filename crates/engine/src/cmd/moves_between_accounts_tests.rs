@@ -5,7 +5,9 @@
 //! out by hand, as `mailcraft-net` answers it. (Against the fake IMAP server and the Graph
 //! stand-in: `apps/mailcraft-cli/tests/moves_between_accounts.rs`.)
 
-use mailcraft_model::sync::{Deleted, FolderDelta, FolderListing, GraphFolder, GraphMailResult, MessageOutcome, PlaceDone, RemoteOp, SyncResult};
+use mailcraft_model::sync::{
+    Deleted, FolderDelta, FolderListing, GraphFolder, GraphMailResult, MessageOutcome, PlaceDone, Placed, RemoteOp, SyncResult,
+};
 use mailcraft_model::{Address, Body, FolderKind, Id, Message, Pending, Queued};
 use serde_json::json;
 
@@ -276,4 +278,88 @@ fn a_move_out_of_an_imap_account_is_kept_when_the_mailbox_is_opened_again() {
     let mut opened: mailcraft_model::Mailbox = serde_json::from_value(serde_json::to_value(&s.mailbox).unwrap()).unwrap();
     assert_eq!(opened.repair(), Vec::<String>::new());
     assert_eq!(opened.pending, s.mailbox.pending);
+}
+
+/// A message on this computer, whole, in `folder`.
+fn kept_here(s: &mut Session, folder: Id, subject: &str) -> Id {
+    let m = Message { folder, uid: 0, read: true, ..from_server(0, subject) };
+    s.mailbox.add_message(m).unwrap()
+}
+
+/// The IMAP server of `account` took the message into the folder that follows its Inbox, and
+/// said where (`uid`, `uid_validity`; 0 when it didn't).
+fn put(message: Id, to_folder: Id, uid: u32, uid_validity: u32) -> Placed {
+    Placed { message, to_folder, uid, uid_validity }
+}
+
+#[test]
+fn where_an_imap_server_says_it_put_a_message_is_believed_only_as_far_as_it_can_be() {
+    let (mut s, a, kept) = imap();
+    let inbox = s.mailbox.folder_of_kind(a, FolderKind::Inbox).unwrap();
+    let ids: Vec<Id> = ["Said", "Other life", "Taken", "Unsaid"].iter().map(|subject| kept_here(&mut s, kept, subject)).collect();
+    s.run("mail.move", &json!({"ids": ids, "folder": inbox})).unwrap();
+    let asked = sync_request(&s, a).unwrap();
+    assert_eq!(crate::cmd::account::unpushed(&s, a), 4);
+    assert_eq!(
+        asked.places.iter().map(|p| (p.message.id, p.to.as_str())).collect::<Vec<_>>(),
+        ids.iter().map(|id| (*id, "INBOX")).collect::<Vec<_>>()
+    );
+    assert!(asked.places.iter().all(|p| p.message.body.text.ends_with("the whole of it.")));
+    // A UID of the mailbox the folder follows, which nothing here has: the message's own. One of
+    // another life of the mailbox, one that "One" has, and none at all: expected there.
+    let placed = vec![put(ids[0], inbox, 50, 7), put(ids[1], inbox, 51, 99), put(ids[2], inbox, 1, 7), put(ids[3], inbox, 0, 0)];
+    apply_sync(&mut s, SyncResult { account: a, placed, ..Default::default() }).unwrap();
+    let uids: Vec<u32> = ids.iter().map(|id| at(&s, *id).2).collect();
+    assert_eq!(uids, [50, 0, 0, 0]);
+    assert!(ids.iter().all(|id| s.mailbox.message(*id).is_some_and(|m| m.synced.is_some())));
+    assert_eq!(at(&s, titled(&s, "One")), (a, inbox, 1));
+    assert!(s.mailbox.queued.is_empty() && s.mailbox.pending.is_empty(), "{:?} {:?}", s.mailbox.queued, s.mailbox.pending);
+    assert!(sync_request(&s, a).unwrap().places.is_empty());
+    // What is expected is known by its copy when that comes down: not here twice.
+    let copy = Message { uid: 52, ..from_server(52, "Unsaid") };
+    let news = FolderDelta { remote: "INBOX".into(), kind: FolderKind::Inbox, uid_validity: 7, uid_seen: 52, new: vec![copy], ..Default::default() };
+    apply_sync(&mut s, SyncResult { account: a, folders: vec![news], ..Default::default() }).unwrap();
+    assert_eq!(s.mailbox.messages.values().filter(|m| m.subject == "Unsaid").count(), 1);
+    assert_eq!(at(&s, ids[3]), (a, inbox, 52));
+}
+
+#[test]
+fn a_message_moved_on_or_away_while_it_was_put_on_an_imap_server_follows_there() {
+    let (mut s, a, kept) = imap();
+    let (inbox, archive) = (s.mailbox.folder_of_kind(a, FolderKind::Inbox).unwrap(), s.mailbox.folder_of_kind(a, FolderKind::Archive).unwrap());
+    let servers = json!({"email": "ada@far.example", "incoming": {"host": "imap.far.example"}, "outgoing": {"host": "smtp.far.example"}});
+    let b = s.run("account.add", &servers).unwrap()["id"].as_u64().unwrap();
+    let far = FolderDelta {
+        remote: "INBOX".into(),
+        kind: FolderKind::Inbox,
+        uid_validity: 3,
+        uid_seen: 9,
+        new: vec![from_server(9, "Far")],
+        ..Default::default()
+    };
+    apply_sync(&mut s, SyncResult { account: b, folders: vec![far], ..Default::default() }).unwrap();
+    let (moved_on, called_off, refused) =
+        (kept_here(&mut s, kept, "Moved on"), kept_here(&mut s, kept, "Called off"), kept_here(&mut s, kept, "Refused"));
+    let far = titled(&s, "Far");
+    s.run("mail.move", &json!({"ids": [moved_on, called_off, refused, far], "folder": inbox})).unwrap();
+    assert_eq!(sync_request(&s, a).unwrap().places.len(), 4);
+    // While the server takes them in: two moved on in the account, one back to this computer.
+    s.run("mail.move", &json!({"ids": [moved_on, far], "folder": archive})).unwrap();
+    s.run("mail.move", &json!({"ids": [called_off], "folder": kept})).unwrap();
+    let placed = vec![put(moved_on, inbox, 50, 7), put(called_off, inbox, 51, 7), put(far, inbox, 52, 7)];
+    apply_sync(&mut s, SyncResult { account: a, placed, unplaced: vec![refused], ..Default::default() }).unwrap();
+    // Moved there from where the server put them; the copy that wasn't wanted goes again; the
+    // original of the one from the other server goes from there, being on this one now.
+    let pending = |s: &Session, owner: Id| {
+        s.mailbox.pending.iter().filter(|p| p.account() == owner).map(|p| p.source()).map(|(f, u)| (f.to_string(), u)).collect::<Vec<_>>()
+    };
+    assert_eq!(pending(&s, a), [("INBOX".to_string(), 50), ("INBOX".to_string(), 51), ("INBOX".to_string(), 52)]);
+    assert!(s.mailbox.pending.iter().any(|p| matches!(p, Pending::Move { message, to, .. } if *message == moved_on && *to == archive)));
+    assert!(s.mailbox.pending.iter().any(|p| matches!(p, Pending::Delete { account, uid: 51, .. } if *account == a)));
+    assert!(s.mailbox.pending.iter().any(|p| matches!(p, Pending::Delete { account, from, uid: 9, .. } if *account == b && from == "INBOX")));
+    // The one the server wouldn't take is back where it was, nothing waiting for it.
+    assert_eq!(at(&s, refused), (s.mailbox.folder(kept).unwrap().account, kept, 0));
+    assert_eq!(at(&s, called_off), (s.mailbox.folder(kept).unwrap().account, kept, 0));
+    assert!(s.mailbox.queued.is_empty(), "{:?}", s.mailbox.queued);
+    assert!(sync_request(&s, a).unwrap().places.is_empty());
 }

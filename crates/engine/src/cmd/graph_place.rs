@@ -59,11 +59,14 @@ pub fn place_changes(s: &Session, account: Id, limit: usize) -> (Vec<PlaceUp>, u
 
 /// Whether `m`, moved here out of an account whose server still has the original, is safe where
 /// it is now, so that the original may go (R3 spec S19, #70, #451): made on the server of the
-/// Microsoft account it is in; in an account whose server is given no copy, whole here and kept
-/// in the mailbox file (`saved`: the file holds what is here now).
+/// Microsoft account it is in; on the server of the IMAP account it is in, under its UID there;
+/// in an account whose server is given no copy, whole here and kept in the mailbox file
+/// (`saved`: the file holds what is here now).
 pub(crate) fn safe_here(s: &Session, m: &Message, saved: bool) -> bool {
     if s.mailbox.is_graph(m.account) {
         m.server.as_ref().is_some_and(|server| !server.gone && !server.id.is_empty())
+    } else if s.mailbox.puts_on_server(m.account) {
+        m.uid != 0
     } else {
         !m.unfetched && !m.incomplete && m.not_downloaded == 0 && (saved || s.saved_whole.contains(&m.id))
     }
@@ -155,7 +158,7 @@ pub fn place_done(mb: &mut Mailbox, account: Id, done: &PlaceDone, refusals: &mu
 /// A message the destination wouldn't take: a move back to where its original still is, as that
 /// server message, or to the folder on this computer it came from (`from`); a copy taken away;
 /// a move whose original is gone kept on this computer.
-fn put_back(mb: &mut Mailbox, id: Id, copy: bool, from: Option<Id>) {
+pub(crate) fn put_back(mb: &mut Mailbox, id: Id, copy: bool, from: Option<Id>) {
     let Some(m) = mb.message(id) else { return };
     let out = m.moving_out.clone().filter(|out| mb.is_graph(out.account) && !out.id.is_empty());
     match out {

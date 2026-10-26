@@ -1698,7 +1698,7 @@ impl Mailbox {
         if m.folder == folder {
             return Ok(());
         }
-        if self.move_across_graph(id, folder, account, &remote)? {
+        if self.move_between_accounts(id, folder, account, &remote)? {
             return Ok(());
         }
         let (uid, synced) = self.imap_side(id, folder, account, &remote)?;
@@ -1778,23 +1778,29 @@ impl Mailbox {
         from != to && (shared(from) || shared(to)) && self.reached_through(from).is_some_and(|owner| self.reached_through(to) == Some(owner))
     }
 
+    /// Whether mail moved or copied into `account` from another account is put on its server
+    /// (#451): a Microsoft account's or an IMAP account's.
+    pub fn puts_on_server(&self, account: Id) -> bool {
+        self.account(account).is_some_and(|a| matches!(a.kind, AccountKind::Microsoft | AccountKind::Imap))
+    }
+
     /// Whether mail that goes from the account `from` into the account `to` is made on `to`'s
     /// server by `to`'s own run, from the whole message here ([`Queued::PlaceMessage`]): into a
-    /// Microsoft account from any other account or from a folder on this computer (#451). A
-    /// shared mailbox only takes mail from, and gives it to, the mailboxes its owner's sign-in
-    /// reaches (#70, [`BETWEEN_MAILBOXES`]).
+    /// Microsoft or an IMAP account from any other account or from a folder on this computer
+    /// (#451). Of the Microsoft accounts, a shared mailbox only takes mail from, and gives it to,
+    /// the mailboxes its owner's sign-in reaches (#70, [`BETWEEN_MAILBOXES`]).
     pub fn placed_into(&self, from: Id, to: Id) -> bool {
-        if from == to || !self.is_graph(to) {
+        if from == to || !self.puts_on_server(to) {
             return false;
         }
         let shared = |id: Id| self.account(id).is_some_and(Account::is_shared);
-        let through_a_shared = self.is_graph(from) && (shared(from) || shared(to));
+        let through_a_shared = self.is_graph(from) && self.is_graph(to) && (shared(from) || shared(to));
         !through_a_shared || self.between_mailboxes(from, to)
     }
 
     /// Whether a message moved from the account `from` into the account `to` is kept by `to`, so
     /// that its original goes from `from`'s server once it is safe there (#451): `to`'s server
-    /// makes a copy of it ([`Mailbox::placed_into`]), or `to` is on this computer, where the
+    /// is given a copy of it ([`Mailbox::placed_into`]), or `to` is on this computer, where the
     /// message is kept in the mailbox file.
     pub fn takes_over(&self, from: Id, to: Id) -> bool {
         self.placed_into(from, to) || (from != to && self.account(to).is_some_and(|a| a.kind == AccountKind::Local))
@@ -1854,46 +1860,60 @@ impl Mailbox {
         }
     }
 
-    /// A move between accounts where one of them is kept in step through Microsoft Graph (R3
-    /// spec S19). Whether it was one (and is done).
+    /// A move between accounts where the server of one of them is told of it: out of a
+    /// Microsoft account (R3 spec S19), or into a Microsoft or an IMAP account (#70, #451).
+    /// Whether it was one (and is done).
     ///
     /// - Out of a Microsoft account (into a local folder or another account): the message is
     ///   there at once, **being moved** ([`Message::moving_out`]); the server's copy is removed
-    ///   once it is fetched whole and saved here.
-    /// - Into a Microsoft account from elsewhere ([`Mailbox::placed_into`]): from another
-    ///   account or a folder on this computer (#451), or between two mailboxes of one owner's (a
-    ///   shared mailbox and its owner's, or two of his shared mailboxes, #70): there at once, being
-    ///   moved, and waiting to be made on the destination's server ([`Queued::PlaceMessage`]);
-    ///   the original is removed from its own server once that copy is there. Refused for a
-    ///   message that isn't whole here, and for a draft.
+    ///   once it is safe where it is.
+    /// - Into a Microsoft or an IMAP account from elsewhere ([`Mailbox::placed_into`]): from
+    ///   another account or a folder on this computer (#451), or between two mailboxes of one
+    ///   owner's (a shared mailbox and its owner's, or two of his shared mailboxes, #70): there at
+    ///   once, being moved, and waiting to be made on the destination's server
+    ///   ([`Queued::PlaceMessage`]); the original is removed from its own server once that copy
+    ///   is there. Refused for a message that isn't whole here, and for a draft.
     /// - Back into the account it is being moved out of: it is that server message again.
     /// - Between a shared mailbox and a mailbox of another sign-in's: refused, with the reason.
-    fn move_across_graph(&mut self, id: Id, folder: Id, to_account: Id, remote: &str) -> Result<bool, ModelError> {
+    fn move_between_accounts(&mut self, id: Id, folder: Id, to_account: Id, remote: &str) -> Result<bool, ModelError> {
         let m = self.message(id).ok_or(not_found("message", id))?;
         let from_account = m.account;
         if from_account == to_account {
             return Ok(false);
         }
-        if self.is_graph(to_account) {
-            if let Some(out) = m.moving_out.clone().filter(|out| out.account == to_account) {
-                // Where the server has it isn't known here when it wasn't said: the next run
-                // moves it where it is now.
-                let server = crate::sync::ServerMessage {
-                    id: out.id,
-                    folder: out.folder,
-                    read: m.read,
-                    flag: m.flag,
-                    flag_due: m.flag_due,
-                    categories: m.categories.clone(),
-                    importance: m.importance,
-                    ..Default::default()
-                };
-                self.place_called_off(id);
-                let m = self.message_mut(id)?;
-                (m.server, m.moving_out) = (Some(server), None);
-                (m.folder, m.account, m.uid, m.synced) = (folder, to_account, 0, None);
-                return Ok(true);
-            }
+        // Back into the IMAP account whose server still has the original: the move out of it
+        // that waits goes on there, or is called off.
+        let owner = self.waiting_move(id).and_then(|at| self.pending.get(at)).map(Pending::account);
+        if owner == Some(to_account) {
+            self.place_called_off(id);
+            let (uid, synced) = self.imap_side(id, folder, to_account, remote)?;
+            let m = self.message_mut(id)?;
+            m.server = None;
+            (m.folder, m.account, m.uid, m.synced) = (folder, to_account, uid, synced);
+            return Ok(true);
+        }
+        if self.is_graph(to_account)
+            && let Some(out) = m.moving_out.clone().filter(|out| out.account == to_account)
+        {
+            // Where the server has it isn't known here when it wasn't said: the next run moves it
+            // where it is now.
+            let server = crate::sync::ServerMessage {
+                id: out.id,
+                folder: out.folder,
+                read: m.read,
+                flag: m.flag,
+                flag_due: m.flag_due,
+                categories: m.categories.clone(),
+                importance: m.importance,
+                ..Default::default()
+            };
+            self.place_called_off(id);
+            let m = self.message_mut(id)?;
+            (m.server, m.moving_out) = (Some(server), None);
+            (m.folder, m.account, m.uid, m.synced) = (folder, to_account, 0, None);
+            return Ok(true);
+        }
+        if self.puts_on_server(to_account) {
             if !self.placed_into(from_account, to_account) {
                 return Err(invalid(BETWEEN_MAILBOXES));
             }
@@ -1922,6 +1942,8 @@ impl Mailbox {
             return Ok(true);
         }
         if !self.is_graph(from_account) {
+            // Out of an IMAP account that was to be given it: it isn't now.
+            self.place_called_off(id);
             return Ok(false);
         }
         let first = self.original_elsewhere(id);
@@ -1994,7 +2016,7 @@ impl Mailbox {
             self.queued.push(Queued::PlaceMessage { account: to_account, message: new, marker, copy: true, from: None });
             return Ok(new);
         }
-        if from_account != to_account && self.is_graph(to_account) {
+        if from_account != to_account && self.puts_on_server(to_account) {
             return Err(invalid(BETWEEN_MAILBOXES));
         }
         if from_account != to_account && self.is_graph(from_account) && m.unfetched {

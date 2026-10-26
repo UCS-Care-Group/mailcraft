@@ -113,6 +113,25 @@ pub struct SyncRequest {
     /// has for it.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub ops: Vec<RemoteOp>,
+    /// Messages to put on the server, moved or copied into the account's folders from another
+    /// account or from this computer (#451); after `ops`.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub places: Vec<ImapPlace>,
+}
+
+/// A message to put in one of the server's mailboxes ([`SyncRequest::places`]).
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct ImapPlace {
+    /// The whole message: its fields, its body and its files.
+    pub message: Message,
+    /// Where it goes, as [`RemoteOp::Move`] says it: the local folder `to_folder`, whose server
+    /// path is `to`; or, for a folder that only exists here, `create` holds its names below `to`,
+    /// the path of the nearest folder above it that the server has (empty: the top level).
+    pub to: String,
+    pub to_folder: Id,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub create: Vec<String>,
 }
 
 impl SyncRequest {
@@ -134,6 +153,7 @@ impl std::fmt::Debug for SyncRequest {
             .field("folders", &self.folders.len())
             .field("outbox", &self.outbox.len())
             .field("ops", &self.ops.len())
+            .field("places", &self.places.len())
             .finish()
     }
 }
@@ -496,6 +516,18 @@ pub struct Deleted {
     pub uid: u32,
 }
 
+/// A message the server took ([`SyncRequest::places`]), in the mailbox of local folder
+/// `to_folder`: its UID there and that mailbox's `UIDVALIDITY` when the server said them
+/// (`APPENDUID`), 0 when it didn't.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct Placed {
+    pub message: Id,
+    pub to_folder: Id,
+    pub uid: u32,
+    pub uid_validity: u32,
+}
+
 /// A local folder that has a mailbox on the server now ([`RemoteOp::Move`] with `create`).
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
@@ -557,6 +589,13 @@ pub struct SyncResult {
     /// Mailboxes made on the server, whether or not the move they were made for went through.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub created: Vec<Created>,
+    /// What became of [`SyncRequest::places`]: the messages the server took. One that isn't here
+    /// nor in `unplaced` wasn't tried, or its answer was lost, and is put there again next time.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub placed: Vec<Placed>,
+    /// Messages the server wouldn't take (see `errors`).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub unplaced: Vec<Id>,
     /// Problems worth telling the user (one per failed step); empty when all went well. In a
     /// piece of an answer: the problems since the piece before.
     pub errors: Vec<String>,
@@ -586,7 +625,7 @@ impl SyncResult {
 
     /// How many changes made here the server took on.
     pub fn pushed_count(&self) -> usize {
-        self.flagged.len() + self.moved.len() + self.deleted.len() + self.created.len()
+        self.flagged.len() + self.moved.len() + self.deleted.len() + self.created.len() + self.placed.len() + self.unplaced.len()
     }
 
     /// Whether there is anything in it for a mailbox to take in. A piece with only a line of
@@ -619,6 +658,8 @@ impl SyncResult {
         self.moved.extend(later.moved);
         self.deleted.extend(later.deleted);
         self.created.extend(later.created);
+        self.placed.extend(later.placed);
+        self.unplaced.extend(later.unplaced);
         self.errors.extend(later.errors);
         for delta in later.folders {
             match self.folders.iter_mut().find(|f| f.remote == delta.remote && f.uid_validity == delta.uid_validity) {
