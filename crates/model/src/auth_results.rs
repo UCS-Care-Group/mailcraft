@@ -95,12 +95,17 @@ fn from_own_server(account: Option<&Account>, value: &str) -> bool {
 /// being a gap between words and a quoted string staying whole inside its word. What a sender
 /// can put into a value (a `reason="…"`, a `(comment)`) therefore stays inside its own word.
 /// The words of a comment that is not nested and follows a clause's first word are kept too,
-/// each with a `(` before it (`(p=NONE`), so that no property is ever read from one.
-fn clauses(value: &str) -> Vec<Vec<String>> {
+/// each with a `(` before it (`(p=NONE`), so that no property is ever read from one. A last
+/// clause cut off at [`MAX_HEADER_CHARS`], or left inside a quoted string or a comment, is
+/// dropped: its last word may be the start of a longer one (`header.d=shop.example` of
+/// `shop.example.evil.example`). With the clauses comes whether the whole value was read: not
+/// when it was cut off, left open, or longer than [`MAX_TOKENS`] clauses.
+fn clauses(value: &str) -> (Vec<Vec<String>>, bool) {
     let (mut out, mut words, mut word) = (Vec::new(), Vec::new(), String::new());
     let mut comment = String::new();
     let (mut depth, mut quoted, mut escaped) = (0usize, false, false);
-    for c in value.chars().take(MAX_HEADER_CHARS) {
+    let mut chars = value.chars();
+    for c in chars.by_ref().take(MAX_HEADER_CHARS) {
         if escaped {
             escaped = false;
             if quoted {
@@ -144,38 +149,46 @@ fn clauses(value: &str) -> Vec<Vec<String>> {
                 if c == ';' {
                     out.push(std::mem::take(&mut words));
                     if out.len() >= MAX_TOKENS {
-                        return out;
+                        return (out, false);
                     }
                 }
             }
             _ => word.push(c),
         }
     }
+    if chars.next().is_some() || quoted || depth > 0 {
+        return (out, false);
+    }
     if !word.is_empty() {
         words.push(word);
     }
     out.push(words);
-    out
+    (out, true)
 }
 
-/// The clauses of the topmost `Authentication-Results` header of `m`, when `m` is on the server
-/// (it has a UID there, or the server's own record of it: mail brought in from a file has the
-/// file's word and nothing else) and that header was written by the server of `account`
-/// ([`from_own_server`]); with the sender's domain. `None` otherwise: nothing to go by.
-fn own_verdict(account: Option<&Account>, m: &Message) -> Option<(Vec<Vec<String>>, String)> {
-    let clauses = own_clauses(account, m)?;
-    let sender_domain = sender(&m.from.email).and_then(|address| domain(&address))?;
-    Some((clauses, sender_domain))
-}
-
-/// The clauses of the topmost `Authentication-Results` header of `m`, when `m` is on the server
-/// and that header was written by the server of `account` ([`own_verdict`] without the sender).
-fn own_clauses(account: Option<&Account>, m: &Message) -> Option<Vec<Vec<String>>> {
+/// The `Authentication-Results` headers of `m`, topmost first, when `m` is on the server (it has
+/// a UID there, or the server's own record of it: mail brought in from a file has the file's word
+/// and nothing else) and the topmost was written by the server of `account`
+/// ([`from_own_server`]): the receiving server puts its own on top, and the ones below were
+/// written before it. `None` otherwise: nothing to go by.
+fn own_results<'a>(account: Option<&Account>, m: &'a Message) -> Option<Vec<&'a str>> {
     if m.uid == 0 && m.server.is_none() {
         return None;
     }
-    let (_, value) = m.headers.iter().take(MAX_HEADERS_READ).find(|(name, _)| name.eq_ignore_ascii_case("Authentication-Results"))?;
-    from_own_server(account, value).then(|| clauses(value))
+    let results: Vec<&str> = m
+        .headers
+        .iter()
+        .take(MAX_HEADERS_READ)
+        .filter(|(name, _)| name.eq_ignore_ascii_case("Authentication-Results"))
+        .map(|(_, v)| v.as_str())
+        .collect();
+    from_own_server(account, results.first()?).then_some(results)
+}
+
+/// The clauses of the topmost `Authentication-Results` header of `m`, as [`own_results`] has it.
+fn own_clauses(account: Option<&Account>, m: &Message) -> Option<Vec<Vec<String>>> {
+    let results = own_results(account, m)?;
+    Some(clauses(results.first()?).0)
 }
 
 /// The value of the property `key` (`header.from`, `smtp.mailfrom`) in a clause's words, with any
@@ -192,23 +205,54 @@ fn result(words: &[String]) -> Option<(String, String)> {
 
 /// Whether the server that received `m` vouches that it came from the domain it says it did:
 /// `m` is on the server; the topmost `Authentication-Results` header, written by the server of
-/// the account `m` is in ([`own_verdict`]), has a clause whose result is `dmarc=pass` (or
-/// Exchange Online's `compauth=pass`), and that clause names the `header.from` it judged, which
-/// is the sender's domain or one above it ([`judged_for`]). Only the clause's own words are
-/// read, not what a comment or quoted string in the header says. A header the sender could have
-/// written is not read.
+/// the account `m` is in ([`own_results`]), has a clause whose result is `dmarc=pass` (or
+/// Exchange Online's `compauth=pass`) and that clause names the `header.from` it judged, which
+/// is the sender's domain or one above it ([`judged_for`]). When the server gave no DMARC verdict
+/// ([`dmarc_verdict`]) in that header or in another with the same authserv-id (a DMARC filter
+/// may write its own beside a DKIM filter's), a clause whose result is `dkim=pass` counts
+/// instead, by the signer's `header.d` (or, when the clause names none, the domain of its
+/// `header.i`, which the verifier checks is `header.d` or under it: RFC 6376, 6.1.1) under the
+/// same rule: a signature of the sender's domain that passes is what makes DMARC pass (RFC 7489,
+/// 3.1.1 and 4.2). A verdict the server gave, `fail` included, is never overruled by a signature.
+/// Only the clause's own words are read, not what a comment or quoted string in the header says.
+/// A header the sender could have written is not read. The sender's address must be plain ASCII.
 pub fn vouched(account: Option<&Account>, m: &Message) -> bool {
-    let Some((clauses, sender_domain)) = own_verdict(account, m) else { return false };
-    clauses.iter().any(|words| {
-        let passes = words.first().is_some_and(|result| result.eq_ignore_ascii_case("dmarc=pass") || result.eq_ignore_ascii_case("compauth=pass"));
-        passes
-            && words.iter().skip(1).any(|word| {
-                word.split_once('=').is_some_and(|(key, name)| {
-                    key.eq_ignore_ascii_case("header.from")
-                        && domain(name.trim_matches('"')).is_some_and(|judged| judged_for(&judged, &sender_domain))
-                })
+    let Some(results) = own_results(account, m) else { return false };
+    let Some((value, below)) = results.split_first() else { return false };
+    let Some(sender_domain) = sender(&m.from.email).and_then(|address| domain(&address)) else { return false };
+    let id = authserv_id(value);
+    // A header below with the server's id may be forged, but it can only take the signature away.
+    let verdict_given = dmarc_verdict(value) || below.iter().any(|other| authserv_id(other) == id && dmarc_verdict(other));
+    let (parsed, _) = clauses(value);
+    parsed.iter().any(|words| {
+        let Some(result) = words.first() else { return false };
+        let names = |wanted: &str| words.iter().any(|word| word.split_once('=').is_some_and(|(key, _)| key.eq_ignore_ascii_case(wanted)));
+        let property = if result.eq_ignore_ascii_case("dmarc=pass") || result.eq_ignore_ascii_case("compauth=pass") {
+            "header.from"
+        } else if !verdict_given && result.eq_ignore_ascii_case("dkim=pass") {
+            if names("header.d") { "header.d" } else { "header.i" }
+        } else {
+            return false;
+        };
+        words.iter().skip(1).any(|word| {
+            word.split_once('=').is_some_and(|(key, name)| {
+                key.eq_ignore_ascii_case(property) && domain(name.trim_matches('"')).is_some_and(|judged| judged_for(&judged, &sender_domain))
             })
+        })
     })
+}
+
+/// Whether the `Authentication-Results` value `value` gives a DMARC verdict: a `dmarc` (or
+/// `compauth`) clause of any result, or a part not read ([`clauses`]) where one may stand.
+fn dmarc_verdict(value: &str) -> bool {
+    let (parsed, whole) = clauses(value);
+    !whole
+        || parsed.iter().any(|words| {
+            words.first().is_some_and(|result| {
+                let method = result.split(['/', '=']).next().unwrap_or_default();
+                method.eq_ignore_ascii_case("dmarc") || method.eq_ignore_ascii_case("compauth")
+            })
+        })
 }
 
 /// Which check the server says the sender failed.
@@ -233,7 +277,7 @@ impl Failed {
 }
 
 /// Whether the account's own server says the sender of `m` failed its checks: its topmost
-/// `Authentication-Results` ([`own_verdict`]) has `dmarc=fail` for the sender's domain (a clause
+/// `Authentication-Results` ([`own_results`]) has `dmarc=fail` for the sender's domain (a clause
 /// that names no `header.from` judged the `From:` it had, which is the sender's), or, when it has
 /// no `dmarc` clause at all, `spf=fail` for a `smtp.mailfrom` at the sender's domain or one under
 /// the domain it judged; a DMARC failure for a domain whose policy is `p=none` is
@@ -290,7 +334,8 @@ fn policy_none(words: &[String]) -> bool {
 
 /// Whether a verdict on the domain `judged` stands for mail from `sender_domain`: the same name,
 /// or a name under it, as Gmail names the organisation's domain (`shop.example` for mail from
-/// `news.shop.example`); never a bare suffix such as `co.uk`, which is nobody's organisation.
+/// `news.shop.example`) and as an organisation signs for its names; never a bare suffix such as
+/// `co.uk`, which is nobody's organisation.
 fn judged_for(judged: &str, sender_domain: &str) -> bool {
     judged == sender_domain
         || (judged.contains('.') && !provider::is_public_suffix(judged) && sender_domain.strip_suffix(judged).is_some_and(|head| head.ends_with('.')))

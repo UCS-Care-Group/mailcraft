@@ -266,6 +266,7 @@ const SAFE: &[&str] = &[
     "people.categorize",
     "people.email",
     "people.fromMessage",
+    "people.findDuplicates",
     "tasks.new",
     "tasks.edit",
     "tasks.complete",
@@ -338,6 +339,8 @@ const DELETE: &[&str] = &[
     // undo is short-lived (what a server has been told of events and tasks clears it).
     "calendar.delete",
     "people.delete",
+    // A merge removes the contacts merged into the kept one.
+    "people.merge",
     "tasks.delete",
     "category.remove",
     "compose.discard",
@@ -805,6 +808,20 @@ pub fn describe(s: &Session, id: &str, params: &Value) -> String {
             format!(
                 "delete the contact {} for good; contacts don't go to Deleted Items",
                 c.map(|c| quoted(&c.name())).unwrap_or_else(|| "(none selected)".to_string())
+            )
+        }
+        "people.merge" => {
+            let name = |c: Option<u64>| c.and_then(|c| s.mailbox.contact(c)).map(|c| quoted(&c.name())).unwrap_or_else(|| "(none)".to_string());
+            let others: Vec<String> =
+                params.get("others").and_then(Value::as_array).into_iter().flatten().take(100).map(|o| name(o.as_u64())).collect();
+            format!(
+                "merge {} into the contact {} and delete them for good; contacts don't go to Deleted Items",
+                if others.is_empty() {
+                    "(no contacts)".to_string()
+                } else {
+                    format!("{} ({})", plural(others.len(), "{n} contact", "{n} contacts"), some(&others, 8))
+                },
+                name(p::id(params, "keep"))
             )
         }
         "tasks.delete" => {

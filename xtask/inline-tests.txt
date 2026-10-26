@@ -7,13 +7,12 @@ apps/mailcraft/src/control_server.rs
 apps/mailcraft/src/desktop_theme.rs
 apps/mailcraft/src/diagnostics.rs
 apps/mailcraft/src/graphics.rs
-apps/mailcraft/src/install.rs
 apps/mailcraft/src/logging.rs
 apps/mailcraft/src/opened_files.rs
 apps/mailcraft/src/picture_cache.rs
 apps/mailcraft/src/secrets.rs
-apps/mailcraft/src/self_update.rs
 apps/mailcraft/src/single_instance.rs
+apps/mailcraft/src/self_update.rs
 apps/mailcraft/src/updater.rs
 crates/charset/src/lib.rs
 crates/control-key/src/lib.rs

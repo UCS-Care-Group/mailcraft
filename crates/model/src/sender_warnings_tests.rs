@@ -654,6 +654,20 @@ fn only_the_registered_policy_properties_are_read() {
     assert_eq!(says("dmarc=fail action=none header.from=shop.example"), Some(Failed::Dmarc));
 }
 
+#[test]
+fn a_last_clause_cut_off_or_left_open_is_not_read() {
+    let account = imap("avery@lumen.example", "Avery Quinn");
+    let says = |value: &str| failed_check(Some(&account), &with_results(from("Shop", "news@shop.example"), value));
+    // Cut at 4,000 characters just after `shop.example` of `shop.example.evil.example`.
+    let head = "mx.lumen.example; spf=none reason=";
+    let tail = "; dmarc=fail header.from=shop.example";
+    let pad = "x".repeat(4_000 - head.len() - tail.len());
+    assert_eq!(says(&format!("{head}{pad}{tail}.evil.example")), None);
+    assert_eq!(says(&format!("{head}{pad}{tail}")), Some(Failed::Dmarc));
+    assert_eq!(says("mx.lumen.example; dmarc=fail header.from=shop.example (unclosed"), None);
+    assert_eq!(says("mx.lumen.example; dmarc=fail header.from=\"shop.example"), None);
+}
+
 proptest! {
     #[test]
     fn hostile_names_addresses_and_headers_never_panic(

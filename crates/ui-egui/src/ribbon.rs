@@ -470,6 +470,9 @@ fn home_people(app: &MailApp) -> Tab {
                 Item::big("edit", "Edit\nContact", "people.edit", no()).at(3, 2),
                 Item::big(if favorite { "starOn" } else { "star" }, "Favorite", "people.favorite", no()).checked(favorite).at(3, 3),
                 Item::big_menu("categorize", "categorize", "Categorize", "Categorize", Menu::CategorizeContact).at(3, 3).plain(),
+                // The contacts picked together, else every group that shares an address or a
+                // number (#506).
+                Item::big("mergeContacts", "Merge\nDuplicates", "people.merge", merge_params(app)).at(3, 4),
             ],
         ),
         g(
@@ -480,6 +483,12 @@ fn home_people(app: &MailApp) -> Tab {
             ],
         ),
     ])
+}
+
+/// What Merge Duplicates opens its dialog with: the contacts picked together in the list, when
+/// there are two or more.
+pub(crate) fn merge_params(app: &MailApp) -> Value {
+    if app.people_picked.len() >= 2 { json!({"ids": app.people_picked}) } else { json!({}) }
 }
 
 fn home_tasks(app: &MailApp) -> Tab {

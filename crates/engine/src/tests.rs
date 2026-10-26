@@ -2300,6 +2300,9 @@ fn hostile_params_never_panic() {
         json!({"conditions": [{"type": "x"}, 5, null], "actions": [{"type": "moveTo", "value": "x"}], "name": "r"}),
         json!({"email": "a@b.example", "incoming": {"host": "", "port": 1e9, "security": 5}, "outgoing": 7}),
         json!({"emails": [1, null, {"value": 2}], "phones": "x", "address": {"street": 5}, "birthday": 5, "workDays": [], "weekStart": 1}),
+        // A merge of contacts (#506): itself, twice, nobody, nonsense choices.
+        json!({"keep": 1, "others": [1, 1, 0, -1, "x", 1e300], "ids": [1, 1], "fields": {"first": "x", "emails": 18446744073709551615u64, "": null}}),
+        json!({"keep": 2, "others": [3], "ids": [2, 3], "fields": {"emails": "all", "notes": 3, "birthday": 2}}),
         json!({"account": 1, "address": "a@example.org/../../me\r\n?$top=1#x"}),
         json!({"account": 2, "address": "x".repeat(100_000)}),
         json!({"id": 2, "address": "\u{0}@example.org", "email": "\u{202e}@example.org"}),
