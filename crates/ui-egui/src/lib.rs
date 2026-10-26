@@ -50,6 +50,7 @@ pub mod compose;
 pub mod control;
 pub mod credits;
 pub mod data_removal;
+pub mod date_picker;
 pub mod dates;
 #[cfg(test)]
 mod dialog_scrim_tests;
@@ -61,6 +62,9 @@ pub mod favorites_sync;
 pub mod files;
 mod folder_properties;
 pub mod forms;
+#[cfg(test)]
+#[path = "forms_date_tests.rs"]
+mod forms_date_tests;
 pub mod graph_fetch;
 mod graph_switch;
 pub mod i18n;

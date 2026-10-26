@@ -20,6 +20,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 use crate::MailApp;
+use crate::date_picker::{Calendar, Picked};
 use crate::theme::{Tokens, regular};
 
 /// The most of the panel's width its labels' column takes, the panel's width as it would have it,
@@ -289,7 +290,9 @@ pub(crate) fn show(app: &mut MailApp, ctx: &egui::Context, anchor: Rect, button:
     let Some(mut panel) = app.advanced_search.take() else { return };
     let t = Tokens::get(ctx);
     let names: Vec<String> = app.session.mailbox.categories.iter().map(|c| c.name.clone()).collect();
-    let today = app.session.today().iso();
+    let today = app.session.today();
+    let today_iso = today.iso();
+    let week_start = app.session.prefs.week_start;
     let mut filters = app.ui.advanced_filters;
     let (mut search, mut clear, mut enter) = (false, false, false);
     let problems = day_problems(&panel.received_from, &panel.received_to);
@@ -355,22 +358,44 @@ pub(crate) fn show(app: &mut MailApp, ctx: &egui::Context, anchor: Rect, button:
                 });
                 row(ui, label_w, tl!("Date received"), |ui, l| {
                     ui.vertical(|ui| {
-                        ui.horizontal(|ui| {
-                            let w = ((field_w - 24.0) / 2.0).max(60.0);
-                            for (id, text, problem) in [
-                                ("advanced_received_from", &mut panel.received_from, problems.0),
-                                ("advanced_received_to", &mut panel.received_to, problems.1),
-                            ] {
-                                let resp = field(ui, l, id, text, w, &today, &mut enter);
-                                // (What is wrong is said in words under the two, for screen readers too.)
-                                if problem.is_some() {
-                                    ui.painter().rect_stroke(resp.rect, 4.0, Stroke::new(1.0, t.red), StrokeKind::Inside);
-                                }
-                                if id == "advanced_received_from" {
-                                    ui.label("–");
-                                }
+                        // Each day with its calendar (#329); the two on one line when they fit.
+                        let button = 26.0;
+                        let side = ((field_w - 24.0) / 2.0 - button).max(60.0);
+                        let one_line = side >= 100.0;
+                        let mut day = |ui: &mut Ui, id: &str, text: &mut String, problem: Option<&str>, width: f32, name: &str| {
+                            let resp = field(ui, l, id, text, width, &today_iso, &mut enter);
+                            // (What is wrong is said in words under the two, for screen readers too.)
+                            if problem.is_some() {
+                                ui.painter().rect_stroke(resp.rect, 4.0, Stroke::new(1.0, t.red), StrokeKind::Inside);
                             }
-                        });
+                            let calendar = Calendar { field: resp.id, current: full_date(text), today, week_start, offer_none: true, name };
+                            match calendar.show(ui) {
+                                Some(Picked::Day(d)) => *text = d.iso(),
+                                Some(Picked::None) => text.clear(),
+                                None => {}
+                            }
+                        };
+                        let (first, last) = (tl!("Pick the first day"), tl!("Pick the last day"));
+                        if one_line {
+                            ui.horizontal(|ui| {
+                                ui.spacing_mut().item_spacing.x = 2.0;
+                                day(ui, "advanced_received_from", &mut panel.received_from, problems.0, side, first);
+                                ui.add_space(4.0);
+                                ui.label("–");
+                                ui.add_space(4.0);
+                                day(ui, "advanced_received_to", &mut panel.received_to, problems.1, side, last);
+                            });
+                        } else {
+                            for (id, text, problem, name) in [
+                                ("advanced_received_from", &mut panel.received_from, problems.0, first),
+                                ("advanced_received_to", &mut panel.received_to, problems.1, last),
+                            ] {
+                                ui.horizontal(|ui| {
+                                    ui.spacing_mut().item_spacing.x = 2.0;
+                                    day(ui, id, text, problem, (field_w - button).max(60.0), name);
+                                });
+                            }
+                        }
                         for problem in [problems.0, problems.1].into_iter().flatten() {
                             ui.label(egui::RichText::new(problem).color(t.red).font(regular(11.5)));
                         }

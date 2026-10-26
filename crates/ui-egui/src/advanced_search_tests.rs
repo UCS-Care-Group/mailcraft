@@ -348,3 +348,140 @@ fn the_panel_fits_a_small_window() {
         assert!(r.max.y <= screen.max.y + 0.5, "{size:?} {percent}: {r:?} in {screen:?}");
     }
 }
+
+fn grid_day(w: &Window) -> String {
+    use egui_kittest::kittest::{By, NodeT as _};
+    w.get(By::new().role(egui::accesskit::Role::Grid)).accesskit_node().label().unwrap_or_default()
+}
+
+fn long(iso: &str) -> String {
+    crate::dates::long(mailcraft_time::Date::parse_iso(iso).unwrap())
+}
+
+#[test]
+fn each_day_has_its_own_calendar() {
+    let mut w = window();
+    open(&mut w);
+    let p = panel(&mut w);
+    (p.received_from, p.received_to) = ("10/1/2026".into(), "2026-10-22".into());
+    w.run_steps(2);
+    // Opened on the day its box holds, in either way of writing it.
+    w.get_by_label(tl!("Pick the first day")).click();
+    w.run_steps(3);
+    assert_eq!(grid_day(&w), long("2026-10-01"));
+    testing::key(&mut w, Key::ArrowRight);
+    testing::key(&mut w, Key::Enter);
+    assert_eq!(panel(&mut w).received_from, "2026-10-02");
+    assert_eq!(panel(&mut w).received_to, "2026-10-22");
+    assert!(is_open(&w), "a pick leaves the panel open");
+    w.get_by_label(tl!("Pick the last day")).click();
+    w.run_steps(3);
+    assert_eq!(grid_day(&w), long("2026-10-22"));
+    w.get_by_role_and_label(egui::accesskit::Role::Button, &long("2026-10-23")).click();
+    w.run_steps(2);
+    assert_eq!(panel(&mut w).received_to, "2026-10-23");
+    assert!(is_open(&w));
+    w.state_mut().execute("ui.advancedSearch", json!({"search": true})).unwrap();
+    assert_eq!(search(&w), "received:2026-10-02..2026-10-23");
+}
+
+#[test]
+fn none_empties_the_day_and_a_backwards_pick_is_said() {
+    let mut w = window();
+    open(&mut w);
+    let p = panel(&mut w);
+    (p.received_from, p.received_to) = ("2026-10-10".into(), "2026-10-20".into());
+    w.run_steps(2);
+    w.get_by_label(tl!("Pick the last day")).click();
+    w.run_steps(3);
+    w.get_by_role_and_label(egui::accesskit::Role::Button, &long("2026-10-05")).click();
+    w.run_steps(2);
+    assert!(w.query_by_label(tl!("Ends before it starts")).is_some());
+    w.get_by_label(tl!("Pick the last day")).click();
+    w.run_steps(3);
+    w.get_by_label(tl!("None")).click();
+    w.run_steps(2);
+    assert_eq!(panel(&mut w).received_to, "");
+    assert!(w.query_by_label(tl!("Ends before it starts")).is_none());
+}
+
+#[test]
+fn escape_and_a_click_outside_close_the_calendar_first() {
+    let mut w = window();
+    open(&mut w);
+    w.get_by_label(tl!("Pick the first day")).click();
+    w.run_steps(3);
+    testing::key(&mut w, Key::Escape);
+    assert!(!egui::Popup::is_any_open(&w.ctx), "the calendar closed");
+    assert!(is_open(&w), "the panel stays");
+    w.get_by_label(tl!("Pick the first day")).click();
+    w.run_steps(3);
+    let r = w.state().hit.rect("advancedSearch", 0).unwrap();
+    let outside = egui::pos2(r.max.x + 40.0, r.max.y + 40.0);
+    testing::click(&mut w, outside, PointerButton::Primary, 1);
+    assert!(!egui::Popup::is_any_open(&w.ctx));
+    assert!(is_open(&w), "the first click closes only the calendar");
+    testing::click(&mut w, outside, PointerButton::Primary, 1);
+    assert!(!is_open(&w), "the second closes the panel");
+    assert_eq!(panel_days(&w), None);
+}
+
+#[test]
+fn a_held_escape_closes_the_calendar_and_the_keyboard_stays_in_the_day() {
+    let mut w = window();
+    open(&mut w);
+    w.get_by_label(tl!("Pick the first day")).click();
+    w.run_steps(3);
+    testing::held(&mut w, Key::Escape);
+    assert!(!egui::Popup::is_any_open(&w.ctx), "the calendar closed");
+    assert!(is_open(&w), "the panel stays");
+    w.run_steps(3);
+    let days: Vec<_> = w.get_all_by_role_and_label(egui::accesskit::Role::TextInput, tl!("Date received")).collect();
+    let first = days.iter().min_by(|a, b| a.rect().min.x.total_cmp(&b.rect().min.x)).unwrap();
+    assert!(first.is_focused(), "the keyboard is back in the first day");
+}
+
+fn panel_days(w: &Window) -> Option<(String, String)> {
+    w.state().advanced_search.as_ref().map(|p| (p.received_from.clone(), p.received_to.clone()))
+}
+
+#[test]
+fn the_message_list_stays_still_under_the_calendar() {
+    let mut w = window();
+    testing::key(&mut w, Key::ArrowDown);
+    let first = w.state().session.sel.messages.clone();
+    assert!(!first.is_empty());
+    open(&mut w);
+    w.get_by_label(tl!("Pick the first day")).click();
+    w.run_steps(3);
+    // A click on the month's name: the calendar is open, the keyboard in nothing.
+    let arrow = w.get_by_label(tl!("Next Month")).rect();
+    testing::click(&mut w, egui::pos2(arrow.center().x - 100.0, arrow.center().y), PointerButton::Primary, 1);
+    assert!(w.ctx.memory(|m| m.focused()).is_none());
+    for key in [Key::ArrowDown, Key::ArrowUp, Key::PageDown, Key::PageUp, Key::Home, Key::End] {
+        for modifiers in [egui::Modifiers::NONE, egui::Modifiers::SHIFT, egui::Modifiers::CTRL] {
+            w.key_press_modifiers(modifiers, key);
+            w.run_steps(2);
+            assert_eq!(w.state().session.sel.messages, first, "{modifiers:?} {key:?}");
+        }
+    }
+    assert!(egui::Popup::is_any_open(&w.ctx));
+}
+
+#[test]
+fn both_calendars_stay_in_the_panel() {
+    // (Wherever the box shows, the two days fit on one line; two lines are for longer labels.)
+    for (percent, width) in [(100.0, 800.0), (150.0, 1280.0), (200.0, 1600.0), (100.0, 1280.0)] {
+        let mut w = window();
+        w.state_mut().execute("ui.interfaceSize", json!({"value": percent})).unwrap();
+        w.set_size(egui::vec2(width, 900.0));
+        w.run_steps(4);
+        assert!(w.state().search_box_shown, "{percent} {width}");
+        open(&mut w);
+        let panel = w.state().hit.rect("advancedSearch", 0).unwrap();
+        for name in [tl!("Pick the first day"), tl!("Pick the last day")] {
+            let r = w.get_by_label(name).rect();
+            assert!(panel.contains_rect(r), "{percent} {width}: {name} {r:?} in {panel:?}");
+        }
+    }
+}

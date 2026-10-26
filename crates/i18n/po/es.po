@@ -5378,6 +5378,11 @@ msgstr "Próximos 7 días"
 msgid "Next Message"
 msgstr "Mensaje siguiente"
 
+#. interface
+#: crates/ui-egui/src/date_picker.rs
+msgid "Next Month"
+msgstr ""
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -5635,7 +5640,7 @@ msgid "Nobody, or more than one of your contacts, matches: {names}"
 msgstr "No coincide ninguno de sus contactos, o coincide más de uno: {names}"
 
 #. interface
-#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/date_picker.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "None"
 msgstr "Ninguno"
@@ -6385,6 +6390,11 @@ msgstr "Teléfono"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+msgid "Pick a date"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Pick a time"
 msgstr "Elija una hora"
@@ -6394,6 +6404,16 @@ msgstr "Elija una hora"
 #, fuzzy
 msgid "Pick a time in the calendar first, then paste"
 msgstr "Elija primero una hora en el calendario y luego pegue"
+
+#. interface
+#: crates/ui-egui/src/advanced_search.rs
+msgid "Pick the first day"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/advanced_search.rs
+msgid "Pick the last day"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/layout.rs
@@ -6525,6 +6545,11 @@ msgstr "Líneas de vista previa en la lista de mensajes"
 #, fuzzy
 msgid "Previous Message"
 msgstr "Mensaje anterior"
+
+#. interface
+#: crates/ui-egui/src/date_picker.rs
+msgid "Previous Month"
+msgstr ""
 
 #. command label, interface, ribbon
 #: crates/engine/src/cmd/calendar.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
@@ -10161,7 +10186,7 @@ msgid "To: {names}"
 msgstr "Para: {names}"
 
 #. command label, interface, name, ribbon
-#: crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/time/src/lib.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
+#: crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/time/src/lib.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/date_picker.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Today"
 msgstr "Hoy"

@@ -4521,6 +4521,11 @@ msgstr ""
 msgid "Next Message"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/date_picker.rs
+msgid "Next Month"
+msgstr ""
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid "Next Week"
@@ -4737,7 +4742,7 @@ msgid "Nobody, or more than one of your contacts, matches: {names}"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/date_picker.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
 msgid "None"
 msgstr ""
 
@@ -5380,12 +5385,27 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+msgid "Pick a date"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
 msgid "Pick a time"
 msgstr ""
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
 msgid "Pick a time in the calendar first, then paste"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/advanced_search.rs
+msgid "Pick the first day"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/advanced_search.rs
+msgid "Pick the last day"
 msgstr ""
 
 #. interface
@@ -5496,6 +5516,11 @@ msgstr ""
 #. command label
 #: crates/engine/src/cmd/mail.rs
 msgid "Previous Message"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/date_picker.rs
+msgid "Previous Month"
 msgstr ""
 
 #. command label, interface, ribbon
@@ -8595,7 +8620,7 @@ msgid "To: {names}"
 msgstr ""
 
 #. command label, interface, name, ribbon
-#: crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/time/src/lib.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
+#: crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/time/src/lib.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/date_picker.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
 msgid "Today"
 msgstr ""
 

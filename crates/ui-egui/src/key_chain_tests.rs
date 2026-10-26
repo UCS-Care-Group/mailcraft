@@ -720,6 +720,7 @@ fn escape_and_enter_are_read_through_the_gate_only() {
         "take_escape",
         "take_escape_in",
         "take_escape_any",
+        "give_back_on_escape",
         "enter",
         "take_enter",
         "take_enter_out",

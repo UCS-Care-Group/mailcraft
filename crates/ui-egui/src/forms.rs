@@ -197,9 +197,10 @@ pub(crate) mod kit {
     use egui::{Align, Align2, Color32, CornerRadius, Response, Sense, Stroke, StrokeKind, Ui, pos2, vec2};
     use mailcraft_engine::Session;
     use mailcraft_model::Category;
-    use mailcraft_time::{Date, parse_time, time_short};
+    use mailcraft_time::{Date, Weekday, parse_time, time_short};
     use serde_json::{Map, Value, json};
 
+    use crate::date_picker::{Calendar, Picked};
     use crate::theme::{Tokens, c32, paint_clipped, regular};
     use crate::widgets::{icon_button, primary_button};
 
@@ -349,6 +350,8 @@ pub(crate) mod kit {
         pub today: Date,
         /// Times read `3:05 PM` rather than `15:05`.
         pub twelve: bool,
+        /// The day weeks begin on, in a date field's calendar.
+        pub week_start: Weekday,
         enter: bool,
         /// Enter asked for OK: it was pressed in a one-line field, or with nothing focused.
         pub submit: bool,
@@ -367,6 +370,7 @@ pub(crate) mod kit {
                 t: Tokens::get(ui.ctx()),
                 today: s.today(),
                 twelve: s.prefs.twelve_hour,
+                week_start: s.prefs.week_start,
                 enter: crate::keys::enter(ui.ctx(), layer),
                 submit: crate::keys::enter_alone(ui.ctx(), layer),
                 focus: std::mem::take(focus),
@@ -408,9 +412,9 @@ pub(crate) mod kit {
             resp
         }
 
-        /// A date field with buttons that step a day back and forward. Returns `true` when the
-        /// text changed.
-        pub fn date(&mut self, ui: &mut Ui, key: impl Hash + Debug, text: &mut String, required: bool) -> bool {
+        /// A date field with buttons that step a day back and forward, and a calendar to pick
+        /// one from (#329). Returns `true` when the text changed.
+        pub fn date(&mut self, ui: &mut Ui, key: impl Hash + Debug + Copy, text: &mut String, required: bool) -> bool {
             let before = text.clone();
             let gap = std::mem::replace(&mut ui.spacing_mut().item_spacing.x, 2.0);
             self.date_text(ui, key, text, required);
@@ -419,8 +423,28 @@ pub(crate) mod kit {
                     *text = Date::parse_iso(text).map_or(self.today, |d| d.add_days(step)).iso();
                 }
             }
+            self.calendar(ui, key, text, required);
             ui.spacing_mut().item_spacing.x = gap;
             *text != before
+        }
+
+        /// The calendar after the date field `key`: a day picked is written in, and None, offered
+        /// only when the field may be empty, empties it. Returns `true` when something was picked.
+        pub fn calendar(&self, ui: &mut Ui, key: impl Hash + Debug, text: &mut String, required: bool) -> bool {
+            let calendar = Calendar {
+                field: field_id(key),
+                current: Date::parse_iso(text.trim()),
+                today: self.today,
+                week_start: self.week_start,
+                offer_none: !required,
+                name: tl!("Pick a date"),
+            };
+            match calendar.show(ui) {
+                Some(Picked::Day(day)) => *text = day.iso(),
+                Some(Picked::None) => text.clear(),
+                None => return false,
+            }
+            true
         }
 
         /// A time of day as text (`9`, `9:30`, `9am`, `14:15`), rewritten the way times are shown
@@ -4630,6 +4654,7 @@ mod contact {
                 });
                 row(ui, tl!("Birthday"), |ui| {
                     pass.date_text(ui, "birthday", &mut self.birthday, false);
+                    pass.calendar(ui, "birthday", &mut self.birthday, false);
                     date_hint(ui, &self.birthday, false);
                 });
                 tall_row(ui, tl!("Categories"), |ui| category_chips(ui, &categories, &mut self.categories));

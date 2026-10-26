@@ -482,6 +482,20 @@ pub(crate) fn take_enter_alone(ctx: &egui::Context, layer: LayerId) -> bool {
 
 /// The window that is active in the viewport being laid out: its own background in a window
 /// of the system; in the main one, the main window or one of the windows inside it.
+/// The keyboard went back to `to` as a list closed on Escape (a date field's calendar): while that
+/// Escape is held, its repeats leave the keyboard there (#329).
+pub(crate) fn give_back_on_escape(ctx: &egui::Context, to: egui::Id) {
+    if !ctx.input(|i| i.key_down(Key::Escape)) {
+        return;
+    }
+    let viewport = ctx.viewport_id();
+    ctx.data_mut(|d| {
+        if let Some(chain) = d.get_temp_mut_or_default::<ViewportIdMap<Chain>>(store()).get_mut(&viewport) {
+            chain.back = Some(to);
+        }
+    });
+}
+
 pub(crate) fn active(ctx: &egui::Context) -> LayerId {
     let viewport = ctx.viewport_id();
     ctx.data_mut(|d| d.get_temp_mut_or_default::<ViewportIdMap<Chain>>(store()).get(&viewport).and_then(|c| c.active.first().copied()))
@@ -690,10 +704,20 @@ pub fn global_shortcuts(app: &mut MailApp, ctx: &egui::Context) {
     // something else everywhere else.
     let in_body = typing && crate::compose::editor::has_focus(ctx);
     let events = ctx.input(|i| i.events.clone());
+    // An open list (a menu, a date field's calendar) keeps the keys that move in it, with Shift or
+    // Ctrl too: the message list doesn't move under it (#329).
+    let list = egui::Popup::is_any_open(ctx);
     for e in events {
         let egui::Event::Key { key, pressed: true, modifiers, .. } = e else { continue };
         // Escape alone is handed out above (an open menu keeps it, to close).
         if key == Key::Escape && modifiers.is_none() {
+            continue;
+        }
+        let moving = matches!(
+            key,
+            Key::ArrowLeft | Key::ArrowRight | Key::ArrowUp | Key::ArrowDown | Key::PageUp | Key::PageDown | Key::Home | Key::End | Key::Space
+        );
+        if list && moving {
             continue;
         }
         let Some(name) = key_name(key) else { continue };
