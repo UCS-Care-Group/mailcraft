@@ -340,6 +340,10 @@ fn each_original_is_marked_forwarded_once_it_has_gone() {
         let answers = s.mailbox.message(draft).unwrap().answers.clone().unwrap();
         assert_eq!((answers.message, answers.forward), (c, true), "{command}");
         assert_eq!(answers.also.iter().map(|o| (o.message, o.forward)).collect::<Vec<_>>(), [(a, true)], "{command}");
+        // Closed and opened again, it is sent from the draft, which says what it forwards.
+        s.run("compose.close", &json!({})).unwrap();
+        s.run("mail.editDraft", &json!({"id": draft})).unwrap();
+        assert!(s.compose.as_ref().is_some_and(|c| c.source.is_none()), "{command}");
         // The sample's account is on this computer: what is sent is filed as sent at once.
         let r = s.run("compose.send", &json!({})).unwrap();
         assert_eq!(r["queued"], false);
