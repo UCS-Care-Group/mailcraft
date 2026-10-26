@@ -193,9 +193,15 @@ MailCraft, and where each part stands:
 - **Linux (`.deb`, `.rpm`, `.AppImage`, `.tar.gz`):** `/usr/bin/mailcraft` and `mailcraft-cli`, a
   desktop entry that offers MailCraft for `mailto:` links, messages, calendar files and contact
   cards, AppStream metadata and the icons. The binaries need glibc 2.35 or later.
+- **macOS (the app in a disk image):** `Info.plist` declares messages, calendar files and contact
+  cards, each as an alternative (`LSHandlerRank` Alternate), so MailCraft is offered in Open With
+  and never takes a type over. There is no `mailto:` declaration yet: a link would arrive as an
+  Apple event the app can't receive (#505).
 - **One window per mailbox:** started a second time (the shortcut again, a link, a file from the
-  file manager), MailCraft hands what it was started with to the window already open and exits
-  (`apps/mailcraft/src/single_instance.rs`), so two windows never save over each other.
+  file manager), MailCraft hands what it was started with to the window already open, which comes
+  to the front, and exits (`apps/mailcraft/src/single_instance.rs`), so two windows never save
+  over each other. No installer makes MailCraft the default for anything but its own
+  `.mailcraft`: the owner chooses it in the system's settings.
 - **Product identity:** the MSI's UpgradeCode and component GUIDs are MailCraft's own. Never copy
   them from or into a sibling Craft app (Windows would treat the two as one product).
 
@@ -277,6 +283,7 @@ and in the Flatpak (which is granted `org.freedesktop.secrets` for it).
 
 | Date | Change |
 |---|---|
+| 2026-10-26 | #505: the macOS bundle's file types, one per kind and never the default; the hand-over brings the window to the front |
 | 2026-10-26 | #464: Fixes and What's new lines are fragments, `packaging/release-notes.d/{fixes,new}/<issue>.md`, joined into the notes by `cargo xtask release-notes --write` before tagging, so pull requests don't conflict over the notes; `cargo xtask ci` checks they join |
 | 2026-10-24 | Release notes open with **MailCraft <version> in short**, a headline list, before What's new and Fixes; the announcement in #11 uses it |
 | 2026-10-23 | A tag builds and signs only from `main` with a passing `ci-ok`; compile and sign in separate steps; WiX checked by hash; no build cache in release builds; `--locked` everywhere; a daily cargo-deny run and Dependabot for crates |

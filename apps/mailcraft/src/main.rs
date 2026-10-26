@@ -5,10 +5,12 @@
 //! Usage: `mailcraft [--control <port> [--control-agents-only]] [--sample] [--mailbox <file>] [files or mailto: links…]`
 //!
 //! The mailbox lives in `<settings>/mailbox.mailcraft` (or the file `--mailbox` names) and is saved
-//! as you go. `--sample` opens the sample mailbox instead and keeps nothing. Files on the command
-//! line (`.eml`, `.mbox`, `.ics`, `.vcf`) are imported, and a `mailto:` link starts a new message.
-//! A mailbox is open in one window only: started again, MailCraft hands its files and links to
-//! the window that is already open and exits (`single_instance`).
+//! as you go. `--sample` opens the sample mailbox instead and keeps nothing. On the command line
+//! a `mailto:` link starts a new message, a `.eml` file opens in a window of its own, a `.ics` or
+//! `.vcf` file is imported once the owner says so, and a `.mbox` file is imported
+//! (`MailApp::open_from_system`). A mailbox is open in one window only: started again, MailCraft
+//! hands its files and links to the window that is already open, which comes to the front, and
+//! exits (`single_instance`, which also says which runs take part).
 //!
 //! `--control <port>` (or `MAILCRAFT_CONTROL_PORT`) starts a localhost JSON-lines control server:
 //! `{"id":1,"key":"…","method":"engine.execute","params":{"command":"mail.markAllRead","params":{}}}`.
@@ -140,11 +142,14 @@ impl eframe::App for App {
         // MailCraft was started again (the shortcut, a `mailto:` link, a file opened from the
         // file manager): what it was started with opens here, and the window comes forward.
         if let Some(asked) = self.4.as_ref().and_then(single_instance::Guard::handed_over) {
-            for what in &asked {
-                self.0.open_path(what);
+            for what in &asked.open {
+                self.0.open_from_system(what);
             }
+            self.0.note_left_alone(asked.refused);
             ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
             ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+            // Where the system won't let a window step in front by itself, its button says so.
+            ctx.send_viewport_cmd(egui::ViewportCommand::RequestUserAttention(egui::UserAttentionType::Informational));
         }
         // The menu bar's choices run before the frame's own work (macOS).
         #[cfg(target_os = "macos")]
@@ -1829,7 +1834,7 @@ fn main() -> eframe::Result {
                 key_file = file;
             }
             for f in files {
-                app.open_path(&f);
+                app.open_from_system(&f);
             }
             if let Some(guard) = &guard {
                 guard.wake(&cc.egui_ctx);

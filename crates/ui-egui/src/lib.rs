@@ -1310,6 +1310,9 @@ pub struct MailApp {
     pub(crate) file_dialog: Option<files::PendingDialog>,
     /// Web: what the file the picker will deliver is for.
     pub(crate) pending_open: Option<String>,
+    /// Calendar and contact files the system asked MailCraft to open, each waiting to be asked
+    /// about ([`files::ask_next`]).
+    pub(crate) opened_waiting: std::collections::VecDeque<String>,
     /// The time zone the calendar was shown in when the window was last laid out: what the
     /// appointments that stand open were read by ([`MailApp::follow_zone`]).
     shown_zone: Option<mailcraft_time::Zone>,
@@ -1477,6 +1480,7 @@ impl MailApp {
             ctx: None,
             file_dialog: None,
             pending_open: None,
+            opened_waiting: Default::default(),
             hit: Default::default(),
             reminders: Default::default(),
             sync_problems: Vec::new(),
@@ -3343,6 +3347,26 @@ impl MailApp {
         files::dropped_path(self, path);
     }
 
+    /// Open what the system handed MailCraft (the command line, a later start, the Finder): a
+    /// `mailto:` link starts a new message, a message file opens in a window of its own (brought
+    /// into the folder in view first, as an import), a calendar or contact file is imported only
+    /// once the owner says so, and a mailbox or a folder of mail as [`open_path`](Self::open_path).
+    pub fn open_from_system(&mut self, what: &str) {
+        files::from_system(self, what);
+    }
+
+    /// `n` things the system handed over were no mail link and no file MailCraft opens, and were
+    /// left alone: the status bar says so.
+    pub fn note_left_alone(&mut self, n: usize) {
+        if n > 0 {
+            self.status(tln!(
+                n,
+                "MailCraft was started with {n} thing that isn't a mail link or a file it opens: it was left alone",
+                "MailCraft was started with {n} things that aren't mail links or files it opens: they were left alone"
+            ));
+        }
+    }
+
     pub fn status(&mut self, s: impl Into<String>) {
         self.status_msg = Some((s.into(), now_ms()));
     }
@@ -3498,6 +3522,7 @@ impl MailApp {
         self.tick_graph_switch();
         let _ = files::poll(self);
         files::drain_inbox(self);
+        files::ask_next(self);
         self.autosave_tick(ctx);
         self.draft_autosave_tick(ctx);
         self.collect_screenshots();

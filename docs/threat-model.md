@@ -230,6 +230,25 @@ An `.eml`, `.mbox`, `.ics`, `.vcf` or `.mailcraft` file from somewhere else.
   0600 on Unix and compared in constant time (`apps/mailcraft/src/control_server.rs`,
   `crates/control-key`). Another user can't drive the app; another program running as the owner
   can read the key, which is the next item's problem.
+- **The hand-over between two starts** (#505). One MailCraft has a mailbox file open at a time: the
+  first start holds a lock beside it (`<mailbox>.lock`, let go of by the system however the
+  program ends) and listens on `127.0.0.1`, on a port the system picks, for a later start's one
+  line; the port and 32 random bytes from the operating system are in `<mailbox>.instance`,
+  created 0600 on Unix (elsewhere the owner's own settings folder) and removed on exit. A later
+  start (a second click, a `mailto:` link, a file opened from the file manager) connects only to
+  loopback, sends the key and what it was started with, and exits; a key is compared in constant
+  time, and a line without the right one changes nothing. What is handed over is hostile input:
+  one line of at most 1 MB, at most 256 things of at most 32 KB each, and each kept only when it
+  is a `mailto:` link (which the compose command reads as RFC 6068 says, taking only the
+  recipients, the subject and the body, without line breaks in a header) or the whole path of a
+  message, calendar, contact, mbox or `.mailcraft` file that is there, is a file and can be read;
+  anything else is dropped, and only how many is logged. A message file opens in a window of its
+  own, and a calendar or contact file is imported only when the owner answers the window's
+  question (an agent names no file to import). Another user can't reach the window: the key file
+  is not theirs to read. A start that finds the lock held but nobody answering says MailCraft is
+  already open and does not open the mailbox twice; a crashed run's lock is gone, and its stale
+  `.instance` is replaced. The sample mailbox and a run without preferences that names no
+  `--mailbox` take no lock and don't listen (`apps/mailcraft/src/single_instance.rs`).
 - **Agents on the same computer.** The agent gate ([MCP](mcp.md#agents-get-only-what-the-owner-allows))
   binds agents that reach MailCraft only through MCP. The control channel takes a request without
   the bridge's `agent` marking for the owner's own script, so an agent that can run a shell or read
@@ -351,6 +370,7 @@ settings files (`crates/engine/src/store.rs`); commands from the control channel
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-26 | minor | #505: the hand-over between two starts (loopback, a key file for the owner alone, bounded and checked like anything from outside); a calendar or contact file from the system is imported only on the owner's word |
 | 2026-10-26 | minor | #458: a `dmarc=pass` whose `header.from` is the organisation's domain (Gmail's way: `shop.example` for `news.shop.example`) vouches for the names under it; a bare suffix or a hosting platform's domain never does |
 | 2026-10-25 | minor | #308: the people the search box offers after `from:`, `to:` and `cc:` come from autocomplete's source, on this computer only |
 | 2026-10-25 | minor | #350: web addresses are read by MailCraft's own strict reader (`crates/link`), not the `url` crate, and opened by a program with the address as its one argument on every system (`rundll32 url.dll,FileProtocolHandler` on Windows, `open` on macOS, `$BROWSER` and the desktops' openers elsewhere), not the `webbrowser` crate; `mailto:` and `tel:` are written without spaces or quotes before they are launched; ambiguous addresses (backslash, no `//`, a percent sign or a full stop of another script in a host) are no links |

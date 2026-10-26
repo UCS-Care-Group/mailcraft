@@ -3757,14 +3757,34 @@ msgid "If you have one, paste its application (client) ID here. It comes from a 
 msgstr "Als u er een hebt, plak hier de toepassings-id (client). Die komt uit een app-registratie in Microsoft Entra: een openbare client met de omleidings-URI http://localhost, voor accounts in een willekeurige directory en persoonlijke accounts."
 
 #. command label, interface, ribbon
-#: crates/engine/src/cmd/file.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/import_tree.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/file.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/files.rs crates/ui-egui/src/import_tree.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Import"
 msgstr "Importeren"
 
+#. interface
+#: crates/ui-egui/src/files.rs
+msgid "Import Calendar File"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/files.rs
+msgid "Import Contacts"
+msgstr ""
+
 #. command label, interface
 #: crates/engine/src/cmd/file.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs
 msgid "Import a Folder of Mailboxes"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/files.rs
+msgid "Import the appointments and tasks in {name} into your calendar?"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/files.rs
+msgid "Import the contacts in {name} into Contacts?"
 msgstr ""
 
 #. interface, name
@@ -4598,6 +4618,13 @@ msgstr "MailCraft zoekt één keer per dag naar een nieuwe versie (Bestand › O
 #, fuzzy
 msgid "MailCraft now installs its updates itself. Turn this off in File › Options."
 msgstr "MailCraft installeert zijn updates nu zelf. U kunt dit uitzetten via Bestand › Opties."
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+msgid "MailCraft was started with {n} thing that isn't a mail link or a file it opens: it was left alone"
+msgid_plural "MailCraft was started with {n} things that aren't mail links or files it opens: they were left alone"
+msgstr[0] ""
+msgstr[1] ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
