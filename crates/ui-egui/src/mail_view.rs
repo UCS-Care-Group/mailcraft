@@ -458,7 +458,8 @@ fn search_bar(app: &mut MailApp, ui: &mut Ui, found: usize) {
         mailcraft_engine::Scope::Mailbox => folder
             .and_then(|f| mb.account(f.account))
             .map(|a| if a.name.trim().is_empty() { a.email.trim().to_string() } else { a.name.trim().to_string() })
-            .unwrap_or_default(),
+            .filter(|n| !n.is_empty())
+            .unwrap_or_else(|| tl!("Current Mailbox").to_string()),
         mailcraft_engine::Scope::Subfolders => {
             folder.map(|f| crate::i18n::fmt(tl!("{folder} and its subfolders"), &[("folder", &crate::nav::folder_label(mb, f))])).unwrap_or_default()
         }
