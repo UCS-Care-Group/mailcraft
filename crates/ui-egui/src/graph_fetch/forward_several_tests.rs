@@ -499,26 +499,43 @@ fn a_message_opened_while_a_batch_is_on_its_way_is_fetched_after_it() {
     app.session.sel.messages = vec![x];
     app.drive_fetch();
     assert_eq!(asked(&jobs).len(), 1);
-    let said = crate::reading::unfetched_said(&app, app.session.mailbox.message(x).unwrap());
-    assert_eq!(said, "This message downloads once the messages being downloaded now are here.");
+    let said = |app: &MailApp| crate::reading::unfetched_said(app, app.session.mailbox.message(x).unwrap());
+    assert_eq!(said(&app), "This message downloads once the messages being downloaded now are here.");
+    // (Offline, it says that first.)
+    app.fetching.offline = true;
+    assert_eq!(said(&app), "This message isn't on this computer yet. It will download when you're online.");
+    app.fetching.offline = false;
     answer(&mut app, &jobs, &[], &[]);
     assert_eq!(asked(&jobs), [(two, vec!["AA1M0".to_string()])]);
 }
 
 #[test]
-fn a_message_opened_while_another_downloads_alone_comes_at_once() {
+fn a_message_opened_while_another_downloads_comes_after_it() {
     let (mut app, [[a, _, c], _], jobs) = window();
+    let one = app.session.mailbox.message(a).unwrap().account;
     app.session.sel.messages = vec![a];
     app.drive_fetch();
-    // The owner goes on to another before the first has come: nothing waits for the first, which
-    // is called off.
+    // The owner goes on to another before the first has come: one at a time.
     app.session.sel.messages = vec![c];
     app.drive_fetch();
-    let ids: Vec<Vec<String>> = asked(&jobs).into_iter().map(|(_, ids)| ids).collect();
-    assert_eq!(ids, [vec!["AA0M0".to_string()], vec!["AA0M2".to_string()]]);
+    assert_eq!(asked(&jobs), [(one, vec!["AA0M0".to_string()])]);
+    assert_eq!(called_off(&jobs), [false]);
+    answer(&mut app, &jobs, &[], &[]);
+    assert_eq!(asked(&jobs), [(one, vec!["AA0M2".to_string()])]);
+}
+
+#[test]
+fn a_message_open_whose_download_a_command_took_the_place_of_is_asked_for_again() {
+    let (mut app, [[a, _, c], _], jobs) = window();
+    let one = app.session.mailbox.message(a).unwrap().account;
+    app.session.sel.messages = vec![a];
+    app.drive_fetch();
+    // A reply to another message of which only the headers are here, by an agent.
+    assert_eq!(app.run("mail.reply", json!({"id": c})).unwrap()["pending"], "download");
     assert_eq!(called_off(&jobs), [true, false]);
     answer(&mut app, &jobs, &[], &[]);
-    assert!(!app.session.mailbox.message(c).unwrap().unfetched);
+    assert_eq!(app.session.compose.as_ref().unwrap().source, Some(c));
+    assert_eq!(asked(&jobs), [(one, vec!["AA0M0".to_string()])], "the one open, again");
 }
 
 #[test]

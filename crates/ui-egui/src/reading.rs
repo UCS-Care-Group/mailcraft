@@ -183,8 +183,6 @@ pub fn show_message(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Pla
 pub(crate) fn unfetched_said(app: &MailApp, m: &Message) -> &'static str {
     if app.fetching.fetching(m.id) {
         tl!("Downloading the whole message…")
-    } else if app.opened_after_batch(m.id) {
-        tl!("This message downloads once the messages being downloaded now are here.")
     } else if app.jmap_refused.contains(&m.account) {
         // Its server turned the account's sign-in down: nothing downloads until it is given again.
         tl!("The server turned down the sign-in for this account. Use Send/Receive to sign in again.")
@@ -193,6 +191,8 @@ pub(crate) fn unfetched_said(app: &MailApp, m: &Message) -> &'static str {
         tl!("Not connected: the rest of this message is on the server")
     } else if app.fetching.offline {
         tl!("This message isn't on this computer yet. It will download when you're online.")
+    } else if app.opened_after_batch(m.id) {
+        tl!("This message downloads once the messages being downloaded now are here.")
     } else {
         tl!("Only the beginning of this message is here. The rest downloads with the next Send/Receive.")
     }

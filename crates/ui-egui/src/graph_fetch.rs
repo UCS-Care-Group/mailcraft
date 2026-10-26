@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! Messages of a Microsoft account fetched whole (R3.2; R3 spec S12, S14, S15): in the
 //! background, newest first, within the account's "Download messages in full"; at once, ahead of
-//! that, for the message the owner opens (after the batch under way, when a command waits for
-//! it; else in its place); and before Reply, Reply All, Forward, Save Message As
+//! that, for the message the owner opens (after the batch under way, when there is one: one at
+//! a time); and before Reply, Reply All, Forward, Save Message As
 //! and Save Attachment, which then go on. Only while a Graph token from this session is good:
 //! each Send/Receive renews it. Cancel (Stop) stops it all until the next Send/Receive starts,
 //! the owner's or one by itself; Send/Receive Progress says how far it has got, account by account
@@ -268,10 +268,9 @@ impl MailApp {
     }
 
     /// Whether `message`, the one the reading pane shows, is fetched once the batch under way has
-    /// come: a command waits for that batch (a forward's can take a while). Else what is under way
-    /// is called off for it.
+    /// come: one at a time, and a forward's can take a while.
     pub(crate) fn opened_after_batch(&self, message: Id) -> bool {
-        self.fetching.now.is_some() && self.fetching.then.is_some() && self.fetching.opened != Some(message) && self.session.sel.messages == [message]
+        self.fetching.now.is_some() && self.fetching.opened != Some(message) && self.session.sel.messages == [message]
     }
 
     /// The engine's refusal `e`, kept to be said in the interface language ([`MailApp::run`]).
@@ -293,9 +292,13 @@ impl MailApp {
         };
         let cancel = Arc::new(AtomicBool::new(false));
         let Some(answer) = self.hand_over(account, way, messages, 1, cancel.clone()) else { return false };
-        // What these take the place of is called off: nobody waits for it now.
-        if let Some((_, _, before, _)) = self.fetching.now.replace((messages.to_vec(), self.session.openings(), cancel, answer)) {
-            before.store(true, Ordering::Relaxed);
+        // What these take the place of is called off: nobody waits for it now. The message open
+        // in the reading pane, if it was of it, is asked for again once these are here.
+        if let Some((before, _, called_off, _)) = self.fetching.now.replace((messages.to_vec(), self.session.openings(), cancel, answer)) {
+            called_off.store(true, Ordering::Relaxed);
+            if self.fetching.opened.is_some_and(|m| before.contains(&m) && !messages.contains(&m)) {
+                self.fetching.opened = None;
+            }
         }
         true
     }
