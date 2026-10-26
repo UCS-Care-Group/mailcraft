@@ -11,8 +11,6 @@ apps/mailcraft/src/logging.rs
 apps/mailcraft/src/opened_files.rs
 apps/mailcraft/src/picture_cache.rs
 apps/mailcraft/src/secrets.rs
-apps/mailcraft/src/single_instance.rs
-apps/mailcraft/src/self_update.rs
 apps/mailcraft/src/updater.rs
 crates/charset/src/lib.rs
 crates/control-key/src/lib.rs
