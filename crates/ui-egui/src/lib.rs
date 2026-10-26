@@ -87,6 +87,9 @@ pub mod ribbon;
 pub mod scheduling;
 mod search_pills;
 mod search_suggest;
+mod secret_field;
+#[cfg(test)]
+mod secret_field_tests;
 #[cfg(test)]
 #[path = "secrets_bound_tests.rs"]
 mod secrets_bound_tests;
@@ -1229,6 +1232,12 @@ pub struct MailApp {
     /// is over it, as a Mac's do: the message list keeps no lane for its bar and has no arrows.
     /// On a Mac only; tests and screenshots turn it on anywhere.
     pub overlay_scroll_bars: bool,
+    /// The window is drawn for headless screenshots (`examples/ui_shot`): a password shown with
+    /// its eye is drawn as dots all the same, as while `ui.screenshot` waits for a frame (#438).
+    pub headless_shots: bool,
+    /// This frame's input came from the control channel (`synthetic`): a password's eye doesn't
+    /// answer it (#438).
+    driven: bool,
     /// When the last round that started by itself began (milliseconds; 0 before the first).
     last_auto_sync: f64,
     /// Accounts waiting their turn in a Send/Receive round, and whether nobody asked for it.
@@ -1422,6 +1431,8 @@ impl MailApp {
             graph_switch_waiting_shown: Default::default(),
             auto_sync: true,
             overlay_scroll_bars: cfg!(target_os = "macos"),
+            headless_shots: false,
+            driven: false,
             last_auto_sync: 0.0,
             sync_queue: Default::default(),
             inbox_queue: Default::default(),
@@ -3766,8 +3777,17 @@ impl MailApp {
         })
     }
 
+    /// What a password's eye has to know of the window (#438): whether it is being captured
+    /// (a screenshot is waited for, or every frame is one), and whether this frame's input came
+    /// from the control channel.
+    pub(crate) fn secret_watch(&self) -> secret_field::Watch {
+        let captured = self.headless_shots || !self.queued_shots.is_empty() || !self.pending_shots.is_empty();
+        secret_field::Watch { captured, driven: self.driven }
+    }
+
     /// Inject synthetic input events from the control channel (one pointer event per frame).
     pub fn raw_input_hook(&mut self, raw: &mut egui::RawInput) {
+        self.driven = !self.synthetic.is_empty();
         if self.synthetic.is_empty() {
             return;
         }

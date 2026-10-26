@@ -3003,6 +3003,11 @@ msgid "Hide This Copy"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/secret_field.rs
+msgid "Hide password"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/open_shared.rs
 msgid "Hide the Copy"
 msgstr ""
@@ -6652,6 +6657,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "Show in the time bar"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/secret_field.rs
+msgid "Show password"
 msgstr ""
 
 #. interface

@@ -3624,6 +3624,11 @@ msgid "Hide This Copy"
 msgstr "Deze kopie verbergen"
 
 #. interface
+#: crates/ui-egui/src/secret_field.rs
+msgid "Hide password"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/open_shared.rs
 #, fuzzy
 msgid "Hide the Copy"
@@ -8034,6 +8039,11 @@ msgstr "Weergeven in groepen"
 #, fuzzy
 msgid "Show in the time bar"
 msgstr "Weergeven in de tijdbalk"
+
+#. interface
+#: crates/ui-egui/src/secret_field.rs
+msgid "Show password"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/sender_images.rs

@@ -67,6 +67,8 @@ pub enum Dialog {
     Password {
         account: Id,
         password: String,
+        /// The owner clicked its eye: shown until the next click or the dialog's end (#438).
+        shown: bool,
     },
     /// A message being written has unsaved changes and something wants to close it.
     DiscardDraft {
@@ -234,7 +236,7 @@ impl Dialog {
                 let url = c.body.text().link_span(sel.start()).map(|(from, _)| c.body.text().style_at(from + 1)).and_then(|s| s.link);
                 Dialog::Link { linked: url.is_some(), url: url.unwrap_or_default(), error: String::new() }
             }
-            "password" => Dialog::Password { account: id("account")?, password: String::new() },
+            "password" => Dialog::Password { account: id("account")?, password: String::new(), shown: false },
             "discardDraft" => Dialog::DiscardDraft { then: params.get("then").and_then(Value::as_str).unwrap_or("").to_string() },
             "about" => match params.get("tab").and_then(Value::as_str) {
                 Some("contributors") => Dialog::About(AboutTab::Contributors),
@@ -1178,7 +1180,8 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
             // The keyboard goes back to the text.
             app.body_focus_wanted |= close;
         }
-        Dialog::Password { account, password } => {
+        Dialog::Password { account, password, shown } => {
+            let watch = app.secret_watch();
             let who = app.session.mailbox.account(*account).map(|a| a.email.clone()).unwrap_or_default();
             // (A JMAP server may take a bearer token instead.)
             let token = app.session.mailbox.account(*account).and_then(|a| a.jmap.as_ref()).is_some_and(|server| server.bearer);
@@ -1186,7 +1189,9 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
             let mut submit = false;
             let open = window(ctx, tl!("Sign In"), 380.0, |ui| {
                 ui.label(crate::i18n::fmt(asked, &[("account", &who)]));
-                let resp = ui.add(egui::TextEdit::singleline(password).password(true).desired_width(f32::INFINITY));
+                // (The room round its text that a field has by default.)
+                let room = egui::Margin::from(ui.spacing().button_padding);
+                let resp = crate::secret_field::field(ui, password, shown, watch, room, |edit| edit);
                 if !resp.has_focus() {
                     resp.request_focus();
                 }
