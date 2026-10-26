@@ -677,9 +677,10 @@ fn without_tests(src: &str) -> String {
 }
 
 /// Escape and Enter are read through [`crate::keys`] only, which gives each press to one place
-/// (#406). The few reads of the keys themselves left are by a widget that has the keyboard, in
-/// a list that is open, with a modifier held, or no reads at all: each is named here by its line,
-/// so that a new read is caught, also where it takes the place of one of these.
+/// (#406): by the gate's own functions, named here, and nothing else of keys.rs. The few reads of
+/// the keys themselves left are by a widget that has the keyboard, in a list that is open, with a
+/// modifier held, or no reads at all: each is named here by its line, so that a new read is
+/// caught, also where it takes the place of one of these.
 #[test]
 fn escape_and_enter_are_read_through_the_gate_only() {
     let allowed: &[(&str, &str)] = &[
@@ -710,20 +711,45 @@ fn escape_and_enter_are_read_through_the_gate_only() {
             .iter()
             .any(|key| line.match_indices(key).any(|(at, _)| !line[at + key.len()..].starts_with(|c: char| c.is_alphanumeric() || c == '_')))
     };
+    // The gate is these functions of keys.rs; the rest of keys.rs (the shortcuts, the key loop)
+    // reads through them like the other files.
+    let gate = [
+        "alone",
+        "give_back",
+        "gate",
+        "ask",
+        "escape",
+        "take_escape",
+        "take_escape_in",
+        "enter",
+        "take_enter",
+        "take_enter_out",
+        "enter_alone",
+        "take_enter_alone",
+    ];
+    let mut gate_found = Vec::new();
     let mut found = Vec::new();
     let mut wrong = Vec::new();
     for (name, src) in sources() {
-        // keys.rs is the gate down to the names of the keys; the shortcuts under them read
-        // through it like the rest.
-        let src = match name.as_str() {
-            "keys.rs" => {
-                let at = src.find("pub fn key_name(").expect("keys.rs names the keys");
-                assert_eq!(src.matches("pub fn key_name(").count(), 1);
-                src[at..].to_string()
+        // The function a line is in, when it is one at the top of the file.
+        let mut within = "";
+        for line in src.lines() {
+            if !line.starts_with([' ', '}']) && !line.is_empty() {
+                within = ["fn ", "pub fn ", "pub(crate) fn "]
+                    .iter()
+                    .find_map(|p| line.strip_prefix(p))
+                    .and_then(|f| f.split(['(', '<']).next())
+                    .unwrap_or("");
+                if name == "keys.rs"
+                    && let Some(f) = gate.iter().find(|f| **f == within)
+                {
+                    gate_found.push(*f);
+                }
             }
-            _ => src,
-        };
-        for line in src.lines().map(str::trim).filter(|l| reads(l)) {
+            let line = line.trim();
+            if !reads(line) || name == "keys.rs" && gate.contains(&within) {
+                continue;
+            }
             if allowed.contains(&(name.as_str(), line)) {
                 found.push((name.clone(), line.to_string()));
             } else {
@@ -731,6 +757,10 @@ fn escape_and_enter_are_read_through_the_gate_only() {
             }
         }
     }
+    gate_found.sort_unstable();
+    let mut named = gate.to_vec();
+    named.sort_unstable();
+    assert_eq!(gate_found, named, "each function of the gate is in keys.rs, once");
     assert!(
         wrong.is_empty(),
         "Escape or Enter read outside the gate; ask crate::keys (escape, enter…) instead, or add the line to the list: {wrong:?}"
@@ -978,17 +1008,28 @@ fn times_asked(seen: &[Option<&'static str>]) -> usize {
         .count()
 }
 
-/// Escape in a message being written that has a change: the question comes up once, and the
-/// repeats of a held Escape don't answer it (Cancel, Discard and Save Draft each leave a mark).
+/// Escape in a message being written that has a change, from its body or its Subject line: the
+/// question comes up once, and the repeats of a held Escape don't answer it (Cancel, Discard and
+/// Save Draft each leave a mark). The press is the main window's, so the question, a layer of its
+/// own, isn't given it in the pass it comes up in. (That the main window takes the press only
+/// keeps it from what else of the main window asks later in the pass.)
 #[test]
 fn escape_in_a_changed_message_asks_once() {
-    for repeats in [0, 3] {
-        let mut h = window("view.mail");
-        let body = writing(&mut h);
-        let seen = seen_while_held(&mut h, Key::Escape, egui::Modifiers::NONE, repeats);
-        assert_eq!(times_asked(&seen), 1, "{repeats} repeats: {seen:?}");
-        assert_eq!(dialog(&h), Some("discardDraft"), "{repeats} repeats: still asking");
-        untouched(&h, &body, &format!("{repeats} repeats"));
+    for subject in [false, true] {
+        for repeats in [0, 3] {
+            let how = format!("{} with {repeats} repeats", if subject { "Subject" } else { "body" });
+            let mut h = window("view.mail");
+            let body = writing(&mut h);
+            if subject {
+                h.query_all_by_value("Mine").find(|n| n.accesskit_node().role() == egui::accesskit::Role::TextInput).unwrap().click();
+                h.run_steps(2);
+                assert!(focus(&h).is_some() && !crate::compose::editor::has_focus(&h.ctx), "the Subject line has the keyboard");
+            }
+            let seen = seen_while_held(&mut h, Key::Escape, egui::Modifiers::NONE, repeats);
+            assert_eq!(times_asked(&seen), 1, "{how}: {seen:?}");
+            assert_eq!(dialog(&h), Some("discardDraft"), "{how}: still asking");
+            untouched(&h, &body, &how);
+        }
     }
 }
 
@@ -1016,6 +1057,8 @@ fn escape_on_the_question_is_its_cancel() {
 }
 
 /// A held Enter on the question presses none of its buttons (Save Draft is the one in colour).
+/// The question reads no Enter, and none of its buttons has the keyboard: this holds by how it is
+/// made, and keeps it so.
 #[test]
 fn a_held_enter_leaves_the_question() {
     let mut h = window("view.mail");
@@ -1026,8 +1069,9 @@ fn a_held_enter_leaves_the_question() {
     untouched(&h, &body, "held Enter");
 }
 
-/// Enter is held in the body when the question comes up (the ✕ clicked meanwhile): its repeats
-/// type no more new lines under the question, and answer nothing.
+/// Enter is held in the body when the question comes up (the ✕ clicked meanwhile): once the
+/// question is up, the repeats type no more new lines under it (egui takes the keyboard from what
+/// is under a modal layer), and answer nothing.
 #[test]
 fn a_held_enter_in_the_body_stops_at_the_question() {
     let mut h = window("view.mail");
@@ -1035,7 +1079,8 @@ fn a_held_enter_in_the_body_stops_at_the_question() {
     let enter = |pressed, repeat| egui::Event::Key { key: Key::Enter, physical_key: None, pressed, repeat, modifiers: egui::Modifiers::NONE };
     h.input_mut().events.push(enter(true, false));
     h.run_steps(2);
-    // (The click's pass draws the question, as the ✕ does.)
+    // (Drawn once before the repeats go on: a repeat in the pass the ✕ is clicked in may still be
+    // the body's, as in any pass before the question is up.)
     let _ = h.state_mut().run("compose.close", json!({}));
     h.step();
     for _ in 0..3 {
