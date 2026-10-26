@@ -916,8 +916,12 @@ fn score(query: &str, label: &str, location: &str, id: &str) -> Option<u32> {
 /// closed with its close button.
 pub(crate) fn window(ctx: &egui::Context, title: &str, width: f32, add: impl FnOnce(&mut Ui)) -> bool {
     let mut open = true;
+    let id = egui::Id::unique("dialog");
+    // A click on the scrim lifts it to the top of its order, over the dialog, where it would take
+    // every click after (Escape alone still answered): the dialog goes back above it each frame.
+    ctx.move_to_top(egui::LayerId::new(egui::Order::Middle, id));
     egui::Window::new(egui::RichText::new(title).font(semibold(14.0)))
-        .id(egui::Id::unique("dialog"))
+        .id(id)
         .open(&mut open)
         .collapsible(false)
         .resizable(false)

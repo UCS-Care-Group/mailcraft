@@ -50,6 +50,8 @@ pub mod control;
 pub mod credits;
 pub mod data_removal;
 pub mod dates;
+#[cfg(test)]
+mod dialog_scrim_tests;
 pub mod dialogs;
 mod drag_pointer;
 #[cfg(test)]
