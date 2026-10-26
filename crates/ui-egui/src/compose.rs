@@ -47,9 +47,9 @@ fn line_edit<'t>(text: &'t mut String, id: egui::Id, hint: &str, width: f32) -> 
         .desired_width(width)
 }
 
-/// What takes the place of the name being typed on a line of people when `who` is taken: the
-/// name and the address, then `; ` for the next one; after a space, unless it is the line's
-/// `first`.
+/// What takes the place of the name being typed on a line of recipients when the suggestion
+/// `who` is taken: the name and the address, then `; ` for the next one; after a space, unless it
+/// is the line's `first`.
 pub(crate) fn completed(first: bool, who: &mailcraft_engine::cmd::compose::Suggestion) -> String {
     let name: String = who.name.chars().filter(|c| !c.is_control() && !"\"<>".contains(*c)).collect();
     let name = name.trim();
@@ -64,14 +64,20 @@ pub(crate) fn completed(first: bool, who: &mailcraft_engine::cmd::compose::Sugge
     format!("{gap}{written}; ")
 }
 
-/// A line of people (a message's To, Cc and Bcc, a meeting's attendees), `edit`, given the id
-/// `id`: as a name is typed in it, egui's list under it offers the people it could be (contacts,
+/// A line of recipients (a message's To, Cc and Bcc, a meeting's attendees), `edit`, given the
+/// id `id`: as a name is typed in it, egui's list under it suggests who it could be (contacts,
 /// then whoever mail was exchanged with). The arrow keys choose; Enter, Tab or a click takes one,
 /// and the keyboard stays in the line, after it; Escape closes the list until something else is
-/// typed. `offer`: whether anything is offered now.
-pub(crate) fn people_line(ui: &mut Ui, s: &mailcraft_engine::Session, id: egui::Id, edit: egui::TextEdit<'_>, offer: bool) -> egui::CompletionOutput {
+/// typed. `offer`: whether anything is suggested now.
+pub(crate) fn recipient_line(
+    ui: &mut Ui,
+    s: &mailcraft_engine::Session,
+    id: egui::Id,
+    edit: egui::TextEdit<'_>,
+    offer: bool,
+) -> egui::CompletionOutput {
     let ctx = ui.ctx().clone();
-    let shown = id.with("people_shown");
+    let shown = id.with("suggestions_shown");
     // egui keeps Tab in the line while the list shows, for the list; Shift+Tab still goes back.
     if ctx.data(|d| d.get_temp::<bool>(shown)).unwrap_or(false)
         && ctx.memory(|m| m.has_focus(id))
@@ -84,7 +90,7 @@ pub(crate) fn people_line(ui: &mut Ui, s: &mailcraft_engine::Session, id: egui::
         if !offer || typed.trim().is_empty() {
             return Vec::new();
         }
-        people(&ctx, s, id, typed)
+        suggestions(&ctx, s, id, typed)
             .into_iter()
             .map(|who| {
                 let row = egui::Suggestion::new(completed(q.is_at_start(), &who));
@@ -96,16 +102,16 @@ pub(crate) fn people_line(ui: &mut Ui, s: &mailcraft_engine::Session, id: egui::
     out
 }
 
-/// The people offered for `typed` on the line `id`. They are asked for again only when what is
+/// The recipients suggested for `typed` on the line `id`. They are asked for again only when what is
 /// typed or the mailbox changes ([`Session::rev`], [`Session::openings`]): a line with the
 /// keyboard is drawn at least twice a second (its cursor blinks), and asking reads the whole
 /// mailbox.
 ///
 /// [`Session::rev`]: mailcraft_engine::Session::rev
 /// [`Session::openings`]: mailcraft_engine::Session::openings
-fn people(ctx: &egui::Context, s: &mailcraft_engine::Session, id: egui::Id, typed: &str) -> Vec<mailcraft_engine::cmd::compose::Suggestion> {
+fn suggestions(ctx: &egui::Context, s: &mailcraft_engine::Session, id: egui::Id, typed: &str) -> Vec<mailcraft_engine::cmd::compose::Suggestion> {
     type Asked = ((String, u64, u64), Vec<mailcraft_engine::cmd::compose::Suggestion>);
-    let kept = id.with("people");
+    let kept = id.with("suggestions");
     let asking = (typed.to_string(), s.rev(), s.openings());
     if let Some((at, found)) = ctx.data(|d| d.get_temp::<Asked>(kept))
         && at == asking
@@ -122,7 +128,7 @@ fn bcc_link(app: &MailApp) -> bool {
     app.session.compose.as_ref().is_some_and(|c| c.bcc.is_empty()) && !app.compose_bcc
 }
 
-/// A recipient line, with the people it could be offered under it ([`people_line`]).
+/// A recipient line, with the recipient suggestions under it ([`recipient_line`]).
 fn recipient_field(app: &mut MailApp, ui: &mut Ui, key: &str, label: &str, text: &str, hint: &str, focus: bool) {
     let id = ui.scope_id().with(("compose", label));
     // The Bcc link sits at the right end of the To line: a click there is for it, so the line's
@@ -132,11 +138,11 @@ fn recipient_field(app: &mut MailApp, ui: &mut Ui, key: &str, label: &str, text:
     let mut buf = text.to_string();
     let edit = line_edit(&mut buf, id, hint, at.width());
     let layout = egui::Layout::centered_and_justified(egui::Direction::TopDown);
-    let out = ui.scope_builder(egui::UiBuilder::new().max_rect(at).layout(layout), |ui| people_line(ui, &app.session, id, edit, true)).inner;
+    let out = ui.scope_builder(egui::UiBuilder::new().max_rect(at).layout(layout), |ui| recipient_line(ui, &app.session, id, edit, true)).inner;
     if focus {
         out.text_edit.response.request_focus();
     }
-    // (A person taken changes the text after the line has said whether it changed.)
+    // (A suggestion taken changes the text after the line has said whether it changed.)
     if out.accepted.is_some() || out.text_edit.response.changed() {
         let _ = app.execute("compose.set", json!({ key: buf }));
     }

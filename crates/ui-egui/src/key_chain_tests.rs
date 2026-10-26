@@ -1123,22 +1123,23 @@ fn the_close_button_and_new_email_ask_as_escape_does() {
 
 // ---- The lists under a field: egui's own, which the gate sees ----
 
-/// Whether the list under a field offers the person at `address` now.
-fn offers(h: &Window, address: &str) -> bool {
-    h.query_all_by_label_contains(address).next().is_some()
+/// Where the list under a field is, as egui last drew it, when one is open.
+fn list_under_field(h: &Window) -> Option<egui::Rect> {
+    h.ctx.memory(|m| m.areas().visible_layer_ids().into_iter().filter(|l| l.order == egui::Order::Foreground).find_map(|l| m.area_rect(l.id)))
 }
 
-/// What the line of people being typed in says: a new message's To, or a meeting's Required.
-fn people_typed(h: &Window) -> String {
+/// What the line of recipients being typed in says: a new message's To, or a meeting's Required.
+fn recipients_typed(h: &Window) -> String {
     match &h.state().dialog {
         Some(Dialog::Form(Form::Event(form))) => form.command().1["attendees"].as_str().unwrap_or_default().to_string(),
         _ => h.state().session.compose.as_ref().map(|c| c.to.clone()).unwrap_or_default(),
     }
 }
 
-/// The two lines of people, each with "pri" typed in it and Priya Nair offered under it: a new
-/// message's To line, and a new meeting's Required line (Tab from the title).
-const PEOPLE_LINES: [(&str, fn(&mut Window)); 2] = [("To", to_line), ("Required", required_line)];
+/// The two lines of recipients, each with "pri" typed in it and the suggestions (Priya Nair)
+/// open under it: a new message's To line, and a new meeting's Required line (Tab from the
+/// title).
+const RECIPIENT_LINES: [(&str, fn(&mut Window)); 2] = [("To", to_line), ("Required", required_line)];
 
 fn to_line(h: &mut Window) {
     run(h, "mail.new", json!({}));
@@ -1156,26 +1157,26 @@ fn typed_in_line(h: &mut Window) {
     testing::text(h, "pri");
     // (The list keeps its keys from the frame after it came up.)
     h.run_steps(2);
-    assert_eq!(people_typed(h), "pri");
-    assert!(offers(h, "priya@lumen.example"), "Priya Nair is offered");
+    assert_eq!(recipients_typed(h), "pri");
+    assert!(list_under_field(h).is_some(), "recipients are suggested");
 }
 
-/// Escape in a list of people closes the list alone: the message being written, or the meeting,
-/// stays, nothing is asked, and the keyboard stays in the line with what was typed. Once the list
-/// is closed, the next Escape is the window's: the message asks about its change, the meeting
-/// closes.
+/// Escape in the recipient suggestions closes them alone: the message being written, or the
+/// meeting, stays, nothing is asked, and the keyboard stays in the line with what was typed. Once
+/// the list is closed, the next Escape is the window's: the message asks about its change, the
+/// meeting closes.
 #[test]
-fn escape_in_a_list_of_people_closes_the_list_alone() {
-    for (line, open) in PEOPLE_LINES {
+fn escape_in_recipient_suggestions_closes_them_alone() {
+    for (line, open) in RECIPIENT_LINES {
         for (how, press) in PRESSES {
             let mut h = window("view.mail");
             open(&mut h);
             let (before, field) = (dialog(&h), focus(&h));
             press(&mut h, Key::Escape);
-            assert!(!offers(&h, "priya@lumen.example"), "{line}, {how}: the list closed");
+            assert!(list_under_field(&h).is_none(), "{line}, {how}: the list closed");
             assert_eq!(dialog(&h), before, "{line}, {how}: nothing asked, nothing closed");
             assert!(h.state().session.compose.is_some() || before.is_some(), "{line}, {how}: the message is still open");
-            assert_eq!((focus(&h), people_typed(&h)), (field, "pri".to_string()), "{line}, {how}: still typing in the line");
+            assert_eq!((focus(&h), recipients_typed(&h)), (field, "pri".to_string()), "{line}, {how}: still typing in the line");
             testing::key(&mut h, Key::Escape);
             let after = if before.is_none() { Some("discardDraft") } else { None };
             assert_eq!(dialog(&h), after, "{line}, {how}: the second Escape is the window's");
@@ -1183,10 +1184,10 @@ fn escape_in_a_list_of_people_closes_the_list_alone() {
     }
 }
 
-/// A click away from a list of people closes it.
+/// A click away from the recipient suggestions closes them.
 #[test]
-fn a_click_away_closes_a_list_of_people() {
-    for (line, open) in PEOPLE_LINES {
+fn a_click_away_closes_recipient_suggestions() {
+    for (line, open) in RECIPIENT_LINES {
         let mut h = window("view.mail");
         open(&mut h);
         let before = dialog(&h);
@@ -1194,30 +1195,30 @@ fn a_click_away_closes_a_list_of_people() {
         let other = h.get_all_by_role(egui::accesskit::Role::TextInput).find(|n| n.accesskit_node().value().is_none_or(|v| v != "pri")).unwrap();
         other.click();
         h.run_steps(3);
-        assert!(!offers(&h, "priya@lumen.example"), "{line}: the list closed");
+        assert!(list_under_field(&h).is_none(), "{line}: the list closed");
         assert_eq!(dialog(&h), before, "{line}");
     }
 }
 
-/// Typing goes on in the line while the list shows, and what is offered follows it.
+/// Typing goes on in the line while the suggestions show, and they follow it.
 #[test]
-fn typing_goes_on_under_a_list_of_people() {
-    for (line, open) in PEOPLE_LINES {
+fn typing_goes_on_under_recipient_suggestions() {
+    for (line, open) in RECIPIENT_LINES {
         let mut h = window("view.mail");
         open(&mut h);
         let field = focus(&h);
         testing::text(&mut h, "ya");
         h.run_steps(2);
-        assert_eq!((focus(&h), people_typed(&h)), (field, "priya".to_string()), "{line}");
-        assert!(offers(&h, "priya@lumen.example"), "{line}: still offered");
+        assert_eq!((focus(&h), recipients_typed(&h)), (field, "priya".to_string()), "{line}");
+        assert!(list_under_field(&h).is_some(), "{line}: still suggested");
     }
 }
 
-/// Enter, Tab or a click on a row takes the person, as `Name <address>; `, and the keyboard stays
-/// in the line, for the next one.
+/// Enter, Tab or a click on the first suggestion takes it, as `Name <address>; `, and the
+/// keyboard stays in the line, for the next one.
 #[test]
-fn enter_tab_or_a_click_takes_the_person() {
-    for (line, open) in PEOPLE_LINES {
+fn enter_tab_or_a_click_takes_a_suggested_recipient() {
+    for (line, open) in RECIPIENT_LINES {
         for how in ["Enter", "Tab", "click"] {
             let mut h = window("view.mail");
             open(&mut h);
@@ -1225,15 +1226,18 @@ fn enter_tab_or_a_click_takes_the_person() {
             match how {
                 "Enter" => testing::key(&mut h, Key::Enter),
                 "Tab" => testing::key(&mut h, Key::Tab),
-                _ => h.get_by_label_contains("priya@lumen.example").click(),
+                _ => {
+                    let list = list_under_field(&h).unwrap();
+                    testing::click(&mut h, egui::pos2(list.min.x + 30.0, list.min.y + 14.0), egui::PointerButton::Primary, 1);
+                }
             }
             h.run_steps(2);
-            assert_eq!(people_typed(&h), "Priya Nair <priya@lumen.example>; ", "{line}, {how}");
+            assert_eq!(recipients_typed(&h), "Priya Nair <priya@lumen.example>; ", "{line}, {how}");
             assert_eq!(focus(&h), field, "{line}, {how}: the line keeps the keyboard");
-            assert!(!offers(&h, "priya@lumen.example"), "{line}, {how}: nothing more to offer");
+            assert!(list_under_field(&h).is_none(), "{line}, {how}: nothing more to suggest");
             testing::text(&mut h, "may");
             h.run_steps(2);
-            assert!(offers(&h, "maya@lumen.example"), "{line}, {how}: the next name is offered");
+            assert!(list_under_field(&h).is_some(), "{line}, {how}: the next name is suggested");
         }
     }
 }

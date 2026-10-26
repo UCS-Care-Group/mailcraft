@@ -148,7 +148,7 @@ impl Suggesting {
                         ui.painter().rect_filled(Rect::from_center_size(pos2(x + MARK / 2.0, r.center().y), vec2(MARK, MARK)), 2.0, c32(color));
                         x += MARK + 8.0;
                     }
-                    // A person: the name, and the address beside it, as a new message's list has them.
+                    // Somebody: the name, and the address beside it, as the recipient suggestions show them.
                     let room = (r.max.x - x - 8.0).max(0.0);
                     let w = paint_clipped(
                         ui.painter(),

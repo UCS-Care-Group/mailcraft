@@ -124,9 +124,9 @@ fn layer_of(ctx: &egui::Context, id: egui::Id) -> Option<LayerId> {
 }
 
 /// The list (a combo box's, a menu) that is open, as egui last drew it: a popup's area has the
-/// popup's own id. The people a line could be, under the field `focus` (egui's
-/// `CompletionPopup`), are a list too: egui keeps no note of it among its popups, and its area
-/// is the field's id with "completion_popup".
+/// popup's own id. The recipient suggestions under the field `focus` (egui's `CompletionPopup`)
+/// are a list too: egui keeps no note of them among its popups, and their area is the field's id
+/// with "completion_popup".
 fn open_list(ctx: &egui::Context, focus: Option<egui::Id>) -> Option<LayerId> {
     let under = focus.map(|id| LayerId::new(Order::Foreground, id.with("completion_popup")));
     if let Some(list) = under.filter(|l| ctx.memory(|m| m.areas().is_visible(l))) {
@@ -303,7 +303,7 @@ pub(crate) fn gate(ctx: &egui::Context, blocked: bool) {
         }
     }
     let list = open_list(ctx, focus).filter(|l| ctx.memory(|m| m.is_above_modal_layer(*l)));
-    // A field that keeps the keyboard while its list is open (the people a line could be) keeps it
+    // A field that keeps the keyboard while its list is open (recipient suggestions) keeps it
     // while the Escape that closed the list is held: egui takes it away on the repeats.
     if escape && list.is_some() && focus.is_some() {
         chain.back = focus;

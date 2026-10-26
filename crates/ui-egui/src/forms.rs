@@ -1455,9 +1455,9 @@ mod event {
         job
     }
 
-    /// An attendee line. As it is typed in, the people it could be are offered underneath, as
-    /// the composer offers them ([`crate::compose::people_line`]); a line that is only passed
-    /// through (with Tab, say) is offered nothing and stays exactly as it is. When it is left,
+    /// An attendee line. As it is typed in, recipients are suggested underneath, as the composer
+    /// suggests them ([`crate::compose::recipient_line`]); a line that is only passed through
+    /// (with Tab, say) is suggested nothing and stays exactly as it is. When it is left,
     /// the names on it that stand for one contact become that contact, and from then on it reads
     /// as the people it names.
     fn attendee_line(ui: &mut Ui, pass: &mut Pass, s: &Session, key: &'static str, text: &mut String, hint: &str) {
@@ -1491,7 +1491,7 @@ mod event {
         if reading {
             edit = edit.layouter(&mut as_names);
         }
-        let resp = crate::compose::people_line(ui, s, id, edit, typed).text_edit.response;
+        let resp = crate::compose::recipient_line(ui, s, id, edit, typed).text_edit.response;
         pass.field(&resp);
         let typed = typed || resp.changed();
         if resp.lost_focus() && typed {
