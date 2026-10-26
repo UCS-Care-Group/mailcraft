@@ -137,7 +137,7 @@ fn pictures_of(blocks: &[Block]) -> Vec<(&str, Option<u16>, Option<u16>, Option<
     images(blocks)
         .into_iter()
         .filter_map(|b| match &b.kind {
-            BlockKind::Image { src, width, height, link } => Some((src.as_str(), *width, *height, link.as_deref())),
+            BlockKind::Image { src, width, height, link, .. } => Some((src.as_str(), *width, *height, link.as_deref())),
             _ => None,
         })
         .collect()
@@ -215,7 +215,7 @@ fn outlook_reply() {
     assert_eq!(
         pictures.first().map(|b| (&b.kind, b.text())),
         Some((
-            &BlockKind::Image { src: "cid:image001.png@01DC3A1B.5F0C2E40".into(), width: Some(168), height: Some(48), link: None },
+            &BlockKind::Image { src: "cid:image001.png@01DC3A1B.5F0C2E40".into(), width: Some(168), height: Some(48), link: None, data: None },
             "Tidewater Freight".to_string()
         ))
     );
@@ -299,6 +299,7 @@ fn newsletter() {
             width: Some(600),
             height: Some(280),
             link: Some("https://click.fernhollow.example/t/v1/9f3a7c?u=88213&l=hero".into()),
+            data: None,
         }
     );
     // Text keeps its colours, sizes and alignment.
@@ -606,6 +607,8 @@ fn nothing_remote_or_active_survives() {
             "http://evil.example/insecure.gif",
             // Written without its scheme: read as `https`, a stand-in like the others.
             "https://evil.example/schemeless.gif",
+            // Written into the message (#533): shown as an attached one is, its content not kept here.
+            "data:image/gif",
             "cid:not-attached@evil.example",
             "https://evil.example/lazy.gif",
             "https://evil.example/picture-fallback.jpg",

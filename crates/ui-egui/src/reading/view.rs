@@ -114,11 +114,13 @@ impl Doc {
     }
 }
 
-/// Whether one of the pictures is an attachment of the message.
+/// Whether one of the pictures is written into the message or attached to it.
 fn shows_a_picture(blocks: &[Block], message: &Message) -> bool {
-    mailcraft_html::images(blocks)
-        .iter()
-        .any(|b| matches!(&b.kind, BlockKind::Image { src, .. } if super::images::attachment(message, src).is_some()))
+    mailcraft_html::images(blocks).iter().any(|b| match &b.kind {
+        BlockKind::Image { data: Some(_), .. } => true,
+        BlockKind::Image { src, .. } => super::images::attachment(message, src).is_some(),
+        _ => false,
+    })
 }
 
 /// A very long paragraph of the message as several blocks, so that it is laid out a part per

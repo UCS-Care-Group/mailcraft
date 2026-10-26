@@ -25,9 +25,13 @@ Writes any bytes into a message: crafted MIME, HTML, headers, attachments, pictu
 - **Nothing in a message runs.** HTML becomes display blocks in `crates/html`: no script engine, no
   CSS engine, no web view. The only presentation read from a message is the whitelist in
   `crates/html/src/style.rs`, from inline attributes; `<style>` blocks are ignored.
-- **Nothing is fetched by itself.** Pictures attached to the message (`cid:`) are shown; pictures on
-  the web only on the owner's say-so, and only `<img>` addresses (no backgrounds, style sheets,
-  fonts or frames, nothing 2 px or smaller), so a tracking pixel doesn't fire.
+- **Nothing is fetched by itself.** Pictures attached to the message (`cid:`) are shown, and so are
+  pictures written into it (`data:image/…;base64,` in an `<img>`, #533): only a PNG, JPEG, GIF or
+  WebP by its declared type and its own bytes (never SVG, HTML or text), decoded within caps
+  checked before decoding (10 MB a picture, 32 pictures and 40 MB a message), anything else a
+  placeholder; a `data:` address is never a link nor a background (`crates/html/src/data.rs`).
+  Pictures on the web only on the owner's say-so, and only `<img>` addresses (no backgrounds,
+  style sheets, fonts or frames, nothing 2 px or smaller), so a tracking pixel doesn't fire.
 - **"Always download pictures" is not a trust in a `From:` line.** A remembered sender or domain
   holds only for a message whose topmost `Authentication-Results` header says `dmarc=pass` (or
   `compauth=pass`) for the sender's domain **and was written by the account's own server**
@@ -358,6 +362,7 @@ settings files (`crates/engine/src/store.rs`); commands from the control channel
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-26 | minor | #533: pictures written into a message (`data:` PNG, JPEG, GIF or WebP, checked by their bytes, capped per picture and per message) are shown as attached ones are; `data:` stays refused in links and backgrounds |
 | 2026-10-26 | minor | #501: server certificates are checked by the operating system's verifier instead of a built-in Mozilla root set: Windows and macOS trust what the system trusts and may fetch a missing intermediate; Linux and FreeBSD use the system's certificate store |
 | 2026-10-26 | minor | #458: a `dmarc=pass` whose `header.from` is the organisation's domain (Gmail's way: `shop.example` for `news.shop.example`) vouches for the names under it; a bare suffix or a hosting platform's domain never does |
 | 2026-10-25 | minor | #308: the people the search box offers after `from:`, `to:` and `cc:` come from autocomplete's source, on this computer only |

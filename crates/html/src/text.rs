@@ -208,7 +208,7 @@ fn email_at(text: &str, at: usize, floor: usize) -> Hit {
 /// with `> `, a rule is a row of dashes, a picture is its `[alt text]`. A link reads
 /// `text <url>` when the text doesn't already say where it goes. No-break spaces become spaces.
 pub fn to_text(html: &str) -> String {
-    blocks_to_text(&crate::parse(html))
+    blocks_to_text(&crate::blocks::parse_text(html))
 }
 
 /// Display blocks as plain text, the way [`to_text`] writes them. Every block is a paragraph of
