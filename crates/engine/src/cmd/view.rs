@@ -25,7 +25,10 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("view.conversations", "Show as Conversations", "View › Messages", conversations).pure().params(TOGGLE),
         CommandSpec::new("view.sort", "Arrange By", "View › Arrangement", sort)
             .pure()
-            .params(r#"{"by": "date"|"from"|"subject"|"size"|"importance"|"categories", "descending"?: bool}"#),
+            .params(r#"{"by": "date"|"from"|"subject"|"size"|"importance"|"categories"|"attachments"|"flag", "descending"?: bool}"#),
+        CommandSpec::new("view.columns", "Columns", "View › Arrangement", crate::columns::command)
+            .pure()
+            .params(r#"{"enabled"?: bool, "items"?: [{"column": "from"|"subject"|"date"|"size"|"importance"|"attachments"|"flag"|"categories"|"folder", "width": 36-800}]} — omit fields to read; Subject stays visible; items sets order"#),
         CommandSpec::new("view.reverseSort", "Reverse Sort", "View › Arrangement", reverse_sort).pure(),
         CommandSpec::new("view.filter", "Filter Email", "Home › Find", filter)
             .pure()
@@ -96,7 +99,8 @@ fn conversations(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 fn sort(s: &mut Session, v: &Value) -> CmdResult {
-    let by = parse_enum::<SortBy>(p::req_str(v, "by")?).ok_or_else(|| bad("`by` is date, from, subject, size, importance or categories"))?;
+    let by = parse_enum::<SortBy>(p::req_str(v, "by")?)
+        .ok_or_else(|| bad("`by` is date, from, subject, size, importance, categories, attachments or flag"))?;
     // Names start at A; dates, sizes and importance start at the top.
     let natural = by.starts_high();
     s.view.sort_descending = p::bool(v, "descending").unwrap_or(if s.view.sort == by { s.view.sort_descending } else { natural });
@@ -288,6 +292,7 @@ fn task_filter(s: &mut Session, v: &Value) -> CmdResult {
 fn reset(s: &mut Session, _: &Value) -> CmdResult {
     let keep = (s.view.module, s.view.folder, s.view.date);
     s.view = ViewState::default();
+    s.prefs.columns = Default::default();
     (s.view.module, s.view.folder, s.view.date) = keep;
     done()
 }

@@ -10,12 +10,13 @@ use std::sync::Arc;
 use egui::{Align2, Color32, Rect, Sense, Stroke, Ui, pos2, vec2};
 use mailcraft_engine::list::Row;
 use mailcraft_engine::{Filter, Pane, SortBy};
-use mailcraft_model::{FlagStatus, FolderKind, Id, Importance, Message};
+use mailcraft_model::{FlagStatus, Id, Importance, Message};
 use serde_json::json;
 
 use crate::theme::{Tokens, paint_clipped, regular, semibold};
 use crate::{MailApp, icons};
 
+pub(crate) mod columns;
 mod server_rows;
 
 /// What a drag out of the message list carries: the messages to file in the folder they are
@@ -200,6 +201,8 @@ fn sort_label(sort: SortBy) -> &'static str {
         SortBy::Size => tl!("By Size"),
         SortBy::Importance => tl!("By Importance"),
         SortBy::Categories => tl!("By Categories"),
+        SortBy::Attachments => tl!("By Attachments"),
+        SortBy::Flag => tl!("By Flag"),
     }
 }
 
@@ -214,6 +217,8 @@ fn direction_label(sort: SortBy, descending: bool) -> &'static str {
         (SortBy::Size, false) => tl!("Smallest on top"),
         (SortBy::Importance, true) => tl!("High on top"),
         (SortBy::Importance, false) => tl!("Low on top"),
+        (SortBy::Attachments | SortBy::Flag, true) => tl!("Marked on top"),
+        (SortBy::Attachments | SortBy::Flag, false) => tl!("Unmarked on top"),
     }
 }
 
@@ -494,9 +499,23 @@ fn search_bar(app: &mut MailApp, ui: &mut Ui, found: usize) {
 }
 
 fn list(app: &mut MailApp, ui: &mut Ui) {
-    let t = Tokens::get(ui.ctx());
     ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
     list_header(app, ui);
+    list_notices(app, ui);
+    if app.session.prefs.columns.enabled {
+        let width = columns::width(&app.session.prefs.columns).max(ui.available_width());
+        egui::ScrollArea::horizontal().id_salt("message_columns_horizontal").auto_shrink([false, false]).show(ui, |ui| {
+            ui.set_min_width(width);
+            columns::header(app, ui);
+            list_body(app, ui);
+        });
+    } else {
+        list_body(app, ui);
+    }
+}
+
+fn list_notices(app: &mut MailApp, ui: &mut Ui) {
+    let t = Tokens::get(ui.ctx());
     let rows = app.session.rows();
     search_bar(app, ui, mailcraft_engine::list::listed(&rows));
     // A search covers what is here: of a message not fetched yet, its headers and preview (R3.2).
@@ -535,9 +554,14 @@ fn list(app: &mut MailApp, ui: &mut Ui) {
         );
         paint_clipped(ui.painter(), pos2(r.min.x + 10.0, r.min.y + 4.0), r.width() - 20.0, &text, regular(11.5), t.text_dim);
     }
-    let one_line = app.session.prefs.one_line;
+}
+
+fn list_body(app: &mut MailApp, ui: &mut Ui) {
+    let t = Tokens::get(ui.ctx());
+    let rows = app.session.rows();
+    let one_line = app.session.prefs.one_line || app.session.prefs.columns.enabled;
     // The rows of a search on the server keep the height the preview lines ask for.
-    let server_h = row_height(app.session.prefs.preview_lines);
+    let server_h = if app.session.prefs.columns.enabled { ONE_LINE_H } else { row_height(app.session.prefs.preview_lines) };
     let row_h = if one_line { ONE_LINE_H } else { server_h };
     // Below the local results of a search: More results on the server, and what came (R6.2).
     let searching = !app.session.view.search.trim().is_empty();
@@ -547,7 +571,10 @@ fn list(app: &mut MailApp, ui: &mut Ui) {
     let overlay = app.overlay_scroll_bars;
     let lane_w = lane_width(app);
     if rows.is_empty() {
-        let r = ui.available_rect_before_wrap();
+        let canvas = ui.available_rect_before_wrap();
+        // In column view the text and the scroll area stay on screen; the cells start where the
+        // headings do.
+        let r = if app.session.prefs.columns.enabled { canvas.intersect(ui.clip_rect()) } else { canvas };
         let msg = if searching {
             tl!("Nothing matches the search.")
         } else if app.session.view.filter != Filter::All {
@@ -561,8 +588,12 @@ fn list(app: &mut MailApp, ui: &mut Ui) {
             ui.scope_builder(egui::UiBuilder::new().max_rect(room), |ui| {
                 egui::ScrollArea::vertical().id_salt("message_list_server").auto_shrink([false, false]).show_viewport(ui, |ui, viewport| {
                     let (area, _) = ui.allocate_exact_size(vec2(ui.available_width(), below), Sense::hover());
-                    let width = (area.width() - lane_w).max(0.0);
-                    server_rows::show(app, ui, &local, area.min.x, area.min.y, width, server_h, viewport.translate(area.min.to_vec2()));
+                    let (left, width) = if app.session.prefs.columns.enabled {
+                        (canvas.min.x, (canvas.width() - lane_w).max(0.0))
+                    } else {
+                        (area.min.x, (area.width() - lane_w).max(0.0))
+                    };
+                    server_rows::show(app, ui, &local, left, area.min.y, width, server_h, viewport.translate(area.min.to_vec2()));
                 });
             });
         }
@@ -585,7 +616,10 @@ fn list(app: &mut MailApp, ui: &mut Ui) {
     let outer = ui.available_rect_before_wrap();
     // Page Up and Page Down move by the rows that fit (#426).
     app.list_page_rows = ((outer.height() / row_h).floor() as usize).max(1);
-    let lane = scroll_lane(outer);
+    // In column view the canvas may be wider than the viewport. Keep the vertical
+    // scroll bar on screen while the columns move horizontally underneath it.
+    let visible = if app.session.prefs.columns.enabled { outer.intersect(ui.clip_rect()) } else { outer };
+    let lane = scroll_lane(visible);
     let scrolls = total > outer.height();
     // (A bar that floats over the rows has no lane to paint and no arrows.)
     if scrolls && !overlay {
@@ -594,7 +628,7 @@ fn list(app: &mut MailApp, ui: &mut Ui) {
     // The handle keeps clear of the arrows at the ends of its lane (a lane too short for them
     // has none).
     let arrows = scrolls && !overlay && lane.height() >= 4.0 * SCROLL_END;
-    let travel = if arrows { outer.shrink2(vec2(0.0, SCROLL_END)) } else { outer };
+    let travel = if arrows { visible.shrink2(vec2(0.0, SCROLL_END)) } else { visible };
     let plain = ui.style().clone();
     if overlay {
         overlay_scroll_style(ui, &t);
@@ -608,6 +642,11 @@ fn list(app: &mut MailApp, ui: &mut Ui) {
     let out = area.show_viewport(ui, |ui, viewport| {
         // The bar's looks are the bar's alone.
         ui.set_style(plain);
+        if app.session.prefs.columns.enabled && scrolls && !overlay {
+            let mut clip = ui.clip_rect();
+            clip.max.x = clip.max.x.min(lane.min.x - SCROLL_GAP);
+            ui.set_clip_rect(clip);
+        }
         let (area, _) = ui.allocate_exact_size(vec2(ui.available_width(), total), Sense::hover());
         let origin = area.min;
         // Rows end where the scroll bar's lane starts, whether the list scrolls or not (at the
@@ -819,7 +858,7 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect) {
         .on_hover_cursor(egui::CursorIcon::PointingHand)
         .on_hover_text(if unread { tl!("Mark as read") } else { tl!("Mark as unread") });
     app.hit.add("messageRead", row.id, strip);
-    let one = app.session.prefs.one_line;
+    let one = app.session.prefs.one_line || app.session.prefs.columns.enabled;
     let line1 = if one { rect.center().y } else { rect.min.y + SENDER_Y };
     let line2 = if one { rect.center().y } else { rect.min.y + SUBJECT_Y };
     // Quick actions on the row under the pointer, at the right of the sender's line: flag (where
@@ -828,7 +867,9 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect) {
     let over = ui.rect_contains_pointer(rect) && egui::DragAndDrop::payload::<MessageDrag>(ui.ctx()).is_none();
     // Wide enough to hit without aiming, a gap between them, and short enough to stay off the
     // time on the subject's line.
-    let flag_rect = Rect::from_center_size(pos2(rect.max.x - QUICK_TARGET.x / 2.0, line1), QUICK_TARGET);
+    // In column view the row may run past the pane: they stay at its visible right edge.
+    let right = if app.session.prefs.columns.enabled { rect.max.x.min(ui.clip_rect().max.x) } else { rect.max.x };
+    let flag_rect = Rect::from_center_size(pos2(right - QUICK_TARGET.x / 2.0, line1), QUICK_TARGET);
     let delete_rect = flag_rect.translate(vec2(-(QUICK_TARGET.x + QUICK_GAP), 0.0));
     let flagged = m.flag == FlagStatus::Flagged;
     let quick = over.then(|| {
@@ -880,20 +921,84 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect) {
     let rule = if t.dark { t.border_strong } else { t.border };
     p.line_segment([pos2(body.min.x, rect.max.y - 0.5), pos2(rect.max.x, rect.max.y - 0.5)], Stroke::new(1.0, rule));
 
-    // Sent, drafts and outbox show who it went to rather than who wrote it.
-    let outgoing = app.session.mailbox.folder(m.folder).is_some_and(|f| matches!(f.kind, FolderKind::Sent | FolderKind::Drafts | FolderKind::Outbox));
-    let who = if outgoing {
+    if app.session.prefs.columns.enabled {
+        columns::paint(app, ui, &m, rect, unread, row.members.len(), false);
+        if let Some((delete, flag)) = &quick {
+            for (resp, at, icon) in [(delete, delete_rect, "delete"), (flag, flag_rect, "flag")] {
+                if resp.hovered() {
+                    p.rect_filled(at, 4.0, t.pressed);
+                }
+                let ink = if icon == "flag" && flagged { t.icon } else { t.text_dim };
+                icons::paint(p, Rect::from_center_size(at.center(), vec2(16.0, 16.0)), icon, ink, t.accent);
+            }
+        }
+    } else {
+        lines(app, ui, m.clone(), row, rect, &Look { unread, overdue, one, line1, line2, flagged, flag_rect, delete_rect, quick: &quick });
+    }
+
+    // Quick actions over the row under the pointer.
+    if resp.hovered() && !selected {
+        ui.ctx().request_repaint_after(std::time::Duration::from_millis(400));
+    }
+    // Dragging a row carries it to a folder: the whole selection when the row is part of it,
+    // otherwise just what the row stands for.
+    if resp.drag_started() {
+        let ids: Vec<Id> = if selected { app.session.sel.messages.to_vec() } else { row.members.clone() };
+        resp.dnd_set_drag_payload(MessageDrag(ids));
+    }
+    if let Some((delete, flag)) = &quick {
+        if delete.clicked() {
+            let _ = app.run("mail.delete", json!({"ids": row.members}));
+            return;
+        }
+        if flag.clicked() {
+            let _ = app.run("mail.toggleFlag", json!({"ids": [row.id]}));
+        }
+    }
+    if read_resp.clicked() {
+        // A conversation is read once all of it is; its newest message makes it unread again.
+        let (command, ids) = if unread { ("mail.markRead", row.members.clone()) } else { ("mail.markUnread", vec![row.id]) };
+        let _ = app.run(command, json!({"ids": ids}));
+    }
+    clicks(app, ui, &resp, row, &m);
+}
+
+/// Who a row names: sent, drafts and outbox show who it went to rather than who wrote it.
+fn who(s: &mailcraft_engine::Session, m: &Message) -> String {
+    if s.mailbox.folder(m.folder).is_some_and(mailcraft_engine::columns::is_outgoing) {
         let names: Vec<&str> = m.to.iter().map(|a| a.display()).collect();
         if names.is_empty() { tl!("(no recipients)").to_string() } else { names.join("; ") }
     } else {
         m.from.display().to_string()
-    };
+    }
+}
+
+/// Where a row's lines go and what they show, worked out by [`message_row`].
+struct Look<'a> {
+    unread: bool,
+    overdue: bool,
+    one: bool,
+    line1: f32,
+    line2: f32,
+    flagged: bool,
+    flag_rect: Rect,
+    delete_rect: Rect,
+    quick: &'a Option<(egui::Response, egui::Response)>,
+}
+
+/// The row's lines: who, the subject, the time, the marks and the preview (not in columns, #344).
+fn lines(app: &mut MailApp, ui: &mut Ui, m: Arc<Message>, row: &Row, rect: Rect, look: &Look) {
+    let &Look { unread, overdue, one, line1, line2, flagged, flag_rect, delete_rect, quick } = look;
+    let t = Tokens::get(ui.ctx());
+    let p = ui.painter();
+    let who = who(&app.session, &m);
     // The picture (or the initials) of who wrote it, or of who it went to.
     let pictured = app.ui.sender_images && !one;
     if pictured {
-        let who = if outgoing { m.to.first().unwrap_or(&m.from) } else { &m.from };
+        let outgoing = app.session.mailbox.folder(m.folder).is_some_and(mailcraft_engine::columns::is_outgoing);
+        let pictured_who = if outgoing { m.to.first().unwrap_or(&m.from) } else { &m.from };
         let center = pos2(rect.min.x + TEXT_LEFT + AVATAR_RADIUS, rect.min.y + AVATAR_Y);
-        crate::sender_images::avatar(app, ui, center, AVATAR_RADIUS, &m, who);
+        crate::sender_images::avatar(app, ui, center, AVATAR_RADIUS, &m, pictured_who);
     }
     let left = rect.min.x + TEXT_LEFT + if pictured { 2.0 * AVATAR_RADIUS + AVATAR_GAP } else { 0.0 };
     // Where the time ends, and where the text of every line does.
@@ -1054,32 +1159,6 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect) {
         let clip = Rect::from_min_max(pos2(left, rect.min.y), pos2(preview_end, rect.max.y - 1.0)).intersect(p.clip_rect());
         p.with_clip_rect(clip).galley(pos2(left, rect.min.y + PREVIEW_TOP), galley, t.text_dim);
     }
-
-    // Quick actions over the row under the pointer.
-    if resp.hovered() && !selected {
-        ui.ctx().request_repaint_after(std::time::Duration::from_millis(400));
-    }
-    // Dragging a row carries it to a folder: the whole selection when the row is part of it,
-    // otherwise just what the row stands for.
-    if resp.drag_started() {
-        let ids: Vec<Id> = if selected { app.session.sel.messages.to_vec() } else { row.members.clone() };
-        resp.dnd_set_drag_payload(MessageDrag(ids));
-    }
-    if let Some((delete, flag)) = &quick {
-        if delete.clicked() {
-            let _ = app.run("mail.delete", json!({"ids": row.members}));
-            return;
-        }
-        if flag.clicked() {
-            let _ = app.run("mail.toggleFlag", json!({"ids": [row.id]}));
-        }
-    }
-    if read_resp.clicked() {
-        // A conversation is read once all of it is; its newest message makes it unread again.
-        let (command, ids) = if unread { ("mail.markRead", row.members.clone()) } else { ("mail.markUnread", vec![row.id]) };
-        let _ = app.run(command, json!({"ids": ids}));
-    }
-    clicks(app, ui, &resp, row, &m);
 }
 
 fn clicks(app: &mut MailApp, ui: &Ui, resp: &egui::Response, row: &Row, m: &Message) {
@@ -1657,7 +1736,7 @@ mod tests {
         let projects = mb.folders.iter().find(|f| f.name == "Projects").unwrap().id;
         assert_eq!(crate::nav::result_folder_label(mb, mb.folder(first).unwrap()), "Inbox", "one account: the name alone");
         let work = mb.add_account(mailcraft_model::Account { name: "Work".into(), email: "me@work.example".into(), ..Default::default() });
-        let second = mb.folders.iter().find(|f| f.account == work && f.kind == FolderKind::Inbox).unwrap().id;
+        let second = mb.folders.iter().find(|f| f.account == work && f.kind == mailcraft_model::FolderKind::Inbox).unwrap().id;
         assert_eq!(crate::nav::result_folder_label(mb, mb.folder(second).unwrap()), "Inbox - Work");
         assert!(crate::nav::result_folder_label(mb, mb.folder(first).unwrap()).starts_with("Inbox - "));
         assert_eq!(crate::nav::result_folder_label(mb, mb.folder(projects).unwrap()), "Projects", "a name only one has");

@@ -80,10 +80,13 @@ pub enum SortBy {
     Size,
     Importance,
     Categories,
+    Attachments,
+    Flag,
 }
 
 impl SortBy {
-    pub const ALL: [SortBy; 6] = [SortBy::Date, SortBy::From, SortBy::Subject, SortBy::Size, SortBy::Importance, SortBy::Categories];
+    pub const ALL: [SortBy; 8] =
+        [SortBy::Date, SortBy::From, SortBy::Subject, SortBy::Size, SortBy::Importance, SortBy::Categories, SortBy::Attachments, SortBy::Flag];
 
     pub fn label(self) -> &'static str {
         match self {
@@ -93,6 +96,8 @@ impl SortBy {
             SortBy::Size => "Size",
             SortBy::Importance => "Importance",
             SortBy::Categories => "Categories",
+            SortBy::Attachments => "Attachments",
+            SortBy::Flag => "Flag",
         }
     }
 
@@ -646,6 +651,8 @@ pub struct Doc<'a> {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct Prefs {
+    /// The optional column view, shared across mail folders.
+    pub columns: crate::columns::Columns,
     /// `3:05 PM` rather than `15:05`.
     pub twelve_hour: bool,
     pub week_start: Weekday,
@@ -721,6 +728,7 @@ pub struct Prefs {
 impl Default for Prefs {
     fn default() -> Self {
         Prefs {
+            columns: Default::default(),
             twelve_hour: true,
             week_start: Weekday::Sun,
             clock_chosen: None,

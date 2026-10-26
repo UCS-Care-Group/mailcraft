@@ -923,6 +923,8 @@ fn all_commands(app: &MailApp) -> Vec<(String, String, String, String, bool)> {
                     | "calendar.select"
                     | "people.select"
                     | "tasks.select"
+                    // Without data it only reads; View › Message Preview › Columns turns them on.
+                    | "view.columns"
             ) && !c.id.ends_with(".get")
                 && !c.id.ends_with(".list")
         })
