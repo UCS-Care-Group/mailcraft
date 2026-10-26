@@ -352,10 +352,11 @@ fn more_than_ten_come_ten_at_a_time() {
 #[test]
 fn one_sent_but_not_kept_isnt_asked_for_again_and_is_said_to_be() {
     // The answer is for another address than the account's now: nothing of it is taken in, and
-    // that is why. Or it is for the other account: none of them is found there. With one gone
-    // from the server too, the first of them in the list is named.
+    // that is why, whatever it said of each. Or it is for the other account: none of them is
+    // found there. With one gone from the server too, the first of them in the list is named.
     for (other, missing, says) in [
         (false, &[][..], "these messages were for another account"),
+        (false, &["AA0M0"], "these messages were for another account"),
         (true, &[], "“Account 0 message 0” came from its server but couldn't be kept on this computer"),
         (true, &["AA0M2"], "“Account 0 message 0” came from its server but couldn't be kept on this computer"),
         (true, &["AA0M0"], "“Account 0 message 0” wasn't found on its server"),
@@ -374,6 +375,20 @@ fn one_sent_but_not_kept_isnt_asked_for_again_and_is_said_to_be() {
         assert!(asked(&jobs).is_empty() && app.session.compose.is_none(), "{other} {missing:?}");
         assert!(said(&app).contains(says), "{other} {missing:?}: {}", said(&app));
     }
+}
+
+#[test]
+fn a_reply_waiting_on_a_forwards_batch_opens_once_its_own_message_is_here() {
+    let (mut app, [[a, b, c], _], jobs) = window();
+    app.session.sel.messages = vec![a, b, c];
+    app.run("mail.forwardAsAttachment", json!({})).unwrap();
+    // A reply to one of the batch on its way: it takes the forward's place, and waits for it.
+    assert_eq!(app.run("mail.reply", json!({"id": a})).unwrap()["pending"], "download");
+    assert_eq!(asked(&jobs).len(), 1, "already asked for");
+    // Its own message comes; the other of the batch doesn't.
+    answer(&mut app, &jobs, &["AA0M2"], &[]);
+    let compose = app.session.compose.as_ref().unwrap_or_else(|| panic!("{:?}", app.status_msg));
+    assert_eq!((compose.source, compose.as_attachment), (Some(a), false));
 }
 
 #[test]

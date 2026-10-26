@@ -368,24 +368,25 @@ impl MailApp {
         if let Some(e) = &refused {
             self.status(e.to_string());
         }
-        let unfetched = |app: &MailApp, m: &Id| app.session.mailbox.message(*m).is_some_and(|m| m.unfetched);
-        let whole = !messages.iter().any(|m| unfetched(self, m));
+        let whole = |app: &MailApp, m: &Id| app.session.mailbox.message(*m).is_some_and(|m| !m.unfetched);
         if let Some((command, params, opening, tried)) = self.fetching.then.take() {
             // Asked of a mailbox that another has taken the place of: the message it names is not
             // this one's, whatever has that id here.
             if opening != self.session.openings() {
                 return;
             }
-            // A forward of several stops at the first, in the order asked, that its server didn't
-            // send or that came but wasn't kept here, saying why, and when a batch brought none
-            // of them; else it goes on with the rest, if there are any, and runs once none is
-            // left to fetch.
+            // A forward of several stops when what came wasn't taken in, saying why, and at the
+            // first, in the order asked, that its server didn't send or that came but wasn't kept
+            // here, and when a batch brought none of them; else it goes on with the rest, if
+            // there are any, and runs once none is left to fetch.
             if let Some(mut tried) = tried {
-                let not_kept = came.sent.iter().find(|m| unfetched(self, m)).copied();
+                let not_kept = came.sent.iter().find(|m| self.session.mailbox.message(**m).is_some_and(|m| m.unfetched)).copied();
                 let at = |m: Id| messages.iter().position(|x| *x == m);
                 let stop = match (came.not_sent, not_kept) {
+                    // Not taken in as a whole: that is why, whatever it said of each.
+                    _ if refused.is_some() => refused.take(),
                     (Some((m, gone)), k) if k.is_none_or(|k| at(m) < at(k)) => Some(compose::not_sent(&self.session, m, gone)),
-                    (_, Some(k)) => Some(refused.take().unwrap_or_else(|| compose::not_kept(&self.session, k))),
+                    (_, Some(k)) => Some(compose::not_kept(&self.session, k)),
                     _ if came.answered.is_empty() && self.fetching.offline => compose::forward_check(&self.session, &messages, false).err(),
                     _ => None,
                 };
@@ -403,10 +404,15 @@ impl MailApp {
                     let _ = self.run(&command, params);
                     self.fetching.tried = None;
                 }
-            } else if whole {
-                let _ = self.run(&command, params);
             } else {
-                self.status(tl!("This message isn't on this computer yet. It will download when you're online."));
+                // Another command waits for its own message, whatever else the batch it came in
+                // was for (a forward's, which it took the place of).
+                let own = params.get("id").or_else(|| params.get("ids").and_then(|ids| ids.get(0))).and_then(Value::as_u64);
+                if own.map_or_else(|| messages.iter().all(|m| whole(self, m)), |m| whole(self, &m)) {
+                    let _ = self.run(&command, params);
+                } else {
+                    self.status(tl!("This message isn't on this computer yet. It will download when you're online."));
+                }
             }
         }
     }
