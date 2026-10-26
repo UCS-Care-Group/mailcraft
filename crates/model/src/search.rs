@@ -5,7 +5,11 @@
 //! `budget from:ada has:attachment -draft after:2026-10-01`. Every term must match; `-` in front
 //! of a term excludes what it matches. Keywords: `from`, `to`, `cc`, `subject`, `body`,
 //! `category`, `attachment` (file name), `has:attachment`, `is:unread|read|flagged|important`,
-//! `importance:high|normal|low`, `before:`, `after:`, `on:` (dates, `YYYY-MM-DD` or `M/D/YYYY`).
+//! `importance:high|normal|low`, `before:`, `after:`, `on:` (dates, `YYYY-MM-DD` or `M/D/YYYY`),
+//! and `received:` with a day, a range of days as Outlook writes one (`received:10/1/2026..10/22/2026`,
+//! both days in it, #329), or one side of one (`received:>=2026-10-01`, `<=`, and `>` and `<`, the
+//! day itself not in it), by the day a message came in. A range whose end comes before its start
+//! finds nothing; a date with more parts than three (`10/22/2026/1`) is text.
 //! A space after a keyword's colon is allowed (`from: ada`); a keyword with nothing after it yet
 //! asks for nothing. Inside double quotes, `\"` is a double quote and `\\` a backslash.
 //!
@@ -17,7 +21,7 @@
 //! addresses (`ada@xn--bcher-kva.example` doesn't find `ada@bücher.example`). A category matches
 //! anywhere in its name. Text with no letters or digits in it (`-`, `@`) asks for nothing.
 
-use std::ops::Range;
+use std::ops::{Bound, Range, RangeBounds};
 
 use mailcraft_time::{Date, DateTime};
 
@@ -55,6 +59,9 @@ enum Kind {
     Before(Date),
     After(Date),
     On(Date),
+    /// The days a message came in on (#329): from the first to the last, each in it or not, or
+    /// with no end on that side.
+    Received(Bound<Date>, Bound<Date>),
 }
 
 impl Kind {
@@ -224,7 +231,8 @@ fn keyword_kind(body: &str) -> Option<Kind> {
         "importance" => Kind::Importance(Importance::parse(&v)?),
         "before" => Kind::Before(parse_date(&v)?),
         "after" => Kind::After(parse_date(&v)?),
-        "on" | "received" | "sent" => Kind::On(parse_date(&v)?),
+        "received" => received(&v)?,
+        "on" | "sent" => Kind::On(parse_date(&v)?),
         // `10:30`, `re: budget`, a URL: plain text.
         _ => return None,
     })
@@ -304,8 +312,9 @@ const MAX_PEOPLE_READ: usize = 100;
 const MAX_SUGGESTED_NAME: usize = 256;
 
 /// The keywords offered while the start of one is typed: each once, without the other names it
-/// may be written by (`categories:`, `received:`).
-const OFFERED: &[&str] = &["from", "to", "cc", "subject", "body", "category", "attachment", "has", "is", "importance", "before", "after", "on"];
+/// may be written by (`categories:`).
+const OFFERED: &[&str] =
+    &["from", "to", "cc", "subject", "body", "category", "attachment", "has", "is", "importance", "before", "after", "on", "received"];
 
 /// What `is:` and `has:` take.
 const IS_VALUES: &[&str] = &["unread", "read", "flagged", "important"];
@@ -580,7 +589,32 @@ fn parse_date(s: &str) -> Option<Date> {
     }
     let mut parts = s.split('/');
     let (m, d, y) = (parts.next()?.parse().ok()?, parts.next()?.parse().ok()?, parts.next()?.parse().ok()?);
+    // `10/22/2026/junk` isn't a date.
+    if parts.next().is_some() {
+        return None;
+    }
     Date::new(y, m, d)
+}
+
+/// What `received:` takes (#329): a day, a range of days `A..B` as Outlook's Advanced Search
+/// writes it, or one side of a range, `>=A`, `<=B`, `>A`, `<B`.
+fn received(v: &str) -> Option<Kind> {
+    use Bound::{Excluded, Included, Unbounded};
+    let (first, last) = if let Some((a, b)) = v.split_once("..") {
+        (Included(parse_date(a)?), Included(parse_date(b)?))
+    } else if let Some(a) = v.strip_prefix(">=") {
+        (Included(parse_date(a)?), Unbounded)
+    } else if let Some(b) = v.strip_prefix("<=") {
+        (Unbounded, Included(parse_date(b)?))
+    } else if let Some(a) = v.strip_prefix('>') {
+        (Excluded(parse_date(a)?), Unbounded)
+    } else if let Some(b) = v.strip_prefix('<') {
+        (Unbounded, Excluded(parse_date(b)?))
+    } else {
+        let d = parse_date(v)?;
+        (Included(d), Included(d))
+    };
+    Some(Kind::Received(first, last))
 }
 
 /// The keywords the search box knows (what comes before a `:`), in small letters.
@@ -770,6 +804,8 @@ impl Query {
     /// for, before its `-`; a word index's answer) in place of looking at `m`; `None`: look.
     pub fn matches_with(&self, m: &Message, offset_minutes: i32, known: impl Fn(usize) -> Option<bool>) -> bool {
         let day = || DateTime::from_timestamp(m.date, offset_minutes).date;
+        // When it came in; a message that doesn't say is taken to have come in when it was sent.
+        let received = || DateTime::from_timestamp(if m.received != 0 { m.received } else { m.date }, offset_minutes).date;
         self.terms.iter().enumerate().all(|(i, t)| {
             let hit = known(i).unwrap_or_else(|| match &t.kind {
                 Kind::Words { fields, words, .. } => {
@@ -788,6 +824,7 @@ impl Query {
                 Kind::Before(d) => day() < *d,
                 Kind::After(d) => day() > *d,
                 Kind::On(d) => day() == *d,
+                Kind::Received(first, last) => (*first, *last).contains(&received()),
             });
             hit != t.negate
         })
