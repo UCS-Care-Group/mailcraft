@@ -441,21 +441,17 @@ fn what_is_kept_stays_when_a_click_comes_after_a_change() {
 }
 
 #[test]
-fn a_message_selected_before_the_flagged_tab_was_shown_is_let_go_of() {
+fn a_message_selected_before_the_flagged_tab_was_shown_stays_in_it() {
     let mut s = Session::at(sample::mailbox(now(), 0), now(), 0);
     run(&mut s, "folder.select", json!({"kind": "inbox"}));
     let all = ids(&mut s);
     run(&mut s, "mail.flag", json!({"ids": [all[0], all[1], all[2]]}));
-    // Opened in the All tab, then the Flagged tab, which lists it: another list, which nothing
-    // selected in the first is taken into (#485).
+    // Opened in the All tab, then the Flagged tab, where it is listed with the focus.
     run(&mut s, "mail.select", json!({"id": all[1]}));
     run(&mut s, "view.filter", json!({"value": "flagged"}));
-    assert!(s.sel.messages.is_empty());
     let listed = ids(&mut s);
     let at = listed.iter().position(|id| *id == all[1]).unwrap();
     assert!(at + 1 < listed.len(), "{listed:?}");
-    // Opened there, it stays when its flag is cleared, and Down goes on from it.
-    run(&mut s, "mail.select", json!({"id": all[1]}));
     run(&mut s, "mail.clearFlag", json!({}));
     assert_eq!(ids(&mut s), listed);
     run(&mut s, "mail.next", json!({}));
@@ -463,14 +459,14 @@ fn a_message_selected_before_the_flagged_tab_was_shown_is_let_go_of() {
 }
 
 #[test]
-fn messages_selected_before_the_unread_tab_was_shown_are_let_go_of() {
+fn messages_selected_before_the_unread_tab_was_shown_stay_in_it() {
     let (mut s, listed) = unread_tab();
     let (a, b) = (listed[0], listed[1]);
     run(&mut s, "view.filter", json!({"value": "all"}));
     run(&mut s, "mail.select", json!({"ids": [a, b]}));
-    // Listed in the Unread tab too, but selected in another list (#485).
     run(&mut s, "view.filter", json!({"value": "unread"}));
-    assert!(s.sel.messages.is_empty());
+    assert_eq!(ids(&mut s), listed);
+    run(&mut s, "mail.markRead", json!({}));
     assert_eq!(ids(&mut s), listed);
 }
 
@@ -659,7 +655,7 @@ fn another_tab_and_back_starts_the_list_afresh() {
     run(&mut s, "mail.select", json!({"id": listed[1]}));
     run(&mut s, "view.filter", json!({"value": "all"}));
     run(&mut s, "view.filter", json!({"value": "unread"}));
-    // Each tab is another list: nothing selected comes with (#485).
+    // Read now, so the Unread tab doesn't show it: it isn't selected there (#485).
     assert!(s.sel.messages.is_empty());
     assert!(!ids(&mut s).contains(&listed[1]));
 }

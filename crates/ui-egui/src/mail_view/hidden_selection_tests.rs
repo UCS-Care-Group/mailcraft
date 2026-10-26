@@ -132,3 +132,42 @@ fn a_message_opened_from_its_alert_is_in_the_all_tab() {
     crate::alerts::open(w.state_mut(), &ctx, crate::alerts::Opens::Message { message: unread, folder: inbox });
     opened_in_the_all_tab(&mut w, unread);
 }
+
+/// Clicks the item `kind` `id` and lets the window draw what comes of it.
+fn click_on(w: &mut testing::Window, kind: &str, id: u64) {
+    let pos = w.state().hit.rect(kind, id).unwrap().center();
+    testing::click(w, pos, PointerButton::Primary, 1);
+    w.run_steps(3);
+}
+
+/// Another list that shows what is selected keeps it selected, in the list and in the reading pane.
+fn still_selected(w: &mut testing::Window, id: Id) {
+    assert_eq!(w.state().session.sel.messages, vec![id]);
+    assert!(drawn(w).contains(&id), "{id} is in the list");
+}
+
+#[test]
+fn closing_a_search_keeps_the_hit_selected() {
+    let mut w = testing::window("view.mail");
+    w.state_mut().execute("ui.dismissReminder", json!({"all": true})).unwrap();
+    w.state_mut().execute("folder.select", json!({"kind": "inbox"})).unwrap();
+    w.state_mut().execute("view.search", json!({"query": "e"})).unwrap();
+    w.run_steps(3);
+    let hit = drawn(&mut w)[0];
+    click_on(&mut w, "message", hit);
+    still_selected(&mut w, hit);
+    click_on(&mut w, "searchBarClose", 0);
+    assert!(w.state().session.view.search.is_empty());
+    still_selected(&mut w, hit);
+}
+
+#[test]
+fn the_all_tab_keeps_what_was_selected_in_the_unread_tab() {
+    let mut w = testing::window("view.mail");
+    let (_, unread) = unread_tab(&mut w);
+    click_on(&mut w, "message", unread);
+    still_selected(&mut w, unread);
+    click_on(&mut w, "listTab", 0);
+    assert_eq!(w.state().session.view.filter, mailcraft_engine::Filter::All);
+    still_selected(&mut w, unread);
+}

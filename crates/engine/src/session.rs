@@ -487,6 +487,22 @@ impl Selection {
         self.anchor_row = None;
         self.stays = None;
     }
+
+    /// Of the selected messages, only `ids` stay selected, and the rows of the focus and of a
+    /// range's start with them.
+    fn keep_only(&mut self, ids: &HashSet<Id>) {
+        self.messages.retain(|id| ids.contains(id));
+        self.focus_row = self.focus_row.filter(|(id, _)| ids.contains(id));
+        self.anchor_row = self.anchor_row.filter(|(id, _)| ids.contains(id));
+    }
+
+    /// The messages `other` has selected, with the rows and the list they have there.
+    fn messages_of(&mut self, other: &Selection) {
+        self.messages = other.messages.clone();
+        self.focus_row = other.focus_row;
+        self.anchor_row = other.anchor_row;
+        self.stays = other.stays.clone();
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -771,6 +787,9 @@ pub(crate) struct Undo {
     touched: crate::undo::Touched,
     sel: Selection,
     folder: Id,
+    /// Whether the step changed mail (a message, a folder), and not only tasks, the calendar or
+    /// the like: only then does undoing it select again what it had selected (#485).
+    mail: bool,
 }
 
 pub struct Session {
@@ -868,9 +887,6 @@ pub struct Session {
     /// (its Undo step, and what a failed command goes back to) has them as they are now. Bringing
     /// content in is not a change to the mailbox.
     swaps: Option<Swaps>,
-    /// While a command runs: whether it chose what is selected and showed it ([`Session::show_selected`]),
-    /// so that the list it went to keeps it, though it may be what was selected before (#485).
-    chose_selection: bool,
     /// Since a search that reads bodies brought them in: the query, and whether each message
     /// whose body was let go of since matched it ([`Session::load_bodies_for_search`]). Kept
     /// while the list stays as it was searched (`searched_for`), so that a result opened, whose
@@ -979,7 +995,6 @@ impl Session {
             resident_bytes: 0,
             display_failed: std::collections::HashSet::new(),
             swaps: None,
-            chose_selection: false,
             search_pass: None,
             searched_for: None,
             index_words: false,
@@ -1211,7 +1226,22 @@ impl Session {
             self.select_in_view();
         }
         self.keep_clicked();
-        self.chose_selection = true;
+    }
+
+    /// Another list is in view: of what was selected, only what it shows stays selected (#485),
+    /// and stays in it while it is selected (#428).
+    fn keep_shown(&mut self) {
+        if self.sel.messages.is_empty() {
+            return;
+        }
+        let selection = self.sel.messages.clone();
+        let shown = self.in_list(&selection);
+        if shown.is_empty() {
+            self.sel.clear_messages();
+            return;
+        }
+        self.sel.keep_only(&shown);
+        self.sel.stays = Some(Arc::new(Stays::of(shown, &self.sel.messages, &self.view)));
     }
 
     /// The list shows the whole folder in view: the All tab, and no search.
@@ -1909,7 +1939,7 @@ impl Session {
     // ---- undo ----
 
     fn snapshot(&self, label: &'static str) -> Undo {
-        Undo { label, mailbox: self.mailbox.clone(), touched: Default::default(), sel: self.sel.clone(), folder: self.view.folder }
+        Undo { label, mailbox: self.mailbox.clone(), touched: Default::default(), sel: self.sel.clone(), folder: self.view.folder, mail: false }
     }
 
     pub fn can_undo(&self) -> bool {
@@ -1953,13 +1983,20 @@ impl Session {
         self.undo_said = said;
         // Where each message is, is looked at afresh.
         self.graph_index = Default::default();
-        let cur = Undo { label: u.label, mailbox: now, touched, sel: std::mem::replace(&mut self.sel, u.sel), folder: self.view.folder };
-        self.view.folder = u.folder;
+        let mail = u.mail;
+        let cur = Undo { label: u.label, mailbox: now, touched, sel: std::mem::replace(&mut self.sel, u.sel), folder: self.view.folder, mail };
         self.rev += 1;
         self.restored = self.restored.wrapping_add(1);
         self.dirty = true;
-        // What it selects again is in the list (#485), in its folder when that isn't the one in view.
-        self.show_selected();
+        if mail {
+            self.view.folder = u.folder;
+            // What it selects again is in the list (#485), in its folder when that isn't the one in view.
+            self.show_selected();
+        } else {
+            // A step that changed no mail (a task, an appointment) leaves the message list as it
+            // is, and what is selected in it (#485).
+            self.sel.messages_of(&cur.sel);
+        }
         self.normalize();
         cur
     }
@@ -2052,9 +2089,7 @@ impl Session {
         let run = spec.run;
         // Last-resort guard (never-crash): a panic in a command becomes an error and the state is restored.
         let outer = self.swaps.replace(Swaps::default());
-        let outer_chose = std::mem::take(&mut self.chose_selection);
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| run(self, params)));
-        let chose_selection = std::mem::replace(&mut self.chose_selection, outer_chose);
         // Content the command brought in or let go of is in the state it started from too: it
         // is no change to undo, and a command that fails keeps it (and what is counted of it).
         let swaps = std::mem::replace(&mut self.swaps, outer).unwrap_or_default();
@@ -2086,14 +2121,10 @@ impl Session {
         };
         match &result {
             Ok(_) => {
-                // Another list (a folder, a tab, a search) is a place of its own: what was selected
-                // in the one left isn't taken into it (#485), unless the command chose what is
-                // selected there (a message opened in its folder, Undo).
-                if !chose_selection && self.sel.messages == before.sel.messages && ListOf::of(&view) != ListOf::of(&self.view) {
-                    self.sel.clear_messages();
+                // Another list (a folder, a tab, a search) keeps selected only what it shows (#485).
+                if ListOf::of(&view) != ListOf::of(&self.view) {
+                    self.keep_shown();
                 }
-                // A command run by another chose for that one too.
-                self.chose_selection |= chose_selection;
                 // The working hours of an account just removed go with it (#325): here, once
                 // nothing can turn the removal back, as preferences aren't put back with the mailbox.
                 if wipes_history(id) {
@@ -2112,6 +2143,7 @@ impl Session {
                         self.dirty = true;
                         let mut before = before;
                         before.touched = crate::undo::touched(&before.mailbox, &self.mailbox);
+                        before.mail = before.mailbox.messages != self.mailbox.messages || before.mailbox.folders != self.mailbox.folders;
                         self.history.push(before);
                         if self.history.len() > MAX_HISTORY {
                             self.history.remove(0);

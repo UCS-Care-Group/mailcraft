@@ -94,7 +94,7 @@ fn read_one_selected() -> (Session, Id) {
 }
 
 #[test]
-fn another_tab_search_or_find_lets_the_selection_go_and_an_order_keeps_it() {
+fn another_tab_or_search_keeps_selected_what_it_shows_and_an_order_keeps_it() {
     // Another order or grouping is the same list: what is selected stays.
     let (mut s, read) = read_one_selected();
     run(&mut s, "view.sort", json!({"by": "from"}));
@@ -108,32 +108,103 @@ fn another_tab_search_or_find_lets_the_selection_go_and_an_order_keeps_it() {
     run(&mut s, "view.search", json!({"query": "e "}));
     assert_eq!(s.sel.messages.len(), 1);
 
-    // Each of these goes to another list, and nothing selected comes with, though it may be in it.
-    let leaving: [(&str, Value); 6] = [
-        ("view.filter", json!({"value": "flagged"})),
-        ("view.search", json!({"query": "a"})),
-        ("view.search", json!({"query": "a", "scope": "everywhere"})),
-        ("mail.findRelated", json!({})),
-        ("mail.findFromSender", json!({})),
-        ("view.reset", json!({})),
-    ];
-    for (id, params) in leaving {
-        let (mut s, _) = read_one_selected();
-        if id == "view.reset" {
-            run(&mut s, "view.filter", json!({"value": "unread"}));
-            let unread = shown(&mut s)[0];
-            run(&mut s, "mail.select", json!({"id": unread}));
-        }
-        run(&mut s, id, params.clone());
-        assert!(s.sel.messages.is_empty(), "{id} {params}: {:?}", s.sel.messages);
-        assert!(s.sel.stays.is_none() && s.sel.focus_row.is_none() && s.sel.anchor_row.is_none(), "{id} {params}");
-    }
-    // So does clearing a search.
+    // Another tab, search or find that shows what is selected keeps it selected: Close Search,
+    // the hit being in the folder.
     let (mut s, _) = read_one_selected();
     run(&mut s, "view.search", json!({"query": "e"}));
     let found = shown(&mut s)[0];
     run(&mut s, "mail.select", json!({"id": found}));
     run(&mut s, "view.clearSearch", json!({}));
+    assert_eq!(s.sel.messages, [found]);
+    assert!(shown(&mut s).contains(&found));
+    // One more letter, the search finding it still.
+    let word: String = s.mailbox.message(found).unwrap().subject.split_whitespace().next().unwrap().to_string();
+    let less: String = word.chars().take(word.chars().count() - 1).collect();
+    run(&mut s, "view.search", json!({"query": less}));
+    run(&mut s, "view.search", json!({"query": word}));
+    assert_eq!(s.sel.messages, [found]);
+    assert!(shown(&mut s).contains(&found));
+    // The Unread tab, then All: read now, and listed there.
+    let mut s = Session::at(sample::mailbox(now(), 0), now(), 0);
+    run(&mut s, "folder.select", json!({"kind": "inbox"}));
+    run(&mut s, "view.filter", json!({"value": "unread"}));
+    let unread = shown(&mut s)[0];
+    run(&mut s, "mail.select", json!({"id": unread}));
+    run(&mut s, "view.filter", json!({"value": "all"}));
+    assert_eq!(s.sel.messages, [unread]);
+    // Find Related, Messages from Sender and Reset View find it too.
+    for id in ["mail.findRelated", "mail.findFromSender", "view.reset"] {
+        let (mut s, read) = read_one_selected();
+        run(&mut s, id, json!({}));
+        assert_eq!(s.sel.messages, [read], "{id}");
+        assert!(shown(&mut s).contains(&read), "{id}");
+    }
+
+    // One that doesn't show it lets it go, with its rows and what kept it.
+    let leaving: [(&str, Value); 4] = [
+        ("view.filter", json!({"value": "unread"})),
+        ("view.filter", json!({"value": "flagged"})),
+        ("view.search", json!({"query": "zzzz"})),
+        ("view.search", json!({"query": "zzzz", "scope": "everywhere"})),
+    ];
+    for (id, params) in leaving {
+        let (mut s, read) = read_one_selected();
+        run(&mut s, id, params.clone());
+        assert!(s.sel.messages.is_empty(), "{id} {params}: {:?}", s.sel.messages);
+        assert!(s.sel.stays.is_none() && s.sel.focus_row.is_none() && s.sel.anchor_row.is_none(), "{id} {params}");
+        assert!(!shown(&mut s).contains(&read), "{id} {params}");
+    }
+
+    // Of several selected, those it shows stay, and Delete takes only them.
+    let (mut s, read) = read_one_selected();
+    let unread = s.rows().iter().find(|r| r.unread > 0).map(|r| r.id).unwrap();
+    run(&mut s, "mail.select", json!({"ids": [read, unread]}));
+    run(&mut s, "view.filter", json!({"value": "unread"}));
+    assert_eq!(s.sel.messages, [unread]);
+    run(&mut s, "mail.delete", json!({}));
+    assert_eq!(s.mailbox.message(unread).unwrap().folder, folder(&s, FolderKind::Deleted));
+    assert_eq!(s.mailbox.message(read).unwrap().folder, folder(&s, FolderKind::Inbox));
+}
+
+#[test]
+fn an_older_message_of_a_conversation_stays_selected_where_its_row_is_shown() {
+    let mut s = Session::at(sample::mailbox(now(), 0), now(), 0);
+    run(&mut s, "folder.select", json!({"kind": "inbox"}));
+    run(&mut s, "view.conversations", json!({"value": true}));
+    let row = s.rows().iter().find(|r| r.members.len() > 1).cloned().unwrap();
+    let older = row.members[1];
+    run(&mut s, "mail.select", json!({"id": older}));
+    // A search that finds the conversation: its row shows the newer message, and the older one,
+    // which it stands for too, stays selected.
+    let word: String = s.mailbox.message(older).unwrap().topic().split_whitespace().last().unwrap().to_string();
+    run(&mut s, "view.search", json!({"query": word}));
+    let rows = s.rows();
+    let found = rows.iter().find(|r| r.members.contains(&older)).unwrap();
+    assert_eq!(found.id, row.id);
+    assert_eq!(s.sel.messages, [older]);
+    // And Close Search.
+    run(&mut s, "view.clearSearch", json!({}));
+    assert_eq!(s.sel.messages, [older]);
+}
+
+#[test]
+fn undo_of_a_step_that_changed_no_mail_leaves_the_message_list_as_it_is() {
+    let (mut s, read) = read_one_selected();
+    let task = run(&mut s, "tasks.new", json!({"title": "Pay the invoice"}))["id"].as_u64().unwrap();
+    // The Flagged tab and a search of another folder, with nothing selected: undoing the task
+    // takes it back, and the list and its selection stay as they are.
+    run(&mut s, "folder.select", json!({"kind": "sent"}));
+    run(&mut s, "view.filter", json!({"value": "flagged"}));
+    run(&mut s, "view.search", json!({"query": "e"}));
+    assert!(s.sel.messages.is_empty());
+    let view = (s.view.folder, s.view.filter, s.view.search.clone());
+    run(&mut s, "edit.undo", json!({}));
+    assert!(s.mailbox.task(task).is_none());
+    assert_eq!((s.view.folder, s.view.filter, s.view.search.clone()), view);
+    assert!(s.sel.messages.is_empty(), "{read} isn't selected again");
+    run(&mut s, "edit.redo", json!({}));
+    assert!(s.mailbox.task(task).is_some());
+    assert_eq!((s.view.folder, s.view.filter, s.view.search.clone()), view);
     assert!(s.sel.messages.is_empty());
 }
 
