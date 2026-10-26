@@ -36,6 +36,8 @@
 //! turn that off for the computer from the start, and `{"host": {"updates": "didntStart 0.4.2"}}`
 //! has the running version be one newly installed that didn't start twice running, with 0.4.2
 //! kept to go back to.
+//! `{"host": {"tasksWork": true}}` has every Microsoft account's To Do work, so that the window
+//! asks whether the tasks that exist only here are to be sent to it (#248).
 //! And a Graph job (`{"host": {"graph": …}}`): `"consent"` (Microsoft wants the owner's
 //! permission first), `"refused"` (it refused the sign-in) or `"sendConsent"` (a shared
 //! mailbox's mail waits for permission to send from shared mailboxes, #70), `"opened"` (the
@@ -635,6 +637,10 @@ fn main() {
                 host.told(said);
                 // In front or not, for desktop alerts about new mail.
                 harness.input_mut().focused = !host.unfocused;
+            }
+            // Every Microsoft account's To Do works (the question about the local tasks follows).
+            if said.get("tasksWork").is_some() {
+                harness.state_mut().stand_in_tasks_work();
             }
             // A search on the server is asked with a token of this session (invented).
             if said.get("serverSearch").is_some() {

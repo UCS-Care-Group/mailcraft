@@ -259,26 +259,36 @@ fn dial(host: &str, port: u16, loopback_only: bool, connect: Duration, io: Durat
         .filter(|a| !loopback_only || a.ip().is_loopback())
         .take(MAX_ADDRESSES)
         .collect();
+    let tcp = connect_first(&addresses, connect).map_err(failed)?;
     // No time at all would mean "wait for ever".
     let io = Some(io.max(Duration::from_millis(1)));
+    // Without timeouts a silent server would hang the thread: no connection then.
+    let ready = tcp.set_read_timeout(io).and_then(|()| tcp.set_write_timeout(io));
+    if ready.is_err() {
+        return Err(failed("the connection couldn't be set up"));
+    }
+    let _ = tcp.set_nodelay(true);
+    Ok(tcp)
+}
+
+/// A TCP connection to the first of `addresses` that answers, all of them within `connect`, or why
+/// there is none. Each address gets an equal share of the time left, so one that never answers
+/// (an IPv6 address that goes nowhere, say) can't keep the next from being tried, and one that
+/// fails at once hands its time on.
+fn connect_first(addresses: &[SocketAddr], connect: Duration) -> Result<TcpStream, &'static str> {
     let deadline = Instant::now() + connect;
     let mut reason = "no address was found for the name";
-    for address in &addresses {
+    for (tried, address) in addresses.iter().enumerate() {
         let left = deadline.saturating_duration_since(Instant::now());
         if left.is_zero() {
             reason = "the server didn't answer";
             break;
         }
-        match TcpStream::connect_timeout(address, left) {
-            Ok(tcp) => {
-                // Without timeouts a silent server would hang the thread: no connection then.
-                let ready = tcp.set_read_timeout(io).and_then(|()| tcp.set_write_timeout(io));
-                if ready.is_err() {
-                    return Err(failed("the connection couldn't be set up"));
-                }
-                let _ = tcp.set_nodelay(true);
-                return Ok(tcp);
-            }
+        let to_try = u32::try_from(addresses.len().saturating_sub(tried)).unwrap_or(u32::MAX).max(1);
+        // No time at all would be refused rather than tried.
+        let share = (left / to_try).max(Duration::from_millis(1));
+        match TcpStream::connect_timeout(address, share) {
+            Ok(tcp) => return Ok(tcp),
             Err(e) => {
                 reason = match e.kind() {
                     ErrorKind::ConnectionRefused => "the server refused the connection",
@@ -288,7 +298,7 @@ fn dial(host: &str, port: u16, loopback_only: bool, connect: Duration, io: Durat
             }
         }
     }
-    Err(failed(reason))
+    Err(reason)
 }
 
 /// The TLS settings every connection shares: certificates must chain to one of Mozilla's roots
@@ -348,6 +358,10 @@ fn handshake_problem(e: &std::io::Error) -> String {
         _ => e.to_string().chars().filter(|c| !c.is_control()).take(200).collect(),
     }
 }
+
+#[cfg(test)]
+#[path = "transport_dial_tests.rs"]
+mod dial_tests;
 
 #[cfg(test)]
 mod tests {

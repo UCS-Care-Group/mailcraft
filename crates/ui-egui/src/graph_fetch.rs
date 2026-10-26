@@ -44,10 +44,12 @@ pub struct GraphFetchJob {
 /// The state of fetching, in the window.
 #[derive(Default)]
 pub struct Fetching {
-    /// The background's batch under way, for which account.
-    background: Option<(Id, Receiver<GraphFetchResult>)>,
-    /// The owner's message under way: which one, and the answer to come.
-    now: Option<(Id, Receiver<GraphFetchResult>)>,
+    /// The background's batch under way: for which account, under which opening of the mailbox
+    /// ([`mailcraft_engine::Session::openings`]), and the answer to come.
+    background: Option<(Id, u64, Receiver<GraphFetchResult>)>,
+    /// The owner's message under way: which one, under which opening, what calls it off, and the
+    /// answer to come.
+    now: Option<(Id, u64, Arc<AtomicBool>, Receiver<GraphFetchResult>)>,
     /// What waits for that message: a command, its params, and the mailbox opening it was asked
     /// under ([`mailcraft_engine::Session::openings`]).
     then: Option<(String, Value, u64)>,
@@ -78,7 +80,21 @@ impl Fetching {
 
     /// Whether `message` is being fetched for the owner now.
     pub fn fetching(&self, message: Id) -> bool {
-        self.now.as_ref().is_some_and(|(m, _)| *m == message)
+        self.now.as_ref().is_some_and(|(m, ..)| *m == message)
+    }
+
+    /// Another mailbox took the place of the one these were for: what is under way is called off,
+    /// its answers are no longer listened to, and the next mailbox starts afresh. (A command that
+    /// waited for one of them knows its own mailbox, and doesn't run in another.)
+    pub(crate) fn forget(&mut self) {
+        self.cancel.store(true, Ordering::Relaxed);
+        if let Some((_, _, cancel, _)) = self.now.take() {
+            cancel.store(true, Ordering::Relaxed);
+        }
+        (self.background, self.opened) = (None, None);
+        self.stuck.clear();
+        self.progress.clear();
+        (self.idle_until, self.offline) = (0.0, false);
     }
 }
 
@@ -123,7 +139,8 @@ enum Way {
 fn way(app: &MailApp, account: Id) -> Option<Way> {
     match app.session.mailbox.account(account)?.kind {
         AccountKind::Microsoft if app.services.graph_fetch.is_some() => access(app, account).map(Way::Graph),
-        AccountKind::Jmap if app.services.jmap_fetch.is_some() => app.jmap_secret(account).map(Way::Jmap),
+        // (Not with a credential its server turned down: the next Send/Receive the owner asks for first.)
+        AccountKind::Jmap if app.services.jmap_fetch.is_some() && !app.jmap_refused.contains(&account) => app.jmap_secret(account).map(Way::Jmap),
         _ => None,
     }
 }
@@ -153,6 +170,9 @@ impl MailApp {
         let message = needs_whole(self, id, params)?;
         let account = self.session.mailbox.message(message)?.account;
         if !self.fetch_now(account, message) {
+            if self.jmap_refused.contains(&account) {
+                return Some(Err(tl!("The server turned down the sign-in for this account. Use Send/Receive to sign in again.").to_string()));
+            }
             return Some(Err(tl!("This message isn't on this computer yet. It will download when you're online.").to_string()));
         }
         // Named, for the selection may have moved on by the time it is here. An `id` the call
@@ -175,8 +195,9 @@ impl MailApp {
             self.fetching.offline = true;
             return false;
         };
-        let Some(answer) = self.hand_over(account, way, Some(message), 1, Arc::new(AtomicBool::new(false))) else { return false };
-        self.fetching.now = Some((message, answer));
+        let cancel = Arc::new(AtomicBool::new(false));
+        let Some(answer) = self.hand_over(account, way, Some(message), 1, cancel.clone()) else { return false };
+        self.fetching.now = Some((message, self.session.openings(), cancel, answer));
         true
     }
 
@@ -233,7 +254,7 @@ impl MailApp {
             let cancel = Arc::new(AtomicBool::new(false));
             let Some(answer) = self.hand_over(account, way, None, BATCH, cancel.clone()) else { continue };
             self.fetching.cancel = cancel;
-            self.fetching.background = Some((account, answer));
+            self.fetching.background = Some((account, self.session.openings(), answer));
             return;
         }
         self.fetching.idle_until = now_ms() + IDLE_MS;
@@ -241,14 +262,19 @@ impl MailApp {
     }
 
     fn poll_fetch_now(&mut self) {
-        let Some((message, rx)) = &self.fetching.now else { return };
-        let message = *message;
+        let Some((message, opening, _, rx)) = &self.fetching.now else { return };
+        let (message, opening) = (*message, *opening);
         let result = match rx.try_recv() {
             Ok(result) => result,
             Err(std::sync::mpsc::TryRecvError::Empty) => return,
             Err(std::sync::mpsc::TryRecvError::Disconnected) => GraphFetchResult { offline: true, ..Default::default() },
         };
         self.fetching.now = None;
+        // Asked for in a mailbox that another has taken the place of: it is nobody's here (nor is
+        // a command that waits for it, below).
+        if opening != self.session.openings() {
+            return;
+        }
         self.fetching.offline = result.offline;
         let account = result.account;
         if account != 0
@@ -272,16 +298,22 @@ impl MailApp {
     }
 
     fn poll_fetch_background(&mut self) {
-        let Some((account, rx)) = &self.fetching.background else { return };
-        let account = *account;
+        let Some((account, opening, rx)) = &self.fetching.background else { return };
+        let (account, opening) = (*account, *opening);
         let result = match rx.try_recv() {
             Ok(result) => result,
             Err(std::sync::mpsc::TryRecvError::Empty) => return,
             Err(std::sync::mpsc::TryRecvError::Disconnected) => GraphFetchResult { account, offline: true, ..Default::default() },
         };
         self.fetching.background = None;
+        // Asked for in a mailbox that another has taken the place of: it is nobody's here.
+        if opening != self.session.openings() {
+            return;
+        }
         self.fetching.offline = result.offline;
-        let stuck = result.offline || result.busy_for.is_some() || (result.fetched.is_empty() && !result.errors.is_empty());
+        // (Stopped by the owner, it is no server's doing: nothing to wait out.)
+        let stuck = !self.session.sync_progress.full_paused
+            && (result.offline || result.busy_for.is_some() || (result.fetched.is_empty() && !result.errors.is_empty()));
         if stuck {
             // Not now: this account is tried again in a while, longer each time it stops again
             // (a Send/Receive renews the token too, and starts the waits afresh); the others go on.
@@ -320,7 +352,8 @@ impl MailApp {
         }
     }
 
-    /// Cancel: the background stops after the message in hand, until the next Send/Receive.
+    /// Cancel: the background stops after the message in hand (at once where the host calls the
+    /// exchange under way off, as the browser's does), until the next Send/Receive.
     pub(crate) fn pause_fetch(&mut self) {
         self.session.sync_progress.full_paused = true;
         self.fetching.cancel.store(true, Ordering::Relaxed);

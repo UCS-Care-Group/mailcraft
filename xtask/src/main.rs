@@ -11,6 +11,7 @@ mod icon;
 mod layers;
 mod parity;
 mod release_key;
+mod release_notes;
 mod spdx;
 mod stats;
 mod test_files;
@@ -29,7 +30,8 @@ commands:
   layers          enforce the crate dependency layering (docs/architecture.md)
   wasm            cargo check --target wasm32-unknown-unknown for the wasm-safe crates
   deny            cargo deny check (advisories, licences, bans, sources; see deny.toml)
-  ci              fmt --check, clippy -D warnings, test, assets, spdx, test-files, layers, wasm, deny, i18n --check
+  ci              fmt --check, clippy -D warnings, test, assets, spdx, test-files, layers, wasm, deny, i18n --check,
+                  release-notes (the fragments join)
                   (stops at first failure)
   stats [--exact] count tests and lines per crate (--exact: ask the test harness via `-- --list`)
   i18n [--check]  gather the interface's English into crates/i18n/po/messages.pot and merge it into
@@ -39,6 +41,9 @@ commands:
                   pack square PNGs (<= 256 px) into a Windows .ico (see packaging/icons.sh)
   icon            draw the app icon (original artwork, in code) into assets/app-icon
   version [...]   show or set the workspace version
+  release-notes [--write]
+                  print the release notes with the fragments in packaging/release-notes.d/ joined in;
+                  --write (before tagging) joins them into packaging/release-notes.md and removes them
   release-key new <dir>
                   make the two release keys (in use, spare): private keys into <dir>, public keys printed
   release-key sign <file>
@@ -62,6 +67,7 @@ fn main() -> ExitCode {
         Some("ico") => ico::run(&rest),
         Some("icon") => icon::run(&root()),
         Some("version") => version::run(&root(), &rest),
+        Some("release-notes") => release_notes::run(&root(), rest.contains(&"--write")),
         Some("release-key") => release_key::run(&rest),
         Some("-h" | "--help" | "help") | None => {
             print!("{USAGE}");
@@ -223,6 +229,7 @@ fn cmd_ci() -> Result<(), String> {
         ("wasm", Box::new(cmd_wasm)),
         ("deny", Box::new(cmd_deny)),
         ("i18n", Box::new(|| i18n::run(&root(), true))),
+        ("release-notes", Box::new(|| release_notes::check(&root()))),
     ];
     // `XTASK_CI_SKIP=clippy,wasm`: steps another runner covers (CI runs them on Linux only).
     let skip = std::env::var("XTASK_CI_SKIP").unwrap_or_default();

@@ -99,6 +99,7 @@ impl MailApp {
             with: Value::Null,
             more: Vec::new(),
             note: None,
+            cancel: None,
         };
         self.shared_calendar_perm.insert(shared, Permission::Asking);
         self.dialog = Some(Dialog::Confirm { command: "ui.allowSharedCalendars".to_string(), params: json!({"account": shared}), ask });

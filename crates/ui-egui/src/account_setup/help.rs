@@ -50,6 +50,9 @@ const ENDED_HELP: &str =
     "Your organisation then lets only an administrator approve a new program. Nothing is wrong with your account or your password.";
 const DECLINED_HELP: &str = "You came back from Microsoft's page without having signed in: you said no there, or the page sent you back.";
 const TIMED_OUT_HELP: &str = "The page was closed, or five minutes went by before the sign-in was finished.";
+/// Said while the browser has the sign-in: some systems can't tell the program that no browser
+/// could be started.
+const NO_BROWSER_OPENED: &str = "If no browser opened, check that this computer has a default browser (on Windows: Settings, Apps, Default apps), then press Open the page again.";
 const NO_BROWSER_HELP: &str = "Signing in happens on Microsoft's page in a web browser, and none could be started on this computer. Check that it has a default browser, then try again.";
 
 impl AccountSetup {
@@ -272,6 +275,8 @@ impl AccountSetup {
                 ui.label(RichText::new(open).font(medium(13.5)).color(t.text));
                 let then = fmt(tl!("Sign in there as {address}. This window carries on by itself once you have."), &[("address", &who)]);
                 ui.label(RichText::new(then).color(t.text_dim));
+                // Windows' opener can't say that no browser was started, so this is said always.
+                ui.label(RichText::new(tl!(NO_BROWSER_OPENED)).color(t.text_dim));
             });
             ui.add_space(8.0);
             rule(ui, &t);

@@ -60,6 +60,9 @@ pub mod signature;
 mod signature_tests;
 pub mod sync_progress;
 pub mod tasks;
+pub mod tasks_remote;
+#[cfg(test)]
+mod tasks_remote_tests;
 pub mod view;
 #[cfg(test)]
 mod wipe_tests;
@@ -101,6 +104,7 @@ pub fn registry() -> Registry {
     v.extend(graph_switch::specs());
     v.extend(graph_send::specs());
     v.extend(remote::specs());
+    v.extend(tasks_remote::specs());
     v.extend(sync_progress::specs());
     v.extend(search_server::specs());
     Registry::new(v)

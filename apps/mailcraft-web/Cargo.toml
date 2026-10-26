@@ -18,7 +18,10 @@ mailcraft-engine = { workspace = true }
 mailcraft-ui-egui = { workspace = true }
 mailcraft-model = { workspace = true }
 mailcraft-html = { workspace = true }
+mailcraft-link = { workspace = true }
 mailcraft-time = { workspace = true }
+# JMAP accounts, over the browser's `fetch` (`src/fetch.rs`, `src/jmap.rs`).
+mailcraft-jmap = { workspace = true }
 egui = { workspace = true }
 log = { workspace = true }
 serde_json = { workspace = true }
@@ -30,4 +33,10 @@ rfd = { workspace = true }
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
 js-sys = "0.3"
-web-sys = { version = "0.3", features = ["Window", "Document", "Element", "HtmlElement", "HtmlCanvasElement", "HtmlAnchorElement", "Blob", "BlobPropertyBag", "Url", "Location", "CssStyleDeclaration", "Storage", "Navigator"] }
+web-sys = { version = "0.3", features = [
+    "Window", "Document", "Element", "HtmlElement", "HtmlCanvasElement", "HtmlAnchorElement", "Blob", "BlobPropertyBag", "Url", "Location",
+    "CssStyleDeclaration", "Storage", "Navigator",
+    # `fetch`, for JMAP (src/fetch.rs).
+    "Headers", "RequestInit", "RequestMode", "RequestCredentials", "RequestCache", "RequestRedirect", "ReferrerPolicy", "Response", "ResponseType",
+    "ReadableStream", "ReadableStreamDefaultReader", "ReadableStreamReadResult", "AbortController", "AbortSignal", "DomException",
+] }

@@ -14,9 +14,14 @@
 //! the owner types when the first run asks for it. It is kept in memory until the app closes, never
 //! by the system's credential store, a file or the browser's storage, and it goes to the server
 //! the account names now: a change of that address forgets it ([`MailApp::secret_key`]). A host
-//! that holds the credential itself ([`crate::Services::jmap_host_credentials`]) is asked with
-//! none. A typed secret the server turns down is forgotten, so that the next Send/Receive asks
-//! again rather than send it once more, and a round by itself leaves the account out until then.
+//! that holds an account's credential itself ([`crate::Services::jmap_host_credentials`]) is
+//! asked with none. A typed secret the server turns down is forgotten, so that the next
+//! Send/Receive asks again rather than send it once more; and after any refusal, the host's
+//! credential too, a round by itself leaves the account out until the owner asks for its
+//! Send/Receive.
+//!
+//! **Work started for one mailbox stays with it**: a run under way when another mailbox takes its
+//! place is called off, and nothing it still brings is taken in.
 //!
 //! **Reading only**: nothing made here goes up yet, so nothing made here calls a run off to go up
 //! first, as it calls off an IMAP or a Graph run.
@@ -54,7 +59,8 @@ impl MailApp {
     /// The secret a job of the JMAP account `account` goes with, when one is at hand: the one
     /// typed this session, or none (empty) when the host holds the credential.
     pub(crate) fn jmap_secret(&self, account: Id) -> Option<String> {
-        if self.services.jmap_host_credentials {
+        let held = self.services.jmap_host_credentials.as_ref().zip(self.session.mailbox.account(account)).is_some_and(|(holds, a)| holds(a));
+        if held {
             return Some(String::new());
         }
         self.passwords.get(&account).cloned()
@@ -65,6 +71,10 @@ impl MailApp {
     pub(crate) fn start_jmap_mail(&mut self, account: Id, quiet: bool, p: &Value) -> Result<Value, String> {
         if let Some(typed) = p.get("password").and_then(Value::as_str).filter(|typed| !typed.is_empty()) {
             self.passwords.insert(account, typed.to_string());
+        }
+        // The owner asked: a credential turned down before is tried again.
+        if !quiet {
+            self.jmap_refused.remove(&account);
         }
         let Some(secret) = self.jmap_secret(account) else {
             self.dialog = dialogs::Dialog::open("password", self, &json!({"account": account}));
@@ -78,7 +88,7 @@ impl MailApp {
         let pieces = run(JmapJob { request, secret, cancel: self.services.sync_cancel.clone() });
         self.sync_refused = false;
         self.sync_run = Some((account, None, false, quiet));
-        self.sync_rx = Some(MailRun::Jmap { account, pieces });
+        self.sync_rx = Some(MailRun::Jmap { account, opening: self.session.openings(), pieces });
         // (Send/Receive Progress: under way from now, the server's mailboxes first.)
         self.session.sync_progress.phase(account, SyncPhase::Folders);
         self.session.sync_status = tl!("Sending and receiving…").to_string();
@@ -90,8 +100,8 @@ impl MailApp {
     /// [`MailApp::poll_sync`].
     pub(crate) fn poll_jmap(&mut self) {
         for _ in 0..4 {
-            let Some(MailRun::Jmap { account, pieces }) = &self.sync_rx else { return };
-            let account = *account;
+            let Some(MailRun::Jmap { account, opening, pieces }) = &self.sync_rx else { return };
+            let (account, opening) = (*account, *opening);
             let piece = match pieces.try_recv() {
                 Ok(piece) => piece,
                 Err(TryRecvError::Empty) => return,
@@ -103,6 +113,18 @@ impl MailApp {
                 }
             };
             let (last, whole) = (!piece.partial, piece.whole);
+            // Another mailbox took the place of the one the run was for: its accounts are other
+            // accounts, whatever their ids and addresses, and what the run brings is nobody's. The
+            // run is called off, and what comes of it until its end is thrown away.
+            if opening != self.session.openings() {
+                self.services.sync_cancel.store(true, Ordering::Relaxed);
+                if last {
+                    (self.sync_rx, self.sync_run, self.sync_refused) = (None, None, false);
+                    self.session.sync_status.clear();
+                    return;
+                }
+                continue;
+            }
             self.sync_refused |= piece.auth_refused;
             // New mail may be waiting to be fetched whole: the background looks again.
             if !piece.pages.is_empty() {
@@ -125,8 +147,10 @@ impl MailApp {
                 self.sync_queue.push_front((whose, quiet));
             }
             if std::mem::take(&mut self.sync_refused) {
-                // Turned down: the next Send/Receive asks for it again.
+                // Turned down: the next Send/Receive asks for it again (the host for its own), and
+                // no round by itself goes back until then.
                 self.passwords.remove(&account);
+                self.jmap_refused.insert(account);
             } else if whole {
                 // And nothing is left of the last run's problems.
                 self.note_sync_problems(account, &[], true);

@@ -143,16 +143,7 @@ pub fn show_message(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Pla
     // Only its headers and a preview are here yet (R3.2): say so, and why.
     if m.unfetched {
         let t = Tokens::get(ui.ctx());
-        let said = if app.fetching.fetching(m.id) {
-            tl!("Downloading the whole message…")
-        } else if app.fetching.offline && !app.session.mailbox.within_window(m, app.session.now()) {
-            // Older than its mail to keep offline (#143): only its headers and preview are kept here.
-            tl!("Not connected: the rest of this message is on the server")
-        } else if app.fetching.offline {
-            tl!("This message isn't on this computer yet. It will download when you're online.")
-        } else {
-            tl!("Only the beginning of this message is here. The rest downloads with the next Send/Receive.")
-        };
+        let said = unfetched_said(app, m);
         egui::Frame::NONE.fill(t.ribbon).inner_margin(egui::Margin { left: 20, right: 20, top: 6, bottom: 6 }).show(ui, |ui| {
             ui.set_width(ui.available_width());
             ui.label(egui::RichText::new(said).font(crate::theme::regular(12.0)).color(t.text_dim));
@@ -186,6 +177,23 @@ pub fn show_message(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Pla
             });
         });
     });
+}
+
+/// What the reading pane says of a message of which only the headers and a preview are here.
+pub(crate) fn unfetched_said(app: &MailApp, m: &Message) -> &'static str {
+    if app.fetching.fetching(m.id) {
+        tl!("Downloading the whole message…")
+    } else if app.jmap_refused.contains(&m.account) {
+        // Its server turned the account's sign-in down: nothing downloads until it is given again.
+        tl!("The server turned down the sign-in for this account. Use Send/Receive to sign in again.")
+    } else if app.fetching.offline && !app.session.mailbox.within_window(m, app.session.now()) {
+        // Older than its mail to keep offline (#143): only its headers and preview are kept here.
+        tl!("Not connected: the rest of this message is on the server")
+    } else if app.fetching.offline {
+        tl!("This message isn't on this computer yet. It will download when you're online.")
+    } else {
+        tl!("Only the beginning of this message is here. The rest downloads with the next Send/Receive.")
+    }
 }
 
 /// Whether `m`'s subject, sender or text holds U+FFFD, the mark a reader leaves for a character

@@ -102,6 +102,9 @@ mod shared_calendars_tests;
 mod shared_mailboxes;
 mod signatures;
 mod sync_panel;
+pub mod task_sync;
+#[cfg(test)]
+mod task_sync_tests;
 pub mod tasks_view;
 pub mod theme;
 pub mod unconfirmed;
@@ -171,6 +174,8 @@ pub struct Services {
     /// Desktop: search a Microsoft mailbox on its server, one page, on a background thread
     /// (R6.2: More results on the server, only on the owner's click).
     pub graph_search: Option<Box<dyn Fn(server_search::GraphSearchJob) -> Receiver<mailcraft_model::sync::GraphSearchResult>>>,
+    /// Keep a Microsoft account's tasks in step with Microsoft To Do (#248; [`task_sync`]).
+    pub graph_tasks: Option<Box<dyn Fn(task_sync::TasksJob) -> Receiver<task_sync::TasksResult>>>,
     /// A host that reaches JMAP servers (over `fetch` in the browser): read an account kept in step
     /// over JMAP (M6) as the job says, as a task of its own: connect to the account's server with
     /// the job's secret, read what the request asks for (`mailcraft_jmap::sync_mail`) and hand the
@@ -181,9 +186,10 @@ pub struct Services {
     /// The same host: fetch messages of a JMAP account whole, as `graph_fetch` does for a Microsoft
     /// account (`mailcraft_jmap::fetch::fetch_messages`).
     pub jmap_fetch: Option<Box<dyn Fn(jmap_mail::JmapFetchJob) -> Receiver<mailcraft_model::sync::GraphFetchResult>>>,
-    /// The host holds the credential of its JMAP accounts itself (a page that signed the owner in):
-    /// the window never asks for a password, and its JMAP jobs go without one.
-    pub jmap_host_credentials: bool,
+    /// Whether the host holds the credential of this JMAP account itself (a page that signed the
+    /// owner in to its server): for such an account the window never asks for a password, and its
+    /// jobs go without one. Absent, or false for an account: the owner types it.
+    pub jmap_host_credentials: Option<Box<dyn Fn(&mailcraft_model::Account) -> bool>>,
     /// Desktop: ask the DNS for a domain's mail exchangers on a background thread (best first),
     /// so account setup can tell whose servers an address at a company's own domain uses. Only
     /// the domain is given, never the mailbox name.
@@ -432,6 +438,10 @@ pub struct SignInRequest {
     /// mailbox's calendar and said go ahead; with `graph` alone, the owner opened a calendar by
     /// address and it is to be read (Open Shared Calendar). One permission, one question.
     pub shared_calendars: bool,
+    /// With `graph`: ask for reading and changing the owner's To Do lists and tasks
+    /// (`Tasks.ReadWrite`, #248) by itself, never with a sign-in of any other kind: a job found
+    /// the sign-in doesn't cover it, and the owner said go ahead.
+    pub tasks: bool,
 }
 
 /// What the host needs to check an account's calendar connection ([`Services::check_calendar`]).
@@ -592,6 +602,8 @@ struct SigningIn {
     /// And for reading other people's calendars (one permission): a shared mailbox's (with
     /// `shared`) or those opened by address (without); read once it is had (#70).
     shared_calendars: bool,
+    /// And for the To Do lists (#248).
+    tasks: bool,
     /// The owner signs in on a page in the browser (no kept token to renew it with).
     browser: bool,
     /// The mailbox opening it was started under ([`Session::openings`]): an answer that comes
@@ -806,6 +818,12 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         "Allow Reading Other People's Calendars",
         "File › Info and File › Open & Export",
         r#"{"account": number (a shared mailbox, or a Microsoft account that opens calendars by address), "confirmed": true} — asks the owner, on Microsoft's page in the browser, to let MailCraft read the calendars of the shared mailboxes he was given access to, and the calendars people share with him that he opens by address (Calendars.ReadWrite.Shared, one permission for both), by itself and never with a sign-in. The window asks first, when the owner ticks a shared mailbox's calendar for the first time, and File › Info and File › Open & Export has "Ask again". Allowed, the calendars of that shared mailbox are read with the next look at the calendar; refused, or when an administrator has to approve first, the window says what to do next. Answers {"pending": "signIn", "account": the account it is opened through}"#,
+    ),
+    (
+        "ui.allowTasks",
+        "Allow Keeping Tasks in Step with Microsoft To Do",
+        "File › Info",
+        r#"{"account": number (a Microsoft account), "confirmed": true} — asks the owner, on Microsoft's page in the browser, to let MailCraft read and change the To Do lists and tasks (Tasks.ReadWrite), by itself: an account that signed in before this was asked is not asked with a sign-in. The window asks first, when a tasks run finds the sign-in doesn't cover it, and File › Info has "Ask again". Allowed, the tasks are kept in step at the next look; refused, or when an administrator has to approve first, the window says what to do next. Answers {"pending": "signIn", "account": number}"#,
     ),
     (
         "ui.allowSharedSend",
@@ -1114,6 +1132,8 @@ pub struct MailApp {
     /// With `shared_next`: that sign-in asks for reading the calendars of shared mailboxes too;
     /// without it, for reading the calendars opened by address (#70).
     shared_calendars_next: bool,
+    tasks_next: bool,
+    pub(crate) tasks: task_sync::TaskSync,
     /// Opening other people's calendars by address (#70).
     open_shared: open_shared::OpenShared,
     /// Where each shared mailbox's calendars stand with the owner's permission for them (#70):
@@ -1157,6 +1177,9 @@ pub struct MailApp {
     sync_run: Option<(Id, Option<usize>, bool, bool)>,
     /// A piece of the run in flight said the server refused the sign-in.
     sync_refused: bool,
+    /// JMAP accounts whose server turned their credential down this session: no round that starts
+    /// by itself goes back to one until the owner asks for its Send/Receive ([`jmap_mail`]).
+    jmap_refused: std::collections::HashSet<Id>,
     control_rx: Option<Receiver<ControlRequest>>,
     shot_token: u64,
     queued_shots: Vec<(u64, f64, u32)>,
@@ -1303,7 +1326,12 @@ pub struct MailApp {
 /// itself, the calendar's job) waits for it too.
 pub(crate) enum MailRun {
     Imap(Receiver<SyncResult>),
-    Jmap { account: Id, pieces: Receiver<mailcraft_model::sync::JmapMailResult> },
+    /// `opening`: the mailbox opening it was started under ([`Session::openings`]).
+    Jmap {
+        account: Id,
+        opening: u64,
+        pieces: Receiver<mailcraft_model::sync::JmapMailResult>,
+    },
 }
 
 impl MailApp {
@@ -1350,6 +1378,8 @@ impl MailApp {
             shared_next: None,
             shared_send_next: false,
             shared_calendars_next: false,
+            tasks_next: false,
+            tasks: Default::default(),
             open_shared: Default::default(),
             shared_calendar_perm: Default::default(),
             shared_calendar_tokens: Default::default(),
@@ -1366,6 +1396,7 @@ impl MailApp {
             sync_totals: Default::default(),
             sync_run: None,
             sync_refused: false,
+            jmap_refused: Default::default(),
             control_rx: None,
             shot_token: 0,
             queued_shots: Vec::new(),
@@ -1655,6 +1686,7 @@ impl MailApp {
             self.graph_consent_needed.remove(&account);
             self.passwords.remove(&account);
             self.tokens.remove(&account);
+            self.jmap_refused.remove(&account);
             self.forget_account_secrets(&gone);
         }
         // Servers changed: what was kept for the old ones is not given to the new, and the owner
@@ -1667,6 +1699,7 @@ impl MailApp {
             self.passwords.remove(&before.id);
             self.tokens.remove(&before.id);
             self.graph_tokens.remove(&before.id);
+            self.jmap_refused.remove(&before.id);
         }
         // Likewise when Undo or Redo changed them: what was typed for the ones it had goes to none
         // of the others.
@@ -1676,6 +1709,7 @@ impl MailApp {
                     self.passwords.remove(&account);
                     self.tokens.remove(&account);
                     self.graph_tokens.remove(&account);
+                    self.jmap_refused.remove(&account);
                 }
             }
         }
@@ -1876,6 +1910,13 @@ impl MailApp {
                 } else {
                     self.begin_opened_calendars_sign_in(shared)
                 }
+            }
+            "ui.allowTasks" => {
+                if p.get("confirmed").and_then(Value::as_bool) != Some(true) {
+                    return Some(Err(tl!("Say that this is meant with \"confirmed\": true.").to_string()));
+                }
+                let Some(account) = p.get("account").and_then(Value::as_u64) else { return Some(Err(tl!("`account` is required").to_string())) };
+                self.begin_tasks_sign_in(account)
             }
             "ui.allowSharedSend" => {
                 let Some(shared) = p.get("account").and_then(Value::as_u64) else { return Some(Err(tl!("`account` is required").to_string())) };
@@ -2161,6 +2202,7 @@ impl MailApp {
         let shared_send = std::mem::take(&mut self.shared_send_next) && shared.is_some();
         // (Alone with `graph`: for the calendars opened by address; with a shared mailbox: for its.)
         let shared_calendars = std::mem::take(&mut self.shared_calendars_next) && graph;
+        let tasks = std::mem::take(&mut self.tasks_next) && graph && shared.is_none();
         if self.signing_in.is_some() || self.approving() {
             return Err(tl!("Finish signing in first (your browser is waiting)").to_string());
         }
@@ -2186,10 +2228,12 @@ impl MailApp {
             shared: shared.is_some(),
             shared_send,
             shared_calendars,
+            tasks,
         };
         let rx = sign_in(request);
         let opening = self.session.openings();
-        self.signing_in = Some(SigningIn { graph, favorites, quiet, account, shared, shared_send, shared_calendars, browser, opening, rx, cancel });
+        self.signing_in =
+            Some(SigningIn { graph, favorites, quiet, account, shared, shared_send, shared_calendars, tasks, browser, opening, rx, cancel });
         self.session.sync_status = waiting.to_string();
         Ok(())
     }
@@ -2246,6 +2290,7 @@ impl MailApp {
     /// Account setup: the password that was just shown to work, for this session's Send/Receive
     /// (it is remembered for later runs once the first one has gone through).
     pub(crate) fn adopt_password(&mut self, account: Id, password: String) {
+        self.jmap_refused.remove(&account);
         self.passwords.insert(account, password);
     }
 
@@ -2522,8 +2567,15 @@ impl MailApp {
             self.passwords.clear();
             self.tokens.clear();
             self.graph_tokens.clear();
-            // Work started for the old mailbox stays with it: a sign-in on its way is called
-            // off, and a switch to Graph (its copy, its backup) is forgotten.
+            self.jmap_refused.clear();
+            // Work started for the old mailbox stays with it: a JMAP run and the messages being
+            // fetched whole are called off (what they still bring is thrown away, `jmap_mail`,
+            // `graph_fetch`), a sign-in on its way is called off, and a switch to Graph (its copy,
+            // its backup) is forgotten.
+            if matches!(self.sync_rx, Some(MailRun::Jmap { .. })) {
+                self.services.sync_cancel.store(true, std::sync::atomic::Ordering::Relaxed);
+            }
+            self.fetching.forget();
             if let Some(s) = self.signing_in.take() {
                 s.cancel.store(true, std::sync::atomic::Ordering::Relaxed);
                 self.session.sync_status.clear();
@@ -2544,9 +2596,10 @@ impl MailApp {
         }
         let account = self.session.mailbox.owner_of(account).map_or(account, |owner| owner.id);
         let Some(a) = self.session.mailbox.account(account) else { return false };
-        // (A JMAP account's secret is in memory only, never with the operating system.)
+        // (A JMAP account's secret is in memory only, never with the operating system; and one its
+        // server turned down waits for the owner.)
         if a.kind == mailcraft_model::AccountKind::Jmap {
-            return self.jmap_secret(account).is_some();
+            return !self.jmap_refused.contains(&account) && self.jmap_secret(account).is_some();
         }
         if a.oauth.is_some() {
             let kept = self.tokens.get(&account).is_some_and(|t| t.fresh(mailcraft_time::now()) || !t.refresh.is_empty());
@@ -2930,6 +2983,7 @@ impl MailApp {
         let (account, for_graph, for_favorites) = (waiting.account, waiting.graph, waiting.favorites);
         let asked_for = !waiting.quiet;
         let (for_shared, for_shared_send, for_shared_calendars) = (waiting.shared, waiting.shared_send, waiting.shared_calendars);
+        let for_tasks = waiting.tasks;
         let started_under = waiting.opening;
         self.signing_in = None;
         // Another mailbox took the place of the one it was for: its accounts are other accounts,
@@ -2964,6 +3018,10 @@ impl MailApp {
                 return self.shared_send_signed_in(shared, account, answer);
             }
             return self.shared_signed_in(shared, account, answer);
+        }
+        // For keeping the tasks in step with Microsoft To Do (#248): they are, now, or why not is said.
+        if for_tasks {
+            return self.tasks_signed_in(account, answer);
         }
         // For reading the calendars opened by address (#70): they are read now, or why not is said.
         if for_shared_calendars {
@@ -3368,6 +3426,7 @@ impl MailApp {
             ctx.request_repaint_after(std::time::Duration::from_millis(150));
         }
         self.poll_calendar();
+        self.poll_tasks();
         self.poll_calendar_check();
         self.poll_free_busy();
         self.poll_sync();
@@ -3387,6 +3446,8 @@ impl MailApp {
             self.inbox_check_tick();
             // The calendar by itself, between Send/Receive runs ([`calendar_sync`]).
             self.calendar_tick(ctx);
+            // The tasks by themselves, after the calendar ([`task_sync`]).
+            self.tasks_tick(ctx);
         }
         reminders::tick(self, ctx);
         if std::mem::take(&mut self.offer_setup) && self.dialog.is_none() && self.needs_setup() {

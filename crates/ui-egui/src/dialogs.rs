@@ -135,12 +135,14 @@ pub struct Question {
     /// A note the owner may write to go along (with a cancellation, with an answer): the
     /// parameter it becomes, what is written so far, and what the empty field says.
     pub note: Option<(&'static str, String, String)>,
+    /// What the button that goes nowhere says, when not Cancel (`Not now`).
+    pub cancel: Option<String>,
 }
 
 impl Question {
     /// A question with one way of going ahead, which adds `with` to the parameters.
     pub(crate) fn new(title: &str, text: String, action: &str, with: Value) -> Question {
-        Question { title: title.to_string(), text, action: action.to_string(), with, more: Vec::new(), note: None }
+        Question { title: title.to_string(), text, action: action.to_string(), with, more: Vec::new(), note: None, cancel: None }
     }
 
     /// One more way of going ahead.
@@ -365,7 +367,7 @@ pub fn confirmation(app: &MailApp, id: &str, params: &Value) -> Option<Question>
             let text = format!(
                 "{text} {} {}",
                 tl!(
-                    "Its messages, attachments, settings and remembered sign-in go with it, and so do the calendar, contacts and working hours that came from its server."
+                    "Its messages, attachments, settings and remembered sign-in go with it, and so do the calendar, contacts, tasks and working hours that came from its server."
                 ),
                 tl!(
                     "Downloaded pictures and opened attachments can't be told apart by account: File › Info › Remove MailCraft's data from this computer clears them."
@@ -1267,13 +1269,13 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
                         }
                     }
                     button_row(ui, |ui| {
-                        if ui.add(egui::Button::new(tl!("Cancel")).min_size(vec2(72.0, 26.0))).clicked() {
+                        if ui.add(egui::Button::new(ask.cancel.as_deref().unwrap_or(tl!("Cancel"))).min_size(vec2(72.0, 26.0))).clicked() {
                             close = true;
                         }
                     });
                 } else {
                     button_row(ui, |ui| {
-                        if ui.add(egui::Button::new(tl!("Cancel")).min_size(vec2(72.0, 26.0))).clicked() {
+                        if ui.add(egui::Button::new(ask.cancel.as_deref().unwrap_or(tl!("Cancel"))).min_size(vec2(72.0, 26.0))).clicked() {
                             close = true;
                         }
                         for (label, with) in ask.more.iter().rev() {

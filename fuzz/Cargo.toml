@@ -19,6 +19,7 @@ mailcraft-i18n = { path = "../crates/i18n" }
 mailcraft-html = { path = "../crates/html" }
 mailcraft-ical = { path = "../crates/ical" }
 mailcraft-jmap = { path = "../crates/jmap" }
+mailcraft-link = { path = "../crates/link" }
 mailcraft-mime = { path = "../crates/mime" }
 mailcraft-proto = { path = "../crates/proto" }
 mailcraft-vcard = { path = "../crates/vcard" }
@@ -106,6 +107,13 @@ bench = false
 [[bin]]
 name = "jmap_response"
 path = "fuzz_targets/jmap_response.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "link"
+path = "fuzz_targets/link.rs"
 test = false
 doc = false
 bench = false

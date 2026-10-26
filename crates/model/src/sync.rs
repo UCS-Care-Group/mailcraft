@@ -333,6 +333,11 @@ pub struct GraphFetchRequest {
 pub struct GraphFetchResult {
     pub account: Id,
     pub email: String,
+    /// For a JMAP account, the address of the server's session resource the messages were fetched
+    /// from (their request's): they are taken in only while the account still names that server.
+    /// Empty for a Microsoft account's. It may carry the account's address, so it is never logged.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub session: String,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub fetched: Vec<GraphFetched>,
     /// Server ids the server answered "not found" for (deleted or moved meanwhile; the next run

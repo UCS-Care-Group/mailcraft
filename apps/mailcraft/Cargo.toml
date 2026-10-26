@@ -14,7 +14,7 @@ workspace = true
 mailcraft-time = { workspace = true }
 mailcraft-model = { workspace = true }
 mailcraft-engine = { workspace = true }
-url = { workspace = true }
+mailcraft-link = { workspace = true }
 image = { workspace = true }
 mailcraft-ui-egui = { workspace = true }
 # The control key file's location (shared with the MCP bridge).
@@ -129,10 +129,6 @@ zbus = { version = "5", default-features = false, features = ["async-io", "block
 # release in the update test (`update_flow`).
 ring = { workspace = true }
 rfd = { workspace = true }
-# Opens every page (sign-in, approval, each link) in the system's browser, and says when no browser
-# could be started (egui's own way of opening a link doesn't). Already in the tree: eframe's
-# `links` feature ran on it; that feature is off, so nothing reaches the opener unchecked.
-webbrowser = "1.2"
 # The system's clipboard with HTML on it, for copying and pasting formatted text in a message
 # being written (egui's own clipboard carries text only). Already in the tree: egui's window
 # layer copies text through it.

@@ -316,6 +316,7 @@ enum Doing {
     Favorites,
     Folders,
     Mail,
+    Tasks,
 }
 
 impl Doing {
@@ -329,6 +330,7 @@ impl Doing {
             Doing::Favorites => "favorites",
             Doing::Folders => "folders",
             Doing::Mail => "mail",
+            Doing::Tasks => "tasks",
         }
     }
 }
@@ -793,6 +795,7 @@ fn refusal(doing: Doing, reply: &Reply, sent: &[&str], now: Timestamp) -> NetErr
                 Doing::Favorites => "this account may not read its Favorites through Microsoft Graph",
                 Doing::Folders => "this account may not read or change its folders through Microsoft Graph",
                 Doing::Mail => "this account may not read its mail through Microsoft Graph",
+                Doing::Tasks => "this account may not read or change its to-dos through Microsoft Graph",
             };
             NetError::Forbidden(format!("{what}{}", code()))
         }
@@ -2209,6 +2212,9 @@ fn schedule_with(graph: &Graph<'_>, ask: &FreeBusyAsk) -> Result<FreeBusy, NetEr
 mod people;
 pub use people::{Opened, open_calendar};
 
+mod tasks;
+pub use tasks::{push_tasks, tasks};
+
 mod settings;
 pub use settings::{MailboxSettings, WorkingHours, mailbox_settings};
 
@@ -2232,6 +2238,8 @@ mod people_tests;
 mod shared_calendar_tests;
 #[cfg(test)]
 mod shared_calendar_write_tests;
+#[cfg(test)]
+mod tasks_tests;
 
 #[cfg(test)]
 mod shared_calendar_move_tests;
