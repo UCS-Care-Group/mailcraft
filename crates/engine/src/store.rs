@@ -1184,7 +1184,9 @@ fn report(show: &std::path::Display<'_>, dir: &Path, filled: &Filled) {
 /// one of a form a newer MailCraft writes is an error that says so.
 fn is_index(file: &Path) -> Result<bool, String> {
     let mut head = [0u8; 16];
-    let mut f = fs::File::open(file).map_err(|e| e.to_string())?;
+    // (Without waiting, and only a regular file: a pipe put where a mailbox was named can't hold
+    // the window, `io::regular_file`; so for every open of the file here.)
+    let mut f = crate::io::regular_file(file).map_err(|e| e.to_string())?;
     let got = index::fill(&mut f, &mut head).map_err(|e| e.to_string())?;
     let head = head.get(..got).unwrap_or(&[]);
     if head == crate::io::INDEX_MAGIC {
@@ -1203,7 +1205,7 @@ pub fn open(path: &Path) -> Result<Opened, String> {
     let mut st = lock(&shared.state);
     let show = path.display();
     let file = resolve(path);
-    let len = fs::metadata(&file).map_err(|e| format!("{show}: {e}"))?.len();
+    let len = crate::io::regular_file(&file).and_then(|f| f.metadata().map_err(crate::io::ReadError::Io)).map_err(|e| format!("{show}: {e}"))?.len();
     // Whatever was known about this file was about another state of it.
     // (Except what is still in memory from before, which an Undo step may bring back.)
     let (pins, named_before) = (std::mem::take(&mut st.pins), std::mem::take(&mut st.named_before));
@@ -1214,7 +1216,7 @@ pub fn open(path: &Path) -> Result<Opened, String> {
     if len > MAX_FILE {
         return Err(format!("{show} is larger than {} MB", MAX_FILE >> 20));
     }
-    let bytes = fs::read(&file).map_err(|e| format!("{show}: {e}"))?;
+    let bytes = crate::io::read_regular_file(&file).map_err(|e| format!("{show}: {e}"))?;
     let mut mailbox: Mailbox =
         mailcraft_model::from_json(&bytes, max_json_items()).map_err(|e| format!("{show}: this isn't a MailCraft mailbox ({e})"))?;
     let version = mailbox.version;
@@ -1279,7 +1281,7 @@ fn open_index(st: &mut State, file: &Path, len: u64) -> Result<Opened, String> {
     if len > MAX_INDEX {
         return Err(format!("the mailbox file is larger than {} GB", MAX_INDEX >> 30));
     }
-    let f = fs::File::open(file).map_err(|e| e.to_string())?;
+    let f = crate::io::regular_file(file).map_err(|e| e.to_string())?;
     let mut summed = Summed::new(std::io::BufReader::with_capacity(1 << 20, f));
     let replayed = index::replay(&mut summed, len)?;
     // What its bytes are, when all of them were read.

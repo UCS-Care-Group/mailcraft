@@ -26,6 +26,21 @@ fn open(s: &mut Session, text: &str) -> Value {
     s.run("file.import", &json!({"name": "m.eml", "data": data, "opened": true})).unwrap()
 }
 
+/// #485 after #505's review: an opened message is selected and in the list, its folder (the local
+/// Imported) shown, the first time and when it is the copy already there; never selected out of
+/// sight, nor let go of.
+#[test]
+fn an_opened_message_is_selected_and_shown() {
+    let mut s = session();
+    for _ in 0..2 {
+        s.run("folder.select", &json!({"kind": "inbox"})).unwrap();
+        let id = open(&mut s, WITH_ID)["opened"].as_u64().unwrap();
+        assert_eq!(s.sel.messages.to_vec(), vec![id], "{:?}", s.view);
+        assert_eq!(Some(s.view.folder), s.mailbox.message(id).map(|m| m.folder));
+        assert!(s.rows().iter().any(|r| r.members.contains(&id)));
+    }
+}
+
 #[test]
 fn an_opened_message_goes_to_the_local_folder_imported_never_the_folder_in_view() {
     let mut s = session();
@@ -66,6 +81,42 @@ fn the_same_file_opened_again_is_the_copy_already_there() {
     let changed = WITHOUT_ID.replace("Hello.", "Hello again.");
     assert_ne!(open(&mut s, &changed)["opened"].as_u64(), Some(plain));
     assert_eq!(s.mailbox.messages.len(), before + 3);
+}
+
+/// A copy that keeps the SHA-256 of its file is that file only when both the Message-ID and the
+/// hash are the same; one without (imported before, by File › Import) by its Message-ID alone.
+#[test]
+fn a_kept_hash_and_the_message_id_must_both_match() {
+    let mut s = session();
+    let first = open(&mut s, WITH_ID)["opened"].as_u64().unwrap();
+    // Another file that names the same Message-ID is another message.
+    let other = WITH_ID.replace("Hello.", "Not what Maya wrote.");
+    let second = open(&mut s, &other)["opened"].as_u64().unwrap();
+    assert_ne!(second, first);
+    // A message of that Message-ID imported into Imported without a hash is found by it.
+    let mut t = session();
+    let imported = t.mailbox.imported_folder(false).unwrap();
+    let data = crate::cmd::base64_encode(WITH_ID.replace("opened-1", "plain-1").as_bytes());
+    let plain = t.run("file.import", &json!({"name": "p.eml", "data": data, "folder": imported})).unwrap()["ids"][0].as_u64().unwrap();
+    let r = open(&mut t, &WITH_ID.replace("opened-1", "plain-1").replace("Hello.", "Changed."));
+    assert_eq!((r["opened"].as_u64(), r["already"].clone()), (Some(plain), json!(true)));
+}
+
+/// An ordinary import keeps no opened file's hash: it can't plant one in Imported for a later
+/// opening to find.
+#[test]
+fn an_ordinary_import_keeps_no_opened_file_hash() {
+    let mut s = session();
+    let imported = s.mailbox.imported_folder(false).unwrap();
+    let forged = format!("{OPENED_FROM}: {}\r\n{}", "ab".repeat(32), WITHOUT_ID);
+    for data in [
+        crate::cmd::base64_encode(forged.as_bytes()),
+        crate::cmd::base64_encode(format!("From x@lumen.example Wed Oct 14 10:00:00 2026\n{forged}").as_bytes()),
+    ] {
+        let r = s.run("file.import", &json!({"name": "f.eml", "data": data, "folder": imported})).unwrap();
+        let id = r["ids"][0].as_u64().unwrap();
+        assert!(!s.mailbox.message(id).unwrap().headers.iter().any(|(k, _)| k.eq_ignore_ascii_case(OPENED_FROM)));
+    }
 }
 
 #[test]

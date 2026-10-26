@@ -252,11 +252,17 @@ An `.eml`, `.mbox`, `.ics`, `.vcf` or `.mailcraft` file from somewhere else.
   message files at a time; anything else is dropped, and only how many is logged. A file is opened
   once, without waiting (`O_NONBLOCK` on Unix), checked through that handle to be a regular file
   and read from it (`mailcraft_engine::io::read_regular_file`), so a pipe or device swapped in
-  for it is refused rather than read or waited on. A message file is put into the local folder
-  Imported, never a server's folder, Drafts, the Outbox, Sent, Junk or Deleted Items, as a read,
-  received message that is never a draft (a file that says it is unsent too), and opens read-only
-  in a window of its own; opened again it is the copy already there (by Message-ID, else by the
-  file's SHA-256, kept in a header of MailCraft's own that a file can't bring in). A calendar or
+  for it is refused rather than read or waited on; every open of a `.mailcraft` file
+  (`store::open`) goes the same way. Windows has no such flag: there a named pipe's path is
+  refused only once it is open. A message file is put into the local folder Imported, never a
+  server's folder, Drafts, the Outbox, Sent, Junk or Deleted Items, as a read, received message
+  that is never a draft (a file that says it is unsent too), selected and shown in the list, and
+  opens read-only in a window of its own. Opened again it is the copy already there: the same
+  Message-ID and, when that copy keeps the SHA-256 of the file it came from, the same SHA-256; a
+  copy without one by its Message-ID alone. The SHA-256 is kept in a header of MailCraft's own,
+  `X-MailCraft-Opened-File-SHA256`, which no message brings in (the MIME reader drops it, and
+  every import too) and which, like the meeting-answer note, is never written into a saved file,
+  an mbox, a server's copy or what is sent (`crates/mime/src/write.rs`). A calendar or
   contact file is imported only when the owner answers the window's question (an agent names no
   file to import). Another user can't reach the window: the key file
   is not theirs to read. A start that finds the lock held but nobody answering says MailCraft is
@@ -386,6 +392,7 @@ settings files (`crates/engine/src/store.rs`); commands from the control channel
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-26 | minor | #505 (second review): the opened message is selected and shown; dedupe by Message-ID and kept SHA-256 together; the SHA-256 header dropped by the MIME reader and every import, and MailCraft's own notes never written out; `.mailcraft` files opened without waiting; Windows named pipes not covered |
 | 2026-10-26 | minor | #505 (review): a message file from the system goes to the local folder Imported, once, never as a draft; files named from outside are opened without waiting and checked through their handle; at most 32 message files a hand-over; what the lock covers |
 | 2026-10-26 | minor | #505: the hand-over between two starts (loopback, a key file for the owner alone, bounded and checked like anything from outside); a calendar or contact file from the system is imported only on the owner's word |
 | 2026-10-26 | minor | #501: server certificates are checked by the operating system's verifier instead of a built-in Mozilla root set: Windows and macOS trust what the system trusts and may fetch a missing intermediate; Linux and FreeBSD use the system's certificate store |

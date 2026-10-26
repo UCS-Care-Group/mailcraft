@@ -26,9 +26,16 @@ mod words;
 mod write;
 
 #[cfg(test)]
+mod private_headers_tests;
+#[cfg(test)]
 mod tests;
 
 pub use mailto::{Mailto, is_mailto, parse_mailto};
+
+/// The header in which a message opened from a file keeps that file's SHA-256 (#505), so that
+/// opening the file again finds it. MailCraft's own: never read from a message (a sender could
+/// write one) and never written into one.
+pub const OPENED_FILE_HEADER: &str = "X-MailCraft-Opened-File-SHA256";
 pub use mbox::{MboxMessages, mbox_messages, parse_mbox, write_mbox};
 pub use media::media_type_for;
 pub use parse::{MAX_CATEGORIES, MAX_RECIPIENTS, parse};

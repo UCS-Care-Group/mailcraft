@@ -106,6 +106,8 @@ fn read_headers(headers: &Headers, m: &mut Message) {
                 m.answered |= value.contains('A');
             }
             "x-mailcraft-flag" => complete |= value.trim().eq_ignore_ascii_case("complete"),
+            // MailCraft's own note of the file a message was opened from: never a sender's.
+            "x-mailcraft-opened-file-sha256" => {}
             // Read once, below.
             "date" | "from" | "subject" | "message-id" | "in-reply-to" | "importance" | "x-priority" | "mime-version" => {}
             structural if structural.starts_with("content-") => {}

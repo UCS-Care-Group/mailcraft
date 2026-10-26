@@ -234,7 +234,8 @@ impl std::fmt::Display for ReadError {
 /// A file named from outside, opened once and checked through that handle to be a regular file
 /// (so nothing put in its place after a check is read instead). On Unix it is opened without
 /// waiting (`O_NONBLOCK`, which a regular file ignores), so a pipe put where a file was named
-/// can't hold whoever opens it.
+/// can't hold whoever opens it. Windows has no such flag: a named pipe's path
+/// (`\\.\pipe\…`) is not covered there, and is refused only once it is open.
 #[cfg(not(target_arch = "wasm32"))]
 pub fn regular_file(path: &std::path::Path) -> Result<std::fs::File, ReadError> {
     let mut options = std::fs::OpenOptions::new();
@@ -266,7 +267,7 @@ pub fn read_regular_file(path: &std::path::Path) -> Result<Vec<u8>, ReadError> {
 
 /// The header a message opened from a file (#505) keeps the SHA-256 of that file in, so that the
 /// same file opened again finds it. One that came in the file itself is dropped.
-pub const OPENED_FROM: &str = "X-MailCraft-Opened-File-SHA256";
+pub const OPENED_FROM: &str = mailcraft_mime::OPENED_FILE_HEADER;
 
 /// The SHA-256 of a file, in hex (none in the browser, which opens no files from the system).
 fn file_sha256(bytes: &[u8]) -> Option<String> {
@@ -295,16 +296,20 @@ pub fn import_opened(s: &mut Session, name: &str, bytes: &[u8]) -> Result<Value,
     let mut m = mailcraft_mime::parse(bytes);
     m.headers.retain(|(key, _)| !key.eq_ignore_ascii_case(OPENED_FROM));
     let hash = file_sha256(bytes);
+    // The same Message-ID (none for both, too), and, when the copy there keeps the SHA-256 of the
+    // file it came from, the same file; a copy without one (imported before) by its Message-ID
+    // alone, when there is one.
     let same = |x: &mailcraft_model::Message| {
-        if m.message_id.is_empty() {
-            hash.as_deref().is_some_and(|h| x.headers.iter().any(|(key, value)| key.eq_ignore_ascii_case(OPENED_FROM) && value == h))
-        } else {
-            x.message_id == m.message_id
-        }
+        let stored = x.headers.iter().find(|(key, _)| key.eq_ignore_ascii_case(OPENED_FROM)).map(|(_, value)| value.as_str());
+        x.message_id == m.message_id
+            && match stored {
+                Some(stored) => hash.as_deref() == Some(stored),
+                None => !m.message_id.is_empty(),
+            }
     };
     let there = s.mailbox.messages_in(folder).find(|x| !x.draft && same(x)).map(|x| x.id);
     if let Some(id) = there {
-        s.sel.messages = vec![id];
+        show_opened(s, id);
         return Ok(json!({"format": "eml", "messages": 0, "ids": [id], "folder": folder, "opened": id, "already": true}));
     }
     if let Some(hash) = hash {
@@ -316,8 +321,16 @@ pub fn import_opened(s: &mut Session, name: &str, bytes: &[u8]) -> Result<Value,
         m.received = if m.date != 0 { m.date } else { s.now() };
     }
     let id = s.mailbox.add_message(m)?;
-    s.sel.messages = vec![id];
+    show_opened(s, id);
     Ok(json!({"format": "eml", "messages": 1, "ids": [id], "folder": folder, "opened": id, "already": false}))
+}
+
+/// The opened message selected and in the list, as an import's last message is (#485): what a
+/// search in view finds is asked afresh, and its folder is shown when the list leaves it out.
+fn show_opened(s: &mut Session, id: Id) {
+    s.list_due();
+    s.sel.messages = vec![id];
+    s.show_selected();
 }
 
 /// Bring a file's contents into the mailbox: messages go to `folder` (default: the folder in
@@ -381,6 +394,8 @@ pub fn import(s: &mut Session, name: &str, bytes: &[u8], folder: Option<Id>) -> 
                 m.uid = 0;
                 m.folder = folder;
                 m.draft = drafts;
+                // Only a message opened from a file keeps that file's SHA-256 (`import_opened`).
+                m.headers.retain(|(key, _)| !key.eq_ignore_ascii_case(OPENED_FROM));
                 if m.received == 0 {
                     m.received = if m.date != 0 { m.date } else { now };
                 }
