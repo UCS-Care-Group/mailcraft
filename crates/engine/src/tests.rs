@@ -2276,7 +2276,7 @@ fn hostile_params_never_panic() {
         // Messages forwarded together (#360): more than one message carries, each named again and
         // again, ids that are none, and a list that is no list; an id or ids of null (#512).
         json!({"ids": (0..10_000u64).collect::<Vec<_>>()}),
-        json!({"ids": [1, 2, 3, 2, 1, 1, 18446744073709551615u64], "message": null}),
+        json!({"ids": [1, 2, 3, 2, 1, 1, 18446744073709551615u64], "id": null, "message": null}),
         json!({"id": null}),
         json!({"ids": null}),
         json!({"ids": {"0": 1}, "message": [1, 2]}),

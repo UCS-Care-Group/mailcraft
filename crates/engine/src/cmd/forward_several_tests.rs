@@ -186,8 +186,9 @@ fn a_null_id_is_refused_whatever_is_selected() {
         for (params, says) in [
             (json!({"id": null}), "`id` is null"),
             (json!({"ids": null}), "`ids` is null"),
-            (json!({"id": null, "ids": [b]}), "not both"),
-            (json!({"id": b, "ids": null}), "not both"),
+            (json!({"id": null, "ids": [b]}), "`id` is null"),
+            (json!({"id": b, "ids": null}), "`ids` is null"),
+            (json!({"id": null, "ids": null}), "`id` is null"),
         ] {
             let e = s.run(command, &params).unwrap_err().to_string();
             assert!(e.contains(says), "{command} {params}: {e}");

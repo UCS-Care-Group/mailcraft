@@ -263,9 +263,9 @@ pub mod p {
         let null = |k: &str| CmdError::Params(format!("`{k}` is null, which names no message"));
         match (v.get("id"), v.get("ids")) {
             (None, None) => Ok(None),
+            (Some(Value::Null), _) => Err(null("id")),
+            (_, Some(Value::Null)) => Err(null("ids")),
             (Some(_), Some(_)) => Err(CmdError::Params("name the messages by `id` (one) or by `ids` (several), not both".into())),
-            (Some(Value::Null), None) => Err(null("id")),
-            (None, Some(Value::Null)) => Err(null("ids")),
             (Some(x), None) => whole(x)
                 .filter(|i| *i != 0)
                 .map(|i| Some(vec![i]))
