@@ -587,6 +587,11 @@ pub struct Compose {
     pub signature: Option<InsertedSignature>,
     /// Changed since it was opened or last saved.
     pub dirty: bool,
+    /// Some of what isn't saved was changed by the owner, not by an agent (#494): an agent asks
+    /// the owner before it closes the message or puts another in its place. Never read from a
+    /// file: only [`Session::run`] sets it.
+    #[serde(skip)]
+    pub owner_changed: bool,
 }
 
 /// The signature in a message being written (R4.5): what went in, so that it can be told whether
@@ -2125,6 +2130,16 @@ impl Session {
         };
         match &result {
             Ok(_) => {
+                // What the owner (or a script of theirs) changed in the message being written is
+                // theirs until it is saved (#494); an agent's own changes aren't.
+                if self.agent.is_none()
+                    && let Some(c) = self.compose.as_mut()
+                    && c.dirty
+                    && !c.owner_changed
+                    && compose.as_ref() != Some(&*c)
+                {
+                    c.owner_changed = true;
+                }
                 // Another list (a folder, a tab, a search) keeps selected only what it shows (#485).
                 if ListOf::of(&view) != ListOf::of(&self.view) {
                     self.keep_shown();

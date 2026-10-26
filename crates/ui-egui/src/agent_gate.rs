@@ -86,6 +86,26 @@ fn gate(app: &mut MailApp, req: &ControlRequest, id: &str, mut params: Value, al
         let people = crate::windows::event_window_people(app, &params);
         params["attendees"] = json!(people);
     }
+    // An appointment, a contact or a task with changes that aren't saved isn't closed, or put out
+    // of the way for another dialog, without the owner's say (#494): the question names it as the
+    // dialog has it now, never as the agent says.
+    if matches!(id, "ui.closeDialog" | "ui.dialog") {
+        if !params.is_object() {
+            params = json!({});
+        }
+        let closes =
+            id == "ui.closeDialog" || params.get("name").and_then(Value::as_str).is_some_and(|n| crate::sync_panel::Panel::named(n).is_none());
+        let unsaved = match &app.dialog {
+            Some(crate::dialogs::Dialog::Form(form)) if closes => form.unsaved(),
+            _ => None,
+        };
+        if let Some(fields) = params.as_object_mut() {
+            fields.remove("unsaved");
+            if let Some(unsaved) = unsaved {
+                fields.insert("unsaved".into(), unsaved);
+            }
+        }
+    }
     match agent::check(&app.session, id, &params, allow) {
         Verdict::Run => run(app, id, params, allow),
         Verdict::Refuse(why) => err(why),

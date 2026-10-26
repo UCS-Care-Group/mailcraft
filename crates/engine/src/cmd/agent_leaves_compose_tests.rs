@@ -1,0 +1,168 @@
+// SPDX-FileCopyrightText: MailCraft contributors
+// SPDX-License-Identifier: MIT OR Apache-2.0
+//! An agent doesn't close, replace or throw away the message the owner is writing without asking
+//! (#494): a command that would asks the owner first. A message only the agent changed is the
+//! agent's to leave, headless too: it goes to Drafts first, as #442 made it.
+
+use mailcraft_model::{FolderKind, Id};
+use mailcraft_time::{Date, DateTime};
+use serde_json::{Value, json};
+
+use crate::agent::{Access, Class, classify, describe};
+use crate::{Session, sample};
+
+fn session() -> Session {
+    let now = DateTime::new(Date::new(2026, 10, 14).unwrap(), 16, 0, 0).unwrap().to_timestamp(0);
+    Session::at(sample::mailbox(now, 0), now, 0)
+}
+
+fn run(s: &mut Session, id: &str, params: Value) -> Value {
+    s.run(id, &params).unwrap_or_else(|e| panic!("{id} {params}: {e}"))
+}
+
+/// Run as an agent's command runs (`Session::agent`), allowed nothing in advance.
+fn as_agent(s: &mut Session, id: &str, params: Value) -> Value {
+    s.agent = Some(Vec::new());
+    let r = s.run(id, &params);
+    s.agent = None;
+    r.unwrap_or_else(|e| panic!("{id} {params}: {e}"))
+}
+
+/// The owner has typed in a new message and not saved it.
+fn writing() -> Session {
+    let mut s = session();
+    run(&mut s, "mail.new", json!({}));
+    run(&mut s, "compose.set", json!({"to": "ada@example.org", "subject": "Mine", "body": "Half a thought"}));
+    assert!(s.compose.as_ref().unwrap().dirty);
+    s
+}
+
+/// A received message of the Inbox.
+fn received(s: &Session) -> Id {
+    let account = s.mailbox.default_account().unwrap().id;
+    let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    s.mailbox.messages.values().find(|m| m.folder == inbox && !m.draft && !m.incomplete && !m.unfetched).unwrap().id
+}
+
+/// A draft in Drafts.
+fn a_draft(s: &Session) -> Id {
+    let account = s.mailbox.default_account().unwrap().id;
+    let drafts = s.mailbox.folder_of_kind(account, FolderKind::Drafts).unwrap();
+    s.mailbox.messages.values().find(|m| m.folder == drafts && m.draft).unwrap().id
+}
+
+/// A contact with an address to write to.
+fn a_contact(s: &Session) -> Id {
+    s.mailbox.contacts.values().find(|c| c.address().is_some()).unwrap().id
+}
+
+/// The draft in Drafts with `subject`.
+fn draft_with(s: &Session, subject: &str) -> Option<Id> {
+    s.mailbox.messages.values().find(|m| m.draft && m.subject == subject).map(|m| m.id)
+}
+
+/// The commands that close the message being written or put another in its place.
+fn leaving(s: &Session) -> Vec<(&'static str, Value)> {
+    let other = received(s);
+    vec![
+        ("compose.close", json!({})),
+        ("mail.new", json!({})),
+        ("mail.reply", json!({"id": other})),
+        ("mail.replyAll", json!({"id": other})),
+        ("mail.forward", json!({"id": other})),
+        ("mail.forwardAsAttachment", json!({"id": other})),
+        ("mail.editDraft", json!({"id": a_draft(s)})),
+        ("people.email", json!({"id": a_contact(s)})),
+    ]
+}
+
+fn with_discard(mut v: Value) -> Value {
+    v["discard"] = json!(true);
+    v
+}
+
+#[test]
+fn an_agent_that_throws_the_owners_message_away_is_asked() {
+    let s = writing();
+    for (id, params) in leaving(&s) {
+        let params = with_discard(params);
+        assert_eq!(classify(&s, id, &params), Access::Owner(Class::Delete), "{id} {params}");
+    }
+}
+
+#[test]
+fn an_agent_that_closes_the_owners_message_is_asked() {
+    let s = writing();
+    for (id, params) in leaving(&s) {
+        assert_ne!(classify(&s, id, &params), Access::Safe, "{id} {params}: the owner's message would be closed under them");
+    }
+}
+
+#[test]
+fn the_question_names_the_owners_message_and_what_becomes_of_it() {
+    let s = writing();
+    for (id, params) in leaving(&s) {
+        assert_eq!(classify(&s, id, &params), Access::Owner(Class::Leave), "{id}");
+        let kept = describe(&s, id, &params);
+        assert!(kept.contains("\u{201c}Mine\u{201d}") && kept.contains("goes to Drafts first"), "{id}: {kept}");
+        let lost = describe(&s, id, &with_discard(params));
+        assert!(lost.contains("\u{201c}Mine\u{201d}") && lost.contains("without saving what the owner wrote"), "{id}: {lost}");
+    }
+    // And what the agent wants instead.
+    let other = received(&s);
+    let subject = s.mailbox.message(other).unwrap().subject.clone();
+    assert!(describe(&s, "mail.new", &json!({})).starts_with("start a new message in place of"));
+    assert!(describe(&s, "mail.reply", &json!({"id": other})).starts_with(&format!("reply to \u{201c}{subject}\u{201d}")));
+    assert!(describe(&s, "compose.close", &json!({})).starts_with("close the message"));
+}
+
+#[test]
+fn what_an_agent_wrote_itself_is_its_own_to_leave() {
+    let mut s = session();
+    as_agent(&mut s, "mail.new", json!({}));
+    as_agent(&mut s, "compose.set", json!({"subject": "The agent's", "body": "Written by the agent"}));
+    let c = s.compose.as_ref().unwrap();
+    assert!(c.dirty && !c.owner_changed);
+    for (id, params) in leaving(&s) {
+        assert_eq!(classify(&s, id, &params), Access::Safe, "{id}");
+        // Throwing it away needs the owner, as it did (#442).
+        assert_eq!(classify(&s, id, &with_discard(params)), Access::Owner(Class::Delete), "{id}");
+    }
+    // It goes to Drafts first, as before.
+    as_agent(&mut s, "mail.new", json!({}));
+    assert!(draft_with(&s, "The agent's").is_some());
+}
+
+#[test]
+fn the_owners_change_makes_it_theirs_until_it_is_saved() {
+    let mut s = session();
+    as_agent(&mut s, "mail.new", json!({}));
+    as_agent(&mut s, "compose.set", json!({"subject": "Both", "body": "By the agent"}));
+    // A command of the owner's that doesn't change the message leaves it the agent's.
+    let other = received(&s);
+    run(&mut s, "mail.select", json!({"id": other}));
+    assert_eq!(classify(&s, "mail.new", &json!({})), Access::Safe);
+    run(&mut s, "compose.type", json!({"text": "and the owner "}));
+    assert_eq!(classify(&s, "mail.new", &json!({})), Access::Owner(Class::Leave));
+    // Saved: nothing of theirs would be lost.
+    run(&mut s, "compose.saveDraft", json!({}));
+    assert_eq!(classify(&s, "mail.new", &json!({})), Access::Safe);
+    // What the agent changes after that is the agent's.
+    as_agent(&mut s, "compose.set", json!({"body": "More by the agent"}));
+    assert_eq!(classify(&s, "mail.new", &json!({})), Access::Safe);
+}
+
+#[test]
+fn people_email_saves_the_message_first_or_lets_it_go_as_asked() {
+    let mut s = writing();
+    let contact = a_contact(&s);
+    let address = s.mailbox.contact(contact).unwrap().address().unwrap().email.clone();
+    run(&mut s, "people.email", json!({"id": contact}));
+    assert!(draft_with(&s, "Mine").is_some(), "saved to Drafts first");
+    assert!(s.compose.as_ref().unwrap().to.contains(&address));
+    // Let go of, it isn't kept.
+    run(&mut s, "compose.set", json!({"subject": "Not kept", "body": "Gone"}));
+    run(&mut s, "people.email", json!({"id": contact, "discard": true}));
+    assert!(draft_with(&s, "Not kept").is_none());
+    assert!(s.compose.as_ref().is_some_and(|c| !c.dirty && c.to.contains(&address)));
+}

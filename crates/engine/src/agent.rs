@@ -19,6 +19,7 @@
 use mailcraft_model::{FolderKind, Id, Mailbox};
 use serde_json::Value;
 
+use crate::cmd::compose::LEAVING;
 use crate::{Session, p};
 
 /// What needs the owner, by kind. `--allow <class>` names them.
@@ -29,6 +30,9 @@ pub enum Class {
     Send,
     /// Deletes for good (or discards what the owner was writing).
     Delete,
+    /// Closes the message the owner is writing, or puts another in its place, when the owner has
+    /// changes in it that aren't saved; they go to Drafts first (#494).
+    Leave,
     /// Accounts, sign-ins, the application id, what is remembered of them.
     Accounts,
     /// Opens, replaces or saves the mailbox file.
@@ -41,12 +45,13 @@ pub enum Class {
 }
 
 impl Class {
-    pub const ALL: [Class; 6] = [Class::Send, Class::Delete, Class::Accounts, Class::Mailbox, Class::Settings, Class::Input];
+    pub const ALL: [Class; 7] = [Class::Send, Class::Delete, Class::Leave, Class::Accounts, Class::Mailbox, Class::Settings, Class::Input];
 
     pub fn as_str(self) -> &'static str {
         match self {
             Class::Send => "send",
             Class::Delete => "delete",
+            Class::Leave => "leave",
             Class::Accounts => "accounts",
             Class::Mailbox => "mailbox",
             Class::Settings => "settings",
@@ -63,6 +68,7 @@ impl Class {
         match self {
             Class::Send => "it writes to other people or reaches out to the web",
             Class::Delete => "it deletes for good",
+            Class::Leave => "it takes the window off the message the owner is writing",
             Class::Accounts => "it changes an account or a sign-in",
             Class::Mailbox => "it opens, replaces or saves the mailbox file",
             Class::Settings => "it changes options, signatures or rules",
@@ -563,9 +569,23 @@ pub fn classify(s: &Session, id: &str, params: &Value) -> Access {
             if ids.iter().any(|m| deletes_for_good(&s.mailbox, *m)) { Access::Owner(Class::Delete) } else { Access::Safe }
         }
         "ui.sync" if params.get("password").is_some_and(|v| !v.is_null()) => Access::Owner(Class::Accounts),
-        // Closing a message being written saves what isn't saved of it (#442); letting that go
-        // instead is throwing away what the owner wrote.
-        "compose.close" if p::bool(params, "discard") == Some(true) && s.compose.as_ref().is_some_and(|c| c.dirty) => Access::Owner(Class::Delete),
+        // A command that closes the message being written, or puts another in its place, saves
+        // what isn't saved of it first (#442). Letting that go instead (`discard`) is throwing it
+        // away. Else the window leaves it, which the owner is asked about when the changes are
+        // theirs (#494); an agent's own message, headless too, is the agent's to leave.
+        _ if LEAVING.contains(&id) && s.compose.as_ref().is_some_and(|c| c.dirty) => {
+            if p::bool(params, "discard") == Some(true) {
+                Access::Owner(Class::Delete)
+            } else if s.compose.as_ref().is_some_and(|c| c.owner_changed) {
+                Access::Owner(Class::Leave)
+            } else {
+                Access::Safe
+            }
+        }
+        // An appointment, a contact or a task with changes that aren't saved, in the dialog that
+        // this closes or opens another in place of: the changes are lost. The window says which
+        // (`unsaved`, from `agent_gate`, never from the agent).
+        "ui.closeDialog" | "ui.dialog" if params.get("unsaved").is_some_and(|v| !v.is_null()) => Access::Owner(Class::Delete),
         _ => Access::Safe,
     }
 }
@@ -823,10 +843,8 @@ pub fn describe(s: &Session, id: &str, params: &Value) -> String {
         "category.rename" if shared_category(s, id, params) => {
             format!("rename the category {} to {}{SHARED_CATEGORY}", quoted(st("from")), quoted(st("to")))
         }
-        "compose.close" => match &s.compose {
-            Some(c) => format!("close the message {} without saving what the owner wrote in it", quoted(&c.subject)),
-            None => "close the message being written without saving it".to_string(),
-        },
+        _ if LEAVING.contains(&id) => leaving_text(s, id, params),
+        "ui.closeDialog" | "ui.dialog" => form_text(id, params),
         "edit.undo" | "edit.redo" => {
             let redo = id == "edit.redo";
             let label = if redo { s.redo_label() } else { s.undo_label() };
@@ -934,6 +952,54 @@ pub fn describe(s: &Session, id: &str, params: &Value) -> String {
             if only { format!("remove the account {a} (the only account: leaves an empty mailbox)") } else { format!("remove the account {a}") }
         }
         _ => run_text(label, id, params),
+    }
+}
+
+/// What a command that closes the message being written, or puts another in its place, does,
+/// and what becomes of that message (#494).
+fn leaving_text(s: &Session, id: &str, params: &Value) -> String {
+    let message = |m: Option<Id>| m.and_then(|m| s.mailbox.message(m)).map(|m| quoted(&m.subject)).unwrap_or_else(|| "(none selected)".to_string());
+    let one = || message(p::id(params, "id").or(s.sel.focus()));
+    let several = || messages_text(s, &p::ids(params).unwrap_or_else(|| s.sel.messages.clone()));
+    let instead = match id {
+        "mail.new" => "start a new message".to_string(),
+        "mail.reply" => format!("reply to {}", one()),
+        "mail.replyAll" => format!("reply to all on {}", one()),
+        "mail.forward" => format!("forward {}", several()),
+        "mail.forwardAsAttachment" => format!("forward {} as attachments", several()),
+        "mail.editDraft" => format!("open the draft {}", one()),
+        "people.email" => {
+            let c = p::id(params, "id").or(s.sel.contact).and_then(|c| s.mailbox.contact(c));
+            format!("start a new message to the contact {}", c.map(|c| quoted(&c.name())).unwrap_or_else(|| "(none selected)".to_string()))
+        }
+        _ => String::new(),
+    };
+    let writing = s.compose.as_ref().map(|c| quoted(&c.subject)).unwrap_or_else(|| "being written".to_string());
+    match (instead.is_empty(), p::bool(params, "discard") == Some(true)) {
+        (true, true) => format!("close the message {writing} without saving what the owner wrote in it"),
+        (true, false) => format!("close the message {writing} that the owner is writing; what isn't saved of it goes to Drafts first"),
+        (false, true) => format!("{instead} in place of the message {writing}, without saving what the owner wrote in it"),
+        (false, false) => {
+            format!("{instead} in place of the message {writing} that the owner is writing; what isn't saved of it goes to Drafts first")
+        }
+    }
+}
+
+/// A dialog with changes that aren't saved, which the command closes or opens another in place
+/// of (#494), as the window named it (`unsaved`).
+fn form_text(id: &str, params: &Value) -> String {
+    let field = |k: &str| params.get("unsaved").and_then(|u| u.get(k)).and_then(Value::as_str).unwrap_or("");
+    let kind = match field("form") {
+        kind @ ("appointment" | "meeting" | "contact" | "task") => kind,
+        _ => "item",
+    };
+    let title = clip(field("title"), 80);
+    let item = if title.is_empty() { format!("the {kind}") } else { format!("the {kind} \u{201c}{title}\u{201d}") };
+    match id {
+        "ui.dialog" => {
+            format!("open the dialog {} in place of {item}, without saving the changes made in it", quoted(p::str(params, "name").unwrap_or("")))
+        }
+        _ => format!("close {item} without saving the changes made in it"),
     }
 }
 
