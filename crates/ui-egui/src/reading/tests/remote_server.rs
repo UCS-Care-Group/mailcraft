@@ -170,6 +170,139 @@ fn a_verdict_on_the_organisations_domain_stands_for_the_names_under_it() {
     assert!(!vouched(Some(&gmail), &failed));
 }
 
+/// A `dkim=pass` whose signer is the sender's domain (or the organisation's, above it) is what
+/// makes DMARC pass, so where the server gave no DMARC verdict its word on the signature counts
+/// as a `dmarc=pass` does; another domain's signature, a signer in a comment, and SPF do not.
+#[test]
+fn a_dkim_pass_for_the_senders_domain_says_what_dmarc_would() {
+    let lumen = imap("imap.lumen.example");
+    let says = |address: &str, rest: &str| {
+        let m = Message { from: Address::new("Shop", address), ..message(&[&format!("mx.lumen.example; {rest}")]) };
+        vouched(Some(&lumen), &m)
+    };
+    let shop = "news@shop.example";
+    assert!(says(shop, "dkim=pass header.d=shop.example"));
+    assert!(says(shop, "dkim=pass header.i=@shop.example"));
+    assert!(says(shop, "dkim=pass header.i=news@shop.example"));
+    assert!(says(shop, "spf=fail smtp.mailfrom=bounce.example; DKIM=Pass (2048-bit key) HEADER.D=\"Shop.Example\" header.s=sel header.b=AbC"));
+    assert!(says("hello@news.shop.example", "dkim=pass header.d=shop.example"));
+    // Somebody else's signature, as a mailing service signs with its own domain.
+    assert!(!says(shop, "dkim=pass header.d=bounce.example"));
+    assert!(!says(shop, "dkim=pass header.d=shop.example.evil.example"));
+    assert!(!says(shop, "dkim=pass header.d=badshop.example"));
+    // Only a name above the sender's, as for DMARC, never one under it or a bare suffix.
+    assert!(!says(shop, "dkim=pass header.d=news.shop.example"));
+    assert!(!says(shop, "dkim=pass header.i=@news.shop.example"));
+    assert!(!says("hello@bank.co.uk", "dkim=pass header.d=co.uk"));
+    // The signer's domain decides; its identity is read only where the clause names no domain.
+    assert!(!says("hello@bank.co.uk", "dkim=pass header.d=co.uk header.i=@bank.co.uk"));
+    assert!(!says(shop, "dkim=pass header.d=bounce.example header.i=@shop.example"));
+    // A signer inside a comment is the comment's text, even written as a property.
+    assert!(!says(shop, "dkim=pass (header.d=shop.example) header.d=bounce.example"));
+    assert!(!says(shop, "dkim=pass (identity @shop.example); spf=pass"));
+    // A failed signature for the domain, beside another domain's that passes.
+    assert!(!says(shop, "dkim=pass header.d=bounce.example; dkim=fail header.d=shop.example"));
+    for result in ["fail", "neutral", "policy", "temperror", "permerror", "none", "passed"] {
+        assert!(!says(shop, &format!("dkim={result} header.d=shop.example")), "{result}");
+    }
+    // Another clause's signer, and SPF, which DMARC reads too but which this does not.
+    assert!(!says(shop, "dkim=pass; spf=pass header.d=shop.example"));
+    assert!(!says(shop, "spf=pass smtp.mailfrom=shop.example"));
+    assert!(!says(shop, "dkim=pass smtp.mailfrom=shop.example"));
+}
+
+/// Where the server gave a DMARC verdict, that verdict decides: a signature of the sender's
+/// domain doesn't overrule a `fail` (strict alignment, `adkim=s`, fails a parent's signature),
+/// and doesn't stand in for a `dmarc` or `compauth` clause of any result.
+#[test]
+fn the_servers_dmarc_verdict_is_never_overruled_by_a_signature() {
+    let lumen = imap("imap.lumen.example");
+    let says = |rest: &str| {
+        let m = Message { from: Address::new("Shop", "news@news.shop.example"), ..message(&[&format!("mx.lumen.example; {rest}")]) };
+        vouched(Some(&lumen), &m)
+    };
+    assert!(says("dkim=pass header.d=shop.example"));
+    assert!(!says("dkim=pass header.d=shop.example; dmarc=fail (p=reject) header.from=news.shop.example"));
+    assert!(!says("dmarc=fail header.from=news.shop.example; dkim=pass header.d=news.shop.example"));
+    assert!(!says("dkim=pass header.d=shop.example; dmarc=none header.from=news.shop.example"));
+    assert!(!says("dkim=pass header.d=shop.example; dmarc/1=temperror"));
+    assert!(!says("dkim=pass header.d=shop.example; compauth=fail reason=000"));
+    assert!(says("dkim=pass header.d=bounce.example; dmarc=pass header.from=news.shop.example"));
+    // A DMARC filter may write its own header below a DKIM filter's, with the same id; a header
+    // below can only take the signature away (its own pass is not read: it may be forged), and
+    // another server's header below is not this server's verdict.
+    let stacked = |below: &str| {
+        let mut m =
+            Message { from: Address::new("Shop", "news@news.shop.example"), ..message(&["mx.lumen.example; dkim=pass header.d=shop.example"]) };
+        m.headers.push(("Authentication-Results".into(), below.into()));
+        vouched(Some(&lumen), &m)
+    };
+    assert!(!stacked("mx.lumen.example; dmarc=fail (p=reject) header.from=news.shop.example"));
+    assert!(!stacked("MX.Lumen.Example; dmarc=none header.from=news.shop.example"));
+    assert!(!stacked("mx.lumen.example; dmarc=pass header.from=news.shop.example"));
+    assert!(!stacked(&format!("mx.lumen.example; spf=pass (open{}", " x".repeat(10))));
+    assert!(stacked("mx.other.example; dmarc=fail header.from=news.shop.example"));
+    assert!(stacked("mx.lumen.example; spf=pass smtp.mailfrom=news.shop.example"));
+    // A header with no authserv-id on a Microsoft account follows the same rule (Exchange Online
+    // itself always writes `dmarc` and `compauth`).
+    let microsoft = account(AccountKind::Microsoft, "");
+    let exchange = |rest: &str| {
+        let m = Message { from: Address::new("Shop", "news@shop.example"), ..message(&[rest]) };
+        vouched(Some(&microsoft), &m)
+    };
+    assert!(exchange("spf=pass smtp.mailfrom=shop.example; dkim=pass (signature was verified) header.d=shop.example"));
+    assert!(!exchange(
+        "spf=fail smtp.mailfrom=shop.example; dkim=pass (signature was verified) header.d=shop.example; dmarc=fail action=quarantine header.from=shop.example; compauth=fail reason=000"
+    ));
+}
+
+/// A header longer than is read loses its last, cut-off clause, and one that ends inside a
+/// quoted string or a comment loses the clause left open: the signer's `d=` is the signer's to
+/// choose, and the start of `shop.example.evil.example` is not `shop.example`. Nor does a
+/// signature count in a header not read to its end, whose DMARC verdict may be in the rest.
+#[test]
+fn a_clause_cut_off_or_left_open_is_not_read() {
+    let lumen = imap("imap.lumen.example");
+    let says = |value: &str| vouched(Some(&lumen), &message(&[value]));
+    let head = "mx.lumen.example; ";
+    let cut_at = "dkim=pass header.d=shop.example";
+    // One signature with a long selector fills the header up to the cut.
+    let fill = 4_000 - head.len() - cut_at.len() - "dkim=pass header.s=; ".len();
+    let pad = format!("dkim=pass header.s={}; ", "x".repeat(fill));
+    let cut = format!("{head}{pad}{cut_at}.evil.example");
+    assert_eq!(cut.chars().take(4_000).collect::<String>(), format!("{head}{pad}{cut_at}"));
+    assert!(!says(&cut));
+    // The same for a `dmarc` clause: the start of the domain it judged is not that domain.
+    let cut_dmarc = "dmarc=pass header.from=shop.example";
+    let fill = 4_000 - head.len() - cut_dmarc.len() - "dkim=pass header.s=; ".len();
+    let dmarc_cut = format!("{head}dkim=pass header.s={}; {cut_dmarc}.evil.example", "x".repeat(fill));
+    assert!(dmarc_cut.chars().take(4_000).collect::<String>().ends_with(cut_dmarc));
+    assert!(!says(&dmarc_cut));
+    // A `dmarc=pass` before the cut still counts; a signature doesn't, as the verdict may follow.
+    assert!(says(&format!("{head}{PASS}; {pad}{cut_at}.evil.example")));
+    assert!(!says(&format!("{head}dkim=pass header.d=shop.example; {pad}{cut_at}.evil.example")));
+    // Left open: a quoted string or a comment that never ends.
+    assert!(!says("mx.lumen.example; dkim=pass header.i=\"@shop.example"));
+    assert!(!says("mx.lumen.example; dkim=pass header.d=shop.example (cut"));
+    assert!(!says("mx.lumen.example; dkim=pass header.d=shop.example; spf=pass (open"));
+    // The server's `dmarc=fail` cut off in part or wholly, past the clauses read, or left open.
+    let sub = |value: &str| {
+        let m = Message { from: Address::new("Shop", "news@news.shop.example"), ..message(&[value]) };
+        vouched(Some(&lumen), &m)
+    };
+    let signed = "dkim=pass header.d=shop.example; ";
+    let fail = "dmarc=fail (p=reject) header.from=news.shop.example";
+    assert!(sub(&format!("{head}{signed}")));
+    assert!(!sub(&format!("{head}{signed}{fail}")));
+    let fill = 4_000 - head.len() - signed.len() - "dkim=pass header.s=; ".len() - 20;
+    let into_fail = format!("{head}{signed}dkim=pass header.s={}; {fail}", "x".repeat(fill));
+    assert!(into_fail.chars().take(4_000).collect::<String>().ends_with("; dmarc=fail (p=reject"));
+    assert!(!sub(&into_fail));
+    assert!(!sub(&format!("{head}{signed}{pad}{fail}")));
+    assert!(!sub(&format!("{head}{signed}{}{fail}", "x; ".repeat(250))));
+    assert!(!sub(&format!("{head}{signed}dmarc=fail (p=reject")));
+}
+
 /// Mail brought in from a file has no place on a server: whatever Authentication-Results it
 /// carries, it is the file's own.
 #[test]
