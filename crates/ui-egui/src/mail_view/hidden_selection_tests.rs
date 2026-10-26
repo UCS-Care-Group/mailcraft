@@ -52,15 +52,18 @@ fn delete_after_the_unread_tab_takes_only_what_the_list_shows() {
     assert_eq!(kind(read), Some(FolderKind::Inbox), "{read} wasn't shown, and stays in the Inbox");
 }
 
-/// The sample's Inbox in the Unread tab, and a read message of it, which the tab doesn't list.
-fn unread_tab_and_a_read_one(w: &mut testing::Window) -> Id {
+/// The sample's Inbox in the Unread tab: its oldest read message, which the tab doesn't list,
+/// and an unread one, which it does.
+fn unread_tab(w: &mut testing::Window) -> (Id, Id) {
     w.state_mut().execute("ui.dismissReminder", json!({"all": true})).unwrap();
     w.state_mut().execute("folder.select", json!({"kind": "inbox"})).unwrap();
-    let read = w.state_mut().session.rows().iter().find(|r| r.unread == 0).map(|r| r.id).unwrap();
+    let rows = w.state_mut().session.rows();
+    let read = rows.iter().rev().find(|r| r.unread == 0).map(|r| r.id).unwrap();
+    let unread = rows.iter().find(|r| r.unread > 0).map(|r| r.id).unwrap();
     w.state_mut().execute("view.filter", json!({"value": "unread"})).unwrap();
     w.run_steps(3);
     assert!(!drawn(w).contains(&read));
-    read
+    (read, unread)
 }
 
 /// The message opened is in the list, selected, in its folder's All tab.
@@ -72,23 +75,33 @@ fn opened_in_the_all_tab(w: &mut testing::Window, id: Id) {
     assert!(drawn(w).contains(&id), "{id} is in the list");
 }
 
-#[test]
-fn a_message_opened_from_its_task_is_in_the_all_tab() {
-    let mut w = testing::window("view.mail");
-    let read = unread_tab_and_a_read_one(&mut w);
-    let task = w.state_mut().execute("tasks.fromMessage", json!({"id": read})).unwrap()["id"].as_u64().unwrap();
+/// A task's "Open the message", for a task made from `id`.
+fn open_from_its_task(w: &mut testing::Window, id: Id) {
+    let task = w.state_mut().execute("tasks.fromMessage", json!({"id": id})).unwrap()["id"].as_u64().unwrap();
     w.state_mut().execute("view.tasks", json!({})).unwrap();
     w.state_mut().execute("tasks.select", json!({"id": task})).unwrap();
     w.run_steps(3);
-    let pos = w.state().hit.rect("openTaskMessage", read).unwrap().center();
-    testing::click(&mut w, pos, PointerButton::Primary, 1);
+    let pos = w.state().hit.rect("openTaskMessage", id).unwrap().center();
+    testing::click(w, pos, PointerButton::Primary, 1);
+}
+
+#[test]
+fn a_message_opened_from_its_task_is_in_the_all_tab() {
+    let mut w = testing::window("view.mail");
+    let (read, unread) = unread_tab(&mut w);
+    // The oldest read one: the list scrolls to it.
+    open_from_its_task(&mut w, read);
     opened_in_the_all_tab(&mut w, read);
+    // An unread one, which the Unread tab would list: the All tab all the same.
+    w.state_mut().execute("view.filter", json!({"value": "unread"})).unwrap();
+    open_from_its_task(&mut w, unread);
+    opened_in_the_all_tab(&mut w, unread);
 }
 
 #[test]
 fn a_message_opened_from_a_contact_is_in_the_all_tab() {
     let mut w = testing::window("view.mail");
-    unread_tab_and_a_read_one(&mut w);
+    unread_tab(&mut w);
     w.state_mut().execute("view.people", json!({})).unwrap();
     let contacts: Vec<Id> = w.state().session.mailbox.contacts.keys().copied().collect();
     let mut found = None;
@@ -111,10 +124,10 @@ fn a_message_opened_from_a_contact_is_in_the_all_tab() {
 #[test]
 fn a_message_opened_from_its_alert_is_in_the_all_tab() {
     let mut w = testing::window("view.mail");
-    let read = unread_tab_and_a_read_one(&mut w);
+    let (_, unread) = unread_tab(&mut w);
     let inbox = w.state().session.view.folder;
     w.state_mut().execute("view.calendar", json!({})).unwrap();
     let ctx = w.state().ctx.clone().unwrap();
-    crate::alerts::open(w.state_mut(), &ctx, crate::alerts::Opens::Message { message: read, folder: inbox });
-    opened_in_the_all_tab(&mut w, read);
+    crate::alerts::open(w.state_mut(), &ctx, crate::alerts::Opens::Message { message: unread, folder: inbox });
+    opened_in_the_all_tab(&mut w, unread);
 }
