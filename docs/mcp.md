@@ -1,6 +1,6 @@
 # MCP server
 
-> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-10-26 · **Change:** minor (#461: an agent's change to a to-do in a To Do list shared with other people asks `send`; `view.searchSuggestions` (#308): safe for agents, its answer framed as untrusted message content; the agent gate covers undo and redo of deleted contacts, events, tasks, calendars and categories and of meeting sends, `ui.copySelection` is never, and the appointment window's save and send ask `send`; the bridge makes the app prove it holds the control key before it sends the key or a request; agents are asked before deleting contacts, tasks, events and categories and before an undo that reverts rules, signatures or accounts; `--control-agents-only`: the control channel takes every request for an agent's; questions are complete or refused; `ui.copyDiagnostics` never; #276: `sync.progress`'s `timings`; whom the gate binds: agents with a shell or the owner's files are outside it; `mail.openAttachment` never for agents, #126; `sync.progress`'s `fullMessages`, `ui.skipSync` allowed, #120) · **Target:** Microsoft Outlook (Microsoft 365)
+> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-10-26 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
 
 MailCraft speaks the [Model Context Protocol](https://modelcontextprotocol.io) over stdio, so
 agents can read, file and write mail and keep a calendar.
