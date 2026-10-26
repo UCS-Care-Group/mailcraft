@@ -19,8 +19,12 @@
 //! characters that show, inside a word: an emoji made of several, and words of Persian and
 //! the Indic scripts, need it there. Anywhere else it goes.
 //!
-//! Lengths are in characters (Unicode scalar values). What is made is bounded by the length
-//! asked for, whatever the text, and nothing panics.
+//! Characters that show nothing but are not format characters (the Hangul fillers, the braille
+//! blank, a variation selector) are letters, marks and symbols to Unicode, and are kept.
+//!
+//! Lengths are in characters (Unicode scalar values), so a cut may part a letter from an accent
+//! written after it. What is made is bounded by the length asked for, whatever the text, and
+//! nothing panics.
 
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
@@ -28,11 +32,11 @@
 mod tests;
 
 /// Whether `c` is one of Unicode's format characters (general category Cf, Unicode 17.0): the
-/// soft hyphen, the Arabic and Syriac number signs and end marks, the Arabic pound and piastre
-/// marks above, the Mongolian vowel separator, zero-width marks and joiners, bidirectional marks,
-/// overrides and isolates, the word joiner and invisible operators, the byte-order mark,
-/// interlinear annotations, the Kaithi number signs, the Egyptian hieroglyph, shorthand and
-/// musical format controls, and tags.
+/// soft hyphen, the Arabic number signs and end-of-ayah marks, the Syriac abbreviation mark, the
+/// Arabic pound and piastre marks above, the Mongolian vowel separator, zero-width marks and
+/// joiners, bidirectional marks, overrides and isolates, the word joiner and invisible operators,
+/// the deprecated shaping controls, the byte-order mark, interlinear annotations, the Kaithi
+/// number signs, the Egyptian hieroglyph, shorthand and musical format controls, and tags.
 pub fn is_format(c: char) -> bool {
     matches!(
         c,
@@ -114,7 +118,7 @@ fn clean(text: &str, max: usize) -> (String, bool) {
                 out.push(j);
             }
             out.push(c);
-            count += needed;
+            count = count.saturating_add(needed);
         }
     }
     (out, false)

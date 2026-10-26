@@ -47,8 +47,9 @@ fn the_list_is_unicode_format_characters() {
             assert!(!is_format(c), "U+{outside:04X} is not a format character");
         }
     }
-    // Characters that show nothing but are not format characters: spaces, controls, a combining
-    // mark, a variation selector, fillers, a code point not assigned between two ranges.
+    // Characters that are not format characters, though most of them show nothing: spaces,
+    // controls, a combining mark, a variation selector, fillers, the object replacement
+    // character, a code point not assigned between two ranges.
     for c in ['\u{0}', '\u{9}', '\u{a0}', '\u{2028}', '\u{34f}', '\u{fe0f}', '\u{3164}', '\u{2800}', '\u{fffc}', '\u{2065}'] {
         assert!(!is_format(c), "U+{:04X}", u32::from(c));
     }
@@ -254,6 +255,7 @@ proptest! {
         } else if max > 0 {
             let kept = name.strip_suffix('…').unwrap_or_default();
             prop_assert!(name.ends_with('…') && full.starts_with(kept), "{:?} from {:?}", name, full);
+            prop_assert!(is_clean(kept), "{:?} from {:?}", name, full);
             prop_assert!(cut_late(kept, &full, max - 1), "{:?} from {:?} at {}", name, full, max);
         }
     }
