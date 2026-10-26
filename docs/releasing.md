@@ -104,6 +104,17 @@ must keep its `UpgradeCode` and `AllowDowngrades` (going back installs the older
 newer). An organisation installs the `.msi` with `DISABLEAUTOMATICUPDATES=1` to turn updating by
 itself off for every user of the computer.
 
+**On macOS a copy doesn't install updates by itself for now** (#497): it says a new version is
+out, with a link to its page, as a copy installed by a package manager does. The builds are signed
+ad hoc and not notarized (the project has no Apple Team ID yet), and an app swapped in place by
+the program, in a folder it may not fully control, is what macOS's checks then judge; one update
+that went wrong (0.8.1) left an app that wouldn't start. The code that installs from the disk
+image is still built and tested, and comes back on with one switch, `MAC_SELF_INSTALL` in
+`apps/mailcraft/src/install.rs`, once releases are signed with a Developer ID and notarized and
+`mac_swap` requires the project's Team ID of the new app. On every system, a copy whose folder
+(the one holding the app or the AppImage) it can't write to is told of new versions and installs
+nothing; the `.msi`, installed by Windows Installer, isn't affected.
+
 - **Making the keys (once):** `cargo xtask release-key new <folder>` writes two private keys,
   `mailcraft-release-key-in-use.pkcs8.b64` and `mailcraft-release-key-spare.pkcs8.b64` (base64
   PKCS#8, readable by their owner only), and prints the two public keys. It never writes over
@@ -277,6 +288,7 @@ and in the Flatpak (which is granted `org.freedesktop.secrets` for it).
 
 | Date | Change |
 |---|---|
+| 2026-10-26 | #497: macOS copies don't install updates by themselves until the builds are signed with a Developer ID and notarized (`MAC_SELF_INSTALL`); a copy that can't write to its own folder is told of new versions only |
 | 2026-10-26 | #464: Fixes and What's new lines are fragments, `packaging/release-notes.d/{fixes,new}/<issue>.md`, joined into the notes by `cargo xtask release-notes --write` before tagging, so pull requests don't conflict over the notes; `cargo xtask ci` checks they join |
 | 2026-10-24 | Release notes open with **MailCraft <version> in short**, a headline list, before What's new and Fixes; the announcement in #11 uses it |
 | 2026-10-23 | A tag builds and signs only from `main` with a passing `ci-ok`; compile and sign in separate steps; WiX checked by hash; no build cache in release builds; `--locked` everywhere; a daily cargo-deny run and Dependabot for crates |

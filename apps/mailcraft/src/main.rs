@@ -124,6 +124,13 @@ impl HostUpdates {
         if build_sha() == "dev" || !prefs_enabled() {
             return None;
         }
+        // What an update that stopped partway left beside a copy replaced by this program, also
+        // where it no longer updates itself (a Mac app, #497).
+        if let found @ (install::Install::MacApp | install::Install::AppImage) = install::found()
+            && let Some(target) = self_update::target(found)
+        {
+            self_update::clear_leftovers(&target);
+        }
         let install = install::this_copy();
         if install == install::Install::NoticeOnly {
             return None;
