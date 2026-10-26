@@ -2190,7 +2190,10 @@ mod tests {
         assert_ne!(message(&harness).folder, junk);
         let pos = at(&harness, "ribbonMenu", "mail.delete");
         click(&mut harness, pos);
-        harness.get_by_label("Junk").click();
+        // Its Junk is a menu of its own (#504): Move to Junk is in it.
+        harness.get_by_role_and_label(egui::accesskit::Role::Button, "Junk").click();
+        harness.run_steps(3);
+        harness.get_by_label_contains("Move to Junk").click();
         harness.run_steps(3);
         assert_eq!(message(&harness).folder, junk);
 

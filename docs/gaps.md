@@ -121,7 +121,7 @@ this code base.
 | 2026-10-19 | patch | Gap 17: catalog figures brought up to date (124 of 311 lack a command) |
 | 2026-10-20 | minor | Gap 5 and rough edges: shared mailboxes out of testing (no switch); what is still missing of them (#70) |
 | 2026-10-20 | minor | Gap 5 and rough edges: mail moves and copies between a shared mailbox and its owner's mailbox (or two of his shared mailboxes), the copy made at the destination's own address and the original removed only once the copy is there; what differs from a move within one mailbox (#70) |
-| 2026-10-20 | patch | Gap 9 brought in line with the code and `calendar-parity.md`: Propose New Time, forwarding a meeting, Teams meetings and response options are done; gap 17: 118 of 319 catalog features lack a command |
+| 2026-10-20 | patch | Gap 9 brought in line with the code and `calendar-parity.md`: Propose New Time, forwarding a meeting, Teams meetings and response options are done; gap 17: 122 of 311 catalog features lack a command |
 | 2026-10-20 | minor | R8.3: one of two roadmap documents with `ROADMAP.md`; what was current of `docs/target-app-parity.md` (the assessment by area, how the numbers are estimated) and `docs/roadmap.md` (the milestones) folded into `ROADMAP.md`, both gone; the last column of gaps 1, 2, 3, 5, 9 and 16 points at `ROADMAP.md` or `calendar-parity.md`; gap 1 names no other mail server program |
 | 2026-10-20 | minor | Gap 14: what commands say is a template with values, said in the window in the interface language; Send/Receive's progress, sizes, a reply's quoted headers and a meeting answer too; French reply prefixes thread, i18n-4 |
 | 2026-10-20 | minor | Gap 14: dates and times in the interface language (names, patterns, the clock, lengths of time); a clock and a first day of the week the owner never chose follow the language, i18n-3 |
@@ -157,4 +157,4 @@ this code base.
 | 2026-10-25 | patch | #325: removing an account, or closing a shared mailbox, takes what came from its server and is kept in the mailbox file (events, contacts and calendars, Outlook's list of categories) whoever removes it; the working hours and the remembered sign-in, with its name in `ui.json`, only when the window removes it; the word index drops mail removed elsewhere when the window opens the mailbox; the copies of the mailbox kept aside are listed |
 | 2026-10-26 | minor | #217, #452: system fonts fill in the scripts the bundled ones lack (gap 13 notes it); right-to-left layout stays open in gap 6 |
 | 2026-10-26 | minor | #493: search Subfolders and Current Mailbox beside Current Folder and All Mailboxes (rough edges) |
-| 2026-10-26 | minor | #504: gap 17: Safe and Blocked Senders lists are there; what is left of Junk E-mail Options named |
+| 2026-10-26 | minor | #504: gap 17: Safe and Blocked Senders lists are there; what is left of Junk E-mail Options named; 118 of 319 catalog features lack a command |

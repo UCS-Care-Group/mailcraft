@@ -10504,6 +10504,11 @@ msgstr ""
 msgid "{address} is already set up"
 msgstr ""
 
+#. what a command says
+#: crates/engine/src/cmd/junk.rs
+msgid "{address} is one of your own addresses: your own mail isn't blocked"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 msgid "{address} is set up"

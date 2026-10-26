@@ -108,3 +108,37 @@ fn arriving_mail_is_sorted_by_the_lists() {
     assert!(!mb.sort_junk(elsewhere));
     assert!(!mb.sort_junk(9_999_999));
 }
+
+#[test]
+fn an_international_domain_is_the_same_in_its_own_letters_and_in_xn_form() {
+    assert_eq!(junk_key("Ada@Bücher.Example"), "ada@xn--bcher-kva.example");
+    assert_eq!(junk_key("@xn--bcher-kva.example"), "@xn--bcher-kva.example");
+    let mut l = JunkLists::default();
+    assert!(matches!(l.add(JunkList::Blocked, "@bücher.example"), Added::Added(_)));
+    assert_eq!(l.verdict("shop@xn--bcher-kva.example"), Some(JunkList::Blocked));
+    assert_eq!(l.verdict("shop@BÜCHER.example"), Some(JunkList::Blocked));
+    // One entry, whichever way it is written, on one list.
+    assert!(matches!(l.add(JunkList::Blocked, "@xn--bcher-kva.example"), Added::There(_)));
+    assert!(matches!(l.add(JunkList::Safe, "@XN--BCHER-KVA.example"), Added::Added(_)));
+    assert!(l.blocked.is_empty());
+    assert!(l.remove(JunkList::Safe, "@bücher.example"));
+    // And when a file has both, repair keeps one.
+    l.safe = vec!["@bücher.example".into(), "@xn--bcher-kva.example".into()];
+    l.blocked = vec!["@xn--bcher-kva.example".into()];
+    assert!(l.repair());
+    assert_eq!((l.safe.len(), l.blocked.len()), (1, 0));
+}
+
+#[test]
+fn a_shared_mailbox_s_mail_is_never_sorted() {
+    let mut mb = Mailbox::with_local_account("Ada Lovelace", "ada@example.org");
+    let account = mb.accounts[0].id;
+    let inbox = mb.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    mb.junk.add(JunkList::Blocked, "@vendor.example");
+    let id = mb.add_message(Message { folder: inbox, from: Address::new("", "sales@vendor.example"), ..Default::default() }).unwrap();
+    mb.accounts[0].shared_of = Some(9_999);
+    assert!(!mb.sort_junk(id));
+    assert_eq!(mb.message(id).unwrap().folder, inbox);
+    mb.accounts[0].shared_of = None;
+    assert!(mb.sort_junk(id));
+}

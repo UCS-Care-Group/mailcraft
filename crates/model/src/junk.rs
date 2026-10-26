@@ -94,26 +94,28 @@ impl JunkLists {
     }
 
     /// Add `text` (an address or a domain, [`junk_entry`]) to `which`, taking it off the other
-    /// list: an entry is on one list at most.
+    /// list: an entry is on one list at most. An international domain is the same entry
+    /// whether it is written in its own letters or in `xn--` form ([`junk_key`]).
     pub fn add(&mut self, which: JunkList, text: &str) -> Added {
         let Some(entry) = junk_entry(text) else { return Added::Invalid };
-        if self.list(which).contains(&entry) {
-            return Added::There(entry);
+        let key = junk_key(&entry);
+        if let Some(there) = self.list(which).iter().find(|e| junk_key(e) == key) {
+            return Added::There(there.clone());
         }
         if self.list(which).len() >= MAX_JUNK_ENTRIES {
             return Added::Full;
         }
-        self.list_mut(which.other()).retain(|e| *e != entry);
+        self.list_mut(which.other()).retain(|e| junk_key(e) != key);
         self.list_mut(which).push(entry.clone());
         Added::Added(entry)
     }
 
     /// Take `text` off `which`. Whether it was there.
     pub fn remove(&mut self, which: JunkList, text: &str) -> bool {
-        let entry = junk_entry(text).unwrap_or_else(|| text.trim().to_lowercase());
+        let key = junk_entry(text).map(|e| junk_key(&e)).unwrap_or_else(|| text.trim().to_lowercase());
         let list = self.list_mut(which);
         let before = list.len();
-        list.retain(|e| *e != entry);
+        list.retain(|e| junk_key(e) != key);
         list.len() != before
     }
 
@@ -123,12 +125,18 @@ impl JunkLists {
             return None;
         }
         let address = address.trim();
-        if address.is_empty() || address.len() > MAX_ADDRESS {
+        if address.is_empty() || address.len() > MAX_ADDRESS || !address.contains('@') {
             return None;
         }
-        let address = address.to_lowercase();
+        let address = junk_key(address);
         let (_, domain) = address.rsplit_once('@')?;
-        let on = |list: &[String]| list.iter().any(|e| *e == address || e.strip_prefix('@').is_some_and(|d| d == domain));
+        let domain = format!("@{domain}");
+        let on = |list: &[String]| {
+            list.iter().any(|e| {
+                let key = junk_key(e);
+                key == address || key == domain
+            })
+        };
         if on(&self.safe) {
             Some(JunkList::Safe)
         } else if on(&self.blocked) {
@@ -144,22 +152,49 @@ impl JunkLists {
         let before = self.clone();
         let clean = |list: &[String]| {
             let mut out: Vec<String> = Vec::new();
+            let mut keys: Vec<String> = Vec::new();
             for e in list.iter().filter_map(|e| junk_entry(e)) {
                 if out.len() >= MAX_JUNK_ENTRIES {
                     break;
                 }
-                if !out.contains(&e) {
+                let key = junk_key(&e);
+                if !keys.contains(&key) {
+                    keys.push(key);
                     out.push(e);
                 }
             }
             out
         };
         self.safe = clean(&self.safe);
-        let safe = self.safe.clone();
+        let safe: Vec<String> = self.safe.iter().map(|e| junk_key(e)).collect();
         self.blocked = clean(&self.blocked);
-        self.blocked.retain(|e| !safe.contains(e));
+        self.blocked.retain(|e| !safe.contains(&junk_key(e)));
         *self != before
     }
+}
+
+/// What an entry or a sender's address is compared by: lower case, and its domain in the ASCII
+/// form it is looked up by (IDNA's `xn--` labels, through `mailcraft-link`'s Punycode), so that
+/// `@bücher.example` and `@xn--bcher-kva.example` are the same domain. A label that can't be
+/// written so is compared as it is.
+pub fn junk_key(text: &str) -> String {
+    let text = text.trim().to_lowercase();
+    let (local, domain) = match text.rsplit_once('@') {
+        Some((local, domain)) => (local, domain),
+        None => return text,
+    };
+    let labels: Vec<String> = domain
+        .split('.')
+        .map(|label| {
+            if label.is_ascii() {
+                label.to_string()
+            } else {
+                let chars: Vec<char> = label.chars().collect();
+                mailcraft_link::punycode::encode(&chars).map(|p| format!("xn--{p}")).unwrap_or_else(|| label.to_string())
+            }
+        })
+        .collect();
+    format!("{local}@{}", labels.join("."))
 }
 
 /// An entry of a list as it is kept, from what was typed: an address (`ada@example.org`) or a

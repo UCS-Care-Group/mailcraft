@@ -134,7 +134,6 @@ const SAFE: &[&str] = &[
     "mail.pin",
     "mail.junk",
     "mail.notJunk",
-    "junk.list",
     "mail.findRelated",
     "mail.findFromSender",
     "mail.saveAttachment",
@@ -396,6 +395,7 @@ const SETTINGS: &[&str] = &[
     "junk.neverBlockDomain",
     "junk.add",
     "junk.remove",
+    "junk.list",
     "signature.set",
     "signature.remove",
     "signature.rename",
@@ -652,6 +652,10 @@ pub fn check(s: &Session, id: &str, params: &Value, allow: &[Class]) -> Verdict 
     if let Some(key) = file_named(id, params) {
         return Verdict::Refuse(no_paths(id, key));
     }
+    // The owner is asked about the list the command would change, or about nothing (#504).
+    if matches!(id, "junk.add" | "junk.remove") && p::str(params, "list").and_then(mailcraft_model::JunkList::parse).is_none() {
+        return Verdict::Refuse(format!("`{id}` needs `list`: \"safe\" or \"blocked\""));
+    }
     match classify(s, id, params) {
         Access::Safe => Verdict::Run,
         Access::Never => Verdict::Refuse(format!("`{id}` isn't available to agents")),
@@ -881,7 +885,12 @@ pub fn describe(s: &Session, id: &str, params: &Value) -> String {
             }
         }
         "junk.add" | "junk.remove" => {
-            let list = if st("list").eq_ignore_ascii_case("blocked") { "Blocked Senders" } else { "Safe Senders" };
+            // The list as the command reads it; [`check`] refuses a call that names neither.
+            let list = match p::str(params, "list").and_then(mailcraft_model::JunkList::parse) {
+                Some(mailcraft_model::JunkList::Blocked) => "Blocked Senders",
+                Some(mailcraft_model::JunkList::Safe) => "Safe Senders",
+                None => return format!("run \u{201c}{label}\u{201d} ({id}) on a list that is neither Safe Senders nor Blocked Senders"),
+            };
             let entry = mailcraft_model::junk_entry(st("entry")).unwrap_or_else(|| clip(st("entry"), 80));
             if id == "junk.add" { format!("add {} to the {list}", quoted(&entry)) } else { format!("remove {} from the {list}", quoted(&entry)) }
         }

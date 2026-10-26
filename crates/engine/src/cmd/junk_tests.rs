@@ -86,12 +86,11 @@ fn the_options_add_remove_and_list_entries() {
 }
 
 #[test]
-fn an_agent_is_asked_before_it_changes_a_list_and_may_read_them() {
+fn an_agent_is_asked_before_it_changes_or_reads_a_list() {
     use crate::agent::{Access, Class, access, describe};
-    for id in ["junk.blockSender", "junk.neverBlockSender", "junk.neverBlockDomain", "junk.add", "junk.remove"] {
+    for id in ["junk.blockSender", "junk.neverBlockSender", "junk.neverBlockDomain", "junk.add", "junk.remove", "junk.list"] {
         assert_eq!(access(id), Some(Access::Owner(Class::Settings)), "{id}");
     }
-    assert_eq!(access("junk.list"), Some(Access::Safe));
     let (mut s, a) = local();
     let inbox = s.mailbox.folder_of_kind(a, FolderKind::Inbox).unwrap();
     let id = s.mailbox.add_message(mail(inbox, "offers@shop.example", "Deals")).unwrap();
@@ -183,7 +182,8 @@ fn graph_mail_from_a_blocked_sender_goes_to_junk_and_the_move_goes_up() {
     let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
     let junk = s.mailbox.folder_of_kind(account, FolderKind::Junk).unwrap();
     for (f, id) in [(inbox, "F-in"), (junk, "F-junk")] {
-        s.mailbox.folder_mut(f).unwrap().server = Some(ServerFolder { id: id.into(), ..Default::default() });
+        // Each folder's first round has ended: what comes now arrives.
+        s.mailbox.folder_mut(f).unwrap().server = Some(ServerFolder { id: id.into(), caught_up: true, ..Default::default() });
     }
     s.run("junk.add", &json!({"list": "blocked", "entry": "offers@shop.example"})).unwrap();
     let there = |id: &str, from: &str| GraphMessage {
@@ -205,4 +205,126 @@ fn graph_mail_from_a_blocked_sender_goes_to_junk_and_the_move_goes_up() {
     assert_eq!(id(&s, "M-2").1, inbox);
     let changes = graph_mail_request(&s, account).unwrap().messages;
     assert!(changes.iter().any(|c| matches!(c, MessageChange::Move { message, .. } if *message == blocked)), "{changes:?}");
+}
+
+/// #504 review: the owner is asked about the list the command changes, and about nothing else.
+#[test]
+fn the_question_names_the_list_the_command_changes() {
+    use crate::agent::{Class, Verdict, check, describe};
+    let (mut s, _) = local();
+    let params = json!({"list": " blocked", "entry": "offers@shop.example"});
+    let Verdict::Ask(Class::Settings, said) = check(&s, "junk.add", &params, &[]) else { panic!("asked") };
+    assert!(said.contains("Blocked Senders") && !said.contains("Safe Senders"), "{said}");
+    s.run("junk.add", &params).unwrap();
+    assert_eq!(s.mailbox.junk.blocked, ["offers@shop.example"]);
+    let said = describe(&s, "junk.remove", &json!({"list": "SAFE ", "entry": "a@example.org"}));
+    assert!(said.contains("Safe Senders"), "{said}");
+    // A list that is neither isn't put to the owner at all.
+    for list in [json!("both"), json!(""), json!(1), json!(null)] {
+        let params = json!({"list": list, "entry": "offers@shop.example"});
+        assert!(matches!(check(&s, "junk.add", &params, &[]), Verdict::Refuse(_)), "{params}");
+        assert!(matches!(check(&s, "junk.remove", &params, &[Class::Settings]), Verdict::Refuse(_)), "{params}");
+    }
+}
+
+#[test]
+fn the_owner_s_own_addresses_are_never_blocked() {
+    let (mut s, a) = local();
+    let inbox = s.mailbox.folder_of_kind(a, FolderKind::Inbox).unwrap();
+    let mine = s.mailbox.add_message(mail(inbox, "ADA@example.org", "Note to self")).unwrap();
+    let e = format!("{:?}", s.run("junk.blockSender", &json!({"ids": [mine]})).unwrap_err());
+    assert!(e.contains("your own"), "{e}");
+    assert!(s.run("junk.add", &json!({"list": "blocked", "entry": "<ada@example.org>"})).is_err());
+    assert!(s.mailbox.junk.is_empty());
+    assert_eq!(s.mailbox.message(mine).unwrap().folder, inbox);
+    // Never blocking it is fine, and so is blocking its domain.
+    s.run("junk.add", &json!({"list": "safe", "entry": "ada@example.org"})).unwrap();
+    s.run("junk.add", &json!({"list": "blocked", "entry": "@example.org"})).unwrap();
+}
+
+fn delta(remote: &str, kind: FolderKind, seen: u32, new: Vec<Message>) -> FolderDelta {
+    FolderDelta { remote: remote.into(), kind, uid_validity: 7, uid_seen: seen, new, ..Default::default() }
+}
+
+fn arriving(uid: u32, from: &str, subject: &str) -> Message {
+    Message { uid, from: Address::new("", from), subject: subject.into(), message_id: format!("{uid}-{subject}@x"), ..Default::default() }
+}
+
+fn folder_of(s: &Session, subject: &str) -> Option<Id> {
+    s.mailbox.messages.values().find(|m| m.subject == subject).map(|m| m.folder)
+}
+
+#[test]
+fn an_account_s_first_download_is_left_as_its_server_has_it() {
+    let mut s = Session::empty();
+    let a = s.run("account.add", &json!({"email": "ada@mail.example", "incoming": {"host": "imap.mail.example"}})).unwrap()["id"].as_u64().unwrap();
+    s.run("junk.add", &json!({"list": "blocked", "entry": "@shop.example"})).unwrap();
+    s.run("junk.add", &json!({"list": "safe", "entry": "friend@example.net"})).unwrap();
+    let first = SyncResult {
+        account: a,
+        folders: vec![
+            delta("INBOX", FolderKind::Inbox, 1, vec![arriving(1, "offers@shop.example", "Old deals")]),
+            delta("Junk", FolderKind::Junk, 1, vec![arriving(1, "friend@example.net", "Old lunch")]),
+        ],
+        ..Default::default()
+    };
+    s.run("sync.apply", &json!({"result": first})).unwrap();
+    let [inbox, junk] = [FolderKind::Inbox, FolderKind::Junk].map(|k| s.mailbox.folder_of_kind(a, k).unwrap());
+    assert_eq!(folder_of(&s, "Old deals"), Some(inbox));
+    assert_eq!(folder_of(&s, "Old lunch"), Some(junk));
+    assert!(s.mailbox.pending.is_empty());
+    // What arrives afterwards is sorted.
+    let next = SyncResult {
+        account: a,
+        folders: vec![delta("INBOX", FolderKind::Inbox, 2, vec![arriving(2, "offers@shop.example", "New deals")])],
+        ..Default::default()
+    };
+    s.run("sync.apply", &json!({"result": next})).unwrap();
+    assert_eq!(folder_of(&s, "New deals"), Some(junk));
+}
+
+#[test]
+fn graph_s_first_round_of_a_folder_is_left_as_its_server_has_it() {
+    let mut s = Session::empty();
+    let account = s.run("account.add", &json!({"email": "owner@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+    let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    s.mailbox.folder_mut(inbox).unwrap().server = Some(ServerFolder { id: "F-in".into(), ..Default::default() });
+    s.run("junk.add", &json!({"list": "blocked", "entry": "offers@shop.example"})).unwrap();
+    let there = GraphMessage {
+        server: ServerMessage { id: "M-1".into(), folder: "F-in".into(), ..Default::default() },
+        from: Address::new("", "offers@shop.example"),
+        subject: "Old deals".into(),
+        ..Default::default()
+    };
+    let page = MessagePage { folder: "F-in".into(), messages: vec![there], ..Default::default() };
+    let result = GraphMailResult { account, email: "owner@example.org".into(), pages: vec![page], partial: true, ..Default::default() };
+    apply_graph_mail(&mut s, result).unwrap();
+    assert_eq!(folder_of(&s, "Old deals"), Some(inbox));
+}
+
+#[test]
+fn a_safe_sender_s_mail_out_of_junk_goes_through_the_inbox_rules() {
+    let (mut s, a) = imap();
+    s.run("junk.add", &json!({"list": "safe", "entry": "friend@example.net"})).unwrap();
+    let archive = s.mailbox.folder_of_kind(a, FolderKind::Archive).unwrap();
+    s.run(
+        "rules.add",
+        &json!({"name": "Friends", "conditions": [{"type": "fromContains", "value": "friend"}], "actions": [{"type": "moveTo", "value": archive}]}),
+    )
+    .unwrap();
+    // The rule doesn't run on what stays in Junk E-mail.
+    let run = SyncResult {
+        account: a,
+        folders: vec![delta(
+            "Junk",
+            FolderKind::Junk,
+            3,
+            vec![arriving(2, "friend@example.net", "Lunch?"), arriving(3, "friendly@spam.example", "Win")],
+        )],
+        ..Default::default()
+    };
+    s.run("sync.apply", &json!({"result": run})).unwrap();
+    let junk = s.mailbox.folder_of_kind(a, FolderKind::Junk).unwrap();
+    assert_eq!(folder_of(&s, "Lunch?"), Some(archive));
+    assert_eq!(folder_of(&s, "Win"), Some(junk));
 }

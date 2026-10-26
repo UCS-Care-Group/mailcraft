@@ -12603,6 +12603,11 @@ msgstr "{address} is een gedeeld postvak dat hier geopend is: de agenda's ervan 
 msgid "{address} is already set up"
 msgstr "{address} is al ingesteld"
 
+#. what a command says
+#: crates/engine/src/cmd/junk.rs
+msgid "{address} is one of your own addresses: your own mail isn't blocked"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy

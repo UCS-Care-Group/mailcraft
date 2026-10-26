@@ -1382,6 +1382,9 @@ fn take_in(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, delta: Folde
     }
     let inbox = delta.kind == FolderKind::Inbox;
     let junk = delta.kind == FolderKind::Junk;
+    // The lists sort what arrives once the folder has been read before, never a first download
+    // or a mailbox numbered anew: what was there already stays where the server has it.
+    let sorting = old_seen != 0 && !reset;
     // Only mail that came to the owner counts as new: in the Inbox, or a folder of theirs a
     // server's rule files it in, and everything of a folder's first download. What later turns
     // up in Deleted Items, Junk, Sent and the rest was put there (a message deleted on a phone
@@ -1419,8 +1422,10 @@ fn take_in(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, delta: Folde
         }
         if inbox || junk {
             // The Safe and Blocked Senders lists first (#504): mail a list sends to Junk E-mail
-            // isn't the rules' to file.
-            if !mb.sort_junk(id) && inbox {
+            // isn't the rules' to file, and a safe sender's taken out of Junk E-mail goes through
+            // them as any mail arriving in the Inbox does.
+            let sorted = sorting && mb.sort_junk(id);
+            if inbox != sorted {
                 mb.apply_rules(id);
             }
             // A list or a rule that moved it away has noted the move.

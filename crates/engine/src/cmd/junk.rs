@@ -8,7 +8,7 @@
 //! ([`mailcraft_model::Mailbox::sort_junk`]); a change to a list leaves the mail that is here
 //! where it is, but for Block Sender's own message, which goes to Junk E-mail.
 
-use mailcraft_model::{Added, FolderKind, Id, JunkList, junk_entry};
+use mailcraft_model::{Added, FolderKind, Id, JunkList, junk_entry, junk_key};
 use serde_json::{Value, json};
 
 use super::{bad, fail, needs_message, select_after_removal, targets};
@@ -40,6 +40,13 @@ fn which(v: &Value) -> Result<JunkList, CmdError> {
 
 /// Add `entry` to `list`; answers it as kept.
 fn add_entry(s: &mut Session, list: JunkList, entry: &str) -> Result<String, CmdError> {
+    // The owner's own mail (from another device, or a copy sent to themselves) is never junk.
+    if list == JunkList::Blocked
+        && let Some(key) = junk_entry(entry).map(|e| junk_key(&e))
+        && s.mailbox.accounts.iter().any(|a| !a.email.trim().is_empty() && junk_key(&a.email) == key)
+    {
+        return Err(failed!("{address} is one of your own addresses: your own mail isn't blocked", address = key));
+    }
     match s.mailbox.junk.add(list, entry) {
         Added::Added(e) | Added::There(e) => Ok(e),
         Added::Invalid => Err(fail("type an address, such as someone@example.org, or a domain, such as @example.org")),

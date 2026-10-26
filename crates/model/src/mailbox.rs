@@ -2061,7 +2061,8 @@ impl Mailbox {
     /// Sort a message that has just arrived by the Safe and Blocked Senders lists (#504): from a
     /// blocked sender into the Inbox, it moves to the account's Junk E-mail; from a safe sender
     /// into Junk E-mail, to the Inbox. The move is noted for the server as the owner's own is.
-    /// Whether it moved. (Mail that was here before a list changed stays where it is.)
+    /// Whether it moved. Never in a shared mailbox, and the callers leave out an account's first
+    /// download: mail that was here before (or before a list changed) stays where it is.
     pub fn sort_junk(&mut self, id: Id) -> bool {
         if self.junk.is_empty() {
             return false;
@@ -2073,7 +2074,9 @@ impl Mailbox {
             (FolderKind::Junk, Some(crate::JunkList::Safe)) => FolderKind::Inbox,
             _ => return false,
         };
-        if m.draft {
+        // The lists are the owner's: a shared mailbox's mail is other people's too, and stays
+        // where its server put it.
+        if m.draft || self.account(m.account).is_none_or(|a| a.is_shared()) {
             return false;
         }
         let Some(folder) = self.folder_of_kind(m.account, to) else { return false };
