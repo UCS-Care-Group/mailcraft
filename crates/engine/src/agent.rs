@@ -297,6 +297,8 @@ const SAFE: &[&str] = &[
     "ui.sync",
     "ui.cancelSignIn",
     "ui.cancelSync",
+    // Stops reading a mailbox in the background; the one open stays (#519).
+    "ui.cancelOpen",
     "ui.skipSync",
     "ui.favorites",
     "ui.copyAdminConsentLink",
