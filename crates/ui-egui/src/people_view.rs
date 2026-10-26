@@ -837,6 +837,7 @@ fn card_recent(app: &mut MailApp, ui: &mut Ui, c: &Contact) {
     for id in recent.iter() {
         let Some(m) = app.session.mailbox.messages.get(id).cloned() else { continue };
         let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 28.0), Sense::click());
+        app.hit.add("recentMail", *id, r);
         if resp.hovered() {
             ui.painter().rect_filled(r, 4.0, if resp.is_pointer_button_down_on() { t.pressed } else { t.hover });
         }
@@ -867,8 +868,7 @@ fn card_recent(app: &mut MailApp, ui: &mut Ui, c: &Contact) {
             t.text,
         );
         if resp.clicked() {
-            let _ = app.run("mail.select", json!({"id": id}));
-            let _ = app.run("view.mail", json!({}));
+            app.open_in_mail(*id);
         }
     }
 }

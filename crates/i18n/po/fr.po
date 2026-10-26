@@ -70,7 +70,7 @@ msgid "(no recipients)"
 msgstr "(aucun destinataire)"
 
 #. interface, what a command says
-#: crates/engine/src/cmd/graph_drafts.rs crates/engine/src/cmd/graph_send.rs crates/ui-egui/src/alerts.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/mail_view/server_rows.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/windows.rs
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/graph_drafts.rs crates/engine/src/cmd/graph_send.rs crates/ui-egui/src/alerts.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/mail_view/server_rows.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/windows.rs
 #, fuzzy
 msgid "(no subject)"
 msgstr "(sans objet)"
@@ -2172,7 +2172,7 @@ msgid "Current Folder"
 msgstr "Dossier actif"
 
 #. interface
-#: crates/ui-egui/src/chrome.rs
+#: crates/ui-egui/src/chrome.rs crates/ui-egui/src/mail_view.rs
 msgid "Current Mailbox"
 msgstr ""
 
@@ -2659,6 +2659,12 @@ msgstr "Téléchargement des images…"
 #, fuzzy
 msgid "Downloading the message first…"
 msgstr "Téléchargement préalable du message…"
+
+#. interface
+#: crates/ui-egui/src/graph_fetch.rs
+#, fuzzy
+msgid "Downloading the messages first…"
+msgstr "Téléchargement préalable des messages…"
 
 #. interface
 #: crates/ui-egui/src/reading.rs
@@ -9230,6 +9236,12 @@ msgid "The folder isn't there."
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/graph_fetch.rs
+#, fuzzy
+msgid "The forward of several messages that was waiting was called off: another download took its place."
+msgstr "Le transfert de plusieurs messages en attente a été annulé : un autre téléchargement a pris sa place."
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "The incoming mail server isn't a host name (letters, digits, dots and dashes)"
@@ -9394,6 +9406,12 @@ msgstr "La fin proposée doit être postérieure au début proposé."
 #, fuzzy
 msgid "The server didn't say when other people are busy"
 msgstr "Le serveur n'a pas indiqué quand les autres personnes sont occupées"
+
+#. interface
+#: crates/ui-egui/src/graph_fetch.rs
+#, fuzzy
+msgid "The server didn't send the messages. Try again in a few minutes."
+msgstr "Le serveur n'a pas envoyé les messages. Réessayez dans quelques minutes."
 
 #. interface
 #: crates/ui-egui/src/graph_fetch.rs crates/ui-egui/src/reading.rs
@@ -10005,6 +10023,12 @@ msgstr "Ce message n'annule pas de réunion."
 #, fuzzy
 msgid "This message doesn't propose another time for a meeting."
 msgstr "Ce message ne propose pas d'autre horaire pour une réunion."
+
+#. interface
+#: crates/ui-egui/src/reading.rs
+#, fuzzy
+msgid "This message downloads once the messages being downloaded now are here."
+msgstr "Ce message sera téléchargé dès que les messages en cours de téléchargement seront arrivés."
 
 #. interface
 #: crates/ui-egui/src/reading/view.rs
@@ -11366,6 +11390,12 @@ msgid_plural "and {n} more folders"
 msgstr[0] ""
 msgstr[1] ""
 
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "at most 200 messages can be forwarded together"
+msgstr "200 messages au plus peuvent être transférés ensemble"
+
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs
 #, fuzzy
@@ -11879,8 +11909,8 @@ msgstr "le"
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
 #, fuzzy
-msgid "only the headers of this message are here, so it can't be forwarded as an attachment"
-msgstr "seuls les en-têtes de ce message sont ici, il ne peut donc pas être transféré en tant que pièce jointe"
+msgid "only the headers of “{subject}” are here, so it can't be forwarded as an attachment"
+msgstr "seuls les en-têtes de « {subject} » sont ici, il ne peut donc pas être transféré en tant que pièce jointe"
 
 #. why a command can't run
 #: crates/engine/src/cmd/calendar/invitation.rs
@@ -11958,12 +11988,6 @@ msgstr "sélectionnez d'abord une tâche"
 #, fuzzy
 msgid "select an appointment first"
 msgstr "sélectionnez d'abord un rendez-vous"
-
-#. why a command can't run
-#: crates/engine/src/cmd/compose.rs
-#, fuzzy
-msgid "select only one message to forward as an attachment"
-msgstr "sélectionnez un seul message à transférer en tant que pièce jointe"
 
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/shared.rs
@@ -12138,6 +12162,12 @@ msgid "the message is plain text; switch it to HTML first"
 msgstr "le message est en texte brut ; passez-le d'abord en HTML"
 
 #. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "the messages to forward are larger than {mb} MB together"
+msgstr "les messages à transférer dépassent {mb} Mo à eux tous"
+
+#. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
 msgid "the parent folder belongs to another account"
@@ -12203,6 +12233,12 @@ msgid "the server sent nothing"
 msgstr "le serveur n'a rien envoyé"
 
 #. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "the server wouldn't send “{subject}” whole, so it can't be forwarded as an attachment"
+msgstr "le serveur n'a pas voulu envoyer « {subject} » en entier, il ne peut donc pas être transféré en tant que pièce jointe"
+
+#. what a command says
 #: crates/engine/src/cmd/signature.rs
 #, fuzzy
 msgid "the signature has changes: save it, or close it with discard"
@@ -12223,8 +12259,8 @@ msgstr "la tâche n'existe plus"
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
 #, fuzzy
-msgid "the text of this message can't be read on this computer, so it can't be forwarded as an attachment"
-msgstr "le texte de ce message ne peut pas être lu sur cet ordinateur, il ne peut donc pas être transféré en tant que pièce jointe"
+msgid "the text of “{subject}” can't be read on this computer, so it can't be forwarded as an attachment"
+msgstr "le texte de « {subject} » ne peut pas être lu sur cet ordinateur, il ne peut donc pas être transféré en tant que pièce jointe"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -12397,18 +12433,6 @@ msgstr ""
 #, fuzzy
 msgid "this message has no subject to look for"
 msgstr "ce message n'a pas d'objet à rechercher"
-
-#. what a command says
-#: crates/engine/src/cmd/compose.rs
-#, fuzzy
-msgid "this message isn't downloaded yet: open it once you're online, then forward it as an attachment"
-msgstr "ce message n'est pas encore téléchargé : ouvrez-le une fois en ligne, puis transférez-le en tant que pièce jointe"
-
-#. what a command says
-#: crates/engine/src/cmd/compose.rs
-#, fuzzy
-msgid "this message was too large to download: only its header is here, so it can't be forwarded as an attachment"
-msgstr "ce message était trop volumineux pour être téléchargé : seul son en-tête est ici, il ne peut donc pas être transféré en tant que pièce jointe"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs
@@ -13541,6 +13565,50 @@ msgstr "{why} ; les connexions ne sont donc pas mémorisées : MailCraft les
 #, fuzzy
 msgid "{why}. {n} changes made in it here wait on this computer."
 msgstr "{why}. {n} modifications faites ici attendent sur cet ordinateur."
+
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "“{subject}” came from its server but couldn't be kept on this computer, so it can't be forwarded as an attachment"
+msgstr "« {subject} » est arrivé de son serveur, mais n'a pas pu être conservé sur cet ordinateur, il ne peut donc pas être transféré en tant que pièce jointe"
+
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "“{subject}” isn't downloaded yet: open it once you're online, then forward it as an attachment"
+msgstr "« {subject} » n'est pas encore téléchargé : ouvrez-le une fois en ligne, puis transférez-le en tant que pièce jointe"
+
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "“{subject}” was too large to download: only its header is here, so it can't be forwarded as an attachment"
+msgstr "« {subject} » était trop volumineux pour être téléchargé : seul son en-tête est ici, il ne peut donc pas être transféré en tant que pièce jointe"
+
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
+msgstr "« {subject} » est introuvable sur son serveur, il ne peut donc pas être transféré en tant que pièce jointe"
+
+#, fuzzy
+#~ msgid "only the headers of this message are here, so it can't be forwarded as an attachment"
+#~ msgstr "seuls les en-têtes de ce message sont ici, il ne peut donc pas être transféré en tant que pièce jointe"
+
+#, fuzzy
+#~ msgid "select only one message to forward as an attachment"
+#~ msgstr "sélectionnez un seul message à transférer en tant que pièce jointe"
+
+#, fuzzy
+#~ msgid "the text of this message can't be read on this computer, so it can't be forwarded as an attachment"
+#~ msgstr "le texte de ce message ne peut pas être lu sur cet ordinateur, il ne peut donc pas être transféré en tant que pièce jointe"
+
+#, fuzzy
+#~ msgid "this message isn't downloaded yet: open it once you're online, then forward it as an attachment"
+#~ msgstr "ce message n'est pas encore téléchargé : ouvrez-le une fois en ligne, puis transférez-le en tant que pièce jointe"
+
+#, fuzzy
+#~ msgid "this message was too large to download: only its header is here, so it can't be forwarded as an attachment"
+#~ msgstr "ce message était trop volumineux pour être téléchargé : seul son en-tête est ici, il ne peut donc pas être transféré en tant que pièce jointe"
 
 #, fuzzy
 #~ msgid "Close (the draft stays as last saved)"

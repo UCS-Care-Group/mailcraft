@@ -59,7 +59,7 @@ msgid "(no recipients)"
 msgstr ""
 
 #. interface, what a command says
-#: crates/engine/src/cmd/graph_drafts.rs crates/engine/src/cmd/graph_send.rs crates/ui-egui/src/alerts.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/mail_view/server_rows.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/windows.rs
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/graph_drafts.rs crates/engine/src/cmd/graph_send.rs crates/ui-egui/src/alerts.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/mail_view/server_rows.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/windows.rs
 msgid "(no subject)"
 msgstr ""
 
@@ -1840,7 +1840,7 @@ msgid "Current Folder"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/chrome.rs
+#: crates/ui-egui/src/chrome.rs crates/ui-egui/src/mail_view.rs
 msgid "Current Mailbox"
 msgstr ""
 
@@ -2251,6 +2251,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/graph_fetch.rs
 msgid "Downloading the message first…"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/graph_fetch.rs
+msgid "Downloading the messages first…"
 msgstr ""
 
 #. interface
@@ -7815,6 +7820,11 @@ msgid "The folder isn't there."
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/graph_fetch.rs
+msgid "The forward of several messages that was waiting was called off: another download took its place."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs
 msgid "The incoming mail server isn't a host name (letters, digits, dots and dashes)"
 msgstr ""
@@ -7952,6 +7962,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/scheduling.rs
 msgid "The server didn't say when other people are busy"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/graph_fetch.rs
+msgid "The server didn't send the messages. Try again in a few minutes."
 msgstr ""
 
 #. interface
@@ -8482,6 +8497,11 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/calendar/meeting.rs
 msgid "This message doesn't propose another time for a meeting."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading.rs
+msgid "This message downloads once the messages being downloaded now are here."
 msgstr ""
 
 #. interface
@@ -9641,6 +9661,11 @@ msgid_plural "and {n} more folders"
 msgstr[0] ""
 msgstr[1] ""
 
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+msgid "at most 200 messages can be forwarded together"
+msgstr ""
+
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs
 msgid "calendar"
@@ -10081,7 +10106,7 @@ msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
-msgid "only the headers of this message are here, so it can't be forwarded as an attachment"
+msgid "only the headers of “{subject}” are here, so it can't be forwarded as an attachment"
 msgstr ""
 
 #. why a command can't run
@@ -10147,11 +10172,6 @@ msgstr ""
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_extra.rs
 msgid "select an appointment first"
-msgstr ""
-
-#. why a command can't run
-#: crates/engine/src/cmd/compose.rs
-msgid "select only one message to forward as an attachment"
 msgstr ""
 
 #. what a command says, why a command can't run
@@ -10300,6 +10320,11 @@ msgid "the message is plain text; switch it to HTML first"
 msgstr ""
 
 #. what a command says
+#: crates/engine/src/cmd/compose.rs
+msgid "the messages to forward are larger than {mb} MB together"
+msgstr ""
+
+#. what a command says
 #: crates/model/src/mailbox.rs
 msgid "the parent folder belongs to another account"
 msgstr ""
@@ -10355,6 +10380,11 @@ msgid "the server sent nothing"
 msgstr ""
 
 #. what a command says
+#: crates/engine/src/cmd/compose.rs
+msgid "the server wouldn't send “{subject}” whole, so it can't be forwarded as an attachment"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/signature.rs
 msgid "the signature has changes: save it, or close it with discard"
 msgstr ""
@@ -10371,7 +10401,7 @@ msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
-msgid "the text of this message can't be read on this computer, so it can't be forwarded as an attachment"
+msgid "the text of “{subject}” can't be read on this computer, so it can't be forwarded as an attachment"
 msgstr ""
 
 #. interface
@@ -10517,16 +10547,6 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/mail.rs
 msgid "this message has no subject to look for"
-msgstr ""
-
-#. what a command says
-#: crates/engine/src/cmd/compose.rs
-msgid "this message isn't downloaded yet: open it once you're online, then forward it as an attachment"
-msgstr ""
-
-#. what a command says
-#: crates/engine/src/cmd/compose.rs
-msgid "this message was too large to download: only its header is here, so it can't be forwarded as an attachment"
 msgstr ""
 
 #. what a command says
@@ -11508,5 +11528,25 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
 msgid "{why}. {n} changes made in it here wait on this computer."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+msgid "“{subject}” came from its server but couldn't be kept on this computer, so it can't be forwarded as an attachment"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+msgid "“{subject}” isn't downloaded yet: open it once you're online, then forward it as an attachment"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+msgid "“{subject}” was too large to download: only its header is here, so it can't be forwarded as an attachment"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr ""
 

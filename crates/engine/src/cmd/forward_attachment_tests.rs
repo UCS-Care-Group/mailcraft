@@ -269,30 +269,45 @@ fn a_message_too_large_to_attach_is_refused_before_it_is_read_in() {
 }
 
 #[test]
-fn it_takes_one_message_at_a_time() {
+fn a_message_named_is_that_one_whatever_is_selected() {
     let mut s = session();
     let id = by_subject(&s, MOCKUPS);
     let other = by_subject(&s, "Q4 roadmap review moved to Thursday");
-    s.sel.messages = vec![id, other];
-    let e = s.run("mail.forwardAsAttachment", &json!({})).unwrap_err().to_string();
-    assert!(e.contains("select only one message"), "{e}");
-    assert!(s.compose.is_none(), "not one of them, quietly");
-    // Named otherwise than by one `id`, it is refused, never one of the selected taken for it.
-    for junk in [json!({"id": 0}), json!({"id": "7"}), json!({"id": -1}), json!({"ids": [id, other]}), json!({"message": id})] {
-        assert!(s.run("mail.forwardAsAttachment", &junk).is_err(), "{junk}");
-        assert!(s.compose.is_none(), "{junk}");
-    }
     // Named, it is that one, whatever is selected.
-    s.run("mail.forwardAsAttachment", &json!({"id": other})).unwrap();
-    assert_eq!(s.compose.as_ref().unwrap().source, Some(other));
-    // With one selected, messages named otherwise aren't taken to mean it either.
-    s.compose = None;
-    s.run("mail.select", &json!({"id": id})).unwrap();
-    for junk in [json!({"ids": [other]}), json!({"message": other}), json!({"id": "7"})] {
-        let e = s.run("mail.forwardAsAttachment", &junk).unwrap_err().to_string();
-        assert!(e.contains("`id`"), "{junk}: {e}");
-        assert!(s.compose.is_none(), "{junk}");
+    s.sel.messages = vec![id];
+    for params in [json!({"id": other}), json!({"ids": [other]}), json!({"id": other as f64})] {
+        s.run("mail.forwardAsAttachment", &params).unwrap();
+        assert_eq!(s.compose.as_ref().unwrap().source, Some(other), "{params}");
+        assert_eq!(s.compose.as_ref().unwrap().attachments.len(), 1, "{params}");
     }
+    // Named wrongly, it is refused, never the selected message taken for it (#360): a forward goes
+    // to other people.
+    s.compose = None;
+    for command in ["mail.forwardAsAttachment", "mail.forward"] {
+        for junk in [
+            json!({"id": other.to_string()}),
+            json!({"id": 0}),
+            json!({"id": -1}),
+            json!({"id": 1.5}),
+            json!({"id": [other]}),
+            json!({"ids": other}),
+            json!({"ids": format!("{other}")}),
+            json!({"ids": {"0": other}}),
+            json!({"ids": []}),
+            json!({"ids": [other, "7"]}),
+            json!({"id": other, "ids": [other]}),
+            json!({"message": other}),
+            json!({"id": other, "to": "help@example.org"}),
+            json!([other]),
+        ] {
+            let e = s.run(command, &junk).unwrap_err().to_string();
+            assert!(e.starts_with("bad parameters"), "{command} {junk}: {e}");
+            assert!(s.compose.is_none(), "{command} {junk}: nothing written");
+        }
+    }
+    // A message being written may be let go by the caller.
+    s.run("mail.forward", &json!({"id": other, "discard": true})).unwrap();
+    assert_eq!(s.compose.as_ref().unwrap().source, Some(other));
 }
 
 #[test]

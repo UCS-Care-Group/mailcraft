@@ -124,9 +124,14 @@ impl ServerSearch {
 
 /// What the search in view is, for [`ServerSearch`]'s key.
 fn key_of(s: &Session) -> (String, Scope, Id) {
-    // Every scope but every mailbox's is of the folder in view, or of its account.
-    let folder = if s.view.scope == Scope::Everywhere { 0 } else { s.view.folder };
-    (s.view.search.clone(), s.view.scope, folder)
+    // The folder in view, or for a mailbox's search its account: another folder of the same
+    // account keeps what the server found.
+    let place = match s.view.scope {
+        Scope::Everywhere => 0,
+        Scope::Mailbox => s.mailbox.folder(s.view.folder).map_or(0, |f| f.account),
+        Scope::Folder | Scope::Subfolders => s.view.folder,
+    };
+    (s.view.search.clone(), s.view.scope, place)
 }
 
 /// The mailboxes the search in view would go to: each with the server id of the folder to search
