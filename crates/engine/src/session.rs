@@ -1785,14 +1785,21 @@ impl Session {
     }
 
     /// The mailbox file holds the mailbox as it is now (it was just saved, or nothing changed
-    /// since it was opened or saved): the messages being moved out of a Microsoft account that
-    /// are whole are whole in the file, and the server's copies may go (R3 spec S19). A host
-    /// that saves by other means than `file.save` calls this when a save of the mailbox as it is
-    /// now succeeded; the engine also notes it whenever it sees nothing unsaved.
+    /// since it was opened or saved): the messages being moved out of a server (a Microsoft
+    /// account's, R3 spec S19, or an IMAP account's, #451) that are whole are whole in the file,
+    /// and the server's copies may go. A host that saves by other means than `file.save` calls
+    /// this when a save of the mailbox as it is now succeeded; the engine also notes it whenever
+    /// it sees nothing unsaved.
     pub fn note_saved(&mut self) {
-        let whole = self.mailbox.messages.values().filter(|m| m.moving_out.is_some() && !m.unfetched).map(|m| m.id);
+        let mb = &self.mailbox;
+        let out = mb.messages.values().filter(|m| m.moving_out.is_some()).map(|m| m.id);
+        let moved = mb.pending.iter().filter_map(|p| match p {
+            mailcraft_model::Pending::Move { message, .. } => Some(*message),
+            mailcraft_model::Pending::Delete { .. } => None,
+        });
+        let whole: Vec<Id> = out.chain(moved).filter(|id| mb.message(*id).is_some_and(|m| !m.unfetched) && mb.moving_out_of_a_server(*id)).collect();
         self.saved_whole.extend(whole);
-        self.saved_whole.retain(|id| self.mailbox.messages.get(id).is_some_and(|m| m.moving_out.is_some()));
+        self.saved_whole.retain(|id| self.mailbox.moving_out_of_a_server(*id));
     }
 
     /// Whether the mailbox file is known to hold the mailbox as it is now.

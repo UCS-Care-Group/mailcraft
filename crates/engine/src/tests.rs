@@ -1750,10 +1750,11 @@ mod two_way {
         assert_eq!((s.mailbox.pending.len(), unpushed(&s, a), request(&s, a).ops.len()), (1, 0, 0));
         run(&mut s, "mail.move", json!({"id": one, "folder": archive}));
         assert_eq!(unpushed(&s, a), 1);
-        // To another account: its own server keeps it where it is.
+        // To a folder on this computer: its server keeps it until it is whole in the mailbox
+        // file, and this one was never saved (#451).
         let local = kind(&s, FolderKind::Inbox);
         run(&mut s, "mail.move", json!({"id": two, "folder": local}));
-        assert_eq!((s.mailbox.pending.len(), unpushed(&s, a)), (1, 1));
+        assert_eq!((s.mailbox.pending.len(), unpushed(&s, a)), (2, 1));
         // A copy is not on the server, and changing it is nobody's business.
         let copy = run(&mut s, "mail.copy", json!({"id": three, "folder": inbox}))["copies"][0].as_u64().unwrap();
         run(&mut s, "mail.markRead", json!({"id": copy}));

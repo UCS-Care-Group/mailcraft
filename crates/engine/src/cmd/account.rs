@@ -623,9 +623,10 @@ fn destination(mb: &Mailbox, folder: &Folder) -> (String, Vec<String>) {
 /// flags that are not as the server last had them. At most `limit` of them are spelled out; the
 /// number is of all there are.
 ///
-/// A message moved out of the account into one whose server makes a copy of it (#451) is
-/// deleted here once that copy is there ([`super::graph_place::safe_here`]); until then nothing
-/// is asked of the server for it.
+/// A message moved out of the account into one that keeps it ([`Mailbox::takes_over`], #451)
+/// is deleted here once it is safe there ([`super::graph_place::safe_here`]): made on that
+/// account's server, or whole in the mailbox file on this computer. Until then nothing is asked
+/// of the server for it.
 ///
 /// A change is only asked for in a mailbox one of the account's folders follows with a
 /// `UIDVALIDITY` (the UIDs kept of it are good for that life of the mailbox only).
@@ -652,8 +653,8 @@ fn remote_ops(s: &Session, account: Id, limit: usize) -> (Vec<RemoteOp>, usize) 
             Pending::Move { message, synced, to, .. } => {
                 let Some(m) = mb.message(*message) else { continue };
                 if m.account != account {
-                    // Moved out of the account: the original goes once the copy is there.
-                    if mb.placed_into(account, m.account) && super::graph_place::safe_here(s, m, saved) {
+                    // Moved out of the account: the original goes once the message is safe where it is.
+                    if mb.takes_over(account, m.account) && super::graph_place::safe_here(s, m, saved) {
                         note(&|| RemoteOp::Delete { from: from.to_string(), uid });
                     }
                     continue;

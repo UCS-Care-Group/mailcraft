@@ -39,7 +39,7 @@ pub fn place_changes(s: &Session, account: Id, limit: usize) -> (Vec<PlaceUp>, u
     let outbox = mb.folder_of_kind(account, FolderKind::Outbox);
     let (mut out, mut count) = (Vec::new(), 0usize);
     for queued in &mb.queued {
-        let Queued::PlaceMessage { account: a, message, marker, .. } = queued else { continue };
+        let Queued::PlaceMessage { account: a, message, marker, copy, .. } = queued else { continue };
         if *a != account {
             continue;
         }
@@ -50,7 +50,7 @@ pub fn place_changes(s: &Session, account: Id, limit: usize) -> (Vec<PlaceUp>, u
             continue;
         }
         match s.loaded_message(m.id) {
-            Ok(m) => out.push(PlaceUp::of(&m, to, to_folder, marker.clone(), m.moving_out.is_some(), flag_of(&m, today, now))),
+            Ok(m) => out.push(PlaceUp::of(&m, to, to_folder, marker.clone(), !copy, flag_of(&m, today, now))),
             Err(e) => log::warn!("message {} waits to go to another mailbox: {e}", m.id),
         }
     }
@@ -65,7 +65,7 @@ pub(crate) fn safe_here(s: &Session, m: &Message, saved: bool) -> bool {
     if s.mailbox.is_graph(m.account) {
         m.server.as_ref().is_some_and(|server| !server.gone && !server.id.is_empty())
     } else {
-        !m.unfetched && !m.incomplete && (saved || s.saved_whole.contains(&m.id))
+        !m.unfetched && !m.incomplete && m.not_downloaded == 0 && (saved || s.saved_whole.contains(&m.id))
     }
 }
 

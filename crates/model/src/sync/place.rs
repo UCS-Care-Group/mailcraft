@@ -1,16 +1,18 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! Mail put into a mailbox from another of the same owner's mailboxes (#70): a shared mailbox and
-//! its owner's, or two shared mailboxes of one owner's.
+//! Mail put into a Microsoft mailbox from elsewhere: from another of the same owner's mailboxes
+//! (#70: a shared mailbox and its owner's, or two shared mailboxes of one owner's), from another
+//! Microsoft account, an IMAP account or a folder on this computer (#451).
 //!
 //! Microsoft Graph moves and copies a message only within its own mailbox. A message moved or
-//! copied between two mailboxes is therefore made in the destination by the destination's own run,
+//! copied into another is therefore made in the destination by the destination's own run,
 //! at its own address, from the whole message here ([`PlaceUp`]): its fields, its attachments, its
 //! read state, flag and categories, and the times it was sent and received, as a message that was
 //! received (not a draft). It carries MailCraft's marker (an invisible extended property with a
 //! value used once), so that a make whose answer was lost is found and not made twice. Of a move,
 //! the original is removed from its own mailbox only once the copy is confirmed there
-//! ([`crate::sync::MovingOut`]): a copy that fails never loses the message.
+//! ([`crate::sync::MovingOut`], or a [`crate::Pending::Move`] out of an IMAP account): a copy
+//! that fails never loses the message.
 
 use std::sync::Arc;
 
@@ -24,7 +26,7 @@ use crate::{Address, Id, Importance, Message};
 /// Most messages one Graph run puts into its mailbox; more go over several runs.
 pub const MAX_PLACES: usize = 200;
 
-/// A message to make in a folder of the run's mailbox, from another mailbox of the same owner's.
+/// A message to make in a folder of the run's mailbox, from elsewhere.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct PlaceUp {

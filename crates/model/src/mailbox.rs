@@ -729,10 +729,11 @@ pub enum Pending {
     /// A message that was `uid` in server mailbox `from` now belongs in local folder `to`.
     /// `synced` is what its [`Message::synced`] was when it left, for when it has a UID again.
     ///
-    /// When the message is in another account now (#451), it is **being moved** there: the
-    /// server of that account is to make a copy of it ([`Queued::PlaceMessage`]), and the
-    /// original is deleted from `from` once that copy is there; until then it stays, so that a
-    /// copy that fails never loses the message.
+    /// When the message is in another account now (#451), it is **being moved** there
+    /// ([`Mailbox::takes_over`]): the original is deleted from `from` once the message is safe
+    /// where it is now (that account's server made a copy of it, [`Queued::PlaceMessage`], or,
+    /// on this computer, it is whole and saved); until then it stays, so that a copy that fails
+    /// never loses the message.
     Move {
         account: Id,
         message: Id,
@@ -1686,8 +1687,8 @@ impl Mailbox {
     /// new folder. One that already has a move waiting keeps it with the new destination, and
     /// moving it back to where the server still has it calls the move off. A message moved to
     /// another account's folder stays where it is on its own server (nothing is pushed), unless
-    /// that account's server makes a copy of it ([`Mailbox::placed_into`]): then the original
-    /// goes from its own server once the copy is there (#451).
+    /// that account keeps it ([`Mailbox::takes_over`]): then the original goes from its own
+    /// server once the message is safe there (#451).
     fn move_message_anyway(&mut self, id: Id, folder: Id) -> Result<(), ModelError> {
         let (account, remote) = {
             let f = self.folder(folder).ok_or(not_found("folder", folder))?;
@@ -1717,17 +1718,19 @@ impl Mailbox {
     ///
     /// - Within its account: a [`Pending::Move`], or the one waiting already with the new
     ///   destination; none when it is back where the server has it all along.
-    /// - Into an account whose server makes a copy of it ([`Mailbox::placed_into`]): a
-    ///   [`Pending::Move`] out of its account, by which the original goes once the copy is there.
+    /// - Into an account that keeps it ([`Mailbox::takes_over`]), when it is whole here: a
+    ///   [`Pending::Move`] out of its account, by which the original goes once it is safe there.
     ///   One waiting already goes on, also while the message moves on in the other account.
     /// - Anywhere else: none, and a move waiting is called off (the original stays where it is).
     fn imap_side(&mut self, id: Id, folder: Id, account: Id, remote: &str) -> Result<(u32, Option<RemoteFlags>), ModelError> {
         let m = self.message(id).ok_or(not_found("message", id))?;
         let (from_account, was_in, uid, synced) = (m.account, m.folder, m.uid, m.synced);
+        // Of one that isn't whole here, the server's is all there is.
+        let whole = !m.unfetched && !m.incomplete && m.not_downloaded == 0;
         let waiting = self.waiting_move(id);
         let owner = waiting.and_then(|at| self.pending.get(at)).map(Pending::account);
-        let goes_on = owner.is_some_and(|owner| owner == account || self.placed_into(owner, account));
-        let starts = from_account == account || self.placed_into(from_account, account);
+        let goes_on = owner.is_some_and(|owner| owner == account || self.takes_over(owner, account));
+        let starts = from_account == account || (whole && self.takes_over(from_account, account));
         // What the message is to the server in its new folder: nothing, unless it is back.
         let (mut uid_there, mut synced_there, mut called_off) = (0, None, None);
         match waiting.and_then(|at| self.pending.get_mut(at)) {
@@ -1787,6 +1790,22 @@ impl Mailbox {
         let shared = |id: Id| self.account(id).is_some_and(Account::is_shared);
         let through_a_shared = self.is_graph(from) && (shared(from) || shared(to));
         !through_a_shared || self.between_mailboxes(from, to)
+    }
+
+    /// Whether a message moved from the account `from` into the account `to` is kept by `to`, so
+    /// that its original goes from `from`'s server once it is safe there (#451): `to`'s server
+    /// makes a copy of it ([`Mailbox::placed_into`]), or `to` is on this computer, where the
+    /// message is kept in the mailbox file.
+    pub fn takes_over(&self, from: Id, to: Id) -> bool {
+        self.placed_into(from, to) || (from != to && self.account(to).is_some_and(|a| a.kind == AccountKind::Local))
+    }
+
+    /// Whether the original of `id` is on a server it is being moved out of, to go from there
+    /// once `id` is safe where it is now: out of a Microsoft account ([`Message::moving_out`]),
+    /// or out of an IMAP account ([`Pending::Move`] of another account's).
+    pub fn moving_out_of_a_server(&self, id: Id) -> bool {
+        let Some(m) = self.message(id) else { return false };
+        m.moving_out.is_some() || self.waiting_move(id).and_then(|at| self.pending.get(at)).is_some_and(|p| p.account() != m.account)
     }
 
     /// Whether a server has the original of `id` elsewhere than where it lies here: it is being
