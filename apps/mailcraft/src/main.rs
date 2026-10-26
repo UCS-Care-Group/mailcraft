@@ -50,6 +50,7 @@ mod graphics;
 mod install;
 #[cfg(test)]
 mod jmap_mail_flow;
+mod launch;
 #[cfg(test)]
 mod listed_twice_flow;
 mod logging;
@@ -85,7 +86,6 @@ mod wipe;
 use std::path::PathBuf;
 
 use mailcraft_engine::Session;
-use mailcraft_model::Mailbox;
 use mailcraft_model::sync::Tokens;
 use mailcraft_ui_egui::{
     AdminConsentAnswer, AdminConsentRequest, CalendarCheckRequest, CalendarCheckResult, CalendarCheckStep, FreeBusyRequest, FreeBusyResult,
@@ -179,11 +179,14 @@ impl eframe::App for App {
         open_pages(ui.ctx(), frame);
     }
     fn on_exit(&mut self) {
-        save_prefs(&self.0);
-        // The last changes, if the timer hadn't got to them yet, and whatever the background
-        // saver is still writing.
-        if let Err(e) = self.0.save_on_exit() {
-            log::error!("saving the mailbox on exit failed: {e}");
+        // A window closed while its mailbox was still opening has nothing to save (#519).
+        if !self.0.is_opening() {
+            save_prefs(&self.0);
+            // The last changes, if the timer hadn't got to them yet, and whatever the background
+            // saver is still writing.
+            if let Err(e) = self.0.save_on_exit() {
+                log::error!("saving the mailbox on exit failed: {e}");
+            }
         }
         // The attachments opened in this run (#126).
         if let Some(opened) = OPENED.get() {
@@ -1400,6 +1403,7 @@ fn services(
     let fetch_ctx = ctx.clone();
     let search_ctx = ctx.clone();
     let tasks_ctx = ctx.clone();
+    let ahead_ctx = ctx.clone();
     let update_ctx = ctx.clone();
     let download_ctx = ctx.clone();
     let copy_ctx = ctx.clone();
@@ -1466,6 +1470,15 @@ fn services(
         import_tree: Some(Box::new(move |job: mailcraft_ui_egui::import_tree::TreeJob| {
             background(&tree_ctx, "folder import", move || {
                 mailcraft_engine::import_tree::load_path(&job.path, None, job.count_only, &job.progress).map_err(|e| e.to_string())
+            })
+        })),
+        // Another mailbox file, read off the window's thread before it takes the place of the one
+        // open (File › Open, #519): the window shows how far it has got and can call it off. A
+        // panic on the way is a file that couldn't be read.
+        read_ahead: Some(Box::new(move |path: PathBuf, progress: std::sync::Arc<mailcraft_engine::io::OpenProgress>| {
+            background(&ahead_ctx, "opening a mailbox", move || {
+                std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| mailcraft_engine::store::open_ahead(&path, &progress)))
+                    .unwrap_or_else(|_| Err("MailCraft stopped reading it before it was done.".to_string()))
             })
         })),
         // A picture a message keeps on the web, once the owner asked for that message's pictures.
@@ -1571,40 +1584,6 @@ fn app_icon() -> Option<egui::IconData> {
 /// The commit the build came from (short), or `dev`.
 fn build_sha() -> &'static str {
     option_env!("MAILCRAFT_BUILD_SHA").map(|s| s.get(..8).unwrap_or(s)).unwrap_or("dev")
-}
-
-/// The mailbox to start with, the file it is kept in (none for the sample, or without prefs),
-/// how many bodies and attachments couldn't be read back from the content folder beside it, and
-/// whether part of the mailbox file itself was damaged and left out.
-fn first_mailbox(sample: bool, chosen: Option<PathBuf>) -> (Mailbox, Option<PathBuf>, usize, bool) {
-    let now = mailcraft_time::now();
-    if sample {
-        return (mailcraft_engine::sample::mailbox(now, mailcraft_time::local_offset_minutes(now)), None, 0, false);
-    }
-    let ours = chosen.is_none();
-    let path = chosen.or_else(|| default_mailbox_path().filter(|_| prefs_enabled()));
-    let Some(path) = path else { return (Mailbox::with_local_account("", ""), None, 0, false) };
-    if !path.exists() {
-        // A first start: the settings folder has to be there for the mailbox to be saved in it.
-        if ours && let Some(dir) = path.parent() {
-            let _ = mailcraft_engine::store::create_private_dir_all(dir);
-        }
-        return (Mailbox::with_local_account("", ""), Some(path), 0, false);
-    }
-    match mailcraft_engine::store::open(&path) {
-        Ok(opened) => {
-            if let Some(notice) = opened.notice() {
-                log::warn!("{}: {notice}", path.display());
-            }
-            let damaged = opened.lost_saves > 0 || opened.unfinished > 0 || opened.lost_records > 0;
-            (opened.mailbox, Some(path), opened.unavailable, damaged)
-        }
-        Err(e) => {
-            // Never write over a mailbox that couldn't be read: start empty, keep nothing, say why.
-            log::error!("{e}");
-            (Mailbox::with_local_account("", ""), None, 0, false)
-        }
-    }
 }
 
 /// The thread that writes the mailbox file, so the window never waits for the disk; it wakes the
@@ -1773,51 +1752,70 @@ fn main() -> eframe::Result {
             // Before the first frame, so a dark desktop's window doesn't come up light.
             #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd", target_os = "dragonfly"))]
             let _ = DESKTOP_THEME.set(desktop_theme::follow(&cc.egui_ctx));
-            let (mailbox, path, unavailable, damaged) = first_mailbox(sample, mailbox_path);
+            // The mailbox is read on a thread of its own, so that the window is there at once
+            // (#519): it shows the opening screen meanwhile, and is made as it always was once
+            // the mailbox is there (`build`).
+            let progress = std::sync::Arc::new(mailcraft_engine::io::OpenProgress::default());
+            let reading = progress.clone();
+            let wake = cc.egui_ctx.clone();
+            let arriving = launch::start(move || launch::first_mailbox(sample, mailbox_path, &reading), move || wake.request_repaint());
             let (file_dialog, dialogs) = file_dialogs::hook(&cc.egui_ctx);
-            let mut session = Session::new(mailbox);
-            let kept = path.is_some();
-            session.path = path;
-            // Search answers from a word index kept beside the mailbox file, built in the
-            // background (R6.2).
-            session.index_words = true;
-            // A run that keeps its mailbox and its settings keeps downloaded pictures too.
-            let kept_pictures = if kept && !sample && prefs_enabled() { keep_pictures() } else { None };
-            let mut services = services(file_dialog, cc.egui_ctx.clone(), kept_pictures, updates.as_ref());
-            services.update_start = update_start;
-            let mut app = MailApp::new(session, services);
-            // Nowhere to keep the mailbox (the sample, a run without preferences): don't try.
-            app.autosave = kept;
-            if let Some(path) = &app.session.path {
-                app.services.saver = background_saver(&cc.egui_ctx, path);
-            }
-            if damaged {
-                app.status(mailcraft_ui_egui::damaged_mailbox_notice());
-            } else if unavailable > 0 {
-                app.status(format!("{unavailable} bodies or attachments are missing from the mailbox's content folder, or damaged."));
-            }
-            // A mailbox whose Outlook Favorites were read another way than Microsoft Graph, which
-            // is no more: said once, and the file is saved without it.
-            if app.session.mailbox.take_retired_favorites_choices() > 0 {
-                app.session.mailbox_changed();
-                app.status(mailcraft_ui_egui::favorites_sync::FAVORITES_NOW_GRAPH);
-            }
-            // Mail of Microsoft accounts kept with characters that couldn't be read (fetched
-            // before their character sets were) is fetched again, once (#185).
-            let again = mailcraft_engine::cmd::graph_down::refetch_unreadable(&mut app.session.mailbox);
-            if again > 0 {
-                app.session.mailbox_changed();
-                app.status(format!("{again} messages with characters that couldn't be read are being downloaded again."));
-            }
-            // An ordinary start on a mailbox nobody has set up yet begins with adding an account.
-            app.offer_setup = kept && !sample;
-            // A Microsoft account still on IMAP is offered the switch to Graph (R3.7): only for a
-            // mailbox kept in a file, which is where the copy from before the switch goes.
-            app.offer_graph_switch = kept && !sample;
-            if let Some(ui) = prefs {
-                app.apply_prefs(ui);
-            }
-            app.settings_unread = settings_unread;
+            let ctx = cc.egui_ctx.clone();
+            let (first_prefs, host_updates) = (prefs.clone(), updates.clone());
+            let build: mailcraft_ui_egui::opening::Build = Box::new(move |arrival| {
+                let (mailbox, path, unavailable, damaged) = (arrival.mailbox, arrival.path, arrival.unavailable, arrival.damaged);
+                let mut session = Session::new(mailbox);
+                let kept = path.is_some();
+                session.path = path;
+                // Search answers from a word index kept beside the mailbox file, built in the
+                // background (R6.2).
+                session.index_words = true;
+                // A run that keeps its mailbox and its settings keeps downloaded pictures too.
+                let kept_pictures = if kept && !sample && prefs_enabled() { keep_pictures() } else { None };
+                let mut services = services(file_dialog, ctx.clone(), kept_pictures, host_updates.as_ref());
+                services.update_start = update_start;
+                let mut app = MailApp::new(session, services);
+                // Nowhere to keep the mailbox (the sample, a run without preferences): don't try.
+                app.autosave = kept;
+                if let Some(path) = &app.session.path {
+                    app.services.saver = background_saver(&ctx, path);
+                }
+                if damaged {
+                    app.status(mailcraft_ui_egui::damaged_mailbox_notice());
+                } else if unavailable > 0 {
+                    app.status(format!("{unavailable} bodies or attachments are missing from the mailbox's content folder, or damaged."));
+                }
+                // A mailbox whose Outlook Favorites were read another way than Microsoft Graph,
+                // which is no more: said once, and the file is saved without it.
+                if app.session.mailbox.take_retired_favorites_choices() > 0 {
+                    app.session.mailbox_changed();
+                    app.status(mailcraft_ui_egui::favorites_sync::FAVORITES_NOW_GRAPH);
+                }
+                // Mail of Microsoft accounts kept with characters that couldn't be read (fetched
+                // before their character sets were) is fetched again, once (#185).
+                let again = mailcraft_engine::cmd::graph_down::refetch_unreadable(&mut app.session.mailbox);
+                if again > 0 {
+                    app.session.mailbox_changed();
+                    app.status(format!("{again} messages with characters that couldn't be read are being downloaded again."));
+                }
+                // An ordinary start on a mailbox nobody has set up yet begins with adding an account.
+                app.offer_setup = kept && !sample;
+                // A Microsoft account still on IMAP is offered the switch to Graph (R3.7): only
+                // for a mailbox kept in a file, which is where the copy from before the switch goes.
+                app.offer_graph_switch = kept && !sample;
+                if let Some(ui) = prefs {
+                    app.apply_prefs(ui);
+                }
+                app.settings_unread = settings_unread;
+                app.ui.window = restored;
+                app.integrated_titlebar = cfg!(target_os = "macos");
+                for f in files {
+                    app.open_path(&f);
+                }
+                app
+            });
+            let mut app =
+                MailApp::opening(mailcraft_ui_egui::opening::Opening::new(arriving, progress, build), first_prefs, system_locale::system_locale());
             app.ui.window = restored;
             app.integrated_titlebar = cfg!(target_os = "macos");
             let mut key_file = None;
@@ -1827,9 +1825,6 @@ fn main() -> eframe::Result {
             {
                 app = app.with_control(rx);
                 key_file = file;
-            }
-            for f in files {
-                app.open_path(&f);
             }
             if let Some(guard) = &guard {
                 guard.wake(&cc.egui_ctx);

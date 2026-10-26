@@ -54,6 +54,12 @@
 //! that has been at it for a minute, at that stage, done of total; it never ends), `"sweeping"`,
 //! or `""` (nothing being written).
 //!
+//! `{"opening": {"read": bytes, "total": bytes, "after"?: ms, "trouble"?: "unreadable"|"stopped"|"damaged"|"repaired", "repaired"?: n, "theme"?: "light"|"dark"}}`
+//! on any line has the window still opening its mailbox (#519): reading that far, until `after`
+//! ms have gone by (never, without it), or waiting on the page that says what was wrong. While it
+//! opens, the control channel answers everything but `app.status` with "still opening", so the
+//! theme is given here. The opening screen shows after 0.3 s: `{"wait": 400}` before a shot.
+//!
 //! A folder of mailboxes being looked at (#420, `ui.dialog` `importTree`) never finishes; `{"host": {"treeProgress": [folders, files, messages]}}` sets the counts it shows, and `{"host": {"treeDir": "/path"}}` has it look into that folder at once.
 //! And Send/Receive, for Send/Receive Progress (`{"host": {"sync": [[piece, …], …]}}`): one list
 //! of pieces for each run of an account from that line on, in turn, each piece a `sync.apply`
@@ -611,6 +617,43 @@ fn main() {
     app.auto_sync = !stood_in;
     if let Some(overlay) = lines.iter().find_map(|l| l.get("overlayScrollBars").and_then(|v| v.as_bool())) {
         app.overlay_scroll_bars = overlay;
+    }
+    // A window still opening its mailbox (#519), until `after` ms have gone by (never, without it).
+    let mut _arriving = None;
+    if let Some(said) = lines.iter().find_map(|l| l.get("opening").cloned()) {
+        let (tx, arrive) = channel();
+        let progress = Arc::new(mailcraft_engine::io::OpenProgress::default());
+        let n = |k: &str| said.get(k).and_then(|v| v.as_u64()).unwrap_or(0);
+        progress.set_total(n("total"));
+        progress.add_read(n("read"));
+        use mailcraft_ui_egui::opening::{Arrival, Opening, Trouble};
+        let trouble = match said.get("trouble").and_then(|v| v.as_str()) {
+            Some("unreadable") => {
+                Some(Trouble::Unreadable("/home/you/.config/mailcraft/mailbox.mailcraft: this mailbox file is damaged (its header)".into()))
+            }
+            Some("stopped") => Some(Trouble::Stopped),
+            Some("damaged") => Some(Trouble::Damaged),
+            Some("repaired") => Some(Trouble::Repaired(n("repaired").max(1) as usize)),
+            _ => None,
+        };
+        let arrival = |trouble| Arrival { trouble, ..Arrival::opened(mailcraft_model::Mailbox::with_local_account("", ""), None) };
+        if trouble.is_some() {
+            let _ = tx.send(arrival(trouble));
+        } else if let Some(after) = said.get("after").and_then(|v| v.as_u64()) {
+            std::thread::spawn(move || {
+                std::thread::sleep(std::time::Duration::from_millis(after));
+                let _ = tx.send(arrival(None));
+            });
+        } else {
+            _arriving = Some(tx);
+        }
+        let theme = match said.get("theme").and_then(|v| v.as_str()) {
+            Some("dark") => mailcraft_ui_egui::theme::Appearance::Dark,
+            _ => mailcraft_ui_egui::theme::Appearance::Light,
+        };
+        let prefs = mailcraft_ui_egui::UiState { theme, ..Default::default() };
+        let built = app;
+        app = MailApp::opening(Opening::new(arrive, progress, Box::new(move |_| built)), Some(prefs), None);
     }
     let w = lines.iter().find_map(|l| l.get("width").and_then(|v| v.as_f64())).unwrap_or(1440.0) as f32;
     let h = lines.iter().find_map(|l| l.get("height").and_then(|v| v.as_f64())).unwrap_or(900.0) as f32;
