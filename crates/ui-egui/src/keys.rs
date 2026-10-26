@@ -55,7 +55,8 @@ struct Chain {
     focus: Option<egui::Id>,
     /// The modal layers that came up, the lowest first, each with what had the keyboard then.
     modals: Vec<(LayerId, Option<egui::Id>)>,
-    /// What was given the keyboard back, while the Escape that closed the modal layer is held.
+    /// What was given the keyboard back, while the Escape that closed the modal layer (or the
+    /// list under a field) is held.
     back: Option<egui::Id>,
     /// This pass's new presses, whose they are until taken.
     pass: u64,
@@ -302,6 +303,11 @@ pub(crate) fn gate(ctx: &egui::Context, blocked: bool) {
         }
     }
     let list = open_list(ctx, focus).filter(|l| ctx.memory(|m| m.is_above_modal_layer(*l)));
+    // A field that keeps the keyboard while its list is open (the people a line could be) keeps it
+    // while the Escape that closed the list is held: egui takes it away on the repeats.
+    if escape && list.is_some() && focus.is_some() {
+        chain.back = focus;
+    }
     let owner = |key: Key| -> Option<Owner> {
         if blocked || list.is_some() {
             return None;

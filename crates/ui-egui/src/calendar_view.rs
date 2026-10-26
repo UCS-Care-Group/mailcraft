@@ -5780,6 +5780,15 @@ mod tests {
             (rig.app.session.mailbox.event(lunch.id).map(|e| e.start), asked(&rig), copies(&rig, &lunch).len()),
             (Some(lunch.start), false, 0)
         );
+        // It is egui's menu: the arrow keys choose and Enter takes, Down to Move and on to Copy.
+        rig.run("calendar.select", json!({"id": null}));
+        ask(&mut rig);
+        for key in [egui::Key::ArrowDown, egui::Key::ArrowDown, egui::Key::Enter] {
+            rig.key(key);
+        }
+        let made = copies(&rig, &lunch);
+        assert_eq!((made.len(), asked(&rig), rig.event("Lunch with Dev").start), (1, false, lunch.start));
+        rig.run("calendar.delete", json!({"id": made[0].id}));
         // Copy.
         rig.run("calendar.select", json!({"id": null}));
         let menu = ask(&mut rig);

@@ -1120,3 +1120,162 @@ fn the_close_button_and_new_email_ask_as_escape_does() {
         untouched(&h, &body, "Ctrl+N, then Escape");
     }
 }
+
+// ---- The lists under a field: egui's own, which the gate sees ----
+
+/// Whether the list under a field offers the person at `address` now.
+fn offers(h: &Window, address: &str) -> bool {
+    h.query_all_by_label_contains(address).next().is_some()
+}
+
+/// What the line of people being typed in says: a new message's To, or a meeting's Required.
+fn people_typed(h: &Window) -> String {
+    match &h.state().dialog {
+        Some(Dialog::Form(Form::Event(form))) => form.command().1["attendees"].as_str().unwrap_or_default().to_string(),
+        _ => h.state().session.compose.as_ref().map(|c| c.to.clone()).unwrap_or_default(),
+    }
+}
+
+/// The two lines of people, each with "pri" typed in it and Priya Nair offered under it: a new
+/// message's To line, and a new meeting's Required line (Tab from the title).
+const PEOPLE_LINES: [(&str, fn(&mut Window)); 2] = [("To", to_line), ("Required", required_line)];
+
+fn to_line(h: &mut Window) {
+    run(h, "mail.new", json!({}));
+    typed_in_line(h);
+}
+
+fn required_line(h: &mut Window) {
+    run(h, "ui.dialog", json!({"name": "meeting"}));
+    testing::key(h, Key::Tab);
+    typed_in_line(h);
+}
+
+fn typed_in_line(h: &mut Window) {
+    assert!(focus(h).is_some(), "a line has the keyboard");
+    testing::text(h, "pri");
+    // (The list keeps its keys from the frame after it came up.)
+    h.run_steps(2);
+    assert_eq!(people_typed(h), "pri");
+    assert!(offers(h, "priya@lumen.example"), "Priya Nair is offered");
+}
+
+/// Escape in a list of people closes the list alone: the message being written, or the meeting,
+/// stays, nothing is asked, and the keyboard stays in the line with what was typed. Once the list
+/// is closed, the next Escape is the window's: the message asks about its change, the meeting
+/// closes.
+#[test]
+fn escape_in_a_list_of_people_closes_the_list_alone() {
+    for (line, open) in PEOPLE_LINES {
+        for (how, press) in PRESSES {
+            let mut h = window("view.mail");
+            open(&mut h);
+            let (before, field) = (dialog(&h), focus(&h));
+            press(&mut h, Key::Escape);
+            assert!(!offers(&h, "priya@lumen.example"), "{line}, {how}: the list closed");
+            assert_eq!(dialog(&h), before, "{line}, {how}: nothing asked, nothing closed");
+            assert!(h.state().session.compose.is_some() || before.is_some(), "{line}, {how}: the message is still open");
+            assert_eq!((focus(&h), people_typed(&h)), (field, "pri".to_string()), "{line}, {how}: still typing in the line");
+            testing::key(&mut h, Key::Escape);
+            let after = if before.is_none() { Some("discardDraft") } else { None };
+            assert_eq!(dialog(&h), after, "{line}, {how}: the second Escape is the window's");
+        }
+    }
+}
+
+/// A click away from a list of people closes it.
+#[test]
+fn a_click_away_closes_a_list_of_people() {
+    for (line, open) in PEOPLE_LINES {
+        let mut h = window("view.mail");
+        open(&mut h);
+        let before = dialog(&h);
+        // (The Subject line, the meeting's title: a field of the same window.)
+        let other = h.get_all_by_role(egui::accesskit::Role::TextInput).find(|n| n.accesskit_node().value().is_none_or(|v| v != "pri")).unwrap();
+        other.click();
+        h.run_steps(3);
+        assert!(!offers(&h, "priya@lumen.example"), "{line}: the list closed");
+        assert_eq!(dialog(&h), before, "{line}");
+    }
+}
+
+/// Typing goes on in the line while the list shows, and what is offered follows it.
+#[test]
+fn typing_goes_on_under_a_list_of_people() {
+    for (line, open) in PEOPLE_LINES {
+        let mut h = window("view.mail");
+        open(&mut h);
+        let field = focus(&h);
+        testing::text(&mut h, "ya");
+        h.run_steps(2);
+        assert_eq!((focus(&h), people_typed(&h)), (field, "priya".to_string()), "{line}");
+        assert!(offers(&h, "priya@lumen.example"), "{line}: still offered");
+    }
+}
+
+/// Enter, Tab or a click on a row takes the person, as `Name <address>; `, and the keyboard stays
+/// in the line, for the next one.
+#[test]
+fn enter_tab_or_a_click_takes_the_person() {
+    for (line, open) in PEOPLE_LINES {
+        for how in ["Enter", "Tab", "click"] {
+            let mut h = window("view.mail");
+            open(&mut h);
+            let field = focus(&h);
+            match how {
+                "Enter" => testing::key(&mut h, Key::Enter),
+                "Tab" => testing::key(&mut h, Key::Tab),
+                _ => h.get_by_label_contains("priya@lumen.example").click(),
+            }
+            h.run_steps(2);
+            assert_eq!(people_typed(&h), "Priya Nair <priya@lumen.example>; ", "{line}, {how}");
+            assert_eq!(focus(&h), field, "{line}, {how}: the line keeps the keyboard");
+            assert!(!offers(&h, "priya@lumen.example"), "{line}, {how}: nothing more to offer");
+            testing::text(&mut h, "may");
+            h.run_steps(2);
+            assert!(offers(&h, "maya@lumen.example"), "{line}, {how}: the next name is offered");
+        }
+    }
+}
+
+/// The search box with `text` typed in it, and its list open.
+fn searching(h: &mut Window, text: &str, offered: &str) {
+    run(h, "ui.focusSearch", json!({}));
+    testing::text(h, text);
+    h.run_steps(2);
+    assert!(h.query_by_label(offered).is_some(), "{offered} is offered");
+}
+
+fn search(h: &Window) -> String {
+    h.state().session.view.search.clone()
+}
+
+/// The list under the search box: Enter with no row chosen leaves the box with the search as it
+/// is typed; after an arrow, Enter takes the row and searches for it. Escape closes the list and
+/// keeps the search; the next Escape clears it.
+#[test]
+fn the_search_list_keeps_its_enter_and_escape() {
+    let mut h = window("view.mail");
+    searching(&mut h, "is:", "flagged");
+    testing::key(&mut h, Key::Enter);
+    assert_eq!(search(&h), "is:");
+    assert!(!h.ctx.memory(|m| m.has_focus(crate::chrome::search_box_id())), "Enter left the box");
+    assert!(h.query_by_label("flagged").is_none(), "and the list closed");
+
+    let mut h = window("view.mail");
+    searching(&mut h, "is:", "flagged");
+    testing::key(&mut h, Key::ArrowDown);
+    testing::key(&mut h, Key::Enter);
+    let first = search(&h);
+    assert!(first.starts_with("is:") && first.len() > 4, "a row was taken: {first}");
+
+    for (how, press) in PRESSES {
+        let mut h = window("view.mail");
+        searching(&mut h, "has:", "attachment");
+        press(&mut h, Key::Escape);
+        assert!(h.query_by_label("attachment").is_none(), "{how}: the list closed");
+        assert_eq!(search(&h), "has:", "{how}: the search stays");
+        testing::key(&mut h, Key::Escape);
+        assert_eq!(search(&h), "", "{how}: the next Escape clears it");
+    }
+}
