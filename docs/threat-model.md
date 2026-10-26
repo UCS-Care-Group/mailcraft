@@ -45,7 +45,13 @@ Writes any bytes into a message: crafted MIME, HTML, headers, attachments, pictu
   domain: `shop.example` for mail from `news.shop.example`; a bare suffix such as `co.uk`, or a
   hosting platform's domain, never stands for the names under it); a `dmarc=pass` inside a
   comment, a quoted string or another method's clause is only text. A `compauth=pass` that names
-  no `header.from` is not enough. Addresses are kept and
+  no `header.from` is not enough. A `dkim` clause whose own result is `pass` counts as well, with
+  the `header.d` or `header.i` of that same clause under the same rule for the domain: a signature
+  that passes for the sender's domain is what makes DMARC pass (RFC 7489), so it says the same. A
+  signer can only sign for a domain whose DNS it holds, so a name above the sender's is the
+  sender's organisation's, or a suffix's registry's, which the suffix check refuses. A mailing
+  service's own signature (another domain), a signer named only in a comment, and SPF are not
+  enough. Addresses are kept and
   compared as ASCII (the Kelvin sign is not a "k"), and mail anywhere under Junk E-mail, not only in
   it, never takes the lists or the switch for all mail. The limits: a provider whose id is neither
   in the table nor under its IMAP host's domain asks every time (nothing is guessed); the
@@ -358,6 +364,7 @@ settings files (`crates/engine/src/store.rs`); commands from the control channel
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-26 | minor | #459: a `dkim=pass` from the account's own server whose `header.d` or `header.i` is the sender's domain, or the organisation's above it, vouches as a `dmarc=pass` does; another domain's signature, a signer in a comment and SPF do not |
 | 2026-10-26 | minor | #501: server certificates are checked by the operating system's verifier instead of a built-in Mozilla root set: Windows and macOS trust what the system trusts and may fetch a missing intermediate; Linux and FreeBSD use the system's certificate store |
 | 2026-10-26 | minor | #458: a `dmarc=pass` whose `header.from` is the organisation's domain (Gmail's way: `shop.example` for `news.shop.example`) vouches for the names under it; a bare suffix or a hosting platform's domain never does |
 | 2026-10-25 | minor | #308: the people the search box offers after `from:`, `to:` and `cc:` come from autocomplete's source, on this computer only |

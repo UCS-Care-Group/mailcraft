@@ -170,6 +170,42 @@ fn a_verdict_on_the_organisations_domain_stands_for_the_names_under_it() {
     assert!(!vouched(Some(&gmail), &failed));
 }
 
+/// A `dkim=pass` whose signer is the sender's domain (or the organisation's, above it) is what
+/// makes DMARC pass, so the server's word on it counts as a `dmarc=pass` does; another domain's
+/// signature, a signer named only in a comment, and SPF do not.
+#[test]
+fn a_dkim_pass_for_the_senders_domain_says_what_dmarc_would() {
+    let lumen = imap("imap.lumen.example");
+    let says = |address: &str, rest: &str| {
+        let m = Message { from: Address::new("Shop", address), ..message(&[&format!("mx.lumen.example; {rest}")]) };
+        vouched(Some(&lumen), &m)
+    };
+    let shop = "news@shop.example";
+    assert!(says(shop, "dkim=pass header.d=shop.example"));
+    assert!(says(shop, "dkim=pass header.i=@shop.example"));
+    assert!(says(shop, "dkim=pass header.i=news@shop.example"));
+    assert!(says(shop, "spf=fail smtp.mailfrom=bounce.example; DKIM=Pass (2048-bit key) HEADER.D=\"Shop.Example\" header.s=sel header.b=AbC"));
+    assert!(says("hello@news.shop.example", "dkim=pass header.d=shop.example"));
+    // Somebody else's signature, as a mailing service signs with its own domain.
+    assert!(!says(shop, "dkim=pass header.d=bounce.example"));
+    assert!(!says(shop, "dkim=pass header.d=shop.example.evil.example"));
+    assert!(!says(shop, "dkim=pass header.d=badshop.example"));
+    // Only a name above the sender's, as for DMARC, never one under it or a bare suffix.
+    assert!(!says(shop, "dkim=pass header.d=news.shop.example"));
+    assert!(!says("hello@bank.co.uk", "dkim=pass header.d=co.uk"));
+    // The signer named only in a comment is the comment's text.
+    assert!(!says(shop, "dkim=pass (identity @shop.example); spf=pass"));
+    // A failed signature for the domain, beside another domain's that passes.
+    assert!(!says(shop, "dkim=pass header.d=bounce.example; dkim=fail header.d=shop.example"));
+    for result in ["fail", "neutral", "policy", "temperror", "permerror", "none", "passed"] {
+        assert!(!says(shop, &format!("dkim={result} header.d=shop.example")), "{result}");
+    }
+    // Another clause's signer, and SPF, which DMARC reads too but which this does not.
+    assert!(!says(shop, "dkim=pass; spf=pass header.d=shop.example"));
+    assert!(!says(shop, "spf=pass smtp.mailfrom=shop.example"));
+    assert!(!says(shop, "dkim=pass smtp.mailfrom=shop.example"));
+}
+
 /// Mail brought in from a file has no place on a server: whatever Authentication-Results it
 /// carries, it is the file's own.
 #[test]
