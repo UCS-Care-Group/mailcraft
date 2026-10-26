@@ -219,7 +219,7 @@ fn opened_path(app: &mut MailApp, purpose: &str, path: &str) -> Result<Value, St
 /// A file dropped on the window, or something the program was started with: a file, a file
 /// named the way desktops name one (`file://`), or a `mailto:` link, which starts a new message.
 pub(crate) fn dropped_path(app: &mut MailApp, path: &str) {
-    if path.trim().get(..7).is_some_and(|scheme| scheme.eq_ignore_ascii_case("mailto:")) {
+    if is_mailto_link(path) {
         // A link from outside doesn't destroy a message being written: it is saved to Drafts
         // first, and if it can't be, the link waits for the owner.
         let saved = app.session.compose.as_ref().is_some_and(|c| c.dirty);
@@ -242,9 +242,81 @@ pub(crate) fn dropped_path(app: &mut MailApp, path: &str) {
     let _ = opened_path(app, purpose, &path);
 }
 
+/// The most calendar and contact files waiting to be asked about; more are left alone.
+const MOST_WAITING: usize = 32;
+
+/// Message files the system asks to open get a window each until this many windows are open; the
+/// ones after are only selected in the list.
+pub(crate) const MOST_WINDOWS: usize = 32;
+
+/// [`MailApp::open_from_system`].
+pub(crate) fn from_system(app: &mut MailApp, what: &str) {
+    use mailcraft_engine::io::Format;
+    if is_mailto_link(what) {
+        return dropped_path(app, what);
+    }
+    let path = local_path(what);
+    match Format::from_extension(&path) {
+        Some(Format::Eml) => {
+            // Into the local folder Imported, as a received message, or the copy already there
+            // (`file.import`'s `opened`): never the folder in view, never a draft.
+            let r = match app.run("file.import", json!({"path": path, "opened": true})) {
+                Ok(r) => r,
+                Err(e) => return app.status(e),
+            };
+            app.ui.backstage = false;
+            let Some(id) = r.get("opened").and_then(Value::as_u64) else { return };
+            let readable = app.session.mailbox.message(id).is_some_and(|m| !m.draft);
+            // Read in a window of its own where there are windows, up to a bound; else it stays
+            // selected in the list.
+            if readable && app.windows.count() < MOST_WINDOWS {
+                let _ = app.run_or_else("ui.openWindow", json!({"message": id}));
+            }
+        }
+        Some(Format::Ics | Format::Vcf) => {
+            let asking = matches!(&app.dialog, Some(crate::dialogs::Dialog::Confirm { command, params, .. })
+                if command == "file.import" && params.get("path").and_then(Value::as_str) == Some(path.as_str()));
+            if !asking && app.opened_waiting.len() < MOST_WAITING && !app.opened_waiting.contains(&path) {
+                app.opened_waiting.push_back(path);
+            }
+            ask_next(app);
+        }
+        _ => dropped_path(app, &path),
+    }
+}
+
+/// Whether `text` is a `mailto:` link, by its scheme.
+fn is_mailto_link(text: &str) -> bool {
+    text.trim().get(..7).is_some_and(|scheme| scheme.eq_ignore_ascii_case("mailto:"))
+}
+
+/// The next calendar or contact file the system asked MailCraft to open, asked about once
+/// nothing else is: Import runs `file.import` with it, Cancel leaves it. The question is the
+/// window's, so only the owner answers it (an agent can't name a file to import).
+pub(crate) fn ask_next(app: &mut MailApp) {
+    if app.dialog.is_some() {
+        return;
+    }
+    let Some(path) = app.opened_waiting.pop_front() else { return };
+    app.dialog =
+        Some(crate::dialogs::Dialog::Confirm { command: "file.import".to_string(), params: json!({"path": path}), ask: import_question(&path) });
+}
+
+/// What the owner is asked before a calendar or contact file from outside is imported.
+pub(crate) fn import_question(path: &str) -> crate::dialogs::Question {
+    use mailcraft_engine::io::Format;
+    let name = std::path::Path::new(path).file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| path.to_string());
+    let (title, text) = if Format::from_extension(path) == Some(Format::Vcf) {
+        (tl!("Import Contacts"), crate::i18n::fmt(tl!("Import the contacts in {name} into Contacts?"), &[("name", &name)]))
+    } else {
+        (tl!("Import Calendar File"), crate::i18n::fmt(tl!("Import the appointments and tasks in {name} into your calendar?"), &[("name", &name)]))
+    };
+    crate::dialogs::Question::new(title, text, tl!("Import"), Value::Null)
+}
+
 /// The path a `file://` URL names (percent-decoded; `file:///C:/x` is `C:/x`, `file:///home/x`
 /// is `/home/x`); anything else is taken to be a path already.
-fn local_path(text: &str) -> String {
+pub fn local_path(text: &str) -> String {
     let Some(rest) = text.get(..7).filter(|scheme| scheme.eq_ignore_ascii_case("file://")).and_then(|_| text.get(7..)) else {
         return text.to_string();
     };
@@ -335,6 +407,9 @@ pub(crate) mod base64_lite {
 
 #[cfg(test)]
 mod export_name_tests;
+
+#[cfg(test)]
+mod system_tests;
 
 #[cfg(test)]
 mod tests {

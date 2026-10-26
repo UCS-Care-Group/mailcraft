@@ -27,6 +27,10 @@ mailcraft-charset = { workspace = true }
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 ring = { workspace = true }
 
+# `O_NONBLOCK` for opening a file named from outside (`io::regular_file`).
+[target.'cfg(unix)'.dependencies]
+libc = { workspace = true }
+
 [dev-dependencies]
 mailcraft-i18n = { workspace = true, features = ["test-support"] }
 proptest = { workspace = true }

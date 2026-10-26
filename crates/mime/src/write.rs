@@ -29,6 +29,15 @@ const OWN_FIELDS: [&str; 17] = [
     "mime-version",
 ];
 
+/// Whether a kept header (`lower`, in lower case) is a note of MailCraft's own that stays in
+/// the mailbox: what was answered to a meeting (with this mailbox's mark), the file a message was
+/// opened from. Neither goes into a file, a server's copy or what is sent. `X-MailCraft-Flag` is
+/// written from the message's flag, and `X-MailCraft-Not-Downloaded` travels: it tells another
+/// program that what it has is only the header of a message too large to download.
+fn private(lower: &str) -> bool {
+    lower.starts_with("x-mailcraft-") && lower != "x-mailcraft-not-downloaded"
+}
+
 /// Longest physical line a body may have without a transfer encoding (RFC 5322 §2.1.1).
 const MAX_LINE: usize = 998;
 
@@ -110,7 +119,7 @@ pub fn write(message: &Message, opts: &WriteOptions) -> Vec<u8> {
     }
     for (name, value) in &message.headers {
         let lower = name.to_ascii_lowercase();
-        if is_token(name.as_bytes()) && !OWN_FIELDS.contains(&lower.as_str()) && !lower.starts_with("content-") {
+        if is_token(name.as_bytes()) && !OWN_FIELDS.contains(&lower.as_str()) && !lower.starts_with("content-") && !private(&lower) {
             write_field(&mut out, name, &unstructured(name, value));
         }
     }
