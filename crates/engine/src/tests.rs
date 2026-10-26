@@ -1723,7 +1723,7 @@ mod two_way {
         assert_eq!((request(&s, a).ops.len(), s.mailbox.pending.len()), (0, 0));
 
         // A deletion the owner took back while it was carried out: the server no longer has the
-        // message, so the one here is the only one. It stays, off the server.
+        // message, so the one here is the only one. It stays, and goes on the server again (#451).
         let (mut s, a, inbox, _) = synced();
         let three = titled(&s, a, "Three");
         run(&mut s, "mail.deletePermanently", json!({"id": three}));
@@ -1737,7 +1737,8 @@ mod two_way {
         };
         apply(&mut s, gone);
         assert_eq!((state(&s, three).0, state(&s, three).1, s.mailbox.count(inbox)), (inbox, 0, 3));
-        assert_eq!((known(&request(&s, a), inbox), unpushed(&s, a)), (vec![1, 2], 0));
+        assert_eq!((known(&request(&s, a), inbox), unpushed(&s, a)), (vec![1, 2], 1));
+        assert_eq!(request(&s, a).places.iter().map(|p| p.message.id).collect::<Vec<_>>(), [three]);
     }
 
     #[test]

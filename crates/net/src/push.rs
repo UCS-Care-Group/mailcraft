@@ -23,9 +23,9 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 
 use mailcraft_mime::WriteOptions;
 use mailcraft_model::sync::{
-    Created, Deleted, FlagsPushed, ImapPlace, MAX_PLACES, Moved, Placed, RemoteOp, SyncRequest, SyncResult, SyncStage, SyncStep,
+    Created, Deleted, FlagsPushed, ImapPlace, MAX_PLACES, Moved, Placed, RemoteFlags, RemoteOp, SyncRequest, SyncResult, SyncStage, SyncStep,
 };
-use mailcraft_model::{FlagStatus, FolderKind, Id};
+use mailcraft_model::{FolderKind, Id};
 use mailcraft_proto::ProtoError;
 use mailcraft_proto::imap::{Copied, Imap, Mailbox, decode_utf7, encode_utf7, uid_sets};
 
@@ -502,14 +502,15 @@ impl<'a> Push<'a> {
                 Ok(None) => continue,
                 Err(alive) => return alive,
             };
+            let given = RemoteFlags { draft: false, ..RemoteFlags::of(message, 0) };
             let mut flags = Vec::new();
-            if message.read {
+            if given.read {
                 flags.push("\\Seen");
             }
-            if message.flag == FlagStatus::Flagged {
+            if given.flagged {
                 flags.push("\\Flagged");
             }
-            if message.answered {
+            if given.answered {
                 flags.push("\\Answered");
             }
             let received = if message.received > 0 { message.received } else { message.date };
@@ -522,7 +523,7 @@ impl<'a> Push<'a> {
                     if uid != 0 {
                         self.arrived.entry(destination.remote.clone()).or_default().push((uid_validity, uid));
                     }
-                    result.placed.push(Placed { message: message.id, to_folder: *to_folder, uid, uid_validity });
+                    result.placed.push(Placed { message: message.id, to_folder: *to_folder, uid, uid_validity, flags: given });
                 }
                 Err(e) => {
                     let e = NetError::from(e);

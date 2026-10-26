@@ -328,6 +328,8 @@ fn moved_from_microsoft_into_gmail_it_leaves_microsoft_once_gmail_has_it() {
     let result = mailcraft_net::sync(&request);
     assert!(result.errors.is_empty() && result.folders.iter().all(|f| f.new.is_empty()), "{:?} {:?}", result.errors, result.folders);
     apply_sync(&mut r.s, result).unwrap();
+    let again = sync_request(&r.s, r.gmail).unwrap().ops;
+    assert!(again.is_empty(), "its flags are on the server as they are here: {again:?}");
     assert_eq!(r.on_gmail("INBOX"), ["Four", "Invoice 7", "One", "Three", "Two"]);
     let (flags, arrived) = r.gmail_has("INBOX", "Invoice 7").unwrap();
     assert_eq!((flags.as_str(), arrived.as_str()), ("\\Flagged", "15-Jan-2027 07:00:00 +0000"));
@@ -410,15 +412,22 @@ fn mail_on_this_computer_moved_and_copied_into_gmail_is_put_there() {
     let projects = r.s.run("folder.new", &json!({"parent": inbox, "name": "Projects"})).unwrap()["id"].as_u64().unwrap();
     r.s.run("mail.move", &json!({"ids": [moved], "folder": projects})).unwrap();
     r.s.run("mail.copy", &json!({"ids": [copied], "folder": projects})).unwrap();
-    r.sync();
+    let mut request = sync_request(&r.s, r.gmail).unwrap();
+    request.password = PASSWORD.into();
+    let result = mailcraft_net::sync(&request);
     assert_eq!(r.on_gmail("INBOX/Projects"), ["Copied in", "Moved in"]);
     assert_eq!(r.gmail_has("INBOX/Projects", "Moved in").map(|(flags, _)| flags), Some("\\Seen".to_string()));
+    // Marked unread here while it went: that goes up next, and stays.
+    r.s.run("mail.markUnread", &json!({"ids": [moved]})).unwrap();
+    apply_sync(&mut r.s, result).unwrap();
     // The copy's source stays where it is; nothing is here twice.
     assert_eq!(r.s.mailbox.message(copied).map(|m| m.folder), Some(kept));
     for _ in 0..2 {
         assert_eq!(r.sync()["new"], 0);
     }
     assert_eq!((r.here("Moved in"), r.here("Copied in")), (1, 2));
+    assert_eq!(r.gmail_has("INBOX/Projects", "Moved in").map(|(flags, _)| flags), Some(String::new()));
+    assert!(r.s.mailbox.message(moved).is_some_and(|m| !m.read));
 }
 
 #[test]

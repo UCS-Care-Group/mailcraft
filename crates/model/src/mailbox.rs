@@ -1838,6 +1838,20 @@ impl Mailbox {
 
     /// A marker for a copy made in another mailbox: a value used once in this mailbox's life, and
     /// of the source's server id, so that copies of different messages never share one.
+    /// Put `id` on its account's server again, from the whole message here: the server's copy
+    /// was deleted while the message was moved back there (#451). Nothing for one that isn't
+    /// whole here, a draft, or one that waits to go there already.
+    pub fn place_again(&mut self, id: Id) {
+        let Some(m) = self.message(id) else { return };
+        let account = m.account;
+        let waits = self.queued.iter().any(|q| matches!(q, Queued::PlaceMessage { message, .. } if *message == id));
+        if waits || !self.puts_on_server(account) || Mailbox::not_whole(m, "moved").is_some() {
+            return;
+        }
+        let marker = self.place_marker(id, "");
+        self.queued.push(Queued::PlaceMessage { account, message: id, marker, copy: false, from: None });
+    }
+
     fn place_marker(&mut self, id: Id, source: &str) -> String {
         let n = self.alloc_id();
         let source = crate::sync::fingerprint(source.as_bytes());
@@ -1908,6 +1922,8 @@ impl Mailbox {
                 ..Default::default()
             };
             self.place_called_off(id);
+            // A copy an IMAP server was given of it already goes from there again.
+            self.imap_side(id, folder, to_account, remote)?;
             let m = self.message_mut(id)?;
             (m.server, m.moving_out) = (Some(server), None);
             (m.folder, m.account, m.uid, m.synced) = (folder, to_account, 0, None);

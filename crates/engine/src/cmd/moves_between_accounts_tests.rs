@@ -6,7 +6,8 @@
 //! stand-in: `apps/mailcraft-cli/tests/moves_between_accounts.rs`.)
 
 use mailcraft_model::sync::{
-    Deleted, FolderDelta, FolderListing, GraphFolder, GraphMailResult, MessageOutcome, PlaceDone, Placed, RemoteOp, SyncResult,
+    Deleted, FolderDelta, FolderListing, GraphFolder, GraphMailResult, MessageOutcome, PlaceDone, Placed, RemoteFlags, RemoteOp, SyncRequest,
+    SyncResult,
 };
 use mailcraft_model::{Address, Body, FolderKind, Id, Message, Pending, Queued};
 use serde_json::json;
@@ -286,10 +287,12 @@ fn kept_here(s: &mut Session, folder: Id, subject: &str) -> Id {
     s.mailbox.add_message(m).unwrap()
 }
 
-/// The IMAP server of `account` took the message into the folder that follows its Inbox, and
-/// said where (`uid`, `uid_validity`; 0 when it didn't).
-fn put(message: Id, to_folder: Id, uid: u32, uid_validity: u32) -> Placed {
-    Placed { message, to_folder, uid, uid_validity }
+/// The IMAP server took the message as `asked` gave it, and said where (`uid`, `uid_validity`; 0
+/// when it didn't).
+fn put(asked: &SyncRequest, message: Id, uid: u32, uid_validity: u32) -> Placed {
+    let place = asked.places.iter().find(|p| p.message.id == message).unwrap();
+    let flags = RemoteFlags { draft: false, ..RemoteFlags::of(&place.message, 0) };
+    Placed { message, to_folder: place.to_folder, uid, uid_validity, flags }
 }
 
 #[test]
@@ -307,7 +310,7 @@ fn where_an_imap_server_says_it_put_a_message_is_believed_only_as_far_as_it_can_
     assert!(asked.places.iter().all(|p| p.message.body.text.ends_with("the whole of it.")));
     // A UID of the mailbox the folder follows, which nothing here has: the message's own. One of
     // another life of the mailbox, one that "One" has, and none at all: expected there.
-    let placed = vec![put(ids[0], inbox, 50, 7), put(ids[1], inbox, 51, 99), put(ids[2], inbox, 1, 7), put(ids[3], inbox, 0, 0)];
+    let placed = vec![put(&asked, ids[0], 50, 7), put(&asked, ids[1], 51, 99), put(&asked, ids[2], 1, 7), put(&asked, ids[3], 0, 0)];
     apply_sync(&mut s, SyncResult { account: a, placed, ..Default::default() }).unwrap();
     let uids: Vec<u32> = ids.iter().map(|id| at(&s, *id).2).collect();
     assert_eq!(uids, [50, 0, 0, 0]);
@@ -342,11 +345,12 @@ fn a_message_moved_on_or_away_while_it_was_put_on_an_imap_server_follows_there()
         (kept_here(&mut s, kept, "Moved on"), kept_here(&mut s, kept, "Called off"), kept_here(&mut s, kept, "Refused"));
     let far = titled(&s, "Far");
     s.run("mail.move", &json!({"ids": [moved_on, called_off, refused, far], "folder": inbox})).unwrap();
-    assert_eq!(sync_request(&s, a).unwrap().places.len(), 4);
+    let asked = sync_request(&s, a).unwrap();
+    assert_eq!(asked.places.len(), 4);
     // While the server takes them in: two moved on in the account, one back to this computer.
     s.run("mail.move", &json!({"ids": [moved_on, far], "folder": archive})).unwrap();
     s.run("mail.move", &json!({"ids": [called_off], "folder": kept})).unwrap();
-    let placed = vec![put(moved_on, inbox, 50, 7), put(called_off, inbox, 51, 7), put(far, inbox, 52, 7)];
+    let placed = vec![put(&asked, moved_on, 50, 7), put(&asked, called_off, 51, 7), put(&asked, far, 52, 7)];
     apply_sync(&mut s, SyncResult { account: a, placed, unplaced: vec![refused], ..Default::default() }).unwrap();
     // Moved there from where the server put them; the copy that wasn't wanted goes again; the
     // original of the one from the other server goes from there, being on this one now.
@@ -362,4 +366,83 @@ fn a_message_moved_on_or_away_while_it_was_put_on_an_imap_server_follows_there()
     assert_eq!(at(&s, called_off), (s.mailbox.folder(kept).unwrap().account, kept, 0));
     assert!(s.mailbox.queued.is_empty(), "{:?}", s.mailbox.queued);
     assert!(sync_request(&s, a).unwrap().places.is_empty());
+}
+
+#[test]
+fn a_flag_changed_while_the_message_went_on_the_server_goes_up_after_it() {
+    let (mut s, a, kept) = imap();
+    let inbox = s.mailbox.folder_of_kind(a, FolderKind::Inbox).unwrap();
+    let m = kept_here(&mut s, kept, "Read here");
+    s.run("mail.move", &json!({"ids": [m], "folder": inbox})).unwrap();
+    let asked = sync_request(&s, a).unwrap();
+    // Put there read; marked unread here meanwhile.
+    s.run("mail.markUnread", &json!({"ids": [m]})).unwrap();
+    apply_sync(&mut s, SyncResult { account: a, placed: vec![put(&asked, m, 50, 7)], ..Default::default() }).unwrap();
+    assert!(!s.mailbox.message(m).unwrap().read);
+    let unread = |op: &RemoteOp| matches!(op, RemoteOp::Flags { uid: 50, read: Some(false), .. });
+    assert!(ops(&s, a).iter().any(unread), "{:?}", ops(&s, a));
+}
+
+#[test]
+fn moved_back_while_its_original_was_being_deleted_it_goes_on_its_server_again() {
+    let (mut s, a, _) = imap();
+    let ms = microsoft(&mut s, OWNER);
+    let (theirs, inbox) = (s.mailbox.folder_of_kind(ms, FolderKind::Inbox).unwrap(), s.mailbox.folder_of_kind(a, FolderKind::Inbox).unwrap());
+    let two = titled(&s, "Two");
+    s.run("mail.move", &json!({"ids": [two], "folder": theirs})).unwrap();
+    placed(&mut s, ms, OWNER, &[made("AAkA2")]);
+    assert_eq!(ops(&s, a), [delete(2)]);
+    // While the IMAP server deletes it, it is moved back there.
+    s.run("mail.move", &json!({"ids": [two], "folder": inbox})).unwrap();
+    assert_eq!(at(&s, two), (a, inbox, 2));
+    deleted(&mut s, a, &[2]);
+    // Only here now: put on the IMAP server again from the whole message; Microsoft's copy goes.
+    assert_eq!(at(&s, two), (a, inbox, 0));
+    assert_eq!(sync_request(&s, a).unwrap().places.iter().map(|p| p.message.id).collect::<Vec<_>>(), [two]);
+    assert!(s.mailbox.queued.iter().any(|q| matches!(q, Queued::DeleteMessage { id, .. } if id == "AAkA2")), "{:?}", s.mailbox.queued);
+}
+
+#[test]
+fn moved_back_into_microsoft_after_the_imap_server_took_it_the_copy_there_goes() {
+    let (mut s, a, _) = imap();
+    let ms = microsoft(&mut s, OWNER);
+    let (theirs, inbox) = (s.mailbox.folder_of_kind(ms, FolderKind::Inbox).unwrap(), s.mailbox.folder_of_kind(a, FolderKind::Inbox).unwrap());
+    // "Two" is Microsoft's message, moved there from the IMAP server.
+    let two = titled(&s, "Two");
+    s.run("mail.move", &json!({"ids": [two], "folder": theirs})).unwrap();
+    placed(&mut s, ms, OWNER, &[made("AAkA2")]);
+    deleted(&mut s, a, &[2]);
+    // Into the IMAP account, where the server takes it as UID 50; then back.
+    s.run("mail.move", &json!({"ids": [two], "folder": inbox})).unwrap();
+    let asked = sync_request(&s, a).unwrap();
+    apply_sync(&mut s, SyncResult { account: a, placed: vec![put(&asked, two, 50, 7)], ..Default::default() }).unwrap();
+    assert_eq!(at(&s, two), (a, inbox, 50));
+    s.run("mail.move", &json!({"ids": [two], "folder": theirs})).unwrap();
+    // Microsoft's message again, and the IMAP server's copy goes.
+    assert_eq!(s.mailbox.message(two).and_then(|m| m.server.as_ref()).map(|x| x.id.as_str()), Some("AAkA2"));
+    assert_eq!(ops(&s, a), [delete(50)]);
+    deleted(&mut s, a, &[50]);
+    assert!(s.mailbox.pending.is_empty() && s.mailbox.queued.is_empty(), "{:?} {:?}", s.mailbox.pending, s.mailbox.queued);
+}
+
+#[test]
+fn removing_an_account_puts_back_the_mail_its_server_wasnt_given_yet() {
+    let (mut s, a, kept) = imap();
+    let ms = microsoft(&mut s, OWNER);
+    let (theirs, inbox) = (s.mailbox.folder_of_kind(ms, FolderKind::Inbox).unwrap(), s.mailbox.folder_of_kind(a, FolderKind::Inbox).unwrap());
+    let local = s.mailbox.folder(kept).unwrap().account;
+    let (here, copied) = (kept_here(&mut s, kept, "From here"), kept_here(&mut s, kept, "Copied"));
+    s.run("mail.move", &json!({"ids": [here], "folder": inbox})).unwrap();
+    s.run("mail.copy", &json!({"ids": [copied], "folder": inbox})).unwrap();
+    let two = titled(&s, "Two");
+    s.run("mail.move", &json!({"ids": [two], "folder": theirs})).unwrap();
+    // The Microsoft account goes: "Two" is the IMAP server's message again.
+    s.run("account.remove", &json!({"id": ms})).unwrap();
+    assert_eq!(at(&s, two), (a, inbox, 2));
+    // The IMAP account goes: what was moved in from this computer is back there; the copy goes
+    // with the account, and its source stays.
+    s.run("account.remove", &json!({"id": a})).unwrap();
+    assert_eq!(at(&s, here), (local, kept, 0));
+    assert_eq!(s.mailbox.messages.values().filter(|m| m.subject == "Copied").map(|m| m.folder).collect::<Vec<_>>(), [kept]);
+    assert!(s.mailbox.queued.is_empty() && s.mailbox.pending.is_empty(), "{:?} {:?}", s.mailbox.queued, s.mailbox.pending);
 }

@@ -518,7 +518,8 @@ pub struct Deleted {
 
 /// A message the server took ([`SyncRequest::places`]), in the mailbox of local folder
 /// `to_folder`: its UID there and that mailbox's `UIDVALIDITY` when the server said them
-/// (`APPENDUID`), 0 when it didn't.
+/// (`APPENDUID`), 0 when it didn't, and the flags it was given (the message may have changed
+/// here since).
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct Placed {
@@ -526,6 +527,7 @@ pub struct Placed {
     pub to_folder: Id,
     pub uid: u32,
     pub uid_validity: u32,
+    pub flags: RemoteFlags,
 }
 
 /// A local folder that has a mailbox on the server now ([`RemoteOp::Move`] with `create`).
