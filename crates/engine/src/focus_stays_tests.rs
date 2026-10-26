@@ -1,8 +1,9 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! A selected message stays in the list while it is selected (#428): one opened in the Unread tab,
-//! or whose flag is cleared in the Flagged tab, is still listed, and Down and Up go on from it;
-//! several picked with Ctrl or Shift all stay. One deleted or moved leaves at once.
+//! by a click or a key, or whose flag is cleared in the Flagged tab, is still listed, and the keys
+//! that move in the list go on from it; several picked with Ctrl or Shift all stay. One deleted or
+//! moved leaves at once.
 use mailcraft_model::{FolderKind, Id};
 use mailcraft_time::{Date, DateTime};
 use serde_json::{Value, json};
@@ -67,6 +68,96 @@ fn up_goes_on_from_the_opened_message() {
     let mut rest = listed.clone();
     rest.remove(2);
     assert_eq!(ids(&mut s), rest);
+}
+
+#[test]
+fn home_keeps_the_message_it_opens() {
+    let (mut s, listed) = unread_tab();
+    run(&mut s, "mail.select", json!({"id": listed[2]}));
+    run(&mut s, "mail.first", json!({}));
+    assert_eq!(s.sel.focus(), Some(listed[0]));
+    assert!(read(&s, listed[0]));
+    let mut rest = listed.clone();
+    rest.remove(2);
+    assert_eq!(ids(&mut s), rest);
+}
+
+#[test]
+fn end_keeps_the_message_it_opens() {
+    let (mut s, listed) = unread_tab();
+    let end = listed.len() - 1;
+    run(&mut s, "mail.select", json!({"id": listed[0]}));
+    run(&mut s, "mail.last", json!({}));
+    assert_eq!(s.sel.focus(), Some(listed[end]));
+    assert!(read(&s, listed[end]));
+    assert_eq!(ids(&mut s), listed[1..]);
+}
+
+#[test]
+fn page_down_goes_on_from_the_message_it_opens() {
+    let (mut s, listed) = unread_tab();
+    run(&mut s, "mail.select", json!({"id": listed[0]}));
+    run(&mut s, "mail.pageDown", json!({"rows": 2}));
+    assert_eq!(s.sel.focus(), Some(listed[2]));
+    assert!(read(&s, listed[2]));
+    assert_eq!(ids(&mut s), listed[1..]);
+    // Down goes on from it, not from the first row.
+    run(&mut s, "mail.next", json!({}));
+    assert_eq!(s.sel.focus(), Some(listed[3]));
+}
+
+#[test]
+fn page_up_goes_on_from_the_message_it_opens() {
+    let (mut s, listed) = unread_tab();
+    run(&mut s, "mail.select", json!({"id": listed[3]}));
+    run(&mut s, "mail.pageUp", json!({"rows": 2}));
+    assert_eq!(s.sel.focus(), Some(listed[1]));
+    assert!(read(&s, listed[1]));
+    let mut rest = listed.clone();
+    rest.remove(3);
+    assert_eq!(ids(&mut s), rest);
+    run(&mut s, "mail.previous", json!({}));
+    assert_eq!(s.sel.focus(), Some(listed[0]));
+}
+
+#[test]
+fn shift_down_runs_from_the_opened_message_and_the_range_stays() {
+    let (mut s, listed) = unread_tab();
+    let (b, c) = (listed[1], listed[2]);
+    run(&mut s, "mail.select", json!({"id": b}));
+    assert!(read(&s, b));
+    // Shift+Down past it: the range runs from it, and marked read, they stay together.
+    run(&mut s, "mail.next", json!({"extend": true}));
+    assert_eq!(s.sel.messages, [b, c]);
+    run(&mut s, "mail.markRead", json!({}));
+    assert_eq!(ids(&mut s), listed);
+    // Shift+Up takes the last one out again, and it leaves.
+    run(&mut s, "mail.previous", json!({"extend": true}));
+    assert_eq!(s.sel.messages, [b]);
+    let mut rest = listed.clone();
+    rest.remove(2);
+    assert_eq!(ids(&mut s), rest);
+}
+
+#[test]
+fn shift_home_keeps_the_range() {
+    let (mut s, listed) = unread_tab();
+    let (a, b) = (listed[0], listed[1]);
+    run(&mut s, "mail.select", json!({"id": b}));
+    run(&mut s, "mail.first", json!({"extend": true}));
+    assert_eq!(s.sel.messages, [b, a]);
+    run(&mut s, "mail.markRead", json!({}));
+    assert_eq!(ids(&mut s), listed);
+}
+
+#[test]
+fn shift_page_down_keeps_the_range() {
+    let (mut s, listed) = unread_tab();
+    run(&mut s, "mail.select", json!({"id": listed[0]}));
+    run(&mut s, "mail.pageDown", json!({"rows": 2, "extend": true}));
+    assert_eq!(s.sel.messages, listed[..3]);
+    run(&mut s, "mail.markRead", json!({}));
+    assert_eq!(ids(&mut s), listed);
 }
 
 #[test]
