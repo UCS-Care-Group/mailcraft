@@ -398,11 +398,18 @@ fn host_key(host: &str) -> &str {
 /// with the link it stands for in its `url` parameter. That link is the one compared.
 const SAFE_LINKS: &str = "safelinks.protection.outlook.com";
 
-/// The registrable domains of the other services an organisation may have rewrite every link of
-/// its mail to pass through them (Proofpoint's URL Defense, Mimecast's URL Protect). Where such a
-/// link really goes is not written plainly in it, so a link through them is not compared at all.
-/// Kept short: only services that rewrite a whole organisation's mail belong here.
-const LINK_REWRITERS: [&str; 4] = ["urldefense.com", "proofpoint.com", "mimecast.com", "mimecastprotect.com"];
+/// The hosts of the other services an organisation may have rewrite every link of its mail to
+/// pass through them (Proofpoint's URL Defense, Mimecast's URL Protect), each with the hosts under
+/// it: a domain that is wholly the rewriter's, or only the one host of it that rewrites (the rest
+/// of `proofpoint.com` is compared as any site is). Where such a link really goes is not written
+/// plainly in it, so a link through them is not compared at all. Kept short: only services that
+/// rewrite a whole organisation's mail belong here.
+const LINK_REWRITERS: [&str; 4] = ["urldefense.com", "urldefense.proofpoint.com", "mimecast.com", "mimecastprotect.com"];
+
+/// Whether `host` is `domain` or a host under it (never merely a name that contains it).
+fn is_at(host: &str, domain: &str) -> bool {
+    host == domain || host.strip_suffix(domain).is_some_and(|head| head.ends_with('.'))
+}
 
 /// `text` with its `%XX` escapes read back (`+` left as it is), as UTF-8 at most loosely.
 fn percent_decoded(text: &str) -> String {
@@ -429,11 +436,10 @@ fn percent_decoded(text: &str) -> String {
 /// `None` for a link through one of the [`LINK_REWRITERS`], which is not compared.
 fn real_link(link: mailcraft_link::WebLink) -> Option<mailcraft_link::WebLink> {
     let host = host_key(link.host()).to_ascii_lowercase();
-    if LINK_REWRITERS.contains(&registrable(&host)) {
+    if LINK_REWRITERS.iter().any(|rewriter| is_at(&host, rewriter)) {
         return None;
     }
-    let safe = host == SAFE_LINKS || host.strip_suffix(SAFE_LINKS).is_some_and(|head| head.ends_with('.'));
-    if !safe {
+    if !is_at(&host, SAFE_LINKS) {
         return Some(link);
     }
     let query = link.as_str().split_once('?').map(|(_, q)| q.split('#').next().unwrap_or(q)).unwrap_or("");

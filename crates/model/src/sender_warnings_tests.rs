@@ -295,6 +295,9 @@ fn a_link_through_a_service_that_rewrites_links_is_not_compared() {
     ] {
         assert!(link_mismatches([("https://lumen.example/pay", href)]).is_empty(), "{href}");
     }
+    // Only Proofpoint's rewriting host: the rest of its site is compared as any is.
+    let found = link_mismatches([("lumen.example", "https://www.proofpoint.com/us/login")]);
+    assert!(matches!(found.first(), Some(Warning::LinkMismatch { host, .. }) if host == "proofpoint.com"), "{found:?}");
 }
 
 #[test]

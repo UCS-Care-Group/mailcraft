@@ -65,8 +65,9 @@ Writes any bytes into a message: crafted MIME, HTML, headers, attachments, pictu
   link's text is a web address or a domain and the link goes to another registrable domain (a link
   through Microsoft's Safe Links, `*.safelinks.protection.outlook.com`, as the link in its `url`;
   one through Proofpoint's URL Defense or Mimecast, which hide where it goes, not at all: the list
-  is `LINK_REWRITERS`, matched by registrable domain). Names and domains shown in the banner lose
-  their direction marks, and a full-width `＠` in a name counts as `@`. The
+  is `LINK_REWRITERS`: a host there or one under it, never a name that merely contains it, and of
+  Proofpoint only its rewriting host `urldefense.proofpoint.com`). Names and domains shown in the
+  banner lose their direction marks, and a full-width `＠` in a name counts as `@`. The
   rules are `crates/model/src/sender_warnings.rs`; the known correspondents are gathered in
   `crates/engine/src/sender_warnings.rs`. What they rely on: the server's verdict (a server that
   writes none, or a message from a file, gives no failed check: MailCraft does no DNS, DKIM or SPF
