@@ -212,18 +212,24 @@ fn search_box(app: &mut MailApp, ui: &mut Ui, rect: Rect) {
     if !mail_search {
         return;
     }
-    // Scope: this folder, or every mailbox.
+    // Scope: this folder, it and its subfolders, its mailbox, or every mailbox (#493).
     let scope_rect = Rect::from_min_max(pos2(rect.max.x - scope_w, rect.min.y + 2.0), pos2(rect.max.x - 2.0, rect.max.y - 2.0));
-    let everywhere = app.session.view.scope == Scope::Everywhere;
-    let label = if everywhere { tl!("All Mailboxes") } else { tl!("Current Folder") };
+    let scopes = [
+        (Scope::Folder, tl!("Current Folder"), "folder"),
+        (Scope::Subfolders, tl!("Subfolders"), "subfolders"),
+        (Scope::Mailbox, tl!("Current Mailbox"), "mailbox"),
+        (Scope::Everywhere, tl!("All Mailboxes"), "everywhere"),
+    ];
+    let now = app.session.view.scope;
+    let label = scopes.iter().find(|(scope, ..)| *scope == now).map_or(tl!("Current Folder"), |(_, name, _)| *name);
     let sresp = ui.interact(scope_rect, ui.scope_id().with("search_scope"), Sense::click());
     if sresp.hovered() {
         ui.painter().rect_filled(scope_rect, 4.0, t.hover);
     }
     ui.painter().text(scope_rect.center(), Align2::CENTER_CENTER, format!("{label} ▾"), TypeRung::Caption.regular(), t.text_dim);
     egui::Popup::menu(&sresp).show(|ui| {
-        for (name, code, on) in [("Current Folder", "folder", !everywhere), ("All Mailboxes", "everywhere", everywhere)] {
-            if ui.selectable_label(on, tl!(name)).clicked() {
+        for (scope, name, code) in scopes {
+            if ui.selectable_label(scope == now, name).clicked() {
                 let query = app.session.view.search.clone();
                 let _ = app.execute("view.search", json!({"query": query, "scope": code}));
                 ui.close();

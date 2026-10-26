@@ -33,7 +33,7 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("view.search", "Search", "Search", search)
             .pure()
             .key("Mod+E / F3")
-            .params(r#"{"query": string, "scope"?: "folder"|"everywhere"}"#),
+            .params(r#"{"query": string, "scope"?: "folder"|"subfolders"|"mailbox"|"everywhere"}"#),
         CommandSpec::new("view.clearSearch", "Close Search", "Search", clear_search).pure(),
         CommandSpec::new("view.searchSuggestions", "Search Suggestions", "Search", search_suggestions_command).pure().params(
             r#"{"query": string, "cursor"?: number (characters; default: the end)} — answers what the search box offers for the word the cursor is at the end of: keywords, categories, what is: and has: take, and after from:, to: and cc: people from the contacts and the mail on this computer. Each with "name" (what the list shows), "text" (what goes in place of characters "start" to "end"), and "email" (a person's address) or "color" (a category)"#,
@@ -117,7 +117,7 @@ fn filter(s: &mut Session, v: &Value) -> CmdResult {
 fn search(s: &mut Session, v: &Value) -> CmdResult {
     let query: String = p::req_str(v, "query")?.chars().filter(|c| !c.is_control()).take(2000).collect();
     if let Some(scope) = p::str(v, "scope") {
-        s.view.scope = parse_enum::<Scope>(scope).ok_or_else(|| bad("`scope` is folder or everywhere"))?;
+        s.view.scope = parse_enum::<Scope>(scope).ok_or_else(|| bad("`scope` is folder, subfolders, mailbox or everywhere"))?;
     }
     // A new search forgets what the servers found for the last (R6.2).
     if s.view.search != query {

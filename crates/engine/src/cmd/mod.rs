@@ -55,6 +55,8 @@ pub mod people;
 mod quote_tests;
 pub mod remote;
 pub mod rules;
+#[cfg(test)]
+mod search_scope_tests;
 pub mod search_server;
 #[cfg(test)]
 mod search_suggest_tests;

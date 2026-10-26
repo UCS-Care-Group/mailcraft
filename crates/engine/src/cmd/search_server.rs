@@ -124,7 +124,8 @@ impl ServerSearch {
 
 /// What the search in view is, for [`ServerSearch`]'s key.
 fn key_of(s: &Session) -> (String, Scope, Id) {
-    let folder = if s.view.scope == Scope::Folder { s.view.folder } else { 0 };
+    // Every scope but every mailbox's is of the folder in view, or of its account.
+    let folder = if s.view.scope == Scope::Everywhere { 0 } else { s.view.folder };
     (s.view.search.clone(), s.view.scope, folder)
 }
 
@@ -145,6 +146,10 @@ pub fn mailboxes_for(s: &Session) -> Vec<(Id, String)> {
             .and_then(|f| f.server.as_ref().map(|server| (f.account, server.id.clone())))
             .into_iter()
             .collect(),
+        // The account in view, all of it: what is under the folder is kept when it comes back.
+        Scope::Subfolders | Scope::Mailbox => {
+            mb.folder(s.view.folder).filter(|f| usable(f.account)).map(|f| (f.account, String::new())).into_iter().collect()
+        }
         Scope::Everywhere => mb.accounts.iter().filter(|a| usable(a.id)).map(|a| (a.id, String::new())).collect(),
     }
 }
@@ -238,17 +243,21 @@ pub fn apply(s: &mut Session, result: GraphSearchResult) -> CmdResult {
     let Some(at) = s.server_search.mailboxes.iter().position(|m| m.account == account) else {
         return Ok(json!({"taken": 0, "stale": true}));
     };
-    let everywhere = s.view.scope == Scope::Everywhere;
     let mb = &s.mailbox;
-    // Deleted and junk mail stays out of a search of everything, as it does here.
-    let hidden: HashSet<Id> = if everywhere {
-        mb.folders
+    // Deleted and junk mail stays out of a search of a whole mailbox or of everything, as it does
+    // here; a search of a folder's subfolders keeps only what is under it (#493).
+    let hidden: HashSet<Id> = match s.view.scope {
+        Scope::Mailbox | Scope::Everywhere => mb
+            .folders
             .iter()
             .filter(|f| f.account == account && matches!(f.kind, FolderKind::Deleted | FolderKind::Junk))
             .flat_map(|f| mb.subtree(f.id))
-            .collect()
-    } else {
-        HashSet::new()
+            .collect(),
+        Scope::Folder => HashSet::new(),
+        Scope::Subfolders => {
+            let under: HashSet<Id> = mb.subtree(s.view.folder).into_iter().collect();
+            mb.folders.iter().map(|f| f.id).filter(|id| !under.contains(id)).collect()
+        }
     };
     // What this mailbox has here already: shown once, among the local results.
     let here: HashSet<&str> =

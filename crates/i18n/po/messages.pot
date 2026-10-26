@@ -1794,6 +1794,11 @@ msgstr ""
 msgid "Current Folder"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/chrome.rs
+msgid "Current Mailbox"
+msgstr ""
+
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
 msgid "Current View"
@@ -7131,6 +7136,11 @@ msgstr ""
 msgid "Street"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/chrome.rs
+msgid "Subfolders"
+msgstr ""
+
 #. interface, name
 #: crates/engine/src/session.rs crates/ui-egui/src/compose.rs
 msgid "Subject"
@@ -10502,6 +10512,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/folder_properties.rs
 msgid "{folder} Properties"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/mail_view.rs
+msgid "{folder} and its subfolders"
 msgstr ""
 
 #. what a command says
