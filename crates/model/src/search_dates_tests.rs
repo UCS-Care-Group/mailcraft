@@ -1,9 +1,10 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! #329: `received:` takes a range of days, as Outlook's Advanced Search writes it
-//! (`received:A..B`), or one side of one (`>=`, `<=`, `>`, `<`).
+//! (`received:A..B`), or one side of one (`>=`, `<=`, `>`, `<`); a date without a year and the days
+//! Outlook names in words, in a search made on a day.
 
-use mailcraft_time::{Date, DateTime};
+use mailcraft_time::{Date, DateTime, Weekday};
 
 use crate::Message;
 use crate::search::{Query, keyword_pills, keyword_spans};
@@ -162,6 +163,185 @@ proptest::proptest! {
         let m = Message { date: d * 86_400, ..Default::default() };
         let q = Query::parse(&format!("received:{v}"));
         let _ = q.matches(&m, offset);
+        let _ = q.for_server();
+        let _ = keyword_spans(&format!("received:{v}"));
+    }
+}
+
+// ---- dates without a year and days in words: a search made on a day ----
+
+/// The day the searches below are made on: Monday, October 26, 2026.
+fn monday() -> Date {
+    day(2026, 10, 26)
+}
+
+/// Which days from `from` to `to` `q` finds, made on `today` with weeks from `first`.
+fn found_on(q: &str, today: Date, first: Weekday, from: Date, to: Date) -> Vec<Date> {
+    let query = Query::parse(q).on(today, first);
+    (0..=from.days_until(to)).map(|i| from.add_days(i)).filter(|d| query.matches(&at(*d, 12, 0), 0)).collect()
+}
+
+/// The first and last day `q` finds within a year either side of `today`, and how many.
+fn span_on(q: &str, today: Date, first: Weekday) -> Option<(Date, Date, usize)> {
+    let found = found_on(q, today, first, today.add_days(-400), today.add_days(400));
+    Some((*found.first()?, *found.last()?, found.len()))
+}
+
+#[test]
+fn a_date_without_a_year_is_this_years() {
+    let made = |q: &str, d: Date| Query::parse(q).on(monday(), Weekday::Sun).matches(&at(d, 12, 0), 0);
+    assert!(made("received:10/22", day(2026, 10, 22)) && !made("received:10/22", day(2025, 10, 22)));
+    assert_eq!(span_on("received:10/21..10/23", monday(), Weekday::Sun), Some((day(2026, 10, 21), day(2026, 10, 23), 3)));
+    assert_eq!(span_on("received:10/21..10/23/2026", monday(), Weekday::Sun), Some((day(2026, 10, 21), day(2026, 10, 23), 3)));
+    assert_eq!(found_on("received:>=10/24", monday(), Weekday::Sun, day(2026, 10, 20), day(2026, 10, 25)), [day(2026, 10, 24), day(2026, 10, 25)]);
+    assert_eq!(found_on("received:<10/22", monday(), Weekday::Sun, day(2026, 10, 20), day(2026, 10, 25)), [day(2026, 10, 20), day(2026, 10, 21)]);
+    // The other date keywords too; each message was sent three days before it came in.
+    assert!(made("on:10/19", day(2026, 10, 22)) && made("sent:10/19", day(2026, 10, 22)));
+    assert!(made("before:10/20", day(2026, 10, 22)) && !made("after:10/20", day(2026, 10, 22)));
+    // Made in another year, it is that year's day.
+    assert!(Query::parse("received:10/22").on(day(2025, 3, 1), Weekday::Sun).matches(&on(2025, 10, 22), 0));
+    // A date without a year is a pill, like one with.
+    assert_eq!(keyword_spans("received:10/22").len(), 1);
+}
+
+#[test]
+fn a_day_the_year_hasnt_got_finds_nothing() {
+    let q = Query::parse("received:2/29");
+    assert_eq!(keyword_spans("received:2/29").len(), 1, "a date: a pill");
+    assert!(!q.clone().on(monday(), Weekday::Sun).matches(&on(2026, 2, 28), 0));
+    assert!(!q.clone().on(monday(), Weekday::Sun).matches(&on(2026, 3, 1), 0));
+    assert!(q.on(day(2028, 1, 5), Weekday::Sun).matches(&on(2028, 2, 29), 0), "a leap year has it");
+    assert!(Query::parse("-received:2/29").on(monday(), Weekday::Sun).matches(&on(2026, 3, 1), 0));
+}
+
+#[test]
+fn what_is_no_day_without_a_year_is_text() {
+    for q in ["received:2/30", "received:13/1", "received:0/1", "received:10/0", "received:10/22/", "received:/22", "received:10/", "on:4/31"] {
+        assert!(keyword_spans(q).is_empty(), "{q} is text");
+        assert!(found_on(q, monday(), Weekday::Sun, day(2026, 1, 1), day(2026, 12, 31)).is_empty(), "{q}");
+    }
+}
+
+/// Monday, October 26, 2026, with weeks from Sunday: this week is the 25th to the 31st.
+#[test]
+fn days_in_words() {
+    let (today, sun) = (monday(), Weekday::Sun);
+    assert_eq!(span_on("received:today", today, sun), Some((today, today, 1)));
+    assert_eq!(span_on("received:yesterday", today, sun), Some((day(2026, 10, 25), day(2026, 10, 25), 1)));
+    assert_eq!(span_on("received:\"this week\"", today, sun), Some((day(2026, 10, 25), day(2026, 10, 31), 7)));
+    assert_eq!(span_on("received:\"last week\"", today, sun), Some((day(2026, 10, 18), day(2026, 10, 24), 7)));
+    assert_eq!(span_on("received:\"this month\"", today, sun), Some((day(2026, 10, 1), day(2026, 10, 31), 31)));
+    assert_eq!(span_on("received:\"last month\"", today, sun), Some((day(2026, 9, 1), day(2026, 9, 30), 30)));
+    assert_eq!(span_on("received:\"this year\"", today, sun), Some((day(2026, 1, 1), day(2026, 12, 31), 365)));
+    // On the week's first day, this week starts today.
+    let sunday = day(2026, 10, 25);
+    assert_eq!(span_on("received:\"this week\"", sunday, sun), Some((sunday, day(2026, 10, 31), 7)));
+    assert_eq!(span_on("received:\"last week\"", sunday, sun), Some((day(2026, 10, 18), day(2026, 10, 24), 7)));
+    // Weeks from Saturday.
+    assert_eq!(span_on("received:\"this week\"", today, Weekday::Sat), Some((day(2026, 10, 24), day(2026, 10, 30), 7)));
+    // Weeks from Monday: this week is the 26th to November 1st.
+    let mon = Weekday::Mon;
+    assert_eq!(span_on("received:\"this week\"", today, mon), Some((day(2026, 10, 26), day(2026, 11, 1), 7)));
+    assert_eq!(span_on("received:\"last week\"", today, mon), Some((day(2026, 10, 19), day(2026, 10, 25), 7)));
+}
+
+#[test]
+fn days_in_words_across_a_years_and_a_months_end() {
+    let (new_year, sun) = (day(2027, 1, 1), Weekday::Sun);
+    assert_eq!(span_on("received:yesterday", new_year, sun), Some((day(2026, 12, 31), day(2026, 12, 31), 1)));
+    assert_eq!(span_on("received:\"this week\"", new_year, sun), Some((day(2026, 12, 27), day(2027, 1, 2), 7)));
+    assert_eq!(span_on("received:\"last week\"", new_year, sun), Some((day(2026, 12, 20), day(2026, 12, 26), 7)));
+    assert_eq!(span_on("received:\"last month\"", new_year, sun), Some((day(2026, 12, 1), day(2026, 12, 31), 31)));
+    assert_eq!(span_on("received:\"this year\"", new_year, sun), Some((day(2027, 1, 1), day(2027, 12, 31), 365)));
+    let march = day(2028, 3, 1);
+    assert_eq!(span_on("received:yesterday", march, sun), Some((day(2028, 2, 29), day(2028, 2, 29), 1)));
+    assert_eq!(span_on("received:\"last month\"", march, sun), Some((day(2028, 2, 1), day(2028, 2, 29), 29)));
+}
+
+/// As Outlook takes them: any case, the two-word ones in quotes, the whole value and nothing more.
+#[test]
+fn days_in_words_as_outlook_writes_them() {
+    let today = monday();
+    assert_eq!(span_on("received:TODAY", today, Weekday::Sun), Some((today, today, 1)));
+    assert_eq!(span_on("Received:\"Last Week\"", today, Weekday::Sun), Some((day(2026, 10, 18), day(2026, 10, 24), 7)));
+    let q = "received:\"last week\"";
+    assert_eq!(keyword_spans(q).len(), 1, "one pill");
+    assert_eq!(&q[keyword_spans(q)[0].range.clone()], q, "with its quotes");
+    for q in [
+        "received:last week",
+        "received:lastweek",
+        "received:>=today",
+        "received:today..10/30",
+        "received:tomorrow",
+        "received:\"next week\"",
+        "received:\"last year\"",
+        "received:october",
+        "received:monday",
+        "on:today",
+        "before:yesterday",
+    ] {
+        assert!(span_on(q, today, Weekday::Sun).is_none(), "{q} finds no day");
+    }
+    assert!(keyword_spans("received:tomorrow").is_empty(), "not a day: text");
+    // Left out: every day but today.
+    let found = found_on("-received:today", today, Weekday::Sun, day(2026, 10, 25), day(2026, 10, 27));
+    assert_eq!(found, [day(2026, 10, 25), day(2026, 10, 27)]);
+}
+
+/// A search with such a date that isn't made on a day finds nothing, left out or not; one made on
+/// a day twice is the same; what doesn't need the day needs no day.
+#[test]
+fn a_search_not_made_on_a_day_finds_nothing() {
+    let m = at(monday(), 12, 0);
+    for q in ["received:today", "-received:today", "received:10/26", "-received:10/26", "budget received:10/21..10/30"] {
+        assert!(!Query::parse(q).matches(&m, 0), "{q}");
+    }
+    assert!(Query::parse("received:10/26/2026").matches(&m, 0));
+    let q = Query::parse("budget received:\"this week\" on:10/23");
+    assert_eq!(q.clone().on(monday(), Weekday::Sun), q.clone().on(monday(), Weekday::Sun).on(day(2030, 1, 1), Weekday::Mon));
+    assert_eq!(Query::parse("received:2026-10-26").on(monday(), Weekday::Sun), Query::parse("received:2026-10-26"));
+    let server = Query::parse("budget received:today").for_server();
+    assert_eq!(server.terms.len(), 1, "the word goes to the server, the day stays here");
+}
+
+#[test]
+fn days_in_words_beside_what_an_index_knows() {
+    let q = Query::parse("budget received:\"this week\"").on(monday(), Weekday::Sun);
+    let index_says_yes = |i: usize| (i == 0).then_some(true);
+    assert!(q.matches_with(&on(2026, 10, 27), 0, index_says_yes));
+    assert!(!q.matches_with(&on(2026, 10, 24), 0, index_says_yes));
+}
+
+/// At the calendar's first day there is nothing before it to name; at its last, no day after.
+#[test]
+fn days_in_words_at_the_calendars_ends() {
+    let (first, last) = (Date::from_days(i64::MIN), Date::from_days(i64::MAX));
+    for q in ["received:yesterday", "received:\"this week\"", "received:\"last week\"", "received:\"last month\""] {
+        assert!(!Query::parse(q).on(first, Weekday::Sun).matches(&at(first, 0, 0), 0), "{q}: nothing at the first day");
+    }
+    // What doesn't count back is there.
+    for q in ["received:today", "received:\"this month\"", "received:\"this year\""] {
+        assert!(Query::parse(q).on(first, Weekday::Sun).matches(&at(first, 0, 0), 0), "{q} at the first day");
+        assert!(!Query::parse(&format!("-{q}")).on(first, Weekday::Sun).matches(&at(first, 0, 0), 0), "-{q} at the first day");
+    }
+    assert!(Query::parse("received:today").on(last, Weekday::Sun).matches(&at(last, 23, 59), 0));
+    assert!(Query::parse("received:\"this month\"").on(last, Weekday::Sun).matches(&at(last, 23, 59), 0));
+    for q in ["received:\"this week\"", "received:\"this year\""] {
+        assert!(Query::parse(q).on(last, Weekday::Sun).matches(&at(last, 23, 59), 0), "{q} at the last day");
+    }
+    assert!(Query::parse("received:\"last week\"").on(last, Weekday::Sun).matches(&at(last.add_days(-7), 12, 0), 0));
+}
+
+proptest::proptest! {
+    #![proptest_config(proptest::prelude::ProptestConfig::with_cases(512))]
+
+    /// Whatever follows `received:`, made on any day with weeks from any day, is read without a
+    /// panic; and a day it finds in words is one day, or a span holding today or before it.
+    #[test]
+    fn any_value_made_on_any_day_is_read(v in "[0-9a-zA-Z /<>=.\\-\"]{0,24}", today in -1_000_000i64..1_000_000, first in 0i64..7, offset in -840i32..=840) {
+        let today = Date::from_days(today);
+        let q = Query::parse(&format!("received:{v}")).on(today, Weekday::from_index(first));
+        let _ = q.matches(&at(today, 12, 0), offset);
         let _ = q.for_server();
         let _ = keyword_spans(&format!("received:{v}"));
     }

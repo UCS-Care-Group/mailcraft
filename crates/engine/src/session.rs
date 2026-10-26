@@ -1123,6 +1123,12 @@ impl Session {
         self.local_now().date
     }
 
+    /// The search in view, made today with the owner's first day of the week (#329): what every
+    /// message is matched against (`received:today`, a date without a year).
+    pub(crate) fn search_query(&self) -> mailcraft_model::search::Query {
+        mailcraft_model::search::Query::parse(&self.view.search).on(self.today(), self.prefs.week_start)
+    }
+
     // ---- state ----
 
     /// Counts every change to the mailbox (caches key on it).
@@ -1300,6 +1306,7 @@ impl Session {
             }
             return rows;
         }
+        let day = self.today();
         let list_now = self.list_state();
         #[cfg(not(target_arch = "wasm32"))]
         self.words_in_step(!mailcraft_model::search::Query::parse(&self.view.search).is_empty());
@@ -1318,7 +1325,9 @@ impl Session {
                 hits
             }
         };
-        let key = key(self);
+        // A list searched across midnight may have matched `received:today` on either day: it is
+        // built again on the next call (#329).
+        let key = if self.today() == day { key(self) } else { String::new() };
         let (rows, kept) = crate::list::listing(self, &decided, &searched);
         // What it lists of the selection stays in it too: the rows don't change for that, as each
         // of those matches or is kept already.
@@ -1331,9 +1340,11 @@ impl Session {
     /// What the message list is built from, but for the content brought into memory or let go of.
     fn list_state(&self) -> String {
         format!(
-            "{}|{}|{}|{}|{}",
+            "{}|{}|{}|{}|{}|{}",
             self.rev,
             self.today().to_days(),
+            // `received:"last week"` is other days for another first day of the week (#329).
+            self.prefs.week_start.index(),
             self.words_finished(),
             self.prefs.show_groups,
             serde_json::to_string(&self.view).unwrap_or_default()
@@ -1379,7 +1390,7 @@ impl Session {
     fn search_words(&self) -> (std::collections::HashMap<Id, bool>, usize) {
         use std::cell::Cell;
         let mut decided = std::collections::HashMap::new();
-        let query = mailcraft_model::search::Query::parse(&self.view.search);
+        let query = self.search_query();
         let Some(words) = self.words.as_ref().filter(|_| !query.is_empty()) else { return (decided, 0) };
         let mut verify: Vec<Id> = Vec::new();
         {
@@ -1803,7 +1814,7 @@ impl Session {
     fn load_bodies_for_search(&mut self, decided: &std::collections::HashMap<Id, bool>) -> std::collections::HashMap<Id, bool> {
         self.unsearched = 0;
         self.search_pass = None;
-        let query = mailcraft_model::search::Query::parse(&self.view.search);
+        let query = self.search_query();
         if query.is_empty() || !query.reads_bodies() {
             return Default::default();
         }

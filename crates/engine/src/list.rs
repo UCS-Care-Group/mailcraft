@@ -176,7 +176,7 @@ pub(crate) fn lists(s: &Session, ids: &[Id]) -> std::collections::HashSet<Id> {
 /// in this list when they were selected and no longer match the filter or the search.
 pub(crate) fn listing(s: &Session, decided: &HashMap<Id, bool>, searched: &HashMap<Id, bool>) -> (Vec<Row>, Vec<Id>) {
     let mb = &s.mailbox;
-    let query = Query::parse(&s.view.search);
+    let query = s.search_query();
     let in_view = in_view(s);
     let me = me(s);
     let kept = s.kept();
