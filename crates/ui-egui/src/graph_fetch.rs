@@ -134,6 +134,19 @@ fn forwarded(app: &mut MailApp, id: &str, params: &Value) -> Option<(Vec<Id>, Id
     compose::forwarded(&mut app.session, params).ok()
 }
 
+/// What a forward that waits for its messages does, as [`MailApp::fetch_first`] named it: the
+/// messages it takes, the one in focus, and whether what is being written is let go. (With
+/// several, Forward and Forward as Attachment do the same.) `None` for another command.
+fn forward_of(command: &str, params: &Value) -> Option<(Vec<Id>, Option<Id>, bool)> {
+    if !matches!(command, "mail.forward" | "mail.forwardAsAttachment") {
+        return None;
+    }
+    let mut messages: Vec<Id> = params.get("ids")?.as_array()?.iter().filter_map(Value::as_u64).collect();
+    let focus = messages.last().copied();
+    messages.sort_unstable();
+    Some((messages, focus, params.get("discard").and_then(Value::as_bool) == Some(true)))
+}
+
 /// Of `ids`, those still to fetch first, but `tried`: of the first one's account, at most
 /// [`BATCH`]. A Microsoft account's server doesn't say how large its messages are before they come
 /// (a delta gives no sizes), so a forward of more than 64 MB together is found out after at most
@@ -238,7 +251,7 @@ impl MailApp {
         // called off, and said to be, for its download can take a while (#360). The same forward
         // asked for again goes on.
         let called_off = self.fetching.then.as_ref().is_some_and(|(command, params, opening, waiting)| {
-            waiting.is_some() && *opening == self.session.openings() && (command.as_str(), params) != (id, &then)
+            waiting.is_some() && *opening == self.session.openings() && forward_of(command, params).is_none_or(|f| forward_of(id, &then) != Some(f))
         });
         self.fetching.then = Some((id.to_string(), then, self.session.openings(), tried));
         self.status(if called_off {
