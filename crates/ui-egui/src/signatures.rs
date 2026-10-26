@@ -184,7 +184,7 @@ fn list(app: &mut MailApp, ui: &mut Ui, t: &Tokens, names: &[String], open: Opti
         let r = ui.add(egui::TextEdit::singleline(text).desired_width(172.0).char_limit(100));
         r.request_focus();
         if r.lost_focus() {
-            if ui.input(|i| i.key_pressed(egui::Key::Enter)) && !text.trim().is_empty() {
+            if crate::keys::enter(ui.ctx(), ui.layer_id()) && !text.trim().is_empty() {
                 let _ = app.run("signature.rename", json!({"name": from, "to": text.trim()}));
             }
             renaming = None;

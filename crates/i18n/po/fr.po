@@ -2126,6 +2126,11 @@ msgstr "Créer à partir des coordonnées"
 msgid "Current Folder"
 msgstr "Dossier actif"
 
+#. interface
+#: crates/ui-egui/src/chrome.rs
+msgid "Current Mailbox"
+msgstr ""
+
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -8482,6 +8487,11 @@ msgstr "Arrêt…"
 msgid "Street"
 msgstr "Rue"
 
+#. interface
+#: crates/ui-egui/src/chrome.rs
+msgid "Subfolders"
+msgstr ""
+
 #. interface, name
 #: crates/engine/src/session.rs crates/ui-egui/src/compose.rs
 #, fuzzy
@@ -12420,6 +12430,11 @@ msgstr "{folder} - {mailbox}"
 #, fuzzy
 msgid "{folder} Properties"
 msgstr "Propriétés de {folder}"
+
+#. interface
+#: crates/ui-egui/src/mail_view.rs
+msgid "{folder} and its subfolders"
+msgstr ""
 
 #. what a command says
 #: crates/model/src/sync/progress.rs

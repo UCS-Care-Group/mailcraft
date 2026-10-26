@@ -375,7 +375,7 @@ impl AccountSetup {
         } else if mail_only {
             Some(Action::MailOnly)
         } else {
-            (again || entered(ui, pass)).then_some(Action::Go)
+            (again || pass.submit).then_some(Action::Go)
         }
     }
 

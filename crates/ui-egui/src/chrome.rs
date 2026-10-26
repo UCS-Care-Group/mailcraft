@@ -126,8 +126,8 @@ fn search_box(app: &mut MailApp, ui: &mut Ui, rect: Rect) {
     let mut suggesting = crate::search_suggest::Suggesting::load(ui.ctx());
     let over = suggesting.pointer_over(ui);
     // With a dialog open, the list is not drawn: it would be on top of the dialog.
-    let open = mail_search && free && suggesting.is_open(&app.search_text, focused || over);
-    let mut take = if open && focused && free { suggesting.keys(ui, &app.search_text) } else { None };
+    let open = mail_search && free && crate::search_suggest::Suggesting::is_open(ui.ctx());
+    let mut take = if open && focused { suggesting.keys(ui) } else { None };
     let pill_slot = ui.painter().add(egui::Shape::Noop);
     let mut drawn: Vec<crate::search_pills::Pill> = Vec::new();
     let mut layouter = |ui: &Ui, text: &dyn egui::TextBuffer, _wrap: f32| {
@@ -167,21 +167,19 @@ fn search_box(app: &mut MailApp, ui: &mut Ui, rect: Rect) {
             _ => app.execute("view.search", json!({"query": text})),
         };
     }
-    // Every Escape is the box's while it has the keyboard, a held one's repeats too, so that nothing
-    // drawn after it does something with the same key (a selection in the message being read
-    // stays). Only a press clears the search: the repeats of one that closed a dialog leave it.
-    let pressed = focused && free && ui.input_mut(|i| crate::keys::take_once(i, egui::Key::Escape));
+    // Escape is the box's while it has the keyboard and nothing is over it, the list under it
+    // either (#406), so nothing drawn after it does something with the same key (a selection in
+    // the message being read stays). Only a press clears the search: the repeats of one that
+    // closed a dialog leave it.
+    let pressed = focused && free && crate::keys::take_escape_in(ui.ctx(), ui.layer_id(), id);
     if pressed {
         app.search_text.clear();
         let _ = app.execute("view.clearSearch", json!({}));
         let _ = app.execute("people.search", json!({"query": ""}));
         resp.surrender_focus();
     }
-    if open {
-        take = suggesting.show(ui, rect).or(take);
-    } else {
-        suggesting.hidden();
-    }
+    let wanted = mail_search && free && (focused || over) && !suggesting.items.is_empty();
+    take = suggesting.show(ui, rect, wanted).or(take);
     let mut cursor = output.cursor_range.map(|r| r.primary.index.0);
     // Only what was offered for the search as it is now: not for one this frame's typing changed.
     let fresh = app.search_text == suggesting.for_text;
@@ -200,11 +198,11 @@ fn search_box(app: &mut MailApp, ui: &mut Ui, rect: Rect) {
         Some(at) if mail_search && (resp.has_focus() || ui.memory(|m| m.has_focus(id))) => {
             suggesting.offer(&app.search_text, at, &app.session);
             // The keys of a list that shows from the next frame are its own from that frame on.
-            let next = free && suggesting.is_open(&app.search_text, true);
+            let next = suggesting.will_show(ui.ctx(), free);
             ui.memory_mut(|m| m.set_focus_lock_filter(id, list_keys(next)));
         }
         _ if suggesting.pointer_over(ui) => {}
-        // The box was left: an Escape in it is forgotten, so the list shows again on coming back.
+        // The box was left: the list shows again on coming back, after an Escape too.
         _ if !ui.memory(|m| m.has_focus(id)) => suggesting = crate::search_suggest::Suggesting::default(),
         _ => suggesting.clear(),
     }
@@ -212,18 +210,24 @@ fn search_box(app: &mut MailApp, ui: &mut Ui, rect: Rect) {
     if !mail_search {
         return;
     }
-    // Scope: this folder, or every mailbox.
+    // Scope: this folder, it and its subfolders, its mailbox, or every mailbox (#493).
     let scope_rect = Rect::from_min_max(pos2(rect.max.x - scope_w, rect.min.y + 2.0), pos2(rect.max.x - 2.0, rect.max.y - 2.0));
-    let everywhere = app.session.view.scope == Scope::Everywhere;
-    let label = if everywhere { tl!("All Mailboxes") } else { tl!("Current Folder") };
+    let scopes = [
+        (Scope::Folder, tl!("Current Folder"), "folder"),
+        (Scope::Subfolders, tl!("Subfolders"), "subfolders"),
+        (Scope::Mailbox, tl!("Current Mailbox"), "mailbox"),
+        (Scope::Everywhere, tl!("All Mailboxes"), "everywhere"),
+    ];
+    let now = app.session.view.scope;
+    let label = scopes.iter().find(|(scope, ..)| *scope == now).map_or(tl!("Current Folder"), |(_, name, _)| *name);
     let sresp = ui.interact(scope_rect, ui.scope_id().with("search_scope"), Sense::click());
     if sresp.hovered() {
         ui.painter().rect_filled(scope_rect, 4.0, t.hover);
     }
     ui.painter().text(scope_rect.center(), Align2::CENTER_CENTER, format!("{label} ▾"), TypeRung::Caption.regular(), t.text_dim);
     egui::Popup::menu(&sresp).show(|ui| {
-        for (name, code, on) in [("Current Folder", "folder", !everywhere), ("All Mailboxes", "everywhere", everywhere)] {
-            if ui.selectable_label(on, tl!(name)).clicked() {
+        for (scope, name, code) in scopes {
+            if ui.selectable_label(scope == now, name).clicked() {
                 let query = app.session.view.search.clone();
                 let _ = app.execute("view.search", json!({"query": query, "scope": code}));
                 ui.close();

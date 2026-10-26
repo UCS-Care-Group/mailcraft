@@ -450,11 +450,20 @@ fn search_bar(app: &mut MailApp, ui: &mut Ui, found: usize) {
         return;
     }
     let t = Tokens::get(ui.ctx());
-    let scope = if app.session.view.scope == mailcraft_engine::Scope::Everywhere {
-        tl!("All Mailboxes").to_string()
-    } else {
+    let mb = &app.session.mailbox;
+    let folder = mb.folder(app.session.view.folder);
+    let scope = match app.session.view.scope {
+        mailcraft_engine::Scope::Everywhere => tl!("All Mailboxes").to_string(),
+        // The account in view, by the name the folder pane gives it (#493).
+        mailcraft_engine::Scope::Mailbox => folder
+            .and_then(|f| mb.account(f.account))
+            .map(|a| if a.name.trim().is_empty() { a.email.trim().to_string() } else { a.name.trim().to_string() })
+            .unwrap_or_default(),
+        mailcraft_engine::Scope::Subfolders => {
+            folder.map(|f| crate::i18n::fmt(tl!("{folder} and its subfolders"), &[("folder", &crate::nav::folder_label(mb, f))])).unwrap_or_default()
+        }
         // (A shared mailbox's folder with the mailbox it is in, #70.)
-        app.session.mailbox.folder(app.session.view.folder).map(|f| crate::nav::folder_label(&app.session.mailbox, f)).unwrap_or_default()
+        mailcraft_engine::Scope::Folder => folder.map(|f| crate::nav::folder_label(mb, f)).unwrap_or_default(),
     };
     let said = match found {
         0 => crate::i18n::fmt(tl!("No results in {scope}"), &[("scope", &scope)]),
@@ -491,9 +500,8 @@ fn list(app: &mut MailApp, ui: &mut Ui) {
     search_bar(app, ui, mailcraft_engine::list::listed(&rows));
     // A search covers what is here: of a message not fetched yet, its headers and preview (R3.2).
     if !app.session.view.search.trim().is_empty() {
-        let folder = app.session.view.folder;
-        let everywhere = app.session.view.scope == mailcraft_engine::Scope::Everywhere;
-        let partly = app.session.mailbox.messages.values().filter(|m| m.unfetched && (everywhere || m.folder == folder)).count();
+        let in_view = mailcraft_engine::list::in_view(&app.session);
+        let partly = app.session.mailbox.messages.values().filter(|m| m.unfetched && in_view(m)).count();
         if partly > 0 {
             let said = crate::i18n::fmt(
                 tl!("{count} messages weren't searched in full: only their beginning is here until they download."),
@@ -693,10 +701,11 @@ fn size_label(s: &mailcraft_engine::Session, m: &Message) -> Option<String> {
     Some(mailcraft_model::size_label_in(crate::i18n::current(), bytes.max(1024)))
 }
 
-/// Whether a row names the folder its message is in, under the time: in a search of every
-/// mailbox, as Outlook's rows do (#195); in one folder the owner knows which it is.
+/// Whether a row names the folder its message is in, under the time: in a search of more than
+/// one folder (its subfolders, its mailbox or every mailbox), as Outlook's rows do (#195, #493);
+/// in one folder the owner knows which it is.
 fn shows_folder(s: &mailcraft_engine::Session) -> bool {
-    s.view.scope == mailcraft_engine::Scope::Everywhere && !mailcraft_model::search::Query::parse(&s.view.search).is_empty()
+    s.view.scope != mailcraft_engine::Scope::Folder && !mailcraft_model::search::Query::parse(&s.view.search).is_empty()
 }
 
 /// The previews of the rows the list drew last, so that drawing them again reads no message a

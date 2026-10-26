@@ -2156,6 +2156,11 @@ msgstr "Maken vanuit details"
 msgid "Current Folder"
 msgstr "Huidige map"
 
+#. interface
+#: crates/ui-egui/src/chrome.rs
+msgid "Current Mailbox"
+msgstr ""
+
 #. ribbon, ribbon location
 #: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -8593,6 +8598,11 @@ msgstr "Bezig met stoppen…"
 msgid "Street"
 msgstr "Straat"
 
+#. interface
+#: crates/ui-egui/src/chrome.rs
+msgid "Subfolders"
+msgstr ""
+
 #. interface, name
 #: crates/engine/src/session.rs crates/ui-egui/src/compose.rs
 #, fuzzy
@@ -12616,6 +12626,11 @@ msgstr "{folder} - {mailbox}"
 #, fuzzy
 msgid "{folder} Properties"
 msgstr "Eigenschappen van {folder}"
+
+#. interface
+#: crates/ui-egui/src/mail_view.rs
+msgid "{folder} and its subfolders"
+msgstr ""
 
 #. what a command says
 #: crates/model/src/sync/progress.rs
