@@ -384,13 +384,19 @@ fn write_prefs(path: &std::path::Path, ui: &UiState) -> std::io::Result<()> {
 }
 
 fn save_prefs(app: &MailApp) {
-    // Its data was removed from this computer (File › Info): nothing is written back.
-    if !prefs_enabled() || app.data_removed || PREFS_LEFT_IN_PLACE.load(std::sync::atomic::Ordering::Relaxed) {
+    if let Some(p) = prefs_path() {
+        save_prefs_at(app, &p);
+    }
+}
+
+/// [`save_prefs`] to `path`.
+fn save_prefs_at(app: &MailApp, path: &std::path::Path) {
+    // Its data was removed from this computer (File › Info): nothing is written back. Nor is
+    // anything of a window closed while its mailbox was still opening (#519).
+    if !prefs_enabled() || app.data_removed || app.is_opening() || PREFS_LEFT_IN_PLACE.load(std::sync::atomic::Ordering::Relaxed) {
         return;
     }
-    if let Some(p) = prefs_path() {
-        let _ = write_prefs(&p, &app.prefs());
-    }
+    let _ = write_prefs(path, &app.prefs());
 }
 
 /// Run `work` on a background thread of its own; the answer comes back through the channel and

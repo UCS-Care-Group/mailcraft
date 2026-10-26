@@ -621,8 +621,9 @@ struct State {
     /// Content the mailbox file named at some time while this program ran. A message that names
     /// it again is this mailbox's, not one carried over from another ([`on_disk_here`]).
     named_before: HashSet<Digest>,
-    /// The file as [`open_ahead`] read it, for the next [`open`] of it to take.
-    ahead: Option<Box<Opened>>,
+    /// The file as [`open_ahead`] read it, for the next [`open`] of it to take, with the file's
+    /// length and time then: anything written to it since drops it.
+    ahead: Option<(Box<Opened>, Stamp)>,
 }
 
 /// Messages the mailbox file no longer says as they are in memory, held by nothing but a weak
@@ -1215,8 +1216,11 @@ pub fn open(path: &Path) -> Result<Opened, String> {
 /// with an error once `progress` is cancelled.
 pub fn open_with(path: &Path, progress: &OpenProgress) -> Result<Opened, String> {
     let started = Instant::now();
-    let opened = open_file(path, progress)?;
-    log::info!("{}", open_line(started.elapsed(), opened.bytes, &opened.mailbox, opened.repaired));
+    let (opened, read_now) = open_file(path, progress)?;
+    // (What was read ahead was logged when it was read.)
+    if read_now {
+        log::info!("{}", open_line(started.elapsed(), opened.bytes, &opened.mailbox, opened.repaired));
+    }
     Ok(opened)
 }
 
@@ -1238,6 +1242,10 @@ fn open_line(took: Duration, bytes: u64, mailbox: &Mailbox, repaired: usize) -> 
 /// the next [`open`] of the same file takes what was read, unless the file has changed since. A
 /// cancelled `progress` keeps nothing; nor does [`forget_ahead`].
 pub fn open_ahead(path: &Path, progress: &OpenProgress) -> Result<(), String> {
+    let show = path.display();
+    if crate::io::Format::from_extension(&path.to_string_lossy()).is_some_and(|f| f != crate::io::Format::Mailbox) {
+        return Err(format!("{show} isn't a mailbox; bring it in with File › Import"));
+    }
     let opened = open_with(path, progress)?;
     let shared = shared(path);
     let mut st = lock(&shared.state);
@@ -1245,14 +1253,27 @@ pub fn open_ahead(path: &Path, progress: &OpenProgress) -> Result<(), String> {
     if progress.cancelled() {
         return Err(CANCELLED.into());
     }
-    st.ahead = Some(Box::new(opened));
+    // The file as it was read; written to since (by a save here between the read and this
+    // lock), it is read again when it is opened.
+    let Some(stamp) = st.stamp.as_ref().map(|s| Stamp { len: s.len, modified: s.modified, sum: None }) else {
+        return Ok(());
+    };
+    st.ahead = Some((Box::new(opened), stamp));
     Ok(())
 }
 
-/// Let go of what [`open_ahead`] read of the file at `path`, if it is still kept.
+/// Let go of what [`open_ahead`] read of the file at `path`, if it is still kept. Never waits:
+/// while the file is still being read (its lock is held), the reading drops what it read itself
+/// once its progress is cancelled, which the caller has done first.
 pub fn forget_ahead(path: &Path) {
     let shared = shared(path);
-    let ahead = lock(&shared.state).ahead.take();
+    // ponytail: a save holding the lock at this moment leaves a finished read kept; that save
+    // drops it anyway, and an open of a changed file reads it again.
+    let ahead = match shared.state.try_lock() {
+        Ok(mut st) => st.ahead.take(),
+        Err(std::sync::TryLockError::Poisoned(p)) => p.into_inner().ahead.take(),
+        Err(std::sync::TryLockError::WouldBlock) => None,
+    };
     drop(ahead);
 }
 
@@ -1276,20 +1297,21 @@ impl<R: std::io::Read> std::io::Read for Counted<'_, R> {
     }
 }
 
-/// [`open_with`], without the line in the log.
-fn open_file(path: &Path, progress: &OpenProgress) -> Result<Opened, String> {
+/// [`open_with`], without the line in the log; and whether the file was read now (not ahead).
+fn open_file(path: &Path, progress: &OpenProgress) -> Result<(Opened, bool), String> {
     let shared = shared(path);
     let mut st = lock(&shared.state);
     let show = path.display();
     let file = resolve(path);
     let len = fs::metadata(&file).map_err(|e| format!("{show}: {e}"))?.len();
-    // Read ahead, and the file is still what was read: that is the mailbox.
-    if let Some(ahead) = st.ahead.take()
-        && st.stamp.as_ref().is_some_and(|stamp| stamp.still(&file))
+    // Read ahead, and the file is still what was read then: that is the mailbox.
+    if let Some((ahead, stamp)) = st.ahead.take()
+        && stamp.still(&file)
+        && st.stamp.as_ref().is_some_and(|s| s.still(&file))
     {
         progress.set_total(len);
         progress.add_read(len);
-        return Ok(*ahead);
+        return Ok((*ahead, false));
     }
     progress.set_total(len);
     // Whatever was known about this file was about another state of it.
@@ -1301,7 +1323,7 @@ fn open_file(path: &Path, progress: &OpenProgress) -> Result<Opened, String> {
         if progress.cancelled() {
             return Err(CANCELLED.into());
         }
-        return Ok(opened);
+        return Ok((opened, true));
     }
     if len > MAX_FILE {
         return Err(format!("{show} is larger than {} MB", MAX_FILE >> 20));
@@ -1332,7 +1354,7 @@ fn open_file(path: &Path, progress: &OpenProgress) -> Result<Opened, String> {
     st.stamp = Stamp::of(&file, bytes.len() as u64, Some(sum));
     st.loaded = loaded_unless_retired(&mailbox);
     st.legacy = Some(version.max(1));
-    Ok(Opened {
+    let opened = Opened {
         mailbox,
         split,
         unavailable: filled.missing,
@@ -1343,7 +1365,8 @@ fn open_file(path: &Path, progress: &OpenProgress) -> Result<Opened, String> {
         lost_records: 0,
         bytes: len,
         repaired: fixed.len(),
-    })
+    };
+    Ok((opened, true))
 }
 
 /// One item of a mailbox file in this form, read.
@@ -2020,6 +2043,8 @@ fn save_as_of(path: &Path, mailbox: &Mailbox, seq: u64) -> Result<Saved, String>
 }
 
 fn save_locked(mut st: MutexGuard<'_, State>, shared: &Shared, path: &Path, mailbox: &Mailbox, seq: u64) -> Result<Saved, String> {
+    // What was read of the file ahead of its opening is not what it says once this is written.
+    st.ahead = None;
     if seq < st.newest {
         return Ok(Saved { unchanged: true, ..Saved::default() });
     }

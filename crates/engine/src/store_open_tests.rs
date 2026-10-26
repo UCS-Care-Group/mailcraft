@@ -150,3 +150,25 @@ fn a_read_ahead_cancelled_or_forgotten_keeps_nothing() {
     assert!(open_ahead(&path, &cancelled).is_err());
     assert!(open_with(&path, &cancelled).is_err(), "cancelled: nothing was kept");
 }
+
+#[test]
+fn a_file_this_program_saved_since_it_was_read_ahead_is_read_again() {
+    let tmp = Temp::new("ahead-saved");
+    let path = tmp.file();
+    save(&path, &mailbox(4)).unwrap();
+    open_ahead(&path, &OpenProgress::default()).unwrap();
+    save(&path, &mailbox(9)).unwrap();
+    let opened = open(&path).unwrap();
+    assert_eq!(opened.mailbox.messages.len(), 9, "not the stale read-ahead");
+    // What is saved next is written against the file as it is, losing nothing.
+    save(&path, &opened.mailbox).unwrap();
+    assert_eq!(open(&path).unwrap().mailbox.messages.len(), 9);
+}
+
+#[test]
+fn a_message_file_read_ahead_is_sent_to_import() {
+    let tmp = Temp::new("ahead-eml");
+    let path = tmp.0.join("message.eml");
+    fs::write(&path, b"Subject: hi\r\n\r\nbody\r\n").unwrap();
+    assert!(open_ahead(&path, &OpenProgress::default()).unwrap_err().contains("File › Import"));
+}

@@ -132,8 +132,6 @@ pub fn open_path(path: &std::path::Path) -> Result<Mailbox, String> {
     Ok(mailbox)
 }
 
-/// A host's way of keeping a mailbox file up to date without whoever changed the mailbox waiting
-/// for the disk: the desktop app hands each state to a background thread (`store::Saver`).
 /// How far opening a mailbox has got, shared between the thread that reads it and the window that
 /// shows it (#519): the bytes of the file read, of how many, and whether the window gave up
 /// waiting, which stops the reading at its next read.
@@ -181,6 +179,8 @@ impl OpenProgress {
     }
 }
 
+/// A host's way of keeping a mailbox file up to date without whoever changed the mailbox waiting
+/// for the disk: the desktop app hands each state to a background thread (`store::Saver`).
 pub trait BackgroundSave {
     /// The mailbox file at `path` is kept up to date through [`BackgroundSave::submit`] from now
     /// on. Whatever replaces the mailbox in its session (File › Open, File › New) writes the last

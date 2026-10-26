@@ -205,15 +205,19 @@ fn opened_path(app: &mut MailApp, purpose: &str, path: &str) -> Result<Value, St
         }
         _ => app.run("file.import", json!({"path": path})),
     };
-    if r.is_ok() {
+    // (A mailbox goes into Recent, and File closes, once it is open: `MailApp::run`.)
+    if r.is_ok() && purpose != "mailbox" {
         app.ui.backstage = false;
-        if purpose == "mailbox" {
-            app.ui.recent.retain(|p| p != path);
-            app.ui.recent.insert(0, path.to_string());
-            app.ui.recent.truncate(10);
-        }
     }
     r
+}
+
+/// The mailbox file at `path` was opened: first in File's Recent, and File closes.
+pub(crate) fn remember_recent(app: &mut MailApp, path: &str) {
+    app.ui.backstage = false;
+    app.ui.recent.retain(|p| p != path);
+    app.ui.recent.insert(0, path.to_string());
+    app.ui.recent.truncate(10);
 }
 
 /// A file dropped on the window, or something the program was started with: a file, a file

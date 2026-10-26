@@ -185,7 +185,14 @@ fn closing_while_opening_writes_nothing() {
     let file = tmp.0.join("mailbox.mailcraft");
     mailcraft_engine::store::save(&file, &mailbox(4)).unwrap();
     let before: Vec<(PathBuf, Vec<u8>)> = everything(&tmp.0);
-    let (app, _tx, _progress, built, _control) = waiting();
+    let (mut app, _tx, _progress, built, _control) = waiting();
+    // The stand-in tied to the real file, with a saver and changes of its own: only the window
+    // knowing it is still opening keeps them from being written over the mailbox.
+    app.session.path = Some(file.clone());
+    app.services.saver = Some(Box::new(mailcraft_engine::store::Saver::spawn(|| {}).unwrap()));
+    app.autosave = true;
+    app.session.dirty = true;
+    app.saved_rev = u64::MAX;
     let mut h = harness(app);
     let app = h.state_mut();
     assert!(app.close_requested(), "the window closes at once");
@@ -370,7 +377,85 @@ fn file_open_reads_the_other_mailbox_while_the_open_one_stays_in_use() {
     assert_eq!(app.session.mailbox.messages.len(), messages);
     h.run_steps(2);
     assert!(h.query_by_label_contains("Opening Archive.mailcraft… 45%").is_some());
-    assert_eq!(control_status(&mut h)["opening"]["read"], 45_000_000);
+    let status = control_status(&mut h);
+    assert_eq!(status["opening"]["read"], 45_000_000);
+    assert_eq!(status["opening"]["name"], "Archive.mailcraft", "the name alone, not where it is kept");
+    assert!(status["opening"].get("path").is_none());
+}
+
+#[test]
+fn an_agent_hears_the_status_before_and_after_the_mailbox_opens() {
+    let (app, tx, _progress, _built, control) = waiting();
+    let mut h = harness(app);
+    let status = |h: &mut egui_kittest::Harness<'static, MailApp>| {
+        let (req, reply) = ControlRequest::new("app.status", json!({}));
+        control.send(req.from_agent(vec![])).unwrap();
+        h.run_steps(2);
+        reply.try_recv().unwrap()
+    };
+    assert_eq!(status(&mut h)["result"]["mailbox"], "opening");
+    tx.send(Arrival::opened(mailbox(3), None)).unwrap();
+    h.run_steps(3);
+    assert!(!h.state().is_opening());
+    let v = status(&mut h);
+    assert_eq!(v["result"]["mailbox"], "open", "{v}");
+}
+
+#[test]
+fn whatever_replaces_the_mailbox_gives_up_the_one_being_read() {
+    let tmp = Temp::new("replaced");
+    let other = tmp.0.join("Other.mailcraft");
+    mailcraft_engine::store::save(&other, &mailbox(2)).unwrap();
+    for (id, params) in [("file.new", json!({})), ("file.open", json!({"path": other.to_string_lossy()}))] {
+        let (services, held) = held_host();
+        let mut h = harness(sample_app(services));
+        h.state_mut().run("file.open", json!({"path": "/somewhere/Archive.mailcraft"})).unwrap();
+        // An agent's, run as it is asked.
+        h.state_mut().execute(id, params).unwrap();
+        assert!(h.state().reading_ahead.is_none(), "{id}");
+        let (_, progress, done) = held.lock().unwrap().pop().unwrap();
+        assert!(progress.cancelled(), "{id}: the reading stops");
+        let path = h.state().session.path.clone();
+        let messages = h.state().session.mailbox.messages.len();
+        // Done all the same, too late: it doesn't take the place of what replaced the mailbox.
+        let _ = done.send(Ok(()));
+        h.run_steps(3);
+        assert_eq!(h.state().session.path, path, "{id}");
+        assert_eq!(h.state().session.mailbox.messages.len(), messages, "{id}");
+    }
+}
+
+#[test]
+fn a_mailbox_is_a_recent_one_once_it_is_open_and_file_closes_then() {
+    let tmp = Temp::new("recent");
+    let file = tmp.0.join("Archive.mailcraft");
+    mailcraft_engine::store::save(&file, &mailbox(7)).unwrap();
+    let (services, held) = held_host();
+    let mut h = harness(sample_app(services));
+    h.state_mut().ui.backstage = true;
+    let path = file.to_string_lossy().to_string();
+    assert_eq!(h.state_mut().run("file.open", json!({"path": path})).unwrap()["pending"], "opening");
+    assert!(h.state().ui.recent.is_empty(), "not while it is being read");
+    assert!(h.state().ui.backstage);
+    let (read, progress, done) = held.lock().unwrap().pop().unwrap();
+    let _ = done.send(mailcraft_engine::store::open_ahead(&read, &progress));
+    h.run_steps(3);
+    assert_eq!(h.state().session.path.as_deref(), Some(file.as_path()));
+    assert_eq!(h.state().ui.recent, vec![path]);
+    assert!(!h.state().ui.backstage);
+}
+
+#[test]
+fn the_mailbox_open_now_is_never_read_ahead_however_its_path_is_spelt() {
+    let tmp = Temp::new("spelt");
+    let file = tmp.0.join("mailbox.mailcraft");
+    mailcraft_engine::store::save(&file, &mailbox(4)).unwrap();
+    let (services, held) = held_host();
+    let mut app = sample_app(services);
+    app.session.path = Some(file.clone());
+    let spelt = tmp.0.join(".").join("mailbox.mailcraft");
+    let _ = app.run("file.open", json!({"path": spelt.to_string_lossy()}));
+    assert!(held.lock().unwrap().is_empty());
 }
 
 fn control_status(h: &mut egui_kittest::Harness<'static, MailApp>) -> Value {

@@ -1640,6 +1640,7 @@ impl MailApp {
             self.dialog = Some(dialogs::Dialog::Confirm { command: id.to_string(), params, ask });
             return Ok(json!({"pending": "confirm"}));
         }
+        let opening_file = (id == "file.open").then(|| params.get("path").and_then(Value::as_str).map(str::to_string)).flatten();
         // Check for Updates pressed by the owner checks whether the daily check is on or not.
         // So are Restart to update and Go back, which are the owner's clicks alone.
         let r = match id {
@@ -1659,6 +1660,13 @@ impl MailApp {
         }
         if id.starts_with("calendar.") {
             self.ran = (self.ran.0.wrapping_add(1), id.to_string(), r.clone());
+        }
+        // A mailbox file the owner opened is a recent one once it is open, not while it is still
+        // being read or waits for a save; and File closes then.
+        if let (Some(path), Ok(v)) = (&opening_file, &r)
+            && v.get("pending").is_none()
+        {
+            files::remember_recent(self, path);
         }
         match &r {
             Err(e) => self.say_refused(id, e),
@@ -1700,6 +1708,11 @@ impl MailApp {
     pub fn execute(&mut self, id: &str, params: Value) -> Result<Value, String> {
         if self.opening.is_some() {
             return Err(opening::STILL_OPENING.into());
+        }
+        // Whatever replaces the mailbox gives up one being read in the background, which would
+        // otherwise take the place of this one later.
+        if matches!(id, "file.open" | "file.new") {
+            opening::cancel_ahead(self);
         }
         if let Some(r) = self.ui_command(id, &params) {
             return r;
@@ -3669,7 +3682,8 @@ impl MailApp {
                 self.close_anyway = true;
             }
             // So does File › New or File › Open, as the command itself would have.
-            if let Some((id, _)) = self.after_save.take() {
+            if let Some((id, params)) = self.after_save.take() {
+                opening::forget_unopened(&id, &params);
                 let error = format!("the mailbox couldn't be saved first, so it stays open ({e})");
                 self.after_save_outcome = Some(json!({"command": id, "ok": false, "error": error}));
             }
@@ -3799,7 +3813,8 @@ impl MailApp {
                     return None;
                 }
                 // Asked again meanwhile: the newer request takes the place of the older.
-                if let Some((before, _)) = self.after_save.replace((id.to_string(), params.clone())) {
+                if let Some((before, waited)) = self.after_save.replace((id.to_string(), params.clone())) {
+                    opening::forget_unopened(&before, &waited);
                     self.after_save_outcome = Some(json!({"command": before, "ok": false, "error": format!("{id} was asked for instead")}));
                 } else {
                     self.after_save_outcome = None;
@@ -3817,7 +3832,8 @@ impl MailApp {
     fn drop_for_close(&mut self) {
         // Nor is a mailbox read in the background opened on the way out.
         opening::cancel_ahead(self);
-        if let Some((id, _)) = self.after_save.take() {
+        if let Some((id, params)) = self.after_save.take() {
+            opening::forget_unopened(&id, &params);
             self.after_save_outcome = Some(json!({"command": id, "ok": false, "error": "the window was closed instead"}));
         }
     }

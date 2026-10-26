@@ -129,3 +129,19 @@ fn the_sample_is_kept_nowhere() {
     assert!(arrival.path.is_none());
     assert!(!arrival.mailbox.messages.is_empty());
 }
+
+#[test]
+fn a_window_closed_while_opening_writes_no_settings() {
+    let tmp = Temp::new("prefs");
+    let file = tmp.0.join("ui.json");
+    let (_tx, rx) = channel();
+    let build: mailcraft_ui_egui::opening::Build =
+        Box::new(|a: Arrival| mailcraft_ui_egui::MailApp::new(mailcraft_engine::Session::new(a.mailbox), Default::default()));
+    let opening = mailcraft_ui_egui::opening::Opening::new(rx, Arc::new(OpenProgress::default()), build);
+    let app = mailcraft_ui_egui::MailApp::opening(opening, None, None);
+    crate::save_prefs_at(&app, &file);
+    assert!(!file.exists(), "nothing of the waiting window is written");
+    let open = mailcraft_ui_egui::MailApp::new(mailcraft_engine::Session::new(mailbox(1)), Default::default());
+    crate::save_prefs_at(&open, &file);
+    assert!(file.exists(), "a window with its mailbox writes them");
+}

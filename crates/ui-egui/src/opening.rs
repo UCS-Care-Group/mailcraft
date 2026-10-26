@@ -355,13 +355,22 @@ pub(crate) fn reads_ahead(app: &MailApp, params: &Value) -> bool {
         return false;
     }
     let Some(path) = params.get("path").and_then(Value::as_str) else { return false };
-    app.session.path.as_deref() != Some(std::path::Path::new(path))
+    // Never the mailbox open now, however its path is spelt.
+    let whole = |p: &std::path::Path| std::path::absolute(p).unwrap_or_else(|_| p.to_path_buf());
+    app.session.path.as_deref().map(whole) != Some(whole(std::path::Path::new(path)))
 }
 
 /// Start reading the file `params` names in the background, in place of any other being read.
 pub(crate) fn read_ahead(app: &mut MailApp, params: &Value) -> Result<Value, String> {
     let path = PathBuf::from(params.get("path").and_then(Value::as_str).unwrap_or_default());
     cancel_ahead(app);
+    // An earlier one, read and waiting for the save before it opens, gives way to this one.
+    if app.after_save.as_ref().is_some_and(|(id, _)| id == "file.open")
+        && let Some((id, waited)) = app.after_save.take()
+    {
+        forget_unopened(&id, &waited);
+        app.after_save_outcome = Some(json!({"command": id, "ok": false, "error": "file.open was asked for instead"}));
+    }
     let Some(start) = &app.services.read_ahead else { return Err("this window can't open mailboxes in the background".into()) };
     let progress = Arc::new(OpenProgress::default());
     let rx = start(path.clone(), progress.clone());
@@ -377,6 +386,19 @@ pub(crate) fn cancel_ahead(app: &mut MailApp) -> bool {
     #[cfg(not(target_arch = "wasm32"))]
     mailcraft_engine::store::forget_ahead(&ahead.path);
     true
+}
+
+/// A `file.open` that read its file ahead and then didn't run (the save it waited for failed, or
+/// something else was asked for instead): what was read of it is let go of.
+pub(crate) fn forget_unopened(id: &str, params: &Value) {
+    #[cfg(not(target_arch = "wasm32"))]
+    if id == "file.open"
+        && let Some(path) = params.get("path").and_then(Value::as_str)
+    {
+        mailcraft_engine::store::forget_ahead(std::path::Path::new(path));
+    }
+    #[cfg(target_arch = "wasm32")]
+    let _ = (id, params);
 }
 
 /// Once a frame: the mailbox read in the background, once it is, takes the place of the one open
@@ -395,8 +417,13 @@ pub(crate) fn poll_ahead(app: &mut MailApp, ctx: &egui::Context) {
     match read {
         Ok(()) => {
             app.swapping = true;
-            let _ = app.run("file.open", json!({"path": ahead.path.to_string_lossy()}));
+            let r = app.run("file.open", json!({"path": ahead.path.to_string_lossy()}));
             app.swapping = false;
+            // Not opened: what was read of it isn't kept for later.
+            if r.is_err() {
+                #[cfg(not(target_arch = "wasm32"))]
+                mailcraft_engine::store::forget_ahead(&ahead.path);
+            }
         }
         Err(e) => {
             let said = i18n::fmt(tl!("Couldn't open {name}: {error}"), &[("name", &ahead.name), ("error", tl!(&e))]);
@@ -421,7 +448,8 @@ pub(crate) fn ahead_label(app: &MailApp) -> Option<(String, f32)> {
 /// What `app.status` and `ui.inspect` say of the mailbox being read in the background.
 pub(crate) fn ahead_inspect(app: &MailApp) -> Value {
     match &app.reading_ahead {
-        Some(a) => json!({"path": a.path.to_string_lossy(), "read": a.progress.read(), "total": a.progress.total()}),
+        // The file's name alone: where it is kept is nobody else's business.
+        Some(a) => json!({"name": a.name, "read": a.progress.read(), "total": a.progress.total()}),
         None => Value::Null,
     }
 }

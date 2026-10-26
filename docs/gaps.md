@@ -1,6 +1,6 @@
 # Where MailCraft falls short of Outlook
 
-> **Last reviewed:** 2026-10-20 · **Last updated:** 2026-10-26 · **Change:** minor
+> **Last reviewed:** 2026-10-20 · **Last updated:** 2026-10-26 · **Change:** patch
 
 The ranked list of shortfalls and rough edges. The direction is in [`ROADMAP.md`](../ROADMAP.md):
 where MailCraft stands, the beta checklist and the steps to it, and what comes after beta; the order
@@ -57,6 +57,7 @@ this code base.
 - No POP yet, tracked in [#437](https://github.com/UCS-Care-Group/mailcraft/issues/437): an account is IMAP (or, for Microsoft, Graph), so a mailbox whose host offers only POP can't be added. Add Account says so, by the server's port (110, 995) or name (`pop`, `pop3`, `pop3s` first), before it connects (#402). POP itself isn't going away (Microsoft retires only its TLS 1.0/1.1 connections, Google only Gmail's own fetching from other accounts), but nearly every host that offers it offers IMAP too.
 - Mail to keep offline (#143): a Microsoft account keeps in full only the mail within its window (a slider in File › Info and Account Settings, 3 days to All; 12 months for a new account, All for one from before), and older mail as its headers and a preview, fetched when opened. Measured at 200,000 messages with a 1-month window: 4.9 GB on disk became 184 MB. IMAP accounts still keep "Messages to download per folder" (File › Options) and fetch each of those whole; the window, and headers of all their mail, come with slice 2. A message opened outside the window is kept until the next start, not by the hour.
 - File › Options is one long page, and it grows with each feature (pictures, sign-ins, updates, search, shared mailboxes). It will need grouping into sections, as Outlook's Options has, before it gets hard to find things in.
+- The opening screen (#519) shows in the browser build only for a mailbox kept in the browser that can't be read: the page has one thread, so reading the stored mailbox holds the window until it is done, and a large one is a blank moment rather than "Opening…". Reading it in steps would fix that.
 - Conversations are grouped by subject, so two unrelated threads with the same subject merge.
 - `vcard` drops name prefixes/suffixes, photos and anniversaries; `ical` ignores `RDATE`, `BYMONTHDAY` lists and recurring to-dos.
 - Undo in the window covers the mailbox; the message being written has its own (Ctrl+Z while its body has the keyboard).
@@ -158,3 +159,4 @@ this code base.
 | 2026-10-26 | minor | #493: search Subfolders and Current Mailbox beside Current Folder and All Mailboxes (rough edges) |
 | 2026-10-26 | minor | #493 follow-up: the limit of Subfolders' More results on the server |
 | 2026-10-26 | minor | #360: forwarding several messages at once, as attachments, leaves the smaller things (17); row 17, which was there twice, is one row |
+| 2026-10-26 | patch | #519: the opening screen in the browser build (rough edges) |
