@@ -114,6 +114,9 @@ pub enum Dialog {
     FolderProperties(Box<crate::folder_properties::FolderProperties>),
     /// What is in a folder of mbox files, before it is imported ([`crate::import_tree`]).
     ImportTree(Box<crate::import_tree::ImportTree>),
+    /// People › Merge Duplicates (#506, [`crate::merge_contacts`]): it only collects what to
+    /// merge, then runs `people.merge`.
+    MergeContacts(Box<crate::merge_contacts::MergeContacts>),
 }
 
 /// The tabs of About: the program, the people who made it, and the people who test it
@@ -187,6 +190,7 @@ impl Dialog {
             Dialog::Meeting(d) => d.name(),
             Dialog::FolderProperties(_) => "folderProperties",
             Dialog::ImportTree(_) => "importTree",
+            Dialog::MergeContacts(_) => "mergeContacts",
         }
     }
 
@@ -277,6 +281,9 @@ impl Dialog {
 pub(crate) fn open_dialog(app: &mut MailApp, name: &str, params: &Value) -> Option<Dialog> {
     if name == "folderProperties" {
         return crate::folder_properties::FolderProperties::open(app, params).map(|d| Dialog::FolderProperties(Box::new(d)));
+    }
+    if name == "mergeContacts" {
+        return crate::merge_contacts::MergeContacts::open(app, params).map(|d| Dialog::MergeContacts(Box::new(d)));
     }
     if name == "importTree" {
         let path = params.get("path").and_then(Value::as_str)?;
@@ -818,6 +825,8 @@ pub fn input_dialog(id: &str, params: &Value) -> Option<&'static str> {
         "calendar.proposals" => Some("proposals"),
         "people.new" if empty => Some("contact"),
         "people.edit" if empty => Some("editContact"),
+        // Which contacts, and what the kept one has, are chosen in Merge Duplicates (#506).
+        "people.merge" if !has("keep") => Some("mergeContacts"),
         "tasks.new" if !has("title") => Some("task"),
         "tasks.edit" if empty => Some("editTask"),
         "view.goToDate" if !has("date") => Some("goToDate"),
@@ -1473,6 +1482,11 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
         }
         // Folder Size, open over the tabs, takes Escape and Enter; Enter on a button that has the
         // keyboard is that button's.
+        Dialog::MergeContacts(dialog) => {
+            let mut done = false;
+            let open = window(ctx, tl!("Merge Duplicate Contacts"), crate::merge_contacts::WIDTH, |ui| done = dialog.show(app, ui, enter));
+            close |= !open || done;
+        }
         Dialog::ImportTree(dialog) => {
             let mut done = false;
             let open = window(ctx, tl!("Import a Folder of Mailboxes"), crate::import_tree::WIDTH, |ui| done = dialog.show(app, ui, enter));

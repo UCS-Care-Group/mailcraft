@@ -736,6 +736,13 @@ pub fn paint(p: &Painter, r: Rect, name: &str, c: Color32, accent: Color32) {
             pen.person(7.5, 7.5, 2.75, 17.5, 5.0, 180.0, 360.0, c);
             pen.person(13.5, 5.5, 2.25, 14.5, 4.0, 250.0, 360.0, c);
         }
+        // Two people side by side, and the modifier's lines that bring them together into one
+        // (Merge Duplicates, #506).
+        "mergeContacts" => {
+            pen.person(5.5, 5.5, 2.25, 13.5, 3.5, 180.0, 360.0, c);
+            pen.person(14.5, 5.5, 2.25, 13.5, 3.5, 180.0, 360.0, c);
+            pen.line_c(&[(5.5, 14.5), (10.0, 18.0), (14.5, 14.5)], a);
+        }
         "newMeeting" => {
             pen.person(7.0, 8.0, 2.75, 17.5, 4.0, 180.0, 360.0, c);
             pen.person(12.5, 5.0, 2.0, 13.0, 3.5, 245.0, 320.0, c);
@@ -1207,6 +1214,7 @@ pub const NAMES: &[&str] = &[
     "newContact",
     "meeting",
     "newMeeting",
+    "mergeContacts",
     "fromMessage",
     "meetingRequest",
     "meetingCancelled",

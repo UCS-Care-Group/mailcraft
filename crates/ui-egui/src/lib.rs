@@ -81,6 +81,7 @@ mod list_keys_tests;
 pub mod mail_view;
 mod meeting_dialogs;
 pub mod menubar;
+mod merge_contacts;
 pub mod nav;
 #[cfg(test)]
 mod on_top_tests;
@@ -1074,6 +1075,10 @@ pub struct MailApp {
     pub ui: UiState,
     pub services: Services,
     pub dialog: Option<dialogs::Dialog>,
+    /// The contacts picked together in the People list with Ctrl (⌘ on a Mac) and a click, the
+    /// selected one among them; empty when one contact alone is selected. The window's own: a
+    /// command is given the ids (Merge Contacts…, #506).
+    pub people_picked: Vec<Id>,
     pub status_msg: Option<(String, f64)>,
     /// macOS: the window has no title bar; leave room for the traffic lights.
     pub integrated_titlebar: bool,
@@ -1374,6 +1379,7 @@ impl MailApp {
             ui: UiState::default(),
             services,
             dialog: None,
+            people_picked: Vec::new(),
             status_msg: None,
             integrated_titlebar: false,
             search_text: String::new(),
