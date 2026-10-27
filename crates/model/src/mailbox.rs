@@ -1792,6 +1792,11 @@ impl Mailbox {
         }
         if let Some(at) = called_off.filter(|at| *at < self.pending.len()) {
             self.pending.remove(at);
+            if uid_there != 0 && from_account != account {
+                // Back from another account while its run may be deleting the original: should
+                // the server's answer be lost, it is kept here rather than forgotten (#451).
+                self.message_mut(id)?.returned = crate::RETURNED_LISTINGS;
+            }
         }
         Ok((uid_there, synced_there))
     }
@@ -1982,6 +1987,9 @@ impl Mailbox {
             let m = self.message_mut(id)?;
             (m.server, m.moving_out) = (Some(server), None);
             (m.folder, m.account, m.uid, m.synced) = (folder, to_account, 0, None);
+            // Its run may be removing the server's copy: should that answer be lost, it is kept
+            // here rather than forgotten.
+            m.returned = crate::RETURNED_LISTINGS;
             return Ok(true);
         }
         if self.puts_on_server(to_account) {

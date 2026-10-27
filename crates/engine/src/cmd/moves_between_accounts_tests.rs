@@ -947,3 +947,37 @@ fn moved_on_from_a_copy_made_in_another_microsoft_account_that_copy_goes_only_on
     assert!(asked.iter().any(|c| matches!(c, MessageChange::Delete { id } if id == "AAkB2")), "{asked:?}");
     assert!(!graph_mail_request(&s, mine).unwrap().messages.iter().any(|c| matches!(c, MessageChange::Delete { id } if id == "AAkA8")));
 }
+
+#[test]
+fn moved_back_while_its_original_was_deleted_and_the_answer_lost_it_is_kept_here() {
+    let in_folder = |s: &Session, id: Id| s.mailbox.message(id).and_then(|m| s.mailbox.folder(m.folder)).map(|f| f.name.clone());
+    // From an IMAP account to this computer and back while the server deletes the original;
+    // the answer is lost, and the next listing hasn't got it.
+    let (mut s, a, kept) = imap();
+    let inbox = s.mailbox.folder_of_kind(a, FolderKind::Inbox).unwrap();
+    let two = titled(&s, "Two");
+    s.run("mail.move", &json!({"ids": [two], "folder": kept})).unwrap();
+    s.note_saved();
+    assert_eq!(ops(&s, a), [delete(2)]);
+    s.run("mail.move", &json!({"ids": [two], "folder": inbox})).unwrap();
+    assert_eq!(at(&s, two), (a, inbox, 2));
+    let listing =
+        FolderDelta { remote: "INBOX".into(), kind: FolderKind::Inbox, uid_validity: 7, uid_seen: 4, removed: vec![2], ..Default::default() };
+    apply_sync(&mut s, SyncResult { account: a, folders: vec![listing], ..Default::default() }).unwrap();
+    assert_eq!(in_folder(&s, two).as_deref(), Some("Imported"));
+
+    // From a Microsoft account and back while its run removes the server's copy, likewise.
+    let (mut s, _, kept) = imap();
+    let ms = microsoft(&mut s, OWNER);
+    let theirs = s.mailbox.folder_of_kind(ms, FolderKind::Inbox).unwrap();
+    let server = mailcraft_model::sync::ServerMessage { id: "AAkA7".into(), folder: "in".into(), ..Default::default() };
+    let body = Body { text: "All of it.".into(), html: None };
+    let m = s.mailbox.add_message(Message { folder: theirs, subject: "Receipt".into(), server: Some(server), body, ..Default::default() }).unwrap();
+    s.run("mail.move", &json!({"ids": [m], "folder": kept})).unwrap();
+    s.note_saved();
+    assert!(!graph_mail_request(&s, ms).unwrap().messages.is_empty());
+    s.run("mail.move", &json!({"ids": [m], "folder": theirs})).unwrap();
+    let removed = MessagePage { folder: "in".into(), removed: vec!["AAkA7".into()], ..Default::default() };
+    apply_graph_mail(&mut s, GraphMailResult { account: ms, email: OWNER.into(), pages: vec![removed], whole: true, ..Default::default() }).unwrap();
+    assert_eq!(in_folder(&s, m).as_deref(), Some("Imported"));
+}
