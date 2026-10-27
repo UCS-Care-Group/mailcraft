@@ -831,7 +831,7 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, taken: &Ha
     let line1 = if one { rect.center().y } else { rect.min.y + SENDER_Y };
     let line2 = if one { rect.center().y } else { rect.min.y + SUBJECT_Y };
     // A conversation's row has an arrow between the read switch and the text (#503): a click opens
-    // or closes it, and, like the switch, leaves the selection alone.
+    // or closes it, as Right and Left do.
     let conversation = row.conversation();
     let arrow_rect = Rect::from_min_max(pos2(strip.max.x, line1 - 11.0), pos2(rect.min.x + TEXT_LEFT, line1 + 11.0));
     let arrow = conversation.then(|| {

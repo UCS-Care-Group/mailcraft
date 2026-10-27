@@ -623,3 +623,21 @@ fn a_ctrl_click_after_another_folder_takes_only_its_row() {
     assert!(s.sel.whole.is_empty());
     assert_eq!(drawn(&mut s), [newer]);
 }
+
+#[test]
+fn right_then_left_on_a_closed_row_selected_however_keeps_it_selected() {
+    let (mut s, newer, older, _) = release_checklist();
+    // An id that isn't a message's is refused, never taken to mean the focused conversation.
+    assert!(s.run("mail.expandConversation", &json!({"id": "99999"})).is_err());
+    assert!(s.run("mail.collapseConversation", &json!({"id": 99999})).is_err());
+    // Selected with conversations off: turned on, its closed row is drawn selected and stands for
+    // all of it, and opened and closed again it still does.
+    run(&mut s, "view.conversations", json!({"value": false}));
+    run(&mut s, "mail.select", json!({"id": newer}));
+    run(&mut s, "view.conversations", json!({"value": true}));
+    assert_eq!(drawn(&mut s), sorted([newer, older]));
+    run(&mut s, "mail.expandConversation", json!({}));
+    assert_eq!(drawn(&mut s), sorted([newer, older]));
+    run(&mut s, "mail.collapseConversation", json!({}));
+    assert_eq!((s.sel.messages.clone(), drawn(&mut s)), (vec![newer], sorted([newer, older])));
+}

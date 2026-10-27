@@ -10411,10 +10411,26 @@ msgstr[1] "Questo elimina i {n} messaggi di questa conversazione elencati qui. V
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
+msgid "This deletes {n} message in {folder}, the whole conversation included. It goes to Deleted Items."
+msgid_plural "This deletes {n} messages in {folder}, the whole conversation included. They go to Deleted Items."
+msgstr[0] "Questo elimina {n} messaggio in {folder}, l'intera conversazione compresa. Va in Posta eliminata."
+msgstr[1] "Questo elimina {n} messaggi in {folder}, l'intera conversazione compresa. Vanno in Posta eliminata."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
 msgid "This deletes {n} message in {folder}, whole conversations included. It goes to Deleted Items."
 msgid_plural "This deletes {n} messages in {folder}, whole conversations included. They go to Deleted Items."
 msgstr[0] "Questo elimina {n} messaggio in {folder}, conversazioni intere comprese. Va in Posta eliminata."
 msgstr[1] "Questo elimina {n} messaggi in {folder}, conversazioni intere comprese. Vanno in Posta eliminata."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "This deletes {n} message, including the conversation's messages listed here. It goes to Deleted Items."
+msgid_plural "This deletes {n} messages, including the conversation's messages listed here. They go to Deleted Items."
+msgstr[0] "Questo elimina {n} messaggio, compresi i messaggi della conversazione elencati qui. Va in Posta eliminata."
+msgstr[1] "Questo elimina {n} messaggi, compresi i messaggi della conversazione elencati qui. Vanno in Posta eliminata."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs

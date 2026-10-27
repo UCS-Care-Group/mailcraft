@@ -36,12 +36,12 @@ pub fn specs() -> Vec<CommandSpec> {
             .params(CONVERSATION),
         CommandSpec::new("mail.get", "Get Message", "Mail", get).pure().params(r#"{"id"?: number} (default: the selected message)"#),
         CommandSpec::new("mail.list", "List Messages", "Mail", list).pure().params(r#"{"limit"?: number} — the message list in view"#),
-        CommandSpec::new("mail.delete", "Delete", "Home › Delete", delete).key("Delete / Mod+D").params(IDS).selection(needs_movable),
+        CommandSpec::new("mail.delete", "Delete", "Home › Delete", delete).key("Delete / Mod+D").params(IDS_WHOLE).selection(needs_movable),
         CommandSpec::new("mail.deletePermanently", "Permanently Delete", "Home › Delete", delete_permanently)
             .key("Shift+Delete")
-            .params(IDS)
+            .params(IDS_WHOLE)
             .selection(needs_movable),
-        CommandSpec::new("mail.archive", "Archive", "Home › Delete", archive).key("Backspace").params(IDS).selection(needs_movable),
+        CommandSpec::new("mail.archive", "Archive", "Home › Delete", archive).key("Backspace").params(IDS_WHOLE).selection(needs_movable),
         CommandSpec::new("mail.move", "Move to Folder", "Home › Move", move_to)
             .key("Mod+Shift+V")
             .params(r#"{"folder": number, "ids"?: [number]}"#)
@@ -72,8 +72,8 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("mail.dismissWarnings", "Dismiss Warnings", "Reading Pane", dismiss_warnings)
             .params(r#"{"ids"?: [number], "value"?: bool (default true; false shows the banner again)} — hides the sender-warning banner of a message (#508), until a new kind of warning appears. Never for an agent"#)
             .selection(needs_message),
-        CommandSpec::new("mail.junk", "Move to Junk", "Home › Delete", junk).params(IDS).selection(needs_movable),
-        CommandSpec::new("mail.notJunk", "Not Junk", "Home › Delete", not_junk).key("Mod+Alt+J").params(IDS).selection(needs_movable),
+        CommandSpec::new("mail.junk", "Move to Junk", "Home › Delete", junk).params(IDS_WHOLE).selection(needs_movable),
+        CommandSpec::new("mail.notJunk", "Not Junk", "Home › Delete", not_junk).key("Mod+Alt+J").params(IDS_WHOLE).selection(needs_movable),
         CommandSpec::new("mail.findRelated", "Find Related Messages", "Home › Find", find_related).pure().selection(needs_message),
         CommandSpec::new("mail.findFromSender", "Messages from Sender", "Home › Find", find_from_sender)
             .pure()
@@ -96,6 +96,8 @@ pub fn specs() -> Vec<CommandSpec> {
 }
 
 const IDS: &str = r#"{"ids"?: [number]} (default: the selected messages)"#;
+/// For Delete and Move: a closed conversation's row selected stands for the messages it shows (#503).
+const IDS_WHOLE: &str = r#"{"ids"?: [number]} (default: the selected messages; a selected closed conversation's row, the messages it shows)"#;
 const EXTEND: &str = r#"{"extend"?: bool} — with `extend` (Shift), the selection runs from its anchor to the message moved to, as Shift-click does"#;
 const CONVERSATION: &str = r#"{"id"?: number} — a message of the conversation (default: the row the list's focus is on), in conversation view (#503). Open, its messages are listed under its row, those in other folders too (a reply in Sent Items); closed with the focus under it, its row is selected"#;
 const PAGE: &str = r#"{"rows"?: number (the rows a page of the list holds; default 10, 1 to 10000), "extend"?: bool} — with `extend` (Shift), the selection runs from its anchor to the message moved to"#;
@@ -455,6 +457,15 @@ fn conversation_row(s: &mut Session, v: &Value) -> Option<(usize, Row)> {
     rows.get(i).filter(|r| r.conversation()).map(|r| (i, r.clone()))
 }
 
+/// An `id` given to open or close a conversation by must be a message's: it is never taken to mean
+/// the one the focus is on.
+fn named_message(s: &Session, v: &Value) -> Result<(), crate::CmdError> {
+    match v.get("id") {
+        Some(_) if p::id(v, "id").and_then(|id| s.mailbox.message(id)).is_none() => Err(bad("`id` must be the id of a message")),
+        _ => Ok(()),
+    }
+}
+
 /// The key a conversation's row is opened by: its account and its topic.
 fn key_of(s: &Session, row: &Row) -> Option<(Id, String)> {
     s.mailbox.message(row.id).map(|m| (m.account, m.thread_key()))
@@ -463,9 +474,16 @@ fn key_of(s: &Session, row: &Row) -> Option<(Id, String)> {
 /// Open a conversation in the list (#503): its messages are listed under its row, whichever
 /// folder of the account each is in. The selection stays where it is.
 fn expand(s: &mut Session, v: &Value) -> CmdResult {
+    named_message(s, v)?;
     let Some((_, row)) = conversation_row(s, v) else { return Ok(json!({"open": false})) };
     let Some(key) = key_of(s, &row) else { return Ok(json!({"open": false})) };
     if !s.view.open.contains(&key) {
+        // Its row selected while closed stood for all of it, however it came to be selected (in
+        // the reading pane, another tab, a search): opened, it stays picked as the conversation.
+        let own = Some((row.id, 1));
+        if s.sel.messages.contains(&row.id) && !s.sel.whole.contains(&row.id) && s.sel.focus_row != own && s.sel.anchor_row != own {
+            s.sel.whole.push(row.id);
+        }
         if s.view.open.len() >= MAX_OPEN {
             s.view.open.remove(0);
         }
@@ -478,6 +496,7 @@ fn expand(s: &mut Session, v: &Value) -> CmdResult {
 /// selected, as in Outlook: it stands for the conversation. Otherwise what was selected under it
 /// is let go of, and the row stays selected only when it was picked itself.
 fn collapse(s: &mut Session, v: &Value) -> CmdResult {
+    named_message(s, v)?;
     let Some((i, row)) = conversation_row(s, v) else { return Ok(json!({"open": false})) };
     let Some(key) = key_of(s, &row) else { return Ok(json!({"open": false})) };
     if !row.open {

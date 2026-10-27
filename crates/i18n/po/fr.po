@@ -10413,10 +10413,26 @@ msgstr[1] "Ceci supprime les {n} messages de cette conversation affichés ici. I
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
+msgid "This deletes {n} message in {folder}, the whole conversation included. It goes to Deleted Items."
+msgid_plural "This deletes {n} messages in {folder}, the whole conversation included. They go to Deleted Items."
+msgstr[0] "Ceci supprime {n} message dans {folder}, la conversation entière comprise. Il va dans Éléments supprimés."
+msgstr[1] "Ceci supprime {n} messages dans {folder}, la conversation entière comprise. Ils vont dans Éléments supprimés."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
 msgid "This deletes {n} message in {folder}, whole conversations included. It goes to Deleted Items."
 msgid_plural "This deletes {n} messages in {folder}, whole conversations included. They go to Deleted Items."
 msgstr[0] "Ceci supprime {n} message dans {folder}, conversations entières comprises. Il va dans Éléments supprimés."
 msgstr[1] "Ceci supprime {n} messages dans {folder}, conversations entières comprises. Ils vont dans Éléments supprimés."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "This deletes {n} message, including the conversation's messages listed here. It goes to Deleted Items."
+msgid_plural "This deletes {n} messages, including the conversation's messages listed here. They go to Deleted Items."
+msgstr[0] "Ceci supprime {n} message, y compris les messages de la conversation affichés ici. Il va dans Éléments supprimés."
+msgstr[1] "Ceci supprime {n} messages, y compris les messages de la conversation affichés ici. Ils vont dans Éléments supprimés."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs

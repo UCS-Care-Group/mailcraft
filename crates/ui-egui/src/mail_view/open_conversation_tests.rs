@@ -211,7 +211,7 @@ fn delete_with_the_reply_picked_as_well_asks_about_every_message_and_says_none_s
     testing::key(&mut w, Key::Delete);
     w.run_steps(3);
     let Some(crate::dialogs::Dialog::Confirm { ask, .. }) = &w.state().dialog else { panic!("no question") };
-    assert_eq!(ask.text, "This deletes 3 messages, including the conversations' messages listed here. They go to Deleted Items.");
+    assert_eq!(ask.text, "This deletes 3 messages, including the conversation's messages listed here. They go to Deleted Items.");
     click(&mut w, "questionAction", 0);
     assert_eq!([kind(&w, newer), kind(&w, older), kind(&w, reply)], [Some(FolderKind::Deleted); 3]);
 }

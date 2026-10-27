@@ -639,6 +639,8 @@ fn conversation_question(app: &MailApp, ids: &[u64]) -> Option<Question> {
     }
     let whole = !stays_here && picked.iter().all(|id| mb.message(*id).is_some_and(|m| m.folder == folder_id));
     let folder = mb.folder(folder_id).map(crate::nav::folder_name).unwrap_or_default();
+    // One conversation with other messages picked as well, such as its reply in Sent Items.
+    let single = asking.len() == 1;
     let what = match (one, whole) {
         (true, true) => tln!(
             n,
@@ -650,10 +652,20 @@ fn conversation_question(app: &MailApp, ids: &[u64]) -> Option<Question> {
             "This deletes the {n} message of this conversation that is listed here. It goes to Deleted Items.",
             "This deletes the {n} messages of this conversation that are listed here. They go to Deleted Items."
         ),
+        (false, true) if single => tln!(
+            n,
+            "This deletes {n} message in {folder}, the whole conversation included. It goes to Deleted Items.",
+            "This deletes {n} messages in {folder}, the whole conversation included. They go to Deleted Items."
+        ),
         (false, true) => tln!(
             n,
             "This deletes {n} message in {folder}, whole conversations included. It goes to Deleted Items.",
             "This deletes {n} messages in {folder}, whole conversations included. They go to Deleted Items."
+        ),
+        (false, false) if single => tln!(
+            n,
+            "This deletes {n} message, including the conversation's messages listed here. It goes to Deleted Items.",
+            "This deletes {n} messages, including the conversation's messages listed here. They go to Deleted Items."
         ),
         (false, false) => tln!(
             n,
@@ -663,7 +675,7 @@ fn conversation_question(app: &MailApp, ids: &[u64]) -> Option<Question> {
     };
     let mut text = crate::i18n::fmt(&what, &[("folder", folder)]);
     if stays_elsewhere {
-        let stay = if one {
+        let stay = if single {
             tl!("Its messages in other folders stay where they are.")
         } else {
             tl!("The conversations' messages in other folders stay where they are.")
