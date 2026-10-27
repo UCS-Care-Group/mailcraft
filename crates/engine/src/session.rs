@@ -591,8 +591,20 @@ pub struct Compose {
     /// out its first picture, and the pictures it carries. `None` when there is none.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub signature: Option<InsertedSignature>,
+    /// The pictures put in the text with Insert › Pictures (#547): the text has a picture run for
+    /// each it shows (ids from `mailcraft_model::pictures::FIRST_ID`). Those the text no longer
+    /// shows stay until a cap needs the room, so that undo can bring one back; none is sent then.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub pictures: Vec<mailcraft_model::signature::Picture>,
+    /// How many ids `pictures` have been given, so that none is given twice.
+    #[serde(skip_serializing_if = "is_zero_u32")]
+    pub picture_seq: u32,
     /// Changed since it was opened or last saved.
     pub dirty: bool,
+}
+
+fn is_zero_u32(n: &u32) -> bool {
+    *n == 0
 }
 
 /// The signature in a message being written (R4.5): what went in, so that it can be told whether

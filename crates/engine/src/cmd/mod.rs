@@ -21,6 +21,9 @@ pub mod folder;
 #[cfg(test)]
 mod folder_properties_tests;
 pub mod format;
+pub mod picture;
+#[cfg(test)]
+mod picture_tests;
 #[cfg(test)]
 mod format_tests;
 #[cfg(test)]
@@ -103,6 +106,7 @@ pub fn registry() -> Registry {
     v.extend(mail::specs());
     v.extend(compose::specs());
     v.extend(format::specs());
+    v.extend(picture::specs());
     v.extend(writing_tools::specs());
     v.extend(folder::specs());
     v.extend(view::specs());

@@ -146,6 +146,7 @@ const SAFE: &[&str] = &[
     // Writing (sending is not).
     "compose.set",
     "compose.attach",
+    "insert.picture",
     "compose.removeAttachment",
     "compose.signature",
     "compose.checkNames",
@@ -518,6 +519,7 @@ pub const FILE_PARAMS: &[(&str, &str, FileUse)] = &[
     ("file.import", "path", FileUse::Reads { name_key: "name" }),
     ("file.importFolderTree", "path", FileUse::Reads { name_key: "name" }),
     ("compose.attach", "path", FileUse::Reads { name_key: "name" }),
+    ("insert.picture", "path", FileUse::Reads { name_key: "file" }),
     ("signature.picture.add", "path", FileUse::Reads { name_key: "file" }),
     ("file.save", "path", FileUse::Refused),
     ("file.saveAs", "path", FileUse::Refused),
