@@ -584,7 +584,7 @@ pub fn classify(s: &Session, id: &str, params: &Value) -> Access {
             if folder.is_some_and(|f| is_outbox(&s.mailbox, f)) { Access::Owner(Class::Send) } else { Access::Safe }
         }
         "mail.delete" => {
-            let ids = p::ids(params).unwrap_or_else(|| s.sel.messages.clone());
+            let ids = p::ids(params).unwrap_or_else(|| s.acting_on_now());
             if ids.iter().any(|m| deletes_for_good(&s.mailbox, *m)) { Access::Owner(Class::Delete) } else { Access::Safe }
         }
         "ui.sync" if params.get("password").is_some_and(|v| !v.is_null()) => Access::Owner(Class::Accounts),
@@ -797,12 +797,13 @@ pub fn describe(s: &Session, id: &str, params: &Value) -> String {
             None => "send the message being written".to_string(),
         },
         "mail.move" | "mail.copy" => {
-            let ids = p::ids(params).unwrap_or_else(|| s.sel.messages.clone());
+            // What the command takes: Move a closed conversation's row's messages (#503), Copy the selected ones.
+            let ids = p::ids(params).unwrap_or_else(|| if id == "mail.move" { s.acting_on_now() } else { s.sel.messages.clone() });
             format!("put {} in the Outbox, which sends them", messages_text(s, &ids))
         }
         "file.import" => "import messages into the Outbox, which sends them".to_string(),
         "mail.delete" | "mail.deletePermanently" => {
-            let ids = p::ids(params).unwrap_or_else(|| s.sel.messages.clone());
+            let ids = p::ids(params).unwrap_or_else(|| s.acting_on_now());
             format!("delete {} for good", messages_text(s, &ids))
         }
         "folder.empty" | "folder.delete" => {

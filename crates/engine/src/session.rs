@@ -1991,6 +1991,18 @@ impl Session {
         self.acting_on_in(&rows)
     }
 
+    /// [`Session::acting_on`] for a caller that can't fill the list's cache, such as the question
+    /// put to the owner about an agent's Delete or Move: what it would take now.
+    pub fn acting_on_now(&self) -> Vec<Id> {
+        if !self.view.conversations || self.sel.messages.is_empty() {
+            return self.sel.messages.clone();
+        }
+        match self.rows_in_view() {
+            Some(rows) => self.acting_on_in(&rows),
+            None => self.acting_on_in(&crate::list::rows(self)),
+        }
+    }
+
     /// Whether `row` of the list is drawn selected (#503): what Delete and Move take, by the rows
     /// that show it. A conversation's row when its message is selected, and, while it is open,
     /// only when it was picked as the conversation ([`Session::picked_whole`]); under an open

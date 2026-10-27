@@ -641,3 +641,45 @@ fn right_then_left_on_a_closed_row_selected_however_keeps_it_selected() {
     run(&mut s, "mail.collapseConversation", json!({}));
     assert_eq!((s.sel.messages.clone(), drawn(&mut s)), (vec![newer], sorted([newer, older])));
 }
+
+/// The owner's question about an agent's call, and what the call does once they say yes.
+fn asked_then_done(s: &mut Session, id: &str, params: Value) -> (String, Value) {
+    let (class, what) = match crate::agent::check(s, id, &params, &[]) {
+        crate::agent::Verdict::Ask(class, what) => (class, what),
+        other => panic!("{id}: {other:?}"),
+    };
+    s.agent = Some(vec![class]);
+    let done = s.run(id, &params);
+    s.agent = None;
+    (what, done.unwrap_or_else(|e| panic!("{id}: {e}")))
+}
+
+#[test]
+fn an_agent_asking_to_delete_a_closed_row_for_good_names_every_message_it_takes() {
+    let (mut s, newer, older, reply) = release_checklist();
+    run(&mut s, "mail.select", json!({"id": newer}));
+    let (what, done) = asked_then_done(&mut s, "mail.deletePermanently", json!({}));
+    assert_eq!(done["permanently"], 2, "{done}");
+    assert!(s.mailbox.message(older).is_none() && s.mailbox.message(reply).is_some());
+    assert!(what.contains("2 messages"), "asked to let it {what}");
+    // And Delete in Deleted Items, which deletes for good.
+    let (mut s, newer, older, _) = release_checklist();
+    let deleted = folder(&s, FolderKind::Deleted);
+    run(&mut s, "mail.move", json!({"ids": [newer, older], "folder": deleted}));
+    run(&mut s, "folder.select", json!({"id": deleted}));
+    run(&mut s, "mail.select", json!({"id": newer}));
+    let (what, done) = asked_then_done(&mut s, "mail.delete", json!({}));
+    assert_eq!(done["permanently"], 2, "{done}");
+    assert!(what.contains("2 messages"), "asked to let it {what}");
+}
+
+#[test]
+fn an_agent_asking_to_move_a_closed_row_into_the_outbox_names_every_message_it_sends() {
+    let (mut s, newer, older, _) = release_checklist();
+    let outbox = folder(&s, FolderKind::Outbox);
+    run(&mut s, "mail.select", json!({"id": newer}));
+    let (what, done) = asked_then_done(&mut s, "mail.move", json!({"folder": outbox}));
+    assert_eq!(done["moved"], 2, "{done}");
+    assert_eq!(folder_of(&s, older), outbox);
+    assert!(what.contains("2 messages"), "asked to let it {what}");
+}
