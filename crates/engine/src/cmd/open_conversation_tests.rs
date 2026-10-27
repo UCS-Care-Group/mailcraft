@@ -517,7 +517,8 @@ fn each_account_asks_before_deleting_a_conversation_unless_told_not_to() {
 #[test]
 fn the_account_on_this_computer_can_stop_asking_before_deleting_a_conversation() {
     let mut s = Session::at(sample::mailbox(now(), 0), now(), 0);
-    let local = s.mailbox.local_account();
+    // The one imported mail goes to, with no address.
+    let local = s.mailbox.add_account(Account { name: "On this computer".into(), ..Default::default() });
     run(&mut s, "account.edit", json!({"id": local, "askBeforeDeletingConversation": false}));
     assert!(!s.mailbox.asks_before_deleting_conversation(local));
     // It has no address, and gets none that isn't one.
@@ -596,4 +597,17 @@ fn closing_a_conversation_picked_in_another_tab_keeps_the_message_being_read() {
     assert_eq!(s.sel.focus_in(&rows), rows.iter().position(|r| r.id == newer && r.under.is_none()));
     run(&mut s, "mail.collapseConversation", json!({}));
     assert_eq!((s.sel.focus(), s.sel.whole.clone()), (Some(older), vec![older]));
+}
+
+#[test]
+fn shift_down_from_a_conversation_picked_by_its_row_goes_on_under_it() {
+    let (mut s, newer, _, _) = release_checklist();
+    run(&mut s, "mail.expandConversation", json!({"id": newer}));
+    run(&mut s, "mail.select", json!({"id": newer}));
+    run(&mut s, "mail.next", json!({"extend": true}));
+    assert_eq!((s.sel.focus(), s.sel.focus_copy()), (Some(newer), 1));
+    run(&mut s, "mail.next", json!({"extend": true}));
+    let rows = s.rows();
+    let second = rows.iter().position(|r| r.id == newer && r.under.is_some()).map(|i| i + 1);
+    assert_eq!(s.sel.focus_in(&rows), second);
 }
