@@ -693,14 +693,34 @@ fn frame(app: &mut MailApp, ui: &mut Ui, window: &mut Open, wish: Keys, closing:
     false
 }
 
-/// A window of the system with the main window's icon, and its application id, by which a
-/// Wayland desktop finds the icon of a window's title bar.
+/// What every window of the system takes from the main one: its icon and its application id, by
+/// which a Wayland desktop finds the icon of a window's title bar. The host gives both
+/// ([`crate::Services::window_identity`]): eframe keeps the main window's builder to itself, so
+/// the context has no copy to read it from.
+#[derive(Clone, Debug)]
+pub struct WindowIdentity {
+    pub icon: Option<std::sync::Arc<egui::IconData>>,
+    pub app_id: Option<String>,
+}
+
+fn identity_id() -> egui::Id {
+    egui::Id::unique("mailcraft-window-identity")
+}
+
+/// Hand the context the identity the host gave, for [`like_main`].
+pub(crate) fn remember_identity(ctx: &egui::Context, identity: Option<&WindowIdentity>) {
+    if let Some(identity) = identity {
+        ctx.data_mut(|d| d.insert_temp(identity_id(), identity.clone()));
+    }
+}
+
+/// A window of the system with the main window's icon and application id.
 pub(crate) fn like_main(ctx: &egui::Context, mut builder: egui::ViewportBuilder) -> egui::ViewportBuilder {
-    let (icon, app_id) = ctx.viewport_for(egui::ViewportId::ROOT, |main| (main.builder.icon.clone(), main.builder.app_id.clone()));
-    if let Some(icon) = icon {
+    let Some(identity) = ctx.data(|d| d.get_temp::<WindowIdentity>(identity_id())) else { return builder };
+    if let Some(icon) = identity.icon {
         builder = builder.with_icon(icon);
     }
-    if let Some(app_id) = app_id {
+    if let Some(app_id) = identity.app_id {
         builder = builder.with_app_id(app_id);
     }
     builder
@@ -2366,3 +2386,7 @@ mod tests {
         assert!(after.exceptions.contains(&mailcraft_time::Date::new(2026, 10, 20).unwrap()) && harness.state().windows.is_empty());
     }
 }
+
+#[cfg(test)]
+#[path = "window_identity_tests.rs"]
+mod window_identity_tests;
