@@ -145,7 +145,6 @@ pub fn answer(app: &mut MailApp, yes: bool) {
     }
 }
 
-/// Questions nobody answered in time are a no.
 /// Another mailbox took the place of the one asked about: the questions go with it, unanswered,
 /// since what they name are that mailbox's messages (#503).
 pub fn forget(app: &mut MailApp) {
@@ -156,6 +155,7 @@ pub fn forget(app: &mut MailApp) {
     }
 }
 
+/// Questions nobody answered in time are a no.
 pub fn expire(app: &mut MailApp, now: f64) {
     while app.asking.front().is_some_and(|a| now >= a.deadline) {
         if let Some(a) = app.asking.pop_front() {
