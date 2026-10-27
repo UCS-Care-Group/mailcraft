@@ -442,7 +442,10 @@ fn pictures_of_a_draft_come_back_in_their_places() {
 
 #[test]
 fn only_pictures_claimed_and_never_a_stray_object_character() {
-    let html = format!("<div>a{}b<img src=\"https://x.example/p.png\">c<IMG SRC='CID:q@x' width=5>d<imgx src=\"cid:q@x\"></div>", mailcraft_model::rich::OBJECT);
+    let html = format!(
+        "<div>a{}b<img src=\"https://x.example/p.png\">c<IMG SRC='CID:q@x' width=5>d<imgx src=\"cid:q@x\"></div>",
+        mailcraft_model::rich::OBJECT
+    );
     let back = from_html_with_pictures(&html, &mut |img| (img.cid == "q@x").then_some(7));
     assert_eq!(back.pictures(), vec![7]);
     assert!(!back.text().replace(mailcraft_model::rich::OBJECT, "").contains(mailcraft_model::rich::OBJECT));

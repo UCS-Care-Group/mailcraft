@@ -54,7 +54,9 @@ fn insert(s: &mut Session, v: &Value) -> CmdResult {
     }
     let width = match v.get("width") {
         None | Some(Value::Null) => None,
-        Some(_) => Some(p::u64(v, "width").and_then(|n| u16::try_from(n).ok()).filter(|n| *n > 0).ok_or_else(|| bad("`width` is a number of pixels"))?),
+        Some(_) => {
+            Some(p::u64(v, "width").and_then(|n| u16::try_from(n).ok()).filter(|n| *n > 0).ok_or_else(|| bad("`width` is a number of pixels"))?)
+        }
     };
     let at = position(v, "at")?;
     let (_, bytes) = super::source(&json!({"data": v.get("data"), "path": v.get("path")}))?;

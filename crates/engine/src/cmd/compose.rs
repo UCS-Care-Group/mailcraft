@@ -912,7 +912,10 @@ fn body_of(c: &Compose, message_id: &str) -> Body {
     // The pictures the owner put in the text (#547): `<img>`s of the HTML, `[picture]` in words.
     let img = |id: u32| c.pictures.iter().find(|p| p.id == id).map(|p| Img::of(p, picture_cid(p, message_id)));
     let say = |id: u32| {
-        c.pictures.iter().find(|p| p.id == id).map(|p| if p.alt.is_empty() { mailcraft_model::pictures::PLACEHOLDER.to_string() } else { p.alt.clone() })
+        c.pictures
+            .iter()
+            .find(|p| p.id == id)
+            .map(|p| if p.alt.is_empty() { mailcraft_model::pictures::PLACEHOLDER.to_string() } else { p.alt.clone() })
     };
     let Some((before, sig, after)) = sent_signature(c) else {
         let plain = format!("{}{quote_text}", text.to_plain_with(say));

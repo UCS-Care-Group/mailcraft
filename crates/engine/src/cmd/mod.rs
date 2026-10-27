@@ -21,9 +21,6 @@ pub mod folder;
 #[cfg(test)]
 mod folder_properties_tests;
 pub mod format;
-pub mod picture;
-#[cfg(test)]
-mod picture_tests;
 #[cfg(test)]
 mod format_tests;
 #[cfg(test)]
@@ -64,6 +61,9 @@ mod offline_tests;
 mod opened_file_tests;
 pub mod people;
 pub mod people_merge;
+pub mod picture;
+#[cfg(test)]
+mod picture_tests;
 #[cfg(test)]
 mod quote_tests;
 pub mod remote;

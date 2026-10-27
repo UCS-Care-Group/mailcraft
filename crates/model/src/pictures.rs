@@ -23,11 +23,7 @@ pub const PLACEHOLDER: &str = "picture";
 
 /// The kind of picture `bytes` are, by their own first bytes: PNG, JPEG, GIF or WebP only.
 pub fn picture_mime(bytes: &[u8]) -> Option<&'static str> {
-    if bytes.starts_with(b"RIFF") && bytes.get(8..12) == Some(&b"WEBP"[..]) {
-        Some("image/webp")
-    } else {
-        crate::signature::picture_mime(bytes)
-    }
+    if bytes.starts_with(b"RIFF") && bytes.get(8..12) == Some(&b"WEBP"[..]) { Some("image/webp") } else { crate::signature::picture_mime(bytes) }
 }
 
 /// A description as kept: one line, no control characters, at most [`MAX_ALT`] characters.
@@ -102,4 +98,3 @@ pub fn take(kept: &[Picture], id: u32, name: &str, data: Vec<u8>, alt: &str, wid
         alt: clean_alt(alt),
     })
 }
-
