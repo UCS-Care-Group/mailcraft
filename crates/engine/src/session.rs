@@ -374,37 +374,43 @@ pub(crate) struct ListOf {
     folder: Id,
     filter: Filter,
     search: Option<(mailcraft_model::search::Query, Scope)>,
+    /// The day, the first day of the week and the zone, for a search with dates in it:
+    /// `received:today` is other messages tomorrow (#329).
+    when: Option<String>,
 }
 
 impl ListOf {
-    pub(crate) fn of(view: &ViewState) -> Self {
+    /// `when` is the day and the zone the search is made in ([`Session::list_of`]); it counts only
+    /// for a search with dates in it.
+    pub(crate) fn of(view: &ViewState, when: impl FnOnce() -> String) -> Self {
         let query = mailcraft_model::search::Query::parse(&view.search);
+        let when = query.has_dates().then(when);
         let search = (!query.is_empty()).then_some((query, view.scope));
-        ListOf { folder: view.folder, filter: view.filter, search }
+        ListOf { folder: view.folder, filter: view.filter, search, when }
     }
 }
 
 impl Stays {
     /// The messages `selection` has that `rows` lists, in the list `view` shows.
-    fn take(selection: &[Id], rows: &[Row], view: &ViewState) -> Self {
+    fn take(selection: &[Id], rows: &[Row], list: &ListOf) -> Self {
         let selected: HashSet<Id> = selection.iter().copied().collect();
         let ids = rows.iter().flat_map(|r| r.members.iter()).copied().filter(|id| selected.contains(id)).collect();
-        Stays::of(ids, selection, view)
+        Stays::of(ids, selection, list)
     }
 
     /// `ids`, of `selection`, kept in the list `view` shows.
-    fn of(ids: HashSet<Id>, selection: &[Id], view: &ViewState) -> Self {
-        Stays { ids, selection: selection.to_vec(), list: ListOf::of(view) }
+    fn of(ids: HashSet<Id>, selection: &[Id], list: &ListOf) -> Self {
+        Stays { ids, selection: selection.to_vec(), list: list.clone() }
     }
 
     /// Whether `view` shows the list they are kept in ([`ListOf`]).
-    fn is_of(&self, view: &ViewState) -> bool {
-        self.list == ListOf::of(view)
+    fn is_of(&self, list: &ListOf) -> bool {
+        self.list == *list
     }
 
     /// What is kept for `selection` in the list `view` shows.
-    fn kept(&self, selection: &[Id], view: &ViewState) -> Option<Cow<'_, HashSet<Id>>> {
-        if !self.is_of(view) {
+    fn kept(&self, selection: &[Id], list: &ListOf) -> Option<Cow<'_, HashSet<Id>>> {
+        if !self.is_of(list) {
             return None;
         }
         if self.selection == selection {
@@ -418,9 +424,9 @@ impl Stays {
     /// search is a list of its own, which keeps nothing, and going back to the first one doesn't
     /// bring them back; a selection changed since keeps what it still has of them, worked out once
     /// here rather than at each look.
-    fn follow(stays: &mut Option<Arc<Stays>>, selection: &[Id], view: &ViewState) {
+    fn follow(stays: &mut Option<Arc<Stays>>, selection: &[Id], list: &ListOf) {
         match stays {
-            Some(st) if !st.is_of(view) => *stays = None,
+            Some(st) if !st.is_of(list) => *stays = None,
             Some(st) if st.selection != selection => {
                 let selected: HashSet<Id> = selection.iter().copied().collect();
                 let st = Arc::make_mut(st);
@@ -433,13 +439,13 @@ impl Stays {
 
     /// The list `view` shows has just been built as `rows`: the selected messages it lists stay
     /// in it too, those selected before it was shown and those that came into it since.
-    fn listed(stays: &mut Option<Arc<Stays>>, selection: &[Id], rows: &[Row], view: &ViewState) {
-        Stays::follow(stays, selection, view);
+    fn listed(stays: &mut Option<Arc<Stays>>, selection: &[Id], rows: &[Row], list: &ListOf) {
+        Stays::follow(stays, selection, list);
         // Each selected message kept already (one opened, or Select All): the rows add nothing.
         if stays.as_ref().is_some_and(|st| selection.iter().all(|id| st.ids.contains(id))) {
             return;
         }
-        let now = Stays::take(selection, rows, view);
+        let now = Stays::take(selection, rows, list);
         match stays {
             Some(st) if !now.ids.is_subset(&st.ids) => Arc::make_mut(st).ids.extend(now.ids),
             Some(_) => {}
@@ -556,6 +562,10 @@ pub struct Compose {
     /// made as a message of its own, not as a forward of `source`.
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub as_attachment: bool,
+    /// The other messages it forwards, each attached whole beside `source` (#360), marked
+    /// forwarded too once it has gone. Empty for every other message.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub also: Vec<Id>,
     /// The saved draft this message continues.
     pub draft: Option<Id>,
     /// The account it is sent from.
@@ -863,6 +873,9 @@ pub struct Session {
     undo_said: Vec<String>,
     rev: u64,
     list_cache: Option<ListCache>,
+    /// The known correspondents, and the sender warnings worked out against them
+    /// ([`Session::sender_warnings`]). Never saved.
+    pub(crate) sender_checks: crate::sender_warnings::SenderChecks,
     /// Where the content that isn't in memory comes from ([`Session::content`]). `None`: the
     /// content folder beside the mailbox file, where there is one (the desktop); the browser,
     /// which keeps everything in memory, never asks.
@@ -986,6 +999,7 @@ impl Session {
             undo_said: Vec::new(),
             rev: 0,
             list_cache: None,
+            sender_checks: Default::default(),
             content_source: None,
             loads: 0,
             unsearched: 0,
@@ -1119,6 +1133,17 @@ impl Session {
         self.local_now().date
     }
 
+    /// The list in view ([`ListOf`]), as made on today's date in this zone.
+    pub(crate) fn list_of(&self) -> ListOf {
+        ListOf::of(&self.view, || format!("{}|{}|{}", self.today().to_days(), self.prefs.week_start.index(), self.zone_key()))
+    }
+
+    /// The search in view, made today with the owner's first day of the week (#329): what every
+    /// message is matched against (`received:today`, a date without a year).
+    pub(crate) fn search_query(&self) -> mailcraft_model::search::Query {
+        mailcraft_model::search::Query::parse(&self.view.search).on(self.today(), self.prefs.week_start)
+    }
+
     // ---- state ----
 
     /// Counts every change to the mailbox (caches key on it).
@@ -1166,13 +1191,13 @@ impl Session {
     /// selected and the list is the one they were selected in. Being in view is still asked of
     /// them (`list::in_view`): one deleted, or moved out of the folder in view, leaves at once.
     pub fn kept(&self) -> Option<Cow<'_, HashSet<Id>>> {
-        self.sel.stays.as_ref().and_then(|stays| stays.kept(&self.sel.messages, &self.view))
+        self.sel.stays.as_ref().and_then(|stays| stays.kept(&self.sel.messages, &self.list_of()))
     }
 
     /// The selection has just changed: keep those of its messages that `rows` lists (the list in
     /// view as the owner saw it when they selected them) while they stay selected (#428).
     pub fn keep_selected(&mut self, rows: &[Row]) {
-        self.sel.stays = Some(Arc::new(Stays::take(&self.sel.messages, rows, &self.view)));
+        self.sel.stays = Some(Arc::new(Stays::take(&self.sel.messages, rows, &self.list_of())));
     }
 
     /// A click has just changed the selection: keep those of its messages the list in view lists
@@ -1180,7 +1205,7 @@ impl Session {
     pub(crate) fn keep_clicked(&mut self) {
         let selection = self.sel.messages.clone();
         let ids = self.in_list(&selection);
-        self.sel.stays = Some(Arc::new(Stays::of(ids, &selection, &self.view)));
+        self.sel.stays = Some(Arc::new(Stays::of(ids, &selection, &self.list_of())));
     }
 
     /// Of `ids`, those the list in view lists (#428, #485), asking of each whether the list shows
@@ -1241,7 +1266,7 @@ impl Session {
             return;
         }
         self.sel.keep_only(&shown);
-        self.sel.stays = Some(Arc::new(Stays::of(shown, &self.sel.messages, &self.view)));
+        self.sel.stays = Some(Arc::new(Stays::of(shown, &self.sel.messages, &self.list_of())));
     }
 
     /// The list shows the whole folder in view: the All tab, and no search.
@@ -1270,7 +1295,8 @@ impl Session {
     /// [`Session::unsearched`].
     pub fn rows(&mut self) -> Arc<Vec<Row>> {
         let key = |s: &Session| s.list_key();
-        Stays::follow(&mut self.sel.stays, &self.sel.messages, &self.view);
+        let list = self.list_of();
+        Stays::follow(&mut self.sel.stays, &self.sel.messages, &list);
         // The rows stand while what is kept is what they were built for, or while every message
         // they list only because it is selected is still kept: a message comes to be kept only
         // from a list it is in, so one kept since is in these rows already (a command that fails
@@ -1289,13 +1315,15 @@ impl Session {
         if let Some((rows, same)) = fresh {
             if !same {
                 // What they list of a selection made since stays in them too.
-                Stays::listed(&mut self.sel.stays, &self.sel.messages, &rows, &self.view);
+                let list = self.list_of();
+                Stays::listed(&mut self.sel.stays, &self.sel.messages, &rows, &list);
                 if let Some(c) = &mut self.list_cache {
                     c.stays = self.sel.stays.clone();
                 }
             }
             return rows;
         }
+        let day = self.today();
         let list_now = self.list_state();
         #[cfg(not(target_arch = "wasm32"))]
         self.words_in_step(!mailcraft_model::search::Query::parse(&self.view.search).is_empty());
@@ -1314,11 +1342,14 @@ impl Session {
                 hits
             }
         };
-        let key = key(self);
+        // A list searched across midnight may have matched `received:today` on either day: it is
+        // built again on the next call (#329).
+        let key = if self.today() == day { key(self) } else { String::new() };
         let (rows, kept) = crate::list::listing(self, &decided, &searched);
         // What it lists of the selection stays in it too: the rows don't change for that, as each
         // of those matches or is kept already.
-        Stays::listed(&mut self.sel.stays, &self.sel.messages, &rows, &self.view);
+        let list = self.list_of();
+        Stays::listed(&mut self.sel.stays, &self.sel.messages, &rows, &list);
         let rows = Arc::new(rows);
         self.list_cache = Some(ListCache { key, kept, stays: self.sel.stays.clone(), rows: rows.clone() });
         rows
@@ -1327,13 +1358,24 @@ impl Session {
     /// What the message list is built from, but for the content brought into memory or let go of.
     fn list_state(&self) -> String {
         format!(
-            "{}|{}|{}|{}|{}",
+            "{}|{}|{}|{}|{}|{}|{}",
             self.rev,
             self.today().to_days(),
+            // `received:"last week"` is other days for another first day of the week, and
+            // `received:today` other messages in another zone on the same date (#329).
+            self.prefs.week_start.index(),
+            self.zone_key(),
             self.words_finished(),
             self.prefs.show_groups,
             serde_json::to_string(&self.view).unwrap_or_default()
         )
+    }
+
+    /// The zone dates are searched in, for the keys searches are kept under (#329): its name, or
+    /// for this computer's zone when the system names none, its offset now.
+    pub(crate) fn zone_key(&self) -> String {
+        let zone = self.zone();
+        if zone.is_local() { format!("{:+}", self.offset_at(self.now())) } else { zone.id() }
     }
 
     /// The key the message list is kept under ([`Session::rows`]).
@@ -1375,7 +1417,7 @@ impl Session {
     fn search_words(&self) -> (std::collections::HashMap<Id, bool>, usize) {
         use std::cell::Cell;
         let mut decided = std::collections::HashMap::new();
-        let query = mailcraft_model::search::Query::parse(&self.view.search);
+        let query = self.search_query();
         let Some(words) = self.words.as_ref().filter(|_| !query.is_empty()) else { return (decided, 0) };
         let mut verify: Vec<Id> = Vec::new();
         {
@@ -1391,27 +1433,31 @@ impl Session {
                 }
                 let text_on_disk = crate::words::body_in_memory(m).is_none();
                 let unread_phrase = Cell::new(false);
-                let hit = query.matches_with(m, self.offset_at(m.date), |i| {
-                    let set = sets.get(i)?.as_ref()?;
-                    if !set.has(slot) {
-                        return Some(false);
-                    }
-                    // A whole address (#301): its words only narrow the messages down, and the
-                    // address itself is looked at on each.
-                    if query.is_address_term(i) {
-                        return None;
-                    }
-                    let (fields, w) = query.words_of(i)?;
-                    if w.len() <= 1 {
-                        return Some(true);
-                    }
-                    // A phrase: its words one after another, looked at on the message.
-                    if fields & mailcraft_model::words::BODY != 0 && text_on_disk {
-                        unread_phrase.set(true);
-                        return Some(true);
-                    }
-                    None
-                });
+                let hit = query.matches_with(
+                    m,
+                    |at| self.offset_at(at),
+                    |i| {
+                        let set = sets.get(i)?.as_ref()?;
+                        if !set.has(slot) {
+                            return Some(false);
+                        }
+                        // A whole address (#301): its words only narrow the messages down, and the
+                        // address itself is looked at on each.
+                        if query.is_address_term(i) {
+                            return None;
+                        }
+                        let (fields, w) = query.words_of(i)?;
+                        if w.len() <= 1 {
+                            return Some(true);
+                        }
+                        // A phrase: its words one after another, looked at on the message.
+                        if fields & mailcraft_model::words::BODY != 0 && text_on_disk {
+                            unread_phrase.set(true);
+                            return Some(true);
+                        }
+                        None
+                    },
+                );
                 // Said to be there before it was looked at: the whole query is looked at on
                 // the text as it is (a phrase that is there may make a `-` term fail).
                 if unread_phrase.get() {
@@ -1425,7 +1471,7 @@ impl Session {
         let mut unread = 0;
         for id in verify {
             let in_time = deadline.is_none_or(|d| std::time::Instant::now() < d);
-            let hit = in_time && self.loaded_message_where(id, |_| false).is_ok_and(|m| query.matches(&m, self.offset_at(m.date)));
+            let hit = in_time && self.loaded_message_where(id, |_| false).is_ok_and(|m| query.matches_in(&m, |at| self.offset_at(at)));
             unread += usize::from(!in_time);
             decided.insert(id, hit);
         }
@@ -1684,7 +1730,7 @@ impl Session {
                 let lean = if id == keep || self.sel.messages.contains(&id) { None } else { crate::store::evictable(&path, id, m) };
                 // A search under way has what it is looking for matched first: its body is
                 // about to be named only, and the list reads it after this.
-                let hit = lean.as_ref().and(self.search_pass.as_ref()).map(|(q, _)| q.matches(m, self.offset_at(m.date)));
+                let hit = lean.as_ref().and(self.search_pass.as_ref()).map(|(q, _)| q.matches_in(m, |at| self.offset_at(at)));
                 if let (Some(hit), Some((_, hits))) = (hit, &mut self.search_pass) {
                     hits.insert(id, hit);
                 }
@@ -1799,7 +1845,7 @@ impl Session {
     fn load_bodies_for_search(&mut self, decided: &std::collections::HashMap<Id, bool>) -> std::collections::HashMap<Id, bool> {
         self.unsearched = 0;
         self.search_pass = None;
-        let query = mailcraft_model::search::Query::parse(&self.view.search);
+        let query = self.search_query();
         if query.is_empty() || !query.reads_bodies() {
             return Default::default();
         }
@@ -1861,7 +1907,8 @@ impl Session {
         let mb = &self.mailbox;
         self.sel.messages.dedup();
         // A kept message is kept only in the list it was selected in, while it is selected (#428).
-        Stays::follow(&mut self.sel.stays, &self.sel.messages, &self.view);
+        let list = self.list_of();
+        Stays::follow(&mut self.sel.stays, &self.sel.messages, &list);
         if self.sel.contact.is_some_and(|c| mb.contact(c).is_none()) {
             self.sel.contact = None;
         }
@@ -2037,7 +2084,7 @@ impl Session {
         if gone {
             return Some(Class::Delete);
         }
-        if to.rules != now.rules || to.signatures != now.signatures {
+        if to.rules != now.rules || to.signatures != now.signatures || to.junk != now.junk {
             return Some(Class::Settings);
         }
         None
@@ -2093,6 +2140,7 @@ impl Session {
         let compose = self.compose.clone();
         let signature_edit = self.signature_edit.clone();
         let view = self.view.clone();
+        let list_before = self.list_of();
         let run = spec.run;
         // Last-resort guard (never-crash): a panic in a command becomes an error and the state is restored.
         let outer = self.swaps.replace(Swaps::default());
@@ -2129,7 +2177,7 @@ impl Session {
         match &result {
             Ok(_) => {
                 // Another list (a folder, a tab, a search) keeps selected only what it shows (#485).
-                if ListOf::of(&view) != ListOf::of(&self.view) {
+                if list_before != self.list_of() {
                     self.keep_shown();
                 }
                 // The working hours of an account just removed go with it (#325): here, once

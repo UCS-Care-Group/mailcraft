@@ -28,6 +28,8 @@ mod forward_attachment_headers_tests;
 #[cfg(test)]
 mod forward_attachment_tests;
 #[cfg(test)]
+mod forward_several_tests;
+#[cfg(test)]
 mod full_count_tests;
 pub mod graph_down;
 pub mod graph_drafts;
@@ -42,6 +44,9 @@ mod jmap_down;
 pub mod jmap_mail;
 #[cfg(test)]
 mod jmap_sending_tests;
+pub mod junk;
+#[cfg(test)]
+mod junk_tests;
 #[cfg(test)]
 mod keyboard_selection_tests;
 #[cfg(test)]
@@ -54,7 +59,10 @@ mod newer_account_tests;
 pub mod offline;
 #[cfg(test)]
 mod offline_tests;
+#[cfg(test)]
+mod opened_file_tests;
 pub mod people;
+pub mod people_merge;
 #[cfg(test)]
 mod quote_tests;
 pub mod remote;
@@ -76,6 +84,9 @@ mod tasks_remote_tests;
 pub mod view;
 #[cfg(test)]
 mod wipe_tests;
+pub mod writing_tools;
+#[cfg(test)]
+mod writing_tools_tests;
 #[cfg(test)]
 mod zone_tests;
 pub mod zones;
@@ -94,6 +105,7 @@ pub fn registry() -> Registry {
     v.extend(mail::specs());
     v.extend(compose::specs());
     v.extend(format::specs());
+    v.extend(writing_tools::specs());
     v.extend(folder::specs());
     v.extend(view::specs());
     v.extend(calendar::specs());
@@ -102,8 +114,10 @@ pub fn registry() -> Registry {
     v.extend(calendar_settings::specs());
     v.extend(zones::specs());
     v.extend(people::specs());
+    v.extend(people_merge::specs());
     v.extend(tasks::specs());
     v.extend(rules::specs());
+    v.extend(junk::specs());
     v.extend(category::specs());
     v.extend(account::specs());
     v.extend(offline::specs());
@@ -158,7 +172,18 @@ pub(crate) fn needs_compose(s: &Session) -> Option<&'static str> {
 
 /// The messages a command acts on: `ids` / `id` when given, else the selection.
 pub(crate) fn targets(s: &Session, v: &Value) -> Result<Vec<Id>, CmdError> {
-    let ids = match p::ids(v) {
+    named_or_selected(s, p::ids(v))
+}
+
+/// As [`targets`], but `ids` / `id` read strictly ([`p::ids_strict`]): for a command whose mistake
+/// reaches other people, which never takes the selection for what a caller named wrongly.
+pub(crate) fn targets_strict(s: &Session, v: &Value) -> Result<Vec<Id>, CmdError> {
+    named_or_selected(s, p::ids_strict(v)?)
+}
+
+/// The messages `named`, else the selected ones; each must be here.
+fn named_or_selected(s: &Session, named: Option<Vec<Id>>) -> Result<Vec<Id>, CmdError> {
+    let ids = match named {
         Some(ids) => ids,
         None => s.sel.messages.clone(),
     };
@@ -282,12 +307,12 @@ pub(crate) fn source(v: &Value) -> Result<(String, Vec<u8>), CmdError> {
     let path = p::req_str(v, "path")?;
     #[cfg(not(target_arch = "wasm32"))]
     {
-        let meta = std::fs::metadata(path).map_err(|e| fail(format!("{path}: {e}")))?;
-        if meta.len() > crate::io::MAX_FILE {
-            return Err(failed!("{path} is larger than {mb} MB", path, mb = crate::io::MAX_FILE >> 20));
+        // Opened once, checked through that handle, read from it (`io::read_regular_file`).
+        match crate::io::read_regular_file(std::path::Path::new(path)) {
+            Ok(bytes) => Ok((name, bytes)),
+            Err(crate::io::ReadError::TooLarge) => Err(failed!("{path} is larger than {mb} MB", path, mb = crate::io::MAX_FILE >> 20)),
+            Err(e) => Err(fail(format!("{path}: {e}"))),
         }
-        let bytes = std::fs::read(path).map_err(|e| fail(format!("{path}: {e}")))?;
-        Ok((name, bytes))
     }
     #[cfg(target_arch = "wasm32")]
     {

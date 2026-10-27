@@ -455,8 +455,8 @@ fn is(toks: &[Tok], i: usize, want: &[&str]) -> bool {
 /// break (`"Follow\nUp"`): the translation says where it breaks.
 fn ribbon(toks: &[Tok], file: &str, texts: &mut Texts) {
     // Which arguments of each constructor are a label or a tooltip's name.
-    const AT: [(&str, &[usize]); 6] =
-        [("big", &[1]), ("small", &[1, 2]), ("big_menu", &[2, 3]), ("small_menu", &[2, 3]), ("gather", &[2]), ("new", &[2])];
+    const AT: [(&str, &[usize]); 7] =
+        [("big", &[1]), ("small", &[1, 2]), ("big_menu", &[2, 3]), ("small_menu", &[2, 3]), ("gather", &[2]), ("new", &[2]), ("pending", &[1])];
     let ctor = |i: usize| AT.iter().find(|(f, _)| is(toks, i, &["Item", ":", ":", f, "("])).map(|(_, at)| (i + 4, *at));
     // The closures that make a control: which of their parameters end up a label.
     let mut closures: BTreeMap<String, Vec<usize>> = BTreeMap::new();

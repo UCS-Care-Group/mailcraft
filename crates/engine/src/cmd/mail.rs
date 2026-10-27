@@ -56,7 +56,7 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("mail.pin", "Pin", "Home › Tags", pin)
             .params(r#"{"value"?: bool (default: toggle), "ids"?: [number]}"#)
             .selection(needs_message),
-        CommandSpec::new("mail.junk", "Block Sender", "Home › Delete", junk).params(IDS).selection(needs_movable),
+        CommandSpec::new("mail.junk", "Move to Junk", "Home › Delete", junk).params(IDS).selection(needs_movable),
         CommandSpec::new("mail.notJunk", "Not Junk", "Home › Delete", not_junk).key("Mod+Alt+J").params(IDS).selection(needs_movable),
         CommandSpec::new("mail.findRelated", "Find Related Messages", "Home › Find", find_related).pure().selection(needs_message),
         CommandSpec::new("mail.findFromSender", "Messages from Sender", "Home › Find", find_from_sender)
@@ -283,8 +283,15 @@ fn get(s: &mut Session, v: &Value) -> CmdResult {
     // Its text, from where the mailbox keeps it when it isn't in memory (a text that can't be
     // read says so in its place).
     let _ = s.load_where(id, |_| false);
-    let m = s.mailbox.message(id).ok_or_else(|| failed!("no message with id {id}", id))?;
-    Ok(message_json(s, m))
+    let m = s.mailbox.messages.get(&id).cloned().ok_or_else(|| failed!("no message with id {id}", id))?;
+    // What may not be what it seems about it (sender warnings): worked out by MailCraft from the
+    // account's server's verdict, the sender and the links, never from what the message asks.
+    let warnings = s.sender_warnings(&m, true);
+    let mut v = message_json(s, &m);
+    if let Some(o) = v.as_object_mut() {
+        o.insert("warnings".into(), Value::Array(warnings.iter().map(mailcraft_model::sender_warnings::Warning::json).collect()));
+    }
+    Ok(v)
 }
 
 fn list(s: &mut Session, v: &Value) -> CmdResult {

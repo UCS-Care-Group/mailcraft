@@ -416,6 +416,36 @@ mod in_step {
         assert_eq!(subjects(&mut s, "from:ada@example.org -subject:two"), ["One"]);
     }
 
+    /// #329: a word answered from the index beside a day in words, matched on the session's day.
+    #[test]
+    fn a_word_from_the_index_and_a_day_in_words() {
+        let tmp = Temp::new("dated");
+        let path = tmp.0.join("mailbox.mailcraft");
+        let mut mb = Mailbox::with_local_account("Avery", "avery@mail.example");
+        let account = mb.accounts[0].id;
+        let folder = mb.folders.iter().find(|f| f.account == account && f.kind == FolderKind::Inbox).unwrap().id;
+        let noon = |d: u8| mailcraft_time::DateTime::new(mailcraft_time::Date::new(2026, 10, d).unwrap(), 12, 0, 0).unwrap().civil_seconds();
+        for (subject, d) in [("Old", 22), ("Yesterday", 25), ("Today", 26)] {
+            mb.add_message(Message { folder, account, date: noon(d), received: noon(d), ..message(0, subject, "Ada", "About the zymurgy.") })
+                .unwrap();
+        }
+        crate::store::save(&path, &mb).unwrap();
+        let mut s = session(&path);
+        s.clock = crate::Clock { now: Some(noon(26) + 3600), offset: Some(0), zone: None };
+        let subjects = |s: &mut Session, query: &str| {
+            s.view.search = query.into();
+            s.view.scope = crate::Scope::Everywhere;
+            s.wait_for_word_index();
+            let mut out: Vec<String> = s.rows().iter().map(|r| s.mailbox.message(r.id).unwrap().subject.clone()).collect();
+            out.sort();
+            out
+        };
+        assert_eq!(subjects(&mut s, "zymurgy received:today"), ["Today"]);
+        assert!(s.words().unwrap().complete(), "answered from the index");
+        assert_eq!(subjects(&mut s, "zymurgy received:10/25..10/26"), ["Today", "Yesterday"]);
+        assert_eq!(subjects(&mut s, "zymurgy -received:\"this week\""), ["Old"]);
+    }
+
     pub(crate) fn id_of(s: &Session, subject: &str) -> Id {
         s.mailbox.messages.values().find(|m| m.subject == subject).unwrap().id
     }

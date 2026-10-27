@@ -25,6 +25,7 @@
 mod blocks;
 #[doc(hidden)]
 pub mod corpus;
+mod data;
 mod entities;
 mod preview;
 mod quote;
@@ -34,14 +35,17 @@ mod tokenizer;
 
 use serde::{Deserialize, Serialize};
 
-pub use blocks::parse;
+pub use blocks::{parse, parse_text};
+pub use data::{MAX_DATA_PICTURE_BYTES, MAX_DATA_PICTURES, MAX_DATA_PICTURES_BYTES, Picture};
 pub use entities::{escape, unescape};
 pub use preview::{MAX_PREVIEW_CHARS, preview, text_preview};
 pub use quote::quotable;
 pub use text::{blocks_to_text, from_text, text_blocks, to_text};
 
 /// Longest input [`parse`], [`to_text`], [`text_blocks`], [`from_text`], [`preview`],
-/// [`text_preview`] and [`quotable`] read, in bytes; the rest is ignored.
+/// [`text_preview`] and [`quotable`] read, in bytes; the rest is ignored. [`parse`] and
+/// [`to_text`] don't count the pictures written into the message (`data:`) against it, and read
+/// as much more as the most those may take.
 pub const MAX_INPUT: usize = 2 * 1024 * 1024;
 
 /// Most blocks one document gives, counting those inside table cells; what follows is dropped.
@@ -265,8 +269,10 @@ pub enum BlockKind {
     Preformatted,
     /// A horizontal rule (no spans).
     Rule,
-    /// A picture; `src` is the (safe) URL or `cid:` reference, the spans hold the alt text. Only a
-    /// `cid:` picture can ever be shown: nothing is fetched, so any other is a placeholder.
+    /// A picture; `src` is the (safe) URL or `cid:` reference, the spans hold the alt text. A
+    /// picture written into the message (`data:`) has `src` `data:` and its type, never its
+    /// content, and its bytes in `data` when it can be shown. Nothing is fetched here: a picture
+    /// on the web is shown only when the owner asks and a host brings it.
     Image {
         src: String,
         /// The size the message asks for, in CSS pixels.
@@ -274,6 +280,10 @@ pub enum BlockKind {
         height: Option<u16>,
         /// Where the picture leads when it is inside a link.
         link: Option<String>,
+        /// A picture written into the message: its bytes, a PNG, JPEG, GIF or WebP by what they
+        /// are, within [`MAX_DATA_PICTURE_BYTES`] and the caps for a message.
+        #[serde(skip)]
+        data: Option<Picture>,
     },
     /// A table, or a block with a background of its own (one row, one cell). No spans.
     Table(Table),
@@ -492,10 +502,10 @@ pub fn is_format(c: char) -> bool {
     )
 }
 
-/// Whether a picture's address points into the message itself (`cid:`). Any other picture would
-/// have to be fetched, which never happens.
+/// Whether a picture's address points into the message itself: an attached picture (`cid:`), or
+/// one written into it (`data:`). Any other picture would have to be fetched.
 pub fn is_embedded(src: &str) -> bool {
-    src.trim_start().get(..4).is_some_and(|s| s.eq_ignore_ascii_case("cid:"))
+    src.trim_start().get(..4).is_some_and(|s| s.eq_ignore_ascii_case("cid:")) || data::is_data(src)
 }
 
 /// `s` cut to at most `max` bytes, on a character boundary.
@@ -516,6 +526,8 @@ pub(crate) fn is_blank(c: char) -> bool {
     c.is_whitespace() || matches!(c, '\u{ad}' | '\u{34f}' | '\u{61c}' | '\u{180e}' | '\u{200b}'..='\u{200f}' | '\u{2060}' | '\u{feff}')
 }
 
+#[cfg(test)]
+mod data_tests;
 #[cfg(test)]
 mod text_link_tests;
 
@@ -580,9 +592,10 @@ mod tests {
     }
 
     #[test]
-    fn embedded_pictures_are_cid_only() {
+    fn embedded_pictures_are_attached_or_written_in() {
         assert!(is_embedded("cid:logo@example.org") && is_embedded("CID:x"));
-        for remote in ["https://example.org/a.png", "http://cid:x", "", "ci", "data:image/png;base64,AAAA"] {
+        assert!(is_embedded("data:image/png") && is_embedded(" DATA:x"));
+        for remote in ["https://example.org/a.png", "http://cid:x", "", "ci", "dat:image/png;base64,AAAA"] {
             assert!(!is_embedded(remote), "{remote}");
         }
     }
@@ -611,7 +624,8 @@ mod tests {
 
     #[test]
     fn text_and_pictures_are_found_inside_tables() {
-        let picture = Block::new(BlockKind::Image { src: "cid:a".into(), width: None, height: None, link: None }, vec![Span::plain("alt")]);
+        let picture =
+            Block::new(BlockKind::Image { src: "cid:a".into(), width: None, height: None, link: None, data: None }, vec![Span::plain("alt")]);
         let cell = |blocks| Cell { blocks, ..Cell::default() };
         let table = |cells| Block::new(BlockKind::Table(Table { rows: vec![Row { cells }], columns: 1, ..Table::default() }), Vec::new());
         assert!(!has_text(&[]));

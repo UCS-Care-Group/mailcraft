@@ -7,6 +7,7 @@
 //!
 //! The script is JSON lines: control-channel requests (`{"method": …, "params": …}`, see
 //! `docs/control-protocol.md`), `{"shot": "/abs/out.png"}` to save the window as PNG,
+//! `{"open": "/abs/file.ics"}` (or a `mailto:` link) as a later start would hand it over (#505),
 //! `{"steps": n}` to run extra frames (a request with `"agent": {"allow": [...]}` comes as the MCP
 //! bridge's would: what needs the owner puts its question over the window), or `{"wait": ms}` to keep running frames for a while. The
 //! window is 1440×900 pt at 2× (override with `{"width": w, "height": h}` and `{"scale": s}` on
@@ -53,6 +54,12 @@
 //! saver (`{"host": {"saving": …}}`): `"messages 12000 200000"` or `"content 3 90000"` (a save
 //! that has been at it for a minute, at that stage, done of total; it never ends), `"sweeping"`,
 //! or `""` (nothing being written).
+//!
+//! `{"opening": {"read": bytes, "total": bytes, "after"?: ms, "trouble"?: "unreadable"|"stopped"|"damaged"|"repaired", "repaired"?: n, "theme"?: "light"|"dark"}}`
+//! on any line has the window still opening its mailbox (#519): reading that far, until `after`
+//! ms have gone by (never, without it), or waiting on the page that says what was wrong. While it
+//! opens, the control channel answers everything but `app.status` with "still opening", so the
+//! theme is given here. The opening screen shows after 0.3 s: `{"wait": 400}` before a shot.
 //!
 //! A folder of mailboxes being looked at (#420, `ui.dialog` `importTree`) never finishes; `{"host": {"treeProgress": [folders, files, messages]}}` sets the counts it shows, and `{"host": {"treeDir": "/path"}}` has it look into that folder at once.
 //! And Send/Receive, for Send/Receive Progress (`{"host": {"sync": [[piece, …], …]}}`): one list
@@ -612,6 +619,43 @@ fn main() {
     if let Some(overlay) = lines.iter().find_map(|l| l.get("overlayScrollBars").and_then(|v| v.as_bool())) {
         app.overlay_scroll_bars = overlay;
     }
+    // A window still opening its mailbox (#519), until `after` ms have gone by (never, without it).
+    let mut _arriving = None;
+    if let Some(said) = lines.iter().find_map(|l| l.get("opening").cloned()) {
+        let (tx, arrive) = channel();
+        let progress = Arc::new(mailcraft_engine::io::OpenProgress::default());
+        let n = |k: &str| said.get(k).and_then(|v| v.as_u64()).unwrap_or(0);
+        progress.set_total(n("total"));
+        progress.add_read(n("read"));
+        use mailcraft_ui_egui::opening::{Arrival, Opening, Trouble};
+        let trouble = match said.get("trouble").and_then(|v| v.as_str()) {
+            Some("unreadable") => {
+                Some(Trouble::Unreadable("/home/you/.config/mailcraft/mailbox.mailcraft: this mailbox file is damaged (its header)".into()))
+            }
+            Some("stopped") => Some(Trouble::Stopped),
+            Some("damaged") => Some(Trouble::Damaged),
+            Some("repaired") => Some(Trouble::Repaired(n("repaired").max(1) as usize)),
+            _ => None,
+        };
+        let arrival = |trouble| Arrival { trouble, ..Arrival::opened(mailcraft_model::Mailbox::with_local_account("", ""), None) };
+        if trouble.is_some() {
+            let _ = tx.send(arrival(trouble));
+        } else if let Some(after) = said.get("after").and_then(|v| v.as_u64()) {
+            std::thread::spawn(move || {
+                std::thread::sleep(std::time::Duration::from_millis(after));
+                let _ = tx.send(arrival(None));
+            });
+        } else {
+            _arriving = Some(tx);
+        }
+        let theme = match said.get("theme").and_then(|v| v.as_str()) {
+            Some("dark") => mailcraft_ui_egui::theme::Appearance::Dark,
+            _ => mailcraft_ui_egui::theme::Appearance::Light,
+        };
+        let prefs = mailcraft_ui_egui::UiState { theme, ..Default::default() };
+        let built = app;
+        app = MailApp::opening(Opening::new(arrive, progress, Box::new(move |_| built)), Some(prefs), None);
+    }
     let w = lines.iter().find_map(|l| l.get("width").and_then(|v| v.as_f64())).unwrap_or(1440.0) as f32;
     let h = lines.iter().find_map(|l| l.get("height").and_then(|v| v.as_f64())).unwrap_or(900.0) as f32;
     let scale = lines.iter().find_map(|l| l.get("scale").and_then(|v| v.as_f64())).unwrap_or(2.0).clamp(0.5, 4.0) as f32;
@@ -669,6 +713,11 @@ fn main() {
                 let count = |k: usize| u32::try_from(n(k)).unwrap_or(u32::MAX);
                 harness.state_mut().session.sync_progress.set_full(n(0), count(1), count(2));
             }
+            step_n(&mut harness, 2);
+        }
+        // What the system hands the program (a later start, the command line): `{"open": "…"}`.
+        if let Some(what) = l.get("open").and_then(|v| v.as_str()) {
+            harness.state_mut().open_from_system(what);
             step_n(&mut harness, 2);
         }
         if let Some(p) = l.get("shot").and_then(|v| v.as_str()) {

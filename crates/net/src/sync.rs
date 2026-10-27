@@ -801,6 +801,7 @@ impl FolderSync<'_> {
                 Some(state) if reset => state.known_uids.iter().copied().filter(|uid| *uid != 0).collect(),
                 _ => known.iter().copied().filter(|uid| !present.contains_key(uid)).collect(),
             },
+            complete: false,
         };
         let mut alive = true;
         // The lowest UID that is wanted but didn't arrive: the next run starts again from there.
@@ -881,6 +882,8 @@ impl FolderSync<'_> {
             (_, Some(oldest)) if uid_from == 0 || oldest < uid_from => oldest,
             _ => uid_from,
         };
+        // Everything wanted came: the folder is read whole (an empty one at its first reading).
+        delta.complete = alive && missed.is_none();
         delta.new.sort_by_key(|m| m.uid);
         log::debug!("a folder: {total} wanted, {} gone, read up to {}", delta.removed.len(), delta.uid_seen);
         // It goes with the next piece: the next mailbox's first line, or the end of the run.
