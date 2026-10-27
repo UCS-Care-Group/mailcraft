@@ -270,13 +270,13 @@ impl MailApp {
             // The refresh itself was refused, for mail too: never "not asked yet" with no way back
             // (#520). (Not when the owner allowed the to-dos since the job began: that sign-in is
             // newer than this answer.)
-            log::warn!("tasks, account {account}: the sign-in was refused; waiting for a new one");
+            log::warn!("tasks: the sign-in was refused; waiting for a new one");
             if !matches!(self.tasks.perm.get(&account), Some(Permission::Asking | Permission::Declined | Permission::Refused(_))) {
                 self.tasks.perm.insert(account, Permission::SignInOver(given));
             }
         } else if result.sign_in_refused {
             // Graph refused a token just renewed: the next look tries again.
-            log::warn!("tasks, account {account}: the server refused the sign-in; trying again later");
+            log::warn!("tasks: the server refused the sign-in; trying again later");
         } else if result.download.is_some() || result.uploaded.is_some() {
             self.tasks.perm.insert(account, Permission::Given);
         }
