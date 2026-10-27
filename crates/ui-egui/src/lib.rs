@@ -93,6 +93,9 @@ mod on_top_tests;
 mod open_shared;
 #[cfg(test)]
 mod open_shared_tests;
+mod opened_message;
+#[cfg(test)]
+mod opened_message_tests;
 pub mod opening;
 pub mod people_view;
 pub mod reading;
@@ -974,6 +977,18 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         "Close Window",
         "Window",
         r#"{"window": number} | {"message": number} | {"event": number} | {"all": true} (default: the one in front) — closes without asking, also an appointment with unsaved changes"#,
+    ),
+    (
+        "ui.moveWindowMessage",
+        "Move to Folder",
+        "Window",
+        r#"{"folder": number, "window"?: number (default: the message-file window in front)} — files the message of a window that shows a message file (an .eml the system opened: it is in no folder until now) into `folder`; the mailbox gains that one message and the window is about it from then on. Answers {"window", "message"}. Never for an agent"#,
+    ),
+    (
+        "ui.saveWindowMessage",
+        "Save Message File As",
+        "Window",
+        r#"{"window"?: number (default: the message-file window in front), "path"?: string} — writes the file of a window that shows a message file to `path`; without one, answers {"name", "bytes", "data" (base64)}. Never for an agent"#,
     ),
     (
         "ui.eventWindow",
@@ -3451,7 +3466,7 @@ impl MailApp {
 
     /// Open what the system handed MailCraft (the command line, a later start, the Finder): a
     /// `mailto:` link starts a new message, a message file opens read-only in a window of its own
-    /// (kept in the local folder Imported, once: `file.import`'s `opened`), a calendar or contact file is imported only
+    /// (filed nowhere until the owner says so: Move to Folder, #515), a calendar or contact file is imported only
     /// once the owner says so, and a mailbox or a folder of mail as [`open_path`](Self::open_path).
     pub fn open_from_system(&mut self, what: &str) {
         // Handed over while the mailbox opens: opened once it is.

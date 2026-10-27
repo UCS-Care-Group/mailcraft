@@ -5384,13 +5384,18 @@ msgid "Move the Appointments Only"
 msgstr "Sposta solo gli appuntamenti"
 
 #. interface
+#: crates/ui-egui/src/reading.rs
+msgid "Move the message to a folder to open or save its attachments"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
 msgid "Move to Calendar"
 msgstr "Sposta nel calendario"
 
-#. command label, ribbon
-#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/ribbon.rs
+#. command label, interface, ribbon
+#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/opened_message.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Move to Folder"
 msgstr "Sposta nella cartella"
@@ -5966,6 +5971,11 @@ msgstr "Nessun fuso orario ha questo nome"
 #. interface
 #: crates/ui-egui/src/merge_contacts.rs
 msgid "No two contacts share an e-mail address or a phone number."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/windows.rs
+msgid "No window shows a message file"
 msgstr ""
 
 #. interface
@@ -6868,6 +6878,11 @@ msgid "Pictures not shown."
 msgstr "Immagini non mostrate."
 
 #. interface
+#: crates/ui-egui/src/reading.rs
+msgid "Pictures on the web aren't downloaded for a message that is not in your mailbox: move it to a folder first."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Pictures: {n} KB of {max} KB"
@@ -7686,7 +7701,7 @@ msgid "Save As"
 msgstr "Salva con nome"
 
 #. interface
-#: crates/ui-egui/src/reading.rs
+#: crates/ui-egui/src/opened_message.rs crates/ui-egui/src/reading.rs
 #, fuzzy
 msgid "Save As…"
 msgstr "Salva con nome…"
@@ -7732,6 +7747,11 @@ msgstr "Salva messaggio con nome"
 #, fuzzy
 msgid "Save Message As…"
 msgstr "Salva messaggio con nome…"
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+msgid "Save Message File As"
+msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/signature.rs
@@ -9415,6 +9435,11 @@ msgstr "Il server dell'account la crea quando la riunione viene inviata; il coll
 msgid "The approval didn't go through."
 msgstr "L'approvazione non è andata a buon fine."
 
+#. interface
+#: crates/ui-egui/src/opened_message.rs
+msgid "The browser opens no files from the system"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/remote.rs
 #, fuzzy
@@ -9712,6 +9737,11 @@ msgstr "Il messaggio è negli Appunti: incollarlo in un messaggio o in una chat 
 #, fuzzy
 msgid "The message isn't there any more"
 msgstr "Il messaggio non c'è più"
+
+#. interface
+#: crates/ui-egui/src/opened_message.rs crates/ui-egui/src/windows.rs
+msgid "The message wasn't filed"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -12145,6 +12175,11 @@ msgstr "ha richiesto troppo tempo"
 #, fuzzy
 msgid "it writes to other people or reaches out to the web"
 msgstr "scrive ad altre persone o si collega al web"
+
+#. interface
+#: crates/ui-egui/src/opened_message.rs
+msgid "larger than {mb} MB: bring it in with File › Import"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reminders.rs

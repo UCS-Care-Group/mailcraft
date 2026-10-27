@@ -372,6 +372,24 @@ pub fn import_opened(s: &mut Session, name: &str, bytes: &[u8]) -> Result<Value,
     Ok(json!({"format": "eml", "messages": 1, "ids": [id], "folder": folder, "opened": id, "already": false}))
 }
 
+/// A message file read to be looked at and not kept (#515): the message as `import_opened` would
+/// file it (a received, read message, never a draft, with no number, folder or server of its own,
+/// and no hash of its own claimed), and nothing is added to the mailbox. Parsed as every message
+/// is; the caller caps the size of `bytes`.
+pub fn parse_unfiled(name: &str, bytes: &[u8]) -> Result<mailcraft_model::Message, CmdError> {
+    if Format::detect(name, bytes) != Some(Format::Eml) {
+        return Err(failed!("{name}: not a message file", name));
+    }
+    let mut m = mailcraft_mime::parse(bytes);
+    m.headers.retain(|(key, _)| !key.eq_ignore_ascii_case(OPENED_FROM));
+    (m.id, m.uid, m.folder, m.draft, m.read) = (0, 0, 0, false, true);
+    (m.server, m.synced) = (None, None);
+    if m.received == 0 {
+        m.received = m.date;
+    }
+    Ok(m)
+}
+
 /// The opened message selected and in the list, as an import's last message is (#485): what a
 /// search in view finds is asked afresh, and its folder is shown when the list leaves it out.
 fn show_opened(s: &mut Session, id: Id) {
