@@ -834,6 +834,7 @@ fn an_agents_delete_or_move_with_params_the_command_refuses_is_refused_not_asked
     run(&mut s, "mail.select", json!({"id": newer}));
     let mut params = json!(null);
     crate::agent::pin_targets(&mut s, "mail.deletePermanently", &mut params);
+    assert_eq!(params["ids"].as_array().map(Vec::len), Some(2), "pinned: {params}");
     let (what, done) = asked_then_done(&mut s, "mail.deletePermanently", params);
     assert!(what.contains("2 messages") && done["permanently"] == 2, "{what} {done}");
 }
