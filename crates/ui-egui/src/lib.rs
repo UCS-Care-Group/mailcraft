@@ -4251,6 +4251,22 @@ fn feedback(id: &str, v: &Value) -> Option<String> {
     let n = |k: &str| v.get(k).and_then(Value::as_u64);
     match id {
         "compose.send" if v.get("queued").and_then(Value::as_bool) == Some(true) => Some(tl!("In the Outbox: it is on its way").to_string()),
+        // Mail put into a Microsoft account from elsewhere: Microsoft's server makes it without
+        // most of the original's headers, which is said rather than hidden (#451).
+        "mail.move" => n("intoMicrosoft").filter(|c| *c > 0).map(|c| {
+            tln!(
+                c,
+                "{n} message moved into the account: its next Send/Receive puts it on Microsoft's server, without most of its headers (such as Received)",
+                "{n} messages moved into the account: its next Send/Receive puts them on Microsoft's server, without most of their headers (such as Received)"
+            )
+        }),
+        "mail.copy" => n("intoMicrosoft").filter(|c| *c > 0).map(|c| {
+            tln!(
+                c,
+                "{n} message copied into the account: its next Send/Receive puts it on Microsoft's server, without most of its headers (such as Received)",
+                "{n} messages copied into the account: its next Send/Receive puts them on Microsoft's server, without most of their headers (such as Received)"
+            )
+        }),
         // A mailbox whose content folder lost something still opens; say how much is missing. A
         // mailbox file damaged part of the way opens as far as it can be read: that is said first.
         "file.open" => {

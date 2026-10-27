@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! Mail: selecting, reading, filing, flagging and deleting messages.
 
-use mailcraft_model::{FlagStatus, FolderKind, Id, Rgb};
+use mailcraft_model::{FlagStatus, FolderKind, Id, Queued, Rgb};
 use serde_json::{Value, json};
 
 use super::{bad, deliver, done, fail, message_json, message_summary, needs_message, needs_movable, select_after_removal, targets};
@@ -379,14 +379,17 @@ fn move_to(s: &mut Session, v: &Value) -> CmdResult {
     let ids = targets(s, v)?;
     let before = s.rows();
     let mut moved = Vec::new();
+    let mut into_microsoft = 0;
     for id in &ids {
-        if s.mailbox.message(*id).is_some_and(|m| m.folder != folder) {
-            s.mailbox.move_message(*id, folder)?;
-            moved.push(*id);
+        let Some(account) = s.mailbox.message(*id).filter(|m| m.folder != folder).map(|m| m.account) else { continue };
+        s.mailbox.move_message(*id, folder)?;
+        moved.push(*id);
+        if s.mailbox.message(*id).is_some_and(|m| m.account != account) && waits_for_microsoft(s, *id) {
+            into_microsoft += 1;
         }
     }
     select_after_removal(s, &before, &moved);
-    Ok(json!({"moved": moved.len(), "folder": folder}))
+    Ok(json!({"moved": moved.len(), "folder": folder, "intoMicrosoft": into_microsoft}))
 }
 
 fn copy_to(s: &mut Session, v: &Value) -> CmdResult {
@@ -396,7 +399,15 @@ fn copy_to(s: &mut Session, v: &Value) -> CmdResult {
     for id in &ids {
         copies.push(s.mailbox.copy_message_marked(*id, folder, u64::try_from(s.now()).unwrap_or_default())?);
     }
-    Ok(json!({"copies": copies, "folder": folder}))
+    let into_microsoft = copies.iter().filter(|c| waits_for_microsoft(s, **c)).count();
+    Ok(json!({"copies": copies, "folder": folder, "intoMicrosoft": into_microsoft}))
+}
+
+/// Whether `id` waits to be made on a Microsoft server, put into its account from elsewhere:
+/// Graph makes it as received mail, without most of the original's headers (#451), and the
+/// window says so.
+fn waits_for_microsoft(s: &Session, id: Id) -> bool {
+    s.mailbox.queued.iter().any(|q| matches!(q, Queued::PlaceMessage { account, message, .. } if *message == id && s.mailbox.is_graph(*account)))
 }
 
 /// Apply `change` to each target; answers how many messages it changed.

@@ -11732,6 +11732,13 @@ msgstr[0] ""
 msgstr[1] ""
 
 #. interface
+#: crates/ui-egui/src/lib.rs
+msgid "{n} message copied into the account: its next Send/Receive puts it on Microsoft's server, without most of its headers (such as Received)"
+msgid_plural "{n} messages copied into the account: its next Send/Receive puts them on Microsoft's server, without most of their headers (such as Received)"
+msgstr[0] ""
+msgstr[1] ""
+
+#. interface
 #: crates/ui-egui/src/reading.rs
 msgid "{n} message in this conversation:"
 msgid_plural "{n} messages in this conversation:"
@@ -11749,6 +11756,13 @@ msgstr[1] ""
 #: crates/ui-egui/src/forms.rs
 msgid "{n} message matched"
 msgid_plural "{n} messages matched"
+msgstr[0] ""
+msgstr[1] ""
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+msgid "{n} message moved into the account: its next Send/Receive puts it on Microsoft's server, without most of its headers (such as Received)"
+msgid_plural "{n} messages moved into the account: its next Send/Receive puts them on Microsoft's server, without most of their headers (such as Received)"
 msgstr[0] ""
 msgstr[1] ""
 

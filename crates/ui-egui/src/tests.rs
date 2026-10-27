@@ -1992,6 +1992,25 @@ fn imported_mail_for_a_microsoft_account_goes_to_a_local_folder_and_says_how_it_
     assert_eq!(a.session.mailbox.message(imported).unwrap().folder, inbox);
     let waits = |q: &mailcraft_model::Queued| matches!(q, mailcraft_model::Queued::PlaceMessage { message, .. } if *message == imported);
     assert!(a.session.mailbox.queued.iter().any(waits));
+    // What Microsoft's server leaves out of it is said, not hidden.
+    let said = a.status_msg.as_ref().map(|(text, _)| text.clone()).unwrap_or_default();
+    assert_eq!(
+        said,
+        "1 message moved into the account: its next Send/Receive puts it on Microsoft's server, without most of its headers (such as Received)"
+    );
+}
+
+/// Mail moved or copied into a Microsoft account from elsewhere: the status bar says that
+/// Microsoft's server makes it without most of its headers (#451). Other moves say nothing.
+#[test]
+fn mail_put_into_a_microsoft_account_says_its_headers_stay_behind() {
+    let said = |id: &str, v: Value| crate::feedback(id, &v);
+    let moved = said("mail.move", json!({"moved": 2, "folder": 9, "intoMicrosoft": 2})).unwrap();
+    assert!(moved.starts_with("2 messages moved into the account") && moved.contains("without most of their headers"), "{moved}");
+    let copied = said("mail.copy", json!({"copies": [5], "folder": 9, "intoMicrosoft": 1})).unwrap();
+    assert!(copied.starts_with("1 message copied into the account") && copied.contains("without most of its headers"), "{copied}");
+    assert_eq!(said("mail.move", json!({"moved": 1, "folder": 9, "intoMicrosoft": 0})), None);
+    assert_eq!(said("mail.copy", json!({"copies": [5], "folder": 9, "intoMicrosoft": 0})), None);
 }
 
 /// A search says so over the list: how many it found and where; ✕ or Esc ends it (#115).

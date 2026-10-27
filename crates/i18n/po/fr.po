@@ -13712,6 +13712,14 @@ msgstr[0] "{n} message modifié"
 msgstr[1] "{n} messages modifiés"
 
 #. interface
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "{n} message copied into the account: its next Send/Receive puts it on Microsoft's server, without most of its headers (such as Received)"
+msgid_plural "{n} messages copied into the account: its next Send/Receive puts them on Microsoft's server, without most of their headers (such as Received)"
+msgstr[0] "{n} message copié dans le compte : le prochain Envoyer/Recevoir le place sur le serveur de Microsoft, sans la plupart de ses en-têtes (comme Received)"
+msgstr[1] "{n} messages copiés dans le compte : le prochain Envoyer/Recevoir les place sur le serveur de Microsoft, sans la plupart de leurs en-têtes (comme Received)"
+
+#. interface
 #: crates/ui-egui/src/reading.rs
 #, fuzzy
 msgid "{n} message in this conversation:"
@@ -13733,6 +13741,14 @@ msgid "{n} message matched"
 msgid_plural "{n} messages matched"
 msgstr[0] "{n} message correspondant"
 msgstr[1] "{n} messages correspondants"
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "{n} message moved into the account: its next Send/Receive puts it on Microsoft's server, without most of its headers (such as Received)"
+msgid_plural "{n} messages moved into the account: its next Send/Receive puts them on Microsoft's server, without most of their headers (such as Received)"
+msgstr[0] "{n} message déplacé dans le compte : le prochain Envoyer/Recevoir le place sur le serveur de Microsoft, sans la plupart de ses en-têtes (comme Received)"
+msgstr[1] "{n} messages déplacés dans le compte : le prochain Envoyer/Recevoir les place sur le serveur de Microsoft, sans la plupart de leurs en-têtes (comme Received)"
 
 #. interface
 #: crates/ui-egui/src/folder_properties.rs

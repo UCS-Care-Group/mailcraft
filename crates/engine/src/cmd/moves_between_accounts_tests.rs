@@ -827,3 +827,26 @@ fn removing_an_account_puts_back_the_mail_its_server_wasnt_given_yet() {
     assert_eq!(s.mailbox.messages.values().filter(|m| m.subject == "Copied").map(|m| m.folder).collect::<Vec<_>>(), [kept]);
     assert!(s.mailbox.queued.is_empty() && s.mailbox.pending.is_empty(), "{:?} {:?}", s.mailbox.queued, s.mailbox.pending);
 }
+
+#[test]
+fn what_goes_into_a_microsoft_account_from_elsewhere_is_counted_for_the_window_to_say() {
+    let (mut s, a, kept) = imap();
+    let ms = microsoft(&mut s, OWNER);
+    let (theirs, their_archive) =
+        (s.mailbox.folder_of_kind(ms, FolderKind::Inbox).unwrap(), s.mailbox.folder_of_kind(ms, FolderKind::Archive).unwrap());
+    let (inbox, archive) = (s.mailbox.folder_of_kind(a, FolderKind::Inbox).unwrap(), s.mailbox.folder_of_kind(a, FolderKind::Archive).unwrap());
+    let (one, two, three) = (titled(&s, "One"), titled(&s, "Two"), titled(&s, "Three"));
+    let into = |s: &mut Session, command: &str, ids: &[Id], folder: Id| {
+        s.run(command, &json!({"ids": ids, "folder": folder})).unwrap()["intoMicrosoft"].clone()
+    };
+    // Within its account, or onto this computer: Microsoft makes nothing.
+    assert_eq!(into(&mut s, "mail.move", &[one], archive), 0);
+    assert_eq!(into(&mut s, "mail.copy", &[two], kept), 0);
+    // Into the Microsoft account, moved or copied: Microsoft makes each.
+    assert_eq!(into(&mut s, "mail.move", &[one, three], theirs), 2);
+    assert_eq!(into(&mut s, "mail.copy", &[two], theirs), 1);
+    // On within that account while it waits, or back to where its original is: said already, or
+    // not made there.
+    assert_eq!(into(&mut s, "mail.move", &[one], their_archive), 0);
+    assert_eq!(into(&mut s, "mail.move", &[three], inbox), 0);
+}
