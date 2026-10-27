@@ -208,11 +208,16 @@ time, the bytes and the counts of messages, folders and accounts.
 The desktop window opens its mailbox with `store::open_for_window`, which leaves out what it
 doesn't need before the first frame (#519): the SHA-256 of the whole file, which tells this
 program's bytes from another writer's, is worked out on a thread of its own from the bytes read,
-and every save waits for it first; only the newest 200 messages of the Inbox (the view the window
-opens on) have their bodies read at once, the rest as they are shown, as bodies beyond the memory
-budget always have been; and the content files left on disk are looked for afterwards
-(`store::check_parts`, on a thread the host starts once the window shows), the "missing or
-damaged" count said in the status bar when that is done. The word index starts after the first
+and every save waits for it first (it is only of bytes the reading itself took: a file cut short
+has none, as before); only the newest 200 messages of the Inbox (the view the window opens on)
+have their bodies read at once; and the content files left on disk are looked for afterwards.
+Once the window shows, a thread the host starts looks for those files (`store::check_parts`):
+the bodies found missing are marked in their messages as an opening that looks at once marks
+them (`Session::mark_unavailable`) and the "missing or damaged" count is said in the status bar;
+then it reads the bodies the memory budget holds that were left for later (`store::bodies_later`,
+`store::read_bodies`), which the window takes in a few batches a frame (`Session::take_bodies`),
+so that previews and everything else that reads bodies in memory end as after an opening that read
+them at once. What comes for a mailbox another has taken the place of is dropped. The word index starts after the first
 five frames. `store::open` and `file.open` open as before. `store_bench_tests.rs` times an open of
 a made-up mailbox of 64,000 messages (ignored by `cargo test`).
 
@@ -266,3 +271,4 @@ a made-up mailbox of 64,000 messages (ignored by `cargo test`).
 | 2026-10-27 | minor | #454: `names` (L0): one list of Unicode's format characters, and the two steps a name takes, coming in and being shown, which also remove the other characters that show nothing; the count of crates is 17 |
 | 2026-10-27 | minor | #454 part 2: `link` and `html` use `names`' list of format characters instead of copies of their own; `link` depends on `names`, the second exception to the layers |
 | 2026-10-27 | minor | #519 slice 2: opening for the window: the whole-file sum in the background, bodies of the opening rows only, content files looked for afterwards, the word index after the first frames |
+| 2026-10-27 | patch | #519 slice 2 review: bodies found missing are marked, the bodies the budget holds come in the background, a cut-short file has no sum |
