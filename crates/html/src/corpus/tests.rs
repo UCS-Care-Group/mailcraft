@@ -790,26 +790,23 @@ fn a_large_newsletter_parses_quickly() {
     assert!(flat(&parse(&double)).len() <= flat(&blocks).len() + 8);
 }
 
-/// The dependencies a crate's manifest names under `[dependencies]`, in order. A dependency named
-/// any other way (a table of its own, one for some platforms only, one for building) fails the
-/// test, so that it is not missed.
-fn dependencies(manifest: &std::path::Path) -> Vec<String> {
-    let text = std::fs::read_to_string(manifest).unwrap();
-    let mut names = Vec::new();
-    let mut listed = false;
-    for line in text.lines() {
-        let line = line.split('#').next().unwrap_or_default().trim();
-        if line.starts_with('[') {
-            assert!(
-                !line.contains("dependencies") || line == "[dependencies]" || line == "[dev-dependencies]",
-                "{}: `{line}` is not read here",
-                manifest.display()
-            );
-            listed = line == "[dependencies]";
-        } else if let Some((name, _)) = line.split_once('=').filter(|_| listed) {
-            names.push(name.trim().to_string());
-        }
-    }
+/// The crates a crate of the workspace depends on, as Cargo resolved them in `Cargo.lock`:
+/// whatever the manifest calls them, for whichever platform, for building and for its tests too.
+fn dependencies(krate: &str) -> Vec<String> {
+    let lock = std::fs::read_to_string(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../Cargo.lock")).unwrap();
+    let entry = lock
+        .split("[[package]]")
+        .find(|entry| entry.lines().any(|line| line == format!("name = \"{krate}\"")))
+        .unwrap_or_else(|| panic!("{krate} is not in Cargo.lock"));
+    let mut names: Vec<String> = entry
+        .lines()
+        .skip_while(|line| *line != "dependencies = [")
+        .skip(1)
+        .take_while(|line| *line != "]")
+        // `"name"`, or `"name version"` when two versions are locked.
+        .filter_map(|line| line.trim().trim_matches(['"', ',']).split(' ').next().map(String::from))
+        .collect();
+    names.sort();
     names
 }
 
@@ -819,11 +816,11 @@ fn dependencies(manifest: &std::path::Path) -> Vec<String> {
 fn this_crate_has_no_way_to_fetch_anything() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let why = "a new dependency: can it reach the network?";
-    assert_eq!(dependencies(&root.join("Cargo.toml")), ["mailcraft-link", "mailcraft-names", "serde"], "{why}");
-    // `mailcraft-link` only reads an address, and `mailcraft-names` only cleans text: they open
-    // nothing, and bring in nothing that could.
-    assert_eq!(dependencies(&root.join("../link/Cargo.toml")), ["mailcraft-names"], "{why}");
-    assert!(dependencies(&root.join("../names/Cargo.toml")).is_empty(), "{why}");
+    assert_eq!(dependencies("mailcraft-html"), ["mailcraft-link", "mailcraft-names", "proptest", "serde"], "{why}");
+    // `mailcraft-link` only reads an address and `mailcraft-names` only cleans text, and neither
+    // brings in a crate that could fetch. (`proptest` is for the tests alone.)
+    assert_eq!(dependencies("mailcraft-link"), ["mailcraft-names", "proptest"], "{why}");
+    assert_eq!(dependencies("mailcraft-names"), ["proptest"], "{why}");
     let mut files = vec![root.join("src")];
     let mut checked = 0;
     while let Some(path) = files.pop() {
