@@ -1,1 +1,0 @@
-- The warning banner above a message ([#508](https://github.com/UCS-Care-Group/mailcraft/issues/508)) can now be dismissed with the cross at its right. An amber caution goes away for that message; a red warning shrinks to one line you can click to open again. It is remembered with the message, and comes back if a new kind of warning appears. An agent cannot dismiss it for you.

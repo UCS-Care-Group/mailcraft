@@ -396,7 +396,7 @@ fn quick_add(app: &mut MailApp, ui: &mut Ui) {
         .min_size(vec2(0.0, edit_rect.height()))
         .align(egui::Align2::LEFT_CENTER);
     // In a child of its own, so the field doesn't move what is laid out after this row.
-    let resp = ui.new_child(egui::UiBuilder::new().max_rect(edit_rect)).add(edit);
+    let resp = crate::text_menu::field(ui.new_child(egui::UiBuilder::new().max_rect(edit_rect)).add(edit));
     // Enter and Escape both take the keyboard away from the field: Enter adds, Escape gives up.
     // (Each is the window's whose they are, #406.)
     let (enter, escape) = (crate::keys::enter(ui.ctx(), ui.layer_id()), crate::keys::escape(ui.ctx(), ui.layer_id()));

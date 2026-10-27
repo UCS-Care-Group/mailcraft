@@ -914,11 +914,7 @@ impl Marks {
 /// The items of a text's menu: Copy, and for the body Select All and, on a link, Copy Link
 /// Address. What was chosen.
 pub(super) fn menu(ui: &mut Ui, can_copy: bool, body: bool, link: Option<&Arc<str>>) -> Option<Action> {
-    let item = |ui: &mut Ui, enabled: bool, label: &str, key: &str| {
-        let button = egui::Button::new(tl!(label)).min_size(vec2(190.0, 0.0));
-        let button = if key.is_empty() { button } else { button.shortcut_text(crate::widgets::key_text(key)) };
-        ui.add_enabled(enabled, button).clicked()
-    };
+    let item = |ui: &mut Ui, enabled: bool, label: &str, key: &str| crate::text_menu::menu_item(ui, enabled, label, key).clicked();
     let mut chosen = None;
     if item(ui, can_copy, "Copy", "Mod+C") {
         chosen = Some(Action::Copy);

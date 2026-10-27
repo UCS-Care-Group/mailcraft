@@ -79,7 +79,7 @@ pub fn specs() -> Vec<CommandSpec> {
             .when(needs_doc),
         CommandSpec::new("edit.paste", "Paste", "Message › Clipboard", paste)
             .pure()
-            .params(r#"{"html"?: string, "text"?: string} — over the selection; HTML is reduced to bold, italic, underline, a size, links and lists (to plain text in a plain-text message)"#)
+            .params(r#"{"html"?: string, "text"?: string} — over the selection; HTML is reduced to bold, italic, underline, a size, links and lists (to plain text in a plain-text message); HTML that comes to no text gives way to `text`, and nothing to paste changes nothing"#)
             .when(needs_doc),
         CommandSpec::new("compose.formatHtml", "HTML", "Format Text › Format", format_html).pure().when(needs_compose),
         CommandSpec::new("compose.formatPlain", "Plain Text", "Format Text › Format", format_plain).pure().when(needs_compose),
@@ -329,15 +329,32 @@ pub(crate) const MAX_PASTE: usize = 4 << 20;
 
 fn paste(s: &mut Session, v: &Value) -> CmdResult {
     let plain = s.doc().is_some_and(|(_, plain)| plain);
-    let fragment = match (p::str(v, "html"), p::str(v, "text")) {
-        (Some(html), _) if html.len() <= MAX_PASTE => {
+    let (html, text) = (p::str(v, "html"), p::str(v, "text"));
+    if html.is_none() && text.is_none() {
+        return Err(bad("`html` or `text` (string) is required"));
+    }
+    let too_much = || fail("that is too much to paste into one message");
+    // The HTML when there is some, reduced to the set; when it comes to nothing at all (a picture
+    // alone, which a text can't hold), the text beside it, weighed only then; and nothing at all
+    // changes nothing, the selection included. Lines left blank on purpose are something. (What
+    // is looked at is what would be pasted, once cleaned of what a text never keeps.)
+    let from_html = match html {
+        Some(html) if html.len() > MAX_PASTE => return Err(too_much()),
+        Some(html) => {
             let rich = mailcraft_mime::rich::from_html(html);
-            if plain { RichText::from_plain(&rich.text()) } else { rich }
+            Some(if plain { RichText::from_plain(&rich.text()) } else { rich }).filter(|rich| !rich.is_empty())
         }
-        (None, Some(text)) if text.len() <= MAX_PASTE => RichText::from_plain(text),
-        (None, None) => return Err(bad("`html` or `text` (string) is required")),
-        _ => return Err(fail("that is too much to paste into one message")),
+        None => None,
     };
+    let fragment = match (from_html, text) {
+        (Some(rich), _) => rich,
+        (None, Some(text)) if text.len() > MAX_PASTE => return Err(too_much()),
+        (None, Some(text)) => RichText::from_plain(text),
+        (None, None) => return Ok(state(s)),
+    };
+    if fragment.is_empty() {
+        return Ok(state(s));
+    }
     edit(s, &json!({}), |b| b.paste(&fragment))?;
     let mut out = state(s);
     // A signature's pictures come from files only (nothing is fetched); say so when the paste

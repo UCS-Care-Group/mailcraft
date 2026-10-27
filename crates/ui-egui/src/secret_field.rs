@@ -64,7 +64,7 @@ pub(crate) fn field(
     if visible {
         edit = edit.layouter(&mut layout);
     }
-    let resp = ui.add(edit);
+    let resp = crate::text_menu::secret(ui.add(edit));
     eye(ui, &resp, shown, watch);
     resp
 }

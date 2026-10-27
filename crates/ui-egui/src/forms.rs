@@ -433,6 +433,7 @@ pub(crate) mod kit {
         /// A one-line text field `width` points wide (infinity: the rest of the row).
         pub fn text(&mut self, ui: &mut Ui, key: impl Hash + Debug, value: &mut String, width: f32, hint: &str) -> Response {
             let resp = ui.add(egui::TextEdit::singleline(value).id(field_id(key)).desired_width(width.max(16.0)).hint_text(hint.to_owned()));
+            let resp = crate::text_menu::field(resp);
             self.field(&resp);
             resp
         }
@@ -447,6 +448,7 @@ pub(crate) mod kit {
                     .char_limit(10)
                     .hint_text(egui::RichText::new(tl!("YYYY-MM-DD")).size(10.5)),
             );
+            let resp = crate::text_menu::field(resp);
             self.field(&resp);
             if !date_ok(text, required) {
                 mark_wrong(ui, &resp, &self.t);
@@ -501,8 +503,9 @@ pub(crate) mod kit {
                 0,
                 self.twelve,
             )));
+            let resp = crate::text_menu::field(resp);
             self.field(&resp);
-            if resp.lost_focus()
+            if crate::text_menu::left(&resp)
                 && let Some((h, m)) = parse_clock(text)
             {
                 *text = time_short(h, m, self.twelve);
@@ -622,7 +625,7 @@ pub(crate) mod kit {
         let edit = egui::TextEdit::multiline(value).id(field_id(key)).desired_rows(rows).desired_width(f32::INFINITY);
         // Its own room, also when the field is below what the form shows without scrolling.
         ui.allocate_ui(vec2(ui.available_width().max(0.0), room), |ui| {
-            egui::ScrollArea::vertical().id_salt(("form_lines", key)).max_height(room).show(ui, |ui| ui.add(edit)).inner
+            egui::ScrollArea::vertical().id_salt(("form_lines", key)).max_height(room).show(ui, |ui| crate::text_menu::field(ui.add(edit))).inner
         })
         .inner
     }
@@ -642,7 +645,7 @@ pub(crate) mod kit {
         let edit =
             egui::TextEdit::multiline(value).id(field_id(key)).desired_rows(lines).desired_width(f32::INFINITY).min_size(vec2(0.0, left - 8.0));
         ui.allocate_ui(vec2(ui.available_width().max(0.0), left), |ui| {
-            egui::ScrollArea::vertical().id_salt(("form_lines", key)).max_height(left).show(ui, |ui| ui.add(edit)).inner
+            egui::ScrollArea::vertical().id_salt(("form_lines", key)).max_height(left).show(ui, |ui| crate::text_menu::field(ui.add(edit))).inner
         })
         .inner
     }
@@ -1532,7 +1535,8 @@ mod event {
         let focused = ui.memory(|m| m.has_focus(id));
         // Something was typed into the line since the keyboard came to it.
         let typing = id.with("typed");
-        let typed = focused && ui.data(|d| d.get_temp::<bool>(typing)).unwrap_or(false);
+        let was_typed = ui.data(|d| d.get_temp::<bool>(typing)).unwrap_or(false);
+        let typed = focused && was_typed;
         // While nobody types in it, it reads as the people it names. (Laid out once for a text,
         // not every frame: finding a contact's name looks through the contacts.)
         let reading = !focused && !text.trim().is_empty();
@@ -1559,16 +1563,17 @@ mod event {
         }
         let resp = crate::compose::recipient_line(ui, s, id, edit, typed).text_edit.response;
         pass.field(&resp);
-        let typed = typed || resp.changed();
-        if resp.lost_focus() && typed {
+        // (What was typed is kept until the line is left: its menu may have the keyboard meanwhile.)
+        let typed = was_typed || resp.changed();
+        let left = crate::text_menu::left(&resp);
+        if left && typed {
             // Left, after something was typed: what stands for one contact becomes that contact.
             let (checked, _) = check_names(s, text);
             if Address::parse_list(text) != Address::parse_list(&checked) {
                 *text = checked;
             }
         }
-        let typed = typed && ui.memory(|m| m.has_focus(id));
-        ui.data_mut(|d| d.insert_temp(typing, typed));
+        ui.data_mut(|d| d.insert_temp(typing, typed && !left));
     }
 
     /// A menu entry with a mark when it is the current choice. `true` when it was chosen.
@@ -1874,7 +1879,8 @@ mod event {
                                 if ui.radio(self.repeat.ends == Ends::After, tl!("After")).clicked() {
                                     self.repeat.ends = Ends::After;
                                 }
-                                if ui.add(egui::DragValue::new(&mut self.repeat.count).range(1..=9999).speed(0.05)).changed() {
+                                if crate::text_menu::field(ui.add(egui::DragValue::new(&mut self.repeat.count).range(1..=9999).speed(0.05))).changed()
+                                {
                                     self.repeat.ends = Ends::After;
                                 }
                                 // (The number is in the box before it: only the word follows it.)
@@ -1947,7 +1953,7 @@ mod event {
         fn pattern(&mut self, ui: &mut Ui, week_start: Weekday) {
             let freq = self.freq();
             let every = |ui: &mut Ui, interval: &mut u32| {
-                ui.add(egui::DragValue::new(interval).range(1..=999).speed(0.05));
+                crate::text_menu::field(ui.add(egui::DragValue::new(interval).range(1..=999).speed(0.05)));
                 ui.label(tl!(unit(freq, *interval)));
             };
             let pick_nth = |ui: &mut Ui, salt: &str, nth: &mut i8| {
@@ -2026,7 +2032,7 @@ mod event {
                         if ui.radio(self.repeat.nth.is_none(), tl!("Day")).clicked() {
                             self.repeat.nth = None;
                         }
-                        if ui.add(egui::DragValue::new(&mut self.day).range(1..=31).speed(0.05)).changed() {
+                        if crate::text_menu::field(ui.add(egui::DragValue::new(&mut self.day).range(1..=31).speed(0.05))).changed() {
                             self.repeat.nth = None;
                         }
                         ui.label(tl!("of every"));
@@ -2058,7 +2064,7 @@ mod event {
                                 self.repeat.nth = None;
                             }
                             pick_month(ui, "by_date", &mut self.month);
-                            if ui.add(egui::DragValue::new(&mut self.day).range(1..=31).speed(0.05)).changed() {
+                            if crate::text_menu::field(ui.add(egui::DragValue::new(&mut self.day).range(1..=31).speed(0.05))).changed() {
                                 self.repeat.nth = None;
                             }
                         });
@@ -5444,11 +5450,12 @@ mod categories {
                         };
                         let width = (ui.available_width() - 44.0).max(40.0);
                         let resp = ui.add(egui::TextEdit::singleline(&mut text).id(field_id(("category", i))).desired_width(width));
+                        let resp = crate::text_menu::field(resp);
                         if resp.changed() {
                             self.editing = Some((c.name.clone(), text));
                         }
                         // Enter, or leaving the field, renames.
-                        if resp.lost_focus()
+                        if crate::text_menu::left(&resp)
                             && let Some((from, to)) = self.editing.take_if(|e| e.0 == c.name)
                             && to.trim() != from
                         {
@@ -5480,6 +5487,7 @@ mod categories {
                             .desired_width(width)
                             .hint_text(tl!("New category")),
                     );
+                    let resp = crate::text_menu::field(resp);
                     if std::mem::take(&mut self.focus) {
                         resp.request_focus();
                     }
