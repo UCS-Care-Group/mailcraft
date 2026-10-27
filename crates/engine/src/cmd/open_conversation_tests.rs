@@ -754,3 +754,40 @@ fn another_mailbox_starts_with_every_conversation_closed() {
     run(&mut s, "folder.select", json!({"id": folder}));
     assert!(s.rows().iter().all(|r| !r.open && r.under.is_none()));
 }
+
+#[test]
+fn deleting_messages_picked_under_an_open_conversation_selects_the_row_that_took_the_first_ones_place() {
+    let (mut s, newer, older, reply) = release_checklist();
+    let inbox = s.view.folder;
+    // A third message here, so that it stays a conversation; the older two a minute apart before
+    // the newer, so that it stays where it is in the list.
+    let third = run(&mut s, "mail.copy", json!({"ids": [older], "folder": inbox}))["copies"][0].as_u64().unwrap();
+    let date = s.mailbox.message(newer).map(|m| (m.date, m.received)).unwrap();
+    for (id, before) in [(older, 60), (third, 120)] {
+        if let Ok(m) = s.mailbox.message_mut(id) {
+            (m.date, m.received) = (date.0 - before, date.1 - before);
+        }
+    }
+    run(&mut s, "mail.expandConversation", json!({"id": newer}));
+    let place = s.rows().iter().position(|r| r.id == newer && r.under.is_some()).unwrap();
+    // The newer one's own row and the reply's, the focus on the reply.
+    run(&mut s, "mail.select", json!({"id": newer, "copy": 1}));
+    run(&mut s, "mail.select", json!({"id": reply, "extend": true}));
+    run(&mut s, "mail.delete", json!({}));
+    assert_eq!(s.rows().get(place).map(|r| (r.id, r.copy, r.under)), Some((older, 1, Some(older))));
+    assert_eq!((s.sel.messages.clone(), s.sel.whole.clone()), (vec![older], vec![]));
+}
+
+#[test]
+fn deleting_a_message_picked_from_the_reading_pane_and_a_row_below_selects_the_conversations_row() {
+    let (mut s, newer, older, _) = release_checklist();
+    let rows = s.rows();
+    let at = rows.iter().position(|r| r.id == newer).unwrap();
+    let below = rows.iter().skip(at + 1).find(|r| !r.conversation()).map(|r| r.id).unwrap();
+    run(&mut s, "mail.select", json!({"id": older}));
+    run(&mut s, "mail.select", json!({"id": below, "extend": true}));
+    run(&mut s, "mail.delete", json!({}));
+    assert!(s.mailbox.message(older).is_some_and(|m| m.folder == folder(&s, FolderKind::Deleted)));
+    // The row the first of them was listed in: the conversation's, which shows the newer one now.
+    assert_eq!(s.sel.messages, [newer]);
+}
