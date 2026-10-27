@@ -299,3 +299,69 @@ fn an_agent_asks_before_it_closes_an_appointments_window_the_owner_changed() {
     assert_eq!(rx.try_recv().unwrap()["ok"], true);
     assert_eq!(w.state().windows.len(), 0);
 }
+
+#[test]
+fn a_form_the_owner_is_changing_stays_whatever_dialog_an_agent_would_open() {
+    let mut w = form("contact", "Ada");
+    let account = w.state_mut().execute("account.add", json!({"email": "one@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+    // The account's sign-in help is a dialog of its own.
+    let (now, _) = allowed(w.state_mut(), "ui.approvalHelp", json!({"account": account}), Class::ALL.to_vec());
+    let said = now.unwrap();
+    assert_eq!(said["ok"], false, "{said}");
+    assert!(said["error"].as_str().unwrap().contains("the form stays"), "{said}");
+    assert!(matches!(&w.state().dialog, Some(Dialog::Form(f)) if f.unsaved().is_some_and(|u| u["title"] == "Ada")));
+    // A command that opens nothing leaves it as it was.
+    let (now, _) = agent(w.state_mut(), "view.calendar", json!({}));
+    assert_eq!(now.unwrap()["ok"], true);
+    assert!(matches!(&w.state().dialog, Some(Dialog::Form(f)) if f.unsaved().is_some_and(|u| u["title"] == "Ada")));
+    // With nothing changed in the form, the dialog opens in its place, as before.
+    w.state_mut().execute("ui.closeDialog", json!({})).unwrap();
+    w.state_mut().execute("ui.dialog", json!({"name": "contact"})).unwrap();
+    w.run_steps(3);
+    let (now, _) = agent(w.state_mut(), "ui.approvalHelp", json!({"account": account}));
+    assert_eq!(now.unwrap()["ok"], true);
+    assert_eq!(w.state().dialog.as_ref().map(|d| d.name()), Some("account"));
+}
+
+#[test]
+fn a_yes_lets_go_only_of_the_form_it_was_asked_about() {
+    let mut w = form("contact", "Ada");
+    let (_, rx) = agent(w.state_mut(), "ui.closeDialog", json!({}));
+    // What the window has now isn't what the question named.
+    w.state_mut().asking.front_mut().unwrap().params["unsaved"]["title"] = json!("Somebody else");
+    answer(w.state_mut(), true);
+    let said = rx.try_recv().unwrap();
+    assert_eq!(said["ok"], false, "{said}");
+    assert!(form_open(&w));
+}
+
+#[test]
+fn opening_a_draft_in_a_window_is_asked_about_as_open_draft_is() {
+    let mut a = app();
+    written(&mut a, "Mine");
+    let draft = a.session.mailbox.messages.values().find(|m| m.draft && m.subject != "Mine").unwrap().id;
+    let (now, _) = allowed(&mut a, "ui.openWindow", json!({"message": draft}), Class::ALL.to_vec());
+    assert!(now.is_none(), "asked");
+    let (class, what) = question(&a).unwrap();
+    assert_eq!(class, Class::Leave);
+    assert!(what.starts_with("open the draft"), "{what}");
+    answer(&mut a, false);
+    assert_eq!(a.session.compose.as_ref().map(|c| c.subject.as_str()), Some("Mine"));
+}
+
+#[test]
+fn closing_several_changed_windows_says_how_many() {
+    let mut w = testing::window("view.calendar");
+    let events: Vec<Id> =
+        w.state().session.mailbox.events.values().filter(|e| !e.title.is_empty() && e.recurrence.is_none()).map(|e| e.id).take(2).collect();
+    for event in &events {
+        w.state_mut().run("ui.openWindow", json!({"event": event})).unwrap();
+        w.run_steps(4);
+        testing::text(&mut w, " (moved)");
+    }
+    assert_eq!(w.state().windows.unsaved(), 2);
+    let (now, _) = agent(w.state_mut(), "ui.closeWindow", json!({"all": true}));
+    assert!(now.is_none());
+    let (_, what) = question(w.state()).unwrap();
+    assert!(what.contains(" and 1 more window without saving"), "{what}");
+}

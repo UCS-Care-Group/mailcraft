@@ -86,28 +86,7 @@ fn gate(app: &mut MailApp, req: &ControlRequest, id: &str, mut params: Value, al
         let people = crate::windows::event_window_people(app, &params);
         params["attendees"] = json!(people);
     }
-    // An appointment, a contact or a task with changes that aren't saved isn't closed, or put out
-    // of the way for another dialog, without the owner's say (#494); nor is an appointment's window
-    // of its own. The question names it as the dialog or the window has it now, never as the
-    // agent says.
-    if matches!(id, "ui.closeDialog" | "ui.dialog" | "ui.closeWindow") {
-        if !params.is_object() {
-            params = json!({});
-        }
-        let closes =
-            id == "ui.closeDialog" || params.get("name").and_then(Value::as_str).is_some_and(|n| crate::sync_panel::Panel::named(n).is_none());
-        let unsaved = match &app.dialog {
-            _ if id == "ui.closeWindow" => crate::windows::closing_unsaved(app, &params),
-            Some(crate::dialogs::Dialog::Form(form)) if closes => form.unsaved(),
-            _ => None,
-        };
-        if let Some(fields) = params.as_object_mut() {
-            fields.remove("unsaved");
-            if let Some(unsaved) = unsaved {
-                fields.insert("unsaved".into(), unsaved);
-            }
-        }
-    }
+    let params = as_the_window_has_it(app, id, params);
     match agent::check(&app.session, id, &params, allow) {
         Verdict::Run => run(app, id, params, allow),
         Verdict::Refuse(why) => err(why),
@@ -129,11 +108,56 @@ fn gate(app: &mut MailApp, req: &ControlRequest, id: &str, mut params: Value, al
     }
 }
 
-/// Run for an agent: what the command does is held to `allow` (`Session::agent`).
+/// `params` with what the window would lose (`unsaved`), as it has it now and never as the agent
+/// says (#494): an appointment, a contact or a task with changes that aren't saved, in the dialog
+/// that `ui.closeDialog` closes or `ui.dialog` puts another in place of, or in a window of its
+/// own that `ui.closeWindow` closes.
+fn as_the_window_has_it(app: &MailApp, id: &str, mut params: Value) -> Value {
+    if !matches!(id, "ui.closeDialog" | "ui.dialog" | "ui.closeWindow") {
+        if let Some(fields) = params.as_object_mut() {
+            fields.remove("unsaved");
+        }
+        return params;
+    }
+    if !params.is_object() {
+        params = json!({});
+    }
+    let closes = id == "ui.closeDialog" || params.get("name").and_then(Value::as_str).is_some_and(|n| crate::sync_panel::Panel::named(n).is_none());
+    let unsaved = match &app.dialog {
+        _ if id == "ui.closeWindow" => crate::windows::closing_unsaved(app, &params),
+        Some(crate::dialogs::Dialog::Form(form)) if closes => form.unsaved(),
+        _ => None,
+    };
+    if let Some(fields) = params.as_object_mut() {
+        fields.remove("unsaved");
+        if let Some(unsaved) = unsaved {
+            fields.insert("unsaved".into(), unsaved);
+        }
+    }
+    params
+}
+
+/// Run for an agent: what the command does is held to `allow` (`Session::agent`). A form in the
+/// dialog with changes the owner hasn't saved stays where it is (#494): set aside while the
+/// command runs, it comes back after it, and a dialog the command opened in its place isn't
+/// shown. (Closing it, or another dialog in its place, was asked about: `unsaved`.)
 fn run(app: &mut MailApp, id: &str, params: Value, allow: &[Class]) -> Outcome {
+    let asked = matches!(id, "ui.closeDialog" | "ui.dialog") && params.get("unsaved").is_some_and(|v| !v.is_null());
+    let owners = match &app.dialog {
+        Some(crate::dialogs::Dialog::Form(form)) if form.dirty() && !asked => app.dialog.take(),
+        _ => None,
+    };
     app.session.agent = Some(allow.to_vec());
     let r = app.execute(id, params);
     app.session.agent = None;
+    if let Some(form) = owners
+        && let Some(opened) = app.dialog.replace(form)
+    {
+        return err(format!(
+            "`{id}` would have opened the dialog \"{}\" in place of a form the owner is filling in and hasn't saved; the form stays and that dialog wasn't shown. Try again once the owner has closed the form",
+            opened.name()
+        ));
+    }
     match r {
         Ok(v) => ok(v),
         Err(e) => err(e),
@@ -144,12 +168,17 @@ fn run(app: &mut MailApp, id: &str, params: Value, allow: &[Class]) -> Outcome {
 pub fn answer(app: &mut MailApp, yes: bool) {
     let Some(a) = app.asking.pop_front() else { return };
     let out = if yes {
-        // Asked again: what it would do may have changed while the question was up.
-        let verdict = agent::answered(&app.session, &a.id, &a.params, &a.allow, a.class);
+        // Asked again: what it would do may have changed while the question was up. So may what
+        // the window would lose: another form than the one named isn't lost on this yes.
+        let params = as_the_window_has_it(app, &a.id, a.params.clone());
+        let lost = params.get("unsaved").filter(|u| !u.is_null());
+        let other = lost.is_some() && lost != a.params.get("unsaved");
+        let verdict = agent::answered(&app.session, &a.id, &params, &a.allow, a.class);
         let mut allow = a.allow.clone();
         allow.push(a.class);
         match verdict {
-            Verdict::Run => run(app, &a.id, a.params, &allow),
+            _ if other => err(format!("`{}` would now do more than the owner was asked about; nothing was done", a.id)),
+            Verdict::Run => run(app, &a.id, params, &allow),
             Verdict::Refuse(why) => err(why),
             Verdict::Ask(..) => err(format!("`{}` would now do more than the owner was asked about; nothing was done", a.id)),
         }

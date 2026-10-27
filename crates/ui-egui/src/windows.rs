@@ -335,11 +335,17 @@ fn closing(open: &[Open], p: &Value) -> Result<Vec<u64>, String> {
 }
 
 /// What `ui.closeWindow` with `p` would lose (#494): the first window it closes whose
-/// appointment has changes that aren't saved, as an agent's question names it. `None` when
-/// nothing would be lost.
+/// appointment has changes that aren't saved, as an agent's question names it, and how many more
+/// such windows it closes (`more`). `None` when nothing would be lost.
 pub(crate) fn closing_unsaved(app: &MailApp, p: &Value) -> Option<Value> {
     let closing = closing(&app.windows.open, p).ok()?;
-    app.windows.open.iter().filter(|w| closing.contains(&w.id)).find_map(|w| w.what.form().and_then(Form::unsaved))
+    let mut lost = app.windows.open.iter().filter(|w| closing.contains(&w.id)).filter_map(|w| w.what.form().and_then(Form::unsaved));
+    let mut first = lost.next()?;
+    let more = lost.count();
+    if more > 0 {
+        first["more"] = json!(more);
+    }
+    Some(first)
 }
 
 /// What `ui.eventWindow` and `ui.inspect` say of an appointment's window.

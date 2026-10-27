@@ -239,3 +239,21 @@ fn nothing_allowed_in_advance_lets_an_agent_leave_the_owners_message() {
     let refusal = needs_owner("mail.new", Class::Leave, "start a new message");
     assert!(!refusal.contains("mcp --allow") && refusal.contains("every time"), "{refusal}");
 }
+
+#[test]
+fn a_report_by_email_and_a_draft_in_a_window_take_the_owners_message_too() {
+    let s = writing();
+    let everything = Class::ALL.to_vec();
+    let report = json!({"what": "It crashed", "via": "email"});
+    assert_eq!(classify(&s, "ui.reportProblem", &report), Access::Asked(Class::Send));
+    assert!(
+        matches!(check(&s, "ui.reportProblem", &report, &everything), Verdict::Ask(Class::Send, what) if what.contains("in place of the message \u{201c}Mine\u{201d}"))
+    );
+    // Not opened, or on GitHub: the message stays.
+    assert_eq!(classify(&s, "ui.reportProblem", &json!({"what": "It crashed", "via": "email", "open": false})), Access::Owner(Class::Send));
+    assert_eq!(classify(&s, "ui.reportProblem", &json!({"what": "It crashed"})), Access::Owner(Class::Send));
+    let draft = a_draft(&s);
+    assert_eq!(classify(&s, "ui.openWindow", &json!({"message": draft})), Access::Asked(Class::Leave));
+    assert!(describe(&s, "ui.openWindow", &json!({"message": draft})).starts_with("open the draft"));
+    assert_eq!(classify(&s, "ui.openWindow", &json!({"message": received(&s)})), Access::Safe);
+}

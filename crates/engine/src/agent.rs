@@ -17,7 +17,7 @@
 //!   set: mail put in an Outbox (which sends it) or gone for good without the grant is undone.
 
 use mailcraft_model::{FolderKind, Id, Mailbox};
-use serde_json::Value;
+use serde_json::{Value, json};
 
 use crate::cmd::compose::LEAVING;
 use crate::{Session, p};
@@ -577,8 +577,14 @@ pub fn classify(s: &Session, id: &str, params: &Value) -> Access {
     // appointment that aren't saved (`unsaved`, from `agent_gate`) loses them; another mailbox in
     // view closes the message without saving it.
     let writing = owner_writing(s);
+    // A draft opened in a window opens where messages are written, as `mail.editDraft`.
+    if let Some(draft) = draft_in_window(s, id, params) {
+        return classify(s, "mail.editDraft", &json!({"id": draft}));
+    }
     match id {
         "compose.discard" if writing => return Access::Asked(Class::Delete),
+        // A report by email opens a new message in its place.
+        "ui.reportProblem" if writing && report_by_email(params) => return Access::Asked(Class::Send),
         "ui.closeWindow" if params.get("unsaved").is_some_and(|v| !v.is_null()) => return Access::Asked(Class::Delete),
         "file.new" | "file.open" if writing => return Access::Asked(Class::Mailbox),
         _ => {}
@@ -627,6 +633,19 @@ pub fn classify(s: &Session, id: &str, params: &Value) -> Access {
 /// Whether the owner wrote in the message being written (#494): it is theirs until it is closed.
 fn owner_writing(s: &Session) -> bool {
     s.compose.as_ref().is_some_and(|c| c.owner_changed)
+}
+
+/// The draft that `ui.openWindow` would open, which it opens as `mail.editDraft` does.
+fn draft_in_window(s: &Session, id: &str, params: &Value) -> Option<Id> {
+    if id != "ui.openWindow" {
+        return None;
+    }
+    p::id(params, "message").filter(|m| s.mailbox.message(*m).is_some_and(|m| m.draft))
+}
+
+/// Whether `ui.reportProblem` with `params` opens the report in a new message.
+fn report_by_email(params: &Value) -> bool {
+    p::str(params, "via") == Some("email") && p::bool(params, "open") != Some(false)
 }
 
 /// The to-do that `id` would change, when it is in a list shared with other people. The to-do is
@@ -824,10 +843,17 @@ fn invitees(s: &Session, params: &Value) -> Vec<String> {
 /// What a call would do, in a sentence that follows "An agent wants to …" (for the owner's
 /// question; never trusted for anything else).
 pub fn describe(s: &Session, id: &str, params: &Value) -> String {
+    if let Some(draft) = draft_in_window(s, id, params) {
+        return leaving_text(s, "mail.editDraft", &json!({"id": draft}));
+    }
     let what = what_it_does(s, id, params);
-    // Another mailbox in view closes the message the owner is writing, unsaved (#494).
+    // Another mailbox in view closes the message the owner is writing, unsaved; a report by email
+    // takes its place (#494).
     if matches!(id, "file.new" | "file.open") && owner_writing(s) {
         return format!("{what}; the message {} that the owner is writing is closed without being saved", writing(s));
+    }
+    if id == "ui.reportProblem" && owner_writing(s) && report_by_email(params) {
+        return format!("{what}; it opens in place of the message {} that the owner is writing, which goes to Drafts first", writing(s));
     }
     what
 }
@@ -1117,7 +1143,12 @@ fn form_text(id: &str, params: &Value) -> String {
         _ => "item",
     };
     let title = clip(field("title"), 80);
-    let item = if title.is_empty() { format!("the {kind}") } else { format!("the {kind} \u{201c}{title}\u{201d}") };
+    let mut item = if title.is_empty() { format!("the {kind}") } else { format!("the {kind} \u{201c}{title}\u{201d}") };
+    // Windows: how many more it closes with changes that aren't saved.
+    let more = params.get("unsaved").and_then(|u| u.get("more")).and_then(Value::as_u64).unwrap_or(0);
+    if more > 0 {
+        item.push_str(&format!(" and {}", plural(usize::try_from(more).unwrap_or(usize::MAX), "{n} more window", "{n} more windows")));
+    }
     match id {
         "ui.dialog" => {
             format!("open the dialog {} in place of {item}, without saving the changes made in it", quoted(p::str(params, "name").unwrap_or("")))
