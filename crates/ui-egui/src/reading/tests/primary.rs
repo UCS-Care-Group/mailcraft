@@ -14,7 +14,7 @@ use super::super::select::{Point, Zone};
 use super::{Window, button, clicks, copy_key, copy_of, corpus_app, gap, gap_at, id_of, pause, quick_window, select, selection, whole};
 use crate::control::{ControlRequest, handle};
 
-/// What the frame just run put in the primary selection.
+/// What the frame just run put in the primary selection, with Windows' line ends read as `\n`.
 fn settled(harness: &Window) -> Vec<String> {
     harness
         .output()
@@ -22,7 +22,7 @@ fn settled(harness: &Window) -> Vec<String> {
         .commands
         .iter()
         .filter_map(|c| match c {
-            OutputCommand::TextSelectionSettled(text) => Some(text.clone()),
+            OutputCommand::TextSelectionSettled(text) => Some(text.replace("\r\n", "\n")),
             _ => None,
         })
         .collect()
