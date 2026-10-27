@@ -527,10 +527,11 @@ impl<'a> Push<'a> {
             };
             if let Some((uid_validity, uids)) = &before {
                 match self.same_mail(imap, uids, message) {
-                    Ok(Some(uid)) => {
-                        // Put there before: it is the message's copy.
+                    Ok(Some((uid, flags))) => {
+                        // Put there before: it is the message's copy, with the flags it has there
+                        // (what changed here since goes up next).
                         self.arrived.entry(destination.remote.clone()).or_default().push((*uid_validity, uid));
-                        result.placed.push(Placed { message: message.id, to_folder: *to_folder, uid, uid_validity: *uid_validity, flags: given });
+                        result.placed.push(Placed { message: message.id, to_folder: *to_folder, uid, uid_validity: *uid_validity, flags });
                         continue;
                     }
                     Ok(None) => {}
@@ -636,12 +637,15 @@ impl<'a> Push<'a> {
     /// The first of `uids`, messages of the open destination, that is `message` by what it says
     /// of itself (when it was sent, about what, from and to whom), as well as by its
     /// `Message-ID`: another message that merely carries that id is not taken for it. A few are
-    /// looked at. `Err(false)`: the connection is gone.
-    fn same_mail(&mut self, imap: &mut Imap<Stream<'_>>, uids: &[u32], message: &Message) -> Result<Option<u32>, bool> {
+    /// looked at. With its UID come the flags the server has of it. `Err(false)`: the connection
+    /// is gone.
+    fn same_mail(&mut self, imap: &mut Imap<Stream<'_>>, uids: &[u32], message: &Message) -> Result<Option<(u32, RemoteFlags)>, bool> {
         let seen = MailIdentity::of(message);
         for uid in uids.iter().take(MAX_LOOKED_AT) {
             match imap.uid_fetch_header(*uid) {
-                Ok(Some(fetched)) if seen.fits(&mailcraft_mime::parse(fetched.body.as_deref().unwrap_or_default())) => return Ok(Some(*uid)),
+                Ok(Some(fetched)) if seen.fits(&mailcraft_mime::parse(fetched.body.as_deref().unwrap_or_default())) => {
+                    return Ok(Some((*uid, crate::sync::remote_flags(&fetched).at(*uid))));
+                }
                 Ok(_) => {}
                 Err(e) if NetError::from(e.clone()).is_fatal() => return Err(false),
                 Err(_) => {}

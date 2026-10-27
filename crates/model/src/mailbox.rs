@@ -1526,7 +1526,9 @@ impl Mailbox {
     ///
     /// For an IMAP account none of this is pushed to the mail server (a mailbox there stays, and
     /// comes back as a folder with the next synchronisation); the changes still waiting to be
-    /// pushed that mention a removed folder are dropped with it. For a Microsoft account the move
+    /// pushed out of a removed folder are dropped with it, and a move still waiting into one
+    /// becomes a deletion where the server has the message, as for a message removed for good
+    /// (out of another account too, #451). For a Microsoft account the move
     /// into Deleted Items is the change its next run sends (the folder's parent differs from what
     /// the server last said), and a folder removed for good is queued for the server to delete
     /// ([`Queued::DeleteFolder`]), as Outlook does (ADR 0003).
@@ -1572,16 +1574,49 @@ impl Mailbox {
                         .collect();
                     self.queued.extend(deletes);
                 }
+                // Mail moved into them that is still on its way goes for good with them, as a
+                // message deleted for good does (#451): a server that still has it where it came
+                // from deletes it there, and nothing of it waits to be put on a server. What a
+                // Microsoft server has in them goes with the folders there.
+                let on_server: HashSet<&str> =
+                    self.folders.iter().filter(|g| gone.contains(&g.id)).filter_map(|g| g.server.as_ref()).map(|s| s.id.as_str()).collect();
+                let waiting: HashSet<Id> = self
+                    .queued
+                    .iter()
+                    .filter_map(|q| match q {
+                        Queued::PlaceMessage { message, .. } | Queued::CopyMessage { copy: message, .. } => Some(*message),
+                        _ => None,
+                    })
+                    .collect();
+                let moved_in: Vec<(Id, bool)> = self
+                    .messages
+                    .values()
+                    .filter(|m| gone.contains(&m.folder))
+                    .map(|m| (m.id, m.server.as_ref().is_some_and(|s| !on_server.contains(s.folder.as_str())), m.moving_out.is_some()))
+                    .filter(|(id, elsewhere, out)| *elsewhere || *out || waiting.contains(id))
+                    .map(|(id, elsewhere, _)| (id, elsewhere))
+                    .collect();
+                for (id, elsewhere) in moved_in {
+                    self.queue_graph_delete(id, elsewhere);
+                }
+                let messages = &self.messages;
+                for p in &mut self.pending {
+                    if let Pending::Move { account, message, from, uid, to, .. } = p
+                        && gone.contains(to)
+                    {
+                        let m = messages.get(message);
+                        let message_id = m.map(|m| m.message_id.clone()).unwrap_or_default();
+                        let seen = m.filter(|m| !m.message_id.is_empty()).map(|m| MailIdentity::of(m));
+                        *p = Pending::Delete { account: *account, from: std::mem::take(from), uid: *uid, message_id, seen };
+                    }
+                }
                 self.folders.retain(|f| !gone.contains(&f.id));
                 self.messages.retain(|_, m| !gone.contains(&m.folder));
                 for list in &mut self.favorites_from_server {
                     list.folders.retain(|folder| !gone.contains(folder));
                 }
-                self.pending.retain(|p| {
-                    let into = matches!(p, Pending::Move { to, .. } if gone.contains(to));
-                    let out_of = p.account() == f.account && remotes.iter().any(|remote| remote == p.source().0);
-                    !into && !out_of
-                });
+                // What the server deletes with the folders needs no word of its own.
+                self.pending.retain(|p| !(p.account() == f.account && remotes.iter().any(|remote| remote == p.source().0)));
                 Ok(true)
             }
         }
@@ -2180,12 +2215,13 @@ impl Mailbox {
     }
 
     /// What the server of a Microsoft account is to be told when `id` goes for good here: its
-    /// copy is deleted there (and so is the server's copy of one being moved out of the
-    /// account), and a copy of it not yet made there is not made.
-    fn queue_graph_delete(&mut self, id: Id) {
+    /// copy is deleted there (`own`; not when its folder's deletion takes it along), and so is
+    /// the server's copy of one being moved out of the account, and a copy of it not yet made
+    /// there is not made.
+    fn queue_graph_delete(&mut self, id: Id, own: bool) {
         let Some(m) = self.message(id) else { return };
         let mut deletes = Vec::new();
-        if let Some(server) = m.server.as_ref().filter(|s| !s.gone && self.is_graph(m.account)) {
+        if let Some(server) = m.server.as_ref().filter(|s| own && !s.gone && self.is_graph(m.account)) {
             deletes.push(Queued::DeleteMessage { account: m.account, id: server.id.clone(), kept: Some(Box::new(m.clone())) });
         }
         if let Some(out) = &m.moving_out {
@@ -2218,7 +2254,7 @@ impl Mailbox {
             let m = self.message(id).ok_or(not_found("message", id))?;
             (m.folder, m.account, m.uid, m.message_id.clone(), (!m.message_id.is_empty()).then(|| MailIdentity::of(m)))
         };
-        self.queue_graph_delete(id);
+        self.queue_graph_delete(id, true);
         match self.waiting_move(id).and_then(|at| self.pending.get_mut(at)) {
             Some(op) => {
                 if let Pending::Move { account, from, uid, .. } = &mut *op {

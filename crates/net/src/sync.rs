@@ -660,7 +660,7 @@ fn has(flags: &[String], flag: &str) -> bool {
     flags.iter().any(|f| f.eq_ignore_ascii_case(flag))
 }
 
-fn remote_flags(message: &Fetched) -> RemoteFlags {
+pub(crate) fn remote_flags(message: &Fetched) -> RemoteFlags {
     let flags = &message.flags;
     RemoteFlags {
         uid: message.uid,

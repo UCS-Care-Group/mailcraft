@@ -447,6 +447,7 @@ fn removing_a_folder_or_an_account_drops_what_waited_for_it() {
     let b = mb.add_message(Message { uid: 5, ..mail(old, "From the old folder", 2) }).unwrap();
     let c = mb.add_message(Message { uid: 6, ..mail(old, "Deleted there", 3) }).unwrap();
     let d = mb.add_message(Message { uid: 45, ..mail(inbox, "Stays", 4) }).unwrap();
+    let first = mb.message(a).map(|m| m.uid).unwrap();
     mb.move_message(a, projects).unwrap();
     mb.move_message(b, archive).unwrap();
     mb.remove_message(c).unwrap();
@@ -456,11 +457,16 @@ fn removing_a_folder_or_an_account_drops_what_waited_for_it() {
     assert_eq!(mb.delete_folder(projects), Ok(false));
     assert_eq!(mb.pending.len(), 4);
     assert_eq!(mb.delete_folder(projects), Ok(true));
-    assert_eq!(mb.pending.len(), 3);
+    assert_eq!(mb.pending.len(), 4);
     assert_eq!((mb.delete_folder(old), mb.delete_folder(old)), (Ok(false), Ok(true)));
-    // What was to go into Projects, and what was to leave Old or be deleted there, is forgotten;
-    // the rest waits on.
-    assert_eq!(mb.pending, [Pending::Move { account, message: d, from: "INBOX".into(), uid: 45, synced: None, to: archive }]);
+    // What was to leave Old or be deleted there is forgotten: the server's folder goes with it.
+    // What was to go into Projects goes for good with it, deleted where the server has it, as a
+    // message deleted for good is (#451); the rest waits on.
+    assert!(
+        matches!(&mb.pending[..], [Pending::Delete { from, uid, .. }, Pending::Move { message, .. }] if from == "INBOX" && *uid == first && *message == d),
+        "{:?}",
+        mb.pending
+    );
     assert!(mb.message(a).is_none() && mb.message(b).is_some());
     assert!(mb.repair().is_empty());
 

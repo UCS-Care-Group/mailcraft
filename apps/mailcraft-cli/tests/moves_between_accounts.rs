@@ -660,6 +660,8 @@ fn a_copy_whose_answer_was_lost_with_the_connection_is_found_there_and_not_put_t
         let (_, errors) = r.sync_said(work);
         assert!(!errors.is_empty(), "{uidplus}");
         assert_eq!(on(&other, "INBOX"), ["Two"], "{uidplus}");
+        // Marked unread here meanwhile: once found there, the copy is told so too.
+        r.s.run("mail.markUnread", &json!({"ids": [two]})).unwrap();
         // Nothing known of it here yet: Gmail keeps the original.
         r.sync();
         assert!(r.gmail_keeps("Two"), "{uidplus}");
@@ -670,6 +672,9 @@ fn a_copy_whose_answer_was_lost_with_the_connection_is_found_there_and_not_put_t
         assert_eq!(on(&other, "INBOX"), ["Two"], "{uidplus}");
         assert_eq!(r.here("Two"), 1, "{uidplus}");
         assert!(!r.gmail_keeps("Two"), "{uidplus}");
+        let read_there = other.world().mailbox("INBOX").messages.iter().find(|m| subject(m).as_deref() == Some("Two")).map(|m| m.has("\\Seen"));
+        assert_eq!(read_there, Some(false), "{uidplus}");
+        assert!(r.s.mailbox.message(two).is_some_and(|m| !m.read), "{uidplus}");
         assert!(r.s.mailbox.pending.is_empty() && r.s.mailbox.queued.is_empty(), "{uidplus}: {:?} {:?}", r.s.mailbox.pending, r.s.mailbox.queued);
     }
 }

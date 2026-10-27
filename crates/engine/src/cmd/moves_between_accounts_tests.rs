@@ -1119,6 +1119,78 @@ fn removing_the_account_mail_was_moved_into_lets_its_original_go_or_brings_it_ba
     assert!(graph_mail_request(&s, ms).unwrap().messages.is_empty(), "{:?}", graph_mail_request(&s, ms).unwrap().messages);
 }
 
+/// Delete `folder` for good: into Deleted Items first when it isn't there yet.
+fn delete_for_good(s: &mut Session, folder: Id) {
+    while s.mailbox.folder(folder).is_some() {
+        s.run("folder.delete", &json!({"id": folder})).unwrap();
+    }
+}
+
+#[test]
+fn a_folder_deleted_for_good_with_mail_moved_into_it_takes_its_original_along() {
+    // Into a folder of another IMAP account, not put there yet: deleted on the first server, as
+    // a message deleted for good is, and nothing is put on the second.
+    let (mut s, a, _) = imap();
+    let b = second_imap(&mut s);
+    let parent = s.mailbox.folder_of_kind(b, FolderKind::Inbox).unwrap();
+    let projects = s.run("folder.new", &json!({"parent": parent, "name": "Projects"})).unwrap()["id"].as_u64().unwrap();
+    let two = titled(&s, "Two");
+    s.run("mail.move", &json!({"ids": [two], "folder": projects})).unwrap();
+    delete_for_good(&mut s, projects);
+    assert_eq!(ops(&s, a), [delete(2)]);
+    assert!(sync_request(&s, b).unwrap().places.is_empty() && s.mailbox.queued.is_empty(), "{:?}", s.mailbox.queued);
+    // Within the IMAP account, the same.
+    let (mut s, a, _) = imap();
+    let projects = FolderDelta { remote: "Projects".into(), kind: FolderKind::Custom, uid_validity: 12, ..Default::default() };
+    apply_sync(&mut s, SyncResult { account: a, folders: vec![projects], ..Default::default() }).unwrap();
+    let projects = s.mailbox.folders.iter().find(|f| f.remote == "Projects").unwrap().id;
+    let one = titled(&s, "One");
+    s.run("mail.move", &json!({"ids": [one], "folder": projects})).unwrap();
+    delete_for_good(&mut s, projects);
+    assert!(ops(&s, a).contains(&delete(1)), "{:?}", ops(&s, a));
+    // Out of Microsoft into the IMAP account: deleted on Microsoft's server.
+    let (mut s, a, ms) = {
+        let (mut s, a, _) = imap();
+        let ms = microsoft(&mut s, OWNER);
+        let two = titled(&s, "Two");
+        s.run("mail.move", &json!({"ids": [two], "folder": s.mailbox.folder_of_kind(ms, FolderKind::Inbox).unwrap()})).unwrap();
+        placed(&mut s, ms, OWNER, &[made("AAkA2")]);
+        deleted(&mut s, a, &[2]);
+        (s, a, ms)
+    };
+    let projects = FolderDelta { remote: "Projects".into(), kind: FolderKind::Custom, uid_validity: 12, ..Default::default() };
+    apply_sync(&mut s, SyncResult { account: a, folders: vec![projects], ..Default::default() }).unwrap();
+    let projects = s.mailbox.folders.iter().find(|f| f.remote == "Projects").unwrap().id;
+    s.run("mail.move", &json!({"ids": [titled(&s, "Two")], "folder": projects})).unwrap();
+    delete_for_good(&mut s, projects);
+    let asked = graph_mail_request(&s, ms).unwrap().messages;
+    assert!(asked.iter().any(|c| matches!(c, MessageChange::Delete { id } if id == "AAkA2")), "{asked:?}");
+    assert!(sync_request(&s, a).unwrap().places.is_empty());
+    // Within the Microsoft account, not moved on its server yet: deleted where the server has
+    // it. What the server has in the folder goes with the folder there.
+    let mut s = Session::empty();
+    let ms = microsoft(&mut s, OWNER);
+    let folder = |id: &str, name: &str, kind| GraphFolder { id: id.into(), name: name.into(), kind, ..Default::default() };
+    let folders = vec![
+        folder("in", "Inbox", FolderKind::Inbox),
+        folder("pr", "Projects", FolderKind::Custom),
+        folder("de", "Deleted Items", FolderKind::Deleted),
+    ];
+    let listing =
+        GraphMailResult { account: ms, email: OWNER.into(), listing: Some(FolderListing { folders, complete: true }), ..Default::default() };
+    apply_graph_mail(&mut s, listing).unwrap();
+    let (inbox, projects) = (s.mailbox.folder_of_kind(ms, FolderKind::Inbox).unwrap(), s.mailbox.folder_by_server(ms, "pr").unwrap());
+    let on_server = |id: &str, folder: &str| Some(ServerMessage { id: id.into(), folder: folder.into(), ..Default::default() });
+    let receipt =
+        s.mailbox.add_message(Message { folder: inbox, subject: "Receipt".into(), server: on_server("AAkA7", "in"), ..Default::default() }).unwrap();
+    s.mailbox.add_message(Message { folder: projects, subject: "Notes".into(), server: on_server("AAkA8", "pr"), ..Default::default() }).unwrap();
+    s.run("mail.move", &json!({"ids": [receipt], "folder": projects})).unwrap();
+    delete_for_good(&mut s, projects);
+    let asked = graph_mail_request(&s, ms).unwrap().messages;
+    let deletes: Vec<&str> = asked.iter().filter_map(|c| if let MessageChange::Delete { id } = c { Some(id.as_str()) } else { None }).collect();
+    assert_eq!(deletes, ["AAkA7"], "{asked:?}");
+}
+
 #[test]
 fn a_copy_made_on_microsofts_server_doesnt_say_who_got_a_blind_copy() {
     let (mut s, _, kept) = imap();
