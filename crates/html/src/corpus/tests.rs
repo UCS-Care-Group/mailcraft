@@ -790,23 +790,38 @@ fn a_large_newsletter_parses_quickly() {
     assert!(flat(&parse(&double)).len() <= flat(&blocks).len() + 8);
 }
 
+/// The crates a crate of the workspace depends on, as Cargo resolved them in `Cargo.lock`:
+/// whatever the manifest calls them, for whichever platform, for building and for its tests too.
+fn dependencies(krate: &str) -> Vec<String> {
+    let lock = std::fs::read_to_string(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../Cargo.lock")).unwrap();
+    let entry = lock
+        .split("[[package]]")
+        .find(|entry| entry.lines().any(|line| line == format!("name = \"{krate}\"")))
+        .unwrap_or_else(|| panic!("{krate} is not in Cargo.lock"));
+    let mut names: Vec<String> = entry
+        .lines()
+        .skip_while(|line| *line != "dependencies = [")
+        .skip(1)
+        .take_while(|line| *line != "]")
+        // `"name"`, or `"name version"` or `"name version (source)"` when two versions are locked.
+        .filter_map(|line| line.trim().trim_matches(['"', ',']).split(' ').next().map(String::from))
+        .collect();
+    names.sort();
+    names
+}
+
 /// There is no way to fetch anything from here: the crate has no dependency that could, and its
 /// own code names nothing that opens a socket, a file or a process.
 #[test]
 fn this_crate_has_no_way_to_fetch_anything() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
-    let manifest = std::fs::read_to_string(root.join("Cargo.toml")).unwrap();
-    let dependencies: Vec<&str> = manifest
-        .lines()
-        .skip_while(|l| l.trim() != "[dependencies]")
-        .skip(1)
-        .take_while(|l| !l.trim_start().starts_with('['))
-        .filter_map(|l| l.split('=').next())
-        .map(str::trim)
-        .filter(|l| !l.is_empty() && !l.starts_with('#'))
-        .collect();
-    // `mailcraft-link` only reads an address (and has no dependency of its own): it opens nothing.
-    assert_eq!(dependencies, ["mailcraft-link", "serde"], "a new dependency: can it reach the network?");
+    let why = "a new dependency: can it reach the network?";
+    assert_eq!(dependencies("mailcraft-html"), ["mailcraft-link", "mailcraft-names", "proptest", "serde"], "{why}");
+    // `mailcraft-link` only reads an address and `mailcraft-names` only cleans text, and neither
+    // brings in a crate that could fetch. (`proptest` is a dev-dependency in each manifest; the
+    // lock lists both kinds alike.)
+    assert_eq!(dependencies("mailcraft-link"), ["mailcraft-names", "proptest"], "{why}");
+    assert_eq!(dependencies("mailcraft-names"), ["proptest"], "{why}");
     let mut files = vec![root.join("src")];
     let mut checked = 0;
     while let Some(path) = files.pop() {
