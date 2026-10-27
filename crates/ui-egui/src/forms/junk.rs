@@ -210,6 +210,7 @@ impl JunkForm {
                         .desired_width(width)
                         .hint_text(tl!("someone@example.org or @example.org")),
                 );
+                let resp = crate::text_menu::field(resp);
                 if std::mem::take(&mut self.focus) {
                     resp.request_focus();
                 }

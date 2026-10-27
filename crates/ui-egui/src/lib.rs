@@ -39,6 +39,8 @@ macro_rules! tln {
 mod account_setup;
 mod advanced_search;
 pub mod agent_gate;
+#[cfg(test)]
+mod agent_leaves_tests;
 pub mod alerts;
 pub mod approval;
 mod attachment_open;
@@ -62,6 +64,8 @@ mod drag_pointer;
 #[cfg(test)]
 mod drag_pointer_tests;
 pub mod favorites_sync;
+#[cfg(test)]
+mod field_drag_tests;
 pub mod files;
 mod folder_properties;
 pub mod forms;
@@ -96,6 +100,9 @@ mod on_top_tests;
 mod open_shared;
 #[cfg(test)]
 mod open_shared_tests;
+mod opened_message;
+#[cfg(test)]
+mod opened_message_tests;
 pub mod opening;
 pub mod people_view;
 pub mod reading;
@@ -127,6 +134,11 @@ pub mod task_sync;
 #[cfg(test)]
 mod task_sync_tests;
 pub mod tasks_view;
+mod text_menu;
+#[cfg(test)]
+mod text_menu_gesture_tests;
+#[cfg(test)]
+mod text_menu_tests;
 pub mod theme;
 pub mod unconfirmed;
 pub mod updates;
@@ -310,8 +322,9 @@ pub struct Services {
     /// UI. Absent in the browser.
     pub admin_consent: Option<Box<dyn Fn(AdminConsentRequest) -> Receiver<AdminConsentAnswer>>>,
     /// Desktop: the system's clipboard for what egui's can't carry, HTML: the body of a message
-    /// being written copies its selection as HTML and text, and pastes HTML when there is some.
-    /// Absent in the browser and the tests: copying and pasting are then text.
+    /// being written copies its selection as HTML and text, and pastes HTML when there is some;
+    /// and the text Paste in a text's menu takes (`text_menu`). Absent in the browser and the
+    /// tests: copying and pasting are then text, and a text's menu has no Paste to offer.
     pub clipboard: Option<Box<dyn RichClipboard>>,
     /// Desktop: what Help › Copy Diagnostics puts on the clipboard (`ui.copyDiagnostics`): the
     /// version, the platform and the end of the logs with addresses, names, paths, hosts, links,
@@ -374,6 +387,33 @@ pub trait RichClipboard {
     fn image(&self) -> Option<Vec<u8>> {
         None
     }
+    /// The text on the clipboard, all of it, for Paste in a text's menu (`text_menu`): a key press
+    /// has the system read it, a menu item has nothing to. The menu then does with it what Ctrl+V
+    /// does with what the system read.
+    fn text(&self) -> Option<String> {
+        None
+    }
+}
+
+/// The largest side of a picture taken from the clipboard, in pixels.
+pub const MAX_PICTURE_SIDE: usize = 4096;
+
+/// A picture from the clipboard, RGBA pixels `width` by `height`, as PNG: what the clipboard's
+/// picture is when it is pasted, by a text's menu (`RichClipboard::image`) or by Ctrl+V
+/// (`egui::Event::PasteImage`). Nothing when it is no picture of a size that is taken.
+pub fn clipboard_picture_png(width: usize, height: usize, rgba: &[u8]) -> Option<Vec<u8>> {
+    if width == 0
+        || height == 0
+        || width > MAX_PICTURE_SIDE
+        || height > MAX_PICTURE_SIDE
+        || rgba.len() != width.checked_mul(height)?.checked_mul(4)?
+    {
+        return None;
+    }
+    let mut out = Vec::new();
+    let encoder = image::codecs::png::PngEncoder::new(&mut out);
+    image::ImageEncoder::write_image(encoder, rgba, u32::try_from(width).ok()?, u32::try_from(height).ok()?, image::ExtendedColorType::Rgba8).ok()?;
+    Some(out)
 }
 
 /// Files delivered asynchronously.
@@ -982,6 +1022,18 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         r#"{"window": number} | {"message": number} | {"event": number} | {"all": true} (default: the one in front) — closes without asking, also an appointment with unsaved changes"#,
     ),
     (
+        "ui.moveWindowMessage",
+        "Move to Folder",
+        "Window",
+        r#"{"folder": number, "window"?: number (default: the message-file window in front)} — files the message of a window that shows a message file (an .eml the system opened: it is in no folder until now) into `folder`; the mailbox gains that one message and the window is about it from then on. Answers {"window", "message"}. Never for an agent"#,
+    ),
+    (
+        "ui.saveWindowMessage",
+        "Save Message File As",
+        "Window",
+        r#"{"window"?: number (default: the message-file window in front), "path"?: string} — writes the file of a window that shows a message file to `path`; without one, answers {"name", "bytes", "data" (base64)}. Never for an agent"#,
+    ),
+    (
         "ui.eventWindow",
         "Appointment Window",
         "Window",
@@ -1401,6 +1453,8 @@ pub struct MailApp {
     pub(crate) alerts: alerts::State,
     /// The mailbox the window starts with is still being read ([`opening`]).
     pub(crate) opening: Option<opening::Opening>,
+    /// What the window takes up once it shows its mailbox ([`opening::after`]).
+    pub(crate) later: opening::Later,
     /// Another mailbox being read in the background, to take the place of this one ([`opening`]).
     pub(crate) reading_ahead: Option<opening::ReadAhead>,
     /// `file.open` runs for a mailbox read in the background: it isn't read again.
@@ -1552,6 +1606,7 @@ impl MailApp {
             updates: Default::default(),
             alerts: Default::default(),
             opening: None,
+            later: Default::default(),
             reading_ahead: None,
             swapping: false,
         }
@@ -1968,7 +2023,10 @@ impl MailApp {
             "ui.focusSearch" => {
                 self.search_focus = true;
                 self.ui.backstage = false;
-                let _ = self.session.run("view.mail", &json!({}));
+                // People searches its own contacts; Calendar's and Tasks' box searches the mail (#555).
+                if self.session.view.module != mailcraft_engine::Module::People {
+                    let _ = self.session.run("view.mail", &json!({}));
+                }
                 Ok(json!({}))
             }
             "ui.copyDiagnostics" => {
@@ -3458,7 +3516,7 @@ impl MailApp {
 
     /// Open what the system handed MailCraft (the command line, a later start, the Finder): a
     /// `mailto:` link starts a new message, a message file opens read-only in a window of its own
-    /// (kept in the local folder Imported, once: `file.import`'s `opened`), a calendar or contact file is imported only
+    /// (filed nowhere until the owner says so: Move to Folder, #515), a calendar or contact file is imported only
     /// once the owner says so, and a mailbox or a folder of mail as [`open_path`](Self::open_path).
     pub fn open_from_system(&mut self, what: &str) {
         // Handed over while the mailbox opens: opened once it is.
@@ -3576,6 +3634,7 @@ impl MailApp {
             opening::logic(self, ctx);
             return;
         }
+        opening::after(self, ctx);
         // Before anything can start or end a Send/Receive in this frame ([`alerts`]).
         alerts::tick(self, ctx);
         self.drain_control(ctx);
@@ -3851,6 +3910,13 @@ impl MailApp {
         failed
     }
 
+    /// Whether File › New or Open would wait for the background saver to write the mailbox first
+    /// ([`Self::through_saver`]), and run later.
+    pub(crate) fn waits_for_save(&self) -> bool {
+        let (Some(saver), Some(_)) = (&self.services.saver, &self.session.path) else { return false };
+        !self.running_after_save && (self.session.rev() != self.saved_rev || saver.progress().is_some())
+    }
+
     /// With a background saver keeping the mailbox file, what writes that file doesn't do it on
     /// the window's thread, where it would wait for whatever the saver is in the middle of (the
     /// first save after a large download) and then do the writing itself: Save hands the mailbox
@@ -4018,6 +4084,9 @@ impl MailApp {
         }
         let t = theme::Tokens::get(&ctx);
         self.hit.clear();
+        // What was chosen in a text's menu, for a text of the main window, before anything reads
+        // the input.
+        let menus = text_menu::deliver(&ctx);
         // (Before the shortcuts take their keys.)
         self.by_hand = owner_input(&ctx);
         // The computer may have been carried to another time zone since the last frame: the
@@ -4062,6 +4131,8 @@ impl MailApp {
         sync_panel::show(self, &ctx);
         dialogs::show(self, &ctx);
         reminders::show(self, &ctx);
+        // What was chosen in a text's menu, once everything that has one is drawn.
+        text_menu::carry_out(self, &ctx);
         // Over everything: what an agent wants that needs the owner.
         agent_gate::show(self, &ctx);
         // While messages are dragged: the pointer for what is under it (#430).
@@ -4077,6 +4148,7 @@ impl MailApp {
         reading::images::Pictures::of(&ctx).lock().unwrap_or_else(|e| e.into_inner()).release_unseen(&ctx);
         self.frame_ms = now_ms() - t0;
         self.report_dirty();
+        text_menu::finish(&ctx, menus);
     }
 
     /// The window's close button. MailCraft saves by itself, so closing only waits for a message
@@ -4090,7 +4162,8 @@ impl MailApp {
         if self.opening.is_some() {
             return true;
         }
-        if self.session.compose.as_ref().is_some_and(|c| c.dirty) {
+        // (Its saved draft gone, what is written is saved nowhere: #494.)
+        if self.session.compose.as_ref().is_some_and(|c| c.dirty || mailcraft_engine::cmd::compose::draft_gone(&self.session, c)) {
             self.dialog = Some(dialogs::leaving("quit", json!({})));
             return false;
         }
@@ -4117,7 +4190,10 @@ impl MailApp {
             if unsaved {
                 saver.submit(path, &self.session.mailbox, rev);
             }
-            if unsaved || saver.progress().is_some() {
+            // (A sweep of the content folder writes nothing of the mailbox: it isn't waited for,
+            // #586, and is left where it got to.)
+            let writing = saver.progress().is_some_and(|p| p.stage != mailcraft_engine::io::SaveStage::Sweeping);
+            if unsaved || writing {
                 self.closing_after_save = Some(rev);
                 self.quit_requested = false;
                 // Closing waits for the save now: an Open that waited for it too gives way.

@@ -176,6 +176,34 @@ fn ids_named_wrongly_are_refused_whatever_is_selected() {
 }
 
 #[test]
+fn a_null_id_is_refused_whatever_is_selected() {
+    let mut s = session();
+    let [a, b, _] = three(&mut s);
+    select(&mut s, &[a]);
+    for command in ["mail.forward", "mail.forwardAsAttachment"] {
+        // What a look-up that found nothing gives names no message (#512): the selected one isn't
+        // taken instead.
+        for (params, says) in [
+            (json!({"id": null}), "`id` is null"),
+            (json!({"ids": null}), "`ids` is null"),
+            (json!({"id": null, "ids": [b]}), "`id` is null"),
+            (json!({"id": b, "ids": null}), "`ids` is null"),
+            (json!({"id": null, "ids": null}), "`id` is null"),
+        ] {
+            let e = s.run(command, &params).unwrap_err().to_string();
+            assert!(e.contains(says), "{command} {params}: {e}");
+            assert!(s.compose.is_none(), "{command} {params}");
+        }
+        // Left out, they mean the selection, as ever.
+        for params in [json!({}), json!(null)] {
+            s.run(command, &params).unwrap();
+            assert_eq!(s.compose.as_ref().unwrap().source, Some(a), "{command} {params}");
+            s.compose = None;
+        }
+    }
+}
+
+#[test]
 fn several_have_no_subject_for_the_owner_to_write_one() {
     let mut s = session();
     let inbox = by_subject(&s, "Release checklist");

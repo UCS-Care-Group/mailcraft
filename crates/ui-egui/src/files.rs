@@ -251,10 +251,6 @@ pub(crate) fn dropped_path(app: &mut MailApp, path: &str) {
 /// The most calendar and contact files waiting to be asked about; more are left alone.
 const MOST_WAITING: usize = 32;
 
-/// Message files the system asks to open get a window each until this many windows are open; the
-/// ones after are only selected in the list.
-pub(crate) const MOST_WINDOWS: usize = 32;
-
 /// [`MailApp::open_from_system`].
 pub(crate) fn from_system(app: &mut MailApp, what: &str) {
     use mailcraft_engine::io::Format;
@@ -264,19 +260,12 @@ pub(crate) fn from_system(app: &mut MailApp, what: &str) {
     let path = local_path(what);
     match Format::from_extension(&path) {
         Some(Format::Eml) => {
-            // Into the local folder Imported, as a received message, or the copy already there
-            // (`file.import`'s `opened`): never the folder in view, never a draft.
-            let r = match app.run("file.import", json!({"path": path, "opened": true})) {
-                Ok(r) => r,
-                Err(e) => return app.status(e),
-            };
+            // Read in a window of its own and filed nowhere (#515): the owner keeps it with Move
+            // to Folder or Save As, and closing the window leaves nothing in the mailbox.
             app.ui.backstage = false;
-            let Some(id) = r.get("opened").and_then(Value::as_u64) else { return };
-            let readable = app.session.mailbox.message(id).is_some_and(|m| !m.draft);
-            // Read in a window of its own where there are windows, up to a bound; else it stays
-            // selected in the list.
-            if readable && app.windows.count() < MOST_WINDOWS {
-                let _ = app.run_or_else("ui.openWindow", json!({"message": id}));
+            let opened = crate::opened_message::read(&path).and_then(|o| app.windows.add_file(o.message, o.bytes));
+            if let Err(e) = opened {
+                app.status(e);
             }
         }
         Some(Format::Ics | Format::Vcf) => {
@@ -289,6 +278,24 @@ pub(crate) fn from_system(app: &mut MailApp, what: &str) {
         }
         _ => dropped_path(app, &path),
     }
+}
+
+/// Save As in the window of a message file ([`crate::opened_message`]): the file's own bytes,
+/// where the owner says (a download in the browser).
+pub(crate) fn save_opened(app: &mut MailApp, window: u64, m: &mailcraft_model::Message, bytes: &[u8]) {
+    let name = mailcraft_engine::cmd::file::eml_name(m);
+    if let Some(save) = &app.services.download {
+        match save(&name, bytes) {
+            Ok(()) => app.status(crate::i18n::fmt(tl!("Downloaded {name}"), &[("name", &name)])),
+            Err(e) => app.status(e),
+        }
+        return;
+    }
+    let _ = ask(
+        app,
+        FileDialogRequest::Save { name },
+        AfterPick::Export { command: "ui.saveWindowMessage".to_string(), params: json!({"window": window}) },
+    );
 }
 
 /// Whether `text` is a `mailto:` link, by its scheme.

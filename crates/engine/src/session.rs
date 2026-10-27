@@ -601,6 +601,11 @@ pub struct Compose {
     pub picture_seq: u32,
     /// Changed since it was opened or last saved.
     pub dirty: bool,
+    /// The owner, not only an agent, changed it since it was opened (#494): an agent asks the
+    /// owner before it closes the message or puts another in its place, saved or not, until it
+    /// is closed. Never read from a file: only [`Session::run`] sets it.
+    #[serde(skip)]
+    pub owner_changed: bool,
 }
 
 fn is_zero_u32(n: &u32) -> bool {
@@ -868,6 +873,10 @@ pub struct Session {
     /// Set while a command an agent asked for runs (with what the owner allowed it): what the
     /// command did is checked against that ([`crate::agent`]), and undone when it oversteps.
     pub agent: Option<Vec<crate::agent::Class>>,
+    /// The appointments, contacts and tasks the owner is changing in the window and hasn't saved,
+    /// set by the window while an agent's command runs: a command that takes one away is undone,
+    /// as the owner wasn't asked about it (#494). Never saved.
+    pub owner_changing: Vec<Id>,
     /// A copy of the mailbox the window had the host write off its own thread before switching an
     /// account to Microsoft Graph (the account, where the copy is): `account.graphSwitch` takes it
     /// instead of writing one itself ([`crate::cmd::graph_switch::prepare_backup`]). Set only by
@@ -1003,6 +1012,7 @@ impl Session {
             graph_listed_short: Default::default(),
             jmap_read: Default::default(),
             agent: None,
+            owner_changing: Vec::new(),
             graph_switch_backup: None,
             staged_tree: None,
             server_search: Default::default(),
@@ -1662,6 +1672,87 @@ impl Session {
         loaded.map(|_| true)
     }
 
+    /// Take in bodies an opening left on disk and the host read after the window showed
+    /// (`store::bodies_later`, #519): each goes into its message as the opening would have put it
+    /// there, if the message still keeps that body on disk and nothing has brought it in or found
+    /// it missing meanwhile. Not a change to the mailbox, and not counted as content the owner
+    /// brought in (the opening's bodies never are). Returns how many messages took one.
+    pub fn take_bodies(&mut self, bodies: Vec<BodyRead>) -> usize {
+        // ponytail: each message taken is a new Arc, so the first save prepares it again on the
+        // saver's thread (its record, and the hash of a body over 1 KB): up to the budget's bodies,
+        // 256 MB, once, off the window's thread, as `load_where` has always done (0.32 s for
+        // 11,617 bodies in `store_bench_tests.rs`, which a close waits for when the first change
+        // comes just before it). Re-point the file's entries at the new messages if that matters.
+        let mut took = 0;
+        for body in bodies {
+            let Some(m) = self.mailbox.messages.get(&body.id) else { continue };
+            // (A text found missing says so in its place, which is never written over; its HTML
+            // still comes, as an opening reads it beside a missing text.)
+            let Some(kept) = m.kept.as_deref().copied() else { continue };
+            let text = body.text.filter(|(r, _)| kept.text == Some(*r) && m.body.text.is_empty());
+            let html = body.html.filter(|(r, _)| kept.html == Some(*r) && m.body.html.is_none());
+            if text.is_none() && html.is_none() {
+                continue;
+            }
+            let mut copy = Message::clone(m);
+            let mut kept = kept;
+            if let Some((_, bytes)) = text {
+                copy.body.text = text_of(&bytes);
+                kept.text = None;
+            }
+            if let Some((_, bytes)) = html {
+                copy.body.html = Some(text_of(&bytes));
+                kept.html = None;
+            }
+            // (The kept HTML goes with the text as it now reads.)
+            kept.text_hash = mailcraft_model::text_hash(&copy.body.text);
+            copy.kept = (!kept.is_empty()).then(|| Box::new(kept));
+            self.put_message(body.id, copy);
+            took += 1;
+        }
+        if took > 0 {
+            self.loads += 1;
+        }
+        took
+    }
+
+    /// Bodies kept on disk whose files were found missing after the window showed
+    /// (`store::check_parts`, #519) read from then on as an opening that looked for them at once
+    /// has them: the text says it is unavailable, and nothing asks for them again. Returns how
+    /// many messages were marked.
+    pub fn mark_unavailable(&mut self, missing: &[ContentRef]) -> usize {
+        let missing: HashSet<ContentRef> = missing.iter().copied().collect();
+        if missing.is_empty() {
+            return 0;
+        }
+        let gone = |r: Option<ContentRef>| r.is_some_and(|r| missing.contains(&r));
+        let marked: Vec<Id> = self
+            .mailbox
+            .messages
+            .iter()
+            .filter(|(_, m)| {
+                m.kept.as_deref().is_some_and(|k| !k.failed && ((gone(k.text) && m.body.text.is_empty()) || (gone(k.html) && m.body.html.is_none())))
+            })
+            .map(|(id, _)| *id)
+            .collect();
+        for id in &marked {
+            let Some(m) = self.mailbox.messages.get(id) else { continue };
+            let mut copy = Message::clone(m);
+            if let Some(kept) = copy.kept.as_deref_mut() {
+                kept.failed = true;
+                if gone(kept.text) && copy.body.text.is_empty() {
+                    copy.body.text = crate::store_placeholder().to_string();
+                }
+                kept.text_hash = mailcraft_model::text_hash(&copy.body.text);
+            }
+            self.put_message(*id, copy);
+        }
+        if !marked.is_empty() {
+            self.loads += 1;
+        }
+        marked.len()
+    }
+
     /// Put `m`, message `id` with more or less of its content in memory, in the place of the
     /// one the mailbox has. The one it replaces may still be held by an Undo or Redo step: the
     /// content it keeps on disk is kept from the sweep while it is (`store::keep_held`). In a command,
@@ -2060,8 +2151,42 @@ impl Session {
         cur
     }
 
+    /// Whether undoing the last step (or redoing, `redo`) would take away the event, contact or
+    /// task `item` as it is now (#494: what the owner is changing in a window or the dialog goes
+    /// with it).
+    pub fn undo_removes(&self, redo: bool, item: Id) -> bool {
+        let Some(step) = (if redo { self.redo.last() } else { self.history.last() }) else { return false };
+        let uid = |m: &mailcraft_model::Mailbox| m.event(item).map(|e| e.uid.clone());
+        let event = uid(&self.mailbox).is_some() && uid(&step.mailbox) != uid(&self.mailbox);
+        event || gone_in(&self.mailbox, &step.mailbox, item)
+    }
+
+    /// Whether undoing the last step (or redoing, `redo`) would put back another version of the
+    /// message `message`, or take it away (#494: the draft of the message the owner is writing).
+    pub fn undo_changes_message(&self, redo: bool, message: Id) -> bool {
+        let Some(step) = (if redo { self.redo.last() } else { self.history.last() }) else { return false };
+        match (step.mailbox.messages.get(&message), self.mailbox.messages.get(&message)) {
+            (Some(then), Some(now)) => !Arc::ptr_eq(then, now) && then != now,
+            (then, now) => then.is_some() != now.is_some(),
+        }
+    }
+
+    /// The drafts that undoing the last step (or redoing, `redo`) would take away, or put back
+    /// as they were before (#494): what was written in them since would be lost with it.
+    pub fn undo_drafts(&self, redo: bool) -> Vec<Id> {
+        let Some(step) = (if redo { self.redo.last() } else { self.history.last() }) else { return Vec::new() };
+        let then = &step.mailbox.messages;
+        self.mailbox
+            .messages
+            .iter()
+            .filter(|(id, m)| m.draft && then.get(*id).is_none_or(|t| !Arc::ptr_eq(t, m) && t != *m))
+            .map(|(id, _)| *id)
+            .collect()
+    }
+
     /// What undoing (`redo`: redoing) would put back besides mail and the like: the accounts, or
-    /// the rules and signatures, as they were. For the agent gate, which asks the owner first.
+    /// the rules and signatures, as they were; or a draft, taken away or as it was before. For
+    /// the agent gate, which asks the owner first.
     pub fn undo_reverts(&self, redo: bool) -> Option<crate::agent::Class> {
         use crate::agent::Class;
         let step = if redo { self.redo.last() } else { self.history.last() }?;
@@ -2086,7 +2211,7 @@ impl Session {
             || now.tasks.keys().any(|k| !to.tasks.contains_key(k))
             || now.calendars.iter().any(|c| !to.calendars.iter().any(|t| t.id == c.id))
             || now.categories.iter().any(|c| !to.categories.iter().any(|t| t.name.to_lowercase() == c.name.to_lowercase()));
-        if gone {
+        if gone || !self.undo_drafts(redo).is_empty() {
             return Some(Class::Delete);
         }
         if to.rules != now.rules || to.signatures != now.signatures || to.junk != now.junk || to.junk_accounts != now.junk_accounts {
@@ -2172,15 +2297,29 @@ impl Session {
             }
         };
         // An agent's command that did more than it was allowed (mail into an Outbox, messages
-        // gone for good) is undone, whatever path it took there.
+        // gone for good, an appointment the owner is changing taken away) is undone, whatever
+        // path it took there.
         let result = match (result, &self.agent) {
+            (Ok(_), Some(_)) if self.owner_changing.iter().any(|e| gone_in(&before.mailbox, &self.mailbox, *e)) => Err(CmdError::Failed(format!(
+                "`{id}` would take away an appointment, a contact or a task the owner is changing in the window and hasn't saved, and the owner wasn't asked about that; nothing was changed. Try again once the owner has saved or closed it"
+            ))),
             (Ok(_), Some(allow)) if let Some(c) = crate::agent::overstep(&before.mailbox, &self.mailbox, allow) => {
-                Err(CmdError::Failed(crate::agent::needs_owner(id, c, "do more than an agent is allowed to; nothing was changed")))
+                Err(CmdError::Failed(crate::agent::needs_owner(id, c, false, "do more than an agent is allowed to; nothing was changed")))
             }
             (r, _) => r,
         };
         match &result {
             Ok(_) => {
+                // A message being written that the owner (or a script of theirs) changed is theirs
+                // until it is closed (#494); an agent's own changes don't make it the agent's.
+                if self.agent.is_none()
+                    && let Some(c) = self.compose.as_mut()
+                    && c.dirty
+                    && !c.owner_changed
+                    && !compose.as_ref().is_some_and(|before| as_it_was(before, c))
+                {
+                    c.owner_changed = true;
+                }
                 // Another list (a folder, a tab, a search) keeps selected only what it shows (#485).
                 if list_before != self.list_of() {
                     self.keep_shown();
@@ -2230,6 +2369,20 @@ impl Session {
         }
         result
     }
+}
+
+/// Whether the event, contact or task `item` that `before` has is gone from `after`.
+fn gone_in(before: &Mailbox, after: &Mailbox, item: Id) -> bool {
+    let there = |m: &Mailbox| m.event(item).is_some() || m.contact(item).is_some() || m.task(item).is_some();
+    there(before) && !there(after)
+}
+
+/// Whether the message being written is `before` but for where the cursor is (#494): moving it,
+/// or selecting, isn't writing in it.
+fn as_it_was(before: &Compose, now: &Compose) -> bool {
+    let at = now.body.selection();
+    let mut moved = before.clone();
+    moved.body.select(at.anchor, at.head).is_ok() && moved == *now
 }
 
 /// Commands that remove what is kept of an account on this computer (#177): they leave nothing
@@ -2289,6 +2442,33 @@ fn loaded_into(m: &mut Message, fetch: impl Fn(Part) -> Result<Arc<Vec<u8>>, Cmd
 fn in_memory(m: &Message) -> u64 {
     let body = m.body.text.len().saturating_add(m.body.html.as_ref().map_or(0, String::len));
     m.attachments.iter().fold(body as u64, |n, a| n.saturating_add(a.data.len() as u64))
+}
+
+/// A body an opening for a window left on disk though the memory budget holds it, to be read
+/// once the window shows (`store::bodies_later`, #519): its text and HTML as the message names them.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct BodyLater {
+    pub id: Id,
+    pub text: Option<ContentRef>,
+    pub html: Option<ContentRef>,
+}
+
+/// A [`BodyLater`] read: each part with its bytes, or left out when it couldn't be read
+/// ([`Session::take_bodies`]).
+#[derive(Clone, Debug, Default)]
+pub struct BodyRead {
+    pub id: Id,
+    pub text: Option<(ContentRef, Vec<u8>)>,
+    pub html: Option<(ContentRef, Vec<u8>)>,
+}
+
+/// The content files an opening for a window left unlooked for, looked for once it shows
+/// (`store::check_parts`, #519): how many parts are missing (a file named by two parts counts
+/// twice), and which files.
+#[derive(Clone, Debug, Default)]
+pub struct Missing {
+    pub count: usize,
+    pub refs: Vec<ContentRef>,
 }
 
 /// Bytes as the text they hold; what isn't UTF-8 is read as well as it can be.

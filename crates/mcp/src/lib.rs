@@ -46,6 +46,13 @@ impl Headless {
     }
 
     fn run(&mut self, id: &str, params: &Value) -> Result<Value, String> {
+        // What the window would lose (`unsaved`) is the window's to say (#494); headless there is
+        // none, and nothing is the owner's.
+        let mut params = params.clone();
+        if let Some(fields) = params.as_object_mut() {
+            fields.remove("unsaved");
+        }
+        let params = &params;
         match agent::check(&self.session, id, params, &self.allow) {
             Verdict::Run => {
                 self.session.agent = Some(self.allow.clone());
@@ -53,7 +60,10 @@ impl Headless {
                 self.session.agent = None;
                 r
             }
-            Verdict::Ask(class, what) => Err(agent::needs_owner(id, class, &what)),
+            Verdict::Ask(class, what) => {
+                let asked = matches!(agent::classify(&self.session, id, params), agent::Access::Asked(_));
+                Err(agent::needs_owner(id, class, asked, &what))
+            }
             Verdict::Refuse(why) => Err(why),
         }
     }

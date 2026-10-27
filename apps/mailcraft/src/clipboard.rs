@@ -3,7 +3,8 @@
 //! The system's clipboard with HTML on it, for the body of a message being written
 //! ([`mailcraft_ui_egui::Services::clipboard`]): a copy puts the selection there as HTML of the
 //! set and as text, and a paste takes HTML when the clipboard has some (the engine reduces it to
-//! the set: nothing in it runs or is fetched). egui's own clipboard carries text only.
+//! the set: nothing in it runs or is fetched). egui's own clipboard carries text only. Paste in a
+//! text's menu, for which no key press has the system hand over its text, reads the text here.
 //!
 //! Through `arboard`, which egui's window layer already uses: the Windows clipboard ("HTML
 //! Format"), the macOS pasteboard (`public.html`), and on Linux and FreeBSD the Wayland
@@ -15,7 +16,7 @@
 
 use std::cell::RefCell;
 
-use mailcraft_ui_egui::RichClipboard;
+use mailcraft_ui_egui::{RichClipboard, clipboard_picture_png as png};
 
 /// The most HTML one paste takes, in bytes (the engine's own limit).
 const MAX_HTML: usize = 4 << 20;
@@ -58,24 +59,16 @@ impl RichClipboard for Board {
         (!html.trim().is_empty() && html.len() <= MAX_HTML).then(|| html.to_string())
     }
 
+    fn text(&self) -> Option<String> {
+        // All of it, as Ctrl+V has it: what is too much for a message is refused where the paste
+        // is made (`edit.paste`), the same for both.
+        self.with(|b| b.get_text()).ok()
+    }
+
     fn image(&self) -> Option<Vec<u8>> {
         let image = self.with(|b| b.get_image()).ok()?;
         png(image.width, image.height, &image.bytes)
     }
-}
-
-/// The largest side of a picture taken from the clipboard, in pixels.
-const MAX_SIDE: usize = 4096;
-
-/// RGBA pixels as PNG; nothing when they are not a picture of a size that is taken.
-fn png(width: usize, height: usize, rgba: &[u8]) -> Option<Vec<u8>> {
-    if width == 0 || height == 0 || width > MAX_SIDE || height > MAX_SIDE || rgba.len() != width.checked_mul(height)?.checked_mul(4)? {
-        return None;
-    }
-    let mut out = Vec::new();
-    let encoder = image::codecs::png::PngEncoder::new(&mut out);
-    image::ImageEncoder::write_image(encoder, rgba, u32::try_from(width).ok()?, u32::try_from(height).ok()?, image::ExtendedColorType::Rgba8).ok()?;
-    Some(out)
 }
 
 /// The HTML itself out of what a clipboard hands over. Windows' "HTML Format" can come with its
@@ -98,6 +91,7 @@ fn fragment(html: &str) -> &str {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use mailcraft_ui_egui::MAX_PICTURE_SIDE as MAX_SIDE;
 
     #[test]
     fn a_picture_on_the_clipboard_is_kept_as_png() {

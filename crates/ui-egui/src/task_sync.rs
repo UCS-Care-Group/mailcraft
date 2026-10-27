@@ -87,13 +87,18 @@ pub(crate) enum Permission {
     Declined,
     /// Asked, and no: why, in a few words.
     Refused(String),
+    /// Microsoft no longer took the sign-in the job had (its refresh token's [`fingerprint`]),
+    /// for mail either (#520). Ask again (File › Info) is one way back; a new sign-in for mail is
+    /// the other, and the next look runs a job again by itself.
+    SignInOver(u64),
 }
 
 /// The state of the to-do jobs, in the window.
 #[derive(Default)]
 pub struct TaskSync {
-    /// The job under way: for which account, since when, and the answer to come.
-    rx: Option<(Id, f64, Receiver<TasksResult>)>,
+    /// The job under way: for which account, since when, the [`fingerprint`] of the refresh
+    /// token it was given, and the answer to come.
+    rx: Option<(Id, f64, u64, Receiver<TasksResult>)>,
     /// When each account's to-dos were last asked for, and the failures since the last answer.
     checked: HashMap<Id, f64>,
     failures: HashMap<Id, (u32, f64)>,
@@ -118,9 +123,15 @@ impl TaskSync {
 }
 
 impl MailApp {
-    /// Whether the to-dos of `account` wait for the owner's permission.
+    /// Whether the to-dos of `account` wait for the owner's permission, or for a new sign-in.
     fn tasks_blocked(&self, account: Id) -> bool {
-        matches!(self.tasks.perm.get(&account), Some(Permission::Needed | Permission::Asking | Permission::Declined | Permission::Refused(_)))
+        match self.tasks.perm.get(&account) {
+            Some(Permission::Needed | Permission::Asking | Permission::Declined | Permission::Refused(_)) => true,
+            Some(Permission::SignInOver(over)) => {
+                !self.tokens.get(&account).is_some_and(|t| !t.refresh.is_empty() && fingerprint(&t.refresh) != *over)
+            }
+            _ => false,
+        }
     }
 
     /// Look whether any account's to-dos are due, and start a job when they are. Called every
@@ -138,6 +149,10 @@ impl MailApp {
         for account in tasks_remote::task_accounts(&self.session.mailbox) {
             if self.tasks_blocked(account) {
                 continue;
+            }
+            if matches!(self.tasks.perm.get(&account), Some(Permission::SignInOver(_))) {
+                // Signed in again since (for mail, say): a job finds out where the to-dos stand.
+                self.tasks.perm.remove(&account);
             }
             let rev = self.session.rev();
             if self.tasks.ready.as_ref().is_none_or(|(at, _)| *at != rev) {
@@ -196,9 +211,10 @@ impl MailApp {
             return false;
         }
         let Ok(upload) = tasks_remote::task_upload(&self.session.mailbox, account) else { return false };
+        let given = fingerprint(&refresh);
         let job = TasksJob { account: owner, oauth: self.effective_oauth(oauth), refresh, upload, cancel: Default::default() };
         let Some(graph) = &self.services.graph_tasks else { return false };
-        self.tasks.rx = Some((account, now, graph(job)));
+        self.tasks.rx = Some((account, now, given, graph(job)));
         self.tasks.checked.insert(account, now);
         true
     }
@@ -206,8 +222,8 @@ impl MailApp {
     /// The job answered: keep the refresh token, take in what the server made of the changes, and
     /// what it has. (Public for a host's tests.)
     pub fn poll_tasks(&mut self) {
-        let Some((account, started, rx)) = &self.tasks.rx else { return };
-        let (account, started) = (*account, *started);
+        let Some((account, started, given, rx)) = &self.tasks.rx else { return };
+        let (account, started, given) = (*account, *started, *given);
         let result = match rx.try_recv() {
             Ok(result) => result,
             Err(std::sync::mpsc::TryRecvError::Empty) => return,
@@ -250,8 +266,17 @@ impl MailApp {
         } else if result.denied {
             let said = tl!("This account may not use its to-dos through Microsoft Graph").to_string();
             self.tasks.perm.insert(account, Permission::Refused(said));
+        } else if result.sign_in_refused && result.tokens.is_none() && settling == 0 {
+            // The refresh itself was refused, for mail too: never "not asked yet" with no way back
+            // (#520). (Not when the owner allowed the to-dos since the job began: that sign-in is
+            // newer than this answer.)
+            log::warn!("tasks: the sign-in was refused; waiting for a new one");
+            if !matches!(self.tasks.perm.get(&account), Some(Permission::Asking | Permission::Declined | Permission::Refused(_))) {
+                self.tasks.perm.insert(account, Permission::SignInOver(given));
+            }
         } else if result.sign_in_refused {
-            log::warn!("tasks, account {account}: the sign-in was refused; the next Send/Receive asks the owner");
+            // Graph refused a token just renewed: the next look tries again.
+            log::warn!("tasks: the server refused the sign-in; trying again later");
         } else if result.download.is_some() || result.uploaded.is_some() {
             self.tasks.perm.insert(account, Permission::Given);
         }
@@ -503,6 +528,7 @@ impl MailApp {
             Some(Permission::Refused(why)) => {
                 (crate::i18n::fmt(tl!("Tasks: not allowed ({why})"), &[("why", crate::forms::kit::shown(why, 90).as_str())]), true)
             }
+            Some(Permission::SignInOver(_)) => (tl!("Tasks: Microsoft no longer takes the sign-in").to_string(), true),
             None => (tl!("Tasks: not asked yet").to_string(), false),
         })
     }
@@ -520,4 +546,13 @@ impl ForAccount for TasksUploaded {
             None => self,
         }
     }
+}
+
+/// A refresh token, told apart from another without being kept: whether the account has signed
+/// in again since a job's was refused.
+fn fingerprint(refresh: &str) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    refresh.hash(&mut hasher);
+    hasher.finish()
 }

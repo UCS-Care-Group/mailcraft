@@ -58,6 +58,9 @@ enum What {
     /// it is about, with the name the calendar world knows it by; what is being made has none
     /// until it is saved.
     Event { event: Option<(Id, String)>, form: Box<Form> },
+    /// A message file that was opened and is not in the mailbox (#515): read-only, in memory
+    /// only, with the file's bytes for Save As and for filing it.
+    File { message: Arc<Message>, bytes: Arc<Vec<u8>> },
 }
 
 impl What {
@@ -67,20 +70,21 @@ impl What {
         match self {
             What::Message { message, .. } => Some((true, *message)),
             What::Event { event, .. } => event.as_ref().map(|(id, _)| (false, *id)),
+            What::File { .. } => None,
         }
     }
 
     /// The form it shows, when it shows one.
     fn form(&self) -> Option<&Form> {
         match self {
-            What::Message { .. } => None,
+            What::Message { .. } | What::File { .. } => None,
             What::Event { form, .. } => Some(form),
         }
     }
 
     fn form_mut(&mut self) -> Option<&mut Form> {
         match self {
-            What::Message { .. } => None,
+            What::Message { .. } | What::File { .. } => None,
             What::Event { form, .. } => Some(form),
         }
     }
@@ -117,11 +121,6 @@ pub struct Windows {
 }
 
 impl Windows {
-    /// How many windows are open.
-    pub(crate) fn count(&self) -> usize {
-        self.open.len()
-    }
-
     /// The form of the window numbered `id`, when it shows one.
     #[cfg(test)]
     pub(crate) fn form_mut(&mut self, id: u64) -> Option<&mut Form> {
@@ -145,6 +144,14 @@ impl Windows {
     /// The window that shows `event`, by its number.
     pub fn of_event(&self, event: Id) -> Option<u64> {
         self.open.iter().find(|w| w.what.subject() == Some((false, event))).map(|w| w.id)
+    }
+
+    /// Open a window for a message file ([`crate::opened_message`]); `Err` at the bound.
+    pub(crate) fn add_file(&mut self, message: Arc<Message>, bytes: Arc<Vec<u8>>) -> Result<u64, String> {
+        if self.open.len() >= MAX_WINDOWS {
+            return Err(tl!("Too many windows are open: close one first").to_string());
+        }
+        Ok(self.add(What::File { message, bytes }))
     }
 
     fn add(&mut self, what: What) -> u64 {
@@ -308,33 +315,171 @@ pub(crate) fn open_form(app: &mut MailApp, name: &str, p: &Value) -> Option<Resu
     })
 }
 
+/// The window numbered by `p`, or the one in front, when it shows a message file.
+fn opened_file<'a>(app: &'a mut MailApp, p: &Value) -> Result<&'a mut Open, String> {
+    let wanted = p.get("window").filter(|v| !v.is_null()).map(|v| v.as_u64().ok_or_else(|| "`window` is a number".to_string())).transpose()?;
+    let found = match wanted {
+        Some(n) => app.windows.open.iter_mut().find(|w| w.id == n),
+        None => app.windows.open.iter_mut().rev().find(|w| matches!(w.what, What::File { .. })),
+    };
+    found.filter(|w| matches!(w.what, What::File { .. })).ok_or_else(|| tl!("No window shows a message file").to_string())
+}
+
+/// `ui.moveWindowMessage`: the message of a message-file window is filed into `folder` and the
+/// window is about the message there from now on.
+fn move_opened(app: &mut MailApp, p: &Value) -> Result<Value, String> {
+    let folder = p.get("folder").and_then(Value::as_u64).ok_or_else(|| "`folder` is a folder id".to_string())?;
+    let window = opened_file(app, p)?;
+    let (number, bytes) = match &window.what {
+        What::File { bytes, .. } => (window.id, bytes.clone()),
+        _ => return Err(tl!("No window shows a message file").to_string()),
+    };
+    let id = crate::opened_message::file_into(app, &bytes, folder)?;
+    let seen = app.session.mailbox.messages.get(&id).cloned().ok_or_else(|| tl!("The message wasn't filed").to_string())?;
+    if let Some(w) = app.windows.open.iter_mut().find(|w| w.id == number) {
+        w.what = What::Message { message: id, seen };
+    }
+    Ok(json!({"window": number, "message": id}))
+}
+
+/// `ui.saveWindowMessage`: the file of a message-file window written to `path`; without one, its
+/// bytes are answered as `data` (base64), as exports do.
+fn save_opened(app: &mut MailApp, p: &Value) -> Result<Value, String> {
+    let window = opened_file(app, p)?;
+    let What::File { message, bytes } = &window.what else { return Err(tl!("No window shows a message file").to_string()) };
+    let name = mailcraft_engine::cmd::file::eml_name(message);
+    match p.get("path").and_then(Value::as_str) {
+        #[cfg(not(target_arch = "wasm32"))]
+        Some(path) => {
+            std::fs::write(path, bytes.as_slice()).map_err(|e| format!("{path}: {e}"))?;
+            Ok(json!({"path": path, "bytes": bytes.len()}))
+        }
+        _ => Ok(json!({"name": name, "bytes": bytes.len(), "data": mailcraft_engine::cmd::base64_encode(bytes)})),
+    }
+}
+
 fn close(app: &mut MailApp, p: &Value) -> Result<Value, String> {
-    let number = |key: &str| p.get(key).filter(|v| !v.is_null()).map(|v| v.as_u64().ok_or_else(|| format!("`{key}` is a number")));
+    let closing = closing(&app.windows.open, p)?;
     let open = &mut app.windows.open;
     let before = open.len();
-    if p.get("all").and_then(Value::as_bool) == Some(true) {
-        open.clear();
-    } else if let Some(window) = number("window") {
-        let window = window?;
-        open.retain(|w| w.id != window);
-    } else if let Some(message) = number("message") {
-        let message = message?;
-        open.retain(|w| w.what.subject() != Some((true, message)));
-    } else if let Some(event) = number("event") {
-        let event = event?;
-        open.retain(|w| w.what.subject() != Some((false, event)));
-    } else {
-        // The one in front.
-        open.pop();
-    }
+    open.retain(|w| !closing.contains(&w.id));
     Ok(json!({"closed": before.saturating_sub(open.len()), "open": open.len()}))
+}
+
+/// The windows that `ui.closeWindow` with `p` closes: every one (`all`), the one named
+/// (`window`), those of a message or an appointment, or else the one in front.
+fn closing(open: &[Open], p: &Value) -> Result<Vec<u64>, String> {
+    let number = |key: &str| p.get(key).filter(|v| !v.is_null()).map(|v| v.as_u64().ok_or_else(|| format!("`{key}` is a number")));
+    let of = |subject: (bool, Id)| open.iter().filter(|w| w.what.subject() == Some(subject)).map(|w| w.id).collect();
+    Ok(if p.get("all").and_then(Value::as_bool) == Some(true) {
+        open.iter().map(|w| w.id).collect()
+    } else if let Some(window) = number("window") {
+        vec![window?]
+    } else if let Some(message) = number("message") {
+        of((true, message?))
+    } else if let Some(event) = number("event") {
+        of((false, event?))
+    } else {
+        open.last().map(|w| w.id).into_iter().collect()
+    })
+}
+
+/// What `ui.closeWindow` with `p` would lose (#494): the first window it closes whose
+/// appointment has changes that aren't saved, as an agent's question names it, and how many more
+/// such windows it closes (`more`). `None` when nothing would be lost.
+pub(crate) fn closing_unsaved(app: &MailApp, p: &Value) -> Option<Value> {
+    let closing = closing(&app.windows.open, p).ok()?;
+    unsaved_of(app.windows.open.iter().filter(|w| closing.contains(&w.id)))
+}
+
+/// What another mailbox in view would lose (#494): the windows of appointments of this one close
+/// with it ([`show`]), and with them changes that aren't saved. Those being made stay.
+pub(crate) fn replacing_unsaved(app: &MailApp) -> Option<Value> {
+    unsaved_of(app.windows.open.iter().filter(|w| matches!(w.what, What::Event { event: Some(_), .. })))
+}
+
+/// What an agent's command that takes appointments away would lose (#494): the windows of those
+/// it takes, with changes that aren't saved, close with them ([`show`]). `calendar.delete` takes
+/// the one named or selected, `calendar.removeCalendar` a calendar's, an undo or a redo what the
+/// step brings back as it was.
+pub(crate) fn removing_unsaved(app: &MailApp, id: &str, p: &Value) -> Option<Value> {
+    unsaved_of(app.windows.open.iter().filter(|w| matches!(&w.what, What::Event { event: Some((e, _)), .. } if takes_away(app, id, p, *e))))
+}
+
+/// Whether `calendar.delete`, `calendar.removeCalendar`, `people.delete`, `tasks.delete`,
+/// `edit.undo` or `edit.redo` with `p` would take the appointment, contact or task `item` away.
+pub(crate) fn takes_away(app: &MailApp, id: &str, p: &Value, item: Id) -> bool {
+    // As the command reads it: `12.0` is 12, and 0 is none.
+    let number = |key: &str| mailcraft_engine::p::id(p, key);
+    let sel = &app.session.sel;
+    match id {
+        "calendar.delete" => number("id").or(sel.event) == Some(item),
+        "calendar.removeCalendar" => app.session.mailbox.event(item).is_some_and(|e| Some(e.calendar) == number("id")),
+        "people.delete" => number("id").or(sel.contact) == Some(item),
+        "tasks.delete" => number("id").or(sel.task) == Some(item),
+        "edit.undo" | "edit.redo" => app.session.undo_removes(id == "edit.redo", item),
+        _ => false,
+    }
+}
+
+/// Whether an agent's `ui.openWindow` or `ui.eventWindow` would overwrite what the owner typed in
+/// an appointment's window and hasn't saved (#494): another time somebody proposed, put into its
+/// fields, or the Appointment Recurrence dialog closed with what was filled in, by itself or with
+/// the window (`"do": "close"`, which asks the owner only about what the form holds).
+pub(crate) fn overwrites_unsaved(app: &MailApp, id: &str, p: &Value) -> bool {
+    match id {
+        "ui.openWindow" if p.get("proposed").is_some_and(Value::is_object) => {
+            let window = p.get("event").and_then(Value::as_u64).and_then(|event| app.windows.of_event(event));
+            app.windows.open.iter().find(|w| Some(w.id) == window).is_some_and(|w| w.what.form().is_some_and(Form::dirty))
+        }
+        "ui.eventWindow" if p.get("recurrence").and_then(Value::as_bool) == Some(false) || p.get("do").and_then(Value::as_str) == Some("close") => {
+            // The window `event_window` acts on.
+            let wanted = p.get("window").and_then(Value::as_u64);
+            let event = app
+                .windows
+                .open
+                .iter()
+                .rev()
+                .filter_map(|w| w.what.form().and_then(Form::event).map(|f| (w.id, f)))
+                .find(|(w, _)| wanted.is_none_or(|id| *w == id));
+            event.is_some_and(|(_, form)| form.recurrence_touched())
+        }
+        _ => false,
+    }
+}
+
+/// The appointments being changed in windows of their own, with changes that aren't saved: an
+/// agent's command may take them away only on the owner's yes (`Session::owner_changing`).
+pub(crate) fn changing_events(app: &MailApp) -> Vec<Id> {
+    let changing = |w: &&Open| w.what.form().is_some_and(Form::changed);
+    app.windows
+        .open
+        .iter()
+        .filter(changing)
+        .filter_map(|w| match &w.what {
+            What::Event { event: Some((e, _)), .. } => Some(*e),
+            _ => None,
+        })
+        .collect()
+}
+
+/// The first of `windows` with changes that aren't saved, as an agent's question names it, and
+/// how many more there are (`more`).
+fn unsaved_of<'a>(windows: impl Iterator<Item = &'a Open>) -> Option<Value> {
+    let mut lost = windows.filter_map(|w| w.what.form().and_then(Form::unsaved));
+    let mut first = lost.next()?;
+    let more = lost.count();
+    if more > 0 {
+        first["more"] = json!(more);
+    }
+    Some(first)
 }
 
 /// What `ui.eventWindow` and `ui.inspect` say of an appointment's window.
 fn event_state(window: &Open) -> Value {
     let (event, form) = match &window.what {
         What::Event { event, form } => (event.as_ref().map(|(id, _)| *id), form.event()),
-        What::Message { .. } => (None, None),
+        What::Message { .. } | What::File { .. } => (None, None),
     };
     let mut state = json!({
         "window": window.id,
@@ -460,6 +605,8 @@ pub(crate) fn ui_command(app: &mut MailApp, id: &str, p: &Value) -> Option<Resul
             _ => Err(tl!("Say what to open: `message` or `event` by its id, or `new` (\"appointment\" or \"meeting\")").to_string()),
         },
         "ui.closeWindow" => close(app, p),
+        "ui.moveWindowMessage" => move_opened(app, p),
+        "ui.saveWindowMessage" => save_opened(app, p),
         "ui.eventWindow" => event_window(app, p),
         _ => return None,
     })
@@ -473,6 +620,7 @@ pub fn inspect(app: &MailApp) -> Value {
             .iter()
             .map(|w| match &w.what {
                 What::Message { message, .. } => json!({"id": w.id, "kind": "message", "message": message, "title": w.title, "embedded": w.embedded}),
+                What::File { .. } => json!({"id": w.id, "kind": "file", "title": w.title, "embedded": w.embedded}),
                 What::Event { event, form } => {
                     let state = event_state(w);
                     let mut entry = match event {
@@ -582,6 +730,8 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
         What::Event { event: Some((event, uid)), .. } => app.session.mailbox.event(*event).is_some_and(|e| e.uid == *uid),
         // What is being made is there until it is saved or given up.
         What::Event { event: None, .. } => true,
+        // A file's message is its own: nothing in the mailbox can take it away.
+        What::File { .. } => true,
     });
     // Inside the main window the active one is the one of them that has the keyboard: the one
     // last clicked or typed in (#406), not the one in front.
@@ -630,6 +780,7 @@ fn title(app: &MailApp, what: &What) -> String {
     };
     match what {
         What::Message { seen, .. } => named(&seen.subject, tl!("(no subject)")),
+        What::File { message, .. } => named(&message.subject, tl!("(no subject)")),
         What::Event { event: Some((event, _)), form } => {
             let kind = form.title();
             match app.session.mailbox.event(*event).map(|e| named(&e.title, "")).filter(|title| !title.is_empty()) {
@@ -741,6 +892,8 @@ fn show_native(app: &mut MailApp, ctx: &egui::Context, window: &mut Open) -> boo
     let mut close = false;
     ctx.show_viewport_immediate(viewport, builder, |ui, class| {
         let ctx = ui.ctx().clone();
+        // What was chosen in a text's menu here, before anything reads the input.
+        let menus = crate::text_menu::deliver(&ctx);
         let t = Tokens::get(&ctx);
         // A backend that has no windows after all puts this inside the main one itself.
         let inside = class == egui::ViewportClass::EmbeddedWindow;
@@ -756,6 +909,7 @@ fn show_native(app: &mut MailApp, ctx: &egui::Context, window: &mut Open) -> boo
         egui::CentralPanel::default().frame(egui::Frame::NONE.fill(t.surface)).show(ui, |ui| {
             close |= frame(app, ui, window, wish, closing, !inside);
         });
+        crate::text_menu::finish(&ctx, menus);
     });
     close
 }
@@ -826,6 +980,33 @@ fn contents(app: &mut MailApp, ui: &mut Ui, id: u64, what: &mut What, own_keys: 
                 crate::reading::show_message(app, ui, &m, Place::Window(id));
             });
             if close { Verdict::Close } else { Verdict::Stay }
+        }
+        What::File { message, bytes } => {
+            let m = message.clone();
+            let mut asked = crate::opened_message::Asked::default();
+            egui::Panel::top(egui::Id::unique(("mailcraft-window-actions", id)))
+                .resizable(false)
+                .frame(egui::Frame::NONE.fill(t.ribbon).inner_margin(egui::Margin::symmetric(10, 5)))
+                .show(ui, |ui| asked = crate::opened_message::bar(app, ui));
+            egui::CentralPanel::default().frame(egui::Frame::NONE.fill(t.surface)).show(ui, |ui| {
+                crate::reading::show_file_message(app, ui, &m, Place::Window(id));
+            });
+            if asked.save {
+                crate::files::save_opened(app, id, &m, bytes);
+            }
+            // Filed: from now on the window is about the message in its folder.
+            if let Some(folder) = asked.folder {
+                let bytes = bytes.clone();
+                match crate::opened_message::file_into(app, &bytes, folder) {
+                    Ok(new) => {
+                        if let Some(seen) = app.session.mailbox.messages.get(&new).cloned() {
+                            *what = What::Message { message: new, seen };
+                        }
+                    }
+                    Err(e) => app.status(e),
+                }
+            }
+            Verdict::Stay
         }
         What::Event { form, .. } => {
             // The form's fields are this window's own; in a window of the system it has the

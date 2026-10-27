@@ -5409,13 +5409,18 @@ msgid "Move the Appointments Only"
 msgstr "Mover solo las citas"
 
 #. interface
+#: crates/ui-egui/src/reading.rs
+msgid "Move the message to a folder to open or save its attachments"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
 msgid "Move to Calendar"
 msgstr "Mover al calendario"
 
-#. command label, ribbon
-#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/ribbon.rs
+#. command label, interface, ribbon
+#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/opened_message.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Move to Folder"
 msgstr "Mover a carpeta"
@@ -5991,6 +5996,11 @@ msgstr "Ninguna zona horaria se llama así"
 #. interface
 #: crates/ui-egui/src/merge_contacts.rs
 msgid "No two contacts share an e-mail address or a phone number."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/windows.rs
+msgid "No window shows a message file"
 msgstr ""
 
 #. interface
@@ -6893,6 +6903,11 @@ msgid "Pictures not shown."
 msgstr "Imágenes no mostradas."
 
 #. interface
+#: crates/ui-egui/src/reading.rs
+msgid "Pictures on the web aren't downloaded for a message that is not in your mailbox: move it to a folder first."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Pictures: {n} KB of {max} KB"
@@ -7711,7 +7726,7 @@ msgid "Save As"
 msgstr "Guardar como"
 
 #. interface
-#: crates/ui-egui/src/reading.rs
+#: crates/ui-egui/src/opened_message.rs crates/ui-egui/src/reading.rs
 #, fuzzy
 msgid "Save As…"
 msgstr "Guardar como…"
@@ -7757,6 +7772,11 @@ msgstr "Guardar mensaje como"
 #, fuzzy
 msgid "Save Message As…"
 msgstr "Guardar mensaje como…"
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+msgid "Save Message File As"
+msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/signature.rs
@@ -9188,6 +9208,11 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/task_sync.rs
+msgid "Tasks: Microsoft no longer takes the sign-in"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/task_sync.rs
 msgid "Tasks: asking for your permission…"
 msgstr ""
 
@@ -9446,6 +9471,11 @@ msgstr "El servidor de la cuenta la crea cuando se envía la reunión; el víncu
 #, fuzzy
 msgid "The approval didn't go through."
 msgstr "La aprobación no se completó."
+
+#. interface
+#: crates/ui-egui/src/opened_message.rs
+msgid "The browser opens no files from the system"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/remote.rs
@@ -9744,6 +9774,11 @@ msgstr "El mensaje está en el Portapapeles: péguelo en un correo o un chat par
 #, fuzzy
 msgid "The message isn't there any more"
 msgstr "El mensaje ya no está ahí"
+
+#. interface
+#: crates/ui-egui/src/opened_message.rs crates/ui-egui/src/windows.rs
+msgid "The message wasn't filed"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -11255,6 +11290,12 @@ msgid "What to do next"
 msgstr "Qué hacer a continuación"
 
 #. interface
+#: crates/ui-egui/src/graph_fetch.rs
+#, fuzzy
+msgid "What was waiting for the form to be closed was called off: another download took its place."
+msgstr "Lo que esperaba a que se cerrara el formulario se ha cancelado: otra descarga ha ocupado su lugar."
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "What you change is changed in your calendar only. The organizer and the other people invited are not told and still have the meeting as it was, so you could miss it. An update from the organizer can replace your change."
@@ -12181,6 +12222,12 @@ msgstr "abre, reemplaza o guarda el archivo del buzón"
 msgid "it stopped unexpectedly"
 msgstr "se detuvo de forma inesperada"
 
+#. name
+#: crates/engine/src/agent.rs
+#, fuzzy
+msgid "it takes the window off the message the owner is writing"
+msgstr "quita la ventana del mensaje que el propietario está escribiendo"
+
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
 #, fuzzy
@@ -12192,6 +12239,11 @@ msgstr "tardó demasiado"
 #, fuzzy
 msgid "it writes to other people or reaches out to the web"
 msgstr "escribe a otras personas o se conecta a la web"
+
+#. interface
+#: crates/ui-egui/src/opened_message.rs
+msgid "larger than {mb} MB: bring it in with File › Import"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reminders.rs
@@ -13612,6 +13664,14 @@ msgid "{n} attendee"
 msgid_plural "{n} attendees"
 msgstr[0] "{n} asistente"
 msgstr[1] "{n} asistentes"
+
+#. interface
+#: crates/ui-egui/src/opening.rs
+#, fuzzy
+msgid "{n} body or attachment is missing from the mailbox's content folder, or damaged."
+msgid_plural "{n} bodies or attachments are missing from the mailbox's content folder, or damaged."
+msgstr[0] "Falta {n} cuerpo o archivo adjunto en la carpeta de contenido del buzón, o está dañado."
+msgstr[1] "Faltan {n} cuerpos o archivos adjuntos en la carpeta de contenido del buzón, o están dañados."
 
 #. what a command says
 #: crates/model/src/message.rs

@@ -469,6 +469,27 @@ fn open_during_a_download_runs_once_the_saver_is_done_and_says_so() {
 }
 
 #[test]
+fn closing_while_the_content_folder_is_swept_closes_at_once_and_a_change_still_waits_to_be_written() {
+    // #586: a sweep writes nothing of the mailbox; the window closed only once it was over.
+    let tmp = Temp::new("sweep-close");
+    let path = tmp.0.join("mailbox.mailcraft");
+    let ctx = egui::Context::default();
+    let script = Arc::new(Scripted::default());
+    let mut app = app(&path, Box::new(Handle(script.clone())));
+    *script.progress.lock().unwrap() = Some(SaveProgress { stage: SaveStage::Sweeping, done: 0, total: 0, millis: 5_000 });
+    app.logic(&ctx);
+    assert!(app.close_requested(), "nothing to write: it closes");
+    assert!(script.handed.lock().unwrap().is_empty());
+    // A change made just before: handed to the saver, and the window waits for it.
+    let mut app = self::app(&path, Box::new(Handle(script.clone())));
+    let id = unread(&app);
+    app.execute("mail.markRead", json!({"id": id})).unwrap();
+    let rev = app.session.rev();
+    assert!(!app.close_requested());
+    assert_eq!(*script.handed.lock().unwrap(), [(path.clone(), rev)]);
+}
+
+#[test]
 fn open_waits_for_a_sweep_of_the_content_folder_too() {
     // Review of R6.3: the saver said it was free while it swept the content folder, which holds
     // the file; an Open run then waited for it, gave up, and was lost.
