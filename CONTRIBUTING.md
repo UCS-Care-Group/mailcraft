@@ -95,7 +95,7 @@ Found something wrong? Use the
 
 | Date | Change | Summary |
 |---|---|---|
-| 2026-10-27 | minor | A feature in several parts: one pull request a part, `Builds on #<n>`, later parts as drafts or the stack merged at its top; allow edits by maintainers |
+| 2026-10-27 | minor | A feature in several parts: one pull request a part, `Builds on #<n>`, later parts as drafts or the stack merged at its top; allow edits by maintainers; a pull request template with both |
 | 2026-10-24 | minor | `cargo xtask test-files` fails on a new inline test module; older ones listed in `xtask/inline-tests.txt` until moved |
 | 2026-10-23 | minor | A bug fix needs no claim: the problem report and its pull request come together |
 | 2026-10-20 | minor | A first contribution (`good first issue`); how pull requests are reviewed; SPDX lines in new Rust files |
