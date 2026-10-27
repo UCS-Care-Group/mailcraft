@@ -1078,3 +1078,34 @@ fn removing_the_account_mail_was_moved_into_lets_its_original_go_or_brings_it_ba
     assert!(s.mailbox.message(two).is_none());
     assert!(delete_asked(&s, ms));
 }
+
+#[test]
+fn moving_many_at_once_does_what_moving_each_in_turn_does() {
+    // Mail in every state a move meets: a move waiting on its server, a copy waiting to be put on
+    // one, a message being moved out of Microsoft, and plain server mail.
+    let (mut s, a, kept) = imap();
+    let ms = microsoft(&mut s, OWNER);
+    let b = second_imap(&mut s);
+    let (archive, theirs) = (s.mailbox.folder_of_kind(a, FolderKind::Archive).unwrap(), s.mailbox.folder_of_kind(ms, FolderKind::Inbox).unwrap());
+    let (one, two, three) = (titled(&s, "One"), titled(&s, "Two"), titled(&s, "Three"));
+    s.run("mail.move", &json!({"ids": [one], "folder": archive})).unwrap();
+    s.run("mail.move", &json!({"ids": [two], "folder": theirs})).unwrap();
+    let here = kept_here(&mut s, kept, "From here");
+    s.run("mail.move", &json!({"ids": [here], "folder": theirs})).unwrap();
+    let server = ServerMessage { id: "AAkA7".into(), folder: "in".into(), ..Default::default() };
+    let body = Body { text: "All of it.".into(), html: None };
+    let out = s.mailbox.add_message(Message { folder: theirs, subject: "Receipt".into(), server: Some(server), body, ..Default::default() }).unwrap();
+    s.run("mail.move", &json!({"ids": [out], "folder": kept})).unwrap();
+    let ids = [one, two, three, here, out];
+    let folders =
+        [kept, archive, s.mailbox.folder_of_kind(a, FolderKind::Inbox).unwrap(), theirs, s.mailbox.folder_of_kind(b, FolderKind::Inbox).unwrap()];
+    for folder in folders {
+        let (mut together, mut each) = (s.mailbox.clone(), s.mailbox.clone());
+        let moved = together.move_messages(&ids, folder).unwrap();
+        for id in ids {
+            each.move_message(id, folder).unwrap();
+        }
+        assert_eq!(serde_json::to_value(&together).unwrap(), serde_json::to_value(&each).unwrap(), "into {folder}");
+        assert_eq!(moved.len(), ids.iter().filter(|id| s.mailbox.message(**id).is_some_and(|m| m.folder != folder)).count());
+    }
+}

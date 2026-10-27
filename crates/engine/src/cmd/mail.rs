@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! Mail: selecting, reading, filing, flagging and deleting messages.
 
+use std::collections::HashSet;
+
 use mailcraft_model::{FlagStatus, FolderKind, Id, Queued, Rgb};
 use serde_json::{Value, json};
 
@@ -379,15 +381,15 @@ fn move_to(s: &mut Session, v: &Value) -> CmdResult {
     let ids = targets(s, v)?;
     let before = s.rows();
     let mut moved = Vec::new();
-    let mut into_microsoft = 0;
-    for id in &ids {
-        let Some(account) = s.mailbox.message(*id).filter(|m| m.folder != folder).map(|m| m.account) else { continue };
-        s.mailbox.move_message(*id, folder)?;
-        moved.push(*id);
-        if s.mailbox.message(*id).is_some_and(|m| m.account != account) && waits_for_microsoft(s, *id) {
-            into_microsoft += 1;
+    let mut crossed = Vec::new();
+    for (id, account) in s.mailbox.move_messages(&ids, folder)? {
+        moved.push(id);
+        if s.mailbox.message(id).is_some_and(|m| m.account != account) {
+            crossed.push(id);
         }
     }
+    let waiting = waiting_for_microsoft(s);
+    let into_microsoft = crossed.iter().filter(|id| waiting.contains(id)).count();
     select_after_removal(s, &before, &moved);
     Ok(json!({"moved": moved.len(), "folder": folder, "intoMicrosoft": into_microsoft}))
 }
@@ -399,15 +401,24 @@ fn copy_to(s: &mut Session, v: &Value) -> CmdResult {
     for id in &ids {
         copies.push(s.mailbox.copy_message_marked(*id, folder, u64::try_from(s.now()).unwrap_or_default())?);
     }
-    let into_microsoft = copies.iter().filter(|c| waits_for_microsoft(s, **c)).count();
+    let waiting = waiting_for_microsoft(s);
+    let into_microsoft = copies.iter().filter(|c| waiting.contains(c)).count();
     Ok(json!({"copies": copies, "folder": folder, "intoMicrosoft": into_microsoft}))
 }
 
-/// Whether `id` waits to be made on a Microsoft server, put into its account from elsewhere:
-/// Graph makes it as received mail, without most of the original's headers (#451), and the
-/// window says so.
-fn waits_for_microsoft(s: &Session, id: Id) -> bool {
-    s.mailbox.queued.iter().any(|q| matches!(q, Queued::PlaceMessage { account, message, .. } if *message == id && s.mailbox.is_graph(*account)))
+/// The messages that wait to be made on a Microsoft server, put into its account from elsewhere:
+/// Graph makes them as received mail, without most of the original's headers (#451), and the
+/// window says so. Gathered once for a whole command.
+fn waiting_for_microsoft(s: &Session) -> HashSet<Id> {
+    let graph: HashSet<Id> = s.mailbox.accounts.iter().filter(|a| s.mailbox.is_graph(a.id)).map(|a| a.id).collect();
+    s.mailbox
+        .queued
+        .iter()
+        .filter_map(|q| match q {
+            Queued::PlaceMessage { account, message, .. } if graph.contains(account) => Some(*message),
+            _ => None,
+        })
+        .collect()
 }
 
 /// Apply `change` to each target; answers how many messages it changed.
