@@ -2314,6 +2314,10 @@ impl Session {
                     self.view.open.clear();
                     self.keep_shown();
                 }
+                // A message is picked as its conversation only while it is selected: let go of in
+                // any way (another folder, a search), it isn't when it is picked again (#503).
+                let messages = &self.sel.messages;
+                self.sel.whole.retain(|id| messages.contains(id));
                 // The working hours of an account just removed go with it (#325): here, once
                 // nothing can turn the removal back, as preferences aren't put back with the mailbox.
                 if wipes_history(id) {

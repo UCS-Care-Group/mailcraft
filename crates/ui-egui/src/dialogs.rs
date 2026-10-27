@@ -675,8 +675,12 @@ fn conversation_question(app: &MailApp, ids: &[u64]) -> Option<Question> {
     owners.sort_unstable();
     owners.dedup();
     let tick = if owners.len() > 1 { tl!("Don't ask again for these accounts") } else { tl!("Don't ask again for this account") };
+    // Turned off only where Account Settings can turn it on again: not for the account on this
+    // computer, which has no address and no such page.
+    let settable = owners.iter().all(|o| mb.account(*o).is_some_and(|a| !a.email.is_empty()));
     let then = owners.into_iter().map(|a| ("account.edit", json!({"id": a, "askBeforeDeletingConversation": false}))).collect();
-    Some(Question::new(tl!("Delete Conversation"), text, tl!("Delete"), json!({"ids": ids, "confirmed": true})).ticked(tick, then))
+    let ask = Question::new(tl!("Delete Conversation"), text, tl!("Delete"), json!({"ids": ids, "confirmed": true}));
+    Some(if settable { ask.ticked(tick, then) } else { ask })
 }
 
 /// The message list's rows as the window shows them, or, when they are of another list, as they

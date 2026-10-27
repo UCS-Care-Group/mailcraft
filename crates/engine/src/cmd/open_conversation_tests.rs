@@ -611,3 +611,15 @@ fn shift_down_from_a_conversation_picked_by_its_row_goes_on_under_it() {
     let second = rows.iter().position(|r| r.id == newer && r.under.is_some()).map(|i| i + 1);
     assert_eq!(s.sel.focus_in(&rows), second);
 }
+
+#[test]
+fn a_ctrl_click_after_another_folder_takes_only_its_row() {
+    let (mut s, newer, _, _) = release_checklist();
+    run(&mut s, "mail.select", json!({"id": newer}));
+    run(&mut s, "folder.select", json!({"kind": "sent"}));
+    run(&mut s, "folder.select", json!({"kind": "inbox"}));
+    run(&mut s, "mail.expandConversation", json!({"id": newer}));
+    run(&mut s, "mail.select", json!({"id": newer, "copy": 1, "extend": true}));
+    assert!(s.sel.whole.is_empty());
+    assert_eq!(drawn(&mut s), [newer]);
+}

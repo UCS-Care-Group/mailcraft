@@ -265,3 +265,20 @@ fn the_newest_message_picked_in_the_reading_pane_is_its_own_row_under_the_open_c
     let s = &w.state().session;
     assert_eq!((s.sel.messages.clone(), s.sel.whole.clone(), s.sel.focus_copy()), (vec![newer], vec![], 1));
 }
+
+#[test]
+fn the_account_on_this_computer_is_asked_with_no_box_as_it_has_no_account_settings() {
+    let (mut w, newer, _, _) = release_checklist();
+    // The conversation's account as the one on this computer, which has no address.
+    let session = &w.state().session;
+    let account = session.mailbox.folders.iter().find(|f| f.id == session.view.folder).map(|f| f.account).unwrap();
+    if let Some(a) = w.state_mut().session.mailbox.accounts.iter_mut().find(|a| a.id == account) {
+        a.email.clear();
+    }
+    w.run_steps(3);
+    click(&mut w, "message", newer);
+    testing::key(&mut w, Key::Delete);
+    w.run_steps(3);
+    let Some(crate::dialogs::Dialog::Confirm { ask, .. }) = &w.state().dialog else { panic!("no question") };
+    assert!(ask.tick.is_none());
+}
