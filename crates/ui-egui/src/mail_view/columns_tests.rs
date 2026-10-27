@@ -204,6 +204,33 @@ fn a_heading_dragged_along_moves_and_one_dragged_off_goes() {
 }
 
 #[test]
+fn a_slow_drag_resizes_as_far_as_it_went() {
+    use egui::{Event, Modifiers};
+    let mut w = testing::window("view.mail");
+    w.state_mut().execute("ui.dismissReminder", json!({"all":true})).unwrap();
+    w.state_mut().execute("view.readingPane", json!({"value":"off"})).unwrap();
+    w.state_mut().execute("view.columns", json!({"enabled":true})).unwrap();
+    w.run_steps(3);
+    let before = w.state().session.prefs.columns.items.iter().find(|c| c.column == Column::From).unwrap().width;
+    let start = w.state().hit.rect("columnResize", Column::From as u64).unwrap().center();
+    w.input_mut().events.push(Event::PointerMoved(start));
+    w.step();
+    w.input_mut().events.push(Event::PointerButton { pos: start, button: PointerButton::Primary, pressed: true, modifiers: Modifiers::NONE });
+    w.step();
+    // Less than half a point a frame, 40 points in all.
+    let mut at = start;
+    for _ in 0..100 {
+        at += vec2(0.4, 0.0);
+        w.input_mut().events.push(Event::PointerMoved(at));
+        w.step();
+    }
+    w.input_mut().events.push(Event::PointerButton { pos: at, button: PointerButton::Primary, pressed: false, modifiers: Modifiers::NONE });
+    w.step();
+    let after = w.state().session.prefs.columns.items.iter().find(|c| c.column == Column::From).unwrap().width;
+    assert!((i32::from(after) - i32::from(before) - 40).abs() <= 1, "{before} -> {after}");
+}
+
+#[test]
 fn sent_items_name_who_mail_went_to() {
     let mut w = testing::window("view.mail");
     let app = w.state();
