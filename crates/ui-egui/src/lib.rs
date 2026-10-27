@@ -1982,7 +1982,10 @@ impl MailApp {
             "ui.focusSearch" => {
                 self.search_focus = true;
                 self.ui.backstage = false;
-                let _ = self.session.run("view.mail", &json!({}));
+                // People searches its own contacts; Calendar's and Tasks' box searches the mail (#555).
+                if self.session.view.module != mailcraft_engine::Module::People {
+                    let _ = self.session.run("view.mail", &json!({}));
+                }
                 Ok(json!({}))
             }
             "ui.copyDiagnostics" => {
