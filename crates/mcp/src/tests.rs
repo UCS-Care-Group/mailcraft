@@ -86,6 +86,8 @@ fn agent_triages_mail_and_books_a_meeting() {
     assert!(r["result"]["content"][0]["text"].as_str().unwrap().contains("desktop app"));
     let p = tool(&mut s, "parity", json!({}));
     assert!(p["percent"].as_f64().unwrap() > 40.0);
+    // Headless, the mailbox is open from the start (#519).
+    assert_eq!(tool(&mut s, "status", json!({}))["mailbox"], "open");
 }
 
 #[test]

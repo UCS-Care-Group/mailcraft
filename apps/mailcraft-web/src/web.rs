@@ -7,6 +7,7 @@ use std::rc::Rc;
 
 use mailcraft_engine::Session;
 use mailcraft_model::Mailbox;
+use mailcraft_ui_egui::opening::{Arrival, Trouble};
 use mailcraft_ui_egui::{Inbox, MailApp, Services, UiState};
 use wasm_bindgen::JsCast as _;
 
@@ -48,16 +49,34 @@ pub fn start() {
                         log::info!("mailcraft-web: wgpu backend {:?}", rs.adapter.get_info().backend);
                     }
                     let inbox: Inbox = Inbox::default();
-                    let mut services = services(inbox.clone(), cc.egui_ctx.clone());
-                    crate::jmap::install(&mut services, &cc.egui_ctx, hook.clone());
                     let named = hook.as_ref().is_some_and(|hook| hook.names_accounts());
-                    let mut app = MailApp::new(Session::new(first_mailbox(named)), services);
-                    if let Some(ui) = stored(UI_KEY).and_then(|text| serde_json::from_str::<UiState>(&text).ok()) {
-                        app.apply_prefs(ui);
-                    }
-                    if let Some(hook) = &hook {
-                        hook.add_accounts(&mut app);
-                    }
+                    let prefs = stored(UI_KEY).and_then(|text| serde_json::from_str::<UiState>(&text).ok());
+                    // The window is there at once, and the mailbox is read from the browser's
+                    // storage after its first frame (#519): the same opening screen as on the
+                    // desktop, which says "Opening…" alone, for the storage says nothing of how far
+                    // it has got.
+                    let (tx, rx) = std::sync::mpsc::channel();
+                    let (ctx, wake, first_prefs, build_inbox) = (cc.egui_ctx.clone(), cc.egui_ctx.clone(), prefs.clone(), inbox.clone());
+                    let build: mailcraft_ui_egui::opening::Build = Box::new(move |arrival| {
+                        let mut services = services(build_inbox, ctx.clone());
+                        crate::jmap::install(&mut services, &ctx, hook.clone());
+                        let mut app = MailApp::new(Session::new(arrival.mailbox), services);
+                        if let Some(ui) = prefs {
+                            app.apply_prefs(ui);
+                        }
+                        if let Some(hook) = &hook {
+                            hook.add_accounts(&mut app);
+                        }
+                        app
+                    });
+                    wasm_bindgen_futures::spawn_local(async move {
+                        after_a_frame().await;
+                        let _ = tx.send(first_mailbox(named));
+                        wake.request_repaint();
+                    });
+                    let opening = mailcraft_ui_egui::opening::Opening::new(rx, Default::default(), build);
+                    let locale = web_sys::window().and_then(|w| w.navigator().language());
+                    let app = MailApp::opening(opening, first_prefs, locale);
                     let saved_ui = serde_json::to_string(&app.prefs()).unwrap_or_default();
                     Ok(Box::new(WebShell { app, inbox, saved_ui, checked: 0.0 }))
                 }),
@@ -91,24 +110,35 @@ fn sample() -> Mailbox {
 
 /// The mailbox to start with: what the URL asks for, else the one kept in this browser, else the
 /// sample (an empty mail program in a browser tab has nothing to show), or an empty one when the
-/// page names accounts of its own (`named`), which are added to it.
-fn first_mailbox(named: bool) -> Mailbox {
+/// page names accounts of its own (`named`), which are added to it. One kept here that can't be
+/// read says why before the window carries on with the sample or an empty one, as it always did.
+fn first_mailbox(named: bool) -> Arrival {
     let q = query();
     if page::has_flag(&q, "empty") {
-        return Mailbox::with_local_account("", "");
+        return Arrival::opened(Mailbox::with_local_account("", ""), None);
     }
     if page::has_flag(&q, "sample") {
-        return sample();
+        return Arrival::opened(sample(), None);
     }
     let fresh = || if named { Mailbox::with_local_account("", "") } else { sample() };
     match stored(MAILBOX_KEY).map(|text| mailcraft_engine::io::read_mailbox(text.as_bytes())) {
-        Some(Ok(mailbox)) => mailbox,
+        Some(Ok(mailbox)) => Arrival::opened(mailbox, None),
         Some(Err(e)) => {
             log::error!("the stored mailbox couldn't be read: {e}");
-            fresh()
+            Arrival { trouble: Some(Trouble::Unreadable(e.to_string())), ..Arrival::opened(fresh(), None) }
         }
-        None => fresh(),
+        None => Arrival::opened(fresh(), None),
     }
+}
+
+/// Resolved once the browser has had a moment to show the page (a frame, as a rule).
+async fn after_a_frame() {
+    let tick = js_sys::Promise::new(&mut |resolve, _| {
+        if let Some(window) = web_sys::window() {
+            let _ = window.set_timeout_with_callback_and_timeout_and_arguments_0(&resolve, 30);
+        }
+    });
+    let _ = wasm_bindgen_futures::JsFuture::from(tick).await;
 }
 
 /// Wraps the app to read dropped files asynchronously (browsers can't read them synchronously),

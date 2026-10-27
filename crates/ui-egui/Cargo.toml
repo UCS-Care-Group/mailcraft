@@ -40,3 +40,5 @@ toml = "1"
 [dev-dependencies]
 toml = "1"
 egui_kittest = { workspace = true, features = ["wgpu", "snapshot"] }
+# Messages as they come, for the reading pane's tests.
+mailcraft-mime = { workspace = true }

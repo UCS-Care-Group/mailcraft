@@ -1351,13 +1351,16 @@ fn take_in(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, delta: Folde
             None => return,
         },
     };
-    let (old_validity, old_seen) = mb.folder(folder).map_or((0, 0), |f| (f.uid_validity, f.uid_seen));
+    let (old_validity, old_seen, was_whole) = mb.folder(folder).map_or((0, 0, false), |f| (f.uid_validity, f.uid_seen, f.read_whole()));
     let reset = old_validity != 0 && delta.uid_validity != 0 && old_validity != delta.uid_validity;
     // The folder follows the mailbox from here on: what a rule does with a new message below is
     // a change to a message the server has.
     on_server.by_remote.insert(delta.remote.clone(), folder);
     if let Ok(f) = mb.folder_mut(folder) {
         f.remote = delta.remote.clone();
+        // Whether it was read whole is said from now on, not worked out from how far it was read
+        // (#504): numbered anew, it is to be read whole again.
+        f.whole = Some(was_whole && !reset);
         // A server that names no UIDVALIDITY doesn't take away the one that is known.
         if delta.uid_validity != 0 {
             f.uid_validity = delta.uid_validity;
@@ -1381,6 +1384,12 @@ fn take_in(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, delta: Folde
         }
     }
     let inbox = delta.kind == FolderKind::Inbox;
+    let junk = delta.kind == FolderKind::Junk;
+    // The lists sort what arrives once the folder has been read whole, above how far it was
+    // read: never a first download (in however many pieces, over however many runs), a mailbox
+    // numbered anew, or older mail a raised limit brings down. What was there stays where the
+    // server has it.
+    let sorting = was_whole && !reset;
     // Only mail that came to the owner counts as new: in the Inbox, or a folder of theirs a
     // server's rule files it in, and everything of a folder's first download. What later turns
     // up in Deleted Items, Junk, Sent and the rest was put there (a message deleted on a phone
@@ -1416,9 +1425,15 @@ fn take_in(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, delta: Folde
         if uid != 0 {
             on_server.by_uid.insert((folder, uid), id);
         }
-        if inbox {
-            mb.apply_rules(id);
-            // A rule that moved it away has noted the move.
+        if inbox || junk {
+            // The Safe and Blocked Senders lists first (#504): mail a list sends to Junk E-mail
+            // isn't the rules' to file, and a safe sender's taken out of Junk E-mail goes through
+            // them as any mail arriving in the Inbox does.
+            let sorted = sorting && uid > old_seen && mb.sort_junk(id);
+            if inbox != sorted {
+                mb.apply_rules(id);
+            }
+            // A list or a rule that moved it away has noted the move.
             if uid != 0 && !mb.message(id).is_some_and(|m| m.folder == folder && m.uid == uid) {
                 on_server.by_uid.remove(&(folder, uid));
                 on_server.leaving.insert((folder, uid));
@@ -1427,6 +1442,9 @@ fn take_in(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, delta: Folde
         counts.new += usize::from(arriving);
     }
     if let Ok(f) = mb.folder_mut(folder) {
+        if delta.complete {
+            f.whole = Some(true);
+        }
         f.uid_seen = if reset { delta.uid_seen } else { delta.uid_seen.max(old_seen) };
         if reset || delta.uid_from != 0 {
             f.uid_from = delta.uid_from;

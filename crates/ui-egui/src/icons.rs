@@ -664,6 +664,12 @@ pub fn paint(p: &Painter, r: Rect, name: &str, c: Color32, accent: Color32) {
                 pen.rounded(&[(6.0, 16.5), (6.0, 11.5), (14.0, 11.5), (14.0, 16.5)], false, 1.0, c);
             }
         }
+        // A sender warning: a triangle with an exclamation mark in it.
+        "warning" => {
+            pen.rounded(&[(10.0, 2.5), (18.0, 16.5), (2.0, 16.5)], true, 1.0, red);
+            pen.line_c(&[(10.0, 7.0), (10.0, 11.0)], red);
+            pen.fcircle(10.0, 13.75, 1.0, red);
+        }
         "highImportance" | "importanceHigh" => {
             pen.frect_r(9.0, 2.5, 11.0, 12.5, 1.0, red);
             pen.fcircle(10.0, 15.75, 1.25, red);
@@ -735,6 +741,13 @@ pub fn paint(p: &Painter, r: Rect, name: &str, c: Color32, accent: Color32) {
         "meeting" | "fromMessage" => {
             pen.person(7.5, 7.5, 2.75, 17.5, 5.0, 180.0, 360.0, c);
             pen.person(13.5, 5.5, 2.25, 14.5, 4.0, 250.0, 360.0, c);
+        }
+        // Two people side by side, and the modifier's lines that bring them together into one
+        // (Merge Duplicates, #506).
+        "mergeContacts" => {
+            pen.person(5.5, 5.5, 2.25, 13.5, 3.5, 180.0, 360.0, c);
+            pen.person(14.5, 5.5, 2.25, 13.5, 3.5, 180.0, 360.0, c);
+            pen.line_c(&[(5.5, 14.5), (10.0, 18.0), (14.5, 14.5)], a);
         }
         "newMeeting" => {
             pen.person(7.0, 8.0, 2.75, 17.5, 4.0, 180.0, 360.0, c);
@@ -979,6 +992,30 @@ pub fn paint(p: &Painter, r: Rect, name: &str, c: Color32, accent: Color32) {
             pen.circle(10.0, 10.0, 7.5, c);
             pen.line(&[(10.0, 5.5), (10.0, 10.0), (13.0, 12.0)]);
         }
+        // Insert › Date & Time: a calendar page with a small clock over its corner.
+        "dateTime" => {
+            pen.calendar(true, c);
+            pen.circle(14.5, 14.5, 3.75, a);
+            pen.line_c(&[(14.5, 12.5), (14.5, 14.5), (16.0, 15.5)], a);
+        }
+        // A control still to be built: an hourglass.
+        "pending" => {
+            pen.line(&[(5.0, 3.0), (15.0, 3.0)]);
+            pen.line(&[(5.0, 17.0), (15.0, 17.0)]);
+            pen.rounded(&[(6.0, 3.0), (6.0, 5.5), (10.0, 10.0), (6.0, 14.5), (6.0, 17.0)], false, 1.0, c);
+            pen.rounded(&[(14.0, 3.0), (14.0, 5.5), (10.0, 10.0), (14.0, 14.5), (14.0, 17.0)], false, 1.0, c);
+            pen.line_c(&[(8.0, 15.5), (12.0, 15.5)], a);
+        }
+        // Review › Word Count: lines of text and a tally of four strokes and one across them.
+        "wordCount" => {
+            pen.line(&[(2.5, 4.5), (17.5, 4.5)]);
+            pen.line(&[(2.5, 8.5), (12.5, 8.5)]);
+            pen.line(&[(2.5, 12.5), (8.5, 12.5)]);
+            for x in [11.0, 13.0, 15.0, 17.0] {
+                pen.line_c(&[(x, 11.5), (x, 17.5)], a);
+            }
+            pen.line_c(&[(10.0, 16.5), (18.0, 12.5)], a);
+        }
         // A meeting held online: a camera, its lens to the right.
         "onlineMeeting" | "joinMeeting" => {
             pen.rect(2.5, 5.5, 12.5, 14.5, c);
@@ -1182,6 +1219,7 @@ pub const NAMES: &[&str] = &[
     "starOn",
     "save",
     "saveDraft",
+    "warning",
     "highImportance",
     "importanceHigh",
     "lowImportance",
@@ -1207,6 +1245,7 @@ pub const NAMES: &[&str] = &[
     "newContact",
     "meeting",
     "newMeeting",
+    "mergeContacts",
     "fromMessage",
     "meetingRequest",
     "meetingCancelled",
@@ -1272,6 +1311,9 @@ pub const NAMES: &[&str] = &[
     "location",
     "clock",
     "time",
+    "dateTime",
+    "wordCount",
+    "pending",
     "onlineMeeting",
     "joinMeeting",
     "proposeTime",

@@ -252,7 +252,8 @@ fn runs(out: &mut String, p: &Paragraph, pictures: &dyn Fn(u32) -> Option<Img>) 
 /// [`to_html`] writes them (`<div><br></div>`): a reader shows nothing there, but the owner put
 /// them there.
 pub fn from_html(html: &str) -> RichText {
-    let blocks = mailcraft_html::parse(html);
+    // The look and the text only: pictures written into the HTML are not decoded for this.
+    let blocks = mailcraft_html::parse_text(html);
     let mut reader = Reader { out: Vec::new() };
     reader.blocks(&blocks);
     let (lead, trail) = edge_blank_lines(html);

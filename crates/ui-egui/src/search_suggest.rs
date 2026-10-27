@@ -186,6 +186,12 @@ impl Suggesting {
         (self.for_text, self.for_cursor, self.for_categories, self.for_mailbox) = (text.to_string(), cursor, categories.to_vec(), mailbox);
     }
 
+    /// Closes the list and forgets what it offered: Advanced Search opened over it.
+    pub fn close(ctx: &Context) {
+        egui::Popup::close_id(ctx, Self::list_id());
+        Suggesting::default().store(ctx);
+    }
+
     pub fn clear(&mut self) {
         *self = Suggesting { wanted: self.wanted, ..Suggesting::default() };
     }

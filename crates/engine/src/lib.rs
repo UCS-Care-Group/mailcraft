@@ -38,6 +38,7 @@ pub mod mark;
 mod mark_tests;
 pub mod opening;
 pub mod sample;
+pub mod sender_warnings;
 mod session;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod store;
@@ -333,5 +334,7 @@ mod import_tests;
 mod import_tree_progress_tests;
 #[cfg(test)]
 mod import_tree_tests;
+#[cfg(test)]
+mod sender_warnings_tests;
 #[cfg(test)]
 mod tests;
