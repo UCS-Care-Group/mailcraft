@@ -77,6 +77,8 @@ mod shared_send_flow;
 mod single_instance;
 mod system_locale;
 #[cfg(test)]
+mod tasks_job_tests;
+#[cfg(test)]
 mod token_renew_flow;
 #[cfg(test)]
 mod unconfirmed_flow;
@@ -1227,7 +1229,14 @@ fn graph_sending_with(mut request: GraphRequest, zone: &str, renew: Renew<'_>, r
 /// asked), what waits to go up told to the server, then the lists and tasks read whole. Nothing
 /// of a task is logged.
 fn tasks_job(job: mailcraft_ui_egui::task_sync::TasksJob) -> mailcraft_ui_egui::task_sync::TasksResult {
-    tasks_job_with(job, &mailcraft_net::oauth::refresh_graph_tasks)
+    let mail = tasks_mail(&job.account);
+    tasks_job_with(job, &move |oauth, refresh| mailcraft_net::oauth::refresh_graph_tasks(oauth, refresh, mail))
+}
+
+/// How a to-do job's account has its mail: what a no for the to-dos is checked against (#520).
+fn tasks_mail(account: &mailcraft_model::Account) -> mailcraft_net::oauth::Resource {
+    use mailcraft_net::oauth::Resource;
+    if account.kind == mailcraft_model::AccountKind::Microsoft { Resource::GraphMail } else { Resource::Mail }
 }
 
 /// [`tasks_job`], with how the token is had as `renew` (the tests' own, which asks nobody).

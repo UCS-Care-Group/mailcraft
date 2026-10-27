@@ -5409,13 +5409,18 @@ msgid "Move the Appointments Only"
 msgstr "Mover solo las citas"
 
 #. interface
+#: crates/ui-egui/src/reading.rs
+msgid "Move the message to a folder to open or save its attachments"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
 msgid "Move to Calendar"
 msgstr "Mover al calendario"
 
-#. command label, ribbon
-#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/ribbon.rs
+#. command label, interface, ribbon
+#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/opened_message.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Move to Folder"
 msgstr "Mover a carpeta"
@@ -5991,6 +5996,11 @@ msgstr "Ninguna zona horaria se llama así"
 #. interface
 #: crates/ui-egui/src/merge_contacts.rs
 msgid "No two contacts share an e-mail address or a phone number."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/windows.rs
+msgid "No window shows a message file"
 msgstr ""
 
 #. interface
@@ -6893,6 +6903,11 @@ msgid "Pictures not shown."
 msgstr "Imágenes no mostradas."
 
 #. interface
+#: crates/ui-egui/src/reading.rs
+msgid "Pictures on the web aren't downloaded for a message that is not in your mailbox: move it to a folder first."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Pictures: {n} KB of {max} KB"
@@ -7711,7 +7726,7 @@ msgid "Save As"
 msgstr "Guardar como"
 
 #. interface
-#: crates/ui-egui/src/reading.rs
+#: crates/ui-egui/src/opened_message.rs crates/ui-egui/src/reading.rs
 #, fuzzy
 msgid "Save As…"
 msgstr "Guardar como…"
@@ -7757,6 +7772,11 @@ msgstr "Guardar mensaje como"
 #, fuzzy
 msgid "Save Message As…"
 msgstr "Guardar mensaje como…"
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+msgid "Save Message File As"
+msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/signature.rs
@@ -9188,6 +9208,11 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/task_sync.rs
+msgid "Tasks: Microsoft no longer takes the sign-in"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/task_sync.rs
 msgid "Tasks: asking for your permission…"
 msgstr ""
 
@@ -9446,6 +9471,11 @@ msgstr "El servidor de la cuenta la crea cuando se envía la reunión; el víncu
 #, fuzzy
 msgid "The approval didn't go through."
 msgstr "La aprobación no se completó."
+
+#. interface
+#: crates/ui-egui/src/opened_message.rs
+msgid "The browser opens no files from the system"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/remote.rs
@@ -9744,6 +9774,11 @@ msgstr "El mensaje está en el Portapapeles: péguelo en un correo o un chat par
 #, fuzzy
 msgid "The message isn't there any more"
 msgstr "El mensaje ya no está ahí"
+
+#. interface
+#: crates/ui-egui/src/opened_message.rs crates/ui-egui/src/windows.rs
+msgid "The message wasn't filed"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -12204,6 +12239,11 @@ msgstr "tardó demasiado"
 #, fuzzy
 msgid "it writes to other people or reaches out to the web"
 msgstr "escribe a otras personas o se conecta a la web"
+
+#. interface
+#: crates/ui-egui/src/opened_message.rs
+msgid "larger than {mb} MB: bring it in with File › Import"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reminders.rs

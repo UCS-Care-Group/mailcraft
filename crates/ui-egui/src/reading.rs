@@ -82,6 +82,34 @@ pub enum Place {
     Preview,
 }
 
+/// A message that is not in the mailbox (a message file opened without being filed, #515) in
+/// the room `ui` has: as [`show_message`], through the same display blocks, but read-only and
+/// asking nothing of the mailbox: its own pictures (`cid:`) are shown, pictures on the web are
+/// never fetched for it, and it has no invitation or sharing bar, no sender picture from the web.
+pub fn show_file_message(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Place) {
+    let ctx = ui.ctx().clone();
+    remote::tick(app, &ctx);
+    select::begin(app, ui, m, place);
+    let doc = view::doc_where(&ctx, m, place, false);
+    let access = Access::Blocked;
+    ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
+    header(app, ui, m, place, |_, ui, t| {
+        if !doc.remote.is_empty() {
+            let said = tl!("Pictures on the web aren't downloaded for a message that is not in your mailbox: move it to a folder first.");
+            ui.add(egui::Label::new(egui::RichText::new(said).font(regular(11.5)).color(t.text_dim)).wrap());
+        }
+        unreadable_line(ui, m, t);
+    });
+    let room = ui.available_rect_before_wrap().intersect(ui.clip_rect());
+    ui.scope_builder(egui::UiBuilder::new().max_rect(room), |ui| {
+        egui::ScrollArea::both().auto_shrink([false, false]).id_salt(("body", place)).show(ui, |ui| {
+            egui::Frame::NONE.inner_margin(egui::Margin { left: 20, right: 20, top: 12, bottom: 24 }).show(ui, |ui| {
+                view::show(app, ui, m, place, access);
+            });
+        });
+    });
+}
+
 /// The reading pane: the selected message, or a word on why there is none to show.
 pub fn show(app: &mut MailApp, ui: &mut Ui) {
     let t = Tokens::get(ui.ctx());
@@ -344,7 +372,12 @@ fn header(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Place, pictur
         // Who and when.
         ui.horizontal(|ui| {
             let (r, _) = ui.allocate_exact_size(vec2(36.0, 36.0), Sense::hover());
-            crate::sender_images::avatar(app, ui, r.center(), 17.0, m, &m.from);
+            if m.id == 0 {
+                // (Not in the mailbox: nothing is asked of the web for its sender.)
+                crate::widgets::avatar(ui, r.center(), 17.0, &m.from);
+            } else {
+                crate::sender_images::avatar(app, ui, r.center(), 17.0, m, &m.from);
+            }
             ui.vertical(|ui| {
                 ui.spacing_mut().item_spacing = vec2(0.0, 1.0);
                 let when = crate::dates::header_label(m.date, app.session.offset_at(m.date), app.session.prefs.twelve_hour);
@@ -512,6 +545,12 @@ fn attachments(app: &mut MailApp, ui: &mut Ui, m: &Message, t: &Tokens) {
                 t.text_dim,
             );
             // Double-click opens it, as in Outlook; its menu opens or saves it.
+            // (A message that is not in the mailbox has no number to name it by: attachments are
+            // opened and saved once it is filed.)
+            if m.id == 0 {
+                resp.on_hover_text(tl!("Move the message to a folder to open or save its attachments"));
+                continue;
+            }
             let resp = resp.on_hover_text(crate::i18n::fmt(tl!("Double-click to open {name}; right-click to save it"), &[("name", &shown)]));
             if resp.double_clicked() {
                 let _ = app.run("mail.openAttachment", json!({"id": m.id, "index": index}));
