@@ -19,6 +19,7 @@ mod load_limit;
 mod mailbox;
 mod message;
 mod offline;
+pub mod pictures;
 pub mod pop;
 pub mod provider;
 pub mod remote;
@@ -131,6 +132,8 @@ mod calendar_rights_tests;
 mod junk_tests;
 #[cfg(test)]
 mod mailbox_tests;
+#[cfg(test)]
+mod pictures_tests;
 #[cfg(test)]
 mod pop_tests;
 #[cfg(test)]

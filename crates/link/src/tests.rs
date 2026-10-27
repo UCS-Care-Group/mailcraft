@@ -409,6 +409,16 @@ fn a_joiner_is_accepted_only_where_idna2008_allows_it() {
 }
 
 #[test]
+fn every_format_character_but_the_joiners_is_refused_in_a_name() {
+    let refused: Vec<char> =
+        (0..=0x10ffff).filter_map(char::from_u32).filter(|c| mailcraft_names::is_format(*c) && !mailcraft_names::is_joiner(*c)).collect();
+    assert_eq!(refused.len(), 168);
+    for c in refused {
+        assert!(WebLink::parse(&format!("https://exam{c}ple.example/")).is_none(), "U+{:04X}", u32::from(c));
+    }
+}
+
+#[test]
 fn forms_that_are_not_normalised_are_shown_as_themselves() {
     // No UTS #46 mapping: each is its own host, never the composed or plain one.
     assert!(host("http://e\u{301}.com/").starts_with("xn--"));

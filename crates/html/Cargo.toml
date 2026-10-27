@@ -10,6 +10,7 @@ workspace = true
 
 [dependencies]
 mailcraft-link = { workspace = true }
+mailcraft-names = { workspace = true }
 serde = { workspace = true }
 
 [dev-dependencies]

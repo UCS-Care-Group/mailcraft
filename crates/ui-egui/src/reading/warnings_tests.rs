@@ -146,6 +146,64 @@ fn cautions_are_amber_and_external_alone_is_only_a_tag() {
     assert!(harness.state().hit.rect("externalTag", colleague).is_none());
 }
 
+fn dismiss(harness: &mut Window, label: &str) {
+    harness.get_by_label(label).click();
+    harness.run_steps(4);
+}
+
+#[test]
+fn a_caution_is_dismissed_with_its_cross_and_stays_gone() {
+    let mut harness = window();
+    let odd = open(&mut harness, "Lookalike");
+    assert!(harness.state().hit.rect("senderWarnings", odd).is_some());
+    dismiss(&mut harness, "Dismiss");
+    // The banner is gone, and the message remembers it; the External tag stays.
+    assert!(harness.state().hit.rect("senderWarnings", odd).is_none());
+    assert!(harness.state().hit.rect("senderWarningsCollapsed", odd).is_none());
+    assert!(!says(&harness, "Be careful with this message."));
+    assert_eq!(harness.state().session.mailbox.messages[&odd].warnings_dismissed, ["external", "lookalikeSender"]);
+    assert!(harness.state().hit.rect("externalTag", odd).is_some());
+    // Another message still has its banner.
+    let link = open(&mut harness, "Link");
+    assert!(harness.state().hit.rect("senderWarnings", link).is_some());
+    // Undo brings it back.
+    harness.state_mut().execute("edit.undo", json!({})).unwrap();
+    open(&mut harness, "Lookalike");
+    assert!(harness.state().hit.rect("senderWarnings", odd).is_some());
+}
+
+#[test]
+fn a_warning_dismissed_is_a_slim_bar_that_opens_again() {
+    let mut harness = window();
+    let failed = open(&mut harness, "Failed");
+    assert!(says(&harness, "Failed check."));
+    dismiss(&mut harness, "Dismiss");
+    assert!(harness.state().hit.rect("senderWarnings", failed).is_none());
+    let slim = harness.state().hit.rect("senderWarningsCollapsed", failed).expect("the slim bar");
+    assert!(slim.height() < 30.0, "{slim:?}");
+    assert!(says(&harness, "This message may not be what it seems."));
+    assert!(!says(&harness, "Failed check."));
+    // A click opens it; its cross hides it again.
+    harness.get_by_label("Show this message's warning").click();
+    harness.run_steps(4);
+    assert!(harness.state().hit.rect("senderWarnings", failed).is_some());
+    assert!(says(&harness, "Failed check."));
+    dismiss(&mut harness, "Hide");
+    assert!(harness.state().hit.rect("senderWarningsCollapsed", failed).is_some());
+}
+
+#[test]
+fn a_new_kind_of_warning_shows_the_dismissed_banner_again() {
+    let mut harness = window();
+    let odd = open(&mut harness, "Lookalike");
+    dismiss(&mut harness, "Dismiss");
+    assert!(harness.state().hit.rect("senderWarnings", odd).is_none());
+    harness.state_mut().session.mailbox.message_mut(odd).unwrap().headers =
+        vec![("Authentication-Results".into(), "mx.lumen.example; dmarc=fail header.from=harborwork.example".into())];
+    harness.run_steps(4);
+    assert!(says(&harness, "This message may not be what it seems."));
+}
+
 #[test]
 fn only_a_failed_check_or_a_hidden_address_marks_the_row() {
     let mut harness = window();

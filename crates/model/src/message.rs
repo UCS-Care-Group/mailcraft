@@ -201,6 +201,11 @@ pub struct Message {
     pub forwarded: bool,
     pub draft: bool,
     pub pinned: bool,
+    /// The kinds of sender warning ([`crate::sender_warnings::Warning::kind`]) the owner dismissed
+    /// the banner for (#508). The banner is hidden while every kind it would show is among these;
+    /// a kind that appears later brings it back.
+    #[serde(skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::sync::lenient_list")]
+    pub warnings_dismissed: Vec<String>,
     /// Headers MailCraft doesn't model, kept so a saved message round-trips.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub headers: Vec<(String, String)>,

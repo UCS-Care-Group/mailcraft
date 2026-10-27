@@ -37,6 +37,7 @@ use super::Place;
 use super::layout::{ItemKind, Laid};
 use super::view::Doc;
 use crate::MailApp;
+use crate::clicks::{Anchor, Unit};
 use crate::theme::Tokens;
 
 /// How many places a selection is kept for: the reading pane and the message windows.
@@ -235,6 +236,15 @@ fn word_at<S: Surface + ?Sized>(surface: &S, point: Point) -> (Point, Point) {
             (Point { seg, at: word.start }, Point { seg, at: word.end.min(surface.len(seg)) })
         }
         None => (Point { seg, at: 0 }, Point { seg, at: surface.len(seg) }),
+    }
+}
+
+/// What `unit` takes at `hit`: the place itself, the word under it, or its paragraph.
+fn unit_at<S: Surface + ?Sized>(surface: &S, unit: Unit, hit: Hit) -> (Point, Point) {
+    match unit {
+        Unit::Char => (hit.point, hit.point),
+        Unit::Word => word_at(surface, Point { seg: hit.point.seg, at: hit.under.unwrap_or(hit.point.at) }),
+        Unit::Paragraph => paragraph_at(surface, hit.point),
     }
 }
 
@@ -490,8 +500,8 @@ pub struct PlaceState {
     /// The pointer was over it then.
     hovered: bool,
     selection: Option<Selection>,
-    /// Where the pointer went down, for a drag to start from.
-    pressed: Option<(Zone, Point)>,
+    /// What the pointer took where it went down, for a drag to go on from.
+    pressed: Option<(Zone, Anchor<Point>)>,
     /// A drag is selecting.
     dragging: Option<Zone>,
     /// The pointer went down with Shift on what was selected: it moves the end of that.
@@ -580,48 +590,63 @@ impl PlaceState {
     }
 
     /// Do to the selection what the pointer did in the text of `zone`: a drag selects from where
-    /// it went down, with Shift it moves the end of what is selected; two clicks take a word,
-    /// three a paragraph; one click lets go of everything.
+    /// it went down, with Shift it moves the end of what is selected; two clicks take a word and
+    /// three a paragraph as the button goes down, and a drag from there goes on by words or
+    /// paragraphs, keeping that one; one click lets go of everything.
     fn follow<S: Surface + ?Sized>(&mut self, zone: Zone, surface: &S, gesture: &Gesture, hit: impl Fn(Pos2) -> Option<Hit>) {
-        if let Some(pos) = gesture.pressed {
-            self.pressed = hit(pos).map(|hit| (zone, hit.point));
+        // A click whose button went down again in the same frame ended before that press: it is
+        // let go of first, so that it does not take the new press's anchor with it.
+        let ended_before = gesture.clicked && gesture.held;
+        if ended_before {
+            self.let_go(zone, gesture.shift);
+        }
+        if let Some((pos, unit)) = gesture.pressed {
             self.dragging = None;
             self.extending = gesture.shift && self.selection.as_ref().is_some_and(|s| s.zone == zone);
-            if self.extending
-                && let (Some(selection), Some((_, to))) = (&mut self.selection, self.pressed)
-            {
-                selection.head = to;
+            // With Shift, the end of what is selected moves a character at a time.
+            let unit = if self.extending { Unit::Char } else { unit };
+            self.pressed = hit(pos).map(|hit| (zone, Anchor::new(unit, unit_at(surface, unit, hit))));
+            match (self.pressed, &mut self.selection) {
+                (Some((_, to)), Some(selection)) if self.extending => selection.head = to.from,
+                (Some((_, took)), _) if took.unit != Unit::Char => self.selection = Some(Selection::new(zone, took.from, took.to)),
+                _ => {}
             }
         }
         match gesture.dragged.and_then(&hit) {
             Some(hit) => {
                 if self.dragging != Some(zone) {
                     self.dragging = Some(zone);
+                    if self.pressed.is_none_or(|(of, _)| of != zone) {
+                        self.pressed = Some((zone, Anchor::new(Unit::Char, (hit.point, hit.point))));
+                    }
                     if !self.extending {
-                        let from = self.pressed.filter(|(of, _)| *of == zone).map_or(hit.point, |(_, point)| point);
-                        self.selection = Some(Selection::new(zone, from, from));
+                        self.selection = Some(Selection::new(zone, hit.point, hit.point));
                     }
                 }
-                if let Some(selection) = self.selection.as_mut().filter(|s| s.zone == zone) {
-                    selection.head = hit.point;
+                if let (Some(selection), Some((_, anchor))) = (self.selection.as_mut().filter(|s| s.zone == zone), self.pressed) {
+                    if self.extending {
+                        selection.head = hit.point;
+                    } else {
+                        (selection.anchor, selection.head) = anchor.reach(unit_at(surface, anchor.unit, hit));
+                    }
                 }
             }
-            None if self.dragging == Some(zone) && gesture.dragged.is_none() => self.dragging = None,
+            None if self.dragging == Some(zone) && gesture.dragged.is_none() => (self.dragging, self.pressed) = (None, None),
             None => {}
         }
-        if let Some((pos, clicks)) = gesture.clicked {
-            self.dragging = None;
-            let ends = match (clicks, hit(pos)) {
-                (0 | 1, _) | (_, None) => None,
-                (2, Some(hit)) => Some(word_at(surface, Point { seg: hit.point.seg, at: hit.under.unwrap_or(hit.point.at) })),
-                (_, Some(hit)) => Some(paragraph_at(surface, hit.point)),
-            };
-            match ends {
-                Some((from, to)) => self.selection = Some(Selection::new(zone, from, to)),
-                // A click with Shift has moved the end already.
-                None if self.extending || gesture.shift => {}
-                None => self.selection = None,
-            }
+        if gesture.clicked && !ended_before {
+            self.let_go(zone, gesture.shift);
+        }
+    }
+
+    /// A click in the text of `zone` ended: one click lets go of what is selected, unless it was
+    /// with Shift. Two or three took their word or paragraph as the button went down, and a
+    /// click with Shift has moved the end already. What its press took is done with.
+    fn let_go(&mut self, zone: Zone, shift: bool) {
+        self.dragging = None;
+        let took = self.pressed.take().is_some_and(|(of, took)| of == zone && took.unit != Unit::Char);
+        if !took && !self.extending && !shift {
+            self.selection = None;
         }
     }
 }
@@ -711,12 +736,14 @@ impl Selections {
 
 /// What the pointer did in this frame to a text that can be selected.
 struct Gesture {
-    /// The first button went down on it, here.
-    pressed: Option<Pos2>,
+    /// The first button went down on it, here, and what that selects.
+    pressed: Option<(Pos2, Unit)>,
     /// It is being dragged from it, and is here now.
     dragged: Option<Pos2>,
-    /// A click on it ended here: the first, second or third in a row.
-    clicked: Option<(Pos2, u8)>,
+    /// A click on it ended.
+    clicked: bool,
+    /// The first button is down at the end of the frame.
+    held: bool,
     /// Its menu was asked for here.
     menu: Option<Pos2>,
     shift: bool,
@@ -726,26 +753,23 @@ impl Gesture {
     fn of<'a>(ui: &Ui, responses: impl Iterator<Item = &'a Response>) -> Gesture {
         // Shift as the window has it, or as the button's own event says (a script's click).
         let with_shift = |e: &egui::Event| matches!(e, egui::Event::PointerButton { modifiers, .. } if modifiers.shift);
-        let (down, origin, now, shift) = ui.input(|i| {
-            (i.pointer.primary_pressed(), i.pointer.press_origin(), i.pointer.latest_pos(), i.modifiers.shift || i.events.iter().any(with_shift))
+        let (down, held, origin, now, shift) = ui.input(|i| {
+            let shift = i.modifiers.shift || i.events.iter().any(with_shift);
+            (i.pointer.primary_pressed(), i.pointer.primary_down(), i.pointer.press_origin(), i.pointer.latest_pos(), shift)
         });
-        let mut gesture = Gesture { pressed: None, dragged: None, clicked: None, menu: None, shift };
+        // Asked in every pass, so that every click is counted.
+        let unit = crate::clicks::pressed(ui.ctx()).unwrap_or(Unit::Char);
+        let mut gesture = Gesture { pressed: None, dragged: None, clicked: false, held, menu: None, shift };
         for response in responses {
-            if down && response.is_pointer_button_down_on() {
-                gesture.pressed = origin.or(response.interact_pointer_pos());
+            // A press let go of in the same frame (a tap on a touchpad) is a press all the same.
+            if down && (response.is_pointer_button_down_on() || response.clicked()) {
+                gesture.pressed = origin.or(response.interact_pointer_pos()).or(now).map(|pos| (pos, unit));
             }
             if response.dragged_by(PointerButton::Primary) {
                 gesture.dragged = response.interact_pointer_pos().or(now);
             }
             if response.clicked() {
-                let clicks = if response.triple_clicked() {
-                    3
-                } else if response.double_clicked() {
-                    2
-                } else {
-                    1
-                };
-                gesture.clicked = response.interact_pointer_pos().or(now).map(|pos| (pos, clicks));
+                gesture.clicked = true;
             }
             if response.secondary_clicked() {
                 gesture.menu = response.interact_pointer_pos().or(now);

@@ -524,6 +524,7 @@ fn message() -> impl Strategy<Value = Message> {
             uid: 11,
             draft: true,
             pinned: true,
+            warnings_dismissed: vec!["external".into()],
             forwarded: true,
             flag_due: Some(1),
             synced: Some(mailcraft_model::sync::RemoteFlags { uid: 11, read: true, ..Default::default() }),
