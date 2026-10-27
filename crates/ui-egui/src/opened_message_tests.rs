@@ -43,7 +43,9 @@ fn opening_an_eml_adds_nothing_to_the_mailbox_and_closing_leaves_no_trace() {
     let (before, selected, folder) = (a.session.mailbox.messages.len(), a.session.sel.messages.clone(), a.session.view.folder);
     a.open_from_system(&path.to_string_lossy());
     // The same file again is the same kind of window, and still nothing is filed.
-    a.open_from_system(&format!("file://{}", path.to_string_lossy()));
+    // As a file manager writes it: `file:///tmp/…`, or `file:///C:/…` on Windows.
+    let url = path.to_string_lossy().replace('\\', "/");
+    a.open_from_system(&format!("file:///{}", url.trim_start_matches('/')));
     let windows = file_windows(&a);
     assert_eq!(windows.len(), 2, "{windows:?}");
     assert_eq!(a.session.mailbox.messages.len(), before);
