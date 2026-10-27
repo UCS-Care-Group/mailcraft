@@ -123,12 +123,19 @@ fn open_bench() {
             let started = Instant::now();
             let opened = open_as(&path, &OpenProgress::default(), launch).unwrap();
             let open_time = started.elapsed();
-            let session = crate::Session::new(opened.mailbox);
+            let mut session = crate::Session::new(opened.mailbox);
+            session.path = Some(path.clone());
             let total = started.elapsed();
+            // What the window's host does once it shows: what is missing, then the bodies left for later.
             let checked = Instant::now();
-            let missing = check_parts(&path);
+            let missing = check_parts(&path).count;
+            let later = bodies_later(&path);
+            let mut took = 0;
+            for batch in later.chunks(256) {
+                took += session.take_bodies(read_bodies(&path, batch));
+            }
             eprintln!(
-                "{how}, run {run}: open {:.0} ms, with the session {:.0} ms ({} messages, {} loaded, {} deferred, {} missing; looked for later in {:.0} ms)",
+                "{how}, run {run}: open {:.0} ms, with the session {:.0} ms ({} messages, {} loaded, {} deferred, {} missing; then {took} bodies taken in, {:.0} ms in all)",
                 open_time.as_secs_f64() * 1e3,
                 total.as_secs_f64() * 1e3,
                 session.mailbox.messages.len(),

@@ -766,6 +766,9 @@ struct State {
     /// The content folder, and the content in it the opening left on disk without looking for
     /// it, with how many parts name each, for [`check_parts`].
     unchecked: Option<(PathBuf, Vec<(Ref, u32)>)>,
+    /// The bodies the budget holds that an opening for a window left on disk, newest first, for
+    /// [`bodies_later`].
+    later: Option<Vec<crate::session::BodyLater>>,
 }
 
 /// Messages the mailbox file no longer says as they are in memory, held by nothing but a weak
@@ -1855,15 +1858,37 @@ fn missing_of(dir: &Path, on_disk: &[(Ref, u32)], folders: &Folders) -> Vec<(Ref
 /// unlooked for ([`open_for_window`]): how many bodies and attachments are missing or damaged,
 /// for the window to say as the opening would have ([`Opened::notice`]). Once only: 0 after
 /// that, and for a file opened otherwise. Saves aren't held up meanwhile.
-pub fn check_parts(path: &Path) -> usize {
+pub fn check_parts(path: &Path) -> crate::session::Missing {
     let shared = shared(path);
-    let Some((dir, on_disk)) = lock(&shared.state).unchecked.take() else { return 0 };
+    let Some((dir, on_disk)) = lock(&shared.state).unchecked.take() else { return crate::session::Missing::default() };
     let missing = missing_of(&dir, &on_disk, &Folders::new());
-    let n = missing.iter().map(|(_, uses)| *uses as usize).fold(0usize, usize::saturating_add);
-    if n > 0 {
-        log::warn!("{}: {n} bodies or attachments are missing from {} or damaged", path.display(), dir.display());
+    let count = missing.iter().map(|(_, uses)| *uses as usize).fold(0usize, usize::saturating_add);
+    if count > 0 {
+        log::warn!("{}: {count} bodies or attachments are missing from {} or damaged", path.display(), dir.display());
     }
-    n
+    crate::session::Missing { count, refs: missing.into_iter().map(|(r, _)| r.to_model()).collect() }
+}
+
+/// The bodies the memory budget holds that the opening of the file at `path` for a window left on
+/// disk ([`open_for_window`]), newest first, for the host to read ([`read_bodies`]) and hand to the
+/// session once the window shows (`Session::take_bodies`): what an opening otherwise reads at
+/// once. Once only: empty after that, and for a file opened otherwise.
+pub fn bodies_later(path: &Path) -> Vec<crate::session::BodyLater> {
+    lock(&shared(path).state).later.take().unwrap_or_default()
+}
+
+/// Read `bodies` from the content folder of the mailbox file at `path`, as an opening reads them
+/// (each checked against its name; not kept in the cache of fetched content). A part that can't be
+/// read is left out: it is read again when it is wanted, and says then that it is missing.
+pub fn read_bodies(path: &Path, bodies: &[crate::session::BodyLater]) -> Vec<crate::session::BodyRead> {
+    let dir = blob_dir(&resolve(path));
+    let folders = Folders::new();
+    let read = |r: Option<ContentRef>| r.and_then(|r| get(&dir, &Ref::from_model(&r), &folders).map(|bytes| (r, bytes)));
+    fan_out(bodies.len(), |i| bodies.get(i).map(|b| crate::session::BodyRead { id: b.id, text: read(b.text), html: read(b.html) }))
+        .into_iter()
+        .flatten()
+        .flatten()
+        .collect()
 }
 
 /// What a mailbox file wants for one part of a message.
@@ -1872,6 +1897,9 @@ struct Want {
     r: Option<Ref>,
     /// Where its bytes will be (an index into what is read); `None` when it stays on disk.
     slot: Option<usize>,
+    /// It stays on disk for now, though the budget holds it: a body outside the rows a window
+    /// opens on, read once the window shows ([`bodies_later`]).
+    later: bool,
 }
 
 impl Want {
@@ -1892,16 +1920,20 @@ fn fill(st: &mut State, dir: &Path, mailbox: &mut Mailbox, head: Head, mut parts
     let mut budget = body_budget();
     // `want` borrows the slots it fills: it lives in a block of its own, which ends the borrow.
     let plan = {
-        let mut want = |wire: &Option<(String, u64)>, load: bool, live: &mut HashMap<Digest, u32>| -> Option<Want> {
+        let mut want = |wire: &Option<(String, u64)>, load: bool, now: bool, live: &mut HashMap<Digest, u32>| -> Option<Want> {
             let wire = wire.as_ref()?;
-            let Some(r) = parse_ref(wire) else { return Some(Want { r: None, slot: None }) };
+            let Some(r) = parse_ref(wire) else { return Some(Want { r: None, slot: None, later: false }) };
             let n = live.entry(r.hash).or_default();
             *n = n.saturating_add(1);
             // A body is a copy of its own, whatever else names the same bytes.
             if !load || r.len > MAX_BLOB || r.len > budget {
-                return Some(Want { r: Some(r), slot: None });
+                return Some(Want { r: Some(r), slot: None, later: false });
             }
             budget -= r.len;
+            // (The budget is spent as for any opening, so that what comes later is what it holds.)
+            if !now {
+                return Some(Want { r: Some(r), slot: None, later: true });
+            }
             let slot = *index.entry(r).or_insert_with(|| {
                 slots.push((r, 0));
                 slots.len().saturating_sub(1)
@@ -1909,7 +1941,7 @@ fn fill(st: &mut State, dir: &Path, mailbox: &mut Mailbox, head: Head, mut parts
             if let Some((_, uses)) = slots.get_mut(slot) {
                 *uses = uses.saturating_add(1);
             }
-            Some(Want { r: Some(r), slot: Some(slot) })
+            Some(Want { r: Some(r), slot: Some(slot), later: false })
         };
         // The newest mail first (by when it was sent, then by its number), so that what the budget
         // holds is what the owner reads; content of a message that isn't there is still named by the
@@ -1927,16 +1959,16 @@ fn fill(st: &mut State, dir: &Path, mailbox: &mut Mailbox, head: Head, mut parts
         let mut plan = Vec::with_capacity(order.len());
         for (_, id) in order {
             let Some(wire) = head.blobs.get(&id) else { continue };
-            let load = rows.as_ref().is_none_or(|rows| rows.contains(&id));
-            let text = want(&wire.text, load, &mut st.live);
-            let html = want(&wire.html, load, &mut st.live);
-            let attachments: Vec<Option<Want>> = wire.attachments.iter().map(|a| want(a, false, &mut st.live)).collect();
+            let now = rows.as_ref().is_none_or(|rows| rows.contains(&id));
+            let text = want(&wire.text, true, now, &mut st.live);
+            let html = want(&wire.html, true, now, &mut st.live);
+            let attachments: Vec<Option<Want>> = wire.attachments.iter().map(|a| want(a, false, true, &mut st.live)).collect();
             plan.push((id, text, html, attachments));
         }
         for (id, wire) in &head.blobs {
             if !mailbox.messages.contains_key(id) {
                 for part in wire.text.iter().chain(&wire.html).chain(wire.attachments.iter().flatten()) {
-                    want(&Some(part.clone()), false, &mut st.live);
+                    want(&Some(part.clone()), false, true, &mut st.live);
                 }
             }
         }
@@ -1950,6 +1982,17 @@ fn fill(st: &mut State, dir: &Path, mailbox: &mut Mailbox, head: Head, mut parts
     // What stays on disk is looked for (its file, not its bytes), so that what is missing is told
     // from what is merely not loaded: now, or for a window that shows the mailbox at once, once
     // it shows ([`check_parts`]), the parts meanwhile taken to be there.
+    if launch.rows.is_some() {
+        let pick = |w: &Option<Want>| w.as_ref().filter(|w| w.later).and_then(Want::kept);
+        let later = plan
+            .iter()
+            .filter_map(|(id, text, html, _)| {
+                let (text, html) = (pick(text), pick(html));
+                (text.is_some() || html.is_some()).then_some(crate::session::BodyLater { id: *id, text, html })
+            })
+            .collect();
+        st.later = Some(later);
+    }
     let mut on_disk: Vec<(Ref, u32)> = Vec::new();
     let mut seen: HashMap<Ref, usize> = HashMap::new();
     for (_, text, html, attachments) in &plan {

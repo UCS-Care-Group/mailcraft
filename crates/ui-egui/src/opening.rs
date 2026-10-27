@@ -30,6 +30,7 @@ use std::time::Duration;
 
 use egui::{Rect, Ui, pos2, vec2};
 use mailcraft_engine::io::OpenProgress;
+use mailcraft_engine::{BodyRead, Missing};
 use mailcraft_model::Mailbox;
 use serde_json::{Value, json};
 
@@ -174,24 +175,45 @@ pub(crate) fn logic(app: &mut MailApp, ctx: &egui::Context) {
 }
 
 /// What the window takes up once it shows its mailbox, so that the first frames come first
-/// (#519): the count of the content files found missing ([`MailApp::check_parts_later`]), and
+/// (#519): the content files found missing ([`MailApp::check_parts_later`]), the bodies left on
+/// disk ([`MailApp::take_bodies_later`]), and
 /// the word index ([`MailApp::index_words_later`]).
 #[derive(Default)]
 pub(crate) struct Later {
-    /// The count to come, and the bodies and attachments already known to be missing.
-    parts: Option<(Receiver<usize>, usize)>,
+    /// The content files to come that are missing, the bodies and attachments already known to
+    /// be, and which opening of the session it is about ([`mailcraft_engine::Session::openings`]).
+    parts: Option<(Receiver<Missing>, Said, u64)>,
+    /// The bodies the opening left for later, read in batches, and which opening they are of.
+    bodies: Option<(Receiver<Vec<BodyRead>>, u64)>,
     /// Frames still to be drawn before the word index starts.
     words_in: Option<u32>,
 }
 
+/// How many bodies and attachments the opening found missing, and whether the count is to be said
+/// (not when the mailbox file itself was damaged: that is said instead).
+type Said = (usize, bool);
+
 /// Frames the window draws with its mailbox before the word index starts.
 pub const WORDS_AFTER_FRAMES: u32 = 5;
 
+/// Batches of bodies taken in a frame, at most: the window goes on drawing meanwhile.
+pub const BODY_BATCHES_A_FRAME: usize = 4;
+
 impl MailApp {
     /// Say how many bodies and attachments are missing from the mailbox's content folder once
-    /// the host's look for them (`rx`) is over, `known` of them having been found while opening.
-    pub fn check_parts_later(&mut self, rx: Receiver<usize>, known: usize) {
-        self.later.parts = Some((rx, known));
+    /// the host's look for them (`rx`) is over, `known` of them having been found while opening
+    /// (only when `say`); the bodies among them read as unavailable from then on
+    /// ([`mailcraft_engine::Session::mark_unavailable`]). About the mailbox open now: one that
+    /// takes its place before then hears nothing of it.
+    pub fn check_parts_later(&mut self, rx: Receiver<Missing>, known: usize, say: bool) {
+        self.later.parts = Some((rx, (known, say), self.session.openings()));
+    }
+
+    /// Take in the bodies the opening left on disk as the host reads them (`rx`, in batches),
+    /// a few batches a frame ([`mailcraft_engine::Session::take_bodies`]). About the mailbox open
+    /// now, as [`MailApp::check_parts_later`].
+    pub fn take_bodies_later(&mut self, rx: Receiver<Vec<BodyRead>>) {
+        self.later.bodies = Some((rx, self.session.openings()));
     }
 
     /// Start the word index of the mailbox's file ([`mailcraft_engine::Session::index_words`])
@@ -214,21 +236,61 @@ pub(crate) fn after(app: &mut MailApp, ctx: &egui::Context) {
         // (A window with nothing to do draws no more frames by itself.)
         ctx.request_repaint();
     }
-    let Some((rx, known)) = &app.later.parts else { return };
-    let found = match rx.try_recv() {
-        Ok(n) => n,
-        Err(TryRecvError::Empty) => return,
-        // The look stopped without a word: what was known is said.
-        Err(TryRecvError::Disconnected) => 0,
-    };
-    let missing = known.saturating_add(found);
-    app.later.parts = None;
-    if missing > 0 {
-        app.status(crate::tln!(
-            missing,
-            "{n} body or attachment is missing from the mailbox's content folder, or damaged.",
-            "{n} bodies or attachments are missing from the mailbox's content folder, or damaged."
-        ));
+    let opening = app.session.openings();
+    // Another mailbox took the place of the one these are about: they are dropped unread.
+    if app.later.parts.as_ref().is_some_and(|(_, _, of)| *of != opening) {
+        app.later.parts = None;
+    }
+    if app.later.bodies.as_ref().is_some_and(|(_, of)| *of != opening) {
+        app.later.bodies = None;
+    }
+    // What is missing first: a body found missing is never taken in after it.
+    if let Some((rx, (known, say), _)) = &app.later.parts {
+        let say = *say;
+        let found = match rx.try_recv() {
+            Ok(missing) => Some(missing),
+            Err(TryRecvError::Empty) => None,
+            // The look stopped without a word: what was known is said.
+            Err(TryRecvError::Disconnected) => Some(Missing::default()),
+        };
+        if let Some(found) = found {
+            let missing = known.saturating_add(found.count);
+            app.later.parts = None;
+            app.session.mark_unavailable(&found.refs);
+            if say && missing > 0 {
+                app.status(crate::tln!(
+                    missing,
+                    "{n} body or attachment is missing from the mailbox's content folder, or damaged.",
+                    "{n} bodies or attachments are missing from the mailbox's content folder, or damaged."
+                ));
+            }
+        }
+    }
+    // Bodies only once what is missing is known.
+    if app.later.parts.is_none()
+        && let Some((rx, _)) = &app.later.bodies
+    {
+        let mut batches = Vec::new();
+        let mut done = false;
+        while batches.len() < BODY_BATCHES_A_FRAME {
+            match rx.try_recv() {
+                Ok(batch) => batches.push(batch),
+                Err(TryRecvError::Empty) => break,
+                Err(TryRecvError::Disconnected) => {
+                    done = true;
+                    break;
+                }
+            }
+        }
+        if done {
+            app.later.bodies = None;
+        } else if batches.len() == BODY_BATCHES_A_FRAME {
+            // More may be waiting.
+            ctx.request_repaint();
+        }
+        for batch in batches {
+            app.session.take_bodies(batch);
+        }
     }
 }
 

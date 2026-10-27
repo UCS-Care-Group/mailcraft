@@ -30,15 +30,15 @@ fn content_files_looked_for_later_are_counted_as_the_opening_would_have() {
     // Looked for while opening, as always: three are missing.
     let now = open_launched(&path, Launch { checks_later: false, rows });
     assert_eq!((now.unavailable, now.unchecked), (3, false));
-    assert_eq!(check_parts(&path), 0);
+    assert_eq!(check_parts(&path).count, 0);
     // Looked for later: none yet, and the same three once they are.
     let later = open_launched(&path, Launch { checks_later: true, rows });
     assert_eq!((later.unavailable, later.unchecked), (0, true));
     assert_eq!(later.loaded + later.deferred, parts_outside(&mb));
     assert!(later.notice().is_none());
-    assert_eq!(check_parts(&path), 3);
+    assert_eq!(check_parts(&path).count, 3);
     // Once only.
-    assert_eq!(check_parts(&path), 0);
+    assert_eq!(check_parts(&path).count, 0);
     // Meanwhile the missing text is a body on disk like any other, and says so once it is wanted.
     let mut s = Session::new(later.mailbox);
     s.path = Some(path.clone());
@@ -66,7 +66,7 @@ fn a_save_while_content_is_still_to_be_looked_for_is_not_held_up_and_loses_nothi
     let mut theirs = opened.mailbox;
     Arc::make_mut(theirs.messages.get_mut(&first).unwrap()).read = true;
     assert!(!save(&path, &theirs).unwrap().compacted);
-    assert_eq!(check_parts(&path), 0);
+    assert_eq!(check_parts(&path).count, 0);
     assert!(whole(&path) == mb);
 }
 
@@ -105,4 +105,71 @@ fn only_the_rows_the_window_opens_on_have_their_bodies_brought_in_and_the_rest_c
     let was = mb.message(not_in).unwrap();
     assert_eq!((&shown.body.text, &shown.body.html), (&was.body.text, &was.body.html));
     assert!(!s.needs_load_for_display(not_in));
+}
+
+#[test]
+fn a_body_found_missing_later_reads_as_unavailable_and_the_mailbox_can_still_be_written_whole() {
+    let tmp = Temp::new("missing-marked");
+    let path = tmp.file();
+    let mb = mailbox(24);
+    save(&path, &mb).unwrap();
+    clear_cache();
+    let newest = newest_first(&mb);
+    let old_text = *newest.iter().rev().find(|id| mb.message(**id).unwrap().body.text.len() > INLINE_MAX).unwrap();
+    fs::remove_file(blob_file(&path, mb.message(old_text).unwrap().body.text.as_bytes())).unwrap();
+    let old_html = *newest.iter().rev().find(|id| **id != old_text && mb.message(**id).unwrap().body.html.is_some()).unwrap();
+    fs::remove_file(blob_file(&path, mb.message(old_html).unwrap().body.html.as_ref().unwrap().as_bytes())).unwrap();
+    // As an opening that looks at once has it.
+    let now = open_launched(&path, Launch::default());
+    let opened = open_launched(&path, Launch { checks_later: true, rows: Some(3) });
+    let mut s = Session::new(opened.mailbox);
+    s.path = Some(path.clone());
+    assert!(s.loaded_mailbox().is_err(), "not yet known to be missing");
+    let missing = check_parts(&path);
+    assert_eq!(missing.count, 2);
+    assert_eq!(s.mark_unavailable(&missing.refs), 2);
+    for id in [old_text, old_html] {
+        let (m, was) = (s.mailbox.message(id).unwrap(), now.mailbox.message(id).unwrap());
+        assert_eq!((&m.body, m.kept.as_deref().map(|k| k.failed)), (&was.body, was.kept.as_deref().map(|k| k.failed)), "message {id}");
+        assert!(!s.needs_load_for_display(id));
+    }
+    // File › Save As and the like write it with the notice in its place, as they always have.
+    let whole = s.loaded_mailbox().unwrap();
+    assert_eq!(whole.message(old_text).unwrap().body.text, UNAVAILABLE);
+    // Said once: nothing more is marked.
+    assert_eq!(s.mark_unavailable(&missing.refs), 0);
+}
+
+#[test]
+fn the_bodies_the_budget_holds_come_after_the_window_shows_as_an_opening_would_have_read_them() {
+    let tmp = Temp::new("bodies-later");
+    let path = tmp.file();
+    let mb = mailbox(260);
+    save(&path, &mb).unwrap();
+    clear_cache();
+    let now = open_launched(&path, Launch::default());
+    let opened = open_launched(&path, Launch { checks_later: true, rows: Some(OPENING_ROWS) });
+    let mut s = Session::new(opened.mailbox);
+    s.path = Some(path.clone());
+    // The oldest rows are past the first 200: no preview yet.
+    let oldest = *newest_first(&mb).iter().rev().find(|id| mb.message(**id).unwrap().body.text.len() > INLINE_MAX).unwrap();
+    let preview_now = crate::list::preview(now.mailbox.messages.get(&oldest).unwrap(), 80);
+    assert!(!preview_now.is_empty());
+    assert!(s.mailbox.message(oldest).unwrap().body_is_kept());
+    let later = bodies_later(&path);
+    assert!(!later.is_empty());
+    assert!(bodies_later(&path).is_empty(), "once only");
+    let before = s.loads();
+    // In batches, as the host hands them over.
+    for batch in later.chunks(64) {
+        s.take_bodies(read_bodies(&path, batch));
+    }
+    assert_ne!(s.loads(), before, "what reads bodies sees they came");
+    for (id, m) in &s.mailbox.messages {
+        let was = now.mailbox.message(*id).unwrap();
+        assert_eq!((&m.body, m.body_is_kept()), (&was.body, was.body_is_kept()), "message {id}");
+    }
+    assert_eq!(crate::list::preview(s.mailbox.messages.get(&oldest).unwrap(), 80), preview_now);
+    // Brought in this way, a body isn't counted as one the owner brought in (nothing is let go of).
+    assert_eq!(s.resident_bytes(), 0);
 }

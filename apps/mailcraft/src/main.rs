@@ -1631,18 +1631,35 @@ fn background_saver(ctx: &egui::Context, path: &std::path::Path) -> Option<Box<d
     }
 }
 
-/// Look for the content files of the mailbox file at `path` that its opening left on disk, on a
-/// thread of its own (`store::check_parts`), and hand over how many are missing, waking the window.
-/// `None` when the thread couldn't be started: then nothing more is said than the opening found.
-fn missing_parts_later(ctx: &egui::Context, path: &std::path::Path) -> Option<std::sync::mpsc::Receiver<usize>> {
-    let (tx, rx) = std::sync::mpsc::channel();
+/// Once the window shows (#519): look for the content files of the mailbox file at `path` that
+/// its opening left on disk (`store::check_parts`) and hand over which are missing, then read the
+/// bodies the opening left for later (`store::bodies_later`) and hand them over in batches, on a
+/// thread of its own, waking the window each time. `None` when the thread couldn't be started:
+/// then nothing more is said than the opening found, and the bodies load as they are shown.
+#[allow(clippy::type_complexity)]
+fn content_later(
+    ctx: &egui::Context,
+    path: &std::path::Path,
+) -> Option<(std::sync::mpsc::Receiver<mailcraft_engine::Missing>, std::sync::mpsc::Receiver<Vec<mailcraft_engine::BodyRead>>)> {
+    /// Bodies read and handed over at a time.
+    const BATCH: usize = 256;
+    let (missing_tx, missing_rx) = std::sync::mpsc::channel();
+    let (bodies_tx, bodies_rx) = std::sync::mpsc::channel();
     let (wake, path) = (ctx.clone(), path.to_path_buf());
     let spawned = std::thread::Builder::new().name("looking for the mailbox's content".into()).spawn(move || {
-        let _ = tx.send(mailcraft_engine::store::check_parts(&path));
+        let _ = missing_tx.send(mailcraft_engine::store::check_parts(&path));
         wake.request_repaint();
+        let later = mailcraft_engine::store::bodies_later(&path);
+        for batch in later.chunks(BATCH) {
+            // The window has let go (another mailbox, or it closed): nothing more is read.
+            if bodies_tx.send(mailcraft_engine::store::read_bodies(&path, batch)).is_err() {
+                return;
+            }
+            wake.request_repaint();
+        }
     });
     match spawned {
-        Ok(_) => Some(rx),
+        Ok(_) => Some((missing_rx, bodies_rx)),
         Err(e) => {
             log::warn!("couldn't start looking for the mailbox's content files: {e}");
             None
@@ -1844,15 +1861,20 @@ fn main() -> eframe::Result {
                 // The word index starts once the window has drawn its first frames (#519).
                 app.index_words_later();
                 // The content files the opening left on disk are looked for now that the window
-                // shows (#519); what is missing is said when that is done.
+                // shows, and the bodies it left for later are read (#519); what is missing is
+                // said when that is done (the damaged-mailbox notice is said instead).
                 let later = match &app.session.path {
-                    Some(path) if unchecked => missing_parts_later(&ctx, path),
+                    Some(path) if unchecked => content_later(&ctx, path),
                     _ => None,
                 };
+                let later = later.map(|(missing, bodies)| {
+                    app.check_parts_later(missing, unavailable, !damaged);
+                    app.take_bodies_later(bodies);
+                });
                 if damaged {
                     app.status(mailcraft_ui_egui::damaged_mailbox_notice());
-                } else if let Some(rx) = later {
-                    app.check_parts_later(rx, unavailable);
+                } else if later.is_some() {
+                    // (Said once the look is over.)
                 } else if unavailable > 0 {
                     app.status(format!("{unavailable} bodies or attachments are missing from the mailbox's content folder, or damaged."));
                 }
