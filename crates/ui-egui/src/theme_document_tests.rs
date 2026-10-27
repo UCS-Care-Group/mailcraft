@@ -53,8 +53,9 @@ fn an_installed_face_is_registered_with_the_windows_font_behind_it() {
     let chain = |bold| fonts.families.get(&document_family(Font::Georgia, bold)).cloned().unwrap();
     assert_eq!(chain(false).first().map(String::as_str), Some("DocGeorgia"));
     assert!(chain(false).contains(&"Inter".to_string()));
-    // No bold file: the regular face stands in for the bold one.
-    assert_eq!(chain(true).first().map(String::as_str), Some("DocGeorgia"));
+    // No bold file: no bold family, so bold text keeps the window's own bold.
+    assert!(!fonts.families.contains_key(&document_family(Font::Georgia, true)));
+    assert!(document_font(Some(Font::Georgia), true, 14.0, |f: &FontFamily| fonts.families.contains_key(f)).is_none());
     // Fonts nobody has installed get no family.
     assert!(!fonts.families.contains_key(&document_family(Font::Arial, false)));
     assert!(!fonts.families.contains_key(&FontFamily::Name("font-system".into())));

@@ -768,14 +768,16 @@ pub fn font_definitions_with(system: &SystemFont) -> FontDefinitions {
         m.insert(0, "Mono".into());
     }
     // A message's fonts (#582): the installed face under a family of its own, then the window's
-    // own fonts for the glyphs it lacks. With no bold face the regular one stands in for it.
+    // own fonts for the glyphs it lacks. With no bold face, bold text stays in the window's own
+    // bold: the emphasis is what is sent, and egui can't embolden a face itself.
     for font in Font::ALL {
         let face = |bold: bool| system.document.iter().find(|(f, b, _)| *f == font && *b == bold).map(|(_, _, data)| data);
         let Some(regular_face) = face(false) else { continue };
         for bold_face in [false, true] {
             let (data, name) = match (bold_face, face(true)) {
                 (true, Some(bold_data)) => (bold_data, format!("Doc{}Bold", font.label())),
-                _ => (regular_face, format!("Doc{}", font.label())),
+                (true, None) => continue,
+                (false, _) => (regular_face, format!("Doc{}", font.label())),
             };
             fonts.font_data.insert(name.clone(), data.clone());
             let chain = if bold_face {
