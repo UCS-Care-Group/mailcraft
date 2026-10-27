@@ -6,7 +6,10 @@
 //!
 //! - An item does what its key does: it becomes the input that key gives (`Event::Cut`,
 //!   `Event::Copy`, what Ctrl+V gives, Ctrl+A), handed to the text at the start of its window's
-//!   next pass with the keyboard and what was selected given back ([`deliver`]). No command.
+//!   next pass with the keyboard and what was selected given back ([`deliver`]). No command of
+//!   its own: in the body that input runs the commands its keys run (`edit.cut`, `edit.copy`,
+//!   `edit.paste`, a picture's), and an egui field's text, selection and undo are egui's own
+//!   state, which no command reaches; the key's input is what does exactly what the key does.
 //! - Cut and Copy are greyed while nothing is selected; a password offers Paste alone, a text that
 //!   is only read Copy and Select All; Paste is greyed with no host clipboard (the browser).
 //! - Using the menu isn't leaving the text ([`left`]).
