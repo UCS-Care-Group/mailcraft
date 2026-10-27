@@ -56,6 +56,9 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("mail.pin", "Pin", "Home › Tags", pin)
             .params(r#"{"value"?: bool (default: toggle), "ids"?: [number]}"#)
             .selection(needs_message),
+        CommandSpec::new("mail.dismissWarnings", "Dismiss Warnings", "Reading Pane", dismiss_warnings)
+            .params(r#"{"ids"?: [number], "value"?: bool (default true; false shows the banner again)} — hides the sender-warning banner of a message (#508), until a new kind of warning appears. Never for an agent"#)
+            .selection(needs_message),
         CommandSpec::new("mail.junk", "Move to Junk", "Home › Delete", junk).params(IDS).selection(needs_movable),
         CommandSpec::new("mail.notJunk", "Not Junk", "Home › Delete", not_junk).key("Mod+Alt+J").params(IDS).selection(needs_movable),
         CommandSpec::new("mail.findRelated", "Find Related Messages", "Home › Find", find_related).pure().selection(needs_message),
@@ -506,6 +509,23 @@ fn pin(s: &mut Session, v: &Value) -> CmdResult {
     let all_pinned = ids.iter().filter_map(|id| s.mailbox.message(*id)).all(|m| m.pinned);
     let on = p::bool(v, "value").unwrap_or(!all_pinned);
     each(s, v, |m| m.pinned = on)
+}
+
+/// Hides (or shows again) the banner of sender warnings of each message (#508), remembering the
+/// kinds it held; a kind that comes later shows it again.
+fn dismiss_warnings(s: &mut Session, v: &Value) -> CmdResult {
+    let ids = targets(s, v)?;
+    let on = p::bool(v, "value").unwrap_or(true);
+    let mut changed = 0;
+    for id in ids.iter().take(1_000) {
+        let Some(old) = s.mailbox.message(*id).cloned() else { continue };
+        let kinds = if on { mailcraft_model::sender_warnings::kinds(&s.sender_warnings(&old, true)) } else { Vec::new() };
+        if old.warnings_dismissed != kinds {
+            s.mailbox.message_mut(*id)?.warnings_dismissed = kinds;
+            changed += 1;
+        }
+    }
+    Ok(json!({"changed": changed}))
 }
 
 fn find_related(s: &mut Session, _: &Value) -> CmdResult {
