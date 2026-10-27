@@ -54,6 +54,29 @@ fn under(s: &mut Session, head: Id) -> Vec<(Id, u16)> {
     s.rows().iter().filter(|r| r.under == Some(head)).map(|r| (r.id, r.copy)).collect()
 }
 
+/// The messages of the rows drawn selected, a closed conversation's row standing for its
+/// messages, which are what Delete and Move take; sorted.
+fn drawn(s: &mut Session) -> Vec<Id> {
+    let rows = s.rows();
+    let taken: HashSet<Id> = s.acting_on_in(&rows).into_iter().collect();
+    let mut ids: Vec<Id> = rows
+        .iter()
+        .filter(|r| s.shows_selected(r, &taken))
+        .flat_map(|r| if r.under.is_none() && !r.open { r.members.clone() } else { vec![r.id] })
+        .collect();
+    ids.sort_unstable();
+    ids.dedup();
+    let mut acting = s.acting_on();
+    acting.sort_unstable();
+    assert_eq!(ids, acting, "what is drawn selected is what Delete takes");
+    ids
+}
+
+fn sorted<const N: usize>(mut ids: [Id; N]) -> Vec<Id> {
+    ids.sort_unstable();
+    ids.to_vec()
+}
+
 #[test]
 fn a_conversation_row_counts_its_reply_in_sent_items_as_the_reading_pane_does() {
     let (mut s, newer, older, reply) = release_checklist();
@@ -295,6 +318,57 @@ fn a_reply_read_in_the_unread_tab_stays_under_its_conversation_while_it_is_selec
 }
 
 #[test]
+fn ctrl_click_on_a_closed_row_takes_all_of_it_in_or_out() {
+    let (mut s, newer, older, _) = release_checklist();
+    // The older message picked from the reading pane: under the closed row, by itself.
+    run(&mut s, "mail.select", json!({"id": older}));
+    assert_eq!(s.acting_on(), [older]);
+    // Ctrl+click on the row picks the conversation, and again lets go of all of it.
+    run(&mut s, "mail.select", json!({"id": newer, "extend": true}));
+    assert_eq!(drawn(&mut s), sorted([newer, older]));
+    run(&mut s, "mail.select", json!({"id": newer, "extend": true}));
+    assert_eq!((s.sel.messages.clone(), s.sel.whole.clone()), (vec![], vec![]));
+}
+
+#[test]
+fn a_conversation_picked_by_its_row_stays_picked_when_another_message_comes_on_top() {
+    let (mut s, newer, older, reply) = release_checklist();
+    // In the Unread tab the older message is on top of the conversation's row, and the row is
+    // picked; in the All tab the newer one is on top of it, and the row is still the one picked.
+    for (id, read) in [(newer, true), (older, false), (reply, false)] {
+        if let Ok(m) = s.mailbox.message_mut(id) {
+            m.read = read;
+        }
+    }
+    run(&mut s, "view.filter", json!({"value": "unread"}));
+    run(&mut s, "mail.select", json!({"id": older}));
+    assert_eq!(s.sel.whole, [older]);
+    run(&mut s, "view.filter", json!({"value": "all"}));
+    assert_eq!(row_of(&mut s, |r| r.members.contains(&older)).id, newer);
+    assert_eq!(drawn(&mut s), sorted([newer, older]));
+    // The message being read stays the one it was.
+    assert_eq!(s.sel.focus(), Some(older));
+}
+
+#[test]
+fn a_conversation_picked_by_its_row_takes_a_message_of_it_that_came_since() {
+    let (mut s, newer, older, reply) = release_checklist();
+    let (inbox, deleted, sent) = (s.view.folder, folder(&s, FolderKind::Deleted), folder(&s, FolderKind::Sent));
+    // The reply a minute after the newer message, so that a copy of it in the Inbox comes on top.
+    let at = s.mailbox.message(newer).map(|m| (m.date + 60, m.received + 60)).unwrap();
+    if let Ok(m) = s.mailbox.message_mut(reply) {
+        (m.date, m.received) = at;
+    }
+    run(&mut s, "mail.select", json!({"id": newer}));
+    let copy = run(&mut s, "mail.copy", json!({"ids": [reply], "folder": inbox}))["copies"][0].as_u64().unwrap();
+    assert_eq!(row_of(&mut s, |r| r.members.contains(&newer)).id, copy);
+    assert_eq!(s.sel.messages, [newer]);
+    assert_eq!(drawn(&mut s), sorted([copy, newer, older]));
+    run(&mut s, "mail.delete", json!({}));
+    assert_eq!([copy, newer, older, reply].map(|id| folder_of(&s, id)), [deleted, deleted, deleted, sent]);
+}
+
+#[test]
 fn a_closed_row_selected_stands_for_its_conversation_however_it_came_to_be() {
     let (mut s, newer, older, reply) = release_checklist();
     let (deleted, sent) = (folder(&s, FolderKind::Deleted), folder(&s, FolderKind::Sent));
@@ -362,6 +436,9 @@ fn another_folder_tab_or_search_starts_with_every_conversation_closed() {
     run(&mut s, "folder.select", json!({"kind": "inbox"}));
     run(&mut s, "view.search", json!({"query": "checklist"}));
     assert!(s.rows().iter().all(|r| r.others.is_empty()));
+    // And one opens in it, what was found listed under its row.
+    run(&mut s, "mail.expandConversation", json!({"id": newer}));
+    assert_eq!(under(&mut s, newer).len(), 2);
 }
 
 #[test]

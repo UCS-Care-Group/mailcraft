@@ -932,7 +932,8 @@ pub struct Session {
     /// while the list stays as it was searched (`searched_for`), so that a result opened, whose
     /// body comes in, doesn't search everything again.
     search_pass: Option<(mailcraft_model::search::Query, std::collections::HashMap<Id, bool>)>,
-    /// What the list was when `search_pass` was made: its key without the loads.
+    /// What the list was when `search_pass` was made: its key without the loads and the open
+    /// conversations.
     searched_for: Option<String>,
     /// Keep a word index beside the mailbox file, which a search answers from (R6.2): set by a
     /// host that wants it (the desktop app), never by a command's params. Off, a search reads
@@ -1399,7 +1400,7 @@ impl Session {
     /// What the message list is built from, but for the content brought into memory or let go of.
     fn list_state(&self) -> String {
         format!(
-            "{}|{}|{}|{}|{}|{}|{}|{:?}",
+            "{}|{}|{}|{}|{}|{}|{}",
             self.rev,
             self.today().to_days(),
             // `received:"last week"` is other days for another first day of the week, and
@@ -1408,9 +1409,7 @@ impl Session {
             self.zone_key(),
             self.words_finished(),
             self.prefs.show_groups,
-            serde_json::to_string(&self.view).unwrap_or_default(),
-            // (Not in the view's settings: which conversations are open, #503.)
-            self.view.open
+            serde_json::to_string(&self.view).unwrap_or_default()
         )
     }
 
@@ -1423,7 +1422,9 @@ impl Session {
 
     /// The key the message list is kept under ([`Session::rows`]).
     fn list_key(&self) -> String {
-        format!("{}|{}", self.loads, self.list_state())
+        // Which conversations are open (#503) isn't in the view's settings, and opening one in a
+        // search's list lists what was found again, without searching again.
+        format!("{}|{}|{:?}", self.loads, self.list_state(), self.view.open)
     }
 
     /// Keep the word index of the mailbox file ([`crate::words`]) while [`Session::index_words`]
@@ -1968,24 +1969,41 @@ impl Session {
 
     /// Whether `row` of the list is drawn selected (#503): what Delete and Move take, by the rows
     /// that show it. A conversation's row when its message is selected, and, while it is open,
-    /// only when it was picked as the conversation; under an open conversation, each row whose
-    /// message is taken (`taken`, [`Session::acting_on_in`]): the row's own when the row was
-    /// picked, and any picked itself.
+    /// only when it was picked as the conversation ([`Session::picked_whole`]); under an open
+    /// conversation, each row whose message is taken (`taken`, [`Session::acting_on_in`]): the
+    /// row's own when the row was picked, and any picked itself.
     pub fn shows_selected(&self, row: &Row, taken: &HashSet<Id>) -> bool {
         match row.under {
-            None => self.sel.messages.contains(&row.id) && (!row.open || self.sel.whole.contains(&row.id)),
+            None => (!row.open && self.sel.messages.contains(&row.id)) || self.picked_whole(row),
             Some(_) => taken.contains(&row.id),
         }
+    }
+
+    /// Whether the list's row `row` was picked as the conversation (#503): by one of its messages,
+    /// which needn't be the one on top of it now (a newer one came, or another tab lists the
+    /// conversation with another message on top).
+    pub fn picked_whole(&self, row: &Row) -> bool {
+        row.under.is_none() && self.sel.whole.iter().any(|id| row.members.contains(id) && self.sel.messages.contains(id))
     }
 
     /// [`Session::acting_on`], with the list's `rows`.
     pub fn acting_on_in(&self, rows: &[Row]) -> Vec<Id> {
         let whole: HashSet<Id> = self.sel.whole.iter().copied().collect();
-        let heads: HashMap<Id, &Row> = rows.iter().filter(|r| r.conversation()).map(|r| (r.id, r)).collect();
+        // The row each selected message is on top of, and the row of a message it was picked as
+        // the conversation by, which another may be on top of now (looked for only then).
+        let tops = rows.iter().filter(|r| r.under.is_none());
+        let mut rows_of: HashMap<Id, &Row> = tops.clone().map(|r| (r.id, r)).collect();
+        if whole.iter().any(|id| !rows_of.contains_key(id)) {
+            for r in tops.filter(|r| r.conversation()) {
+                for m in r.members.iter().filter(|m| whole.contains(m)) {
+                    rows_of.entry(*m).or_insert(r);
+                }
+            }
+        }
         let mut seen = HashSet::new();
         let mut out = Vec::new();
         for id in &self.sel.messages {
-            let members = heads.get(id).filter(|r| !r.open || whole.contains(id));
+            let members = rows_of.get(id).filter(|r| r.conversation() && (whole.contains(id) || (!r.open && r.id == *id)));
             for x in members.map_or_else(|| std::slice::from_ref(id), |r| r.members.as_slice()) {
                 if seen.insert(*x) {
                     out.push(*x);

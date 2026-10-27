@@ -10368,10 +10368,10 @@ msgstr[1] "Questo elimina l'intera conversazione: i suoi {n} messaggi in {folder
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
-msgid "This deletes the whole conversation: the {n} message of it the search found goes to Deleted Items."
-msgid_plural "This deletes the whole conversation: the {n} messages of it the search found go to Deleted Items."
-msgstr[0] "Questo elimina l'intera conversazione: il {n} messaggio trovato dalla ricerca va in Posta eliminata."
-msgstr[1] "Questo elimina l'intera conversazione: i {n} messaggi trovati dalla ricerca vanno in Posta eliminata."
+msgid "This deletes the {n} message of this conversation that is listed here. It goes to Deleted Items."
+msgid_plural "This deletes the {n} messages of this conversation that are listed here. They go to Deleted Items."
+msgstr[0] "Questo elimina il {n} messaggio di questa conversazione elencato qui. Va in Posta eliminata."
+msgstr[1] "Questo elimina i {n} messaggi di questa conversazione elencati qui. Vanno in Posta eliminata."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -10384,10 +10384,10 @@ msgstr[1] "Questo elimina {n} messaggi in {folder}, conversazioni intere compres
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
-msgid "This deletes {n} message, whole conversations included. It goes to Deleted Items."
-msgid_plural "This deletes {n} messages, whole conversations included. They go to Deleted Items."
-msgstr[0] "Questo elimina {n} messaggio, conversazioni intere comprese. Va in Posta eliminata."
-msgstr[1] "Questo elimina {n} messaggi, conversazioni intere comprese. Vanno in Posta eliminata."
+msgid "This deletes {n} message, including the conversations' messages listed here. It goes to Deleted Items."
+msgid_plural "This deletes {n} messages, including the conversations' messages listed here. They go to Deleted Items."
+msgstr[0] "Questo elimina {n} messaggio, compresi i messaggi delle conversazioni elencati qui. Va in Posta eliminata."
+msgstr[1] "Questo elimina {n} messaggi, compresi i messaggi delle conversazioni elencati qui. Vanno in Posta eliminata."
 
 #. name
 #: crates/ui-egui/src/account_setup.rs

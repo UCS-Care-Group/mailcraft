@@ -10370,10 +10370,10 @@ msgstr[1] "Esto elimina la conversación entera: sus {n} mensajes en {folder} va
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
-msgid "This deletes the whole conversation: the {n} message of it the search found goes to Deleted Items."
-msgid_plural "This deletes the whole conversation: the {n} messages of it the search found go to Deleted Items."
-msgstr[0] "Esto elimina la conversación entera: el {n} mensaje de ella que encontró la búsqueda va a Elementos eliminados."
-msgstr[1] "Esto elimina la conversación entera: los {n} mensajes de ella que encontró la búsqueda van a Elementos eliminados."
+msgid "This deletes the {n} message of this conversation that is listed here. It goes to Deleted Items."
+msgid_plural "This deletes the {n} messages of this conversation that are listed here. They go to Deleted Items."
+msgstr[0] "Esto elimina el {n} mensaje de esta conversación que aparece aquí. Va a Elementos eliminados."
+msgstr[1] "Esto elimina los {n} mensajes de esta conversación que aparecen aquí. Van a Elementos eliminados."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -10386,10 +10386,10 @@ msgstr[1] "Esto elimina {n} mensajes en {folder}, incluidas conversaciones enter
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
-msgid "This deletes {n} message, whole conversations included. It goes to Deleted Items."
-msgid_plural "This deletes {n} messages, whole conversations included. They go to Deleted Items."
-msgstr[0] "Esto elimina {n} mensaje, incluidas conversaciones enteras. Va a Elementos eliminados."
-msgstr[1] "Esto elimina {n} mensajes, incluidas conversaciones enteras. Van a Elementos eliminados."
+msgid "This deletes {n} message, including the conversations' messages listed here. It goes to Deleted Items."
+msgid_plural "This deletes {n} messages, including the conversations' messages listed here. They go to Deleted Items."
+msgstr[0] "Esto elimina {n} mensaje, incluidos los mensajes de las conversaciones que aparecen aquí. Va a Elementos eliminados."
+msgstr[1] "Esto elimina {n} mensajes, incluidos los mensajes de las conversaciones que aparecen aquí. Van a Elementos eliminados."
 
 #. name
 #: crates/ui-egui/src/account_setup.rs

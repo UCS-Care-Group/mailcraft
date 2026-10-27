@@ -10370,10 +10370,10 @@ msgstr[1] "Ceci supprime la conversation entière : ses {n} messages dans {folde
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
-msgid "This deletes the whole conversation: the {n} message of it the search found goes to Deleted Items."
-msgid_plural "This deletes the whole conversation: the {n} messages of it the search found go to Deleted Items."
-msgstr[0] "Ceci supprime la conversation entière : le {n} message de celle-ci trouvé par la recherche va dans Éléments supprimés."
-msgstr[1] "Ceci supprime la conversation entière : les {n} messages de celle-ci trouvés par la recherche vont dans Éléments supprimés."
+msgid "This deletes the {n} message of this conversation that is listed here. It goes to Deleted Items."
+msgid_plural "This deletes the {n} messages of this conversation that are listed here. They go to Deleted Items."
+msgstr[0] "Ceci supprime le {n} message de cette conversation affiché ici. Il va dans Éléments supprimés."
+msgstr[1] "Ceci supprime les {n} messages de cette conversation affichés ici. Ils vont dans Éléments supprimés."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -10386,10 +10386,10 @@ msgstr[1] "Ceci supprime {n} messages dans {folder}, conversations entières com
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
-msgid "This deletes {n} message, whole conversations included. It goes to Deleted Items."
-msgid_plural "This deletes {n} messages, whole conversations included. They go to Deleted Items."
-msgstr[0] "Ceci supprime {n} message, conversations entières comprises. Il va dans Éléments supprimés."
-msgstr[1] "Ceci supprime {n} messages, conversations entières comprises. Ils vont dans Éléments supprimés."
+msgid "This deletes {n} message, including the conversations' messages listed here. It goes to Deleted Items."
+msgid_plural "This deletes {n} messages, including the conversations' messages listed here. They go to Deleted Items."
+msgstr[0] "Ceci supprime {n} message, y compris les messages des conversations affichés ici. Il va dans Éléments supprimés."
+msgstr[1] "Ceci supprime {n} messages, y compris les messages des conversations affichés ici. Ils vont dans Éléments supprimés."
 
 #. name
 #: crates/ui-egui/src/account_setup.rs

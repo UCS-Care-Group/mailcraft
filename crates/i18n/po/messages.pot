@@ -8866,8 +8866,8 @@ msgstr[1] ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
-msgid "This deletes the whole conversation: the {n} message of it the search found goes to Deleted Items."
-msgid_plural "This deletes the whole conversation: the {n} messages of it the search found go to Deleted Items."
+msgid "This deletes the {n} message of this conversation that is listed here. It goes to Deleted Items."
+msgid_plural "This deletes the {n} messages of this conversation that are listed here. They go to Deleted Items."
 msgstr[0] ""
 msgstr[1] ""
 
@@ -8880,8 +8880,8 @@ msgstr[1] ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
-msgid "This deletes {n} message, whole conversations included. It goes to Deleted Items."
-msgid_plural "This deletes {n} messages, whole conversations included. They go to Deleted Items."
+msgid "This deletes {n} message, including the conversations' messages listed here. It goes to Deleted Items."
+msgid_plural "This deletes {n} messages, including the conversations' messages listed here. They go to Deleted Items."
 msgstr[0] ""
 msgstr[1] ""
 

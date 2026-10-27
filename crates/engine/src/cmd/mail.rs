@@ -257,38 +257,58 @@ impl Placed {
 /// conversation's row and its newest message's own row under it are two rows of one message.
 fn ctrl_click(s: &mut Session, placed: &Placed, id: Id, copy: u16) {
     let row = placed.row(id, copy).filter(|r| r.id == id);
-    // A row under an open conversation that was picked as the conversation: the rest of the
-    // conversation stays selected, each message by itself.
-    let picked = row
-        .and_then(|r| r.under)
-        .filter(|h| s.sel.whole.contains(h) && s.sel.messages.contains(h))
-        .and_then(|h| placed.row(h, 0))
-        .filter(|head| head.under.is_none() && head.members.contains(&id));
-    if let Some(head) = picked {
-        s.sel.whole.retain(|x| *x != head.id);
-        let rest: Vec<Id> = head.members.iter().copied().filter(|m| *m != id && (*m == head.id || !s.sel.messages.contains(m))).collect();
-        if let Some(i) = s.sel.messages.iter().position(|x| *x == head.id) {
-            s.sel.messages.splice(i..=i, rest);
-        }
-        return;
-    }
     let selected = s.sel.messages.contains(&id);
-    let shown = selected && row.is_none_or(|r| r.under.is_some() || !r.open || s.sel.whole.contains(&id));
-    if shown {
+    // The messages a conversation's row was picked by, as the conversation.
+    let by_row =
+        |s: &Session, r: &Row| -> Vec<Id> { r.members.iter().copied().filter(|m| s.sel.whole.contains(m) && s.sel.messages.contains(m)).collect() };
+    match row {
+        Some(r) if r.conversation() => {
+            let picked = by_row(s, r);
+            if !picked.is_empty() || (!r.open && selected) {
+                // It leaves with what it stands for: closed, every message of it.
+                let gone = if r.open { picked } else { r.members.clone() };
+                s.sel.messages.retain(|x| !gone.contains(x));
+                s.sel.whole.retain(|x| !gone.contains(x));
+            } else {
+                // Its message selected by its own row under it, that row is let go of for this one.
+                if !selected {
+                    s.sel.messages.push(id);
+                }
+                s.sel.whole.push(id);
+            }
+        }
+        Some(r) if let Some(head) = r.under.and_then(|h| placed.row(h, 0)).filter(|h| h.conversation() && h.members.contains(&id)) => {
+            let picked = by_row(s, head);
+            if picked.is_empty() {
+                toggle(s, id, selected);
+                return;
+            }
+            // Under a conversation that was picked as the conversation: the rest of it stays
+            // selected, each message by itself, where the conversation was in the selection.
+            let rest: Vec<Id> = head.members.iter().copied().filter(|m| *m != id && (picked.contains(m) || !s.sel.messages.contains(m))).collect();
+            let mut messages = Vec::with_capacity(s.sel.messages.len() + rest.len());
+            let mut rest = Some(rest);
+            for x in &s.sel.messages {
+                if picked.contains(x) {
+                    messages.extend(rest.take().unwrap_or_default());
+                } else if *x != id {
+                    messages.push(*x);
+                }
+            }
+            s.sel.messages = messages;
+            s.sel.whole.retain(|x| !picked.contains(x));
+        }
+        _ => toggle(s, id, selected),
+    }
+}
+
+/// A Ctrl+click on a row that stands for its message alone.
+fn toggle(s: &mut Session, id: Id, selected: bool) {
+    if selected {
         s.sel.messages.retain(|x| *x != id);
         s.sel.whole.retain(|x| *x != id);
-    } else if let Some(r) = row.filter(|_| selected) {
-        // Its other row was the one selected: this one is, instead.
-        if r.under.is_none() {
-            s.sel.whole.push(id);
-        } else {
-            s.sel.whole.retain(|x| *x != id);
-        }
     } else {
         s.sel.messages.push(id);
-        if placed.heads(id, copy) {
-            s.sel.whole.push(id);
-        }
     }
 }
 
@@ -460,7 +480,8 @@ fn collapse(s: &mut Session, v: &Value) -> CmdResult {
     }
     // What was picked under it goes, as the list no longer shows it; the row stays selected
     // when it was picked itself.
-    let under: HashSet<Id> = row.members.iter().chain(&row.others).copied().filter(|id| *id != row.id || !s.sel.whole.contains(id)).collect();
+    let under: HashSet<Id> =
+        row.members.iter().chain(&row.others).copied().filter(|id| !(s.sel.whole.contains(id) && row.members.contains(id))).collect();
     if s.sel.messages.iter().any(|id| under.contains(id)) {
         s.sel.messages.retain(|id| !under.contains(id));
         s.sel.whole.retain(|id| !under.contains(id));

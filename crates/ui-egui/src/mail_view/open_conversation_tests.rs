@@ -196,7 +196,7 @@ fn delete_during_a_search_asks_about_what_the_search_found() {
     testing::key(&mut w, Key::Delete);
     w.run_steps(3);
     let Some(crate::dialogs::Dialog::Confirm { ask, .. }) = &w.state().dialog else { panic!("no question") };
-    assert!(ask.text.contains("the 3 messages of it the search found") && !ask.text.contains("Inbox"), "{}", ask.text);
+    assert_eq!(ask.text, "This deletes the 3 messages of this conversation that are listed here. They go to Deleted Items.");
     click(&mut w, "questionAction", 0);
     assert_eq!([kind(&w, newer), kind(&w, older), kind(&w, reply)], [Some(FolderKind::Deleted); 3]);
 }
@@ -211,7 +211,54 @@ fn delete_with_the_reply_picked_as_well_asks_about_every_message_and_says_none_s
     testing::key(&mut w, Key::Delete);
     w.run_steps(3);
     let Some(crate::dialogs::Dialog::Confirm { ask, .. }) = &w.state().dialog else { panic!("no question") };
-    assert_eq!(ask.text, "This deletes 3 messages, whole conversations included. They go to Deleted Items.");
+    assert_eq!(ask.text, "This deletes 3 messages, including the conversations' messages listed here. They go to Deleted Items.");
     click(&mut w, "questionAction", 0);
     assert_eq!([kind(&w, newer), kind(&w, older), kind(&w, reply)], [Some(FolderKind::Deleted); 3]);
+}
+
+#[test]
+fn delete_in_the_unread_tab_says_it_takes_what_is_listed_not_the_whole_conversation() {
+    let (mut w, newer, older, reply) = release_checklist();
+    let inbox = w.state().session.view.folder;
+    // A third message of it in the Inbox, read: the Unread tab doesn't list it.
+    let copy = w.state_mut().execute("mail.copy", json!({"ids": [reply], "folder": inbox})).unwrap()["copies"][0].as_u64().unwrap();
+    for (id, read) in [(newer, false), (older, false), (copy, true)] {
+        if let Ok(m) = w.state_mut().session.mailbox.message_mut(id) {
+            m.read = read;
+        }
+    }
+    w.state_mut().execute("view.filter", json!({"value": "unread"})).unwrap();
+    w.run_steps(3);
+    click(&mut w, "message", newer);
+    testing::key(&mut w, Key::Delete);
+    w.run_steps(3);
+    let Some(crate::dialogs::Dialog::Confirm { ask, .. }) = &w.state().dialog else { panic!("no question") };
+    assert_eq!(ask.text, "This deletes the 2 messages of this conversation that are listed here. They go to Deleted Items.");
+    click(&mut w, "questionAction", 0);
+    assert_eq!([kind(&w, newer), kind(&w, older), kind(&w, copy)], [Some(FolderKind::Deleted), Some(FolderKind::Deleted), Some(FolderKind::Inbox)]);
+}
+
+#[test]
+fn delete_of_every_message_picked_by_its_own_row_asks_nothing() {
+    let (mut w, newer, older, reply) = release_checklist();
+    click(&mut w, "conversationArrow", newer);
+    w.state_mut().execute("mail.select", json!({"id": newer, "copy": 1})).unwrap();
+    w.state_mut().execute("mail.select", json!({"id": older, "extend": true})).unwrap();
+    w.run_steps(3);
+    testing::key(&mut w, Key::Delete);
+    w.run_steps(3);
+    assert_eq!(testing::dialog(&w), None);
+    assert_eq!([kind(&w, newer), kind(&w, older), kind(&w, reply)], [Some(FolderKind::Deleted), Some(FolderKind::Deleted), Some(FolderKind::Sent)]);
+}
+
+#[test]
+fn the_newest_message_picked_in_the_reading_pane_is_its_own_row_under_the_open_conversation() {
+    let (mut w, newer, older, _) = release_checklist();
+    click(&mut w, "conversationArrow", newer);
+    // The older one read (it is below the list's edge), then the newest picked in the reading pane.
+    w.state_mut().execute("mail.select", json!({"id": older})).unwrap();
+    w.run_steps(3);
+    click(&mut w, "conversationMessage", newer);
+    let s = &w.state().session;
+    assert_eq!((s.sel.messages.clone(), s.sel.whole.clone(), s.sel.focus_copy()), (vec![newer], vec![], 1));
 }

@@ -605,9 +605,12 @@ fn conversation_question(app: &MailApp, ids: &[u64]) -> Option<Question> {
     let rows = list_rows(s);
     let picked: HashSet<u64> = ids.iter().copied().collect();
     let account = |r: &mailcraft_engine::list::Row| mb.message(r.id).map(|m| m.account);
+    // A conversation is asked about when its row goes: not when each of its messages was picked
+    // by its own row under it, the conversation open.
+    let by_rows = |r: &mailcraft_engine::list::Row| r.open && !s.picked_whole(r) && r.members.iter().all(|id| s.sel.messages.contains(id));
     let asking: Vec<&mailcraft_engine::list::Row> = rows
         .iter()
-        .filter(|r| r.under.is_none() && r.members.len() > 1 && r.members.iter().all(|id| picked.contains(id)))
+        .filter(|r| r.under.is_none() && r.members.len() > 1 && r.members.iter().all(|id| picked.contains(id)) && !by_rows(r))
         .filter(|r| account(r).is_some_and(|a| mb.asks_before_deleting_conversation(a)))
         .collect();
     if asking.is_empty() {
@@ -616,11 +619,14 @@ fn conversation_question(app: &MailApp, ids: &[u64]) -> Option<Question> {
     // Every message that goes is counted: one conversation's alone, or all that is selected.
     let one = asking.len() == 1 && picked.len() == asking.iter().map(|r| r.members.len()).sum::<usize>();
     let n = picked.len();
-    // A search lists what it finds wherever it looks: the folder is named only when it is the
-    // one in view for every message.
-    let in_view = picked.iter().all(|id| mb.message(*id).is_some_and(|m| m.folder == s.view.folder));
-    let folder = mb.folder(s.view.folder).map(crate::nav::folder_name).unwrap_or_default();
-    let what = match (one, in_view) {
+    // Whole conversations only when nothing of them in the folder in view stays: a tab or a search
+    // lists some of their messages, and may list them from other folders.
+    let folder_id = s.view.folder;
+    let keys: HashSet<(Id, String)> = asking.iter().filter_map(|r| mb.message(r.id)).map(|m| (m.account, m.thread_key())).collect();
+    let whole = picked.iter().all(|id| mb.message(*id).is_some_and(|m| m.folder == folder_id))
+        && !mb.messages.values().any(|m| m.folder == folder_id && !picked.contains(&m.id) && keys.contains(&(m.account, m.thread_key())));
+    let folder = mb.folder(folder_id).map(crate::nav::folder_name).unwrap_or_default();
+    let what = match (one, whole) {
         (true, true) => tln!(
             n,
             "This deletes the whole conversation: its {n} message in {folder} goes to Deleted Items.",
@@ -628,8 +634,8 @@ fn conversation_question(app: &MailApp, ids: &[u64]) -> Option<Question> {
         ),
         (true, false) => tln!(
             n,
-            "This deletes the whole conversation: the {n} message of it the search found goes to Deleted Items.",
-            "This deletes the whole conversation: the {n} messages of it the search found go to Deleted Items."
+            "This deletes the {n} message of this conversation that is listed here. It goes to Deleted Items.",
+            "This deletes the {n} messages of this conversation that are listed here. They go to Deleted Items."
         ),
         (false, true) => tln!(
             n,
@@ -638,8 +644,8 @@ fn conversation_question(app: &MailApp, ids: &[u64]) -> Option<Question> {
         ),
         (false, false) => tln!(
             n,
-            "This deletes {n} message, whole conversations included. It goes to Deleted Items.",
-            "This deletes {n} messages, whole conversations included. They go to Deleted Items."
+            "This deletes {n} message, including the conversations' messages listed here. It goes to Deleted Items.",
+            "This deletes {n} messages, including the conversations' messages listed here. They go to Deleted Items."
         ),
     };
     let mut text = crate::i18n::fmt(&what, &[("folder", folder)]);

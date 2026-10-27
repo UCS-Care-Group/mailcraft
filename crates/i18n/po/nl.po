@@ -10518,10 +10518,10 @@ msgstr[1] "Hiermee wordt het hele gesprek verwijderd: de {n} berichten ervan in 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
-msgid "This deletes the whole conversation: the {n} message of it the search found goes to Deleted Items."
-msgid_plural "This deletes the whole conversation: the {n} messages of it the search found go to Deleted Items."
-msgstr[0] "Hiermee wordt het hele gesprek verwijderd: het {n} bericht ervan dat de zoekopdracht vond, gaat naar Verwijderde items."
-msgstr[1] "Hiermee wordt het hele gesprek verwijderd: de {n} berichten ervan die de zoekopdracht vond, gaan naar Verwijderde items."
+msgid "This deletes the {n} message of this conversation that is listed here. It goes to Deleted Items."
+msgid_plural "This deletes the {n} messages of this conversation that are listed here. They go to Deleted Items."
+msgstr[0] "Hiermee wordt het {n} bericht van dit gesprek verwijderd dat hier staat. Het gaat naar Verwijderde items."
+msgstr[1] "Hiermee worden de {n} berichten van dit gesprek verwijderd die hier staan. Ze gaan naar Verwijderde items."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -10534,10 +10534,10 @@ msgstr[1] "Hiermee worden {n} berichten in {folder} verwijderd, hele gesprekken 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
-msgid "This deletes {n} message, whole conversations included. It goes to Deleted Items."
-msgid_plural "This deletes {n} messages, whole conversations included. They go to Deleted Items."
-msgstr[0] "Hiermee wordt {n} bericht verwijderd, hele gesprekken inbegrepen. Het gaat naar Verwijderde items."
-msgstr[1] "Hiermee worden {n} berichten verwijderd, hele gesprekken inbegrepen. Ze gaan naar Verwijderde items."
+msgid "This deletes {n} message, including the conversations' messages listed here. It goes to Deleted Items."
+msgid_plural "This deletes {n} messages, including the conversations' messages listed here. They go to Deleted Items."
+msgstr[0] "Hiermee wordt {n} bericht verwijderd, inclusief de berichten van de gesprekken die hier staan. Het gaat naar Verwijderde items."
+msgstr[1] "Hiermee worden {n} berichten verwijderd, inclusief de berichten van de gesprekken die hier staan. Ze gaan naar Verwijderde items."
 
 #. name
 #: crates/ui-egui/src/account_setup.rs

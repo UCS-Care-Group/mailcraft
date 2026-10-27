@@ -10356,10 +10356,10 @@ msgstr[1] "Damit wird die ganze Unterhaltung gelöscht: ihre {n} Nachrichten in 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
-msgid "This deletes the whole conversation: the {n} message of it the search found goes to Deleted Items."
-msgid_plural "This deletes the whole conversation: the {n} messages of it the search found go to Deleted Items."
-msgstr[0] "Damit wird die ganze Unterhaltung gelöscht: die {n} Nachricht daraus, die die Suche gefunden hat, kommt in „Gelöschte Elemente“."
-msgstr[1] "Damit wird die ganze Unterhaltung gelöscht: die {n} Nachrichten daraus, die die Suche gefunden hat, kommen in „Gelöschte Elemente“."
+msgid "This deletes the {n} message of this conversation that is listed here. It goes to Deleted Items."
+msgid_plural "This deletes the {n} messages of this conversation that are listed here. They go to Deleted Items."
+msgstr[0] "Damit wird die {n} Nachricht dieser Unterhaltung gelöscht, die hier aufgeführt ist. Sie kommt in „Gelöschte Elemente“."
+msgstr[1] "Damit werden die {n} Nachrichten dieser Unterhaltung gelöscht, die hier aufgeführt sind. Sie kommen in „Gelöschte Elemente“."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -10372,10 +10372,10 @@ msgstr[1] "Damit werden {n} Nachrichten in {folder} gelöscht, ganze Unterhaltun
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
-msgid "This deletes {n} message, whole conversations included. It goes to Deleted Items."
-msgid_plural "This deletes {n} messages, whole conversations included. They go to Deleted Items."
-msgstr[0] "Damit wird {n} Nachricht gelöscht, ganze Unterhaltungen eingeschlossen. Sie kommt in „Gelöschte Elemente“."
-msgstr[1] "Damit werden {n} Nachrichten gelöscht, ganze Unterhaltungen eingeschlossen. Sie kommen in „Gelöschte Elemente“."
+msgid "This deletes {n} message, including the conversations' messages listed here. It goes to Deleted Items."
+msgid_plural "This deletes {n} messages, including the conversations' messages listed here. They go to Deleted Items."
+msgstr[0] "Damit wird {n} Nachricht gelöscht, einschließlich der hier aufgeführten Nachrichten der Unterhaltungen. Sie kommt in „Gelöschte Elemente“."
+msgstr[1] "Damit werden {n} Nachrichten gelöscht, einschließlich der hier aufgeführten Nachrichten der Unterhaltungen. Sie kommen in „Gelöschte Elemente“."
 
 #. name
 #: crates/ui-egui/src/account_setup.rs
