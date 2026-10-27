@@ -167,3 +167,4 @@ be shown when they can't.
 | 2026-10-26 | minor | #507: the rest of the Insert and Review tabs shown greyed, "Pending development"; Ctrl+Shift+G for Word Count |
 | 2026-10-26 | minor | #507: generic names for the pending Insert controls (Item, Saved Text, Diagram, Text Effects), Drop Cap, Object and 3D Models added; pending controls named and disabled for screen readers |
 | 2026-10-27 | minor | #547: Insert › Pictures and Ctrl+V of a picture in the message body |
+| 2026-10-27 | minor | #516: Junk E-mail Options shows an account drop-down; Safe and Blocked Senders are kept per account |

@@ -1583,6 +1583,9 @@ fn update_download(
     })
 }
 
+/// The application id of every window (by which Wayland desktops find the icon).
+const APP_ID: &str = "io.github.billsecond.mailcraft";
+
 /// Window, Dock and taskbar icon.
 fn app_icon() -> Option<egui::IconData> {
     #[cfg(target_os = "macos")]
@@ -1742,7 +1745,7 @@ fn main() -> eframe::Result {
     let mut options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_title("MailCraft")
-            .with_app_id("io.github.billsecond.mailcraft")
+            .with_app_id(APP_ID)
             .with_inner_size([1440.0, 920.0])
             .with_min_inner_size([760.0, 480.0])
             .with_drag_and_drop(true)
@@ -1800,6 +1803,8 @@ fn main() -> eframe::Result {
                 // A run that keeps its mailbox and its settings keeps downloaded pictures too.
                 let kept_pictures = if kept && !sample && prefs_enabled() { keep_pictures() } else { None };
                 let mut services = services(file_dialog, ctx.clone(), kept_pictures, host_updates.as_ref());
+                services.window_identity =
+                    Some(mailcraft_ui_egui::windows::WindowIdentity { icon: app_icon().map(std::sync::Arc::new), app_id: Some(APP_ID.into()) });
                 services.update_start = update_start;
                 let mut app = MailApp::new(session, services);
                 // Nowhere to keep the mailbox (the sample, a run without preferences): don't try.
