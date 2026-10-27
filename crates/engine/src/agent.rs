@@ -1009,7 +1009,7 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
                     n => format!("{n} drafts"),
                 };
                 return format!(
-                    "{verb} {}, which also takes away {which} in Drafts or puts back an earlier version, and what was written since is lost",
+                    "{verb} {}, which also takes away {which} in Drafts or puts back an earlier version, and anything written in it since may be lost",
                     quoted(label.unwrap_or("the last change"))
                 );
             }
