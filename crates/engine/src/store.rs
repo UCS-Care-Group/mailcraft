@@ -391,13 +391,55 @@ struct Stamp {
     /// The SHA-256 of every byte of it as read or written here, when that is known: for a file
     /// whose time says it changed although nobody wrote it (a network share whose times come
     /// late, or a folder kept in step by another program), which is then still this program's.
-    sum: Option<ring::digest::Context>,
+    sum: Sum,
+}
+
+/// What a [`Stamp`] knows of a file's bytes: their SHA-256, nothing, or a SHA-256 still being
+/// worked out on a thread of its own from the bytes an opening read ([`Hashing`]). Nothing asks a
+/// stamp about bytes but a save, which waits for it first ([`Sum::settle`]).
+enum Sum {
+    None,
+    Ready(ring::digest::Context),
+    /// The thread working it out, which says how many bytes it summed; and how many the file has.
+    Pending(std::thread::JoinHandle<Option<(u64, ring::digest::Context)>>, u64),
+}
+
+impl Sum {
+    fn of(sum: Option<ring::digest::Context>) -> Sum {
+        sum.map_or(Sum::None, Sum::Ready)
+    }
+
+    /// Wait for a sum being worked out. One of fewer bytes than the file has, or none (the
+    /// thread stopped), is no sum: the file is then read through again when its time says it
+    /// changed, as for a file whose bytes were never known.
+    fn settle(&mut self) {
+        if let Sum::Pending(..) = self
+            && let Sum::Pending(thread, len) = std::mem::replace(self, Sum::None)
+            && let Ok(Some((summed, sum))) = thread.join()
+            && summed == len
+        {
+            *self = Sum::Ready(sum);
+        }
+    }
+
+    fn take(mut self) -> Option<ring::digest::Context> {
+        self.settle();
+        match self {
+            Sum::Ready(sum) => Some(sum),
+            Sum::None | Sum::Pending(..) => None,
+        }
+    }
 }
 
 impl Stamp {
     /// The file as it is now, if it is still `len` bytes long (what was read or written of it),
     /// with what its bytes were (`sum`), when that is known.
     fn of(path: &Path, len: u64, sum: Option<ring::digest::Context>) -> Option<Stamp> {
+        Stamp::with(path, len, Sum::of(sum))
+    }
+
+    /// [`Stamp::of`], with what is known, or will be, of its bytes.
+    fn with(path: &Path, len: u64, sum: Sum) -> Option<Stamp> {
         let meta = fs::metadata(path).ok()?;
         (meta.len() == len).then(|| Stamp { len, modified: meta.modified().ok(), sum })
     }
@@ -413,7 +455,8 @@ impl Stamp {
         if self.still(path) {
             return true;
         }
-        let Some(sum) = &self.sum else { return false };
+        self.sum.settle();
+        let Sum::Ready(sum) = &self.sum else { return false };
         let Ok(meta) = fs::metadata(path) else { return false };
         if meta.len() != self.len {
             return false;
@@ -469,6 +512,77 @@ impl<T: std::io::Write> std::io::Write for Summed<T> {
     fn flush(&mut self) -> std::io::Result<()> {
         self.inner.flush()
     }
+}
+
+/// What is read through it is summed (SHA-256) on a thread of its own, so that an opening doesn't
+/// wait for it ([`Sum::Pending`]). The bytes go over in the pieces they were read in; a thread
+/// that can't be started, or stops, leaves no sum.
+struct Hashing<T> {
+    inner: T,
+    to: Option<std::sync::mpsc::SyncSender<Vec<u8>>>,
+    thread: Option<std::thread::JoinHandle<Option<(u64, ring::digest::Context)>>>,
+}
+
+/// Pieces read ahead of the thread summing them, at most (a megabyte or so each).
+const HASH_QUEUE: usize = 16;
+
+impl<T> Hashing<T> {
+    fn new(inner: T, #[cfg_attr(not(test), allow(unused_variables))] path: &Path) -> Hashing<T> {
+        let (to, from) = std::sync::mpsc::sync_channel::<Vec<u8>>(HASH_QUEUE);
+        #[cfg(test)]
+        let hold = hash_hold(path);
+        let thread = std::thread::Builder::new()
+            .name("summing the mailbox file".into())
+            .spawn(move || {
+                let mut sum = Summed::new(());
+                for piece in from {
+                    sum.took(&piece);
+                }
+                #[cfg(test)]
+                if let Some(hold) = hold {
+                    let _ = hold.recv();
+                }
+                Some((sum.len, sum.sum))
+            })
+            .inspect_err(|e| log::warn!("couldn't start summing the mailbox file: {e}"))
+            .ok();
+        Hashing { inner, to: thread.as_ref().map(|_| to), thread }
+    }
+
+    /// The sum being worked out of everything read: [`Sum::Pending`] for a file `len` bytes long.
+    fn sum(mut self, len: u64) -> Sum {
+        // (No more pieces: the thread finishes what it has.)
+        self.to = None;
+        self.thread.take().map_or(Sum::None, |thread| Sum::Pending(thread, len))
+    }
+}
+
+impl<T: std::io::Read> std::io::Read for Hashing<T> {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        let n = self.inner.read(buf)?;
+        if n > 0
+            && let Some(to) = &self.to
+            && to.send(buf.get(..n).unwrap_or(&[]).to_vec()).is_err()
+        {
+            // The thread stopped: nothing it says now is the file's sum.
+            self.to = None;
+            self.thread = None;
+        }
+        Ok(n)
+    }
+}
+
+/// For a test: the thread summing the file at a path waits, once it has summed it, until the
+/// test sends or lets go, so that a save can come while the sum is still being worked out.
+#[cfg(test)]
+type HashHold = Mutex<Option<(PathBuf, std::sync::mpsc::Receiver<()>)>>;
+#[cfg(test)]
+static HASH_HOLD: HashHold = Mutex::new(None);
+
+#[cfg(test)]
+fn hash_hold(path: &Path) -> Option<std::sync::mpsc::Receiver<()>> {
+    let mut held = lock(&HASH_HOLD);
+    if held.as_ref().is_some_and(|(p, _)| p == path) { held.take().map(|(_, r)| r) } else { None }
 }
 
 /// An item as the mailbox file has it, as last read or written here: so that an item nobody
@@ -1266,7 +1380,7 @@ pub fn open_ahead(path: &Path, progress: &OpenProgress) -> Result<(), String> {
     if progress.cancelled() {
         return Err(CANCELLED.into());
     }
-    let Some(stamp) = st.stamp.as_ref().map(|s| Stamp { len: s.len, modified: s.modified, sum: None }) else {
+    let Some(stamp) = st.stamp.as_ref().map(|s| Stamp { len: s.len, modified: s.modified, sum: Sum::None }) else {
         return Ok(());
     };
     st.ahead = Some((Box::new(opened), stamp));
@@ -1437,10 +1551,11 @@ fn open_index(st: &mut State, file: &Path, len: u64, progress: &OpenProgress) ->
         return Err(format!("the mailbox file is larger than {} GB", MAX_INDEX >> 30));
     }
     let f = crate::io::regular_file(file).map_err(|e| e.to_string())?;
-    let mut summed = Summed::new(std::io::BufReader::with_capacity(1 << 20, Counted { inner: f, progress }));
-    let replayed = index::replay(&mut summed, len)?;
-    // What its bytes are, when all of them were read.
-    let sum = (summed.len == len).then_some(summed.sum);
+    // What its bytes are is worked out on a thread of its own from the bytes read here (no more
+    // than `len` of them), for the first save to wait for: nothing wants it before.
+    let mut reader = std::io::BufReader::with_capacity(1 << 20, Hashing::new(Counted { inner: f.take(len), progress }, file));
+    let replayed = index::replay(&mut reader, len)?;
+    let sum = reader.into_inner().sum(len);
     let (rest, rest_sum) = replayed.rest.ok_or("this mailbox file is damaged (it has no mailbox record)")?;
     let mut mailbox: Mailbox = mailcraft_model::from_json(&rest, max_json_items()).map_err(|e| format!("this mailbox file is damaged ({e})"))?;
     let rest_fp = (rest_sum, index::FRAME + rest.len() as u64);
@@ -1553,7 +1668,7 @@ fn open_index(st: &mut State, file: &Path, len: u64, progress: &OpenProgress) ->
     for m in disk.messages.values() {
         hold(&mut st.live, &m.parts);
     }
-    st.stamp = Stamp::of(file, len, sum);
+    st.stamp = Stamp::with(file, len, sum);
     st.disk = Some(disk);
     st.loaded = loaded_unless_retired(&mailbox);
     Ok(Opened {
@@ -2586,6 +2701,11 @@ fn write_index(st: &mut State, path: &Path, mailbox: &Mailbox, progress: &Progre
 }
 
 fn write_index_once(st: &mut State, path: &Path, mailbox: &Mailbox, progress: &Progress) -> Result<Saved, String> {
+    // What the file's bytes were when it was opened, while that is still being worked out:
+    // every save waits for it.
+    if let Some(stamp) = &mut st.stamp {
+        stamp.sum.settle();
+    }
     // Somebody else wrote the file since: what it names now is theirs to say, and what it named
     // before may be swept any time. What they wrote is kept aside before it is written over.
     let ours = st.stamp.as_mut().is_some_and(|s| s.ours(path));
@@ -2651,7 +2771,7 @@ fn write_index_once(st: &mut State, path: &Path, mailbox: &Mailbox, progress: &P
         st.stamp = None;
         return Err(e.to_string());
     }
-    let sum = st.stamp.take().and_then(|s| s.sum).map(|mut sum| {
+    let sum = st.stamp.take().and_then(|s| s.sum.take()).map(|mut sum| {
         sum.update(&group);
         sum
     });
@@ -3305,3 +3425,7 @@ mod size_tests;
 #[cfg(test)]
 #[path = "store_open_tests.rs"]
 mod open_tests;
+
+#[cfg(test)]
+#[path = "store_bench_tests.rs"]
+mod bench_tests;

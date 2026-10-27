@@ -651,6 +651,81 @@ fn a_file_whose_time_changed_but_not_its_bytes_is_still_ours_and_saves_append() 
     assert_eq!(fs::read(&aside[0]).unwrap(), theirs);
 }
 
+/// Open the file at `path` with the sum of its bytes held back until the returned sender lets
+/// go: the opening is over while the sum is still being worked out (#519).
+fn open_with_sum_held(path: &Path) -> (Mailbox, std::sync::mpsc::Sender<()>) {
+    let (go, hold) = std::sync::mpsc::channel();
+    *lock(&HASH_HOLD) = Some((path.to_path_buf(), hold));
+    *lock(&shared(path).state) = State::default();
+    let mb = open(path).unwrap().mailbox;
+    assert!(matches!(lock(&shared(path).state).stamp.as_ref().map(|s| &s.sum), Some(Sum::Pending(..))), "the sum is still being worked out");
+    (mb, go)
+}
+
+/// Let the sum go after a moment, on a thread of its own; the flag says it has.
+fn let_go_later(go: std::sync::mpsc::Sender<()>) -> (Arc<AtomicBool>, std::thread::JoinHandle<()>) {
+    let gone = Arc::new(AtomicBool::new(false));
+    let flag = gone.clone();
+    let thread = std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(200));
+        flag.store(true, Ordering::SeqCst);
+        drop(go);
+    });
+    (gone, thread)
+}
+
+#[test]
+fn a_save_waits_for_the_sum_of_the_file_as_opened_and_still_knows_its_own_bytes() {
+    let tmp = Temp::new("sum-later-ours");
+    let path = tmp.file();
+    let mut mb = mailbox(8);
+    save(&path, &mb).unwrap();
+    let (opened, go) = open_with_sum_held(&path);
+    assert!(loaded(&path, &opened) == mb);
+    // Its time changes, not its bytes (a share whose times come late): the save waits for the
+    // sum, finds the bytes its own and appends, keeping nothing aside.
+    age(&path, Duration::from_secs(3_600));
+    let (gone, thread) = let_go_later(go);
+    let first = *mb.messages.keys().next().unwrap();
+    mb.message_mut(first).unwrap().read ^= true;
+    assert!(!save(&path, &mb).unwrap().compacted);
+    assert!(gone.load(Ordering::SeqCst), "the save waited for the sum");
+    thread.join().unwrap();
+    assert!(kept(&path, "changed-").is_empty());
+    // And the sum goes on from there: the next time the file's time alone changes, it is still ours.
+    age(&path, Duration::from_secs(7_200));
+    mb.message_mut(first).unwrap().read ^= true;
+    assert!(!save(&path, &mb).unwrap().compacted);
+    assert!(kept(&path, "changed-").is_empty());
+    *lock(&shared(&path).state) = State::default();
+    assert!(whole(&path) == mb);
+}
+
+#[test]
+fn a_file_changed_on_disk_before_the_sum_is_worked_out_is_still_kept_aside() {
+    let tmp = Temp::new("sum-later-theirs");
+    let path = tmp.file();
+    let mut mb = mailbox(8);
+    save(&path, &mb).unwrap();
+    let (_, go) = open_with_sum_held(&path);
+    // Another writer changes a byte, the length the same: the time and the bytes say so.
+    let mut theirs = fs::read(&path).unwrap();
+    let last = theirs.len() - 30;
+    theirs[last] ^= 1;
+    fs::write(&path, &theirs).unwrap();
+    age(&path, Duration::from_secs(60));
+    let (gone, thread) = let_go_later(go);
+    let first = *mb.messages.keys().next().unwrap();
+    mb.message_mut(first).unwrap().read ^= true;
+    assert!(save(&path, &mb).unwrap().compacted);
+    assert!(gone.load(Ordering::SeqCst), "the save waited for the sum");
+    thread.join().unwrap();
+    let aside = kept(&path, "changed-");
+    assert_eq!(aside.len(), 1);
+    assert_eq!(fs::read(&aside[0]).unwrap(), theirs);
+    assert!(whole(&path) == mb);
+}
+
 #[test]
 fn what_was_worked_out_of_attachments_gone_from_memory_is_let_go() {
     let tmp = Temp::new("hashes");
