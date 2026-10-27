@@ -1,6 +1,6 @@
 # MCP server
 
-> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-10-26 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
+> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-10-27 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
 
 MailCraft speaks the [Model Context Protocol](https://modelcontextprotocol.io) over stdio, so
 agents can read, file and write mail and keep a calendar.
@@ -26,7 +26,7 @@ doesn't rely on the agent's judgement: every command has a class for agents (`ag
 | Class | What | Through MCP |
 |---|---|---|
 | `safe` | reading, searching, flagging, filing, moving, categories, calendar, contacts and tasks (deleting them is `delete`), undo and redo (unless they would put back rules, signatures or accounts, bring back a meeting change that writes to people, or remove what was made since: contacts, events, tasks, calendars, categories), writing a message (not sending it), Send/Receive | runs |
-| `owner` | `send`: sending, answering or forwarding a meeting so that people are written to (`"send": true`; also `ui.eventWindow` with `do` `send`, `save` or `saveAndClose`, which the window runs later as the owner; the question lists the people invited), an undo or redo that would bring back such a change, editing, completing, categorising or deleting a to-do in a Microsoft To Do list that is shared with other people, and renaming or deleting a category that such a to-do has (the people the list is shared with see the change; deleting one asks `send` rather than `delete`, as `calendar.delete` with `"send": true` does; also an undo or redo that would change one, and any command that changes one by another way is an overstep; until the account's first tasks download a list counts as not shared; no agent command puts a to-do in a list it names: a new one goes to the default list, which To Do doesn't share; the owner's own changes are as ever), anything put in an Outbox, pictures from the web, joining a meeting's link · `delete`: deleting for good (also a delete in Deleted Items), emptying or deleting a folder, removing an attachment or a calendar, deleting a contact, task, event or category (also an undo or redo that would remove one: it swaps the whole mailbox), discarding what is being written · `accounts`: adding, changing or removing an account, signing in, the application id, remembering sign-ins, moving calendars to an account · `mailbox`: opening, replacing or saving the mailbox file · `settings`: options, signatures, rules (all of them; one never moves mail to an Outbox), how pictures are downloaded; `edit.undo` and `edit.redo` ask for `accounts`, `send`, `delete` or `settings` (in that order) when the step would put back accounts, a meeting change that writes to people, or rules and signatures, or remove contacts, events, tasks, calendars or categories | bridged: the owner is asked in the window; headless: refused, unless the server was started with `--allow` for it |
+| `owner` | `send`: sending, answering or forwarding a meeting so that people are written to (`"send": true`; also `ui.eventWindow` with `do` `send`, `save` or `saveAndClose`, which the window runs later as the owner; the question lists the people invited), an undo or redo that would bring back such a change, editing, completing, categorising or deleting a to-do in a Microsoft To Do list that is shared with other people, and renaming or deleting a category that such a to-do has (the people the list is shared with see the change; deleting one asks `send` rather than `delete`, as `calendar.delete` with `"send": true` does; also an undo or redo that would change one, and any command that changes one by another way is an overstep; until the account's first tasks download a list counts as not shared; no agent command puts a to-do in a list it names: a new one goes to the default list, which To Do doesn't share; the owner's own changes are as ever), anything put in an Outbox, pictures from the web, joining a meeting's link · `delete`: deleting for good (also a delete in Deleted Items), emptying or deleting a folder, removing an attachment or a calendar, deleting a contact, task, event or category (also an undo or redo that would remove one: it swaps the whole mailbox), discarding what an agent wrote in the message being written · `accounts`: adding, changing or removing an account, signing in, the application id, remembering sign-ins, moving calendars to an account · `mailbox`: opening, replacing or saving the mailbox file · `settings`: options, signatures, rules (all of them; one never moves mail to an Outbox), how pictures are downloaded; `edit.undo` and `edit.redo` ask for `accounts`, `send`, `delete` or `settings` (in that order) when the step would put back accounts, a meeting change that writes to people, or rules and signatures, or remove contacts, events, tasks, calendars or categories | bridged: the owner is asked in the window; headless: refused, unless the server was started with `--allow` for it |
 | `never` | the host's side of a synchronisation (`sync.*`), file pickers (`ui.open`, `ui.import`, `ui.attach`), putting an agent's text or the owner's selected text on the clipboard (`ui.copyLinkAddress`, `ui.copySelection`), the diagnostics text (`ui.copyDiagnostics`), opening an attachment with another program (`mail.openAttachment`: only the owner's double-click or Open; an agent saves it as `data` with `mail.saveAttachment`) | refused |
 
 A command without a class is refused; every command MailCraft has carries one, and a test makes
@@ -55,6 +55,17 @@ everything at once. Headless, it is the only way to let an agent do the owner's 
 it skips the question for that class. `input` (raw clicks and keys in the window, with which an
 agent could press anything, Send too) is never asked about: without `--allow input`, `click` and
 `key` are refused.
+
+**What the owner is changing.** An agent never takes the window off what the owner is writing or
+changing without the owner's yes in the window, every time: no `--allow` skips this question
+(#494). When the message being written has changes of the owner's that aren't saved, closing it or
+putting another in its place (`compose.close`, `mail.new`, `mail.reply`, `mail.replyAll`,
+`mail.forward`, `mail.forwardAsAttachment`, `mail.editDraft`, `people.email`) asks Allow, and what
+isn't saved goes to Drafts first; with `"discard": true` it asks Delete, and nothing is saved. An
+appointment, a contact or a task with changes that aren't saved, in the dialog that
+`ui.closeDialog` would close or `ui.dialog` would put another in place of, asks Delete. A message
+only the agent wrote or changed since it was saved is the agent's: leaving it saves it to Drafts
+without a question, and discarding it is `delete`. Headless, nothing is the owner's.
 
 **The question in the window.** Bridged (`--connect`), the bridge marks every request it sends as
 an agent's ([control protocol](control-protocol.md#agents)), and the app asks the owner about what
@@ -152,3 +163,4 @@ parameters.
 | 2026-10-26 | minor | #519: `status`; while the window opens its mailbox (`--connect`), every other tool is answered "the mailbox is still opening" |
 | 2026-10-25 | minor | `view.searchSuggestions` (#308): what the search box offers, safe for agents, its answer framed as untrusted message content |
 | 2026-10-26 | minor | Sender warnings (#508): `read_message` and `mail.get` answer `warnings`, their kinds and levels as data, what they are about framed as untrusted |
+| 2026-10-27 | minor | #494: what the owner is writing or changing and hasn't saved (a message, an appointment, a contact, a task) is left or thrown away by an agent only on the owner's yes in the window, every time; `--allow delete` covers discarding only what an agent wrote |

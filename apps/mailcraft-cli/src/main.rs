@@ -49,7 +49,10 @@ USAGE:
                                                 accounts, the mailbox file and options are asked
                                                 about in the app (bridged) or refused (headless),
                                                 unless allowed with --allow send, delete, accounts,
-                                                mailbox, settings or input (clicking and typing)
+                                                mailbox, settings or input (clicking and typing).
+                                                Leaving or throwing away what the owner is writing
+                                                or changing and hasn't saved is asked about in the
+                                                app every time
   mailcraft-cli --version
 ";
 
