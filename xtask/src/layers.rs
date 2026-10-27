@@ -361,6 +361,18 @@ mod tests {
     }
 
     #[test]
+    fn link_uses_names_and_not_the_other_way() {
+        assert_eq!(classify("mailcraft-link"), Some(Class::Layer(0)));
+        assert!(check(&[c("mailcraft-link", &[("mailcraft-names", Normal, true)])]).is_empty());
+        // `names` stays standalone: it may use no workspace crate.
+        let v = check(&[c("mailcraft-names", &[("mailcraft-link", Normal, true)])]);
+        assert!(matches!(&v[..], [Violation::StandaloneHasWorkspaceDep { dep, .. }] if dep == "mailcraft-link"), "{v:?}");
+        // The order is for these two alone: another crate at layer 0 may not use `link`.
+        let v = check(&[c("mailcraft-time", &[("mailcraft-link", Normal, true)])]);
+        assert!(matches!(v[..], [Violation::Upward { from: 0, to: 0, .. }]), "{v:?}");
+    }
+
+    #[test]
     fn metadata_parsing() {
         let meta: Value = serde_json::from_str(
             r#"{"packages":[

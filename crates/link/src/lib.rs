@@ -5,10 +5,10 @@
 //!
 //! [`WebLink::parse`] reads an `http` or `https` address from RFC 3986's shape and is stricter
 //! than a browser: whatever a browser would read in more than one way is refused (a backslash,
-//! a control character, a host with a space, a percent sign or a full stop from another
-//! script in it, no `//`). What it accepts it writes the way a browser would, and that string,
-//! [`WebLink::as_str`], is what the link tip shows and what is handed to the system's opener,
-//! so that the host shown is the host reached.
+//! a control character, a host with a space, a percent sign, an invisible format character or a
+//! full stop from another script in it, no `//`). What it accepts it writes the way a browser
+//! would, and that string, [`WebLink::as_str`], is what the link tip shows and what is handed to
+//! the system's opener, so that the host shown is the host reached.
 //!
 //! The host is lower-cased ASCII. An international label is written in Punycode (RFC 3492) as
 //! `xn--…`, so that a letter from another script that looks like ours shows. There is no

@@ -792,11 +792,10 @@ fn a_large_newsletter_parses_quickly() {
 
 /// There is no way to fetch anything from here: the crate has no dependency that could, and its
 /// own code names nothing that opens a socket, a file or a process.
-#[test]
-fn this_crate_has_no_way_to_fetch_anything() {
-    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
-    let manifest = std::fs::read_to_string(root.join("Cargo.toml")).unwrap();
-    let dependencies: Vec<&str> = manifest
+/// The dependencies a crate's manifest names, in order.
+fn dependencies(manifest: &std::path::Path) -> Vec<String> {
+    std::fs::read_to_string(manifest)
+        .unwrap()
         .lines()
         .skip_while(|l| l.trim() != "[dependencies]")
         .skip(1)
@@ -804,10 +803,19 @@ fn this_crate_has_no_way_to_fetch_anything() {
         .filter_map(|l| l.split('=').next())
         .map(str::trim)
         .filter(|l| !l.is_empty() && !l.starts_with('#'))
-        .collect();
-    // `mailcraft-link` only reads an address and `mailcraft-names` only cleans text (and neither has
-    // a dependency outside the workspace): they open nothing.
-    assert_eq!(dependencies, ["mailcraft-link", "mailcraft-names", "serde"], "a new dependency: can it reach the network?");
+        .map(String::from)
+        .collect()
+}
+
+#[test]
+fn this_crate_has_no_way_to_fetch_anything() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let why = "a new dependency: can it reach the network?";
+    assert_eq!(dependencies(&root.join("Cargo.toml")), ["mailcraft-link", "mailcraft-names", "serde"], "{why}");
+    // `mailcraft-link` only reads an address, and `mailcraft-names` only cleans text: they open
+    // nothing, and bring in nothing that could.
+    assert_eq!(dependencies(&root.join("../link/Cargo.toml")), ["mailcraft-names"], "{why}");
+    assert!(dependencies(&root.join("../names/Cargo.toml")).is_empty(), "{why}");
     let mut files = vec![root.join("src")];
     let mut checked = 0;
     while let Some(path) = files.pop() {
