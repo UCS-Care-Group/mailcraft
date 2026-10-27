@@ -82,7 +82,15 @@ pub(super) fn header(app: &mut MailApp, ui: &mut Ui) {
         if resize.dragged() {
             let mut next = config.clone();
             if let Some(spec) = next.items.get_mut(i) {
-                spec.width = (f32::from(spec.width) + resize.drag_delta().x).round().clamp(36.0, 800.0) as u16;
+                // From the width the drag started at, so that a slow drag adds up instead of
+                // rounding back to where it was every frame.
+                let from = resize.id.with("from");
+                if resize.drag_started() {
+                    ui.data_mut(|d| d.insert_temp(from, spec.width));
+                }
+                let start = ui.data(|d| d.get_temp::<u16>(from)).unwrap_or(spec.width);
+                let moved = resize.total_drag_delta().unwrap_or_default().x;
+                spec.width = (f32::from(start) + moved).round().clamp(36.0, 800.0) as u16;
             }
             let _ = app.run("view.columns", json!(next));
         }
