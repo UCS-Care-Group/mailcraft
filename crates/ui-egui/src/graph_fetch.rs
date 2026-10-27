@@ -58,6 +58,9 @@ pub struct Fetching {
     /// fetched for it so far, and the messages it waits for (of those under way, it may wait for
     /// some only: it took the place of a forward, or joined its batch).
     then: Option<(String, Value, u64, Option<Vec<Id>>, Vec<Id>)>,
+    /// The message being written when the command that waits was asked to let it go
+    /// (`discard`), as it was then: run again, it lets go of that one alone (#513).
+    let_go: Option<mailcraft_engine::Compose>,
     /// While a forward of several runs again once messages came: those fetched for it already,
     /// not asked for again ([`MailApp::fetch_first`]).
     tried: Option<Vec<Id>>,
@@ -256,6 +259,8 @@ impl MailApp {
             waiting.is_some() && *opening == self.session.openings() && forward_of(command, params).is_none_or(|f| forward_of(id, &then) != Some(f))
         });
         let waits = forward.map_or_else(|| vec![first], |(ids, _)| ids);
+        let discard = then.get("discard").and_then(Value::as_bool) == Some(true);
+        self.fetching.let_go = if discard { self.session.compose.clone() } else { None };
         self.fetching.then = Some((id.to_string(), then, self.session.openings(), tried, waits));
         self.status(if called_off {
             tl!("The forward of several messages that was waiting was called off: another download took its place.")
@@ -265,6 +270,20 @@ impl MailApp {
             tl!("Downloading the message first…")
         });
         Some(Ok(json!({"pending": "download", "message": first})))
+    }
+
+    /// What a command that waited runs again with: it lets go of the message being written
+    /// (`discard`) only when that is the one it was asked to let go of, as it was then. One
+    /// opened or changed since is the owner's to answer for, asked as usual (#513).
+    fn kept_from(&mut self, mut params: Value) -> Value {
+        let asked = self.fetching.let_go.take();
+        if params.get("discard").and_then(Value::as_bool) == Some(true)
+            && self.session.compose != asked
+            && let Some(p) = params.as_object_mut()
+        {
+            p.remove("discard");
+        }
+        params
     }
 
     /// Whether `message`, the one the reading pane shows, is fetched once the batch under way has
@@ -402,6 +421,7 @@ impl MailApp {
             if opening != self.session.openings() {
                 return;
             }
+            let params = self.kept_from(params);
             // A forward of several stops when what came wasn't taken in, saying why, and at the
             // first, in the order asked, that its server didn't send or that came but wasn't kept
             // here, and when a batch brought none of its messages; else it goes on with the rest, if
@@ -574,6 +594,9 @@ fn backoff(stuck: u32) -> f64 {
 
 #[cfg(test)]
 mod forward_several_tests;
+
+#[cfg(test)]
+mod let_go_tests;
 
 #[cfg(test)]
 mod tests {
