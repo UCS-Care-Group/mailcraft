@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! Mail: selecting, reading, filing, flagging and deleting messages.
 
+use std::collections::{HashMap, HashSet};
+
 use mailcraft_model::{FlagStatus, FolderKind, Id, Rgb};
 use serde_json::{Value, json};
 
@@ -126,6 +128,7 @@ fn select(s: &mut Session, v: &Value) -> CmdResult {
             s.sel.whole = heads_in(&rows, a, b);
         }
     } else if p::bool(v, "extend") == Some(true) {
+        let heads = heads_of(s);
         for id in ids {
             match s.sel.messages.iter().position(|x| *x == id) {
                 // Ctrl-click on a selected message takes it out again.
@@ -135,14 +138,15 @@ fn select(s: &mut Session, v: &Value) -> CmdResult {
                 }
                 None => {
                     s.sel.messages.push(id);
-                    if heads(s, id, if id == last { copy } else { 0 }) {
+                    if heads(id, if id == last { copy } else { 0 }) {
                         s.sel.whole.push(id);
                     }
                 }
             }
         }
     } else {
-        s.sel.whole = ids.iter().copied().filter(|id| heads(s, *id, if *id == last { copy } else { 0 })).collect();
+        let heads = heads_of(s);
+        s.sel.whole = ids.iter().copied().filter(|id| heads(*id, if *id == last { copy } else { 0 })).collect();
         s.sel.messages = ids;
     }
     s.sel.focus_row = s.sel.focus().map(|id| (id, copy));
@@ -196,7 +200,8 @@ fn select_all(s: &mut Session, _: &Value) -> CmdResult {
     let mut ids: Vec<Id> = rows.iter().filter(|r| r.copy == 0 && r.under.is_none()).map(|r| r.id).filter(|id| Some(*id) != focus).collect();
     // The message in the reading pane stays the focus.
     ids.extend(focus.filter(|f| position(&rows, *f).is_some()));
-    s.sel.whole = rows.iter().filter(|r| r.conversation() && ids.contains(&r.id)).map(|r| r.id).collect();
+    let picked: HashSet<Id> = ids.iter().copied().collect();
+    s.sel.whole = rows.iter().filter(|r| r.conversation() && picked.contains(&r.id)).map(|r| r.id).collect();
     s.sel.messages = ids;
     s.keep_selected(&rows);
     Ok(json!({"selected": s.sel.messages.len()}))
@@ -224,13 +229,18 @@ fn span(rows: &[Row], anchor: Id, a: usize, focus: Id, b: usize) -> Vec<Id> {
 }
 
 /// Whether row `copy` of message `id` is its conversation's row (#503): selected by that row, the
-/// message stands for every message the row does.
-fn heads(s: &mut Session, id: Id, copy: u16) -> bool {
-    if !s.view.conversations {
-        return false;
+/// message stands for every message the row does. Where each message's rows are is worked out
+/// once, for as many as a selection names.
+fn heads_of(s: &mut Session) -> impl Fn(Id, u16) -> bool + use<> {
+    let rows = if s.view.conversations { s.rows() } else { Default::default() };
+    let (mut exact, mut first) = (HashMap::new(), HashMap::new());
+    for (i, r) in rows.iter().enumerate() {
+        exact.entry((r.id, r.copy)).or_insert(i);
+        first.entry(r.id).or_insert(i);
     }
-    let rows = s.rows();
-    position_of(&rows, id, copy).and_then(|i| rows.get(i)).is_some_and(|r| r.id == id && r.conversation())
+    // As `position_of` finds it: the row numbered `copy`, else the message's first. (A message
+    // can't be listed in another's row and have one of its own.)
+    move |id, copy| exact.get(&(id, copy)).or_else(|| first.get(&id)).and_then(|i| rows.get(*i)).is_some_and(|r| r.id == id && r.conversation())
 }
 
 /// The messages of rows `a` to `b` selected by their conversation's row (#503).
@@ -353,7 +363,8 @@ fn can_collapse(s: &Session) -> Option<&'static str> {
 fn conversation_row(s: &mut Session, v: &Value) -> Option<(usize, Row)> {
     let rows = s.rows();
     let at = match p::id(v, "id") {
-        Some(id) => position_of(&rows, id, 0),
+        // (One in another folder, while the conversation is closed, by the row it belongs to.)
+        Some(id) => position_of(&rows, id, 0).or_else(|| rows.iter().position(|r| r.under.is_none() && r.others.contains(&id))),
         None => s.sel.focus().and_then(|id| position_of(&rows, id, s.sel.focus_copy())),
     }?;
     let row = rows.get(at)?;
@@ -382,8 +393,8 @@ fn expand(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 /// Close a conversation in the list (#503). With the focus on a message under it, its row is
-/// selected, as in Outlook: it stands for the conversation. What else was selected under it and
-/// the list no longer shows (a reply in Sent Items) is let go of.
+/// selected, as in Outlook: it stands for the conversation. Otherwise what was selected under it
+/// is let go of, and the row stays selected only when it was picked itself.
 fn collapse(s: &mut Session, v: &Value) -> CmdResult {
     let Some((i, row)) = conversation_row(s, v) else { return Ok(json!({"open": false})) };
     let Some(key) = key_of(s, &row) else { return Ok(json!({"open": false})) };
@@ -398,11 +409,12 @@ fn collapse(s: &mut Session, v: &Value) -> CmdResult {
         let closed = s.rows();
         return land(s, &closed, i, false).map(|_| json!({"open": false, "id": row.id, "selected": s.sel.messages}));
     }
-    let selection = s.sel.messages.clone();
-    let shown = s.in_list(&selection);
-    if !selection.iter().all(|id| shown.contains(id)) {
-        s.sel.messages.retain(|id| shown.contains(id));
-        s.sel.whole.retain(|id| shown.contains(id));
+    // What was picked under it goes, as the list no longer shows it; the row stays selected
+    // when it was picked itself.
+    let under: HashSet<Id> = row.members.iter().chain(&row.others).copied().filter(|id| *id != row.id || !s.sel.whole.contains(id)).collect();
+    if s.sel.messages.iter().any(|id| under.contains(id)) {
+        s.sel.messages.retain(|id| !under.contains(id));
+        s.sel.whole.retain(|id| !under.contains(id));
         let rows = s.rows();
         s.keep_selected(&rows);
     }
@@ -437,7 +449,7 @@ fn list(s: &mut Session, v: &Value) -> CmdResult {
         .filter_map(|r| {
             let mut m = message_summary(s, s.mailbox.message(r.id)?);
             if let Some(o) = m.as_object_mut() {
-                if r.members.len() > 1 {
+                if r.conversation() {
                     o.insert("conversation".into(), json!(r.members));
                 }
                 // Its conversation in other folders, and whether it is open (#503); a message

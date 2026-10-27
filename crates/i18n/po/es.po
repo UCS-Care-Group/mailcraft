@@ -2702,6 +2702,12 @@ msgstr "No enviar, conservar en este equipo"
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
+msgid "Don't ask again for these accounts"
+msgstr "No volver a preguntar para estas cuentas"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
 msgid "Don't ask again for this account"
 msgstr "No volver a preguntar para esta cuenta"
 
@@ -10335,6 +10341,22 @@ msgid "This deletes the whole conversation: its {n} message in {folder} goes to 
 msgid_plural "This deletes the whole conversation: its {n} messages in {folder} go to Deleted Items."
 msgstr[0] "Esto elimina la conversación entera: su {n} mensaje en {folder} va a Elementos eliminados."
 msgstr[1] "Esto elimina la conversación entera: sus {n} mensajes en {folder} van a Elementos eliminados."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "This deletes the whole conversation: the {n} message of it the search found goes to Deleted Items."
+msgid_plural "This deletes the whole conversation: the {n} messages of it the search found go to Deleted Items."
+msgstr[0] "Esto elimina la conversación entera: el {n} mensaje de ella que encontró la búsqueda va a Elementos eliminados."
+msgstr[1] "Esto elimina la conversación entera: los {n} mensajes de ella que encontró la búsqueda van a Elementos eliminados."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "This deletes whole conversations: the {n} message of them the search found goes to Deleted Items."
+msgid_plural "This deletes whole conversations: the {n} messages of them the search found go to Deleted Items."
+msgstr[0] "Esto elimina conversaciones enteras: el {n} mensaje de ellas que encontró la búsqueda va a Elementos eliminados."
+msgstr[1] "Esto elimina conversaciones enteras: los {n} mensajes de ellas que encontró la búsqueda van a Elementos eliminados."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs

@@ -2702,6 +2702,12 @@ msgstr "Ne pas envoyer, conserver sur cet ordinateur"
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
+msgid "Don't ask again for these accounts"
+msgstr "Ne plus demander pour ces comptes"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
 msgid "Don't ask again for this account"
 msgstr "Ne plus demander pour ce compte"
 
@@ -10335,6 +10341,22 @@ msgid "This deletes the whole conversation: its {n} message in {folder} goes to 
 msgid_plural "This deletes the whole conversation: its {n} messages in {folder} go to Deleted Items."
 msgstr[0] "Ceci supprime la conversation entière : son {n} message dans {folder} va dans Éléments supprimés."
 msgstr[1] "Ceci supprime la conversation entière : ses {n} messages dans {folder} vont dans Éléments supprimés."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "This deletes the whole conversation: the {n} message of it the search found goes to Deleted Items."
+msgid_plural "This deletes the whole conversation: the {n} messages of it the search found go to Deleted Items."
+msgstr[0] "Ceci supprime la conversation entière : le {n} message de celle-ci trouvé par la recherche va dans Éléments supprimés."
+msgstr[1] "Ceci supprime la conversation entière : les {n} messages de celle-ci trouvés par la recherche vont dans Éléments supprimés."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "This deletes whole conversations: the {n} message of them the search found goes to Deleted Items."
+msgid_plural "This deletes whole conversations: the {n} messages of them the search found go to Deleted Items."
+msgstr[0] "Ceci supprime des conversations entières : le {n} message de celles-ci trouvé par la recherche va dans Éléments supprimés."
+msgstr[1] "Ceci supprime des conversations entières : les {n} messages de celles-ci trouvés par la recherche vont dans Éléments supprimés."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs

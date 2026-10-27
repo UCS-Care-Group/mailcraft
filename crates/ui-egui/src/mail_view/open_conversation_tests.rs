@@ -151,3 +151,35 @@ fn dont_ask_again_turns_the_question_off_for_the_account() {
     assert_eq!(testing::dialog(&w), None);
     assert_eq!(kind(&w, older), Some(FolderKind::Deleted));
 }
+
+#[test]
+fn a_right_click_on_the_newer_messages_own_row_acts_on_it_alone() {
+    let (mut w, newer, older, _) = release_checklist();
+    // The conversation's row picked, then opened: the newer message's own row is under it.
+    click(&mut w, "message", newer);
+    click(&mut w, "conversationArrow", newer);
+    assert_eq!(w.state().session.sel.whole, [newer]);
+    let arrow = w.state().hit.rect("conversationArrow", newer).unwrap();
+    let below = w.state().hit.rect("message", older).unwrap();
+    let own = egui::pos2(below.center().x, arrow.center().y + below.height());
+    testing::click(&mut w, own, PointerButton::Secondary, 1);
+    w.run_steps(3);
+    let s = &w.state().session;
+    assert_eq!((s.sel.messages.clone(), s.sel.whole.clone(), s.sel.focus_copy()), (vec![newer], vec![], 1));
+    testing::key(&mut w, Key::Escape);
+    w.run_steps(2);
+}
+
+#[test]
+fn delete_during_a_search_asks_about_what_the_search_found() {
+    let (mut w, newer, older, reply) = release_checklist();
+    w.state_mut().execute("view.search", json!({"query": "checklist", "scope": "everywhere"})).unwrap();
+    w.run_steps(3);
+    click(&mut w, "message", newer);
+    testing::key(&mut w, Key::Delete);
+    w.run_steps(3);
+    let Some(crate::dialogs::Dialog::Confirm { ask, .. }) = &w.state().dialog else { panic!("no question") };
+    assert!(ask.text.contains("the 3 messages of it the search found") && !ask.text.contains("Inbox"), "{}", ask.text);
+    click(&mut w, "questionAction", 0);
+    assert_eq!([kind(&w, newer), kind(&w, older), kind(&w, reply)], [Some(FolderKind::Deleted); 3]);
+}

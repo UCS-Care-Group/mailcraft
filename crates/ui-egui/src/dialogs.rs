@@ -6,6 +6,8 @@
 //!
 //! Dialogs only collect input: what they do, they do by running a command.
 
+use std::collections::HashSet;
+
 use egui::{Align2, Key, Ui, vec2};
 use mailcraft_model::Id;
 use serde_json::{Value, json};
@@ -366,9 +368,9 @@ pub fn confirmation(app: &MailApp, id: &str, params: &Value) -> Option<Question>
         "mail.delete" | "mail.deletePermanently" => {
             // What the selection stands for: a conversation's row, every message of it the list
             // shows (#503).
-            let selected = || match app.session.sel.whole.is_empty() {
-                true => app.session.sel.messages.to_vec(),
-                false => app.session.acting_on_in(&mailcraft_engine::list::rows(&app.session)),
+            let selected = || match app.session.view.conversations {
+                true => app.session.acting_on_in(&list_rows(&app.session)),
+                false => app.session.sel.messages.to_vec(),
             };
             let ids: Vec<u64> = match params.get("ids").and_then(Value::as_array) {
                 Some(ids) => ids.iter().filter_map(Value::as_u64).collect(),
@@ -600,30 +602,43 @@ fn conversation_question(app: &MailApp, ids: &[u64]) -> Option<Question> {
         return None;
     }
     let mb = &s.mailbox;
-    let rows = mailcraft_engine::list::rows(s);
+    let rows = list_rows(s);
+    let picked: HashSet<u64> = ids.iter().copied().collect();
     let account = |r: &mailcraft_engine::list::Row| mb.message(r.id).map(|m| m.account);
     let asking: Vec<&mailcraft_engine::list::Row> = rows
         .iter()
-        .filter(|r| r.under.is_none() && r.members.len() > 1 && r.members.iter().all(|id| ids.contains(id)))
+        .filter(|r| r.under.is_none() && r.members.len() > 1 && r.members.iter().all(|id| picked.contains(id)))
         .filter(|r| account(r).is_some_and(|a| mb.asks_before_deleting_conversation(a)))
         .collect();
     if asking.is_empty() {
         return None;
     }
     let n: usize = asking.iter().map(|r| r.members.len()).sum();
+    // A search lists what it finds wherever it looks: the folder is named only when it is the
+    // one in view for every message.
+    let in_view = asking.iter().flat_map(|r| &r.members).all(|id| mb.message(*id).is_some_and(|m| m.folder == s.view.folder));
     let folder = mb.folder(s.view.folder).map(crate::nav::folder_name).unwrap_or_default();
-    let what = if asking.len() == 1 {
-        tln!(
+    let what = match (asking.len() == 1, in_view) {
+        (true, true) => tln!(
             n,
             "This deletes the whole conversation: its {n} message in {folder} goes to Deleted Items.",
             "This deletes the whole conversation: its {n} messages in {folder} go to Deleted Items."
-        )
-    } else {
-        tln!(
+        ),
+        (false, true) => tln!(
             n,
             "This deletes whole conversations: their {n} message in {folder} goes to Deleted Items.",
             "This deletes whole conversations: their {n} messages in {folder} go to Deleted Items."
-        )
+        ),
+        (true, false) => tln!(
+            n,
+            "This deletes the whole conversation: the {n} message of it the search found goes to Deleted Items.",
+            "This deletes the whole conversation: the {n} messages of it the search found go to Deleted Items."
+        ),
+        (false, false) => tln!(
+            n,
+            "This deletes whole conversations: the {n} message of them the search found goes to Deleted Items.",
+            "This deletes whole conversations: the {n} messages of them the search found go to Deleted Items."
+        ),
     };
     let mut text = crate::i18n::fmt(&what, &[("folder", folder)]);
     if asking.iter().any(|r| !r.others.is_empty()) {
@@ -638,11 +653,15 @@ fn conversation_question(app: &MailApp, ids: &[u64]) -> Option<Question> {
     let mut owners: Vec<Id> = asking.iter().filter_map(|r| account(r)).map(|a| mb.owner_of(a).map_or(a, |o| o.id)).collect();
     owners.sort_unstable();
     owners.dedup();
+    let tick = if owners.len() > 1 { tl!("Don't ask again for these accounts") } else { tl!("Don't ask again for this account") };
     let then = owners.into_iter().map(|a| ("account.edit", json!({"id": a, "askBeforeDeletingConversation": false}))).collect();
-    Some(
-        Question::new(tl!("Delete Conversation"), text, tl!("Delete"), json!({"ids": ids, "confirmed": true}))
-            .ticked(tl!("Don't ask again for this account"), then),
-    )
+    Some(Question::new(tl!("Delete Conversation"), text, tl!("Delete"), json!({"ids": ids, "confirmed": true})).ticked(tick, then))
+}
+
+/// The message list's rows as the window shows them, or, when they are of another list, as they
+/// would be built now.
+fn list_rows(s: &mailcraft_engine::Session) -> std::sync::Arc<Vec<mailcraft_engine::list::Row>> {
+    s.rows_in_view().unwrap_or_else(|| std::sync::Arc::new(mailcraft_engine::list::rows(s)))
 }
 
 /// The parameters of a command after its question was answered by a way of going ahead that

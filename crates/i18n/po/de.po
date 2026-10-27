@@ -2700,6 +2700,12 @@ msgstr "Nicht senden, auf diesem Computer behalten"
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
+msgid "Don't ask again for these accounts"
+msgstr "Für diese Konten nicht mehr fragen"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
 msgid "Don't ask again for this account"
 msgstr "Für dieses Konto nicht mehr fragen"
 
@@ -10321,6 +10327,22 @@ msgid "This deletes the whole conversation: its {n} message in {folder} goes to 
 msgid_plural "This deletes the whole conversation: its {n} messages in {folder} go to Deleted Items."
 msgstr[0] "Damit wird die ganze Unterhaltung gelöscht: ihre {n} Nachricht in {folder} kommt in „Gelöschte Elemente“."
 msgstr[1] "Damit wird die ganze Unterhaltung gelöscht: ihre {n} Nachrichten in {folder} kommen in „Gelöschte Elemente“."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "This deletes the whole conversation: the {n} message of it the search found goes to Deleted Items."
+msgid_plural "This deletes the whole conversation: the {n} messages of it the search found go to Deleted Items."
+msgstr[0] "Damit wird die ganze Unterhaltung gelöscht: die {n} Nachricht daraus, die die Suche gefunden hat, kommt in „Gelöschte Elemente“."
+msgstr[1] "Damit wird die ganze Unterhaltung gelöscht: die {n} Nachrichten daraus, die die Suche gefunden hat, kommen in „Gelöschte Elemente“."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "This deletes whole conversations: the {n} message of them the search found goes to Deleted Items."
+msgid_plural "This deletes whole conversations: the {n} messages of them the search found go to Deleted Items."
+msgstr[0] "Damit werden ganze Unterhaltungen gelöscht: die {n} Nachricht daraus, die die Suche gefunden hat, kommt in „Gelöschte Elemente“."
+msgstr[1] "Damit werden ganze Unterhaltungen gelöscht: die {n} Nachrichten daraus, die die Suche gefunden hat, kommen in „Gelöschte Elemente“."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs

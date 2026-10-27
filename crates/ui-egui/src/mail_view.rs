@@ -906,9 +906,11 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect) {
     }
 
     // Sent, drafts and outbox show who it went to rather than who wrote it; a message under its
-    // conversation goes by the list it is in, so a reply in Sent Items says who wrote it (#503).
-    let shown_in = if row.under.is_some() { app.session.view.folder } else { m.folder };
-    let outgoing = app.session.mailbox.folder(shown_in).is_some_and(|f| matches!(f.kind, FolderKind::Sent | FolderKind::Drafts | FolderKind::Outbox));
+    // conversation only in a list of those, so a reply in Sent Items listed in the Inbox says who
+    // wrote it, and so does mail that came in, listed in Sent Items (#503).
+    let outgoing_folder =
+        |folder| app.session.mailbox.folder(folder).is_some_and(|f| matches!(f.kind, FolderKind::Sent | FolderKind::Drafts | FolderKind::Outbox));
+    let outgoing = outgoing_folder(m.folder) && (row.under.is_none() || outgoing_folder(app.session.view.folder));
     let who = if outgoing {
         let names: Vec<&str> = m.to.iter().map(|a| a.display()).collect();
         if names.is_empty() { tl!("(no recipients)").to_string() } else { names.join("; ") }
@@ -1118,10 +1120,10 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect) {
         let (command, ids) = if unread { ("mail.markRead", row.members.clone()) } else { ("mail.markUnread", vec![row.id]) };
         let _ = app.run(command, json!({"ids": ids}));
     }
-    clicks(app, ui, &resp, row, &m);
+    clicks(app, ui, &resp, row, &m, selected);
 }
 
-fn clicks(app: &mut MailApp, ui: &Ui, resp: &egui::Response, row: &Row, m: &Message) {
+fn clicks(app: &mut MailApp, ui: &Ui, resp: &egui::Response, row: &Row, m: &Message, selected: bool) {
     let (id, copy) = (row.id, row.copy);
     let mods = ui.input(|i| i.modifiers);
     if resp.clicked() {
@@ -1131,8 +1133,9 @@ fn clicks(app: &mut MailApp, ui: &Ui, resp: &egui::Response, row: &Row, m: &Mess
     if resp.double_clicked() {
         let _ = if m.draft { app.run("mail.editDraft", json!({"id": id})) } else { app.run("ui.openWindow", json!({"message": id})) };
     }
-    // A right click on a row outside the selection acts on that row.
-    if resp.secondary_clicked() && !app.session.sel.messages.contains(&id) {
+    // A right click on a row outside the selection acts on that row (a conversation's row and
+    // its newest message's own row under it are two rows, #503).
+    if resp.secondary_clicked() && !selected {
         let _ = app.execute("mail.select", json!({"id": id, "copy": copy}));
     }
     let (read, flagged, pinned) = (m.read, m.flag == FlagStatus::Flagged, m.pinned);

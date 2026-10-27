@@ -91,6 +91,8 @@ mod writing_tools_tests;
 mod zone_tests;
 pub mod zones;
 
+use std::collections::HashSet;
+
 use mailcraft_model::{Id, Message};
 use serde_json::{Value, json};
 
@@ -210,17 +212,25 @@ pub(crate) fn select_after_removal(s: &mut Session, before: &[Row], removed: &[I
     if !s.sel.messages.iter().any(|id| removed.contains(id)) {
         return;
     }
-    // The row the owner was on counts for the message it shows, which may be listed more than once.
+    // The row the owner was on counts for the message it shows, which may be listed more than once;
+    // a message picked under its open conversation, for its own row there (#503).
     let focus = s.sel.focus().map(|id| (id, s.sel.focus_copy()));
+    let gone: HashSet<Id> = removed.iter().copied().collect();
     let first = removed
         .iter()
         .filter_map(|id| match focus {
             Some((f, copy)) if f == *id => position_of(before, *id, copy),
+            _ if !s.sel.whole.contains(id) => before.iter().position(|r| r.id == *id && r.under.is_some()).or_else(|| position(before, *id)),
             _ => position(before, *id),
         })
         .min()
-        // Rows of removed messages above it are gone too, which moves it up.
-        .map(|i| i.saturating_sub(before.iter().take(i).filter(|r| removed.contains(&r.id)).count()));
+        // Rows of removed messages above it are gone too, which moves it up; not a conversation's
+        // row with messages left, which shows the newest of those now.
+        .map(|i| {
+            i.saturating_sub(
+                before.iter().take(i).filter(|r| gone.contains(&r.id) && !(r.conversation() && r.members.iter().any(|m| !gone.contains(m)))).count(),
+            )
+        });
     s.sel.messages.retain(|id| !removed.contains(id));
     if !s.sel.messages.is_empty() {
         return;

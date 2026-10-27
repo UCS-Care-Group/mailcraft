@@ -2702,6 +2702,12 @@ msgstr "Non inviare, conserva su questo computer"
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
+msgid "Don't ask again for these accounts"
+msgstr "Non chiedere più per questi account"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
 msgid "Don't ask again for this account"
 msgstr "Non chiedere più per questo account"
 
@@ -10333,6 +10339,22 @@ msgid "This deletes the whole conversation: its {n} message in {folder} goes to 
 msgid_plural "This deletes the whole conversation: its {n} messages in {folder} go to Deleted Items."
 msgstr[0] "Questo elimina l'intera conversazione: il suo {n} messaggio in {folder} va in Posta eliminata."
 msgstr[1] "Questo elimina l'intera conversazione: i suoi {n} messaggi in {folder} vanno in Posta eliminata."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "This deletes the whole conversation: the {n} message of it the search found goes to Deleted Items."
+msgid_plural "This deletes the whole conversation: the {n} messages of it the search found go to Deleted Items."
+msgstr[0] "Questo elimina l'intera conversazione: il {n} messaggio trovato dalla ricerca va in Posta eliminata."
+msgstr[1] "Questo elimina l'intera conversazione: i {n} messaggi trovati dalla ricerca vanno in Posta eliminata."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "This deletes whole conversations: the {n} message of them the search found goes to Deleted Items."
+msgid_plural "This deletes whole conversations: the {n} messages of them the search found go to Deleted Items."
+msgstr[0] "Questo elimina intere conversazioni: il {n} messaggio trovato dalla ricerca va in Posta eliminata."
+msgstr[1] "Questo elimina intere conversazioni: i {n} messaggi trovati dalla ricerca vanno in Posta eliminata."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs

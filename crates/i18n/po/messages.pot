@@ -2302,6 +2302,11 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
+msgid "Don't ask again for these accounts"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
 msgid "Don't ask again for this account"
 msgstr ""
 
@@ -8831,6 +8836,20 @@ msgstr ""
 #: crates/ui-egui/src/dialogs.rs
 msgid "This deletes the whole conversation: its {n} message in {folder} goes to Deleted Items."
 msgid_plural "This deletes the whole conversation: its {n} messages in {folder} go to Deleted Items."
+msgstr[0] ""
+msgstr[1] ""
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "This deletes the whole conversation: the {n} message of it the search found goes to Deleted Items."
+msgid_plural "This deletes the whole conversation: the {n} messages of it the search found go to Deleted Items."
+msgstr[0] ""
+msgstr[1] ""
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "This deletes whole conversations: the {n} message of them the search found goes to Deleted Items."
+msgid_plural "This deletes whole conversations: the {n} messages of them the search found go to Deleted Items."
 msgstr[0] ""
 msgstr[1] ""
 

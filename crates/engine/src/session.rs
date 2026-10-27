@@ -4,7 +4,7 @@
 //! undo/redo.
 
 use std::borrow::Cow;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -1234,7 +1234,8 @@ impl Session {
             // And those of another folder listed under their open conversation (#503).
             if !self.view.open.is_empty() && ids.iter().any(|id| !shown.contains(id)) {
                 let rows = self.rows();
-                shown.extend(rows.iter().filter(|r| r.under.is_some() && ids.contains(&r.id)).map(|r| r.id));
+                let wanted: HashSet<Id> = ids.iter().copied().collect();
+                shown.extend(rows.iter().filter(|r| r.under.is_some() && wanted.contains(&r.id)).map(|r| r.id));
             }
             return shown;
         }
@@ -1374,6 +1375,13 @@ impl Session {
         let rows = Arc::new(rows);
         self.list_cache = Some(ListCache { key, kept, stays: self.sel.stays.clone(), rows: rows.clone() });
         rows
+    }
+
+    /// The rows of the message list as it was last built, while they are of the list in view: what
+    /// the window shows, which a search's passes over bodies kept on disk may have added to. For a
+    /// caller that can't build them ([`Session::rows`]); `None` when they are of another list.
+    pub fn rows_in_view(&self) -> Option<Arc<Vec<Row>>> {
+        self.list_cache.as_ref().filter(|c| c.key == self.list_key()).map(|c| c.rows.clone())
     }
 
     /// What the message list is built from, but for the content brought into memory or let go of.
@@ -1933,11 +1941,13 @@ impl Session {
     }
 
     /// What Delete and Move take of the selection (#503): each selected message, and for one
-    /// selected by its conversation's row, every message that row stands for in the list. Not the
-    /// conversation's messages in other folders (a reply in Sent Items): those go only when they
-    /// are selected themselves, under the open conversation, as in Outlook.
+    /// selected by its conversation's row, every message that row stands for in the list. A closed
+    /// conversation's row is that row whichever way its message came to be selected: it is drawn
+    /// selected, and what is drawn is what is taken. Not the conversation's messages in other
+    /// folders (a reply in Sent Items): those go only when they are selected themselves, under the
+    /// open conversation, as in Outlook.
     pub fn acting_on(&mut self) -> Vec<Id> {
-        if self.sel.whole.is_empty() {
+        if !self.view.conversations || self.sel.messages.is_empty() {
             return self.sel.messages.clone();
         }
         let rows = self.rows();
@@ -1946,10 +1956,12 @@ impl Session {
 
     /// [`Session::acting_on`], with the list's `rows`.
     pub fn acting_on_in(&self, rows: &[Row]) -> Vec<Id> {
+        let whole: HashSet<Id> = self.sel.whole.iter().copied().collect();
+        let heads: HashMap<Id, &Row> = rows.iter().filter(|r| r.conversation()).map(|r| (r.id, r)).collect();
         let mut seen = HashSet::new();
         let mut out = Vec::new();
         for id in &self.sel.messages {
-            let members = self.sel.whole.contains(id).then(|| rows.iter().find(|r| r.id == *id && r.conversation())).flatten();
+            let members = heads.get(id).filter(|r| !r.open || whole.contains(id));
             for x in members.map_or_else(|| std::slice::from_ref(id), |r| r.members.as_slice()) {
                 if seen.insert(*x) {
                     out.push(*x);

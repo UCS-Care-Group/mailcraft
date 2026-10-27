@@ -206,6 +206,72 @@ fn closing_with_the_focus_under_it_selects_its_row() {
     run(&mut s, "mail.select", json!({"id": other, "extend": true}));
     run(&mut s, "mail.collapseConversation", json!({"id": newer}));
     assert_eq!(s.sel.messages, [other]);
+    // So are the Inbox's messages picked under it, the newer one by its own row too: the closed
+    // row isn't drawn selected for them, and Delete takes only what is.
+    run(&mut s, "mail.expandConversation", json!({"id": newer}));
+    run(&mut s, "mail.select", json!({"id": newer, "copy": 1}));
+    run(&mut s, "mail.select", json!({"id": older, "extend": true}));
+    run(&mut s, "mail.select", json!({"id": other, "extend": true}));
+    run(&mut s, "mail.collapseConversation", json!({"id": newer}));
+    assert_eq!((s.sel.messages.clone(), s.sel.whole.clone()), (vec![other], vec![]));
+    // The row picked itself stays selected, as the conversation.
+    run(&mut s, "mail.select", json!({"id": newer}));
+    run(&mut s, "mail.expandConversation", json!({}));
+    run(&mut s, "mail.select", json!({"id": older, "extend": true}));
+    run(&mut s, "mail.select", json!({"id": other, "extend": true}));
+    run(&mut s, "mail.collapseConversation", json!({"id": newer}));
+    assert_eq!((s.sel.messages.clone(), s.sel.whole.clone()), (vec![newer, other], vec![newer]));
+}
+
+#[test]
+fn a_closed_row_selected_stands_for_its_conversation_however_it_came_to_be() {
+    let (mut s, newer, older, reply) = release_checklist();
+    let (deleted, sent) = (folder(&s, FolderKind::Deleted), folder(&s, FolderKind::Sent));
+    // The newer message picked by its own row; then another list closes the conversation, and
+    // the row it is selected in is the conversation's.
+    run(&mut s, "mail.expandConversation", json!({"id": newer}));
+    run(&mut s, "mail.select", json!({"id": newer, "copy": 1}));
+    run(&mut s, "view.search", json!({"query": "checklist"}));
+    run(&mut s, "view.search", json!({"query": ""}));
+    assert!(s.view.open.is_empty());
+    assert_eq!((s.sel.messages.clone(), s.sel.whole.clone()), (vec![newer], vec![]));
+    assert_eq!(s.acting_on(), [newer, older]);
+    run(&mut s, "mail.delete", json!({}));
+    assert_eq!([newer, older, reply].map(|id| folder_of(&s, id)), [deleted, deleted, sent]);
+}
+
+#[test]
+fn after_deleting_a_message_under_the_open_row_the_next_one_under_it_is_selected() {
+    let (mut s, newer, older, reply) = release_checklist();
+    // The older message a minute before the newer, so the conversation stays where it is in the
+    // list when the newer goes.
+    let at = s.mailbox.message(newer).map(|m| (m.date - 60, m.received - 60)).unwrap();
+    if let Ok(m) = s.mailbox.message_mut(older) {
+        (m.date, m.received) = at;
+    }
+    run(&mut s, "mail.expandConversation", json!({"id": newer}));
+    let place = s.rows().iter().position(|r| r.id == newer && r.under.is_some()).unwrap();
+    run(&mut s, "mail.select", json!({"id": newer, "copy": 1}));
+    run(&mut s, "mail.delete", json!({}));
+    // The row that took its place: the older message's own row under the conversation, alone; not
+    // the conversation's row above it, which shows the older message now.
+    assert_eq!(s.rows().get(place).map(|r| (r.id, r.copy, r.under)), Some((older, 1, Some(older))));
+    assert_eq!((s.sel.messages.clone(), s.sel.whole.clone(), s.sel.focus_copy()), (vec![older], vec![], 1));
+    assert_eq!(s.acting_on(), [older]);
+    assert_eq!(folder_of(&s, reply), folder(&s, FolderKind::Sent));
+}
+
+#[test]
+fn a_message_in_another_folder_opens_its_conversation() {
+    let (mut s, newer, _, reply) = release_checklist();
+    let opened = run(&mut s, "mail.expandConversation", json!({"id": reply}));
+    assert_eq!((opened["open"].as_bool(), opened["id"].as_u64()), (Some(true), Some(newer)));
+    assert_eq!(under(&mut s, newer).len(), 3);
+    // The list says which rows are conversations, one of a single message here with a reply
+    // elsewhere too.
+    let listed = run(&mut s, "mail.list", json!({}));
+    let head = listed["messages"].as_array().unwrap().iter().find(|m| m["id"] == json!(newer) && m.get("under").is_none()).unwrap();
+    assert_eq!((head["open"].as_bool(), head["elsewhere"].clone()), (Some(true), json!([reply])));
 }
 
 #[test]

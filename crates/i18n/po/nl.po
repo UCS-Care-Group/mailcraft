@@ -2733,6 +2733,12 @@ msgstr "Niet verzenden, op deze computer houden"
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
+msgid "Don't ask again for these accounts"
+msgstr "Niet meer vragen voor deze accounts"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
 msgid "Don't ask again for this account"
 msgstr "Niet meer vragen voor dit account"
 
@@ -10483,6 +10489,22 @@ msgid "This deletes the whole conversation: its {n} message in {folder} goes to 
 msgid_plural "This deletes the whole conversation: its {n} messages in {folder} go to Deleted Items."
 msgstr[0] "Hiermee wordt het hele gesprek verwijderd: het {n} bericht ervan in {folder} gaat naar Verwijderde items."
 msgstr[1] "Hiermee wordt het hele gesprek verwijderd: de {n} berichten ervan in {folder} gaan naar Verwijderde items."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "This deletes the whole conversation: the {n} message of it the search found goes to Deleted Items."
+msgid_plural "This deletes the whole conversation: the {n} messages of it the search found go to Deleted Items."
+msgstr[0] "Hiermee wordt het hele gesprek verwijderd: het {n} bericht ervan dat de zoekopdracht vond, gaat naar Verwijderde items."
+msgstr[1] "Hiermee wordt het hele gesprek verwijderd: de {n} berichten ervan die de zoekopdracht vond, gaan naar Verwijderde items."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "This deletes whole conversations: the {n} message of them the search found goes to Deleted Items."
+msgid_plural "This deletes whole conversations: the {n} messages of them the search found go to Deleted Items."
+msgstr[0] "Hiermee worden hele gesprekken verwijderd: het {n} bericht ervan dat de zoekopdracht vond, gaat naar Verwijderde items."
+msgstr[1] "Hiermee worden hele gesprekken verwijderd: de {n} berichten ervan die de zoekopdracht vond, gaan naar Verwijderde items."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
