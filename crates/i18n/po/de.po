@@ -4704,6 +4704,12 @@ msgstr ""
 msgid "Mail folder: the account's {folder}"
 msgstr ""
 
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "Mail from another mailbox can't go into an Outbox: the next Send/Receive would send it"
+msgstr "E-Mails aus einem anderen Postfach können nicht in einen Postausgang: Beim nächsten Senden/Empfangen würden sie gesendet"
+
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
 #, fuzzy
@@ -13716,10 +13722,10 @@ msgstr[1] "{n} Nachrichten geändert"
 #. interface
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
-msgid "{n} message copied into the account: its next Send/Receive puts it on Microsoft's server, without most of its headers (such as Received)"
-msgid_plural "{n} messages copied into the account: its next Send/Receive puts them on Microsoft's server, without most of their headers (such as Received)"
-msgstr[0] "{n} Nachricht in das Konto kopiert: Beim nächsten Senden/Empfangen wird sie ohne die meisten ihrer Kopfzeilen (etwa Received) auf den Microsoft-Server gelegt"
-msgstr[1] "{n} Nachrichten in das Konto kopiert: Beim nächsten Senden/Empfangen werden sie ohne die meisten ihrer Kopfzeilen (etwa Received) auf den Microsoft-Server gelegt"
+msgid "{n} message copied into the account: Send/Receive puts it on Microsoft's server, without most of its headers (such as Received)"
+msgid_plural "{n} messages copied into the account: Send/Receive puts them on Microsoft's server, without most of their headers (such as Received)"
+msgstr[0] "{n} Nachricht in das Konto kopiert: Senden/Empfangen legt sie ohne die meisten ihrer Kopfzeilen (etwa Received) auf den Microsoft-Server"
+msgstr[1] "{n} Nachrichten in das Konto kopiert: Senden/Empfangen legt sie ohne die meisten ihrer Kopfzeilen (etwa Received) auf den Microsoft-Server"
 
 #. interface
 #: crates/ui-egui/src/reading.rs
@@ -13747,10 +13753,10 @@ msgstr[1] "{n} Nachrichten gefunden"
 #. interface
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
-msgid "{n} message moved into the account: its next Send/Receive puts it on Microsoft's server, without most of its headers (such as Received)"
-msgid_plural "{n} messages moved into the account: its next Send/Receive puts them on Microsoft's server, without most of their headers (such as Received)"
-msgstr[0] "{n} Nachricht in das Konto verschoben: Beim nächsten Senden/Empfangen wird sie ohne die meisten ihrer Kopfzeilen (etwa Received) auf den Microsoft-Server gelegt"
-msgstr[1] "{n} Nachrichten in das Konto verschoben: Beim nächsten Senden/Empfangen werden sie ohne die meisten ihrer Kopfzeilen (etwa Received) auf den Microsoft-Server gelegt"
+msgid "{n} message moved into the account: Send/Receive puts it on Microsoft's server, without most of its headers (such as Received)"
+msgid_plural "{n} messages moved into the account: Send/Receive puts them on Microsoft's server, without most of their headers (such as Received)"
+msgstr[0] "{n} Nachricht in das Konto verschoben: Senden/Empfangen legt sie ohne die meisten ihrer Kopfzeilen (etwa Received) auf den Microsoft-Server"
+msgstr[1] "{n} Nachrichten in das Konto verschoben: Senden/Empfangen legt sie ohne die meisten ihrer Kopfzeilen (etwa Received) auf den Microsoft-Server"
 
 #. interface
 #: crates/ui-egui/src/folder_properties.rs

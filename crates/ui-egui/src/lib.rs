@@ -4260,15 +4260,15 @@ fn feedback(id: &str, v: &Value) -> Option<String> {
         "mail.move" => n("intoMicrosoft").filter(|c| *c > 0).map(|c| {
             tln!(
                 c,
-                "{n} message moved into the account: its next Send/Receive puts it on Microsoft's server, without most of its headers (such as Received)",
-                "{n} messages moved into the account: its next Send/Receive puts them on Microsoft's server, without most of their headers (such as Received)"
+                "{n} message moved into the account: Send/Receive puts it on Microsoft's server, without most of its headers (such as Received)",
+                "{n} messages moved into the account: Send/Receive puts them on Microsoft's server, without most of their headers (such as Received)"
             )
         }),
         "mail.copy" => n("intoMicrosoft").filter(|c| *c > 0).map(|c| {
             tln!(
                 c,
-                "{n} message copied into the account: its next Send/Receive puts it on Microsoft's server, without most of its headers (such as Received)",
-                "{n} messages copied into the account: its next Send/Receive puts them on Microsoft's server, without most of their headers (such as Received)"
+                "{n} message copied into the account: Send/Receive puts it on Microsoft's server, without most of its headers (such as Received)",
+                "{n} messages copied into the account: Send/Receive puts them on Microsoft's server, without most of their headers (such as Received)"
             )
         }),
         // A mailbox whose content folder lost something still opens; say how much is missing. A

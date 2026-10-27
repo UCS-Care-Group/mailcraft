@@ -4016,6 +4016,11 @@ msgstr ""
 msgid "Mail folder: the account's {folder}"
 msgstr ""
 
+#. what a command says
+#: crates/model/src/mailbox.rs
+msgid "Mail from another mailbox can't go into an Outbox: the next Send/Receive would send it"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
 msgid "Mail from the shared mailbox waits: {error}"
@@ -11753,8 +11758,8 @@ msgstr[1] ""
 
 #. interface
 #: crates/ui-egui/src/lib.rs
-msgid "{n} message copied into the account: its next Send/Receive puts it on Microsoft's server, without most of its headers (such as Received)"
-msgid_plural "{n} messages copied into the account: its next Send/Receive puts them on Microsoft's server, without most of their headers (such as Received)"
+msgid "{n} message copied into the account: Send/Receive puts it on Microsoft's server, without most of its headers (such as Received)"
+msgid_plural "{n} messages copied into the account: Send/Receive puts them on Microsoft's server, without most of their headers (such as Received)"
 msgstr[0] ""
 msgstr[1] ""
 
@@ -11781,8 +11786,8 @@ msgstr[1] ""
 
 #. interface
 #: crates/ui-egui/src/lib.rs
-msgid "{n} message moved into the account: its next Send/Receive puts it on Microsoft's server, without most of its headers (such as Received)"
-msgid_plural "{n} messages moved into the account: its next Send/Receive puts them on Microsoft's server, without most of their headers (such as Received)"
+msgid "{n} message moved into the account: Send/Receive puts it on Microsoft's server, without most of its headers (such as Received)"
+msgid_plural "{n} messages moved into the account: Send/Receive puts them on Microsoft's server, without most of their headers (such as Received)"
 msgstr[0] ""
 msgstr[1] ""
 

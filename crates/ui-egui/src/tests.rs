@@ -1994,10 +1994,7 @@ fn imported_mail_for_a_microsoft_account_goes_to_a_local_folder_and_says_how_it_
     assert!(a.session.mailbox.queued.iter().any(waits));
     // What Microsoft's server leaves out of it is said, not hidden.
     let said = a.status_msg.as_ref().map(|(text, _)| text.clone()).unwrap_or_default();
-    assert_eq!(
-        said,
-        "1 message moved into the account: its next Send/Receive puts it on Microsoft's server, without most of its headers (such as Received)"
-    );
+    assert_eq!(said, "1 message moved into the account: Send/Receive puts it on Microsoft's server, without most of its headers (such as Received)");
 }
 
 /// Mail moved or copied into a Microsoft account from elsewhere: the status bar says that
