@@ -79,10 +79,11 @@ const MAC_LIGHTS_LEFT: f32 = 10.0;
 /// Where title-bar content starts to the right of the traffic lights.
 pub const MAC_CONTENT_LEFT: f32 = MAC_LIGHTS_LEFT + 2.0 * MAC_LIGHT_PITCH + MAC_LIGHT + (MAC_TITLE_BAR - MAC_LIGHT) / 2.0;
 
-/// The search box: typing filters the message list as you go; Escape clears it. In mail, a list
-/// under it offers what the word being typed may be (#308; `search_suggest`), and Escape closes
-/// that first; and the button at its right opens Advanced Search under it (#329), which Escape
-/// closes before it clears anything (`advanced_search::escape`).
+/// The search box: typing filters the message list as you go, or in People the contacts, which
+/// have a search of their own (#366); Escape clears it. In mail, a list under it offers what the
+/// word being typed may be (#308; `search_suggest`), and Escape closes that first; and the button
+/// at its right opens Advanced Search under it (#329), which Escape closes before it clears
+/// anything (`advanced_search::escape`).
 fn search_box(app: &mut MailApp, ui: &mut Ui, rect: Rect) {
     let t = Tokens::get(ui.ctx());
     let id = search_box_id();
@@ -101,10 +102,22 @@ fn search_box(app: &mut MailApp, ui: &mut Ui, rect: Rect) {
     // People has a search of its own, which the box shows and types into there; everywhere else
     // the box is the mail's (#366).
     let mail_search = app.session.view.module != Module::People;
-    // The engine's search is the truth; the box follows it when it changes elsewhere (a command).
+    // When the other search came in front this frame (Ctrl+1, Ctrl+3), with the keyboard in the box.
+    let slot = id.with("mail_search");
+    let swapped = ui.data(|d| d.get_temp::<bool>(slot)).is_some_and(|was| was != mail_search);
+    ui.data_mut(|d| d.insert_temp(slot, mail_search));
+    // The engine's search is the truth; the box follows it when it changes elsewhere (a command),
+    // and at once when the other one comes in front.
     let truth = if mail_search { &app.session.view.search } else { &app.session.view.people_search };
-    if !focused && app.search_text != *truth {
+    if (!focused || swapped) && app.search_text != *truth {
         app.search_text = truth.clone();
+        // Typing goes on at the end of the search now shown.
+        if focused {
+            let mut state = egui::TextEdit::load_state(ui.ctx(), id).unwrap_or_default();
+            let end = egui::text::CCursor::new(app.search_text.chars().count());
+            state.cursor.set_char_range(Some(egui::text::CCursorRange::one(end)));
+            state.store(ui.ctx(), id);
+        }
     }
     // A dialog over the window takes the keys, Escape first.
     let free = crate::keys::takes_commands(app);

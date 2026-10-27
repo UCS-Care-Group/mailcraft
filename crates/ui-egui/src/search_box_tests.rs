@@ -118,7 +118,7 @@ fn people_keeps_its_search_in_the_box_after_a_click_outside() {
 fn the_box_follows_the_search_of_what_is_in_front() {
     let mut h = testing::window("view.mail");
     let _ = h.state_mut().execute("ui.dismissReminder", json!({"all": true}));
-    let mut run = |h: &mut Window, id: &str, p: serde_json::Value| {
+    let run = |h: &mut Window, id: &str, p: serde_json::Value| {
         h.state_mut().execute(id, p).unwrap();
         h.run_steps(3);
     };
@@ -135,4 +135,37 @@ fn the_box_follows_the_search_of_what_is_in_front() {
     run(&mut h, "people.search", json!({"query": ""}));
     assert_eq!(in_the_box(&h), "");
     assert_eq!(search(&h), "budget", "the mail's search stays");
+}
+
+/// Ctrl and a key, with the keyboard where it is.
+fn chord(h: &mut Window, key: Key) {
+    for pressed in [true, false] {
+        h.input_mut().events.push(egui::Event::Key { key, physical_key: None, pressed, repeat: false, modifiers: egui::Modifiers::COMMAND });
+    }
+    h.run_steps(3);
+}
+
+/// Ctrl+1 and Ctrl+3 with the keyboard in the box: the box shows the search of what comes in
+/// front at once, and what is typed next goes on at its end, into that search.
+#[test]
+fn the_box_swaps_searches_with_what_comes_in_front_while_typing() {
+    let mut h = testing::window("view.mail");
+    let _ = h.state_mut().execute("ui.dismissReminder", json!({"all": true}));
+    h.state_mut().execute("view.search", json!({"query": "budget"})).unwrap();
+    h.state_mut().execute("view.people", json!({})).unwrap();
+    h.run_steps(3);
+    let r = h.state().hit.rect("searchBox", 0).unwrap();
+    testing::click(&mut h, r.center(), PointerButton::Primary, 1);
+    testing::text(&mut h, "tra");
+    chord(&mut h, Key::Num1);
+    assert_eq!(h.state().session.view.module, mailcraft_engine::Module::Mail);
+    assert_eq!(in_the_box(&h), "budget", "Mail's search");
+    testing::text(&mut h, "s");
+    assert_eq!(search(&h), "budgets");
+    assert_eq!(people_search(&h), "tra");
+    chord(&mut h, Key::Num3);
+    assert_eq!(in_the_box(&h), "tra", "People's search");
+    testing::text(&mut h, "s");
+    assert_eq!(people_search(&h), "tras");
+    assert_eq!(search(&h), "budgets");
 }
