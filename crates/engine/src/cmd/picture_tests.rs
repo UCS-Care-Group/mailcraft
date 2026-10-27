@@ -309,3 +309,28 @@ fn hostile_params_never_panic() {
     // Whatever got in is a sound message: it still sends.
     assert!(s.run("compose.send", &json!({})).is_ok());
 }
+
+#[test]
+fn a_microsoft_account_sends_the_picture_up_as_an_inline_attachment() {
+    let mut s = Session::empty();
+    let account = s.run("account.add", &json!({"email": "owner@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+    run(&mut s, "mail.new", json!({"account": account, "to": "kit@example.net", "subject": "Chart"}));
+    run(&mut s, "compose.type", json!({"text": "Look: "}));
+    run(&mut s, "insert.picture", json!({"data": b64(&png_bytes(40)), "file": "chart.png", "alt": "Sales"}));
+    // Saved as a draft: it goes up as a draft of the server's, the picture an inline attachment.
+    run(&mut s, "compose.saveDraft", json!({}));
+    let saved = compose(&s).draft.expect("saved");
+    let draft = super::graph_drafts::draft_up_whole(s.mailbox.message(saved).unwrap()).expect("a draft goes up whole");
+    let here = draft.attachments.clone().expect("with its attachments").here;
+    let pic = here.iter().find(|a| a.inline).expect("the picture is an inline attachment");
+    assert!(pic.content_id.starts_with("pic-") && pic.mime == "image/png" && pic.name == "chart.png" && pic.data.starts_with(b"\x89PNG"), "{pic:?}");
+    let body = draft.body.clone().expect("the body goes up");
+    assert!(body.html && body.content.contains(&format!("cid:{}", pic.content_id)), "{}", body.content);
+    // Sent without a draft of the server's: the whole message goes as MIME, related.
+    let id = run(&mut s, "compose.send", json!({}))["id"].as_u64().unwrap();
+    let up = super::graph_send::sends(&s, account).into_iter().find(|up| up.message == id).expect("queued to send");
+    let m = up.draft.is_none().then_some(up.mime).flatten().map(|m| *m).unwrap_or_else(|| s.mailbox.message(id).unwrap().clone());
+    assert!(m.attachments.iter().any(|a| a.inline && a.content_id.starts_with("pic-")));
+    let wire = String::from_utf8_lossy(&mailcraft_mime::write(&m, &mailcraft_mime::WriteOptions::default())).to_string();
+    assert!(wire.contains("multipart/related") && wire.contains("Content-ID: <pic-"), "{wire}");
+}
