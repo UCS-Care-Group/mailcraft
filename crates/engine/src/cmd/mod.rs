@@ -79,6 +79,9 @@ mod tasks_remote_tests;
 pub mod view;
 #[cfg(test)]
 mod wipe_tests;
+pub mod writing_tools;
+#[cfg(test)]
+mod writing_tools_tests;
 #[cfg(test)]
 mod zone_tests;
 pub mod zones;
@@ -97,6 +100,7 @@ pub fn registry() -> Registry {
     v.extend(mail::specs());
     v.extend(compose::specs());
     v.extend(format::specs());
+    v.extend(writing_tools::specs());
     v.extend(folder::specs());
     v.extend(view::specs());
     v.extend(calendar::specs());

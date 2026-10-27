@@ -63,6 +63,22 @@ pub enum Dialog {
         /// The selection is a link already, which can be removed.
         linked: bool,
     },
+    /// Insert › Date & Time (#507): now in each format `insert.dateTime` offers, one to pick.
+    DateTime {
+        /// The format and what it puts in.
+        choices: Vec<(&'static str, String)>,
+        selected: usize,
+        /// The instant the choices are of: OK puts in the one shown, whatever the clock says by
+        /// then.
+        at: i64,
+    },
+    /// Review › Word Count (#507): what `review.wordCount` counted.
+    WordCount {
+        /// Words, characters, characters with spaces, paragraphs.
+        counts: [u64; 4],
+        /// Of the selection rather than the whole message.
+        selection: bool,
+    },
     /// The password for a Send/Receive. Kept in memory only.
     Password {
         account: Id,
@@ -176,6 +192,8 @@ impl Dialog {
             Dialog::SharedMailbox { .. } => "sharedMailbox",
             Dialog::OpenCalendar { .. } => "openCalendar",
             Dialog::Link { .. } => "link",
+            Dialog::DateTime { .. } => "dateTime",
+            Dialog::WordCount { .. } => "wordCount",
             Dialog::Password { .. } => "password",
             Dialog::DiscardDraft { .. } => "discardDraft",
             Dialog::Confirm { .. } => "confirm",
@@ -253,6 +271,11 @@ impl Dialog {
                 let url = c.body.text().link_span(sel.start()).map(|(from, _)| c.body.text().style_at(from + 1)).and_then(|s| s.link);
                 Dialog::Link { linked: url.is_some(), url: url.unwrap_or_default(), error: String::new() }
             }
+            "dateTime" => {
+                app.session.doc()?;
+                let at = app.session.now();
+                Dialog::DateTime { choices: mailcraft_engine::cmd::writing_tools::date_time_choices(&app.session, at), selected: 0, at }
+            }
             "password" => Dialog::Password { account: id("account")?, password: String::new(), shown: false },
             // Opened by name (`ui.dialog`, which an agent may run), it has nothing waiting for its
             // answer: what runs after it is only ever set by the window itself (`leaving`), or the
@@ -281,6 +304,13 @@ impl Dialog {
 pub(crate) fn open_dialog(app: &mut MailApp, name: &str, params: &Value) -> Option<Dialog> {
     if name == "folderProperties" {
         return crate::folder_properties::FolderProperties::open(app, params).map(|d| Dialog::FolderProperties(Box::new(d)));
+    }
+    if name == "wordCount" {
+        // (The engine counts; when it refuses, there is no dialog and the refusal is said.)
+        let answer = app.session.run("review.wordCount", params).ok()?;
+        let n = |k: &str| answer.get(k).and_then(Value::as_u64).unwrap_or(0);
+        let counts = [n("words"), n("characters"), n("charactersWithSpaces"), n("paragraphs")];
+        return Some(Dialog::WordCount { counts, selection: answer.get("selection").and_then(Value::as_bool) == Some(true) });
     }
     if name == "mergeContacts" {
         return crate::merge_contacts::MergeContacts::open(app, params).map(|d| Dialog::MergeContacts(Box::new(d)));
@@ -832,6 +862,9 @@ pub fn input_dialog(id: &str, params: &Value) -> Option<&'static str> {
         "view.goToDate" if !has("date") => Some("goToDate"),
         // (Without an address, a script's `compose.link` removes the link; a person is asked.)
         "compose.link" if !has("url") => Some("link"),
+        "insert.dateTime" if !has("format") => Some("dateTime"),
+        // (What it answers is counts to look at.)
+        "review.wordCount" => Some("wordCount"),
         "account.add" if !has("email") => Some("account"),
         "calendar.openShared" if !has("address") => Some("openCalendar"),
         "rules.list" => Some("rules"),
@@ -1253,6 +1286,78 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
                 }
             }
             // The keyboard goes back to the text.
+            app.body_focus_wanted |= close;
+        }
+        Dialog::DateTime { choices, selected, at } => {
+            let mut submit = false;
+            let open = window(ctx, tl!("Date and Time"), 360.0, |ui| {
+                ui.label(tl!("Available formats:"));
+                if ui.input(|i| i.key_pressed(Key::ArrowDown)) {
+                    *selected = (*selected + 1).min(choices.len().saturating_sub(1));
+                }
+                if ui.input(|i| i.key_pressed(Key::ArrowUp)) {
+                    *selected = selected.saturating_sub(1);
+                }
+                egui::Frame::NONE.stroke(egui::Stroke::new(1.0, t.border)).corner_radius(4.0).inner_margin(4.0).show(ui, |ui| {
+                    ui.spacing_mut().item_spacing = vec2(0.0, 1.0);
+                    for (i, (format, text)) in choices.iter().enumerate() {
+                        let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 26.0), egui::Sense::click());
+                        app.hit.add("dateTimeFormat", crate::ribbon::hit_id(format), r);
+                        if i == *selected {
+                            ui.painter().rect_filled(r, 3.0, t.selection);
+                        } else if resp.hovered() {
+                            ui.painter().rect_filled(r, 3.0, t.hover);
+                        }
+                        crate::theme::paint_clipped(
+                            ui.painter(),
+                            egui::pos2(r.min.x + 8.0, r.center().y),
+                            r.width() - 16.0,
+                            text,
+                            regular(13.0),
+                            t.text,
+                        );
+                        if resp.clicked() {
+                            *selected = i;
+                        }
+                        if resp.double_clicked() {
+                            submit = true;
+                        }
+                    }
+                });
+                let (ok, cancel) = buttons(ui, tl!("OK"), !choices.is_empty());
+                submit |= ok || (enter && !choices.is_empty());
+                close |= cancel;
+            });
+            close |= !open;
+            if submit && let Some((format, _)) = choices.get(*selected) {
+                if let Err(e) = app.execute("insert.dateTime", json!({"format": format, "at": *at})) {
+                    app.status(e);
+                }
+                close = true;
+            }
+            // The keyboard goes back to the text.
+            app.body_focus_wanted |= close;
+        }
+        Dialog::WordCount { counts, selection } => {
+            let open = window(ctx, tl!("Word Count"), 320.0, |ui| {
+                let what = if *selection { tl!("In the selection") } else { tl!("In the message") };
+                ui.label(egui::RichText::new(what).color(t.text_dim));
+                let names = [tl!("Words"), tl!("Characters (no spaces)"), tl!("Characters (with spaces)"), tl!("Paragraphs")];
+                egui::Grid::new("wordCount").num_columns(2).spacing(vec2(24.0, 6.0)).show(ui, |ui| {
+                    for (name, n) in names.iter().zip(counts.iter()) {
+                        ui.label(*name);
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            ui.label(egui::RichText::new(n.to_string()).font(semibold(13.0)));
+                        });
+                        ui.end_row();
+                    }
+                });
+                ui.add_space(4.0);
+                button_row(ui, |ui| {
+                    close |= primary_button(ui, tl!("Close"), true).clicked();
+                });
+            });
+            close |= !open || enter;
             app.body_focus_wanted |= close;
         }
         Dialog::Password { account, password, shown } => {

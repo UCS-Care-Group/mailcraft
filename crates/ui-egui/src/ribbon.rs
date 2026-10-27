@@ -94,11 +94,12 @@ impl From<Mode> for String {
     }
 }
 
-/// The tabs in order. `File` opens Backstage; `Message` is there while a message is being written.
+/// The tabs in order. `File` opens Backstage; `Message`, `Insert` and `Review` are there while a
+/// message is being written.
 pub fn tabs(app: &MailApp) -> Vec<&'static str> {
     let mut tabs = vec!["File", "Home", "Send / Receive", "Folder", "View", "Help"];
     if app.session.compose.is_some() {
-        tabs.insert(1, "Message");
+        tabs.splice(1..1, ["Message", "Insert", "Review"]);
     }
     tabs
 }
@@ -179,11 +180,34 @@ pub(crate) struct Item {
     /// Simplified row: it is not a button of its own but an entry under the `▾` of the button
     /// with this key.
     pub under: Option<&'static str>,
+    /// One of classic Outlook's controls with no feature behind it yet: shown greyed, with
+    /// "Pending development", and runs nothing.
+    pub pending: bool,
 }
 
 impl Item {
     fn new(key: &'static str, icon: &'static str, label: &'static str, size: Size) -> Item {
-        Item { key, icon, label, tip: "", command: None, menu: None, size, checked: false, section: 9, rank: 5, plain: false, under: None }
+        Item {
+            key,
+            icon,
+            label,
+            tip: "",
+            command: None,
+            menu: None,
+            size,
+            checked: false,
+            section: 9,
+            rank: 5,
+            plain: false,
+            under: None,
+            pending: false,
+        }
+    }
+
+    /// A small button for a control of classic Outlook's that is still to be built (`key`: its
+    /// id in the catalog): greyed, "Pending development", and the first to give way in the row.
+    fn pending(key: &'static str, label: &'static str, section: u8) -> Item {
+        Item { pending: true, ..Item::new(key, "pending", label, Size::Small) }.at(section, 5)
     }
 
     /// A large button that runs `id`.
@@ -278,6 +302,8 @@ impl Tab {
 pub(crate) fn describe(app: &MailApp) -> Tab {
     match app.ui.tab.as_str() {
         "Message" => message(app),
+        "Insert" => insert(),
+        "Review" => review(),
         "Send / Receive" => send_receive(app),
         "Folder" => folder(app),
         "View" => view(app),
@@ -647,6 +673,86 @@ fn message(app: &MailApp) -> Tab {
             ],
         ),
     ])
+}
+
+/// Insert, while a message is being written, in classic Outlook's groups: what Message › Include
+/// has, the date or the time, and the rest still to be built.
+fn insert() -> Tab {
+    Tab::of(vec![
+        g(
+            "Include",
+            vec![
+                Item::big("attach", "Attach\nFile", "ui.attach", no()).at(0, 2),
+                Item::pending("insert.outlookItem", "Item", 0),
+                Item::pending("insert.businessCard", "Business Card", 0),
+                Item::pending("insert.calendar", "Calendar", 0),
+                Item::big_menu("signature", "signature", "Signature", "Signature", Menu::Signature).at(0, 3),
+            ],
+        ),
+        g("Tables", vec![Item::pending("insert.table", "Table", 1)]),
+        g(
+            "Illustrations",
+            vec![
+                Item::pending("insert.picture", "Pictures", 2),
+                Item::pending("insert.shape", "Shapes", 2),
+                Item::pending("insert.icon", "Icons", 2),
+                Item::pending("insert.models3d", "3D Models", 2),
+                Item::pending("insert.diagram", "Diagram", 2),
+                Item::pending("insert.chart", "Chart", 2),
+                Item::pending("insert.screenshot", "Screenshot", 2),
+            ],
+        ),
+        g("Links", vec![Item::big("insertLink", "Link", "compose.link", no()).at(3, 3), Item::pending("insert.bookmark", "Bookmark", 3)]),
+        g(
+            "Text",
+            vec![
+                Item::pending("insert.textBox", "Text Box", 4),
+                Item::pending("insert.quickParts", "Saved Text", 4),
+                Item::pending("insert.textEffects", "Text Effects", 4),
+                Item::pending("insert.dropCap", "Drop Cap", 4),
+                Item::big("dateTime", "Date &\nTime", "insert.dateTime", no()).at(4, 3),
+                Item::pending("insert.object", "Object", 4),
+            ],
+        ),
+        g(
+            "Symbols",
+            vec![
+                Item::pending("insert.equation", "Equation", 5),
+                Item::pending("insert.symbol", "Symbol", 5),
+                Item::pending("insert.rule", "Horizontal Line", 5),
+                Item::pending("insert.emoji", "Emoji", 5),
+            ],
+        ),
+    ])
+}
+
+/// Review, while a message is being written, in classic Outlook's groups: Word Count, and the
+/// rest still to be built.
+fn review() -> Tab {
+    Tab::of(vec![
+        g(
+            "Proofing",
+            vec![
+                Item::pending("review.spelling", "Spelling & Grammar", 0),
+                Item::pending("review.thesaurus", "Thesaurus", 0),
+                Item::big("wordCount", "Word\nCount", "review.wordCount", no()).at(0, 3),
+            ],
+        ),
+        g("Accessibility", vec![Item::pending("review.accessibility", "Check Accessibility", 1)]),
+        g("Language", vec![Item::pending("review.translate", "Translate", 2), Item::pending("review.language", "Language", 2)]),
+    ])
+}
+
+/// What a control still to be built says when the pointer is on it; a screen reader has it as a
+/// button that can't be used, "<name>, pending development". (The other controls of the ribbon
+/// have no name for it yet: tests that look for a menu's or a dialog's items by name count on that.)
+fn pending_tip(resp: egui::Response, item: &Item) -> egui::Response {
+    let name = crate::i18n::fmt(tl!("{name}, pending development"), &[("name", &item.name())]);
+    resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, false, name.clone()));
+    resp.on_hover_ui(|ui| {
+        ui.label(egui::RichText::new(item.name()).font(semibold(12.0)));
+        ui.label(egui::RichText::new(tl!("Pending development")).small().weak());
+    })
 }
 
 fn send_receive(app: &MailApp) -> Tab {
@@ -1317,6 +1423,11 @@ pub(crate) fn plan(buttons: &[Button<'_>], width: &dyn Fn(usize, bool) -> f32, a
     let mut steps: Vec<(u8, u8, usize, bool)> = Vec::with_capacity(buttons.len() * 2);
     for (i, b) in buttons.iter().enumerate() {
         let (rank, first) = (b.item.rank, b.item.rank <= 1);
+        // What is still to be built goes behind `…` before anything else gives way.
+        if b.item.pending {
+            steps.push((0, rank, i, true));
+            continue;
+        }
         steps.push((
             if b.item.plain {
                 0
@@ -1378,6 +1489,11 @@ fn drop_menu(ui: &mut Ui, app: &mut MailApp, b: &Button<'_>) {
 
 /// A button that is behind `…`, as entries of that menu.
 fn more_entries(ui: &mut Ui, app: &mut MailApp, b: &Button<'_>) {
+    if b.item.pending {
+        let entry = ui.add_enabled(false, egui::Button::new(b.item.name()).min_size(vec2(190.0, 0.0)));
+        entry.on_disabled_hover_text(tl!("Pending development"));
+        return;
+    }
     if b.item.command.is_none() {
         ui.menu_button(b.item.name(), |ui| drop_menu(ui, app, b));
         return;
@@ -1408,8 +1524,18 @@ fn simple_button(app: &mut MailApp, ui: &mut Ui, t: &Tokens, b: &Button<'_>, lab
     let on = item.command.as_ref().is_none_or(|(command, _)| app.enabled(command));
     let drop_rect = Rect::from_min_max(pos2(rect.max.x - DROP_W, rect.min.y), rect.max);
     let main_rect = if b.is_split() { Rect::from_min_max(rect.min, pos2(drop_rect.min.x, rect.max.y)) } else { rect };
-    let main = ui.interact(main_rect, id, Sense::click());
+    // (A control still to be built takes no clicks and no keyboard.)
+    let main = ui.interact(main_rect, id, if item.pending { Sense::hover() } else { Sense::click() });
     app.hit.add("ribbon", hit_id(item.key), main_rect);
+    if item.pending {
+        let icon = Rect::from_center_size(pos2(rect.min.x + PAD + ICON / 2.0, rect.center().y), vec2(ICON, ICON));
+        icons::paint(ui.painter(), icon, item.icon, t.text_disabled, t.text_disabled);
+        if labelled {
+            ui.painter().text(pos2(icon.max.x + LABEL_GAP, rect.center().y), Align2::LEFT_CENTER, item.name(), regular(LABEL_SIZE), t.text_disabled);
+        }
+        pending_tip(main, item);
+        return;
+    }
     if on {
         bg(ui, main_rect, &main, item.checked, t);
     }
@@ -1533,6 +1659,11 @@ fn classic_big(app: &mut MailApp, ui: &mut Ui, item: &Item) {
                 menu_contents(ui, app, menu);
             });
         }
+        (None, None) if item.pending => {
+            let (resp, _) = big_frame(ui, item.icon, label, false, false, false);
+            app.hit.add("ribbon", hit_id(item.key), resp.rect);
+            pending_tip(resp, item);
+        }
         (None, None) => {}
     }
 }
@@ -1562,6 +1693,11 @@ fn classic_column(app: &mut MailApp, ui: &mut Ui, items: &[&Item]) {
                         ui.set_min_width(200.0);
                         menu_contents(ui, app, menu);
                     });
+                }
+                (None, None) if item.pending => {
+                    let resp = small_frame(ui, item.icon, label, false, false, false);
+                    app.hit.add("ribbon", hit_id(item.key), resp.rect);
+                    pending_tip(resp, item);
                 }
                 (None, None) => {}
             }
@@ -1792,7 +1928,9 @@ mod tests {
                 out.push((format!("{module} › {tab}"), vec![(module, json!({})), ("ui.tab", json!({"tab": tab}))]));
             }
         }
-        out.push(("Message".to_string(), vec![("view.mail", json!({})), ("mail.new", json!({}))]));
+        for tab in ["Message", "Insert", "Review"] {
+            out.push((tab.to_string(), vec![("view.mail", json!({})), ("mail.new", json!({})), ("ui.tab", json!({"tab": tab}))]));
+        }
         out
     }
 
@@ -1846,6 +1984,9 @@ mod tests {
                         assert!(item.command.is_none() && item.menu.is_none(), "{name}: {key}");
                         assert!(items.iter().any(|other| other.under == Some(key)), "{name}: nothing is under {key}");
                     }
+                    Size::Big | Size::Small if item.pending => {
+                        assert!(item.command.is_none() && item.menu.is_none(), "{name}: {key} is pending and does nothing")
+                    }
                     Size::Big | Size::Small => assert!(item.command.is_some() != item.menu.is_some(), "{name}: {key} runs a command or opens a menu"),
                 }
                 if let Some(host) = item.under {
@@ -1858,12 +1999,12 @@ mod tests {
             let buttons = row(&tab);
             assert_eq!(buttons.len() + buttons.iter().map(|b| b.drops.len()).sum::<usize>(), items.len(), "{name}");
             assert!(buttons.windows(2).all(|pair| pair[0].item.section <= pair[1].item.section), "{name}: the row is in its stretches' order");
-            assert!(buttons.iter().all(|b| b.item.command.is_some() || b.has_drop()), "{name}: a button does something");
+            assert!(buttons.iter().all(|b| b.item.command.is_some() || b.has_drop() || b.item.pending), "{name}: a button does something");
             // The classic layout has all but what is only there for the row.
             assert!(tab.groups.iter().all(|group| !group.title.is_empty() && !group.items.is_empty()), "{name}");
             seen += 1;
         }
-        assert_eq!(seen, 21);
+        assert_eq!(seen, 23);
     }
 
     /// Mail › Home in the order the simplified row has it, with its split buttons.
@@ -2094,8 +2235,9 @@ mod tests {
                 let name = format!("{name} at {width}");
                 let more = check_row(&harness, &name);
                 most = most.max(more.len());
-                // What a tab is for stays in the row, with its label.
-                let first = row(&describe(harness.state())).first().map(|b| b.item.key).unwrap();
+                // What a tab is for stays in the row, with its label (what is still to be built
+                // gives way first).
+                let first = row(&describe(harness.state())).iter().find(|b| !b.item.pending).map(|b| b.item.key).unwrap();
                 assert!(harness.state().hit.rect("ribbon", hit_id(first)).is_some_and(|r| r.width() > 60.0), "{name}: {first}");
                 // The band is one row high, and the panes start right under it.
                 let band = harness.state().hit.rect("ribbonBand", 0).unwrap();
