@@ -720,3 +720,24 @@ fn quitting_asks_about_a_message_whose_saved_draft_an_agent_deleted() {
     assert!(!a.close_requested());
     assert!(matches!(&a.dialog, Some(Dialog::DiscardDraft { then, .. }) if then == "quit"));
 }
+
+#[test]
+fn an_undo_that_would_put_back_an_earlier_draft_of_the_owners_message_is_refused() {
+    let mut a = app();
+    written(&mut a, "Mine");
+    a.run("compose.saveDraft", json!({})).unwrap();
+    a.execute("compose.set", json!({"body": "Half a thought, and the rest of it"})).unwrap();
+    a.run("compose.saveDraft", json!({})).unwrap();
+    let label = a.session.undo_label();
+    for undo in ["edit.undo", "edit.redo"] {
+        if undo == "edit.redo" {
+            // The owner undid the last save themselves: a redo by the agent would put it back.
+            a.run("edit.undo", json!({})).unwrap();
+        }
+        let why = refused(allowed(&mut a, undo, json!({}), Class::ALL.to_vec()).0);
+        assert!(why.contains("earlier draft of the message the owner is writing"), "{undo}: {why}");
+        assert!(a.asking.is_empty(), "{undo}");
+    }
+    assert!(label.is_some() && a.session.can_redo(), "nothing more was undone or redone");
+    assert_eq!(a.session.compose.as_ref().map(|c| c.subject.as_str()), Some("Mine"));
+}

@@ -211,3 +211,24 @@ fn one_that_waits_for_the_form_gives_way_to_the_next_and_says_so() {
     // The second one alone.
     assert_eq!(w.state().session.compose.as_ref().and_then(|c| c.source), Some(second));
 }
+
+#[test]
+fn a_recurrence_being_filled_in_holds_it_too() {
+    use egui_kittest::kittest::Queryable as _;
+    let (mut w, waiting, jobs) = drawn();
+    assert_eq!(w.state_mut().run("mail.reply", json!({"id": waiting})).unwrap()["pending"], "download");
+    owner_writes(w.state_mut(), "Mine");
+    w.state_mut().execute("ui.dialog", json!({"name": "event"})).unwrap();
+    w.run_steps(3);
+    // Make it repeat, ending after a number of times: in the Appointment Recurrence dialog only.
+    for label in ["Make it repeat", "After"] {
+        let at = w.query_all_by_label_contains(label).last().unwrap_or_else(|| panic!("{label}")).rect();
+        testing::click(&mut w, at.center(), egui::PointerButton::Primary, 1);
+        w.run_steps(3);
+    }
+    assert!(matches!(&w.state().dialog, Some(Dialog::Form(f)) if !f.dirty() && f.changed()));
+    answered(&jobs);
+    w.run_steps(5);
+    assert!(matches!(&w.state().dialog, Some(Dialog::Form(f)) if f.changed()), "{:?}", w.state().dialog.as_ref().map(|d| d.name()));
+    assert_eq!(subject(w.state()).as_deref(), Some("Mine"));
+}

@@ -2080,6 +2080,16 @@ impl Session {
         event || gone_in(&self.mailbox, &step.mailbox, item)
     }
 
+    /// Whether undoing the last step (or redoing, `redo`) would put back another version of the
+    /// message `message`, or take it away (#494: the draft of the message the owner is writing).
+    pub fn undo_changes_message(&self, redo: bool, message: Id) -> bool {
+        let Some(step) = (if redo { self.redo.last() } else { self.history.last() }) else { return false };
+        match (step.mailbox.messages.get(&message), self.mailbox.messages.get(&message)) {
+            (Some(then), Some(now)) => !Arc::ptr_eq(then, now),
+            (then, now) => then.is_some() != now.is_some(),
+        }
+    }
+
     /// What undoing (`redo`: redoing) would put back besides mail and the like: the accounts, or
     /// the rules and signatures, as they were. For the agent gate, which asks the owner first.
     pub fn undo_reverts(&self, redo: bool) -> Option<crate::agent::Class> {

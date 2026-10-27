@@ -148,8 +148,8 @@ fn as_the_window_has_it(app: &MailApp, id: &str, mut params: Value) -> Value {
 /// or take away (#494): what the owner typed in an appointment's window (`ui.openWindow` of
 /// another time proposed, `ui.eventWindow` closing the recurrence they are filling in), or the
 /// appointment, contact or task they are changing in the dialog, which another mailbox in view
-/// takes away too. Nothing in the window can be asked about it: the form stays whatever the
-/// answer. (What takes away a mailbox or the steps to undo is refused here, before it runs:
+/// takes away too; or the draft of the message the owner is writing, as an undo or a redo would
+/// put it back. Nothing in the window can be asked about it: the form stays whatever the answer. (What takes away a mailbox or the steps to undo is refused here, before it runs:
 /// `Session::run` puts back the mailbox of a command it refuses, not the rest.) A New or Open
 /// that would wait for the mailbox to be saved first is refused too: it would run later, when
 /// the owner may be writing.
@@ -157,6 +157,17 @@ fn overwrites(app: &MailApp, id: &str, params: &Value) -> Option<String> {
     if crate::windows::overwrites_unsaved(app, id, params) {
         return Some(format!(
             "`{id}` would overwrite what the owner typed in an appointment's window and hasn't saved; nothing was done. Try again once the owner has saved or closed it"
+        ));
+    }
+    // The draft of the message the owner is writing, put back as it was before a later save or
+    // taken away: the message would then be "in Drafts" without what was written since.
+    let redo = id == "edit.redo";
+    if matches!(id, "edit.undo" | "edit.redo")
+        && let Some(c) = app.session.compose.as_ref().filter(|c| c.owner_changed)
+        && c.draft.is_some_and(|d| app.session.undo_changes_message(redo, d))
+    {
+        return Some(format!(
+            "`{id}` would put back an earlier draft of the message the owner is writing, or take it away; nothing was done. Try again once the owner has closed the message"
         ));
     }
     if matches!(id, "file.new" | "file.open") && app.waits_for_save() {

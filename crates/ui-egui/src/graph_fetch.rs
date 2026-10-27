@@ -285,7 +285,7 @@ impl MailApp {
     /// Message, a confirmation) would take the form's place, and what was typed in it with it
     /// (#513).
     fn run_waited(&mut self, command: String, params: Value, opening: u64, tried: Option<Vec<Id>>) {
-        if matches!(&self.dialog, Some(crate::dialogs::Dialog::Form(form)) if form.dirty()) {
+        if matches!(&self.dialog, Some(crate::dialogs::Dialog::Form(form)) if form.changed()) {
             self.fetching.held = Some((command, params, opening, tried));
             return;
         }
