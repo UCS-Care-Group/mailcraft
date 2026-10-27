@@ -179,19 +179,19 @@ fn list(app: &mut MailApp, ui: &mut Ui, t: &Tokens, names: &[String], open: Opti
         }
     });
     let renaming_id = egui::Id::unique("mailcraft-signature-rename");
-    // The keyboard is given to the new name once, as it opens: asked for every pass, it could
-    // never be left.
-    let focus_id = renaming_id.with("focus");
     let mut renaming: Option<String> = ui.data(|d| d.get_temp(renaming_id));
+    let field = renaming_id.with("field");
     if let (Some(text), Some(from)) = (renaming.as_mut(), open) {
-        let r = crate::text_menu::field(ui.add(egui::TextEdit::singleline(text).desired_width(172.0).char_limit(100)));
-        if ui.data_mut(|d| d.remove_temp::<bool>(focus_id)).unwrap_or(false) {
-            r.request_focus();
-        }
-        if crate::text_menu::left(&r) {
-            if crate::keys::enter(ui.ctx(), ui.layer_id()) && !text.trim().is_empty() {
+        let r = crate::text_menu::field(ui.add(egui::TextEdit::singleline(text).id(field).desired_width(172.0).char_limit(100)));
+        // Enter keeps the name; a click elsewhere or Escape lets go of it (the keyboard is asked
+        // for once, by Rename, not every frame, or nothing could take it away).
+        if (r.has_focus() || r.lost_focus()) && crate::keys::enter(ui.ctx(), ui.layer_id()) {
+            if !text.trim().is_empty() {
                 let _ = app.run("signature.rename", json!({"name": from, "to": text.trim()}));
             }
+            ui.memory_mut(|m| m.surrender_focus(field));
+            renaming = None;
+        } else if crate::text_menu::left(&r) {
             renaming = None;
         }
     }
@@ -209,7 +209,7 @@ fn list(app: &mut MailApp, ui: &mut Ui, t: &Tokens, names: &[String], open: Opti
         }
         if ui.add_enabled(open.is_some(), egui::Button::new(tl!("Rename"))).clicked() {
             renaming = open.map(str::to_string);
-            ui.data_mut(|d| d.insert_temp(focus_id, true));
+            ui.memory_mut(|m| m.request_focus(field));
         }
         if ui.add_enabled(open.is_some(), egui::Button::new(tl!("Delete"))).clicked()
             && let Some(name) = open

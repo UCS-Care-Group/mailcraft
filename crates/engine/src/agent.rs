@@ -464,6 +464,9 @@ const NEVER: &[&str] = &[
     "ui.open",
     "ui.import",
     "ui.attach",
+    // A message file the owner opened, kept or written out: the owner's own doing (#515).
+    "ui.moveWindowMessage",
+    "ui.saveWindowMessage",
     // Anything an agent chooses onto the owner's clipboard.
     "ui.copyLinkAddress",
     "ui.copySelection",

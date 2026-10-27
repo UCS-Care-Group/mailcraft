@@ -185,6 +185,7 @@ follows:
 
 | Date | What landed |
 |---|---|
+| 2026-10-27 | #515: a message file (`.eml`) the system opens (a double click, a later start) is no longer filed into Imported: it opens read-only in a window of its own that holds the message in memory only (read as any message is, 64 MB at most; its own pictures shown, pictures on the web never fetched for it, attachments listed and opened once it is filed), so the mailbox gains nothing and closing the window leaves no trace. Move to Folder files it (one message, through `file.import`) and the window is about that message from then on; Save As writes the file. `ui.moveWindowMessage` and `ui.saveWindowMessage` are the owner's, never an agent's; `ui.inspect` lists the window as `file`. At most 12 windows. A file dropped on the window, or brought in with File › Import, is imported as before. Tests in `opened_message_tests.rs` |
 | 2026-10-27 | #454 (part 2): `link` and `html` use the one list of format characters in `crates/names` instead of copies of their own. A host in a web address still refuses every format character but the joiners where IDNA2008 allows them, and a link or picture address with any of them anywhere is still no link. Nothing in the window changes |
 | 2026-10-27 | #366: the search box shows the search of what is in front: People's own search in People, the mail's in Mail, Calendar and Tasks. In People a click outside the box no longer takes the letters out of it while the contacts stay filtered by them. Going between People and another place with Ctrl+1 to Ctrl+4 while the box has the keyboard shows the other search at once, with the caret at its end; before, the old letters stayed in the box and went into the other search. Undo in the box keeps to the search in front. Also fixed: after Advanced Search or a command changed the search while the box didn't have the keyboard, Ctrl+E brought the keyboard back with the caret where it had been, so what was typed went into the middle of the search. Regression tests in `search_box_tests.rs` and `advanced_search_tests.rs` |
 | 2026-10-27 | #454 (part 1): one list of Unicode's format characters (general category Cf, Unicode 17.0), and the two steps a name takes, coming in and being shown, in a crate of their own (`crates/names`, L0, no dependencies). Both steps remove control characters and the characters Unicode marks as showing nothing (format characters, tags among them, and the other default-ignorable code points, such as the Hangul fillers), but keep a joiner inside a word and one variation selector after a character, which emoji need. Nothing uses it yet, so nothing in the window changes |
@@ -369,6 +370,7 @@ follows:
 
 | Date | Change |
 |---|---|
+| 2026-10-27 | #515: a message file opens without being filed (progress log) |
 | 2026-10-27 | #454 part 2: `link` and `html` on the one list of format characters (progress log) |
 | 2026-10-27 | #366: in People the search box shows People's search (progress log) |
 | 2026-10-27 | #508: dismissing the sender-warning banner (progress log) |
