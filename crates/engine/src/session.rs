@@ -1612,6 +1612,25 @@ impl Session {
         self.loaded_message_where(id, |_| true)
     }
 
+    /// Whether every part of `m` can be read here: what is in memory, and what the mailbox keeps
+    /// outside it read back whole (checked against its length and SHA-256). The server's copy of
+    /// a message moved to this computer goes only then (#451): a body or a file whose content
+    /// went missing would be lost everywhere.
+    pub(crate) fn readable_whole(&self, m: &Message) -> bool {
+        let Some(kept) = m.kept.as_deref() else { return self.files_readable(m) };
+        if kept.failed {
+            return false;
+        }
+        let text = kept.text.filter(|_| m.body.text.is_empty());
+        let html = kept.html.filter(|_| m.body.html.is_none());
+        text.into_iter().chain(html).all(|r| self.fetch(&r).is_ok()) && self.files_readable(m)
+    }
+
+    /// Whether every attachment of `m` that isn't in memory can be read back whole.
+    fn files_readable(&self, m: &Message) -> bool {
+        m.attachments.iter().filter_map(|a| a.kept.filter(|_| a.data.is_empty())).all(|r| self.fetch(&r).is_ok())
+    }
+
     /// Bring the body of message `id` and the attachments `pick` chooses into memory, in the
     /// mailbox itself, so that everything that reads the message finds them. Not a change to the
     /// mailbox (nothing to undo or save), though caches that read bodies see it. Returns whether

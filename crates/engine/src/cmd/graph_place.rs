@@ -65,16 +65,15 @@ pub fn place_changes(s: &Session, account: Id, limit: usize) -> (Vec<PlaceUp>, u
 /// Whether `m`, moved here out of an account whose server still has the original, is safe where
 /// it is now, so that the original may go (R3 spec S19, #70, #451): made on the server of the
 /// Microsoft account it is in; on the server of the IMAP account it is in, under its UID there;
-/// in an account whose server is given no copy, whole here (its text read, not lost) and kept in
-/// the mailbox file (`saved`: the file holds what is here now).
+/// in an account whose server is given no copy, whole here (every part of it read back, its
+/// attachments too) and kept in the mailbox file (`saved`: the file holds what is here now).
 pub(crate) fn safe_here(s: &Session, m: &Message, saved: bool) -> bool {
     if s.mailbox.is_graph(m.account) {
         m.server.as_ref().is_some_and(|server| !server.gone && !server.id.is_empty())
     } else if s.mailbox.puts_on_server(m.account) {
         m.uid != 0
     } else {
-        let lost = m.kept.as_deref().is_some_and(|k| k.failed);
-        !m.unfetched && !m.incomplete && m.not_downloaded == 0 && !lost && (saved || s.saved_whole.contains(&m.id))
+        !m.unfetched && !m.incomplete && m.not_downloaded == 0 && (saved || s.saved_whole.contains(&m.id)) && s.readable_whole(m)
     }
 }
 

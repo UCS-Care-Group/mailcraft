@@ -850,3 +850,46 @@ fn what_goes_into_a_microsoft_account_from_elsewhere_is_counted_for_the_window_t
     assert_eq!(into(&mut s, "mail.move", &[one], their_archive), 0);
     assert_eq!(into(&mut s, "mail.move", &[three], inbox), 0);
 }
+
+/// Take out of the content folder of the mailbox file at `path` the file that keeps `bytes`.
+fn lose_kept(path: &std::path::Path, bytes: &[u8]) {
+    let mut dirs = vec![crate::store::blob_dir(path)];
+    while let Some(dir) = dirs.pop() {
+        for entry in std::fs::read_dir(&dir).unwrap() {
+            let p = entry.unwrap().path();
+            if p.is_dir() {
+                dirs.push(p);
+            } else if std::fs::read(&p).unwrap() == bytes {
+                std::fs::remove_file(&p).unwrap();
+                return;
+            }
+        }
+    }
+    panic!("no file keeps it");
+}
+
+#[test]
+fn moved_to_this_computer_its_original_stays_while_a_file_of_it_cant_be_read_here() {
+    let (mut s, a, kept) = imap();
+    let two = titled(&s, "Two");
+    let plan = "The plan, line by line.\n".repeat(200).into_bytes();
+    s.mailbox.message_mut(two).unwrap().attachments.push(mailcraft_model::Attachment::new("plan.txt", "text/plain", plan.clone()));
+    s.run("mail.move", &json!({"ids": [two], "folder": kept})).unwrap();
+    let dir = std::env::temp_dir().join(format!("mailcraft-451-files-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("moved.mailcraft");
+    s.run("file.save", &json!({"path": path})).unwrap();
+    // Opened again: the attachment is on disk, read back whole, and the server's copy may go.
+    let mut s = Session::empty();
+    s.run("file.open", &json!({"path": path})).unwrap();
+    assert!(s.mailbox.message(two).unwrap().attachments[0].data.is_empty(), "kept outside memory");
+    assert_eq!(ops(&s, a), [delete(2)]);
+    // Opened without the file that keeps it: the server's is all there is of it, and it stays.
+    lose_kept(&path, &plan);
+    crate::store::clear_cache();
+    let mut s = Session::empty();
+    s.run("file.open", &json!({"path": path})).unwrap();
+    assert!(s.content(two, crate::Part::Attachment(0)).is_err());
+    assert_eq!(ops(&s, a), []);
+    std::fs::remove_dir_all(&dir).unwrap();
+}

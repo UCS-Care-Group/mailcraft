@@ -182,14 +182,22 @@ fn moved_back_while_the_servers_copy_was_removed_it_is_made_there_again() {
     assert_eq!(graph_mail_request(&s, account).unwrap().places.iter().map(|p| p.message).collect::<Vec<_>>(), [m]);
 }
 
-/// A message whose text couldn't be read here, moved out of the account: the server's copy is
-/// all there is of it, and stays (#451).
+/// A message whose text or one of whose files couldn't be read here, moved out of the account:
+/// the server's copy is all there is of it, and stays (#451).
 #[test]
-fn a_message_whose_text_couldnt_be_read_keeps_its_server_copy_when_moved_out() {
+fn a_message_whose_text_or_a_file_couldnt_be_read_keeps_its_server_copy_when_moved_out() {
     let (mut s, account, m, kept) = setup();
     s.run("mail.move", &json!({"ids": [m], "folder": kept})).unwrap();
-    s.mailbox.message_mut(m).unwrap().kept = Some(Box::new(mailcraft_model::KeptBody { failed: true, ..Default::default() }));
     s.note_saved();
+    // Whole here, and saved so: the server's copy goes.
+    assert_eq!(changes(&s, account), [MessageChange::MovedOut { message: m, id: "M-1".into() }]);
+    s.mailbox.message_mut(m).unwrap().kept = Some(Box::new(mailcraft_model::KeptBody { failed: true, ..Default::default() }));
+    assert_eq!(changes(&s, account), []);
+    // A file kept outside memory that can't be read back (this mailbox has no file to read it from).
+    let mut file = mailcraft_model::Attachment::new("plan.pdf", "application/pdf", Vec::new());
+    file.kept = Some(mailcraft_model::ContentRef { sha256: [7; 32], len: 4096 });
+    let here = s.mailbox.message_mut(m).unwrap();
+    (here.kept, here.attachments) = (None, vec![file]);
     assert_eq!(changes(&s, account), []);
 }
 
