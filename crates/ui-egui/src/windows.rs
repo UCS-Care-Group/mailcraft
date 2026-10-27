@@ -359,25 +359,120 @@ fn save_opened(app: &mut MailApp, p: &Value) -> Result<Value, String> {
 }
 
 fn close(app: &mut MailApp, p: &Value) -> Result<Value, String> {
-    let number = |key: &str| p.get(key).filter(|v| !v.is_null()).map(|v| v.as_u64().ok_or_else(|| format!("`{key}` is a number")));
+    let closing = closing(&app.windows.open, p)?;
     let open = &mut app.windows.open;
     let before = open.len();
-    if p.get("all").and_then(Value::as_bool) == Some(true) {
-        open.clear();
-    } else if let Some(window) = number("window") {
-        let window = window?;
-        open.retain(|w| w.id != window);
-    } else if let Some(message) = number("message") {
-        let message = message?;
-        open.retain(|w| w.what.subject() != Some((true, message)));
-    } else if let Some(event) = number("event") {
-        let event = event?;
-        open.retain(|w| w.what.subject() != Some((false, event)));
-    } else {
-        // The one in front.
-        open.pop();
-    }
+    open.retain(|w| !closing.contains(&w.id));
     Ok(json!({"closed": before.saturating_sub(open.len()), "open": open.len()}))
+}
+
+/// The windows that `ui.closeWindow` with `p` closes: every one (`all`), the one named
+/// (`window`), those of a message or an appointment, or else the one in front.
+fn closing(open: &[Open], p: &Value) -> Result<Vec<u64>, String> {
+    let number = |key: &str| p.get(key).filter(|v| !v.is_null()).map(|v| v.as_u64().ok_or_else(|| format!("`{key}` is a number")));
+    let of = |subject: (bool, Id)| open.iter().filter(|w| w.what.subject() == Some(subject)).map(|w| w.id).collect();
+    Ok(if p.get("all").and_then(Value::as_bool) == Some(true) {
+        open.iter().map(|w| w.id).collect()
+    } else if let Some(window) = number("window") {
+        vec![window?]
+    } else if let Some(message) = number("message") {
+        of((true, message?))
+    } else if let Some(event) = number("event") {
+        of((false, event?))
+    } else {
+        open.last().map(|w| w.id).into_iter().collect()
+    })
+}
+
+/// What `ui.closeWindow` with `p` would lose (#494): the first window it closes whose
+/// appointment has changes that aren't saved, as an agent's question names it, and how many more
+/// such windows it closes (`more`). `None` when nothing would be lost.
+pub(crate) fn closing_unsaved(app: &MailApp, p: &Value) -> Option<Value> {
+    let closing = closing(&app.windows.open, p).ok()?;
+    unsaved_of(app.windows.open.iter().filter(|w| closing.contains(&w.id)))
+}
+
+/// What another mailbox in view would lose (#494): the windows of appointments of this one close
+/// with it ([`show`]), and with them changes that aren't saved. Those being made stay.
+pub(crate) fn replacing_unsaved(app: &MailApp) -> Option<Value> {
+    unsaved_of(app.windows.open.iter().filter(|w| matches!(w.what, What::Event { event: Some(_), .. })))
+}
+
+/// What an agent's command that takes appointments away would lose (#494): the windows of those
+/// it takes, with changes that aren't saved, close with them ([`show`]). `calendar.delete` takes
+/// the one named or selected, `calendar.removeCalendar` a calendar's, an undo or a redo what the
+/// step brings back as it was.
+pub(crate) fn removing_unsaved(app: &MailApp, id: &str, p: &Value) -> Option<Value> {
+    unsaved_of(app.windows.open.iter().filter(|w| matches!(&w.what, What::Event { event: Some((e, _)), .. } if takes_away(app, id, p, *e))))
+}
+
+/// Whether `calendar.delete`, `calendar.removeCalendar`, `people.delete`, `tasks.delete`,
+/// `edit.undo` or `edit.redo` with `p` would take the appointment, contact or task `item` away.
+pub(crate) fn takes_away(app: &MailApp, id: &str, p: &Value, item: Id) -> bool {
+    // As the command reads it: `12.0` is 12, and 0 is none.
+    let number = |key: &str| mailcraft_engine::p::id(p, key);
+    let sel = &app.session.sel;
+    match id {
+        "calendar.delete" => number("id").or(sel.event) == Some(item),
+        "calendar.removeCalendar" => app.session.mailbox.event(item).is_some_and(|e| Some(e.calendar) == number("id")),
+        "people.delete" => number("id").or(sel.contact) == Some(item),
+        "tasks.delete" => number("id").or(sel.task) == Some(item),
+        "edit.undo" | "edit.redo" => app.session.undo_removes(id == "edit.redo", item),
+        _ => false,
+    }
+}
+
+/// Whether an agent's `ui.openWindow` or `ui.eventWindow` would overwrite what the owner typed in
+/// an appointment's window and hasn't saved (#494): another time somebody proposed, put into its
+/// fields, or the Appointment Recurrence dialog closed with what was filled in, by itself or with
+/// the window (`"do": "close"`, which asks the owner only about what the form holds).
+pub(crate) fn overwrites_unsaved(app: &MailApp, id: &str, p: &Value) -> bool {
+    match id {
+        "ui.openWindow" if p.get("proposed").is_some_and(Value::is_object) => {
+            let window = p.get("event").and_then(Value::as_u64).and_then(|event| app.windows.of_event(event));
+            app.windows.open.iter().find(|w| Some(w.id) == window).is_some_and(|w| w.what.form().is_some_and(Form::dirty))
+        }
+        "ui.eventWindow" if p.get("recurrence").and_then(Value::as_bool) == Some(false) || p.get("do").and_then(Value::as_str) == Some("close") => {
+            // The window `event_window` acts on.
+            let wanted = p.get("window").and_then(Value::as_u64);
+            let event = app
+                .windows
+                .open
+                .iter()
+                .rev()
+                .filter_map(|w| w.what.form().and_then(Form::event).map(|f| (w.id, f)))
+                .find(|(w, _)| wanted.is_none_or(|id| *w == id));
+            event.is_some_and(|(_, form)| form.recurrence_touched())
+        }
+        _ => false,
+    }
+}
+
+/// The appointments being changed in windows of their own, with changes that aren't saved: an
+/// agent's command may take them away only on the owner's yes (`Session::owner_changing`).
+pub(crate) fn changing_events(app: &MailApp) -> Vec<Id> {
+    let changing = |w: &&Open| w.what.form().is_some_and(Form::changed);
+    app.windows
+        .open
+        .iter()
+        .filter(changing)
+        .filter_map(|w| match &w.what {
+            What::Event { event: Some((e, _)), .. } => Some(*e),
+            _ => None,
+        })
+        .collect()
+}
+
+/// The first of `windows` with changes that aren't saved, as an agent's question names it, and
+/// how many more there are (`more`).
+fn unsaved_of<'a>(windows: impl Iterator<Item = &'a Open>) -> Option<Value> {
+    let mut lost = windows.filter_map(|w| w.what.form().and_then(Form::unsaved));
+    let mut first = lost.next()?;
+    let more = lost.count();
+    if more > 0 {
+        first["more"] = json!(more);
+    }
+    Some(first)
 }
 
 /// What `ui.eventWindow` and `ui.inspect` say of an appointment's window.

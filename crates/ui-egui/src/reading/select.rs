@@ -837,6 +837,15 @@ pub(super) fn begin(app: &mut MailApp, ui: &Ui, m: &Message, place: Place) {
     if pressed && !menus {
         if inside {
             selections.focus = Some(place);
+            // The original under a reply shares its window with the owner's text: a press in it
+            // takes the keyboard from the text, or Ctrl+C would be the text's (#583).
+            if place == Place::Quote {
+                ctx.memory_mut(|m| {
+                    if let Some(focused) = m.focused() {
+                        m.surrender_focus(focused);
+                    }
+                });
+            }
         } else if selections.focus == Some(place) {
             selections.focus = None;
         }

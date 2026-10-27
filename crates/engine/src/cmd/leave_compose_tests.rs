@@ -206,9 +206,9 @@ fn an_agent_needs_the_owner_to_throw_away_what_the_owner_wrote() {
     // Nothing written: nothing to lose.
     assert_eq!(classify(&s, "compose.close", &discard), Access::Safe);
     run(&mut s, "compose.set", json!({"body": "Mine"}));
-    assert_eq!(classify(&s, "compose.close", &discard), Access::Owner(Class::Delete));
+    assert_eq!(classify(&s, "compose.close", &discard), Access::Asked(Class::Delete));
     assert!(crate::agent::describe(&s, "compose.close", &discard).contains("without saving"));
-    // Closing as it is saves it, and is the agent's to do.
-    assert_eq!(classify(&s, "compose.close", &json!({})), Access::Safe);
-    assert_eq!(classify(&s, "mail.new", &json!({})), Access::Safe);
+    // Closing it as it is saves it first; the owner is asked even so (#494).
+    assert_eq!(classify(&s, "compose.close", &json!({})), Access::Asked(Class::Leave));
+    assert_eq!(classify(&s, "mail.new", &json!({})), Access::Asked(Class::Leave));
 }

@@ -11457,6 +11457,12 @@ msgid "What to do next"
 msgstr "Wat hierna te doen"
 
 #. interface
+#: crates/ui-egui/src/graph_fetch.rs
+#, fuzzy
+msgid "What was waiting for the form to be closed was called off: another download took its place."
+msgstr "Wat wachtte tot het formulier werd gesloten, is geannuleerd: een andere download heeft de plaats ervan ingenomen."
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "What you change is changed in your calendar only. The organizer and the other people invited are not told and still have the meeting as it was, so you could miss it. An update from the organizer can replace your change."
@@ -12402,6 +12408,12 @@ msgstr "het opent, vervangt of slaat het postvakbestand op"
 #, fuzzy
 msgid "it stopped unexpectedly"
 msgstr "het is onverwacht gestopt"
+
+#. name
+#: crates/engine/src/agent.rs
+#, fuzzy
+msgid "it takes the window off the message the owner is writing"
+msgstr "het haalt het venster weg bij het bericht dat de eigenaar aan het schrijven is"
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs

@@ -11288,6 +11288,12 @@ msgid "What to do next"
 msgstr "Cosa fare ora"
 
 #. interface
+#: crates/ui-egui/src/graph_fetch.rs
+#, fuzzy
+msgid "What was waiting for the form to be closed was called off: another download took its place."
+msgstr "Ciò che attendeva la chiusura del modulo è stato annullato: un altro download ne ha preso il posto."
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "What you change is changed in your calendar only. The organizer and the other people invited are not told and still have the meeting as it was, so you could miss it. An update from the organizer can replace your change."
@@ -12213,6 +12219,12 @@ msgstr "apre, sostituisce o salva il file della cassetta postale"
 #, fuzzy
 msgid "it stopped unexpectedly"
 msgstr "si è interrotto in modo imprevisto"
+
+#. name
+#: crates/engine/src/agent.rs
+#, fuzzy
+msgid "it takes the window off the message the owner is writing"
+msgstr "toglie la finestra dal messaggio che il proprietario sta scrivendo"
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs

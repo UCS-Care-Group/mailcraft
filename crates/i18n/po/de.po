@@ -11274,6 +11274,12 @@ msgid "What to do next"
 msgstr "Wie es weitergeht"
 
 #. interface
+#: crates/ui-egui/src/graph_fetch.rs
+#, fuzzy
+msgid "What was waiting for the form to be closed was called off: another download took its place."
+msgstr "Was auf das Schließen des Formulars wartete, wurde abgebrochen: Ein anderer Download ist an seine Stelle getreten."
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "What you change is changed in your calendar only. The organizer and the other people invited are not told and still have the meeting as it was, so you could miss it. An update from the organizer can replace your change."
@@ -12197,6 +12203,12 @@ msgstr "es öffnet, ersetzt oder speichert die Postfachdatei"
 #, fuzzy
 msgid "it stopped unexpectedly"
 msgstr "es wurde unerwartet abgebrochen"
+
+#. name
+#: crates/engine/src/agent.rs
+#, fuzzy
+msgid "it takes the window off the message the owner is writing"
+msgstr "es nimmt das Fenster von der Nachricht weg, die der Besitzer schreibt"
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs

@@ -278,6 +278,7 @@ pub(crate) fn show_quote(app: &mut MailApp, ui: &mut Ui) {
     let ctx = ui.ctx().clone();
     let Some(m) = quote_message(app, &ctx) else { return };
     remote::tick(app, &ctx);
+    select::begin(app, ui, &m, Place::Quote);
     let doc = view::doc_where(&ctx, &m, Place::Quote, remote::available(app));
     // A quote whose original isn't known (a reopened draft, an original since deleted) has no
     // folder or sender to judge by: it never fetches anything.
