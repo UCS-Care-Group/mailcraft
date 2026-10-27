@@ -233,3 +233,21 @@ fn the_caret_is_at_the_end_when_the_box_takes_the_keyboard() {
     testing::text(&mut h, "s");
     assert_eq!(search(&h), "budgets");
 }
+
+/// The same letters in both searches, the caret back in them: after Ctrl+1 it is at the end all
+/// the same.
+#[test]
+fn a_swap_puts_the_caret_at_the_end_with_the_same_letters_too() {
+    let mut h = testing::window("view.mail");
+    let _ = h.state_mut().execute("ui.dismissReminder", json!({"all": true}));
+    h.state_mut().execute("view.search", json!({"query": "tra"})).unwrap();
+    h.state_mut().execute("view.people", json!({})).unwrap();
+    h.run_steps(3);
+    click_in_the_box(&mut h);
+    testing::text(&mut h, "tra");
+    testing::key(&mut h, Key::ArrowLeft);
+    testing::key(&mut h, Key::ArrowLeft);
+    chord(&mut h, Key::Num1);
+    testing::text(&mut h, "s");
+    assert_eq!(search(&h), "tras");
+}

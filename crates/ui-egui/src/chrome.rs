@@ -110,8 +110,12 @@ fn search_box(app: &mut MailApp, ui: &mut Ui, rect: Rect) {
     // The engine's search is the truth; the box follows it when it changes elsewhere (a command),
     // and at once when the other one comes in front.
     let truth = if mail_search { &app.session.view.search } else { &app.session.view.people_search };
-    if (!focused || swapped) && app.search_text != *truth {
+    let refill = (!focused || swapped) && app.search_text != *truth;
+    if refill {
         app.search_text = truth.clone();
+    }
+    // With the same letters in both too.
+    if refill || swapped {
         caret_at_end(ui.ctx(), &app.search_text);
     }
     // Undo doesn't bring back what was typed in the other one.
