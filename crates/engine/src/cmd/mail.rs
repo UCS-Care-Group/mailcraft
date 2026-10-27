@@ -283,8 +283,15 @@ fn get(s: &mut Session, v: &Value) -> CmdResult {
     // Its text, from where the mailbox keeps it when it isn't in memory (a text that can't be
     // read says so in its place).
     let _ = s.load_where(id, |_| false);
-    let m = s.mailbox.message(id).ok_or_else(|| failed!("no message with id {id}", id))?;
-    Ok(message_json(s, m))
+    let m = s.mailbox.messages.get(&id).cloned().ok_or_else(|| failed!("no message with id {id}", id))?;
+    // What may not be what it seems about it (sender warnings): worked out by MailCraft from the
+    // account's server's verdict, the sender and the links, never from what the message asks.
+    let warnings = s.sender_warnings(&m, true);
+    let mut v = message_json(s, &m);
+    if let Some(o) = v.as_object_mut() {
+        o.insert("warnings".into(), Value::Array(warnings.iter().map(mailcraft_model::sender_warnings::Warning::json).collect()));
+    }
+    Ok(v)
 }
 
 fn list(s: &mut Session, v: &Value) -> CmdResult {

@@ -437,6 +437,22 @@ pub fn status_bar(app: &mut MailApp, ui: &mut Ui) {
                         }
                         ui.add_space(10.0);
                     }
+                    // Another mailbox being read in the background (File › Open): how far it has
+                    // got, and Cancel, which leaves the one open as it is.
+                    if let Some((label, fraction)) = crate::opening::ahead_label(app) {
+                        let cancel = ui.link(egui::RichText::new(tl!("Cancel")).size(STATUS_TEXT));
+                        app.hit.add("cancelOpen", 0, cancel.rect);
+                        if cancel.on_hover_text(tl!("Stop opening it; the mailbox that is open stays")).clicked() {
+                            let _ = app.run("ui.cancelOpen", json!({}));
+                        }
+                        ui.add_space(6.0);
+                        let (resp, track) = progress_bar(ui, &t, &label, fraction, OPEN_BAR);
+                        resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::ProgressIndicator, true, &label));
+                        app.hit.add("openBar", 0, track);
+                        ui.add_space(10.0);
+                    } else {
+                        ui.ctx().data_mut(|d| d.remove::<f32>(egui::Id::unique(OPEN_BAR)));
+                    }
                     // A new version downloaded and checked: Restart to update.
                     crate::updates::status_item(app, ui, &t);
                     // The last Send/Receive had problems: one click shows them, in Send/Receive
@@ -519,6 +535,9 @@ fn sync_bar(app: &mut MailApp, ui: &mut Ui, t: &Tokens, label: &str, fraction: f
     app.hit.add("syncBar", 0, track);
     resp
 }
+
+/// Where the status bar remembers how far the bar of a mailbox read in the background got.
+const OPEN_BAR: &str = "status_open_bar";
 
 /// A label and a bar that fills as `fraction` goes from 0 to 1, in the status bar: the bar never
 /// goes back while it is shown (`key` remembers how far it got). Returns the whole and the bar.

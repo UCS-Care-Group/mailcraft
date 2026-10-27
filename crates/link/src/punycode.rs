@@ -82,3 +82,63 @@ pub fn encode(label: &[char]) -> Option<String> {
     }
     Some(out)
 }
+
+/// The value of a Punycode digit (`a`-`z` or `A`-`Z` for 0 to 25, `0`-`9` for 26 to 35).
+fn value(c: char) -> Option<u32> {
+    match c {
+        'a'..='z' => Some(u32::from(c) - u32::from('a')),
+        'A'..='Z' => Some(u32::from(c) - u32::from('A')),
+        '0'..='9' => Some(u32::from(c) - u32::from('0') + 26),
+        _ => None,
+    }
+}
+
+/// The label `text` (the part after `xn--`) stands for (RFC 3492 §6.2); `None` when it is no
+/// Punycode, would overflow, or names something that is no character. Bounded like [`encode`].
+/// As IDNA 2008 (RFC 5891 §5.4) asks, a label is only read when what it stands for has a letter
+/// outside ASCII and writes back to exactly `text`: `abc-` is not `abc`, and a name read through
+/// it can never pass for one written plainly.
+pub fn decode(text: &str) -> Option<Vec<char>> {
+    if text.is_empty() || text.len() > 4096 || !text.is_ascii() {
+        return None;
+    }
+    let (basic, digits) = match text.rfind('-') {
+        Some(dash) => (text.get(..dash)?, text.get(dash + 1..)?),
+        None => ("", text),
+    };
+    let mut out: Vec<char> = basic.chars().collect();
+    let (mut n, mut i, mut bias) = (INITIAL_N, 0u32, INITIAL_BIAS);
+    let mut digits = digits.chars().peekable();
+    let mut first = true;
+    while digits.peek().is_some() {
+        let old = i;
+        let mut w = 1u32;
+        let mut k = BASE;
+        loop {
+            let d = value(digits.next()?)?;
+            i = i.checked_add(d.checked_mul(w)?)?;
+            let t = if k <= bias {
+                T_MIN
+            } else if k >= bias.checked_add(T_MAX)? {
+                T_MAX
+            } else {
+                k - bias
+            };
+            if d < t {
+                break;
+            }
+            w = w.checked_mul(BASE - t)?;
+            k = k.checked_add(BASE)?;
+        }
+        let points = u32::try_from(out.len()).ok()?.checked_add(1)?;
+        bias = adapt(i.checked_sub(old)?, points, first);
+        first = false;
+        n = n.checked_add(i / points)?;
+        i %= points;
+        let c = char::from_u32(n).filter(|c| !c.is_ascii())?;
+        out.insert(usize::try_from(i).ok()?.min(out.len()), c);
+        i = i.checked_add(1)?;
+    }
+    let exact = out.iter().any(|c| !c.is_ascii()) && encode(&out).is_some_and(|again| again.eq_ignore_ascii_case(text));
+    exact.then_some(out)
+}
