@@ -523,8 +523,12 @@ struct Hashing<T> {
     thread: Option<std::thread::JoinHandle<Option<(u64, ring::digest::Context)>>>,
 }
 
-/// Pieces read ahead of the thread summing them, at most (a megabyte or so each).
+/// Pieces read ahead of the thread summing them, at most.
 const HASH_QUEUE: usize = 16;
+
+/// Most bytes in one piece sent to be summed (and the opening's read buffer): what waits to be
+/// summed is never more than [`HASH_QUEUE`] of them, 16 MB, however large a record.
+const HASH_PIECE: usize = 1 << 20;
 
 impl<T> Hashing<T> {
     fn new(inner: T, #[cfg_attr(not(test), allow(unused_variables))] path: &Path) -> Hashing<T> {
@@ -560,15 +564,30 @@ impl<T> Hashing<T> {
 impl<T: std::io::Read> std::io::Read for Hashing<T> {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
         let n = self.inner.read(buf)?;
-        if n > 0
-            && let Some(to) = &self.to
-            && to.send(buf.get(..n).unwrap_or(&[]).to_vec()).is_err()
-        {
-            // The thread stopped: nothing it says now is the file's sum.
+        if self.to.is_some() && !self.send(buf.get(..n).unwrap_or(&[])) {
+            // The thread stopped, or there was no memory for a copy: there is no sum of the file.
             self.to = None;
             self.thread = None;
         }
         Ok(n)
+    }
+}
+
+impl<T> Hashing<T> {
+    /// Send `bytes` to be summed, in pieces of at most [`HASH_PIECE`]. Whether they went.
+    fn send(&self, bytes: &[u8]) -> bool {
+        let Some(to) = &self.to else { return false };
+        bytes.chunks(HASH_PIECE).all(|piece| {
+            let mut copy = Vec::new();
+            #[cfg(test)]
+            if NO_MEMORY_FOR_SUM.get() {
+                return false;
+            }
+            copy.try_reserve_exact(piece.len()).is_ok() && {
+                copy.extend_from_slice(piece);
+                to.send(copy).is_ok()
+            }
+        })
     }
 }
 
@@ -578,6 +597,12 @@ impl<T: std::io::Read> std::io::Read for Hashing<T> {
 type HashHold = Mutex<Option<(PathBuf, std::sync::mpsc::Receiver<()>)>>;
 #[cfg(test)]
 static HASH_HOLD: HashHold = Mutex::new(None);
+
+#[cfg(test)]
+thread_local! {
+    /// For a test: a copy of what is read, to be summed, finds no memory (on this thread).
+    static NO_MEMORY_FOR_SUM: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
 
 #[cfg(test)]
 fn hash_hold(path: &Path) -> Option<std::sync::mpsc::Receiver<()>> {
@@ -1587,9 +1612,13 @@ fn open_index(st: &mut State, file: &Path, len: u64, progress: &OpenProgress, la
     let f = crate::io::regular_file(file).map_err(|e| e.to_string())?;
     // What its bytes are is worked out on a thread of its own from the bytes read here (no more
     // than `len` of them), for the first save to wait for: nothing wants it before.
-    let mut reader = std::io::BufReader::with_capacity(1 << 20, Hashing::new(Counted { inner: f.take(len), progress }, file));
+    let mut reader = std::io::BufReader::with_capacity(HASH_PIECE, Hashing::new(Counted { inner: f.take(len), progress }, file));
     let replayed = index::replay(&mut reader, len)?;
+    // A sum only of the file read to its end by the replay itself: bytes read ahead into the
+    // buffer and never taken (a save cut short) leave none, as a file not read through always has.
+    let taken_whole = reader.buffer().is_empty();
     let sum = reader.into_inner().sum(len);
+    let sum = if taken_whole { sum } else { Sum::None };
     let (rest, rest_sum) = replayed.rest.ok_or("this mailbox file is damaged (it has no mailbox record)")?;
     let mut mailbox: Mailbox = mailcraft_model::from_json(&rest, max_json_items()).map_err(|e| format!("this mailbox file is damaged ({e})"))?;
     let rest_fp = (rest_sum, index::FRAME + rest.len() as u64);

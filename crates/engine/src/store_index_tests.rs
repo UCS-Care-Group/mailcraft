@@ -727,6 +727,68 @@ fn a_file_changed_on_disk_before_the_sum_is_worked_out_is_still_kept_aside() {
 }
 
 #[test]
+fn a_file_cut_short_has_no_sum_of_bytes_its_reading_never_took() {
+    let tmp = Temp::new("sum-cut-short");
+    let path = tmp.file();
+    let mut mb = mailbox(8);
+    save(&path, &mb).unwrap();
+    let first = *mb.messages.keys().next().unwrap();
+    mb.message_mut(first).unwrap().subject = "Changed".into();
+    save(&path, &mb).unwrap();
+    // A crash cut the last save short.
+    let bytes = fs::read(&path).unwrap();
+    fs::write(&path, &bytes[..bytes.len() - 10]).unwrap();
+    *lock(&shared(&path).state) = State::default();
+    let mut mb = open(&path).unwrap().mailbox;
+    // Only its time changes: with no sum of the bytes as read (none was taken whole), it is
+    // another writer's, kept aside as such, as it always was.
+    age(&path, Duration::from_secs(3_600));
+    mb.message_mut(first).unwrap().read ^= true;
+    save(&path, &mb).unwrap();
+    assert_eq!(kept(&path, "changed-").len(), 1);
+    assert_eq!(kept(&path, "damaged-").len(), 0);
+}
+
+#[test]
+fn a_record_larger_than_a_piece_is_summed_in_pieces_and_the_file_is_still_known() {
+    let tmp = Temp::new("sum-large-record");
+    let path = tmp.file();
+    let mut mb = mailbox(4);
+    let first = *mb.messages.keys().next().unwrap();
+    // A record of 3 MB: read past the buffer, straight into its own.
+    mb.message_mut(first).unwrap().headers.push(("X-Large".into(), "x".repeat(3 * HASH_PIECE)));
+    save(&path, &mb).unwrap();
+    *lock(&shared(&path).state) = State::default();
+    let mut mb = open(&path).unwrap().mailbox;
+    age(&path, Duration::from_secs(3_600));
+    mb.message_mut(first).unwrap().read ^= true;
+    assert!(!save(&path, &mb).unwrap().compacted);
+    assert!(kept(&path, "changed-").is_empty());
+}
+
+#[test]
+fn no_memory_for_the_sum_leaves_none_and_the_file_is_kept_aside_when_its_time_changes() {
+    let tmp = Temp::new("sum-no-memory");
+    let path = tmp.file();
+    let mut mb = mailbox(6);
+    save(&path, &mb).unwrap();
+    *lock(&shared(&path).state) = State::default();
+    NO_MEMORY_FOR_SUM.set(true);
+    let opened = open(&path);
+    NO_MEMORY_FOR_SUM.set(false);
+    assert!(loaded(&path, &opened.unwrap().mailbox) == mb);
+    assert!(matches!(lock(&shared(&path).state).stamp.as_ref().map(|s| &s.sum), Some(Sum::None)));
+    // Without a sum, a file whose time changed is taken for another writer's, as for any file
+    // whose bytes weren't known: kept aside, nothing lost.
+    age(&path, Duration::from_secs(3_600));
+    let first = *mb.messages.keys().next().unwrap();
+    mb.message_mut(first).unwrap().read ^= true;
+    assert!(save(&path, &mb).unwrap().compacted);
+    assert_eq!(kept(&path, "changed-").len(), 1);
+    assert!(whole(&path) == mb);
+}
+
+#[test]
 fn what_was_worked_out_of_attachments_gone_from_memory_is_let_go() {
     let tmp = Temp::new("hashes");
     let path = tmp.file();
