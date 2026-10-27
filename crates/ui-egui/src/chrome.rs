@@ -98,14 +98,17 @@ fn search_box(app: &mut MailApp, ui: &mut Ui, rect: Rect) {
         egui::StrokeKind::Inside,
     );
     icons::paint(ui.painter(), Rect::from_center_size(pos2(rect.min.x + 15.0, rect.center().y), vec2(16.0, 16.0)), "search", t.text_dim, t.accent);
+    // People has a search of its own, which the box shows and types into there; everywhere else
+    // the box is the mail's (#366).
+    let mail_search = app.session.view.module != Module::People;
     // The engine's search is the truth; the box follows it when it changes elsewhere (a command).
-    if !focused && app.search_text != app.session.view.search {
-        app.search_text = app.session.view.search.clone();
+    let truth = if mail_search { &app.session.view.search } else { &app.session.view.people_search };
+    if !focused && app.search_text != *truth {
+        app.search_text = truth.clone();
     }
     // A dialog over the window takes the keys, Escape first.
     let free = crate::keys::takes_commands(app);
     // The scope menu is about mail folders, so People (which searches contacts) goes without it.
-    let mail_search = app.session.view.module != Module::People;
     let scope_w = if mail_search { 104.0 } else { 0.0 };
     // Advanced Search's button, at the right of the text as in Outlook: Mail's alone.
     let in_mail = app.session.view.module == Module::Mail;
@@ -185,10 +188,7 @@ fn search_box(app: &mut MailApp, ui: &mut Ui, rect: Rect) {
     }
     if resp.changed() {
         let text = app.search_text.clone();
-        let _ = match app.session.view.module {
-            Module::People => app.execute("people.search", json!({"query": text})),
-            _ => app.execute("view.search", json!({"query": text})),
-        };
+        let _ = app.execute(if mail_search { "view.search" } else { "people.search" }, json!({"query": text}));
     }
     // Escape is the box's while it has the keyboard and nothing is over it, the list under it
     // either (#406), so nothing drawn after it does something with the same key (a selection in
