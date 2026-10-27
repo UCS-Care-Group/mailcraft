@@ -2366,6 +2366,11 @@ mod event {
             .to_string()
         }
 
+        /// The event it changes; `None` for a new one.
+        pub fn editing(&self) -> Option<Id> {
+            self.id
+        }
+
         /// Whether it is about a meeting (people are invited, or are about to be).
         pub fn is_meeting(&self) -> bool {
             self.meeting

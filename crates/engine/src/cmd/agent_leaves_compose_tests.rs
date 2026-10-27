@@ -286,3 +286,23 @@ fn taking_away_an_appointment_whose_window_has_changes_asks_whatever_is_allowed(
     let params = json!({"id": 1, "send": true, "unsaved": unsaved});
     assert_eq!(classify(&s, "calendar.delete", &params), Access::Asked(Class::Send));
 }
+
+#[test]
+fn an_agents_command_that_takes_away_an_appointment_the_owner_is_changing_is_undone() {
+    let mut s = session();
+    let mut events = s.mailbox.events.values().filter(|e| !e.title.is_empty() && e.recurrence.is_none()).map(|e| e.id);
+    let (event, other) = (events.next().unwrap(), events.next().unwrap());
+    // The window says the owner is changing it; whatever the command, and whatever is allowed.
+    s.owner_changing = vec![event];
+    s.agent = Some(Class::ALL.to_vec());
+    let refused = s.run("calendar.delete", &json!({"id": event}));
+    let gone_too = s.run("calendar.delete", &json!({"id": other}));
+    s.agent = None;
+    let e = refused.unwrap_err().to_string();
+    assert!(e.contains("an appointment the owner is changing in the window"), "{e}");
+    assert!(s.mailbox.event(event).is_some(), "nothing was changed");
+    assert!(gone_too.is_ok() && s.mailbox.event(other).is_none(), "another appointment goes as allowed");
+    // The owner's own command takes it.
+    run(&mut s, "calendar.delete", json!({"id": event}));
+    assert!(s.mailbox.event(event).is_none());
+}

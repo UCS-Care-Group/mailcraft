@@ -861,6 +861,10 @@ pub struct Session {
     /// Set while a command an agent asked for runs (with what the owner allowed it): what the
     /// command did is checked against that ([`crate::agent`]), and undone when it oversteps.
     pub agent: Option<Vec<crate::agent::Class>>,
+    /// The appointments the owner is changing in the window and hasn't saved, set by the window
+    /// while an agent's command runs: a command that takes one away is undone, as the owner
+    /// wasn't asked about it (#494). Never saved.
+    pub owner_changing: Vec<Id>,
     /// A copy of the mailbox the window had the host write off its own thread before switching an
     /// account to Microsoft Graph (the account, where the copy is): `account.graphSwitch` takes it
     /// instead of writing one itself ([`crate::cmd::graph_switch::prepare_backup`]). Set only by
@@ -996,6 +1000,7 @@ impl Session {
             graph_listed_short: Default::default(),
             jmap_read: Default::default(),
             agent: None,
+            owner_changing: Vec::new(),
             graph_switch_backup: None,
             staged_tree: None,
             server_search: Default::default(),
@@ -2173,8 +2178,14 @@ impl Session {
             }
         };
         // An agent's command that did more than it was allowed (mail into an Outbox, messages
-        // gone for good) is undone, whatever path it took there.
+        // gone for good, an appointment the owner is changing taken away) is undone, whatever
+        // path it took there.
         let result = match (result, &self.agent) {
+            (Ok(_), Some(_)) if self.owner_changing.iter().any(|e| before.mailbox.event(*e).is_some() && self.mailbox.event(*e).is_none()) => {
+                Err(CmdError::Failed(format!(
+                    "`{id}` would take away an appointment the owner is changing in the window and hasn't saved, and the owner wasn't asked about that; nothing was changed. Try again once the owner has saved or closed it"
+                )))
+            }
             (Ok(_), Some(allow)) if let Some(c) = crate::agent::overstep(&before.mailbox, &self.mailbox, allow) => {
                 Err(CmdError::Failed(crate::agent::needs_owner(id, c, "do more than an agent is allowed to; nothing was changed")))
             }

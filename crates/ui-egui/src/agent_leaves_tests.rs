@@ -437,3 +437,90 @@ fn an_undo_that_takes_away_an_appointment_being_changed_is_asked_about() {
     answer(w.state_mut(), false);
     assert!(w.state().session.mailbox.event(event).is_some());
 }
+
+#[test]
+fn the_appointment_is_known_however_its_number_is_written() {
+    let mut w = testing::window("view.calendar");
+    let (event, calendar) =
+        w.state().session.mailbox.events.values().find(|e| !e.title.is_empty() && e.recurrence.is_none()).map(|e| (e.id, e.calendar)).unwrap();
+    changing_in_a_window(&mut w, event);
+    w.state_mut().execute("calendar.select", json!({"id": event})).unwrap();
+    // `12.0` is 12, and 0 is none (the selected one), as the commands read them.
+    for (id, params) in [
+        ("calendar.delete", json!({"id": event as f64})),
+        ("calendar.delete", json!({"id": 0})),
+        ("calendar.removeCalendar", json!({"id": calendar as f64})),
+    ] {
+        let (now, rx) = allowed(w.state_mut(), id, params.clone(), Class::ALL.to_vec());
+        assert!(now.is_none(), "{id} {params}: asked even so");
+        assert!(question(w.state()).unwrap().1.contains("(moved)\u{201d} is closed without saving"), "{id} {params}");
+        answer(w.state_mut(), false);
+        assert_eq!(rx.try_recv().unwrap()["ok"], false);
+        w.run_steps(3);
+        assert_eq!(w.state().windows.unsaved(), 1, "{id} {params}: no leaves it open");
+    }
+}
+
+/// A message from Bo with a calendar part saying `method` of the meeting `uid`, to `owner`.
+fn meeting_mail(method: &str, uid: &str, owner: &str) -> mailcraft_model::Message {
+    let ics = [
+        "BEGIN:VCALENDAR",
+        "VERSION:2.0",
+        "PRODID:-//Example//Meetings 1.0//EN",
+        &format!("METHOD:{method}"),
+        "BEGIN:VEVENT",
+        &format!("UID:{uid}"),
+        "SUMMARY:Design review",
+        "DTSTART:20261015T140000Z",
+        "DTEND:20261015T150000Z",
+        "ORGANIZER;CN=Bo Marsh:mailto:bo@example.org",
+        &format!("ATTENDEE;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;RSVP=TRUE:mailto:{owner}"),
+        "END:VEVENT",
+        "END:VCALENDAR",
+    ]
+    .join("\r\n");
+    mailcraft_model::Message {
+        message_id: format!("{method}.{uid}@example.org"),
+        from: mailcraft_model::Address::new("Bo Marsh", "bo@example.org"),
+        to: vec![mailcraft_model::Address::new("", owner)],
+        subject: format!("{method}: Design review"),
+        date: NOW - 3_600,
+        received: NOW - 3_600,
+        attachments: vec![mailcraft_model::Attachment::new("invite.ics", "text/calendar", (ics + "\r\n").into_bytes())],
+        ..mailcraft_model::Message::default()
+    }
+}
+
+#[test]
+fn no_other_command_takes_away_an_appointment_being_changed_unasked() {
+    let mut w = testing::window("view.calendar");
+    let account = w.state().session.mailbox.default_account().unwrap();
+    let (account, owner) = (account.id, account.email.clone());
+    let inbox = w.state().session.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    let deliver = |w: &mut testing::Window, method: &str| {
+        let m = meeting_mail(method, "uid-agent-494", &owner);
+        let id = w.state_mut().session.mailbox.add_message(mailcraft_model::Message { folder: inbox, ..m }).unwrap();
+        w.state_mut().session.mailbox_changed();
+        id
+    };
+    let request = deliver(&mut w, "REQUEST");
+    w.state_mut().execute("calendar.respond", json!({"message": request, "response": "accept"})).unwrap();
+    let event = w.state().session.mailbox.events.values().find(|e| e.uid == "uid-agent-494").unwrap().id;
+    changing_in_a_window(&mut w, event);
+    // Bo calls it off; an agent takes it out of the calendar, as it may when nothing is open.
+    let cancel = deliver(&mut w, "CANCEL");
+    let (now, _) = allowed(w.state_mut(), "calendar.removeCancelled", json!({"message": cancel}), Class::ALL.to_vec());
+    let now = now.unwrap();
+    assert_eq!(now["ok"], false, "{now}");
+    assert!(now["error"].as_str().unwrap().contains("the owner is changing in the window"), "{now}");
+    w.run_steps(3);
+    assert!(w.state().session.mailbox.event(event).is_some());
+    assert_eq!(w.state().windows.unsaved(), 1, "the window stays with the owner's changes");
+    // Once the owner has saved it, the agent's command does what it says.
+    w.state_mut().run("ui.eventWindow", json!({"do": "save"})).unwrap();
+    w.run_steps(4);
+    assert_eq!(w.state().windows.unsaved(), 0);
+    let (now, _) = allowed(w.state_mut(), "calendar.removeCancelled", json!({"message": cancel}), Vec::new());
+    assert_eq!(now.unwrap()["ok"], true);
+    assert!(w.state().session.mailbox.event(event).is_none());
+}

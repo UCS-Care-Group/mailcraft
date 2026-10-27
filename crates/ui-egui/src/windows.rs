@@ -353,13 +353,29 @@ pub(crate) fn replacing_unsaved(app: &MailApp) -> Option<Value> {
 /// the one named or selected, `calendar.removeCalendar` a calendar's, an undo or a redo what the
 /// step brings back as it was.
 pub(crate) fn removing_unsaved(app: &MailApp, id: &str, p: &Value) -> Option<Value> {
-    let number = |key: &str| p.get(key).and_then(Value::as_u64);
+    // As the command reads it: `12.0` is 12, and 0 is none.
+    let number = |key: &str| mailcraft_engine::p::id(p, key);
     let gone = |event: Id| match id {
         "calendar.delete" => number("id").or(app.session.sel.event) == Some(event),
         "calendar.removeCalendar" => app.session.mailbox.event(event).is_some_and(|e| Some(e.calendar) == number("id")),
         _ => app.session.undo_removes(id == "edit.redo", event),
     };
     unsaved_of(app.windows.open.iter().filter(|w| matches!(&w.what, What::Event { event: Some((e, _)), .. } if gone(*e))))
+}
+
+/// The appointments being changed in windows of their own, with changes that aren't saved: an
+/// agent's command may take them away only on the owner's yes (`Session::owner_changing`).
+pub(crate) fn changing_events(app: &MailApp) -> Vec<Id> {
+    let changing = |w: &&Open| w.what.form().is_some_and(Form::dirty);
+    app.windows
+        .open
+        .iter()
+        .filter(changing)
+        .filter_map(|w| match &w.what {
+            What::Event { event: Some((e, _)), .. } => Some(*e),
+            _ => None,
+        })
+        .collect()
 }
 
 /// The first of `windows` with changes that aren't saved, as an agent's question names it, and

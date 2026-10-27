@@ -144,16 +144,28 @@ fn as_the_window_has_it(app: &MailApp, id: &str, mut params: Value) -> Value {
 /// Run for an agent: what the command does is held to `allow` (`Session::agent`). A form in the
 /// dialog with changes the owner hasn't saved stays where it is (#494): set aside while the
 /// command runs, it comes back after it, and a dialog the command opened in its place isn't
-/// shown. (Closing it, or another dialog in its place, was asked about: `unsaved`.)
+/// shown. (Closing it, or another dialog in its place, was asked about: `unsaved`.) Nor does the
+/// command take away an appointment the owner is changing: in that form, or in a window unless
+/// the owner said yes to what the window would lose (`unsaved`).
 fn run(app: &mut MailApp, id: &str, params: Value, allow: &[Class]) -> Outcome {
-    let asked = matches!(id, "ui.closeDialog" | "ui.dialog") && params.get("unsaved").is_some_and(|v| !v.is_null());
+    let said_yes = params.get("unsaved").is_some_and(|v| !v.is_null());
+    let asked = matches!(id, "ui.closeDialog" | "ui.dialog") && said_yes;
     let owners = match &app.dialog {
         Some(crate::dialogs::Dialog::Form(form)) if form.dirty() && !asked => app.dialog.take(),
         _ => None,
     };
+    let mut changing = if said_yes { Vec::new() } else { crate::windows::changing_events(app) };
+    // (A question names windows only, never the form set aside.)
+    if let Some(crate::dialogs::Dialog::Form(form)) = &owners
+        && let Some(event) = form.event().and_then(|f| f.editing())
+    {
+        changing.push(event);
+    }
     app.session.agent = Some(allow.to_vec());
+    app.session.owner_changing = changing;
     let r = app.execute(id, params);
     app.session.agent = None;
+    app.session.owner_changing = Vec::new();
     if let Some(form) = owners
         && let Some(opened) = app.dialog.replace(form)
     {
