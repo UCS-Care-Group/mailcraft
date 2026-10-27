@@ -790,23 +790,31 @@ fn a_large_newsletter_parses_quickly() {
     assert!(flat(&parse(&double)).len() <= flat(&blocks).len() + 8);
 }
 
-/// There is no way to fetch anything from here: the crate has no dependency that could, and its
-/// own code names nothing that opens a socket, a file or a process.
-/// The dependencies a crate's manifest names, in order.
+/// The dependencies a crate's manifest names under `[dependencies]`, in order. A dependency named
+/// any other way (a table of its own, one for some platforms only, one for building) fails the
+/// test, so that it is not missed.
 fn dependencies(manifest: &std::path::Path) -> Vec<String> {
-    std::fs::read_to_string(manifest)
-        .unwrap()
-        .lines()
-        .skip_while(|l| l.trim() != "[dependencies]")
-        .skip(1)
-        .take_while(|l| !l.trim_start().starts_with('['))
-        .filter_map(|l| l.split('=').next())
-        .map(str::trim)
-        .filter(|l| !l.is_empty() && !l.starts_with('#'))
-        .map(String::from)
-        .collect()
+    let text = std::fs::read_to_string(manifest).unwrap();
+    let mut names = Vec::new();
+    let mut listed = false;
+    for line in text.lines() {
+        let line = line.split('#').next().unwrap_or_default().trim();
+        if line.starts_with('[') {
+            assert!(
+                !line.contains("dependencies") || line == "[dependencies]" || line == "[dev-dependencies]",
+                "{}: `{line}` is not read here",
+                manifest.display()
+            );
+            listed = line == "[dependencies]";
+        } else if let Some((name, _)) = line.split_once('=').filter(|_| listed) {
+            names.push(name.trim().to_string());
+        }
+    }
+    names
 }
 
+/// There is no way to fetch anything from here: the crate has no dependency that could, and its
+/// own code names nothing that opens a socket, a file or a process.
 #[test]
 fn this_crate_has_no_way_to_fetch_anything() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
