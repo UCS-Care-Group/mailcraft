@@ -121,6 +121,23 @@ fn a_shared_mailbox_without_full_access_is_said_plainly_and_not_asked_again_and_
 }
 
 #[test]
+fn a_one_off_not_found_for_the_top_folder_is_no_refusal_and_the_next_run_reads_the_mailbox() {
+    let server = StandIn::start().unwrap();
+    server.state().add_other(SHARED, true);
+    // A 404 that is not Graph saying there is no mailbox there.
+    server.state().other(SHARED).unwrap().refusing = Some((404, "ErrorItemNotFound"));
+    let pieces = run(&server, &request(SHARED, Vec::new()));
+    assert!(pieces[0].refused.is_none() && pieces[0].listing.is_none(), "{:?}", pieces[0]);
+    assert!(!pieces[0].errors.is_empty(), "said as an ordinary error");
+    assert!(pieces[0].errors.iter().all(|e| !e.contains("no mailbox") && !e.contains(SHARED)), "{:?}", pieces[0].errors);
+    // Gone by the next run: the mailbox is read.
+    server.state().other(SHARED).unwrap().refusing = None;
+    let pieces = run(&server, &request(SHARED, Vec::new()));
+    let last = pieces.last().unwrap();
+    assert!(last.refused.is_none() && last.errors.is_empty() && pieces.iter().any(|p| p.listing.is_some()), "{:?}", last.errors);
+}
+
+#[test]
 fn a_403_is_told_apart_by_graphs_code_not_by_its_status() {
     let server = StandIn::start().unwrap();
     server.state().add_other(SHARED, true);
