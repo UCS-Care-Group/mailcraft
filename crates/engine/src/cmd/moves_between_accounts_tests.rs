@@ -1012,3 +1012,27 @@ fn mail_waiting_to_go_on_a_server_that_cant_be_read_here_is_said_after_each_run(
     // It still waits where it was put: nothing of it is lost.
     assert!(s.mailbox.queued.iter().any(|q| matches!(q, Queued::PlaceMessage { message, .. } if *message == plans)));
 }
+
+#[test]
+fn mail_from_another_mailbox_doesnt_go_into_an_outbox_where_it_would_be_sent() {
+    let (mut s, a, kept) = imap();
+    let ms = microsoft(&mut s, OWNER);
+    let b = second_imap(&mut s);
+    let local = s.mailbox.folder(kept).unwrap().account;
+    let notes = s.mailbox.add_folder(local, None, "Notes").unwrap();
+    let mine = s
+        .mailbox
+        .add_message(Message { folder: notes, subject: "Mine".into(), body: Body { text: "Mine.".into(), html: None }, ..Default::default() })
+        .unwrap();
+    let two = titled(&s, "Two");
+    for outbox in [s.mailbox.folder_of_kind(ms, FolderKind::Outbox).unwrap(), s.mailbox.folder_of_kind(b, FolderKind::Outbox).unwrap()] {
+        for command in ["mail.move", "mail.copy"] {
+            for id in [two, mine] {
+                let refused = s.run(command, &json!({"ids": [id], "folder": outbox})).unwrap_err();
+                assert_eq!(refused.to_string(), mailcraft_model::INTO_OUTBOX);
+            }
+        }
+    }
+    assert!(s.mailbox.queued.is_empty() && s.mailbox.pending.is_empty());
+    assert_eq!((at(&s, two).0, at(&s, mine).1), (a, notes));
+}

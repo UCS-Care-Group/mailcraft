@@ -982,6 +982,10 @@ impl Default for Mailbox {
 pub const BETWEEN_MAILBOXES: &str =
     "Mail moves and copies between a shared mailbox and its own account's mailboxes only: move it there, or into a folder on this computer";
 
+/// Why mail from another mailbox doesn't go into an account's Outbox (#451): what waits there
+/// is sent by the next Send/Receive.
+pub const INTO_OUTBOX: &str = "Mail from another mailbox can't go into an Outbox: the next Send/Receive would send it";
+
 /// The local folder that mail imported for a Microsoft account goes to (R3 spec S30).
 pub const IMPORTED: &str = "Imported";
 
@@ -1996,6 +2000,9 @@ impl Mailbox {
             if !self.placed_into(from_account, to_account) {
                 return Err(invalid(BETWEEN_MAILBOXES));
             }
+            if self.is_send_queue(folder) {
+                return Err(invalid(INTO_OUTBOX));
+            }
             if let Some(why) = Mailbox::not_whole(m, "moved") {
                 return Err(invalid(why));
             }
@@ -2085,6 +2092,9 @@ impl Mailbox {
         let from_account = m.account;
         if self.placed_into(from_account, to_account) {
             // Made on the destination's server by its own run, from the whole message (#70, #451).
+            if self.is_send_queue(folder) {
+                return Err(invalid(INTO_OUTBOX));
+            }
             if let Some(why) = Mailbox::not_whole(m, "copied") {
                 return Err(invalid(why));
             }
