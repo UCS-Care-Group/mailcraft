@@ -153,6 +153,7 @@ const MAIL_PROVIDERS: &[&str] = &[
     "att.net",
     "verizon.net",
     "btinternet.com",
+    "email.com",
 ];
 
 /// Whether `domain` (in lower case) is a mail provider's, where anybody can have an address:

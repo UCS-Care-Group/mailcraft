@@ -15,7 +15,9 @@
 //! - **macOS:** the disk image is attached read-only where nothing else sees it (`hdiutil attach
 //!   -nobrowse -readonly`), the app in it copied beside the running one and put in its place by
 //!   renaming; the old one goes to the data folder, the image is detached. When the running app
-//!   is signed, the new one must pass `codesign --verify` first.
+//!   is signed, the new one must pass `codesign --verify` before the swap and in its place after
+//!   it, or it is swapped back. (Off for now, until the builds are signed with a Developer ID and
+//!   notarized: `install::MAC_SELF_INSTALL`. A Mac copy is then told of new versions only.)
 //! - **AppImage:** the new file is copied beside `$APPIMAGE`, made executable and renamed over
 //!   it; the old one is copied to the data folder first.
 //!
@@ -273,8 +275,12 @@ fn open_lock(folders: &Folders) -> io::Result<File> {
     fs::OpenOptions::new().create(true).truncate(false).write(true).open(folders.lock())
 }
 
-/// Take the lock a new version waits on, for as long as this program runs.
+/// Take the lock a new version waits on, for as long as this program runs. Taken once, it is
+/// held: a second open of the file would be a lock of its own, refused.
 pub fn hold_lock(folders: &Folders) -> bool {
+    if HELD.get().is_some() {
+        return true;
+    }
     let Ok(file) = open_lock(folders) else { return false };
     if file.try_lock().is_err() {
         return false;
@@ -609,8 +615,49 @@ fn remove_any(path: &Path) -> io::Result<()> {
     }
 }
 
+/// [`remove_any`], and when that fails, once more after giving the owner write to every folder
+/// in it: an app copied by 0.8.1 and earlier kept the folders of a read-only disk image as they
+/// were, and nothing could be removed from them (#497).
+fn remove_stubborn(path: &Path) -> io::Result<()> {
+    if remove_any(path).is_ok() {
+        return Ok(());
+    }
+    #[cfg(unix)]
+    {
+        let mut left = MAX_ENTRIES;
+        let_owner_in(path, 0, &mut left);
+    }
+    remove_any(path)
+}
+
+/// Give the owner read, write and search on `path` and every folder in it (not through links),
+/// at most [`MAX_ENTRIES`] entries, [`MAX_DEPTH`] deep.
+#[cfg(unix)]
+fn let_owner_in(path: &Path, depth: usize, left: &mut usize) {
+    use std::os::unix::fs::PermissionsExt as _;
+    let Some(rest) = left.checked_sub(1) else { return };
+    *left = rest;
+    if depth > MAX_DEPTH {
+        return;
+    }
+    let Ok(meta) = fs::symlink_metadata(path) else { return };
+    if !meta.is_dir() {
+        return;
+    }
+    let mode = meta.permissions().mode();
+    if mode & 0o700 != 0o700 {
+        let _ = fs::set_permissions(path, fs::Permissions::from_mode(mode | 0o700));
+    }
+    let Ok(entries) = fs::read_dir(path) else { return };
+    for entry in entries.flatten() {
+        let_owner_in(&entry.path(), depth.saturating_add(1), left);
+    }
+}
+
 /// Copy a file, or a folder and everything in it (an app), keeping links as links and the
-/// permissions; at most [`MAX_ENTRIES`] entries, [`MAX_DEPTH`] deep.
+/// permissions, except that the owner can always write to a folder copied (one from a
+/// read-only disk image often can't be), so that the copy can be removed; at most
+/// [`MAX_ENTRIES`] entries, [`MAX_DEPTH`] deep.
 fn copy_tree(from: &Path, to: &Path) -> io::Result<()> {
     let mut left = MAX_ENTRIES;
     copy_entry(from, to, 0, &mut left)
@@ -634,17 +681,44 @@ fn copy_entry(from: &Path, to: &Path, depth: usize, left: &mut usize) -> io::Res
             let entry = entry?;
             copy_entry(&entry.path(), &to.join(entry.file_name()), depth.saturating_add(1), left)?;
         }
-        fs::set_permissions(to, meta.permissions())
+        #[cfg_attr(not(unix), allow(unused_mut))]
+        let mut permissions = meta.permissions();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt as _;
+            permissions.set_mode(permissions.mode() | 0o200);
+        }
+        fs::set_permissions(to, permissions)
     } else {
         fs::copy(from, to).map(|_| ())
     }
 }
 
+/// What [`replace`] did besides putting the new one in place: whether the one replaced was
+/// kept where it was asked to be.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Replaced {
+    pub kept: bool,
+}
+
 /// Put `new` (a file or an app folder) in the place of `running`. It is copied beside first, so
-/// that the last step is a rename on one disk; a file copied must have the SHA-256 `expected`.
-/// The one replaced goes to `keep` (copied first for a file, which stays where it is until the
-/// rename; moved after for a folder), or is deleted. Whatever fails leaves `running` as it was.
-pub fn replace(running: &Path, new: &Path, keep: Option<&Path>, expected: Option<[u8; 32]>) -> io::Result<()> {
+/// that the last step is a rename on one disk; a file copied must have the SHA-256 `expected`,
+/// and `check` must hold for what is put in place (an app: in its place, after the swap; a
+/// file: before it). Whatever fails before the new one is in place leaves `running` as it was
+/// and nothing staged beside it; a version that can't be put back is an error that says where
+/// it is.
+///
+/// Once the new one is in place, the update has happened: the one replaced goes to `keep`
+/// (copied first for a file, which stays where it is until the rename; moved after for a
+/// folder) or is deleted, both as far as they can be, which is logged and never an error
+/// ([`Replaced::kept`] says whether it was kept).
+pub fn replace(
+    running: &Path,
+    new: &Path,
+    keep: Option<&Path>,
+    expected: Option<[u8; 32]>,
+    check: &mut dyn FnMut(&Path) -> bool,
+) -> io::Result<Replaced> {
     let staged = beside(running, "new")?;
     remove_any(&staged)?;
     let staged_ok = copy_tree(new, &staged).and_then(|()| {
@@ -662,41 +736,172 @@ pub fn replace(running: &Path, new: &Path, keep: Option<&Path>, expected: Option
         }
         Ok(())
     });
-    if let Err(e) = staged_ok {
+    // From here until the new one is in place, the copy staged goes with every error.
+    let fail = |e: io::Error| {
         let _ = remove_any(&staged);
-        return Err(e);
-    }
-    if fs::symlink_metadata(running)?.is_dir() {
-        let aside = beside(running, "old")?;
-        remove_any(&aside)?;
-        if let Err(e) = fs::rename(running, &aside) {
-            let _ = remove_any(&staged);
-            return Err(e);
+        e
+    };
+    staged_ok.map_err(fail)?;
+    if fs::symlink_metadata(running).map_err(fail)?.is_dir() {
+        let aside = beside(running, "old").map_err(fail)?;
+        // What a swap that didn't finish left is the owner's to put right, not to be removed.
+        if beside(running, "unfinished").is_ok_and(|marker| fs::symlink_metadata(marker).is_ok()) && fs::symlink_metadata(&aside).is_ok() {
+            return Err(fail(io::Error::other(format!("an earlier update didn't finish; the version it replaced is at {}", aside.display()))));
         }
+        remove_any(&aside).map_err(fail)?;
+        fs::rename(running, &aside).map_err(fail)?;
         if let Err(e) = fs::rename(&staged, running) {
-            let _ = fs::rename(&aside, running);
-            let _ = remove_any(&staged);
-            return Err(e);
+            return Err(put_back(running, &aside, &staged, e));
         }
-        if let Some(keep) = keep {
-            remove_any(keep)?;
-            if fs::rename(&aside, keep).is_err() {
-                copy_tree(&aside, keep)?;
+        if !check(running) {
+            // Out of its place again (where it was staged), and the one replaced back.
+            if let Err(e) = fs::rename(running, &staged) {
+                mark_unfinished(running);
+                log::error!("the new app doesn't pass its check in its place and couldn't be taken out of it: {e}");
+                return Err(io::Error::other(format!(
+                    "the new copy doesn't pass its check in its place and couldn't be taken out of it ({e}); the version that was there is at {}",
+                    aside.display()
+                )));
             }
+            return Err(put_back(running, &aside, &staged, io::Error::other("the new copy doesn't pass its check in its place")));
         }
-        remove_any(&aside)
+        // In place: what follows is tidying.
+        let kept = match keep {
+            Some(keep) => match keep_folder(&aside, keep) {
+                Ok(()) => true,
+                Err(e) => {
+                    log::warn!("the version replaced couldn't be kept for going back: {e}");
+                    false
+                }
+            },
+            None => false,
+        };
+        if let Err(e) = remove_stubborn(&aside) {
+            log::warn!("the version replaced, hidden beside the new one, couldn't be removed: {e}");
+        }
+        Ok(Replaced { kept })
     } else {
-        if let Some(keep) = keep {
-            remove_any(keep)?;
-            if let Err(e) = fs::copy(running, keep) {
-                let _ = remove_any(&staged);
-                return Err(e);
+        if !check(&staged) {
+            return Err(fail(io::Error::other("the new copy doesn't pass its check")));
+        }
+        let kept = match keep {
+            Some(keep) => match remove_stubborn(keep).and_then(|()| fs::copy(running, keep)) {
+                Ok(_) => true,
+                Err(e) => {
+                    let _ = remove_any(keep);
+                    log::warn!("the version replaced couldn't be kept for going back: {e}");
+                    false
+                }
+            },
+            None => false,
+        };
+        fs::rename(&staged, running).map_err(fail)?;
+        Ok(Replaced { kept })
+    }
+}
+
+/// The folder `aside` moved (or copied) to `keep`; a copy that didn't finish is removed.
+fn keep_folder(aside: &Path, keep: &Path) -> io::Result<()> {
+    remove_stubborn(keep)?;
+    if fs::rename(aside, keep).is_ok() {
+        return Ok(());
+    }
+    copy_tree(aside, keep).inspect_err(|_| {
+        let _ = remove_stubborn(keep);
+    })
+}
+
+/// The new one isn't in `running` after all: the one moved `aside` goes back, then the copy
+/// `staged` is removed, and `cause` is the error. When the one moved aside can't be put back,
+/// both are left where they are, the swap is marked unfinished (so that [`clear_leftovers`]
+/// keeps them), and the error says where they are.
+fn put_back(running: &Path, aside: &Path, staged: &Path, cause: io::Error) -> io::Error {
+    match fs::rename(aside, running) {
+        Ok(()) => {
+            let _ = remove_any(staged);
+            cause
+        }
+        Err(back) => {
+            mark_unfinished(running);
+            log::error!("the version that was in place couldn't be put back ({back}); it is at {}", aside.display());
+            io::Error::other(format!(
+                "{cause}; and the version that was in place couldn't be put back ({back}): it is at {}, to be renamed {}; the new one is at {}",
+                aside.display(),
+                running.display(),
+                staged.display()
+            ))
+        }
+    }
+}
+
+/// A swap of `running` that didn't finish: `.<name>.unfinished` beside it, so that what is
+/// beside it is kept until the owner has put it right. Best effort.
+fn mark_unfinished(running: &Path) {
+    if let Ok(marker) = beside(running, "unfinished")
+        && let Err(e) = fs::write(&marker, b"An update of MailCraft didn't finish: see the log.\n")
+    {
+        log::warn!("the unfinished update couldn't be marked: {}", e.kind());
+    }
+}
+
+/// What an update that stopped partway may have left beside `target` (`.<name>.new`,
+/// `.<name>.old`), removed at start; best effort, logged. Not while another program holds the
+/// update lock (one that is installing, [`on_exit`]): whether it ran. Not either while the old
+/// version is there and a swap is marked unfinished or `target` isn't there: that is the
+/// owner's copy to put back, which the error of that swap named.
+pub fn clear_leftovers(folders: &Folders, target: &Path) -> bool {
+    let Ok(lock) = open_lock(folders) else { return false };
+    if lock.try_lock().is_err() {
+        log::info!("an update is being installed; what is beside MailCraft is left for now");
+        return false;
+    }
+    let (Ok(marker), Ok(new), Ok(old)) = (beside(target, "unfinished"), beside(target, "new"), beside(target, "old")) else {
+        return true;
+    };
+    let there = |path: &Path| fs::symlink_metadata(path).is_ok();
+    if there(&old) && (there(&marker) || !there(target)) {
+        log::warn!("an earlier update didn't finish: the version that was in place is kept at {}", old.display());
+        let _ = lock.unlock();
+        return true;
+    }
+    for (what, path) in [("unfinished", &marker), ("new", &new), ("old", &old)] {
+        if !there(path) {
+            continue;
+        }
+        match remove_stubborn(path) {
+            Ok(()) => log::info!("removed what an earlier update left beside MailCraft (.{what})"),
+            Err(e) => log::warn!("what an earlier update left beside MailCraft (.{what}) couldn't be removed: {}", e.kind()),
+        }
+    }
+    let _ = lock.unlock();
+    true
+}
+
+/// A Mac copy that doesn't install updates itself ([`crate::install::MAC_SELF_INSTALL`] off):
+/// what earlier versions that did left in the data folder (disk images downloaded, the place
+/// one was attached, the copies handed over, the version kept for going back), removed at start;
+/// best effort, and not while another program holds the update lock.
+pub fn clear_mac_data(folders: &Folders) {
+    let Ok(lock) = open_lock(folders) else { return };
+    if lock.try_lock().is_err() {
+        return;
+    }
+    if let Ok(entries) = fs::read_dir(folders.updates()) {
+        for entry in entries.flatten().take(1_000) {
+            let path = entry.path();
+            if path.extension() == Some(OsStr::new("dmg")) {
+                let _ = remove_any(&path);
             }
         }
-        fs::rename(&staged, running).inspect_err(|_| {
-            let _ = remove_any(&staged);
-        })
     }
+    for path in [folders.mount(), folders.handed(), folders.previous()] {
+        if fs::symlink_metadata(&path).is_ok()
+            && let Err(e) = remove_stubborn(&path)
+        {
+            log::debug!("what an earlier update left in the data folder couldn't be removed: {}", e.kind());
+        }
+    }
+    let _ = lock.unlock();
 }
 
 /// What this copy is installed as: the AppImage file, the `.app` folder, or `mailcraft.exe`.
@@ -717,6 +922,11 @@ pub fn target(install: Install) -> Option<PathBuf> {
 pub fn on_exit(folders: &Folders, install: Install, what: OnExit, verified: Option<Verified>, mailbox: Option<&Path>) -> Result<(), String> {
     let running = env!("CARGO_PKG_VERSION");
     let target = target(install).ok_or("this copy doesn't update itself")?;
+    // Held from here until this program has gone: another start leaves what is beside the app
+    // alone meanwhile ([`clear_leftovers`]), and a new version waits for it.
+    if !hold_lock(folders) {
+        log::warn!("the update lock couldn't be taken; another start may tidy beside MailCraft meanwhile");
+    }
     match what {
         OnExit::Install { version, restart } => {
             let verified = verified.filter(|v| v.version == version).ok_or("nothing downloaded and checked for that version")?;
@@ -766,7 +976,8 @@ pub fn on_exit(folders: &Folders, install: Install, what: OnExit, verified: Opti
                     return windows_helper(folders, &job);
                 }
                 Install::AppImage => {
-                    replace(&target, &file, None, Some(kept.sha256.ok_or("the kept AppImage has no checksum")?)).map_err(|e| e.to_string())?;
+                    replace(&target, &file, None, Some(kept.sha256.ok_or("the kept AppImage has no checksum")?), &mut |_| true)
+                        .map_err(|e| e.to_string())?;
                     start_program(&target)
                 }
                 Install::MacApp => {
@@ -775,12 +986,12 @@ pub fn on_exit(folders: &Folders, install: Install, what: OnExit, verified: Opti
                     // our own, kept beside it in the data folder, would be no better than the
                     // app itself against whoever can change that folder. It is copied into
                     // place by this program (`replace`); no other program is handed it.
-                    replace(&target, &file, None, None).map_err(|e| e.to_string())?;
+                    replace(&target, &file, None, None, &mut |_| true).map_err(|e| e.to_string())?;
                     open_app(&target)
                 }
                 Install::NoticeOnly => return Err("this copy doesn't update itself".into()),
             };
-            let _ = fs::remove_dir_all(&previous);
+            let _ = remove_stubborn(&previous);
             relaunch(folders, &started);
             Ok(())
         }
@@ -800,13 +1011,16 @@ fn relaunch(folders: &Folders, run: &Run) {
 /// AppImage: the new file in place of the running one, the old one kept.
 fn install_appimage(folders: &Folders, image: &Path, new: &Path, sha256: [u8; 32], running: &str) -> Result<(), String> {
     let previous = folders.previous();
-    let _ = fs::remove_dir_all(&previous);
+    let _ = remove_stubborn(&previous);
     fs::create_dir_all(&previous).map_err(|e| e.to_string())?;
     let name = image.file_name().and_then(OsStr::to_str).filter(|n| plain_name(n)).unwrap_or("MailCraft.AppImage").to_string();
     let keep = previous.join(&name);
-    replace(image, new, Some(&keep), Some(sha256)).map_err(|e| format!("the AppImage couldn't be replaced: {e}"))?;
-    let kept_sum = mailcraft_net::update_download::sha256(&keep);
-    let _ = write_kept(&previous, &Kept { version: running.into(), file: name, sha256: kept_sum });
+    let replaced = replace(image, new, Some(&keep), Some(sha256), &mut |_| true).map_err(|e| format!("the AppImage couldn't be replaced: {e}"))?;
+    // Only a version that was kept is offered to go back to.
+    if replaced.kept {
+        let kept_sum = mailcraft_net::update_download::sha256(&keep);
+        let _ = write_kept(&previous, &Kept { version: running.into(), file: name, sha256: kept_sum });
+    }
     let _ = fs::remove_file(new);
     Ok(())
 }
@@ -816,7 +1030,7 @@ fn install_mac_app(folders: &Folders, app: &Path, dmg: &Path, sha256: [u8; 32], 
     install_mac_app_with(folders, app, dmg, sha256, running, &mut |run| run.wait())
 }
 
-/// [`install_mac_app`] with `run` running `hdiutil`.
+/// [`install_mac_app`] with `run` running `hdiutil` and `codesign`.
 fn install_mac_app_with(
     folders: &Folders,
     app: &Path,
@@ -836,7 +1050,7 @@ fn install_mac_app_with(
         let _ = fs::remove_dir(&mount);
         return Err("the disk image couldn't be attached".into());
     }
-    let result = mac_swap(folders, app, &mount, running);
+    let result = mac_swap(folders, app, &mount, running, run);
     let _ = run(&hdiutil_detach(&mount));
     drop(handed);
     let _ = fs::remove_dir(&mount);
@@ -846,21 +1060,28 @@ fn install_mac_app_with(
     result
 }
 
-fn mac_swap(folders: &Folders, app: &Path, mount: &Path, running: &str) -> Result<(), String> {
+/// The app in the disk image attached at `mount` in place of `app`, with `run` running
+/// `codesign`. A signed MailCraft is replaced only by an app whose signature holds, checked
+/// before the swap and again in its place after it; one that doesn't hold there is swapped back.
+fn mac_swap(folders: &Folders, app: &Path, mount: &Path, running: &str, run: &mut dyn FnMut(&Run) -> Option<i32>) -> Result<(), String> {
     let new = app_in(mount).ok_or("the disk image has no app")?;
-    // A signed MailCraft is replaced only by one whose signature holds. (Any valid signature,
-    // for now: the project has no Apple Team ID yet. Once it has, the new app's signature is to
-    // be required to be the project's: `-R '=anchor apple generic and certificate leaf[subject.OU]
-    // = "<Team ID>"'`.)
-    if codesign_verify(app).wait() == Some(0) && codesign_verify(&new).wait() != Some(0) {
+    // (Any valid signature, for now: the project has no Apple Team ID yet. Once it has, the new
+    // app's signature is to be required to be the project's: `-R '=anchor apple generic and
+    // certificate leaf[subject.OU] = "<Team ID>"'`; see `install::MAC_SELF_INSTALL`.)
+    let signed = run(&codesign_verify(app)) == Some(0);
+    if signed && run(&codesign_verify(&new)) != Some(0) {
         return Err("the new app's signature doesn't hold".into());
     }
     let previous = folders.previous();
-    let _ = fs::remove_dir_all(&previous);
+    let _ = remove_stubborn(&previous);
     fs::create_dir_all(&previous).map_err(|e| e.to_string())?;
     let name = app.file_name().and_then(OsStr::to_str).filter(|n| plain_name(n)).unwrap_or("MailCraft.app").to_string();
-    replace(app, &new, Some(&previous.join(&name)), None).map_err(|e| format!("the app couldn't be replaced: {e}"))?;
-    let _ = write_kept(&previous, &Kept { version: running.into(), file: name, sha256: None });
+    let mut holds = |placed: &Path| !signed || run(&codesign_verify(placed)) == Some(0);
+    let replaced = replace(app, &new, Some(&previous.join(&name)), None, &mut holds).map_err(|e| format!("the app couldn't be replaced: {e}"))?;
+    // Only a version that was kept is offered to go back to.
+    if replaced.kept {
+        let _ = write_kept(&previous, &Kept { version: running.into(), file: name, sha256: None });
+    }
     Ok(())
 }
 
@@ -890,340 +1111,5 @@ fn windows_helper(folders: &Folders, job: &Job) -> Result<(), String> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn scratch(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("mailcraft-self-update-{name}-{}", std::process::id()));
-        let _ = fs::remove_dir_all(&dir);
-        fs::create_dir_all(&dir).unwrap();
-        dir
-    }
-
-    fn sum(bytes: &[u8]) -> [u8; 32] {
-        ring::digest::digest(&ring::digest::SHA256, bytes).as_ref().try_into().unwrap()
-    }
-
-    #[test]
-    fn the_installer_is_run_with_fixed_arguments() {
-        let run = msiexec(Path::new(r"C:\Users\a\AppData\Roaming\MailCraft\updates\mailcraft-0.5.0-windows-x64.msi"), Path::new(r"C:\x\install.log"));
-        assert!(run.program.ends_with("msiexec.exe"));
-        assert!(run.program.to_string_lossy().contains("System32"));
-        let args: Vec<String> = run.args.iter().map(|a| a.to_string_lossy().into_owned()).collect();
-        assert_eq!(
-            args,
-            [
-                r"/i",
-                r"C:\Users\a\AppData\Roaming\MailCraft\updates\mailcraft-0.5.0-windows-x64.msi",
-                "/passive",
-                "/norestart",
-                "/log",
-                r"C:\x\install.log"
-            ]
-        );
-        let attach = hdiutil_attach(Path::new("/d/m.dmg"), Path::new("/d/mount"));
-        assert_eq!(attach.program, Path::new("/usr/bin/hdiutil"));
-        assert_eq!(attach.args, ["attach", "-nobrowse", "-readonly", "-noautoopen", "-mountpoint", "/d/mount", "/d/m.dmg"]);
-        assert_eq!(hdiutil_detach(Path::new("/d/mount")).args, ["detach", "/d/mount", "-force"]);
-        assert_eq!(codesign_verify(Path::new("/A/MailCraft.app")).args, ["--verify", "--deep", "--strict", "/A/MailCraft.app"]);
-        assert_eq!(open_app(Path::new("/A/MailCraft.app")).args, ["-n", "/A/MailCraft.app", "--args", AFTER_UPDATE]);
-        assert_eq!(start_program(Path::new("/h/m.AppImage")).args, [AFTER_UPDATE]);
-    }
-
-    #[test]
-    fn the_helpers_job_goes_through_its_arguments_and_nothing_else_does() {
-        let base = if cfg!(windows) { r"C:\data\updates" } else { "/data/updates" };
-        let job = Job {
-            msi: Path::new(base).join("mailcraft-0.5.0-windows-x64.msi"),
-            sha256: sum(b"x"),
-            from: "0.4.3".into(),
-            to: "0.5.0".into(),
-            back: false,
-            start: Some(Path::new(base).join("mailcraft.exe")),
-        };
-        assert_eq!(Job::parse(&job.args()), Some(job.clone()));
-        let back = Job { back: true, start: None, ..job.clone() };
-        assert_eq!(Job::parse(&back.args()), Some(back));
-        let mut bad = job.args();
-        bad[2] = "zz".into();
-        assert_eq!(Job::parse(&bad), None);
-        let mut bad = job.args();
-        bad[1] = "relative.msi".into();
-        assert_eq!(Job::parse(&bad), None);
-        let mut bad = job.args();
-        bad[1] = Path::new(base).join("evil.exe").into_os_string();
-        assert_eq!(Job::parse(&bad), None);
-        let mut bad = job.args();
-        bad[4] = "0.5.0\r\n".into();
-        assert_eq!(Job::parse(&bad), None);
-        assert_eq!(Job::parse(&[]), None);
-        assert_eq!(Job::parse(&["--sample".into()]), None);
-    }
-
-    #[test]
-    fn a_failed_start_twice_running_offers_going_back() {
-        let dir = scratch("starts");
-        let folders = Folders::new(dir.clone());
-        // Nothing installed: nothing is said, nothing written.
-        assert_eq!(at_start(&folders, "0.5.0"), UpdateStart::default());
-        assert!(!folders.starts().exists());
-        // 0.4.3 installed 0.5.0 and kept itself.
-        write_record(&folders, &Record { from: "0.4.3".into(), to: "0.5.0".into(), back: false, settled: false }).unwrap();
-        fs::create_dir_all(folders.previous()).unwrap();
-        write_kept(&folders.previous(), &Kept { version: "0.4.3".into(), file: "m.AppImage".into(), sha256: None }).unwrap();
-        // Two starts that didn't last; the third offers.
-        assert_eq!(at_start(&folders, "0.5.0"), UpdateStart::default());
-        assert_eq!(at_start(&folders, "0.5.0"), UpdateStart::default());
-        assert_eq!(at_start(&folders, "0.5.0").didnt_start, Some(("0.5.0".into(), "0.4.3".into())));
-        // A run that lasted: the start worked, and nothing more is counted.
-        settle(&folders, "0.5.0");
-        assert!(!folders.starts().exists());
-        assert_eq!(at_start(&folders, "0.5.0"), UpdateStart::default());
-        assert!(!folders.starts().exists());
-        // Without a kept version to go back to, nothing is offered.
-        write_record(&folders, &Record { from: "0.4.3".into(), to: "0.5.0".into(), back: false, settled: false }).unwrap();
-        fs::remove_dir_all(folders.previous()).unwrap();
-        for _ in 0..4 {
-            assert_eq!(at_start(&folders, "0.5.0").didnt_start, None);
-        }
-        // Gone back: the version gone back to isn't offered going back again.
-        write_record(&folders, &Record { from: "0.5.0".into(), to: "0.4.3".into(), back: true, settled: false }).unwrap();
-        for _ in 0..4 {
-            assert_eq!(at_start(&folders, "0.4.3").didnt_start, None);
-        }
-        let _ = fs::remove_dir_all(&dir);
-    }
-
-    #[test]
-    fn an_update_that_didnt_happen_is_said_once() {
-        let dir = scratch("declined");
-        let folders = Folders::new(dir.clone());
-        write_record(&folders, &Record { from: "0.4.3".into(), to: "0.5.0".into(), back: false, settled: false }).unwrap();
-        // Windows' prompt answered no: 0.4.3 starts again.
-        assert_eq!(at_start(&folders, "0.4.3").not_installed.as_deref(), Some("0.5.0"));
-        assert_eq!(at_start(&folders, "0.4.3"), UpdateStart::default());
-        write_record(&folders, &Record { from: "0.5.0".into(), to: "0.4.3".into(), back: true, settled: false }).unwrap();
-        assert_eq!(at_start(&folders, "0.5.0").not_gone_back.as_deref(), Some("0.4.3"));
-        // A hostile or broken record is none.
-        fs::write(folders.record(), b"{\"from\": \"0.4.3\", \"to\": \"../../x\"}").unwrap();
-        assert_eq!(at_start(&folders, "0.4.3"), UpdateStart::default());
-        fs::write(folders.record(), vec![b'['; 100_000]).unwrap();
-        assert_eq!(at_start(&folders, "0.4.3"), UpdateStart::default());
-        let _ = fs::remove_dir_all(&dir);
-    }
-
-    #[test]
-    fn the_installed_msi_is_kept_one_back() {
-        let dir = scratch("msi");
-        let folders = Folders::new(dir.join("data"));
-        let download = |name: &str| {
-            let updates = dir.join("data").join("updates");
-            fs::create_dir_all(&updates).unwrap();
-            let path = updates.join(name);
-            fs::write(&path, name.as_bytes()).unwrap();
-            path
-        };
-        let job =
-            |msi: PathBuf, from: &str, to: &str, back: bool| Job { sha256: sum(b"x"), msi, from: from.into(), to: to.into(), back, start: None };
-        // The first update: there was no `.msi` of the version it replaced.
-        keep_installed_msi(&folders, &job(download("m-0.5.0.msi"), "0.4.3", "0.5.0", false)).unwrap();
-        assert_eq!(read_kept(&folders.this_version()).unwrap().version, "0.5.0");
-        assert!(folders.this_version().join("m-0.5.0.msi").is_file());
-        assert!(read_kept(&folders.previous()).is_none());
-        // The next: 0.5.0's is kept back.
-        keep_installed_msi(&folders, &job(download("m-0.6.0.msi"), "0.5.0", "0.6.0", false)).unwrap();
-        assert_eq!(read_kept(&folders.this_version()).unwrap().version, "0.6.0");
-        let kept = read_kept(&folders.previous()).unwrap();
-        assert_eq!((kept.version.as_str(), kept.file.as_str()), ("0.5.0", "m-0.5.0.msi"));
-        assert!(folders.previous().join("m-0.5.0.msi").is_file());
-        // Going back: 0.5.0's is the one the running version came from, and none is kept back.
-        let back = folders.previous().join("m-0.5.0.msi");
-        keep_installed_msi(&folders, &job(back, "0.6.0", "0.5.0", true)).unwrap();
-        assert_eq!(read_kept(&folders.this_version()).unwrap().version, "0.5.0");
-        assert!(folders.this_version().join("m-0.5.0.msi").is_file());
-        assert!(!folders.previous().exists());
-        let _ = fs::remove_dir_all(&dir);
-    }
-
-    /// What is left in the folders of the hand-overs.
-    fn left_handed(folders: &Folders) -> usize {
-        fs::read_dir(folders.handed()).map(|d| d.count()).unwrap_or(0)
-    }
-
-    #[test]
-    fn the_installer_is_handed_a_checked_copy_and_never_the_download() {
-        let dir = scratch("handed-msi");
-        let folders = Folders::new(dir.join("data"));
-        let msi = folders.updates().join("mailcraft-0.5.0-windows-x64.msi");
-        fs::create_dir_all(folders.updates()).unwrap();
-        fs::write(&msi, b"the checked installer").unwrap();
-        let job = Job { msi: msi.clone(), sha256: sum(b"the checked installer"), from: "0.4.3".into(), to: "0.5.0".into(), back: false, start: None };
-        let mut handed = Vec::new();
-        let installed = install_msi(&job, &folders, &mut |run| {
-            let given = PathBuf::from(&run.args[1]);
-            assert_ne!(given, msi, "the installer is given the copy");
-            assert!(given.starts_with(folders.handed()), "{}", given.display());
-            assert_eq!(given.file_name(), msi.file_name(), "and by the same name");
-            // The download changed while the installer runs doesn't change what it reads.
-            fs::write(&msi, b"swapped").unwrap();
-            assert_eq!(fs::read(&given).unwrap(), b"the checked installer");
-            #[cfg(unix)]
-            {
-                use std::os::unix::fs::PermissionsExt as _;
-                assert_eq!(fs::metadata(given.parent().unwrap()).unwrap().permissions().mode() & 0o777, 0o700);
-            }
-            handed.push(given);
-            Some(0)
-        });
-        assert!(installed);
-        assert_eq!(handed.len(), 1);
-        assert!(!handed[0].exists() && left_handed(&folders) == 0, "the copy and its folder are gone");
-        // A file that isn't the one checked (here, the one swapped above) isn't run at all.
-        let installed = install_msi(&job, &folders, &mut |_| panic!("the installer was run on a file that wasn't checked"));
-        assert!(!installed);
-        assert_eq!(left_handed(&folders), 0);
-        // Windows Installer's answer is believed only for what it says installed.
-        fs::write(&msi, b"the checked installer").unwrap();
-        assert!(!install_msi(&job, &folders, &mut |_| Some(1603)));
-        assert!(install_msi(&job, &folders, &mut |_| Some(3010)));
-        let _ = fs::remove_dir_all(&dir);
-    }
-
-    #[test]
-    fn the_signed_digest_is_trusted_even_when_the_download_changes_afterwards() {
-        let dir = scratch("signed-digest");
-        let folders = Folders::new(dir.join("data"));
-        let release =
-            mailcraft_model::update::Release { version: Version::parse("9.9.9").unwrap(), page: String::new(), security: false, assets: Vec::new() };
-        // The release's signed list gives this digest; the file is swapped once it is in place,
-        // before anything reads it back.
-        let fetch = |_: &mailcraft_model::update::Release, name: &str, d: &Path| {
-            fs::create_dir_all(d).unwrap();
-            let path = d.join(name);
-            fs::write(&path, b"swapped after the download").unwrap();
-            Ok(mailcraft_net::update_download::Downloaded { path, sha256: sum(b"the signed installer") })
-        };
-        let verified = crate::updater::download(&release, Install::Msi, &folders.updates(), fetch).unwrap();
-        assert_eq!(verified.sha256, sum(b"the signed installer"));
-        assert_eq!(verified.version, release.version);
-        // So what is installed later is checked against what the release signed, and refused.
-        let job = Job { msi: verified.path, sha256: verified.sha256, from: "0.4.3".into(), to: "9.9.9".into(), back: false, start: None };
-        assert!(!install_msi(&job, &folders, &mut |_| panic!("the installer was run on a file that wasn't signed")));
-        let _ = fs::remove_dir_all(&dir);
-    }
-
-    #[test]
-    fn the_disk_image_is_attached_from_a_checked_copy() {
-        let dir = scratch("handed-dmg");
-        let folders = Folders::new(dir.join("data"));
-        let dmg = folders.updates().join("mailcraft-0.5.0-macos-universal.dmg");
-        fs::create_dir_all(folders.updates()).unwrap();
-        fs::write(&dmg, b"the checked image").unwrap();
-        let app = dir.join("Applications").join("MailCraft.app");
-        let mut asked = Vec::new();
-        let got = install_mac_app_with(&folders, &app, &dmg, sum(b"the checked image"), "0.4.3", &mut |run| {
-            let given = PathBuf::from(run.args.last().unwrap());
-            assert_eq!(run.args[0], "attach");
-            assert_ne!(given, dmg);
-            assert!(given.starts_with(folders.handed()), "{}", given.display());
-            assert_eq!(fs::read(&given).unwrap(), b"the checked image");
-            asked.push(given);
-            // (Not attached here: nothing more is done.)
-            Some(1)
-        });
-        assert_eq!(got, Err("the disk image couldn't be attached".to_string()));
-        assert_eq!(asked.len(), 1);
-        assert_eq!(left_handed(&folders), 0);
-        // One that changed since it was checked: `hdiutil` is never asked.
-        let got = install_mac_app_with(&folders, &app, &dmg, sum(b"another image"), "0.4.3", &mut |_| panic!("hdiutil was asked"));
-        assert!(got.is_err());
-        assert_eq!(left_handed(&folders), 0);
-        assert!(dmg.is_file(), "the download is left for the next try");
-        let _ = fs::remove_dir_all(&dir);
-    }
-
-    #[test]
-    fn the_lock_is_waited_for() {
-        let dir = scratch("lock");
-        let folders = Folders::new(dir.clone());
-        assert!(wait_for_lock(&folders, Duration::from_millis(10)), "nobody holds it");
-        let held = open_lock(&folders).unwrap();
-        held.try_lock().unwrap();
-        // (Another open file of the same process: a lock of its own, as another program's is.)
-        assert!(!wait_for_lock(&folders, Duration::from_millis(200)));
-        drop(held);
-        assert!(wait_for_lock(&folders, Duration::from_millis(200)));
-        let _ = fs::remove_dir_all(&dir);
-    }
-
-    // Unix files and links: the macOS app and the AppImage.
-    #[test]
-    #[cfg(unix)]
-    fn an_appimage_is_replaced_and_the_old_one_kept() {
-        use std::os::unix::fs::PermissionsExt as _;
-        let dir = scratch("appimage");
-        let image = dir.join("Apps").join("mailcraft-0.4.3-linux-x86_64.AppImage");
-        fs::create_dir_all(image.parent().unwrap()).unwrap();
-        fs::write(&image, b"old").unwrap();
-        let new = dir.join("data").join("updates").join("mailcraft-0.5.0-linux-x86_64.AppImage");
-        fs::create_dir_all(new.parent().unwrap()).unwrap();
-        fs::write(&new, b"new").unwrap();
-        let folders = Folders::new(dir.join("data"));
-        // A copy that isn't the file checked is refused, and nothing changes.
-        assert!(install_appimage(&folders, &image, &new, sum(b"other"), "0.4.3").is_err());
-        assert_eq!(fs::read(&image).unwrap(), b"old");
-        assert!(!beside(&image, "new").unwrap().exists());
-        install_appimage(&folders, &image, &new, sum(b"new"), "0.4.3").unwrap();
-        assert_eq!(fs::read(&image).unwrap(), b"new");
-        assert_eq!(fs::metadata(&image).unwrap().permissions().mode() & 0o777, 0o755);
-        assert!(!new.exists(), "the download is gone");
-        let kept = read_kept(&folders.previous()).unwrap();
-        assert_eq!(kept.version, "0.4.3");
-        assert_eq!(kept.sha256, Some(sum(b"old")));
-        assert_eq!(fs::read(folders.previous().join(&kept.file)).unwrap(), b"old");
-        // Going back: the kept one in place again.
-        replace(&image, &folders.previous().join(&kept.file), None, kept.sha256).unwrap();
-        assert_eq!(fs::read(&image).unwrap(), b"old");
-        assert_eq!(fs::read_dir(image.parent().unwrap()).unwrap().count(), 1, "nothing left beside it");
-        let _ = fs::remove_dir_all(&dir);
-    }
-
-    #[test]
-    #[cfg(unix)]
-    fn a_mac_app_is_swapped_by_renaming_and_the_old_one_kept() {
-        let dir = scratch("macapp");
-        let make = |root: &Path, text: &str| {
-            let macos = root.join("Contents").join("MacOS");
-            fs::create_dir_all(&macos).unwrap();
-            fs::write(macos.join("mailcraft"), text).unwrap();
-            fs::create_dir_all(root.join("Contents").join("Resources")).unwrap();
-            std::os::unix::fs::symlink("../MacOS/mailcraft", root.join("Contents").join("Resources").join("link")).unwrap();
-        };
-        let app = dir.join("Applications").join("MailCraft.app");
-        make(&app, "old");
-        let mount = dir.join("mount");
-        make(&mount.join("MailCraft.app"), "new");
-        fs::create_dir_all(mount.join(".background")).unwrap();
-        assert_eq!(app_in(&mount), Some(mount.join("MailCraft.app")));
-        assert_eq!(app_in(&dir.join("nothing")), None);
-        let folders = Folders::new(dir.join("data"));
-        // (Unsigned here: `codesign` is asked about neither, or isn't there.)
-        mac_swap(&folders, &app, &mount, "0.4.3").unwrap();
-        assert_eq!(fs::read(app.join("Contents/MacOS/mailcraft")).unwrap(), b"new");
-        assert_eq!(fs::read_link(app.join("Contents/Resources/link")).unwrap(), Path::new("../MacOS/mailcraft"));
-        let kept = read_kept(&folders.previous()).unwrap();
-        assert_eq!((kept.version.as_str(), kept.file.as_str()), ("0.4.3", "MailCraft.app"));
-        assert_eq!(fs::read(folders.previous().join("MailCraft.app/Contents/MacOS/mailcraft")).unwrap(), b"old");
-        // The disk image is left as it was.
-        assert_eq!(fs::read(mount.join("MailCraft.app/Contents/MacOS/mailcraft")).unwrap(), b"new");
-        // Going back.
-        replace(&app, &folders.previous().join("MailCraft.app"), None, None).unwrap();
-        assert_eq!(fs::read(app.join("Contents/MacOS/mailcraft")).unwrap(), b"old");
-        assert_eq!(fs::read_dir(app.parent().unwrap()).unwrap().count(), 1, "nothing left beside it");
-        // What can't be put in place leaves the running app as it was.
-        let missing = dir.join("no-such.app");
-        assert!(replace(&app, &missing, None, None).is_err());
-        assert_eq!(fs::read(app.join("Contents/MacOS/mailcraft")).unwrap(), b"old");
-        let _ = fs::remove_dir_all(&dir);
-    }
-}
+#[path = "self_update_tests.rs"]
+mod self_update_tests;

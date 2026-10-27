@@ -117,6 +117,11 @@ pub struct Windows {
 }
 
 impl Windows {
+    /// How many windows are open.
+    pub(crate) fn count(&self) -> usize {
+        self.open.len()
+    }
+
     /// The form of the window numbered `id`, when it shows one.
     #[cfg(test)]
     pub(crate) fn form_mut(&mut self, id: u64) -> Option<&mut Form> {
