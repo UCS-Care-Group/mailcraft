@@ -82,7 +82,7 @@ sends, with what the owner allowed with `--allow` (`send`, `delete`, `accounts`,
   changes (`calendar.delete`, `calendar.removeCalendar`, an undo or a redo); any other command
   that would take one away, any command that would take away an appointment, a contact or a task
   being changed in the dialog (another mailbox in view included), putting another time proposed
-  into such a window, closing the Appointment Recurrence dialog the owner changed something in,
+  into such a window, closing the Appointment Recurrence dialog the owner changed something in (or the window with it),
   and a `file.new` or `file.open` that would wait for a save, are refused and change nothing; a command that would
   open another dialog in place of such a form runs, but that dialog isn't shown and the agent is
   told;

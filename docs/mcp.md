@@ -78,13 +78,14 @@ appointment, a contact or a task being changed in the dialog (`people.delete`, `
 undo, another mailbox in view), is refused, and nothing is changed; so is putting another time
 somebody proposed into a window with such changes (`ui.openWindow` with `proposed`), or closing the
 Appointment Recurrence dialog the owner has changed something in (`ui.eventWindow` with
-`"recurrence": false`). `file.new` or `file.open` that would wait for the mailbox to be saved first
-(and run later, when the owner may be writing) is refused: the agent tries again in a moment. A
-command that would open a dialog in such a form's place runs, but that dialog isn't shown, the form
-stays, and the agent is told. An agent allowed `input` clicks and types as the owner does, and what
-it does by hand in the window (the composer's Discard, an answer to Unsaved Message) is not asked
-about. A message only the agent wrote in is the agent's: leaving it saves it to Drafts without a
-question, and discarding it is `delete`. Headless, nothing is the owner's.
+`"recurrence": false`, or `"do": "close"` with the window); for the questions above, that dialog
+counts as changes that aren't saved. `file.new` or `file.open` that would wait for the mailbox to
+be saved first (and run later, when the owner may be writing) is refused: the agent tries again in
+a moment. A command that would open a dialog in such a form's place runs, but that dialog isn't
+shown, the form stays, and the agent is told. An agent allowed `input` clicks and types as the
+owner does, and what it does by hand in the window (the composer's Discard, an answer to Unsaved
+Message) is not asked about. A message only the agent wrote in is the agent's: leaving it saves it
+to Drafts without a question, and discarding it is `delete`. Headless, nothing is the owner's.
 
 **The question in the window.** Bridged (`--connect`), the bridge marks every request it sends as
 an agent's ([control protocol](control-protocol.md#agents)), and the app asks the owner about what
