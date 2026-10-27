@@ -37,6 +37,24 @@ fn message(uid: u32, flags: &str, subject: &str) -> FakeMessage {
     FakeMessage { uid, flags: flags.into(), internal_date: " 1-Jul-2003 09:52:37 +0000".into(), body: body.into_bytes(), claimed_size: None }
 }
 
+/// A message with a file attached, `report.txt`, whose bytes are [`FIGURES`].
+fn with_attachment(uid: u32, subject: &str) -> FakeMessage {
+    let mut m = message(uid, "\\Seen", subject);
+    let head = String::from_utf8_lossy(&m.body).split("Content-Type:").next().unwrap_or_default().to_string();
+    let body = format!(
+        "{head}Content-Type: multipart/mixed; boundary=\"b1\"\r\n\r\n--b1\r\nContent-Type: text/plain; charset=utf-8\r\n\r\nThe body of {subject}.\r\n\
+         --b1\r\nContent-Type: text/plain; name=\"report.txt\"\r\nContent-Disposition: attachment; filename=\"report.txt\"\r\n\
+         Content-Transfer-Encoding: base64\r\n\r\n{FIGURES_BASE64}\r\n--b1--\r\n"
+    );
+    m.body = body.into_bytes();
+    m
+}
+
+/// What `report.txt` of [`with_attachment`] holds.
+const FIGURES: &[u8] = b"Figures: 1, 2, 3.";
+/// The same in base64, as a message carries it.
+const FIGURES_BASE64: &str = "RmlndXJlczogMSwgMiwgMy4=";
+
 fn mailbox(raw: &str, flags: &str, uid_validity: u32, messages: Vec<FakeMessage>) -> FakeMailbox {
     FakeMailbox { raw: raw.into(), flags: flags.into(), uid_validity, messages, refuse_open: false, next_uid: 0 }
 }
@@ -696,4 +714,35 @@ fn a_message_copied_more_than_once_into_a_folder_is_put_there_as_often() {
     uids.dedup();
     assert!(uids.len() == 3 && !uids.contains(&0), "{uids:?}");
     assert!(r.gmail_keeps("Three"));
+}
+
+#[test]
+fn a_message_put_on_another_server_arrives_whole_with_its_attachment() {
+    let mut r = Rig::new("whole@example.org");
+    let (other, work) = r.other_account(true);
+    {
+        let mut world = r.imap.world();
+        let report = with_attachment(5, "Report");
+        world.mailbox("INBOX").messages.push(report.clone());
+        world.mailbox("[Gmail]/All Mail").messages.push(report);
+    }
+    assert_eq!(r.sync()["new"], 1);
+    let report = r.titled("Report");
+    assert_eq!(r.s.mailbox.message(report).map(|m| m.attachments.len()), Some(1));
+    // Copied into Microsoft, and moved into the other IMAP account.
+    let (theirs, work_inbox) = (r.inbox(r.ms), r.inbox(work));
+    r.s.run("mail.copy", &json!({"ids": [report], "folder": theirs})).unwrap();
+    r.s.run("mail.move", &json!({"ids": [report], "folder": work_inbox})).unwrap();
+    assert_eq!(Rig::errors(&r.run()), Vec::<Value>::new());
+    r.sync_of(work);
+    // On the other IMAP server: its text and its file, byte for byte.
+    let copy = String::from_utf8_lossy(&other.world().mailbox("INBOX").messages[0].body).into_owned();
+    assert!(copy.contains("The body of Report.") && copy.contains("report.txt"), "{copy}");
+    assert!(copy.contains(FIGURES_BASE64), "{copy}");
+    // On Microsoft's: the same.
+    let state = r.graph.state();
+    let made: Vec<_> = state.mailbox.messages.values().filter(|m| m.subject == "Report").collect();
+    assert_eq!(made.len(), 1);
+    assert!(made[0].body.contains("The body of Report."), "{}", made[0].body);
+    assert_eq!(made[0].attachments.iter().map(|a| (a.name.as_str(), a.bytes.as_slice())).collect::<Vec<_>>(), [("report.txt", FIGURES)]);
 }
