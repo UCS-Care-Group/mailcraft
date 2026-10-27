@@ -543,3 +543,12 @@ fn sizes_are_said_in_megabytes() {
     assert_eq!(megabytes(1_260_000, 4_000_000), "1.3");
     assert_eq!(megabytes(0, 0), "0.0");
 }
+
+#[test]
+fn the_logo_is_the_app_icon_and_is_made_once() {
+    let ctx = egui::Context::default();
+    let first = logo(&ctx).expect("the icon is built in");
+    assert_eq!(first.size(), [256, 256]);
+    let second = logo(&ctx).unwrap();
+    assert_eq!(first.id(), second.id());
+}
