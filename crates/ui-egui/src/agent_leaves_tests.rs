@@ -27,8 +27,13 @@ fn app() -> MailApp {
 
 /// `command` sent by an agent allowed nothing in advance: its answer, when it has one already.
 fn agent(a: &mut MailApp, command: &str, params: Value) -> (Option<Value>, Receiver<Value>) {
+    allowed(a, command, params, Vec::new())
+}
+
+/// `command` sent by an agent the owner allowed `allow` in advance (`--allow`).
+fn allowed(a: &mut MailApp, command: &str, params: Value, allow: Vec<Class>) -> (Option<Value>, Receiver<Value>) {
     let (req, rx) = ControlRequest::new("engine.execute", json!({"command": command, "params": params}));
-    let out = crate::control::handle(a, &egui::Context::default(), &req.from_agent(Vec::new()));
+    let out = crate::control::handle(a, &egui::Context::default(), &req.from_agent(allow));
     (if let Outcome::Done(v) = out { Some(v) } else { None }, rx)
 }
 
@@ -113,6 +118,35 @@ fn an_agent_that_would_throw_the_owners_message_away_asks_for_delete() {
     answer(&mut a, true);
     assert_eq!(rx.try_recv().unwrap()["ok"], true);
     assert!(a.session.compose.is_none() && draft_with(&a, "Mine").is_none());
+}
+
+#[test]
+fn nothing_allowed_in_advance_takes_the_owners_message_without_their_yes() {
+    let mut a = app();
+    written(&mut a, "Mine");
+    let everything = Class::ALL.to_vec();
+    for (id, params) in leaving(&a) {
+        let mut discard = params.clone();
+        discard["discard"] = json!(true);
+        for (params, class) in [(params, Class::Leave), (discard, Class::Delete)] {
+            let (now, _) = allowed(&mut a, id, params.clone(), everything.clone());
+            assert!(now.is_none(), "{id} {params}: asked even so");
+            assert_eq!(question(&a).unwrap().0, class, "{id} {params}");
+            answer(&mut a, false);
+            assert_eq!(a.session.compose.as_ref().map(|c| c.subject.as_str()), Some("Mine"), "{id} {params}");
+        }
+    }
+    // The owner's yes in the window is what lets it go.
+    let (_, rx) = allowed(&mut a, "compose.close", json!({"discard": true}), everything.clone());
+    answer(&mut a, true);
+    assert_eq!(rx.try_recv().unwrap()["ok"], true);
+    assert!(a.session.compose.is_none() && draft_with(&a, "Mine").is_none());
+    // A form the owner changed, the same.
+    let mut w = form("contact", "Ada");
+    let (now, _) = allowed(w.state_mut(), "ui.closeDialog", json!({}), everything);
+    assert!(now.is_none(), "asked even so");
+    answer(w.state_mut(), false);
+    assert!(form_open(&w));
 }
 
 #[test]

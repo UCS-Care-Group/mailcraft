@@ -142,10 +142,11 @@ fn run(app: &mut MailApp, id: &str, params: Value, allow: &[Class]) -> Outcome {
 pub fn answer(app: &mut MailApp, yes: bool) {
     let Some(a) = app.asking.pop_front() else { return };
     let out = if yes {
+        // Asked again: what it would do may have changed while the question was up.
+        let verdict = agent::answered(&app.session, &a.id, &a.params, &a.allow, a.class);
         let mut allow = a.allow.clone();
         allow.push(a.class);
-        // Asked again: what it would do may have changed while the question was up.
-        match agent::check(&app.session, &a.id, &a.params, &allow) {
+        match verdict {
             Verdict::Run => run(app, &a.id, a.params, &allow),
             Verdict::Refuse(why) => err(why),
             Verdict::Ask(..) => err(format!("`{}` would now do more than the owner was asked about; nothing was done", a.id)),

@@ -8,7 +8,7 @@ use mailcraft_model::{FolderKind, Id};
 use mailcraft_time::{Date, DateTime};
 use serde_json::{Value, json};
 
-use crate::agent::{Access, Class, Verdict, check, classify, describe, needs_owner};
+use crate::agent::{Access, Class, Verdict, answered, check, classify, describe, needs_owner};
 use crate::{Session, sample};
 
 fn session() -> Session {
@@ -86,7 +86,7 @@ fn an_agent_that_throws_the_owners_message_away_is_asked() {
     let s = writing();
     for (id, params) in leaving(&s) {
         let params = with_discard(params);
-        assert_eq!(classify(&s, id, &params), Access::Owner(Class::Delete), "{id} {params}");
+        assert_eq!(classify(&s, id, &params), Access::Asked(Class::Delete), "{id} {params}");
     }
 }
 
@@ -102,7 +102,7 @@ fn an_agent_that_closes_the_owners_message_is_asked() {
 fn the_question_names_the_owners_message_and_what_becomes_of_it() {
     let s = writing();
     for (id, params) in leaving(&s) {
-        assert_eq!(classify(&s, id, &params), Access::Owner(Class::Leave), "{id}");
+        assert_eq!(classify(&s, id, &params), Access::Asked(Class::Leave), "{id}");
         let kept = describe(&s, id, &params);
         assert!(kept.contains("\u{201c}Mine\u{201d}") && kept.contains("goes to Drafts first"), "{id}: {kept}");
         let lost = describe(&s, id, &with_discard(params));
@@ -125,8 +125,10 @@ fn what_an_agent_wrote_itself_is_its_own_to_leave() {
     assert!(c.dirty && !c.owner_changed);
     for (id, params) in leaving(&s) {
         assert_eq!(classify(&s, id, &params), Access::Safe, "{id}");
-        // Throwing it away needs the owner, as it did (#442).
-        assert_eq!(classify(&s, id, &with_discard(params)), Access::Owner(Class::Delete), "{id}");
+        // Throwing it away needs the owner, as it did (#442), who may allow it in advance.
+        let params = with_discard(params);
+        assert_eq!(classify(&s, id, &params), Access::Owner(Class::Delete), "{id}");
+        assert_eq!(check(&s, id, &params, &[Class::Delete]), Verdict::Run, "{id}");
     }
     // It goes to Drafts first, as before.
     as_agent(&mut s, "mail.new", json!({}));
@@ -143,7 +145,7 @@ fn the_owners_change_makes_it_theirs_until_it_is_saved() {
     run(&mut s, "mail.select", json!({"id": other}));
     assert_eq!(classify(&s, "mail.new", &json!({})), Access::Safe);
     run(&mut s, "compose.type", json!({"text": "and the owner "}));
-    assert_eq!(classify(&s, "mail.new", &json!({})), Access::Owner(Class::Leave));
+    assert_eq!(classify(&s, "mail.new", &json!({})), Access::Asked(Class::Leave));
     // Saved: nothing of theirs would be lost.
     run(&mut s, "compose.saveDraft", json!({}));
     assert_eq!(classify(&s, "mail.new", &json!({})), Access::Safe);
@@ -174,6 +176,12 @@ fn nothing_allowed_in_advance_lets_an_agent_leave_the_owners_message() {
     let everything = Class::ALL.to_vec();
     for (id, params) in leaving(&s) {
         assert!(matches!(check(&s, id, &params, &everything), Verdict::Ask(Class::Leave, _)), "{id}");
+        assert_eq!(answered(&s, id, &params, &[], Class::Leave), Verdict::Run, "{id}");
+        // Nor throw it away: `--allow delete` is for mail, never for what the owner wrote.
+        let params = with_discard(params);
+        assert!(matches!(check(&s, id, &params, &everything), Verdict::Ask(Class::Delete, _)), "{id}");
+        assert_eq!(answered(&s, id, &params, &[], Class::Delete), Verdict::Run, "{id}");
+        assert!(matches!(answered(&s, id, &params, &everything, Class::Leave), Verdict::Ask(Class::Delete, _)), "{id}");
     }
     let refusal = needs_owner("mail.new", Class::Leave, "start a new message");
     assert!(!refusal.contains("mcp --allow") && refusal.contains("every time"), "{refusal}");

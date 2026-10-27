@@ -28,7 +28,8 @@ pub enum Class {
     /// Writes to anybody (sends mail, answers or forwards meetings, puts mail in the Outbox) or
     /// reaches out to the web for a message (its pictures, a meeting's link).
     Send,
-    /// Deletes for good (or discards what the owner was writing).
+    /// Deletes for good (or throws away what an agent wrote in a message and didn't save; what
+    /// the owner wrote is [`Access::Asked`] about, #494).
     Delete,
     /// Closes the message the owner is writing, or puts another in its place, when the owner has
     /// changes in it that aren't saved; they go to Drafts first (#494). Asked every time: no
@@ -86,6 +87,10 @@ pub enum Access {
     Safe,
     /// Only with the owner's yes (bridged: a question in the window; headless: `--allow`).
     Owner(Class),
+    /// Only with the owner's yes in the window, every time, whatever `--allow` says (#494): what
+    /// the owner is writing or changing and hasn't saved. Headless never: only the window's owner
+    /// writes or changes anything.
+    Asked(Class),
     /// Not for agents at all (the host's own protocol, file pickers, the clipboard).
     Never,
 }
@@ -95,7 +100,7 @@ impl Access {
     pub fn label(self) -> &'static str {
         match self {
             Access::Safe => "safe",
-            Access::Owner(_) => "owner",
+            Access::Owner(_) | Access::Asked(_) => "owner",
             Access::Never => "never",
         }
     }
@@ -588,21 +593,21 @@ pub fn classify(s: &Session, id: &str, params: &Value) -> Access {
         "ui.sync" if params.get("password").is_some_and(|v| !v.is_null()) => Access::Owner(Class::Accounts),
         // A command that closes the message being written, or puts another in its place, saves
         // what isn't saved of it first (#442). Letting that go instead (`discard`) is throwing it
-        // away. Else the window leaves it, which the owner is asked about when the changes are
-        // theirs (#494); an agent's own message, headless too, is the agent's to leave.
+        // away. When the changes are the owner's, the window asks them every time either way
+        // (#494); an agent's own message, headless too, is the agent's to leave.
         _ if LEAVING.contains(&id) && s.compose.as_ref().is_some_and(|c| c.dirty) => {
-            if p::bool(params, "discard") == Some(true) {
-                Access::Owner(Class::Delete)
-            } else if s.compose.as_ref().is_some_and(|c| c.owner_changed) {
-                Access::Owner(Class::Leave)
-            } else {
-                Access::Safe
+            let discard = p::bool(params, "discard") == Some(true);
+            match (s.compose.as_ref().is_some_and(|c| c.owner_changed), discard) {
+                (true, true) => Access::Asked(Class::Delete),
+                (true, false) => Access::Asked(Class::Leave),
+                (false, true) => Access::Owner(Class::Delete),
+                (false, false) => Access::Safe,
             }
         }
         // An appointment, a contact or a task with changes that aren't saved, in the dialog that
         // this closes or opens another in place of: the changes are lost. The window says which
         // (`unsaved`, from `agent_gate`, never from the agent).
-        "ui.closeDialog" | "ui.dialog" if params.get("unsaved").is_some_and(|v| !v.is_null()) => Access::Owner(Class::Delete),
+        "ui.closeDialog" | "ui.dialog" if params.get("unsaved").is_some_and(|v| !v.is_null()) => Access::Asked(Class::Delete),
         _ => Access::Safe,
     }
 }
@@ -676,6 +681,16 @@ pub enum Verdict {
 
 /// The gate: `allow` is what the owner allowed in advance.
 pub fn check(s: &Session, id: &str, params: &Value, allow: &[Class]) -> Verdict {
+    verdict(s, id, params, allow, None)
+}
+
+/// The gate again once the owner has said yes to `yes` in the window: it runs when that is still
+/// all it asks for (what it would do may have changed while the question was up).
+pub fn answered(s: &Session, id: &str, params: &Value, allow: &[Class], yes: Class) -> Verdict {
+    verdict(s, id, params, allow, Some(yes))
+}
+
+fn verdict(s: &Session, id: &str, params: &Value, allow: &[Class], yes: Option<Class>) -> Verdict {
     if access(id).is_none() {
         return Verdict::Refuse(format!("`{id}` isn't available to agents"));
     }
@@ -689,8 +704,9 @@ pub fn check(s: &Session, id: &str, params: &Value, allow: &[Class]) -> Verdict 
     match classify(s, id, params) {
         Access::Safe => Verdict::Run,
         Access::Never => Verdict::Refuse(format!("`{id}` isn't available to agents")),
-        Access::Owner(c) if allow.contains(&c) => Verdict::Run,
-        Access::Owner(c) => {
+        Access::Owner(c) if allow.contains(&c) || yes == Some(c) => Verdict::Run,
+        Access::Asked(c) if yes == Some(c) => Verdict::Run,
+        Access::Owner(c) | Access::Asked(c) => {
             let what = describe(s, id, params);
             if what.chars().count() > MAX_QUESTION {
                 return Verdict::Refuse(format!(
