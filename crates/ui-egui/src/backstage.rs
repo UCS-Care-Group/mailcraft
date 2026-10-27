@@ -552,7 +552,7 @@ fn options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         let mut id = app.ui.microsoft_client_id.clone();
         let hint = if built_in { tl!("The one this build came with") } else { tl!("Needed for Outlook.com and Microsoft 365 accounts") };
         let edit = egui::TextEdit::singleline(&mut id).hint_text(hint).desired_width(300.0);
-        if ui.add(edit).changed() {
+        if crate::text_menu::field(ui.add(edit)).changed() {
             let _ = app.execute("ui.microsoftClientId", json!({"value": id.trim()}));
         }
     });
@@ -648,7 +648,7 @@ fn time_zones(app: &mut MailApp, ui: &mut Ui, prefs: &mailcraft_engine::Prefs) {
     let label = |ui: &mut Ui, text: &str| {
         let mut text = text.to_string();
         let field = egui::TextEdit::singleline(&mut text).hint_text(tl!("Label")).desired_width(80.0).char_limit(24);
-        ui.add(field).changed().then_some(text)
+        crate::text_menu::field(ui.add(field)).changed().then_some(text)
     };
     let follows = Zone::named(&prefs.time_zone).is_none();
     row(ui, tl!("Time zone"), |ui| {

@@ -696,6 +696,9 @@ fn escape_and_enter_are_read_through_the_gate_only() {
         // The search box of the Move menu, a list that is open: Escape clears it, Enter moves.
         ("ribbon.rs", "i.consume_key(egui::Modifiers::NONE, egui::Key::Enter),"),
         ("ribbon.rs", "searching && i.consume_key(egui::Modifiers::NONE, egui::Key::Escape),"),
+        // A text's menu in a drop-down: the list's Escape, asked of the gate, closes the menu only
+        // (egui would close the drop-down on it too).
+        ("text_menu.rs", "if crate::keys::list_escape(ctx) && ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape)) {"),
         // Ctrl+Enter.
         ("windows.rs", "if take_key(i, Modifiers::COMMAND, Key::Enter) | take_key(i, Modifiers::ALT, Key::S) {"),
         // The names of the keys in the shortcuts, and the key loop, which leaves Escape alone to

@@ -485,3 +485,22 @@ fn both_calendars_stay_in_the_panel() {
         }
     }
 }
+
+/// What Search writes in the box has the caret at its end, so Ctrl+E and a letter go on after it
+/// (#366), not where the caret was when the box was left.
+#[test]
+fn typing_after_a_search_goes_on_at_the_end() {
+    let mut w = window();
+    click_at(&mut w, "searchBox");
+    testing::text(&mut w, "ab");
+    click_at(&mut w, "advancedSearchButton");
+    panel(&mut w).fields.subject = "budget".into();
+    w.state_mut().execute("ui.advancedSearch", json!({"search": true})).unwrap();
+    w.run_steps(3);
+    let searched = search(&w);
+    assert!(searched.contains("budget"), "{searched}");
+    w.state_mut().execute("ui.focusSearch", json!({})).unwrap();
+    w.run_steps(3);
+    testing::text(&mut w, "x");
+    assert_eq!(search(&w), format!("{searched}x"));
+}

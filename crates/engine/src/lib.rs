@@ -37,6 +37,7 @@ pub mod mark;
 #[cfg(test)]
 mod mark_tests;
 pub mod opening;
+mod picture_fit;
 pub mod sample;
 pub mod sender_warnings;
 mod session;
@@ -57,8 +58,8 @@ pub use mailcraft_mime as mime;
 pub use mailcraft_model as model;
 pub use mailcraft_time as time;
 pub use session::{
-    BodyFormat, CalView, Clock, Compose, ComposeMode, Doc, Filter, InsertedSignature, Module, Pane, Part, PeopleSort, Prefs, Quote, Scope, Selection,
-    Session, SignatureEdit, SortBy, Stays, TaskFilter, TaskSort, ViewState, WordIndex,
+    BodyFormat, BodyLater, BodyRead, CalView, Clock, Compose, ComposeMode, Doc, Filter, InsertedSignature, Missing, Module, Pane, Part, PeopleSort,
+    Prefs, Quote, Scope, Selection, Session, SignatureEdit, SortBy, Stays, TaskFilter, TaskSort, ViewState, WordIndex,
 };
 
 /// What a message says instead of text that couldn't be read back from where the mailbox keeps

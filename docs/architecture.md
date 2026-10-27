@@ -9,8 +9,9 @@ shape — layers, "everything is a command", the swappable egui front end, the c
 ## Layers
 
 17 crates, 3 apps and `xtask` (`cargo xtask stats` prints lines and tests per crate). Layering is
-enforced by `cargo xtask layers`: a crate may only depend on crates in lower layers (one exception
-inside L3: `net` drives `proto`), and nothing below L6 depends on egui, eframe, winit or rfd.
+enforced by `cargo xtask layers`: a crate may only depend on crates in lower layers (two exceptions:
+inside L3, `net` drives `proto`; inside L0, `link` uses `names`), and nothing below L6 depends on
+egui, eframe, winit or rfd.
 `dispatch2`, which the desktop app uses to quit the macOS way, is for the apps alone.
 
 | Layer | Crate | Job |
@@ -18,7 +19,7 @@ inside L3: `net` drives `proto`), and nothing below L6 depends on egui, eframe, 
 | L0 | `time` | Dates and times without a clock dependency: proleptic Gregorian maths, weekdays, ISO weeks, RFC 5322 and ISO 8601 text, list and group labels; time zones (`Zone`: the IANA database with its history, built in; Windows' names for zones; offsets; the system's zone), the only place the zone library is used; `now()` and the system's zone are the only calls that ask the system (or the browser) |
 | L0 | `control-key` | Per-window control-port key files shared by the app and the MCP bridge |
 | L0 | `charset` | Bytes to text in any character set of the WHATWG Encoding Standard (`encoding_rs`), one decoder for `mime` and `vcard`, which may not use each other |
-| L0 | `link` | Links: a strict reader of `http` and `https` addresses (RFC 3986) that writes the host a browser would reach (lower-case ASCII, international labels as Punycode per RFC 3492, numbers as dotted decimal, IPv6 in brackets) and the address as it is shown and launched; percent-encoding. No dependencies; replaces the `url` crate (#350) |
+| L0 | `link` | Links: a strict reader of `http` and `https` addresses (RFC 3986) that writes the host a browser would reach (lower-case ASCII, international labels as Punycode per RFC 3492, numbers as dotted decimal, IPv6 in brackets) and the address as it is shown and launched; percent-encoding. Its one dependency is `names`, for the list of format characters, which it refuses in a host but for the joiners IDNA2008 allows (#454); replaces the `url` crate (#350) |
 | L0 | `names` | Names (people, folders, categories, calendars, accounts, signatures, rules): one list of Unicode's format characters (general category Cf, Unicode 17.0) and the zero-width joiner and non-joiner among them, and the two steps a name takes, coming in (`incoming`: one line, without control characters, format characters and Unicode's other default-ignorable code points (the Hangul fillers and the like, which show nothing), but with a joiner inside a word and one variation selector after a character that shows; trimmed, at most a given length, nothing when nothing is left) and being shown (`shown`: the same, cut with an ellipsis). No dependencies (#454) |
 | L0 | `i18n` | Interface text in other languages: the languages (`Lang`), a reader of gettext `.po` catalogues (hostile input: sizes capped, never a panic) with plural rules, the catalogues compiled in from `crates/i18n/po/`, named `{placeholders}` (`fmt`), and the pseudo language that shows text not yet marked for translation. `cargo xtask i18n` writes `po/messages.pot` from every `tl!`/`tln!` and the engine's labels |
 | L1 | `model` | The mailbox: accounts, folders, messages, contacts, calendars, events with recurrence, tasks, categories, rules, signatures; edit primitives (`move_message`, `delete_folder`…), conversations, the search query language, `repair()` for whatever a file held, and the sync data types |
@@ -204,6 +205,22 @@ progress and Cancel in the status bar; `file.open` then takes what was read. The
 uses the same screen, reading its storage after the first frame. Every open logs one line: the
 time, the bytes and the counts of messages, folders and accounts.
 
+The desktop window opens its mailbox with `store::open_for_window`, which leaves out what it
+doesn't need before the first frame (#519): the SHA-256 of the whole file, which tells this
+program's bytes from another writer's, is worked out on a thread of its own from the bytes read,
+and every save waits for it first (it is only of bytes the reading itself took: a file cut short
+has none, as before); only the newest 200 messages of the Inbox (the view the window opens on)
+have their bodies read at once; and the content files left on disk are looked for afterwards.
+Once the window shows, a thread the host starts looks for those files and reads the bodies the
+memory budget holds that were left for later (`store::content_later`): the bodies found missing,
+or whose file is there but damaged, are marked in their messages as an opening that looks at once
+marks them (`Session::mark_unavailable`) and the "missing or damaged" count is said in the status
+bar; then the window takes the bodies read in a few batches a frame (`Session::take_bodies`),
+so that previews and everything else that reads bodies in memory end as after an opening that read
+them at once. What comes for a mailbox another has taken the place of is dropped. The word index starts after the first
+five frames. `store::open` and `file.open` open as before. `store_bench_tests.rs` times an open of
+a made-up mailbox of 64,000 messages (ignored by `cargo test`).
+
 ## Testing and gates
 
 - Unit tests in every crate; property tests feeding arbitrary bytes to the readers (`mime`,
@@ -252,3 +269,7 @@ time, the bytes and the counts of messages, folders and accounts.
 | 2026-10-21 | minor | #253: the macOS menu bar: a table of command ids in `crates/ui-egui/src/menubar.rs`, made native with `muda` in `apps/mailcraft/src/menubar.rs` |
 | 2026-10-25 | minor | #350: `link` (L0): MailCraft's own reader of web addresses and Punycode replaces the `url` and `webbrowser` crates; pages are opened by `rundll32`, `open` or the desktops' openers as programs, never through a shell |
 | 2026-10-27 | minor | #454: `names` (L0): one list of Unicode's format characters, and the two steps a name takes, coming in and being shown, which also remove the other characters that show nothing; the count of crates is 17 |
+| 2026-10-27 | minor | #454 part 2: `link` and `html` use `names`' list of format characters instead of copies of their own; `link` depends on `names`, the second exception to the layers |
+| 2026-10-27 | minor | #519 slice 2: opening for the window: the whole-file sum in the background, bodies of the opening rows only, content files looked for afterwards, the word index after the first frames |
+| 2026-10-27 | patch | #519 slice 2 review: bodies found missing are marked, the bodies the budget holds come in the background, a cut-short file has no sum |
+| 2026-10-27 | patch | #519 slice 2 review: a body whose file is damaged, read in the background, is marked and counted |

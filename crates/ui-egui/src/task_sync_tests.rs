@@ -107,6 +107,8 @@ fn the_owner_is_asked_once_by_itself_when_the_sign_in_does_not_cover_tasks() {
     app.poll_tasks();
     // Found missing: nothing is sent or read; the window asks.
     assert_eq!(app.tasks.perm.get(&owner), Some(&Permission::Needed));
+    let (line, again) = app.tasks_line(owner).unwrap();
+    assert!(again && line.contains("waiting for your permission"), "{line}");
     assert!(!app.tasks_tick_at(10.0 * 60_000.0) || jobs.lock().unwrap().len() == 1);
     let Some(crate::dialogs::Dialog::Confirm { command, params, ask }) = &app.dialog else { panic!("the owner is asked first") };
     assert_eq!((command.as_str(), params["account"].as_u64()), ("ui.allowTasks", Some(owner)));
@@ -300,4 +302,74 @@ fn a_refusal_that_lasts_after_allowing_asks_the_owner_in_the_end() {
     }
     let Some(crate::dialogs::Dialog::Confirm { command, .. }) = &app.dialog else { panic!("the owner was never asked") };
     assert_eq!(command, "ui.allowTasks");
+}
+
+/// #520: a sign-in Microsoft no longer takes, for mail either, leaves a way back in File › Info,
+/// and no job runs again until there is a new sign-in.
+#[test]
+fn a_refused_sign_in_for_tasks_leaves_ask_again() {
+    let (mut app, owner, answers, jobs, sign_ins) = window();
+    answers.lock().unwrap().push_back(TasksResult { account: owner, sign_in_refused: true, ..Default::default() });
+    assert!(app.tasks_tick_at(0.0));
+    app.poll_tasks();
+    assert!(matches!(app.tasks.perm.get(&owner), Some(Permission::SignInOver(_))));
+    let (line, again) = app.tasks_line(owner).unwrap();
+    assert!(again && line.contains("no longer takes the sign-in"), "{line}");
+    // Not by itself: no question, no page, no job.
+    for minute in 1..60 {
+        assert!(!app.tasks_tick_at(f64::from(minute) * 60_000.0));
+    }
+    assert!(app.dialog.is_none() && sign_ins.lock().unwrap().is_empty());
+    assert_eq!(jobs.lock().unwrap().len(), 1);
+    // Ask again: the question, then Microsoft's page.
+    app.ask_tasks_again(owner);
+    let Some(crate::dialogs::Dialog::Confirm { command, .. }) = &app.dialog else { panic!("Ask again asks") };
+    assert_eq!(command, "ui.allowTasks");
+    app.dialog = None;
+    app.run("ui.allowTasks", json!({"account": owner, "confirmed": true})).unwrap();
+    assert_eq!(*sign_ins.lock().unwrap(), [(owner, true)]);
+}
+
+/// #520: signing in again for mail is a way back too, without Ask again.
+#[test]
+fn a_new_sign_in_for_mail_lets_the_tasks_go_on() {
+    let (mut app, owner, answers, jobs, _) = window();
+    answers.lock().unwrap().push_back(TasksResult { account: owner, sign_in_refused: true, ..Default::default() });
+    assert!(app.tasks_tick_at(0.0));
+    app.poll_tasks();
+    assert!(!app.tasks_tick_at(10.0 * 60_000.0));
+    app.tokens.insert(owner, tokens("new-access", "ref-3"));
+    assert!(app.tasks_tick_at(11.0 * 60_000.0));
+    assert_eq!(jobs.lock().unwrap().last().map(|j| j.1.clone()), Some("ref-3".to_string()));
+    assert_eq!(app.tasks.perm.get(&owner), None);
+}
+
+/// #520: Graph refusing a token just renewed is no reason to stop: the next look tries again.
+#[test]
+fn a_refusal_after_the_token_was_renewed_is_tried_again() {
+    let (mut app, owner, answers, jobs, _) = window();
+    answers.lock().unwrap().push_back(TasksResult {
+        account: owner,
+        tokens: Some(tokens("tasks-access", "ref-1")),
+        sign_in_refused: true,
+        ..Default::default()
+    });
+    assert!(app.tasks_tick_at(0.0));
+    app.poll_tasks();
+    assert_eq!(app.tasks.perm.get(&owner), None);
+    assert!(app.tasks_tick_at(10.0 * 60_000.0));
+    assert_eq!(jobs.lock().unwrap().len(), 2);
+}
+
+/// #520: a job's refusal that comes in after the owner allowed the to-dos is older than that
+/// sign-in, and doesn't undo it.
+#[test]
+fn a_refusal_from_before_the_owner_allowed_them_is_not_taken() {
+    let (mut app, owner, answers, _, _) = window();
+    answers.lock().unwrap().push_back(TasksResult { account: owner, sign_in_refused: true, ..Default::default() });
+    assert!(app.tasks_tick_at(0.0));
+    app.run("ui.allowTasks", json!({"account": owner, "confirmed": true})).unwrap();
+    app.poll_sign_in();
+    app.poll_tasks();
+    assert_eq!(app.tasks.perm.get(&owner), None);
 }

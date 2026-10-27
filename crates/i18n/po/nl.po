@@ -2624,7 +2624,7 @@ msgid "Discard"
 msgstr "Verwerpen"
 
 #. interface
-#: crates/ui-egui/src/reminders.rs
+#: crates/ui-egui/src/reading/warnings.rs crates/ui-egui/src/reminders.rs
 #, fuzzy
 msgid "Dismiss"
 msgstr "Negeren"
@@ -2651,6 +2651,16 @@ msgstr ""
 #, fuzzy
 msgid "Dismiss Update Notice"
 msgstr "Updatemelding negeren"
+
+#. command label
+#: crates/engine/src/cmd/mail.rs
+msgid "Dismiss Warnings"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+msgid "Dismiss this warning for this message. It comes back if a new kind of warning appears."
+msgstr ""
 
 #. interface, name
 #: crates/ui-egui/src/credits.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs
@@ -3849,6 +3859,11 @@ msgstr ""
 msgid "Help"
 msgstr "Help"
 
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+msgid "Hide"
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/calendar_opened.rs
 #, fuzzy
@@ -3889,6 +3904,11 @@ msgstr "Het mappenvenster verbergen"
 #, fuzzy
 msgid "Hide this calendar"
 msgstr "Deze agenda verbergen"
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+msgid "Hide this message's warning again"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/forms.rs
@@ -4001,8 +4021,8 @@ msgstr "Als u zelf een beheerdersaccount hebt, kunt u zich met de eerste keuze d
 msgid "If you have one, paste its application (client) ID here. It comes from a Microsoft Entra app registration: a public client with the redirect URI http://localhost, for accounts in any directory and personal accounts."
 msgstr "Als u er een hebt, plak hier de toepassings-id (client). Die komt uit een app-registratie in Microsoft Entra: een openbare client met de omleidings-URI http://localhost, voor accounts in een willekeurige directory en persoonlijke accounts."
 
-#. ribbon
-#: crates/ui-egui/src/ribbon.rs
+#. ribbon, ribbon location
+#: crates/engine/src/cmd/picture.rs crates/ui-egui/src/ribbon.rs
 msgid "Illustrations"
 msgstr ""
 
@@ -4178,7 +4198,7 @@ msgid "Info and File"
 msgstr "Info en bestand"
 
 #. ribbon location
-#: crates/engine/src/cmd/writing_tools.rs
+#: crates/engine/src/cmd/picture.rs crates/engine/src/cmd/writing_tools.rs
 msgid "Insert"
 msgstr ""
 
@@ -4188,8 +4208,8 @@ msgstr ""
 msgid "Insert Link"
 msgstr "Koppeling invoegen"
 
-#. command label, interface
-#: crates/engine/src/cmd/signature.rs crates/ui-egui/src/signatures.rs
+#. command label, interface, ribbon
+#: crates/engine/src/cmd/signature.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Insert Picture"
 msgstr "Afbeelding invoegen"
@@ -5453,13 +5473,18 @@ msgid "Move the Appointments Only"
 msgstr "Alleen de afspraken verplaatsen"
 
 #. interface
+#: crates/ui-egui/src/reading.rs
+msgid "Move the message to a folder to open or save its attachments"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
 msgid "Move to Calendar"
 msgstr "Naar agenda verplaatsen"
 
-#. command label, ribbon
-#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/ribbon.rs
+#. command label, interface, ribbon
+#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/opened_message.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Move to Folder"
 msgstr "Naar map verplaatsen"
@@ -6037,6 +6062,11 @@ msgstr "Geen tijdzone heet zo"
 #. interface
 #: crates/ui-egui/src/merge_contacts.rs
 msgid "No two contacts share an e-mail address or a phone number."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/windows.rs
+msgid "No window shows a message file"
 msgstr ""
 
 #. interface
@@ -6924,8 +6954,8 @@ msgstr "Afbeelding boven de tekst"
 msgid "Picture beside text"
 msgstr "Afbeelding naast de tekst"
 
-#. ribbon
-#: crates/ui-egui/src/ribbon.rs
+#. command label, ribbon
+#: crates/engine/src/cmd/picture.rs crates/ui-egui/src/ribbon.rs
 msgid "Pictures"
 msgstr ""
 
@@ -6952,6 +6982,11 @@ msgstr "Afbeeldingen niet gedownload."
 #, fuzzy
 msgid "Pictures not shown."
 msgstr "Afbeeldingen niet getoond."
+
+#. interface
+#: crates/ui-egui/src/reading.rs
+msgid "Pictures on the web aren't downloaded for a message that is not in your mailbox: move it to a folder first."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -7180,8 +7215,8 @@ msgstr ""
 "Lees\n"
 "venster"
 
-#. command label, ribbon
-#: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
+#. command label, ribbon, ribbon location
+#: crates/engine/src/cmd/mail.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Reading Pane"
 msgstr "Leesvenster"
@@ -7786,7 +7821,7 @@ msgid "Save As"
 msgstr "Opslaan als"
 
 #. interface
-#: crates/ui-egui/src/reading.rs
+#: crates/ui-egui/src/opened_message.rs crates/ui-egui/src/reading.rs
 #, fuzzy
 msgid "Save As…"
 msgstr "Opslaan als…"
@@ -7832,6 +7867,11 @@ msgstr "Bericht opslaan als"
 #, fuzzy
 msgid "Save Message As…"
 msgstr "Bericht opslaan als…"
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+msgid "Save Message File As"
+msgstr ""
 
 #. command label
 #: crates/engine/src/cmd/signature.rs
@@ -8670,6 +8710,11 @@ msgid "Show this message's pictures, this once. Whoever sent it can then tell th
 msgstr "De afbeeldingen van dit bericht deze ene keer weergeven. Degene die het heeft verzonden, kan dan zien dat u het hebt geopend."
 
 #. interface
+#: crates/ui-egui/src/reading/warnings.rs
+msgid "Show this message's warning"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
 msgid "Show this week"
@@ -9276,6 +9321,11 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/task_sync.rs
+msgid "Tasks: Microsoft no longer takes the sign-in"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/task_sync.rs
 msgid "Tasks: asking for your permission…"
 msgstr ""
 
@@ -9540,6 +9590,11 @@ msgstr "De server van het account maakt deze aan wanneer de vergadering wordt ve
 #, fuzzy
 msgid "The approval didn't go through."
 msgstr "De goedkeuring is niet doorgekomen."
+
+#. interface
+#: crates/ui-egui/src/opened_message.rs
+msgid "The browser opens no files from the system"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/remote.rs
@@ -9857,6 +9912,11 @@ msgstr "Het bericht staat op het klembord: plak het in e-mail of chat voor de be
 #, fuzzy
 msgid "The message isn't there any more"
 msgstr "Het bericht is er niet meer"
+
+#. interface
+#: crates/ui-egui/src/opened_message.rs crates/ui-egui/src/windows.rs
+msgid "The message wasn't filed"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -11397,6 +11457,12 @@ msgid "What to do next"
 msgstr "Wat hierna te doen"
 
 #. interface
+#: crates/ui-egui/src/graph_fetch.rs
+#, fuzzy
+msgid "What was waiting for the form to be closed was called off: another download took its place."
+msgstr "Wat wachtte tot het formulier werd gesloten, is geannuleerd: een andere download heeft de plaats ervan ingenomen."
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "What you change is changed in your calendar only. The organizer and the other people invited are not told and still have the meeting as it was, so you could miss it. An update from the organizer can replace your change."
@@ -11973,6 +12039,16 @@ msgid "a personal Microsoft account (Outlook.com) has no shared mailboxes: they 
 msgstr "een persoonlijk Microsoft-account (Outlook.com) heeft geen gedeelde postvakken: die zijn van Microsoft 365"
 
 #. what a command says
+#: crates/model/src/pictures.rs
+msgid "a picture in a message is a PNG, JPEG, GIF or WebP file"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/picture.rs
+msgid "a picture in a message is at most {mb} MB"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
 msgid "a rule can't move mail to an Outbox: that would send it"
@@ -12001,6 +12077,11 @@ msgstr "een gedeeld postvak bewaart offline evenveel e-mail als het account waar
 #, fuzzy
 msgid "a shared mailbox's address can't be changed: remove it and add the other one"
 msgstr "het adres van een gedeeld postvak kan niet worden gewijzigd: verwijder het en voeg het andere toe"
+
+#. why a command can't run
+#: crates/engine/src/cmd/picture.rs
+msgid "a signature is open: add its pictures with signature.picture.add"
+msgstr ""
 
 #. what a command says
 #: crates/model/src/signature.rs
@@ -12328,6 +12409,12 @@ msgstr "het opent, vervangt of slaat het postvakbestand op"
 msgid "it stopped unexpectedly"
 msgstr "het is onverwacht gestopt"
 
+#. name
+#: crates/engine/src/agent.rs
+#, fuzzy
+msgid "it takes the window off the message the owner is writing"
+msgstr "het haalt het venster weg bij het bericht dat de eigenaar aan het schrijven is"
+
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
 #, fuzzy
@@ -12339,6 +12426,11 @@ msgstr "het duurde te lang"
 #, fuzzy
 msgid "it writes to other people or reaches out to the web"
 msgstr "het schrijft naar andere mensen of benadert het web"
+
+#. interface
+#: crates/ui-egui/src/opened_message.rs
+msgid "larger than {mb} MB: bring it in with File › Import"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reminders.rs
@@ -12449,7 +12541,7 @@ msgid "no incoming server"
 msgstr "geen inkomende server"
 
 #. what a command says, why a command can't run
-#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/writing_tools.rs
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/picture.rs crates/engine/src/cmd/writing_tools.rs
 #, fuzzy
 msgid "no message is being written"
 msgstr "er wordt geen bericht geschreven"
@@ -12639,7 +12731,7 @@ msgid "past"
 msgstr "voorbij"
 
 #. what a command says
-#: crates/engine/src/cmd/signature.rs
+#: crates/engine/src/cmd/picture.rs crates/engine/src/cmd/signature.rs
 #, fuzzy
 msgid "pictures from the web are not downloaded: save the picture and add it from the file"
 msgstr "afbeeldingen van het web worden niet gedownload: sla de afbeelding op en voeg die toe vanuit het bestand"
@@ -12869,7 +12961,7 @@ msgid "the message has no attachment {index}"
 msgstr "het bericht heeft geen bijlage {index}"
 
 #. why a command can't run
-#: crates/engine/src/cmd/format.rs
+#: crates/engine/src/cmd/format.rs crates/engine/src/cmd/picture.rs
 #, fuzzy
 msgid "the message is plain text; switch it to HTML first"
 msgstr "het bericht is platte tekst; zet het eerst om naar HTML"
@@ -13146,6 +13238,11 @@ msgstr "dit postvak is niet bereikbaar via Microsoft Graph (MailboxNotEnabledFor
 #, fuzzy
 msgid "this message already has as many attachments as it can carry"
 msgstr "dit bericht heeft al zoveel bijlagen als het kan bevatten"
+
+#. what a command says
+#: crates/model/src/pictures.rs
+msgid "this message has had as many pictures as it can"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/mail.rs
@@ -13768,6 +13865,14 @@ msgid "{n} attendee"
 msgid_plural "{n} attendees"
 msgstr[0] "{n} deelnemer"
 msgstr[1] "{n} deelnemers"
+
+#. interface
+#: crates/ui-egui/src/opening.rs
+#, fuzzy
+msgid "{n} body or attachment is missing from the mailbox's content folder, or damaged."
+msgid_plural "{n} bodies or attachments are missing from the mailbox's content folder, or damaged."
+msgstr[0] "{n} berichttekst of bijlage ontbreekt in de inhoudsmap van het postvak, of is beschadigd."
+msgstr[1] "{n} berichtteksten of bijlagen ontbreken in de inhoudsmap van het postvak, of zijn beschadigd."
 
 #. what a command says
 #: crates/model/src/message.rs

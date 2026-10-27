@@ -343,11 +343,14 @@ impl Draft {
             .color(t.red),
         );
         ui.label(tl!("Title"));
-        ui.add(egui::TextEdit::singleline(&mut self.typed.title).char_limit(TITLE_CHARS).desired_width(f32::INFINITY));
+        crate::text_menu::field(ui.add(egui::TextEdit::singleline(&mut self.typed.title).char_limit(TITLE_CHARS).desired_width(f32::INFINITY)));
         ui.label(tl!("What happened"));
-        ui.add(egui::TextEdit::multiline(&mut self.typed.what).char_limit(TEXT_CHARS).desired_rows(4).desired_width(f32::INFINITY));
+        let what = ui.add(egui::TextEdit::multiline(&mut self.typed.what).char_limit(TEXT_CHARS).desired_rows(4).desired_width(f32::INFINITY));
+        crate::text_menu::field(what);
         ui.label(tl!("What you expected (optional)"));
-        ui.add(egui::TextEdit::multiline(&mut self.typed.expected).char_limit(TEXT_CHARS).desired_rows(2).desired_width(f32::INFINITY));
+        let expected =
+            ui.add(egui::TextEdit::multiline(&mut self.typed.expected).char_limit(TEXT_CHARS).desired_rows(2).desired_width(f32::INFINITY));
+        crate::text_menu::field(expected);
         // What GitHub's address can carry: the boxes are cut to it, and that is said.
         let (version, platform) = version_platform(&self.text);
         self.cut |= clamp(&mut self.typed, self.include, &version, &platform);
@@ -361,7 +364,8 @@ impl Draft {
         ui.checkbox(&mut self.include, tl!("Include diagnostics"));
         if self.include {
             egui::ScrollArea::vertical().max_height(150.0).auto_shrink([false, true]).show(ui, |ui| {
-                ui.add(egui::TextEdit::multiline(&mut self.text.as_str()).font(egui::TextStyle::Monospace).desired_width(f32::INFINITY));
+                let shown = ui.add(egui::TextEdit::multiline(&mut self.text.as_str()).font(egui::TextStyle::Monospace).desired_width(f32::INFINITY));
+                crate::text_menu::read_only(shown);
             });
             ui.label(dim(tl!(
                 "On GitHub they are saved to a file you choose, which you attach to the issue; by email they are attached to the message. They are never put in the link."

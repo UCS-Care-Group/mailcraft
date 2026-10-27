@@ -2016,3 +2016,6 @@ fn a_json_file_of_empty_messages_is_refused_while_it_is_read() {
     fs::write(t.file(), "{\"messages\":{\"1\":{},\"2\":{}}}").unwrap();
     assert!(with_budget(64 << 20, || open(&t.file())).is_ok());
 }
+
+#[path = "store_launch_tests.rs"]
+mod launch;

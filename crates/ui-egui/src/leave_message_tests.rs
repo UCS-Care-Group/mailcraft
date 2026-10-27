@@ -70,6 +70,8 @@ fn actions(a: &MailApp, draft: Id) -> Vec<(&'static str, Value)> {
         ("mail.forward", json!({"id": other})),
         ("mail.forwardAsAttachment", json!({"id": other})),
         ("mail.editDraft", json!({"id": draft})),
+        // People's Email starts a new message too (#494).
+        ("people.email", json!({"id": a.session.mailbox.contacts.values().find(|c| c.address().is_some()).unwrap().id})),
     ]
 }
 

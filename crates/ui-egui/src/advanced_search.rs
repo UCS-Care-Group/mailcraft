@@ -186,6 +186,9 @@ pub(crate) fn search(app: &mut MailApp) -> Result<(), String> {
     app.advanced_search = None;
     // What the search took (it may have cut it short): the box shows that.
     app.search_text = app.session.view.search.clone();
+    if let Some(ctx) = &app.ctx {
+        crate::chrome::caret_at_end(ctx, &app.search_text);
+    }
     Ok(())
 }
 
@@ -247,6 +250,7 @@ fn panel_id() -> Id {
 /// A field of the panel, named by `label` for screen readers; Enter in it searches.
 fn field(ui: &mut Ui, label: egui::Id, id: &str, value: &mut String, width: f32, hint: &str, enter: &mut bool) -> Response {
     let resp = ui.add(egui::TextEdit::singleline(value).id_salt(id).desired_width(width).hint_text(hint.to_owned())).labelled_by(label);
+    let resp = crate::text_menu::field(resp);
     if resp.lost_focus() && crate::keys::enter(ui.ctx(), ui.layer_id()) {
         *enter = true;
     }
