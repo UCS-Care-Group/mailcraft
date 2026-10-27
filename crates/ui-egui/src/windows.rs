@@ -892,6 +892,8 @@ fn show_native(app: &mut MailApp, ctx: &egui::Context, window: &mut Open) -> boo
     let mut close = false;
     ctx.show_viewport_immediate(viewport, builder, |ui, class| {
         let ctx = ui.ctx().clone();
+        // What was chosen in a text's menu here, before anything reads the input.
+        let menus = crate::text_menu::deliver(&ctx);
         let t = Tokens::get(&ctx);
         // A backend that has no windows after all puts this inside the main one itself.
         let inside = class == egui::ViewportClass::EmbeddedWindow;
@@ -907,6 +909,7 @@ fn show_native(app: &mut MailApp, ctx: &egui::Context, window: &mut Open) -> boo
         egui::CentralPanel::default().frame(egui::Frame::NONE.fill(t.surface)).show(ui, |ui| {
             close |= frame(app, ui, window, wish, closing, !inside);
         });
+        crate::text_menu::finish(&ctx, menus);
     });
     close
 }

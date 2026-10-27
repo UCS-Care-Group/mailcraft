@@ -44,6 +44,7 @@ pub(crate) fn picker(ui: &mut Ui, id: egui::Id, s: &Session, current: Zone, quer
         .show_ui(ui, |ui| {
             ui.set_min_width(width.max(300.0));
             let field = ui.add(egui::TextEdit::singleline(query).hint_text(tl!("Search time zones")).desired_width(f32::INFINITY));
+            let field = crate::text_menu::field(field);
             // The list has just opened: what is typed goes into its field.
             if !was_open {
                 field.request_focus();

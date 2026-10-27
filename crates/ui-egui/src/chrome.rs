@@ -194,7 +194,7 @@ fn search_box(app: &mut MailApp, ui: &mut Ui, rect: Rect) {
         .inner;
     let shapes = crate::search_pills::shapes(&output.galley, output.galley_pos, &drawn, &t);
     ui.painter().with_clip_rect(output.text_clip_rect).set(pill_slot, egui::Shape::Vec(shapes));
-    let resp = output.response.response;
+    let resp = crate::text_menu::field(output.response.response);
     // The box gave up the keyboard without a click (Enter, Shift+Tab): the list closes too. After a
     // click the list stays for that frame, so a click on it can still take a suggestion.
     if resp.lost_focus() && !ui.input(|i| i.pointer.any_down() || i.pointer.any_released()) {

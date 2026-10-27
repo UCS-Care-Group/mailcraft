@@ -23,7 +23,7 @@ const LABEL_W: f32 = 62.0;
 fn field(ui: &mut Ui, label: &str, text: &str, hint: &str, focus: bool) -> Option<String> {
     let at = line(ui, label, 0.0);
     let mut buf = text.to_string();
-    let resp = ui.put(at, line_edit(&mut buf, ui.scope_id().with(("compose", label)), hint, at.width()));
+    let resp = crate::text_menu::field(ui.put(at, line_edit(&mut buf, ui.scope_id().with(("compose", label)), hint, at.width())));
     if focus {
         resp.request_focus();
     }
@@ -90,7 +90,7 @@ pub(crate) fn recipient_line(
         ctx.memory_mut(|m| m.move_focus(egui::FocusDirection::Previous));
     }
     let filter = edit.get_event_filter();
-    let out = egui::CompletionPopup::new(id).word_boundary(|c| c == ';' || c == ',').align(egui::RectAlign::BOTTOM_START).show(ui, edit, |q| {
+    let mut out = egui::CompletionPopup::new(id).word_boundary(|c| c == ';' || c == ',').align(egui::RectAlign::BOTTOM_START).show(ui, edit, |q| {
         let typed = q.word.trim_start();
         if !offer || typed.trim().is_empty() {
             return Vec::new();
@@ -108,6 +108,7 @@ pub(crate) fn recipient_line(
     // Escape right after the list came up would go to the window as well, and a Tab right after it
     // closed would be nobody's. (egui changes the filter only of a line that had the keyboard in
     // the pass before.)
+    out.text_edit.response.response = crate::text_menu::field(out.text_edit.response.response);
     let open = out.is_open;
     ctx.memory_mut(|m| m.set_focus_lock_filter(id, egui::EventFilter { tab: filter.tab || open, escape: filter.escape || open, ..filter }));
     ctx.data_mut(|d| d.insert_temp(shown, out.is_open));

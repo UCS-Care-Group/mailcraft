@@ -1680,6 +1680,87 @@ impl Session {
         loaded.map(|_| true)
     }
 
+    /// Take in bodies an opening left on disk and the host read after the window showed
+    /// (`store::bodies_later`, #519): each goes into its message as the opening would have put it
+    /// there, if the message still keeps that body on disk and nothing has brought it in or found
+    /// it missing meanwhile. Not a change to the mailbox, and not counted as content the owner
+    /// brought in (the opening's bodies never are). Returns how many messages took one.
+    pub fn take_bodies(&mut self, bodies: Vec<BodyRead>) -> usize {
+        // ponytail: each message taken is a new Arc, so the first save prepares it again on the
+        // saver's thread (its record, and the hash of a body over 1 KB): up to the budget's bodies,
+        // 256 MB, once, off the window's thread, as `load_where` has always done (0.32 s for
+        // 11,617 bodies in `store_bench_tests.rs`, which a close waits for when the first change
+        // comes just before it). Re-point the file's entries at the new messages if that matters.
+        let mut took = 0;
+        for body in bodies {
+            let Some(m) = self.mailbox.messages.get(&body.id) else { continue };
+            // (A text found missing says so in its place, which is never written over; its HTML
+            // still comes, as an opening reads it beside a missing text.)
+            let Some(kept) = m.kept.as_deref().copied() else { continue };
+            let text = body.text.filter(|(r, _)| kept.text == Some(*r) && m.body.text.is_empty());
+            let html = body.html.filter(|(r, _)| kept.html == Some(*r) && m.body.html.is_none());
+            if text.is_none() && html.is_none() {
+                continue;
+            }
+            let mut copy = Message::clone(m);
+            let mut kept = kept;
+            if let Some((_, bytes)) = text {
+                copy.body.text = text_of(&bytes);
+                kept.text = None;
+            }
+            if let Some((_, bytes)) = html {
+                copy.body.html = Some(text_of(&bytes));
+                kept.html = None;
+            }
+            // (The kept HTML goes with the text as it now reads.)
+            kept.text_hash = mailcraft_model::text_hash(&copy.body.text);
+            copy.kept = (!kept.is_empty()).then(|| Box::new(kept));
+            self.put_message(body.id, copy);
+            took += 1;
+        }
+        if took > 0 {
+            self.loads += 1;
+        }
+        took
+    }
+
+    /// Bodies kept on disk whose files were found missing after the window showed
+    /// (`store::check_parts`, #519) read from then on as an opening that looked for them at once
+    /// has them: the text says it is unavailable, and nothing asks for them again. Returns how
+    /// many messages were marked.
+    pub fn mark_unavailable(&mut self, missing: &[ContentRef]) -> usize {
+        let missing: HashSet<ContentRef> = missing.iter().copied().collect();
+        if missing.is_empty() {
+            return 0;
+        }
+        let gone = |r: Option<ContentRef>| r.is_some_and(|r| missing.contains(&r));
+        let marked: Vec<Id> = self
+            .mailbox
+            .messages
+            .iter()
+            .filter(|(_, m)| {
+                m.kept.as_deref().is_some_and(|k| !k.failed && ((gone(k.text) && m.body.text.is_empty()) || (gone(k.html) && m.body.html.is_none())))
+            })
+            .map(|(id, _)| *id)
+            .collect();
+        for id in &marked {
+            let Some(m) = self.mailbox.messages.get(id) else { continue };
+            let mut copy = Message::clone(m);
+            if let Some(kept) = copy.kept.as_deref_mut() {
+                kept.failed = true;
+                if gone(kept.text) && copy.body.text.is_empty() {
+                    copy.body.text = crate::store_placeholder().to_string();
+                }
+                kept.text_hash = mailcraft_model::text_hash(&copy.body.text);
+            }
+            self.put_message(*id, copy);
+        }
+        if !marked.is_empty() {
+            self.loads += 1;
+        }
+        marked.len()
+    }
+
     /// Put `m`, message `id` with more or less of its content in memory, in the place of the
     /// one the mailbox has. The one it replaces may still be held by an Undo or Redo step: the
     /// content it keeps on disk is kept from the sweep while it is (`store::keep_held`). In a command,
@@ -2369,6 +2450,33 @@ fn loaded_into(m: &mut Message, fetch: impl Fn(Part) -> Result<Arc<Vec<u8>>, Cmd
 fn in_memory(m: &Message) -> u64 {
     let body = m.body.text.len().saturating_add(m.body.html.as_ref().map_or(0, String::len));
     m.attachments.iter().fold(body as u64, |n, a| n.saturating_add(a.data.len() as u64))
+}
+
+/// A body an opening for a window left on disk though the memory budget holds it, to be read
+/// once the window shows (`store::bodies_later`, #519): its text and HTML as the message names them.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct BodyLater {
+    pub id: Id,
+    pub text: Option<ContentRef>,
+    pub html: Option<ContentRef>,
+}
+
+/// A [`BodyLater`] read: each part with its bytes, or left out when it couldn't be read
+/// ([`Session::take_bodies`]).
+#[derive(Clone, Debug, Default)]
+pub struct BodyRead {
+    pub id: Id,
+    pub text: Option<(ContentRef, Vec<u8>)>,
+    pub html: Option<(ContentRef, Vec<u8>)>,
+}
+
+/// The content files an opening for a window left unlooked for, looked for once it shows
+/// (`store::check_parts`, #519): how many parts are missing (a file named by two parts counts
+/// twice), and which files.
+#[derive(Clone, Debug, Default)]
+pub struct Missing {
+    pub count: usize,
+    pub refs: Vec<ContentRef>,
 }
 
 /// Bytes as the text they hold; what isn't UTF-8 is read as well as it can be.
