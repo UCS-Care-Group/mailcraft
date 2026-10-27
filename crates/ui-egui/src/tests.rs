@@ -2296,3 +2296,39 @@ fn signature_picture_over_the_total_is_refused_on_the_page() {
     assert!(refused);
     assert!(total(&a) <= MAX_PICTURES_BYTES);
 }
+
+/// File › Signatures › Rename: Enter keeps the new name, and a click elsewhere lets go of the
+/// field without renaming.
+#[test]
+fn renaming_a_signature_keeps_the_name_and_lets_go_of_the_keyboard() {
+    use egui_kittest::kittest::Queryable as _;
+    let key = |h: &mut egui_kittest::Harness<'static, MailApp>, key: egui::Key| {
+        for pressed in [true, false] {
+            h.event(egui::Event::Key { key, physical_key: None, pressed, repeat: false, modifiers: egui::Modifiers::NONE });
+        }
+        h.run_steps(3);
+    };
+    let mut harness = window(signature_app());
+    harness.state_mut().execute("ui.dismissReminder", json!({"all": true})).unwrap();
+    harness.state_mut().execute("ui.backstage", json!({"value": true, "page": "signatures"})).unwrap();
+    harness.run_steps(3);
+    harness.get_by_label("Rename").click();
+    harness.run_steps(3);
+    key(&mut harness, egui::Key::End);
+    harness.event(egui::Event::Text(" at work".into()));
+    harness.run_steps(3);
+    key(&mut harness, egui::Key::Enter);
+    let m = &harness.state().session.mailbox;
+    assert!(m.signature("Mine at work").is_some() && m.signature("Mine").is_none(), "Enter didn't rename it");
+    assert!(harness.ctx.memory(|m| m.focused()).is_none(), "the field kept the keyboard");
+
+    // Rename again, then click away: the name stays, and the field is gone.
+    harness.get_by_label("Rename").click();
+    harness.run_steps(3);
+    harness.event(egui::Event::Text("x".into()));
+    harness.run_steps(3);
+    harness.get_by_label("New").click();
+    harness.run_steps(3);
+    assert!(harness.state().session.mailbox.signature("Mine at work").is_some());
+    assert!(harness.ctx.memory(|m| m.focused()).is_none(), "the field kept the keyboard after a click away");
+}

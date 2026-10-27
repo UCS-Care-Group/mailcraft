@@ -3791,6 +3791,45 @@ fn the_original_under_a_reply_is_shown_as_the_reading_pane_shows_it() {
     assert!(harness.state().text_selection.at(Place::Quote).is_none());
 }
 
+/// The earlier messages under a reply can be copied: a drag in them and Ctrl+C, or Copy in
+/// their menu, put the selected text on the clipboard, though the owner's text had the keyboard.
+/// Ctrl+C in the owner's text copies from the owner's text, as before.
+#[test]
+fn the_original_under_a_reply_can_be_copied() {
+    let mut app = MailApp::new(Session::at(mailcraft_engine::sample::mailbox(1_791_993_600, 0), 1_791_993_600, 0), Services::default());
+    app.autosave = false;
+    let id = app.session.mailbox.messages.values().find(|m| m.subject.starts_with("Five new arrivals")).map(|m| m.id).unwrap();
+    app.execute("mail.select", json!({"id": id})).unwrap();
+    app.execute("mail.reply", json!({"id": id})).unwrap();
+    app.execute("compose.set", json!({"body": "Mine alone"})).unwrap();
+    app.execute("compose.select", json!({"from": 0, "to": 4})).unwrap();
+    app.body_focus_wanted = true;
+    let mut harness = window(app, (1280.0, 900.0));
+    harness.run_steps(4);
+    assert!(crate::compose::editor::has_focus(&harness.ctx), "the owner's text has the keyboard");
+    let start = "New on our shelves this month";
+    let (from, to) = (gap_at(&harness, Place::Quote, id, start, 0).1, gap_at(&harness, Place::Quote, id, start, 6).1);
+    drag(&mut harness, from, to);
+    assert!(selection(&harness, Place::Quote).is_some());
+    // Ctrl+C is the quote's: it copies the quote's words, and nothing of the owner's text.
+    assert_eq!(copy_key(&mut harness).as_deref(), Some("New on"));
+    let copies = |h: &Window| h.output().platform_output.commands.iter().filter(|c| matches!(c, egui::OutputCommand::CopyText(_))).count();
+    assert_eq!(copies(&harness), 1, "the owner's text copies nothing: {:?}", harness.output().platform_output.commands);
+    assert!(!crate::compose::editor::has_focus(&harness.ctx), "a press in the original takes the keyboard from the owner's text");
+    assert_eq!(harness.state().session.compose.as_ref().unwrap().body.plain(), "Mine alone");
+    // So does Copy in its menu.
+    menu_click(&mut harness, to);
+    choose(&mut harness, &keyed("Copy", "Mod+C"), to);
+    assert_eq!(copied_within(&mut harness, 3).as_deref(), Some("New on"));
+    // A click in the owner's text gives it the keyboard back, and Ctrl+C copies its selection.
+    let body = harness.state().hit.rect("composeBody", 0).unwrap();
+    click_at(&mut harness, egui::pos2(body.min.x + 2.0, body.min.y + 6.0));
+    harness.state_mut().execute("compose.select", json!({"from": 0, "to": 4})).unwrap();
+    harness.run_steps(2);
+    assert!(crate::compose::editor::has_focus(&harness.ctx));
+    assert_eq!(copy_key(&mut harness).as_deref(), Some("Mine"));
+}
+
 /// (#47) In a wide pane a message's text fills it, as the body of a reply does above the
 /// original: no measure of its own holds it to one side.
 #[test]
