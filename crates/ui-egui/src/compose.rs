@@ -12,6 +12,8 @@ use crate::{MailApp, icons};
 pub(crate) mod editor;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod picture_tests;
 
 const LABEL_W: f32 = 62.0;
 

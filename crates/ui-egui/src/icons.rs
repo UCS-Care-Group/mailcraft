@@ -998,6 +998,12 @@ pub fn paint(p: &Painter, r: Rect, name: &str, c: Color32, accent: Color32) {
             pen.circle(14.5, 14.5, 3.75, a);
             pen.line_c(&[(14.5, 12.5), (14.5, 14.5), (16.0, 15.5)], a);
         }
+        // Insert › Pictures: a frame with a sun and two hills.
+        "picture" => {
+            pen.rect(3.0, 4.0, 17.0, 16.0, c);
+            pen.circle(7.5, 8.5, 1.5, a);
+            pen.line(&[(3.5, 15.0), (8.0, 11.0), (11.0, 14.0), (13.0, 12.0), (16.5, 15.0)]);
+        }
         // A control still to be built: an hourglass.
         "pending" => {
             pen.line(&[(5.0, 3.0), (15.0, 3.0)]);
@@ -1314,6 +1320,7 @@ pub const NAMES: &[&str] = &[
     "dateTime",
     "wordCount",
     "pending",
+    "picture",
     "onlineMeeting",
     "joinMeeting",
     "proposeTime",
