@@ -491,28 +491,41 @@ fn meeting_mail(method: &str, uid: &str, owner: &str) -> mailcraft_model::Messag
     }
 }
 
-#[test]
-fn no_other_command_takes_away_an_appointment_being_changed_unasked() {
-    let mut w = testing::window("view.calendar");
+/// A meeting Bo invited the owner to and the owner accepted, and Bo's message calling it off:
+/// the meeting, and that message.
+fn a_meeting_called_off(w: &mut testing::Window) -> (Id, Id) {
     let account = w.state().session.mailbox.default_account().unwrap();
     let (account, owner) = (account.id, account.email.clone());
     let inbox = w.state().session.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
-    let deliver = |w: &mut testing::Window, method: &str| {
+    let mut deliver = |method: &str| {
         let m = meeting_mail(method, "uid-agent-494", &owner);
         let id = w.state_mut().session.mailbox.add_message(mailcraft_model::Message { folder: inbox, ..m }).unwrap();
         w.state_mut().session.mailbox_changed();
         id
     };
-    let request = deliver(&mut w, "REQUEST");
+    let request = deliver("REQUEST");
+    let cancel = deliver("CANCEL");
     w.state_mut().execute("calendar.respond", json!({"message": request, "response": "accept"})).unwrap();
     let event = w.state().session.mailbox.events.values().find(|e| e.uid == "uid-agent-494").unwrap().id;
-    changing_in_a_window(&mut w, event);
-    // Bo calls it off; an agent takes it out of the calendar, as it may when nothing is open.
-    let cancel = deliver(&mut w, "CANCEL");
-    let (now, _) = allowed(w.state_mut(), "calendar.removeCancelled", json!({"message": cancel}), Class::ALL.to_vec());
+    (event, cancel)
+}
+
+/// What the agent's answer says, when it refused.
+fn refused(now: Option<Value>) -> String {
     let now = now.unwrap();
     assert_eq!(now["ok"], false, "{now}");
-    assert!(now["error"].as_str().unwrap().contains("the owner is changing in the window"), "{now}");
+    now["error"].as_str().unwrap().to_string()
+}
+
+#[test]
+fn no_other_command_takes_away_an_appointment_being_changed_unasked() {
+    let mut w = testing::window("view.calendar");
+    let (event, cancel) = a_meeting_called_off(&mut w);
+    changing_in_a_window(&mut w, event);
+    // An agent takes the meeting Bo called off out of the calendar, as it may when nothing is open.
+    let (now, _) = allowed(w.state_mut(), "calendar.removeCancelled", json!({"message": cancel}), Class::ALL.to_vec());
+    let why = refused(now);
+    assert!(why.contains("the owner is changing in the window"), "{why}");
     w.run_steps(3);
     assert!(w.state().session.mailbox.event(event).is_some());
     assert_eq!(w.state().windows.unsaved(), 1, "the window stays with the owner's changes");
@@ -523,4 +536,19 @@ fn no_other_command_takes_away_an_appointment_being_changed_unasked() {
     let (now, _) = allowed(w.state_mut(), "calendar.removeCancelled", json!({"message": cancel}), Vec::new());
     assert_eq!(now.unwrap()["ok"], true);
     assert!(w.state().session.mailbox.event(event).is_none());
+}
+
+#[test]
+fn nor_one_being_changed_in_the_dialog() {
+    let mut w = testing::window("view.calendar");
+    let (event, cancel) = a_meeting_called_off(&mut w);
+    w.state_mut().execute("ui.dialog", json!({"name": "editEvent", "id": event})).unwrap();
+    w.run_steps(3);
+    testing::text(&mut w, " (moved)");
+    assert!(matches!(&w.state().dialog, Some(Dialog::Form(f)) if f.dirty()), "the owner is changing it in the dialog");
+    let (now, _) = allowed(w.state_mut(), "calendar.removeCancelled", json!({"message": cancel}), Class::ALL.to_vec());
+    let why = refused(now);
+    assert!(why.contains("the owner is changing in the window"), "{why}");
+    assert!(w.state().session.mailbox.event(event).is_some());
+    assert!(matches!(&w.state().dialog, Some(Dialog::Form(f)) if f.unsaved().unwrap()["title"].as_str().unwrap().ends_with("(moved)")));
 }
