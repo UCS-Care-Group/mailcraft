@@ -282,3 +282,23 @@ fn the_account_on_this_computer_is_asked_with_no_box_as_it_has_no_account_settin
     let Some(crate::dialogs::Dialog::Confirm { ask, .. }) = &w.state().dialog else { panic!("no question") };
     assert!(ask.tick.is_none());
 }
+
+#[test]
+fn delete_of_two_conversations_speaks_of_conversations() {
+    let (mut w, newer, _, _) = release_checklist();
+    let inbox = w.state().session.view.folder;
+    // A second conversation in the Inbox: a message there and a copy of it.
+    let one = w.state_mut().session.rows().iter().find(|r| r.under.is_none() && r.size() == 1).map(|r| r.id).unwrap();
+    w.state_mut().execute("mail.copy", json!({"ids": [one], "folder": inbox})).unwrap();
+    let other = w.state_mut().session.rows().iter().find(|r| r.under.is_none() && r.members.contains(&one)).map(|r| r.id).unwrap();
+    w.state_mut().execute("mail.select", json!({"id": newer})).unwrap();
+    w.state_mut().execute("mail.select", json!({"id": other, "extend": true})).unwrap();
+    w.run_steps(3);
+    testing::key(&mut w, Key::Delete);
+    w.run_steps(3);
+    let Some(crate::dialogs::Dialog::Confirm { ask, .. }) = &w.state().dialog else { panic!("no question") };
+    assert_eq!(
+        ask.text,
+        "This deletes 4 messages in Inbox, whole conversations included. They go to Deleted Items. The conversations' messages in other folders stay where they are."
+    );
+}
