@@ -374,14 +374,15 @@ pub(crate) fn takes_away(app: &MailApp, id: &str, p: &Value, item: Id) -> bool {
 
 /// Whether an agent's `ui.openWindow` or `ui.eventWindow` would overwrite what the owner typed in
 /// an appointment's window and hasn't saved (#494): another time somebody proposed, put into its
-/// fields, or the Appointment Recurrence dialog closed with what was filled in.
+/// fields, or the Appointment Recurrence dialog closed with what was filled in, by itself or with
+/// the window (`"do": "close"`, which asks the owner only about what the form holds).
 pub(crate) fn overwrites_unsaved(app: &MailApp, id: &str, p: &Value) -> bool {
     match id {
         "ui.openWindow" if p.get("proposed").is_some_and(Value::is_object) => {
             let window = p.get("event").and_then(Value::as_u64).and_then(|event| app.windows.of_event(event));
             app.windows.open.iter().find(|w| Some(w.id) == window).is_some_and(|w| w.what.form().is_some_and(Form::dirty))
         }
-        "ui.eventWindow" if p.get("recurrence").and_then(Value::as_bool) == Some(false) => {
+        "ui.eventWindow" if p.get("recurrence").and_then(Value::as_bool) == Some(false) || p.get("do").and_then(Value::as_str) == Some("close") => {
             // The window `event_window` acts on.
             let wanted = p.get("window").and_then(Value::as_u64);
             let event = app
@@ -400,7 +401,7 @@ pub(crate) fn overwrites_unsaved(app: &MailApp, id: &str, p: &Value) -> bool {
 /// The appointments being changed in windows of their own, with changes that aren't saved: an
 /// agent's command may take them away only on the owner's yes (`Session::owner_changing`).
 pub(crate) fn changing_events(app: &MailApp) -> Vec<Id> {
-    let changing = |w: &&Open| w.what.form().is_some_and(Form::dirty);
+    let changing = |w: &&Open| w.what.form().is_some_and(Form::changed);
     app.windows
         .open
         .iter()

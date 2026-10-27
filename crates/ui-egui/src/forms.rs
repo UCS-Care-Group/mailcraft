@@ -172,6 +172,13 @@ impl Form {
         }
     }
 
+    /// What an agent or a command that waited may not take away (#494, #513): changes that aren't
+    /// saved, or the Appointment Recurrence dialog with something changed in it (what it holds
+    /// reaches the form only on its OK).
+    pub(crate) fn changed(&self) -> bool {
+        self.dirty() || self.event().is_some_and(event::EventForm::recurrence_touched)
+    }
+
     /// What an agent's question names of the form when it has changes that aren't saved (#494):
     /// the kind of item and what it is called, as typed. `None` when nothing in it is unsaved.
     pub(crate) fn unsaved(&self) -> Option<Value> {
@@ -181,7 +188,7 @@ impl Form {
             Form::Task(f) => ("task", f.subject().to_string()),
             Form::Account(_) | Form::Categories(_) | Form::Rules(_) | Form::Junk(_) => return None,
         };
-        self.dirty().then(|| serde_json::json!({"form": form, "title": title}))
+        self.changed().then(|| serde_json::json!({"form": form, "title": title}))
     }
 
     /// Whether the keys are for something of the form's own that is open over it (a dialog), or

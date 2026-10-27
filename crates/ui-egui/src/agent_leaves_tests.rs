@@ -682,3 +682,41 @@ fn closing_a_message_whose_saved_draft_an_agent_deleted_asks_the_owner() {
     assert!(matches!(a.dialog, Some(Dialog::DiscardDraft { .. })));
     assert_eq!(a.session.compose.as_ref().map(|c| c.subject.as_str()), Some("Mine"));
 }
+
+#[test]
+fn a_recurrence_being_filled_in_counts_as_changes_not_saved() {
+    use egui_kittest::kittest::Queryable as _;
+    let mut w = testing::window("view.calendar");
+    let event = w.state().session.mailbox.events.values().find(|e| !e.title.is_empty() && e.recurrence.is_none()).unwrap().id;
+    w.state_mut().run("ui.openWindow", json!({"event": event})).unwrap();
+    w.run_steps(4);
+    let window = w.state().windows.of_event(event).unwrap();
+    w.state_mut().run("ui.eventWindow", json!({"window": window, "recurrence": true})).unwrap();
+    w.run_steps(3);
+    // It ends after a number of times: changed in the dialog, not yet in the form (that is OK's).
+    let after = w.query_all_by_label_contains("After").last().unwrap().rect();
+    testing::click(&mut w, after.center(), egui::PointerButton::Primary, 1);
+    assert_eq!(w.state().windows.unsaved(), 0, "nothing changed in the form itself");
+    let why = refused(agent(w.state_mut(), "ui.eventWindow", json!({"window": window, "do": "close"})).0);
+    assert!(why.contains("overwrite what the owner typed"), "{why}");
+    for (id, params) in [("ui.closeWindow", json!({"window": window})), ("calendar.delete", json!({"id": event})), ("file.new", json!({}))] {
+        let (now, rx) = allowed(w.state_mut(), id, params, Class::ALL.to_vec());
+        assert!(now.is_none(), "{id}: asked even so");
+        answer(w.state_mut(), false);
+        assert_eq!(rx.try_recv().unwrap()["ok"], false);
+        w.run_steps(3);
+    }
+    assert_eq!(w.state_mut().run("ui.eventWindow", json!({"window": window})).unwrap()["recurrence"], true, "still open");
+}
+
+#[test]
+fn quitting_asks_about_a_message_whose_saved_draft_an_agent_deleted() {
+    let mut a = app();
+    written(&mut a, "Mine");
+    a.run("compose.saveDraft", json!({})).unwrap();
+    let draft = draft_with(&a, "Mine").unwrap();
+    let (now, _) = allowed(&mut a, "mail.deletePermanently", json!({"ids": [draft]}), Class::ALL.to_vec());
+    assert_eq!(now.unwrap()["ok"], true);
+    assert!(!a.close_requested());
+    assert!(matches!(&a.dialog, Some(Dialog::DiscardDraft { then, .. }) if then == "quit"));
+}

@@ -4095,7 +4095,8 @@ impl MailApp {
         if self.opening.is_some() {
             return true;
         }
-        if self.session.compose.as_ref().is_some_and(|c| c.dirty) {
+        // (Its saved draft gone, what is written is saved nowhere: #494.)
+        if self.session.compose.as_ref().is_some_and(|c| c.dirty || mailcraft_engine::cmd::compose::draft_gone(&self.session, c)) {
             self.dialog = Some(dialogs::leaving("quit", json!({})));
             return false;
         }

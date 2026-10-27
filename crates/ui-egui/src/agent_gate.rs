@@ -174,7 +174,7 @@ fn overwrites(app: &MailApp, id: &str, params: &Value) -> Option<String> {
 /// aren't saved.
 fn changing_in_the_dialog(app: &MailApp) -> Option<mailcraft_model::Id> {
     match &app.dialog {
-        Some(crate::dialogs::Dialog::Form(form)) if form.dirty() => form.editing(),
+        Some(crate::dialogs::Dialog::Form(form)) if form.changed() => form.editing(),
         _ => None,
     }
 }
@@ -189,7 +189,7 @@ fn run(app: &mut MailApp, id: &str, params: Value, allow: &[Class]) -> Outcome {
     let said_yes = params.get("unsaved").is_some_and(|v| !v.is_null());
     let asked = matches!(id, "ui.closeDialog" | "ui.dialog") && said_yes;
     let owners = match &app.dialog {
-        Some(crate::dialogs::Dialog::Form(form)) if form.dirty() && !asked => app.dialog.take(),
+        Some(crate::dialogs::Dialog::Form(form)) if form.changed() && !asked => app.dialog.take(),
         _ => None,
     };
     let mut changing = if said_yes { Vec::new() } else { crate::windows::changing_events(app) };
