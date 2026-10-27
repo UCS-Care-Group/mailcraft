@@ -353,14 +353,45 @@ pub(crate) fn replacing_unsaved(app: &MailApp) -> Option<Value> {
 /// the one named or selected, `calendar.removeCalendar` a calendar's, an undo or a redo what the
 /// step brings back as it was.
 pub(crate) fn removing_unsaved(app: &MailApp, id: &str, p: &Value) -> Option<Value> {
+    unsaved_of(app.windows.open.iter().filter(|w| matches!(&w.what, What::Event { event: Some((e, _)), .. } if takes_away(app, id, p, *e))))
+}
+
+/// Whether `calendar.delete`, `calendar.removeCalendar`, `edit.undo` or `edit.redo` with `p`
+/// would take the appointment `event` away.
+pub(crate) fn takes_away(app: &MailApp, id: &str, p: &Value, event: Id) -> bool {
     // As the command reads it: `12.0` is 12, and 0 is none.
     let number = |key: &str| mailcraft_engine::p::id(p, key);
-    let gone = |event: Id| match id {
+    match id {
         "calendar.delete" => number("id").or(app.session.sel.event) == Some(event),
         "calendar.removeCalendar" => app.session.mailbox.event(event).is_some_and(|e| Some(e.calendar) == number("id")),
-        _ => app.session.undo_removes(id == "edit.redo", event),
-    };
-    unsaved_of(app.windows.open.iter().filter(|w| matches!(&w.what, What::Event { event: Some((e, _)), .. } if gone(*e))))
+        "edit.undo" | "edit.redo" => app.session.undo_removes(id == "edit.redo", event),
+        _ => false,
+    }
+}
+
+/// Whether an agent's `ui.openWindow` or `ui.eventWindow` would overwrite what the owner typed in
+/// an appointment's window and hasn't saved (#494): another time somebody proposed, put into its
+/// fields, or the Appointment Recurrence dialog closed with what was filled in.
+pub(crate) fn overwrites_unsaved(app: &MailApp, id: &str, p: &Value) -> bool {
+    match id {
+        "ui.openWindow" if p.get("proposed").is_some_and(Value::is_object) => {
+            let window = p.get("event").and_then(Value::as_u64).and_then(|event| app.windows.of_event(event));
+            app.windows.open.iter().find(|w| Some(w.id) == window).is_some_and(|w| w.what.form().is_some_and(Form::dirty))
+        }
+        "ui.eventWindow" if p.get("recurrence").and_then(Value::as_bool) == Some(false) => {
+            // The window `event_window` acts on.
+            let wanted = p.get("window").and_then(Value::as_u64);
+            let event = app
+                .windows
+                .open
+                .iter()
+                .rev()
+                .filter_map(|w| w.what.form().and_then(Form::event).map(|f| (w.id, f)))
+                .find(|(w, _)| wanted.is_none_or(|id| *w == id));
+            event.is_some_and(|(_, form)| form.recurrence_touched())
+        }
+        _ => false,
+    }
 }
 
 /// The appointments being changed in windows of their own, with changes that aren't saved: an

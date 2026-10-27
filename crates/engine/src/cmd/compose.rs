@@ -79,7 +79,16 @@ pub const LEAVING: [&str; 8] =
 /// first, as a step of its own: undoing what the command did never takes the draft away. A save
 /// that fails fails the command, and nothing changes. (The window asks the owner first.)
 pub fn saves_first(s: &Session, id: &str, params: &Value) -> bool {
-    LEAVING.contains(&id) && p::bool(params, "discard") != Some(true) && s.compose.as_ref().is_some_and(|c| c.dirty)
+    LEAVING.contains(&id)
+        && p::bool(params, "discard") != Some(true)
+        && s.compose.as_ref().is_some_and(|c| c.dirty || (s.agent.is_some() && draft_gone(s, c)))
+}
+
+/// Whether the draft the message being written was last saved as is no longer there (#494): an
+/// agent's undo took it away, or it was deleted for good. What is written is then saved nowhere,
+/// and an agent's command that leaves it saves it to Drafts again first.
+pub fn draft_gone(s: &Session, c: &Compose) -> bool {
+    c.draft.is_some_and(|d| s.mailbox.message(d).is_none())
 }
 
 fn compose_mut(s: &mut Session) -> Result<&mut Compose, CmdError> {

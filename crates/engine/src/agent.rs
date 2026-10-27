@@ -19,7 +19,7 @@
 use mailcraft_model::{FolderKind, Id, Mailbox};
 use serde_json::{Value, json};
 
-use crate::cmd::compose::LEAVING;
+use crate::cmd::compose::{LEAVING, draft_gone};
 use crate::{Session, p};
 
 /// What needs the owner, by kind. `--allow <class>` names them, but for [`Class::Leave`].
@@ -625,8 +625,8 @@ pub fn classify(s: &Session, id: &str, params: &Value) -> Access {
         // away. When the owner wrote in it, the window asks them every time either way, saved or
         // not, until it is closed (#494); an agent's own message, headless too, is the agent's to
         // leave.
-        _ if LEAVING.contains(&id) && s.compose.as_ref().is_some_and(|c| c.dirty || c.owner_changed) => {
-            let lost = s.compose.as_ref().is_some_and(|c| c.dirty) && p::bool(params, "discard") == Some(true);
+        _ if LEAVING.contains(&id) && s.compose.as_ref().is_some_and(|c| c.dirty || c.owner_changed || draft_gone(s, c)) => {
+            let lost = s.compose.as_ref().is_some_and(|c| unsaved_message(s, c)) && p::bool(params, "discard") == Some(true);
             match (writing, lost) {
                 (true, true) => Access::Asked(Class::Delete),
                 (true, false) => Access::Asked(Class::Leave),
@@ -640,6 +640,12 @@ pub fn classify(s: &Session, id: &str, params: &Value) -> Access {
         "ui.closeDialog" | "ui.dialog" if params.get("unsaved").is_some_and(|v| !v.is_null()) => Access::Asked(Class::Delete),
         _ => Access::Safe,
     }
+}
+
+/// Whether what is written in the message isn't all in Drafts: changed since it was saved, or
+/// its draft is gone (#494).
+fn unsaved_message(s: &Session, c: &crate::Compose) -> bool {
+    c.dirty || draft_gone(s, c)
 }
 
 /// Whether the owner wrote in the message being written (#494): it is theirs until it is closed.
@@ -1155,7 +1161,7 @@ fn leaving_text(s: &Session, id: &str, params: &Value) -> String {
     };
     let writing = writing(s);
     // Saved as it is, it stays in Drafts as it was saved, `discard` or not.
-    let saved = s.compose.as_ref().is_some_and(|c| !c.dirty);
+    let saved = s.compose.as_ref().is_some_and(|c| !unsaved_message(s, c));
     let then = if saved { "it stays in Drafts as it was last saved" } else { "what isn't saved of it goes to Drafts first" };
     match (instead.is_empty(), p::bool(params, "discard") == Some(true) && !saved) {
         (true, true) => format!("close the message {writing} without saving what the owner wrote in it"),

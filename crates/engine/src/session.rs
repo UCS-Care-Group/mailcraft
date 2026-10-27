@@ -2070,8 +2070,6 @@ impl Session {
         cur
     }
 
-    /// What undoing (`redo`: redoing) would put back besides mail and the like: the accounts, or
-    /// the rules and signatures, as they were. For the agent gate, which asks the owner first.
     /// Whether undoing the last step (or redoing, `redo`) would take away the event `event` as
     /// it is now (#494: a window of the owner's on it closes with it).
     pub fn undo_removes(&self, redo: bool, event: Id) -> bool {
@@ -2080,6 +2078,8 @@ impl Session {
         uid(&self.mailbox).is_some() && uid(&step.mailbox) != uid(&self.mailbox)
     }
 
+    /// What undoing (`redo`: redoing) would put back besides mail and the like: the accounts, or
+    /// the rules and signatures, as they were. For the agent gate, which asks the owner first.
     pub fn undo_reverts(&self, redo: bool) -> Option<crate::agent::Class> {
         use crate::agent::Class;
         let step = if redo { self.redo.last() } else { self.history.last() }?;
@@ -2211,7 +2211,7 @@ impl Session {
                     && let Some(c) = self.compose.as_mut()
                     && c.dirty
                     && !c.owner_changed
-                    && compose.as_ref() != Some(&*c)
+                    && !compose.as_ref().is_some_and(|before| as_it_was(before, c))
                 {
                     c.owner_changed = true;
                 }
@@ -2264,6 +2264,14 @@ impl Session {
         }
         result
     }
+}
+
+/// Whether the message being written is `before` but for where the cursor is (#494): moving it,
+/// or selecting, isn't writing in it.
+fn as_it_was(before: &Compose, now: &Compose) -> bool {
+    let at = now.body.selection();
+    let mut moved = before.clone();
+    moved.body.select(at.anchor, at.head).is_ok() && moved == *now
 }
 
 /// Commands that remove what is kept of an account on this computer (#177): they leave nothing

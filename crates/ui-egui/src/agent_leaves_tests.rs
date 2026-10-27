@@ -552,3 +552,44 @@ fn nor_one_being_changed_in_the_dialog() {
     assert!(w.state().session.mailbox.event(event).is_some());
     assert!(matches!(&w.state().dialog, Some(Dialog::Form(f)) if f.unsaved().unwrap()["title"].as_str().unwrap().ends_with("(moved)")));
 }
+
+#[test]
+fn an_appointment_being_changed_in_the_dialog_isnt_taken_away_and_nobody_is_asked() {
+    let mut w = testing::window("view.calendar");
+    let event = w.state().session.mailbox.events.values().find(|e| !e.title.is_empty() && e.recurrence.is_none()).unwrap().id;
+    w.state_mut().execute("ui.dialog", json!({"name": "editEvent", "id": event})).unwrap();
+    w.run_steps(3);
+    testing::text(&mut w, " (moved)");
+    // A yes couldn't let it go: the form stays whatever the answer. So there is no question.
+    for allow in [Vec::new(), Class::ALL.to_vec()] {
+        let (now, _) = allowed(w.state_mut(), "calendar.delete", json!({"id": event}), allow);
+        let why = refused(now);
+        assert!(why.contains("the owner is changing in the dialog"), "{why}");
+        assert!(w.state().asking.is_empty());
+    }
+    assert!(w.state().session.mailbox.event(event).is_some());
+    assert!(matches!(&w.state().dialog, Some(Dialog::Form(f)) if f.dirty()));
+}
+
+#[test]
+fn what_the_owner_typed_in_an_appointments_window_isnt_overwritten() {
+    use egui_kittest::kittest::Queryable as _;
+    let mut w = testing::window("view.calendar");
+    let event = w.state().session.mailbox.events.values().find(|e| !e.title.is_empty() && e.recurrence.is_none()).unwrap().id;
+    changing_in_a_window(&mut w, event);
+    let window = w.state().windows.of_event(event).unwrap();
+    // Another time somebody proposed, over the owner's changes.
+    let proposed = json!({"event": event, "proposed": {"start": "2026-10-20T10:00", "end": "2026-10-20T11:00"}});
+    let why = refused(agent(w.state_mut(), "ui.openWindow", proposed).0);
+    assert!(why.contains("overwrite what the owner typed"), "{why}");
+    // The recurrence the owner is filling in.
+    w.state_mut().run("ui.eventWindow", json!({"window": window, "recurrence": true})).unwrap();
+    w.run_steps(3);
+    // It ends after a number of times.
+    let after = w.query_all_by_label_contains("After").last().unwrap().rect();
+    testing::click(&mut w, after.center(), egui::PointerButton::Primary, 1);
+    let why = refused(agent(w.state_mut(), "ui.eventWindow", json!({"window": window, "recurrence": false})).0);
+    assert!(why.contains("overwrite what the owner typed"), "{why}");
+    assert_eq!(w.state_mut().run("ui.eventWindow", json!({"window": window})).unwrap()["recurrence"], true, "still open");
+    assert_eq!(w.state().windows.unsaved(), 1);
+}

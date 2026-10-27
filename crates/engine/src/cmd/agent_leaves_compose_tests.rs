@@ -306,3 +306,38 @@ fn an_agents_command_that_takes_away_an_appointment_the_owner_is_changing_is_und
     run(&mut s, "calendar.delete", json!({"id": event}));
     assert!(s.mailbox.event(event).is_none());
 }
+
+#[test]
+fn a_message_whose_draft_was_taken_away_is_saved_again_before_an_agent_leaves_it() {
+    let mut s = writing();
+    run(&mut s, "compose.saveDraft", json!({}));
+    let draft = s.compose.as_ref().unwrap().draft.unwrap();
+    // An agent's undo takes the saved draft away; the message stays open with what was written.
+    as_agent(&mut s, "edit.undo", json!({}));
+    assert!(s.mailbox.message(draft).is_none() && !s.compose.as_ref().unwrap().dirty);
+    // The question doesn't say it is in Drafts, and `discard` would throw it away.
+    assert_eq!(classify(&s, "mail.new", &json!({})), Access::Asked(Class::Leave));
+    let what = describe(&s, "mail.new", &json!({}));
+    assert!(what.ends_with("what isn't saved of it goes to Drafts first"), "{what}");
+    assert_eq!(classify(&s, "mail.new", &json!({"discard": true})), Access::Asked(Class::Delete));
+    // On the owner's yes it goes to Drafts first.
+    s.agent = Some(vec![Class::Leave]);
+    let r = s.run("mail.new", &json!({}));
+    s.agent = None;
+    r.unwrap();
+    assert!(draft_with(&s, "Mine").is_some());
+}
+
+#[test]
+fn moving_the_cursor_in_the_agents_message_doesnt_make_it_the_owners() {
+    let mut s = session();
+    as_agent(&mut s, "mail.new", json!({}));
+    as_agent(&mut s, "compose.set", json!({"subject": "The agent's", "body": "Written by the agent"}));
+    run(&mut s, "compose.select", json!({"from": 0, "to": 7}));
+    run(&mut s, "compose.select", json!({"from": 3}));
+    assert!(!s.compose.as_ref().unwrap().owner_changed);
+    assert_eq!(classify(&s, "mail.new", &json!({})), Access::Safe);
+    // Typing does.
+    run(&mut s, "compose.type", json!({"text": "and the owner "}));
+    assert_eq!(classify(&s, "mail.new", &json!({})), Access::Asked(Class::Leave));
+}

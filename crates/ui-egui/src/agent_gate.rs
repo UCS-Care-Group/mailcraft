@@ -87,6 +87,9 @@ fn gate(app: &mut MailApp, req: &ControlRequest, id: &str, mut params: Value, al
         params["attendees"] = json!(people);
     }
     let params = as_the_window_has_it(app, id, params);
+    if let Some(why) = overwrites(app, id, &params) {
+        return err(why);
+    }
     match agent::check(&app.session, id, &params, allow) {
         Verdict::Run => run(app, id, params, allow),
         Verdict::Refuse(why) => err(why),
@@ -139,6 +142,33 @@ fn as_the_window_has_it(app: &MailApp, id: &str, mut params: Value) -> Value {
         }
     }
     params
+}
+
+/// Why an agent's command can't run at all while the owner is changing what it would overwrite
+/// or take away (#494): what the owner typed in an appointment's window (`ui.openWindow` of
+/// another time proposed, `ui.eventWindow` closing the recurrence they are filling in), or the
+/// appointment they are changing in the dialog. Nothing in the window can be asked about it: the
+/// form stays whatever the answer.
+fn overwrites(app: &MailApp, id: &str, params: &Value) -> Option<String> {
+    if crate::windows::overwrites_unsaved(app, id, params) {
+        return Some(format!(
+            "`{id}` would overwrite what the owner typed in an appointment's window and hasn't saved; nothing was done. Try again once the owner has saved or closed it"
+        ));
+    }
+    let event = changing_in_the_dialog(app)?;
+    crate::windows::takes_away(app, id, params, event).then(|| {
+        format!(
+            "`{id}` would take away the appointment the owner is changing in the dialog and hasn't saved; nothing was done. Try again once the owner has saved or closed it"
+        )
+    })
+}
+
+/// The appointment the owner is changing in the dialog, with changes that aren't saved.
+fn changing_in_the_dialog(app: &MailApp) -> Option<mailcraft_model::Id> {
+    match &app.dialog {
+        Some(crate::dialogs::Dialog::Form(form)) if form.dirty() => form.event().and_then(|f| f.editing()),
+        _ => None,
+    }
 }
 
 /// Run for an agent: what the command does is held to `allow` (`Session::agent`). A form in the
@@ -194,6 +224,7 @@ pub fn answer(app: &mut MailApp, yes: bool) {
         allow.push(a.class);
         match verdict {
             _ if other => err(format!("what `{}` would close without saving has changed since the owner was asked; nothing was done", a.id)),
+            _ if let Some(why) = overwrites(app, &a.id, &params) => err(why),
             Verdict::Run => run(app, &a.id, params, &allow),
             Verdict::Refuse(why) => err(why),
             Verdict::Ask(..) => err(format!("`{}` would now do more than the owner was asked about; nothing was done", a.id)),

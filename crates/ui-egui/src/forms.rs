@@ -2371,6 +2371,11 @@ mod event {
             self.id
         }
 
+        /// Whether the Appointment Recurrence dialog is open over it with something changed in it.
+        pub fn recurrence_touched(&self) -> bool {
+            self.recurrence.as_ref().is_some_and(RecurrenceDialog::touched)
+        }
+
         /// Whether it is about a meeting (people are invited, or are about to be).
         pub fn is_meeting(&self) -> bool {
             self.meeting
