@@ -2588,7 +2588,7 @@ msgid "Discard"
 msgstr "Scarta"
 
 #. interface
-#: crates/ui-egui/src/reminders.rs
+#: crates/ui-egui/src/reading/warnings.rs crates/ui-egui/src/reminders.rs
 #, fuzzy
 msgid "Dismiss"
 msgstr "Ignora"
@@ -2615,6 +2615,16 @@ msgstr ""
 #, fuzzy
 msgid "Dismiss Update Notice"
 msgstr "Ignora avviso di aggiornamento"
+
+#. command label
+#: crates/engine/src/cmd/mail.rs
+msgid "Dismiss Warnings"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+msgid "Dismiss this warning for this message. It comes back if a new kind of warning appears."
+msgstr ""
 
 #. interface, name
 #: crates/ui-egui/src/credits.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs
@@ -3801,6 +3811,11 @@ msgstr ""
 msgid "Help"
 msgstr "Guida"
 
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+msgid "Hide"
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/calendar_opened.rs
 msgid "Hide Calendar Listed Twice"
@@ -3837,6 +3852,11 @@ msgstr "Nascondi il riquadro delle cartelle"
 #, fuzzy
 msgid "Hide this calendar"
 msgstr "Nascondi questo calendario"
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+msgid "Hide this message's warning again"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/forms.rs
@@ -7091,8 +7111,8 @@ msgstr ""
 "Riquadro\n"
 "di lettura"
 
-#. command label, ribbon
-#: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
+#. command label, ribbon, ribbon location
+#: crates/engine/src/cmd/mail.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Reading Pane"
 msgstr "Riquadro di lettura"
@@ -8554,6 +8574,11 @@ msgstr "Mostra il riquadro delle cartelle"
 #, fuzzy
 msgid "Show this message's pictures, this once. Whoever sent it can then tell that you opened it."
 msgstr "Mostra le immagini di questo messaggio, solo questa volta. Il mittente potrà così sapere che è stato aperto."
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+msgid "Show this message's warning"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs

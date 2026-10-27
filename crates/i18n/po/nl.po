@@ -2619,7 +2619,7 @@ msgid "Discard"
 msgstr "Verwerpen"
 
 #. interface
-#: crates/ui-egui/src/reminders.rs
+#: crates/ui-egui/src/reading/warnings.rs crates/ui-egui/src/reminders.rs
 #, fuzzy
 msgid "Dismiss"
 msgstr "Negeren"
@@ -2646,6 +2646,16 @@ msgstr ""
 #, fuzzy
 msgid "Dismiss Update Notice"
 msgstr "Updatemelding negeren"
+
+#. command label
+#: crates/engine/src/cmd/mail.rs
+msgid "Dismiss Warnings"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+msgid "Dismiss this warning for this message. It comes back if a new kind of warning appears."
+msgstr ""
 
 #. interface, name
 #: crates/ui-egui/src/credits.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs
@@ -3844,6 +3854,11 @@ msgstr ""
 msgid "Help"
 msgstr "Help"
 
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+msgid "Hide"
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/calendar_opened.rs
 #, fuzzy
@@ -3884,6 +3899,11 @@ msgstr "Het mappenvenster verbergen"
 #, fuzzy
 msgid "Hide this calendar"
 msgstr "Deze agenda verbergen"
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+msgid "Hide this message's warning again"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/forms.rs
@@ -7175,8 +7195,8 @@ msgstr ""
 "Lees\n"
 "venster"
 
-#. command label, ribbon
-#: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
+#. command label, ribbon, ribbon location
+#: crates/engine/src/cmd/mail.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Reading Pane"
 msgstr "Leesvenster"
@@ -8663,6 +8683,11 @@ msgstr "Het mappenvenster weergeven"
 #, fuzzy
 msgid "Show this message's pictures, this once. Whoever sent it can then tell that you opened it."
 msgstr "De afbeeldingen van dit bericht deze ene keer weergeven. Degene die het heeft verzonden, kan dan zien dat u het hebt geopend."
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+msgid "Show this message's warning"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs

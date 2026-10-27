@@ -2206,7 +2206,7 @@ msgid "Discard"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/reminders.rs
+#: crates/ui-egui/src/reading/warnings.rs crates/ui-egui/src/reminders.rs
 msgid "Dismiss"
 msgstr ""
 
@@ -2228,6 +2228,16 @@ msgstr ""
 #. command label
 #: crates/ui-egui/src/lib.rs
 msgid "Dismiss Update Notice"
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/mail.rs
+msgid "Dismiss Warnings"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+msgid "Dismiss this warning for this message. It comes back if a new kind of warning appears."
 msgstr ""
 
 #. interface, name
@@ -3226,6 +3236,11 @@ msgstr ""
 msgid "Help"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+msgid "Hide"
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/calendar_opened.rs
 msgid "Hide Calendar Listed Twice"
@@ -3259,6 +3274,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
 msgid "Hide this calendar"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+msgid "Hide this message's warning again"
 msgstr ""
 
 #. interface
@@ -6045,8 +6065,8 @@ msgid ""
 "Pane"
 msgstr ""
 
-#. command label, ribbon
-#: crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
+#. command label, ribbon, ribbon location
+#: crates/engine/src/cmd/mail.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/ribbon.rs
 msgid "Reading Pane"
 msgstr ""
 
@@ -7277,6 +7297,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
 msgid "Show this message's pictures, this once. Whoever sent it can then tell that you opened it."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/warnings.rs
+msgid "Show this message's warning"
 msgstr ""
 
 #. interface

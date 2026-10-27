@@ -389,6 +389,9 @@ const ACCOUNTS: &[&str] = &[
 const MAILBOX: &[&str] = &["file.new", "file.open", "file.save", "file.saveAs"];
 
 const SETTINGS: &[&str] = &[
+    // Hides the sender-warning banner of a message (#508): an agent must not be able to quiet
+    // the owner's phishing warning.
+    "mail.dismissWarnings",
     "file.options",
     "calendar.deleteAnsweredRequests",
     "rules.add",
