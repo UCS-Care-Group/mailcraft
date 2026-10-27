@@ -584,7 +584,15 @@ fn list(app: &mut MailApp, ui: &mut Ui) {
     let rows_end = y;
     let total = y + below;
     let reveal = std::mem::take(&mut app.reveal_selection);
-    let focus = app.session.sel.focus().map(|id| (id, app.session.sel.focus_copy()));
+    // The row the focus is on: the one clicked or stepped to, else the message's first (#503: a
+    // newer message of its open conversation came, and its own row there is another).
+    let focus = app
+        .session
+        .sel
+        .focus()
+        .and_then(|id| mailcraft_engine::list::position_of(&rows, id, app.session.sel.focus_copy()))
+        .and_then(|i| rows.get(i))
+        .map(|r| (r.id, r.copy));
     // What Delete would take, for the rows under an open conversation (#503).
     let taken: HashSet<Id> = if app.session.view.open.is_empty() { HashSet::new() } else { app.session.acting_on_in(&rows).into_iter().collect() };
     let outer = ui.available_rect_before_wrap();
@@ -660,7 +668,7 @@ fn list(app: &mut MailApp, ui: &mut Ui) {
                 );
             }
             let rect = Rect::from_min_size(pos2(origin.x, origin.y + top), vec2(width, row_h));
-            message_row(app, ui, row, rect, &taken);
+            message_row(app, ui, row, rect, &taken, focus);
         }
         if below > 0.0 {
             server_rows::show(app, ui, &local, origin.x, origin.y + rows_end, width, server_h, viewport.translate(origin.to_vec2()));
@@ -807,7 +815,7 @@ pub(crate) fn row_fill(t: &Tokens, follow_up: FollowUp, selected: bool, focus: b
 /// One message in the list: the sender in the larger size, the subject with the time at the end
 /// of its line, then the preview in the dimmer colour; marks at the right of the sender's line,
 /// category marks and the size of a conversation at the right of the preview's.
-fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, taken: &HashSet<Id>) {
+fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, taken: &HashSet<Id>, focus: Option<(Id, u16)>) {
     let t = Tokens::get(ui.ctx());
     // The shared pointer, not a copy of the message.
     let Some(m) = app.session.mailbox.messages.get(&row.id).cloned() else { return };
@@ -862,7 +870,7 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, taken: &Ha
     // as the conversation, and under it the rows of what is taken (#503).
     let selected = app.session.shows_selected(row, taken);
     // The focus is on one of a message's rows: the one clicked or stepped to.
-    let focus = app.session.sel.focus() == Some(row.id) && app.session.sel.focus_copy() == row.copy;
+    let focus = focus == Some((row.id, row.copy));
     let p = ui.painter();
     // The row is what is above the line under it; its content starts a little in from the list's edge.
     let body = Rect::from_min_max(pos2(rect.min.x + ROW_INSET, rect.min.y), pos2(rect.max.x, rect.max.y - 1.0));

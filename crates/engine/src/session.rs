@@ -1391,10 +1391,13 @@ impl Session {
     }
 
     /// The rows of the message list as it was last built, while they are of the list in view: what
-    /// the window shows, which a search's passes over bodies kept on disk may have added to. For a
-    /// caller that can't build them ([`Session::rows`]); `None` when they are of another list.
+    /// the window shows, which a search's passes over bodies kept on disk may have added to, and
+    /// still shows when content was brought into memory since (the reading pane, drawn after the
+    /// list). For a caller that can't build them ([`Session::rows`]); `None` when they are of
+    /// another list.
     pub fn rows_in_view(&self) -> Option<Arc<Vec<Row>>> {
-        self.list_cache.as_ref().filter(|c| c.key == self.list_key()).map(|c| c.rows.clone())
+        let shown = self.shown_key();
+        self.list_cache.as_ref().filter(|c| c.key.split_once('|').is_some_and(|(_, key)| key == shown)).map(|c| c.rows.clone())
     }
 
     /// What the message list is built from, but for the content brought into memory or let go of.
@@ -1422,9 +1425,14 @@ impl Session {
 
     /// The key the message list is kept under ([`Session::rows`]).
     fn list_key(&self) -> String {
-        // Which conversations are open (#503) isn't in the view's settings, and opening one in a
-        // search's list lists what was found again, without searching again.
-        format!("{}|{}|{:?}", self.loads, self.list_state(), self.view.open)
+        format!("{}|{}", self.loads, self.shown_key())
+    }
+
+    /// [`Session::list_key`] but for the content brought into memory or let go of. Which
+    /// conversations are open (#503) isn't in the view's settings, and opening one in a search's
+    /// list lists what was found again, without searching again.
+    fn shown_key(&self) -> String {
+        format!("{}|{:?}", self.list_state(), self.view.open)
     }
 
     /// Keep the word index of the mailbox file ([`crate::words`]) while [`Session::index_words`]
@@ -1937,7 +1945,7 @@ impl Session {
     /// its open conversation there (#503): one gone, taken elsewhere by a run, or left in a folder
     /// the view has left, is let go of.
     fn select_in_view(&mut self) {
-        let outside: Vec<Id> = {
+        let outside: HashSet<Id> = {
             let in_view = crate::list::in_view(self);
             self.sel.messages.iter().copied().filter(|id| !self.mailbox.message(*id).is_some_and(&in_view)).collect()
         };

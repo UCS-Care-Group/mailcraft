@@ -623,8 +623,21 @@ fn conversation_question(app: &MailApp, ids: &[u64]) -> Option<Question> {
     // lists some of their messages, and may list them from other folders.
     let folder_id = s.view.folder;
     let keys: HashSet<(Id, String)> = asking.iter().filter_map(|r| mb.message(r.id)).map(|m| (m.account, m.thread_key())).collect();
-    let whole = picked.iter().all(|id| mb.message(*id).is_some_and(|m| m.folder == folder_id))
-        && !mb.messages.values().any(|m| m.folder == folder_id && !picked.contains(&m.id) && keys.contains(&(m.account, m.thread_key())));
+    let accounts: HashSet<Id> = keys.iter().map(|(a, _)| *a).collect();
+    // What of them stays: in this folder, and in the others the conversation is read from (not
+    // Deleted Items or Junk E-mail), whatever the tab lists.
+    let (mut stays_here, mut stays_elsewhere) = (false, false);
+    for m in mb.messages.values().filter(|m| accounts.contains(&m.account) && !picked.contains(&m.id)) {
+        if !keys.contains(&(m.account, m.thread_key())) {
+            continue;
+        }
+        if m.folder == folder_id {
+            stays_here = true;
+        } else if !mb.conversation_skips(m.account, folder_id).contains(&Some(m.folder)) {
+            stays_elsewhere = true;
+        }
+    }
+    let whole = !stays_here && picked.iter().all(|id| mb.message(*id).is_some_and(|m| m.folder == folder_id));
     let folder = mb.folder(folder_id).map(crate::nav::folder_name).unwrap_or_default();
     let what = match (one, whole) {
         (true, true) => tln!(
@@ -649,9 +662,7 @@ fn conversation_question(app: &MailApp, ids: &[u64]) -> Option<Question> {
         ),
     };
     let mut text = crate::i18n::fmt(&what, &[("folder", folder)]);
-    // Said only when it is so: none of their messages elsewhere was picked as well.
-    let elsewhere = asking.iter().flat_map(|r| &r.others);
-    if elsewhere.clone().next().is_some() && elsewhere.clone().all(|id| !picked.contains(id)) {
+    if stays_elsewhere {
         let stay = if one {
             tl!("Its messages in other folders stay where they are.")
         } else {

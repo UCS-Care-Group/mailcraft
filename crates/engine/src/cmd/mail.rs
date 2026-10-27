@@ -116,6 +116,8 @@ fn select(s: &mut Session, v: &Value) -> CmdResult {
     };
     // Which of the message's rows was clicked, for one listed under several categories.
     let copy = p::u64(v, "copy").and_then(|c| u16::try_from(c).ok()).unwrap_or(0);
+    // Which of their rows the focus and a range's start were on, for those that stay them.
+    let rows_before = [s.sel.focus_row, s.sel.anchor_row];
     // A Ctrl+click or a Shift+click adds to what the list shows selected, never to a message it
     // doesn't show (#485).
     if p::bool(v, "range") == Some(true) || p::bool(v, "extend") == Some(true) {
@@ -141,10 +143,14 @@ fn select(s: &mut Session, v: &Value) -> CmdResult {
         s.sel.whole = ids.iter().copied().filter(|id| placed.heads(*id, if *id == last { copy } else { 0 })).collect();
         s.sel.messages = ids;
     }
-    s.sel.focus_row = s.sel.focus().map(|id| (id, copy));
+    // The row clicked is the message clicked's; another message's is the row it was on, if it
+    // was the focus or a range's start, else its first (#503: a conversation's newest message
+    // has two).
+    let row_of = |id: Id| if id == last { copy } else { rows_before.into_iter().flatten().find(|(x, _)| *x == id).map_or(0, |(_, c)| c) };
+    s.sel.focus_row = s.sel.focus().map(|id| (id, row_of(id)));
     // A range keeps its anchor; any other click is the next one's.
     if p::bool(v, "range") != Some(true) || s.sel.anchor_row.is_none_or(|(id, _)| !s.sel.messages.contains(&id)) {
-        s.sel.anchor_row = s.sel.messages.first().map(|id| (*id, if Some(*id) == s.sel.focus() { copy } else { 0 }));
+        s.sel.anchor_row = s.sel.messages.first().map(|id| (*id, row_of(*id)));
     }
     // Follow the message to its folder (a search result, a conversation member elsewhere), unless
     // it is listed under its open conversation here (#503).

@@ -233,7 +233,10 @@ fn delete_in_the_unread_tab_says_it_takes_what_is_listed_not_the_whole_conversat
     testing::key(&mut w, Key::Delete);
     w.run_steps(3);
     let Some(crate::dialogs::Dialog::Confirm { ask, .. }) = &w.state().dialog else { panic!("no question") };
-    assert_eq!(ask.text, "This deletes the 2 messages of this conversation that are listed here. They go to Deleted Items.");
+    assert_eq!(
+        ask.text,
+        "This deletes the 2 messages of this conversation that are listed here. They go to Deleted Items. Its messages in other folders stay where they are."
+    );
     click(&mut w, "questionAction", 0);
     assert_eq!([kind(&w, newer), kind(&w, older), kind(&w, copy)], [Some(FolderKind::Deleted), Some(FolderKind::Deleted), Some(FolderKind::Inbox)]);
 }

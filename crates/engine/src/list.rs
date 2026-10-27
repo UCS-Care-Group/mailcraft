@@ -294,7 +294,7 @@ pub(crate) fn listing(s: &Session, decided: &HashMap<Id, bool>, searched: &HashM
         // Without a search, the rest of each conversation, in the account's other folders: a
         // reply in Sent Items is part of it (#503). (A search lists what it finds where it looks.)
         if query.is_empty() {
-            elsewhere(s, &me, kept.as_deref(), &index, &mut out);
+            elsewhere(s, &me, kept.as_deref(), &index, &mut out, &mut kept_only);
         }
         let newest = |id: &Id| std::cmp::Reverse(mb.message(*id).map(|m| (when(m), m.id)));
         for row in &mut out {
@@ -328,25 +328,29 @@ pub(crate) fn listing(s: &Session, decided: &HashMap<Id, bool>, searched: &HashM
 /// The messages of the conversations of `rows` in the account's other folders (#503), as the
 /// reading pane's conversation takes them ([`Mailbox::conversation_skips`]: none in Deleted Items
 /// or Junk E-mail, unless the list is of that folder), that the filter in view lists or that stay
-/// in it while selected (`kept`, #428): each in its row's `others`. For a list without a search, all of whose rows are of the folder in view;
-/// `index` is where each conversation's row is, by its account and its key.
+/// in it while selected (`kept`, #428, and then in `kept_only` too): each in its row's `others`.
+/// For a list without a search, all of whose rows are of the folder in view; `index` is where
+/// each conversation's row is, by its account and its key.
 ///
 /// [`Mailbox::conversation_skips`]: mailcraft_model::Mailbox::conversation_skips
-fn elsewhere(s: &Session, me: &[&str], kept: Option<&HashSet<Id>>, index: &HashMap<(Id, String), usize>, rows: &mut [Row]) {
+fn elsewhere(s: &Session, me: &[&str], kept: Option<&HashSet<Id>>, index: &HashMap<(Id, String), usize>, rows: &mut [Row], kept_only: &mut Vec<Id>) {
     let mb = &s.mailbox;
     let folder = s.view.folder;
     let Some(account) = mb.folder(folder).map(|f| f.account) else { return };
     let skips = mb.conversation_skips(account, folder);
     for m in mb.messages.values() {
-        if m.account != account
-            || m.folder == folder
-            || skips.contains(&Some(m.folder))
-            || !(filtered(s, m, me) || kept.is_some_and(|kept| kept.contains(&m.id)))
-        {
+        if m.account != account || m.folder == folder || skips.contains(&Some(m.folder)) {
+            continue;
+        }
+        let hit = filtered(s, m, me);
+        if !hit && !kept.is_some_and(|kept| kept.contains(&m.id)) {
             continue;
         }
         if let Some(row) = index.get(&(m.account, m.thread_key())).and_then(|i| rows.get_mut(*i)) {
             row.others.push(m.id);
+            if !hit {
+                kept_only.push(m.id);
+            }
         }
     }
 }
@@ -420,9 +424,10 @@ fn by_category(s: &Session, shown: &[&Message], desc: bool) -> Vec<Row> {
     out
 }
 
-/// The row a message is in (its first, when it is listed more than once).
+/// The row a message is in (its first, when it is listed more than once): its own before a
+/// conversation's that has it (#503: under its open conversation).
 pub fn position(rows: &[Row], id: Id) -> Option<usize> {
-    rows.iter().position(|r| r.id == id || r.members.contains(&id))
+    rows.iter().position(|r| r.id == id).or_else(|| rows.iter().position(|r| r.members.contains(&id)))
 }
 
 /// The row numbered `copy` of a message's rows, or its first when it has fewer.
