@@ -1036,3 +1036,45 @@ fn mail_from_another_mailbox_doesnt_go_into_an_outbox_where_it_would_be_sent() {
     assert!(s.mailbox.queued.is_empty() && s.mailbox.pending.is_empty());
     assert_eq!((at(&s, two).0, at(&s, mine).1), (a, notes));
 }
+
+#[test]
+fn removing_the_account_mail_was_moved_into_lets_its_original_go_or_brings_it_back() {
+    let delete_asked =
+        |s: &Session, ms: Id| graph_mail_request(s, ms).unwrap().messages.iter().any(|c| matches!(c, MessageChange::Delete { id } if id == "AAkA2"));
+    // From the IMAP account into Microsoft, made there: the original goes from the IMAP server
+    // as it would have.
+    let (mut s, a, _) = imap();
+    let ms = microsoft(&mut s, OWNER);
+    let two = titled(&s, "Two");
+    s.run("mail.move", &json!({"ids": [two], "folder": s.mailbox.folder_of_kind(ms, FolderKind::Inbox).unwrap()})).unwrap();
+    placed(&mut s, ms, OWNER, &[made("AAkA2")]);
+    s.run("account.remove", &json!({"id": ms})).unwrap();
+    assert_eq!(ops(&s, a), [delete(2)]);
+    // Into another IMAP account whose server didn't say where it put it, not come down yet: back
+    // where the first server has it, shown and kept.
+    let (mut s, a, _) = imap();
+    let b = second_imap(&mut s);
+    let (two, inbox) = (titled(&s, "Two"), s.mailbox.folder_of_kind(a, FolderKind::Inbox).unwrap());
+    s.run("mail.move", &json!({"ids": [two], "folder": s.mailbox.folder_of_kind(b, FolderKind::Inbox).unwrap()})).unwrap();
+    let asked = sync_request(&s, b).unwrap();
+    apply_sync(&mut s, SyncResult { account: b, placed: vec![put(&asked, two, 0, 0)], ..Default::default() }).unwrap();
+    s.run("account.remove", &json!({"id": b})).unwrap();
+    assert_eq!(at(&s, two), (a, inbox, 2));
+    assert!(s.mailbox.pending.is_empty() && ops(&s, a).is_empty() && known(&s, a).contains(&2), "{:?}", s.mailbox.pending);
+    // Out of Microsoft into the IMAP account, not known there yet: back in Microsoft as that
+    // server's message, nothing deleted.
+    let (mut s, a, ms, two) = moved_out_of_microsoft(vec![]);
+    let asked = sync_request(&s, a).unwrap();
+    apply_sync(&mut s, SyncResult { account: a, placed: vec![put(&asked, two, 0, 0)], ..Default::default() }).unwrap();
+    s.run("account.remove", &json!({"id": a})).unwrap();
+    let m = s.mailbox.message(two).unwrap();
+    assert_eq!((m.account, m.server.as_ref().map(|x| x.id.as_str())), (ms, Some("AAkA2")));
+    assert!(!delete_asked(&s, ms));
+    // Known there: the original goes from Microsoft as it would have.
+    let (mut s, a, ms, two) = moved_out_of_microsoft(vec![]);
+    let asked = sync_request(&s, a).unwrap();
+    apply_sync(&mut s, SyncResult { account: a, placed: vec![put(&asked, two, 60, 7)], ..Default::default() }).unwrap();
+    s.run("account.remove", &json!({"id": a})).unwrap();
+    assert!(s.mailbox.message(two).is_none());
+    assert!(delete_asked(&s, ms));
+}

@@ -23,6 +23,8 @@
 //!   where the copy is looked for by its marker before it is made again.
 //! - Moved on, deleted or undone meanwhile: a copy made all the same is deleted there again.
 
+use std::collections::HashSet;
+
 use mailcraft_model::sync::{FlagUp, MAX_PLACES, MessageOutcome, PLACE_BYTES, PlaceDone, PlaceUp, ServerMessage};
 use mailcraft_model::{FlagStatus, FolderKind, Id, Mailbox, Message, Pending, Queued, RETURNED_LISTINGS};
 use mailcraft_time::{DateTime, Timestamp};
@@ -205,6 +207,31 @@ pub(crate) fn put_back_waiting(mb: &mut Mailbox, going: impl Fn(&Mailbox, Id, Id
     for (message, copy, from) in waiting {
         mb.queued.retain(|q| !matches!(q, Queued::PlaceMessage { message: other, .. } if *other == message));
         put_back(mb, message, copy, from);
+    }
+}
+
+/// Mail moved into accounts that are about to go (`going`) whose original another account's
+/// server still has, waiting for the copy to be safe where it went (#451): once it is, the
+/// original goes as it would have; until then it never would, so the message goes back to its
+/// original. Either way the original isn't left on its server, shown nowhere.
+pub(crate) fn settle_moves_into(s: &mut Session, going: &HashSet<Id>) {
+    let mb = &s.mailbox;
+    let elsewhere = |m: &Message| {
+        m.moving_out.as_ref().is_some_and(|out| !out.left && !out.id.is_empty() && !going.contains(&out.account))
+            || mb.pending.iter().any(|p| matches!(p, Pending::Move { account, message, .. } if *message == m.id && !going.contains(account)))
+    };
+    let waiting: Vec<(Id, bool)> =
+        mb.messages.values().filter(|m| going.contains(&m.account) && elsewhere(m)).map(|m| (m.id, safe_here(s, m, false))).collect();
+    for (id, safe) in waiting {
+        if !safe {
+            put_back(&mut s.mailbox, id, false, None);
+            continue;
+        }
+        let original = s.mailbox.message(id).and_then(|m| m.moving_out.clone()).filter(|out| !out.left && !going.contains(&out.account));
+        if let Some(out) = original {
+            s.mailbox.queued.push(Queued::DeleteMessage { account: out.account, id: out.id, kept: None });
+        }
+        super::account::original_goes(&mut s.mailbox, id);
     }
 }
 
