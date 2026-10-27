@@ -10379,6 +10379,11 @@ msgid "cancelled"
 msgstr ""
 
 #. what a command says
+#: crates/engine/src/cmd/mail.rs
+msgid "close a conversation first: each of the 1,000 open has a message selected"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/people.rs
 msgid "contact"
 msgstr ""

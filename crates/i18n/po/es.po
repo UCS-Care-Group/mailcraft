@@ -12127,6 +12127,12 @@ msgid "cancelled"
 msgstr ""
 
 #. what a command says
+#: crates/engine/src/cmd/mail.rs
+#, fuzzy
+msgid "close a conversation first: each of the 1,000 open has a message selected"
+msgstr "cierre primero una conversación: cada una de las 1.000 abiertas tiene un mensaje seleccionado"
+
+#. what a command says
 #: crates/engine/src/cmd/people.rs
 #, fuzzy
 msgid "contact"
