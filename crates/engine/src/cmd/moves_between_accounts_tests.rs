@@ -893,3 +893,48 @@ fn moved_to_this_computer_its_original_stays_while_a_file_of_it_cant_be_read_her
     assert_eq!(ops(&s, a), []);
     std::fs::remove_dir_all(&dir).unwrap();
 }
+
+#[test]
+fn moved_on_from_a_copy_made_in_another_microsoft_account_that_copy_goes_only_once_it_is_safe_where_it_goes() {
+    let (mut s, _, kept) = imap();
+    let mine = microsoft(&mut s, OWNER);
+    let other = microsoft(&mut s, "owner@outlook.example");
+    let (inbox, theirs) = (s.mailbox.folder_of_kind(mine, FolderKind::Inbox).unwrap(), s.mailbox.folder_of_kind(other, FolderKind::Inbox).unwrap());
+    let server = mailcraft_model::sync::ServerMessage { id: "AAkA7".into(), folder: "in".into(), ..Default::default() };
+    let body = Body { text: "All of it.".into(), html: None };
+    let m = s.mailbox.add_message(Message { folder: inbox, subject: "Receipt".into(), server: Some(server), body, ..Default::default() }).unwrap();
+    s.run("mail.move", &json!({"ids": [m], "folder": theirs})).unwrap();
+    placed(&mut s, other, "owner@outlook.example", &[made("AAkB1")]);
+    // The first account's run takes the original away now: the copy is there.
+    let asked = graph_mail_request(&s, mine).unwrap().messages;
+    assert!(matches!(asked.as_slice(), [MessageChange::MovedOut { id, .. }] if id == "AAkA7"), "{asked:?}");
+    // Moved on to this computer while that run may be on its way: the copy stands for it on a
+    // server until the message is saved here, and the original goes as it would have.
+    s.run("mail.move", &json!({"ids": [m], "folder": kept})).unwrap();
+    assert!(graph_mail_request(&s, other).unwrap().messages.is_empty());
+    let asked = graph_mail_request(&s, mine).unwrap().messages;
+    assert!(matches!(asked.as_slice(), [MessageChange::Delete { id }] if id == "AAkA7"), "{asked:?}");
+    s.note_saved();
+    let asked = graph_mail_request(&s, other).unwrap().messages;
+    assert!(matches!(asked.as_slice(), [MessageChange::MovedOut { id, .. }] if id == "AAkB1"), "{asked:?}");
+
+    // Back where the original still is: it is the message again, and the copy goes at once.
+    let n = s
+        .mailbox
+        .add_message(Message {
+            folder: inbox,
+            subject: "Again".into(),
+            server: Some(mailcraft_model::sync::ServerMessage { id: "AAkA8".into(), folder: "in".into(), ..Default::default() }),
+            body: Body { text: "Again.".into(), html: None },
+            ..Default::default()
+        })
+        .unwrap();
+    s.run("mail.move", &json!({"ids": [n], "folder": theirs})).unwrap();
+    placed(&mut s, other, "owner@outlook.example", &[made("AAkB2")]);
+    s.run("mail.move", &json!({"ids": [n], "folder": inbox})).unwrap();
+    let back = s.mailbox.message(n).unwrap();
+    assert!(back.server.as_ref().is_some_and(|server| server.id == "AAkA8") && back.moving_out.is_none(), "{back:?}");
+    let asked = graph_mail_request(&s, other).unwrap().messages;
+    assert!(asked.iter().any(|c| matches!(c, MessageChange::Delete { id } if id == "AAkB2")), "{asked:?}");
+    assert!(!graph_mail_request(&s, mine).unwrap().messages.iter().any(|c| matches!(c, MessageChange::Delete { id } if id == "AAkA8")));
+}

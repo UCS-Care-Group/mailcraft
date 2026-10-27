@@ -1899,10 +1899,14 @@ impl Mailbox {
         format!("mailcraft-place-{id:x}-{n:x}-{source:016x}")
     }
 
-    /// `id` is no longer to be made on any server for where it lay: its wait is called off, and a
-    /// copy of it made already in a mailbox it is being moved on from is deleted there (the
-    /// original is still on the server it came from).
-    fn place_called_off(&mut self, id: Id) {
+    /// `id` is no longer to be made on any server for where it lay (it goes into account `to`
+    /// now): its wait is called off. A copy of it made already in a Microsoft mailbox it is being
+    /// moved on from goes from there once the message is safe where it goes, as the original
+    /// would have: the original's own run may be deleting it already (#451), and until then this
+    /// copy is all there is of it on a server. The original, which the copy stands for from now
+    /// on, goes at once. Back into the account where the original still is, the original is the
+    /// message again and this copy goes at once.
+    fn place_called_off(&mut self, id: Id, to: Id) {
         self.queued.retain(|q| !matches!(q, Queued::PlaceMessage { message, .. } if *message == id));
         let elsewhere = self.original_elsewhere(id);
         let Some(m) = self.message(id) else { return };
@@ -1910,17 +1914,19 @@ impl Mailbox {
             return;
         }
         let Some(server) = m.server.as_ref().filter(|s| !s.gone && !s.id.is_empty()) else { return };
-        if m.moving_out.is_none() {
-            // The original is on an IMAP server, whose run may be deleting it already (#451):
-            // this copy goes as that one does, once the message is safe where it goes.
-            let out = crate::sync::MovingOut { account: m.account, id: server.id.clone(), folder: server.folder.clone(), ..Default::default() };
-            if let Ok(m) = self.message_mut(id) {
-                m.moving_out = Some(out);
-            }
+        let copy = crate::sync::MovingOut { account: m.account, id: server.id.clone(), folder: server.folder.clone(), ..Default::default() };
+        let original = m.moving_out.clone();
+        if original.as_ref().is_some_and(|out| out.account == to && !out.left) {
+            self.queued.push(Queued::DeleteMessage { account: copy.account, id: copy.id, kept: None });
             return;
         }
-        let delete = Queued::DeleteMessage { account: m.account, id: server.id.clone(), kept: None };
-        self.queued.push(delete);
+        if let Ok(m) = self.message_mut(id) {
+            m.moving_out = Some(copy);
+        }
+        // (An original on an IMAP server goes by its own account's move out of it.)
+        if let Some(original) = original.filter(|out| !out.left) {
+            self.queued.push(Queued::DeleteMessage { account: original.account, id: original.id, kept: None });
+        }
     }
 
     /// A move between accounts where the server of one of them is told of it: out of a
@@ -1948,7 +1954,7 @@ impl Mailbox {
         // that waits goes on there, or is called off.
         let owner = self.waiting_move(id).and_then(|at| self.pending.get(at)).map(Pending::account);
         if owner == Some(to_account) {
-            self.place_called_off(id);
+            self.place_called_off(id, to_account);
             let (uid, synced) = self.imap_side(id, folder, to_account, remote)?;
             let m = self.message_mut(id)?;
             m.server = None;
@@ -1970,7 +1976,7 @@ impl Mailbox {
                 importance: m.importance,
                 ..Default::default()
             };
-            self.place_called_off(id);
+            self.place_called_off(id, to_account);
             // A copy an IMAP server was given of it already goes from there again.
             self.imap_side(id, folder, to_account, remote)?;
             let m = self.message_mut(id)?;
@@ -1995,7 +2001,7 @@ impl Mailbox {
             });
             let here_only = source.is_none() && m.uid == 0 && (!first || !self.puts_on_server(from_account));
             let from = waited.unwrap_or(here_only.then_some(m.folder));
-            self.place_called_off(id);
+            self.place_called_off(id, to_account);
             let marker = self.place_marker(id, source.as_ref().map_or("", |s| s.id.as_str()));
             let (uid, synced) = self.imap_side(id, folder, to_account, remote)?;
             let m = self.message_mut(id)?;
@@ -2010,15 +2016,15 @@ impl Mailbox {
         }
         if !self.is_graph(from_account) {
             // Out of an IMAP account that was to be given it: it isn't now.
-            self.place_called_off(id);
+            self.place_called_off(id, to_account);
             return Ok(false);
         }
         let first = self.original_elsewhere(id);
         let Some(server) = m.server.clone() else {
-            self.place_called_off(id);
+            self.place_called_off(id, to_account);
             return Ok(false);
         };
-        self.place_called_off(id);
+        self.place_called_off(id, to_account);
         let (uid, synced) = self.imap_side(id, folder, to_account, remote)?;
         let m = self.message_mut(id)?;
         if !server.gone && !first {
