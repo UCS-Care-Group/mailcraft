@@ -86,6 +86,8 @@ fn gate(app: &mut MailApp, req: &ControlRequest, id: &str, mut params: Value, al
         let people = crate::windows::event_window_people(app, &params);
         params["attendees"] = json!(people);
     }
+    // A Delete or Move goes ahead with the messages the question names (#503).
+    agent::pin_targets(&mut app.session, id, &mut params);
     match agent::check(&app.session, id, &params, allow) {
         Verdict::Run => run(app, id, params, allow),
         Verdict::Refuse(why) => err(why),

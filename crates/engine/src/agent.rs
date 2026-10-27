@@ -584,7 +584,7 @@ pub fn classify(s: &Session, id: &str, params: &Value) -> Access {
             if folder.is_some_and(|f| is_outbox(&s.mailbox, f)) { Access::Owner(Class::Send) } else { Access::Safe }
         }
         "mail.delete" => {
-            let ids = p::ids(params).unwrap_or_else(|| s.acting_on_now());
+            let ids = taken(s, params);
             if ids.iter().any(|m| deletes_for_good(&s.mailbox, *m)) { Access::Owner(Class::Delete) } else { Access::Safe }
         }
         "ui.sync" if params.get("password").is_some_and(|v| !v.is_null()) => Access::Owner(Class::Accounts),
@@ -663,6 +663,25 @@ pub enum Verdict {
 }
 
 /// The gate: `allow` is what the owner allowed in advance.
+/// What a Delete or Move takes, read as the command reads it (#503): `ids` strictly, else what the
+/// selection stands for (a closed conversation's row, the messages it shows).
+fn taken(s: &Session, params: &Value) -> Vec<Id> {
+    p::ids_strict(params).ok().flatten().unwrap_or_else(|| s.acting_on_now())
+}
+
+/// Before the owner is asked about an agent's Delete or Move without `ids`, the messages it would
+/// take now are written into its params (#503): it then goes ahead with those the question named,
+/// whatever comes into the conversation meanwhile, and the question counts what a search found
+/// as the list shows it.
+pub fn pin_targets(s: &mut Session, id: &str, params: &mut Value) {
+    if matches!(id, "mail.delete" | "mail.deletePermanently" | "mail.move") && params.is_object() && matches!(p::ids_strict(params), Ok(None)) {
+        let ids = s.acting_on();
+        if !ids.is_empty() {
+            params["ids"] = Value::from(ids);
+        }
+    }
+}
+
 pub fn check(s: &Session, id: &str, params: &Value, allow: &[Class]) -> Verdict {
     if access(id).is_none() {
         return Verdict::Refuse(format!("`{id}` isn't available to agents"));
@@ -798,12 +817,12 @@ pub fn describe(s: &Session, id: &str, params: &Value) -> String {
         },
         "mail.move" | "mail.copy" => {
             // What the command takes: Move a closed conversation's row's messages (#503), Copy the selected ones.
-            let ids = p::ids(params).unwrap_or_else(|| if id == "mail.move" { s.acting_on_now() } else { s.sel.messages.clone() });
+            let ids = if id == "mail.move" { taken(s, params) } else { p::ids(params).unwrap_or_else(|| s.sel.messages.clone()) };
             format!("put {} in the Outbox, which sends them", messages_text(s, &ids))
         }
         "file.import" => "import messages into the Outbox, which sends them".to_string(),
         "mail.delete" | "mail.deletePermanently" => {
-            let ids = p::ids(params).unwrap_or_else(|| s.acting_on_now());
+            let ids = taken(s, params);
             format!("delete {} for good", messages_text(s, &ids))
         }
         "folder.empty" | "folder.delete" => {

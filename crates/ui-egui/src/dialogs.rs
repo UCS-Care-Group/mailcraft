@@ -383,7 +383,9 @@ pub fn confirmation(app: &MailApp, id: &str, params: &Value) -> Option<Question>
             };
             let going: Vec<&mailcraft_model::Message> = ids.iter().filter_map(|id| mb.message(*id)).filter(|m| for_good(m)).collect();
             if going.is_empty() {
-                return (id == "mail.delete").then(|| conversation_question(app, &ids)).flatten();
+                // (Once the owner said yes to it, it isn't asked again; Delete for Good still is, above.)
+                let answered = params.get("conversation").and_then(Value::as_bool) == Some(true);
+                return (id == "mail.delete" && !answered).then(|| conversation_question(app, &ids)).flatten();
             }
             let n = going.len();
             let what = if n == 1 {
@@ -691,9 +693,10 @@ fn conversation_question(app: &MailApp, ids: &[u64]) -> Option<Question> {
     let tick = if owners.len() > 1 { tl!("Don't ask again for these accounts") } else { tl!("Don't ask again for this account") };
     // Turned off only where Account Settings can turn it on again: not for the account on this
     // computer, which has no address and no such page.
-    let settable = owners.iter().all(|o| mb.account(*o).is_some_and(|a| !a.email.is_empty()));
+    let settable = owners.iter().all(|o| mb.account(*o).is_some_and(|a| !a.email.is_empty() && a.kind != mailcraft_model::AccountKind::Unknown));
     let then = owners.into_iter().map(|a| ("account.edit", json!({"id": a, "askBeforeDeletingConversation": false}))).collect();
-    let ask = Question::new(tl!("Delete Conversation"), text, tl!("Delete"), json!({"ids": ids, "confirmed": true}));
+    // It goes ahead with what it counted, asked again only if one of them would now go for good.
+    let ask = Question::new(tl!("Delete Conversation"), text, tl!("Delete"), json!({"ids": ids, "conversation": true}));
     Some(if settable { ask.ticked(tick, then) } else { ask })
 }
 
@@ -766,7 +769,14 @@ pub(crate) fn leave_message(app: &mut MailApp, answer: &str, then: &str, params:
     }
 }
 
-pub(crate) fn go_ahead(app: &mut MailApp, command: &str, params: Value) {
+pub(crate) fn go_ahead(app: &mut MailApp, command: &str, mut params: Value) {
+    // A message a delete's question counted that is gone meanwhile is left out: the rest still go (#503).
+    if matches!(command, "mail.delete" | "mail.deletePermanently")
+        && let Some(ids) = params.get_mut("ids").and_then(Value::as_array_mut)
+    {
+        let mb = &app.session.mailbox;
+        ids.retain(|id| id.as_u64().is_some_and(|id| mb.message(id).is_some()));
+    }
     let opening = command == "ui.openWindow" || input_dialog(command, &params) == Some("editEvent");
     if opening && let Some(event) = params.get("event").or(params.get("id")).and_then(Value::as_u64).or(app.session.sel.event) {
         let one = params.get("scope").and_then(Value::as_str) == Some("occurrence");

@@ -709,3 +709,26 @@ fn a_row_number_of_the_wrong_kind_is_refused() {
         assert!(s.run("mail.select", &json!({"id": newer, "copy": copy})).is_err(), "copy {copy}");
     }
 }
+
+#[test]
+fn an_agents_call_goes_ahead_with_the_messages_its_question_named() {
+    let (mut s, newer, older, reply) = release_checklist();
+    let (inbox, outbox) = (s.view.folder, folder(&s, FolderKind::Outbox));
+    run(&mut s, "mail.select", json!({"id": newer}));
+    let mut params = json!({"folder": outbox});
+    crate::agent::pin_targets(&mut s, "mail.move", &mut params);
+    // A newer message of the conversation comes in before the owner says yes: it isn't sent.
+    let at = s.mailbox.message(newer).map(|m| (m.date + 60, m.received + 60)).unwrap();
+    if let Ok(m) = s.mailbox.message_mut(reply) {
+        (m.date, m.received) = at;
+    }
+    let came = run(&mut s, "mail.copy", json!({"ids": [reply], "folder": inbox}))["copies"][0].as_u64().unwrap();
+    let (what, done) = asked_then_done(&mut s, "mail.move", params);
+    assert_eq!(done["moved"], 2, "{done}");
+    assert!(what.contains("2 messages"), "asked to let it {what}");
+    assert_eq!([folder_of(&s, older), folder_of(&s, came)], [outbox, inbox]);
+    // `ids` are read as the command reads them.
+    let (what, done) = asked_then_done(&mut s, "mail.move", json!({"folder": outbox, "ids": [came as f64]}));
+    assert_eq!(done["moved"], 1, "{done}");
+    assert!(what.contains("1 message"), "asked to let it {what}");
+}

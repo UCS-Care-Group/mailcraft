@@ -281,6 +281,17 @@ fn the_account_on_this_computer_is_asked_with_no_box_as_it_has_no_account_settin
     w.run_steps(3);
     let Some(crate::dialogs::Dialog::Confirm { ask, .. }) = &w.state().dialog else { panic!("no question") };
     assert!(ask.tick.is_none());
+    // Nor for one a newer MailCraft added, which keeps its settings as that one wrote them.
+    let (mut w, newer, _, _) = release_checklist();
+    if let Some(a) = w.state_mut().session.mailbox.accounts.iter_mut().find(|a| a.id == account) {
+        a.kind = mailcraft_model::AccountKind::Unknown;
+    }
+    w.run_steps(3);
+    click(&mut w, "message", newer);
+    testing::key(&mut w, Key::Delete);
+    w.run_steps(3);
+    let Some(crate::dialogs::Dialog::Confirm { ask, .. }) = &w.state().dialog else { panic!("no question") };
+    assert!(ask.tick.is_none());
 }
 
 #[test]
@@ -333,4 +344,58 @@ fn a_question_goes_with_the_mailbox_it_was_asked_about() {
     w.state_mut().execute("file.new", json!({"sample": true})).unwrap();
     w.run_steps(3);
     assert_eq!(testing::dialog(&w), None);
+}
+
+#[test]
+fn the_conversation_question_asks_delete_for_good_for_one_moved_to_deleted_items_meanwhile() {
+    let (mut w, newer, older, _) = release_checklist();
+    let account = w.state().session.mailbox.message(older).unwrap().account;
+    let deleted = w.state().session.mailbox.folder_of_kind(account, FolderKind::Deleted).unwrap();
+    click(&mut w, "message", newer);
+    testing::key(&mut w, Key::Delete);
+    w.run_steps(3);
+    // A script moves one of them to Deleted Items while the question is open.
+    w.state_mut().execute("mail.move", json!({"ids": [older], "folder": deleted})).unwrap();
+    w.run_steps(3);
+    click(&mut w, "questionAction", 0);
+    let Some(crate::dialogs::Dialog::Confirm { ask, .. }) = &w.state().dialog else { panic!("not asked again") };
+    assert_eq!(ask.title, "Delete for Good");
+    assert!(w.state().session.mailbox.message(older).is_some());
+}
+
+#[test]
+fn a_delete_goes_ahead_with_the_rest_when_one_it_counted_is_gone() {
+    let (mut w, newer, older, _) = release_checklist();
+    click(&mut w, "message", newer);
+    testing::key(&mut w, Key::Delete);
+    w.run_steps(3);
+    w.state_mut().execute("mail.deletePermanently", json!({"ids": [older]})).unwrap();
+    w.run_steps(3);
+    click(&mut w, "questionAction", 0);
+    assert_eq!(kind(&w, newer), Some(FolderKind::Deleted));
+}
+
+#[test]
+fn an_agents_delete_for_good_takes_only_what_the_owner_was_asked_about() {
+    let (mut w, newer, older, reply) = release_checklist();
+    let inbox = w.state().session.view.folder;
+    click(&mut w, "message", newer);
+    let (request, answer) = crate::ControlRequest::new("engine.execute", json!({"command": "mail.deletePermanently", "params": {}}));
+    let request = request.from_agent(Vec::new());
+    assert!(matches!(crate::agent_gate::screen(w.state_mut(), &request, &[]), Some(crate::control::Outcome::Pending)));
+    let what = w.state().asking.front().map(|a| a.what.clone()).unwrap();
+    assert!(what.starts_with("delete 2 messages"), "{what}");
+    // A newer message of the conversation comes in before the owner says yes.
+    let s = &mut w.state_mut().session;
+    let at = s.mailbox.message(newer).map(|m| (m.date + 60, m.received + 60)).unwrap();
+    if let Ok(m) = s.mailbox.message_mut(reply) {
+        (m.date, m.received) = at;
+    }
+    let came = w.state_mut().execute("mail.copy", json!({"ids": [reply], "folder": inbox})).unwrap()["copies"][0].as_u64().unwrap();
+    w.run_steps(3);
+    crate::agent_gate::answer(w.state_mut(), true);
+    let done = answer.try_recv().unwrap();
+    let s = &w.state().session;
+    assert!(s.mailbox.message(newer).is_none() && s.mailbox.message(older).is_none(), "{done}");
+    assert!(s.mailbox.message(came).is_some(), "it came while the owner was asked: {done}");
 }
