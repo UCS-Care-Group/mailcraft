@@ -3819,7 +3819,7 @@ fn the_original_under_a_reply_can_be_copied() {
     assert_eq!(harness.state().session.compose.as_ref().unwrap().body.plain(), "Mine alone");
     // So does Copy in its menu.
     menu_click(&mut harness, to);
-    choose(&mut harness, &keyed("Copy", "Ctrl+C"), to);
+    choose(&mut harness, &keyed("Copy", "Mod+C"), to);
     assert_eq!(copied_within(&mut harness, 3).as_deref(), Some("New on"));
     // A click in the owner's text gives it the keyboard back, and Ctrl+C copies its selection.
     let body = harness.state().hit.rect("composeBody", 0).unwrap();
