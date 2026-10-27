@@ -917,3 +917,29 @@ fn the_account_on_this_computer_changes_nothing_but_its_question_before_deleting
     assert!(s.run("account.edit", &json!({"id": local, "name": "Imported", "askBeforeDeletingConversation": false})).is_err());
     assert_eq!(s.mailbox.account(local), Some(&before));
 }
+
+#[test]
+fn an_agents_delete_of_more_messages_than_a_command_names_goes_ahead_with_the_selection() {
+    let mut mb = sample::mailbox(now(), 0);
+    let deleted = mb.folder_of_kind(mb.accounts[0].id, FolderKind::Deleted).unwrap();
+    for i in 0..=crate::p::MAX_IDS as i64 {
+        mb.add_message(Message {
+            folder: deleted,
+            subject: format!("Old {i}"),
+            date: 1_700_000_000 + i,
+            received: 1_700_000_000 + i,
+            ..Default::default()
+        })
+        .unwrap();
+    }
+    let mut s = Session::at(mb, now(), 0);
+    run(&mut s, "folder.select", json!({"id": deleted}));
+    run(&mut s, "mail.selectAll", json!({}));
+    let n = s.sel.messages.len();
+    // Asked about every one, and on the owner's yes it takes the selection, as before (#503).
+    let mut params = json!({});
+    crate::agent::pin_targets(&mut s, "mail.delete", &mut params);
+    let (what, done) = asked_then_done(&mut s, "mail.delete", params);
+    assert!(what.starts_with(&format!("delete {n} messages")), "{what}");
+    assert_eq!(done["permanently"], n, "{done}");
+}
