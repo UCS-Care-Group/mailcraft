@@ -515,6 +515,15 @@ fn put_back_after_a_refused_copy_it_is_kept_should_its_original_go_before_its_se
     let (mut s, ms, two) = refused_after(vec![]);
     s.run("mail.move", &json!({"ids": [two], "folder": s.mailbox.folder_of_kind(ms, FolderKind::Archive).unwrap()})).unwrap();
     assert_eq!(s.mailbox.message(two).unwrap().returned, 0);
+    // A copy of one put back is a message of its own, not one put back.
+    let (mut s, ms, two) = refused_after(vec![]);
+    let local = s.mailbox.local_account();
+    let notes = s.mailbox.add_folder(local, None, "Notes").unwrap();
+    let gmail = s.mailbox.folders.iter().find(|f| f.remote == "INBOX").unwrap().id;
+    for folder in [notes, s.mailbox.folder_of_kind(ms, FolderKind::Archive).unwrap(), gmail] {
+        let copy = s.run("mail.copy", &json!({"ids": [two], "folder": folder})).unwrap()["copies"][0].as_u64().unwrap();
+        assert_eq!((s.mailbox.message(two).unwrap().returned, s.mailbox.message(copy).unwrap().returned), (2, 0));
+    }
 }
 
 #[test]

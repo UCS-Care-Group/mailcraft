@@ -2083,7 +2083,7 @@ impl Mailbox {
             let source = m.server.as_ref().map(|s| s.id.clone()).unwrap_or_default();
             let mut copy = m.clone();
             (copy.id, copy.folder, copy.account, copy.uid, copy.synced) = (0, folder, to_account, 0, None);
-            (copy.server, copy.moving_out) = (None, None);
+            (copy.server, copy.moving_out, copy.returned) = (None, None, 0);
             let new = self.add_message(copy)?;
             let marker = self.place_marker(new, &source);
             self.queued.push(Queued::PlaceMessage { account: to_account, message: new, marker, copy: true, from: None });
@@ -2103,6 +2103,8 @@ impl Mailbox {
         copy.synced = None;
         copy.server = None;
         copy.moving_out = None;
+        // (Put back after a refused copy is said of the message, not of a copy of it.)
+        copy.returned = 0;
         let new = self.add_message(copy)?;
         if let Some(server) = server {
             let to = self.folder(folder).and_then(|f| f.server.as_ref()).map(|s| s.id.clone()).unwrap_or_default();
