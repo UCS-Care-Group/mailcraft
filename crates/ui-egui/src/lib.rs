@@ -59,6 +59,8 @@ mod drag_pointer;
 #[cfg(test)]
 mod drag_pointer_tests;
 pub mod favorites_sync;
+#[cfg(test)]
+mod field_drag_tests;
 pub mod files;
 mod folder_properties;
 pub mod forms;
@@ -124,6 +126,11 @@ pub mod task_sync;
 #[cfg(test)]
 mod task_sync_tests;
 pub mod tasks_view;
+mod text_menu;
+#[cfg(test)]
+mod text_menu_gesture_tests;
+#[cfg(test)]
+mod text_menu_tests;
 pub mod theme;
 pub mod unconfirmed;
 pub mod updates;
@@ -307,8 +314,9 @@ pub struct Services {
     /// UI. Absent in the browser.
     pub admin_consent: Option<Box<dyn Fn(AdminConsentRequest) -> Receiver<AdminConsentAnswer>>>,
     /// Desktop: the system's clipboard for what egui's can't carry, HTML: the body of a message
-    /// being written copies its selection as HTML and text, and pastes HTML when there is some.
-    /// Absent in the browser and the tests: copying and pasting are then text.
+    /// being written copies its selection as HTML and text, and pastes HTML when there is some;
+    /// and the text Paste in a text's menu takes (`text_menu`). Absent in the browser and the
+    /// tests: copying and pasting are then text, and a text's menu has no Paste to offer.
     pub clipboard: Option<Box<dyn RichClipboard>>,
     /// Desktop: what Help › Copy Diagnostics puts on the clipboard (`ui.copyDiagnostics`): the
     /// version, the platform and the end of the logs with addresses, names, paths, hosts, links,
@@ -371,6 +379,33 @@ pub trait RichClipboard {
     fn image(&self) -> Option<Vec<u8>> {
         None
     }
+    /// The text on the clipboard, all of it, for Paste in a text's menu (`text_menu`): a key press
+    /// has the system read it, a menu item has nothing to. The menu then does with it what Ctrl+V
+    /// does with what the system read.
+    fn text(&self) -> Option<String> {
+        None
+    }
+}
+
+/// The largest side of a picture taken from the clipboard, in pixels.
+pub const MAX_PICTURE_SIDE: usize = 4096;
+
+/// A picture from the clipboard, RGBA pixels `width` by `height`, as PNG: what the clipboard's
+/// picture is when it is pasted, by a text's menu (`RichClipboard::image`) or by Ctrl+V
+/// (`egui::Event::PasteImage`). Nothing when it is no picture of a size that is taken.
+pub fn clipboard_picture_png(width: usize, height: usize, rgba: &[u8]) -> Option<Vec<u8>> {
+    if width == 0
+        || height == 0
+        || width > MAX_PICTURE_SIDE
+        || height > MAX_PICTURE_SIDE
+        || rgba.len() != width.checked_mul(height)?.checked_mul(4)?
+    {
+        return None;
+    }
+    let mut out = Vec::new();
+    let encoder = image::codecs::png::PngEncoder::new(&mut out);
+    image::ImageEncoder::write_image(encoder, rgba, u32::try_from(width).ok()?, u32::try_from(height).ok()?, image::ExtendedColorType::Rgba8).ok()?;
+    Some(out)
 }
 
 /// Files delivered asynchronously.
@@ -4014,6 +4049,9 @@ impl MailApp {
         }
         let t = theme::Tokens::get(&ctx);
         self.hit.clear();
+        // What was chosen in a text's menu, for a text of the main window, before anything reads
+        // the input.
+        let menus = text_menu::deliver(&ctx);
         // (Before the shortcuts take their keys.)
         self.by_hand = owner_input(&ctx);
         // The computer may have been carried to another time zone since the last frame: the
@@ -4058,6 +4096,8 @@ impl MailApp {
         sync_panel::show(self, &ctx);
         dialogs::show(self, &ctx);
         reminders::show(self, &ctx);
+        // What was chosen in a text's menu, once everything that has one is drawn.
+        text_menu::carry_out(self, &ctx);
         // Over everything: what an agent wants that needs the owner.
         agent_gate::show(self, &ctx);
         // While messages are dragged: the pointer for what is under it (#430).
@@ -4073,6 +4113,7 @@ impl MailApp {
         reading::images::Pictures::of(&ctx).lock().unwrap_or_else(|e| e.into_inner()).release_unseen(&ctx);
         self.frame_ms = now_ms() - t0;
         self.report_dirty();
+        text_menu::finish(&ctx, menus);
     }
 
     /// The window's close button. MailCraft saves by itself, so closing only waits for a message

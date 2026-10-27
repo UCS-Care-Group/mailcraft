@@ -478,8 +478,10 @@ fn slot_entry(app: &mut MailApp, ui: &mut Ui, rect: Rect, slot: &mut Slot, mark:
     let field = Rect::from_min_max(rect.min, pos2(rect.max.x, rect.max.y.max(rect.min.y + BAR_H)));
     p.rect_filled(field, 2.0, t.surface);
     p.rect_stroke(field, 2.0, Stroke::new(1.5, t.accent), StrokeKind::Inside);
-    // A press anywhere else ends the entry, and what was typed becomes an appointment.
-    let away = ui.input(|i| i.pointer.any_pressed() && i.pointer.interact_pos().is_some_and(|pos| !field.contains(pos)));
+    // A press anywhere else ends the entry, and what was typed becomes an appointment; not one on
+    // the entry's own menu.
+    let on_menu = crate::text_menu::press_on_menu(ui.ctx(), entry);
+    let away = !on_menu && ui.input(|i| i.pointer.any_pressed() && i.pointer.interact_pos().is_some_and(|pos| !field.contains(pos)));
     if away {
         let title = text.trim().to_string();
         slot.text = None;
@@ -492,8 +494,8 @@ fn slot_entry(app: &mut MailApp, ui: &mut Ui, rect: Rect, slot: &mut Slot, mark:
     let mut child = ui.new_child(egui::UiBuilder::new().max_rect(inner).layout(egui::Layout::left_to_right(egui::Align::Center)));
     let edit =
         egui::TextEdit::singleline(text).id(entry).frame(egui::Frame::NONE).desired_width(inner.width()).font(semibold(11.5)).char_limit(MAX_TITLE);
-    let resp = child.add(edit);
-    if resp.lost_focus() {
+    let resp = crate::text_menu::field(child.add(edit));
+    if crate::text_menu::left(&resp) {
         let title = text.trim().to_string();
         slot.text = None;
         return if escape || title.is_empty() { Entry::Stay } else { Entry::Make(title) };

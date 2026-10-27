@@ -219,6 +219,71 @@ fn a_paste_needs_something_to_paste() {
 }
 
 #[test]
+fn html_that_comes_to_nothing_gives_way_to_the_text_and_nothing_changes_nothing() {
+    let mut s = session();
+    run(&mut s, "mail.new", json!({}));
+    run(&mut s, "compose.set", json!({"body": "Plan for Friday"}));
+    run(&mut s, "compose.select", json!({"from": 0, "to": 4}));
+    let picture = "<p><img src=\"https://example.org/picture.png\"></p>";
+    // A picture alone, which a message's text can't take: the text and its selection stay.
+    run(&mut s, "edit.paste", json!({"html": picture}));
+    assert_eq!((compose(&s).body.plain(), compose(&s).body.selection()), ("Plan for Friday".to_string(), Selection { anchor: 0, head: 4 }));
+    // With a text beside it, the text.
+    run(&mut s, "edit.paste", json!({"html": picture, "text": "Agenda"}));
+    assert_eq!(compose(&s).body.plain(), "Agenda for Friday");
+    // Nothing at all changes nothing.
+    run(&mut s, "compose.select", json!({"from": 0, "to": 6}));
+    run(&mut s, "edit.paste", json!({"text": ""}));
+    assert_eq!((compose(&s).body.plain(), compose(&s).body.selection()), ("Agenda for Friday".to_string(), Selection { anchor: 0, head: 6 }));
+}
+
+#[test]
+fn a_text_that_comes_to_nothing_once_cleaned_changes_nothing() {
+    let mut s = session();
+    run(&mut s, "mail.new", json!({}));
+    run(&mut s, "compose.set", json!({"body": "Plan for Friday"}));
+    let picture = "<p><img src=\"https://example.org/picture.png\"></p>";
+    // Characters a text never keeps (a NUL, the object replacement character), alone or beside a
+    // picture alone: nothing is pasted, and the selection stays.
+    for params in [json!({"text": "\u{0}"}), json!({"text": "\u{FFFC}"}), json!({"html": picture, "text": "\u{0}\u{FFFC}"})] {
+        run(&mut s, "compose.select", json!({"from": 0, "to": 4}));
+        run(&mut s, "edit.paste", params.clone());
+        assert_eq!(
+            (compose(&s).body.plain(), compose(&s).body.selection()),
+            ("Plan for Friday".to_string(), Selection { anchor: 0, head: 4 }),
+            "{params}"
+        );
+    }
+}
+
+#[test]
+fn blank_lines_alone_in_html_are_pasted() {
+    let mut s = session();
+    run(&mut s, "mail.new", json!({}));
+    run(&mut s, "compose.set", json!({"body": "Plan for Friday"}));
+    run(&mut s, "compose.select", json!({"from": 0, "to": 4}));
+    // Lines written blank on purpose are something to paste, as they were before; a picture alone
+    // and a text that comes to nothing (above) are not.
+    run(&mut s, "edit.paste", json!({"html": "<div><br></div><div><br></div>"}));
+    let plain = compose(&s).body.plain();
+    assert!(plain.ends_with(" for Friday") && plain.starts_with('\n') && !plain.contains("Plan"), "{plain:?}");
+}
+
+#[test]
+fn html_that_can_be_pasted_is_pasted_beside_a_text_too_long_to_be() {
+    let mut s = session();
+    run(&mut s, "mail.new", json!({}));
+    run(&mut s, "compose.set", json!({"body": "Plan for Friday"}));
+    run(&mut s, "compose.select", json!({"from": 0, "to": 4}));
+    // The text is only what is pasted when the HTML comes to nothing: it is weighed only then.
+    run(&mut s, "edit.paste", json!({"html": "<b>Agenda</b>", "text": "x".repeat(5 << 20)}));
+    assert_eq!(compose(&s).body.plain(), "Agenda for Friday");
+    // Where it is the one pasted, it is weighed.
+    run(&mut s, "compose.select", json!({"from": 0, "to": 6}));
+    assert!(s.run("edit.paste", &json!({"html": "<p><img src=\"https://example.org/p.png\"></p>", "text": "x".repeat(5 << 20)})).is_err());
+}
+
+#[test]
 fn a_reply_is_written_the_way_the_original_was() {
     let mut s = session();
     let plain = s.mailbox.messages.values().find(|m| m.body.html.is_none() && !m.draft).map(|m| m.id).unwrap();
