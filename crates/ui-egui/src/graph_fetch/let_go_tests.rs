@@ -3,7 +3,8 @@
 //! A command that waits for its message to download runs again once it is here (#513). Asked to
 //! let the message being written go (`discard`), it lets go of that one alone, as it was then: a
 //! message opened or changed while it waited is asked about as usual (Unsaved Message), never
-//! thrown away.
+//! thrown away. Nor does what it asks take the place of a form the owner is changing: it waits
+//! for the form to be closed.
 
 use std::sync::mpsc;
 use std::sync::{Arc, Mutex};
@@ -15,6 +16,7 @@ use mailcraft_model::{Body, FolderKind, Message};
 use super::*;
 use crate::Services;
 use crate::dialogs::Dialog;
+use crate::people_view::testing;
 
 type Jobs = Arc<Mutex<Vec<(GraphFetchJob, mpsc::Sender<GraphFetchResult>)>>>;
 
@@ -24,6 +26,12 @@ const NOW: i64 = 1_791_993_600;
 /// here, and a host that keeps every job for the test to answer.
 fn window() -> (MailApp, Id, Jobs) {
     let mut app = MailApp::new(Session::at(mailcraft_model::Mailbox::default(), NOW, 0), Services::default());
+    let (waiting, jobs) = microsoft(&mut app);
+    (app, waiting, jobs)
+}
+
+/// `app` with the account and the message of [`window`].
+fn microsoft(app: &mut MailApp) -> (Id, Jobs) {
     (app.autosave, app.auto_sync) = (false, false);
     let account = app.execute("account.add", json!({"email": "one@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
     let inbox = app.session.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
@@ -50,11 +58,17 @@ fn window() -> (MailApp, Id, Jobs) {
         kept.lock().unwrap().push((job, tx));
         rx
     }));
-    (app, waiting, jobs)
+    (waiting, jobs)
 }
 
 /// Every message asked for comes whole, and the window takes it in.
 fn downloaded(app: &mut MailApp, jobs: &Jobs) {
+    answered(jobs);
+    app.drive_fetch();
+}
+
+/// Every message asked for comes whole, for the window to take in.
+fn answered(jobs: &Jobs) {
     for (job, tx) in std::mem::take(&mut *jobs.lock().unwrap()) {
         let mut result = GraphFetchResult { account: job.request.account, email: job.request.email.clone(), ..Default::default() };
         for id in &job.request.ids {
@@ -63,7 +77,6 @@ fn downloaded(app: &mut MailApp, jobs: &Jobs) {
         }
         let _ = tx.send(result);
     }
-    app.drive_fetch();
 }
 
 /// The owner writes `subject` in the message being written, or in a new one.
@@ -117,4 +130,59 @@ fn the_message_it_was_asked_to_let_go_is_let_go() {
     assert!(app.dialog.is_none(), "as asked: no question");
     assert!(subject(&app).is_some_and(|s| s.contains("Waiting")), "{:?}", subject(&app));
     assert!(!draft_with(&app, "Let go"));
+}
+
+/// A window, frames and all, with the account and the message of [`window`].
+fn drawn() -> (testing::Window, Id, Jobs) {
+    let mut w = testing::window_on(mailcraft_model::Mailbox::default(), "view.mail");
+    let (waiting, jobs) = microsoft(w.state_mut());
+    w.run_steps(3);
+    (w, waiting, jobs)
+}
+
+/// The owner opens the dialog `name` and types `typed` in its first box.
+fn owner_fills(w: &mut testing::Window, name: &str, typed: &str) {
+    w.state_mut().execute("ui.dialog", json!({"name": name})).unwrap();
+    w.run_steps(3);
+    testing::text(w, typed);
+    assert!(matches!(&w.state().dialog, Some(Dialog::Form(f)) if f.dirty()), "{name}");
+}
+
+#[test]
+fn a_form_being_changed_when_it_came_stays_until_it_is_closed() {
+    for name in ["contact", "task", "event"] {
+        let (mut w, waiting, jobs) = drawn();
+        assert_eq!(w.state_mut().run("mail.reply", json!({"id": waiting})).unwrap()["pending"], "download");
+        owner_writes(w.state_mut(), "Mine");
+        owner_fills(&mut w, name, "Ada");
+        answered(&jobs);
+        w.run_steps(5);
+        // Unsaved Message would have taken the form's place, and what was typed in it with it.
+        assert!(matches!(&w.state().dialog, Some(Dialog::Form(f)) if f.dirty()), "{name}: {:?}", w.state().dialog.as_ref().map(|d| d.name()));
+        assert_eq!(subject(w.state()).as_deref(), Some("Mine"), "{name}");
+        // Closed, the reply goes on, and asks about the message being written as usual.
+        w.state_mut().execute("ui.closeDialog", json!({})).unwrap();
+        w.run_steps(3);
+        assert!(matches!(w.state().dialog, Some(Dialog::DiscardDraft { .. })), "{name}");
+        crate::dialogs::leave_message(w.state_mut(), "save", "mail.reply", json!({"id": waiting}));
+        assert!(draft_with(w.state(), "Mine"), "{name}");
+        assert!(subject(w.state()).is_some_and(|s| s.contains("Waiting")), "{name}: {:?}", subject(w.state()));
+    }
+}
+
+#[test]
+fn what_it_was_asked_to_let_go_is_let_go_once_the_form_is_closed() {
+    let (mut w, waiting, jobs) = drawn();
+    owner_writes(w.state_mut(), "Mine");
+    w.state_mut().run("mail.reply", json!({"id": waiting, "discard": true})).unwrap();
+    owner_fills(&mut w, "contact", "Ada");
+    answered(&jobs);
+    w.run_steps(5);
+    assert!(matches!(w.state().dialog, Some(Dialog::Form(_))));
+    assert_eq!(subject(w.state()).as_deref(), Some("Mine"), "waits");
+    w.state_mut().execute("ui.closeDialog", json!({})).unwrap();
+    w.run_steps(3);
+    assert!(w.state().dialog.is_none(), "as asked: no question");
+    assert!(subject(w.state()).is_some_and(|s| s.contains("Waiting")), "{:?}", subject(w.state()));
+    assert!(!draft_with(w.state(), "Mine"));
 }
