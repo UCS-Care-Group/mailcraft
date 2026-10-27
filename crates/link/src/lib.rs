@@ -12,7 +12,7 @@
 //!
 //! The host is lower-cased ASCII. An international label is written in Punycode (RFC 3492) as
 //! `xn--…`, so that a letter from another script that looks like ours shows. There is no
-//! UTS #46 mapping or Unicode normalisation (no tables, no dependency): characters it would map
+//! UTS #46 mapping or Unicode normalisation (no tables for them): characters it would map
 //! (compatibility forms such as `ﬁ` or a full-width `Ａ`, or a letter written as base plus
 //! combining mark) are written as they are, so they give a different `xn--` host from the
 //! composed or plain form, and the label shown is the label launched. A zero-width non-joiner
