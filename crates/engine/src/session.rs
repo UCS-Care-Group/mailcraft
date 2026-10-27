@@ -1966,6 +1966,18 @@ impl Session {
         self.acting_on_in(&rows)
     }
 
+    /// Whether `row` of the list is drawn selected (#503): what Delete and Move take, by the rows
+    /// that show it. A conversation's row when its message is selected, and, while it is open,
+    /// only when it was picked as the conversation; under an open conversation, each row whose
+    /// message is taken (`taken`, [`Session::acting_on_in`]): the row's own when the row was
+    /// picked, and any picked itself.
+    pub fn shows_selected(&self, row: &Row, taken: &HashSet<Id>) -> bool {
+        match row.under {
+            None => self.sel.messages.contains(&row.id) && (!row.open || self.sel.whole.contains(&row.id)),
+            Some(_) => taken.contains(&row.id),
+        }
+    }
+
     /// [`Session::acting_on`], with the list's `rows`.
     pub fn acting_on_in(&self, rows: &[Row]) -> Vec<Id> {
         let whole: HashSet<Id> = self.sel.whole.iter().copied().collect();

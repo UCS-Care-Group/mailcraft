@@ -5,6 +5,8 @@
 //! row counts what opens under it. Closed, Delete and Move on the row take the messages it stands
 //! for in the folder in view, and nothing of it in another folder (#485), as in Outlook.
 
+use std::collections::HashSet;
+
 use mailcraft_model::{Account, AccountKind, FolderKind, Id};
 use mailcraft_time::{Date, DateTime};
 use serde_json::{Value, json};
@@ -217,10 +219,79 @@ fn closing_with_the_focus_under_it_selects_its_row() {
     // The row picked itself stays selected, as the conversation.
     run(&mut s, "mail.select", json!({"id": newer}));
     run(&mut s, "mail.expandConversation", json!({}));
-    run(&mut s, "mail.select", json!({"id": older, "extend": true}));
+    run(&mut s, "mail.select", json!({"id": reply, "extend": true}));
     run(&mut s, "mail.select", json!({"id": other, "extend": true}));
     run(&mut s, "mail.collapseConversation", json!({"id": newer}));
     assert_eq!((s.sel.messages.clone(), s.sel.whole.clone()), (vec![newer, other], vec![newer]));
+}
+
+#[test]
+fn ctrl_click_takes_a_row_drawn_selected_out_and_adds_any_other() {
+    let (mut s, newer, older, reply) = release_checklist();
+    let picked = |s: &Session| (s.sel.messages.clone(), s.sel.whole.clone());
+    // The conversation picked, then opened: its rows in the Inbox under it are drawn selected.
+    run(&mut s, "mail.select", json!({"id": newer}));
+    run(&mut s, "mail.expandConversation", json!({}));
+    // Ctrl+click on the older one takes it out; the newer stays, by itself.
+    run(&mut s, "mail.select", json!({"id": older, "extend": true}));
+    assert_eq!(picked(&s), (vec![newer], vec![]));
+    assert_eq!(s.acting_on(), [newer]);
+    // Ctrl+click on the conversation's row, its message selected by its own row: the conversation.
+    run(&mut s, "mail.select", json!({"id": newer, "extend": true}));
+    assert_eq!(picked(&s), (vec![newer], vec![newer]));
+    assert_eq!(s.acting_on(), [newer, older]);
+    // Ctrl+click on the newer one's own row takes it out; the older stays.
+    run(&mut s, "mail.select", json!({"id": newer, "copy": 1, "extend": true}));
+    assert_eq!(picked(&s), (vec![older], vec![]));
+    // And on the rows not drawn selected adds them, each by itself.
+    run(&mut s, "mail.select", json!({"id": newer, "copy": 1, "extend": true}));
+    run(&mut s, "mail.select", json!({"id": reply, "extend": true}));
+    assert_eq!(picked(&s), (vec![older, newer, reply], vec![]));
+    assert_eq!(s.acting_on(), [older, newer, reply]);
+    // Ctrl+click on the conversation's row while it is picked takes it out.
+    run(&mut s, "mail.select", json!({"id": newer}));
+    run(&mut s, "mail.select", json!({"id": newer, "extend": true}));
+    assert_eq!(picked(&s), (vec![], vec![]));
+}
+
+#[test]
+fn a_shift_range_into_the_open_conversation_is_drawn_without_a_gap() {
+    let (mut s, newer, older, _) = release_checklist();
+    run(&mut s, "mail.select", json!({"id": newer}));
+    run(&mut s, "mail.expandConversation", json!({}));
+    run(&mut s, "mail.select", json!({"id": older, "range": true}));
+    let rows = s.rows();
+    let taken: HashSet<Id> = s.acting_on_in(&rows).into_iter().collect();
+    let drawn: Vec<usize> = (0..rows.len()).filter(|i| s.shows_selected(&rows[*i], &taken)).collect();
+    let from = rows.iter().position(|r| r.id == newer && r.under.is_none()).unwrap();
+    let to = rows.iter().position(|r| r.id == older).unwrap();
+    assert_eq!(drawn, (from..=to).collect::<Vec<_>>(), "{:?}", rows.iter().map(|r| (r.id, r.copy)).collect::<Vec<_>>());
+    // What is drawn is what Delete takes.
+    let mut ids: Vec<Id> = drawn.iter().map(|i| rows[*i].id).collect();
+    ids.sort_unstable();
+    ids.dedup();
+    let mut acting = s.acting_on();
+    acting.sort_unstable();
+    assert_eq!(ids, acting);
+}
+
+#[test]
+fn a_reply_read_in_the_unread_tab_stays_under_its_conversation_while_it_is_selected() {
+    let (mut s, newer, older, reply) = release_checklist();
+    for id in [newer, older, reply] {
+        if let Ok(m) = s.mailbox.message_mut(id) {
+            m.read = false;
+        }
+    }
+    run(&mut s, "view.filter", json!({"value": "unread"}));
+    run(&mut s, "mail.expandConversation", json!({"id": newer}));
+    assert!(under(&mut s, newer).iter().any(|(id, _)| *id == reply));
+    run(&mut s, "mail.select", json!({"id": reply}));
+    assert!(s.mailbox.message(reply).unwrap().read);
+    assert!(under(&mut s, newer).iter().any(|(id, _)| *id == reply), "{:?}", under(&mut s, newer));
+    // Let go of, it leaves, read.
+    run(&mut s, "mail.select", json!({"id": older}));
+    assert!(!under(&mut s, newer).iter().any(|(id, _)| *id == reply));
 }
 
 #[test]

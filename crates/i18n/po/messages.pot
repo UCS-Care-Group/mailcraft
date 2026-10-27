@@ -8243,6 +8243,11 @@ msgid "The contacts you picked"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "The conversations' messages in other folders stay where they are."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/forms.rs
 msgid "The day after"
 msgstr ""
@@ -8612,11 +8617,6 @@ msgstr ""
 msgid "Their details are the same; the kept contact loses nothing."
 msgstr ""
 
-#. interface
-#: crates/ui-egui/src/dialogs.rs
-msgid "Their messages in other folders stay where they are."
-msgstr ""
-
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid "Theme"
@@ -8873,15 +8873,15 @@ msgstr[1] ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
-msgid "This deletes whole conversations: the {n} message of them the search found goes to Deleted Items."
-msgid_plural "This deletes whole conversations: the {n} messages of them the search found go to Deleted Items."
+msgid "This deletes {n} message in {folder}, whole conversations included. It goes to Deleted Items."
+msgid_plural "This deletes {n} messages in {folder}, whole conversations included. They go to Deleted Items."
 msgstr[0] ""
 msgstr[1] ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
-msgid "This deletes whole conversations: their {n} message in {folder} goes to Deleted Items."
-msgid_plural "This deletes whole conversations: their {n} messages in {folder} go to Deleted Items."
+msgid "This deletes {n} message, whole conversations included. It goes to Deleted Items."
+msgid_plural "This deletes {n} messages, whole conversations included. They go to Deleted Items."
 msgstr[0] ""
 msgstr[1] ""
 

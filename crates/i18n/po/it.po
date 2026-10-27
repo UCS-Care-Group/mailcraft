@@ -9661,6 +9661,12 @@ msgid "The contacts you picked"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "The conversations' messages in other folders stay where they are."
+msgstr "I messaggi delle conversazioni in altre cartelle restano dove sono."
+
+#. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "The day after"
@@ -10075,12 +10081,6 @@ msgstr "Anche le {n} cassette postali condivise aperte tramite esso vengono rimo
 msgid "Their details are the same; the kept contact loses nothing."
 msgstr ""
 
-#. interface
-#: crates/ui-egui/src/dialogs.rs
-#, fuzzy
-msgid "Their messages in other folders stay where they are."
-msgstr "I loro messaggi in altre cartelle restano dove sono."
-
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -10376,18 +10376,18 @@ msgstr[1] "Questo elimina l'intera conversazione: i {n} messaggi trovati dalla r
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
-msgid "This deletes whole conversations: the {n} message of them the search found goes to Deleted Items."
-msgid_plural "This deletes whole conversations: the {n} messages of them the search found go to Deleted Items."
-msgstr[0] "Questo elimina intere conversazioni: il {n} messaggio trovato dalla ricerca va in Posta eliminata."
-msgstr[1] "Questo elimina intere conversazioni: i {n} messaggi trovati dalla ricerca vanno in Posta eliminata."
+msgid "This deletes {n} message in {folder}, whole conversations included. It goes to Deleted Items."
+msgid_plural "This deletes {n} messages in {folder}, whole conversations included. They go to Deleted Items."
+msgstr[0] "Questo elimina {n} messaggio in {folder}, conversazioni intere comprese. Va in Posta eliminata."
+msgstr[1] "Questo elimina {n} messaggi in {folder}, conversazioni intere comprese. Vanno in Posta eliminata."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
-msgid "This deletes whole conversations: their {n} message in {folder} goes to Deleted Items."
-msgid_plural "This deletes whole conversations: their {n} messages in {folder} go to Deleted Items."
-msgstr[0] "Questo elimina intere conversazioni: il loro {n} messaggio in {folder} va in Posta eliminata."
-msgstr[1] "Questo elimina intere conversazioni: i loro {n} messaggi in {folder} vanno in Posta eliminata."
+msgid "This deletes {n} message, whole conversations included. It goes to Deleted Items."
+msgid_plural "This deletes {n} messages, whole conversations included. They go to Deleted Items."
+msgstr[0] "Questo elimina {n} messaggio, conversazioni intere comprese. Va in Posta eliminata."
+msgstr[1] "Questo elimina {n} messaggi, conversazioni intere comprese. Vanno in Posta eliminata."
 
 #. name
 #: crates/ui-egui/src/account_setup.rs

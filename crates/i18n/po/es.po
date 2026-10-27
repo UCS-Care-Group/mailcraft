@@ -9663,6 +9663,12 @@ msgid "The contacts you picked"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "The conversations' messages in other folders stay where they are."
+msgstr "Los mensajes de las conversaciones en otras carpetas se quedan donde están."
+
+#. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "The day after"
@@ -10077,12 +10083,6 @@ msgstr "También se quitan de este dispositivo los {n} buzones compartidos abier
 msgid "Their details are the same; the kept contact loses nothing."
 msgstr ""
 
-#. interface
-#: crates/ui-egui/src/dialogs.rs
-#, fuzzy
-msgid "Their messages in other folders stay where they are."
-msgstr "Sus mensajes en otras carpetas se quedan donde están."
-
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -10378,18 +10378,18 @@ msgstr[1] "Esto elimina la conversación entera: los {n} mensajes de ella que en
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
-msgid "This deletes whole conversations: the {n} message of them the search found goes to Deleted Items."
-msgid_plural "This deletes whole conversations: the {n} messages of them the search found go to Deleted Items."
-msgstr[0] "Esto elimina conversaciones enteras: el {n} mensaje de ellas que encontró la búsqueda va a Elementos eliminados."
-msgstr[1] "Esto elimina conversaciones enteras: los {n} mensajes de ellas que encontró la búsqueda van a Elementos eliminados."
+msgid "This deletes {n} message in {folder}, whole conversations included. It goes to Deleted Items."
+msgid_plural "This deletes {n} messages in {folder}, whole conversations included. They go to Deleted Items."
+msgstr[0] "Esto elimina {n} mensaje en {folder}, incluidas conversaciones enteras. Va a Elementos eliminados."
+msgstr[1] "Esto elimina {n} mensajes en {folder}, incluidas conversaciones enteras. Van a Elementos eliminados."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
-msgid "This deletes whole conversations: their {n} message in {folder} goes to Deleted Items."
-msgid_plural "This deletes whole conversations: their {n} messages in {folder} go to Deleted Items."
-msgstr[0] "Esto elimina conversaciones enteras: su {n} mensaje en {folder} va a Elementos eliminados."
-msgstr[1] "Esto elimina conversaciones enteras: sus {n} mensajes en {folder} van a Elementos eliminados."
+msgid "This deletes {n} message, whole conversations included. It goes to Deleted Items."
+msgid_plural "This deletes {n} messages, whole conversations included. They go to Deleted Items."
+msgstr[0] "Esto elimina {n} mensaje, incluidas conversaciones enteras. Va a Elementos eliminados."
+msgstr[1] "Esto elimina {n} mensajes, incluidas conversaciones enteras. Van a Elementos eliminados."
 
 #. name
 #: crates/ui-egui/src/account_setup.rs

@@ -112,7 +112,11 @@ fn delete_on_a_closed_conversation_asks_first_then_deletes_it_in_this_folder() {
     click(&mut w, "message", newer);
     testing::key(&mut w, Key::Delete);
     w.run_steps(3);
-    assert_eq!(testing::dialog(&w), Some("confirm"));
+    let Some(crate::dialogs::Dialog::Confirm { ask, .. }) = &w.state().dialog else { panic!("no question") };
+    assert_eq!(
+        ask.text,
+        "This deletes the whole conversation: its 2 messages in Inbox go to Deleted Items. Its messages in other folders stay where they are."
+    );
     assert_eq!([kind(&w, newer), kind(&w, older)], [Some(FolderKind::Inbox), Some(FolderKind::Inbox)], "nothing goes before the answer");
     // Cancel deletes nothing.
     click(&mut w, "questionCancel", 0);
@@ -153,19 +157,32 @@ fn dont_ask_again_turns_the_question_off_for_the_account() {
 }
 
 #[test]
-fn a_right_click_on_the_newer_messages_own_row_acts_on_it_alone() {
+fn a_right_click_keeps_the_rows_drawn_selected_and_picks_any_other() {
     let (mut w, newer, older, _) = release_checklist();
-    // The conversation's row picked, then opened: the newer message's own row is under it.
+    // The conversation's row picked, then opened: the newer message's own row under it is drawn
+    // selected too, being one of what the row stands for.
     click(&mut w, "message", newer);
     click(&mut w, "conversationArrow", newer);
-    assert_eq!(w.state().session.sel.whole, [newer]);
     let arrow = w.state().hit.rect("conversationArrow", newer).unwrap();
     let below = w.state().hit.rect("message", older).unwrap();
+    let head = egui::pos2(below.center().x, arrow.center().y);
     let own = egui::pos2(below.center().x, arrow.center().y + below.height());
+    let picked = |w: &testing::Window| {
+        let s = &w.state().session;
+        (s.sel.messages.clone(), s.sel.whole.clone(), s.sel.focus_copy())
+    };
     testing::click(&mut w, own, PointerButton::Secondary, 1);
     w.run_steps(3);
-    let s = &w.state().session;
-    assert_eq!((s.sel.messages.clone(), s.sel.whole.clone(), s.sel.focus_copy()), (vec![newer], vec![], 1));
+    assert_eq!(picked(&w), (vec![newer], vec![newer], 0));
+    testing::key(&mut w, Key::Escape);
+    w.run_steps(2);
+    // Its own row picked alone, a right click on the conversation's row picks the conversation.
+    testing::click(&mut w, own, PointerButton::Primary, 1);
+    w.run_steps(3);
+    assert_eq!(picked(&w), (vec![newer], vec![], 1));
+    testing::click(&mut w, head, PointerButton::Secondary, 1);
+    w.run_steps(3);
+    assert_eq!(picked(&w), (vec![newer], vec![newer], 0));
     testing::key(&mut w, Key::Escape);
     w.run_steps(2);
 }
@@ -180,6 +197,21 @@ fn delete_during_a_search_asks_about_what_the_search_found() {
     w.run_steps(3);
     let Some(crate::dialogs::Dialog::Confirm { ask, .. }) = &w.state().dialog else { panic!("no question") };
     assert!(ask.text.contains("the 3 messages of it the search found") && !ask.text.contains("Inbox"), "{}", ask.text);
+    click(&mut w, "questionAction", 0);
+    assert_eq!([kind(&w, newer), kind(&w, older), kind(&w, reply)], [Some(FolderKind::Deleted); 3]);
+}
+
+#[test]
+fn delete_with_the_reply_picked_as_well_asks_about_every_message_and_says_none_stays() {
+    let (mut w, newer, older, reply) = release_checklist();
+    click(&mut w, "message", newer);
+    click(&mut w, "conversationArrow", newer);
+    w.state_mut().execute("mail.select", json!({"id": reply, "extend": true})).unwrap();
+    w.run_steps(3);
+    testing::key(&mut w, Key::Delete);
+    w.run_steps(3);
+    let Some(crate::dialogs::Dialog::Confirm { ask, .. }) = &w.state().dialog else { panic!("no question") };
+    assert_eq!(ask.text, "This deletes 3 messages, whole conversations included. They go to Deleted Items.");
     click(&mut w, "questionAction", 0);
     assert_eq!([kind(&w, newer), kind(&w, older), kind(&w, reply)], [Some(FolderKind::Deleted); 3]);
 }

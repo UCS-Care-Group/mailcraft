@@ -294,7 +294,7 @@ pub(crate) fn listing(s: &Session, decided: &HashMap<Id, bool>, searched: &HashM
         // Without a search, the rest of each conversation, in the account's other folders: a
         // reply in Sent Items is part of it (#503). (A search lists what it finds where it looks.)
         if query.is_empty() {
-            elsewhere(s, &me, &index, &mut out);
+            elsewhere(s, &me, kept.as_deref(), &index, &mut out);
         }
         let newest = |id: &Id| std::cmp::Reverse(mb.message(*id).map(|m| (when(m), m.id)));
         for row in &mut out {
@@ -327,18 +327,22 @@ pub(crate) fn listing(s: &Session, decided: &HashMap<Id, bool>, searched: &HashM
 
 /// The messages of the conversations of `rows` in the account's other folders (#503), as the
 /// reading pane's conversation takes them ([`Mailbox::conversation_skips`]: none in Deleted Items
-/// or Junk E-mail, unless the list is of that folder), that the filter in view lists: each in its
-/// row's `others`. For a list without a search, all of whose rows are of the folder in view;
+/// or Junk E-mail, unless the list is of that folder), that the filter in view lists or that stay
+/// in it while selected (`kept`, #428): each in its row's `others`. For a list without a search, all of whose rows are of the folder in view;
 /// `index` is where each conversation's row is, by its account and its key.
 ///
 /// [`Mailbox::conversation_skips`]: mailcraft_model::Mailbox::conversation_skips
-fn elsewhere(s: &Session, me: &[&str], index: &HashMap<(Id, String), usize>, rows: &mut [Row]) {
+fn elsewhere(s: &Session, me: &[&str], kept: Option<&HashSet<Id>>, index: &HashMap<(Id, String), usize>, rows: &mut [Row]) {
     let mb = &s.mailbox;
     let folder = s.view.folder;
     let Some(account) = mb.folder(folder).map(|f| f.account) else { return };
     let skips = mb.conversation_skips(account, folder);
     for m in mb.messages.values() {
-        if m.account != account || m.folder == folder || skips.contains(&Some(m.folder)) || !filtered(s, m, me) {
+        if m.account != account
+            || m.folder == folder
+            || skips.contains(&Some(m.folder))
+            || !(filtered(s, m, me) || kept.is_some_and(|kept| kept.contains(&m.id)))
+        {
             continue;
         }
         if let Some(row) = index.get(&(m.account, m.thread_key())).and_then(|i| rows.get_mut(*i)) {
@@ -352,9 +356,10 @@ fn elsewhere(s: &Session, me: &[&str], index: &HashMap<(Id, String), usize>, row
 /// conversation's row.
 fn opened(s: &Session, rows: Vec<Row>) -> Vec<Row> {
     let mb = &s.mailbox;
+    let open: HashSet<&(Id, String)> = s.view.open.iter().collect();
     let mut out = Vec::with_capacity(rows.len());
     for mut row in rows {
-        row.open = row.conversation() && mb.message(row.id).is_some_and(|m| s.view.open.contains(&(m.account, m.thread_key())));
+        row.open = row.conversation() && mb.message(row.id).is_some_and(|m| open.contains(&(m.account, m.thread_key())));
         if !row.open {
             out.push(row);
             continue;

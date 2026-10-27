@@ -613,39 +613,43 @@ fn conversation_question(app: &MailApp, ids: &[u64]) -> Option<Question> {
     if asking.is_empty() {
         return None;
     }
-    let n: usize = asking.iter().map(|r| r.members.len()).sum();
+    // Every message that goes is counted: one conversation's alone, or all that is selected.
+    let one = asking.len() == 1 && picked.len() == asking.iter().map(|r| r.members.len()).sum::<usize>();
+    let n = picked.len();
     // A search lists what it finds wherever it looks: the folder is named only when it is the
     // one in view for every message.
-    let in_view = asking.iter().flat_map(|r| &r.members).all(|id| mb.message(*id).is_some_and(|m| m.folder == s.view.folder));
+    let in_view = picked.iter().all(|id| mb.message(*id).is_some_and(|m| m.folder == s.view.folder));
     let folder = mb.folder(s.view.folder).map(crate::nav::folder_name).unwrap_or_default();
-    let what = match (asking.len() == 1, in_view) {
+    let what = match (one, in_view) {
         (true, true) => tln!(
             n,
             "This deletes the whole conversation: its {n} message in {folder} goes to Deleted Items.",
             "This deletes the whole conversation: its {n} messages in {folder} go to Deleted Items."
-        ),
-        (false, true) => tln!(
-            n,
-            "This deletes whole conversations: their {n} message in {folder} goes to Deleted Items.",
-            "This deletes whole conversations: their {n} messages in {folder} go to Deleted Items."
         ),
         (true, false) => tln!(
             n,
             "This deletes the whole conversation: the {n} message of it the search found goes to Deleted Items.",
             "This deletes the whole conversation: the {n} messages of it the search found go to Deleted Items."
         ),
+        (false, true) => tln!(
+            n,
+            "This deletes {n} message in {folder}, whole conversations included. It goes to Deleted Items.",
+            "This deletes {n} messages in {folder}, whole conversations included. They go to Deleted Items."
+        ),
         (false, false) => tln!(
             n,
-            "This deletes whole conversations: the {n} message of them the search found goes to Deleted Items.",
-            "This deletes whole conversations: the {n} messages of them the search found go to Deleted Items."
+            "This deletes {n} message, whole conversations included. It goes to Deleted Items.",
+            "This deletes {n} messages, whole conversations included. They go to Deleted Items."
         ),
     };
     let mut text = crate::i18n::fmt(&what, &[("folder", folder)]);
-    if asking.iter().any(|r| !r.others.is_empty()) {
-        let stay = if asking.len() == 1 {
+    // Said only when it is so: none of their messages elsewhere was picked as well.
+    let elsewhere = asking.iter().flat_map(|r| &r.others);
+    if elsewhere.clone().next().is_some() && elsewhere.clone().all(|id| !picked.contains(id)) {
+        let stay = if one {
             tl!("Its messages in other folders stay where they are.")
         } else {
-            tl!("Their messages in other folders stay where they are.")
+            tl!("The conversations' messages in other folders stay where they are.")
         };
         text = format!("{text} {stay}");
     }

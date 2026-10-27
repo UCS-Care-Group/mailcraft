@@ -3,6 +3,7 @@
 //! Mail: selecting, reading, filing, flagging and deleting messages.
 
 use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
 
 use mailcraft_model::{FlagStatus, FolderKind, Id, Rgb};
 use serde_json::{Value, json};
@@ -131,25 +132,13 @@ fn select(s: &mut Session, v: &Value) -> CmdResult {
             s.sel.whole = heads_in(&rows, a, b);
         }
     } else if p::bool(v, "extend") == Some(true) {
-        let heads = heads_of(s);
+        let placed = Placed::of(s);
         for id in ids {
-            match s.sel.messages.iter().position(|x| *x == id) {
-                // Ctrl-click on a selected message takes it out again.
-                Some(i) => {
-                    s.sel.messages.remove(i);
-                    s.sel.whole.retain(|x| *x != id);
-                }
-                None => {
-                    s.sel.messages.push(id);
-                    if heads(id, if id == last { copy } else { 0 }) {
-                        s.sel.whole.push(id);
-                    }
-                }
-            }
+            ctrl_click(s, &placed, id, if id == last { copy } else { 0 });
         }
     } else {
-        let heads = heads_of(s);
-        s.sel.whole = ids.iter().copied().filter(|id| heads(*id, if *id == last { copy } else { 0 })).collect();
+        let placed = Placed::of(s);
+        s.sel.whole = ids.iter().copied().filter(|id| placed.heads(*id, if *id == last { copy } else { 0 })).collect();
         s.sel.messages = ids;
     }
     s.sel.focus_row = s.sel.focus().map(|id| (id, copy));
@@ -231,19 +220,76 @@ fn span(rows: &[Row], anchor: Id, a: usize, focus: Id, b: usize) -> Vec<Id> {
     picked
 }
 
-/// Whether row `copy` of message `id` is its conversation's row (#503): selected by that row, the
-/// message stands for every message the row does. Where each message's rows are is worked out
-/// once, for as many as a selection names.
-fn heads_of(s: &mut Session) -> impl Fn(Id, u16) -> bool + use<> {
-    let rows = if s.view.conversations { s.rows() } else { Default::default() };
-    let (mut exact, mut first) = (HashMap::new(), HashMap::new());
-    for (i, r) in rows.iter().enumerate() {
-        exact.entry((r.id, r.copy)).or_insert(i);
-        first.entry(r.id).or_insert(i);
+/// The rows of a list in conversation view (#503), and where each message's rows are in it,
+/// worked out once for as many messages as a selection names.
+struct Placed {
+    rows: Arc<Vec<Row>>,
+    exact: HashMap<(Id, u16), usize>,
+    first: HashMap<Id, usize>,
+}
+
+impl Placed {
+    fn of(s: &mut Session) -> Placed {
+        let rows = if s.view.conversations { s.rows() } else { Arc::default() };
+        let (mut exact, mut first) = (HashMap::new(), HashMap::new());
+        for (i, r) in rows.iter().enumerate() {
+            exact.entry((r.id, r.copy)).or_insert(i);
+            first.entry(r.id).or_insert(i);
+        }
+        Placed { rows, exact, first }
     }
-    // As `position_of` finds it: the row numbered `copy`, else the message's first. (A message
-    // can't be listed in another's row and have one of its own.)
-    move |id, copy| exact.get(&(id, copy)).or_else(|| first.get(&id)).and_then(|i| rows.get(*i)).is_some_and(|r| r.id == id && r.conversation())
+
+    /// Row `copy` of message `id`, else its first one, as [`position_of`] finds it. (A message
+    /// can't be listed in another's row and have one of its own.)
+    fn row(&self, id: Id, copy: u16) -> Option<&Row> {
+        self.exact.get(&(id, copy)).or_else(|| self.first.get(&id)).and_then(|i| self.rows.get(*i))
+    }
+
+    /// Whether row `copy` of message `id` is its conversation's row: selected by that row, the
+    /// message stands for every message the row does.
+    fn heads(&self, id: Id, copy: u16) -> bool {
+        self.row(id, copy).is_some_and(|r| r.id == id && r.conversation())
+    }
+}
+
+/// A Ctrl+click on row `copy` of message `id`: a row drawn selected leaves the selection, and any
+/// other joins it. By rows, as they are drawn (#503: [`Session::shows_selected`]): a
+/// conversation's row and its newest message's own row under it are two rows of one message.
+fn ctrl_click(s: &mut Session, placed: &Placed, id: Id, copy: u16) {
+    let row = placed.row(id, copy).filter(|r| r.id == id);
+    // A row under an open conversation that was picked as the conversation: the rest of the
+    // conversation stays selected, each message by itself.
+    let picked = row
+        .and_then(|r| r.under)
+        .filter(|h| s.sel.whole.contains(h) && s.sel.messages.contains(h))
+        .and_then(|h| placed.row(h, 0))
+        .filter(|head| head.under.is_none() && head.members.contains(&id));
+    if let Some(head) = picked {
+        s.sel.whole.retain(|x| *x != head.id);
+        let rest: Vec<Id> = head.members.iter().copied().filter(|m| *m != id && (*m == head.id || !s.sel.messages.contains(m))).collect();
+        if let Some(i) = s.sel.messages.iter().position(|x| *x == head.id) {
+            s.sel.messages.splice(i..=i, rest);
+        }
+        return;
+    }
+    let selected = s.sel.messages.contains(&id);
+    let shown = selected && row.is_none_or(|r| r.under.is_some() || !r.open || s.sel.whole.contains(&id));
+    if shown {
+        s.sel.messages.retain(|x| *x != id);
+        s.sel.whole.retain(|x| *x != id);
+    } else if let Some(r) = row.filter(|_| selected) {
+        // Its other row was the one selected: this one is, instead.
+        if r.under.is_none() {
+            s.sel.whole.push(id);
+        } else {
+            s.sel.whole.retain(|x| *x != id);
+        }
+    } else {
+        s.sel.messages.push(id);
+        if placed.heads(id, copy) {
+            s.sel.whole.push(id);
+        }
+    }
 }
 
 /// The messages of rows `a` to `b` selected by their conversation's row (#503).

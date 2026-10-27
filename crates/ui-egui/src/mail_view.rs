@@ -5,6 +5,7 @@
 //! The message list is laid out to the pixel from classic Outlook's at 100 %: every number below
 //! is a distance measured there, in points (pixels at 100 %).
 
+use std::collections::HashSet;
 use std::sync::Arc;
 
 use egui::{Align2, Color32, Rect, Sense, Stroke, Ui, pos2, vec2};
@@ -584,6 +585,8 @@ fn list(app: &mut MailApp, ui: &mut Ui) {
     let total = y + below;
     let reveal = std::mem::take(&mut app.reveal_selection);
     let focus = app.session.sel.focus().map(|id| (id, app.session.sel.focus_copy()));
+    // What Delete would take, for the rows under an open conversation (#503).
+    let taken: HashSet<Id> = if app.session.view.open.is_empty() { HashSet::new() } else { app.session.acting_on_in(&rows).into_iter().collect() };
     let outer = ui.available_rect_before_wrap();
     // Page Up and Page Down move by the rows that fit (#426).
     app.list_page_rows = ((outer.height() / row_h).floor() as usize).max(1);
@@ -657,7 +660,7 @@ fn list(app: &mut MailApp, ui: &mut Ui) {
                 );
             }
             let rect = Rect::from_min_size(pos2(origin.x, origin.y + top), vec2(width, row_h));
-            message_row(app, ui, row, rect);
+            message_row(app, ui, row, rect, &taken);
         }
         if below > 0.0 {
             server_rows::show(app, ui, &local, origin.x, origin.y + rows_end, width, server_h, viewport.translate(origin.to_vec2()));
@@ -804,7 +807,7 @@ pub(crate) fn row_fill(t: &Tokens, follow_up: FollowUp, selected: bool, focus: b
 /// One message in the list: the sender in the larger size, the subject with the time at the end
 /// of its line, then the preview in the dimmer colour; marks at the right of the sender's line,
 /// category marks and the size of a conversation at the right of the preview's.
-fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect) {
+fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, taken: &HashSet<Id>) {
     let t = Tokens::get(ui.ctx());
     // The shared pointer, not a copy of the message.
     let Some(m) = app.session.mailbox.messages.get(&row.id).cloned() else { return };
@@ -855,15 +858,9 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect) {
         app.hit.add("messageFlag", row.id, flag_rect);
         (delete, flag)
     });
-    // An open conversation's row is selected when it was picked as the conversation, the newest
-    // message's own row under it when that message was picked alone (#503).
-    let whole = app.session.sel.whole.contains(&row.id);
-    let selected = app.session.sel.messages.contains(&row.id)
-        && match row.under {
-            Some(head) if head == row.id => !whole,
-            Some(_) => true,
-            None => !row.open || whole,
-        };
+    // What Delete takes is what is drawn selected: an open conversation's row when it was picked
+    // as the conversation, and under it the rows of what is taken (#503).
+    let selected = app.session.shows_selected(row, taken);
     // The focus is on one of a message's rows: the one clicked or stepped to.
     let focus = app.session.sel.focus() == Some(row.id) && app.session.sel.focus_copy() == row.copy;
     let p = ui.painter();
