@@ -581,6 +581,40 @@ fn add_shared_mailbox_waits_for_a_sign_in_being_renewed() {
 }
 
 #[test]
+fn a_shared_mailbox_problem_names_the_mailbox_and_says_what_happens_next() {
+    let (mut app, _, answers, _, _) = window();
+    let shared = app.execute("account.addSharedMailbox", json!({"address": SHARED})).unwrap()["id"].as_u64().unwrap();
+    // A passing error: tried again at the next Send/Receive.
+    let passing = GraphMailResult {
+        account: shared,
+        email: SHARED.into(),
+        errors: vec!["Couldn't bring the folders in step with Microsoft: nothing found.".into()],
+        ..Default::default()
+    };
+    answers.lock().unwrap().push_back((GraphResult { account: shared, ..Default::default() }, vec![passing]));
+    app.execute("ui.sync", json!({"account": shared})).unwrap();
+    app.poll_graph();
+    let said = app.session.sync_status.clone();
+    assert!(said.contains(SHARED) && said.contains("try again at the next Send/Receive"), "{said}");
+    assert!(!app.shared_refused.contains_key(&shared));
+    // A real refusal: the address, the help, and File > Info.
+    let refused = GraphMailResult {
+        account: shared,
+        email: SHARED.into(),
+        refused: Some(mailcraft_model::sync::SharedRefusal::NoMailbox),
+        errors: vec!["Microsoft has no mailbox at this address.".into()],
+        ..Default::default()
+    };
+    answers.lock().unwrap().push_back((GraphResult { account: shared, ..Default::default() }, vec![refused]));
+    app.execute("ui.sync", json!({"account": shared})).unwrap();
+    app.poll_graph();
+    let said = app.session.sync_status.clone();
+    assert!(said.contains(SHARED) && said.contains("no mailbox at this address") && said.contains("File › Info"), "{said}");
+    assert!(app.shared_refused.contains_key(&shared) && !said.contains("try again at the next"));
+    no_imap();
+}
+
+#[test]
 fn a_shared_mailbox_microsoft_wont_open_shows_no_access_and_keeps_its_mail() {
     let (mut app, _, answers, _, _) = window();
     let shared = app.execute("account.addSharedMailbox", json!({"address": SHARED})).unwrap()["id"].as_u64().unwrap();

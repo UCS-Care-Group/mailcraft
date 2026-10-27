@@ -52,6 +52,16 @@ fn refused_words(why: SharedRefusal, address: &str) -> String {
     crate::i18n::fmt(words, &[("address", address)])
 }
 
+/// A line of the Send/Receive report about the shared mailbox at `address`: which one, and what
+/// happens next. A refusal is left alone until the owner asks (File › Info says why); anything
+/// else is tried again at the next Send/Receive (#539).
+fn shared_problem_words(address: &str, error: &str, refused: bool) -> String {
+    let error = error.trim().trim_end_matches('.');
+    let words =
+        if refused { tl!("{address}: {error}. See File › Info.") } else { tl!("{address}: {error}. It will try again at the next Send/Receive.") };
+    crate::i18n::fmt(words, &[("address", address), ("error", error)])
+}
+
 impl MailApp {
     /// A Send/Receive of the shared mailbox `account`: its folders and mail, with its owner's
     /// sign-in.
@@ -156,6 +166,13 @@ impl MailApp {
                 }
                 Err(e) => errors.push(e.to_string()),
             }
+        }
+        // Which mailbox, and what happens next (#539): this is the owner's own window, so the
+        // address may be here; the log never gets these lines.
+        let address = self.session.mailbox.account(account).map(|a| a.email.trim().to_string()).unwrap_or_default();
+        let refused = self.shared_refused.contains_key(&account);
+        for line in &mut errors {
+            *line = shared_problem_words(&address, line, refused);
         }
         // The owner's sign-in was refused (run out, taken back, #124): signing in again is theirs
         // to do, from their own account's Send/Receive.

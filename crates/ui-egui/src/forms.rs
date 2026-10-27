@@ -48,7 +48,7 @@ impl Form {
             "account" => Form::Account(Box::new(account::AccountForm::open(app, params)?)),
             "categories" => Form::Categories(Box::new(categories::CategoriesForm::new(s))),
             "rules" => Form::Rules(Box::new(rules::RulesForm::new(s))),
-            "junkOptions" => Form::Junk(Box::new(junk::JunkForm::new(params))),
+            "junkOptions" => Form::Junk(Box::new(junk::JunkForm::new(s, params))),
             _ => return None,
         })
     }

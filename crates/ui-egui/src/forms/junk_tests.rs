@@ -35,16 +35,17 @@ fn the_dialog_opens_by_name_on_the_page_asked_for() {
 #[test]
 fn add_and_remove_are_the_commands() {
     let mut a = app();
-    let mut f = JunkForm::new(&json!({"list": "blocked"}));
+    let mut f = JunkForm::new(&a.session, &json!({"list": "blocked"}));
     f.new_entry = " Offers@Shop.example ".into();
     let (command, params) = f.add_command();
     a.execute(command, params).unwrap();
-    assert_eq!(a.session.mailbox.junk.blocked, ["offers@shop.example"]);
+    let account = f.account;
+    assert_eq!(a.session.mailbox.junk_accounts[&account].blocked, ["offers@shop.example"]);
     assert_eq!(f.remove_command(), None);
     f.selected = Some("offers@shop.example".into());
     let (command, params) = f.remove_command().unwrap();
     a.execute(command, params).unwrap();
-    assert!(a.session.mailbox.junk.is_empty());
+    assert!(a.session.mailbox.junk_accounts[&account].is_empty());
     // Hostile text is the command's to refuse.
     f.new_entry = "\u{0}\u{202e}é\n@".repeat(40_000);
     let (command, params) = f.add_command();
@@ -55,10 +56,11 @@ fn add_and_remove_are_the_commands() {
 fn the_dialog_lays_out_with_long_lists_in_both_themes() {
     for dark in [false, true] {
         let mut a = app();
+        let account = a.session.mailbox.default_account().unwrap().id;
         for i in 0..300 {
-            a.session.mailbox.junk.blocked.push(format!("sender-{i}@{}.example", "x".repeat(i % 60 + 1)));
+            a.session.mailbox.junk_lists_mut(account).blocked.push(format!("sender-{i}@{}.example", "x".repeat(i % 60 + 1)));
         }
-        a.session.mailbox.junk.safe.push("\u{202e}odd@example.org".into());
+        a.session.mailbox.junk_lists_mut(account).safe.push("\u{202e}odd@example.org".into());
         a.execute("ui.dialog", json!({"name": "junkOptions", "list": "blocked"})).unwrap();
         let mut h = Harness::builder().with_accessibility_check(false).allow_missing_glyphs().with_size(egui::vec2(1280.0, 800.0)).build_ui_state(
             move |ui, app: &mut MailApp| {

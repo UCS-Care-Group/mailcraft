@@ -101,7 +101,7 @@ See [docs/mcp.md](docs/mcp.md) and [docs/control-protocol.md](docs/control-proto
 
 | Layer | Crates | Job |
 |---|---|---|
-| L0 | `time`, `control-key`, `charset` | Calendar maths and date text; control-port key files; character sets |
+| L0 | `time`, `control-key`, `charset`, `link`, `names`, `i18n` | Calendar maths and date text; control-port key files; character sets; web addresses; format characters and names; interface languages |
 | L1 | `model`, `html` | The mailbox and its edit primitives, recurrence, search; hostile HTML to safe display blocks |
 | L2 | `mime`, `ical`, `vcard` | Internet messages and mbox; iCalendar; vCard |
 | L3 | `proto`, `net` | IMAP and SMTP without sockets; TLS sockets and synchronisation |
