@@ -1515,9 +1515,8 @@ impl AccountSetup {
             }
             if let Some((_, ask)) = self.ask_conversation.as_mut() {
                 caption(ui, tl!("Deleting"), &t);
-                ui.checkbox(ask, tl!("Ask before deleting a whole conversation")).on_hover_text(tl!(
-                    "Delete on a conversation's row that takes more than one message asks first."
-                ));
+                ui.checkbox(ask, tl!("Ask before deleting a whole conversation"))
+                    .on_hover_text(tl!("Delete on a conversation's row that takes more than one message asks first."));
             }
         });
         problem(ui, &self.error);
