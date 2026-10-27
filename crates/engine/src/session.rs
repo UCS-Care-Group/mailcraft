@@ -2055,6 +2055,14 @@ impl Session {
 
     /// What undoing (`redo`: redoing) would put back besides mail and the like: the accounts, or
     /// the rules and signatures, as they were. For the agent gate, which asks the owner first.
+    /// Whether undoing the last step (or redoing, `redo`) would take away the event `event` as
+    /// it is now (#494: a window of the owner's on it closes with it).
+    pub fn undo_removes(&self, redo: bool, event: Id) -> bool {
+        let Some(step) = (if redo { self.redo.last() } else { self.history.last() }) else { return false };
+        let uid = |m: &mailcraft_model::Mailbox| m.event(event).map(|e| e.uid.clone());
+        uid(&self.mailbox).is_some() && uid(&step.mailbox) != uid(&self.mailbox)
+    }
+
     pub fn undo_reverts(&self, redo: bool) -> Option<crate::agent::Class> {
         use crate::agent::Class;
         let step = if redo { self.redo.last() } else { self.history.last() }?;

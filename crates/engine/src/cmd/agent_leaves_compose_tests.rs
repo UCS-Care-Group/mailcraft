@@ -258,9 +258,31 @@ fn another_mailbox_asks_about_an_appointments_window_with_changes() {
         assert_eq!(classify(&s, id, &unsaved), Access::Asked(Class::Mailbox), "{id}");
         let what = describe(&s, id, &unsaved);
         assert!(
-            what.ends_with("; the appointment \u{201c}Lunch\u{201d} and 1 more window is closed without saving the changes made in it"),
+            what.ends_with("; the appointment \u{201c}Lunch\u{201d} and 1 more window are closed without saving the changes made in them"),
             "{id}: {what}"
         );
+        assert!(!what.contains("unsaved"), "{id}: said in words, not as params: {what}");
         assert_eq!(classify(&s, id, &json!({})), Access::Owner(Class::Mailbox), "{id}");
     }
+}
+
+#[test]
+fn taking_away_an_appointment_whose_window_has_changes_asks_whatever_is_allowed() {
+    let s = session();
+    let everything = Class::ALL.to_vec();
+    let unsaved = json!({"form": "appointment", "title": "Lunch"});
+    for (id, mut params) in
+        [("calendar.delete", json!({"id": 1})), ("calendar.removeCalendar", json!({"id": 1})), ("edit.undo", json!({})), ("edit.redo", json!({}))]
+    {
+        assert_ne!(classify(&s, id, &params), Access::Asked(Class::Delete), "{id}: nothing in a window");
+        params["unsaved"] = unsaved.clone();
+        assert_eq!(classify(&s, id, &params), Access::Asked(Class::Delete), "{id}");
+        assert!(
+            matches!(check(&s, id, &params, &everything), Verdict::Ask(Class::Delete, what) if what.ends_with("; the appointment \u{201c}Lunch\u{201d} is closed without saving the changes made in it")),
+            "{id}"
+        );
+    }
+    // A cancellation to the people invited is the stronger question.
+    let params = json!({"id": 1, "send": true, "unsaved": unsaved});
+    assert_eq!(classify(&s, "calendar.delete", &params), Access::Asked(Class::Send));
 }

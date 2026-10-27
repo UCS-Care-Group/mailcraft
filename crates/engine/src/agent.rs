@@ -563,6 +563,15 @@ pub fn no_paths(id: &str, key: &str) -> String {
 pub fn classify(s: &Session, id: &str, params: &Value) -> Access {
     let Some(base) = access(id) else { return Access::Never };
     let sends = p::bool(params, "send") == Some(true);
+    // An appointment's window with changes the owner hasn't saved closes with the appointment
+    // (`unsaved`, from `agent_gate`): taking that away is asked about every time (#494).
+    if matches!(id, "calendar.delete" | "calendar.removeCalendar" | "edit.undo" | "edit.redo") && unsaved(params) {
+        return Access::Asked(match id {
+            "edit.undo" | "edit.redo" => s.undo_reverts(id == "edit.redo").unwrap_or(Class::Delete),
+            _ if sends => Class::Send,
+            _ => Class::Delete,
+        });
+    }
     // A cancellation sent to the people invited is the stronger question.
     if id == "calendar.delete" && sends {
         return Access::Owner(Class::Send);
@@ -850,16 +859,23 @@ pub fn describe(s: &Session, id: &str, params: &Value) -> String {
     if let Some(draft) = draft_in_window(s, id, params) {
         return leaving_text(s, "mail.editDraft", &json!({"id": draft}));
     }
-    let mut what = what_it_does(s, id, params);
-    // Another mailbox in view closes the message the owner is writing, unsaved, and the windows
-    // of appointments with changes that aren't saved (#494).
-    if matches!(id, "file.new" | "file.open") {
-        if owner_writing(s) {
-            what.push_str(&format!("; the message {} that the owner is writing is closed without being saved", writing(s)));
-        }
-        if unsaved(params) {
-            what.push_str(&format!("; {} is closed without saving the changes made in it", unsaved_item(params)));
-        }
+    // What the window would lose (`unsaved`) is said in words, never shown as params.
+    let form = matches!(id, "ui.closeDialog" | "ui.dialog" | "ui.closeWindow");
+    let mut bare = params.clone();
+    if !form && let Some(fields) = bare.as_object_mut() {
+        fields.remove("unsaved");
+    }
+    let mut what = what_it_does(s, id, &bare);
+    // Another mailbox in view closes the message the owner is writing, unsaved (#494).
+    if matches!(id, "file.new" | "file.open") && owner_writing(s) {
+        what.push_str(&format!("; the message {} that the owner is writing is closed without being saved", writing(s)));
+    }
+    // And the windows of appointments with changes that aren't saved, as does taking the
+    // appointments away.
+    if !form && unsaved(params) {
+        let (item, many) = unsaved_item(params);
+        let (are, them) = if many { ("are", "them") } else { ("is", "it") };
+        what.push_str(&format!("; {item} {are} closed without saving the changes made in {them}"));
     }
     what
 }
@@ -1152,17 +1168,18 @@ fn writing(s: &Session) -> String {
 /// A dialog with changes that aren't saved, which the command closes or opens another in place
 /// of (#494), as the window named it (`unsaved`).
 fn form_text(id: &str, params: &Value) -> String {
-    let item = unsaved_item(params);
+    let (item, many) = unsaved_item(params);
     match id {
         "ui.dialog" => {
             format!("open the dialog {} in place of {item}, without saving the changes made in it", quoted(p::str(params, "name").unwrap_or("")))
         }
-        _ => format!("close {item} without saving the changes made in it"),
+        _ => format!("close {item} without saving the changes made in {}", if many { "them" } else { "it" }),
     }
 }
 
-/// The item with changes that aren't saved, as the window named it (`unsaved`).
-fn unsaved_item(params: &Value) -> String {
+/// The item with changes that aren't saved, as the window named it (`unsaved`), and whether
+/// more windows than its own are named.
+fn unsaved_item(params: &Value) -> (String, bool) {
     let field = |k: &str| params.get("unsaved").and_then(|u| u.get(k)).and_then(Value::as_str).unwrap_or("");
     let kind = match field("form") {
         kind @ ("appointment" | "meeting" | "contact" | "task") => kind,
@@ -1175,7 +1192,7 @@ fn unsaved_item(params: &Value) -> String {
     if more > 0 {
         item.push_str(&format!(" and {}", plural(usize::try_from(more).unwrap_or(usize::MAX), "{n} more window", "{n} more windows")));
     }
-    item
+    (item, more > 0)
 }
 
 /// A command and its params, as they came.

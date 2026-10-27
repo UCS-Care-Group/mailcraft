@@ -384,4 +384,56 @@ fn another_mailbox_in_view_asks_before_it_closes_a_changed_appointments_window()
     assert_eq!(rx.try_recv().unwrap()["ok"], false);
     w.run_steps(3);
     assert_eq!(w.state().windows.unsaved(), 1, "no leaves it open");
+    // Yes: another mailbox, and the window goes with the old one.
+    let (_, rx) = allowed(w.state_mut(), "file.new", json!({}), Class::ALL.to_vec());
+    answer(w.state_mut(), true);
+    assert_eq!(rx.try_recv().unwrap()["ok"], true);
+    w.run_steps(3);
+    assert_eq!(w.state().windows.len(), 0);
+}
+
+/// The appointment `event` open in a window of its own, with " (moved)" typed into its title.
+fn changing_in_a_window(w: &mut testing::Window, event: Id) {
+    w.state_mut().run("ui.openWindow", json!({"event": event})).unwrap();
+    w.run_steps(4);
+    testing::text(w, " (moved)");
+    assert_eq!(w.state().windows.unsaved(), 1);
+}
+
+#[test]
+fn taking_away_an_appointment_whose_window_has_changes_is_asked_about() {
+    let mut w = testing::window("view.calendar");
+    let mut events = w.state().session.mailbox.events.values().filter(|e| !e.title.is_empty() && e.recurrence.is_none()).map(|e| (e.id, e.calendar));
+    let ((event, calendar), (other, _)) = (events.next().unwrap(), events.next().unwrap());
+    changing_in_a_window(&mut w, event);
+    let everything = Class::ALL.to_vec();
+    for (id, params) in [("calendar.delete", json!({"id": event})), ("calendar.removeCalendar", json!({"id": calendar}))] {
+        let (now, rx) = allowed(w.state_mut(), id, params, everything.clone());
+        assert!(now.is_none(), "{id}: asked even so");
+        let (class, what) = question(w.state()).unwrap();
+        assert_eq!(class, Class::Delete, "{id}");
+        assert!(what.contains("(moved)\u{201d} is closed without saving the changes made in it"), "{id}: {what}");
+        answer(w.state_mut(), false);
+        assert_eq!(rx.try_recv().unwrap()["ok"], false);
+        w.run_steps(3);
+        assert_eq!(w.state().windows.unsaved(), 1, "{id}: no leaves it open");
+    }
+    // Another appointment goes as allowed, and the window stays.
+    let (now, _) = allowed(w.state_mut(), "calendar.delete", json!({"id": other}), everything);
+    assert_eq!(now.unwrap()["ok"], true);
+    w.run_steps(3);
+    assert_eq!(w.state().windows.unsaved(), 1);
+}
+
+#[test]
+fn an_undo_that_takes_away_an_appointment_being_changed_is_asked_about() {
+    let mut w = testing::window("view.calendar");
+    let made = w.state_mut().execute("calendar.new", json!({"title": "Made just now", "start": "2026-10-15T10:00"})).unwrap();
+    let event = made["id"].as_u64().unwrap();
+    changing_in_a_window(&mut w, event);
+    let (now, _) = allowed(w.state_mut(), "edit.undo", json!({}), Class::ALL.to_vec());
+    assert!(now.is_none(), "asked even so");
+    assert!(question(w.state()).unwrap().1.contains("(moved)\u{201d} is closed without saving"));
+    answer(w.state_mut(), false);
+    assert!(w.state().session.mailbox.event(event).is_some());
 }

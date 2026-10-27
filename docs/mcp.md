@@ -68,12 +68,14 @@ message and its draft) asks Delete; `file.new` and `file.open`, which close it w
 `mailbox`, and so do they when an appointment's window has changes that aren't saved, for it closes
 with the mailbox. An appointment, a contact or a task with changes that aren't saved, in the dialog
 that `ui.closeDialog` would close or `ui.dialog` would put another in place of, asks Delete, and so
-does an appointment's window of its own that `ui.closeWindow` would close. Any other command that
-would open a dialog in such a form's place is refused, and the form stays. An agent allowed `input`
-clicks and types as the owner does, and what it does by hand in the window (the composer's Discard,
-an answer to Unsaved Message) is not asked about. A message only the agent wrote in is the agent's:
-leaving it saves it to Drafts without a question, and discarding it is `delete`. Headless, nothing
-is the owner's.
+does an appointment's window of its own that `ui.closeWindow` would close. Taking away an
+appointment whose window has such changes (`calendar.delete`, `calendar.removeCalendar`, an
+`edit.undo` or `edit.redo` that removes it) asks too. Any other command that would open a dialog in
+such a form's place runs, but that dialog isn't shown, the form stays, and the agent is told. An
+agent allowed `input` clicks and types as the owner does, and what it does by hand in the window
+(the composer's Discard, an answer to Unsaved Message) is not asked about. A message only the agent
+wrote in is the agent's: leaving it saves it to Drafts without a question, and discarding it is
+`delete`. Headless, nothing is the owner's.
 
 **The question in the window.** Bridged (`--connect`), the bridge marks every request it sends as
 an agent's ([control protocol](control-protocol.md#agents)), and the app asks the owner about what

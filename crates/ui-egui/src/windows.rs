@@ -348,6 +348,20 @@ pub(crate) fn replacing_unsaved(app: &MailApp) -> Option<Value> {
     unsaved_of(app.windows.open.iter().filter(|w| matches!(w.what, What::Event { event: Some(_), .. })))
 }
 
+/// What an agent's command that takes appointments away would lose (#494): the windows of those
+/// it takes, with changes that aren't saved, close with them ([`show`]). `calendar.delete` takes
+/// the one named or selected, `calendar.removeCalendar` a calendar's, an undo or a redo what the
+/// step brings back as it was.
+pub(crate) fn removing_unsaved(app: &MailApp, id: &str, p: &Value) -> Option<Value> {
+    let number = |key: &str| p.get(key).and_then(Value::as_u64);
+    let gone = |event: Id| match id {
+        "calendar.delete" => number("id").or(app.session.sel.event) == Some(event),
+        "calendar.removeCalendar" => app.session.mailbox.event(event).is_some_and(|e| Some(e.calendar) == number("id")),
+        _ => app.session.undo_removes(id == "edit.redo", event),
+    };
+    unsaved_of(app.windows.open.iter().filter(|w| matches!(&w.what, What::Event { event: Some((e, _)), .. } if gone(*e))))
+}
+
 /// The first of `windows` with changes that aren't saved, as an agent's question names it, and
 /// how many more there are (`more`).
 fn unsaved_of<'a>(windows: impl Iterator<Item = &'a Open>) -> Option<Value> {

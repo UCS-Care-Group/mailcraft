@@ -111,10 +111,11 @@ fn gate(app: &mut MailApp, req: &ControlRequest, id: &str, mut params: Value, al
 /// `params` with what the window would lose (`unsaved`), as it has it now and never as the agent
 /// says (#494): an appointment, a contact or a task with changes that aren't saved, in the dialog
 /// that `ui.closeDialog` closes or `ui.dialog` puts another in place of, or in a window of its
-/// own that `ui.closeWindow` closes, or that another mailbox in view (`file.new`, `file.open`)
-/// closes.
+/// own that `ui.closeWindow` closes, that another mailbox in view (`file.new`, `file.open`)
+/// closes, or that closes with its appointment when that is taken away.
 fn as_the_window_has_it(app: &MailApp, id: &str, mut params: Value) -> Value {
-    if !matches!(id, "ui.closeDialog" | "ui.dialog" | "ui.closeWindow" | "file.new" | "file.open") {
+    let removes = matches!(id, "calendar.delete" | "calendar.removeCalendar" | "edit.undo" | "edit.redo");
+    if !removes && !matches!(id, "ui.closeDialog" | "ui.dialog" | "ui.closeWindow" | "file.new" | "file.open") {
         if let Some(fields) = params.as_object_mut() {
             fields.remove("unsaved");
         }
@@ -127,6 +128,7 @@ fn as_the_window_has_it(app: &MailApp, id: &str, mut params: Value) -> Value {
     let unsaved = match &app.dialog {
         _ if id == "ui.closeWindow" => crate::windows::closing_unsaved(app, &params),
         _ if matches!(id, "file.new" | "file.open") => crate::windows::replacing_unsaved(app),
+        _ if removes => crate::windows::removing_unsaved(app, id, &params),
         Some(crate::dialogs::Dialog::Form(form)) if closes => form.unsaved(),
         _ => None,
     };
@@ -179,7 +181,7 @@ pub fn answer(app: &mut MailApp, yes: bool) {
         let mut allow = a.allow.clone();
         allow.push(a.class);
         match verdict {
-            _ if other => err(format!("`{}` would now do more than the owner was asked about; nothing was done", a.id)),
+            _ if other => err(format!("what `{}` would close without saving has changed since the owner was asked; nothing was done", a.id)),
             Verdict::Run => run(app, &a.id, params, &allow),
             Verdict::Refuse(why) => err(why),
             Verdict::Ask(..) => err(format!("`{}` would now do more than the owner was asked about; nothing was done", a.id)),
