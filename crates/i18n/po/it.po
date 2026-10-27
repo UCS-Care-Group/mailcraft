@@ -13139,6 +13139,16 @@ msgid "{address} isn't a shared mailbox open here."
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/shared_mailboxes.rs
+msgid "{address}: {error}. It will try again at the next Send/Receive."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/shared_mailboxes.rs
+msgid "{address}: {error}. See File › Info."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/reading/invitation.rs
 #, fuzzy
 msgid "{answer}: more ways to answer"
