@@ -281,10 +281,11 @@ fn jmap_server(v: &Value, before: Option<&JmapServer>) -> Result<JmapServer, Cmd
 }
 
 /// An account's address must be one, but for the account on this computer that has none and keeps
-/// it so (`before`: what an edited account was), which holds imported mail (#503: its question
-/// before deleting a conversation can be turned off).
+/// it so (`before`: what an edited account was), which holds imported mail, when nothing else of it
+/// changes but its question before deleting a conversation (#503): it is no account to sign in with.
 fn check_address(a: &Account, before: Option<&Account>) -> Result<(), CmdError> {
-    let none_kept = before.is_some_and(|b| b.kind == AccountKind::Local && a.kind == AccountKind::Local && b.email == a.email);
+    let none_kept = before
+        .is_some_and(|b| b.kind == AccountKind::Local && *a == Account { skip_conversation_question: a.skip_conversation_question, ..b.clone() });
     if !none_kept && !a.address().is_valid() {
         return Err(bad(format!("\"{}\" isn't an e-mail address", a.email)));
     }

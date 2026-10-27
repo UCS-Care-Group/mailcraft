@@ -185,6 +185,10 @@ pub(crate) fn targets(s: &Session, v: &Value) -> Result<Vec<Id>, CmdError> {
 /// conversation's row stands for every message of that row (#503, [`Session::acting_on`]). `ids` /
 /// `id` are read strictly: named wrongly, they never take the selected conversation.
 pub(crate) fn targets_whole(s: &mut Session, v: &Value) -> Result<Vec<Id>, CmdError> {
+    // Params that aren't an object name nothing, and aren't taken for the selection (#503).
+    if !(v.is_object() || v.is_null()) {
+        return Err(bad("the parameters are an object"));
+    }
     let named = p::ids_strict(v)?;
     let ids = if named.is_some() { named } else { Some(s.acting_on()) };
     named_or_selected(s, ids)

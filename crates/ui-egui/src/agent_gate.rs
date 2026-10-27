@@ -190,6 +190,9 @@ pub fn keys(app: &mut MailApp, ctx: &egui::Context) {
     let (enter, escape) = (crate::keys::take_enter_out(ctx, layer()), crate::keys::take_escape(ctx, layer()));
     if enter || escape {
         answer(app, false);
+        // The frame's other keys were pressed with the question on screen: none reaches what is
+        // under it (Delete with the Escape that says no; #503).
+        ctx.input_mut(|i| i.events.retain(|e| !matches!(e, egui::Event::Key { .. })));
     }
 }
 

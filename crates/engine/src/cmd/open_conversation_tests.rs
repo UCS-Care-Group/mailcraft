@@ -7,7 +7,7 @@
 
 use std::collections::HashSet;
 
-use mailcraft_model::{Account, AccountKind, FolderKind, Id};
+use mailcraft_model::{Account, AccountKind, FolderKind, Id, Message};
 use mailcraft_time::{Date, DateTime};
 use serde_json::{Value, json};
 
@@ -875,4 +875,45 @@ fn a_message_selected_by_itself_before_its_conversation_came_on_top_of_it_is_tak
     assert!(nothing_drawn(&mut s));
     run(&mut s, "mail.delete", json!({}));
     assert_eq!([alone, came].map(|id| folder_of(&s, id)), [deleted, inbox]);
+}
+
+#[test]
+fn params_that_are_not_an_object_never_take_the_selected_conversation() {
+    for command in ["mail.delete", "mail.deletePermanently", "mail.archive", "mail.junk"] {
+        for params in [json!("17"), json!([17]), json!(17), json!(true)] {
+            let (mut s, newer, older, _) = release_checklist();
+            run(&mut s, "mail.select", json!({"id": newer}));
+            let inbox = s.view.folder;
+            assert!(s.run(command, &params).is_err(), "{command} {params}");
+            assert_eq!([newer, older].map(|id| folder_of(&s, id)), [inbox, inbox], "{command} {params}");
+        }
+    }
+}
+
+#[test]
+fn folders_under_deleted_items_and_junk_email_stay_out_of_a_conversation() {
+    let (mut s, newer, _, reply) = release_checklist();
+    let account = s.mailbox.message(newer).unwrap().account;
+    let [deleted, junk] = [FolderKind::Deleted, FolderKind::Junk].map(|k| folder(&s, k));
+    let old = run(&mut s, "folder.new", json!({"name": "Old", "parent": deleted}))["id"].as_u64().unwrap();
+    let spam = run(&mut s, "folder.new", json!({"name": "Spam", "parent": junk}))["id"].as_u64().unwrap();
+    let subject = s.mailbox.message(newer).unwrap().subject.clone();
+    let [in_old, in_spam] =
+        [old, spam].map(|f| s.mailbox.add_message(Message { folder: f, account, subject: subject.clone(), ..Default::default() }).unwrap());
+    let row = row_of(&mut s, |r| r.id == newer);
+    assert!(row.others.contains(&reply) && !row.others.contains(&in_old) && !row.others.contains(&in_spam), "{row:?}");
+    // The reading pane's conversation too; read where one of them is, it takes that folder's.
+    let conversation = s.mailbox.conversation(newer);
+    assert!(!conversation.contains(&in_old) && !conversation.contains(&in_spam));
+    assert!(s.mailbox.conversation(in_old).contains(&in_old));
+}
+
+#[test]
+fn the_account_on_this_computer_changes_nothing_but_its_question_before_deleting() {
+    let mut s = Session::at(sample::mailbox(now(), 0), now(), 0);
+    let local = s.mailbox.add_account(Account { name: "On this computer".into(), ..Default::default() });
+    let before = s.mailbox.account(local).cloned().unwrap();
+    assert!(s.run("account.edit", &json!({"id": local, "auth": "oauth2", "provider": "microsoft"})).is_err());
+    assert!(s.run("account.edit", &json!({"id": local, "name": "Imported", "askBeforeDeletingConversation": false})).is_err());
+    assert_eq!(s.mailbox.account(local), Some(&before));
 }

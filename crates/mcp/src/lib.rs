@@ -46,10 +46,13 @@ impl Headless {
     }
 
     fn run(&mut self, id: &str, params: &Value) -> Result<Value, String> {
-        match agent::check(&self.session, id, params, &self.allow) {
+        // A Delete or Move is told and goes ahead with what it takes now, as in the window (#503).
+        let mut params = params.clone();
+        agent::pin_targets(&mut self.session, id, &mut params);
+        match agent::check(&self.session, id, &params, &self.allow) {
             Verdict::Run => {
                 self.session.agent = Some(self.allow.clone());
-                let r = self.session.run(id, params).map_err(|e| e.to_string());
+                let r = self.session.run(id, &params).map_err(|e| e.to_string());
                 self.session.agent = None;
                 r
             }

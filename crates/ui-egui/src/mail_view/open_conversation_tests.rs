@@ -511,3 +511,80 @@ fn an_agents_call_with_params_the_command_refuses_is_refused_not_asked_about_the
         assert_eq!([kind(&w, newer), kind(&w, older)], [Some(FolderKind::Inbox); 2]);
     }
 }
+
+#[test]
+fn delete_in_the_frame_whose_escape_or_enter_answers_an_agents_question_leaves_the_list() {
+    for second in [Key::Escape, Key::Enter] {
+        let (mut w, newer, _, _) = release_checklist();
+        // A message of its own row: Delete on it asks nothing.
+        let single = w.state_mut().session.rows().iter().find(|r| r.size() == 1).map(|r| r.id).unwrap();
+        click(&mut w, "message", single);
+        let answer = an_agent_asks(&mut w, "mail.deletePermanently", json!({"id": newer}));
+        for pressed in [true, false] {
+            for key in [Key::Delete, second] {
+                w.input_mut().events.push(egui::Event::Key { key, physical_key: None, pressed, repeat: false, modifiers: egui::Modifiers::NONE });
+            }
+            w.run_steps(1);
+        }
+        w.run_steps(2);
+        assert!(answer.try_recv().is_ok_and(|v| v["ok"] == json!(false)), "{second:?}: the agent was told no");
+        assert_eq!(kind(&w, single), Some(FolderKind::Inbox), "{second:?}: Delete under the agent's question took the message");
+    }
+}
+
+/// The question's text, with Delete Conversation open.
+fn question(w: &testing::Window) -> String {
+    let Some(crate::dialogs::Dialog::Confirm { ask, .. }) = &w.state().dialog else { panic!("no question") };
+    ask.text.clone()
+}
+
+#[test]
+fn the_question_doesnt_say_other_folders_stay_when_one_picked_there_goes() {
+    // The reply in Sent Items picked under the open conversation as well, and a copy in Archive
+    // that stays.
+    let (mut w, newer, older, reply) = release_checklist();
+    let archive = {
+        let s = &w.state().session;
+        s.mailbox.folder_of_kind(s.mailbox.accounts[0].id, FolderKind::Archive).unwrap()
+    };
+    w.state_mut().execute("mail.copy", json!({"ids": [older], "folder": archive})).unwrap();
+    w.state_mut().execute("mail.expandConversation", json!({"id": newer})).unwrap();
+    w.state_mut().execute("mail.select", json!({"id": newer})).unwrap();
+    w.state_mut().execute("mail.select", json!({"id": reply, "extend": true})).unwrap();
+    w.run_steps(3);
+    testing::key(&mut w, Key::Delete);
+    w.run_steps(3);
+    let text = question(&w);
+    click(&mut w, "questionAction", 0);
+    assert_eq!(kind(&w, reply), Some(FolderKind::Deleted));
+    assert!(text.starts_with("This deletes 3 messages") && !text.contains("other folders stay"), "{text}");
+}
+
+#[test]
+fn delete_for_good_of_more_messages_than_a_command_names_still_goes_ahead() {
+    // Deleted Items with more messages than a command's `ids` may name: the yes takes the
+    // selection, as before (#503).
+    let mut mb = mailcraft_engine::sample::mailbox(1_791_993_600, 0);
+    let deleted = mb.folder_of_kind(mb.accounts[0].id, FolderKind::Deleted).unwrap();
+    for i in 0..=mailcraft_engine::p::MAX_IDS as i64 {
+        let m = mailcraft_model::Message {
+            folder: deleted,
+            subject: format!("Old {i}"),
+            date: 1_700_000_000 + i,
+            received: 1_700_000_000 + i,
+            read: true,
+            ..Default::default()
+        };
+        mb.add_message(m).unwrap();
+    }
+    let mut w = testing::window_on(mb, "view.mail");
+    w.state_mut().execute("ui.dismissReminder", json!({"all": true})).unwrap();
+    w.state_mut().execute("folder.select", json!({"id": deleted})).unwrap();
+    w.state_mut().execute("mail.selectAll", json!({})).unwrap();
+    w.run_steps(2);
+    assert!(w.state().session.sel.messages.len() > mailcraft_engine::p::MAX_IDS);
+    assert_eq!(w.state_mut().run("mail.delete", json!({})).unwrap()["pending"], "confirm");
+    w.run_steps(2);
+    click(&mut w, "questionAction", 0);
+    assert_eq!(w.state().session.mailbox.messages_in(deleted).count(), 0, "{:?}", w.state().status_msg);
+}

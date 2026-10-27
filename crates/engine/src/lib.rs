@@ -222,7 +222,7 @@ pub mod p {
     use crate::CmdError;
 
     /// Most ids one command takes (a hostile caller can't make a command walk forever).
-    const MAX_IDS: usize = 100_000;
+    pub const MAX_IDS: usize = 100_000;
 
     pub fn str<'a>(v: &'a Value, k: &str) -> Option<&'a str> {
         v.get(k).and_then(Value::as_str)

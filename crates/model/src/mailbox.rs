@@ -347,7 +347,7 @@ pub struct Account {
     /// (#503): the owner ticked Don't ask again, or cleared the switch in Account Settings. Off
     /// for a new account and in a file from before there was one: the question is asked. A
     /// shared mailbox follows its owner's ([`Mailbox::asks_before_deleting_conversation`]).
-    #[serde(skip_serializing_if = "is_false")]
+    #[serde(skip_serializing_if = "is_false", deserialize_with = "crate::sync::lenient_or_default")]
     pub skip_conversation_question: bool,
     /// For an account of a kind this version doesn't know ([`AccountKind::Unknown`]): the account
     /// as its file had it, every field but its id, which is what a mailbox file gets in its place
@@ -2090,16 +2090,22 @@ impl Mailbox {
         let key = m.thread_key();
         let skips = self.conversation_skips(m.account, m.folder);
         let mut v: Vec<&Arc<Message>> =
-            self.messages.values().filter(|x| x.account == m.account && !skips.contains(&Some(x.folder)) && x.thread_key() == key).collect();
+            self.messages.values().filter(|x| x.account == m.account && !skips.contains(&x.folder) && x.thread_key() == key).collect();
         v.sort_by_key(|x| (x.date, x.id));
         v.into_iter().map(|x| x.id).collect()
     }
 
     /// The folders of `account` a conversation read in `folder` leaves out: its Deleted Items and
-    /// its Junk E-mail, unless that is where it is read. The reading pane's conversation and the
-    /// message list's (#503) take the rest of the account's folders.
-    pub fn conversation_skips(&self, account: Id, folder: Id) -> [Option<Id>; 2] {
-        [FolderKind::Deleted, FolderKind::Junk].map(|kind| self.folder_of_kind(account, kind).filter(|f| *f != folder))
+    /// its Junk E-mail and the folders under them (a folder deleted is one), but for `folder`,
+    /// where it is read. The reading pane's conversation and the message list's (#503) take the
+    /// rest of the account's folders.
+    pub fn conversation_skips(&self, account: Id, folder: Id) -> Vec<Id> {
+        [FolderKind::Deleted, FolderKind::Junk]
+            .into_iter()
+            .filter_map(|kind| self.folder_of_kind(account, kind))
+            .flat_map(|f| self.subtree(f))
+            .filter(|f| *f != folder)
+            .collect()
     }
 
     /// Sort a message that has just arrived by the Safe and Blocked Senders lists (#504): from a

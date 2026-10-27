@@ -506,7 +506,7 @@ fn expand(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 /// Close a conversation in the list (#503). With the focus on a message under it, its row is
-/// selected, as in Outlook: it stands for the conversation. Otherwise what was selected under it
+/// selected: it stands for the conversation. Otherwise what was selected under it
 /// is let go of, and the row stays selected only when it was picked itself.
 fn collapse(s: &mut Session, v: &Value) -> CmdResult {
     named_message(s, v)?;

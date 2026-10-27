@@ -405,7 +405,7 @@ pub fn confirmation(app: &MailApp, id: &str, params: &Value) -> Option<Question>
             };
             // It goes ahead with what it counted, not with what the selection stands for when the
             // owner says yes: a message that came into the conversation meanwhile wasn't counted (#503).
-            Some(Question::new(tl!("Delete for Good"), text, tl!("Delete"), json!({"ids": ids, "confirmed": true})))
+            Some(Question::new(tl!("Delete for Good"), text, tl!("Delete"), pinned(&ids, "confirmed")))
         }
         // A contact has no Deleted Items to go to: deleting one is for good (#186). One the
         // account's server keeps can't be deleted here, and the command says so without asking.
@@ -637,7 +637,7 @@ fn conversation_question(app: &MailApp, ids: &[u64]) -> Option<Question> {
         }
         if m.folder == folder_id {
             stays_here = true;
-        } else if !mb.conversation_skips(m.account, folder_id).contains(&Some(m.folder)) {
+        } else if !mb.conversation_skips(m.account, folder_id).contains(&m.folder) {
             stays_elsewhere = true;
         }
     }
@@ -678,7 +678,9 @@ fn conversation_question(app: &MailApp, ids: &[u64]) -> Option<Question> {
         ),
     };
     let mut text = crate::i18n::fmt(&what, &[("folder", folder)]);
-    if stays_elsewhere {
+    // (Not when one picked in another folder goes too: the count says so.)
+    let picked_elsewhere = picked.iter().any(|id| mb.message(*id).is_some_and(|m| m.folder != folder_id));
+    if stays_elsewhere && !picked_elsewhere {
         let stay = if single {
             tl!("Its messages in other folders stay where they are.")
         } else {
@@ -696,8 +698,19 @@ fn conversation_question(app: &MailApp, ids: &[u64]) -> Option<Question> {
     let settable = owners.iter().all(|o| mb.account(*o).is_some_and(|a| !a.email.is_empty() && a.kind != mailcraft_model::AccountKind::Unknown));
     let then = owners.into_iter().map(|a| ("account.edit", json!({"id": a, "askBeforeDeletingConversation": false}))).collect();
     // It goes ahead with what it counted, asked again only if one of them would now go for good.
-    let ask = Question::new(tl!("Delete Conversation"), text, tl!("Delete"), json!({"ids": ids, "conversation": true}));
+    let ask = Question::new(tl!("Delete Conversation"), text, tl!("Delete"), pinned(ids, "conversation"));
     Some(if settable { ask.ticked(tick, then) } else { ask })
+}
+
+/// What a Delete goes ahead with on the owner's yes, noted as `said`: the messages its question
+/// counted, or, more than a command takes by `ids` (a whole large folder), the selection, as before
+/// (#503).
+fn pinned(ids: &[Id], said: &str) -> Value {
+    let mut with = json!({ said: true });
+    if ids.len() <= mailcraft_engine::p::MAX_IDS {
+        with["ids"] = json!(ids);
+    }
+    with
 }
 
 /// The message list's rows as the window shows them, or, when they are of another list, as they

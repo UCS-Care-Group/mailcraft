@@ -327,7 +327,7 @@ pub(crate) fn listing(s: &Session, decided: &HashMap<Id, bool>, searched: &HashM
 
 /// The messages of the conversations of `rows` in the account's other folders (#503), as the
 /// reading pane's conversation takes them ([`Mailbox::conversation_skips`]: none in Deleted Items
-/// or Junk E-mail, unless the list is of that folder), that the filter in view lists or that stay
+/// or Junk E-mail or under them, unless the list is of that folder), that the filter in view lists or that stay
 /// in it while selected (`kept`, #428, and then in `kept_only` too): each in its row's `others`.
 /// For a list without a search, all of whose rows are of the folder in view; `index` is where
 /// each conversation's row is, by its account and its key.
@@ -339,7 +339,7 @@ fn elsewhere(s: &Session, me: &[&str], kept: Option<&HashSet<Id>>, index: &HashM
     let Some(account) = mb.folder(folder).map(|f| f.account) else { return };
     let skips = mb.conversation_skips(account, folder);
     for m in mb.messages.values() {
-        if m.account != account || m.folder == folder || skips.contains(&Some(m.folder)) {
+        if m.account != account || m.folder == folder || skips.contains(&m.folder) {
             continue;
         }
         let hit = filtered(s, m, me);

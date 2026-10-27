@@ -331,3 +331,24 @@ fn no_path_ever_reaches_the_bridge() {
     assert!(err(&mut b, &pol, "click", json!({"x": 1, "y": 1})).is_none());
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn an_agents_delete_of_a_conversations_row_is_refused_naming_and_goes_ahead_with_what_it_takes() {
+    // Conversation view, a closed row of two messages selected (#503).
+    let selected = |allow| {
+        let mut s = sample();
+        for (cmd, params) in [("folder.select", json!({"kind": "inbox"})), ("view.conversations", json!({"value": true}))] {
+            s.run(cmd, &params).unwrap();
+        }
+        let row = s.rows().iter().find(|r| r.members.len() == 2).cloned().unwrap();
+        s.run("mail.select", &json!({"id": row.id})).unwrap();
+        (Headless::new(s, allow), row)
+    };
+    let pol = Policy::default();
+    let (mut h, _) = selected(Vec::new());
+    let e = err(&mut h, &pol, "execute", json!({"command": "mail.deletePermanently", "params": {}}));
+    assert!(e.as_deref().is_some_and(|e| e.contains("2 messages")), "{e:?}");
+    let (mut h, row) = selected(vec![Class::Delete]);
+    assert_eq!(err(&mut h, &pol, "execute", json!({"command": "mail.deletePermanently", "params": {}})), None);
+    assert!(row.members.iter().all(|id| h.session.mailbox.message(*id).is_none()));
+}
