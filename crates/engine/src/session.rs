@@ -1997,10 +1997,7 @@ impl Session {
         if !self.view.conversations || self.sel.messages.is_empty() {
             return self.sel.messages.clone();
         }
-        match self.rows_in_view() {
-            Some(rows) => self.acting_on_in(&rows),
-            None => self.acting_on_in(&crate::list::rows(self)),
-        }
+        self.acting_on_in(&crate::list::rows(self))
     }
 
     /// Whether `row` of the list is drawn selected (#503): what Delete and Move take, by the rows
