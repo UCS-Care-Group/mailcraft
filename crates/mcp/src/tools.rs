@@ -69,6 +69,14 @@ const TEXT_KEYS: &[&str] = &[
     "email",
     "attendees",
     "problems",
+    // A message's sender warnings (#508): the addresses, domains and links they are about come
+    // from the message.
+    "address",
+    "domain",
+    "like",
+    "textHost",
+    "host",
+    "url",
 ];
 
 fn wrap_text(t: &str) -> String {

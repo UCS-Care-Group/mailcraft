@@ -277,6 +277,26 @@ fn punycode_matches_the_standard_examples() {
 }
 
 #[test]
+fn punycode_reads_back_the_standard_examples() {
+    let decode = |s: &str| punycode::decode(s).map(|chars| chars.into_iter().collect::<String>());
+    // RFC 3492 section 7.1, the other way.
+    assert_eq!(decode("ihqwcrb4cv8a8dqg056pqjye").as_deref(), Some("\u{4ed6}\u{4eec}\u{4e3a}\u{4ec0}\u{4e48}\u{4e0d}\u{8bf4}\u{4e2d}\u{6587}"));
+    assert_eq!(decode("Proprostnemluvesky-uyb24dma41a").as_deref(), Some("Pro\u{10d}prost\u{11b}nemluv\u{ed}\u{10d}esky"));
+    assert_eq!(decode("bcher-kva").as_deref(), Some("b\u{fc}cher"));
+    assert_eq!(decode("tda").as_deref(), Some("\u{fc}"));
+    // Labels that are not what their letters would be written as (IDNA 2008 §5.4).
+    for loose in ["abc-", "lumen-", "paypal-", "a-b-"] {
+        assert_eq!(decode(loose), None, "{loose}");
+    }
+    // A Cyrillic "а" among Latin letters, as a lookalike domain has it, there and back.
+    let lookalike: Vec<char> = "p\u{430}ypal".chars().collect();
+    assert_eq!(punycode::encode(&lookalike).and_then(|text| punycode::decode(&text)), Some(lookalike));
+    for bad in ["", "-", "a-!", "99999999999", "\u{e9}"] {
+        assert_eq!(decode(bad), None, "{bad}");
+    }
+}
+
+#[test]
 fn a_component_for_a_query_leaves_letters_digits_and_a_few_marks() {
     assert_eq!(encode_component("abc XYZ-._*019"), "abc%20XYZ-._*019");
     assert_eq!(encode_component("a+b&c=d/e?f#g%h"), "a%2Bb%26c%3Dd%2Fe%3Ff%23g%25h");
@@ -327,6 +347,14 @@ proptest! {
     #[test]
     fn punycode_never_panics(chars in prop::collection::vec(any::<char>(), 0..80)) {
         let _ = punycode::encode(&chars);
+    }
+
+    #[test]
+    fn punycode_reads_back_what_it_writes(chars in prop::collection::vec(any::<char>(), 1..80), junk in "[ -~]{0,200}") {
+        if let Some(text) = punycode::encode(&chars).filter(|_| chars.iter().any(|c| !c.is_ascii())) {
+            prop_assert_eq!(punycode::decode(&text), Some(chars));
+        }
+        let _ = punycode::decode(&junk);
     }
 }
 

@@ -176,6 +176,8 @@ const SAFE: &[&str] = &[
     "edit.copy",
     "edit.cut",
     "edit.paste",
+    "insert.dateTime",
+    "review.wordCount",
     // Folders.
     "folder.select",
     "folder.list",

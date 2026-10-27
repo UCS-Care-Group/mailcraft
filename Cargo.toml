@@ -48,6 +48,10 @@ encoding_rs = "0.8"
 # our own.
 jiff = { version = "0.2.38", default-features = false, features = ["std", "tz-system", "tzdb-bundle-always"] }
 
+# Unicode's word boundaries (UAX #29), for Review › Word Count (`mailcraft-engine`). MIT OR
+# Apache-2.0, Rust throughout, builds for the browser; already in the tree (egui runs on it).
+unicode-segmentation = "1.13"
+
 # network (desktop and CLI only; the browser can't open sockets)
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12", "logging"] }
 # Server certificates are checked by the operating system's own verifier (#501): Windows and macOS
