@@ -56,7 +56,6 @@ fn the_open_line_says_how_long_how_big_and_how_many_and_nothing_of_the_mail() {
     assert!(line.contains("5000000 bytes"), "{line}");
     assert!(line.contains("3 messages"), "{line}");
     assert!(line.contains(&format!("{} folders", mb.folders.len())), "{line}");
-    assert!(line.contains("1 accounts"), "{line}");
     assert!(line.contains("not repaired"), "{line}");
     for secret in ["Avery", "avery@", "Blake", "blake@", "example.org", "Confidential", "merger", "Inbox", "mailcraft"] {
         assert!(!line.contains(secret), "{secret} in {line}");

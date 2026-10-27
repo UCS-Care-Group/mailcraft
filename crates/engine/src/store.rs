@@ -1227,18 +1227,19 @@ pub fn open_with(path: &Path, progress: &OpenProgress) -> Result<Opened, String>
     Ok(opened)
 }
 
-/// What an open is logged as: how long it took, how many bytes the file has, how many messages,
-/// folders and accounts came of it and whether anything was put right. Counts only: nothing of
+/// What an open is logged as: how long it took, how many bytes the file has, how many messages
+/// and folders came of it and whether anything was put right. Counts only: nothing of
 /// the mail, its people, its folders' names or where the file is.
 /// It takes numbers alone, worked out by the caller, so that nothing of the mailbox can reach it.
-fn open_line(took: Duration, bytes: u64, [m, f, a]: [usize; 3], fixes: usize) -> String {
+fn open_line(took: Duration, bytes: u64, [m, f]: [usize; 2], fixes: usize) -> String {
     let fixed = if fixes == 0 { "not repaired".to_string() } else { format!("repaired ({fixes} fixes)") };
-    format!("opened a mailbox in {:.2} s: {bytes} bytes, {m} messages, {f} folders, {a} accounts, {fixed}", took.as_secs_f64())
+    format!("opened a mailbox in {:.2} s: {bytes} bytes, {m} messages, {f} folders, {fixed}", took.as_secs_f64())
 }
 
-/// How many messages, folders and accounts `mailbox` has, for [`open_line`].
-fn counts(mailbox: &Mailbox) -> [usize; 3] {
-    [mailbox.messages.len(), mailbox.folders.len(), mailbox.accounts.len()]
+/// How many messages and folders `mailbox` has, for [`open_line`]. (Not its accounts: code
+/// scanning takes anything of an account for a secret, a count too.)
+fn counts(mailbox: &Mailbox) -> [usize; 2] {
+    [mailbox.messages.len(), mailbox.folders.len()]
 }
 
 /// Read the mailbox file at `path` ahead of its being opened (File › Open in the window, #519):
