@@ -791,3 +791,87 @@ fn deleting_a_message_picked_from_the_reading_pane_and_a_row_below_selects_the_c
     // The row the first of them was listed in: the conversation's, which shows the newer one now.
     assert_eq!(s.sel.messages, [newer]);
 }
+
+#[test]
+fn open_and_close_take_a_message_only_by_id() {
+    let (mut s, newer, _, _) = release_checklist();
+    run(&mut s, "mail.select", json!({"id": newer}));
+    let other = row_of(&mut s, |r| r.size() == 1 && r.under.is_none()).id;
+    for wrong in [json!({"ids": [other]}), json!({"message": other})] {
+        assert!(s.run("mail.expandConversation", &wrong).is_err(), "{wrong}");
+        assert!(s.rows().iter().all(|r| !r.open), "{wrong} opened the focused conversation");
+    }
+    run(&mut s, "mail.expandConversation", json!({"id": newer}));
+    assert!(s.run("mail.collapseConversation", &json!({"ids": [other]})).is_err());
+    assert!(s.rows().iter().any(|r| r.open), "closed by `ids`");
+}
+
+#[test]
+fn an_agents_delete_or_move_with_params_the_command_refuses_is_refused_not_asked_about_the_selection() {
+    for command in ["mail.deletePermanently", "mail.move"] {
+        for wrong in [
+            json!({"id": "14"}),
+            json!({"ids": 14}),
+            json!({"id": 0}),
+            json!({"id": 1.5}),
+            json!({"ids": [14, "x"]}),
+            json!([]),
+            json!("x"),
+            json!(7),
+        ] {
+            let (mut s, newer, _, _) = release_checklist();
+            run(&mut s, "mail.select", json!({"id": newer}));
+            let mut params = wrong.clone();
+            if command == "mail.move" && params.is_object() {
+                params["folder"] = json!(folder(&s, FolderKind::Outbox));
+            }
+            crate::agent::pin_targets(&mut s, command, &mut params);
+            assert!(matches!(crate::agent::check(&s, command, &params, &[]), crate::agent::Verdict::Refuse(_)), "{command} {params}");
+        }
+    }
+    // No params at all are none: the question names what the row takes.
+    let (mut s, newer, _, _) = release_checklist();
+    run(&mut s, "mail.select", json!({"id": newer}));
+    let mut params = json!(null);
+    crate::agent::pin_targets(&mut s, "mail.deletePermanently", &mut params);
+    let (what, done) = asked_then_done(&mut s, "mail.deletePermanently", params);
+    assert!(what.contains("2 messages") && done["permanently"] == 2, "{what} {done}");
+}
+
+#[test]
+fn the_switch_to_ask_before_deleting_a_conversation_is_true_or_false() {
+    let (mut s, _, _, _) = release_checklist();
+    let id = s.mailbox.accounts[0].id;
+    for wrong in [json!("false"), json!(0), json!(null)] {
+        assert!(s.run("account.edit", &json!({"id": id, "askBeforeDeletingConversation": wrong})).is_err(), "{wrong}");
+    }
+    assert!(s.mailbox.asks_before_deleting_conversation(id));
+}
+
+#[test]
+fn a_message_selected_by_itself_before_its_conversation_came_on_top_of_it_is_taken_by_itself() {
+    let nothing_drawn = |s: &mut Session| {
+        let rows = s.rows();
+        let taken: std::collections::HashSet<Id> = s.acting_on_in(&rows).into_iter().collect();
+        rows.iter().all(|r| !s.shows_selected(r, &taken))
+    };
+    // The Unread tab lists the conversation by its one unread message, the All tab by the newer.
+    let (mut s, newer, older, reply) = release_checklist();
+    let (inbox, deleted, sent) = (s.view.folder, folder(&s, FolderKind::Deleted), folder(&s, FolderKind::Sent));
+    run(&mut s, "mail.markUnread", json!({"ids": [older]}));
+    run(&mut s, "view.filter", json!({"value": "unread"}));
+    run(&mut s, "mail.select", json!({"id": older}));
+    run(&mut s, "view.filter", json!({"value": "all"}));
+    assert!(nothing_drawn(&mut s));
+    run(&mut s, "mail.delete", json!({}));
+    assert_eq!([newer, older, reply].map(|id| folder_of(&s, id)), [inbox, deleted, sent]);
+    // A newer message of its conversation comes on top of a message alone in its row.
+    let (mut s, _, _, _) = release_checklist();
+    let alone = row_of(&mut s, |r| r.size() == 1 && r.group.is_none() && !r.conversation()).id;
+    run(&mut s, "mail.select", json!({"id": alone}));
+    let came = run(&mut s, "mail.copy", json!({"ids": [alone], "folder": inbox}))["copies"][0].as_u64().unwrap();
+    assert_eq!(row_of(&mut s, |r| r.members.contains(&alone)).id, came);
+    assert!(nothing_drawn(&mut s));
+    run(&mut s, "mail.delete", json!({}));
+    assert_eq!([alone, came].map(|id| folder_of(&s, id)), [deleted, inbox]);
+}

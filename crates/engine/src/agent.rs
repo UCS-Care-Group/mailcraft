@@ -17,7 +17,7 @@
 //!   set: mail put in an Outbox (which sends it) or gone for good without the grant is undone.
 
 use mailcraft_model::{FolderKind, Id, Mailbox};
-use serde_json::Value;
+use serde_json::{Value, json};
 
 use crate::{Session, p};
 
@@ -662,7 +662,6 @@ pub enum Verdict {
     Refuse(String),
 }
 
-/// The gate: `allow` is what the owner allowed in advance.
 /// What a Delete or Move takes, read as the command reads it (#503): `ids` strictly, else what the
 /// selection stands for (a closed conversation's row, the messages it shows).
 fn taken(s: &Session, params: &Value) -> Vec<Id> {
@@ -674,6 +673,9 @@ fn taken(s: &Session, params: &Value) -> Vec<Id> {
 /// whatever comes into the conversation meanwhile, and the question counts what a search found
 /// as the list shows it.
 pub fn pin_targets(s: &mut Session, id: &str, params: &mut Value) {
+    if matches!(id, "mail.delete" | "mail.deletePermanently" | "mail.move") && params.is_null() {
+        *params = json!({});
+    }
     if matches!(id, "mail.delete" | "mail.deletePermanently" | "mail.move") && params.is_object() && matches!(p::ids_strict(params), Ok(None)) {
         let ids = s.acting_on();
         if !ids.is_empty() {
@@ -682,6 +684,7 @@ pub fn pin_targets(s: &mut Session, id: &str, params: &mut Value) {
     }
 }
 
+/// The gate: `allow` is what the owner allowed in advance.
 pub fn check(s: &Session, id: &str, params: &Value, allow: &[Class]) -> Verdict {
     if access(id).is_none() {
         return Verdict::Refuse(format!("`{id}` isn't available to agents"));
@@ -697,6 +700,16 @@ pub fn check(s: &Session, id: &str, params: &Value, allow: &[Class]) -> Verdict 
         && let Err(e) = crate::cmd::junk::list_account(s, params)
     {
         return Verdict::Refuse(format!("`{id}`: {e}"));
+    }
+    // Params the command would read as none, and ids it refuses, aren't asked about as the
+    // selection it would take without them (#503).
+    if matches!(id, "mail.delete" | "mail.deletePermanently" | "mail.move") {
+        if !(params.is_object() || params.is_null()) {
+            return Verdict::Refuse(format!("`{id}`: the parameters are an object"));
+        }
+        if let Err(e) = p::ids_strict(params) {
+            return Verdict::Refuse(format!("`{id}`: {e}"));
+        }
     }
     match classify(s, id, params) {
         Access::Safe => Verdict::Run,

@@ -471,6 +471,8 @@ fn conversation_row(s: &mut Session, v: &Value) -> Option<(usize, Row)> {
 /// An `id` given to open or close a conversation by must be a message's: it is never taken to mean
 /// the one the focus is on.
 fn named_message(s: &Session, v: &Value) -> Result<(), crate::CmdError> {
+    // A message named by another key isn't taken for the focus's (#503).
+    p::only(v, &["id"])?;
     match v.get("id") {
         Some(_) if p::id(v, "id").and_then(|id| s.mailbox.message(id)).is_none() => Err(bad("`id` must be the id of a message")),
         _ => Ok(()),

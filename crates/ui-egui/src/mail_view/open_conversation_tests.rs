@@ -399,3 +399,115 @@ fn an_agents_delete_for_good_takes_only_what_the_owner_was_asked_about() {
     assert!(s.mailbox.message(newer).is_none() && s.mailbox.message(older).is_none(), "{done}");
     assert!(s.mailbox.message(came).is_some(), "it came while the owner was asked: {done}");
 }
+
+/// An agent's call waiting for the owner's yes, with nothing having the keyboard.
+fn an_agent_asks(w: &mut testing::Window, command: &str, params: serde_json::Value) -> std::sync::mpsc::Receiver<serde_json::Value> {
+    let (request, answer) = crate::ControlRequest::new("engine.execute", json!({"command": command, "params": params}));
+    let request = request.from_agent(Vec::new());
+    assert!(matches!(crate::agent_gate::screen(w.state_mut(), &request, &[]), Some(crate::control::Outcome::Pending)));
+    w.run_steps(3);
+    assert_eq!(w.state().asking.len(), 1);
+    assert!(!w.ctx.egui_wants_keyboard_input(), "nothing has the keyboard");
+    answer
+}
+
+#[test]
+fn right_left_and_delete_under_an_agents_question_leave_the_list_as_it_is() {
+    for held in [false, true] {
+        let press = |w: &mut testing::Window, k| if held { testing::held(w, k) } else { testing::key(w, k) };
+        let (mut w, newer, older, _) = release_checklist();
+        click(&mut w, "message", newer);
+        let _answer = an_agent_asks(&mut w, "mail.deletePermanently", json!({}));
+        press(&mut w, Key::ArrowRight);
+        w.run_steps(2);
+        assert!(drawn_under(&mut w, newer).is_empty(), "Right opened the conversation under the agent's question");
+        press(&mut w, Key::Delete);
+        w.run_steps(2);
+        assert_eq!(testing::dialog(&w), None, "Delete opened a question under the agent's question");
+        assert_eq!([kind(&w, newer), kind(&w, older)], [Some(FolderKind::Inbox); 2]);
+    }
+    let (mut w, newer, _, _) = release_checklist();
+    click(&mut w, "message", newer);
+    click(&mut w, "conversationArrow", newer);
+    let _answer = an_agent_asks(&mut w, "mail.deletePermanently", json!({}));
+    testing::key(&mut w, Key::ArrowLeft);
+    w.run_steps(2);
+    assert_eq!(drawn_under(&mut w, newer).len(), 3, "Left closed the conversation under the agent's question");
+}
+
+#[test]
+fn right_with_delete_in_the_same_frame_opens_nothing_under_its_question() {
+    let (mut w, newer, _, _) = release_checklist();
+    click(&mut w, "message", newer);
+    for pressed in [true, false] {
+        for key in [Key::Delete, Key::ArrowRight] {
+            w.input_mut().events.push(egui::Event::Key { key, physical_key: None, pressed, repeat: false, modifiers: egui::Modifiers::NONE });
+        }
+        w.run_steps(1);
+    }
+    w.run_steps(2);
+    assert_eq!(testing::dialog(&w), Some("confirm"));
+    assert!(drawn_under(&mut w, newer).is_empty(), "Right opened the conversation under the question");
+}
+
+#[test]
+fn a_delete_whose_counted_messages_are_all_gone_does_nothing_and_says_nothing_of_ids() {
+    let (mut w, newer, older, _) = release_checklist();
+    click(&mut w, "message", newer);
+    testing::key(&mut w, Key::Delete);
+    w.run_steps(3);
+    assert_eq!(testing::dialog(&w), Some("confirm"));
+    w.state_mut().execute("mail.deletePermanently", json!({"ids": [newer, older]})).unwrap();
+    w.run_steps(3);
+    let selected = w.state().session.sel.messages.clone();
+    click(&mut w, "questionAction", 0);
+    let status = w.state().status_msg.as_ref().map(|(s, _)| s.clone());
+    assert!(!status.as_deref().unwrap_or("").contains("`ids`"), "the owner is told: {status:?}");
+    assert_eq!(w.state().session.sel.messages, selected);
+}
+
+#[test]
+fn an_agents_question_goes_with_the_mailbox_it_was_asked_about() {
+    // Delete for Good, and a Move to the Outbox, which sends.
+    for (command, outbox) in [("mail.deletePermanently", false), ("mail.move", true)] {
+        let (mut w, newer, older, _) = release_checklist();
+        click(&mut w, "message", newer);
+        let params = if outbox {
+            let s = &w.state().session;
+            json!({"folder": s.mailbox.folder_of_kind(s.mailbox.accounts[0].id, FolderKind::Outbox).unwrap()})
+        } else {
+            json!({})
+        };
+        let answer = an_agent_asks(&mut w, command, params);
+        // Another mailbox takes the place of this one before the owner answers; it has the same ids.
+        w.state_mut().execute("file.new", json!({"sample": true})).unwrap();
+        w.run_steps(3);
+        assert!(w.state().asking.is_empty(), "{command}: the question went with its mailbox");
+        crate::agent_gate::answer(w.state_mut(), true);
+        let done = answer.try_recv().unwrap();
+        assert_eq!(done["ok"], false, "{command}: {done}");
+        assert_eq!([kind(&w, newer), kind(&w, older)], [Some(FolderKind::Inbox); 2], "{command}: {done}");
+    }
+    // A mailbox swapped in the frame the owner answers in: the yes isn't the other mailbox's.
+    let (mut w, newer, older, _) = release_checklist();
+    click(&mut w, "message", newer);
+    let answer = an_agent_asks(&mut w, "mail.deletePermanently", json!({}));
+    let other = mailcraft_engine::sample::mailbox(w.state().session.now(), 0);
+    w.state_mut().session.replace_mailbox(other);
+    crate::agent_gate::answer(w.state_mut(), true);
+    assert_eq!(answer.try_recv().unwrap()["ok"], false);
+    assert!(w.state().session.mailbox.message(newer).is_some() && w.state().session.mailbox.message(older).is_some());
+}
+
+#[test]
+fn an_agents_call_with_params_the_command_refuses_is_refused_not_asked_about_the_selection() {
+    for params in [json!({"id": "14"}), json!([]), json!("x")] {
+        let (mut w, newer, older, _) = release_checklist();
+        click(&mut w, "message", newer);
+        let (request, answer) = crate::ControlRequest::new("engine.execute", json!({"command": "mail.deletePermanently", "params": params}));
+        let request = request.from_agent(Vec::new());
+        assert!(matches!(crate::agent_gate::screen(w.state_mut(), &request, &[]), Some(crate::control::Outcome::Done(_))), "{params}");
+        assert!(w.state().asking.is_empty() && answer.try_recv().is_err(), "{params}: the owner isn't asked");
+        assert_eq!([kind(&w, newer), kind(&w, older)], [Some(FolderKind::Inbox); 2]);
+    }
+}

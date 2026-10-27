@@ -1167,8 +1167,8 @@ msgstr "Opnieuw vragen"
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
-msgid "Ask before deleting a whole conversation"
-msgstr "Vragen voordat een heel gesprek wordt verwijderd"
+msgid "Ask before deleting a conversation"
+msgstr "Vragen voordat een gesprek wordt verwijderd"
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs

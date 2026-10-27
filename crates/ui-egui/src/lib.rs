@@ -2736,6 +2736,8 @@ impl MailApp {
             if matches!(self.dialog, Some(dialogs::Dialog::Confirm { .. })) {
                 self.dialog = None;
             }
+            // An agent's too.
+            agent_gate::forget(self);
             self.passwords.clear();
             self.tokens.clear();
             self.graph_tokens.clear();

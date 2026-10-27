@@ -776,6 +776,10 @@ pub(crate) fn go_ahead(app: &mut MailApp, command: &str, mut params: Value) {
     {
         let mb = &app.session.mailbox;
         ids.retain(|id| id.as_u64().is_some_and(|id| mb.message(id).is_some()));
+        // None left: nothing to delete, and nothing to say about `ids`.
+        if ids.is_empty() {
+            return;
+        }
     }
     let opening = command == "ui.openWindow" || input_dialog(command, &params) == Some("editEvent");
     if opening && let Some(event) = params.get("event").or(params.get("id")).and_then(Value::as_u64).or(app.session.sel.event) {

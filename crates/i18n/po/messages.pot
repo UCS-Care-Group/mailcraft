@@ -982,7 +982,7 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
-msgid "Ask before deleting a whole conversation"
+msgid "Ask before deleting a conversation"
 msgstr ""
 
 #. interface

@@ -207,8 +207,10 @@ fn apply_fields(a: &mut Account, v: &Value) -> Result<(), CmdError> {
             mailcraft_model::KeepOffline::parse(keep).ok_or_else(|| bad("`keepOffline` is 3d, 1w, 2w, 1m, 3m, 6m, 12m, 2y, 5y, 10y or all"))?;
     }
     // Whether Delete on a whole conversation asks first (#503).
-    if let Some(ask) = p::bool(v, "askBeforeDeletingConversation") {
-        a.skip_conversation_question = !ask;
+    match v.get("askBeforeDeletingConversation") {
+        None => {}
+        Some(Value::Bool(ask)) => a.skip_conversation_question = !ask,
+        Some(_) => return Err(bad("`askBeforeDeletingConversation` is true or false")),
     }
     // A Microsoft account kept in step through Graph (R3), or an account kept in step over JMAP
     // (M6): asked for by name; one that is that already stays it. (One kept in step by IMAP becomes

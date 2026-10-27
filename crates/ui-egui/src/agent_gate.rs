@@ -36,6 +36,8 @@ pub struct Asking {
     allow: Vec<Class>,
     reply: Sender<Value>,
     deadline: f64,
+    /// The mailbox it is about (`Session::openings`): its ids are that mailbox's (#503).
+    opening: u64,
 }
 
 /// The questions waiting, the first one on screen.
@@ -103,6 +105,7 @@ fn gate(app: &mut MailApp, req: &ControlRequest, id: &str, mut params: Value, al
                 allow: allow.to_vec(),
                 reply: req.reply.clone(),
                 deadline: crate::now_ms() + WAIT_MS,
+                opening: app.session.openings(),
             });
             Outcome::Pending
         }
@@ -123,7 +126,9 @@ fn run(app: &mut MailApp, id: &str, params: Value, allow: &[Class]) -> Outcome {
 /// The owner's answer to the question on screen.
 pub fn answer(app: &mut MailApp, yes: bool) {
     let Some(a) = app.asking.pop_front() else { return };
-    let out = if yes {
+    let out = if a.opening != app.session.openings() {
+        err(format!("another mailbox was opened before the owner answered about `{}`: nothing was done", a.id))
+    } else if yes {
         let mut allow = a.allow.clone();
         allow.push(a.class);
         // Asked again: what it would do may have changed while the question was up.
@@ -141,6 +146,16 @@ pub fn answer(app: &mut MailApp, yes: bool) {
 }
 
 /// Questions nobody answered in time are a no.
+/// Another mailbox took the place of the one asked about: the questions go with it, unanswered,
+/// since what they name are that mailbox's messages (#503).
+pub fn forget(app: &mut MailApp) {
+    for a in app.asking.drain(..) {
+        let _ = a
+            .reply
+            .send(json!({"ok": false, "error": format!("another mailbox was opened before the owner answered about `{}`: nothing was done", a.id)}));
+    }
+}
+
 pub fn expire(app: &mut MailApp, now: f64) {
     while app.asking.front().is_some_and(|a| now >= a.deadline) {
         if let Some(a) = app.asking.pop_front() {

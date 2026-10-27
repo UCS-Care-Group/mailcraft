@@ -1153,8 +1153,8 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
-msgid "Ask before deleting a whole conversation"
-msgstr "Chiedi prima di eliminare un'intera conversazione"
+msgid "Ask before deleting a conversation"
+msgstr "Chiedi prima di eliminare una conversazione"
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
