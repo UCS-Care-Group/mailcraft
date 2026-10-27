@@ -4666,12 +4666,17 @@ msgid "Move the Appointments Only"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/reading.rs
+msgid "Move the message to a folder to open or save its attachments"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/calendar_view.rs
 msgid "Move to Calendar"
 msgstr ""
 
-#. command label, ribbon
-#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/ribbon.rs
+#. command label, interface, ribbon
+#: crates/engine/src/cmd/mail.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/opened_message.rs crates/ui-egui/src/ribbon.rs
 msgid "Move to Folder"
 msgstr ""
 
@@ -5149,6 +5154,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/merge_contacts.rs
 msgid "No two contacts share an e-mail address or a phone number."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/windows.rs
+msgid "No window shows a message file"
 msgstr ""
 
 #. interface
@@ -5929,6 +5939,11 @@ msgid "Pictures not shown."
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/reading.rs
+msgid "Pictures on the web aren't downloaded for a message that is not in your mailbox: move it to a folder first."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/signatures.rs
 msgid "Pictures: {n} KB of {max} KB"
 msgstr ""
@@ -6613,7 +6628,7 @@ msgid "Save As"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/reading.rs
+#: crates/ui-egui/src/opened_message.rs crates/ui-egui/src/reading.rs
 msgid "Save As…"
 msgstr ""
 
@@ -6650,6 +6665,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/mail_view.rs
 msgid "Save Message As…"
+msgstr ""
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+msgid "Save Message File As"
 msgstr ""
 
 #. command label
@@ -7878,6 +7898,11 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/task_sync.rs
+msgid "Tasks: Microsoft no longer takes the sign-in"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/task_sync.rs
 msgid "Tasks: asking for your permission…"
 msgstr ""
 
@@ -8104,6 +8129,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/approval.rs
 msgid "The approval didn't go through."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/opened_message.rs
+msgid "The browser opens no files from the system"
 msgstr ""
 
 #. what a command says
@@ -8375,6 +8405,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/attachment_open.rs
 msgid "The message isn't there any more"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/opened_message.rs crates/ui-egui/src/windows.rs
+msgid "The message wasn't filed"
 msgstr ""
 
 #. interface
@@ -10525,6 +10560,11 @@ msgstr ""
 #. name
 #: crates/engine/src/agent.rs
 msgid "it writes to other people or reaches out to the web"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/opened_message.rs
+msgid "larger than {mb} MB: bring it in with File › Import"
 msgstr ""
 
 #. interface

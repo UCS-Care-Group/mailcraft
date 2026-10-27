@@ -283,6 +283,225 @@ fn the_pointer_puts_the_caret_and_selects_words() {
     assert_eq!(sel(&h), Selection { anchor: 0, head: 12 });
 }
 
+/// The body's two paragraphs in the drag tests.
+const LINES: [&str; 2] = ["alpha beta gamma delta", "epsilon zeta"];
+
+/// A message whose body is [`LINES`], with clicks a second apart counting as one more of a row
+/// (the harness's frames are a quarter of a second apart).
+fn writing_lines() -> Window {
+    let mut h = writing();
+    type_in(&mut h, LINES[0]);
+    key(&mut h, Key::Enter);
+    type_in(&mut h, LINES[1]);
+    assert_eq!(plain(&h), LINES.join("\n"));
+    h.ctx.options_mut(|o| o.input_options.max_double_click_delay = 1.0);
+    h
+}
+
+/// Where the pointer is a quarter of the way into character `n` of line `line` of the body: the
+/// gap before it is the nearest.
+fn on_char(h: &Window, line: usize, n: usize) -> egui::Pos2 {
+    into_char(h, line, n, 0.25)
+}
+
+/// Where the pointer is `part` of the way across character `n` of line `line` of the body.
+fn into_char(h: &Window, line: usize, n: usize, part: f32) -> egui::Pos2 {
+    let r = h.state().hit.rect("composeBody", 0).unwrap();
+    let lay = |text: &str| h.ctx.fonts_mut(|f| f.layout_no_wrap(text.to_string(), crate::theme::regular(editor::BASE_SIZE), egui::Color32::WHITE));
+    let top: f32 = LINES[..line].iter().map(|l| lay(l).size().y).sum();
+    let galley = lay(LINES[line]);
+    let x = |i: usize| galley.pos_from_cursor(egui::text::CCursor::new(i)).min.x;
+    egui::pos2(r.min.x + x(n) + (x(n + 1) - x(n)) * part, r.min.y + top + galley.size().y / 2.0)
+}
+
+/// So many clicks in a row at `from`, the last of them held and dragged to `to`.
+fn clicks_and_drag(h: &mut Window, from: egui::Pos2, count: usize, to: egui::Pos2) {
+    let button = |pos, pressed| Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
+    h.event(Event::PointerMoved(from));
+    h.step();
+    for _ in 1..count {
+        for pressed in [true, false] {
+            h.event(button(from, pressed));
+            h.step();
+        }
+    }
+    h.event(button(from, true));
+    h.step();
+    for n in 1..=5 {
+        h.event(Event::PointerMoved(from + (to - from) * (n as f32 / 5.0)));
+        h.step();
+    }
+    h.event(button(to, false));
+    h.run_steps(2);
+}
+
+#[test]
+fn a_drag_from_two_clicks_goes_on_by_words() {
+    let mut h = writing_lines();
+    // From inside "beta" to inside "gamma": both words whole.
+    let (from, to) = (on_char(&h, 0, 8), on_char(&h, 0, 13));
+    clicks_and_drag(&mut h, from, 2, to);
+    assert_eq!(sel(&h), Selection { anchor: 6, head: 16 });
+}
+
+#[test]
+fn a_drag_back_from_two_clicks_keeps_the_word_clicked() {
+    let mut h = writing_lines();
+    // From inside "gamma" back to inside "alpha": "gamma" stays whole.
+    let (from, to) = (on_char(&h, 0, 13), on_char(&h, 0, 2));
+    clicks_and_drag(&mut h, from, 2, to);
+    assert_eq!(sel(&h), Selection { anchor: 16, head: 0 });
+}
+
+#[test]
+fn a_drag_from_three_clicks_goes_on_by_paragraphs() {
+    let mut h = writing_lines();
+    // From the second paragraph up into the first: both whole, the second to its end.
+    let (from, to) = (on_char(&h, 1, 3), on_char(&h, 0, 2));
+    clicks_and_drag(&mut h, from, 3, to);
+    assert_eq!(sel(&h), Selection { anchor: 35, head: 0 });
+}
+
+#[test]
+fn a_drag_from_one_click_goes_by_characters() {
+    let mut h = writing_lines();
+    let (from, to) = (on_char(&h, 0, 8), on_char(&h, 0, 13));
+    // Two clicks a while ago at the same place are not this press's.
+    clicks_and_drag(&mut h, from, 2, from);
+    h.run_steps(6);
+    clicks_and_drag(&mut h, from, 1, to);
+    assert_eq!(sel(&h), Selection { anchor: 8, head: 13 });
+    h.run_steps(6);
+    clicks_and_drag(&mut h, to, 1, from);
+    assert_eq!(sel(&h), Selection { anchor: 13, head: 8 });
+}
+
+#[test]
+fn a_drag_from_three_clicks_goes_on_by_paragraphs_forward_too() {
+    let mut h = writing_lines();
+    let (from, to) = (on_char(&h, 0, 3), on_char(&h, 1, 2));
+    clicks_and_drag(&mut h, from, 3, to);
+    assert_eq!(sel(&h), Selection { anchor: 0, head: 35 });
+}
+
+#[test]
+fn a_drag_from_two_clicks_turns_back_past_the_word_and_out_again() {
+    let mut h = writing_lines();
+    let button = |pos, pressed| Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
+    let on = on_char(&h, 0, 8);
+    h.event(Event::PointerMoved(on));
+    h.step();
+    for pressed in [true, false, true] {
+        h.event(button(on, pressed));
+        h.step();
+    }
+    // Out past "gamma", back past "beta" into "alpha", and out to "gamma" again: "beta" all the way.
+    let mut at = on;
+    let mut seen = Vec::new();
+    for to in [on_char(&h, 0, 13), on_char(&h, 0, 2), on_char(&h, 0, 13)] {
+        for n in 1..=5 {
+            h.event(Event::PointerMoved(at + (to - at) * (n as f32 / 5.0)));
+            h.step();
+        }
+        at = to;
+        seen.push(sel(&h));
+    }
+    h.event(button(at, false));
+    h.run_steps(2);
+    let want = [Selection { anchor: 6, head: 16 }, Selection { anchor: 10, head: 0 }, Selection { anchor: 6, head: 16 }];
+    assert_eq!(seen, want);
+}
+
+#[test]
+fn two_clicks_take_the_word_under_the_pointer_on_either_half_of_its_last_letter() {
+    let mut h = writing_lines();
+    // The last letter of "beta", its left half and its right one.
+    for part in [0.25, 0.75] {
+        let on = into_char(&h, 0, 9, part);
+        clicks_and_drag(&mut h, on, 2, on);
+        assert_eq!(sel(&h), Selection { anchor: 6, head: 10 }, "{part}");
+        h.run_steps(6);
+        let to = on_char(&h, 0, 13);
+        clicks_and_drag(&mut h, on, 2, to);
+        assert_eq!(sel(&h), Selection { anchor: 6, head: 16 }, "{part}");
+        h.run_steps(6);
+        let to = on_char(&h, 0, 2);
+        clicks_and_drag(&mut h, on, 2, to);
+        assert_eq!(sel(&h), Selection { anchor: 10, head: 0 }, "{part}");
+        h.run_steps(6);
+    }
+}
+
+/// So many clicks in a row at `pos`, each pressed and let go within one frame, as a touchpad's
+/// taps come.
+fn taps(h: &mut Window, pos: egui::Pos2, count: usize) {
+    h.event(Event::PointerMoved(pos));
+    h.step();
+    // One frame for each of the harness's queued events: these go straight into the frame's input.
+    for _ in 0..count {
+        let tap =
+            [true, false].map(|pressed| Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed, modifiers: Modifiers::NONE });
+        h.input_mut().events.extend(tap);
+        h.step();
+    }
+    h.run_steps(2);
+}
+
+#[test]
+fn clicks_pressed_and_let_go_within_a_frame_take_a_word_and_a_paragraph() {
+    let mut h = writing_lines();
+    let on = on_char(&h, 0, 8);
+    taps(&mut h, on, 2);
+    assert_eq!(sel(&h), Selection { anchor: 6, head: 10 });
+    h.run_steps(6);
+    taps(&mut h, on, 3);
+    assert_eq!(sel(&h), Selection { anchor: 0, head: 22 });
+}
+
+#[test]
+fn a_click_pressed_and_let_go_within_a_frame_lets_go_of_a_word() {
+    let mut h = writing_lines();
+    let on = on_char(&h, 0, 8);
+    clicks_and_drag(&mut h, on, 2, on);
+    assert_eq!(sel(&h), Selection { anchor: 6, head: 10 });
+    h.run_steps(6);
+    let elsewhere = on_char(&h, 1, 3);
+    taps(&mut h, elsewhere, 1);
+    assert_eq!(sel(&h), Selection::caret(26));
+}
+
+/// So many clicks in a row at `from`, each click's release in the frame of the next press (one
+/// frame's input, as a quick hand on a slow frame gives), the last press held and dragged to `to`.
+fn clicks_run_together_and_drag(h: &mut Window, from: egui::Pos2, count: usize, to: egui::Pos2) {
+    let press = |pressed| Event::PointerButton { pos: from, button: egui::PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
+    h.event(Event::PointerMoved(from));
+    h.step();
+    h.input_mut().events.push(press(true));
+    h.step();
+    for _ in 1..count {
+        h.input_mut().events.extend([press(false), press(true)]);
+        h.step();
+    }
+    for n in 1..=5 {
+        h.event(Event::PointerMoved(from + (to - from) * (n as f32 / 5.0)));
+        h.step();
+    }
+    h.event(Event::PointerButton { pos: to, button: egui::PointerButton::Primary, pressed: false, modifiers: Modifiers::NONE });
+    h.run_steps(2);
+}
+
+#[test]
+fn a_drag_from_clicks_whose_release_and_press_share_a_frame_goes_by_words_and_paragraphs() {
+    let mut h = writing_lines();
+    let (on, to) = (on_char(&h, 0, 8), on_char(&h, 0, 13));
+    clicks_run_together_and_drag(&mut h, on, 2, to);
+    assert_eq!(sel(&h), Selection { anchor: 6, head: 16 });
+    h.run_steps(6);
+    let (on, to) = (on_char(&h, 1, 3), on_char(&h, 0, 2));
+    clicks_run_together_and_drag(&mut h, on, 3, to);
+    assert_eq!(sel(&h), Selection { anchor: 35, head: 0 });
+}
+
 #[test]
 fn a_plain_text_message_has_no_formatting_and_ctrl_k_asks_for_a_link() {
     let mut h = writing();

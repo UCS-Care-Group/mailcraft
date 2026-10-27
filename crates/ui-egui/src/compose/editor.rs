@@ -29,6 +29,7 @@ use mailcraft_model::{RichBody, RichText};
 use serde_json::{Value, json};
 
 use crate::MailApp;
+use crate::clicks::{Anchor, Unit};
 use crate::theme::{Tokens, regular, semibold};
 
 /// The message's own font size on screen, in points (the reading pane's).
@@ -290,6 +291,17 @@ impl Layout {
         p.start + p.galley.cursor_from_pos(local).index.0.min(p.chars)
     }
 
+    /// The character under a point of the body, when it is on one (not the nearest gap, as for
+    /// the caret): what a double click takes the word of.
+    fn char_under(&self, at: Vec2) -> Option<usize> {
+        let p = self.para_at_y(at.y)?;
+        let local = vec2(at.x - p.indent(), at.y - p.top);
+        if let Some(b) = p.pictures.iter().find(|b| b.rect.contains(local.to_pos2())) {
+            return Some(p.start + b.local);
+        }
+        crate::reading::char_at(&p.galley, local).filter(|c| *c < p.chars).map(|c| p.start + c)
+    }
+
     /// The picture under a point of the body: its place in the text, its id and where it is.
     fn picture_hit(&self, at: Vec2) -> Option<(usize, u32, Rect)> {
         let p = self.para_at_y(at.y)?;
@@ -453,8 +465,8 @@ pub(crate) fn laid(ctx: &egui::Context) -> usize {
 struct State {
     /// Where the caret goes up and down from (the column it was in before it went up or down).
     column: Option<f32>,
-    /// Where the pointer went down, for dragging a selection from there.
-    anchor: Option<usize>,
+    /// What the pointer took where it went down, for dragging a selection from there.
+    anchor: Option<Anchor<usize>>,
     /// What an input method is composing, not yet typed.
     preedit: String,
     /// A picture's corner being dragged: its id and the width it has so far.
@@ -562,36 +574,38 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
     }
 
     // The pointer: a click puts the caret, or selects a picture; a drag selects, a double click a
-    // word, a triple click the paragraph; Shift and a click selects from where the selection
-    // started.
+    // word and a triple click the paragraph as the button goes down, and a drag from them goes on
+    // by words or paragraphs, keeping that one; Shift and a click selects from where the
+    // selection started. Asked in every pass, so that every click is counted.
+    let unit = crate::clicks::pressed(&ctx).unwrap_or(Unit::Char);
     if editable
         && st.resizing.is_none()
         && let Some(pointer) = resp.interact_pointer_pos()
         && let Some((sel, _)) = now(app, which)
     {
         let at = layout.hit(pointer - origin);
+        let on = layout.char_under(pointer - origin).unwrap_or(at);
         let (pressed, shift) = ui.input(|i| (i.pointer.primary_pressed(), i.modifiers.shift));
         let picture = layout.picture_hit(pointer - origin).filter(|_| pressed && !shift);
+        let under = |unit: Unit| match unit {
+            Unit::Char => (at, at),
+            Unit::Word => layout.word_ends(on),
+            Unit::Paragraph => layout.paragraph_ends(at),
+        };
         let asked = if let Some((place, _, _)) = picture {
             st.anchor = None;
             resp.request_focus();
             select(place, place + 1)
-        } else if resp.triple_clicked() {
-            st.anchor = None;
-            let (a, b) = layout.paragraph_ends(at);
-            select(a, b)
-        } else if resp.double_clicked() {
-            st.anchor = None;
-            let (a, b) = layout.word_ends(at);
-            select(a, b)
-        } else if pressed && resp.is_pointer_button_down_on() {
-            let anchor = if shift { sel.anchor } else { at };
+        // A press let go of in the same frame (a tap on a touchpad) is a press all the same.
+        } else if pressed && (resp.is_pointer_button_down_on() || resp.clicked()) {
+            let anchor = if shift { Anchor::new(Unit::Char, (sel.anchor, sel.anchor)) } else { Anchor::new(unit, under(unit)) };
             st.anchor = Some(anchor);
             resp.request_focus();
-            select(anchor, at)
+            let (a, b) = anchor.reach(under(anchor.unit));
+            select(a, b)
         } else if resp.dragged() {
             reveal = true;
-            st.anchor.filter(|a| (*a, at) != (sel.anchor, sel.head)).and_then(|a| select(a, at))
+            st.anchor.map(|a| a.reach(under(a.unit))).filter(|ends| *ends != (sel.anchor, sel.head)).and_then(|(a, b)| select(a, b))
         } else {
             None
         };

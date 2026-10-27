@@ -58,6 +58,9 @@ enum What {
     /// it is about, with the name the calendar world knows it by; what is being made has none
     /// until it is saved.
     Event { event: Option<(Id, String)>, form: Box<Form> },
+    /// A message file that was opened and is not in the mailbox (#515): read-only, in memory
+    /// only, with the file's bytes for Save As and for filing it.
+    File { message: Arc<Message>, bytes: Arc<Vec<u8>> },
 }
 
 impl What {
@@ -67,20 +70,21 @@ impl What {
         match self {
             What::Message { message, .. } => Some((true, *message)),
             What::Event { event, .. } => event.as_ref().map(|(id, _)| (false, *id)),
+            What::File { .. } => None,
         }
     }
 
     /// The form it shows, when it shows one.
     fn form(&self) -> Option<&Form> {
         match self {
-            What::Message { .. } => None,
+            What::Message { .. } | What::File { .. } => None,
             What::Event { form, .. } => Some(form),
         }
     }
 
     fn form_mut(&mut self) -> Option<&mut Form> {
         match self {
-            What::Message { .. } => None,
+            What::Message { .. } | What::File { .. } => None,
             What::Event { form, .. } => Some(form),
         }
     }
@@ -117,11 +121,6 @@ pub struct Windows {
 }
 
 impl Windows {
-    /// How many windows are open.
-    pub(crate) fn count(&self) -> usize {
-        self.open.len()
-    }
-
     /// The form of the window numbered `id`, when it shows one.
     #[cfg(test)]
     pub(crate) fn form_mut(&mut self, id: u64) -> Option<&mut Form> {
@@ -145,6 +144,14 @@ impl Windows {
     /// The window that shows `event`, by its number.
     pub fn of_event(&self, event: Id) -> Option<u64> {
         self.open.iter().find(|w| w.what.subject() == Some((false, event))).map(|w| w.id)
+    }
+
+    /// Open a window for a message file ([`crate::opened_message`]); `Err` at the bound.
+    pub(crate) fn add_file(&mut self, message: Arc<Message>, bytes: Arc<Vec<u8>>) -> Result<u64, String> {
+        if self.open.len() >= MAX_WINDOWS {
+            return Err(tl!("Too many windows are open: close one first").to_string());
+        }
+        Ok(self.add(What::File { message, bytes }))
     }
 
     fn add(&mut self, what: What) -> u64 {
@@ -308,6 +315,49 @@ pub(crate) fn open_form(app: &mut MailApp, name: &str, p: &Value) -> Option<Resu
     })
 }
 
+/// The window numbered by `p`, or the one in front, when it shows a message file.
+fn opened_file<'a>(app: &'a mut MailApp, p: &Value) -> Result<&'a mut Open, String> {
+    let wanted = p.get("window").filter(|v| !v.is_null()).map(|v| v.as_u64().ok_or_else(|| "`window` is a number".to_string())).transpose()?;
+    let found = match wanted {
+        Some(n) => app.windows.open.iter_mut().find(|w| w.id == n),
+        None => app.windows.open.iter_mut().rev().find(|w| matches!(w.what, What::File { .. })),
+    };
+    found.filter(|w| matches!(w.what, What::File { .. })).ok_or_else(|| tl!("No window shows a message file").to_string())
+}
+
+/// `ui.moveWindowMessage`: the message of a message-file window is filed into `folder` and the
+/// window is about the message there from now on.
+fn move_opened(app: &mut MailApp, p: &Value) -> Result<Value, String> {
+    let folder = p.get("folder").and_then(Value::as_u64).ok_or_else(|| "`folder` is a folder id".to_string())?;
+    let window = opened_file(app, p)?;
+    let (number, bytes) = match &window.what {
+        What::File { bytes, .. } => (window.id, bytes.clone()),
+        _ => return Err(tl!("No window shows a message file").to_string()),
+    };
+    let id = crate::opened_message::file_into(app, &bytes, folder)?;
+    let seen = app.session.mailbox.messages.get(&id).cloned().ok_or_else(|| tl!("The message wasn't filed").to_string())?;
+    if let Some(w) = app.windows.open.iter_mut().find(|w| w.id == number) {
+        w.what = What::Message { message: id, seen };
+    }
+    Ok(json!({"window": number, "message": id}))
+}
+
+/// `ui.saveWindowMessage`: the file of a message-file window written to `path`; without one, its
+/// bytes are answered as `data` (base64), as exports do.
+fn save_opened(app: &mut MailApp, p: &Value) -> Result<Value, String> {
+    let window = opened_file(app, p)?;
+    let What::File { message, bytes } = &window.what else { return Err(tl!("No window shows a message file").to_string()) };
+    let name = mailcraft_engine::cmd::file::eml_name(message);
+    match p.get("path").and_then(Value::as_str) {
+        #[cfg(not(target_arch = "wasm32"))]
+        Some(path) => {
+            std::fs::write(path, bytes.as_slice()).map_err(|e| format!("{path}: {e}"))?;
+            Ok(json!({"path": path, "bytes": bytes.len()}))
+        }
+        _ => Ok(json!({"name": name, "bytes": bytes.len(), "data": mailcraft_engine::cmd::base64_encode(bytes)})),
+    }
+}
+
 fn close(app: &mut MailApp, p: &Value) -> Result<Value, String> {
     let number = |key: &str| p.get(key).filter(|v| !v.is_null()).map(|v| v.as_u64().ok_or_else(|| format!("`{key}` is a number")));
     let open = &mut app.windows.open;
@@ -334,7 +384,7 @@ fn close(app: &mut MailApp, p: &Value) -> Result<Value, String> {
 fn event_state(window: &Open) -> Value {
     let (event, form) = match &window.what {
         What::Event { event, form } => (event.as_ref().map(|(id, _)| *id), form.event()),
-        What::Message { .. } => (None, None),
+        What::Message { .. } | What::File { .. } => (None, None),
     };
     let mut state = json!({
         "window": window.id,
@@ -460,6 +510,8 @@ pub(crate) fn ui_command(app: &mut MailApp, id: &str, p: &Value) -> Option<Resul
             _ => Err(tl!("Say what to open: `message` or `event` by its id, or `new` (\"appointment\" or \"meeting\")").to_string()),
         },
         "ui.closeWindow" => close(app, p),
+        "ui.moveWindowMessage" => move_opened(app, p),
+        "ui.saveWindowMessage" => save_opened(app, p),
         "ui.eventWindow" => event_window(app, p),
         _ => return None,
     })
@@ -473,6 +525,7 @@ pub fn inspect(app: &MailApp) -> Value {
             .iter()
             .map(|w| match &w.what {
                 What::Message { message, .. } => json!({"id": w.id, "kind": "message", "message": message, "title": w.title, "embedded": w.embedded}),
+                What::File { .. } => json!({"id": w.id, "kind": "file", "title": w.title, "embedded": w.embedded}),
                 What::Event { event, form } => {
                     let state = event_state(w);
                     let mut entry = match event {
@@ -582,6 +635,8 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
         What::Event { event: Some((event, uid)), .. } => app.session.mailbox.event(*event).is_some_and(|e| e.uid == *uid),
         // What is being made is there until it is saved or given up.
         What::Event { event: None, .. } => true,
+        // A file's message is its own: nothing in the mailbox can take it away.
+        What::File { .. } => true,
     });
     // Inside the main window the active one is the one of them that has the keyboard: the one
     // last clicked or typed in (#406), not the one in front.
@@ -630,6 +685,7 @@ fn title(app: &MailApp, what: &What) -> String {
     };
     match what {
         What::Message { seen, .. } => named(&seen.subject, tl!("(no subject)")),
+        What::File { message, .. } => named(&message.subject, tl!("(no subject)")),
         What::Event { event: Some((event, _)), form } => {
             let kind = form.title();
             match app.session.mailbox.event(*event).map(|e| named(&e.title, "")).filter(|title| !title.is_empty()) {
@@ -826,6 +882,33 @@ fn contents(app: &mut MailApp, ui: &mut Ui, id: u64, what: &mut What, own_keys: 
                 crate::reading::show_message(app, ui, &m, Place::Window(id));
             });
             if close { Verdict::Close } else { Verdict::Stay }
+        }
+        What::File { message, bytes } => {
+            let m = message.clone();
+            let mut asked = crate::opened_message::Asked::default();
+            egui::Panel::top(egui::Id::unique(("mailcraft-window-actions", id)))
+                .resizable(false)
+                .frame(egui::Frame::NONE.fill(t.ribbon).inner_margin(egui::Margin::symmetric(10, 5)))
+                .show(ui, |ui| asked = crate::opened_message::bar(app, ui));
+            egui::CentralPanel::default().frame(egui::Frame::NONE.fill(t.surface)).show(ui, |ui| {
+                crate::reading::show_file_message(app, ui, &m, Place::Window(id));
+            });
+            if asked.save {
+                crate::files::save_opened(app, id, &m, bytes);
+            }
+            // Filed: from now on the window is about the message in its folder.
+            if let Some(folder) = asked.folder {
+                let bytes = bytes.clone();
+                match crate::opened_message::file_into(app, &bytes, folder) {
+                    Ok(new) => {
+                        if let Some(seen) = app.session.mailbox.messages.get(&new).cloned() {
+                            *what = What::Message { message: new, seen };
+                        }
+                    }
+                    Err(e) => app.status(e),
+                }
+            }
+            Verdict::Stay
         }
         What::Event { form, .. } => {
             // The form's fields are this window's own; in a window of the system it has the
