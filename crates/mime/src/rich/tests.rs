@@ -410,3 +410,55 @@ proptest! {
         prop_assert!(html.matches("<img").count() <= pictures);
     }
 }
+
+/// A message's text with pictures in it, as a draft reads it back.
+#[test]
+fn pictures_of_a_draft_come_back_in_their_places() {
+    let pic = |id: u32, width: Option<u16>, alt: &str| {
+        let mut p = Picture { id, mime: "image/png".into(), width, alt: alt.into(), ..Default::default() };
+        p.data = std::sync::Arc::new(png());
+        p
+    };
+    let (a, b) = (pic(1 << 20, Some(120), "A \"quoted\" <alt> & more"), pic((1 << 20) + 1, None, ""));
+    let mut text = RichText::from_plain("one two\nthree");
+    text.insert_rich(4, &RichText::from_paragraphs(vec![Paragraph::new(vec![Run::picture(a.id, Style::default())], Default::default())])).unwrap();
+    let end = text.len();
+    text.insert_rich(end, &RichText::from_paragraphs(vec![Paragraph::new(vec![Run::picture(b.id, Style::default())], Default::default())])).unwrap();
+    let html = to_html_with(&text, &|id| [&a, &b].into_iter().find(|p| p.id == id).map(|p| Img::of(p, format!("pic-{}.x@mailcraft.invalid", p.id))));
+    let mut seen = Vec::new();
+    let back = from_html_with_pictures(&html, &mut |img| {
+        seen.push(img.clone());
+        img.cid.strip_prefix("pic-")?.split('.').next()?.parse().ok()
+    });
+    assert_eq!(back.pictures(), vec![a.id, b.id], "{html}");
+    assert_eq!(back.text(), text.text());
+    assert_eq!(seen[0].width, Some(120));
+    assert_eq!(seen[0].alt, "A \"quoted\" <alt> & more");
+    assert_eq!(seen[1].width, None);
+    // Without a claim a picture is left out, as ever.
+    assert!(from_html_with_pictures(&html, &mut |_| None).pictures().is_empty());
+    assert!(from_html(&html).pictures().is_empty());
+}
+
+#[test]
+fn only_pictures_claimed_and_never_a_stray_object_character() {
+    let html = format!(
+        "<div>a{}b<img src=\"https://x.example/p.png\">c<IMG SRC='CID:q@x' width=5>d<imgx src=\"cid:q@x\"></div>",
+        mailcraft_model::rich::OBJECT
+    );
+    let back = from_html_with_pictures(&html, &mut |img| (img.cid == "q@x").then_some(7));
+    assert_eq!(back.pictures(), vec![7]);
+    assert!(!back.text().replace(mailcraft_model::rich::OBJECT, "").contains(mailcraft_model::rich::OBJECT));
+    assert_eq!(back.text().chars().filter(|c| *c == mailcraft_model::rich::OBJECT).count(), 1);
+}
+
+proptest! {
+    #![proptest_config(ProptestConfig::with_cases(300))]
+
+    /// Whatever the HTML is, reading it for pictures does not panic and holds only claimed ones.
+    #[test]
+    fn any_html_reads_for_pictures(html in "(<img [a-z=\"' /:@0-9.>-]{0,30}|\\PC{0,20}){0,12}") {
+        let back = from_html_with_pictures(&html, &mut |img| (img.cid.len() % 2 == 0).then_some(img.cid.len() as u32));
+        prop_assert!(back.pictures().iter().all(|id| id % 2 == 0));
+    }
+}

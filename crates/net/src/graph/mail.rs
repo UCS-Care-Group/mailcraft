@@ -881,6 +881,8 @@ mod draft_content_tests;
 #[cfg(test)]
 mod inbox_first_tests;
 #[cfg(test)]
+mod inline_picture_tests;
+#[cfg(test)]
 mod renew_tests;
 #[cfg(test)]
 mod search_tests;

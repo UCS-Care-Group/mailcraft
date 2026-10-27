@@ -37,6 +37,7 @@ pub mod mark;
 #[cfg(test)]
 mod mark_tests;
 pub mod opening;
+mod picture_fit;
 pub mod sample;
 pub mod sender_warnings;
 mod session;

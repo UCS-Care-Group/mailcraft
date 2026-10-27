@@ -90,6 +90,7 @@ pub(crate) fn intercept(app: &mut MailApp, id: &str, params: &Value) -> Option<R
             "file.import" => Some("import"),
             "compose.attach" if app.session.compose.is_some() => Some("attach"),
             "signature.picture.add" if app.session.signature_edit.is_some() => Some("picture"),
+            "insert.picture" if app.session.compose.is_some() && app.session.signature_edit.is_none() => Some("bodyPicture"),
             _ => None,
         };
         if let Some(purpose) = purpose {
@@ -199,6 +200,7 @@ fn opened_path(app: &mut MailApp, purpose: &str, path: &str) -> Result<Value, St
     let r = match purpose {
         "mailbox" => app.run("file.open", json!({"path": path})),
         "attach" => app.run("compose.attach", json!({"path": path})),
+        "bodyPicture" => app.run("insert.picture", json!({"path": path})),
         "picture" => {
             crate::signatures::add_picture(app, json!({"path": path}));
             return Ok(json!({"picture": path}));
@@ -363,6 +365,7 @@ pub(crate) fn drain_inbox(app: &mut MailApp) {
         let r = match purpose.as_str() {
             "mailbox" => app.run("file.open", json!({"name": name, "data": data})),
             "attach" => app.run("compose.attach", json!({"name": name, "data": data})),
+            "bodyPicture" => app.run("insert.picture", json!({"file": name, "data": data})),
             _ => app.run("file.import", json!({"name": name, "data": data})),
         };
         if r.is_ok() {
