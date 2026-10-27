@@ -211,17 +211,20 @@ pub(crate) fn put_back_waiting(mb: &mut Mailbox, going: impl Fn(&Mailbox, Id, Id
 }
 
 /// Mail moved into accounts that are about to go (`going`) whose original another account's
-/// server still has, waiting for the copy to be safe where it went (#451): once it is, the
-/// original goes as it would have; until then it never would, so the message goes back to its
-/// original. Either way the original isn't left on its server, shown nowhere.
+/// server still has, waiting for the copy to be safe where it went (#451): once it is on the
+/// account's server, the original goes as it would have; until then, or when the account is one
+/// on this computer, whose copy goes with it, the message goes back to its original. Either way
+/// the original isn't left on its server, shown nowhere, nor taken away with the account.
 pub(crate) fn settle_moves_into(s: &mut Session, going: &HashSet<Id>) {
     let mb = &s.mailbox;
     let elsewhere = |m: &Message| {
         m.moving_out.as_ref().is_some_and(|out| !out.left && !out.id.is_empty() && !going.contains(&out.account))
             || mb.pending.iter().any(|p| matches!(p, Pending::Move { account, message, .. } if *message == m.id && !going.contains(account)))
     };
+    // Safe only on a server, which keeps the copy: one on this computer goes with its account.
+    let kept = |m: &Message| mb.is_graph(m.account) || mb.puts_on_server(m.account);
     let waiting: Vec<(Id, bool)> =
-        mb.messages.values().filter(|m| going.contains(&m.account) && elsewhere(m)).map(|m| (m.id, safe_here(s, m, false))).collect();
+        mb.messages.values().filter(|m| going.contains(&m.account) && elsewhere(m)).map(|m| (m.id, kept(m) && safe_here(s, m, false))).collect();
     for (id, safe) in waiting {
         if !safe {
             put_back(&mut s.mailbox, id, false, None);

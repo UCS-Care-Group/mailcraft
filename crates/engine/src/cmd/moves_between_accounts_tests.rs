@@ -1093,6 +1093,45 @@ fn removing_the_account_mail_was_moved_into_lets_its_original_go_or_brings_it_ba
     s.run("account.remove", &json!({"id": a})).unwrap();
     assert!(s.mailbox.message(two).is_none());
     assert!(delete_asked(&s, ms));
+    // Onto this computer, whole in the saved file, and that account removed: the copy goes with
+    // it, so the message is back where the IMAP server has it, and nothing is deleted there.
+    let (mut s, a, kept) = imap();
+    let (two, inbox, local) = (titled(&s, "Two"), s.mailbox.folder_of_kind(a, FolderKind::Inbox).unwrap(), s.mailbox.folder(kept).unwrap().account);
+    s.run("mail.move", &json!({"ids": [two], "folder": kept})).unwrap();
+    s.note_saved();
+    assert_eq!(ops(&s, a), [delete(2)]);
+    s.run("account.remove", &json!({"id": local})).unwrap();
+    assert_eq!(at(&s, two), (a, inbox, 2));
+    assert!(s.mailbox.pending.is_empty() && ops(&s, a).is_empty(), "{:?}", s.mailbox.pending);
+    // Out of Microsoft onto this computer, the same: back in Microsoft as that server's message.
+    let (mut s, a, kept) = imap();
+    let ms = microsoft(&mut s, OWNER);
+    let (two, local) = (titled(&s, "Two"), s.mailbox.folder(kept).unwrap().account);
+    s.run("mail.move", &json!({"ids": [two], "folder": s.mailbox.folder_of_kind(ms, FolderKind::Inbox).unwrap()})).unwrap();
+    placed(&mut s, ms, OWNER, &[made("AAkA2")]);
+    deleted(&mut s, a, &[2]);
+    s.run("mail.move", &json!({"ids": [two], "folder": kept})).unwrap();
+    s.note_saved();
+    assert!(!graph_mail_request(&s, ms).unwrap().messages.is_empty());
+    s.run("account.remove", &json!({"id": local})).unwrap();
+    let m = s.mailbox.message(two).unwrap();
+    assert_eq!((m.account, m.server.as_ref().map(|x| x.id.as_str())), (ms, Some("AAkA2")));
+    assert!(graph_mail_request(&s, ms).unwrap().messages.is_empty(), "{:?}", graph_mail_request(&s, ms).unwrap().messages);
+}
+
+#[test]
+fn a_copy_made_on_microsofts_server_doesnt_say_who_got_a_blind_copy() {
+    let (mut s, _, kept) = imap();
+    let ms = microsoft(&mut s, OWNER);
+    let to = vec![Address::new("Bob", "bob@example.org")];
+    let rota = Message { folder: kept, to, bcc: vec![Address::new("Eve", "eve@example.net")], ..from_server(0, "Rota") };
+    let rota = s.mailbox.add_message(rota).unwrap();
+    s.run("mail.copy", &json!({"ids": [rota], "folder": s.mailbox.folder_of_kind(ms, FolderKind::Inbox).unwrap()})).unwrap();
+    let places = graph_mail_request(&s, ms).unwrap().places;
+    let asked = serde_json::to_string(&places).unwrap();
+    assert!(places.len() == 1 && asked.contains("bob@example.org") && !asked.contains("eve@example.net"), "{asked}");
+    // Here it still says who got one.
+    assert_eq!(s.mailbox.message(rota).map(|m| m.bcc.len()), Some(1));
 }
 
 #[test]

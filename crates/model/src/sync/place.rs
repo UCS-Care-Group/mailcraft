@@ -53,10 +53,10 @@ pub struct PlaceUp {
     pub reply_to: Vec<Address>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub to_list: Vec<Address>,
+    /// Without who got a blind copy (Bcc): the copy is for anyone else who can open the mailbox
+    /// to see too (#451).
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub cc: Vec<Address>,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub bcc: Vec<Address>,
     /// `Message-ID` without angle brackets.
     #[serde(skip_serializing_if = "String::is_empty")]
     pub message_id: String,
@@ -92,7 +92,6 @@ impl PlaceUp {
             reply_to: m.reply_to.clone(),
             to_list: m.to.clone(),
             cc: m.cc.clone(),
-            bcc: m.bcc.clone(),
             message_id: m.message_id.clone(),
             date: m.date,
             received: m.received,
