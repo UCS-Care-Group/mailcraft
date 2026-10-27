@@ -37,6 +37,9 @@ mod sharing_tests;
 #[cfg(test)]
 mod tests;
 mod view;
+mod warnings;
+#[cfg(test)]
+mod warnings_tests;
 
 use std::sync::Arc;
 
@@ -49,6 +52,7 @@ pub(crate) use invitation::{list_marks, options as invitation_options, question 
 pub use remote::{Access, RemotePictures};
 pub use select::Selections;
 pub(crate) use select::{inspect as selection_inspect, select_all_params};
+pub(crate) use warnings::row_mark as warning_mark;
 
 use crate::theme::{Tokens, paint_clipped, regular, semibold};
 use crate::{MailApp, icons};
@@ -315,6 +319,8 @@ fn header(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Place, pictur
     let mut fields = select::Fields::default();
     let around = egui::Frame::NONE.inner_margin(egui::Margin { left: 20, right: 12, top: 12, bottom: 10 }).show(ui, |ui| {
         ui.spacing_mut().item_spacing = vec2(6.0, 4.0);
+        // What may not be what it seems about it, above everything else (#508).
+        warnings::banner(app, ui, m, place, &t);
         // Subject, with the actions on the right (a window has them in its toolbar).
         ui.horizontal(|ui| {
             let subject = if m.subject.trim().is_empty() { tl!("(no subject)") } else { m.subject.as_str() };
@@ -358,8 +364,12 @@ fn header(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Place, pictur
                             } else {
                                 ui.painter().layout_no_wrap(address_text.clone(), regular(11.5), t.text_dim).size().x.min(room * 0.8)
                             };
-                            let name_w = (room - address_w - ui.spacing().item_spacing.x).max(room * 0.2);
-                            let looks_like_address = m.from.name.contains('@');
+                            // From outside the organisation: a quiet tag after the address, which
+                            // keeps its room.
+                            let external = warnings::external(app, m);
+                            let tag_w = if external { warnings::external_tag_width(ui, &t) } else { 0.0 };
+                            let name_w = (room - address_w - tag_w - ui.spacing().item_spacing.x).max(room * 0.2);
+                            let looks_like_address = mailcraft_model::confusables::as_seen(&m.from.name, 1_000).contains('@');
                             let name =
                                 egui::RichText::new(m.from.display()).font(semibold(13.0)).color(if looks_like_address { t.orange } else { t.text });
                             ui.scope(|ui| {
@@ -369,6 +379,13 @@ fn header(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Place, pictur
                             if !m.from.name.is_empty() {
                                 let address = egui::RichText::new(address_text).font(regular(11.5)).color(t.text_dim);
                                 fields.add(ui, select::Field::Address, egui::Label::new(address).truncate());
+                            }
+                            if external {
+                                ui.add_space(6.0);
+                                let tag = warnings::external_tag(ui, &t);
+                                if place == Place::Pane {
+                                    app.hit.add("externalTag", m.id, tag.rect);
+                                }
                             }
                         });
                     });

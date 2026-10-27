@@ -1,6 +1,6 @@
 # Contributing to MailCraft
 
-> **Status:** current · **Written:** 2026-10-15 · **Last updated:** 2026-10-24 · **Change:** minor
+> **Status:** current · **Written:** 2026-10-15 · **Last updated:** 2026-10-27 · **Change:** minor
 
 Thank you for wanting to help. MailCraft holds people's mail, so the way work comes in matters as
 much as the work.
@@ -34,6 +34,16 @@ Issues labelled `post-beta` are parked: they aren't open to claims until beta is
   Apache-2.0. The `cla` check on the pull request turns green when every author has signed.
 - **One issue, one pull request**, based on current `main`, small enough to review in one sitting.
   Say `Closes #<issue>` in the description.
+- **A feature in several parts:** each part is a pull request of its own, built on the part
+  before it, and its description starts with `Builds on #<n>`. Open the later parts as drafts;
+  when a part is merged, bring the next one up to date with `main` and mark it ready. If the
+  parts only make sense together, say so in the first one: the maintainers then review the whole
+  stack once, merge its top pull request and close the others as included in it. (Pull requests
+  from a fork can't be based on each other's branches here, so the order lives in the
+  descriptions.)
+- **Allow edits by maintainers** (the box under a new pull request, on by default for a fork):
+  it lets a maintainer bring your branch up to date with `main` or fix a small thing without
+  waiting for you.
 - **`cargo xtask ci` passes** on your machine before every commit (fmt, clippy, tests, assets,
   spdx, test-files, layers, wasm, and cargo-deny when it is installed). Commits carry the task id (`R3.2: messages come down by delta`).
 - **Every crash fix and every data-loss fix comes with a regression test.**
@@ -85,6 +95,7 @@ Found something wrong? Use the
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-27 | minor | A feature in several parts: one pull request a part, `Builds on #<n>`, later parts as drafts or the stack merged at its top; allow edits by maintainers; a pull request template with both |
 | 2026-10-24 | minor | `cargo xtask test-files` fails on a new inline test module; older ones listed in `xtask/inline-tests.txt` until moved |
 | 2026-10-23 | minor | A bug fix needs no claim: the problem report and its pull request come together |
 | 2026-10-20 | minor | A first contribution (`good first issue`); how pull requests are reviewed; SPDX lines in new Rust files |

@@ -30,8 +30,9 @@ Writes any bytes into a message: crafted MIME, HTML, headers, attachments, pictu
   fonts or frames, nothing 2 px or smaller), so a tracking pixel doesn't fire.
 - **"Always download pictures" is not a trust in a `From:` line.** A remembered sender or domain
   holds only for a message whose topmost `Authentication-Results` header says `dmarc=pass` (or
-  `compauth=pass`) for the sender's domain **and was written by the account's own server**
-  (`crates/ui-egui/src/reading/remote.rs`, `vouched`, `from_own_server`): for a Microsoft account any
+  `compauth=pass`) for the sender's domain, or, where it gives no DMARC verdict, `dkim=pass` for a
+  signature of that domain, **and was written by the account's own server**
+  (`crates/model/src/auth_results.rs`, `vouched`, `from_own_server`): for a Microsoft account any
   topmost header (Exchange Online stamps its own, with no authserv-id); for another account one whose
   authserv-id (RFC 8601) is a known id of its IMAP host's provider
   (`mailcraft_model::provider::authserv_ids`: `mx.google.com` for `imap.gmail.com`) or is the IMAP
@@ -44,12 +45,80 @@ Writes any bytes into a message: crafted MIME, HTML, headers, attachments, pictu
   which must be present and the sender's domain or one above it (Gmail names the organisation's
   domain: `shop.example` for mail from `news.shop.example`; a bare suffix such as `co.uk`, or a
   hosting platform's domain, never stands for the names under it); a `dmarc=pass` inside a
-  comment, a quoted string or another method's clause is only text. A `compauth=pass` that names
-  no `header.from` is not enough. Addresses are kept and
+  comment, a quoted string or another method's clause is only text. Authentication results are
+  read as the receiving server wrote them, never decoded: encoded-words (RFC 2047) are decoded where
+  that RFC allows them (unstructured text, the names of addresses, Keywords, and the names of
+  attachments), never in a trace or authentication header
+  (`crates/mime/src/words.rs`, `has_words`). A `compauth=pass` that names
+  no `header.from` is not enough. Where the server gave no DMARC verdict (no `dmarc` or
+  `compauth` clause in that header, read to its end, nor in another `Authentication-Results`
+  header with the same authserv-id, as a DMARC filter may write its own beside a DKIM filter's; a
+  header below can only take the signature away, since it may be forged, and its own pass is not
+  read), a `dkim` clause whose own result is `pass` in the topmost header counts instead, with
+  the `header.d` of that same clause (or, where it names none, the domain of its `header.i`) under the same rule for
+  the domain: a signature of the sender's domain that passes is what makes DMARC pass (RFC 7489,
+  3.1.1 and 4.2). A DMARC verdict the server gave, `fail` or `none` included, is never overruled
+  by a signature (strict alignment fails a signature of the domain above), and a header cut off,
+  left open or of more than 200 clauses takes no signature, as its verdict may be in the part not
+  read. A mailing service's own signature (another domain), a
+  signer named only in a comment, and SPF are not enough. A clause cut off where the header stops
+  being read (4,000 characters), or left inside a quoted string or a comment that never ends, is
+  not read: a signer chooses its `d=`, and the start of `shop.example.evil.example` is not
+  `shop.example`. Addresses are kept and
   compared as ASCII (the Kelvin sign is not a "k"), and mail anywhere under Junk E-mail, not only in
   it, never takes the lists or the switch for all mail. The limits: a provider whose id is neither
   in the table nor under its IMAP host's domain asks every time (nothing is guessed); the
-  public-suffix check is a short list of common two-label suffixes, not the full list.
+  public-suffix check is a short list of common two-label suffixes, not the full list. For
+  `dmarc` that is the server's word, judged from the full list; a signer chooses its own
+  `header.d`, so a suffix missing from the short list (`uk.com`, `eu.org`) could sign for every
+  name under it. Only whoever holds that suffix's own DNS can publish a key for it.
+- **Sender warnings say what the server said, and what MailCraft can see, nothing more** (#508).
+  Above a message, a red banner for a **warning**: the account's own server's topmost
+  `Authentication-Results` (read as for vouching, above, and like it never from a last clause
+  cut off at 4,000 characters or left open) says `dmarc=fail` for the sender's domain, or, with no
+  DMARC verdict at all, `spf=fail` for it, unless Exchange Online's `compauth=pass`
+  overrides it (the sender's domain is read from whatever its address is written in, `xn--`
+  labels as the letters they stand for, and only labels that write back to exactly themselves are
+  read so); or the sender's name carries another address, or is a contact's or the owner's own
+  name on an address that isn't theirs. Amber for **cautions** alone: a `dmarc=fail` for a domain
+  whose policy is `p=none` (said in the server's comment, `(p=NONE …)`, or a `policy.` property),
+  which asks for nothing to be done about mail that fails; the sender's domain is one character
+  (an edit, or two letters swapped) or one look-alike character (MailCraft's own small skeleton
+  table after Unicode TR39, `crates/model/src/confusables.rs`, Cyrillic and Greek letters,
+  accents, full-width forms, `0`/`1`, `rn`/`vv`/`cl`) from a known correspondent's, measured
+  between registrable parts; or a link's text is a web address or a domain and the link goes to
+  another registrable domain. A link through Microsoft's Safe Links
+  (`*.safelinks.protection.outlook.com`) is compared as each link its `url` names, and one through
+  Proofpoint's URL Defense (`urldefense.proofpoint.com/v2/…`, `urldefense.com/v3/…`) as the link
+  it carries, read as Proofpoint describes in public; one of those that can't be read whole, and
+  one through Mimecast, which hides where it goes, is not compared (`LINK_REWRITERS`: a host there
+  or one under it, never a name that merely contains it); a Safe Links address whose target is
+  another rewriter's is unwrapped once more. Names, addresses and link texts are read as they are
+  seen: what draws nothing (zero-width spaces and joiners, direction marks, soft hyphens,
+  variation selectors, tags) is left out and takes up none of the room read, a blank filler
+  (the Hangul fillers, the blank braille pattern) is a space, `＠` and `﹫` count as `@`, `．`,
+  `․`, `ꓸ` and the like as `.`, and a name's words are compared by their skeletons (Cyrillic
+  and Greek capitals and mathematical letters too), without the punctuation round them. A name
+  or a link's text with more characters that aren't shown than are, or longer than 65,536
+  characters, is a warning by itself (padded to slip past what reads it); names and domains
+  shown in the banner lose their direction marks. The rules are
+  `crates/model/src/sender_warnings.rs`; the known correspondents are gathered in
+  `crates/engine/src/sender_warnings.rs`. What they rely on: the server's verdict (a server that
+  writes none, or a message from a file, gives no failed check: MailCraft does no DNS, DKIM or SPF
+  of its own); the owner's contacts and Sent Items (an attacker who was once written to is known
+  for lookalikes; for names only contacts and the owner's own count, since a name the owner wrote
+  is not the correspondent's word); a short look-alike table and a short public-suffix list (a
+  lookalike they miss is not caught; neither makes a known domain look strange). A public mail
+  provider's domain is nobody's lookalike; a name of one word ("Maya") is never compared with
+  anybody's, so it never makes a known-name warning; a name of the form "Maya Okafor via Lumen
+  Team" is a list's for its member and makes none either (nor, with the list's own `List-Id` or
+  `List-Post`, does an address in it); and the External tag alone is never a warning. Mail in
+  Sent Items, Drafts and the Outbox is not checked, and mail from the owner's own addresses (a
+  shared mailbox's too) only for a failed check, since anybody can write them on a message; Junk
+  E-mail is checked. Everything is bounded (so many characters of a name, a link's text or a
+  header, 1,000 links, 20 link warnings, 4 links named by one Safe Links address, edit distance
+  only between names one character apart in length). An agent gets the warnings with `mail.get`
+  as data, their details framed as message content.
 - **A meeting invitation does not rewrite a meeting it isn't about.** An invitation carrying the
   `UID` of a meeting on a local calendar changes or removes it only when it names the same
   organizer (`crates/engine/src/cmd/calendar/invitation.rs`, `same_organizer`); the bar shows the
@@ -237,6 +306,40 @@ An `.eml`, `.mbox`, `.ics`, `.vcf` or `.mailcraft` file from somewhere else.
   0600 on Unix and compared in constant time (`apps/mailcraft/src/control_server.rs`,
   `crates/control-key`). Another user can't drive the app; another program running as the owner
   can read the key, which is the next item's problem.
+- **The hand-over between two starts** (#505). A second start on the mailbox file a MailCraft
+  started with doesn't open it again: the first start holds a lock beside it (`<mailbox>.lock`, let go of by the system however the
+  program ends) and listens on `127.0.0.1`, on a port the system picks, for a later start's one
+  line; the port and 32 random bytes from the operating system are in `<mailbox>.instance`,
+  created 0600 on Unix (elsewhere the owner's own settings folder) and removed on exit. A later
+  start (a second click, a `mailto:` link, a file opened from the file manager) connects only to
+  loopback, sends the key and what it was started with, and exits; a key is compared in constant
+  time, and a line without the right one changes nothing. What is handed over is hostile input:
+  one line of at most 1 MB, at most 256 things of at most 32 KB each, and each kept only when it
+  is a `mailto:` link (which the compose command reads as RFC 6068 says, taking only the
+  recipients, the subject and the body, without line breaks in a header) or the whole path of a
+  message, calendar, contact, mbox or `.mailcraft` file that is there and can be read, at most 32
+  message files at a time; anything else is dropped, and only how many is logged. A file is opened
+  once, without waiting (`O_NONBLOCK` on Unix), checked through that handle to be a regular file
+  and read from it (`mailcraft_engine::io::read_regular_file`), so a pipe or device swapped in
+  for it is refused rather than read or waited on; every open of a `.mailcraft` file
+  (`store::open`) goes the same way. Windows has no such flag: there a named pipe's path is
+  refused only once it is open. A message file is put into the local folder Imported, never a
+  server's folder, Drafts, the Outbox, Sent, Junk or Deleted Items, as a read, received message
+  that is never a draft (a file that says it is unsent too), selected and shown in the list, and
+  opens read-only in a window of its own. Opened again it is the copy already there: the same
+  Message-ID and, when that copy keeps the SHA-256 of the file it came from, the same SHA-256; a
+  copy without one by its Message-ID alone. The SHA-256 is kept in a header of MailCraft's own,
+  `X-MailCraft-Opened-File-SHA256`, which no message brings in (the MIME reader drops it, and
+  every import too) and which, like the meeting-answer note, is never written into a saved file,
+  an mbox, a server's copy or what is sent (`crates/mime/src/write.rs`). A calendar or
+  contact file is imported only when the owner answers the window's question (an agent names no
+  file to import). Another user can't reach the window: the key file
+  is not theirs to read. A start that finds the lock held but nobody answering says MailCraft is
+  already open and does not open the mailbox twice; a crashed run's lock is gone, and its stale
+  `.instance` is replaced. The sample mailbox and a run without preferences that names no
+  `--mailbox` take no lock and don't listen (`apps/mailcraft/src/single_instance.rs`). The lock covers the
+  mailbox a run started with only: a `.mailcraft` file opened later in the window (File › Open, a
+  drop, a hand-over) takes no lock of its own, so another window may have that one open.
 - **Agents on the same computer.** The agent gate ([MCP](mcp.md#agents-get-only-what-the-owner-allows))
   binds agents that reach MailCraft only through MCP. The control channel takes a request without
   the bridge's `agent` marking for the owner's own script, so an agent that can run a shell or read
@@ -347,7 +450,9 @@ settings files (`crates/engine/src/store.rs`); commands from the control channel
 - **Builds not signed by Windows or macOS.** Releases carry MailCraft's own signature over their
   checksums, which the program checks before it installs an update, but the Windows and macOS
   builds aren't code-signed yet, so the systems warn before running them; check a first download
-  against the release's checksums.
+  against the release's checksums. For that reason a macOS copy doesn't install updates by itself
+  (#497): it says a new version is out and links to its page, until the builds are signed with a
+  Developer ID and notarized.
 - **Message-IDs are not identities.** A sender chooses a Message-ID, so after a server numbers an IMAP mailbox anew, a deletion or move that waits is made again only on the one arrival with that id that also has the same date, sender, subject and recipients; otherwise it is dropped and the owner told. A Graph forward's attachment is taken for the owner's only when its bytes match, and a saved draft is written whole before it is sent, so an edit made on the server meanwhile is not sent. A Microsoft server's Outbox is an ordinary folder: only mail queued on this computer is sent.
 - **The web build** runs in the browser's sandbox and inherits the browser's security; it has no
   connection to mail servers of its own. Links open in a new tab with `noopener,noreferrer`
@@ -358,6 +463,17 @@ settings files (`crates/engine/src/store.rs`); commands from the control channel
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-26 | patch | Authentication results, and every other trace or authentication header, are read as the receiving server wrote them: encoded-words are decoded only where RFC 2047 allows them (`Subject`, `Comments`, `Organization`, `Thread-Topic`, `Keywords`, the names of addresses and of attachments) |
+| 2026-10-26 | minor | #508: sender warnings (a failed check, a name that hides another address, a lookalike sender, a link that goes somewhere else, External), what they rest on and what they don't; vouching's reading of the server's verdict moved to `crates/model/src/auth_results.rs` |
+| 2026-10-26 | minor | #508: a failed check reads any sender's address and holds for the owner's own addresses, `compauth=pass` overrides it; Safe Links unwrapped, other link rewriters not compared; only exact `xn--` labels read; direction marks stripped, full-width `＠`, one-word names |
+| 2026-10-26 | minor | #508: what draws nothing and look-alike `@`/`.` read as seen in names, addresses and link texts; `p=none` failures are cautions; names from Sent Items and list members' names not compared; URL Defense links read, several Safe Links targets compared |
+| 2026-10-26 | minor | #508: padding of what isn't shown is a warning and takes no room; blank fillers are spaces; Cyrillic and Greek capitals and mathematical letters in skeletons; Safe Links round another rewriter unwrapped; only registered DMARC policy properties |
+| 2026-10-26 | patch | #497: a macOS copy doesn't install updates by itself until its builds are signed with a Developer ID and notarized |
+| 2026-10-26 | minor | #505 (second review): the opened message is selected and shown; dedupe by Message-ID and kept SHA-256 together; the SHA-256 header dropped by the MIME reader and every import, and MailCraft's own notes never written out; `.mailcraft` files opened without waiting; Windows named pipes not covered |
+| 2026-10-26 | minor | #505 (review): a message file from the system goes to the local folder Imported, once, never as a draft; files named from outside are opened without waiting and checked through their handle; at most 32 message files a hand-over; what the lock covers |
+| 2026-10-26 | minor | #505: the hand-over between two starts (loopback, a key file for the owner alone, bounded and checked like anything from outside); a calendar or contact file from the system is imported only on the owner's word |
+| 2026-10-26 | minor | #459: where the account's own server gives no DMARC verdict, its `dkim=pass` whose `header.d` (or `header.i`) is the sender's domain, or the organisation's above it, vouches as a `dmarc=pass` does; a verdict it gave is never overruled; another domain's signature, a signer in a comment and SPF do not count; a clause cut off at 4,000 characters or left open is not read, and a header not read to its end, or with a DMARC verdict in another header of the same server's, takes no signature; `header.i` is read only where the clause names no `header.d`; the short public-suffix list is a limit for a signer's own `d=` |
+| 2026-10-26 | minor | #508 with #459: vouching (its `dkim=pass` arm too) is read in `crates/model/src/auth_results.rs`, which a failed check shares, cut-off clauses and all |
 | 2026-10-26 | minor | #501: server certificates are checked by the operating system's verifier instead of a built-in Mozilla root set: Windows and macOS trust what the system trusts and may fetch a missing intermediate; Linux and FreeBSD use the system's certificate store |
 | 2026-10-26 | minor | #458: a `dmarc=pass` whose `header.from` is the organisation's domain (Gmail's way: `shop.example` for `news.shop.example`) vouches for the names under it; a bare suffix or a hosting platform's domain never does |
 | 2026-10-25 | minor | #308: the people the search box offers after `from:`, `to:` and `cc:` come from autocomplete's source, on this computer only |

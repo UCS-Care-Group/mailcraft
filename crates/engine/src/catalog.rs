@@ -59,6 +59,10 @@ Home|Delete|Ignore Conversation|mail.ignore
 Home|Delete|Clean Up Conversation|mail.cleanUp
 Home|Delete|Junk|mail.junk
 Home|Delete|Not Junk|mail.notJunk
+Home|Delete|Block Sender|junk.blockSender
+Home|Delete|Never Block Sender|junk.neverBlockSender
+Home|Delete|Never Block Sender's Domain|junk.neverBlockDomain
+Home|Delete|Junk E-mail Options|junk.list
 Home|Delete|Delete|mail.delete
 Home|Delete|Permanently Delete|mail.deletePermanently
 Home|Delete|Archive|mail.archive
@@ -186,17 +190,25 @@ Message|Send|Discard|compose.discard
 Message|Send|Close|compose.close
 Message|Send|Edit Message Fields|compose.set
 Message|Send|Open Draft|mail.editDraft
+Insert|Include|Item|insert.outlookItem
+Insert|Include|Business Card|insert.businessCard
+Insert|Include|Calendar|insert.calendar
 Insert|Tables|Table|insert.table
 Insert|Illustrations|Pictures|insert.picture
 Insert|Illustrations|Shapes|insert.shape
 Insert|Illustrations|Icons|insert.icon
+Insert|Illustrations|3D Models|insert.models3d
+Insert|Illustrations|Diagram|insert.diagram
 Insert|Illustrations|Chart|insert.chart
 Insert|Illustrations|Screenshot|insert.screenshot
 Insert|Links|Link|compose.link
 Insert|Links|Bookmark|insert.bookmark
 Insert|Text|Text Box|insert.textBox
 Insert|Text|Quick Parts|insert.quickParts
+Insert|Text|Text Effects|insert.textEffects
+Insert|Text|Drop Cap|insert.dropCap
 Insert|Text|Date & Time|insert.dateTime
+Insert|Text|Object|insert.object
 Insert|Symbols|Symbol|insert.symbol
 Insert|Symbols|Equation|insert.equation
 Insert|Symbols|Horizontal Line|insert.rule
@@ -296,6 +308,7 @@ People|Actions|Edit Contact|people.edit
 People|Actions|Add to Favorites|people.favorite
 People|Actions|Forward Contact|people.forward
 People|Actions|Link Contacts|people.link
+People|Actions|Merge Duplicates|people.merge
 People|Actions|Mail Merge|people.mailMerge
 People|Tags|Categorize|people.categorize
 People|Tags|Follow Up|people.followUp

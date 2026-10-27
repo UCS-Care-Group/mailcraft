@@ -122,7 +122,8 @@ fn a_plain_message_round_trips() {
     m.headers = vec![
         ("X-Mailer".into(), "Synthetic 1.0".into()),
         ("List-Id".into(), "Example list <list.example.org>".into()),
-        ("X-Note".into(), "ünïcode value".into()),
+        ("Comments".into(), "ünïcode value".into()),
+        ("X-Note".into(), "=?not decoded?=".into()),
     ];
     round_trip(&m);
     m.flag = FlagStatus::Complete;
@@ -481,7 +482,12 @@ fn message() -> impl Strategy<Value = Message> {
         proptest::sample::select(vec![FlagStatus::None, FlagStatus::Flagged, FlagStatus::Complete]),
         proptest::sample::select(vec![Importance::Low, Importance::Normal, Importance::High]),
         proptest::collection::vec(header_text().prop_filter("a category", |c| !c.is_empty()), 0..3),
-        proptest::collection::vec(("X-Test-[A-Za-z0-9]{1,8}", header_text()), 0..3),
+        // Unstructured text comes back whatever it is; another field as it was written, which
+        // printable ASCII is (`has_words`).
+        proptest::collection::vec(
+            prop_oneof![("Comments|Organization|Thread-Topic", header_text()), ("X-Test-[A-Za-z0-9]{1,8}", "([!-~]([ -~]{0,38}[!-~])?)?"),],
+            0..3,
+        ),
     );
     (people, ids, header_text(), -2_000_000_000i64..4_000_000_000i64, content, state).prop_map(
         |(

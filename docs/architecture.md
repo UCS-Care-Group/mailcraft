@@ -1,6 +1,6 @@
 # MailCraft architecture
 
-> **Last reviewed:** 2026-10-11 · **Last updated:** 2026-10-23 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
+> **Last reviewed:** 2026-10-11 · **Last updated:** 2026-10-26 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
 
 How MailCraft is built today. Rules for working in the code are in [`AGENTS.md`](../AGENTS.md). The
 shape — layers, "everything is a command", the swappable egui front end, the control channel, MCP,
@@ -184,6 +184,25 @@ inside L3: `net` drives `proto`), and nothing below L6 depends on egui, eframe, 
   account signs in that way (`Account::oauth`); the host with sockets does it and hands tokens in.
 - **Plain-text composing.** Rich text needs an editor component the project does not have yet.
 
+## Start-up
+
+The window comes up at once, at its remembered size and in its theme, and the mailbox is read on
+a thread of its own (`apps/mailcraft/src/launch.rs`, #519); the window waits in
+`crates/ui-egui/src/opening.rs`. If reading takes longer than 0.3 s it shows the opening screen:
+the bytes read of the file's (`mailcraft_engine::io::OpenProgress`, counted by
+`store::open_with`), then "Getting ready…". Until the mailbox is there the window can be moved,
+resized and closed and nothing else: every command, and every control request but `app.status`,
+is refused with "the mailbox is still opening"; files and links handed over (a second start,
+Finder) wait and open after; nothing reaches a server and nothing is written, so closing it then
+leaves the mailbox and the settings as they were. A panic on the reading thread is a mailbox that
+couldn't be read. A file that can't be read, was damaged or was repaired is said on the same
+screen with Continue, after which the window is made as it always was (an empty mailbox kept
+nowhere, the damaged-mailbox notice). File › Open later reads the other file in the background
+(`Services::read_ahead`, `store::open_ahead`) while the open mailbox stays in use, with its
+progress and Cancel in the status bar; `file.open` then takes what was read. The browser build
+uses the same screen, reading its storage after the first frame. Every open logs one line: the
+time, the bytes and the counts of messages, folders and accounts.
+
 ## Testing and gates
 
 - Unit tests in every crate; property tests feeding arbitrary bytes to the readers (`mime`,
@@ -208,6 +227,7 @@ inside L3: `net` drives `proto`), and nothing below L6 depends on egui, eframe, 
 | Date | Change | Summary |
 |---|---|---|
 | 2026-10-11 | major | First architecture doc |
+| 2026-10-26 | minor | #519: start-up: the window first, the mailbox read on a thread of its own behind the opening screen; File › Open reads in the background |
 | 2026-10-23 | minor | `jmap`, L3: JMAP requests and answers without I/O (M6); 15 crates |
 | 2026-10-15 | minor | Supply-chain gates: cargo-deny in `cargo xtask ci` and CI, pinned actions, zizmor, Scorecard; link to the threat model |
 | 2026-10-12 | patch | `html` also makes the line a message list shows (`preview`, `text_preview`) |

@@ -440,6 +440,10 @@ pub struct FolderDelta {
     pub flags: Vec<RemoteFlags>,
     /// UIDs the mailbox has that the server no longer does.
     pub removed: Vec<u32>,
+    /// This piece ends the folder's reading and everything that was wanted of it came (#504):
+    /// the folder has been read whole once ([`crate::Folder::read_whole`]).
+    #[serde(skip_serializing_if = "is_false")]
+    pub complete: bool,
 }
 
 /// A folder of mail the server has, as its list names it ([`SyncResult::listed`]).
@@ -632,6 +636,7 @@ impl SyncResult {
                     folder.new.extend(delta.new);
                     folder.flags.extend(delta.flags);
                     folder.removed.extend(delta.removed);
+                    folder.complete |= delta.complete;
                 }
                 None => self.folders.push(delta),
             }

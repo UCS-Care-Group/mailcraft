@@ -9,9 +9,12 @@
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
 mod address;
+pub mod auth_results;
 mod calendar;
+pub mod confusables;
 mod contact;
 mod jmap_server;
+mod junk;
 mod load_limit;
 mod mailbox;
 mod message;
@@ -23,6 +26,7 @@ pub mod remote_tasks;
 pub mod rich;
 mod rule;
 pub mod search;
+pub mod sender_warnings;
 pub mod signature;
 pub mod sync;
 mod task;
@@ -39,6 +43,7 @@ pub use calendar::{
 };
 pub use contact::{Contact, Labeled, PostalAddress};
 pub use jmap_server::JmapServer;
+pub use junk::{Added, JunkList, JunkLists, MAX_JUNK_ENTRIES, junk_entry, junk_key};
 pub use load_limit::{MIN_ITEM_BYTES, from_json};
 pub use mailbox::{
     Account, AccountKind, AsWritten, BETWEEN_MAILBOXES, Category, Directory, DownloadInFull, FOLDERS_STAY_YET, Folder, FolderCounts, FolderKind,
@@ -123,6 +128,8 @@ pub(crate) mod b64 {
 #[cfg(test)]
 mod calendar_rights_tests;
 #[cfg(test)]
+mod junk_tests;
+#[cfg(test)]
 mod mailbox_tests;
 #[cfg(test)]
 mod pop_tests;
@@ -140,6 +147,8 @@ mod search_quotes_tests;
 mod search_suggest_tests;
 #[cfg(test)]
 mod search_tests;
+#[cfg(test)]
+mod sender_warnings_tests;
 
 #[cfg(test)]
 mod tests {
