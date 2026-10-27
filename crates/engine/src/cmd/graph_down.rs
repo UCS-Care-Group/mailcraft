@@ -81,6 +81,9 @@ pub struct Down {
 /// have (yet) is passed over, and so is its link: it comes again.
 pub fn take_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, page: &MessagePage, down: &mut Down) {
     let Some(folder) = mb.folder_by_server(account, &page.folder) else { return };
+    // The Safe and Blocked Senders lists sort what arrives once the folder's first round has
+    // ended (#504): never its first download, nor a round read afresh.
+    let sorting = !page.afresh && mb.folder(folder).and_then(|f| f.server.as_ref()).is_some_and(|s| s.caught_up);
     // The server's copies of messages being moved out of the account are not new mail.
     let moving_out: HashSet<String> =
         mb.messages.values().filter_map(|m| m.moving_out.as_ref().filter(|out| out.account == account).map(|out| out.id.clone())).collect();
@@ -130,6 +133,11 @@ pub fn take_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, page: &
             None => {
                 if let Ok(m) = mb.add_message(new_message(folder, &page.folder, there)) {
                     index.note(mb, account, &there.server.id, m);
+                    // By the Safe and Blocked Senders lists (#504): the move goes up as the
+                    // owner's own does (R3.3).
+                    if sorting {
+                        mb.sort_junk(m);
+                    }
                     down.new += 1;
                 }
             }

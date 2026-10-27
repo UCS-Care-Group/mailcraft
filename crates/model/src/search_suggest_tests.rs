@@ -40,6 +40,7 @@ fn the_start_of_a_keyword_offers_it() {
     assert_eq!(offered("c"), ["cc:", "category:"]);
     assert_eq!(offered("ha"), ["has:"]);
     assert_eq!(offered("to"), ["to:"]);
+    assert_eq!(offered("rec"), ["received:"]);
     assert_eq!(first("budget cat").text, "category:");
     assert_eq!(first("budget cat").range, 7..10);
     // Words that start no keyword, a word in quotes, and text with a colon that is no keyword.
@@ -234,7 +235,7 @@ proptest::proptest! {
 /// is. Each value offered after `is:` and `has:` is read as that keyword's, not as text.
 #[test]
 fn what_is_offered_is_what_the_search_reads() {
-    const OTHER_NAMES: [&str; 6] = ["categories", "attachments", "hasattachment", "hasattachments", "received", "sent"];
+    const OTHER_NAMES: [&str; 5] = ["categories", "attachments", "hasattachment", "hasattachments", "sent"];
     for k in crate::search::KEYWORDS.iter().filter(|k| !OTHER_NAMES.contains(k)) {
         assert!(offered(k).contains(&format!("{k}:")), "{k}: is not offered");
     }

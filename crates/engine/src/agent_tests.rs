@@ -139,7 +139,7 @@ fn undo_that_would_revert_rules_or_accounts_asks() {
     s.run("rules.add", &rule_to(archive)).unwrap();
     assert!(matches!(check(&s, "edit.undo", &json!({}), &[]), Verdict::Ask(Class::Settings, _)));
     assert_eq!(check(&s, "edit.undo", &json!({}), &[Class::Settings]), Verdict::Run);
-    assert!(describe(&s, "edit.undo", &json!({})).contains("rules or signatures"));
+    assert!(describe(&s, "edit.undo", &json!({})).contains("rules, signatures or Safe and Blocked Senders"));
     // After the undo, redo would put the rule back.
     assert!(s.undo());
     assert!(matches!(check(&s, "edit.redo", &json!({}), &[]), Verdict::Ask(Class::Settings, _)));

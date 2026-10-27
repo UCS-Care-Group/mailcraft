@@ -14,8 +14,9 @@
 //!   may check only while the daily check is on (`ui.checkForUpdates`).
 //! - A newer version is said once in the status bar, and stays in About while it is newer than
 //!   the running build. A failure is one log line, said only when the owner pressed the button.
-//! - A copy that updates itself (the Windows `.msi`, the macOS app, a Linux AppImage: the host
-//!   says so by giving [`Services::update_download`]) downloads a newer release in the
+//! - A copy that updates itself (the Windows `.msi` or a Linux AppImage, not the macOS app until
+//!   it is notarized: the host says so by giving [`Services::update_download`]) downloads a
+//!   newer release in the
 //!   background, when the daily check (or the owner's press while it is on) finds one and File ›
 //!   Options › Install updates automatically is on (as it is unless the owner turns it off; it
 //!   needs the daily check). The host checks it by the release's own signature and deletes

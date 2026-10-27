@@ -5,7 +5,7 @@
 use mailcraft_model::{Address, Attachment, FlagStatus, Importance, Message};
 
 use crate::header::{clean, is_token, write_field};
-use crate::words::{WORD_BYTES, encode_b, is_plain};
+use crate::words::{WORD_BYTES, encode_b, has_words, is_plain};
 use crate::{WriteOptions, address, charset, media, transfer};
 
 /// Header fields the writer makes itself; fields of these names in `Message::headers` are skipped.
@@ -28,6 +28,15 @@ const OWN_FIELDS: [&str; 17] = [
     "x-mailcraft-flag",
     "mime-version",
 ];
+
+/// Whether a kept header (`lower`, in lower case) is a note of MailCraft's own that stays in
+/// the mailbox: what was answered to a meeting (with this mailbox's mark), the file a message was
+/// opened from. Neither goes into a file, a server's copy or what is sent. `X-MailCraft-Flag` is
+/// written from the message's flag, and `X-MailCraft-Not-Downloaded` travels: it tells another
+/// program that what it has is only the header of a message too large to download.
+fn private(lower: &str) -> bool {
+    lower.starts_with("x-mailcraft-") && lower != "x-mailcraft-not-downloaded"
+}
 
 /// Longest physical line a body may have without a transfer encoding (RFC 5322 §2.1.1).
 const MAX_LINE: usize = 998;
@@ -110,8 +119,9 @@ pub fn write(message: &Message, opts: &WriteOptions) -> Vec<u8> {
     }
     for (name, value) in &message.headers {
         let lower = name.to_ascii_lowercase();
-        if is_token(name.as_bytes()) && !OWN_FIELDS.contains(&lower.as_str()) && !lower.starts_with("content-") {
-            write_field(&mut out, name, &unstructured(name, value));
+        if is_token(name.as_bytes()) && !OWN_FIELDS.contains(&lower.as_str()) && !lower.starts_with("content-") && !private(&lower) {
+            let value = if has_words(&lower) { unstructured(name, value) } else { kept(name, value) };
+            write_field(&mut out, name, &value);
         }
     }
     write_field(&mut out, "MIME-Version", "1.0");
@@ -143,6 +153,19 @@ fn unstructured(name: &str, value: &str) -> String {
     // Leave room for the name on the first line.
     let room = 76usize.saturating_sub(name.len() + 2 + 12) / 4 * 3;
     encode_b(&value, if room < 9 { WORD_BYTES } else { room })
+}
+
+/// A kept field that is not unstructured text, which is read as it is written ([`has_words`]):
+/// printable ASCII (and tabs) as it is, `=?` and all; anything else as [`unstructured`] text, so that what
+/// is written stays seven-bit.
+fn kept(name: &str, value: &str) -> String {
+    let value = clean(value);
+    let unfoldable = value.split(' ').any(|word| word.len() > MAX_LINE - 100);
+    let edge = |c: char| c == ' ' || c == '\t';
+    if value.bytes().all(|b| b == b'\t' || (0x20..=0x7E).contains(&b)) && !value.starts_with(edge) && !value.ends_with(edge) && !unfoldable {
+        return value;
+    }
+    unstructured(name, &value)
 }
 
 /// One category for the `Keywords` field, where a comma separates entries.

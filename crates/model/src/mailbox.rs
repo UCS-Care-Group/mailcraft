@@ -101,6 +101,13 @@ pub struct Folder {
     /// How far down the folder was last read ([`crate::sync::FolderState::uid_from`]).
     #[serde(skip_serializing_if = "is_zero")]
     pub uid_from: u32,
+    /// An IMAP folder's first download has ended with all of it here, or it was empty when first
+    /// read (#504): what arrives in it from then on is new mail, which the Safe and Blocked
+    /// Senders lists sort. `false` again when the server numbers it anew. A file from before
+    /// this was kept has none: [`Folder::read_whole`] takes a folder read up to some UID as
+    /// read whole.
+    #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
+    pub whole: Option<bool>,
     /// For a folder of a [`AccountKind::Microsoft`] account that the server has: what the
     /// server calls it and what it last said of it ([`ServerFolder`]). `None` for a folder that
     /// only exists here (one made here that the server is yet to hear of, or a folder of any
@@ -160,6 +167,14 @@ pub struct FolderCounts {
 
 fn is_false(b: &bool) -> bool {
     !*b
+}
+
+impl Folder {
+    /// Whether the folder has been read whole once ([`Folder::whole`]); for a folder of a file
+    /// from before that was kept, whether it was read up to some UID.
+    pub fn read_whole(&self) -> bool {
+        self.whole.unwrap_or(self.uid_seen > 0)
+    }
 }
 
 fn is_zero(n: &u32) -> bool {
@@ -851,6 +866,9 @@ pub struct Mailbox {
     #[serde(deserialize_with = "crate::load_limit::capped_vec")]
     pub categories: Vec<Category>,
     pub rules: Vec<Rule>,
+    /// Junk E-mail Options' Safe Senders and Blocked Senders (#504).
+    #[serde(skip_serializing_if = "crate::JunkLists::is_empty")]
+    pub junk: crate::JunkLists,
     pub signatures: Vec<Signature>,
     /// Moves and deletions the mail server is yet to be told, oldest first.
     #[serde(skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::sync::lenient_list")]
@@ -922,6 +940,7 @@ impl Default for Mailbox {
             tasks: BTreeMap::new(),
             categories: default_categories(),
             rules: Vec::new(),
+            junk: crate::JunkLists::default(),
             signatures: Vec::new(),
             pending: Vec::new(),
             event_changes: Vec::new(),
@@ -2062,6 +2081,32 @@ impl Mailbox {
         v.into_iter().map(|x| x.id).collect()
     }
 
+    /// Sort a message that has just arrived by the Safe and Blocked Senders lists (#504): from a
+    /// blocked sender into the Inbox, it moves to the account's Junk E-mail; from a safe sender
+    /// into Junk E-mail, to the Inbox. The move is noted for the server as the owner's own is.
+    /// Whether it moved. Never in a shared mailbox, and the callers sort only new mail of a folder
+    /// read whole once ([`Folder::read_whole`], Graph's `caught_up`), never a first download:
+    /// mail that was here before (or before a list changed) stays where it is.
+    pub fn sort_junk(&mut self, id: Id) -> bool {
+        if self.junk.is_empty() {
+            return false;
+        }
+        let Some(m) = self.message(id) else { return false };
+        let Some(kind) = self.folder(m.folder).map(|f| f.kind) else { return false };
+        let to = match (kind, self.junk.verdict(&m.from.email)) {
+            (FolderKind::Inbox, Some(crate::JunkList::Blocked)) => FolderKind::Junk,
+            (FolderKind::Junk, Some(crate::JunkList::Safe)) => FolderKind::Inbox,
+            _ => return false,
+        };
+        // The lists are the owner's: a shared mailbox's mail is other people's too, and stays
+        // where its server put it.
+        if m.draft || self.account(m.account).is_none_or(|a| a.is_shared()) {
+            return false;
+        }
+        let Some(folder) = self.folder_of_kind(m.account, to) else { return false };
+        self.move_message(id, folder).is_ok() && self.message(id).is_some_and(|m| m.folder == folder)
+    }
+
     /// Run the enabled rules on a message (new mail). Returns the names of the rules that ran.
     pub fn apply_rules(&mut self, id: Id) -> Vec<String> {
         let mut ran = Vec::new();
@@ -2295,6 +2340,9 @@ impl Mailbox {
         if self.rules.len() > MAX_RULES {
             self.rules.truncate(MAX_RULES);
             fixed.push(format!("rules cut to {MAX_RULES}"));
+        }
+        if self.junk.repair() {
+            fixed.push("Safe and Blocked Senders tidied".to_string());
         }
         // Ids stay within what JSON numbers hold exactly; anything above gets a new id, so the
         // counter can't run into the end of u64.

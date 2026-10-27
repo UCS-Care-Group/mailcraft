@@ -32,7 +32,7 @@ File|Backstage|Mailbox Cleanup|file.cleanup
 File|Backstage|Rules and Alerts|rules.list
 File|Backstage|Open Data File|file.openDataFile
 File|Backstage|Open Shared Calendar|calendar.openShared
-File|Backstage|Office Account|file.account
+File|Backstage|Account|file.account
 Quick Access|Toolbar|Send/Receive All Folders|sync.request
 Quick Access|Toolbar|Undo|edit.undo
 Quick Access|Toolbar|Redo|edit.redo
@@ -59,6 +59,10 @@ Home|Delete|Ignore Conversation|mail.ignore
 Home|Delete|Clean Up Conversation|mail.cleanUp
 Home|Delete|Junk|mail.junk
 Home|Delete|Not Junk|mail.notJunk
+Home|Delete|Block Sender|junk.blockSender
+Home|Delete|Never Block Sender|junk.neverBlockSender
+Home|Delete|Never Block Sender's Domain|junk.neverBlockDomain
+Home|Delete|Junk E-mail Options|junk.list
 Home|Delete|Delete|mail.delete
 Home|Delete|Permanently Delete|mail.deletePermanently
 Home|Delete|Archive|mail.archive
@@ -68,10 +72,10 @@ Home|Respond|Forward|mail.forward
 Home|Respond|Reply with Meeting|calendar.fromMessage
 Home|Respond|Forward as Attachment|mail.forwardAsAttachment
 Home|Respond|Reply with IM|mail.replyIm
-Home|Quick Steps|Move to Folder Quick Step|mail.move
-Home|Quick Steps|Reply and Delete|mail.replyAndDelete
-Home|Quick Steps|Create Quick Step|quickSteps.new
-Home|Quick Steps|Manage Quick Steps|quickSteps.manage
+Home|Action Shortcuts|Move to Folder Action Shortcut|mail.move
+Home|Action Shortcuts|Reply and Delete|mail.replyAndDelete
+Home|Action Shortcuts|Create Action Shortcut|quickSteps.new
+Home|Action Shortcuts|Manage Action Shortcuts|quickSteps.manage
 Home|Move|Move|mail.move
 Home|Move|Copy to Folder|mail.copy
 Home|Move|Create Rule|rules.add
@@ -148,7 +152,7 @@ View|Layout|Use Tighter Spacing|view.density
 View|People Pane|People Pane|view.peoplePane
 View|Window|Reminders Window|view.reminders
 View|Window|Open in New Window|view.newWindow
-View|Window|Immersive Reader|view.immersiveReader
+View|Window|Focus Reading|view.immersiveReader
 View|Window|Zoom|view.zoom
 Navigation|Modules|Mail|view.mail
 Navigation|Modules|Calendar|view.calendar
@@ -186,17 +190,25 @@ Message|Send|Discard|compose.discard
 Message|Send|Close|compose.close
 Message|Send|Edit Message Fields|compose.set
 Message|Send|Open Draft|mail.editDraft
+Insert|Include|Item|insert.outlookItem
+Insert|Include|Business Card|insert.businessCard
+Insert|Include|Calendar|insert.calendar
 Insert|Tables|Table|insert.table
 Insert|Illustrations|Pictures|insert.picture
 Insert|Illustrations|Shapes|insert.shape
 Insert|Illustrations|Icons|insert.icon
+Insert|Illustrations|3D Models|insert.models3d
+Insert|Illustrations|Diagram|insert.diagram
 Insert|Illustrations|Chart|insert.chart
 Insert|Illustrations|Screenshot|insert.screenshot
 Insert|Links|Link|compose.link
 Insert|Links|Bookmark|insert.bookmark
 Insert|Text|Text Box|insert.textBox
-Insert|Text|Quick Parts|insert.quickParts
+Insert|Text|Saved Text|insert.quickParts
+Insert|Text|Text Effects|insert.textEffects
+Insert|Text|Drop Cap|insert.dropCap
 Insert|Text|Date & Time|insert.dateTime
+Insert|Text|Object|insert.object
 Insert|Symbols|Symbol|insert.symbol
 Insert|Symbols|Equation|insert.equation
 Insert|Symbols|Horizontal Line|insert.rule
@@ -267,7 +279,7 @@ Appointment|Actions|Delete Occurrence|calendar.delete
 Appointment|Actions|Forward|calendar.forward
 Appointment|Actions|Save as iCalendar|file.exportCalendar
 Appointment|Actions|Copy to My Calendar|calendar.copy
-Appointment|Show|Scheduling Assistant|calendar.freeBusy
+Appointment|Show|Find a Time|calendar.freeBusy
 Appointment|Show|Tracking|calendar.tracking
 Appointment|Attendees|Invite Attendees|calendar.edit
 Appointment|Attendees|Cancel Meeting|calendar.cancel
@@ -296,6 +308,7 @@ People|Actions|Edit Contact|people.edit
 People|Actions|Add to Favorites|people.favorite
 People|Actions|Forward Contact|people.forward
 People|Actions|Link Contacts|people.link
+People|Actions|Merge Duplicates|people.merge
 People|Actions|Mail Merge|people.mailMerge
 People|Tags|Categorize|people.categorize
 People|Tags|Follow Up|people.followUp
