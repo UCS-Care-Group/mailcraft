@@ -99,7 +99,7 @@ const IDS: &str = r#"{"ids"?: [number]} (default: the selected messages)"#;
 /// For Delete and Move: a closed conversation's row selected stands for the messages it shows (#503).
 const IDS_WHOLE: &str = r#"{"ids"?: [number]} (default: the selected messages; a selected closed conversation's row, the messages it shows)"#;
 const EXTEND: &str = r#"{"extend"?: bool} — with `extend` (Shift), the selection runs from its anchor to the message moved to, as Shift-click does"#;
-const CONVERSATION: &str = r#"{"id"?: number} — a message of the conversation (default: the row the list's focus is on), in conversation view (#503). Open, its messages are listed under its row, those in other folders too (a reply in Sent Items); closed with the focus under it, its row is selected"#;
+const CONVERSATION: &str = r#"{"id"?: number} — a message of the conversation (default: the row the list's focus is on), in conversation view (#503). Open, its messages are listed under its row, those in other folders too (a reply in Sent Items) that the tab shows, but in a search only those found; closed with the focus under it, its row is selected"#;
 const PAGE: &str = r#"{"rows"?: number (the rows a page of the list holds; default 10, 1 to 10000), "extend"?: bool} — with `extend` (Shift), the selection runs from its anchor to the message moved to"#;
 
 /// The rows a page is when the caller doesn't say (the window says how many fit).

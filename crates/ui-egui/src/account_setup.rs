@@ -1516,7 +1516,7 @@ impl AccountSetup {
             if let Some((_, ask)) = self.ask_conversation.as_mut() {
                 caption(ui, tl!("Deleting"), &t);
                 ui.checkbox(ask, tl!("Ask before deleting a whole conversation")).on_hover_text(tl!(
-                    "Delete on a conversation of several messages asks first. Its messages in other folders stay where they are."
+                    "Delete on a conversation of several messages in one folder asks first. Its messages in other folders stay where they are."
                 ));
             }
         });

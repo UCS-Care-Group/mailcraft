@@ -2549,8 +2549,8 @@ msgstr "Vergaderverzoeken na het reageren verwijderen uit Postvak IN"
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
-msgid "Delete on a conversation of several messages asks first. Its messages in other folders stay where they are."
-msgstr "Verwijderen van een gesprek met meerdere berichten vraagt het eerst. De berichten ervan in andere mappen blijven waar ze zijn."
+msgid "Delete on a conversation of several messages in one folder asks first. Its messages in other folders stay where they are."
+msgstr "Verwijderen van een gesprek met meerdere berichten in één map vraagt het eerst. De berichten ervan in andere mappen blijven waar ze zijn."
 
 #. interface
 #: crates/ui-egui/src/forms.rs

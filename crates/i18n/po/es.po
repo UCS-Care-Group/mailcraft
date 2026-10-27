@@ -2518,8 +2518,8 @@ msgstr "Eliminar las convocatorias de reunión de la Bandeja de entrada después
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
-msgid "Delete on a conversation of several messages asks first. Its messages in other folders stay where they are."
-msgstr "Eliminar una conversación de varios mensajes pregunta antes. Sus mensajes en otras carpetas se quedan donde están."
+msgid "Delete on a conversation of several messages in one folder asks first. Its messages in other folders stay where they are."
+msgstr "Eliminar una conversación de varios mensajes en una carpeta pregunta antes. Sus mensajes en otras carpetas se quedan donde están."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
