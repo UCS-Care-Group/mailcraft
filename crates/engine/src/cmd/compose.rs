@@ -68,9 +68,10 @@ const SOURCE: &str =
 
 const FORWARD: &str = r#"{"id"?: number, "discard"?: bool} | {"ids"?: [number], "discard"?: bool} (default: the selected messages; a message being written with changes that aren't saved is saved to Drafts first, unless discard). An id of another kind, both, or any other parameter is refused. One message: Forward quotes it, Forward as Attachment attaches it whole as an .eml. Several, at most 200 and 64 MB together, are each attached whole as an .eml, in the message list's order, in a message from the account of the last one named (the one in focus), with no subject for the owner to write"#;
 
-/// The commands that close the message being written or put another in its place (#442).
-pub const LEAVING: [&str; 7] =
-    ["compose.close", "mail.new", "mail.reply", "mail.replyAll", "mail.forward", "mail.forwardAsAttachment", "mail.editDraft"];
+/// The commands that close the message being written or put another in its place (#442), People's
+/// Email too, which starts a new one (#494).
+pub const LEAVING: [&str; 8] =
+    ["compose.close", "mail.new", "mail.reply", "mail.replyAll", "mail.forward", "mail.forwardAsAttachment", "mail.editDraft", "people.email"];
 
 /// Whether running `id` saves the message being written to Drafts first (#442): it leaves the
 /// message, which has changes that aren't saved, and the caller didn't let them go (`discard`).
@@ -78,7 +79,16 @@ pub const LEAVING: [&str; 7] =
 /// first, as a step of its own: undoing what the command did never takes the draft away. A save
 /// that fails fails the command, and nothing changes. (The window asks the owner first.)
 pub fn saves_first(s: &Session, id: &str, params: &Value) -> bool {
-    LEAVING.contains(&id) && p::bool(params, "discard") != Some(true) && s.compose.as_ref().is_some_and(|c| c.dirty)
+    LEAVING.contains(&id)
+        && p::bool(params, "discard") != Some(true)
+        && s.compose.as_ref().is_some_and(|c| c.dirty || (s.agent.is_some() && draft_gone(s, c)))
+}
+
+/// Whether the draft the message being written was last saved as is no longer there (#494): an
+/// agent's undo took it away, or it was deleted for good. What is written is then saved nowhere,
+/// and an agent's command that leaves it saves it to Drafts again first.
+pub fn draft_gone(s: &Session, c: &Compose) -> bool {
+    c.draft.is_some_and(|d| s.mailbox.message(d).is_none())
 }
 
 fn compose_mut(s: &mut Session) -> Result<&mut Compose, CmdError> {
@@ -1157,6 +1167,7 @@ fn save_draft(s: &mut Session, _: &Value) -> CmdResult {
     }
     let c = compose_mut(s)?;
     c.draft = Some(id);
+    // (Whoever saved it, what the owner wrote in it stays theirs until it is closed, #494.)
     c.dirty = false;
     Ok(json!({"draft": id}))
 }

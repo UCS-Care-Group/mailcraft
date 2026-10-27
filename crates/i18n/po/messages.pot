@@ -9652,6 +9652,11 @@ msgid "What to do next"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/graph_fetch.rs
+msgid "What was waiting for the form to be closed was called off: another download took its place."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 msgid "What you change is changed in your calendar only. The organizer and the other people invited are not told and still have the meeting as it was, so you could miss it. An update from the organizer can replace your change."
 msgstr ""
@@ -10457,6 +10462,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/graph_switch.rs crates/ui-egui/src/import_tree.rs
 msgid "it stopped unexpectedly"
+msgstr ""
+
+#. name
+#: crates/engine/src/agent.rs
+msgid "it takes the window off the message the owner is writing"
 msgstr ""
 
 #. interface
