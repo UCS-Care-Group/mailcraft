@@ -803,7 +803,7 @@ fn dependencies(krate: &str) -> Vec<String> {
         .skip_while(|line| *line != "dependencies = [")
         .skip(1)
         .take_while(|line| *line != "]")
-        // `"name"`, or `"name version"` when two versions are locked.
+        // `"name"`, or `"name version"` or `"name version (source)"` when two versions are locked.
         .filter_map(|line| line.trim().trim_matches(['"', ',']).split(' ').next().map(String::from))
         .collect();
     names.sort();
@@ -818,7 +818,8 @@ fn this_crate_has_no_way_to_fetch_anything() {
     let why = "a new dependency: can it reach the network?";
     assert_eq!(dependencies("mailcraft-html"), ["mailcraft-link", "mailcraft-names", "proptest", "serde"], "{why}");
     // `mailcraft-link` only reads an address and `mailcraft-names` only cleans text, and neither
-    // brings in a crate that could fetch. (`proptest` is for the tests alone.)
+    // brings in a crate that could fetch. (`proptest` is a dev-dependency in each manifest; the
+    // lock lists both kinds alike.)
     assert_eq!(dependencies("mailcraft-link"), ["mailcraft-names", "proptest"], "{why}");
     assert_eq!(dependencies("mailcraft-names"), ["proptest"], "{why}");
     let mut files = vec![root.join("src")];
