@@ -327,7 +327,8 @@ fn a_form_the_owner_is_changing_stays_whatever_dialog_an_agent_would_open() {
 fn a_yes_lets_go_only_of_the_form_it_was_asked_about() {
     let mut w = form("contact", "Ada");
     let (_, rx) = agent(w.state_mut(), "ui.closeDialog", json!({}));
-    // What the window has now isn't what the question named.
+    // What the window has now isn't what the question named. (The question is over the window,
+    // so the owner can't change the form under it: this checks the comparison itself.)
     w.state_mut().asking.front_mut().unwrap().params["unsaved"]["title"] = json!("Somebody else");
     answer(w.state_mut(), true);
     let said = rx.try_recv().unwrap();
@@ -364,4 +365,23 @@ fn closing_several_changed_windows_says_how_many() {
     assert!(now.is_none());
     let (_, what) = question(w.state()).unwrap();
     assert!(what.contains(" and 1 more window without saving"), "{what}");
+}
+
+#[test]
+fn another_mailbox_in_view_asks_before_it_closes_a_changed_appointments_window() {
+    let mut w = testing::window("view.calendar");
+    let event = w.state().session.mailbox.events.values().find(|e| !e.title.is_empty() && e.recurrence.is_none()).unwrap().id;
+    w.state_mut().run("ui.openWindow", json!({"event": event})).unwrap();
+    w.run_steps(4);
+    testing::text(&mut w, " (moved)");
+    let everything = Class::ALL.to_vec();
+    let (now, rx) = allowed(w.state_mut(), "file.new", json!({}), everything);
+    assert!(now.is_none(), "asked even so");
+    let (class, what) = question(w.state()).unwrap();
+    assert_eq!(class, Class::Mailbox);
+    assert!(what.contains("(moved)\u{201d} is closed without saving the changes made in it"), "{what}");
+    answer(w.state_mut(), false);
+    assert_eq!(rx.try_recv().unwrap()["ok"], false);
+    w.run_steps(3);
+    assert_eq!(w.state().windows.unsaved(), 1, "no leaves it open");
 }

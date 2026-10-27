@@ -575,7 +575,7 @@ pub fn classify(s: &Session, id: &str, params: &Value) -> Access {
     // What the owner is writing or changing is theirs to let go of, whatever `--allow` says
     // (#494): Discard throws the message away with its draft; a window closed with changes in its
     // appointment that aren't saved (`unsaved`, from `agent_gate`) loses them; another mailbox in
-    // view closes the message without saving it.
+    // view closes the message without saving it, and the windows of its appointments.
     let writing = owner_writing(s);
     // A draft opened in a window opens where messages are written, as `mail.editDraft`.
     if let Some(draft) = draft_in_window(s, id, params) {
@@ -583,10 +583,8 @@ pub fn classify(s: &Session, id: &str, params: &Value) -> Access {
     }
     match id {
         "compose.discard" if writing => return Access::Asked(Class::Delete),
-        // A report by email opens a new message in its place.
-        "ui.reportProblem" if writing && report_by_email(params) => return Access::Asked(Class::Send),
-        "ui.closeWindow" if params.get("unsaved").is_some_and(|v| !v.is_null()) => return Access::Asked(Class::Delete),
-        "file.new" | "file.open" if writing => return Access::Asked(Class::Mailbox),
+        "ui.closeWindow" if unsaved(params) => return Access::Asked(Class::Delete),
+        "file.new" | "file.open" if writing || unsaved(params) => return Access::Asked(Class::Mailbox),
         _ => {}
     }
     if base != Access::Safe {
@@ -643,9 +641,10 @@ fn draft_in_window(s: &Session, id: &str, params: &Value) -> Option<Id> {
     p::id(params, "message").filter(|m| s.mailbox.message(*m).is_some_and(|m| m.draft))
 }
 
-/// Whether `ui.reportProblem` with `params` opens the report in a new message.
-fn report_by_email(params: &Value) -> bool {
-    p::str(params, "via") == Some("email") && p::bool(params, "open") != Some(false)
+/// Whether the window says the command would lose changes the owner hasn't saved in a form
+/// (`unsaved`, from `agent_gate`, never from the agent).
+fn unsaved(params: &Value) -> bool {
+    params.get("unsaved").is_some_and(|v| !v.is_null())
 }
 
 /// The to-do that `id` would change, when it is in a list shared with other people. The to-do is
@@ -846,14 +845,16 @@ pub fn describe(s: &Session, id: &str, params: &Value) -> String {
     if let Some(draft) = draft_in_window(s, id, params) {
         return leaving_text(s, "mail.editDraft", &json!({"id": draft}));
     }
-    let what = what_it_does(s, id, params);
-    // Another mailbox in view closes the message the owner is writing, unsaved; a report by email
-    // takes its place (#494).
-    if matches!(id, "file.new" | "file.open") && owner_writing(s) {
-        return format!("{what}; the message {} that the owner is writing is closed without being saved", writing(s));
-    }
-    if id == "ui.reportProblem" && owner_writing(s) && report_by_email(params) {
-        return format!("{what}; it opens in place of the message {} that the owner is writing, which goes to Drafts first", writing(s));
+    let mut what = what_it_does(s, id, params);
+    // Another mailbox in view closes the message the owner is writing, unsaved, and the windows
+    // of appointments with changes that aren't saved (#494).
+    if matches!(id, "file.new" | "file.open") {
+        if owner_writing(s) {
+            what.push_str(&format!("; the message {} that the owner is writing is closed without being saved", writing(s)));
+        }
+        if unsaved(params) {
+            what.push_str(&format!("; {} is closed without saving the changes made in it", unsaved_item(params)));
+        }
     }
     what
 }
@@ -1137,6 +1138,17 @@ fn writing(s: &Session) -> String {
 /// A dialog with changes that aren't saved, which the command closes or opens another in place
 /// of (#494), as the window named it (`unsaved`).
 fn form_text(id: &str, params: &Value) -> String {
+    let item = unsaved_item(params);
+    match id {
+        "ui.dialog" => {
+            format!("open the dialog {} in place of {item}, without saving the changes made in it", quoted(p::str(params, "name").unwrap_or("")))
+        }
+        _ => format!("close {item} without saving the changes made in it"),
+    }
+}
+
+/// The item with changes that aren't saved, as the window named it (`unsaved`).
+fn unsaved_item(params: &Value) -> String {
     let field = |k: &str| params.get("unsaved").and_then(|u| u.get(k)).and_then(Value::as_str).unwrap_or("");
     let kind = match field("form") {
         kind @ ("appointment" | "meeting" | "contact" | "task") => kind,
@@ -1149,12 +1161,7 @@ fn form_text(id: &str, params: &Value) -> String {
     if more > 0 {
         item.push_str(&format!(" and {}", plural(usize::try_from(more).unwrap_or(usize::MAX), "{n} more window", "{n} more windows")));
     }
-    match id {
-        "ui.dialog" => {
-            format!("open the dialog {} in place of {item}, without saving the changes made in it", quoted(p::str(params, "name").unwrap_or("")))
-        }
-        _ => format!("close {item} without saving the changes made in it"),
-    }
+    item
 }
 
 /// A command and its params, as they came.

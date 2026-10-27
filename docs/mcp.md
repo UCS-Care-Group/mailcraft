@@ -63,13 +63,13 @@ not (a save by the owner, by the window every few minutes or by an agent doesn't
 Closing it or putting another in its place (`compose.close`, `mail.new`, `mail.reply`,
 `mail.replyAll`, `mail.forward`, `mail.forwardAsAttachment`, `mail.editDraft`, `people.email`,
 `ui.openWindow` of a draft) asks Allow, and what isn't saved goes to Drafts first; with `"discard":
-true` and changes that aren't saved it asks Delete, and nothing is saved. `ui.reportProblem` by
-email, which opens the report in its place, asks `send`. `compose.discard` (the message and its
-draft) asks Delete; `file.new` and `file.open`, which close it without saving, ask `mailbox`. An
-appointment, a contact or a task with changes that aren't saved, in the dialog that
-`ui.closeDialog` would close or `ui.dialog` would put another in place of, asks Delete, and so does
-an appointment's window of its own that `ui.closeWindow` would close. Any other command that would
-open a dialog in such a form's place is refused, and the form stays. An agent allowed `input`
+true` and changes that aren't saved it asks Delete, and nothing is saved. `compose.discard` (the
+message and its draft) asks Delete; `file.new` and `file.open`, which close it without saving, ask
+`mailbox`, and so do they when an appointment's window has changes that aren't saved, for it closes
+with the mailbox. An appointment, a contact or a task with changes that aren't saved, in the dialog
+that `ui.closeDialog` would close or `ui.dialog` would put another in place of, asks Delete, and so
+does an appointment's window of its own that `ui.closeWindow` would close. Any other command that
+would open a dialog in such a form's place is refused, and the form stays. An agent allowed `input`
 clicks and types as the owner does, and what it does by hand in the window (the composer's Discard,
 an answer to Unsaved Message) is not asked about. A message only the agent wrote in is the agent's:
 leaving it saves it to Drafts without a question, and discarding it is `delete`. Headless, nothing

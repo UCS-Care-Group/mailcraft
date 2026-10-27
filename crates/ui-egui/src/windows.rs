@@ -339,7 +339,19 @@ fn closing(open: &[Open], p: &Value) -> Result<Vec<u64>, String> {
 /// such windows it closes (`more`). `None` when nothing would be lost.
 pub(crate) fn closing_unsaved(app: &MailApp, p: &Value) -> Option<Value> {
     let closing = closing(&app.windows.open, p).ok()?;
-    let mut lost = app.windows.open.iter().filter(|w| closing.contains(&w.id)).filter_map(|w| w.what.form().and_then(Form::unsaved));
+    unsaved_of(app.windows.open.iter().filter(|w| closing.contains(&w.id)))
+}
+
+/// What another mailbox in view would lose (#494): the windows of appointments of this one close
+/// with it ([`show`]), and with them changes that aren't saved. Those being made stay.
+pub(crate) fn replacing_unsaved(app: &MailApp) -> Option<Value> {
+    unsaved_of(app.windows.open.iter().filter(|w| matches!(w.what, What::Event { event: Some(_), .. })))
+}
+
+/// The first of `windows` with changes that aren't saved, as an agent's question names it, and
+/// how many more there are (`more`).
+fn unsaved_of<'a>(windows: impl Iterator<Item = &'a Open>) -> Option<Value> {
+    let mut lost = windows.filter_map(|w| w.what.form().and_then(Form::unsaved));
     let mut first = lost.next()?;
     let more = lost.count();
     if more > 0 {

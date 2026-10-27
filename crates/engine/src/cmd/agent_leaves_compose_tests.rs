@@ -241,19 +241,26 @@ fn nothing_allowed_in_advance_lets_an_agent_leave_the_owners_message() {
 }
 
 #[test]
-fn a_report_by_email_and_a_draft_in_a_window_take_the_owners_message_too() {
+fn a_draft_in_a_window_takes_the_owners_message_too() {
     let s = writing();
-    let everything = Class::ALL.to_vec();
-    let report = json!({"what": "It crashed", "via": "email"});
-    assert_eq!(classify(&s, "ui.reportProblem", &report), Access::Asked(Class::Send));
-    assert!(
-        matches!(check(&s, "ui.reportProblem", &report, &everything), Verdict::Ask(Class::Send, what) if what.contains("in place of the message \u{201c}Mine\u{201d}"))
-    );
-    // Not opened, or on GitHub: the message stays.
-    assert_eq!(classify(&s, "ui.reportProblem", &json!({"what": "It crashed", "via": "email", "open": false})), Access::Owner(Class::Send));
-    assert_eq!(classify(&s, "ui.reportProblem", &json!({"what": "It crashed"})), Access::Owner(Class::Send));
     let draft = a_draft(&s);
     assert_eq!(classify(&s, "ui.openWindow", &json!({"message": draft})), Access::Asked(Class::Leave));
     assert!(describe(&s, "ui.openWindow", &json!({"message": draft})).starts_with("open the draft"));
     assert_eq!(classify(&s, "ui.openWindow", &json!({"message": received(&s)})), Access::Safe);
+}
+
+#[test]
+fn another_mailbox_asks_about_an_appointments_window_with_changes() {
+    // Nothing is being written; an appointment's window has changes that aren't saved.
+    let s = session();
+    let unsaved = json!({"unsaved": {"form": "appointment", "title": "Lunch", "more": 1}});
+    for id in ["file.new", "file.open"] {
+        assert_eq!(classify(&s, id, &unsaved), Access::Asked(Class::Mailbox), "{id}");
+        let what = describe(&s, id, &unsaved);
+        assert!(
+            what.ends_with("; the appointment \u{201c}Lunch\u{201d} and 1 more window is closed without saving the changes made in it"),
+            "{id}: {what}"
+        );
+        assert_eq!(classify(&s, id, &json!({})), Access::Owner(Class::Mailbox), "{id}");
+    }
 }

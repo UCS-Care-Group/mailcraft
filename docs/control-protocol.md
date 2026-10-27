@@ -76,9 +76,10 @@ sends, with what the owner allowed with `--allow` (`send`, `delete`, `accounts`,
 - closing, replacing or discarding a message the owner has typed in (until it is closed, saved
   or not), or an appointment, a contact or a task with changes of theirs that aren't saved (in
   the dialog, or an appointment's window of its own), is asked about every time, whatever `allow`
-  says (`needs` `leave`, `delete` when something would be thrown away, `send` for a report by
-  email, or `mailbox` for `file.new` and `file.open`; #494), and a command that would open
-  another dialog in place of such a form is refused;
+  says (`needs` `leave`, `delete` when something would be thrown away, or `mailbox` for
+  `file.new` and `file.open`, which close the message and the windows of the mailbox's
+  appointments; #494), and a command that would open another dialog in place of such a form is
+  refused;
 - `ui.click`, `ui.move`, `ui.drag`, `ui.key`, `ui.text` need `input`, and are refused while a
   question is up; `app.quit` is refused; `ui.screenshot` takes no `path` and answers `data`.
 

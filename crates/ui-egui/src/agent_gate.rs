@@ -111,9 +111,10 @@ fn gate(app: &mut MailApp, req: &ControlRequest, id: &str, mut params: Value, al
 /// `params` with what the window would lose (`unsaved`), as it has it now and never as the agent
 /// says (#494): an appointment, a contact or a task with changes that aren't saved, in the dialog
 /// that `ui.closeDialog` closes or `ui.dialog` puts another in place of, or in a window of its
-/// own that `ui.closeWindow` closes.
+/// own that `ui.closeWindow` closes, or that another mailbox in view (`file.new`, `file.open`)
+/// closes.
 fn as_the_window_has_it(app: &MailApp, id: &str, mut params: Value) -> Value {
-    if !matches!(id, "ui.closeDialog" | "ui.dialog" | "ui.closeWindow") {
+    if !matches!(id, "ui.closeDialog" | "ui.dialog" | "ui.closeWindow" | "file.new" | "file.open") {
         if let Some(fields) = params.as_object_mut() {
             fields.remove("unsaved");
         }
@@ -125,6 +126,7 @@ fn as_the_window_has_it(app: &MailApp, id: &str, mut params: Value) -> Value {
     let closes = id == "ui.closeDialog" || params.get("name").and_then(Value::as_str).is_some_and(|n| crate::sync_panel::Panel::named(n).is_none());
     let unsaved = match &app.dialog {
         _ if id == "ui.closeWindow" => crate::windows::closing_unsaved(app, &params),
+        _ if matches!(id, "file.new" | "file.open") => crate::windows::replacing_unsaved(app),
         Some(crate::dialogs::Dialog::Form(form)) if closes => form.unsaved(),
         _ => None,
     };
@@ -154,7 +156,7 @@ fn run(app: &mut MailApp, id: &str, params: Value, allow: &[Class]) -> Outcome {
         && let Some(opened) = app.dialog.replace(form)
     {
         return err(format!(
-            "`{id}` would have opened the dialog \"{}\" in place of a form the owner is filling in and hasn't saved; the form stays and that dialog wasn't shown. Try again once the owner has closed the form",
+            "`{id}` ran, but the dialog \"{}\" it opened would have taken the place of a form the owner is filling in and hasn't saved: the form stays, and that dialog wasn't shown. Try again once the owner has closed the form",
             opened.name()
         ));
     }
