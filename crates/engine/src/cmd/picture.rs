@@ -10,20 +10,23 @@
 use std::collections::HashSet;
 
 use mailcraft_model::pictures as model;
+use mailcraft_model::pictures::{HEAVY_BYTES, MAX_PICTURE_BYTES};
 use mailcraft_model::rich::{Paragraph, RichText, Run, Style};
-use mailcraft_model::signature::{HEAVY_BYTES, MAX_PICTURE_BYTES};
 use serde_json::{Value, json};
 
 use super::format::position;
 use super::{bad, fail};
 use crate::{BodyFormat, CmdResult, CommandSpec, Session, p};
 
+/// Most bytes of a picture read to be made smaller (more is refused before it is decoded).
+const MAX_SOURCE_BYTES: usize = 32 * 1024 * 1024;
+
 pub fn specs() -> Vec<CommandSpec> {
     vec![
         CommandSpec::new("insert.picture", "Pictures", "Insert › Illustrations", insert)
             .pure()
             .params(
-                r#"{"path": string (a PNG, JPEG, GIF or WebP file on this computer; never a web address) | "data": base64 (the picture's bytes), "file"?: string (its name, for `data`), "alt"?: string (what it shows, in words), "width"?: number (pixels; shown at most this wide), "at"?: number (a position in the text; default: the caret, over the selection)} — puts the picture in the text; a message in HTML sends it as part of the message, a plain-text one says `[picture]`. At most 256 KB each, 512 KB and 10 pictures together. Answers {"id", "bytes" (all the message's pictures), "heavy"}"#,
+                r#"{"path": string (a PNG, JPEG, GIF or WebP file on this computer; never a web address) | "data": base64 (the picture's bytes), "file"?: string (its name, for `data`), "alt"?: string (what it shows, in words), "width"?: number (pixels; shown at most this wide), "at"?: number (a position in the text; default: the caret, over the selection)} — puts the picture in the text; a message in HTML sends it as part of the message, a plain-text one says `[picture]`. A picture wider than 1920 pixels, or over 5 MB, is made smaller to fit (an animated one is not: it is refused when over the cap); at most 5 MB each, 20 MB and 30 pictures together. Answers {"id", "bytes" (all the message's pictures), "heavy"}"#,
             )
             .when(needs_picture),
     ]
@@ -49,8 +52,8 @@ fn insert(s: &mut Session, v: &Value) -> CmdResult {
         return Err(fail("pictures from the web are not downloaded: save the picture and add it from the file"));
     }
     // Refused before it is decoded, so that nothing large is made for nothing.
-    if data.is_some_and(|d| d.len() > MAX_PICTURE_BYTES / 3 * 4 + 1024) {
-        return Err(failed!("a picture in a message is at most {kb} KB", kb = MAX_PICTURE_BYTES / 1024));
+    if data.is_some_and(|d| d.len() > MAX_SOURCE_BYTES / 3 * 4 + 1024) {
+        return Err(failed!("a picture in a message is at most {mb} MB", mb = MAX_PICTURE_BYTES >> 20));
     }
     let width = match v.get("width") {
         None | Some(Value::Null) => None,
@@ -61,6 +64,14 @@ fn insert(s: &mut Session, v: &Value) -> CmdResult {
     let at = position(v, "at")?;
     let (_, bytes) = super::source(&json!({"data": v.get("data"), "path": v.get("path")}))?;
     let file = p::str(v, "file").or_else(|| (!path.is_empty()).then_some(path)).unwrap_or("picture");
+    // Made smaller when it needs to be (and can be); what it is called then has the extension of
+    // what it is now.
+    let (bytes, ext) = crate::picture_fit::fit(bytes);
+    let renamed = ext.map(|ext| {
+        let name = model::clean_name(file);
+        format!("{}.{ext}", name.rsplit_once('.').map_or(name.as_str(), |(stem, _)| stem))
+    });
+    let file = renamed.as_deref().unwrap_or(file);
     let alt = p::str(v, "alt");
     let c = s.compose.as_mut().ok_or_else(|| fail("no message is being written"))?;
     let (kept, seq) = (c.pictures.clone(), c.picture_seq);

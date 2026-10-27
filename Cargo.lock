@@ -2283,6 +2283,7 @@ dependencies = [
 name = "mailcraft-engine"
 version = "0.8.1"
 dependencies = [
+ "image",
  "libc",
  "log",
  "mailcraft-charset",

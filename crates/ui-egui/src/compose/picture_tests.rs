@@ -89,12 +89,31 @@ fn a_picture_too_big_or_not_one_is_refused_and_the_message_is_unchanged() {
     let mut h = writing_with(&board);
     type_in(&mut h, "keep");
     let before = h.state().session.compose.clone();
-    for bytes in [png(400 * 1024), b"not a picture at all".to_vec()] {
+    for bytes in [png(6 << 20), b"not a picture at all".to_vec()] {
         *board.0.borrow_mut() = (Some(bytes), None);
         paste(&mut h);
     }
     assert_eq!(h.state().session.compose, before);
-    assert!(h.state().status_msg.as_ref().is_some_and(|(m, _)| m.contains("at most 256 KB") || m.contains("PNG")), "{:?}", h.state().status_msg);
+    assert!(h.state().status_msg.as_ref().is_some_and(|(m, _)| m.contains("at most 5 MB") || m.contains("PNG")), "{:?}", h.state().status_msg);
+}
+
+#[test]
+fn a_large_screenshot_is_pasted_scaled_down_to_fit() {
+    use image::ImageEncoder as _;
+    let (w, h) = (3000u32, 2000u32);
+    let rgb: Vec<u8> = (0..w * h).flat_map(|i| [(i % w / 40 % 256) as u8, (i / w / 30 % 256) as u8, 90]).collect();
+    let mut big = Vec::new();
+    image::codecs::png::PngEncoder::new(&mut big).write_image(&rgb, w, h, image::ExtendedColorType::Rgb8).unwrap();
+    let board = PictureBoard::default();
+    let mut h = writing_with(&board);
+    *board.0.borrow_mut() = (Some(big), None);
+    paste(&mut h);
+    let c = h.state().session.compose.as_ref().unwrap();
+    assert_eq!(c.pictures.len(), 1);
+    let p = &c.pictures[0];
+    let dims = image::ImageReader::new(std::io::Cursor::new(p.data.as_slice())).with_guessed_format().unwrap().into_dimensions().unwrap();
+    assert_eq!(dims, (1920, 1280));
+    assert!(p.data.len() <= mailcraft_model::pictures::MAX_PICTURE_BYTES);
 }
 
 #[test]

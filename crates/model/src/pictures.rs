@@ -6,14 +6,27 @@
 //! A picture stands in the text as a picture run ([`crate::rich::Run::picture`]); its bytes,
 //! width and description are a [`Picture`] in the list the message keeps. Message pictures take
 //! ids from [`FIRST_ID`] up, so they never meet the ids of a signature's pictures, which sit in
-//! the same text. The caps are a signature's ([`MAX_PICTURE_BYTES`], [`MAX_PICTURES_BYTES`],
-//! [`MAX_PICTURES`]). The kind of a picture is read from its own bytes, never its name.
+//! the same text. The caps are a message's own, well above a signature's (a signature is added to
+//! every message, a picture in the text is one the owner chose): [`MAX_PICTURE_BYTES`], [`MAX_PICTURES_BYTES`]
+//! and [`MAX_PICTURES`]. The kind of a picture is read from its own bytes, never its name.
 
 use std::collections::HashSet;
 use std::sync::Arc;
 
 use crate::ModelError;
-use crate::signature::{MAX_ALT, MAX_PICTURE_BYTES, MAX_PICTURES, MAX_PICTURES_BYTES, MAX_WIDTH, Picture};
+use crate::signature::{MAX_ALT, Picture};
+
+/// Most bytes one picture in a message may have.
+pub const MAX_PICTURE_BYTES: usize = 5 * 1024 * 1024;
+/// Most bytes a message's pictures may have together.
+pub const MAX_PICTURES_BYTES: usize = 20 * 1024 * 1024;
+/// Most pictures one message holds.
+pub const MAX_PICTURES: usize = 30;
+/// The widest a picture is made or shown, in pixels: a wider one is scaled down to this.
+pub const MAX_SHOWN_WIDTH: u16 = 1920;
+/// Pictures above this many bytes together make the message noticeably heavy: the answer of
+/// `insert.picture` says so.
+pub const HEAVY_BYTES: usize = 2 * 1024 * 1024;
 
 /// The first id of a picture in a message's text.
 pub const FIRST_ID: u32 = 1 << 20;
@@ -41,14 +54,14 @@ pub fn clean_name(name: &str) -> String {
 fn check(kept: &[Picture], data: &[u8]) -> Result<&'static str, ModelError> {
     let mime = picture_mime(data).ok_or_else(|| ModelError::Invalid("a picture in a message is a PNG, JPEG, GIF or WebP file".into()))?;
     if data.len() > MAX_PICTURE_BYTES {
-        return Err(ModelError::Invalid(format!("a picture in a message is at most {} KB", MAX_PICTURE_BYTES / 1024)));
+        return Err(ModelError::Invalid(format!("a picture in a message is at most {} MB", MAX_PICTURE_BYTES >> 20)));
     }
     if kept.len() >= MAX_PICTURES {
         return Err(ModelError::Invalid(format!("a message holds at most {MAX_PICTURES} pictures")));
     }
     let total = kept.iter().map(|p| p.data.len()).fold(data.len(), usize::saturating_add);
     if total > MAX_PICTURES_BYTES {
-        return Err(ModelError::Invalid(format!("a message's pictures are at most {} KB together", MAX_PICTURES_BYTES / 1024)));
+        return Err(ModelError::Invalid(format!("a message's pictures are at most {} MB together", MAX_PICTURES_BYTES >> 20)));
     }
     Ok(mime)
 }
@@ -76,7 +89,7 @@ pub fn add(
         name: clean_name(name),
         mime: mime.to_string(),
         data: Arc::new(data),
-        width: width.map(|w| w.clamp(1, MAX_WIDTH)),
+        width: width.map(|w| w.clamp(1, MAX_SHOWN_WIDTH)),
         alt: alt.map(clean_alt).unwrap_or_default(),
     });
     Ok(id)
@@ -94,7 +107,7 @@ pub fn take(kept: &[Picture], id: u32, name: &str, data: Vec<u8>, alt: &str, wid
         name: clean_name(name),
         mime: mime.to_string(),
         data: Arc::new(data),
-        width: width.map(|w| w.clamp(1, MAX_WIDTH)),
+        width: width.map(|w| w.clamp(1, MAX_SHOWN_WIDTH)),
         alt: clean_alt(alt),
     })
 }

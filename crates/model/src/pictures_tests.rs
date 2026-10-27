@@ -5,7 +5,6 @@
 use std::collections::HashSet;
 
 use crate::pictures::*;
-use crate::signature::{MAX_PICTURE_BYTES, MAX_PICTURES, MAX_PICTURES_BYTES};
 
 fn png(extra: usize) -> Vec<u8> {
     let mut v = b"\x89PNG\r\n\x1a\n".to_vec();
@@ -30,7 +29,7 @@ fn ids_are_not_a_signatures_and_never_repeat() {
     let a = add(&mut list, &mut seq, &held, "a.png", png(10), None, None).unwrap();
     let b = add(&mut list, &mut seq, &held, "b.png", png(10), Some("B"), Some(9999)).unwrap();
     assert_eq!((a, b), (FIRST_ID, FIRST_ID + 1));
-    assert_eq!(list[1].width, Some(crate::signature::MAX_WIDTH));
+    assert_eq!(list[1].width, Some(MAX_SHOWN_WIDTH));
     // Letting go of the first and adding another does not give its id again.
     list.retain(|p| p.id == b);
     assert_eq!(add(&mut list, &mut seq, &held, "c.png", png(10), None, None).unwrap(), FIRST_ID + 2);
@@ -47,12 +46,13 @@ fn what_is_not_a_picture_or_is_too_big_or_too_many_is_refused() {
     }
     assert!(add(&mut list, &mut seq, &held, "p.png", png(8), None, None).is_err(), "the count is capped");
     assert!(list.len() == MAX_PICTURES && list.iter().all(|p| p.id >= FIRST_ID));
-    // Together too: two near the size cap.
+    // Together too: four at the size cap fill the total, a fifth does not fit.
     let (mut list, mut seq, mut held) = (Vec::new(), 0, HashSet::new());
-    let id = add(&mut list, &mut seq, &held, "a.png", png(MAX_PICTURE_BYTES - 8), None, None).unwrap();
-    held.insert(id);
-    let id = add(&mut list, &mut seq, &held, "b.png", png(MAX_PICTURES_BYTES - MAX_PICTURE_BYTES - 8), None, None).unwrap();
-    held.insert(id);
+    for _ in 0..4 {
+        let id = add(&mut list, &mut seq, &held, "a.png", png(MAX_PICTURE_BYTES - 8), None, None).unwrap();
+        held.insert(id);
+    }
+    assert_eq!(list.iter().map(|p| p.data.len()).sum::<usize>(), MAX_PICTURES_BYTES);
     assert!(add(&mut list, &mut seq, &held, "c.png", png(100), None, None).is_err(), "the total is capped");
 }
 
@@ -88,4 +88,13 @@ fn a_picture_handed_back_is_checked_as_a_new_one() {
     assert!(take(&none, FIRST_ID, "a.png", b"junk".to_vec(), "", None).is_none());
     let kept = vec![take(&none, FIRST_ID, "a.png", png(8), "", None).unwrap()];
     assert!(take(&kept, FIRST_ID, "b.png", png(8), "", None).is_none(), "ids are unique");
+}
+
+#[test]
+fn a_message_has_its_own_caps_and_a_signatures_are_unchanged() {
+    assert_eq!((MAX_PICTURE_BYTES, MAX_PICTURES_BYTES, MAX_PICTURES), (5 << 20, 20 << 20, 30));
+    assert_eq!(
+        (crate::signature::MAX_PICTURE_BYTES, crate::signature::MAX_PICTURES_BYTES, crate::signature::MAX_PICTURES, crate::signature::MAX_WIDTH),
+        (256 * 1024, 512 * 1024, 10, 600)
+    );
 }

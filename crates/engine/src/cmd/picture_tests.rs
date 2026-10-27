@@ -118,8 +118,8 @@ fn what_is_not_a_picture_or_too_much_is_refused_and_nothing_changes() {
     for (params, why) in [
         (json!({"data": b64(b"just some text, not a picture")}), "PNG, JPEG, GIF or WebP"),
         (json!({"data": b64(b"<svg xmlns='http://www.w3.org/2000/svg'><script>1</script></svg>"), "file": "x.png"}), "PNG, JPEG, GIF or WebP"),
-        (json!({"data": b64(&png_bytes(300 * 1024))}), "at most 256 KB"),
-        (json!({"data": "A".repeat(2 << 20)}), "at most 256 KB"),
+        (json!({"data": b64(&png_bytes(6 << 20))}), "at most 5 MB"),
+        (json!({"data": "A".repeat(60 << 20)}), "at most 5 MB"),
         (json!({"data": "not base64 !!"}), "base64"),
         (json!({"path": "https://example.org/a.png"}), "not downloaded"),
         (json!({"path": "//example.org/a.png"}), "not downloaded"),
@@ -135,22 +135,104 @@ fn what_is_not_a_picture_or_too_much_is_refused_and_nothing_changes() {
 }
 
 #[test]
-fn a_message_holds_ten_pictures_and_half_a_megabyte() {
+fn a_message_holds_thirty_pictures_and_twenty_megabytes() {
     let mut s = message();
-    for _ in 0..10 {
+    for _ in 0..30 {
         run(&mut s, "insert.picture", json!({"data": b64(&png_bytes(8))}));
     }
     let e = s.run("insert.picture", &json!({"data": b64(&png_bytes(8))})).unwrap_err().to_string();
-    assert!(e.contains("at most 10"), "{e}");
-    // Together by size.
+    assert!(e.contains("at most 30"), "the 31st is refused: {e}");
+    // Together by size: four of 5 MB fill it.
     let mut s = message();
-    run(&mut s, "insert.picture", json!({"data": b64(&png_bytes(250 * 1024))}));
-    run(&mut s, "insert.picture", json!({"data": b64(&png_bytes(250 * 1024))}));
+    for _ in 0..4 {
+        run(&mut s, "insert.picture", json!({"data": b64(&png_bytes((5 << 20) - 20))}));
+    }
     let e = s.run("insert.picture", &json!({"data": b64(&png_bytes(50 * 1024))})).unwrap_err().to_string();
-    assert!(e.contains("together"), "{e}");
+    assert!(e.contains("20 MB together"), "{e}");
     // Taking one out makes room.
     run(&mut s, "compose.delete", json!({}));
     run(&mut s, "insert.picture", json!({"data": b64(&png_bytes(50 * 1024))}));
+}
+
+/// A PNG of `w` x `h`: a screenshot's flat areas and edges, or noise that hardly compresses.
+fn real_png(w: u32, h: u32, noisy: bool) -> Vec<u8> {
+    use image::ImageEncoder as _;
+    let mut rgb = Vec::with_capacity((w * h * 3) as usize);
+    let mut seed = 0x2545_f491_4f6c_dd1du64;
+    for y in 0..h {
+        for x in 0..w {
+            seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            let n = (seed >> 56) as u8;
+            let px = if noisy {
+                [n, (seed >> 48) as u8, (seed >> 40) as u8]
+            } else {
+                [(x / 40 % 256) as u8, (y / 30 % 256) as u8, if (x / 8 + y / 8) % 2 == 0 { 230 } else { 20 }]
+            };
+            rgb.extend(px);
+        }
+    }
+    let mut out = Vec::new();
+    image::codecs::png::PngEncoder::new(&mut out).write_image(&rgb, w, h, image::ExtendedColorType::Rgb8).unwrap();
+    out
+}
+
+fn size_of(bytes: &[u8]) -> (u32, u32) {
+    image::ImageReader::new(std::io::Cursor::new(bytes)).with_guessed_format().unwrap().into_dimensions().unwrap()
+}
+
+#[test]
+fn a_screenshot_sized_picture_is_scaled_to_1920_wide_and_fits() {
+    let mut s = message();
+    let big = real_png(3000, 2000, false);
+    run(&mut s, "insert.picture", json!({"data": b64(&big), "file": "Screenshot 1.png"}));
+    let p = &compose(&s).pictures[0];
+    assert_eq!(size_of(&p.data), (1920, 1280));
+    assert!(
+        p.data.len() <= mailcraft_model::pictures::MAX_PICTURE_BYTES && p.mime == "image/png" && p.name == "Screenshot 1.png",
+        "{} {}",
+        p.data.len(),
+        p.name
+    );
+}
+
+#[test]
+fn a_picture_over_the_cap_is_saved_again_smaller_until_it_fits() {
+    let mut s = message();
+    // Noise: PNG can't make it small, so it is a JPEG, or narrower, but under the cap.
+    let big = real_png(3000, 2000, true);
+    assert!(big.len() > 5 << 20);
+    run(&mut s, "insert.picture", json!({"data": b64(&big), "file": "noise.png"}));
+    let p = &compose(&s).pictures[0];
+    let (w, _) = size_of(&p.data);
+    assert!(w <= 1920 && p.data.len() <= mailcraft_model::pictures::MAX_PICTURE_BYTES, "{w} {}", p.data.len());
+    assert!(p.name.starts_with("noise.") && p.name.ends_with(if p.mime == "image/jpeg" { ".jpg" } else { ".png" }), "{} {}", p.name, p.mime);
+    // Within the caps and the width it is left alone, byte for byte.
+    let small = real_png(300, 200, false);
+    run(&mut s, "insert.picture", json!({"data": b64(&small)}));
+    assert_eq!(compose(&s).pictures[1].data.as_slice(), small.as_slice());
+}
+
+#[test]
+fn an_animated_gif_is_never_flattened_and_is_refused_when_over_the_cap() {
+    use image::{Delay, Frame, RgbaImage};
+    let mut seed = 7u64;
+    let mut gif = Vec::new();
+    {
+        let mut enc = image::codecs::gif::GifEncoder::new_with_speed(&mut gif, 30);
+        for _ in 0..4 {
+            let mut img = RgbaImage::new(2000, 1500);
+            for px in img.pixels_mut() {
+                seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+                *px = image::Rgba([(seed >> 56) as u8, (seed >> 48) as u8, (seed >> 40) as u8, 255]);
+            }
+            enc.encode_frame(Frame::from_parts(img, 0, 0, Delay::from_numer_denom_ms(100, 1))).unwrap();
+        }
+    }
+    assert!(gif.len() > 5 << 20, "{}", gif.len());
+    let mut s = message();
+    let e = s.run("insert.picture", &json!({"data": b64(&gif), "file": "dance.gif"})).unwrap_err().to_string();
+    assert!(e.contains("at most 5 MB"), "{e}");
+    assert!(compose(&s).pictures.is_empty());
 }
 
 #[test]

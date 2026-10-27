@@ -17,7 +17,7 @@
 
 use mailcraft_html::{Block, BlockKind, Marker, Span};
 use mailcraft_model::rich::{Font, ListKind, MAX_LEVEL, MAX_SIZE, MIN_SIZE, OBJECT, Paragraph, RichText, Run, Style, safe_color, safe_link};
-use mailcraft_model::signature::{Layout, MAX_WIDTH, Picture, Signature};
+use mailcraft_model::signature::{Layout, Picture, Signature};
 
 /// How a picture of the text is written: its `cid:` address (without the scheme), the width it
 /// is shown at and its description.
@@ -124,7 +124,7 @@ fn img(out: &mut String, img: &Img) {
     out.push_str(&mailcraft_html::escape(&cid));
     out.push('"');
     if let Some(w) = img.width {
-        out.push_str(&format!(" width=\"{}\"", w.clamp(1, MAX_WIDTH)));
+        out.push_str(&format!(" width=\"{}\"", w.clamp(1, mailcraft_model::pictures::MAX_SHOWN_WIDTH)));
     }
     out.push_str(" alt=\"");
     out.push_str(&mailcraft_html::escape(&img.alt.chars().filter(|c| !c.is_control()).collect::<String>()));
