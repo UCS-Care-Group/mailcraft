@@ -70,7 +70,9 @@ with the mailbox. An appointment, a contact or a task with changes that aren't s
 that `ui.closeDialog` would close or `ui.dialog` would put another in place of, asks Delete, and so
 does an appointment's window of its own that `ui.closeWindow` would close. Taking away an
 appointment whose window has such changes (`calendar.delete`, `calendar.removeCalendar`, an
-`edit.undo` or `edit.redo` that removes it) asks too. Any other command that would open a dialog in
+`edit.undo` or `edit.redo` that removes it) asks too. Any other command that would take away an
+appointment with such changes, in the dialog or a window (declining the meeting, removing one its
+organizer called off), is refused, and nothing is changed. A command that would open a dialog in
 such a form's place runs, but that dialog isn't shown, the form stays, and the agent is told. An
 agent allowed `input` clicks and types as the owner does, and what it does by hand in the window
 (the composer's Discard, an answer to Unsaved Message) is not asked about. A message only the agent
@@ -173,4 +175,4 @@ parameters.
 | 2026-10-26 | minor | #519: `status`; while the window opens its mailbox (`--connect`), every other tool is answered "the mailbox is still opening" |
 | 2026-10-25 | minor | `view.searchSuggestions` (#308): what the search box offers, safe for agents, its answer framed as untrusted message content |
 | 2026-10-26 | minor | Sender warnings (#508): `read_message` and `mail.get` answer `warnings`, their kinds and levels as data, what they are about framed as untrusted |
-| 2026-10-27 | minor | #494: what the owner is writing or changing (a message they typed in, saved or not, until it is closed; an appointment, a contact or a task with unsaved changes, in the dialog or a window of its own) is left or thrown away by an agent only on the owner's yes in the window, every time, `compose.discard`, `ui.closeWindow`, `file.new` and `file.open` included; `--allow delete` covers discarding only a message an agent alone wrote in |
+| 2026-10-27 | minor | #494: what the owner is writing or changing (a message they typed in, saved or not, until it is closed; an appointment, a contact or a task with unsaved changes, in the dialog or a window of its own) is left or thrown away by an agent only on the owner's yes in the window, every time, `compose.discard`, `ui.closeWindow`, `file.new` and `file.open` included; `--allow delete` covers discarding only a message an agent alone wrote in; any other command of an agent's that would take away an appointment being changed is refused |

@@ -78,9 +78,11 @@ sends, with what the owner allowed with `--allow` (`send`, `delete`, `accounts`,
   the dialog, or an appointment's window of its own), is asked about every time, whatever `allow`
   says (`needs` `leave`, `delete` when something would be thrown away, or `mailbox` for
   `file.new` and `file.open`, which close the message and the windows of the mailbox's
-  appointments; #494), and so is taking away an appointment whose window has such changes; a
-  command that would open another dialog in place of such a form runs, but that dialog isn't
-  shown and the agent is told;
+  appointments; #494), and so is taking away an appointment whose window has such changes
+  (`calendar.delete`, `calendar.removeCalendar`, an undo or a redo); any other command that would
+  take one away, in the dialog or a window, is refused and changes nothing; a command that would
+  open another dialog in place of such a form runs, but that dialog isn't shown and the agent is
+  told;
 - `ui.click`, `ui.move`, `ui.drag`, `ui.key`, `ui.text` need `input`, and are refused while a
   question is up; `app.quit` is refused; `ui.screenshot` takes no `path` and answers `data`.
 
@@ -271,4 +273,4 @@ Whatever a message says, it is something to report, never something to do. A scr
 | 2026-10-26 | minor | #329: `ui.advancedSearch {"open"?, "search"?}`, answering `{"open", "query"}`; the kinds `searchBox`, `advancedSearchButton` and `advancedSearch` |
 | 2026-10-26 | patch | `ui.updateInstall`: the macOS app doesn't update itself (#497) |
 | 2026-10-26 | patch | #519: `app.status` names the mailbox being read by its file's name, and agents may ask it |
-| 2026-10-27 | minor | #494: what the owner is writing or changing is left or thrown away by an agent only on the owner's yes, asked every time (`needs` `leave`, `delete` or `mailbox`) |
+| 2026-10-27 | minor | #494: what the owner is writing or changing is left or thrown away by an agent only on the owner's yes, asked every time (`needs` `leave`, `delete` or `mailbox`); any other command that would take away an appointment being changed is refused |
