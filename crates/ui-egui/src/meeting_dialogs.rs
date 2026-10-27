@@ -264,7 +264,7 @@ impl ProposeTime {
             let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width(), STRIP_H), Sense::hover());
             day_strip(app, ui, rect, day, span, self.event, &t, twelve);
         }
-        ui.add(
+        let note = ui.add(
             egui::TextEdit::multiline(&mut self.note)
                 .id(kit::field_id("propose_note"))
                 .hint_text(tl!("A note to the organizer (optional)"))
@@ -272,6 +272,7 @@ impl ProposeTime {
                 .desired_width(f32::INFINITY)
                 .char_limit(2_000),
         );
+        crate::text_menu::field(note);
         // Who is written to, said before anything is pressed.
         let able = self.blocked.is_empty();
         let says = if able {
@@ -471,7 +472,7 @@ impl ForwardMeeting {
         kit::row(ui, tl!("To"), |ui| {
             pass.text(ui, "forward_to", &mut self.to, f32::INFINITY, tl!("Names or addresses, separated by ;"));
         });
-        ui.add(
+        let note = ui.add(
             egui::TextEdit::multiline(&mut self.note)
                 .id(kit::field_id("forward_note"))
                 .hint_text(tl!("A note to go with it (optional)"))
@@ -479,6 +480,7 @@ impl ForwardMeeting {
                 .desired_width(f32::INFINITY)
                 .char_limit(2_000),
         );
+        crate::text_menu::field(note);
         // Who is written to, said before Send is pressed.
         let (good, bad) = self.named();
         let names: Vec<String> = good.iter().take(MAX_NAMED).map(|who| kit::shown(&who.email, 80)).collect();

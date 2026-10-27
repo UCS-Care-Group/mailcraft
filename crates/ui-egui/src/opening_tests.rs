@@ -552,3 +552,122 @@ fn the_logo_is_the_app_icon_and_is_made_once() {
     let second = logo(&ctx).unwrap();
     assert_eq!(first.id(), second.id());
 }
+
+#[test]
+fn what_is_missing_from_the_content_folder_is_said_once_it_has_been_looked_for() {
+    let mut app = MailApp::new(Session::at(mailbox(3), NOW, 0), Services::default());
+    app.autosave = false;
+    let (tx, rx) = channel();
+    app.check_parts_later(rx, 1, true);
+    let mut h = harness(app);
+    h.run_steps(3);
+    // Nothing said while the look goes on.
+    assert!(h.state().status_msg.is_none());
+    tx.send(mailcraft_engine::Missing { count: 2, refs: Vec::new() }).unwrap();
+    h.run_steps(2);
+    let said = h.state().status_msg.as_ref().map(|(m, _)| m.clone());
+    assert_eq!(said.as_deref(), Some("3 bodies or attachments are missing from the mailbox's content folder, or damaged."));
+    // Nothing missing: nothing said.
+    let mut app = MailApp::new(Session::at(mailbox(3), NOW, 0), Services::default());
+    app.autosave = false;
+    let (tx, rx) = channel();
+    app.check_parts_later(rx, 0, true);
+    tx.send(mailcraft_engine::Missing::default()).unwrap();
+    let mut h = harness(app);
+    h.run_steps(2);
+    assert!(h.state().status_msg.is_none() && h.state().later.parts.is_none());
+}
+
+#[test]
+fn the_word_index_starts_after_the_first_frames() {
+    let mut app = MailApp::new(Session::at(mailbox(3), NOW, 0), Services::default());
+    app.autosave = false;
+    app.session.index_words = true;
+    app.index_words_later();
+    assert!(!app.session.index_words);
+    // Not in the first frames, each of which asks for the next.
+    let ctx = egui::Context::default();
+    for _ in 0..WORDS_AFTER_FRAMES {
+        after(&mut app, &ctx);
+        assert!(!app.session.index_words);
+        assert!(ctx.has_requested_repaint());
+    }
+    after(&mut app, &ctx);
+    assert!(app.session.index_words);
+    // And it isn't asked for again.
+    let mut h = harness(app);
+    h.run_steps(2);
+    assert!(h.state().session.index_words && h.state().later.words_in.is_none());
+}
+
+/// A mailbox whose first message keeps its text on disk, and that text with its name.
+fn kept_text() -> (Mailbox, mailcraft_model::Id, mailcraft_model::ContentRef, Vec<u8>) {
+    let mut mb = mailbox(3);
+    let id = *mb.messages.keys().next().unwrap();
+    let text = b"The figures for the quarter are in the folder.".to_vec();
+    let r = mailcraft_model::ContentRef { sha256: [7; 32], len: text.len() as u64 };
+    let m = mb.message_mut(id).unwrap();
+    m.body.text.clear();
+    m.kept = Some(Box::new(mailcraft_model::KeptBody { text: Some(r), ..Default::default() }));
+    (mb, id, r, text)
+}
+
+#[test]
+fn bodies_read_after_the_window_shows_come_into_their_messages_and_their_rows() {
+    let (mb, id, r, text) = kept_text();
+    let mut app = MailApp::new(Session::at(mb, NOW, 0), Services::default());
+    app.autosave = false;
+    let (missing_tx, missing_rx) = channel();
+    let (tx, rx) = channel();
+    app.check_parts_later(missing_rx, 0, true);
+    app.take_bodies_later(rx);
+    tx.send(vec![mailcraft_engine::BodyRead { id, text: Some((r, text.clone())), html: None }]).unwrap();
+    let mut h = harness(app);
+    h.run_steps(2);
+    // Not before what is missing is known: a body found missing is never taken in after it.
+    assert!(h.state().session.mailbox.message(id).unwrap().body_is_kept());
+    missing_tx.send(mailcraft_engine::Missing::default()).unwrap();
+    drop(tx);
+    h.run_steps(2);
+    let m = h.state().session.mailbox.message(id).unwrap();
+    assert_eq!(m.body.text.as_bytes(), text.as_slice());
+    assert!(!m.body_is_kept());
+    assert!(mailcraft_engine::list::preview(m, 80).starts_with("The figures for the quarter"));
+    assert!(h.state().later.bodies.is_none());
+}
+
+#[test]
+fn what_comes_late_for_a_mailbox_is_dropped_once_another_has_taken_its_place() {
+    let (mb, id, r, text) = kept_text();
+    let mut app = MailApp::new(Session::at(mb.clone(), NOW, 0), Services::default());
+    app.autosave = false;
+    let (missing_tx, missing_rx) = channel();
+    let (tx, rx) = channel();
+    app.check_parts_later(missing_rx, 0, true);
+    app.take_bodies_later(rx);
+    // File › Open of another mailbox (here, one that names the same content) before the look is over.
+    app.session.replace_mailbox(mb);
+    missing_tx.send(mailcraft_engine::Missing { count: 2, refs: vec![r] }).unwrap();
+    tx.send(vec![mailcraft_engine::BodyRead { id, text: Some((r, text)), html: None }]).unwrap();
+    let mut h = harness(app);
+    h.run_steps(3);
+    assert!(h.state().status_msg.is_none(), "{:?}", h.state().status_msg);
+    let m = h.state().session.mailbox.message(id).unwrap();
+    assert!(m.body_is_kept() && !m.kept.as_ref().unwrap().failed);
+    assert!(h.state().later.parts.is_none() && h.state().later.bodies.is_none());
+}
+
+#[test]
+fn a_damaged_mailbox_marks_what_is_missing_without_saying_the_count() {
+    let (mb, id, r, _) = kept_text();
+    let mut app = MailApp::new(Session::at(mb, NOW, 0), Services::default());
+    app.autosave = false;
+    let (tx, rx) = channel();
+    app.check_parts_later(rx, 1, false);
+    tx.send(mailcraft_engine::Missing { count: 1, refs: vec![r] }).unwrap();
+    let mut h = harness(app);
+    h.run_steps(2);
+    assert!(h.state().status_msg.is_none());
+    let m = h.state().session.mailbox.message(id).unwrap();
+    assert!(m.kept.as_ref().unwrap().failed && m.body.text == mailcraft_engine::store_placeholder());
+}

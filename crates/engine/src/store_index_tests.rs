@@ -651,6 +651,146 @@ fn a_file_whose_time_changed_but_not_its_bytes_is_still_ours_and_saves_append() 
     assert_eq!(fs::read(&aside[0]).unwrap(), theirs);
 }
 
+/// Open the file at `path` with the sum of its bytes held back until the returned sender lets
+/// go: the opening is over while the sum is still being worked out (#519).
+fn open_with_sum_held(path: &Path) -> (Mailbox, std::sync::mpsc::Sender<()>) {
+    let (go, hold) = std::sync::mpsc::channel();
+    *lock(&HASH_HOLD) = Some((path.to_path_buf(), hold));
+    *lock(&shared(path).state) = State::default();
+    let mb = open(path).unwrap().mailbox;
+    assert!(matches!(lock(&shared(path).state).stamp.as_ref().map(|s| &s.sum), Some(Sum::Pending(..))), "the sum is still being worked out");
+    (mb, go)
+}
+
+/// Let the sum go after a moment, on a thread of its own; the flag says it has.
+fn let_go_later(go: std::sync::mpsc::Sender<()>) -> (Arc<AtomicBool>, std::thread::JoinHandle<()>) {
+    let gone = Arc::new(AtomicBool::new(false));
+    let flag = gone.clone();
+    let thread = std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(200));
+        flag.store(true, Ordering::SeqCst);
+        drop(go);
+    });
+    (gone, thread)
+}
+
+#[test]
+fn a_save_waits_for_the_sum_of_the_file_as_opened_and_still_knows_its_own_bytes() {
+    let tmp = Temp::new("sum-later-ours");
+    let path = tmp.file();
+    let mut mb = mailbox(8);
+    save(&path, &mb).unwrap();
+    let (opened, go) = open_with_sum_held(&path);
+    assert!(loaded(&path, &opened) == mb);
+    // Its time changes, not its bytes (a share whose times come late): the save waits for the
+    // sum, finds the bytes its own and appends, keeping nothing aside.
+    age(&path, Duration::from_secs(3_600));
+    let (gone, thread) = let_go_later(go);
+    let first = *mb.messages.keys().next().unwrap();
+    mb.message_mut(first).unwrap().read ^= true;
+    assert!(!save(&path, &mb).unwrap().compacted);
+    assert!(gone.load(Ordering::SeqCst), "the save waited for the sum");
+    thread.join().unwrap();
+    assert!(kept(&path, "changed-").is_empty());
+    // And the sum goes on from there: the next time the file's time alone changes, it is still ours.
+    age(&path, Duration::from_secs(7_200));
+    mb.message_mut(first).unwrap().read ^= true;
+    assert!(!save(&path, &mb).unwrap().compacted);
+    assert!(kept(&path, "changed-").is_empty());
+    *lock(&shared(&path).state) = State::default();
+    assert!(whole(&path) == mb);
+}
+
+#[test]
+fn a_file_changed_on_disk_before_the_sum_is_worked_out_is_still_kept_aside() {
+    let tmp = Temp::new("sum-later-theirs");
+    let path = tmp.file();
+    let mut mb = mailbox(8);
+    save(&path, &mb).unwrap();
+    let (_, go) = open_with_sum_held(&path);
+    // Another writer changes a byte, the length the same: the time and the bytes say so.
+    let mut theirs = fs::read(&path).unwrap();
+    let last = theirs.len() - 30;
+    theirs[last] ^= 1;
+    fs::write(&path, &theirs).unwrap();
+    age(&path, Duration::from_secs(60));
+    let (gone, thread) = let_go_later(go);
+    let first = *mb.messages.keys().next().unwrap();
+    mb.message_mut(first).unwrap().read ^= true;
+    assert!(save(&path, &mb).unwrap().compacted);
+    assert!(gone.load(Ordering::SeqCst), "the save waited for the sum");
+    thread.join().unwrap();
+    let aside = kept(&path, "changed-");
+    assert_eq!(aside.len(), 1);
+    assert_eq!(fs::read(&aside[0]).unwrap(), theirs);
+    assert!(whole(&path) == mb);
+}
+
+#[test]
+fn a_file_cut_short_has_no_sum_of_bytes_its_reading_never_took() {
+    let tmp = Temp::new("sum-cut-short");
+    let path = tmp.file();
+    let mut mb = mailbox(8);
+    save(&path, &mb).unwrap();
+    let first = *mb.messages.keys().next().unwrap();
+    mb.message_mut(first).unwrap().subject = "Changed".into();
+    save(&path, &mb).unwrap();
+    // A crash cut the last save short.
+    let bytes = fs::read(&path).unwrap();
+    fs::write(&path, &bytes[..bytes.len() - 10]).unwrap();
+    *lock(&shared(&path).state) = State::default();
+    let mut mb = open(&path).unwrap().mailbox;
+    // Only its time changes: with no sum of the bytes as read (none was taken whole), it is
+    // another writer's, kept aside as such, as it always was.
+    age(&path, Duration::from_secs(3_600));
+    mb.message_mut(first).unwrap().read ^= true;
+    save(&path, &mb).unwrap();
+    assert_eq!(kept(&path, "changed-").len(), 1);
+    assert_eq!(kept(&path, "damaged-").len(), 0);
+}
+
+#[test]
+fn a_record_larger_than_a_piece_is_summed_in_pieces_and_the_file_is_still_known() {
+    let tmp = Temp::new("sum-large-record");
+    let path = tmp.file();
+    let mut mb = mailbox(4);
+    let first = *mb.messages.keys().next().unwrap();
+    // A record of 3 MB: read past the buffer, straight into its own.
+    mb.message_mut(first).unwrap().headers.push(("X-Large".into(), "x".repeat(3 * HASH_PIECE)));
+    save(&path, &mb).unwrap();
+    *lock(&shared(&path).state) = State::default();
+    SUMMED.set((0, 0));
+    let mut mb = open(&path).unwrap().mailbox;
+    let (read, largest) = SUMMED.get();
+    assert!(read > HASH_PIECE && largest == HASH_PIECE, "read {read}, pieces up to {largest}");
+    age(&path, Duration::from_secs(3_600));
+    mb.message_mut(first).unwrap().read ^= true;
+    assert!(!save(&path, &mb).unwrap().compacted);
+    assert!(kept(&path, "changed-").is_empty());
+}
+
+#[test]
+fn no_memory_for_the_sum_leaves_none_and_the_file_is_kept_aside_when_its_time_changes() {
+    let tmp = Temp::new("sum-no-memory");
+    let path = tmp.file();
+    let mut mb = mailbox(6);
+    save(&path, &mb).unwrap();
+    *lock(&shared(&path).state) = State::default();
+    NO_MEMORY_FOR_SUM.set(true);
+    let opened = open(&path);
+    NO_MEMORY_FOR_SUM.set(false);
+    assert!(loaded(&path, &opened.unwrap().mailbox) == mb);
+    assert!(matches!(lock(&shared(&path).state).stamp.as_ref().map(|s| &s.sum), Some(Sum::None)));
+    // Without a sum, a file whose time changed is taken for another writer's, as for any file
+    // whose bytes weren't known: kept aside, nothing lost.
+    age(&path, Duration::from_secs(3_600));
+    let first = *mb.messages.keys().next().unwrap();
+    mb.message_mut(first).unwrap().read ^= true;
+    assert!(save(&path, &mb).unwrap().compacted);
+    assert_eq!(kept(&path, "changed-").len(), 1);
+    assert!(whole(&path) == mb);
+}
+
 #[test]
 fn what_was_worked_out_of_attachments_gone_from_memory_is_let_go() {
     let tmp = Temp::new("hashes");
@@ -906,4 +1046,61 @@ fn large_mailbox_opens_and_saves_quickly() {
     let t = Instant::now();
     let whole = save(&path, &mb).unwrap();
     eprintln!("written whole again (as after a crash or a migration): {:?} ({} MB)", t.elapsed(), whole.bytes >> 20);
+}
+
+/// A reader that gives a few bytes at a time, as a slow disk or a pipe may.
+struct Trickle<'a>(&'a [u8], usize);
+
+impl std::io::Read for Trickle<'_> {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        self.1 = self.1 % 7 + 1;
+        let n = self.1.min(buf.len()).min(self.0.len());
+        buf[..n].copy_from_slice(&self.0[..n]);
+        self.0 = &self.0[n..];
+        Ok(n)
+    }
+}
+
+/// What a replay read, to compare.
+fn replayed_as_text(r: Result<index::Replayed, String>) -> String {
+    match r {
+        Err(e) => format!("error {e}"),
+        Ok(r) => {
+            let mut items: Vec<String> =
+                r.items.iter().map(|(k, i)| format!("{k:?} {:?} {:?} {:?} {}", i.json(), i.refs(), i.fp, i.size())).collect();
+            items.sort();
+            format!("{:?} {items:?} {} {:?} {} {}", r.rest, r.good_len, r.tail, r.lost_saves, r.lost_records)
+        }
+    }
+}
+
+#[test]
+fn replay_reads_the_same_whatever_pieces_the_file_comes_in_damaged_or_not() {
+    let tmp = Temp::new("replay-pieces");
+    let path = tmp.file();
+    let mut mb = full_mailbox(12);
+    save(&path, &mb).unwrap();
+    let ids: Vec<Id> = mb.messages.keys().copied().collect();
+    for (i, id) in ids.iter().take(4).enumerate() {
+        mb.message_mut(*id).unwrap().subject = format!("Changed {i}");
+        save(&path, &mb).unwrap();
+    }
+    mb.messages.remove(&ids[6]);
+    save(&path, &mb).unwrap();
+    let good = fs::read(&path).unwrap();
+    // The file as it is, cut short anywhere, and with a byte changed anywhere (every 97th).
+    let mut variants = vec![good.clone()];
+    for at in (0..good.len()).step_by(97) {
+        variants.push(good[..at].to_vec());
+        let mut bad = good.clone();
+        bad[at] ^= 0x55;
+        variants.push(bad);
+    }
+    variants.push([good.clone(), vec![0; 300]].concat());
+    for (n, bytes) in variants.iter().enumerate() {
+        let len = bytes.len() as u64;
+        let whole = replayed_as_text(index::replay(&bytes[..], len));
+        let pieces = replayed_as_text(index::replay(Trickle(bytes, n), len));
+        assert_eq!(whole, pieces, "variant {n}");
+    }
 }

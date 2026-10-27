@@ -63,6 +63,8 @@ struct Chain {
     pass: u64,
     escape: Option<Owner>,
     enter: Option<Owner>,
+    /// This pass's new Escape went to the list that is open (egui closes it on the key itself).
+    list_escape: bool,
     /// The layers this pass's presses were given to, and whether anything of the layer asked for
     /// the key: if nothing did and the layer wasn't drawn, the press is made again.
     sent: Vec<(Key, LayerId, bool)>,
@@ -334,6 +336,7 @@ pub(crate) fn gate(ctx: &egui::Context, blocked: bool) {
     chain.pass = ctx.cumulative_pass_nr();
     let fresh = |key: Key, o: Option<Owner>| if again.contains(&key) { o.map(|o| Owner { field: None, ..o }) } else { o };
     chain.escape = fresh(Key::Escape, if escape { owner(Key::Escape) } else { None });
+    chain.list_escape = escape && list.is_some() && !blocked;
     chain.enter = fresh(Key::Enter, if enter { owner(Key::Enter) } else { None });
     chain.sent = [(Key::Escape, chain.escape), (Key::Enter, chain.enter)]
         .into_iter()
@@ -446,6 +449,14 @@ pub(crate) fn take_escape_any(ctx: &egui::Context, layer: LayerId) -> bool {
 /// (the search box), taken.
 pub(crate) fn take_escape_in(ctx: &egui::Context, layer: LayerId, id: egui::Id) -> bool {
     ask(ctx, layer, Key::Escape, Want::Field(id), true)
+}
+
+/// Whether this pass's new Escape is the open list's (a drop-down, a menu), which egui closes on
+/// it by itself: for a menu over that list, a submenu of it, to close on it instead.
+pub(crate) fn list_escape(ctx: &egui::Context) -> bool {
+    let (pass, viewport) = (ctx.cumulative_pass_nr(), ctx.viewport_id());
+    ctx.data(|d| d.get_temp::<ViewportIdMap<Chain>>(store()).and_then(|map| map.get(&viewport).map(|c| c.pass == pass && c.list_escape)))
+        .unwrap_or(false)
 }
 
 /// Whether Enter was pressed for `layer`, in one of its fields or with nothing focused. (A text

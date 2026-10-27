@@ -182,7 +182,7 @@ fn list(app: &mut MailApp, ui: &mut Ui, t: &Tokens, names: &[String], open: Opti
     let mut renaming: Option<String> = ui.data(|d| d.get_temp(renaming_id));
     let field = renaming_id.with("field");
     if let (Some(text), Some(from)) = (renaming.as_mut(), open) {
-        let r = ui.add(egui::TextEdit::singleline(text).id(field).desired_width(172.0).char_limit(100));
+        let r = crate::text_menu::field(ui.add(egui::TextEdit::singleline(text).id(field).desired_width(172.0).char_limit(100)));
         // Enter keeps the name; a click elsewhere or Escape lets go of it (the keyboard is asked
         // for once, by Rename, not every frame, or nothing could take it away).
         if (r.has_focus() || r.lost_focus()) && crate::keys::enter(ui.ctx(), ui.layer_id()) {
@@ -191,7 +191,7 @@ fn list(app: &mut MailApp, ui: &mut Ui, t: &Tokens, names: &[String], open: Opti
             }
             ui.memory_mut(|m| m.surrender_focus(field));
             renaming = None;
-        } else if r.lost_focus() {
+        } else if crate::text_menu::left(&r) {
             renaming = None;
         }
     }
@@ -271,7 +271,7 @@ fn html_source(app: &mut MailApp, ui: &mut Ui, t: &Tokens, mut source: String) {
         .desired_width(f32::INFINITY)
         .char_limit(MAX_HTML)
         .hint_text(tl!("Paste or write the signature's HTML"));
-    if ui.add(edit).changed()
+    if crate::text_menu::field(ui.add(edit)).changed()
         && let Err(why) = app.execute("signature.html", json!({"html": source}))
     {
         refuse(app, why);
@@ -407,7 +407,8 @@ fn details_form(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
                 ui.label(tl!(label));
                 if let Some(text) = form.fields.get_mut(i) {
                     let field = if i == 7 { egui::TextEdit::multiline(text).desired_rows(2) } else { egui::TextEdit::singleline(text) };
-                    changed |= ui.add(field.desired_width(320.0).char_limit(mailcraft_model::signature::MAX_DETAIL)).changed();
+                    let field = crate::text_menu::field(ui.add(field.desired_width(320.0).char_limit(mailcraft_model::signature::MAX_DETAIL)));
+                    changed |= field.changed();
                 }
                 ui.end_row();
             }
@@ -528,11 +529,11 @@ fn picture(app: &mut MailApp, ui: &mut Ui) {
     let mut alt = p.alt.clone();
     ui.horizontal(|ui| {
         ui.label(tl!("Width"));
-        if ui.add(egui::DragValue::new(&mut width).range(8..=MAX_WIDTH).suffix(" px")).changed() {
+        if crate::text_menu::field(ui.add(egui::DragValue::new(&mut width).range(8..=MAX_WIDTH).suffix(" px"))).changed() {
             let _ = app.run("signature.picture.set", json!({"id": id, "width": width}));
         }
         ui.label(tl!("Description"));
-        if ui.add(egui::TextEdit::singleline(&mut alt).desired_width(200.0).char_limit(200)).changed() {
+        if crate::text_menu::field(ui.add(egui::TextEdit::singleline(&mut alt).desired_width(200.0).char_limit(200))).changed() {
             let _ = app.execute("signature.picture.set", json!({"id": id, "alt": alt}));
         }
         if ui.button(tl!("Remove Picture")).clicked() {

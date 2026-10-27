@@ -1201,6 +1201,7 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
                 let resp = ui.add(
                     egui::TextEdit::singleline(query).hint_text(tl!("Type what you want to do")).desired_width(f32::INFINITY).font(regular(14.0)),
                 );
+                let resp = crate::text_menu::field(resp);
                 resp.request_focus();
                 let mut hits: Vec<(u32, (String, String, String, String, bool))> =
                     all_commands(app).into_iter().filter_map(|c| score(query, &c.1, &c.2, &c.0).map(|s| (s + u32::from(!c.4) * 10, c))).collect();
@@ -1271,6 +1272,7 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
                     ui.label(egui::RichText::new(crate::i18n::fmt(tl!("In {place}"), &[("place", &place)])).color(t.text_dim));
                 }
                 let resp = ui.add(egui::TextEdit::singleline(name).hint_text(tl!("Folder name")).desired_width(f32::INFINITY));
+                let resp = crate::text_menu::field(resp);
                 if !resp.has_focus() && error.is_empty() {
                     resp.request_focus();
                 }
@@ -1297,7 +1299,7 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
             let mut submit = false;
             let open = window(ctx, tl!("Go to Date"), 320.0, |ui| {
                 ui.label(tl!("Date (YYYY-MM-DD)"));
-                let resp = ui.add(egui::TextEdit::singleline(text).desired_width(f32::INFINITY));
+                let resp = crate::text_menu::field(ui.add(egui::TextEdit::singleline(text).desired_width(f32::INFINITY)));
                 if !resp.has_focus() && error.is_empty() {
                     resp.request_focus();
                 }
@@ -1326,7 +1328,7 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
             let open = window(ctx, tl!("Add Shared Mailbox"), 420.0, |ui| {
                 ui.label(tl!("The shared mailbox's e-mail address"));
                 let field = egui::TextEdit::singleline(address).hint_text("support@example.org").desired_width(f32::INFINITY);
-                let resp = ui.add_enabled(checking.is_none(), field);
+                let resp = crate::text_menu::field(ui.add_enabled(checking.is_none(), field));
                 if checking.is_none() && !resp.has_focus() && error.is_empty() {
                     resp.request_focus();
                 }
@@ -1384,7 +1386,7 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
             let open = window(ctx, tl!("Open Shared Calendar"), 420.0, |ui| {
                 ui.label(tl!("The e-mail address of the person whose calendar you want to open"));
                 let field = egui::TextEdit::singleline(address).hint_text("colleague@example.org").desired_width(f32::INFINITY);
-                let resp = ui.add_enabled(reading.is_none(), field);
+                let resp = crate::text_menu::field(ui.add_enabled(reading.is_none(), field));
                 if reading.is_none() && !resp.has_focus() && error.is_empty() {
                     resp.request_focus();
                 }
@@ -1420,6 +1422,7 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
             let open = window(ctx, tl!("Insert Link"), 420.0, |ui| {
                 ui.label(tl!("Address"));
                 let resp = ui.add(egui::TextEdit::singleline(url).hint_text("https://www.example.org").desired_width(f32::INFINITY));
+                let resp = crate::text_menu::field(resp);
                 if !resp.has_focus() && error.is_empty() {
                     resp.request_focus();
                 }
@@ -1607,7 +1610,9 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
             let open = window(ctx, &ask.title, if ask.more.is_empty() { 420.0 } else { 480.0 }, |ui| {
                 ui.label(ask.text.as_str());
                 if let Some((_, note, hint)) = &mut ask.note {
-                    ui.add(egui::TextEdit::multiline(note).hint_text(hint.as_str()).desired_rows(2).desired_width(f32::INFINITY).char_limit(2_000));
+                    let field = ui
+                        .add(egui::TextEdit::multiline(note).hint_text(hint.as_str()).desired_rows(2).desired_width(f32::INFINITY).char_limit(2_000));
+                    crate::text_menu::field(field);
                 }
                 if let Some(tick) = &mut ask.tick {
                     ui.add_space(4.0);

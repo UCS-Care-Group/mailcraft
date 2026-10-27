@@ -49,7 +49,7 @@ pub fn first_mailbox(sample: bool, chosen: Option<PathBuf>, progress: &OpenProgr
         }
         return Arrival::opened(Mailbox::with_local_account("", ""), Some(path));
     }
-    match mailcraft_engine::store::open_with(&path, progress) {
+    match mailcraft_engine::store::open_for_window(&path, progress) {
         Ok(opened) => {
             if let Some(notice) = opened.notice() {
                 log::warn!("{}: {notice}", path.display());
@@ -62,7 +62,7 @@ pub fn first_mailbox(sample: bool, chosen: Option<PathBuf>, progress: &OpenProgr
             } else {
                 None
             };
-            Arrival { unavailable: opened.unavailable, damaged, trouble, ..Arrival::opened(opened.mailbox, Some(path)) }
+            Arrival { unavailable: opened.unavailable, unchecked: opened.unchecked, damaged, trouble, ..Arrival::opened(opened.mailbox, Some(path)) }
         }
         Err(e) => {
             // Never write over a mailbox that couldn't be read: start empty, keep nothing, say why.
