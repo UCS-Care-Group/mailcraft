@@ -280,7 +280,7 @@ pub struct Services {
     /// the browser, the tests and a run that keeps nothing.
     pub data_folder: Option<data_removal::DataFolder>,
     /// Desktop: ask an account's server when people are free and busy, on a background thread,
-    /// for a meeting's Scheduling Assistant ([`scheduling`]). It reads and writes nothing. The
+    /// for a meeting's Find a Time page ([`scheduling`]). It reads and writes nothing. The
     /// answer, or why there is none, arrives through the channel and the host wakes the UI.
     /// Absent in the browser and for accounts whose server has no calendar: the assistant then
     /// shows the owner's own calendar only, and says so.
@@ -979,7 +979,7 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         "ui.eventWindow",
         "Appointment Window",
         "Window",
-        r#"{"window"?: number (default: the appointment or meeting window in front), "page"?: "appointment"|"scheduling" (a meeting's Scheduling Assistant), "recurrence"?: bool (open or close its Appointment Recurrence dialog), "do"?: "save"|"saveAndClose"|"send"|"close" — as its keys and its close button do: closing asks first when something isn't saved, and nothing is sent to anybody without the owner's yes; "freeBusy"?: {"people": [{"email", "busy": [{"start": seconds, "end": seconds, "showAs"}], "error"?: string}]} — a stand-in for the server's answer about the people invited, for the Scheduling Assistant} — answers {"window", "event", "page", "meeting", "dirty", "recurrence", "asking", "importance": "low"|"normal"|"high", "online": bool (it is, or is to be, a Teams meeting), "joinUrl": string (the link to join by, when its server gave one: data, never followed by itself), "scheduling"?: {"day", "start", "end", "rows", "known", "unknown", "bars", "pending", "note"}}"#,
+        r#"{"window"?: number (default: the appointment or meeting window in front), "page"?: "appointment"|"scheduling" (a meeting's Find a Time page), "recurrence"?: bool (open or close its Appointment Recurrence dialog), "do"?: "save"|"saveAndClose"|"send"|"close" — as its keys and its close button do: closing asks first when something isn't saved, and nothing is sent to anybody without the owner's yes; "freeBusy"?: {"people": [{"email", "busy": [{"start": seconds, "end": seconds, "showAs"}], "error"?: string}]} — a stand-in for the server's answer about the people invited, for Find a Time} — answers {"window", "event", "page", "meeting", "dirty", "recurrence", "asking", "importance": "low"|"normal"|"high", "online": bool (it is, or is to be, a Teams meeting), "joinUrl": string (the link to join by, when its server gave one: data, never followed by itself), "scheduling"?: {"day", "start", "end", "rows", "known", "unknown", "bars", "pending", "note"}}"#,
     ),
     (
         "ui.downloadPictures",
@@ -1386,7 +1386,7 @@ pub struct MailApp {
     /// it went: an appointment window whose save had to ask first learns from it what came of
     /// the question once it is answered.
     pub(crate) ran: (u64, String, Result<Value, String>),
-    /// When people are free and busy, as the Scheduling Assistant found out ([`scheduling`]).
+    /// When people are free and busy, as Find a Time found out ([`scheduling`]).
     pub(crate) free_busy: scheduling::Store,
     /// What this run knows of new versions ([`updates`]).
     pub(crate) updates: updates::Updates,
@@ -4370,5 +4370,7 @@ pub fn now_ms() -> f64 {
 
 #[cfg(test)]
 mod privacy_tests;
+#[cfg(test)]
+mod product_names_tests;
 #[cfg(test)]
 mod tests;

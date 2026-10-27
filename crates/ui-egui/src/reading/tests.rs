@@ -427,8 +427,10 @@ fn remote_pictures_are_stand_ins_and_nothing_is_looked_at_for_them() {
                 let m = corpus_message(name);
                 assert!(m.attachments.is_empty(), "{name}");
                 let laid = lay_out(ctx, &m, 820.0);
-                assert_eq!(laid.stats.pictures, 0, "{name}");
-                assert!(shown_pictures(&laid).is_empty(), "{name}");
+                // (The hostile one has a picture written into it, which is shown: #533.)
+                let written = usize::from(name == "remote");
+                assert_eq!(laid.stats.pictures, written, "{name}");
+                assert_eq!(shown_pictures(&laid).len(), written, "{name}");
             }
             let newsletter = lay_out(ctx, &corpus_message("newsletter"), 820.0);
             assert_eq!((newsletter.stats.placeholders, newsletter.stats.remote), (8, 8));
@@ -443,8 +445,10 @@ fn remote_pictures_are_stand_ins_and_nothing_is_looked_at_for_them() {
             let remote = lay_out(ctx, &corpus_message("remote"), 820.0);
             assert_eq!((remote.stats.placeholders, remote.stats.remote), (8, 7));
             assert!(stand_ins(&remote).contains(&("missing part", false)));
-            // No picture was kept, because no bytes were ever looked at: there were none to look at.
-            assert_eq!(Pictures::of(ctx).lock().unwrap().counts(), (0, 0));
+            // No picture on the web was kept, because no bytes of one were ever looked at: there
+            // were none to look at. The one written into the message was looked at, and is kept
+            // once though the message was read here twice.
+            assert_eq!(Pictures::of(ctx).lock().unwrap().counts(), (1, 0));
             // A part that claims a web address as its Content-ID does not stand in for that address.
             let mut sneaky = corpus_message("newsletter");
             sneaky.attachments = vec![Attachment {
@@ -1202,7 +1206,8 @@ fn pictures_on_the_web_are_placeholders_until_the_owner_asks() {
         // It was asked for this message: the next one with pictures is not downloaded with it,
         // and coming back asks for nothing again.
         select(&mut harness, id_of(&ids, "remote"));
-        assert_eq!(shown(&harness, id_of(&ids, "remote")), (0, 8, 7));
+        // (Its picture written into the message is shown: #533.)
+        assert_eq!(shown(&harness, id_of(&ids, "remote")), (1, 8, 7));
         select(&mut harness, id);
         harness.run_steps(10);
         assert_eq!(shown(&harness, id), (8, 0, 0));
@@ -1491,7 +1496,7 @@ fn only_what_is_shown_as_a_picture_is_asked_for() {
 
     // The second look, on blocks the parser would not have let through.
     let picture = |src: &str, width: Option<u16>, height: Option<u16>| {
-        mailcraft_html::Block::new(mailcraft_html::BlockKind::Image { src: src.into(), width, height, link: None }, Vec::new())
+        mailcraft_html::Block::new(mailcraft_html::BlockKind::Image { src: src.into(), width, height, link: None, data: None }, Vec::new())
     };
     let doc = Doc::from_blocks(vec![
         picture("https://t.example/1x1.gif", Some(1), Some(1)),
@@ -1510,7 +1515,8 @@ fn only_what_is_shown_as_a_picture_is_asked_for() {
         picture("", None, None),
     ]);
     assert_eq!(doc.remote.iter().map(|url| &**url).collect::<Vec<_>>(), ["https://t.example/real.png", "HTTPS://t.example/unsized.png"]);
-    assert_eq!((doc.remote_pictures, doc.remote_left_out), (13, 0));
+    // A picture written into the message (`data:`) is the message's own, as a `cid:` one is.
+    assert_eq!((doc.remote_pictures, doc.remote_left_out), (12, 0));
     for (src, on_the_web) in [
         ("http://a.example/x", true),
         ("HtTpS://a.example/x", true),
@@ -3555,6 +3561,7 @@ fn the_selection_commands_take_anything_and_never_panic() {
 
 mod invitation;
 mod remote_server;
+mod written_pictures;
 
 /// The original under a reply to HTML mail is laid out as the reading pane lays it out (its
 /// heading, its list), not as text; and a remote picture in it stays a stand-in until the owner

@@ -812,14 +812,15 @@ struct Tile<'a> {
 
 /// What a picture block comes to in `room` points of width. `shown` counts it; measuring a column does not.
 fn tile<'a>(cx: &mut Cx<'_>, block: &'a Block, room: f32, shown: bool) -> Tile<'a> {
-    let BlockKind::Image { src, width, height, .. } = &block.kind else {
+    let BlockKind::Image { src, width, height, data, .. } = &block.kind else {
         return Tile { size: Vec2::ZERO, block, data: None, label: String::new(), described: false, wanted: 0.0 };
     };
     let alt = block.text();
     let alt = alt.trim();
-    // One of the message's own; or one from the web, when the owner asked and it has come.
+    // One of the message's own, written into it or attached to it; or one from the web, when
+    // the owner asked and it has come.
     let asked_for = cx.remote && images::is_remote(src);
-    let mut bytes = cx.message.and_then(|m| images::attachment(m, src)).map(|a| a.data.clone());
+    let mut bytes = data.as_ref().map(|p| p.0.clone()).or_else(|| cx.message.and_then(|m| images::attachment(m, src)).map(|a| a.data.clone()));
     if bytes.is_none()
         && asked_for
         && let Some(images::Remote::Ready(data)) = cx.pictures.remote(src.trim(), cx.frame)

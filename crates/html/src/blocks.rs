@@ -9,6 +9,7 @@
 
 use std::rc::Rc;
 
+use crate::data::{self, Budget, MAX_DATA_TEXT};
 use crate::entities::unescape;
 use crate::style::{self, Css, MsoList, Size};
 use crate::tokenizer::{Tag, Token, Tokenizer};
@@ -49,12 +50,43 @@ const DATA_CELL_TEXT: usize = 240;
 /// `<div>`, Outlook's `MsoNormal` paragraphs) have `space` 0, ordinary paragraphs 1, and a blank
 /// paragraph is a blank line above the next block rather than a block.
 ///
-/// Never panics; reads at most [`MAX_INPUT`] bytes and gives at most [`MAX_BLOCKS`] blocks (plus
-/// the tables that hold some of them).
+/// A picture written into the message (`data:image/png;base64,…`) is shown as an attached one
+/// is: a PNG, JPEG, GIF or WebP by its own bytes, within the caps for one and for a message
+/// (`data.rs`); any other, or one past the caps, is a placeholder.
+///
+/// Never panics; reads at most [`MAX_INPUT`] bytes besides the pictures written into the
+/// message, and gives at most [`MAX_BLOCKS`] blocks (plus the tables that hold some of them).
 pub fn parse(html: &str) -> Vec<Block> {
-    let mut builder = Builder::new();
-    for token in Tokenizer::new(truncate(html, MAX_INPUT)) {
+    build(html, true)
+}
+
+/// [`parse`], without decoding the pictures written into the message: for when only the text
+/// and the look are wanted (plain text, an HTML draft or a paste in the composer).
+pub fn parse_text(html: &str) -> Vec<Block> {
+    build(html, false)
+}
+
+fn build(html: &str, decode: bool) -> Vec<Block> {
+    let mut builder = Builder::new(decode);
+    let mut tokens = Tokenizer::new(truncate(html, MAX_INPUT.saturating_add(MAX_DATA_TEXT)));
+    // The text of the pictures written into the message, which isn't counted against MAX_INPUT.
+    let mut pictures = 0usize;
+    while let Some(token) = tokens.next() {
         if builder.count >= MAX_BLOCKS {
+            break;
+        }
+        if let Token::Open(tag) = &token
+            && tag.name == "img"
+            && let Some(src) = tag.raw_attr("src").filter(|src| data::is_data(src))
+        {
+            pictures = pictures.saturating_add(src.len());
+        }
+        let over = tokens.pos().saturating_sub(pictures).saturating_sub(MAX_INPUT);
+        if over > 0 {
+            // The rest of the text that ends past the input read, as if the input ended there.
+            if let Token::Text(text) = token {
+                builder.token(Token::Text(truncate(text, text.len().saturating_sub(over))));
+            }
             break;
         }
         builder.token(token);
@@ -425,10 +457,14 @@ struct Builder {
     /// The last thing added was a picture, and the line it is in goes on: what comes next in
     /// that line, before a line break or a block of its own, stands beside it.
     after_picture: bool,
+    /// Whether the pictures written into the message are decoded (not when only text is wanted).
+    decode: bool,
+    /// What those have taken so far.
+    budget: Budget,
 }
 
 impl Builder {
-    fn new() -> Builder {
+    fn new(decode: bool) -> Builder {
         Builder {
             root: Frame::default(),
             frames: Vec::new(),
@@ -457,6 +493,8 @@ impl Builder {
             pre_start: false,
             template: 0,
             after_picture: false,
+            decode,
+            budget: Budget::default(),
         }
     }
 
@@ -787,8 +825,13 @@ impl Builder {
         }
         let alt = tag.attr("alt").unwrap_or_default();
         let alt: String = alt.split_whitespace().collect::<Vec<_>>().join(" ").chars().filter(|c| !c.is_control()).collect();
-        match picture_url(tag.attr("src")) {
-            Some(src) => {
+        let raw = tag.attr("src");
+        let picture = match raw.as_deref().filter(|src| data::is_data(src)) {
+            Some(written) => Some(data::picture(written, self.decode, &mut self.budget)),
+            None => picture_url(raw).map(|src| (src, None)),
+        };
+        match picture {
+            Some((src, data)) => {
                 // Text in the line before it, or a picture with nothing but spaces since: the
                 // picture stands in that line.
                 let blank = self.spans.iter().all(|s| s.text.chars().all(is_blank));
@@ -801,7 +844,7 @@ impl Builder {
                 // pixels (`width:100%` and `height:auto` say nothing here: the picture's own shape does).
                 let size = |v: Option<f32>| v.map(|v| v.round().clamp(1.0, MAX_IMAGE_PX) as u16);
                 let (width, height) = (size(width.or(css.width)), size(height.or(css.height)));
-                let kind = BlockKind::Image { src, width, height, link: style.link.as_deref().map(str::to_string) };
+                let kind = BlockKind::Image { src, width, height, link: style.link.as_deref().map(str::to_string), data };
                 let count = self.frame().blocks.len();
                 let block = Block { quote: self.quote_depth(), align: style.align, beside, ..Block::new(kind, spans) };
                 self.emit(block, false);

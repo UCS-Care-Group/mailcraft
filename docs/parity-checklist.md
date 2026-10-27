@@ -37,16 +37,16 @@ A command existing means the behaviour is reachable by id (ribbon, shortcut, CLI
 | File | Backstage | Automatic Replies | `account.automaticReplies` |
 | File | Backstage | Mailbox Cleanup | `file.cleanup` |
 | File | Backstage | Open Data File | `file.openDataFile` |
-| File | Backstage | Office Account | `file.account` |
+| File | Backstage | Account | `file.account` |
 | Search | Options | Recent Searches | `view.recentSearches` |
 | Search | Options | Search Folders | `folder.newSearchFolder` |
 | Home | New | New Contact Group | `people.newGroup` |
 | Home | Delete | Ignore Conversation | `mail.ignore` |
 | Home | Delete | Clean Up Conversation | `mail.cleanUp` |
 | Home | Respond | Reply with IM | `mail.replyIm` |
-| Home | Quick Steps | Reply and Delete | `mail.replyAndDelete` |
-| Home | Quick Steps | Create Quick Step | `quickSteps.new` |
-| Home | Quick Steps | Manage Quick Steps | `quickSteps.manage` |
+| Home | Action Shortcuts | Reply and Delete | `mail.replyAndDelete` |
+| Home | Action Shortcuts | Create Action Shortcut | `quickSteps.new` |
+| Home | Action Shortcuts | Manage Action Shortcuts | `quickSteps.manage` |
 | Home | Tags | Add Reminder | `mail.reminder` |
 | Home | Find | Address Book | `people.addressBook` |
 | Home | Actions | View Source | `mail.viewSource` |
@@ -73,7 +73,7 @@ A command existing means the behaviour is reachable by id (ribbon, shortcut, CLI
 | View | Layout | Use Tighter Spacing | `view.density` |
 | View | People Pane | People Pane | `view.peoplePane` |
 | View | Window | Open in New Window | `view.newWindow` |
-| View | Window | Immersive Reader | `view.immersiveReader` |
+| View | Window | Focus Reading | `view.immersiveReader` |
 | View | Window | Zoom | `view.zoom` |
 | Navigation | Modules | Notes | `view.notes` |
 | Message | Clipboard | Format Painter | `edit.formatPainter` |
@@ -95,7 +95,7 @@ A command existing means the behaviour is reachable by id (ribbon, shortcut, CLI
 | Insert | Illustrations | Screenshot | `insert.screenshot` |
 | Insert | Links | Bookmark | `insert.bookmark` |
 | Insert | Text | Text Box | `insert.textBox` |
-| Insert | Text | Quick Parts | `insert.quickParts` |
+| Insert | Text | Saved Text | `insert.quickParts` |
 | Insert | Text | Text Effects | `insert.textEffects` |
 | Insert | Text | Drop Cap | `insert.dropCap` |
 | Insert | Text | Object | `insert.object` |

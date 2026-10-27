@@ -1363,7 +1363,7 @@ fn open_by_address(
     (read, (refusals, signed_out))
 }
 
-/// When the people a meeting is for are free and busy, for its Scheduling Assistant: one
+/// When the people a meeting is for are free and busy, for its Find a Time page: one
 /// question to Microsoft Graph, about when their time is taken and how, never by what. It
 /// reads; nothing is written, and nobody is told that it was asked.
 fn free_busy(request: FreeBusyRequest) -> FreeBusyResult {
@@ -1508,7 +1508,7 @@ fn services(
             background(&images_ctx, "sender image", move || sender_images::look_up(&address, kept.as_ref(), &wanted, mailcraft_net::pictures::fetch))
         })),
         picture_cache: kept_pictures.map(|kept| Box::new(picture_cache::Kept(kept)) as Box<dyn mailcraft_ui_egui::PictureCache>),
-        // When the people of a meeting are free and busy, while its Scheduling Assistant is open.
+        // When the people of a meeting are free and busy, while its Find a Time page is open.
         free_busy: Some(Box::new(move |request| background(&busy_ctx, "free and busy times", move || free_busy(request)))),
         // A check of the calendar connection on the account's real server, when the owner asks.
         check_calendar: Some(Box::new(move |request| background(&check_ctx, "calendar check", move || check_calendar(request)))),

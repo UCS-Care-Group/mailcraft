@@ -351,7 +351,7 @@ fn event_state(window: &Open) -> Value {
         state["online"] = json!(online);
         state["joinUrl"] = json!(link);
     }
-    // What the Scheduling Assistant last drew, while its page is the one in view.
+    // What Find a Time last drew, while its page is the one in view.
     if let Some(form) = form.filter(|f| f.page() == crate::forms::Page::Scheduling) {
         let (drawn, meeting) = (form.scheduling(), form.meeting());
         let iso = |at: mailcraft_time::DateTime| at.iso();
@@ -373,7 +373,7 @@ fn event_state(window: &Open) -> Value {
 /// `ui.eventWindow`: the window of an appointment or a meeting, by its number or the one in
 /// front. It shows a page (`page`), opens or closes its Appointment Recurrence dialog
 /// (`recurrence`), and does what its keys and its close button do (`do`): whatever asks the
-/// owner first there, asks first here. `freeBusy` hands the Scheduling Assistant an answer
+/// owner first there, asks first here. `freeBusy` hands Find a Time an answer
 /// about the people invited in a server's place (a stand-in: nothing is asked of anybody).
 /// The people the appointment window `p` names (default: the one in front) is to invite, as the
 /// form has them now: for the question an agent's save or send is asked first.
@@ -417,7 +417,7 @@ fn event_window(app: &mut MailApp, p: &Value) -> Result<Value, String> {
             }
             Some("scheduling") => {
                 if !form.set_page(crate::forms::Page::Scheduling) {
-                    return Err(tl!("Only a meeting you organize has a Scheduling Assistant").to_string());
+                    return Err(tl!("Only a meeting you organize has Find a Time").to_string());
                 }
             }
             Some(_) => return Err("`page` is appointment or scheduling".to_string()),
@@ -2027,7 +2027,7 @@ mod tests {
         harness.run_steps(3);
     }
 
-    /// What `ui.eventWindow` says of the Scheduling Assistant of the window in front.
+    /// What `ui.eventWindow` says of the Find a Time page of the window in front.
     fn scheduling(harness: &mut Harness) -> Value {
         run(harness, "ui.eventWindow", json!({}))["scheduling"].clone()
     }
@@ -2140,7 +2140,7 @@ mod tests {
         // While the Appointment page is in view nobody is asked anything.
         harness.run_steps(10);
         assert!(asks.lock().unwrap().is_empty() && scheduling(&mut harness).is_null());
-        // The Scheduling Assistant: one question, for the day of the meeting and the people
+        // Find a Time: one question, for the day of the meeting and the people
         // invited to it.
         bar(&mut harness, w, "scheduling");
         harness.run_steps(6);

@@ -3264,6 +3264,11 @@ msgid "Find Related Messages"
 msgstr "Rechercher les messages associés"
 
 #. interface
+#: crates/ui-egui/src/forms.rs
+msgid "Find a Time"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "Finding your account settings…"
@@ -6309,9 +6314,8 @@ msgstr "Réunion en ligne"
 
 #. interface
 #: crates/ui-egui/src/windows.rs
-#, fuzzy
-msgid "Only a meeting you organize has a Scheduling Assistant"
-msgstr "Seule une réunion que vous organisez dispose d'un Assistant Planification"
+msgid "Only a meeting you organize has Find a Time"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/unconfirmed.rs
@@ -7856,12 +7860,6 @@ msgstr "N'acceptez que si vous avez demandé cela à l'agent. Le texte d'un mess
 #, fuzzy
 msgid "Says what you and your organisation's administrator can do, and lets an administrator approve MailCraft on Microsoft's page from here."
 msgstr "Indique ce que vous et l'administrateur de votre organisation pouvez faire, et permet à un administrateur d'approuver MailCraft d'ici sur la page de Microsoft."
-
-#. interface
-#: crates/ui-egui/src/forms.rs
-#, fuzzy
-msgid "Scheduling Assistant"
-msgstr "Assistant Planification"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -14159,6 +14157,14 @@ msgstr "« {subject} » était trop volumineux pour être téléchargé : seul s
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "« {subject} » est introuvable sur son serveur, il ne peut donc pas être transféré en tant que pièce jointe"
+
+#, fuzzy
+#~ msgid "Only a meeting you organize has a Scheduling Assistant"
+#~ msgstr "Seule une réunion que vous organisez dispose d'un Assistant Planification"
+
+#, fuzzy
+#~ msgid "Scheduling Assistant"
+#~ msgstr "Assistant Planification"
 
 #, fuzzy
 #~ msgid "Move to Junk Email"

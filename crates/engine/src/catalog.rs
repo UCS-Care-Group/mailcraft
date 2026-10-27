@@ -32,7 +32,7 @@ File|Backstage|Mailbox Cleanup|file.cleanup
 File|Backstage|Rules and Alerts|rules.list
 File|Backstage|Open Data File|file.openDataFile
 File|Backstage|Open Shared Calendar|calendar.openShared
-File|Backstage|Office Account|file.account
+File|Backstage|Account|file.account
 Quick Access|Toolbar|Send/Receive All Folders|sync.request
 Quick Access|Toolbar|Undo|edit.undo
 Quick Access|Toolbar|Redo|edit.redo
@@ -72,10 +72,10 @@ Home|Respond|Forward|mail.forward
 Home|Respond|Reply with Meeting|calendar.fromMessage
 Home|Respond|Forward as Attachment|mail.forwardAsAttachment
 Home|Respond|Reply with IM|mail.replyIm
-Home|Quick Steps|Move to Folder Quick Step|mail.move
-Home|Quick Steps|Reply and Delete|mail.replyAndDelete
-Home|Quick Steps|Create Quick Step|quickSteps.new
-Home|Quick Steps|Manage Quick Steps|quickSteps.manage
+Home|Action Shortcuts|Move to Folder Action Shortcut|mail.move
+Home|Action Shortcuts|Reply and Delete|mail.replyAndDelete
+Home|Action Shortcuts|Create Action Shortcut|quickSteps.new
+Home|Action Shortcuts|Manage Action Shortcuts|quickSteps.manage
 Home|Move|Move|mail.move
 Home|Move|Copy to Folder|mail.copy
 Home|Move|Create Rule|rules.add
@@ -152,7 +152,7 @@ View|Layout|Use Tighter Spacing|view.density
 View|People Pane|People Pane|view.peoplePane
 View|Window|Reminders Window|view.reminders
 View|Window|Open in New Window|view.newWindow
-View|Window|Immersive Reader|view.immersiveReader
+View|Window|Focus Reading|view.immersiveReader
 View|Window|Zoom|view.zoom
 Navigation|Modules|Mail|view.mail
 Navigation|Modules|Calendar|view.calendar
@@ -204,7 +204,7 @@ Insert|Illustrations|Screenshot|insert.screenshot
 Insert|Links|Link|compose.link
 Insert|Links|Bookmark|insert.bookmark
 Insert|Text|Text Box|insert.textBox
-Insert|Text|Quick Parts|insert.quickParts
+Insert|Text|Saved Text|insert.quickParts
 Insert|Text|Text Effects|insert.textEffects
 Insert|Text|Drop Cap|insert.dropCap
 Insert|Text|Date & Time|insert.dateTime
@@ -279,7 +279,7 @@ Appointment|Actions|Delete Occurrence|calendar.delete
 Appointment|Actions|Forward|calendar.forward
 Appointment|Actions|Save as iCalendar|file.exportCalendar
 Appointment|Actions|Copy to My Calendar|calendar.copy
-Appointment|Show|Scheduling Assistant|calendar.freeBusy
+Appointment|Show|Find a Time|calendar.freeBusy
 Appointment|Show|Tracking|calendar.tracking
 Appointment|Attendees|Invite Attendees|calendar.edit
 Appointment|Attendees|Cancel Meeting|calendar.cancel
