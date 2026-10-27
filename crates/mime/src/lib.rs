@@ -42,7 +42,7 @@ pub use mbox::{MboxMessages, mbox_messages, parse_mbox, write_mbox};
 pub use media::media_type_for;
 pub use parse::{MAX_CATEGORIES, MAX_RECIPIENTS, parse};
 pub use words::{decode_words, encode_words};
-pub use write::write;
+pub use write::{write, written_message_id};
 
 /// How [`write()`] and [`write_mbox`] write a message.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]

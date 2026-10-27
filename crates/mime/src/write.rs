@@ -177,6 +177,13 @@ fn keyword(category: &str) -> String {
     }
 }
 
+/// The `Message-ID` field [`write`] gives a message whose id is `raw`, as it goes on the wire
+/// (`<id>`); `None` when it gives it none.
+pub fn written_message_id(raw: &str) -> Option<String> {
+    let id = message_id(raw);
+    (!id.is_empty()).then(|| format!("<{id}>"))
+}
+
 /// A message id or content id without anything that could end it early.
 fn message_id(raw: &str) -> String {
     raw.chars().filter(|c| !c.is_control() && !c.is_whitespace() && !matches!(c, '<' | '>')).collect()

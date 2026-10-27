@@ -15,7 +15,7 @@ mod password;
 mod password_tests;
 mod utf7;
 
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::io::{Read, Write};
 
 use parse::{Piece, Status, StatusLine, Value};
@@ -50,6 +50,8 @@ const MAX_QUOTED: usize = 1_000;
 const MAX_SET_UIDS: usize = 500;
 /// Longest set [`uid_sets`] writes, in characters.
 const MAX_SET_TEXT: usize = 800;
+/// The most UIDs a search answers with that are taken in.
+const MAX_FOUND: usize = 1_000;
 
 /// An IMAP session on a stream.
 pub struct Imap<S> {
@@ -781,6 +783,33 @@ impl<S: Read + Write> Imap<S> {
     pub fn uid_store_set(&mut self, set: &str, add: bool, flags: &[&str]) -> Result<(), ProtoError> {
         let flags = flag_list(flags)?;
         self.store(named(set)?, add, &flags)
+    }
+
+    /// UID SEARCH UNDELETED HEADER <field> <text>: the messages of the open mailbox, other than
+    /// those marked as deleted, whose header field `field` has `text` in it (the server matches a
+    /// part of the field, whatever its case), by UID in UID order, at most [`MAX_FOUND`] of them.
+    /// `field` is a field's name, and `text` printable ASCII: anything else is refused unsent.
+    pub fn uid_search_header(&mut self, field: &str, text: &str) -> Result<Vec<u32>, ProtoError> {
+        if field.is_empty() || !field.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-') {
+            return Err(ProtoError::Protocol(format!("\"{}\" is not the name of a header field", tidy(field))));
+        }
+        if text.is_empty() || text.len() > MAX_QUOTED || !text.bytes().all(|b| matches!(b, b' '..=b'~')) {
+            return Err(ProtoError::Protocol("the text can't be looked for on the server".into()));
+        }
+        let mut found = BTreeSet::new();
+        let command = Command::new("UID SEARCH UNDELETED HEADER").arg(field).string(text.as_bytes());
+        self.run(command, &mut |values| {
+            if values.first().and_then(Value::atom).is_some_and(|word| word.eq_ignore_ascii_case("SEARCH")) {
+                let uids = values.iter().skip(1).filter_map(Value::atom).filter_map(|n| n.parse::<u32>().ok()).filter(|uid| *uid != 0);
+                for uid in uids {
+                    if found.len() >= MAX_FOUND {
+                        break;
+                    }
+                    found.insert(uid);
+                }
+            }
+        })?;
+        Ok(found.into_iter().collect())
     }
 
     fn store(&mut self, set: &str, add: bool, flags: &str) -> Result<(), ProtoError> {

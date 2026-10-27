@@ -25,7 +25,7 @@ use mailcraft_mime::WriteOptions;
 use mailcraft_model::sync::{
     Created, Deleted, FlagsPushed, ImapPlace, MAX_PLACES, Moved, Placed, RemoteFlags, RemoteOp, SyncRequest, SyncResult, SyncStage, SyncStep,
 };
-use mailcraft_model::{FolderKind, Id};
+use mailcraft_model::{FolderKind, Id, MailIdentity, Message};
 use mailcraft_proto::ProtoError;
 use mailcraft_proto::imap::{Copied, Imap, Mailbox, decode_utf7, encode_utf7, uid_sets};
 
@@ -37,6 +37,8 @@ use crate::{NetError, kinds};
 const MAX_OPS: usize = 10_000;
 /// Deepest a mailbox is made below one the server has.
 const MAX_LEVELS: usize = 32;
+/// Most messages with a placed message's `Message-ID` that are looked at to find its copy.
+const MAX_LOOKED_AT: usize = 3;
 
 /// Messages that moves of this run put into mailboxes, by the mailbox's name here: the
 /// `UIDVALIDITY` the server gave with their new UIDs, and those UIDs. The download takes them
@@ -53,7 +55,16 @@ pub(crate) type Arrived = HashMap<String, Vec<(u32, u32)>>;
 pub(crate) fn push(run: &mut Run, imap: &mut Imap<Stream<'_>>, mailboxes: &[Mailbox]) -> Option<Arrived> {
     let request = run.request;
     let ops: Vec<&RemoteOp> = request.ops.iter().take(MAX_OPS).collect();
-    let mut push = Push { request, mailboxes, can_move: false, uidplus: false, gmail: false, destinations: HashMap::new(), arrived: Arrived::new() };
+    let mut push = Push {
+        request,
+        mailboxes,
+        can_move: false,
+        uidplus: false,
+        gmail: false,
+        destinations: HashMap::new(),
+        arrived: Arrived::new(),
+        searching: None,
+    };
     if ops.iter().any(|op| !matches!(op, RemoteOp::Flags { .. })) || !request.places.is_empty() {
         // Asked now: what a server can do is often only told once it knows who is asking.
         match imap.capabilities() {
@@ -126,6 +137,9 @@ struct Push<'a> {
     /// reason was reported once).
     destinations: HashMap<Id, Option<Destination>>,
     arrived: Arrived,
+    /// The destination open to be looked in for copies put there before ([`Push::copies`]): its
+    /// name as the server writes it, and the `UIDVALIDITY` it was opened with.
+    searching: Option<(String, u32)>,
 }
 
 /// Note a problem that ends the work on a mailbox; answers whether the connection is still good.
@@ -488,10 +502,13 @@ impl<'a> Push<'a> {
 
     /// Put the messages moved or copied into the account from elsewhere into their mailboxes,
     /// each whole, with its flags and the time it arrived (#451). What the server took is noted
-    /// (`placed`), with where it went when the server says (`APPENDUID`); what it wouldn't take
-    /// too (`unplaced`), and said. A message whose answer is lost with the connection is neither,
-    /// and is put there again by the next run; the ones after it never set out. Returns whether
-    /// the connection is still good.
+    /// (`placed`), with where it went: as the server says (`APPENDUID`), or else as a look in the
+    /// mailbox for it by its `Message-ID` finds; what it wouldn't take too (`unplaced`), and said.
+    /// A copy put there by an earlier run whose answer was lost, or by one that ended before what
+    /// it brought back was kept, is found there the same way and taken for the message's, which
+    /// is not put there twice. A message whose answer is lost with the connection is neither
+    /// placed nor unplaced, and the next run looks for it there; the ones after it never set out.
+    /// Returns whether the connection is still good.
     fn places(&mut self, imap: &mut Imap<Stream<'_>>, result: &mut SyncResult) -> bool {
         let request = self.request;
         for place in request.places.iter().take(MAX_PLACES) {
@@ -503,6 +520,23 @@ impl<'a> Push<'a> {
                 Err(alive) => return alive,
             };
             let given = RemoteFlags { draft: false, ..RemoteFlags::of(message, 0) };
+            let id = mailcraft_mime::written_message_id(&message.message_id);
+            let before = match self.copies(imap, &destination, *to_folder, id.as_deref()) {
+                Ok(before) => before,
+                Err(alive) => return alive,
+            };
+            if let Some((uid_validity, uids)) = &before {
+                match self.same_mail(imap, uids, message) {
+                    Ok(Some(uid)) => {
+                        // Put there before: it is the message's copy.
+                        self.arrived.entry(destination.remote.clone()).or_default().push((*uid_validity, uid));
+                        result.placed.push(Placed { message: message.id, to_folder: *to_folder, uid, uid_validity: *uid_validity, flags: given });
+                        continue;
+                    }
+                    Ok(None) => {}
+                    Err(alive) => return alive,
+                }
+            }
             let mut flags = Vec::new();
             if given.read {
                 flags.push("\\Seen");
@@ -515,11 +549,28 @@ impl<'a> Push<'a> {
             }
             let received = if message.received > 0 { message.received } else { message.date };
             let date = crate::sync::imap_date_time(received);
-            // A copy of the owner's own mail says who got a blind copy, as the one they sent did.
-            let options = WriteOptions { include_bcc: true, offset_minutes: mailcraft_time::local_offset_minutes(message.date) };
+            // Without who got a blind copy: the copy is for anyone else who can open the mailbox
+            // to see too.
+            let options = WriteOptions { include_bcc: false, offset_minutes: mailcraft_time::local_offset_minutes(message.date) };
             match imap.append_at(&destination.raw, &flags, date.as_deref(), &mailcraft_mime::write(message, &options)) {
                 Ok(appended) => {
-                    let (uid_validity, uid) = appended.map_or((0, 0), |a| (a.uid_validity, a.uid));
+                    let (mut uid_validity, mut uid) = appended.map_or((0, 0), |a| (a.uid_validity, a.uid));
+                    if uid == 0
+                        && let Some((_, earlier)) = &before
+                    {
+                        // The server didn't say where it went: to the one copy that wasn't there before.
+                        match self.copies(imap, &destination, *to_folder, id.as_deref()) {
+                            Ok(Some((validity, now))) => {
+                                if let [only] = now.iter().filter(|uid| !earlier.contains(uid)).collect::<Vec<_>>()[..] {
+                                    (uid_validity, uid) = (validity, *only);
+                                }
+                            }
+                            Ok(None) => {}
+                            // It is there, and where is found by the next run, which looks for it
+                            // before it puts it there again.
+                            Err(alive) => return alive,
+                        }
+                    }
                     if uid != 0 {
                         self.arrived.entry(destination.remote.clone()).or_default().push((uid_validity, uid));
                     }
@@ -530,7 +581,7 @@ impl<'a> Push<'a> {
                     result.errors.push(format!("Couldn't put \"{}\" in \"{}\" on the server: {e}", subject_of(message), shown(&destination.remote)));
                     if e.is_fatal() {
                         // The connection went while it was on its way: it may have got there all
-                        // the same, and nothing is known of it.
+                        // the same, and the next run looks for it there.
                         return false;
                     }
                     result.unplaced.push(message.id);
@@ -538,6 +589,63 @@ impl<'a> Push<'a> {
             }
         }
         true
+    }
+
+    /// The messages in the destination's mailbox whose `Message-ID` is `id` (a message's as it is
+    /// written) that the mailbox here doesn't know (no message of the folder has that UID) and
+    /// this run hasn't put there, with the mailbox's `UIDVALIDITY`. `Ok(None)`: they can't be
+    /// looked for (the message has no id, the server won't say, or the mailbox is numbered anew);
+    /// `Err(false)`: the connection is gone.
+    fn copies(
+        &mut self,
+        imap: &mut Imap<Stream<'_>>,
+        destination: &Destination,
+        to_folder: Id,
+        id: Option<&str>,
+    ) -> Result<Option<(u32, Vec<u32>)>, bool> {
+        let Some(id) = id.filter(|id| id.is_ascii()) else { return Ok(None) };
+        let uid_validity = match &self.searching {
+            Some((raw, uid_validity)) if *raw == destination.raw => *uid_validity,
+            _ => {
+                self.searching = None;
+                match imap.select(&destination.raw, true) {
+                    Ok(selected) => {
+                        self.searching = Some((destination.raw.clone(), selected.uid_validity));
+                        selected.uid_validity
+                    }
+                    Err(e) => return if NetError::from(e).is_fatal() { Err(false) } else { Ok(None) },
+                }
+            }
+        };
+        let folder = self.request.folders.iter().find(|f| f.id == to_folder);
+        if uid_validity == 0 || folder.is_some_and(|f| f.uid_validity != 0 && f.uid_validity != uid_validity) {
+            return Ok(None);
+        }
+        let found = match imap.uid_search_header("Message-ID", id) {
+            Ok(found) => found,
+            Err(e) => return if NetError::from(e).is_fatal() { Err(false) } else { Ok(None) },
+        };
+        let known = folder.map_or(&[][..], |f| f.known_uids.as_slice());
+        let put = self.arrived.get(&destination.remote).map_or(&[][..], Vec::as_slice);
+        let unknown = found.into_iter().filter(|uid| !known.contains(uid) && !put.contains(&(uid_validity, *uid))).collect();
+        Ok(Some((uid_validity, unknown)))
+    }
+
+    /// The first of `uids`, messages of the open destination, that is `message` by what it says
+    /// of itself (when it was sent, about what, from and to whom), as well as by its
+    /// `Message-ID`: another message that merely carries that id is not taken for it. A few are
+    /// looked at. `Err(false)`: the connection is gone.
+    fn same_mail(&mut self, imap: &mut Imap<Stream<'_>>, uids: &[u32], message: &Message) -> Result<Option<u32>, bool> {
+        let seen = MailIdentity::of(message);
+        for uid in uids.iter().take(MAX_LOOKED_AT) {
+            match imap.uid_fetch_header(*uid) {
+                Ok(Some(fetched)) if seen.fits(&mailcraft_mime::parse(fetched.body.as_deref().unwrap_or_default())) => return Ok(Some(*uid)),
+                Ok(_) => {}
+                Err(e) if NetError::from(e.clone()).is_fatal() => return Err(false),
+                Err(_) => {}
+            }
+        }
+        Ok(None)
     }
 
     /// See [`destination`](Self::destination). `Err` is what to tell the owner, and whether the

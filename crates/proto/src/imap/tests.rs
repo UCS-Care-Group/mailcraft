@@ -748,6 +748,40 @@ fn appending_with_a_date_says_where_the_message_went() {
 }
 
 #[test]
+fn searching_a_header_answers_the_uids_it_names() {
+    let mut s = Script::new("* SEARCH 9 4 0 x 4 4294967295\r\n* 3 EXISTS\r\nA0001 OK done\r\nA0002 OK done\r\n");
+    let mut imap = Imap::resume(&mut s);
+    // In UID order and once each; what isn't a UID is passed over.
+    assert_eq!(imap.uid_search_header("Message-ID", "<a.1@example.org>"), Ok(vec![4, 9, u32::MAX]));
+    // Quotes in the text are quoted.
+    assert_eq!(imap.uid_search_header("Message-ID", "<say\"hi\"@example.org>"), Ok(vec![]));
+    assert_eq!(
+        s.sent(),
+        "A0001 UID SEARCH UNDELETED HEADER Message-ID \"<a.1@example.org>\"\r\n\
+         A0002 UID SEARCH UNDELETED HEADER Message-ID \"<say\\\"hi\\\"@example.org>\"\r\n"
+    );
+    // A refusal is said.
+    let mut s = Script::new("A0001 NO no searching here\r\n");
+    assert!(matches!(Imap::resume(&mut s).uid_search_header("Message-ID", "<a@example.org>"), Err(ProtoError::Rejected(_))));
+    // What could end the command early, or isn't text, is never sent.
+    for (field, text) in [
+        ("Message-ID", "<a@example.org>\r\nA2 DELETE INBOX"),
+        ("Message-ID", "<ä@example.org>"),
+        ("Message-ID", ""),
+        ("Message ID", "<a@example.org>"),
+        ("", "<a>"),
+    ] {
+        let mut s = Script::new("A0001 OK done\r\n");
+        assert!(matches!(Imap::resume(&mut s).uid_search_header(field, text), Err(ProtoError::Protocol(_))), "{field:?} {text:?}");
+        assert_eq!(s.sent(), "", "{field:?} {text:?}");
+    }
+    // A server that names more messages than are ever looked for is taken at its first word.
+    let many: String = (1..=5000).map(|n| format!(" {n}")).collect();
+    let mut s = Script::new(format!("* SEARCH{many}\r\nA0001 OK done\r\n"));
+    assert_eq!(Imap::resume(&mut s).uid_search_header("Message-ID", "<a@example.org>").map(|uids| uids.len()), Ok(MAX_FOUND));
+}
+
+#[test]
 fn starttls_hands_the_stream_back() {
     let mut s = Script::new("* OK ready\r\n* CAPABILITY IMAP4rev1 STARTTLS\r\nA0001 OK done\r\nA0002 OK begin TLS now\r\n");
     let mut imap = Imap::connect(&mut s).unwrap();
@@ -852,6 +886,7 @@ fn drive(server: &[u8]) {
         let _ = imap.create("Projects/New");
         let _ = imap.subscribe("Projects/New");
         let _ = imap.append("Sent", &["\\Seen"], b"Subject: x\r\n\r\n");
+        let _ = imap.uid_search_header("Message-ID", "<a.1@example.org>");
         let _ = imap.logout();
     }
     // Changes, by a session that was told it may make them.
@@ -882,7 +917,9 @@ fn drive(server: &[u8]) {
     let _ = imap.select("INBOX", true);
 }
 
-const WORDS: [&str; 41] = [
+const WORDS: [&str; 43] = [
+    "SEARCH ",
+    "4294967295 ",
     "BODY[HEADER] ",
     "[COPYUID 7 1 9] ",
     "[COPYUID 7 1,3:5 9:12] ",

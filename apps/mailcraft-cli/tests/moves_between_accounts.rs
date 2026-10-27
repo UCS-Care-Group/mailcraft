@@ -19,7 +19,8 @@ use fake::{Fake, FakeImap, FakeMailbox, FakeMessage, ImapWorld};
 use mailcraft_engine::Session;
 use mailcraft_engine::cmd::account::{apply_sync, sync_request};
 use mailcraft_engine::cmd::graph_mail::{apply_graph_fetch, apply_graph_mail, graph_fetch_request, graph_mail_request};
-use mailcraft_model::{FolderKind, Id, Mailbox};
+use mailcraft_model::sync::SyncResult;
+use mailcraft_model::{Address, Body, FolderKind, Id, Mailbox, Message};
 use mailcraft_net::graph::standin::{StandIn, TOKEN};
 use serde_json::{Value, json};
 
@@ -118,6 +119,41 @@ impl Rig {
         let (applied, errors) = self.sync_said(account);
         assert_eq!(errors, Vec::<String>::new());
         applied
+    }
+
+    /// What one Send/Receive of an IMAP account brings back, not taken in yet.
+    fn sync_result(&self, account: Id) -> SyncResult {
+        let mut request = sync_request(&self.s, account).unwrap();
+        request.password = PASSWORD.into();
+        mailcraft_net::sync(&request)
+    }
+
+    /// The program closed and opened again: the mailbox file as it was saved is all there is.
+    fn reopened(&mut self, saved: &Value) {
+        self.s = Session::at(serde_json::from_value::<Mailbox>(saved.clone()).unwrap(), NOW, 0);
+    }
+
+    /// A second IMAP account, on a server that isn't Gmail's, with an Inbox, an Archive and a
+    /// Trash, read once. `uidplus`: the server says where what is put there went.
+    fn other_account(&mut self, uidplus: bool) -> (FakeImap, Id) {
+        let mut world = gmail();
+        world.gmail = false;
+        world.uidplus = uidplus;
+        world.user = "ada@work.example".into();
+        world.mailboxes = vec![
+            mailbox("INBOX", "\\HasNoChildren", 77, Vec::new()),
+            mailbox("Archive", "\\HasNoChildren \\Archive", 79, Vec::new()),
+            mailbox("Trash", "\\HasNoChildren \\Trash", 78, Vec::new()),
+        ];
+        let other = Fake::imap(world);
+        let work = self.s.run("account.add", &servers("ada@work.example", &other)).unwrap()["id"].as_u64().unwrap();
+        self.sync_of(work);
+        (other, work)
+    }
+
+    /// Whether Gmail still has a message in its Inbox.
+    fn gmail_keeps(&self, subject: &str) -> bool {
+        self.on_gmail("INBOX").iter().any(|s| s == subject)
     }
 
     /// One Send/Receive of an IMAP account, and the problems it said.
@@ -465,4 +501,199 @@ fn moved_from_gmail_into_another_imap_account_it_leaves_gmail_once_the_other_has
     // Moved on in the other account and back out of it: an ordinary move there.
     let m = r.s.mailbox.message(two).unwrap();
     assert!(m.account == work && m.uid != 0, "{m:?}");
+}
+
+#[test]
+fn called_off_while_its_copy_goes_to_a_server_that_doesnt_say_where_it_went_that_copy_goes_again() {
+    for how in ["undo", "back", "delete"] {
+        let mut r = Rig::new(&format!("called-off-{how}@example.org"));
+        let (other, work) = r.other_account(false);
+        let two = r.titled("Two");
+        let theirs = r.inbox(work);
+        r.s.run("mail.move", &json!({"ids": [two], "folder": theirs})).unwrap();
+        // The copy is on its way when the owner thinks again.
+        let result = r.sync_result(work);
+        assert_eq!(on(&other, "INBOX"), ["Two"], "{how}");
+        match how {
+            "undo" => {
+                r.s.run("edit.undo", &json!({})).unwrap();
+            }
+            "back" => {
+                let inbox = r.inbox(r.gmail);
+                r.s.run("mail.move", &json!({"ids": [two], "folder": inbox})).unwrap();
+            }
+            _ => {
+                r.s.run("mail.deletePermanently", &json!({"ids": [two]})).unwrap();
+            }
+        }
+        apply_sync(&mut r.s, result).unwrap();
+        // The copy goes again, and nothing of it comes down as new mail.
+        for _ in 0..2 {
+            assert_eq!(r.sync_of(work)["new"], 0, "{how}");
+            r.sync();
+        }
+        assert_eq!(on(&other, "INBOX"), Vec::<String>::new(), "{how}");
+        assert_eq!(r.here("Two"), usize::from(how != "delete"), "{how}");
+        if how != "delete" {
+            assert!(r.gmail_keeps("Two"), "{how}");
+            let m = r.s.mailbox.message(two).unwrap();
+            assert!(m.account == r.gmail && m.uid == 2, "{how}: {m:?}");
+            // Moved there again: put there anew, not taken for the copy that went (which a server
+            // without UIDPLUS keeps, marked as deleted).
+            r.s.run("mail.move", &json!({"ids": [two], "folder": theirs})).unwrap();
+            for _ in 0..2 {
+                r.sync_of(work);
+                r.sync();
+            }
+            assert_eq!((on(&other, "INBOX"), r.here("Two")), (vec!["Two".to_string()], 1), "{how}");
+            assert!(!r.gmail_keeps("Two"), "{how}");
+        }
+    }
+}
+
+#[test]
+fn moved_on_while_its_copy_goes_to_a_server_that_doesnt_say_where_it_went_it_is_there_once() {
+    let mut r = Rig::new("moved-on@example.org");
+    let (other, work) = r.other_account(false);
+    let two = r.titled("Two");
+    let (inbox, archive) = (r.inbox(work), r.s.mailbox.folder_of_kind(work, FolderKind::Archive).unwrap());
+    r.s.run("mail.move", &json!({"ids": [two], "folder": inbox})).unwrap();
+    let result = r.sync_result(work);
+    // Filed in the other account while its copy went to the Inbox there.
+    r.s.run("mail.move", &json!({"ids": [two], "folder": archive})).unwrap();
+    apply_sync(&mut r.s, result).unwrap();
+    for _ in 0..2 {
+        assert_eq!(r.sync_of(work)["new"], 0);
+        r.sync();
+    }
+    assert_eq!((on(&other, "INBOX"), on(&other, "Archive")), (Vec::new(), vec!["Two".to_string()]));
+    assert_eq!(r.here("Two"), 1);
+    assert!(!r.gmail_keeps("Two"));
+    let m = r.s.mailbox.message(two).unwrap();
+    assert!(m.folder == archive && m.uid != 0, "{m:?}");
+    assert!(r.s.mailbox.pending.is_empty() && r.s.mailbox.queued.is_empty(), "{:?} {:?}", r.s.mailbox.pending, r.s.mailbox.queued);
+}
+
+#[test]
+fn a_copy_whose_answer_was_lost_with_the_connection_is_found_there_and_not_put_there_twice() {
+    for uidplus in [false, true] {
+        let mut r = Rig::new(&format!("lost-{uidplus}@example.org"));
+        let (other, work) = r.other_account(uidplus);
+        let two = r.titled("Two");
+        let theirs = r.inbox(work);
+        r.s.run("mail.move", &json!({"ids": [two], "folder": theirs})).unwrap();
+        other.world().hang_up_after = Some("APPEND".into());
+        let (_, errors) = r.sync_said(work);
+        assert!(!errors.is_empty(), "{uidplus}");
+        assert_eq!(on(&other, "INBOX"), ["Two"], "{uidplus}");
+        // Nothing known of it here yet: Gmail keeps the original.
+        r.sync();
+        assert!(r.gmail_keeps("Two"), "{uidplus}");
+        for _ in 0..2 {
+            assert_eq!(r.sync_of(work)["new"], 0, "{uidplus}");
+            r.sync();
+        }
+        assert_eq!(on(&other, "INBOX"), ["Two"], "{uidplus}");
+        assert_eq!(r.here("Two"), 1, "{uidplus}");
+        assert!(!r.gmail_keeps("Two"), "{uidplus}");
+        assert!(r.s.mailbox.pending.is_empty() && r.s.mailbox.queued.is_empty(), "{uidplus}: {:?} {:?}", r.s.mailbox.pending, r.s.mailbox.queued);
+    }
+}
+
+#[test]
+fn a_copy_made_by_a_run_whose_answer_was_never_kept_is_found_there_and_not_put_there_twice() {
+    for uidplus in [false, true] {
+        let mut r = Rig::new(&format!("never-kept-{uidplus}@example.org"));
+        let (other, work) = r.other_account(uidplus);
+        let two = r.titled("Two");
+        let theirs = r.inbox(work);
+        r.s.run("mail.move", &json!({"ids": [two], "folder": theirs})).unwrap();
+        let saved = serde_json::to_value(&r.s.mailbox).unwrap();
+        // The program closes before what the run brought back is kept.
+        let _lost = r.sync_result(work);
+        assert_eq!(on(&other, "INBOX"), ["Two"], "{uidplus}");
+        r.reopened(&saved);
+        for _ in 0..2 {
+            assert_eq!(r.sync_of(work)["new"], 0, "{uidplus}");
+            r.sync();
+        }
+        assert_eq!(on(&other, "INBOX"), ["Two"], "{uidplus}");
+        assert_eq!(r.here("Two"), 1, "{uidplus}");
+        assert!(!r.gmail_keeps("Two"), "{uidplus}");
+    }
+}
+
+#[test]
+fn mail_that_merely_carries_the_message_id_of_one_put_on_the_server_is_not_taken_for_its_copy() {
+    let mut r = Rig::new("look-alike@example.org");
+    let (other, work) = r.other_account(false);
+    let two = r.titled("Two");
+    // Another message with the same Message-ID came to the other account and isn't here yet.
+    let mut look_alike = message(5, "", "Not two");
+    look_alike.body = String::from_utf8_lossy(&look_alike.body).replace("<not two@example.org>", "<two@example.org>").into_bytes();
+    other.world().mailbox("INBOX").messages.push(look_alike);
+    let theirs = r.inbox(work);
+    r.s.run("mail.move", &json!({"ids": [two], "folder": theirs})).unwrap();
+    r.sync_of(work);
+    assert_eq!(on(&other, "INBOX"), ["Not two", "Two"]);
+    for _ in 0..2 {
+        r.sync_of(work);
+        r.sync();
+    }
+    assert_eq!((r.here("Two"), r.here("Not two")), (1, 1));
+    assert!(!r.gmail_keeps("Two"));
+}
+
+#[test]
+fn a_copy_put_on_an_imap_server_doesnt_say_who_got_a_blind_copy() {
+    let mut r = Rig::new("blind-copy@example.org");
+    let (other, work) = r.other_account(true);
+    let local = r.s.mailbox.local_account();
+    let kept = r.s.mailbox.add_folder(local, None, "Kept").unwrap();
+    let rota =
+        r.s.mailbox
+            .add_message(Message {
+                folder: kept,
+                subject: "Rota".into(),
+                message_id: "rota@example.org".into(),
+                from: Address::new("Ada", "ada@example.org"),
+                to: vec![Address::new("Bob", "bob@example.org")],
+                bcc: vec![Address::new("Eve", "eve@example.net")],
+                read: true,
+                date: NOW - 7_200,
+                body: Body { text: "The rota.".into(), html: None },
+                ..Default::default()
+            })
+            .unwrap();
+    let theirs = r.inbox(work);
+    r.s.run("mail.move", &json!({"ids": [rota], "folder": theirs})).unwrap();
+    r.sync_of(work);
+    let copy = String::from_utf8_lossy(&other.world().mailbox("INBOX").messages[0].body).into_owned();
+    assert!(copy.contains("Subject: Rota") && copy.contains("bob@example.org") && !copy.contains("eve@example.net"), "{copy}");
+    // Here it still says who got one.
+    assert_eq!(r.s.mailbox.message(rota).map(|m| m.bcc.len()), Some(1));
+}
+
+#[test]
+fn a_message_copied_more_than_once_into_a_folder_is_put_there_as_often() {
+    let mut r = Rig::new("copied-again@example.org");
+    let (other, work) = r.other_account(false);
+    let three = r.titled("Three");
+    let theirs = r.inbox(work);
+    // Twice before a run, and once more after it: each is a copy of its own there.
+    for _ in 0..2 {
+        r.s.run("mail.copy", &json!({"ids": [three], "folder": theirs})).unwrap();
+    }
+    r.sync_of(work);
+    assert_eq!(on(&other, "INBOX"), ["Three", "Three"]);
+    r.s.run("mail.copy", &json!({"ids": [three], "folder": theirs})).unwrap();
+    for _ in 0..2 {
+        assert_eq!(r.sync_of(work)["new"], 0);
+    }
+    assert_eq!(on(&other, "INBOX"), ["Three", "Three", "Three"]);
+    let mut uids: Vec<u32> = r.s.mailbox.messages.values().filter(|m| m.subject == "Three" && m.account == work).map(|m| m.uid).collect();
+    uids.sort();
+    uids.dedup();
+    assert!(uids.len() == 3 && !uids.contains(&0), "{uids:?}");
+    assert!(r.gmail_keeps("Three"));
 }
