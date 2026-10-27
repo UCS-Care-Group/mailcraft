@@ -52,6 +52,7 @@ pub(crate) use invitation::{list_marks, options as invitation_options, question 
 pub use remote::{Access, RemotePictures};
 pub use select::Selections;
 pub(crate) use select::{inspect as selection_inspect, select_all_params};
+pub(crate) use view::char_at;
 pub(crate) use warnings::row_mark as warning_mark;
 
 use crate::theme::{Tokens, paint_clipped, regular, semibold};

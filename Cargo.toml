@@ -117,6 +117,8 @@ codegen-units = 16
 debug = 0
 
 [patch.crates-io]
-# winit 0.30.13 with an activation token that names the latest click, which KWin needs before it
-# brings the browser forward (#144). Dropped when winit itself does it.
-winit = { git = "https://github.com/UCS-Care-Group/winit", rev = "bb472d90071a8b48288aeaa70ad81b767808ae9a" }
+# winit 0.30.13 with two patches, each dropped when winit itself has it: an activation token that
+# names the latest click, which KWin needs before it brings the browser forward (#144); and
+# Wayland file drops plus the clipboard on winit's one data device (rust-windowing/winit#4729),
+# so that files dropped on a window are attached (#523).
+winit = { git = "https://github.com/UCS-Care-Group/winit", rev = "951b6c131897a80d27a925af7c5da22ea522eb0d" }

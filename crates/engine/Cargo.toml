@@ -23,6 +23,8 @@ log = { workspace = true }
 mailcraft-charset = { workspace = true }
 # Word boundaries for Review › Word Count (UAX #29); already in the tree under egui.
 unicode-segmentation = { workspace = true }
+# Pictures put in a message are scaled down to fit (`picture_fit`); already in the tree under egui.
+image = { workspace = true }
 
 # SHA-256 names the content files of a mailbox kept on disk (`store`). Not in the browser, which
 # keeps the mailbox as one file.
