@@ -110,21 +110,13 @@ fn search_box(app: &mut MailApp, ui: &mut Ui, rect: Rect) {
     // The engine's search is the truth; the box follows it when it changes elsewhere (a command),
     // and at once when the other one comes in front.
     let truth = if mail_search { &app.session.view.search } else { &app.session.view.people_search };
-    let refill = (!focused || swapped) && app.search_text != *truth;
-    if refill {
+    if (!focused || swapped) && app.search_text != *truth {
         app.search_text = truth.clone();
+        caret_at_end(ui.ctx(), &app.search_text);
     }
-    if refill || swapped {
-        let mut state = egui::TextEdit::load_state(ui.ctx(), id).unwrap_or_default();
-        // Typing goes on at the end of the search now shown, also once Ctrl+E brings the keyboard.
-        if refill {
-            let end = egui::text::CCursor::new(app.search_text.chars().count());
-            state.cursor.set_char_range(Some(egui::text::CCursorRange::one(end)));
-        }
-        // Undo doesn't bring back what was typed in the other one.
-        if swapped {
-            state.clear_undoer();
-        }
+    // Undo doesn't bring back what was typed in the other one.
+    if swapped && let Some(mut state) = egui::TextEdit::load_state(ui.ctx(), id) {
+        state.clear_undoer();
         state.store(ui.ctx(), id);
     }
     // A dialog over the window takes the keys, Escape first.
@@ -300,6 +292,16 @@ fn list_keys(open: bool) -> egui::EventFilter {
 /// The search box, for the window's keys (`keys.rs`).
 pub(crate) fn search_box_id() -> egui::Id {
     egui::Id::unique("search_box")
+}
+
+/// For `text`, just written in the search box from outside it: the caret at its end, so that what
+/// is typed next goes on after it, once Ctrl+E brings the keyboard too (#366).
+pub(crate) fn caret_at_end(ctx: &egui::Context, text: &str) {
+    let id = search_box_id();
+    let mut state = egui::TextEdit::load_state(ctx, id).unwrap_or_default();
+    let end = egui::text::CCursor::new(text.chars().count());
+    state.cursor.set_char_range(Some(egui::text::CCursorRange::one(end)));
+    state.store(ctx, id);
 }
 
 pub fn title_bar(app: &mut MailApp, ui: &mut Ui) {

@@ -163,6 +163,7 @@ fn typed_in_people() -> Window {
     h.run_steps(3);
     click_in_the_box(&mut h);
     testing::text(&mut h, "tra");
+    assert_eq!(people_search(&h), "tra", "the box showed People's search");
     h
 }
 
