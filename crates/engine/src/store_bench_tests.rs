@@ -1,8 +1,9 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! How long a large mailbox takes to open (#519): a made-up mailbox of the shape of a large one
-//! (64,000 messages with about 6.8 KB of headers each, 374 folders, bodies and attachments in its
-//! content folder), opened a few times. Ignored by `cargo test`; run it with
+//! How long a large mailbox takes to open (#519) and what a close waits for (#586): a made-up
+//! mailbox of the shape of a large one (64,000 messages with about 6.8 KB of headers each, 374
+//! folders, bodies and attachments in its content folder), opened a few times, saved, swept and
+//! let go of. Ignored by `cargo test`; the Bench workflow runs it every week. Run it with
 //!
 //! ```text
 //! cargo test --release -p mailcraft-engine open_bench -- --ignored --nocapture
@@ -10,7 +11,7 @@
 //!
 //! The mailbox is made once (about 2 GB, under `MAILCRAFT_BENCH_DIR`, else the system's
 //! temporary folder) and kept for the next run. `MAILCRAFT_BENCH_WARN_MS` names a time past which
-//! the median open is said to be slow, without failing.
+//! the median open is said to be slow, without failing (as a warning a GitHub runner shows).
 
 use std::time::{Duration, Instant};
 
@@ -145,18 +146,53 @@ fn open_bench() {
             assert_eq!(session.mailbox.messages.len(), MESSAGES);
             assert_eq!(opened.unavailable + missing, 0);
             times.push(total);
+            // Closing (#586): the last save the window's close waits for, after a change and
+            // with none, then the mailbox let go of.
+            let first = *session.mailbox.messages.keys().next().unwrap();
+            for what in ["the first change since the opening", "another change", "no change"] {
+                if what != "no change" {
+                    let m = session.mailbox.message_mut(first).unwrap();
+                    m.read = !m.read;
+                }
+                let saving = Instant::now();
+                save(&path, &session.mailbox).unwrap();
+                println!("CLOSE_BENCH {how}, run {run}: save after {what}: {:.0} ms", saving.elapsed().as_secs_f64() * 1e3);
+            }
+            // The look through the content folder for files nothing names, which a window starts
+            // once it has opened its mailbox (and every six hours of saving).
+            let sweeping = Instant::now();
+            let swept = sweep(&path, GRACE).unwrap();
+            println!("CLOSE_BENCH {how}, run {run}: sweep ({} removed): {:.0} ms", swept.removed, sweeping.elapsed().as_secs_f64() * 1e3);
+            let letting_go = Instant::now();
             drop(session);
+            println!("CLOSE_BENCH {how}, run {run}: the mailbox let go of: {:.0} ms", letting_go.elapsed().as_secs_f64() * 1e3);
         }
         times.sort();
         let median = times.get(RUNS / 2).copied().unwrap_or_default();
         eprintln!("OPEN_BENCH {how}: median {:.0} ms", median.as_secs_f64() * 1e3);
         took = times;
     }
+    // Closing with the word index: dropped while it reads its file and the mailbox, and once done.
+    *lock(&shared(&path).state) = State::default();
+    let messages: Vec<Arc<Message>> = open(&path).unwrap().mailbox.messages.values().cloned().collect();
+    let building = Instant::now();
+    let mut words = crate::words::Words::open(&path, messages.clone());
+    words.wait();
+    println!("CLOSE_BENCH word index read or built: {:.0} ms", building.elapsed().as_secs_f64() * 1e3);
+    let letting_go = Instant::now();
+    drop(words);
+    println!("CLOSE_BENCH word index let go of once done: {:.0} ms", letting_go.elapsed().as_secs_f64() * 1e3);
+    let words = crate::words::Words::open(&path, messages);
+    std::thread::sleep(Duration::from_millis(50));
+    let letting_go = Instant::now();
+    drop(words);
+    println!("CLOSE_BENCH word index let go of while it reads: {:.0} ms", letting_go.elapsed().as_secs_f64() * 1e3);
     took.sort();
     let median = took.get(RUNS / 2).copied().unwrap_or_default();
     if let Some(warn) = std::env::var("MAILCRAFT_BENCH_WARN_MS").ok().and_then(|s| s.parse::<u64>().ok())
         && median > Duration::from_millis(warn)
     {
-        eprintln!("warning: opening took {:.0} ms, more than {warn} ms", median.as_secs_f64() * 1e3);
+        // (On stdout, where a GitHub runner reads it as a warning on the run.)
+        println!("::warning::opening a mailbox of {MESSAGES} messages took {:.0} ms, more than {warn} ms", median.as_secs_f64() * 1e3);
     }
 }
