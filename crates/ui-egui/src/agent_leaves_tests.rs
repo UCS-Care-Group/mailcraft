@@ -235,3 +235,67 @@ fn what_the_dialog_holds_is_the_windows_to_say() {
     answer(w.state_mut(), false);
     assert!(form_open(&w));
 }
+
+#[test]
+fn a_message_the_owner_wrote_in_is_asked_about_saved_or_not() {
+    let everything = Class::ALL.to_vec();
+    // Saved by the window as it does every few minutes, or by an agent first.
+    for saves in ["window", "agent"] {
+        let mut a = app();
+        written(&mut a, "Mine");
+        match saves {
+            "window" => a.run("compose.saveDraft", json!({})).map(|_| ()).unwrap(),
+            _ => assert_eq!(agent(&mut a, "compose.saveDraft", json!({})).0.unwrap()["ok"], true),
+        }
+        let (now, _) = allowed(&mut a, "mail.new", json!({}), everything.clone());
+        assert!(now.is_none(), "{saves}: asked");
+        assert_eq!(question(&a).unwrap().0, Class::Leave, "{saves}");
+        answer(&mut a, false);
+        assert_eq!(a.session.compose.as_ref().map(|c| c.subject.as_str()), Some("Mine"), "{saves}");
+    }
+}
+
+#[test]
+fn discard_asks_the_owner_whatever_is_allowed() {
+    let mut a = app();
+    written(&mut a, "Mine");
+    a.run("compose.saveDraft", json!({})).unwrap();
+    let (now, _) = allowed(&mut a, "compose.discard", json!({}), Class::ALL.to_vec());
+    assert!(now.is_none(), "asked");
+    assert_eq!(question(&a).unwrap().0, Class::Delete);
+    answer(&mut a, false);
+    assert!(a.session.compose.is_some() && draft_with(&a, "Mine").is_some());
+}
+
+#[test]
+fn an_agent_asks_before_it_closes_an_appointments_window_the_owner_changed() {
+    let mut w = testing::window("view.calendar");
+    let event = w.state().session.mailbox.events.values().find(|e| !e.title.is_empty() && e.recurrence.is_none()).unwrap().id;
+    let window = w.state_mut().run("ui.openWindow", json!({"event": event})).unwrap()["window"].as_u64().unwrap();
+    w.run_steps(4);
+    testing::text(&mut w, " (moved)");
+    assert_eq!(w.state().windows.unsaved(), 1);
+    let everything = Class::ALL.to_vec();
+    for params in [json!({}), json!({"all": true}), json!({"window": window}), json!({"event": event})] {
+        let (now, rx) = allowed(w.state_mut(), "ui.closeWindow", params.clone(), everything.clone());
+        assert!(now.is_none(), "{params}: asked even so");
+        let (class, what) = question(w.state()).unwrap();
+        assert_eq!(class, Class::Delete, "{params}");
+        assert!(what.contains("(moved)\u{201d} without saving the changes made in it"), "{params}: {what}");
+        answer(w.state_mut(), false);
+        assert_eq!(rx.try_recv().unwrap()["ok"], false);
+        assert_eq!(w.state().windows.len(), 1, "{params}: no leaves it open");
+    }
+    // Another window, with nothing changed in it, is closed as before.
+    let message = received(w.state());
+    w.state_mut().run("ui.openWindow", json!({"message": message})).unwrap();
+    w.run_steps(4);
+    let (now, _) = allowed(w.state_mut(), "ui.closeWindow", json!({"message": message}), vec![Class::Delete]);
+    assert_eq!(now.unwrap()["ok"], true);
+    assert_eq!(w.state().windows.len(), 1);
+    // Yes closes it.
+    let (_, rx) = agent(w.state_mut(), "ui.closeWindow", json!({}));
+    answer(w.state_mut(), true);
+    assert_eq!(rx.try_recv().unwrap()["ok"], true);
+    assert_eq!(w.state().windows.len(), 0);
+}

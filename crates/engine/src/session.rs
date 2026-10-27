@@ -593,9 +593,9 @@ pub struct Compose {
     pub signature: Option<InsertedSignature>,
     /// Changed since it was opened or last saved.
     pub dirty: bool,
-    /// Some of what isn't saved was changed by the owner, not by an agent (#494): an agent asks
-    /// the owner before it closes the message or puts another in its place. Never read from a
-    /// file: only [`Session::run`] sets it.
+    /// The owner, not only an agent, changed it since it was opened (#494): an agent asks the
+    /// owner before it closes the message or puts another in its place, saved or not, until it
+    /// is closed. Never read from a file: only [`Session::run`] sets it.
     #[serde(skip)]
     pub owner_changed: bool,
 }
@@ -2174,8 +2174,8 @@ impl Session {
         };
         match &result {
             Ok(_) => {
-                // What the owner (or a script of theirs) changed in the message being written is
-                // theirs until it is saved (#494); an agent's own changes aren't.
+                // A message being written that the owner (or a script of theirs) changed is theirs
+                // until it is closed (#494); an agent's own changes don't make it the agent's.
                 if self.agent.is_none()
                     && let Some(c) = self.compose.as_mut()
                     && c.dirty

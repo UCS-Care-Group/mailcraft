@@ -186,3 +186,28 @@ fn what_it_was_asked_to_let_go_is_let_go_once_the_form_is_closed() {
     assert!(subject(w.state()).is_some_and(|s| s.contains("Waiting")), "{:?}", subject(w.state()));
     assert!(!draft_with(w.state(), "Mine"));
 }
+
+#[test]
+fn one_that_waits_for_the_form_gives_way_to_the_next_and_says_so() {
+    let (mut w, first, jobs) = drawn();
+    let app = w.state_mut();
+    let mut second = app.session.mailbox.message(first).unwrap().clone();
+    second.id = 0;
+    second.subject = "Second".into();
+    second.server = Some(ServerMessage { id: "AAM1".into(), folder: "inbox".into(), size: 2_000, ..Default::default() });
+    let second = app.session.mailbox.add_message(second).unwrap();
+    app.run("mail.reply", json!({"id": first})).unwrap();
+    owner_fills(&mut w, "contact", "Ada");
+    answered(&jobs);
+    w.run_steps(5);
+    // The owner asks for another reply meanwhile (from a message's window of its own).
+    assert_eq!(w.state_mut().run("mail.reply", json!({"id": second})).unwrap()["pending"], "download");
+    let said = w.state().status_msg.as_ref().map(|(s, _)| s.clone()).unwrap_or_default();
+    assert!(said.contains("was called off"), "{said}");
+    answered(&jobs);
+    w.run_steps(5);
+    w.state_mut().execute("ui.closeDialog", json!({})).unwrap();
+    w.run_steps(3);
+    // The second one alone.
+    assert_eq!(w.state().session.compose.as_ref().and_then(|c| c.source), Some(second));
+}

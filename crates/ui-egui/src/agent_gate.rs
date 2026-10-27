@@ -87,15 +87,17 @@ fn gate(app: &mut MailApp, req: &ControlRequest, id: &str, mut params: Value, al
         params["attendees"] = json!(people);
     }
     // An appointment, a contact or a task with changes that aren't saved isn't closed, or put out
-    // of the way for another dialog, without the owner's say (#494): the question names it as the
-    // dialog has it now, never as the agent says.
-    if matches!(id, "ui.closeDialog" | "ui.dialog") {
+    // of the way for another dialog, without the owner's say (#494); nor is an appointment's window
+    // of its own. The question names it as the dialog or the window has it now, never as the
+    // agent says.
+    if matches!(id, "ui.closeDialog" | "ui.dialog" | "ui.closeWindow") {
         if !params.is_object() {
             params = json!({});
         }
         let closes =
             id == "ui.closeDialog" || params.get("name").and_then(Value::as_str).is_some_and(|n| crate::sync_panel::Panel::named(n).is_none());
         let unsaved = match &app.dialog {
+            _ if id == "ui.closeWindow" => crate::windows::closing_unsaved(app, &params),
             Some(crate::dialogs::Dialog::Form(form)) if closes => form.unsaved(),
             _ => None,
         };

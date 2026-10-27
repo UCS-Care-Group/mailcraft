@@ -265,10 +265,13 @@ impl MailApp {
         let waits = forward.map_or_else(|| vec![first], |(ids, _)| ids);
         let discard = then.get("discard").and_then(Value::as_bool) == Some(true);
         self.fetching.let_go = if discard { self.session.compose.clone() } else { None };
-        self.fetching.held = None;
+        // So is one whose messages came and that waits for a form to be closed, and said to be.
+        let held_off = self.fetching.held.take().is_some_and(|(_, _, opening, _)| opening == self.session.openings());
         self.fetching.then = Some((id.to_string(), then, self.session.openings(), tried, waits));
         self.status(if called_off {
             tl!("The forward of several messages that was waiting was called off: another download took its place.")
+        } else if held_off {
+            tl!("What was waiting for the form to be closed was called off: another download took its place.")
         } else if several {
             tl!("Downloading the messages first…")
         } else {

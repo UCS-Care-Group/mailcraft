@@ -136,7 +136,7 @@ fn what_an_agent_wrote_itself_is_its_own_to_leave() {
 }
 
 #[test]
-fn the_owners_change_makes_it_theirs_until_it_is_saved() {
+fn the_owners_change_makes_it_theirs_until_it_is_closed() {
     let mut s = session();
     as_agent(&mut s, "mail.new", json!({}));
     as_agent(&mut s, "compose.set", json!({"subject": "Both", "body": "By the agent"}));
@@ -146,12 +146,65 @@ fn the_owners_change_makes_it_theirs_until_it_is_saved() {
     assert_eq!(classify(&s, "mail.new", &json!({})), Access::Safe);
     run(&mut s, "compose.type", json!({"text": "and the owner "}));
     assert_eq!(classify(&s, "mail.new", &json!({})), Access::Asked(Class::Leave));
-    // Saved: nothing of theirs would be lost.
+    // Saved, by the owner or by the window's own saving every few minutes, it is still theirs.
     run(&mut s, "compose.saveDraft", json!({}));
-    assert_eq!(classify(&s, "mail.new", &json!({})), Access::Safe);
-    // What the agent changes after that is the agent's.
+    assert_eq!(classify(&s, "mail.new", &json!({})), Access::Asked(Class::Leave));
+    // What the agent changes after that doesn't make it the agent's.
     as_agent(&mut s, "compose.set", json!({"body": "More by the agent"}));
-    assert_eq!(classify(&s, "mail.new", &json!({})), Access::Safe);
+    assert_eq!(classify(&s, "mail.new", &json!({})), Access::Asked(Class::Leave));
+    // Closed, the next message is nobody's until somebody writes in it.
+    run(&mut s, "compose.close", json!({}));
+    as_agent(&mut s, "mail.new", json!({}));
+    assert_eq!(classify(&s, "compose.close", &json!({})), Access::Safe);
+}
+
+#[test]
+fn an_agent_that_saves_the_owners_message_first_is_asked_even_so() {
+    let mut s = writing();
+    as_agent(&mut s, "compose.saveDraft", json!({}));
+    assert!(!s.compose.as_ref().unwrap().dirty);
+    let everything = Class::ALL.to_vec();
+    for (id, params) in leaving(&s) {
+        assert!(matches!(check(&s, id, &params, &everything), Verdict::Ask(Class::Leave, _)), "{id}");
+        // Nothing unsaved is lost with `discard`: it stays in Drafts, and that is what is said.
+        let params = with_discard(params);
+        assert!(matches!(check(&s, id, &params, &everything), Verdict::Ask(Class::Leave, _)), "{id}");
+        assert!(describe(&s, id, &params).contains("stays in Drafts as it was last saved"), "{id}");
+    }
+}
+
+#[test]
+fn discard_and_another_mailbox_ask_the_owner_whatever_is_allowed() {
+    let s = writing();
+    let everything = Class::ALL.to_vec();
+    // Discard throws it away, and its draft.
+    assert_eq!(classify(&s, "compose.discard", &json!({})), Access::Asked(Class::Delete));
+    assert!(matches!(check(&s, "compose.discard", &json!({}), &everything), Verdict::Ask(Class::Delete, _)));
+    assert!(describe(&s, "compose.discard", &json!({})).contains("\u{201c}Mine\u{201d} that the owner is writing"));
+    assert_eq!(answered(&s, "compose.discard", &json!({}), &[], Class::Delete), Verdict::Run);
+    // Another mailbox in view closes it unsaved.
+    for (id, params) in [("file.new", json!({})), ("file.open", json!({"name": "other.mailcraft", "data": ""}))] {
+        assert_eq!(classify(&s, id, &params), Access::Asked(Class::Mailbox), "{id}");
+        match check(&s, id, &params, &everything) {
+            Verdict::Ask(Class::Mailbox, what) => {
+                assert!(what.ends_with("the message \u{201c}Mine\u{201d} that the owner is writing is closed without being saved"), "{id}: {what}")
+            }
+            other => panic!("{id}: {other:?}"),
+        }
+    }
+    // An appointment's window with changes that aren't saved, as the window names it.
+    let unsaved = json!({"unsaved": {"form": "appointment", "title": "Lunch"}});
+    assert!(
+        matches!(check(&s, "ui.closeWindow", &unsaved, &everything), Verdict::Ask(Class::Delete, what) if what == "close the appointment \u{201c}Lunch\u{201d} without saving the changes made in it")
+    );
+    // As #442 had them, for what the owner didn't write in.
+    let mut s = session();
+    as_agent(&mut s, "mail.new", json!({}));
+    as_agent(&mut s, "compose.set", json!({"subject": "The agent's"}));
+    assert_eq!(classify(&s, "compose.discard", &json!({})), Access::Owner(Class::Delete));
+    assert_eq!(check(&s, "compose.discard", &json!({}), &[Class::Delete]), Verdict::Run);
+    assert_eq!(classify(&s, "file.new", &json!({})), Access::Owner(Class::Mailbox));
+    assert_eq!(classify(&s, "ui.closeWindow", &json!({})), Access::Owner(Class::Delete));
 }
 
 #[test]

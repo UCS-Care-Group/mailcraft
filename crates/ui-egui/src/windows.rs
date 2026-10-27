@@ -309,25 +309,37 @@ pub(crate) fn open_form(app: &mut MailApp, name: &str, p: &Value) -> Option<Resu
 }
 
 fn close(app: &mut MailApp, p: &Value) -> Result<Value, String> {
-    let number = |key: &str| p.get(key).filter(|v| !v.is_null()).map(|v| v.as_u64().ok_or_else(|| format!("`{key}` is a number")));
+    let closing = closing(&app.windows.open, p)?;
     let open = &mut app.windows.open;
     let before = open.len();
-    if p.get("all").and_then(Value::as_bool) == Some(true) {
-        open.clear();
-    } else if let Some(window) = number("window") {
-        let window = window?;
-        open.retain(|w| w.id != window);
-    } else if let Some(message) = number("message") {
-        let message = message?;
-        open.retain(|w| w.what.subject() != Some((true, message)));
-    } else if let Some(event) = number("event") {
-        let event = event?;
-        open.retain(|w| w.what.subject() != Some((false, event)));
-    } else {
-        // The one in front.
-        open.pop();
-    }
+    open.retain(|w| !closing.contains(&w.id));
     Ok(json!({"closed": before.saturating_sub(open.len()), "open": open.len()}))
+}
+
+/// The windows that `ui.closeWindow` with `p` closes: every one (`all`), the one named
+/// (`window`), those of a message or an appointment, or else the one in front.
+fn closing(open: &[Open], p: &Value) -> Result<Vec<u64>, String> {
+    let number = |key: &str| p.get(key).filter(|v| !v.is_null()).map(|v| v.as_u64().ok_or_else(|| format!("`{key}` is a number")));
+    let of = |subject: (bool, Id)| open.iter().filter(|w| w.what.subject() == Some(subject)).map(|w| w.id).collect();
+    Ok(if p.get("all").and_then(Value::as_bool) == Some(true) {
+        open.iter().map(|w| w.id).collect()
+    } else if let Some(window) = number("window") {
+        vec![window?]
+    } else if let Some(message) = number("message") {
+        of((true, message?))
+    } else if let Some(event) = number("event") {
+        of((false, event?))
+    } else {
+        open.last().map(|w| w.id).into_iter().collect()
+    })
+}
+
+/// What `ui.closeWindow` with `p` would lose (#494): the first window it closes whose
+/// appointment has changes that aren't saved, as an agent's question names it. `None` when
+/// nothing would be lost.
+pub(crate) fn closing_unsaved(app: &MailApp, p: &Value) -> Option<Value> {
+    let closing = closing(&app.windows.open, p).ok()?;
+    app.windows.open.iter().filter(|w| closing.contains(&w.id)).find_map(|w| w.what.form().and_then(Form::unsaved))
 }
 
 /// What `ui.eventWindow` and `ui.inspect` say of an appointment's window.

@@ -572,6 +572,17 @@ pub fn classify(s: &Session, id: &str, params: &Value) -> Access {
     if shared_task(s, id, params).is_some() || shared_category(s, id, params) {
         return Access::Owner(Class::Send);
     }
+    // What the owner is writing or changing is theirs to let go of, whatever `--allow` says
+    // (#494): Discard throws the message away with its draft; a window closed with changes in its
+    // appointment that aren't saved (`unsaved`, from `agent_gate`) loses them; another mailbox in
+    // view closes the message without saving it.
+    let writing = owner_writing(s);
+    match id {
+        "compose.discard" if writing => return Access::Asked(Class::Delete),
+        "ui.closeWindow" if params.get("unsaved").is_some_and(|v| !v.is_null()) => return Access::Asked(Class::Delete),
+        "file.new" | "file.open" if writing => return Access::Asked(Class::Mailbox),
+        _ => {}
+    }
     if base != Access::Safe {
         return base;
     }
@@ -593,11 +604,12 @@ pub fn classify(s: &Session, id: &str, params: &Value) -> Access {
         "ui.sync" if params.get("password").is_some_and(|v| !v.is_null()) => Access::Owner(Class::Accounts),
         // A command that closes the message being written, or puts another in its place, saves
         // what isn't saved of it first (#442). Letting that go instead (`discard`) is throwing it
-        // away. When the changes are the owner's, the window asks them every time either way
-        // (#494); an agent's own message, headless too, is the agent's to leave.
-        _ if LEAVING.contains(&id) && s.compose.as_ref().is_some_and(|c| c.dirty) => {
-            let discard = p::bool(params, "discard") == Some(true);
-            match (s.compose.as_ref().is_some_and(|c| c.owner_changed), discard) {
+        // away. When the owner wrote in it, the window asks them every time either way, saved or
+        // not, until it is closed (#494); an agent's own message, headless too, is the agent's to
+        // leave.
+        _ if LEAVING.contains(&id) && s.compose.as_ref().is_some_and(|c| c.dirty || c.owner_changed) => {
+            let lost = s.compose.as_ref().is_some_and(|c| c.dirty) && p::bool(params, "discard") == Some(true);
+            match (writing, lost) {
                 (true, true) => Access::Asked(Class::Delete),
                 (true, false) => Access::Asked(Class::Leave),
                 (false, true) => Access::Owner(Class::Delete),
@@ -610,6 +622,11 @@ pub fn classify(s: &Session, id: &str, params: &Value) -> Access {
         "ui.closeDialog" | "ui.dialog" if params.get("unsaved").is_some_and(|v| !v.is_null()) => Access::Asked(Class::Delete),
         _ => Access::Safe,
     }
+}
+
+/// Whether the owner wrote in the message being written (#494): it is theirs until it is closed.
+fn owner_writing(s: &Session) -> bool {
+    s.compose.as_ref().is_some_and(|c| c.owner_changed)
 }
 
 /// The to-do that `id` would change, when it is in a list shared with other people. The to-do is
@@ -807,6 +824,15 @@ fn invitees(s: &Session, params: &Value) -> Vec<String> {
 /// What a call would do, in a sentence that follows "An agent wants to …" (for the owner's
 /// question; never trusted for anything else).
 pub fn describe(s: &Session, id: &str, params: &Value) -> String {
+    let what = what_it_does(s, id, params);
+    // Another mailbox in view closes the message the owner is writing, unsaved (#494).
+    if matches!(id, "file.new" | "file.open") && owner_writing(s) {
+        return format!("{what}; the message {} that the owner is writing is closed without being saved", writing(s));
+    }
+    what
+}
+
+fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
     let label = s.registry.get(id).map(|c| c.label).unwrap_or(id);
     let st = |k: &str| p::str(params, k).unwrap_or("");
     match id {
@@ -902,6 +928,10 @@ pub fn describe(s: &Session, id: &str, params: &Value) -> String {
         }
         _ if LEAVING.contains(&id) => leaving_text(s, id, params),
         "ui.closeDialog" | "ui.dialog" => form_text(id, params),
+        "ui.closeWindow" if params.get("unsaved").is_some_and(|v| !v.is_null()) => form_text(id, params),
+        "compose.discard" if owner_writing(s) => {
+            format!("throw away the message {} that the owner is writing, and its draft in Drafts, if it has one", writing(s))
+        }
         "edit.undo" | "edit.redo" => {
             let redo = id == "edit.redo";
             let label = if redo { s.redo_label() } else { s.undo_label() };
@@ -1061,15 +1091,21 @@ fn leaving_text(s: &Session, id: &str, params: &Value) -> String {
         }
         _ => String::new(),
     };
-    let writing = s.compose.as_ref().map(|c| quoted(&c.subject)).unwrap_or_else(|| "being written".to_string());
-    match (instead.is_empty(), p::bool(params, "discard") == Some(true)) {
+    let writing = writing(s);
+    // Saved as it is, it stays in Drafts as it was saved, `discard` or not.
+    let saved = s.compose.as_ref().is_some_and(|c| !c.dirty);
+    let then = if saved { "it stays in Drafts as it was last saved" } else { "what isn't saved of it goes to Drafts first" };
+    match (instead.is_empty(), p::bool(params, "discard") == Some(true) && !saved) {
         (true, true) => format!("close the message {writing} without saving what the owner wrote in it"),
-        (true, false) => format!("close the message {writing} that the owner is writing; what isn't saved of it goes to Drafts first"),
+        (true, false) => format!("close the message {writing} that the owner is writing; {then}"),
         (false, true) => format!("{instead} in place of the message {writing}, without saving what the owner wrote in it"),
-        (false, false) => {
-            format!("{instead} in place of the message {writing} that the owner is writing; what isn't saved of it goes to Drafts first")
-        }
+        (false, false) => format!("{instead} in place of the message {writing} that the owner is writing; {then}"),
     }
+}
+
+/// The message being written, as a question names it: its subject.
+fn writing(s: &Session) -> String {
+    s.compose.as_ref().map(|c| quoted(&c.subject)).unwrap_or_else(|| "being written".to_string())
 }
 
 /// A dialog with changes that aren't saved, which the command closes or opens another in place

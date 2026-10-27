@@ -1103,7 +1103,8 @@ fn save_draft(s: &mut Session, _: &Value) -> CmdResult {
     }
     let c = compose_mut(s)?;
     c.draft = Some(id);
-    (c.dirty, c.owner_changed) = (false, false);
+    // (Whoever saved it, what the owner wrote in it stays theirs until it is closed, #494.)
+    c.dirty = false;
     Ok(json!({"draft": id}))
 }
 
