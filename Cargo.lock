@@ -2283,6 +2283,7 @@ dependencies = [
 name = "mailcraft-engine"
 version = "0.8.1"
 dependencies = [
+ "image",
  "libc",
  "log",
  "mailcraft-charset",
@@ -2306,6 +2307,7 @@ name = "mailcraft-html"
 version = "0.8.1"
 dependencies = [
  "mailcraft-link",
+ "mailcraft-names",
  "proptest",
  "serde",
 ]
@@ -2343,6 +2345,7 @@ dependencies = [
 name = "mailcraft-link"
 version = "0.8.1"
 dependencies = [
+ "mailcraft-names",
  "proptest",
 ]
 

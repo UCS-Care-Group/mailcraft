@@ -414,7 +414,7 @@ fn text_field(h: &Window, value: &str) -> Option<Rect> {
 #[test]
 fn nothing_on_the_clipboard_to_paste_leaves_the_text_as_it_was() {
     // An empty clipboard; one that can't be read, or holds more than a paste takes (the desktop's
-    // then gives no text); and one with a picture alone.
+    // then gives no text); and one with a picture alone, which only the one-line fields leave be.
     let cases: [(&str, Option<&str>, Option<Vec<u8>>); 3] = [("empty", Some(""), None), ("unreadable", None, None), ("a picture", None, Some(png()))];
     for (what, text, picture) in cases {
         let board = Board::default();
@@ -430,7 +430,13 @@ fn nothing_on_the_clipboard_to_paste_leaves_the_text_as_it_was() {
         menu_at(&mut h, start);
         choose(&mut h, &paste());
         settle(&mut h, 3);
-        assert_eq!((plain(&h), sel(&h)), ("Plan for Friday".to_string(), Selection { anchor: 0, head: 4 }), "the body, {what}");
+        // A picture alone goes into the message, in place of the selection (#547).
+        let body = if what == "a picture" {
+            ("\u{fffc} for Friday".to_string(), Selection { anchor: 1, head: 1 })
+        } else {
+            ("Plan for Friday".to_string(), Selection { anchor: 0, head: 4 })
+        };
+        assert_eq!((plain(&h), sel(&h)), body, "the body, {what}");
         // A line of one.
         let line = subject_line(&h);
         click(&mut h, line.center(), PointerButton::Primary);
@@ -1382,7 +1388,7 @@ fn a_picture_alone_on_the_clipboard_is_pasted_the_same_by_the_menu_and_ctrl_v() 
         added.push(pictures(&h) - before);
     }
     assert_eq!(added, [1, 1], "the menu, then Ctrl+V");
-    // Into a message, where a picture doesn't go: nothing, either way, the selection kept.
+    // Into a message (#547): a picture in place of what was selected, either way.
     for menu in [true, false] {
         let board = Board::default();
         board.0.borrow_mut().image = Some(png());
@@ -1397,7 +1403,7 @@ fn a_picture_alone_on_the_clipboard_is_pasted_the_same_by_the_menu_and_ctrl_v() 
             frame(&mut h, vec![as_the_backend_pastes_a_picture()]);
         }
         settle(&mut h, 3);
-        assert_eq!((plain(&h), sel(&h)), ("Plan for Friday".to_string(), Selection { anchor: 0, head: 4 }), "menu: {menu}");
+        assert_eq!(plain(&h), "\u{fffc} for Friday", "menu: {menu}");
     }
 }
 
@@ -1432,7 +1438,11 @@ enum Into {
 /// Paste what `board` holds into `into`, by the menu or as the backend hands Ctrl+V over: what the
 /// text is after, its selection, and how many pictures were added.
 fn pasted(into: Into, board: &Board, menu: bool) -> (String, Option<Selection>, usize) {
-    let pictures = |h: &Window| h.state().session.signature_edit.as_ref().map_or(0, |e| e.signature.pictures().len());
+    // A signature's pictures, or those standing in a message's text (#547).
+    let pictures = |h: &Window| match h.state().session.signature_edit.as_ref() {
+        Some(e) => e.signature.pictures().len(),
+        None => plain(h).matches('\u{fffc}').count(),
+    };
     match into {
         Into::Body | Into::Signature => {
             let mut h = if matches!(into, Into::Body) { writing("Plan for Friday", Some(board)) } else { signature_page(board) };
@@ -1524,9 +1534,9 @@ fn the_menu_pastes_what_ctrl_v_pastes_whatever_is_on_the_clipboard() {
                     assert_eq!(by_menu, by_keys, "{case}: the menu, then Ctrl+V");
                     // Text when there is some, its line ends as `\n` (a line of one makes it a
                     // space), the HTML beside it in a body; nothing for an empty text; a picture
-                    // only when there is no text, into a signature.
+                    // only when there is no text, into a signature or a message (#547).
                     let rich = matches!(into, Into::Body | Into::Signature);
-                    let added = usize::from(text.is_none() && picture && into == Into::Signature);
+                    let added = usize::from(text.is_none() && picture && rich);
                     let want = match text {
                         // (The picture stands where the selection was.)
                         None if added == 1 => format!("\u{fffc}{rest}"),

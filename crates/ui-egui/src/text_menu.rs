@@ -44,9 +44,7 @@ enum Item {
 pub(crate) enum Takes {
     /// Text alone: egui's fields.
     Text,
-    /// HTML too: the body of a message.
-    Html,
-    /// HTML and pictures: a signature.
+    /// HTML and pictures: a signature, and the body of a message (#547).
     Pictures,
 }
 
@@ -406,7 +404,8 @@ fn paste(app: &MailApp, takes: Takes) -> (Vec<Event>, Option<Captured>) {
             let captured = (takes != Takes::Text).then(|| Captured { html: board.html().filter(|html| !html.trim().is_empty()) });
             (vec![Event::Paste(text)], captured)
         }
-        // (Only a signature takes a picture: anywhere else egui's `PasteImage` changes nothing.)
+        // (Only a signature or a message's body takes a picture: anywhere else egui's
+        // `PasteImage` changes nothing.)
         None if takes == Takes::Pictures => (board.image().and_then(|png| picture(&png)).into_iter().collect(), None),
         None => (Vec::new(), None),
     }

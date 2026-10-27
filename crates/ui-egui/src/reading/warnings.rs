@@ -10,10 +10,11 @@
 //! ([`mailcraft_engine::Session::sender_warnings`]): this only shows them. Each says what it is
 //! about in plain words; the sender's own words are shown as data, cut short, never as ours.
 
-use egui::{Sense, Ui, vec2};
+use egui::{Rect, Sense, Ui, vec2};
 use mailcraft_model::Message;
 use mailcraft_model::auth_results::Failed;
 use mailcraft_model::sender_warnings::{Level, NameReason, Warning, banner_level};
+use serde_json::json;
 
 use super::Place;
 use super::remote::notice;
@@ -90,9 +91,36 @@ fn said(w: &Warning, m: &Message, links: usize) -> (String, String) {
     }
 }
 
+/// A small close button (a cross) at the right of the banner, in the banner's hue: a click is
+/// `true`. Named for a screen reader as `label`; `tip` says what it does.
+fn close_button(ui: &mut Ui, label: &str, tip: &str, t: &Tokens) -> bool {
+    let (r, resp) = ui.allocate_exact_size(vec2(18.0, 18.0), Sense::click());
+    if resp.hovered() {
+        ui.painter().rect_filled(r, 3.0, if resp.is_pointer_button_down_on() { t.pressed } else { t.hover });
+    }
+    icons::paint(ui.painter(), Rect::from_center_size(r.center(), vec2(12.0, 12.0)), "close", t.icon, t.accent);
+    let label = label.to_string();
+    resp.widget_info(move || egui::WidgetInfo::labeled(egui::Role::Button, true, &label));
+    resp.on_hover_text(tip).clicked()
+}
+
+/// Whether the owner has opened the slim bar of a dismissed warning for `id`'s message again.
+fn reopened(ui: &Ui, id: u64) -> bool {
+    ui.data(|d| d.get_temp::<bool>(egui::Id::unique(("senderWarningsOpen", id)))).unwrap_or(false)
+}
+
+fn reopen(ui: &Ui, id: u64, open: bool) {
+    ui.data_mut(|d| d.insert_temp(egui::Id::unique(("senderWarningsOpen", id)), open));
+}
+
 /// The banner above `m` when it has a warning or a caution: one line for each reason, the first
 /// link that goes somewhere else standing for the rest, and External folded in as a line of its
 /// own. Nothing for a message that has none, or only the External tag.
+///
+/// The owner can dismiss it (the cross at its right; `mail.dismissWarnings`, remembered with the
+/// message). A caution then goes; a warning is kept as a slim bar, one line that opens the
+/// banner again with a click. A kind of warning that was not there when it was dismissed brings
+/// the whole banner back.
 pub(super) fn banner(app: &mut MailApp, ui: &mut Ui, m: &Message, place: Place, t: &Tokens) {
     let warnings = app.session.sender_warnings(m, true);
     let Some(level) = banner_level(&warnings) else { return };
@@ -100,8 +128,18 @@ pub(super) fn banner(app: &mut MailApp, ui: &mut Ui, m: &Message, place: Place, 
         Level::Warning => (t.red, tl!("This message may not be what it seems.")),
         _ => (t.orange, tl!("Be careful with this message.")),
     };
+    let dismissed = mailcraft_model::sender_warnings::dismissed(&warnings, &m.warnings_dismissed);
+    let open = reopened(ui, m.id);
+    if dismissed && level != Level::Warning {
+        return;
+    }
+    if dismissed && !open {
+        slim(app, ui, m, place, hue, lead, t);
+        return;
+    }
     let links = warnings.iter().filter(|w| matches!(w, Warning::LinkMismatch { .. })).count();
     let mut link_said = false;
+    let mut close = false;
     let shown = notice(hue, t).show(ui, |ui| {
         ui.set_width(ui.available_width());
         ui.spacing_mut().item_spacing = vec2(6.0, 3.0);
@@ -109,6 +147,14 @@ pub(super) fn banner(app: &mut MailApp, ui: &mut Ui, m: &Message, place: Place, 
             let (r, _) = ui.allocate_exact_size(vec2(16.0, 16.0), Sense::hover());
             icons::paint(ui.painter(), r.shrink(1.0), "warning", hue, hue);
             ui.add(egui::Label::new(egui::RichText::new(lead).font(semibold(11.5)).color(t.text)).wrap());
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                let (label, tip) = if dismissed {
+                    (tl!("Hide"), tl!("Hide this message's warning again"))
+                } else {
+                    (tl!("Dismiss"), tl!("Dismiss this warning for this message. It comes back if a new kind of warning appears."))
+                };
+                close = close_button(ui, label, tip, t);
+            });
         });
         for w in warnings.iter() {
             if matches!(w, Warning::LinkMismatch { .. }) {
@@ -130,6 +176,36 @@ pub(super) fn banner(app: &mut MailApp, ui: &mut Ui, m: &Message, place: Place, 
     });
     if place == Place::Pane {
         app.hit.add("senderWarnings", m.id, shown.response.rect);
+    }
+    if close {
+        if dismissed {
+            reopen(ui, m.id, false);
+        } else {
+            let _ = app.run("mail.dismissWarnings", json!({"ids": [m.id]}));
+        }
+    }
+}
+
+/// The slim bar a dismissed warning leaves: its mark and its lead on one line, and a click opens
+/// the whole banner again.
+fn slim(app: &mut MailApp, ui: &mut Ui, m: &Message, place: Place, hue: egui::Color32, lead: &str, t: &Tokens) {
+    let shown = notice(hue, t).inner_margin(egui::Margin { left: 8, right: 8, top: 2, bottom: 2 }).show(ui, |ui| {
+        ui.set_width(ui.available_width());
+        ui.spacing_mut().item_spacing = vec2(6.0, 2.0);
+        ui.horizontal(|ui| {
+            let (r, _) = ui.allocate_exact_size(vec2(14.0, 14.0), Sense::hover());
+            icons::paint(ui.painter(), r, "warning", hue, hue);
+            ui.add(egui::Label::new(egui::RichText::new(lead).font(semibold(11.5)).color(t.text)).selectable(false).truncate());
+        });
+    });
+    let tip = tl!("Show this message's warning");
+    let resp = shown.response.interact(Sense::click()).on_hover_text(tip).on_hover_cursor(egui::CursorIcon::PointingHand);
+    resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, tip));
+    if place == Place::Pane {
+        app.hit.add("senderWarningsCollapsed", m.id, shown.response.rect);
+    }
+    if resp.clicked() {
+        reopen(ui, m.id, true);
     }
 }
 

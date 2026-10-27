@@ -186,6 +186,9 @@ pub(crate) fn search(app: &mut MailApp) -> Result<(), String> {
     app.advanced_search = None;
     // What the search took (it may have cut it short): the box shows that.
     app.search_text = app.session.view.search.clone();
+    if let Some(ctx) = &app.ctx {
+        crate::chrome::caret_at_end(ctx, &app.search_text);
+    }
     Ok(())
 }
 

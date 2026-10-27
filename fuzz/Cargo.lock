@@ -228,7 +228,7 @@ checksum = "f9f8bd3e56ce4dfc153cf470fffbfa98c7620958b312ca5c3a4b8d5181fd13c6"
 
 [[package]]
 name = "mailcraft-charset"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "encoding_rs",
 ]
@@ -251,19 +251,20 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-html"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "mailcraft-link",
+ "mailcraft-names",
  "serde",
 ]
 
 [[package]]
 name = "mailcraft-i18n"
-version = "0.8.0"
+version = "0.8.1"
 
 [[package]]
 name = "mailcraft-ical"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "mailcraft-model",
  "mailcraft-time",
@@ -271,7 +272,7 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-jmap"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "log",
  "mailcraft-mime",
@@ -282,11 +283,14 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-link"
-version = "0.8.0"
+version = "0.8.1"
+dependencies = [
+ "mailcraft-names",
+]
 
 [[package]]
 name = "mailcraft-mime"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "mailcraft-charset",
  "mailcraft-html",
@@ -297,10 +301,11 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-model"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "mailcraft-charset",
  "mailcraft-i18n",
+ "mailcraft-link",
  "mailcraft-time",
  "serde",
  "serde_json",
@@ -308,8 +313,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "mailcraft-names"
+version = "0.8.1"
+
+[[package]]
 name = "mailcraft-proto"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "log",
  "mailcraft-charset",
@@ -318,7 +327,7 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-time"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "jiff",
  "js-sys",
@@ -327,7 +336,7 @@ dependencies = [
 
 [[package]]
 name = "mailcraft-vcard"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "mailcraft-charset",
  "mailcraft-model",

@@ -617,7 +617,7 @@ fn placeholder_note(placeholder: &PlaceholderItem, access: Access, came: Option<
 
 /// The character of a laid-out text under a point (from the text's origin), when there is one:
 /// not the nearest one, as for a cursor, but the one the point is on.
-pub(super) fn char_at(galley: &egui::Galley, point: egui::Vec2) -> Option<usize> {
+pub(crate) fn char_at(galley: &egui::Galley, point: egui::Vec2) -> Option<usize> {
     let mut index = 0usize;
     for row in &galley.rows {
         let rect = row.rect();

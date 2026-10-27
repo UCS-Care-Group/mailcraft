@@ -690,7 +690,7 @@ fn insert() -> Tab {
         g(
             "Illustrations",
             vec![
-                Item::pending("insert.picture", "Pictures", 2),
+                Item::small("picture", "Pictures", "Insert Picture", "insert.picture", no()).at(2, 5),
                 Item::pending("insert.shape", "Shapes", 2),
                 Item::pending("insert.icon", "Icons", 2),
                 Item::pending("insert.models3d", "3D Models", 2),
