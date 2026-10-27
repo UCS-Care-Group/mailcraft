@@ -3418,6 +3418,11 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/lib.rs
+msgid "Imported {what} into Drafts on this computer: a draft stays on this computer until it is sent"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/lib.rs
 msgid "Imported {what} into a local folder: move it into the account to put it on Microsoft's server"
 msgstr ""
 

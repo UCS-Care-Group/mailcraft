@@ -457,7 +457,7 @@ pub fn import(s: &mut Session, name: &str, bytes: &[u8], folder: Option<Id>) -> 
                 s.show_selected();
             }
             Ok(
-                json!({"format": if format == Format::Eml { "eml" } else { "mbox" }, "messages": ids.len(), "ids": ids, "folder": folder, "local": microsoft, "stoppedAfter": stopped.then_some(ids.len())}),
+                json!({"format": if format == Format::Eml { "eml" } else { "mbox" }, "messages": ids.len(), "ids": ids, "folder": folder, "local": microsoft, "drafts": drafts, "stoppedAfter": stopped.then_some(ids.len())}),
             )
         }
         Format::Ics => {

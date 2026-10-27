@@ -248,6 +248,7 @@ fn mail_imported_for_a_microsoft_account_goes_to_a_local_folder_and_stays_there(
     let local = r["folder"].as_u64().unwrap();
     let f = s.mailbox.folder(local).unwrap().clone();
     assert_eq!((f.name.as_str(), r["local"].as_bool(), s.mailbox.accounts.len()), (mailcraft_model::IMPORTED, Some(true), before));
+    assert_eq!(r["drafts"].as_bool(), Some(false));
     assert_eq!(s.mailbox.account(f.account).unwrap().kind, mailcraft_model::AccountKind::Local);
     // It is shown where it went, and nothing of it goes up.
     assert_eq!(s.view.folder, local);
@@ -260,6 +261,9 @@ fn mail_imported_for_a_microsoft_account_goes_to_a_local_folder_and_stays_there(
     let local_drafts = s.mailbox.folder(draft["folder"].as_u64().unwrap()).unwrap();
     assert_eq!((local_drafts.account, local_drafts.kind), (f.account, FolderKind::Drafts));
     assert!(s.mailbox.message(draft["ids"][0].as_u64().unwrap()).unwrap().draft);
+    // Said to be drafts: a draft stays in its own mailbox, so the window doesn't tell the owner
+    // to move it into the account.
+    assert_eq!((draft["local"].as_bool(), draft["drafts"].as_bool()), (Some(true), Some(true)));
     // Moved into the account by hand, it waits to be made there by the account's own run (#451).
     s.run("mail.move", &json!({"ids": [imported], "folder": inbox})).unwrap();
     assert_eq!(s.mailbox.message(imported).unwrap().folder, inbox);

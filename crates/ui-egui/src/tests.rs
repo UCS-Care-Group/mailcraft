@@ -2008,6 +2008,11 @@ fn mail_put_into_a_microsoft_account_says_its_headers_stay_behind() {
     assert!(copied.starts_with("1 message copied into the account") && copied.contains("without most of its headers"), "{copied}");
     assert_eq!(said("mail.move", json!({"moved": 1, "folder": 9, "intoMicrosoft": 0})), None);
     assert_eq!(said("mail.copy", json!({"copies": [5], "folder": 9, "intoMicrosoft": 0})), None);
+    // Drafts imported for a Microsoft account aren't told to go into it: a draft stays here.
+    let drafts = said("file.import", json!({"messages": 2, "local": true, "drafts": true})).unwrap();
+    assert_eq!(drafts, "Imported 2 messages into Drafts on this computer: a draft stays on this computer until it is sent");
+    let mail = said("file.import", json!({"messages": 2, "local": true, "drafts": false})).unwrap();
+    assert!(mail.ends_with("move it into the account to put it on Microsoft's server"), "{mail}");
 }
 
 /// A search says so over the list: how many it found and where; ✕ or Esc ends it (#115).

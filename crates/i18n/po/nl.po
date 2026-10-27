@@ -4064,8 +4064,14 @@ msgstr "{what} geïmporteerd"
 #. interface
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
+msgid "Imported {what} into Drafts on this computer: a draft stays on this computer until it is sent"
+msgstr "{what} geïmporteerd in Concepten op deze computer: een concept blijft op deze computer tot het wordt verzonden"
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Imported {what} into a local folder: move it into the account to put it on Microsoft's server"
-msgstr "{what} geïmporteerd in een lokale map: verplaats het naar het account om het op de server van Microsoft te zetten"
+msgstr "{what} geïmporteerd in een lokale map: verplaats naar het account om op de server van Microsoft te zetten"
 
 #. interface
 #: crates/ui-egui/src/lib.rs

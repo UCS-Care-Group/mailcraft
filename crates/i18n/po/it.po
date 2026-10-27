@@ -4016,8 +4016,14 @@ msgstr "Importato {what}"
 #. interface
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
+msgid "Imported {what} into Drafts on this computer: a draft stays on this computer until it is sent"
+msgstr "Importazione di {what} completata in Bozze su questo computer: una bozza resta su questo computer finché non viene inviata"
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Imported {what} into a local folder: move it into the account to put it on Microsoft's server"
-msgstr "Importato {what} in una cartella locale: spostalo nell'account per metterlo sul server di Microsoft"
+msgstr "Importazione di {what} completata in una cartella locale: sposta la posta nell'account per metterla sul server di Microsoft"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
