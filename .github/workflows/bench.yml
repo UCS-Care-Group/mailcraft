@@ -24,8 +24,10 @@ jobs:
     env:
       # About three times the 0.84 s of a 12-core desktop: a runner has four slower cores.
       MAILCRAFT_BENCH_WARN_MS: '3000'
-      MAILCRAFT_BENCH_DIR: ${{ runner.temp }}/mailcraft-open-bench
     steps:
+      # `runner` isn't known at the job's level: the mailbox's folder is named in the first step.
+      - name: Where the mailbox is made
+        run: echo "MAILCRAFT_BENCH_DIR=$RUNNER_TEMP/mailcraft-open-bench" >> "$GITHUB_ENV"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
