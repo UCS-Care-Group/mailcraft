@@ -2,7 +2,7 @@
 
 **Stage: public beta** (0.8.0, 2026-10-24) · next: leaving beta, when every item of [the beta checklist](#the-beta-checklist) passes
 
-> **Last reviewed:** 2026-10-20 · **Last updated:** 2026-10-26 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365, classic desktop)
+> **Last reviewed:** 2026-10-20 · **Last updated:** 2026-10-27 · **Change:** patch · **Target:** Microsoft Outlook (Microsoft 365, classic desktop)
 
 MailCraft aims for complete parity with Microsoft Outlook, then goes further on speed, openness,
 privacy and agent control. This page is the direction: where MailCraft stands, what beta must
@@ -185,6 +185,7 @@ follows:
 
 | Date | What landed |
 |---|---|
+| 2026-10-27 | #366: the search box shows the search of what is in front: in People, People's own search, in Mail, Calendar and Tasks the mail's. A click outside the box in People no longer empties it while the contacts stay filtered, and Ctrl+1 or Ctrl+3 with the keyboard in the box shows the search of the place it goes to at once, the caret at its end, where the old letters stayed and went into the other search. Regression tests in `search_box_tests.rs` |
 | 2026-10-26 | #329, after part 1: a date without a year is this year's, for every date keyword, alone, in a range and after `>=` and the like (`received:10/22`, `received:10/1..10/22`); a day this year hasn't got (`2/29` in 2026) finds nothing, and one no year has (`2/30`) is text. `received:` takes the days Outlook names in words, the whole value, in any case: `today`, `yesterday`, `"this week"`, `"last week"`, `"this month"`, `"last month"` and `"this year"`, calendar weeks, months and the year, weeks from the first day of the week in the options, as the message list's Last Week heading. Not `"last year"`, which classic Outlook doesn't take as the calendar year, nor month or day names, which it doesn't take as dates. The query is read as written (`Query::parse`) and made on a day (`Query::on`); the engine makes it on the session's day wherever messages are matched, and the list and More results on the server are worked out again when the day or the first day of the week changes. Checked against classic Outlook on Windows. Tests in `search_dates_tests.rs` and the engine's list, word index and server-search tests |
 | 2026-10-26 | #329, part 2: Advanced Search, the panel under the search box behind the button at its right, as in Outlook: Search in, From, To, Subject, the days received (two dates), Attachments and attachment keywords, Categories and Body, and with Add filters (kept in `ui.json`) Cc, Read status and Importance. Opening it reads its fields out of the box; Search writes only the fields that were changed back where they stood, as keywords the search reads, and leaves the rest of the box as it was typed; Search in applies with Search. Escape and a click outside close it, Escape in one of its lists first closes the list; it closes when the search changes under it, when Mail leaves the front, and when File or a dialog opens. `ui.advancedSearch` opens, closes and searches with it. The two dates are typed until the calendar comes (part 3) |
 | 2026-10-26 | #329, part 3: a calendar beside each date field, as Outlook's date drop-down: the forms' (appointment and meeting days, Recurrence, Propose New Time, a task's due, start and reminder days, a contact's birthday) and Advanced Search's two days. The month between Previous Month and Next Month, the weekdays from the first day of the week in the options, six weeks, the other months' days dimmed, today outlined, the field's day filled; Today under it, and None where the field may be empty (Outlook's Start date has Today alone). The keyboard is in it when it opens: the arrow keys move a day or a week, Page Up and Page Down a month (Outlook's doesn't), Enter picks, Escape closes only the calendar, and the keyboard goes back to the field; Tab goes to Today. A day picked is written as typing would write it: the end of an appointment follows its start, and a reminder day brings the default time. It stops at the years 1 and 9999. While a calendar or another list is open, the arrow and page keys don't move the message list under it. Checked against classic Outlook on Windows. Tests in `date_picker_tests.rs`, `forms_date_tests.rs` and `advanced_search_tests.rs` |
@@ -362,6 +363,7 @@ follows:
 
 | Date | Change |
 |---|---|
+| 2026-10-27 | #366: in People the search box shows People's search (progress log) |
 | 2026-10-26 | #329: dates without a year and days in words in the search box (progress log) |
 | 2026-10-26 | #329: Advanced Search, the panel under the search box (progress log) |
 | 2026-10-26 | #329: a calendar beside each date field (progress log) |
