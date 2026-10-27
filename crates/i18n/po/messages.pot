@@ -10379,6 +10379,11 @@ msgstr ""
 msgid "it stopped unexpectedly"
 msgstr ""
 
+#. name
+#: crates/engine/src/agent.rs
+msgid "it takes the window off the message the owner is writing"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
 msgid "it took too long"

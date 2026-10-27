@@ -8,7 +8,7 @@ use mailcraft_model::{FolderKind, Id};
 use mailcraft_time::{Date, DateTime};
 use serde_json::{Value, json};
 
-use crate::agent::{Access, Class, classify, describe};
+use crate::agent::{Access, Class, Verdict, check, classify, describe, needs_owner};
 use crate::{Session, sample};
 
 fn session() -> Session {
@@ -165,4 +165,16 @@ fn people_email_saves_the_message_first_or_lets_it_go_as_asked() {
     run(&mut s, "people.email", json!({"id": contact, "discard": true}));
     assert!(draft_with(&s, "Not kept").is_none());
     assert!(s.compose.as_ref().is_some_and(|c| !c.dirty && c.to.contains(&address)));
+}
+
+#[test]
+fn nothing_allowed_in_advance_lets_an_agent_leave_the_owners_message() {
+    let s = writing();
+    assert_eq!(Class::parse("leave"), None);
+    let everything = Class::ALL.to_vec();
+    for (id, params) in leaving(&s) {
+        assert!(matches!(check(&s, id, &params, &everything), Verdict::Ask(Class::Leave, _)), "{id}");
+    }
+    let refusal = needs_owner("mail.new", Class::Leave, "start a new message");
+    assert!(!refusal.contains("mcp --allow") && refusal.contains("every time"), "{refusal}");
 }

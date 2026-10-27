@@ -22,7 +22,7 @@ use serde_json::Value;
 use crate::cmd::compose::LEAVING;
 use crate::{Session, p};
 
-/// What needs the owner, by kind. `--allow <class>` names them.
+/// What needs the owner, by kind. `--allow <class>` names them, but for [`Class::Leave`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Class {
     /// Writes to anybody (sends mail, answers or forwards meetings, puts mail in the Outbox) or
@@ -31,7 +31,8 @@ pub enum Class {
     /// Deletes for good (or discards what the owner was writing).
     Delete,
     /// Closes the message the owner is writing, or puts another in its place, when the owner has
-    /// changes in it that aren't saved; they go to Drafts first (#494).
+    /// changes in it that aren't saved; they go to Drafts first (#494). Asked every time: no
+    /// `--allow` names it, as the owner leaves their message themselves when they mean to.
     Leave,
     /// Accounts, sign-ins, the application id, what is remembered of them.
     Accounts,
@@ -45,7 +46,8 @@ pub enum Class {
 }
 
 impl Class {
-    pub const ALL: [Class; 7] = [Class::Send, Class::Delete, Class::Leave, Class::Accounts, Class::Mailbox, Class::Settings, Class::Input];
+    /// The classes `--allow` names: every one but [`Class::Leave`].
+    pub const ALL: [Class; 6] = [Class::Send, Class::Delete, Class::Accounts, Class::Mailbox, Class::Settings, Class::Input];
 
     pub fn as_str(self) -> &'static str {
         match self {
@@ -706,6 +708,12 @@ pub const MAX_QUESTION: usize = 900;
 
 /// The refusal when nobody can be asked (headless).
 pub fn needs_owner(id: &str, class: Class, what: &str) -> String {
+    if !Class::ALL.contains(&class) {
+        return format!(
+            "`{id}` needs the owner ({}): it would {what}. The owner is asked about this in the window every time; no `--allow` lets an agent do it",
+            class.what()
+        );
+    }
     format!(
         "`{id}` needs the owner ({}): it would {what}. Only the owner can let an agent do this, by starting the server with `mailcraft-cli mcp --allow {}`",
         class.what(),

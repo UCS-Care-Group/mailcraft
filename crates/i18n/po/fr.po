@@ -12136,6 +12136,12 @@ msgstr "il ouvre, remplace ou enregistre le fichier de la boîte aux lettres"
 msgid "it stopped unexpectedly"
 msgstr "il s'est arrêté de façon inattendue"
 
+#. name
+#: crates/engine/src/agent.rs
+#, fuzzy
+msgid "it takes the window off the message the owner is writing"
+msgstr "il retire la fenêtre du message que le propriétaire est en train d'écrire"
+
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
 #, fuzzy

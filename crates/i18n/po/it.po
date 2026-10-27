@@ -12134,6 +12134,12 @@ msgstr "apre, sostituisce o salva il file della cassetta postale"
 msgid "it stopped unexpectedly"
 msgstr "si è interrotto in modo imprevisto"
 
+#. name
+#: crates/engine/src/agent.rs
+#, fuzzy
+msgid "it takes the window off the message the owner is writing"
+msgstr "toglie la finestra dal messaggio che il proprietario sta scrivendo"
+
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
 #, fuzzy

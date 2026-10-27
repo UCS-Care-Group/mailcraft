@@ -12118,6 +12118,12 @@ msgstr "es öffnet, ersetzt oder speichert die Postfachdatei"
 msgid "it stopped unexpectedly"
 msgstr "es wurde unerwartet abgebrochen"
 
+#. name
+#: crates/engine/src/agent.rs
+#, fuzzy
+msgid "it takes the window off the message the owner is writing"
+msgstr "es nimmt das Fenster von der Nachricht weg, die der Besitzer schreibt"
+
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
 #, fuzzy

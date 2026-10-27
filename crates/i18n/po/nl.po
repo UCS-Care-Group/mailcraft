@@ -12323,6 +12323,12 @@ msgstr "het opent, vervangt of slaat het postvakbestand op"
 msgid "it stopped unexpectedly"
 msgstr "het is onverwacht gestopt"
 
+#. name
+#: crates/engine/src/agent.rs
+#, fuzzy
+msgid "it takes the window off the message the owner is writing"
+msgstr "het haalt het venster weg bij het bericht dat de eigenaar aan het schrijven is"
+
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
 #, fuzzy
