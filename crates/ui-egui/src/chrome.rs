@@ -79,10 +79,11 @@ const MAC_LIGHTS_LEFT: f32 = 10.0;
 /// Where title-bar content starts to the right of the traffic lights.
 pub const MAC_CONTENT_LEFT: f32 = MAC_LIGHTS_LEFT + 2.0 * MAC_LIGHT_PITCH + MAC_LIGHT + (MAC_TITLE_BAR - MAC_LIGHT) / 2.0;
 
-/// The search box: typing filters the message list as you go; Escape clears it. In mail, a list
-/// under it offers what the word being typed may be (#308; `search_suggest`), and Escape closes
-/// that first; and the button at its right opens Advanced Search under it (#329), which Escape
-/// closes before it clears anything (`advanced_search::escape`).
+/// The search box: typing filters the message list as you go, or in People the contacts, which
+/// have a search of their own (#366); Escape clears it. In mail, a list under it offers what the
+/// word being typed may be (#308; `search_suggest`), and Escape closes that first; and the button
+/// at its right opens Advanced Search under it (#329), which Escape closes before it clears
+/// anything (`advanced_search::escape`).
 fn search_box(app: &mut MailApp, ui: &mut Ui, rect: Rect) {
     let t = Tokens::get(ui.ctx());
     let id = search_box_id();
@@ -98,14 +99,33 @@ fn search_box(app: &mut MailApp, ui: &mut Ui, rect: Rect) {
         egui::StrokeKind::Inside,
     );
     icons::paint(ui.painter(), Rect::from_center_size(pos2(rect.min.x + 15.0, rect.center().y), vec2(16.0, 16.0)), "search", t.text_dim, t.accent);
-    // The engine's search is the truth; the box follows it when it changes elsewhere (a command).
-    if !focused && app.search_text != app.session.view.search {
-        app.search_text = app.session.view.search.clone();
+    // People has a search of its own, which the box shows and types into there; everywhere else
+    // the box is the mail's (#366).
+    let mail_search = app.session.view.module != Module::People;
+    // When the other search came in front since the box was last drawn (Ctrl+1, Ctrl+3, a click),
+    // with the keyboard in the box or not.
+    let slot = id.with("mail_search");
+    let swapped = ui.data(|d| d.get_temp::<bool>(slot)).is_some_and(|was| was != mail_search);
+    ui.data_mut(|d| d.insert_temp(slot, mail_search));
+    // The engine's search is the truth; the box follows it when it changes elsewhere (a command),
+    // and at once when the other one comes in front.
+    let truth = if mail_search { &app.session.view.search } else { &app.session.view.people_search };
+    let refill = (!focused || swapped) && app.search_text != *truth;
+    if refill {
+        app.search_text = truth.clone();
+    }
+    // With the same letters in both too.
+    if refill || swapped {
+        caret_at_end(ui.ctx(), &app.search_text);
+    }
+    // Undo doesn't bring back what was typed in the other one.
+    if swapped && let Some(mut state) = egui::TextEdit::load_state(ui.ctx(), id) {
+        state.clear_undoer();
+        state.store(ui.ctx(), id);
     }
     // A dialog over the window takes the keys, Escape first.
     let free = crate::keys::takes_commands(app);
     // The scope menu is about mail folders, so People (which searches contacts) goes without it.
-    let mail_search = app.session.view.module != Module::People;
     let scope_w = if mail_search { 104.0 } else { 0.0 };
     // Advanced Search's button, at the right of the text as in Outlook: Mail's alone.
     let in_mail = app.session.view.module == Module::Mail;
@@ -185,10 +205,7 @@ fn search_box(app: &mut MailApp, ui: &mut Ui, rect: Rect) {
     }
     if resp.changed() {
         let text = app.search_text.clone();
-        let _ = match app.session.view.module {
-            Module::People => app.execute("people.search", json!({"query": text})),
-            _ => app.execute("view.search", json!({"query": text})),
-        };
+        let _ = app.execute(if mail_search { "view.search" } else { "people.search" }, json!({"query": text}));
     }
     // Escape is the box's while it has the keyboard and nothing is over it, the list under it
     // either (#406), so nothing drawn after it does something with the same key (a selection in
@@ -279,6 +296,16 @@ fn list_keys(open: bool) -> egui::EventFilter {
 /// The search box, for the window's keys (`keys.rs`).
 pub(crate) fn search_box_id() -> egui::Id {
     egui::Id::unique("search_box")
+}
+
+/// For `text`, just written in the search box from outside it: the caret at its end, so that what
+/// is typed next goes on after it, once Ctrl+E brings the keyboard too (#366).
+pub(crate) fn caret_at_end(ctx: &egui::Context, text: &str) {
+    let id = search_box_id();
+    let mut state = egui::TextEdit::load_state(ctx, id).unwrap_or_default();
+    let end = egui::text::CCursor::new(text.chars().count());
+    state.cursor.set_char_range(Some(egui::text::CCursorRange::one(end)));
+    state.store(ctx, id);
 }
 
 pub fn title_bar(app: &mut MailApp, ui: &mut Ui) {

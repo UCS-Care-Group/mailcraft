@@ -3005,6 +3005,212 @@ fn two_clicks_take_a_word_three_a_paragraph_and_shift_moves_the_end() {
     assert_eq!(copy_key(&mut harness), None);
 }
 
+/// So many clicks in a row at `from`, the last of them held and dragged to `to`.
+fn clicks_and_drag(harness: &mut Window, from: egui::Pos2, count: usize, to: egui::Pos2) {
+    clicks(harness, from, count - 1, egui::Modifiers::NONE);
+    drag(harness, from, to);
+}
+
+/// The gmail reply in the pane, and the paragraph that starts "Yes to both" with where its
+/// word "projector" starts.
+fn reading_the_reply() -> (Window, u64, String, usize) {
+    let (app, ids) = corpus_app(false);
+    let id = id_of(&ids, "gmail reply");
+    let mut harness = quick_window(app, (1280.0, 1400.0));
+    select(&mut harness, id);
+    let (text, _) = gap_at(&harness, Place::Pane, id, "Yes to both", 0);
+    let word = text.find("projector").unwrap();
+    (harness, id, text, word)
+}
+
+#[test]
+fn a_drag_from_two_clicks_goes_on_by_words() {
+    let (mut harness, id, text, word) = reading_the_reply();
+    let thursday = text.find("Thursday").unwrap();
+    // From the fourth letter of a word to the third of a word further on: both words whole.
+    let on = gap(&harness, id, "Yes to both", word + 3) + egui::vec2(1.5, 0.0);
+    let to = gap(&harness, id, "Yes to both", thursday + 2) + egui::vec2(1.5, 0.0);
+    clicks_and_drag(&mut harness, on, 2, to);
+    assert_eq!(copy_key(&mut harness).as_deref(), Some("projector, and Thursday"));
+}
+
+#[test]
+fn a_drag_back_from_two_clicks_keeps_the_word_clicked() {
+    let (mut harness, id, text, word) = reading_the_reply();
+    let bring = text.find("bring").unwrap();
+    // Back from inside a word to inside one before it: the word clicked stays whole.
+    let on = gap(&harness, id, "Yes to both", word + 3) + egui::vec2(1.5, 0.0);
+    let to = gap(&harness, id, "Yes to both", bring + 2) + egui::vec2(1.5, 0.0);
+    clicks_and_drag(&mut harness, on, 2, to);
+    assert_eq!(copy_key(&mut harness).as_deref(), Some("bring the projector"));
+}
+
+#[test]
+fn a_drag_from_three_clicks_goes_on_by_paragraphs() {
+    let (mut harness, id, text, word) = reading_the_reply();
+    // Up into the paragraph before: both paragraphs whole, the one clicked in to its end.
+    let on = gap(&harness, id, "Yes to both", word + 3) + egui::vec2(1.5, 0.0);
+    let to = gap(&harness, id, "Hi Priya", 4) + egui::vec2(1.5, 0.0);
+    clicks_and_drag(&mut harness, on, 3, to);
+    assert_eq!(copy_key(&mut harness), Some(format!("Hi Priya,\n\n{text}")));
+}
+
+#[test]
+fn a_drag_from_one_click_goes_by_characters() {
+    let (mut harness, id, text, word) = reading_the_reply();
+    let thursday = text.find("Thursday").unwrap();
+    let (from, to) = (gap(&harness, id, "Yes to both", word + 3), gap(&harness, id, "Yes to both", thursday + 3));
+    // Two clicks a while ago at the same place are not this press's.
+    clicks(&mut harness, from, 2, egui::Modifiers::NONE);
+    pause(&mut harness);
+    clicks_and_drag(&mut harness, from, 1, to);
+    assert_eq!(copy_key(&mut harness).as_deref(), Some("jector, and Thu"));
+    // Back as well.
+    pause(&mut harness);
+    drag(&mut harness, to, from);
+    assert_eq!(copy_key(&mut harness).as_deref(), Some("jector, and Thu"));
+}
+
+#[test]
+fn a_drag_from_three_clicks_goes_on_by_paragraphs_forward_too() {
+    let (mut harness, id, text, _) = reading_the_reply();
+    let on = gap(&harness, id, "Hi Priya", 4) + egui::vec2(1.5, 0.0);
+    let to = gap(&harness, id, "Yes to both", 3) + egui::vec2(1.5, 0.0);
+    clicks_and_drag(&mut harness, on, 3, to);
+    assert_eq!(copy_key(&mut harness), Some(format!("Hi Priya,\n\n{text}")));
+}
+
+/// So many clicks in a row at `from`, the last of them held and dragged through `through`: what
+/// a copy has at each of those places, the button still down.
+fn clicks_and_drag_through(harness: &mut Window, from: egui::Pos2, count: usize, through: &[egui::Pos2]) -> Vec<Option<String>> {
+    clicks(harness, from, count - 1, egui::Modifiers::NONE);
+    harness.event(egui::Event::PointerMoved(from));
+    harness.step();
+    harness.event(button(from, egui::PointerButton::Primary, true, egui::Modifiers::NONE));
+    harness.step();
+    let mut at = from;
+    let mut copies = Vec::new();
+    for to in through {
+        for n in 1..=5 {
+            harness.event(egui::Event::PointerMoved(at + (*to - at) * (n as f32 / 5.0)));
+            harness.step();
+        }
+        at = *to;
+        copies.push(copy_key(harness));
+    }
+    harness.event(button(at, egui::PointerButton::Primary, false, egui::Modifiers::NONE));
+    harness.step();
+    copies
+}
+
+#[test]
+fn a_drag_from_two_clicks_turns_back_past_the_word_and_out_again() {
+    let (mut harness, id, text, word) = reading_the_reply();
+    let (bring, thursday) = (text.find("bring").unwrap(), text.find("Thursday").unwrap());
+    let on = gap(&harness, id, "Yes to both", word + 3) + egui::vec2(1.5, 0.0);
+    let forward = gap(&harness, id, "Yes to both", thursday + 2) + egui::vec2(1.5, 0.0);
+    let back = gap(&harness, id, "Yes to both", bring + 2) + egui::vec2(1.5, 0.0);
+    let copies = clicks_and_drag_through(&mut harness, on, 2, &[forward, back, forward]);
+    let want = ["projector, and Thursday", "bring the projector", "projector, and Thursday"];
+    assert_eq!(copies, want.map(|w| Some(w.to_string())));
+}
+
+/// So many clicks in a row at `pos`, each pressed and let go within one frame, as a touchpad's
+/// taps come.
+fn taps(harness: &mut Window, pos: egui::Pos2, count: usize) {
+    harness.event(egui::Event::PointerMoved(pos));
+    harness.step();
+    // One frame for each of the harness's queued events: these go straight into the frame's input.
+    for _ in 0..count {
+        let tap = [true, false].map(|pressed| button(pos, egui::PointerButton::Primary, pressed, egui::Modifiers::NONE));
+        harness.input_mut().events.extend(tap);
+        harness.step();
+    }
+    harness.step();
+}
+
+#[test]
+fn clicks_pressed_and_let_go_within_a_frame_take_a_word_and_a_paragraph() {
+    let (mut harness, id, text, word) = reading_the_reply();
+    let on = gap(&harness, id, "Yes to both", word + 3) + egui::vec2(1.5, 0.0);
+    taps(&mut harness, on, 2);
+    assert_eq!(copy_key(&mut harness).as_deref(), Some("projector"));
+    pause(&mut harness);
+    taps(&mut harness, on, 3);
+    assert_eq!(copy_key(&mut harness).as_deref(), Some(text.as_str()));
+}
+
+#[test]
+fn a_click_pressed_and_let_go_within_a_frame_lets_go_of_a_word() {
+    let (mut harness, id, _, word) = reading_the_reply();
+    let on = gap(&harness, id, "Yes to both", word + 3) + egui::vec2(1.5, 0.0);
+    clicks(&mut harness, on, 2, egui::Modifiers::NONE);
+    assert_eq!(copy_key(&mut harness).as_deref(), Some("projector"));
+    pause(&mut harness);
+    let elsewhere = gap(&harness, id, "Hi Priya", 4) + egui::vec2(1.5, 0.0);
+    taps(&mut harness, elsewhere, 1);
+    assert!(selection(&harness, Place::Pane).is_none());
+}
+
+/// So many clicks in a row at `from`, each click's release in the frame of the next press (one
+/// frame's input, as a quick hand on a slow frame gives), the last press held and dragged to `to`.
+fn clicks_run_together_and_drag(harness: &mut Window, from: egui::Pos2, count: usize, to: egui::Pos2) {
+    let press = |pressed| button(from, egui::PointerButton::Primary, pressed, egui::Modifiers::NONE);
+    harness.event(egui::Event::PointerMoved(from));
+    harness.step();
+    harness.input_mut().events.push(press(true));
+    harness.step();
+    for _ in 1..count {
+        harness.input_mut().events.extend([press(false), press(true)]);
+        harness.step();
+    }
+    for n in 1..=5 {
+        harness.event(egui::Event::PointerMoved(from + (to - from) * (n as f32 / 5.0)));
+        harness.step();
+    }
+    harness.event(button(to, egui::PointerButton::Primary, false, egui::Modifiers::NONE));
+    harness.step();
+}
+
+#[test]
+fn a_drag_from_clicks_whose_release_and_press_share_a_frame_goes_by_words_and_paragraphs() {
+    let (mut harness, id, text, word) = reading_the_reply();
+    let thursday = text.find("Thursday").unwrap();
+    let on = gap(&harness, id, "Yes to both", word + 3) + egui::vec2(1.5, 0.0);
+    let to = gap(&harness, id, "Yes to both", thursday + 2) + egui::vec2(1.5, 0.0);
+    clicks_run_together_and_drag(&mut harness, on, 2, to);
+    assert_eq!(copy_key(&mut harness).as_deref(), Some("projector, and Thursday"));
+    pause(&mut harness);
+    let back = gap(&harness, id, "Hi Priya", 4) + egui::vec2(1.5, 0.0);
+    clicks_run_together_and_drag(&mut harness, on, 3, back);
+    assert_eq!(copy_key(&mut harness), Some(format!("Hi Priya,\n\n{text}")));
+    // In the header as well.
+    pause(&mut harness);
+    // The sender in the header, not in the message list beside it.
+    let sender = harness.query_all_by_label("Kofi Mensah").map(|node| node.rect()).max_by(|a, b| a.min.x.total_cmp(&b.min.x)).unwrap();
+    clicks_run_together_and_drag(&mut harness, sender.left_center() + egui::vec2(3.0, 0.0), 2, sender.right_center() - egui::vec2(3.0, 0.0));
+    assert_eq!(selection(&harness, Place::Pane).map(|s| s.0), Some(Zone::Header));
+    assert_eq!(copy_key(&mut harness).as_deref(), Some("Kofi Mensah"));
+}
+
+#[test]
+fn taps_in_the_header_take_a_word_and_a_tap_lets_go_of_it() {
+    let (app, ids) = corpus_app(false);
+    let id = id_of(&ids, "outlook reply");
+    let mut harness = quick_window(app, (1280.0, 900.0));
+    select(&mut harness, id);
+    let field =
+        |harness: &Window, text: &str| harness.query_all_by_label(text).next().unwrap_or_else(|| panic!("the header does not say {text}")).rect();
+    let on = field(&harness, "Marta Lindqvist").left_center() + egui::vec2(3.0, 0.0);
+    taps(&mut harness, on, 2);
+    assert_eq!(selection(&harness, Place::Pane).map(|s| s.0), Some(Zone::Header));
+    assert_eq!(copy_key(&mut harness).as_deref(), Some("Marta"));
+    pause(&mut harness);
+    let elsewhere = field(&harness, "RE: Q4 lane pricing: revised schedule").left_center() + egui::vec2(3.0, 0.0);
+    taps(&mut harness, elsewhere, 1);
+    assert!(selection(&harness, Place::Pane).is_none());
+}
+
 #[test]
 fn the_header_is_selected_and_copied_field_by_field_and_across() {
     let (app, ids) = corpus_app(false);
