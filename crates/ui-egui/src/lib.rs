@@ -46,6 +46,9 @@ pub mod backstage;
 mod calendar_sync;
 pub mod calendar_view;
 pub mod chrome;
+mod clicks;
+#[cfg(test)]
+mod clicks_tests;
 pub mod compose;
 pub mod control;
 pub mod credits;
