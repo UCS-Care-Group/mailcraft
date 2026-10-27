@@ -73,7 +73,7 @@ use std::time::{Duration, Instant, SystemTime};
 use mailcraft_model::{Contact, ContentRef, Event, Id, KeptBody, Mailbox, Message, Task};
 use serde::{Deserialize, Serialize};
 
-use crate::io::{BackgroundSave, ContentSource, MAX_FILE, SaveProgress, SaveReport, SaveStage};
+use crate::io::{BackgroundSave, ContentSource, MAX_FILE, OpenProgress, SaveProgress, SaveReport, SaveStage};
 
 #[path = "store_index.rs"]
 mod index;
@@ -621,6 +621,9 @@ struct State {
     /// Content the mailbox file named at some time while this program ran. A message that names
     /// it again is this mailbox's, not one carried over from another ([`on_disk_here`]).
     named_before: HashSet<Digest>,
+    /// The file as [`open_ahead`] read it, for the next [`open`] of it to take, with the file's
+    /// length and time then: anything written to it since drops it.
+    ahead: Option<(Box<Opened>, Stamp)>,
 }
 
 /// Messages the mailbox file no longer says as they are in memory, held by nothing but a weak
@@ -1107,6 +1110,10 @@ pub struct Opened {
     /// Every folder's mark of how far its mail was fetched is then forgotten, so that the mail
     /// that is missing comes again from its server.
     pub lost_records: u32,
+    /// How long the mailbox file is, in bytes.
+    pub bytes: u64,
+    /// How many things in the mailbox didn't fit together and were put right (`Mailbox::repair`).
+    pub repaired: usize,
 }
 
 impl Opened {
@@ -1156,7 +1163,7 @@ impl std::fmt::Debug for Opened {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "Opened {{ messages: {}, split: {}, unavailable: {}, loaded: {}, deferred: {}, unfinished: {}, lost_saves: {}, lost_records: {} }}",
+            "Opened {{ messages: {}, split: {}, unavailable: {}, loaded: {}, deferred: {}, unfinished: {}, lost_saves: {}, lost_records: {}, bytes: {}, repaired: {} }}",
             self.mailbox.messages.len(),
             self.split,
             self.unavailable,
@@ -1164,7 +1171,9 @@ impl std::fmt::Debug for Opened {
             self.deferred,
             self.unfinished,
             self.lost_saves,
-            self.lost_records
+            self.lost_records,
+            self.bytes,
+            self.repaired
         )
     }
 }
@@ -1184,7 +1193,9 @@ fn report(show: &std::path::Display<'_>, dir: &Path, filled: &Filled) {
 /// one of a form a newer MailCraft writes is an error that says so.
 fn is_index(file: &Path) -> Result<bool, String> {
     let mut head = [0u8; 16];
-    let mut f = fs::File::open(file).map_err(|e| e.to_string())?;
+    // (Without waiting, and only a regular file: a pipe put where a mailbox was named can't hold
+    // the window, `io::regular_file`; so for every open of the file here.)
+    let mut f = crate::io::regular_file(file).map_err(|e| e.to_string())?;
     let got = index::fill(&mut f, &mut head).map_err(|e| e.to_string())?;
     let head = head.get(..got).unwrap_or(&[]);
     if head == crate::io::INDEX_MAGIC {
@@ -1197,24 +1208,166 @@ fn is_index(file: &Path) -> Result<bool, String> {
 }
 
 /// Open the mailbox file at `path`, in any of its forms. Whatever the file and its content
-/// folder hold, the result is consistent (`Mailbox::repair`).
+/// folder hold, the result is consistent (`Mailbox::repair`). Each open logs one line of how long
+/// it took and how much it read ([`open_line`]).
 pub fn open(path: &Path) -> Result<Opened, String> {
+    open_with(path, &OpenProgress::default())
+}
+
+/// [`open`], counting the bytes read in `progress` (the file's length is its total), and stopping
+/// with an error once `progress` is cancelled.
+pub fn open_with(path: &Path, progress: &OpenProgress) -> Result<Opened, String> {
+    let started = Instant::now();
+    let (opened, read_now) = open_file(path, progress)?;
+    // (What was read ahead was logged when it was read.)
+    if read_now {
+        let line = open_line(started.elapsed(), opened.bytes, counts(&opened.mailbox), opened.repaired);
+        log::info!("{line}");
+    }
+    Ok(opened)
+}
+
+/// What an open is logged as: how long it took, how many bytes the file has, how many messages
+/// and folders came of it and whether anything was put right. Counts only: nothing of
+/// the mail, its people, its folders' names or where the file is.
+/// It takes numbers alone, worked out by the caller, so that nothing of the mailbox can reach it.
+fn open_line(took: Duration, bytes: u64, [m, f]: [usize; 2], fixes: usize) -> String {
+    let fixed = if fixes == 0 { "not repaired".to_string() } else { format!("repaired ({fixes} fixes)") };
+    format!("opened a mailbox in {:.2} s: {bytes} bytes, {m} messages, {f} folders, {fixed}", took.as_secs_f64())
+}
+
+/// How many messages and folders `mailbox` has, for [`open_line`]. (Not its accounts: code
+/// scanning takes anything of an account for a secret, a count too.)
+fn counts(mailbox: &Mailbox) -> [usize; 2] {
+    [mailbox.messages.len(), mailbox.folders.len()]
+}
+
+/// Read the mailbox file at `path` ahead of its being opened (File › Open in the window, #519):
+/// the next [`open`] of the same file takes what was read, unless the file has changed since. A
+/// cancelled `progress` keeps nothing; nor does [`forget_ahead`].
+pub fn open_ahead(path: &Path, progress: &OpenProgress) -> Result<(), String> {
+    let show = path.display();
+    if crate::io::Format::from_extension(&path.to_string_lossy()).is_some_and(|f| f != crate::io::Format::Mailbox) {
+        return Err(format!("{show} isn't a mailbox; bring it in with File › Import"));
+    }
+    // Read and kept under one lock: a save of the file waits until what was read is kept, and
+    // then drops it, so nothing read before a save is taken after it.
     let shared = shared(path);
     let mut st = lock(&shared.state);
+    let started = Instant::now();
+    let (opened, read_now) = open_locked(&mut st, path, progress)?;
+    if read_now {
+        let line = open_line(started.elapsed(), opened.bytes, counts(&opened.mailbox), opened.repaired);
+        log::info!("{line}");
+    }
+    #[cfg(test)]
+    read_ahead_hook(path);
+    // (Under the lock that `forget_ahead` tries after cancelling: one or the other drops it.)
+    if progress.cancelled() {
+        return Err(CANCELLED.into());
+    }
+    let Some(stamp) = st.stamp.as_ref().map(|s| Stamp { len: s.len, modified: s.modified, sum: None }) else {
+        return Ok(());
+    };
+    st.ahead = Some((Box::new(opened), stamp));
+    Ok(())
+}
+
+/// For a test: run once when [`open_ahead`] of `path` has read the file and is about to keep it.
+#[cfg(test)]
+type AheadHook = Mutex<Option<(PathBuf, Box<dyn FnOnce() + Send>)>>;
+#[cfg(test)]
+static READ_AHEAD_HOOK: AheadHook = Mutex::new(None);
+
+#[cfg(test)]
+fn read_ahead_hook(path: &Path) {
+    let hook = {
+        let mut held = lock(&READ_AHEAD_HOOK);
+        if held.as_ref().is_some_and(|(p, _)| p == path) { held.take() } else { None }
+    };
+    if let Some((_, run)) = hook {
+        run();
+    }
+}
+
+/// Let go of what [`open_ahead`] read of the file at `path`, if it is still kept. Never waits:
+/// while the file is still being read (its lock is held), the reading drops what it read itself
+/// once its progress is cancelled, which the caller has done first.
+pub fn forget_ahead(path: &Path) {
+    let shared = shared(path);
+    // ponytail: a save holding the lock at this moment leaves a finished read kept; that save
+    // drops it anyway, and an open of a changed file reads it again.
+    let ahead = match shared.state.try_lock() {
+        Ok(mut st) => st.ahead.take(),
+        Err(std::sync::TryLockError::Poisoned(p)) => p.into_inner().ahead.take(),
+        Err(std::sync::TryLockError::WouldBlock) => None,
+    };
+    drop(ahead);
+}
+
+/// Why an open stopped when it was cancelled.
+const CANCELLED: &str = "opening the mailbox was cancelled";
+
+/// A reader that counts what it reads in an [`OpenProgress`], and stops once it is cancelled.
+struct Counted<'a, R> {
+    inner: R,
+    progress: &'a OpenProgress,
+}
+
+impl<R: std::io::Read> std::io::Read for Counted<'_, R> {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        if self.progress.cancelled() {
+            return Err(std::io::Error::other(CANCELLED));
+        }
+        let n = self.inner.read(buf)?;
+        self.progress.add_read(n as u64);
+        Ok(n)
+    }
+}
+
+/// [`open_with`], without the line in the log; and whether the file was read now (not ahead).
+fn open_file(path: &Path, progress: &OpenProgress) -> Result<(Opened, bool), String> {
+    let shared = shared(path);
+    let mut st = lock(&shared.state);
+    open_locked(&mut st, path, progress)
+}
+
+/// [`open_file`], its file's lock held (`st`).
+fn open_locked(st: &mut State, path: &Path, progress: &OpenProgress) -> Result<(Opened, bool), String> {
     let show = path.display();
     let file = resolve(path);
-    let len = fs::metadata(&file).map_err(|e| format!("{show}: {e}"))?.len();
+    let len = crate::io::regular_file(&file).and_then(|f| f.metadata().map_err(crate::io::ReadError::Io)).map_err(|e| format!("{show}: {e}"))?.len();
+    // Read ahead, and the file is still what was read then: that is the mailbox.
+    if let Some((ahead, stamp)) = st.ahead.take()
+        && stamp.still(&file)
+        && st.stamp.as_ref().is_some_and(|s| s.still(&file))
+    {
+        progress.set_total(len);
+        progress.add_read(len);
+        return Ok((*ahead, false));
+    }
+    progress.set_total(len);
     // Whatever was known about this file was about another state of it.
     // (Except what is still in memory from before, which an Undo step may bring back.)
     let (pins, named_before) = (std::mem::take(&mut st.pins), std::mem::take(&mut st.named_before));
     *st = State { newest: st.newest, swept: st.swept, pins, named_before, ..State::default() };
     if is_index(&file).map_err(|e| format!("{show}: {e}"))? {
-        return open_index(&mut st, &file, len).map_err(|e| format!("{show}: {e}"));
+        let opened = open_index(st, &file, len, progress).map_err(|e| format!("{show}: {e}"))?;
+        if progress.cancelled() {
+            return Err(CANCELLED.into());
+        }
+        return Ok((opened, true));
     }
     if len > MAX_FILE {
         return Err(format!("{show} is larger than {} MB", MAX_FILE >> 20));
     }
-    let bytes = fs::read(&file).map_err(|e| format!("{show}: {e}"))?;
+    // (Read as `io::read_regular_file` does, its bytes counted.)
+    let f = crate::io::regular_file(&file).map_err(|e| format!("{show}: {e}"))?;
+    let mut bytes = Vec::with_capacity(usize::try_from(len).unwrap_or(0));
+    Counted { inner: f.take(MAX_FILE.saturating_add(1)), progress }.read_to_end(&mut bytes).map_err(|e| format!("{show}: {e}"))?;
+    if u64::try_from(bytes.len()).map_or(true, |n| n > MAX_FILE) {
+        return Err(format!("{show} is larger than {} MB", MAX_FILE >> 20));
+    }
     let mut mailbox: Mailbox =
         mailcraft_model::from_json(&bytes, max_json_items()).map_err(|e| format!("{show}: this isn't a MailCraft mailbox ({e})"))?;
     let version = mailbox.version;
@@ -1222,13 +1375,14 @@ pub fn open(path: &Path) -> Result<Opened, String> {
         0 | 1 => (false, Filled::default()),
         SPLIT_VERSION => {
             let head: Head = serde_json::from_slice(&bytes).map_err(|e| format!("{show}: this mailbox file is damaged ({e})"))?;
-            (true, fill(&mut st, &blob_dir(&file), &mut mailbox, head, None))
+            (true, fill(st, &blob_dir(&file), &mut mailbox, head, None))
         }
         newer => return Err(format!("{show}: this mailbox was written by a newer MailCraft (format {newer})")),
     };
     // In memory a mailbox is whole, whichever form it came from.
     mailbox.version = 1;
-    for line in mailbox.repair() {
+    let fixed = mailbox.repair();
+    for line in &fixed {
         log::warn!("mailbox repaired: {line}");
     }
     report(&show, &blob_dir(&file), &filled);
@@ -1237,7 +1391,7 @@ pub fn open(path: &Path) -> Result<Opened, String> {
     st.stamp = Stamp::of(&file, bytes.len() as u64, Some(sum));
     st.loaded = loaded_unless_retired(&mailbox);
     st.legacy = Some(version.max(1));
-    Ok(Opened {
+    let opened = Opened {
         mailbox,
         split,
         unavailable: filled.missing,
@@ -1246,7 +1400,10 @@ pub fn open(path: &Path) -> Result<Opened, String> {
         unfinished: 0,
         lost_saves: 0,
         lost_records: 0,
-    })
+        bytes: len,
+        repaired: fixed.len(),
+    };
+    Ok((opened, true))
 }
 
 /// One item of a mailbox file in this form, read.
@@ -1275,12 +1432,12 @@ fn parse_item(key: &Key, item: &index::Item) -> Result<(Parsed, Fp), String> {
 }
 
 /// Open a mailbox file in this form, `len` bytes long.
-fn open_index(st: &mut State, file: &Path, len: u64) -> Result<Opened, String> {
+fn open_index(st: &mut State, file: &Path, len: u64, progress: &OpenProgress) -> Result<Opened, String> {
     if len > MAX_INDEX {
         return Err(format!("the mailbox file is larger than {} GB", MAX_INDEX >> 30));
     }
-    let f = fs::File::open(file).map_err(|e| e.to_string())?;
-    let mut summed = Summed::new(std::io::BufReader::with_capacity(1 << 20, f));
+    let f = crate::io::regular_file(file).map_err(|e| e.to_string())?;
+    let mut summed = Summed::new(std::io::BufReader::with_capacity(1 << 20, Counted { inner: f, progress }));
     let replayed = index::replay(&mut summed, len)?;
     // What its bytes are, when all of them were read.
     let sum = (summed.len == len).then_some(summed.sum);
@@ -1408,6 +1565,8 @@ fn open_index(st: &mut State, file: &Path, len: u64) -> Result<Opened, String> {
         unfinished,
         lost_saves: replayed.lost_saves,
         lost_records: replayed.lost_records,
+        bytes: len,
+        repaired: fixed.len(),
     })
 }
 
@@ -1923,6 +2082,8 @@ fn save_as_of(path: &Path, mailbox: &Mailbox, seq: u64) -> Result<Saved, String>
 }
 
 fn save_locked(mut st: MutexGuard<'_, State>, shared: &Shared, path: &Path, mailbox: &Mailbox, seq: u64) -> Result<Saved, String> {
+    // What was read of the file ahead of its opening is not what it says once this is written.
+    st.ahead = None;
     if seq < st.newest {
         return Ok(Saved { unchanged: true, ..Saved::default() });
     }
@@ -3140,3 +3301,7 @@ mod tests;
 #[cfg(test)]
 #[path = "store_size_tests.rs"]
 mod size_tests;
+
+#[cfg(test)]
+#[path = "store_open_tests.rs"]
+mod open_tests;

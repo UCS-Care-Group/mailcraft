@@ -867,6 +867,9 @@ pub struct Session {
     undo_said: Vec<String>,
     rev: u64,
     list_cache: Option<ListCache>,
+    /// The known correspondents, and the sender warnings worked out against them
+    /// ([`Session::sender_warnings`]). Never saved.
+    pub(crate) sender_checks: crate::sender_warnings::SenderChecks,
     /// Where the content that isn't in memory comes from ([`Session::content`]). `None`: the
     /// content folder beside the mailbox file, where there is one (the desktop); the browser,
     /// which keeps everything in memory, never asks.
@@ -990,6 +993,7 @@ impl Session {
             undo_said: Vec::new(),
             rev: 0,
             list_cache: None,
+            sender_checks: Default::default(),
             content_source: None,
             loads: 0,
             unsearched: 0,

@@ -87,7 +87,7 @@ pub fn specs() -> Vec<CommandSpec> {
 }
 
 /// Enabled while a message is being written or a signature is open.
-fn needs_doc(s: &Session) -> Option<&'static str> {
+pub(super) fn needs_doc(s: &Session) -> Option<&'static str> {
     if s.doc().is_none() { Some("no message is being written") } else { None }
 }
 
@@ -113,7 +113,7 @@ fn model(e: ModelError) -> CmdError {
 }
 
 /// A position from the params.
-fn position(v: &Value, key: &str) -> Result<Option<usize>, CmdError> {
+pub(super) fn position(v: &Value, key: &str) -> Result<Option<usize>, CmdError> {
     match v.get(key) {
         None | Some(Value::Null) => Ok(None),
         Some(_) => p::u64(v, key).and_then(|n| usize::try_from(n).ok()).map(Some).ok_or_else(|| bad(format!("`{key}` is a position (a number)"))),
@@ -133,7 +133,7 @@ fn select_range(body: &mut RichBody, v: &Value) -> Result<(), CmdError> {
 }
 
 /// Run an edit of the text; the message (or signature) is changed when its text is.
-fn edit<T>(s: &mut Session, v: &Value, f: impl FnOnce(&mut RichBody) -> Result<T, ModelError>) -> Result<T, CmdError> {
+pub(super) fn edit<T>(s: &mut Session, v: &Value, f: impl FnOnce(&mut RichBody) -> Result<T, ModelError>) -> Result<T, CmdError> {
     let d = doc_mut(s)?;
     select_range(d.body, v)?;
     let before = d.body.text().clone();
@@ -145,7 +145,7 @@ fn edit<T>(s: &mut Session, v: &Value, f: impl FnOnce(&mut RichBody) -> Result<T
 }
 
 /// What the answer of an edit says: the selection now.
-fn state(s: &Session) -> Value {
+pub(super) fn state(s: &Session) -> Value {
     match s.doc() {
         Some((body, _)) => {
             let sel = body.selection();

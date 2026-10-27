@@ -11,6 +11,8 @@
 //!   real pointer input in screen points (reaches every widget)
 //! - `ui.key {key, shift?, alt?, cmd?}`, `ui.text {text}`: keyboard input through egui
 //! - `ui.screenshot {path?, inline?}`: PNG of the window (`inline`: as base64 `data` in the answer)
+//! - `app.status`: whether the mailbox is open; while the window still opens it, the one request
+//!   answered (every other is refused, `crate::opening::STILL_OPENING`)
 //!
 //! A request the MCP bridge marked as an agent's (`agent`) goes through [`crate::agent_gate`].
 //! - `ui.parity`: feature catalog parity
@@ -119,6 +121,8 @@ pub fn inspect(app: &mut MailApp, ctx: &egui::Context) -> Value {
         "dirty": app.session.dirty,
         "syncing": app.syncing(),
         "saving": app.saving_inspect(),
+        // A mailbox being read in the background (File › Open).
+        "opening": crate::opening::ahead_inspect(app),
         "status": app.status_msg.as_ref().map(|(m, _)| m.clone()),
         "textSelection": crate::reading::selection_inspect(app, ctx),
         "perf": {"frameMs": app.frame_ms},
@@ -240,6 +244,9 @@ pub fn handle(app: &mut MailApp, ctx: &egui::Context, req: &ControlRequest) -> O
             Err(e) => err(e),
         },
         "ui.inspect" => ok(inspect(app, ctx)),
+        // Whether the mailbox is open (while it opens, this alone is answered: `opening`), and
+        // the one being read in the background, if any.
+        "app.status" => ok(json!({"mailbox": "open", "opening": crate::opening::ahead_inspect(app)})),
         "ui.parity" => ok(mailcraft_engine::catalog::parity(&app.session.registry)),
         // The desktop alerts the window showed (read only: nothing can ask for one).
         "ui.alerts" => ok(crate::alerts::inspect(app, p)),

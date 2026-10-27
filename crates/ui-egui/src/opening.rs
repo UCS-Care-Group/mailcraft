@@ -1,0 +1,459 @@
+// SPDX-FileCopyrightText: MailCraft contributors
+// SPDX-License-Identifier: MIT OR Apache-2.0
+//! Opening a mailbox (#519).
+//!
+//! **At launch** the window comes up at once and the host reads the mailbox on a thread of its
+//! own ([`Opening`]). Until it has arrived the window is an [`MailApp::opening`]: it shows the
+//! opening screen (our mark, how many bytes are read of how many, then "Getting ready…") once
+//! opening has taken longer than a moment, and nothing else. It can be moved, resized and closed,
+//! and that is all:
+//! - every command is refused, and every request of the control channel (agents, the MCP bridge)
+//!   is answered [`STILL_OPENING`], but `app.status`, which says how far it has got;
+//! - files and links handed to the window (a second start, Finder, the command line) wait, and
+//!   are opened once the mailbox is;
+//! - nothing starts: no Send/Receive, no Inbox pass, no word index, no pictures;
+//! - closing it writes nothing (no mailbox, no settings): nothing has changed.
+//!
+//! A mailbox that couldn't be read, or was damaged or repaired, says so on the same screen with a
+//! Continue button ([`Trouble`]); after it the window carries on as it always did with such a
+//! mailbox. The host then builds the window as it would have with the mailbox in hand ([`Build`]).
+//!
+//! **Later** (File › Open, a mailbox file dropped or handed over), the host reads the other file
+//! in the background ([`crate::Services::read_ahead`]) while the mailbox that is open stays in
+//! use; the status bar says how far it has got, with Cancel (`ui.cancelOpen`). Once it is read,
+//! `file.open` runs as it always did (what is unsaved is written first) and takes what was read.
+
+use std::path::PathBuf;
+use std::sync::Arc;
+use std::sync::mpsc::{Receiver, TryRecvError};
+use std::time::Duration;
+
+use egui::{Color32, Painter, Pos2, Rect, Shape, Stroke, Ui, pos2, vec2};
+use mailcraft_engine::io::OpenProgress;
+use mailcraft_model::Mailbox;
+use serde_json::{Value, json};
+
+use crate::theme::{Tokens, regular, semibold};
+use crate::{MailApp, i18n};
+
+/// What every command and control request is answered while the mailbox opens.
+pub const STILL_OPENING: &str = "the mailbox is still opening";
+
+/// How long opening may take before the opening screen shows (a quick open never shows it).
+pub const SHOW_AFTER_MS: f64 = 300.0;
+
+/// How many files and links handed over while opening are kept to open after it.
+const MAX_QUEUED: usize = 64;
+
+/// Why the owner is told something about the mailbox before the window carries on.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Trouble {
+    /// The file couldn't be read (the reason, in the engine's words): the window starts with an
+    /// empty mailbox that keeps nothing, so the file stays as it is.
+    Unreadable(String),
+    /// Reading it stopped before it was done (the reading thread ended unexpectedly): as
+    /// unreadable.
+    Stopped,
+    /// Part of the file was damaged and left out.
+    Damaged,
+    /// So many things in it didn't fit together and were put right.
+    Repaired(usize),
+}
+
+/// The mailbox the window starts with, as the host read it.
+pub struct Arrival {
+    pub mailbox: Mailbox,
+    /// The file it is kept in (none: nowhere, or it couldn't be read, so nothing is written).
+    pub path: Option<PathBuf>,
+    /// Bodies and attachments that couldn't be read back from the content folder.
+    pub unavailable: usize,
+    /// Part of the mailbox file itself was damaged and left out.
+    pub damaged: bool,
+    /// What the owner is told first, if anything.
+    pub trouble: Option<Trouble>,
+}
+
+impl Arrival {
+    /// A mailbox read without trouble (or one that isn't kept anywhere, `path` none).
+    pub fn opened(mailbox: Mailbox, path: Option<PathBuf>) -> Arrival {
+        Arrival { mailbox, path, unavailable: 0, damaged: false, trouble: None }
+    }
+
+    /// The file couldn't be read (`trouble` says why): an empty mailbox, kept nowhere.
+    pub fn unreadable(trouble: Trouble) -> Arrival {
+        Arrival { mailbox: Mailbox::with_local_account("", ""), path: None, unavailable: 0, damaged: false, trouble: Some(trouble) }
+    }
+}
+
+/// How the host makes the window once its mailbox is there: what it would have done at launch
+/// with the mailbox in hand.
+pub type Build = Box<dyn FnOnce(Arrival) -> MailApp>;
+
+/// A window waiting for the mailbox it starts with ([`MailApp::opening`]).
+pub struct Opening {
+    rx: Receiver<Arrival>,
+    progress: Arc<OpenProgress>,
+    build: Option<Build>,
+    /// When the window first waited ([`crate::now_ms`]).
+    since: Option<f64>,
+    /// The mailbox, while the owner is told what was wrong with it.
+    held: Option<Arrival>,
+    /// Files and links handed to the window meanwhile.
+    queued: Vec<String>,
+}
+
+impl Opening {
+    /// Wait for the mailbox the host reads and sends through `rx`, counting what it reads in
+    /// `progress`; `build` makes the window once it has arrived.
+    pub fn new(rx: Receiver<Arrival>, progress: Arc<OpenProgress>, build: Build) -> Opening {
+        Opening { rx, progress, build: Some(build), since: None, held: None, queued: Vec::new() }
+    }
+
+    /// What `app.status` says while the window waits.
+    fn status(&self) -> Value {
+        let stage = if self.held.is_some() {
+            "problem"
+        } else if self.progress.reading_done() {
+            "gettingReady"
+        } else {
+            "reading"
+        };
+        json!({"mailbox": "opening", "stage": stage, "read": self.progress.read(), "total": self.progress.total()})
+    }
+}
+
+impl MailApp {
+    /// A window whose mailbox is still being read ([`Opening`]), in the owner's interface
+    /// settings (`prefs`: the theme, the language and the size of the interface are there from
+    /// the first frame) and the system's language (`system_locale`).
+    pub fn opening(opening: Opening, prefs: Option<crate::UiState>, system_locale: Option<String>) -> MailApp {
+        let mut app = MailApp::new(mailcraft_engine::Session::new(Mailbox::with_local_account("", "")), crate::Services::default());
+        app.services.system_locale = system_locale;
+        if let Some(prefs) = prefs {
+            app.apply_prefs(prefs);
+        }
+        // Nothing of the window waiting is ever written.
+        app.autosave = false;
+        app.auto_sync = false;
+        app.opening = Some(opening);
+        app
+    }
+
+    /// The window is still waiting for its mailbox.
+    pub fn is_opening(&self) -> bool {
+        self.opening.is_some()
+    }
+}
+
+/// Once a frame while the window waits: answer the control channel, and take the mailbox when it
+/// has arrived.
+pub(crate) fn logic(app: &mut MailApp, ctx: &egui::Context) {
+    if app.ctx.is_none() {
+        app.ctx = Some(ctx.clone());
+    }
+    answer_control(app);
+    let Some(o) = app.opening.as_mut() else { return };
+    o.since.get_or_insert_with(crate::now_ms);
+    if o.held.is_none() {
+        match o.rx.try_recv() {
+            Ok(arrival) if arrival.trouble.is_some() => o.held = Some(arrival),
+            Ok(arrival) => return arrive(app, arrival),
+            Err(TryRecvError::Empty) => {}
+            // The host's thread ended without a word.
+            Err(TryRecvError::Disconnected) => o.held = Some(Arrival::unreadable(Trouble::Stopped)),
+        }
+    }
+    if o.held.is_none() {
+        // The bytes read move on, and the screen comes after a moment.
+        ctx.request_repaint_after(Duration::from_millis(100));
+    }
+}
+
+/// Every request of the control channel while the window waits: `app.status` says how far it
+/// has got, anything else that the mailbox is still opening.
+fn answer_control(app: &mut MailApp) {
+    let Some(rx) = app.control_rx.take() else { return };
+    while let Ok(req) = rx.try_recv() {
+        let answer = match (req.method.as_str(), &app.opening) {
+            ("app.status", Some(o)) => json!({"ok": true, "result": o.status()}),
+            _ => json!({"ok": false, "error": STILL_OPENING}),
+        };
+        let _ = req.reply.send(answer);
+    }
+    app.control_rx = Some(rx);
+}
+
+/// A file or link handed to the window while it waits: kept to open after.
+pub(crate) fn queue(app: &mut MailApp, path: &str) -> bool {
+    let Some(o) = app.opening.as_mut() else { return false };
+    if o.queued.len() < MAX_QUEUED {
+        o.queued.push(path.to_string());
+    } else {
+        log::warn!("more than {MAX_QUEUED} files were handed over while the mailbox opened; the rest are left");
+    }
+    true
+}
+
+/// The owner pressed Continue after reading what was wrong with the mailbox.
+pub(crate) fn go_on(app: &mut MailApp) {
+    let Some(arrival) = app.opening.as_mut().and_then(|o| o.held.take()) else { return };
+    arrive(app, arrival);
+}
+
+/// The mailbox is here: the host makes the window, which takes over what the waiting one had
+/// (the control channel, where the window is, the look already in force), and the files handed
+/// over meanwhile are opened.
+fn arrive(app: &mut MailApp, arrival: Arrival) {
+    let Some(mut o) = app.opening.take() else { return };
+    let Some(build) = o.build.take() else { return };
+    let mut next = build(arrival);
+    if next.control_rx.is_none() {
+        next.control_rx = app.control_rx.take();
+    }
+    next.ui.window = app.ui.window.or(next.ui.window);
+    next.ctx = app.ctx.take();
+    next.styled = app.styled;
+    next.fonts_frames = app.fonts_frames;
+    next.applied_theme = app.applied_theme;
+    *app = next;
+    for what in o.queued {
+        app.open_from_system(&what);
+    }
+}
+
+/// The window while it waits: the canvas, then, after a moment, the opening screen.
+pub(crate) fn show(app: &mut MailApp, ui: &mut Ui) {
+    let t = Tokens::get(ui.ctx());
+    let mut continued = false;
+    egui::CentralPanel::default().frame(egui::Frame::NONE.fill(t.canvas)).show(ui, |ui| {
+        let Some(o) = &app.opening else { return };
+        let waited = crate::now_ms() - o.since.unwrap_or_else(crate::now_ms);
+        if o.held.is_none() && waited < SHOW_AFTER_MS {
+            return;
+        }
+        let area = ui.max_rect();
+        let width = 440.0f32.min(area.width() - 32.0).max(160.0);
+        let top = area.center().y - 150.0;
+        let column =
+            Rect::from_min_max(pos2(area.center().x - width / 2.0, top.max(area.min.y + 16.0)), pos2(area.center().x + width / 2.0, area.max.y));
+        ui.scope_builder(egui::UiBuilder::new().max_rect(column), |ui| {
+            ui.vertical_centered(|ui| {
+                let (mark_rect, _) = ui.allocate_exact_size(vec2(72.0, 72.0), egui::Sense::hover());
+                paint_mark(ui.painter(), mark_rect, &t);
+                ui.add_space(22.0);
+                match &o.held {
+                    Some(arrival) => continued = problem(ui, &t, arrival.trouble.as_ref()),
+                    None => progress(ui, &t, &o.progress),
+                }
+            });
+        });
+    });
+    if continued {
+        go_on(app);
+    }
+}
+
+/// How far opening has got: the bytes read of the file's, then "Getting ready…".
+fn progress(ui: &mut Ui, t: &Tokens, progress: &OpenProgress) {
+    let total = progress.total();
+    if total == 0 {
+        // Where reading can't say how far it has got (the browser's storage).
+        ui.label(egui::RichText::new(tl!("Opening…")).font(semibold(18.0)).color(t.text));
+        return;
+    }
+    ui.label(egui::RichText::new(tl!("Opening your mailbox…")).font(semibold(18.0)).color(t.text));
+    ui.add_space(16.0);
+    let read = progress.read().min(total);
+    let fraction = (read as f64 / total as f64) as f32;
+    let (bar, _) = ui.allocate_exact_size(vec2(ui.available_width().min(320.0), 6.0), egui::Sense::hover());
+    ui.painter().rect_filled(bar, 3.0, if t.dark { t.border } else { t.border_strong.linear_multiply(0.6) });
+    if fraction > 0.0 {
+        let filled = Rect::from_min_max(bar.min, pos2(bar.min.x + (bar.width() * fraction).max(6.0), bar.max.y));
+        ui.painter().rect_filled(filled, 3.0, t.accent);
+    }
+    ui.add_space(10.0);
+    let said = if progress.reading_done() {
+        tl!("Getting ready…").to_string()
+    } else {
+        i18n::fmt(tl!("{read} of {total} MB"), &[("read", &megabytes(read, total)), ("total", &megabytes(total, total))])
+    };
+    ui.label(egui::RichText::new(said).font(regular(13.0)).color(t.text_dim));
+}
+
+/// `bytes` in megabytes, as precisely as `total` needs: a small file in tenths.
+pub(crate) fn megabytes(bytes: u64, total: u64) -> String {
+    let mb = bytes as f64 / 1_000_000.0;
+    if total < 10_000_000 { format!("{mb:.1}") } else { format!("{}", mb.round() as u64) }
+}
+
+/// What was wrong with the mailbox, and Continue: whether it was pressed.
+fn problem(ui: &mut Ui, t: &Tokens, trouble: Option<&Trouble>) -> bool {
+    let (heading, why, then) = match trouble {
+        Some(Trouble::Unreadable(why)) => (
+            tl!("Your mailbox couldn't be opened"),
+            tl!(why).to_string(),
+            tl!("MailCraft starts with an empty mailbox and leaves the file as it is."),
+        ),
+        Some(Trouble::Stopped) | None => (
+            tl!("Your mailbox couldn't be opened"),
+            tl!("MailCraft stopped reading it before it was done.").to_string(),
+            tl!("MailCraft starts with an empty mailbox and leaves the file as it is."),
+        ),
+        Some(Trouble::Damaged) => {
+            (tl!("Part of your mailbox is damaged"), crate::damaged_mailbox_notice(), tl!("Everything else in it opens as usual."))
+        }
+        Some(Trouble::Repaired(n)) => (
+            tl!("Your mailbox was repaired"),
+            tln!(*n, "{n} thing in it didn't fit with the rest and was put right.", "{n} things in it didn't fit with the rest and were put right."),
+            tl!("Everything else in it opens as usual."),
+        ),
+    };
+    ui.label(egui::RichText::new(heading).font(semibold(18.0)).color(t.text));
+    ui.add_space(12.0);
+    ui.label(egui::RichText::new(why).font(regular(13.0)).color(t.text));
+    ui.add_space(8.0);
+    ui.label(egui::RichText::new(then).font(regular(13.0)).color(t.text_dim));
+    ui.add_space(20.0);
+    crate::widgets::primary_button(ui, tl!("Continue"), true).clicked()
+}
+
+/// MailCraft's mark, drawn here: a rounded square in the app colour, an envelope with its flap,
+/// and a small four-point spark.
+pub(crate) fn paint_mark(p: &Painter, r: Rect, t: &Tokens) {
+    let side = r.width().min(r.height());
+    let at = |x: f32, y: f32| -> Pos2 { r.min + vec2(x * side, y * side) };
+    p.rect_filled(Rect::from_min_size(r.min, vec2(side, side)), side * 0.225, t.accent);
+    let envelope = Rect::from_min_max(at(0.19, 0.33), at(0.81, 0.76));
+    p.rect_filled(envelope, side * 0.045, t.on_accent);
+    let flap = Stroke::new((side * 0.038).max(1.0), t.accent);
+    p.line_segment([at(0.225, 0.36), at(0.5, 0.575)], flap);
+    p.line_segment([at(0.775, 0.36), at(0.5, 0.575)], flap);
+    // The spark: two thin diamonds crossed.
+    let (c, long, short) = (at(0.755, 0.235), side * 0.118, side * 0.034);
+    let diamond = |dx: f32, dy: f32, ex: f32, ey: f32, fill: Color32| {
+        Shape::convex_polygon(vec![c + vec2(-dx, -dy), c + vec2(-ex, ey), c + vec2(dx, dy), c + vec2(ex, -ey)], fill, Stroke::NONE)
+    };
+    p.add(diamond(long, 0.0, 0.0, short, t.icon_yellow));
+    p.add(diamond(0.0, long, short, 0.0, t.icon_yellow));
+}
+
+// ---- a mailbox opened later, in the background ----
+
+/// Another mailbox file being read while the one open stays in use (File › Open).
+pub(crate) struct ReadAhead {
+    path: PathBuf,
+    /// Its file's name, for the status bar.
+    name: String,
+    progress: Arc<OpenProgress>,
+    rx: Receiver<Result<(), String>>,
+}
+
+/// Whether `file.open` with `params`, asked for by the owner, reads the file in the background
+/// first: a file on disk, other than the one open, where the host can read ahead.
+pub(crate) fn reads_ahead(app: &MailApp, params: &Value) -> bool {
+    if app.services.read_ahead.is_none() || app.swapping || app.running_after_save || params.get("data").is_some() {
+        return false;
+    }
+    let Some(path) = params.get("path").and_then(Value::as_str) else { return false };
+    // Never the mailbox open now, however its path is spelt.
+    let whole = |p: &std::path::Path| std::path::absolute(p).unwrap_or_else(|_| p.to_path_buf());
+    app.session.path.as_deref().map(whole) != Some(whole(std::path::Path::new(path)))
+}
+
+/// Start reading the file `params` names in the background, in place of any other being read.
+pub(crate) fn read_ahead(app: &mut MailApp, params: &Value) -> Result<Value, String> {
+    let path = PathBuf::from(params.get("path").and_then(Value::as_str).unwrap_or_default());
+    cancel_ahead(app);
+    // An earlier one, read and waiting for the save before it opens, gives way to this one.
+    if app.after_save.as_ref().is_some_and(|(id, _)| id == "file.open")
+        && let Some((id, waited)) = app.after_save.take()
+    {
+        forget_unopened(&id, &waited);
+        app.after_save_outcome = Some(json!({"command": id, "ok": false, "error": "file.open was asked for instead"}));
+    }
+    let Some(start) = &app.services.read_ahead else { return Err("this window can't open mailboxes in the background".into()) };
+    let progress = Arc::new(OpenProgress::default());
+    let rx = start(path.clone(), progress.clone());
+    let name = path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_else(|| path.to_string_lossy().to_string());
+    app.reading_ahead = Some(ReadAhead { path: path.clone(), name, progress, rx });
+    Ok(json!({"pending": "opening", "path": path.to_string_lossy()}))
+}
+
+/// Give up the mailbox being read in the background, and what was read of it (`ui.cancelOpen`).
+pub(crate) fn cancel_ahead(app: &mut MailApp) -> bool {
+    let Some(ahead) = app.reading_ahead.take() else { return false };
+    ahead.progress.cancel();
+    #[cfg(not(target_arch = "wasm32"))]
+    mailcraft_engine::store::forget_ahead(&ahead.path);
+    true
+}
+
+/// A `file.open` that read its file ahead and then didn't run (the save it waited for failed, or
+/// something else was asked for instead): what was read of it is let go of.
+pub(crate) fn forget_unopened(id: &str, params: &Value) {
+    #[cfg(not(target_arch = "wasm32"))]
+    if id == "file.open"
+        && let Some(path) = params.get("path").and_then(Value::as_str)
+    {
+        mailcraft_engine::store::forget_ahead(std::path::Path::new(path));
+    }
+    #[cfg(target_arch = "wasm32")]
+    let _ = (id, params);
+}
+
+/// Once a frame: the mailbox read in the background, once it is, takes the place of the one open
+/// through `file.open`, which writes what is unsaved first, as it always did.
+pub(crate) fn poll_ahead(app: &mut MailApp, ctx: &egui::Context) {
+    let Some(ahead) = &app.reading_ahead else { return };
+    let read = match ahead.rx.try_recv() {
+        Err(TryRecvError::Empty) => {
+            ctx.request_repaint_after(Duration::from_millis(200));
+            return;
+        }
+        Ok(read) => read,
+        Err(TryRecvError::Disconnected) => Err(tl!("MailCraft stopped reading it before it was done.").to_string()),
+    };
+    let Some(ahead) = app.reading_ahead.take() else { return };
+    match read {
+        Ok(()) => {
+            app.swapping = true;
+            let r = app.run("file.open", json!({"path": ahead.path.to_string_lossy()}));
+            app.swapping = false;
+            // Not opened: what was read of it isn't kept for later.
+            if r.is_err() {
+                #[cfg(not(target_arch = "wasm32"))]
+                mailcraft_engine::store::forget_ahead(&ahead.path);
+            }
+        }
+        Err(e) => {
+            let said = i18n::fmt(tl!("Couldn't open {name}: {error}"), &[("name", &ahead.name), ("error", tl!(&e))]);
+            app.status(said);
+        }
+    }
+}
+
+/// The status bar's word on the mailbox being read in the background: "Opening Archive.mailcraft…
+/// 45%" and its bar, then without the share once it is all read. `None`: there is none.
+pub(crate) fn ahead_label(app: &MailApp) -> Option<(String, f32)> {
+    let ahead = app.reading_ahead.as_ref()?;
+    let (read, total) = (ahead.progress.read(), ahead.progress.total());
+    if total == 0 || ahead.progress.reading_done() {
+        return Some((i18n::fmt(tl!("Opening {name}…"), &[("name", &ahead.name)]), 1.0));
+    }
+    let fraction = (read.min(total) as f64 / total as f64) as f32;
+    let percent = ((fraction * 100.0).floor() as u32).min(100);
+    Some((i18n::fmt(tl!("Opening {name}… {percent}%"), &[("name", &ahead.name), ("percent", &percent.to_string())]), fraction))
+}
+
+/// What `app.status` and `ui.inspect` say of the mailbox being read in the background.
+pub(crate) fn ahead_inspect(app: &MailApp) -> Value {
+    match &app.reading_ahead {
+        // The file's name alone: where it is kept is nobody else's business.
+        Some(a) => json!({"name": a.name, "read": a.progress.read(), "total": a.progress.total()}),
+        None => Value::Null,
+    }
+}
+
+#[cfg(test)]
+#[path = "opening_tests.rs"]
+mod opening_tests;

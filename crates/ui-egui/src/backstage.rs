@@ -424,8 +424,8 @@ fn open(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         section(ui, tl!("Recent"), t);
         for path in app.ui.recent.clone() {
             if ui.link(path.as_str()).clicked() {
+                // (File closes once it is open.)
                 let _ = app.run("file.open", json!({"path": path}));
-                app.ui.backstage = false;
             }
         }
     }
