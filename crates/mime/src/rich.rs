@@ -16,8 +16,8 @@
 //! fonts, alignment and everything else are dropped.
 
 use mailcraft_html::{Block, BlockKind, Marker, Span};
-use mailcraft_model::rich::{Font, ListKind, MAX_LEVEL, MAX_SIZE, MIN_SIZE, Paragraph, RichText, Run, Style, safe_color, safe_link};
-use mailcraft_model::signature::{Layout, MAX_WIDTH, Picture, Signature};
+use mailcraft_model::rich::{Font, ListKind, MAX_LEVEL, MAX_SIZE, MIN_SIZE, OBJECT, Paragraph, RichText, Run, Style, safe_color, safe_link};
+use mailcraft_model::signature::{Layout, Picture, Signature};
 
 /// How a picture of the text is written: its `cid:` address (without the scheme), the width it
 /// is shown at and its description.
@@ -124,7 +124,7 @@ fn img(out: &mut String, img: &Img) {
     out.push_str(&mailcraft_html::escape(&cid));
     out.push('"');
     if let Some(w) = img.width {
-        out.push_str(&format!(" width=\"{}\"", w.clamp(1, MAX_WIDTH)));
+        out.push_str(&format!(" width=\"{}\"", w.clamp(1, mailcraft_model::pictures::MAX_SHOWN_WIDTH)));
     }
     out.push_str(" alt=\"");
     out.push_str(&mailcraft_html::escape(&img.alt.chars().filter(|c| !c.is_control()).collect::<String>()));
@@ -252,9 +252,127 @@ fn runs(out: &mut String, p: &Paragraph, pictures: &dyn Fn(u32) -> Option<Img>) 
 /// [`to_html`] writes them (`<div><br></div>`): a reader shows nothing there, but the owner put
 /// them there.
 pub fn from_html(html: &str) -> RichText {
+    read(html, false)
+}
+
+/// An `<img src="cid:…">` of an HTML draft this program wrote.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct ImgRef {
+    /// The Content-ID, without `cid:`.
+    pub cid: String,
+    /// The `width` it was written with.
+    pub width: Option<u16>,
+    /// The `alt` it was written with.
+    pub alt: String,
+}
+
+/// [`from_html`] for a draft of this program's: each `<img src="cid:…">` that `claim` takes (it
+/// answers the id the picture has in the text) stands in the text where it was, as a picture
+/// run. Any other picture is left out, as in [`from_html`].
+pub fn from_html_with_pictures(html: &str, claim: &mut dyn FnMut(&ImgRef) -> Option<u32>) -> RichText {
+    read(&mark_pictures(html, claim), true)
+}
+
+/// `html` with each picture `claim` takes written as `OBJECT id OBJECT` in its place, and no
+/// other `OBJECT` (nothing but this puts one in the text).
+fn mark_pictures(html: &str, claim: &mut dyn FnMut(&ImgRef) -> Option<u32>) -> String {
+    let html = html.replace(OBJECT, "");
+    let lower = html.to_ascii_lowercase();
+    let (mut out, mut at) = (String::with_capacity(html.len()), 0usize);
+    while let Some(start) = lower.get(at..).and_then(|rest| rest.find("<img")).map(|rel| at + rel) {
+        let after = start + 4;
+        let boundary = html.as_bytes().get(after).is_some_and(|b| b.is_ascii_whitespace() || matches!(b, b'/' | b'>'));
+        let end = if boundary { tag_end(&html, after) } else { None };
+        let Some(end) = end else {
+            // Not a tag of its own (`<imgx>`) or never closed: kept as it is.
+            out.push_str(html.get(at..after).unwrap_or(""));
+            at = after;
+            continue;
+        };
+        out.push_str(html.get(at..start).unwrap_or(""));
+        let tag = html.get(after..end).unwrap_or("");
+        match img_ref(tag).and_then(|img| claim(&img)) {
+            Some(id) => out.push_str(&format!("{OBJECT}{id}{OBJECT}")),
+            None => out.push_str(html.get(start..end).unwrap_or("")),
+        }
+        at = end;
+    }
+    out.push_str(html.get(at..).unwrap_or(""));
+    out
+}
+
+/// Where the tag whose attributes start at `from` ends (just past its `>`), quotes respected.
+fn tag_end(html: &str, from: usize) -> Option<usize> {
+    let mut quote = None;
+    for (i, b) in html.as_bytes().get(from..)?.iter().enumerate() {
+        match (quote, *b) {
+            (Some(q), b) if b == q => quote = None,
+            (Some(_), _) => {}
+            (None, b'"' | b'\'') => quote = Some(*b),
+            (None, b'>') => return Some(from + i + 1),
+            _ => {}
+        }
+    }
+    None
+}
+
+/// The `src`, `width` and `alt` of an `<img>` whose attributes are `attrs`, when `src` is a `cid:`.
+fn img_ref(attrs: &str) -> Option<ImgRef> {
+    let chars: Vec<char> = attrs.trim_end_matches('>').chars().collect();
+    let (mut i, mut img, mut src) = (0usize, ImgRef::default(), None);
+    while i < chars.len() {
+        while chars.get(i).is_some_and(|c| c.is_whitespace() || *c == '/') {
+            i += 1;
+        }
+        let name_start = i;
+        while chars.get(i).is_some_and(|c| !c.is_whitespace() && !matches!(c, '=' | '/')) {
+            i += 1;
+        }
+        let name: String = chars.get(name_start..i).unwrap_or(&[]).iter().collect::<String>().to_ascii_lowercase();
+        while chars.get(i).is_some_and(|c| c.is_whitespace()) {
+            i += 1;
+        }
+        let mut value = String::new();
+        if chars.get(i) == Some(&'=') {
+            i += 1;
+            while chars.get(i).is_some_and(|c| c.is_whitespace()) {
+                i += 1;
+            }
+            match chars.get(i) {
+                Some(q @ ('"' | '\'')) => {
+                    i += 1;
+                    while let Some(c) = chars.get(i).filter(|c| *c != q) {
+                        value.push(*c);
+                        i += 1;
+                    }
+                    i += 1;
+                }
+                _ => {
+                    while let Some(c) = chars.get(i).filter(|c| !c.is_whitespace()) {
+                        value.push(*c);
+                        i += 1;
+                    }
+                }
+            }
+        }
+        match name.as_str() {
+            "src" => src = Some(value),
+            "width" => img.width = value.trim().parse().ok(),
+            "alt" => img.alt = value.replace("&quot;", "\"").replace("&#39;", "'").replace("&lt;", "<").replace("&gt;", ">").replace("&amp;", "&"),
+            _ => {}
+        }
+    }
+    let src = src?;
+    let src = src.trim();
+    let cid = src.get(..4).filter(|p| p.eq_ignore_ascii_case("cid:")).and_then(|_| src.get(4..))?;
+    img.cid = cid.to_string();
+    Some(img)
+}
+
+fn read(html: &str, pictures: bool) -> RichText {
     // The look and the text only: pictures written into the HTML are not decoded for this.
     let blocks = mailcraft_html::parse_text(html);
-    let mut reader = Reader { out: Vec::new() };
+    let mut reader = Reader { out: Vec::new(), pictures };
     reader.blocks(&blocks);
     let (lead, trail) = edge_blank_lines(html);
     let found = !reader.out.is_empty();
@@ -289,6 +407,8 @@ fn edge_blank_lines(html: &str) -> (usize, usize) {
 
 struct Reader {
     out: Vec<Paragraph>,
+    /// The text holds pictures written as `OBJECT id OBJECT` ([`mark_pictures`]).
+    pictures: bool,
 }
 
 impl Reader {
@@ -345,6 +465,18 @@ impl Reader {
             for (i, line) in text.split('\n').enumerate() {
                 if i > 0 {
                     self.out.push(Paragraph::new(std::mem::take(&mut cur), list).at_level(level));
+                }
+                if self.pictures && line.contains(OBJECT) {
+                    // (Text, a picture's id, text, an id, text…: the marks come in pairs.)
+                    for (n, part) in line.split(OBJECT).enumerate() {
+                        match (n % 2, part.parse::<u32>()) {
+                            (1, Ok(id)) => cur.push(Run::picture(id, style.clone())),
+                            (1, Err(_)) => {}
+                            _ if part.is_empty() => {}
+                            _ => cur.push(Run::new(part, style.clone())),
+                        }
+                    }
+                    continue;
                 }
                 cur.push(Run::new(line, style.clone()));
             }

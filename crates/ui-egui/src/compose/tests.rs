@@ -16,15 +16,15 @@ use crate::{MailApp, Services};
 /// Wednesday 2026-10-14 16:00 UTC.
 const NOW: i64 = 1_791_993_600;
 
-type Window = Harness<'static, MailApp>;
+pub(super) type Window = Harness<'static, MailApp>;
 
-fn app() -> MailApp {
+pub(super) fn app() -> MailApp {
     let mut app = MailApp::new(Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0), Services::default());
     app.autosave = false;
     app
 }
 
-fn window(app: MailApp) -> Window {
+pub(super) fn window(app: MailApp) -> Window {
     let mut harness = Harness::builder().with_accessibility_check(false).allow_missing_glyphs().with_size(egui::vec2(1280.0, 800.0)).build_ui_state(
         |ui, app: &mut MailApp| {
             let ctx = ui.ctx().clone();
@@ -38,7 +38,7 @@ fn window(app: MailApp) -> Window {
 }
 
 /// A new message, with the keyboard in its body and nothing in it.
-fn writing() -> Window {
+pub(super) fn writing() -> Window {
     let mut a = app();
     a.execute("mail.new", json!({"to": "maya@lumen.example"})).unwrap();
     a.execute("compose.set", json!({"body": ""})).unwrap();
@@ -50,7 +50,7 @@ fn writing() -> Window {
     h
 }
 
-fn key_with(h: &mut Window, modifiers: Modifiers, key: Key) {
+pub(super) fn key_with(h: &mut Window, modifiers: Modifiers, key: Key) {
     for pressed in [true, false] {
         h.event(Event::Key { key, physical_key: None, pressed, repeat: false, modifiers });
         h.step();
@@ -58,20 +58,20 @@ fn key_with(h: &mut Window, modifiers: Modifiers, key: Key) {
     h.run_steps(1);
 }
 
-fn key(h: &mut Window, key: Key) {
+pub(super) fn key(h: &mut Window, key: Key) {
     key_with(h, Modifiers::NONE, key);
 }
 
-fn type_in(h: &mut Window, text: &str) {
+pub(super) fn type_in(h: &mut Window, text: &str) {
     h.event(Event::Text(text.into()));
     h.run_steps(2);
 }
 
-fn plain(h: &Window) -> String {
+pub(super) fn plain(h: &Window) -> String {
     h.state().session.compose.as_ref().unwrap().body.plain()
 }
 
-fn sel(h: &Window) -> Selection {
+pub(super) fn sel(h: &Window) -> Selection {
     h.state().session.compose.as_ref().unwrap().body.selection()
 }
 

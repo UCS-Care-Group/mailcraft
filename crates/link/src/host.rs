@@ -11,25 +11,16 @@ const MAX_LABEL: usize = 63;
 /// Longest host name read at all, before it is written in ASCII.
 const MAX_HOST_INPUT: usize = 1024;
 
-/// A character that has no place in a label: it is invisible, or it is a full stop in another
-/// script (a browser would split the name at it).
+/// A character that has no place in a label: it is invisible (a format character; the joiners are
+/// checked apart, by IDNA2008's rules), or it is a full stop in another script (a browser would
+/// split the name at it).
 fn refused(c: char) -> bool {
     c.is_control()
         || c.is_whitespace()
         || c == '\u{fffd}'
         || matches!(c, '\u{3002}' | '\u{ff0e}' | '\u{ff61}' | '\u{2024}' | '\u{fe52}')
         || (c.is_ascii() && !(c.is_ascii_alphanumeric() || matches!(c, '-' | '_')))
-        || is_format(c)
-}
-
-/// Unicode's format characters that change how text is shown without being seen (bidi controls,
-/// zero-width marks and joiners, the byte-order mark, a soft hyphen, tags).
-fn is_format(c: char) -> bool {
-    matches!(c as u32,
-        0xad | 0x600..=0x605 | 0x61c | 0x6dd | 0x70f | 0x890 | 0x891 | 0x8e2 | 0x180e
-        | 0x200b | 0x200e | 0x200f | 0x202a..=0x202e | 0x2060..=0x2064 | 0x2066..=0x206f
-        | 0xfeff | 0xfff9..=0xfffb | 0x110bd | 0x110cd | 0x13430..=0x1343f | 0x1bca0..=0x1bca3
-        | 0x1d173..=0x1d17a | 0xe0001 | 0xe0020..=0xe007f)
+        || (mailcraft_names::is_format(c) && !mailcraft_names::is_joiner(c))
 }
 
 /// A virama: the mark of an Indic script that joins the consonant before it to the next
