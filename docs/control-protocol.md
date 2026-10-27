@@ -80,9 +80,10 @@ sends, with what the owner allowed with `--allow` (`send`, `delete`, `accounts`,
   `file.new` and `file.open`, which close the message and the windows of the mailbox's
   appointments; #494), and so is taking away an appointment whose window of its own has such
   changes (`calendar.delete`, `calendar.removeCalendar`, an undo or a redo); any other command
-  that would take one away, any command that would take away one being changed in the dialog,
-  and putting another time proposed into such a window or closing the Appointment Recurrence
-  dialog the owner changed something in, are refused and change nothing; a command that would
+  that would take one away, any command that would take away an appointment, a contact or a task
+  being changed in the dialog (another mailbox in view included), putting another time proposed
+  into such a window, closing the Appointment Recurrence dialog the owner changed something in,
+  and a `file.new` or `file.open` that would wait for a save, are refused and change nothing; a command that would
   open another dialog in place of such a form runs, but that dialog isn't shown and the agent is
   told;
 - `ui.click`, `ui.move`, `ui.drag`, `ui.key`, `ui.text` need `input`, and are refused while a

@@ -52,6 +52,7 @@ USAGE:
                                                 mailbox, settings or input (clicking and typing).
                                                 Leaving or throwing away what the owner is writing
                                                 or changing is asked about in the app every time
+                                                (with input, the agent clicks as the owner does)
   mailcraft-cli --version
 ";
 

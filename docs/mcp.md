@@ -73,16 +73,18 @@ a task with changes that aren't saved, in the dialog that `ui.closeDialog` would
 own that `ui.closeWindow` would close. Taking away an appointment whose window of its own has such
 changes (`calendar.delete`, `calendar.removeCalendar`, an `edit.undo` or `edit.redo` that removes
 it) asks too. Any other command that would take away an appointment with such changes (declining
-the meeting, removing one its organizer called off), and any command that would take away one being
-changed in the dialog, is refused, and nothing is changed; so is putting another time somebody
-proposed into a window with such changes (`ui.openWindow` with `proposed`), or closing the
+the meeting, removing one its organizer called off), and any command that would take away an
+appointment, a contact or a task being changed in the dialog (`people.delete`, `tasks.delete`, an
+undo, another mailbox in view), is refused, and nothing is changed; so is putting another time
+somebody proposed into a window with such changes (`ui.openWindow` with `proposed`), or closing the
 Appointment Recurrence dialog the owner has changed something in (`ui.eventWindow` with
-`"recurrence": false`). A command that would open a dialog in such a form's place runs, but that
-dialog isn't shown, the form stays, and the agent is told. An agent allowed `input` clicks and
-types as the owner does, and what it does by hand in the window (the composer's Discard, an answer
-to Unsaved Message) is not asked about. A message only the agent wrote in is the agent's: leaving
-it saves it to Drafts without a question, and discarding it is `delete`. Headless, nothing is the
-owner's.
+`"recurrence": false`). `file.new` or `file.open` that would wait for the mailbox to be saved first
+(and run later, when the owner may be writing) is refused: the agent tries again in a moment. A
+command that would open a dialog in such a form's place runs, but that dialog isn't shown, the form
+stays, and the agent is told. An agent allowed `input` clicks and types as the owner does, and what
+it does by hand in the window (the composer's Discard, an answer to Unsaved Message) is not asked
+about. A message only the agent wrote in is the agent's: leaving it saves it to Drafts without a
+question, and discarding it is `delete`. Headless, nothing is the owner's.
 
 **The question in the window.** Bridged (`--connect`), the bridge marks every request it sends as
 an agent's ([control protocol](control-protocol.md#agents)), and the app asks the owner about what
@@ -181,4 +183,4 @@ parameters.
 | 2026-10-26 | minor | #519: `status`; while the window opens its mailbox (`--connect`), every other tool is answered "the mailbox is still opening" |
 | 2026-10-25 | minor | `view.searchSuggestions` (#308): what the search box offers, safe for agents, its answer framed as untrusted message content |
 | 2026-10-26 | minor | Sender warnings (#508): `read_message` and `mail.get` answer `warnings`, their kinds and levels as data, what they are about framed as untrusted |
-| 2026-10-27 | minor | #494: what the owner is writing or changing (a message they typed in, saved or not, until it is closed; an appointment, a contact or a task with unsaved changes, in the dialog or a window of its own) is left or thrown away by an agent only on the owner's yes in the window, every time, `compose.discard`, `ui.closeWindow`, `file.new` and `file.open` included; `--allow delete` covers discarding only a message an agent alone wrote in; any other command of an agent's that would take away an appointment being changed, or overwrite what the owner typed in its window, is refused |
+| 2026-10-27 | minor | #494: what the owner is writing or changing (a message they typed in, saved or not, until it is closed; an appointment, a contact or a task with unsaved changes, in the dialog or a window of its own) is left or thrown away by an agent only on the owner's yes in the window, every time, `compose.discard`, `ui.closeWindow`, `file.new` and `file.open` included; `--allow delete` doesn't cover throwing away a message the owner typed in; any other command of an agent's that would take away an appointment being changed, or overwrite what the owner typed in its window, is refused |
