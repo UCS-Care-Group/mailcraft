@@ -1,1 +1,0 @@
-- The opening screen shows MailCraft's real logo, and the Reminders and message windows carry MailCraft's icon in their title bar on Linux (Wayland) instead of a generic one ([#519](https://github.com/GITHUB_REPOSITORY/issues/519)).

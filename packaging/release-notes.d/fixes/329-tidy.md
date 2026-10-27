@@ -1,1 +1,0 @@
-- Advanced Search now says in the status bar when it cannot search; changing its days replaces every `received:` keyword in the search box, not just the first; and a message selected in a `received:today` list leaves the list at midnight instead of staying in it ([#329](https://github.com/GITHUB_REPOSITORY/issues/329)).
