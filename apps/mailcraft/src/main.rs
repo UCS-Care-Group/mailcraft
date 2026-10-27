@@ -224,6 +224,10 @@ impl eframe::App for App {
                 }
             }
         }
+        // Written and done with: the mailbox's memory goes with the process instead of being
+        // handed back message by message with the window still showing (a fifth of a second for
+        // 64,000 messages, #586).
+        std::mem::forget(std::mem::take(&mut self.0.session.mailbox));
     }
 }
 

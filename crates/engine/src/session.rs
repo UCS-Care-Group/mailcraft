@@ -1670,8 +1670,9 @@ impl Session {
     pub fn take_bodies(&mut self, bodies: Vec<BodyRead>) -> usize {
         // ponytail: each message taken is a new Arc, so the first save prepares it again on the
         // saver's thread (its record, and the hash of a body over 1 KB): up to the budget's bodies,
-        // 256 MB, once, off the window's thread, as `load_where` has always done. Re-point the
-        // file's entries at the new messages if that first save shows up in a measurement.
+        // 256 MB, once, off the window's thread, as `load_where` has always done (0.32 s for
+        // 11,617 bodies in `store_bench_tests.rs`, which a close waits for when the first change
+        // comes just before it). Re-point the file's entries at the new messages if that matters.
         let mut took = 0;
         for body in bodies {
             let Some(m) = self.mailbox.messages.get(&body.id) else { continue };

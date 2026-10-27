@@ -4135,7 +4135,10 @@ impl MailApp {
             if unsaved {
                 saver.submit(path, &self.session.mailbox, rev);
             }
-            if unsaved || saver.progress().is_some() {
+            // (A sweep of the content folder writes nothing of the mailbox: it isn't waited for,
+            // #586, and is left where it got to.)
+            let writing = saver.progress().is_some_and(|p| p.stage != mailcraft_engine::io::SaveStage::Sweeping);
+            if unsaved || writing {
                 self.closing_after_save = Some(rev);
                 self.quit_requested = false;
                 // Closing waits for the save now: an Open that waited for it too gives way.
