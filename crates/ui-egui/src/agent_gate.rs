@@ -147,26 +147,34 @@ fn as_the_window_has_it(app: &MailApp, id: &str, mut params: Value) -> Value {
 /// Why an agent's command can't run at all while the owner is changing what it would overwrite
 /// or take away (#494): what the owner typed in an appointment's window (`ui.openWindow` of
 /// another time proposed, `ui.eventWindow` closing the recurrence they are filling in), or the
-/// appointment they are changing in the dialog. Nothing in the window can be asked about it: the
-/// form stays whatever the answer.
+/// appointment, contact or task they are changing in the dialog, which another mailbox in view
+/// takes away too. Nothing in the window can be asked about it: the form stays whatever the
+/// answer. (What takes away a mailbox or the steps to undo is refused here, before it runs:
+/// `Session::run` puts back the mailbox of a command it refuses, not the rest.) A New or Open
+/// that would wait for the mailbox to be saved first is refused too: it would run later, when
+/// the owner may be writing.
 fn overwrites(app: &MailApp, id: &str, params: &Value) -> Option<String> {
     if crate::windows::overwrites_unsaved(app, id, params) {
         return Some(format!(
             "`{id}` would overwrite what the owner typed in an appointment's window and hasn't saved; nothing was done. Try again once the owner has saved or closed it"
         ));
     }
-    let event = changing_in_the_dialog(app)?;
-    crate::windows::takes_away(app, id, params, event).then(|| {
+    if matches!(id, "file.new" | "file.open") && app.waits_for_save() {
+        return Some(format!("`{id}` would wait for the mailbox to be saved first; nothing was done. Try again in a moment"));
+    }
+    let item = changing_in_the_dialog(app)?;
+    (matches!(id, "file.new" | "file.open") || crate::windows::takes_away(app, id, params, item)).then(|| {
         format!(
-            "`{id}` would take away the appointment the owner is changing in the dialog and hasn't saved; nothing was done. Try again once the owner has saved or closed it"
+            "`{id}` would take away what the owner is changing in the dialog and hasn't saved; nothing was done. Try again once the owner has saved or closed it"
         )
     })
 }
 
-/// The appointment the owner is changing in the dialog, with changes that aren't saved.
+/// The appointment, contact or task the owner is changing in the dialog, with changes that
+/// aren't saved.
 fn changing_in_the_dialog(app: &MailApp) -> Option<mailcraft_model::Id> {
     match &app.dialog {
-        Some(crate::dialogs::Dialog::Form(form)) if form.dirty() => form.event().and_then(|f| f.editing()),
+        Some(crate::dialogs::Dialog::Form(form)) if form.dirty() => form.editing(),
         _ => None,
     }
 }
@@ -187,9 +195,9 @@ fn run(app: &mut MailApp, id: &str, params: Value, allow: &[Class]) -> Outcome {
     let mut changing = if said_yes { Vec::new() } else { crate::windows::changing_events(app) };
     // (A question names windows only, never the form set aside.)
     if let Some(crate::dialogs::Dialog::Form(form)) = &owners
-        && let Some(event) = form.event().and_then(|f| f.editing())
+        && let Some(item) = form.editing()
     {
-        changing.push(event);
+        changing.push(item);
     }
     app.session.agent = Some(allow.to_vec());
     app.session.owner_changing = changing;

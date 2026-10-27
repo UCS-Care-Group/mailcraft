@@ -593,3 +593,92 @@ fn what_the_owner_typed_in_an_appointments_window_isnt_overwritten() {
     assert_eq!(w.state_mut().run("ui.eventWindow", json!({"window": window})).unwrap()["recurrence"], true, "still open");
     assert_eq!(w.state().windows.unsaved(), 1);
 }
+
+/// The window with the contact `contact`, or the task `task`, open in the dialog as the owner
+/// opened it, " (moved)" typed into it.
+fn changing_in_the_dialog(name: &str, id: Id) -> testing::Window {
+    let mut w = testing::window(if name == "editTask" { "view.tasks" } else { "view.people" });
+    w.state_mut().execute("ui.dialog", json!({"name": name, "id": id})).unwrap();
+    w.run_steps(3);
+    testing::text(&mut w, " (moved)");
+    assert!(matches!(&w.state().dialog, Some(Dialog::Form(f)) if f.dirty()), "{name}");
+    w
+}
+
+#[test]
+fn a_contact_or_a_task_being_changed_in_the_dialog_isnt_taken_away() {
+    let s = app().session;
+    let contact = s.mailbox.contacts.values().next().unwrap().id;
+    let task = s.mailbox.tasks.values().next().unwrap().id;
+    for (name, id, delete) in [("editContact", contact, "people.delete"), ("editTask", task, "tasks.delete")] {
+        let mut w = changing_in_the_dialog(name, id);
+        for allow in [Vec::new(), Class::ALL.to_vec()] {
+            let why = refused(allowed(w.state_mut(), delete, json!({"id": id}), allow).0);
+            assert!(why.contains("the owner is changing in the dialog"), "{name}: {why}");
+            assert!(w.state().asking.is_empty(), "{name}: no question whose yes would do nothing");
+        }
+        // Nor another mailbox in view, which takes it away with the old one.
+        let read = received(w.state());
+        w.state_mut().execute("mail.markRead", json!({"id": read})).unwrap();
+        let why = refused(allowed(w.state_mut(), "file.new", json!({}), Class::ALL.to_vec()).0);
+        assert!(why.contains("the owner is changing in the dialog"), "{name}: {why}");
+        assert!(w.state().session.can_undo(), "{name}: the steps to undo are kept");
+        let s = &w.state().session.mailbox;
+        assert!(s.contact(id).is_some() || s.task(id).is_some(), "{name}");
+        assert!(matches!(&w.state().dialog, Some(Dialog::Form(f)) if f.dirty()), "{name}");
+    }
+}
+
+#[test]
+fn an_undo_that_takes_away_a_contact_being_changed_in_the_dialog_is_refused() {
+    let mut w = testing::window("view.people");
+    let made = w.state_mut().execute("people.new", json!({"name": "Made Here", "email": "here@example.org"})).unwrap();
+    let here = made["id"].as_u64().unwrap();
+    w.state_mut().execute("ui.dialog", json!({"name": "editContact", "id": here})).unwrap();
+    w.run_steps(3);
+    testing::text(&mut w, " (moved)");
+    let why = refused(allowed(w.state_mut(), "edit.undo", json!({}), Class::ALL.to_vec()).0);
+    assert!(why.contains("the owner is changing in the dialog"), "{why}");
+    assert!(w.state().session.mailbox.contact(here).is_some() && w.state().session.can_undo());
+}
+
+#[test]
+fn a_merge_that_takes_away_a_contact_being_changed_is_undone() {
+    let s = app().session;
+    let mut contacts = s.mailbox.contacts.values().map(|c| c.id);
+    let (kept, changing) = (contacts.next().unwrap(), contacts.next().unwrap());
+    let mut w = changing_in_the_dialog("editContact", changing);
+    let (now, _) = allowed(w.state_mut(), "people.merge", json!({"keep": kept, "others": [changing]}), Class::ALL.to_vec());
+    let why = refused(now);
+    assert!(why.contains("the owner is changing in the window"), "{why}");
+    assert!(w.state().session.mailbox.contact(changing).is_some());
+}
+
+#[test]
+fn another_mailbox_doesnt_wait_for_a_save_for_an_agent() {
+    let mut a = app();
+    let path = std::env::temp_dir().join(format!("mailcraft-agent-494-{}.mailcraft", std::process::id()));
+    a.session.path = Some(path);
+    a.services.saver = Some(Box::new(mailcraft_engine::store::Saver::spawn(|| {}).unwrap()));
+    a.execute("mail.markRead", json!({"id": received(&a)})).unwrap();
+    assert!(a.waits_for_save());
+    // It would run once the mailbox is written, when the owner may be writing a message.
+    let why = refused(allowed(&mut a, "file.new", json!({}), Class::ALL.to_vec()).0);
+    assert!(why.contains("wait for the mailbox to be saved"), "{why}");
+    assert!(a.after_save.is_none());
+}
+
+#[test]
+fn closing_a_message_whose_saved_draft_an_agent_deleted_asks_the_owner() {
+    let mut a = app();
+    written(&mut a, "Mine");
+    a.run("compose.saveDraft", json!({})).unwrap();
+    let draft = draft_with(&a, "Mine").unwrap();
+    let (now, _) = allowed(&mut a, "mail.deletePermanently", json!({"ids": [draft]}), Class::ALL.to_vec());
+    assert_eq!(now.unwrap()["ok"], true);
+    assert!(a.session.mailbox.message(draft).is_none());
+    // What is written is saved nowhere now: closing it asks Unsaved Message.
+    let _ = a.run("compose.close", json!({}));
+    assert!(matches!(a.dialog, Some(Dialog::DiscardDraft { .. })));
+    assert_eq!(a.session.compose.as_ref().map(|c| c.subject.as_str()), Some("Mine"));
+}

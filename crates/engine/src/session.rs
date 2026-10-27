@@ -873,9 +873,9 @@ pub struct Session {
     /// Set while a command an agent asked for runs (with what the owner allowed it): what the
     /// command did is checked against that ([`crate::agent`]), and undone when it oversteps.
     pub agent: Option<Vec<crate::agent::Class>>,
-    /// The appointments the owner is changing in the window and hasn't saved, set by the window
-    /// while an agent's command runs: a command that takes one away is undone, as the owner
-    /// wasn't asked about it (#494). Never saved.
+    /// The appointments, contacts and tasks the owner is changing in the window and hasn't saved,
+    /// set by the window while an agent's command runs: a command that takes one away is undone,
+    /// as the owner wasn't asked about it (#494). Never saved.
     pub owner_changing: Vec<Id>,
     /// A copy of the mailbox the window had the host write off its own thread before switching an
     /// account to Microsoft Graph (the account, where the copy is): `account.graphSwitch` takes it
@@ -2070,12 +2070,14 @@ impl Session {
         cur
     }
 
-    /// Whether undoing the last step (or redoing, `redo`) would take away the event `event` as
-    /// it is now (#494: a window of the owner's on it closes with it).
-    pub fn undo_removes(&self, redo: bool, event: Id) -> bool {
+    /// Whether undoing the last step (or redoing, `redo`) would take away the event, contact or
+    /// task `item` as it is now (#494: what the owner is changing in a window or the dialog goes
+    /// with it).
+    pub fn undo_removes(&self, redo: bool, item: Id) -> bool {
         let Some(step) = (if redo { self.redo.last() } else { self.history.last() }) else { return false };
-        let uid = |m: &mailcraft_model::Mailbox| m.event(event).map(|e| e.uid.clone());
-        uid(&self.mailbox).is_some() && uid(&step.mailbox) != uid(&self.mailbox)
+        let uid = |m: &mailcraft_model::Mailbox| m.event(item).map(|e| e.uid.clone());
+        let event = uid(&self.mailbox).is_some() && uid(&step.mailbox) != uid(&self.mailbox);
+        event || gone_in(&self.mailbox, &step.mailbox, item)
     }
 
     /// What undoing (`redo`: redoing) would put back besides mail and the like: the accounts, or
@@ -2193,11 +2195,9 @@ impl Session {
         // gone for good, an appointment the owner is changing taken away) is undone, whatever
         // path it took there.
         let result = match (result, &self.agent) {
-            (Ok(_), Some(_)) if self.owner_changing.iter().any(|e| before.mailbox.event(*e).is_some() && self.mailbox.event(*e).is_none()) => {
-                Err(CmdError::Failed(format!(
-                    "`{id}` would take away an appointment the owner is changing in the window and hasn't saved, and the owner wasn't asked about that; nothing was changed. Try again once the owner has saved or closed it"
-                )))
-            }
+            (Ok(_), Some(_)) if self.owner_changing.iter().any(|e| gone_in(&before.mailbox, &self.mailbox, *e)) => Err(CmdError::Failed(format!(
+                "`{id}` would take away an appointment, a contact or a task the owner is changing in the window and hasn't saved, and the owner wasn't asked about that; nothing was changed. Try again once the owner has saved or closed it"
+            ))),
             (Ok(_), Some(allow)) if let Some(c) = crate::agent::overstep(&before.mailbox, &self.mailbox, allow) => {
                 Err(CmdError::Failed(crate::agent::needs_owner(id, c, "do more than an agent is allowed to; nothing was changed")))
             }
@@ -2264,6 +2264,12 @@ impl Session {
         }
         result
     }
+}
+
+/// Whether the event, contact or task `item` that `before` has is gone from `after`.
+fn gone_in(before: &Mailbox, after: &Mailbox, item: Id) -> bool {
+    let there = |m: &Mailbox| m.event(item).is_some() || m.contact(item).is_some() || m.task(item).is_some();
+    there(before) && !there(after)
 }
 
 /// Whether the message being written is `before` but for where the cursor is (#494): moving it,

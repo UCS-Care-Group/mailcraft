@@ -356,15 +356,18 @@ pub(crate) fn removing_unsaved(app: &MailApp, id: &str, p: &Value) -> Option<Val
     unsaved_of(app.windows.open.iter().filter(|w| matches!(&w.what, What::Event { event: Some((e, _)), .. } if takes_away(app, id, p, *e))))
 }
 
-/// Whether `calendar.delete`, `calendar.removeCalendar`, `edit.undo` or `edit.redo` with `p`
-/// would take the appointment `event` away.
-pub(crate) fn takes_away(app: &MailApp, id: &str, p: &Value, event: Id) -> bool {
+/// Whether `calendar.delete`, `calendar.removeCalendar`, `people.delete`, `tasks.delete`,
+/// `edit.undo` or `edit.redo` with `p` would take the appointment, contact or task `item` away.
+pub(crate) fn takes_away(app: &MailApp, id: &str, p: &Value, item: Id) -> bool {
     // As the command reads it: `12.0` is 12, and 0 is none.
     let number = |key: &str| mailcraft_engine::p::id(p, key);
+    let sel = &app.session.sel;
     match id {
-        "calendar.delete" => number("id").or(app.session.sel.event) == Some(event),
-        "calendar.removeCalendar" => app.session.mailbox.event(event).is_some_and(|e| Some(e.calendar) == number("id")),
-        "edit.undo" | "edit.redo" => app.session.undo_removes(id == "edit.redo", event),
+        "calendar.delete" => number("id").or(sel.event) == Some(item),
+        "calendar.removeCalendar" => app.session.mailbox.event(item).is_some_and(|e| Some(e.calendar) == number("id")),
+        "people.delete" => number("id").or(sel.contact) == Some(item),
+        "tasks.delete" => number("id").or(sel.task) == Some(item),
+        "edit.undo" | "edit.redo" => app.session.undo_removes(id == "edit.redo", item),
         _ => false,
     }
 }

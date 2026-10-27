@@ -299,7 +299,7 @@ fn an_agents_command_that_takes_away_an_appointment_the_owner_is_changing_is_und
     let gone_too = s.run("calendar.delete", &json!({"id": other}));
     s.agent = None;
     let e = refused.unwrap_err().to_string();
-    assert!(e.contains("an appointment the owner is changing in the window"), "{e}");
+    assert!(e.contains("the owner is changing in the window"), "{e}");
     assert!(s.mailbox.event(event).is_some(), "nothing was changed");
     assert!(gone_too.is_ok() && s.mailbox.event(other).is_none(), "another appointment goes as allowed");
     // The owner's own command takes it.

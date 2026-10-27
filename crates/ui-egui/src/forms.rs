@@ -150,6 +150,16 @@ impl Form {
         }
     }
 
+    /// The appointment, contact or task the form changes, when it is one that exists.
+    pub(crate) fn editing(&self) -> Option<mailcraft_model::Id> {
+        match self {
+            Form::Event(f) => f.editing(),
+            Form::Contact(f) => f.editing(),
+            Form::Task(f) => f.editing(),
+            Form::Account(_) | Form::Categories(_) | Form::Rules(_) | Form::Junk(_) => None,
+        }
+    }
+
     /// Whether something was changed in the form that isn't saved: its window asks before it
     /// closes, and an agent asks the owner before it closes the dialog or opens another in its
     /// place (#494).
@@ -4603,6 +4613,11 @@ mod contact {
         }
 
         /// What the contact is called, as typed: its display name, else its first and last names.
+        /// The contact it changes; `None` for a new one.
+        pub fn editing(&self) -> Option<Id> {
+            self.id
+        }
+
         pub fn subject(&self) -> String {
             match self.display.trim() {
                 "" => format!("{} {}", self.first.trim(), self.last.trim()).trim().to_string(),
@@ -5020,6 +5035,11 @@ mod task {
         }
 
         /// What the task is called, as its title field has it.
+        /// The task it changes; `None` for a new one.
+        pub fn editing(&self) -> Option<Id> {
+            self.id
+        }
+
         pub fn subject(&self) -> &str {
             self.title.trim()
         }
