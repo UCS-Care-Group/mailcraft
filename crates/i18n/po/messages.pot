@@ -2147,7 +2147,7 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
-msgid "Delete on a conversation of several messages in one folder asks first. Its messages in other folders stay where they are."
+msgid "Delete on a conversation's row that takes more than one message asks first."
 msgstr ""
 
 #. interface

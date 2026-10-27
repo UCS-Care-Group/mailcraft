@@ -2516,8 +2516,8 @@ msgstr "Besprechungsanfragen nach dem Antworten aus dem Posteingang löschen"
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
-msgid "Delete on a conversation of several messages in one folder asks first. Its messages in other folders stay where they are."
-msgstr "Löschen fragt bei einer Unterhaltung aus mehreren Nachrichten in einem Ordner zuerst nach. Ihre Nachrichten in anderen Ordnern bleiben, wo sie sind."
+msgid "Delete on a conversation's row that takes more than one message asks first."
+msgstr "Löschen fragt zuerst nach, wenn es auf der Zeile einer Unterhaltung mehr als eine Nachricht löscht."
 
 #. interface
 #: crates/ui-egui/src/forms.rs

@@ -2518,8 +2518,8 @@ msgstr "Elimina le convocazioni di riunione da Posta in arrivo dopo aver rispost
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
-msgid "Delete on a conversation of several messages in one folder asks first. Its messages in other folders stay where they are."
-msgstr "Eliminare una conversazione di più messaggi in una cartella chiede prima conferma. I suoi messaggi in altre cartelle restano dove sono."
+msgid "Delete on a conversation's row that takes more than one message asks first."
+msgstr "Eliminare sulla riga di una conversazione chiede prima conferma quando elimina più di un messaggio."
 
 #. interface
 #: crates/ui-egui/src/forms.rs

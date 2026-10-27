@@ -2518,8 +2518,8 @@ msgstr "Supprimer les demandes de réunion de la Boîte de réception après avo
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
-msgid "Delete on a conversation of several messages in one folder asks first. Its messages in other folders stay where they are."
-msgstr "Supprimer une conversation de plusieurs messages dans un dossier demande d'abord. Ses messages dans d'autres dossiers restent où ils sont."
+msgid "Delete on a conversation's row that takes more than one message asks first."
+msgstr "Supprimer sur la ligne d'une conversation demande d'abord quand plus d'un message est supprimé."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
