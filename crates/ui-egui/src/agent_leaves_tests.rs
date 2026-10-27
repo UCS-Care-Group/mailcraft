@@ -741,3 +741,62 @@ fn an_undo_that_would_put_back_an_earlier_draft_of_the_owners_message_is_refused
     assert!(label.is_some() && a.session.can_redo(), "nothing more was undone or redone");
     assert_eq!(a.session.compose.as_ref().map(|c| c.subject.as_str()), Some("Mine"));
 }
+
+#[test]
+fn an_agents_undo_doesnt_take_away_what_the_owners_yes_saved() {
+    let mut a = app();
+    written(&mut a, "Mine");
+    let (_, rx) = agent(&mut a, "mail.new", json!({}));
+    answer(&mut a, true);
+    assert_eq!(rx.try_recv().unwrap()["ok"], true);
+    assert!(draft_with(&a, "Mine").is_some(), "saved on the owner's yes");
+    let (now, rx) = agent(&mut a, "edit.undo", json!({}));
+    assert!(now.is_none(), "asked first");
+    let (class, what) = question(&a).unwrap();
+    assert_eq!(class, Class::Delete);
+    assert!(what.contains("takes away the draft \u{201c}Mine\u{201d} in Drafts"), "{what}");
+    answer(&mut a, false);
+    assert_eq!(rx.try_recv().unwrap()["ok"], false);
+    let m = received(&a);
+    let _ = agent(&mut a, "mail.flag", json!({"id": m}));
+    assert!(draft_with(&a, "Mine").is_some(), "the owner's text is gone");
+}
+
+#[test]
+fn an_agents_undo_of_a_later_save_asks_once_the_message_is_closed() {
+    // The owner saves, writes more, saves and closes the message: undoing the last save would
+    // put back the draft without what was written last.
+    let mut a = app();
+    written(&mut a, "Mine");
+    a.run("compose.saveDraft", json!({})).unwrap();
+    a.execute("compose.set", json!({"body": "Half a thought, and the rest of it"})).unwrap();
+    a.run("compose.saveDraft", json!({})).unwrap();
+    a.run("compose.close", json!({})).unwrap();
+    assert!(a.session.compose.is_none());
+    let (now, _) = agent(&mut a, "edit.undo", json!({}));
+    assert!(now.is_none(), "asked first");
+    assert_eq!(question(&a).map(|q| q.0), Some(Class::Delete));
+    answer(&mut a, false);
+    let draft = draft_with(&a, "Mine").and_then(|d| a.session.mailbox.message(d)).unwrap();
+    assert!(draft.body.text.contains("the rest of it"));
+    // `--allow delete` covers it, as it covers deleting the draft.
+    let (now, _) = allowed(&mut a, "edit.undo", json!({}), vec![Class::Delete]);
+    assert_eq!(now.unwrap()["ok"], true);
+}
+
+#[test]
+fn ticking_completed_on_a_task_is_a_change() {
+    use egui_kittest::kittest::Queryable as _;
+    let mut w = testing::window("view.tasks");
+    let task = w.state().session.mailbox.tasks.values().find(|t| !t.is_complete()).unwrap().id;
+    w.state_mut().execute("ui.dialog", json!({"name": "editTask", "id": task})).unwrap();
+    w.run_steps(3);
+    assert!(!w.state().dialog.as_ref().is_some_and(|d| matches!(d, Dialog::Form(f) if f.dirty())));
+    let tick = w.query_by_label("Completed").unwrap().rect();
+    testing::click(&mut w, tick.center(), egui::PointerButton::Primary, 1);
+    w.run_steps(3);
+    assert!(matches!(&w.state().dialog, Some(Dialog::Form(f)) if f.dirty()), "only Completed ticked");
+    let (now, _) = agent(w.state_mut(), "ui.closeDialog", json!({}));
+    assert!(now.is_none(), "asked first");
+    assert_eq!(question(w.state()).map(|q| q.0), Some(Class::Delete));
+}

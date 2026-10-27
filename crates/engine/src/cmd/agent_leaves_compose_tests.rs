@@ -192,6 +192,13 @@ fn discard_and_another_mailbox_ask_the_owner_whatever_is_allowed() {
             other => panic!("{id}: {other:?}"),
         }
     }
+    // All of it saved: it is closed, no more is said.
+    let mut saved = writing();
+    saved.run("compose.saveDraft", &json!({})).unwrap();
+    match check(&saved, "file.new", &json!({}), &everything) {
+        Verdict::Ask(Class::Mailbox, what) => assert!(what.ends_with("\u{201c}Mine\u{201d} that the owner is writing is closed"), "{what}"),
+        other => panic!("{other:?}"),
+    }
     // An appointment's window with changes that aren't saved, as the window names it.
     let unsaved = json!({"unsaved": {"form": "appointment", "title": "Lunch"}});
     assert!(
@@ -236,7 +243,10 @@ fn nothing_allowed_in_advance_lets_an_agent_leave_the_owners_message() {
         assert_eq!(answered(&s, id, &params, &[], Class::Delete), Verdict::Run, "{id}");
         assert!(matches!(answered(&s, id, &params, &everything, Class::Leave), Verdict::Ask(Class::Delete, _)), "{id}");
     }
-    let refusal = needs_owner("mail.new", Class::Leave, "start a new message");
+    // Asked every time: whatever the class, no `--allow` is offered as a way round it.
+    let asked = needs_owner("compose.discard", Class::Delete, true, "throw away the message");
+    assert!(asked.contains("no `--allow` lets an agent do it") && !asked.contains("--allow delete"), "{asked}");
+    let refusal = needs_owner("mail.new", Class::Leave, false, "start a new message");
     assert!(!refusal.contains("mcp --allow") && refusal.contains("every time"), "{refusal}");
 }
 

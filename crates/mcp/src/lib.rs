@@ -60,7 +60,10 @@ impl Headless {
                 self.session.agent = None;
                 r
             }
-            Verdict::Ask(class, what) => Err(agent::needs_owner(id, class, &what)),
+            Verdict::Ask(class, what) => {
+                let asked = matches!(agent::classify(&self.session, id, params), agent::Access::Asked(_));
+                Err(agent::needs_owner(id, class, asked, &what))
+            }
             Verdict::Refuse(why) => Err(why),
         }
     }

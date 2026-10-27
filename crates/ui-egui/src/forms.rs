@@ -4619,12 +4619,12 @@ mod contact {
             self.fields() != self.opened
         }
 
-        /// What the contact is called, as typed: its display name, else its first and last names.
         /// The contact it changes; `None` for a new one.
         pub fn editing(&self) -> Option<Id> {
             self.id
         }
 
+        /// What the contact is called, as typed: its display name, else its first and last names.
         pub fn subject(&self) -> String {
             match self.display.trim() {
                 "" => format!("{} {}", self.first.trim(), self.last.trim()).trim().to_string(),
@@ -5036,17 +5036,18 @@ mod task {
             if self.id.is_some() { tl!("Task") } else { tl!("New Task") }.to_string()
         }
 
-        /// Whether the fields differ from what the form opened with: there is something to save.
+        /// Whether the fields differ from what the form opened with, Completed too: there is
+        /// something to save.
         pub fn dirty(&self) -> bool {
-            self.fields() != self.opened
+            self.fields() != self.opened || self.completed != self.was_completed
         }
 
-        /// What the task is called, as its title field has it.
         /// The task it changes; `None` for a new one.
         pub fn editing(&self) -> Option<Id> {
             self.id
         }
 
+        /// What the task is called, as its title field has it.
         pub fn subject(&self) -> &str {
             self.title.trim()
         }

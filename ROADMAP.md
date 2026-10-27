@@ -490,5 +490,5 @@ follows:
 | 2026-10-26 | Headline numbers measured again: catalog coverage 199 of 315 (63.2%), 259 commands, 16 crates |
 | 2026-10-26 | #507: generic names for the pending Insert controls; catalog 323 features, coverage 199 of 323 (61.6%) |
 | 2026-10-26 | minor | #506: People › Merge Duplicates (progress log) |
-| 2026-10-27 | minor | #494: an agent asks the owner before it leaves or throws away what they are writing or changing (progress log) |
-| 2026-10-27 | minor | #513: a command that waited for a download leaves a form the owner is changing alone until it is closed (progress log) |
+| 2026-10-27 | #494: an agent asks the owner before it leaves or throws away what they are writing or changing (progress log) |
+| 2026-10-27 | #513: a command that waited for a download leaves a form the owner is changing alone until it is closed (progress log) |

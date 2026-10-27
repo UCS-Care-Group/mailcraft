@@ -785,9 +785,10 @@ fn verdict(s: &Session, id: &str, params: &Value, allow: &[Class], yes: Option<C
 /// a call whose description is longer is refused rather than clipped).
 pub const MAX_QUESTION: usize = 900;
 
-/// The refusal when nobody can be asked (headless).
-pub fn needs_owner(id: &str, class: Class, what: &str) -> String {
-    if !Class::ALL.contains(&class) {
+/// The refusal when nobody can be asked (headless); `asked`: the owner is asked every time
+/// ([`Access::Asked`]), and no `--allow` covers it.
+pub fn needs_owner(id: &str, class: Class, asked: bool, what: &str) -> String {
+    if asked || !Class::ALL.contains(&class) {
         return format!(
             "`{id}` needs the owner ({}): it would {what}. The owner is asked about this in the window every time; no `--allow` lets an agent do it",
             class.what()
@@ -882,7 +883,9 @@ pub fn describe(s: &Session, id: &str, params: &Value) -> String {
     let mut what = what_it_does(s, id, &bare);
     // Another mailbox in view closes the message the owner is writing, unsaved (#494).
     if matches!(id, "file.new" | "file.open") && owner_writing(s) {
-        what.push_str(&format!("; the message {} that the owner is writing is closed without being saved", writing(s)));
+        let unsaved = s.compose.as_ref().is_some_and(|c| unsaved_message(s, c));
+        let how = if unsaved { " without being saved" } else { "" };
+        what.push_str(&format!("; the message {} that the owner is writing is closed{how}", writing(s)));
     }
     // And the windows of appointments with changes that aren't saved, as does taking the
     // appointments away.
@@ -997,13 +1000,26 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
         "edit.undo" | "edit.redo" => {
             let redo = id == "edit.redo";
             let label = if redo { s.redo_label() } else { s.undo_label() };
+            let verb = if redo { "redo" } else { "undo" };
+            let drafts = s.undo_drafts(redo);
+            if let Some(first) = drafts.first().and_then(|d| s.mailbox.message(*d)) {
+                let which = match drafts.len() {
+                    1 if !first.subject.trim().is_empty() => format!("the draft {}", quoted(&first.subject)),
+                    1 => "a draft".to_string(),
+                    n => format!("{n} drafts"),
+                };
+                return format!(
+                    "{verb} {}, which also takes away {which} in Drafts or puts back an earlier version, and what was written since is lost",
+                    quoted(label.unwrap_or("the last change"))
+                );
+            }
             let what = match s.undo_reverts(redo) {
                 Some(Class::Accounts) => "the accounts",
                 Some(Class::Send) => "a change to a meeting or to a task in a shared list, which other people see",
                 Some(Class::Delete) => "contacts, events, tasks, calendars or categories that were deleted",
                 _ => "the rules, signatures or Safe and Blocked Senders",
             };
-            format!("{} {}, which also puts {what} back as they were", if redo { "redo" } else { "undo" }, quoted(label.unwrap_or("the last change")))
+            format!("{verb} {}, which also puts {what} back as they were", quoted(label.unwrap_or("the last change")))
         }
         "rules.add" => rule_text(s, params),
         "rules.fromMessage" => {

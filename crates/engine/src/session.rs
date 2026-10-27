@@ -2085,13 +2085,27 @@ impl Session {
     pub fn undo_changes_message(&self, redo: bool, message: Id) -> bool {
         let Some(step) = (if redo { self.redo.last() } else { self.history.last() }) else { return false };
         match (step.mailbox.messages.get(&message), self.mailbox.messages.get(&message)) {
-            (Some(then), Some(now)) => !Arc::ptr_eq(then, now),
+            (Some(then), Some(now)) => !Arc::ptr_eq(then, now) && then != now,
             (then, now) => then.is_some() != now.is_some(),
         }
     }
 
+    /// The drafts that undoing the last step (or redoing, `redo`) would take away, or put back
+    /// as they were before (#494): what was written in them since would be lost with it.
+    pub fn undo_drafts(&self, redo: bool) -> Vec<Id> {
+        let Some(step) = (if redo { self.redo.last() } else { self.history.last() }) else { return Vec::new() };
+        let then = &step.mailbox.messages;
+        self.mailbox
+            .messages
+            .iter()
+            .filter(|(id, m)| m.draft && then.get(*id).is_none_or(|t| !Arc::ptr_eq(t, m) && t != *m))
+            .map(|(id, _)| *id)
+            .collect()
+    }
+
     /// What undoing (`redo`: redoing) would put back besides mail and the like: the accounts, or
-    /// the rules and signatures, as they were. For the agent gate, which asks the owner first.
+    /// the rules and signatures, as they were; or a draft, taken away or as it was before. For
+    /// the agent gate, which asks the owner first.
     pub fn undo_reverts(&self, redo: bool) -> Option<crate::agent::Class> {
         use crate::agent::Class;
         let step = if redo { self.redo.last() } else { self.history.last() }?;
@@ -2116,7 +2130,7 @@ impl Session {
             || now.tasks.keys().any(|k| !to.tasks.contains_key(k))
             || now.calendars.iter().any(|c| !to.calendars.iter().any(|t| t.id == c.id))
             || now.categories.iter().any(|c| !to.categories.iter().any(|t| t.name.to_lowercase() == c.name.to_lowercase()));
-        if gone {
+        if gone || !self.undo_drafts(redo).is_empty() {
             return Some(Class::Delete);
         }
         if to.rules != now.rules || to.signatures != now.signatures || to.junk != now.junk || to.junk_accounts != now.junk_accounts {
@@ -2209,7 +2223,7 @@ impl Session {
                 "`{id}` would take away an appointment, a contact or a task the owner is changing in the window and hasn't saved, and the owner wasn't asked about that; nothing was changed. Try again once the owner has saved or closed it"
             ))),
             (Ok(_), Some(allow)) if let Some(c) = crate::agent::overstep(&before.mailbox, &self.mailbox, allow) => {
-                Err(CmdError::Failed(crate::agent::needs_owner(id, c, "do more than an agent is allowed to; nothing was changed")))
+                Err(CmdError::Failed(crate::agent::needs_owner(id, c, false, "do more than an agent is allowed to; nothing was changed")))
             }
             (r, _) => r,
         };
