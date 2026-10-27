@@ -5,7 +5,7 @@
 use std::sync::{Arc, Mutex, mpsc};
 
 use mailcraft_engine::Session;
-use mailcraft_model::{Contact, Labeled, Mailbox};
+use mailcraft_model::{Contact, FolderKind, Id, Labeled, Mailbox};
 
 use super::*;
 use crate::Services;

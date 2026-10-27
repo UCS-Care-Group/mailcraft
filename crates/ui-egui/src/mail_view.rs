@@ -936,10 +936,19 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect) {
         one_date_w = p.text(pos2(time_end, line1), Align2::RIGHT_CENTER, &date, date_font.clone(), date_color).width();
         x = time_end - one_date_w - 10.0;
     }
+    // The server says its sender's checks failed, or its name hides another address (#508): the
+    // first of the marks, where it is seen.
+    let warned = crate::reading::warning_mark(app, &m);
+    if warned {
+        app.hit.add("messageWarning", row.id, Rect::from_center_size(pos2(x - 6.0, line1), vec2(12.0, 12.0)));
+    }
     let mut marker = |icon: &str, color: Color32| {
         icons::paint(p, Rect::from_center_size(pos2(x - 6.0, line1), vec2(12.0, 12.0)), icon, color, t.accent);
         x -= 15.0;
     };
+    if warned {
+        marker("warning", t.icon);
+    }
     // A meeting that came by mail wears its mark; its calendar part is not one of its files.
     let (meeting, files) = crate::reading::list_marks(&m);
     if let Some(meeting) = meeting {

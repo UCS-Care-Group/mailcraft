@@ -533,6 +533,7 @@ fn every_command_leaves_only_what_the_list_shows_selected() {
                 json!({"ids": [in_folder, first]}),
                 json!({"id": second, "elsewhere": true}),
                 json!({"name": "in.eml", "data": eml}),
+                json!({"name": "in.eml", "data": eml, "opened": true}),
                 json!({"value": "flagged", "query": "a", "scope": "everywhere"}),
             ];
             for params in &all_params {

@@ -34,7 +34,9 @@ use std::sync::Arc;
 use std::sync::mpsc::{Receiver, TryRecvError};
 
 use egui::{Color32, Sense, Stroke, Ui, vec2};
-use mailcraft_model::{Account, AccountKind, Id, Message, provider};
+pub use mailcraft_model::auth_results::vouched;
+use mailcraft_model::auth_results::{domain, sender};
+use mailcraft_model::{Id, Message};
 use serde_json::{Value, json};
 
 use super::Place;
@@ -57,14 +59,8 @@ const PATIENCE_MS: f64 = 60_000.0;
 /// Most senders whose pictures are always downloaded, and most domains.
 pub const MAX_SENDERS: usize = 500;
 pub const MAX_DOMAINS: usize = 500;
-/// Longest address of a sender that is remembered, and the longest domain.
+/// Longest address of a sender that is remembered.
 const MAX_SENDER_LEN: usize = 320;
-const MAX_DOMAIN_LEN: usize = 253;
-/// How many of a message's headers are looked through for the server's verdict, and how many
-/// words of it.
-const MAX_HEADERS_READ: usize = 2_000;
-const MAX_TOKENS: usize = 200;
-const MAX_HEADER_CHARS: usize = 4_000;
 /// Most messages the owner asked pictures for that are kept track of.
 const MAX_ASKED: usize = 500;
 /// Most messages whose share of the downloading is kept track of.
@@ -190,29 +186,6 @@ impl RemotePictures {
     }
 }
 
-/// A sender's address as it is remembered; `None` for what is no address.
-fn sender(text: &str) -> Option<String> {
-    let text = text.trim();
-    // ASCII only, folded as ASCII: Unicode lower-casing maps some letters (the Kelvin sign) onto
-    // ASCII ones, which would let a lookalike address stand for a remembered one.
-    let plain = text.is_ascii() && text.len() <= MAX_SENDER_LEN && text.contains('@') && !text.chars().any(|c| c.is_whitespace() || c.is_control());
-    (plain && text.len() >= 3).then(|| text.to_ascii_lowercase())
-}
-
-/// A domain as it is remembered: what follows the `@` of an address (or the whole of `text`,
-/// with or without an `@` in front), in ASCII lower case; `None` for what is no domain (a name
-/// with a letter outside ASCII is written the way it goes over the wire, `xn--…`, to be one).
-fn domain(text: &str) -> Option<String> {
-    let text = text.trim();
-    let name = text.rsplit_once('@').map_or(text, |(_, name)| name).trim_end_matches('.');
-    let plain = !name.is_empty()
-        && name.len() <= MAX_DOMAIN_LEN
-        && name.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '.'))
-        && !name.starts_with(['.', '-'])
-        && !name.contains("..");
-    plain.then(|| name.to_ascii_lowercase())
-}
-
 /// Whether pictures from `address` are always downloaded.
 pub fn sender_remembered(ui: &UiState, address: &str) -> bool {
     sender(address).is_some_and(|address| ui.picture_senders.iter().take(MAX_SENDERS).any(|kept| kept.trim().eq_ignore_ascii_case(&address)))
@@ -228,177 +201,6 @@ pub fn domain_remembered(ui: &UiState, address: &str) -> bool {
 /// Whether `m` is in an account's Junk E-mail folder or under it.
 fn in_junk(app: &MailApp, m: &Message) -> bool {
     app.session.mailbox.in_junk(m.folder)
-}
-
-/// The authserv-id (RFC 8601) an `Authentication-Results` value starts with: the first word before
-/// the first `;`, after comments, ignoring an optional version number. `None` when the value
-/// starts with a result instead (Exchange Online writes no id), or the id is no host name.
-fn authserv_id(value: &str) -> Option<String> {
-    let mut plain = String::new();
-    let mut depth = 0usize;
-    for c in value.chars().take(MAX_HEADER_CHARS) {
-        match c {
-            '(' => depth = depth.saturating_add(1),
-            ')' => depth = depth.saturating_sub(1),
-            ';' if depth == 0 => break,
-            c if depth == 0 => plain.push(c),
-            _ => {}
-        }
-    }
-    let first = plain.split_whitespace().next()?;
-    if first.contains('=') { None } else { domain(first) }
-}
-
-/// Whether the topmost `Authentication-Results` header of `m` was written by `account`'s own
-/// server: any header for a Microsoft account (Exchange Online puts its own on top, with no id),
-/// and for another account one whose authserv-id is a known id of its IMAP host's provider
-/// (`provider::authserv_ids`), or the IMAP host's domain one label up, or a name under that.
-/// Anything else is not known to be the account's server's.
-fn from_own_server(account: Option<&Account>, value: &str) -> bool {
-    let Some(account) = account else { return false };
-    let host = account.incoming.as_ref().map(|server| server.host.trim().trim_end_matches('.').to_ascii_lowercase());
-    if account.kind == AccountKind::Microsoft || host.as_deref().is_some_and(provider::is_microsoft_imap_host) {
-        return true;
-    }
-    let (Some(host), Some(id)) = (host, authserv_id(value)) else { return false };
-    if provider::authserv_ids(&host).contains(&id.as_str()) {
-        return true;
-    }
-    let Some((_, rest)) = host.split_once('.') else { return false };
-    rest.split('.').count() >= 2 && !provider::is_public_suffix(rest) && (id == rest || id.strip_suffix(rest).is_some_and(|head| head.ends_with('.')))
-}
-
-/// The clauses of an `Authentication-Results` value (RFC 8601), each as its words: split at the
-/// `;` that is neither in a comment (nested, with `\` quoting) nor in a quoted string, a comment
-/// being a gap between words and a quoted string staying whole inside its word. What a sender
-/// can put into a value (a `reason="…"`, a `(comment)`) therefore stays inside its own word. A
-/// last clause cut off at [`MAX_HEADER_CHARS`], or left inside a quoted string or a comment, is
-/// dropped: its last word may be the start of a longer one (`header.d=shop.example` of
-/// `shop.example.evil.example`). With the clauses comes whether the whole value was read: not
-/// when it was cut off, left open, or longer than [`MAX_TOKENS`] clauses.
-fn clauses(value: &str) -> (Vec<Vec<String>>, bool) {
-    let (mut out, mut words, mut word) = (Vec::new(), Vec::new(), String::new());
-    let (mut depth, mut quoted, mut escaped) = (0usize, false, false);
-    let mut chars = value.chars();
-    for c in chars.by_ref().take(MAX_HEADER_CHARS) {
-        if escaped {
-            escaped = false;
-            if quoted {
-                word.push(c);
-            }
-            continue;
-        }
-        match c {
-            '\\' if depth > 0 || quoted => escaped = true,
-            _ if depth > 0 => match c {
-                '(' => depth = depth.saturating_add(1),
-                ')' => depth = depth.saturating_sub(1),
-                _ => {}
-            },
-            '"' => {
-                quoted = !quoted;
-                word.push(c);
-            }
-            _ if quoted => word.push(c),
-            '(' => {
-                depth = 1;
-                if !word.is_empty() {
-                    words.push(std::mem::take(&mut word));
-                }
-            }
-            ';' | ' ' | '\t' | '\r' | '\n' => {
-                if !word.is_empty() {
-                    words.push(std::mem::take(&mut word));
-                }
-                if c == ';' {
-                    out.push(std::mem::take(&mut words));
-                    if out.len() >= MAX_TOKENS {
-                        return (out, false);
-                    }
-                }
-            }
-            _ => word.push(c),
-        }
-    }
-    if chars.next().is_some() || quoted || depth > 0 {
-        return (out, false);
-    }
-    if !word.is_empty() {
-        words.push(word);
-    }
-    out.push(words);
-    (out, true)
-}
-
-/// Whether the server that received `m` vouches that it came from the domain it says it did:
-/// `m` is on the server (it has a UID there, or the server's own record of it: mail brought in
-/// from a file has the file's word and nothing else); the topmost `Authentication-Results`
-/// header (the receiving server puts its own on top; the ones below were written before it),
-/// written by the server of the account `m` is in ([`from_own_server`]), has a clause whose
-/// result is `dmarc=pass` (or Exchange Online's `compauth=pass`) and that clause names the
-/// `header.from` it judged, which is the sender's domain or one above it ([`judged_for`]). When
-/// the server gave no DMARC verdict ([`dmarc_verdict`]) in that header or in another with the
-/// same authserv-id (a DMARC filter may write its own beside a DKIM filter's), a clause whose
-/// result is `dkim=pass` counts instead, by the signer's `header.d` (or, when the clause names
-/// none, the domain of its `header.i`, which the verifier checks is `header.d` or under it: RFC
-/// 6376, 6.1.1) under the same rule: a signature of the sender's domain that passes is what makes
-/// DMARC pass (RFC 7489, 3.1.1 and 4.2). A verdict the server gave, `fail` included, is never
-/// overruled by a signature. Only the clause's own words are read, not what a comment or quoted
-/// string in the header says. A header the sender could have written is not read.
-pub fn vouched(account: Option<&Account>, m: &Message) -> bool {
-    if m.uid == 0 && m.server.is_none() {
-        return false;
-    }
-    let mut results = m.headers.iter().take(MAX_HEADERS_READ).filter(|(name, _)| name.eq_ignore_ascii_case("Authentication-Results"));
-    let Some((_, value)) = results.next() else {
-        return false;
-    };
-    if !from_own_server(account, value) {
-        return false;
-    }
-    let Some(sender_domain) = sender(&m.from.email).and_then(|address| domain(&address)) else { return false };
-    let id = authserv_id(value);
-    // A header below with the server's id may be forged, but it can only take the signature away.
-    let verdict_given = dmarc_verdict(value) || results.any(|(_, other)| authserv_id(other) == id && dmarc_verdict(other));
-    let (parsed, _) = clauses(value);
-    parsed.iter().any(|words| {
-        let Some(result) = words.first() else { return false };
-        let names = |wanted: &str| words.iter().any(|word| word.split_once('=').is_some_and(|(key, _)| key.eq_ignore_ascii_case(wanted)));
-        let property = if result.eq_ignore_ascii_case("dmarc=pass") || result.eq_ignore_ascii_case("compauth=pass") {
-            "header.from"
-        } else if !verdict_given && result.eq_ignore_ascii_case("dkim=pass") {
-            if names("header.d") { "header.d" } else { "header.i" }
-        } else {
-            return false;
-        };
-        words.iter().skip(1).any(|word| {
-            word.split_once('=').is_some_and(|(key, name)| {
-                key.eq_ignore_ascii_case(property) && domain(name.trim_matches('"')).is_some_and(|judged| judged_for(&judged, &sender_domain))
-            })
-        })
-    })
-}
-
-/// Whether the `Authentication-Results` value `value` gives a DMARC verdict: a `dmarc` (or
-/// `compauth`) clause of any result, or a part not read ([`clauses`]) where one may stand.
-fn dmarc_verdict(value: &str) -> bool {
-    let (parsed, whole) = clauses(value);
-    !whole
-        || parsed.iter().any(|words| {
-            words.first().is_some_and(|result| {
-                let method = result.split(['/', '=']).next().unwrap_or_default();
-                method.eq_ignore_ascii_case("dmarc") || method.eq_ignore_ascii_case("compauth")
-            })
-        })
-}
-
-/// Whether a verdict on the domain `judged` stands for mail from `sender_domain`: the same name,
-/// or a name under it, as Gmail names the organisation's domain (`shop.example` for mail from
-/// `news.shop.example`) and as an organisation signs for its names; never a bare suffix such as
-/// `co.uk`, which is nobody's organisation.
-fn judged_for(judged: &str, sender_domain: &str) -> bool {
-    judged == sender_domain
-        || (judged.contains('.') && !provider::is_public_suffix(judged) && sender_domain.strip_suffix(judged).is_some_and(|head| head.ends_with('.')))
 }
 
 /// Whether a remembered sender or domain stands for `m`'s sender, and the server vouches for it.

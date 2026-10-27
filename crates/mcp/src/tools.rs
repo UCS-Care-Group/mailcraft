@@ -69,6 +69,14 @@ const TEXT_KEYS: &[&str] = &[
     "email",
     "attendees",
     "problems",
+    // A message's sender warnings (#508): the addresses, domains and links they are about come
+    // from the message.
+    "address",
+    "domain",
+    "like",
+    "textHost",
+    "host",
+    "url",
 ];
 
 fn wrap_text(t: &str) -> String {
@@ -233,6 +241,13 @@ pub fn tool_definitions() -> Value {
             true
         ),
         tool("list_tasks", "List tasks", "To-do items.", obj(json!({"filter": s("active|today|overdue|completed|all")}), &[]), true),
+        tool(
+            "status",
+            "MailCraft status",
+            "Whether the mailbox is open. While the window still opens it (a large mailbox takes a few seconds at launch), every other tool is answered \"the mailbox is still opening\"; ask again in a moment.",
+            obj(json!({}), &[]),
+            true
+        ),
         tool("parity", "Feature parity", "MailCraft's command coverage of the mail-client feature catalog.", obj(json!({}), &[]), true),
         tool("screenshot", "Screenshot app", "Screenshot of the whole MailCraft window (desktop app only).", obj(json!({}), &[]), true),
         tool(
@@ -419,6 +434,7 @@ pub fn call_tool(b: &mut dyn Backend, pol: &Policy, name: &str, a: &Value) -> To
         "list_contacts" => wrap(exec(b, "people.list", json!({"query": st("query").unwrap_or("")}))),
         "list_tasks" => wrap(exec(b, "tasks.list", pick(a, &["filter"]))),
         "parity" => wrap(b.call("ui.parity", json!({}))),
+        "status" => wrap(b.call("app.status", json!({}))),
         "screenshot" => {
             if !b.has_ui() {
                 return ToolResult::error(format!("`ui.screenshot` {}", crate::NEEDS_APP));
