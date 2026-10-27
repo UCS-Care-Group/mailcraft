@@ -138,6 +138,7 @@ pub(crate) enum Menu {
     FontSize,
     Font,
     FontColor,
+    Junk,
 }
 
 /// How a control is drawn in the classic layout.
@@ -322,12 +323,8 @@ fn no() -> Value {
 }
 
 fn home_mail(app: &MailApp) -> Tab {
-    let in_junk = app.session.mailbox.folder(app.session.view.folder).is_some_and(|f| f.kind == FolderKind::Junk);
-    let junk = if in_junk {
-        Item::small("notJunk", "Not Junk", "Not Junk", "mail.notJunk", no())
-    } else {
-        Item::small("junk", "Junk", "Move to Junk Email", "mail.junk", no())
-    };
+    // Junk ▾: Block Sender, Never Block…, Not Junk and Junk E-mail Options (#504).
+    let junk = Item::small_menu("junk", "junk", "Junk", "Junk", Menu::Junk);
     let pinned = app.session.focused_message().is_some_and(|m| m.pinned);
     Tab::of(vec![
         g(
@@ -1063,6 +1060,26 @@ fn plain_item(ui: &mut Ui, label: &str) -> bool {
     chosen
 }
 
+/// Home › Delete › Junk ▾ (and the message's context menu): the lists and what is in Junk E-mail.
+pub(crate) fn junk_menu(ui: &mut Ui, app: &mut MailApp) {
+    mi(ui, app, "Block Sender", "junk.blockSender", json!({}));
+    mi(ui, app, "Never Block Sender", "junk.neverBlockSender", json!({}));
+    mi(ui, app, "Never Block Sender's Domain", "junk.neverBlockDomain", json!({}));
+    ui.separator();
+    // Where the message is (a search's result may be elsewhere than the folder in view).
+    let folder = app.session.focused_message().map_or(app.session.view.folder, |m| m.folder);
+    let in_junk = app.session.mailbox.folder(folder).is_some_and(|f| f.kind == FolderKind::Junk);
+    if in_junk {
+        mi(ui, app, "Not Junk", "mail.notJunk", json!({}));
+    } else {
+        mi(ui, app, "Move to Junk", "mail.junk", json!({}));
+    }
+    ui.separator();
+    if plain_item(ui, tl!("Junk E-mail Options…")) {
+        let _ = app.run("ui.dialog", json!({"name": "junkOptions"}));
+    }
+}
+
 /// What `menu` lists.
 fn menu_contents(ui: &mut Ui, app: &mut MailApp, menu: Menu) {
     match menu {
@@ -1103,6 +1120,7 @@ fn menu_contents(ui: &mut Ui, app: &mut MailApp, menu: Menu) {
                 let _ = app.run("ui.dialog", json!({"name": "rules"}));
             }
         }
+        Menu::Junk => junk_menu(ui, app),
         Menu::CategorizeMail => {
             let ids = app.session.sel.messages.clone();
             category_menu(
@@ -2036,7 +2054,7 @@ mod tests {
         let button = |key: &str| buttons.iter().find(|b| b.item.key == key).unwrap();
         // New Email and Delete run their command and open a menu; Move only opens one; Archive only runs.
         assert!(button("mail.new").is_split() && button("mail.new").drops.iter().map(|d| d.key).eq(["newItems"]));
-        assert!(button("mail.delete").is_split() && button("mail.delete").drops.iter().map(|d| d.key).eq(["mail.junk", "mail.deletePermanently"]));
+        assert!(button("mail.delete").is_split() && button("mail.delete").drops.iter().map(|d| d.key).eq(["junk", "mail.deletePermanently"]));
         assert!(!button("moveMessages").is_split() && button("moveMessages").has_drop());
         assert!(!button("mail.archive").has_drop());
         assert_eq!(button("mail.replyAll").item.name(), "Reply All");
@@ -2323,7 +2341,10 @@ mod tests {
         assert_ne!(message(&harness).folder, junk);
         let pos = at(&harness, "ribbonMenu", "mail.delete");
         click(&mut harness, pos);
-        harness.get_by_label("Junk").click();
+        // Its Junk is a menu of its own (#504): Move to Junk is in it.
+        harness.get_by_role_and_label(egui::accesskit::Role::Button, "Junk").click();
+        harness.run_steps(3);
+        harness.get_by_label_contains("Move to Junk").click();
         harness.run_steps(3);
         assert_eq!(message(&harness).folder, junk);
 

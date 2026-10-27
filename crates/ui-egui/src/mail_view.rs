@@ -1097,7 +1097,6 @@ fn clicks(app: &mut MailApp, ui: &Ui, resp: &egui::Response, row: &Row, m: &Mess
         let _ = app.execute("mail.select", json!({"id": id, "copy": copy}));
     }
     let (read, flagged, pinned) = (m.read, m.flag == FlagStatus::Flagged, m.pinned);
-    let in_junk = app.session.mailbox.folder(m.folder).is_some_and(|f| f.kind == FolderKind::Junk);
     resp.context_menu(|ui| {
         ui.set_min_width(200.0);
         use crate::widgets::mi;
@@ -1137,11 +1136,7 @@ fn clicks(app: &mut MailApp, ui: &Ui, resp: &egui::Response, row: &Row, m: &Mess
             });
         });
         mi(ui, app, "Archive", "mail.archive", json!({}));
-        if in_junk {
-            mi(ui, app, "Not Junk", "mail.notJunk", json!({}));
-        } else {
-            mi(ui, app, "Junk", "mail.junk", json!({}));
-        }
+        ui.menu_button(tl!("Junk"), |ui| crate::ribbon::junk_menu(ui, app));
         mi(ui, app, "Delete", "mail.delete", json!({}));
         ui.separator();
         mi(ui, app, "Add to Tasks", "tasks.fromMessage", json!({}));

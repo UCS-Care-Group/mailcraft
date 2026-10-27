@@ -44,6 +44,9 @@ mod jmap_down;
 pub mod jmap_mail;
 #[cfg(test)]
 mod jmap_sending_tests;
+pub mod junk;
+#[cfg(test)]
+mod junk_tests;
 #[cfg(test)]
 mod keyboard_selection_tests;
 #[cfg(test)]
@@ -112,6 +115,7 @@ pub fn registry() -> Registry {
     v.extend(people_merge::specs());
     v.extend(tasks::specs());
     v.extend(rules::specs());
+    v.extend(junk::specs());
     v.extend(category::specs());
     v.extend(account::specs());
     v.extend(offline::specs());

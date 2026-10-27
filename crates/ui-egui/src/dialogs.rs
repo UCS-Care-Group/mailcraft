@@ -868,6 +868,7 @@ pub fn input_dialog(id: &str, params: &Value) -> Option<&'static str> {
         "account.add" if !has("email") => Some("account"),
         "calendar.openShared" if !has("address") => Some("openCalendar"),
         "rules.list" => Some("rules"),
+        "junk.list" => Some("junkOptions"),
         "category.list" => Some("categories"),
         // (What it answers is a table to look at.)
         "folder.properties" => Some("folderProperties"),

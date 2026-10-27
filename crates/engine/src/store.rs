@@ -1574,10 +1574,12 @@ fn open_index(st: &mut State, file: &Path, len: u64, progress: &OpenProgress) ->
 /// for a mailbox missing messages it can't tell, which would otherwise never come back (a
 /// folder's mark says they are here). What is here already isn't fetched twice: IMAP fetches only
 /// UIDs it doesn't have, and Graph lists the folder afresh and knows its messages by server id.
-fn forget_how_far_fetched(mailbox: &mut Mailbox) {
+pub(crate) fn forget_how_far_fetched(mailbox: &mut Mailbox) {
     for folder in &mut mailbox.folders {
         folder.uid_seen = 0;
         folder.uid_from = 0;
+        // Fetched again, it is a first download: the junk lists leave it alone (#504).
+        folder.whole = Some(false);
         if let Some(server) = &mut folder.server {
             server.delta.clear();
             server.caught_up = false;

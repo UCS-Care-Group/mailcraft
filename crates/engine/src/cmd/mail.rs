@@ -56,7 +56,7 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("mail.pin", "Pin", "Home › Tags", pin)
             .params(r#"{"value"?: bool (default: toggle), "ids"?: [number]}"#)
             .selection(needs_message),
-        CommandSpec::new("mail.junk", "Block Sender", "Home › Delete", junk).params(IDS).selection(needs_movable),
+        CommandSpec::new("mail.junk", "Move to Junk", "Home › Delete", junk).params(IDS).selection(needs_movable),
         CommandSpec::new("mail.notJunk", "Not Junk", "Home › Delete", not_junk).key("Mod+Alt+J").params(IDS).selection(needs_movable),
         CommandSpec::new("mail.findRelated", "Find Related Messages", "Home › Find", find_related).pure().selection(needs_message),
         CommandSpec::new("mail.findFromSender", "Messages from Sender", "Home › Find", find_from_sender)

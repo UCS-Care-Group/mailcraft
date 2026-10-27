@@ -157,6 +157,7 @@ be shown when they can't.
 | 2026-10-26 | minor | #493: the search scope menu: Current Folder, Subfolders, Current Mailbox and All Mailboxes; a search of more than one folder names each result's folder under its time, and More results on the server asks only the account in view for the first three |
 | 2026-10-26 | minor | #506: People: Merge Duplicates, and contacts picked together with Ctrl-click |
 | 2026-10-26 | minor | #360: Message list: with several messages selected, the context menu's Forward and Forward as Attachment, Forward's ▾ and Ctrl+Alt+F attach every one of them whole, in the list's order |
+| 2026-10-26 | minor | #504: Home › Delete › Junk ▾ (Block Sender, Never Block Sender, Never Block Sender's Domain, Move to Junk or Not Junk, Junk E-mail Options…), also in a message's context menu; Junk E-mail Options with Safe Senders and Blocked Senders pages |
 | 2026-10-26 | minor | #507: Insert and Review tabs while writing; Insert › Date & Time and Review › Word Count, each with its dialog |
 | 2026-10-26 | minor | #507: the rest of the Insert and Review tabs shown greyed, "Pending development"; Ctrl+Shift+G for Word Count |
 | 2026-10-26 | minor | #507: generic names for the pending Insert controls (Item, Saved Text, Diagram, Text Effects), Drop Cap, Object and 3D Models added; pending controls named and disabled for screen readers |

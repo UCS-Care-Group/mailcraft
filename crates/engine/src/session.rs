@@ -2038,7 +2038,7 @@ impl Session {
         if gone {
             return Some(Class::Delete);
         }
-        if to.rules != now.rules || to.signatures != now.signatures {
+        if to.rules != now.rules || to.signatures != now.signatures || to.junk != now.junk {
             return Some(Class::Settings);
         }
         None

@@ -844,6 +844,7 @@ fn a_sync_result_lands_in_the_right_folders() {
             new: vec![mail(12, "Two again"), mail(13, "Three")],
             flags: vec![RemoteFlags { uid: 12, read: true, flagged: true, ..Default::default() }],
             removed: vec![11],
+            complete: true,
         }],
         ..Default::default()
     };
