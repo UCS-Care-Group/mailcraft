@@ -15,6 +15,7 @@ repository = "https://github.com/UCS-Care-Group/mailcraft"
 mailcraft-time = { path = "crates/time" }
 mailcraft-charset = { path = "crates/charset" }
 mailcraft-link = { path = "crates/link" }
+mailcraft-names = { path = "crates/names" }
 mailcraft-i18n = { path = "crates/i18n" }
 mailcraft-model = { path = "crates/model" }
 mailcraft-html = { path = "crates/html" }

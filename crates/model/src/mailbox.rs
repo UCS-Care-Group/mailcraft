@@ -866,9 +866,15 @@ pub struct Mailbox {
     #[serde(deserialize_with = "crate::load_limit::capped_vec")]
     pub categories: Vec<Category>,
     pub rules: Vec<Rule>,
-    /// Junk E-mail Options' Safe Senders and Blocked Senders (#504).
+    /// The mailbox-wide Safe Senders and Blocked Senders of #504, before they were kept per
+    /// account (#516). Only read from an old file: [`Mailbox::repair`] moves them to every
+    /// account's own lists and empties this, so the next save drops it.
     #[serde(skip_serializing_if = "crate::JunkLists::is_empty")]
     pub junk: crate::JunkLists,
+    /// Junk E-mail Options' Safe Senders and Blocked Senders of each account (#516), by the id
+    /// of the account (a shared mailbox has its owner's, [`Mailbox::junk_owner`]).
+    #[serde(skip_serializing_if = "BTreeMap::is_empty", deserialize_with = "crate::load_limit::capped_map")]
+    pub junk_accounts: BTreeMap<Id, crate::JunkLists>,
     pub signatures: Vec<Signature>,
     /// Moves and deletions the mail server is yet to be told, oldest first.
     #[serde(skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::sync::lenient_list")]
@@ -941,6 +947,7 @@ impl Default for Mailbox {
             categories: default_categories(),
             rules: Vec::new(),
             junk: crate::JunkLists::default(),
+            junk_accounts: BTreeMap::new(),
             signatures: Vec::new(),
             pending: Vec::new(),
             event_changes: Vec::new(),
@@ -1084,6 +1091,7 @@ impl Mailbox {
         self.event_checks.retain(|check| !going.contains(&check.account));
         self.task_gone.retain(|gone| !going.contains(&gone.account));
         self.shared_task_lists.retain(|account, _| !going.contains(account));
+        self.junk_accounts.retain(|account, _| !going.contains(account));
         // Its to-dos stay, as to-dos of this computer only.
         for task in self.tasks.values_mut().filter(|t| going.contains(&t.origin.account)) {
             let task = Arc::make_mut(task);
@@ -2088,12 +2096,10 @@ impl Mailbox {
     /// read whole once ([`Folder::read_whole`], Graph's `caught_up`), never a first download:
     /// mail that was here before (or before a list changed) stays where it is.
     pub fn sort_junk(&mut self, id: Id) -> bool {
-        if self.junk.is_empty() {
-            return false;
-        }
         let Some(m) = self.message(id) else { return false };
+        let Some(lists) = self.junk_lists(m.account) else { return false };
         let Some(kind) = self.folder(m.folder).map(|f| f.kind) else { return false };
-        let to = match (kind, self.junk.verdict(&m.from.email)) {
+        let to = match (kind, lists.verdict(&m.from.email)) {
             (FolderKind::Inbox, Some(crate::JunkList::Blocked)) => FolderKind::Junk,
             (FolderKind::Junk, Some(crate::JunkList::Safe)) => FolderKind::Inbox,
             _ => return false,
@@ -2105,6 +2111,44 @@ impl Mailbox {
         }
         let Some(folder) = self.folder_of_kind(m.account, to) else { return false };
         self.move_message(id, folder).is_ok() && self.message(id).is_some_and(|m| m.folder == folder)
+    }
+
+    /// The account whose lists govern `account`'s mail: itself, or for a shared mailbox the
+    /// account it was opened through.
+    pub fn junk_owner(&self, account: Id) -> Id {
+        self.account(account).and_then(|a| a.shared_of).unwrap_or(account)
+    }
+
+    /// The Safe Senders and Blocked Senders of `account` (#516); `None` when it has none.
+    pub fn junk_lists(&self, account: Id) -> Option<&crate::JunkLists> {
+        self.junk_accounts.get(&self.junk_owner(account)).filter(|l| !l.is_empty())
+    }
+
+    /// The same, to change; empty ones are made. Call it only for an account that exists.
+    pub fn junk_lists_mut(&mut self, account: Id) -> &mut crate::JunkLists {
+        let owner = self.junk_owner(account);
+        self.junk_accounts.entry(owner).or_default()
+    }
+
+    /// Move the mailbox-wide lists of a file from before #516 to every account's own lists
+    /// (each account of the mailbox gets a copy, unless it has lists already, which are kept).
+    /// A mailbox with no account yet keeps them until it has one. Whether anything moved.
+    fn migrate_junk_lists(&mut self) -> bool {
+        if self.junk.is_empty() {
+            return false;
+        }
+        let owners: Vec<Id> = self.accounts.iter().filter(|a| a.shared_of.is_none()).map(|a| a.id).collect();
+        if owners.is_empty() {
+            return false;
+        }
+        let old = std::mem::take(&mut self.junk);
+        for id in owners {
+            let lists = self.junk_accounts.entry(id).or_default();
+            if lists.is_empty() {
+                *lists = old.clone();
+            }
+        }
+        true
     }
 
     /// Run the enabled rules on a message (new mail). Returns the names of the rules that ran.
@@ -2341,7 +2385,19 @@ impl Mailbox {
             self.rules.truncate(MAX_RULES);
             fixed.push(format!("rules cut to {MAX_RULES}"));
         }
-        if self.junk.repair() {
+        if self.migrate_junk_lists() {
+            fixed.push("Safe and Blocked Senders moved to each account".to_string());
+        }
+        let mut tidied = self.junk.repair();
+        let known: HashSet<Id> = self.accounts.iter().filter(|a| a.shared_of.is_none()).map(|a| a.id).collect();
+        let before = self.junk_accounts.len();
+        self.junk_accounts.retain(|account, _| known.contains(account));
+        tidied |= self.junk_accounts.len() != before;
+        for lists in self.junk_accounts.values_mut() {
+            tidied |= lists.repair();
+        }
+        self.junk_accounts.retain(|_, lists| !lists.is_empty());
+        if tidied {
             fixed.push("Safe and Blocked Senders tidied".to_string());
         }
         // Ids stay within what JSON numbers hold exactly; anything above gets a new id, so the

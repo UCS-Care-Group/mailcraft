@@ -2383,6 +2383,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "mailcraft-names"
+version = "0.8.1"
+dependencies = [
+ "proptest",
+]
+
+[[package]]
 name = "mailcraft-net"
 version = "0.8.1"
 dependencies = [

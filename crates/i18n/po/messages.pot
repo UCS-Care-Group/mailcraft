@@ -415,6 +415,11 @@ msgstr ""
 msgid "Accessibility"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/forms/junk.rs
+msgid "Account"
+msgstr ""
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid ""
@@ -10995,6 +11000,11 @@ msgid "there is already a signature named \"{to}\""
 msgstr ""
 
 #. what a command says
+#: crates/engine/src/cmd/junk.rs
+msgid "there is no account"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/account.rs
 msgid "there is no account to remove"
 msgstr ""
@@ -11256,6 +11266,16 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/calendar_opened.rs
 msgid "{address} isn't a shared mailbox open here."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/shared_mailboxes.rs
+msgid "{address}: {error}. It will try again at the next Send/Receive."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/shared_mailboxes.rs
+msgid "{address}: {error}. See File › Info."
 msgstr ""
 
 #. interface

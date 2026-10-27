@@ -22,7 +22,8 @@ fn mail(folder: Id, from: &str, subject: &str) -> Message {
 }
 
 fn lists(s: &Session) -> (Vec<String>, Vec<String>) {
-    (s.mailbox.junk.safe.clone(), s.mailbox.junk.blocked.clone())
+    let account = s.mailbox.accounts[0].id;
+    s.mailbox.junk_accounts.get(&account).map(|l| (l.safe.clone(), l.blocked.clone())).unwrap_or_default()
 }
 
 #[test]
@@ -39,7 +40,7 @@ fn block_sender_lists_the_sender_and_moves_the_message_and_undo_takes_both_back(
     assert_eq!(lists(&s).1, ["offers@shop.example"]);
     assert!(s.run("edit.undo", &json!({})).unwrap() != json!(null));
     assert_eq!(s.mailbox.message(id).unwrap().folder, inbox);
-    assert!(s.mailbox.junk.is_empty());
+    assert!(s.mailbox.junk_accounts.is_empty());
 }
 
 #[test]
@@ -64,13 +65,13 @@ fn never_block_adds_the_sender_or_the_domain_to_safe_senders_and_leaves_the_mail
 
 #[test]
 fn the_options_add_remove_and_list_entries() {
-    let (mut s, _) = local();
+    let (mut s, a) = local();
     let r = s.run("junk.add", &json!({"list": "blocked", "entry": " @Spam.example "})).unwrap();
     assert_eq!(r["entry"], "@spam.example");
     s.run("junk.add", &json!({"list": "safe", "entry": "friend@example.net"})).unwrap();
-    assert_eq!(s.run("junk.list", &json!({})).unwrap(), json!({"safe": ["friend@example.net"], "blocked": ["@spam.example"]}));
+    assert_eq!(s.run("junk.list", &json!({})).unwrap(), json!({"account": a, "safe": ["friend@example.net"], "blocked": ["@spam.example"]}));
     s.run("junk.remove", &json!({"list": "blocked", "entry": "@SPAM.example"})).unwrap();
-    assert!(s.mailbox.junk.blocked.is_empty());
+    assert!(lists(&s).1.is_empty());
     assert!(s.run("junk.remove", &json!({"list": "blocked", "entry": "@spam.example"})).is_err());
     for bad in [json!({}), json!({"list": "other", "entry": "a@example.org"}), json!({"list": "safe", "entry": "not one"}), json!({"list": "safe"})] {
         assert!(s.run("junk.add", &bad).is_err(), "{bad}");
@@ -80,7 +81,7 @@ fn the_options_add_remove_and_list_entries() {
     assert!(s.run("junk.add", &json!({"list": "safe", "entry": long})).is_err());
     assert!(s.run("junk.remove", &json!({"list": "safe", "entry": long})).is_err());
     for i in 0..mailcraft_model::MAX_JUNK_ENTRIES {
-        s.mailbox.junk.blocked.push(format!("s{i}@example.org"));
+        s.mailbox.junk_lists_mut(a).blocked.push(format!("s{i}@example.org"));
     }
     assert!(s.run("junk.add", &json!({"list": "blocked", "entry": "more@example.org"})).is_err());
 }
@@ -216,7 +217,7 @@ fn the_question_names_the_list_the_command_changes() {
     let Verdict::Ask(Class::Settings, said) = check(&s, "junk.add", &params, &[]) else { panic!("asked") };
     assert!(said.contains("Blocked Senders") && !said.contains("Safe Senders"), "{said}");
     s.run("junk.add", &params).unwrap();
-    assert_eq!(s.mailbox.junk.blocked, ["offers@shop.example"]);
+    assert_eq!(lists(&s).1, ["offers@shop.example"]);
     let said = describe(&s, "junk.remove", &json!({"list": "SAFE ", "entry": "a@example.org"}));
     assert!(said.contains("Safe Senders"), "{said}");
     // A list that is neither isn't put to the owner at all.
@@ -235,7 +236,7 @@ fn the_owner_s_own_addresses_are_never_blocked() {
     let e = format!("{:?}", s.run("junk.blockSender", &json!({"ids": [mine]})).unwrap_err());
     assert!(e.contains("your own"), "{e}");
     assert!(s.run("junk.add", &json!({"list": "blocked", "entry": "<ada@example.org>"})).is_err());
-    assert!(s.mailbox.junk.is_empty());
+    assert!(s.mailbox.junk_accounts.is_empty());
     assert_eq!(s.mailbox.message(mine).unwrap().folder, inbox);
     // Never blocking it is fine, and so is blocking its domain.
     s.run("junk.add", &json!({"list": "safe", "entry": "ada@example.org"})).unwrap();
@@ -428,4 +429,62 @@ fn mail_fetched_again_after_a_damaged_save_is_not_sorted() {
     assert_eq!((folder_of(&s, "Old"), folder_of(&s, "Older")), (Some(inbox), Some(inbox)));
     take(&mut s, a, inbox_piece(11, vec![arriving(11, "offers@shop.example", "New")], true));
     assert_eq!(folder_of(&s, "New"), Some(junk));
+}
+
+/// A second account, as another address of the same owner.
+fn second_account(s: &mut Session) -> Id {
+    let mut b = s.mailbox.accounts[0].clone();
+    b.id += 1_000;
+    b.email = "ada@example.net".into();
+    b.name = "ada@example.net".into();
+    let id = b.id;
+    s.mailbox.accounts.push(b);
+    s.mailbox.repair();
+    id
+}
+
+#[test]
+fn each_account_has_its_own_lists_and_sorts_by_them_alone() {
+    let (mut s, a) = local();
+    let b = second_account(&mut s);
+    s.run("junk.add", &json!({"account": a, "list": "blocked", "entry": "@shop.example"})).unwrap();
+    s.run("junk.add", &json!({"account": b, "list": "safe", "entry": "@shop.example"})).unwrap();
+    let r = s.run("junk.list", &json!({"account": a})).unwrap();
+    assert_eq!((r["safe"].clone(), r["blocked"].clone()), (json!([]), json!(["@shop.example"])));
+    let r = s.run("junk.list", &json!({"account": b})).unwrap();
+    assert_eq!((r["safe"].clone(), r["blocked"].clone()), (json!(["@shop.example"]), json!([])));
+    // New mail is sorted by the lists of the account it came to.
+    let inbox_a = s.mailbox.folder_of_kind(a, FolderKind::Inbox).unwrap();
+    let junk_a = s.mailbox.folder_of_kind(a, FolderKind::Junk).unwrap();
+    let inbox_b = s.mailbox.folder_of_kind(b, FolderKind::Inbox).unwrap();
+    let to_a = s.mailbox.add_message(mail(inbox_a, "x@shop.example", "A")).unwrap();
+    let to_b = s.mailbox.add_message(mail(inbox_b, "x@shop.example", "B")).unwrap();
+    assert!(s.mailbox.sort_junk(to_a));
+    assert!(!s.mailbox.sort_junk(to_b));
+    assert_eq!(s.mailbox.message(to_a).unwrap().folder, junk_a);
+    // Block Sender changes the lists of the message's account only.
+    let other = s.mailbox.add_message(mail(inbox_b, "y@promo.example", "P")).unwrap();
+    s.run("junk.blockSender", &json!({"ids": [other]})).unwrap();
+    assert_eq!(s.mailbox.junk_accounts[&b].blocked, ["y@promo.example"]);
+    assert_eq!(s.mailbox.junk_accounts[&a].blocked, ["@shop.example"]);
+    // Without `account`, the selected message's account; a stranger is refused.
+    assert!(s.run("junk.list", &json!({"account": 424_242})).is_err());
+    s.run("mail.select", &json!({"id": other})).unwrap();
+    assert_eq!(s.run("junk.list", &json!({})).unwrap()["account"], json!(b));
+    // Removing an account takes its lists with it.
+    s.mailbox.remove_account(b).unwrap();
+    assert!(!s.mailbox.junk_accounts.contains_key(&b));
+}
+
+#[test]
+fn an_agent_is_asked_about_the_account_whose_list_changes() {
+    use crate::agent::{Class, Verdict, check, describe};
+    let (mut s, _) = local();
+    let b = second_account(&mut s);
+    let params = json!({"account": b, "list": "blocked", "entry": "x@shop.example"});
+    let said = describe(&s, "junk.add", &params);
+    assert!(said.contains("ada@example.net"), "{said}");
+    assert!(matches!(check(&s, "junk.add", &params, &[]), Verdict::Ask(Class::Settings, _)));
+    let stranger = json!({"account": 424_242, "list": "safe", "entry": "x@y.example"});
+    assert!(matches!(check(&s, "junk.add", &stranger, &[Class::Settings]), Verdict::Refuse(_)));
 }

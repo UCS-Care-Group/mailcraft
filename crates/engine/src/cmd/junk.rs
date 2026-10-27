@@ -3,8 +3,10 @@
 //! Junk E-mail Options (#504): the Safe Senders and Blocked Senders lists, and Home › Delete ›
 //! Junk's Block Sender, Never Block Sender and Never Block Sender's Domain.
 //!
-//! The lists are the mailbox's ([`mailcraft_model::JunkLists`]), so they are saved with it and a
-//! change to them is undone as any other. They sort mail as it arrives
+//! The lists are each account's (#516; [`mailcraft_model::JunkLists`], kept in the mailbox file),
+//! so they are saved with it and a change to them is undone as any other. A command on a message
+//! changes its account's lists; `junk.add`, `junk.remove` and `junk.list` take an optional
+//! `account` (default: the selected message's account, else the first). They sort mail as it arrives
 //! ([`mailcraft_model::Mailbox::sort_junk`]); a change to a list leaves the mail that is here
 //! where it is, but for Block Sender's own message, which goes to Junk E-mail.
 
@@ -26,11 +28,13 @@ pub fn specs() -> Vec<CommandSpec> {
             .params(r#"{"ids"?: [number]} (default: the selected messages) — adds each one's sender's domain (`@example.org`) to Safe Senders"#)
             .selection(needs_message),
         CommandSpec::new("junk.add", "Add to Safe or Blocked Senders", "Home › Delete › Junk", add).params(
-            r#"{"list": "safe"|"blocked", "entry": string} — an address (`ada@example.org`) or a domain (`@example.org`, which matches that domain only, not its subdomains); it leaves the other list"#,
+            r#"{"list": "safe"|"blocked", "entry": string, "account"?: number} — on that account's list (default: the selected message's account, else the first); an address (`ada@example.org`) or a domain (`@example.org`, which matches that domain only, not its subdomains); it leaves the other list"#,
         ),
         CommandSpec::new("junk.remove", "Remove from Safe or Blocked Senders", "Home › Delete › Junk", remove)
-            .params(r#"{"list": "safe"|"blocked", "entry": string}"#),
-        CommandSpec::new("junk.list", "Junk E-mail Options", "Home › Delete › Junk", list).pure(),
+            .params(r#"{"list": "safe"|"blocked", "entry": string, "account"?: number}"#),
+        CommandSpec::new("junk.list", "Junk E-mail Options", "Home › Delete › Junk", list)
+            .params(r#"{"account"?: number} — answers {"account", "safe": [string], "blocked": [string]}"#)
+            .pure(),
     ]
 }
 
@@ -38,8 +42,22 @@ fn which(v: &Value) -> Result<JunkList, CmdError> {
     JunkList::parse(p::req_str(v, "list")?).ok_or_else(|| bad("`list` is \"safe\" or \"blocked\""))
 }
 
-/// Add `entry` to `list`; answers it as kept.
-fn add_entry(s: &mut Session, list: JunkList, entry: &str) -> Result<String, CmdError> {
+/// The account whose lists a call is about: `account` (an account of its own, not a shared
+/// mailbox, which has its owner's), else the selected message's, else the first.
+pub(crate) fn list_account(s: &Session, v: &Value) -> Result<Id, CmdError> {
+    if let Some(id) = p::id(v, "account") {
+        return match s.mailbox.account(id) {
+            Some(a) if a.shared_of.is_none() => Ok(id),
+            Some(_) => Err(bad("`account` is a shared mailbox: it has the lists of the account it was opened through")),
+            None => Err(bad("`account` isn't an account")),
+        };
+    }
+    let selected = s.sel.messages.last().and_then(|m| s.mailbox.message(*m)).map(|m| s.mailbox.junk_owner(m.account));
+    selected.or_else(|| s.mailbox.default_account().map(|a| a.id)).ok_or_else(|| fail("there is no account"))
+}
+
+/// Add `entry` to `list` of `account`; answers it as kept.
+fn add_entry(s: &mut Session, account: Id, list: JunkList, entry: &str) -> Result<String, CmdError> {
     // The owner's own mail (from another device, or a copy sent to themselves) is never junk.
     if list == JunkList::Blocked
         && let Some(key) = junk_entry(entry).map(|e| junk_key(&e))
@@ -47,7 +65,7 @@ fn add_entry(s: &mut Session, list: JunkList, entry: &str) -> Result<String, Cmd
     {
         return Err(failed!("{address} is one of your own addresses: your own mail isn't blocked", address = key));
     }
-    match s.mailbox.junk.add(list, entry) {
+    match s.mailbox.junk_lists_mut(account).add(list, entry) {
         Added::Added(e) | Added::There(e) => Ok(e),
         Added::Invalid => Err(fail("type an address, such as someone@example.org, or a domain, such as @example.org")),
         Added::Full => Err(failed!("a list holds {n} entries at most", n = mailcraft_model::MAX_JUNK_ENTRIES)),
@@ -55,17 +73,18 @@ fn add_entry(s: &mut Session, list: JunkList, entry: &str) -> Result<String, Cmd
 }
 
 /// The senders of the target messages, as each would be kept on a list (an address, or its
-/// domain), each once.
-fn senders(s: &Session, ids: &[Id], domain: bool) -> Vec<String> {
-    let mut out: Vec<String> = Vec::new();
+/// domain), each once for the account its message is in.
+fn senders(s: &Session, ids: &[Id], domain: bool) -> Vec<(Id, String)> {
+    let mut out: Vec<(Id, String)> = Vec::new();
     for id in ids {
         let Some(m) = s.mailbox.message(*id) else { continue };
         let address = m.from.email.trim();
         let text = if domain { address.rsplit_once('@').map(|(_, d)| format!("@{d}")) } else { Some(address.to_string()) };
-        if let Some(e) = text.as_deref().and_then(junk_entry).filter(|e| domain || !e.starts_with('@'))
-            && !out.contains(&e)
-        {
-            out.push(e);
+        if let Some(e) = text.as_deref().and_then(junk_entry).filter(|e| domain || !e.starts_with('@')) {
+            let owner = s.mailbox.junk_owner(m.account);
+            if !out.iter().any(|(a, x)| *a == owner && *x == e) {
+                out.push((owner, e));
+            }
         }
     }
     out
@@ -77,10 +96,14 @@ fn add_senders(s: &mut Session, v: &Value, list: JunkList, domain: bool) -> Resu
     if entries.is_empty() {
         return Err(fail("the sender has no address to put on the list"));
     }
-    for e in &entries {
-        add_entry(s, list, e)?;
+    let mut shown: Vec<String> = Vec::new();
+    for (account, e) in &entries {
+        let kept = add_entry(s, *account, list, e)?;
+        if !shown.contains(&kept) {
+            shown.push(kept);
+        }
     }
-    Ok((ids, entries))
+    Ok((ids, shown))
 }
 
 fn block_sender(s: &mut Session, v: &Value) -> CmdResult {
@@ -115,19 +138,23 @@ fn never_block_domain(s: &mut Session, v: &Value) -> CmdResult {
 
 fn add(s: &mut Session, v: &Value) -> CmdResult {
     let list = which(v)?;
-    let entry = add_entry(s, list, p::req_str(v, "entry")?)?;
-    Ok(json!({"list": list.as_str(), "entry": entry}))
+    let account = list_account(s, v)?;
+    let entry = add_entry(s, account, list, p::req_str(v, "entry")?)?;
+    Ok(json!({"account": account, "list": list.as_str(), "entry": entry}))
 }
 
 fn remove(s: &mut Session, v: &Value) -> CmdResult {
     let list = which(v)?;
     let entry = p::req_str(v, "entry")?;
-    if !s.mailbox.junk.remove(list, entry) {
+    let account = list_account(s, v)?;
+    if !s.mailbox.junk_lists_mut(account).remove(list, entry) {
         return Err(fail("that isn't on the list"));
     }
-    Ok(json!({"list": list.as_str(), "removed": true}))
+    Ok(json!({"account": account, "list": list.as_str(), "removed": true}))
 }
 
-fn list(s: &mut Session, _: &Value) -> CmdResult {
-    Ok(json!({"safe": s.mailbox.junk.safe, "blocked": s.mailbox.junk.blocked}))
+fn list(s: &mut Session, v: &Value) -> CmdResult {
+    let account = list_account(s, v)?;
+    let lists = s.mailbox.junk_accounts.get(&account);
+    Ok(json!({"account": account, "safe": lists.map(|l| &l.safe), "blocked": lists.map(|l| &l.blocked)}))
 }
