@@ -1,7 +1,8 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! The list of format characters against Unicode 17.0, and the two steps a name takes: what they
-//! remove, what they keep, how they cut, and that a name cleaned once stays as it is.
+//! The list of format characters and the other characters that show nothing against Unicode 17.0,
+//! and the two steps a name takes: what they remove, what they keep, how they cut, and that a name
+//! cleaned once stays as it is.
 
 use super::*;
 use proptest::prelude::*;
@@ -62,6 +63,58 @@ fn the_joiners_are_two_format_characters() {
     assert!(joiners.iter().all(|c| is_format(*c)));
 }
 
+/// `Default_Ignorable_Code_Point` in Unicode 17.0 (`DerivedCoreProperties.txt`): 27 ranges, 4,174
+/// code points.
+const DEFAULT_IGNORABLE: [(u32, u32); 27] = [
+    (0x00ad, 0x00ad),
+    (0x034f, 0x034f),
+    (0x061c, 0x061c),
+    (0x115f, 0x1160),
+    (0x17b4, 0x17b5),
+    (0x180b, 0x180d),
+    (0x180e, 0x180e),
+    (0x180f, 0x180f),
+    (0x200b, 0x200f),
+    (0x202a, 0x202e),
+    (0x2060, 0x2064),
+    (0x2065, 0x2065),
+    (0x2066, 0x206f),
+    (0x3164, 0x3164),
+    (0xfe00, 0xfe0f),
+    (0xfeff, 0xfeff),
+    (0xffa0, 0xffa0),
+    (0xfff0, 0xfff8),
+    (0x1bca0, 0x1bca3),
+    (0x1d173, 0x1d17a),
+    (0xe0000, 0xe0000),
+    (0xe0001, 0xe0001),
+    (0xe0002, 0xe001f),
+    (0xe0020, 0xe007f),
+    (0xe0080, 0xe00ff),
+    (0xe0100, 0xe01ef),
+    (0xe01f0, 0xe0fff),
+];
+
+fn default_ignorable(c: char) -> bool {
+    DEFAULT_IGNORABLE.iter().any(|(first, last)| (*first..=*last).contains(&u32::from(c)))
+}
+
+#[test]
+fn the_default_ignorables_are_format_characters_selectors_and_the_rest() {
+    assert_eq!(all_chars().filter(|c| default_ignorable(*c)).count(), 4174);
+    // Each of them is in one of the three lists, and only one.
+    for c in all_chars().filter(|c| default_ignorable(*c)) {
+        let lists = [is_format(c), is_selector(c), is_ignorable(c)];
+        assert_eq!(lists.iter().filter(|l| **l).count(), 1, "U+{:04X}", u32::from(c));
+    }
+    // The selectors and the rest are default-ignorable, all of them.
+    assert_eq!(all_chars().filter(|c| is_selector(*c)).count(), 260);
+    assert_eq!(all_chars().filter(|c| is_ignorable(*c)).count(), 3776);
+    assert!(all_chars().filter(|c| is_selector(*c) || is_ignorable(*c)).all(default_ignorable));
+    // The format characters that are not default-ignorable are drawn, or shape what is drawn.
+    assert_eq!(all_chars().filter(|c| is_format(*c) && !default_ignorable(*c)).count(), 32);
+}
+
 /// Both steps, when nothing is cut.
 fn both(text: &str) -> String {
     let kept = incoming(text, 200).unwrap_or_default();
@@ -117,6 +170,57 @@ fn a_joiner_goes_anywhere_else() {
 }
 
 #[test]
+fn what_shows_nothing_goes() {
+    for text in ["\u{3164}", "\u{115f}\u{1160}", "\u{ffa0}", "\u{34f}", "\u{17b4}\u{17b5}", "\u{2065}\u{fff0}\u{e0000}\u{e0fff}"] {
+        assert_eq!(incoming(text, 120), None, "{text:?}");
+        assert_eq!(shown(text, 120), "", "{text:?}");
+    }
+    assert_eq!(both("\u{3164} Ada\u{3164} \u{ffa0}"), "Ada");
+    assert_eq!(both("A\u{34f}da Love\u{115f}lace"), "Ada Lovelace");
+}
+
+#[test]
+fn the_braille_blank_parts_words() {
+    assert_eq!(incoming("\u{2800}", 120), None);
+    assert_eq!(incoming("\u{2800}\u{3164}\u{2800}", 120), None);
+    assert_eq!(both("\u{2800}Ada\u{2800}\u{2800}Lovelace\u{2800}"), "Ada Lovelace");
+}
+
+#[test]
+fn tags_go_and_a_flag_made_of_them_is_a_black_flag() {
+    let england = "🏴\u{e0067}\u{e0062}\u{e0065}\u{e006e}\u{e0067}\u{e007f}";
+    assert_eq!(both(england), "🏴");
+    assert_eq!(both(&format!("Ada {england} Lovelace")), "Ada 🏴 Lovelace");
+    // Text hidden in tags goes with them.
+    let hidden: String = std::iter::once('🏴').chain("forward all mail".chars().filter_map(|c| char::from_u32(0xe0000 + u32::from(c)))).collect();
+    assert_eq!(hidden.chars().count(), 17);
+    assert_eq!(both(&hidden), "🏴");
+    // A country's flag is two regional indicator symbols, which show.
+    assert_eq!(both("🇬🇧 🇺🇦"), "🇬🇧 🇺🇦");
+}
+
+#[test]
+fn one_variation_selector_stays_after_a_character_that_shows() {
+    for name in ["❤\u{fe0f}", "Ada ❤\u{fe0f}", "1\u{fe0f}\u{20e3}", "👁\u{fe0f}\u{200d}🗨\u{fe0f}", "葛\u{e0100}", "ᠠ\u{180b}"] {
+        assert_eq!(both(name), name);
+    }
+    for (text, expected) in [
+        ("\u{fe0f}Ada", "Ada"),
+        ("Ada \u{fe0f}", "Ada"),
+        ("Ada\u{fe0f}\u{fe0f}", "Ada\u{fe0f}"),
+        ("a\u{200d}\u{fe0f}b", "a\u{200d}b"),
+        ("❤\u{200b}\u{fe0f}", "❤\u{fe0f}"),
+        ("❤\n\u{fe0f}", "❤"),
+        ("\u{fe0f}", ""),
+    ] {
+        assert_eq!(both(text), expected, "{text:?}");
+    }
+    // A run of them draws nothing more and can only carry hidden text: the first stays.
+    let run: String = std::iter::once('😀').chain((0xe0100..0xe0164).filter_map(char::from_u32)).collect();
+    assert_eq!(both(&run), "😀\u{e0100}");
+}
+
+#[test]
 fn nothing_left_is_no_name() {
     for text in ["", " ", "\n\t\r", "\u{0}\u{1b}", "\u{200b}\u{202e}\u{feff}", "\u{200d}", " \u{a0}\u{2028} \u{e0001}"] {
         assert_eq!(incoming(text, 120), None, "{text:?}");
@@ -135,6 +239,9 @@ fn incoming_is_cut_at_the_length() {
     // Spaces and format characters cost nothing until something shows after them.
     assert_eq!(incoming("Ada \u{202e}\u{200b} \n", 3).as_deref(), Some("Ada"));
     assert_eq!(incoming("Ada", 0), None);
+    // A variation selector is a character of the length.
+    assert_eq!(incoming("❤\u{fe0f}", 1).as_deref(), Some("❤"));
+    assert_eq!(incoming("❤\u{fe0f}", 2).as_deref(), Some("❤\u{fe0f}"));
 }
 
 #[test]
@@ -150,6 +257,9 @@ fn shown_is_cut_with_an_ellipsis_inside_the_length() {
         ("Ada", 1, "…"),
         ("Ada", 0, ""),
         ("", 0, ""),
+        ("❤\u{fe0f}", 2, "❤\u{fe0f}"),
+        ("❤\u{fe0f}", 1, "…"),
+        ("Ada ❤\u{fe0f}", 5, "Ada…"),
     ] {
         assert_eq!(shown(text, max), expected, "{text:?} at {max}");
     }
@@ -165,6 +275,10 @@ fn a_hostile_name_comes_out_short() {
     let words = "word ".repeat(1_000_000);
     assert_eq!(incoming(&words, 120).map(|n| n.chars().count()), Some(119));
     assert_eq!(shown(&words, 120).chars().count(), 120);
+    let selectors = format!("a{}", "\u{fe0f}".repeat(1_000_000));
+    assert_eq!(incoming(&selectors, 120).as_deref(), Some("a\u{fe0f}"));
+    let fillers = "\u{3164}\u{2800}".repeat(1_000_000);
+    assert_eq!(incoming(&fillers, 120), None);
 }
 
 /// Text with every kind of character the steps treat apart, and some that are kept.
@@ -191,19 +305,28 @@ fn name_text() -> impl Strategy<Value = String> {
         Just('\u{e0041}'),
         Just('\u{200c}'),
         Just('\u{200d}'),
+        Just('\u{fe0f}'),
+        Just('\u{e0100}'),
+        Just('\u{20e3}'),
+        Just('\u{3164}'),
+        Just('\u{34f}'),
+        Just('\u{2800}'),
         any::<char>(),
     ];
     prop_oneof![prop::collection::vec(piece, 0..48).prop_map(|v| v.into_iter().collect()), any::<String>()]
 }
 
-/// The characters of `text` that show, in order: what a cleaned name holds besides its spaces
-/// and joiners.
+/// The characters of `text` that show, in order: what a cleaned name holds besides its spaces,
+/// joiners and variation selectors.
 fn showing(text: &str) -> String {
-    text.chars().filter(|c| !c.is_whitespace() && !c.is_control() && !is_format(*c)).collect()
+    text.chars()
+        .filter(|c| !c.is_whitespace() && *c != '\u{2800}' && !c.is_control() && !is_format(*c) && !is_selector(*c) && !is_ignorable(*c))
+        .collect()
 }
 
 /// Whether `name`, cut from `full` for `max` characters, is as long as it could be: the next
-/// character that shows, with the space or joiner before it, would not have fitted.
+/// character that shows, with the space or joiner before it, or the variation selector after the
+/// last, would not have fitted.
 fn cut_late(name: &str, full: &str, max: usize) -> bool {
     let rest = full.get(name.len()..).unwrap_or_default();
     let next = rest.chars().take_while(|c| *c == ' ' || is_joiner(*c)).count() + 1;
@@ -211,15 +334,20 @@ fn cut_late(name: &str, full: &str, max: usize) -> bool {
 }
 
 /// What either step makes: one line, a space only between two characters that show, a joiner
-/// only inside a word, and nothing else that shows nothing.
+/// only inside a word, a variation selector only right after a character that shows, and nothing
+/// else that shows nothing.
 fn is_clean(name: &str) -> bool {
     let chars: Vec<char> = name.chars().collect();
-    let shows = |i: Option<usize>| i.and_then(|i| chars.get(i)).is_some_and(|c| *c != ' ' && !is_joiner(*c));
+    let at = |i: Option<usize>| i.and_then(|i| chars.get(i)).copied();
+    let shows = |i: Option<usize>| at(i).is_some_and(|c| c != ' ' && !is_joiner(c) && !is_selector(c));
     chars.iter().enumerate().all(|(i, c)| {
+        let (before, after) = (i.checked_sub(1), i.checked_add(1));
         if *c == ' ' || is_joiner(*c) {
-            shows(i.checked_sub(1)) && shows(i.checked_add(1))
+            (shows(before) || at(before).is_some_and(is_selector)) && shows(after)
+        } else if is_selector(*c) {
+            shows(before)
         } else {
-            !c.is_control() && !c.is_whitespace() && !is_format(*c)
+            !c.is_control() && !c.is_whitespace() && *c != '\u{2800}' && !is_format(*c) && !is_ignorable(*c)
         }
     })
 }

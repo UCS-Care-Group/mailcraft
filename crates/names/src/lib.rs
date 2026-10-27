@@ -10,21 +10,32 @@
 //! around them, or make two names that look the same differ.
 //!
 //! A name takes two steps, both from the same cleaning:
-//! - [`incoming`], for a name as it is kept: one line, without control or format characters,
-//!   trimmed, at most a given length; nothing when nothing is left.
+//! - [`incoming`], for a name as it is kept: one line, without control characters or characters
+//!   that show nothing, trimmed, at most a given length; nothing when nothing is left.
 //! - [`shown`], for a name as it is shown: the same, and cut with an ellipsis where it doesn't
 //!   fit. What is kept is not changed.
 //!
-//! A zero-width joiner or non-joiner ([`is_joiner`]) stays where it stands between two
-//! characters that show, inside a word: an emoji made of several, and words of Persian and
-//! the Indic scripts, need it there. Anywhere else it goes.
+//! A name loses control characters, format characters and the rest of Unicode's default-ignorable
+//! code points (`Default_Ignorable_Code_Point`, Unicode 17.0: the Hangul fillers, the combining
+//! grapheme joiner and the code points Unicode keeps for more such characters, which show
+//! nothing; a name of them alone would look empty). The format characters that are drawn, such
+//! as the Arabic number signs, go too. The braille blank, which shows nothing either, parts words
+//! as white space does.
 //!
-//! Characters that show nothing but are not format characters (the Hangul fillers, the braille
-//! blank, a variation selector) are letters, marks and symbols to Unicode, and are kept.
+//! Two kinds of them stay where they are part of what shows:
+//! - a zero-width joiner or non-joiner ([`is_joiner`]) between two characters that show, inside
+//!   a word: an emoji made of several, and words of Persian and the Indic scripts, need it there;
+//! - one variation selector right after a character that shows: it picks how that character is
+//!   drawn (an emoji in colour, a variant of an ideograph in a person's name). More of them
+//!   would draw nothing and could only carry hidden text.
+//!
+//! Anywhere else they go. Tags are format characters, so they go too: the flags of England,
+//! Scotland and Wales, made of 🏴 and tags, show as 🏴. A country's flag is two symbols that
+//! show, and stays.
 //!
 //! Lengths are in characters (Unicode scalar values), so a cut may part a letter from an accent
-//! written after it. What is made is bounded by the length asked for, whatever the text, and
-//! nothing panics.
+//! written after it, or an emoji from its variation selector. What is made is bounded by the
+//! length asked for, whatever the text, and nothing panics.
 
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
@@ -71,8 +82,9 @@ pub fn is_joiner(c: char) -> bool {
 }
 
 /// A name as it is kept: one line (a line break, a tab or any other white space parts words, and
-/// words are parted by one space), without control or format characters (a joiner inside a word
-/// stays), trimmed, at most `max` characters. `None` when nothing is left.
+/// words are parted by one space), without control characters or characters that show nothing (a
+/// joiner inside a word and one variation selector after a character stay), trimmed, at most
+/// `max` characters. `None` when nothing is left.
 pub fn incoming(text: &str, max: usize) -> Option<String> {
     let (name, _) = clean(text, max);
     (!name.is_empty()).then_some(name)
@@ -90,23 +102,64 @@ pub fn shown(text: &str, max: usize) -> String {
     name
 }
 
-/// `text` cleaned and cut to at most `max` characters, and whether a character that shows was
-/// left out for the length. Nothing past that character is read.
+/// Whether `c` is one of the rest of Unicode's default-ignorable code points
+/// (`Default_Ignorable_Code_Point`, Unicode 17.0, less the format characters and the variation
+/// selectors): the combining grapheme joiner, the Hangul fillers, the Khmer inherent vowels, and
+/// the code points Unicode keeps for more characters that show nothing.
+fn is_ignorable(c: char) -> bool {
+    matches!(
+        c,
+        '\u{034f}'
+            | '\u{115f}'..='\u{1160}'
+            | '\u{17b4}'..='\u{17b5}'
+            | '\u{2065}'
+            | '\u{3164}'
+            | '\u{ffa0}'
+            | '\u{fff0}'..='\u{fff8}'
+            | '\u{e0000}'
+            | '\u{e0002}'..='\u{e001f}'
+            | '\u{e0080}'..='\u{e00ff}'
+            | '\u{e01f0}'..='\u{e0fff}'
+    )
+}
+
+/// Whether `c` is a variation selector (`Variation_Selector`, Unicode 17.0): it picks how the
+/// character before it is drawn.
+fn is_selector(c: char) -> bool {
+    matches!(c, '\u{180b}'..='\u{180d}' | '\u{180f}' | '\u{fe00}'..='\u{fe0f}' | '\u{e0100}'..='\u{e01ef}')
+}
+
+/// The braille pattern blank: a symbol to Unicode, and in braille the space between words.
+const BRAILLE_BLANK: char = '\u{2800}';
+
+/// `text` cleaned and cut to at most `max` characters, and whether something was left out for
+/// the length. Nothing past it is read.
 fn clean(text: &str, max: usize) -> (String, bool) {
     let mut out = String::new();
     let mut count = 0usize;
     // A space between words, and a joiner inside one, come only with the character after them.
     let mut space = false;
     let mut joiner: Option<char> = None;
+    // Whether the last character written shows, so that a variation selector may follow it.
+    let mut selectable = false;
     for c in text.chars() {
         if is_joiner(c) {
             if count > 0 && !space {
                 joiner = Some(c);
             }
-        } else if c.is_whitespace() {
+        } else if c.is_whitespace() || c == BRAILLE_BLANK {
             space = count > 0;
             joiner = None;
-        } else if !c.is_control() && !is_format(c) {
+        } else if is_selector(c) {
+            if selectable && !space && joiner.is_none() {
+                if count >= max {
+                    return (out, true);
+                }
+                out.push(c);
+                count = count.saturating_add(1);
+                selectable = false;
+            }
+        } else if !c.is_control() && !is_format(c) && !is_ignorable(c) {
             let needed = 1 + usize::from(space) + usize::from(joiner.is_some());
             if count.saturating_add(needed) > max {
                 return (out, true);
@@ -119,6 +172,7 @@ fn clean(text: &str, max: usize) -> (String, bool) {
             }
             out.push(c);
             count = count.saturating_add(needed);
+            selectable = true;
         }
     }
     (out, false)
