@@ -749,6 +749,43 @@ fn a_copy_put_on_an_imap_server_doesnt_say_who_got_a_blind_copy() {
 }
 
 #[test]
+fn a_message_whose_message_id_is_too_long_to_look_for_is_put_there_and_new_mail_still_comes() {
+    for uidplus in [true, false] {
+        let mut world = gmail();
+        world.uidplus = uidplus;
+        let mut r = Rig::with("long-id@example.org", world);
+        let local = r.s.mailbox.local_account();
+        let kept = r.s.mailbox.add_folder(local, None, "Kept").unwrap();
+        let long = Message {
+            folder: kept,
+            subject: "Long".into(),
+            message_id: format!("{}@example.org", "x".repeat(1_200)),
+            from: Address::new("Ada", "ada@example.org"),
+            read: true,
+            date: NOW - 7_200,
+            body: Body { text: "Long.".into(), html: None },
+            ..Default::default()
+        };
+        let long = r.s.mailbox.add_message(long).unwrap();
+        let inbox = r.inbox(r.gmail);
+        r.s.run("mail.move", &json!({"ids": [long], "folder": inbox})).unwrap();
+        {
+            let mut world = r.imap.world();
+            let fresh = message(9, "", "Fresh");
+            world.mailbox("INBOX").messages.push(fresh.clone());
+            world.mailbox("[Gmail]/All Mail").messages.push(fresh);
+        }
+        // Not looked for there, as the server can't be asked for it: put there, and the run
+        // goes on to read new mail.
+        assert_eq!(r.sync()["new"], 1, "UIDPLUS {uidplus}");
+        assert!(r.gmail_keeps("Long") && r.here("Fresh") == 1, "UIDPLUS {uidplus}");
+        assert_eq!(r.on_gmail("INBOX").iter().filter(|s| *s == "Long").count(), 1, "UIDPLUS {uidplus}");
+        assert_eq!(r.sync()["new"], 0, "UIDPLUS {uidplus}");
+        assert_eq!(r.here("Long"), 1, "UIDPLUS {uidplus}");
+    }
+}
+
+#[test]
 fn a_message_copied_more_than_once_into_a_folder_is_put_there_as_often() {
     let mut r = Rig::new("copied-again@example.org");
     let (other, work) = r.other_account(false);

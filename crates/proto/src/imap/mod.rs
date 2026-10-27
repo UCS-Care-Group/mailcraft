@@ -476,6 +476,12 @@ fn is_date_time(text: &str) -> bool {
         && digits(22..26)
 }
 
+/// Whether [`Imap::uid_search_header`] can look for `text`: printable ASCII, at most
+/// [`MAX_QUOTED`] bytes. What it can't be asked for, it refuses unsent.
+pub fn searchable(text: &str) -> bool {
+    !text.is_empty() && text.len() <= MAX_QUOTED && text.bytes().all(|b| matches!(b, b' '..=b'~'))
+}
+
 /// UIDs as message sets for commands (`4,7:9,12`), each with the UIDs it names: sorted, each UID
 /// once, consecutive numbers as ranges, and no set longer than one command should carry. A
 /// range only ever spans numbers that were asked for.
@@ -788,12 +794,13 @@ impl<S: Read + Write> Imap<S> {
     /// UID SEARCH UNDELETED HEADER <field> <text>: the messages of the open mailbox, other than
     /// those marked as deleted, whose header field `field` has `text` in it (the server matches a
     /// part of the field, whatever its case), by UID in UID order, at most [`MAX_FOUND`] of them.
-    /// `field` is a field's name, and `text` printable ASCII: anything else is refused unsent.
+    /// `field` is a field's name, and `text` one that [`searchable`] lets through: anything else
+    /// is refused unsent.
     pub fn uid_search_header(&mut self, field: &str, text: &str) -> Result<Vec<u32>, ProtoError> {
         if field.is_empty() || !field.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-') {
             return Err(ProtoError::Protocol(format!("\"{}\" is not the name of a header field", tidy(field))));
         }
-        if text.is_empty() || text.len() > MAX_QUOTED || !text.bytes().all(|b| matches!(b, b' '..=b'~')) {
+        if !searchable(text) {
             return Err(ProtoError::Protocol("the text can't be looked for on the server".into()));
         }
         let mut found = BTreeSet::new();

@@ -27,7 +27,7 @@ use mailcraft_model::sync::{
 };
 use mailcraft_model::{FolderKind, Id, MailIdentity, Message};
 use mailcraft_proto::ProtoError;
-use mailcraft_proto::imap::{Copied, Imap, Mailbox, decode_utf7, encode_utf7, uid_sets};
+use mailcraft_proto::imap::{Copied, Imap, Mailbox, decode_utf7, encode_utf7, searchable, uid_sets};
 
 use crate::sync::{Run, label, shown, subject_of};
 use crate::transport::Stream;
@@ -594,7 +594,8 @@ impl<'a> Push<'a> {
     /// The messages in the destination's mailbox whose `Message-ID` is `id` (a message's as it is
     /// written) that the mailbox here doesn't know (no message of the folder has that UID) and
     /// this run hasn't put there, with the mailbox's `UIDVALIDITY`. `Ok(None)`: they can't be
-    /// looked for (the message has no id, the server won't say, or the mailbox is numbered anew);
+    /// looked for (the message has no id, or one that can't be asked for, the server won't say,
+    /// or the mailbox is numbered anew);
     /// `Err(false)`: the connection is gone.
     fn copies(
         &mut self,
@@ -603,7 +604,8 @@ impl<'a> Push<'a> {
         to_folder: Id,
         id: Option<&str>,
     ) -> Result<Option<(u32, Vec<u32>)>, bool> {
-        let Some(id) = id.filter(|id| id.is_ascii()) else { return Ok(None) };
+        // One the server can't be asked for (too long, say) isn't looked for.
+        let Some(id) = id.filter(|id| searchable(id)) else { return Ok(None) };
         let uid_validity = match &self.searching {
             Some((raw, uid_validity)) if *raw == destination.raw => *uid_validity,
             _ => {
