@@ -128,12 +128,10 @@ fn open_bench() {
             let total = started.elapsed();
             // What the window's host does once it shows: what is missing, then the bodies left for later.
             let checked = Instant::now();
-            let missing = check_parts(&path).count;
-            let later = bodies_later(&path);
-            let mut took = 0;
-            for batch in later.chunks(256) {
-                took += session.take_bodies(read_bodies(&path, batch));
-            }
+            let (missing, bodies) = content_later(&path);
+            session.mark_unavailable(&missing.refs);
+            let missing = missing.count;
+            let took = session.take_bodies(bodies);
             eprintln!(
                 "{how}, run {run}: open {:.0} ms, with the session {:.0} ms ({} messages, {} loaded, {} deferred, {} missing; then {took} bodies taken in, {:.0} ms in all)",
                 open_time.as_secs_f64() * 1e3,

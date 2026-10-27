@@ -1668,6 +1668,10 @@ impl Session {
     /// it missing meanwhile. Not a change to the mailbox, and not counted as content the owner
     /// brought in (the opening's bodies never are). Returns how many messages took one.
     pub fn take_bodies(&mut self, bodies: Vec<BodyRead>) -> usize {
+        // ponytail: each message taken is a new Arc, so the first save prepares it again on the
+        // saver's thread (its record, and the hash of a body over 1 KB): up to the budget's bodies,
+        // 256 MB, once, off the window's thread, as `load_where` has always done. Re-point the
+        // file's entries at the new messages if that first save shows up in a measurement.
         let mut took = 0;
         for body in bodies {
             let Some(m) = self.mailbox.messages.get(&body.id) else { continue };

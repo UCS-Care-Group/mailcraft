@@ -162,7 +162,9 @@ fn the_bodies_the_budget_holds_come_after_the_window_shows_as_an_opening_would_h
     let before = s.loads();
     // In batches, as the host hands them over.
     for batch in later.chunks(64) {
-        s.take_bodies(read_bodies(&path, batch));
+        let (read, failed) = read_bodies(&path, batch);
+        assert!(failed.is_empty());
+        s.take_bodies(read);
     }
     assert_ne!(s.loads(), before, "what reads bodies sees they came");
     for (id, m) in &s.mailbox.messages {
@@ -172,4 +174,50 @@ fn the_bodies_the_budget_holds_come_after_the_window_shows_as_an_opening_would_h
     assert_eq!(crate::list::preview(s.mailbox.messages.get(&oldest).unwrap(), 80), preview_now);
     // Brought in this way, a body isn't counted as one the owner brought in (nothing is let go of).
     assert_eq!(s.resident_bytes(), 0);
+}
+
+#[test]
+fn a_body_whose_file_is_damaged_reads_and_is_counted_as_an_opening_would_have_it() {
+    let tmp = Temp::new("damaged-later");
+    let path = tmp.file();
+    let mb = mailbox(24);
+    save(&path, &mb).unwrap();
+    clear_cache();
+    // The file of an old message's text is there, but one of its bytes is not what it was.
+    let old_text = *newest_first(&mb).iter().rev().find(|id| mb.message(**id).unwrap().body.text.len() > INLINE_MAX).unwrap();
+    let file = blob_file(&path, mb.message(old_text).unwrap().body.text.as_bytes());
+    let mut bytes = fs::read(&file).unwrap();
+    bytes[0] ^= 1;
+    fs::write(&file, bytes).unwrap();
+    let now = open_launched(&path, Launch::default());
+    assert_eq!(now.unavailable, 1);
+    let opened = open_launched(&path, Launch { checks_later: true, rows: Some(1) });
+    let mut s = Session::new(opened.mailbox);
+    s.path = Some(path.clone());
+    let (missing, bodies) = content_later(&path);
+    assert_eq!(missing.count, now.unavailable);
+    s.mark_unavailable(&missing.refs);
+    s.take_bodies(bodies);
+    let whole = s.loaded_mailbox().unwrap();
+    for (id, m) in &s.mailbox.messages {
+        let was = now.mailbox.message(*id).unwrap();
+        assert_eq!((&m.body, m.kept.as_deref().map(|k| k.failed)), (&was.body, was.kept.as_deref().map(|k| k.failed)), "message {id}");
+    }
+    assert_eq!(whole.message(old_text).unwrap().body.text, UNAVAILABLE);
+    // Once only.
+    assert_eq!(content_later(&path).0.count, 0);
+}
+
+#[test]
+fn a_body_missing_outright_is_counted_once_though_its_read_fails_too() {
+    let tmp = Temp::new("missing-once");
+    let path = tmp.file();
+    let mb = mailbox(24);
+    save(&path, &mb).unwrap();
+    clear_cache();
+    let old_text = *newest_first(&mb).iter().rev().find(|id| mb.message(**id).unwrap().body.text.len() > INLINE_MAX).unwrap();
+    fs::remove_file(blob_file(&path, mb.message(old_text).unwrap().body.text.as_bytes())).unwrap();
+    let now = open_launched(&path, Launch::default());
+    open_launched(&path, Launch { checks_later: true, rows: Some(1) });
+    assert_eq!(content_later(&path).0.count, now.unavailable);
 }

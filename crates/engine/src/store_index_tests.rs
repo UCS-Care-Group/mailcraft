@@ -759,7 +759,10 @@ fn a_record_larger_than_a_piece_is_summed_in_pieces_and_the_file_is_still_known(
     mb.message_mut(first).unwrap().headers.push(("X-Large".into(), "x".repeat(3 * HASH_PIECE)));
     save(&path, &mb).unwrap();
     *lock(&shared(&path).state) = State::default();
+    SUMMED.set((0, 0));
     let mut mb = open(&path).unwrap().mailbox;
+    let (read, largest) = SUMMED.get();
+    assert!(read > HASH_PIECE && largest == HASH_PIECE, "read {read}, pieces up to {largest}");
     age(&path, Duration::from_secs(3_600));
     mb.message_mut(first).unwrap().read ^= true;
     assert!(!save(&path, &mb).unwrap().compacted);

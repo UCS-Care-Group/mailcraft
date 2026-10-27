@@ -1632,8 +1632,8 @@ fn background_saver(ctx: &egui::Context, path: &std::path::Path) -> Option<Box<d
 }
 
 /// Once the window shows (#519): look for the content files of the mailbox file at `path` that
-/// its opening left on disk (`store::check_parts`) and hand over which are missing, then read the
-/// bodies the opening left for later (`store::bodies_later`) and hand them over in batches, on a
+/// its opening left on disk and read the bodies it left for later (`store::content_later`), hand
+/// over which are missing or damaged, then the bodies in batches, on a
 /// thread of its own, waking the window each time. `None` when the thread couldn't be started:
 /// then nothing more is said than the opening found, and the bodies load as they are shown.
 #[allow(clippy::type_complexity)]
@@ -1647,12 +1647,15 @@ fn content_later(
     let (bodies_tx, bodies_rx) = std::sync::mpsc::channel();
     let (wake, path) = (ctx.clone(), path.to_path_buf());
     let spawned = std::thread::Builder::new().name("looking for the mailbox's content".into()).spawn(move || {
-        let _ = missing_tx.send(mailcraft_engine::store::check_parts(&path));
+        // (What is missing is known once the bodies are read: a damaged file shows only then.)
+        let (missing, bodies) = mailcraft_engine::store::content_later(&path);
+        let _ = missing_tx.send(missing);
         wake.request_repaint();
-        let later = mailcraft_engine::store::bodies_later(&path);
-        for batch in later.chunks(BATCH) {
-            // The window has let go (another mailbox, or it closed): nothing more is read.
-            if bodies_tx.send(mailcraft_engine::store::read_bodies(&path, batch)).is_err() {
+        let mut bodies = bodies.into_iter();
+        loop {
+            let batch: Vec<_> = bodies.by_ref().take(BATCH).collect();
+            // Done, or the window has let go (another mailbox, or it closed).
+            if batch.is_empty() || bodies_tx.send(batch).is_err() {
                 return;
             }
             wake.request_repaint();

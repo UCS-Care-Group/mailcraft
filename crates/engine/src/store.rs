@@ -580,8 +580,12 @@ impl<T> Hashing<T> {
         bytes.chunks(HASH_PIECE).all(|piece| {
             let mut copy = Vec::new();
             #[cfg(test)]
-            if NO_MEMORY_FOR_SUM.get() {
-                return false;
+            {
+                let (read, largest) = SUMMED.get();
+                SUMMED.set((read.max(bytes.len()), largest.max(piece.len())));
+                if NO_MEMORY_FOR_SUM.get() {
+                    return false;
+                }
             }
             copy.try_reserve_exact(piece.len()).is_ok() && {
                 copy.extend_from_slice(piece);
@@ -602,6 +606,8 @@ static HASH_HOLD: HashHold = Mutex::new(None);
 thread_local! {
     /// For a test: a copy of what is read, to be summed, finds no memory (on this thread).
     static NO_MEMORY_FOR_SUM: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    /// For a test: the largest read handed to be summed on this thread, and the largest piece it went in.
+    static SUMMED: std::cell::Cell<(usize, usize)> = const { std::cell::Cell::new((0, 0)) };
 }
 
 #[cfg(test)]
@@ -1879,16 +1885,44 @@ pub fn bodies_later(path: &Path) -> Vec<crate::session::BodyLater> {
 
 /// Read `bodies` from the content folder of the mailbox file at `path`, as an opening reads them
 /// (each checked against its name; not kept in the cache of fetched content). A part that can't be
-/// read is left out: it is read again when it is wanted, and says then that it is missing.
-pub fn read_bodies(path: &Path, bodies: &[crate::session::BodyLater]) -> Vec<crate::session::BodyRead> {
+/// read is left out of what was read and named among those that failed, once for each message.
+pub fn read_bodies(path: &Path, bodies: &[crate::session::BodyLater]) -> (Vec<crate::session::BodyRead>, Vec<ContentRef>) {
     let dir = blob_dir(&resolve(path));
     let folders = Folders::new();
-    let read = |r: Option<ContentRef>| r.and_then(|r| get(&dir, &Ref::from_model(&r), &folders).map(|bytes| (r, bytes)));
-    fan_out(bodies.len(), |i| bodies.get(i).map(|b| crate::session::BodyRead { id: b.id, text: read(b.text), html: read(b.html) }))
+    let read = |r: Option<ContentRef>| r.map(|r| (r, get(&dir, &Ref::from_model(&r), &folders)));
+    let mut failed = Vec::new();
+    let mut ok = |part: Option<(ContentRef, Option<Vec<u8>>)>| match part? {
+        (r, Some(bytes)) => Some((r, bytes)),
+        (r, None) => {
+            failed.push(r);
+            None
+        }
+    };
+    let read: Vec<_> = fan_out(bodies.len(), |i| bodies.get(i).map(|b| (b.id, read(b.text), read(b.html))))
         .into_iter()
         .flatten()
         .flatten()
-        .collect()
+        .map(|(id, text, html)| crate::session::BodyRead { id, text: ok(text), html: ok(html) })
+        .collect();
+    (read, failed)
+}
+
+/// What the opening of the file at `path` for a window left for after it shows (#519): the
+/// content files found missing ([`check_parts`]) with the bodies whose files are damaged among
+/// them, and the bodies the budget holds, read ([`bodies_later`], [`read_bodies`]): what an
+/// opening otherwise counts and reads at once. Once only.
+pub fn content_later(path: &Path) -> (crate::session::Missing, Vec<crate::session::BodyRead>) {
+    let mut missing = check_parts(path);
+    let (read, failed) = read_bodies(path, &bodies_later(path));
+    // (A file that isn't there was counted already, for every message that names it.)
+    let gone: HashSet<ContentRef> = missing.refs.iter().copied().collect();
+    let damaged: Vec<ContentRef> = failed.into_iter().filter(|r| !gone.contains(r)).collect();
+    if !damaged.is_empty() {
+        log::warn!("{}: {} bodies are damaged in the content folder", path.display(), damaged.len());
+    }
+    missing.count = missing.count.saturating_add(damaged.len());
+    missing.refs.extend(damaged);
+    (missing, read)
 }
 
 /// What a mailbox file wants for one part of a message.
