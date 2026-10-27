@@ -284,7 +284,7 @@ fn moved_from_gmail_into_microsoft_the_original_goes_only_once_the_copy_is_made(
 }
 
 #[test]
-fn a_copy_microsoft_wont_take_leaves_the_original_on_gmail() {
+fn a_message_microsoft_wont_take_stays_on_gmail() {
     let mut r = Rig::new("refused@example.org");
     let two = r.titled("Two");
     let theirs = r.inbox(r.ms);
@@ -442,6 +442,56 @@ fn a_message_gmail_wont_take_goes_back_to_microsoft_and_stays_there() {
 }
 
 #[test]
+fn a_copy_gmail_wont_take_is_taken_away_and_the_original_stays_on_microsoft() {
+    let mut r = Rig::new("gmail-refuses-a-copy@example.org");
+    let receipt = r.arrived_on_microsoft("Receipt");
+    let inbox = r.inbox(r.gmail);
+    r.s.run("mail.copy", &json!({"ids": [receipt], "folder": inbox})).unwrap();
+    assert_eq!(r.here("Receipt"), 2);
+    r.imap.world().refuse.push("APPEND".into());
+    let (_, errors) = r.sync_said(r.gmail);
+    assert!(errors.iter().any(|e| e.contains("Couldn't put \"Receipt\" in \"INBOX\"")), "{errors:?}");
+    // The copy is taken away; the original is as it was.
+    assert_eq!(r.here("Receipt"), 1);
+    let m = r.s.mailbox.message(receipt).unwrap();
+    assert!(m.account == r.ms && m.folder == r.inbox(r.ms) && m.server.is_some() && m.moving_out.is_none(), "{m:?}");
+    r.imap.world().refuse.clear();
+    for _ in 0..2 {
+        r.sync();
+        r.run();
+    }
+    assert_eq!(r.on_microsoft("Receipt").len(), 1);
+    assert!(!r.gmail_keeps("Receipt"));
+    assert_eq!(r.here("Receipt"), 1);
+    assert!(r.s.mailbox.pending.is_empty() && r.s.mailbox.queued.is_empty(), "{:?} {:?}", r.s.mailbox.pending, r.s.mailbox.queued);
+}
+
+#[test]
+fn moved_back_into_microsoft_after_gmail_took_it_it_is_on_microsoft_once_and_gone_from_gmail() {
+    let mut r = Rig::new("round-trip@example.org");
+    let invoice = r.arrived_on_microsoft("Invoice 9");
+    let (inbox, theirs) = (r.inbox(r.gmail), r.inbox(r.ms));
+    r.s.run("mail.move", &json!({"ids": [invoice], "folder": inbox})).unwrap();
+    // Gmail takes it; Microsoft's original is still there, its deletion not yet on its way.
+    r.sync();
+    assert!(r.gmail_keeps("Invoice 9"));
+    assert_eq!(r.on_microsoft("Invoice 9").len(), 1);
+    // Back into Microsoft: the message Microsoft has, and Gmail's copy goes.
+    r.s.run("mail.move", &json!({"ids": [invoice], "folder": theirs})).unwrap();
+    let m = r.s.mailbox.message(invoice).unwrap();
+    assert!(m.account == r.ms && m.folder == theirs && m.server.is_some(), "{m:?}");
+    for _ in 0..2 {
+        r.sync();
+        assert_eq!(Rig::errors(&r.run()), Vec::<Value>::new());
+    }
+    assert_eq!(r.on_microsoft("Invoice 9").len(), 1);
+    assert!(!r.gmail_keeps("Invoice 9"));
+    assert_eq!(r.on_gmail("[Gmail]/All Mail").iter().filter(|s| *s == "Invoice 9").count(), 0);
+    assert_eq!(r.here("Invoice 9"), 1);
+    assert!(r.s.mailbox.pending.is_empty() && r.s.mailbox.queued.is_empty(), "{:?} {:?}", r.s.mailbox.pending, r.s.mailbox.queued);
+}
+
+#[test]
 fn mail_on_this_computer_moved_and_copied_into_gmail_is_put_there() {
     let mut r = Rig::new("local-to-gmail@example.org");
     let local = r.s.mailbox.local_account();
@@ -516,9 +566,15 @@ fn moved_from_gmail_into_another_imap_account_it_leaves_gmail_once_the_other_has
     }
     assert_eq!(r.here("Two"), 1);
     assert!(r.s.mailbox.pending.is_empty() && r.s.mailbox.queued.is_empty(), "{:?} {:?}", r.s.mailbox.pending, r.s.mailbox.queued);
-    // Moved on in the other account and back out of it: an ordinary move there.
+    // The other server's message now: moved on there, it is an ordinary move on that server.
     let m = r.s.mailbox.message(two).unwrap();
     assert!(m.account == work && m.uid != 0, "{m:?}");
+    let trash = r.s.mailbox.folder_of_kind(work, FolderKind::Deleted).unwrap();
+    r.s.run("mail.move", &json!({"ids": [two], "folder": trash})).unwrap();
+    assert_eq!(r.sync_of(work)["new"], 0);
+    assert_eq!((on(&other, "INBOX"), on(&other, "Trash")), (Vec::<String>::new(), vec!["Two".to_string()]));
+    assert_eq!(r.on_gmail("INBOX"), ["Four", "One", "Three"]);
+    assert_eq!(r.here("Two"), 1);
 }
 
 #[test]

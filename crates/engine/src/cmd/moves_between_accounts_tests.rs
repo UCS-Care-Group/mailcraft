@@ -233,6 +233,22 @@ fn a_message_only_the_headers_of_which_are_here_doesnt_go_to_microsoft() {
 }
 
 #[test]
+fn a_selection_with_a_message_that_cant_go_to_microsoft_moves_and_copies_none_of_it() {
+    let (mut s, a, _) = imap();
+    let ms = microsoft(&mut s, OWNER);
+    let theirs = s.mailbox.folder_of_kind(ms, FolderKind::Inbox).unwrap();
+    // "Big" last: "One" and "Two" are on their way before it is refused.
+    let ids = [titled(&s, "One"), titled(&s, "Two"), titled(&s, "Big")];
+    let before = s.mailbox.clone();
+    for command in ["mail.move", "mail.copy"] {
+        let e = s.run(command, &json!({"ids": ids, "folder": theirs})).unwrap_err().to_string();
+        assert!(e.contains("Only the headers of \"Big\" are here"), "{command}: {e}");
+        assert!(s.mailbox == before, "{command}: the mailbox is as it was");
+    }
+    assert!(ops(&s, a).is_empty() && graph_mail_request(&s, ms).unwrap().places.is_empty());
+}
+
+#[test]
 fn mail_moves_between_two_microsoft_accounts_of_ones_own() {
     let mut s = Session::empty();
     let mine = microsoft(&mut s, OWNER);
