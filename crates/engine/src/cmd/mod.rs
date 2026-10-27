@@ -58,6 +58,8 @@ pub mod offline;
 #[cfg(test)]
 mod offline_tests;
 #[cfg(test)]
+mod open_conversation_tests;
+#[cfg(test)]
 mod opened_file_tests;
 pub mod people;
 pub mod people_merge;
@@ -173,6 +175,14 @@ pub(crate) fn targets(s: &Session, v: &Value) -> Result<Vec<Id>, CmdError> {
     named_or_selected(s, p::ids(v))
 }
 
+/// As [`targets`], for Delete and Move: without `ids` / `id`, a message selected by its
+/// conversation's row stands for every message of that row (#503, [`Session::acting_on`]).
+pub(crate) fn targets_whole(s: &mut Session, v: &Value) -> Result<Vec<Id>, CmdError> {
+    let named = p::ids(v);
+    let ids = if named.is_some() { named } else { Some(s.acting_on()) };
+    named_or_selected(s, ids)
+}
+
 /// As [`targets`], but `ids` / `id` read strictly ([`p::ids_strict`]): for a command whose mistake
 /// reaches other people, which never takes the selection for what a caller named wrongly.
 pub(crate) fn targets_strict(s: &Session, v: &Value) -> Result<Vec<Id>, CmdError> {
@@ -218,6 +228,12 @@ pub(crate) fn select_after_removal(s: &mut Session, before: &[Row], removed: &[I
     let rows = crate::list::rows(s);
     if let Some(row) = first.and_then(|i| rows.get(i).or_else(|| rows.last())) {
         s.sel.messages = vec![row.id];
+        // A conversation's row stands for it, as when it is stepped to; a message's own row under
+        // its open conversation for that message alone (#503).
+        s.sel.whole = if row.conversation() { vec![row.id] } else { Vec::new() };
+        if row.under.is_some() {
+            s.sel.focus_row = Some((row.id, row.copy));
+        }
         s.keep_selected(&rows);
     }
 }

@@ -5,7 +5,7 @@
 use mailcraft_model::{FlagStatus, FolderKind, Id, Rgb};
 use serde_json::{Value, json};
 
-use super::{bad, deliver, done, fail, message_json, message_summary, needs_message, needs_movable, select_after_removal, targets};
+use super::{bad, deliver, done, fail, message_json, message_summary, needs_message, needs_movable, select_after_removal, targets, targets_whole};
 use crate::list::{Row, listed, position, position_of};
 use crate::{CmdResult, CommandSpec, Session, p};
 
@@ -21,6 +21,16 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("mail.last", "Last Message", "Mail", last).pure().key("End / Shift+End").params(EXTEND),
         CommandSpec::new("mail.pageDown", "Page Down", "Mail", page_down).pure().key("PageDown / Shift+PageDown").params(PAGE),
         CommandSpec::new("mail.pageUp", "Page Up", "Mail", page_up).pure().key("PageUp / Shift+PageUp").params(PAGE),
+        CommandSpec::new("mail.expandConversation", "Expand Conversation", "Mail", expand)
+            .pure()
+            .key("ArrowRight")
+            .selection(can_expand)
+            .params(CONVERSATION),
+        CommandSpec::new("mail.collapseConversation", "Collapse Conversation", "Mail", collapse)
+            .pure()
+            .key("ArrowLeft")
+            .selection(can_collapse)
+            .params(CONVERSATION),
         CommandSpec::new("mail.get", "Get Message", "Mail", get).pure().params(r#"{"id"?: number} (default: the selected message)"#),
         CommandSpec::new("mail.list", "List Messages", "Mail", list).pure().params(r#"{"limit"?: number} — the message list in view"#),
         CommandSpec::new("mail.delete", "Delete", "Home › Delete", delete).key("Delete / Mod+D").params(IDS).selection(needs_movable),
@@ -81,6 +91,7 @@ pub fn specs() -> Vec<CommandSpec> {
 
 const IDS: &str = r#"{"ids"?: [number]} (default: the selected messages)"#;
 const EXTEND: &str = r#"{"extend"?: bool} — with `extend` (Shift), the selection runs from its anchor to the message moved to, as Shift-click does"#;
+const CONVERSATION: &str = r#"{"id"?: number} — a message of the conversation (default: the row the list's focus is on), in conversation view (#503). Open, its messages are listed under its row, those in other folders too (a reply in Sent Items); closed with the focus under it, its row is selected"#;
 const PAGE: &str = r#"{"rows"?: number (the rows a page of the list holds; default 10, 1 to 10000), "extend"?: bool} — with `extend` (Shift), the selection runs from its anchor to the message moved to"#;
 
 /// The rows a page is when the caller doesn't say (the window says how many fit).
@@ -112,6 +123,7 @@ fn select(s: &mut Session, v: &Value) -> CmdResult {
         let (anchor, anchor_copy) = range_anchor(s).unwrap_or((last, 0));
         if let (Some(a), Some(b)) = (position_of(&rows, anchor, anchor_copy), position_of(&rows, last, copy)) {
             s.sel.messages = span(&rows, anchor, a, last, b);
+            s.sel.whole = heads_in(&rows, a, b);
         }
     } else if p::bool(v, "extend") == Some(true) {
         for id in ids {
@@ -119,11 +131,18 @@ fn select(s: &mut Session, v: &Value) -> CmdResult {
                 // Ctrl-click on a selected message takes it out again.
                 Some(i) => {
                     s.sel.messages.remove(i);
+                    s.sel.whole.retain(|x| *x != id);
                 }
-                None => s.sel.messages.push(id),
+                None => {
+                    s.sel.messages.push(id);
+                    if heads(s, id, if id == last { copy } else { 0 }) {
+                        s.sel.whole.push(id);
+                    }
+                }
             }
         }
     } else {
+        s.sel.whole = ids.iter().copied().filter(|id| heads(s, *id, if *id == last { copy } else { 0 })).collect();
         s.sel.messages = ids;
     }
     s.sel.focus_row = s.sel.focus().map(|id| (id, copy));
@@ -131,12 +150,14 @@ fn select(s: &mut Session, v: &Value) -> CmdResult {
     if p::bool(v, "range") != Some(true) || s.sel.anchor_row.is_none_or(|(id, _)| !s.sel.messages.contains(&id)) {
         s.sel.anchor_row = s.sel.messages.first().map(|id| (*id, if Some(*id) == s.sel.focus() { copy } else { 0 }));
     }
-    // Follow the message to its folder (a search result, a conversation member elsewhere).
-    if let Some(m) = s.sel.focus().and_then(|id| s.mailbox.message(id))
+    // Follow the message to its folder (a search result, a conversation member elsewhere), unless
+    // it is listed under its open conversation here (#503).
+    if let Some((id, folder)) = s.focused_message().map(|m| (m.id, m.folder))
         && s.view.search.is_empty()
-        && m.folder != s.view.folder
+        && folder != s.view.folder
+        && !s.in_list(&[id]).contains(&id)
     {
-        s.view.folder = m.folder;
+        s.view.folder = folder;
     }
     // Opened from a task, a contact or an alert (`elsewhere`): in its folder, in the All tab and
     // with no search, always (#485).
@@ -171,9 +192,11 @@ fn mark_opened(s: &mut Session) {
 fn select_all(s: &mut Session, _: &Value) -> CmdResult {
     let rows = s.rows();
     let focus = s.sel.focus();
-    let mut ids: Vec<Id> = rows.iter().filter(|r| r.copy == 0).map(|r| r.id).filter(|id| Some(*id) != focus).collect();
+    // Every row once: a message under its open conversation is its conversation's (#503).
+    let mut ids: Vec<Id> = rows.iter().filter(|r| r.copy == 0 && r.under.is_none()).map(|r| r.id).filter(|id| Some(*id) != focus).collect();
     // The message in the reading pane stays the focus.
     ids.extend(focus.filter(|f| position(&rows, *f).is_some()));
+    s.sel.whole = rows.iter().filter(|r| r.conversation() && ids.contains(&r.id)).map(|r| r.id).collect();
     s.sel.messages = ids;
     s.keep_selected(&rows);
     Ok(json!({"selected": s.sel.messages.len()}))
@@ -200,6 +223,22 @@ fn span(rows: &[Row], anchor: Id, a: usize, focus: Id, b: usize) -> Vec<Id> {
     picked
 }
 
+/// Whether row `copy` of message `id` is its conversation's row (#503): selected by that row, the
+/// message stands for every message the row does.
+fn heads(s: &mut Session, id: Id, copy: u16) -> bool {
+    if !s.view.conversations {
+        return false;
+    }
+    let rows = s.rows();
+    position_of(&rows, id, copy).and_then(|i| rows.get(i)).is_some_and(|r| r.id == id && r.conversation())
+}
+
+/// The messages of rows `a` to `b` selected by their conversation's row (#503).
+fn heads_in(rows: &[Row], a: usize, b: usize) -> Vec<Id> {
+    let (lo, hi) = (a.min(b), a.max(b));
+    rows.iter().skip(lo).take((hi - lo).saturating_add(1)).filter(|r| r.conversation()).map(|r| r.id).collect()
+}
+
 /// Moves the focus to row `i` of the list. With `extend` (Shift), the selection runs from the
 /// anchor, which stays where it is (so going back makes the range smaller), to it; otherwise it
 /// is that one message, which the next range runs from.
@@ -209,10 +248,12 @@ fn land(s: &mut Session, rows: &[Row], i: usize, extend: bool) -> CmdResult {
     match anchor.and_then(|(id, copy)| Some((id, copy, position_of(rows, id, copy)?))) {
         Some((id, copy, at)) => {
             s.sel.messages = span(rows, id, at, row.id, i);
+            s.sel.whole = heads_in(rows, at, i);
             s.sel.anchor_row = Some((id, copy));
         }
         None => {
             s.sel.messages = vec![row.id];
+            s.sel.whole = if row.conversation() { vec![row.id] } else { Vec::new() };
             s.sel.anchor_row = Some((row.id, row.copy));
         }
     }
@@ -275,6 +316,99 @@ fn page_up(s: &mut Session, v: &Value) -> CmdResult {
     step(s, -page(v), v)
 }
 
+/// The most conversations open in a list at once: the first opened closes for one more.
+const MAX_OPEN: usize = 1_000;
+
+/// The conversation of the focused message's account and key, while conversations are shown
+/// (by date, as they are grouped) and it is one of the list's, and whether it is open: for the
+/// keys, without building the list.
+fn focused_conversation(s: &Session) -> Option<bool> {
+    if !s.view.conversations || s.view.sort != crate::SortBy::Date {
+        return None;
+    }
+    let m = s.focused_message()?;
+    Some(s.view.open.contains(&(m.account, m.thread_key())))
+}
+
+/// Right opens the focused row's conversation (#503).
+fn can_expand(s: &Session) -> Option<&'static str> {
+    match focused_conversation(s) {
+        Some(false) => None,
+        Some(true) => Some("the conversation is open"),
+        None => Some("select a conversation in conversation view first"),
+    }
+}
+
+/// Left closes the conversation the focus is in or on (#503).
+fn can_collapse(s: &Session) -> Option<&'static str> {
+    match focused_conversation(s) {
+        Some(true) => None,
+        Some(false) => Some("the conversation is closed"),
+        None => Some("select a conversation in conversation view first"),
+    }
+}
+
+/// The conversation `v` names (`id`, a message of it), else the one the focus is on or under:
+/// the row of the message its row shows, and that row.
+fn conversation_row(s: &mut Session, v: &Value) -> Option<(usize, Row)> {
+    let rows = s.rows();
+    let at = match p::id(v, "id") {
+        Some(id) => position_of(&rows, id, 0),
+        None => s.sel.focus().and_then(|id| position_of(&rows, id, s.sel.focus_copy())),
+    }?;
+    let row = rows.get(at)?;
+    let head = row.under.unwrap_or(row.id);
+    let i = rows.iter().position(|r| r.id == head && r.under.is_none())?;
+    rows.get(i).filter(|r| r.conversation()).map(|r| (i, r.clone()))
+}
+
+/// The key a conversation's row is opened by: its account and its topic.
+fn key_of(s: &Session, row: &Row) -> Option<(Id, String)> {
+    s.mailbox.message(row.id).map(|m| (m.account, m.thread_key()))
+}
+
+/// Open a conversation in the list (#503): its messages are listed under its row, whichever
+/// folder of the account each is in. The selection stays where it is.
+fn expand(s: &mut Session, v: &Value) -> CmdResult {
+    let Some((_, row)) = conversation_row(s, v) else { return Ok(json!({"open": false})) };
+    let Some(key) = key_of(s, &row) else { return Ok(json!({"open": false})) };
+    if !s.view.open.contains(&key) {
+        if s.view.open.len() >= MAX_OPEN {
+            s.view.open.remove(0);
+        }
+        s.view.open.push(key);
+    }
+    Ok(json!({"open": true, "id": row.id, "messages": row.size()}))
+}
+
+/// Close a conversation in the list (#503). With the focus on a message under it, its row is
+/// selected, as in Outlook: it stands for the conversation. What else was selected under it and
+/// the list no longer shows (a reply in Sent Items) is let go of.
+fn collapse(s: &mut Session, v: &Value) -> CmdResult {
+    let Some((i, row)) = conversation_row(s, v) else { return Ok(json!({"open": false})) };
+    let Some(key) = key_of(s, &row) else { return Ok(json!({"open": false})) };
+    if !row.open {
+        return Ok(json!({"open": false, "id": row.id}));
+    }
+    let rows = s.rows();
+    let focus = s.sel.focus().and_then(|id| position_of(&rows, id, s.sel.focus_copy()));
+    let inside = focus.and_then(|at| rows.get(at)).is_some_and(|r| r.under == Some(row.id));
+    s.view.open.retain(|k| *k != key);
+    if inside {
+        let closed = s.rows();
+        return land(s, &closed, i, false).map(|_| json!({"open": false, "id": row.id, "selected": s.sel.messages}));
+    }
+    let selection = s.sel.messages.clone();
+    let shown = s.in_list(&selection);
+    if !selection.iter().all(|id| shown.contains(id)) {
+        s.sel.messages.retain(|id| shown.contains(id));
+        s.sel.whole.retain(|id| shown.contains(id));
+        let rows = s.rows();
+        s.keep_selected(&rows);
+    }
+    Ok(json!({"open": false, "id": row.id}))
+}
+
 fn get(s: &mut Session, v: &Value) -> CmdResult {
     let id = p::id(v, "id").or(s.sel.focus()).ok_or_else(|| fail("select a message first"))?;
     if s.mailbox.message(id).is_none() {
@@ -306,6 +440,17 @@ fn list(s: &mut Session, v: &Value) -> CmdResult {
                 if r.members.len() > 1 {
                     o.insert("conversation".into(), json!(r.members));
                 }
+                // Its conversation in other folders, and whether it is open (#503); a message
+                // listed under its open conversation names the row it is under.
+                if !r.others.is_empty() {
+                    o.insert("elsewhere".into(), json!(r.others));
+                }
+                if r.open {
+                    o.insert("open".into(), json!(true));
+                }
+                if let Some(head) = r.under {
+                    o.insert("under".into(), json!(head));
+                }
                 if let Some(g) = &r.group {
                     o.insert("group".into(), json!(g));
                 }
@@ -320,7 +465,7 @@ fn list(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 fn delete(s: &mut Session, v: &Value) -> CmdResult {
-    let ids = targets(s, v)?;
+    let ids = targets_whole(s, v)?;
     let before = s.rows();
     let mut gone = 0;
     for id in &ids {
@@ -331,7 +476,7 @@ fn delete(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 fn delete_permanently(s: &mut Session, v: &Value) -> CmdResult {
-    let ids = targets(s, v)?;
+    let ids = targets_whole(s, v)?;
     let before = s.rows();
     for id in &ids {
         s.mailbox.remove_message(*id)?;
@@ -360,23 +505,23 @@ fn move_to_kind(s: &mut Session, ids: &[Id], kind: FolderKind) -> CmdResult {
 }
 
 fn archive(s: &mut Session, v: &Value) -> CmdResult {
-    let ids = targets(s, v)?;
+    let ids = targets_whole(s, v)?;
     move_to_kind(s, &ids, FolderKind::Archive)
 }
 
 fn junk(s: &mut Session, v: &Value) -> CmdResult {
-    let ids = targets(s, v)?;
+    let ids = targets_whole(s, v)?;
     move_to_kind(s, &ids, FolderKind::Junk)
 }
 
 fn not_junk(s: &mut Session, v: &Value) -> CmdResult {
-    let ids = targets(s, v)?;
+    let ids = targets_whole(s, v)?;
     move_to_kind(s, &ids, FolderKind::Inbox)
 }
 
 fn move_to(s: &mut Session, v: &Value) -> CmdResult {
     let folder = p::req_id(v, "folder")?;
-    let ids = targets(s, v)?;
+    let ids = targets_whole(s, v)?;
     let before = s.rows();
     let mut moved = Vec::new();
     for id in &ids {

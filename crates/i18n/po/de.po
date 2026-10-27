@@ -1149,6 +1149,12 @@ msgid "Ask again"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "Ask before deleting a whole conversation"
+msgstr "Vor dem Löschen einer ganzen Unterhaltung fragen"
+
+#. interface
 #: crates/ui-egui/src/reading/remote.rs
 #, fuzzy
 msgid "Ask before downloading pictures from this domain's senders again"
@@ -1980,6 +1986,12 @@ msgid "Closes this window. Nothing is kept."
 msgstr "Schließt dieses Fenster. Nichts wird gespeichert."
 
 #. command label
+#: crates/engine/src/cmd/mail.rs
+#, fuzzy
+msgid "Collapse Conversation"
+msgstr "Unterhaltung zuklappen"
+
+#. command label
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Collapse the Ribbon"
@@ -2429,6 +2441,12 @@ msgstr "Kategorie löschen"
 msgid "Delete Contact"
 msgstr "Kontakt löschen"
 
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Delete Conversation"
+msgstr "Unterhaltung löschen"
+
 #. command label, interface
 #: crates/engine/src/cmd/folder.rs crates/ui-egui/src/dialogs.rs
 #, fuzzy
@@ -2496,6 +2514,12 @@ msgid "Delete meeting requests from the Inbox after responding"
 msgstr "Besprechungsanfragen nach dem Antworten aus dem Posteingang löschen"
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "Delete on a conversation of several messages asks first. Its messages in other folders stay where they are."
+msgstr "Löschen fragt bei einer Unterhaltung aus mehreren Nachrichten zuerst nach. Ihre Nachrichten in anderen Ordnern bleiben, wo sie sind."
+
+#. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Delete this category"
@@ -2512,6 +2536,12 @@ msgstr "Diese Regel löschen"
 #, fuzzy
 msgid "Deleted Items"
 msgstr "Gelöschte Elemente"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "Deleting"
+msgstr "Löschen"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -2666,6 +2696,12 @@ msgstr "Keine Antwort senden"
 #, fuzzy
 msgid "Don't Send, Keep on This Computer"
 msgstr "Nicht senden, auf diesem Computer behalten"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Don't ask again for this account"
+msgstr "Für dieses Konto nicht mehr fragen"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -3089,6 +3125,12 @@ msgstr "Alles in „{folder}“ wird endgültig gelöscht."
 #, fuzzy
 msgid "Everything the interface does is a command: {commands} of them, covering {percent}% of the feature catalog. The command line, the control channel and the MCP server run the same commands."
 msgstr "Alles, was die Oberfläche tut, ist ein Befehl: {commands} Befehle, die {percent} % des Funktionskatalogs abdecken. Die Befehlszeile, der Steuerkanal und der MCP-Server führen dieselben Befehle aus."
+
+#. command label
+#: crates/engine/src/cmd/mail.rs
+#, fuzzy
+msgid "Expand Conversation"
+msgstr "Unterhaltung aufklappen"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -3834,6 +3876,12 @@ msgid "Hide the folder pane"
 msgstr "Ordnerbereich ausblenden"
 
 #. interface
+#: crates/ui-egui/src/mail_view.rs
+#, fuzzy
+msgid "Hide the messages of this conversation"
+msgstr "Die Nachrichten dieser Unterhaltung ausblenden"
+
+#. interface
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
 msgid "Hide this calendar"
@@ -4285,6 +4333,12 @@ msgstr "Seine E-Mails können hier gelesen werden. Was Sie darin ändern, wird i
 #, fuzzy
 msgid "Its mail is kept in step through Microsoft Graph, without mail servers"
 msgstr "Seine E-Mails werden über Microsoft Graph abgeglichen, ohne Mailserver"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Its messages in other folders stay where they are."
+msgstr "Ihre Nachrichten in anderen Ordnern bleiben, wo sie sind."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -8543,6 +8597,12 @@ msgid "Show the folder pane"
 msgstr "Ordnerbereich anzeigen"
 
 #. interface
+#: crates/ui-egui/src/mail_view.rs
+#, fuzzy
+msgid "Show the messages of this conversation"
+msgstr "Die Nachrichten dieser Unterhaltung anzeigen"
+
+#. interface
 #: crates/ui-egui/src/reading/remote.rs
 #, fuzzy
 msgid "Show this message's pictures, this once. Whoever sent it can then tell that you opened it."
@@ -9972,6 +10032,12 @@ msgstr "Die {n} darüber geöffneten freigegebenen Postfächer werden ebenfalls 
 msgid "Their details are the same; the kept contact loses nothing."
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Their messages in other folders stay where they are."
+msgstr "Ihre Nachrichten in anderen Ordnern bleiben, wo sie sind."
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -10247,6 +10313,22 @@ msgstr "Diese Kopie von MailCraft aktualisiert sich nicht selbst."
 #: crates/ui-egui/src/report_problem.rs
 msgid "This copy of MailCraft has no address to send reports to."
 msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "This deletes the whole conversation: its {n} message in {folder} goes to Deleted Items."
+msgid_plural "This deletes the whole conversation: its {n} messages in {folder} go to Deleted Items."
+msgstr[0] "Damit wird die ganze Unterhaltung gelöscht: ihre {n} Nachricht in {folder} kommt in „Gelöschte Elemente“."
+msgstr[1] "Damit wird die ganze Unterhaltung gelöscht: ihre {n} Nachrichten in {folder} kommen in „Gelöschte Elemente“."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "This deletes whole conversations: their {n} message in {folder} goes to Deleted Items."
+msgid_plural "This deletes whole conversations: their {n} messages in {folder} go to Deleted Items."
+msgstr[0] "Damit werden ganze Unterhaltungen gelöscht: ihre {n} Nachricht in {folder} kommt in „Gelöschte Elemente“."
+msgstr[1] "Damit werden ganze Unterhaltungen gelöscht: ihre {n} Nachrichten in {folder} kommen in „Gelöschte Elemente“."
 
 #. name
 #: crates/ui-egui/src/account_setup.rs
@@ -11783,6 +11865,12 @@ msgid "a rule can't move mail to an Outbox: that would send it"
 msgstr ""
 
 #. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "a shared mailbox asks before deleting a conversation as the account it is opened through does: change that account's"
+msgstr "ein freigegebenes Postfach fragt vor dem Löschen einer Unterhaltung so wie das Konto, über das es geöffnet wird: ändern Sie die Einstellung dieses Kontos"
+
+#. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
 msgid "a shared mailbox can't open another one: name the account it is opened through"
@@ -12465,6 +12553,12 @@ msgstr "speichern Sie das Postfach zuerst in einer Datei: Beim Wechsel wird dane
 msgid "select a contact first"
 msgstr "wählen Sie zuerst einen Kontakt aus"
 
+#. why a command can't run
+#: crates/engine/src/cmd/mail.rs
+#, fuzzy
+msgid "select a conversation in conversation view first"
+msgstr "wählen Sie zuerst eine Unterhaltung in der Unterhaltungsansicht aus"
+
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/tasks.rs
 #, fuzzy
@@ -12580,6 +12674,18 @@ msgstr "die Prüfung wurde unerwartet abgebrochen"
 #, fuzzy
 msgid "the contact is gone"
 msgstr "der Kontakt ist nicht mehr vorhanden"
+
+#. why a command can't run
+#: crates/engine/src/cmd/mail.rs
+#, fuzzy
+msgid "the conversation is closed"
+msgstr "die Unterhaltung ist zugeklappt"
+
+#. why a command can't run
+#: crates/engine/src/cmd/mail.rs
+#, fuzzy
+msgid "the conversation is open"
+msgstr "die Unterhaltung ist aufgeklappt"
 
 #. interface
 #: crates/ui-egui/src/reading/images.rs

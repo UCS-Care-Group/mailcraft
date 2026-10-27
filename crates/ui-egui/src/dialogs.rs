@@ -161,12 +161,29 @@ pub struct Question {
     pub note: Option<(&'static str, String, String)>,
     /// What the button that goes nowhere says, when not Cancel (`Not now`).
     pub cancel: Option<String>,
+    /// A box under the text, such as Don't ask again.
+    pub tick: Option<Box<Tick>>,
+}
+
+/// A box under a question's text (Don't ask again, #503): what it says, whether it is ticked,
+/// and what runs first when the owner goes ahead with it ticked.
+pub struct Tick {
+    pub label: String,
+    pub ticked: bool,
+    pub then: Vec<(&'static str, Value)>,
 }
 
 impl Question {
     /// A question with one way of going ahead, which adds `with` to the parameters.
     pub(crate) fn new(title: &str, text: String, action: &str, with: Value) -> Question {
-        Question { title: title.to_string(), text, action: action.to_string(), with, more: Vec::new(), note: None, cancel: None }
+        Question { title: title.to_string(), text, action: action.to_string(), with, more: Vec::new(), note: None, cancel: None, tick: None }
+    }
+
+    /// With a box under the text, not ticked, whose `then` runs first when the owner goes ahead
+    /// with it ticked.
+    fn ticked(mut self, label: &str, then: Vec<(&'static str, Value)>) -> Question {
+        self.tick = Some(Box::new(Tick { label: label.to_string(), ticked: false, then }));
+        self
     }
 
     /// One more way of going ahead.
@@ -347,9 +364,15 @@ pub fn confirmation(app: &MailApp, id: &str, params: &Value) -> Option<Question>
             question(&title, text, &action)
         }
         "mail.delete" | "mail.deletePermanently" => {
+            // What the selection stands for: a conversation's row, every message of it the list
+            // shows (#503).
+            let selected = || match app.session.sel.whole.is_empty() {
+                true => app.session.sel.messages.to_vec(),
+                false => app.session.acting_on_in(&mailcraft_engine::list::rows(&app.session)),
+            };
             let ids: Vec<u64> = match params.get("ids").and_then(Value::as_array) {
                 Some(ids) => ids.iter().filter_map(Value::as_u64).collect(),
-                None => params.get("id").and_then(Value::as_u64).map_or_else(|| app.session.sel.messages.to_vec(), |id| vec![id]),
+                None => params.get("id").and_then(Value::as_u64).map_or_else(selected, |id| vec![id]),
             };
             // An ordinary delete only asks when it is for good: the message is in Deleted Items already.
             let for_good = |m: &mailcraft_model::Message| {
@@ -358,7 +381,7 @@ pub fn confirmation(app: &MailApp, id: &str, params: &Value) -> Option<Question>
             };
             let going: Vec<&mailcraft_model::Message> = ids.iter().filter_map(|id| mb.message(*id)).filter(|m| for_good(m)).collect();
             if going.is_empty() {
-                return None;
+                return (id == "mail.delete").then(|| conversation_question(app, &ids)).flatten();
             }
             let n = going.len();
             let what = if n == 1 {
@@ -564,6 +587,62 @@ pub fn confirmation(app: &MailApp, id: &str, params: &Value) -> Option<Question>
         | "ui.openWindow" => calendar_question(app, id, params),
         _ => None,
     }
+}
+
+/// Before Delete takes a whole conversation of more than one message (#503): the conversations
+/// of the list all of whose messages there `ids` has, of the accounts that ask
+/// ([`mailcraft_model::Mailbox::asks_before_deleting_conversation`]). Its messages in other
+/// folders aren't deleted, and the question says so. Going ahead deletes what was asked about;
+/// Don't ask again turns the question off for those accounts first.
+fn conversation_question(app: &MailApp, ids: &[u64]) -> Option<Question> {
+    let s = &app.session;
+    if !s.view.conversations {
+        return None;
+    }
+    let mb = &s.mailbox;
+    let rows = mailcraft_engine::list::rows(s);
+    let account = |r: &mailcraft_engine::list::Row| mb.message(r.id).map(|m| m.account);
+    let asking: Vec<&mailcraft_engine::list::Row> = rows
+        .iter()
+        .filter(|r| r.under.is_none() && r.members.len() > 1 && r.members.iter().all(|id| ids.contains(id)))
+        .filter(|r| account(r).is_some_and(|a| mb.asks_before_deleting_conversation(a)))
+        .collect();
+    if asking.is_empty() {
+        return None;
+    }
+    let n: usize = asking.iter().map(|r| r.members.len()).sum();
+    let folder = mb.folder(s.view.folder).map(crate::nav::folder_name).unwrap_or_default();
+    let what = if asking.len() == 1 {
+        tln!(
+            n,
+            "This deletes the whole conversation: its {n} message in {folder} goes to Deleted Items.",
+            "This deletes the whole conversation: its {n} messages in {folder} go to Deleted Items."
+        )
+    } else {
+        tln!(
+            n,
+            "This deletes whole conversations: their {n} message in {folder} goes to Deleted Items.",
+            "This deletes whole conversations: their {n} messages in {folder} go to Deleted Items."
+        )
+    };
+    let mut text = crate::i18n::fmt(&what, &[("folder", folder)]);
+    if asking.iter().any(|r| !r.others.is_empty()) {
+        let stay = if asking.len() == 1 {
+            tl!("Its messages in other folders stay where they are.")
+        } else {
+            tl!("Their messages in other folders stay where they are.")
+        };
+        text = format!("{text} {stay}");
+    }
+    // The switch is the account's, and a shared mailbox's is its owner's.
+    let mut owners: Vec<Id> = asking.iter().filter_map(|r| account(r)).map(|a| mb.owner_of(a).map_or(a, |o| o.id)).collect();
+    owners.sort_unstable();
+    owners.dedup();
+    let then = owners.into_iter().map(|a| ("account.edit", json!({"id": a, "askBeforeDeletingConversation": false}))).collect();
+    Some(
+        Question::new(tl!("Delete Conversation"), text, tl!("Delete"), json!({"ids": ids, "confirmed": true}))
+            .ticked(tl!("Don't ask again for this account"), then),
+    )
 }
 
 /// The parameters of a command after its question was answered by a way of going ahead that
@@ -1445,6 +1524,11 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
                 if let Some((_, note, hint)) = &mut ask.note {
                     ui.add(egui::TextEdit::multiline(note).hint_text(hint.as_str()).desired_rows(2).desired_width(f32::INFINITY).char_limit(2_000));
                 }
+                if let Some(tick) = &mut ask.tick {
+                    ui.add_space(4.0);
+                    let r = ui.checkbox(&mut tick.ticked, tick.label.as_str());
+                    app.hit.add("questionTick", 0, r.rect);
+                }
                 ui.add_space(6.0);
                 // Cancel is the one Enter and Escape reach: going ahead takes a deliberate click.
                 if ask.more.len() >= 2 {
@@ -1461,7 +1545,9 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
                     });
                 } else {
                     button_row(ui, |ui| {
-                        if ui.add(egui::Button::new(ask.cancel.as_deref().unwrap_or(tl!("Cancel"))).min_size(vec2(72.0, 26.0))).clicked() {
+                        let cancel = ui.add(egui::Button::new(ask.cancel.as_deref().unwrap_or(tl!("Cancel"))).min_size(vec2(72.0, 26.0)));
+                        app.hit.add("questionCancel", 0, cancel.rect);
+                        if cancel.clicked() {
                             close = true;
                         }
                         for (label, with) in ask.more.iter().rev() {
@@ -1469,7 +1555,9 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
                                 picked = Some(with.clone());
                             }
                         }
-                        if ui.add(egui::Button::new(ask.action.as_str()).min_size(vec2(72.0, 26.0))).clicked() {
+                        let action = ui.add(egui::Button::new(ask.action.as_str()).min_size(vec2(72.0, 26.0)));
+                        app.hit.add("questionAction", 0, action.rect);
+                        if action.clicked() {
                             picked = Some(ask.with.clone());
                         }
                     });
@@ -1480,6 +1568,10 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
                 close = true;
                 let command = command.clone();
                 let params = answered(params, &with, ask.note.as_ref().map(|(key, note, _)| (*key, note.as_str())));
+                // Don't ask again: said before the command goes ahead.
+                for (then, then_params) in ask.tick.iter().filter(|tick| tick.ticked).flat_map(|tick| tick.then.iter()) {
+                    let _ = app.run(then, then_params.clone());
+                }
                 go_ahead(app, &command, params);
             }
         }

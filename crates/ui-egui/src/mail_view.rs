@@ -46,6 +46,8 @@ const ROW_INSET: f32 = 2.0;
 const READ_STRIP: f32 = 12.0;
 /// Where a row's text starts, from the list's left edge.
 const TEXT_LEFT: f32 = 30.0;
+/// How far in the messages listed under their open conversation start (#503).
+const UNDER_INDENT: f32 = 18.0;
 /// Rows end this far from the list's right edge: a gap, the scroll bar's lane, and its margin.
 const SCROLL_LANE: f32 = SCROLL_GAP + SCROLL_TRACK + SCROLL_MARGIN;
 const SCROLL_GAP: f32 = 7.0;
@@ -822,6 +824,17 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect) {
     let one = app.session.prefs.one_line;
     let line1 = if one { rect.center().y } else { rect.min.y + SENDER_Y };
     let line2 = if one { rect.center().y } else { rect.min.y + SUBJECT_Y };
+    // A conversation's row has an arrow between the read switch and the text (#503): a click opens
+    // or closes it, and, like the switch, leaves the selection alone.
+    let conversation = row.conversation();
+    let arrow_rect = Rect::from_min_max(pos2(strip.max.x, line1 - 11.0), pos2(rect.min.x + TEXT_LEFT, line1 + 11.0));
+    let arrow = conversation.then(|| {
+        let tip = if row.open { tl!("Hide the messages of this conversation") } else { tl!("Show the messages of this conversation") };
+        app.hit.add("conversationArrow", row.id, arrow_rect);
+        ui.interact(arrow_rect, ui.scope_id().with(("msg_arrow", key)), Sense::click())
+            .on_hover_cursor(egui::CursorIcon::PointingHand)
+            .on_hover_text(tip)
+    });
     // Quick actions on the row under the pointer, at the right of the sender's line: flag (where
     // a flagged message wears its flag) and delete. Like the read switch they sit on top of the
     // row and leave the selection alone.
@@ -842,7 +855,15 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect) {
         app.hit.add("messageFlag", row.id, flag_rect);
         (delete, flag)
     });
-    let selected = app.session.sel.messages.contains(&row.id);
+    // An open conversation's row is selected when it was picked as the conversation, the newest
+    // message's own row under it when that message was picked alone (#503).
+    let whole = app.session.sel.whole.contains(&row.id);
+    let selected = app.session.sel.messages.contains(&row.id)
+        && match row.under {
+            Some(head) if head == row.id => !whole,
+            Some(_) => true,
+            None => !row.open || whole,
+        };
     // The focus is on one of a message's rows: the one clicked or stepped to.
     let focus = app.session.sel.focus() == Some(row.id) && app.session.sel.focus_copy() == row.copy;
     let p = ui.painter();
@@ -856,7 +877,7 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect) {
             app.hit.add("messageFlagShade", row.id, body);
         }
     }
-    if !selected && (resp.hovered() || read_resp.hovered() || quick.is_some()) {
+    if !selected && (resp.hovered() || read_resp.hovered() || arrow.as_ref().is_some_and(egui::Response::hovered) || quick.is_some()) {
         // The pointer's shade goes over a flagged row's tint.
         p.rect_filled(body, 0.0, t.hover.linear_multiply(0.6));
     }
@@ -879,9 +900,15 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect) {
     }
     let rule = if t.dark { t.border_strong } else { t.border };
     p.line_segment([pos2(body.min.x, rect.max.y - 0.5), pos2(rect.max.x, rect.max.y - 0.5)], Stroke::new(1.0, rule));
+    if let Some(arrow) = &arrow {
+        let at = Rect::from_center_size(arrow_rect.center(), vec2(12.0, 12.0));
+        icons::paint(p, at, if row.open { "expanded" } else { "collapsed" }, if arrow.hovered() { t.text } else { t.icon }, t.accent);
+    }
 
-    // Sent, drafts and outbox show who it went to rather than who wrote it.
-    let outgoing = app.session.mailbox.folder(m.folder).is_some_and(|f| matches!(f.kind, FolderKind::Sent | FolderKind::Drafts | FolderKind::Outbox));
+    // Sent, drafts and outbox show who it went to rather than who wrote it; a message under its
+    // conversation goes by the list it is in, so a reply in Sent Items says who wrote it (#503).
+    let shown_in = if row.under.is_some() { app.session.view.folder } else { m.folder };
+    let outgoing = app.session.mailbox.folder(shown_in).is_some_and(|f| matches!(f.kind, FolderKind::Sent | FolderKind::Drafts | FolderKind::Outbox));
     let who = if outgoing {
         let names: Vec<&str> = m.to.iter().map(|a| a.display()).collect();
         if names.is_empty() { tl!("(no recipients)").to_string() } else { names.join("; ") }
@@ -890,12 +917,14 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect) {
     };
     // The picture (or the initials) of who wrote it, or of who it went to.
     let pictured = app.ui.sender_images && !one;
+    // A message under its open conversation starts a step further in (#503).
+    let text_left = TEXT_LEFT + if row.under.is_some() { UNDER_INDENT } else { 0.0 };
     if pictured {
         let who = if outgoing { m.to.first().unwrap_or(&m.from) } else { &m.from };
-        let center = pos2(rect.min.x + TEXT_LEFT + AVATAR_RADIUS, rect.min.y + AVATAR_Y);
+        let center = pos2(rect.min.x + text_left + AVATAR_RADIUS, rect.min.y + AVATAR_Y);
         crate::sender_images::avatar(app, ui, center, AVATAR_RADIUS, &m, who);
     }
-    let left = rect.min.x + TEXT_LEFT + if pictured { 2.0 * AVATAR_RADIUS + AVATAR_GAP } else { 0.0 };
+    let left = rect.min.x + text_left + if pictured { 2.0 * AVATAR_RADIUS + AVATAR_GAP } else { 0.0 };
     // Where the time ends, and where the text of every line does.
     let time_end = rect.max.x - TIME_RIGHT;
     let text_end = rect.max.x - TEXT_RIGHT;
@@ -1008,7 +1037,9 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect) {
         app.hit.add("messageSize", row.id, at);
         sx = at.min.x - 6.0;
     }
-    if let Some(folder) = shows_folder(&app.session).then(|| app.session.mailbox.folder(m.folder)).flatten() {
+    // (And under an open conversation, a message of another folder: a reply in Sent Items, #503.)
+    let elsewhere = row.under.is_some() && m.folder != app.session.view.folder;
+    if let Some(folder) = (shows_folder(&app.session) || elsewhere).then(|| app.session.mailbox.folder(m.folder)).flatten() {
         let label = crate::nav::result_folder_label(&app.session.mailbox, folder);
         let end = sx;
         sx = paint_result_folder(p, pos2(end, tail_y), &label, &t) - 6.0;
@@ -1019,8 +1050,9 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect) {
         p.rect_filled(Rect::from_center_size(pos2(sx - 5.0, tail_y), vec2(10.0, 10.0)), 2.0, color);
         sx -= 13.0;
     }
-    if row.members.len() > 1 {
-        let n = row.members.len().to_string();
+    // How many messages the conversation has, in every folder: what opens under it (#503).
+    if conversation {
+        let n = row.size().to_string();
         let w = n.len() as f32 * 6.5 + 10.0;
         let br = Rect::from_min_max(pos2(sx - w, tail_y - 7.0), pos2(sx, tail_y + 7.0));
         p.rect_filled(br, 7.0, t.pressed);
@@ -1062,7 +1094,7 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect) {
     // Dragging a row carries it to a folder: the whole selection when the row is part of it,
     // otherwise just what the row stands for.
     if resp.drag_started() {
-        let ids: Vec<Id> = if selected { app.session.sel.messages.to_vec() } else { row.members.clone() };
+        let ids: Vec<Id> = if selected { app.session.acting_on() } else { row.members.clone() };
         resp.dnd_set_drag_payload(MessageDrag(ids));
     }
     if let Some((delete, flag)) = &quick {
@@ -1073,6 +1105,13 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect) {
         if flag.clicked() {
             let _ = app.run("mail.toggleFlag", json!({"ids": [row.id]}));
         }
+    }
+    if let Some(arrow) = &arrow
+        && arrow.clicked()
+    {
+        let command = if row.open { "mail.collapseConversation" } else { "mail.expandConversation" };
+        let _ = app.run(command, json!({"id": row.id}));
+        return;
     }
     if read_resp.clicked() {
         // A conversation is read once all of it is; its newest message makes it unread again.
@@ -1155,6 +1194,8 @@ mod forward_attachment_tests;
 mod from_sender_menu_tests;
 #[cfg(test)]
 mod hidden_selection_tests;
+#[cfg(test)]
+mod open_conversation_tests;
 #[cfg(test)]
 mod overlay_scroll_tests;
 
