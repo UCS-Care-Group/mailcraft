@@ -499,10 +499,8 @@ fn well_known(graph: &Graph<'_>) -> Result<Known, NetError> {
         }
     }
     if known.root.is_empty() {
-        // For a shared mailbox, that is Graph having no mailbox there for the owner (#70).
-        if graph.shared() {
-            return Err(NetError::SharedRefused(mailcraft_model::sync::SharedRefusal::NoMailbox));
-        }
+        // Graph's own code said "no mailbox" above when it was one (#70, #539); any other
+        // "not found" is an ordinary error, and the next run asks again.
         return Err(nonsense("Microsoft Graph didn't say where the top of the mailbox is"));
     }
     Ok(known)

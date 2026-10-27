@@ -1116,7 +1116,7 @@ checksum = "75b325c5dbd37f80359721ad39aca5a29fb04c89279657cffdda8736d0c0b9d2"
 [[package]]
 name = "dpi"
 version = "0.1.1"
-source = "git+https://github.com/UCS-Care-Group/winit?rev=bb472d90071a8b48288aeaa70ad81b767808ae9a#bb472d90071a8b48288aeaa70ad81b767808ae9a"
+source = "git+https://github.com/UCS-Care-Group/winit?rev=951b6c131897a80d27a925af7c5da22ea522eb0d#951b6c131897a80d27a925af7c5da22ea522eb0d"
 
 [[package]]
 name = "dpi"
@@ -2380,6 +2380,13 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.21",
+]
+
+[[package]]
+name = "mailcraft-names"
+version = "0.8.1"
+dependencies = [
+ "proptest",
 ]
 
 [[package]]
@@ -5216,7 +5223,7 @@ checksum = "589f6da84c646204747d1270a2a5661ea66ed1cced2631d546fdfb155959f9ec"
 [[package]]
 name = "winit"
 version = "0.30.13"
-source = "git+https://github.com/UCS-Care-Group/winit?rev=bb472d90071a8b48288aeaa70ad81b767808ae9a#bb472d90071a8b48288aeaa70ad81b767808ae9a"
+source = "git+https://github.com/UCS-Care-Group/winit?rev=951b6c131897a80d27a925af7c5da22ea522eb0d#951b6c131897a80d27a925af7c5da22ea522eb0d"
 dependencies = [
  "ahash",
  "android-activity",

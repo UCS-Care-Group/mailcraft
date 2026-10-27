@@ -152,6 +152,9 @@ pub use unconfirmed::ConfirmedMailbox;
 /// Platform services injected by the host (file dialogs, downloads, servers, storage).
 #[derive(Default)]
 pub struct Services {
+    /// Desktop: the icon and application id of the main window, which every other window of the
+    /// system (reminders, messages) takes too.
+    pub window_identity: Option<windows::WindowIdentity>,
     /// Desktop: show a native file dialog without blocking the UI thread. The host sends the
     /// picked path (`None` when cancelled) through the returned channel and wakes the UI; a
     /// dropped sender counts as cancelled. The app shows one dialog at a time ([`files`]).
@@ -3563,6 +3566,7 @@ impl MailApp {
         if self.ctx.is_none() {
             self.ctx = Some(ctx.clone());
         }
+        windows::remember_identity(ctx, self.services.window_identity.as_ref());
         // Waiting for the mailbox: nothing else happens.
         if self.opening.is_some() {
             opening::logic(self, ctx);

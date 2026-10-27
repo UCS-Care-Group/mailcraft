@@ -1,10 +1,12 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! Junk E-mail Options (#504): the Safe Senders and Blocked Senders lists, a page each, with
-//! the list, Add and Remove. Every change is a command (`junk.add`, `junk.remove`).
+//! the list, Add and Remove. Every change is a command (`junk.add`, `junk.remove`). The lists are
+//! each account's (#516): with more than one account, a drop-down says whose are in view.
 
 use egui::{Align2, CornerRadius, Sense, Stroke, StrokeKind, Ui, vec2};
-use mailcraft_model::JunkList;
+use mailcraft_engine::Session;
+use mailcraft_model::{Id, JunkList};
 use serde_json::{Value, json};
 
 use super::kit::{ROW_H, body, close_button, error, field_id, shown};
@@ -22,6 +24,8 @@ const BUTTON_W: f32 = 88.0;
 pub struct JunkForm {
     /// The page in view.
     pub page: JunkList,
+    /// The account whose lists are in view (0 when the mailbox has none).
+    pub account: Id,
     /// The entry selected on the page in view.
     pub selected: Option<String>,
     /// What is typed to be added.
@@ -32,7 +36,7 @@ pub struct JunkForm {
 
 impl Default for JunkForm {
     fn default() -> Self {
-        JunkForm { page: JunkList::Safe, selected: None, new_entry: String::new(), error: String::new(), focus: true }
+        JunkForm { page: JunkList::Safe, account: 0, selected: None, new_entry: String::new(), error: String::new(), focus: true }
     }
 }
 
@@ -57,19 +61,28 @@ fn title(page: JunkList) -> &'static str {
 
 impl JunkForm {
     /// The dialog, on `params.list`'s page (Safe Senders when it doesn't say).
-    pub fn new(params: &Value) -> JunkForm {
+    /// The account is `params.account`, else the selected message's, else the first.
+    pub fn new(s: &Session, params: &Value) -> JunkForm {
         let page = params.get("list").and_then(Value::as_str).and_then(JunkList::parse).unwrap_or(JunkList::Safe);
-        JunkForm { page, ..Default::default() }
+        let own = |id: Id| s.mailbox.account(id).filter(|a| a.shared_of.is_none()).map(|a| a.id);
+        let account = params
+            .get("account")
+            .and_then(Value::as_u64)
+            .and_then(own)
+            .or_else(|| s.sel.messages.last().and_then(|m| s.mailbox.message(*m)).and_then(|m| own(s.mailbox.junk_owner(m.account))))
+            .or_else(|| s.mailbox.default_account().map(|a| a.id))
+            .unwrap_or(0);
+        JunkForm { page, account, ..Default::default() }
     }
 
     /// The command that adds what was typed to the page in view.
     pub fn add_command(&self) -> (&'static str, Value) {
-        ("junk.add", json!({"list": self.page.as_str(), "entry": self.new_entry}))
+        ("junk.add", json!({"account": self.account, "list": self.page.as_str(), "entry": self.new_entry}))
     }
 
     /// The command that removes the selected entry, when one is.
     pub fn remove_command(&self) -> Option<(&'static str, Value)> {
-        self.selected.as_ref().map(|e| ("junk.remove", json!({"list": self.page.as_str(), "entry": e})))
+        self.selected.as_ref().map(|e| ("junk.remove", json!({"account": self.account, "list": self.page.as_str(), "entry": e})))
     }
 
     /// The pages as tabs side by side.
@@ -106,7 +119,15 @@ impl JunkForm {
     pub fn show(&mut self, app: &mut MailApp, ui: &mut Ui) -> bool {
         let t = Tokens::get(ui.ctx());
         let enter = crate::keys::enter(ui.ctx(), ui.layer_id());
-        let entries: Vec<String> = app.session.mailbox.junk.list(self.page).to_vec();
+        let entries: Vec<String> = app.session.mailbox.junk_accounts.get(&self.account).map(|l| l.list(self.page).to_vec()).unwrap_or_default();
+        let accounts: Vec<(Id, String)> = app
+            .session
+            .mailbox
+            .accounts
+            .iter()
+            .filter(|a| a.shared_of.is_none())
+            .map(|a| (a.id, shown(if a.email.is_empty() { &a.name } else { &a.email }, 60)))
+            .collect();
         if self.selected.as_ref().is_some_and(|e| !entries.contains(e)) {
             self.selected = None;
         }
@@ -115,6 +136,22 @@ impl JunkForm {
         body(ui, |ui| {
             // The list and the field take what the buttons beside them leave of the form's width.
             let width = (ui.available_width().min(WIDTH) - BUTTON_W - 12.0).max(120.0);
+            if accounts.len() > 1 {
+                ui.horizontal(|ui| {
+                    ui.label(tl!("Account"));
+                    let now = accounts.iter().find(|(id, _)| *id == self.account).map(|(_, n)| n.clone()).unwrap_or_default();
+                    egui::ComboBox::from_id_salt("junk_account").selected_text(now).width(280.0).show_ui(ui, |ui| {
+                        for (id, name) in &accounts {
+                            if ui.selectable_label(self.account == *id, name).clicked() && self.account != *id {
+                                self.account = *id;
+                                self.selected = None;
+                                self.error.clear();
+                            }
+                        }
+                    });
+                });
+                ui.add_space(6.0);
+            }
             self.tabs(ui);
             ui.add_space(8.0);
             ui.label(egui::RichText::new(tl!(about(self.page))).color(t.text_dim));
