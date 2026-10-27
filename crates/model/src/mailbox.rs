@@ -1940,6 +1940,19 @@ impl Mailbox {
         m.moving_out.is_some() || self.waiting_move(id).and_then(|at| self.pending.get(at)).is_some_and(|p| p.account() != m.account)
     }
 
+    /// Every message [`Mailbox::moving_out_of_a_server`] is true of, found in one pass over the
+    /// waiting moves (a save asks this of each, and thousands may wait).
+    pub fn moving_out_of_servers(&self) -> HashSet<Id> {
+        let mut first: HashMap<Id, Id> = HashMap::new();
+        for p in &self.pending {
+            if let Pending::Move { message, .. } = p {
+                first.entry(*message).or_insert_with(|| p.account());
+            }
+        }
+        let imap = first.into_iter().filter(|(id, account)| self.message(*id).is_some_and(|m| m.account != *account)).map(|(id, _)| id);
+        self.messages.values().filter(|m| m.moving_out.is_some()).map(|m| m.id).chain(imap).collect()
+    }
+
     /// Whether a server has the original of `id` elsewhere than where it lies here: it is being
     /// moved out of a Microsoft account ([`Message::moving_out`]), or a move of it waits to be
     /// made on an IMAP server ([`Pending::Move`]).

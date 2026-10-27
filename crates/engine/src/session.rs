@@ -1968,15 +1968,10 @@ impl Session {
     /// this when a save of the mailbox as it is now succeeded; the engine also notes it whenever
     /// it sees nothing unsaved.
     pub fn note_saved(&mut self) {
-        let mb = &self.mailbox;
-        let out = mb.messages.values().filter(|m| m.moving_out.is_some()).map(|m| m.id);
-        let moved = mb.pending.iter().filter_map(|p| match p {
-            mailcraft_model::Pending::Move { message, .. } => Some(*message),
-            mailcraft_model::Pending::Delete { .. } => None,
-        });
-        let whole: Vec<Id> = out.chain(moved).filter(|id| mb.message(*id).is_some_and(|m| !m.unfetched) && mb.moving_out_of_a_server(*id)).collect();
-        self.saved_whole.extend(whole);
-        self.saved_whole.retain(|id| self.mailbox.moving_out_of_a_server(*id));
+        let out = self.mailbox.moving_out_of_servers();
+        let whole = out.iter().copied().filter(|id| self.mailbox.message(*id).is_some_and(|m| !m.unfetched));
+        self.saved_whole.extend(whole.collect::<Vec<_>>());
+        self.saved_whole.retain(|id| out.contains(id));
     }
 
     /// Whether the mailbox file is known to hold the mailbox as it is now.

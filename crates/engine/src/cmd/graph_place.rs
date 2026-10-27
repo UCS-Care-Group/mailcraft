@@ -99,9 +99,9 @@ pub(crate) fn unreadable_waiting(s: &Session, account: Id) -> Vec<String> {
 /// Microsoft account it is in; on the server of the IMAP account it is in, under its UID there;
 /// in an account whose server is given no copy, whole here (every part of it read back, its
 /// attachments too) and kept in the mailbox file (`saved`: the file holds what is here now).
-/// Only when `read` are its parts read back: a count of what waits to go, which a host asks for
-/// every few seconds, reads no file, and counts one that can't be read as it does a change the
-/// server refused.
+/// Only when `read` are its parts read back, which is done for a change that goes into a request:
+/// a count of what waits to go, which a host asks for every few seconds, reads no file, and
+/// counts one that can't be read as it does a change the server refused.
 pub(crate) fn safe_here(s: &Session, m: &Message, saved: bool, read: bool) -> bool {
     if s.mailbox.is_graph(m.account) {
         m.server.as_ref().is_some_and(|server| !server.gone && !server.id.is_empty())
@@ -221,9 +221,16 @@ pub(crate) fn put_back_waiting(mb: &mut Mailbox, going: impl Fn(&Mailbox, Id, Id
 /// the original isn't left on its server, shown nowhere, nor taken away with the account.
 pub(crate) fn settle_moves_into(s: &mut Session, going: &HashSet<Id>) {
     let mb = &s.mailbox;
+    let moving: HashSet<Id> = mb
+        .pending
+        .iter()
+        .filter_map(|p| match p {
+            Pending::Move { account, message, .. } if !going.contains(account) => Some(*message),
+            _ => None,
+        })
+        .collect();
     let elsewhere = |m: &Message| {
-        m.moving_out.as_ref().is_some_and(|out| !out.left && !out.id.is_empty() && !going.contains(&out.account))
-            || mb.pending.iter().any(|p| matches!(p, Pending::Move { account, message, .. } if *message == m.id && !going.contains(account)))
+        m.moving_out.as_ref().is_some_and(|out| !out.left && !out.id.is_empty() && !going.contains(&out.account)) || moving.contains(&m.id)
     };
     // Safe only on a server, which keeps the copy: one on this computer goes with its account.
     let kept = |m: &Message| mb.is_graph(m.account) || mb.puts_on_server(m.account);

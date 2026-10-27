@@ -1238,3 +1238,22 @@ fn moving_many_at_once_does_what_moving_each_in_turn_does() {
         assert_eq!(moved.len(), ids.iter().filter(|id| s.mailbox.message(**id).is_some_and(|m| m.folder != folder)).count());
     }
 }
+
+#[test]
+fn what_is_moving_out_of_a_server_is_found_at_once_as_it_is_for_each_message() {
+    let (mut s, a, kept) = imap();
+    let archive = s.mailbox.folder_of_kind(a, FolderKind::Archive).unwrap();
+    // Out of the IMAP account onto this computer, and within it.
+    s.run("mail.move", &json!({"ids": [titled(&s, "Two")], "folder": kept})).unwrap();
+    s.run("mail.move", &json!({"ids": [titled(&s, "Three")], "folder": archive})).unwrap();
+    // Out of a Microsoft account onto this computer.
+    let ms = microsoft(&mut s, OWNER);
+    let inbox = s.mailbox.folder_of_kind(ms, FolderKind::Inbox).unwrap();
+    let server = mailcraft_model::sync::ServerMessage { id: "AAkA7".into(), folder: "in".into(), ..Default::default() };
+    let body = Body { text: "All of it.".into(), html: None };
+    let m = s.mailbox.add_message(Message { folder: inbox, subject: "Receipt".into(), server: Some(server), body, ..Default::default() }).unwrap();
+    s.run("mail.move", &json!({"ids": [m], "folder": kept})).unwrap();
+    let each: std::collections::HashSet<Id> = s.mailbox.messages.keys().copied().filter(|id| s.mailbox.moving_out_of_a_server(*id)).collect();
+    assert_eq!(each, [titled(&s, "Two"), m].into_iter().collect());
+    assert_eq!(s.mailbox.moving_out_of_servers(), each);
+}

@@ -203,6 +203,27 @@ fn a_message_whose_text_or_a_file_couldnt_be_read_keeps_its_server_copy_when_mov
     assert_eq!(message_changes(&s, account, 0).1, 1);
 }
 
+/// #451: what waits past a request's limit isn't read back for it: every part of all the mail
+/// moved to this computer would be read at the start of each run.
+#[test]
+fn mail_moved_to_this_computer_past_a_requests_limit_isnt_read_back_for_it() {
+    let (mut s, account, m, kept) = setup();
+    let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    let server = ServerMessage { id: "M-2".into(), folder: "F-in".into(), ..Default::default() };
+    let other = s.mailbox.add_message(Message { folder: inbox, subject: "Plan".into(), server: Some(server), ..Default::default() }).unwrap();
+    s.run("mail.move", &json!({"ids": [m, other], "folder": kept})).unwrap();
+    s.note_saved();
+    // A file of the second that can't be read back (this mailbox has no file to read it from).
+    let mut file = mailcraft_model::Attachment::new("plan.pdf", "application/pdf", Vec::new());
+    file.kept = Some(mailcraft_model::ContentRef { sha256: [7; 32], len: 4096 });
+    s.mailbox.message_mut(other).unwrap().attachments = vec![file];
+    let first = [MessageChange::MovedOut { message: m, id: "M-1".into() }];
+    // Past the limit it is counted, not read.
+    assert_eq!(message_changes(&s, account, 1), (first.to_vec(), 2));
+    // With room for it, it is read back, and stays.
+    assert_eq!(message_changes(&s, account, 10).0, first);
+}
+
 /// #451: received mail in a local folder goes into a Microsoft account by its server's own run
 /// (made there from the whole message, as received mail); a draft stays out.
 #[test]

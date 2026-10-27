@@ -640,9 +640,11 @@ fn remote_ops(s: &Session, account: Id, limit: usize) -> (Vec<RemoteOp>, usize) 
     let mb = &s.mailbox;
     let saved = s.file_is_current();
     let (mut ops, mut count) = (Vec::new(), 0usize);
-    let mut note = |op: &dyn Fn() -> RemoteOp| {
+    // (`None`: it can't go after all, which is looked at only for one that is spelled out.)
+    let mut note = |op: &dyn Fn() -> Option<RemoteOp>| {
         if ops.len() < limit {
-            ops.push(op());
+            let Some(op) = op() else { return };
+            ops.push(op);
         }
         count += 1;
     };
@@ -655,13 +657,15 @@ fn remote_ops(s: &Session, account: Id, limit: usize) -> (Vec<RemoteOp>, usize) 
             continue;
         }
         match pending {
-            Pending::Delete { .. } => note(&|| RemoteOp::Delete { from: from.to_string(), uid }),
+            Pending::Delete { .. } => note(&|| Some(RemoteOp::Delete { from: from.to_string(), uid })),
             Pending::Move { message, synced, to, .. } => {
                 let Some(m) = mb.message(*message) else { continue };
                 if m.account != account {
                     // Moved out of the account: the original goes once the message is safe where it is.
-                    if mb.takes_over(account, m.account) && super::graph_place::safe_here(s, m, saved, limit > 0) {
-                        note(&|| RemoteOp::Delete { from: from.to_string(), uid });
+                    // Every part of one on this computer is read back only when it goes into the
+                    // request: not for a count, nor for what waits past the limit.
+                    if mb.takes_over(account, m.account) && super::graph_place::safe_here(s, m, saved, false) {
+                        note(&|| super::graph_place::safe_here(s, m, saved, true).then(|| RemoteOp::Delete { from: from.to_string(), uid }));
                     }
                     continue;
                 }
@@ -671,11 +675,11 @@ fn remote_ops(s: &Session, account: Id, limit: usize) -> (Vec<RemoteOp>, usize) 
                 // What was changed about the message before or after it was moved goes first, so
                 // that it arrives in its new mailbox as it is here.
                 if let Some([read, flagged, answered]) = synced.filter(|base| base.uid == uid).and_then(|base| flag_changes(m, base)) {
-                    note(&|| RemoteOp::Flags { folder: from.to_string(), uid, read, flagged, answered });
+                    note(&|| Some(RemoteOp::Flags { folder: from.to_string(), uid, read, flagged, answered }));
                 }
                 note(&|| {
                     let (to, create) = destination(mb, folder);
-                    RemoteOp::Move { message: *message, from: from.to_string(), uid, to, to_folder: folder.id, create }
+                    Some(RemoteOp::Move { message: *message, from: from.to_string(), uid, to, to_folder: folder.id, create })
                 });
             }
         }
@@ -684,7 +688,7 @@ fn remote_ops(s: &Session, account: Id, limit: usize) -> (Vec<RemoteOp>, usize) 
         let Some(base) = m.synced.filter(|base| m.uid != 0 && base.uid == m.uid && m.account == account) else { continue };
         let Some([read, flagged, answered]) = flag_changes(m, base) else { continue };
         let Some(folder) = folders.get(&m.folder).copied().filter(followed) else { continue };
-        note(&|| RemoteOp::Flags { folder: folder.remote.clone(), uid: m.uid, read, flagged, answered });
+        note(&|| Some(RemoteOp::Flags { folder: folder.remote.clone(), uid: m.uid, read, flagged, answered }));
     }
     (ops, count)
 }
