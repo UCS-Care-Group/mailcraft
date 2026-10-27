@@ -13653,6 +13653,14 @@ msgid_plural "{n} attendees"
 msgstr[0] "{n} participant"
 msgstr[1] "{n} participants"
 
+#. interface
+#: crates/ui-egui/src/opening.rs
+#, fuzzy
+msgid "{n} body or attachment is missing from the mailbox's content folder, or damaged."
+msgid_plural "{n} bodies or attachments are missing from the mailbox's content folder, or damaged."
+msgstr[0] "{n} corps de message ou pièce jointe manque dans le dossier de contenu de la boîte aux lettres, ou est endommagé."
+msgstr[1] "{n} corps de message ou pièces jointes manquent dans le dossier de contenu de la boîte aux lettres, ou sont endommagés."
+
 #. what a command says
 #: crates/model/src/message.rs
 #, fuzzy

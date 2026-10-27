@@ -738,6 +738,9 @@ struct State {
     /// The file as [`open_ahead`] read it, for the next [`open`] of it to take, with the file's
     /// length and time then: anything written to it since drops it.
     ahead: Option<(Box<Opened>, Stamp)>,
+    /// The content folder, and the content in it the opening left on disk without looking for
+    /// it, with how many parts name each, for [`check_parts`].
+    unchecked: Option<(PathBuf, Vec<(Ref, u32)>)>,
 }
 
 /// Messages the mailbox file no longer says as they are in memory, held by nothing but a weak
@@ -1228,6 +1231,9 @@ pub struct Opened {
     pub bytes: u64,
     /// How many things in the mailbox didn't fit together and were put right (`Mailbox::repair`).
     pub repaired: usize,
+    /// The content files left on disk are still to be looked for ([`check_parts`]): bodies and
+    /// attachments missing among them aren't in `unavailable` ([`open_for_window`]).
+    pub unchecked: bool,
 }
 
 impl Opened {
@@ -1331,8 +1337,35 @@ pub fn open(path: &Path) -> Result<Opened, String> {
 /// [`open`], counting the bytes read in `progress` (the file's length is its total), and stopping
 /// with an error once `progress` is cancelled.
 pub fn open_with(path: &Path, progress: &OpenProgress) -> Result<Opened, String> {
+    open_as(path, progress, Launch::default())
+}
+
+/// [`open_with`], for a window that shows the mailbox as soon as it is open (#519): the bodies of
+/// the newest [`OPENING_ROWS`] messages of the Inbox alone are brought into memory (the rest
+/// load when they are wanted, as bodies beyond the budget always have), and the content files
+/// left on disk are looked for afterwards, by [`check_parts`] ([`Opened::unchecked`]).
+pub fn open_for_window(path: &Path, progress: &OpenProgress) -> Result<Opened, String> {
+    open_as(path, progress, Launch { checks_later: true, rows: Some(OPENING_ROWS) })
+}
+
+/// How a mailbox file is opened: as it always was ([`Launch::default`]), or for a window that
+/// shows it at once ([`open_for_window`]).
+#[derive(Clone, Copy, Debug, Default)]
+struct Launch {
+    /// The content left on disk is looked for afterwards ([`check_parts`]), not while opening.
+    checks_later: bool,
+    /// Bodies are brought into memory only for this many of the Inbox's newest messages (within
+    /// the budget); `None`: for the newest mail of the whole mailbox, as far as the budget goes.
+    rows: Option<usize>,
+}
+
+/// The Inbox's newest messages whose bodies a window brings in as it opens a mailbox: more than
+/// a window's list shows at once.
+pub const OPENING_ROWS: usize = 200;
+
+fn open_as(path: &Path, progress: &OpenProgress, launch: Launch) -> Result<Opened, String> {
     let started = Instant::now();
-    let (opened, read_now) = open_file(path, progress)?;
+    let (opened, read_now) = open_file(path, progress, launch)?;
     // (What was read ahead was logged when it was read.)
     if read_now {
         let line = open_line(started.elapsed(), opened.bytes, counts(&opened.mailbox), opened.repaired);
@@ -1369,7 +1402,7 @@ pub fn open_ahead(path: &Path, progress: &OpenProgress) -> Result<(), String> {
     let shared = shared(path);
     let mut st = lock(&shared.state);
     let started = Instant::now();
-    let (opened, read_now) = open_locked(&mut st, path, progress)?;
+    let (opened, read_now) = open_locked(&mut st, path, progress, Launch::default())?;
     if read_now {
         let line = open_line(started.elapsed(), opened.bytes, counts(&opened.mailbox), opened.repaired);
         log::info!("{line}");
@@ -1440,14 +1473,14 @@ impl<R: std::io::Read> std::io::Read for Counted<'_, R> {
 }
 
 /// [`open_with`], without the line in the log; and whether the file was read now (not ahead).
-fn open_file(path: &Path, progress: &OpenProgress) -> Result<(Opened, bool), String> {
+fn open_file(path: &Path, progress: &OpenProgress, launch: Launch) -> Result<(Opened, bool), String> {
     let shared = shared(path);
     let mut st = lock(&shared.state);
-    open_locked(&mut st, path, progress)
+    open_locked(&mut st, path, progress, launch)
 }
 
 /// [`open_file`], its file's lock held (`st`).
-fn open_locked(st: &mut State, path: &Path, progress: &OpenProgress) -> Result<(Opened, bool), String> {
+fn open_locked(st: &mut State, path: &Path, progress: &OpenProgress, launch: Launch) -> Result<(Opened, bool), String> {
     let show = path.display();
     let file = resolve(path);
     let len = crate::io::regular_file(&file).and_then(|f| f.metadata().map_err(crate::io::ReadError::Io)).map_err(|e| format!("{show}: {e}"))?.len();
@@ -1466,7 +1499,7 @@ fn open_locked(st: &mut State, path: &Path, progress: &OpenProgress) -> Result<(
     let (pins, named_before) = (std::mem::take(&mut st.pins), std::mem::take(&mut st.named_before));
     *st = State { newest: st.newest, swept: st.swept, pins, named_before, ..State::default() };
     if is_index(&file).map_err(|e| format!("{show}: {e}"))? {
-        let opened = open_index(st, &file, len, progress).map_err(|e| format!("{show}: {e}"))?;
+        let opened = open_index(st, &file, len, progress, launch).map_err(|e| format!("{show}: {e}"))?;
         if progress.cancelled() {
             return Err(CANCELLED.into());
         }
@@ -1489,7 +1522,7 @@ fn open_locked(st: &mut State, path: &Path, progress: &OpenProgress) -> Result<(
         0 | 1 => (false, Filled::default()),
         SPLIT_VERSION => {
             let head: Head = serde_json::from_slice(&bytes).map_err(|e| format!("{show}: this mailbox file is damaged ({e})"))?;
-            (true, fill(st, &blob_dir(&file), &mut mailbox, head, None))
+            (true, fill(st, &blob_dir(&file), &mut mailbox, head, None, Launch::default()))
         }
         newer => return Err(format!("{show}: this mailbox was written by a newer MailCraft (format {newer})")),
     };
@@ -1516,6 +1549,7 @@ fn open_locked(st: &mut State, path: &Path, progress: &OpenProgress) -> Result<(
         lost_records: 0,
         bytes: len,
         repaired: fixed.len(),
+        unchecked: false,
     };
     Ok((opened, true))
 }
@@ -1546,7 +1580,7 @@ fn parse_item(key: &Key, item: &index::Item) -> Result<(Parsed, Fp), String> {
 }
 
 /// Open a mailbox file in this form, `len` bytes long.
-fn open_index(st: &mut State, file: &Path, len: u64, progress: &OpenProgress) -> Result<Opened, String> {
+fn open_index(st: &mut State, file: &Path, len: u64, progress: &OpenProgress, launch: Launch) -> Result<Opened, String> {
     if len > MAX_INDEX {
         return Err(format!("the mailbox file is larger than {} GB", MAX_INDEX >> 30));
     }
@@ -1607,7 +1641,7 @@ fn open_index(st: &mut State, file: &Path, len: u64, progress: &OpenProgress) ->
     // (`fill` marks which of it is in memory).
     let mut parts: HashMap<Id, Parts> = head.blobs.iter().map(|(id, wire)| (*id, wire.parts())).collect();
     let dir = blob_dir(file);
-    let filled = fill(st, &dir, &mut mailbox, head, Some(&mut parts));
+    let filled = fill(st, &dir, &mut mailbox, head, Some(&mut parts), launch);
     mailbox.version = 1;
     let fixed = mailbox.repair();
     for line in &fixed {
@@ -1682,6 +1716,7 @@ fn open_index(st: &mut State, file: &Path, len: u64, progress: &OpenProgress) ->
         lost_records: replayed.lost_records,
         bytes: len,
         repaired: fixed.len(),
+        unchecked: st.unchecked.is_some(),
     })
 }
 
@@ -1776,6 +1811,32 @@ fn present(dir: &Path, r: &Ref, folders: &Folders) -> bool {
     })
 }
 
+/// Which of `on_disk` (content under `dir`, with how many parts name each) are missing, looked
+/// for within [`STAT_TIME`]: past it, the rest is taken to be there, and a part that isn't says
+/// so when it is wanted.
+fn missing_of(dir: &Path, on_disk: &[(Ref, u32)], folders: &Folders) -> Vec<(Ref, u32)> {
+    // (A deadline past what the clock can say is none.)
+    let deadline = Instant::now().checked_add(STAT_TIME);
+    let looked =
+        fan_out(on_disk.len(), |i| on_disk.get(i).map(|(r, _)| deadline.is_none_or(|d| Instant::now() < d).then(|| present(dir, r, folders))));
+    on_disk.iter().zip(&looked).filter(|(_, l)| matches!(l, Some(Some(Some(false))))).map(|(r, _)| *r).collect()
+}
+
+/// Look for the content files the mailbox file at `path` names and its opening left on disk
+/// unlooked for ([`open_for_window`]): how many bodies and attachments are missing or damaged,
+/// for the window to say as the opening would have ([`Opened::notice`]). Once only: 0 after
+/// that, and for a file opened otherwise. Saves aren't held up meanwhile.
+pub fn check_parts(path: &Path) -> usize {
+    let shared = shared(path);
+    let Some((dir, on_disk)) = lock(&shared.state).unchecked.take() else { return 0 };
+    let missing = missing_of(&dir, &on_disk, &Folders::new());
+    let n = missing.iter().map(|(_, uses)| *uses as usize).fold(0usize, usize::saturating_add);
+    if n > 0 {
+        log::warn!("{}: {n} bodies or attachments are missing from {} or damaged", path.display(), dir.display());
+    }
+    n
+}
+
 /// What a mailbox file wants for one part of a message.
 struct Want {
     /// `None`: what the file gives as a name isn't one.
@@ -1794,7 +1855,7 @@ impl Want {
 /// Put the content the mailbox file names back into `mailbox`'s messages: the bodies of the
 /// newest mail up to [`body_budget`], the rest named on the messages to be fetched when wanted.
 /// `parts`, when given, learns which parts are in memory. Returns what was done.
-fn fill(st: &mut State, dir: &Path, mailbox: &mut Mailbox, head: Head, mut parts: Option<&mut HashMap<Id, Parts>>) -> Filled {
+fn fill(st: &mut State, dir: &Path, mailbox: &mut Mailbox, head: Head, mut parts: Option<&mut HashMap<Id, Parts>>, launch: Launch) -> Filled {
     // Every distinct piece of content read is read once, and only as much as fits the budget: a
     // file can name the same large content for a million bodies.
     let mut slots: Vec<(Ref, u32)> = Vec::new();
@@ -1826,11 +1887,20 @@ fn fill(st: &mut State, dir: &Path, mailbox: &mut Mailbox, head: Head, mut parts
         // file on disk, and counted, but nothing of it is read.
         let mut order: Vec<(i64, Id)> = head.blobs.keys().filter_map(|id| mailbox.messages.get(id).map(|m| (m.date, *id))).collect();
         order.sort_unstable_by(|a, b| b.cmp(a));
+        // For a window that shows the mailbox at once, only the rows it opens on: the Inbox's
+        // newest messages (`Session` opens on the Inbox, newest first).
+        let rows: Option<HashSet<Id>> = launch.rows.map(|rows| {
+            let inbox = mailbox.inbox();
+            let mut listed: Vec<(i64, Id)> = mailbox.messages.iter().filter(|(_, m)| Some(m.folder) == inbox).map(|(id, m)| (m.date, *id)).collect();
+            listed.sort_unstable_by(|a, b| b.cmp(a));
+            listed.into_iter().take(rows).map(|(_, id)| id).collect()
+        });
         let mut plan = Vec::with_capacity(order.len());
         for (_, id) in order {
             let Some(wire) = head.blobs.get(&id) else { continue };
-            let text = want(&wire.text, true, &mut st.live);
-            let html = want(&wire.html, true, &mut st.live);
+            let load = rows.as_ref().is_none_or(|rows| rows.contains(&id));
+            let text = want(&wire.text, load, &mut st.live);
+            let html = want(&wire.html, load, &mut st.live);
             let attachments: Vec<Option<Want>> = wire.attachments.iter().map(|a| want(a, false, &mut st.live)).collect();
             plan.push((id, text, html, attachments));
         }
@@ -1848,26 +1918,31 @@ fn fill(st: &mut State, dir: &Path, mailbox: &mut Mailbox, head: Head, mut parts
     let mut data: Vec<Option<Arc<Vec<u8>>>> = read.into_iter().map(|b| b.flatten().map(Arc::new)).collect();
     let mut uses: Vec<u32> = slots.iter().map(|(_, uses)| *uses).collect();
     drop(slots);
-    // What stays on disk is looked for (its file, not its bytes), within a time cap, so that what
-    // is missing is told from what is merely not loaded. Past the cap the rest is taken to be
-    // there: a part that isn't says so when it is wanted.
-    let mut on_disk: Vec<Ref> = Vec::new();
-    let mut seen: HashSet<Ref> = HashSet::new();
+    // What stays on disk is looked for (its file, not its bytes), so that what is missing is told
+    // from what is merely not loaded: now, or for a window that shows the mailbox at once, once
+    // it shows ([`check_parts`]), the parts meanwhile taken to be there.
+    let mut on_disk: Vec<(Ref, u32)> = Vec::new();
+    let mut seen: HashMap<Ref, usize> = HashMap::new();
     for (_, text, html, attachments) in &plan {
         for want in text.iter().chain(html).chain(attachments.iter().flatten()) {
-            if let (Some(r), None) = (want.r, want.slot)
-                && seen.insert(r)
-            {
-                on_disk.push(r);
+            if let (Some(r), None) = (want.r, want.slot) {
+                let at = *seen.entry(r).or_insert_with(|| {
+                    on_disk.push((r, 0));
+                    on_disk.len().saturating_sub(1)
+                });
+                if let Some((_, uses)) = on_disk.get_mut(at) {
+                    *uses = uses.saturating_add(1);
+                }
             }
         }
     }
     drop(seen);
-    // (A deadline past what the clock can say is none.)
-    let deadline = Instant::now().checked_add(STAT_TIME);
-    let looked = fan_out(on_disk.len(), |i| on_disk.get(i).map(|r| deadline.is_none_or(|d| Instant::now() < d).then(|| present(dir, r, &folders))));
-    let missing: HashSet<Ref> = on_disk.iter().zip(&looked).filter(|(_, l)| matches!(l, Some(Some(Some(false))))).map(|(r, _)| *r).collect();
-    drop(on_disk);
+    let missing: HashSet<Ref> = if launch.checks_later {
+        st.unchecked = Some((dir.to_path_buf(), on_disk));
+        HashSet::new()
+    } else {
+        missing_of(dir, &on_disk, &folders).into_iter().map(|(r, _)| r).collect()
+    };
     let mut filled = Filled::default();
     // Three ways a part can stand after this: in memory (`Some(true)`), on disk (`Some(false)`),
     // missing (`None`).

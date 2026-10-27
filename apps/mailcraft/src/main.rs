@@ -1631,6 +1631,25 @@ fn background_saver(ctx: &egui::Context, path: &std::path::Path) -> Option<Box<d
     }
 }
 
+/// Look for the content files of the mailbox file at `path` that its opening left on disk, on a
+/// thread of its own (`store::check_parts`), and hand over how many are missing, waking the window.
+/// `None` when the thread couldn't be started: then nothing more is said than the opening found.
+fn missing_parts_later(ctx: &egui::Context, path: &std::path::Path) -> Option<std::sync::mpsc::Receiver<usize>> {
+    let (tx, rx) = std::sync::mpsc::channel();
+    let (wake, path) = (ctx.clone(), path.to_path_buf());
+    let spawned = std::thread::Builder::new().name("looking for the mailbox's content".into()).spawn(move || {
+        let _ = tx.send(mailcraft_engine::store::check_parts(&path));
+        wake.request_repaint();
+    });
+    match spawned {
+        Ok(_) => Some(rx),
+        Err(e) => {
+            log::warn!("couldn't start looking for the mailbox's content files: {e}");
+            None
+        }
+    }
+}
+
 /// Said when the mailbox is open in a MailCraft that doesn't answer: opening it a second time
 /// would let two windows save over each other, so this start ends here.
 fn already_open() {
@@ -1802,7 +1821,8 @@ fn main() -> eframe::Result {
             let ctx = cc.egui_ctx.clone();
             let (first_prefs, host_updates) = (prefs.clone(), updates.clone());
             let build: mailcraft_ui_egui::opening::Build = Box::new(move |arrival| {
-                let (mailbox, path, unavailable, damaged) = (arrival.mailbox, arrival.path, arrival.unavailable, arrival.damaged);
+                let (mailbox, path, unavailable, unchecked, damaged) =
+                    (arrival.mailbox, arrival.path, arrival.unavailable, arrival.unchecked, arrival.damaged);
                 let mut session = Session::new(mailbox);
                 let kept = path.is_some();
                 session.path = path;
@@ -1821,8 +1841,18 @@ fn main() -> eframe::Result {
                 if let Some(path) = &app.session.path {
                     app.services.saver = background_saver(&ctx, path);
                 }
+                // The word index starts once the window has drawn its first frames (#519).
+                app.index_words_later();
+                // The content files the opening left on disk are looked for now that the window
+                // shows (#519); what is missing is said when that is done.
+                let later = match &app.session.path {
+                    Some(path) if unchecked => missing_parts_later(&ctx, path),
+                    _ => None,
+                };
                 if damaged {
                     app.status(mailcraft_ui_egui::damaged_mailbox_notice());
+                } else if let Some(rx) = later {
+                    app.check_parts_later(rx, unavailable);
                 } else if unavailable > 0 {
                     app.status(format!("{unavailable} bodies or attachments are missing from the mailbox's content folder, or damaged."));
                 }

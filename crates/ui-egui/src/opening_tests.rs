@@ -552,3 +552,50 @@ fn the_logo_is_the_app_icon_and_is_made_once() {
     let second = logo(&ctx).unwrap();
     assert_eq!(first.id(), second.id());
 }
+
+#[test]
+fn what_is_missing_from_the_content_folder_is_said_once_it_has_been_looked_for() {
+    let mut app = MailApp::new(Session::at(mailbox(3), NOW, 0), Services::default());
+    app.autosave = false;
+    let (tx, rx) = channel();
+    app.check_parts_later(rx, 1);
+    let mut h = harness(app);
+    h.run_steps(3);
+    // Nothing said while the look goes on.
+    assert!(h.state().status_msg.is_none());
+    tx.send(2).unwrap();
+    h.run_steps(2);
+    let said = h.state().status_msg.as_ref().map(|(m, _)| m.clone());
+    assert_eq!(said.as_deref(), Some("3 bodies or attachments are missing from the mailbox's content folder, or damaged."));
+    // Nothing missing: nothing said.
+    let mut app = MailApp::new(Session::at(mailbox(3), NOW, 0), Services::default());
+    app.autosave = false;
+    let (tx, rx) = channel();
+    app.check_parts_later(rx, 0);
+    tx.send(0).unwrap();
+    let mut h = harness(app);
+    h.run_steps(2);
+    assert!(h.state().status_msg.is_none() && h.state().later.parts.is_none());
+}
+
+#[test]
+fn the_word_index_starts_after_the_first_frames() {
+    let mut app = MailApp::new(Session::at(mailbox(3), NOW, 0), Services::default());
+    app.autosave = false;
+    app.session.index_words = true;
+    app.index_words_later();
+    assert!(!app.session.index_words);
+    // Not in the first frames, each of which asks for the next.
+    let ctx = egui::Context::default();
+    for _ in 0..WORDS_AFTER_FRAMES {
+        after(&mut app, &ctx);
+        assert!(!app.session.index_words);
+        assert!(ctx.has_requested_repaint());
+    }
+    after(&mut app, &ctx);
+    assert!(app.session.index_words);
+    // And it isn't asked for again.
+    let mut h = harness(app);
+    h.run_steps(2);
+    assert!(h.state().session.index_words && h.state().later.words_in.is_none());
+}

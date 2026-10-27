@@ -982,3 +982,60 @@ fn large_mailbox_opens_and_saves_quickly() {
     let whole = save(&path, &mb).unwrap();
     eprintln!("written whole again (as after a crash or a migration): {:?} ({} MB)", t.elapsed(), whole.bytes >> 20);
 }
+
+/// A reader that gives a few bytes at a time, as a slow disk or a pipe may.
+struct Trickle<'a>(&'a [u8], usize);
+
+impl std::io::Read for Trickle<'_> {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        self.1 = self.1 % 7 + 1;
+        let n = self.1.min(buf.len()).min(self.0.len());
+        buf[..n].copy_from_slice(&self.0[..n]);
+        self.0 = &self.0[n..];
+        Ok(n)
+    }
+}
+
+/// What a replay read, to compare.
+fn replayed_as_text(r: Result<index::Replayed, String>) -> String {
+    match r {
+        Err(e) => format!("error {e}"),
+        Ok(r) => {
+            let mut items: Vec<String> =
+                r.items.iter().map(|(k, i)| format!("{k:?} {:?} {:?} {:?} {}", i.json(), i.refs(), i.fp, i.size())).collect();
+            items.sort();
+            format!("{:?} {items:?} {} {:?} {} {}", r.rest, r.good_len, r.tail, r.lost_saves, r.lost_records)
+        }
+    }
+}
+
+#[test]
+fn replay_reads_the_same_whatever_pieces_the_file_comes_in_damaged_or_not() {
+    let tmp = Temp::new("replay-pieces");
+    let path = tmp.file();
+    let mut mb = full_mailbox(12);
+    save(&path, &mb).unwrap();
+    let ids: Vec<Id> = mb.messages.keys().copied().collect();
+    for (i, id) in ids.iter().take(4).enumerate() {
+        mb.message_mut(*id).unwrap().subject = format!("Changed {i}");
+        save(&path, &mb).unwrap();
+    }
+    mb.messages.remove(&ids[6]);
+    save(&path, &mb).unwrap();
+    let good = fs::read(&path).unwrap();
+    // The file as it is, cut short anywhere, and with a byte changed anywhere (every 97th).
+    let mut variants = vec![good.clone()];
+    for at in (0..good.len()).step_by(97) {
+        variants.push(good[..at].to_vec());
+        let mut bad = good.clone();
+        bad[at] ^= 0x55;
+        variants.push(bad);
+    }
+    variants.push([good.clone(), vec![0; 300]].concat());
+    for (n, bytes) in variants.iter().enumerate() {
+        let len = bytes.len() as u64;
+        let whole = replayed_as_text(index::replay(&bytes[..], len));
+        let pieces = replayed_as_text(index::replay(Trickle(bytes, n), len));
+        assert_eq!(whole, pieces, "variant {n}");
+    }
+}

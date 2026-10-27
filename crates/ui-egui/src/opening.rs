@@ -67,6 +67,10 @@ pub struct Arrival {
     pub path: Option<PathBuf>,
     /// Bodies and attachments that couldn't be read back from the content folder.
     pub unavailable: usize,
+    /// The content folder's files left on disk are still to be looked for: those missing aren't
+    /// in `unavailable` yet (`mailcraft_engine::store::check_parts`, which the host runs once the
+    /// window shows, [`MailApp::check_parts_later`]).
+    pub unchecked: bool,
     /// Part of the mailbox file itself was damaged and left out.
     pub damaged: bool,
     /// What the owner is told first, if anything.
@@ -76,12 +80,12 @@ pub struct Arrival {
 impl Arrival {
     /// A mailbox read without trouble (or one that isn't kept anywhere, `path` none).
     pub fn opened(mailbox: Mailbox, path: Option<PathBuf>) -> Arrival {
-        Arrival { mailbox, path, unavailable: 0, damaged: false, trouble: None }
+        Arrival { mailbox, path, unavailable: 0, unchecked: false, damaged: false, trouble: None }
     }
 
     /// The file couldn't be read (`trouble` says why): an empty mailbox, kept nowhere.
     pub fn unreadable(trouble: Trouble) -> Arrival {
-        Arrival { mailbox: Mailbox::with_local_account("", ""), path: None, unavailable: 0, damaged: false, trouble: Some(trouble) }
+        Arrival { mailbox: Mailbox::with_local_account("", ""), path: None, unavailable: 0, unchecked: false, damaged: false, trouble: Some(trouble) }
     }
 }
 
@@ -166,6 +170,65 @@ pub(crate) fn logic(app: &mut MailApp, ctx: &egui::Context) {
     if o.held.is_none() {
         // The bytes read move on, and the screen comes after a moment.
         ctx.request_repaint_after(Duration::from_millis(100));
+    }
+}
+
+/// What the window takes up once it shows its mailbox, so that the first frames come first
+/// (#519): the count of the content files found missing ([`MailApp::check_parts_later`]), and
+/// the word index ([`MailApp::index_words_later`]).
+#[derive(Default)]
+pub(crate) struct Later {
+    /// The count to come, and the bodies and attachments already known to be missing.
+    parts: Option<(Receiver<usize>, usize)>,
+    /// Frames still to be drawn before the word index starts.
+    words_in: Option<u32>,
+}
+
+/// Frames the window draws with its mailbox before the word index starts.
+pub const WORDS_AFTER_FRAMES: u32 = 5;
+
+impl MailApp {
+    /// Say how many bodies and attachments are missing from the mailbox's content folder once
+    /// the host's look for them (`rx`) is over, `known` of them having been found while opening.
+    pub fn check_parts_later(&mut self, rx: Receiver<usize>, known: usize) {
+        self.later.parts = Some((rx, known));
+    }
+
+    /// Start the word index of the mailbox's file ([`mailcraft_engine::Session::index_words`])
+    /// once the window has drawn its first frames with the mailbox.
+    pub fn index_words_later(&mut self) {
+        self.session.index_words = false;
+        self.later.words_in = Some(WORDS_AFTER_FRAMES);
+    }
+}
+
+/// Once a frame with the mailbox shown: take up what was left for after the first frames.
+pub(crate) fn after(app: &mut MailApp, ctx: &egui::Context) {
+    if let Some(frames) = app.later.words_in.as_mut() {
+        if *frames == 0 {
+            app.later.words_in = None;
+            app.session.index_words = true;
+        } else {
+            *frames -= 1;
+        }
+        // (A window with nothing to do draws no more frames by itself.)
+        ctx.request_repaint();
+    }
+    let Some((rx, known)) = &app.later.parts else { return };
+    let found = match rx.try_recv() {
+        Ok(n) => n,
+        Err(TryRecvError::Empty) => return,
+        // The look stopped without a word: what was known is said.
+        Err(TryRecvError::Disconnected) => 0,
+    };
+    let missing = known.saturating_add(found);
+    app.later.parts = None;
+    if missing > 0 {
+        app.status(crate::tln!(
+            missing,
+            "{n} body or attachment is missing from the mailbox's content folder, or damaged.",
+            "{n} bodies or attachments are missing from the mailbox's content folder, or damaged."
+        ));
     }
 }
 

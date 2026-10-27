@@ -115,30 +115,40 @@ fn open_bench() {
         eprintln!("made it in {:.2} s", started.elapsed().as_secs_f64());
     }
     let mut took = Vec::new();
-    for run in 0..RUNS {
-        let started = Instant::now();
-        let opened = open(&path).unwrap();
-        let open_time = started.elapsed();
-        let session = crate::Session::new(opened.mailbox);
-        let total = started.elapsed();
-        eprintln!(
-            "run {run}: open {:.0} ms, with the session {:.0} ms ({} messages, {} loaded, {} deferred, {} missing)",
-            open_time.as_secs_f64() * 1e3,
-            total.as_secs_f64() * 1e3,
-            session.mailbox.messages.len(),
-            opened.loaded,
-            opened.deferred,
-            opened.unavailable
-        );
-        assert_eq!(session.mailbox.messages.len(), MESSAGES);
-        assert_eq!(opened.unavailable, 0);
-        took.push(total);
-        drop(session);
-        forget_ahead(&path);
+    for (how, launch) in [("as always", Launch::default()), ("for a window", Launch { checks_later: true, rows: Some(OPENING_ROWS) })] {
+        let mut times = Vec::new();
+        for run in 0..RUNS {
+            // As at a launch: nothing known of the file yet (what was is let go of untimed).
+            *lock(&shared(&path).state) = State::default();
+            let started = Instant::now();
+            let opened = open_as(&path, &OpenProgress::default(), launch).unwrap();
+            let open_time = started.elapsed();
+            let session = crate::Session::new(opened.mailbox);
+            let total = started.elapsed();
+            let checked = Instant::now();
+            let missing = check_parts(&path);
+            eprintln!(
+                "{how}, run {run}: open {:.0} ms, with the session {:.0} ms ({} messages, {} loaded, {} deferred, {} missing; looked for later in {:.0} ms)",
+                open_time.as_secs_f64() * 1e3,
+                total.as_secs_f64() * 1e3,
+                session.mailbox.messages.len(),
+                opened.loaded,
+                opened.deferred,
+                opened.unavailable + missing,
+                checked.elapsed().as_secs_f64() * 1e3
+            );
+            assert_eq!(session.mailbox.messages.len(), MESSAGES);
+            assert_eq!(opened.unavailable + missing, 0);
+            times.push(total);
+            drop(session);
+        }
+        times.sort();
+        let median = times.get(RUNS / 2).copied().unwrap_or_default();
+        eprintln!("OPEN_BENCH {how}: median {:.0} ms", median.as_secs_f64() * 1e3);
+        took = times;
     }
     took.sort();
     let median = took.get(RUNS / 2).copied().unwrap_or_default();
-    eprintln!("OPEN_BENCH median {:.0} ms", median.as_secs_f64() * 1e3);
     if let Some(warn) = std::env::var("MAILCRAFT_BENCH_WARN_MS").ok().and_then(|s| s.parse::<u64>().ok())
         && median > Duration::from_millis(warn)
     {
