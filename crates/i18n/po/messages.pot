@@ -7798,6 +7798,11 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/task_sync.rs
+msgid "Tasks: Microsoft no longer takes the sign-in"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/task_sync.rs
 msgid "Tasks: asking for your permission…"
 msgstr ""
 
