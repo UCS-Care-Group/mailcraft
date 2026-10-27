@@ -324,7 +324,7 @@ fn problem(ui: &mut Ui, t: &Tokens, trouble: Option<&Trouble>) -> bool {
 pub(crate) fn logo(ctx: &egui::Context) -> Option<egui::TextureHandle> {
     /// The 256 px icon every build ships (`assets/app-icon`, attributed in `ATTRIBUTION.md`).
     const PNG: &[u8] = include_bytes!("../../../assets/app-icon/hicolor/256x256/apps/io.github.billsecond.mailcraft.png");
-    let id = egui::Id::new("mailcraft-opening-logo");
+    let id = egui::Id::unique("mailcraft-opening-logo");
     if let Some(texture) = ctx.data(|d| d.get_temp::<egui::TextureHandle>(id)) {
         return Some(texture);
     }

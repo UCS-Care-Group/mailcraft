@@ -704,7 +704,7 @@ pub struct WindowIdentity {
 }
 
 fn identity_id() -> egui::Id {
-    egui::Id::new("mailcraft-window-identity")
+    egui::Id::unique("mailcraft-window-identity")
 }
 
 /// Hand the context the identity the host gave, for [`like_main`].
