@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! Writing mail: new messages, replies, forwards, drafts, sending.
 
+use mailcraft_mime::rich::{Img, to_html_with};
 use mailcraft_model::rich::RichText;
 use mailcraft_model::signature::Picture;
 use mailcraft_model::sync::{DraftKind, DraftOf, DraftState, ServerDraft};
@@ -654,10 +655,32 @@ fn edit_draft(s: &mut Session, v: &Value) -> CmdResult {
         }
         None => (m.body.html.clone(), None),
     };
+    // The pictures the owner put in the text come back where they were (#547), once each, checked
+    // as a new one is; they are the text's, no longer attachments.
+    let mut pictures: Vec<Picture> = Vec::new();
+    let rich = own_html.as_deref().map(|html| {
+        mailcraft_mime::rich::from_html_with_pictures(html, &mut |img| {
+            let id: u32 = img.cid.strip_prefix(PICTURE_CID)?.split('.').next()?.parse().ok()?;
+            if pictures.iter().any(|p| p.id == id) {
+                return Some(id);
+            }
+            let a = m.attachments.iter().find(|a| a.inline && a.content_id == img.cid)?;
+            let picture = mailcraft_model::pictures::take(&pictures, id, &a.name, a.data.to_vec(), &img.alt, img.width)?;
+            pictures.push(picture);
+            Some(id)
+        })
+    });
+    let taken: Vec<String> = pictures
+        .iter()
+        .filter_map(|p| m.attachments.iter().find(|a| a.inline && a.content_id.starts_with(&format!("{PICTURE_CID}{}.", p.id))))
+        .map(|a| a.content_id.clone())
+        .collect();
+    let picture_seq = pictures.iter().map(|p| p.id.saturating_sub(mailcraft_model::pictures::FIRST_ID).saturating_add(1)).max().unwrap_or(0);
     let attachments: Vec<Attachment> = match &quote {
         Some(q) => m.attachments.iter().filter(|a| !q.pictures.contains(a)).cloned().collect(),
         None => m.attachments.clone(),
     };
+    let attachments: Vec<Attachment> = attachments.into_iter().filter(|a| !taken.contains(&a.content_id)).collect();
     s.compose = Some(Compose {
         mode: ComposeMode::Draft,
         draft: Some(m.id),
@@ -667,10 +690,12 @@ fn edit_draft(s: &mut Session, v: &Value) -> CmdResult {
         bcc: format_list(&m.bcc),
         subject: m.subject.clone(),
         // A draft written in HTML opens in rich text, reduced to what can be written here.
-        body: match &own_html {
-            Some(html) => RichBody::new(mailcraft_mime::rich::from_html(html)),
+        body: match rich {
+            Some(rich) => RichBody::new(rich),
             None => RichBody::from_plain(&m.body.text),
         },
+        pictures,
+        picture_seq,
         format: if m.body.html.is_some() { BodyFormat::Html } else { BodyFormat::Plain },
         quote,
         attachments,
@@ -884,15 +909,23 @@ fn body_of(c: &Compose, message_id: &str) -> Body {
     let text = c.body.text();
     let quote_text = c.quote.as_ref().map_or("", |q| q.text.as_str());
     let quote_html = c.quote.as_ref().map(|q| q.html.as_str());
+    // The pictures the owner put in the text (#547): `<img>`s of the HTML, `[picture]` in words.
+    let img = |id: u32| c.pictures.iter().find(|p| p.id == id).map(|p| Img::of(p, picture_cid(p, message_id)));
+    let say = |id: u32| {
+        c.pictures
+            .iter()
+            .find(|p| p.id == id)
+            .map(|p| if p.alt.is_empty() { mailcraft_model::pictures::PLACEHOLDER.to_string() } else { p.alt.clone() })
+    };
     let Some((before, sig, after)) = sent_signature(c) else {
-        let plain = format!("{}{quote_text}", text.to_plain());
+        let plain = format!("{}{quote_text}", text.to_plain_with(say));
         return match c.format {
-            BodyFormat::Html => Body { text: plain, html: Some(mailcraft_mime::rich::to_html_document(text, quote_html)) },
+            BodyFormat::Html => Body { text: plain, html: Some(mailcraft_mime::rich::document(&to_html_with(text, &img), quote_html)) },
             BodyFormat::Plain => Body { text: plain, html: None },
         };
     };
     // The signature laid out as it was made, its pictures the message's own parts.
-    let parts = [before.as_ref().map(RichText::to_plain), Some(sig.plain()), after.as_ref().map(RichText::to_plain)];
+    let parts = [before.as_ref().map(|t| t.to_plain_with(say)), Some(sig.plain()), after.as_ref().map(|t| t.to_plain_with(say))];
     let plain = format!("{}{quote_text}", parts.into_iter().flatten().collect::<Vec<_>>().join("\n"));
     match c.format {
         BodyFormat::Html => {
@@ -900,9 +933,9 @@ fn body_of(c: &Compose, message_id: &str) -> Body {
             // An HTML signature goes out as the owner wrote it, cleaned, unless they edited it here.
             let own = c.signature.as_ref().and_then(|i| i.html.as_deref()).filter(|_| signature_unedited(c));
             let html = [
-                before.as_ref().map(mailcraft_mime::rich::to_html),
+                before.as_ref().map(|t| to_html_with(t, &img)),
                 Some(own.map_or_else(|| mailcraft_mime::rich::signature_html(&sig, &cid), mailcraft_html::quotable)),
-                after.as_ref().map(mailcraft_mime::rich::to_html),
+                after.as_ref().map(|t| to_html_with(t, &img)),
             ];
             Body { text: plain, html: Some(mailcraft_mime::rich::document(&html.into_iter().flatten().collect::<String>(), quote_html)) }
         }
@@ -924,10 +957,32 @@ fn signature_cid(p: &Picture, message_id: &str) -> String {
     format!("sig-{}.{local}@mailcraft.invalid", p.id)
 }
 
-/// What goes with the message: the attachments, and in HTML the pictures of the signature and of
-/// the quoted original.
+/// A picture the owner put in the text: its Content-ID, unique to the message and naming nothing
+/// of the owner. (A draft reads it back by the `pic-<id>.` it starts with.)
+fn picture_cid(p: &Picture, message_id: &str) -> String {
+    let local = message_id.split('@').next().unwrap_or("");
+    format!("{PICTURE_CID}{}.{local}@mailcraft.invalid", p.id)
+}
+
+/// What a Content-ID of a picture the owner put in the text starts with.
+const PICTURE_CID: &str = "pic-";
+
+/// What goes with the message: the attachments, and in HTML the pictures of the text, of the
+/// signature and of the quoted original.
 fn attachments_of(c: &Compose, message_id: &str) -> Vec<Attachment> {
     let mut all = c.attachments.clone();
+    if c.format == BodyFormat::Html {
+        // Only the pictures the text shows (one that was deleted stays for undo, not for sending).
+        let held: std::collections::HashSet<u32> = c.body.text().pictures().into_iter().collect();
+        all.extend(c.pictures.iter().filter(|p| held.contains(&p.id)).map(|p| Attachment {
+            name: if p.name.is_empty() { format!("picture.{}", p.mime.rsplit('/').next().unwrap_or("png")) } else { p.name.clone() },
+            mime: p.mime.clone(),
+            content_id: picture_cid(p, message_id),
+            inline: true,
+            data: p.data.clone(),
+            kept: None,
+        }));
+    }
     if c.format == BodyFormat::Html
         && let Some((_, sig, _)) = sent_signature(c)
     {

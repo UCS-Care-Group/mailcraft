@@ -1,6 +1,6 @@
 # MCP server
 
-> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-10-26 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
+> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-10-27 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
 
 MailCraft speaks the [Model Context Protocol](https://modelcontextprotocol.io) over stdio, so
 agents can read, file and write mail and keep a calendar.
@@ -138,6 +138,7 @@ parameters.
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-27 | minor | #508: `mail.dismissWarnings` (hiding a message's sender-warning banner) needs the owner (class settings) |
 | 2026-10-11 | major | First version, from `crates/mcp/src` |
 | 2026-10-15 | major | Agents get only what the owner allows: classes, no file paths but inside `--files`, `--allow`, the question in the window, untrusted message text framed |
 | 2026-10-17 | minor | `sync.progress` (Send/Receive Progress, #120): safe for agents, its problems framed as untrusted message content |

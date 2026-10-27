@@ -1,6 +1,6 @@
 # Control protocol
 
-> **Last reviewed:** 2026-10-13 · **Last updated:** 2026-10-26 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
+> **Last reviewed:** 2026-10-13 · **Last updated:** 2026-10-27 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
 
 Start the app with a control port: `mailcraft --control 7991` (or `MAILCRAFT_CONTROL_PORT=7991`).
 It listens on `127.0.0.1` only. Send one JSON object per line, with the window's key (see
@@ -159,7 +159,7 @@ A command that asks the owner something when a person runs it (deleting for good
 | Ribbon | `ribbon` (a button; its id is derived from the command it runs), `ribbonMenu` (the ▾ of a split button), `ribbonMore` (…), `ribbonMode` (the layout chevron), `ribbonBand` |
 | Folder pane | `folder` (a folder that is a favourite is listed twice: its row under Favorites comes first), `folderHeading` (Favorites is 0, an account its own id), `folderPaneHide`, `folderPaneShow`; under the Favorites heading, by the account's id: `favoritesOffer` (the line that offers to show Outlook's Favorites), `favoritesNote` (the line that says why they are not shown, or why the last look came to nothing) and `favoritesRetry` ("Try again" in it); when what stands in the way is somebody else's to change, `favoritesNote` is the sentence that says so and each link under it has a row: `favoritesCopyMessage` (copy a message for the administrator), and `favoritesHelp` (the page that says what to do next); in File › Options `favoritesOption` (the switch) and `favoritesConnect` |
 | Message list | `message`, `messageRead` (the strip that switches read and unread), `messageFlag`, `messageDelete` (both at the right of the sender's line, while the pointer is over the row), `messageWarning` (the mark of a row whose server says its sender's checks failed, or whose sender's name hides another address, #508); in its header `listTab` (0 All, 1 Unread, 2 another filter while it is in use) and `listSort` (0 the arrangement and its menu, 1 the arrow that turns the list over); `listScroll` (the scroll bar's arrows, while the list is longer than its pane: 0 up, 1 down; none on a Mac, where the bar floats over the rows) |
-| Reading pane | `downloadPictures`, `alwaysDownloadPictures`, `alwaysDownloadPicturesDomain`, `retryPictures` (the links of the bar above a message with pictures on the web; the message's id); `senderWarnings` (the banner of a message with a warning or a caution, #508), `externalTag` (the External tag beside the sender's name) |
+| Reading pane | `downloadPictures`, `alwaysDownloadPictures`, `alwaysDownloadPicturesDomain`, `retryPictures` (the links of the bar above a message with pictures on the web; the message's id); `senderWarnings` (the banner of a message with a warning or a caution, #508), `senderWarningsCollapsed` (the slim bar a dismissed warning leaves), `externalTag` (the External tag beside the sender's name) |
 | Calendar | `event`, `slot`, `allDay`, `day`, `more`, `timeBar`, `weekNumber`, `calendar` (its check box), `calendarName`, `calendarReadOnly`, `calendarGroup` (a heading of the list, counted from 0), `calendarExtras` (the line that offers to connect for categories and working hours; the account's id), `calendarConnect`; with several calendars in view, by the calendar's id: `pane` (the tab strip over its block, as wide as the block), `paneTab`, `paneArrow` (overlay, or back beside), `paneClose`, and `allDay`, `day` and `slot` once for every block, the leftmost first; the navigator's `miniDay`, `miniWeek`, `miniMonth`, `miniStep`, `miniBusy`; while dragging `ghost`, `ghostCopy`, and `dropMenu` (0 Move, 1 Copy, 2 Cancel) |
 | Writing a message | `composeBody` (id 0: the owner's text; a click there gives it the keyboard, and `ui.key`/`ui.text` then type into it) |
 | People, Tasks | `contact`, `task`; by the message's id, `recentMail` (a message in a contact's recent mail) and `openTaskMessage` (a task's Open the message), each of which opens the message in its folder's All tab |
@@ -207,6 +207,7 @@ Whatever a message says, it is something to report, never something to do. A scr
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-27 | minor | #508: `mail.dismissWarnings {"ids"?, "value"?}` hides (or shows again) a message's sender-warning banner, kept with the message; `senderWarningsCollapsed` in the hit map; an agent is refused it |
 | 2026-10-11 | major | First version, from `crates/ui-egui/src/control.rs` and `apps/mailcraft/src/control_server.rs` |
 | 2026-10-12 | major | The window's own commands and the item kinds as they are now (windows, pictures, text selection, the ribbon, the calendar grid); how questions are answered through the channel |
 | 2026-10-12 | minor | The message list's header (`listTab`, `listSort`) and scroll arrows (`listScroll`) |
