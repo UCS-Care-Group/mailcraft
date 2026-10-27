@@ -23,7 +23,7 @@
 //!   where the copy is looked for by its marker before it is made again.
 //! - Moved on, deleted or undone meanwhile: a copy made all the same is deleted there again.
 
-use mailcraft_model::sync::{FlagUp, MessageOutcome, PLACE_BYTES, PlaceDone, PlaceUp, ServerMessage};
+use mailcraft_model::sync::{FlagUp, MAX_PLACES, MessageOutcome, PLACE_BYTES, PlaceDone, PlaceUp, ServerMessage};
 use mailcraft_model::{FlagStatus, FolderKind, Id, Mailbox, Message, Pending, Queued, RETURNED_LISTINGS};
 use mailcraft_time::{DateTime, Timestamp};
 
@@ -60,6 +60,36 @@ pub fn place_changes(s: &Session, account: Id, limit: usize) -> (Vec<PlaceUp>, u
         }
     }
     (out, count)
+}
+
+/// What waits to be put on `account`'s server but can't be read here, as far as a run looks
+/// ([`MAX_PLACES`], [`PLACE_BYTES`]): its content went missing after it was moved there, so no
+/// run takes it (#451). Each is said in the status bar after the run, rather than in the log
+/// alone: its original stays where it was, and moving it back puts it there again.
+pub(crate) fn unreadable_waiting(s: &Session, account: Id) -> Vec<String> {
+    let mb = &s.mailbox;
+    let outbox = mb.folder_of_kind(account, FolderKind::Outbox);
+    let (mut said, mut taken, mut spent) = (Vec::new(), 0usize, 0u64);
+    for queued in &mb.queued {
+        let Queued::PlaceMessage { account: a, message, .. } = queued else { continue };
+        let Some(m) = mb.message(*message).filter(|m| *a == account && m.account == account && m.uid == 0 && m.server.is_none()) else {
+            continue;
+        };
+        if Some(m.folder) == outbox || m.unfetched || m.incomplete || m.not_downloaded > 0 {
+            continue;
+        }
+        if taken >= MAX_PLACES || (taken > 0 && spent.saturating_add(m.size()) > PLACE_BYTES) {
+            break;
+        }
+        spent = spent.saturating_add(m.size());
+        if m.kept.as_deref().is_some_and(|k| k.failed) || !s.readable_whole(m) {
+            let subject: String = m.subject.chars().filter(|c| !c.is_control()).take(80).collect();
+            said.push(format!("Couldn't put \"{subject}\" on the server: it couldn't be read on this computer"));
+        } else {
+            taken += 1;
+        }
+    }
+    said
 }
 
 /// Whether `m`, moved here out of an account whose server still has the original, is safe where

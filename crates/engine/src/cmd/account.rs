@@ -876,6 +876,13 @@ pub fn apply_sync_part(s: &mut Session, run: &mut SyncTotals, mut result: SyncRe
     run.errors.extend(result.errors.iter().cloned());
     run.stopped |= stopped;
     run.finished = !partial;
+    if !partial {
+        for said in super::graph_place::unreadable_waiting(s, account) {
+            if !run.errors.contains(&said) {
+                run.errors.push(said);
+            }
+        }
+    }
     let summary = run.summary();
     if !partial {
         let t = s.local_now();

@@ -981,3 +981,34 @@ fn moved_back_while_its_original_was_deleted_and_the_answer_lost_it_is_kept_here
     apply_graph_mail(&mut s, GraphMailResult { account: ms, email: OWNER.into(), pages: vec![removed], whole: true, ..Default::default() }).unwrap();
     assert_eq!(in_folder(&s, m).as_deref(), Some("Imported"));
 }
+
+#[test]
+fn mail_waiting_to_go_on_a_server_that_cant_be_read_here_is_said_after_each_run() {
+    let (mut s, a, kept) = imap();
+    let ms = microsoft(&mut s, OWNER);
+    let (gmail, theirs) = (s.mailbox.folder_of_kind(a, FolderKind::Inbox).unwrap(), s.mailbox.folder_of_kind(ms, FolderKind::Inbox).unwrap());
+    // A file of it kept outside memory, which can't be read back (this mailbox has no file).
+    let unreadable = |subject: &str| {
+        let mut file = mailcraft_model::Attachment::new("plan.pdf", "application/pdf", Vec::new());
+        file.kept = Some(mailcraft_model::ContentRef { sha256: [7; 32], len: 4096 });
+        Message {
+            folder: kept,
+            subject: subject.into(),
+            body: Body { text: "Plans.".into(), html: None },
+            attachments: vec![file],
+            ..Default::default()
+        }
+    };
+    let plans = s.mailbox.add_message(unreadable("Plans")).unwrap();
+    let notes = s.mailbox.add_message(unreadable("Notes")).unwrap();
+    s.run("mail.move", &json!({"ids": [plans], "folder": gmail})).unwrap();
+    s.run("mail.move", &json!({"ids": [notes], "folder": theirs})).unwrap();
+    assert!(sync_request(&s, a).unwrap().places.is_empty());
+    assert!(graph_mail_request(&s, ms).unwrap().places.is_empty());
+    let said = apply_sync(&mut s, SyncResult { account: a, ..Default::default() }).unwrap();
+    assert_eq!(said["total"]["errors"], json!(["Couldn't put \"Plans\" on the server: it couldn't be read on this computer"]));
+    let said = apply_graph_mail(&mut s, GraphMailResult { account: ms, email: OWNER.into(), ..Default::default() }).unwrap();
+    assert_eq!(said["errors"], json!(["Couldn't put \"Notes\" on the server: it couldn't be read on this computer"]));
+    // It still waits where it was put: nothing of it is lost.
+    assert!(s.mailbox.queued.iter().any(|q| matches!(q, Queued::PlaceMessage { message, .. } if *message == plans)));
+}

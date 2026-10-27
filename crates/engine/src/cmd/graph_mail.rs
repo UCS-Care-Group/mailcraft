@@ -434,6 +434,9 @@ pub fn apply_graph_mail(s: &mut Session, result: GraphMailResult) -> CmdResult {
     let folders = result.progress.as_ref().map(|p| (p.number, p.folders));
     // (The Inbox pass is never the end of the account's part of the run.)
     let last = !result.partial && !result.inbox_pass;
+    if last {
+        errors.extend(super::graph_place::unreadable_waiting(s, account));
+    }
     let piece = Piece { step, folders, new: down.new, sent, problems: &errors, last, stopped: result.stopped, timings: Some(&result.timings) };
     s.sync_progress.take(account, piece);
     // Full messages: counting them goes through every message, so a run's pages are counted at
