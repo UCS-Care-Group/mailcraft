@@ -421,7 +421,8 @@ fn page_up(s: &mut Session, v: &Value) -> CmdResult {
     step(s, -page(v), v)
 }
 
-/// The most conversations open in a list at once: the first opened closes for one more.
+/// The most conversations open in a list at once: the first opened that holds nothing selected
+/// closes for one more.
 const MAX_OPEN: usize = 1_000;
 
 /// The conversation of the focused message's account and key, while conversations are shown
@@ -498,7 +499,14 @@ fn expand(s: &mut Session, v: &Value) -> CmdResult {
             s.sel.whole.push(row.id);
         }
         if s.view.open.len() >= MAX_OPEN {
-            s.view.open.remove(0);
+            // Never one with a message selected under it: closed, its row would stand for all of it
+            // (#503).
+            let held: HashSet<(Id, String)> =
+                s.sel.messages.iter().filter_map(|id| s.mailbox.message(*id)).map(|m| (m.account, m.thread_key())).collect();
+            let Some(i) = s.view.open.iter().position(|k| !held.contains(k)) else {
+                return Err(fail("close a conversation first: each of the 1,000 open has a message selected"));
+            };
+            s.view.open.remove(i);
         }
         s.view.open.push(key);
     }

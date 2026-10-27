@@ -251,20 +251,39 @@ pub(crate) fn select_after_removal(s: &mut Session, before: &[Row], removed: &[I
             _ if !whole.contains(id) => at.get(id).and_then(|e| e[1]).or_else(|| position(id)),
             _ => position(id),
         })
-        .min()
-        // Rows of removed messages above it are gone too, which moves it up; not a conversation's
-        // row with messages left, which shows the newest of those now.
-        .map(|i| {
-            i.saturating_sub(
-                before.iter().take(i).filter(|r| gone.contains(&r.id) && !(r.conversation() && r.members.iter().any(|m| !gone.contains(m)))).count(),
-            )
-        });
+        .min();
     s.sel.messages.retain(|id| !gone.contains(id));
     if !s.sel.messages.is_empty() {
         return;
     }
     let rows = crate::list::rows(s);
-    if let Some(row) = first.and_then(|i| rows.get(i).or_else(|| rows.last())) {
+    // Where each row is listed now: a message's own row under its open conversation, and the row
+    // of each message a row stands for (which of its rows, arranged by categories).
+    let mut now: HashMap<(Id, u16, bool), usize> = HashMap::new();
+    for (i, r) in rows.iter().enumerate() {
+        if r.under.is_some() {
+            now.entry((r.id, 0, true)).or_insert(i);
+        } else {
+            for m in &r.members {
+                now.entry((*m, r.copy, false)).or_insert(i);
+            }
+        }
+    }
+    // The first row from its place down that is still listed: a conversation's row with messages
+    // left shows the newest of those now; one under a conversation that closed is gone with it
+    // (#503).
+    let next = first.map(|i| {
+        before
+            .iter()
+            .skip(i)
+            .find_map(|r| match r.under {
+                Some(_) => now.get(&(r.id, 0, true)).copied(),
+                None => r.members.iter().filter(|m| !gone.contains(m)).find_map(|m| now.get(&(*m, r.copy, false)).copied()),
+            })
+            .and_then(|j| rows.get(j))
+            .or_else(|| rows.last())
+    });
+    if let Some(row) = next.flatten() {
         s.sel.messages = vec![row.id];
         // A conversation's row stands for it, as when it is stepped to; a message's own row under
         // its open conversation for that message alone (#503).

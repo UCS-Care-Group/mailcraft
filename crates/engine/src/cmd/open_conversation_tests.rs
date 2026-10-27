@@ -943,3 +943,53 @@ fn an_agents_delete_of_more_messages_than_a_command_names_goes_ahead_with_the_se
     assert!(what.starts_with(&format!("delete {n} messages")), "{what}");
     assert_eq!(done["permanently"], n, "{done}");
 }
+
+#[test]
+fn after_deleting_a_message_that_closes_its_conversation_the_row_below_it_is_selected() {
+    let (mut s, newer, older, reply) = release_checklist();
+    // Two messages here and none elsewhere: with one of them gone it is no longer a conversation,
+    // and closes, the newer one's own row under it going with it.
+    run(&mut s, "mail.deletePermanently", json!({"ids": [reply]}));
+    run(&mut s, "mail.expandConversation", json!({"id": newer}));
+    let rows = s.rows();
+    let at = rows.iter().position(|r| r.id == older && r.under.is_some()).unwrap();
+    let below = rows.get(at + 1).map(|r| r.id).unwrap();
+    run(&mut s, "mail.select", json!({"id": older}));
+    run(&mut s, "mail.delete", json!({}));
+    // So that Delete, Delete walks down the list without passing over a row (#503).
+    assert_eq!(s.sel.messages, [below]);
+}
+
+#[test]
+fn opening_more_conversations_than_are_kept_open_never_closes_one_with_a_message_selected_under_it() {
+    let mut mb = sample::mailbox(now(), 0);
+    let account = mb.accounts[0].id;
+    let inbox = mb.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    for i in 0..1_001_i64 {
+        for at in [0, 60] {
+            let date = 1_700_000_000 + i * 120 + at;
+            mb.add_message(Message { folder: inbox, account, subject: format!("Topic {i}"), date, received: date, ..Default::default() }).unwrap();
+        }
+    }
+    let mut s = Session::at(mb, now(), 0);
+    run(&mut s, "folder.select", json!({"kind": "inbox"}));
+    run(&mut s, "view.conversations", json!({"value": true}));
+    let heads: Vec<Id> = s.rows().iter().filter(|r| r.conversation()).map(|r| r.id).collect();
+    // The first opened, its newest message picked by its own row under it: that message alone.
+    let first = heads[0];
+    run(&mut s, "mail.expandConversation", json!({"id": first}));
+    run(&mut s, "mail.select", json!({"id": first, "copy": 1}));
+    for head in &heads[1..=1_000] {
+        run(&mut s, "mail.expandConversation", json!({"id": head}));
+    }
+    // The second opened closed for the 1,001st, not the first, which would stand for all of it.
+    assert_eq!(s.view.open.len(), 1_000);
+    assert!(row_of(&mut s, |r| r.id == first && r.under.is_none()).open);
+    assert!(!row_of(&mut s, |r| r.id == heads[1] && r.under.is_none()).open);
+    assert_eq!(s.acting_on(), [first]);
+    // With a message selected under every one, none closes for another, and that one stays shut.
+    run(&mut s, "mail.selectAll", json!({}));
+    let open = s.view.open.clone();
+    assert!(s.run("mail.expandConversation", &json!({"id": heads[1]})).is_err());
+    assert_eq!(s.view.open, open);
+}
