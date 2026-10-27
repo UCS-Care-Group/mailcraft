@@ -102,22 +102,30 @@ fn search_box(app: &mut MailApp, ui: &mut Ui, rect: Rect) {
     // People has a search of its own, which the box shows and types into there; everywhere else
     // the box is the mail's (#366).
     let mail_search = app.session.view.module != Module::People;
-    // When the other search came in front this frame (Ctrl+1, Ctrl+3), with the keyboard in the box.
+    // When the other search came in front since the box was last drawn (Ctrl+1, Ctrl+3, a click),
+    // with the keyboard in the box or not.
     let slot = id.with("mail_search");
     let swapped = ui.data(|d| d.get_temp::<bool>(slot)).is_some_and(|was| was != mail_search);
     ui.data_mut(|d| d.insert_temp(slot, mail_search));
     // The engine's search is the truth; the box follows it when it changes elsewhere (a command),
     // and at once when the other one comes in front.
     let truth = if mail_search { &app.session.view.search } else { &app.session.view.people_search };
-    if (!focused || swapped) && app.search_text != *truth {
+    let refill = (!focused || swapped) && app.search_text != *truth;
+    if refill {
         app.search_text = truth.clone();
-        // Typing goes on at the end of the search now shown.
-        if focused {
-            let mut state = egui::TextEdit::load_state(ui.ctx(), id).unwrap_or_default();
+    }
+    if refill || swapped {
+        let mut state = egui::TextEdit::load_state(ui.ctx(), id).unwrap_or_default();
+        // Typing goes on at the end of the search now shown, also once Ctrl+E brings the keyboard.
+        if refill {
             let end = egui::text::CCursor::new(app.search_text.chars().count());
             state.cursor.set_char_range(Some(egui::text::CCursorRange::one(end)));
-            state.store(ui.ctx(), id);
         }
+        // Undo doesn't bring back what was typed in the other one.
+        if swapped {
+            state.clear_undoer();
+        }
+        state.store(ui.ctx(), id);
     }
     // A dialog over the window takes the keys, Escape first.
     let free = crate::keys::takes_commands(app);

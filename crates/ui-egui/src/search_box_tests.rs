@@ -96,9 +96,7 @@ fn people_keeps_its_search_in_the_box_after_a_click_outside() {
     let mut h = testing::window("view.people");
     let _ = h.state_mut().execute("ui.dismissReminder", json!({"all": true}));
     h.run_steps(2);
-    // A click in the box: Ctrl+E would go to Mail.
-    let r = h.state().hit.rect("searchBox", 0).unwrap();
-    testing::click(&mut h, r.center(), PointerButton::Primary, 1);
+    click_in_the_box(&mut h);
     testing::text(&mut h, "travel");
     assert_eq!(people_search(&h), "travel");
     let found = h.state_mut().execute("people.list", json!({})).unwrap();
@@ -107,6 +105,7 @@ fn people_keeps_its_search_in_the_box_after_a_click_outside() {
     testing::click(&mut h, row.center(), PointerButton::Primary, 1);
     h.run_steps(3);
     assert_eq!(h.state().session.sel.contact, Some(id), "the click was on the contact");
+    assert!(!has_the_keyboard(&h));
     assert_eq!(in_the_box(&h), "travel", "the box keeps its letters");
     assert_eq!(people_search(&h), "travel", "the list stays filtered");
     assert_eq!(search(&h), "", "the mail isn't searched");
@@ -145,18 +144,33 @@ fn chord(h: &mut Window, key: Key) {
     h.run_steps(3);
 }
 
-/// Ctrl+1 and Ctrl+3 with the keyboard in the box: the box shows the search of what comes in
-/// front at once, and what is typed next goes on at its end, into that search.
-#[test]
-fn the_box_swaps_searches_with_what_comes_in_front_while_typing() {
+/// A click in the box: in People the only way in, as Ctrl+E goes to Mail.
+fn click_in_the_box(h: &mut Window) {
+    let r = h.state().hit.rect("searchBox", 0).unwrap();
+    testing::click(h, r.center(), PointerButton::Primary, 1);
+}
+
+fn has_the_keyboard(h: &Window) -> bool {
+    h.ctx.memory(|m| m.has_focus(crate::chrome::search_box_id()))
+}
+
+/// The mail searched for "budget", and "tra" typed in People's box.
+fn typed_in_people() -> Window {
     let mut h = testing::window("view.mail");
     let _ = h.state_mut().execute("ui.dismissReminder", json!({"all": true}));
     h.state_mut().execute("view.search", json!({"query": "budget"})).unwrap();
     h.state_mut().execute("view.people", json!({})).unwrap();
     h.run_steps(3);
-    let r = h.state().hit.rect("searchBox", 0).unwrap();
-    testing::click(&mut h, r.center(), PointerButton::Primary, 1);
+    click_in_the_box(&mut h);
     testing::text(&mut h, "tra");
+    h
+}
+
+/// Ctrl+1 and Ctrl+3 with the keyboard in the box: the box shows the search of what comes in
+/// front at once, and what is typed next goes on at its end, into that search.
+#[test]
+fn the_box_swaps_searches_with_what_comes_in_front_while_typing() {
+    let mut h = typed_in_people();
     chord(&mut h, Key::Num1);
     assert_eq!(h.state().session.view.module, mailcraft_engine::Module::Mail);
     assert_eq!(in_the_box(&h), "budget", "Mail's search");
@@ -167,5 +181,54 @@ fn the_box_swaps_searches_with_what_comes_in_front_while_typing() {
     assert_eq!(in_the_box(&h), "tra", "People's search");
     testing::text(&mut h, "s");
     assert_eq!(people_search(&h), "tras");
+    assert_eq!(search(&h), "budgets");
+}
+
+/// Undo in the box after the other search came in front brings nothing of the one before back:
+/// with the keyboard in the box, or after a click elsewhere and back in the box.
+#[test]
+fn undo_after_a_swap_keeps_to_the_search_in_front() {
+    for clicked_away in [false, true] {
+        let mut h = typed_in_people();
+        // egui keeps a step to undo once the text has stood still for a second.
+        h.run_steps(90);
+        if clicked_away {
+            let found = h.state_mut().execute("people.list", json!({})).unwrap();
+            let id = found["contacts"][0]["id"].as_u64().unwrap();
+            let row = h.state().hit.rect("contact", id).unwrap();
+            testing::click(&mut h, row.center(), PointerButton::Primary, 1);
+            assert!(!has_the_keyboard(&h));
+            h.state_mut().execute("view.mail", json!({})).unwrap();
+            h.run_steps(3);
+            click_in_the_box(&mut h);
+        } else {
+            chord(&mut h, Key::Num1);
+        }
+        assert_eq!(in_the_box(&h), "budget", "clicked away: {clicked_away}");
+        chord(&mut h, Key::Z);
+        assert_eq!(in_the_box(&h), "budget", "clicked away: {clicked_away}");
+        assert_eq!(search(&h), "budget", "clicked away: {clicked_away}");
+    }
+}
+
+/// Ctrl+E after a search changed while the box was left (an agent's): the caret is at the end
+/// of the search it shows, so what is typed goes on after it.
+#[test]
+fn the_caret_is_at_the_end_when_the_box_takes_the_keyboard() {
+    let mut h = testing::window("view.mail");
+    let _ = h.state_mut().execute("ui.dismissReminder", json!({"all": true}));
+    h.run_steps(2);
+    click_in_the_box(&mut h);
+    testing::text(&mut h, "tra");
+    let folder = h.state().session.view.folder;
+    let row = h.state().hit.rect("folder", folder).unwrap();
+    testing::click(&mut h, row.center(), PointerButton::Primary, 1);
+    assert!(!has_the_keyboard(&h));
+    h.state_mut().execute("view.search", json!({"query": "budget"})).unwrap();
+    h.run_steps(3);
+    assert_eq!(in_the_box(&h), "budget");
+    h.state_mut().execute("ui.focusSearch", json!({})).unwrap();
+    h.run_steps(3);
+    testing::text(&mut h, "s");
     assert_eq!(search(&h), "budgets");
 }
