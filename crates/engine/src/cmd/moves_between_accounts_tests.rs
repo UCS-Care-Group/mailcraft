@@ -916,6 +916,8 @@ fn moved_to_this_computer_its_original_stays_while_a_file_of_it_cant_be_read_her
     s.run("file.open", &json!({"path": path})).unwrap();
     assert!(s.content(two, crate::Part::Attachment(0)).is_err());
     assert_eq!(ops(&s, a), []);
+    // Counted as waiting without its files being read (a host asks every few seconds).
+    assert_eq!(crate::cmd::account::unpushed(&s, a), 1);
     std::fs::remove_dir_all(&dir).unwrap();
 }
 

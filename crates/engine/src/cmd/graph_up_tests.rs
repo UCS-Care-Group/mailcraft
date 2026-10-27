@@ -199,6 +199,8 @@ fn a_message_whose_text_or_a_file_couldnt_be_read_keeps_its_server_copy_when_mov
     let here = s.mailbox.message_mut(m).unwrap();
     (here.kept, here.attachments) = (None, vec![file]);
     assert_eq!(changes(&s, account), []);
+    // Counted as waiting without its files being read (a host asks every few seconds).
+    assert_eq!(message_changes(&s, account, 0).1, 1);
 }
 
 /// #451: received mail in a local folder goes into a Microsoft account by its server's own run

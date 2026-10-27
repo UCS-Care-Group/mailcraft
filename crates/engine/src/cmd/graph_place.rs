@@ -99,13 +99,17 @@ pub(crate) fn unreadable_waiting(s: &Session, account: Id) -> Vec<String> {
 /// Microsoft account it is in; on the server of the IMAP account it is in, under its UID there;
 /// in an account whose server is given no copy, whole here (every part of it read back, its
 /// attachments too) and kept in the mailbox file (`saved`: the file holds what is here now).
-pub(crate) fn safe_here(s: &Session, m: &Message, saved: bool) -> bool {
+/// Only when `read` are its parts read back: a count of what waits to go, which a host asks for
+/// every few seconds, reads no file, and counts one that can't be read as it does a change the
+/// server refused.
+pub(crate) fn safe_here(s: &Session, m: &Message, saved: bool, read: bool) -> bool {
     if s.mailbox.is_graph(m.account) {
         m.server.as_ref().is_some_and(|server| !server.gone && !server.id.is_empty())
     } else if s.mailbox.puts_on_server(m.account) {
         m.uid != 0
     } else {
-        !m.unfetched && !m.incomplete && m.not_downloaded == 0 && (saved || s.saved_whole.contains(&m.id)) && s.readable_whole(m)
+        let whole = !m.unfetched && !m.incomplete && m.not_downloaded == 0 && !m.kept.as_deref().is_some_and(|k| k.failed);
+        whole && (saved || s.saved_whole.contains(&m.id)) && (!read || s.readable_whole(m))
     }
 }
 
@@ -223,8 +227,12 @@ pub(crate) fn settle_moves_into(s: &mut Session, going: &HashSet<Id>) {
     };
     // Safe only on a server, which keeps the copy: one on this computer goes with its account.
     let kept = |m: &Message| mb.is_graph(m.account) || mb.puts_on_server(m.account);
-    let waiting: Vec<(Id, bool)> =
-        mb.messages.values().filter(|m| going.contains(&m.account) && elsewhere(m)).map(|m| (m.id, kept(m) && safe_here(s, m, false))).collect();
+    let waiting: Vec<(Id, bool)> = mb
+        .messages
+        .values()
+        .filter(|m| going.contains(&m.account) && elsewhere(m))
+        .map(|m| (m.id, kept(m) && safe_here(s, m, false, true)))
+        .collect();
     for (id, safe) in waiting {
         if !safe {
             put_back(&mut s.mailbox, id, false, None);

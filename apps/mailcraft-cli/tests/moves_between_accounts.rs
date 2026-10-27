@@ -680,6 +680,32 @@ fn a_copy_whose_answer_was_lost_with_the_connection_is_found_there_and_not_put_t
 }
 
 #[test]
+fn a_look_for_its_copy_that_the_server_cuts_off_is_said_and_the_next_run_puts_it_there_once() {
+    for (n, cut) in ["HEADER Message-ID", "INTERNALDATE BODY.PEEK[HEADER]"].into_iter().enumerate() {
+        let mut r = Rig::new(&format!("cut-{n}@example.org"));
+        let (other, work) = r.other_account(true);
+        let two = r.titled("Two");
+        let theirs = r.inbox(work);
+        r.s.run("mail.move", &json!({"ids": [two], "folder": theirs})).unwrap();
+        if n == 1 {
+            // A copy is there already, its answer lost: it is looked at before it goes there again.
+            other.world().hang_up_after = Some("APPEND".into());
+            r.sync_said(work);
+        }
+        other.world().answers = vec![(cut.into(), "* BYE going away\r\n".into())];
+        let (_, errors) = r.sync_said(work);
+        assert!(errors.iter().any(|e| e.starts_with("Couldn't look for \"Two\" in \"INBOX\" on the server")), "{cut}: {errors:?}");
+        other.world().answers.clear();
+        for _ in 0..2 {
+            r.sync_of(work);
+            r.sync();
+        }
+        assert_eq!((on(&other, "INBOX"), r.here("Two")), (vec!["Two".to_string()], 1), "{cut}");
+        assert!(!r.gmail_keeps("Two"), "{cut}");
+    }
+}
+
+#[test]
 fn a_copy_made_by_a_run_whose_answer_was_never_kept_is_found_there_and_not_put_there_twice() {
     for uidplus in [false, true] {
         let mut r = Rig::new(&format!("never-kept-{uidplus}@example.org"));

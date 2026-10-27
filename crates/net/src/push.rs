@@ -148,6 +148,12 @@ fn stop(result: &mut SyncResult, line: String, error: &NetError) -> bool {
     !error.is_fatal()
 }
 
+/// `Err` when the connection `e` came from can't be used any more; a refusal is `Ok`.
+fn fatal(e: impl Into<NetError>) -> Result<(), NetError> {
+    let e = e.into();
+    if e.is_fatal() { Err(e) } else { Ok(()) }
+}
+
 fn has(flags: &[String], flag: &str) -> bool {
     flags.iter().any(|f| f.eq_ignore_ascii_case(flag))
 }
@@ -521,9 +527,13 @@ impl<'a> Push<'a> {
             };
             let given = RemoteFlags { draft: false, ..RemoteFlags::of(message, 0) };
             let id = mailcraft_mime::written_message_id(&message.message_id);
+            // Said, for the run ends there: a server that cuts off the same look every time keeps
+            // the account's new mail away until the message is moved out of it.
+            let looked =
+                |e: &NetError| format!("Couldn't look for \"{}\" in \"{}\" on the server: {e}", subject_of(message), shown(&destination.remote));
             let before = match self.copies(imap, &destination, *to_folder, id.as_deref()) {
                 Ok(before) => before,
-                Err(alive) => return alive,
+                Err(e) => return stop(result, looked(&e), &e),
             };
             if let Some((uid_validity, uids)) = &before {
                 match self.same_mail(imap, uids, message) {
@@ -535,7 +545,7 @@ impl<'a> Push<'a> {
                         continue;
                     }
                     Ok(None) => {}
-                    Err(alive) => return alive,
+                    Err(e) => return stop(result, looked(&e), &e),
                 }
             }
             let mut flags = Vec::new();
@@ -569,7 +579,7 @@ impl<'a> Push<'a> {
                             Ok(None) => {}
                             // It is there, and where is found by the next run, which looks for it
                             // before it puts it there again.
-                            Err(alive) => return alive,
+                            Err(e) => return stop(result, looked(&e), &e),
                         }
                     }
                     if uid != 0 {
@@ -597,14 +607,14 @@ impl<'a> Push<'a> {
     /// this run hasn't put there, with the mailbox's `UIDVALIDITY`. `Ok(None)`: they can't be
     /// looked for (the message has no id, or one that can't be asked for, the server won't say,
     /// or the mailbox is numbered anew);
-    /// `Err(false)`: the connection is gone.
+    /// `Err`: the connection went, and why.
     fn copies(
         &mut self,
         imap: &mut Imap<Stream<'_>>,
         destination: &Destination,
         to_folder: Id,
         id: Option<&str>,
-    ) -> Result<Option<(u32, Vec<u32>)>, bool> {
+    ) -> Result<Option<(u32, Vec<u32>)>, NetError> {
         // One the server can't be asked for (too long, say) isn't looked for.
         let Some(id) = id.filter(|id| searchable(id)) else { return Ok(None) };
         let uid_validity = match &self.searching {
@@ -616,7 +626,7 @@ impl<'a> Push<'a> {
                         self.searching = Some((destination.raw.clone(), selected.uid_validity));
                         selected.uid_validity
                     }
-                    Err(e) => return if NetError::from(e).is_fatal() { Err(false) } else { Ok(None) },
+                    Err(e) => return fatal(e).map(|()| None),
                 }
             }
         };
@@ -626,7 +636,7 @@ impl<'a> Push<'a> {
         }
         let found = match imap.uid_search_header("Message-ID", id) {
             Ok(found) => found,
-            Err(e) => return if NetError::from(e).is_fatal() { Err(false) } else { Ok(None) },
+            Err(e) => return fatal(e).map(|()| None),
         };
         let known = folder.map_or(&[][..], |f| f.known_uids.as_slice());
         let put = self.arrived.get(&destination.remote).map_or(&[][..], Vec::as_slice);
@@ -637,9 +647,9 @@ impl<'a> Push<'a> {
     /// The first of `uids`, messages of the open destination, that is `message` by what it says
     /// of itself (when it was sent, about what, from and to whom), as well as by its
     /// `Message-ID`: another message that merely carries that id is not taken for it. A few are
-    /// looked at. With its UID come the flags the server has of it. `Err(false)`: the connection
-    /// is gone.
-    fn same_mail(&mut self, imap: &mut Imap<Stream<'_>>, uids: &[u32], message: &Message) -> Result<Option<(u32, RemoteFlags)>, bool> {
+    /// looked at. With its UID come the flags the server has of it. `Err`: the connection went,
+    /// and why.
+    fn same_mail(&mut self, imap: &mut Imap<Stream<'_>>, uids: &[u32], message: &Message) -> Result<Option<(u32, RemoteFlags)>, NetError> {
         let seen = MailIdentity::of(message);
         for uid in uids.iter().take(MAX_LOOKED_AT) {
             match imap.uid_fetch_header(*uid) {
@@ -647,8 +657,7 @@ impl<'a> Push<'a> {
                     return Ok(Some((*uid, crate::sync::remote_flags(&fetched).at(*uid))));
                 }
                 Ok(_) => {}
-                Err(e) if NetError::from(e.clone()).is_fatal() => return Err(false),
-                Err(_) => {}
+                Err(e) => fatal(e)?,
             }
         }
         Ok(None)

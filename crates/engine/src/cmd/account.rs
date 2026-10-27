@@ -660,7 +660,7 @@ fn remote_ops(s: &Session, account: Id, limit: usize) -> (Vec<RemoteOp>, usize) 
                 let Some(m) = mb.message(*message) else { continue };
                 if m.account != account {
                     // Moved out of the account: the original goes once the message is safe where it is.
-                    if mb.takes_over(account, m.account) && super::graph_place::safe_here(s, m, saved) {
+                    if mb.takes_over(account, m.account) && super::graph_place::safe_here(s, m, saved, limit > 0) {
                         note(&|| RemoteOp::Delete { from: from.to_string(), uid });
                     }
                     continue;
