@@ -732,3 +732,25 @@ fn an_agents_call_goes_ahead_with_the_messages_its_question_named() {
     assert_eq!(done["moved"], 1, "{done}");
     assert!(what.contains("1 message"), "asked to let it {what}");
 }
+
+#[test]
+fn a_row_number_the_list_doesnt_show_is_refused() {
+    let (mut s, newer, _, _) = release_checklist();
+    // Closed, the newest has no row of its own under it.
+    assert!(s.run("mail.select", &json!({"id": newer, "copy": 1})).is_err());
+    run(&mut s, "mail.expandConversation", json!({"id": newer}));
+    assert!(s.run("mail.select", &json!({"id": newer, "copy": 2})).is_err());
+    run(&mut s, "mail.select", json!({"id": newer, "copy": 1}));
+    assert_eq!(s.acting_on(), [newer]);
+}
+
+#[test]
+fn another_mailbox_starts_with_every_conversation_closed() {
+    let (mut s, newer, _, _) = release_checklist();
+    run(&mut s, "mail.expandConversation", json!({"id": newer}));
+    let folder = s.view.folder;
+    // File › Open of a mailbox with the same folder and the same conversation.
+    s.replace_mailbox(s.mailbox.clone());
+    run(&mut s, "folder.select", json!({"id": folder}));
+    assert!(s.rows().iter().all(|r| !r.open && r.under.is_none()));
+}

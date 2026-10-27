@@ -124,6 +124,11 @@ fn select(s: &mut Session, v: &Value) -> CmdResult {
             c.as_u64().and_then(|c| u16::try_from(c).ok()).ok_or_else(|| bad("`copy` is which of the message's rows: a whole number from 0"))?
         }
     };
+    // A row the list doesn't show is refused: the message's first, a conversation's row, would
+    // stand for all of it (#503).
+    if copy > 0 && !s.rows().iter().any(|r| r.id == last && r.copy == copy) {
+        return Err(bad("`copy` names none of the rows the list shows the message in"));
+    }
     // Which of their rows the focus and a range's start were on, for those that stay them.
     let rows_before = [s.sel.focus_row, s.sel.anchor_row];
     let mut placed = None;

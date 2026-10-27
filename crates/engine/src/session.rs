@@ -2126,6 +2126,8 @@ impl Session {
         self.compose = None;
         self.view.folder = 0;
         self.view.search.clear();
+        // Another mailbox starts with every conversation closed, though its folder has the same id.
+        self.view.open.clear();
         self.dirty = false;
         self.rev += 1;
         self.normalize();

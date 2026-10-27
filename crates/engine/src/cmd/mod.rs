@@ -94,12 +94,12 @@ mod writing_tools_tests;
 mod zone_tests;
 pub mod zones;
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use mailcraft_model::{Id, Message};
 use serde_json::{Value, json};
 
-use crate::list::{Row, position, position_of};
+use crate::list::{Row, position_of};
 use crate::{CmdError, CmdResult, Registry, Session, p};
 
 /// The full registry.
@@ -214,19 +214,36 @@ fn named_or_selected(s: &Session, named: Option<Vec<Id>>) -> Result<Vec<Id>, Cmd
 /// After messages left the list (deleted, moved): select the row that took the place of the
 /// first one, as mail programs do, so Delete, Delete, Delete walks down the list.
 pub(crate) fn select_after_removal(s: &mut Session, before: &[Row], removed: &[Id]) {
-    if !s.sel.messages.iter().any(|id| removed.contains(id)) {
+    let gone: HashSet<Id> = removed.iter().copied().collect();
+    if !s.sel.messages.iter().any(|id| gone.contains(id)) {
         return;
     }
+    // Where each removed message is listed, in one pass for a whole folder selected: its first
+    // row, its first row under an open conversation, the first row it is one of (#503).
+    let mut at: HashMap<Id, [Option<usize>; 3]> = HashMap::new();
+    for (i, r) in before.iter().enumerate() {
+        if gone.contains(&r.id) {
+            let e = at.entry(r.id).or_default();
+            e[0].get_or_insert(i);
+            if r.under.is_some() {
+                e[1].get_or_insert(i);
+            }
+        }
+        for m in r.members.iter().filter(|m| gone.contains(m)) {
+            at.entry(*m).or_default()[2].get_or_insert(i);
+        }
+    }
+    let position = |id: &Id| at.get(id).and_then(|e| e[0].or(e[2]));
+    let whole: HashSet<Id> = s.sel.whole.iter().copied().collect();
     // The row the owner was on counts for the message it shows, which may be listed more than once;
     // a message picked under its open conversation, for its own row there (#503).
     let focus = s.sel.focus().map(|id| (id, s.sel.focus_copy()));
-    let gone: HashSet<Id> = removed.iter().copied().collect();
     let first = removed
         .iter()
         .filter_map(|id| match focus {
             Some((f, copy)) if f == *id => position_of(before, *id, copy),
-            _ if !s.sel.whole.contains(id) => before.iter().position(|r| r.id == *id && r.under.is_some()).or_else(|| position(before, *id)),
-            _ => position(before, *id),
+            _ if !whole.contains(id) => at.get(id).and_then(|e| e[1]).or_else(|| position(id)),
+            _ => position(id),
         })
         .min()
         // Rows of removed messages above it are gone too, which moves it up; not a conversation's
@@ -236,7 +253,7 @@ pub(crate) fn select_after_removal(s: &mut Session, before: &[Row], removed: &[I
                 before.iter().take(i).filter(|r| gone.contains(&r.id) && !(r.conversation() && r.members.iter().any(|m| !gone.contains(m)))).count(),
             )
         });
-    s.sel.messages.retain(|id| !removed.contains(id));
+    s.sel.messages.retain(|id| !gone.contains(id));
     if !s.sel.messages.is_empty() {
         return;
     }
