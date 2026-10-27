@@ -11795,7 +11795,7 @@ msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/picture.rs
-msgid "a picture in a message is at most {kb} KB"
+msgid "a picture in a message is at most {mb} MB"
 msgstr ""
 
 #. what a command says
