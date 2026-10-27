@@ -182,9 +182,10 @@ pub(crate) fn targets(s: &Session, v: &Value) -> Result<Vec<Id>, CmdError> {
 }
 
 /// As [`targets`], for Delete and Move: without `ids` / `id`, a message selected by its
-/// conversation's row stands for every message of that row (#503, [`Session::acting_on`]).
+/// conversation's row stands for every message of that row (#503, [`Session::acting_on`]). `ids` /
+/// `id` are read strictly: named wrongly, they never take the selected conversation.
 pub(crate) fn targets_whole(s: &mut Session, v: &Value) -> Result<Vec<Id>, CmdError> {
-    let named = p::ids(v);
+    let named = p::ids_strict(v)?;
     let ids = if named.is_some() { named } else { Some(s.acting_on()) };
     named_or_selected(s, ids)
 }

@@ -117,7 +117,13 @@ fn select(s: &mut Session, v: &Value) -> CmdResult {
         return done();
     };
     // Which of the message's rows was clicked, for one listed under several categories.
-    let copy = p::u64(v, "copy").and_then(|c| u16::try_from(c).ok()).unwrap_or(0);
+    // (Named wrongly, it is refused: the conversation's row, row 0, takes all of it, #503.)
+    let copy = match v.get("copy") {
+        None => 0,
+        Some(c) => {
+            c.as_u64().and_then(|c| u16::try_from(c).ok()).ok_or_else(|| bad("`copy` is which of the message's rows: a whole number from 0"))?
+        }
+    };
     // Which of their rows the focus and a range's start were on, for those that stay them.
     let rows_before = [s.sel.focus_row, s.sel.anchor_row];
     let mut placed = None;

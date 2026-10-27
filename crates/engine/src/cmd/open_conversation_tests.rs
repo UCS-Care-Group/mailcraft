@@ -683,3 +683,29 @@ fn an_agent_asking_to_move_a_closed_row_into_the_outbox_names_every_message_it_s
     assert_eq!(folder_of(&s, older), outbox);
     assert!(what.contains("2 messages"), "asked to let it {what}");
 }
+
+#[test]
+fn delete_and_move_refuse_ids_of_the_wrong_kind_rather_than_take_the_selected_row() {
+    for command in ["mail.delete", "mail.deletePermanently", "mail.archive", "mail.junk", "mail.move"] {
+        for wrong in [json!({"id": "14"}), json!({"ids": 14}), json!({"id": 0}), json!({"id": 1.5})] {
+            let (mut s, newer, older, _) = release_checklist();
+            run(&mut s, "mail.select", json!({"id": newer}));
+            let mut params = wrong.clone();
+            if command == "mail.move" {
+                params["folder"] = json!(folder(&s, FolderKind::Archive));
+            }
+            let inbox = s.view.folder;
+            assert!(s.run(command, &params).is_err(), "{command} {params}");
+            assert_eq!([newer, older].map(|id| folder_of(&s, id)), [inbox, inbox], "{command} {params}");
+        }
+    }
+}
+
+#[test]
+fn a_row_number_of_the_wrong_kind_is_refused() {
+    let (mut s, newer, _, _) = release_checklist();
+    run(&mut s, "mail.expandConversation", json!({"id": newer}));
+    for copy in [json!("1"), json!(-1), json!(65537), json!(true), json!(1.5)] {
+        assert!(s.run("mail.select", &json!({"id": newer, "copy": copy})).is_err(), "copy {copy}");
+    }
+}

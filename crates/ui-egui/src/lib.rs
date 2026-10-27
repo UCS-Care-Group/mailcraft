@@ -2731,6 +2731,11 @@ impl MailApp {
         let opening = self.session.openings();
         if opening != self.secrets_opening {
             self.secrets_opening = opening;
+            // A question about the mailbox that was open goes with it: it names messages and
+            // accounts by ids, which the other mailbox may have too (#503).
+            if matches!(self.dialog, Some(dialogs::Dialog::Confirm { .. })) {
+                self.dialog = None;
+            }
             self.passwords.clear();
             self.tokens.clear();
             self.graph_tokens.clear();

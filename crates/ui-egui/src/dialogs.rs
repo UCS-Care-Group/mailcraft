@@ -401,7 +401,9 @@ pub fn confirmation(app: &MailApp, id: &str, params: &Value) -> Option<Question>
             } else {
                 what
             };
-            question(tl!("Delete for Good"), text, tl!("Delete"))
+            // It goes ahead with what it counted, not with what the selection stands for when the
+            // owner says yes: a message that came into the conversation meanwhile wasn't counted (#503).
+            Some(Question::new(tl!("Delete for Good"), text, tl!("Delete"), json!({"ids": ids, "confirmed": true})))
         }
         // A contact has no Deleted Items to go to: deleting one is for good (#186). One the
         // account's server keeps can't be deleted here, and the command says so without asking.

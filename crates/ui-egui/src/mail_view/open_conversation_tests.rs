@@ -302,3 +302,35 @@ fn delete_of_two_conversations_speaks_of_conversations() {
         "This deletes 4 messages in Inbox, whole conversations included. They go to Deleted Items. The conversations' messages in other folders stay where they are."
     );
 }
+
+#[test]
+fn delete_for_good_takes_what_its_question_counted() {
+    let (mut w, newer, older, reply) = release_checklist();
+    let inbox = w.state().session.view.folder;
+    click(&mut w, "message", newer);
+    assert_eq!(w.state_mut().run("mail.deletePermanently", json!({})).unwrap()["pending"], "confirm");
+    // A newer message of the conversation comes into the Inbox while the question is open.
+    let s = &mut w.state_mut().session;
+    let at = s.mailbox.message(newer).map(|m| (m.date + 60, m.received + 60)).unwrap();
+    if let Ok(m) = s.mailbox.message_mut(reply) {
+        (m.date, m.received) = at;
+    }
+    let came = w.state_mut().execute("mail.copy", json!({"ids": [reply], "folder": inbox})).unwrap()["copies"][0].as_u64().unwrap();
+    w.run_steps(3);
+    click(&mut w, "questionAction", 0);
+    let s = &w.state().session;
+    assert!(s.mailbox.message(newer).is_none() && s.mailbox.message(older).is_none());
+    assert!(s.mailbox.message(came).is_some(), "the reply that came while it was asked stays");
+}
+
+#[test]
+fn a_question_goes_with_the_mailbox_it_was_asked_about() {
+    let (mut w, newer, _, _) = release_checklist();
+    click(&mut w, "message", newer);
+    testing::key(&mut w, Key::Delete);
+    w.run_steps(3);
+    assert_eq!(testing::dialog(&w), Some("confirm"));
+    w.state_mut().execute("file.new", json!({"sample": true})).unwrap();
+    w.run_steps(3);
+    assert_eq!(testing::dialog(&w), None);
+}
