@@ -590,12 +590,12 @@ pub(crate) fn answered(params: &Value, with: &Value, note: Option<(&str, &str)>)
 /// A recurring item that is being opened remembers which of it was meant, for what its form
 /// saves ([`as_opened`]); and where an item has no window of its own, it opens in the form.
 /// Whether running `id` as the owner asks first (#442): it closes the message being written, or
-/// puts another in its place, and that message has changes that aren't saved. A caller that
-/// already let them go (`discard`) isn't asked.
+/// puts another in its place, and that message has changes that aren't saved, or its saved draft
+/// is gone (#494). A caller that already let them go (`discard`) isn't asked.
 pub(crate) fn leaves_message(app: &MailApp, id: &str, params: &Value) -> bool {
     mailcraft_engine::cmd::compose::LEAVING.contains(&id)
         && params.get("discard").and_then(Value::as_bool) != Some(true)
-        && app.session.compose.as_ref().is_some_and(|c| c.dirty)
+        && app.session.compose.as_ref().is_some_and(|c| c.dirty || mailcraft_engine::cmd::compose::draft_gone(&app.session, c))
         && (app.enabled(id) || ["id", "ids", "message"].iter().any(|k| params.get(*k).is_some_and(|v| !v.is_null())))
 }
 

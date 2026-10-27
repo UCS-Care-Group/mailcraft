@@ -150,10 +150,45 @@ impl Form {
         }
     }
 
+    /// The appointment, contact or task the form changes, when it is one that exists.
+    pub(crate) fn editing(&self) -> Option<mailcraft_model::Id> {
+        match self {
+            Form::Event(f) => f.editing(),
+            Form::Contact(f) => f.editing(),
+            Form::Task(f) => f.editing(),
+            Form::Account(_) | Form::Categories(_) | Form::Rules(_) | Form::Junk(_) => None,
+        }
+    }
+
     /// Whether something was changed in the form that isn't saved: its window asks before it
-    /// closes.
+    /// closes, and an agent asks the owner before it closes the dialog or opens another in its
+    /// place (#494).
     pub(crate) fn dirty(&self) -> bool {
-        self.event().is_some_and(event::EventForm::dirty)
+        match self {
+            Form::Event(f) => f.dirty(),
+            Form::Contact(f) => f.dirty(),
+            Form::Task(f) => f.dirty(),
+            Form::Account(_) | Form::Categories(_) | Form::Rules(_) | Form::Junk(_) => false,
+        }
+    }
+
+    /// What an agent or a command that waited may not take away (#494, #513): changes that aren't
+    /// saved, or the Appointment Recurrence dialog with something changed in it (what it holds
+    /// reaches the form only on its OK).
+    pub(crate) fn changed(&self) -> bool {
+        self.dirty() || self.event().is_some_and(event::EventForm::recurrence_touched)
+    }
+
+    /// What an agent's question names of the form when it has changes that aren't saved (#494):
+    /// the kind of item and what it is called, as typed. `None` when nothing in it is unsaved.
+    pub(crate) fn unsaved(&self) -> Option<Value> {
+        let (form, title) = match self {
+            Form::Event(f) => (if f.is_meeting() { "meeting" } else { "appointment" }, f.subject().to_string()),
+            Form::Contact(f) => ("contact", f.subject()),
+            Form::Task(f) => ("task", f.subject().to_string()),
+            Form::Account(_) | Form::Categories(_) | Form::Rules(_) | Form::Junk(_) => return None,
+        };
+        self.changed().then(|| serde_json::json!({"form": form, "title": title}))
     }
 
     /// Whether the keys are for something of the form's own that is open over it (a dialog), or
@@ -2348,6 +2383,16 @@ mod event {
             .to_string()
         }
 
+        /// The event it changes; `None` for a new one.
+        pub fn editing(&self) -> Option<Id> {
+            self.id
+        }
+
+        /// Whether the Appointment Recurrence dialog is open over it with something changed in it.
+        pub fn recurrence_touched(&self) -> bool {
+            self.recurrence.as_ref().is_some_and(RecurrenceDialog::touched)
+        }
+
         /// Whether it is about a meeting (people are invited, or are about to be).
         pub fn is_meeting(&self) -> bool {
             self.meeting
@@ -4499,6 +4544,9 @@ mod contact {
         focus: bool,
         /// The fields as the form opened; OK sends what differs from them.
         baseline: Map<String, Value>,
+        /// The fields as the form opened, prefilled or not: what it opened with is nothing to
+        /// ask about (#494).
+        opened: Map<String, Value>,
     }
 
     impl ContactForm {
@@ -4523,6 +4571,7 @@ mod contact {
             if let Some(ph) = f.phones.first_mut() {
                 ph.value = text("phone");
             }
+            f.opened = f.fields();
             f
         }
 
@@ -4551,6 +4600,7 @@ mod contact {
                 ..Default::default()
             };
             f.baseline = f.fields();
+            f.opened = f.baseline.clone();
             Some(f)
         }
 
@@ -4562,6 +4612,24 @@ mod contact {
         /// The dialog's title, in the interface language.
         pub fn title(&self) -> String {
             if self.id.is_some() { tl!("Contact") } else { tl!("New Contact") }.to_string()
+        }
+
+        /// Whether the fields differ from what the form opened with: there is something to save.
+        pub fn dirty(&self) -> bool {
+            self.fields() != self.opened
+        }
+
+        /// The contact it changes; `None` for a new one.
+        pub fn editing(&self) -> Option<Id> {
+            self.id
+        }
+
+        /// What the contact is called, as typed: its display name, else its first and last names.
+        pub fn subject(&self) -> String {
+            match self.display.trim() {
+                "" => format!("{} {}", self.first.trim(), self.last.trim()).trim().to_string(),
+                display => display.to_string(),
+            }
         }
 
         /// Every field as `people.new` takes it. Rows left empty are not sent.
@@ -4914,6 +4982,9 @@ mod task {
         focus: bool,
         /// The fields as the form opened; OK sends what differs from them.
         baseline: Map<String, Value>,
+        /// The fields as the form opened, prefilled or not: what it opened with is nothing to
+        /// ask about (#494).
+        opened: Map<String, Value>,
     }
 
     impl TaskForm {
@@ -4925,6 +4996,7 @@ mod task {
             let text = |k: &str| p.get(k).and_then(Value::as_str).unwrap_or_default().to_string();
             (f.title, f.due, f.start, f.notes) = (text("title"), text("due"), text("start"), text("notes"));
             f.importance = p.get("importance").and_then(Value::as_str).and_then(Importance::parse).unwrap_or_default();
+            f.opened = f.fields();
             f
         }
 
@@ -4950,6 +5022,7 @@ mod task {
                 ..Default::default()
             };
             f.baseline = f.fields();
+            f.opened = f.baseline.clone();
             Some(f)
         }
 
@@ -4961,6 +5034,22 @@ mod task {
         /// The dialog's title, in the interface language.
         pub fn title(&self) -> String {
             if self.id.is_some() { tl!("Task") } else { tl!("New Task") }.to_string()
+        }
+
+        /// Whether the fields differ from what the form opened with, Completed too: there is
+        /// something to save.
+        pub fn dirty(&self) -> bool {
+            self.fields() != self.opened || self.completed != self.was_completed
+        }
+
+        /// The task it changes; `None` for a new one.
+        pub fn editing(&self) -> Option<Id> {
+            self.id
+        }
+
+        /// What the task is called, as its title field has it.
+        pub fn subject(&self) -> &str {
+            self.title.trim()
         }
 
         /// What `tasks.new` gets as the reminder: `2026-10-16T09:00`, or `null` for none. A day

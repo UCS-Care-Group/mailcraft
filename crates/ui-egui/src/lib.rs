@@ -39,6 +39,8 @@ macro_rules! tln {
 mod account_setup;
 mod advanced_search;
 pub mod agent_gate;
+#[cfg(test)]
+mod agent_leaves_tests;
 pub mod alerts;
 pub mod approval;
 mod attachment_open;
@@ -3869,6 +3871,13 @@ impl MailApp {
         failed
     }
 
+    /// Whether File › New or Open would wait for the background saver to write the mailbox first
+    /// ([`Self::through_saver`]), and run later.
+    pub(crate) fn waits_for_save(&self) -> bool {
+        let (Some(saver), Some(_)) = (&self.services.saver, &self.session.path) else { return false };
+        !self.running_after_save && (self.session.rev() != self.saved_rev || saver.progress().is_some())
+    }
+
     /// With a background saver keeping the mailbox file, what writes that file doesn't do it on
     /// the window's thread, where it would wait for whatever the saver is in the middle of (the
     /// first save after a large download) and then do the writing itself: Save hands the mailbox
@@ -4108,7 +4117,8 @@ impl MailApp {
         if self.opening.is_some() {
             return true;
         }
-        if self.session.compose.as_ref().is_some_and(|c| c.dirty) {
+        // (Its saved draft gone, what is written is saved nowhere: #494.)
+        if self.session.compose.as_ref().is_some_and(|c| c.dirty || mailcraft_engine::cmd::compose::draft_gone(&self.session, c)) {
             self.dialog = Some(dialogs::leaving("quit", json!({})));
             return false;
         }
