@@ -70,6 +70,8 @@ impl Backend for Headless {
             "engine.commands" => Ok(self.session.registry.describe()),
             "mailbox.inspect" => self.session.run("file.info", &json!({})).map_err(|e| e.to_string()),
             "ui.parity" => Ok(mailcraft_engine::catalog::parity(&self.session.registry)),
+            // Headless, the mailbox is open from the start.
+            "app.status" => Ok(json!({"mailbox": "open", "opening": null})),
             m if m.starts_with("ui.") || m.starts_with("app.") => Err(format!("`{m}` {NEEDS_APP}")),
             other => self.run(other, &params),
         }

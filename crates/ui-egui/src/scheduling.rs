@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! The Scheduling Assistant: the second page of a meeting's window, as Outlook has it.
+//! Find a Time: the second page of a meeting's window, everybody's free and busy time on a grid.
 //!
 //! A row for everybody (the organizer first, then the people who are required and the ones who
 //! are optional) over the day the meeting is on, with the working hours lighter than the rest
@@ -50,7 +50,7 @@ const SNAP: i64 = 30;
 /// How wide the part of an edge of the meeting's band is that takes hold of it.
 const EDGE_W: f32 = 7.0;
 
-/// What the host is asked to find out for the Scheduling Assistant
+/// What the host is asked to find out for Find a Time
 /// ([`Services::free_busy`](crate::Services::free_busy)): when the people of `ask` are busy, as
 /// far as the account may know. It reads; nothing is written and nobody is told.
 pub struct FreeBusyRequest {
@@ -121,7 +121,7 @@ pub(crate) struct Store {
     pub(crate) asked: u64,
 }
 
-/// What the Scheduling Assistant gets when it looks.
+/// What Find a Time gets when it looks.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub(crate) struct Look {
     /// What is known of each of the people, by address (in lower case).
@@ -419,7 +419,7 @@ pub(crate) struct Drawn {
     pub note: String,
 }
 
-/// The Scheduling Assistant's own state in a window.
+/// Find a Time's own state in a window.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub(crate) struct View {
     /// The grid was scrolled to the working day once.

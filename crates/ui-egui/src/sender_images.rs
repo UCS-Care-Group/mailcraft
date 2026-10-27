@@ -27,13 +27,12 @@
 //!
 //! [`Services::sender_images`]: crate::Services::sender_images
 
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::mpsc::{Receiver, TryRecvError};
 
 use egui::{Color32, Rect, Ui, vec2};
-use mailcraft_engine::Session;
-use mailcraft_model::{Address, Contact, FolderKind, Id, Message};
+use mailcraft_model::{Address, Message};
 use serde_json::{Value, json};
 
 use crate::MailApp;
@@ -75,8 +74,6 @@ pub struct SenderImages {
     looks: HashMap<String, (Look, u64)>,
     /// Addresses on screen that nothing is known of yet: asked for at the next frame.
     wanted: Vec<String>,
-    /// The addresses the owner knows.
-    known: Known,
     /// The frame arrivals were last looked for in, and the frame a picture was last decoded in.
     ticked: Option<u64>,
     decoded: Option<u64>,
@@ -87,77 +84,10 @@ pub struct SenderImages {
     alive: Arc<()>,
 }
 
-/// The addresses the owner knows: the contacts', and whoever mail in Sent Items or the Outbox
-/// (on its way there) went to. Gathered once for a mailbox; after that a change of it reads only
-/// the messages that are new, and the mail is gathered again only when a message counted here
-/// is gone.
-#[derive(Default)]
-struct Known {
-    /// The mailbox ([`Session::openings`]), the version of it an undo or redo put in place
-    /// ([`Session::restored`]) and its revision, that they were last brought up to date at.
-    at: Option<(u64, u64, u64)>,
-    /// The contacts read, and their addresses. Holding them makes any change to one a new one
-    /// (`Arc::make_mut`), so comparing them with the mailbox's finds what changed.
-    contacts: BTreeMap<Id, Arc<Contact>>,
-    of_contacts: HashSet<String>,
-    /// Whoever the messages in `sent` went to. Every message below `next` was looked at, and the
-    /// mailbox held `messages` messages then.
-    written_to: HashSet<String>,
-    sent: HashSet<Id>,
-    next: Id,
-    messages: usize,
-}
-
-impl Known {
-    fn contains(&self, address: &str) -> bool {
-        self.of_contacts.contains(address) || self.written_to.contains(address)
-    }
-
-    /// Brought up to date with the mailbox of `session`.
-    // shortcut: mail moved out of Sent Items counts until a message is deleted for good or the mailbox is opened again, and mail moved into it from anywhere but the Outbox from then on; look at Sent Items at every change if that matters.
-    fn update(&mut self, session: &Session) {
-        let at = (session.openings(), session.restored(), session.rev());
-        if self.at == Some(at) {
-            return;
-        }
-        // Another mailbox, or another version of it, which may hold others below `next`.
-        let fresh = self.at.is_none_or(|(openings, restored, _)| (openings, restored) != (at.0, at.1));
-        self.at = Some(at);
-        let mailbox = &session.mailbox;
-        let same = self.contacts.len() == mailbox.contacts.len()
-            && self.contacts.iter().zip(&mailbox.contacts).all(|((was, kept), (id, now))| was == id && Arc::ptr_eq(kept, now));
-        if fresh || !same {
-            self.contacts = mailbox.contacts.clone();
-            self.of_contacts = self.contacts.values().flat_map(|c| c.emails.iter().map(|e| e.value.trim().to_lowercase())).collect();
-        }
-        let outgoing: HashSet<Id> =
-            mailbox.folders.iter().filter(|f| matches!(f.kind, FolderKind::Sent | FolderKind::Outbox)).map(|f| f.id).collect();
-        let (all, expected) = (mailbox.messages.len(), self.messages.saturating_add(mailbox.messages.range(self.next..).count()));
-        // Fewer than that: some were deleted for good, which matters only when they were counted
-        // here. More: some came back below `next` (an undo).
-        let gone =
-            all > expected || (all < expected && self.sent.iter().any(|id| mailbox.messages.get(id).is_none_or(|m| !outgoing.contains(&m.folder))));
-        let from = if fresh || gone {
-            self.written_to.clear();
-            self.sent.clear();
-            0
-        } else {
-            self.next
-        };
-        for (id, m) in mailbox.messages.range(from..).filter(|(_, m)| outgoing.contains(&m.folder)) {
-            self.sent.insert(*id);
-            self.written_to.extend(m.to.iter().chain(&m.cc).chain(&m.bcc).map(|a| a.email.trim().to_lowercase()));
-        }
-        self.next = mailbox.messages.last_key_value().map_or(from, |(id, _)| id.saturating_add(1));
-        self.messages = all;
-    }
-}
-
 /// Whether the owner knows `address` (in lower case): it is one of the contacts', or mail in
 /// Sent Items went to it.
 fn is_known(app: &mut MailApp, address: &str) -> bool {
-    app.sender_images.known.update(&app.session);
-    app.sender_images.known.contains(address)
+    app.session.knows(address)
 }
 
 /// Take in what the host found, and hand it the addresses rows wanted a frame ago. Once a frame.

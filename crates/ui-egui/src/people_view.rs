@@ -31,6 +31,7 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
     let t = Tokens::get(ui.ctx());
     let layout = list_layout(app, ui.ctx());
     keyboard(app, ui, &layout);
+    keep_picked(app);
     let frame = egui::Frame::NONE.fill(t.surface).stroke(Stroke::new(1.0, t.border));
     let max = (ui.available_width() - 320.0).max(260.0);
     egui::Panel::left("people_list")
@@ -40,6 +41,36 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
         .frame(frame)
         .show(ui, |ui| list(app, ui, &layout));
     egui::CentralPanel::default().frame(egui::Frame::NONE.fill(t.surface)).show(ui, |ui| card(app, ui));
+}
+
+/// The contacts picked together are those still there, and only while the selected contact is
+/// one of them: selecting another one alone (a click, the arrow keys, a command) ends the pick.
+pub(crate) fn keep_picked(app: &mut MailApp) {
+    let contacts = &app.session.mailbox.contacts;
+    app.people_picked.retain(|id| contacts.contains_key(id));
+    if app.people_picked.len() < 2 || app.session.sel.contact.is_none_or(|c| !app.people_picked.contains(&c)) {
+        app.people_picked.clear();
+    }
+}
+
+/// Ctrl-click (⌘ on a Mac) on `id`: add it to the contacts picked together, or take it out.
+pub(crate) fn pick(app: &mut MailApp, id: Id) {
+    if app.people_picked.is_empty()
+        && let Some(current) = app.session.sel.contact.filter(|c| *c != id)
+    {
+        app.people_picked.push(current);
+    }
+    if let Some(at) = app.people_picked.iter().position(|x| *x == id) {
+        app.people_picked.remove(at);
+        // The selection moves to the last one still picked.
+        if let Some(last) = app.people_picked.last().copied() {
+            let _ = app.execute("people.select", json!({"id": last}));
+        }
+    } else if app.people_picked.len() < mailcraft_engine::cmd::people_merge::MAX_MERGE {
+        app.people_picked.push(id);
+        let _ = app.execute("people.select", json!({"id": id}));
+    }
+    keep_picked(app);
 }
 
 // ---- the list's layout ----
@@ -566,6 +597,9 @@ fn contact_row(app: &mut MailApp, ui: &mut Ui, id: Id, copy: u16, rect: Rect) {
     let resp = ui.interact(rect, ui.scope_id().with(("contact", id, copy)), Sense::click());
     app.hit.add("contact", id, rect);
     // The selection is on one of a contact's rows: the one clicked or stepped to.
+    let picked = app.people_picked.contains(&id);
+    // The selection is the one contact commands act on; the others picked with it have a tick,
+    // not the selection's colour (they are picked to merge, not selected).
     let selected = row_selected(ui.ctx(), PEOPLE_ROW, app.session.sel.contact, (id, copy));
     if resp.clicked() || resp.secondary_clicked() {
         choose_copy(ui.ctx(), PEOPLE_ROW, id, copy);
@@ -584,27 +618,48 @@ fn contact_row(app: &mut MailApp, ui: &mut Ui, id: Id, copy: u16, rect: Rect) {
         icons::paint(p, Rect::from_center_size(pos2(right - 7.0, rect.center().y), vec2(16.0, 16.0)), "starOn", t.icon, t.accent);
         right -= 20.0;
     }
+    if picked {
+        icons::paint(p, Rect::from_center_size(pos2(right - 7.0, rect.center().y), vec2(16.0, 16.0)), "check", t.icon, t.accent);
+        right -= 20.0;
+    }
     let width = (right - left).max(0.0);
     let second = subtitle(&c);
     let name_y = if second.is_empty() { rect.center().y } else { rect.min.y + 18.0 };
     paint_clipped(p, pos2(left, name_y), width, &shown_name(&c), if selected { semibold(13.0) } else { regular(13.0) }, t.text);
     paint_clipped(p, pos2(left, rect.min.y + 35.0), width, &second, regular(11.5), t.text_dim);
 
-    if resp.clicked() {
+    // Ctrl-click (⌘ on a Mac) picks several contacts together, to merge (#506).
+    let command = ui.input(|i| i.modifiers.command);
+    if resp.clicked() && command {
+        pick(app, id);
+    } else if resp.clicked() {
+        app.people_picked.clear();
         let _ = app.run("people.select", json!({"id": id}));
     }
-    if resp.double_clicked() {
+    if resp.double_clicked() && !command {
         let _ = app.execute("people.select", json!({"id": id}));
         let _ = app.run("people.edit", json!({}));
     }
-    // A right click acts on the row under the pointer.
-    if resp.secondary_clicked() && !selected {
+    // A right click acts on the row under the pointer, or on the contacts picked with it.
+    if resp.secondary_clicked() && !selected && !picked {
+        app.people_picked.clear();
         let _ = app.execute("people.select", json!({"id": id}));
     }
     let (favorite, has_email) = (c.favorite, c.address().is_some());
+    let several = picked && app.people_picked.len() >= 2;
     resp.context_menu(|ui| {
         ui.set_min_width(200.0);
         use widgets::mi;
+        if several {
+            let n = app.people_picked.len();
+            let label = tln!(n as u64, "Merge {n} Contact…", "Merge {n} Contacts…");
+            if ui.add(egui::Button::new(label).min_size(vec2(190.0, 0.0))).clicked() {
+                let params = crate::ribbon::merge_params(app);
+                let _ = app.run("people.merge", params);
+                ui.close();
+            }
+            ui.separator();
+        }
         if ui.add_enabled(has_email, egui::Button::new(tl!("Email")).min_size(vec2(190.0, 0.0))).clicked() {
             let _ = app.run("people.email", json!({"id": id}));
             ui.close();

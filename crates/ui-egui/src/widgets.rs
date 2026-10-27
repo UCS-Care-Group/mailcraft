@@ -78,12 +78,13 @@ fn text_w(ui: &Ui, text: &str, size: f32) -> f32 {
 
 /// Lay out and paint a large button of the classic ribbon: the icon over its label (of one line or
 /// two), greyed when it isn't `on`, pressed-looking when `checked`, with a `▾` when it opens a menu.
-/// Gives back where its label was painted too.
+/// Gives back where its label was painted too. One that is greyed and opens no menu can't be
+/// clicked or given the keyboard; it still has its tooltip.
 pub(crate) fn big_frame(ui: &mut Ui, icon: &str, label: &str, on: bool, checked: bool, menu: bool) -> (Response, Rect) {
     let t = Tokens::get(ui.ctx());
     let galley_w = label.split('\n').map(|l| text_w(ui, l, 11.5)).fold(0.0, f32::max);
     let w = (galley_w + if menu { 20.0 } else { 12.0 }).max(46.0);
-    let (r, resp) = ui.allocate_exact_size(vec2(w, CONTENT_H), Sense::click());
+    let (r, resp) = ui.allocate_exact_size(vec2(w, CONTENT_H), frame_sense(on, menu));
     if on {
         bg(ui, r, &resp, checked, &t);
     }
@@ -102,11 +103,17 @@ pub(crate) fn big_frame(ui: &mut Ui, icon: &str, label: &str, on: bool, checked:
     (resp, painted)
 }
 
+/// What a button of the classic ribbon answers: clicks (and the keyboard) while it can do
+/// something, the pointer alone (its tooltip) while it is greyed.
+fn frame_sense(on: bool, menu: bool) -> Sense {
+    if on || menu { Sense::click() } else { Sense::hover() }
+}
+
 /// Lay out and paint a small button of the classic ribbon: a 16 pt icon with its label beside it.
 pub(crate) fn small_frame(ui: &mut Ui, icon: &str, label: Option<&str>, on: bool, checked: bool, menu: bool) -> Response {
     let t = Tokens::get(ui.ctx());
     let text_width = label.map(|l| text_w(ui, l, 11.5) + 6.0).unwrap_or(0.0);
-    let (r, resp) = ui.allocate_exact_size(vec2(24.0 + text_width + if menu { 10.0 } else { 0.0 }, 22.0), Sense::click());
+    let (r, resp) = ui.allocate_exact_size(vec2(24.0 + text_width + if menu { 10.0 } else { 0.0 }, 22.0), frame_sense(on, menu));
     if on {
         bg(ui, r, &resp, checked, &t);
     }

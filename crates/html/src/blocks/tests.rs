@@ -410,7 +410,8 @@ fn pictures_carry_the_size_they_ask_for_and_where_they_lead() {
 
 #[test]
 fn unsafe_or_tiny_images_leave_at_most_their_alt_text() {
-    assert_eq!(dump(r#"see <img src="data:image/png;base64,AAAA" alt="chart"> here"#), ["p|see chart here"]);
+    // A picture written into the message that is no picture is a placeholder, as a missing attached one is (#533).
+    assert_eq!(dump(r#"see <img src="data:image/png;base64,AAAA" alt="chart"> here"#), ["p|see", "img(data:image/png)|chart", "p|here"]);
     assert_eq!(dump(r#"<img src="javascript:alert(1)">x<img alt="">y<img>"#), ["p|xy"]);
     assert_eq!(dump(r#"a<img src="https://example.org/t.gif" width="1" height="1" alt="t">b"#), ["p|ab"]);
     assert_eq!(dump(r#"a<img src="https://example.org/t.gif" height=0>b"#), ["p|ab"]);
@@ -1030,8 +1031,11 @@ pub(crate) fn check_block(block: &Block, context: &str) {
     assert!(!(block.beside && matches!(block.kind, BlockKind::Table(_) | BlockKind::Rule)), "{context}: {block:?}");
     match &block.kind {
         BlockKind::Rule => assert!(block.spans.is_empty(), "{context}"),
-        BlockKind::Image { src, link, .. } => {
-            assert!(is_safe_url(src), "{context}");
+        BlockKind::Image { src, link, data, .. } => {
+            // A picture written into the message keeps `data:` and its type, never its content.
+            let written = src.starts_with("data:") && src.len() <= 20;
+            assert!(is_safe_url(src) || written, "{context}");
+            assert!(data.is_none() || written, "{context}");
             assert!(link.as_deref().is_none_or(is_safe_url), "{context}");
         }
         BlockKind::Table(table) => {
@@ -1088,7 +1092,7 @@ proptest::proptest! {
     }
 
     #[test]
-    fn styled_soup_parses_into_sane_blocks(s in "(<(div|p|span|td|table|tr|a|font|img|blockquote)( style=\"((color|background|font-size|display|margin|border|border-left|border-top|border-bottom|text-align|mso-list|font-weight|max-height|width|height|overflow|opacity|padding|padding-left|margin-left|margin-top|border-radius|border-width|border-style|border-color|line-height):(#[0-9a-f]{3}|red|none|0|1px|40px|200%|99999px|1.5|-3px|hidden|center|solid|dashed|ignore|l0 level2|bold|calc\\(1px\\)|auto);?){0,4}\")?( (src|href)=\"(cid:x|https://e.example/|x)\")?>|</(div|p|span|td|table|tr|a|font|blockquote)>|[a-z ]{0,5}){0,60}") {
+    fn styled_soup_parses_into_sane_blocks(s in "(<(div|p|span|td|table|tr|a|font|img|blockquote)( style=\"((color|background|font-size|display|margin|border|border-left|border-top|border-bottom|text-align|mso-list|font-weight|max-height|width|height|overflow|opacity|padding|padding-left|margin-left|margin-top|border-radius|border-width|border-style|border-color|line-height):(#[0-9a-f]{3}|red|none|0|1px|40px|200%|99999px|1.5|-3px|hidden|center|solid|dashed|ignore|l0 level2|bold|calc\\(1px\\)|auto);?){0,4}\")?( (src|href)=\"(cid:x|https://e.example/|x|data:image/gif;base64,R0lGODlhAQABAAAAACwAAAAAAQABAAA=|DATA:image/svg\\+xml;base64,PHN2Zz4=)\")?>|</(div|p|span|td|table|tr|a|font|blockquote)>|[a-z ]{0,5}){0,60}") {
         let blocks = parse(&s);
         proptest::prop_assert!(table_depth(&blocks) <= MAX_TABLE_DEPTH);
         for block in &blocks {

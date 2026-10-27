@@ -27,6 +27,8 @@ pub enum Form {
     Categories(Box<categories::CategoriesForm>),
     /// The mail rules, and a builder for a new one.
     Rules(Box<rules::RulesForm>),
+    /// Junk E-mail Options: the Safe and Blocked Senders lists (#504).
+    Junk(Box<junk::JunkForm>),
 }
 
 impl Form {
@@ -46,6 +48,7 @@ impl Form {
             "account" => Form::Account(Box::new(account::AccountForm::open(app, params)?)),
             "categories" => Form::Categories(Box::new(categories::CategoriesForm::new(s))),
             "rules" => Form::Rules(Box::new(rules::RulesForm::new(s))),
+            "junkOptions" => Form::Junk(Box::new(junk::JunkForm::new(params))),
             _ => return None,
         })
     }
@@ -59,6 +62,7 @@ impl Form {
             Form::Account(_) => "account",
             Form::Categories(_) => "categories",
             Form::Rules(_) => "rules",
+            Form::Junk(_) => "junkOptions",
         }
     }
 
@@ -71,6 +75,7 @@ impl Form {
             Form::Account(f) => f.title(),
             Form::Categories(_) => tl!("Categories").to_string(),
             Form::Rules(_) => tl!("Rules").to_string(),
+            Form::Junk(_) => tl!("Junk E-mail Options").to_string(),
         }
     }
 
@@ -82,6 +87,7 @@ impl Form {
             Form::Account(_) => crate::account_setup::WIDTH,
             Form::Categories(_) => 420.0,
             Form::Rules(_) => 620.0,
+            Form::Junk(_) => junk::WIDTH,
         }
     }
 
@@ -94,6 +100,7 @@ impl Form {
             Form::Account(f) => f.show(app, ui),
             Form::Categories(f) => f.show(app, ui),
             Form::Rules(f) => f.show(app, ui),
+            Form::Junk(f) => f.show(app, ui),
         }
     }
 
@@ -197,9 +204,10 @@ pub(crate) mod kit {
     use egui::{Align, Align2, Color32, CornerRadius, Response, Sense, Stroke, StrokeKind, Ui, pos2, vec2};
     use mailcraft_engine::Session;
     use mailcraft_model::Category;
-    use mailcraft_time::{Date, parse_time, time_short};
+    use mailcraft_time::{Date, Weekday, parse_time, time_short};
     use serde_json::{Map, Value, json};
 
+    use crate::date_picker::{Calendar, Picked};
     use crate::theme::{Tokens, c32, paint_clipped, regular};
     use crate::widgets::{icon_button, primary_button};
 
@@ -349,6 +357,8 @@ pub(crate) mod kit {
         pub today: Date,
         /// Times read `3:05 PM` rather than `15:05`.
         pub twelve: bool,
+        /// The day weeks begin on, in a date field's calendar.
+        pub week_start: Weekday,
         enter: bool,
         /// Enter asked for OK: it was pressed in a one-line field, or with nothing focused.
         pub submit: bool,
@@ -367,6 +377,7 @@ pub(crate) mod kit {
                 t: Tokens::get(ui.ctx()),
                 today: s.today(),
                 twelve: s.prefs.twelve_hour,
+                week_start: s.prefs.week_start,
                 enter: crate::keys::enter(ui.ctx(), layer),
                 submit: crate::keys::enter_alone(ui.ctx(), layer),
                 focus: std::mem::take(focus),
@@ -408,9 +419,9 @@ pub(crate) mod kit {
             resp
         }
 
-        /// A date field with buttons that step a day back and forward. Returns `true` when the
-        /// text changed.
-        pub fn date(&mut self, ui: &mut Ui, key: impl Hash + Debug, text: &mut String, required: bool) -> bool {
+        /// A date field with buttons that step a day back and forward, and a calendar to pick
+        /// one from (#329). Returns `true` when the text changed.
+        pub fn date(&mut self, ui: &mut Ui, key: impl Hash + Debug + Copy, text: &mut String, required: bool) -> bool {
             let before = text.clone();
             let gap = std::mem::replace(&mut ui.spacing_mut().item_spacing.x, 2.0);
             self.date_text(ui, key, text, required);
@@ -419,8 +430,28 @@ pub(crate) mod kit {
                     *text = Date::parse_iso(text).map_or(self.today, |d| d.add_days(step)).iso();
                 }
             }
+            self.calendar(ui, key, text, required);
             ui.spacing_mut().item_spacing.x = gap;
             *text != before
+        }
+
+        /// The calendar after the date field `key`: a day picked is written in, and None, offered
+        /// only when the field may be empty, empties it. Returns `true` when something was picked.
+        pub fn calendar(&self, ui: &mut Ui, key: impl Hash + Debug, text: &mut String, required: bool) -> bool {
+            let calendar = Calendar {
+                field: field_id(key),
+                current: Date::parse_iso(text.trim()),
+                today: self.today,
+                week_start: self.week_start,
+                offer_none: !required,
+                name: tl!("Pick a date"),
+            };
+            match calendar.show(ui) {
+                Some(Picked::Day(day)) => *text = day.iso(),
+                Some(Picked::None) => text.clear(),
+                None => return false,
+            }
+            true
         }
 
         /// A time of day as text (`9`, `9:30`, `9am`, `14:15`), rewritten the way times are shown
@@ -2079,7 +2110,7 @@ mod event {
         recurrence: Option<RecurrenceDialog>,
         /// A command that waits for the owner's answer to a question.
         waiting: Option<Waiting>,
-        /// The Scheduling Assistant's own state.
+        /// Find a Time's own state.
         assistant: crate::scheduling::View,
         /// Which of a series it is about, when that was said on opening it.
         scope: Option<Scope>,
@@ -2339,7 +2370,7 @@ mod event {
             self.page == page
         }
 
-        /// The meeting as the Scheduling Assistant needs to know it.
+        /// The meeting as Find a Time needs to know it.
         pub(crate) fn meeting(&self) -> crate::scheduling::Meeting {
             let people = |line: &str| Address::parse_list(line).into_iter().take(500).collect();
             // (Everybody's time is drawn by the calendar's clock: so is the meeting's, whatever
@@ -2359,7 +2390,7 @@ mod event {
             }
         }
 
-        /// What the Scheduling Assistant drew the last time it was in view.
+        /// What Find a Time drew the last time it was in view.
         pub(crate) fn scheduling(&self) -> &crate::scheduling::Drawn {
             &self.assistant.drawn
         }
@@ -2373,7 +2404,7 @@ mod event {
             (end >= start).then_some((start, end))
         }
 
-        /// The meeting was moved or stretched in the Scheduling Assistant: the fields say so.
+        /// The meeting was moved or stretched in Find a Time: the fields say so.
         fn set_span_of_day(&mut self, start: DateTime, end: DateTime, twelve: bool) {
             if self.all_day || end < start {
                 return;
@@ -2394,7 +2425,7 @@ mod event {
             self.last_start = Some(start.date);
         }
 
-        /// The Scheduling Assistant's page: when the meeting is, over when everybody is free.
+        /// The Find a Time page: when the meeting is, over when everybody is free.
         fn scheduling_page(&mut self, app: &mut MailApp, ui: &mut Ui, pass: &mut Pass, below: f32) {
             let twelve = pass.twelve;
             self.time_rows(ui, pass, &app.session);
@@ -2858,10 +2889,7 @@ mod event {
             }
             if organizes {
                 items.push(bar::Item { checked: self.page == Page::Appointment, ..item("appointment", "appointment", tl!("Appointment"), 1, 5) });
-                items.push(bar::Item {
-                    checked: self.page == Page::Scheduling,
-                    ..item("scheduling", "scheduling", tl!("Scheduling Assistant"), 1, 2)
-                });
+                items.push(bar::Item { checked: self.page == Page::Scheduling, ..item("scheduling", "scheduling", tl!("Find a Time"), 1, 2) });
             }
             items.push(bar::Item { menu: true, tip: tl!("Show As").to_string(), ..item("showAs", "showAs", tl!(self.show_as.label()), 2, 5) });
             items.push(bar::Item {
@@ -4630,6 +4658,7 @@ mod contact {
                 });
                 row(ui, tl!("Birthday"), |ui| {
                     pass.date_text(ui, "birthday", &mut self.birthday, false);
+                    pass.calendar(ui, "birthday", &mut self.birthday, false);
                     date_hint(ui, &self.birthday, false);
                 });
                 tall_row(ui, tl!("Categories"), |ui| category_chips(ui, &categories, &mut self.categories));
@@ -5425,6 +5454,10 @@ mod categories {
         }
     }
 }
+
+mod junk;
+#[cfg(test)]
+mod junk_tests;
 
 /// The Rules dialog: the rules, Run Rules Now, and a builder for a new rule.
 mod rules {
