@@ -123,8 +123,10 @@ fn search_box(app: &mut MailApp, ui: &mut Ui, rect: Rect) {
             ui.painter().rect_filled(advanced, 4.0, if open { t.pressed } else { t.hover });
         }
         icons::paint(ui.painter(), Rect::from_center_size(advanced.center(), vec2(15.0, 15.0)), "filter", t.text_dim, t.accent);
-        if aresp.clicked() {
-            let _ = crate::advanced_search::set_open(app, !open);
+        if aresp.clicked()
+            && let Err(e) = crate::advanced_search::set_open(app, !open)
+        {
+            app.say_refused("ui.advancedSearch", e);
         }
     }
     let panel = app.advanced_search.is_some();

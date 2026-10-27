@@ -571,3 +571,22 @@ fn every_command_leaves_only_what_the_list_shows_selected() {
     }
     assert!(checked > 1000, "the commands did something: {checked}");
 }
+
+/// #329: a message selected in a `received:today` list is kept in it only while it is the same
+/// day; past midnight the search finds other messages, and the selected one leaves the list.
+#[test]
+fn a_selection_in_a_received_today_list_is_not_kept_past_midnight() {
+    let mut s = Session::at(sample::mailbox(now(), 0), now(), 0);
+    run(&mut s, "folder.select", json!({"kind": "inbox"}));
+    let day = |d: u8| DateTime::new(Date::new(2026, 10, d).unwrap(), 12, 0, 0).unwrap().to_timestamp(0);
+    let id = s.rows().first().map(|r| r.id).unwrap();
+    let m = s.mailbox.message_mut(id).unwrap();
+    m.date = day(14);
+    m.received = day(14);
+    run(&mut s, "view.search", json!({"query": "received:today"}));
+    assert!(shown(&mut s).contains(&id), "found on the day");
+    run(&mut s, "mail.select", json!({"id": id}));
+    s.clock.now = Some(day(14) + 12 * 3600);
+    assert_eq!(s.today(), Date::new(2026, 10, 15).unwrap());
+    assert!(!shown(&mut s).contains(&id), "the next day it isn't today's, and being selected doesn't keep it");
+}

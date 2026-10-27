@@ -480,8 +480,6 @@ pub(crate) fn take_enter_alone(ctx: &egui::Context, layer: LayerId) -> bool {
     ask(ctx, layer, Key::Enter, Want::Alone, true)
 }
 
-/// The window that is active in the viewport being laid out: its own background in a window
-/// of the system; in the main one, the main window or one of the windows inside it.
 /// The keyboard went back to `to` as a list closed on Escape (a date field's calendar): while that
 /// Escape is held, its repeats leave the keyboard there (#329).
 pub(crate) fn give_back_on_escape(ctx: &egui::Context, to: egui::Id) {
@@ -496,6 +494,8 @@ pub(crate) fn give_back_on_escape(ctx: &egui::Context, to: egui::Id) {
     });
 }
 
+/// The window that is active in the viewport being laid out: its own background in a window
+/// of the system; in the main one, the main window or one of the windows inside it.
 pub(crate) fn active(ctx: &egui::Context) -> LayerId {
     let viewport = ctx.viewport_id();
     ctx.data_mut(|d| d.get_temp_mut_or_default::<ViewportIdMap<Chain>>(store()).get(&viewport).and_then(|c| c.active.first().copied()))

@@ -477,7 +477,9 @@ pub(crate) fn show(app: &mut MailApp, ctx: &egui::Context, anchor: Rect, button:
     }
     if (search || enter) && panel.query().is_some() {
         app.advanced_search = Some(panel);
-        let _ = self::search(app);
+        if let Err(e) = self::search(app) {
+            app.say_refused("ui.advancedSearch", &e);
+        }
         return;
     }
     // A click outside the panel (and its lists) closes it.

@@ -133,6 +133,13 @@ fn a_changed_field_is_written_where_it_stood() {
         written("received:>=2026-10-01 x received:<=2026-10-22 y", |a| a.received_to = Some(day("2026-10-23"))),
         "received:2026-10-01..2026-10-23 x y"
     );
+    // A day received twice over (`received:A received:<=B`): the panel shows the first, and what it
+    // writes replaces both, so that no leftover keyword narrows the list (#329).
+    assert_eq!(
+        written("received:2026-10-05 received:<=2026-10-20 x", |a| a.received_to = Some(day("2026-10-25"))),
+        "received:2026-10-05..2026-10-25 x"
+    );
+    assert_eq!(written("received:2026-10-05 x received:<=2026-10-20", |a| (a.received_from, a.received_to) = (None, None)), "x");
     // A field that was empty is added at the end, in the panel's order.
     assert_eq!(
         written("lunch ", |a| {

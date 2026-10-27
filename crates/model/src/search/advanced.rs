@@ -165,8 +165,9 @@ impl Advanced {
 pub struct Reading {
     pub fields: Advanced,
     query: String,
-    /// Each field read, with where its keywords stand in `query` (two for days received written
-    /// as two keywords, `received:>=A received:<=B`), in order.
+    /// Each field read, with where its keywords stand in `query` (two or more for days received written
+    /// as several keywords, `received:>=A received:<=B`; the ones past the days read are the
+    /// panel's to take out when it writes the days), in order.
     taken: Vec<(Field, Vec<Range<usize>>)>,
 }
 
@@ -217,7 +218,14 @@ impl Reading {
                                 ranges.push(term.range);
                             }
                         }
-                        Some(_) => continue,
+                        // A third keyword for a side already read isn't the panel's to show, but
+                        // it narrows the list: it is the panel's to replace or take out too.
+                        Some(i) => {
+                            if let Some((_, ranges)) = r.taken.get_mut(i) {
+                                ranges.push(term.range);
+                            }
+                            continue;
+                        }
                     }
                     a.received_from = a.received_from.or(from);
                     a.received_to = a.received_to.or(to);
