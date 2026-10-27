@@ -333,6 +333,19 @@ fn no_path_ever_reaches_the_bridge() {
 }
 
 #[test]
+fn what_a_window_would_lose_isnt_the_agents_to_say_headless() {
+    // There is no window headless, and nothing is the owner's (#494): an agent's `unsaved` is
+    // left out, and the command is what it is without it.
+    let mut h = Headless::new(sample(), vec![Class::Delete]);
+    let pol = Policy::default();
+    let event = h.session.mailbox.events.values().find(|e| !e.title.is_empty() && e.recurrence.is_none()).unwrap().id;
+    let params = json!({"id": event, "unsaved": {"form": "appointment", "title": "Lunch"}});
+    let r = err(&mut h, &pol, "execute", json!({"command": "calendar.delete", "params": params}));
+    assert!(r.is_none(), "{r:?}");
+    assert!(h.session.mailbox.event(event).is_none());
+}
+
+#[test]
 fn an_agents_delete_of_a_conversations_row_is_refused_naming_and_goes_ahead_with_what_it_takes() {
     // Conversation view, a closed row of two messages selected (#503).
     let selected = |allow| {

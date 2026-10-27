@@ -28,7 +28,10 @@ pub fn specs() -> Vec<CommandSpec> {
             .params(r#"{"category": string, "value"?: bool, "id"?: number}"#)
             .selection(needs_contact),
         CommandSpec::new("people.arrange", "Arrange Contacts By", "View › Arrangement", arrange).pure().params(r#"{"by": "name"|"categories"}"#),
-        CommandSpec::new("people.email", "Email", "Home › Communicate", email).pure().params(ONE).selection(needs_contact),
+        CommandSpec::new("people.email", "Email", "Home › Communicate", email)
+            .pure()
+            .params(r#"{"id"?: number, "discard"?: true} (default: the selected contact; a message being written with changes that aren't saved is saved to Drafts first, unless `discard`)"#)
+            .selection(needs_contact),
         CommandSpec::new("people.fromMessage", "Add to Contacts", "Home › Actions", from_message)
             .params(r#"{"id"?: number} (a message; default: the selected one)"#)
             .selection(needs_message),
@@ -268,7 +271,8 @@ fn categorize(s: &mut Session, v: &Value) -> CmdResult {
 fn email(s: &mut Session, v: &Value) -> CmdResult {
     let id = target(s, v)?;
     let to = s.mailbox.contact(id).and_then(Contact::address).ok_or_else(|| fail("this contact has no e-mail address"))?;
-    s.run("mail.new", &json!({"to": to.full()}))
+    // (What is written is saved first, or let go of, as the caller said: `saves_first`.)
+    s.run("mail.new", &json!({"to": to.full(), "discard": p::bool(v, "discard") == Some(true)}))
 }
 
 fn from_message(s: &mut Session, v: &Value) -> CmdResult {

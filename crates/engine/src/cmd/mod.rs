@@ -4,6 +4,8 @@
 
 pub mod account;
 #[cfg(test)]
+mod agent_leaves_compose_tests;
+#[cfg(test)]
 mod answered_tests;
 pub mod calendar;
 pub mod calendar_extra;
