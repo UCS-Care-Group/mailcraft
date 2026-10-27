@@ -49,8 +49,8 @@ fn the_list_is_unicode_format_characters() {
         }
     }
     // Characters that are not format characters, though most of them show nothing: spaces,
-    // controls, a combining mark, a variation selector, fillers, the object replacement
-    // character, a code point not assigned between two ranges.
+    // controls, a combining mark, a variation selector, a Hangul filler, the braille blank, the
+    // object replacement character, a code point not assigned between two ranges.
     for c in ['\u{0}', '\u{9}', '\u{a0}', '\u{2028}', '\u{34f}', '\u{fe0f}', '\u{3164}', '\u{2800}', '\u{fffc}', '\u{2065}'] {
         assert!(!is_format(c), "U+{:04X}", u32::from(c));
     }
@@ -183,6 +183,9 @@ fn what_shows_nothing_goes() {
 
 #[test]
 fn the_braille_blank_parts_words() {
+    // A Hangul filler is default-ignorable, meant to show nothing, so it goes as a zero-width
+    // space does; the braille blank is a symbol drawn blank, a space in braille.
+    assert_eq!(both("Ada\u{3164}Lovelace"), "AdaLovelace");
     assert_eq!(incoming("\u{2800}", 120), None);
     assert_eq!(incoming("\u{2800}\u{3164}\u{2800}", 120), None);
     assert_eq!(both("\u{2800}Ada\u{2800}\u{2800}Lovelace\u{2800}"), "Ada Lovelace");

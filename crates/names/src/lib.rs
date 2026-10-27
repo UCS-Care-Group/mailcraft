@@ -4,8 +4,8 @@
 //! into MailCraft from messages, servers, files and what the owner types (#454).
 //!
 //! [`is_format`] is the one list of Unicode's format characters (general category Cf, Unicode
-//! 17.0): bidirectional marks, overrides and isolates, zero-width marks and joiners, the
-//! byte-order mark, the soft hyphen, tags and the rest. Most show nothing themselves (a few, such
+//! 17.0): bidirectional marks, embeddings, overrides and isolates, zero-width marks and joiners,
+//! the byte-order mark, the soft hyphen, tags and the rest. Most show nothing themselves (a few, such
 //! as the Arabic number signs, are drawn across the digits after them), but they can turn the text
 //! around them, or make two names that look the same differ.
 //!
@@ -13,14 +13,14 @@
 //! - [`incoming`], for a name as it is kept: one line, without control characters or characters
 //!   that show nothing, trimmed, at most a given length; nothing when nothing is left.
 //! - [`shown`], for a name as it is shown: the same, and cut with an ellipsis where it doesn't
-//!   fit. What is kept is not changed.
+//!   fit. Only what is shown is cut; the name as kept stays as it is.
 //!
 //! A name loses control characters, format characters and the rest of Unicode's default-ignorable
 //! code points (`Default_Ignorable_Code_Point`, Unicode 17.0: the Hangul fillers, the combining
 //! grapheme joiner, the Khmer inherent vowels and the code points Unicode keeps for more such
-//! characters, which show nothing; a name of them alone would look empty). The format characters that are drawn, such
-//! as the Arabic number signs, go too. The braille blank, which shows nothing either, parts words
-//! as white space does.
+//! characters, which show nothing; a name of them alone would look empty). The format characters
+//! that are drawn, such as the Arabic number signs, go too. The braille blank is a symbol drawn
+//! blank, the space between words in braille, so it parts words as white space does.
 //!
 //! Two kinds of them stay where they are part of what shows:
 //! - a zero-width joiner or non-joiner ([`is_joiner`]) between two characters that show, inside
@@ -45,9 +45,10 @@ mod tests;
 /// Whether `c` is one of Unicode's format characters (general category Cf, Unicode 17.0): the
 /// soft hyphen, the Arabic number signs and end-of-ayah marks, the Syriac abbreviation mark, the
 /// Arabic pound and piastre marks above, the Mongolian vowel separator, zero-width marks and
-/// joiners, bidirectional marks, overrides and isolates, the word joiner and invisible operators,
-/// the deprecated shaping controls, the byte-order mark, interlinear annotations, the Kaithi
-/// number signs, the Egyptian hieroglyph, shorthand and musical format controls, and tags.
+/// joiners, bidirectional marks, embeddings, overrides and isolates, the word joiner and
+/// invisible operators, the deprecated shaping controls, the byte-order mark, interlinear
+/// annotations, the Kaithi number signs, the Egyptian hieroglyph, shorthand and musical format
+/// controls, and tags.
 pub fn is_format(c: char) -> bool {
     matches!(
         c,
