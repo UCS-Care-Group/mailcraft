@@ -196,3 +196,54 @@ fn hostile_messages_never_panic_mail_get() {
     assert!(warnings.iter().all(|w| w.to_string().len() < 2_000));
     let _: &Value = &got;
 }
+
+fn banner_dismissed(s: &mut Session, subject: &str) -> bool {
+    let m = s.mailbox.messages[&id_of(s, subject)].clone();
+    let warnings = s.sender_warnings(&m, true);
+    mailcraft_model::sender_warnings::dismissed(&warnings, &m.warnings_dismissed)
+}
+
+#[test]
+fn dismissing_the_banner_is_remembered_with_the_message_and_can_be_undone() {
+    let (mut s, _) = imap(vec![mail("Lin", "lin@harborwork.example", "Odd"), mail("Maya Okafor", "maya@lumen.example", "Lunch")]);
+    s.run("people.new", &json!({"displayName": "Lin Zhao", "email": "lin.zhao@harborworks.example"})).unwrap();
+    let id = id_of(&s, "Odd");
+    assert!(!banner_dismissed(&mut s, "Odd"));
+    assert_eq!(s.run("mail.dismissWarnings", &json!({"ids": [id]})).unwrap()["changed"], 1);
+    assert!(banner_dismissed(&mut s, "Odd"));
+    // Saved and read back, it stays dismissed.
+    let saved = serde_json::to_string(&s.mailbox).unwrap();
+    let mut again = Session::new(serde_json::from_str(&saved).unwrap());
+    assert!(banner_dismissed(&mut again, "Odd"));
+    // Undo shows it again; showing it again by command too.
+    assert!(s.undo());
+    assert!(!banner_dismissed(&mut s, "Odd"));
+    s.run("mail.dismissWarnings", &json!({"ids": [id]})).unwrap();
+    s.run("mail.dismissWarnings", &json!({"ids": [id], "value": false})).unwrap();
+    assert!(!banner_dismissed(&mut s, "Odd"));
+    // A message with nothing to warn of has no banner to dismiss.
+    assert!(!banner_dismissed(&mut s, "Lunch"));
+}
+
+#[test]
+fn a_new_kind_of_warning_brings_the_banner_back() {
+    let (mut s, _) = imap(vec![mail("Lin", "lin@harborwork.example", "Odd")]);
+    s.run("people.new", &json!({"displayName": "Lin Zhao", "email": "lin.zhao@harborworks.example"})).unwrap();
+    let id = id_of(&s, "Odd");
+    s.run("mail.dismissWarnings", &json!({"ids": [id]})).unwrap();
+    assert!(banner_dismissed(&mut s, "Odd"));
+    // The server's checks now fail for it: a kind that was not there.
+    s.mailbox.message_mut(id).unwrap().headers =
+        vec![("Authentication-Results".into(), "mx.lumen.example; dmarc=fail header.from=harborwork.example".into())];
+    assert!(kinds(&mut s, "Odd").contains(&"failedCheck".to_string()));
+    assert!(!banner_dismissed(&mut s, "Odd"));
+}
+
+#[test]
+fn an_agent_may_not_hide_a_warning() {
+    use crate::agent::{Access, Class, Verdict, access, check};
+    assert_eq!(access("mail.dismissWarnings"), Some(Access::Owner(Class::Settings)));
+    let (s, _) = imap(vec![mail("Lin", "lin@harborwork.example", "Odd")]);
+    let params = json!({"ids": [id_of(&s, "Odd")]});
+    assert!(matches!(check(&s, "mail.dismissWarnings", &params, &[]), Verdict::Ask(Class::Settings, _)));
+}

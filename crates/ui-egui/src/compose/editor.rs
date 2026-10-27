@@ -486,7 +486,13 @@ fn body(app: &MailApp, which: Which) -> Option<(&RichBody, bool)> {
 /// The pictures the text `which` names may show.
 fn pictures(app: &MailApp, which: Which) -> Vec<Picture> {
     match which {
-        Which::Message => app.session.compose.as_ref().and_then(|c| c.signature.as_ref()).map(|s| s.pictures.clone()).unwrap_or_default(),
+        // The signature's, and those the owner put in the text (#547).
+        Which::Message => app
+            .session
+            .compose
+            .as_ref()
+            .map(|c| c.signature.iter().flat_map(|s| s.pictures.iter()).chain(c.pictures.iter()).cloned().collect())
+            .unwrap_or_default(),
         Which::Signature => app.session.signature_edit.as_ref().map(|e| e.signature.pictures().to_vec()).unwrap_or_default(),
     }
 }
@@ -653,11 +659,15 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
                 // by `edit.paste`), else as the text egui read from it; into a signature, a
                 // picture on the clipboard comes as a picture.
                 Event::Paste(text) => {
-                    let image =
-                        (which == Which::Signature && text.is_empty()).then(|| app.services.clipboard.as_ref().and_then(|b| b.image())).flatten();
-                    match (image, app.services.clipboard.as_ref().and_then(|board| board.html()).filter(|h| !h.trim().is_empty())) {
+                    let html = app.services.clipboard.as_ref().and_then(|board| board.html()).filter(|h| !h.trim().is_empty());
+                    // Into the message, a picture only when nothing else is on the clipboard (#547).
+                    let image = (text.is_empty() && (which == Which::Signature || html.is_none()))
+                        .then(|| app.services.clipboard.as_ref().and_then(|b| b.image()))
+                        .flatten();
+                    match (image, html) {
                         (Some(png), _) => {
-                            ask("signature.picture.add", json!({"data": crate::files::base64_lite::encode(&png), "file": "picture.png"}))
+                            let command = if which == Which::Signature { "signature.picture.add" } else { "insert.picture" };
+                            ask(command, json!({"data": crate::files::base64_lite::encode(&png), "file": "picture.png"}))
                         }
                         (None, Some(html)) => ask("edit.paste", json!({"html": html})),
                         (None, None) => ask("edit.paste", json!({"text": text})),

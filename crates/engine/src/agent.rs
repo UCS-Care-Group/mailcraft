@@ -159,6 +159,7 @@ const SAFE: &[&str] = &[
     // Writing (sending is not).
     "compose.set",
     "compose.attach",
+    "insert.picture",
     "compose.removeAttachment",
     "compose.signature",
     "compose.checkNames",
@@ -402,6 +403,9 @@ const ACCOUNTS: &[&str] = &[
 const MAILBOX: &[&str] = &["file.new", "file.open", "file.save", "file.saveAs"];
 
 const SETTINGS: &[&str] = &[
+    // Hides the sender-warning banner of a message (#508): an agent must not be able to quiet
+    // the owner's phishing warning.
+    "mail.dismissWarnings",
     "file.options",
     "calendar.deleteAnsweredRequests",
     "rules.add",
@@ -531,6 +535,7 @@ pub const FILE_PARAMS: &[(&str, &str, FileUse)] = &[
     ("file.import", "path", FileUse::Reads { name_key: "name" }),
     ("file.importFolderTree", "path", FileUse::Reads { name_key: "name" }),
     ("compose.attach", "path", FileUse::Reads { name_key: "name" }),
+    ("insert.picture", "path", FileUse::Reads { name_key: "file" }),
     ("signature.picture.add", "path", FileUse::Reads { name_key: "file" }),
     ("file.save", "path", FileUse::Refused),
     ("file.saveAs", "path", FileUse::Refused),

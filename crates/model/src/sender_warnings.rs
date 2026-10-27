@@ -141,6 +141,21 @@ pub fn banner_level(warnings: &[Warning]) -> Option<Level> {
     warnings.iter().map(Warning::level).filter(|l| *l > Level::Tag).max()
 }
 
+/// The kinds of `warnings`, once each, in order: what dismissing their banner is remembered as
+/// ([`dismissed`]).
+pub fn kinds(warnings: &[Warning]) -> Vec<String> {
+    let mut out: Vec<String> = warnings.iter().map(|w| w.kind().to_string()).collect();
+    out.sort();
+    out.dedup();
+    out
+}
+
+/// Whether the banner for `warnings` was dismissed: there is one, and every kind in it is among
+/// the `dismissed` kinds kept with the message. A kind that wasn't there then shows it again.
+pub fn dismissed(warnings: &[Warning], dismissed: &[String]) -> bool {
+    banner_level(warnings).is_some() && warnings.iter().all(|w| dismissed.iter().any(|k| k == w.kind()))
+}
+
 /// What the warnings are measured against. Built by [`FactsBuilder`].
 #[derive(Clone, Debug, Default)]
 pub struct Facts {
