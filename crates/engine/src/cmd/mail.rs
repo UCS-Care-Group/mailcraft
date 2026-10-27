@@ -118,6 +118,7 @@ fn select(s: &mut Session, v: &Value) -> CmdResult {
     let copy = p::u64(v, "copy").and_then(|c| u16::try_from(c).ok()).unwrap_or(0);
     // Which of their rows the focus and a range's start were on, for those that stay them.
     let rows_before = [s.sel.focus_row, s.sel.anchor_row];
+    let mut placed = None;
     // A Ctrl+click or a Shift+click adds to what the list shows selected, never to a message it
     // doesn't show (#485).
     if p::bool(v, "range") == Some(true) || p::bool(v, "extend") == Some(true) {
@@ -129,28 +130,34 @@ fn select(s: &mut Session, v: &Value) -> CmdResult {
         // From the anchor (the first selected message) to this one, in list order.
         let rows = s.rows();
         let (anchor, anchor_copy) = range_anchor(s).unwrap_or((last, 0));
-        if let (Some(a), Some(b)) = (position_of(&rows, anchor, anchor_copy), position_of(&rows, last, copy)) {
+        if let (Some(a), Some(b)) = (s.sel.row_in(&rows, anchor, anchor_copy), position_of(&rows, last, copy)) {
             s.sel.messages = span(&rows, anchor, a, last, b);
             s.sel.whole = heads_in(&rows, a, b);
         }
     } else if p::bool(v, "extend") == Some(true) {
-        let placed = Placed::of(s);
+        let placed = placed.insert(Placed::of(s));
         for id in ids {
-            ctrl_click(s, &placed, id, if id == last { copy } else { 0 });
+            ctrl_click(s, placed, id, if id == last { copy } else { 0 });
         }
     } else {
-        let placed = Placed::of(s);
+        let placed = placed.insert(Placed::of(s));
         s.sel.whole = ids.iter().copied().filter(|id| placed.heads(*id, if *id == last { copy } else { 0 })).collect();
         s.sel.messages = ids;
     }
     // The row clicked is the message clicked's; another message's is the row it was on, if it
     // was the focus or a range's start, else its first (#503: a conversation's newest message
-    // has two).
-    let row_of = |id: Id| if id == last { copy } else { rows_before.into_iter().flatten().find(|(x, _)| *x == id).map_or(0, |(_, c)| c) };
-    s.sel.focus_row = s.sel.focus().map(|id| (id, row_of(id)));
+    // has two). That one's open conversation's newest is on the conversation's row when it is picked
+    // as the conversation, else on its own row under it, as after a Ctrl+click under it.
+    let own = |id: Id| placed.as_ref().and_then(|p: &Placed| p.exact.get(&(id, 1)).and_then(|i| p.rows.get(*i))).is_some_and(|r| r.under == Some(id));
+    let row_of = |id: Id, whole: bool| match () {
+        _ if id == last => copy,
+        _ if own(id) => u16::from(!whole),
+        _ => rows_before.into_iter().flatten().find(|(x, _)| *x == id).map_or(0, |(_, c)| c),
+    };
+    s.sel.focus_row = s.sel.focus().map(|id| (id, row_of(id, s.sel.whole.contains(&id))));
     // A range keeps its anchor; any other click is the next one's.
     if p::bool(v, "range") != Some(true) || s.sel.anchor_row.is_none_or(|(id, _)| !s.sel.messages.contains(&id)) {
-        s.sel.anchor_row = s.sel.messages.first().map(|id| (*id, row_of(*id)));
+        s.sel.anchor_row = s.sel.messages.first().map(|id| (*id, row_of(*id, s.sel.whole.contains(id))));
     }
     // Follow the message to its folder (a search result, a conversation member elsewhere), unless
     // it is listed under its open conversation here (#503).
@@ -330,7 +337,7 @@ fn heads_in(rows: &[Row], a: usize, b: usize) -> Vec<Id> {
 fn land(s: &mut Session, rows: &[Row], i: usize, extend: bool) -> CmdResult {
     let Some(row) = rows.get(i) else { return done() };
     let anchor = if extend { range_anchor(s) } else { None };
-    match anchor.and_then(|(id, copy)| Some((id, copy, position_of(rows, id, copy)?))) {
+    match anchor.and_then(|(id, copy)| Some((id, copy, s.sel.row_in(rows, id, copy)?))) {
         Some((id, copy, at)) => {
             s.sel.messages = span(rows, id, at, row.id, i);
             s.sel.whole = heads_in(rows, at, i);
@@ -357,7 +364,7 @@ fn extend(v: &Value) -> bool {
 fn step(s: &mut Session, by: i64, v: &Value) -> CmdResult {
     let rows = s.rows();
     let Some(end) = rows.len().checked_sub(1) else { return done() };
-    let at = s.sel.focus().and_then(|id| position_of(&rows, id, s.sel.focus_copy()));
+    let at = s.sel.focus_in(&rows);
     let i = match at {
         Some(i) => {
             let to = i64::try_from(i).unwrap_or(i64::MAX).saturating_add(by).max(0);
@@ -440,7 +447,7 @@ fn conversation_row(s: &mut Session, v: &Value) -> Option<(usize, Row)> {
     let at = match p::id(v, "id") {
         // (One in another folder, while the conversation is closed, by the row it belongs to.)
         Some(id) => position_of(&rows, id, 0).or_else(|| rows.iter().position(|r| r.under.is_none() && r.others.contains(&id))),
-        None => s.sel.focus().and_then(|id| position_of(&rows, id, s.sel.focus_copy())),
+        None => s.sel.focus_in(&rows),
     }?;
     let row = rows.get(at)?;
     let head = row.under.unwrap_or(row.id);
@@ -477,7 +484,7 @@ fn collapse(s: &mut Session, v: &Value) -> CmdResult {
         return Ok(json!({"open": false, "id": row.id}));
     }
     let rows = s.rows();
-    let focus = s.sel.focus().and_then(|id| position_of(&rows, id, s.sel.focus_copy()));
+    let focus = s.sel.focus_in(&rows);
     let inside = focus.and_then(|at| rows.get(at)).is_some_and(|r| r.under == Some(row.id));
     s.view.open.retain(|k| *k != key);
     if inside {

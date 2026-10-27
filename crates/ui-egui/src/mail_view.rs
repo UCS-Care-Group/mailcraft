@@ -585,14 +585,9 @@ fn list(app: &mut MailApp, ui: &mut Ui) {
     let total = y + below;
     let reveal = std::mem::take(&mut app.reveal_selection);
     // The row the focus is on: the one clicked or stepped to, else the message's first (#503: a
-    // newer message of its open conversation came, and its own row there is another).
-    let focus = app
-        .session
-        .sel
-        .focus()
-        .and_then(|id| mailcraft_engine::list::position_of(&rows, id, app.session.sel.focus_copy()))
-        .and_then(|i| rows.get(i))
-        .map(|r| (r.id, r.copy));
+    // newer message of its open conversation came, and its own row there is another), and for one
+    // picked as its conversation, the conversation's row.
+    let focus = app.session.sel.focus_in(&rows).and_then(|i| rows.get(i)).map(|r| (r.id, r.copy));
     // What Delete would take, for the rows under an open conversation (#503).
     let taken: HashSet<Id> = if app.session.view.open.is_empty() { HashSet::new() } else { app.session.acting_on_in(&rows).into_iter().collect() };
     let outer = ui.available_rect_before_wrap();

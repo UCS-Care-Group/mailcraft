@@ -498,6 +498,22 @@ impl Selection {
         }
     }
 
+    /// Where row `copy` of message `id` is in `rows`: for a message picked as its conversation
+    /// that is no longer the one on top (newer mail came, or another tab has another on top), the
+    /// conversation's row, the one drawn picked, and not its own row under it (#503).
+    pub fn row_in(&self, rows: &[Row], id: Id, copy: u16) -> Option<usize> {
+        let at = crate::list::position_of(rows, id, copy)?;
+        match rows.get(at).and_then(|r| r.under) {
+            Some(head) if head != id && self.whole.contains(&id) => crate::list::position_of(rows, head, 0).or(Some(at)),
+            _ => Some(at),
+        }
+    }
+
+    /// Where the row the focus is on is in `rows` ([`Selection::row_in`]).
+    pub fn focus_in(&self, rows: &[Row]) -> Option<usize> {
+        self.focus().and_then(|id| self.row_in(rows, id, self.focus_copy()))
+    }
+
     /// No message selected, and nothing kept for one.
     pub(crate) fn clear_messages(&mut self) {
         self.messages.clear();

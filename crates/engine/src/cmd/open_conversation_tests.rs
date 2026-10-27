@@ -513,3 +513,87 @@ fn each_account_asks_before_deleting_a_conversation_unless_told_not_to() {
     assert!(!s.mailbox.asks_before_deleting_conversation(900));
     assert!(s.run("account.edit", &json!({"id": 900, "askBeforeDeletingConversation": true})).is_err());
 }
+
+#[test]
+fn the_account_on_this_computer_can_stop_asking_before_deleting_a_conversation() {
+    let mut s = Session::at(sample::mailbox(now(), 0), now(), 0);
+    let local = s.mailbox.local_account();
+    run(&mut s, "account.edit", json!({"id": local, "askBeforeDeletingConversation": false}));
+    assert!(!s.mailbox.asks_before_deleting_conversation(local));
+    // It has no address, and gets none that isn't one.
+    assert!(s.run("account.edit", &json!({"id": local, "email": "nobody"})).is_err());
+    assert!(s.run("account.add", &json!({"name": "Nobody"})).is_err());
+}
+
+#[test]
+fn a_ctrl_click_under_a_conversation_picked_by_its_row_leaves_the_focus_on_the_newest_message_row() {
+    let (mut s, newer, older, _) = release_checklist();
+    run(&mut s, "mail.expandConversation", json!({"id": newer}));
+    let pick_and_take_out = |s: &mut Session| {
+        run(s, "mail.select", json!({"id": newer}));
+        run(s, "mail.select", json!({"id": older, "extend": true}));
+    };
+    // The conversation picked by its row, and the older one taken out with Ctrl: the newer one
+    // stays, by its own row under the conversation, and the focus and a range's start are there.
+    pick_and_take_out(&mut s);
+    assert_eq!((s.sel.messages.clone(), s.sel.focus_copy(), s.sel.anchor_row), (vec![newer], 1, Some((newer, 1))));
+    // Shift+Down runs from it, and doesn't take the conversation back.
+    let rows = s.rows();
+    let next = rows.iter().position(|r| r.id == newer && r.under.is_some()).and_then(|i| rows.get(i + 1)).map(|r| r.id).unwrap();
+    run(&mut s, "mail.next", json!({"extend": true}));
+    assert_eq!((s.sel.messages.clone(), s.sel.whole.clone()), (vec![newer, next], vec![]));
+    // And Left, with the focus under it, selects the conversation's row.
+    pick_and_take_out(&mut s);
+    run(&mut s, "mail.collapseConversation", json!({}));
+    assert_eq!((s.sel.messages.clone(), s.sel.whole.clone()), (vec![newer], vec![newer]));
+}
+
+#[test]
+fn the_focus_stays_on_the_row_of_a_conversation_picked_by_it_when_newer_mail_comes() {
+    // The conversation picked by its row and open, and a newer message of it in the Inbox.
+    let picked = || {
+        let (mut s, newer, older, reply) = release_checklist();
+        let inbox = s.view.folder;
+        let at = s.mailbox.message(newer).map(|m| (m.date + 60, m.received + 60)).unwrap();
+        if let Ok(m) = s.mailbox.message_mut(reply) {
+            (m.date, m.received) = at;
+        }
+        run(&mut s, "mail.select", json!({"id": newer}));
+        run(&mut s, "mail.expandConversation", json!({}));
+        let copy = run(&mut s, "mail.copy", json!({"ids": [reply], "folder": inbox}))["copies"][0].as_u64().unwrap();
+        (s, newer, older, reply, copy)
+    };
+    let (mut s, _, _, _, copy) = picked();
+    let rows = s.rows();
+    assert_eq!(s.sel.focus_in(&rows), rows.iter().position(|r| r.id == copy && r.under.is_none()));
+    // Down goes to the first row under it: the newest message's own.
+    run(&mut s, "mail.next", json!({}));
+    assert_eq!((s.sel.focus(), s.sel.focus_copy()), (Some(copy), 1));
+    // Shift+Down and Shift+click run from the conversation's row, and so take all of it (and the
+    // reply in Sent Items, whose row is in the range).
+    let (mut s, newer, older, _, copy) = picked();
+    run(&mut s, "mail.next", json!({"extend": true}));
+    assert_eq!(drawn(&mut s), sorted([copy, newer, older]));
+    let (mut s, newer, older, reply, copy) = picked();
+    run(&mut s, "mail.select", json!({"id": older, "range": true}));
+    assert_eq!(drawn(&mut s), sorted([copy, newer, older, reply]));
+}
+
+#[test]
+fn closing_a_conversation_picked_in_another_tab_keeps_the_message_being_read() {
+    let (mut s, newer, older, reply) = release_checklist();
+    for (id, read) in [(newer, true), (older, false), (reply, false)] {
+        if let Ok(m) = s.mailbox.message_mut(id) {
+            m.read = read;
+        }
+    }
+    // Picked in the Unread tab with the older message on top, and opened in the All tab.
+    run(&mut s, "view.filter", json!({"value": "unread"}));
+    run(&mut s, "mail.select", json!({"id": older}));
+    run(&mut s, "view.filter", json!({"value": "all"}));
+    run(&mut s, "mail.expandConversation", json!({}));
+    let rows = s.rows();
+    assert_eq!(s.sel.focus_in(&rows), rows.iter().position(|r| r.id == newer && r.under.is_none()));
+    run(&mut s, "mail.collapseConversation", json!({}));
+    assert_eq!((s.sel.focus(), s.sel.whole.clone()), (Some(older), vec![older]));
+}

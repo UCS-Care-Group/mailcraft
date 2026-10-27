@@ -241,9 +241,6 @@ fn apply_fields(a: &mut Account, v: &Value) -> Result<(), CmdError> {
             a.jmap = None;
         }
     }
-    if !a.address().is_valid() {
-        return Err(bad(format!("\"{}\" isn't an e-mail address", a.email)));
-    }
     if a.name.is_empty() {
         a.name = a.email.clone();
     }
@@ -281,11 +278,23 @@ fn jmap_server(v: &Value, before: Option<&JmapServer>) -> Result<JmapServer, Cmd
     Ok(server)
 }
 
+/// An account's address must be one, but for the account on this computer that has none and keeps
+/// it so (`before`: what an edited account was), which holds imported mail (#503: its question
+/// before deleting a conversation can be turned off).
+fn check_address(a: &Account, before: Option<&Account>) -> Result<(), CmdError> {
+    let none_kept = before.is_some_and(|b| b.kind == AccountKind::Local && a.kind == AccountKind::Local && b.email == a.email);
+    if !none_kept && !a.address().is_valid() {
+        return Err(bad(format!("\"{}\" isn't an e-mail address", a.email)));
+    }
+    Ok(())
+}
+
 /// The account `account.add` would make from these params (for the question put to the owner
 /// when an agent asks; `None` when they are not valid).
 pub(crate) fn from_params(v: &Value) -> Option<Account> {
     let mut a = Account::default();
     apply_fields(&mut a, v).ok()?;
+    check_address(&a, None).ok()?;
     Some(a)
 }
 
@@ -293,6 +302,7 @@ pub(crate) fn from_params(v: &Value) -> Option<Account> {
 pub(crate) fn edited(old: &Account, v: &Value) -> Option<Account> {
     let mut a = old.clone();
     apply_fields(&mut a, v).ok()?;
+    check_address(&a, Some(old)).ok()?;
     Some(a)
 }
 
@@ -335,6 +345,7 @@ fn add(s: &mut Session, v: &Value) -> CmdResult {
     // A new account keeps a year of mail in full (#143); one from before keeps all of it.
     let mut a = Account { keep_offline: mailcraft_model::KeepOffline::NEW_ACCOUNT, ..Default::default() };
     apply_fields(&mut a, v)?;
+    check_address(&a, None)?;
     if s.mailbox.accounts.iter().any(|x| x.email.eq_ignore_ascii_case(&a.email)) {
         return Err(failed!("{address} is already set up", address = a.email));
     }
@@ -368,6 +379,7 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
     }
     let before = a.clone();
     apply_fields(&mut a, v)?;
+    check_address(&a, Some(&before))?;
     // A JMAP account's folders and mail are known to its server by the ids it hands out, and any
     // other account's by paths and UIDs, or by nobody: an account doesn't turn from one to the other.
     if (before.kind == AccountKind::Jmap) != (a.kind == AccountKind::Jmap) {
