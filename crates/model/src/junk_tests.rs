@@ -69,20 +69,72 @@ fn an_entry_is_on_one_list_and_a_list_has_a_limit() {
 
 #[test]
 fn a_file_s_lists_are_tidied_when_repaired() {
-    let mut mb = Mailbox::default();
-    mb.junk.safe = vec!["Ada@Example.org".into(), "ada@example.org".into(), "rubbish".into()];
-    mb.junk.blocked = (0..MAX_JUNK_ENTRIES + 20).map(|i| format!("s{i}@example.org")).chain(["ada@example.org".to_string()]).collect();
+    let mut mb = Mailbox::with_local_account("Ada Lovelace", "ada@example.org");
+    let account = mb.accounts[0].id;
+    let lists = mb.junk_lists_mut(account);
+    lists.safe = vec!["Ada@Example.org".into(), "ada@example.org".into(), "rubbish".into()];
+    lists.blocked = (0..MAX_JUNK_ENTRIES + 20).map(|i| format!("s{i}@example.org")).chain(["ada@example.org".to_string()]).collect();
     let fixed = mb.repair();
     assert!(fixed.iter().any(|f| f.contains("Safe and Blocked")), "{fixed:?}");
-    assert_eq!(mb.junk.safe, ["ada@example.org"]);
-    assert_eq!(mb.junk.blocked.len(), MAX_JUNK_ENTRIES);
-    assert!(!mb.junk.repair());
+    assert_eq!(mb.junk_accounts[&account].safe, ["ada@example.org"]);
+    assert_eq!(mb.junk_accounts[&account].blocked.len(), MAX_JUNK_ENTRIES);
+    assert!(!mb.junk_accounts.get_mut(&account).unwrap().repair());
     // Kept in the file, and read back.
     let json = serde_json::to_string(&mb).unwrap();
     let back: Mailbox = serde_json::from_str(&json).unwrap();
-    assert_eq!(back.junk, mb.junk);
+    assert_eq!(back.junk_accounts, mb.junk_accounts);
     // A mailbox without lists writes nothing of them.
     assert!(!serde_json::to_string(&Mailbox::default()).unwrap().contains("junk"));
+}
+
+#[test]
+fn lists_of_an_account_that_is_gone_or_empty_are_dropped_when_repaired() {
+    let mut mb = Mailbox::with_local_account("Ada Lovelace", "ada@example.org");
+    let account = mb.accounts[0].id;
+    mb.junk_accounts.insert(9_999, JunkLists { safe: vec!["a@example.net".into()], blocked: vec![] });
+    mb.junk_accounts.insert(account, JunkLists::default());
+    mb.repair();
+    assert!(mb.junk_accounts.is_empty());
+}
+
+#[test]
+fn lists_from_before_each_account_had_its_own_move_to_every_account() {
+    // An old file: one pair of lists for the whole mailbox, and two accounts.
+    let mut mb = Mailbox::with_local_account("Ada Lovelace", "ada@example.org");
+    let first = mb.accounts[0].id;
+    let mut second = mb.accounts[0].clone();
+    second.id = first + 1_000;
+    second.email = "ada@example.net".into();
+    mb.accounts.push(second);
+    let second = mb.accounts[1].id;
+    let mut value = serde_json::to_value(&mb).unwrap();
+    value["junk"] = serde_json::json!({"safe": ["friend@example.com"], "blocked": ["@spam.example"]});
+    let mut old: Mailbox = serde_json::from_value(value).unwrap();
+    assert!(old.junk_accounts.is_empty() && !old.junk.is_empty());
+    assert!(old.repair().iter().any(|f| f.contains("moved to each account")));
+    assert!(old.junk.is_empty());
+    for account in [first, second] {
+        assert_eq!(old.junk_accounts[&account].safe, ["friend@example.com"]);
+        assert_eq!(old.junk_accounts[&account].blocked, ["@spam.example"]);
+    }
+    // Moved once: the next save has no mailbox-wide lists, and repairing again changes nothing.
+    assert!(!serde_json::to_string(&old).unwrap().contains("\"junk\":"));
+    assert!(old.repair().is_empty());
+    // An account's lists are its own.
+    old.junk_lists_mut(first).add(JunkList::Blocked, "only@first.example");
+    assert_eq!(old.junk_lists(first).unwrap().verdict("only@first.example"), Some(JunkList::Blocked));
+    assert_eq!(old.junk_lists(second).unwrap().verdict("only@first.example"), None);
+}
+
+#[test]
+fn old_lists_wait_for_an_account_and_a_file_without_them_opens() {
+    let mut mb = Mailbox::default();
+    mb.accounts.clear();
+    mb.junk.add(JunkList::Safe, "friend@example.com");
+    mb.repair();
+    assert!(!mb.junk.is_empty());
+    let none: Mailbox = serde_json::from_str("{}").unwrap();
+    assert!(none.junk_accounts.is_empty());
 }
 
 #[test]
@@ -96,8 +148,8 @@ fn arriving_mail_is_sorted_by_the_lists() {
     let safe = mb.add_message(mail(junk, "friend@example.com")).unwrap();
     // No lists: nothing moves.
     assert!(!mb.sort_junk(blocked) && !mb.sort_junk(safe));
-    mb.junk.add(JunkList::Blocked, "spam@example.net");
-    mb.junk.add(JunkList::Safe, "@example.com");
+    mb.junk_lists_mut(account).add(JunkList::Blocked, "spam@example.net");
+    mb.junk_lists_mut(account).add(JunkList::Safe, "@example.com");
     assert!(mb.sort_junk(blocked));
     assert_eq!(mb.message(blocked).unwrap().folder, junk);
     assert!(mb.sort_junk(safe));
@@ -137,7 +189,7 @@ fn a_shared_mailbox_s_mail_is_never_sorted() {
     let mut mb = Mailbox::with_local_account("Ada Lovelace", "ada@example.org");
     let account = mb.accounts[0].id;
     let inbox = mb.folder_of_kind(account, FolderKind::Inbox).unwrap();
-    mb.junk.add(JunkList::Blocked, "@vendor.example");
+    mb.junk_lists_mut(account).add(JunkList::Blocked, "@vendor.example");
     let id = mb.add_message(Message { folder: inbox, from: Address::new("", "sales@vendor.example"), ..Default::default() }).unwrap();
     mb.accounts[0].shared_of = Some(9_999);
     assert!(!mb.sort_junk(id));

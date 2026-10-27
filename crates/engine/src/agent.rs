@@ -664,6 +664,11 @@ pub fn check(s: &Session, id: &str, params: &Value, allow: &[Class]) -> Verdict 
     if matches!(id, "junk.add" | "junk.remove") && p::str(params, "list").and_then(mailcraft_model::JunkList::parse).is_none() {
         return Verdict::Refuse(format!("`{id}` needs `list`: \"safe\" or \"blocked\""));
     }
+    if matches!(id, "junk.add" | "junk.remove" | "junk.list")
+        && let Err(e) = crate::cmd::junk::list_account(s, params)
+    {
+        return Verdict::Refuse(format!("`{id}`: {e}"));
+    }
     match classify(s, id, params) {
         Access::Safe => Verdict::Run,
         Access::Never => Verdict::Refuse(format!("`{id}` isn't available to agents")),
@@ -914,7 +919,16 @@ pub fn describe(s: &Session, id: &str, params: &Value) -> String {
                 None => return format!("run \u{201c}{label}\u{201d} ({id}) on a list that is neither Safe Senders nor Blocked Senders"),
             };
             let entry = mailcraft_model::junk_entry(st("entry")).unwrap_or_else(|| clip(st("entry"), 80));
-            if id == "junk.add" { format!("add {} to the {list}", quoted(&entry)) } else { format!("remove {} from the {list}", quoted(&entry)) }
+            let of = crate::cmd::junk::list_account(s, params)
+                .ok()
+                .and_then(|a| s.mailbox.account(a))
+                .map(|a| format!(" of the account {}", quoted(&clip(if a.email.is_empty() { &a.name } else { &a.email }, 80))))
+                .unwrap_or_default();
+            if id == "junk.add" {
+                format!("add {} to the {list}{of}", quoted(&entry))
+            } else {
+                format!("remove {} from the {list}{of}", quoted(&entry))
+            }
         }
         "account.add" => {
             let to = crate::cmd::account::from_params(params)

@@ -483,6 +483,11 @@ msgstr ""
 msgid "Accessibility"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/forms/junk.rs
+msgid "Account"
+msgstr ""
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -12831,6 +12836,11 @@ msgstr "hay demasiadas firmas"
 #, fuzzy
 msgid "there is already a signature named \"{to}\""
 msgstr "ya hay una firma llamada «{to}»"
+
+#. what a command says
+#: crates/engine/src/cmd/junk.rs
+msgid "there is no account"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs

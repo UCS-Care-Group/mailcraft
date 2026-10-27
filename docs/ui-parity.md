@@ -1,6 +1,6 @@
 # Interface parity
 
-> **Last reviewed:** 2026-10-21 · **Last updated:** 2026-10-27 · **Change:** patch · **Target:** Microsoft Outlook (Microsoft 365, classic desktop)
+> **Last reviewed:** 2026-10-21 · **Last updated:** 2026-10-27 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365, classic desktop)
 
 How the window compares with the target's. The look is the Craft apps' own (WordCraft's design
 tokens, type rungs and ribbon widgets, with MailCraft's teal accent); the *arrangement* is the one
@@ -166,3 +166,4 @@ be shown when they can't.
 | 2026-10-26 | minor | #507: Insert and Review tabs while writing; Insert › Date & Time and Review › Word Count, each with its dialog |
 | 2026-10-26 | minor | #507: the rest of the Insert and Review tabs shown greyed, "Pending development"; Ctrl+Shift+G for Word Count |
 | 2026-10-26 | minor | #507: generic names for the pending Insert controls (Item, Saved Text, Diagram, Text Effects), Drop Cap, Object and 3D Models added; pending controls named and disabled for screen readers |
+| 2026-10-27 | minor | #516: Junk E-mail Options shows an account drop-down; Safe and Blocked Senders are kept per account |
