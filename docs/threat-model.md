@@ -25,9 +25,13 @@ Writes any bytes into a message: crafted MIME, HTML, headers, attachments, pictu
 - **Nothing in a message runs.** HTML becomes display blocks in `crates/html`: no script engine, no
   CSS engine, no web view. The only presentation read from a message is the whitelist in
   `crates/html/src/style.rs`, from inline attributes; `<style>` blocks are ignored.
-- **Nothing is fetched by itself.** Pictures attached to the message (`cid:`) are shown; pictures on
-  the web only on the owner's say-so, and only `<img>` addresses (no backgrounds, style sheets,
-  fonts or frames, nothing 2 px or smaller), so a tracking pixel doesn't fire.
+- **Nothing is fetched by itself.** Pictures attached to the message (`cid:`) are shown, and so are
+  pictures written into it (`data:image/…;base64,` in an `<img>`, #533): only a PNG, JPEG, GIF or
+  WebP by its declared type and its own bytes (never SVG, HTML or text), decoded within caps
+  checked before decoding (10 MB a picture, 32 pictures and 40 MB a message), anything else a
+  placeholder; a `data:` address is never a link nor a background (`crates/html/src/data.rs`).
+  Pictures on the web only on the owner's say-so, and only `<img>` addresses (no backgrounds,
+  style sheets, fonts or frames, nothing 2 px or smaller), so a tracking pixel doesn't fire.
 - **"Always download pictures" is not a trust in a `From:` line.** A remembered sender or domain
   holds only for a message whose topmost `Authentication-Results` header says `dmarc=pass` (or
   `compauth=pass`) for the sender's domain, or, where it gives no DMARC verdict, `dkim=pass` for a
@@ -463,6 +467,7 @@ settings files (`crates/engine/src/store.rs`); commands from the control channel
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-26 | minor | #533: pictures written into a message (`data:` PNG, JPEG, GIF or WebP, checked by their bytes, capped per picture and per message) are shown as attached ones are; `data:` stays refused in links and backgrounds |
 | 2026-10-26 | patch | Authentication results, and every other trace or authentication header, are read as the receiving server wrote them: encoded-words are decoded only where RFC 2047 allows them (`Subject`, `Comments`, `Organization`, `Thread-Topic`, `Keywords`, the names of addresses and of attachments) |
 | 2026-10-26 | minor | #508: sender warnings (a failed check, a name that hides another address, a lookalike sender, a link that goes somewhere else, External), what they rest on and what they don't; vouching's reading of the server's verdict moved to `crates/model/src/auth_results.rs` |
 | 2026-10-26 | minor | #508: a failed check reads any sender's address and holds for the owner's own addresses, `compauth=pass` overrides it; Safe Links unwrapped, other link rewriters not compared; only exact `xn--` labels read; direction marks stripped, full-width `＠`, one-word names |

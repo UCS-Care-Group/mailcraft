@@ -42,6 +42,11 @@ impl Tag<'_> {
         self.attrs.iter().map(|(n, v)| (*n, unescape(v)))
     }
 
+    /// An attribute's value as written, character references and all.
+    pub fn raw_attr(&self, name: &str) -> Option<&str> {
+        self.attrs.iter().find(|(n, _)| n.eq_ignore_ascii_case(name)).map(|(_, v)| *v)
+    }
+
     /// Whether the tag has the attribute, with or without a value.
     pub fn has(&self, name: &str) -> bool {
         self.attrs.iter().any(|(n, _)| n.eq_ignore_ascii_case(name))
@@ -67,6 +72,11 @@ pub(crate) struct Tokenizer<'a> {
 impl<'a> Tokenizer<'a> {
     pub fn new(src: &'a str) -> Tokenizer<'a> {
         Tokenizer { src, pos: 0, raw: None }
+    }
+
+    /// How far into the input the tokens given so far go, in bytes.
+    pub fn pos(&self) -> usize {
+        self.pos
     }
 
     fn bytes(&self) -> &'a [u8] {
