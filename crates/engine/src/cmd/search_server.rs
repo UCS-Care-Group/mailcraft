@@ -89,7 +89,7 @@ pub struct ServerSearch {
     /// Counts the searches: a request carries it, and an answer for another is not taken in.
     pub ticket: u64,
     /// The search these are for: the query, the scope, and the folder in view.
-    key: Option<(String, Scope, Id, Option<(Date, Weekday)>)>,
+    key: Option<(String, Scope, Id, Option<(Date, Weekday)>, Option<String>)>,
     pub mailboxes: Vec<Searched>,
     /// Newest first.
     pub results: Vec<ServerResult>,
@@ -124,9 +124,10 @@ impl ServerSearch {
 }
 
 /// What the search in view is, for [`ServerSearch`]'s key: with the day it is made on and the
-/// first day of the week when it needs them, as `received:today` is another search tomorrow
-/// (#329); another search keeps what the server found past midnight.
-fn key_of(s: &Session) -> (String, Scope, Id, Option<(Date, Weekday)>) {
+/// first day of the week when it needs them, as `received:today` is another search tomorrow, and
+/// the zone when it has a date, as a day is other messages in another zone (#329); another search
+/// keeps what the server found past midnight.
+fn key_of(s: &Session) -> (String, Scope, Id, Option<(Date, Weekday)>, Option<String>) {
     // The folder in view, or for a mailbox's search its account: another folder of the same
     // account keeps what the server found.
     let place = match s.view.scope {
@@ -134,8 +135,10 @@ fn key_of(s: &Session) -> (String, Scope, Id, Option<(Date, Weekday)>) {
         Scope::Mailbox => s.mailbox.folder(s.view.folder).map_or(0, |f| f.account),
         Scope::Folder | Scope::Subfolders => s.view.folder,
     };
-    let day = Query::parse(&s.view.search).needs_day().then(|| (s.today(), s.prefs.week_start));
-    (s.view.search.clone(), s.view.scope, place, day)
+    let query = Query::parse(&s.view.search);
+    let day = query.needs_day().then(|| (s.today(), s.prefs.week_start));
+    let zone = query.has_dates().then(|| s.zone_key());
+    (s.view.search.clone(), s.view.scope, place, day, zone)
 }
 
 /// The mailboxes the search in view would go to: each with the server id of the folder to search
@@ -287,7 +290,7 @@ pub fn apply(s: &mut Session, result: GraphSearchResult) -> CmdResult {
             continue;
         }
         let shown = as_message(account, folder, found);
-        if !local.is_empty() && !local.matches(&shown, s.offset_at(shown.date)) {
+        if !local.is_empty() && !local.matches_in(&shown, |at| s.offset_at(at)) {
             continue;
         }
         taken.push(ServerResult { account, folder, found: found.clone(), opened: None });

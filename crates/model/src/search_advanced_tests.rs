@@ -175,7 +175,7 @@ fn keywords_that_would_not_be_read_at_the_end_go_at_the_start() {
     // Past the terms the search keeps.
     let many = "w ".repeat(70);
     let w = written(&many, |a| a.from = "ada".into());
-    assert!(w.starts_with("from:ada w "));
+    assert_eq!(w, format!("from:ada {many}"));
     assert_eq!(read(&w).from, "ada");
 }
 

@@ -555,6 +555,13 @@ fn a_search_for_today_or_this_week_goes_by_the_sessions_day() {
     s.clock = Clock { now: Some(noon(27) - 7 * 3600 - 30 * 60), offset: Some(-300), zone: None };
     assert_eq!(s.today(), Date::new(2026, 10, 26).unwrap());
     assert_eq!(run(&mut s, "view.search", json!({"query": "received:today"}))["found"], 1);
+    // Another zone on the same day is matched again: at 00:30 UTC on the 26th it is the 26th in
+    // UTC and 13 hours east of it, where the message of the 26th came in on the 27th.
+    s.clock = Clock { now: Some(noon(26) - 11 * 3600 - 30 * 60), offset: Some(0), zone: None };
+    assert_eq!(run(&mut s, "view.search", json!({"query": "received:today 26th"}))["found"], 1);
+    s.clock.offset = Some(13 * 60);
+    assert_eq!(s.today(), Date::new(2026, 10, 26).unwrap());
+    assert_eq!(s.rows().len(), 0);
 }
 
 /// A list shows what a message says to its reader: the HTML's words when there is HTML, never

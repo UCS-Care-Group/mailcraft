@@ -86,6 +86,22 @@ fn a_range_counts_days_where_the_owner_is() {
     assert!(!q.matches(&late, 60) && q.matches(&late, 0));
 }
 
+/// Each time is on the clock of its own instant: a message sent in summer time and received in
+/// winter time is received on the day the clock said when it came in.
+#[test]
+fn the_day_received_is_by_the_offset_when_it_came_in() {
+    // Received at 23:30 UTC on the 26th, sent on the 23rd: UTC from the 25th at 01:00, UTC+1
+    // before.
+    let late = at(day(2026, 10, 26), 23, 30);
+    let change = DateTime::new(day(2026, 10, 25), 1, 0, 0).unwrap().civil_seconds();
+    let offset = |instant: i64| if instant < change { 60 } else { 0 };
+    assert!(offset(late.date) != offset(late.received), "the clocks changed between the two");
+    assert!(Query::parse("received:2026-10-26").matches_in(&late, offset));
+    assert!(!Query::parse("received:2026-10-27").matches_in(&late, offset));
+    // The clock of when it was sent would put it on the 27th.
+    assert!(Query::parse("received:2026-10-27").matches(&late, offset(late.date)));
+}
+
 /// What isn't a range or a date is text, as a date that can't be read is today: it finds no day
 /// by its date, and is drawn as text.
 #[test]
@@ -137,8 +153,8 @@ fn a_range_is_one_pill_and_stays_off_the_server() {
 fn a_range_beside_what_an_index_knows() {
     let q = Query::parse("budget received:2026-10-21..2026-10-23");
     let index_says_yes = |i: usize| (i == 0).then_some(true);
-    assert!(q.matches_with(&on(2026, 10, 22), 0, index_says_yes));
-    assert!(!q.matches_with(&on(2026, 10, 25), 0, index_says_yes));
+    assert!(q.matches_with(&on(2026, 10, 22), |_| 0, index_says_yes));
+    assert!(!q.matches_with(&on(2026, 10, 25), |_| 0, index_says_yes));
 }
 
 /// The first and last days there are: no day falls off either end.
@@ -308,8 +324,8 @@ fn a_search_not_made_on_a_day_finds_nothing() {
 fn days_in_words_beside_what_an_index_knows() {
     let q = Query::parse("budget received:\"this week\"").on(monday(), Weekday::Sun);
     let index_says_yes = |i: usize| (i == 0).then_some(true);
-    assert!(q.matches_with(&on(2026, 10, 27), 0, index_says_yes));
-    assert!(!q.matches_with(&on(2026, 10, 24), 0, index_says_yes));
+    assert!(q.matches_with(&on(2026, 10, 27), |_| 0, index_says_yes));
+    assert!(!q.matches_with(&on(2026, 10, 24), |_| 0, index_says_yes));
 }
 
 /// At the calendar's first day there is nothing before it to name; at its last, no day after.

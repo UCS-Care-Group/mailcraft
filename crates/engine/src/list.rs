@@ -191,7 +191,7 @@ pub(crate) fn listing(s: &Session, decided: &HashMap<Id, bool>, searched: &HashM
                 && (query.is_empty()
                     || match decided.get(&m.id).or_else(|| searched.get(&m.id).filter(|_| m.body_is_kept())) {
                         Some(hit) => *hit,
-                        None => query.matches(m, s.offset_at(m.date)),
+                        None => query.matches_in(m, |at| s.offset_at(at)),
                     });
             // A selected message stays while it is selected, though it was read or its flag was
             // cleared; `in_view` above still applies, so one deleted, or moved out of the folder in

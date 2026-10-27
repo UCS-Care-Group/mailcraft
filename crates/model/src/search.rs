@@ -27,7 +27,7 @@
 
 use std::ops::{Bound, Range, RangeBounds};
 
-use mailcraft_time::{Date, DateTime, Weekday};
+use mailcraft_time::{Date, DateTime, Timestamp, Weekday};
 
 use crate::words::{self, ATTACHMENT, BODY, CC, FROM, SUBJECT, TO};
 use crate::{Address, Category, FlagStatus, Importance, Message, Rgb, contains_ci};
@@ -846,6 +846,12 @@ impl Query {
         self.terms.iter().any(|t| matches!(t.kind, Kind::Dated(_)))
     }
 
+    /// Whether any term is a date (`received:`, `on:`, `before:`, `after:`): such a search finds
+    /// other messages in another zone.
+    pub fn has_dates(&self) -> bool {
+        self.terms.iter().any(|t| matches!(t.kind, Kind::Before(_) | Kind::After(_) | Kind::On(_) | Kind::Received(..) | Kind::Dated(_)))
+    }
+
     /// Whether any term reads a message's text (a bare word, or `body:`): such a search wants the
     /// bodies of the messages it looks at in memory.
     pub fn reads_bodies(&self) -> bool {
@@ -950,15 +956,23 @@ impl Query {
 
     /// Whether `m` matches every term. Dates compare in a zone `offset_minutes` east of UTC.
     pub fn matches(&self, m: &Message, offset_minutes: i32) -> bool {
-        self.matches_with(m, offset_minutes, |_| None)
+        self.matches_with(m, |_| offset_minutes, |_| None)
     }
 
-    /// [`Query::matches`], with what `known` says of a term (whether `m` has what term `i` asks
+    /// [`Query::matches`] in a zone whose offset (minutes east of UTC) `offset` gives at an
+    /// instant: when it was sent and when it came in each fall on their own day, a change of the
+    /// clocks between the two or not (#329).
+    pub fn matches_in(&self, m: &Message, offset: impl Fn(Timestamp) -> i32) -> bool {
+        self.matches_with(m, offset, |_| None)
+    }
+
+    /// [`Query::matches_in`], with what `known` says of a term (whether `m` has what term `i` asks
     /// for, before its `-`; a word index's answer) in place of looking at `m`; `None`: look.
-    pub fn matches_with(&self, m: &Message, offset_minutes: i32, known: impl Fn(usize) -> Option<bool>) -> bool {
-        let day = || DateTime::from_timestamp(m.date, offset_minutes).date;
+    pub fn matches_with(&self, m: &Message, offset: impl Fn(Timestamp) -> i32, known: impl Fn(usize) -> Option<bool>) -> bool {
+        let local = |at: Timestamp| DateTime::from_timestamp(at, offset(at)).date;
+        let day = || local(m.date);
         // When it came in; a message that doesn't say is taken to have come in when it was sent.
-        let received = || DateTime::from_timestamp(if m.received != 0 { m.received } else { m.date }, offset_minutes).date;
+        let received = || local(if m.received != 0 { m.received } else { m.date });
         // A date that needs the day the search is made on finds nothing without it, `-` or not.
         if self.needs_day() {
             return false;
@@ -1071,8 +1085,8 @@ mod tests {
         let m = msg();
         assert!(q.matches(&m, 0));
         // An index that says the message has "invoice": excluded; that it lacks "budget": too.
-        assert!(!q.matches_with(&m, 0, |i| (i == 1).then_some(true)));
-        assert!(!q.matches_with(&m, 0, |i| (i == 0).then_some(false)));
+        assert!(!q.matches_with(&m, |_| 0, |i| (i == 1).then_some(true)));
+        assert!(!q.matches_with(&m, |_| 0, |i| (i == 0).then_some(false)));
         assert!(!Query::parse("subject:x").reads_bodies() && Query::parse("body:x").reads_bodies());
     }
 
