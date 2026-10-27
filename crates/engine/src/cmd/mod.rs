@@ -257,15 +257,15 @@ pub(crate) fn select_after_removal(s: &mut Session, before: &[Row], removed: &[I
         return;
     }
     let rows = crate::list::rows(s);
-    // Where each row is listed now: a message's own row under its open conversation, and the row
-    // of each message a row stands for (which of its rows, arranged by categories).
-    let mut now: HashMap<(Id, u16, bool), usize> = HashMap::new();
+    // Where each message is listed now: its own row under its open conversation, and the row it
+    // is one of.
+    let mut now: HashMap<(Id, bool), usize> = HashMap::new();
     for (i, r) in rows.iter().enumerate() {
         if r.under.is_some() {
-            now.entry((r.id, 0, true)).or_insert(i);
+            now.entry((r.id, true)).or_insert(i);
         } else {
             for m in &r.members {
-                now.entry((*m, r.copy, false)).or_insert(i);
+                now.entry((*m, false)).or_insert(i);
             }
         }
     }
@@ -277,8 +277,8 @@ pub(crate) fn select_after_removal(s: &mut Session, before: &[Row], removed: &[I
             .iter()
             .skip(i)
             .find_map(|r| match r.under {
-                Some(_) => now.get(&(r.id, 0, true)).copied(),
-                None => r.members.iter().filter(|m| !gone.contains(m)).find_map(|m| now.get(&(*m, r.copy, false)).copied()),
+                Some(_) => now.get(&(r.id, true)).copied(),
+                None => r.members.iter().filter(|m| !gone.contains(m)).find_map(|m| now.get(&(*m, false)).copied()),
             })
             .and_then(|j| rows.get(j))
             .or_else(|| rows.last())

@@ -993,3 +993,13 @@ fn opening_more_conversations_than_are_kept_open_never_closes_one_with_a_message
     assert!(s.run("mail.expandConversation", &json!({"id": heads[1]})).is_err());
     assert_eq!(s.view.open, open);
 }
+
+#[test]
+fn after_deleting_the_last_row_the_one_above_it_is_selected() {
+    let (mut s, ..) = release_checklist();
+    let rows = s.rows();
+    let [above, last] = [rows.len() - 2, rows.len() - 1].map(|i| rows[i].id);
+    run(&mut s, "mail.select", json!({"id": last}));
+    run(&mut s, "mail.delete", json!({}));
+    assert_eq!(s.sel.messages, [above]);
+}
