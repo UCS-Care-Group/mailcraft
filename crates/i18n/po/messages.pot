@@ -179,6 +179,11 @@ msgid "6 months"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/mail_view/columns.rs
+msgid "<- Remove"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/credits.rs
 msgid "@{login}, testing since {since}"
 msgstr ""
@@ -459,6 +464,18 @@ msgid ""
 "Account"
 msgstr ""
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid ""
+"Add\n"
+"Columns"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/mail_view/columns.rs
+msgid "Add ->"
+msgstr ""
+
 #. command label, interface
 #: crates/engine/src/cmd/account.rs crates/ui-egui/src/account_setup.rs crates/ui-egui/src/backstage.rs
 msgid "Add Account"
@@ -467,6 +484,11 @@ msgstr ""
 #. command label
 #: crates/engine/src/cmd/calendar.rs
 msgid "Add Calendar"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/mail_view/columns.rs
+msgid "Add Columns…"
 msgstr ""
 
 #. interface
@@ -1105,6 +1127,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/ribbon.rs
 msgid "Automatic"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/mail_view/columns.rs
+msgid "Available columns:"
 msgstr ""
 
 #. interface
@@ -4615,6 +4642,11 @@ msgstr ""
 msgid "Move All and Send Invitations"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/mail_view/columns.rs
+msgid "Move Down"
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/calendar.rs
 msgid "Move Event"
@@ -4628,6 +4660,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 msgid "Move Recurring Item"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/mail_view/columns.rs
+msgid "Move Up"
 msgstr ""
 
 #. interface
@@ -5312,7 +5349,7 @@ msgid "Numbering"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/settings_notice.rs crates/ui-egui/src/updates.rs
+#: crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view/columns.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/settings_notice.rs crates/ui-egui/src/updates.rs
 msgid "OK"
 msgstr ""
 
@@ -6283,6 +6320,11 @@ msgid "Remove Shared Mailbox"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/mail_view/columns.rs
+msgid "Remove This Column"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/forms.rs
 msgid "Remove attendees"
 msgstr ""
@@ -7223,6 +7265,11 @@ msgid "Show Calendar"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "Show Columns"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "Show Contributors"
 msgstr ""
@@ -7337,6 +7384,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/nav.rs
 msgid "Show the folder pane"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/mail_view/columns.rs
+msgid "Show these columns in this order:"
 msgstr ""
 
 #. interface

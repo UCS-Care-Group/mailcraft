@@ -4,6 +4,7 @@
 use super::*;
 use crate::people_view::testing;
 use egui::PointerButton;
+use egui_kittest::kittest::Queryable as _;
 use mailcraft_engine::SortBy;
 
 #[test]
@@ -108,6 +109,98 @@ fn resizing_a_column_changes_width_without_sorting() {
     let after = w.state().session.prefs.columns.items.iter().find(|c| c.column == Column::From).unwrap().width;
     assert!(after > before, "{before} -> {after}");
     assert_eq!((w.state().session.view.sort, w.state().session.view.sort_descending), sort);
+}
+
+/// Press at `from`, move to `to` over a few frames, and let go.
+fn drag(w: &mut testing::Window, from: egui::Pos2, to: egui::Pos2) {
+    use egui::{Event, Modifiers};
+    w.run_steps(45);
+    w.input_mut().events.push(Event::PointerMoved(from));
+    w.step();
+    w.input_mut().events.push(Event::PointerButton { pos: from, button: PointerButton::Primary, pressed: true, modifiers: Modifiers::NONE });
+    w.step();
+    for k in 1..=6 {
+        w.input_mut().events.push(Event::PointerMoved(from + (to - from) * (k as f32 / 6.0)));
+        w.step();
+    }
+    w.input_mut().events.push(Event::PointerButton { pos: to, button: PointerButton::Primary, pressed: false, modifiers: Modifiers::NONE });
+    w.run_steps(2);
+}
+
+fn shown(w: &testing::Window) -> Vec<Column> {
+    w.state().session.prefs.columns.items.iter().map(|c| c.column).collect()
+}
+
+fn press(w: &mut testing::Window, kind: &str, id: u64) {
+    let at = w.state().hit.rect(kind, id).unwrap_or_else(|| panic!("no {kind} {id}")).center();
+    testing::click(w, at, PointerButton::Primary, 1);
+}
+
+#[test]
+fn show_columns_adds_moves_and_removes_as_outlooks_does() {
+    use Column::*;
+    let mut w = testing::window("view.mail");
+    w.state_mut().execute("ui.dismissReminder", json!({"all":true})).unwrap();
+    assert!(!w.state().session.prefs.columns.enabled);
+    w.state_mut().execute("ui.dialog", json!({"name": "showColumns"})).unwrap();
+    w.run_steps(2);
+    assert_eq!(testing::dialog(&w), Some("showColumns"));
+    // Size from the left goes to the end on the right, then up one.
+    press(&mut w, "columnAvailable", Size as u64);
+    press(&mut w, "columnsAdd", 0);
+    press(&mut w, "columnShown", Size as u64);
+    press(&mut w, "columnsUp", 0);
+    // From goes back to the left; Subject can't.
+    press(&mut w, "columnShown", From as u64);
+    press(&mut w, "columnsRemove", 0);
+    press(&mut w, "columnShown", Subject as u64);
+    press(&mut w, "columnsRemove", 0);
+    // Nothing changes before OK.
+    assert_eq!(shown(&w), [Importance, Attachments, From, Subject, Date, Flag]);
+    w.get_by_label("OK").click();
+    w.run_steps(2);
+    assert_eq!(testing::dialog(&w), None);
+    assert_eq!(shown(&w), [Importance, Attachments, Subject, Date, Size, Flag]);
+    assert!(w.state().session.prefs.columns.enabled, "OK shows the columns");
+}
+
+#[test]
+fn cancel_leaves_the_columns_as_they_were() {
+    let mut w = testing::window("view.mail");
+    w.state_mut().execute("ui.dismissReminder", json!({"all":true})).unwrap();
+    let before = w.state().session.prefs.columns.clone();
+    w.state_mut().execute("ui.dialog", json!({"name": "showColumns"})).unwrap();
+    w.run_steps(2);
+    press(&mut w, "columnAvailable", Column::Size as u64);
+    press(&mut w, "columnsAdd", 0);
+    w.get_by_label("Cancel").click();
+    w.run_steps(2);
+    assert_eq!(testing::dialog(&w), None);
+    assert_eq!(w.state().session.prefs.columns, before);
+}
+
+#[test]
+fn a_heading_dragged_along_moves_and_one_dragged_off_goes() {
+    use Column::*;
+    let mut w = testing::window("view.mail");
+    w.state_mut().execute("ui.dismissReminder", json!({"all":true})).unwrap();
+    w.state_mut().execute("view.readingPane", json!({"value":"off"})).unwrap();
+    w.state_mut().execute("view.columns", json!({"enabled":true})).unwrap();
+    w.run_steps(3);
+    let sort = (w.state().session.view.sort, w.state().session.view.sort_descending);
+    let head = |w: &testing::Window, c: Column| w.state().hit.rect("columnHeader", c as u64).unwrap();
+    // From, dropped past Date's middle, goes after Date, though the drag strayed onto the rows.
+    let (from, date) = (head(&w, From), head(&w, Date));
+    drag(&mut w, from.center(), pos2(date.max.x - 5.0, date.max.y + 30.0));
+    assert_eq!(shown(&w), [Importance, Attachments, Subject, Date, From, Flag]);
+    // Flag, dragged down off the row, is taken away; Subject is not.
+    let flag = head(&w, Flag).center();
+    drag(&mut w, flag, flag + vec2(0.0, 120.0));
+    assert_eq!(shown(&w), [Importance, Attachments, Subject, Date, From]);
+    let subject = head(&w, Subject).center();
+    drag(&mut w, subject, subject + vec2(0.0, 120.0));
+    assert_eq!(shown(&w), [Importance, Attachments, Subject, Date, From]);
+    assert_eq!((w.state().session.view.sort, w.state().session.view.sort_descending), sort, "a drag doesn't sort");
 }
 
 #[test]

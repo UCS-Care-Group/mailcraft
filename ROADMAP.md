@@ -185,6 +185,7 @@ follows:
 
 | Date | What landed |
 |---|---|
+| 2026-10-27 | #344, part 2: choosing the message list's columns, as in Outlook: View › Add Columns opens Show Columns (the columns there on the left, the ones shown in order on the right, Add, Remove, Move Up, Move Down, OK and Cancel; OK also turns the columns on); a heading's menu has Remove This Column and Add Columns; a heading dragged along the row moves its column, and one dragged off the row takes it away (Subject stays). |
 | 2026-10-27 | #344: an optional message-list column view, with a choice of fields, saved widths and order, and sortable headings. Local messages and server search results share the column layout; attachment and follow-up flag sorting are available. |
 | 2026-10-27 | #515: a message file (`.eml`) the system opens (a double click, a later start) is no longer filed into Imported: it opens read-only in a window of its own that holds the message in memory only (read as any message is, 64 MB at most; its own pictures shown, pictures on the web never fetched for it, attachments listed and opened once it is filed), so the mailbox gains nothing and closing the window leaves no trace. Move to Folder files it (one message, through `file.import`) and the window is about that message from then on; Save As writes the file. `ui.moveWindowMessage` and `ui.saveWindowMessage` are the owner's, never an agent's; `ui.inspect` lists the window as `file`. At most 12 windows. A file dropped on the window, or brought in with File › Import, is imported as before. Tests in `opened_message_tests.rs` |
 | 2026-10-27 | #454 (part 2): `link` and `html` use the one list of format characters in `crates/names` instead of copies of their own. A host in a web address still refuses every format character but the joiners where IDNA2008 allows them, and a link or picture address with any of them anywhere is still no link. Nothing in the window changes |
@@ -370,6 +371,7 @@ follows:
 
 | Date | Change |
 |---|---|
+| 2026-10-27 | #344 part 2: choosing the columns (progress log) |
 | 2026-10-27 | #344: the message list in columns, to choose and sort by (progress log) |
 | 2026-10-27 | #515: a message file opens without being filed (progress log) |
 | 2026-10-27 | #454 part 2: `link` and `html` on the one list of format characters (progress log) |
