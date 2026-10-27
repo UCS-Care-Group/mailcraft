@@ -3766,6 +3766,7 @@ fn the_selection_commands_take_anything_and_never_panic() {
 // ---- meetings that arrive as mail ----
 
 mod invitation;
+mod primary;
 mod remote_server;
 mod written_pictures;
 
