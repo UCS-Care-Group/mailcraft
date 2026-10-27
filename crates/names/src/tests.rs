@@ -63,7 +63,7 @@ fn the_joiners_are_two_format_characters() {
     assert!(joiners.iter().all(|c| is_format(*c)));
 }
 
-/// `Default_Ignorable_Code_Point` in Unicode 17.0 (`DerivedCoreProperties.txt`): 27 ranges, 4,174
+/// `Default_Ignorable_Code_Point` in Unicode 17.0 (`DerivedCoreProperties.txt`): 27 entries, 4,174
 /// code points.
 const DEFAULT_IGNORABLE: [(u32, u32); 27] = [
     (0x00ad, 0x00ad),
@@ -111,7 +111,9 @@ fn the_default_ignorables_are_format_characters_selectors_and_the_rest() {
     assert_eq!(all_chars().filter(|c| is_selector(*c)).count(), 260);
     assert_eq!(all_chars().filter(|c| is_ignorable(*c)).count(), 3776);
     assert!(all_chars().filter(|c| is_selector(*c) || is_ignorable(*c)).all(default_ignorable));
-    // The format characters that are not default-ignorable are drawn, or shape what is drawn.
+    // The format characters that are not default-ignorable: the Arabic number signs and the like,
+    // which are drawn, the Egyptian hieroglyph format controls, and the interlinear annotation
+    // characters, which Unicode wants seen where they are not supported.
     assert_eq!(all_chars().filter(|c| is_format(*c) && !default_ignorable(*c)).count(), 32);
 }
 
@@ -324,6 +326,35 @@ fn showing(text: &str) -> String {
         .collect()
 }
 
+/// The whole cleaning written another way, word by word, to hold the steps to: what is removed
+/// goes first, white space parts words, and in each word a variation selector stays right after
+/// a character that shows, and the last joiner between two of them stays.
+fn reference(text: &str) -> String {
+    let gone = |c: char| (c.is_control() && !c.is_whitespace()) || (is_format(c) && !is_joiner(c)) || is_ignorable(c);
+    let spaced: String = text.chars().filter(|c| !gone(*c)).map(|c| if c.is_whitespace() || c == '\u{2800}' { ' ' } else { c }).collect();
+    let mut words = Vec::new();
+    for word in spaced.split(' ') {
+        let chars: Vec<char> = word.chars().collect();
+        let shows: Vec<usize> = (0..chars.len()).filter(|i| !is_joiner(chars[*i]) && !is_selector(chars[*i])).collect();
+        let mut out = String::new();
+        for (k, at) in shows.iter().enumerate() {
+            let next = shows.get(k + 1).copied();
+            let gap = &chars[at + 1..next.unwrap_or(chars.len())];
+            out.push(chars[*at]);
+            if let Some(selector) = gap.first().filter(|c| is_selector(**c)) {
+                out.push(*selector);
+            }
+            if let Some(joiner) = gap.iter().rev().find(|c| is_joiner(**c)).filter(|_| next.is_some()) {
+                out.push(*joiner);
+            }
+        }
+        if !out.is_empty() {
+            words.push(out);
+        }
+    }
+    words.join(" ")
+}
+
 /// Whether `name`, cut from `full` for `max` characters, is as long as it could be: the next
 /// character that shows, with the space or joiner before it, or the variation selector after the
 /// last, would not have fitted.
@@ -356,6 +387,7 @@ proptest! {
     #[test]
     fn incoming_names_are_clean_short_and_stay_as_they_are(text in name_text(), max in 0usize..40) {
         let full = incoming(&text, usize::MAX).unwrap_or_default();
+        prop_assert_eq!(&full, &reference(&text), "from {:?}", text);
         prop_assert_eq!(showing(&full), showing(&text));
         prop_assert!(is_clean(&full), "{:?} from {:?}", full, text);
         match incoming(&text, max) {

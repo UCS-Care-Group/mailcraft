@@ -17,8 +17,8 @@
 //!
 //! A name loses control characters, format characters and the rest of Unicode's default-ignorable
 //! code points (`Default_Ignorable_Code_Point`, Unicode 17.0: the Hangul fillers, the combining
-//! grapheme joiner and the code points Unicode keeps for more such characters, which show
-//! nothing; a name of them alone would look empty). The format characters that are drawn, such
+//! grapheme joiner, the Khmer inherent vowels and the code points Unicode keeps for more such
+//! characters, which show nothing; a name of them alone would look empty). The format characters that are drawn, such
 //! as the Arabic number signs, go too. The braille blank, which shows nothing either, parts words
 //! as white space does.
 //!
@@ -82,16 +82,17 @@ pub fn is_joiner(c: char) -> bool {
 }
 
 /// A name as it is kept: one line (a line break, a tab or any other white space parts words, and
-/// words are parted by one space), without control characters or characters that show nothing (a
-/// joiner inside a word and one variation selector after a character stay), trimmed, at most
-/// `max` characters. `None` when nothing is left.
+/// words are parted by one space), without control characters or the characters Unicode marks as
+/// showing nothing (a joiner inside a word and one variation selector after a character stay),
+/// trimmed, at most `max` characters. `None` when nothing is left.
 pub fn incoming(text: &str, max: usize) -> Option<String> {
     let (name, _) = clean(text, max);
     (!name.is_empty()).then_some(name)
 }
 
 /// A name as it is shown: cleaned as [`incoming`] cleans it, and at most `max` characters, the
-/// last of them an ellipsis when the name was longer. Empty when nothing is left.
+/// last of them an ellipsis when the name was longer (at a length of 0, nothing). Empty when
+/// nothing is left.
 pub fn shown(text: &str, max: usize) -> String {
     let (name, cut) = clean(text, max);
     if !cut || max == 0 {
