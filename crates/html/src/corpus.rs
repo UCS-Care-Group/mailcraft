@@ -50,6 +50,12 @@ pub const STYLE_CARD: &str = include_str!("../corpus/style_card.html");
 /// with a line under each row (#71).
 pub const STYLE_BOXES: &str = include_str!("../corpus/style_boxes.html");
 
+/// A charity's open-day notice that lays things out as boxes on a line (`display: inline-block`,
+/// #597): a small picture at the start of a long sentence, two 260-pixel columns that stand side
+/// by side inside a `font-size:0` row, and three links drawn as buttons of different looks (filled,
+/// framed, tinted) that wrap when the line is full.
+pub const STYLE_INLINE: &str = include_str!("../corpus/style_inline.html");
+
 /// An order confirmation: a grid of order facts, and a data table with a header row, right-aligned
 /// amounts, spanning total rows and lines under the rows.
 pub const RECEIPT: &str = include_str!("../corpus/receipt.html");
@@ -110,6 +116,7 @@ pub fn messages() -> Vec<(&'static str, &'static str)> {
         ("style width table", STYLE_WIDTH_TABLE),
         ("style card", STYLE_CARD),
         ("style boxes", STYLE_BOXES),
+        ("style inline", STYLE_INLINE),
     ]
 }
 
@@ -165,6 +172,11 @@ pub fn hostile() -> Vec<(&'static str, String)> {
             (0..8_000).map(|i| format!("<img src='cid:p{i}' alt='p{i}'><img src='https://example.org/{i}.png' width=40 height=40>")).collect(),
         ),
         ("many rules", "<hr>text".repeat(100_000)),
+        ("many inline boxes", "<span style='display:inline-block;padding:2px 9px;background:#eef'>b</span> ".repeat(8_000)),
+        (
+            "deep inline boxes",
+            format!("{}DEEP-INLINE{}", "<div style='display:inline-block;padding:1px;border:1px solid red'>".repeat(5_000), "</div>".repeat(5_000)),
+        ),
         ("strange text", strange),
         ("preformatted", format!("<pre>{}</pre>", "    indented\tcode line with    spaces\n".repeat(20_000))),
     ]

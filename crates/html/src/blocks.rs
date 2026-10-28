@@ -14,8 +14,8 @@ use crate::entities::unescape;
 use crate::style::{self, Css, MsoList, Size};
 use crate::tokenizer::{Tag, Token, Tokenizer};
 use crate::{
-    Align, Block, BlockKind, Cell, Insets, Length, Line, LineHeight, MAX_BLOCKS, MAX_BOX_PX, MAX_CELLS, MAX_INPUT, MAX_ROW_SPAN, MAX_TABLE_COLUMNS,
-    MAX_TABLE_DEPTH, MAX_TABLE_ROWS, Marker, Rgb, Row, Sides, Span, Table, VAlign, is_blank, is_safe_url, truncate,
+    Align, Block, BlockKind, Cell, Insets, Length, Line, LineHeight, MAX_BLOCKS, MAX_BOX_PX, MAX_CELLS, MAX_INLINE_BOXES, MAX_INPUT, MAX_ROW_SPAN,
+    MAX_TABLE_COLUMNS, MAX_TABLE_DEPTH, MAX_TABLE_ROWS, Marker, Rgb, Row, Sides, Span, Table, VAlign, is_blank, is_safe_url, truncate,
 };
 
 /// Deepest nesting of elements that is tracked; what is nested deeper keeps its text and loses its
@@ -294,6 +294,8 @@ struct BoxBuild {
     radius: u8,
     /// The room left and right of the box.
     margin: [u8; 2],
+    /// `display: inline-block`: a box on a line.
+    inline: bool,
 }
 
 #[derive(Debug)]
@@ -324,6 +326,7 @@ struct TableBuild {
     /// The row being read is the last one this table may have.
     last_row: bool,
     spacing: Option<u8>,
+    inline: bool,
 }
 
 #[derive(Debug)]
@@ -360,6 +363,8 @@ enum Kind {
     /// Outlook's written-out list marker (`mso-list:Ignore`): not shown, read for the marker.
     Marker,
     Block(BlockNode),
+    /// An `<a>` or `<span>` laid out as a box on a line; `true` for a formatting element (`<a>`).
+    InlineBox(Box<BoxBuild>, bool),
     List {
         /// The number of the next item of an ordered list.
         next: Option<u32>,
@@ -412,6 +417,8 @@ struct Frame {
     space: u8,
     /// The pixels of margin waiting for the next block.
     gap: u8,
+    /// The last thing added was a box on a line, and nothing has ended its line since.
+    after_box: bool,
     outer: Context,
 }
 
@@ -461,6 +468,8 @@ struct Builder {
     /// The last thing added was a picture, and the line it is in goes on: what comes next in
     /// that line, before a line break or a block of its own, stands beside it.
     after_picture: bool,
+    /// Boxes on a line made so far ([`MAX_INLINE_BOXES`]).
+    inline_boxes: usize,
     /// Whether the pictures written into the message are decoded (not when only text is wanted).
     decode: bool,
     /// What those have taken so far.
@@ -497,6 +506,7 @@ impl Builder {
             pre_start: false,
             template: 0,
             after_picture: false,
+            inline_boxes: 0,
             decode,
             budget: Budget::default(),
         }
@@ -643,6 +653,7 @@ impl Builder {
         if self.hidden > 0 || self.style().tiny {
             return;
         }
+        self.frame().after_box = false;
         if self.pre > 0 {
             self.push('\n');
             return;
@@ -761,6 +772,7 @@ impl Builder {
         }
         self.count = self.count.saturating_add(1);
         let frame = self.frame();
+        frame.after_box = false;
         block.space = if frame.blocks.is_empty() { 0 } else { frame.space.min(MAX_SPACE) };
         block.gap = if frame.blocks.is_empty() { 0 } else { frame.gap };
         frame.space = 0;
@@ -1012,6 +1024,16 @@ impl Builder {
         }
     }
 
+    /// Whether an element with this style is a box on a line (`display: inline-block`) that the
+    /// message may still have: counts it when it is.
+    fn take_inline_box(&mut self, css: &Css) -> bool {
+        let yes = css.inline_block && self.inline_boxes < MAX_INLINE_BOXES && self.frames.len() < MAX_TABLE_DEPTH && self.hidden == 0;
+        if yes {
+            self.inline_boxes += 1;
+        }
+        yes
+    }
+
     /// Start collecting blocks apart, for a cell or a block with a background.
     fn enter_frame(&mut self) {
         self.flush();
@@ -1024,7 +1046,7 @@ impl Builder {
             mso_item: std::mem::take(&mut self.mso_item),
             inset: std::mem::take(&mut self.inset),
         };
-        self.frames.push(Frame { blocks: Vec::new(), space: 0, gap: 0, outer });
+        self.frames.push(Frame { blocks: Vec::new(), space: 0, gap: 0, after_box: false, outer });
     }
 
     /// The blocks collected since [`Builder::enter_frame`].
@@ -1060,6 +1082,7 @@ impl Builder {
             }
             Kind::Block(block) => {
                 self.flush();
+                self.frame().after_box = false;
                 if block.mso {
                     self.item = None;
                     self.mso_item = false;
@@ -1079,6 +1102,10 @@ impl Builder {
                 if block.margin {
                     self.want_space(1);
                 }
+            }
+            Kind::InlineBox(boxed, _) => {
+                let blocks = self.exit_frame();
+                self.end_box(*boxed, blocks);
             }
             Kind::List { margin, .. } => {
                 self.flush();
@@ -1149,8 +1176,14 @@ impl Builder {
             radius: boxed.radius,
             ..Table::default()
         };
-        let block = Block { quote: self.quote_depth(), align: boxed.align, inset: boxed.margin, ..Block::new(BlockKind::Table(table), Vec::new()) };
+        // A box on a line stands where the text-align of what holds it puts the line.
+        let align = if boxed.inline { self.style().align } else { boxed.align };
+        let table = Table { inline: boxed.inline, ..table };
+        // A box that follows another with nothing between them stands in its line.
+        let beside = boxed.inline && self.frame().after_box;
+        let block = Block { quote: self.quote_depth(), align, beside, inset: boxed.margin, ..Block::new(BlockKind::Table(table), Vec::new()) };
         self.emit(block, true);
+        self.frame().after_box = boxed.inline;
     }
 
     fn end_cell(&mut self, cell: CellBuild, blocks: Vec<Block>) {
@@ -1255,6 +1288,7 @@ impl Builder {
             && !framed
             && !table.border
             && table.margin == [0, 0]
+            && !table.inline
             && !matches!(table.width, Some(Length::Px(_)));
         let picture = |cell: &Cell| !cell.blocks.is_empty() && cell.blocks.iter().all(|b| matches!(b.kind, BlockKind::Image { .. }));
         let slices = rows.len() >= 2 && rows.iter().all(|r| r.cells.iter().all(picture));
@@ -1283,6 +1317,7 @@ impl Builder {
             lines: table.lines,
             radius: table.radius,
             spacing: table.spacing,
+            inline: table.inline,
         });
         let block = Block { quote: self.quote_depth(), align: table.align, inset: table.margin, ..Block::new(kind, Vec::new()) };
         self.emit(block, true);
@@ -1309,6 +1344,7 @@ impl Builder {
             full: false,
             last_row: false,
             spacing: None,
+            inline: false,
         };
         if !self.push_node("table", Kind::Table(Box::new(build)), Delta::default(), false) {
             return None;
@@ -1341,6 +1377,7 @@ impl Builder {
             full: false,
             last_row: false,
             spacing: css.spacing.or_else(|| tag.attr("cellspacing").and_then(|v| style::spacing(&v))),
+            inline: self.take_inline_box(&css),
         };
         let hidden = css.hidden || tag.has("hidden");
         self.want_gap(css.margin_insets().top);
@@ -1544,6 +1581,34 @@ impl Builder {
         delta.background = css.background.or(delta.background);
         delta.hooked = hooked(tag);
         let marker = css.mso_list == Some(MsoList::Ignore);
+        let hidden = marker || css.hidden || tag.has("hidden");
+        // A box on a line, with something to show of its own: it becomes a block of its own.
+        let asks = css.background.is_some() || css.framed() || css.padding_insets().is_some() || box_width(&css).is_some();
+        if asks && !hidden && self.take_inline_box(&css) {
+            self.flush();
+            self.after_picture = false;
+            let margins = css.margin_insets();
+            let background = css.background.filter(|bg| !(near_white(*bg) && !self.tinted()) && Some(*bg) != self.backdrop());
+            let outline = css.framed();
+            let boxed = BoxBuild {
+                background,
+                outline,
+                width: box_width(&css),
+                align: Align::Left,
+                padding: css.padding_insets(),
+                lines: if outline { css.lines } else { [Line::default(); 4] },
+                radius: if background.is_some() || outline { css.radius } else { 0 },
+                margin: [margins.left, margins.right],
+                inline: true,
+            };
+            delta.background = None;
+            if self.push_node(name, Kind::InlineBox(Box::new(boxed), format), delta, false) {
+                self.enter_frame();
+            } else {
+                self.inline_overflow = self.inline_overflow.saturating_add(1);
+            }
+            return;
+        }
         let kind = if marker {
             Kind::Marker
         } else if format {
@@ -1551,7 +1616,7 @@ impl Builder {
         } else {
             Kind::Inline
         };
-        if !self.push_node(name, kind, delta, marker || css.hidden || tag.has("hidden")) {
+        if !self.push_node(name, kind, delta, hidden) {
             self.inline_overflow = self.inline_overflow.saturating_add(1);
         } else if marker {
             self.capture = self.capture.saturating_add(1);
@@ -1563,9 +1628,10 @@ impl Builder {
             self.inline_overflow -= 1;
             return;
         }
-        let Some(index) =
-            self.find(|n| n.name == name && matches!(n.kind, Kind::Format), |k| matches!(k, Kind::Cell(_) | Kind::Row(_) | Kind::Table(_)))
-        else {
+        let Some(index) = self.find(
+            |n| n.name == name && matches!(n.kind, Kind::Format | Kind::InlineBox(_, true)),
+            |k| matches!(k, Kind::Cell(_) | Kind::Row(_) | Kind::Table(_)),
+        ) else {
             return;
         };
         let node = self.nodes.remove(index);
@@ -1582,11 +1648,11 @@ impl Builder {
         let mut target = None;
         for (i, node) in self.nodes.iter().enumerate().rev() {
             match &node.kind {
-                Kind::Inline | Kind::Marker if node.name == name => {
+                Kind::Inline | Kind::Marker | Kind::InlineBox(_, false) if node.name == name => {
                     target = Some(i);
                     break;
                 }
-                Kind::Inline | Kind::Marker | Kind::Format => {}
+                Kind::Inline | Kind::Marker | Kind::Format | Kind::InlineBox(..) => {}
                 _ => break,
             }
         }
@@ -1607,6 +1673,7 @@ impl Builder {
     fn open_block(&mut self, name: &'static str, tag: &Tag<'_>) {
         self.close_paragraph();
         self.flush();
+        let line_before = std::mem::take(&mut self.frame().after_box);
         let css = css_of(tag);
         let mut delta = Delta { hooked: hooked(tag), ..Delta::of(&css) };
         if name == "center" {
@@ -1628,18 +1695,26 @@ impl Builder {
         // from style sheets); any other `<p>` has one unless it says it has none.
         let outlook = tag.attr("class").is_some_and(|c| c.split_whitespace().any(|c| c.starts_with("Mso")));
         let paragraph = name == "p" && !outlook;
-        let margin_above = css.margin_top_zero.map_or(paragraph, |zero| !zero);
-        let margin_below = css.margin_bottom_zero.map_or(paragraph, |zero| !zero);
+        // A box on a line (`display: inline-block`) that has something to show of its own: padding,
+        // a background, a frame or a width. Without them it is a block as any other.
+        let asks = background.is_some() || css.framed() || css.padding_insets().is_some() || box_width(&css).is_some();
+        let inline = asks && name != "body" && self.take_inline_box(&css);
+        if inline {
+            self.frame().after_box = line_before;
+        }
+        let margin_above = !inline && css.margin_top_zero.map_or(paragraph, |zero| !zero);
+        let margin_below = !inline && css.margin_bottom_zero.map_or(paragraph, |zero| !zero);
         // White on what is white anyway is no background, and neither is the colour all around.
         let background = background.filter(|bg| !(near_white(*bg) && !self.tinted()) && Some(*bg) != self.backdrop());
         let outline = css.framed();
         let [top, _, bottom, left] = css.borders;
         // (Only a `max-width` makes a block a card; automatic margins alone have nothing to centre.)
         let capped = css.max_width.filter(|_| !paragraph && name != "body");
-        let boxed = (background.is_some() || outline || capped.is_some()) && self.frames.len() < MAX_TABLE_DEPTH;
+        let boxed = (background.is_some() || outline || capped.is_some() || inline) && self.frames.len() < MAX_TABLE_DEPTH;
         let padding = css.padding_insets().unwrap_or_default();
-        let margins = css.margin_insets();
-        let quote = left && !outline;
+        // (A box on a line takes no margins above and below: the lines of boxes have their own gap.)
+        let margins = if inline { Insets { top: 0, bottom: 0, ..css.margin_insets() } } else { css.margin_insets() };
+        let quote = left && !outline && !inline;
         // A box keeps its padding inside it; any other block has it as room round what it holds.
         // (A quote has its own indent, and an Outlook list paragraph its level's.)
         let mso = matches!(css.mso_list, Some(MsoList::Level(_)));
@@ -1649,15 +1724,16 @@ impl Builder {
             margin: margin_below,
             gap: room(margins.bottom, padding.bottom, !boxed),
             quote,
-            rule: bottom && !outline,
+            rule: bottom && !outline && !inline,
             rule_line: css.lines[2],
             inset: if plain { [room(margins.left, padding.left, !quote), room(margins.right, padding.right, true)] } else { [0, 0] },
             mso,
             boxed: boxed.then_some(BoxBuild {
                 background,
                 outline,
-                width: capped.or(Some(Length::Percent(100))),
+                width: if inline { box_width(&css) } else { capped.or(Some(Length::Percent(100))) },
                 align: if css.centred() && capped.is_some() { Align::Center } else { Align::Left },
+                inline,
                 padding: css.padding_insets(),
                 lines: if outline { css.lines } else { [Line::default(); 4] },
                 radius: if background.is_some() || outline { css.radius } else { 0 },
@@ -1668,7 +1744,7 @@ impl Builder {
             self.want_space(1);
         }
         self.want_gap(room(margins.top, padding.top, !boxed));
-        if top && !outline {
+        if top && !outline && !inline {
             self.rule(css.lines[0]);
         }
         let (quote, mso, inset) = (node.quote, node.mso, node.inset);
@@ -1924,6 +2000,12 @@ fn sized(css: &Css, attr: Option<Length>) -> Option<Length> {
         (Some(Percent(w)), Some(Px(_))) => Some(Percent(w)),
         (None, Some(Percent(m))) => Some(Percent(m)),
     }
+}
+
+/// The width a box on a line asks for. The whole line (`width:100%`, what column builders write
+/// on every column) is what a block has anyway, and asks for nothing.
+fn box_width(css: &Css) -> Option<Length> {
+    sized(css, None).filter(|w| *w != Length::Percent(100))
 }
 
 fn css_of(tag: &Tag<'_>) -> Css {
