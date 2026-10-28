@@ -1569,6 +1569,63 @@ fn a_picture_too_large_is_pasted_by_neither() {
     }
 }
 
+#[test]
+fn a_picture_too_big_for_a_signature_as_it_is_is_made_smaller_by_the_menu_and_ctrl_v() {
+    // Within the side a paste takes, but more than a signature keeps as it is (noise doesn't
+    // compress): made smaller and added, as the signature's Paste Picture does.
+    let big = crate::tests::big_png(400);
+    assert!(big.len() > mailcraft_model::signature::MAX_PICTURE_BYTES);
+    for menu in [true, false] {
+        let board = Board::default();
+        board.0.borrow_mut().image = Some(big.clone());
+        let (_, _, added) = pasted(Into::Signature, &board, menu);
+        assert_eq!(added, 1, "menu: {menu}");
+    }
+    // And a paste that brings no text, where the editor reads the clipboard's picture itself.
+    let board = Board::default();
+    board.0.borrow_mut().image = Some(big);
+    let mut h = signature_page(&board);
+    let start = h.state().hit.rect("signatureBody", 0).expect("the signature").min + vec2(1.0, 8.0);
+    click(&mut h, start, PointerButton::Primary);
+    settle(&mut h, 2);
+    let pictures = |h: &Window| h.state().session.signature_edit.as_ref().unwrap().signature.pictures().len();
+    let before = pictures(&h);
+    frame(&mut h, vec![Event::Paste(String::new())]);
+    settle(&mut h, 3);
+    assert_eq!(pictures(&h) - before, 1, "a paste with no text");
+}
+
+#[test]
+fn a_dialog_leaves_the_keyboard_to_its_fields_menu() {
+    // A dialog that keeps the keyboard on its one field takes it back from anything else, but
+    // not from an item of that field's own menu.
+    let board = Board::holding("2026-10-30");
+    for name in ["Search Commands", "Go to Date", "Password"] {
+        let mut a = app(Some(&board));
+        a.auto_sync = false;
+        let (dialog, role) = match name {
+            "Search Commands" => (Dialog::Commands { query: String::new(), selected: 0 }, Role::TextInput),
+            "Go to Date" => (Dialog::GoToDate { text: String::new(), error: String::new() }, Role::TextInput),
+            _ => {
+                let r = a.execute("account.add", json!({"email": "avery@mail.example", "incoming": {"host": "imap.mail.example"}}));
+                (Dialog::Password { account: r.unwrap()["id"].as_u64().unwrap(), password: String::new(), shown: false }, Role::PasswordInput)
+            }
+        };
+        a.dialog = Some(dialog);
+        let mut h = window(a);
+        settle(&mut h, 2);
+        let field = h.query_all_by_role(role).find(|n| n.is_focused()).unwrap_or_else(|| panic!("{name}: its field has the keyboard")).rect();
+        menu_at(&mut h, field.left_center() + vec2(12.0, 0.0));
+        focus_item(&mut h, &paste());
+        assert!(h.query_all_by_label(&paste()).next().is_some_and(|n| n.is_focused()), "{name}: Paste has the keyboard");
+        // Once the menu is shut, the field has the keyboard back.
+        press(&mut h, Key::Escape);
+        settle(&mut h, 3);
+        assert!(h.state().dialog.is_some(), "{name}: Escape shut the menu alone");
+        assert!(h.query_all_by_role(role).any(|n| n.is_focused()), "{name}: the field has the keyboard back");
+    }
+}
+
 /// Focus a menu item of the open menu, as a screen reader does (AccessKit), without choosing it.
 fn focus_item(h: &mut Window, label: &str) {
     h.query_all_by_label(label).next().unwrap_or_else(|| panic!("no {label}")).focus();

@@ -401,6 +401,13 @@ pub fn apply_graph_mail(s: &mut Session, result: GraphMailResult) -> CmdResult {
         graph_down::take_page(&mut s.mailbox, &mut index, account, page, &mut down);
     }
     s.graph_index = index;
+    // A rule moved new mail out of the account (#567). An undo of a step from before goes back to
+    // a mailbox that never had it, and keeps only the Microsoft accounts' mail as it is now: once
+    // the server's copy is removed, the mail would be gone for good. Until an undo leaves alone
+    // what arrived after its step (#605), there is no going back past it.
+    if down.left > 0 {
+        s.forget_history();
+    }
     // (Not after a listing cut short: what left a folder may be in one it missed, #305.)
     if result.whole && !result.inbox_pass && !s.graph_listed_short.contains(&account) {
         graph_down::sweep(&mut s.mailbox, account, &mut down);
@@ -527,6 +534,7 @@ fn change_done(mb: &mut Mailbox, account: Id, change: &FolderChange, outcome: &C
                 parent: there.parent.clone(),
                 delta: String::new(),
                 caught_up: false,
+                round_ended: false,
                 counts: None,
             });
             taken.pushed += 1;
@@ -695,6 +703,7 @@ fn update(mb: &mut Mailbox, id: Id, there: &GraphFolder, name: &str, parent_here
         parent: there.parent.clone(),
         delta: last.delta,
         caught_up: last.caught_up,
+        round_ended: last.round_ended,
         counts: last.counts,
     });
     *f != before
