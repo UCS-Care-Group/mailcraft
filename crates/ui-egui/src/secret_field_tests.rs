@@ -158,6 +158,40 @@ fn shown_it_is_still_not_copied_cut_or_spoken() {
     assert!(!h.output().platform_output.commands.iter().any(|c| matches!(c, OutputCommand::TextSelectionSettled(_))));
 }
 
+/// Each event in a frame of its own, as the window runs them: whether any of those frames put
+/// something in the primary selection (on Linux, what a middle click pastes anywhere).
+fn told_the_system(h: &mut Harness<'static, MailApp>, events: impl IntoIterator<Item = Event>) -> bool {
+    let mut told = false;
+    for event in events {
+        h.event(event);
+        steps(h, 1);
+        told |= h.output().platform_output.commands.iter().any(|c| matches!(c, OutputCommand::TextSelectionSettled(_)));
+    }
+    told
+}
+
+#[test]
+fn selected_with_the_keys_or_the_pointer_it_never_goes_to_the_primary_selection() {
+    let (mut h, _tx) = sign_in();
+    type_password(&mut h);
+    for shown in [false, true] {
+        if shown {
+            click_eye(&mut h);
+        }
+        let field = h.get_by_role(Role::PasswordInput).rect();
+        let (from, to) = (field.left_center() + egui::vec2(6.0, 0.0), field.center());
+        let button = |pos, pressed| Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
+        let all = |pressed| Event::Key { key: Key::A, physical_key: None, pressed, repeat: false, modifiers: Modifiers::COMMAND };
+        // A drag across it, two clicks on it, and Ctrl+A in it.
+        let mut events = vec![Event::PointerMoved(from), button(from, true), Event::PointerMoved(to), button(to, false)];
+        events.extend([Event::PointerMoved(to), button(to, true), button(to, false), button(to, true), button(to, false)]);
+        events.extend([all(true), all(false)]);
+        events.push(Event::PointerMoved(to));
+        assert!(!told_the_system(&mut h, events), "shown: {shown}");
+        assert!(eye_says(&h, shown));
+    }
+}
+
 #[test]
 fn closing_the_dialog_hides_it() {
     let (mut h, _tx) = sign_in();

@@ -308,7 +308,7 @@ fn rich(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
             app.signature_note = None;
             let _ = app.run("signature.picture.add", json!({}));
         }
-        // (A picture alone on the clipboard makes no paste in the editor: egui pastes text.)
+        // (Ctrl+V, or Paste in the body's menu, takes a picture alone on the clipboard too.)
         if app.services.clipboard.is_some() && ui.button(tl!("Paste Picture")).clicked() {
             match app.services.clipboard.as_ref().and_then(|b| b.image()) {
                 Some(png) => {

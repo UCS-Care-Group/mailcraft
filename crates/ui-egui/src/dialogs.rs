@@ -1038,7 +1038,7 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
                     egui::TextEdit::singleline(query).hint_text(tl!("Type what you want to do")).desired_width(f32::INFINITY).font(regular(14.0)),
                 );
                 let resp = crate::text_menu::field(resp);
-                resp.request_focus();
+                crate::text_menu::hold(&resp);
                 let mut hits: Vec<(u32, (String, String, String, String, bool))> =
                     all_commands(app).into_iter().filter_map(|c| score(query, &c.1, &c.2, &c.0).map(|s| (s + u32::from(!c.4) * 10, c))).collect();
                 hits.sort_by(|a, b| a.0.cmp(&b.0).then_with(|| a.1.1.cmp(&b.1.1)));
@@ -1109,8 +1109,8 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
                 }
                 let resp = ui.add(egui::TextEdit::singleline(name).hint_text(tl!("Folder name")).desired_width(f32::INFINITY));
                 let resp = crate::text_menu::field(resp);
-                if !resp.has_focus() && error.is_empty() {
-                    resp.request_focus();
+                if error.is_empty() {
+                    crate::text_menu::hold(&resp);
                 }
                 if !error.is_empty() {
                     ui.label(egui::RichText::new(error.as_str()).color(t.red));
@@ -1136,8 +1136,8 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
             let open = window(ctx, tl!("Go to Date"), 320.0, |ui| {
                 ui.label(tl!("Date (YYYY-MM-DD)"));
                 let resp = crate::text_menu::field(ui.add(egui::TextEdit::singleline(text).desired_width(f32::INFINITY)));
-                if !resp.has_focus() && error.is_empty() {
-                    resp.request_focus();
+                if error.is_empty() {
+                    crate::text_menu::hold(&resp);
                 }
                 if !error.is_empty() {
                     ui.label(egui::RichText::new(error.as_str()).color(t.red));
@@ -1165,8 +1165,8 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
                 ui.label(tl!("The shared mailbox's e-mail address"));
                 let field = egui::TextEdit::singleline(address).hint_text("support@example.org").desired_width(f32::INFINITY);
                 let resp = crate::text_menu::field(ui.add_enabled(checking.is_none(), field));
-                if checking.is_none() && !resp.has_focus() && error.is_empty() {
-                    resp.request_focus();
+                if checking.is_none() && error.is_empty() {
+                    crate::text_menu::hold(&resp);
                 }
                 ui.label(
                     egui::RichText::new(crate::i18n::fmt(
@@ -1223,8 +1223,8 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
                 ui.label(tl!("The e-mail address of the person whose calendar you want to open"));
                 let field = egui::TextEdit::singleline(address).hint_text("colleague@example.org").desired_width(f32::INFINITY);
                 let resp = crate::text_menu::field(ui.add_enabled(reading.is_none(), field));
-                if reading.is_none() && !resp.has_focus() && error.is_empty() {
-                    resp.request_focus();
+                if reading.is_none() && error.is_empty() {
+                    crate::text_menu::hold(&resp);
                 }
                 ui.label(
                     egui::RichText::new(crate::i18n::fmt(
@@ -1259,8 +1259,8 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
                 ui.label(tl!("Address"));
                 let resp = ui.add(egui::TextEdit::singleline(url).hint_text("https://www.example.org").desired_width(f32::INFINITY));
                 let resp = crate::text_menu::field(resp);
-                if !resp.has_focus() && error.is_empty() {
-                    resp.request_focus();
+                if error.is_empty() {
+                    crate::text_menu::hold(&resp);
                 }
                 ui.label(
                     egui::RichText::new(tl!(
@@ -1376,9 +1376,7 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
                 // (The room round its text that a field has by default.)
                 let room = egui::Margin::from(ui.spacing().button_padding);
                 let resp = crate::secret_field::field(ui, password, shown, watch, room, |edit| edit);
-                if !resp.has_focus() {
-                    resp.request_focus();
-                }
+                crate::text_menu::hold(&resp);
                 ui.label(
                     egui::RichText::new(tl!("MailCraft keeps it in memory until you close the app. It is never written to disk."))
                         .color(t.text_dim)

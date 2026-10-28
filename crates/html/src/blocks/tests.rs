@@ -1345,3 +1345,30 @@ fn inset_and_gap_never_pile_past_what_fits_a_byte() {
         assert!(b.gap <= MAX_BOX_PX, "{b:?}");
     }
 }
+
+// ---- #596: where a cell sits in its row, and the gaps between cells ----
+
+#[test]
+fn a_cell_keeps_where_it_sits_in_its_row_its_own_or_its_rows() {
+    let (_, table) = only_table(
+        "<table><tr valign='bottom'><td valign='middle'>a</td><td style='vertical-align:top'>b</td><td>c</td><td valign='nonsense'>d</td></tr>\
+         <tr><td style='vertical-align: text-bottom'>e</td><td>f</td></tr></table>",
+    );
+    let at: Vec<Vec<Option<VAlign>>> = table.rows.iter().map(|r| r.cells.iter().map(|c| c.valign).collect()).collect();
+    use VAlign::{Bottom, Middle, Top};
+    assert_eq!(at, [vec![Some(Middle), Some(Top), Some(Bottom), Some(Bottom)], vec![Some(Bottom), None]]);
+}
+
+#[test]
+fn a_table_keeps_the_gap_between_its_cells_clamped() {
+    use crate::MAX_SPACING_PX;
+    let spacing = |html: &str| only_table(html).1.spacing;
+    assert_eq!(spacing("<table cellspacing='0'><tr><td>a</td><td>b</td></tr></table>"), Some(0));
+    assert_eq!(spacing("<table cellspacing='6'><tr><td>a</td><td>b</td></tr></table>"), Some(6));
+    assert_eq!(spacing("<table cellspacing='900'><tr><td>a</td><td>b</td></tr></table>"), Some(MAX_SPACING_PX));
+    assert_eq!(spacing("<table cellspacing='-4'><tr><td>a</td><td>b</td></tr></table>"), Some(0));
+    assert_eq!(spacing("<table cellspacing='x'><tr><td>a</td><td>b</td></tr></table>"), None);
+    // A style beats the attribute.
+    assert_eq!(spacing("<table cellspacing='2' style='border-spacing:10px 4px'><tr><td>a</td><td>b</td></tr></table>"), Some(10));
+    assert_eq!(spacing("<table><tr><td>a</td><td>b</td></tr></table>"), None);
+}

@@ -1771,6 +1771,7 @@ pub(crate) fn forget_how_far_fetched(mailbox: &mut Mailbox) {
         if let Some(server) = &mut folder.server {
             server.delta.clear();
             server.caught_up = false;
+            server.round_ended = false;
         }
     }
 }

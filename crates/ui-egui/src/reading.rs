@@ -210,6 +210,7 @@ pub fn show_message(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Pla
             });
         });
     });
+    select::settle(app, ui, place);
 }
 
 /// What the reading pane says of a message of which only the headers and a preview are here.
