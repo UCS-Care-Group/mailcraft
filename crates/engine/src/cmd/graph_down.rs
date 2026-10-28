@@ -189,7 +189,7 @@ pub(crate) fn new_message(folder: Id, server_folder: &str, there: &GraphMessage)
         flag_due: server.flag_due,
         importance: server.importance,
         categories: server.categories.clone(),
-        draft: there.draft,
+        draft: there.draft.unwrap_or(false),
         server: Some(server),
         unfetched: true,
         attachments_on_server: there.has_attachments,
@@ -246,6 +246,12 @@ fn update(mb: &mut Mailbox, account: Id, id: Id, folder: Id, server_folder: &str
     }
     if m.unfetched {
         m.attachments_on_server = there.has_attachments;
+    }
+    // Sent, the draft is filed in Sent Items under its id: no longer a draft (#611), when the
+    // server says so and not merely leaves it out. One saved here that waits to go up stays one.
+    if m.draft && there.draft == Some(false) && !m.server_draft.as_ref().is_some_and(|d| d.pending) {
+        m.draft = false;
+        m.server_draft = None;
     }
     if changed_there {
         // Changed elsewhere only: the server's version, fetched afresh.
