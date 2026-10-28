@@ -528,4 +528,23 @@ mod tests {
         answer(&mut a, false);
         assert_eq!(a.session.mailbox.count(outbox), 0);
     }
+
+    #[test]
+    fn an_agents_delete_or_move_naming_no_messages_is_refused_whatever_the_owner_selected() {
+        // The owner's closed conversation's row stands for its messages (#503); an agent allowed
+        // everything still names what it acts on (#620), and the window fills in none of them.
+        let mut a = app();
+        a.execute("folder.select", json!({"kind": "inbox"})).unwrap();
+        a.execute("view.conversations", json!({"value": true})).unwrap();
+        let row = a.session.rows().iter().find(|r| r.members.len() == 2).cloned().unwrap();
+        a.execute("mail.select", json!({"id": row.id})).unwrap();
+        let (inbox, account) = (a.session.view.folder, a.session.mailbox.accounts[0].id);
+        let archive = a.session.mailbox.folder_of_kind(account, FolderKind::Archive).unwrap();
+        for (command, params) in [("mail.delete", json!({})), ("mail.deletePermanently", json!({})), ("mail.move", json!({"folder": archive}))] {
+            let (r, _) = ask(&mut a, "engine.execute", json!({"command": command, "params": params}), Class::ALL.to_vec());
+            assert!(r.as_ref().and_then(|r| r["error"].as_str()).is_some_and(|e| e.contains("needs `ids`")), "{command}: {r:?}");
+            assert!(a.asking.is_empty(), "{command}: the owner isn't asked");
+            assert!(row.members.iter().all(|m| a.session.mailbox.message(*m).is_some_and(|m| m.folder == inbox)), "{command}");
+        }
+    }
 }

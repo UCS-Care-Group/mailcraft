@@ -621,7 +621,7 @@ pub fn classify(s: &Session, id: &str, params: &Value) -> Access {
             if folder.is_some_and(|f| is_outbox(&s.mailbox, f)) { Access::Owner(Class::Send) } else { Access::Safe }
         }
         "mail.delete" => {
-            let ids = taken(s, params);
+            let ids = taken(params);
             if ids.iter().any(|m| deletes_for_good(&s.mailbox, *m)) { Access::Owner(Class::Delete) } else { Access::Safe }
         }
         "ui.sync" if params.get("password").is_some_and(|v| !v.is_null()) => Access::Owner(Class::Accounts),
@@ -739,11 +739,10 @@ pub enum Verdict {
     Refuse(String),
 }
 
-/// What a Delete or Move takes, read as the command reads it (#503): `ids` strictly, else what the
-/// selection stands for (a closed conversation's row, the messages it shows); an agent's names its
-/// messages ([`NEEDS_IDS`]).
-fn taken(s: &Session, params: &Value) -> Vec<Id> {
-    p::ids_strict(params).ok().flatten().unwrap_or_else(|| s.acting_on_now())
+/// The messages an agent's Delete or Move names, read as the command reads them (#503): never the
+/// selection, which is the owner's ([`NEEDS_IDS`]).
+fn taken(params: &Value) -> Vec<Id> {
+    p::ids_strict(params).ok().flatten().unwrap_or_default()
 }
 
 /// Commands that destroy, move, send from or open messages, or are costly: an agent names the
@@ -966,13 +965,13 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
             None => "send the message being written".to_string(),
         },
         "mail.move" | "mail.copy" => {
-            // What the command takes: Move a closed conversation's row's messages (#503), Copy the selected ones.
-            let ids = if id == "mail.move" { taken(s, params) } else { p::ids(params).unwrap_or_else(|| s.sel.messages.clone()) };
+            // What the agent names (#620), Move's read as the command reads them (#503).
+            let ids = if id == "mail.move" { taken(params) } else { p::ids(params).unwrap_or_else(|| s.sel.messages.clone()) };
             format!("put {} in the Outbox, which sends them", messages_text(s, &ids))
         }
         "file.import" => "import messages into the Outbox, which sends them".to_string(),
         "mail.delete" | "mail.deletePermanently" => {
-            let ids = taken(s, params);
+            let ids = taken(params);
             format!("delete {} for good", messages_text(s, &ids))
         }
         "folder.empty" | "folder.delete" => {

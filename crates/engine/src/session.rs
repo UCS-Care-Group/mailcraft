@@ -1481,9 +1481,13 @@ impl Session {
 
     /// [`Session::list_key`] but for the content brought into memory or let go of. Which
     /// conversations are open (#503) isn't in the view's settings, and opening one in a search's
-    /// list lists what was found again, without searching again.
+    /// list lists what was found again, without searching again. They are in it by a hash: up to
+    /// 1,000 subjects, on every call.
     fn shown_key(&self) -> String {
-        format!("{}|{:?}", self.list_state(), self.view.open)
+        use std::hash::{Hash, Hasher};
+        let mut open = std::hash::DefaultHasher::new();
+        self.view.open.hash(&mut open);
+        format!("{}|{}:{:x}", self.list_state(), self.view.open.len(), open.finish())
     }
 
     /// Keep the word index of the mailbox file ([`crate::words`]) while [`Session::index_words`]

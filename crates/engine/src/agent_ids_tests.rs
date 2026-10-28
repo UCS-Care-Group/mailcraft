@@ -36,3 +36,18 @@ fn flagging_and_reading_still_take_the_selection() {
         assert!(matches!(check(&s, command, &json!({}), &Class::ALL), Verdict::Run), "{command}");
     }
 }
+
+#[test]
+fn a_delete_naming_no_messages_is_weighed_and_told_as_none_of_the_selection() {
+    // The selection in Deleted Items, where a Delete removes it for good (#503).
+    let mut s = sample();
+    let id = s.mailbox.messages.values().find(|m| !m.draft).map(|m| m.id).unwrap();
+    let deleted = s.mailbox.folder_of_kind(s.mailbox.accounts[0].id, mailcraft_model::FolderKind::Deleted).unwrap();
+    s.run("mail.move", &json!({"ids": [id], "folder": deleted})).unwrap();
+    s.sel.messages = vec![id];
+    assert_eq!(classify(&s, "mail.delete", &json!({})), Access::Safe);
+    assert_eq!(classify(&s, "mail.delete", &json!({"ids": [id]})), Access::Owner(Class::Delete));
+    for command in ["mail.delete", "mail.deletePermanently"] {
+        assert!(describe(&s, command, &json!({})).contains("0 messages"), "{command}");
+    }
+}
