@@ -165,7 +165,7 @@ impl MailApp {
 
     /// The Inbox pass of `account`, as a Graph job of its own: a round's, or the Inbox checked by
     /// itself (`check`).
-    fn start_inbox_pass(&mut self, account: Id, quiet: bool, check: bool) -> Option<Value> {
+    pub(crate) fn start_inbox_pass(&mut self, account: Id, quiet: bool, check: bool) -> Option<Value> {
         self.services.graph.as_ref()?;
         if self.sync_rx.is_some() || self.graph_rx.is_some() || (quiet && !self.can_sync_quietly(account)) {
             return None;

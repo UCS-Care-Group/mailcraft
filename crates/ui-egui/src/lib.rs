@@ -115,6 +115,10 @@ mod search_suggest;
 mod secret_field;
 #[cfg(test)]
 mod secret_field_tests;
+mod secret_read;
+#[cfg(test)]
+#[path = "secret_read_tests.rs"]
+mod secret_read_tests;
 #[cfg(test)]
 #[path = "secrets_bound_tests.rs"]
 mod secrets_bound_tests;
@@ -240,7 +244,7 @@ pub struct Services {
     /// keychain, the Secret Service on Linux and FreeBSD), where a password or a refresh token is
     /// remembered between runs when the owner wants that. Never the mailbox file, the settings or
     /// a log.
-    pub secrets: Option<Box<dyn SecretStore>>,
+    pub secrets: Option<std::sync::Arc<dyn SecretStore>>,
     /// The application (client) id this build presents to Microsoft when neither the account nor
     /// the settings name one; empty when the build has none.
     pub microsoft_client_id: String,
@@ -421,13 +425,14 @@ pub type Inbox = std::sync::Arc<std::sync::Mutex<Vec<(String, Vec<u8>)>>>;
 
 /// The operating system's credential store ([`Services::secrets`]). Keys are `password:<address>`
 /// and `refresh:<address>`.
-pub trait SecretStore {
+pub trait SecretStore: Send + Sync {
     fn get(&self, key: &str) -> Option<String>;
     fn set(&self, key: &str, secret: &str) -> Result<(), String>;
     fn delete(&self, key: &str);
     /// Why the store itself couldn't be used the last time something was asked of it (none is
     /// running, or it is locked), as opposed to there being nothing kept under a key. Taking it
-    /// clears it.
+    /// clears it. (`get` may wait for the owner to unlock the store: the window never calls it
+    /// itself, only a background thread does, [`secret_read`].)
     fn take_trouble(&self) -> Option<StoreTrouble> {
         None
     }
@@ -1200,6 +1205,15 @@ pub struct MailApp {
     /// [`mailcraft_engine::Session::openings`] when the secrets in memory were last checked
     /// against the mailbox they belong to.
     secrets_opening: u64,
+    /// What the credential store gave back for each key this session, read in the background
+    /// ([`secret_read`]); only what was found. The window asks this, never the store.
+    secret_cache: std::collections::HashMap<String, String>,
+    /// The background read of the store under way, with the opening it was started for.
+    secret_read: Option<(u64, std::sync::mpsc::Receiver<secret_read::SecretRead>)>,
+    /// The opening, and whether remembering was on, when the store was last read by itself.
+    secrets_asked: Option<(u64, bool)>,
+    /// Send/Receive the owner asked for, held until the store has answered.
+    sync_after_secrets: Vec<Value>,
     /// The open mailbox came from a file whose servers nobody has confirmed: nothing of it
     /// reaches a server ([`unconfirmed`]).
     pub(crate) unconfirmed: bool,
@@ -1499,6 +1513,10 @@ impl MailApp {
             list_page_rows: 10,
             passwords: Default::default(),
             secrets_opening: 0,
+            secret_cache: Default::default(),
+            secret_read: None,
+            secrets_asked: None,
+            sync_after_secrets: Vec::new(),
             unconfirmed: false,
             settings_unread: None,
             held: Default::default(),
@@ -2265,8 +2283,9 @@ impl MailApp {
         if !self.ui.remember_sign_in {
             return None;
         }
-        let key = Self::secret_key(kind, self.account_at(address)?);
-        self.services.secrets.as_ref()?.get(&key).filter(|secret| !secret.is_empty())
+        // (What the background read brought, never the store itself: it may be locked, and then
+        // asking blocks until the owner answers.)
+        self.secret_cache.get(&Self::secret_key(kind, self.account_at(address)?)).cloned()
     }
 
     /// Have the operating system remember a secret for `address`, when the owner wants that.
@@ -2278,7 +2297,10 @@ impl MailApp {
         let key = Self::secret_key(kind, account);
         let Some(store) = &self.services.secrets else { return };
         match store.set(&key, secret) {
-            Ok(()) => self.index_secret_key(key),
+            Ok(()) => {
+                self.secret_cache.insert(key.clone(), secret.to_string());
+                self.index_secret_key(key);
+            }
             Err(e) => log::warn!("couldn't keep the sign-in for next time: {e}"),
         }
     }
@@ -2313,6 +2335,7 @@ impl MailApp {
             }
         }
         self.ui.remembered_keys = left.clone();
+        self.secret_cache.clear();
         left
     }
 
@@ -2347,41 +2370,14 @@ impl MailApp {
                 }
             }
         }
+        for key in &gone {
+            self.secret_cache.remove(key);
+        }
         // (Taken here, the owner hears of it as `check_secret_store` would have said it.)
         match store.take_trouble() {
             Some(trouble) => self.note_secret_trouble(trouble),
             None => self.ui.remembered_keys.retain(|key| !gone.contains(key)),
         }
-    }
-
-    /// Secrets kept before they were bound to servers move, once, to the name made from the
-    /// servers of the account in this mailbox, and the old name goes. Only for a mailbox the
-    /// owner has not been asked to confirm; the owner's setting says when it has been done.
-    pub(crate) fn migrate_secrets(&mut self) {
-        if self.ui.sign_ins_bound {
-            return;
-        }
-        let mut moved = Vec::new();
-        if let Some(store) = &self.services.secrets {
-            for a in &self.session.mailbox.accounts {
-                for kind in ["password", "refresh"] {
-                    let old = Self::legacy_secret_key(kind, &a.email);
-                    if let Some(secret) = store.get(&old).filter(|s| !s.is_empty()) {
-                        let new = Self::secret_key(kind, a);
-                        if let Err(e) = store.set(&new, &secret) {
-                            log::warn!("couldn't move a remembered sign-in: {e}");
-                            continue;
-                        }
-                        store.delete(&old);
-                        moved.push(new);
-                    }
-                }
-            }
-        }
-        for key in moved {
-            self.index_secret_key(key);
-        }
-        self.ui.sign_ins_bound = true;
     }
 
     /// The sign-in settings as the host should use them: an account that names no application id
@@ -2530,6 +2526,11 @@ impl MailApp {
             return Err(cant_connect());
         }
         let quiet = p.get("quiet").and_then(Value::as_bool).unwrap_or(false);
+        // Send/Receive the owner asked for is the time to ask the store again (it may have been
+        // locked, or refused): the run goes on when it has answered ([`secret_read`]).
+        if !quiet && self.hold_for_secrets(p) {
+            return Ok(json!({"pending": "secrets"}));
+        }
         // Never two jobs for one account at once: the calendar's job (a short one, but the
         // wide stretch every quarter of an hour is not) finishes first.
         let target = p.get("account").and_then(Value::as_u64).or_else(|| self.server_accounts().first().copied());
@@ -2733,7 +2734,7 @@ impl MailApp {
         mb.accounts.iter().all(|a| a.email.trim().is_empty()) && mb.messages.is_empty()
     }
 
-    fn server_accounts(&self) -> Vec<Id> {
+    pub(crate) fn server_accounts(&self) -> Vec<Id> {
         // A JMAP account where the host runs JMAP (without, every run of it would end in a
         // refusal); the others where it opens mail connections, or, when it reaches no server
         // at all, to be told so.
@@ -2773,6 +2774,10 @@ impl MailApp {
         if opening != self.secrets_opening {
             self.secrets_opening = opening;
             self.passwords.clear();
+            self.secret_cache.clear();
+            self.secret_read = None;
+            self.secrets_asked = None;
+            self.sync_after_secrets.clear();
             self.tokens.clear();
             self.graph_tokens.clear();
             self.jmap_refused.clear();
@@ -3483,7 +3488,9 @@ impl MailApp {
                 // next try renews it (the refresh token stays for that).
                 self.passwords.remove(&account);
                 if let (Some(store), Some(a)) = (&self.services.secrets, self.account_at(&address)) {
-                    store.delete(&Self::secret_key("password", a));
+                    let key = Self::secret_key("password", a);
+                    store.delete(&key);
+                    self.secret_cache.remove(&key);
                 }
                 if let Some(tokens) = self.tokens.get_mut(&account) {
                     tokens.access.clear();
@@ -3651,9 +3658,7 @@ impl MailApp {
         self.sweep_admin_consent();
         self.drop_secrets_if_replaced();
         // The mailbox the window started with: secrets kept the old way are filed under its servers.
-        if self.session.openings() == 0 && !self.unconfirmed {
-            self.migrate_secrets();
-        }
+        self.secrets_tick();
         self.poll_graph();
         self.drive_fetch();
         self.offline_tick();
