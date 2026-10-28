@@ -534,6 +534,7 @@ fn change_done(mb: &mut Mailbox, account: Id, change: &FolderChange, outcome: &C
                 parent: there.parent.clone(),
                 delta: String::new(),
                 caught_up: false,
+                round_ended: false,
                 counts: None,
             });
             taken.pushed += 1;
@@ -702,6 +703,7 @@ fn update(mb: &mut Mailbox, id: Id, there: &GraphFolder, name: &str, parent_here
         parent: there.parent.clone(),
         delta: last.delta,
         caught_up: last.caught_up,
+        round_ended: last.round_ended,
         counts: last.counts,
     });
     *f != before

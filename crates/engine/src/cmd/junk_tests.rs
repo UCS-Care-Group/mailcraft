@@ -677,3 +677,49 @@ fn a_rule_that_files_graph_mail_within_its_account_leaves_undo_as_it_was() {
     assert_eq!(folder_of(&s, "offers@shop.example"), Some(archive));
     assert_eq!(s.undo_label(), before);
 }
+
+/// One page of `F-in` from these senders, going on at a next page (`caught_up` false) or a delta
+/// link.
+fn inbox_page(account: Id, from: &[&str], caught_up: bool, afresh: bool) -> GraphMailResult {
+    let mut result = graph_page(account, "F-in", from);
+    let page = &mut result.pages[0];
+    page.link = format!("https://graph.example.org/delta?{}={}", if caught_up { "$deltatoken" } else { "$skiptoken" }, from.join(","));
+    (page.caught_up, page.afresh) = (caught_up, afresh);
+    result
+}
+
+#[test]
+fn every_page_of_a_later_round_goes_through_the_lists_and_the_rules() {
+    let (mut s, account, [inbox, junk, archive]) = graph_with_rule(true);
+    s.run("junk.add", &json!({"list": "blocked", "entry": "@spam.example"})).unwrap();
+    // Back after a while: more has changed than one page holds, read in pieces, and a run that
+    // ended before the round did goes on from the next page.
+    apply_graph_mail(&mut s, inbox_page(account, &["one@shop.example", "bo@example.org"], false, false)).unwrap();
+    apply_graph_mail(&mut s, inbox_page(account, &["two@shop.example", "deals@spam.example"], false, false)).unwrap();
+    apply_graph_mail(&mut s, inbox_page(account, &["three@shop.example"], true, false)).unwrap();
+    for later in ["one@shop.example", "two@shop.example", "three@shop.example"] {
+        assert_eq!(folder_of(&s, later), Some(archive), "{later}");
+    }
+    assert_eq!(folder_of(&s, "deals@spam.example"), Some(junk));
+    assert_eq!(folder_of(&s, "bo@example.org"), Some(inbox));
+}
+
+#[test]
+fn no_page_of_a_first_round_or_of_a_round_read_afresh_is_sorted() {
+    let (mut s, account, [inbox, _, archive]) = graph_with_rule(false);
+    apply_graph_mail(&mut s, inbox_page(account, &["one@shop.example"], false, false)).unwrap();
+    apply_graph_mail(&mut s, inbox_page(account, &["two@shop.example"], true, false)).unwrap();
+    // Read afresh (the server no longer took the link): none of its pages either.
+    apply_graph_mail(&mut s, inbox_page(account, &["three@shop.example"], false, true)).unwrap();
+    apply_graph_mail(&mut s, inbox_page(account, &["four@shop.example"], true, false)).unwrap();
+    for old in ["one@shop.example", "two@shop.example", "three@shop.example", "four@shop.example"] {
+        assert_eq!(folder_of(&s, old), Some(inbox), "{old}");
+    }
+    // What comes after each is new mail.
+    apply_graph_mail(&mut s, inbox_page(account, &["five@shop.example"], false, false)).unwrap();
+    assert_eq!(folder_of(&s, "five@shop.example"), Some(archive));
+    // A mailbox whose save was damaged reads its folders from the start again: a first round.
+    crate::store::forget_how_far_fetched(&mut s.mailbox);
+    apply_graph_mail(&mut s, inbox_page(account, &["six@shop.example"], false, false)).unwrap();
+    assert_eq!(folder_of(&s, "six@shop.example"), Some(inbox));
+}

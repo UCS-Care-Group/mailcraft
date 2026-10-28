@@ -9,7 +9,7 @@
 //!
 //! - **A new message** comes as its headers and preview, not **fetched**. Once its folder's first
 //!   round has ended, it is sorted by the Safe and Blocked Senders lists, and mail arriving in the
-//!   Inbox then goes through the rules (#567).
+//!   Inbox then goes through the rules (#567), on every page of a later round.
 //! - **A message the server has changed** takes the server's read, flag, categories and
 //!   importance, but for a property changed here since the server last said (ADR 0003): that
 //!   goes up with R3.3, and nothing changed here is overwritten by coming down.
@@ -86,8 +86,9 @@ pub struct Down {
 pub fn take_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, page: &MessagePage, down: &mut Down) {
     let Some(folder) = mb.folder_by_server(account, &page.folder) else { return };
     // The Safe and Blocked Senders lists sort what arrives once the folder's first round has
-    // ended (#504): never its first download, nor a round read afresh.
-    let sorting = !page.afresh && mb.folder(folder).and_then(|f| f.server.as_ref()).is_some_and(|s| s.caught_up);
+    // ended (#504), on every page of a later round (#567): never its first download, nor a round
+    // read afresh. (A folder of a file from before #567 has only `caught_up` to say so.)
+    let sorting = !page.afresh && mb.folder(folder).and_then(|f| f.server.as_ref()).is_some_and(|s| s.round_ended || s.caught_up);
     // Then the rules (#567), on what arrives in the Inbox and only when the lists sort. Never in a
     // shared mailbox: the rules, like the lists, are the owner's.
     let inbox = mb.folder(folder).is_some_and(|f| f.kind == FolderKind::Inbox);
@@ -161,6 +162,8 @@ pub fn take_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, page: &
     {
         s.delta = page.link.clone();
         s.caught_up = page.caught_up;
+        // Ended before this page, or by it; a page read afresh begins again.
+        s.round_ended = sorting || page.caught_up;
         // The counts the link was got with, or none (#276): a new link never keeps the old one's.
         s.counts = page.counts;
     }
