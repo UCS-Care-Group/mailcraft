@@ -115,7 +115,7 @@ fn delete_on_a_closed_conversation_asks_first_then_deletes_it_in_this_folder() {
     let Some(crate::dialogs::Dialog::Confirm { ask, .. }) = &w.state().dialog else { panic!("no question") };
     assert_eq!(
         ask.text,
-        "This deletes the whole conversation: its 2 messages in Inbox go to Deleted Items. Its messages in other folders stay where they are."
+        "This deletes the conversation from Inbox: its 2 messages there go to Deleted Items. Its messages in other folders stay where they are."
     );
     assert_eq!([kind(&w, newer), kind(&w, older)], [Some(FolderKind::Inbox), Some(FolderKind::Inbox)], "nothing goes before the answer");
     // Cancel deletes nothing.
@@ -310,7 +310,7 @@ fn delete_of_two_conversations_speaks_of_conversations() {
     let Some(crate::dialogs::Dialog::Confirm { ask, .. }) = &w.state().dialog else { panic!("no question") };
     assert_eq!(
         ask.text,
-        "This deletes 4 messages in Inbox, whole conversations included. They go to Deleted Items. The conversations' messages in other folders stay where they are."
+        "This deletes 4 messages in Inbox, every message of the conversations there included. They go to Deleted Items. The conversations' messages in other folders stay where they are."
     );
 }
 
@@ -380,20 +380,77 @@ fn a_question_goes_with_the_mailbox_it_was_asked_about() {
 }
 
 #[test]
-fn the_conversation_question_asks_delete_for_good_for_one_moved_to_deleted_items_meanwhile() {
-    let (mut w, newer, older, _) = release_checklist();
-    let account = w.state().session.mailbox.message(older).unwrap().account;
-    let deleted = w.state().session.mailbox.folder_of_kind(account, FolderKind::Deleted).unwrap();
-    click(&mut w, "message", newer);
-    testing::key(&mut w, Key::Delete);
+fn a_message_of_the_conversation_that_leaves_the_folder_while_the_question_is_open_stays_where_it_went() {
+    for to in [FolderKind::Archive, FolderKind::Deleted] {
+        let (mut w, newer, older, _) = release_checklist();
+        let account = w.state().session.mailbox.message(older).unwrap().account;
+        let folder = w.state().session.mailbox.folder_of_kind(account, to).unwrap();
+        click(&mut w, "message", newer);
+        testing::key(&mut w, Key::Delete);
+        w.run_steps(3);
+        // Moved on another device while the question is open, which a Send/Receive brings in.
+        w.state_mut().execute("mail.move", json!({"ids": [older], "folder": folder})).unwrap();
+        w.run_steps(3);
+        click(&mut w, "questionAction", 0);
+        assert_eq!(testing::dialog(&w), None, "{to:?}: asked again");
+        assert_eq!(kind(&w, newer), Some(FolderKind::Deleted), "{to:?}");
+        assert_eq!(kind(&w, older), Some(to), "{to:?}: taken from where it went");
+    }
+}
+
+#[test]
+fn delete_for_good_leaves_a_message_that_left_the_folder_while_the_question_was_open() {
+    let mut w = testing::window("view.mail");
+    w.state_mut().execute("ui.dismissReminder", json!({"all": true})).unwrap();
+    w.state_mut().execute("folder.select", json!({"kind": "inbox"})).unwrap();
     w.run_steps(3);
-    // A script moves one of them to Deleted Items while the question is open.
-    w.state_mut().execute("mail.move", json!({"ids": [older], "folder": deleted})).unwrap();
+    let account = w.state().session.mailbox.accounts[0].id;
+    let archive = w.state().session.mailbox.folder_of_kind(account, FolderKind::Archive).unwrap();
+    let rows = w.state_mut().session.rows();
+    let (a, b) = (rows[0].id, rows[1].id);
+    w.state_mut().execute("mail.select", json!({"ids": [a, b]})).unwrap();
+    w.run_steps(3);
+    assert_eq!(w.state_mut().run("mail.deletePermanently", json!({})).unwrap()["pending"], "confirm");
+    w.run_steps(3);
+    w.state_mut().execute("mail.move", json!({"ids": [b], "folder": archive})).unwrap();
     w.run_steps(3);
     click(&mut w, "questionAction", 0);
-    let Some(crate::dialogs::Dialog::Confirm { ask, .. }) = &w.state().dialog else { panic!("not asked again") };
-    assert_eq!(ask.title, "Delete for Good");
-    assert!(w.state().session.mailbox.message(older).is_some());
+    let s = &w.state().session;
+    assert!(s.mailbox.message(a).is_none());
+    assert!(s.mailbox.message(b).is_some_and(|m| m.folder == archive), "deleted for good from Archive");
+}
+
+#[test]
+fn an_agents_delete_for_good_leaves_a_message_that_left_the_folder_while_the_owner_was_asked() {
+    let mut w = testing::window("view.mail");
+    w.state_mut().execute("ui.dismissReminder", json!({"all": true})).unwrap();
+    w.state_mut().execute("folder.select", json!({"kind": "inbox"})).unwrap();
+    w.run_steps(3);
+    let account = w.state().session.mailbox.accounts[0].id;
+    let archive = w.state().session.mailbox.folder_of_kind(account, FolderKind::Archive).unwrap();
+    let rows = w.state_mut().session.rows();
+    let (a, b) = (rows[0].id, rows[1].id);
+    w.state_mut().execute("mail.select", json!({"ids": [a, b]})).unwrap();
+    w.run_steps(3);
+    let answer = an_agent_asks(&mut w, "mail.deletePermanently", json!({}));
+    w.state_mut().execute("mail.move", json!({"ids": [b], "folder": archive})).unwrap();
+    w.run_steps(3);
+    crate::agent_gate::answer(w.state_mut(), true);
+    let done = answer.try_recv().unwrap();
+    let s = &w.state().session;
+    assert!(s.mailbox.message(a).is_none(), "{done}");
+    assert!(s.mailbox.message(b).is_some_and(|m| m.folder == archive), "deleted for good from Archive: {done}");
+    // All of them gone elsewhere: nothing is done, and the agent is told.
+    let (c, d) = (rows[2].id, rows[3].id);
+    w.state_mut().execute("mail.select", json!({"ids": [c]})).unwrap();
+    w.run_steps(3);
+    let answer = an_agent_asks(&mut w, "mail.deletePermanently", json!({"ids": [c, d]}));
+    w.state_mut().execute("mail.move", json!({"ids": [c, d], "folder": archive})).unwrap();
+    crate::agent_gate::answer(w.state_mut(), true);
+    let done = answer.try_recv().unwrap();
+    assert_eq!(done["ok"], json!(false), "{done}");
+    let s = &w.state().session;
+    assert!([c, d].iter().all(|id| s.mailbox.message(*id).is_some_and(|m| m.folder == archive)), "{done}");
 }
 
 #[test]

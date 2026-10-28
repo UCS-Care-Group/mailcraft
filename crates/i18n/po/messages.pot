@@ -8894,8 +8894,8 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
-msgid "This deletes the whole conversation: its {n} message in {folder} goes to Deleted Items."
-msgid_plural "This deletes the whole conversation: its {n} messages in {folder} go to Deleted Items."
+msgid "This deletes the conversation from {folder}: its {n} message there goes to Deleted Items."
+msgid_plural "This deletes the conversation from {folder}: its {n} messages there go to Deleted Items."
 msgstr[0] ""
 msgstr[1] ""
 
@@ -8908,15 +8908,15 @@ msgstr[1] ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
-msgid "This deletes {n} message in {folder}, the whole conversation included. It goes to Deleted Items."
-msgid_plural "This deletes {n} messages in {folder}, the whole conversation included. They go to Deleted Items."
+msgid "This deletes {n} message in {folder}, every message of the conversation there included. It goes to Deleted Items."
+msgid_plural "This deletes {n} messages in {folder}, every message of the conversation there included. They go to Deleted Items."
 msgstr[0] ""
 msgstr[1] ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
-msgid "This deletes {n} message in {folder}, whole conversations included. It goes to Deleted Items."
-msgid_plural "This deletes {n} messages in {folder}, whole conversations included. They go to Deleted Items."
+msgid "This deletes {n} message in {folder}, every message of the conversations there included. It goes to Deleted Items."
+msgid_plural "This deletes {n} messages in {folder}, every message of the conversations there included. They go to Deleted Items."
 msgstr[0] ""
 msgstr[1] ""
 

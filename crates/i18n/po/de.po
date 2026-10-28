@@ -10383,10 +10383,10 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
-msgid "This deletes the whole conversation: its {n} message in {folder} goes to Deleted Items."
-msgid_plural "This deletes the whole conversation: its {n} messages in {folder} go to Deleted Items."
-msgstr[0] "Damit wird die ganze Unterhaltung gelöscht: ihre {n} Nachricht in {folder} kommt in „Gelöschte Elemente“."
-msgstr[1] "Damit wird die ganze Unterhaltung gelöscht: ihre {n} Nachrichten in {folder} kommen in „Gelöschte Elemente“."
+msgid "This deletes the conversation from {folder}: its {n} message there goes to Deleted Items."
+msgid_plural "This deletes the conversation from {folder}: its {n} messages there go to Deleted Items."
+msgstr[0] "Damit wird die Unterhaltung aus {folder} gelöscht: ihre {n} Nachricht dort kommt in „Gelöschte Elemente“."
+msgstr[1] "Damit wird die Unterhaltung aus {folder} gelöscht: ihre {n} Nachrichten dort kommen in „Gelöschte Elemente“."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -10399,18 +10399,18 @@ msgstr[1] "Damit werden die {n} Nachrichten dieser Unterhaltung gelöscht, die h
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
-msgid "This deletes {n} message in {folder}, the whole conversation included. It goes to Deleted Items."
-msgid_plural "This deletes {n} messages in {folder}, the whole conversation included. They go to Deleted Items."
-msgstr[0] "Damit wird {n} Nachricht in {folder} gelöscht, die ganze Unterhaltung eingeschlossen. Sie kommt in „Gelöschte Elemente“."
-msgstr[1] "Damit werden {n} Nachrichten in {folder} gelöscht, die ganze Unterhaltung eingeschlossen. Sie kommen in „Gelöschte Elemente“."
+msgid "This deletes {n} message in {folder}, every message of the conversation there included. It goes to Deleted Items."
+msgid_plural "This deletes {n} messages in {folder}, every message of the conversation there included. They go to Deleted Items."
+msgstr[0] "Damit wird {n} Nachricht in {folder} gelöscht, alle Nachrichten der Unterhaltung dort eingeschlossen. Sie kommt in „Gelöschte Elemente“."
+msgstr[1] "Damit werden {n} Nachrichten in {folder} gelöscht, alle Nachrichten der Unterhaltung dort eingeschlossen. Sie kommen in „Gelöschte Elemente“."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
-msgid "This deletes {n} message in {folder}, whole conversations included. It goes to Deleted Items."
-msgid_plural "This deletes {n} messages in {folder}, whole conversations included. They go to Deleted Items."
-msgstr[0] "Damit wird {n} Nachricht in {folder} gelöscht, ganze Unterhaltungen eingeschlossen. Sie kommt in „Gelöschte Elemente“."
-msgstr[1] "Damit werden {n} Nachrichten in {folder} gelöscht, ganze Unterhaltungen eingeschlossen. Sie kommen in „Gelöschte Elemente“."
+msgid "This deletes {n} message in {folder}, every message of the conversations there included. It goes to Deleted Items."
+msgid_plural "This deletes {n} messages in {folder}, every message of the conversations there included. They go to Deleted Items."
+msgstr[0] "Damit wird {n} Nachricht in {folder} gelöscht, alle Nachrichten der Unterhaltungen dort eingeschlossen. Sie kommt in „Gelöschte Elemente“."
+msgstr[1] "Damit werden {n} Nachrichten in {folder} gelöscht, alle Nachrichten der Unterhaltungen dort eingeschlossen. Sie kommen in „Gelöschte Elemente“."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs

@@ -10545,10 +10545,10 @@ msgstr "Dit exemplaar van MailCraft heeft geen adres om rapporten naartoe te ver
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
-msgid "This deletes the whole conversation: its {n} message in {folder} goes to Deleted Items."
-msgid_plural "This deletes the whole conversation: its {n} messages in {folder} go to Deleted Items."
-msgstr[0] "Hiermee wordt het hele gesprek verwijderd: het {n} bericht ervan in {folder} gaat naar Verwijderde items."
-msgstr[1] "Hiermee wordt het hele gesprek verwijderd: de {n} berichten ervan in {folder} gaan naar Verwijderde items."
+msgid "This deletes the conversation from {folder}: its {n} message there goes to Deleted Items."
+msgid_plural "This deletes the conversation from {folder}: its {n} messages there go to Deleted Items."
+msgstr[0] "Hiermee wordt het gesprek uit {folder} verwijderd: het {n} bericht ervan daar gaat naar Verwijderde items."
+msgstr[1] "Hiermee wordt het gesprek uit {folder} verwijderd: de {n} berichten ervan daar gaan naar Verwijderde items."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -10561,18 +10561,18 @@ msgstr[1] "Hiermee worden de {n} berichten van dit gesprek verwijderd die hier s
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
-msgid "This deletes {n} message in {folder}, the whole conversation included. It goes to Deleted Items."
-msgid_plural "This deletes {n} messages in {folder}, the whole conversation included. They go to Deleted Items."
-msgstr[0] "Hiermee wordt {n} bericht in {folder} verwijderd, het hele gesprek inbegrepen. Het gaat naar Verwijderde items."
-msgstr[1] "Hiermee worden {n} berichten in {folder} verwijderd, het hele gesprek inbegrepen. Ze gaan naar Verwijderde items."
+msgid "This deletes {n} message in {folder}, every message of the conversation there included. It goes to Deleted Items."
+msgid_plural "This deletes {n} messages in {folder}, every message of the conversation there included. They go to Deleted Items."
+msgstr[0] "Hiermee wordt {n} bericht in {folder} verwijderd, alle berichten van het gesprek daar inbegrepen. Het gaat naar Verwijderde items."
+msgstr[1] "Hiermee worden {n} berichten in {folder} verwijderd, alle berichten van het gesprek daar inbegrepen. Ze gaan naar Verwijderde items."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
-msgid "This deletes {n} message in {folder}, whole conversations included. It goes to Deleted Items."
-msgid_plural "This deletes {n} messages in {folder}, whole conversations included. They go to Deleted Items."
-msgstr[0] "Hiermee wordt {n} bericht in {folder} verwijderd, hele gesprekken inbegrepen. Het gaat naar Verwijderde items."
-msgstr[1] "Hiermee worden {n} berichten in {folder} verwijderd, hele gesprekken inbegrepen. Ze gaan naar Verwijderde items."
+msgid "This deletes {n} message in {folder}, every message of the conversations there included. It goes to Deleted Items."
+msgid_plural "This deletes {n} messages in {folder}, every message of the conversations there included. They go to Deleted Items."
+msgstr[0] "Hiermee wordt {n} bericht in {folder} verwijderd, alle berichten van de gesprekken daar inbegrepen. Het gaat naar Verwijderde items."
+msgstr[1] "Hiermee worden {n} berichten in {folder} verwijderd, alle berichten van de gesprekken daar inbegrepen. Ze gaan naar Verwijderde items."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs

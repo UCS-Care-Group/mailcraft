@@ -412,7 +412,7 @@ pub fn confirmation(app: &MailApp, id: &str, params: &Value) -> Option<Question>
             };
             // It goes ahead with what it counted, not with what the selection stands for when the
             // owner says yes: a message that came into the conversation meanwhile wasn't counted (#503).
-            Some(Question::new(tl!("Delete for Good"), text, tl!("Delete"), pinned(&ids, "confirmed")))
+            Some(Question::new(tl!("Delete for Good"), text, tl!("Delete"), pinned(mb, &ids, "confirmed")))
         }
         // A contact has no Deleted Items to go to: deleting one is for good (#186). One the
         // account's server keeps can't be deleted here, and the command says so without asking.
@@ -649,14 +649,15 @@ fn conversation_question(app: &MailApp, ids: &[u64]) -> Option<Question> {
         }
     }
     let whole = !stays_here && picked.iter().all(|id| mb.message(*id).is_some_and(|m| m.folder == folder_id));
-    let folder = mb.folder(folder_id).map(crate::nav::folder_name).unwrap_or_default();
+    // A shared mailbox's folder with its mailbox's name ("Inbox - sales@example.org").
+    let folder = mb.folder(folder_id).map(|f| crate::nav::folder_label(mb, f)).unwrap_or_default();
     // One conversation with other messages picked as well, such as its reply in Sent Items.
     let single = asking.len() == 1;
     let what = match (one, whole) {
         (true, true) => tln!(
             n,
-            "This deletes the whole conversation: its {n} message in {folder} goes to Deleted Items.",
-            "This deletes the whole conversation: its {n} messages in {folder} go to Deleted Items."
+            "This deletes the conversation from {folder}: its {n} message there goes to Deleted Items.",
+            "This deletes the conversation from {folder}: its {n} messages there go to Deleted Items."
         ),
         (true, false) => tln!(
             n,
@@ -665,13 +666,13 @@ fn conversation_question(app: &MailApp, ids: &[u64]) -> Option<Question> {
         ),
         (false, true) if single => tln!(
             n,
-            "This deletes {n} message in {folder}, the whole conversation included. It goes to Deleted Items.",
-            "This deletes {n} messages in {folder}, the whole conversation included. They go to Deleted Items."
+            "This deletes {n} message in {folder}, every message of the conversation there included. It goes to Deleted Items.",
+            "This deletes {n} messages in {folder}, every message of the conversation there included. They go to Deleted Items."
         ),
         (false, true) => tln!(
             n,
-            "This deletes {n} message in {folder}, whole conversations included. It goes to Deleted Items.",
-            "This deletes {n} messages in {folder}, whole conversations included. They go to Deleted Items."
+            "This deletes {n} message in {folder}, every message of the conversations there included. It goes to Deleted Items.",
+            "This deletes {n} messages in {folder}, every message of the conversations there included. They go to Deleted Items."
         ),
         (false, false) if single => tln!(
             n,
@@ -684,7 +685,7 @@ fn conversation_question(app: &MailApp, ids: &[u64]) -> Option<Question> {
             "This deletes {n} messages, including the conversations' messages listed here. They go to Deleted Items."
         ),
     };
-    let mut text = crate::i18n::fmt(&what, &[("folder", folder)]);
+    let mut text = crate::i18n::fmt(&what, &[("folder", &folder)]);
     // (Not when one picked in another folder goes too: the count says so.)
     let picked_elsewhere = picked.iter().any(|id| mb.message(*id).is_some_and(|m| m.folder != folder_id));
     if stays_elsewhere && !picked_elsewhere {
@@ -705,17 +706,19 @@ fn conversation_question(app: &MailApp, ids: &[u64]) -> Option<Question> {
     let settable = owners.iter().all(|o| mb.account(*o).is_some_and(|a| !a.email.is_empty() && a.kind != mailcraft_model::AccountKind::Unknown));
     let then = owners.into_iter().map(|a| ("account.edit", json!({"id": a, "askBeforeDeletingConversation": false}))).collect();
     // It goes ahead with what it counted, asked again only if one of them would now go for good.
-    let ask = Question::new(tl!("Delete Conversation"), text, tl!("Delete"), pinned(ids, "conversation"));
+    let ask = Question::new(tl!("Delete Conversation"), text, tl!("Delete"), pinned(mb, ids, "conversation"));
     Some(if settable { ask.ticked(tick, then) } else { ask })
 }
 
 /// What a Delete goes ahead with on the owner's yes, noted as `said`: the messages its question
-/// counted, or, more than a command takes by `ids` (a whole large folder), the selection, as before
+/// counted, with the folder each was counted in (`counted`, which [`go_ahead`] reads and takes
+/// out), or, more than a command takes by `ids` (a whole large folder), the selection, as before
 /// (#503).
-fn pinned(ids: &[Id], said: &str) -> Value {
+fn pinned(mb: &mailcraft_model::Mailbox, ids: &[Id], said: &str) -> Value {
     let mut with = json!({ said: true });
     if ids.len() <= mailcraft_engine::p::MAX_IDS {
         with["ids"] = json!(ids);
+        with["counted"] = json!(ids.iter().map(|id| mb.message(*id).map_or(0, |m| m.folder)).collect::<Vec<_>>());
     }
     with
 }
@@ -796,12 +799,20 @@ pub(crate) fn leave_message(app: &mut MailApp, answer: &str, then: &str, params:
 }
 
 pub(crate) fn go_ahead(app: &mut MailApp, command: &str, mut params: Value) {
-    // A message a delete's question counted that is gone meanwhile is left out: the rest still go (#503).
+    // A message a delete's question counted that is gone meanwhile, or that has left the folder
+    // it was counted in (moved on another device, which a Send/Receive brings while the question
+    // is open), is left out: the rest still go (#503).
+    let counted = params.as_object_mut().and_then(|p| p.remove("counted"));
     if matches!(command, "mail.delete" | "mail.deletePermanently")
         && let Some(ids) = params.get_mut("ids").and_then(Value::as_array_mut)
     {
         let mb = &app.session.mailbox;
-        ids.retain(|id| id.as_u64().is_some_and(|id| mb.message(id).is_some()));
+        let folders = counted.as_ref().and_then(Value::as_array);
+        let stays = |i: usize, id: &Value| {
+            let m = id.as_u64().and_then(|id| mb.message(id));
+            m.is_some_and(|m| folders.is_none_or(|f| f.get(i).and_then(Value::as_u64) == Some(m.folder)))
+        };
+        *ids = ids.iter().enumerate().filter(|(i, id)| stays(*i, id)).map(|(_, id)| id.clone()).collect();
         // None left: nothing to delete, and nothing to say about `ids`.
         if ids.is_empty() {
             return;
