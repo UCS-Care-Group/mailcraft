@@ -1002,6 +1002,19 @@ pub const NOT_MOVING_YET: &str = "MailCraft doesn't move or delete a JMAP accoun
 /// ([`Message::held`]): only mail queued with Send leaves through the Outbox (#607).
 pub const MOVED_INTO_OUTBOX: &str = "Moved into the Outbox, not sent. Send Again sends it";
 
+/// Only what is queued with Send leaves through an IMAP account's Outbox (#607): a message moved
+/// or copied there is held, as one a Microsoft account's server refused is, until Send Again. One
+/// that leaves an Outbox is no longer held for having been put in it.
+fn hold_if_put_in_outbox(m: &mut Message, into_outbox: bool) {
+    if into_outbox {
+        if m.held.is_empty() {
+            m.held = MOVED_INTO_OUTBOX.to_string();
+        }
+    } else if m.held == MOVED_INTO_OUTBOX {
+        m.held.clear();
+    }
+}
+
 /// Why a JMAP account's folders keep their names and places ([`Mailbox::folder_stays_on_server`]):
 /// a rename or a move reaches the server only once the engine sends changes, and until then it
 /// would stay on this computer alone.
@@ -1720,9 +1733,9 @@ impl Mailbox {
     /// moving it back to where the server still has it calls the move off. A message moved to
     /// another account's folder stays where it is on its own server: nothing is pushed.
     fn move_message_anyway(&mut self, id: Id, folder: Id) -> Result<(), ModelError> {
-        let (account, remote, outbox) = {
+        let (account, remote) = {
             let f = self.folder(folder).ok_or(not_found("folder", folder))?;
-            (f.account, f.remote.clone(), f.kind == FolderKind::Outbox)
+            (f.account, f.remote.clone())
         };
         let m = self.message(id).ok_or(not_found("message", id))?;
         if m.folder == folder {
@@ -1731,7 +1744,7 @@ impl Mailbox {
         if self.move_across_graph(id, folder, account)? {
             return Ok(());
         }
-        let into_outbox = outbox && self.account(account).is_some_and(|a| a.kind == AccountKind::Imap);
+        let into_outbox = self.is_imap_outbox(folder);
         let m = self.message(id).ok_or(not_found("message", id))?;
         let (was_in, uid, synced) = (m.folder, m.uid, m.synced);
         let waiting = self.waiting_move(id);
@@ -1764,17 +1777,13 @@ impl Mailbox {
         // The UID belonged to the old folder.
         m.uid = uid_there;
         m.synced = synced_there;
-        // Only what is queued with Send leaves through an IMAP account's Outbox (#607): a message
-        // moved there is held, as one a Microsoft account's server refused is, until Send Again.
-        // One that leaves an Outbox is no longer held for having been moved into it.
-        if into_outbox {
-            if m.held.is_empty() {
-                m.held = MOVED_INTO_OUTBOX.to_string();
-            }
-        } else if m.held == MOVED_INTO_OUTBOX {
-            m.held.clear();
-        }
+        hold_if_put_in_outbox(m, into_outbox);
         Ok(())
+    }
+
+    /// Whether `folder` is the Outbox of an IMAP account, which sends all it holds (#607).
+    fn is_imap_outbox(&self, folder: Id) -> bool {
+        self.folder(folder).is_some_and(|f| f.kind == FolderKind::Outbox && self.account(f.account).is_some_and(|a| a.kind == AccountKind::Imap))
     }
 
     /// Whether `account` is kept in step through Microsoft Graph.
@@ -1976,6 +1985,7 @@ impl Mailbox {
             let mut copy = m.clone();
             (copy.id, copy.folder, copy.account, copy.uid, copy.synced) = (0, folder, to_account, 0, None);
             (copy.server, copy.moving_out) = (None, None);
+            hold_if_put_in_outbox(&mut copy, self.is_imap_outbox(folder));
             let new = self.add_message(copy)?;
             let marker = self.place_marker(new, &source);
             self.queued.push(Queued::PlaceMessage { account: to_account, message: new, marker, copy: true });
@@ -1996,6 +2006,7 @@ impl Mailbox {
         copy.synced = None;
         copy.server = None;
         copy.moving_out = None;
+        hold_if_put_in_outbox(&mut copy, self.is_imap_outbox(folder));
         let new = self.add_message(copy)?;
         if let Some(server) = server {
             let to = self.folder(folder).and_then(|f| f.server.as_ref()).map(|s| s.id.clone()).unwrap_or_default();

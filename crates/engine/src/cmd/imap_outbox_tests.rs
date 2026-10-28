@@ -79,3 +79,22 @@ fn a_message_moved_out_of_the_outbox_again_is_no_longer_held() {
     s.run("mail.move", &json!({"ids": [id], "folder": inbox})).unwrap();
     assert!(s.mailbox.message(id).unwrap().held.is_empty());
 }
+
+#[test]
+fn a_message_copied_into_the_outbox_is_not_sent() {
+    let (mut s, a, id) = imap();
+    let outbox = s.mailbox.folder_of_kind(a, FolderKind::Outbox).unwrap();
+    s.run("mail.copy", &json!({"ids": [id], "folder": outbox})).unwrap();
+    assert_eq!(s.mailbox.messages_in(outbox).count(), 1, "the copy is in the Outbox");
+    assert!(to_send(&s, a).is_empty(), "nothing is sent that was only copied there");
+}
+
+#[test]
+fn a_copy_out_of_the_outbox_is_not_held() {
+    let (mut s, a, id) = imap();
+    let outbox = s.mailbox.folder_of_kind(a, FolderKind::Outbox).unwrap();
+    let inbox = s.mailbox.folder_of_kind(a, FolderKind::Inbox).unwrap();
+    s.run("mail.move", &json!({"ids": [id], "folder": outbox})).unwrap();
+    s.run("mail.copy", &json!({"ids": [id], "folder": inbox})).unwrap();
+    assert!(s.mailbox.messages_in(inbox).all(|m| m.held.is_empty()));
+}
