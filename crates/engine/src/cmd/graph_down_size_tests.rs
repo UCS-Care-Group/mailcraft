@@ -125,6 +125,7 @@ fn a_message_being_moved_out_is_given_no_server_state() {
 fn a_draft_the_server_says_was_sent_is_no_longer_a_draft() {
     let (mut mb, account, id) = mailbox(true);
     mb.message_mut(id).unwrap().server_draft = Some(Default::default());
+    mb.message_mut(id).unwrap().unfetched = false;
     let mut index = ServerIndex::default();
     // A delta that leaves `isDraft` out says nothing of it: still a draft.
     take_page(&mut mb, &mut index, account, &delta("AAkA1", "CK1"), &mut Down::default());
@@ -135,6 +136,8 @@ fn a_draft_the_server_says_was_sent_is_no_longer_a_draft() {
     take_page(&mut mb, &mut index, account, &page, &mut Down::default());
     let m = mb.message(id).unwrap();
     assert!(!m.draft && m.server_draft.is_none());
+    // What was sent is fetched afresh: it may not be the draft last seen here.
+    assert!(m.unfetched, "the sent version is to be fetched");
 }
 
 /// A draft saved here that waits to go up is a draft still, whatever the server's copy says.
