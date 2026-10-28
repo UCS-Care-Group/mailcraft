@@ -1455,6 +1455,9 @@ fn an_agent_is_asked_before_a_rule_puts_mail_on_another_accounts_server() {
     assert_eq!(classify(&s, "rules.add", &rule(kept)), Access::Owner(Class::Settings));
     assert_eq!(classify(&s, "rules.fromMessage", &json!({"id": two, "folder": other})), Access::Owner(Class::Send));
     assert_eq!(classify(&s, "rules.fromMessage", &json!({"id": two, "folder": kept})), Access::Owner(Class::Settings));
+    // Made from a message of the account it files into: it files the other account's new mail
+    // there too.
+    assert_eq!(classify(&s, "rules.fromMessage", &json!({"id": two, "folder": inbox})), Access::Owner(Class::Send));
     let made = s.run("rules.add", &rule(other)).unwrap()["id"].as_u64().unwrap();
     assert_eq!(classify(&s, "rules.run", &json!({"folder": inbox})), Access::Owner(Class::Send));
     assert_eq!(classify(&s, "rules.run", &json!({"folder": other})), Access::Owner(Class::Settings));

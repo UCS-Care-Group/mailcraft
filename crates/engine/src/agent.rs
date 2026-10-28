@@ -760,7 +760,8 @@ fn rules_onto_another_server(s: &Session, id: &str, params: &Value) -> bool {
     let mb = &s.mailbox;
     match id {
         "rules.add" => crate::cmd::rules::rule_from_params(s, params).is_ok_and(|r| rule_onto_server(s, &r, None).is_some()),
-        "rules.fromMessage" => p::id(params, "folder").is_some_and(|f| onto_another_server(s, params, f)),
+        // The rule files the new mail of every account, not just the message's.
+        "rules.fromMessage" => p::id(params, "folder").is_some_and(|f| folder_onto_server(s, f, None).is_some()),
         "rules.enable" => p::id(params, "id")
             .and_then(|r| mb.rules.iter().find(|x| x.id == r))
             .is_some_and(|r| p::bool(params, "value").unwrap_or(!r.enabled) && rule_onto_server(s, r, None).is_some()),
@@ -1087,8 +1088,7 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
             let folder = p::id(params, "folder").filter(|f| s.mailbox.folder(*f).is_some());
             let to = folder.map(|f| quoted(&s.mailbox.folder_path(f))).unwrap_or_else(|| "a folder".to_string());
             let from = p::id(params, "id").or(s.sel.focus()).and_then(|m| s.mailbox.message(m)).map(|m| plain(&m.from.email)).unwrap_or_default();
-            let onto =
-                folder.filter(|f| onto_another_server(s, params, *f)).and_then(|f| s.mailbox.folder(f)).and_then(|f| s.mailbox.account(f.account));
+            let onto = folder.and_then(|f| folder_onto_server(s, f, None)).and_then(|a| s.mailbox.account(a));
             match onto {
                 Some(a) => format!("make a rule that always moves mail from {} onto the server of {}, into {to}", quoted(&from), clip(&a.email, 80)),
                 None => format!("make a rule that always moves mail from {} to {to}", quoted(&from)),
