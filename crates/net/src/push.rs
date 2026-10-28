@@ -21,11 +21,11 @@
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 
-use mailcraft_mime::WriteOptions;
+use mailcraft_mime::{PLACE_HEADER, WriteOptions};
 use mailcraft_model::sync::{
     Created, Deleted, FlagsPushed, ImapPlace, MAX_PLACES, Moved, Placed, RemoteFlags, RemoteOp, SyncRequest, SyncResult, SyncStage, SyncStep,
 };
-use mailcraft_model::{FolderKind, Id, MailIdentity, Message};
+use mailcraft_model::{FolderKind, Id};
 use mailcraft_proto::ProtoError;
 use mailcraft_proto::imap::{Copied, Imap, Mailbox, decode_utf7, encode_utf7, searchable, uid_sets};
 
@@ -39,6 +39,8 @@ const MAX_OPS: usize = 10_000;
 const MAX_LEVELS: usize = 32;
 /// Most messages with a placed message's `Message-ID` that are looked at to find its copy.
 const MAX_LOOKED_AT: usize = 3;
+/// Longest marker a copy carries (the engine's are far shorter).
+const MAX_MARKER: usize = 200;
 
 /// Messages that moves of this run put into mailboxes, by the mailbox's name here: the
 /// `UIDVALIDITY` the server gave with their new UIDs, and those UIDs. The download takes them
@@ -152,6 +154,11 @@ fn stop(result: &mut SyncResult, line: String, error: &NetError) -> bool {
 fn fatal(e: impl Into<NetError>) -> Result<(), NetError> {
     let e = e.into();
     if e.is_fatal() { Err(e) } else { Ok(()) }
+}
+
+/// Whether `marker` can be written into a copy's header and asked for on a server.
+fn marked(marker: &str) -> bool {
+    !marker.is_empty() && marker.len() <= MAX_MARKER && marker.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-')
 }
 
 fn has(flags: &[String], flag: &str) -> bool {
@@ -507,18 +514,20 @@ impl<'a> Push<'a> {
     }
 
     /// Put the messages moved or copied into the account from elsewhere into their mailboxes,
-    /// each whole, with its flags and the time it arrived (#451). What the server took is noted
-    /// (`placed`), with where it went: as the server says (`APPENDUID`), or else as a look in the
-    /// mailbox for it by its `Message-ID` finds; what it wouldn't take too (`unplaced`), and said.
-    /// A copy put there by an earlier run whose answer was lost, or by one that ended before what
-    /// it brought back was kept, is found there the same way and taken for the message's, which
-    /// is not put there twice. A message whose answer is lost with the connection is neither
-    /// placed nor unplaced, and the next run looks for it there; the ones after it never set out.
-    /// Returns whether the connection is still good.
+    /// each whole, with its flags and the time it arrived (#451), and carrying its marker
+    /// ([`PLACE_HEADER`]). What the server took is noted (`placed`), with where it went: as the
+    /// server says (`APPENDUID`), or else as a look in the mailbox for the copy that carries the
+    /// marker finds; what it wouldn't take too (`unplaced`), and said. A copy put there by an
+    /// earlier run whose answer was lost, or by one that ended before what it brought back was
+    /// kept, is found there the same way and taken for the message's, which is not put there
+    /// twice. Only a message that carries the marker is ever taken for the copy: the server's own
+    /// message, the same mail come to this account as well, never is. A message whose answer is
+    /// lost with the connection is neither placed nor unplaced, and the next run looks for it
+    /// there; the ones after it never set out. Returns whether the connection is still good.
     fn places(&mut self, imap: &mut Imap<Stream<'_>>, result: &mut SyncResult) -> bool {
         let request = self.request;
         for place in request.places.iter().take(MAX_PLACES) {
-            let ImapPlace { message, to, to_folder, create } = place;
+            let ImapPlace { message, to, to_folder, create, marker } = place;
             let destination = match self.destination_of(imap, to, *to_folder, create, result) {
                 Ok(Some(destination)) => destination,
                 // Said already: it waits.
@@ -526,17 +535,23 @@ impl<'a> Push<'a> {
                 Err(alive) => return alive,
             };
             let given = RemoteFlags { draft: false, ..RemoteFlags::of(message, 0) };
-            let id = mailcraft_mime::written_message_id(&message.message_id);
+            // A copy without a marker that can be written (the engine always gives one) can't be
+            // told from other mail there: it is only ever where the server says it put it.
+            let marker = Some(marker.as_str()).filter(|m| marked(m));
+            // What the copy is looked for by: its `Message-ID`, which servers are asked for alike,
+            // or else the marker itself.
+            let id = mailcraft_mime::written_message_id(&message.message_id).filter(|id| searchable(id));
+            let key = marker.map(|m| id.map_or((PLACE_HEADER, m.to_string()), |id| ("Message-ID", id)));
             // Said, for the run ends there: a server that cuts off the same look every time keeps
             // the account's new mail away until the message is moved out of it.
             let looked =
                 |e: &NetError| format!("Couldn't look for \"{}\" in \"{}\" on the server: {e}", subject_of(message), shown(&destination.remote));
-            let before = match self.copies(imap, &destination, *to_folder, id.as_deref()) {
+            let before = match self.copies(imap, &destination, *to_folder, key.as_ref()) {
                 Ok(before) => before,
                 Err(e) => return stop(result, looked(&e), &e),
             };
-            if let Some((uid_validity, uids)) = &before {
-                match self.same_mail(imap, uids, message) {
+            if let (Some((uid_validity, uids)), Some(marker)) = (&before, marker) {
+                match self.carrying(imap, uids, marker) {
                     Ok(Some((uid, flags))) => {
                         // Put there before: it is the message's copy, with the flags it has there
                         // (what changed here since goes up next).
@@ -563,22 +578,26 @@ impl<'a> Push<'a> {
             // Without who got a blind copy: the copy is for anyone else who can open the mailbox
             // to see too.
             let options = WriteOptions { include_bcc: false, offset_minutes: mailcraft_time::local_offset_minutes(message.date) };
-            match imap.append_at(&destination.raw, &flags, date.as_deref(), &mailcraft_mime::write(message, &options)) {
+            let written = match marker {
+                Some(marker) => mailcraft_mime::write_placed(message, &options, marker),
+                None => mailcraft_mime::write(message, &options),
+            };
+            match imap.append_at(&destination.raw, &flags, date.as_deref(), &written) {
                 Ok(appended) => {
                     let (mut uid_validity, mut uid) = appended.map_or((0, 0), |a| (a.uid_validity, a.uid));
                     if uid == 0
-                        && let Some((_, earlier)) = &before
+                        && let Some(marker) = marker
                     {
-                        // The server didn't say where it went: to the one copy that wasn't there before.
-                        match self.copies(imap, &destination, *to_folder, id.as_deref()) {
-                            Ok(Some((validity, now))) => {
-                                if let [only] = now.iter().filter(|uid| !earlier.contains(uid)).collect::<Vec<_>>()[..] {
-                                    (uid_validity, uid) = (validity, *only);
-                                }
-                            }
+                        // The server didn't say where it went: to the copy that carries the marker.
+                        // It is there, and where is found by the next run when this look fails, for
+                        // that run looks for it before it puts it there again.
+                        match self.copies(imap, &destination, *to_folder, key.as_ref()) {
+                            Ok(Some((validity, now))) => match self.carrying(imap, &now, marker) {
+                                Ok(Some((found, _))) => (uid_validity, uid) = (validity, found),
+                                Ok(None) => {}
+                                Err(e) => return stop(result, looked(&e), &e),
+                            },
                             Ok(None) => {}
-                            // It is there, and where is found by the next run, which looks for it
-                            // before it puts it there again.
                             Err(e) => return stop(result, looked(&e), &e),
                         }
                     }
@@ -602,21 +621,21 @@ impl<'a> Push<'a> {
         true
     }
 
-    /// The messages in the destination's mailbox whose `Message-ID` is `id` (a message's as it is
-    /// written) that the mailbox here doesn't know (no message of the folder has that UID) and
-    /// this run hasn't put there, with the mailbox's `UIDVALIDITY`. `Ok(None)`: they can't be
-    /// looked for (the message has no id, or one that can't be asked for, the server won't say,
-    /// or the mailbox is numbered anew);
-    /// `Err`: the connection went, and why.
+    /// The messages in the destination's mailbox whose header field `key.0` has `key.1` in it (a
+    /// message's `Message-ID` as it is written, or a copy's marker) that the mailbox here doesn't
+    /// know (no message of the folder has that UID) and this run hasn't put there, with the
+    /// mailbox's `UIDVALIDITY`. `Ok(None)`: they can't be looked for (no key, one that can't be
+    /// asked for, the server won't say, or the mailbox is numbered anew); `Err`: the connection
+    /// went, and why.
     fn copies(
         &mut self,
         imap: &mut Imap<Stream<'_>>,
         destination: &Destination,
         to_folder: Id,
-        id: Option<&str>,
+        key: Option<&(&str, String)>,
     ) -> Result<Option<(u32, Vec<u32>)>, NetError> {
         // One the server can't be asked for (too long, say) isn't looked for.
-        let Some(id) = id.filter(|id| searchable(id)) else { return Ok(None) };
+        let Some((field, text)) = key.filter(|(_, text)| searchable(text)) else { return Ok(None) };
         let uid_validity = match &self.searching {
             Some((raw, uid_validity)) if *raw == destination.raw => *uid_validity,
             _ => {
@@ -634,7 +653,7 @@ impl<'a> Push<'a> {
         if uid_validity == 0 || folder.is_some_and(|f| f.uid_validity != 0 && f.uid_validity != uid_validity) {
             return Ok(None);
         }
-        let found = match imap.uid_search_header("Message-ID", id) {
+        let found = match imap.uid_search_header(field, text) {
             Ok(found) => found,
             Err(e) => return fatal(e).map(|()| None),
         };
@@ -644,16 +663,13 @@ impl<'a> Push<'a> {
         Ok(Some((uid_validity, unknown)))
     }
 
-    /// The first of `uids`, messages of the open destination, that is `message` by what it says
-    /// of itself (when it was sent, about what, from and to whom), as well as by its
-    /// `Message-ID`: another message that merely carries that id is not taken for it. A few are
-    /// looked at. With its UID come the flags the server has of it. `Err`: the connection went,
-    /// and why.
-    fn same_mail(&mut self, imap: &mut Imap<Stream<'_>>, uids: &[u32], message: &Message) -> Result<Option<(u32, RemoteFlags)>, NetError> {
-        let seen = MailIdentity::of(message);
-        for uid in uids.iter().take(MAX_LOOKED_AT) {
+    /// Which of `uids`, messages of the open destination, is the copy that carries `marker`: the
+    /// newest few are looked at. Another message, however like the copy it is, never is it. With
+    /// its UID come the flags the server has of it. `Err`: the connection went, and why.
+    fn carrying(&mut self, imap: &mut Imap<Stream<'_>>, uids: &[u32], marker: &str) -> Result<Option<(u32, RemoteFlags)>, NetError> {
+        for uid in uids.iter().rev().take(MAX_LOOKED_AT) {
             match imap.uid_fetch_header(*uid) {
-                Ok(Some(fetched)) if seen.fits(&mailcraft_mime::parse(fetched.body.as_deref().unwrap_or_default())) => {
+                Ok(Some(fetched)) if mailcraft_mime::carries_place(fetched.body.as_deref().unwrap_or_default(), marker) => {
                     return Ok(Some((*uid, crate::sync::remote_flags(&fetched).at(*uid))));
                 }
                 Ok(_) => {}

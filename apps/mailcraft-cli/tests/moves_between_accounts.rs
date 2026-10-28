@@ -870,3 +870,122 @@ fn a_message_put_on_another_server_arrives_whole_with_its_attachment() {
     assert!(made[0].body.contains("The body of Report."), "{}", made[0].body);
     assert_eq!(made[0].attachments.iter().map(|a| (a.name.as_str(), a.bytes.as_slice())).collect::<Vec<_>>(), [("report.txt", FIGURES)]);
 }
+
+#[test]
+fn undo_of_a_move_leaves_the_destinations_own_earlier_copy_alone() {
+    for uidplus in [true, false] {
+        let mut r = Rig::new(&format!("undo-{uidplus}@example.org"));
+        let (other, work) = r.other_account(uidplus);
+        other.world().mailbox("INBOX").messages.push(message(50, "\\Seen", "Two"));
+        let two = r.titled("Two");
+        let theirs = r.inbox(work);
+        r.s.run("mail.move", &json!({"ids": [two], "folder": theirs})).unwrap();
+        r.sync_of(work);
+        let inbox = r.inbox(r.gmail);
+        r.s.run("mail.move", &json!({"ids": [two], "folder": inbox})).unwrap();
+        for _ in 0..2 {
+            r.sync_of(work);
+            r.sync();
+        }
+        assert!(r.gmail_keeps("Two"), "{uidplus}");
+        assert_eq!(on(&other, "INBOX"), ["Two"], "{uidplus}");
+    }
+}
+
+/// The marker a message's copy on the server carries, when it carries one.
+fn marker_of(m: &FakeMessage) -> Option<String> {
+    let body = String::from_utf8_lossy(&m.body).into_owned();
+    let line = body.lines().find(|l| l.starts_with("X-MailCraft-Place: "))?;
+    Some(line.trim_start_matches("X-MailCraft-Place: ").to_string())
+}
+
+#[test]
+fn copies_put_on_a_server_that_doesnt_say_where_they_went_are_each_their_own_and_never_the_servers() {
+    let mut r = Rig::new("each-its-own@example.org");
+    let (other, work) = r.other_account(false);
+    // The same mail came to the other account by itself, and isn't here yet.
+    other.world().mailbox("INBOX").messages.push(message(50, "\\Seen", "Three"));
+    let three = r.titled("Three");
+    let theirs = r.inbox(work);
+    for _ in 0..2 {
+        r.s.run("mail.copy", &json!({"ids": [three], "folder": theirs})).unwrap();
+    }
+    let copies: Vec<Id> = r.s.mailbox.messages.values().filter(|m| m.subject == "Three" && m.account == work).map(|m| m.id).collect();
+    assert_eq!(copies.len(), 2);
+    r.sync_of(work);
+    assert_eq!(on(&other, "INBOX"), ["Three", "Three", "Three"]);
+    {
+        // Each copy carries a marker of its own; the server's own message none.
+        let mut world = other.world();
+        let markers: Vec<Option<String>> = world.mailbox("INBOX").messages.iter().map(marker_of).collect();
+        assert!(markers[0].is_none() && markers[1].is_some() && markers[2].is_some() && markers[1] != markers[2], "{markers:?}");
+    }
+    let uid = |r: &Rig, id: Id| r.s.mailbox.message(id).map(|m| m.uid);
+    let (first, second) = (uid(&r, copies[0]), uid(&r, copies[1]));
+    assert!(first.is_some_and(|u| u > 50) && second.is_some_and(|u| u > 50) && first != second, "{first:?} {second:?}");
+    // Deleting one copy here takes that one alone off the server.
+    r.s.run("mail.deletePermanently", &json!({"ids": [copies[0]]})).unwrap();
+    for _ in 0..2 {
+        r.sync_of(work);
+    }
+    let left: Vec<u32> = other.world().mailbox("INBOX").messages.iter().filter(|m| !m.has("\\Deleted")).map(|m| m.uid).collect();
+    assert_eq!(left, [50, second.unwrap_or_default()]);
+    assert!(r.gmail_keeps("Three"));
+}
+
+#[test]
+fn a_copy_without_a_message_id_whose_answer_was_lost_is_found_by_its_marker_and_not_put_there_twice() {
+    for uidplus in [false, true] {
+        let mut r = Rig::new(&format!("no-id-{uidplus}@example.org"));
+        let (other, work) = r.other_account(uidplus);
+        let local = r.s.mailbox.local_account();
+        let kept = r.s.mailbox.add_folder(local, None, "Kept").unwrap();
+        let plain = Message {
+            folder: kept,
+            subject: "No id".into(),
+            from: Address::new("Ada", "ada@example.org"),
+            read: true,
+            date: NOW - 7_200,
+            body: Body { text: "No id.".into(), html: None },
+            ..Default::default()
+        };
+        let plain = r.s.mailbox.add_message(plain).unwrap();
+        let theirs = r.inbox(work);
+        r.s.run("mail.move", &json!({"ids": [plain], "folder": theirs})).unwrap();
+        other.world().hang_up_after = Some("APPEND".into());
+        let (_, errors) = r.sync_said(work);
+        assert!(!errors.is_empty(), "{uidplus}");
+        assert_eq!(on(&other, "INBOX"), ["No id"], "{uidplus}");
+        for _ in 0..2 {
+            assert_eq!(r.sync_of(work)["new"], 0, "{uidplus}");
+        }
+        assert_eq!(on(&other, "INBOX"), ["No id"], "{uidplus}");
+        assert_eq!(r.here("No id"), 1, "{uidplus}");
+        let m = r.s.mailbox.message(plain).unwrap();
+        assert!(m.account == work && m.uid != 0, "{uidplus}: {m:?}");
+        assert!(r.s.mailbox.queued.is_empty(), "{uidplus}: {:?}", r.s.mailbox.queued);
+    }
+}
+
+#[test]
+fn a_copy_whose_answer_was_lost_is_found_among_much_of_the_same_mail_there() {
+    let mut r = Rig::new("among-many@example.org");
+    let (other, work) = r.other_account(false);
+    // The same mail came to the other account four times by itself, and none is here yet.
+    for uid in 50..54 {
+        other.world().mailbox("INBOX").messages.push(message(uid, "\\Seen", "Two"));
+    }
+    let two = r.titled("Two");
+    let theirs = r.inbox(work);
+    r.s.run("mail.move", &json!({"ids": [two], "folder": theirs})).unwrap();
+    other.world().hang_up_after = Some("APPEND".into());
+    let (_, errors) = r.sync_said(work);
+    assert!(!errors.is_empty());
+    for _ in 0..2 {
+        r.sync_of(work);
+        r.sync();
+    }
+    assert_eq!(on(&other, "INBOX").len(), 5);
+    assert!(r.s.mailbox.message(two).is_some_and(|m| m.uid == 54), "{:?}", r.s.mailbox.message(two));
+    assert!(!r.gmail_keeps("Two"));
+}

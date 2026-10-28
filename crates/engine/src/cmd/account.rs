@@ -701,7 +701,7 @@ fn place_ops(s: &Session, account: Id, limit: usize) -> (Vec<ImapPlace>, usize) 
     let mb = &s.mailbox;
     let (mut out, mut count, mut spent) = (Vec::new(), 0usize, 0u64);
     for queued in &mb.queued {
-        let Queued::PlaceMessage { account: a, message, .. } = queued else { continue };
+        let Queued::PlaceMessage { account: a, message, marker, .. } = queued else { continue };
         if *a != account {
             continue;
         }
@@ -717,7 +717,7 @@ fn place_ops(s: &Session, account: Id, limit: usize) -> (Vec<ImapPlace>, usize) 
         match s.loaded_message(m.id) {
             Ok(whole) => {
                 let (to, create) = destination(mb, folder);
-                out.push(ImapPlace { message: whole.as_ref().clone(), to, to_folder: folder.id, create });
+                out.push(ImapPlace { message: whole.as_ref().clone(), to, to_folder: folder.id, create, marker: marker.clone() });
             }
             Err(e) => log::warn!("message {} waits to go to the server: {e}", m.id),
         }

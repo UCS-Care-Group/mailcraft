@@ -132,6 +132,10 @@ pub struct ImapPlace {
     pub to_folder: Id,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub create: Vec<String>,
+    /// The marker the copy carries ([`crate::Queued::PlaceMessage`]): a copy on the server is
+    /// taken for this one only when it carries it.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub marker: String,
 }
 
 impl SyncRequest {
