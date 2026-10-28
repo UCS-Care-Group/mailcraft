@@ -1,6 +1,6 @@
 # MailCraft architecture
 
-> **Last reviewed:** 2026-10-11 · **Last updated:** 2026-10-27 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
+> **Last reviewed:** 2026-10-11 · **Last updated:** 2026-10-28 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
 
 How MailCraft is built today. Rules for working in the code are in [`AGENTS.md`](../AGENTS.md). The
 shape — layers, "everything is a command", the swappable egui front end, the control channel, MCP,
@@ -29,7 +29,7 @@ egui, eframe, winit or rfd.
 | L2 | `vcard` | vCard 2.1/3.0/4.0 reader, 3.0 writer |
 | L3 | `proto` | IMAP4rev1 and SMTP clients over any `Read + Write` stream (no sockets, so they test against scripted transcripts and build for wasm) |
 | L3 | `net` | TCP + TLS (rustls), sending through SMTP, two-way IMAP synchronisation, OAuth sign-in, MX lookup, Microsoft Graph (`graph`); empty on wasm |
-| L3 | `jmap` | JMAP (RFC 8620, 8621) without sockets or browser APIs: builds each HTTP request and judges the answer, the program does the exchange (`HttpExchange`); an in-process server for tests (`stand-in` feature). Nothing calls it yet (M6) |
+| L3 | `jmap` | JMAP (RFC 8620, 8621) without sockets or browser APIs: builds each HTTP request and judges the answer, the program does the exchange (`HttpExchange`); an in-process server for tests (`stand-in` feature). The browser build runs it over `fetch` (M6, [jmap.md](jmap.md)) |
 | L4 | `engine` | `Session` (mailbox, selection, view, the message being written, undo), the **command registry** (`cmd/*.rs`), the message list (`list.rs`), the Outlook feature catalog (`catalog.rs`), the sample mailbox, file dispatch (`io.rs`) |
 | L5 | `mcp` | MCP server: tools over the command registry; headless or bridged to the running app |
 | L6 | `ui-egui` | The front end: title bar with search, ribbon, module bar, folder pane, message list, reading pane, composer, calendar, people, tasks, Backstage, dialogs, themes, control channel, headless `ui_shot` example |
@@ -54,7 +54,10 @@ egui, eframe, winit or rfd.
 4. **Send/Receive:** `sync.request` (pure) says what to do; a host thread runs `net::sync`, which
    sends the Outbox through SMTP and downloads new mail and flag changes over IMAP with `proto`
    and `mime`; `sync.apply` (pure) takes the result in and runs the rules on new Inbox mail. The
-   engine and the UI never touch a socket, which is why they build for the browser.
+   engine and the UI never touch a socket, which is why they build for the browser. A JMAP
+   account goes the Graph way: `sync.jmapRequest` (pure) says what to read, the host (the browser
+   build, over `fetch`) runs `mailcraft_jmap::sync_mail` and hands the run back in pieces, and
+   `sync.applyJmap` (pure) takes each in by server id ([jmap.md](jmap.md)).
 5. **Save:** the desktop app writes the mailbox file a few seconds after each change and on
    exit; the browser writes to its storage; File › Save As and the exports write other files (a
    download in the browser).
@@ -273,3 +276,4 @@ a made-up mailbox of 64,000 messages (ignored by `cargo test`).
 | 2026-10-27 | minor | #519 slice 2: opening for the window: the whole-file sum in the background, bodies of the opening rows only, content files looked for afterwards, the word index after the first frames |
 | 2026-10-27 | patch | #519 slice 2 review: bodies found missing are marked, the bodies the budget holds come in the background, a cut-short file has no sum |
 | 2026-10-27 | patch | #519 slice 2 review: a body whose file is damaged, read in the background, is marked and counted |
+| 2026-10-28 | minor | M6: the browser build runs `jmap` over `fetch`; a JMAP account's Send/Receive in the data flow |
