@@ -74,6 +74,17 @@ Local test: `python3 -m http.server 8765` inside the folder, then open http://lo
   downloads) are blocked.
 - Don't send `X-Frame-Options: DENY` or a `frame-ancestors` CSP that excludes the embedding page.
 
+## JMAP accounts
+
+The browser build reads JMAP accounts
+([docs/jmap.md](https://github.com/UCS-Care-Group/mailcraft/blob/main/docs/jmap.md)). Their mail
+server has to answer the site's origin (CORS: `Authorization`, `Content-Type` and `Accept` allowed
+in the preflight of `GET` and `POST`, and `Retry-After` exposed), and an account names the address
+of its session resource itself: a page follows no redirect, so a `/.well-known/jmap` that sends the
+client on can't be used. A site that signs its users in itself can name their accounts, and hand
+over their credential, with `window.mailcraftJmap`, set in `index.html` before the app's script;
+MailCraft then never asks for it.
+
 ## Renderer selection and fallback flags
 
 MailCraft renders with wgpu. It uses **WebGPU** when the browser has it and falls back to
