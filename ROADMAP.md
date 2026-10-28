@@ -2,7 +2,7 @@
 
 **Stage: public beta** (0.8.0, 2026-10-24) · next: leaving beta, when every item of [the beta checklist](#the-beta-checklist) passes
 
-> **Last reviewed:** 2026-10-20 · **Last updated:** 2026-10-28 · **Change:** patch · **Target:** Microsoft Outlook (Microsoft 365, classic desktop)
+> **Last reviewed:** 2026-10-20 · **Last updated:** 2026-10-28 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365, classic desktop)
 
 MailCraft aims for complete parity with Microsoft Outlook, then goes further on speed, openness,
 privacy and agent control. This page is the direction: where MailCraft stands, what beta must
@@ -153,14 +153,15 @@ the first people MailCraft is for. Each is a shortfall in [`docs/gaps.md`](docs/
 
 MailCraft also builds for the browser (WebAssembly), from the same code. Every change is checked to
 build, and each release carries it as a download, but it has not yet been reviewed in use, and it
-can't connect to a mail server (a browser can't open the connections IMAP and SMTP need): it opens
-the sample mailbox and mailboxes kept in the browser. A connection to JMAP servers, read first,
-is being contributed ([#226](https://github.com/UCS-Care-Group/mailcraft/issues/226)).
+can't open the connections IMAP and SMTP need: the only mail servers it reaches are JMAP ones, to
+read for now ([#226](https://github.com/UCS-Care-Group/mailcraft/issues/226),
+[docs/jmap.md](docs/jmap.md)); otherwise it opens the sample mailbox and mailboxes kept in the
+browser.
 
 It is to be a mail client of its own (decided 2026-10-19, with #226):
 
 1. Review it: run it in the main browsers, and list what works, what doesn't and what is missing.
-2. JMAP accounts: read first, then changes going up and sending (#226, being contributed).
+2. JMAP accounts: read (#226, done); then changes going up and sending.
 3. Microsoft accounts through Microsoft Graph, which runs over HTTPS as JMAP does.
 4. Gmail and Google Workspace accounts ([#233](https://github.com/UCS-Care-Group/mailcraft/issues/233)),
    once Google sign-in on the desktop is in ([#232](https://github.com/UCS-Care-Group/mailcraft/issues/232)).
@@ -179,13 +180,14 @@ follows:
 | M3 | **Writes like mail** | Rich-text composing and replies, pictures, spell check | Rich text done (R4); pictures in the body and spell checking after beta (gap 7) |
 | M4 | **Schedules** | Invitations by mail, answers from the reading pane, time zones, reminders that fire | Done for Microsoft 365, desktop alerts included (R7.1); what is left is in gaps 9–11 |
 | M5 | **Scales** | A large mailbox stays quick | Became R6, for 200,000 messages (B8): met on the reference machine; every message's headers are still held in memory (gap 8) |
-| M6 | **Beyond IMAP** | JMAP and Microsoft Graph over HTTPS, which also gives the browser build a server connection | Graph for Microsoft accounts done (R3); JMAP being contributed, for the browser build first (see above) |
+| M6 | **Beyond IMAP** | JMAP and Microsoft Graph over HTTPS, which also gives the browser build a server connection | Graph for Microsoft accounts done (R3); JMAP accounts read in the browser build (#226); changes going up and sending next |
 | M7 | **Switchers** | `.pst`/`.msg` import, languages, printing, Action Shortcuts and the long tail of the catalog | After beta (items 3, 4, 12 and 15 above); languages partly done: four preview languages |
 
 ## Progress log
 
 | Date | What landed |
 |---|---|
+| 2026-10-28 | M6 (#226): JMAP accounts are read in the browser build, which reaches them over `fetch`; [docs/jmap.md](docs/jmap.md) says what works, how an account comes in, what its server has to allow, and how a site that serves MailCraft names accounts and holds their credential. Read only: nothing goes up and nothing is sent yet. The four JMAP commands are in the control protocol |
 | 2026-10-28 | #567: new mail in the Inbox of a Microsoft account kept in step through Microsoft Graph goes through the rules, as IMAP mail does: after the Safe and Blocked Senders lists (mail a list sends to Junk E-mail isn't the rules' to file, and a safe sender's taken out of Junk E-mail goes through them), only once the folder's first round has ended (never its first download, nor a folder read afresh) and then on every page of a later round, which each folder now remembers (`ServerFolder::round_ended`, read from `caught_up` in a file from before), and a rule's move or change goes up to the server as the owner's own does. A shared mailbox's mail stays as its server has it, as the lists leave it. Before, only Run Rules Now ran them on that mail. A rule that moves new mail out of the account (into a folder of another account) clears the undo history, as an IMAP Send/Receive that moved mail on the server does: an undo of an earlier step would otherwise lose that mail for good once the server's copy is removed, until undo leaves alone what arrived after its step (#605). Also fixed: the Safe and Blocked Senders lists sorted only the first page of a later round (100 changes), so after a busy while the rest of a Microsoft account's new mail stayed where it arrived. Tests in `junk_tests.rs` |
 | 2026-10-27 | #512: Forward and Forward as Attachment refuse an `id` or `ids` of `null`, which an agent's look-up that found nothing gives, instead of forwarding the selected messages. Only leaving both out takes the selection. |
 | 2026-10-27 | #586: closing with a large mailbox open no longer hangs. Measured with `store_bench_tests.rs` (now also timing what a close does, and run every week by the Bench workflow, which warns past 3 s to open) on the made-up 64,000-message mailbox: the last save takes 1 to 4 ms after a change and 1 ms with none; letting go of the mailbox took about 0.22 s on the window's thread, and a close soon after opening waited for the content folder's tidying, about 0.27 s warm. Now a close waits only for a save, never for the tidying (left where it got to, nothing of the mailbox being written by it), and the mailbox's memory goes with the process. Left: a word index still reading its file holds the close for up to about 0.21 s, and the first save after the bodies read in the background re-prepares them, 0.32 s, which a close waits for when the first change comes just before it. Test in `crates/ui-egui/tests/autosave.rs` |
@@ -377,6 +379,7 @@ follows:
 
 | Date | Change |
 |---|---|
+| 2026-10-28 | M6: JMAP accounts read in the browser build (the browser build, M6, progress log) |
 | 2026-10-28 | #567: rules run on new mail that comes through Microsoft Graph (progress log) |
 | 2026-10-28 | #567 review: the undo guard (#605), and the lists and the rules on every page of a later round (progress log) |
 | 2026-10-27 | #512: Forward refuses an `id` or `ids` of `null` (progress log) |
