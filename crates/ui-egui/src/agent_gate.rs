@@ -86,6 +86,10 @@ fn gate(app: &mut MailApp, req: &ControlRequest, id: &str, mut params: Value, al
         let people = crate::windows::event_window_people(app, &params);
         params["attendees"] = json!(people);
     }
+    let params = as_the_window_has_it(app, id, params);
+    if let Some(why) = overwrites(app, id, &params) {
+        return err(why);
+    }
     match agent::check(&app.session, id, &params, allow) {
         Verdict::Run => run(app, id, params, allow),
         Verdict::Refuse(why) => err(why),
@@ -107,11 +111,118 @@ fn gate(app: &mut MailApp, req: &ControlRequest, id: &str, mut params: Value, al
     }
 }
 
-/// Run for an agent: what the command does is held to `allow` (`Session::agent`).
+/// `params` with what the window would lose (`unsaved`), as it has it now and never as the agent
+/// says (#494): an appointment, a contact or a task with changes that aren't saved, in the dialog
+/// that `ui.closeDialog` closes or `ui.dialog` puts another in place of, or in a window of its
+/// own that `ui.closeWindow` closes, that another mailbox in view (`file.new`, `file.open`)
+/// closes, or that closes with its appointment when that is taken away.
+fn as_the_window_has_it(app: &MailApp, id: &str, mut params: Value) -> Value {
+    let removes = matches!(id, "calendar.delete" | "calendar.removeCalendar" | "edit.undo" | "edit.redo");
+    if !removes && !matches!(id, "ui.closeDialog" | "ui.dialog" | "ui.closeWindow" | "file.new" | "file.open") {
+        if let Some(fields) = params.as_object_mut() {
+            fields.remove("unsaved");
+        }
+        return params;
+    }
+    if !params.is_object() {
+        params = json!({});
+    }
+    let closes = id == "ui.closeDialog" || params.get("name").and_then(Value::as_str).is_some_and(|n| crate::sync_panel::Panel::named(n).is_none());
+    let unsaved = match &app.dialog {
+        _ if id == "ui.closeWindow" => crate::windows::closing_unsaved(app, &params),
+        _ if matches!(id, "file.new" | "file.open") => crate::windows::replacing_unsaved(app),
+        _ if removes => crate::windows::removing_unsaved(app, id, &params),
+        Some(crate::dialogs::Dialog::Form(form)) if closes => form.unsaved(),
+        _ => None,
+    };
+    if let Some(fields) = params.as_object_mut() {
+        fields.remove("unsaved");
+        if let Some(unsaved) = unsaved {
+            fields.insert("unsaved".into(), unsaved);
+        }
+    }
+    params
+}
+
+/// Why an agent's command can't run at all while the owner is changing what it would overwrite
+/// or take away (#494): what the owner typed in an appointment's window (`ui.openWindow` of
+/// another time proposed, `ui.eventWindow` closing the recurrence they are filling in), or the
+/// appointment, contact or task they are changing in the dialog, which another mailbox in view
+/// takes away too; or the draft of the message the owner is writing, as an undo or a redo would
+/// put it back. Nothing in the window can be asked about it: the form stays whatever the answer. (What takes away a mailbox or the steps to undo is refused here, before it runs:
+/// `Session::run` puts back the mailbox of a command it refuses, not the rest.) A New or Open
+/// that would wait for the mailbox to be saved first is refused too: it would run later, when
+/// the owner may be writing.
+fn overwrites(app: &MailApp, id: &str, params: &Value) -> Option<String> {
+    if crate::windows::overwrites_unsaved(app, id, params) {
+        return Some(format!(
+            "`{id}` would overwrite what the owner typed in an appointment's window and hasn't saved; nothing was done. Try again once the owner has saved or closed it"
+        ));
+    }
+    // The draft of the message the owner is writing, put back as it was before a later save or
+    // taken away: the message would then be "in Drafts" without what was written since.
+    let redo = id == "edit.redo";
+    if matches!(id, "edit.undo" | "edit.redo")
+        && let Some(c) = app.session.compose.as_ref().filter(|c| c.owner_changed)
+        && c.draft.is_some_and(|d| app.session.undo_changes_message(redo, d))
+    {
+        return Some(format!(
+            "`{id}` would put back an earlier draft of the message the owner is writing, or take it away; nothing was done. Try again once the owner has closed the message"
+        ));
+    }
+    if matches!(id, "file.new" | "file.open") && app.waits_for_save() {
+        return Some(format!("`{id}` would wait for the mailbox to be saved first; nothing was done. Try again in a moment"));
+    }
+    let item = changing_in_the_dialog(app)?;
+    (matches!(id, "file.new" | "file.open") || crate::windows::takes_away(app, id, params, item)).then(|| {
+        format!(
+            "`{id}` would take away what the owner is changing in the dialog and hasn't saved; nothing was done. Try again once the owner has saved or closed it"
+        )
+    })
+}
+
+/// The appointment, contact or task the owner is changing in the dialog, with changes that
+/// aren't saved.
+fn changing_in_the_dialog(app: &MailApp) -> Option<mailcraft_model::Id> {
+    match &app.dialog {
+        Some(crate::dialogs::Dialog::Form(form)) if form.changed() => form.editing(),
+        _ => None,
+    }
+}
+
+/// Run for an agent: what the command does is held to `allow` (`Session::agent`). A form in the
+/// dialog with changes the owner hasn't saved stays where it is (#494): set aside while the
+/// command runs, it comes back after it, and a dialog the command opened in its place isn't
+/// shown. (Closing it, or another dialog in its place, was asked about: `unsaved`.) Nor does the
+/// command take away an appointment the owner is changing: in that form, or in a window unless
+/// the owner said yes to what the window would lose (`unsaved`).
 fn run(app: &mut MailApp, id: &str, params: Value, allow: &[Class]) -> Outcome {
+    let said_yes = params.get("unsaved").is_some_and(|v| !v.is_null());
+    let asked = matches!(id, "ui.closeDialog" | "ui.dialog") && said_yes;
+    let owners = match &app.dialog {
+        Some(crate::dialogs::Dialog::Form(form)) if form.changed() && !asked => app.dialog.take(),
+        _ => None,
+    };
+    let mut changing = if said_yes { Vec::new() } else { crate::windows::changing_events(app) };
+    // (A question names windows only, never the form set aside.)
+    if let Some(crate::dialogs::Dialog::Form(form)) = &owners
+        && let Some(item) = form.editing()
+    {
+        changing.push(item);
+    }
     app.session.agent = Some(allow.to_vec());
+    app.session.owner_changing = changing;
     let r = app.execute(id, params);
     app.session.agent = None;
+    app.session.owner_changing = Vec::new();
+    if let Some(form) = owners
+        && let Some(opened) = app.dialog.replace(form)
+    {
+        return err(format!(
+            "`{id}` ran, but the dialog \"{}\" it opened would have taken the place of a form the owner is filling in and hasn't saved: the form stays, and that dialog wasn't shown. Try again once the owner has closed the form",
+            opened.name()
+        ));
+    }
     match r {
         Ok(v) => ok(v),
         Err(e) => err(e),
@@ -122,11 +233,18 @@ fn run(app: &mut MailApp, id: &str, params: Value, allow: &[Class]) -> Outcome {
 pub fn answer(app: &mut MailApp, yes: bool) {
     let Some(a) = app.asking.pop_front() else { return };
     let out = if yes {
+        // Asked again: what it would do may have changed while the question was up. So may what
+        // the window would lose: another form than the one named isn't lost on this yes.
+        let params = as_the_window_has_it(app, &a.id, a.params.clone());
+        let lost = params.get("unsaved").filter(|u| !u.is_null());
+        let other = lost.is_some() && lost != a.params.get("unsaved");
+        let verdict = agent::answered(&app.session, &a.id, &params, &a.allow, a.class);
         let mut allow = a.allow.clone();
         allow.push(a.class);
-        // Asked again: what it would do may have changed while the question was up.
-        match agent::check(&app.session, &a.id, &a.params, &allow) {
-            Verdict::Run => run(app, &a.id, a.params, &allow),
+        match verdict {
+            _ if other => err(format!("what `{}` would close without saving has changed since the owner was asked; nothing was done", a.id)),
+            _ if let Some(why) = overwrites(app, &a.id, &params) => err(why),
+            Verdict::Run => run(app, &a.id, params, &allow),
             Verdict::Refuse(why) => err(why),
             Verdict::Ask(..) => err(format!("`{}` would now do more than the owner was asked about; nothing was done", a.id)),
         }

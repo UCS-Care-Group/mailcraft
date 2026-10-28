@@ -58,6 +58,13 @@ pub struct Fetching {
     /// fetched for it so far, and the messages it waits for (of those under way, it may wait for
     /// some only: it took the place of a forward, or joined its batch).
     then: Option<(String, Value, u64, Option<Vec<Id>>, Vec<Id>)>,
+    /// The message being written when the command that waits was asked to let it go
+    /// (`discard`), as it was then: run again, it lets go of that one alone (#513).
+    let_go: Option<mailcraft_engine::Compose>,
+    /// A command whose messages came while a form with changes that aren't saved was open (a
+    /// contact, a task, an appointment): it goes on once that form is closed, for its question
+    /// would take the form's place (#513). As [`Fetching::then`], with a forward's tried.
+    held: Option<(String, Value, u64, Option<Vec<Id>>)>,
     /// While a forward of several runs again once messages came: those fetched for it already,
     /// not asked for again ([`MailApp::fetch_first`]).
     tried: Option<Vec<Id>>,
@@ -76,9 +83,9 @@ pub struct Fetching {
 }
 
 impl Fetching {
-    /// Whether anything is being fetched.
+    /// Whether anything is being fetched, or a command whose messages came waits to go on.
     pub fn busy(&self) -> bool {
-        self.background.is_some() || self.now.is_some()
+        self.background.is_some() || self.now.is_some() || self.held.is_some()
     }
 
     /// Something new may be waiting: the background looks again at once.
@@ -256,15 +263,58 @@ impl MailApp {
             waiting.is_some() && *opening == self.session.openings() && forward_of(command, params).is_none_or(|f| forward_of(id, &then) != Some(f))
         });
         let waits = forward.map_or_else(|| vec![first], |(ids, _)| ids);
+        let discard = then.get("discard").and_then(Value::as_bool) == Some(true);
+        self.fetching.let_go = if discard { self.session.compose.clone() } else { None };
+        // So is one whose messages came and that waits for a form to be closed, and said to be.
+        let held_off = self.fetching.held.take().is_some_and(|(_, _, opening, _)| opening == self.session.openings());
         self.fetching.then = Some((id.to_string(), then, self.session.openings(), tried, waits));
         self.status(if called_off {
             tl!("The forward of several messages that was waiting was called off: another download took its place.")
+        } else if held_off {
+            tl!("What was waiting for the form to be closed was called off: another download took its place.")
         } else if several {
             tl!("Downloading the messages first…")
         } else {
             tl!("Downloading the message first…")
         });
         Some(Ok(json!({"pending": "download", "message": first})))
+    }
+
+    /// Run `command` again, whose messages came: at once, or, while a form with changes that
+    /// aren't saved is open, once it is closed ([`MailApp::run_held`]): what it asks (Unsaved
+    /// Message, a confirmation) would take the form's place, and what was typed in it with it
+    /// (#513).
+    fn run_waited(&mut self, command: String, params: Value, opening: u64, tried: Option<Vec<Id>>) {
+        if matches!(&self.dialog, Some(crate::dialogs::Dialog::Form(form)) if form.changed()) {
+            self.fetching.held = Some((command, params, opening, tried));
+            return;
+        }
+        let params = self.kept_from(params);
+        self.fetching.tried = tried;
+        let _ = self.run(&command, params);
+        self.fetching.tried = None;
+    }
+
+    /// The command that waited for a form to be closed goes on, in the mailbox it was asked of.
+    fn run_held(&mut self) {
+        let Some((command, params, opening, tried)) = self.fetching.held.take() else { return };
+        if opening == self.session.openings() {
+            self.run_waited(command, params, opening, tried);
+        }
+    }
+
+    /// What a command that waited runs again with: it lets go of the message being written
+    /// (`discard`) only when that is the one it was asked to let go of, as it was then. One
+    /// opened or changed since is the owner's to answer for, asked as usual (#513).
+    fn kept_from(&mut self, mut params: Value) -> Value {
+        let asked = self.fetching.let_go.take();
+        if params.get("discard").and_then(Value::as_bool) == Some(true)
+            && self.session.compose != asked
+            && let Some(p) = params.as_object_mut()
+        {
+            p.remove("discard");
+        }
+        params
     }
 
     /// Whether `message`, the one the reading pane shows, is fetched once the batch under way has
@@ -323,6 +373,7 @@ impl MailApp {
     /// Each frame: take in what came, fetch what the owner opened, and keep the background going.
     /// (Public for a host's tests, which have no window.)
     pub fn drive_fetch(&mut self) {
+        self.run_held();
         self.poll_fetch_now();
         self.poll_fetch_background();
         if !self.session.mailbox.accounts.iter().any(|a| fetched(self, a.kind)) {
@@ -430,15 +481,13 @@ impl MailApp {
                     }
                 } else {
                     tried.extend(came.answered);
-                    self.fetching.tried = Some(tried);
-                    let _ = self.run(&command, params);
-                    self.fetching.tried = None;
+                    self.run_waited(command, params, opening, Some(tried));
                 }
             } else {
                 // Another command runs once its own message is here, whatever else of the batch
                 // it came in didn't come.
                 if waits.iter().all(|m| whole(self, m)) {
-                    let _ = self.run(&command, params);
+                    self.run_waited(command, params, opening, None);
                 } else {
                     self.status(tl!("This message isn't on this computer yet. It will download when you're online."));
                 }
@@ -574,6 +623,9 @@ fn backoff(stuck: u32) -> f64 {
 
 #[cfg(test)]
 mod forward_several_tests;
+
+#[cfg(test)]
+mod let_go_tests;
 
 #[cfg(test)]
 mod tests {

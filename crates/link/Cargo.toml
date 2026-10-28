@@ -9,6 +9,7 @@ description = "MailCraft's own link handling: a strict reader of web addresses (
 workspace = true
 
 [dependencies]
+mailcraft-names = { workspace = true }
 
 [dev-dependencies]
 proptest = { workspace = true }

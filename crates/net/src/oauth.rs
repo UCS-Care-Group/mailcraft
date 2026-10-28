@@ -788,16 +788,41 @@ pub fn sign_in_for_tasks(oauth: &OAuth, login_hint: &str, open: &dyn Fn(&str), c
 /// [`refresh_graph`] for a to-do job (#248): the tokens are asked for with `Tasks.ReadWrite`,
 /// and for nothing less. A sign-in that doesn't cover it gets [`NetError::ConsentNeeded`]: the
 /// to-dos are neither read nor sent, everything else goes on, and the window asks the owner
-/// ([`sign_in_for_tasks`]).
-pub fn refresh_graph_tasks(oauth: &OAuth, refresh_token: &str) -> Result<GraphTokens, NetError> {
-    refresh_graph_tasks_at(&Endpoints::for_resource(oauth, Resource::Graph), oauth, refresh_token)
+/// ([`sign_in_for_tasks`]). Microsoft says no to a personal account that never agreed in the
+/// words of a sign-in that is over (#520), so a no is put to the account's mail with the same
+/// refresh token, as [`refresh_graph_at`] does: if it still takes it, it is the permission.
+/// `mail` is how the account's mail is had: [`Resource::Mail`] (IMAP and SMTP) or
+/// [`Resource::GraphMail`] (an account kept in step through Graph, whose sign-in never covered
+/// IMAP).
+pub fn refresh_graph_tasks(oauth: &OAuth, refresh_token: &str, mail: Resource) -> Result<GraphTokens, NetError> {
+    let endpoints = Endpoints::for_resource(oauth, Resource::Graph);
+    refresh_graph_tasks_at(&endpoints, (&Endpoints::for_resource(oauth, mail), mail), oauth, refresh_token)
 }
 
-/// [`refresh_graph_tasks`] at endpoints other than the provider's usual ones.
-pub fn refresh_graph_tasks_at(endpoints: &Endpoints, oauth: &OAuth, refresh_token: &str) -> Result<GraphTokens, NetError> {
+/// [`refresh_graph_tasks`] at endpoints other than the provider's usual ones: `mail` for the
+/// account's mail, and how it is had.
+pub fn refresh_graph_tasks_at(
+    endpoints: &Endpoints,
+    mail: (&Endpoints, Resource),
+    oauth: &OAuth,
+    refresh_token: &str,
+) -> Result<GraphTokens, NetError> {
     let endpoints = Endpoints { scope: tasks_scope(), ..endpoints.clone() };
-    let tokens = refresh_for_at(&endpoints, oauth, refresh_token, Resource::Graph)?;
-    Ok(GraphTokens { tokens, extras_missing: true, covers_favorites: false })
+    match refresh_for_at(&endpoints, oauth, refresh_token, Resource::Graph) {
+        Ok(tokens) => Ok(GraphTokens { tokens, extras_missing: true, covers_favorites: false }),
+        // "No longer good": for anything at all, or only for the to-dos?
+        Err(error) if error.is_refused_sign_in() => match refresh_for_at(mail.0, oauth, refresh_token, mail.1) {
+            Ok(_) => Err(NetError::ConsentNeeded("the sign-in doesn't cover Microsoft To Do".into())),
+            Err(mail) if mail.is_refused_sign_in() => Err(error),
+            // The provider couldn't say this time: nothing is concluded from the first no, and the
+            // job tries again later. (Unlike refresh_graph_at, where the first no stands.)
+            Err(mail) => {
+                log::debug!("asking for mail came to nothing (the answer for the to-dos was: {error})");
+                Err(mail)
+            }
+        },
+        Err(error) => Err(error),
+    }
 }
 
 /// One go at signing in: the page (asked for the tokens' scopes and for `consent`), the wait for

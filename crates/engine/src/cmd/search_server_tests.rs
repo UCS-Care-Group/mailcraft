@@ -168,6 +168,33 @@ fn what_graph_doesnt_understand_is_checked_here_and_deleted_mail_stays_out_of_ev
     assert_eq!(subjects(&s), ["Budget deleted"]);
 }
 
+/// #329: a day in words is checked here, on the session's day; tomorrow it is another search.
+#[test]
+fn a_day_in_words_is_checked_here_on_the_sessions_day() {
+    let (mut s, _, _, _) = session();
+    s.clock = crate::Clock { now: Some(NOW), offset: Some(0), zone: None };
+    s.run("account.removeSharedMailbox", &json!({"address": SHARED})).unwrap();
+    search(&mut s, "budget received:today", "everywhere");
+    let request = asked(&mut s).remove(0);
+    assert!(s.server_search.checked_here);
+    let messages = vec![found("AAkA-1", "in", "Budget today", NOW - 60), found("AAkA-2", "in", "Budget two days ago", NOW - 2 * 86_400)];
+    answer(&mut s, &request, messages, "");
+    assert_eq!(subjects(&s), ["Budget today"]);
+    // A day later the same words are a new search: what came for the old one is let go.
+    s.clock.now = Some(NOW + 86_400);
+    assert_eq!(asked(&mut s).len(), 1);
+    assert!(subjects(&s).is_empty());
+    // A search that doesn't need the day keeps what the server found past midnight, and when the
+    // first day of the week changes.
+    search(&mut s, "budget", "everywhere");
+    let request = asked(&mut s).remove(0);
+    answer(&mut s, &request, vec![found("AAkA-1", "in", "Budget today", NOW - 60)], "");
+    s.clock.now = Some(NOW + 2 * 86_400);
+    s.prefs.week_start = mailcraft_time::Weekday::Mon;
+    assert!(is_current(&s));
+    assert_eq!(subjects(&s), ["Budget today"]);
+}
+
 #[test]
 fn a_new_search_forgets_the_results_and_an_answer_for_an_old_one_is_not_taken() {
     let (mut s, _, owner, _) = session();

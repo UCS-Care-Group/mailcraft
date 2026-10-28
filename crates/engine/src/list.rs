@@ -176,7 +176,7 @@ pub(crate) fn lists(s: &Session, ids: &[Id]) -> std::collections::HashSet<Id> {
 /// in this list when they were selected and no longer match the filter or the search.
 pub(crate) fn listing(s: &Session, decided: &HashMap<Id, bool>, searched: &HashMap<Id, bool>) -> (Vec<Row>, Vec<Id>) {
     let mb = &s.mailbox;
-    let query = Query::parse(&s.view.search);
+    let query = s.search_query();
     let in_view = in_view(s);
     let me = me(s);
     let kept = s.kept();
@@ -191,7 +191,7 @@ pub(crate) fn listing(s: &Session, decided: &HashMap<Id, bool>, searched: &HashM
                 && (query.is_empty()
                     || match decided.get(&m.id).or_else(|| searched.get(&m.id).filter(|_| m.body_is_kept())) {
                         Some(hit) => *hit,
-                        None => query.matches(m, s.offset_at(m.date)),
+                        None => query.matches_in(m, |at| s.offset_at(at)),
                     });
             // A selected message stays while it is selected, though it was read or its flag was
             // cleared; `in_view` above still applies, so one deleted, or moved out of the folder in

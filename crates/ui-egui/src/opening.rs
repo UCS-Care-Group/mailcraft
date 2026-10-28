@@ -4,7 +4,7 @@
 //!
 //! **At launch** the window comes up at once and the host reads the mailbox on a thread of its
 //! own ([`Opening`]). Until it has arrived the window is an [`MailApp::opening`]: it shows the
-//! opening screen (our mark, how many bytes are read of how many, then "Getting ready…") once
+//! opening screen (our logo, how many bytes are read of how many, then "Getting ready…") once
 //! opening has taken longer than a moment, and nothing else. It can be moved, resized and closed,
 //! and that is all:
 //! - every command is refused, and every request of the control channel (agents, the MCP bridge)
@@ -28,8 +28,9 @@ use std::sync::Arc;
 use std::sync::mpsc::{Receiver, TryRecvError};
 use std::time::Duration;
 
-use egui::{Color32, Painter, Pos2, Rect, Shape, Stroke, Ui, pos2, vec2};
+use egui::{Rect, Ui, pos2, vec2};
 use mailcraft_engine::io::OpenProgress;
+use mailcraft_engine::{BodyRead, Missing};
 use mailcraft_model::Mailbox;
 use serde_json::{Value, json};
 
@@ -67,6 +68,10 @@ pub struct Arrival {
     pub path: Option<PathBuf>,
     /// Bodies and attachments that couldn't be read back from the content folder.
     pub unavailable: usize,
+    /// The content folder's files left on disk are still to be looked for: those missing aren't
+    /// in `unavailable` yet (`mailcraft_engine::store::check_parts`, which the host runs once the
+    /// window shows, [`MailApp::check_parts_later`]).
+    pub unchecked: bool,
     /// Part of the mailbox file itself was damaged and left out.
     pub damaged: bool,
     /// What the owner is told first, if anything.
@@ -76,12 +81,12 @@ pub struct Arrival {
 impl Arrival {
     /// A mailbox read without trouble (or one that isn't kept anywhere, `path` none).
     pub fn opened(mailbox: Mailbox, path: Option<PathBuf>) -> Arrival {
-        Arrival { mailbox, path, unavailable: 0, damaged: false, trouble: None }
+        Arrival { mailbox, path, unavailable: 0, unchecked: false, damaged: false, trouble: None }
     }
 
     /// The file couldn't be read (`trouble` says why): an empty mailbox, kept nowhere.
     pub fn unreadable(trouble: Trouble) -> Arrival {
-        Arrival { mailbox: Mailbox::with_local_account("", ""), path: None, unavailable: 0, damaged: false, trouble: Some(trouble) }
+        Arrival { mailbox: Mailbox::with_local_account("", ""), path: None, unavailable: 0, unchecked: false, damaged: false, trouble: Some(trouble) }
     }
 }
 
@@ -169,6 +174,126 @@ pub(crate) fn logic(app: &mut MailApp, ctx: &egui::Context) {
     }
 }
 
+/// What the window takes up once it shows its mailbox, so that the first frames come first
+/// (#519): the content files found missing ([`MailApp::check_parts_later`]), the bodies left on
+/// disk ([`MailApp::take_bodies_later`]), and
+/// the word index ([`MailApp::index_words_later`]).
+#[derive(Default)]
+pub(crate) struct Later {
+    /// The content files to come that are missing, the bodies and attachments already known to
+    /// be, and which opening of the session it is about ([`mailcraft_engine::Session::openings`]).
+    parts: Option<(Receiver<Missing>, Said, u64)>,
+    /// The bodies the opening left for later, read in batches, and which opening they are of.
+    bodies: Option<(Receiver<Vec<BodyRead>>, u64)>,
+    /// Frames still to be drawn before the word index starts.
+    words_in: Option<u32>,
+}
+
+/// How many bodies and attachments the opening found missing, and whether the count is to be said
+/// (not when the mailbox file itself was damaged: that is said instead).
+type Said = (usize, bool);
+
+/// Frames the window draws with its mailbox before the word index starts.
+pub const WORDS_AFTER_FRAMES: u32 = 5;
+
+/// Batches of bodies taken in a frame, at most: the window goes on drawing meanwhile.
+pub const BODY_BATCHES_A_FRAME: usize = 4;
+
+impl MailApp {
+    /// Say how many bodies and attachments are missing from the mailbox's content folder once
+    /// the host's look for them (`rx`) is over, `known` of them having been found while opening
+    /// (only when `say`); the bodies among them read as unavailable from then on
+    /// ([`mailcraft_engine::Session::mark_unavailable`]). About the mailbox open now: one that
+    /// takes its place before then hears nothing of it.
+    pub fn check_parts_later(&mut self, rx: Receiver<Missing>, known: usize, say: bool) {
+        self.later.parts = Some((rx, (known, say), self.session.openings()));
+    }
+
+    /// Take in the bodies the opening left on disk as the host reads them (`rx`, in batches),
+    /// a few batches a frame ([`mailcraft_engine::Session::take_bodies`]). About the mailbox open
+    /// now, as [`MailApp::check_parts_later`].
+    pub fn take_bodies_later(&mut self, rx: Receiver<Vec<BodyRead>>) {
+        self.later.bodies = Some((rx, self.session.openings()));
+    }
+
+    /// Start the word index of the mailbox's file ([`mailcraft_engine::Session::index_words`])
+    /// once the window has drawn its first frames with the mailbox.
+    pub fn index_words_later(&mut self) {
+        self.session.index_words = false;
+        self.later.words_in = Some(WORDS_AFTER_FRAMES);
+    }
+}
+
+/// Once a frame with the mailbox shown: take up what was left for after the first frames.
+pub(crate) fn after(app: &mut MailApp, ctx: &egui::Context) {
+    if let Some(frames) = app.later.words_in.as_mut() {
+        if *frames == 0 {
+            app.later.words_in = None;
+            app.session.index_words = true;
+        } else {
+            *frames -= 1;
+        }
+        // (A window with nothing to do draws no more frames by itself.)
+        ctx.request_repaint();
+    }
+    let opening = app.session.openings();
+    // Another mailbox took the place of the one these are about: they are dropped unread.
+    if app.later.parts.as_ref().is_some_and(|(_, _, of)| *of != opening) {
+        app.later.parts = None;
+    }
+    if app.later.bodies.as_ref().is_some_and(|(_, of)| *of != opening) {
+        app.later.bodies = None;
+    }
+    // What is missing first: a body found missing is never taken in after it.
+    if let Some((rx, (known, say), _)) = &app.later.parts {
+        let say = *say;
+        let found = match rx.try_recv() {
+            Ok(missing) => Some(missing),
+            Err(TryRecvError::Empty) => None,
+            // The look stopped without a word: what was known is said.
+            Err(TryRecvError::Disconnected) => Some(Missing::default()),
+        };
+        if let Some(found) = found {
+            let missing = known.saturating_add(found.count);
+            app.later.parts = None;
+            app.session.mark_unavailable(&found.refs);
+            if say && missing > 0 {
+                app.status(crate::tln!(
+                    missing,
+                    "{n} body or attachment is missing from the mailbox's content folder, or damaged.",
+                    "{n} bodies or attachments are missing from the mailbox's content folder, or damaged."
+                ));
+            }
+        }
+    }
+    // Bodies only once what is missing is known.
+    if app.later.parts.is_none()
+        && let Some((rx, _)) = &app.later.bodies
+    {
+        let mut batches = Vec::new();
+        let mut done = false;
+        while batches.len() < BODY_BATCHES_A_FRAME {
+            match rx.try_recv() {
+                Ok(batch) => batches.push(batch),
+                Err(TryRecvError::Empty) => break,
+                Err(TryRecvError::Disconnected) => {
+                    done = true;
+                    break;
+                }
+            }
+        }
+        if done {
+            app.later.bodies = None;
+        } else if batches.len() == BODY_BATCHES_A_FRAME {
+            // More may be waiting.
+            ctx.request_repaint();
+        }
+        for batch in batches {
+            app.session.take_bodies(batch);
+        }
+    }
+}
+
 /// Every request of the control channel while the window waits: `app.status` says how far it
 /// has got, anything else that the mailbox is still opening.
 fn answer_control(app: &mut MailApp) {
@@ -239,7 +364,9 @@ pub(crate) fn show(app: &mut MailApp, ui: &mut Ui) {
         ui.scope_builder(egui::UiBuilder::new().max_rect(column), |ui| {
             ui.vertical_centered(|ui| {
                 let (mark_rect, _) = ui.allocate_exact_size(vec2(72.0, 72.0), egui::Sense::hover());
-                paint_mark(ui.painter(), mark_rect, &t);
+                if let Some(logo) = logo(ui.ctx()) {
+                    egui::Image::new(&logo).fit_to_exact_size(mark_rect.size()).paint_at(ui, mark_rect);
+                }
                 ui.add_space(22.0);
                 match &o.held {
                     Some(arrival) => continued = problem(ui, &t, arrival.trouble.as_ref()),
@@ -317,24 +444,20 @@ fn problem(ui: &mut Ui, t: &Tokens, trouble: Option<&Trouble>) -> bool {
     crate::widgets::primary_button(ui, tl!("Continue"), true).clicked()
 }
 
-/// MailCraft's mark, drawn here: a rounded square in the app colour, an envelope with its flap,
-/// and a small four-point spark.
-pub(crate) fn paint_mark(p: &Painter, r: Rect, t: &Tokens) {
-    let side = r.width().min(r.height());
-    let at = |x: f32, y: f32| -> Pos2 { r.min + vec2(x * side, y * side) };
-    p.rect_filled(Rect::from_min_size(r.min, vec2(side, side)), side * 0.225, t.accent);
-    let envelope = Rect::from_min_max(at(0.19, 0.33), at(0.81, 0.76));
-    p.rect_filled(envelope, side * 0.045, t.on_accent);
-    let flap = Stroke::new((side * 0.038).max(1.0), t.accent);
-    p.line_segment([at(0.225, 0.36), at(0.5, 0.575)], flap);
-    p.line_segment([at(0.775, 0.36), at(0.5, 0.575)], flap);
-    // The spark: two thin diamonds crossed.
-    let (c, long, short) = (at(0.755, 0.235), side * 0.118, side * 0.034);
-    let diamond = |dx: f32, dy: f32, ex: f32, ey: f32, fill: Color32| {
-        Shape::convex_polygon(vec![c + vec2(-dx, -dy), c + vec2(-ex, ey), c + vec2(dx, dy), c + vec2(ex, -ey)], fill, Stroke::NONE)
-    };
-    p.add(diamond(long, 0.0, 0.0, short, t.icon_yellow));
-    p.add(diamond(0.0, long, short, 0.0, t.icon_yellow));
+/// MailCraft's logo, the app icon itself, as a texture made once and kept in the context.
+/// `None` when the picture can't be read (the screen then shows no mark).
+pub(crate) fn logo(ctx: &egui::Context) -> Option<egui::TextureHandle> {
+    /// The 256 px icon every build ships (`assets/app-icon`, attributed in `ATTRIBUTION.md`).
+    const PNG: &[u8] = include_bytes!("../../../assets/app-icon/hicolor/256x256/apps/io.github.billsecond.mailcraft.png");
+    let id = egui::Id::unique("mailcraft-opening-logo");
+    if let Some(texture) = ctx.data(|d| d.get_temp::<egui::TextureHandle>(id)) {
+        return Some(texture);
+    }
+    let rgba = image::load_from_memory_with_format(PNG, image::ImageFormat::Png).ok()?.into_rgba8();
+    let size = [usize::try_from(rgba.width()).ok()?, usize::try_from(rgba.height()).ok()?];
+    let texture = ctx.load_texture("mailcraft-logo", egui::ColorImage::from_rgba_unmultiplied(size, rgba.as_raw()), egui::TextureOptions::LINEAR);
+    ctx.data_mut(|d| d.insert_temp(id, texture.clone()));
+    Some(texture)
 }
 
 // ---- a mailbox opened later, in the background ----

@@ -5,7 +5,15 @@
 //! `budget from:ada has:attachment -draft after:2026-10-01`. Every term must match; `-` in front
 //! of a term excludes what it matches. Keywords: `from`, `to`, `cc`, `subject`, `body`,
 //! `category`, `attachment` (file name), `has:attachment`, `is:unread|read|flagged|important`,
-//! `importance:high|normal|low`, `before:`, `after:`, `on:` (dates, `YYYY-MM-DD` or `M/D/YYYY`).
+//! `importance:high|normal|low`, `before:`, `after:`, `on:` (dates, `YYYY-MM-DD` or `M/D/YYYY`),
+//! and `received:` with a day, a range of days as Outlook writes one (`received:10/1/2026..10/22/2026`,
+//! both days in it, #329), or one side of one (`received:>=2026-10-01`, `<=`, and `>` and `<`, the
+//! day itself not in it), by the day a message came in. A range whose end comes before its start
+//! finds nothing; a date with more parts than three (`10/22/2026/1`) is text. A date without a
+//! year (`10/22`) is this year's, as Outlook reads it, and `received:` takes the days Outlook
+//! names in words: `today`, `yesterday`, `"this week"`, `"last week"`, `"this month"`,
+//! `"last month"` and `"this year"` (weeks from the owner's first day of the week). Such a search
+//! is made on a day: [`Query::on`].
 //! A space after a keyword's colon is allowed (`from: ada`); a keyword with nothing after it yet
 //! asks for nothing. Inside double quotes, `\"` is a double quote and `\\` a backslash.
 //!
@@ -17,12 +25,15 @@
 //! addresses (`ada@xn--bcher-kva.example` doesn't find `ada@bücher.example`). A category matches
 //! anywhere in its name. Text with no letters or digits in it (`-`, `@`) asks for nothing.
 
-use std::ops::Range;
+use std::ops::{Bound, Range, RangeBounds};
 
-use mailcraft_time::{Date, DateTime};
+use mailcraft_time::{Date, DateTime, Timestamp, Weekday};
 
 use crate::words::{self, ATTACHMENT, BODY, CC, FROM, SUBJECT, TO};
 use crate::{Address, Category, FlagStatus, Importance, Message, Rgb, contains_ci};
+
+pub mod advanced;
+pub use advanced::{Advanced, Field, Reading};
 
 /// Longest query read and most terms kept (the rest is ignored).
 const MAX_QUERY: usize = 2_000;
@@ -55,6 +66,115 @@ enum Kind {
     Before(Date),
     After(Date),
     On(Date),
+    /// The days a message came in on (#329): from the first to the last, each in it or not, or
+    /// with no end on that side.
+    Received(Bound<Date>, Bound<Date>),
+    /// A date term that needs the day the search is made on ([`Query::on`]).
+    Dated(Dated),
+    /// A day the year the search is made in hasn't got (`received:2/29` in 2026): nothing.
+    Never,
+}
+
+/// A day as it was written (#329): a whole date, or a month and day of the year the search is
+/// made in (`10/22`, as Outlook reads it).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Day {
+    Date(Date),
+    ThisYear { month: u8, day: u8 },
+}
+
+/// The days Outlook names in words after `received:` (#329).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Span {
+    Today,
+    Yesterday,
+    ThisWeek,
+    LastWeek,
+    ThisMonth,
+    LastMonth,
+    ThisYear,
+}
+
+impl Span {
+    fn parse(v: &str) -> Option<Span> {
+        Some(match v.to_lowercase().as_str() {
+            "today" => Span::Today,
+            "yesterday" => Span::Yesterday,
+            "this week" => Span::ThisWeek,
+            "last week" => Span::LastWeek,
+            "this month" => Span::ThisMonth,
+            "last month" => Span::LastMonth,
+            "this year" => Span::ThisYear,
+            _ => return None,
+        })
+    }
+
+    /// Its first and last days seen from `today`, for weeks that start on `first`; `None` for one
+    /// that counts back this close to the calendar's first day, where counting back stops at it.
+    fn days(self, today: Date, first: Weekday) -> Option<(Date, Date)> {
+        let back = matches!(self, Span::Yesterday | Span::ThisWeek | Span::LastWeek | Span::LastMonth);
+        if back && today.add_days(-62).days_until(today) != 62 {
+            return None;
+        }
+        let week = today.start_of_week(first);
+        let month = today.start_of_month();
+        Some(match self {
+            Span::Today => (today, today),
+            Span::Yesterday => (today.add_days(-1), today.add_days(-1)),
+            Span::ThisWeek => (week, week.add_days(6)),
+            Span::LastWeek => (week.add_days(-7), week.add_days(-1)),
+            Span::ThisMonth => (month, today.end_of_month()),
+            Span::LastMonth => {
+                let last = month.add_months(-1);
+                (last, last.end_of_month())
+            }
+            Span::ThisYear => (Date::new(today.year, 1, 1)?, Date::new(today.year, 12, 31)?),
+        })
+    }
+}
+
+/// A date term as it was written, before the day the search is made on is known.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Dated {
+    Before(Day),
+    After(Day),
+    On(Day),
+    Received(Bound<Day>, Bound<Day>),
+    Span(Span),
+}
+
+impl Dated {
+    /// What it asks for on `today`, with weeks that start on `first`; `None` when that needs the
+    /// day and there is none, or the day isn't there (`2/29` in 2026).
+    fn on(self, today: Option<(Date, Weekday)>) -> Option<Kind> {
+        let date = |d: Day| match d {
+            Day::Date(d) => Some(d),
+            Day::ThisYear { month, day } => Date::new(today?.0.year, month, day),
+        };
+        let bound = |b: Bound<Day>| -> Option<Bound<Date>> {
+            Some(match b {
+                Bound::Included(d) => Bound::Included(date(d)?),
+                Bound::Excluded(d) => Bound::Excluded(date(d)?),
+                Bound::Unbounded => Bound::Unbounded,
+            })
+        };
+        Some(match self {
+            Dated::Before(d) => Kind::Before(date(d)?),
+            Dated::After(d) => Kind::After(date(d)?),
+            Dated::On(d) => Kind::On(date(d)?),
+            Dated::Received(first, last) => Kind::Received(bound(first)?, bound(last)?),
+            Dated::Span(span) => {
+                let (today, first) = today?;
+                let (a, b) = span.days(today, first)?;
+                Kind::Received(Bound::Included(a), Bound::Included(b))
+            }
+        })
+    }
+
+    /// The term: as it is when it doesn't need the day the search is made on.
+    fn kind(self) -> Kind {
+        self.on(None).unwrap_or(Kind::Dated(self))
+    }
 }
 
 impl Kind {
@@ -133,25 +253,12 @@ pub struct KeywordSpan {
 /// nothing.
 pub fn keyword_spans(s: &str) -> Vec<KeywordSpan> {
     let mut out = Vec::new();
-    let mut tokens = tokens(s).into_iter().take(MAX_TERMS).peekable();
-    while let Some((token, at)) = tokens.next() {
-        let (negate, quoted) = opening(s, &at);
-        if quoted {
-            continue;
-        }
-        let body = if negate { token.strip_prefix('-').unwrap_or(&token) } else { token.as_str() };
-        let (body, range) = match body.strip_suffix(':') {
-            Some(key) if is_keyword(key) => match tokens.next_if(|(next, at)| !starts_with_keyword_at(s, next, at)) {
-                Some((value, next)) => (format!("{body}{value}"), at.start..next.end),
-                None => continue,
-            },
-            _ => (body.to_string(), at.clone()),
-        };
-        let shown = keyword_kind(&body).is_some_and(|kind| !kind.asks_nothing());
-        let colon = s.get(at.clone()).and_then(|t| t.find(':')).map(|c| at.start.saturating_add(c).saturating_add(1));
+    for term in scan(s) {
+        let shown = term.keyword.as_ref().is_some_and(|kind| !kind.asks_nothing());
+        let colon = s.get(term.range.clone()).and_then(|t| t.find(':')).map(|c| term.range.start.saturating_add(c).saturating_add(1));
         if let Some(colon) = colon.filter(|_| shown) {
-            let key_start = if s.get(at.start..).is_some_and(|t| t.starts_with('-')) { at.start.saturating_add(1) } else { at.start };
-            out.push(KeywordSpan { range, key: key_start..colon });
+            let key_start = if term.negate { term.range.start.saturating_add(1) } else { term.range.start };
+            out.push(KeywordSpan { range: term.range, key: key_start..colon });
         }
     }
     out
@@ -222,9 +329,10 @@ fn keyword_kind(body: &str) -> Option<Kind> {
             _ => return None,
         },
         "importance" => Kind::Importance(Importance::parse(&v)?),
-        "before" => Kind::Before(parse_date(&v)?),
-        "after" => Kind::After(parse_date(&v)?),
-        "on" | "received" | "sent" => Kind::On(parse_date(&v)?),
+        "before" => Dated::Before(parse_day(&v)?).kind(),
+        "after" => Dated::After(parse_day(&v)?).kind(),
+        "received" => received(&v)?.kind(),
+        "on" | "sent" => Dated::On(parse_day(&v)?).kind(),
         // `10:30`, `re: budget`, a URL: plain text.
         _ => return None,
     })
@@ -304,8 +412,9 @@ const MAX_PEOPLE_READ: usize = 100;
 const MAX_SUGGESTED_NAME: usize = 256;
 
 /// The keywords offered while the start of one is typed: each once, without the other names it
-/// may be written by (`categories:`, `received:`).
-const OFFERED: &[&str] = &["from", "to", "cc", "subject", "body", "category", "attachment", "has", "is", "importance", "before", "after", "on"];
+/// may be written by (`categories:`).
+const OFFERED: &[&str] =
+    &["from", "to", "cc", "subject", "body", "category", "attachment", "has", "is", "importance", "before", "after", "on", "received"];
 
 /// What `is:` and `has:` take.
 const IS_VALUES: &[&str] = &["unread", "read", "flagged", "important"];
@@ -574,13 +683,57 @@ pub struct ServerQuery {
     pub local: Query,
 }
 
-fn parse_date(s: &str) -> Option<Date> {
+fn parse_day(s: &str) -> Option<Day> {
     if let Some(d) = Date::parse_iso(s) {
-        return Some(d);
+        return Some(Day::Date(d));
     }
     let mut parts = s.split('/');
-    let (m, d, y) = (parts.next()?.parse().ok()?, parts.next()?.parse().ok()?, parts.next()?.parse().ok()?);
-    Date::new(y, m, d)
+    let (m, d) = (parts.next()?.parse().ok()?, parts.next()?.parse().ok()?);
+    let Some(y) = parts.next() else {
+        // `10/22`: that day of the year the search is made in (#329). A day no year has (`2/30`)
+        // isn't a date; 2024 has every day a year can have.
+        return Date::new(2024, m, d).map(|_| Day::ThisYear { month: m, day: d });
+    };
+    let y = y.parse().ok()?;
+    // `10/22/2026/junk` isn't a date.
+    if parts.next().is_some() {
+        return None;
+    }
+    Date::new(y, m, d).map(Day::Date)
+}
+
+/// A whole date as the search reads one, `2026-10-22` or `10/22/2026`, around spaces: not one
+/// without a year (Advanced Search's two days, #329).
+pub fn full_date(s: &str) -> Option<Date> {
+    match parse_day(s.trim())? {
+        Day::Date(d) => Some(d),
+        Day::ThisYear { .. } => None,
+    }
+}
+
+/// What `received:` takes (#329): a day, a range of days `A..B` as Outlook's Advanced Search
+/// writes it, one side of a range, `>=A`, `<=B`, `>A`, `<B`, or days Outlook names in words
+/// (`today`, `"last week"`).
+fn received(v: &str) -> Option<Dated> {
+    use Bound::{Excluded, Included, Unbounded};
+    if let Some(span) = Span::parse(v) {
+        return Some(Dated::Span(span));
+    }
+    let (first, last) = if let Some((a, b)) = v.split_once("..") {
+        (Included(parse_day(a)?), Included(parse_day(b)?))
+    } else if let Some(a) = v.strip_prefix(">=") {
+        (Included(parse_day(a)?), Unbounded)
+    } else if let Some(b) = v.strip_prefix("<=") {
+        (Unbounded, Included(parse_day(b)?))
+    } else if let Some(a) = v.strip_prefix('>') {
+        (Excluded(parse_day(a)?), Unbounded)
+    } else if let Some(b) = v.strip_prefix('<') {
+        (Unbounded, Excluded(parse_day(b)?))
+    } else {
+        let d = parse_day(v)?;
+        (Included(d), Included(d))
+    };
+    Some(Dated::Received(first, last))
 }
 
 /// The keywords the search box knows (what comes before a `:`), in small letters.
@@ -631,44 +784,72 @@ fn starts_with_keyword_at(s: &str, token: &str, at: &Range<usize>) -> bool {
     !opening(s, at).1 && starts_with_keyword(token)
 }
 
+/// A term of a query as it stands in the text: what [`Query::parse`] reads, [`keyword_spans`] draws
+/// and Advanced Search fills its fields from ([`advanced`]), so that the three never read a query
+/// differently.
+#[derive(Clone, Debug)]
+struct Scanned {
+    /// Where it stands (bytes): from its `-`, if it has one, to the end of its value, the word
+    /// after the keyword's colon in `from: ada`.
+    range: Range<usize>,
+    negate: bool,
+    /// The term without its `-`, its quotes taken off: `from:ada`, `budget`.
+    body: String,
+    /// What it asks for as a keyword; `None`: it is text (a word, a phrase, text in quotes).
+    keyword: Option<Kind>,
+}
+
+/// The terms of `s`, within the longest query read and the most terms kept. `from: stuart` is
+/// `from:stuart`, as Outlook reads it: a keyword with nothing after its colon takes what comes
+/// next. With nothing next (the owner is still typing it), or another keyword, it is no term at
+/// all (#194). What is in quotes is text (#367).
+fn scan(s: &str) -> Vec<Scanned> {
+    let mut out = Vec::new();
+    let mut tokens = tokens(s).into_iter().take(MAX_TERMS).peekable();
+    while let Some((token, at)) = tokens.next() {
+        let (negate, quoted) = opening(s, &at);
+        let body = if negate { token.strip_prefix('-').unwrap_or(&token) } else { token.as_str() };
+        let (body, range) = match body.strip_suffix(':') {
+            Some(key) if !quoted && is_keyword(key) => match tokens.next_if(|(next, at)| !starts_with_keyword_at(s, next, at)) {
+                Some((value, next)) => (format!("{body}{value}"), at.start..next.end),
+                None => continue,
+            },
+            _ => (body.to_string(), at),
+        };
+        let keyword = if quoted { None } else { keyword_kind(&body) };
+        out.push(Scanned { range, negate, body, keyword });
+    }
+    out
+}
+
 impl Query {
     pub fn parse(s: &str) -> Query {
-        let mut terms = Vec::new();
-        let mut tokens = tokens(s).into_iter().take(MAX_TERMS).peekable();
-        while let Some((token, at)) = tokens.next() {
-            let (negate, quoted) = opening(s, &at);
-            let body = if negate { token.strip_prefix('-').unwrap_or(&token) } else { token.as_str() };
-            // `from: stuart` is `from:stuart`, as Outlook reads it: a keyword with nothing after
-            // its colon takes what comes next. With nothing next (the owner is still typing it),
-            // or another keyword, it asks for nothing (#194).
-            let joined;
-            let body = match body.strip_suffix(':') {
-                Some(key) if !quoted && is_keyword(key) => {
-                    match tokens.next_if(|(next, at)| !starts_with_keyword_at(s, next, at)).map(|(value, _)| value) {
-                        Some(value) => {
-                            joined = format!("{body}{value}");
-                            joined.as_str()
-                        }
-                        None => continue,
-                    }
-                }
-                _ => body,
-            };
-            let kind = keyword_kind(body).filter(|_| !quoted).unwrap_or_else(|| Kind::Words {
-                fields: words::ALL,
-                words: words::words(body),
-                raw: raw_words(body),
-            });
+        let terms = scan(s)
+            .into_iter()
+            .map(|term| Term {
+                negate: term.negate,
+                kind: term.keyword.unwrap_or_else(|| Kind::Words { fields: words::ALL, words: words::words(&term.body), raw: raw_words(&term.body) }),
+            })
             // Text with no words in it asks for nothing.
-            if !kind.asks_nothing() {
-                terms.push(Term { negate, kind });
-            }
-        }
+            .filter(|t| !t.kind.asks_nothing())
+            .collect();
         Query { terms }
     }
 
     pub fn is_empty(&self) -> bool {
         self.terms.is_empty()
+    }
+
+    /// Whether it needs the day it is made on ([`Query::on`]): a date without a year, a day in
+    /// words.
+    pub fn needs_day(&self) -> bool {
+        self.terms.iter().any(|t| matches!(t.kind, Kind::Dated(_)))
+    }
+
+    /// Whether any term is a date (`received:`, `on:`, `before:`, `after:`): such a search finds
+    /// other messages in another zone.
+    pub fn has_dates(&self) -> bool {
+        self.terms.iter().any(|t| matches!(t.kind, Kind::Before(_) | Kind::After(_) | Kind::On(_) | Kind::Received(..) | Kind::Dated(_)))
     }
 
     /// Whether any term reads a message's text (a bare word, or `body:`): such a search wants the
@@ -761,15 +942,41 @@ impl Query {
         out
     }
 
-    /// Whether `m` matches every term. Dates compare in a zone `offset_minutes` east of UTC.
-    pub fn matches(&self, m: &Message, offset_minutes: i32) -> bool {
-        self.matches_with(m, offset_minutes, |_| None)
+    /// This search made on `today`, with weeks that start on `first` (#329): a date without a
+    /// year is this year's, and `received:today` and the other days named in words are those
+    /// days. A search that isn't made on a day finds nothing when it has such a date.
+    pub fn on(mut self, today: Date, first: Weekday) -> Query {
+        for t in &mut self.terms {
+            if let Kind::Dated(d) = t.kind {
+                t.kind = d.on(Some((today, first))).unwrap_or(Kind::Never);
+            }
+        }
+        self
     }
 
-    /// [`Query::matches`], with what `known` says of a term (whether `m` has what term `i` asks
+    /// Whether `m` matches every term. Dates compare in a zone `offset_minutes` east of UTC.
+    pub fn matches(&self, m: &Message, offset_minutes: i32) -> bool {
+        self.matches_with(m, |_| offset_minutes, |_| None)
+    }
+
+    /// [`Query::matches`] in a zone whose offset (minutes east of UTC) `offset` gives at an
+    /// instant: when it was sent and when it came in each fall on their own day, a change of the
+    /// clocks between the two or not (#329).
+    pub fn matches_in(&self, m: &Message, offset: impl Fn(Timestamp) -> i32) -> bool {
+        self.matches_with(m, offset, |_| None)
+    }
+
+    /// [`Query::matches_in`], with what `known` says of a term (whether `m` has what term `i` asks
     /// for, before its `-`; a word index's answer) in place of looking at `m`; `None`: look.
-    pub fn matches_with(&self, m: &Message, offset_minutes: i32, known: impl Fn(usize) -> Option<bool>) -> bool {
-        let day = || DateTime::from_timestamp(m.date, offset_minutes).date;
+    pub fn matches_with(&self, m: &Message, offset: impl Fn(Timestamp) -> i32, known: impl Fn(usize) -> Option<bool>) -> bool {
+        let local = |at: Timestamp| DateTime::from_timestamp(at, offset(at)).date;
+        let day = || local(m.date);
+        // When it came in; a message that doesn't say is taken to have come in when it was sent.
+        let received = || local(if m.received != 0 { m.received } else { m.date });
+        // A date that needs the day the search is made on finds nothing without it, `-` or not.
+        if self.needs_day() {
+            return false;
+        }
         self.terms.iter().enumerate().all(|(i, t)| {
             let hit = known(i).unwrap_or_else(|| match &t.kind {
                 Kind::Words { fields, words, .. } => {
@@ -788,6 +995,8 @@ impl Query {
                 Kind::Before(d) => day() < *d,
                 Kind::After(d) => day() > *d,
                 Kind::On(d) => day() == *d,
+                Kind::Received(first, last) => (*first, *last).contains(&received()),
+                Kind::Dated(_) | Kind::Never => false,
             });
             hit != t.negate
         })
@@ -876,8 +1085,8 @@ mod tests {
         let m = msg();
         assert!(q.matches(&m, 0));
         // An index that says the message has "invoice": excluded; that it lacks "budget": too.
-        assert!(!q.matches_with(&m, 0, |i| (i == 1).then_some(true)));
-        assert!(!q.matches_with(&m, 0, |i| (i == 0).then_some(false)));
+        assert!(!q.matches_with(&m, |_| 0, |i| (i == 1).then_some(true)));
+        assert!(!q.matches_with(&m, |_| 0, |i| (i == 0).then_some(false)));
         assert!(!Query::parse("subject:x").reads_bodies() && Query::parse("body:x").reads_bodies());
     }
 

@@ -391,13 +391,55 @@ struct Stamp {
     /// The SHA-256 of every byte of it as read or written here, when that is known: for a file
     /// whose time says it changed although nobody wrote it (a network share whose times come
     /// late, or a folder kept in step by another program), which is then still this program's.
-    sum: Option<ring::digest::Context>,
+    sum: Sum,
+}
+
+/// What a [`Stamp`] knows of a file's bytes: their SHA-256, nothing, or a SHA-256 still being
+/// worked out on a thread of its own from the bytes an opening read ([`Hashing`]). Nothing asks a
+/// stamp about bytes but a save, which waits for it first ([`Sum::settle`]).
+enum Sum {
+    None,
+    Ready(ring::digest::Context),
+    /// The thread working it out, which says how many bytes it summed; and how many the file has.
+    Pending(std::thread::JoinHandle<Option<(u64, ring::digest::Context)>>, u64),
+}
+
+impl Sum {
+    fn of(sum: Option<ring::digest::Context>) -> Sum {
+        sum.map_or(Sum::None, Sum::Ready)
+    }
+
+    /// Wait for a sum being worked out. One of fewer bytes than the file has, or none (the
+    /// thread stopped), is no sum: the file is then read through again when its time says it
+    /// changed, as for a file whose bytes were never known.
+    fn settle(&mut self) {
+        if let Sum::Pending(..) = self
+            && let Sum::Pending(thread, len) = std::mem::replace(self, Sum::None)
+            && let Ok(Some((summed, sum))) = thread.join()
+            && summed == len
+        {
+            *self = Sum::Ready(sum);
+        }
+    }
+
+    fn take(mut self) -> Option<ring::digest::Context> {
+        self.settle();
+        match self {
+            Sum::Ready(sum) => Some(sum),
+            Sum::None | Sum::Pending(..) => None,
+        }
+    }
 }
 
 impl Stamp {
     /// The file as it is now, if it is still `len` bytes long (what was read or written of it),
     /// with what its bytes were (`sum`), when that is known.
     fn of(path: &Path, len: u64, sum: Option<ring::digest::Context>) -> Option<Stamp> {
+        Stamp::with(path, len, Sum::of(sum))
+    }
+
+    /// [`Stamp::of`], with what is known, or will be, of its bytes.
+    fn with(path: &Path, len: u64, sum: Sum) -> Option<Stamp> {
         let meta = fs::metadata(path).ok()?;
         (meta.len() == len).then(|| Stamp { len, modified: meta.modified().ok(), sum })
     }
@@ -413,7 +455,8 @@ impl Stamp {
         if self.still(path) {
             return true;
         }
-        let Some(sum) = &self.sum else { return false };
+        self.sum.settle();
+        let Sum::Ready(sum) = &self.sum else { return false };
         let Ok(meta) = fs::metadata(path) else { return false };
         if meta.len() != self.len {
             return false;
@@ -469,6 +512,108 @@ impl<T: std::io::Write> std::io::Write for Summed<T> {
     fn flush(&mut self) -> std::io::Result<()> {
         self.inner.flush()
     }
+}
+
+/// What is read through it is summed (SHA-256) on a thread of its own, so that an opening doesn't
+/// wait for it ([`Sum::Pending`]). The bytes go over in the pieces they were read in; a thread
+/// that can't be started, or stops, leaves no sum.
+struct Hashing<T> {
+    inner: T,
+    to: Option<std::sync::mpsc::SyncSender<Vec<u8>>>,
+    thread: Option<std::thread::JoinHandle<Option<(u64, ring::digest::Context)>>>,
+}
+
+/// Pieces read ahead of the thread summing them, at most.
+const HASH_QUEUE: usize = 16;
+
+/// Most bytes in one piece sent to be summed (and the opening's read buffer): what waits to be
+/// summed is never more than [`HASH_QUEUE`] of them, 16 MB, however large a record.
+const HASH_PIECE: usize = 1 << 20;
+
+impl<T> Hashing<T> {
+    fn new(inner: T, #[cfg_attr(not(test), allow(unused_variables))] path: &Path) -> Hashing<T> {
+        let (to, from) = std::sync::mpsc::sync_channel::<Vec<u8>>(HASH_QUEUE);
+        #[cfg(test)]
+        let hold = hash_hold(path);
+        let thread = std::thread::Builder::new()
+            .name("summing the mailbox file".into())
+            .spawn(move || {
+                let mut sum = Summed::new(());
+                for piece in from {
+                    sum.took(&piece);
+                }
+                #[cfg(test)]
+                if let Some(hold) = hold {
+                    let _ = hold.recv();
+                }
+                Some((sum.len, sum.sum))
+            })
+            .inspect_err(|e| log::warn!("couldn't start summing the mailbox file: {e}"))
+            .ok();
+        Hashing { inner, to: thread.as_ref().map(|_| to), thread }
+    }
+
+    /// The sum being worked out of everything read: [`Sum::Pending`] for a file `len` bytes long.
+    fn sum(mut self, len: u64) -> Sum {
+        // (No more pieces: the thread finishes what it has.)
+        self.to = None;
+        self.thread.take().map_or(Sum::None, |thread| Sum::Pending(thread, len))
+    }
+}
+
+impl<T: std::io::Read> std::io::Read for Hashing<T> {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        let n = self.inner.read(buf)?;
+        if self.to.is_some() && !self.send(buf.get(..n).unwrap_or(&[])) {
+            // The thread stopped, or there was no memory for a copy: there is no sum of the file.
+            self.to = None;
+            self.thread = None;
+        }
+        Ok(n)
+    }
+}
+
+impl<T> Hashing<T> {
+    /// Send `bytes` to be summed, in pieces of at most [`HASH_PIECE`]. Whether they went.
+    fn send(&self, bytes: &[u8]) -> bool {
+        let Some(to) = &self.to else { return false };
+        bytes.chunks(HASH_PIECE).all(|piece| {
+            let mut copy = Vec::new();
+            #[cfg(test)]
+            {
+                let (read, largest) = SUMMED.get();
+                SUMMED.set((read.max(bytes.len()), largest.max(piece.len())));
+                if NO_MEMORY_FOR_SUM.get() {
+                    return false;
+                }
+            }
+            copy.try_reserve_exact(piece.len()).is_ok() && {
+                copy.extend_from_slice(piece);
+                to.send(copy).is_ok()
+            }
+        })
+    }
+}
+
+/// For a test: the thread summing the file at a path waits, once it has summed it, until the
+/// test sends or lets go, so that a save can come while the sum is still being worked out.
+#[cfg(test)]
+type HashHold = Mutex<Option<(PathBuf, std::sync::mpsc::Receiver<()>)>>;
+#[cfg(test)]
+static HASH_HOLD: HashHold = Mutex::new(None);
+
+#[cfg(test)]
+thread_local! {
+    /// For a test: a copy of what is read, to be summed, finds no memory (on this thread).
+    static NO_MEMORY_FOR_SUM: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    /// For a test: the largest read handed to be summed on this thread, and the largest piece it went in.
+    static SUMMED: std::cell::Cell<(usize, usize)> = const { std::cell::Cell::new((0, 0)) };
+}
+
+#[cfg(test)]
+fn hash_hold(path: &Path) -> Option<std::sync::mpsc::Receiver<()>> {
+    let mut held = lock(&HASH_HOLD);
+    if held.as_ref().is_some_and(|(p, _)| p == path) { held.take().map(|(_, r)| r) } else { None }
 }
 
 /// An item as the mailbox file has it, as last read or written here: so that an item nobody
@@ -624,6 +769,12 @@ struct State {
     /// The file as [`open_ahead`] read it, for the next [`open`] of it to take, with the file's
     /// length and time then: anything written to it since drops it.
     ahead: Option<(Box<Opened>, Stamp)>,
+    /// The content folder, and the content in it the opening left on disk without looking for
+    /// it, with how many parts name each, for [`check_parts`].
+    unchecked: Option<(PathBuf, Vec<(Ref, u32)>)>,
+    /// The bodies the budget holds that an opening for a window left on disk, newest first, for
+    /// [`bodies_later`].
+    later: Option<Vec<crate::session::BodyLater>>,
 }
 
 /// Messages the mailbox file no longer says as they are in memory, held by nothing but a weak
@@ -1114,6 +1265,9 @@ pub struct Opened {
     pub bytes: u64,
     /// How many things in the mailbox didn't fit together and were put right (`Mailbox::repair`).
     pub repaired: usize,
+    /// The content files left on disk are still to be looked for ([`check_parts`]): bodies and
+    /// attachments missing among them aren't in `unavailable` ([`open_for_window`]).
+    pub unchecked: bool,
 }
 
 impl Opened {
@@ -1217,8 +1371,35 @@ pub fn open(path: &Path) -> Result<Opened, String> {
 /// [`open`], counting the bytes read in `progress` (the file's length is its total), and stopping
 /// with an error once `progress` is cancelled.
 pub fn open_with(path: &Path, progress: &OpenProgress) -> Result<Opened, String> {
+    open_as(path, progress, Launch::default())
+}
+
+/// [`open_with`], for a window that shows the mailbox as soon as it is open (#519): the bodies of
+/// the newest [`OPENING_ROWS`] messages of the Inbox alone are brought into memory (the rest
+/// load when they are wanted, as bodies beyond the budget always have), and the content files
+/// left on disk are looked for afterwards, by [`check_parts`] ([`Opened::unchecked`]).
+pub fn open_for_window(path: &Path, progress: &OpenProgress) -> Result<Opened, String> {
+    open_as(path, progress, Launch { checks_later: true, rows: Some(OPENING_ROWS) })
+}
+
+/// How a mailbox file is opened: as it always was ([`Launch::default`]), or for a window that
+/// shows it at once ([`open_for_window`]).
+#[derive(Clone, Copy, Debug, Default)]
+struct Launch {
+    /// The content left on disk is looked for afterwards ([`check_parts`]), not while opening.
+    checks_later: bool,
+    /// Bodies are brought into memory only for this many of the Inbox's newest messages (within
+    /// the budget); `None`: for the newest mail of the whole mailbox, as far as the budget goes.
+    rows: Option<usize>,
+}
+
+/// The Inbox's newest messages whose bodies a window brings in as it opens a mailbox: more than
+/// a window's list shows at once.
+pub const OPENING_ROWS: usize = 200;
+
+fn open_as(path: &Path, progress: &OpenProgress, launch: Launch) -> Result<Opened, String> {
     let started = Instant::now();
-    let (opened, read_now) = open_file(path, progress)?;
+    let (opened, read_now) = open_file(path, progress, launch)?;
     // (What was read ahead was logged when it was read.)
     if read_now {
         let line = open_line(started.elapsed(), opened.bytes, counts(&opened.mailbox), opened.repaired);
@@ -1255,7 +1436,7 @@ pub fn open_ahead(path: &Path, progress: &OpenProgress) -> Result<(), String> {
     let shared = shared(path);
     let mut st = lock(&shared.state);
     let started = Instant::now();
-    let (opened, read_now) = open_locked(&mut st, path, progress)?;
+    let (opened, read_now) = open_locked(&mut st, path, progress, Launch::default())?;
     if read_now {
         let line = open_line(started.elapsed(), opened.bytes, counts(&opened.mailbox), opened.repaired);
         log::info!("{line}");
@@ -1266,7 +1447,7 @@ pub fn open_ahead(path: &Path, progress: &OpenProgress) -> Result<(), String> {
     if progress.cancelled() {
         return Err(CANCELLED.into());
     }
-    let Some(stamp) = st.stamp.as_ref().map(|s| Stamp { len: s.len, modified: s.modified, sum: None }) else {
+    let Some(stamp) = st.stamp.as_ref().map(|s| Stamp { len: s.len, modified: s.modified, sum: Sum::None }) else {
         return Ok(());
     };
     st.ahead = Some((Box::new(opened), stamp));
@@ -1326,14 +1507,14 @@ impl<R: std::io::Read> std::io::Read for Counted<'_, R> {
 }
 
 /// [`open_with`], without the line in the log; and whether the file was read now (not ahead).
-fn open_file(path: &Path, progress: &OpenProgress) -> Result<(Opened, bool), String> {
+fn open_file(path: &Path, progress: &OpenProgress, launch: Launch) -> Result<(Opened, bool), String> {
     let shared = shared(path);
     let mut st = lock(&shared.state);
-    open_locked(&mut st, path, progress)
+    open_locked(&mut st, path, progress, launch)
 }
 
 /// [`open_file`], its file's lock held (`st`).
-fn open_locked(st: &mut State, path: &Path, progress: &OpenProgress) -> Result<(Opened, bool), String> {
+fn open_locked(st: &mut State, path: &Path, progress: &OpenProgress, launch: Launch) -> Result<(Opened, bool), String> {
     let show = path.display();
     let file = resolve(path);
     let len = crate::io::regular_file(&file).and_then(|f| f.metadata().map_err(crate::io::ReadError::Io)).map_err(|e| format!("{show}: {e}"))?.len();
@@ -1352,7 +1533,7 @@ fn open_locked(st: &mut State, path: &Path, progress: &OpenProgress) -> Result<(
     let (pins, named_before) = (std::mem::take(&mut st.pins), std::mem::take(&mut st.named_before));
     *st = State { newest: st.newest, swept: st.swept, pins, named_before, ..State::default() };
     if is_index(&file).map_err(|e| format!("{show}: {e}"))? {
-        let opened = open_index(st, &file, len, progress).map_err(|e| format!("{show}: {e}"))?;
+        let opened = open_index(st, &file, len, progress, launch).map_err(|e| format!("{show}: {e}"))?;
         if progress.cancelled() {
             return Err(CANCELLED.into());
         }
@@ -1375,7 +1556,7 @@ fn open_locked(st: &mut State, path: &Path, progress: &OpenProgress) -> Result<(
         0 | 1 => (false, Filled::default()),
         SPLIT_VERSION => {
             let head: Head = serde_json::from_slice(&bytes).map_err(|e| format!("{show}: this mailbox file is damaged ({e})"))?;
-            (true, fill(st, &blob_dir(&file), &mut mailbox, head, None))
+            (true, fill(st, &blob_dir(&file), &mut mailbox, head, None, Launch::default()))
         }
         newer => return Err(format!("{show}: this mailbox was written by a newer MailCraft (format {newer})")),
     };
@@ -1402,6 +1583,7 @@ fn open_locked(st: &mut State, path: &Path, progress: &OpenProgress) -> Result<(
         lost_records: 0,
         bytes: len,
         repaired: fixed.len(),
+        unchecked: false,
     };
     Ok((opened, true))
 }
@@ -1432,15 +1614,20 @@ fn parse_item(key: &Key, item: &index::Item) -> Result<(Parsed, Fp), String> {
 }
 
 /// Open a mailbox file in this form, `len` bytes long.
-fn open_index(st: &mut State, file: &Path, len: u64, progress: &OpenProgress) -> Result<Opened, String> {
+fn open_index(st: &mut State, file: &Path, len: u64, progress: &OpenProgress, launch: Launch) -> Result<Opened, String> {
     if len > MAX_INDEX {
         return Err(format!("the mailbox file is larger than {} GB", MAX_INDEX >> 30));
     }
     let f = crate::io::regular_file(file).map_err(|e| e.to_string())?;
-    let mut summed = Summed::new(std::io::BufReader::with_capacity(1 << 20, Counted { inner: f, progress }));
-    let replayed = index::replay(&mut summed, len)?;
-    // What its bytes are, when all of them were read.
-    let sum = (summed.len == len).then_some(summed.sum);
+    // What its bytes are is worked out on a thread of its own from the bytes read here (no more
+    // than `len` of them), for the first save to wait for: nothing wants it before.
+    let mut reader = std::io::BufReader::with_capacity(HASH_PIECE, Hashing::new(Counted { inner: f.take(len), progress }, file));
+    let replayed = index::replay(&mut reader, len)?;
+    // A sum only of the file read to its end by the replay itself: bytes read ahead into the
+    // buffer and never taken (a save cut short) leave none, as a file not read through always has.
+    let taken_whole = reader.buffer().is_empty();
+    let sum = reader.into_inner().sum(len);
+    let sum = if taken_whole { sum } else { Sum::None };
     let (rest, rest_sum) = replayed.rest.ok_or("this mailbox file is damaged (it has no mailbox record)")?;
     let mut mailbox: Mailbox = mailcraft_model::from_json(&rest, max_json_items()).map_err(|e| format!("this mailbox file is damaged ({e})"))?;
     let rest_fp = (rest_sum, index::FRAME + rest.len() as u64);
@@ -1492,7 +1679,7 @@ fn open_index(st: &mut State, file: &Path, len: u64, progress: &OpenProgress) ->
     // (`fill` marks which of it is in memory).
     let mut parts: HashMap<Id, Parts> = head.blobs.iter().map(|(id, wire)| (*id, wire.parts())).collect();
     let dir = blob_dir(file);
-    let filled = fill(st, &dir, &mut mailbox, head, Some(&mut parts));
+    let filled = fill(st, &dir, &mut mailbox, head, Some(&mut parts), launch);
     mailbox.version = 1;
     let fixed = mailbox.repair();
     for line in &fixed {
@@ -1553,7 +1740,7 @@ fn open_index(st: &mut State, file: &Path, len: u64, progress: &OpenProgress) ->
     for m in disk.messages.values() {
         hold(&mut st.live, &m.parts);
     }
-    st.stamp = Stamp::of(file, len, sum);
+    st.stamp = Stamp::with(file, len, sum);
     st.disk = Some(disk);
     st.loaded = loaded_unless_retired(&mailbox);
     Ok(Opened {
@@ -1567,6 +1754,7 @@ fn open_index(st: &mut State, file: &Path, len: u64, progress: &OpenProgress) ->
         lost_records: replayed.lost_records,
         bytes: len,
         repaired: fixed.len(),
+        unchecked: st.unchecked.is_some(),
     })
 }
 
@@ -1661,12 +1849,91 @@ fn present(dir: &Path, r: &Ref, folders: &Folders) -> bool {
     })
 }
 
+/// Which of `on_disk` (content under `dir`, with how many parts name each) are missing, looked
+/// for within [`STAT_TIME`]: past it, the rest is taken to be there, and a part that isn't says
+/// so when it is wanted.
+fn missing_of(dir: &Path, on_disk: &[(Ref, u32)], folders: &Folders) -> Vec<(Ref, u32)> {
+    // (A deadline past what the clock can say is none.)
+    let deadline = Instant::now().checked_add(STAT_TIME);
+    let looked =
+        fan_out(on_disk.len(), |i| on_disk.get(i).map(|(r, _)| deadline.is_none_or(|d| Instant::now() < d).then(|| present(dir, r, folders))));
+    on_disk.iter().zip(&looked).filter(|(_, l)| matches!(l, Some(Some(Some(false))))).map(|(r, _)| *r).collect()
+}
+
+/// Look for the content files the mailbox file at `path` names and its opening left on disk
+/// unlooked for ([`open_for_window`]): how many bodies and attachments are missing or damaged,
+/// for the window to say as the opening would have ([`Opened::notice`]). Once only: 0 after
+/// that, and for a file opened otherwise. Saves aren't held up meanwhile.
+pub fn check_parts(path: &Path) -> crate::session::Missing {
+    let shared = shared(path);
+    let Some((dir, on_disk)) = lock(&shared.state).unchecked.take() else { return crate::session::Missing::default() };
+    let missing = missing_of(&dir, &on_disk, &Folders::new());
+    let count = missing.iter().map(|(_, uses)| *uses as usize).fold(0usize, usize::saturating_add);
+    if count > 0 {
+        log::warn!("{}: {count} bodies or attachments are missing from {} or damaged", path.display(), dir.display());
+    }
+    crate::session::Missing { count, refs: missing.into_iter().map(|(r, _)| r.to_model()).collect() }
+}
+
+/// The bodies the memory budget holds that the opening of the file at `path` for a window left on
+/// disk ([`open_for_window`]), newest first, for the host to read ([`read_bodies`]) and hand to the
+/// session once the window shows (`Session::take_bodies`): what an opening otherwise reads at
+/// once. Once only: empty after that, and for a file opened otherwise.
+pub fn bodies_later(path: &Path) -> Vec<crate::session::BodyLater> {
+    lock(&shared(path).state).later.take().unwrap_or_default()
+}
+
+/// Read `bodies` from the content folder of the mailbox file at `path`, as an opening reads them
+/// (each checked against its name; not kept in the cache of fetched content). A part that can't be
+/// read is left out of what was read and named among those that failed, once for each message.
+pub fn read_bodies(path: &Path, bodies: &[crate::session::BodyLater]) -> (Vec<crate::session::BodyRead>, Vec<ContentRef>) {
+    let dir = blob_dir(&resolve(path));
+    let folders = Folders::new();
+    let read = |r: Option<ContentRef>| r.map(|r| (r, get(&dir, &Ref::from_model(&r), &folders)));
+    let mut failed = Vec::new();
+    let mut ok = |part: Option<(ContentRef, Option<Vec<u8>>)>| match part? {
+        (r, Some(bytes)) => Some((r, bytes)),
+        (r, None) => {
+            failed.push(r);
+            None
+        }
+    };
+    let read: Vec<_> = fan_out(bodies.len(), |i| bodies.get(i).map(|b| (b.id, read(b.text), read(b.html))))
+        .into_iter()
+        .flatten()
+        .flatten()
+        .map(|(id, text, html)| crate::session::BodyRead { id, text: ok(text), html: ok(html) })
+        .collect();
+    (read, failed)
+}
+
+/// What the opening of the file at `path` for a window left for after it shows (#519): the
+/// content files found missing ([`check_parts`]) with the bodies whose files are damaged among
+/// them, and the bodies the budget holds, read ([`bodies_later`], [`read_bodies`]): what an
+/// opening otherwise counts and reads at once. Once only.
+pub fn content_later(path: &Path) -> (crate::session::Missing, Vec<crate::session::BodyRead>) {
+    let mut missing = check_parts(path);
+    let (read, failed) = read_bodies(path, &bodies_later(path));
+    // (A file that isn't there was counted already, for every message that names it.)
+    let gone: HashSet<ContentRef> = missing.refs.iter().copied().collect();
+    let damaged: Vec<ContentRef> = failed.into_iter().filter(|r| !gone.contains(r)).collect();
+    if !damaged.is_empty() {
+        log::warn!("{}: {} bodies are damaged in the content folder", path.display(), damaged.len());
+    }
+    missing.count = missing.count.saturating_add(damaged.len());
+    missing.refs.extend(damaged);
+    (missing, read)
+}
+
 /// What a mailbox file wants for one part of a message.
 struct Want {
     /// `None`: what the file gives as a name isn't one.
     r: Option<Ref>,
     /// Where its bytes will be (an index into what is read); `None` when it stays on disk.
     slot: Option<usize>,
+    /// It stays on disk for now, though the budget holds it: a body outside the rows a window
+    /// opens on, read once the window shows ([`bodies_later`]).
+    later: bool,
 }
 
 impl Want {
@@ -1679,7 +1946,7 @@ impl Want {
 /// Put the content the mailbox file names back into `mailbox`'s messages: the bodies of the
 /// newest mail up to [`body_budget`], the rest named on the messages to be fetched when wanted.
 /// `parts`, when given, learns which parts are in memory. Returns what was done.
-fn fill(st: &mut State, dir: &Path, mailbox: &mut Mailbox, head: Head, mut parts: Option<&mut HashMap<Id, Parts>>) -> Filled {
+fn fill(st: &mut State, dir: &Path, mailbox: &mut Mailbox, head: Head, mut parts: Option<&mut HashMap<Id, Parts>>, launch: Launch) -> Filled {
     // Every distinct piece of content read is read once, and only as much as fits the budget: a
     // file can name the same large content for a million bodies.
     let mut slots: Vec<(Ref, u32)> = Vec::new();
@@ -1687,16 +1954,20 @@ fn fill(st: &mut State, dir: &Path, mailbox: &mut Mailbox, head: Head, mut parts
     let mut budget = body_budget();
     // `want` borrows the slots it fills: it lives in a block of its own, which ends the borrow.
     let plan = {
-        let mut want = |wire: &Option<(String, u64)>, load: bool, live: &mut HashMap<Digest, u32>| -> Option<Want> {
+        let mut want = |wire: &Option<(String, u64)>, load: bool, now: bool, live: &mut HashMap<Digest, u32>| -> Option<Want> {
             let wire = wire.as_ref()?;
-            let Some(r) = parse_ref(wire) else { return Some(Want { r: None, slot: None }) };
+            let Some(r) = parse_ref(wire) else { return Some(Want { r: None, slot: None, later: false }) };
             let n = live.entry(r.hash).or_default();
             *n = n.saturating_add(1);
             // A body is a copy of its own, whatever else names the same bytes.
             if !load || r.len > MAX_BLOB || r.len > budget {
-                return Some(Want { r: Some(r), slot: None });
+                return Some(Want { r: Some(r), slot: None, later: false });
             }
             budget -= r.len;
+            // (The budget is spent as for any opening, so that what comes later is what it holds.)
+            if !now {
+                return Some(Want { r: Some(r), slot: None, later: true });
+            }
             let slot = *index.entry(r).or_insert_with(|| {
                 slots.push((r, 0));
                 slots.len().saturating_sub(1)
@@ -1704,25 +1975,34 @@ fn fill(st: &mut State, dir: &Path, mailbox: &mut Mailbox, head: Head, mut parts
             if let Some((_, uses)) = slots.get_mut(slot) {
                 *uses = uses.saturating_add(1);
             }
-            Some(Want { r: Some(r), slot: Some(slot) })
+            Some(Want { r: Some(r), slot: Some(slot), later: false })
         };
         // The newest mail first (by when it was sent, then by its number), so that what the budget
         // holds is what the owner reads; content of a message that isn't there is still named by the
         // file on disk, and counted, but nothing of it is read.
         let mut order: Vec<(i64, Id)> = head.blobs.keys().filter_map(|id| mailbox.messages.get(id).map(|m| (m.date, *id))).collect();
         order.sort_unstable_by(|a, b| b.cmp(a));
+        // For a window that shows the mailbox at once, only the rows it opens on: the Inbox's
+        // newest messages (`Session` opens on the Inbox, newest first).
+        let rows: Option<HashSet<Id>> = launch.rows.map(|rows| {
+            let inbox = mailbox.inbox();
+            let mut listed: Vec<(i64, Id)> = mailbox.messages.iter().filter(|(_, m)| Some(m.folder) == inbox).map(|(id, m)| (m.date, *id)).collect();
+            listed.sort_unstable_by(|a, b| b.cmp(a));
+            listed.into_iter().take(rows).map(|(_, id)| id).collect()
+        });
         let mut plan = Vec::with_capacity(order.len());
         for (_, id) in order {
             let Some(wire) = head.blobs.get(&id) else { continue };
-            let text = want(&wire.text, true, &mut st.live);
-            let html = want(&wire.html, true, &mut st.live);
-            let attachments: Vec<Option<Want>> = wire.attachments.iter().map(|a| want(a, false, &mut st.live)).collect();
+            let now = rows.as_ref().is_none_or(|rows| rows.contains(&id));
+            let text = want(&wire.text, true, now, &mut st.live);
+            let html = want(&wire.html, true, now, &mut st.live);
+            let attachments: Vec<Option<Want>> = wire.attachments.iter().map(|a| want(a, false, true, &mut st.live)).collect();
             plan.push((id, text, html, attachments));
         }
         for (id, wire) in &head.blobs {
             if !mailbox.messages.contains_key(id) {
                 for part in wire.text.iter().chain(&wire.html).chain(wire.attachments.iter().flatten()) {
-                    want(&Some(part.clone()), false, &mut st.live);
+                    want(&Some(part.clone()), false, true, &mut st.live);
                 }
             }
         }
@@ -1733,26 +2013,42 @@ fn fill(st: &mut State, dir: &Path, mailbox: &mut Mailbox, head: Head, mut parts
     let mut data: Vec<Option<Arc<Vec<u8>>>> = read.into_iter().map(|b| b.flatten().map(Arc::new)).collect();
     let mut uses: Vec<u32> = slots.iter().map(|(_, uses)| *uses).collect();
     drop(slots);
-    // What stays on disk is looked for (its file, not its bytes), within a time cap, so that what
-    // is missing is told from what is merely not loaded. Past the cap the rest is taken to be
-    // there: a part that isn't says so when it is wanted.
-    let mut on_disk: Vec<Ref> = Vec::new();
-    let mut seen: HashSet<Ref> = HashSet::new();
+    // What stays on disk is looked for (its file, not its bytes), so that what is missing is told
+    // from what is merely not loaded: now, or for a window that shows the mailbox at once, once
+    // it shows ([`check_parts`]), the parts meanwhile taken to be there.
+    if launch.rows.is_some() {
+        let pick = |w: &Option<Want>| w.as_ref().filter(|w| w.later).and_then(Want::kept);
+        let later = plan
+            .iter()
+            .filter_map(|(id, text, html, _)| {
+                let (text, html) = (pick(text), pick(html));
+                (text.is_some() || html.is_some()).then_some(crate::session::BodyLater { id: *id, text, html })
+            })
+            .collect();
+        st.later = Some(later);
+    }
+    let mut on_disk: Vec<(Ref, u32)> = Vec::new();
+    let mut seen: HashMap<Ref, usize> = HashMap::new();
     for (_, text, html, attachments) in &plan {
         for want in text.iter().chain(html).chain(attachments.iter().flatten()) {
-            if let (Some(r), None) = (want.r, want.slot)
-                && seen.insert(r)
-            {
-                on_disk.push(r);
+            if let (Some(r), None) = (want.r, want.slot) {
+                let at = *seen.entry(r).or_insert_with(|| {
+                    on_disk.push((r, 0));
+                    on_disk.len().saturating_sub(1)
+                });
+                if let Some((_, uses)) = on_disk.get_mut(at) {
+                    *uses = uses.saturating_add(1);
+                }
             }
         }
     }
     drop(seen);
-    // (A deadline past what the clock can say is none.)
-    let deadline = Instant::now().checked_add(STAT_TIME);
-    let looked = fan_out(on_disk.len(), |i| on_disk.get(i).map(|r| deadline.is_none_or(|d| Instant::now() < d).then(|| present(dir, r, &folders))));
-    let missing: HashSet<Ref> = on_disk.iter().zip(&looked).filter(|(_, l)| matches!(l, Some(Some(Some(false))))).map(|(r, _)| *r).collect();
-    drop(on_disk);
+    let missing: HashSet<Ref> = if launch.checks_later {
+        st.unchecked = Some((dir.to_path_buf(), on_disk));
+        HashSet::new()
+    } else {
+        missing_of(dir, &on_disk, &folders).into_iter().map(|(r, _)| r).collect()
+    };
     let mut filled = Filled::default();
     // Three ways a part can stand after this: in memory (`Some(true)`), on disk (`Some(false)`),
     // missing (`None`).
@@ -2586,6 +2882,11 @@ fn write_index(st: &mut State, path: &Path, mailbox: &Mailbox, progress: &Progre
 }
 
 fn write_index_once(st: &mut State, path: &Path, mailbox: &Mailbox, progress: &Progress) -> Result<Saved, String> {
+    // What the file's bytes were when it was opened, while that is still being worked out:
+    // every save waits for it.
+    if let Some(stamp) = &mut st.stamp {
+        stamp.sum.settle();
+    }
     // Somebody else wrote the file since: what it names now is theirs to say, and what it named
     // before may be swept any time. What they wrote is kept aside before it is written over.
     let ours = st.stamp.as_mut().is_some_and(|s| s.ours(path));
@@ -2651,7 +2952,7 @@ fn write_index_once(st: &mut State, path: &Path, mailbox: &Mailbox, progress: &P
         st.stamp = None;
         return Err(e.to_string());
     }
-    let sum = st.stamp.take().and_then(|s| s.sum).map(|mut sum| {
+    let sum = st.stamp.take().and_then(|s| s.sum.take()).map(|mut sum| {
         sum.update(&group);
         sum
     });
@@ -3305,3 +3606,7 @@ mod size_tests;
 #[cfg(test)]
 #[path = "store_open_tests.rs"]
 mod open_tests;
+
+#[cfg(test)]
+#[path = "store_bench_tests.rs"]
+mod bench_tests;

@@ -374,37 +374,43 @@ pub(crate) struct ListOf {
     folder: Id,
     filter: Filter,
     search: Option<(mailcraft_model::search::Query, Scope)>,
+    /// The day, the first day of the week and the zone, for a search with dates in it:
+    /// `received:today` is other messages tomorrow (#329).
+    when: Option<String>,
 }
 
 impl ListOf {
-    pub(crate) fn of(view: &ViewState) -> Self {
+    /// `when` is the day and the zone the search is made in ([`Session::list_of`]); it counts only
+    /// for a search with dates in it.
+    pub(crate) fn of(view: &ViewState, when: impl FnOnce() -> String) -> Self {
         let query = mailcraft_model::search::Query::parse(&view.search);
+        let when = query.has_dates().then(when);
         let search = (!query.is_empty()).then_some((query, view.scope));
-        ListOf { folder: view.folder, filter: view.filter, search }
+        ListOf { folder: view.folder, filter: view.filter, search, when }
     }
 }
 
 impl Stays {
     /// The messages `selection` has that `rows` lists, in the list `view` shows.
-    fn take(selection: &[Id], rows: &[Row], view: &ViewState) -> Self {
+    fn take(selection: &[Id], rows: &[Row], list: &ListOf) -> Self {
         let selected: HashSet<Id> = selection.iter().copied().collect();
         let ids = rows.iter().flat_map(|r| r.members.iter()).copied().filter(|id| selected.contains(id)).collect();
-        Stays::of(ids, selection, view)
+        Stays::of(ids, selection, list)
     }
 
     /// `ids`, of `selection`, kept in the list `view` shows.
-    fn of(ids: HashSet<Id>, selection: &[Id], view: &ViewState) -> Self {
-        Stays { ids, selection: selection.to_vec(), list: ListOf::of(view) }
+    fn of(ids: HashSet<Id>, selection: &[Id], list: &ListOf) -> Self {
+        Stays { ids, selection: selection.to_vec(), list: list.clone() }
     }
 
     /// Whether `view` shows the list they are kept in ([`ListOf`]).
-    fn is_of(&self, view: &ViewState) -> bool {
-        self.list == ListOf::of(view)
+    fn is_of(&self, list: &ListOf) -> bool {
+        self.list == *list
     }
 
     /// What is kept for `selection` in the list `view` shows.
-    fn kept(&self, selection: &[Id], view: &ViewState) -> Option<Cow<'_, HashSet<Id>>> {
-        if !self.is_of(view) {
+    fn kept(&self, selection: &[Id], list: &ListOf) -> Option<Cow<'_, HashSet<Id>>> {
+        if !self.is_of(list) {
             return None;
         }
         if self.selection == selection {
@@ -418,9 +424,9 @@ impl Stays {
     /// search is a list of its own, which keeps nothing, and going back to the first one doesn't
     /// bring them back; a selection changed since keeps what it still has of them, worked out once
     /// here rather than at each look.
-    fn follow(stays: &mut Option<Arc<Stays>>, selection: &[Id], view: &ViewState) {
+    fn follow(stays: &mut Option<Arc<Stays>>, selection: &[Id], list: &ListOf) {
         match stays {
-            Some(st) if !st.is_of(view) => *stays = None,
+            Some(st) if !st.is_of(list) => *stays = None,
             Some(st) if st.selection != selection => {
                 let selected: HashSet<Id> = selection.iter().copied().collect();
                 let st = Arc::make_mut(st);
@@ -433,13 +439,13 @@ impl Stays {
 
     /// The list `view` shows has just been built as `rows`: the selected messages it lists stay
     /// in it too, those selected before it was shown and those that came into it since.
-    fn listed(stays: &mut Option<Arc<Stays>>, selection: &[Id], rows: &[Row], view: &ViewState) {
-        Stays::follow(stays, selection, view);
+    fn listed(stays: &mut Option<Arc<Stays>>, selection: &[Id], rows: &[Row], list: &ListOf) {
+        Stays::follow(stays, selection, list);
         // Each selected message kept already (one opened, or Select All): the rows add nothing.
         if stays.as_ref().is_some_and(|st| selection.iter().all(|id| st.ids.contains(id))) {
             return;
         }
-        let now = Stays::take(selection, rows, view);
+        let now = Stays::take(selection, rows, list);
         match stays {
             Some(st) if !now.ids.is_subset(&st.ids) => Arc::make_mut(st).ids.extend(now.ids),
             Some(_) => {}
@@ -585,8 +591,25 @@ pub struct Compose {
     /// out its first picture, and the pictures it carries. `None` when there is none.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub signature: Option<InsertedSignature>,
+    /// The pictures put in the text with Insert › Pictures (#547): the text has a picture run for
+    /// each it shows (ids from `mailcraft_model::pictures::FIRST_ID`). Those the text no longer
+    /// shows stay until a cap needs the room, so that undo can bring one back; none is sent then.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub pictures: Vec<mailcraft_model::signature::Picture>,
+    /// How many ids `pictures` have been given, so that none is given twice.
+    #[serde(skip_serializing_if = "is_zero_u32")]
+    pub picture_seq: u32,
     /// Changed since it was opened or last saved.
     pub dirty: bool,
+    /// The owner, not only an agent, changed it since it was opened (#494): an agent asks the
+    /// owner before it closes the message or puts another in its place, saved or not, until it
+    /// is closed. Never read from a file: only [`Session::run`] sets it.
+    #[serde(skip)]
+    pub owner_changed: bool,
+}
+
+fn is_zero_u32(n: &u32) -> bool {
+    *n == 0
 }
 
 /// The signature in a message being written (R4.5): what went in, so that it can be told whether
@@ -850,6 +873,10 @@ pub struct Session {
     /// Set while a command an agent asked for runs (with what the owner allowed it): what the
     /// command did is checked against that ([`crate::agent`]), and undone when it oversteps.
     pub agent: Option<Vec<crate::agent::Class>>,
+    /// The appointments, contacts and tasks the owner is changing in the window and hasn't saved,
+    /// set by the window while an agent's command runs: a command that takes one away is undone,
+    /// as the owner wasn't asked about it (#494). Never saved.
+    pub owner_changing: Vec<Id>,
     /// A copy of the mailbox the window had the host write off its own thread before switching an
     /// account to Microsoft Graph (the account, where the copy is): `account.graphSwitch` takes it
     /// instead of writing one itself ([`crate::cmd::graph_switch::prepare_backup`]). Set only by
@@ -985,6 +1012,7 @@ impl Session {
             graph_listed_short: Default::default(),
             jmap_read: Default::default(),
             agent: None,
+            owner_changing: Vec::new(),
             graph_switch_backup: None,
             staged_tree: None,
             server_search: Default::default(),
@@ -1127,6 +1155,17 @@ impl Session {
         self.local_now().date
     }
 
+    /// The list in view ([`ListOf`]), as made on today's date in this zone.
+    pub(crate) fn list_of(&self) -> ListOf {
+        ListOf::of(&self.view, || format!("{}|{}|{}", self.today().to_days(), self.prefs.week_start.index(), self.zone_key()))
+    }
+
+    /// The search in view, made today with the owner's first day of the week (#329): what every
+    /// message is matched against (`received:today`, a date without a year).
+    pub(crate) fn search_query(&self) -> mailcraft_model::search::Query {
+        mailcraft_model::search::Query::parse(&self.view.search).on(self.today(), self.prefs.week_start)
+    }
+
     // ---- state ----
 
     /// Counts every change to the mailbox (caches key on it).
@@ -1174,13 +1213,13 @@ impl Session {
     /// selected and the list is the one they were selected in. Being in view is still asked of
     /// them (`list::in_view`): one deleted, or moved out of the folder in view, leaves at once.
     pub fn kept(&self) -> Option<Cow<'_, HashSet<Id>>> {
-        self.sel.stays.as_ref().and_then(|stays| stays.kept(&self.sel.messages, &self.view))
+        self.sel.stays.as_ref().and_then(|stays| stays.kept(&self.sel.messages, &self.list_of()))
     }
 
     /// The selection has just changed: keep those of its messages that `rows` lists (the list in
     /// view as the owner saw it when they selected them) while they stay selected (#428).
     pub fn keep_selected(&mut self, rows: &[Row]) {
-        self.sel.stays = Some(Arc::new(Stays::take(&self.sel.messages, rows, &self.view)));
+        self.sel.stays = Some(Arc::new(Stays::take(&self.sel.messages, rows, &self.list_of())));
     }
 
     /// A click has just changed the selection: keep those of its messages the list in view lists
@@ -1188,7 +1227,7 @@ impl Session {
     pub(crate) fn keep_clicked(&mut self) {
         let selection = self.sel.messages.clone();
         let ids = self.in_list(&selection);
-        self.sel.stays = Some(Arc::new(Stays::of(ids, &selection, &self.view)));
+        self.sel.stays = Some(Arc::new(Stays::of(ids, &selection, &self.list_of())));
     }
 
     /// Of `ids`, those the list in view lists (#428, #485), asking of each whether the list shows
@@ -1249,7 +1288,7 @@ impl Session {
             return;
         }
         self.sel.keep_only(&shown);
-        self.sel.stays = Some(Arc::new(Stays::of(shown, &self.sel.messages, &self.view)));
+        self.sel.stays = Some(Arc::new(Stays::of(shown, &self.sel.messages, &self.list_of())));
     }
 
     /// The list shows the whole folder in view: the All tab, and no search.
@@ -1278,7 +1317,8 @@ impl Session {
     /// [`Session::unsearched`].
     pub fn rows(&mut self) -> Arc<Vec<Row>> {
         let key = |s: &Session| s.list_key();
-        Stays::follow(&mut self.sel.stays, &self.sel.messages, &self.view);
+        let list = self.list_of();
+        Stays::follow(&mut self.sel.stays, &self.sel.messages, &list);
         // The rows stand while what is kept is what they were built for, or while every message
         // they list only because it is selected is still kept: a message comes to be kept only
         // from a list it is in, so one kept since is in these rows already (a command that fails
@@ -1297,13 +1337,15 @@ impl Session {
         if let Some((rows, same)) = fresh {
             if !same {
                 // What they list of a selection made since stays in them too.
-                Stays::listed(&mut self.sel.stays, &self.sel.messages, &rows, &self.view);
+                let list = self.list_of();
+                Stays::listed(&mut self.sel.stays, &self.sel.messages, &rows, &list);
                 if let Some(c) = &mut self.list_cache {
                     c.stays = self.sel.stays.clone();
                 }
             }
             return rows;
         }
+        let day = self.today();
         let list_now = self.list_state();
         #[cfg(not(target_arch = "wasm32"))]
         self.words_in_step(!mailcraft_model::search::Query::parse(&self.view.search).is_empty());
@@ -1322,11 +1364,14 @@ impl Session {
                 hits
             }
         };
-        let key = key(self);
+        // A list searched across midnight may have matched `received:today` on either day: it is
+        // built again on the next call (#329).
+        let key = if self.today() == day { key(self) } else { String::new() };
         let (rows, kept) = crate::list::listing(self, &decided, &searched);
         // What it lists of the selection stays in it too: the rows don't change for that, as each
         // of those matches or is kept already.
-        Stays::listed(&mut self.sel.stays, &self.sel.messages, &rows, &self.view);
+        let list = self.list_of();
+        Stays::listed(&mut self.sel.stays, &self.sel.messages, &rows, &list);
         let rows = Arc::new(rows);
         self.list_cache = Some(ListCache { key, kept, stays: self.sel.stays.clone(), rows: rows.clone() });
         rows
@@ -1335,13 +1380,24 @@ impl Session {
     /// What the message list is built from, but for the content brought into memory or let go of.
     fn list_state(&self) -> String {
         format!(
-            "{}|{}|{}|{}|{}",
+            "{}|{}|{}|{}|{}|{}|{}",
             self.rev,
             self.today().to_days(),
+            // `received:"last week"` is other days for another first day of the week, and
+            // `received:today` other messages in another zone on the same date (#329).
+            self.prefs.week_start.index(),
+            self.zone_key(),
             self.words_finished(),
             self.prefs.show_groups,
             serde_json::to_string(&self.view).unwrap_or_default()
         )
+    }
+
+    /// The zone dates are searched in, for the keys searches are kept under (#329): its name, or
+    /// for this computer's zone when the system names none, its offset now.
+    pub(crate) fn zone_key(&self) -> String {
+        let zone = self.zone();
+        if zone.is_local() { format!("{:+}", self.offset_at(self.now())) } else { zone.id() }
     }
 
     /// The key the message list is kept under ([`Session::rows`]).
@@ -1383,7 +1439,7 @@ impl Session {
     fn search_words(&self) -> (std::collections::HashMap<Id, bool>, usize) {
         use std::cell::Cell;
         let mut decided = std::collections::HashMap::new();
-        let query = mailcraft_model::search::Query::parse(&self.view.search);
+        let query = self.search_query();
         let Some(words) = self.words.as_ref().filter(|_| !query.is_empty()) else { return (decided, 0) };
         let mut verify: Vec<Id> = Vec::new();
         {
@@ -1399,27 +1455,31 @@ impl Session {
                 }
                 let text_on_disk = crate::words::body_in_memory(m).is_none();
                 let unread_phrase = Cell::new(false);
-                let hit = query.matches_with(m, self.offset_at(m.date), |i| {
-                    let set = sets.get(i)?.as_ref()?;
-                    if !set.has(slot) {
-                        return Some(false);
-                    }
-                    // A whole address (#301): its words only narrow the messages down, and the
-                    // address itself is looked at on each.
-                    if query.is_address_term(i) {
-                        return None;
-                    }
-                    let (fields, w) = query.words_of(i)?;
-                    if w.len() <= 1 {
-                        return Some(true);
-                    }
-                    // A phrase: its words one after another, looked at on the message.
-                    if fields & mailcraft_model::words::BODY != 0 && text_on_disk {
-                        unread_phrase.set(true);
-                        return Some(true);
-                    }
-                    None
-                });
+                let hit = query.matches_with(
+                    m,
+                    |at| self.offset_at(at),
+                    |i| {
+                        let set = sets.get(i)?.as_ref()?;
+                        if !set.has(slot) {
+                            return Some(false);
+                        }
+                        // A whole address (#301): its words only narrow the messages down, and the
+                        // address itself is looked at on each.
+                        if query.is_address_term(i) {
+                            return None;
+                        }
+                        let (fields, w) = query.words_of(i)?;
+                        if w.len() <= 1 {
+                            return Some(true);
+                        }
+                        // A phrase: its words one after another, looked at on the message.
+                        if fields & mailcraft_model::words::BODY != 0 && text_on_disk {
+                            unread_phrase.set(true);
+                            return Some(true);
+                        }
+                        None
+                    },
+                );
                 // Said to be there before it was looked at: the whole query is looked at on
                 // the text as it is (a phrase that is there may make a `-` term fail).
                 if unread_phrase.get() {
@@ -1433,7 +1493,7 @@ impl Session {
         let mut unread = 0;
         for id in verify {
             let in_time = deadline.is_none_or(|d| std::time::Instant::now() < d);
-            let hit = in_time && self.loaded_message_where(id, |_| false).is_ok_and(|m| query.matches(&m, self.offset_at(m.date)));
+            let hit = in_time && self.loaded_message_where(id, |_| false).is_ok_and(|m| query.matches_in(&m, |at| self.offset_at(at)));
             unread += usize::from(!in_time);
             decided.insert(id, hit);
         }
@@ -1612,6 +1672,87 @@ impl Session {
         loaded.map(|_| true)
     }
 
+    /// Take in bodies an opening left on disk and the host read after the window showed
+    /// (`store::bodies_later`, #519): each goes into its message as the opening would have put it
+    /// there, if the message still keeps that body on disk and nothing has brought it in or found
+    /// it missing meanwhile. Not a change to the mailbox, and not counted as content the owner
+    /// brought in (the opening's bodies never are). Returns how many messages took one.
+    pub fn take_bodies(&mut self, bodies: Vec<BodyRead>) -> usize {
+        // ponytail: each message taken is a new Arc, so the first save prepares it again on the
+        // saver's thread (its record, and the hash of a body over 1 KB): up to the budget's bodies,
+        // 256 MB, once, off the window's thread, as `load_where` has always done (0.32 s for
+        // 11,617 bodies in `store_bench_tests.rs`, which a close waits for when the first change
+        // comes just before it). Re-point the file's entries at the new messages if that matters.
+        let mut took = 0;
+        for body in bodies {
+            let Some(m) = self.mailbox.messages.get(&body.id) else { continue };
+            // (A text found missing says so in its place, which is never written over; its HTML
+            // still comes, as an opening reads it beside a missing text.)
+            let Some(kept) = m.kept.as_deref().copied() else { continue };
+            let text = body.text.filter(|(r, _)| kept.text == Some(*r) && m.body.text.is_empty());
+            let html = body.html.filter(|(r, _)| kept.html == Some(*r) && m.body.html.is_none());
+            if text.is_none() && html.is_none() {
+                continue;
+            }
+            let mut copy = Message::clone(m);
+            let mut kept = kept;
+            if let Some((_, bytes)) = text {
+                copy.body.text = text_of(&bytes);
+                kept.text = None;
+            }
+            if let Some((_, bytes)) = html {
+                copy.body.html = Some(text_of(&bytes));
+                kept.html = None;
+            }
+            // (The kept HTML goes with the text as it now reads.)
+            kept.text_hash = mailcraft_model::text_hash(&copy.body.text);
+            copy.kept = (!kept.is_empty()).then(|| Box::new(kept));
+            self.put_message(body.id, copy);
+            took += 1;
+        }
+        if took > 0 {
+            self.loads += 1;
+        }
+        took
+    }
+
+    /// Bodies kept on disk whose files were found missing after the window showed
+    /// (`store::check_parts`, #519) read from then on as an opening that looked for them at once
+    /// has them: the text says it is unavailable, and nothing asks for them again. Returns how
+    /// many messages were marked.
+    pub fn mark_unavailable(&mut self, missing: &[ContentRef]) -> usize {
+        let missing: HashSet<ContentRef> = missing.iter().copied().collect();
+        if missing.is_empty() {
+            return 0;
+        }
+        let gone = |r: Option<ContentRef>| r.is_some_and(|r| missing.contains(&r));
+        let marked: Vec<Id> = self
+            .mailbox
+            .messages
+            .iter()
+            .filter(|(_, m)| {
+                m.kept.as_deref().is_some_and(|k| !k.failed && ((gone(k.text) && m.body.text.is_empty()) || (gone(k.html) && m.body.html.is_none())))
+            })
+            .map(|(id, _)| *id)
+            .collect();
+        for id in &marked {
+            let Some(m) = self.mailbox.messages.get(id) else { continue };
+            let mut copy = Message::clone(m);
+            if let Some(kept) = copy.kept.as_deref_mut() {
+                kept.failed = true;
+                if gone(kept.text) && copy.body.text.is_empty() {
+                    copy.body.text = crate::store_placeholder().to_string();
+                }
+                kept.text_hash = mailcraft_model::text_hash(&copy.body.text);
+            }
+            self.put_message(*id, copy);
+        }
+        if !marked.is_empty() {
+            self.loads += 1;
+        }
+        marked.len()
+    }
+
     /// Put `m`, message `id` with more or less of its content in memory, in the place of the
     /// one the mailbox has. The one it replaces may still be held by an Undo or Redo step: the
     /// content it keeps on disk is kept from the sweep while it is (`store::keep_held`). In a command,
@@ -1692,7 +1833,7 @@ impl Session {
                 let lean = if id == keep || self.sel.messages.contains(&id) { None } else { crate::store::evictable(&path, id, m) };
                 // A search under way has what it is looking for matched first: its body is
                 // about to be named only, and the list reads it after this.
-                let hit = lean.as_ref().and(self.search_pass.as_ref()).map(|(q, _)| q.matches(m, self.offset_at(m.date)));
+                let hit = lean.as_ref().and(self.search_pass.as_ref()).map(|(q, _)| q.matches_in(m, |at| self.offset_at(at)));
                 if let (Some(hit), Some((_, hits))) = (hit, &mut self.search_pass) {
                     hits.insert(id, hit);
                 }
@@ -1807,7 +1948,7 @@ impl Session {
     fn load_bodies_for_search(&mut self, decided: &std::collections::HashMap<Id, bool>) -> std::collections::HashMap<Id, bool> {
         self.unsearched = 0;
         self.search_pass = None;
-        let query = mailcraft_model::search::Query::parse(&self.view.search);
+        let query = self.search_query();
         if query.is_empty() || !query.reads_bodies() {
             return Default::default();
         }
@@ -1869,7 +2010,8 @@ impl Session {
         let mb = &self.mailbox;
         self.sel.messages.dedup();
         // A kept message is kept only in the list it was selected in, while it is selected (#428).
-        Stays::follow(&mut self.sel.stays, &self.sel.messages, &self.view);
+        let list = self.list_of();
+        Stays::follow(&mut self.sel.stays, &self.sel.messages, &list);
         if self.sel.contact.is_some_and(|c| mb.contact(c).is_none()) {
             self.sel.contact = None;
         }
@@ -2009,8 +2151,42 @@ impl Session {
         cur
     }
 
+    /// Whether undoing the last step (or redoing, `redo`) would take away the event, contact or
+    /// task `item` as it is now (#494: what the owner is changing in a window or the dialog goes
+    /// with it).
+    pub fn undo_removes(&self, redo: bool, item: Id) -> bool {
+        let Some(step) = (if redo { self.redo.last() } else { self.history.last() }) else { return false };
+        let uid = |m: &mailcraft_model::Mailbox| m.event(item).map(|e| e.uid.clone());
+        let event = uid(&self.mailbox).is_some() && uid(&step.mailbox) != uid(&self.mailbox);
+        event || gone_in(&self.mailbox, &step.mailbox, item)
+    }
+
+    /// Whether undoing the last step (or redoing, `redo`) would put back another version of the
+    /// message `message`, or take it away (#494: the draft of the message the owner is writing).
+    pub fn undo_changes_message(&self, redo: bool, message: Id) -> bool {
+        let Some(step) = (if redo { self.redo.last() } else { self.history.last() }) else { return false };
+        match (step.mailbox.messages.get(&message), self.mailbox.messages.get(&message)) {
+            (Some(then), Some(now)) => !Arc::ptr_eq(then, now) && then != now,
+            (then, now) => then.is_some() != now.is_some(),
+        }
+    }
+
+    /// The drafts that undoing the last step (or redoing, `redo`) would take away, or put back
+    /// as they were before (#494): what was written in them since would be lost with it.
+    pub fn undo_drafts(&self, redo: bool) -> Vec<Id> {
+        let Some(step) = (if redo { self.redo.last() } else { self.history.last() }) else { return Vec::new() };
+        let then = &step.mailbox.messages;
+        self.mailbox
+            .messages
+            .iter()
+            .filter(|(id, m)| m.draft && then.get(*id).is_none_or(|t| !Arc::ptr_eq(t, m) && t != *m))
+            .map(|(id, _)| *id)
+            .collect()
+    }
+
     /// What undoing (`redo`: redoing) would put back besides mail and the like: the accounts, or
-    /// the rules and signatures, as they were. For the agent gate, which asks the owner first.
+    /// the rules and signatures, as they were; or a draft, taken away or as it was before. For
+    /// the agent gate, which asks the owner first.
     pub fn undo_reverts(&self, redo: bool) -> Option<crate::agent::Class> {
         use crate::agent::Class;
         let step = if redo { self.redo.last() } else { self.history.last() }?;
@@ -2035,10 +2211,10 @@ impl Session {
             || now.tasks.keys().any(|k| !to.tasks.contains_key(k))
             || now.calendars.iter().any(|c| !to.calendars.iter().any(|t| t.id == c.id))
             || now.categories.iter().any(|c| !to.categories.iter().any(|t| t.name.to_lowercase() == c.name.to_lowercase()));
-        if gone {
+        if gone || !self.undo_drafts(redo).is_empty() {
             return Some(Class::Delete);
         }
-        if to.rules != now.rules || to.signatures != now.signatures || to.junk != now.junk {
+        if to.rules != now.rules || to.signatures != now.signatures || to.junk != now.junk || to.junk_accounts != now.junk_accounts {
             return Some(Class::Settings);
         }
         None
@@ -2094,6 +2270,7 @@ impl Session {
         let compose = self.compose.clone();
         let signature_edit = self.signature_edit.clone();
         let view = self.view.clone();
+        let list_before = self.list_of();
         let run = spec.run;
         // Last-resort guard (never-crash): a panic in a command becomes an error and the state is restored.
         let outer = self.swaps.replace(Swaps::default());
@@ -2120,17 +2297,31 @@ impl Session {
             }
         };
         // An agent's command that did more than it was allowed (mail into an Outbox, messages
-        // gone for good) is undone, whatever path it took there.
+        // gone for good, an appointment the owner is changing taken away) is undone, whatever
+        // path it took there.
         let result = match (result, &self.agent) {
+            (Ok(_), Some(_)) if self.owner_changing.iter().any(|e| gone_in(&before.mailbox, &self.mailbox, *e)) => Err(CmdError::Failed(format!(
+                "`{id}` would take away an appointment, a contact or a task the owner is changing in the window and hasn't saved, and the owner wasn't asked about that; nothing was changed. Try again once the owner has saved or closed it"
+            ))),
             (Ok(_), Some(allow)) if let Some(c) = crate::agent::overstep(&before.mailbox, &self.mailbox, allow) => {
-                Err(CmdError::Failed(crate::agent::needs_owner(id, c, "do more than an agent is allowed to; nothing was changed")))
+                Err(CmdError::Failed(crate::agent::needs_owner(id, c, false, "do more than an agent is allowed to; nothing was changed")))
             }
             (r, _) => r,
         };
         match &result {
             Ok(_) => {
+                // A message being written that the owner (or a script of theirs) changed is theirs
+                // until it is closed (#494); an agent's own changes don't make it the agent's.
+                if self.agent.is_none()
+                    && let Some(c) = self.compose.as_mut()
+                    && c.dirty
+                    && !c.owner_changed
+                    && !compose.as_ref().is_some_and(|before| as_it_was(before, c))
+                {
+                    c.owner_changed = true;
+                }
                 // Another list (a folder, a tab, a search) keeps selected only what it shows (#485).
-                if ListOf::of(&view) != ListOf::of(&self.view) {
+                if list_before != self.list_of() {
                     self.keep_shown();
                 }
                 // The working hours of an account just removed go with it (#325): here, once
@@ -2178,6 +2369,20 @@ impl Session {
         }
         result
     }
+}
+
+/// Whether the event, contact or task `item` that `before` has is gone from `after`.
+fn gone_in(before: &Mailbox, after: &Mailbox, item: Id) -> bool {
+    let there = |m: &Mailbox| m.event(item).is_some() || m.contact(item).is_some() || m.task(item).is_some();
+    there(before) && !there(after)
+}
+
+/// Whether the message being written is `before` but for where the cursor is (#494): moving it,
+/// or selecting, isn't writing in it.
+fn as_it_was(before: &Compose, now: &Compose) -> bool {
+    let at = now.body.selection();
+    let mut moved = before.clone();
+    moved.body.select(at.anchor, at.head).is_ok() && moved == *now
 }
 
 /// Commands that remove what is kept of an account on this computer (#177): they leave nothing
@@ -2237,6 +2442,33 @@ fn loaded_into(m: &mut Message, fetch: impl Fn(Part) -> Result<Arc<Vec<u8>>, Cmd
 fn in_memory(m: &Message) -> u64 {
     let body = m.body.text.len().saturating_add(m.body.html.as_ref().map_or(0, String::len));
     m.attachments.iter().fold(body as u64, |n, a| n.saturating_add(a.data.len() as u64))
+}
+
+/// A body an opening for a window left on disk though the memory budget holds it, to be read
+/// once the window shows (`store::bodies_later`, #519): its text and HTML as the message names them.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct BodyLater {
+    pub id: Id,
+    pub text: Option<ContentRef>,
+    pub html: Option<ContentRef>,
+}
+
+/// A [`BodyLater`] read: each part with its bytes, or left out when it couldn't be read
+/// ([`Session::take_bodies`]).
+#[derive(Clone, Debug, Default)]
+pub struct BodyRead {
+    pub id: Id,
+    pub text: Option<(ContentRef, Vec<u8>)>,
+    pub html: Option<(ContentRef, Vec<u8>)>,
+}
+
+/// The content files an opening for a window left unlooked for, looked for once it shows
+/// (`store::check_parts`, #519): how many parts are missing (a file named by two parts counts
+/// twice), and which files.
+#[derive(Clone, Debug, Default)]
+pub struct Missing {
+    pub count: usize,
+    pub refs: Vec<ContentRef>,
 }
 
 /// Bytes as the text they hold; what isn't UTF-8 is read as well as it can be.

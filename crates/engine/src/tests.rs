@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-use mailcraft_model::{FlagStatus, FolderKind, Id, Importance};
+use mailcraft_model::{FlagStatus, FolderKind, Id, Importance, Mailbox, Message};
 use mailcraft_time::{Date, DateTime};
 use serde_json::{Value, json};
 
@@ -525,6 +525,43 @@ fn search_filters_the_list_and_can_look_everywhere() {
     let first_id = first(&mut s);
     run(&mut s, "mail.select", json!({"id": first_id}));
     assert_eq!(run(&mut s, "mail.findRelated", json!({}))["found"], 1);
+}
+
+/// #329: `received:today`, a date without a year and `"this week"` are matched on the session's
+/// day and its first day of the week; the list is matched again when the first day changes.
+#[test]
+fn a_search_for_today_or_this_week_goes_by_the_sessions_day() {
+    let mut mb = Mailbox::with_local_account("Avery", "avery@mail.example");
+    let account = mb.accounts[0].id;
+    let folder = mb.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    let noon = |d: u8| DateTime::new(Date::new(2026, 10, d).unwrap(), 12, 0, 0).unwrap().civil_seconds();
+    for d in [23, 24, 25, 26] {
+        mb.add_message(Message { folder, account, subject: format!("On the {d}th"), date: noon(d), received: noon(d), ..Default::default() })
+            .unwrap();
+    }
+    // Monday, October 26, 2026, at three in the afternoon.
+    let mut s = Session::at(mb, noon(26) + 3 * 3600, 0);
+    s.view.folder = folder;
+    s.prefs.week_start = mailcraft_time::Weekday::Sun;
+    assert_eq!(run(&mut s, "view.search", json!({"query": "received:today"}))["found"], 1);
+    assert_eq!(run(&mut s, "view.search", json!({"query": "received:yesterday"}))["found"], 1);
+    assert_eq!(run(&mut s, "view.search", json!({"query": "received:10/24..10/26"}))["found"], 3);
+    assert_eq!(run(&mut s, "view.search", json!({"query": "received:\"this week\""}))["found"], 2);
+    // From Monday, this week is today alone.
+    s.prefs.week_start = mailcraft_time::Weekday::Mon;
+    assert_eq!(s.rows().len(), 1);
+    // Today is the day here: at 23:30 on the 26th five hours west of UTC (04:30 on the 27th in
+    // UTC), today is still the 26th.
+    s.clock = Clock { now: Some(noon(27) - 7 * 3600 - 30 * 60), offset: Some(-300), zone: None };
+    assert_eq!(s.today(), Date::new(2026, 10, 26).unwrap());
+    assert_eq!(run(&mut s, "view.search", json!({"query": "received:today"}))["found"], 1);
+    // Another zone on the same day is matched again: at 00:30 UTC on the 26th it is the 26th in
+    // UTC and 13 hours east of it, where the message of the 26th came in on the 27th.
+    s.clock = Clock { now: Some(noon(26) - 11 * 3600 - 30 * 60), offset: Some(0), zone: None };
+    assert_eq!(run(&mut s, "view.search", json!({"query": "received:today 26th"}))["found"], 1);
+    s.clock.offset = Some(13 * 60);
+    assert_eq!(s.today(), Date::new(2026, 10, 26).unwrap());
+    assert_eq!(s.rows().len(), 0);
 }
 
 /// A list shows what a message says to its reader: the HTML's words when there is HTML, never
@@ -2275,9 +2312,11 @@ fn hostile_params_never_panic() {
         json!({"title": "t", "start": "2026-10-14T10:00", "recurrence": {"freq": "daily", "interval": 4294967295u32, "count": 4294967295u32, "byDay": ["xx", 5], "nth": 99, "until": "0001-01-01"}}),
         json!({"data": "!!!!", "name": "../../etc/passwd", "path": "\u{0}", "mime": "\r\n"}),
         // Messages forwarded together (#360): more than one message carries, each named again and
-        // again, ids that are none, and a list that is no list.
+        // again, ids that are none, and a list that is no list; an id or ids of null (#512).
         json!({"ids": (0..10_000u64).collect::<Vec<_>>()}),
         json!({"ids": [1, 2, 3, 2, 1, 1, 18446744073709551615u64], "id": null, "message": null}),
+        json!({"id": null}),
+        json!({"ids": null}),
         json!({"ids": {"0": 1}, "message": [1, 2]}),
         json!({"ids": [1, "7", -1, 0, 1.5, null, {"id": 2}, [3], 1e300], "id": "4"}),
         // The message list's keys (#426): pages of no rows, of more rows than there are, of nonsense.
