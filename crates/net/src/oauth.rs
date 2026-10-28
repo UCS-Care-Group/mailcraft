@@ -145,6 +145,13 @@ const MICROSOFT_GRAPH_SHARED_CALENDARS: &str = "https://graph.microsoft.com/Cale
 /// the to-dos asks for it by itself ([`refresh_graph_tasks`]); a sign-in that doesn't cover it
 /// gets [`NetError::ConsentNeeded`], and the window asks the owner ([`sign_in_for_tasks`]).
 const MICROSOFT_GRAPH_TASKS: &str = "https://graph.microsoft.com/Tasks.ReadWrite";
+/// What keeping a Microsoft account's rules on its server takes (#566): reading and changing the
+/// rules of its Inbox (`messageRules`). Reading them alone takes [`MICROSOFT_GRAPH_EXTRAS`], which
+/// a sign-in asks for. Changing them is asked for by itself, the first time the owner keeps a
+/// rule on the server and after the window has asked him ([`sign_in_for_rules`],
+/// [`refresh_graph_rules`]), never on the page of a sign-in: a sign-in never waits on it. It is
+/// on the administrator's list too, so that one approval covers it.
+const MICROSOFT_GRAPH_RULES: &str = "https://graph.microsoft.com/MailboxSettings.ReadWrite";
 /// Whether the page of an ordinary sign-in also puts the Favorites' permissions to the owner,
 /// so that one page settles everything. **Off**: Microsoft's permissions reference lists
 /// `MailboxConfigItem.Read` as one that takes an administrator's consent in an organisation
@@ -422,8 +429,9 @@ pub enum FavoritesRefusal {
 /// too. That is what a sign-in's page asks for (IMAP, SMTP, a refresh token and who signs in;
 /// Microsoft Graph's sending, calendar, contacts, mailbox settings and, for an account kept in step
 /// through Graph, its mail), what reading the Favorites of Outlook through Graph takes, and what
-/// reading a shared mailbox and sending from one take, what reading its calendars takes, and what
-/// keeping the to-dos in step with Microsoft To Do takes.
+/// reading a shared mailbox and sending from one take, what reading its calendars takes, what
+/// keeping the to-dos in step with Microsoft To Do takes, and what keeping rules on the server
+/// takes.
 ///
 /// A sign-in asks for no more than is here: a page that asked for one permission an
 /// administrator had not approved would send the owner to find one again.
@@ -439,6 +447,7 @@ fn admin_scope() -> String {
         MICROSOFT_GRAPH_SHARED_SEND,
         MICROSOFT_GRAPH_SHARED_CALENDARS,
         MICROSOFT_GRAPH_TASKS,
+        MICROSOFT_GRAPH_RULES,
         SIGN_IN_SCOPE,
     ]);
     all.collect::<Vec<_>>().join(" ")
@@ -818,6 +827,51 @@ pub fn refresh_graph_tasks_at(
             // job tries again later. (Unlike refresh_graph_at, where the first no stands.)
             Err(mail) => {
                 log::debug!("asking for mail came to nothing (the answer for the to-dos was: {error})");
+                Err(mail)
+            }
+        },
+        Err(error) => Err(error),
+    }
+}
+
+/// What the tokens of a rules job that has changes to send are asked for (#566): what the
+/// account's mail takes, and changing its rules on top.
+fn rules_scope() -> String {
+    format!("{MICROSOFT_GRAPH} {MICROSOFT_GRAPH_MAIL} {MICROSOFT_GRAPH_RULES} {SIGN_IN_SCOPE}")
+}
+
+/// Ask the owner, on the provider's page, to let this program change the rules his server keeps
+/// (`MailboxSettings.ReadWrite`). Only when a rule is to go to the server and the sign-in doesn't
+/// cover it, after the window has asked him, and never with an ordinary sign-in. A no says whose
+/// it is ([`FavoritesRefusal`]); nothing is tried a second time.
+pub fn sign_in_for_rules(oauth: &OAuth, login_hint: &str, open: &dyn Fn(&str), cancel: &AtomicBool) -> Result<Tokens, FavoritesRefusal> {
+    let plain = Endpoints::for_resource(oauth, Resource::GraphMail);
+    let endpoints = Endpoints { scope: rules_scope(), consent: String::new(), lesser: String::new(), ..plain };
+    sign_in_for_favorites_within(&endpoints, oauth, login_hint, open, cancel, SIGN_IN_TIMEOUT)
+}
+
+/// [`refresh_graph_mail`] for a rules job with changes to send (#566): the tokens are asked for
+/// with `MailboxSettings.ReadWrite`, and for nothing less. A sign-in that doesn't cover it gets
+/// [`NetError::ConsentNeeded`]: nothing of the rules is sent, everything else goes on, and the
+/// window asks the owner ([`sign_in_for_rules`]). A no in the words of a sign-in that is over is
+/// put to the account's mail with the same refresh token, as for the to-dos (#520).
+pub fn refresh_graph_rules(oauth: &OAuth, refresh_token: &str) -> Result<GraphTokens, NetError> {
+    let endpoints = Endpoints::for_resource(oauth, Resource::GraphMail);
+    refresh_graph_rules_at(&endpoints, &endpoints, oauth, refresh_token)
+}
+
+/// [`refresh_graph_rules`] at endpoints other than the provider's usual ones: `mail` for the
+/// account's mail.
+pub fn refresh_graph_rules_at(endpoints: &Endpoints, mail: &Endpoints, oauth: &OAuth, refresh_token: &str) -> Result<GraphTokens, NetError> {
+    let endpoints = Endpoints { scope: rules_scope(), ..endpoints.clone() };
+    match refresh_for_at(&endpoints, oauth, refresh_token, Resource::GraphMail) {
+        Ok(tokens) => Ok(GraphTokens { tokens, extras_missing: false, covers_favorites: false }),
+        // "No longer good": for anything at all, or only for changing the rules?
+        Err(error) if error.is_refused_sign_in() => match refresh_for_at(mail, oauth, refresh_token, Resource::GraphMail) {
+            Ok(_) => Err(NetError::ConsentNeeded("the sign-in doesn't cover changing the rules".into())),
+            Err(mail) if mail.is_refused_sign_in() => Err(error),
+            Err(mail) => {
+                log::debug!("asking for mail came to nothing (the answer for the rules was: {error})");
                 Err(mail)
             }
         },

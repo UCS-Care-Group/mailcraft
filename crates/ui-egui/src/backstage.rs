@@ -256,6 +256,20 @@ fn info(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
             }
             ui.add_space(4.0);
         }
+        // Where keeping rules on the server stands, with a way to ask again (#566).
+        if let Some((line, again)) = app.rules_line(a.id) {
+            ui.horizontal(|ui| {
+                ui.add_space(36.0);
+                ui.label(egui::RichText::new(line).font(regular(11.5)).color(t.text_dim));
+                let tip = tl!(
+                    "Ask for permission to change the rules on the server: Microsoft's page opens in your browser. Without it, new rules stay on this computer and nothing of them is sent."
+                );
+                if again && ui.link(tl!("Ask again")).on_hover_text(tip).clicked() {
+                    app.ask_rules_again(a.id);
+                }
+            });
+            ui.add_space(4.0);
+        }
         // Which messages are kept whole on this computer (R3.2); a shared mailbox keeps as much
         // as its owner's account (#70).
         if a.kind == AccountKind::Microsoft && !a.is_shared() {

@@ -148,6 +148,20 @@ fn local_of(mailbox: &Mailbox, account: Id, remote: &RemoteRule) -> (Vec<Action>
     (actions, unknown)
 }
 
+/// Whether `here` and `there` hold the same parts, in any order (a server gives them in its
+/// own), by `same`.
+fn same_parts<T>(here: &[T], there: &[T], same: impl Fn(&T, &T) -> bool) -> bool {
+    let mut left: Vec<&T> = there.iter().collect();
+    here.len() == there.len()
+        && here.iter().all(|a| match left.iter().position(|b| same(a, b)) {
+            Some(i) => {
+                left.swap_remove(i);
+                true
+            }
+            None => false,
+        })
+}
+
 /// The words of two conditions are the same but for their letters' case: the server keeps the
 /// text of a condition in capitals.
 fn same_words(here: &[Condition], there: &[Condition]) -> bool {
@@ -155,20 +169,15 @@ fn same_words(here: &[Condition], there: &[Condition]) -> bool {
         Condition::FromContains(t) | Condition::ToContains(t) | Condition::SubjectContains(t) | Condition::BodyContains(t) => Some(t.to_lowercase()),
         _ => None,
     };
-    here.len() == there.len()
-        && here
-            .iter()
-            .zip(there)
-            .all(|(a, b)| std::mem::discriminant(a) == std::mem::discriminant(b) && words(a) == words(b) && (words(a).is_some() || a == b))
+    same_parts(here, there, |a, b| std::mem::discriminant(a) == std::mem::discriminant(b) && words(a) == words(b) && (words(a).is_some() || a == b))
 }
 
 /// The same with the categories it gives.
 fn same_actions(here: &[Action], there: &[Action]) -> bool {
-    here.len() == there.len()
-        && here.iter().zip(there).all(|(a, b)| match (a, b) {
-            (Action::Categorize(x), Action::Categorize(y)) => x.eq_ignore_ascii_case(y),
-            _ => a == b,
-        })
+    same_parts(here, there, |a, b| match (a, b) {
+        (Action::Categorize(x), Action::Categorize(y)) => x.eq_ignore_ascii_case(y),
+        _ => a == b,
+    })
 }
 
 /// Merge the rules a server has into the mailbox (see the module). Nothing is changed when this

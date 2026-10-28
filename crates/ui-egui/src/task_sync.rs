@@ -142,7 +142,12 @@ impl MailApp {
             return false;
         }
         // One thing at a time: the calendar's job, a Send/Receive and a sign-in go first.
-        if self.calendar.rx.is_some() || self.graph_rx.is_some() || self.sync_rx.is_some() || self.signing_in.is_some() || !self.sync_queue.is_empty()
+        if self.calendar.rx.is_some()
+            || self.rules.busy()
+            || self.graph_rx.is_some()
+            || self.sync_rx.is_some()
+            || self.signing_in.is_some()
+            || !self.sync_queue.is_empty()
         {
             return false;
         }
@@ -550,7 +555,7 @@ impl ForAccount for TasksUploaded {
 
 /// A refresh token, told apart from another without being kept: whether the account has signed
 /// in again since a job's was refused.
-fn fingerprint(refresh: &str) -> u64 {
+pub(crate) fn fingerprint(refresh: &str) -> u64 {
     use std::hash::{Hash, Hasher};
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     refresh.hash(&mut hasher);

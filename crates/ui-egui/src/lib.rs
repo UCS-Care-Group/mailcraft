@@ -109,6 +109,9 @@ pub mod reading;
 mod reminders;
 mod report_problem;
 pub mod ribbon;
+pub mod rule_sync;
+#[cfg(test)]
+mod rule_sync_tests;
 pub mod scheduling;
 mod search_pills;
 mod search_suggest;
@@ -218,6 +221,8 @@ pub struct Services {
     pub graph_search: Option<Box<dyn Fn(server_search::GraphSearchJob) -> Receiver<mailcraft_model::sync::GraphSearchResult>>>,
     /// Keep a Microsoft account's tasks in step with Microsoft To Do (#248; [`task_sync`]).
     pub graph_tasks: Option<Box<dyn Fn(task_sync::TasksJob) -> Receiver<task_sync::TasksResult>>>,
+    /// Keep a Microsoft account's rules on its server (#566; [`rule_sync`]).
+    pub graph_rules: Option<Box<dyn Fn(rule_sync::RulesJob) -> Receiver<rule_sync::RulesResult>>>,
     /// A host that reaches JMAP servers (over `fetch` in the browser): read an account kept in step
     /// over JMAP (M6) as the job says, as a task of its own: connect to the account's server with
     /// the job's secret, read what the request asks for (`mailcraft_jmap::sync_mail`) and hand the
@@ -525,6 +530,10 @@ pub struct SignInRequest {
     /// (`Tasks.ReadWrite`, #248) by itself, never with a sign-in of any other kind: a job found
     /// the sign-in doesn't cover it, and the owner said go ahead.
     pub tasks: bool,
+    /// With `graph`: ask for changing the rules the account's server keeps
+    /// (`MailboxSettings.ReadWrite`, #566) by itself, never with a sign-in of any other kind: a
+    /// rule is to go to the server, the sign-in doesn't cover it, and the owner said go ahead.
+    pub rules: bool,
 }
 
 /// What the host needs to check an account's calendar connection ([`Services::check_calendar`]).
@@ -687,6 +696,8 @@ struct SigningIn {
     shared_calendars: bool,
     /// And for the To Do lists (#248).
     tasks: bool,
+    /// And for changing the rules on the server (#566).
+    rules: bool,
     /// The owner signs in on a page in the browser (no kept token to renew it with).
     browser: bool,
     /// The mailbox opening it was started under ([`Session::openings`]): an answer that comes
@@ -928,6 +939,12 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         "Allow Keeping Tasks in Step with Microsoft To Do",
         "File › Info",
         r#"{"account": number (a Microsoft account), "confirmed": true} — asks the owner, on Microsoft's page in the browser, to let MailCraft read and change the To Do lists and tasks (Tasks.ReadWrite), by itself: an account that signed in before this was asked is not asked with a sign-in. The window asks first, when a tasks run finds the sign-in doesn't cover it, and File › Info has "Ask again". Allowed, the tasks are kept in step at the next look; refused, or when an administrator has to approve first, the window says what to do next. Answers {"pending": "signIn", "account": number}"#,
+    ),
+    (
+        "ui.allowRules",
+        "Allow Keeping Rules on the Server",
+        "File › Info",
+        r#"{"account": number (a Microsoft account), "confirmed": true} — asks the owner, on Microsoft's page in the browser, to let MailCraft change the rules the account's server keeps (MailboxSettings.ReadWrite), by itself and never with a sign-in. The window asks first, the first time a rule is to go to the server and the sign-in doesn't cover it, and File › Info has "Ask again". Until it is allowed the account's rules stay on this computer and nothing of them is sent. Allowed, the rules waiting go at the next look; refused, or when an administrator has to approve first, the window says what to do next. Answers {"pending": "signIn", "account": number}"#,
     ),
     (
         "ui.allowSharedSend",
@@ -1270,6 +1287,8 @@ pub struct MailApp {
     shared_calendars_next: bool,
     tasks_next: bool,
     pub(crate) tasks: task_sync::TaskSync,
+    rules_next: bool,
+    pub(crate) rules: rule_sync::RuleSync,
     /// Opening other people's calendars by address (#70).
     open_shared: open_shared::OpenShared,
     /// Where each shared mailbox's calendars stand with the owner's permission for them (#70):
@@ -1541,7 +1560,9 @@ impl MailApp {
             shared_send_next: false,
             shared_calendars_next: false,
             tasks_next: false,
+            rules_next: false,
             tasks: Default::default(),
+            rules: Default::default(),
             open_shared: Default::default(),
             shared_calendar_perm: Default::default(),
             shared_calendar_tokens: Default::default(),
@@ -2138,6 +2159,13 @@ impl MailApp {
                 let Some(account) = p.get("account").and_then(Value::as_u64) else { return Some(Err(tl!("`account` is required").to_string())) };
                 self.begin_tasks_sign_in(account)
             }
+            "ui.allowRules" => {
+                if p.get("confirmed").and_then(Value::as_bool) != Some(true) {
+                    return Some(Err(tl!("Say that this is meant with \"confirmed\": true.").to_string()));
+                }
+                let Some(account) = p.get("account").and_then(Value::as_u64) else { return Some(Err(tl!("`account` is required").to_string())) };
+                self.begin_rules_sign_in(account)
+            }
             "ui.allowSharedSend" => {
                 let Some(shared) = p.get("account").and_then(Value::as_u64) else { return Some(Err(tl!("`account` is required").to_string())) };
                 self.begin_shared_send_sign_in(shared)
@@ -2407,6 +2435,7 @@ impl MailApp {
         // (Alone with `graph`: for the calendars opened by address; with a shared mailbox: for its.)
         let shared_calendars = std::mem::take(&mut self.shared_calendars_next) && graph;
         let tasks = std::mem::take(&mut self.tasks_next) && graph && shared.is_none();
+        let rules = std::mem::take(&mut self.rules_next) && graph && shared.is_none();
         if self.signing_in.is_some() || self.approving() {
             return Err(tl!("Finish signing in first (your browser is waiting)").to_string());
         }
@@ -2433,11 +2462,12 @@ impl MailApp {
             shared_send,
             shared_calendars,
             tasks,
+            rules,
         };
         let rx = sign_in(request);
         let opening = self.session.openings();
         self.signing_in =
-            Some(SigningIn { graph, favorites, quiet, account, shared, shared_send, shared_calendars, tasks, browser, opening, rx, cancel });
+            Some(SigningIn { graph, favorites, quiet, account, shared, shared_send, shared_calendars, tasks, rules, browser, opening, rx, cancel });
         self.session.sync_status = waiting.to_string();
         Ok(())
     }
@@ -3197,6 +3227,7 @@ impl MailApp {
         let asked_for = !waiting.quiet;
         let (for_shared, for_shared_send, for_shared_calendars) = (waiting.shared, waiting.shared_send, waiting.shared_calendars);
         let for_tasks = waiting.tasks;
+        let for_rules = waiting.rules;
         let started_under = waiting.opening;
         self.signing_in = None;
         // Another mailbox took the place of the one it was for: its accounts are other accounts,
@@ -3235,6 +3266,10 @@ impl MailApp {
         // For keeping the tasks in step with Microsoft To Do (#248): they are, now, or why not is said.
         if for_tasks {
             return self.tasks_signed_in(account, answer);
+        }
+        // For keeping rules on the server (#566): those waiting go now, or why not is said.
+        if for_rules {
+            return self.rules_signed_in(account, answer);
         }
         // For reading the calendars opened by address (#70): they are read now, or why not is said.
         if for_shared_calendars {
@@ -3675,6 +3710,7 @@ impl MailApp {
         }
         self.poll_calendar();
         self.poll_tasks();
+        self.poll_rules();
         self.poll_calendar_check();
         self.poll_free_busy();
         self.poll_sync();
@@ -3696,6 +3732,8 @@ impl MailApp {
             self.calendar_tick(ctx);
             // The tasks by themselves, after the calendar ([`task_sync`]).
             self.tasks_tick(ctx);
+            // The rules on the servers by themselves, after the tasks ([`rule_sync`]).
+            self.rules_tick(ctx);
         }
         reminders::tick(self, ctx);
         if std::mem::take(&mut self.offer_setup) && self.dialog.is_none() && self.needs_setup() {
