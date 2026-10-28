@@ -1741,10 +1741,11 @@ impl Mailbox {
         if m.folder == folder {
             return Ok(());
         }
+        let into_outbox = self.is_imap_outbox(folder);
         if self.move_across_graph(id, folder, account)? {
+            hold_if_put_in_outbox(self.message_mut(id)?, into_outbox);
             return Ok(());
         }
-        let into_outbox = self.is_imap_outbox(folder);
         let m = self.message(id).ok_or(not_found("message", id))?;
         let (was_in, uid, synced) = (m.folder, m.uid, m.synced);
         let waiting = self.waiting_move(id);

@@ -3,8 +3,9 @@
 //! An IMAP account's Outbox sends only what was queued with Send (#607): a message the owner
 //! moves into it stays there, and isn't sent, until Send Again.
 
+use mailcraft_model::sync::ServerMessage;
 use mailcraft_model::sync::{FolderDelta, SyncResult};
-use mailcraft_model::{Address, FolderKind, Id, Message};
+use mailcraft_model::{Address, Folder, FolderKind, Id, Message, ServerFolder};
 use serde_json::json;
 
 use crate::Session;
@@ -97,4 +98,34 @@ fn a_copy_out_of_the_outbox_is_not_held() {
     s.run("mail.move", &json!({"ids": [id], "folder": outbox})).unwrap();
     s.run("mail.copy", &json!({"ids": [id], "folder": inbox})).unwrap();
     assert!(s.mailbox.messages_in(inbox).all(|m| m.held.is_empty()));
+}
+
+/// A message of a Microsoft account goes into another account by its own path (`move_across_graph`):
+/// moved into an IMAP Outbox that way, it is held all the same.
+#[test]
+fn a_message_moved_from_a_microsoft_account_into_the_outbox_is_not_sent() {
+    let (mut s, a, _) = imap();
+    let microsoft = s.run("account.add", &json!({"email": "owner@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+    let inbox = match s.mailbox.folder_of_kind(microsoft, FolderKind::Inbox) {
+        Some(inbox) => inbox,
+        None => {
+            let inbox = s.mailbox.alloc_id();
+            s.mailbox.folders.push(Folder { id: inbox, account: microsoft, name: "Inbox".into(), kind: FolderKind::Inbox, ..Default::default() });
+            inbox
+        }
+    };
+    s.mailbox.folder_mut(inbox).unwrap().server = Some(ServerFolder { id: "F-in".into(), name: "Inbox".into(), ..Default::default() });
+    let server = ServerMessage { id: "M-1".into(), folder: "F-in".into(), ..Default::default() };
+    let received = Message {
+        folder: inbox,
+        subject: "Invoice 42".into(),
+        to: vec![Address::new("Cy", "cy@example.org")],
+        server: Some(server),
+        ..Default::default()
+    };
+    let m = s.mailbox.add_message(received).unwrap();
+    let outbox = s.mailbox.folder_of_kind(a, FolderKind::Outbox).unwrap();
+    s.run("mail.move", &json!({"ids": [m], "folder": outbox})).unwrap();
+    assert_eq!(s.mailbox.message(m).unwrap().folder, outbox, "it is in the IMAP Outbox");
+    assert!(to_send(&s, a).is_empty(), "nothing is sent that was only moved there");
 }
