@@ -4831,8 +4831,8 @@ msgstr "Réalisé par ses contributeurs :"
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
-msgid "Made in Outlook or on the web, with parts MailCraft can't show"
-msgstr "Créée dans Outlook ou sur le web, avec des éléments que MailCraft ne peut pas afficher"
+msgid "Made in another program or on the web, with parts MailCraft can't show"
+msgstr "Créée dans un autre programme ou sur le web, avec des éléments que MailCraft ne peut pas afficher"
 
 #. command label, interface, name, ribbon location
 #: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs

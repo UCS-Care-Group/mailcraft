@@ -4976,8 +4976,8 @@ msgstr "Gemaakt door de bijdragers:"
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
-msgid "Made in Outlook or on the web, with parts MailCraft can't show"
-msgstr "Gemaakt in Outlook of op het web, met onderdelen die MailCraft niet kan tonen"
+msgid "Made in another program or on the web, with parts MailCraft can't show"
+msgstr "Gemaakt in een ander programma of op het web, met onderdelen die MailCraft niet kan tonen"
 
 #. command label, interface, name, ribbon location
 #: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs

@@ -4118,7 +4118,7 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
-msgid "Made in Outlook or on the web, with parts MailCraft can't show"
+msgid "Made in another program or on the web, with parts MailCraft can't show"
 msgstr ""
 
 #. command label, interface, name, ribbon location

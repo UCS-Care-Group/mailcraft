@@ -5835,7 +5835,7 @@ pub(crate) mod rules {
             let words = if r.known() {
                 shown(&describe(mb, r), 600)
             } else {
-                tl!("Made in Outlook or on the web, with parts MailCraft can't show").to_string()
+                tl!("Made in another program or on the web, with parts MailCraft can't show").to_string()
             };
             let shade = if r.enabled { t.text } else { t.text_disabled };
             paint_clipped(ui.painter(), pos2(rect.min.x, rect.min.y + 11.0), width, &shown(&r.name, 200), semibold(12.5), shade);
