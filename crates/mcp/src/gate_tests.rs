@@ -331,3 +331,16 @@ fn no_path_ever_reaches_the_bridge() {
     assert!(err(&mut b, &pol, "click", json!({"x": 1, "y": 1})).is_none());
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn what_a_window_would_lose_isnt_the_agents_to_say_headless() {
+    // There is no window headless, and nothing is the owner's (#494): an agent's `unsaved` is
+    // left out, and the command is what it is without it.
+    let mut h = Headless::new(sample(), vec![Class::Delete]);
+    let pol = Policy::default();
+    let event = h.session.mailbox.events.values().find(|e| !e.title.is_empty() && e.recurrence.is_none()).unwrap().id;
+    let params = json!({"id": event, "unsaved": {"form": "appointment", "title": "Lunch"}});
+    let r = err(&mut h, &pol, "execute", json!({"command": "calendar.delete", "params": params}));
+    assert!(r.is_none(), "{r:?}");
+    assert!(h.session.mailbox.event(event).is_none());
+}

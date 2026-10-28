@@ -150,10 +150,45 @@ impl Form {
         }
     }
 
+    /// The appointment, contact or task the form changes, when it is one that exists.
+    pub(crate) fn editing(&self) -> Option<mailcraft_model::Id> {
+        match self {
+            Form::Event(f) => f.editing(),
+            Form::Contact(f) => f.editing(),
+            Form::Task(f) => f.editing(),
+            Form::Account(_) | Form::Categories(_) | Form::Rules(_) | Form::Junk(_) => None,
+        }
+    }
+
     /// Whether something was changed in the form that isn't saved: its window asks before it
-    /// closes.
+    /// closes, and an agent asks the owner before it closes the dialog or opens another in its
+    /// place (#494).
     pub(crate) fn dirty(&self) -> bool {
-        self.event().is_some_and(event::EventForm::dirty)
+        match self {
+            Form::Event(f) => f.dirty(),
+            Form::Contact(f) => f.dirty(),
+            Form::Task(f) => f.dirty(),
+            Form::Account(_) | Form::Categories(_) | Form::Rules(_) | Form::Junk(_) => false,
+        }
+    }
+
+    /// What an agent or a command that waited may not take away (#494, #513): changes that aren't
+    /// saved, or the Appointment Recurrence dialog with something changed in it (what it holds
+    /// reaches the form only on its OK).
+    pub(crate) fn changed(&self) -> bool {
+        self.dirty() || self.event().is_some_and(event::EventForm::recurrence_touched)
+    }
+
+    /// What an agent's question names of the form when it has changes that aren't saved (#494):
+    /// the kind of item and what it is called, as typed. `None` when nothing in it is unsaved.
+    pub(crate) fn unsaved(&self) -> Option<Value> {
+        let (form, title) = match self {
+            Form::Event(f) => (if f.is_meeting() { "meeting" } else { "appointment" }, f.subject().to_string()),
+            Form::Contact(f) => ("contact", f.subject()),
+            Form::Task(f) => ("task", f.subject().to_string()),
+            Form::Account(_) | Form::Categories(_) | Form::Rules(_) | Form::Junk(_) => return None,
+        };
+        self.changed().then(|| serde_json::json!({"form": form, "title": title}))
     }
 
     /// Whether the keys are for something of the form's own that is open over it (a dialog), or
@@ -398,6 +433,7 @@ pub(crate) mod kit {
         /// A one-line text field `width` points wide (infinity: the rest of the row).
         pub fn text(&mut self, ui: &mut Ui, key: impl Hash + Debug, value: &mut String, width: f32, hint: &str) -> Response {
             let resp = ui.add(egui::TextEdit::singleline(value).id(field_id(key)).desired_width(width.max(16.0)).hint_text(hint.to_owned()));
+            let resp = crate::text_menu::field(resp);
             self.field(&resp);
             resp
         }
@@ -412,6 +448,7 @@ pub(crate) mod kit {
                     .char_limit(10)
                     .hint_text(egui::RichText::new(tl!("YYYY-MM-DD")).size(10.5)),
             );
+            let resp = crate::text_menu::field(resp);
             self.field(&resp);
             if !date_ok(text, required) {
                 mark_wrong(ui, &resp, &self.t);
@@ -466,8 +503,9 @@ pub(crate) mod kit {
                 0,
                 self.twelve,
             )));
+            let resp = crate::text_menu::field(resp);
             self.field(&resp);
-            if resp.lost_focus()
+            if crate::text_menu::left(&resp)
                 && let Some((h, m)) = parse_clock(text)
             {
                 *text = time_short(h, m, self.twelve);
@@ -587,7 +625,7 @@ pub(crate) mod kit {
         let edit = egui::TextEdit::multiline(value).id(field_id(key)).desired_rows(rows).desired_width(f32::INFINITY);
         // Its own room, also when the field is below what the form shows without scrolling.
         ui.allocate_ui(vec2(ui.available_width().max(0.0), room), |ui| {
-            egui::ScrollArea::vertical().id_salt(("form_lines", key)).max_height(room).show(ui, |ui| ui.add(edit)).inner
+            egui::ScrollArea::vertical().id_salt(("form_lines", key)).max_height(room).show(ui, |ui| crate::text_menu::field(ui.add(edit))).inner
         })
         .inner
     }
@@ -607,7 +645,7 @@ pub(crate) mod kit {
         let edit =
             egui::TextEdit::multiline(value).id(field_id(key)).desired_rows(lines).desired_width(f32::INFINITY).min_size(vec2(0.0, left - 8.0));
         ui.allocate_ui(vec2(ui.available_width().max(0.0), left), |ui| {
-            egui::ScrollArea::vertical().id_salt(("form_lines", key)).max_height(left).show(ui, |ui| ui.add(edit)).inner
+            egui::ScrollArea::vertical().id_salt(("form_lines", key)).max_height(left).show(ui, |ui| crate::text_menu::field(ui.add(edit))).inner
         })
         .inner
     }
@@ -1497,7 +1535,8 @@ mod event {
         let focused = ui.memory(|m| m.has_focus(id));
         // Something was typed into the line since the keyboard came to it.
         let typing = id.with("typed");
-        let typed = focused && ui.data(|d| d.get_temp::<bool>(typing)).unwrap_or(false);
+        let was_typed = ui.data(|d| d.get_temp::<bool>(typing)).unwrap_or(false);
+        let typed = focused && was_typed;
         // While nobody types in it, it reads as the people it names. (Laid out once for a text,
         // not every frame: finding a contact's name looks through the contacts.)
         let reading = !focused && !text.trim().is_empty();
@@ -1524,16 +1563,17 @@ mod event {
         }
         let resp = crate::compose::recipient_line(ui, s, id, edit, typed).text_edit.response;
         pass.field(&resp);
-        let typed = typed || resp.changed();
-        if resp.lost_focus() && typed {
+        // (What was typed is kept until the line is left: its menu may have the keyboard meanwhile.)
+        let typed = was_typed || resp.changed();
+        let left = crate::text_menu::left(&resp);
+        if left && typed {
             // Left, after something was typed: what stands for one contact becomes that contact.
             let (checked, _) = check_names(s, text);
             if Address::parse_list(text) != Address::parse_list(&checked) {
                 *text = checked;
             }
         }
-        let typed = typed && ui.memory(|m| m.has_focus(id));
-        ui.data_mut(|d| d.insert_temp(typing, typed));
+        ui.data_mut(|d| d.insert_temp(typing, typed && !left));
     }
 
     /// A menu entry with a mark when it is the current choice. `true` when it was chosen.
@@ -1839,7 +1879,8 @@ mod event {
                                 if ui.radio(self.repeat.ends == Ends::After, tl!("After")).clicked() {
                                     self.repeat.ends = Ends::After;
                                 }
-                                if ui.add(egui::DragValue::new(&mut self.repeat.count).range(1..=9999).speed(0.05)).changed() {
+                                if crate::text_menu::field(ui.add(egui::DragValue::new(&mut self.repeat.count).range(1..=9999).speed(0.05))).changed()
+                                {
                                     self.repeat.ends = Ends::After;
                                 }
                                 // (The number is in the box before it: only the word follows it.)
@@ -1912,7 +1953,7 @@ mod event {
         fn pattern(&mut self, ui: &mut Ui, week_start: Weekday) {
             let freq = self.freq();
             let every = |ui: &mut Ui, interval: &mut u32| {
-                ui.add(egui::DragValue::new(interval).range(1..=999).speed(0.05));
+                crate::text_menu::field(ui.add(egui::DragValue::new(interval).range(1..=999).speed(0.05)));
                 ui.label(tl!(unit(freq, *interval)));
             };
             let pick_nth = |ui: &mut Ui, salt: &str, nth: &mut i8| {
@@ -1991,7 +2032,7 @@ mod event {
                         if ui.radio(self.repeat.nth.is_none(), tl!("Day")).clicked() {
                             self.repeat.nth = None;
                         }
-                        if ui.add(egui::DragValue::new(&mut self.day).range(1..=31).speed(0.05)).changed() {
+                        if crate::text_menu::field(ui.add(egui::DragValue::new(&mut self.day).range(1..=31).speed(0.05))).changed() {
                             self.repeat.nth = None;
                         }
                         ui.label(tl!("of every"));
@@ -2023,7 +2064,7 @@ mod event {
                                 self.repeat.nth = None;
                             }
                             pick_month(ui, "by_date", &mut self.month);
-                            if ui.add(egui::DragValue::new(&mut self.day).range(1..=31).speed(0.05)).changed() {
+                            if crate::text_menu::field(ui.add(egui::DragValue::new(&mut self.day).range(1..=31).speed(0.05))).changed() {
                                 self.repeat.nth = None;
                             }
                         });
@@ -2346,6 +2387,16 @@ mod event {
                 (true, true) => tl!("Meeting"),
             }
             .to_string()
+        }
+
+        /// The event it changes; `None` for a new one.
+        pub fn editing(&self) -> Option<Id> {
+            self.id
+        }
+
+        /// Whether the Appointment Recurrence dialog is open over it with something changed in it.
+        pub fn recurrence_touched(&self) -> bool {
+            self.recurrence.as_ref().is_some_and(RecurrenceDialog::touched)
         }
 
         /// Whether it is about a meeting (people are invited, or are about to be).
@@ -4499,6 +4550,9 @@ mod contact {
         focus: bool,
         /// The fields as the form opened; OK sends what differs from them.
         baseline: Map<String, Value>,
+        /// The fields as the form opened, prefilled or not: what it opened with is nothing to
+        /// ask about (#494).
+        opened: Map<String, Value>,
     }
 
     impl ContactForm {
@@ -4523,6 +4577,7 @@ mod contact {
             if let Some(ph) = f.phones.first_mut() {
                 ph.value = text("phone");
             }
+            f.opened = f.fields();
             f
         }
 
@@ -4551,6 +4606,7 @@ mod contact {
                 ..Default::default()
             };
             f.baseline = f.fields();
+            f.opened = f.baseline.clone();
             Some(f)
         }
 
@@ -4562,6 +4618,24 @@ mod contact {
         /// The dialog's title, in the interface language.
         pub fn title(&self) -> String {
             if self.id.is_some() { tl!("Contact") } else { tl!("New Contact") }.to_string()
+        }
+
+        /// Whether the fields differ from what the form opened with: there is something to save.
+        pub fn dirty(&self) -> bool {
+            self.fields() != self.opened
+        }
+
+        /// The contact it changes; `None` for a new one.
+        pub fn editing(&self) -> Option<Id> {
+            self.id
+        }
+
+        /// What the contact is called, as typed: its display name, else its first and last names.
+        pub fn subject(&self) -> String {
+            match self.display.trim() {
+                "" => format!("{} {}", self.first.trim(), self.last.trim()).trim().to_string(),
+                display => display.to_string(),
+            }
         }
 
         /// Every field as `people.new` takes it. Rows left empty are not sent.
@@ -4914,6 +4988,9 @@ mod task {
         focus: bool,
         /// The fields as the form opened; OK sends what differs from them.
         baseline: Map<String, Value>,
+        /// The fields as the form opened, prefilled or not: what it opened with is nothing to
+        /// ask about (#494).
+        opened: Map<String, Value>,
     }
 
     impl TaskForm {
@@ -4925,6 +5002,7 @@ mod task {
             let text = |k: &str| p.get(k).and_then(Value::as_str).unwrap_or_default().to_string();
             (f.title, f.due, f.start, f.notes) = (text("title"), text("due"), text("start"), text("notes"));
             f.importance = p.get("importance").and_then(Value::as_str).and_then(Importance::parse).unwrap_or_default();
+            f.opened = f.fields();
             f
         }
 
@@ -4950,6 +5028,7 @@ mod task {
                 ..Default::default()
             };
             f.baseline = f.fields();
+            f.opened = f.baseline.clone();
             Some(f)
         }
 
@@ -4961,6 +5040,22 @@ mod task {
         /// The dialog's title, in the interface language.
         pub fn title(&self) -> String {
             if self.id.is_some() { tl!("Task") } else { tl!("New Task") }.to_string()
+        }
+
+        /// Whether the fields differ from what the form opened with, Completed too: there is
+        /// something to save.
+        pub fn dirty(&self) -> bool {
+            self.fields() != self.opened || self.completed != self.was_completed
+        }
+
+        /// The task it changes; `None` for a new one.
+        pub fn editing(&self) -> Option<Id> {
+            self.id
+        }
+
+        /// What the task is called, as its title field has it.
+        pub fn subject(&self) -> &str {
+            self.title.trim()
         }
 
         /// What `tasks.new` gets as the reminder: `2026-10-16T09:00`, or `null` for none. A day
@@ -5355,11 +5450,12 @@ mod categories {
                         };
                         let width = (ui.available_width() - 44.0).max(40.0);
                         let resp = ui.add(egui::TextEdit::singleline(&mut text).id(field_id(("category", i))).desired_width(width));
+                        let resp = crate::text_menu::field(resp);
                         if resp.changed() {
                             self.editing = Some((c.name.clone(), text));
                         }
                         // Enter, or leaving the field, renames.
-                        if resp.lost_focus()
+                        if crate::text_menu::left(&resp)
                             && let Some((from, to)) = self.editing.take_if(|e| e.0 == c.name)
                             && to.trim() != from
                         {
@@ -5391,6 +5487,7 @@ mod categories {
                             .desired_width(width)
                             .hint_text(tl!("New category")),
                     );
+                    let resp = crate::text_menu::field(resp);
                     if std::mem::take(&mut self.focus) {
                         resp.request_focus();
                     }

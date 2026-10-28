@@ -1620,7 +1620,7 @@ fn field(ui: &mut Ui, pass: &mut Pass, key: &'static str, label: &str, value: &m
         .margin(FIELD_MARGIN)
         .char_limit(limit)
         .hint_text(hint.to_owned());
-    let resp = ui.add(edit);
+    let resp = crate::text_menu::field(ui.add(edit));
     pass.field(&resp);
     resp
 }
@@ -1643,16 +1643,18 @@ fn server_row(ui: &mut Ui, pass: &mut Pass, label: &str, key: &'static str, serv
             .margin(FIELD_MARGIN)
             .char_limit(HOST)
             .hint_text(host_hint.to_owned());
-        let resp = ui.add(host).on_hover_text(tl!("The server's name"));
+        let resp = crate::text_menu::field(ui.add(host)).on_hover_text(tl!("The server's name"));
         pass.field(&resp);
         let usual = if server.security == Security::Tls { ports.0 } else { ports.1 };
+        // (What is pasted into it is its digits, or nothing: `text_menu::digits_only`.)
+        crate::text_menu::digits_only(ui.ctx(), field_id(("account", key, "port")));
         let port = TextEdit::singleline(&mut server.port)
             .id(field_id(("account", key, "port")))
             .desired_width(64.0)
             .margin(FIELD_MARGIN)
             .char_limit(5)
             .hint_text(usual.to_string());
-        let resp = ui.add(port).on_hover_text(tl!("The port; leave it empty for the usual one"));
+        let resp = crate::text_menu::field(ui.add(port)).on_hover_text(tl!("The port; leave it empty for the usual one"));
         pass.field(&resp);
         // A port is a number of at most five digits.
         if server.port.chars().any(|c| !c.is_ascii_digit()) || server.port.chars().count() > 5 {

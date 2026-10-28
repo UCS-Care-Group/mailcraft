@@ -954,6 +954,7 @@ pub fn folder_menu(ui: &mut Ui, app: &mut MailApp, mut pick: impl FnMut(&mut Mai
     st.seen = Some(frame);
 
     let edit = ui.add(egui::TextEdit::singleline(&mut st.text).hint_text(tl!("Search folders")).desired_width(200.0).char_limit(FOLDER_SEARCH_MAX));
+    let edit = crate::text_menu::field(edit);
     if fresh {
         edit.request_focus();
     }
@@ -1338,7 +1339,7 @@ pub(crate) fn color_menu(ui: &mut Ui, app: &mut MailApp) {
     ui.horizontal(|ui| {
         let key = egui::Id::unique("mailcraft-custom-color");
         let mut typed: String = ui.data(|d| d.get_temp(key)).unwrap_or_else(|| now.clone().flatten().unwrap_or_default());
-        ui.add(egui::TextEdit::singleline(&mut typed).hint_text("#rrggbb").desired_width(90.0).char_limit(7));
+        crate::text_menu::field(ui.add(egui::TextEdit::singleline(&mut typed).hint_text("#rrggbb").desired_width(90.0).char_limit(7)));
         let valid = mailcraft_model::rich::safe_color(&typed);
         if ui.add_enabled(enabled && valid.is_some(), egui::Button::new(tl!("Apply"))).clicked()
             && let Some(hex) = valid

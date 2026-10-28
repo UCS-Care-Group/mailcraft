@@ -291,7 +291,9 @@ pub fn switch(s: &mut Session, account: Id) -> Result<Switched, CmdError> {
     if let Some(c) = s.compose.as_mut()
         && c.draft.is_some_and(|d| !mb.messages.contains_key(&d))
     {
+        // What is written is saved nowhere now: closing the message asks (#573).
         c.draft = None;
+        c.dirty = true;
     }
     if mb.folder(s.view.folder).is_none() {
         s.view.folder = mb.folder_of_kind(account, FolderKind::Inbox).unwrap_or(0);

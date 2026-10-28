@@ -309,6 +309,15 @@ fn messages_download_whole_in_the_background_on_opening_and_before_a_reply() {
     assert!(e.contains("`id` is a message id"), "{e}");
     assert!(app.session.compose.is_none(), "a message id as text is refused");
     assert!(app.session.mailbox.message(latest).unwrap().unfetched, "nothing waited for");
+    // Nor one whose look-up found nothing, which names no message (#512).
+    for command in ["mail.forward", "mail.forwardAsAttachment"] {
+        for params in [json!({"id": null}), json!({"ids": null})] {
+            let e = app.run(command, params.clone()).unwrap_err();
+            assert!(e.contains("is null"), "{command} {params}: {e}");
+            assert!(app.session.compose.is_none(), "{command} {params}");
+            assert!(app.session.mailbox.message(latest).unwrap().unfetched, "{command} {params}: nothing waited for");
+        }
+    }
 
     // In the background: all the rest (a delta says no sizes, so none is held back as large).
     app.session.sync_progress.full_paused = false;

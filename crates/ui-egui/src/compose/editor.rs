@@ -22,7 +22,7 @@ use std::sync::{Arc, Mutex};
 
 use egui::epaint::text::CharIndex;
 use egui::text::{CCursor, LayoutJob, TextFormat};
-use egui::{Align2, Event, Galley, Key, Modifiers, Rect, Sense, Stroke, Ui, Vec2, pos2, vec2};
+use egui::{Align2, Event, FontFamily, Galley, Key, Modifiers, Rect, Sense, Stroke, Ui, Vec2, pos2, vec2};
 use mailcraft_model::rich::{ListKind, OBJECT, Paragraph, Selection, Style, numbers};
 use mailcraft_model::signature::Picture;
 use mailcraft_model::{RichBody, RichText};
@@ -99,13 +99,14 @@ fn on_screen(size: Option<u8>) -> f32 {
 }
 
 /// How a run looks on screen; in a plain-text message everything is plain.
-fn text_format(style: &Style, plain: bool, t: &Tokens) -> TextFormat {
+pub(super) fn text_format(style: &Style, plain: bool, t: &Tokens, has: &dyn Fn(&FontFamily) -> bool) -> TextFormat {
     if plain {
         return TextFormat::simple(regular(BASE_SIZE), t.text);
     }
     let size = on_screen(style.size);
-    let font = if style.bold { semibold(size) } else { regular(size) };
-    // ponytail: a font is drawn in the window's own; the preview shows it (R4.5.4).
+    // The font chosen, from the face installed on this computer; the window's own when there is none (#582).
+    let font =
+        crate::theme::document_font(style.font, style.bold, size, has).unwrap_or_else(|| if style.bold { semibold(size) } else { regular(size) });
     let own = style.color.as_deref().and_then(|c| egui::Color32::from_hex(c).ok()).map(|c| crate::reading::colors::readable(c, t.surface));
     let color = if style.link.is_some() { t.accent_text } else { own.unwrap_or(t.text) };
     let underline = if style.underline || style.link.is_some() { Stroke::new(1.0, color) } else { Stroke::NONE };
@@ -121,6 +122,8 @@ struct LayoutKey {
     plain: bool,
     /// The pictures' ids and widths.
     pictures: u64,
+    /// How many font families are installed: the messages' fonts arrive a frame after the first.
+    families: usize,
 }
 
 /// A picture in a paragraph, laid out: where it stands in the paragraph's text and where it is
@@ -236,6 +239,8 @@ impl Layout {
         // line as tall as the picture; it is painted into the gap.
         let mut sized = Vec::new();
         let mut local = 0;
+        let known = ctx.fonts(|f| f.families());
+        let has = |family: &FontFamily| known.contains(family);
         for run in &p.runs {
             match run.picture.and_then(|id| Some((id, size_of(ctx, pictures.iter().find(|x| x.id == id)?, room)))) {
                 Some((id, size)) if !plain => {
@@ -244,12 +249,12 @@ impl Layout {
                     job.append(&OBJECT.to_string(), size.x, format);
                     sized.push((local, id, size));
                 }
-                _ => job.append(&run.text, 0.0, text_format(&run.style, plain, t)),
+                _ => job.append(&run.text, 0.0, text_format(&run.style, plain, t, &has)),
             }
             local += run.text.chars().count();
         }
         if job.sections.is_empty() {
-            job.append("", 0.0, text_format(&Style::default(), plain, t));
+            job.append("", 0.0, text_format(&Style::default(), plain, t, &has));
         }
         self.laid += 1;
         let galley = ctx.fonts_mut(|f| f.layout_job(job));
@@ -530,7 +535,14 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
     let Some((_, plain)) = now(app, which) else { return };
     let editable = which == Which::Signature || app.session.signature_edit.is_none();
     let shown = pictures(app, which);
-    let key = LayoutKey { width: width as u32, dark: t.dark, scale: ctx.pixels_per_point().to_bits(), plain, pictures: pictures_key(&shown) };
+    let key = LayoutKey {
+        width: width as u32,
+        dark: t.dark,
+        scale: ctx.pixels_per_point().to_bits(),
+        plain,
+        pictures: pictures_key(&shown),
+        families: ctx.fonts(|f| f.families().len()),
+    };
     let store = store(&ctx, which);
     let mut layout = store.lock().unwrap_or_else(|e| e.into_inner());
     let resync = |layout: &mut Layout, app: &MailApp| {
@@ -620,6 +632,22 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
             resp.clone().on_hover_text(url);
         }
     }
+    // A right click: the caret goes where it is, unless that is on the selection; then the text's
+    // menu, whose items do what their keys do (`crate::text_menu`).
+    if editable {
+        if resp.hovered()
+            && ui.input(|i| i.pointer.button_pressed(egui::PointerButton::Secondary))
+            && let (Some(pointer), Some((sel, _))) = (ui.input(|i| i.pointer.interact_pos()), now(app, which))
+            && let at = layout.hit(pointer - origin)
+            && (sel.is_empty() || at < sel.start() || at > sel.end())
+        {
+            let _ = app.execute("compose.select", json!({"from": at, "to": at}));
+            st.column = None;
+        }
+        // Both take pictures: a signature, and a message's text since #547.
+        let takes = crate::text_menu::Takes::Pictures;
+        crate::text_menu::body(&resp, now(app, which).is_some_and(|(sel, _)| !sel.is_empty()), takes);
+    }
 
     // The keyboard.
     let focused = editable && (resp.has_focus() || ctx.memory(|m| m.has_focus(id)));
@@ -670,22 +698,43 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
                     None
                 }
                 // What is pasted comes as HTML when the clipboard has some (reduced to the set
-                // by `edit.paste`), else as the text egui read from it; into a signature, a
-                // picture on the clipboard comes as a picture.
+                // by `edit.paste`, which takes the text egui read when the HTML comes to no text,
+                // a picture alone), else as that text; into a signature, a picture on the
+                // clipboard comes as a picture. Nothing to paste changes nothing. What a text's
+                // menu read when its Paste was chosen stands for the clipboard (`crate::text_menu`).
                 Event::Paste(text) => {
-                    let html = app.services.clipboard.as_ref().and_then(|board| board.html()).filter(|h| !h.trim().is_empty());
-                    // Into the message, a picture only when nothing else is on the clipboard (#547).
-                    let image = (text.is_empty() && (which == Which::Signature || html.is_none()))
-                        .then(|| app.services.clipboard.as_ref().and_then(|b| b.image()))
-                        .flatten();
+                    let (html, image) = match crate::text_menu::taken_paste(&ctx, id) {
+                        Some(found) => (found.html, None),
+                        None => {
+                            let board = app.services.clipboard.as_ref();
+                            let html = board.and_then(|b| b.html()).filter(|h| !h.trim().is_empty());
+                            // Into the message, a picture only when nothing else is on the clipboard (#547).
+                            let image =
+                                (text.is_empty() && (which == Which::Signature || html.is_none())).then(|| board.and_then(|b| b.image())).flatten();
+                            (html, image)
+                        }
+                    };
                     match (image, html) {
                         (Some(png), _) => {
                             let command = if which == Which::Signature { "signature.picture.add" } else { "insert.picture" };
                             ask(command, json!({"data": crate::files::base64_lite::encode(&png), "file": "picture.png"}))
                         }
-                        (None, Some(html)) => ask("edit.paste", json!({"html": html})),
-                        (None, None) => ask("edit.paste", json!({"text": text})),
+                        (None, Some(html)) => ask("edit.paste", json!({"html": html, "text": text})),
+                        (None, None) if !text.is_empty() => ask("edit.paste", json!({"text": text})),
+                        (None, None) => None,
                     }
+                }
+                // A picture alone on the clipboard, as the system hands one over for Ctrl+V: a picture
+                // in the signature or the message (#547), as the menu's Paste brings it
+                // (`crate::clipboard_picture_png`).
+                Event::PasteImage(picture) => {
+                    let [width, height] = picture.size;
+                    let fits = width <= crate::MAX_PICTURE_SIDE && height <= crate::MAX_PICTURE_SIDE;
+                    let rgba: Vec<u8> = if fits { picture.pixels.iter().flat_map(|c| c.to_srgba_unmultiplied()).collect() } else { Vec::new() };
+                    crate::clipboard_picture_png(width, height, &rgba).and_then(|png| {
+                        let command = if which == Which::Signature { "signature.picture.add" } else { "insert.picture" };
+                        ask(command, json!({"data": crate::files::base64_lite::encode(&png), "file": "picture.png"}))
+                    })
                 }
                 Event::Key { key, pressed: true, modifiers, .. } => {
                     let (asked, vertical) = key_press(&layout, &mut st, sel, plain, key, modifiers, page);

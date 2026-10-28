@@ -298,3 +298,17 @@ fn a_mailbox_without_a_local_account_gets_one_for_what_only_is_here() {
     assert_eq!((local.kind, local.name.as_str()), (AccountKind::Local, "On this computer"));
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn a_message_whose_draft_went_with_the_switch_counts_as_not_saved() {
+    let (mut s, ids) = mailbox();
+    s.path = Some(scratch("switch-draft").join("mailbox.mailcraft"));
+    s.run("mail.editDraft", &json!({"id": ids.server_draft})).unwrap();
+    assert!(s.compose.as_ref().is_some_and(|c| c.draft == Some(ids.server_draft) && !c.dirty));
+    assert_eq!(answer(&mut s, ids.account, "switch").unwrap()["switched"], json!(true));
+    assert!(s.mailbox.message(ids.server_draft).is_none());
+    // What is written is saved nowhere now (#573): closing it asks, and a save makes a new draft.
+    let c = s.compose.as_ref().unwrap();
+    assert!(c.draft.is_none() && c.dirty, "{:?}", (c.draft, c.dirty));
+    assert_eq!(c.subject, "Written elsewhere");
+}

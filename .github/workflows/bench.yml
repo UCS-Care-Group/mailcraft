@@ -1,0 +1,55 @@
+# How long a large mailbox takes to open and to close (#519, #586), every week: the benchmark in
+# crates/engine/src/store_bench_tests.rs on a made-up mailbox of 64,000 messages (about 2.2 GB,
+# made in a few minutes in the runner's temporary folder and removed after). The times go to the
+# run's summary; a median open slower than MAILCRAFT_BENCH_WARN_MS is a warning on the run, never a
+# failure (a shared runner's times wander). Not on pull requests.
+name: Bench
+
+on:
+  schedule:
+    - cron: '41 4 * * 2'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bench
+  cancel-in-progress: true
+
+jobs:
+  open:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      # About three times the 0.84 s of a 12-core desktop: a runner has four slower cores.
+      MAILCRAFT_BENCH_WARN_MS: '3000'
+    steps:
+      # `runner` isn't known at the job's level: the mailbox's folder is named in the first step.
+      - name: Where the mailbox is made
+        run: echo "MAILCRAFT_BENCH_DIR=$RUNNER_TEMP/mailcraft-open-bench" >> "$GITHUB_ENV"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
+        with:
+          toolchain: 1.98.1
+      - name: Run the benchmark
+        run: |
+          set -o pipefail
+          cargo test --locked --release -p mailcraft-engine open_bench -- --ignored --nocapture 2>&1 | tee "$RUNNER_TEMP/bench.log"
+      - name: Times to the summary
+        if: always()
+        run: |
+          {
+            echo '## Opening and closing a mailbox of 64,000 messages'
+            echo
+            echo '```'
+            grep -E '^(OPEN_BENCH|CLOSE_BENCH|made )|, run [0-9]+:' "$RUNNER_TEMP/bench.log" || echo 'no times: see the log'
+            echo '```'
+            echo
+            echo "A median open over ${MAILCRAFT_BENCH_WARN_MS} ms is a warning."
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Remove the mailbox
+        if: always()
+        run: rm -rf "$MAILCRAFT_BENCH_DIR" "$RUNNER_TEMP/bench.log"

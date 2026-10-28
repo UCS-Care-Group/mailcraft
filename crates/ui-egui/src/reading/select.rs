@@ -837,6 +837,15 @@ pub(super) fn begin(app: &mut MailApp, ui: &Ui, m: &Message, place: Place) {
     if pressed && !menus {
         if inside {
             selections.focus = Some(place);
+            // The original under a reply shares its window with the owner's text: a press in it
+            // takes the keyboard from the text, or Ctrl+C would be the text's (#583).
+            if place == Place::Quote {
+                ctx.memory_mut(|m| {
+                    if let Some(focused) = m.focused() {
+                        m.surrender_focus(focused);
+                    }
+                });
+            }
         } else if selections.focus == Some(place) {
             selections.focus = None;
         }
@@ -905,11 +914,7 @@ impl Marks {
 /// The items of a text's menu: Copy, and for the body Select All and, on a link, Copy Link
 /// Address. What was chosen.
 pub(super) fn menu(ui: &mut Ui, can_copy: bool, body: bool, link: Option<&Arc<str>>) -> Option<Action> {
-    let item = |ui: &mut Ui, enabled: bool, label: &str, key: &str| {
-        let button = egui::Button::new(tl!(label)).min_size(vec2(190.0, 0.0));
-        let button = if key.is_empty() { button } else { button.shortcut_text(crate::widgets::key_text(key)) };
-        ui.add_enabled(enabled, button).clicked()
-    };
+    let item = |ui: &mut Ui, enabled: bool, label: &str, key: &str| crate::text_menu::menu_item(ui, enabled, label, key).clicked();
     let mut chosen = None;
     if item(ui, can_copy, "Copy", "Mod+C") {
         chosen = Some(Action::Copy);

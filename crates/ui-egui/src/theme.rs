@@ -5,6 +5,7 @@
 use std::sync::Arc;
 
 use egui::{Align2, Color32, CornerRadius, FontData, FontDefinitions, FontFamily, FontId, Rect, Stroke, Visuals};
+use mailcraft_model::rich::Font;
 
 /// MailCraft's own colour, the teal of its icon (and its darker ink for text on light
 /// backgrounds). The interface itself is neutral greys with a blue accent: see [`Tokens`].
@@ -390,6 +391,45 @@ pub struct SystemFont {
     semibold: Option<Arc<FontData>>,
     bold: Option<Arc<FontData>>,
     fallbacks: Vec<Arc<FontData>>,
+    /// The installed face of each font a message can be written in (#582), by font and whether
+    /// it is the bold face; read at start, a few hundred kilobytes each.
+    document: Vec<(Font, bool, Arc<FontData>)>,
+}
+
+/// The file names (lower case) the face of `font` may have on this system, best first: the
+/// vendor's own on Windows and macOS, then the open metric-compatible faces on Linux and FreeBSD.
+/// `System` is the window's own font and has none.
+pub fn face_files(font: Font, bold: bool) -> &'static [&'static str] {
+    match (font, bold) {
+        (Font::Arial, false) => &["arial.ttf", "liberationsans-regular.ttf", "arimo-regular.ttf"],
+        (Font::Arial, true) => &["arialbd.ttf", "arial bold.ttf", "liberationsans-bold.ttf", "arimo-bold.ttf"],
+        (Font::Calibri, false) => &["calibri.ttf", "carlito-regular.ttf"],
+        (Font::Calibri, true) => &["calibrib.ttf", "carlito-bold.ttf"],
+        (Font::Georgia, false) => &["georgia.ttf", "gelasio-regular.ttf", "gelasio.ttf"],
+        (Font::Georgia, true) => &["georgiab.ttf", "georgia bold.ttf", "gelasio-bold.ttf"],
+        (Font::Verdana, false) => &["verdana.ttf", "dejavusans.ttf"],
+        (Font::Verdana, true) => &["verdanab.ttf", "verdana bold.ttf", "dejavusans-bold.ttf"],
+        (Font::System, _) => &[],
+    }
+}
+
+/// The first of the face names of `font` that `has` says is there.
+pub fn first_face(font: Font, bold: bool, has: impl Fn(&str) -> bool) -> Option<&'static str> {
+    face_files(font, bold).iter().copied().find(|name| has(name))
+}
+
+/// The family a message's text in `font` is registered under, when [`SystemFont`] found its face.
+pub fn document_family(font: Font, bold: bool) -> FontFamily {
+    let name = format!("font-{}{}", font.label().to_lowercase(), if bold { "-bold" } else { "" });
+    FontFamily::Name(name.into())
+}
+
+/// How text in a message's own `font` is drawn: its family where `has` says one was registered,
+/// else `None` and the caller draws it in the window's font. `System` is the window's font.
+pub fn document_font(font: Option<Font>, bold: bool, size: f32, has: impl Fn(&FontFamily) -> bool) -> Option<FontId> {
+    let font = font.filter(|f| *f != Font::System)?;
+    let family = document_family(font, bold);
+    has(&family).then(|| FontId::new(size, family))
 }
 
 impl SystemFont {
@@ -412,13 +452,14 @@ impl SystemFont {
             .filter_map(std::env::var_os)
             .map(|root| std::path::PathBuf::from(root).join("Fonts"))
             .find(|dir| dir.is_dir())
-            .map(|dir| Self::from_dir(&dir).with_fallbacks_from(&[dir], FALLBACK_FACES))
+            .map(|dir| Self::from_dir(&dir).with_fallbacks_from(std::slice::from_ref(&dir), FALLBACK_FACES).with_document_faces(&[dir]))
             .unwrap_or_default()
     }
 
     #[cfg(all(not(windows), not(target_arch = "wasm32")))]
     fn read() -> Self {
-        SystemFont::none().with_fallbacks_from(&font_dirs(), FALLBACK_FACES)
+        let dirs = font_dirs();
+        SystemFont::none().with_fallbacks_from(&dirs, FALLBACK_FACES).with_document_faces(&dirs)
     }
 
     #[cfg(target_arch = "wasm32")]
@@ -460,6 +501,31 @@ impl SystemFont {
         self
     }
 
+    /// This font with the installed faces of the fonts a message can be written in, found in
+    /// `dirs` (#582). None is bundled; a face that isn't installed is left out.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn with_document_faces(mut self, dirs: &[std::path::PathBuf]) -> Self {
+        let mut names: Vec<&[&str]> = Vec::new();
+        for font in Font::ALL {
+            names.push(face_files(font, false));
+            names.push(face_files(font, true));
+        }
+        let found = find_font_files(dirs, &names);
+        for font in Font::ALL {
+            for bold in [false, true] {
+                let path = first_face(font, bold, |name| found.contains_key(name)).and_then(|name| found.get(name));
+                let Some(bytes) = path.and_then(|p| read_font(p, SYSTEM_FONT_CAP)) else { continue };
+                self.document.push((font, bold, Arc::new(FontData::from_owned(bytes))));
+            }
+        }
+        self
+    }
+
+    /// Which of a message's fonts have an installed face (regular, bold).
+    pub fn document_faces(&self) -> Vec<(Font, bool)> {
+        self.document.iter().map(|(f, b, _)| (*f, *b)).collect()
+    }
+
     /// How many fallback faces were found and read.
     pub fn fallback_count(&self) -> usize {
         self.fallbacks.len()
@@ -473,7 +539,13 @@ impl SystemFont {
             read_font(&dir.join(file), SYSTEM_FONT_CAP).map(|bytes| Arc::new(FontData::from_owned(bytes).tweak(tweak)))
         };
         match face("segoeui.ttf") {
-            Some(regular) => SystemFont { regular: Some(regular), semibold: face("seguisb.ttf"), bold: face("segoeuib.ttf"), fallbacks: Vec::new() },
+            Some(regular) => SystemFont {
+                regular: Some(regular),
+                semibold: face("seguisb.ttf"),
+                bold: face("segoeuib.ttf"),
+                fallbacks: Vec::new(),
+                document: Vec::new(),
+            },
             None => SystemFont::none(),
         }
     }
@@ -695,6 +767,27 @@ pub fn font_definitions_with(system: &SystemFont) -> FontDefinitions {
     if let Some(m) = fonts.families.get_mut(&FontFamily::Monospace) {
         m.insert(0, "Mono".into());
     }
+    // A message's fonts (#582): the installed face under a family of its own, then the window's
+    // own fonts for the glyphs it lacks. With no bold face, bold text stays in the window's own
+    // bold: the emphasis is what is sent, and egui can't embolden a face itself.
+    for font in Font::ALL {
+        let face = |bold: bool| system.document.iter().find(|(f, b, _)| *f == font && *b == bold).map(|(_, _, data)| data);
+        let Some(regular_face) = face(false) else { continue };
+        for bold_face in [false, true] {
+            let (data, name) = match (bold_face, face(true)) {
+                (true, Some(bold_data)) => (bold_data, format!("Doc{}Bold", font.label())),
+                (true, None) => continue,
+                (false, _) => (regular_face, format!("Doc{}", font.label())),
+            };
+            fonts.font_data.insert(name.clone(), data.clone());
+            let chain = if bold_face {
+                chain(&[Some(&name), bold, semibold, Some("InterSemiBold"), regular, Some("Inter")])
+            } else {
+                chain(&[Some(&name), regular, Some("Inter")])
+            };
+            fonts.families.insert(document_family(font, bold_face), chain);
+        }
+    }
     // The system's fallback faces, behind everything else in every family, for the scripts none
     // of the others has (#217, #452).
     for (i, face) in system.fallbacks.iter().enumerate() {
@@ -909,6 +1002,10 @@ pub fn avatar_color(key: &str, t: &Tokens) -> Color32 {
 #[cfg(test)]
 #[path = "theme_font_tests.rs"]
 mod theme_font_tests;
+
+#[cfg(test)]
+#[path = "theme_document_tests.rs"]
+mod theme_document_tests;
 
 #[cfg(test)]
 mod tests {
