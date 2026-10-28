@@ -595,6 +595,23 @@ pub fn unpushed(s: &Session, account: Id) -> usize {
     remote_ops(s, account, 0).1 + place_ops(s, account, 0).1
 }
 
+/// How many originals of messages moved out of `account` wait on its server for their message to
+/// be safe where it is now (#451). [`unpushed`] counts one only from then on, as a deletion; one
+/// that would never go (its message has left for an account that keeps no copy) isn't counted.
+pub fn originals_waiting(s: &Session, account: Id) -> usize {
+    let mb = &s.mailbox;
+    let saved = s.file_is_current();
+    let mailboxes: HashSet<&str> =
+        mb.folders.iter().filter(|f| f.account == account && !f.remote.is_empty() && f.uid_validity != 0).map(|f| f.remote.as_str()).collect();
+    let waits = |p: &Pending| {
+        let Pending::Move { message, from, uid, .. } = p else { return false };
+        // (Not one the server can't be told of: a run would never delete it.)
+        let Some(m) = mb.message(*message).filter(|_| *uid != 0 && mailboxes.contains(from.as_str())) else { return false };
+        mb.takes_over(account, m.account) && !super::graph_place::safe_here(s, m, saved, false)
+    };
+    mb.pending.iter().filter(|p| p.account() == account && waits(p)).count()
+}
+
 /// The flags of `m` that are not as the server has them (`base`), with what they are here; `None`
 /// when all are.
 fn flag_changes(m: &Message, base: RemoteFlags) -> Option<[Option<bool>; 3]> {
