@@ -391,6 +391,7 @@ impl MailApp {
             note: None,
             // Closing it is the same as Not now (`rules_ask_tick`).
             cancel: Some(tl!("Not now").to_string()),
+            tick: None,
         };
         self.rules.perm.insert(account, Permission::Asking);
         self.dialog = Some(Dialog::Confirm { command: "ui.allowRules".to_string(), params: json!({"account": account}), ask });
