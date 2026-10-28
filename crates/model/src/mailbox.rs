@@ -149,6 +149,13 @@ pub struct ServerFolder {
     /// brings what changed since. Otherwise it is the next page of a round not yet ended.
     #[serde(skip_serializing_if = "is_false")]
     pub caught_up: bool,
+    /// A round of the folder has ended since it was last read from the start (#567): what
+    /// arrives from then on is new mail, which the Safe and Blocked Senders lists and the rules
+    /// sort, on every page of a later round too (whose `delta` is a next page, `caught_up`
+    /// false). False until the first round ends, and again while the folder is read afresh. A
+    /// file from before this was kept has none, and `caught_up` says it.
+    #[serde(skip_serializing_if = "is_false")]
+    pub round_ended: bool,
     /// How many messages the folder had, and how many unread, as the server's listing counted
     /// them at the start of the round that `delta` ended: a folder whose counts are the same
     /// again may be passed over by a Send/Receive (#276). `None` when not known for that link
@@ -2093,7 +2100,7 @@ impl Mailbox {
     /// blocked sender into the Inbox, it moves to the account's Junk E-mail; from a safe sender
     /// into Junk E-mail, to the Inbox. The move is noted for the server as the owner's own is.
     /// Whether it moved. Never in a shared mailbox, and the callers sort only new mail of a folder
-    /// read whole once ([`Folder::read_whole`], Graph's `caught_up`), never a first download:
+    /// read whole once ([`Folder::read_whole`], Graph's [`ServerFolder::round_ended`]), never a first download:
     /// mail that was here before (or before a list changed) stays where it is.
     pub fn sort_junk(&mut self, id: Id) -> bool {
         let Some(m) = self.message(id) else { return false };

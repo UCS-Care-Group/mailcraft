@@ -88,6 +88,18 @@ pub enum Align {
     Right,
 }
 
+/// Where a cell's content sits in the height of its row, when the source says (`valign`,
+/// `vertical-align`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum VAlign {
+    Top,
+    Middle,
+    Bottom,
+}
+
+/// The widest gap between cells read from `cellspacing` or `border-spacing`, in pixels.
+pub const MAX_SPACING_PX: u8 = 16;
+
 /// A width a table or a cell asks for.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Length {
@@ -371,6 +383,10 @@ pub struct Table {
     /// Rounded corners, in pixels.
     #[serde(default, skip_serializing_if = "is_zero_u8")]
     pub radius: u8,
+    /// The gap between its cells (`cellspacing`, `border-spacing`), in pixels, where the source
+    /// gives one; `None` leaves it to the UI.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub spacing: Option<u8>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -400,6 +416,9 @@ pub struct Cell {
     /// Rounded corners, in pixels.
     #[serde(default, skip_serializing_if = "is_zero_u8")]
     pub radius: u8,
+    /// Where its content sits in the row, its own or its row's; `None` when the source says nothing.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub valign: Option<VAlign>,
 }
 
 impl Default for Cell {
@@ -415,6 +434,7 @@ impl Default for Cell {
             lines: [Line::default(); 4],
             padding: None,
             radius: 0,
+            valign: None,
         }
     }
 }

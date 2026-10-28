@@ -362,3 +362,58 @@ fn a_pending_draft_and_an_outbox_message_reopened_from_disk_go_up_with_their_rea
     let req = crate::cmd::graph_mail::graph_mail_request(&s, account).unwrap();
     assert!(req.sends.is_empty() && req.drafts.is_empty(), "{:?} {:?}", req.sends.len(), req.drafts.len());
 }
+
+/// #575 review: arranged by attachments, an invitation whose calendar part waits on disk, and a
+/// message whose HTML waits on disk with a picture it never shows, stay where they are when they
+/// are opened and when they are let go of again. The paperclip does change with what is read;
+/// the sort goes by the list of parts alone.
+#[test]
+fn arranged_by_attachments_opening_a_message_or_letting_it_go_never_moves_it() {
+    let tmp = Temp::new("sort-files");
+    let path = tmp.file();
+    let mut mb = mailbox(12);
+    let ids: Vec<Id> = mb.messages.keys().copied().collect();
+    for &id in &ids {
+        mb.message_mut(id).unwrap().attachments.clear();
+    }
+    let (invite, logo) = (ids[3], ids[8]);
+    // As Exchange sends them: the calendar part is past `INLINE_MAX`.
+    let mut ics = b"BEGIN:VCALENDAR\r\nMETHOD:REQUEST\r\nBEGIN:VEVENT\r\n".to_vec();
+    ics.extend("X-PAD:0123456789\r\n".repeat(200).bytes());
+    ics.extend(b"END:VEVENT\r\nEND:VCALENDAR\r\n");
+    mb.message_mut(invite).unwrap().attachments.push(Attachment::new("invite.ics", "text/calendar", ics));
+    // A signature logo with a Content-ID that no `cid:` in the HTML names.
+    let m = mb.message_mut(logo).unwrap();
+    m.body.html = Some(format!("<p>{}</p>", "Regards. ".repeat(300)));
+    m.attachments.push(Attachment { content_id: "logo@x.example".into(), inline: true, ..Attachment::new("logo.png", "image/png", vec![7; 64]) });
+    save(&path, &mb).unwrap();
+    clear_cache();
+    let mut s = session_without_bodies(&path);
+    assert!(!s.mailbox.message(invite).unwrap().attachments[0].is_loaded());
+    assert!(s.mailbox.message(logo).unwrap().body_is_kept());
+    s.run("view.sort", &json!({"by": "attachments"})).unwrap();
+    let order = |s: &mut Session| s.rows().iter().map(|r| r.id).collect::<Vec<_>>();
+    let clips = |s: &Session| [invite, logo].map(|id| crate::columns::has_files(s.mailbox.message(id).unwrap()));
+    let (before, clipped) = (order(&mut s), clips(&s));
+    let at = before.iter().position(|&id| id == invite);
+    s.run("mail.select", &json!({"id": invite})).unwrap();
+
+    // Opened: both are read whole, and their paperclips change.
+    for id in [invite, logo] {
+        assert!(s.load_message(id).unwrap());
+    }
+    assert_eq!(clips(&s), clipped.map(|clip| !clip));
+    let opened = order(&mut s);
+    assert_eq!(opened, before);
+    assert_eq!(opened.iter().position(|&id| id == invite), at);
+
+    // Let go of again: nothing selected, and room for next to nothing.
+    s.run("mail.select", &json!({"ids": []})).unwrap();
+    s.loaded_budget = 1;
+    let other = *ids.iter().find(|id| ![invite, logo].contains(id)).unwrap();
+    s.load_message(other).unwrap();
+    assert!(!s.mailbox.message(invite).unwrap().attachments[0].is_loaded());
+    assert!(s.mailbox.message(logo).unwrap().body_is_kept());
+    assert_eq!(clips(&s), clipped);
+    assert_eq!(order(&mut s), before);
+}

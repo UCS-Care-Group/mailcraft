@@ -6,7 +6,10 @@
 //!
 //! - An item does what its key does: it becomes the input that key gives (`Event::Cut`,
 //!   `Event::Copy`, what Ctrl+V gives, Ctrl+A), handed to the text at the start of its window's
-//!   next pass with the keyboard and what was selected given back ([`deliver`]). No command.
+//!   next pass with the keyboard and what was selected given back ([`deliver`]). No command of
+//!   its own: in the body that input runs the commands its keys run (`edit.cut`, `edit.copy`,
+//!   `edit.paste`, a picture's), and an egui field's text, selection and undo are egui's own
+//!   state, which no command reaches; the key's input is what does exactly what the key does.
 //! - Cut and Copy are greyed while nothing is selected; a password offers Paste alone, a text that
 //!   is only read Copy and Select All; Paste is greyed with no host clipboard (the browser).
 //! - Using the menu isn't leaving the text ([`left`]).
@@ -281,6 +284,14 @@ pub(crate) fn left(resp: &Response) -> bool {
         ctx.data_mut(|d| d.insert_temp(fired, pass));
     }
     lost
+}
+
+/// Keep the keyboard on the text field `resp`, as a dialog does for its one field, but not from its
+/// own menu: taken back while an item has it, the menu's items couldn't be reached by the keys.
+pub(crate) fn hold(resp: &Response) {
+    if !resp.has_focus() && !busy(&resp.ctx, resp.id) {
+        resp.request_focus();
+    }
 }
 
 /// Whether the text `id` is without the keyboard only for its own menu: an item of the menu has

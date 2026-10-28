@@ -23,6 +23,9 @@
 //! Everything a message decides is checked where it is used: a place past the end of a text is
 //! the end of it, text is cut at character boundaries only, and a selection made in a body that
 //! is no longer the one on screen is forgotten.
+//!
+//! On Linux and the BSDs, what the owner selects also goes to the primary selection, which a
+//! middle click pastes anywhere, once it settles ([`settle`]), as egui's own text does.
 
 use std::ops::Range;
 use std::sync::Arc;
@@ -513,7 +516,19 @@ pub struct PlaceState {
     /// A copy was asked for of a selection that reaches the end of a message that was still
     /// being laid out: it is made when the layout is whole.
     copy_when_laid: bool,
+    /// What was selected when [`settle`] last looked, and whether the owner selected it.
+    seen: Option<Extent>,
+    mine: bool,
+    /// The pointer selected in this frame (pressed, dragged or clicked on the text, or asked for
+    /// a header field's menu).
+    gestured: bool,
+    /// What was last put in the primary selection; `None` once nothing is selected.
+    told: Option<Extent>,
 }
+
+/// What is selected, as the primary selection tells one selection from another: in which
+/// message and which of its texts, from where to where in reading order.
+type Extent = (Id, Zone, Point, Point);
 
 impl PlaceState {
     fn new(place: Place) -> PlaceState {
@@ -530,6 +545,10 @@ impl PlaceState {
             header: Vec::new(),
             menu_link: None,
             copy_when_laid: false,
+            seen: None,
+            mine: false,
+            gestured: false,
+            told: None,
         }
     }
 
@@ -541,6 +560,11 @@ impl PlaceState {
     /// Something that could be copied is selected (as far as can be told without the text).
     fn selected(&self) -> bool {
         self.selection.as_ref().is_some_and(|s| s.anchor != s.head)
+    }
+
+    /// What is selected, when something could be.
+    fn extent(&self) -> Option<Extent> {
+        self.selection.as_ref().filter(|s| s.anchor != s.head).map(|s| (self.message, s.zone, s.anchor.min(s.head), s.anchor.max(s.head)))
     }
 
     /// The body that is on screen. A selection that was made in another one is gone with it; one
@@ -594,6 +618,7 @@ impl PlaceState {
     /// three a paragraph as the button goes down, and a drag from there goes on by words or
     /// paragraphs, keeping that one; one click lets go of everything.
     fn follow<S: Surface + ?Sized>(&mut self, zone: Zone, surface: &S, gesture: &Gesture, hit: impl Fn(Pos2) -> Option<Hit>) {
+        self.gestured |= gesture.pressed.is_some() || gesture.dragged.is_some() || gesture.clicked;
         // A click whose button went down again in the same frame ended before that press: it is
         // let go of first, so that it does not take the new press's anchor with it.
         let ended_before = gesture.clicked && gesture.held;
@@ -994,6 +1019,7 @@ pub(super) fn header(app: &mut MailApp, ui: &Ui, place: Place, mut fields: Field
         {
             let seg = hit.point.seg;
             state.selection = Some(Selection::new(Zone::Header, Point { seg, at: 0 }, Point { seg, at: Surface::len(header.as_slice(), seg) }));
+            state.gestured = true;
         }
         selected = of_header(state);
         dragging = state.dragging == Some(Zone::Header);
@@ -1071,6 +1097,44 @@ fn selected_text(ctx: &egui::Context, state: &PlaceState) -> Option<String> {
     }
 }
 
+/// What is selected at `place`, once it has settled (no button is down), goes to the primary
+/// selection of Linux and the BSDs: `TextSelectionSettled`, which egui-winit puts there and the
+/// other systems and the browser leave alone. As egui's own text does it: the text a copy has,
+/// once, and again only when the selection changes or the owner selects it again. Only what the
+/// owner selected, with the pointer or Select All: what the control channel did (an agent's or a
+/// script's `ui.selectAllInMessage`, a drag it injected) is not told to every other program, as
+/// `ui.copySelection` is never an agent's. Called once a frame for each place a message is shown
+/// in, after its pointer and keys.
+pub(super) fn settle(app: &mut MailApp, ui: &Ui, place: Place) {
+    let driven = app.driven;
+    let Some(state) = app.text_selection.state(place) else { return };
+    let extent = state.extent();
+    // The owner's pointer selected, in a frame whose input is theirs; anything else that changed
+    // it is not theirs.
+    if std::mem::take(&mut state.gestured) && !driven {
+        (state.mine, state.told) = (true, None);
+    } else if extent != state.seen {
+        state.mine = false;
+    }
+    state.seen = extent;
+    if extent == state.told || ui.input(|i| i.pointer.any_down()) {
+        return;
+    }
+    if extent.is_none() {
+        state.told = None;
+        return;
+    }
+    if !state.mine {
+        return;
+    }
+    // What reaches the end of a body that is still being laid out waits for the rest of it.
+    let Some(text) = selected_text(ui.ctx(), state) else { return };
+    state.told = extent;
+    if !text.is_empty() {
+        ui.ctx().send_cmd(egui::OutputCommand::TextSelectionSettled(for_clipboard(&text)));
+    }
+}
+
 /// Copy what is selected in a message to the clipboard.
 fn copy(app: &mut MailApp, p: &Value) -> Result<Value, String> {
     let place = place_of(app, p)?;
@@ -1094,9 +1158,16 @@ fn select_all(app: &mut MailApp, p: &Value) -> Result<Value, String> {
     let place = place_of(app, p)?;
     let frame = app.ctx.as_ref().map(super::images::frame);
     let nothing = || tl!("No message is being read there").to_string();
+    // The owner's Ctrl+A or Select All, or the control channel's (an agent's or a script's).
+    let mine = !app.driven;
     let state = app.text_selection.state(place).filter(|s| frame.is_some_and(|frame| s.frame.saturating_add(1) >= frame)).ok_or_else(nothing)?;
     state.selection = Some(Selection::new(Zone::Body, Point::START, Point::END));
     (state.pressed, state.dragging, state.extending) = (None, None, false);
+    (state.seen, state.mine) = (state.extent(), mine);
+    // The owner's is told again, even when it is what was selected.
+    if mine {
+        state.told = None;
+    }
     let message = state.message;
     app.text_selection.focus = Some(place);
     Ok(json!({"message": message}))

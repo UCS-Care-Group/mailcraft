@@ -1354,8 +1354,9 @@ pub struct MailApp {
     /// The window is drawn for headless screenshots (`examples/ui_shot`): a password shown with
     /// its eye is drawn as dots all the same, as while `ui.screenshot` waits for a frame (#438).
     pub headless_shots: bool,
-    /// This frame's input came from the control channel (`synthetic`): a password's eye doesn't
-    /// answer it (#438).
+    /// This frame's input came from the control channel (`synthetic`), or a request from it is
+    /// being handled: a password's eye doesn't answer it (#438), and what it selects in a message
+    /// isn't put in the primary selection (`reading::select::settle`, `compose::editor`).
     driven: bool,
     /// When the last round that started by itself began (milliseconds; 0 before the first).
     last_auto_sync: f64,

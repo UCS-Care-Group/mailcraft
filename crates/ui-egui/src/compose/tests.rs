@@ -850,3 +850,7 @@ fn the_body_takes_typing_after_an_address_was_picked() {
         }
     }
 }
+
+// ---- the primary selection ----
+
+mod primary;
