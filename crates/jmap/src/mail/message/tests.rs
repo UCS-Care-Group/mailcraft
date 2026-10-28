@@ -336,7 +336,7 @@ fn the_rest_of_an_email_is_read_as_the_server_says_it() {
     });
     let m = whole("E1", "M7", &entry, marks);
     assert_eq!(m.preview, "A preview of the message with gaps");
-    assert_eq!((m.server.size, m.has_attachments, m.draft), (4321, true, true));
+    assert_eq!((m.server.size, m.has_attachments, m.draft), (4321, true, Some(true)));
     assert_eq!(m.server.id, "E1");
     assert_eq!(m.server.folder, "M7");
     assert_eq!((m.server.read, m.server.answered, m.server.forwarded, m.server.flag), (true, true, false, FlagStatus::Flagged));

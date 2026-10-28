@@ -1,6 +1,6 @@
 # File formats and protocols
 
-> **Last reviewed:** 2026-10-20 · **Last updated:** 2026-10-26 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365, classic desktop)
+> **Last reviewed:** 2026-10-20 · **Last updated:** 2026-10-28 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365, classic desktop)
 
 What MailCraft reads, writes and speaks, and how far each goes. Everything is implemented from the
 public specifications; every reader is fed arbitrary bytes by property tests and must never panic.
@@ -33,10 +33,11 @@ Output is always UTF-8.
 | **Microsoft Graph** (HTTPS, JSON) | two-way | For accounts that sign in with Microsoft (OAuth 2.0), with no IMAP or SMTP: folders both ways by server id; mail down by delta and fetched whole (`$value`) within Mail to keep offline; changes up (read, flag, categories, importance, moves, copies, deletes, twenty to a `$batch`); drafts and sending (`sendMail`, send-draft); search on the server (`$search`); the calendars both ways (events, series, meetings, free/busy); contacts down, read-only; working hours and the category list read; Outlook's Favorites read. Shared mailboxes at their own address, mail moved and copied between them and their owner's mailbox made at the destination's own address (#70). Immutable ids for mail; requests paced and asked again after `Retry-After` |
 | **TLS** | rustls, certificates checked by the operating system's verifier (#501) | Certificate and host name verified; on Windows and macOS a missing intermediate is fetched by the system, on Linux and FreeBSD the system's certificate store is used; unencrypted connections refused except to loopback; a missing STARTTLS offer is an error |
 | POP3 | not yet, tracked in [#437](https://github.com/UCS-Care-Group/mailcraft/issues/437) | An account is IMAP or, for Microsoft, Graph; Add Account says so for a POP port or host name (#402) |
-| Exchange (EWS, MAPI), JMAP, CalDAV, CardDAV | no | Gap #5. Exchange Web Services, used for Outlook's Favorites in 0.2.x, is gone. JMAP is being contributed, for the browser build first ([#226](https://github.com/UCS-Care-Group/mailcraft/issues/226)) |
+| **JMAP** (RFC 8620, 8621) | read | In the browser build, over `fetch`: the mailboxes, the newest messages of each with their marks (read, flagged, answered, forwarded) and messages fetched whole; nothing goes up and nothing is sent yet ([jmap.md](jmap.md), [#226](https://github.com/UCS-Care-Group/mailcraft/issues/226)) |
+| Exchange (EWS, MAPI), CalDAV, CardDAV | no | Gap #5. Exchange Web Services, used for Outlook's Favorites in 0.2.x, is gone |
 
 In daily use on one Microsoft 365 mailbox through Graph; otherwise tested against in-process fake
-IMAP and SMTP servers and a Graph stand-in, not yet against other real servers (gap #1).
+IMAP and SMTP servers, a Graph stand-in and a JMAP stand-in, not yet against other real servers (gap #1).
 
 ## Revision history
 
@@ -57,3 +58,4 @@ IMAP and SMTP servers and a Graph stand-in, not yet against other real servers (
 | 2026-10-23 | minor | #300: `notDownloaded`, the size on the server of a message too large to download; a file from before opens as it is, one with something other than a size there reads as none, and an older build drops the field from a message it writes again |
 | 2026-10-25 | patch | #402: POP3 is "not yet" (#437), not "no"; Add Account names a POP server before connecting |
 | 2026-10-25 | minor | #420: a folder tree of mbox files imports at once, found by their bytes, into one new local folder |
+| 2026-10-28 | minor | JMAP: read, in the browser build (M6, #226) |

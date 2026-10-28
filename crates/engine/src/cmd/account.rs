@@ -540,7 +540,8 @@ pub fn sync_request(s: &Session, account: Id) -> Result<SyncRequest, CmdError> {
     let mut known: HashMap<Id, Vec<u32>> = HashMap::new();
     let mut outbox = Vec::new();
     for m in s.mailbox.messages.values() {
-        if Some(m.folder) == outbox_folder {
+        // Only what was queued with Send goes; a message moved here is held until Send Again (#607).
+        if Some(m.folder) == outbox_folder && m.held.is_empty() {
             outbox.push(m.as_ref().clone());
         }
         if m.uid != 0 {
