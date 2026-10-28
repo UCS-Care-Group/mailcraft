@@ -91,9 +91,7 @@ fn gate(app: &mut MailApp, req: &ControlRequest, id: &str, mut params: Value, al
         let people = crate::windows::event_window_people(app, &params);
         params["attendees"] = json!(people);
     }
-    let mut params = as_the_window_has_it(app, id, params);
-    // A Delete or Move goes ahead with the messages the question names (#503).
-    agent::pin_targets(&mut app.session, id, &mut params);
+    let params = as_the_window_has_it(app, id, params);
     if let Some(why) = overwrites(app, id, &params) {
         return err(why);
     }
@@ -238,8 +236,8 @@ fn run(app: &mut MailApp, id: &str, params: Value, allow: &[Class]) -> Outcome {
     }
 }
 
-/// The messages an agent's Delete or Move names (`ids` or `id`, pinned to the selection's when it
-/// names none) and the folder each is in, as the owner is asked about them (#503).
+/// The messages an agent's Delete or Move names (`ids` or `id`, which it must: [`agent::NEEDS_IDS`])
+/// and the folder each is in, as the owner is asked about them (#503).
 fn counted(app: &MailApp, id: &str, params: &Value) -> Vec<(u64, u64)> {
     if !matches!(id, "mail.delete" | "mail.deletePermanently" | "mail.move") {
         return Vec::new();

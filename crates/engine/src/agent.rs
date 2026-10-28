@@ -740,27 +740,37 @@ pub enum Verdict {
 }
 
 /// What a Delete or Move takes, read as the command reads it (#503): `ids` strictly, else what the
-/// selection stands for (a closed conversation's row, the messages it shows).
+/// selection stands for (a closed conversation's row, the messages it shows); an agent's names its
+/// messages ([`NEEDS_IDS`]).
 fn taken(s: &Session, params: &Value) -> Vec<Id> {
     p::ids_strict(params).ok().flatten().unwrap_or_else(|| s.acting_on_now())
 }
 
-/// Before the owner is asked about an agent's Delete or Move without `ids`, the messages it would
-/// take now are written into its params (#503): it then goes ahead with those the question named,
-/// whatever comes into the conversation meanwhile, and the question counts what a search found
-/// as the list shows it.
-pub fn pin_targets(s: &mut Session, id: &str, params: &mut Value) {
-    if matches!(id, "mail.delete" | "mail.deletePermanently" | "mail.move") && params.is_null() {
-        *params = json!({});
-    }
-    if matches!(id, "mail.delete" | "mail.deletePermanently" | "mail.move") && params.is_object() && matches!(p::ids_strict(params), Ok(None)) {
-        let ids = s.acting_on();
-        // (More than `ids` takes is asked about as it is, and goes ahead with what the selection
-        // stands for when the owner says yes, as before.)
-        if !ids.is_empty() && ids.len() <= p::MAX_IDS {
-            params["ids"] = Value::from(ids);
-        }
-    }
+/// Commands that destroy, move, send from or open messages, or are costly: an agent names the
+/// messages (`ids`, or `id`), never leaving them to the window's selection, which the owner may
+/// have changed a moment ago (#620). The owner's own runs keep the selection.
+pub const NEEDS_IDS: &[&str] = &[
+    "mail.delete",
+    "mail.deletePermanently",
+    "mail.move",
+    "mail.copy",
+    "mail.archive",
+    "mail.junk",
+    "mail.notJunk",
+    "mail.reply",
+    "mail.replyAll",
+    "mail.forward",
+    "mail.forwardAsAttachment",
+    "mail.editDraft",
+    "mail.removeAttachment",
+    "mail.sendAgain",
+];
+
+/// The refusal for a command in [`NEEDS_IDS`] given no messages.
+pub fn needs_ids(id: &str) -> String {
+    format!(
+        "`{id}` needs `ids` (or `id`): an agent names the messages, as `mail.list` shows them, and doesn't act on what the owner has selected in the window"
+    )
 }
 
 /// The gate: `allow` is what the owner allowed in advance.
@@ -780,6 +790,9 @@ fn verdict(s: &Session, id: &str, params: &Value, allow: &[Class], yes: Option<C
     }
     if let Some(key) = file_named(id, params) {
         return Verdict::Refuse(no_paths(id, key));
+    }
+    if NEEDS_IDS.contains(&id) && p::ids(params).is_none_or(|ids| ids.is_empty()) {
+        return Verdict::Refuse(needs_ids(id));
     }
     // The owner is asked about the list the command would change, or about nothing (#504).
     if matches!(id, "junk.add" | "junk.remove") && p::str(params, "list").and_then(mailcraft_model::JunkList::parse).is_none() {

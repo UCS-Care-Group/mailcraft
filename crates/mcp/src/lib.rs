@@ -52,17 +52,16 @@ impl Headless {
         if let Some(fields) = params.as_object_mut() {
             fields.remove("unsaved");
         }
-        // A Delete or Move is told and goes ahead with what it takes now, as in the window (#503).
-        agent::pin_targets(&mut self.session, id, &mut params);
-        match agent::check(&self.session, id, &params, &self.allow) {
+        let params = &params;
+        match agent::check(&self.session, id, params, &self.allow) {
             Verdict::Run => {
                 self.session.agent = Some(self.allow.clone());
-                let r = self.session.run(id, &params).map_err(|e| e.to_string());
+                let r = self.session.run(id, params).map_err(|e| e.to_string());
                 self.session.agent = None;
                 r
             }
             Verdict::Ask(class, what) => {
-                let asked = matches!(agent::classify(&self.session, id, &params), agent::Access::Asked(_));
+                let asked = matches!(agent::classify(&self.session, id, params), agent::Access::Asked(_));
                 Err(agent::needs_owner(id, class, asked, &what))
             }
             Verdict::Refuse(why) => Err(why),
@@ -99,5 +98,7 @@ impl Backend for Headless {
 mod files_tests;
 #[cfg(test)]
 mod gate_tests;
+#[cfg(test)]
+mod shared_window_tests;
 #[cfg(test)]
 mod tests;

@@ -94,7 +94,7 @@ pub fn take_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, page: &
     let inbox = mb.folder(folder).is_some_and(|f| f.kind == FolderKind::Inbox);
     let ruling = sorting && mb.account(account).is_some_and(|a| !a.is_shared());
     // The server's copies of messages being moved out of the account are not new mail.
-    let moving_out: HashSet<String> =
+    let mut moving_out: HashSet<String> =
         mb.messages.values().filter_map(|m| m.moving_out.as_ref().filter(|out| out.account == account).map(|out| out.id.clone())).collect();
     if page.afresh {
         for m in mb.messages.values_mut() {
@@ -149,7 +149,12 @@ pub fn take_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, page: &
                     let sorted = sorting && mb.sort_junk(m);
                     if ruling && inbox != sorted {
                         mb.apply_rules(m);
-                        down.left += usize::from(mb.message(m).is_some_and(|m| m.account != account));
+                        // Out of the account: should the page list it again, that is the same
+                        // message (#606 review).
+                        if mb.message(m).is_some_and(|m| m.account != account) {
+                            moving_out.insert(there.server.id.clone());
+                            down.left += 1;
+                        }
                     }
                     down.new += 1;
                 }
@@ -189,7 +194,7 @@ pub(crate) fn new_message(folder: Id, server_folder: &str, there: &GraphMessage)
         flag_due: server.flag_due,
         importance: server.importance,
         categories: server.categories.clone(),
-        draft: there.draft,
+        draft: there.draft.unwrap_or(false),
         server: Some(server),
         unfetched: true,
         attachments_on_server: there.has_attachments,
@@ -247,7 +252,15 @@ fn update(mb: &mut Mailbox, account: Id, id: Id, folder: Id, server_folder: &str
     if m.unfetched {
         m.attachments_on_server = there.has_attachments;
     }
-    if changed_there {
+    // Sent, the draft is filed in Sent Items under its id: no longer a draft (#611), when the
+    // server says so and not merely leaves it out. One saved here that waits to go up stays one.
+    // What was sent may not be what was last seen of the draft: it is fetched afresh.
+    let sent = m.draft && there.draft == Some(false) && !m.server_draft.as_ref().is_some_and(|d| d.pending);
+    if sent {
+        m.draft = false;
+        m.server_draft = None;
+    }
+    if changed_there || sent {
         // Changed elsewhere only: the server's version, fetched afresh.
         (m.subject, m.to, m.cc, m.unfetched) = (there.subject.clone(), there.to.clone(), there.cc.clone(), true);
         m.attachments_on_server = there.has_attachments;

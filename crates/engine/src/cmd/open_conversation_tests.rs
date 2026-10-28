@@ -637,6 +637,13 @@ fn right_then_left_on_a_closed_row_selected_however_keeps_it_selected() {
     assert_eq!((s.sel.messages.clone(), drawn(&mut s)), (vec![newer], sorted([newer, older])));
 }
 
+/// The messages an agent names for a conversation's row: those `mail.list` lists it by (#620).
+fn row_ids(s: &mut Session, row: Id) -> Value {
+    let list = run(s, "mail.list", json!({}));
+    let item = list["messages"].as_array().and_then(|items| items.iter().find(|m| m["id"] == row && m["under"].is_null())).cloned();
+    item.map(|m| if m["conversation"].is_array() { m["conversation"].clone() } else { json!([row]) }).unwrap_or_default()
+}
+
 /// The owner's question about an agent's call, and what the call does once they say yes.
 fn asked_then_done(s: &mut Session, id: &str, params: Value) -> (String, Value) {
     let (class, what) = match crate::agent::check(s, id, &params, &[]) {
@@ -653,7 +660,10 @@ fn asked_then_done(s: &mut Session, id: &str, params: Value) -> (String, Value) 
 fn an_agent_asking_to_delete_a_closed_row_for_good_names_every_message_it_takes() {
     let (mut s, newer, older, reply) = release_checklist();
     run(&mut s, "mail.select", json!({"id": newer}));
-    let (what, done) = asked_then_done(&mut s, "mail.deletePermanently", json!({}));
+    // The selected row isn't taken for it: an agent names the messages (#620).
+    assert!(matches!(crate::agent::check(&s, "mail.deletePermanently", &json!({}), &[]), crate::agent::Verdict::Refuse(_)));
+    let ids = row_ids(&mut s, newer);
+    let (what, done) = asked_then_done(&mut s, "mail.deletePermanently", json!({"ids": ids}));
     assert_eq!(done["permanently"], 2, "{done}");
     assert!(s.mailbox.message(older).is_none() && s.mailbox.message(reply).is_some());
     assert!(what.contains("2 messages"), "asked to let it {what}");
@@ -662,8 +672,8 @@ fn an_agent_asking_to_delete_a_closed_row_for_good_names_every_message_it_takes(
     let deleted = folder(&s, FolderKind::Deleted);
     run(&mut s, "mail.move", json!({"ids": [newer, older], "folder": deleted}));
     run(&mut s, "folder.select", json!({"id": deleted}));
-    run(&mut s, "mail.select", json!({"id": newer}));
-    let (what, done) = asked_then_done(&mut s, "mail.delete", json!({}));
+    let ids = row_ids(&mut s, newer);
+    let (what, done) = asked_then_done(&mut s, "mail.delete", json!({"ids": ids}));
     assert_eq!(done["permanently"], 2, "{done}");
     assert!(what.contains("2 messages"), "asked to let it {what}");
 }
@@ -672,8 +682,9 @@ fn an_agent_asking_to_delete_a_closed_row_for_good_names_every_message_it_takes(
 fn an_agent_asking_to_move_a_closed_row_into_the_outbox_names_every_message_it_sends() {
     let (mut s, newer, older, _) = release_checklist();
     let outbox = folder(&s, FolderKind::Outbox);
-    run(&mut s, "mail.select", json!({"id": newer}));
-    let (what, done) = asked_then_done(&mut s, "mail.move", json!({"folder": outbox}));
+    assert!(matches!(crate::agent::check(&s, "mail.move", &json!({"folder": outbox}), &[]), crate::agent::Verdict::Refuse(_)));
+    let ids = row_ids(&mut s, newer);
+    let (what, done) = asked_then_done(&mut s, "mail.move", json!({"folder": outbox, "ids": ids}));
     assert_eq!(done["moved"], 2, "{done}");
     assert_eq!(folder_of(&s, older), outbox);
     assert!(what.contains("2 messages"), "asked to let it {what}");
@@ -709,9 +720,7 @@ fn a_row_number_of_the_wrong_kind_is_refused() {
 fn an_agents_call_goes_ahead_with_the_messages_its_question_named() {
     let (mut s, newer, older, reply) = release_checklist();
     let (inbox, outbox) = (s.view.folder, folder(&s, FolderKind::Outbox));
-    run(&mut s, "mail.select", json!({"id": newer}));
-    let mut params = json!({"folder": outbox});
-    crate::agent::pin_targets(&mut s, "mail.move", &mut params);
+    let params = json!({"folder": outbox, "ids": row_ids(&mut s, newer)});
     // A newer message of the conversation comes in before the owner says yes: it isn't sent.
     let at = s.mailbox.message(newer).map(|m| (m.date + 60, m.received + 60)).unwrap();
     if let Ok(m) = s.mailbox.message_mut(reply) {
@@ -722,8 +731,8 @@ fn an_agents_call_goes_ahead_with_the_messages_its_question_named() {
     assert_eq!(done["moved"], 2, "{done}");
     assert!(what.contains("2 messages"), "asked to let it {what}");
     assert_eq!([folder_of(&s, older), folder_of(&s, came)], [outbox, inbox]);
-    // `ids` are read as the command reads them.
-    let (what, done) = asked_then_done(&mut s, "mail.move", json!({"folder": outbox, "ids": [came as f64]}));
+    // The one that came in, named by itself.
+    let (what, done) = asked_then_done(&mut s, "mail.move", json!({"folder": outbox, "ids": [came]}));
     assert_eq!(done["moved"], 1, "{done}");
     assert!(what.contains("1 message"), "asked to let it {what}");
 }
@@ -820,17 +829,15 @@ fn an_agents_delete_or_move_with_params_the_command_refuses_is_refused_not_asked
             if command == "mail.move" && params.is_object() {
                 params["folder"] = json!(folder(&s, FolderKind::Outbox));
             }
-            crate::agent::pin_targets(&mut s, command, &mut params);
             assert!(matches!(crate::agent::check(&s, command, &params, &[]), crate::agent::Verdict::Refuse(_)), "{command} {params}");
         }
     }
-    // No params at all are none: the question names what the row takes.
+    // No params at all name no messages (#620); the row's, as `mail.list` lists them, go.
     let (mut s, newer, _, _) = release_checklist();
     run(&mut s, "mail.select", json!({"id": newer}));
-    let mut params = json!(null);
-    crate::agent::pin_targets(&mut s, "mail.deletePermanently", &mut params);
-    assert_eq!(params["ids"].as_array().map(Vec::len), Some(2), "pinned: {params}");
-    let (what, done) = asked_then_done(&mut s, "mail.deletePermanently", params);
+    assert!(matches!(crate::agent::check(&s, "mail.deletePermanently", &json!(null), &[]), crate::agent::Verdict::Refuse(_)));
+    let ids = row_ids(&mut s, newer);
+    let (what, done) = asked_then_done(&mut s, "mail.deletePermanently", json!({"ids": ids}));
     assert!(what.contains("2 messages") && done["permanently"] == 2, "{what} {done}");
 }
 
@@ -914,32 +921,6 @@ fn the_account_on_this_computer_changes_nothing_but_its_question_before_deleting
 }
 
 #[test]
-fn an_agents_delete_of_more_messages_than_a_command_names_goes_ahead_with_the_selection() {
-    let mut mb = sample::mailbox(now(), 0);
-    let deleted = mb.folder_of_kind(mb.accounts[0].id, FolderKind::Deleted).unwrap();
-    for i in 0..=crate::p::MAX_IDS as i64 {
-        mb.add_message(Message {
-            folder: deleted,
-            subject: format!("Old {i}"),
-            date: 1_700_000_000 + i,
-            received: 1_700_000_000 + i,
-            ..Default::default()
-        })
-        .unwrap();
-    }
-    let mut s = Session::at(mb, now(), 0);
-    run(&mut s, "folder.select", json!({"id": deleted}));
-    run(&mut s, "mail.selectAll", json!({}));
-    let n = s.sel.messages.len();
-    // Asked about every one, and on the owner's yes it takes the selection, as before (#503).
-    let mut params = json!({});
-    crate::agent::pin_targets(&mut s, "mail.delete", &mut params);
-    let (what, done) = asked_then_done(&mut s, "mail.delete", params);
-    assert!(what.starts_with(&format!("delete {n} messages")), "{what}");
-    assert_eq!(done["permanently"], n, "{done}");
-}
-
-#[test]
 fn after_deleting_a_message_that_closes_its_conversation_the_row_below_it_is_selected() {
     let (mut s, newer, older, reply) = release_checklist();
     // Two messages here and none elsewhere: with one of them gone it is no longer a conversation,
@@ -997,4 +978,19 @@ fn after_deleting_the_last_row_the_one_above_it_is_selected() {
     run(&mut s, "mail.select", json!({"id": last}));
     run(&mut s, "mail.delete", json!({}));
     assert_eq!(s.sel.messages, [above]);
+}
+
+#[test]
+fn another_folder_listed_for_an_agent_shows_every_conversation_closed() {
+    let (mut s, newer, _, reply) = release_checklist();
+    run(&mut s, "mail.expandConversation", json!({"id": newer}));
+    let sent = folder(&s, FolderKind::Sent);
+    // The reply's row in Sent Items is of the conversation open in the Inbox (#620's `folder`).
+    let listed = run(&mut s, "mail.list", json!({"folder": sent}));
+    let items = listed["messages"].as_array().cloned().unwrap_or_default();
+    let row = items.iter().find(|m| m["id"] == reply).cloned().unwrap();
+    assert!(row["conversation"].is_array(), "{row}");
+    assert!(items.iter().all(|m| m["open"].is_null() && m["under"].is_null()), "{listed}");
+    // The Inbox's stays open in the window.
+    assert!(s.rows().iter().any(|r| r.id == newer && r.open));
 }

@@ -358,10 +358,18 @@ fn an_agents_delete_of_a_conversations_row_is_refused_naming_and_goes_ahead_with
         (Headless::new(s, allow), row)
     };
     let pol = Policy::default();
-    let (mut h, _) = selected(Vec::new());
-    let e = err(&mut h, &pol, "execute", json!({"command": "mail.deletePermanently", "params": {}}));
-    assert!(e.as_deref().is_some_and(|e| e.contains("2 messages")), "{e:?}");
+    // The selected row isn't taken for it: an agent names the messages, as `mail.list` lists the
+    // row's in `conversation` (#620).
     let (mut h, row) = selected(vec![Class::Delete]);
-    assert_eq!(err(&mut h, &pol, "execute", json!({"command": "mail.deletePermanently", "params": {}})), None);
+    let e = err(&mut h, &pol, "execute", json!({"command": "mail.deletePermanently", "params": {}}));
+    assert!(e.as_deref().is_some_and(|e| e.contains("needs `ids`")), "{e:?}");
+    let listed = h.session.run("mail.list", &json!({})).unwrap();
+    let ids = listed["messages"].as_array().and_then(|m| m.iter().find(|m| m["id"] == row.id)).map(|m| m["conversation"].clone()).unwrap();
+    assert_eq!(ids, json!(row.members));
+    let (mut h, _) = selected(Vec::new());
+    let e = err(&mut h, &pol, "execute", json!({"command": "mail.deletePermanently", "params": {"ids": ids}}));
+    assert!(e.as_deref().is_some_and(|e| e.contains("2 messages")), "{e:?}");
+    let (mut h, _) = selected(vec![Class::Delete]);
+    assert_eq!(err(&mut h, &pol, "execute", json!({"command": "mail.deletePermanently", "params": {"ids": ids}})), None);
     assert!(row.members.iter().all(|id| h.session.mailbox.message(*id).is_none()));
 }

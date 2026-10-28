@@ -564,7 +564,7 @@ fn entry_of(value: &Value, folder: &str) -> Option<Entry> {
         received,
         preview: capped(value, "bodyPreview", MAX_PREVIEW),
         has_attachments: value.get("hasAttachments").and_then(Value::as_bool).unwrap_or(false),
-        draft: value.get("isDraft").and_then(Value::as_bool).unwrap_or(false),
+        draft: value.get("isDraft").and_then(Value::as_bool),
     })))
 }
 

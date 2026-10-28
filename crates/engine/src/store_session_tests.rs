@@ -398,9 +398,12 @@ fn found_on_disk(tmp: &Temp, kind: mailcraft_model::FolderKind) -> (Session, Id,
 }
 
 /// What the owner is asked about an agent's call, as the window asks it (`agent_gate::gate`);
-/// then, on the owner's yes, the call run for the agent as the window runs it.
-fn asked_then_run(s: &mut Session, id: &str, mut params: Value) -> String {
-    crate::agent::pin_targets(s, id, &mut params);
+/// then, on the owner's yes, the call run for the agent as the window runs it. The agent names the
+/// messages of the row it found, as `mail.list` lists them (#620).
+fn asked_then_run(s: &mut Session, id: &str, row: Id, mut params: Value) -> String {
+    let list = s.run("mail.list", &json!({})).unwrap();
+    let item = list["messages"].as_array().and_then(|items| items.iter().find(|m| m["id"] == row).cloned()).unwrap();
+    params["ids"] = item["conversation"].clone();
     let (class, what) = match crate::agent::check(s, id, &params, &[]) {
         crate::agent::Verdict::Ask(class, what) => (class, what),
         other => panic!("{other:?}"),
@@ -416,7 +419,7 @@ fn asked_then_run(s: &mut Session, id: &str, mut params: Value) -> String {
 fn an_agents_delete_for_good_in_a_search_is_asked_about_what_it_deletes() {
     let tmp = Temp::new("agent-for-good");
     let (mut s, newer, older) = found_on_disk(&tmp, mailcraft_model::FolderKind::Deleted);
-    let asked = asked_then_run(&mut s, "mail.delete", json!({}));
+    let asked = asked_then_run(&mut s, "mail.delete", newer, json!({}));
     let gone = [newer, older].into_iter().filter(|id| s.mailbox.message(*id).is_none()).count();
     assert_eq!((asked.as_str(), gone), ("delete 2 messages (\u{201c}Brewing notes\u{201d}, \u{201c}Brewing notes\u{201d}) for good", 2));
 }
@@ -426,7 +429,7 @@ fn an_agents_move_to_the_outbox_in_a_search_is_asked_about_what_it_sends() {
     let tmp = Temp::new("agent-outbox");
     let (mut s, newer, older) = found_on_disk(&tmp, mailcraft_model::FolderKind::Inbox);
     let outbox = s.mailbox.folder_of_kind(s.mailbox.accounts[0].id, mailcraft_model::FolderKind::Outbox).unwrap();
-    let asked = asked_then_run(&mut s, "mail.move", json!({"folder": outbox}));
+    let asked = asked_then_run(&mut s, "mail.move", newer, json!({"folder": outbox}));
     let sent = [newer, older].into_iter().filter(|id| s.mailbox.message(*id).is_some_and(|m| m.folder == outbox)).count();
     assert_eq!(
         (asked.as_str(), sent),

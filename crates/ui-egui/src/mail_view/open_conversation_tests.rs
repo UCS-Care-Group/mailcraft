@@ -432,7 +432,7 @@ fn an_agents_delete_for_good_leaves_a_message_that_left_the_folder_while_the_own
     let (a, b) = (rows[0].id, rows[1].id);
     w.state_mut().execute("mail.select", json!({"ids": [a, b]})).unwrap();
     w.run_steps(3);
-    let answer = an_agent_asks(&mut w, "mail.deletePermanently", json!({}));
+    let answer = an_agent_asks(&mut w, "mail.deletePermanently", json!({"ids": [a, b]}));
     w.state_mut().execute("mail.move", json!({"ids": [b], "folder": archive})).unwrap();
     w.run_steps(3);
     crate::agent_gate::answer(w.state_mut(), true);
@@ -470,7 +470,8 @@ fn an_agents_delete_for_good_takes_only_what_the_owner_was_asked_about() {
     let (mut w, newer, older, reply) = release_checklist();
     let inbox = w.state().session.view.folder;
     click(&mut w, "message", newer);
-    let (request, answer) = crate::ControlRequest::new("engine.execute", json!({"command": "mail.deletePermanently", "params": {}}));
+    let ids = row_ids(&mut w, newer);
+    let (request, answer) = crate::ControlRequest::new("engine.execute", json!({"command": "mail.deletePermanently", "params": {"ids": ids}}));
     let request = request.from_agent(Vec::new());
     assert!(matches!(crate::agent_gate::screen(w.state_mut(), &request, &[]), Some(crate::control::Outcome::Pending)));
     let what = w.state().asking.front().map(|a| a.what.clone()).unwrap();
@@ -490,6 +491,12 @@ fn an_agents_delete_for_good_takes_only_what_the_owner_was_asked_about() {
     assert!(s.mailbox.message(came).is_some(), "it came while the owner was asked: {done}");
 }
 
+/// The messages an agent names for a conversation's row: those `mail.list` lists it by (#620).
+fn row_ids(w: &mut testing::Window, row: u64) -> serde_json::Value {
+    let list = w.state_mut().execute("mail.list", json!({})).unwrap();
+    list["messages"].as_array().and_then(|m| m.iter().find(|m| m["id"] == row && m["under"].is_null())).map(|m| m["conversation"].clone()).unwrap()
+}
+
 /// An agent's call waiting for the owner's yes, with nothing having the keyboard.
 fn an_agent_asks(w: &mut testing::Window, command: &str, params: serde_json::Value) -> std::sync::mpsc::Receiver<serde_json::Value> {
     let (request, answer) = crate::ControlRequest::new("engine.execute", json!({"command": command, "params": params}));
@@ -507,7 +514,8 @@ fn right_left_and_delete_under_an_agents_question_leave_the_list_as_it_is() {
         let press = |w: &mut testing::Window, k| if held { testing::held(w, k) } else { testing::key(w, k) };
         let (mut w, newer, older, _) = release_checklist();
         click(&mut w, "message", newer);
-        let _answer = an_agent_asks(&mut w, "mail.deletePermanently", json!({}));
+        let ids = row_ids(&mut w, newer);
+        let _answer = an_agent_asks(&mut w, "mail.deletePermanently", json!({"ids": ids}));
         press(&mut w, Key::ArrowRight);
         w.run_steps(2);
         assert!(drawn_under(&mut w, newer).is_empty(), "Right opened the conversation under the agent's question");
@@ -519,7 +527,8 @@ fn right_left_and_delete_under_an_agents_question_leave_the_list_as_it_is() {
     let (mut w, newer, _, _) = release_checklist();
     click(&mut w, "message", newer);
     click(&mut w, "conversationArrow", newer);
-    let _answer = an_agent_asks(&mut w, "mail.deletePermanently", json!({}));
+    let ids = row_ids(&mut w, newer);
+    let _answer = an_agent_asks(&mut w, "mail.deletePermanently", json!({"ids": ids}));
     testing::key(&mut w, Key::ArrowLeft);
     w.run_steps(2);
     assert_eq!(drawn_under(&mut w, newer).len(), 3, "Left closed the conversation under the agent's question");
@@ -562,12 +571,11 @@ fn an_agents_question_goes_with_the_mailbox_it_was_asked_about() {
     for (command, outbox) in [("mail.deletePermanently", false), ("mail.move", true)] {
         let (mut w, newer, older, _) = release_checklist();
         click(&mut w, "message", newer);
-        let params = if outbox {
+        let mut params = json!({"ids": row_ids(&mut w, newer)});
+        if outbox {
             let s = &w.state().session;
-            json!({"folder": s.mailbox.folder_of_kind(s.mailbox.accounts[0].id, FolderKind::Outbox).unwrap()})
-        } else {
-            json!({})
-        };
+            params["folder"] = json!(s.mailbox.folder_of_kind(s.mailbox.accounts[0].id, FolderKind::Outbox).unwrap());
+        }
         let answer = an_agent_asks(&mut w, command, params);
         // Another mailbox takes the place of this one before the owner answers; it has the same ids.
         w.state_mut().execute("file.new", json!({"sample": true})).unwrap();
@@ -581,7 +589,8 @@ fn an_agents_question_goes_with_the_mailbox_it_was_asked_about() {
     // A mailbox swapped in the frame the owner answers in: the yes isn't the other mailbox's.
     let (mut w, newer, older, _) = release_checklist();
     click(&mut w, "message", newer);
-    let answer = an_agent_asks(&mut w, "mail.deletePermanently", json!({}));
+    let ids = row_ids(&mut w, newer);
+    let answer = an_agent_asks(&mut w, "mail.deletePermanently", json!({"ids": ids}));
     let other = mailcraft_engine::sample::mailbox(w.state().session.now(), 0);
     w.state_mut().session.replace_mailbox(other);
     crate::agent_gate::answer(w.state_mut(), true);
