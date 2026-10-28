@@ -346,6 +346,28 @@ fn delete_for_good_of_the_message_an_id_names_goes_ahead_on_yes() {
 }
 
 #[test]
+fn delete_for_good_takes_the_message_named_as_the_command_reads_it_never_the_selection() {
+    let (mut w, newer, older, _) = release_checklist();
+    click(&mut w, "message", newer);
+    // A whole number written as 12.0 is message 12.
+    assert_eq!(w.state_mut().run("mail.deletePermanently", json!({"id": older as f64})).unwrap()["pending"], "confirm");
+    w.run_steps(3);
+    click(&mut w, "questionAction", 0);
+    let s = &w.state().session;
+    assert!(s.mailbox.message(older).is_none(), "the message it named is still here");
+    assert!(s.mailbox.message(newer).is_some(), "the selected message went instead");
+    // Named wrongly, it is refused without a question.
+    assert_eq!(w.state().session.sel.messages, vec![newer]);
+    for junk in [json!({"id": newer.to_string()}), json!({"id": null}), json!({"ids": []}), json!({"ids": [newer as f64 + 0.5]}), json!("x")] {
+        for command in ["mail.delete", "mail.deletePermanently"] {
+            assert!(w.state_mut().run(command, junk.clone()).is_err(), "{command} {junk}");
+            assert!(w.state().dialog.is_none(), "{command} {junk}: asked");
+            assert!(w.state().session.mailbox.message(newer).is_some_and(|m| kind(&w, m.id) == Some(FolderKind::Inbox)), "{command} {junk}");
+        }
+    }
+}
+
+#[test]
 fn a_question_goes_with_the_mailbox_it_was_asked_about() {
     let (mut w, newer, _, _) = release_checklist();
     click(&mut w, "message", newer);

@@ -372,9 +372,16 @@ pub fn confirmation(app: &MailApp, id: &str, params: &Value) -> Option<Question>
                 true => app.session.acting_on_in(&list_rows(&app.session)),
                 false => app.session.sel.messages.to_vec(),
             };
-            let ids: Vec<u64> = match params.get("ids").and_then(Value::as_array) {
-                Some(ids) => ids.iter().filter_map(Value::as_u64).collect(),
-                None => params.get("id").and_then(Value::as_u64).map_or_else(selected, |id| vec![id]),
+            // The messages named, read as the command reads them (`{"id": 12.0}` is message 12).
+            // Named wrongly, the command refuses it without a question, and the selection is never
+            // taken for it (#503).
+            if !(params.is_object() || params.is_null()) {
+                return None;
+            }
+            let ids: Vec<u64> = match mailcraft_engine::p::ids_strict(params) {
+                Ok(Some(ids)) => ids,
+                Ok(None) => selected(),
+                Err(_) => return None,
             };
             // An ordinary delete only asks when it is for good: the message is in Deleted Items already.
             let for_good = |m: &mailcraft_model::Message| {
