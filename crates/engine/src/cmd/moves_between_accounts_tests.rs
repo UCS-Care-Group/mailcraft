@@ -1001,6 +1001,51 @@ fn moved_back_while_its_original_was_deleted_and_the_answer_lost_it_is_kept_here
 }
 
 #[test]
+fn undone_while_its_original_was_deleted_and_the_answer_lost_it_is_kept_here() {
+    let in_folder = |s: &Session, id: Id| s.mailbox.message(id).and_then(|m| s.mailbox.folder(m.folder)).map(|f| f.name.clone());
+    // From an IMAP account to this computer, undone while the server deletes the original; the
+    // answer is lost, and the next listing hasn't got it.
+    let (mut s, a, kept) = imap();
+    let two = titled(&s, "Two");
+    s.run("mail.move", &json!({"ids": [two], "folder": kept})).unwrap();
+    s.note_saved();
+    assert_eq!(ops(&s, a), [delete(2)]);
+    s.run("edit.undo", &json!({})).unwrap();
+    assert_eq!(at(&s, two).0, a);
+    let listing =
+        FolderDelta { remote: "INBOX".into(), kind: FolderKind::Inbox, uid_validity: 7, uid_seen: 4, removed: vec![2], ..Default::default() };
+    apply_sync(&mut s, SyncResult { account: a, folders: vec![listing], ..Default::default() }).unwrap();
+    assert_eq!(in_folder(&s, two).as_deref(), Some("Imported"));
+    // Undone before the run started, and the server still lists it: it is the server's again.
+    let (mut s, a, kept) = imap();
+    let two = titled(&s, "Two");
+    s.run("mail.move", &json!({"ids": [two], "folder": kept})).unwrap();
+    s.run("edit.undo", &json!({})).unwrap();
+    let flags = [1, 2, 3, 4].map(|uid| RemoteFlags { uid, ..Default::default() }).to_vec();
+    let listing = FolderDelta { remote: "INBOX".into(), kind: FolderKind::Inbox, uid_validity: 7, uid_seen: 4, flags, ..Default::default() };
+    for _ in 0..3 {
+        apply_sync(&mut s, SyncResult { account: a, folders: vec![listing.clone()], ..Default::default() }).unwrap();
+    }
+    assert_eq!(s.mailbox.message(two).map(|m| (m.account, m.uid, m.returned)), Some((a, 2, 0)));
+
+    // From a Microsoft account, undone while its run removes the server's copy, likewise.
+    let (mut s, _, kept) = imap();
+    let ms = microsoft(&mut s, OWNER);
+    let theirs = s.mailbox.folder_of_kind(ms, FolderKind::Inbox).unwrap();
+    let server = mailcraft_model::sync::ServerMessage { id: "AAkA7".into(), folder: "in".into(), ..Default::default() };
+    let body = Body { text: "All of it.".into(), html: None };
+    let m = s.mailbox.add_message(Message { folder: theirs, subject: "Receipt".into(), server: Some(server), body, ..Default::default() }).unwrap();
+    s.run("mail.move", &json!({"ids": [m], "folder": kept})).unwrap();
+    s.note_saved();
+    assert!(!graph_mail_request(&s, ms).unwrap().messages.is_empty());
+    s.run("edit.undo", &json!({})).unwrap();
+    assert_eq!(at(&s, m).0, ms);
+    let removed = MessagePage { folder: "in".into(), removed: vec!["AAkA7".into()], ..Default::default() };
+    apply_graph_mail(&mut s, GraphMailResult { account: ms, email: OWNER.into(), pages: vec![removed], whole: true, ..Default::default() }).unwrap();
+    assert_eq!(in_folder(&s, m).as_deref(), Some("Imported"));
+}
+
+#[test]
 fn mail_waiting_to_go_on_a_server_that_cant_be_read_here_is_said_after_each_run() {
     let (mut s, a, kept) = imap();
     let ms = microsoft(&mut s, OWNER);
@@ -1053,6 +1098,23 @@ fn mail_from_another_mailbox_doesnt_go_into_an_outbox_where_it_would_be_sent() {
     }
     assert!(s.mailbox.queued.is_empty() && s.mailbox.pending.is_empty());
     assert_eq!((at(&s, two).0, at(&s, mine).1), (a, notes));
+    // Nor back into the Outbox of the account it came from, while its original there waits to
+    // go (#607): out of Gmail into Microsoft and back, out of Microsoft to this computer and back.
+    let (theirs, own) = (s.mailbox.folder_of_kind(ms, FolderKind::Inbox).unwrap(), s.mailbox.folder_of_kind(a, FolderKind::Outbox).unwrap());
+    s.run("mail.move", &json!({"ids": [two], "folder": theirs})).unwrap();
+    let server = mailcraft_model::sync::ServerMessage { id: "AAkA7".into(), folder: "in".into(), ..Default::default() };
+    let body = Body { text: "All of it.".into(), html: None };
+    let receipt =
+        s.mailbox.add_message(Message { folder: theirs, subject: "Receipt".into(), server: Some(server), body, ..Default::default() }).unwrap();
+    s.run("mail.move", &json!({"ids": [receipt], "folder": kept})).unwrap();
+    for (id, outbox) in [(two, own), (receipt, s.mailbox.folder_of_kind(ms, FolderKind::Outbox).unwrap())] {
+        for command in ["mail.move", "mail.copy"] {
+            let refused = s.run(command, &json!({"ids": [id], "folder": outbox})).unwrap_err();
+            assert_eq!(refused.to_string(), mailcraft_model::INTO_OUTBOX);
+        }
+    }
+    assert_eq!((at(&s, two).1, at(&s, receipt).1), (theirs, kept));
+    assert!(sync_request(&s, a).unwrap().outbox.is_empty());
 }
 
 #[test]
@@ -1228,13 +1290,22 @@ fn moving_many_at_once_does_what_moving_each_in_turn_does() {
     let ids = [one, two, three, here, out];
     let folders =
         [kept, archive, s.mailbox.folder_of_kind(a, FolderKind::Inbox).unwrap(), theirs, s.mailbox.folder_of_kind(b, FolderKind::Inbox).unwrap()];
+    // All but the part of a copy's marker that nobody knows.
+    let known = |mut mb: mailcraft_model::Mailbox| {
+        for q in &mut mb.queued {
+            if let Queued::PlaceMessage { marker, .. } = q {
+                *marker = marker.rsplit_once('-').map(|(known, _)| known.to_string()).unwrap_or_default();
+            }
+        }
+        serde_json::to_value(&mb).unwrap()
+    };
     for folder in folders {
         let (mut together, mut each) = (s.mailbox.clone(), s.mailbox.clone());
         let moved = together.move_messages(&ids, folder).unwrap();
         for id in ids {
             each.move_message(id, folder).unwrap();
         }
-        assert_eq!(serde_json::to_value(&together).unwrap(), serde_json::to_value(&each).unwrap(), "into {folder}");
+        assert_eq!(known(together), known(each), "into {folder}");
         assert_eq!(moved.len(), ids.iter().filter(|id| s.mailbox.message(**id).is_some_and(|m| m.folder != folder)).count());
     }
 }
@@ -1256,4 +1327,88 @@ fn what_is_moving_out_of_a_server_is_found_at_once_as_it_is_for_each_message() {
     let each: std::collections::HashSet<Id> = s.mailbox.messages.keys().copied().filter(|id| s.mailbox.moving_out_of_a_server(*id)).collect();
     assert_eq!(each, [titled(&s, "Two"), m].into_iter().collect());
     assert_eq!(s.mailbox.moving_out_of_servers(), each);
+}
+
+#[test]
+fn ids_named_wrongly_never_move_or_copy_the_selected_message_onto_another_server() {
+    let (mut s, a, _) = imap();
+    let ms = microsoft(&mut s, OWNER);
+    let theirs = s.mailbox.folder_of_kind(ms, FolderKind::Inbox).unwrap();
+    let (one, two) = (titled(&s, "One"), titled(&s, "Two"));
+    s.run("mail.select", &json!({"ids": [one]})).unwrap();
+    // What a look-up that found nothing gives, an id as text, zero, a fraction, a list with a
+    // wrong entry, or both at once names no message: the selected one isn't taken instead.
+    let wrong = [
+        json!({"id": null}),
+        json!({"id": "2"}),
+        json!({"id": 0}),
+        json!({"id": 2.5}),
+        json!({"ids": null}),
+        json!({"ids": "2"}),
+        json!({"ids": []}),
+        json!({"ids": [two, "x"]}),
+        json!({"id": two, "ids": [two]}),
+    ];
+    for command in ["mail.move", "mail.copy"] {
+        for params in &wrong {
+            let mut params = params.clone();
+            params["folder"] = json!(theirs);
+            assert!(s.run(command, &params).is_err(), "{command} {params}");
+        }
+    }
+    assert!(s.mailbox.queued.is_empty() && s.mailbox.pending.is_empty());
+    assert_eq!((at(&s, one).0, at(&s, two).0, s.mailbox.messages.len()), (a, a, 4));
+    // Left out, they mean the selection, as ever; one id, the message it names.
+    s.run("mail.copy", &json!({"id": two, "folder": theirs})).unwrap();
+    assert_eq!(s.sel.messages, [one]);
+    s.run("mail.move", &json!({"folder": theirs})).unwrap();
+    assert_eq!((at(&s, one).0, at(&s, two).0, s.mailbox.messages.len()), (ms, a, 5));
+}
+
+#[test]
+fn an_agent_is_asked_before_it_puts_mail_on_another_accounts_server() {
+    use crate::agent::{Access, Class, classify, describe};
+    let (mut s, a, kept) = imap();
+    let ms = microsoft(&mut s, OWNER);
+    let b = second_imap(&mut s);
+    let (theirs, other) = (s.mailbox.folder_of_kind(ms, FolderKind::Inbox).unwrap(), s.mailbox.folder_of_kind(b, FolderKind::Inbox).unwrap());
+    let archive = s.mailbox.folder_of_kind(a, FolderKind::Archive).unwrap();
+    let two = titled(&s, "Two");
+    let mine = kept_here(&mut s, kept, "Mine");
+    for command in ["mail.move", "mail.copy"] {
+        // Onto another account's server, from another server or from this computer: as a send.
+        for (id, folder) in [(two, theirs), (two, other), (mine, theirs), (mine, other)] {
+            assert_eq!(classify(&s, command, &json!({"ids": [id], "folder": folder})), Access::Owner(Class::Send), "{command} {id} {folder}");
+        }
+        // Within its account, or onto this computer: as ever.
+        for (id, folder) in [(two, archive), (two, kept)] {
+            assert_eq!(classify(&s, command, &json!({"ids": [id], "folder": folder})), Access::Safe, "{command} {id} {folder}");
+        }
+        // The selection likewise. Named wrongly, the command refuses them.
+        s.run("mail.select", &json!({"ids": [two]})).unwrap();
+        assert_eq!(classify(&s, command, &json!({"folder": theirs})), Access::Owner(Class::Send), "{command}");
+        assert_eq!(classify(&s, command, &json!({"id": null, "folder": theirs})), Access::Safe, "{command}");
+    }
+    // The question says what goes where.
+    let what = describe(&s, "mail.move", &json!({"ids": [two], "folder": theirs}));
+    assert!(what.starts_with("move 1 message (\u{201c}Two\u{201d}) onto the server of owner@example.org, into \u{201c}Inbox\u{201d}"), "{what}");
+}
+
+#[test]
+fn a_copys_marker_cant_be_worked_out_from_the_mailbox() {
+    // The same mailbox and the same move, twice: all else the same, the markers differ.
+    let markers: Vec<String> = (0..2)
+        .map(|_| {
+            let (mut s, a, _) = imap();
+            let b = second_imap(&mut s);
+            let two = titled(&s, "Two");
+            s.run("mail.move", &json!({"ids": [two], "folder": s.mailbox.folder_of_kind(b, FolderKind::Inbox).unwrap()})).unwrap();
+            assert_eq!(at(&s, two).0, b, "{a}");
+            s.mailbox.queued.iter().find_map(|q| if let Queued::PlaceMessage { marker, .. } = q { Some(marker.clone()) } else { None }).unwrap()
+        })
+        .collect();
+    let (known, unknown): (Vec<&str>, Vec<&str>) = markers.iter().filter_map(|m| m.rsplit_once('-')).unzip();
+    assert_eq!(known[0], known[1]);
+    assert_ne!(unknown[0], unknown[1]);
+    assert!(markers.iter().all(|m| m.len() <= 200 && m.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-')), "{markers:?}");
 }

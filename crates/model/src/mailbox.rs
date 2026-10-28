@@ -1999,11 +1999,16 @@ impl Mailbox {
     }
 
     /// A marker for a copy made in another mailbox: a value used once in this mailbox's life, and
-    /// of the source's server id, so that copies of different messages never share one.
+    /// of the source's server id, so that copies of different messages never share one; and 64
+    /// bits nobody else knows, so that mail sent there can't carry it before the copy does (#451).
     fn place_marker(&mut self, id: Id, source: &str) -> String {
+        use std::hash::{BuildHasher, Hasher};
         let n = self.alloc_id();
         let source = crate::sync::fingerprint(source.as_bytes());
-        format!("mailcraft-place-{id:x}-{n:x}-{source:016x}")
+        // Keyed by the system's random bits, which each `RandomState` steps on from.
+        let mut unknown = std::collections::hash_map::RandomState::new().build_hasher();
+        unknown.write_u64(n);
+        format!("mailcraft-place-{id:x}-{n:x}-{source:016x}-{:016x}", unknown.finish())
     }
 
     /// `id` is no longer to be made on any server for where it lay (it goes into account `to`
@@ -2059,6 +2064,10 @@ impl Mailbox {
         if from_account == to_account {
             return Ok(false);
         }
+        // Back into the account it came from too: the next Send/Receive would send it (#607).
+        if self.is_send_queue(folder) {
+            return Err(invalid(INTO_OUTBOX));
+        }
         // Back into the IMAP account whose server still has the original: the move out of it
         // that waits goes on there, or is called off.
         let owner = self.waiting(id, fresh).and_then(|at| self.pending.get(at)).map(Pending::account);
@@ -2099,9 +2108,6 @@ impl Mailbox {
         if self.puts_on_server(to_account) {
             if !self.placed_into(from_account, to_account) {
                 return Err(invalid(BETWEEN_MAILBOXES));
-            }
-            if self.is_send_queue(folder) {
-                return Err(invalid(INTO_OUTBOX));
             }
             if let Some(why) = Mailbox::not_whole(m, "moved") {
                 return Err(invalid(why));
@@ -2190,11 +2196,11 @@ impl Mailbox {
         let to_account = self.folder(folder).ok_or(not_found("folder", folder))?.account;
         let m = self.message(id).ok_or(not_found("message", id))?;
         let from_account = m.account;
+        if from_account != to_account && self.is_send_queue(folder) {
+            return Err(invalid(INTO_OUTBOX));
+        }
         if self.placed_into(from_account, to_account) {
             // Made on the destination's server by its own run, from the whole message (#70, #451).
-            if self.is_send_queue(folder) {
-                return Err(invalid(INTO_OUTBOX));
-            }
             if let Some(why) = Mailbox::not_whole(m, "copied") {
                 return Err(invalid(why));
             }

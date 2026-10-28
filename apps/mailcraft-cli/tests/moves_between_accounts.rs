@@ -284,6 +284,56 @@ fn moved_from_gmail_into_microsoft_the_original_goes_only_once_the_copy_is_made(
 }
 
 #[test]
+fn a_rule_that_files_new_gmail_mail_into_another_account_puts_it_there_before_gmail_lets_it_go() {
+    for (into_microsoft, uidplus) in [(false, true), (false, false), (true, true)] {
+        let mut r = Rig::new(&format!("rule-{into_microsoft}-{uidplus}@example.org"));
+        let (other, work) = r.other_account(uidplus);
+        let to = if into_microsoft { r.ms } else { work };
+        let theirs = r.inbox(to);
+        let rule =
+            json!({"name": "Rota", "conditions": [{"type": "subjectContains", "value": "rota"}], "actions": [{"type": "moveTo", "value": theirs}]});
+        r.s.run("rules.add", &rule).unwrap();
+        // New mail comes to Gmail, and the rule files it into the other account at once.
+        for raw in ["INBOX", "[Gmail]/All Mail"] {
+            r.imap.world().mailbox(raw).messages.push(message(5, "", "Rota"));
+        }
+        assert_eq!(r.sync()["new"], 1, "{into_microsoft} {uidplus}");
+        let rota = r.titled("Rota");
+        assert_eq!(r.s.mailbox.message(rota).map(|m| (m.account, m.folder)), Some((to, theirs)));
+        // Gmail keeps it until the other server has it.
+        for _ in 0..2 {
+            assert_eq!(r.sync()["new"], 0);
+        }
+        assert!(r.gmail_keeps("Rota"));
+        // The other account's own run puts it there, whole, unread as it came; then Gmail's lets
+        // it go, out of all mail too.
+        if into_microsoft {
+            let answers = r.run();
+            assert_eq!(Rig::errors(&answers), Vec::<Value>::new(), "{answers:?}");
+            assert_eq!(r.on_microsoft("Rota"), [(false, false)]);
+        } else {
+            r.sync_of(work);
+            assert_eq!(on(&other, "INBOX"), ["Rota"], "{uidplus}");
+            let copy = String::from_utf8_lossy(&other.world().mailbox("INBOX").messages[0].body).into_owned();
+            assert!(copy.contains("The body of Rota."), "{copy}");
+        }
+        assert!(r.gmail_keeps("Rota"));
+        r.sync();
+        assert!(!r.gmail_keeps("Rota"));
+        assert!(!r.on_gmail("[Gmail]/All Mail").iter().any(|s| s == "Rota"));
+        // Settled: once here and once there, whatever runs after.
+        for _ in 0..2 {
+            r.sync_of(work);
+            r.run();
+            r.sync();
+        }
+        let there = if into_microsoft { r.on_microsoft("Rota").len() } else { on(&other, "INBOX").len() };
+        assert_eq!((r.here("Rota"), there), (1, 1), "{into_microsoft} {uidplus}");
+        assert!(r.s.mailbox.pending.is_empty() && r.s.mailbox.queued.is_empty(), "{:?} {:?}", r.s.mailbox.pending, r.s.mailbox.queued);
+    }
+}
+
+#[test]
 fn a_message_microsoft_wont_take_stays_on_gmail() {
     let mut r = Rig::new("refused@example.org");
     let two = r.titled("Two");
@@ -764,6 +814,8 @@ fn a_copy_put_on_an_imap_server_doesnt_say_who_got_a_blind_copy() {
                 from: Address::new("Ada", "ada@example.org"),
                 to: vec![Address::new("Bob", "bob@example.org")],
                 bcc: vec![Address::new("Eve", "eve@example.net")],
+                // Resent, with a blind copy to somebody else.
+                headers: vec![("Resent-To".into(), "carol@example.org".into()), ("Resent-Bcc".into(), "mallory@example.net".into())],
                 read: true,
                 date: NOW - 7_200,
                 body: Body { text: "The rota.".into(), html: None },
@@ -775,6 +827,7 @@ fn a_copy_put_on_an_imap_server_doesnt_say_who_got_a_blind_copy() {
     r.sync_of(work);
     let copy = String::from_utf8_lossy(&other.world().mailbox("INBOX").messages[0].body).into_owned();
     assert!(copy.contains("Subject: Rota") && copy.contains("bob@example.org") && !copy.contains("eve@example.net"), "{copy}");
+    assert!(copy.contains("carol@example.org") && !copy.contains("mallory@example.net"), "{copy}");
     // Here it still says who got one.
     assert_eq!(r.s.mailbox.message(rota).map(|m| m.bcc.len()), Some(1));
 }

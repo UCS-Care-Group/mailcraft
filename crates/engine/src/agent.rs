@@ -25,8 +25,9 @@ use crate::{Session, p};
 /// What needs the owner, by kind. `--allow <class>` names them, but for [`Class::Leave`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Class {
-    /// Writes to anybody (sends mail, answers or forwards meetings, puts mail in the Outbox) or
-    /// reaches out to the web for a message (its pictures, a meeting's link).
+    /// Writes to anybody (sends mail, answers or forwards meetings, puts mail in the Outbox or on
+    /// another account's server) or reaches out to the web for a message (its pictures, a
+    /// meeting's link).
     Send,
     /// Deletes for good (or throws away what an agent wrote in a message and didn't save; what
     /// the owner wrote is [`Access::Asked`] about, #494).
@@ -616,7 +617,8 @@ pub fn classify(s: &Session, id: &str, params: &Value) -> Access {
         _ if id.starts_with("calendar.") && sends => Access::Owner(Class::Send),
         "mail.move" | "mail.copy" | "file.import" => {
             let folder = p::id(params, "folder").or(if id == "file.import" { Some(s.view.folder) } else { None });
-            if folder.is_some_and(|f| is_outbox(&s.mailbox, f)) { Access::Owner(Class::Send) } else { Access::Safe }
+            let onto = id != "file.import" && folder.is_some_and(|f| onto_another_server(s, params, f));
+            if folder.is_some_and(|f| is_outbox(&s.mailbox, f)) || onto { Access::Owner(Class::Send) } else { Access::Safe }
         }
         "mail.delete" => {
             let ids = p::ids(params).unwrap_or_else(|| s.sel.messages.clone());
@@ -717,6 +719,16 @@ pub(crate) fn changes_shared_tasks(before: &Mailbox, after: &Mailbox) -> bool {
 
 fn is_outbox(mb: &Mailbox, folder: Id) -> bool {
     mb.folder(folder).is_some_and(|f| f.kind == FolderKind::Outbox)
+}
+
+/// Whether a message `params` names (or the selection) goes onto the server of the account of
+/// `folder` from another account or from this computer (#451), where others may read it too (a
+/// shared mailbox): asked as a send. Named wrongly, none goes: the command refuses them.
+fn onto_another_server(s: &Session, params: &Value, folder: Id) -> bool {
+    let Some(to) = s.mailbox.folder(folder).map(|f| f.account) else { return false };
+    let Ok(named) = p::ids_strict(params) else { return false };
+    let ids = named.unwrap_or_else(|| s.sel.messages.clone());
+    ids.iter().filter_map(|id| s.mailbox.message(*id)).any(|m| s.mailbox.placed_into(m.account, to))
 }
 
 /// Deleting this message removes it (it is in Deleted Items, or its account has none).
@@ -917,8 +929,16 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
             None => "send the message being written".to_string(),
         },
         "mail.move" | "mail.copy" => {
-            let ids = p::ids(params).unwrap_or_else(|| s.sel.messages.clone());
-            format!("put {} in the Outbox, which sends them", messages_text(s, &ids))
+            let ids = p::ids_strict(params).ok().flatten().unwrap_or_else(|| s.sel.messages.clone());
+            let into = p::id(params, "folder").filter(|f| !is_outbox(&s.mailbox, *f)).and_then(|f| s.mailbox.folder(f));
+            match into {
+                Some(f) => {
+                    let account = s.mailbox.account(f.account).map_or_else(|| "another account".to_string(), |a| clip(&a.email, 80));
+                    let verb = if id == "mail.move" { "move" } else { "copy" };
+                    format!("{verb} {} onto the server of {account}, into {}", messages_text(s, &ids), quoted(&f.name))
+                }
+                None => format!("put {} in the Outbox, which sends them", messages_text(s, &ids)),
+            }
         }
         "file.import" => "import messages into the Outbox, which sends them".to_string(),
         "mail.delete" | "mail.deletePermanently" => {

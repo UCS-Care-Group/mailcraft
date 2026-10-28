@@ -49,8 +49,8 @@ const NAME_PIECE: usize = 52;
 /// Header fields come in this order: `Date`, `From`, `To`, `Cc`, `Bcc` (only with
 /// [`WriteOptions::include_bcc`]), `Reply-To`, `Subject`, `Message-ID`, `In-Reply-To`,
 /// `References`, `Importance` and `X-Priority` (unless normal), `Keywords` (the categories),
-/// `Status` and `X-Status` (read, answered, flagged), then `Message::headers`, then `MIME-Version`
-/// and the content fields. Empty fields are left out.
+/// `Status` and `X-Status` (read, answered, flagged), then `Message::headers` (`Resent-Bcc` only
+/// with the Bcc), then `MIME-Version` and the content fields. Empty fields are left out.
 ///
 /// No value can add a header field: CR, LF and NUL are removed from every value, addresses and
 /// message ids lose every character that could end them early, and a header in
@@ -119,7 +119,9 @@ pub fn write(message: &Message, opts: &WriteOptions) -> Vec<u8> {
     }
     for (name, value) in &message.headers {
         let lower = name.to_ascii_lowercase();
-        if is_token(name.as_bytes()) && !OWN_FIELDS.contains(&lower.as_str()) && !lower.starts_with("content-") && !private(&lower) {
+        // Who got a blind copy of a resend goes only where the Bcc does.
+        let blind = lower == "resent-bcc" && !opts.include_bcc;
+        if is_token(name.as_bytes()) && !OWN_FIELDS.contains(&lower.as_str()) && !lower.starts_with("content-") && !private(&lower) && !blind {
             let value = if has_words(&lower) { unstructured(name, value) } else { kept(name, value) };
             write_field(&mut out, name, &value);
         }

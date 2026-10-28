@@ -7,7 +7,7 @@ use std::collections::HashSet;
 use mailcraft_model::{FlagStatus, FolderKind, Id, Queued, Rgb};
 use serde_json::{Value, json};
 
-use super::{bad, deliver, done, fail, message_json, message_summary, needs_message, needs_movable, select_after_removal, targets};
+use super::{bad, deliver, done, fail, message_json, message_summary, needs_message, needs_movable, select_after_removal, targets, targets_strict};
 use crate::list::{Row, listed, position, position_of};
 use crate::{CmdResult, CommandSpec, Session, p};
 
@@ -33,11 +33,11 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("mail.archive", "Archive", "Home › Delete", archive).key("Backspace").params(IDS).selection(needs_movable),
         CommandSpec::new("mail.move", "Move to Folder", "Home › Move", move_to)
             .key("Mod+Shift+V")
-            .params(r#"{"folder": number, "ids"?: [number]}"#)
+            .params(MOVE)
             .selection(needs_movable),
         CommandSpec::new("mail.copy", "Copy to Folder", "Home › Move", copy_to)
             .key("Mod+Shift+Y")
-            .params(r#"{"folder": number, "ids"?: [number]}"#)
+            .params(MOVE)
             .selection(needs_message),
         CommandSpec::new("mail.markRead", "Mark as Read", "Home › Tags", mark_read).key("Mod+Q").params(IDS).selection(needs_message),
         CommandSpec::new("mail.markUnread", "Mark as Unread", "Home › Tags", mark_unread).key("Mod+U").params(IDS).selection(needs_message),
@@ -85,6 +85,8 @@ pub fn specs() -> Vec<CommandSpec> {
 }
 
 const IDS: &str = r#"{"ids"?: [number]} (default: the selected messages)"#;
+/// Move and copy reach another account's server (#451): what they are given is read strictly.
+const MOVE: &str = r#"{"folder": number, "id"?: number} | {"folder": number, "ids"?: [number]} (default: the selected messages). An id of another kind or null, or both, is refused"#;
 const EXTEND: &str = r#"{"extend"?: bool} — with `extend` (Shift), the selection runs from its anchor to the message moved to, as Shift-click does"#;
 const PAGE: &str = r#"{"rows"?: number (the rows a page of the list holds; default 10, 1 to 10000), "extend"?: bool} — with `extend` (Shift), the selection runs from its anchor to the message moved to"#;
 
@@ -381,7 +383,7 @@ fn not_junk(s: &mut Session, v: &Value) -> CmdResult {
 
 fn move_to(s: &mut Session, v: &Value) -> CmdResult {
     let folder = p::req_id(v, "folder")?;
-    let ids = targets(s, v)?;
+    let ids = targets_strict(s, v)?;
     let before = s.rows();
     let mut moved = Vec::new();
     let mut crossed = Vec::new();
@@ -399,7 +401,7 @@ fn move_to(s: &mut Session, v: &Value) -> CmdResult {
 
 fn copy_to(s: &mut Session, v: &Value) -> CmdResult {
     let folder = p::req_id(v, "folder")?;
-    let ids = targets(s, v)?;
+    let ids = targets_strict(s, v)?;
     let mut copies = Vec::new();
     for id in &ids {
         copies.push(s.mailbox.copy_message_marked(*id, folder, u64::try_from(s.now()).unwrap_or_default())?);
