@@ -989,8 +989,8 @@ impl Default for Mailbox {
 pub const BETWEEN_MAILBOXES: &str =
     "Mail moves and copies between a shared mailbox and its own account's mailboxes only: move it there, or into a folder on this computer";
 
-/// Why mail from another mailbox doesn't go into an account's Outbox (#451): what waits there
-/// is sent by the next Send/Receive.
+/// Why mail from another mailbox doesn't go into an Outbox that sends what lies in it, as a
+/// Microsoft account's does (#451); an IMAP account's holds it ([`MOVED_INTO_OUTBOX`], #607).
 pub const INTO_OUTBOX: &str = "Mail from another mailbox can't go into an Outbox: the next Send/Receive would send it";
 
 /// The local folder that mail imported for a Microsoft account goes to (R3 spec S30).
@@ -1005,6 +1005,23 @@ pub const NOT_SENDING_YET: &str = "MailCraft doesn't send mail from a JMAP accou
 /// or a deletion reaches the server only once the engine sends changes, and until then the next
 /// run would bring the message back where it was.
 pub const NOT_MOVING_YET: &str = "MailCraft doesn't move or delete a JMAP account's mail yet: the next Send/Receive would bring it back";
+
+/// What a message moved into an IMAP account's Outbox says of why it isn't sent
+/// ([`Message::held`]): only mail queued with Send leaves through the Outbox (#607).
+pub const MOVED_INTO_OUTBOX: &str = "Moved into the Outbox, not sent. Send Again sends it";
+
+/// Only what is queued with Send leaves through an IMAP account's Outbox (#607): a message moved
+/// or copied there is held, as one a Microsoft account's server refused is, until Send Again. One
+/// that leaves an Outbox is no longer held for having been put in it.
+fn hold_if_put_in_outbox(m: &mut Message, into_outbox: bool) {
+    if into_outbox {
+        if m.held.is_empty() {
+            m.held = MOVED_INTO_OUTBOX.to_string();
+        }
+    } else if m.held == MOVED_INTO_OUTBOX {
+        m.held.clear();
+    }
+}
 
 /// Why a JMAP account's folders keep their names and places ([`Mailbox::folder_stays_on_server`]):
 /// a rename or a move reaches the server only once the engine sends changes, and until then it
@@ -1822,7 +1839,9 @@ impl Mailbox {
             // Moved on by its owner: what its server says of it from here on goes as for any other.
             self.message_mut(id)?.returned = 0;
         }
+        let into_outbox = self.is_imap_outbox(folder);
         if self.move_between_accounts(id, folder, account, &remote, fresh)? {
+            hold_if_put_in_outbox(self.message_mut(id)?, into_outbox);
             return Ok(());
         }
         let (uid, synced) = self.imap_side(id, folder, account, &remote, fresh)?;
@@ -1832,6 +1851,7 @@ impl Mailbox {
         // The UID belonged to the old folder.
         m.uid = uid;
         m.synced = synced;
+        hold_if_put_in_outbox(m, into_outbox);
         Ok(())
     }
 
@@ -1888,6 +1908,17 @@ impl Mailbox {
             }
         }
         Ok((uid_there, synced_there))
+    }
+
+    /// Whether `folder` is in an Outbox that sends what is put in it: not an IMAP account's, which
+    /// holds it ([`MOVED_INTO_OUTBOX`]).
+    fn sends_from(&self, folder: Id) -> bool {
+        self.is_send_queue(folder) && !self.is_imap_outbox(folder)
+    }
+
+    /// Whether `folder` is the Outbox of an IMAP account, which sends all it holds (#607).
+    fn is_imap_outbox(&self, folder: Id) -> bool {
+        self.folder(folder).is_some_and(|f| f.kind == FolderKind::Outbox && self.account(f.account).is_some_and(|a| a.kind == AccountKind::Imap))
     }
 
     /// Whether `account` is kept in step through Microsoft Graph.
@@ -2064,8 +2095,9 @@ impl Mailbox {
         if from_account == to_account {
             return Ok(false);
         }
-        // Back into the account it came from too: the next Send/Receive would send it (#607).
-        if self.is_send_queue(folder) {
+        // Not into an Outbox that would send it, the account it came from's included; an IMAP
+        // account's holds it (#607).
+        if self.sends_from(folder) {
             return Err(invalid(INTO_OUTBOX));
         }
         // Back into the IMAP account whose server still has the original: the move out of it
@@ -2196,7 +2228,7 @@ impl Mailbox {
         let to_account = self.folder(folder).ok_or(not_found("folder", folder))?.account;
         let m = self.message(id).ok_or(not_found("message", id))?;
         let from_account = m.account;
-        if from_account != to_account && self.is_send_queue(folder) {
+        if from_account != to_account && self.sends_from(folder) {
             return Err(invalid(INTO_OUTBOX));
         }
         if self.placed_into(from_account, to_account) {
@@ -2208,6 +2240,7 @@ impl Mailbox {
             let mut copy = m.clone();
             (copy.id, copy.folder, copy.account, copy.uid, copy.synced) = (0, folder, to_account, 0, None);
             (copy.server, copy.moving_out, copy.returned) = (None, None, 0);
+            hold_if_put_in_outbox(&mut copy, self.is_imap_outbox(folder));
             let new = self.add_message(copy)?;
             let marker = self.place_marker(new, &source);
             self.queued.push(Queued::PlaceMessage { account: to_account, message: new, marker, copy: true, from: None });
@@ -2229,6 +2262,7 @@ impl Mailbox {
         copy.moving_out = None;
         // (Put back after a refused copy is said of the message, not of a copy of it.)
         copy.returned = 0;
+        hold_if_put_in_outbox(&mut copy, self.is_imap_outbox(folder));
         let new = self.add_message(copy)?;
         if let Some(server) = server {
             let to = self.folder(folder).and_then(|f| f.server.as_ref()).map(|s| s.id.clone()).unwrap_or_default();

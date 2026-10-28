@@ -1088,18 +1088,26 @@ fn mail_from_another_mailbox_doesnt_go_into_an_outbox_where_it_would_be_sent() {
         .add_message(Message { folder: notes, subject: "Mine".into(), body: Body { text: "Mine.".into(), html: None }, ..Default::default() })
         .unwrap();
     let two = titled(&s, "Two");
-    for outbox in [s.mailbox.folder_of_kind(ms, FolderKind::Outbox).unwrap(), s.mailbox.folder_of_kind(b, FolderKind::Outbox).unwrap()] {
-        for command in ["mail.move", "mail.copy"] {
-            for id in [two, mine] {
-                let refused = s.run(command, &json!({"ids": [id], "folder": outbox})).unwrap_err();
-                assert_eq!(refused.to_string(), mailcraft_model::INTO_OUTBOX);
-            }
+    // A Microsoft account's Outbox sends what lies in it: refused.
+    let ms_outbox = s.mailbox.folder_of_kind(ms, FolderKind::Outbox).unwrap();
+    for command in ["mail.move", "mail.copy"] {
+        for id in [two, mine] {
+            let refused = s.run(command, &json!({"ids": [id], "folder": ms_outbox})).unwrap_err();
+            assert_eq!(refused.to_string(), mailcraft_model::INTO_OUTBOX);
         }
     }
     assert!(s.mailbox.queued.is_empty() && s.mailbox.pending.is_empty());
     assert_eq!((at(&s, two).0, at(&s, mine).1), (a, notes));
-    // Nor back into the Outbox of the account it came from, while its original there waits to
-    // go (#607): out of Gmail into Microsoft and back, out of Microsoft to this computer and back.
+    // An IMAP account's holds it, as it does what is moved there within the account (#607).
+    let b_outbox = s.mailbox.folder_of_kind(b, FolderKind::Outbox).unwrap();
+    s.run("mail.copy", &json!({"ids": [two], "folder": b_outbox})).unwrap();
+    s.run("mail.move", &json!({"ids": [mine], "folder": b_outbox})).unwrap();
+    assert_eq!(s.mailbox.messages_in(b_outbox).count(), 2);
+    assert!(s.mailbox.messages_in(b_outbox).all(|m| m.held == mailcraft_model::MOVED_INTO_OUTBOX));
+    assert!(sync_request(&s, b).unwrap().outbox.is_empty());
+    // Back into the Outbox of the account it came from, while its original there waits to go:
+    // out of Gmail into Microsoft and back, held; out of Microsoft to this computer and back,
+    // refused.
     let (theirs, own) = (s.mailbox.folder_of_kind(ms, FolderKind::Inbox).unwrap(), s.mailbox.folder_of_kind(a, FolderKind::Outbox).unwrap());
     s.run("mail.move", &json!({"ids": [two], "folder": theirs})).unwrap();
     let server = mailcraft_model::sync::ServerMessage { id: "AAkA7".into(), folder: "in".into(), ..Default::default() };
@@ -1107,13 +1115,13 @@ fn mail_from_another_mailbox_doesnt_go_into_an_outbox_where_it_would_be_sent() {
     let receipt =
         s.mailbox.add_message(Message { folder: theirs, subject: "Receipt".into(), server: Some(server), body, ..Default::default() }).unwrap();
     s.run("mail.move", &json!({"ids": [receipt], "folder": kept})).unwrap();
-    for (id, outbox) in [(two, own), (receipt, s.mailbox.folder_of_kind(ms, FolderKind::Outbox).unwrap())] {
-        for command in ["mail.move", "mail.copy"] {
-            let refused = s.run(command, &json!({"ids": [id], "folder": outbox})).unwrap_err();
-            assert_eq!(refused.to_string(), mailcraft_model::INTO_OUTBOX);
-        }
+    for command in ["mail.move", "mail.copy"] {
+        let refused = s.run(command, &json!({"ids": [receipt], "folder": ms_outbox})).unwrap_err();
+        assert_eq!(refused.to_string(), mailcraft_model::INTO_OUTBOX);
     }
-    assert_eq!((at(&s, two).1, at(&s, receipt).1), (theirs, kept));
+    s.run("mail.move", &json!({"ids": [two], "folder": own})).unwrap();
+    assert_eq!((at(&s, two).1, at(&s, receipt).1), (own, kept));
+    assert_eq!(s.mailbox.message(two).unwrap().held, mailcraft_model::MOVED_INTO_OUTBOX);
     assert!(sync_request(&s, a).unwrap().outbox.is_empty());
 }
 

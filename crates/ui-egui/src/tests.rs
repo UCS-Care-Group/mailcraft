@@ -662,7 +662,7 @@ fn the_system_remembers_passwords_and_sign_ins_only_when_wanted() {
             tx.send(Ok(tokens)).unwrap();
             rx
         }));
-        a.services.secrets = Some(Box::new(store.clone()));
+        a.services.secrets = Some(std::sync::Arc::new(store.clone()));
         a
     };
 
@@ -679,6 +679,7 @@ fn the_system_remembers_passwords_and_sign_ins_only_when_wanted() {
     assert_eq!(kept("password:avery@mail.example|imap=imap.mail.example:0|smtp=none").as_deref(), Some("pw-one"));
     // A sign-in is remembered as its refresh token; the access token is not kept anywhere.
     a.execute("ui.sync", json!({"account": signed})).unwrap();
+    crate::secret_read_tests::settle(&mut a);
     a.poll_sign_in();
     a.poll_sync();
     assert_eq!(kept("refresh:quinn@mail.example|imap=imap.mail.example:0|smtp=none").as_deref(), Some("ref-kept"));
@@ -689,11 +690,14 @@ fn the_system_remembers_passwords_and_sign_ins_only_when_wanted() {
 
     // The next start: nobody is asked for the password, and the sign-in renews without a browser.
     let mut b = start(a.session.mailbox.clone());
-    assert_eq!(b.execute("ui.sync", json!({"account": plain})).unwrap()["started"], true);
-    assert!(b.dialog.is_none());
+    // (The store is asked again first, off the window's thread, and the run goes on with the answer.)
+    assert_eq!(b.execute("ui.sync", json!({"account": plain})).unwrap()["pending"], "secrets");
+    crate::secret_read_tests::settle(&mut b);
+    assert!(b.syncing() && b.dialog.is_none());
     b.poll_sync();
     assert_eq!(synced.lock().unwrap().last().unwrap().0, "pw-one");
     b.execute("ui.sync", json!({"account": signed})).unwrap();
+    crate::secret_read_tests::settle(&mut b);
     assert_eq!(renewals.lock().unwrap().last().unwrap(), "ref-kept");
     b.poll_sign_in();
     b.poll_sync();
@@ -704,7 +708,9 @@ fn the_system_remembers_passwords_and_sign_ins_only_when_wanted() {
     b.poll_sync();
     refuse.store(false, Ordering::Relaxed);
     assert_eq!(kept("password:avery@mail.example|imap=imap.mail.example:0|smtp=none"), None);
-    assert_eq!(b.execute("ui.sync", json!({"account": plain})).unwrap()["pending"], "password");
+    assert_eq!(b.execute("ui.sync", json!({"account": plain})).unwrap()["pending"], "secrets");
+    crate::secret_read_tests::settle(&mut b);
+    assert_eq!(b.dialog.as_ref().map(|d| d.name()), Some("password"));
     b.dialog = None;
 
     // Switched off: what was kept goes, and nothing new is kept.
@@ -772,7 +778,7 @@ fn a_sign_in_as_somebody_else_is_never_taken_for_an_account_that_exists() {
         tx.send(Ok(tokens)).unwrap();
         rx
     }));
-    a.services.secrets = Some(Box::new(store.clone()));
+    a.services.secrets = Some(std::sync::Arc::new(store.clone()));
     let id = a.execute(
         "account.add",
         json!({"email": "quinn@mail.example", "auth": "oauth2", "provider": "microsoft", "incoming": {"host": "outlook.office365.com"}}),
@@ -783,6 +789,7 @@ fn a_sign_in_as_somebody_else_is_never_taken_for_an_account_that_exists() {
 
     // Send/Receive signs in for mail: refused, said, and no run with the other one's token.
     a.execute("ui.sync", json!({"account": id})).unwrap();
+    crate::secret_read_tests::settle(&mut a);
     a.poll_sign_in();
     assert!(nothing_kept(&a) && synced.lock().unwrap().is_empty() && !a.syncing());
     assert_eq!(a.status_msg.as_ref().map(|(m, _)| m.as_str()), Some(said));
@@ -802,6 +809,7 @@ fn a_sign_in_as_somebody_else_is_never_taken_for_an_account_that_exists() {
     // The account's own address, whatever its case: used and remembered as before.
     *who.lock().unwrap() = "Quinn@Mail.Example".into();
     a.execute("ui.sync", json!({"account": id})).unwrap();
+    crate::secret_read_tests::settle(&mut a);
     a.poll_sign_in();
     assert_eq!(a.tokens.get(&id).map(|t| t.access.as_str()), Some("tok-other"));
     assert_eq!(
@@ -815,6 +823,7 @@ fn a_sign_in_as_somebody_else_is_never_taken_for_an_account_that_exists() {
     store.0.lock().unwrap().clear();
     who.lock().unwrap().clear();
     a.execute("ui.sync", json!({"account": id})).unwrap();
+    crate::secret_read_tests::settle(&mut a);
     a.poll_sign_in();
     assert!(a.tokens.contains_key(&id));
     a.poll_sync();
@@ -823,6 +832,7 @@ fn a_sign_in_as_somebody_else_is_never_taken_for_an_account_that_exists() {
     a.execute("account.edit", json!({"id": id, "username": "q.admin@mail.example"})).unwrap();
     *who.lock().unwrap() = "Q.Admin@mail.example".into();
     a.execute("ui.sync", json!({"account": id})).unwrap();
+    crate::secret_read_tests::settle(&mut a);
     a.poll_sign_in();
     assert!(a.tokens.contains_key(&id));
 }
@@ -870,7 +880,7 @@ fn a_store_that_cant_be_used_is_said_once_and_the_next_start_asks() {
             tx.send(SyncResult { account: req.account.id, ..Default::default() }).unwrap();
             rx
         }));
-        a.services.secrets = Some(Box::new(store.clone()));
+        a.services.secrets = Some(std::sync::Arc::new(store.clone()));
         a
     };
 
@@ -903,7 +913,9 @@ fn a_store_that_cant_be_used_is_said_once_and_the_next_start_asks() {
 
     // The next start asks for the password, as on a system without a store, and tells again.
     let mut b = start(a.session.mailbox.clone());
-    assert_eq!(b.execute("ui.sync", json!({"account": plain})).unwrap()["pending"], "password");
+    assert_eq!(b.execute("ui.sync", json!({"account": plain})).unwrap()["pending"], "secrets");
+    crate::secret_read_tests::settle(&mut b);
+    assert_eq!(b.dialog.as_ref().map(|d| d.name()), Some("password"));
     b.check_secret_store();
     assert_eq!(b.secrets_trouble, Some(StoreTrouble::Unavailable));
 
