@@ -25,6 +25,8 @@
 //! | Outlook's lists | `mso-list` (the level, and the marker text to replace) |
 //! | a table's or cell's width | `width` (pixels or a percentage, clamped like the attribute, which it beats), `max-width` (clamped; a zero one hides) |
 //! | centring | `margin: auto`, `margin: 0 auto`, or `margin-left` and `margin-right` both `auto`: like `align=center` on a table, or on a block with a `max-width` |
+//! | where a cell's content sits | `vertical-align`: `top`, `middle`, `bottom` (`text-top` and `baseline` as `top`, `text-bottom` as `bottom`) |
+//! | gaps between cells | `border-spacing`: its first length, 0 to 16 pixels |
 //! | a picture's size | `width` and `height` in pixels, where its attributes give none |
 //!
 //! The old-style attributes (`color`, `bgcolor`, `align`, `width`, `height`, `<font size>`) are
@@ -43,8 +45,8 @@
 //! (without that, such a message showed no text at all).
 
 use crate::{
-    Align, Insets, Length, Line, LineHeight, LineStyle, MAX_BOX_PX, MAX_FONT_PX, MAX_LINE_HEIGHT, MAX_LINE_PX, MAX_RADIUS_PX, MIN_FONT_PX,
-    MIN_LINE_HEIGHT, Rgb, truncate,
+    Align, Insets, Length, Line, LineHeight, LineStyle, MAX_BOX_PX, MAX_FONT_PX, MAX_LINE_HEIGHT, MAX_LINE_PX, MAX_RADIUS_PX, MAX_SPACING_PX,
+    MIN_FONT_PX, MIN_LINE_HEIGHT, Rgb, VAlign, truncate,
 };
 
 /// Longest `style` attribute read, in bytes; the rest is ignored.
@@ -142,6 +144,9 @@ pub(crate) struct Css {
     /// Whether the left (right) margin is `auto`.
     pub margin_left_auto: Option<bool>,
     pub margin_right_auto: Option<bool>,
+    pub valign: Option<VAlign>,
+    /// `border-spacing`, in pixels.
+    pub spacing: Option<u8>,
 }
 
 impl Css {
@@ -318,6 +323,8 @@ impl Css {
                 }
                 "border-radius" => css.radius = radius_px(value).unwrap_or(css.radius),
                 "line-height" => css.line_height = line_height(value).or(css.line_height),
+                "vertical-align" => css.valign = valign(value).or(css.valign),
+                "border-spacing" => css.spacing = tokens(value).next().and_then(spacing).or(css.spacing),
                 "mso-list" => {
                     css.mso_list = if value.starts_with("ignore") {
                         Some(MsoList::Ignore)
@@ -720,6 +727,24 @@ fn css_length(value: &str) -> Option<Length> {
     }
     let px = length_px(value)?;
     (px >= 1.0).then(|| Length::Px(px.round().min(f32::from(u16::MAX)) as u16))
+}
+
+/// A `vertical-align` or `valign`.
+pub(crate) fn valign(value: &str) -> Option<VAlign> {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "top" | "text-top" | "baseline" => Some(VAlign::Top),
+        "middle" | "center" => Some(VAlign::Middle),
+        "bottom" | "text-bottom" => Some(VAlign::Bottom),
+        _ => None,
+    }
+}
+
+/// A gap between cells in pixels, clamped to 0 to [`MAX_SPACING_PX`]: a length in a style, or a
+/// bare number (`cellspacing="4"`).
+pub(crate) fn spacing(value: &str) -> Option<u8> {
+    let value = value.trim();
+    let px = length_px(value).or_else(|| value.parse::<f32>().ok().filter(|n| n.is_finite()))?;
+    Some(px.round().clamp(0.0, f32::from(MAX_SPACING_PX)) as u8)
 }
 
 /// Whether a length is zero, whatever its unit; `None` for something that isn't a length (`auto`).
