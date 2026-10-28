@@ -23,6 +23,7 @@ pub mod pictures;
 pub mod pop;
 pub mod provider;
 pub mod remote;
+pub mod remote_rules;
 pub mod remote_tasks;
 pub mod rich;
 mod rule;
@@ -59,7 +60,7 @@ pub use message::{
 pub use offline::{KeepOffline, OfflineWindow};
 pub use remote::Origin;
 pub use rich::{RichBody, RichText};
-pub use rule::{Action, Condition, Rule};
+pub use rule::{Action, Condition, Keep, MAX_RULE_GONE, Rule, RuleGone, ServerRule};
 pub use signature::Signature;
 pub use task::{LocalTasks, MAX_TASK_GONE, SharedTaskList, SharedTaskLists, Task, TaskFields, TaskGone, TaskPatch};
 
@@ -105,6 +106,11 @@ pub fn clean_name(s: &str) -> Option<String> {
     (!s.is_empty()).then_some(s)
 }
 
+/// For leaving an id out of what is written when there is none.
+pub(crate) fn is_zero_id(id: &Id) -> bool {
+    *id == 0
+}
+
 /// Case-insensitive "contains", for search and rules.
 pub fn contains_ci(haystack: &str, needle: &str) -> bool {
     needle.is_empty() || haystack.to_lowercase().contains(&needle.to_lowercase())
@@ -138,6 +144,8 @@ mod pictures_tests;
 mod pop_tests;
 #[cfg(test)]
 mod recurrence_tests;
+#[cfg(test)]
+mod rule_tests;
 #[cfg(test)]
 mod search_advanced_tests;
 #[cfg(test)]

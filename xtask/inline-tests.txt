@@ -63,7 +63,6 @@ crates/model/src/message.rs
 crates/model/src/offline.rs
 crates/model/src/provider.rs
 crates/model/src/remote.rs
-crates/model/src/rule.rs
 crates/model/src/search.rs
 crates/model/src/sync/progress.rs
 crates/model/src/sync.rs

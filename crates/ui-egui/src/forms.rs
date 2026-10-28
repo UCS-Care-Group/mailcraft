@@ -6433,6 +6433,7 @@ mod tests {
                     conditions: vec![Condition::BodyContains(junk.clone()); 20],
                     actions: vec![Action::MoveTo(i), Action::Categorize(junk.clone())],
                     stop: true,
+                    ..Default::default()
                 });
             }
             let p = json!({"title": junk, "first": junk, "email": junk, "start": junk, "attendees": junk, "displayName": junk});

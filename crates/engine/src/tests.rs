@@ -1819,6 +1819,7 @@ mod two_way {
             conditions: vec![mailcraft_model::Condition::SubjectContains("report".into())],
             actions: vec![mailcraft_model::Action::MarkRead, mailcraft_model::Action::MoveTo(archive)],
             stop: false,
+            ..Default::default()
         });
         // The same UID twice in one answer is one message.
         let arrived = SyncResult {

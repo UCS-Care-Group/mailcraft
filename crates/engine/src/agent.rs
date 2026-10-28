@@ -389,6 +389,7 @@ const ACCOUNTS: &[&str] = &[
     "ui.allowSharedSend",
     "ui.allowSharedCalendars",
     "ui.allowTasks",
+    "ui.allowRules",
     "ui.checkCalendar",
     "ui.adminConsent",
     "ui.signInAgain",
@@ -414,6 +415,8 @@ const SETTINGS: &[&str] = &[
     "rules.list",
     "rules.run",
     "rules.fromMessage",
+    "rules.move",
+    "rules.keepOnServer",
     // Junk E-mail Options (#504): what the lists send to Junk E-mail or let through.
     "junk.blockSender",
     "junk.neverBlockSender",
@@ -468,6 +471,9 @@ const NEVER: &[&str] = &[
     "sync.taskChanges",
     "sync.applyTaskChanges",
     "sync.applyTasks",
+    "sync.ruleChanges",
+    "sync.applyRuleChanges",
+    "sync.applyRules",
     "sync.applyCalendars",
     "sync.applyCategories",
     "sync.applyFavorites",
@@ -1028,6 +1034,27 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
             let from = p::id(params, "id").or(s.sel.focus()).and_then(|m| s.mailbox.message(m)).map(|m| plain(&m.from.email)).unwrap_or_default();
             format!("make a rule that always moves mail from {} to {to}", quoted(&from))
         }
+        "rules.move" => {
+            let r = p::id(params, "id").and_then(|r| s.mailbox.rules.iter().find(|r2| r2.id == r));
+            let way = if p::str(params, "direction") == Some("down") { "down" } else { "up" };
+            match r {
+                Some(r) => format!("move the rule {} {way}, which changes which rules run first", quoted(&r.name)),
+                None => "move a rule that isn't there".to_string(),
+            }
+        }
+        "rules.keepOnServer" => {
+            let r = p::id(params, "id").and_then(|r| s.mailbox.rules.iter().find(|r2| r2.id == r));
+            let account = p::id(params, "account").or(r.map(|r| r.account)).and_then(|a| s.mailbox.account(a));
+            let to = account.map(|a| quoted(&plain(&a.email))).unwrap_or_else(|| "a Microsoft account".to_string());
+            match r {
+                Some(r) => format!(
+                    "keep the rule {} on the server of {to}, where it runs whether MailCraft is open or not: {}",
+                    quoted(&r.name),
+                    rule_words(s, r)
+                ),
+                None => "keep a rule that isn't there on a server".to_string(),
+            }
+        }
         "rules.enable" | "rules.remove" => {
             let r = p::id(params, "id").and_then(|r| s.mailbox.rules.iter().find(|r2| r2.id == r));
             let verb = if id == "rules.remove" { "delete" } else { "switch on or off" };
@@ -1244,7 +1271,8 @@ const SHARED_TASK: &str = ", which is in a To Do list shared with other people: 
 
 /// A rule as it would be made, in words, naming the folders by their paths.
 fn rule_words(s: &Session, r: &mailcraft_model::Rule) -> String {
-    let when = r.conditions.iter().map(|c| plain(&c.describe())).collect::<Vec<_>>().join(" and ");
+    let addresses = s.mailbox.rule_reads_addresses(r);
+    let when = r.conditions.iter().map(|c| plain(&c.describe_as(addresses))).collect::<Vec<_>>().join(" and ");
     let then = r
         .actions
         .iter()
@@ -1260,6 +1288,14 @@ fn rule_words(s: &Session, r: &mailcraft_model::Rule) -> String {
 
 fn rule_text(s: &Session, params: &Value) -> String {
     match crate::cmd::rules::rule_from_params(s, params) {
+        Ok(r) if r.keep == mailcraft_model::Keep::Server => {
+            let on = s.mailbox.account(r.account).map(|a| quoted(&plain(&a.email))).unwrap_or_default();
+            format!(
+                "create the rule {}, kept on the server of {on} where it runs whether MailCraft is open or not: {}",
+                quoted(&r.name),
+                rule_words(s, &r)
+            )
+        }
         Ok(r) => format!("create the rule {}: {}", quoted(&r.name), rule_words(s, &r)),
         Err(_) => "create a rule that can't be made as asked".to_string(),
     }
