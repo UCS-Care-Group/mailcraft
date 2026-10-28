@@ -2,9 +2,12 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! The little of CSS that is read.
 //!
-//! There is no CSS engine: no selectors, no cascade, no `<style>` blocks, no classes, nothing
-//! fetched. [`Css::parse`] reads one `style` attribute for a whitelist of presentational facts and
-//! ignores every other declaration:
+//! There is no CSS engine and nothing is fetched. [`Css::parse`] reads one `style` attribute for a
+//! whitelist of presentational facts and ignores every other declaration. The message's own
+//! `<style>` blocks give the same whitelist more declarations (`sheet.rs` works out which rules
+//! apply to an element and hands them over in the order of the cascade, with the element's own
+//! `style` among them): a style sheet is one more source of the same values, never a new kind of
+//! presentation.
 //!
 //! | Read | From |
 //! |---|---|
@@ -16,7 +19,7 @@
 //! | font size | `font-size`, the size in `font` |
 //! | font family | `font-family`, `<font face>`: the first family's name only, for pasting into the composer (the reading pane draws in its own font) |
 //! | hidden | `display:none`, `visibility:hidden`, `opacity:0`, `max-height:0`, `max-width:0`, a zero `height` or `width` with `overflow:hidden` |
-//! | text too small to read | a font size of 2 pixels or less: the text at that size is not shown; what is inside at a size of its own is, and so are pictures, and so is the text of an element with a `class` or an `id` (or inside one that asks for the size and has one): its size is given in a style sheet, and style sheets are not read |
+//! | text too small to read | a font size of 2 pixels or less: the text at that size is not shown; what is inside at a size of its own is, and so are pictures, and so is the text of an element with a `class` or an `id` (or inside one that asks for the size and has one) when the message has no style sheet to say otherwise |
 //! | margins | `margin` and its sides: a size in `px`, `pt`, `em` or `%` (of 600 px), 0 to 64 pixels a side, negative is 0; `auto` is read for centring only |
 //! | padding | `padding` and its sides: the same units, 0 to 64 pixels a side |
 //! | lines round a box | `border` and its sides, `border-width`, `border-style`, `border-color`: a width of 1 to 4 pixels (`thin`, `medium` and `thick` too), solid, dashed or dotted (every other style is drawn solid), and a colour a UI adjusts to its paper |
@@ -40,9 +43,10 @@
 //! size of nothing around pictures and columns (`font-size:0`, to close the gaps between them)
 //! hides the text written at that size, not the pictures and not the text inside that names a
 //! size of its own. Nor the text inside that gets its size from a style sheet: a builder sets
-//! nothing on every cell and the sizes that count by class, in a `<style>` block that is not
-//! read here, so an element with a `class` or an `id` is not held to the nothing around it
-//! (without that, such a message showed no text at all).
+//! nothing on every cell and the sizes that count by class, in a `<style>` block. Where the
+//! message's style sheets were read, that size is known; where they were not (a message with
+//! none, or none that could be read), an element with a `class` or an `id` is not held to the
+//! nothing around it (without that, such a message showed no text at all).
 
 use crate::{
     Align, Insets, Length, Line, LineHeight, LineStyle, MAX_BOX_PX, MAX_FONT_PX, MAX_LINE_HEIGHT, MAX_LINE_PX, MAX_RADIUS_PX, MAX_SPACING_PX,
@@ -156,6 +160,9 @@ impl Css {
         let mut css = Css::default();
         let mut clipped = false;
         let mut zero_box = false;
+        // What hides, where a later declaration (a style after a style sheet's rule) takes back
+        // an earlier one: `display:none` and then `display:block` shows.
+        let (mut display_none, mut visibility_hidden, mut max_height_zero) = (false, false, false);
         let mut raw = [RawLine::default(); 4];
         for (property, value) in declarations(truncate(style, MAX_STYLE)).take(MAX_DECLARATIONS) {
             if value.len() > MAX_VALUE || property.len() > 32 {
@@ -205,16 +212,16 @@ impl Css {
                 "text-align" => css.align = align(value).or(css.align),
                 "font-size" => css.size = font_size(value).or(css.size),
                 "font-family" => css.font = family(value).or(css.font.take()),
-                "display" => css.hidden |= value == "none",
-                "visibility" => css.hidden |= matches!(value, "hidden" | "collapse"),
+                "display" => display_none = value == "none",
+                "visibility" => visibility_hidden = matches!(value, "hidden" | "collapse"),
                 "opacity" => css.hidden |= number(value.trim_end_matches('%')).is_some_and(|n| n <= 0.0),
                 // (`mso-hide:all` hides nothing here: see the notes at the top.)
-                "max-height" => css.hidden |= is_zero(value) == Some(true),
+                "max-height" => max_height_zero = is_zero(value) == Some(true),
                 "max-width" => {
                     css.hidden |= is_zero(value) == Some(true);
                     css.max_width = css_length(value).or(css.max_width);
                 }
-                "overflow" | "overflow-x" | "overflow-y" => clipped |= tokens(value).any(|t| matches!(t, "hidden" | "clip")),
+                "overflow" | "overflow-x" | "overflow-y" => clipped = tokens(value).any(|t| matches!(t, "hidden" | "clip")),
                 "height" => {
                     css.height = length_px(value).or(css.height);
                     zero_box |= is_zero(value) == Some(true);
@@ -341,7 +348,7 @@ impl Css {
         }
         // (A font size too small to read hides the text written at it, and nothing else: that is
         // seen to where the size is resolved, [`Size::resolve`].)
-        css.hidden |= zero_box && clipped;
+        css.hidden |= (zero_box && clipped) || max_height_zero || display_none || visibility_hidden;
         for ((line, raw), border) in css.lines.iter_mut().zip(raw).zip(&mut css.borders) {
             *line = raw.finish();
             *border = line.is_set();

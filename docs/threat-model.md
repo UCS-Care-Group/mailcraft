@@ -1,6 +1,6 @@
 # Threat model
 
-> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-10-27 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
+> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-10-28 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
 
 What MailCraft protects, from whom, and how, with the code that does it. Rules for working in the
 code are in [`CLAUDE.md`](../CLAUDE.md) and [`AGENTS.md`](../AGENTS.md); how to report a
@@ -24,7 +24,12 @@ Writes any bytes into a message: crafted MIME, HTML, headers, attachments, pictu
 
 - **Nothing in a message runs.** HTML becomes display blocks in `crates/html`: no script engine, no
   CSS engine, no web view. The only presentation read from a message is the whitelist in
-  `crates/html/src/style.rs`, from inline attributes; `<style>` blocks are ignored.
+  `crates/html/src/style.rs`, from inline attributes and from the message's own `<style>` blocks
+  (`crates/html/src/sheet.rs`, our own reader: selectors, specificity, order and `!important`,
+  within caps of 64 KB, 4,000 rules, 16 parts to a selector and a bounded count of matching
+  steps; fuzzed). A style sheet is one more source of the same values, never a new kind of
+  presentation, and nothing in it is run or fetched: `@import`, `@font-face`, other at-rules,
+  `url()` and `content` are ignored, and `:visited` never matches.
 - **Nothing is fetched by itself.** Pictures attached to the message (`cid:`) are shown, and so are
   pictures written into it (`data:image/…;base64,` in an `<img>`, #533): only a PNG, JPEG, GIF or
   WebP by its declared type and its own bytes (never SVG, HTML or text), decoded within caps
@@ -508,3 +513,4 @@ settings files (`crates/engine/src/store.rs`); commands from the control channel
 | 2026-10-25 | minor | Late sign-in and Graph-switch copy dropped after a mailbox swap; credential-store key names indexed so the wipe and Remember-off remove every entry; a handed mailto: keeps the open draft (AU2-15, 16, 18, 19) |
 | 2026-10-23 | minor | Always-download pictures need the server's `dmarc=pass`, ASCII addresses, and Junk subfolders count as Junk; an invitation changes a local meeting only for its organizer, whose address is shown; the update question names installing; the log keeps no subjects, addresses or folder names |
 | 2026-10-22 | minor | `--control-agents-only`: every control request is an agent's, allowed nothing in advance; the mailbox file and `mailcraft-cli` stay within reach of an agent running as the owner |
+| 2026-10-28 | minor | A message's `<style>` blocks are read for the style whitelist by a reader of our own, within caps and fuzzed; nothing in a sheet is run or fetched (#598) |

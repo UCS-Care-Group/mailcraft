@@ -50,6 +50,12 @@ pub const STYLE_CARD: &str = include_str!("../corpus/style_card.html");
 /// with a line under each row (#71).
 pub const STYLE_BOXES: &str = include_str!("../corpus/style_boxes.html");
 
+/// A coffee roaster's letter whose whole look is in a `<style>` block (#598): reset rules, a
+/// hidden preheader, descendant, child, adjacent, attribute and structural selectors,
+/// `!important`, `:visited` and `:hover` rules that must not apply, `@import`, `@font-face`
+/// and `@media` that must do nothing, and mobile and desktop copies of one line.
+pub const STYLE_SHEET_NEWSLETTER: &str = include_str!("../corpus/style_sheet_newsletter.html");
+
 /// An order confirmation: a grid of order facts, and a data table with a header row, right-aligned
 /// amounts, spanning total rows and lines under the rows.
 pub const RECEIPT: &str = include_str!("../corpus/receipt.html");
@@ -110,6 +116,7 @@ pub fn messages() -> Vec<(&'static str, &'static str)> {
         ("style width table", STYLE_WIDTH_TABLE),
         ("style card", STYLE_CARD),
         ("style boxes", STYLE_BOXES),
+        ("style sheet newsletter", STYLE_SHEET_NEWSLETTER),
     ]
 }
 
@@ -166,6 +173,31 @@ pub fn hostile() -> Vec<(&'static str, String)> {
         ),
         ("many rules", "<hr>text".repeat(100_000)),
         ("strange text", strange),
+        (
+            "sheet deep selectors",
+            format!(
+                "<style>{}{{color:red}}{}{{color:red}}</style>{}x",
+                vec!["div"; 16].join(" "),
+                vec!["div.a"; 17].join(" > "),
+                "<div class=a>".repeat(20_000)
+            ),
+        ),
+        (
+            "sheet many rules",
+            format!(
+                "<style>{}</style>{}",
+                (0..9_000).map(|i| format!("p.c{i} span, .x{i}:not(.y) + b{{color:#{:06x}}}", i * 4099)).collect::<String>(),
+                "<p class=c1><span>s</span></p>".repeat(30_000)
+            ),
+        ),
+        (
+            "sheet siblings",
+            format!(
+                "<style>.a ~ .b ~ .c ~ .d ~ .e, .a + .a + .a + .z, :not(.q):nth-child(2n+1){{color:red}}</style><p>SIBLINGS</p>{}",
+                "<i class=a></i>".repeat(100_000)
+            ),
+        ),
+        ("sheet junk", format!("<style>{}</style><p>x</p>", "{([\\\"'/*@:,>+~!;".repeat(8_000))),
         ("preformatted", format!("<pre>{}</pre>", "    indented\tcode line with    spaces\n".repeat(20_000))),
     ]
 }
