@@ -1052,3 +1052,21 @@ fn a_change_made_during_a_long_graph_download_goes_out_without_waiting_for_it() 
     }
     no_imap();
 }
+
+#[test]
+fn delete_on_a_shared_mailboxs_conversation_names_whose_folder_it_is() {
+    let (mut app, _, shared, _) = with_shared_inbox();
+    let theirs = app.session.mailbox.folder_by_server(shared, "in").unwrap();
+    for (at, subject) in [(1_791_000_000, "Plans"), (1_791_000_060, "Re: Plans")] {
+        let m = mailcraft_model::Message { folder: theirs, subject: subject.into(), date: at, received: at, ..Default::default() };
+        app.session.mailbox.add_message(m).unwrap();
+    }
+    app.session.mailbox_changed();
+    app.execute("folder.select", json!({"id": theirs})).unwrap();
+    app.execute("view.conversations", json!({"value": true})).unwrap();
+    let row = app.session.rows().iter().find(|r| r.members.len() == 2).cloned().unwrap();
+    app.execute("mail.select", json!({"id": row.id})).unwrap();
+    assert_eq!(app.run("mail.delete", json!({})).unwrap()["pending"], "confirm");
+    let Some(crate::dialogs::Dialog::Confirm { ask, .. }) = &app.dialog else { panic!("not asked") };
+    assert!(ask.text.starts_with(&format!("This deletes the conversation from Inbox - {SHARED}: ")), "{}", ask.text);
+}

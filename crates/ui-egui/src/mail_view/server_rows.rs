@@ -175,7 +175,7 @@ fn result_row(app: &mut MailApp, ui: &mut Ui, index: usize, rect: Rect) {
     let rule = if t.dark { t.border_strong } else { t.border };
     p.line_segment([pos2(body.min.x, rect.max.y - 0.5), pos2(rect.max.x, rect.max.y - 0.5)], Stroke::new(1.0, rule));
     if app.session.prefs.columns.enabled {
-        super::columns::paint(app, ui, &m, rect, unread, 1, true);
+        super::columns::paint(app, ui, &m, rect, unread, 1, false, true);
     } else {
         let left = rect.min.x + TEXT_LEFT;
         let (time_end, text_end) = (rect.max.x - TIME_RIGHT, rect.max.x - TEXT_RIGHT);

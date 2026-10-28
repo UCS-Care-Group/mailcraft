@@ -1,6 +1,6 @@
 # MCP server
 
-> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-10-27 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
+> **Last reviewed:** 2026-10-15 · **Last updated:** 2026-10-28 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
 
 MailCraft speaks the [Model Context Protocol](https://modelcontextprotocol.io) over stdio, so
 agents can read, file and write mail and keep a calendar.
@@ -151,7 +151,7 @@ app's Send/Receive) delivers it.
 | `open_mailbox` / `save_mailbox` | a `.mailcraft` file, the sample mailbox, or an empty one |
 | `import_file` | bring in `.eml`, `.mbox`, `.ics`, `.vcf` |
 | `inspect_mailbox` / `list_folders` | accounts and counts; the folder tree |
-| `list_messages` | a folder's list, optionally searched (`from:`, `has:attachment`, `is:unread`, dates…) |
+| `list_messages` | a folder's list, optionally searched (`from:`, `has:attachment`, `is:unread`, dates…); the window's folder, search and selection stay as they are |
 | `read_message` | one message in full |
 | `send_message` | write and send a new message |
 | `list_events` / `list_contacts` / `list_tasks` | the calendar between two days; people; to-dos |
@@ -173,6 +173,7 @@ parameters.
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-28 | minor | #620: an agent names the messages (`ids` or `id`) for delete, delete for good, move, copy, archive, junk, not junk, reply, reply all, forward, forward as attachment, open draft, remove attachment and send again; the window's selection is the owner's. `list_messages` reads a folder and search without moving the window to them |
 | 2026-10-27 | minor | #508: `mail.dismissWarnings` (hiding a message's sender-warning banner) needs the owner (class settings) |
 | 2026-10-11 | major | First version, from `crates/mcp/src` |
 | 2026-10-15 | major | Agents get only what the owner allows: classes, no file paths but inside `--files`, `--allow`, the question in the window, untrusted message text framed |

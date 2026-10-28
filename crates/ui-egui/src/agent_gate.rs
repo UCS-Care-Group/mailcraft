@@ -36,6 +36,11 @@ pub struct Asking {
     allow: Vec<Class>,
     reply: Sender<Value>,
     deadline: f64,
+    /// The mailbox it is about (`Session::openings`): its ids are that mailbox's (#503).
+    opening: u64,
+    /// The messages a Delete or Move names, with the folder each was in when the owner was asked
+    /// (#503).
+    counted: Vec<(u64, u64)>,
 }
 
 /// The questions waiting, the first one on screen.
@@ -97,14 +102,20 @@ fn gate(app: &mut MailApp, req: &ControlRequest, id: &str, mut params: Value, al
             if app.asking.len() >= MOST {
                 return err("too many questions are waiting for the owner; nothing was done");
             }
+            let counted = match counted(app, id, &params) {
+                Ok(counted) => counted,
+                Err(why) => return err(why),
+            };
             app.asking.push_back(Asking {
                 id: id.to_string(),
+                counted,
                 params,
                 class,
                 what,
                 allow: allow.to_vec(),
                 reply: req.reply.clone(),
                 deadline: crate::now_ms() + WAIT_MS,
+                opening: app.session.openings(),
             });
             Outcome::Pending
         }
@@ -229,13 +240,61 @@ fn run(app: &mut MailApp, id: &str, params: Value, allow: &[Class]) -> Outcome {
     }
 }
 
+/// The messages an agent's Delete or Move names (`ids` or `id`, which it must: [`agent::NEEDS_IDS`])
+/// and the folder each is in, as the owner is asked about them (#503). One that isn't in the
+/// mailbox is refused, never asked about: a message that comes in meanwhile, or one an undo puts
+/// back, could take its id, and the yes would reach a message the owner wasn't shown.
+fn counted(app: &MailApp, id: &str, params: &Value) -> Result<Vec<(u64, u64)>, String> {
+    if !matches!(id, "mail.delete" | "mail.deletePermanently" | "mail.move") {
+        return Ok(Vec::new());
+    }
+    let mb = &app.session.mailbox;
+    let named = mailcraft_engine::p::ids_strict(params).ok().flatten().unwrap_or_default();
+    named
+        .into_iter()
+        .map(|m| {
+            mb.message(m).map(|x| (m, x.folder)).ok_or_else(|| format!("`{id}` names message {m}, which isn't in the mailbox: nothing was done"))
+        })
+        .collect()
+}
+
+/// `params` with only those of the `counted` messages that are still in the folder they were
+/// counted in: one moved meanwhile (on another device, which a Send/Receive brings while the
+/// question is open) or gone is left out, as the window's own question does (#503). None when none
+/// is left.
+fn still_where_counted(app: &MailApp, counted: &[(u64, u64)], mut params: Value) -> Option<Value> {
+    if counted.is_empty() {
+        return Some(params);
+    }
+    let mb = &app.session.mailbox;
+    let kept: Vec<u64> = counted.iter().filter(|(m, f)| mb.message(*m).is_some_and(|x| x.folder == *f)).map(|(m, _)| *m).collect();
+    if kept.is_empty() {
+        return None;
+    }
+    if kept.len() < counted.len() {
+        let map = params.as_object_mut()?;
+        map.remove("id");
+        map.insert("ids".into(), json!(kept));
+    }
+    Some(params)
+}
+
 /// The owner's answer to the question on screen.
 pub fn answer(app: &mut MailApp, yes: bool) {
     let Some(a) = app.asking.pop_front() else { return };
-    let out = if yes {
+    let out = if a.opening != app.session.openings() {
+        err(format!("another mailbox was opened before the owner answered about `{}`: nothing was done", a.id))
+    } else if yes {
         // Asked again: what it would do may have changed while the question was up. So may what
         // the window would lose: another form than the one named isn't lost on this yes.
         let params = as_the_window_has_it(app, &a.id, a.params.clone());
+        let Some(params) = still_where_counted(app, &a.counted, params) else {
+            let out = err(format!("what `{}` was asked about has gone or moved since the owner was asked: nothing was done", a.id));
+            if let Outcome::Done(v) = out {
+                let _ = a.reply.send(v);
+            }
+            return;
+        };
         let lost = params.get("unsaved").filter(|u| !u.is_null());
         let other = lost.is_some() && lost != a.params.get("unsaved");
         let verdict = agent::answered(&app.session, &a.id, &params, &a.allow, a.class);
@@ -253,6 +312,16 @@ pub fn answer(app: &mut MailApp, yes: bool) {
     };
     if let Outcome::Done(v) = out {
         let _ = a.reply.send(v);
+    }
+}
+
+/// Another mailbox took the place of the one asked about: the questions go with it, unanswered,
+/// since what they name are that mailbox's messages (#503).
+pub fn forget(app: &mut MailApp) {
+    for a in app.asking.drain(..) {
+        let _ = a
+            .reply
+            .send(json!({"ok": false, "error": format!("another mailbox was opened before the owner answered about `{}`: nothing was done", a.id)}));
     }
 }
 
@@ -291,6 +360,9 @@ pub fn keys(app: &mut MailApp, ctx: &egui::Context) {
     let (enter, escape) = (crate::keys::take_enter_out(ctx, layer()), crate::keys::take_escape(ctx, layer()));
     if enter || escape {
         answer(app, false);
+        // The frame's other keys were pressed with the question on screen: none reaches what is
+        // under it (Delete with the Escape that says no; #503).
+        ctx.input_mut(|i| i.events.retain(|e| !matches!(e, egui::Event::Key { .. })));
     }
 }
 

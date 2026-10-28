@@ -287,6 +287,25 @@ fn the_panel_closes_when_what_it_was_opened_for_goes() {
 }
 
 #[test]
+fn an_agents_question_leaves_the_panel_and_what_was_typed_in_it() {
+    let mut w = window();
+    open(&mut w);
+    let r = w.get_by_role_and_label(egui::accesskit::Role::TextInput, tl!("Subject")).rect();
+    testing::click(&mut w, r.center(), PointerButton::Primary, 1);
+    testing::text(&mut w, "budget");
+    let id = w.state_mut().session.rows().first().map(|r| r.id).unwrap();
+    let (request, _answer) = crate::ControlRequest::new("engine.execute", json!({"command": "mail.deletePermanently", "params": {"ids": [id]}}));
+    let request = request.from_agent(Vec::new());
+    assert!(matches!(crate::agent_gate::screen(w.state_mut(), &request, &[]), Some(crate::control::Outcome::Pending)));
+    w.run_steps(3);
+    assert!(is_open(&w), "closed under the agent's question");
+    crate::agent_gate::answer(w.state_mut(), false);
+    w.run_steps(2);
+    w.state_mut().execute("ui.advancedSearch", json!({"search": true})).unwrap();
+    assert_eq!(search(&w), "subject:budget");
+}
+
+#[test]
 fn the_command_takes_true_or_false_and_says_what_is_wrong() {
     let mut w = window();
     let run = |w: &mut Window, p: serde_json::Value| w.state_mut().execute("ui.advancedSearch", p);

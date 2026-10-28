@@ -413,6 +413,9 @@ pub struct AccountSetup {
     /// and as the slider has it now (#143). Saved through `ui.keepOffline`, which asks first
     /// when it is shorter.
     keep_offline: Option<(KeepOffline, KeepOffline)>,
+    /// For the settings of an account of its own: whether Delete on a whole conversation asks
+    /// first, as it was and as the box has it now (#503).
+    ask_conversation: Option<(bool, bool)>,
     /// The settings are of an account kept in step through Microsoft Graph (R3): it has no user
     /// name or mail servers to show, and the page says how its mail comes instead (#312).
     graph: bool,
@@ -492,6 +495,7 @@ impl AccountSetup {
             directory: Directory::Unknown,
             edit: None,
             keep_offline: None,
+            ask_conversation: None,
             graph: false,
             newer: false,
             ctx: None,
@@ -540,6 +544,10 @@ impl AccountSetup {
         w.edit = Some(Editing { id: a.id, baseline: w.fields() });
         if a.kind == AccountKind::Microsoft && !a.is_shared() {
             w.keep_offline = Some((a.keep_offline, a.keep_offline));
+        }
+        // (A shared mailbox asks as its owner does.)
+        if !a.is_shared() {
+            w.ask_conversation = Some((!a.skip_conversation_question, !a.skip_conversation_question));
         }
         w.graph = a.kind == AccountKind::Microsoft;
         w.newer = a.kind == AccountKind::Unknown;
@@ -1066,6 +1074,13 @@ impl AccountSetup {
             self.error = e;
             return false;
         }
+        if let Some((_, ask)) = self.ask_conversation.filter(|(was, ask)| was != ask) {
+            if let Err(e) = app.execute("account.edit", json!({"id": id, "askBeforeDeletingConversation": ask})) {
+                self.error = e;
+                return false;
+            }
+            self.ask_conversation = Some((ask, ask));
+        }
         // A window of mail kept offline: a shorter one asks first, in a question of its own (#143).
         if let Some(keep) = self.keep_offline.filter(|(was, keep)| was != keep).map(|(_, keep)| keep) {
             self.keep_offline = Some((keep, keep));
@@ -1498,6 +1513,11 @@ impl AccountSetup {
                     ui.label(crate::keep_offline::label(*keep));
                 });
             }
+            if let Some((_, ask)) = self.ask_conversation.as_mut() {
+                caption(ui, tl!("Deleting"), &t);
+                ui.checkbox(ask, tl!("Ask before deleting a conversation"))
+                    .on_hover_text(tl!("Delete on a conversation's row that takes more than one message asks first."));
+            }
         });
         problem(ui, &self.error);
         let (mut save, mut cancel) = (false, false);
@@ -1783,6 +1803,8 @@ fn tile(ui: &mut Ui, kind: Kind, width: f32, t: &Tokens) -> Response {
     resp
 }
 
+#[cfg(test)]
+mod delete_question_tests;
 #[cfg(test)]
 mod pop_tests;
 

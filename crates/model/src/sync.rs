@@ -944,9 +944,10 @@ pub struct GraphMessage {
     pub preview: String,
     #[serde(skip_serializing_if = "is_false")]
     pub has_attachments: bool,
-    /// It is a draft (Graph's `isDraft`).
-    #[serde(skip_serializing_if = "is_false")]
-    pub draft: bool,
+    /// It is a draft (Graph's `isDraft`); `None` when the server didn't say, which changes nothing
+    /// here (#611).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub draft: Option<bool>,
 }
 
 /// One page of a folder's message delta, taken in whole with the link that goes on from it, so

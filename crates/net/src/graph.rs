@@ -621,7 +621,7 @@ impl<'a> Graph<'a> {
 
     /// Note one more request asked (the run's timings count them).
     fn count_request(&self) {
-        let _ = self.requests.fetch_update(std::sync::atomic::Ordering::Relaxed, std::sync::atomic::Ordering::Relaxed, |n| Some(n.saturating_add(1)));
+        let _ = self.requests.try_update(std::sync::atomic::Ordering::Relaxed, std::sync::atomic::Ordering::Relaxed, |n| Some(n.saturating_add(1)));
     }
 
     /// How many requests this Graph has asked so far.

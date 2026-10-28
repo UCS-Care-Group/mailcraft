@@ -144,7 +144,7 @@ fn sent_items_name_who_mail_went_to() {
     let account = app.session.mailbox.default_account().unwrap().id;
     let sent = app.session.mailbox.folder_of_kind(account, mailcraft_model::FolderKind::Sent).unwrap();
     let m = app.session.mailbox.messages.values().find(|m| m.folder == sent && !m.to.is_empty()).expect("the sample has sent mail").clone();
-    assert_eq!(super::super::who(&app.session, &m), m.to.iter().map(|a| a.display()).collect::<Vec<_>>().join("; "));
+    assert_eq!(super::super::who(&app.session, &m, false), m.to.iter().map(|a| a.display()).collect::<Vec<_>>().join("; "));
     assert!(!outgoing(app));
     assert_eq!(label(Column::From, outgoing(app)), "From");
     w.state_mut().execute("folder.select", json!({"id": sent})).unwrap();

@@ -8,7 +8,7 @@ use mailcraft_model::sync::{
     FolderDelta, FolderListing, GraphFolder, GraphMailResult, GraphMessage, MessageChange, MessageChangeDone, MessageOutcome, MessagePage, RemoteOp,
     ServerMessage, SyncResult,
 };
-use mailcraft_model::{Address, FlagStatus, FolderKind, Id, Message, ServerFolder};
+use mailcraft_model::{Address, FlagStatus, FolderKind, Id, Importance, Message, ServerFolder};
 use serde_json::json;
 
 use crate::Session;
@@ -629,8 +629,10 @@ fn the_rules_leave_a_shared_mailbox_s_mail_as_its_server_has_it() {
     assert_eq!((m.folder, m.flag), (inbox, FlagStatus::None));
 }
 
-#[test]
-fn undo_never_takes_away_graph_mail_a_rule_moved_out_of_its_account() {
+/// A Microsoft account whose Inbox (`F-in`) has had its first round, beside an account on this
+/// computer; a rule files mail from anyone named `news` into the second's Archive. The two
+/// accounts, and that Archive.
+fn graph_rule_to_local() -> (Session, Id, Id, Id) {
     let mut s = Session::empty();
     let local = s.run("account.add", &json!({"email": "ada@example.org"})).unwrap()["id"].as_u64().unwrap();
     let account = s.run("account.add", &json!({"email": "owner@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
@@ -642,6 +644,12 @@ fn undo_never_takes_away_graph_mail_a_rule_moved_out_of_its_account() {
         &json!({"name": "News", "conditions": [{"type": "fromContains", "value": "news"}], "actions": [{"type": "moveTo", "value": kept_here}]}),
     )
     .unwrap();
+    (s, account, local, kept_here)
+}
+
+#[test]
+fn undo_never_takes_away_graph_mail_a_rule_moved_out_of_its_account() {
+    let (mut s, account, local, kept_here) = graph_rule_to_local();
     // A step of the owner's, from before the mail arrives.
     let local_inbox = s.mailbox.folder_of_kind(local, FolderKind::Inbox).unwrap();
     let other = s.mailbox.add_message(mail(local_inbox, "bo@example.org", "Hello")).unwrap();
@@ -722,4 +730,69 @@ fn no_page_of_a_first_round_or_of_a_round_read_afresh_is_sorted() {
     crate::store::forget_how_far_fetched(&mut s.mailbox);
     apply_graph_mail(&mut s, inbox_page(account, &["six@shop.example"], false, false)).unwrap();
     assert_eq!(folder_of(&s, "six@shop.example"), Some(inbox));
+}
+
+// #606 review: what else the rules do to Graph mail, and a page or a run that is not as usual.
+
+/// A page that lists a message twice brings it once, though a rule moved it out of the account
+/// at its first listing; and so does the same page in a later run.
+#[test]
+fn a_message_a_page_lists_twice_is_moved_out_of_its_account_once() {
+    let (mut s, account, local, kept_here) = graph_rule_to_local();
+    let twice = graph_page(account, "F-in", &["news@paper.example", "news@paper.example"]);
+    apply_graph_mail(&mut s, twice.clone()).unwrap();
+    apply_graph_mail(&mut s, twice).unwrap();
+    let copies: Vec<(Id, Id)> = s.mailbox.messages.values().filter(|m| m.subject == "news@paper.example").map(|m| (m.account, m.folder)).collect();
+    assert_eq!(copies, [(local, kept_here)]);
+}
+
+#[test]
+fn a_rule_that_deletes_graph_mail_moves_it_to_deleted_items_on_the_server_too() {
+    let (mut s, account, _) = graph_with_rule(true);
+    let deleted = s.mailbox.folder_of_kind(account, FolderKind::Deleted).unwrap();
+    s.mailbox.folder_mut(deleted).unwrap().server = Some(ServerFolder { id: "F-del".into(), caught_up: true, ..Default::default() });
+    s.run("rules.add", &json!({"name": "Bin", "conditions": [{"type": "fromContains", "value": "bin"}], "actions": [{"type": "delete"}]})).unwrap();
+    apply_graph_mail(&mut s, graph_page(account, "F-in", &["bin@spam.example"])).unwrap();
+    let m = s.mailbox.messages.values().find(|m| m.subject == "bin@spam.example").unwrap();
+    assert_eq!(m.folder, deleted);
+    let changes = graph_mail_request(&s, account).unwrap().messages;
+    assert!(changes.iter().any(|c| matches!(c, MessageChange::Move { message, to, .. } if *message == m.id && to == "F-del")), "{changes:?}");
+}
+
+#[test]
+fn what_a_rule_marks_on_graph_mail_goes_up() {
+    let (mut s, account, [inbox, ..]) = graph_with_rule(true);
+    s.run(
+        "rules.add",
+        &json!({"name": "Boss", "conditions": [{"type": "fromContains", "value": "boss"}], "actions": [
+            {"type": "flag"}, {"type": "markRead"}, {"type": "categorize", "value": "Red"}, {"type": "setImportance", "value": "high"}
+        ]}),
+    )
+    .unwrap();
+    apply_graph_mail(&mut s, graph_page(account, "F-in", &["boss@example.org"])).unwrap();
+    let m = s.mailbox.messages.values().find(|m| m.subject == "boss@example.org").unwrap();
+    assert_eq!(m.folder, inbox);
+    let changes = graph_mail_request(&s, account).unwrap().messages;
+    let [MessageChange::Update { message, read, flag, categories, importance, .. }] = changes.as_slice() else { panic!("{changes:?}") };
+    assert_eq!(*message, m.id);
+    assert_eq!(*read, Some(true));
+    assert_eq!(flag.as_ref().map(|f| f.status), Some(FlagStatus::Flagged));
+    assert_eq!(categories.as_ref().map(|c| c.here.clone()), Some(vec!["Red".to_string()]));
+    assert_eq!(*importance, Some(Importance::High));
+}
+
+/// A later round that a run left partway is sorted on after the mailbox is saved and opened again.
+#[test]
+fn a_later_round_left_partway_is_sorted_on_after_a_save_and_a_reopen() {
+    let (mut s, account, [_, _, archive]) = graph_with_rule(true);
+    apply_graph_mail(&mut s, inbox_page(account, &["one@shop.example"], false, false)).unwrap();
+    let dir = std::env::temp_dir().join(format!("mailcraft-567-reopen-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("later-round.mailcraft");
+    crate::store::save(&path, &s.mailbox).unwrap();
+    let mut s = Session::new(crate::store::open(&path).unwrap().mailbox);
+    apply_graph_mail(&mut s, inbox_page(account, &["two@shop.example"], false, false)).unwrap();
+    assert_eq!(folder_of(&s, "two@shop.example"), Some(archive));
+    let _ = std::fs::remove_dir_all(&dir);
 }
