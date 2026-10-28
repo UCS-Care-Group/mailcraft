@@ -7,7 +7,9 @@
 //! past what it has (S10). Everything is matched by server id (S5): a page that comes twice
 //! changes nothing.
 //!
-//! - **A new message** comes as its headers and preview, not **fetched**.
+//! - **A new message** comes as its headers and preview, not **fetched**. Once its folder's first
+//!   round has ended, it is sorted by the Safe and Blocked Senders lists, and mail arriving in the
+//!   Inbox then goes through the rules (#567).
 //! - **A message the server has changed** takes the server's read, flag, categories and
 //!   importance, but for a property changed here since the server last said (ADR 0003): that
 //!   goes up with R3.3, and nothing changed here is overwritten by coming down.
@@ -24,7 +26,7 @@ use std::collections::{HashMap, HashSet};
 
 use mailcraft_model::sync::{GraphMessage, GraphProgress, MessagePage, ServerMessage, merge_categories};
 use mailcraft_model::time::Timestamp;
-use mailcraft_model::{Body, Id, Mailbox, Message, OfflineWindow};
+use mailcraft_model::{Body, FolderKind, Id, Mailbox, Message, OfflineWindow};
 
 /// Where each message a server knows is, by its server id: kept between pages, as finding one
 /// otherwise means a walk through every message of the mailbox.
@@ -84,6 +86,10 @@ pub fn take_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, page: &
     // The Safe and Blocked Senders lists sort what arrives once the folder's first round has
     // ended (#504): never its first download, nor a round read afresh.
     let sorting = !page.afresh && mb.folder(folder).and_then(|f| f.server.as_ref()).is_some_and(|s| s.caught_up);
+    // Then the rules (#567), on what arrives in the Inbox and only when the lists sort. Never in a
+    // shared mailbox: the rules, like the lists, are the owner's.
+    let inbox = mb.folder(folder).is_some_and(|f| f.kind == FolderKind::Inbox);
+    let ruling = sorting && mb.account(account).is_some_and(|a| !a.is_shared());
     // The server's copies of messages being moved out of the account are not new mail.
     let moving_out: HashSet<String> =
         mb.messages.values().filter_map(|m| m.moving_out.as_ref().filter(|out| out.account == account).map(|out| out.id.clone())).collect();
@@ -133,10 +139,13 @@ pub fn take_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, page: &
             None => {
                 if let Ok(m) = mb.add_message(new_message(folder, &page.folder, there)) {
                     index.note(mb, account, &there.server.id, m);
-                    // By the Safe and Blocked Senders lists (#504): the move goes up as the
-                    // owner's own does (R3.3).
-                    if sorting {
-                        mb.sort_junk(m);
+                    // By the Safe and Blocked Senders lists first (#504), then the rules: mail a
+                    // list sends to Junk E-mail isn't the rules' to file, and a safe sender's taken
+                    // out of Junk E-mail goes through them as any mail arriving in the Inbox does.
+                    // A move goes up as the owner's own does (R3.3).
+                    let sorted = sorting && mb.sort_junk(m);
+                    if ruling && inbox != sorted {
+                        mb.apply_rules(m);
                     }
                     down.new += 1;
                 }

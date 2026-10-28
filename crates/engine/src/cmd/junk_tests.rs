@@ -1,10 +1,13 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! Junk E-mail Options (#504): the Safe and Blocked Senders lists, the commands that change them,
-//! and mail sorted by them as it arrives, the move going up as the owner's own does.
+//! and mail sorted by them as it arrives, the move going up as the owner's own does; and the rules
+//! run on what arrives in the Inbox after them (#567).
 
-use mailcraft_model::sync::{FolderDelta, GraphMailResult, GraphMessage, MessageChange, MessagePage, RemoteOp, ServerMessage, SyncResult};
-use mailcraft_model::{Address, FolderKind, Id, Message, ServerFolder};
+use mailcraft_model::sync::{
+    FolderDelta, FolderListing, GraphFolder, GraphMailResult, GraphMessage, MessageChange, MessagePage, RemoteOp, ServerMessage, SyncResult,
+};
+use mailcraft_model::{Address, FlagStatus, FolderKind, Id, Message, ServerFolder};
 use serde_json::json;
 
 use crate::Session;
@@ -487,4 +490,140 @@ fn an_agent_is_asked_about_the_account_whose_list_changes() {
     assert!(matches!(check(&s, "junk.add", &params, &[]), Verdict::Ask(Class::Settings, _)));
     let stranger = json!({"account": 424_242, "list": "safe", "entry": "x@y.example"});
     assert!(matches!(check(&s, "junk.add", &stranger, &[Class::Settings]), Verdict::Refuse(_)));
+}
+
+// #567: mail that comes through Graph goes through the rules after the lists, as IMAP mail does.
+
+#[test]
+fn a_rule_moves_new_mail_that_comes_through_graph() {
+    let mut s = Session::empty();
+    let account = s.run("account.add", &json!({"email": "owner@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+    let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    let archive = s.mailbox.folder_of_kind(account, FolderKind::Archive).unwrap();
+    for (f, id) in [(inbox, "F-in"), (archive, "F-arch")] {
+        s.mailbox.folder_mut(f).unwrap().server = Some(ServerFolder { id: id.into(), caught_up: true, ..Default::default() });
+    }
+    s.run(
+        "rules.add",
+        &json!({"name": "News", "conditions": [{"type": "fromContains", "value": "news"}], "actions": [{"type": "moveTo", "value": archive}]}),
+    )
+    .unwrap();
+    let there = GraphMessage {
+        server: ServerMessage { id: "M-1".into(), folder: "F-in".into(), ..Default::default() },
+        from: Address::new("", "news@paper.example"),
+        subject: "Morning news".into(),
+        ..Default::default()
+    };
+    let page = MessagePage { folder: "F-in".into(), messages: vec![there], ..Default::default() };
+    let result = GraphMailResult { account, email: "owner@example.org".into(), pages: vec![page], partial: true, ..Default::default() };
+    apply_graph_mail(&mut s, result.clone()).unwrap();
+    assert_eq!(folder_of(&s, "Morning news"), Some(archive), "the rule did not move mail that arrived through Graph");
+    // The move goes up as the owner's own does, and the same page again doesn't take it back.
+    let moved = s.mailbox.messages.values().find(|m| m.subject == "Morning news").unwrap().id;
+    let changes = graph_mail_request(&s, account).unwrap().messages;
+    assert!(changes.iter().any(|c| matches!(c, MessageChange::Move { message, to, .. } if *message == moved && to == "F-arch")), "{changes:?}");
+    apply_graph_mail(&mut s, result).unwrap();
+    assert_eq!(folder_of(&s, "Morning news"), Some(archive));
+}
+
+// Control: the same rule on an IMAP account.
+#[test]
+fn a_rule_moves_new_mail_that_comes_through_imap() {
+    let (mut s, a) = imap();
+    let archive = s.mailbox.folder_of_kind(a, FolderKind::Archive).unwrap();
+    s.run(
+        "rules.add",
+        &json!({"name": "News", "conditions": [{"type": "fromContains", "value": "news"}], "actions": [{"type": "moveTo", "value": archive}]}),
+    )
+    .unwrap();
+    let run = SyncResult {
+        account: a,
+        folders: vec![delta("INBOX", FolderKind::Inbox, 2, vec![arriving(2, "news@paper.example", "Morning news")])],
+        ..Default::default()
+    };
+    s.run("sync.apply", &json!({"result": run})).unwrap();
+    assert_eq!(folder_of(&s, "Morning news"), Some(archive));
+}
+
+/// A Microsoft account kept in step through Graph, whose Inbox (`F-in`), Junk E-mail (`F-junk`)
+/// and Archive (`F-arch`) have had their first round when `caught_up`; a rule files mail from
+/// anyone at `shop.example` or named `friend` into the Archive.
+fn graph_with_rule(caught_up: bool) -> (Session, Id, [Id; 3]) {
+    let mut s = Session::empty();
+    let account = s.run("account.add", &json!({"email": "owner@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+    let folders = [FolderKind::Inbox, FolderKind::Junk, FolderKind::Archive].map(|k| s.mailbox.folder_of_kind(account, k).unwrap());
+    for (f, id) in folders.into_iter().zip(["F-in", "F-junk", "F-arch"]) {
+        s.mailbox.folder_mut(f).unwrap().server = Some(ServerFolder { id: id.into(), caught_up, ..Default::default() });
+    }
+    for who in ["shop", "friend"] {
+        let archive = folders[2];
+        s.run(
+            "rules.add",
+            &json!({"name": who, "conditions": [{"type": "fromContains", "value": who}], "actions": [{"type": "moveTo", "value": archive}]}),
+        )
+        .unwrap();
+    }
+    (s, account, folders)
+}
+
+/// One page of `folder` bringing messages from these senders, each with its sender as its subject.
+fn graph_page(account: Id, folder: &str, from: &[&str]) -> GraphMailResult {
+    let messages = from
+        .iter()
+        .map(|from| GraphMessage {
+            server: ServerMessage { id: format!("{folder}/{from}"), folder: folder.into(), ..Default::default() },
+            from: Address::new("", *from),
+            subject: (*from).into(),
+            ..Default::default()
+        })
+        .collect();
+    let page = MessagePage { folder: folder.into(), messages, ..Default::default() };
+    GraphMailResult { account, email: "owner@example.org".into(), pages: vec![page], partial: true, ..Default::default() }
+}
+
+#[test]
+fn graph_mail_goes_through_the_rules_after_the_lists() {
+    let (mut s, account, [inbox, junk, archive]) = graph_with_rule(true);
+    s.run("junk.add", &json!({"list": "blocked", "entry": "@shop.example"})).unwrap();
+    s.run("junk.add", &json!({"list": "safe", "entry": "friend@example.net"})).unwrap();
+    apply_graph_mail(&mut s, graph_page(account, "F-in", &["offers@shop.example", "bo@example.org"])).unwrap();
+    apply_graph_mail(&mut s, graph_page(account, "F-junk", &["friend@example.net", "friendly@spam.example"])).unwrap();
+    // A blocked sender's mail goes to Junk E-mail and the rule that would file it never sees it.
+    assert_eq!(folder_of(&s, "offers@shop.example"), Some(junk));
+    assert_eq!(folder_of(&s, "bo@example.org"), Some(inbox));
+    // A safe sender's mail out of Junk E-mail goes through the rules; what stays there doesn't.
+    assert_eq!(folder_of(&s, "friend@example.net"), Some(archive));
+    assert_eq!(folder_of(&s, "friendly@spam.example"), Some(junk));
+}
+
+#[test]
+fn graph_s_first_round_of_a_folder_runs_no_rules() {
+    let (mut s, account, [inbox, ..]) = graph_with_rule(false);
+    apply_graph_mail(&mut s, graph_page(account, "F-in", &["offers@shop.example"])).unwrap();
+    assert_eq!(folder_of(&s, "offers@shop.example"), Some(inbox));
+    // Nor does a folder read afresh.
+    let (mut s, account, [inbox, ..]) = graph_with_rule(true);
+    let mut afresh = graph_page(account, "F-in", &["offers@shop.example"]);
+    afresh.pages[0].afresh = true;
+    apply_graph_mail(&mut s, afresh).unwrap();
+    assert_eq!(folder_of(&s, "offers@shop.example"), Some(inbox));
+    assert!(graph_mail_request(&s, account).unwrap().messages.is_empty());
+}
+
+#[test]
+fn the_rules_leave_a_shared_mailbox_s_mail_as_its_server_has_it() {
+    let (mut s, owner, _) = graph_with_rule(true);
+    // (A move out of a shared mailbox waits for the whole message: a flag would be there at once.)
+    s.run("rules.add", &json!({"name": "Flag", "conditions": [{"type": "fromContains", "value": "shop"}], "actions": [{"type": "flag"}]})).unwrap();
+    let shared = s.run("account.addSharedMailbox", &json!({"account": owner, "address": "support@example.org"})).unwrap()["id"].as_u64().unwrap();
+    let folders = vec![GraphFolder { id: "S-in".into(), name: "Inbox".into(), kind: FolderKind::Inbox, ..Default::default() }];
+    let listing = FolderListing { folders, complete: true };
+    let listed = GraphMailResult { account: shared, email: "support@example.org".into(), listing: Some(listing), ..Default::default() };
+    apply_graph_mail(&mut s, listed).unwrap();
+    let inbox = s.mailbox.folder_of_kind(shared, FolderKind::Inbox).unwrap();
+    s.mailbox.folder_mut(inbox).unwrap().server.as_mut().unwrap().caught_up = true;
+    let page = GraphMailResult { email: "support@example.org".into(), ..graph_page(shared, "S-in", &["offers@shop.example"]) };
+    apply_graph_mail(&mut s, page).unwrap();
+    let m = s.mailbox.messages.values().find(|m| m.subject == "offers@shop.example").unwrap();
+    assert_eq!((m.folder, m.flag), (inbox, FlagStatus::None));
 }
