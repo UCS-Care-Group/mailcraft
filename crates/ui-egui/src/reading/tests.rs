@@ -4038,3 +4038,44 @@ fn a_link_tip_shows_the_host_of_addresses_written_to_mislead() {
     assert_eq!(super::view::link_tip("https://paypal\u{3002}com/"), "https://paypal\u{3002}com/");
     assert!(goes_to("https://\u{1f4a9}.example/").contains("xn--"));
 }
+
+// ---- #596: where a cell sits in its row, and the gaps between cells ----
+
+#[test]
+fn a_cell_sits_where_the_source_puts_it_in_its_row() {
+    let tall = "<p>one</p><p>two</p><p>three</p><p>four</p><p>five</p>";
+    let html = format!(
+        "<table role='presentation' width='600'><tr><td width='150'>{tall}</td><td width='150' valign='top'>Top</td>\
+         <td width='150' style='vertical-align:middle'>Middle</td><td width='150' valign='bottom'>Bottom</td></tr></table>"
+    );
+    let m = html_message(51, ("Digest", "digest@bellweather.example"), "Cells", &html);
+    for dark in [false, true] {
+        in_frame(dark, |ctx| {
+            let laid = lay_out(ctx, &m, 800.0);
+            check(&laid, &Tokens::get(ctx), "valign");
+            let (first, last) = (find_exact(&laid, "one"), find_exact(&laid, "five"));
+            let (top, mid, bottom) = (find_exact(&laid, "Top"), find_exact(&laid, "Middle"), find_exact(&laid, "Bottom"));
+            assert!((top.rect.min.y - first.rect.min.y).abs() < 1.0, "{:?} {:?}", top.rect, first.rect);
+            assert!((middle(mid) - (first.rect.min.y + last.rect.max.y) / 2.0).abs() < 2.0, "{:?}", mid.rect);
+            assert!((bottom.rect.max.y - last.rect.max.y).abs() < 1.0, "{:?} {:?}", bottom.rect, last.rect);
+        });
+    }
+}
+
+#[test]
+fn cellspacing_is_the_gap_between_cells() {
+    let html = |spacing: &str| {
+        format!("<table role='presentation' {spacing}><tr><td bgcolor='#eeeeee'>Left</td><td bgcolor='#eeeeee'>Right</td></tr></table>")
+    };
+    in_frame(false, |ctx| {
+        let apart = |attr: &str| {
+            let m = html_message(52, ("Digest", "digest@bellweather.example"), "Gaps", &html(attr));
+            let laid = lay_out(ctx, &m, 800.0);
+            let fills: Vec<egui::Rect> = laid.items.iter().filter(|i| matches!(i.kind, ItemKind::Fill { .. })).map(|i| i.rect).collect();
+            assert_eq!(fills.len(), 2, "{fills:?}");
+            fills[1].min.x - fills[0].max.x
+        };
+        assert!(apart("cellspacing='0'").abs() < 0.5);
+        assert!((apart("cellspacing='10'") - 10.0).abs() < 0.5);
+    });
+}

@@ -13,8 +13,9 @@
 //! Tables: columns get the widths their contents and the source's hints call for, squeezed to the
 //! room there is. A data table is never squeezed below its longest words (the pane scrolls
 //! sideways instead) and never stacked. A layout table whose columns would be too narrow for
-//! what is in them is stacked: its cells one under the other, each as wide as the room. A row of a
-//! layout table whose cells each hold one line has them on its middle.
+//! what is in them is stacked: its cells one under the other, each as wide as the room. A cell
+//! sits where the source puts it in its row (`valign`, `vertical-align`); where it says nothing, a
+//! row of a layout table whose cells each hold one line has them on its middle.
 //!
 //! Pictures and text that the message has in one line (`<img> 12`) stand side by side in it,
 //! on its middle, when the line fits; else each takes lines of its own.
@@ -24,7 +25,7 @@ use std::sync::Arc;
 
 use egui::text::{LayoutJob, TextFormat, TextWrapping};
 use egui::{Color32, Rect, Stroke, Vec2, pos2, vec2};
-use mailcraft_html::{Align, Block, BlockKind, Cell, Length, Line, LineHeight, LineStyle, Marker, Sides, Span, Table};
+use mailcraft_html::{Align, Block, BlockKind, Cell, Length, Line, LineHeight, LineStyle, Marker, Sides, Span, Table, VAlign};
 use mailcraft_model::Message;
 
 use super::colors::Paper;
@@ -1243,6 +1244,9 @@ fn padding(table: &Table, ruled: bool, cell: &Cell) -> Pad {
 
 /// The gaps between the columns and between the rows.
 fn gaps(table: &Table) -> Vec2 {
+    if let Some(px) = table.spacing {
+        return Vec2::splat(f32::from(px));
+    }
     if !table.layout || painted(table) || ruled(table) {
         return Vec2::ZERO;
     }
@@ -1601,6 +1605,8 @@ fn table_block(cx: &mut Cx<'_>, table: &Table, align: Align, x: f32, y: f32, roo
         let mut across = Across::begin(cx, table, row == 0, cells);
         // Per cell of the row: what it pushed, its top and its bottom.
         let mut laid: Vec<(Range<usize>, f32)> = Vec::new();
+        // The cells the source places themselves: what they pushed, their slot, bottom and place.
+        let mut told: Vec<(Range<usize>, Option<usize>, f32, Option<VAlign>)> = Vec::new();
         while let Some(placed) = grid.cells.get(next).filter(|p| p.row == row) {
             across.cell(cx);
             let first = cx.items.len();
@@ -1612,8 +1618,13 @@ fn table_block(cx: &mut Cx<'_>, table: &Table, align: Align, x: f32, y: f32, roo
             let bottom =
                 flow(cx, &placed.cell.blocks, left + pad.left.min((right - left) / 2.0), top + pad.top, width, inside, depth + 1) + pad.bottom;
             done.push((next, slot, inside, bottom));
-            let alone = placed.rows == 1 && !placed.cell.blocks.iter().any(|b| matches!(b.kind, BlockKind::Table(_)));
+            // ponytail: a cell spanning rows stays at the top; place it once the last row is known if senders need it.
+            let single = placed.rows == 1;
+            let alone = single && !placed.cell.blocks.iter().any(|b| matches!(b.kind, BlockKind::Table(_)));
             laid.push((if alone { first..cx.items.len() } else { 0..0 }, bottom));
+            if single && placed.cell.valign.is_some() {
+                told.push((first..cx.items.len(), slot, bottom, placed.cell.valign));
+            }
             next += 1;
         }
         across.end(cx);
@@ -1621,11 +1632,28 @@ fn table_block(cx: &mut Cx<'_>, table: &Table, align: Align, x: f32, y: f32, roo
             .iter()
             .filter_map(|(index, _, _, bottom)| grid.cells.get(*index).filter(|p| p.row + p.rows - 1 == row).map(|_| *bottom))
             .fold(top, f32::max);
+        // A cell the source places goes there; its own fill is painted later, over the whole cell.
+        for (items, slot, cell_bottom, valign) in told {
+            let dy = match valign {
+                Some(VAlign::Middle) => ((bottom - cell_bottom) / 2.0).floor(),
+                Some(VAlign::Bottom) => (bottom - cell_bottom).floor(),
+                Some(VAlign::Top) | None => 0.0,
+            };
+            if dy >= 1.0 {
+                for (n, item) in cx.items.get_mut(items.clone()).unwrap_or_default().iter_mut().enumerate() {
+                    if Some(items.start + n) != slot {
+                        item.rect = item.rect.translate(vec2(0.0, dy));
+                    }
+                }
+            }
+        }
         // A row of a layout table whose cells each hold one line (a number and its icon, a
         // label and a picture) has them on the row's middle, as a table cell is unless told
-        // otherwise. A cell with more in it stays at the top: whether it was told otherwise is
-        // not read.
-        if table.layout && laid.iter().all(|(items, _)| items.is_empty() || one_line(cx.items.get(items.clone()).unwrap_or_default())) {
+        // otherwise. A cell with more in it stays at the top.
+        if table.layout
+            && laid.iter().all(|(items, _)| items.is_empty() || one_line(cx.items.get(items.clone()).unwrap_or_default()))
+            && !grid.cells.iter().any(|p| p.row == row && p.cell.valign.is_some())
+        {
             for (items, cell_bottom) in laid {
                 let dy = ((bottom - cell_bottom) / 2.0).floor();
                 if dy >= 1.0 {
