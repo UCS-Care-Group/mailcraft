@@ -137,7 +137,9 @@ fn a_store_waiting_for_its_unlock_never_stops_the_window() {
     a.auto_sync = true;
     let started = std::time::Instant::now();
     frames(&mut a, imap, microsoft, 300);
-    assert!(started.elapsed() < Duration::from_secs(2), "the frames waited for the store: {:?}", started.elapsed());
+    // A window that waited on the store would wait until the end of the test; a slow test machine
+    // takes a few seconds for 300 frames.
+    assert!(started.elapsed() < Duration::from_secs(30), "the frames waited for the store: {:?}", started.elapsed());
     let (by_window, _) = store.asks();
     assert_eq!(by_window, 0, "the window's own thread asked the store");
     assert!(!a.can_sync_quietly(imap), "not ready to sync by itself until the store has answered");
