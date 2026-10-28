@@ -77,6 +77,8 @@ pub struct Down {
     pub changed: usize,
     pub gone: usize,
     pub removed: usize,
+    /// New messages a rule moved out of the account as they arrived (#567).
+    pub left: usize,
 }
 
 /// Take in one page of a folder's delta, with its link. A page for a folder this mailbox doesn't
@@ -146,6 +148,7 @@ pub fn take_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, page: &
                     let sorted = sorting && mb.sort_junk(m);
                     if ruling && inbox != sorted {
                         mb.apply_rules(m);
+                        down.left += usize::from(mb.message(m).is_some_and(|m| m.account != account));
                     }
                     down.new += 1;
                 }

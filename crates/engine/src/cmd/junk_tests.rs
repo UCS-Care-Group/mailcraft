@@ -5,7 +5,8 @@
 //! run on what arrives in the Inbox after them (#567).
 
 use mailcraft_model::sync::{
-    FolderDelta, FolderListing, GraphFolder, GraphMailResult, GraphMessage, MessageChange, MessagePage, RemoteOp, ServerMessage, SyncResult,
+    FolderDelta, FolderListing, GraphFolder, GraphMailResult, GraphMessage, MessageChange, MessageChangeDone, MessageOutcome, MessagePage, RemoteOp,
+    ServerMessage, SyncResult,
 };
 use mailcraft_model::{Address, FlagStatus, FolderKind, Id, Message, ServerFolder};
 use serde_json::json;
@@ -626,4 +627,53 @@ fn the_rules_leave_a_shared_mailbox_s_mail_as_its_server_has_it() {
     apply_graph_mail(&mut s, page).unwrap();
     let m = s.mailbox.messages.values().find(|m| m.subject == "offers@shop.example").unwrap();
     assert_eq!((m.folder, m.flag), (inbox, FlagStatus::None));
+}
+
+#[test]
+fn undo_never_takes_away_graph_mail_a_rule_moved_out_of_its_account() {
+    let mut s = Session::empty();
+    let local = s.run("account.add", &json!({"email": "ada@example.org"})).unwrap()["id"].as_u64().unwrap();
+    let account = s.run("account.add", &json!({"email": "owner@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+    let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    s.mailbox.folder_mut(inbox).unwrap().server = Some(ServerFolder { id: "F-in".into(), caught_up: true, ..Default::default() });
+    let kept_here = s.mailbox.folder_of_kind(local, FolderKind::Archive).unwrap();
+    s.run(
+        "rules.add",
+        &json!({"name": "News", "conditions": [{"type": "fromContains", "value": "news"}], "actions": [{"type": "moveTo", "value": kept_here}]}),
+    )
+    .unwrap();
+    // A step of the owner's, from before the mail arrives.
+    let local_inbox = s.mailbox.folder_of_kind(local, FolderKind::Inbox).unwrap();
+    let other = s.mailbox.add_message(mail(local_inbox, "bo@example.org", "Hello")).unwrap();
+    s.run("mail.flag", &json!({"id": other})).unwrap();
+    apply_graph_mail(&mut s, graph_page(account, "F-in", &["news@paper.example"])).unwrap();
+    let m = s.mailbox.messages.values().find(|m| m.subject == "news@paper.example").unwrap();
+    assert_eq!((m.account, m.folder, m.moving_out.is_some()), (local, kept_here, true));
+    let id = m.id;
+    // There is no going back past it: not even once the server's copy is removed.
+    assert_eq!(s.undo_label(), None);
+    let done = MessageChangeDone {
+        change: MessageChange::MovedOut { message: id, id: "F-in/news@paper.example".into() },
+        outcome: MessageOutcome::Done { categories: None, flag: None, folder: String::new(), id: String::new() },
+        there: None,
+    };
+    let result = GraphMailResult { account, email: "owner@example.org".into(), messages: vec![done], partial: true, ..Default::default() };
+    apply_graph_mail(&mut s, result).unwrap();
+    assert!(s.run("edit.undo", &json!({})).is_err());
+    assert!(s.mailbox.message(id).is_some_and(|m| m.moving_out.is_none()));
+    assert_eq!(s.mailbox.message(other).unwrap().flag, FlagStatus::Flagged);
+    // A step after it goes back as ever, and keeps the mail.
+    s.run("mail.markRead", &json!({"id": other})).unwrap();
+    s.run("edit.undo", &json!({})).unwrap();
+    assert!(s.mailbox.message(id).is_some());
+}
+
+#[test]
+fn a_rule_that_files_graph_mail_within_its_account_leaves_undo_as_it_was() {
+    let (mut s, account, [_, _, archive]) = graph_with_rule(true);
+    let before = s.undo_label();
+    assert!(before.is_some());
+    apply_graph_mail(&mut s, graph_page(account, "F-in", &["offers@shop.example"])).unwrap();
+    assert_eq!(folder_of(&s, "offers@shop.example"), Some(archive));
+    assert_eq!(s.undo_label(), before);
 }
