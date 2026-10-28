@@ -998,6 +998,10 @@ pub const NOT_SENDING_YET: &str = "MailCraft doesn't send mail from a JMAP accou
 /// run would bring the message back where it was.
 pub const NOT_MOVING_YET: &str = "MailCraft doesn't move or delete a JMAP account's mail yet: the next Send/Receive would bring it back";
 
+/// What a message moved into an IMAP account's Outbox says of why it isn't sent
+/// ([`Message::held`]): only mail queued with Send leaves through the Outbox (#607).
+pub const MOVED_INTO_OUTBOX: &str = "Moved into the Outbox, not sent. Send Again sends it";
+
 /// Why a JMAP account's folders keep their names and places ([`Mailbox::folder_stays_on_server`]):
 /// a rename or a move reaches the server only once the engine sends changes, and until then it
 /// would stay on this computer alone.
@@ -1716,9 +1720,9 @@ impl Mailbox {
     /// moving it back to where the server still has it calls the move off. A message moved to
     /// another account's folder stays where it is on its own server: nothing is pushed.
     fn move_message_anyway(&mut self, id: Id, folder: Id) -> Result<(), ModelError> {
-        let (account, remote) = {
+        let (account, remote, outbox) = {
             let f = self.folder(folder).ok_or(not_found("folder", folder))?;
-            (f.account, f.remote.clone())
+            (f.account, f.remote.clone(), f.kind == FolderKind::Outbox)
         };
         let m = self.message(id).ok_or(not_found("message", id))?;
         if m.folder == folder {
@@ -1727,6 +1731,7 @@ impl Mailbox {
         if self.move_across_graph(id, folder, account)? {
             return Ok(());
         }
+        let into_outbox = outbox && self.account(account).is_some_and(|a| a.kind == AccountKind::Imap);
         let m = self.message(id).ok_or(not_found("message", id))?;
         let (was_in, uid, synced) = (m.folder, m.uid, m.synced);
         let waiting = self.waiting_move(id);
@@ -1759,6 +1764,16 @@ impl Mailbox {
         // The UID belonged to the old folder.
         m.uid = uid_there;
         m.synced = synced_there;
+        // Only what is queued with Send leaves through an IMAP account's Outbox (#607): a message
+        // moved there is held, as one a Microsoft account's server refused is, until Send Again.
+        // One that leaves an Outbox is no longer held for having been moved into it.
+        if into_outbox {
+            if m.held.is_empty() {
+                m.held = MOVED_INTO_OUTBOX.to_string();
+            }
+        } else if m.held == MOVED_INTO_OUTBOX {
+            m.held.clear();
+        }
         Ok(())
     }
 
