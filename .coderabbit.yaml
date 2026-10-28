@@ -1,0 +1,4 @@
+# CodeRabbit: leave the docs folder to human review.
+reviews:
+  path_filters:
+    - "!docs/**"
