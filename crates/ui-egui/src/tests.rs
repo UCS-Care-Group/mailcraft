@@ -2212,7 +2212,7 @@ fn a_jmap_account_is_left_out_of_send_receive_until_one_can_be_run() {
 }
 
 /// A noisy PNG far over a signature picture's cap.
-fn big_png(side: u32) -> Vec<u8> {
+pub(crate) fn big_png(side: u32) -> Vec<u8> {
     use image::ImageEncoder as _;
     let mut x = 0x9E37_79B9_u32;
     let raw: Vec<u8> = (0..side * side * 3)

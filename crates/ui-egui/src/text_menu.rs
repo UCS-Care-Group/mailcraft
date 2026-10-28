@@ -283,6 +283,14 @@ pub(crate) fn left(resp: &Response) -> bool {
     lost
 }
 
+/// Keep the keyboard on the text field `resp`, as a dialog does for its one field, but not from its
+/// own menu: taken back while an item has it, the menu's items couldn't be reached by the keys.
+pub(crate) fn hold(resp: &Response) {
+    if !resp.has_focus() && !busy(&resp.ctx, resp.id) {
+        resp.request_focus();
+    }
+}
+
 /// Whether the text `id` is without the keyboard only for its own menu: an item of the menu has
 /// it, or what was chosen in it is still to be given to the text.
 fn busy(ctx: &Context, id: Id) -> bool {

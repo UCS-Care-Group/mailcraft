@@ -747,9 +747,13 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
             };
             if let Some(Ask { command, params }) = asked {
                 reveal = true;
-                // `run`: the link's dialog opens from Ctrl+K, and what goes wrong is said.
+                // `run`: the link's dialog opens from Ctrl+K, and what goes wrong is said. A
+                // picture pasted into a signature goes as Paste Picture's does: made smaller when
+                // it is too big as it is.
                 let enabled = app.enabled(command);
-                if enabled
+                if command == "signature.picture.add" {
+                    crate::signatures::add_picture(app, params);
+                } else if enabled
                     || !matches!(command, "compose.undo" | "compose.redo" | "format.bold" | "format.italic" | "format.underline" | "compose.link")
                 {
                     let _ = app.run(command, params);
