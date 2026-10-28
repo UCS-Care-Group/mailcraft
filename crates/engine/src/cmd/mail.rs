@@ -22,7 +22,7 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("mail.pageDown", "Page Down", "Mail", page_down).pure().key("PageDown / Shift+PageDown").params(PAGE),
         CommandSpec::new("mail.pageUp", "Page Up", "Mail", page_up).pure().key("PageUp / Shift+PageUp").params(PAGE),
         CommandSpec::new("mail.get", "Get Message", "Mail", get).pure().params(r#"{"id"?: number} (default: the selected message)"#),
-        CommandSpec::new("mail.list", "List Messages", "Mail", list).pure().params(r#"{"limit"?: number} — the message list in view"#),
+        CommandSpec::new("mail.list", "List Messages", "Mail", list).pure().params(r#"{"limit"?: number, "folder"?: number | "Inbox/Projects", "query"?: string} — the message list in view; with `folder` or `query` the list of that folder or search, read without moving the window to it"#),
         CommandSpec::new("mail.delete", "Delete", "Home › Delete", delete).key("Delete / Mod+D").params(IDS).selection(needs_movable),
         CommandSpec::new("mail.deletePermanently", "Permanently Delete", "Home › Delete", delete_permanently)
             .key("Shift+Delete")
@@ -299,6 +299,36 @@ fn get(s: &mut Session, v: &Value) -> CmdResult {
 
 fn list(s: &mut Session, v: &Value) -> CmdResult {
     let limit = p::u64(v, "limit").unwrap_or(200).min(10_000) as usize;
+    // A named folder or a search is read from a view of its own: the owner's folder, search and
+    // selection stay as they are (#620).
+    let looks_elsewhere = v.get("folder").is_some_and(|f| !f.is_null()) || v.get("query").is_some_and(|q| !q.is_null());
+    if !looks_elsewhere {
+        return list_in_view(s, limit);
+    }
+    let folder = match v.get("folder").filter(|f| !f.is_null()) {
+        None => s.view.folder,
+        Some(f) => match f.as_u64() {
+            Some(id) => s.mailbox.folder(id).map(|f| f.id).ok_or_else(|| failed!("no folder with id {id}", id))?,
+            None => {
+                let path = f.as_str().unwrap_or("");
+                super::folder::by_path(s, None, path).ok_or_else(|| failed!("no folder \"{path}\"", path))?
+            }
+        },
+    };
+    let query: String = p::str(v, "query").unwrap_or("").chars().filter(|c| !c.is_control()).take(2000).collect();
+    let (view, sel) = (s.view.clone(), s.sel.clone());
+    s.view.folder = folder;
+    s.view.module = crate::Module::Mail;
+    s.view.search = query;
+    s.view.scope = crate::Scope::Folder;
+    let out = list_in_view(s, limit);
+    s.view = view;
+    s.sel = sel;
+    out
+}
+
+/// The list of the folder and search in view.
+fn list_in_view(s: &mut Session, limit: usize) -> CmdResult {
     let rows = s.rows();
     let items: Vec<Value> = rows
         .iter()

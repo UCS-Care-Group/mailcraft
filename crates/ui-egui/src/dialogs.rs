@@ -566,6 +566,26 @@ pub fn confirmation(app: &MailApp, id: &str, params: &Value) -> Option<Question>
     }
 }
 
+/// `params` for a question about a command that, given no target, acts on what is selected (or in
+/// view): the target written in, as it is when the question is asked. Said later, "Delete" would
+/// act on whatever is selected then, which is not what the question counted (#620).
+pub(crate) fn pin_targets(app: &MailApp, id: &str, mut params: Value) -> Value {
+    let named = |k: &str| params.get(k).is_some_and(|v| !v.is_null());
+    let sel = &app.session.sel;
+    let pin = match id {
+        "mail.delete" | "mail.deletePermanently" if !named("ids") && !named("id") && !sel.messages.is_empty() && sel.messages.len() <= 100_000 => {
+            Some(("ids", json!(sel.messages)))
+        }
+        "people.delete" if !named("id") => sel.contact.map(|c| ("id", json!(c))),
+        "folder.empty" | "folder.delete" if !named("id") => Some(("id", json!(app.session.view.folder))),
+        _ => None,
+    };
+    if let (Some((key, value)), Some(map)) = (pin, params.as_object_mut()) {
+        map.insert(key.into(), value);
+    }
+    params
+}
+
 /// The parameters of a command after its question was answered by a way of going ahead that
 /// adds `with` (nothing: only that the owner said yes, `"confirmed": true`), and with the note
 /// that was written, when there is one and anybody is to read it.

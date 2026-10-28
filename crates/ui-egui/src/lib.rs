@@ -52,6 +52,8 @@ mod clicks;
 #[cfg(test)]
 mod clicks_tests;
 pub mod compose;
+#[cfg(test)]
+mod confirm_ids_tests;
 pub mod control;
 pub mod credits;
 pub mod data_removal;
@@ -1749,6 +1751,9 @@ impl MailApp {
             && let Some(ask) = reading::invitation_question(self, id, &params).unwrap_or_else(|| dialogs::confirmation(self, id, &params))
         {
             let params = if params.is_object() { params } else { json!({}) };
+            // What the question named is what goes ahead, though the selection changes while it
+            // is open (#620).
+            let params = dialogs::pin_targets(self, id, params);
             self.dialog = Some(dialogs::Dialog::Confirm { command: id.to_string(), params, ask });
             return Ok(json!({"pending": "confirm"}));
         }

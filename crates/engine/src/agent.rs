@@ -737,6 +737,33 @@ pub enum Verdict {
     Refuse(String),
 }
 
+/// Commands that destroy, move, send from or open messages, or are costly: an agent names the
+/// messages (`ids`, or `id`), never leaving them to the window's selection, which the owner may
+/// have changed a moment ago (#620). The owner's own runs keep the selection.
+pub const NEEDS_IDS: &[&str] = &[
+    "mail.delete",
+    "mail.deletePermanently",
+    "mail.move",
+    "mail.copy",
+    "mail.archive",
+    "mail.junk",
+    "mail.notJunk",
+    "mail.reply",
+    "mail.replyAll",
+    "mail.forward",
+    "mail.forwardAsAttachment",
+    "mail.editDraft",
+    "mail.removeAttachment",
+    "mail.sendAgain",
+];
+
+/// The refusal for a command in [`NEEDS_IDS`] given no messages.
+pub fn needs_ids(id: &str) -> String {
+    format!(
+        "`{id}` needs `ids` (or `id`): an agent names the messages, as `mail.list` shows them, and doesn't act on what the owner has selected in the window"
+    )
+}
+
 /// The gate: `allow` is what the owner allowed in advance.
 pub fn check(s: &Session, id: &str, params: &Value, allow: &[Class]) -> Verdict {
     verdict(s, id, params, allow, None)
@@ -754,6 +781,9 @@ fn verdict(s: &Session, id: &str, params: &Value, allow: &[Class], yes: Option<C
     }
     if let Some(key) = file_named(id, params) {
         return Verdict::Refuse(no_paths(id, key));
+    }
+    if NEEDS_IDS.contains(&id) && p::ids(params).is_none_or(|ids| ids.is_empty()) {
+        return Verdict::Refuse(needs_ids(id));
     }
     // The owner is asked about the list the command would change, or about nothing (#504).
     if matches!(id, "junk.add" | "junk.remove") && p::str(params, "list").and_then(mailcraft_model::JunkList::parse).is_none() {

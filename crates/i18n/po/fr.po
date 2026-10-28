@@ -12333,7 +12333,7 @@ msgid "no event with id {id}"
 msgstr "aucun événement avec l'id {id}"
 
 #. what a command says
-#: crates/engine/src/cmd/folder.rs
+#: crates/engine/src/cmd/folder.rs crates/engine/src/cmd/mail.rs
 #, fuzzy
 msgid "no folder \"{path}\""
 msgstr "aucun dossier « {path} »"
