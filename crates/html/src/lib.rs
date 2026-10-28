@@ -396,6 +396,13 @@ pub struct Table {
     /// and `None` is as wide as what is in it.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub inline: bool,
+    /// A box on a line: the source has white space between it and the box before it on the line,
+    /// which is a gap there (none when it has not, or when it was written at a size of nothing).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub spaced: bool,
+    /// A box on a line: the room its margins keep free left and right of it, in pixels.
+    #[serde(default, skip_serializing_if = "is_no_inset")]
+    pub box_margin: [u8; 2],
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]

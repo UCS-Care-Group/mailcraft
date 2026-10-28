@@ -419,6 +419,8 @@ struct Frame {
     gap: u8,
     /// The last thing added was a box on a line, and nothing has ended its line since.
     after_box: bool,
+    /// White space was written since that box.
+    box_space: bool,
     outer: Context,
 }
 
@@ -579,6 +581,9 @@ impl Builder {
             return;
         }
         let text = unescape(raw);
+        if self.frame().after_box && text.contains([' ', '\t', '\n', '\r', '\x0C']) {
+            self.frame().box_space = true;
+        }
         if self.pre > 0 {
             let mut chars = text.chars().peekable();
             while let Some(c) = chars.next() {
@@ -1024,14 +1029,21 @@ impl Builder {
         }
     }
 
-    /// Whether an element with this style is a box on a line (`display: inline-block`) that the
-    /// message may still have: counts it when it is.
-    fn take_inline_box(&mut self, css: &Css) -> bool {
-        let yes = css.inline_block && self.inline_boxes < MAX_INLINE_BOXES && self.frames.len() < MAX_TABLE_DEPTH && self.hidden == 0;
-        if yes {
-            self.inline_boxes += 1;
-        }
-        yes
+    /// Whether an element with this style may be a box on a line (`display: inline-block`): the
+    /// message has not had too many, and there is room to nest one. Only a box that was made
+    /// counts ([`Builder::made_box`]).
+    fn can_box(&self, css: &Css) -> bool {
+        css.inline_block && self.inline_boxes < MAX_INLINE_BOXES && self.frames.len() < MAX_TABLE_DEPTH && self.hidden == 0
+    }
+
+    fn made_box(&mut self) {
+        self.inline_boxes = self.inline_boxes.saturating_add(1);
+    }
+
+    /// Whether what is written in this line so far is nothing (white space): a box may stand here
+    /// as one of its own. In the middle of a sentence it stays in the sentence.
+    fn line_is_blank(&self) -> bool {
+        self.spans.iter().all(|s| s.text.chars().all(is_blank))
     }
 
     /// Start collecting blocks apart, for a cell or a block with a background.
@@ -1046,7 +1058,7 @@ impl Builder {
             mso_item: std::mem::take(&mut self.mso_item),
             inset: std::mem::take(&mut self.inset),
         };
-        self.frames.push(Frame { blocks: Vec::new(), space: 0, gap: 0, after_box: false, outer });
+        self.frames.push(Frame { blocks: Vec::new(), space: 0, gap: 0, after_box: false, box_space: false, outer });
     }
 
     /// The blocks collected since [`Builder::enter_frame`].
@@ -1174,6 +1186,7 @@ impl Builder {
             width: boxed.width,
             lines: boxed.lines,
             radius: boxed.radius,
+            box_margin: if boxed.inline { boxed.margin } else { [0, 0] },
             ..Table::default()
         };
         // A box on a line stands where the text-align of what holds it puts the line.
@@ -1181,9 +1194,15 @@ impl Builder {
         let table = Table { inline: boxed.inline, ..table };
         // A box that follows another with nothing between them stands in its line.
         let beside = boxed.inline && self.frame().after_box;
-        let block = Block { quote: self.quote_depth(), align, beside, inset: boxed.margin, ..Block::new(BlockKind::Table(table), Vec::new()) };
+        let spaced = beside && std::mem::take(&mut self.frame().box_space);
+        let table = Table { spaced, ..table };
+        // (The margins of a box on a line are the table's own: the line is placed as a whole.)
+        let inset = if boxed.inline { [0, 0] } else { boxed.margin };
+        let block = Block { quote: self.quote_depth(), align, beside, inset, ..Block::new(BlockKind::Table(table), Vec::new()) };
         self.emit(block, true);
-        self.frame().after_box = boxed.inline;
+        let frame = self.frame();
+        frame.after_box = boxed.inline;
+        frame.box_space = false;
     }
 
     fn end_cell(&mut self, cell: CellBuild, blocks: Vec<Block>) {
@@ -1318,6 +1337,7 @@ impl Builder {
             radius: table.radius,
             spacing: table.spacing,
             inline: table.inline,
+            ..Table::default()
         });
         let block = Block { quote: self.quote_depth(), align: table.align, inset: table.margin, ..Block::new(kind, Vec::new()) };
         self.emit(block, true);
@@ -1359,6 +1379,7 @@ impl Builder {
         let css = css_of(tag);
         let border = tag.attr("border").is_some_and(|b| style::attr_px(&b).map_or(b.trim().is_empty(), |px| px > 0.0));
         let role = tag.attr("role").map(|r| r.trim().to_ascii_lowercase());
+        let inline = self.can_box(&css);
         let build = TableBuild {
             rows: Vec::new(),
             width: sized(&css, tag.attr("width").and_then(|w| style::attr_length(&w))),
@@ -1377,12 +1398,14 @@ impl Builder {
             full: false,
             last_row: false,
             spacing: css.spacing.or_else(|| tag.attr("cellspacing").and_then(|v| style::spacing(&v))),
-            inline: self.take_inline_box(&css),
+            inline,
         };
         let hidden = css.hidden || tag.has("hidden");
         self.want_gap(css.margin_insets().top);
         if !self.push_node("table", Kind::Table(Box::new(build)), Delta { hooked: hooked(tag), ..Delta::of(&css) }, hidden) {
             self.overflow = self.overflow.saturating_add(1);
+        } else if inline {
+            self.made_box();
         }
     }
 
@@ -1583,8 +1606,8 @@ impl Builder {
         let marker = css.mso_list == Some(MsoList::Ignore);
         let hidden = marker || css.hidden || tag.has("hidden");
         // A box on a line, with something to show of its own: it becomes a block of its own.
-        let asks = css.background.is_some() || css.framed() || css.padding_insets().is_some() || box_width(&css).is_some();
-        if asks && !hidden && self.take_inline_box(&css) {
+        // (Not in the middle of a sentence: there it is a run of text with a highlight, as before.)
+        if has_box_look(&css) && !hidden && self.can_box(&css) && self.line_is_blank() {
             self.flush();
             self.after_picture = false;
             let margins = css.margin_insets();
@@ -1603,6 +1626,7 @@ impl Builder {
             };
             delta.background = None;
             if self.push_node(name, Kind::InlineBox(Box::new(boxed), format), delta, false) {
+                self.made_box();
                 self.enter_frame();
             } else {
                 self.inline_overflow = self.inline_overflow.saturating_add(1);
@@ -1634,6 +1658,16 @@ impl Builder {
         ) else {
             return;
         };
+        self.close_format(index);
+    }
+
+    /// Close the formatting element at `index`. One that is a box has its frame, which is the
+    /// innermost, closed after what was opened inside it.
+    fn close_format(&mut self, index: usize) {
+        if self.nodes.get(index).is_some_and(|n| matches!(n.kind, Kind::InlineBox(..))) {
+            self.close_at(index, false);
+            return;
+        }
         let node = self.nodes.remove(index);
         self.leave(node);
         self.restyle(index);
@@ -1671,6 +1705,7 @@ impl Builder {
 
     /// A `<div>`, a `<p>`, `<body>` and the like: a new line, and a style of its own.
     fn open_block(&mut self, name: &'static str, tag: &Tag<'_>) {
+        let blank_line = self.line_is_blank();
         self.close_paragraph();
         self.flush();
         let line_before = std::mem::take(&mut self.frame().after_box);
@@ -1697,8 +1732,8 @@ impl Builder {
         let paragraph = name == "p" && !outlook;
         // A box on a line (`display: inline-block`) that has something to show of its own: padding,
         // a background, a frame or a width. Without them it is a block as any other.
-        let asks = background.is_some() || css.framed() || css.padding_insets().is_some() || box_width(&css).is_some();
-        let inline = asks && name != "body" && self.take_inline_box(&css);
+        let asks = background.is_some() || has_box_look(&css);
+        let inline = asks && name != "body" && blank_line && self.can_box(&css);
         if inline {
             self.frame().after_box = line_before;
         }
@@ -1751,6 +1786,9 @@ impl Builder {
         if !self.push_node(name, Kind::Block(node), delta, false) {
             self.overflow = self.overflow.saturating_add(1);
             return;
+        }
+        if inline {
+            self.made_box();
         }
         if quote {
             self.quote = self.quote.saturating_add(1);
@@ -1862,9 +1900,7 @@ impl Builder {
             "a" => {
                 // A link doesn't nest in a link.
                 if let Some(index) = self.find(|n| n.name == "a", |k| matches!(k, Kind::Cell(_) | Kind::Row(_) | Kind::Table(_))) {
-                    let node = self.nodes.remove(index);
-                    self.leave(node);
-                    self.restyle(index);
+                    self.close_format(index);
                 }
                 let link: Option<Rc<str>> = safe_url(tag.attr("href")).map(Rc::from);
                 // A link has the reader's link colour unless it names one itself.
@@ -2006,6 +2042,12 @@ fn sized(css: &Css, attr: Option<Length>) -> Option<Length> {
 /// on every column) is what a block has anyway, and asks for nothing.
 fn box_width(css: &Css) -> Option<Length> {
     sized(css, None).filter(|w| *w != Length::Percent(100))
+}
+
+/// Whether a style gives an element something to show of its own as a box: a background, a frame,
+/// padding that is more than none, or a width.
+fn has_box_look(css: &Css) -> bool {
+    css.background.is_some() || css.framed() || css.padding_insets().is_some_and(Insets::any) || box_width(css).is_some()
 }
 
 fn css_of(tag: &Tag<'_>) -> Css {

@@ -1114,9 +1114,15 @@ fn box_run(blocks: &[Block], index: usize) -> usize {
     1 + blocks.iter().skip(index + 1).take(MAX_RUN - 1).take_while(|b| inline(b) && b.beside && b.quote == quote).count()
 }
 
-/// The room a box on a line asks to be kept left and right of it.
-fn box_margins(block: &Block) -> f32 {
-    f32::from(block.inset[0]) + f32::from(block.inset[1])
+/// The room a box on a line asks to be kept free left and right of it.
+fn box_margins(table: &Table) -> f32 {
+    f32::from(table.box_margin[0]) + f32::from(table.box_margin[1])
+}
+
+/// The gap in front of a box on a line, when it stands after another: the one the source has,
+/// white space (none where the columns are written touching, or at a size of nothing).
+fn box_gap(table: &Table) -> f32 {
+    if table.spaced { BOX_GAP } else { 0.0 }
 }
 
 /// Lay out boxes that stand on a line, each as wide as it asks (`width`, a share of the line) or
@@ -1126,41 +1132,35 @@ fn box_margins(block: &Block) -> f32 {
 fn boxes_line(cx: &mut Cx<'_>, run: &[Block], x: f32, y: f32, width: f32, paper: Paper, depth: usize) -> f32 {
     // Per box: its table, the width it takes, the room to give `table_block`, and what it keeps clear.
     struct Slot<'a> {
-        block: &'a Block,
         table: &'a Table,
         wide: f32,
         room: f32,
         clear: f32,
-        share: bool,
     }
     let mut slots: Vec<Slot<'_>> = Vec::with_capacity(run.len());
     for block in run {
         let BlockKind::Table(table) = &block.kind else { continue };
-        let clear = box_margins(block).min((width - MIN_CELL).max(0.0));
+        let clear = box_margins(table).min((width - MIN_CELL).max(0.0));
         let line = (width - clear).max(MIN_CELL.min(width));
-        let (wide, room, share) = match table.width {
-            Some(Length::Px(w)) => (f32::from(w).min(line), f32::from(w).min(line), false),
-            Some(Length::Percent(p)) => (line * f32::from(p.min(100)) / 100.0, line, true),
+        let (wide, room) = match table.width {
+            Some(Length::Px(w)) => (f32::from(w).min(line), f32::from(w).min(line)),
+            Some(Length::Percent(p)) => (line * f32::from(p.min(100)) / 100.0, line),
             None => {
                 let extent = if depth >= MAX_NESTING { Extent { min: MIN_WIDTH, max: line } } else { table_extent(cx, table, depth) };
                 let wide = extent.max.min(line);
-                (wide, wide, false)
+                (wide, wide)
             }
         };
         let wide = wide.max(MIN_CELL.min(line));
-        slots.push(Slot { block, table, wide, room: room.max(wide), clear, share });
+        slots.push(Slot { table, wide, room: room.max(wide), clear });
     }
     let align = run.first().map_or(Align::Left, |b| b.align);
     let (mut y, mut first, mut start) = (y, true, 0);
     while start < slots.len() {
-        // As many as fit in this line, at least one. A share of the line asks for no gap before
-        // it: the builders that write them mean them to fill the line together.
+        // As many as fit in this line, at least one.
         let (mut used, mut end) = (0.0f32, start);
         while let Some(slot) = slots.get(end) {
-            let gap = match end > start && !slot.share && !slots.get(end - 1).is_some_and(|p| p.share) {
-                true => BOX_GAP,
-                false => 0.0,
-            };
+            let gap = if end > start { box_gap(slot.table) } else { 0.0 };
             let next = used + gap + slot.wide + slot.clear;
             if end > start && next > width + 0.5 {
                 break;
@@ -1180,10 +1180,10 @@ fn boxes_line(cx: &mut Cx<'_>, run: &[Block], x: f32, y: f32, width: f32, paper:
             if !std::mem::take(&mut first) {
                 cx.beside();
             }
-            if n > 0 && !slot.share && !slots.get(start + n - 1).is_some_and(|p| p.share) {
-                at += BOX_GAP;
+            if n > 0 {
+                at += box_gap(slot.table);
             }
-            let left = f32::from(slot.block.inset[0]).min(slot.clear);
+            let left = f32::from(slot.table.box_margin[0]).min(slot.clear);
             bottom = bottom.max(table_block(cx, slot.table, Align::Left, at + left, y, slot.room, paper, depth));
             at += slot.wide + slot.clear;
         }
@@ -1254,9 +1254,9 @@ fn blocks_extent(cx: &mut Cx<'_>, blocks: &[Block], depth: usize) -> Extent {
                 for (n, part) in blocks.iter().skip(i).take(used).enumerate() {
                     if let BlockKind::Table(t) = &part.kind {
                         let own = table_extent(cx, t, depth);
-                        let clear = box_margins(part);
+                        let clear = box_margins(t);
                         extent.min = extent.min.max(own.min + clear);
-                        extent.max += own.max + clear + if n > 0 { BOX_GAP } else { 0.0 };
+                        extent.max += own.max + clear + if n > 0 { box_gap(t) } else { 0.0 };
                     }
                 }
                 extent

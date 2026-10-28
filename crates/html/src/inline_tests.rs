@@ -146,6 +146,82 @@ fn a_picture_in_a_line_of_text_is_beside_what_is_around_it() {
 }
 
 #[test]
+fn a_badge_in_a_sentence_stays_in_the_sentence() {
+    let html = "<p>Your order <span style='display:inline-block;padding:0 4px;background:#ffeeaa'>#1234</span> has shipped.</p>";
+    let blocks = parse(html);
+    assert_eq!(blocks.len(), 1, "{blocks:?}");
+    assert_eq!(blocks[0].text(), "Your order #1234 has shipped.");
+    // The highlight is kept, as it was.
+    assert!(blocks[0].spans.iter().any(|s| s.text.contains("#1234") && s.background.is_some()), "{blocks:?}");
+    assert_eq!(crate::to_text(html).trim(), "Your order #1234 has shipped.");
+    let quoted = crate::quotable(html);
+    assert!(quoted.contains("Your order") && quoted.contains("#1234") && quoted.contains("has shipped."), "{quoted}");
+    assert!(!quoted.contains("Your order\n") && !quoted.contains("<table"), "{quoted}");
+    // A link drawn with no padding is no box either, in a sentence or on its own.
+    let link = "<p>See <a href='https://example.org/x' style='display:inline-block;padding:0'>the page</a> now.</p>";
+    let blocks = parse(link);
+    assert_eq!(blocks.len(), 1, "{blocks:?}");
+    assert_eq!(blocks[0].text(), "See the page now.");
+    assert!(boxes(&parse("<a href='https://example.org/x' style='display:inline-block;padding:0 0 0 0'>x</a>")).is_empty());
+    // Standing alone, with something to show, it is a box.
+    assert_eq!(boxes(&parse("<span style='display:inline-block;padding:0 4px;background:#ffeeaa'>#1234</span> has shipped.")).len(), 1);
+}
+
+#[test]
+fn white_space_between_boxes_is_what_makes_a_gap_and_a_size_of_nothing_has_none() {
+    let b = "<div style='display:inline-block;width:300px;font-size:14px'>x</div>";
+    let spaced = |html: &str| boxes(&parse(html)).iter().map(|t| t.spaced).collect::<Vec<_>>();
+    assert_eq!(spaced(&format!("{b}{b}")), [false, false]);
+    assert_eq!(spaced(&format!("{b}\n  {b}")), [false, true]);
+    // Written at a size of nothing, as hybrid emails do, the white space is not there.
+    assert_eq!(spaced(&format!("<div style='font-size:0'>{b}\n  {b}</div>")), [false, false]);
+    assert_eq!(spaced(&format!("<table><tr><td style='font-size:0'>{b}\n{b}</td></tr></table>")), [false, false]);
+}
+
+#[test]
+fn the_margins_of_a_box_are_its_own_and_not_the_rooms_round_the_line() {
+    let blocks = parse("<div style='display:inline-block;width:300px;margin:0 10px'>x</div>");
+    let found = boxes(&blocks);
+    assert_eq!(found[0].box_margin, [10, 10]);
+    assert_eq!(blocks[0].inset, [0, 0]);
+}
+
+#[test]
+fn a_box_closed_from_the_middle_closes_its_own_frame() {
+    // The link ends while a block inside it is open: what is inside is closed first.
+    let blocks =
+        parse("<a href='https://example.org/x' style='display:inline-block;padding:4px'>Go<div style='background:#eeeeee'>inside</div></a> after");
+    let text: Vec<String> = blocks
+        .iter()
+        .map(|b| match &b.kind {
+            BlockKind::Table(t) => format!("[{t:?}]"),
+            _ => b.text(),
+        })
+        .collect();
+    assert_eq!(text.last().map(String::as_str), Some("after"), "{text:?}");
+    assert!(text.iter().any(|t| t.contains("Go") && t.contains("inside")), "{text:?}");
+    // And with the end tag before the inner one is closed.
+    let blocks =
+        parse("<a href='https://example.org/x' style='display:inline-block;padding:4px'>Go<div style='background:#eeeeee'>inside</a> after</div>");
+    let all: String = blocks.iter().map(|b| format!("{b:?}")).collect();
+    assert!(all.contains("inside") && all.contains("after") && all.contains("Go"), "{all}");
+    // "after" is not inside the box; "inside" is.
+    let tables: Vec<&Table> = boxes(&blocks);
+    assert_eq!(tables.len(), 1, "{blocks:?}");
+    assert!(format!("{:?}", tables[0]).contains("inside") && !format!("{:?}", tables[0]).contains("after"));
+}
+
+#[test]
+fn only_boxes_that_were_made_count_against_the_cap() {
+    // Where the stack of open elements is full a box cannot be opened: it is not counted.
+    let full = "<i>".repeat(200);
+    let refused = "<div><span style='display:inline-block;padding:2px'>b</span></div>".repeat(MAX_INLINE_BOXES * 2);
+    let after = "<div><span style='display:inline-block;padding:2px'>made</span>";
+    let blocks = parse(&format!("{full}{refused}{}{after}", "</i>".repeat(200)));
+    assert_eq!(boxes(&blocks).len(), 1, "{blocks:?}");
+}
+
+#[test]
 fn boxes_share_a_line_only_when_nothing_ends_it_between_them() {
     let beside = |html: &str| parse(html).iter().filter(|b| matches!(&b.kind, BlockKind::Table(t) if t.inline)).map(|b| b.beside).collect::<Vec<_>>();
     let b = "<span style='display:inline-block;padding:4px'>x</span>";

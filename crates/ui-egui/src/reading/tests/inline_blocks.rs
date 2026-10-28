@@ -112,12 +112,67 @@ fn small_pieces_of_a_line_wrap_as_words_do() {
         let wide = lay_out(ctx, &m, 800.0);
         let rows: Vec<f32> = shown_pictures(&wide).iter().map(|p| p.rect.center().y.round()).collect();
         assert!(rows.windows(2).all(|w| w[0] == w[1]), "{rows:?}");
-        // Narrow: more lines, in reading order, none outside the pane.
-        let narrow = lay_out(ctx, &m, 120.0);
+        // Too narrow for all of it: what fits stays in the first line (a picture, a word and a
+        // picture), the rest goes on in the next one, as words do; each piece does not take a
+        // line of its own.
+        let narrow = lay_out(ctx, &m, 130.0);
         check(&narrow, &Tokens::get(ctx), "wrapped");
-        let ys: Vec<f32> = shown_pictures(&narrow).iter().map(|p| p.rect.min.y).collect();
-        assert!(ys.windows(2).all(|w| w[0] <= w[1]) && ys.last() > ys.first(), "{ys:?}");
-        assert!(narrow.items.iter().all(|i| i.rect.max.x <= 120.5), "{:?}", narrow.items.iter().map(|i| i.rect).collect::<Vec<_>>());
+        let pictures = shown_pictures(&narrow);
+        assert_eq!(pictures.len(), 3);
+        let alpha = find_exact(&narrow, "alpha");
+        let (first, second) = (pictures[0].rect.center().y, pictures[1].rect.center().y);
+        assert!((first - second).abs() < 2.0 && (first - alpha.rect.center().y).abs() < 2.0, "first line: {first} {second} {:?}", alpha.rect);
+        let (beta, third) = (find_exact(&narrow, "beta"), pictures[2]);
+        assert!(beta.rect.center().y > first + 10.0, "the rest is in the next line: {:?}", beta.rect);
+        assert!((beta.rect.center().y - third.rect.center().y).abs() < 2.0, "{:?} {:?}", beta.rect, third.rect);
+        assert!(narrow.items.iter().all(|i| i.rect.max.x <= 130.5));
+    });
+}
+
+const HYBRID: &str = "<table role='presentation' width='600' align='center' style='width:600px'><tr><td style='font-size:0;text-align:center'>\n\
+    <div style='display:inline-block;width:300px;vertical-align:top;font-size:14px;background:#eef3fb'><p style='margin:0;padding:10px'>Left column</p></div>\n\
+    <div style='display:inline-block;width:300px;vertical-align:top;font-size:14px;background:#fbf4dc'><p style='margin:0;padding:10px'>Right column</p></div>\n\
+    </td></tr></table>";
+
+#[test]
+fn two_columns_written_as_a_hybrid_email_stand_side_by_side_in_a_wide_pane() {
+    let m = message(HYBRID);
+    for dark in [false, true] {
+        in_frame(dark, |ctx| {
+            let laid = lay_out(ctx, &m, 800.0);
+            check(&laid, &Tokens::get(ctx), "hybrid");
+            let (left, right) = (find_exact(&laid, "Left column"), find_exact(&laid, "Right column"));
+            assert!((left.rect.min.y - right.rect.min.y).abs() < 1.0, "{:?} {:?}", left.rect, right.rect);
+            // Exactly 300 and 300 in 600: edge to edge.
+            let columns: Vec<&Item> = fills(&laid).into_iter().filter(|f| (f.rect.width() - 300.0).abs() < 1.0).collect();
+            assert_eq!(columns.len(), 2, "{:?}", fills(&laid));
+            assert!((columns[1].rect.min.x - columns[0].rect.max.x).abs() < 1.0, "{:?} {:?}", columns[0].rect, columns[1].rect);
+        });
+    }
+}
+
+#[test]
+fn the_margins_of_a_box_count_once() {
+    let html = "<div><div style='display:inline-block;width:300px;margin:0 10px;background:#eef3fb'>One</div><div style='display:inline-block;width:300px;margin:0 10px;background:#fbf4dc'>Two</div></div>";
+    let m = message(html);
+    in_frame(false, |ctx| {
+        // 2 x (300 + 10 + 10) = 640: it fits in 640, side by side, the first starting at 10.
+        let laid = lay_out(ctx, &m, 640.0);
+        let columns: Vec<&Item> = fills(&laid).into_iter().filter(|f| (f.rect.width() - 300.0).abs() < 1.0).collect();
+        assert_eq!(columns.len(), 2, "{:?}", fills(&laid));
+        assert!((columns[0].rect.min.y - columns[1].rect.min.y).abs() < 1.0, "stacked: {:?} {:?}", columns[0].rect, columns[1].rect);
+        assert!((columns[0].rect.min.x - 10.0).abs() < 1.0, "{:?}", columns[0].rect);
+        assert!((columns[1].rect.min.x - 330.0).abs() < 1.0, "{:?}", columns[1].rect);
+    });
+}
+
+#[test]
+fn a_badge_in_a_sentence_is_laid_out_in_the_sentence() {
+    let m = message("<p>Your order <span style='display:inline-block;padding:0 4px;background:#ffeeaa'>#1234</span> has shipped.</p>");
+    in_frame(false, |ctx| {
+        let laid = lay_out(ctx, &m, 600.0);
+        let texts: Vec<&str> = laid.items.iter().map(super::text_of).filter(|t| !t.is_empty()).collect();
+        assert_eq!(texts, ["Your order #1234 has shipped."], "{texts:?}");
     });
 }
 
