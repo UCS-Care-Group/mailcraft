@@ -268,6 +268,12 @@ pub fn enum_code<T: Serialize>(v: &T) -> String {
     serde_json::to_value(v).ok().and_then(|v| v.as_str().map(str::to_string)).unwrap_or_default()
 }
 
+/// An arrangement this build doesn't know (one a later build saved in ui.json) reads as By Date,
+/// so the rest of the view is kept.
+fn sort_or_date<'de, D: serde::Deserializer<'de>>(d: D) -> Result<SortBy, D::Error> {
+    Ok(SortBy::deserialize(Value::deserialize(d)?).unwrap_or_default())
+}
+
 /// View state that commands change (the View tab, the navigation bar, the search box).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
@@ -275,6 +281,7 @@ pub struct ViewState {
     pub module: Module,
     /// The mail folder in view.
     pub folder: Id,
+    #[serde(deserialize_with = "sort_or_date")]
     pub sort: SortBy,
     /// Newest (largest, Z) first.
     pub sort_descending: bool,

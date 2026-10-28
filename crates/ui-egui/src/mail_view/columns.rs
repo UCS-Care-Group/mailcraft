@@ -90,9 +90,13 @@ pub(super) fn header(app: &mut MailApp, ui: &mut Ui) {
                 }
                 let start = ui.data(|d| d.get_temp::<u16>(from)).unwrap_or(spec.width);
                 let moved = resize.total_drag_delta().unwrap_or_default().x;
-                spec.width = (f32::from(start) + moved).round().clamp(36.0, 800.0) as u16;
+                let width = (f32::from(start) + moved).round().clamp(36.0, 800.0) as u16;
+                // Only when the width changes: a held, still pointer changes nothing.
+                if width != spec.width {
+                    spec.width = width;
+                    let _ = app.run("view.columns", json!(next));
+                }
             }
-            let _ = app.run("view.columns", json!(next));
         }
         let clickable = Rect::from_min_max(pos2(cell.min.x + 4.0, cell.min.y), pos2(cell.max.x - 4.0, cell.max.y));
         let response = ui.interact(clickable, ui.scope_id().with(("column_sort", column)), Sense::click()).on_hover_text(label(column, outgoing));

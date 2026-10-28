@@ -235,7 +235,9 @@ fn result_row(app: &mut MailApp, ui: &mut Ui, index: usize, rect: Rect) {
             paint_clipped(p, pos2(left, preview_y), (end - left).max(0.0), &preview, regular(LIST_TEXT), t.text_dim);
         }
     }
-    resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, format!("{}, {}", m.from.display(), m.subject)));
+    // Read out as the row shows it, in columns or not: "(no subject)" for a message without one.
+    let subject = if m.subject.trim().is_empty() { tl!("(no subject)") } else { m.subject.as_str() };
+    resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, format!("{}, {subject}", m.from.display())));
     if resp.clicked() {
         app.open_server_result(index);
     }

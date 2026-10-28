@@ -165,6 +165,18 @@ pub fn has_files(m: &mailcraft_model::Message) -> bool {
     }
 }
 
+/// Whether a message sorts among those with files (Arrange By Attachments). Unlike [`has_files`],
+/// it goes only by what the message's list of parts says, never by a part's bytes or the HTML,
+/// so opening a message, or letting its parts go again, never moves it in the list (#575
+/// review). The price: no calendar part counts, so a plain `.ics` file sorts with the messages
+/// without files, and every inline picture with a `Content-ID` is taken to be one the HTML shows,
+/// as the attachment list takes it while the HTML is kept outside memory. The paperclip on the
+/// row still goes by [`has_files`].
+pub fn sorts_with_files(m: &mailcraft_model::Message) -> bool {
+    (m.unfetched && m.attachments_on_server)
+        || m.attachments.iter().any(|a| !crate::session::is_calendar_part(a) && !(a.inline && !a.content_id.is_empty()))
+}
+
 /// Whether a calendar part is meeting mail (a request, a counter-proposal, a cancellation or an
 /// answer), from its `METHOD` in its first lines: the window's glance at it for the row's mark.
 pub fn is_meeting_mail(data: &[u8]) -> bool {

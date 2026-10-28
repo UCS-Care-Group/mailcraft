@@ -51,6 +51,14 @@ fn old_and_future_preferences_keep_a_usable_column_layout() {
     assert_eq!(future.items, vec![ColumnSpec { column: Column::From, width: 36 }, ColumnSpec::new(Column::Size), ColumnSpec::new(Column::Subject)]);
     let back: Columns = serde_json::from_value(json!(future)).unwrap();
     assert_eq!(back, future);
+    // An arrangement a later build saved reads as By Date; the rest of the view stays.
+    let view: crate::ViewState = serde_json::from_value(json!({"sort": "future", "sortDescending": true, "conversations": true})).unwrap();
+    assert_eq!((view.sort, view.sort_descending, view.conversations), (SortBy::Date, true, true));
+    let view: crate::ViewState = serde_json::from_value(json!({"sort": "flag"})).unwrap();
+    assert_eq!(view.sort, SortBy::Flag);
+    for saved in [json!({"sort": null}), json!({"sort": 3}), json!({})] {
+        assert_eq!(serde_json::from_value::<crate::ViewState>(saved).unwrap().sort, SortBy::Date);
+    }
 }
 
 #[test]
