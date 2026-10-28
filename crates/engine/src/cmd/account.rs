@@ -24,7 +24,7 @@ use crate::{CmdError, CmdResult, CommandSpec, Session, p};
 pub fn specs() -> Vec<CommandSpec> {
     vec![
         CommandSpec::new("account.add", "Add Account", "File › Info", add).params(ACCOUNT),
-        CommandSpec::new("account.edit", "Account Settings", "File › Info", edit).params(r#"{"id": number, …the fields of account.add, "downloadInFull"?: "upTo10Mb"|"upTo25Mb"|"upTo50Mb"|"everything" (a Microsoft account: which messages are fetched whole in the background), "keepOffline"?: "3d"|"1w"|"2w"|"1m"|"3m"|"6m"|"12m"|"2y"|"5y"|"10y"|"all" (a Microsoft account's mail to keep offline: how far back, by received date, mail is kept in full on this computer; older mail keeps its headers and preview. A shared mailbox follows its owner's. Shortening it removes nothing by itself: account.thinOffline does)}"#),
+        CommandSpec::new("account.edit", "Account Settings", "File › Info", edit).params(r#"{"id": number, …the fields of account.add, "downloadInFull"?: "upTo10Mb"|"upTo25Mb"|"upTo50Mb"|"everything" (a Microsoft account: which messages are fetched whole in the background), "keepOffline"?: "3d"|"1w"|"2w"|"1m"|"3m"|"6m"|"12m"|"2y"|"5y"|"10y"|"all" (a Microsoft account's mail to keep offline: how far back, by received date, mail is kept in full on this computer; older mail keeps its headers and preview. A shared mailbox follows its owner's. Shortening it removes nothing by itself: account.thinOffline does), "askBeforeDeletingConversation"?: bool (Delete on a conversation's row that takes more than one message, in its folder or found by a search, asks first in the window; on unless turned off. A shared mailbox follows its owner's)}"#),
         CommandSpec::new("account.remove", "Remove Account", "File › Info", remove).params(r#"{"id": number} — removes the account, its mail and what is kept for it on this computer (bodies and attachments leave the content folder once a state without it is saved; no Undo step is kept), and what came from its server: its events, contacts, to-dos and calendars (what was made here and not sent yet stays, as this computer's own), Outlook's list of categories, and, where the window's settings are kept (the window, not mailcraft-cli), its mailbox's working hours; nothing on the server is touched. The only account leaves an empty mailbox, as at a first start. Answers {"deleted": id, "leftToSweep": n (content files the sweep removes later)}"#),
         CommandSpec::new("account.list", "List Accounts", "File › Info", list).pure(),
         CommandSpec::new("account.preset", "Suggest Account Settings", "File › Info", preset)
@@ -206,6 +206,12 @@ fn apply_fields(a: &mut Account, v: &Value) -> Result<(), CmdError> {
         a.keep_offline =
             mailcraft_model::KeepOffline::parse(keep).ok_or_else(|| bad("`keepOffline` is 3d, 1w, 2w, 1m, 3m, 6m, 12m, 2y, 5y, 10y or all"))?;
     }
+    // Whether Delete on a whole conversation asks first (#503).
+    match v.get("askBeforeDeletingConversation") {
+        None => {}
+        Some(Value::Bool(ask)) => a.skip_conversation_question = !ask,
+        Some(_) => return Err(bad("`askBeforeDeletingConversation` is true or false")),
+    }
     // A Microsoft account kept in step through Graph (R3), or an account kept in step over JMAP
     // (M6): asked for by name; one that is that already stays it. (One kept in step by IMAP becomes
     // one through Graph by switching: `account.graphSwitch`.) Otherwise the servers say: IMAP, or
@@ -236,9 +242,6 @@ fn apply_fields(a: &mut Account, v: &Value) -> Result<(), CmdError> {
             a.kind = if a.incoming.is_some() || a.outgoing.is_some() { AccountKind::Imap } else { AccountKind::Local };
             a.jmap = None;
         }
-    }
-    if !a.address().is_valid() {
-        return Err(bad(format!("\"{}\" isn't an e-mail address", a.email)));
     }
     if a.name.is_empty() {
         a.name = a.email.clone();
@@ -277,11 +280,24 @@ fn jmap_server(v: &Value, before: Option<&JmapServer>) -> Result<JmapServer, Cmd
     Ok(server)
 }
 
+/// An account's address must be one, but for the account on this computer that has none and keeps
+/// it so (`before`: what an edited account was), which holds imported mail, when nothing else of it
+/// changes but its question before deleting a conversation (#503): it is no account to sign in with.
+fn check_address(a: &Account, before: Option<&Account>) -> Result<(), CmdError> {
+    let none_kept = before
+        .is_some_and(|b| b.kind == AccountKind::Local && *a == Account { skip_conversation_question: a.skip_conversation_question, ..b.clone() });
+    if !none_kept && !a.address().is_valid() {
+        return Err(bad(format!("\"{}\" isn't an e-mail address", a.email)));
+    }
+    Ok(())
+}
+
 /// The account `account.add` would make from these params (for the question put to the owner
 /// when an agent asks; `None` when they are not valid).
 pub(crate) fn from_params(v: &Value) -> Option<Account> {
     let mut a = Account::default();
     apply_fields(&mut a, v).ok()?;
+    check_address(&a, None).ok()?;
     Some(a)
 }
 
@@ -289,6 +305,7 @@ pub(crate) fn from_params(v: &Value) -> Option<Account> {
 pub(crate) fn edited(old: &Account, v: &Value) -> Option<Account> {
     let mut a = old.clone();
     apply_fields(&mut a, v).ok()?;
+    check_address(&a, Some(old)).ok()?;
     Some(a)
 }
 
@@ -331,6 +348,7 @@ fn add(s: &mut Session, v: &Value) -> CmdResult {
     // A new account keeps a year of mail in full (#143); one from before keeps all of it.
     let mut a = Account { keep_offline: mailcraft_model::KeepOffline::NEW_ACCOUNT, ..Default::default() };
     apply_fields(&mut a, v)?;
+    check_address(&a, None)?;
     if s.mailbox.accounts.iter().any(|x| x.email.eq_ignore_ascii_case(&a.email)) {
         return Err(failed!("{address} is already set up", address = a.email));
     }
@@ -364,6 +382,7 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
     }
     let before = a.clone();
     apply_fields(&mut a, v)?;
+    check_address(&a, Some(&before))?;
     // A JMAP account's folders and mail are known to its server by the ids it hands out, and any
     // other account's by paths and UIDs, or by nobody: an account doesn't turn from one to the other.
     if (before.kind == AccountKind::Jmap) != (a.kind == AccountKind::Jmap) {
@@ -386,6 +405,9 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
     if before.is_shared() {
         if v.get("keepOffline").is_some() {
             return Err(fail("a shared mailbox keeps as much mail offline as the account it is opened through: change that account's"));
+        }
+        if v.get("askBeforeDeletingConversation").is_some() {
+            return Err(fail("a shared mailbox asks before deleting a conversation as the account it is opened through does: change that account's"));
         }
         if !a.email.trim().eq_ignore_ascii_case(before.email.trim()) {
             return Err(fail("a shared mailbox's address can't be changed: remove it and add the other one"));
@@ -509,7 +531,7 @@ fn list(s: &mut Session, _: &Value) -> CmdResult {
         .accounts
         .iter()
         .map(|a| {
-            json!({"id": a.id, "name": a.name, "email": a.email, "displayName": a.display_name, "kind": a.kind, "username": a.username, "incoming": a.incoming, "outgoing": a.outgoing, "signature": a.signature, "replySignature": a.reply_signature(), "auth": if a.oauth.is_some() { "oauth2" } else { "password" }, "oauth": a.oauth, "downloadInFull": a.download_in_full, "keepOffline": s.mailbox.keep_offline_of(a.id), "sharedOf": a.shared_of, "jmap": jmap_shown(a)})
+            json!({"id": a.id, "name": a.name, "email": a.email, "displayName": a.display_name, "kind": a.kind, "username": a.username, "incoming": a.incoming, "outgoing": a.outgoing, "signature": a.signature, "replySignature": a.reply_signature(), "auth": if a.oauth.is_some() { "oauth2" } else { "password" }, "oauth": a.oauth, "downloadInFull": a.download_in_full, "keepOffline": s.mailbox.keep_offline_of(a.id), "askBeforeDeletingConversation": s.mailbox.asks_before_deleting_conversation(a.id), "sharedOf": a.shared_of, "jmap": jmap_shown(a)})
         })
         .collect();
     Ok(json!({"accounts": accounts, "signatures": s.mailbox.signatures}))

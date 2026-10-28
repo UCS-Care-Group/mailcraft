@@ -128,6 +128,8 @@ const SAFE: &[&str] = &[
     "mail.last",
     "mail.pageDown",
     "mail.pageUp",
+    "mail.expandConversation",
+    "mail.collapseConversation",
     "mail.get",
     "mail.list",
     "mail.delete",
@@ -625,7 +627,7 @@ pub fn classify(s: &Session, id: &str, params: &Value) -> Access {
             if folder.is_some_and(|f| is_outbox(&s.mailbox, f)) { Access::Owner(Class::Send) } else { Access::Safe }
         }
         "mail.delete" => {
-            let ids = p::ids(params).unwrap_or_else(|| s.sel.messages.clone());
+            let ids = taken(params);
             if ids.iter().any(|m| deletes_for_good(&s.mailbox, *m)) { Access::Owner(Class::Delete) } else { Access::Safe }
         }
         "ui.sync" if params.get("password").is_some_and(|v| !v.is_null()) => Access::Owner(Class::Accounts),
@@ -743,6 +745,39 @@ pub enum Verdict {
     Refuse(String),
 }
 
+/// The messages an agent's Delete or Move names, read as the command reads them (#503): never the
+/// selection, which is the owner's ([`NEEDS_IDS`]).
+fn taken(params: &Value) -> Vec<Id> {
+    p::ids_strict(params).ok().flatten().unwrap_or_default()
+}
+
+/// Commands that destroy, move, send from or open messages, or are costly: an agent names the
+/// messages (`ids`, or `id`), never leaving them to the window's selection, which the owner may
+/// have changed a moment ago (#620). The owner's own runs keep the selection.
+pub const NEEDS_IDS: &[&str] = &[
+    "mail.delete",
+    "mail.deletePermanently",
+    "mail.move",
+    "mail.copy",
+    "mail.archive",
+    "mail.junk",
+    "mail.notJunk",
+    "mail.reply",
+    "mail.replyAll",
+    "mail.forward",
+    "mail.forwardAsAttachment",
+    "mail.editDraft",
+    "mail.removeAttachment",
+    "mail.sendAgain",
+];
+
+/// The refusal for a command in [`NEEDS_IDS`] given no messages.
+pub fn needs_ids(id: &str) -> String {
+    format!(
+        "`{id}` needs `ids` (or `id`): an agent names the messages, as `mail.list` shows them, and doesn't act on what the owner has selected in the window"
+    )
+}
+
 /// The gate: `allow` is what the owner allowed in advance.
 pub fn check(s: &Session, id: &str, params: &Value, allow: &[Class]) -> Verdict {
     verdict(s, id, params, allow, None)
@@ -761,6 +796,9 @@ fn verdict(s: &Session, id: &str, params: &Value, allow: &[Class], yes: Option<C
     if let Some(key) = file_named(id, params) {
         return Verdict::Refuse(no_paths(id, key));
     }
+    if NEEDS_IDS.contains(&id) && p::ids(params).is_none_or(|ids| ids.is_empty()) {
+        return Verdict::Refuse(needs_ids(id));
+    }
     // The owner is asked about the list the command would change, or about nothing (#504).
     if matches!(id, "junk.add" | "junk.remove") && p::str(params, "list").and_then(mailcraft_model::JunkList::parse).is_none() {
         return Verdict::Refuse(format!("`{id}` needs `list`: \"safe\" or \"blocked\""));
@@ -769,6 +807,16 @@ fn verdict(s: &Session, id: &str, params: &Value, allow: &[Class], yes: Option<C
         && let Err(e) = crate::cmd::junk::list_account(s, params)
     {
         return Verdict::Refuse(format!("`{id}`: {e}"));
+    }
+    // Params the command would read as none, and ids it refuses, aren't asked about as the
+    // selection it would take without them (#503).
+    if matches!(id, "mail.delete" | "mail.deletePermanently" | "mail.move") {
+        if !(params.is_object() || params.is_null()) {
+            return Verdict::Refuse(format!("`{id}`: the parameters are an object"));
+        }
+        if let Err(e) = p::ids_strict(params) {
+            return Verdict::Refuse(format!("`{id}`: {e}"));
+        }
     }
     match classify(s, id, params) {
         Access::Safe => Verdict::Run,
@@ -923,12 +971,13 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
             None => "send the message being written".to_string(),
         },
         "mail.move" | "mail.copy" => {
-            let ids = p::ids(params).unwrap_or_else(|| s.sel.messages.clone());
+            // What the agent names (#620), Move's read as the command reads them (#503).
+            let ids = if id == "mail.move" { taken(params) } else { p::ids(params).unwrap_or_else(|| s.sel.messages.clone()) };
             format!("put {} in the Outbox, which sends them", messages_text(s, &ids))
         }
         "file.import" => "import messages into the Outbox, which sends them".to_string(),
         "mail.delete" | "mail.deletePermanently" => {
-            let ids = p::ids(params).unwrap_or_else(|| s.sel.messages.clone());
+            let ids = taken(params);
             format!("delete {} for good", messages_text(s, &ids))
         }
         "folder.empty" | "folder.delete" => {

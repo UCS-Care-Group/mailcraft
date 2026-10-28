@@ -17,8 +17,15 @@ use crate::{Filter, Scope, Session, SortBy};
 pub struct Row {
     /// The message the row shows (the newest of its conversation).
     pub id: Id,
-    /// Every message the row stands for, newest first (just `id` outside conversation view).
+    /// Every message the row stands for, newest first (just `id` outside conversation view, and
+    /// for a message listed under its open conversation): those of its conversation the list
+    /// shows, which Delete and Move take with it (#485, #503).
     pub members: Vec<Id>,
+    /// In conversation view, the messages of its conversation in the account's other folders (a
+    /// reply in Sent Items), newest first (#503): counted with `members` and listed under the row
+    /// when it is open, but not what the row stands for, as in Outlook.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub others: Vec<Id>,
     pub unread: usize,
     /// The group heading above this row, when it starts a group (`Today`, `Last Week`).
     pub group: Option<String>,
@@ -26,8 +33,45 @@ pub struct Row {
     /// translated) and not a date, importance or one of the program's own (`Pinned`, no category).
     pub category: bool,
     /// Which of the message's rows this is: arranged by categories, a message filed under two
-    /// categories is listed under each, as Outlook lists it, and the second row is copy 1.
+    /// categories is listed under each, as Outlook lists it, and the second row is copy 1. Under
+    /// an open conversation, the newest message's own row is copy 1 too: copy 0 is the
+    /// conversation's row.
     pub copy: u16,
+    /// For a message listed under its open conversation (#503): the message the conversation's
+    /// row shows.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub under: Option<Id>,
+    /// For a conversation's row: it is open, and its messages are listed under it.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub open: bool,
+}
+
+impl Row {
+    /// The row of one message, `copy` of its rows.
+    fn of(m: &Message, copy: u16) -> Row {
+        Row {
+            id: m.id,
+            members: vec![m.id],
+            others: Vec::new(),
+            unread: usize::from(!m.read),
+            group: None,
+            category: false,
+            copy,
+            under: None,
+            open: false,
+        }
+    }
+
+    /// How many messages the row's conversation has: what its count says, and what is listed
+    /// under it when it is open (#503).
+    pub fn size(&self) -> usize {
+        self.members.len().saturating_add(self.others.len())
+    }
+
+    /// Whether it is the row of a conversation of more than one message, which opens.
+    pub fn conversation(&self) -> bool {
+        self.under.is_none() && self.size() > 1
+    }
 }
 
 /// When a message counts as having arrived: its received time, or its date when it has none.
@@ -243,24 +287,35 @@ pub(crate) fn listing(s: &Session, decided: &HashMap<Id, bool>, searched: &HashM
                 }
                 None => {
                     index.insert((m.account, m.thread_key()), out.len());
-                    out.push(Row { id: m.id, members: vec![m.id], unread: usize::from(!m.read), group: None, category: false, copy: 0 });
+                    out.push(Row::of(m, 0));
                 }
             }
         }
+        // Without a search, the rest of each conversation, in the account's other folders: a
+        // reply in Sent Items is part of it (#503). (A search lists what it finds where it looks.)
+        if query.is_empty() {
+            elsewhere(s, &me, kept.as_deref(), &index, &mut out, &mut kept_only);
+        }
+        let newest = |id: &Id| std::cmp::Reverse(mb.message(*id).map(|m| (when(m), m.id)));
         for row in &mut out {
             // Newest first inside a conversation, and the row shows the newest.
-            row.members.sort_by_key(|id| std::cmp::Reverse(mb.message(*id).map(|m| (when(m), m.id))));
+            row.members.sort_by_key(newest);
+            row.others.sort_by_key(newest);
             if let Some(first) = row.members.first() {
                 row.id = *first;
             }
         }
+        if !s.view.open.is_empty() {
+            out = opened(s, out);
+        }
     } else {
-        out.extend(shown.iter().map(|m| Row { id: m.id, members: vec![m.id], unread: usize::from(!m.read), group: None, category: false, copy: 0 }));
+        out.extend(shown.iter().map(|m| Row::of(m, 0)));
     }
 
     let mut last: Option<String> = None;
-    // Show in Groups off: the sorted rows, no headings.
-    for row in out.iter_mut().filter(|_| s.prefs.show_groups) {
+    // Show in Groups off: the sorted rows, no headings. (A message under its open conversation is
+    // under its conversation's heading.)
+    for row in out.iter_mut().filter(|r| s.prefs.show_groups && r.under.is_none()) {
         let label = mb.message(row.id).and_then(|m| group_label(s, m));
         if label != last {
             row.group = label.clone();
@@ -268,6 +323,59 @@ pub(crate) fn listing(s: &Session, decided: &HashMap<Id, bool>, searched: &HashM
         }
     }
     (out, kept_only)
+}
+
+/// The messages of the conversations of `rows` in the account's other folders (#503), as the
+/// reading pane's conversation takes them ([`Mailbox::conversation_skips`]: none in Deleted Items
+/// or Junk E-mail or under them, unless the list is of that folder), that the filter in view lists or that stay
+/// in it while selected (`kept`, #428, and then in `kept_only` too): each in its row's `others`.
+/// For a list without a search, all of whose rows are of the folder in view; `index` is where
+/// each conversation's row is, by its account and its key.
+///
+/// [`Mailbox::conversation_skips`]: mailcraft_model::Mailbox::conversation_skips
+fn elsewhere(s: &Session, me: &[&str], kept: Option<&HashSet<Id>>, index: &HashMap<(Id, String), usize>, rows: &mut [Row], kept_only: &mut Vec<Id>) {
+    let mb = &s.mailbox;
+    let folder = s.view.folder;
+    let Some(account) = mb.folder(folder).map(|f| f.account) else { return };
+    let skips = mb.conversation_skips(account, folder);
+    for m in mb.messages.values() {
+        if m.account != account || m.folder == folder || skips.contains(&m.folder) {
+            continue;
+        }
+        let hit = filtered(s, m, me);
+        if !hit && !kept.is_some_and(|kept| kept.contains(&m.id)) {
+            continue;
+        }
+        if let Some(row) = index.get(&(m.account, m.thread_key())).and_then(|i| rows.get_mut(*i)) {
+            row.others.push(m.id);
+            if !hit {
+                kept_only.push(m.id);
+            }
+        }
+    }
+}
+
+/// `rows`, with the messages of each open conversation (#503) listed under its row, newest first,
+/// whichever folder each is in. The newest one's own row there is its copy 1: copy 0 is the
+/// conversation's row.
+fn opened(s: &Session, rows: Vec<Row>) -> Vec<Row> {
+    let mb = &s.mailbox;
+    let open: HashSet<&(Id, String)> = s.view.open.iter().collect();
+    let mut out = Vec::with_capacity(rows.len());
+    for mut row in rows {
+        row.open = row.conversation() && mb.message(row.id).is_some_and(|m| open.contains(&(m.account, m.thread_key())));
+        if !row.open {
+            out.push(row);
+            continue;
+        }
+        let mut under: Vec<&Message> = row.members.iter().chain(&row.others).filter_map(|id| mb.message(*id)).collect();
+        under.sort_by_key(|m| std::cmp::Reverse((when(m), m.id)));
+        let head = row.id;
+        let listed: Vec<Row> = under.into_iter().map(|m| Row { under: Some(head), ..Row::of(m, u16::from(m.id == head)) }).collect();
+        out.push(row);
+        out.extend(listed);
+    }
+    out
 }
 
 /// The list arranged by categories, as Outlook arranges it: a message is listed under each of its
@@ -295,7 +403,7 @@ fn by_category(s: &Session, shown: &[&Message], desc: bool) -> Vec<Row> {
     let mut out = Vec::with_capacity(placed.len());
     for (name, m) in placed {
         let copy = copies.entry(m.id).or_default();
-        let mut row = Row { id: m.id, members: vec![m.id], unread: usize::from(!m.read), group: None, category: false, copy: *copy };
+        let mut row = Row::of(m, *copy);
         *copy = copy.saturating_add(1);
         let (label, category) = if m.pinned {
             ("Pinned".to_string(), false)
@@ -316,9 +424,10 @@ fn by_category(s: &Session, shown: &[&Message], desc: bool) -> Vec<Row> {
     out
 }
 
-/// The row a message is in (its first, when it is listed more than once).
+/// The row a message is in (its first, when it is listed more than once): its own before a
+/// conversation's that has it (#503: under its open conversation).
 pub fn position(rows: &[Row], id: Id) -> Option<usize> {
-    rows.iter().position(|r| r.id == id || r.members.contains(&id))
+    rows.iter().position(|r| r.id == id).or_else(|| rows.iter().position(|r| r.members.contains(&id)))
 }
 
 /// The row numbered `copy` of a message's rows, or its first when it has fewer.
@@ -327,7 +436,7 @@ pub fn position_of(rows: &[Row], id: Id, copy: u16) -> Option<usize> {
 }
 
 /// How many messages (or conversations) the list shows: one listed under several categories
-/// counts once.
+/// counts once, and the messages listed under an open conversation are its row's.
 pub fn listed(rows: &[Row]) -> usize {
-    rows.iter().filter(|r| r.copy == 0).count()
+    rows.iter().filter(|r| r.copy == 0 && r.under.is_none()).count()
 }
