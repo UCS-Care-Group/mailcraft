@@ -139,11 +139,6 @@ fn what_cannot_be_asked_never_matches() {
 }
 
 #[test]
-fn a_list_of_selectors_keeps_those_it_understands() {
-    assert_eq!(colour("<style>a:hover, p:unknown, p{color:#f00}</style><p>x</p>"), RED);
-}
-
-#[test]
 fn only_the_whitelist_is_kept() {
     let blocks = parse(
         "<style>p{color:#f00;behavior:url(x.htc);content:'x';position:absolute;background-image:url(https://t.example/p.gif);\
@@ -208,15 +203,6 @@ fn inline_hiding_is_as_before() {
 }
 
 #[test]
-fn a_size_of_nothing_is_taken_at_its_word_once_the_sheet_is_read() {
-    // No sheet: an element with a class is not held to the nothing around it.
-    assert!(texts("<div style='font-size:0'><p class=big>shown</p></div>").iter().any(|t| t == "shown"));
-    // A sheet that gives the class a size, shown; one that does not, hidden as the size says.
-    assert!(texts("<style>.big{font-size:16px}</style><div style='font-size:0'><p class=big>shown</p></div>").iter().any(|t| t == "shown"));
-    assert!(!texts("<style>.other{font-size:16px}</style><div style='font-size:0'><p class=big>gone</p></div>").iter().any(|t| t == "gone"));
-}
-
-#[test]
 fn the_sheet_gives_the_same_facts_a_style_does() {
     let blocks = parse(
         "<style>.t{width:300px;margin:0 auto;background-color:#eee} .c{vertical-align:middle;padding:4px 8px;border:1px solid #ccc} \
@@ -278,7 +264,7 @@ fn matching_work_is_bounded_per_element_and_per_message() {
     let Some(mut s) = Sheet::read(&html) else { panic!("a sheet") };
     let mut before = s.work();
     for ordinal in 0..320 {
-        s.style_for(ordinal);
+        s.style_for(ordinal, false);
         assert!(s.work() - before <= MAX_STEPS_PER_ELEMENT + MAX_CONSIDERED as u32, "element {ordinal}");
         before = s.work();
     }
@@ -316,14 +302,14 @@ fn a_megabyte_of_mail_is_styled_within_the_budget() {
     let Some(mut sheet) = Sheet::read(&html) else { panic!("no sheet") };
     let elements = sheet.dom.len();
     assert!(elements > 10_000);
-    let styled = (0..elements - 1).filter(|n| sheet.style_for(*n).is_some()).count();
+    let styled = (0..elements - 1).filter(|n| sheet.style_for(*n, false).is_some()).count();
     let took = started.elapsed();
     assert!(styled > 1_000, "{styled}");
     // The work is counted and bounded for the message; the time bound is generous (a loaded CI
     // machine, a build without optimisation).
     assert!(sheet.work() < MAX_STEPS, "all of it was styled within the budget: {}", sheet.work());
     let last = elements - 2;
-    assert!(sheet.style_for(last).is_some() || sheet.work() < MAX_STEPS);
+    assert!(sheet.style_for(last, false).is_some() || sheet.work() < MAX_STEPS);
     assert!(took.as_millis() < 5_000, "{took:?}");
     println!("styling {elements} elements of {} bytes took {took:?}, {} steps", html.len(), sheet.work());
 }
@@ -331,18 +317,18 @@ fn a_megabyte_of_mail_is_styled_within_the_budget() {
 #[test]
 fn a_message_that_wears_out_its_budget_is_styled_as_far_as_it_goes() {
     // 4,000 rules keyed by one tag, on a message full of it: the work stops at the cap.
-    // (400 steps an element, so 5,000 elements spend it.)
+    // (600 steps an element, so about 7,000 elements spend it.)
     let sheet: String = (0..MAX_RULES).map(|i| format!("p[data-{i}]{{color:#f00}}")).collect();
     let html = format!("<style>{sheet}</style>{}", "<p>x</p>".repeat(20_000));
     let Some(mut s) = Sheet::read(&html) else { panic!("a sheet") };
     let started = std::time::Instant::now();
     for n in 0..20_000 {
-        s.style_for(n);
+        s.style_for(n, false);
     }
     assert!(s.work() <= MAX_STEPS && s.work() + MAX_STEPS_PER_ELEMENT > MAX_STEPS, "{}", s.work());
     assert!(started.elapsed().as_millis() < 5_000);
     // Once spent, the elements after are not styled and nothing fails.
-    assert!(s.style_for(19_999).is_none());
+    assert!(s.style_for(19_999, false).is_none());
 }
 
 #[test]
@@ -425,4 +411,203 @@ proptest::proptest! {
         let blocks = parse(&html);
         proptest::prop_assert!(blocks.len() <= crate::MAX_BLOCKS + 2);
     }
+}
+
+// ---- review of #598 ----
+
+/// Styles every element of `html` and gives the work done and the time it took.
+fn styled(html: &str) -> (Sheet, std::time::Duration) {
+    let started = std::time::Instant::now();
+    let Some(mut sheet) = Sheet::read(html) else { panic!("no sheet") };
+    for n in 0..sheet.dom.len().saturating_sub(1) {
+        sheet.style_for(n, false);
+    }
+    (sheet, started.elapsed())
+}
+
+#[test]
+fn a_not_list_is_capped_and_every_entry_costs_a_step() {
+    // Past the cap the rule is dropped: 20,000 entries cost nothing.
+    let long = format!("*:not({}){{color:#f00}}", vec![".a"; 20_000].join(","));
+    assert!(rules(&long).is_empty());
+    let capped = format!("*:not({}){{color:#f00}}", vec![".a"; MAX_NOT_LIST].join(","));
+    assert_eq!(rules(&capped).len(), 1);
+    // Within it, each entry is charged: an element that none of 32 entries matches costs 33 steps.
+    let html = format!("<style>{capped}</style>{}", "<b>x</b>".repeat(3_000));
+    let (sheet, _) = styled(&html);
+    assert!(sheet.work() >= 3_000 * (MAX_NOT_LIST as u32 + 1), "{}", sheet.work());
+    assert!(sheet.work() <= MAX_STEPS);
+}
+
+#[test]
+fn the_simple_selectors_of_a_compound_are_charged() {
+    let classes: String = (0..30).map(|i| format!(".q{i}")).collect();
+    let html =
+        format!("<style>*{classes}{{color:#f00}}</style>{}", "<i class='q0 q1 q2 q3 q4 q5 q6 q7 q8 q9 q10 q11 q12 q13 q14 q15'>x</i>".repeat(5_000));
+    let (sheet, _) = styled(&html);
+    // 16 of the 30 classes are there: 17 simples are tried and the 18th ends it.
+    assert!(sheet.work() >= 5_000 * 17, "{}", sheet.work());
+}
+
+#[test]
+fn a_match_that_ignores_case_lowers_the_values_once() {
+    let rules: String = (0..2_000).map(|i| format!("[title*=q{i} i]{{color:#f00}}")).collect();
+    let value = "AbCdEfGh".repeat(30);
+    let html = format!("<style>{rules}</style>{}", format!("<i title='{value}'>x</i>").repeat(20_000));
+    let started = std::time::Instant::now();
+    let Some(mut sheet) = Sheet::read(&html) else { panic!("no sheet") };
+    assert_eq!(sheet.dom.get(1).map(|e| e.lower.len()), Some(1));
+    for n in 0..20_000 {
+        sheet.style_for(n, false);
+    }
+    assert!(sheet.work() <= MAX_STEPS);
+    assert!(started.elapsed().as_secs() < 3, "{:?}", started.elapsed());
+    // And it still matches what it says.
+    assert_eq!(colour("<style>[title^=abc i]{color:#f00}</style><p title='ABCD'>x</p>"), RED);
+    assert_eq!(colour("<style>[title^=abc]{color:#f00}</style><p title='ABCD'>x</p>"), None);
+}
+
+#[test]
+fn a_stray_end_tag_costs_nothing_and_a_walk_is_short() {
+    let walk = |html: &str| {
+        let mut t = TreeBuilder::new();
+        for token in Tokenizer::new(html) {
+            match token {
+                Token::Open(tag) => t.open(&tag),
+                Token::Close(name) => t.close(&name),
+                Token::Text(_) => {}
+            }
+        }
+        t.walked
+    };
+    assert_eq!(walk(&format!("{}{}", "<i>".repeat(600), "</b>".repeat(450_000))), 0);
+    // A name that is open but behind a barrier: no more than a short walk each time.
+    let deep = format!("<b><span>{}", "<i>".repeat(500));
+    assert!(walk(&format!("{deep}{}", "</b>".repeat(10_000))) <= (MAX_WALK as u64) * 10_001 + 600);
+    // Implied closes are bounded the same way.
+    assert!(walk(&format!("<p>{}", "<div>".repeat(50_000))) <= (MAX_WALK as u64) * 50_001);
+}
+
+#[test]
+fn elements_that_match_the_same_rules_share_one_look() {
+    let wide: String =
+        ["margin-top", "margin-left", "margin-bottom", "margin-right", "padding-top", "padding-left", "padding-right", "padding-bottom"]
+            .iter()
+            .flat_map(|p| (0..5).map(move |i| format!("{p}:{i}px;")))
+            .collect();
+    let html = format!("<style>*{{{wide}color:#00f}} i{{{}}}</style>{}", wide.replace(';', " !important;"), "<i>x</i>".repeat(100_000));
+    let (sheet, took) = styled(&html);
+    assert!(sheet.cache.len() <= 4, "{}", sheet.cache.len());
+    assert!(took.as_secs() < 3, "{took:?}");
+    // The work is the matching and a share of what a new look costs: not a look for each.
+    assert!(sheet.work() < MAX_STEPS / 4, "{}", sheet.work());
+}
+
+#[test]
+fn a_size_given_by_a_rule_that_was_not_read_does_not_hide_the_text() {
+    let wrapped = |sheet: &str| texts(&format!("<style>{sheet}</style><div style='font-size:0'><span class=t>Hello</span></div>"));
+    for sheet in [
+        "body{margin:0} @media screen{.t{font-size:16px}}",
+        ".t:where(span){font-size:16px}",
+        ".t:is(span){font-size:16px}",
+        ".t:last-of-type{font-size:16px}",
+        ".t:nth-last-child(1){font-size:16px}",
+        ".t:only-of-type{font-size:16px}",
+        ".t:empty{font-size:16px}",
+        ".other{font-size:16px}",
+    ] {
+        assert_eq!(wrapped(sheet), ["Hello"], "{sheet}");
+    }
+    // A size the sheet did give is the size: nothing is nothing.
+    assert!(wrapped(".t{font-size:0}").is_empty());
+    assert_eq!(wrapped(".t{font-size:16px}"), ["Hello"]);
+    // Without a sheet, as before.
+    assert_eq!(texts("<div style='font-size:0'><span class=t>Hello</span></div>"), ["Hello"]);
+}
+
+#[test]
+fn an_inline_important_beats_a_sheets_important() {
+    assert_eq!(colour("<style>p{color:#0f0 !important}</style><p style='color:#f00 !important'>x</p>"), RED);
+    assert_eq!(texts("<style>p{display:none !important}</style><p style='display:block !important'>shown</p>"), ["shown"]);
+    // The sheet's still beats an inline that isn't.
+    assert_eq!(colour("<style>p{color:#f00 !important}</style><p style='color:#00f'>x</p>"), RED);
+    assert_eq!(colour("<style>p{color:#00f}</style><p style='color:#f00;font-weight:bold !important'>x</p>"), RED);
+    // A `!important` inside a quoted value is no mark.
+    assert_eq!(colour("<style>p{color:#f00 !important}</style><p style=\"font-family:'a !important'; color:#00f\">x</p>"), RED);
+}
+
+#[test]
+fn only_child_is_first_and_last() {
+    assert_eq!(texts("<style>span:only-child{display:none}</style><div><span>AAA</span> <span>BBB</span></div>"), ["AAA BBB"]);
+    assert_eq!(texts("<style>span:only-child{display:none}</style><div><span>AAA</span></div><p>kept</p>"), ["kept"]);
+    assert_eq!(reds("<style>li:only-child{color:#f00}</style><ul><li>a</li></ul><ul><li>b</li><li>c</li></ul>"), [true, false, false]);
+}
+
+#[test]
+fn what_hides_can_be_taken_back_by_a_later_declaration() {
+    assert_eq!(texts("<style>.x{opacity:0}</style><p class=x style='opacity:1'>shown</p>"), ["shown"]);
+    assert_eq!(texts("<style>.x{max-width:0}</style><p class=x style='max-width:600px'>shown</p>"), ["shown"]);
+    assert_eq!(texts("<style>.x{height:0;overflow:hidden}</style><p class=x style='height:auto'>shown</p>"), ["shown"]);
+    assert_eq!(texts("<style>.x{width:0;overflow:hidden}</style><p class=x style='width:100px'>shown</p>"), ["shown"]);
+    assert_eq!(texts("<p style='opacity:0;opacity:1'>shown</p>"), ["shown"]);
+    assert_eq!(texts("<style>.x{opacity:0}</style><p class=x>gone</p><p>kept</p>"), ["kept"]);
+}
+
+#[test]
+fn an_overflow_axis_taken_back_does_not_unclip_the_other() {
+    // In CSS `overflow-y:auto` changes only y: the box is still clipped across.
+    assert_eq!(texts("<p style='height:0;overflow:hidden;overflow-y:auto'>gone</p><p>kept</p>"), ["kept"]);
+    assert_eq!(texts("<p style='height:0;overflow:hidden;overflow-x:auto'>gone</p><p>kept</p>"), ["kept"]);
+    assert_eq!(texts("<p style='height:0;overflow:hidden;overflow:visible'>shown</p>"), ["shown"]);
+    assert_eq!(texts("<p style='height:0;overflow:hidden;overflow-x:auto;overflow-y:auto'>shown</p>"), ["shown"]);
+    assert_eq!(texts("<p style='height:0;overflow:hidden auto'>gone</p><p>kept</p>"), ["kept"]);
+}
+
+#[test]
+fn a_selector_that_is_not_understood_drops_the_whole_rule() {
+    assert_eq!(texts("<style>.x, .y:-moz-foo{display:none}</style><p class=x>shown</p>"), ["shown"]);
+    assert_eq!(texts("<style>.x, {display:none}</style><p class=x>shown</p>"), ["shown"]);
+    assert_eq!(texts("<style>.x, .y{display:none}</style><p class=x>gone</p><p class=y>gone</p><p>kept</p>"), ["kept"]);
+    assert_eq!(texts("<style>.x, .y:hover{display:none}</style><p class=x>gone</p><p>kept</p>"), ["kept"]);
+}
+
+#[test]
+fn what_an_element_takes_from_its_sheet_is_whole_and_leaves_room() {
+    // Junk names are not kept, so they crowd nothing out.
+    let junk: String = (0..80).map(|i| format!("margin-z{i}:1px;border-q{i}:1px;padding{i}:2px;")).collect();
+    assert_eq!(colour(&format!("<style>p{{{junk}color:#f00}}</style><p>x</p>")), RED);
+    assert_eq!(colour(&format!("<style>p{{{junk}color:#0f0 !important}}</style><p style='color:#00f'>x</p>")), Some(Rgb(0, 255, 0)));
+    // Forty `!important` declarations and an inline colour: the inline still comes before them
+    // and the important ones are all there.
+    let props = ["margin-top", "margin-left", "margin-bottom", "margin-right", "padding-top", "padding-left", "padding-right", "padding-bottom"];
+    let many: String = props.iter().flat_map(|p| (0..5).map(move |i| format!("{p}:{i}px !important;"))).collect();
+    let html = format!("<style>p{{{many}color:#f00 !important}}</style><p style='color:#00f'>x</p>");
+    assert_eq!(colour(&html), RED);
+    // What is kept is whole declarations, the last ones, within the cap.
+    let Some(mut sheet) =
+        Sheet::read(&format!("<style>p{{{}}}</style><p>x</p>", (0..40).map(|i| format!("font-family:{}{i};", "z".repeat(60))).collect::<String>()))
+    else {
+        panic!("no sheet")
+    };
+    let applied = sheet.style_for(0, false).expect("a look");
+    assert!(applied.before.len() <= MAX_APPLIED);
+    assert!(applied.before.split(';').all(|d| d.starts_with("font-family:") && d.len() > 12), "{}", applied.before);
+}
+
+#[test]
+fn the_head_ends_and_the_body_follows_it() {
+    let m = |sel: &str| colour(&format!("<html><head><style>{sel}{{color:#f00}}</style></head><body><p>x</p></body></html>"));
+    assert_eq!(m("html>body>p"), RED);
+    assert_eq!(m("head + body > p"), RED);
+    assert_eq!(m("head p"), None);
+    // A body without an end tag for the head still follows it.
+    assert_eq!(colour("<html><head><style>head+body>p{color:#f00}</style><body><p>x</p>"), RED);
+}
+
+#[test]
+fn the_first_class_and_id_count_and_a_template_has_no_sheet() {
+    assert_eq!(colour("<style>.a{color:#f00}.b{color:#00f}</style><p class=a class=b>x</p>"), RED);
+    assert_eq!(colour("<style>#a{color:#f00}#b{color:#00f}</style><p id=a id=b>x</p>"), RED);
+    assert_eq!(colour("<template><style>p{color:#f00}</style></template><p>x</p>"), None);
+    assert_eq!(colour("<template><style>p{color:#00f}</style></template><style>p{color:#f00}</style><p>x</p>"), RED);
 }

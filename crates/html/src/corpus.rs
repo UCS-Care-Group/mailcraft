@@ -197,6 +197,40 @@ pub fn hostile() -> Vec<(&'static str, String)> {
                 "<i class=a></i>".repeat(100_000)
             ),
         ),
+        (
+            "sheet not list",
+            format!("<style>*:not({}){{color:#f00}}</style><p>VISIBLE</p>{}", vec![".a"; 20_000].join(","), "<b>x</b>".repeat(150_000)),
+        ),
+        (
+            "sheet not list at the cap",
+            format!("<style>*:not({}){{color:#f00}}</style><p>VISIBLE</p>{}", vec![".a"; 32].join(","), "<b>x</b>".repeat(150_000)),
+        ),
+        (
+            "sheet many simples",
+            format!(
+                "<style>*:not({}){{color:#f00}}</style><p>VISIBLE</p>{}",
+                (0..9_000).map(|i| format!(".z{i}")).collect::<Vec<_>>().join(","),
+                "<i class='a b c d e f g h i j k l m n o p'>x</i>".repeat(40_000)
+            ),
+        ),
+        (
+            "sheet attribute fold",
+            format!(
+                "<style>{}</style><p>VISIBLE</p>{}",
+                (0..2_000).map(|i| format!("[title*=q{i} i]{{color:#f00}}")).collect::<String>(),
+                format!("<i title='{}'>x</i>", "AbCdEfGh".repeat(12)).repeat(20_000)
+            ),
+        ),
+        ("sheet stray ends", format!("<style>p{{color:#f00}}</style><p>VISIBLE</p>{}{}", "<i>".repeat(600), "</b>".repeat(450_000))),
+        (
+            "sheet two long rules",
+            format!(
+                "<style>*{{{}}} i{{{}}}</style><p>VISIBLE</p>{}",
+                (0..40).map(|i| format!("margin-left:{i}px;")).collect::<String>(),
+                (0..40).map(|i| format!("padding-top:{i}px !important;")).collect::<String>(),
+                "<i>x</i>".repeat(285_000)
+            ),
+        ),
         ("sheet junk", format!("<style>{}</style><p>x</p>", "{([\\\"'/*@:,>+~!;".repeat(8_000))),
         ("preformatted", format!("<pre>{}</pre>", "    indented\tcode line with    spaces\n".repeat(20_000))),
     ]

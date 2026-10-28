@@ -11,7 +11,7 @@ use std::rc::Rc;
 
 use crate::data::{self, Budget, MAX_DATA_TEXT};
 use crate::entities::unescape;
-use crate::sheet::Sheet;
+use crate::sheet::{self, Sheet};
 use crate::style::{self, Css, MsoList, Size};
 use crate::tokenizer::{Tag, Token, Tokenizer};
 use crate::{
@@ -185,7 +185,7 @@ struct Delta {
     /// in a browser, and a link around a table still leads somewhere.
     cell: bool,
     /// The element carries a `class` or an `id`: the hooks by which a style sheet gives sizes.
-    /// Where the message has no style sheet that was read ([`Tag::sheeted`]), a size of nothing around such an element says nothing
+    /// Unless a style sheet gave the element a size, a size of nothing around such an element says nothing
     /// of the size its text really has (builders set nothing on every cell and the sizes that
     /// count by class), and its text is shown.
     hooked: bool,
@@ -1939,18 +1939,18 @@ fn sized(css: &Css, attr: Option<Length>) -> Option<Length> {
 }
 
 /// What an element's style sheet rules and its `style` attribute say, in the order of the
-/// cascade: the rules, the attribute, the rules marked `!important`.
+/// cascade (`sheet::css_with`).
 pub(crate) fn css_of(tag: &Tag<'_>) -> Css {
     match &tag.sheet {
         None => tag.attr("style").map(|s| Css::parse(&s)).unwrap_or_default(),
-        Some((before, after)) => Css::parse(&format!("{before};{};{after}", tag.attr("style").unwrap_or_default())),
+        Some(applied) => sheet::css_with(applied, tag.attr("style").as_deref()),
     }
 }
 
 /// Whether an element carries a class or an id ([`Delta::hooked`]).
 fn hooked(tag: &Tag<'_>) -> bool {
-    // (With the message's style sheets read, a size of nothing is taken at its word.)
-    !tag.sheeted && (tag.has("class") || tag.has("id"))
+    // (An element whose size a style sheet gave is held to it, as to a size of its own.)
+    (tag.has("class") || tag.has("id")) && !tag.sheet.as_ref().is_some_and(|a| a.css.size.is_some())
 }
 
 /// Whether a background is white, or as good as.

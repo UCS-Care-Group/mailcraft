@@ -32,11 +32,8 @@ pub(crate) struct Tag<'a> {
     /// Names and values as written.
     attrs: Vec<(&'a str, &'a str)>,
     /// What the message's style sheets say about the element, set by the one who reads them
-    /// (`sheet.rs`): the declarations to put before the `style` attribute and those marked
-    /// `!important`, to put after it.
-    pub sheet: Option<(String, String)>,
-    /// The message has style sheets that were read: a size of nothing is then taken at its word.
-    pub sheeted: bool,
+    /// (`sheet.rs`).
+    pub sheet: Option<std::rc::Rc<crate::sheet::Applied>>,
 }
 
 impl Tag<'_> {
@@ -229,7 +226,7 @@ impl<'a> Tokenizer<'a> {
             }
         }
         self.pos = i.min(b.len());
-        Tag { name, attrs, sheet: None, sheeted: false }
+        Tag { name, attrs, sheet: None }
     }
 }
 

@@ -971,6 +971,11 @@ fn hostile_style_sheets_are_bounded() {
         let started = std::time::Instant::now();
         let blocks = parse(&html);
         assert!(blocks.len() <= MAX_BLOCKS + 1, "{name}");
-        assert!(started.elapsed().as_secs() < 10, "{name}: {:?}", started.elapsed());
+        let parsed = started.elapsed();
+        let started = std::time::Instant::now();
+        let _ = to_text(&html);
+        println!("{name}: parse {parsed:?}, to_text {:?}", started.elapsed());
+        // (Well under a second each in a release build; the bound is for a loaded debug one.)
+        assert!(parsed.as_secs() < 4 && started.elapsed().as_secs() < 4, "{name}: {parsed:?}");
     }
 }

@@ -17,9 +17,10 @@
 //!   `:first-of-type`, `:root`, `:link` and `:not()` of simple selectors. `:visited`, `:hover`,
 //!   `:focus`, `:active`, `::before`, `::after` and the like never match, and a selector this
 //!   doesn't know is dropped;
-//! * the cascade: specificity, then source order, with `!important` over all; a message's own
-//!   `style` attribute comes after the sheet's normal declarations and before its `!important`
-//!   ones. Inheritance is the builder's, as for a `style` attribute.
+//! * the cascade: specificity, then source order, with `!important` over all. The order of what
+//!   an element gets is the sheet's normal declarations, its own `style` attribute's normal ones,
+//!   the sheet's `!important` ones, and the `style` attribute's `!important` ones last, as in
+//!   CSS. Inheritance is the builder's, as for a `style` attribute.
 //!
 //! Everything is hostile and bounded: [`MAX_SHEET`] bytes of sheet text per message, [`MAX_RULES`]
 //! rules, [`MAX_PARTS`] compound selectors in a selector (a longer one is dropped), a count of
@@ -30,6 +31,8 @@
 
 use std::collections::HashMap;
 use std::rc::Rc;
+
+use crate::style::Css;
 
 use crate::tokenizer::{Tag, Token, Tokenizer};
 use crate::truncate;
@@ -44,10 +47,10 @@ pub(crate) const MAX_RULES: usize = 4_000;
 pub(crate) const MAX_PARTS: usize = 16;
 
 /// Most matching steps spent on one element.
-pub(crate) const MAX_STEPS_PER_ELEMENT: u32 = 400;
+pub(crate) const MAX_STEPS_PER_ELEMENT: u32 = 600;
 
 /// Most matching steps spent on a whole message.
-pub(crate) const MAX_STEPS: u32 = 2_000_000;
+pub(crate) const MAX_STEPS: u32 = 4_000_000;
 
 /// Most elements a message's tree keeps for matching; the ones after are not styled.
 const MAX_ELEMENTS: usize = 150_000;
@@ -59,6 +62,15 @@ const MAX_DEPTH: usize = 512;
 const MAX_SIMPLES: usize = 32;
 const MAX_NOT_DEPTH: usize = 2;
 
+/// Most selectors in a `:not()`; a longer list drops the rule.
+const MAX_NOT_LIST: usize = 32;
+
+/// Most open elements looked through for an end tag or an implied one.
+const MAX_WALK: usize = 64;
+
+/// Most different sets of rules whose look is kept for the elements that match the same ones.
+const MAX_CACHED: usize = 2_048;
+
 /// Most declarations, and most bytes of them, one element takes from the sheet on each side of
 /// its `style` attribute; and most declarations looked at to find them.
 const MAX_DECLARATIONS: usize = 40;
@@ -67,7 +79,8 @@ const MAX_CONSIDERED: usize = 600;
 
 /// Longest value of a declaration kept, and of an attribute kept for matching.
 const MAX_VALUE: usize = 1_024;
-const MAX_ATTR_VALUE: usize = 256;
+const MAX_ATTR_VALUE: usize = 128;
+const MAX_ELEMENT_ATTR_VALUE: usize = 256;
 
 /// Most classes kept for an element.
 const MAX_CLASSES: usize = 16;
@@ -118,6 +131,9 @@ struct El {
     id: Option<String>,
     classes: Vec<String>,
     attrs: Vec<(String, String)>,
+    /// The values of `attrs` in lower case, when a rule asks for a match that ignores case
+    /// (`[a=b i]`); else empty.
+    lower: Vec<String>,
     /// Index in the tree; 0 is the document itself, which nothing matches.
     parent: u32,
     /// The element before it among its parent's children.
@@ -136,6 +152,7 @@ impl El {
             id: None,
             classes: Vec::new(),
             attrs: Vec::new(),
+            lower: Vec::new(),
             parent: NONE,
             prev: NONE,
             index: 0,
@@ -146,6 +163,12 @@ impl El {
 
     fn attr(&self, name: &str) -> Option<&str> {
         self.attrs.iter().find(|(n, _)| n == name).map(|(_, v)| v.as_str())
+    }
+
+    /// An attribute's value, in lower case when `fold`.
+    fn attr_value(&self, name: &str, fold: bool) -> Option<&str> {
+        let at = self.attrs.iter().position(|(n, _)| n == name)?;
+        if fold { self.lower.get(at).map(String::as_str) } else { self.attrs.get(at).map(|(_, v)| v.as_str()) }
     }
 }
 
@@ -159,26 +182,49 @@ struct Open {
 struct TreeBuilder {
     els: Vec<El>,
     stack: Vec<Open>,
+    /// How many open elements there are of each name.
+    counts: HashMap<String, u32>,
+    /// Open elements looked at while closing, for the tests.
+    walked: u64,
 }
 
 impl TreeBuilder {
     fn new() -> TreeBuilder {
-        TreeBuilder { els: vec![El::document()], stack: vec![Open { el: 0, name: String::new(), children: 0, by_type: HashMap::new() }] }
+        TreeBuilder {
+            els: vec![El::document()],
+            stack: vec![Open { el: 0, name: String::new(), children: 0, by_type: HashMap::new() }],
+            counts: HashMap::new(),
+            walked: 0,
+        }
     }
 
     /// Close the nearest open element named in `names`, and what is inside it, unless one of
     /// `barriers` is met first.
     fn close_nearest(&mut self, names: &[&str], barriers: &[&str]) {
+        // Nothing of that name is open: nothing to look for (and a stray end tag costs nothing).
+        if !names.iter().any(|n| self.counts.get(*n).is_some_and(|c| *c > 0)) {
+            return;
+        }
         let mut at = self.stack.len();
-        while at > 1 {
+        let floor = at.saturating_sub(MAX_WALK).max(1);
+        while at > floor {
             at -= 1;
+            self.walked += 1;
             let Some(open) = self.stack.get(at) else { return };
             if names.contains(&open.name.as_str()) {
-                self.stack.truncate(at);
+                self.truncate_stack(at);
                 return;
             }
             if barriers.contains(&open.name.as_str()) {
                 return;
+            }
+        }
+    }
+
+    fn truncate_stack(&mut self, at: usize) {
+        for open in self.stack.drain(at..) {
+            if let Some(c) = self.counts.get_mut(&open.name) {
+                *c = c.saturating_sub(1);
             }
         }
     }
@@ -189,6 +235,9 @@ impl TreeBuilder {
             return;
         }
         let name = tag.name.as_str();
+        if name == "body" {
+            self.close_nearest(&["head"], &[]);
+        }
         match name {
             "li" => self.close_nearest(&["li"], &["ul", "ol", "table", "td", "th"]),
             "dt" | "dd" => self.close_nearest(&["dt", "dd"], &["dl", "table"]),
@@ -217,32 +266,42 @@ impl TreeBuilder {
             id: None,
             classes: Vec::new(),
             attrs: Vec::new(),
+            lower: Vec::new(),
             parent: parent_at,
             prev,
             index,
             type_index,
             last_child: NONE,
         };
+        // The first of an attribute counts, as in a browser.
+        let (mut seen_id, mut seen_class) = (false, false);
         for (attr, value) in tag.attributes() {
             let attr = attr.to_ascii_lowercase();
             match attr.as_str() {
-                "id" => el.id = Some(value.trim().to_ascii_lowercase()).filter(|v| !v.is_empty()),
-                "class" => {
+                "id" if !seen_id => {
+                    seen_id = true;
+                    el.id = Some(value.trim().to_ascii_lowercase()).filter(|v| !v.is_empty());
+                }
+                "class" if !seen_class => {
+                    seen_class = true;
                     el.classes = value.split_ascii_whitespace().take(MAX_CLASSES).map(str::to_ascii_lowercase).collect();
                 }
-                "style" => {}
-                _ if value.len() <= MAX_ATTR_VALUE && attr.len() <= 32 => el.attrs.push((attr, value)),
+                "id" | "class" | "style" => {}
+                _ if value.len() <= MAX_ELEMENT_ATTR_VALUE && attr.len() <= 32 && !el.attrs.iter().any(|(n, _)| *n == attr) => {
+                    el.attrs.push((attr, value));
+                }
                 _ => {}
             }
         }
         self.els.push(el);
         if !VOID.contains(&name) && self.stack.len() < MAX_DEPTH {
+            *self.counts.entry(tag.name.clone()).or_insert(0) += 1;
             self.stack.push(Open { el: id, name: tag.name.clone(), children: 0, by_type: HashMap::new() });
         }
     }
 
     fn close(&mut self, name: &str) {
-        if VOID.contains(&name) || matches!(name, "html" | "body" | "head") {
+        if VOID.contains(&name) || matches!(name, "html" | "body") {
             return;
         }
         let crossing: &[&str] = if matches!(name, "td" | "th" | "tr" | "table" | "tbody" | "thead" | "tfoot") { &[] } else { &["td", "th", "table"] };
@@ -287,6 +346,7 @@ enum Simple {
     Attr(AttrSel),
     FirstChild,
     LastChild,
+    OnlyChild,
     /// `a n + b` of the element's place among its siblings, or among those of its name.
     Nth {
         a: i64,
@@ -593,7 +653,7 @@ fn simple(cur: &mut Cursor<'_>, depth: usize) -> Result<Option<Simple>, ()> {
             let found = match (name.as_str(), args) {
                 ("first-child", None) => Simple::FirstChild,
                 ("last-child", None) => Simple::LastChild,
-                ("only-child", None) => Simple::Nth { a: 0, b: 1, of_type: false },
+                ("only-child", None) => Simple::OnlyChild,
                 ("first-of-type", None) => Simple::Nth { a: 0, b: 1, of_type: true },
                 ("root", None) => Simple::Root,
                 ("link" | "any-link", None) => Simple::Link,
@@ -601,7 +661,11 @@ fn simple(cur: &mut Cursor<'_>, depth: usize) -> Result<Option<Simple>, ()> {
                 ("nth-of-type", Some(a)) => nth(a).map(|(a, b)| Simple::Nth { a, b, of_type: true }).ok_or(())?,
                 ("not", Some(a)) if depth < MAX_NOT_DEPTH => {
                     let mut list = Vec::new();
-                    for part in split_commas(a) {
+                    let parts = split_commas(a);
+                    if parts.len() > MAX_NOT_LIST {
+                        return Err(());
+                    }
+                    for part in parts {
                         let mut inner = Cursor { text: part.trim(), at: 0 };
                         let one = compound(&mut inner, depth + 1).ok_or(())?;
                         if !inner.done() {
@@ -671,7 +735,7 @@ fn attribute(inner: &str) -> Option<AttrSel> {
     if !cur.done() || value.len() > MAX_ATTR_VALUE * 2 {
         return None;
     }
-    let value = if fold { value.to_lowercase() } else { value };
+    let value = if fold { value.to_ascii_lowercase() } else { value };
     Some(AttrSel { name, op, value, fold })
 }
 
@@ -757,6 +821,11 @@ pub(crate) struct Rule {
 
 /// Whether a property is one the whitelist ([`crate::style`]) can use.
 fn kept(property: &str) -> bool {
+    let sided = |base: &str| {
+        property
+            .strip_prefix(base)
+            .is_some_and(|rest| rest.is_empty() || matches!(rest, "-top" | "-right" | "-bottom" | "-left" | "-block-start" | "-block-end"))
+    };
     matches!(
         property,
         "color"
@@ -783,10 +852,16 @@ fn kept(property: &str) -> bool {
             | "line-height"
             | "vertical-align"
             | "border-spacing"
-    ) || property.starts_with("margin")
-        || property.starts_with("padding")
-        || property == "border"
-        || property.starts_with("border-")
+            | "border-width"
+            | "border-style"
+            | "border-color"
+            | "border-radius"
+    ) || sided("margin")
+        || sided("padding")
+        || sided("border")
+        || ["top", "right", "bottom", "left"].iter().any(|side| {
+            property.strip_prefix("border-").and_then(|r| r.strip_prefix(side)).is_some_and(|r| matches!(r, "-width" | "-style" | "-color"))
+        })
 }
 
 /// Skip white space, comments and the `<!--` and `-->` that old sheets are wrapped in.
@@ -946,13 +1021,13 @@ pub(crate) fn rules(text: &str) -> Vec<Rule> {
                     continue;
                 }
                 let decls: Rc<[Decl]> = decls.into();
-                for part in split_commas(prelude) {
+                // One selector in the list that isn't understood drops the whole rule, as in CSS.
+                let parsed: Option<Vec<Selector>> = split_commas(prelude).into_iter().take(MAX_RULES + 1).map(selector).collect();
+                for selector in parsed.unwrap_or_default() {
                     if out.len() >= MAX_RULES {
                         break;
                     }
-                    if let Some(selector) = selector(part) {
-                        out.push(Rule { selector, decls: decls.clone() });
-                    }
+                    out.push(Rule { selector, decls: decls.clone() });
                 }
             }
         }
@@ -973,35 +1048,55 @@ fn previous(dom: &[El], el: usize) -> Option<usize> {
     (p != NONE).then_some(p as usize)
 }
 
-fn simple_matches(dom: &[El], s: &Simple, at: usize) -> bool {
+/// Whether the simple selector matches. Each costs a step (an attribute test four), and with
+/// none left nothing matches.
+fn simple_matches(dom: &[El], s: &Simple, at: usize, steps: &mut u32) -> bool {
+    let cost = if matches!(s, Simple::Attr(_)) { 4 } else { 1 };
+    if *steps < cost {
+        *steps = 0;
+        return false;
+    }
+    *steps -= cost;
     let Some(el) = dom.get(at) else { return false };
     match s {
         Simple::Tag(name) => el.name == *name,
         Simple::Id(id) => el.id.as_deref() == Some(id.as_str()),
         Simple::Class(class) => el.classes.iter().any(|c| c == class),
-        Simple::Attr(sel) => el.attr(&sel.name).is_some_and(|v| attribute_matches(sel, v)),
+        Simple::Attr(sel) => el.attr_value(&sel.name, sel.fold).is_some_and(|v| attribute_matches(sel, v)),
         Simple::FirstChild => el.index == 1,
         Simple::LastChild => dom.get(el.parent as usize).is_some_and(|p| p.last_child as usize == at),
+        Simple::OnlyChild => el.index == 1 && dom.get(el.parent as usize).is_some_and(|p| p.last_child as usize == at),
         Simple::Nth { a, b, of_type } => {
             let position = i64::from(if *of_type { el.type_index } else { el.index });
             let offset = position - b;
             if *a == 0 { offset == 0 } else { offset % a == 0 && offset / a >= 0 }
         }
-        Simple::Not(list) => !list.iter().any(|compound| compound.iter().all(|s| simple_matches(dom, s, at))),
+        Simple::Not(list) => {
+            for compound in list {
+                let mut all = true;
+                for inner in compound {
+                    if !simple_matches(dom, inner, at, steps) {
+                        all = false;
+                        break;
+                    }
+                }
+                if *steps == 0 {
+                    return false;
+                }
+                if all {
+                    return false;
+                }
+            }
+            true
+        }
         Simple::Root => el.parent == 0 && el.name == "html",
         Simple::Link => matches!(el.name.as_str(), "a" | "area") && el.attr("href").is_some(),
         Simple::Never => false,
     }
 }
 
+/// `value` is in lower case already when the selector ignores case.
 fn attribute_matches(sel: &AttrSel, value: &str) -> bool {
-    let lowered;
-    let value = if sel.fold {
-        lowered = value.to_lowercase();
-        lowered.as_str()
-    } else {
-        value
-    };
     let want = sel.value.as_str();
     match sel.op {
         AttrOp::Exists => true,
@@ -1022,8 +1117,10 @@ fn matches_from(dom: &[El], sel: &Selector, k: usize, at: usize, steps: &mut u32
     }
     *steps -= 1;
     let Some(compound) = sel.compounds.get(k) else { return false };
-    if !compound.simples.iter().all(|s| simple_matches(dom, s, at)) {
-        return false;
+    for simple in &compound.simples {
+        if !simple_matches(dom, simple, at, steps) {
+            return false;
+        }
     }
     let Some(left) = k.checked_sub(1) else { return true };
     match sel.combinators.get(left) {
@@ -1070,11 +1167,65 @@ pub(crate) struct Sheet {
     other: Vec<u32>,
     dom: Vec<El>,
     steps_left: u32,
+    /// What elements that match the same rules get, worked out once for them all.
+    cache: HashMap<Vec<u32>, Option<Rc<Applied>>>,
 }
 
-/// What a sheet adds to one element: declarations to put before its `style` attribute, and
-/// those marked `!important`, to put after.
-pub(crate) type Applied = (String, String);
+/// What a sheet adds to one element: declarations to put before its `style` attribute, those
+/// marked `!important`, to put after it, and what the two make when the element has no `style`
+/// of its own.
+#[derive(Debug, PartialEq)]
+pub(crate) struct Applied {
+    before: String,
+    after: String,
+    pub css: Css,
+}
+
+/// What an element's `style` attribute and its sheet's rules ask for, in the order of the
+/// cascade: the rules, the attribute's declarations, the rules marked `!important`, the
+/// attribute's marked `!important`.
+pub(crate) fn css_with(applied: &Applied, inline: Option<&str>) -> Css {
+    let Some(inline) = inline else { return applied.css.clone() };
+    let inline = truncate(inline, crate::style::MAX_STYLE);
+    let (normal, important) = split_important(inline);
+    Css::parse_limited(
+        &format!("{};{};{};{}", applied.before, normal, applied.after, important),
+        2 * MAX_APPLIED + crate::style::MAX_STYLE + 16,
+        2 * MAX_DECLARATIONS + crate::style::MAX_DECLARATIONS,
+    )
+}
+
+/// The declarations of a `style` attribute that are not marked `!important`, and those that are.
+fn split_important(style: &str) -> (String, String) {
+    if !style.to_ascii_lowercase().contains("important") {
+        return (style.to_string(), String::new());
+    }
+    let b = style.as_bytes();
+    let (mut normal, mut important) = (String::new(), String::new());
+    let mut i = 0;
+    while i < b.len() {
+        let end = scan_to(b, i, b";").unwrap_or(b.len());
+        let piece = style.get(i..end).unwrap_or("");
+        let lower = piece.trim_end().to_ascii_lowercase();
+        let marked = lower.strip_suffix("important").map(str::trim_end).is_some_and(|h| h.ends_with('!'));
+        let to = if marked { &mut important } else { &mut normal };
+        to.push_str(piece);
+        to.push(';');
+        i = end + 1;
+    }
+    (normal, important)
+}
+
+fn selector_folds(sel: &Selector) -> bool {
+    fn simple_folds(s: &Simple) -> bool {
+        match s {
+            Simple::Attr(a) => a.fold,
+            Simple::Not(list) => list.iter().flatten().any(simple_folds),
+            _ => false,
+        }
+    }
+    sel.compounds.iter().flat_map(|c| &c.simples).any(simple_folds)
+}
 
 impl Sheet {
     /// The sheet of a message, when it has any rules. Reads `html` once to find its `<style>`
@@ -1086,26 +1237,46 @@ impl Sheet {
         let mut text = String::new();
         let mut tree = TreeBuilder::new();
         let mut tokens = Tokenizer::new(html);
-        let mut take = |tokens: &mut Tokenizer<'_>| {
+        // A `<style>` in a `<template>` is never shown, nor read.
+        let mut template = 0usize;
+        let mut take = |tokens: &mut Tokenizer<'_>, template: usize| {
             for css in std::mem::take(&mut tokens.styles) {
-                let room = MAX_SHEET.saturating_sub(text.len());
-                text.push_str(truncate(css, room));
-                text.push('\n');
+                if template == 0 {
+                    let room = MAX_SHEET.saturating_sub(text.len());
+                    text.push_str(truncate(css, room));
+                    text.push('\n');
+                }
             }
         };
         while let Some(token) = tokens.next() {
-            take(&mut tokens);
+            take(&mut tokens, template);
             match token {
-                Token::Open(tag) => tree.open(&tag),
-                Token::Close(name) => tree.close(&name),
+                Token::Open(tag) => {
+                    if tag.name == "template" {
+                        template = template.saturating_add(1);
+                    }
+                    tree.open(&tag);
+                }
+                Token::Close(name) => {
+                    if name == "template" {
+                        template = template.saturating_sub(1);
+                    }
+                    tree.close(&name);
+                }
                 Token::Text(_) => {}
             }
         }
         // (A style at the very end has no token after it.)
-        take(&mut tokens);
+        take(&mut tokens, template);
         let rules = rules(&text);
         if rules.is_empty() {
             return None;
+        }
+        let mut dom = tree.els;
+        if rules.iter().any(|r| selector_folds(&r.selector)) {
+            for el in &mut dom {
+                el.lower = el.attrs.iter().map(|(_, v)| v.to_ascii_lowercase()).collect();
+            }
         }
         let mut sheet = Sheet {
             rules: Vec::new(),
@@ -1113,8 +1284,9 @@ impl Sheet {
             by_class: HashMap::new(),
             by_tag: HashMap::new(),
             other: Vec::new(),
-            dom: tree.els,
+            dom,
             steps_left: MAX_STEPS,
+            cache: HashMap::new(),
         };
         for (n, rule) in rules.iter().enumerate() {
             let n = u32::try_from(n).unwrap_or(NONE);
@@ -1137,12 +1309,12 @@ impl Sheet {
 
     /// Put what the sheet says about the `ordinal`th start tag of the message on `tag`.
     pub fn apply(&mut self, ordinal: usize, tag: &mut Tag<'_>) {
-        tag.sheeted = true;
-        tag.sheet = self.style_for(ordinal);
+        tag.sheet = self.style_for(ordinal, tag.has("style"));
     }
 
-    /// What the sheet says about the `ordinal`th start tag of the message, counted from 0.
-    pub fn style_for(&mut self, ordinal: usize) -> Option<Applied> {
+    /// What the sheet says about the `ordinal`th start tag of the message, counted from 0, for
+    /// an element that has a `style` attribute of its own or not.
+    pub fn style_for(&mut self, ordinal: usize, inline: bool) -> Option<Rc<Applied>> {
         let at = ordinal.checked_add(1)?;
         let el = self.dom.get(at)?;
         if self.steps_left == 0 {
@@ -1150,31 +1322,56 @@ impl Sheet {
         }
         let mut steps = MAX_STEPS_PER_ELEMENT.min(self.steps_left);
         let start = steps;
-        let mut candidates: Vec<u32> = Vec::new();
+        let mut lists: Vec<&[u32]> = Vec::new();
         if let Some(list) = el.id.as_ref().and_then(|id| self.by_id.get(id)) {
-            candidates.extend(list);
+            lists.push(list);
         }
         for class in &el.classes {
             if let Some(list) = self.by_class.get(class) {
-                candidates.extend(list);
+                lists.push(list);
             }
         }
         if let Some(list) = self.by_tag.get(&el.name) {
-            candidates.extend(list);
+            lists.push(list);
         }
-        candidates.extend(&self.other);
+        lists.push(&self.other);
         let mut found: Vec<(u32, u32)> = Vec::new();
-        for n in candidates {
-            if steps == 0 {
-                break;
-            }
-            steps -= 1;
-            let Some(rule) = self.rules.get(n as usize) else { continue };
-            if matches_from(&self.dom, &rule.selector, rule.selector.compounds.len().saturating_sub(1), at, &mut steps) {
-                found.push((rule.selector.specificity, n));
+        'candidates: for list in lists {
+            for n in list {
+                if steps == 0 {
+                    break 'candidates;
+                }
+                steps -= 1;
+                let Some(rule) = self.rules.get(*n as usize) else { continue };
+                if matches_from(&self.dom, &rule.selector, rule.selector.compounds.len().saturating_sub(1), at, &mut steps) {
+                    found.push((rule.selector.specificity, *n));
+                }
             }
         }
         found.sort_unstable();
+        let mut spent = u64::from(start - steps) + found.len() as u64;
+        let key: Vec<u32> = found.iter().map(|(_, n)| *n).collect();
+        let applied = if let Some(hit) = self.cache.get(&key) {
+            hit.clone()
+        } else {
+            let made = self.build(&found);
+            // Working out a look costs about as much as reading what it says.
+            spent += made.as_ref().map_or(0, |a| (a.before.len() + a.after.len()) as u64 / 16);
+            if self.cache.len() < MAX_CACHED {
+                self.cache.insert(key, made.clone());
+            }
+            made
+        };
+        if inline && let Some(a) = &applied {
+            // Read again with the element's own style, which a hit saves nothing of.
+            spent += (a.before.len() + a.after.len()) as u64 / 8;
+        }
+        self.steps_left = self.steps_left.saturating_sub(u32::try_from(spent).unwrap_or(u32::MAX));
+        applied
+    }
+
+    /// The look the rules `found` (by specificity and order) give together.
+    fn build(&self, found: &[(u32, u32)]) -> Option<Rc<Applied>> {
         let (mut normal, mut important): (Vec<&Decl>, Vec<&Decl>) = (Vec::new(), Vec::new());
         let mut considered = 0usize;
         // The last rules count the most: when there are too many, the first are left.
@@ -1192,28 +1389,36 @@ impl Sheet {
                 }
             }
         }
-        self.steps_left = self.steps_left.saturating_sub(start - steps).saturating_sub(u32::try_from(considered).unwrap_or(0));
-        let (normal, important) = (flatten(&normal), flatten(&important));
-        (!normal.is_empty() || !important.is_empty()).then_some((normal, important))
+        let (before, after) = (flatten(&normal), flatten(&important));
+        if before.is_empty() && after.is_empty() {
+            return None;
+        }
+        let css = Css::parse_limited(&format!("{before};{after}"), 2 * MAX_APPLIED + 16, 2 * MAX_DECLARATIONS);
+        Some(Rc::new(Applied { before, after, css }))
     }
 }
 
-/// Declarations given last-first, as `property:value;` in cascade order, each property once.
+/// Declarations given last-first, as `property:value;` in cascade order, each property once, at
+/// most [`MAX_DECLARATIONS`] of them and [`MAX_APPLIED`] bytes: the last, which count the most,
+/// are the ones kept, and none is cut through.
 fn flatten(last_first: &[&Decl]) -> String {
     let mut seen: Vec<&str> = Vec::new();
     let mut parts: Vec<String> = Vec::new();
+    let mut bytes = 0usize;
     for decl in last_first {
         if seen.contains(&decl.property.as_str()) {
             continue;
         }
-        seen.push(&decl.property);
-        parts.push(format!("{}:{}", decl.property, decl.value));
-        if parts.len() >= MAX_DECLARATIONS {
+        let part = format!("{}:{}", decl.property, decl.value);
+        if bytes + part.len() + 1 > MAX_APPLIED || parts.len() >= MAX_DECLARATIONS {
             break;
         }
+        seen.push(&decl.property);
+        bytes += part.len() + 1;
+        parts.push(part);
     }
     parts.reverse();
-    truncate(&parts.join(";"), MAX_APPLIED).to_string()
+    parts.join(";")
 }
 
 /// Whether `<style` (in any letter case) is in the text at all.
