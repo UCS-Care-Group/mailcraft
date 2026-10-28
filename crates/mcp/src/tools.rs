@@ -402,20 +402,13 @@ pub fn call_tool(b: &mut dyn Backend, pol: &Policy, name: &str, a: &Value) -> To
         "inspect_mailbox" => wrap(b.call("mailbox.inspect", json!({}))),
         "list_folders" => wrap(exec(b, "folder.list", json!({}))),
         "list_messages" => {
-            // Go to the folder, search, list: three commands, the first two only when asked for.
+            // One read: the folder and the search are named to `mail.list`, which leaves the
+            // owner's folder, search and selection alone (#620).
+            let mut params = json!({"query": st("query").unwrap_or(""), "limit": a.get("limit").and_then(Value::as_u64).unwrap_or(50)});
             if let Some(folder) = a.get("folder").filter(|v| !v.is_null()) {
-                let target = match folder.as_u64() {
-                    Some(id) => json!({"id": id}),
-                    None => json!({"path": folder.as_str().unwrap_or("")}),
-                };
-                if let Err(e) = exec(b, "folder.select", target) {
-                    return ToolResult::error(e);
-                }
+                params["folder"] = folder.clone();
             }
-            if let Err(e) = exec(b, "view.search", json!({"query": st("query").unwrap_or("")})) {
-                return ToolResult::error(e);
-            }
-            wrap(exec(b, "mail.list", json!({"limit": a.get("limit").and_then(Value::as_u64).unwrap_or(50)})))
+            wrap(exec(b, "mail.list", params))
         }
         "read_message" => wrap(exec(b, "mail.get", pick(a, &["id"]))),
         "send_message" => {

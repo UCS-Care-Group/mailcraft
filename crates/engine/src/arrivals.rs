@@ -9,7 +9,8 @@
 //! never do:
 //!
 //! - an account's first download (its Inbox had never been read from its server when the run
-//!   began: no UID seen, or for a Microsoft account no round of the folder ended);
+//!   began: no UID seen, or for a Microsoft account no round of the folder ever ended; a run that
+//!   stopped partway through a later round does not make it one again, #609);
 //! - mail a rule moved out of the Inbox as it arrived, and mail in Junk E-mail or any other
 //!   folder;
 //! - the mail of a shared mailbox, of a local account, and of an account a newer MailCraft
@@ -56,7 +57,7 @@ pub fn mark(mailbox: &Mailbox) -> InboxMark {
         .folders
         .iter()
         .filter(|f| f.kind == FolderKind::Inbox && own(mailbox, f.account))
-        .filter(|f| f.uid_seen > 0 || f.server.as_ref().is_some_and(|s| s.caught_up))
+        .filter(|f| f.uid_seen > 0 || f.server.as_ref().is_some_and(|s| s.round_ended || s.caught_up))
         .map(|f| (f.id, f.uid_validity))
         .collect();
     InboxMark { last_id, inboxes }

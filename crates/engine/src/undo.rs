@@ -2,7 +2,10 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! Undo and redo for the Microsoft accounts kept in step through Microsoft Graph (R3.5).
 //!
-//! Undo puts the mailbox back as it was before a change, as it always has. For a Microsoft
+//! Undo puts back what a change touched, as it was before it (#605): the messages and folders it
+//! changed, and the waiting changes it added or took away. What it left alone stays as it is now:
+//! mail that arrived since, what the server took away, how far an IMAP folder has been read
+//! ([`leave_alone`]). For a Microsoft
 //! account, what its server last said stays as it is now: each message's and folder's last synced
 //! state, the queue of what can't be worked out by comparing, the mail that came down since and
 //! what the server took away. The next run then sends the difference, which is the reverse of the
@@ -24,18 +27,25 @@
 //! Items, here and there, rather than being deleted for good; what the server hasn't got yet is
 //! taken away here and never made there.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::sync::Arc;
 
 use mailcraft_model::sync::{DraftState, MovingOut, ServerMessage, same_category};
-use mailcraft_model::{AccountKind, Folder, FolderKind, Id, Mailbox, Message, Queued};
+use mailcraft_model::{AccountKind, Folder, FolderKind, Id, Mailbox, Message, Pending, Queued};
 
 /// What a change did to the mail of the Microsoft accounts: the messages and folders it changed,
 /// as they were right after it (`None`: it took them away). Nothing for a mailbox without one.
+///
+/// Besides, for every account (#605): which messages and folders the change touched, and which
+/// changes waiting to go to a mail server it added or took away. Undo puts back only those.
 #[derive(Clone, Debug, Default)]
 pub(crate) struct Touched {
     messages: BTreeMap<Id, Option<Arc<Message>>>,
     folders: BTreeMap<Id, Option<Folder>>,
+    changed_messages: BTreeSet<Id>,
+    changed_folders: BTreeSet<Id>,
+    pending_added: HashSet<String>,
+    pending_removed: HashSet<String>,
 }
 
 /// The accounts of `mb` kept in step through Graph.
@@ -48,23 +58,28 @@ fn relevant(m: &Message, g: &BTreeSet<Id>) -> bool {
     g.contains(&m.account) || m.moving_out.as_ref().is_some_and(|out| g.contains(&out.account))
 }
 
-/// What going from `before` to `after` changed of the Microsoft accounts' mail.
+/// A change waiting to go to a server, as a key to compare it by.
+fn key(p: &Pending) -> String {
+    format!("{p:?}")
+}
+
+/// What going from `before` to `after` changed: of the Microsoft accounts' mail, what it is now;
+/// of every account's, which messages and folders it was, and the waiting changes it added or took away.
 pub(crate) fn touched(before: &Mailbox, after: &Mailbox) -> Touched {
     let mut g = graph_accounts(before);
     g.extend(graph_accounts(after));
     let mut t = Touched::default();
-    if g.is_empty() {
-        return t;
-    }
     for (id, b) in &before.messages {
         match after.messages.get(id) {
             Some(a) if Arc::ptr_eq(a, b) || a == b => {}
             Some(a) => {
+                t.changed_messages.insert(*id);
                 if relevant(b, &g) || relevant(a, &g) {
                     t.messages.insert(*id, Some(a.clone()));
                 }
             }
             None => {
+                t.changed_messages.insert(*id);
                 if relevant(b, &g) {
                     t.messages.insert(*id, None);
                 }
@@ -72,22 +87,34 @@ pub(crate) fn touched(before: &Mailbox, after: &Mailbox) -> Touched {
         }
     }
     for (id, a) in &after.messages {
-        if !before.messages.contains_key(id) && relevant(a, &g) {
-            t.messages.insert(*id, Some(a.clone()));
-        }
-    }
-    for b in before.folders.iter().filter(|f| g.contains(&f.account)) {
-        match after.folder(b.id) {
-            Some(a) if a == b => {}
-            a => {
-                t.folders.insert(b.id, a.cloned());
+        if !before.messages.contains_key(id) {
+            t.changed_messages.insert(*id);
+            if relevant(a, &g) {
+                t.messages.insert(*id, Some(a.clone()));
             }
         }
     }
-    for a in after.folders.iter().filter(|f| g.contains(&f.account)) {
-        if before.folder(a.id).is_none() {
+    for b in &before.folders {
+        match after.folder(b.id) {
+            Some(a) if a == b => {}
+            a => {
+                t.changed_folders.insert(b.id);
+                if g.contains(&b.account) {
+                    t.folders.insert(b.id, a.cloned());
+                }
+            }
+        }
+    }
+    for a in after.folders.iter().filter(|f| before.folder(f.id).is_none()) {
+        t.changed_folders.insert(a.id);
+        if g.contains(&a.account) {
             t.folders.insert(a.id, Some(a.clone()));
         }
+    }
+    if before.pending != after.pending {
+        let (was, is): (HashSet<String>, HashSet<String>) = (before.pending.iter().map(key).collect(), after.pending.iter().map(key).collect());
+        t.pending_added = is.difference(&was).cloned().collect();
+        t.pending_removed = was.difference(&is).cloned().collect();
     }
     t
 }
@@ -145,6 +172,7 @@ pub(crate) fn keep_in_step(mut out: Mailbox, touched: &Touched, now: &Mailbox) -
     // Ids are never given out twice, whatever the undo brings back.
     out.ids_after(now);
     let g: BTreeSet<Id> = graph_accounts(now).intersection(&graph_accounts(&out)).copied().collect();
+    leave_alone(&mut out, touched, now, &g);
     if g.is_empty() {
         return (out, Vec::new());
     }
@@ -170,6 +198,82 @@ pub(crate) fn keep_in_step(mut out: Mailbox, touched: &Touched, now: &Mailbox) -
     out.outlook_categories = now.outlook_categories.clone();
     out.favorites_from_server = now.favorites_from_server.clone();
     (out, said.lines())
+}
+
+/// Everything but the Microsoft accounts' mail (the rest of `keep_in_step`'s work) stays as it is
+/// now, but for what the change touched (#605): mail that came down after it, a message the
+/// server took away since, and how far each IMAP folder has been read are not the change's to
+/// undo. A message the change touched goes back to how it was before it; a folder the change
+/// touched too, but with the server's side of it (its path, how far it has been read) as now.
+/// The changes waiting to go to the server are as now, less those the change added and plus
+/// those it took away.
+fn leave_alone(out: &mut Mailbox, touched: &Touched, now: &Mailbox, g: &BTreeSet<Id>) {
+    // Accounts that the undo takes away again (one the change added): nothing of theirs stays.
+    let gone: BTreeSet<Id> = now.accounts.iter().map(|a| a.id).filter(|id| !out.accounts.iter().any(|a| a.id == *id)).collect();
+    let ids: BTreeSet<Id> = out.messages.keys().chain(now.messages.keys()).copied().collect();
+    for id in ids {
+        let (t, c) = (out.messages.get(&id), now.messages.get(&id));
+        if t.is_some_and(|m| relevant(m, g)) || c.is_some_and(|m| relevant(m, g)) || touched.changed_messages.contains(&id) {
+            continue;
+        }
+        match c {
+            Some(c) => {
+                out.messages.insert(id, c.clone());
+            }
+            None => {
+                out.messages.remove(&id);
+            }
+        }
+    }
+    let then = std::mem::take(&mut out.folders);
+    let mut kept = Vec::with_capacity(then.len());
+    let mut seen = BTreeSet::new();
+    for t in then {
+        seen.insert(t.id);
+        if g.contains(&t.account) {
+            kept.push(t);
+            continue;
+        }
+        match (touched.changed_folders.contains(&t.id), now.folder(t.id)) {
+            (true, Some(c)) => {
+                let mut f = t;
+                (f.remote, f.uid_validity, f.uid_seen, f.uid_from) = (c.remote.clone(), c.uid_validity, c.uid_seen, c.uid_from);
+                (f.whole, f.server, f.awaiting_listing) = (c.whole, c.server.clone(), c.awaiting_listing);
+                kept.push(f);
+            }
+            (true, None) => kept.push(t),
+            (false, Some(c)) => kept.push(c.clone()),
+            // Gone since (the server's, or the account's).
+            (false, None) => {}
+        }
+    }
+    let mut made = Vec::new();
+    for c in now.folders.iter().filter(|f| !g.contains(&f.account) && !seen.contains(&f.id)) {
+        if touched.changed_folders.contains(&c.id) { made.push(c.clone()) } else { kept.push(c.clone()) }
+    }
+    out.folders = kept;
+    out.folders.retain(|f| !gone.contains(&f.account));
+    out.messages.retain(|_, m| !gone.contains(&m.account));
+    // A folder the change made that something still lies in stays.
+    for f in made.into_iter().filter(|f| !gone.contains(&f.account)) {
+        if out.messages.values().any(|m| m.folder == f.id) || out.folders.iter().any(|o| o.parent == Some(f.id)) {
+            out.folders.push(f);
+        }
+    }
+    // The waiting changes of the Microsoft accounts are as the mailbox goes back to (`queue`'s
+    // business); the others are as now, but for the change's own.
+    let owned = |p: &Pending| {
+        let k = key(p);
+        touched.pending_added.contains(&k)
+            || touched.pending_removed.contains(&k)
+            || matches!(p, Pending::Move { message, .. } if touched.changed_messages.contains(message))
+    };
+    let then = std::mem::take(&mut out.pending);
+    let mut pending: Vec<Pending> = then.iter().filter(|p| g.contains(&p.account())).cloned().collect();
+    pending.extend(now.pending.iter().filter(|p| !g.contains(&p.account()) && !owned(p)).cloned());
+    pending.extend(then.iter().filter(|p| !g.contains(&p.account()) && owned(p)).cloned());
+    pending.retain(|p| !gone.contains(&p.account()));
+    out.pending = pending;
 }
 
 /// The folders of the Microsoft accounts. Answers the folders the change made that weren't on the
@@ -486,3 +590,7 @@ fn queue(out: &mut Mailbox, now: &Mailbox, g: &BTreeSet<Id>) {
 #[cfg(test)]
 #[path = "undo_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "undo_later_mail_tests.rs"]
+mod later_mail_tests;

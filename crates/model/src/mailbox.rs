@@ -350,6 +350,12 @@ pub struct Account {
     /// every other account, and in a file from before there were any.
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
     pub jmap: Option<JmapServer>,
+    /// Delete on a whole conversation of more than one message goes ahead without asking first
+    /// (#503): the owner ticked Don't ask again, or cleared the switch in Account Settings. Off
+    /// for a new account and in a file from before there was one: the question is asked. A
+    /// shared mailbox follows its owner's ([`Mailbox::asks_before_deleting_conversation`]).
+    #[serde(skip_serializing_if = "is_false", deserialize_with = "crate::sync::lenient_or_default")]
+    pub skip_conversation_question: bool,
     /// For an account of a kind this version doesn't know ([`AccountKind::Unknown`]): the account
     /// as its file had it, every field but its id, which is what a mailbox file gets in its place
     /// ([`Mailbox::accounts`]). `None` for every other account.
@@ -998,6 +1004,23 @@ pub const NOT_SENDING_YET: &str = "MailCraft doesn't send mail from a JMAP accou
 /// run would bring the message back where it was.
 pub const NOT_MOVING_YET: &str = "MailCraft doesn't move or delete a JMAP account's mail yet: the next Send/Receive would bring it back";
 
+/// What a message moved into an IMAP account's Outbox says of why it isn't sent
+/// ([`Message::held`]): only mail queued with Send leaves through the Outbox (#607).
+pub const MOVED_INTO_OUTBOX: &str = "Moved into the Outbox, not sent. Send Again sends it";
+
+/// Only what is queued with Send leaves through an IMAP account's Outbox (#607): a message moved
+/// or copied there is held, as one a Microsoft account's server refused is, until Send Again. One
+/// that leaves an Outbox is no longer held for having been put in it.
+fn hold_if_put_in_outbox(m: &mut Message, into_outbox: bool) {
+    if into_outbox {
+        if m.held.is_empty() {
+            m.held = MOVED_INTO_OUTBOX.to_string();
+        }
+    } else if m.held == MOVED_INTO_OUTBOX {
+        m.held.clear();
+    }
+}
+
 /// Why a JMAP account's folders keep their names and places ([`Mailbox::folder_stays_on_server`]):
 /// a rename or a move reaches the server only once the engine sends changes, and until then it
 /// would stay on this computer alone.
@@ -1143,6 +1166,12 @@ impl Mailbox {
     /// (#143: it has none of its own). All for an account that isn't here.
     pub fn keep_offline_of(&self, account: Id) -> KeepOffline {
         self.owner_of(account).or(self.account(account)).map(|a| a.keep_offline).unwrap_or_default()
+    }
+
+    /// Whether Delete on a whole conversation of `account`'s asks first (#503): its own switch,
+    /// and for a shared mailbox its owner's.
+    pub fn asks_before_deleting_conversation(&self, account: Id) -> bool {
+        self.owner_of(account).or(self.account(account)).is_none_or(|a| !a.skip_conversation_question)
     }
 
     pub fn owner_of(&self, account: Id) -> Option<&Account> {
@@ -1724,7 +1753,9 @@ impl Mailbox {
         if m.folder == folder {
             return Ok(());
         }
+        let into_outbox = self.is_imap_outbox(folder);
         if self.move_across_graph(id, folder, account)? {
+            hold_if_put_in_outbox(self.message_mut(id)?, into_outbox);
             return Ok(());
         }
         let m = self.message(id).ok_or(not_found("message", id))?;
@@ -1759,7 +1790,13 @@ impl Mailbox {
         // The UID belonged to the old folder.
         m.uid = uid_there;
         m.synced = synced_there;
+        hold_if_put_in_outbox(m, into_outbox);
         Ok(())
+    }
+
+    /// Whether `folder` is the Outbox of an IMAP account, which sends all it holds (#607).
+    fn is_imap_outbox(&self, folder: Id) -> bool {
+        self.folder(folder).is_some_and(|f| f.kind == FolderKind::Outbox && self.account(f.account).is_some_and(|a| a.kind == AccountKind::Imap))
     }
 
     /// Whether `account` is kept in step through Microsoft Graph.
@@ -1961,6 +1998,7 @@ impl Mailbox {
             let mut copy = m.clone();
             (copy.id, copy.folder, copy.account, copy.uid, copy.synced) = (0, folder, to_account, 0, None);
             (copy.server, copy.moving_out) = (None, None);
+            hold_if_put_in_outbox(&mut copy, self.is_imap_outbox(folder));
             let new = self.add_message(copy)?;
             let marker = self.place_marker(new, &source);
             self.queued.push(Queued::PlaceMessage { account: to_account, message: new, marker, copy: true });
@@ -1981,6 +2019,7 @@ impl Mailbox {
         copy.synced = None;
         copy.server = None;
         copy.moving_out = None;
+        hold_if_put_in_outbox(&mut copy, self.is_imap_outbox(folder));
         let new = self.add_message(copy)?;
         if let Some(server) = server {
             let to = self.folder(folder).and_then(|f| f.server.as_ref()).map(|s| s.id.clone()).unwrap_or_default();
@@ -2083,17 +2122,24 @@ impl Mailbox {
     pub fn conversation(&self, id: Id) -> Vec<Id> {
         let Some(m) = self.message(id) else { return Vec::new() };
         let key = m.thread_key();
-        let deleted = self.folder_of_kind(m.account, FolderKind::Deleted);
-        let junk = self.folder_of_kind(m.account, FolderKind::Junk);
-        let mut v: Vec<&Arc<Message>> = self
-            .messages
-            .values()
-            .filter(|x| x.account == m.account && x.thread_key() == key)
-            // Deleted and junk mail stays out, unless that is where the conversation is read.
-            .filter(|x| x.folder == m.folder || (Some(x.folder) != deleted && Some(x.folder) != junk))
-            .collect();
+        let skips = self.conversation_skips(m.account, m.folder);
+        let mut v: Vec<&Arc<Message>> =
+            self.messages.values().filter(|x| x.account == m.account && !skips.contains(&x.folder) && x.thread_key() == key).collect();
         v.sort_by_key(|x| (x.date, x.id));
         v.into_iter().map(|x| x.id).collect()
+    }
+
+    /// The folders of `account` a conversation read in `folder` leaves out: its Deleted Items and
+    /// its Junk E-mail and the folders under them (a folder deleted is one), but for `folder`,
+    /// where it is read. The reading pane's conversation and the message list's (#503) take the
+    /// rest of the account's folders.
+    pub fn conversation_skips(&self, account: Id, folder: Id) -> Vec<Id> {
+        [FolderKind::Deleted, FolderKind::Junk]
+            .into_iter()
+            .filter_map(|kind| self.folder_of_kind(account, kind))
+            .flat_map(|f| self.subtree(f))
+            .filter(|f| *f != folder)
+            .collect()
     }
 
     /// Sort a message that has just arrived by the Safe and Blocked Senders lists (#504): from a

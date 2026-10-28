@@ -506,7 +506,7 @@ fn stand_in(host: &Arc<Mutex<Host>>) -> Services {
                 ..Default::default()
             })
         })),
-        secrets: Some(Box::new(StandInSecrets(host.clone()))),
+        secrets: Some(std::sync::Arc::new(StandInSecrets(host.clone()))),
         // A folder import that is looked at for ever: `{"host": {"treeProgress": [folders, files, messages]}}` moves its counts.
         import_tree: Some(Box::new(move |job| {
             let dir = tree.lock().map(|host| host.tree_dir.clone()).unwrap_or_default();

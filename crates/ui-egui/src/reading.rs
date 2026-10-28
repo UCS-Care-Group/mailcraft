@@ -511,8 +511,13 @@ fn notes(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, t: &Tokens, pictures:
                     other.from.display(),
                     crate::dates::list_label(other.date, app.session.now(), app.session.offset_at(other.date), app.session.prefs.twelve_hour)
                 );
-                if ui.add_enabled(*id != m.id, egui::Button::new(egui::RichText::new(label).font(regular(11.0))).small()).clicked() {
-                    let _ = app.run("mail.select", json!({"id": id}));
+                let button = ui.add_enabled(*id != m.id, egui::Button::new(egui::RichText::new(label).font(regular(11.0))).small());
+                app.hit.add("conversationMessage", *id, button.rect);
+                if button.clicked() {
+                    // The newest message of a conversation open in the list, by its own row there,
+                    // not by the conversation's (#503).
+                    let own = app.session.rows_in_view().is_some_and(|rows| rows.iter().any(|r| r.id == *id && r.under.is_some() && r.copy == 1));
+                    let _ = app.run("mail.select", if own { json!({"id": id, "copy": 1}) } else { json!({"id": id}) });
                 }
             }
         });

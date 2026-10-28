@@ -193,7 +193,7 @@ fn a_first_run_lists_the_mailboxes_and_reads_each_window_whole() {
     assert_eq!((m.message_id.as_str(), m.from.name.as_str(), m.from.email.as_str()), ("third@example.org", "Zoe Park", "zoe@example.org"));
     assert_eq!((m.to.len(), m.to[0].name.as_str(), m.to[0].email.as_str()), (1, "Ada", ME));
     assert_eq!((m.sent, m.received), (time("2026-10-15T07:30:00Z"), time("2026-01-01T00:00:03Z")));
-    assert_eq!((m.preview.as_str(), m.has_attachments, m.draft), ("Hello about third.", false, false));
+    assert_eq!((m.preview.as_str(), m.has_attachments, m.draft), ("Hello about third.", false, Some(false)));
     assert_eq!(m.server.size, u64::try_from(mail("third").len()).unwrap());
     assert_eq!(
         (m.server.folder.as_str(), m.server.read, m.server.flag, m.server.answered, m.server.forwarded),
@@ -208,7 +208,7 @@ fn a_first_run_lists_the_mailboxes_and_reads_each_window_whole() {
         (outgoing.as_str(), true, true, ids.sent.as_str())
     );
     let drafted = &page_of(&pieces, &ids.drafts).messages[0];
-    assert_eq!((drafted.server.id.as_str(), drafted.draft, drafted.server.read), (draft.as_str(), true, true));
+    assert_eq!((drafted.server.id.as_str(), drafted.draft, drafted.server.read), (draft.as_str(), Some(true), true));
     assert_eq!(ids_of(page_of(&pieces, &ids.apollo)), [nested.as_str()]);
     // Mailboxes with no mail are complete listings of nothing.
     assert!(page_of(&pieces, &ids.trash).messages.is_empty() && page_of(&pieces, &ids.trash).afresh);
@@ -1911,7 +1911,7 @@ proptest! {
         let marks = Marks { read: marks[0], flagged: marks[1], answered: marks[2], forwarded: marks[3], draft: marks[4] };
         let m = message::whole("E1", "M1", &entry, marks);
         check_message(&m);
-        prop_assert_eq!((m.server.id.as_str(), m.server.folder.as_str(), m.server.read, m.draft), ("E1", "M1", marks.read, marks.draft));
+        prop_assert_eq!((m.server.id.as_str(), m.server.folder.as_str(), m.server.read, m.draft), ("E1", "M1", marks.read, Some(marks.draft)));
         // Whatever the headers say, the marks and the ids are the ones it was given.
         prop_assert_eq!((m.server.answered, m.server.forwarded, m.server.flag == FlagStatus::Flagged), (marks.answered, marks.forwarded, marks.flagged));
     }

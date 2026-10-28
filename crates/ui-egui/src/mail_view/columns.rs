@@ -200,17 +200,23 @@ fn place(cells: &[(Column, Rect)], x: f32) -> Option<usize> {
 }
 
 /// Metadata only: no body or attachment is loaded to paint a column.
-pub(super) fn paint(app: &mut MailApp, ui: &Ui, m: &Message, rect: Rect, unread: bool, members: usize, server: bool) {
+pub(super) fn paint(app: &mut MailApp, ui: &Ui, m: &Message, rect: Rect, unread: bool, members: usize, under: bool, server: bool) {
     let t = Tokens::get(ui.ctx());
     let font = if unread { semibold(12.0) } else { regular(12.0) };
     let overdue = super::FollowUp::of(m, &app.session) == super::FollowUp::Overdue;
     let ink = if overdue { t.overdue } else { t.text };
+    // A message under its open conversation starts its first text a step further in (#503).
+    let mut indent = if under { super::UNDER_INDENT } else { 0.0 };
     for (column, cell) in cells(&app.session.prefs.columns, rect) {
         let p = ui.painter().with_clip_rect(cell.intersect(ui.clip_rect()));
         let mut left = cell.min.x + 7.0;
         let text = match column {
-            Column::From => crate::people_view::one_line(&super::who(&app.session, m), 256),
+            Column::From => {
+                left += std::mem::take(&mut indent);
+                crate::people_view::one_line(&super::who(&app.session, m, under), 256)
+            }
             Column::Subject => {
+                left += std::mem::take(&mut indent);
                 let subject = if m.subject.trim().is_empty() { tl!("(no subject)") } else { &m.subject };
                 let subject = crate::people_view::one_line(subject, 512);
                 let draft = if m.draft { tl!("[Draft]") } else { "" };
