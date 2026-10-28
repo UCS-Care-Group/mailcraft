@@ -761,8 +761,20 @@ msgstr "Consenti"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Allow Keeping Rules on the Server"
+msgstr "Consenti di conservare le regole sul server"
+
+#. command label
+#: crates/ui-egui/src/lib.rs
 msgid "Allow Keeping Tasks in Step with Microsoft To Do"
 msgstr ""
+
+#. interface
+#: crates/ui-egui/src/rule_sync.rs
+#, fuzzy
+msgid "Allow MailCraft to keep your rules on the server on the page that opened in your browser…"
+msgstr "Consenti a MailCraft di conservare le tue regole sul server nella pagina aperta nel browser…"
 
 #. interface
 #: crates/ui-egui/src/task_sync.rs
@@ -1007,6 +1019,12 @@ msgid "Apply Downloaded Messages"
 msgstr "Applica messaggi scaricati"
 
 #. command label
+#: crates/engine/src/cmd/rules_remote.rs
+#, fuzzy
+msgid "Apply Downloaded Rules"
+msgstr "Applica le regole scaricate"
+
+#. command label
 #: crates/engine/src/cmd/tasks_remote.rs
 msgid "Apply Downloaded To-dos"
 msgstr ""
@@ -1039,6 +1057,12 @@ msgstr "Applica Invia/Ricevi con Microsoft Graph"
 #, fuzzy
 msgid "Apply Sent Calendar Changes"
 msgstr "Applica modifiche al calendario inviate"
+
+#. command label
+#: crates/engine/src/cmd/rules_remote.rs
+#, fuzzy
+msgid "Apply Sent Rule Changes"
+msgstr "Applica le modifiche alle regole inviate"
 
 #. command label
 #: crates/engine/src/cmd/tasks_remote.rs
@@ -1161,6 +1185,12 @@ msgstr "Chiedi di nuovo prima di scaricare immagini dai mittenti di questo domin
 #, fuzzy
 msgid "Ask before downloading this sender's pictures again"
 msgstr "Chiedi di nuovo prima di scaricare le immagini di questo mittente"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Ask for permission to change the rules on the server: Microsoft's page opens in your browser. Without it, new rules stay on this computer and nothing of them is sent."
+msgstr "Chiedi l'autorizzazione a modificare le regole sul server: la pagina di Microsoft si apre nel browser. Senza di essa, le nuove regole restano su questo computer e nulla di esse viene inviato."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -2088,7 +2118,7 @@ msgid "Contacts don't go to Deleted Items."
 msgstr "I contatti non vanno in Posta eliminata."
 
 #. interface
-#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/opening.rs crates/ui-egui/src/shared_calendars.rs crates/ui-egui/src/shared_mailboxes.rs crates/ui-egui/src/task_sync.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/opening.rs crates/ui-egui/src/rule_sync.rs crates/ui-egui/src/shared_calendars.rs crates/ui-egui/src/shared_mailboxes.rs crates/ui-egui/src/task_sync.rs
 #, fuzzy
 msgid "Continue"
 msgstr "Continua"
@@ -4426,6 +4456,18 @@ msgstr "Solo questo"
 msgid "Keep Both"
 msgstr ""
 
+#. command label
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "Keep Rule on Server"
+msgstr "Conserva la regola sul server"
+
+#. interface
+#: crates/ui-egui/src/rule_sync.rs
+#, fuzzy
+msgid "Keep Rules on the Server"
+msgstr "Conserva le regole sul server"
+
 #. interface
 #: crates/ui-egui/src/task_sync.rs
 msgid "Keep Tasks in Step with Microsoft To Do"
@@ -4438,9 +4480,27 @@ msgid "Keep Waiting"
 msgstr "Continua ad attendere"
 
 #. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Keep on the server of {address}"
+msgstr "Conserva sul server di {address}"
+
+#. interface
 #: crates/ui-egui/src/merge_contacts.rs
 msgid "Keep this one"
 msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Keep this rule on an account's server: choose which. It then runs there whether MailCraft is open or not, for that account's mail"
+msgstr "Conserva questa regola sul server di un account: scegli quale. Viene poi eseguita lì, che MailCraft sia aperto o no, per la posta di quell'account"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Keep this rule on the server of {address}: it then runs there whether MailCraft is open or not, for that account's mail"
+msgstr "Conserva questa regola sul server di {address}: viene poi eseguita lì, che MailCraft sia aperto o no, per la posta di quell'account"
 
 #. interface
 #: crates/ui-egui/src/updates.rs
@@ -4477,6 +4537,12 @@ msgstr "Conservata nella memoria di questo browser, salvata man mano. Usare Apri
 #, fuzzy
 msgid "Kept in {path}, saved as you go."
 msgstr "Conservata in {path}, salvata man mano."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Kept on the server, where it runs whether MailCraft is open or not."
+msgstr "Conservata sul server, dove viene eseguita che MailCraft sia aperto o no."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -4701,6 +4767,12 @@ msgstr "Bassa in alto"
 #, fuzzy
 msgid "Made by its contributors:"
 msgstr "Realizzato dai suoi collaboratori:"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Made in Outlook or on the web, with parts MailCraft can't show"
+msgstr "Creata in Outlook o sul web, con parti che MailCraft non può mostrare"
 
 #. command label, interface, name, ribbon location
 #: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs
@@ -5240,6 +5312,12 @@ msgid "Microsoft needs an application ID"
 msgstr "Microsoft richiede un ID applicazione"
 
 #. interface
+#: crates/ui-egui/src/rule_sync.rs
+#, fuzzy
+msgid "Microsoft no longer takes the sign-in"
+msgstr "Microsoft non accetta più l'accesso"
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "Microsoft only lets a registered application show its sign-in page, and this build of MailCraft has no registration of its own yet."
@@ -5402,6 +5480,12 @@ msgstr "Sposta cartella"
 msgid "Move Recurring Item"
 msgstr "Sposta elemento ricorrente"
 
+#. command label
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "Move Rule"
+msgstr "Sposta la regola"
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
@@ -5412,6 +5496,18 @@ msgstr "Sposta solo gli appuntamenti"
 #: crates/ui-egui/src/reading.rs
 msgid "Move the message to a folder to open or save its attachments"
 msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Move this rule down: it runs later"
+msgstr "Sposta questa regola in basso: viene eseguita dopo"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Move this rule up: it runs earlier"
+msgstr "Sposta questa regola in alto: viene eseguita prima"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -6040,6 +6136,12 @@ msgid "None"
 msgstr "Nessuno"
 
 #. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "None yet."
+msgstr "Nessuna per ora."
+
+#. interface
 #: crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Normal"
@@ -6111,7 +6213,7 @@ msgid "Not kept anywhere yet: use Open & Export › Save Mailbox As."
 msgstr "Non ancora conservata da nessuna parte: usare Apri ed esporta › Salva cassetta postale con nome."
 
 #. interface
-#: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/task_sync.rs
+#: crates/ui-egui/src/account_setup/help.rs crates/ui-egui/src/rule_sync.rs crates/ui-egui/src/task_sync.rs
 #, fuzzy
 msgid "Not now"
 msgstr "Non ora"
@@ -6270,7 +6372,7 @@ msgid "On the"
 msgstr "Il"
 
 #. interface
-#: crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/mail_view/server_rows.rs
+#: crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/mail_view/server_rows.rs
 #, fuzzy
 msgid "On the server"
 msgstr "Sul server"
@@ -6282,10 +6384,34 @@ msgid "On the server · Searching…"
 msgstr "Sul server · Ricerca…"
 
 #. interface
-#: crates/ui-egui/src/calendar_view.rs
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "On the server, which doesn't let it be changed"
+msgstr "Sul server, che non ne consente la modifica"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "On the server, which says something in it is wrong: Outlook on the web shows what"
+msgstr "Sul server, che segnala un errore: Outlook sul web mostra quale"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "On the server: here it can be switched on or off, moved or deleted"
+msgstr "Sul server: qui può essere attivata o disattivata, spostata o eliminata"
+
+#. interface
+#: crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "On this computer"
 msgstr "Su questo computer"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "On this computer, for the mail of every account"
+msgstr "Su questo computer, per la posta di tutti gli account"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/backstage.rs
@@ -6364,10 +6490,28 @@ msgid "Only on"
 msgstr "Solo il"
 
 #. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Only on this computer"
+msgstr "Solo su questo computer"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Only on this computer for now: {why}"
+msgstr "Solo su questo computer per ora: {why}"
+
+#. interface
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
 msgid "Only on this computer: not in your Outlook calendar"
 msgstr "Solo su questo computer: non nel calendario di Outlook"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Only on this computer: {why}"
+msgstr "Solo su questo computer: {why}"
 
 #. interface
 #: crates/ui-egui/src/reading.rs
@@ -7178,6 +7322,12 @@ msgstr "Recenti"
 msgid "Recent mail"
 msgstr "Posta recente"
 
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Recipient's address contains"
+msgstr "L'indirizzo del destinatario contiene"
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -7629,6 +7779,12 @@ msgstr ""
 msgid "Right before or after: {items}"
 msgstr "Subito prima o dopo: {items}"
 
+#. command label
+#: crates/engine/src/cmd/rules_remote.rs
+#, fuzzy
+msgid "Rule Changes to Send"
+msgstr "Modifiche alle regole da inviare"
+
 #. interface, ribbon
 #: crates/ui-egui/src/forms.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -7640,6 +7796,78 @@ msgstr "Regole"
 #, fuzzy
 msgid "Rules and Categories"
 msgstr "Regole e categorie"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Rules for"
+msgstr "Regole di"
+
+#. interface
+#: crates/ui-egui/src/rule_sync.rs
+#, fuzzy
+msgid "Rules stay on this computer for now: {error}"
+msgstr "Le regole restano su questo computer per ora: {error}"
+
+#. interface
+#: crates/ui-egui/src/rule_sync.rs
+#, fuzzy
+msgid "Rules weren't allowed on the server: {error}"
+msgstr "Le regole non sono state consentite sul server: {error}"
+
+#. interface
+#: crates/ui-egui/src/rule_sync.rs
+#, fuzzy
+msgid "Rules: Microsoft no longer takes the sign-in"
+msgstr "Regole: Microsoft non accetta più l'accesso"
+
+#. interface
+#: crates/ui-egui/src/rule_sync.rs
+#, fuzzy
+msgid "Rules: asking for your permission…"
+msgstr "Regole: richiesta della tua autorizzazione…"
+
+#. interface
+#: crates/ui-egui/src/rule_sync.rs
+#, fuzzy
+msgid "Rules: kept on the server"
+msgstr "Regole: conservate sul server"
+
+#. interface
+#: crates/ui-egui/src/rule_sync.rs
+#, fuzzy
+msgid "Rules: new ones are kept on this computer only (not allowed on the server yet)"
+msgstr "Regole: le nuove sono conservate solo su questo computer (non ancora consentite sul server)"
+
+#. interface
+#: crates/ui-egui/src/rule_sync.rs
+#, fuzzy
+msgid "Rules: not allowed on the server ({why})"
+msgstr "Regole: non consentite sul server ({why})"
+
+#. interface
+#: crates/ui-egui/src/rule_sync.rs
+#, fuzzy
+msgid "Rules: not read from the server yet"
+msgstr "Regole: non ancora lette dal server"
+
+#. interface
+#: crates/ui-egui/src/rule_sync.rs
+#, fuzzy
+msgid "Rules: the server's are shown; you're asked before the first one goes there"
+msgstr "Regole: quelle del server sono mostrate; ti verrà chiesto prima che la prima vada lì"
+
+#. interface
+#: crates/ui-egui/src/rule_sync.rs
+#, fuzzy
+msgid "Rules: the server's rules can't be read with this sign-in"
+msgstr "Regole: le regole del server non possono essere lette con questo accesso"
+
+#. interface
+#: crates/ui-egui/src/rule_sync.rs
+#, fuzzy
+msgid "Rules: waiting for your permission to keep them on the server"
+msgstr "Regole: in attesa della tua autorizzazione a conservarle sul server"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -7656,6 +7884,18 @@ msgstr ""
 #, fuzzy
 msgid "Run Rules Now"
 msgstr "Esegui regole ora"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Run by MailCraft as mail arrives, while it is open"
+msgstr "Eseguite da MailCraft all'arrivo della posta, finché è aperto"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Run by the server as mail arrives, whether MailCraft is open or not"
+msgstr "Eseguite dal server all'arrivo della posta, che MailCraft sia aperto o no"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -8094,7 +8334,7 @@ msgid "Send & Receive"
 msgstr "Invia e ricevi"
 
 #. ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Send / Receive"
 msgstr "Invia/Ricevi"
@@ -8282,6 +8522,12 @@ msgstr ""
 #, fuzzy
 msgid "Send/Receive with Microsoft Graph"
 msgstr "Invia/Ricevi con Microsoft Graph"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Sender's address contains"
+msgstr "L'indirizzo del mittente contiene"
 
 #. name
 #: crates/model/src/sync/progress.rs
@@ -9870,6 +10116,24 @@ msgid "The proposed end has to be after the proposed start."
 msgstr "La fine proposta deve essere successiva all'inizio proposto."
 
 #. interface
+#: crates/ui-egui/src/rule_sync.rs
+#, fuzzy
+msgid "The rules on the server couldn't be read: the job stopped unexpectedly"
+msgstr "Non è stato possibile leggere le regole del server: l'operazione si è interrotta inaspettatamente"
+
+#. interface
+#: crates/ui-egui/src/rule_sync.rs
+#, fuzzy
+msgid "The rules on the server couldn't be taken in: {error}"
+msgstr "Non è stato possibile acquisire le regole del server: {error}"
+
+#. interface
+#: crates/ui-egui/src/rule_sync.rs
+#, fuzzy
+msgid "The rules sent couldn't be noted: {error}"
+msgstr "Non è stato possibile registrare le regole inviate: {error}"
+
+#. interface
 #: crates/ui-egui/src/reading/warnings.rs
 msgid "The sender uses your name, but this message came from {real}, which isn't one of your addresses."
 msgstr ""
@@ -9890,6 +10154,12 @@ msgid "The sender's name shows {shown}, but the message came from {real}."
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "The server can't flag mail, so this rule will be kept on this computer."
+msgstr "Il server non può contrassegnare la posta, quindi questa regola sarà conservata su questo computer."
+
+#. interface
 #: crates/ui-egui/src/scheduling.rs
 #, fuzzy
 msgid "The server didn't say when other people are busy"
@@ -9900,6 +10170,12 @@ msgstr "Il server non ha indicato quando gli altri sono occupati"
 #, fuzzy
 msgid "The server didn't send the messages. Try again in a few minutes."
 msgstr "Il server non ha inviato i messaggi. Riprova tra qualche minuto."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "The server doesn't let this rule be changed"
+msgstr "Il server non consente di modificare questa regola"
 
 #. interface
 #: crates/ui-egui/src/graph_fetch.rs crates/ui-egui/src/reading.rs
@@ -10150,6 +10426,12 @@ msgid "This Week"
 msgstr "Questa settimana"
 
 #. interface
+#: crates/ui-egui/src/rule_sync.rs
+#, fuzzy
+msgid "This account doesn't keep its rules on its server"
+msgstr "Questo account non conserva le sue regole sul suo server"
+
+#. interface
 #: crates/ui-egui/src/approval.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/favorites_sync.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "This account doesn't sign in with Microsoft"
@@ -10162,10 +10444,16 @@ msgid "This account has no mail server to send the answer through."
 msgstr "Questo account non ha un server di posta tramite cui inviare la risposta."
 
 #. interface
-#: crates/ui-egui/src/lib.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/shared_calendars.rs crates/ui-egui/src/shared_mailboxes.rs crates/ui-egui/src/task_sync.rs
+#: crates/ui-egui/src/lib.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/rule_sync.rs crates/ui-egui/src/shared_calendars.rs crates/ui-egui/src/shared_mailboxes.rs crates/ui-egui/src/task_sync.rs
 #, fuzzy
 msgid "This account has no sign-in with Microsoft"
 msgstr "Questo account non ha un accesso con Microsoft"
+
+#. interface
+#: crates/ui-egui/src/rule_sync.rs
+#, fuzzy
+msgid "This account may not change its rules on the server"
+msgstr "Questo account non può modificare le sue regole sul server"
 
 #. interface
 #: crates/ui-egui/src/task_sync.rs
@@ -10776,6 +11064,18 @@ msgid ""
 "\n"
 "Whether the answer goes as {address} or on its behalf is your organisation's choice. Until you allow it, the answer waits on this computer, and nothing is sent from your own address."
 msgstr ""
+
+#. interface
+#: crates/ui-egui/src/rule_sync.rs
+#, fuzzy
+msgid ""
+"To keep the rules of {address} on its server, where they run even while MailCraft is closed and show in Outlook on the web and on your phone, MailCraft needs your permission to change your mailbox settings, where Microsoft keeps the rules. Microsoft's page opens in your browser to ask you, once.\n"
+"\n"
+"Until you allow it, your rules stay on this computer and nothing of them is sent to Microsoft."
+msgstr ""
+"Per conservare le regole di {address} sul suo server, dove vengono eseguite anche quando MailCraft è chiuso e compaiono in Outlook sul web e sul telefono, MailCraft ha bisogno della tua autorizzazione a modificare le impostazioni della cassetta postale, dove Microsoft conserva le regole. La pagina di Microsoft si apre nel browser per chiedertelo, una volta.\n"
+"\n"
+"Finché non lo consenti, le tue regole restano su questo computer e nulla di esse viene inviato a Microsoft."
 
 #. interface
 #: crates/ui-egui/src/task_sync.rs
@@ -11636,6 +11936,12 @@ msgid "Your name"
 msgstr "Il proprio nome"
 
 #. interface
+#: crates/ui-egui/src/rule_sync.rs
+#, fuzzy
+msgid "Your organisation doesn't allow MailCraft to keep rules on the server"
+msgstr "La tua organizzazione non consente a MailCraft di conservare regole sul server"
+
+#. interface
 #: crates/ui-egui/src/task_sync.rs
 msgid "Your organisation doesn't allow MailCraft to keep tasks in step with Microsoft To Do"
 msgstr ""
@@ -11686,6 +11992,12 @@ msgstr "Nella propria organizzazione solo un amministratore può approvare un nu
 #, fuzzy
 msgid "Your organisation then lets only an administrator approve a new program. Nothing is wrong with your account or your password."
 msgstr "In tal caso, nella propria organizzazione solo un amministratore può approvare un nuovo programma. L'account e la password sono a posto."
+
+#. interface
+#: crates/ui-egui/src/rule_sync.rs
+#, fuzzy
+msgid "Your organisation's administrator has to approve keeping rules on the server once: File › Info"
+msgstr "L'amministratore della tua organizzazione deve approvare una volta la conservazione delle regole sul server: File › Informazioni"
 
 #. interface
 #: crates/ui-egui/src/task_sync.rs
@@ -11873,6 +12185,24 @@ msgstr ""
 #: crates/engine/src/cmd/rules.rs
 msgid "a rule can't move mail to an Outbox: that would send it"
 msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "a rule is for an account's own mail, not a shared mailbox's"
+msgstr "una regola vale per la posta propria di un account, non per quella di una cassetta postale condivisa"
+
+#. what a command says
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "a rule of one account can't go to another account's server"
+msgstr "la regola di un account non può andare sul server di un altro account"
+
+#. what a command says
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "a rule waiting to go to the server goes after those there; it can be moved once it is there"
+msgstr "una regola in attesa di andare sul server viene dopo quelle già lì; potrà essere spostata quando sarà lì"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -12179,6 +12509,18 @@ msgid "it deletes for good"
 msgstr "elimina definitivamente"
 
 #. interface
+#: crates/ui-egui/src/rule_sync.rs
+#, fuzzy
+msgid "it goes to the server at the next connection"
+msgstr "andrà sul server alla prossima connessione"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "it has two conditions of one kind, and the server would take either of them rather than both"
+msgstr "ha due condizioni dello stesso tipo, e il server accetterebbe l'una o l'altra invece di entrambe"
+
+#. interface
 #: crates/ui-egui/src/reading/images.rs
 #, fuzzy
 msgid "it is a drawing of a kind that isn't shown (SVG)"
@@ -12209,10 +12551,22 @@ msgid "it is too large to show"
 msgstr "è troppo grande per essere mostrata"
 
 #. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "it moves mail to more than one folder"
+msgstr "sposta la posta in più di una cartella"
+
+#. name
 #: crates/engine/src/agent.rs
 #, fuzzy
 msgid "it opens, replaces or saves the mailbox file"
 msgstr "apre, sostituisce o salva il file della cassetta postale"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "it sets more than one importance"
+msgstr "imposta più di un'importanza"
 
 #. interface
 #: crates/ui-egui/src/graph_switch.rs crates/ui-egui/src/import_tree.rs
@@ -12273,6 +12627,12 @@ msgid "no Microsoft account is kept in step by IMAP"
 msgstr "nessun account Microsoft è sincronizzato tramite IMAP"
 
 #. what a command says
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "no account here keeps its rules on its server"
+msgstr "nessun account qui conserva le sue regole sul suo server"
+
+#. what a command says
 #: crates/engine/src/cmd/account.rs
 #, fuzzy
 msgid "no account is connected to a mail server"
@@ -12296,7 +12656,7 @@ msgid "no account is kept in step through Microsoft Graph"
 msgstr "nessun account è sincronizzato tramite Microsoft Graph"
 
 #. what a command says
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs
 #, fuzzy
 msgid "no account with id {id}"
 msgstr "nessun account con id {id}"
@@ -12415,7 +12775,7 @@ msgid "no signature named \"{name}\""
 msgstr "nessuna firma denominata «{name}»"
 
 #. what a command says
-#: crates/engine/src/cmd/tasks_remote.rs
+#: crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/tasks_remote.rs
 msgid "no such account"
 msgstr ""
 
@@ -12442,6 +12802,12 @@ msgstr "nessuna attività con id {id}"
 #, fuzzy
 msgid "no {folder} folder"
 msgstr "nessuna cartella {folder}"
+
+#. interface
+#: crates/ui-egui/src/rule_sync.rs
+#, fuzzy
+msgid "not allowed on the server yet: File › Info › Ask again"
+msgstr "non ancora consentita sul server: File › Informazioni › Chiedi di nuovo"
 
 #. what a command says
 #: crates/engine/src/cmd/format.rs
@@ -12719,6 +13085,24 @@ msgstr "l'evento non c'è più"
 msgid "the folder is already empty"
 msgstr "la cartella è già vuota"
 
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the folder it moves mail to is in another account"
+msgstr "la cartella in cui sposta la posta è in un altro account"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the folder it moves mail to is on this computer"
+msgstr "la cartella in cui sposta la posta è su questo computer"
+
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the folder it moves mail to isn't on the server"
+msgstr "la cartella in cui sposta la posta non è sul server"
+
 #. what a command says
 #: crates/engine/src/cmd/search_server.rs
 #, fuzzy
@@ -12831,11 +13215,35 @@ msgstr "la serie non ricorre il {date}"
 msgid "the server answered {status}"
 msgstr "il server ha risposto {status}"
 
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server can't flag mail"
+msgstr "il server non può contrassegnare la posta"
+
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs
 #, fuzzy
 msgid "the server couldn't be reached"
 msgstr "il server non è raggiungibile"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "the server didn't take it ({why})"
+msgstr "il server non l'ha accettata ({why})"
+
+#. what a command says
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server doesn't let the rule next to it be moved"
+msgstr "il server non consente di spostare la regola accanto"
+
+#. what a command says
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "the server doesn't let this rule be changed"
+msgstr "il server non consente di modificare questa regola"
 
 #. interface
 #: crates/ui-egui/src/reading/images.rs
@@ -13015,6 +13423,12 @@ msgstr "questo account non ha una cartella {folder}"
 msgid "this account may not save it"
 msgstr "questo account non è autorizzato a salvarlo"
 
+#. name
+#: crates/engine/src/cmd/rules.rs
+#, fuzzy
+msgid "this account's server doesn't keep rules"
+msgstr "il server di questo account non conserva regole"
+
 #. what a command says
 #: crates/engine/src/cmd/people.rs
 #, fuzzy
@@ -13090,6 +13504,12 @@ msgstr ""
 #: crates/engine/src/cmd/junk.rs
 msgid "type an address, such as someone@example.org, or a domain, such as @example.org"
 msgstr ""
+
+#. interface
+#: crates/ui-egui/src/rule_sync.rs
+#, fuzzy
+msgid "waiting for your permission to change the rules on the server"
+msgstr "in attesa della tua autorizzazione a modificare le regole sul server"
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs

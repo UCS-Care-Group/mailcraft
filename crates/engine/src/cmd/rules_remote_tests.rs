@@ -437,3 +437,49 @@ fn removing_the_account_keeps_the_rules_made_here_for_every_account() {
     assert_eq!(left, [("Mine", 0, Keep::Here), ("News", 0, Keep::Here)]);
     let _ = mine;
 }
+
+#[test]
+fn a_rule_the_server_gives_back_in_its_own_order_and_capitals_is_the_same_rule() {
+    let (mut s, account, _, news) = session();
+    let id = add(
+        &mut s,
+        account,
+        "Digest",
+        json!([{"type": "fromContains", "value": "digest"}, {"type": "hasAttachment"}]),
+        json!([{"type": "categorize", "value": "Blue category"}, {"type": "markRead"}, {"type": "moveTo", "value": news}]),
+    );
+    all_taken(&mut s, account);
+    let made = rule(&s, id).clone();
+    // The server keeps the words in capitals, and gives the parts in an order of its own.
+    let there = RemoteRule {
+        id: format!("made-{id}"),
+        name: "Digest".into(),
+        sequence: made.server.as_ref().unwrap().sequence,
+        enabled: true,
+        conditions: vec![Condition::HasAttachment, Condition::FromContains("DIGEST".into())],
+        actions: vec![Action::MarkRead, Action::Categorize("BLUE CATEGORY".into())],
+        move_to: "news".into(),
+        ..Default::default()
+    };
+    let merged = merge_rules(&mut s.mailbox, &download(account, vec![there])).unwrap();
+    assert_eq!((merged.updated, merged.added, merged.removed), (0, 0, 0), "{merged:?}");
+    assert_eq!(rule(&s, id).conditions, made.conditions);
+    assert_eq!(rule(&s, id).actions, made.actions);
+}
+
+#[test]
+fn always_move_messages_from_a_sender_of_a_microsoft_account_goes_to_its_server() {
+    let (mut s, account, _, news) = session();
+    let m = arriving(&mut s, account, "digest@news.example", "This week");
+    let made = run(&mut s, "rules.fromMessage", json!({"folder": news, "id": m}));
+    let id = made["id"].as_u64().unwrap();
+    let r = rule(&s, id);
+    assert_eq!((r.account, r.keep), (account, Keep::Server));
+    assert!(r.waiting());
+    // It ran here at once, as it does until the server has it.
+    assert_eq!(made["matched"], 1);
+    assert_eq!(s.mailbox.message(m).unwrap().folder, news);
+    let upload = rule_upload(&s.mailbox, account).unwrap();
+    assert_eq!(upload.ops.len(), 1);
+    assert_eq!(upload.ops[0].body.as_ref().unwrap().move_to, "news");
+}

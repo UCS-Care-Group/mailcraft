@@ -2,7 +2,7 @@
 
 **Stage: public beta** (0.8.0, 2026-10-24) · next: leaving beta, when every item of [the beta checklist](#the-beta-checklist) passes
 
-> **Last reviewed:** 2026-10-20 · **Last updated:** 2026-10-28 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365, classic desktop)
+> **Last reviewed:** 2026-10-20 · **Last updated:** 2026-10-29 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365, classic desktop)
 
 MailCraft aims for complete parity with Microsoft Outlook, then goes further on speed, openness,
 privacy and agent control. This page is the direction: where MailCraft stands, what beta must
@@ -142,7 +142,7 @@ the first people MailCraft is for. Each is a shortfall in [`docs/gaps.md`](docs/
    accounts (gaps 3, 5); with the Google account, Google Keep's notes ([#232](https://github.com/UCS-Care-Group/mailcraft/issues/232), [#233](https://github.com/UCS-Care-Group/mailcraft/issues/233)).
 10. Microsoft To Do's My Day and flagged mail (the tasks themselves are kept in step since #248); the organisation's directory, and LDAP, when
    addressing (gap 17).
-11. Focused Inbox kept in step with Outlook; Automatic Replies; rules kept on the server (gap 17).
+11. Focused Inbox kept in step with Outlook; Automatic Replies; the rest of rules kept on the server: changing a rule there, forwarding, a shared mailbox's rules, Sieve (gap 17; a Microsoft account's rules are kept there since #566).
 12. Sweep, Ignore and Clean Up Conversation, Search Folders, Action Shortcuts (gap 17).
 13. Read receipts, one-click unsubscribe, attachments inside `winmail.dat` (gap 17).
 14. Free/busy across the organisation, rooms (gaps 9, 17).
@@ -187,6 +187,7 @@ follows:
 
 | Date | What landed |
 |---|---|
+| 2026-10-29 | #566 part 1: a rule belongs to one account, and a Microsoft account's is kept on its server through Graph's mailbox rules (`messageRules`), where it runs whether MailCraft is open or not. The server's rules are read every few minutes and shown, those made in Outlook or on the web too; one with parts this version doesn't know is switched on or off, moved or deleted, never rewritten or run here. Changing them takes `MailboxSettings.ReadWrite`, asked for by itself the first time a rule is to go there, after the window has asked, never on a sign-in page; until then the rules stay on this computer and run here, and nothing of them is sent (File › Info shows where it stands, with Ask again). The Rules window shows one account's rules at a time (Outlook's "Apply changes to this folder"), the server's apart from this computer's, with where each is kept and why, Move Up and Move Down, and Keep on Server for a rule kept here (`rules.move`, `rules.keepOnServer`). A Microsoft account's rules look for a sender's or recipient's words in the address, as its server does. Rules from before rules had accounts are for every account and stay on this computer. Not yet: changing a rule once it is made, forwarding by a rule, a shared mailbox's rules, other servers' rules. Tests in `rules_remote_tests.rs`, `graph/rules_tests.rs`, `rule_sync_tests.rs` |
 | 2026-10-28 | M6 (#226): JMAP accounts are read in the browser build, which reaches them over `fetch`; [docs/jmap.md](docs/jmap.md) says what works, how an account comes in, what its server has to allow, and how a site that serves MailCraft names accounts and holds their credential. Read only: nothing goes up and nothing is sent yet. The four JMAP commands are in the control protocol |
 | 2026-10-28 | #567: new mail in the Inbox of a Microsoft account kept in step through Microsoft Graph goes through the rules, as IMAP mail does: after the Safe and Blocked Senders lists (mail a list sends to Junk E-mail isn't the rules' to file, and a safe sender's taken out of Junk E-mail goes through them), only once the folder's first round has ended (never its first download, nor a folder read afresh) and then on every page of a later round, which each folder now remembers (`ServerFolder::round_ended`, read from `caught_up` in a file from before), and a rule's move or change goes up to the server as the owner's own does. A shared mailbox's mail stays as its server has it, as the lists leave it. Before, only Run Rules Now ran them on that mail. A rule that moves new mail out of the account (into a folder of another account) clears the undo history, as an IMAP Send/Receive that moved mail on the server does: an undo of an earlier step would otherwise lose that mail for good once the server's copy is removed, until undo leaves alone what arrived after its step (#605). Also fixed: the Safe and Blocked Senders lists sorted only the first page of a later round (100 changes), so after a busy while the rest of a Microsoft account's new mail stayed where it arrived. Tests in `junk_tests.rs` |
 | 2026-10-27 | #512: Forward and Forward as Attachment refuse an `id` or `ids` of `null`, which an agent's look-up that found nothing gives, instead of forwarding the selected messages. Only leaving both out takes the selection. |
@@ -379,6 +380,7 @@ follows:
 
 | Date | Change |
 |---|---|
+| 2026-10-29 | #566 part 1: a Microsoft account's rules kept on its server (progress log, step 11) |
 | 2026-10-28 | M6: JMAP accounts read in the browser build (the browser build, M6, progress log) |
 | 2026-10-28 | #567: rules run on new mail that comes through Microsoft Graph (progress log) |
 | 2026-10-28 | #567 review: the undo guard (#605), and the lists and the rules on every page of a later round (progress log) |

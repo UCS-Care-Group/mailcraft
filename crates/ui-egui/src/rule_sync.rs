@@ -477,7 +477,7 @@ impl MailApp {
     pub(crate) fn rules_wait_reason(&self, account: Id) -> String {
         match self.rules.perm.get(&account) {
             Some(Permission::Needed | Permission::Asking) => tl!("waiting for your permission to change the rules on the server").to_string(),
-            Some(Permission::Declined) => tl!("not allowed on the server yet: File › Info › Ask Again").to_string(),
+            Some(Permission::Declined) => tl!("not allowed on the server yet: File › Info › Ask again").to_string(),
             Some(Permission::Refused(why)) => why.clone(),
             Some(Permission::SignInOver(_)) => tl!("Microsoft no longer takes the sign-in").to_string(),
             Some(Permission::Given) | None => tl!("it goes to the server at the next connection").to_string(),
