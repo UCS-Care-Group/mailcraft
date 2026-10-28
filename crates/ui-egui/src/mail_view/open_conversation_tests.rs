@@ -335,6 +335,17 @@ fn delete_for_good_takes_what_its_question_counted() {
 }
 
 #[test]
+fn delete_for_good_of_the_message_an_id_names_goes_ahead_on_yes() {
+    let (mut w, newer, older, _) = release_checklist();
+    assert_eq!(w.state_mut().run("mail.deletePermanently", json!({"id": older})).unwrap()["pending"], "confirm");
+    w.run_steps(3);
+    click(&mut w, "questionAction", 0);
+    let s = &w.state().session;
+    assert!(s.mailbox.message(older).is_none(), "the message it named is still here");
+    assert!(s.mailbox.message(newer).is_some());
+}
+
+#[test]
 fn a_question_goes_with_the_mailbox_it_was_asked_about() {
     let (mut w, newer, _, _) = release_checklist();
     click(&mut w, "message", newer);

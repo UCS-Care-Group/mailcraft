@@ -755,7 +755,8 @@ pub fn pin_targets(s: &mut Session, id: &str, params: &mut Value) {
     }
     if matches!(id, "mail.delete" | "mail.deletePermanently" | "mail.move") && params.is_object() && matches!(p::ids_strict(params), Ok(None)) {
         let ids = s.acting_on();
-        // (More than `ids` takes is refused as too large to ask about.)
+        // (More than `ids` takes is asked about as it is, and goes ahead with what the selection
+        // stands for when the owner says yes, as before.)
         if !ids.is_empty() && ids.len() <= p::MAX_IDS {
             params["ids"] = Value::from(ids);
         }

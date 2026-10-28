@@ -11998,7 +11998,7 @@ msgstr ""
 #: crates/engine/src/cmd/account.rs
 #, fuzzy
 msgid "a shared mailbox asks before deleting a conversation as the account it is opened through does: change that account's"
-msgstr "una cassetta postale condivisa chiede prima di eliminare una conversazione come l'account con cui è aperta: cambia quello di quell'account"
+msgstr "una cassetta postale condivisa chiede prima di eliminare una conversazione come l'account con cui è aperta: modificare l'impostazione di quell'account"
 
 #. what a command says
 #: crates/model/src/mailbox.rs

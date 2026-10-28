@@ -726,7 +726,13 @@ pub(crate) fn answered(params: &Value, with: &Value, note: Option<(&str, &str)>)
     let mut params = if params.is_object() { params.clone() } else { json!({}) };
     let Some(map) = params.as_object_mut() else { return params };
     match with.as_object() {
-        Some(more) => map.extend(more.iter().map(|(key, value)| (key.clone(), value.clone()))),
+        Some(more) => {
+            // The messages a question counted stand for the one the command named (#503).
+            if more.contains_key("ids") {
+                map.remove("id");
+            }
+            map.extend(more.iter().map(|(key, value)| (key.clone(), value.clone())));
+        }
         None => {
             map.insert("confirmed".into(), json!(true));
         }

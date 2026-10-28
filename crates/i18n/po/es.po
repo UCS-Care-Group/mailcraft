@@ -2519,7 +2519,7 @@ msgstr "Eliminar las convocatorias de reunión de la Bandeja de entrada después
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "Delete on a conversation's row that takes more than one message asks first."
-msgstr "Eliminar en la fila de una conversación pregunta antes cuando elimina más de un mensaje."
+msgstr "Al eliminar desde la fila de una conversación, se pregunta primero si la acción afecta a más de un mensaje."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
