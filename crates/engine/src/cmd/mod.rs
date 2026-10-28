@@ -64,6 +64,8 @@ pub mod offline;
 #[cfg(test)]
 mod offline_tests;
 #[cfg(test)]
+mod open_conversation_tests;
+#[cfg(test)]
 mod opened_file_tests;
 pub mod people;
 pub mod people_merge;
@@ -98,10 +100,12 @@ mod writing_tools_tests;
 mod zone_tests;
 pub mod zones;
 
+use std::collections::{HashMap, HashSet};
+
 use mailcraft_model::{Id, Message};
 use serde_json::{Value, json};
 
-use crate::list::{Row, position, position_of};
+use crate::list::{Row, position_of};
 use crate::{CmdError, CmdResult, Registry, Session, p};
 
 /// The full registry.
@@ -183,6 +187,19 @@ pub(crate) fn targets(s: &Session, v: &Value) -> Result<Vec<Id>, CmdError> {
     named_or_selected(s, p::ids(v))
 }
 
+/// As [`targets`], for Delete and Move: without `ids` / `id`, a message selected by its
+/// conversation's row stands for every message of that row (#503, [`Session::acting_on`]). `ids` /
+/// `id` are read strictly: named wrongly, they never take the selected conversation.
+pub(crate) fn targets_whole(s: &mut Session, v: &Value) -> Result<Vec<Id>, CmdError> {
+    // Params that aren't an object name nothing, and aren't taken for the selection (#503).
+    if !(v.is_object() || v.is_null()) {
+        return Err(bad("the parameters are an object"));
+    }
+    let named = p::ids_strict(v)?;
+    let ids = if named.is_some() { named } else { Some(s.acting_on()) };
+    named_or_selected(s, ids)
+}
+
 /// As [`targets`], but `ids` / `id` read strictly ([`p::ids_strict`]): for a command whose mistake
 /// reaches other people, which never takes the selection for what a caller named wrongly.
 pub(crate) fn targets_strict(s: &Session, v: &Value) -> Result<Vec<Id>, CmdError> {
@@ -207,27 +224,77 @@ fn named_or_selected(s: &Session, named: Option<Vec<Id>>) -> Result<Vec<Id>, Cmd
 /// After messages left the list (deleted, moved): select the row that took the place of the
 /// first one, as mail programs do, so Delete, Delete, Delete walks down the list.
 pub(crate) fn select_after_removal(s: &mut Session, before: &[Row], removed: &[Id]) {
-    if !s.sel.messages.iter().any(|id| removed.contains(id)) {
+    let gone: HashSet<Id> = removed.iter().copied().collect();
+    if !s.sel.messages.iter().any(|id| gone.contains(id)) {
         return;
     }
-    // The row the owner was on counts for the message it shows, which may be listed more than once.
+    // Where each removed message is listed, in one pass for a whole folder selected: its first
+    // row, its first row under an open conversation, the first row it is one of (#503).
+    let mut at: HashMap<Id, [Option<usize>; 3]> = HashMap::new();
+    for (i, r) in before.iter().enumerate() {
+        if gone.contains(&r.id) {
+            let e = at.entry(r.id).or_default();
+            e[0].get_or_insert(i);
+            if r.under.is_some() {
+                e[1].get_or_insert(i);
+            }
+        }
+        for m in r.members.iter().filter(|m| gone.contains(m)) {
+            at.entry(*m).or_default()[2].get_or_insert(i);
+        }
+    }
+    let position = |id: &Id| at.get(id).and_then(|e| e[0].or(e[2]));
+    let whole: HashSet<Id> = s.sel.whole.iter().copied().collect();
+    // The row the owner was on counts for the message it shows, which may be listed more than once;
+    // a message picked under its open conversation, for its own row there (#503).
     let focus = s.sel.focus().map(|id| (id, s.sel.focus_copy()));
     let first = removed
         .iter()
         .filter_map(|id| match focus {
             Some((f, copy)) if f == *id => position_of(before, *id, copy),
-            _ => position(before, *id),
+            _ if !whole.contains(id) => at.get(id).and_then(|e| e[1]).or_else(|| position(id)),
+            _ => position(id),
         })
-        .min()
-        // Rows of removed messages above it are gone too, which moves it up.
-        .map(|i| i.saturating_sub(before.iter().take(i).filter(|r| removed.contains(&r.id)).count()));
-    s.sel.messages.retain(|id| !removed.contains(id));
+        .min();
+    s.sel.messages.retain(|id| !gone.contains(id));
     if !s.sel.messages.is_empty() {
         return;
     }
     let rows = crate::list::rows(s);
-    if let Some(row) = first.and_then(|i| rows.get(i).or_else(|| rows.last())) {
+    // Where each message is listed now: its own row under its open conversation, and the row it
+    // is one of.
+    let mut now: HashMap<(Id, bool), usize> = HashMap::new();
+    for (i, r) in rows.iter().enumerate() {
+        if r.under.is_some() {
+            now.entry((r.id, true)).or_insert(i);
+        } else {
+            for m in &r.members {
+                now.entry((*m, false)).or_insert(i);
+            }
+        }
+    }
+    // The first row from its place down that is still listed: a conversation's row with messages
+    // left shows the newest of those now; one under a conversation that closed is gone with it
+    // (#503).
+    let next = first.map(|i| {
+        before
+            .iter()
+            .skip(i)
+            .find_map(|r| match r.under {
+                Some(_) => now.get(&(r.id, true)).copied(),
+                None => r.members.iter().filter(|m| !gone.contains(m)).find_map(|m| now.get(&(*m, false)).copied()),
+            })
+            .and_then(|j| rows.get(j))
+            .or_else(|| rows.last())
+    });
+    if let Some(row) = next.flatten() {
         s.sel.messages = vec![row.id];
+        // A conversation's row stands for it, as when it is stepped to; a message's own row under
+        // its open conversation for that message alone (#503).
+        s.sel.whole = if row.conversation() { vec![row.id] } else { Vec::new() };
+        if row.under.is_some() {
+            s.sel.focus_row = Some((row.id, row.copy));
+        }
         s.keep_selected(&rows);
     }
 }

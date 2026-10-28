@@ -58,8 +58,8 @@ pub use mailcraft_mime as mime;
 pub use mailcraft_model as model;
 pub use mailcraft_time as time;
 pub use session::{
-    BodyFormat, BodyLater, BodyRead, CalView, Clock, Compose, ComposeMode, Doc, Filter, InsertedSignature, Missing, Module, Pane, Part, PeopleSort,
-    Prefs, Quote, Scope, Selection, Session, SignatureEdit, SortBy, Stays, TaskFilter, TaskSort, ViewState, WordIndex,
+    BodyFormat, BodyLater, BodyRead, CalView, Clock, Compose, ComposeMode, Doc, Drawn, Filter, InsertedSignature, Missing, Module, Pane, Part,
+    PeopleSort, Prefs, Quote, Scope, Selection, Session, SignatureEdit, SortBy, Stays, TaskFilter, TaskSort, ViewState, WordIndex,
 };
 
 /// What a message says instead of text that couldn't be read back from where the mailbox keeps
@@ -222,7 +222,7 @@ pub mod p {
     use crate::CmdError;
 
     /// Most ids one command takes (a hostile caller can't make a command walk forever).
-    const MAX_IDS: usize = 100_000;
+    pub const MAX_IDS: usize = 100_000;
 
     pub fn str<'a>(v: &'a Value, k: &str) -> Option<&'a str> {
         v.get(k).and_then(Value::as_str)
@@ -325,6 +325,8 @@ pub mod p {
 
 #[cfg(test)]
 mod agent_gate_tests;
+#[cfg(test)]
+mod agent_ids_tests;
 #[cfg(test)]
 mod agent_tests;
 #[cfg(test)]

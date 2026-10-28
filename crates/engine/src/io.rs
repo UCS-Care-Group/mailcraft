@@ -160,7 +160,7 @@ impl OpenProgress {
     }
 
     pub fn add_read(&self, n: u64) {
-        let _ = self.read.fetch_update(Self::ORDER, Self::ORDER, |r| Some(r.saturating_add(n)));
+        let _ = self.read.try_update(Self::ORDER, Self::ORDER, |r| Some(r.saturating_add(n)));
     }
 
     /// Every byte is read: what is left is making a mailbox of them.

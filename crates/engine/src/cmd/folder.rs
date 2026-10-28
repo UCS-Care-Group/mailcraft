@@ -147,7 +147,7 @@ fn target(s: &Session, v: &Value) -> Result<Id, CmdError> {
 }
 
 /// A folder by `Inbox/Projects/Apollo` (case-insensitive), in `account` or any account.
-fn by_path(s: &Session, account: Option<Id>, path: &str) -> Option<Id> {
+pub(super) fn by_path(s: &Session, account: Option<Id>, path: &str) -> Option<Id> {
     let want = path.trim().trim_matches('/').to_lowercase();
     s.mailbox
         .folders

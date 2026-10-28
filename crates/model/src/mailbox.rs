@@ -350,6 +350,12 @@ pub struct Account {
     /// every other account, and in a file from before there were any.
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
     pub jmap: Option<JmapServer>,
+    /// Delete on a whole conversation of more than one message goes ahead without asking first
+    /// (#503): the owner ticked Don't ask again, or cleared the switch in Account Settings. Off
+    /// for a new account and in a file from before there was one: the question is asked. A
+    /// shared mailbox follows its owner's ([`Mailbox::asks_before_deleting_conversation`]).
+    #[serde(skip_serializing_if = "is_false", deserialize_with = "crate::sync::lenient_or_default")]
+    pub skip_conversation_question: bool,
     /// For an account of a kind this version doesn't know ([`AccountKind::Unknown`]): the account
     /// as its file had it, every field but its id, which is what a mailbox file gets in its place
     /// ([`Mailbox::accounts`]). `None` for every other account.
@@ -1178,6 +1184,12 @@ impl Mailbox {
     /// (#143: it has none of its own). All for an account that isn't here.
     pub fn keep_offline_of(&self, account: Id) -> KeepOffline {
         self.owner_of(account).or(self.account(account)).map(|a| a.keep_offline).unwrap_or_default()
+    }
+
+    /// Whether Delete on a whole conversation of `account`'s asks first (#503): its own switch,
+    /// and for a shared mailbox its owner's.
+    pub fn asks_before_deleting_conversation(&self, account: Id) -> bool {
+        self.owner_of(account).or(self.account(account)).is_none_or(|a| !a.skip_conversation_question)
     }
 
     pub fn owner_of(&self, account: Id) -> Option<&Account> {
@@ -2370,17 +2382,24 @@ impl Mailbox {
     pub fn conversation(&self, id: Id) -> Vec<Id> {
         let Some(m) = self.message(id) else { return Vec::new() };
         let key = m.thread_key();
-        let deleted = self.folder_of_kind(m.account, FolderKind::Deleted);
-        let junk = self.folder_of_kind(m.account, FolderKind::Junk);
-        let mut v: Vec<&Arc<Message>> = self
-            .messages
-            .values()
-            .filter(|x| x.account == m.account && x.thread_key() == key)
-            // Deleted and junk mail stays out, unless that is where the conversation is read.
-            .filter(|x| x.folder == m.folder || (Some(x.folder) != deleted && Some(x.folder) != junk))
-            .collect();
+        let skips = self.conversation_skips(m.account, m.folder);
+        let mut v: Vec<&Arc<Message>> =
+            self.messages.values().filter(|x| x.account == m.account && !skips.contains(&x.folder) && x.thread_key() == key).collect();
         v.sort_by_key(|x| (x.date, x.id));
         v.into_iter().map(|x| x.id).collect()
+    }
+
+    /// The folders of `account` a conversation read in `folder` leaves out: its Deleted Items and
+    /// its Junk E-mail and the folders under them (a folder deleted is one), but for `folder`,
+    /// where it is read. The reading pane's conversation and the message list's (#503) take the
+    /// rest of the account's folders.
+    pub fn conversation_skips(&self, account: Id, folder: Id) -> Vec<Id> {
+        [FolderKind::Deleted, FolderKind::Junk]
+            .into_iter()
+            .filter_map(|kind| self.folder_of_kind(account, kind))
+            .flat_map(|f| self.subtree(f))
+            .filter(|f| *f != folder)
+            .collect()
     }
 
     /// Sort a message that has just arrived by the Safe and Blocked Senders lists (#504): from a

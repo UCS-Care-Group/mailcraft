@@ -6,6 +6,8 @@
 //!
 //! Dialogs only collect input: what they do, they do by running a command.
 
+use std::collections::HashSet;
+
 use egui::{Align2, Key, Ui, vec2};
 use mailcraft_model::Id;
 use serde_json::{Value, json};
@@ -161,12 +163,29 @@ pub struct Question {
     pub note: Option<(&'static str, String, String)>,
     /// What the button that goes nowhere says, when not Cancel (`Not now`).
     pub cancel: Option<String>,
+    /// A box under the text, such as Don't ask again.
+    pub tick: Option<Box<Tick>>,
+}
+
+/// A box under a question's text (Don't ask again, #503): what it says, whether it is ticked,
+/// and what runs first when the owner goes ahead with it ticked.
+pub struct Tick {
+    pub label: String,
+    pub ticked: bool,
+    pub then: Vec<(&'static str, Value)>,
 }
 
 impl Question {
     /// A question with one way of going ahead, which adds `with` to the parameters.
     pub(crate) fn new(title: &str, text: String, action: &str, with: Value) -> Question {
-        Question { title: title.to_string(), text, action: action.to_string(), with, more: Vec::new(), note: None, cancel: None }
+        Question { title: title.to_string(), text, action: action.to_string(), with, more: Vec::new(), note: None, cancel: None, tick: None }
+    }
+
+    /// With a box under the text, not ticked, whose `then` runs first when the owner goes ahead
+    /// with it ticked.
+    fn ticked(mut self, label: &str, then: Vec<(&'static str, Value)>) -> Question {
+        self.tick = Some(Box::new(Tick { label: label.to_string(), ticked: false, then }));
+        self
     }
 
     /// One more way of going ahead.
@@ -347,9 +366,22 @@ pub fn confirmation(app: &MailApp, id: &str, params: &Value) -> Option<Question>
             question(&title, text, &action)
         }
         "mail.delete" | "mail.deletePermanently" => {
-            let ids: Vec<u64> = match params.get("ids").and_then(Value::as_array) {
-                Some(ids) => ids.iter().filter_map(Value::as_u64).collect(),
-                None => params.get("id").and_then(Value::as_u64).map_or_else(|| app.session.sel.messages.to_vec(), |id| vec![id]),
+            // What the selection stands for: a conversation's row, every message of it the list
+            // shows (#503).
+            let selected = || match app.session.view.conversations {
+                true => app.session.acting_on_in(&list_rows(&app.session)),
+                false => app.session.sel.messages.to_vec(),
+            };
+            // The messages named, read as the command reads them (`{"id": 12.0}` is message 12).
+            // Named wrongly, the command refuses it without a question, and the selection is never
+            // taken for it (#503).
+            if !(params.is_object() || params.is_null()) {
+                return None;
+            }
+            let ids: Vec<u64> = match mailcraft_engine::p::ids_strict(params) {
+                Ok(Some(ids)) => ids,
+                Ok(None) => selected(),
+                Err(_) => return None,
             };
             // An ordinary delete only asks when it is for good: the message is in Deleted Items already.
             let for_good = |m: &mailcraft_model::Message| {
@@ -358,7 +390,9 @@ pub fn confirmation(app: &MailApp, id: &str, params: &Value) -> Option<Question>
             };
             let going: Vec<&mailcraft_model::Message> = ids.iter().filter_map(|id| mb.message(*id)).filter(|m| for_good(m)).collect();
             if going.is_empty() {
-                return None;
+                // (Once the owner said yes to it, it isn't asked again; Delete for Good still is, above.)
+                let answered = params.get("conversation").and_then(Value::as_bool) == Some(true);
+                return (id == "mail.delete" && !answered).then(|| conversation_question(app, &ids)).flatten();
             }
             let n = going.len();
             let what = if n == 1 {
@@ -376,7 +410,9 @@ pub fn confirmation(app: &MailApp, id: &str, params: &Value) -> Option<Question>
             } else {
                 what
             };
-            question(tl!("Delete for Good"), text, tl!("Delete"))
+            // It goes ahead with what it counted, not with what the selection stands for when the
+            // owner says yes: a message that came into the conversation meanwhile wasn't counted (#503).
+            Some(Question::new(tl!("Delete for Good"), text, tl!("Delete"), pinned(mb, &ids, "confirmed")))
         }
         // A contact has no Deleted Items to go to: deleting one is for good (#186). One the
         // account's server keeps can't be deleted here, and the command says so without asking.
@@ -566,6 +602,152 @@ pub fn confirmation(app: &MailApp, id: &str, params: &Value) -> Option<Question>
     }
 }
 
+/// Before Delete takes a whole conversation of more than one message (#503): the conversations
+/// of the list all of whose messages there `ids` has, of the accounts that ask
+/// ([`mailcraft_model::Mailbox::asks_before_deleting_conversation`]). Its messages in other
+/// folders aren't deleted, and the question says so. Going ahead deletes what was asked about;
+/// Don't ask again turns the question off for those accounts first.
+fn conversation_question(app: &MailApp, ids: &[u64]) -> Option<Question> {
+    let s = &app.session;
+    if !s.view.conversations {
+        return None;
+    }
+    let mb = &s.mailbox;
+    let rows = list_rows(s);
+    let picked: HashSet<u64> = ids.iter().copied().collect();
+    let account = |r: &mailcraft_engine::list::Row| mb.message(r.id).map(|m| m.account);
+    // A conversation is asked about when its row goes: not when each of its messages was picked
+    // by its own row under it, the conversation open.
+    let by_rows = |r: &mailcraft_engine::list::Row| r.open && !s.picked_whole(r) && r.members.iter().all(|id| s.sel.messages.contains(id));
+    let asking: Vec<&mailcraft_engine::list::Row> = rows
+        .iter()
+        .filter(|r| r.under.is_none() && r.members.len() > 1 && r.members.iter().all(|id| picked.contains(id)) && !by_rows(r))
+        .filter(|r| account(r).is_some_and(|a| mb.asks_before_deleting_conversation(a)))
+        .collect();
+    if asking.is_empty() {
+        return None;
+    }
+    // Every message that goes is counted: one conversation's alone, or all that is selected.
+    let one = asking.len() == 1 && picked.len() == asking.iter().map(|r| r.members.len()).sum::<usize>();
+    let n = picked.len();
+    // Whole conversations only when nothing of them in the folder in view stays: a tab or a search
+    // lists some of their messages, and may list them from other folders.
+    let folder_id = s.view.folder;
+    let keys: HashSet<(Id, String)> = asking.iter().filter_map(|r| mb.message(r.id)).map(|m| (m.account, m.thread_key())).collect();
+    let accounts: HashSet<Id> = keys.iter().map(|(a, _)| *a).collect();
+    // What of them stays: in this folder, and in the others the conversation is read from (not
+    // Deleted Items or Junk E-mail), whatever the tab lists.
+    let (mut stays_here, mut stays_elsewhere) = (false, false);
+    for m in mb.messages.values().filter(|m| accounts.contains(&m.account) && !picked.contains(&m.id)) {
+        if !keys.contains(&(m.account, m.thread_key())) {
+            continue;
+        }
+        if m.folder == folder_id {
+            stays_here = true;
+        } else if !mb.conversation_skips(m.account, folder_id).contains(&m.folder) {
+            stays_elsewhere = true;
+        }
+    }
+    let whole = !stays_here && picked.iter().all(|id| mb.message(*id).is_some_and(|m| m.folder == folder_id));
+    // A shared mailbox's folder with its mailbox's name ("Inbox - sales@example.org").
+    let folder = mb.folder(folder_id).map(|f| crate::nav::folder_label(mb, f)).unwrap_or_default();
+    // One conversation with other messages picked as well, such as its reply in Sent Items.
+    let single = asking.len() == 1;
+    let what = match (one, whole) {
+        (true, true) => tln!(
+            n,
+            "This deletes the conversation from {folder}: its {n} message there goes to Deleted Items.",
+            "This deletes the conversation from {folder}: its {n} messages there go to Deleted Items."
+        ),
+        (true, false) => tln!(
+            n,
+            "This deletes the {n} message of this conversation that is listed here. It goes to Deleted Items.",
+            "This deletes the {n} messages of this conversation that are listed here. They go to Deleted Items."
+        ),
+        (false, true) if single => tln!(
+            n,
+            "This deletes {n} message in {folder}, every message of the conversation there included. It goes to Deleted Items.",
+            "This deletes {n} messages in {folder}, every message of the conversation there included. They go to Deleted Items."
+        ),
+        (false, true) => tln!(
+            n,
+            "This deletes {n} message in {folder}, every message of the conversations there included. It goes to Deleted Items.",
+            "This deletes {n} messages in {folder}, every message of the conversations there included. They go to Deleted Items."
+        ),
+        (false, false) if single => tln!(
+            n,
+            "This deletes {n} message, including the conversation's messages listed here. It goes to Deleted Items.",
+            "This deletes {n} messages, including the conversation's messages listed here. They go to Deleted Items."
+        ),
+        (false, false) => tln!(
+            n,
+            "This deletes {n} message, including the conversations' messages listed here. It goes to Deleted Items.",
+            "This deletes {n} messages, including the conversations' messages listed here. They go to Deleted Items."
+        ),
+    };
+    let mut text = crate::i18n::fmt(&what, &[("folder", &folder)]);
+    // (Not when one picked in another folder goes too: the count says so.)
+    let picked_elsewhere = picked.iter().any(|id| mb.message(*id).is_some_and(|m| m.folder != folder_id));
+    if stays_elsewhere && !picked_elsewhere {
+        let stay = if single {
+            tl!("Its messages in other folders stay where they are.")
+        } else {
+            tl!("The conversations' messages in other folders stay where they are.")
+        };
+        text = format!("{text} {stay}");
+    }
+    // The switch is the account's, and a shared mailbox's is its owner's.
+    let mut owners: Vec<Id> = asking.iter().filter_map(|r| account(r)).map(|a| mb.owner_of(a).map_or(a, |o| o.id)).collect();
+    owners.sort_unstable();
+    owners.dedup();
+    let tick = if owners.len() > 1 { tl!("Don't ask again for these accounts") } else { tl!("Don't ask again for this account") };
+    // Turned off only where Account Settings can turn it on again: not for the account on this
+    // computer, which has no address and no such page.
+    let settable = owners.iter().all(|o| mb.account(*o).is_some_and(|a| !a.email.is_empty() && a.kind != mailcraft_model::AccountKind::Unknown));
+    let then = owners.into_iter().map(|a| ("account.edit", json!({"id": a, "askBeforeDeletingConversation": false}))).collect();
+    // It goes ahead with what it counted, asked again only if one of them would now go for good.
+    let ask = Question::new(tl!("Delete Conversation"), text, tl!("Delete"), pinned(mb, ids, "conversation"));
+    Some(if settable { ask.ticked(tick, then) } else { ask })
+}
+
+/// What a Delete goes ahead with on the owner's yes, noted as `said`: the messages its question
+/// counted, with the folder each was counted in (`counted`, which [`go_ahead`] reads and takes
+/// out), or, more than a command takes by `ids` (a whole large folder), the selection, as before
+/// (#503).
+fn pinned(mb: &mailcraft_model::Mailbox, ids: &[Id], said: &str) -> Value {
+    let mut with = json!({ said: true });
+    if ids.len() <= mailcraft_engine::p::MAX_IDS {
+        with["ids"] = json!(ids);
+        with["counted"] = json!(ids.iter().map(|id| mb.message(*id).map_or(0, |m| m.folder)).collect::<Vec<_>>());
+    }
+    with
+}
+
+/// The message list's rows as the window shows them, or, when they are of another list, as they
+/// would be built now.
+fn list_rows(s: &mailcraft_engine::Session) -> std::sync::Arc<Vec<mailcraft_engine::list::Row>> {
+    s.rows_in_view().unwrap_or_else(|| std::sync::Arc::new(mailcraft_engine::list::rows(s)))
+}
+
+/// `params` for a question about a command that, given no target, acts on what is selected (or in
+/// view): the target written in, as it is when the question is asked. Said later, "Delete" would
+/// act on whatever is selected then, which is not what the question counted (#620). A Delete's
+/// question writes in the messages it counted itself ([`pinned`]), what a conversation's row stands
+/// for and not only its selected message (#503).
+pub(crate) fn pin_targets(app: &MailApp, id: &str, mut params: Value) -> Value {
+    let named = |k: &str| params.get(k).is_some_and(|v| !v.is_null());
+    let sel = &app.session.sel;
+    let pin = match id {
+        "people.delete" if !named("id") => sel.contact.map(|c| ("id", json!(c))),
+        "folder.empty" | "folder.delete" if !named("id") => Some(("id", json!(app.session.view.folder))),
+        _ => None,
+    };
+    if let (Some((key, value)), Some(map)) = (pin, params.as_object_mut()) {
+        map.insert(key.into(), value);
+    }
+    params
+}
+
 /// The parameters of a command after its question was answered by a way of going ahead that
 /// adds `with` (nothing: only that the owner said yes, `"confirmed": true`), and with the note
 /// that was written, when there is one and anybody is to read it.
@@ -573,7 +755,13 @@ pub(crate) fn answered(params: &Value, with: &Value, note: Option<(&str, &str)>)
     let mut params = if params.is_object() { params.clone() } else { json!({}) };
     let Some(map) = params.as_object_mut() else { return params };
     match with.as_object() {
-        Some(more) => map.extend(more.iter().map(|(key, value)| (key.clone(), value.clone()))),
+        Some(more) => {
+            // The messages a question counted stand for the one the command named (#503).
+            if more.contains_key("ids") {
+                map.remove("id");
+            }
+            map.extend(more.iter().map(|(key, value)| (key.clone(), value.clone())));
+        }
         None => {
             map.insert("confirmed".into(), json!(true));
         }
@@ -629,7 +817,26 @@ pub(crate) fn leave_message(app: &mut MailApp, answer: &str, then: &str, params:
     }
 }
 
-pub(crate) fn go_ahead(app: &mut MailApp, command: &str, params: Value) {
+pub(crate) fn go_ahead(app: &mut MailApp, command: &str, mut params: Value) {
+    // A message a delete's question counted that is gone meanwhile, or that has left the folder
+    // it was counted in (moved on another device, which a Send/Receive brings while the question
+    // is open), is left out: the rest still go (#503).
+    let counted = params.as_object_mut().and_then(|p| p.remove("counted"));
+    if matches!(command, "mail.delete" | "mail.deletePermanently")
+        && let Some(ids) = params.get_mut("ids").and_then(Value::as_array_mut)
+    {
+        let mb = &app.session.mailbox;
+        let folders = counted.as_ref().and_then(Value::as_array);
+        let stays = |i: usize, id: &Value| {
+            let m = id.as_u64().and_then(|id| mb.message(id));
+            m.is_some_and(|m| folders.is_none_or(|f| f.get(i).and_then(Value::as_u64) == Some(m.folder)))
+        };
+        *ids = ids.iter().enumerate().filter(|(i, id)| stays(*i, id)).map(|(_, id)| id.clone()).collect();
+        // None left: nothing to delete, and nothing to say about `ids`.
+        if ids.is_empty() {
+            return;
+        }
+    }
     let opening = command == "ui.openWindow" || input_dialog(command, &params) == Some("editEvent");
     if opening && let Some(event) = params.get("event").or(params.get("id")).and_then(Value::as_u64).or(app.session.sel.event) {
         let one = params.get("scope").and_then(Value::as_str) == Some("occurrence");
@@ -1448,6 +1655,11 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
                         .add(egui::TextEdit::multiline(note).hint_text(hint.as_str()).desired_rows(2).desired_width(f32::INFINITY).char_limit(2_000));
                     crate::text_menu::field(field);
                 }
+                if let Some(tick) = &mut ask.tick {
+                    ui.add_space(4.0);
+                    let r = ui.checkbox(&mut tick.ticked, tick.label.as_str());
+                    app.hit.add("questionTick", 0, r.rect);
+                }
                 ui.add_space(6.0);
                 // Cancel is the one Enter and Escape reach: going ahead takes a deliberate click.
                 if ask.more.len() >= 2 {
@@ -1464,7 +1676,9 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
                     });
                 } else {
                     button_row(ui, |ui| {
-                        if ui.add(egui::Button::new(ask.cancel.as_deref().unwrap_or(tl!("Cancel"))).min_size(vec2(72.0, 26.0))).clicked() {
+                        let cancel = ui.add(egui::Button::new(ask.cancel.as_deref().unwrap_or(tl!("Cancel"))).min_size(vec2(72.0, 26.0)));
+                        app.hit.add("questionCancel", 0, cancel.rect);
+                        if cancel.clicked() {
                             close = true;
                         }
                         for (label, with) in ask.more.iter().rev() {
@@ -1472,7 +1686,9 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
                                 picked = Some(with.clone());
                             }
                         }
-                        if ui.add(egui::Button::new(ask.action.as_str()).min_size(vec2(72.0, 26.0))).clicked() {
+                        let action = ui.add(egui::Button::new(ask.action.as_str()).min_size(vec2(72.0, 26.0)));
+                        app.hit.add("questionAction", 0, action.rect);
+                        if action.clicked() {
                             picked = Some(ask.with.clone());
                         }
                     });
@@ -1483,6 +1699,10 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
                 close = true;
                 let command = command.clone();
                 let params = answered(params, &with, ask.note.as_ref().map(|(key, note, _)| (*key, note.as_str())));
+                // Don't ask again: said before the command goes ahead.
+                for (then, then_params) in ask.tick.iter().filter(|tick| tick.ticked).flat_map(|tick| tick.then.iter()) {
+                    let _ = app.run(then, then_params.clone());
+                }
                 go_ahead(app, &command, params);
             }
         }
