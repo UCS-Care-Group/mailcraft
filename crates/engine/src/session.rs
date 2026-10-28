@@ -335,6 +335,31 @@ impl Default for ViewState {
     }
 }
 
+/// What the message list draws selected (#503): what Delete and Move take, by the rows that show
+/// it ([`Session::drawn`]).
+#[derive(Debug, Default)]
+pub struct Drawn {
+    /// The selected messages.
+    messages: HashSet<Id>,
+    /// The conversations' rows picked as the conversation ([`Session::picked_whole`]).
+    whole: HashSet<Id>,
+    /// What Delete takes, while a conversation is open ([`Session::acting_on_in`]).
+    taken: HashSet<Id>,
+}
+
+impl Drawn {
+    /// Whether `row` is drawn selected: a conversation's row when its message is selected, and,
+    /// while it is open, only when it was picked as the conversation; under an open conversation,
+    /// each row whose message is taken: the row's own when the row was picked, and any picked
+    /// itself.
+    pub fn shows(&self, row: &Row) -> bool {
+        match row.under {
+            None => (!row.open && self.messages.contains(&row.id)) || self.whole.contains(&row.id),
+            Some(_) => self.taken.contains(&row.id),
+        }
+    }
+}
+
 /// What is selected in each module.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
@@ -2091,16 +2116,22 @@ impl Session {
         self.acting_on_in(&crate::list::rows(self))
     }
 
-    /// Whether `row` of the list is drawn selected (#503): what Delete and Move take, by the rows
-    /// that show it. A conversation's row when its message is selected, and, while it is open,
-    /// only when it was picked as the conversation ([`Session::picked_whole`]); under an open
-    /// conversation, each row whose message is taken (`taken`, [`Session::acting_on_in`]): the
-    /// row's own when the row was picked, and any picked itself.
-    pub fn shows_selected(&self, row: &Row, taken: &HashSet<Id>) -> bool {
-        match row.under {
-            None => (!row.open && self.sel.messages.contains(&row.id)) || self.picked_whole(row),
-            Some(_) => taken.contains(&row.id),
-        }
+    /// What the list's `rows` draw selected (#503), worked out once for them and the selection, so
+    /// that a row drawn asks a set and nothing more ([`Drawn::shows`]).
+    pub fn drawn(&self, rows: &[Row]) -> Drawn {
+        let messages: HashSet<Id> = self.sel.messages.iter().copied().collect();
+        // The messages a conversation's row was picked by, as the conversation.
+        let picked: HashSet<Id> = self.sel.whole.iter().copied().filter(|id| messages.contains(id)).collect();
+        let whole = match picked.is_empty() {
+            true => HashSet::new(),
+            false => rows.iter().filter(|r| r.under.is_none() && r.members.iter().any(|m| picked.contains(m))).map(|r| r.id).collect(),
+        };
+        // Rows under a conversation are listed only while one is open.
+        let taken = match self.view.open.is_empty() {
+            true => HashSet::new(),
+            false => self.acting_on_in(rows).into_iter().collect(),
+        };
+        Drawn { messages, whole, taken }
     }
 
     /// Whether the list's row `row` was picked as the conversation (#503): by one of its messages,

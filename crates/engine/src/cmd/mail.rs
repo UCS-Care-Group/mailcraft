@@ -279,7 +279,7 @@ impl Placed {
 }
 
 /// A Ctrl+click on row `copy` of message `id`: a row drawn selected leaves the selection, and any
-/// other joins it. By rows, as they are drawn (#503: [`Session::shows_selected`]): a
+/// other joins it. By rows, as they are drawn (#503: [`crate::Drawn::shows`]): a
 /// conversation's row and its newest message's own row under it are two rows of one message.
 fn ctrl_click(s: &mut Session, placed: &Placed, id: Id, copy: u16) {
     let row = placed.row(id, copy).filter(|r| r.id == id);
@@ -533,8 +533,8 @@ fn collapse(s: &mut Session, v: &Value) -> CmdResult {
     }
     // What was picked under it goes, as the list no longer shows it; the row stays selected
     // when it was picked itself.
-    let under: HashSet<Id> =
-        row.members.iter().chain(&row.others).copied().filter(|id| !(s.sel.whole.contains(id) && row.members.contains(id))).collect();
+    let (whole, members): (HashSet<Id>, HashSet<Id>) = (s.sel.whole.iter().copied().collect(), row.members.iter().copied().collect());
+    let under: HashSet<Id> = row.members.iter().chain(&row.others).copied().filter(|id| !(whole.contains(id) && members.contains(id))).collect();
     if s.sel.messages.iter().any(|id| under.contains(id)) {
         s.sel.messages.retain(|id| !under.contains(id));
         s.sel.whole.retain(|id| !under.contains(id));

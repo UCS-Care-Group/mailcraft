@@ -5,12 +5,11 @@
 //! The message list is laid out to the pixel from classic Outlook's at 100 %: every number below
 //! is a distance measured there, in points (pixels at 100 %).
 
-use std::collections::HashSet;
 use std::sync::Arc;
 
 use egui::{Align2, Color32, Rect, Sense, Stroke, Ui, pos2, vec2};
 use mailcraft_engine::list::Row;
-use mailcraft_engine::{Filter, Pane, SortBy};
+use mailcraft_engine::{Drawn, Filter, Pane, SortBy};
 use mailcraft_model::{FlagStatus, FolderKind, Id, Importance, Message};
 use serde_json::json;
 
@@ -588,8 +587,8 @@ fn list(app: &mut MailApp, ui: &mut Ui) {
     // newer message of its open conversation came, and its own row there is another), and for one
     // picked as its conversation, the conversation's row.
     let focus = app.session.sel.focus_in(&rows).and_then(|i| rows.get(i)).map(|r| (r.id, r.copy));
-    // What Delete would take, for the rows under an open conversation (#503).
-    let taken: HashSet<Id> = if app.session.view.open.is_empty() { HashSet::new() } else { app.session.acting_on_in(&rows).into_iter().collect() };
+    // What is drawn selected (#503).
+    let drawn = drawn_selection(app, &rows);
     let outer = ui.available_rect_before_wrap();
     // Page Up and Page Down move by the rows that fit (#426).
     app.list_page_rows = ((outer.height() / row_h).floor() as usize).max(1);
@@ -663,7 +662,7 @@ fn list(app: &mut MailApp, ui: &mut Ui) {
                 );
             }
             let rect = Rect::from_min_size(pos2(origin.x, origin.y + top), vec2(width, row_h));
-            message_row(app, ui, row, rect, &taken, focus);
+            message_row(app, ui, row, rect, &drawn, focus);
         }
         if below > 0.0 {
             server_rows::show(app, ui, &local, origin.x, origin.y + rows_end, width, server_h, viewport.translate(origin.to_vec2()));
@@ -810,7 +809,24 @@ pub(crate) fn row_fill(t: &Tokens, follow_up: FollowUp, selected: bool, focus: b
 /// One message in the list: the sender in the larger size, the subject with the time at the end
 /// of its line, then the preview in the dimmer colour; marks at the right of the sender's line,
 /// category marks and the size of a conversation at the right of the preview's.
-fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, taken: &HashSet<Id>, focus: Option<(Id, u16)>) {
+/// What the list's `rows` draw selected ([`mailcraft_engine::Session::drawn`]), kept while they
+/// and the selection stay as they are: in a large list, working it out goes through every row,
+/// which a frame can't afford (#503).
+fn drawn_selection(app: &mut MailApp, rows: &Arc<Vec<Row>>) -> Arc<Drawn> {
+    let sel = &app.session.sel;
+    if let Some((was, messages, whole, drawn)) = &app.drawn
+        && Arc::ptr_eq(was, rows)
+        && *messages == sel.messages
+        && *whole == sel.whole
+    {
+        return drawn.clone();
+    }
+    let drawn = Arc::new(app.session.drawn(rows));
+    app.drawn = Some((rows.clone(), sel.messages.clone(), sel.whole.clone(), drawn.clone()));
+    drawn
+}
+
+fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, drawn: &Drawn, focus: Option<(Id, u16)>) {
     let t = Tokens::get(ui.ctx());
     // The shared pointer, not a copy of the message.
     let Some(m) = app.session.mailbox.messages.get(&row.id).cloned() else { return };
@@ -863,7 +879,7 @@ fn message_row(app: &mut MailApp, ui: &mut Ui, row: &Row, rect: Rect, taken: &Ha
     });
     // What Delete takes is what is drawn selected: an open conversation's row when it was picked
     // as the conversation, and under it the rows of what is taken (#503).
-    let selected = app.session.shows_selected(row, taken);
+    let selected = drawn.shows(row);
     // The focus is on one of a message's rows: the one clicked or stepped to.
     let focus = focus == Some((row.id, row.copy));
     let p = ui.painter();

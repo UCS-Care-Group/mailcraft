@@ -5,8 +5,6 @@
 //! row counts what opens under it. Closed, Delete and Move on the row take the messages it stands
 //! for in the folder in view, and nothing of it in another folder (#485), as in Outlook.
 
-use std::collections::HashSet;
-
 use mailcraft_model::{Account, AccountKind, FolderKind, Id, Message};
 use mailcraft_time::{Date, DateTime};
 use serde_json::{Value, json};
@@ -58,12 +56,9 @@ fn under(s: &mut Session, head: Id) -> Vec<(Id, u16)> {
 /// messages, which are what Delete and Move take; sorted.
 fn drawn(s: &mut Session) -> Vec<Id> {
     let rows = s.rows();
-    let taken: HashSet<Id> = s.acting_on_in(&rows).into_iter().collect();
-    let mut ids: Vec<Id> = rows
-        .iter()
-        .filter(|r| s.shows_selected(r, &taken))
-        .flat_map(|r| if r.under.is_none() && !r.open { r.members.clone() } else { vec![r.id] })
-        .collect();
+    let drawn = s.drawn(&rows);
+    let mut ids: Vec<Id> =
+        rows.iter().filter(|r| drawn.shows(r)).flat_map(|r| if r.under.is_none() && !r.open { r.members.clone() } else { vec![r.id] }).collect();
     ids.sort_unstable();
     ids.dedup();
     let mut acting = s.acting_on();
@@ -284,8 +279,8 @@ fn a_shift_range_into_the_open_conversation_is_drawn_without_a_gap() {
     run(&mut s, "mail.expandConversation", json!({}));
     run(&mut s, "mail.select", json!({"id": older, "range": true}));
     let rows = s.rows();
-    let taken: HashSet<Id> = s.acting_on_in(&rows).into_iter().collect();
-    let drawn: Vec<usize> = (0..rows.len()).filter(|i| s.shows_selected(&rows[*i], &taken)).collect();
+    let shown = s.drawn(&rows);
+    let drawn: Vec<usize> = (0..rows.len()).filter(|i| shown.shows(&rows[*i])).collect();
     let from = rows.iter().position(|r| r.id == newer && r.under.is_none()).unwrap();
     let to = rows.iter().position(|r| r.id == older).unwrap();
     assert_eq!(drawn, (from..=to).collect::<Vec<_>>(), "{:?}", rows.iter().map(|r| (r.id, r.copy)).collect::<Vec<_>>());
@@ -853,8 +848,8 @@ fn the_switch_to_ask_before_deleting_a_conversation_is_true_or_false() {
 fn a_message_selected_by_itself_before_its_conversation_came_on_top_of_it_is_taken_by_itself() {
     let nothing_drawn = |s: &mut Session| {
         let rows = s.rows();
-        let taken: std::collections::HashSet<Id> = s.acting_on_in(&rows).into_iter().collect();
-        rows.iter().all(|r| !s.shows_selected(r, &taken))
+        let drawn = s.drawn(&rows);
+        rows.iter().all(|r| !drawn.shows(r))
     };
     // The Unread tab lists the conversation by its one unread message, the All tab by the newer.
     let (mut s, newer, older, reply) = release_checklist();

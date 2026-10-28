@@ -621,3 +621,81 @@ fn delete_for_good_of_more_messages_than_a_command_names_still_goes_ahead() {
     click(&mut w, "questionAction", 0);
     assert_eq!(w.state().session.mailbox.messages_in(deleted).count(), 0, "{:?}", w.state().status_msg);
 }
+
+#[test]
+fn left_far_down_a_long_conversation_scrolls_the_list_to_its_row() {
+    let mut w = testing::window("view.mail");
+    w.state_mut().execute("ui.dismissReminder", json!({"all": true})).unwrap();
+    w.state_mut().execute("folder.select", json!({"kind": "inbox"})).unwrap();
+    let inbox = w.state().session.view.folder;
+    let now = testing::now();
+    let ada = mailcraft_model::Address::new("Ada", "ada@example.org");
+    for i in 0..40i64 {
+        let at = now - 60 - i * 60;
+        let m = mailcraft_model::Message {
+            folder: inbox,
+            subject: "Big thread".into(),
+            from: ada.clone(),
+            date: at,
+            received: at,
+            read: true,
+            ..Default::default()
+        };
+        w.state_mut().session.mailbox.add_message(m).unwrap();
+    }
+    for i in 0..30i64 {
+        let at = now - 400 * 86_400 - i * 60;
+        let m = mailcraft_model::Message {
+            folder: inbox,
+            subject: format!("Old note {i}"),
+            from: ada.clone(),
+            date: at,
+            received: at,
+            read: true,
+            ..Default::default()
+        };
+        w.state_mut().session.mailbox.add_message(m).unwrap();
+    }
+    w.state_mut().session.mailbox_changed();
+    w.state_mut().execute("view.conversations", json!({"value": true})).unwrap();
+    w.run_steps(3);
+    let head = w.state_mut().session.rows().iter().find(|r| r.members.len() == 40).unwrap().id;
+    click(&mut w, "message", head);
+    testing::key(&mut w, Key::ArrowRight);
+    w.run_steps(2);
+    for _ in 0..39 {
+        testing::key(&mut w, Key::ArrowDown);
+    }
+    w.run_steps(3);
+    assert!(w.state().hit.rect("message", head).is_none(), "the conversation's row is scrolled away");
+    testing::key(&mut w, Key::ArrowLeft);
+    w.run_steps(5);
+    assert_eq!(w.state().session.sel.messages, [head]);
+    assert!(w.state().hit.rect("message", head).is_some(), "the selected conversation's row is off screen");
+}
+
+#[test]
+fn what_the_list_keeps_of_the_rows_drawn_selected_follows_every_change_of_the_selection() {
+    let (mut w, newer, older, _) = release_checklist();
+    // What the list drew selected, against what it would draw now.
+    let check = |w: &mut testing::Window, step: &str| {
+        w.run_steps(2);
+        let rows = w.state_mut().session.rows();
+        let now = w.state().session.drawn(&rows);
+        let kept = w.state().drawn.as_ref().map(|d| d.3.clone()).unwrap();
+        let drawn = |d: &mailcraft_engine::Drawn| rows.iter().map(|r| d.shows(r)).collect::<Vec<_>>();
+        assert_eq!(drawn(&kept), drawn(&now), "{step}");
+    };
+    w.state_mut().execute("mail.select", json!({"id": newer})).unwrap();
+    check(&mut w, "the conversation's row");
+    w.state_mut().execute("mail.expandConversation", json!({})).unwrap();
+    check(&mut w, "opened");
+    // The same message selected, by its own row under the conversation's: only what it was picked
+    // by changes.
+    w.state_mut().execute("mail.select", json!({"id": newer, "copy": 1})).unwrap();
+    check(&mut w, "its own row");
+    w.state_mut().execute("mail.select", json!({"id": older, "extend": true})).unwrap();
+    check(&mut w, "and the older one");
+    w.state_mut().execute("mail.select", json!({"id": newer})).unwrap();
+    check(&mut w, "the conversation's row again");
+}
