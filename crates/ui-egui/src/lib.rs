@@ -41,6 +41,8 @@ mod advanced_search;
 pub mod agent_gate;
 #[cfg(test)]
 mod agent_leaves_tests;
+#[cfg(test)]
+mod agent_names_tests;
 pub mod alerts;
 pub mod approval;
 mod attachment_open;

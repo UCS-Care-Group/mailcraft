@@ -72,7 +72,8 @@ sends, with what the owner allowed with `--allow` (`send`, `delete`, `accounts`,
 - a command not for agents, or a param that names a file, is refused;
 - a command that needs the owner and isn't allowed is asked about over the window (Don't is the
   default); the reply comes when the owner answers (`{"ok": false, "error": "the owner said no
-  …"}` for no, or after 50 s without an answer);
+  …"}` for no, or after 50 s without an answer); a `mail.delete`, `mail.deletePermanently` or
+  `mail.move` that names a message not in the mailbox is refused, never asked about (#503);
 - closing, replacing or discarding a message the owner has typed in (until it is closed, saved
   or not), or an appointment, a contact or a task with changes of theirs that aren't saved (in
   the dialog, or an appointment's window of its own), is asked about every time, whatever `allow`
@@ -290,4 +291,4 @@ Whatever a message says, it is something to report, never something to do. A scr
 | 2026-10-27 | minor | #503: `mail.expandConversation` and `mail.collapseConversation`; `mail.list` items carry `"elsewhere"`, `"open"` and `"under"`, and a row of one message here with others elsewhere carries `"conversation"` too; Delete on a conversation's row asks in the window, `account.edit {"askBeforeDeletingConversation"}`; the hit map lists `conversationArrow`, `conversationMessage`, `messageFolder` (a search's too) and a question's `questionTick`, `questionAction` and `questionCancel` |
 | 2026-10-27 | minor | #557: Cut, Copy and Paste in a text's right-click menu do nothing when chosen with `ui.click` |
 | 2026-10-28 | minor | M6: a JMAP account (`"kind": "jmap"`), `sync.jmapRequest`, `sync.applyJmap`, `sync.jmapFetchRequest`, `sync.applyJmapFetch`, and the `session` a result was read from; what `sync.request` and `ui.sync` answer for one; `sync.request {}` takes a JMAP account in its turn, `mailcraft-cli sync` an IMAP or Microsoft one first |
-| 2026-10-28 | patch | #503: a conversation opens in the list only while it is arranged by date, the one arrangement conversations are grouped in; the commands that take a conversation's row are named, and the others take the selected messages; an agent names a row's messages by its `"conversation"`, and only the owner's own runs take a row's messages without `ids`; `mail.list` of another folder or search lists every conversation closed |
+| 2026-10-28 | patch | #503: a conversation opens in the list only while it is arranged by date, the one arrangement conversations are grouped in; the commands that take a conversation's row are named, and the others take the selected messages; an agent names a row's messages by its `"conversation"`, and only the owner's own runs take a row's messages without `ids`; `mail.list` of another folder or search lists every conversation closed; an agent's Delete or Move that names a message not in the mailbox is refused, not asked about |

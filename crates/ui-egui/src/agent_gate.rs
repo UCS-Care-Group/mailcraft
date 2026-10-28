@@ -102,9 +102,13 @@ fn gate(app: &mut MailApp, req: &ControlRequest, id: &str, mut params: Value, al
             if app.asking.len() >= MOST {
                 return err("too many questions are waiting for the owner; nothing was done");
             }
+            let counted = match counted(app, id, &params) {
+                Ok(counted) => counted,
+                Err(why) => return err(why),
+            };
             app.asking.push_back(Asking {
                 id: id.to_string(),
-                counted: counted(app, id, &params),
+                counted,
                 params,
                 class,
                 what,
@@ -237,14 +241,21 @@ fn run(app: &mut MailApp, id: &str, params: Value, allow: &[Class]) -> Outcome {
 }
 
 /// The messages an agent's Delete or Move names (`ids` or `id`, which it must: [`agent::NEEDS_IDS`])
-/// and the folder each is in, as the owner is asked about them (#503).
-fn counted(app: &MailApp, id: &str, params: &Value) -> Vec<(u64, u64)> {
+/// and the folder each is in, as the owner is asked about them (#503). One that isn't in the
+/// mailbox is refused, never asked about: a message that comes in meanwhile, or one an undo puts
+/// back, could take its id, and the yes would reach a message the owner wasn't shown.
+fn counted(app: &MailApp, id: &str, params: &Value) -> Result<Vec<(u64, u64)>, String> {
     if !matches!(id, "mail.delete" | "mail.deletePermanently" | "mail.move") {
-        return Vec::new();
+        return Ok(Vec::new());
     }
     let mb = &app.session.mailbox;
     let named = mailcraft_engine::p::ids_strict(params).ok().flatten().unwrap_or_default();
-    named.into_iter().filter_map(|m| mb.message(m).map(|x| (m, x.folder))).collect()
+    named
+        .into_iter()
+        .map(|m| {
+            mb.message(m).map(|x| (m, x.folder)).ok_or_else(|| format!("`{id}` names message {m}, which isn't in the mailbox: nothing was done"))
+        })
+        .collect()
 }
 
 /// `params` with only those of the `counted` messages that are still in the folder they were
@@ -527,24 +538,5 @@ mod tests {
         assert!(r.is_none(), "asked first");
         answer(&mut a, false);
         assert_eq!(a.session.mailbox.count(outbox), 0);
-    }
-
-    #[test]
-    fn an_agents_delete_or_move_naming_no_messages_is_refused_whatever_the_owner_selected() {
-        // The owner's closed conversation's row stands for its messages (#503); an agent allowed
-        // everything still names what it acts on (#620), and the window fills in none of them.
-        let mut a = app();
-        a.execute("folder.select", json!({"kind": "inbox"})).unwrap();
-        a.execute("view.conversations", json!({"value": true})).unwrap();
-        let row = a.session.rows().iter().find(|r| r.members.len() == 2).cloned().unwrap();
-        a.execute("mail.select", json!({"id": row.id})).unwrap();
-        let (inbox, account) = (a.session.view.folder, a.session.mailbox.accounts[0].id);
-        let archive = a.session.mailbox.folder_of_kind(account, FolderKind::Archive).unwrap();
-        for (command, params) in [("mail.delete", json!({})), ("mail.deletePermanently", json!({})), ("mail.move", json!({"folder": archive}))] {
-            let (r, _) = ask(&mut a, "engine.execute", json!({"command": command, "params": params}), Class::ALL.to_vec());
-            assert!(r.as_ref().and_then(|r| r["error"].as_str()).is_some_and(|e| e.contains("needs `ids`")), "{command}: {r:?}");
-            assert!(a.asking.is_empty(), "{command}: the owner isn't asked");
-            assert!(row.members.iter().all(|m| a.session.mailbox.message(*m).is_some_and(|m| m.folder == inbox)), "{command}");
-        }
     }
 }
