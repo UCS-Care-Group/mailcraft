@@ -1401,6 +1401,8 @@ fn ids_named_wrongly_never_move_or_copy_the_selected_message_onto_another_server
             let mut params = params.clone();
             params["folder"] = json!(theirs);
             assert!(s.run(command, &params).is_err(), "{command} {params}");
+            // An agent's are refused before the owner is asked about the selected one.
+            assert!(matches!(crate::agent::check(&s, command, &params, &[]), crate::agent::Verdict::Refuse(_)), "{command} {params}");
         }
     }
     assert!(s.mailbox.queued.is_empty() && s.mailbox.pending.is_empty());

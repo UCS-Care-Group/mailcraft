@@ -818,6 +818,13 @@ fn verdict(s: &Session, id: &str, params: &Value, allow: &[Class], yes: Option<C
     {
         return Verdict::Refuse(format!("`{id}`: {e}"));
     }
+    // Messages named wrongly: refused before the owner is asked about any, which would be the
+    // selection (#451).
+    if matches!(id, "mail.move" | "mail.copy")
+        && let Err(e) = p::ids_strict(params)
+    {
+        return Verdict::Refuse(format!("`{id}`: {e}"));
+    }
     match classify(s, id, params) {
         Access::Safe => Verdict::Run,
         Access::Never => Verdict::Refuse(format!("`{id}` isn't available to agents")),
