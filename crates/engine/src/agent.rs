@@ -590,6 +590,11 @@ pub fn classify(s: &Session, id: &str, params: &Value) -> Access {
     if shared_task(s, id, params).is_some() || shared_category(s, id, params) {
         return Access::Owner(Class::Send);
     }
+    // A rule that files mail into another account's folder puts it on that server, as a move
+    // there does (#451).
+    if rules_onto_another_server(s, id, params) {
+        return Access::Owner(Class::Send);
+    }
     // What the owner is writing or changing is theirs to let go of, whatever `--allow` says
     // (#494): Discard throws the message away with its draft; a window closed with changes in its
     // appointment that aren't saved (`unsaved`, from `agent_gate`) loses them; another mailbox in
@@ -729,6 +734,42 @@ fn onto_another_server(s: &Session, params: &Value, folder: Id) -> bool {
     let Ok(named) = p::ids_strict(params) else { return false };
     let ids = named.unwrap_or_else(|| s.sel.messages.clone());
     ids.iter().filter_map(|id| s.mailbox.message(*id)).any(|m| s.mailbox.placed_into(m.account, to))
+}
+
+/// The account on whose server mail moved into `folder` from the account it came to (`from`;
+/// any, for new mail) is put (#451).
+fn folder_onto_server(s: &Session, folder: Id, from: Option<Id>) -> Option<Id> {
+    let mb = &s.mailbox;
+    mb.folder(folder).map(|f| f.account).filter(|to| match from {
+        Some(from) => mb.placed_into(from, *to),
+        None => mb.accounts.iter().any(|a| mb.placed_into(a.id, *to)),
+    })
+}
+
+/// [`folder_onto_server`] of a rule's moves.
+fn rule_onto_server(s: &Session, r: &mailcraft_model::Rule, from: Option<Id>) -> Option<Id> {
+    r.actions.iter().find_map(|a| match a {
+        mailcraft_model::Action::MoveTo(f) => folder_onto_server(s, *f, from),
+        _ => None,
+    })
+}
+
+/// Whether the rules this command makes, switches on or runs put mail on another account's
+/// server (#451).
+fn rules_onto_another_server(s: &Session, id: &str, params: &Value) -> bool {
+    let mb = &s.mailbox;
+    match id {
+        "rules.add" => crate::cmd::rules::rule_from_params(s, params).is_ok_and(|r| rule_onto_server(s, &r, None).is_some()),
+        "rules.fromMessage" => p::id(params, "folder").is_some_and(|f| onto_another_server(s, params, f)),
+        "rules.enable" => p::id(params, "id")
+            .and_then(|r| mb.rules.iter().find(|x| x.id == r))
+            .is_some_and(|r| p::bool(params, "value").unwrap_or(!r.enabled) && rule_onto_server(s, r, None).is_some()),
+        "rules.run" => {
+            let from = mb.folder(p::id(params, "folder").unwrap_or(s.view.folder)).map(|f| f.account);
+            from.is_some() && mb.rules.iter().any(|r| r.enabled && rule_onto_server(s, r, from).is_some())
+        }
+        _ => false,
+    }
 }
 
 /// Deleting this message removes it (it is in Deleted Items, or its account has none).
@@ -1046,7 +1087,26 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
             let folder = p::id(params, "folder").filter(|f| s.mailbox.folder(*f).is_some());
             let to = folder.map(|f| quoted(&s.mailbox.folder_path(f))).unwrap_or_else(|| "a folder".to_string());
             let from = p::id(params, "id").or(s.sel.focus()).and_then(|m| s.mailbox.message(m)).map(|m| plain(&m.from.email)).unwrap_or_default();
-            format!("make a rule that always moves mail from {} to {to}", quoted(&from))
+            let onto =
+                folder.filter(|f| onto_another_server(s, params, *f)).and_then(|f| s.mailbox.folder(f)).and_then(|f| s.mailbox.account(f.account));
+            match onto {
+                Some(a) => format!("make a rule that always moves mail from {} onto the server of {}, into {to}", quoted(&from), clip(&a.email, 80)),
+                None => format!("make a rule that always moves mail from {} to {to}", quoted(&from)),
+            }
+        }
+        "rules.run" if rules_onto_another_server(s, id, params) => {
+            let folder = p::id(params, "folder").unwrap_or(s.view.folder);
+            let from = s.mailbox.folder(folder).map(|f| f.account);
+            let onto: Vec<String> = s
+                .mailbox
+                .rules
+                .iter()
+                .filter(|r| r.enabled)
+                .filter_map(|r| rule_onto_server(s, r, from))
+                .filter_map(|a| s.mailbox.account(a).map(|a| clip(&a.email, 80)))
+                .collect();
+            let place = s.mailbox.folder(folder).map_or_else(|| "a folder".to_string(), |f| quoted(&s.mailbox.folder_path(f.id)));
+            format!("run the rules on {place}, which move mail onto the server of {}", onto.join(", "))
         }
         "rules.enable" | "rules.remove" => {
             let r = p::id(params, "id").and_then(|r| s.mailbox.rules.iter().find(|r2| r2.id == r));
@@ -1269,7 +1329,12 @@ fn rule_words(s: &Session, r: &mailcraft_model::Rule) -> String {
         .actions
         .iter()
         .map(|a| match a {
-            mailcraft_model::Action::MoveTo(f) if s.mailbox.folder(*f).is_some() => format!("move it to {}", plain(&s.mailbox.folder_path(*f))),
+            mailcraft_model::Action::MoveTo(f) if s.mailbox.folder(*f).is_some() => {
+                match folder_onto_server(s, *f, None).and_then(|a| s.mailbox.account(a)) {
+                    Some(a) => format!("move it onto the server of {}, into {}", clip(&a.email, 80), plain(&s.mailbox.folder_path(*f))),
+                    None => format!("move it to {}", plain(&s.mailbox.folder_path(*f))),
+                }
+            }
             mailcraft_model::Action::MoveTo(_) => "move it to a folder that is gone".to_string(),
             other => plain(&other.describe()),
         })

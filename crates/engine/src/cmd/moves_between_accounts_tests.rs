@@ -602,12 +602,51 @@ fn where_an_imap_server_says_it_put_a_message_is_believed_only_as_far_as_it_can_
     assert_eq!(at(&s, titled(&s, "One")), (a, inbox, 1));
     assert!(s.mailbox.queued.is_empty() && s.mailbox.pending.is_empty(), "{:?} {:?}", s.mailbox.queued, s.mailbox.pending);
     assert!(sync_request(&s, a).unwrap().places.is_empty());
-    // What is expected is known by its copy when that comes down: not here twice.
-    let copy = Message { uid: 52, ..from_server(52, "Unsaid") };
+    // What is expected is known by its copy when that comes down, by the marker it carries: not
+    // here twice.
+    let copy = carrying(&asked, ids[3], from_server(52, "Unsaid"));
     let news = FolderDelta { remote: "INBOX".into(), kind: FolderKind::Inbox, uid_validity: 7, uid_seen: 52, new: vec![copy], ..Default::default() };
     apply_sync(&mut s, SyncResult { account: a, folders: vec![news], ..Default::default() }).unwrap();
     assert_eq!(s.mailbox.messages.values().filter(|m| m.subject == "Unsaid").count(), 1);
     assert_eq!(at(&s, ids[3]), (a, inbox, 52));
+    assert!(s.mailbox.message(ids[3]).unwrap().placed.is_empty());
+}
+
+/// `m` as the server has the copy `asked` put there of `message`: carrying its marker.
+fn carrying(asked: &SyncRequest, message: Id, m: Message) -> Message {
+    let marker = asked.places.iter().find(|p| p.message.id == message).unwrap().marker.clone();
+    Message { headers: vec![(mailcraft_mime::PLACE_HEADER.to_string(), marker)], ..m }
+}
+
+#[test]
+fn mail_that_merely_looks_like_a_copy_the_server_didnt_say_where_it_put_is_not_taken_for_it() {
+    let (mut s, a, _) = imap();
+    let b = second_imap(&mut s);
+    let theirs = s.mailbox.folder_of_kind(b, FolderKind::Inbox).unwrap();
+    let two = titled(&s, "Two");
+    s.run("mail.move", &json!({"ids": [two], "folder": theirs})).unwrap();
+    let asked = sync_request(&s, b).unwrap();
+    apply_sync(&mut s, SyncResult { account: b, placed: vec![put(&asked, two, 0, 0)], ..Default::default() }).unwrap();
+    // Somebody else's message with the same Message-ID, the same date and subject, from the
+    // same sender: new mail, and the original stays where it is.
+    let news = |new: Vec<Message>| {
+        let uid_seen = new.iter().map(|m| m.uid).max().unwrap_or(0);
+        SyncResult {
+            account: b,
+            folders: vec![FolderDelta { remote: "INBOX".into(), kind: FolderKind::Inbox, uid_validity: 9, uid_seen, new, ..Default::default() }],
+            ..Default::default()
+        }
+    };
+    let look_alike = Message { body: Body { text: "Something else.".into(), html: None }, ..from_server(5, "Two") };
+    apply_sync(&mut s, news(vec![look_alike])).unwrap();
+    assert_eq!(at(&s, two), (b, theirs, 0));
+    assert_eq!(s.mailbox.messages.values().filter(|m| m.subject == "Two").count(), 2);
+    assert!(!ops(&s, a).contains(&delete(2)), "{:?}", ops(&s, a));
+    // The copy carrying its marker: that one is it, and the original goes.
+    apply_sync(&mut s, news(vec![carrying(&asked, two, from_server(6, "Two"))])).unwrap();
+    assert_eq!(at(&s, two), (b, theirs, 6));
+    assert_eq!(s.mailbox.messages.values().filter(|m| m.subject == "Two").count(), 2);
+    assert_eq!(ops(&s, a), [delete(2)]);
 }
 
 #[test]
@@ -1403,6 +1442,58 @@ fn an_agent_is_asked_before_it_puts_mail_on_another_accounts_server() {
 }
 
 #[test]
+fn an_agent_is_asked_before_a_rule_puts_mail_on_another_accounts_server() {
+    use crate::agent::{Access, Class, classify, describe};
+    let (mut s, a, kept) = imap();
+    let b = second_imap(&mut s);
+    let (inbox, other) = (s.mailbox.folder_of_kind(a, FolderKind::Inbox).unwrap(), s.mailbox.folder_of_kind(b, FolderKind::Inbox).unwrap());
+    let two = titled(&s, "Two");
+    let rule = |folder: Id| json!({"name": "R", "conditions": [{"type": "subjectContains", "value": "two"}], "actions": [{"type": "moveTo", "value": folder}]});
+    // Made, made from a message, switched on or run: into another account's folder, as a send;
+    // onto this computer, a change of rules as ever.
+    assert_eq!(classify(&s, "rules.add", &rule(other)), Access::Owner(Class::Send));
+    assert_eq!(classify(&s, "rules.add", &rule(kept)), Access::Owner(Class::Settings));
+    assert_eq!(classify(&s, "rules.fromMessage", &json!({"id": two, "folder": other})), Access::Owner(Class::Send));
+    assert_eq!(classify(&s, "rules.fromMessage", &json!({"id": two, "folder": kept})), Access::Owner(Class::Settings));
+    let made = s.run("rules.add", &rule(other)).unwrap()["id"].as_u64().unwrap();
+    assert_eq!(classify(&s, "rules.run", &json!({"folder": inbox})), Access::Owner(Class::Send));
+    assert_eq!(classify(&s, "rules.run", &json!({"folder": other})), Access::Owner(Class::Settings));
+    s.run("rules.enable", &json!({"id": made, "value": false})).unwrap();
+    assert_eq!(classify(&s, "rules.run", &json!({"folder": inbox})), Access::Owner(Class::Settings));
+    assert_eq!(classify(&s, "rules.enable", &json!({"id": made})), Access::Owner(Class::Send));
+    assert_eq!(classify(&s, "rules.enable", &json!({"id": made, "value": false})), Access::Owner(Class::Settings));
+    // The question says where the mail goes.
+    let what = describe(&s, "rules.add", &rule(other));
+    assert!(what.contains("onto the server of blake@other.example, into"), "{what}");
+    let what = describe(&s, "rules.fromMessage", &json!({"id": two, "folder": other}));
+    assert!(what.contains("onto the server of blake@other.example, into"), "{what}");
+    s.run("rules.enable", &json!({"id": made, "value": true})).unwrap();
+    let what = describe(&s, "rules.run", &json!({"folder": inbox}));
+    assert!(what.contains("which move mail onto the server of blake@other.example"), "{what}");
+}
+
+#[test]
+fn a_message_a_damaged_file_has_without_a_folder_goes_into_its_own_inbox_and_onto_no_server() {
+    let (mut s, a, _) = imap();
+    let b = second_imap(&mut s);
+    // The IMAP account first: its Inbox is the mailbox's.
+    let at_a = s.mailbox.accounts.iter().position(|x| x.id == a).unwrap();
+    let first = s.mailbox.accounts.remove(at_a);
+    s.mailbox.accounts.insert(0, first);
+    let (inbox_a, inbox_b) = (s.mailbox.folder_of_kind(a, FolderKind::Inbox).unwrap(), s.mailbox.folder_of_kind(b, FolderKind::Inbox).unwrap());
+    let lost = s.mailbox.add_message(Message { folder: inbox_b, ..from_server(5, "Lost") }).unwrap();
+    let stray = s.mailbox.add_message(Message { folder: inbox_b, ..from_server(6, "Stray") }).unwrap();
+    s.mailbox.message_mut(lost).unwrap().folder = 999_999;
+    let m = s.mailbox.message_mut(stray).unwrap();
+    (m.folder, m.account) = (999_998, 999_997);
+    s.mailbox.repair();
+    // Into its own account's Inbox; one of no account into the first Inbox. Here alone: no
+    // server is given a copy, and none is told anything.
+    assert_eq!((at(&s, lost), at(&s, stray)), ((b, inbox_b, 0), (a, inbox_a, 0)));
+    assert!(s.mailbox.queued.is_empty() && s.mailbox.pending.is_empty(), "{:?} {:?}", s.mailbox.queued, s.mailbox.pending);
+}
+
+#[test]
 fn a_copys_marker_cant_be_worked_out_from_the_mailbox() {
     // The same mailbox and the same move, twice: all else the same, the markers differ.
     let markers: Vec<String> = (0..2)
@@ -1419,4 +1510,43 @@ fn a_copys_marker_cant_be_worked_out_from_the_mailbox() {
     assert_eq!(known[0], known[1]);
     assert_ne!(unknown[0], unknown[1]);
     assert!(markers.iter().all(|m| m.len() <= 200 && m.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-')), "{markers:?}");
+}
+
+#[test]
+fn a_rule_files_new_microsoft_mail_into_gmail_once_it_has_come_down_whole() {
+    let (mut s, a, _) = imap();
+    let ms = microsoft(&mut s, OWNER);
+    let gmail = s.mailbox.folder_of_kind(a, FolderKind::Inbox).unwrap();
+    let inbox = s.mailbox.folder_of_kind(ms, FolderKind::Inbox).unwrap();
+    // Read once already: what comes now is new mail, which the rules sort.
+    s.mailbox.folder_mut(inbox).unwrap().server.as_mut().unwrap().caught_up = true;
+    let rule = json!({"name": "Rota", "conditions": [{"type": "subjectContains", "value": "rota"}], "actions": [{"type": "moveTo", "value": gmail}]});
+    s.run("rules.add", &rule).unwrap();
+    let there = GraphMessage {
+        server: ServerMessage { id: "R1".into(), folder: "in".into(), ..Default::default() },
+        from: Address::new("", "boss@example.org"),
+        subject: "Rota".into(),
+        message_id: "rota@example.org".into(),
+        ..Default::default()
+    };
+    let page = MessagePage { folder: "in".into(), messages: vec![there], ..Default::default() };
+    apply_graph_mail(&mut s, GraphMailResult { account: ms, email: OWNER.into(), pages: vec![page], partial: true, ..Default::default() }).unwrap();
+    // Filed at once, as only its headers and preview: Microsoft's run fetches it whole first,
+    // and Gmail is given nothing of it until then.
+    let rota = titled(&s, "Rota");
+    assert_eq!((at(&s, rota), s.mailbox.message(rota).unwrap().unfetched), ((a, gmail, 0), true));
+    let fetch = crate::cmd::graph_down::fetch_queue_passing_over(&s.mailbox, ms, 10, 1_800_000_000, &Default::default());
+    assert_eq!(fetch, ["R1"]);
+    assert!(sync_request(&s, a).unwrap().places.is_empty());
+    let mime = b"Message-ID: <rota@example.org>\r\nFrom: boss@example.org\r\nSubject: Rota\r\n\r\nThe rota, all of it.\r\n".to_vec();
+    let fetched = vec![mailcraft_model::sync::GraphFetched { id: "R1".into(), mime }];
+    let result = mailcraft_model::sync::GraphFetchResult { account: ms, email: OWNER.into(), fetched, ..Default::default() };
+    crate::cmd::graph_mail::apply_graph_fetch(&mut s, result).unwrap();
+    // Whole: Gmail is given it, and once Gmail has it, Microsoft's original goes.
+    let asked = sync_request(&s, a).unwrap();
+    assert_eq!(asked.places.iter().map(|p| p.message.body.text.as_str()).collect::<Vec<_>>(), ["The rota, all of it."]);
+    apply_sync(&mut s, SyncResult { account: a, placed: vec![put(&asked, rota, 40, 7)], ..Default::default() }).unwrap();
+    assert_eq!(at(&s, rota), (a, gmail, 40));
+    let changes = graph_mail_request(&s, ms).unwrap().messages;
+    assert!(changes.iter().any(|c| matches!(c, MessageChange::MovedOut { message, id } if *message == rota && id == "R1")), "{changes:?}");
 }

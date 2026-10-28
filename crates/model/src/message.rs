@@ -259,6 +259,11 @@ pub struct Message {
     /// is gone (deleted elsewhere), it is kept on this computer instead of going with it.
     #[serde(skip_serializing_if = "none_left")]
     pub returned: u8,
+    /// The marker of the copy of it put on its account's IMAP server from elsewhere, while that
+    /// server hasn't said where the copy is (#451): only a message there that carries it is
+    /// taken for that copy. Empty for every other message.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub placed: String,
     /// The server's copy was gone before it could be fetched: only the headers and preview it
     /// had are here, kept as they are, and nothing will fetch the rest (R3 spec S19).
     #[serde(skip_serializing_if = "is_false")]

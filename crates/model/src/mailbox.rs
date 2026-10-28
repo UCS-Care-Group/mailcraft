@@ -1810,8 +1810,7 @@ impl Mailbox {
             || (deleted && self.folders.iter().any(|c| c.parent == Some(id) && self.folder_stays_on_server(c.id)))
     }
 
-    /// Move a message to another folder, whatever it is (what [`Mailbox::move_message`] refuses
-    /// too: a repair puts a message that has no folder somewhere).
+    /// Move a message to another folder, once [`Mailbox::move_message`] lets it.
     ///
     /// A message the server has (it has a UID in a folder that follows a server mailbox) gets a
     /// [`Pending::Move`] for the next synchronisation to push; until then it has no UID in its
@@ -1999,14 +1998,15 @@ impl Mailbox {
     }
 
     /// Why `m` can't go to another mailbox (#70, #451), when it can't: what goes there is made of
-    /// the whole message, and a draft stays in its own mailbox.
-    fn not_whole(m: &Message, doing: &str) -> Option<String> {
+    /// the whole message, and a draft stays in its own mailbox. `fetched_first`: one not fetched
+    /// yet will be before its copy goes.
+    fn not_whole(m: &Message, doing: &str, fetched_first: bool) -> Option<String> {
         let subject = subject_said(m);
         if m.incomplete || m.not_downloaded > 0 {
             Some(format!("Only the headers of \"{subject}\" are here, so it can't be {doing} to another mailbox"))
         } else if m.kept.as_deref().is_some_and(|k| k.failed) {
             Some(format!("The text of \"{subject}\" couldn't be read on this computer, so it can't be {doing} to another mailbox"))
-        } else if m.unfetched {
+        } else if m.unfetched && !fetched_first {
             Some(not_downloaded_yet(&subject))
         } else if m.draft || m.server_draft.is_some() || !m.held.is_empty() {
             Some(format!("The draft \"{subject}\" stays in its own mailbox: send it from there"))
@@ -2022,7 +2022,7 @@ impl Mailbox {
         let Some(m) = self.message(id) else { return };
         let account = m.account;
         let waits = self.queued.iter().any(|q| matches!(q, Queued::PlaceMessage { message, .. } if *message == id));
-        if waits || !self.puts_on_server(account) || Mailbox::not_whole(m, "moved").is_some() {
+        if waits || !self.puts_on_server(account) || Mailbox::not_whole(m, "moved", false).is_some() {
             return;
         }
         let marker = self.place_marker(id, "");
@@ -2141,11 +2141,15 @@ impl Mailbox {
             if !self.placed_into(from_account, to_account) {
                 return Err(invalid(BETWEEN_MAILBOXES));
             }
-            if let Some(why) = Mailbox::not_whole(m, "moved") {
-                return Err(invalid(why));
-            }
             let source = m.server.clone().filter(|s| !s.gone && !s.id.is_empty());
             let first = self.original_elsewhere(id, fresh);
+            // Not fetched yet out of a Microsoft account whose server has it, into an IMAP account:
+            // that account's run fetches it whole before anything else, and its copy goes once it
+            // is (S19). Into a Microsoft account it waits to be whole here first (#70).
+            let fetched_first = !self.is_graph(to_account) && (m.moving_out.is_some() || (self.is_graph(from_account) && source.is_some()));
+            if let Some(why) = Mailbox::not_whole(m, "moved", fetched_first) {
+                return Err(invalid(why));
+            }
             // Where it lay when no server had it: a refused one goes back there (to a folder on
             // this computer also while its first original's deletion is still on its way).
             let waited = self.queued.iter().filter(|_| !fresh).find_map(|q| match q {
@@ -2233,7 +2237,7 @@ impl Mailbox {
         }
         if self.placed_into(from_account, to_account) {
             // Made on the destination's server by its own run, from the whole message (#70, #451).
-            if let Some(why) = Mailbox::not_whole(m, "copied") {
+            if let Some(why) = Mailbox::not_whole(m, "copied", false) {
                 return Err(invalid(why));
             }
             let source = m.server.as_ref().map(|s| s.id.clone()).unwrap_or_default();
@@ -2854,9 +2858,18 @@ impl Mailbox {
             fixed.push(format!("{} message(s) without a folder moved to the Inbox", homeless.len()));
         }
         for id in homeless {
-            match fallback {
-                Some(f) => {
-                    let _ = self.move_message_anyway(id, f);
+            let own = self.message(id).and_then(|m| self.folder_of_kind(m.account, FolderKind::Inbox));
+            match own.or(fallback).and_then(|f| self.folder(f)).map(|f| (f.id, f.account)) {
+                // Put there as it is, here alone: a move would give another account's server a
+                // copy of it (#451). Where its server has it isn't known any more.
+                Some((folder, account)) => {
+                    if let Some(m) = self.messages.get_mut(&id) {
+                        let m = Arc::make_mut(m);
+                        if m.account != account {
+                            (m.server, m.moving_out) = (None, None);
+                        }
+                        (m.folder, m.account, m.uid, m.synced) = (folder, account, 0, None);
+                    }
                 }
                 None => {
                     self.messages.remove(&id);

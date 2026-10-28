@@ -1209,15 +1209,18 @@ fn places_finished(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, plac
         let here = mb.message(done.message).filter(|m| entry.is_some() && m.account == account && m.uid == 0).map(|m| m.folder);
         match here {
             Some(folder) if folder == done.to_folder => {
-                if let Some(at) = entry.filter(|at| *at < mb.queued.len()) {
-                    mb.queued.remove(at);
-                }
+                let marker = match entry.filter(|at| *at < mb.queued.len()).map(|at| mb.queued.remove(at)) {
+                    Some(Queued::PlaceMessage { marker, .. }) => marker,
+                    _ => String::new(),
+                };
                 let Ok(m) = mb.message_mut(done.message) else { continue };
                 let uid = there.map_or(0, |(_, uid)| uid);
                 // As the server was given it: what changed here since goes up next.
                 m.synced = Some(done.flags.at(uid));
                 if uid == 0 {
-                    // The server didn't say where: expected there.
+                    // The server didn't say where: expected there, as the message carrying the
+                    // copy's marker.
+                    m.placed = marker;
                     continue;
                 }
                 m.uid = uid;
@@ -1353,11 +1356,16 @@ fn matched(mb: &mut Mailbox, on_server: &mut OnServer, folder: Id, theirs: &Mess
     let original = original_id(theirs);
     let same_id = |m: &Message| !m.message_id.is_empty() && (m.message_id == theirs.message_id || Some(m.message_id.as_str()) == original);
     let waiting = |id: &Id| mb.message(*id).filter(|m| m.folder == folder && m.uid == 0 && m.synced.is_some());
-    let by_id = expected.iter().position(|id| waiting(id).is_some_and(same_id));
-    let at = by_id.or_else(|| expected.iter().position(|id| waiting(id).is_some_and(|m| same_mail(m, theirs))))?;
+    // A copy put there from elsewhere is known by its marker alone: mail that merely looks like
+    // it may be the server's own (#451).
+    let carries =
+        |m: &Message| theirs.headers.iter().any(|(name, value)| name.eq_ignore_ascii_case(mailcraft_mime::PLACE_HEADER) && *value == m.placed);
+    let by_id = expected.iter().position(|id| waiting(id).is_some_and(|m| if m.placed.is_empty() { same_id(m) } else { carries(m) }));
+    let at = by_id.or_else(|| expected.iter().position(|id| waiting(id).is_some_and(|m| m.placed.is_empty() && same_mail(m, theirs))))?;
     let id = expected.swap_remove(at);
     let m = mb.message_mut(id).ok()?;
     m.uid = theirs.uid;
+    m.placed.clear();
     if !theirs.message_id.is_empty() {
         // The name the server knows it by, which a reply to it will carry.
         m.message_id = theirs.message_id.clone();

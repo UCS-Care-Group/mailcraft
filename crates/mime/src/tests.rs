@@ -534,6 +534,7 @@ fn message() -> impl Strategy<Value = Message> {
             attachments_on_server: false,
             moving_out: None,
             returned: 0,
+            placed: String::new(),
             incomplete: false,
             server_draft: None,
             held: String::new(),
