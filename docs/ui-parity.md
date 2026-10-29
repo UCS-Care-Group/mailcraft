@@ -1,6 +1,6 @@
 # Interface parity
 
-> **Last reviewed:** 2026-10-21 · **Last updated:** 2026-10-27 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365, classic desktop)
+> **Last reviewed:** 2026-10-21 · **Last updated:** 2026-10-29 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365, classic desktop)
 
 How the window compares with the target's. The look is the Craft apps' own (WordCraft's design
 tokens, type rungs and ribbon widgets, with MailCraft's teal accent); the *arrangement* is the one
@@ -63,8 +63,8 @@ go when a row has several (files, importance, categories) is ours, the reference
   Ctrl+Shift+R, Ctrl+F, Ctrl+Q/U, Ctrl+1–4, Ctrl+E, Ctrl+Shift+A/Q/C/K, F9, Delete, arrows).
   Missing: keytips, Customize Keyboard, full keyboard access to every control, screen-reader
   labels beyond what egui/AccessKit give by default.
-- **Languages:** English, and French, German, Spanish and Italian as preview languages (named
-  "Français (aperçu)", "Deutsch (Vorschau)" and so on in File › Options, every text translated, not
+- **Languages:** English, and French, German, Spanish, Italian and Dutch as preview languages (named
+  "Français (aperçu)", "Deutsch (Vorschau)", "Nederlands (voorbeeld)" and so on in File › Options, every text translated, not
   yet reviewed by a native speaker; see `docs/translating.md`); Automatic follows the system. Every
   string goes through `tl!` and a pseudo-language proves it, each sentence one text with named
   places for what fills it, and a standard folder still called by its default name is shown in the
@@ -157,6 +157,7 @@ be shown when they can't.
 | 2026-10-26 | minor | #428: the selected messages stay in the Unread or Flagged tab, or a search, while they are selected there, and the keys that move in the list go on from them |
 | 2026-10-26 | minor | #493: the search scope menu: Current Folder, Subfolders, Current Mailbox and All Mailboxes; a search of more than one folder names each result's folder under its time, and More results on the server asks only the account in view for the first three |
 | 2026-10-26 | minor | #451: a message moved, copied or dragged into another account's folder (IMAP, Microsoft, this computer) is there at once and made on that account's server by its next Send/Receive; the original goes once the copy is there; one not downloaded yet, or a draft, is refused with the reason; moved or copied into a Microsoft account, the status bar says that Microsoft's server makes it without most of its headers; mail imported for a Microsoft account says it can be moved in from its local folder |
+| 2026-10-29 | minor | Dutch as a preview language: Nederlands (voorbeeld) in File › Options, a 24-hour clock, Monday first, day-month-year |
 | 2026-10-26 | minor | #506: People: Merge Duplicates, and contacts picked together with Ctrl-click |
 | 2026-10-26 | minor | #360: Message list: with several messages selected, the context menu's Forward and Forward as Attachment, Forward's ▾ and Ctrl+Alt+F attach every one of them whole, in the list's order |
 | 2026-10-26 | minor | #329: `received:` in the search box takes a range of days as Outlook writes one (`received:A..B`, both days in it) or one side of one (`>=`, `<=`, `>`, `<`), by the day a message came in; it is offered as the start of it is typed |

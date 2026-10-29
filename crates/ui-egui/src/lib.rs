@@ -851,7 +851,7 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
     ),
     ("ui.closeDialog", "Close Dialog", "Window", "{}"),
     ("ui.theme", "Interface Theme", "File › Options", r#"{"value": "light"|"dark"|"system"}"#),
-    ("ui.language", "Interface Language", "File › Options", r#"{"language": "auto"|"en"|"fr"|"pseudo"}"#),
+    ("ui.language", "Interface Language", "File › Options", r#"{"language": "auto"|"en"|"fr"|"de"|"es"|"it"|"nl"|"pseudo"}"#),
     ("ui.interfaceSize", "Interface Size", "File › Options", r#"{"value": 80-200}"#),
     ("ui.focusSearch", "Search", "Search", "{}"),
     (
