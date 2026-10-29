@@ -1990,7 +1990,7 @@ impl Builder {
                 }
             }
             "img" => self.image(tag),
-            "h" => {
+            "h1" => {
                 let level = tag.name.as_bytes().get(1).map_or(1, |d| d.saturating_sub(b'0')).clamp(1, 6);
                 self.close_paragraph();
                 // A heading does not nest in a heading.
@@ -2068,7 +2068,7 @@ impl Builder {
             "span" | "label" | "abbr" | "acronym" | "q" | "time" | "bdi" | "bdo" | "data" | "nobr" => self.end_inline(name),
             // Browsers read `</br>` as `<br>`.
             "br" => self.line_break(),
-            "h" => self.end_structure(|k| matches!(k, Kind::Heading(_)), false),
+            "h1" => self.end_structure(|k| matches!(k, Kind::Heading(_)), false),
             "ul" => self.end_structure(|k| matches!(k, Kind::List { .. }), false),
             "li" => self.end_structure(|k| matches!(k, Kind::Item(_)), true),
             "blockquote" => self.end_structure(|k| matches!(k, Kind::Quote { .. }), false),
@@ -2275,7 +2275,7 @@ pub(crate) fn canon(name: &str) -> &str {
         "strike" | "del" => "s",
         "tt" | "kbd" | "samp" => "code",
         "sup" => "sub",
-        "h1" | "h2" | "h3" | "h4" | "h5" | "h6" => "h",
+        "h2" | "h3" | "h4" | "h5" | "h6" => "h1",
         "ol" | "menu" | "dir" => "ul",
         "xmp" | "listing" => "pre",
         name => name,

@@ -275,6 +275,9 @@ fn a_box_with_anything_else_in_its_block_is_drawn_in_the_line_as_it_was() {
         format!("<div><h2>x</h3>{b} sale</div>"),
         format!("<div><h2>x<h3>y</h3>{b} sale</div>"),
         format!("<div><ul><li>a</ol>{b} sale</div>"),
+        // An `<h>` is no heading, and nothing ends at its end tag.
+        format!("<div><h>x</h>{b} sale</div>"),
+        format!("<p>a <h>mid</h> {b} b</p>"),
         format!("<div><pre>a</xmp>{b} sale</div>"),
         // A link that a link ends.
         format!("<div>{a}A<a href='https://example.org/y'>B</a></a></div>"),
@@ -305,6 +308,12 @@ fn a_box_with_anything_else_in_its_block_is_drawn_in_the_line_as_it_was() {
         assert_eq!(found, as_before(&html), "{html}");
         assert!(boxes(&found).is_empty(), "{html}: {found:?}");
     }
+    // A tag that only looks like a heading's is an unknown one, whose text stays in the line.
+    let unknown = parse("<p>a <h>mid</h> b</p>");
+    assert_eq!(unknown.iter().map(Block::text).collect::<Vec<_>>(), ["a mid b"], "{unknown:?}");
+    assert!(matches!(unknown[0].kind, BlockKind::Paragraph));
+    let unknown = parse(&format!("<div><h>x</h>{b} sale</div>"));
+    assert!(boxes(&unknown).is_empty() && unknown.iter().any(|b| b.text().contains("NEW sale")), "{unknown:?}");
     // The box before the block that ends the paragraph is a box of its own; the one after is in its line.
     let html = format!("<p>{a}A</a><div>x</div>{b} more</p>");
     let found = parse(&html);

@@ -141,7 +141,7 @@ impl<'a> Look<'a> {
                     // What the build ends at this tag it ends here, in a box or out of one: a
                     // `<p>` at a block, a link at a link.
                     // (A heading does not nest in a heading: the build ends one that is the last open.)
-                    let heading = open.len().checked_sub(1).filter(|i| canon(name) == "h" && open.get(*i).is_some_and(|n| n == "h"));
+                    let heading = open.len().checked_sub(1).filter(|i| canon(name) == "h1" && open.get(*i).is_some_and(|n| n == "h1"));
                     let paragraph = if ends_holder("p", name) { open_at(&open, "p") } else { None };
                     let link = if name == "a" { open_at(&open, "a") } else { None };
                     let ends = [heading, paragraph, link].into_iter().flatten().min();
