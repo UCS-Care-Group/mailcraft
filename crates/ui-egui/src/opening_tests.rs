@@ -621,7 +621,7 @@ fn bodies_read_after_the_window_shows_come_into_their_messages_and_their_rows() 
     let (tx, rx) = channel();
     app.check_parts_later(missing_rx, 0, true);
     app.take_bodies_later(rx);
-    tx.send(vec![mailcraft_engine::BodyRead { id, text: Some((r, text.clone())), html: None }]).unwrap();
+    tx.send(vec![mailcraft_engine::BodyRead { id, text: Some((r, text.clone())), html: None, hidden: None }]).unwrap();
     let mut h = harness(app);
     h.run_steps(2);
     // Not before what is missing is known: a body found missing is never taken in after it.
@@ -648,7 +648,7 @@ fn what_comes_late_for_a_mailbox_is_dropped_once_another_has_taken_its_place() {
     // File › Open of another mailbox (here, one that names the same content) before the look is over.
     app.session.replace_mailbox(mb);
     missing_tx.send(mailcraft_engine::Missing { count: 2, refs: vec![r] }).unwrap();
-    tx.send(vec![mailcraft_engine::BodyRead { id, text: Some((r, text)), html: None }]).unwrap();
+    tx.send(vec![mailcraft_engine::BodyRead { id, text: Some((r, text)), html: None, hidden: None }]).unwrap();
     let mut h = harness(app);
     h.run_steps(3);
     assert!(h.state().status_msg.is_none(), "{:?}", h.state().status_msg);
