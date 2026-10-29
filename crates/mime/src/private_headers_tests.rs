@@ -8,7 +8,7 @@
 
 use mailcraft_model::{Address, FlagStatus, Message};
 
-use crate::{OPENED_FILE_HEADER, WriteOptions, parse, write, write_mbox};
+use crate::{OPENED_FILE_HEADER, PLACE_HEADER, WriteOptions, carries_place, parse, write, write_mbox, write_placed};
 
 fn message() -> Message {
     Message {
@@ -50,4 +50,32 @@ fn a_message_cant_bring_in_the_opened_file_note() {
     let m = parse(text.as_bytes());
     assert!(!m.headers.iter().any(|(k, _)| k.eq_ignore_ascii_case(OPENED_FILE_HEADER)), "{:?}", m.headers);
     assert!(m.headers.iter().any(|(k, v)| k == "X-Other" && v == "kept"));
+}
+
+#[test]
+fn a_copys_marker_is_written_into_that_copy_alone() {
+    let mut m = message();
+    // One a copy carried on the server it came down from.
+    m.headers.push((PLACE_HEADER.into(), "mailcraft-place-1-2-0000000000000003".into()));
+    for out in
+        [String::from_utf8(write(&m, &WriteOptions::default())).unwrap(), String::from_utf8(write_mbox(&[&m], &WriteOptions::default())).unwrap()]
+    {
+        assert!(!out.to_ascii_lowercase().contains("x-mailcraft-place"), "{out}");
+    }
+    let placed = String::from_utf8(write_placed(&m, &WriteOptions::default(), "mailcraft-place-4-5-0000000000000006")).unwrap();
+    assert!(placed.starts_with("X-MailCraft-Place: mailcraft-place-4-5-0000000000000006\r\n"), "{placed}");
+    assert_eq!(placed.matches("X-MailCraft-Place").count(), 1, "{placed}");
+    assert!(!placed.contains("0000000000000003"), "{placed}");
+    assert!(carries_place(placed.as_bytes(), "mailcraft-place-4-5-0000000000000006"));
+}
+
+#[test]
+fn a_copy_is_known_by_its_own_marker_alone() {
+    let header = b"From: a@lumen.example\r\nx-mailcraft-place:  m-1 \r\nSubject: Hi\r\n\r\nX-MailCraft-Place: m-2\r\n";
+    assert!(carries_place(header, "m-1"));
+    // Another marker, one in the body, or none: not this copy.
+    for marker in ["m-2", "m-", "M-1", ""] {
+        assert!(!carries_place(header, marker), "{marker}");
+    }
+    assert!(!carries_place(b"From: a@lumen.example\r\n\r\n", "m-1"));
 }

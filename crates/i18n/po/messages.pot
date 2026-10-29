@@ -3483,7 +3483,12 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/lib.rs
-msgid "Imported {what} into a local folder: Microsoft doesn't let a mail program put received mail into your mailbox"
+msgid "Imported {what} into Drafts on this computer: a draft stays on this computer until it is sent"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+msgid "Imported {what} into a local folder: move it into the account to put it on Microsoft's server"
 msgstr ""
 
 #. interface
@@ -4076,11 +4081,6 @@ msgstr ""
 msgid "Mail can't be imported into an Outbox: it would be sent. Choose another folder."
 msgstr ""
 
-#. what a command says
-#: crates/model/src/mailbox.rs
-msgid "Mail can't be moved or copied into a Microsoft account from another account or a local folder yet: this version can't put a message on Microsoft's server"
-msgstr ""
-
 #. interface
 #: crates/ui-egui/src/folder_properties.rs
 msgid "Mail folder"
@@ -4089,6 +4089,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/folder_properties.rs
 msgid "Mail folder: the account's {folder}"
+msgstr ""
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+msgid "Mail from another mailbox can't go into an Outbox: the next Send/Receive would send it"
 msgstr ""
 
 #. interface
@@ -4506,11 +4511,6 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "Microsoft application ID"
-msgstr ""
-
-#. what a command says
-#: crates/model/src/mailbox.rs
-msgid "Microsoft doesn't let a mail program put received mail into your mailbox; it stays in a local folder."
 msgstr ""
 
 #. name
@@ -11991,6 +11991,13 @@ msgstr[0] ""
 msgstr[1] ""
 
 #. interface
+#: crates/ui-egui/src/lib.rs
+msgid "{n} message copied into the account: Send/Receive puts it on Microsoft's server, without most of its headers (such as Received)"
+msgid_plural "{n} messages copied into the account: Send/Receive puts them on Microsoft's server, without most of their headers (such as Received)"
+msgstr[0] ""
+msgstr[1] ""
+
+#. interface
 #: crates/ui-egui/src/reading.rs
 msgid "{n} message in this conversation:"
 msgid_plural "{n} messages in this conversation:"
@@ -12008,6 +12015,13 @@ msgstr[1] ""
 #: crates/ui-egui/src/forms.rs
 msgid "{n} message matched"
 msgid_plural "{n} messages matched"
+msgstr[0] ""
+msgstr[1] ""
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+msgid "{n} message moved into the account: Send/Receive puts it on Microsoft's server, without most of its headers (such as Received)"
+msgid_plural "{n} messages moved into the account: Send/Receive puts them on Microsoft's server, without most of their headers (such as Received)"
 msgstr[0] ""
 msgstr[1] ""
 

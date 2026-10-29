@@ -104,10 +104,27 @@ pub fn take_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, page: &
             {
                 s.gone = true;
             }
+            // Being moved out of the account: still in that folder only if the listing has it (#451).
+            if m.moving_out.as_ref().is_some_and(|out| out.account == account && out.folder == page.folder && !out.left)
+                && let Some(out) = std::sync::Arc::make_mut(m).moving_out.as_mut()
+            {
+                out.left = true;
+            }
         }
     }
     for id in &page.removed {
-        let Some(m) = index.find(mb, account, id) else { continue };
+        let Some(m) = index.find(mb, account, id) else {
+            // Being moved out of the account, and gone from where it was: a refused move has
+            // nothing to go back to there, unless it turns up in another folder (#451).
+            if moving_out.contains(id)
+                && let Some(m) = self::moving_out(mb, account, id)
+                && let Ok(m) = mb.message_mut(m)
+                && let Some(out) = m.moving_out.as_mut().filter(|out| out.folder == page.folder)
+            {
+                out.left = true;
+            }
+            continue;
+        };
         if let Ok(m) = mb.message_mut(m)
             && let Some(s) = m.server.as_mut().filter(|s| s.folder == page.folder && !s.gone)
         {
@@ -138,7 +155,15 @@ pub fn take_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, page: &
                     down.changed += 1;
                 }
             }
-            None if moving_out.contains(&there.server.id) => {}
+            None if moving_out.contains(&there.server.id) => {
+                // Moved on there by another program while being moved out: it is in this folder now.
+                if let Some(m) = self::moving_out(mb, account, &there.server.id)
+                    && let Ok(m) = mb.message_mut(m)
+                    && let Some(out) = m.moving_out.as_mut()
+                {
+                    (out.folder, out.left) = (page.folder.clone(), false);
+                }
+            }
             None => {
                 if let Ok(m) = mb.add_message(new_message(folder, &page.folder, there)) {
                     index.note(mb, account, &there.server.id, m);
@@ -293,9 +318,22 @@ pub fn sweep(mb: &mut Mailbox, account: Id, down: &mut Down) {
             }
         }
     }
+    // Put back after a refused copy, and gone from the server since: kept here instead (#451).
+    let returned: Vec<Id> =
+        mb.messages.values().filter(|m| m.account == account && m.returned > 0 && m.server.as_ref().is_some_and(|s| s.gone)).map(|m| m.id).collect();
+    for id in returned {
+        super::graph_place::kept_instead(mb, id);
+    }
     let before = mb.messages.len();
     mb.messages.retain(|_, m| !(m.account == account && m.server.as_ref().is_some_and(|s| s.gone)));
     down.removed += before - mb.messages.len();
+    // What was put back after a refused copy and is still there once every folder was read (or
+    // passed over, its counts the same): one run nearer to being the server's message as any other.
+    for m in mb.messages.values_mut() {
+        if m.account == account && m.returned > 0 {
+            std::sync::Arc::make_mut(m).returned -= 1;
+        }
+    }
 }
 
 /// The message being moved out of `account` whose server copy is `id`.
