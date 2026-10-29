@@ -33,5 +33,5 @@ libfuzzer_sys::fuzz_target!(|data: &[u8]| {
     }
     let (_, hidden) = mailcraft_html::text_and_hidden(&sheeted);
     assert!(hidden.len() <= mailcraft_html::MAX_HIDDEN_TEXT);
-    let _ = mailcraft_html::depends_on_pane(&media);
+    let _ = mailcraft_html::media_lists(&media);
 });
