@@ -49,8 +49,24 @@ pub(crate) const MAX_PARTS: usize = 16;
 /// Most matching steps spent on one element.
 pub(crate) const MAX_STEPS_PER_ELEMENT: u32 = 600;
 
-/// Most matching steps spent on a whole message.
+/// Most matching steps spent on a whole message, however long.
 pub(crate) const MAX_STEPS: u32 = 4_000_000;
+
+/// Matching steps a message gets for each byte of it, and the least it gets: a step is about 30
+/// nanoseconds, so a megabyte of mail spends at most about 45 milliseconds of its look.
+const STEPS_PER_BYTE_NUM: u64 = 3;
+const STEPS_PER_BYTE_DEN: u64 = 2;
+const MIN_STEPS: u32 = 50_000;
+
+/// What working out a look (reading its declarations) costs, in steps, at least and for each two
+/// bytes of it: about ten microseconds for what a long look says.
+const MIN_BUILD_STEPS: u64 = 300;
+
+/// The steps a message of `len` bytes gets.
+pub(crate) fn steps_for(len: usize) -> u32 {
+    let steps = (len as u64).saturating_mul(STEPS_PER_BYTE_NUM) / STEPS_PER_BYTE_DEN;
+    u32::try_from(steps).unwrap_or(MAX_STEPS).clamp(MIN_STEPS, MAX_STEPS)
+}
 
 /// Most elements a message's tree keeps for matching; the ones after are not styled.
 const MAX_ELEMENTS: usize = 150_000;
@@ -64,9 +80,6 @@ const MAX_NOT_DEPTH: usize = 2;
 
 /// Most selectors in a `:not()`; a longer list drops the rule.
 const MAX_NOT_LIST: usize = 32;
-
-/// Most open elements looked through for an end tag or an implied one.
-const MAX_WALK: usize = 64;
 
 /// Most different sets of rules whose look is kept for the elements that match the same ones.
 const MAX_CACHED: usize = 2_048;
@@ -182,9 +195,9 @@ struct Open {
 struct TreeBuilder {
     els: Vec<El>,
     stack: Vec<Open>,
-    /// How many open elements there are of each name.
-    counts: HashMap<String, u32>,
-    /// Open elements looked at while closing, for the tests.
+    /// Where in the stack the open elements of each name are, outermost first.
+    positions: HashMap<String, Vec<usize>>,
+    /// Names looked up while closing, for the tests.
     walked: u64,
 }
 
@@ -193,38 +206,28 @@ impl TreeBuilder {
         TreeBuilder {
             els: vec![El::document()],
             stack: vec![Open { el: 0, name: String::new(), children: 0, by_type: HashMap::new() }],
-            counts: HashMap::new(),
+            positions: HashMap::new(),
             walked: 0,
         }
     }
 
     /// Close the nearest open element named in `names`, and what is inside it, unless one of
-    /// `barriers` is met first.
+    /// `barriers` is nearer.
     fn close_nearest(&mut self, names: &[&str], barriers: &[&str]) {
+        let nearest = |this: &TreeBuilder, list: &[&str]| list.iter().filter_map(|n| this.positions.get(*n)?.last().copied()).max();
         // Nothing of that name is open: nothing to look for (and a stray end tag costs nothing).
-        if !names.iter().any(|n| self.counts.get(*n).is_some_and(|c| *c > 0)) {
+        let Some(found) = nearest(self, names) else { return };
+        self.walked += (names.len() + barriers.len()) as u64;
+        if nearest(self, barriers).is_some_and(|barrier| barrier > found) {
             return;
         }
-        let mut at = self.stack.len();
-        let floor = at.saturating_sub(MAX_WALK).max(1);
-        while at > floor {
-            at -= 1;
-            self.walked += 1;
-            let Some(open) = self.stack.get(at) else { return };
-            if names.contains(&open.name.as_str()) {
-                self.truncate_stack(at);
-                return;
-            }
-            if barriers.contains(&open.name.as_str()) {
-                return;
-            }
-        }
+        self.truncate_stack(found);
     }
 
     fn truncate_stack(&mut self, at: usize) {
         for open in self.stack.drain(at..) {
-            if let Some(c) = self.counts.get_mut(&open.name) {
-                *c = c.saturating_sub(1);
+            if let Some(list) = self.positions.get_mut(&open.name) {
+                list.pop();
             }
         }
     }
@@ -295,7 +298,7 @@ impl TreeBuilder {
         }
         self.els.push(el);
         if !VOID.contains(&name) && self.stack.len() < MAX_DEPTH {
-            *self.counts.entry(tag.name.clone()).or_insert(0) += 1;
+            self.positions.entry(tag.name.clone()).or_default().push(self.stack.len());
             self.stack.push(Open { el: id, name: tag.name.clone(), children: 0, by_type: HashMap::new() });
         }
     }
@@ -1167,6 +1170,12 @@ pub(crate) struct Sheet {
     other: Vec<u32>,
     dom: Vec<El>,
     steps_left: u32,
+    /// What the message was given to spend.
+    #[cfg(test)]
+    budget: u32,
+    /// Looks worked out, for the tests.
+    #[cfg(test)]
+    builds: u32,
     /// What elements that match the same rules get, worked out once for them all.
     cache: HashMap<Vec<u32>, Option<Rc<Applied>>>,
 }
@@ -1197,13 +1206,11 @@ pub(crate) fn css_with(applied: &Applied, inline: Option<&str>) -> Css {
 
 /// The declarations of a `style` attribute that are not marked `!important`, and those that are.
 fn split_important(style: &str) -> (String, String) {
-    if !style.to_ascii_lowercase().contains("important") {
-        return (style.to_string(), String::new());
-    }
     let b = style.as_bytes();
     let (mut normal, mut important) = (String::new(), String::new());
-    let mut i = 0;
-    while i < b.len() {
+    let (mut i, mut kept) = (0, 0usize);
+    while i < b.len() && kept < crate::style::MAX_DECLARATIONS {
+        kept += 1;
         let end = scan_to(b, i, b";").unwrap_or(b.len());
         let piece = style.get(i..end).unwrap_or("");
         let lower = piece.trim_end().to_ascii_lowercase();
@@ -1285,7 +1292,11 @@ impl Sheet {
             by_tag: HashMap::new(),
             other: Vec::new(),
             dom,
-            steps_left: MAX_STEPS,
+            steps_left: steps_for(html.len()),
+            #[cfg(test)]
+            budget: steps_for(html.len()),
+            #[cfg(test)]
+            builds: 0,
             cache: HashMap::new(),
         };
         for (n, rule) in rules.iter().enumerate() {
@@ -1304,7 +1315,7 @@ impl Sheet {
     /// Matching steps spent so far.
     #[cfg(test)]
     pub fn work(&self) -> u32 {
-        MAX_STEPS - self.steps_left
+        self.budget - self.steps_left
     }
 
     /// Put what the sheet says about the `ordinal`th start tag of the message on `tag`.
@@ -1355,8 +1366,12 @@ impl Sheet {
             hit.clone()
         } else {
             let made = self.build(&found);
+            #[cfg(test)]
+            {
+                self.builds += u32::from(made.is_some());
+            }
             // Working out a look costs about as much as reading what it says.
-            spent += made.as_ref().map_or(0, |a| (a.before.len() + a.after.len()) as u64 / 16);
+            spent += made.as_ref().map_or(0, |a| ((a.before.len() + a.after.len()) as u64 / 2).max(MIN_BUILD_STEPS));
             if self.cache.len() < MAX_CACHED {
                 self.cache.insert(key, made.clone());
             }
@@ -1364,7 +1379,7 @@ impl Sheet {
         };
         if inline && let Some(a) = &applied {
             // Read again with the element's own style, which a hit saves nothing of.
-            spent += (a.before.len() + a.after.len()) as u64 / 8;
+            spent += (a.before.len() + a.after.len()) as u64 / 4;
         }
         self.steps_left = self.steps_left.saturating_sub(u32::try_from(spent).unwrap_or(u32::MAX));
         applied

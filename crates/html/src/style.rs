@@ -177,7 +177,12 @@ impl Css {
             }
             let property = property.to_ascii_lowercase();
             let value = value.to_ascii_lowercase();
-            let value = value.trim_end_matches("!important").trim();
+            // (`!important` is `!`, white space, `important`, in any letter case.)
+            let value = match value.strip_suffix("important").map(str::trim_end).and_then(|h| h.strip_suffix('!')) {
+                Some(head) => head.trim_end(),
+                None => value.as_str(),
+            };
+            let value = value.trim();
             match property.as_str() {
                 "color" => {
                     if let Some(c) = color(value) {

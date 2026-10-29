@@ -231,6 +231,32 @@ pub fn hostile() -> Vec<(&'static str, String)> {
                 "<i>x</i>".repeat(285_000)
             ),
         ),
+        (
+            "sheet not walls",
+            format!(
+                "<style>{}</style><p>VISIBLE</p>{}",
+                (0..20)
+                    .map(|k| format!(
+                        "*:not({}){{color:#f00}}",
+                        (0..32).map(|i| format!(".a.b.c.d.e.f.g.h.i.j.k.l.m.n.o.p.z{k}x{i}")).collect::<Vec<_>>().join(",")
+                    ))
+                    .collect::<String>(),
+                "<i class='a b c d e f g h i j k l m n o p'>x</i>".repeat(20_000)
+            ),
+        ),
+        (
+            "sheet many looks",
+            format!(
+                "<style>{}{{{}}}</style><p>VISIBLE</p>{}",
+                (0..4_000).map(|i| format!(".c{i}")).collect::<Vec<_>>().join(","),
+                ["margin-top", "margin-left", "margin-bottom", "margin-right", "padding-top", "padding-left", "padding-right", "padding-bottom"]
+                    .iter()
+                    .flat_map(|p| (0..5).map(move |i| format!("{p}:{i}.5px;")))
+                    .collect::<String>()
+                    + &format!("font-family:{};", "abcdefghij".repeat(5)),
+                (0..40_000).map(|i| format!("<i class=c{}>x</i>", i % 4_000)).collect::<String>()
+            ),
+        ),
         ("sheet junk", format!("<style>{}</style><p>x</p>", "{([\\\"'/*@:,>+~!;".repeat(8_000))),
         ("preformatted", format!("<pre>{}</pre>", "    indented\tcode line with    spaces\n".repeat(20_000))),
     ]
