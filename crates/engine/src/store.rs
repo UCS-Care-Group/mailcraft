@@ -277,16 +277,18 @@ struct Part {
 struct Parts {
     text: Option<Part>,
     html: Option<Part>,
+    /// The words the sender hid ([`Message::hidden_text`]), when over [`INLINE_MAX`] (#599).
+    hidden: Option<Part>,
     attachments: Vec<Option<Part>>,
 }
 
 impl Parts {
     fn is_empty(&self) -> bool {
-        self.text.is_none() && self.html.is_none() && self.attachments.iter().all(Option::is_none)
+        self.text.is_none() && self.html.is_none() && self.hidden.is_none() && self.attachments.iter().all(Option::is_none)
     }
 
     fn all(&self) -> impl Iterator<Item = &Part> {
-        self.text.iter().chain(&self.html).chain(self.attachments.iter().flatten())
+        self.text.iter().chain(&self.html).chain(&self.hidden).chain(self.attachments.iter().flatten())
     }
 
     /// As the mailbox file has it under `blobs`: `{"text":[hash,length],"attachments":[…,null]}`.
@@ -298,6 +300,9 @@ impl Parts {
         }
         if self.html.is_some() {
             fields.push(format!("\"html\":{}", one(&self.html)));
+        }
+        if self.hidden.is_some() {
+            fields.push(format!("\"hidden\":{}", one(&self.hidden)));
         }
         if !self.attachments.is_empty() {
             fields.push(format!("\"attachments\":[{}]", self.attachments.iter().map(one).collect::<Vec<_>>().join(",")));
@@ -314,6 +319,9 @@ impl Parts {
         }
         if let (Some(r), Some(html)) = (held(&self.html), &m.body.html) {
             out.push((r, html.as_bytes()));
+        }
+        if let Some(r) = held(&self.hidden).filter(|_| !m.hidden_text.is_empty()) {
+            out.push((r, m.hidden_text.as_bytes()));
         }
         for (p, a) in self.attachments.iter().zip(&m.attachments) {
             if let Some(r) = held(p) {
@@ -338,6 +346,7 @@ struct Head {
 struct WireParts {
     text: Option<(String, u64)>,
     html: Option<(String, u64)>,
+    hidden: Option<(String, u64)>,
     #[serde(deserialize_with = "capped")]
     attachments: Vec<Option<(String, u64)>>,
 }
@@ -372,13 +381,13 @@ fn parse_ref(wire: &(String, u64)) -> Option<Ref> {
 impl WireParts {
     /// Every name given, parsed or not.
     fn hashes(&self) -> impl Iterator<Item = Digest> + '_ {
-        self.text.iter().chain(&self.html).chain(self.attachments.iter().flatten()).filter_map(parse_ref).map(|r| r.hash)
+        self.text.iter().chain(&self.html).chain(&self.hidden).chain(self.attachments.iter().flatten()).filter_map(parse_ref).map(|r| r.hash)
     }
 
     /// The parts as named, all taken to be in memory (what couldn't be read is marked after).
     fn parts(&self) -> Parts {
         let one = |p: &Option<(String, u64)>| p.as_ref().and_then(parse_ref).map(|r| Part { r, held: true });
-        Parts { text: one(&self.text), html: one(&self.html), attachments: self.attachments.iter().map(one).collect() }
+        Parts { text: one(&self.text), html: one(&self.html), hidden: one(&self.hidden), attachments: self.attachments.iter().map(one).collect() }
     }
 }
 
@@ -811,7 +820,7 @@ impl Pins {
         let mut out = HashSet::new();
         for m in self.held.iter().filter_map(Weak::upgrade).filter(|m| which(m)) {
             if let Some(k) = m.kept.as_deref() {
-                out.extend(k.text.iter().chain(&k.html).map(|r| Digest(r.sha256)));
+                out.extend(k.text.iter().chain(&k.html).chain(&k.hidden).map(|r| Digest(r.sha256)));
             }
             out.extend(m.attachments.iter().filter_map(|a| a.kept).map(|r| Digest(r.sha256)));
         }
@@ -1899,11 +1908,13 @@ pub fn read_bodies(path: &Path, bodies: &[crate::session::BodyLater]) -> (Vec<cr
             None
         }
     };
-    let read: Vec<_> = fan_out(bodies.len(), |i| bodies.get(i).map(|b| (b.id, read(b.text), read(b.html))))
+    // (What the sender hid that can't be read is no hidden text, and not a failure to tell of.)
+    let hidden_of = |b: &crate::session::BodyLater| read(b.hidden).and_then(|(r, bytes)| bytes.map(|bytes| (r, bytes)));
+    let read: Vec<_> = fan_out(bodies.len(), |i| bodies.get(i).map(|b| (b.id, read(b.text), read(b.html), hidden_of(b))))
         .into_iter()
         .flatten()
         .flatten()
-        .map(|(id, text, html)| crate::session::BodyRead { id, text: ok(text), html: ok(html) })
+        .map(|(id, text, html, hidden)| crate::session::BodyRead { id, text: ok(text), html: ok(html), hidden })
         .collect();
     (read, failed)
 }
@@ -1997,12 +2008,15 @@ fn fill(st: &mut State, dir: &Path, mailbox: &mut Mailbox, head: Head, mut parts
             let now = rows.as_ref().is_none_or(|rows| rows.contains(&id));
             let text = want(&wire.text, true, now, &mut st.live);
             let html = want(&wire.html, true, now, &mut st.live);
+            // (A name for more than a hidden text can be is not read: the cap holds in a hostile file.)
+            let hidden_wire = wire.hidden.clone().filter(|(_, len)| *len <= mailcraft_model::MAX_HIDDEN_TEXT as u64);
+            let hidden = want(&hidden_wire, true, now, &mut st.live);
             let attachments: Vec<Option<Want>> = wire.attachments.iter().map(|a| want(a, false, true, &mut st.live)).collect();
-            plan.push((id, text, html, attachments));
+            plan.push((id, text, html, hidden, attachments));
         }
         for (id, wire) in &head.blobs {
             if !mailbox.messages.contains_key(id) {
-                for part in wire.text.iter().chain(&wire.html).chain(wire.attachments.iter().flatten()) {
+                for part in wire.text.iter().chain(&wire.html).chain(&wire.hidden).chain(wire.attachments.iter().flatten()) {
                     want(&Some(part.clone()), false, true, &mut st.live);
                 }
             }
@@ -2021,16 +2035,18 @@ fn fill(st: &mut State, dir: &Path, mailbox: &mut Mailbox, head: Head, mut parts
         let pick = |w: &Option<Want>| w.as_ref().filter(|w| w.later).and_then(Want::kept);
         let later = plan
             .iter()
-            .filter_map(|(id, text, html, _)| {
-                let (text, html) = (pick(text), pick(html));
-                (text.is_some() || html.is_some()).then_some(crate::session::BodyLater { id: *id, text, html })
+            .filter_map(|(id, text, html, hidden, _)| {
+                let (text, html, hidden) = (pick(text), pick(html), pick(hidden));
+                (text.is_some() || html.is_some() || hidden.is_some()).then_some(crate::session::BodyLater { id: *id, text, html, hidden })
             })
             .collect();
         st.later = Some(later);
     }
     let mut on_disk: Vec<(Ref, u32)> = Vec::new();
     let mut seen: HashMap<Ref, usize> = HashMap::new();
-    for (_, text, html, attachments) in &plan {
+    // (What the sender hid is not looked for: if it is gone there is no hidden text, which is not
+    // a loss the owner is told of.)
+    for (_, text, html, _, attachments) in &plan {
         for want in text.iter().chain(html).chain(attachments.iter().flatten()) {
             if let (Some(r), None) = (want.r, want.slot) {
                 let at = *seen.entry(r).or_insert_with(|| {
@@ -2079,7 +2095,7 @@ fn fill(st: &mut State, dir: &Path, mailbox: &mut Mailbox, head: Head, mut parts
         let bytes = Arc::try_unwrap(bytes).unwrap_or_else(|used_elsewhere| used_elsewhere.to_vec());
         Some(String::from_utf8(bytes).unwrap_or_else(|e| String::from_utf8_lossy(e.as_bytes()).into_owned()))
     };
-    for (id, text, html, attachments) in plan {
+    for (id, text, html, hidden, attachments) in plan {
         let Some(m) = mailbox.messages.get_mut(&id).map(Arc::make_mut) else { continue };
         let mut held = parts.as_deref_mut().and_then(|p| p.remove(&id));
         let mut kept = KeptBody::default();
@@ -2119,6 +2135,24 @@ fn fill(st: &mut State, dir: &Path, mailbox: &mut Mailbox, head: Head, mut parts
             }
             if let Some(p) = held.as_mut().and_then(|p| p.html.as_mut()) {
                 p.held = m.body.html.is_some();
+            }
+        }
+        if let Some(want) = &hidden {
+            m.hidden_text = String::new();
+            // (Not counted, whether it was read, is on disk or is gone.)
+            match stand(want, &mut Filled::default()) {
+                Some(true) => {
+                    if let Some(text) = want.slot.and_then(&mut take) {
+                        m.hidden_text = text;
+                    }
+                }
+                Some(false) => kept.hidden = want.kept(),
+                // Missing or damaged: no hidden text. It never makes the message unavailable
+                // (an older build's sweep takes the file, which it knows nothing of).
+                None => {}
+            }
+            if let Some(p) = held.as_mut().and_then(|p| p.hidden.as_mut()) {
+                p.held = !m.hidden_text.is_empty();
             }
         }
         // (A missing HTML is noted on the text, which is otherwise there to read.)
@@ -2254,6 +2288,12 @@ pub fn load_all(path: &Path, mailbox: &mut Mailbox) -> Result<usize, String> {
                 m.body.html = Some(text_of_bytes(&take(&r)?));
                 n += 1;
             }
+            if let Some(r) = kept.hidden.filter(|_| m.hidden_text.is_empty())
+                && let Ok(bytes) = take(&r)
+            {
+                m.hidden_text = text_of_bytes(&bytes);
+                n += 1;
+            }
         }
         for a in &mut m.attachments {
             if let Some(r) = a.kept.filter(|_| a.data.is_empty()) {
@@ -2302,6 +2342,15 @@ pub fn evictable(path: &Path, id: Id, m: &Message) -> Option<Message> {
     {
         lean.body.html = None;
         kept.html = Some(p.r.to_model());
+        any = true;
+    }
+    if let Some(p) = parts.hidden
+        && !m.hidden_text.is_empty()
+        && m.hidden_text.len() as u64 == p.r.len
+        && Ref::of(m.hidden_text.as_bytes()) == p.r
+    {
+        lean.hidden_text = String::new();
+        kept.hidden = Some(p.r.to_model());
         any = true;
     }
     for (a, p) in lean.attachments.iter_mut().zip(&parts.attachments) {
@@ -2431,6 +2480,12 @@ fn prepare(id: Id, m: &Arc<Message>, hashes: &mut HashMap<usize, (Weak<Vec<u8>>,
             None => kept.filter(|_| same_text).and_then(|k| k.html.as_ref()).map(on_disk),
             Some(html) => outside(html.as_bytes()),
         },
+        // What the sender hid goes with the HTML it was read from.
+        hidden: if m.hidden_text.is_empty() {
+            kept.filter(|_| same_text).and_then(|k| k.hidden.as_ref()).map(on_disk)
+        } else {
+            outside(m.hidden_text.as_bytes())
+        },
         attachments: Vec::new(),
     };
     for a in m.attachments.iter().take(MAX_PARTS) {
@@ -2458,6 +2513,9 @@ fn prepare(id: Id, m: &Arc<Message>, hashes: &mut HashMap<usize, (Weak<Vec<u8>>,
     }
     if parts.html.is_some() {
         lean.body.html = None;
+    }
+    if parts.hidden.is_some() {
+        lean.hidden_text = String::new();
     }
     let nothing: Arc<Vec<u8>> = Arc::default();
     for (a, part) in lean.attachments.iter_mut().zip(&parts.attachments) {

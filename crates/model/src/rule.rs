@@ -47,7 +47,7 @@ impl Condition {
             Condition::FromContains(t) => person(&m.from, t),
             Condition::ToContains(t) => m.to.iter().chain(&m.cc).any(|a| person(a, t)),
             Condition::SubjectContains(t) => contains_ci(&m.subject, t),
-            Condition::BodyContains(t) => contains_ci(&m.body.text, t),
+            Condition::BodyContains(t) => contains_ci(&m.body.text, t) || contains_ci(&m.hidden_text, t),
             Condition::HasAttachment => m.has_attachments(),
             Condition::Importance(i) => m.importance == *i,
         }

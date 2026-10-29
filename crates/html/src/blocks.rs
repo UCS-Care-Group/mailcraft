@@ -11,6 +11,7 @@ use std::rc::Rc;
 
 use crate::data::{self, Budget, MAX_DATA_TEXT};
 use crate::entities::unescape;
+use crate::media::Env;
 use crate::sheet::{self, Sheet};
 use crate::style::{self, Css, MsoList, Size};
 use crate::tokenizer::{Tag, Token, Tokenizer};
@@ -58,29 +59,61 @@ const DATA_CELL_TEXT: usize = 240;
 /// Never panics; reads at most [`MAX_INPUT`] bytes besides the pictures written into the
 /// message, and gives at most [`MAX_BLOCKS`] blocks (plus the tables that hold some of them).
 pub fn parse(html: &str) -> Vec<Block> {
-    build(html, true)
+    build(html, true, &Env::default(), false).blocks
 }
+
+/// What a message looks like in a pane of a width class and a theme (`env`): [`parse`], with
+/// the `@media` of the message's style sheets (and a `<style media>`) tested against it.
+pub fn parse_in(html: &str, env: &Env) -> Read {
+    let built = build(html, true, env, false);
+    Read { blocks: built.blocks, dark_design: built.dark_design }
+}
+
+/// A message read for a pane and a theme ([`parse_in`]).
+#[derive(Clone, Debug, Default)]
+pub struct Read {
+    pub blocks: Vec<Block>,
+    /// The window is dark and the message's style sheet has rules for dark windows that apply:
+    /// its colours are the sender's own design for the dark theme, and are not turned over to
+    /// make them readable on it when they already are.
+    pub dark_design: bool,
+}
+
+/// The most text of what a message hides that is kept, in bytes.
+pub const MAX_HIDDEN_TEXT: usize = 16 * 1024;
 
 /// [`parse`], without decoding the pictures written into the message: for when only the text
 /// and the look are wanted (plain text, an HTML draft or a paste in the composer).
 pub fn parse_text(html: &str) -> Vec<Block> {
-    build(html, false)
+    build(html, false, &Env::default(), false).blocks
 }
 
-fn build(html: &str, decode: bool) -> Vec<Block> {
+/// What [`build`] made.
+pub(crate) struct Built {
+    pub blocks: Vec<Block>,
+    pub dark_design: bool,
+    /// The text of what the message hides, when it was asked for.
+    pub hidden: String,
+}
+
+pub(crate) fn build(html: &str, decode: bool, env: &Env, keep_hidden: bool) -> Built {
     let mut builder = Builder::new(decode);
+    builder.unseen = keep_hidden.then(String::new);
     let html = truncate(html, MAX_INPUT.saturating_add(MAX_DATA_TEXT));
     // The message's style sheets, read once for the whole message; the nth start tag below is
     // the nth element of the tree they were matched against.
-    let mut sheet = Sheet::read(html);
+    let mut sheet = Sheet::read_in(html, env);
     let mut opened = 0usize;
     let mut tokens = Tokenizer::new(html);
     // The text of the pictures written into the message, which isn't counted against MAX_INPUT.
     let mut pictures = 0usize;
     while let Some(mut token) = tokens.next() {
+        // An element a rule for dark windows gave colours to (checked once it is open).
+        let mut dark_hit = false;
         if let Token::Open(tag) = &mut token {
             if let Some(sheet) = &mut sheet {
                 sheet.apply(opened, tag);
+                dark_hit = sheet.dark_hit();
             }
             opened = opened.saturating_add(1);
         }
@@ -101,9 +134,22 @@ fn build(html: &str, decode: bool) -> Vec<Block> {
             }
             break;
         }
+        let took = builder.took;
         builder.token(token);
+        // Shown: the builder took the element, and neither it nor an element around it is hidden
+        // (nor is it in a `<template>`).
+        if dark_hit
+            && builder.took > took
+            && builder.hidden == 0
+            && builder.template == 0
+            && let Some(sheet) = &mut sheet
+        {
+            sheet.designed_for_dark();
+        }
     }
-    builder.finish()
+    let dark_design = sheet.as_ref().is_some_and(|s| s.dark_design);
+    let hidden = builder.unseen.take().unwrap_or_default();
+    Built { blocks: builder.finish(), dark_design, hidden }
 }
 
 /// The inline style in force.
@@ -433,6 +479,9 @@ struct Builder {
     frames: Vec<Frame>,
     /// Blocks made so far, in every frame.
     count: usize,
+    /// Elements the builder has taken so far: opened as a node, or drawn as a picture or a rule.
+    /// Not the ones it skips (in a `<template>`, past [`MAX_DEPTH`], hidden, in the head).
+    took: usize,
     /// Table cells made so far.
     cells: usize,
     /// The block being built; empty when none is.
@@ -453,6 +502,10 @@ struct Builder {
     inline_overflow: usize,
     /// Open elements that are hidden; while there is one, nothing is added.
     hidden: usize,
+    /// The text of what is hidden, when it is wanted: only the owner's search and agents read it.
+    unseen: Option<String>,
+    /// A space is due before the next hidden word.
+    unseen_gap: bool,
     /// Open tables that a stray `<tr>` or `<td>` started.
     implied: usize,
     quote: usize,
@@ -485,6 +538,7 @@ impl Builder {
             root: Frame::default(),
             frames: Vec::new(),
             count: 0,
+            took: 0,
             cells: 0,
             spans: Vec::new(),
             kind: BlockKind::Paragraph,
@@ -497,6 +551,8 @@ impl Builder {
             overflow: 0,
             inline_overflow: 0,
             hidden: 0,
+            unseen: None,
+            unseen_gap: false,
             implied: 0,
             quote: 0,
             lists: 0,
@@ -523,6 +579,7 @@ impl Builder {
             }
             Token::Open(tag) => {
                 self.pre_start = false;
+                self.note_boundary(&tag.name);
                 if tag.name == "template" {
                     self.template = self.template.saturating_add(1);
                 } else if self.template == 0 {
@@ -531,6 +588,7 @@ impl Builder {
             }
             Token::Close(name) => {
                 self.pre_start = false;
+                self.note_boundary(&name);
                 if name == "template" {
                     self.template = self.template.saturating_sub(1);
                 } else if self.template == 0 {
@@ -569,15 +627,61 @@ impl Builder {
 
     // ---- text ----
 
+    /// An element that is not inline ends the word before it: what is hidden on both sides of it
+    /// is two words, as the visible text of two paragraphs is.
+    fn note_boundary(&mut self, name: &str) {
+        const INLINE: [&str; 22] = [
+            "span", "a", "b", "i", "u", "em", "strong", "font", "small", "big", "sub", "sup", "code", "abbr", "cite", "s", "strike", "mark", "q",
+            "tt", "del", "ins",
+        ];
+        if self.unseen.is_some() && !INLINE.contains(&name) {
+            self.unseen_gap = true;
+        }
+    }
+
+    /// Keep the words of text the message hides, when they are wanted. Invisible characters that
+    /// pad a preheader are dropped; text in two inline elements that touch (`<span>Hel</span>
+    /// <span>lo</span>`) is one word, as it is when it is shown; white space, a line break or a
+    /// block element between two is a space.
+    fn note_unseen(&mut self, raw: &str) {
+        let Some(buf) = self.unseen.as_mut() else { return };
+        if buf.len() >= MAX_HIDDEN_TEXT {
+            return;
+        }
+        let text = unescape(truncate(raw, MAX_HIDDEN_TEXT));
+        let text: String = text
+            .chars()
+            .filter(|c| c.is_whitespace() || !c.is_control())
+            .filter(|c| !matches!(c, '\u{AD}' | '\u{34F}' | '\u{200B}'..='\u{200F}' | '\u{2060}' | '\u{FEFF}'))
+            .collect();
+        if text.starts_with(char::is_whitespace) {
+            self.unseen_gap = true;
+        }
+        for (n, word) in text.split_whitespace().enumerate() {
+            let space = usize::from(!buf.is_empty());
+            if buf.len() + space + word.len() > MAX_HIDDEN_TEXT {
+                return;
+            }
+            if (n > 0 || self.unseen_gap) && !buf.is_empty() {
+                buf.push(' ');
+            }
+            self.unseen_gap = false;
+            buf.push_str(word);
+        }
+        self.unseen_gap = text.ends_with(char::is_whitespace) || self.unseen_gap;
+    }
+
     fn text(&mut self, raw: &str) {
         if self.hidden > 0 {
             if self.capture > 0 && self.marker.len() < MAX_MARKER {
                 let room = MAX_MARKER - self.marker.len();
                 self.marker.extend(unescape(truncate(raw, 256)).chars().take(room));
             }
+            self.note_unseen(raw);
             return;
         }
         if self.style().tiny {
+            self.note_unseen(raw);
             return;
         }
         let text = unescape(raw);
@@ -832,13 +936,12 @@ impl Builder {
             return;
         }
         let css = css_of(tag);
-        let px = |name: &str| tag.attr(name).and_then(|v| style::attr_px(&v));
-        let (width, height) = (px("width"), px("height"));
-        // A hidden or one-pixel picture is a tracker, not something to show.
-        let tiny = |v: Option<f32>| v.is_some_and(|v| v <= 2.0);
-        if css.hidden || tag.has("hidden") || tiny(width) || tiny(height) || tiny(css.width) || tiny(css.height) {
+        if left_out(tag, &css) {
             return;
         }
+        self.took = self.took.saturating_add(1);
+        let px = |name: &str| tag.attr(name).and_then(|v| style::attr_px(&v));
+        let (width, height) = (px("width"), px("height"));
         let alt = tag.attr("alt").unwrap_or_default();
         let alt: String = alt.split_whitespace().collect::<Vec<_>>().join(" ").chars().filter(|c| !c.is_control()).collect();
         let raw = tag.attr("src");
@@ -889,6 +992,7 @@ impl Builder {
             self.hidden = self.hidden.saturating_add(1);
         }
         self.nodes.push(Node { name, kind, delta, style, hidden });
+        self.took = self.took.saturating_add(1);
         self.fresh = true;
         true
     }
@@ -1814,7 +1918,8 @@ impl Builder {
             "hr" => {
                 self.close_paragraph();
                 let css = css_of(tag);
-                if !css.hidden {
+                if !left_out(tag, &css) {
+                    self.took = self.took.saturating_add(1);
                     // (An `hr` is drawn by its own look, a border of its own makes it neither thicker nor coloured.)
                     self.rule(Line::default());
                 }
@@ -1936,6 +2041,21 @@ fn sized(css: &Css, attr: Option<Length>) -> Option<Length> {
         (Some(Percent(w)), Some(Px(_))) => Some(Percent(w)),
         (None, Some(Percent(m))) => Some(Percent(m)),
     }
+}
+
+/// Whether the element is one the blocks leave out: hidden by its style or its `hidden`
+/// attribute, or a picture of two pixels or less in either direction (a tracker, not something to
+/// show). The one test of it, for the blocks and for a message's design for dark windows.
+pub(crate) fn left_out(tag: &Tag<'_>, css: &Css) -> bool {
+    if css.hidden || tag.has("hidden") {
+        return true;
+    }
+    if tag.name != "img" {
+        return false;
+    }
+    let px = |name: &str| tag.attr(name).and_then(|v| style::attr_px(&v));
+    let tiny = |v: Option<f32>| v.is_some_and(|v| v <= 2.0);
+    tiny(px("width")) || tiny(px("height")) || tiny(css.width) || tiny(css.height)
 }
 
 /// What an element's style sheet rules and its `style` attribute say, in the order of the

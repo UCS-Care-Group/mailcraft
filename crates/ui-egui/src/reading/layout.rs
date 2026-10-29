@@ -230,6 +230,9 @@ pub struct Laid {
     width: f32,
     /// Pictures from the web that have been downloaded are shown (the owner asked for them).
     remote: bool,
+    /// The message brings its own design for a dark window, which this theme is: its colours
+    /// are the sender's, and not turned over unless they cannot be read.
+    sender_dark: bool,
     /// Top-level blocks laid out.
     next: usize,
     y: f32,
@@ -255,6 +258,11 @@ impl Laid {
         Laid { remote, ..self }
     }
 
+    /// The same, for a message with its own design for dark windows ([`Tokens::sender_dark`]).
+    pub fn sender_dark(self, sender_dark: bool) -> Laid {
+        Laid { sender_dark, ..self }
+    }
+
     /// The same, knowing which of the top-level blocks are parts of one paragraph that was cut
     /// for its length, and what was dropped at each cut: a copy puts them together again.
     pub fn cut(self, cuts: Arc<[Option<Glue>]>) -> Laid {
@@ -277,7 +285,7 @@ impl Laid {
         if self.done {
             return;
         }
-        let t = Tokens::get(ctx);
+        let t = Tokens { sender_dark: self.sender_dark && Tokens::get(ctx).dark, ..Tokens::get(ctx) };
         let cuts = self.cuts.clone();
         let mut cx = Cx {
             ctx,

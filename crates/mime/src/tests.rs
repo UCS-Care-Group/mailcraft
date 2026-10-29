@@ -511,6 +511,7 @@ fn message() -> impl Strategy<Value = Message> {
             // Not carried by the format: must not come back.
             received: date.wrapping_add(99),
             body: Body { text, html },
+            hidden_text: String::new(),
             attachments,
             read,
             flag,

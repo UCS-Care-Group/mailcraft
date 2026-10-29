@@ -56,6 +56,16 @@ pub const STYLE_BOXES: &str = include_str!("../corpus/style_boxes.html");
 /// and `@media` that must do nothing, and mobile and desktop copies of one line.
 pub const STYLE_SHEET_NEWSLETTER: &str = include_str!("../corpus/style_sheet_newsletter.html");
 
+/// A dairy's newsletter with a desktop copy and a mobile copy of one paragraph, switched by
+/// `@media (max-width: 480px)`, a column width that changes, a note for panes of 40em and more, one
+/// for panes of 600 pixels and less written as `@media` inside `@media`, and blocks for `print` and
+/// `tv` that never apply (#599).
+pub const RESPONSIVE_NEWSLETTER: &str = include_str!("../corpus/responsive_newsletter.html");
+
+/// A newsletter whose style sheet has a palette for dark windows (`@media (prefers-color-scheme:
+/// dark)`) beside the light one, and a dark edition and a light edition of one paragraph (#599).
+pub const DARK_NEWSLETTER: &str = include_str!("../corpus/dark_newsletter.html");
+
 /// An order confirmation: a grid of order facts, and a data table with a header row, right-aligned
 /// amounts, spanning total rows and lines under the rows.
 pub const RECEIPT: &str = include_str!("../corpus/receipt.html");
@@ -117,6 +127,8 @@ pub fn messages() -> Vec<(&'static str, &'static str)> {
         ("style card", STYLE_CARD),
         ("style boxes", STYLE_BOXES),
         ("style sheet newsletter", STYLE_SHEET_NEWSLETTER),
+        ("responsive newsletter", RESPONSIVE_NEWSLETTER),
+        ("dark newsletter", DARK_NEWSLETTER),
     ]
 }
 

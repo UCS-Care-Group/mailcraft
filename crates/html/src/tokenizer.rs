@@ -73,9 +73,9 @@ pub(crate) struct Tokenizer<'a> {
     pos: usize,
     /// Set after the start tag of a raw-text element: its content comes next.
     raw: Option<&'static str>,
-    /// The text of the `<style>` elements skipped over since the last token was given, those for
-    /// the screen only (at most [`MAX_STYLES`]): the one who reads style sheets takes them.
-    pub styles: Vec<&'a str>,
+    /// The text of the `<style>` elements skipped over since the last token was given, each with its
+    /// `media` attribute (at most [`MAX_STYLES`]): the one who reads style sheets takes them.
+    pub styles: Vec<(String, &'a str)>,
 }
 
 impl<'a> Tokenizer<'a> {
@@ -266,7 +266,8 @@ impl<'a> Iterator for Tokenizer<'a> {
                         // Skip the content and the end tag.
                         let end = find_end_tag(b, self.pos, &tag.name).unwrap_or(b.len());
                         if tag.name == "style" && self.styles.len() < MAX_STYLES && for_screen(&tag) {
-                            self.styles.push(self.slice(self.pos, end));
+                            let media = crate::truncate(tag.raw_attr("media").unwrap_or("").trim(), crate::media::MAX_QUERY_BYTES + 1);
+                            self.styles.push((media.to_string(), self.slice(self.pos, end)));
                         }
                         self.pos = find_byte(b, end, b'>').map_or(b.len(), |i| i + 1);
                         continue;
@@ -279,13 +280,11 @@ impl<'a> Iterator for Tokenizer<'a> {
     }
 }
 
-/// Whether a `<style>` is a style sheet for the screen: text/css, and no media query (those
-/// are for `@media`, which is not read yet) but `all` or `screen`.
+/// Whether a `<style>` is a style sheet: text/css. (Whether it is for this pane is for its
+/// `media` to say, when it is read.)
 fn for_screen(tag: &Tag<'_>) -> bool {
     let kind = tag.raw_attr("type").unwrap_or("").trim();
-    let media = tag.raw_attr("media").unwrap_or("").trim();
-    (kind.is_empty() || kind.eq_ignore_ascii_case("text/css"))
-        && (media.is_empty() || media.eq_ignore_ascii_case("all") || media.eq_ignore_ascii_case("screen"))
+    kind.is_empty() || kind.eq_ignore_ascii_case("text/css")
 }
 
 /// A tag name in lower case; empty when it is too long to be a real element.

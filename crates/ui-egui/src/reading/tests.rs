@@ -3603,7 +3603,7 @@ fn pictures_that_arrive_and_a_new_width_keep_what_is_selected() {
     let (mut app, ids) = corpus_app(false);
     let _host = Host::answering(&mut app, newsletter_picture);
     let id = id_of(&ids, "newsletter");
-    let mut harness = window(app, (1280.0, 1600.0));
+    let mut harness = window(app, (1500.0, 1600.0));
     select(&mut harness, id);
     assert_eq!(shown(&harness, id), (0, 8, 8));
     let (from, to) = (gap(&harness, id, "The first frost", 4), gap(&harness, id, "Members get first pick", 7));
@@ -3616,8 +3616,9 @@ fn pictures_that_arrive_and_a_new_width_keep_what_is_selected() {
     harness.run_steps(16);
     assert_eq!(shown(&harness, id), (8, 0, 0));
     assert_eq!((selection(&harness, Place::Pane), copy_key(&mut harness)), (taken, Some(text.clone())));
-    // So are they at another width, where the lines break elsewhere.
-    harness.set_size(egui::vec2(820.0, 1600.0));
+    // So are they at another width, where the lines break elsewhere. (A width on the same side of every
+    // condition of the newsletter's `@media`: across one the look is another, and nothing goes over.)
+    harness.set_size(egui::vec2(1800.0, 1600.0));
     harness.run_steps(6);
     assert_eq!((selection(&harness, Place::Pane), copy_key(&mut harness)), (taken, Some(text)));
     // All of it, with and without its pictures: their descriptions are copied only while they
@@ -3768,6 +3769,7 @@ fn the_selection_commands_take_anything_and_never_panic() {
 mod invitation;
 mod primary;
 mod remote_server;
+mod responsive;
 mod written_pictures;
 
 /// The original under a reply to HTML mail is laid out as the reading pane lays it out (its
