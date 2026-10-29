@@ -4221,7 +4221,7 @@ msgstr "{what} geïmporteerd in Concepten op deze computer: een concept blijft o
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Imported {what} into a local folder: move it into the account to put it on Microsoft's server"
-msgstr "{what} geïmporteerd in een lokale map: verplaats naar het account om op de server van Microsoft te zetten"
+msgstr "{what} geïmporteerd in een lokale map: verplaats het naar het account om het op de server van Microsoft te zetten"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -4947,7 +4947,7 @@ msgstr "E-mailmap: {folder} van het account"
 #: crates/model/src/mailbox.rs
 #, fuzzy
 msgid "Mail from another mailbox can't go into an Outbox: the next Send/Receive would send it"
-msgstr "E-mail uit een ander postvak kan niet in een Postvak UIT: bij de volgende keer Verzenden/ontvangen zou het worden verzonden"
+msgstr "E-mail uit een ander postvak kan niet in een Postvak UIT worden gezet: bij het volgende Verzenden/ontvangen zou die worden verzonden"
 
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
@@ -14482,8 +14482,8 @@ msgstr[1] "{n} berichten gewijzigd"
 #, fuzzy
 msgid "{n} message copied into the account: Send/Receive puts it on Microsoft's server, without most of its headers (such as Received)"
 msgid_plural "{n} messages copied into the account: Send/Receive puts them on Microsoft's server, without most of their headers (such as Received)"
-msgstr[0] "{n} bericht naar het account gekopieerd: Verzenden/ontvangen zet het op de server van Microsoft, zonder de meeste van zijn kopregels (zoals Received)"
-msgstr[1] "{n} berichten naar het account gekopieerd: Verzenden/ontvangen zet ze op de server van Microsoft, zonder de meeste van hun kopregels (zoals Received)"
+msgstr[0] "{n} bericht naar het account gekopieerd: Verzenden/ontvangen zet het op de server van Microsoft, zonder de meeste kopregels (zoals Received)"
+msgstr[1] "{n} berichten naar het account gekopieerd: Verzenden/ontvangen zet ze op de server van Microsoft, zonder de meeste kopregels (zoals Received)"
 
 #. interface
 #: crates/ui-egui/src/reading.rs
@@ -14514,8 +14514,8 @@ msgstr[1] "{n} berichten komen overeen"
 #, fuzzy
 msgid "{n} message moved into the account: Send/Receive puts it on Microsoft's server, without most of its headers (such as Received)"
 msgid_plural "{n} messages moved into the account: Send/Receive puts them on Microsoft's server, without most of their headers (such as Received)"
-msgstr[0] "{n} bericht naar het account verplaatst: Verzenden/ontvangen zet het op de server van Microsoft, zonder de meeste van zijn kopregels (zoals Received)"
-msgstr[1] "{n} berichten naar het account verplaatst: Verzenden/ontvangen zet ze op de server van Microsoft, zonder de meeste van hun kopregels (zoals Received)"
+msgstr[0] "{n} bericht naar het account verplaatst: Verzenden/ontvangen zet het op de server van Microsoft, zonder de meeste kopregels (zoals Received)"
+msgstr[1] "{n} berichten naar het account verplaatst: Verzenden/ontvangen zet ze op de server van Microsoft, zonder de meeste kopregels (zoals Received)"
 
 #. interface
 #: crates/ui-egui/src/folder_properties.rs
