@@ -50,17 +50,17 @@ pub(crate) const MAX_PARTS: usize = 16;
 pub(crate) const MAX_STEPS_PER_ELEMENT: u32 = 600;
 
 /// Most matching steps spent on a whole message, however long.
-pub(crate) const MAX_STEPS: u32 = 4_000_000;
+pub(crate) const MAX_STEPS: u32 = 20_000_000;
 
 /// Matching steps a message gets for each byte of it, and the least it gets: a step is about 30
 /// nanoseconds, so a megabyte of mail spends at most about 45 milliseconds of its look.
-const STEPS_PER_BYTE_NUM: u64 = 3;
-const STEPS_PER_BYTE_DEN: u64 = 2;
+const STEPS_PER_BYTE_NUM: u64 = 6;
+const STEPS_PER_BYTE_DEN: u64 = 1;
 const MIN_STEPS: u32 = 50_000;
 
 /// What working out a look (reading its declarations) costs, in steps, at least and for each two
 /// bytes of it: about ten microseconds for what a long look says.
-const MIN_BUILD_STEPS: u64 = 300;
+const MIN_BUILD_STEPS: u64 = 200;
 
 /// The steps a message of `len` bytes gets.
 pub(crate) fn steps_for(len: usize) -> u32 {
@@ -69,7 +69,7 @@ pub(crate) fn steps_for(len: usize) -> u32 {
 }
 
 /// Most elements a message's tree keeps for matching; the ones after are not styled.
-const MAX_ELEMENTS: usize = 150_000;
+const MAX_ELEMENTS: usize = 60_000;
 
 /// Deepest nesting the tree keeps; deeper elements are leaves.
 const MAX_DEPTH: usize = 512;
@@ -95,43 +95,55 @@ const MAX_VALUE: usize = 1_024;
 const MAX_ATTR_VALUE: usize = 128;
 const MAX_ELEMENT_ATTR_VALUE: usize = 256;
 
+/// How many of an element's classes a step looks through, and how many bytes of an attribute's
+/// value it compares.
+const CLASSES_PER_STEP: u32 = 2;
+const ATTR_BYTES_PER_STEP: u32 = 16;
+
+/// Most different element names kept apart among one element's children.
+const MAX_TYPES: usize = 48;
+
 /// Most classes kept for an element.
 const MAX_CLASSES: usize = 16;
 
 /// Elements without content or an end tag.
-const VOID: [&str; 14] = ["area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr"];
+fn is_void(name: &str) -> bool {
+    matches!(name, "area" | "base" | "br" | "col" | "embed" | "hr" | "img" | "input" | "link" | "meta" | "param" | "source" | "track" | "wbr")
+}
 
 /// Elements that close an open `<p>` as they start.
-const CLOSES_P: [&str; 28] = [
-    "p",
-    "div",
-    "ul",
-    "ol",
-    "table",
-    "h1",
-    "h2",
-    "h3",
-    "h4",
-    "h5",
-    "h6",
-    "blockquote",
-    "pre",
-    "hr",
-    "form",
-    "dl",
-    "address",
-    "section",
-    "article",
-    "header",
-    "footer",
-    "nav",
-    "aside",
-    "center",
-    "fieldset",
-    "figure",
-    "main",
-    "menu",
-];
+fn closes_p(name: &str) -> bool {
+    matches!(
+        name,
+        "p" | "div"
+            | "ul"
+            | "ol"
+            | "table"
+            | "h1"
+            | "h2"
+            | "h3"
+            | "h4"
+            | "h5"
+            | "h6"
+            | "blockquote"
+            | "pre"
+            | "hr"
+            | "form"
+            | "dl"
+            | "address"
+            | "section"
+            | "article"
+            | "header"
+            | "footer"
+            | "nav"
+            | "aside"
+            | "center"
+            | "fieldset"
+            | "figure"
+            | "main"
+            | "menu"
+    )
+}
 
 const NONE: u32 = u32::MAX;
 
@@ -178,6 +190,18 @@ impl El {
         self.attrs.iter().find(|(n, _)| n == name).map(|(_, v)| v.as_str())
     }
 
+    /// What the parent's ancestors have (the parent's own names are added by the caller).
+    fn parent_bloom(&self, blooms: &[Bloom]) -> Bloom {
+        let mut bloom = Bloom::default();
+        if self.parent != NONE
+            && self.parent != 0
+            && let Some(b) = blooms.get(self.parent as usize)
+        {
+            bloom.or(b);
+        }
+        bloom
+    }
+
     /// An attribute's value, in lower case when `fold`.
     fn attr_value(&self, name: &str, fold: bool) -> Option<&str> {
         let at = self.attrs.iter().position(|(n, _)| n == name)?;
@@ -187,9 +211,9 @@ impl El {
 
 struct Open {
     el: u32,
-    name: String,
     children: u32,
-    by_type: HashMap<String, u32>,
+    /// How many of its children there are of each name (the first [`MAX_TYPES`] names).
+    by_type: Vec<(String, u32)>,
 }
 
 struct TreeBuilder {
@@ -203,12 +227,7 @@ struct TreeBuilder {
 
 impl TreeBuilder {
     fn new() -> TreeBuilder {
-        TreeBuilder {
-            els: vec![El::document()],
-            stack: vec![Open { el: 0, name: String::new(), children: 0, by_type: HashMap::new() }],
-            positions: HashMap::new(),
-            walked: 0,
-        }
+        TreeBuilder { els: vec![El::document()], stack: vec![Open { el: 0, children: 0, by_type: Vec::new() }], positions: HashMap::new(), walked: 0 }
     }
 
     /// Close the nearest open element named in `names`, and what is inside it, unless one of
@@ -226,7 +245,7 @@ impl TreeBuilder {
 
     fn truncate_stack(&mut self, at: usize) {
         for open in self.stack.drain(at..) {
-            if let Some(list) = self.positions.get_mut(&open.name) {
+            if let Some(list) = self.els.get(open.el as usize).and_then(|el| self.positions.get_mut(el.name.as_str())) {
                 list.pop();
             }
         }
@@ -249,15 +268,24 @@ impl TreeBuilder {
             "thead" | "tbody" | "tfoot" => self.close_nearest(&["thead", "tbody", "tfoot"], &["table"]),
             _ => {}
         }
-        if CLOSES_P.contains(&name) {
+        if closes_p(name) {
             self.close_nearest(&["p"], &["table", "td", "th", "button", "caption", "object", "template"]);
         }
         let Some(parent) = self.stack.last_mut() else { return };
         parent.children = parent.children.saturating_add(1);
         let index = parent.children;
-        let slot = parent.by_type.entry(name.to_string()).or_insert(0);
-        *slot = slot.saturating_add(1);
-        let type_index = *slot;
+        let type_index = if let Some(at) = parent.by_type.iter().position(|(n, _)| n == name) {
+            parent.by_type.get_mut(at).map_or(0, |(_, c)| {
+                *c = c.saturating_add(1);
+                *c
+            })
+        } else if parent.by_type.len() < MAX_TYPES {
+            parent.by_type.push((name.to_string(), 1));
+            1
+        } else {
+            // Past that many different names among the children, `:nth-of-type` can't tell.
+            0
+        };
         let parent_at = parent.el;
         let id = u32::try_from(self.els.len()).unwrap_or(NONE);
         let prev = self.els.get(parent_at as usize).map_or(NONE, |p| p.last_child);
@@ -297,14 +325,19 @@ impl TreeBuilder {
             }
         }
         self.els.push(el);
-        if !VOID.contains(&name) && self.stack.len() < MAX_DEPTH {
-            self.positions.entry(tag.name.clone()).or_default().push(self.stack.len());
-            self.stack.push(Open { el: id, name: tag.name.clone(), children: 0, by_type: HashMap::new() });
+        if !is_void(name) && self.stack.len() < MAX_DEPTH {
+            match self.positions.get_mut(name) {
+                Some(list) => list.push(self.stack.len()),
+                None => {
+                    self.positions.insert(name.to_string(), vec![self.stack.len()]);
+                }
+            }
+            self.stack.push(Open { el: id, children: 0, by_type: Vec::new() });
         }
     }
 
     fn close(&mut self, name: &str) {
-        if VOID.contains(&name) || matches!(name, "html" | "body") {
+        if is_void(name) || matches!(name, "html" | "body") {
             return;
         }
         let crossing: &[&str] = if matches!(name, "td" | "th" | "tr" | "table" | "tbody" | "thead" | "tfoot") { &[] } else { &["td", "th", "table"] };
@@ -820,6 +853,73 @@ struct Decl {
 pub(crate) struct Rule {
     selector: Selector,
     decls: Rc<[Decl]>,
+    /// What the ancestors that the selector asks for (to the left of descendant and child
+    /// combinators) have to have among their ids, classes and tags, hashed: an element none of
+    /// whose ancestors could have them cannot match, and is not looked at further.
+    ancestors: Vec<u64>,
+}
+
+fn hash_key(kind: u8, name: &str) -> u64 {
+    // FNV-1a.
+    let mut h = 0xcbf2_9ce4_8422_2325u64 ^ u64::from(kind);
+    h = h.wrapping_mul(0x0100_0000_01b3);
+    for b in name.bytes() {
+        h = (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3);
+    }
+    h
+}
+
+fn compound_key(c: &Compound) -> Option<u64> {
+    c.simples
+        .iter()
+        .find_map(|s| if let Simple::Id(id) = s { Some(hash_key(b'#', id)) } else { None })
+        .or_else(|| c.simples.iter().find_map(|s| if let Simple::Class(k) = s { Some(hash_key(b'.', k)) } else { None }))
+        .or_else(|| c.simples.iter().find_map(|s| if let Simple::Tag(t) = s { Some(hash_key(b't', t)) } else { None }))
+}
+
+fn ancestor_keys(sel: &Selector) -> Vec<u64> {
+    let mut out = Vec::new();
+    let mut k = sel.compounds.len().saturating_sub(1);
+    while k > 0 {
+        match sel.combinators.get(k - 1) {
+            Some(Combinator::Descendant | Combinator::Child) => {
+                if let Some(h) = sel.compounds.get(k - 1).and_then(compound_key) {
+                    out.push(h);
+                }
+                k -= 1;
+            }
+            _ => break,
+        }
+    }
+    out
+}
+
+/// A set of hashed names, 256 bits, two bits to a name.
+#[derive(Clone, Copy, Default)]
+struct Bloom([u64; 4]);
+
+impl Bloom {
+    fn bits(h: u64) -> [usize; 2] {
+        [(h % 256) as usize, ((h >> 24) % 256) as usize]
+    }
+
+    fn add(&mut self, h: u64) {
+        for b in Bloom::bits(h) {
+            if let Some(w) = self.0.get_mut(b / 64) {
+                *w |= 1 << (b % 64);
+            }
+        }
+    }
+
+    fn has(&self, h: u64) -> bool {
+        Bloom::bits(h).iter().all(|b| self.0.get(b / 64).is_some_and(|w| w & (1 << (b % 64)) != 0))
+    }
+
+    fn or(&mut self, other: &Bloom) {
+        for (a, b) in self.0.iter_mut().zip(other.0) {
+            *a |= b;
+        }
+    }
 }
 
 /// Whether a property is one the whitelist ([`crate::style`]) can use.
@@ -972,13 +1072,7 @@ fn read_declaration(text: &str, out: &mut Vec<Decl>) {
     if property.len() > 32 || !kept(&property) {
         return;
     }
-    let mut value = value.trim();
-    let mut important = false;
-    let lower = value.to_ascii_lowercase();
-    if let Some(head) = lower.strip_suffix("important").map(str::trim_end).and_then(|h| h.strip_suffix('!')) {
-        value = value.get(..head.len()).unwrap_or(value).trim_end();
-        important = true;
-    }
+    let (value, important) = crate::style::strip_important(value);
     let lower = value.to_ascii_lowercase();
     let background = property.starts_with("background");
     if value.is_empty()
@@ -1030,7 +1124,8 @@ pub(crate) fn rules(text: &str) -> Vec<Rule> {
                     if out.len() >= MAX_RULES {
                         break;
                     }
-                    out.push(Rule { selector, decls: decls.clone() });
+                    let ancestors = ancestor_keys(&selector);
+                    out.push(Rule { selector, decls: decls.clone(), ancestors });
                 }
             }
         }
@@ -1054,13 +1149,19 @@ fn previous(dom: &[El], el: usize) -> Option<usize> {
 /// Whether the simple selector matches. Each costs a step (an attribute test four), and with
 /// none left nothing matches.
 fn simple_matches(dom: &[El], s: &Simple, at: usize, steps: &mut u32) -> bool {
-    let cost = if matches!(s, Simple::Attr(_)) { 4 } else { 1 };
+    let Some(el) = dom.get(at) else { return false };
+    // What a test costs follows what it does: a class is looked for among the element's classes,
+    // an attribute's value is compared along its length.
+    let cost = match s {
+        Simple::Class(_) => 1 + el.classes.len() as u32 / CLASSES_PER_STEP,
+        Simple::Attr(sel) => 4 + el.attrs.iter().find(|(n, _)| *n == sel.name).map_or(0, |(_, v)| v.len() as u32 / ATTR_BYTES_PER_STEP),
+        _ => 1,
+    };
     if *steps < cost {
         *steps = 0;
         return false;
     }
     *steps -= cost;
-    let Some(el) = dom.get(at) else { return false };
     match s {
         Simple::Tag(name) => el.name == *name,
         Simple::Id(id) => el.id.as_deref() == Some(id.as_str()),
@@ -1169,6 +1270,8 @@ pub(crate) struct Sheet {
     by_tag: HashMap<String, Vec<u32>>,
     other: Vec<u32>,
     dom: Vec<El>,
+    /// Per element, what its ancestors have (empty when no rule asks for ancestors).
+    blooms: Vec<Bloom>,
     steps_left: u32,
     /// What the message was given to spend.
     #[cfg(test)]
@@ -1204,21 +1307,16 @@ pub(crate) fn css_with(applied: &Applied, inline: Option<&str>) -> Css {
     )
 }
 
-/// The declarations of a `style` attribute that are not marked `!important`, and those that are.
+/// The declarations of a `style` attribute that are not marked `!important`, and those that are:
+/// the first [`crate::style::MAX_DECLARATIONS`] of them, counted as [`Css::parse`] counts them.
 fn split_important(style: &str) -> (String, String) {
-    let b = style.as_bytes();
     let (mut normal, mut important) = (String::new(), String::new());
-    let (mut i, mut kept) = (0, 0usize);
-    while i < b.len() && kept < crate::style::MAX_DECLARATIONS {
-        kept += 1;
-        let end = scan_to(b, i, b";").unwrap_or(b.len());
-        let piece = style.get(i..end).unwrap_or("");
-        let lower = piece.trim_end().to_ascii_lowercase();
-        let marked = lower.strip_suffix("important").map(str::trim_end).is_some_and(|h| h.ends_with('!'));
-        let to = if marked { &mut important } else { &mut normal };
-        to.push_str(piece);
+    for (property, value) in crate::style::declarations(style).take(crate::style::MAX_DECLARATIONS) {
+        let to = if crate::style::strip_important(value).1 { &mut important } else { &mut normal };
+        to.push_str(property);
+        to.push(':');
+        to.push_str(value);
         to.push(';');
-        i = end + 1;
     }
     (normal, important)
 }
@@ -1272,6 +1370,10 @@ impl Sheet {
                 }
                 Token::Text(_) => {}
             }
+            if tree.els.len() > MAX_ELEMENTS {
+                // The rest is not styled, nor read for style sheets.
+                break;
+            }
         }
         // (A style at the very end has no token after it.)
         take(&mut tokens, template);
@@ -1292,6 +1394,7 @@ impl Sheet {
             by_tag: HashMap::new(),
             other: Vec::new(),
             dom,
+            blooms: Vec::new(),
             steps_left: steps_for(html.len()),
             #[cfg(test)]
             budget: steps_for(html.len()),
@@ -1307,6 +1410,24 @@ impl Sheet {
                 Key::Tag(k) => sheet.by_tag.entry(k).or_default().push(n),
                 Key::Any => sheet.other.push(n),
             }
+        }
+        if rules.iter().any(|r| !r.ancestors.is_empty()) {
+            // Parents come before their children: each element has its parent's ancestors, and the parent.
+            let mut blooms: Vec<Bloom> = Vec::with_capacity(sheet.dom.len());
+            for el in &sheet.dom {
+                let mut bloom = el.parent_bloom(&blooms);
+                if let Some(parent) = sheet.dom.get(el.parent as usize).filter(|_| el.parent != NONE && el.parent != 0) {
+                    bloom.add(hash_key(b't', &parent.name));
+                    if let Some(id) = &parent.id {
+                        bloom.add(hash_key(b'#', id));
+                    }
+                    for class in &parent.classes {
+                        bloom.add(hash_key(b'.', class));
+                    }
+                }
+                blooms.push(bloom);
+            }
+            sheet.blooms = blooms;
         }
         sheet.rules = rules;
         Some(sheet)
@@ -1354,6 +1475,12 @@ impl Sheet {
                 }
                 steps -= 1;
                 let Some(rule) = self.rules.get(*n as usize) else { continue };
+                // An ancestor the selector asks for that none of this element's can be: no match.
+                if let Some(bloom) = self.blooms.get(at)
+                    && rule.ancestors.iter().any(|h| !bloom.has(*h))
+                {
+                    continue;
+                }
                 if matches_from(&self.dom, &rule.selector, rule.selector.compounds.len().saturating_sub(1), at, &mut steps) {
                     found.push((rule.selector.specificity, *n));
                 }
@@ -1371,7 +1498,7 @@ impl Sheet {
                 self.builds += u32::from(made.is_some());
             }
             // Working out a look costs about as much as reading what it says.
-            spent += made.as_ref().map_or(0, |a| ((a.before.len() + a.after.len()) as u64 / 2).max(MIN_BUILD_STEPS));
+            spent += made.as_ref().map_or(0, |a| MIN_BUILD_STEPS + (a.before.len() + a.after.len()) as u64 * 3 / 2);
             if self.cache.len() < MAX_CACHED {
                 self.cache.insert(key, made.clone());
             }

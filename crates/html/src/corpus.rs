@@ -262,6 +262,70 @@ pub fn hostile() -> Vec<(&'static str, String)> {
     ]
 }
 
+/// Newsletters of the kind a mailing builder writes, with the style sheet such builders write:
+/// resets, `#templateBodyN .mcnTextContent p`, `a[x-apple-data-detectors]`, `u + #body a`,
+/// `[owa] .x`, `*[class="mcnTextContent"]`, utility classes, `@media`, nested tables, and a
+/// `.mobile-only{display:none}` line near the end. About 65, 105 and 145 KB, with 160 to 300
+/// rules and 1,000 to 2,300 elements. Every word is invented (`.example` and `example.org`).
+pub fn realistic_newsletters() -> Vec<(&'static str, String)> {
+    vec![
+        ("builder newsletter, small", builder_newsletter(65, 20)),
+        ("builder newsletter, medium", builder_newsletter(100, 30)),
+        ("builder newsletter, large", builder_newsletter(140, 45)),
+    ]
+}
+
+/// What [`realistic_newsletters`] hides with its sheet, and what it shows after it.
+pub const BUILDER_HIDDEN: &str = "MOBILE ONLY COPY";
+pub const BUILDER_FOOTER: &str = "FOOTER STAYS VISIBLE";
+
+fn builder_newsletter(sections: usize, groups: usize) -> String {
+    let mut sheet = String::from(
+        "body,table,td,p,a,li,blockquote{-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%}\n\
+         table,td{mso-table-lspace:0pt;mso-table-rspace:0pt}\nimg{-ms-interpolation-mode:bicubic;border:0}\n\
+         body{margin:0;padding:0;background-color:#f2efe9;color:#3a3330}\n\
+         a[x-apple-data-detectors]{color:inherit !important;text-decoration:none !important}\n\
+         u + #body a{color:inherit;text-decoration:none}\n[owa] .x{display:block}\n\
+         *[class=\"mcnTextContent\"]{font-family:Georgia,serif}\n.mobile-only{display:none}\n\
+         table.wrap{width:600px;margin:0 auto;background-color:#fff}\n",
+    );
+    for i in 0..40 {
+        sheet.push_str(&format!(".p-{i}{{padding:{}px}} .t-{i}{{font-size:{}px;line-height:1.4}}\n", i % 24, 12 + i % 8));
+    }
+    for i in 0..groups {
+        sheet.push_str(&format!(
+            "#templateBody{i} .mcnTextContent,#templateBody{i} .mcnTextContent p{{color:#{:06x};text-align:left}}\n\
+             #templateBody{i} .mcnTextContent a{{color:#8a3b12;font-weight:bold}}\n\
+             #templateBody{i} td.btn{{background-color:#8a3b12;padding:10px 20px;text-align:center}}\n\
+             table.section{i} > tbody > tr > td{{padding:8px 16px}}\n",
+            (i * 7919) % 0x00ff_ffff
+        ));
+    }
+    sheet.push_str("@media only screen and (max-width:480px){table.wrap{width:100% !important}.mobile-only{display:block !important}.desktop-only{display:none !important}}\n");
+    let mut html = format!(
+        "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>The Harbour Lane letter</title><style type=\"text/css\">{sheet}</style></head>\
+         <body id=\"body\"><table class=\"wrap\" role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" width=\"100%\"><tr><td>"
+    );
+    for i in 0..sections {
+        let g = i % groups;
+        html.push_str(&format!(
+            "<table class=\"section{g} p-{p}\" role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\"><tbody><tr>\
+             <td id=\"templateBody{g}\" class=\"p-{p}\"><table role=\"presentation\" width=\"100%\"><tbody><tr><td class=\"mcnTextContent t-{t}\">\
+             <p>Harbour Lane Bakery, loaf {i}: a long-rise sourdough with rye, scored by hand and baked at dawn on the quay. \
+             <a href=\"https://bakery.example.org/loaf/{i}\">Read about loaf {i}</a>, or <a href=\"https://bakery.example.org/order/{i}\">order it</a>.</p>\
+             <p class=\"t-{t}\">Collect from the counter before nine, or have it left in the box by the gate. <span class=\"x\">Fresh daily.</span></p></td></tr></tbody></table>\
+             <table role=\"presentation\" align=\"center\"><tbody><tr><td class=\"btn\"><a href=\"https://bakery.example.org/buy/{i}\">Buy loaf {i}</a></td></tr></tbody></table>\
+             </td></tr></tbody></table>",
+            p = i % 40,
+            t = (i * 3) % 40
+        ));
+    }
+    html.push_str(&format!(
+        "<p class=\"mobile-only\">{BUILDER_HIDDEN}</p><p class=\"desktop-only\">Read on a computer.</p><p>{BUILDER_FOOTER}</p></td></tr></table></body></html>"
+    ));
+    html
+}
+
 /// A newsletter of about `bytes` bytes, built the way mailing services build them: nested layout
 /// tables, long inline styles, tracked links and remote pictures around rather little text.
 pub fn large_newsletter(bytes: usize) -> String {

@@ -177,12 +177,7 @@ impl Css {
             }
             let property = property.to_ascii_lowercase();
             let value = value.to_ascii_lowercase();
-            // (`!important` is `!`, white space, `important`, in any letter case.)
-            let value = match value.strip_suffix("important").map(str::trim_end).and_then(|h| h.strip_suffix('!')) {
-                Some(head) => head.trim_end(),
-                None => value.as_str(),
-            };
-            let value = value.trim();
+            let value = strip_important(&value).0;
             match property.as_str() {
                 "color" => {
                     if let Some(c) = color(value) {
@@ -659,7 +654,7 @@ fn line_height(value: &str) -> Option<Option<LineHeight>> {
 
 /// The `property: value` pairs of a `style` attribute. A `;` inside parentheses or quotes (a
 /// `url(data:…;base64,…)`) doesn't end a declaration.
-fn declarations(style: &str) -> impl Iterator<Item = (&str, &str)> {
+pub(crate) fn declarations(style: &str) -> impl Iterator<Item = (&str, &str)> {
     let bytes = style.as_bytes();
     let mut start = 0;
     std::iter::from_fn(move || {
@@ -689,6 +684,23 @@ fn declarations(style: &str) -> impl Iterator<Item = (&str, &str)> {
         }
         None
     })
+}
+
+/// A value without its `!important` marks (a `!`, white space, `important` in any letter case, as
+/// often as it is written), and whether it had one.
+pub(crate) fn strip_important(value: &str) -> (&str, bool) {
+    let mut value = value.trim();
+    let mut marked = false;
+    while let Some(at) = value.len().checked_sub("important".len()) {
+        let Some(tail) = value.get(at..) else { break };
+        let Some(head) = value.get(..at).map(str::trim_end).and_then(|h| h.strip_suffix('!')) else { break };
+        if !tail.eq_ignore_ascii_case("important") {
+            break;
+        }
+        value = head.trim_end();
+        marked = true;
+    }
+    (value, marked)
 }
 
 /// The parts of a value separated by white space; white space inside parentheses separates nothing.

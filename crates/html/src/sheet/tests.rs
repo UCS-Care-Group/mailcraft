@@ -275,7 +275,7 @@ fn matching_work_is_bounded_per_element_and_per_message() {
 /// tables, a class on nearly everything.
 fn big_message() -> String {
     let mut sheet = String::from("body{margin:0}.w{width:600px}a{color:#036}");
-    for i in 0..4 {
+    for i in 0..12 {
         sheet.push_str(&format!(
             "table.t{i} td.c{i}{{padding:4px}} .row{i} > td + td{{color:#333}} div.s{i}:first-child p{{margin:0}} .k{i}{{font-size:14px}} \
              [data-k=\"{i}\"] span:not(.n){{color:#555}}\n"
@@ -284,7 +284,7 @@ fn big_message() -> String {
     let mut html = format!("<html><head><style>{sheet}</style></head><body>");
     let mut i = 0;
     while html.len() < 1_000_000 {
-        let k = i % 4;
+        let k = i % 12;
         html.push_str(&format!(
             "<table class='w t{k}' width='600'><tr class='row{k}'><td class='c{k}'><div class='s{k} k{k}'><p>Line {i}</p><span data-k='{k}'>a</span></div></td>\
              <td class='c{k}'><a href='https://example.org/{i}'>link</a></td></tr></table>"
@@ -626,7 +626,7 @@ fn assert_within_budget(name: &str, html: &str) {
     assert!(sheet.work() <= sheet.budget, "{name}: {} of {}", sheet.work(), sheet.budget);
     // A megabyte gets about a million and a half steps, about 45 ms of matching; a message of
     // any size never more than MAX_STEPS.
-    assert!(u64::from(sheet.budget) <= (html.len() as u64 * 3 / 2).max(u64::from(MIN_STEPS)).min(u64::from(MAX_STEPS)), "{name}");
+    assert!(u64::from(sheet.budget) <= (html.len() as u64 * 6).max(u64::from(MIN_STEPS)).min(u64::from(MAX_STEPS)), "{name}");
     // Each look built is charged what it costs.
     assert!(
         u64::from(sheet.work()) >= u64::from(sheet.builds) * MIN_BUILD_STEPS || sheet.work() == sheet.budget,
@@ -642,7 +642,7 @@ fn assert_within_budget(name: &str, html: &str) {
 #[test]
 fn the_budget_grows_with_the_message_and_is_capped() {
     assert_eq!(steps_for(0), MIN_STEPS);
-    assert_eq!(steps_for(1_000_000), 1_500_000);
+    assert_eq!(steps_for(1_000_000), 6_000_000);
     assert_eq!(steps_for(10_000_000), MAX_STEPS);
     assert!(steps_for(100_000) < steps_for(200_000));
 }
@@ -715,7 +715,7 @@ fn an_implied_close_far_up_the_stack_still_happens() {
 
 #[test]
 fn the_inline_share_stays_at_sixty_four_declarations_with_a_sheet() {
-    // 70 declarations: the 65th, `color`, is past the cap, with a sheet as without one.
+    // 65 declarations: the 65th, `color`, is past the cap, with a sheet as without one.
     let pad: String = (0..64).map(|i| format!("margin-left:{i}px;")).collect();
     let inline = format!("{pad}color:#f00");
     assert_eq!(colour(&format!("<p style='{inline}'>x</p>")), None);
@@ -734,4 +734,135 @@ fn important_is_a_bang_white_space_and_the_word_in_any_case_for_both_readers() {
     }
     // Not a mark: the word without the bang, a bang inside the word.
     assert_eq!(crate::style::Css::parse("color:important").color, None);
+}
+
+// ---- round 3 of the review of #598 ----
+
+/// Every element's look with the budget there is, and with none to run out of.
+fn looks_with_and_without_a_budget(html: &str) -> (usize, usize, u32, u32) {
+    let Some(mut real) = Sheet::read(html) else { panic!("no sheet") };
+    let Some(mut free) = Sheet::read(html) else { panic!("no sheet") };
+    free.steps_left = u32::MAX;
+    let elements = real.dom.len().saturating_sub(1);
+    let mut different = 0;
+    for n in 0..elements {
+        if real.style_for(n, false) != free.style_for(n, false) {
+            different += 1;
+        }
+    }
+    (elements, different, real.work(), real.budget)
+}
+
+#[test]
+fn a_builder_newsletter_is_styled_in_full_with_room_to_spare() {
+    for (name, html) in crate::corpus::realistic_newsletters() {
+        let (elements, different, work, budget) = looks_with_and_without_a_budget(&html);
+        assert!((60_000..160_000).contains(&html.len()), "{name}: {} bytes", html.len());
+        assert!((1_000..2_600).contains(&elements), "{name}: {elements} elements");
+        assert_eq!(different, 0, "{name}: {different} of {elements} elements styled differently for want of budget");
+        assert!(u64::from(work) * 5 <= u64::from(budget) * 4, "{name}: {work} of {budget} steps");
+        // And what the sheet hides is hidden, however far along the message it is.
+        let text = to_text(&html);
+        assert!(!text.contains(crate::corpus::BUILDER_HIDDEN), "{name}: hidden copy shown");
+        assert!(text.contains(crate::corpus::BUILDER_FOOTER), "{name}: footer missing, {} chars", text.len());
+        let sheet = html.split("</style>").next().and_then(|head| head.split_once("text/css\">")).map_or("", |(_, css)| css);
+        assert!((150..320).contains(&rules(sheet).len()), "{name}: {} rules", rules(sheet).len());
+    }
+}
+
+#[test]
+fn a_selector_that_asks_for_an_ancestor_that_is_not_there_costs_one_step() {
+    let html = format!("<style>#nowhere .a .b .c p{{color:#f00}}</style>{}", "<div class=a><p>x</p></div>".repeat(2_000));
+    let (sheet, _) = styled(&html);
+    assert!(sheet.work() <= 2_000 * 3 * 2 + 300, "{}", sheet.work());
+    // Where the ancestors are, it matches as before.
+    assert_eq!(colour("<style>#now .a p{color:#f00}</style><div id=now><div class=a><p>x</p></div></div>"), RED);
+    assert_eq!(colour("<style>#now > .a p{color:#f00}</style><div id=now><section><div class=a><p>x</p></div></section></div>"), None);
+    assert_eq!(colour("<style>#now > section > .a p{color:#f00}</style><div id=now><section><div class=a><p>x</p></div></section></div>"), RED);
+    assert_eq!(colour("<style>#now > section > .a > p{color:#f00}</style><div id=now><section><div class=a><p>x</p></div></section></div>"), RED);
+    // Past a sibling combinator it can't tell, and looks.
+    assert_eq!(colour("<style>#now ~ .b > p{color:#f00}</style><div id=now></div><div class=b><p>x</p></div>"), RED);
+}
+
+#[test]
+fn a_class_test_costs_by_the_classes_it_looks_through() {
+    let few = format!("<style>i:not(.zz){{color:#f00}}</style>{}", "<i class='a'>x</i>".repeat(4_000));
+    let many = format!("<style>i:not(.zz){{color:#f00}}</style>{}", "<i class='a b c d e f g h i j k l m n o p'>x</i>".repeat(4_000));
+    let (few, _) = styled(&few);
+    let (many, _) = styled(&many);
+    assert!(many.work() > few.work() * 2, "{} against {}", many.work(), few.work());
+}
+
+#[test]
+fn an_attribute_test_costs_by_the_value_it_compares() {
+    let short = format!("<style>[title*=zz]{{color:#f00}}</style>{}", "<i title='ab'>x</i>".repeat(4_000));
+    let long = format!("<style>[title*=zz]{{color:#f00}}</style>{}", format!("<i title='{}'>x</i>", "ab".repeat(100)).repeat(4_000));
+    let (short, _) = styled(&short);
+    let (long, _) = styled(&long);
+    assert!(long.work() > short.work() * 2, "{} against {}", long.work(), short.work());
+}
+
+#[test]
+fn the_inline_share_counts_declarations_as_css_does() {
+    // Empty pieces are no declarations, with a sheet as without one.
+    let inline = format!("{}color:#f00", ";".repeat(80));
+    assert_eq!(colour(&format!("<p style='{inline}'>x</p>")), RED);
+    assert_eq!(colour(&format!("<style>p{{width:9px}}</style><p style='{inline}'>x</p>")), RED);
+    // The two readers split where one another does: comments, brackets, quotes, parentheses.
+    for inline in [
+        "margin:[;color:#f00",
+        "font-family:'a;b';color:#f00",
+        "background:url(a;b);color:#f00",
+        "/*;*/color:#f00",
+        "margin:0 /* ; */;color:#f00",
+        "font-family:a];color:#f00",
+        "width:calc(1px;2px);color:#f00",
+        "\\;color:#f00",
+    ] {
+        let without = colour(&format!("<p style=\"{inline}\">x</p>"));
+        let with = colour(&format!("<style>p{{width:9px}}</style><p style=\"{inline}\">x</p>"));
+        assert_eq!(with, without, "{inline}");
+    }
+}
+
+#[test]
+fn repeated_important_marks_are_all_taken_off() {
+    for mark in ["!important!important", "!important !important", "! important!IMPORTANT"] {
+        assert_eq!(crate::style::Css::parse(&format!("color:#f00 {mark}")).color, RED, "{mark:?}");
+        assert_eq!(colour(&format!("<style>p{{color:#f00 {mark}}}</style><p>x</p>")), RED, "{mark:?} in a sheet");
+        assert_eq!(colour(&format!("<style>p{{color:#0f0 !important}}</style><p style='color:#f00 {mark}'>x</p>")), RED, "{mark:?} inline");
+    }
+    assert_eq!(crate::style::strip_important("red !important"), ("red", true));
+    assert_eq!(crate::style::strip_important("important"), ("important", false));
+    assert_eq!(crate::style::strip_important("!important"), ("", true));
+    assert_eq!(crate::style::strip_important("a!b important"), ("a!b important", false));
+}
+
+#[test]
+fn what_a_step_costs_in_time_is_much_the_same_on_hostile_and_ordinary_mail() {
+    // (Printed for the report; the bounds are loose, for a build without optimisation.)
+    let mut rows = Vec::new();
+    let mut cases: Vec<(String, String)> = crate::corpus::realistic_newsletters().into_iter().map(|(n, h)| (n.to_string(), h)).collect();
+    cases.push(("newsletter, 1 MB".into(), big_message()));
+    cases.extend(crate::corpus::hostile().into_iter().filter(|(n, _)| n.starts_with("sheet")).map(|(n, h)| (n.to_string(), h)));
+    for (name, html) in cases {
+        let started = std::time::Instant::now();
+        let Some(mut sheet) = Sheet::read(&html) else { continue };
+        let read = started.elapsed();
+        for n in 0..sheet.dom.len().saturating_sub(1) {
+            sheet.style_for(n, false);
+        }
+        let took = started.elapsed();
+        rows.push(format!(
+            "{name:<34} {:>8} B {:>9} of {:>9} steps  read {:>6.1} ms, match {:>6.1} ms, {:>5.1} ns/step, {:>5.1} ms/MB",
+            html.len(),
+            sheet.work(),
+            sheet.budget,
+            read.as_secs_f64() * 1e3,
+            (took - read).as_secs_f64() * 1e3,
+            (took - read).as_secs_f64() * 1e9 / f64::from(sheet.work().max(1)),
+            took.as_secs_f64() * 1e3 / (html.len() as f64 / 1e6),
+        ));
+    }
+    println!("{}", rows.join("\n"));
 }
