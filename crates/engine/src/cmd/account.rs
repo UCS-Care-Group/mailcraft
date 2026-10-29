@@ -9,11 +9,12 @@
 use std::collections::{HashMap, HashSet};
 
 use mailcraft_model::sync::{
-    Deleted, FlagsPushed, FolderDelta, FolderState, Moved, RemoteFlags, RemoteOp, SyncRequest, SyncResult, SyncStage, summary_line_in,
+    Deleted, FlagsPushed, FolderDelta, FolderState, ImapPlace, MAX_PLACES, Moved, PLACE_BYTES, Placed, RemoteFlags, RemoteOp, SyncRequest,
+    SyncResult, SyncStage, summary_line_in,
 };
 use mailcraft_model::{
     Account, AccountKind, Directory, FlagStatus, Folder, FolderKind, Id, JmapServer, MailIdentity, Mailbox, Message, OAuth, OAuthProvider, Pending,
-    Security, Server, clean_name,
+    Queued, Security, Server, clean_name,
 };
 use serde_json::{Value, json};
 
@@ -25,7 +26,7 @@ pub fn specs() -> Vec<CommandSpec> {
     vec![
         CommandSpec::new("account.add", "Add Account", "File › Info", add).params(ACCOUNT),
         CommandSpec::new("account.edit", "Account Settings", "File › Info", edit).params(r#"{"id": number, …the fields of account.add, "downloadInFull"?: "upTo10Mb"|"upTo25Mb"|"upTo50Mb"|"everything" (a Microsoft account: which messages are fetched whole in the background), "keepOffline"?: "3d"|"1w"|"2w"|"1m"|"3m"|"6m"|"12m"|"2y"|"5y"|"10y"|"all" (a Microsoft account's mail to keep offline: how far back, by received date, mail is kept in full on this computer; older mail keeps its headers and preview. A shared mailbox follows its owner's. Shortening it removes nothing by itself: account.thinOffline does), "askBeforeDeletingConversation"?: bool (Delete on a conversation's row that takes more than one message, in its folder or found by a search, asks first in the window; on unless turned off. A shared mailbox follows its owner's)}"#),
-        CommandSpec::new("account.remove", "Remove Account", "File › Info", remove).params(r#"{"id": number} — removes the account, its mail and what is kept for it on this computer (bodies and attachments leave the content folder once a state without it is saved; no Undo step is kept), and what came from its server: its events, contacts, to-dos and calendars (what was made here and not sent yet stays, as this computer's own), Outlook's list of categories, and, where the window's settings are kept (the window, not mailcraft-cli), its mailbox's working hours; nothing on the server is touched. The only account leaves an empty mailbox, as at a first start. Answers {"deleted": id, "leftToSweep": n (content files the sweep removes later)}"#),
+        CommandSpec::new("account.remove", "Remove Account", "File › Info", remove).params(r#"{"id": number} — removes the account, its mail and what is kept for it on this computer (bodies and attachments leave the content folder once a state without it is saved; no Undo step is kept), and what came from its server: its events, contacts, to-dos and calendars (what was made here and not sent yet stays, as this computer's own), Outlook's list of categories, and, where the window's settings are kept (the window, not mailcraft-cli), its mailbox's working hours; nothing on the server is touched. Mail moved into it from elsewhere that its server wasn't given yet goes back to where it came from, and so does mail moved into it whose original another server keeps until the copy is safe; once the copy is safe on its server, that original goes as it would have (mail moved onto this computer goes back to its original, as its copy goes with the account). The only account leaves an empty mailbox, as at a first start. Answers {"deleted": id, "leftToSweep": n (content files the sweep removes later)}"#),
         CommandSpec::new("account.list", "List Accounts", "File › Info", list).pure(),
         CommandSpec::new("account.preset", "Suggest Account Settings", "File › Info", preset)
             .pure()
@@ -465,6 +466,10 @@ pub(crate) fn remove_with_content(s: &mut Session, id: Id) -> Result<usize, CmdE
 /// [`remove_with_content`] hashing at most `budget` bytes of content in memory.
 pub(crate) fn remove_within(s: &mut Session, id: Id, budget: u64) -> Result<usize, CmdError> {
     let going: HashSet<Id> = s.mailbox.accounts.iter().filter(|a| a.id == id || a.shared_of == Some(id)).map(|a| a.id).collect();
+    // Mail moved in that their servers haven't been given yet goes back to where it came from;
+    // mail moved in whose original another server still has goes back to it, or lets it go.
+    super::graph_place::put_back_waiting(&mut s.mailbox, |_, account, _| going.contains(&account));
+    super::graph_place::settle_moves_into(s, &going);
     #[allow(unused_mut)]
     let mut left = 0usize;
     #[cfg(target_arch = "wasm32")]
@@ -593,10 +598,11 @@ pub fn sync_request(s: &Session, account: Id) -> Result<SyncRequest, CmdError> {
             known_uids: known.remove(&f.id).unwrap_or_default(),
         })
         .collect();
-    let (ops, _) = remote_ops(&s.mailbox, account, MAX_OPS);
+    let (ops, _) = remote_ops(s, account, MAX_OPS);
+    let (places, _) = place_ops(s, account, MAX_PLACES);
     // What is sent goes whole: the files a message keeps on disk are read for it.
     let outbox = s.loaded_outbox(outbox);
-    Ok(SyncRequest { account: a.clone(), folders, outbox, max_per_folder: s.prefs.sync_limit, ops, ..Default::default() })
+    Ok(SyncRequest { account: a.clone(), folders, outbox, max_per_folder: s.prefs.sync_limit, ops, places, ..Default::default() })
 }
 
 /// How many changes made in `account` its server hasn't heard of yet: what a synchronisation
@@ -609,7 +615,24 @@ pub fn unpushed(s: &Session, account: Id) -> usize {
     if s.mailbox.account(account).is_some_and(|a| a.kind == AccountKind::Microsoft) {
         return super::graph_mail::unpushed(s, account);
     }
-    remote_ops(&s.mailbox, account, 0).1
+    remote_ops(s, account, 0).1 + place_ops(s, account, 0).1
+}
+
+/// How many originals of messages moved out of `account` wait on its server for their message to
+/// be safe where it is now (#451). [`unpushed`] counts one only from then on, as a deletion; one
+/// that would never go (its message has left for an account that keeps no copy) isn't counted.
+pub fn originals_waiting(s: &Session, account: Id) -> usize {
+    let mb = &s.mailbox;
+    let saved = s.file_is_current();
+    let mailboxes: HashSet<&str> =
+        mb.folders.iter().filter(|f| f.account == account && !f.remote.is_empty() && f.uid_validity != 0).map(|f| f.remote.as_str()).collect();
+    let waits = |p: &Pending| {
+        let Pending::Move { message, from, uid, .. } = p else { return false };
+        // (Not one the server can't be told of: a run would never delete it.)
+        let Some(m) = mb.message(*message).filter(|_| *uid != 0 && mailboxes.contains(from.as_str())) else { return false };
+        mb.takes_over(account, m.account) && !super::graph_place::safe_here(s, m, saved, false)
+    };
+    mb.pending.iter().filter(|p| p.account() == account && waits(p)).count()
 }
 
 /// The flags of `m` that are not as the server has them (`base`), with what they are here; `None`
@@ -646,13 +669,22 @@ fn destination(mb: &Mailbox, folder: &Folder) -> (String, Vec<String>) {
 /// flags that are not as the server last had them. At most `limit` of them are spelled out; the
 /// number is of all there are.
 ///
+/// A message moved out of the account into one that keeps it ([`Mailbox::takes_over`], #451)
+/// is deleted here once it is safe there ([`super::graph_place::safe_here`]): made on that
+/// account's server, or whole in the mailbox file on this computer. Until then nothing is asked
+/// of the server for it.
+///
 /// A change is only asked for in a mailbox one of the account's folders follows with a
 /// `UIDVALIDITY` (the UIDs kept of it are good for that life of the mailbox only).
-fn remote_ops(mb: &Mailbox, account: Id, limit: usize) -> (Vec<RemoteOp>, usize) {
+fn remote_ops(s: &Session, account: Id, limit: usize) -> (Vec<RemoteOp>, usize) {
+    let mb = &s.mailbox;
+    let saved = s.file_is_current();
     let (mut ops, mut count) = (Vec::new(), 0usize);
-    let mut note = |op: &dyn Fn() -> RemoteOp| {
+    // (`None`: it can't go after all, which is looked at only for one that is spelled out.)
+    let mut note = |op: &dyn Fn() -> Option<RemoteOp>| {
         if ops.len() < limit {
-            ops.push(op());
+            let Some(op) = op() else { return };
+            ops.push(op);
         }
         count += 1;
     };
@@ -665,19 +697,29 @@ fn remote_ops(mb: &Mailbox, account: Id, limit: usize) -> (Vec<RemoteOp>, usize)
             continue;
         }
         match pending {
-            Pending::Delete { .. } => note(&|| RemoteOp::Delete { from: from.to_string(), uid }),
+            Pending::Delete { .. } => note(&|| Some(RemoteOp::Delete { from: from.to_string(), uid })),
             Pending::Move { message, synced, to, .. } => {
-                let Some(m) = mb.message(*message).filter(|m| m.account == account && m.folder == *to && m.uid == 0) else { continue };
+                let Some(m) = mb.message(*message) else { continue };
+                if m.account != account {
+                    // Moved out of the account: the original goes once the message is safe where it is.
+                    // Every part of one on this computer is read back only when it goes into the
+                    // request: not for a count, nor for what waits past the limit.
+                    if mb.takes_over(account, m.account) && super::graph_place::safe_here(s, m, saved, false) {
+                        note(&|| super::graph_place::safe_here(s, m, saved, true).then(|| RemoteOp::Delete { from: from.to_string(), uid }));
+                    }
+                    continue;
+                }
+                let Some(m) = Some(m).filter(|m| m.folder == *to && m.uid == 0) else { continue };
                 // The Outbox is no place on a server: the move waits until the message is elsewhere.
                 let Some(folder) = folders.get(to).copied().filter(|f| f.kind != FolderKind::Outbox) else { continue };
                 // What was changed about the message before or after it was moved goes first, so
                 // that it arrives in its new mailbox as it is here.
                 if let Some([read, flagged, answered]) = synced.filter(|base| base.uid == uid).and_then(|base| flag_changes(m, base)) {
-                    note(&|| RemoteOp::Flags { folder: from.to_string(), uid, read, flagged, answered });
+                    note(&|| Some(RemoteOp::Flags { folder: from.to_string(), uid, read, flagged, answered }));
                 }
                 note(&|| {
                     let (to, create) = destination(mb, folder);
-                    RemoteOp::Move { message: *message, from: from.to_string(), uid, to, to_folder: folder.id, create }
+                    Some(RemoteOp::Move { message: *message, from: from.to_string(), uid, to, to_folder: folder.id, create })
                 });
             }
         }
@@ -686,9 +728,41 @@ fn remote_ops(mb: &Mailbox, account: Id, limit: usize) -> (Vec<RemoteOp>, usize)
         let Some(base) = m.synced.filter(|base| m.uid != 0 && base.uid == m.uid && m.account == account) else { continue };
         let Some([read, flagged, answered]) = flag_changes(m, base) else { continue };
         let Some(folder) = folders.get(&m.folder).copied().filter(followed) else { continue };
-        note(&|| RemoteOp::Flags { folder: folder.remote.clone(), uid: m.uid, read, flagged, answered });
+        note(&|| Some(RemoteOp::Flags { folder: folder.remote.clone(), uid: m.uid, read, flagged, answered }));
     }
     (ops, count)
+}
+
+/// The messages waiting to be put on the account's server, moved or copied into its folders from
+/// elsewhere ([`Queued::PlaceMessage`], #451): at most `limit` spelled out, each whole (its body
+/// and files read in when they are kept on disk), and how many there are. One in the Outbox
+/// waits until it is elsewhere.
+fn place_ops(s: &Session, account: Id, limit: usize) -> (Vec<ImapPlace>, usize) {
+    let mb = &s.mailbox;
+    let (mut out, mut count, mut spent) = (Vec::new(), 0usize, 0u64);
+    for queued in &mb.queued {
+        let Queued::PlaceMessage { account: a, message, marker, .. } = queued else { continue };
+        if *a != account {
+            continue;
+        }
+        // (Not one whose text couldn't be read here: the server's original is all there is of it.)
+        let whole = |m: &Message| !m.unfetched && !m.incomplete && m.not_downloaded == 0 && !m.kept.as_deref().is_some_and(|k| k.failed);
+        let Some(m) = mb.message(*message).filter(|m| m.account == account && m.uid == 0 && whole(m)) else { continue };
+        let Some(folder) = mb.folder(m.folder).filter(|f| f.account == account && f.kind != FolderKind::Outbox) else { continue };
+        count += 1;
+        if out.len() >= limit || (!out.is_empty() && spent.saturating_add(m.size()) > PLACE_BYTES) {
+            continue;
+        }
+        spent = spent.saturating_add(m.size());
+        match s.loaded_message(m.id) {
+            Ok(whole) => {
+                let (to, create) = destination(mb, folder);
+                out.push(ImapPlace { message: whole.as_ref().clone(), to, to_folder: folder.id, create, marker: marker.clone() });
+            }
+            Err(e) => log::warn!("message {} waits to go to the server: {e}", m.id),
+        }
+    }
+    (out, count)
 }
 
 fn request(s: &mut Session, v: &Value) -> CmdResult {
@@ -848,6 +922,13 @@ pub fn apply_sync_part(s: &mut Session, run: &mut SyncTotals, mut result: SyncRe
     run.errors.extend(result.errors.iter().cloned());
     run.stopped |= stopped;
     run.finished = !partial;
+    if !partial {
+        for said in super::graph_place::unreadable_waiting(s, account) {
+            if !run.errors.contains(&said) {
+                run.errors.push(said);
+            }
+        }
+    }
     let summary = run.summary();
     if !partial {
         let t = s.local_now();
@@ -882,7 +963,8 @@ pub fn apply_sync_part(s: &mut Session, run: &mut SyncTotals, mut result: SyncRe
 /// Take in what a result has for the mailbox. Returns what that changed, and how many messages
 /// were sent.
 fn take_in_news(s: &mut Session, account: Id, result: &mut SyncResult) -> (Counts, usize) {
-    let told = !result.moved.is_empty() || !result.deleted.is_empty() || !result.sent.is_empty();
+    let told =
+        !result.moved.is_empty() || !result.deleted.is_empty() || !result.sent.is_empty() || !result.placed.is_empty() || !result.unplaced.is_empty();
     let mb = &mut s.mailbox;
     let sent = file_sent(mb, account, result);
     for made in &result.created {
@@ -901,6 +983,7 @@ fn take_in_news(s: &mut Session, account: Id, result: &mut SyncResult) -> (Count
         move_finished(mb, account, &mut on_server, moved);
     }
     deletes_finished(mb, account, &mut on_server, &result.deleted);
+    places_finished(mb, account, &mut on_server, &result.placed, &result.unplaced);
     on_server.expect(mb, account);
     adopt_listed(mb, account, &mut on_server, &result.listed);
     // Only what is really new counts as new: not the server's copy of a message that was here.
@@ -908,6 +991,7 @@ fn take_in_news(s: &mut Session, account: Id, result: &mut SyncResult) -> (Count
     for delta in std::mem::take(&mut result.folders) {
         take_in(mb, account, &mut on_server, delta, &mut counts);
     }
+    moved_in_for_good(mb, account);
     result.errors.append(&mut counts.notes);
     if told {
         s.forget_history();
@@ -941,13 +1025,16 @@ struct OnServer {
     /// Server copies a move or deletion made here is still waiting to be pushed for: they are
     /// not new mail, whatever a download says.
     leaving: HashSet<(Id, u32)>,
+    /// Messages put back as the server's after a refused copy ([`Message::returned`]).
+    returned: Vec<Id>,
 }
 
 impl OnServer {
     fn of(mb: &Mailbox, account: Id) -> OnServer {
         let by_uid = mb.messages.values().filter(|m| m.account == account && m.uid != 0).map(|m| ((m.folder, m.uid), m.id)).collect();
         let by_remote = mb.folders.iter().filter(|f| f.account == account && !f.remote.is_empty()).map(|f| (f.remote.clone(), f.id)).collect();
-        OnServer { by_uid, by_remote, expected: HashMap::new(), leaving: HashSet::new() }
+        let returned = mb.messages.values().filter(|m| m.account == account && m.returned > 0).map(|m| m.id).collect();
+        OnServer { by_uid, by_remote, expected: HashMap::new(), leaving: HashSet::new(), returned }
     }
 
     /// Work out `expected` and `leaving`, once the finished changes are taken in.
@@ -1094,12 +1181,138 @@ fn deletes_finished(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, del
         return;
     }
     let finished: HashSet<(&str, u32)> = deleted.iter().map(|d| (d.from.as_str(), d.uid)).collect();
-    mb.pending.retain(|p| !(matches!(p, Pending::Delete { .. }) && p.account() == account && finished.contains(&p.source())));
+    // A deletion asked for, or the original of a message moved out of the account (#451); a
+    // run deletes nothing else. One moved back into the account meanwhile, into another folder,
+    // has no copy on the server now: it goes there again.
+    let back: Vec<Id> = mb
+        .pending
+        .iter()
+        .filter(|p| p.account() == account && finished.contains(&p.source()))
+        .filter_map(|p| match p {
+            Pending::Move { message, .. } => mb.message(*message).filter(|m| m.account == account).map(|m| m.id),
+            Pending::Delete { .. } => None,
+        })
+        .collect();
+    mb.pending.retain(|p| !(p.account() == account && finished.contains(&p.source())));
+    for id in back {
+        mb.place_again(id);
+    }
     for gone in deleted {
         let here = on_server.by_remote.get(&gone.from).and_then(|folder| on_server.by_uid.remove(&(*folder, gone.uid)));
-        if let Some(Ok(m)) = here.map(|id| mb.message_mut(id)) {
+        let Some(id) = here else { continue };
+        if let Ok(m) = mb.message_mut(id) {
             m.uid = 0;
             m.synced = None;
+        }
+        // Here all the same (moved back, or undone, while it went): it goes on the server again.
+        mb.place_again(id);
+    }
+}
+
+/// Messages put on the server ([`SyncRequest::places`], #451). One the server took is in its
+/// folder's mailbox now: under the UID the server said, when that can be trusted (as
+/// [`move_finished`] trusts one); expected there otherwise, so that its copy is matched to it
+/// when it comes down. One moved on in the account meanwhile is moved there from where the
+/// server has it; one moved away, deleted or undone meanwhile has its copy deleted there again.
+/// One the server wouldn't take goes back to where it came from ([`super::graph_place::put_back`]).
+fn places_finished(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, placed: &[Placed], unplaced: &[Id]) {
+    let waiting = |mb: &Mailbox, id: Id| {
+        mb.queued.iter().position(|q| matches!(q, Queued::PlaceMessage { account: a, message, .. } if *a == account && *message == id))
+    };
+    for done in placed {
+        // Where the server has it now: a UID that can be trusted is one of the mailbox the folder
+        // follows today, which no message here has.
+        let there = mb
+            .folder(done.to_folder)
+            .filter(|f| f.account == account && !f.remote.is_empty() && done.uid != 0 && done.uid_validity != 0)
+            .filter(|f| (f.uid_validity == 0 || f.uid_validity == done.uid_validity) && !on_server.by_uid.contains_key(&(f.id, done.uid)))
+            .map(|f| (f.remote.clone(), done.uid));
+        let entry = waiting(mb, done.message);
+        let here = mb.message(done.message).filter(|m| entry.is_some() && m.account == account && m.uid == 0).map(|m| m.folder);
+        match here {
+            Some(folder) if folder == done.to_folder => {
+                let marker = match entry.filter(|at| *at < mb.queued.len()).map(|at| mb.queued.remove(at)) {
+                    Some(Queued::PlaceMessage { marker, .. }) => marker,
+                    _ => String::new(),
+                };
+                let Ok(m) = mb.message_mut(done.message) else { continue };
+                let uid = there.map_or(0, |(_, uid)| uid);
+                // As the server was given it: what changed here since goes up next.
+                m.synced = Some(done.flags.at(uid));
+                if uid == 0 {
+                    // The server didn't say where: expected there, as the message carrying the
+                    // copy's marker.
+                    m.placed = marker;
+                    continue;
+                }
+                m.uid = uid;
+                on_server.by_uid.insert((folder, uid), done.message);
+                // The folder's mailbox may be new: its UIDs are good for this life of it.
+                if let Ok(f) = mb.folder_mut(folder)
+                    && f.uid_validity == 0
+                {
+                    f.uid_validity = done.uid_validity;
+                }
+            }
+            // Moved on in the account meanwhile: the next run takes it from where the server has it.
+            Some(to) => {
+                let Some((from, uid)) = there else { continue };
+                if let Some(at) = entry.filter(|at| *at < mb.queued.len()) {
+                    mb.queued.remove(at);
+                }
+                original_goes(mb, done.message);
+                let synced = Some(done.flags.at(uid));
+                mb.pending.push(Pending::Move { account, message: done.message, from, uid, synced, to });
+            }
+            // Called off meanwhile: the copy goes again.
+            None => {
+                if let Some((from, uid)) = there {
+                    mb.pending.push(Pending::Delete { account, from, uid, message_id: String::new(), seen: None });
+                }
+            }
+        }
+    }
+    for id in unplaced {
+        let Some(at) = waiting(mb, *id).filter(|at| *at < mb.queued.len()) else { continue };
+        let (copy, from) = match mb.queued.remove(at) {
+            Queued::PlaceMessage { copy, from, .. } => (copy, from),
+            _ => (false, None),
+        };
+        super::graph_place::put_back(mb, *id, copy, from);
+    }
+}
+
+/// Messages moved into the account out of another IMAP account that are this server's messages
+/// now (they have their UID here, #451): the original goes from the other server, by a deletion
+/// there, whatever is done with them here from now on.
+fn moved_in_for_good(mb: &mut Mailbox, account: Id) {
+    let ids: Vec<Id> = mb
+        .pending
+        .iter()
+        .filter_map(|p| match p {
+            Pending::Move { account: owner, message, .. } if *owner != account => Some(*message),
+            _ => None,
+        })
+        .filter(|id| mb.message(*id).is_some_and(|m| m.account == account && m.uid != 0))
+        .collect();
+    for id in ids {
+        original_goes(mb, id);
+    }
+}
+
+/// The move out of another account that waits for `id`, by which its original goes once the
+/// message is safe where it is now, becomes a deletion of that original: it is.
+pub(crate) fn original_goes(mb: &mut Mailbox, id: Id) {
+    let Some(m) = mb.message(id) else { return };
+    let (account, message_id, seen) = (m.account, m.message_id.clone(), (!m.message_id.is_empty()).then(|| MailIdentity::of(m)));
+    for p in mb.pending.iter_mut() {
+        if let Pending::Move { account: owner, message, from, uid, .. } = p
+            && *message == id
+            && *owner != account
+        {
+            let delete =
+                Pending::Delete { account: *owner, from: std::mem::take(from), uid: *uid, message_id: message_id.clone(), seen: seen.clone() };
+            *p = delete;
         }
     }
 }
@@ -1165,11 +1378,16 @@ fn matched(mb: &mut Mailbox, on_server: &mut OnServer, folder: Id, theirs: &Mess
     let original = original_id(theirs);
     let same_id = |m: &Message| !m.message_id.is_empty() && (m.message_id == theirs.message_id || Some(m.message_id.as_str()) == original);
     let waiting = |id: &Id| mb.message(*id).filter(|m| m.folder == folder && m.uid == 0 && m.synced.is_some());
-    let by_id = expected.iter().position(|id| waiting(id).is_some_and(same_id));
-    let at = by_id.or_else(|| expected.iter().position(|id| waiting(id).is_some_and(|m| same_mail(m, theirs))))?;
+    // A copy put there from elsewhere is known by its marker alone: mail that merely looks like
+    // it may be the server's own (#451).
+    let carries =
+        |m: &Message| theirs.headers.iter().any(|(name, value)| name.eq_ignore_ascii_case(mailcraft_mime::PLACE_HEADER) && *value == m.placed);
+    let by_id = expected.iter().position(|id| waiting(id).is_some_and(|m| if m.placed.is_empty() { same_id(m) } else { carries(m) }));
+    let at = by_id.or_else(|| expected.iter().position(|id| waiting(id).is_some_and(|m| m.placed.is_empty() && same_mail(m, theirs))))?;
     let id = expected.swap_remove(at);
     let m = mb.message_mut(id).ok()?;
     m.uid = theirs.uid;
+    m.placed.clear();
     if !theirs.message_id.is_empty() {
         // The name the server knows it by, which a reply to it will carry.
         m.message_id = theirs.message_id.clone();
@@ -1389,16 +1607,44 @@ fn take_in(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, delta: Folde
             f.uid_validity = delta.uid_validity;
         }
     }
+    if !reset && !delta.removed.is_empty() {
+        // Moved out of the account, its original gone from the server meanwhile (deleted on
+        // another device): there is nothing left there to delete, or to go back to (#451).
+        let removed: HashSet<u32> = delta.removed.iter().copied().collect();
+        let messages = &mb.messages;
+        mb.pending.retain(|p| {
+            !matches!(p, Pending::Move { account: owner, message, from, uid, .. }
+                if *owner == account && *from == delta.remote && removed.contains(uid) && messages.get(message).is_some_and(|m| m.account != account))
+        });
+    }
     let gone: Vec<Id> = if reset {
         renumbered(mb, account, on_server, folder, &delta.remote, counts)
     } else {
         delta.removed.iter().filter_map(|uid| on_server.by_uid.get(&(folder, *uid)).copied()).collect()
     };
     for id in gone {
+        let uid = mb.message(id).map_or(0, |m| m.uid);
+        // Put back after a refused copy: kept here instead (#451).
+        if super::graph_place::kept_instead(mb, id) {
+            on_server.by_uid.remove(&(folder, uid));
+            continue;
+        }
         // The server no longer has it: taken out without a word back to the server.
         if let Ok(m) = mb.forget_message(id) {
             on_server.by_uid.remove(&(folder, m.uid));
             counts.removed += 1;
+        }
+    }
+    // What was put back here after a refused copy and is listed as still there (the first piece
+    // of a listing names every UID known that the server has): one listing nearer to being the
+    // server's message as any other.
+    for id in &on_server.returned {
+        if let Ok(m) = mb.message_mut(*id)
+            && m.folder == folder
+            && m.returned > 0
+            && delta.flags.iter().any(|f| f.uid == m.uid)
+        {
+            m.returned -= 1;
         }
     }
     for theirs in &delta.flags {
