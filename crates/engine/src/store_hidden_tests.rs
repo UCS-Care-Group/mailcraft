@@ -223,6 +223,30 @@ fn a_missing_hidden_file_is_no_notice_on_any_open() {
     }
 }
 
+/// The bodies read after the window shows (rows: 0 leaves them all for then) tell of nothing
+/// either, nor does the look for files after it.
+#[test]
+fn a_missing_hidden_file_is_no_failure_when_the_bodies_are_read_later() {
+    let (mb, id) = with_hidden(&long_hidden());
+    let tmp = Temp::new("hidden-later-read");
+    let path = tmp.file();
+    save(&path, &mb).unwrap();
+    fs::remove_file(blob_file(&path, long_hidden().as_bytes())).unwrap();
+    clear_cache();
+    *lock(&shared(&path).state) = State::default();
+    let opened = with_budget(1 << 30, || open_as(&path, &OpenProgress::default(), Launch { checks_later: true, rows: Some(0) }).unwrap());
+    assert!(opened.notice().is_none());
+    let (missing, read) = content_later(&path);
+    assert_eq!(missing.count, 0, "{:?}", missing.refs);
+    assert!(missing.refs.is_empty());
+    // The bodies come, with no hidden text, and are taken in as the window takes them.
+    let mut s = Session::new(opened.mailbox);
+    s.path = Some(path.clone());
+    s.take_bodies(read);
+    assert_eq!(s.mark_unavailable(&missing.refs), 0);
+    assert_body_intact(&mut s, &mb, id);
+}
+
 /// A hidden file that goes after the mailbox is open leaves the body, by either way of bringing
 /// it in.
 #[test]

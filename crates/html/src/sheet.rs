@@ -1646,7 +1646,7 @@ impl Sheet {
             }
         }
         // And an element that is not shown has no design (an ancestor's hiding is for the builder).
-        let hidden = tag.sheet.as_ref().is_some_and(|applied| css_with(applied, inline.as_deref()).hidden);
+        let hidden = crate::blocks::left_out(tag, &crate::blocks::css_of(tag));
         self.dark_hit = !hidden && self.dark_slots.iter().flatten().any(|(dark, _)| *dark);
     }
 

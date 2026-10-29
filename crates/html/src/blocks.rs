@@ -928,13 +928,11 @@ impl Builder {
             return;
         }
         let css = css_of(tag);
-        let px = |name: &str| tag.attr(name).and_then(|v| style::attr_px(&v));
-        let (width, height) = (px("width"), px("height"));
-        // A hidden or one-pixel picture is a tracker, not something to show.
-        let tiny = |v: Option<f32>| v.is_some_and(|v| v <= 2.0);
-        if css.hidden || tag.has("hidden") || tiny(width) || tiny(height) || tiny(css.width) || tiny(css.height) {
+        if left_out(tag, &css) {
             return;
         }
+        let px = |name: &str| tag.attr(name).and_then(|v| style::attr_px(&v));
+        let (width, height) = (px("width"), px("height"));
         let alt = tag.attr("alt").unwrap_or_default();
         let alt: String = alt.split_whitespace().collect::<Vec<_>>().join(" ").chars().filter(|c| !c.is_control()).collect();
         let raw = tag.attr("src");
@@ -1910,7 +1908,7 @@ impl Builder {
             "hr" => {
                 self.close_paragraph();
                 let css = css_of(tag);
-                if !css.hidden {
+                if !left_out(tag, &css) {
                     // (An `hr` is drawn by its own look, a border of its own makes it neither thicker nor coloured.)
                     self.rule(Line::default());
                 }
@@ -2036,6 +2034,21 @@ fn sized(css: &Css, attr: Option<Length>) -> Option<Length> {
 
 /// What an element's style sheet rules and its `style` attribute say, in the order of the
 /// cascade (`sheet::css_with`).
+/// Whether the element is one the blocks leave out: hidden by its style or its `hidden`
+/// attribute, or a picture of two pixels or less in either direction (a tracker, not something to
+/// show). The one test of it, for the blocks and for a message's design for dark windows.
+pub(crate) fn left_out(tag: &Tag<'_>, css: &Css) -> bool {
+    if css.hidden || tag.has("hidden") {
+        return true;
+    }
+    if tag.name != "img" {
+        return false;
+    }
+    let px = |name: &str| tag.attr(name).and_then(|v| style::attr_px(&v));
+    let tiny = |v: Option<f32>| v.is_some_and(|v| v <= 2.0);
+    tiny(px("width")) || tiny(px("height")) || tiny(css.width) || tiny(css.height)
+}
+
 pub(crate) fn css_of(tag: &Tag<'_>) -> Css {
     match &tag.sheet {
         None => tag.attr("style").map(|s| Css::parse(&s)).unwrap_or_default(),

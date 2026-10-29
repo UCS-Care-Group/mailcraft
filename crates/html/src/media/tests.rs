@@ -422,8 +422,13 @@ fn the_dark_design_is_for_the_element_itself_shown_and_winning() {
     assert!(!dark(&format!("{rule} .n{{display:none}}</style><hr class='h n'><p>y</p>")));
     assert!(!dark(&format!("{rule}</style><br class=h style='display:none'><p>y</p>")));
     assert!(dark(&format!("{rule}</style><hr class=h><p>y</p>")));
+    // The `hidden` attribute and a picture of a pixel are left out of the blocks too.
+    assert!(!dark(&format!("{rule}</style><img class=h hidden alt=a><p>y</p>")));
+    assert!(!dark(&format!("{rule}</style><hr class=h hidden><p>y</p>")));
+    assert!(!dark(&format!("{rule}</style><img class=h width=1 height=1 src='https://x.example/p.gif'><p>y</p>")));
+    assert!(!dark(&format!("{rule}</style><div hidden><p class=h>x</p></div><p>y</p>")));
     // Nothing is carried over from the last element styled when the sheet stops styling.
-    let many = "<i></i>".repeat(60_000);
+    let many = "<i></i>".repeat(59_998);
     assert!(!dark(&format!("{rule}</style>{many}<div style='display:none'><b class=h>x</b></div><p>y</p>")));
     // `background` and `background-color` are one: a plain dark background loses to the other's `!important`.
     assert!(!dark("<style>@media (prefers-color-scheme: dark){p{background:#111}} p{background-color:#fff !important}</style><p>x</p>"));
