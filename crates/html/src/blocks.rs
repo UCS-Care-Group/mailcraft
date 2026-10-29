@@ -634,10 +634,11 @@ impl Builder {
     /// The box goes back into the line as the highlighted text it holds, as it would have been
     /// without `display: inline-block`. A box that follows others, or holds more than a line of
     /// text, stays a box.
-    fn demote_box(&mut self) {
+    ///
+    /// `started`: the block has its kind already (white space was written after the box).
+    /// Whether it was taken back.
+    fn demote_box(&mut self, started: bool) -> bool {
         let frame = self.frame();
-        frame.after_box = false;
-        let spaced = std::mem::take(&mut frame.box_space);
         let simple = match frame.blocks.last() {
             Some(Block { kind: BlockKind::Table(t), beside: false, .. }) if t.inline => match t.rows.as_slice() {
                 [Row { cells }] => match cells.as_slice() {
@@ -654,47 +655,67 @@ impl Builder {
             _ => false,
         };
         if !simple {
-            return;
+            return false;
         }
-        let Some(Block { kind: BlockKind::Table(mut table), space, gap, quote, align, .. }) = frame.blocks.pop() else { return };
+        frame.after_box = false;
+        let spaced = std::mem::take(&mut frame.box_space);
+        let Some(Block { kind: BlockKind::Table(mut table), space, gap, .. }) = frame.blocks.pop() else { return false };
         frame.space = frame.space.max(space);
         frame.gap = frame.gap.max(gap);
-        let Some(mut cell) = table.rows.pop().and_then(|mut r| r.cells.pop()) else { return };
-        let Some(inner) = cell.blocks.pop() else { return };
-        self.count = self.count.saturating_sub(1);
-        self.kind = inner.kind;
-        self.align = if inner.align == Align::Left { align } else { inner.align };
-        self.line_height = inner.line_height;
-        let _ = quote;
+        let Some(mut cell) = table.rows.pop().and_then(|mut r| r.cells.pop()) else { return false };
+        let Some(inner) = cell.blocks.pop() else { return false };
+        // The box and the paragraph in it were both counted.
+        self.count = self.count.saturating_sub(2);
+        if !started {
+            // The kind of block the line is part of (a heading, a list item...), as for any text.
+            self.settle();
+            self.kind = self.start_kind();
+            self.align = self.style().align;
+            self.line_height = self.style().line_height;
+        }
         self.spans = inner.spans;
         for span in &mut self.spans {
             span.background = span.background.or(cell.background);
         }
         self.fresh = true;
-        if spaced {
+        if spaced && self.pre == 0 {
             self.space();
+        }
+        true
+    }
+
+    /// The kind of block that text written now starts.
+    fn start_kind(&mut self) -> BlockKind {
+        if self.pre > 0 {
+            BlockKind::Preformatted
+        } else if let Some(item) = self.item.take() {
+            item
+        } else if let Some(level) = self.heading {
+            BlockKind::Heading(level)
+        } else if let Some(depth) = self.item_depth() {
+            // A further paragraph of a list item stays under it.
+            BlockKind::ListItem { marker: Marker::None, depth }
+        } else {
+            BlockKind::Paragraph
         }
     }
 
     /// One visible character of the current block.
     fn push(&mut self, c: char) {
-        if self.spans.is_empty() && !is_blank(c) && self.frame().after_box {
-            self.demote_box();
+        if !is_blank(c) && self.frame().after_box && self.line_is_blank() {
+            // Text on the line of a box that stood alone on it: the box is part of the line.
+            // (What was written between them, a no-break space, goes after it.)
+            let blanks = std::mem::take(&mut self.spans);
+            let started = !blanks.is_empty();
+            if self.demote_box(started) {
+                self.spans.extend(blanks);
+            } else {
+                self.spans = blanks;
+            }
         }
         if self.spans.is_empty() {
             self.settle();
-            self.kind = if self.pre > 0 {
-                BlockKind::Preformatted
-            } else if let Some(item) = self.item.take() {
-                item
-            } else if let Some(level) = self.heading {
-                BlockKind::Heading(level)
-            } else if let Some(depth) = self.item_depth() {
-                // A further paragraph of a list item stays under it.
-                BlockKind::ListItem { marker: Marker::None, depth }
-            } else {
-                BlockKind::Paragraph
-            };
+            self.kind = self.start_kind();
             self.align = self.style().align;
             self.line_height = self.style().line_height;
             self.fresh = true;
@@ -1038,6 +1059,7 @@ impl Builder {
                 Kind::Item(depth) => return Some(*depth),
                 Kind::Cell(_) => return None,
                 Kind::Block(block) if block.boxed.is_some() => return None,
+                Kind::InlineBox(..) => return None,
                 _ => {}
             }
         }

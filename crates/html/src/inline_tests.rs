@@ -3,7 +3,7 @@
 //! #597: `display: inline-block` makes boxes that stand on a line; a picture stays in its line.
 
 use crate::corpus::{STYLE_INLINE, hostile};
-use crate::{Align, Block, BlockKind, Insets, Length, MAX_INLINE_BOXES, Rgb, Table, parse};
+use crate::{Align, Block, BlockKind, Insets, Length, MAX_INLINE_BOXES, Marker, Rgb, Table, parse};
 
 fn boxes(blocks: &[Block]) -> Vec<&Table> {
     blocks
@@ -215,6 +215,39 @@ fn a_box_that_opens_a_line_of_text_stays_in_the_line() {
     assert_eq!(boxes(&parse(&format!("<p>{a}A</a> {a}B</a></p>"))).len(), 2);
     assert_eq!(boxes(&parse(&format!("<p>{a}A</a><br>after</p>"))).len(), 1);
     assert_eq!(boxes(&parse(&format!("<div>{a}A</a></div><p>after</p>"))).len(), 1);
+}
+
+#[test]
+fn a_box_taken_back_into_its_line_keeps_the_kind_of_block_the_line_is_in() {
+    let badge = "<span style='display:inline-block;padding:0 4px;background:#ffeeaa'>NEW</span>";
+    // A heading stays a heading.
+    let blocks = parse(&format!("<h2>{badge} Summer sale</h2>"));
+    assert_eq!(blocks.len(), 1, "{blocks:?}");
+    assert_eq!((&blocks[0].kind, blocks[0].text().as_str()), (&BlockKind::Heading(2), "NEW Summer sale"));
+    // So does a list item, with its marker.
+    let blocks = parse(&format!("<ul><li>{badge} Free shipping</li></ul>"));
+    assert_eq!(blocks.len(), 1, "{blocks:?}");
+    assert!(matches!(blocks[0].kind, BlockKind::ListItem { marker: Marker::Bullet, .. }), "{blocks:?}");
+    assert_eq!(blocks[0].text(), "NEW Free shipping");
+    // And preformatted text.
+    let blocks = parse(&format!("<pre>{badge} pre</pre>"));
+    assert_eq!(blocks.len(), 1, "{blocks:?}");
+    assert_eq!((&blocks[0].kind, blocks[0].text().as_str()), (&BlockKind::Preformatted, "NEW pre"));
+    // A no-break space or a zero-width non-joiner between the box and the text is no reason to
+    // split the line.
+    for gap in ["&nbsp;", "&zwnj; ", "&nbsp;&nbsp;"] {
+        let blocks = parse(&format!("<p>{badge}{gap}offer</p>"));
+        assert_eq!(blocks.len(), 1, "{gap}: {blocks:?}");
+        assert!(blocks[0].text().starts_with("NEW") && blocks[0].text().ends_with("offer"), "{gap}: {blocks:?}");
+        assert!(crate::to_text(&format!("<p>{badge}{gap}offer</p>")).trim().ends_with("offer"));
+        assert!(!crate::to_text(&format!("<p>{badge}{gap}offer</p>")).trim().contains('\n'));
+    }
+    let heading = format!("<h2>{badge}&nbsp;Summer</h2>");
+    let blocks = parse(&heading);
+    assert_eq!((blocks.len(), &blocks[0].kind), (1, &BlockKind::Heading(2)), "{blocks:?}");
+    // The blocks that were made are counted once each: a thousand taken back leave room for more.
+    let many = format!("<p>{badge} x</p>").repeat(2_000);
+    assert_eq!(parse(&many).len(), 2_000);
 }
 
 #[test]
