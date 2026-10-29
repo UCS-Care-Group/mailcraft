@@ -411,6 +411,30 @@ fn the_dark_design_needs_the_element_and_its_ancestors_shown_and_the_dark_colour
     assert!(dark("<style>@media (prefers-color-scheme: dark){p{background:#111}} p{color:#000 !important}</style><p>x</p>"));
 }
 
+/// What is not a node of the tree (a picture, a rule, a break), what is left out past the caps and
+/// what has an inline style of its own do not leave a design behind (#599 review).
+#[test]
+fn the_dark_design_is_for_the_element_itself_shown_and_winning() {
+    let dark = |html: &str| parse_in(html, &at(700.0, true)).dark_design;
+    let rule = "<style>@media (prefers-color-scheme: dark){.h{background:#000}}";
+    // Elements that are not pushed as nodes, hidden by their own style or by the sheet.
+    assert!(!dark(&format!("{rule}</style><img class=h style='display:none' alt=a><p>y</p>")));
+    assert!(!dark(&format!("{rule} .n{{display:none}}</style><hr class='h n'><p>y</p>")));
+    assert!(!dark(&format!("{rule}</style><br class=h style='display:none'><p>y</p>")));
+    assert!(dark(&format!("{rule}</style><hr class=h><p>y</p>")));
+    // Nothing is carried over from the last element styled when the sheet stops styling.
+    let many = "<i></i>".repeat(60_000);
+    assert!(!dark(&format!("{rule}</style>{many}<div style='display:none'><b class=h>x</b></div><p>y</p>")));
+    // `background` and `background-color` are one: a plain dark background loses to the other's `!important`.
+    assert!(!dark("<style>@media (prefers-color-scheme: dark){p{background:#111}} p{background-color:#fff !important}</style><p>x</p>"));
+    assert!(dark("<style>@media (prefers-color-scheme: dark){p{background:#111 !important}} p{background-color:#fff}</style><p>x</p>"));
+    // The element's own style beats a plain dark declaration, not an `!important` one.
+    assert!(!dark("<style>@media (prefers-color-scheme: dark){p{color:#fff}}</style><p style='color:#000'>x</p>"));
+    assert!(!dark("<style>@media (prefers-color-scheme: dark){p{background:#111}}</style><p style='background-color:#fff'>x</p>"));
+    assert!(dark("<style>@media (prefers-color-scheme: dark){p{color:#fff !important}}</style><p style='color:#000'>x</p>"));
+    assert!(dark("<style>@media (prefers-color-scheme: dark){p{color:#fff}}</style><p style='margin:0'>x</p>"));
+}
+
 /// A message's sheets are read for the lists the same way whatever their `media` (#599 review):
 /// a big sheet that is not for this pane still uses the room all of them share, so the lists
 /// found are those of the sheets read, and a look changes exactly when a verdict does.

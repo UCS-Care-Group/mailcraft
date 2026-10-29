@@ -1425,8 +1425,12 @@ pub(crate) struct Sheet {
     pub dark_design: bool,
     /// Some rule is from a block for dark windows.
     has_dark: bool,
-    /// The last element looked at got a colour or a background from a rule for dark windows.
+    /// The last element looked at got a colour or a background from a rule for dark windows, and
+    /// is shown itself.
     dark_hit: bool,
+    /// Per property (colour, background) of the last element looked at: whether the declaration
+    /// that wins is from a rule for dark windows, and is `!important`.
+    dark_slots: [Option<(bool, bool)>; 2],
     /// What the message was given to spend.
     #[cfg(test)]
     budget: u32,
@@ -1573,6 +1577,7 @@ impl Sheet {
             dark_design: false,
             has_dark: rules.iter().any(|r| r.dark),
             dark_hit: false,
+            dark_slots: [None; 2],
             #[cfg(test)]
             budget: steps_for(html.len()),
             #[cfg(test)]
@@ -1619,6 +1624,30 @@ impl Sheet {
     /// Put what the sheet says about the `ordinal`th start tag of the message on `tag`.
     pub fn apply(&mut self, ordinal: usize, tag: &mut Tag<'_>) {
         tag.sheet = self.style_for(ordinal, tag.has("style"));
+        if !self.dark_hit {
+            return;
+        }
+        // The element's own `style` beats a sheet's plain declaration, and a plain one of its own
+        // does not beat a sheet's `!important`.
+        let inline = tag.attr("style");
+        for (property, value) in crate::style::declarations(inline.as_deref().unwrap_or("")).take(crate::style::MAX_DECLARATIONS) {
+            let slot = if property.eq_ignore_ascii_case("color") {
+                0
+            } else if property.eq_ignore_ascii_case("background") || property.eq_ignore_ascii_case("background-color") {
+                1
+            } else {
+                continue;
+            };
+            let own_important = crate::style::strip_important(value).1;
+            if let Some(Some((dark, important))) = self.dark_slots.get_mut(slot)
+                && (own_important || !*important)
+            {
+                *dark = false;
+            }
+        }
+        // And an element that is not shown has no design (an ancestor's hiding is for the builder).
+        let hidden = tag.sheet.as_ref().is_some_and(|applied| css_with(applied, inline.as_deref()).hidden);
+        self.dark_hit = !hidden && self.dark_slots.iter().flatten().any(|(dark, _)| *dark);
     }
 
     /// Whether the element last looked at ([`Sheet::apply`]) got a colour or a background from a
@@ -1637,6 +1666,9 @@ impl Sheet {
     /// What the sheet says about the `ordinal`th start tag of the message, counted from 0, for
     /// an element that has a `style` attribute of its own or not.
     pub fn style_for(&mut self, ordinal: usize, inline: bool) -> Option<Rc<Applied>> {
+        // (Nothing is left of the element before, whichever way this returns.)
+        self.dark_hit = false;
+        self.dark_slots = [None; 2];
         let at = ordinal.checked_add(1)?;
         let el = self.dom.get(at)?;
         if self.steps_left == 0 {
@@ -1679,8 +1711,10 @@ impl Sheet {
         found.sort_unstable();
         let mut spent = u64::from(start - steps) + found.len() as u64;
         let key: Vec<u32> = found.iter().map(|(_, n)| *n).collect();
-        let dark_hit = self.has_dark && !self.dark_design && self.dark_wins(&found);
-        spent += if self.has_dark { found.len() as u64 } else { 0 };
+        if self.has_dark && !self.dark_design {
+            self.dark_slots = self.dark_wins(&found);
+            spent += found.len() as u64;
+        }
         let applied = if let Some(hit) = self.cache.get(&key) {
             hit.clone()
         } else {
@@ -1703,8 +1737,8 @@ impl Sheet {
             }
             made
         };
-        // (Whether the element is shown is for whoever builds the blocks: its ancestors count.)
-        self.dark_hit = dark_hit;
+        // (Whether the element is shown is for [`Sheet::apply`] and whoever builds the blocks.)
+        self.dark_hit = self.dark_slots.iter().flatten().any(|(dark, _)| *dark);
         if inline && let Some(a) = &applied {
             // Read again with the element's own style, which a hit saves nothing of.
             spent += (a.before.len() + a.after.len()) as u64 / 4;
@@ -1716,10 +1750,10 @@ impl Sheet {
     /// Whether a colour or a background the rules `found` (by specificity and order) give is the
     /// one of a rule for dark windows: the declaration that wins for the property is from one
     /// (`!important` over the rest, then the last).
-    fn dark_wins(&self, found: &[(u32, u32)]) -> bool {
-        const PROPERTIES: [&str; 3] = ["color", "background", "background-color"];
-        // For each property: who won among the `!important` ones, and among the others.
-        let mut won: [(Option<bool>, Option<bool>); 3] = [(None, None); 3];
+    fn dark_wins(&self, found: &[(u32, u32)]) -> [Option<(bool, bool)>; 2] {
+        // The colour, and the background (`background` and `background-color` are one here): who
+        // won among the `!important` declarations, and among the others.
+        let mut won: [(Option<bool>, Option<bool>); 2] = [(None, None); 2];
         let mut considered = 0usize;
         'rules: for (_, n) in found.iter().rev() {
             let Some(rule) = self.rules.get(*n as usize) else { continue };
@@ -1728,14 +1762,22 @@ impl Sheet {
                     break 'rules;
                 }
                 considered += 1;
-                let Some(at) = PROPERTIES.iter().position(|p| *p == decl.property) else { continue };
+                let at = match decl.property.as_str() {
+                    "color" => 0,
+                    "background" | "background-color" => 1,
+                    _ => continue,
+                };
                 if let Some((important, normal)) = won.get_mut(at) {
                     let slot = if decl.important { important } else { normal };
                     slot.get_or_insert(rule.dark);
                 }
             }
         }
-        won.iter().any(|(important, normal)| important.or(*normal) == Some(true))
+        won.map(|(important, normal)| match (important, normal) {
+            (Some(dark), _) => Some((dark, true)),
+            (None, Some(dark)) => Some((dark, false)),
+            _ => None,
+        })
     }
 
     /// The look the rules `found` (by specificity and order) give together.

@@ -1908,11 +1908,13 @@ pub fn read_bodies(path: &Path, bodies: &[crate::session::BodyLater]) -> (Vec<cr
             None
         }
     };
-    let read: Vec<_> = fan_out(bodies.len(), |i| bodies.get(i).map(|b| (b.id, read(b.text), read(b.html), read(b.hidden))))
+    // (What the sender hid that can't be read is no hidden text, and not a failure to tell of.)
+    let hidden_of = |b: &crate::session::BodyLater| read(b.hidden).and_then(|(r, bytes)| bytes.map(|bytes| (r, bytes)));
+    let read: Vec<_> = fan_out(bodies.len(), |i| bodies.get(i).map(|b| (b.id, read(b.text), read(b.html), hidden_of(b))))
         .into_iter()
         .flatten()
         .flatten()
-        .map(|(id, text, html, hidden)| crate::session::BodyRead { id, text: ok(text), html: ok(html), hidden: ok(hidden) })
+        .map(|(id, text, html, hidden)| crate::session::BodyRead { id, text: ok(text), html: ok(html), hidden })
         .collect();
     (read, failed)
 }
@@ -2042,8 +2044,10 @@ fn fill(st: &mut State, dir: &Path, mailbox: &mut Mailbox, head: Head, mut parts
     }
     let mut on_disk: Vec<(Ref, u32)> = Vec::new();
     let mut seen: HashMap<Ref, usize> = HashMap::new();
-    for (_, text, html, hidden, attachments) in &plan {
-        for want in text.iter().chain(html).chain(hidden).chain(attachments.iter().flatten()) {
+    // (What the sender hid is not looked for: if it is gone there is no hidden text, which is not
+    // a loss the owner is told of.)
+    for (_, text, html, _, attachments) in &plan {
+        for want in text.iter().chain(html).chain(attachments.iter().flatten()) {
             if let (Some(r), None) = (want.r, want.slot) {
                 let at = *seen.entry(r).or_insert_with(|| {
                     on_disk.push((r, 0));
@@ -2135,7 +2139,8 @@ fn fill(st: &mut State, dir: &Path, mailbox: &mut Mailbox, head: Head, mut parts
         }
         if let Some(want) = &hidden {
             m.hidden_text = String::new();
-            match stand(want, &mut filled) {
+            // (Not counted, whether it was read, is on disk or is gone.)
+            match stand(want, &mut Filled::default()) {
                 Some(true) => {
                     if let Some(text) = want.slot.and_then(&mut take) {
                         m.hidden_text = text;

@@ -186,3 +186,61 @@ fn a_hidden_file_named_past_the_cap_is_not_read() {
     let opened = with_budget(1 << 30, || open(&path).unwrap());
     assert!(opened.mailbox.message(id).unwrap().hidden_text.is_empty());
 }
+
+/// Nothing visible is lost with a hidden-text file an older build's sweep took, so the owner is
+/// told of nothing, on any open and after a save, whichever way the opening looks for files.
+#[test]
+fn a_missing_hidden_file_is_no_notice_on_any_open() {
+    let (mb, id) = with_hidden(&long_hidden());
+    let tmp = Temp::new("hidden-no-notice");
+    let path = tmp.file();
+    save(&path, &mb).unwrap();
+    fs::remove_file(blob_file(&path, long_hidden().as_bytes())).unwrap();
+    clear_cache();
+    let opens = |budget: u64, launch: Launch| {
+        *lock(&shared(&path).state) = State::default();
+        with_budget(budget, || open_as(&path, &OpenProgress::default(), launch).unwrap())
+    };
+    for (budget, launch) in [
+        (1 << 30, Launch::default()),
+        (1, Launch::default()),
+        (1 << 30, Launch { checks_later: true, rows: Some(3) }),
+        (1 << 30, Launch { checks_later: true, rows: None }),
+    ] {
+        let opened = opens(budget, launch);
+        assert_eq!(opened.unavailable, 0, "{budget} {launch:?}");
+        assert!(opened.notice().is_none(), "{:?}", opened.notice());
+        assert_eq!(check_parts(&path).count, 0);
+        // Saved, and opened again: still nothing to tell.
+        let mut mailbox = opened.mailbox.clone();
+        let pinned = mailbox.message(id).unwrap().pinned;
+        mailbox.message_mut(id).unwrap().pinned = !pinned;
+        save(&path, &mailbox).unwrap();
+        let again = opens(budget, launch);
+        assert_eq!(again.unavailable, 0);
+        assert!(again.notice().is_none());
+        assert_eq!(check_parts(&path).count, 0);
+    }
+}
+
+/// A hidden file that goes after the mailbox is open leaves the body, by either way of bringing
+/// it in.
+#[test]
+fn a_hidden_file_that_goes_after_the_open_leaves_the_body_readable() {
+    let (mb, id) = with_hidden(&long_hidden());
+    let tmp = Temp::new("hidden-goes-after");
+    let path = tmp.file();
+    save(&path, &mb).unwrap();
+    clear_cache();
+    let mut s = session_without_bodies(&path);
+    assert!(s.mailbox.message(id).unwrap().kept.as_deref().is_some_and(|k| k.hidden.is_some()));
+    fs::remove_file(blob_file(&path, long_hidden().as_bytes())).unwrap();
+    clear_cache();
+    assert_body_intact(&mut s, &mb, id);
+    // The whole mailbox in memory, as an export needs it.
+    let opened = with_budget(1, || open(&path).unwrap());
+    let mut all = opened.mailbox;
+    assert!(load_all(&path, &mut all).is_ok());
+    assert_eq!(all.message(id).unwrap().body.text, mb.message(id).unwrap().body.text);
+    assert!(all.message(id).unwrap().hidden_text.is_empty());
+}
