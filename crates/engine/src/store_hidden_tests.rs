@@ -51,10 +51,8 @@ fn a_long_hidden_text_leaves_the_record_comes_back_and_goes_with_a_thinned_messa
     assert_eq!(s.content(id, crate::Part::Hidden).unwrap().as_slice(), long_hidden().as_bytes());
 
     // Let go of again when it is safely on disk, and it is named once more.
-    let lean = evictable(&path, id, m);
-    if let Some(lean) = lean {
-        assert!(lean.hidden_text.is_empty() && lean.kept.as_deref().is_some_and(|k| k.hidden.is_some()));
-    }
+    let lean = evictable(&path, id, m).expect("a body safely on disk can be let go of");
+    assert!(lean.hidden_text.is_empty() && lean.kept.as_deref().is_some_and(|k| k.hidden.is_some()));
 
     // The save of a message that was never loaded writes what the file already named.
     let mut again = session_without_bodies(&path);
@@ -97,4 +95,94 @@ fn a_short_hidden_text_stays_in_the_record_and_old_files_load() {
     save(&path, &plain).unwrap();
     clear_cache();
     assert!(whole(&path) == plain);
+}
+
+/// The message as it reads with no hidden text: its text and HTML are all there, by every road.
+fn assert_body_intact(s: &mut Session, mb: &Mailbox, id: Id) {
+    let was = mb.message(id).unwrap();
+    assert!(!s.mailbox.message(id).unwrap().kept.as_deref().is_some_and(|k| k.failed), "the body is not unavailable");
+    assert_eq!(s.load_for_display(id), Ok(true));
+    let m = s.mailbox.message(id).unwrap();
+    assert_eq!((m.body.text.as_str(), m.body.html.as_deref()), (was.body.text.as_str(), was.body.html.as_deref()));
+    assert!(m.hidden_text.is_empty() && !m.body_is_kept());
+    assert_eq!(s.content(id, crate::Part::Text).unwrap().as_slice(), was.body.text.as_bytes());
+    let whole = s.loaded_message(id).unwrap();
+    assert_eq!(whole.body.text, was.body.text);
+}
+
+/// A hidden-text file that is missing or damaged is no hidden text, and nothing more.
+#[test]
+fn a_missing_hidden_file_leaves_the_body_readable() {
+    let (mb, id) = with_hidden(&long_hidden());
+    let tmp = Temp::new("hidden-missing");
+    let path = tmp.file();
+    save(&path, &mb).unwrap();
+    clear_cache();
+    fs::remove_file(blob_file(&path, long_hidden().as_bytes())).unwrap();
+    let mut s = session_without_bodies(&path);
+    assert!(s.readable_whole(s.mailbox.message(id).unwrap()));
+    assert_body_intact(&mut s, &mb, id);
+    // Damaged (its length is not what the file names) is the same.
+    save(&path, &mb).unwrap();
+    clear_cache();
+    fs::write(blob_file(&path, long_hidden().as_bytes()), b"not it").unwrap();
+    let mut s = session_without_bodies(&path);
+    assert_body_intact(&mut s, &mb, id);
+}
+
+/// What looks for missing files once the window shows ends the same way.
+#[test]
+fn a_hidden_file_found_missing_later_marks_nothing_unavailable() {
+    let (mb, id) = with_hidden(&long_hidden());
+    let tmp = Temp::new("hidden-later");
+    let path = tmp.file();
+    save(&path, &mb).unwrap();
+    clear_cache();
+    let mut s = session_without_bodies(&path);
+    let hidden = ContentRef { sha256: Digest::of(long_hidden().as_bytes()).0, len: long_hidden().len() as u64 };
+    s.mark_unavailable(&[hidden]);
+    let m = s.mailbox.message(id).unwrap();
+    assert!(!m.kept.as_deref().is_some_and(|k| k.failed || k.hidden.is_some()), "{:?}", m.kept);
+    assert!(!m.body.text.contains("unavailable"));
+    clear_cache();
+    assert_body_intact(&mut s, &mb, id);
+}
+
+/// An older build knows nothing of the file, so its sweep takes it once it is a few minutes old;
+/// the mailbox file still names it.
+#[test]
+fn the_hidden_file_an_older_builds_sweep_took_is_no_hidden_text() {
+    let (mb, id) = with_hidden(&long_hidden());
+    let tmp = Temp::new("hidden-old-sweep");
+    let path = tmp.file();
+    save(&path, &mb).unwrap();
+    let file = blob_file(&path, long_hidden().as_bytes());
+    age(&file, GRACE + Duration::from_secs(60));
+    fs::remove_file(&file).unwrap();
+    clear_cache();
+    let mut s = session_without_bodies(&path);
+    assert_body_intact(&mut s, &mb, id);
+    // Saved again, the record stops naming it, and the message opens as it reads.
+    s.mailbox.message_mut(id).unwrap().read = !mb.message(id).unwrap().read;
+    save(&path, &s.mailbox).unwrap();
+    clear_cache();
+    let again = whole(&path);
+    assert!(again.message(id).unwrap().hidden_text.is_empty());
+    assert_eq!(again.message(id).unwrap().body.text, mb.message(id).unwrap().body.text);
+}
+
+/// A hostile file that names a hidden text larger than the cap gets none of it read.
+#[test]
+fn a_hidden_file_named_past_the_cap_is_not_read() {
+    let big = "w ".repeat(mailcraft_model::MAX_HIDDEN_TEXT);
+    let (mb, id) = with_hidden(&big);
+    let tmp = Temp::new("hidden-big");
+    let path = tmp.file();
+    save(&path, &mb).unwrap();
+    clear_cache();
+    let s = session_without_bodies(&path);
+    let m = s.mailbox.message(id).unwrap();
+    assert!(m.hidden_text.is_empty() && m.kept.as_deref().is_none_or(|k| k.hidden.is_none()), "{:?}", m.kept);
+    let opened = with_budget(1 << 30, || open(&path).unwrap());
+    assert!(opened.mailbox.message(id).unwrap().hidden_text.is_empty());
 }

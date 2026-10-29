@@ -215,9 +215,32 @@ fn the_look_is_for_the_width_the_body_is_laid_out_at() {
         let edge = (100 + first * 3) as f32;
         assert!(edge >= laid - 0.5 && edge - laid <= 3.5, "window {w}: lists say {edge}, body is {laid}");
     }
-    // `<style media = ...>` with spaces is read again when the window changes.
-    let made = view::docs_made(&harness.ctx);
-    harness.set_size(egui::vec2(500.0, 900.0));
+}
+
+/// A message whose only dependence on the pane is a `<style media = "...">`, written with spaces
+/// round its `=`, is made again when the window changes (#599 review).
+#[test]
+fn a_style_with_a_media_attribute_alone_follows_the_pane() {
+    let mut mailbox = Mailbox::with_local_account("Avery Quinn", "avery@lumen-works.example");
+    served_by_example_org(&mut mailbox);
+    let inbox = mailbox.inbox().unwrap();
+    let html = "<style media = \"(max-width: 700px)\">p{color:#036}</style><style>p{margin:0}</style><p>Narrow or wide</p>";
+    let mut m = html_message(0, ("Saltmarsh Dairy", "news@saltmarsh.example"), "Media attribute", html);
+    m.folder = inbox;
+    let id = mailbox.add_message(m).unwrap();
+    let mut app = MailApp::new(Session::at(mailbox, NOW, 0), Services::default());
+    app.autosave = false;
+    app.auto_sync = false;
+    let mut harness = window(app, (1800.0, 900.0));
+    select(&mut harness, id);
     harness.run_steps(12);
+    let doc = view::current_doc(&harness.ctx, Place::Pane, id).unwrap();
+    assert!(doc.responsive && doc.lists.len() == 1, "{:?}", doc.lists);
+    let colour = |harness: &Window| view::current_doc(&harness.ctx, Place::Pane, id).unwrap().blocks[0].spans[0].color;
+    let wide = colour(&harness);
+    let made = view::docs_made(&harness.ctx);
+    harness.set_size(egui::vec2(400.0, 900.0));
+    harness.run_steps(12);
+    assert_ne!(colour(&harness), wide);
     assert!(view::docs_made(&harness.ctx) > made);
 }

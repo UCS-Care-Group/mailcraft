@@ -1736,8 +1736,8 @@ impl Session {
         }
         let text = kept.text.filter(|_| m.body.text.is_empty());
         let html = kept.html.filter(|_| m.body.html.is_none());
-        let hidden = kept.hidden.filter(|_| m.hidden_text.is_empty());
-        text.into_iter().chain(html).chain(hidden).all(|r| self.fetch(&r).is_ok()) && self.files_readable(m)
+        // (What the sender hid is not needed whole: without it there is no hidden text.)
+        text.into_iter().chain(html).all(|r| self.fetch(&r).is_ok()) && self.files_readable(m)
     }
 
     /// Whether every attachment of `m` that isn't in memory can be read back whole.
@@ -1847,12 +1847,7 @@ impl Session {
             .messages
             .iter()
             .filter(|(_, m)| {
-                m.kept.as_deref().is_some_and(|k| {
-                    !k.failed
-                        && ((gone(k.text) && m.body.text.is_empty())
-                            || (gone(k.html) && m.body.html.is_none())
-                            || (gone(k.hidden) && m.hidden_text.is_empty()))
-                })
+                m.kept.as_deref().is_some_and(|k| !k.failed && ((gone(k.text) && m.body.text.is_empty()) || (gone(k.html) && m.body.html.is_none())))
             })
             .map(|(id, _)| *id)
             .collect();
@@ -1861,6 +1856,9 @@ impl Session {
             let mut copy = Message::clone(m);
             if let Some(kept) = copy.kept.as_deref_mut() {
                 kept.failed = true;
+                if gone(kept.hidden) {
+                    kept.hidden = None;
+                }
                 if gone(kept.text) && copy.body.text.is_empty() {
                     copy.body.text = crate::store_placeholder().to_string();
                 }
@@ -1868,7 +1866,27 @@ impl Session {
             }
             self.put_message(*id, copy);
         }
-        if !marked.is_empty() {
+        // What the sender hid that is gone is no hidden text, and nothing more: the body is read
+        // as it always was.
+        let hidden_gone: Vec<Id> = self
+            .mailbox
+            .messages
+            .iter()
+            .filter(|(id, m)| !marked.contains(id) && m.kept.as_deref().is_some_and(|k| gone(k.hidden)))
+            .map(|(id, _)| *id)
+            .collect();
+        for id in &hidden_gone {
+            let Some(m) = self.mailbox.messages.get(id) else { continue };
+            let mut copy = Message::clone(m);
+            if let Some(kept) = copy.kept.as_deref_mut() {
+                kept.hidden = None;
+            }
+            if copy.kept.as_deref().is_some_and(mailcraft_model::KeptBody::is_empty) {
+                copy.kept = None;
+            }
+            self.put_message(*id, copy);
+        }
+        if !marked.is_empty() || !hidden_gone.is_empty() {
             self.loads += 1;
         }
         marked.len()
@@ -2635,7 +2653,8 @@ fn loaded_into(m: &mut Message, fetch: impl Fn(Part) -> Result<Arc<Vec<u8>>, Cmd
     {
         let text = kept.text.filter(|_| m.body.text.is_empty()).map(|_| fetch(Part::Text)).transpose()?;
         let html = kept.html.filter(|_| m.body.html.is_none()).map(|_| fetch(Part::Html)).transpose()?;
-        let hidden = kept.hidden.filter(|_| m.hidden_text.is_empty()).map(|_| fetch(Part::Hidden)).transpose()?;
+        // A hidden text that can't be read is no hidden text; it never stops the body.
+        let hidden = kept.hidden.filter(|_| m.hidden_text.is_empty()).and_then(|_| fetch(Part::Hidden).ok());
         if let Some(hidden) = hidden {
             m.hidden_text = text_of(&hidden);
         }

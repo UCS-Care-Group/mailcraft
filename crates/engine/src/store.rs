@@ -2006,7 +2006,9 @@ fn fill(st: &mut State, dir: &Path, mailbox: &mut Mailbox, head: Head, mut parts
             let now = rows.as_ref().is_none_or(|rows| rows.contains(&id));
             let text = want(&wire.text, true, now, &mut st.live);
             let html = want(&wire.html, true, now, &mut st.live);
-            let hidden = want(&wire.hidden, true, now, &mut st.live);
+            // (A name for more than a hidden text can be is not read: the cap holds in a hostile file.)
+            let hidden_wire = wire.hidden.clone().filter(|(_, len)| *len <= mailcraft_model::MAX_HIDDEN_TEXT as u64);
+            let hidden = want(&hidden_wire, true, now, &mut st.live);
             let attachments: Vec<Option<Want>> = wire.attachments.iter().map(|a| want(a, false, true, &mut st.live)).collect();
             plan.push((id, text, html, hidden, attachments));
         }
@@ -2140,10 +2142,9 @@ fn fill(st: &mut State, dir: &Path, mailbox: &mut Mailbox, head: Head, mut parts
                     }
                 }
                 Some(false) => kept.hidden = want.kept(),
-                None => {
-                    kept.hidden = want.kept();
-                    kept.failed = true;
-                }
+                // Missing or damaged: no hidden text. It never makes the message unavailable
+                // (an older build's sweep takes the file, which it knows nothing of).
+                None => {}
             }
             if let Some(p) = held.as_mut().and_then(|p| p.hidden.as_mut()) {
                 p.held = !m.hidden_text.is_empty();
@@ -2282,8 +2283,10 @@ pub fn load_all(path: &Path, mailbox: &mut Mailbox) -> Result<usize, String> {
                 m.body.html = Some(text_of_bytes(&take(&r)?));
                 n += 1;
             }
-            if let Some(r) = kept.hidden.filter(|_| m.hidden_text.is_empty()) {
-                m.hidden_text = text_of_bytes(&take(&r)?);
+            if let Some(r) = kept.hidden.filter(|_| m.hidden_text.is_empty())
+                && let Ok(bytes) = take(&r)
+            {
+                m.hidden_text = text_of_bytes(&bytes);
                 n += 1;
             }
         }

@@ -108,9 +108,12 @@ pub(crate) fn build(html: &str, decode: bool, env: &Env, keep_hidden: bool) -> B
     // The text of the pictures written into the message, which isn't counted against MAX_INPUT.
     let mut pictures = 0usize;
     while let Some(mut token) = tokens.next() {
+        // An element a rule for dark windows gave colours to (checked once it is open).
+        let mut dark_hit = false;
         if let Token::Open(tag) = &mut token {
             if let Some(sheet) = &mut sheet {
                 sheet.apply(opened, tag);
+                dark_hit = sheet.dark_hit();
             }
             opened = opened.saturating_add(1);
         }
@@ -132,6 +135,13 @@ pub(crate) fn build(html: &str, decode: bool, env: &Env, keep_hidden: bool) -> B
             break;
         }
         builder.token(token);
+        // Shown: neither it nor an element around it is hidden.
+        if dark_hit
+            && builder.hidden == 0
+            && let Some(sheet) = &mut sheet
+        {
+            sheet.designed_for_dark();
+        }
     }
     let dark_design = sheet.as_ref().is_some_and(|s| s.dark_design);
     let hidden = builder.unseen.take().unwrap_or_default();

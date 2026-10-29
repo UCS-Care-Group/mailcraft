@@ -37,7 +37,8 @@ Writes any bytes into a message: crafted MIME, HTML, headers, attachments, pictu
   width and theme, and is done again only when the width or theme flips one of the message's own
   conditions. The width and theme are never sent, but a picture a `@media` shows only for a dark
   window or a narrow pane is, once pictures are allowed, fetched when that look is shown, so the
-  picture's server can tell which was asked for from its address (PRIVACY.md).
+  picture's server can tell from its address that the window is dark and how wide the body is, to
+  within a few pixels (a sender chooses the widths it tests; PRIVACY.md).
 - **What a sender hides is kept for search and agents, and only there.** The reading pane, the
   plain-text view and a reply's quoted original leave out what a message hides; the words of it
   (`Message::hidden_text`, 16 KB at most, worked out when the message is read) are in the owner's

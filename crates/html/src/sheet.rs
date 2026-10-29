@@ -1139,14 +1139,10 @@ pub(crate) fn media_lists(html: &str) -> Vec<String> {
     let mut template = 0usize;
     let mut size = 0usize;
     let mut take = |tokens: &mut Tokenizer<'_>, template: usize, lists: &mut Lists| {
-        for (media, css) in std::mem::take(&mut tokens.styles) {
-            if template == 0 {
-                lists.add(&media);
-                let css = truncate(css, MAX_SHEET.saturating_sub(size));
-                size += css.len();
-                collect_lists(css, 1, lists);
-            }
-        }
+        take_styles(tokens, template, &mut size, |media, css| {
+            lists.add(media);
+            collect_lists(css, 1, lists);
+        });
     };
     while let Some(token) = tokens.next() {
         take(&mut tokens, template, &mut lists);
@@ -1158,6 +1154,23 @@ pub(crate) fn media_lists(html: &str) -> Vec<String> {
     }
     take(&mut tokens, template, &mut lists);
     lists.out
+}
+
+/// The `<style>` sheets the tokenizer has found since it was last asked, in the one way every
+/// reader of a message's sheets takes them (the cascade and the list of media it depends on, so
+/// that the two never disagree about which are read): none in a `<template>` (`template` is the
+/// depth of those open), and each cut to what is left of [`MAX_SHEET`] bytes for the whole
+/// message, `size` being what the sheets before it took, whatever their `media` says. `each` gets
+/// a sheet's `media` attribute and its text.
+fn take_styles(tokens: &mut Tokenizer<'_>, template: usize, size: &mut usize, mut each: impl FnMut(&str, &str)) {
+    for (media, css) in std::mem::take(&mut tokens.styles) {
+        if template > 0 {
+            continue;
+        }
+        let css = truncate(css, MAX_SHEET.saturating_sub(*size));
+        *size = size.saturating_add(css.len());
+        each(&media, css);
+    }
 }
 
 #[derive(Default)]
@@ -1495,15 +1508,13 @@ impl Sheet {
         let mut template = 0usize;
         let mut capped = false;
         let mut take = |tokens: &mut Tokenizer<'_>, template: usize| {
-            for (media, css) in std::mem::take(&mut tokens.styles) {
+            take_styles(tokens, template, &mut size, |media, css| {
                 // (A `<style media>` that is not for this pane is not read.)
-                let verdict = media::test(&media, env);
-                if template == 0 && verdict.holds {
-                    let css = truncate(css, MAX_SHEET.saturating_sub(size));
-                    size += css.len();
+                let verdict = media::test(media, env);
+                if verdict.holds {
                     sheets.push((css.to_string(), verdict.dark));
                 }
-            }
+            });
         };
         while let Some(token) = tokens.next() {
             take(&mut tokens, template);
@@ -1608,12 +1619,19 @@ impl Sheet {
     /// Put what the sheet says about the `ordinal`th start tag of the message on `tag`.
     pub fn apply(&mut self, ordinal: usize, tag: &mut Tag<'_>) {
         tag.sheet = self.style_for(ordinal, tag.has("style"));
-        if self.dark_hit
-            && let Some(applied) = &tag.sheet
-            && !css_with(applied, tag.attr("style").as_deref()).hidden
-        {
-            self.dark_design = true;
-        }
+    }
+
+    /// Whether the element last looked at ([`Sheet::apply`]) got a colour or a background from a
+    /// rule for dark windows that wins over the rest. Whether it is shown, with its ancestors, is
+    /// for whoever builds the blocks to say, who then calls [`Sheet::designed_for_dark`].
+    pub fn dark_hit(&self) -> bool {
+        self.dark_hit
+    }
+
+    /// The sender designed this message for dark windows: a shown element got its colours from
+    /// a rule for them.
+    pub fn designed_for_dark(&mut self) {
+        self.dark_design = true;
     }
 
     /// What the sheet says about the `ordinal`th start tag of the message, counted from 0, for
@@ -1661,13 +1679,8 @@ impl Sheet {
         found.sort_unstable();
         let mut spent = u64::from(start - steps) + found.len() as u64;
         let key: Vec<u32> = found.iter().map(|(_, n)| *n).collect();
-        let dark_hit = self.has_dark
-            && !self.dark_design
-            && found.iter().any(|(_, n)| {
-                self.rules
-                    .get(*n as usize)
-                    .is_some_and(|r| r.dark && r.decls.iter().any(|d| matches!(d.property.as_str(), "color" | "background" | "background-color")))
-            });
+        let dark_hit = self.has_dark && !self.dark_design && self.dark_wins(&found);
+        spent += if self.has_dark { found.len() as u64 } else { 0 };
         let applied = if let Some(hit) = self.cache.get(&key) {
             hit.clone()
         } else {
@@ -1690,14 +1703,39 @@ impl Sheet {
             }
             made
         };
-        // (Whether the element is shown is for [`Sheet::apply`], which sees its own `style`.)
-        self.dark_hit = dark_hit && applied.as_ref().is_some_and(|a| !a.css.hidden);
+        // (Whether the element is shown is for whoever builds the blocks: its ancestors count.)
+        self.dark_hit = dark_hit;
         if inline && let Some(a) = &applied {
             // Read again with the element's own style, which a hit saves nothing of.
             spent += (a.before.len() + a.after.len()) as u64 / 4;
         }
         self.steps_left = self.steps_left.saturating_sub(u32::try_from(spent).unwrap_or(u32::MAX));
         applied
+    }
+
+    /// Whether a colour or a background the rules `found` (by specificity and order) give is the
+    /// one of a rule for dark windows: the declaration that wins for the property is from one
+    /// (`!important` over the rest, then the last).
+    fn dark_wins(&self, found: &[(u32, u32)]) -> bool {
+        const PROPERTIES: [&str; 3] = ["color", "background", "background-color"];
+        // For each property: who won among the `!important` ones, and among the others.
+        let mut won: [(Option<bool>, Option<bool>); 3] = [(None, None); 3];
+        let mut considered = 0usize;
+        'rules: for (_, n) in found.iter().rev() {
+            let Some(rule) = self.rules.get(*n as usize) else { continue };
+            for decl in rule.decls.iter().rev() {
+                if considered >= MAX_CONSIDERED {
+                    break 'rules;
+                }
+                considered += 1;
+                let Some(at) = PROPERTIES.iter().position(|p| *p == decl.property) else { continue };
+                if let Some((important, normal)) = won.get_mut(at) {
+                    let slot = if decl.important { important } else { normal };
+                    slot.get_or_insert(rule.dark);
+                }
+            }
+        }
+        won.iter().any(|(important, normal)| important.or(*normal) == Some(true))
     }
 
     /// The look the rules `found` (by specificity and order) give together.

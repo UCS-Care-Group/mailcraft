@@ -391,6 +391,48 @@ fn a_message_that_shows_nothing_still_has_its_hidden_text() {
     assert_eq!((text.as_str(), hidden.as_str()), ("", "Only for search"));
 }
 
+/// The dark design needs a shown element, whatever hides an element around it, and a dark
+/// colour that wins (#599 review).
+#[test]
+fn the_dark_design_needs_the_element_and_its_ancestors_shown_and_the_dark_colour_to_win() {
+    let dark = |html: &str| parse_in(html, &at(700.0, true)).dark_design;
+    let rule = "<style>@media (prefers-color-scheme: dark){.h{color:#fff}}";
+    // A mobile-only block hidden by its own style, or by the sheet, is not a design.
+    assert!(!dark(&format!("{rule}</style><div style='display:none'><p class=h>x</p></div><p>y</p>")));
+    assert!(!dark(&format!("{rule} .hide{{display:none}}</style><div class=hide><section><p class=h>x</p></section></div><p>y</p>")));
+    // The same block shown is.
+    assert!(dark(&format!("{rule}</style><div><p class=h>x</p></div><p>y</p>")));
+    // A later `!important` colour beats the dark one: the sender's dark colour is not used.
+    assert!(!dark("<style>@media (prefers-color-scheme: dark){p{color:#fff}} p{color:#000 !important}</style><p>x</p>"));
+    // A dark colour that is `!important` wins over a later plain one; a later plain one wins over a plain dark one.
+    assert!(dark("<style>@media (prefers-color-scheme: dark){p{color:#fff !important}} p{color:#000}</style><p>x</p>"));
+    assert!(!dark("<style>@media (prefers-color-scheme: dark){p{color:#fff}} p.q{color:#000}</style><p class=q>x</p>"));
+    // Another property winning does not matter: the dark background wins.
+    assert!(dark("<style>@media (prefers-color-scheme: dark){p{background:#111}} p{color:#000 !important}</style><p>x</p>"));
+}
+
+/// A message's sheets are read for the lists the same way whatever their `media` (#599 review):
+/// a big sheet that is not for this pane still uses the room all of them share, so the lists
+/// found are those of the sheets read, and a look changes exactly when a verdict does.
+#[test]
+fn the_lists_and_the_cascade_read_the_same_sheets() {
+    let big = format!("<style media=\"print\">{}</style>", ".z{color:red}".repeat(6_000));
+    assert!(big.len() > crate::sheet::MAX_SHEET);
+    let html = format!(
+        "{big}<style>.m{{display:none}} @media (max-width:600px){{.m{{display:block}} .d{{display:none}}}}</style><p class=d>Desktop</p><p class=m>Mobile</p>"
+    );
+    let lists = crate::media_lists(&html);
+    let (narrow, wide) = (at(500.0, false), at(900.0, false));
+    // Whether the lists tell a narrow pane from a wide one is whether the message looks different in them.
+    let differ = crate::media_verdicts(&lists, &narrow) != crate::media_verdicts(&lists, &wide);
+    assert_eq!(differ, parse_in(&html, &narrow).blocks != parse_in(&html, &wide).blocks, "{lists:?}");
+    // And in the ordinary case (the sheet is read) both say the pane matters.
+    let small = html.replace(&big, "<style media=\"print\">.z{color:red}</style>");
+    let lists = crate::media_lists(&small);
+    assert!(crate::media_verdicts(&lists, &narrow) != crate::media_verdicts(&lists, &wide));
+    assert!(parse_in(&small, &narrow).blocks != parse_in(&small, &wide).blocks);
+}
+
 proptest::proptest! {
     #[test]
     fn any_bytes_are_a_media_list(bytes in proptest::collection::vec(proptest::num::u8::ANY, 0..700)) {
