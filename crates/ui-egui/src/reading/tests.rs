@@ -8,7 +8,7 @@
 use std::sync::{Arc, Mutex, mpsc};
 
 use egui::Color32;
-use egui_kittest::kittest::Queryable as _;
+use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use mailcraft_engine::Session;
 use mailcraft_html::Span;
 use mailcraft_html::corpus::{self, PictureKind};
@@ -1329,6 +1329,64 @@ fn a_remembered_sender_and_the_switch_for_all_mail() {
     assert_eq!(shown(&harness, other), (0, 2, 2));
 }
 
+/// File › Options folds a list of remembered senders and domains that is longer than a page
+/// away, and shows it twenty at a time.
+#[test]
+fn a_long_list_of_remembered_senders_is_folded_and_paged() {
+    let (mut app, _) = app_with(vec![]);
+    app.ui.picture_senders = (0..45).map(|i| format!("sender{i:02}@shop.example")).collect();
+    app.ui.picture_domains = vec!["kite.example".into()];
+    // (Tall enough for the page's buttons to be on screen to be clicked.)
+    let mut harness = window(app, (1200.0, 1600.0));
+    harness.state_mut().execute("ui.backstage", json!({"value": true, "page": "options"})).unwrap();
+    harness.run_steps(3);
+    // Folded, with the count; the rows of the page below are still there.
+    assert!(says(&harness, "Pictures are always downloaded from (46):") && !says(&harness, "sender00@"));
+    assert!(says(&harness, "Show sender images from Gravatar"));
+    harness.get_by_label_contains("Pictures are always downloaded from").click();
+    harness.run_steps(3);
+    let page = |harness: &Window| ["sender00@", "sender19@", "sender20@", "sender39@", "sender40@", "@kite.example"].map(|s| says(harness, s));
+    assert_eq!(page(&harness), [true, true, false, false, false, false]);
+    assert!(says(&harness, "Page 1 of 3") && harness.get_by_label("Previous").accesskit_node().is_disabled());
+    harness.get_by_label("Next").click();
+    harness.run_steps(3);
+    assert_eq!(page(&harness), [false, false, true, true, false, false]);
+    harness.get_by_label("Next").click();
+    harness.run_steps(3);
+    assert_eq!(page(&harness), [false, false, false, false, true, true]);
+    assert!(says(&harness, "Page 3 of 3") && harness.get_by_label("Next").accesskit_node().is_disabled());
+
+    // Taking off what the last page held leaves the page before it.
+    for i in 40..45 {
+        harness.state_mut().execute("ui.alwaysDownloadPictures", json!({"sender": format!("sender{i}@shop.example"), "value": false})).unwrap();
+    }
+    harness.state_mut().execute("ui.alwaysDownloadPictures", json!({"domain": "kite.example", "value": false})).unwrap();
+    harness.run_steps(3);
+    assert_eq!(page(&harness), [false, false, true, true, false, false]);
+    assert!(says(&harness, "Pictures are always downloaded from (40):") && says(&harness, "Page 2 of 2"));
+}
+
+/// The smallest window: File › Options is laid out in the room on screen, its text wrapped there
+/// rather than cut off at the window's edge, and Previous and Next can be clicked.
+#[test]
+fn the_list_of_remembered_senders_pages_in_a_narrow_window() {
+    let (mut app, _) = app_with(vec![]);
+    app.ui.picture_senders = (0..45).map(|i| format!("sender{i:02}@shop.example")).collect();
+    let mut harness = window(app, (760.0, 2400.0));
+    harness.state_mut().execute("ui.backstage", json!({"value": true, "page": "options"})).unwrap();
+    harness.run_steps(3);
+    harness.get_by_label_contains("Pictures are always downloaded from").click();
+    harness.run_steps(3);
+    let screen = harness.ctx.content_rect();
+    for text in ["Gravatar is asked for", "Previous", "Next"] {
+        let r = harness.get_by_label_contains(text).rect();
+        assert!(r.min.x >= screen.min.x && r.max.x <= screen.max.x + 0.5, "{text}: {r:?} in {screen:?}");
+    }
+    harness.get_by_label("Next").click();
+    harness.run_steps(3);
+    assert!(says(&harness, "Page 2 of 3"));
+}
+
 /// (A8-9) A long display name is cut short, never the address after it.
 #[test]
 fn a_long_name_does_not_squeeze_the_address_out_of_the_header() {
@@ -1794,7 +1852,7 @@ fn everybody_at_a_domain_can_be_trusted_with_pictures() {
     // File › Options lists it, and takes it off again: its senders' pictures wait to be asked for.
     harness.state_mut().execute("ui.backstage", json!({"value": true, "page": "options"})).unwrap();
     harness.run_steps(3);
-    assert!(says(&harness, "everybody at @shop.example") && says(&harness, "Pictures are always downloaded from:"));
+    assert!(says(&harness, "everybody at @shop.example") && says(&harness, "Pictures are always downloaded from (1):"));
     let removed = harness.state_mut().execute("ui.alwaysDownloadPictures", json!({"domain": " @Shop.Example. ", "value": false})).unwrap();
     assert_eq!((&removed["domain"], &removed["value"], &removed["domains"]), (&json!("shop.example"), &json!(false), &json!(0)));
     harness.run_steps(3);

@@ -69,7 +69,8 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
         .show(ui, |ui| {
             ui.add_space(top);
             egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
-                ui.set_max_width(760.0);
+                // Never more than is on screen: egui would lay the page out wider and cut it off.
+                ui.set_max_width(ui.available_width().min(760.0));
                 ui.spacing_mut().item_spacing = vec2(8.0, 8.0);
                 match app.ui.backstage_page.as_str() {
                     "open" => open(app, ui, &t),
