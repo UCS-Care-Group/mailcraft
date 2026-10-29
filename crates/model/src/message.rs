@@ -246,6 +246,14 @@ pub struct Message {
     /// finds it; once it is fetched its own attachments say.
     #[serde(skip_serializing_if = "is_false")]
     pub attachments_on_server: bool,
+    /// What the account's server last said of whether it has attachments (Graph's
+    /// `hasAttachments`, JMAP's `hasAttachment`), kept once it is fetched: a meeting invitation's
+    /// own calendar part isn't one, a calendar file attached to it is, as the target's Arrange By
+    /// Attachments has it (#575). `None` while no server has ever said: IMAP and local mail, mail
+    /// imported from a file, and mail fetched by a build from before this was kept. A message
+    /// moved or copied out of its account keeps the answer. A draft goes by its own files.
+    #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
+    pub server_attachments: Option<bool>,
     /// It was moved here, out of a Microsoft account (into a local folder or another account),
     /// from the server's copy this names, and that copy is still on the server: it is **being
     /// moved** (R3 spec S19). The server's copy is removed only once this message is fetched

@@ -197,7 +197,8 @@ pub(crate) fn new_message(folder: Id, server_folder: &str, there: &GraphMessage)
         draft: there.draft.unwrap_or(false),
         server: Some(server),
         unfetched: true,
-        attachments_on_server: there.has_attachments,
+        attachments_on_server: there.has_attachments.unwrap_or(false),
+        server_attachments: there.has_attachments,
         ..Default::default()
     }
 }
@@ -249,8 +250,13 @@ fn update(mb: &mut Mailbox, account: Id, id: Id, folder: Id, server_folder: &str
     if follows {
         m.folder = folder;
     }
-    if m.unfetched {
-        m.attachments_on_server = there.has_attachments;
+    // What the server says now of its attachments, fetched or not (#575); nothing said, nothing
+    // changes.
+    if let Some(has) = there.has_attachments {
+        m.server_attachments = Some(has);
+        if m.unfetched {
+            m.attachments_on_server = has;
+        }
     }
     // Sent, the draft is filed in Sent Items under its id: no longer a draft (#611), when the
     // server says so and not merely leaves it out. One saved here that waits to go up stays one.
@@ -263,7 +269,7 @@ fn update(mb: &mut Mailbox, account: Id, id: Id, folder: Id, server_folder: &str
     if changed_there || sent {
         // Changed elsewhere only: the server's version, fetched afresh.
         (m.subject, m.to, m.cc, m.unfetched) = (there.subject.clone(), there.to.clone(), there.cc.clone(), true);
-        m.attachments_on_server = there.has_attachments;
+        m.attachments_on_server = there.has_attachments.unwrap_or(m.attachments_on_server);
         if let Some(sd) = m.server_draft.as_mut() {
             sd.synced = None;
         }
@@ -453,12 +459,18 @@ pub fn take_fetched_as(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, i
     Some(here)
 }
 
+/// Whether a message about to be no longer fetched wears the paperclip meanwhile: what its server
+/// said, or else what it sorts by now, so that it doesn't move (#575).
+fn until_fetched(m: &Message) -> bool {
+    m.server_attachments.unwrap_or_else(|| crate::columns::sorts_with_files(m))
+}
+
 /// Back to its headers and `preview` (#143): what [`take_fetched`] brought in goes, and the
 /// message is not fetched again, as it was when it came down. Everything else stays as it is:
 /// where it is, its marks, the server's state of it, what waits to go up, its headers. It wears
 /// the paperclip still when it had attachments; opening it fetches it whole again.
 pub fn thin_message(m: &mut Message, preview: String) {
-    m.attachments_on_server = m.has_attachments();
+    m.attachments_on_server = until_fetched(m);
     m.body = Body { text: preview, html: None };
     m.attachments.clear();
     m.kept = None;
@@ -501,7 +513,7 @@ pub fn refetch_unreadable(mb: &mut Mailbox) -> usize {
             && m.server.as_ref().is_some_and(|s| !s.gone && !s.id.is_empty());
         if whole_from_server && unreadable(m) {
             let m = std::sync::Arc::make_mut(m);
-            m.attachments_on_server = m.has_attachments();
+            m.attachments_on_server = until_fetched(m);
             m.unfetched = true;
             marked = marked.saturating_add(1);
         }
@@ -584,7 +596,7 @@ mod tests {
             messages: vec![GraphMessage {
                 server: ServerMessage { id: id.into(), ..Default::default() },
                 subject: "Quarterly figures".into(),
-                has_attachments,
+                has_attachments: Some(has_attachments),
                 ..Default::default()
             }],
             ..Default::default()
@@ -717,3 +729,7 @@ Content-Type: text/html; charset=windows-1250\r\nContent-Transfer-Encoding: quot
         assert!(m.size() > 4000);
     }
 }
+
+#[cfg(test)]
+#[path = "graph_down_attachments_tests.rs"]
+mod attachments_tests;

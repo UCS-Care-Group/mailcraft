@@ -155,26 +155,44 @@ pub fn person_key(mb: &mailcraft_model::Mailbox, m: &mailcraft_model::Message) -
     person(mb, m).to_lowercase()
 }
 
-/// Whether a message has files, as its row shows them: the calendar part of meeting mail is not
-/// one (the row wears the meeting's mark for it), any other calendar file is, and a message not
-/// fetched yet goes by the server.
+/// Whether a message has files, as its row shows them: what its server says, when it has said
+/// ([`server_answer`]); a draft as it sorts ([`sorts_with_files`]); otherwise the calendar part of meeting mail is not one (the row wears the
+/// meeting's mark for it), any other calendar file is, and a message not fetched yet goes by the
+/// server.
 pub fn has_files(m: &mailcraft_model::Message) -> bool {
+    if let Some(has) = server_answer(m) {
+        return has;
+    }
+    // A draft as it sorts: its calendar file is written here, and wears no mark either way.
+    if m.draft {
+        return sorts_with_files(m);
+    }
     match m.attachments.iter().position(crate::session::is_calendar_part) {
         Some(index) if is_meeting_mail(&m.attachments[index].data) => m.listed_attachments().any(|(other, _)| other != index),
         _ => m.has_attachments(),
     }
 }
 
-/// Whether a message sorts among those with files (Arrange By Attachments). Unlike [`has_files`],
-/// it goes only by what the message's list of parts says, never by a part's bytes or the HTML,
-/// so opening a message, or letting its parts go again, never moves it in the list (#575
-/// review). The price: no calendar part counts, so a plain `.ics` file sorts with the messages
-/// without files, and every inline picture with a `Content-ID` is taken to be one the HTML shows,
-/// as the attachment list takes it while the HTML is kept outside memory. The paperclip on the
-/// row still goes by [`has_files`].
+/// Whether a message sorts among those with files (Arrange By Attachments). Opening a message, or
+/// letting its parts go again, never moves it in the list (#575 review). A message whose server
+/// has said goes by that ([`server_answer`]): a meeting invitation's own calendar part isn't a
+/// file, a calendar file attached to a mail is, as the target has it. Any other goes only by its
+/// list of parts, never by a part's bytes or the HTML; the price there: no calendar part counts,
+/// so a plain `.ics` file sorts with the messages without files, and every inline picture with a
+/// `Content-ID` is taken to be one the HTML shows, as the attachment list takes it while the
+/// HTML is kept outside memory.
 pub fn sorts_with_files(m: &mailcraft_model::Message) -> bool {
-    (m.unfetched && m.attachments_on_server)
-        || m.attachments.iter().any(|a| !crate::session::is_calendar_part(a) && !(a.inline && !a.content_id.is_empty()))
+    server_answer(m).unwrap_or_else(|| {
+        (m.unfetched && m.attachments_on_server)
+            || m.attachments.iter().any(|a| !crate::session::is_calendar_part(a) && !(a.inline && !a.content_id.is_empty()))
+    })
+}
+
+/// What the message's server last said of whether it has attachments, while that speaks for it:
+/// not for a draft, which is written here and goes up later, so that the server's answer lags
+/// behind its files.
+fn server_answer(m: &mailcraft_model::Message) -> Option<bool> {
+    m.server_attachments.filter(|_| !m.draft)
 }
 
 /// Whether a calendar part is meeting mail (a request, a counter-proposal, a cancellation or an
