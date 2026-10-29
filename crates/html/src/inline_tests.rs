@@ -15,6 +15,17 @@ fn boxes(blocks: &[Block]) -> Vec<&Table> {
         .collect()
 }
 
+/// The boxes at any depth: in the cells of tables and in other boxes.
+fn all_boxes(blocks: &[Block]) -> usize {
+    blocks
+        .iter()
+        .map(|b| match &b.kind {
+            BlockKind::Table(t) => usize::from(t.inline) + t.rows.iter().flat_map(|r| &r.cells).map(|c| all_boxes(&c.blocks)).sum::<usize>(),
+            _ => 0,
+        })
+        .sum()
+}
+
 fn text_of(t: &Table) -> String {
     t.rows.iter().flat_map(|r| &r.cells).flat_map(|c| &c.blocks).map(Block::text).collect::<Vec<_>>().join(" ")
 }
@@ -209,115 +220,162 @@ fn a_box_that_opens_a_line_of_text_stays_in_the_line() {
     assert!(words.trim_start().starts_with('|') && !words.contains("<p") && !words.contains("<div"), "{quoted}");
     // The words keep their links.
     assert_eq!(blocks[0].spans.iter().filter(|s| s.link.is_some()).count(), 2, "{blocks:?}");
-    // Standing alone, or with only other boxes beside it, it is still a box; so is one that is
-    // followed by a line of its own.
+    // Standing alone, or with only other boxes beside it, it is still a box; one that is followed
+    // by a line of its own in another block is too, and one with a line break and a line of text
+    // after it in the same block is a run of the text.
     assert_eq!(boxes(&parse(&format!("<p>{a}A</a></p>"))).len(), 1);
     assert_eq!(boxes(&parse(&format!("<p>{a}A</a> {a}B</a></p>"))).len(), 2);
-    assert_eq!(boxes(&parse(&format!("<p>{a}A</a><br>after</p>"))).len(), 1);
+    assert_eq!(boxes(&parse(&format!("<p>{a}A</a><br>after</p>"))).len(), 0);
     assert_eq!(boxes(&parse(&format!("<div>{a}A</a></div><p>after</p>"))).len(), 1);
 }
 
+/// What the message was before boxes on a line: `display: inline-block` read as `inline`.
+fn as_before(html: &str) -> Vec<Block> {
+    parse(&html.replace("display:inline-block", "display:inline"))
+}
+
+const BADGE: &str = "<span style='display:inline-block;padding:0 4px;background:#ffeeaa'>NEW</span>";
+
 #[test]
-fn a_box_taken_back_into_its_line_keeps_the_kind_of_block_the_line_is_in() {
-    let badge = "<span style='display:inline-block;padding:0 4px;background:#ffeeaa'>NEW</span>";
-    // A heading stays a heading.
-    let blocks = parse(&format!("<h2>{badge} Summer sale</h2>"));
-    assert_eq!(blocks.len(), 1, "{blocks:?}");
-    assert_eq!((&blocks[0].kind, blocks[0].text().as_str()), (&BlockKind::Heading(2), "NEW Summer sale"));
-    // So does a list item, with its marker.
-    let blocks = parse(&format!("<ul><li>{badge} Free shipping</li></ul>"));
-    assert_eq!(blocks.len(), 1, "{blocks:?}");
-    assert!(matches!(blocks[0].kind, BlockKind::ListItem { marker: Marker::Bullet, .. }), "{blocks:?}");
-    assert_eq!(blocks[0].text(), "NEW Free shipping");
-    // And preformatted text.
-    let blocks = parse(&format!("<pre>{badge} pre</pre>"));
-    assert_eq!(blocks.len(), 1, "{blocks:?}");
-    assert_eq!((&blocks[0].kind, blocks[0].text().as_str()), (&BlockKind::Preformatted, "NEW pre"));
-    // A no-break space or a zero-width non-joiner between the box and the text is no reason to
-    // split the line.
-    for gap in ["&nbsp;", "&zwnj; ", "&nbsp;&nbsp;"] {
-        let blocks = parse(&format!("<p>{badge}{gap}offer</p>"));
-        assert_eq!(blocks.len(), 1, "{gap}: {blocks:?}");
-        assert!(blocks[0].text().starts_with("NEW") && blocks[0].text().ends_with("offer"), "{gap}: {blocks:?}");
-        assert!(crate::to_text(&format!("<p>{badge}{gap}offer</p>")).trim().ends_with("offer"));
-        assert!(!crate::to_text(&format!("<p>{badge}{gap}offer</p>")).trim().contains('\n'));
+fn a_box_with_anything_else_in_its_block_is_drawn_in_the_line_as_it_was() {
+    let b = BADGE;
+    let a = "<a href='https://example.org/x' style='display:inline-block;padding:4px;background:#eee'>";
+    let table = "<table><tr><td>x</td></tr></table>";
+    let picture = "<img src='cid:a@example.org' width='16' height='16' alt='a'>";
+    for html in [
+        // Text with it: the badge is part of the sentence, the heading, the item or the pre.
+        format!("<p>{b} Summer sale</p>"),
+        format!("<p>Your order {b} has shipped.</p>"),
+        format!("<p>{b}, and more</p>"),
+        format!("<p>{b}'s new</p>"),
+        format!("<p><a href='https://example.org/'>{b}</a>after link</p>"),
+        format!("<p>{b}&nbsp;Summer sale</p>"),
+        format!("<p>{b}&zwnj; offer</p>"),
+        format!("<p>{b} {b} after</p>"),
+        format!("<p>{a}A</a> | {a}B</a></p>"),
+        format!("{b} after"),
+        format!("<h2>{b} Summer sale</h2>"),
+        format!("<ul><li>{b} Free shipping</li></ul>"),
+        format!("<pre>{b} pre</pre>"),
+        // A line break, a picture or a line of its own after it, in the same block.
+        format!("<p>{b}<br>next</p>"),
+        format!("<p>{a}A</a><br>after</p>"),
+        format!("<div>{b}{picture}</div>"),
+        format!("<div>{picture}{b}</div>"),
+        // Where a holder is more than blocks of text: list items, headings, preformatted text,
+        // quotes. A box would cost them their marker, their size or their line.
+        format!("<ul><li>{b}</li><li>second</li></ul>"),
+        format!("<ol><li>{b}</li><li>second</li></ol>"),
+        format!("<ol><li>{b}&nbsp;</li><li>second</li></ol>"),
+        format!("<ol><li>{b}&zwnj;</li><li>second</li></ol>"),
+        format!("<ul><li>{b} {b}</li></ul>"),
+        format!("<ul><li>{b}{b}</li></ul>"),
+        format!("<ul><li>{b}{table}</li></ul>"),
+        format!("<ul><li>{b}{picture}</li></ul>"),
+        format!("<ul><li>{b}<hr></li></ul>"),
+        format!("<ul><li>{b}<br>next line</li></ul>"),
+        format!("<ul><li>{b}<div>x</div></li></ul>"),
+        format!("<ul><li>{b}<ul><li>nested</li></ul></li></ul>"),
+        format!("<ul><li>{b}</li>text between</ul>"),
+        format!("<ul><li>{b}</li></ul>after list"),
+        format!("<ul><li><div>{b}</div></li></ul>"),
+        format!("<h2>{b}</h2><h3>sub</h3>"),
+        format!("<h2>{b}</h2>after heading"),
+        format!("<pre>{b}</pre>after pre"),
+        format!("<pre>{b}\nnext</pre>"),
+        format!("<blockquote>{b}</blockquote>after quote"),
+    ] {
+        let found = parse(&html);
+        assert_eq!(found, as_before(&html), "{html}");
+        assert!(boxes(&found).is_empty(), "{html}: {found:?}");
     }
-    let heading = format!("<h2>{badge}&nbsp;Summer</h2>");
-    let blocks = parse(&heading);
-    assert_eq!((blocks.len(), &blocks[0].kind), (1, &BlockKind::Heading(2)), "{blocks:?}");
-    // The blocks that were made are counted once each: as many as the message may have, all taken
-    // back, are all there (a drift of one each would stop them at half).
-    let small = "<p><span style='display:inline-block;padding:4px'>N</span> x</p>";
+    // The gaps and the marks of those lines are the ones the text has.
+    let blocks = parse(&format!("<ol><li>{b}&nbsp;</li><li>second</li></ol>"));
+    let marks: Vec<_> =
+        blocks.iter().filter_map(|b| if let BlockKind::ListItem { marker, .. } = &b.kind { Some(marker.clone()) } else { None }).collect();
+    assert_eq!(marks, [Marker::Number(1), Marker::Number(2)], "{blocks:?}");
+    let blocks = parse(&format!("<p>{b} {b} after</p>"));
+    assert_eq!(blocks.len(), 1, "{blocks:?}");
+    assert_eq!(blocks[0].text(), "NEW NEW after");
+    let blocks = parse(&format!("<p>{b}<br>next</p>"));
+    assert_eq!(
+        blocks.iter().map(Block::text).collect::<Vec<_>>(),
+        as_before(&format!("<p>{b}<br>next</p>")).iter().map(Block::text).collect::<Vec<_>>()
+    );
+    // Copying them gives the text, in a line.
+    let sentence = format!("<p>{b} Your order has shipped.</p>");
+    assert_eq!(crate::to_text(&sentence).trim(), "NEW Your order has shipped.");
+    let quoted = crate::quotable(&sentence);
+    assert!(quoted.contains("Your order has shipped.") && !quoted.contains("<table"), "{quoted}");
+    // The blocks that were made are counted as before: as many as the message may have are all there.
+    let small = format!("<p>{b} x</p>");
     let reps = crate::MAX_BLOCKS - 50;
     assert_eq!(parse(&small.repeat(reps)).len(), reps);
 }
 
 #[test]
-fn a_box_alone_in_a_block_does_not_follow_the_block_that_ends_into_the_next() {
-    let b = "<span style='display:inline-block;padding:0 4px;background:#ffeeaa'>NEW</span>";
-    let texts = |blocks: &[Block]| blocks.iter().map(Block::text).collect::<Vec<_>>();
-    let items = |blocks: &[Block]| {
-        blocks
-            .iter()
-            .filter_map(|b| if let BlockKind::ListItem { marker, .. } = &b.kind { Some((marker.clone(), b.text())) } else { None })
-            .collect::<Vec<_>>()
-    };
-    // The next item, heading or paragraph is its own, whatever the box before it.
-    let blocks = parse(&format!("<ul><li>{b}</li><li>second</li></ul>"));
-    assert_eq!(items(&blocks), [(Marker::Bullet, "NEW".to_string()), (Marker::Bullet, "second".to_string())], "{blocks:?}");
-    assert_eq!(boxes(&blocks).len(), 0);
-    let blocks = parse(&format!("<ol><li>{b}</li><li>second</li></ol>"));
-    assert_eq!(items(&blocks), [(Marker::Number(1), "NEW".to_string()), (Marker::Number(2), "second".to_string())], "{blocks:?}");
-    let blocks = parse(&format!("<h2>{b}</h2><h3>sub</h3>"));
-    assert!(blocks.iter().any(|b| b.kind == BlockKind::Heading(3) && b.text() == "sub"), "{blocks:?}");
-    assert_eq!(boxes(&blocks).len(), 1);
-    for (html, last) in [
-        (format!("<h2>{b}</h2>after heading"), "after heading"),
-        (format!("<blockquote>{b}</blockquote>after quote"), "after quote"),
-        (format!("<pre>{b}</pre>after pre"), "after pre"),
-    ] {
-        let blocks = parse(&html);
-        assert_eq!(texts(&blocks).last().map(String::as_str), Some(last), "{html}: {blocks:?}");
-        assert_eq!(blocks.last().map(|b| (b.kind == BlockKind::Paragraph, b.quote)), Some((true, 0)), "{html}");
-        assert_eq!(boxes(&blocks).len(), 1, "{html}");
-    }
-    let blocks = parse(&format!("<ul><li>{b}</li></ul>after list"));
-    assert_eq!(items(&blocks), [(Marker::Bullet, "NEW".to_string())], "{blocks:?}");
-    assert_eq!(texts(&blocks).last().map(String::as_str), Some("after list"), "{blocks:?}");
-    // Boxes in two items are an item each, with a marker each.
-    let blocks = parse(&format!("<ul><li>{b}</li><li>{b}</li></ul>"));
-    assert_eq!(items(&blocks), [(Marker::Bullet, "NEW".to_string()), (Marker::Bullet, "NEW".to_string())], "{blocks:?}");
-    assert!(blocks.iter().all(|b| !b.beside), "{blocks:?}");
-    // The marker belongs to the item's first line only.
-    for rest in ["<br>next line", "<div>x</div>"] {
-        let blocks = parse(&format!("<ul><li>{b}{rest}</li></ul>"));
-        assert_eq!(items(&blocks).iter().filter(|(m, _)| *m != Marker::None).count(), 1, "{rest}: {blocks:?}");
-        assert!(texts(&blocks).iter().any(|t| t.contains('x') || t.contains("next line")), "{rest}: {blocks:?}");
-    }
-    // Something that opens inside the line ends it: the box is the item's, the rest is not.
-    let blocks = parse(&format!("<ul><li>{b}<ul><li>nested</li></ul></li></ul>"));
-    assert_eq!(items(&blocks).iter().map(|(_, t)| t.as_str()).collect::<Vec<_>>(), ["NEW", "nested"], "{blocks:?}");
-    let blocks = parse(&format!("<p>{b}<ol><li>one</li></ol></p>"));
-    assert!(items(&blocks).contains(&(Marker::Number(1), "one".to_string())), "{blocks:?}");
-    assert!(!blocks.iter().any(|b| b.text().contains("NEWone")), "{blocks:?}");
-    // And text that follows the item's close does not join the box.
-    let blocks = parse(&format!("<ul><li>{b}</li>text between</ul>"));
-    assert!(blocks.iter().any(|b| b.text() == "text between"), "{blocks:?}");
-    // A no-break space in front of the box, or between two, does not cost the item its marker.
-    let blocks = parse(&format!("<ul><li>&nbsp;{b} text</li></ul>"));
+fn a_holder_that_holds_boxes_and_nothing_else_makes_boxes() {
+    let b = BADGE;
+    let a = "<a href='https://example.org/x' style='display:inline-block;padding:4px;background:#eee'>";
+    let count = |html: &str| all_boxes(&parse(html));
+    // Alone, or with others, with the white space that hybrid emails and navigation bars have.
+    assert_eq!(count(&format!("<div>{b}</div>")), 1);
+    assert_eq!(count(&format!("<p>{b}&nbsp;</p>")), 1);
+    assert_eq!(count(&format!("<p>{b}&zwnj;{b}</p>")), 2);
+    assert_eq!(count(&format!("<div>\n  {b}\n  {b}\n</div>")), 2);
+    assert_eq!(count(&format!("<div>{b}<!-- gap -->{b}</div>")), 2);
+    // Something that is hidden is not in the line.
+    assert_eq!(count(&format!("<div>{b}<span style='display:none'>hidden words</span></div>")), 1);
+    assert_eq!(count(&format!("<div>{b}<img src='https://example.org/p.gif' style='display:none'></div>")), 1);
+    assert_eq!(count(&format!("<div>{b}<p hidden>words</p></div>")), 1);
+    // A navigation row.
+    let nav = format!("<p>{a}Home</a> {a}Orders</a> {a}Help</a></p>");
+    let blocks = parse(&nav);
+    assert_eq!(boxes(&blocks).len(), 3, "{blocks:?}");
+    assert_eq!(boxes(&blocks).iter().map(|t| text_of(t)).collect::<Vec<_>>(), ["Home", "Orders", "Help"]);
+    assert_eq!(blocks.iter().map(|b| b.beside).collect::<Vec<_>>(), [false, true, true]);
+    assert_eq!(boxes(&blocks).iter().map(|t| t.spaced).collect::<Vec<_>>(), [false, true, true]);
+    // A row of buttons under a paragraph of its own, and with blocks after it, are boxes.
+    assert_eq!(count(&format!("<div><p>Pick one</p>{a}Yes</a> {a}No</a><p>Thanks</p></div>")), 2);
+    // The columns of a hybrid email, in the cell of a table.
+    let d = "<div style='display:inline-block;width:300px;vertical-align:top;font-size:14px'>col</div>";
+    assert_eq!(count(&format!("<table><tr><td style='font-size:0'>{d}{d}</td></tr></table>")), 2);
+    // In a box, the box is part of what the holder of it holds, and is looked at as a holder.
+    assert_eq!(count(&format!("<div><div style='display:inline-block;width:300px'>{b}{b}</div></div>")), 3);
+    assert_eq!(count(&format!("<div><div style='display:inline-block;width:300px'>words {b}</div></div>")), 1);
+    // The next block does not follow the box that ends the block before it.
+    let beside = |html: &str| parse(html).iter().filter(|b| matches!(&b.kind, BlockKind::Table(t) if t.inline)).map(|b| b.beside).collect::<Vec<_>>();
+    assert_eq!(beside(&format!("<div>{b}</div><div>{b}</div>")), [false, false]);
+    assert_eq!(beside(&format!("<div>{b}</div>{b}")), [false, false]);
+    assert_eq!(beside(&format!("<p>{b}</p><h3>sub</h3><p>{b}</p>")), [false, false]);
+}
+
+#[test]
+fn a_look_ahead_reads_what_a_style_sheet_says_and_stops_at_its_bounds() {
+    // The sheet's `display: inline-block` is read for the others in the holder too.
+    let css = "<style>.col{display:inline-block;width:100px;background:#eef3fb}.gone{display:none}</style>";
+    let blocks = parse(&format!("{css}<div><div class='col'>a</div><div class='col'>b</div><p class='gone'>words</p></div>"));
+    assert_eq!(boxes(&blocks).len(), 2, "{blocks:?}");
+    // A word in the holder, among the boxes of a sheet, keeps them in the line.
+    let blocks = parse(&format!("{css}<div>words <span class='col'>a</span> <span class='col'>b</span></div>"));
+    assert!(boxes(&blocks).is_empty(), "{blocks:?}");
     assert_eq!(blocks.len(), 1, "{blocks:?}");
-    assert!(
-        matches!(&blocks[0].kind, BlockKind::ListItem { marker: Marker::Bullet, .. })
-            && blocks[0].text().contains("NEW")
-            && blocks[0].text().contains("text"),
-        "{blocks:?}"
-    );
-    let blocks = parse(&format!("<ul><li>{b}&nbsp;{b} text</li></ul>"));
-    assert!(items(&blocks).iter().any(|(m, t)| *m == Marker::Bullet && t.contains("text")), "{blocks:?}");
-    // A line ended in preformatted text ends the box's line.
-    let blocks = parse(&format!("<pre>{b}\nnext</pre>"));
-    assert_eq!(boxes(&blocks).len(), 1, "{blocks:?}");
-    assert!(blocks.iter().any(|b| b.kind == BlockKind::Preformatted && b.text().contains("next") && !b.text().contains("NEW")), "{blocks:?}");
+    // A holder too long to look through is drawn in the line, as before.
+    let b = "<span style='display:inline-block;padding:2px'>b</span>";
+    let long = format!("<div>{b}{}</div>", "<i></i>".repeat(10_000));
+    assert!(boxes(&parse(&long)).is_empty());
+    let fits = format!("<div>{b}{}</div>", "<i></i>".repeat(100));
+    assert_eq!(boxes(&parse(&fits)).len(), 1);
+    // Many holders, each with boxes and a second box in them, are looked at once each.
+    let many =
+        "<div><span style='display:inline-block;padding:2px'>b</span> <span style='display:inline-block;padding:2px'>c</span></div>".repeat(200);
+    assert_eq!(boxes(&parse(&many)).len(), MAX_INLINE_BOXES);
+    // A holder that is never closed is read to the end of the message, within the bounds.
+    let open = format!("<div>{}", "<span style='display:inline-block;padding:2px'>b</span> ".repeat(3_000));
+    assert!(boxes(&parse(&open)).len() <= MAX_INLINE_BOXES);
+    // Nesting deeper than a look follows is drawn in the line.
+    let deep = format!("<div>{b}{}x{}</div>", "<span>".repeat(100), "</span>".repeat(100));
+    assert!(boxes(&parse(&deep)).is_empty());
 }
 
 #[test]
@@ -354,8 +412,9 @@ fn the_margins_of_a_box_are_its_own_and_not_the_rooms_round_the_line() {
 #[test]
 fn a_box_closed_from_the_middle_closes_its_own_frame() {
     // The link ends while a block inside it is open: what is inside is closed first.
-    let blocks =
-        parse("<a href='https://example.org/x' style='display:inline-block;padding:4px'>Go<div style='background:#eeeeee'>inside</div></a> after");
+    let blocks = parse(
+        "<div><a href='https://example.org/x' style='display:inline-block;padding:4px'>Go<div style='background:#eeeeee'>inside</div></a></div><p>after</p>",
+    );
     let text: Vec<String> = blocks
         .iter()
         .map(|b| match &b.kind {
@@ -366,8 +425,9 @@ fn a_box_closed_from_the_middle_closes_its_own_frame() {
     assert_eq!(text.last().map(String::as_str), Some("after"), "{text:?}");
     assert!(text.iter().any(|t| t.contains("Go") && t.contains("inside")), "{text:?}");
     // And with the end tag before the inner one is closed.
-    let blocks =
-        parse("<a href='https://example.org/x' style='display:inline-block;padding:4px'>Go<div style='background:#eeeeee'>inside</a> after</div>");
+    let blocks = parse(
+        "<div><a href='https://example.org/x' style='display:inline-block;padding:4px'>Go<div style='background:#eeeeee'>inside</a></div><p>after</p>",
+    );
     let all: String = blocks.iter().map(|b| format!("{b:?}")).collect();
     assert!(all.contains("inside") && all.contains("after") && all.contains("Go"), "{all}");
     // "after" is not inside the box; "inside" is.
@@ -394,19 +454,6 @@ fn boxes_share_a_line_only_when_nothing_ends_it_between_them() {
     assert_eq!(beside(&format!("<div>{b}{b}</div><div>{b}{b}</div>")), [false, true, false, true]);
     let d = "<div style='display:inline-block;width:100px'>x</div>";
     assert_eq!(beside(&format!("<div>{d}\n{d}</div>")), [false, true]);
-    assert_eq!(beside(&format!("{b}<br>{b}")), [false, false]);
+    assert_eq!(beside(&format!("{b}<br>{b}")), []);
     assert_eq!(beside(&format!("{b}<p>text</p>{b}")), [false, false]);
-}
-
-#[test]
-fn only_white_space_in_front_of_what_follows_a_box_is_a_gap() {
-    let b = "<span style='display:inline-block;padding:0 4px;background:#ffeeaa'>NEW</span>";
-    let texts = |html: &str| parse(html).iter().map(Block::text).collect::<Vec<_>>();
-    assert_eq!(texts(&format!("<p>{b}, and more</p>")), ["NEW, and more"]);
-    assert_eq!(texts(&format!("<p>{b}'s new</p>")), ["NEW's new"]);
-    assert_eq!(texts(&format!("<p><a href='https://example.org/'>{b}</a>after link</p>")), ["NEWafter link"]);
-    assert_eq!(texts(&format!("<p>{b} offer</p>")), ["NEW offer"]);
-    // One gap, not two, when the white space is a no-break space.
-    assert_eq!(texts(&format!("<p>{b}&nbsp;Summer sale</p>")), ["NEW\u{a0}Summer sale"]);
-    assert_eq!(texts(&format!("<p>{b} Summer sale</p>")), ["NEW Summer sale"]);
 }

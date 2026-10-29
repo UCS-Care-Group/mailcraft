@@ -28,6 +28,7 @@ mod blocks;
 pub mod corpus;
 mod data;
 mod entities;
+mod look;
 mod preview;
 mod quote;
 mod sheet;
