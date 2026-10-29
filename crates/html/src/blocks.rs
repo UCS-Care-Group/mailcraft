@@ -1947,16 +1947,16 @@ impl Builder {
 
     fn open(&mut self, tag: &Tag<'_>) {
         let on = Some(true);
-        match tag.name.as_str() {
-            "b" | "strong" => self.open_inline("b", true, tag, Delta { bold: on, ..Delta::default() }),
-            "i" | "em" => self.open_inline("i", true, tag, Delta { italic: on, ..Delta::default() }),
-            "cite" | "var" | "dfn" => self.open_inline("cite", true, tag, Delta { italic: on, ..Delta::default() }),
-            "u" | "ins" => self.open_inline("u", true, tag, Delta { underline: on, ..Delta::default() }),
-            "s" | "strike" | "del" => self.open_inline("s", true, tag, Delta { strike: on, ..Delta::default() }),
-            "code" | "tt" | "kbd" | "samp" => self.open_inline("code", true, tag, Delta { code: on, ..Delta::default() }),
+        match canon(&tag.name) {
+            "b" => self.open_inline("b", true, tag, Delta { bold: on, ..Delta::default() }),
+            "i" => self.open_inline("i", true, tag, Delta { italic: on, ..Delta::default() }),
+            "cite" => self.open_inline("cite", true, tag, Delta { italic: on, ..Delta::default() }),
+            "u" => self.open_inline("u", true, tag, Delta { underline: on, ..Delta::default() }),
+            "s" => self.open_inline("s", true, tag, Delta { strike: on, ..Delta::default() }),
+            "code" => self.open_inline("code", true, tag, Delta { code: on, ..Delta::default() }),
             "small" => self.open_inline("small", true, tag, Delta { size: Some(Size::Scale(0.85)), ..Delta::default() }),
             "big" => self.open_inline("big", true, tag, Delta { size: Some(Size::Scale(1.2)), ..Delta::default() }),
-            "sub" | "sup" => self.open_inline("sub", true, tag, Delta { size: Some(Size::Scale(0.8)), ..Delta::default() }),
+            "sub" => self.open_inline("sub", true, tag, Delta { size: Some(Size::Scale(0.8)), ..Delta::default() }),
             "mark" => self.open_inline("mark", true, tag, Delta { background: Some(Rgb(0xff, 0xff, 0x00)), ..Delta::default() }),
             "font" => {
                 let delta = Delta {
@@ -1990,7 +1990,7 @@ impl Builder {
                 }
             }
             "img" => self.image(tag),
-            "h1" | "h2" | "h3" | "h4" | "h5" | "h6" => {
+            "h" => {
                 let level = tag.name.as_bytes().get(1).map_or(1, |d| d.saturating_sub(b'0')).clamp(1, 6);
                 self.close_paragraph();
                 // A heading does not nest in a heading.
@@ -2005,7 +2005,7 @@ impl Builder {
                     self.heading = Some(level);
                 }
             }
-            "ul" | "ol" | "menu" | "dir" => {
+            "ul" => {
                 self.close_paragraph();
                 self.flush();
                 // A list has a margin above and below unless it says it has none.
@@ -2039,7 +2039,7 @@ impl Builder {
                     self.quote += 1;
                 }
             }
-            "pre" | "xmp" | "listing" => {
+            "pre" => {
                 self.close_paragraph();
                 self.flush();
                 self.want_space(1);
@@ -2264,7 +2264,6 @@ fn inline_name(name: &str) -> &'static str {
     }
 }
 
-/// Elements that start on a new line and carry no meaning of their own here.
 /// The name the build keeps an element under: the end tag of any of the elements that are read as
 /// one closes the one that is open (`</b>` ends a `<strong>`, `</ol>` a `<ul>`, `</h3>` an `<h2>`).
 pub(crate) fn canon(name: &str) -> &str {
@@ -2283,6 +2282,7 @@ pub(crate) fn canon(name: &str) -> &str {
     }
 }
 
+/// Elements that start on a new line and carry no meaning of their own here.
 pub(crate) fn block_name(name: &str) -> Option<&'static str> {
     const BLOCKS: [&str; 25] = [
         "p",

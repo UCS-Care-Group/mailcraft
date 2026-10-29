@@ -262,11 +262,12 @@ fn pieces_of(blocks: &[Block], quote: usize, out: &mut Vec<Piece>) {
         // What stands in the line of the block before goes on in its paragraph. So does a box on a
         // line, when it and the box before it are each a single line of text; boxes that hold
         // paragraphs, lists or more are paragraphs of their own.
+        let own_quote = quote.saturating_add(usize::from(block.quote));
         let joined = if block.beside && before.1 > before.0 {
             match &block.kind {
                 BlockKind::Table(table) if table.inline => {
-                    let single =
-                        before.1 == before.0.saturating_add(1) && out.last().is_some_and(|p| !p.list && !p.body.contains('\n') && p.quote == 0);
+                    let single = before.1 == before.0.saturating_add(1)
+                        && out.last().is_some_and(|p| !p.list && !p.body.contains('\n') && p.quote == own_quote);
                     single.then(|| one_line(table)).flatten()
                 }
                 BlockKind::Table(_) => None,

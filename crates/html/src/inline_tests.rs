@@ -359,6 +359,15 @@ fn a_holder_that_holds_boxes_and_nothing_else_makes_boxes() {
     let text = crate::to_text(&nav);
     assert!(!text.trim().contains('\n'), "{text:?}");
     assert_eq!(text, crate::to_text(&nav.replace("display:inline-block", "display:inline")));
+    // In a quote, and in a quote in a quote, the row is one line of the quote too.
+    for quoted in [
+        format!("<blockquote><div>{a}Home</a> {a}Orders</a></div></blockquote>"),
+        format!("<blockquote><blockquote><p>{a}Home</a> {a}Orders</a></p></blockquote></blockquote>"),
+    ] {
+        let text = crate::to_text(&quoted);
+        assert_eq!(text, crate::to_text(&quoted.replace("display:inline-block", "display:inline")), "{quoted}");
+        assert_eq!(text.trim().lines().count(), 1, "{text:?}");
+    }
     assert_eq!(boxes(&blocks).iter().map(|t| t.spaced).collect::<Vec<_>>(), [false, true, true]);
     // A row of buttons under a paragraph of its own, and with blocks after it, are boxes.
     assert_eq!(count(&format!("<div><p>Pick one</p>{a}Yes</a> {a}No</a><p>Thanks</p></div>")), 2);
