@@ -871,6 +871,7 @@ fn view_of_any(app: &MailApp) -> Tab {
             vec![
                 Item::big_menu("arrangeBy", "sort", "Arrange\nBy", "Arrange By", Menu::ArrangeBy).at(2, 2),
                 Item::big("reverseSort", "Reverse\nSort", "view.reverseSort", no()).at(2, 3),
+                Item::big("sort", "Add\nColumns", "ui.dialog", json!({"name": "showColumns"})).key("view.addColumns").at(2, 4),
             ],
         ),
         g(
@@ -1231,6 +1232,9 @@ fn menu_contents(ui: &mut Ui, app: &mut MailApp, menu: Menu) {
             ui.separator();
             let one = app.session.prefs.one_line;
             mi_check(ui, app, "Single Line", one, "view.oneLine", json!({"value": !one}));
+            // Outlook's Single view: a heading for each column, chosen with Add Columns (#344).
+            let columns = app.session.prefs.columns.enabled;
+            mi_check(ui, app, "Columns", columns, "view.columns", json!({"enabled": !columns}));
         }
         // Tasks and People have their own arrangements.
         Menu::ArrangeBy if app.session.view.module == Module::Tasks => {

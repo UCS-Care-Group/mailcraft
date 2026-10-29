@@ -847,7 +847,7 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         "ui.dialog",
         "Open Dialog",
         "Window",
-        r#"{"name": "commands"|"event"|"meeting"|"editEvent"|"contact"|"editContact"|"task"|"editTask"|"folder"|"goToDate"|"openCalendar"|"link"|"dateTime"|"wordCount"|"account"|"categories"|"rules"|"junkOptions"|"about"|"contributors"|"testers"|"reportProblem"|"proposeTime"|"forwardMeeting"|"proposals", …} (account: "email"?: string to start with, or "id": number for that account's settings, and with "page": "approval" the page that says what to do when its organisation has to approve MailCraft first (as `ui.approvalHelp` opens it); proposeTime: "id"?: number (an item of the calendar) | "message": number (an invitation in the mail); forwardMeeting: "id"?: number; proposals: "id"?: number | "message": number; junkOptions: "list"?: "safe"|"blocked" (the page it opens on) — the first two write to other people only from their own Propose and Send buttons)"#,
+        r#"{"name": "commands"|"event"|"meeting"|"editEvent"|"contact"|"editContact"|"task"|"editTask"|"folder"|"goToDate"|"openCalendar"|"link"|"dateTime"|"wordCount"|"account"|"categories"|"rules"|"junkOptions"|"about"|"contributors"|"testers"|"reportProblem"|"showColumns"|"proposeTime"|"forwardMeeting"|"proposals", …} (account: "email"?: string to start with, or "id": number for that account's settings, and with "page": "approval" the page that says what to do when its organisation has to approve MailCraft first (as `ui.approvalHelp` opens it); proposeTime: "id"?: number (an item of the calendar) | "message": number (an invitation in the mail); forwardMeeting: "id"?: number; proposals: "id"?: number | "message": number; junkOptions: "list"?: "safe"|"blocked" (the page it opens on) — the first two write to other people only from their own Propose and Send buttons)"#,
     ),
     ("ui.closeDialog", "Close Dialog", "Window", "{}"),
     ("ui.theme", "Interface Theme", "File › Options", r#"{"value": "light"|"dark"|"system"}"#),
@@ -1671,6 +1671,7 @@ impl MailApp {
         self.ui.confirmed_mailboxes.truncate(200);
         self.ui.collapsed_calendar_groups.truncate(200);
         updates::sanitize(&mut self.ui);
+        self.ui.options.columns.sanitize();
         self.session.prefs = self.ui.options.clone();
         // Layout choices carry over; the folder, the day and the search start fresh.
         let saved = self.ui.view.clone();

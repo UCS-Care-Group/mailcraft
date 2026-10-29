@@ -125,6 +125,8 @@ pub enum Dialog {
     /// Help › Report a Problem ([`crate::report_problem`]): it only collects what went wrong,
     /// then runs `ui.reportProblem`.
     ReportProblem(Box<crate::report_problem::Draft>),
+    /// View › Add Columns: which columns the message list shows, in what order (#344).
+    ShowColumns(Box<crate::mail_view::columns::Chooser>),
     /// Propose New Time, Forward, or the list of what was proposed ([`crate::meeting_dialogs`]).
     Meeting(crate::meeting_dialogs::MeetingDialog),
     /// A folder's or an account's Properties, with Folder Size… over them
@@ -224,6 +226,7 @@ impl Dialog {
             Dialog::GraphSwitch { .. } => "graphSwitch",
             Dialog::Form(f) => f.name(),
             Dialog::ReportProblem(_) => "reportProblem",
+            Dialog::ShowColumns(_) => "showColumns",
             Dialog::Meeting(d) => d.name(),
             Dialog::FolderProperties(_) => "folderProperties",
             Dialog::ImportTree(_) => "importTree",
@@ -307,6 +310,7 @@ impl Dialog {
             },
             "contributors" => Dialog::About(AboutTab::Contributors),
             "reportProblem" => Dialog::ReportProblem(Box::new(crate::report_problem::Draft::new(app, params))),
+            "showColumns" => Dialog::ShowColumns(Box::new(crate::mail_view::columns::Chooser::new(app))),
             "testers" => Dialog::About(AboutTab::Testers),
             // An item that repeats is asked about before it opens: just this one, or the series?
             "editEvent" if opening_question(app, params).is_some() => {
@@ -1130,6 +1134,8 @@ fn all_commands(app: &MailApp) -> Vec<(String, String, String, String, bool)> {
                     | "calendar.select"
                     | "people.select"
                     | "tasks.select"
+                    // Without data it only reads; Add Columns is the ribbon's, which opens Show Columns.
+                    | "view.columns"
             ) && !c.id.ends_with(".get")
                 && !c.id.ends_with(".list")
         })
@@ -1801,6 +1807,11 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
         Dialog::ReportProblem(draft) => {
             let mut done = false;
             let open = window(ctx, tl!("Report a Problem"), crate::report_problem::WIDTH, |ui| done = draft.show(app, ui));
+            close |= !open || done;
+        }
+        Dialog::ShowColumns(chooser) => {
+            let mut done = false;
+            let open = window(ctx, tl!("Show Columns"), crate::mail_view::columns::CHOOSER_WIDTH, |ui| done = chooser.show(app, ui));
             close |= !open || done;
         }
         // (Enter is nobody's in these: what they send, they send from a button.)

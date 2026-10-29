@@ -80,10 +80,13 @@ pub enum SortBy {
     Size,
     Importance,
     Categories,
+    Attachments,
+    Flag,
 }
 
 impl SortBy {
-    pub const ALL: [SortBy; 6] = [SortBy::Date, SortBy::From, SortBy::Subject, SortBy::Size, SortBy::Importance, SortBy::Categories];
+    pub const ALL: [SortBy; 8] =
+        [SortBy::Date, SortBy::From, SortBy::Subject, SortBy::Size, SortBy::Importance, SortBy::Categories, SortBy::Attachments, SortBy::Flag];
 
     pub fn label(self) -> &'static str {
         match self {
@@ -93,6 +96,8 @@ impl SortBy {
             SortBy::Size => "Size",
             SortBy::Importance => "Importance",
             SortBy::Categories => "Categories",
+            SortBy::Attachments => "Attachments",
+            SortBy::Flag => "Flag",
         }
     }
 
@@ -263,6 +268,12 @@ pub fn enum_code<T: Serialize>(v: &T) -> String {
     serde_json::to_value(v).ok().and_then(|v| v.as_str().map(str::to_string)).unwrap_or_default()
 }
 
+/// An arrangement this build doesn't know (one a later build saved in ui.json) reads as By Date,
+/// so the rest of the view is kept.
+fn sort_or_date<'de, D: serde::Deserializer<'de>>(d: D) -> Result<SortBy, D::Error> {
+    Ok(SortBy::deserialize(Value::deserialize(d)?).unwrap_or_default())
+}
+
 /// View state that commands change (the View tab, the navigation bar, the search box).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
@@ -270,6 +281,7 @@ pub struct ViewState {
     pub module: Module,
     /// The mail folder in view.
     pub folder: Id,
+    #[serde(deserialize_with = "sort_or_date")]
     pub sort: SortBy,
     /// Newest (largest, Z) first.
     pub sort_descending: bool,
@@ -707,6 +719,8 @@ pub struct Doc<'a> {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct Prefs {
+    /// The optional column view, shared across mail folders.
+    pub columns: crate::columns::Columns,
     /// `3:05 PM` rather than `15:05`.
     pub twelve_hour: bool,
     pub week_start: Weekday,
@@ -782,6 +796,7 @@ pub struct Prefs {
 impl Default for Prefs {
     fn default() -> Self {
         Prefs {
+            columns: Default::default(),
             twelve_hour: true,
             week_start: Weekday::Sun,
             clock_chosen: None,

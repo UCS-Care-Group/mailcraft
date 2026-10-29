@@ -993,8 +993,11 @@ pub struct GraphMessage {
     pub sent: Timestamp,
     pub received: Timestamp,
     pub preview: String,
-    #[serde(skip_serializing_if = "is_false")]
-    pub has_attachments: bool,
+    /// Whether it has attachments (Graph's `hasAttachments`, JMAP's `hasAttachment`); `None` when
+    /// the entry didn't say (marks alone, or the property missing), which changes nothing here
+    /// (#575).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub has_attachments: Option<bool>,
     /// It is a draft (Graph's `isDraft`); `None` when the server didn't say, which changes nothing
     /// here (#611).
     #[serde(skip_serializing_if = "Option::is_none")]
