@@ -257,6 +257,7 @@ pub fn hostile() -> Vec<(&'static str, String)> {
                 (0..40_000).map(|i| format!("<i class=c{}>x</i>", i % 4_000)).collect::<String>()
             ),
         ),
+        ("sheet look per element", look_per_element()),
         ("sheet junk", format!("<style>{}</style><p>x</p>", "{([\\\"'/*@:,>+~!;".repeat(8_000))),
         ("preformatted", format!("<pre>{}</pre>", "    indented\tcode line with    spaces\n".repeat(20_000))),
     ]
@@ -366,3 +367,25 @@ pub fn large_newsletter(bytes: usize) -> String {
 
 #[cfg(test)]
 mod tests;
+
+/// 4 rules, each a list of 1,000 short classes, with 40 `margin-left` declarations each, and about
+/// 9,000 elements of 16 of the 4,000 classes each: every element gets a look of its own to build.
+fn look_per_element() -> String {
+    let decls: String = (0..40).map(|i| format!("margin-left:{i}px;")).collect();
+    let mut html = String::from("<style>");
+    for r in 0..4 {
+        let list = (0..1_000).map(|i| format!(".k{}", r * 1_000 + i)).collect::<Vec<_>>().join(",");
+        html.push_str(&format!("{list}{{{decls}}}"));
+    }
+    html.push_str("</style><p>VISIBLE</p>");
+    let mut seed = 0x2545_f491_4f6c_dd1du64;
+    for _ in 0..9_000 {
+        html.push_str("<i class='");
+        for _ in 0..16 {
+            seed = seed.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1_442_695_040_888_963_407);
+            html.push_str(&format!("k{} ", (seed >> 33) % 4_000));
+        }
+        html.push_str("'>x</i>");
+    }
+    html
+}

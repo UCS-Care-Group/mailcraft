@@ -61,6 +61,8 @@ const MIN_STEPS: u32 = 50_000;
 /// What working out a look (reading its declarations) costs, in steps, at least and for each two
 /// bytes of it: about ten microseconds for what a long look says.
 const MIN_BUILD_STEPS: u64 = 200;
+/// What building a look costs more for each declaration it considers.
+const BUILD_STEPS_PER_DECL: u64 = 4;
 
 /// The steps a message of `len` bytes gets.
 pub(crate) fn steps_for(len: usize) -> u32 {
@@ -1344,6 +1346,7 @@ impl Sheet {
         let mut tokens = Tokenizer::new(html);
         // A `<style>` in a `<template>` is never shown, nor read.
         let mut template = 0usize;
+        let mut capped = false;
         let mut take = |tokens: &mut Tokenizer<'_>, template: usize| {
             for css in std::mem::take(&mut tokens.styles) {
                 if template == 0 {
@@ -1360,20 +1363,23 @@ impl Sheet {
                     if tag.name == "template" {
                         template = template.saturating_add(1);
                     }
-                    tree.open(&tag);
+                    if !capped {
+                        tree.open(&tag);
+                    }
                 }
                 Token::Close(name) => {
                     if name == "template" {
                         template = template.saturating_sub(1);
                     }
-                    tree.close(&name);
+                    if !capped {
+                        tree.close(&name);
+                    }
                 }
                 Token::Text(_) => {}
             }
-            if tree.els.len() > MAX_ELEMENTS {
-                // The rest is not styled, nor read for style sheets.
-                break;
-            }
+            // Past the cap the tree grows no more (the elements after it are not styled), but the
+            // style sheets are still collected.
+            capped = capped || tree.els.len() > MAX_ELEMENTS;
         }
         // (A style at the very end has no token after it.)
         take(&mut tokens, template);
@@ -1492,13 +1498,16 @@ impl Sheet {
         let applied = if let Some(hit) = self.cache.get(&key) {
             hit.clone()
         } else {
-            let made = self.build(&found);
+            let (made, considered) = self.build(&found);
             #[cfg(test)]
             {
                 self.builds += u32::from(made.is_some());
             }
             // Working out a look costs about as much as reading what it says.
-            spent += made.as_ref().map_or(0, |a| MIN_BUILD_STEPS + (a.before.len() + a.after.len()) as u64 * 3 / 2);
+            // (It reads, sorts and de-duplicates every declaration it considers.)
+            spent += made
+                .as_ref()
+                .map_or(0, |a| MIN_BUILD_STEPS + BUILD_STEPS_PER_DECL * considered as u64 + (a.before.len() + a.after.len()) as u64 * 3 / 2);
             if self.cache.len() < MAX_CACHED {
                 self.cache.insert(key, made.clone());
             }
@@ -1513,7 +1522,7 @@ impl Sheet {
     }
 
     /// The look the rules `found` (by specificity and order) give together.
-    fn build(&self, found: &[(u32, u32)]) -> Option<Rc<Applied>> {
+    fn build(&self, found: &[(u32, u32)]) -> (Option<Rc<Applied>>, usize) {
         let (mut normal, mut important): (Vec<&Decl>, Vec<&Decl>) = (Vec::new(), Vec::new());
         let mut considered = 0usize;
         // The last rules count the most: when there are too many, the first are left.
@@ -1533,10 +1542,10 @@ impl Sheet {
         }
         let (before, after) = (flatten(&normal), flatten(&important));
         if before.is_empty() && after.is_empty() {
-            return None;
+            return (None, considered);
         }
         let css = Css::parse_limited(&format!("{before};{after}"), 2 * MAX_APPLIED + 16, 2 * MAX_DECLARATIONS);
-        Some(Rc::new(Applied { before, after, css }))
+        (Some(Rc::new(Applied { before, after, css })), considered)
     }
 }
 

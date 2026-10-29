@@ -772,9 +772,11 @@ fn a_builder_newsletter_is_styled_in_full_with_room_to_spare() {
 
 #[test]
 fn a_selector_that_asks_for_an_ancestor_that_is_not_there_costs_one_step() {
-    let html = format!("<style>#nowhere .a .b .c p{{color:#f00}}</style>{}", "<div class=a><p>x</p></div>".repeat(2_000));
+    // 30 levels deep, so that looking up through the ancestors would cost 30 steps or more.
+    let group = format!("{}<p>x</p>{}", "<div class=a>".repeat(30), "</div>".repeat(30));
+    let html = format!("<style>#nowhere .a .b .c p{{color:#f00}}</style>{}", group.repeat(200));
     let (sheet, _) = styled(&html);
-    assert!(sheet.work() <= 2_000 * 3 * 2 + 300, "{}", sheet.work());
+    assert!(sheet.work() <= 200 * 2 + 300, "{}", sheet.work());
     // Where the ancestors are, it matches as before.
     assert_eq!(colour("<style>#now .a p{color:#f00}</style><div id=now><div class=a><p>x</p></div></div>"), RED);
     assert_eq!(colour("<style>#now > .a p{color:#f00}</style><div id=now><section><div class=a><p>x</p></div></section></div>"), None);
@@ -865,4 +867,30 @@ fn what_a_step_costs_in_time_is_much_the_same_on_hostile_and_ordinary_mail() {
         ));
     }
     println!("{}", rows.join("\n"));
+}
+
+#[test]
+fn a_look_built_for_every_element_is_charged_for_the_declarations_it_reads() {
+    let html = crate::corpus::hostile().into_iter().find(|(n, _)| *n == "sheet look per element").map(|(_, h)| h).unwrap_or_default();
+    assert!(html.len() > 900_000 && html.len() < 1_200_000, "{} bytes", html.len());
+    assert_within_budget("sheet look per element", &html);
+    let (sheet, _) = styled(&html);
+    // Each of the looks costs the 600 declarations it reads, so the budget buys a fraction of them.
+    assert!(sheet.builds > 500, "{} looks", sheet.builds);
+    assert!(
+        u64::from(sheet.work()) >= u64::from(sheet.builds) * (MIN_BUILD_STEPS + 4 * 600) || sheet.work() == sheet.budget,
+        "{} looks, {} steps",
+        sheet.builds,
+        sheet.work()
+    );
+    assert!(sheet.builds < 4_000, "{} looks", sheet.builds);
+}
+
+#[test]
+fn a_style_after_the_element_cap_is_still_read() {
+    let html = format!("<p class=t>first</p>{}<style>.t{{display:none}}</style>", "<i>x</i>".repeat(MAX_ELEMENTS + 1_000));
+    assert!(!to_text(&html).contains("first"));
+    // And elements past the cap stay unstyled.
+    let late = format!("<style>.u{{display:none}}</style>{}<p class=u>late</p>", "<i>x</i>".repeat(MAX_ELEMENTS + 1_000));
+    assert!(to_text(&late).contains("late"));
 }
