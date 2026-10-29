@@ -961,6 +961,69 @@ fn messages_can_stay_light_in_the_dark_theme() {
     assert_eq!(light_pages(&harness), 0);
 }
 
+/// A message still being laid out when the owner keeps messages light and turns the window dark
+/// at once is laid out again: its page is still light, but what was begun without the light page
+/// must not go on in the dark window's colours.
+#[test]
+fn a_layout_begun_before_the_light_page_goes_on_in_its_colours() {
+    let (app, ids) = corpus_app(false);
+    let id = id_of(&ids, "one paragraph");
+    let mut harness = window(app, (1280.0, 800.0));
+    harness.state_mut().execute("ui.theme", json!({"value": "light"})).unwrap();
+    harness.state_mut().execute("mail.select", json!({"id": id})).unwrap();
+    harness.run_steps(2);
+    assert_eq!(super::view::kept(&harness.ctx, id, |laid, _| laid.done), Some(false));
+    harness.state_mut().execute("ui.lightMessages", json!({"value": true})).unwrap();
+    harness.state_mut().execute("ui.theme", json!({"value": "dark"})).unwrap();
+    for _ in 0..500 {
+        if super::view::kept(&harness.ctx, id, |laid, _| laid.done) == Some(true) {
+            break;
+        }
+        harness.step();
+    }
+    let inks = super::view::kept(&harness.ctx, id, |laid, _| {
+        let inks = laid.items.iter().filter_map(|item| match &item.kind {
+            ItemKind::Text(text) => Some(text.job.sections.iter().map(|s| s.format.color)),
+            _ => None,
+        });
+        (laid.done, inks.flatten().collect::<std::collections::HashSet<_>>())
+    })
+    .unwrap();
+    assert_eq!(inks, (true, std::collections::HashSet::from([Tokens::light().text])));
+}
+
+/// With messages kept light in the dark theme, what the owner writes keeps the window's colours:
+/// the original under a reply being written and File › Signatures' sample are laid out dark.
+#[test]
+fn the_owners_own_text_keeps_the_windows_colours() {
+    let mut app = MailApp::new(Session::at(mailcraft_engine::sample::mailbox(1_791_993_600, 0), 1_791_993_600, 0), Services::default());
+    app.autosave = false;
+    app.execute("ui.theme", json!({"value": "dark"})).unwrap();
+    app.execute("ui.lightMessages", json!({"value": true})).unwrap();
+    app.execute("signature.set", json!({"name": "Mine", "text": "Avery"})).unwrap();
+    app.execute("signature.open", json!({"name": "Mine"})).unwrap();
+    let id = app.session.mailbox.messages.values().find(|m| m.subject.starts_with("Five new arrivals")).map(|m| m.id).unwrap();
+    app.execute("mail.select", json!({"id": id})).unwrap();
+    app.execute("mail.reply", json!({"id": id})).unwrap();
+    let mut harness = window(app, (1280.0, 900.0));
+    harness.run_steps(4);
+    let inks = |harness: &Window, place: Place, id: u64| {
+        super::view::kept_at(&harness.ctx, place, id, |laid, _| {
+            let inks = laid.items.iter().filter_map(|item| match &item.kind {
+                ItemKind::Text(text) => Some(text.job.sections.iter().map(|s| s.format.color)),
+                _ => None,
+            });
+            inks.flatten().collect::<std::collections::HashSet<_>>()
+        })
+        .unwrap_or_else(|| panic!("nothing is laid out at {place:?}"))
+    };
+    let quote = inks(&harness, Place::Quote, id);
+    assert!(quote.contains(&Tokens::dark().text) && !quote.contains(&Tokens::light().text), "{quote:?}");
+    harness.state_mut().execute("ui.backstage", json!({"value": true, "page": "signatures"})).unwrap();
+    harness.run_steps(4);
+    assert_eq!(inks(&harness, Place::Preview, 0), std::collections::HashSet::from([Tokens::dark().text]));
+}
+
 /// How many light pages were painted in the last frame: rectangles in the light theme's surface
 /// colour taller and wider than a block of a message.
 fn light_pages(harness: &Window) -> usize {

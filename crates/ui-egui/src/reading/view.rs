@@ -221,6 +221,8 @@ struct Key {
     /// In whole points.
     width: u32,
     dark: bool,
+    /// On a light page ([`on_light_page`]): turned on as the window turns dark, `dark` stays as it was.
+    light: bool,
     /// The display scale and the height of a line of text, as bits: the fonts or the zoom changed.
     scale: u32,
     line: u32,
@@ -473,6 +475,7 @@ pub fn show(app: &mut MailApp, ui: &mut Ui, message: &Arc<Message>, place: Place
     let key = Key {
         width: width as u32,
         dark: t.dark,
+        light,
         scale: ctx.pixels_per_point().to_bits(),
         line: ctx.fonts_mut(|f| f.row_height(&regular(super::layout::BASE_SIZE))).to_bits(),
         remote: showing.then(|| entry.doc.remote.iter().filter(|url| matches!(pictures.remote_peek(url), Some(Remote::Ready(_)))).count()),
