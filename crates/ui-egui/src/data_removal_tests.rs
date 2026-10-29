@@ -49,7 +49,7 @@ fn app(host: &Host, store: &Store) -> MailApp {
     let mut a = MailApp::new(Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0), Services::default());
     a.autosave = false;
     a.services.data_wipe = Some(Box::new(host.clone()));
-    a.services.secrets = Some(Box::new(store.clone()));
+    a.services.secrets = Some(std::sync::Arc::new(store.clone()));
     a
 }
 
@@ -174,7 +174,7 @@ impl SecretStore for Locked {
 fn an_unreachable_credential_store_is_reported_not_hidden() {
     let (host, store) = (Host::default(), Store::default());
     let mut a = app(&host, &store);
-    a.services.secrets = Some(Box::new(Locked));
+    a.services.secrets = Some(std::sync::Arc::new(Locked));
     let said = a.execute("ui.removeAllData", json!({})).unwrap();
     assert_eq!(said["failed"].as_array().unwrap().len(), 1, "{said}");
     assert!(matches!(a.dialog, Some(Dialog::Report { .. })));
@@ -273,7 +273,7 @@ fn sign_ins_go_after_the_files_and_not_before() {
     let (host, store) = (Host::default(), Store::default());
     let mut a = app(&host, &store);
     a.services.data_wipe = Some(Box::new(Ordered(log.clone())));
-    a.services.secrets = Some(Box::new(Watching(log.clone())));
+    a.services.secrets = Some(std::sync::Arc::new(Watching(log.clone())));
     a.execute("ui.removeAllData", json!({})).unwrap();
     assert_eq!(log.lock().unwrap().as_slice(), ["files", "sign-ins"]);
 }
@@ -362,7 +362,7 @@ impl SecretStore for Stuck {
 fn an_entry_that_cannot_be_removed_is_in_the_report() {
     let (host, store) = (Host::default(), Store::default());
     let mut a = app(&host, &store);
-    a.services.secrets = Some(Box::new(Stuck(store.clone())));
+    a.services.secrets = Some(std::sync::Arc::new(Stuck(store.clone())));
     a.ui.remember_sign_in = true;
     a.execute("account.add", json!({"email": "avery@mail.example", "incoming": {"host": "imap.mail.example"}})).unwrap();
     a.remember("password", "avery@mail.example", "invented");
@@ -404,7 +404,7 @@ fn a_name_whose_entry_stays_stays_too() {
     a.remember("password", "avery@mail.example", "invented");
     let names = a.ui.remembered_keys.clone();
     assert_eq!(names.len(), 1);
-    a.services.secrets = Some(Box::new(Stuck(store.clone())));
+    a.services.secrets = Some(std::sync::Arc::new(Stuck(store.clone())));
 
     a.execute("account.remove", json!({"id": id})).unwrap();
     assert_eq!(a.ui.remembered_keys, names);
@@ -423,7 +423,7 @@ fn a_store_that_cannot_be_used_keeps_every_name() {
     a.remember("password", "avery@mail.example", "invented");
     let names = a.ui.remembered_keys.clone();
     assert_eq!(names.len(), 1);
-    a.services.secrets = Some(Box::new(Locked));
+    a.services.secrets = Some(std::sync::Arc::new(Locked));
 
     a.execute("account.remove", json!({"id": id})).unwrap();
     assert_eq!(a.ui.remembered_keys, names);

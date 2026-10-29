@@ -40,7 +40,7 @@ fn signing_in() -> (MailApp, Store, Answer, Id) {
     let mut a = MailApp::new(Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0), Services::default());
     a.autosave = false;
     a.ui.remember_sign_in = true;
-    a.services.secrets = Some(Box::new(store.clone()));
+    a.services.secrets = Some(std::sync::Arc::new(store.clone()));
     let (tx, rx) = mpsc::channel();
     let rx = Mutex::new(Some(rx));
     a.services.sign_in = Some(Box::new(move |_| rx.lock().unwrap().take().unwrap_or_else(|| mpsc::channel().1)));

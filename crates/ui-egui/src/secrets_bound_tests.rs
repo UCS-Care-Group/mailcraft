@@ -44,7 +44,7 @@ fn app(store: &Store, seen: &Seen) -> MailApp {
         tx.send(SyncResult { account: req.account.id, ..Default::default() }).unwrap();
         rx
     }));
-    a.services.secrets = Some(Box::new(store.clone()));
+    a.services.secrets = Some(std::sync::Arc::new(store.clone()));
     a
 }
 
@@ -92,6 +92,8 @@ fn a_secret_is_not_found_after_a_server_changes_and_the_old_one_goes() {
     let mut a = app(&store, &seen);
     let id = add(&mut a);
     store.set(OLD, "pw").unwrap();
+    a.secrets_asked = None;
+    crate::secret_read_tests::settle(&mut a);
     a.passwords.insert(id, "pw".into());
     assert_eq!(a.remembered("password", "avery@mail.example").as_deref(), Some("pw"));
 
@@ -167,7 +169,10 @@ fn either_servers_host_or_port_invalidates_every_cached_sign_in() {
         assert!(a.tokens.contains_key(&other));
         assert!(a.graph_tokens.contains_key(&other));
         assert!(!a.can_sync_quietly(id));
-        assert_eq!(a.execute("ui.sync", json!({"account": id})).unwrap()["pending"], "password");
+        // (The owner's Send/Receive asks the store again first.)
+        assert_eq!(a.execute("ui.sync", json!({"account": id})).unwrap()["pending"], "secrets");
+        crate::secret_read_tests::settle(&mut a);
+        assert_eq!(a.dialog.as_ref().map(|d| d.name()), Some("password"));
         a.poll_sync();
         assert!(seen.lock().unwrap().is_empty());
     }
@@ -199,6 +204,8 @@ fn a_password_never_goes_to_another_host() {
     let mut a = app(&store, &seen);
     let id = add(&mut a);
     store.set(OLD, "pw").unwrap();
+    a.secrets_asked = None;
+    crate::secret_read_tests::settle(&mut a);
     // Before the change the remembered password is used, quietly, for the host it was given for.
     assert!(a.can_sync_quietly(id));
     a.execute("ui.sync", json!({"account": id})).unwrap();
@@ -209,7 +216,9 @@ fn a_password_never_goes_to_another_host() {
     a.execute("account.edit", json!({"id": id, "incoming": {"host": "imap.attacker.example", "port": 993}})).unwrap();
     assert!(!a.can_sync_quietly(id));
     let asked = a.execute("ui.sync", json!({"account": id})).unwrap();
-    assert_eq!(asked["pending"], "password");
+    assert_eq!(asked["pending"], "secrets");
+    crate::secret_read_tests::settle(&mut a);
+    assert_eq!(a.dialog.as_ref().map(|d| d.name()), Some("password"));
     a.poll_sync();
     assert!(seen.lock().unwrap().iter().all(|(_, password)| password.is_empty()), "{:?}", seen.lock().unwrap());
 }
@@ -223,7 +232,8 @@ fn secrets_kept_the_old_way_move_once_to_the_servers_of_the_account() {
     store.set("refresh:avery@mail.example", "ref").unwrap();
     store.set("password:other@mail.example", "not ours").unwrap();
 
-    a.migrate_secrets();
+    a.session.clock.now = Some(NOW);
+    crate::secret_read_tests::settle(&mut a);
 
     assert_eq!(store.get(OLD).as_deref(), Some("pw"));
     assert_eq!(store.get("refresh:avery@mail.example|imap=imap.mail.example:993|smtp=smtp.mail.example:465").as_deref(), Some("ref"));
@@ -232,7 +242,8 @@ fn secrets_kept_the_old_way_move_once_to_the_servers_of_the_account() {
     assert!(a.ui.sign_ins_bound);
     // Once: an entry that turns up under the old name afterwards is left alone.
     store.set("password:avery@mail.example", "later").unwrap();
-    a.migrate_secrets();
+    a.secrets_asked = None;
+    crate::secret_read_tests::settle(&mut a);
     assert_eq!(store.get("password:avery@mail.example").as_deref(), Some("later"));
 }
 

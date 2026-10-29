@@ -1184,6 +1184,12 @@ msgid "Ask again"
 msgstr "Opnieuw vragen"
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "Ask before deleting a conversation"
+msgstr "Vragen voordat een gesprek wordt verwijderd"
+
+#. interface
 #: crates/ui-egui/src/reading/remote.rs
 #, fuzzy
 msgid "Ask before downloading pictures from this domain's senders again"
@@ -2044,6 +2050,12 @@ msgid "Closes this window. Nothing is kept."
 msgstr "Sluit dit venster. Er wordt niets bewaard."
 
 #. command label
+#: crates/engine/src/cmd/mail.rs
+#, fuzzy
+msgid "Collapse Conversation"
+msgstr "Gesprek samenvouwen"
+
+#. command label
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Collapse the Ribbon"
@@ -2505,6 +2517,12 @@ msgstr "Categorie verwijderen"
 msgid "Delete Contact"
 msgstr "Contactpersoon verwijderen"
 
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Delete Conversation"
+msgstr "Gesprek verwijderen"
+
 #. command label, interface
 #: crates/engine/src/cmd/folder.rs crates/ui-egui/src/dialogs.rs
 #, fuzzy
@@ -2572,6 +2590,12 @@ msgid "Delete meeting requests from the Inbox after responding"
 msgstr "Vergaderverzoeken na het reageren verwijderen uit Postvak IN"
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "Delete on a conversation's row that takes more than one message asks first."
+msgstr "Verwijderen op de rij van een gesprek dat meer dan één bericht bevat, vraagt eerst."
+
+#. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Delete this category"
@@ -2588,6 +2612,12 @@ msgstr "Deze regel verwijderen"
 #, fuzzy
 msgid "Deleted Items"
 msgstr "Verwijderde items"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "Deleting"
+msgstr "Verwijderen"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -2756,6 +2786,18 @@ msgstr "Geen antwoord verzenden"
 #, fuzzy
 msgid "Don't Send, Keep on This Computer"
 msgstr "Niet verzenden, op deze computer houden"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Don't ask again for these accounts"
+msgstr "Niet meer vragen voor deze accounts"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Don't ask again for this account"
+msgstr "Niet meer vragen voor dit account"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -3188,6 +3230,12 @@ msgstr "Alles in „{folder}” wordt definitief verwijderd."
 #, fuzzy
 msgid "Everything the interface does is a command: {commands} of them, covering {percent}% of the feature catalog. The command line, the control channel and the MCP server run the same commands."
 msgstr "Alles wat de interface doet, is een opdracht: {commands} opdrachten, die {percent}% van de functiecatalogus dekken. De opdrachtregel, het besturingskanaal en de MCP-server voeren dezelfde opdrachten uit."
+
+#. command label
+#: crates/engine/src/cmd/mail.rs
+#, fuzzy
+msgid "Expand Conversation"
+msgstr "Gesprek uitvouwen"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -3966,6 +4014,12 @@ msgid "Hide the folder pane"
 msgstr "Het mappenvenster verbergen"
 
 #. interface
+#: crates/ui-egui/src/mail_view.rs
+#, fuzzy
+msgid "Hide the messages of this conversation"
+msgstr "De berichten van dit gesprek verbergen"
+
+#. interface
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
 msgid "Hide this calendar"
@@ -4444,6 +4498,12 @@ msgstr "De e-mail ervan kan hier worden gelezen. Wat u erin wijzigt, wordt in di
 #, fuzzy
 msgid "Its mail is kept in step through Microsoft Graph, without mail servers"
 msgstr "De e-mail ervan wordt bijgehouden via Microsoft Graph, zonder e-mailservers"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Its messages in other folders stay where they are."
+msgstr "De berichten van het gesprek in andere mappen blijven waar ze zijn."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -8864,6 +8924,12 @@ msgid "Show the folder pane"
 msgstr "Het mappenvenster weergeven"
 
 #. interface
+#: crates/ui-egui/src/mail_view.rs
+#, fuzzy
+msgid "Show the messages of this conversation"
+msgstr "De berichten van dit gesprek weergeven"
+
+#. interface
 #: crates/ui-egui/src/reading/remote.rs
 #, fuzzy
 msgid "Show this message's pictures, this once. Whoever sent it can then tell that you opened it."
@@ -9948,6 +10014,12 @@ msgid "The contacts you picked"
 msgstr "De contactpersonen die u hebt gekozen"
 
 #. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "The conversations' messages in other folders stay where they are."
+msgstr "De berichten van de gesprekken in andere mappen blijven waar ze zijn."
+
+#. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "The day after"
@@ -10684,6 +10756,54 @@ msgstr "Dit exemplaar van MailCraft werkt zichzelf niet bij."
 #, fuzzy
 msgid "This copy of MailCraft has no address to send reports to."
 msgstr "Dit exemplaar van MailCraft heeft geen adres om rapporten naartoe te verzenden."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "This deletes the conversation from {folder}: its {n} message there goes to Deleted Items."
+msgid_plural "This deletes the conversation from {folder}: its {n} messages there go to Deleted Items."
+msgstr[0] "Hiermee wordt het gesprek uit {folder} verwijderd: {n} bericht daar gaat naar Verwijderde items."
+msgstr[1] "Hiermee wordt het gesprek uit {folder} verwijderd: {n} berichten daar gaan naar Verwijderde items."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "This deletes the {n} message of this conversation that is listed here. It goes to Deleted Items."
+msgid_plural "This deletes the {n} messages of this conversation that are listed here. They go to Deleted Items."
+msgstr[0] "Hiermee wordt {n} bericht van dit gesprek dat hier staat verwijderd. Het gaat naar Verwijderde items."
+msgstr[1] "Hiermee worden de {n} berichten van dit gesprek verwijderd die hier staan. Ze gaan naar Verwijderde items."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "This deletes {n} message in {folder}, every message of the conversation there included. It goes to Deleted Items."
+msgid_plural "This deletes {n} messages in {folder}, every message of the conversation there included. They go to Deleted Items."
+msgstr[0] "Hiermee wordt {n} bericht in {folder} verwijderd, alle berichten van het gesprek daar inbegrepen. Het gaat naar Verwijderde items."
+msgstr[1] "Hiermee worden {n} berichten in {folder} verwijderd, alle berichten van het gesprek daar inbegrepen. Ze gaan naar Verwijderde items."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "This deletes {n} message in {folder}, every message of the conversations there included. It goes to Deleted Items."
+msgid_plural "This deletes {n} messages in {folder}, every message of the conversations there included. They go to Deleted Items."
+msgstr[0] "Hiermee wordt {n} bericht in {folder} verwijderd, alle berichten van de gesprekken daar inbegrepen. Het gaat naar Verwijderde items."
+msgstr[1] "Hiermee worden {n} berichten in {folder} verwijderd, alle berichten van de gesprekken daar inbegrepen. Ze gaan naar Verwijderde items."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "This deletes {n} message, including the conversation's messages listed here. It goes to Deleted Items."
+msgid_plural "This deletes {n} messages, including the conversation's messages listed here. They go to Deleted Items."
+msgstr[0] "Hiermee wordt {n} bericht verwijderd, inclusief de berichten van het gesprek die hier staan. Het gaat naar Verwijderde items."
+msgstr[1] "Hiermee worden {n} berichten verwijderd, inclusief de berichten van het gesprek die hier staan. Ze gaan naar Verwijderde items."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "This deletes {n} message, including the conversations' messages listed here. It goes to Deleted Items."
+msgid_plural "This deletes {n} messages, including the conversations' messages listed here. They go to Deleted Items."
+msgstr[0] "Hiermee wordt {n} bericht verwijderd, inclusief de berichten van de gesprekken die hier staan. Het gaat naar Verwijderde items."
+msgstr[1] "Hiermee worden {n} berichten verwijderd, inclusief de berichten van de gesprekken die hier staan. Ze gaan naar Verwijderde items."
 
 #. name
 #: crates/ui-egui/src/account_setup.rs
@@ -12298,6 +12418,12 @@ msgid "a rule can't move mail to an Outbox: that would send it"
 msgstr "een regel kan geen e-mail naar een Postvak UIT verplaatsen: die zou dan worden verzonden"
 
 #. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "a shared mailbox asks before deleting a conversation as the account it is opened through does: change that account's"
+msgstr "een gedeeld postvak vraagt voor het verwijderen van een gesprek hetzelfde als het account waarmee het is geopend: wijzig die van dat account"
+
+#. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
 msgid "a shared mailbox can't open another one: name the account it is opened through"
@@ -12428,6 +12554,12 @@ msgstr "agenda"
 #, fuzzy
 msgid "cancelled"
 msgstr "geannuleerd"
+
+#. what a command says
+#: crates/engine/src/cmd/mail.rs
+#, fuzzy
+msgid "close a conversation first: each of the 1,000 open has a message selected"
+msgstr "vouw eerst een gesprek samen: in elk van de 1.000 uitgevouwen gesprekken is een bericht geselecteerd"
 
 #. what a command says
 #: crates/engine/src/cmd/people.rs
@@ -12774,7 +12906,7 @@ msgid "no event with id {id}"
 msgstr "geen gebeurtenis met id {id}"
 
 #. what a command says
-#: crates/engine/src/cmd/folder.rs
+#: crates/engine/src/cmd/folder.rs crates/engine/src/cmd/mail.rs
 #, fuzzy
 msgid "no folder \"{path}\""
 msgstr "geen map „{path}”"
@@ -13019,6 +13151,12 @@ msgstr "sla het postvak eerst op in een bestand: bij het overschakelen blijft ee
 msgid "select a contact first"
 msgstr "selecteer eerst een contact"
 
+#. why a command can't run
+#: crates/engine/src/cmd/mail.rs
+#, fuzzy
+msgid "select a conversation in conversation view first"
+msgstr "selecteer eerst een gesprek in de gespreksweergave"
+
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/tasks.rs
 #, fuzzy
@@ -13138,6 +13276,18 @@ msgstr "de controle is onverwacht gestopt"
 #, fuzzy
 msgid "the contact is gone"
 msgstr "het contact is verdwenen"
+
+#. why a command can't run
+#: crates/engine/src/cmd/mail.rs
+#, fuzzy
+msgid "the conversation is closed"
+msgstr "het gesprek is samengevouwen"
+
+#. why a command can't run
+#: crates/engine/src/cmd/mail.rs
+#, fuzzy
+msgid "the conversation is open"
+msgstr "het gesprek is uitgevouwen"
 
 #. interface
 #: crates/ui-egui/src/reading/images.rs

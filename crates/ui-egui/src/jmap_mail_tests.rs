@@ -111,7 +111,7 @@ fn the_first_run_asks_for_the_password_and_the_run_goes_with_it() {
     let (mut app, accounts, jobs) = window(&["ada@example.org"]);
     let ada = accounts[0];
     let kept: Arc<Mutex<Vec<String>>> = Default::default();
-    app.services.secrets = Some(Box::new(Recording(kept.clone())));
+    app.services.secrets = Some(std::sync::Arc::new(Recording(kept.clone())));
     assert!(app.enabled("ui.sync"));
     assert_eq!(app.server_accounts(), [ada]);
     assert_eq!(app.execute("ui.sync", json!({"account": ada})).unwrap()["pending"], "password");

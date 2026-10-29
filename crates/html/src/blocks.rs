@@ -15,7 +15,7 @@ use crate::style::{self, Css, MsoList, Size};
 use crate::tokenizer::{Tag, Token, Tokenizer};
 use crate::{
     Align, Block, BlockKind, Cell, Insets, Length, Line, LineHeight, MAX_BLOCKS, MAX_BOX_PX, MAX_CELLS, MAX_INPUT, MAX_ROW_SPAN, MAX_TABLE_COLUMNS,
-    MAX_TABLE_DEPTH, MAX_TABLE_ROWS, Marker, Rgb, Row, Sides, Span, Table, is_blank, is_safe_url, truncate,
+    MAX_TABLE_DEPTH, MAX_TABLE_ROWS, Marker, Rgb, Row, Sides, Span, Table, VAlign, is_blank, is_safe_url, truncate,
 };
 
 /// Deepest nesting of elements that is tracked; what is nested deeper keeps its text and loses its
@@ -323,12 +323,15 @@ struct TableBuild {
     full: bool,
     /// The row being read is the last one this table may have.
     last_row: bool,
+    spacing: Option<u8>,
 }
 
 #[derive(Debug)]
 struct RowBuild {
     cells: Vec<Cell>,
     background: Option<Rgb>,
+    /// What its cells take when they don't say.
+    valign: Option<VAlign>,
     /// At [`MAX_TABLE_COLUMNS`]: the last cell takes what follows.
     full: bool,
 }
@@ -344,6 +347,7 @@ struct CellBuild {
     lines: [Line; 4],
     padding: Option<Insets>,
     radius: u8,
+    valign: Option<VAlign>,
 }
 
 /// What an open element is.
@@ -1161,6 +1165,7 @@ impl Builder {
             lines: cell.lines,
             padding: cell.padding,
             radius: cell.radius,
+            valign: cell.valign,
         };
         // Its row is the nearest one, this side of the table.
         for node in self.nodes.iter_mut().rev() {
@@ -1277,6 +1282,7 @@ impl Builder {
             background: table.background,
             lines: table.lines,
             radius: table.radius,
+            spacing: table.spacing,
         });
         let block = Block { quote: self.quote_depth(), align: table.align, inset: table.margin, ..Block::new(kind, Vec::new()) };
         self.emit(block, true);
@@ -1302,6 +1308,7 @@ impl Builder {
             flat: self.frames.len() >= MAX_TABLE_DEPTH,
             full: false,
             last_row: false,
+            spacing: None,
         };
         if !self.push_node("table", Kind::Table(Box::new(build)), Delta::default(), false) {
             return None;
@@ -1333,6 +1340,7 @@ impl Builder {
             flat: self.frames.len() >= MAX_TABLE_DEPTH,
             full: false,
             last_row: false,
+            spacing: css.spacing.or_else(|| tag.attr("cellspacing").and_then(|v| style::spacing(&v))),
         };
         let hidden = css.hidden || tag.has("hidden");
         self.want_gap(css.margin_insets().top);
@@ -1366,7 +1374,8 @@ impl Builder {
         let mut delta = Delta { hooked: hooked(tag), ..Delta::of(&css) };
         delta.align = delta.align.or_else(|| tag.attr("align").and_then(|a| style::attr_align(&a)));
         let background = css.background.or_else(|| tag.attr("bgcolor").and_then(|c| style::attr_color(&c))).filter(|bg| Some(*bg) != self.backdrop());
-        let row = RowBuild { cells: Vec::new(), background, full: false };
+        let valign = css.valign.or_else(|| tag.attr("valign").and_then(|v| style::valign(&v)));
+        let row = RowBuild { cells: Vec::new(), background, valign, full: false };
         let hidden = css.hidden || tag.has("hidden");
         if !self.push_node("tr", Kind::Row(row), delta, hidden) {
             self.overflow = self.overflow.saturating_add(1);
@@ -1395,7 +1404,12 @@ impl Builder {
                 if let Some(t) = self.table_at(table) {
                     t.last_row = t.rows.len() + 1 >= MAX_TABLE_ROWS;
                 }
-                if !self.push_node("tr", Kind::Row(RowBuild { cells: Vec::new(), background: None, full: false }), Delta::default(), false) {
+                if !self.push_node(
+                    "tr",
+                    Kind::Row(RowBuild { cells: Vec::new(), background: None, valign: None, full: false }),
+                    Delta::default(),
+                    false,
+                ) {
                     self.overflow = self.overflow.saturating_add(1);
                     return;
                 }
@@ -1432,6 +1446,7 @@ impl Builder {
             lines: css.lines,
             padding: css.padding_insets(),
             radius: css.radius,
+            valign: css.valign.or_else(|| tag.attr("valign").and_then(|v| style::valign(&v))).or_else(|| self.row_at(row).and_then(|r| r.valign)),
         };
         let mut delta = Delta { hooked: hooked(tag), ..Delta::of(&css) };
         delta.cell = true;

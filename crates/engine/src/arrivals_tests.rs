@@ -191,3 +191,48 @@ fn nothing_arrives_in_an_account_a_newer_version_added() {
     s.mailbox.add_message(Message { folder: inbox, subject: "Copied in".into(), ..Default::default() }).unwrap();
     assert!(arrivals(&s.mailbox, &before).is_empty());
 }
+
+/// A Microsoft account's Inbox with the server folder as given; the account and the Inbox.
+fn microsoft_inbox(server: ServerFolder) -> (Session, Id, Id) {
+    let mut s = Session::empty();
+    let owner = s.run("account.add", &json!({"email": "owner@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+    let inbox = s.mailbox.folder_of_kind(owner, FolderKind::Inbox).unwrap();
+    s.mailbox.folder_mut(inbox).unwrap().server = Some(server);
+    (s, owner, inbox)
+}
+
+#[test]
+fn a_microsoft_inbox_a_run_stopped_partway_through_still_raises_a_notice_next_time() {
+    // #609: the first round ended; a later round stopped between delta pages (not caught up).
+    let server = ServerFolder { id: "F".into(), delta: "next page".into(), caught_up: false, round_ended: true, ..Default::default() };
+    let (mut s, _, inbox) = microsoft_inbox(server);
+    let before = mark(&s.mailbox);
+    s.mailbox.add_message(Message { folder: inbox, subject: "after the partial run".into(), ..Default::default() }).unwrap();
+    assert_eq!(subjects(&arrivals(&s.mailbox, &before)), ["after the partial run"]);
+}
+
+#[test]
+fn a_caught_up_microsoft_inbox_of_a_file_from_before_round_ended_arrives() {
+    let server = ServerFolder { id: "F".into(), delta: "link".into(), caught_up: true, round_ended: false, ..Default::default() };
+    let (mut s, _, inbox) = microsoft_inbox(server);
+    let before = mark(&s.mailbox);
+    s.mailbox.add_message(Message { folder: inbox, subject: "old file".into(), ..Default::default() }).unwrap();
+    assert_eq!(arrivals(&s.mailbox, &before).len(), 1);
+}
+
+#[test]
+fn a_partial_graph_run_after_a_caught_up_one_leaves_the_inbox_watched() {
+    use crate::cmd::graph_down::{Down, ServerIndex, take_page};
+    use mailcraft_model::sync::MessagePage;
+    let server = ServerFolder { id: "F".into(), delta: "link".into(), caught_up: true, round_ended: true, ..Default::default() };
+    let (mut s, owner, inbox) = microsoft_inbox(server);
+    let mut index = ServerIndex::default();
+    // The run stops after a page that does not end the round.
+    let page = MessagePage { folder: "F".into(), link: "next page".into(), caught_up: false, ..Default::default() };
+    take_page(&mut s.mailbox, &mut index, owner, &page, &mut Down::default());
+    let kept = s.mailbox.folder(inbox).and_then(|f| f.server.as_ref()).unwrap();
+    assert!(!kept.caught_up && kept.round_ended);
+    let before = mark(&s.mailbox);
+    s.mailbox.add_message(Message { folder: inbox, subject: "next run".into(), ..Default::default() }).unwrap();
+    assert_eq!(subjects(&arrivals(&s.mailbox, &before)), ["next run"]);
+}

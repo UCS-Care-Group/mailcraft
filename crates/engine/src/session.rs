@@ -4,7 +4,7 @@
 //! undo/redo.
 
 use std::borrow::Cow;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -275,6 +275,12 @@ pub struct ViewState {
     pub sort_descending: bool,
     /// Show messages grouped into conversations.
     pub conversations: bool,
+    /// The conversations opened in the list (#503), each by its account and its key
+    /// ([`Message::thread_key`]): their messages are listed under their rows. Another folder, tab
+    /// or search starts with all of them closed. Not kept with the view's settings, which would
+    /// write subjects of mail into them.
+    #[serde(skip)]
+    pub open: Vec<(Id, String)>,
     pub filter: Filter,
     pub search: String,
     pub scope: Scope,
@@ -309,6 +315,7 @@ impl Default for ViewState {
             sort: SortBy::Date,
             sort_descending: true,
             conversations: false,
+            open: Vec::new(),
             filter: Filter::All,
             search: String::new(),
             scope: Scope::Folder,
@@ -324,6 +331,31 @@ impl Default for ViewState {
             people_sort: PeopleSort::Name,
             task_filter: TaskFilter::Active,
             task_sort: TaskSort::DueDate,
+        }
+    }
+}
+
+/// What the message list draws selected (#503): what Delete and Move take, by the rows that show
+/// it ([`Session::drawn`]).
+#[derive(Debug, Default)]
+pub struct Drawn {
+    /// The selected messages.
+    messages: HashSet<Id>,
+    /// The conversations' rows picked as the conversation ([`Session::picked_whole`]).
+    whole: HashSet<Id>,
+    /// What Delete takes, while a conversation is open ([`Session::acting_on_in`]).
+    taken: HashSet<Id>,
+}
+
+impl Drawn {
+    /// Whether `row` is drawn selected: a conversation's row when its message is selected, and,
+    /// while it is open, only when it was picked as the conversation; under an open conversation,
+    /// each row whose message is taken: the row's own when the row was picked, and any picked
+    /// itself.
+    pub fn shows(&self, row: &Row) -> bool {
+        match row.under {
+            None => (!row.open && self.messages.contains(&row.id)) || self.whole.contains(&row.id),
+            Some(_) => self.taken.contains(&row.id),
         }
     }
 }
@@ -348,6 +380,11 @@ pub struct Selection {
     /// under several categories.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub anchor_row: Option<(Id, u16)>,
+    /// The selected messages that were selected by their conversation's row, in conversation
+    /// view (#503): each stands for every message of that row, which Delete and Move take with it
+    /// ([`Session::acting_on`]). One selected by its own row, under its open conversation, is not.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub whole: Vec<Id>,
     /// The selected messages that were in the list while they were selected, and that list: they
     /// stay in it while they stay selected, even when they no longer match the filter or the
     /// search (read, a flag cleared), so the list doesn't change under the owner while they read
@@ -486,11 +523,28 @@ impl Selection {
         }
     }
 
+    /// Where row `copy` of message `id` is in `rows`: for a message picked as its conversation
+    /// that is no longer the one on top (newer mail came, or another tab has another on top), the
+    /// conversation's row, the one drawn picked, and not its own row under it (#503).
+    pub fn row_in(&self, rows: &[Row], id: Id, copy: u16) -> Option<usize> {
+        let at = crate::list::position_of(rows, id, copy)?;
+        match rows.get(at).and_then(|r| r.under) {
+            Some(head) if head != id && self.whole.contains(&id) => crate::list::position_of(rows, head, 0).or(Some(at)),
+            _ => Some(at),
+        }
+    }
+
+    /// Where the row the focus is on is in `rows` ([`Selection::row_in`]).
+    pub fn focus_in(&self, rows: &[Row]) -> Option<usize> {
+        self.focus().and_then(|id| self.row_in(rows, id, self.focus_copy()))
+    }
+
     /// No message selected, and nothing kept for one.
     pub(crate) fn clear_messages(&mut self) {
         self.messages.clear();
         self.focus_row = None;
         self.anchor_row = None;
+        self.whole.clear();
         self.stays = None;
     }
 
@@ -500,6 +554,7 @@ impl Selection {
         self.messages.retain(|id| ids.contains(id));
         self.focus_row = self.focus_row.filter(|(id, _)| ids.contains(id));
         self.anchor_row = self.anchor_row.filter(|(id, _)| ids.contains(id));
+        self.whole.retain(|id| ids.contains(id));
     }
 
     /// The messages `other` has selected, with the rows and the list they have there.
@@ -507,6 +562,7 @@ impl Selection {
         self.messages = other.messages.clone();
         self.focus_row = other.focus_row;
         self.anchor_row = other.anchor_row;
+        self.whole = other.whole.clone();
         self.stays = other.stays.clone();
     }
 }
@@ -926,7 +982,8 @@ pub struct Session {
     /// while the list stays as it was searched (`searched_for`), so that a result opened, whose
     /// body comes in, doesn't search everything again.
     search_pass: Option<(mailcraft_model::search::Query, std::collections::HashMap<Id, bool>)>,
-    /// What the list was when `search_pass` was made: its key without the loads.
+    /// What the list was when `search_pass` was made: its key without the loads and the open
+    /// conversations.
     searched_for: Option<String>,
     /// Keep a word index beside the mailbox file, which a search answers from (R6.2): set by a
     /// host that wants it (the desktop app), never by a command's params. Off, a search reads
@@ -1237,7 +1294,14 @@ impl Session {
     /// those kept for a selection let go of since.
     pub(crate) fn in_list(&mut self, ids: &[Id]) -> HashSet<Id> {
         if mailcraft_model::search::Query::parse(&self.view.search).is_empty() {
-            return crate::list::lists(self, ids);
+            let mut shown = crate::list::lists(self, ids);
+            // And those of another folder listed under their open conversation (#503).
+            if !self.view.open.is_empty() && ids.iter().any(|id| !shown.contains(id)) {
+                let rows = self.rows();
+                let wanted: HashSet<Id> = ids.iter().copied().collect();
+                shown.extend(rows.iter().filter(|r| r.under.is_some() && wanted.contains(&r.id)).map(|r| r.id));
+            }
+            return shown;
         }
         let wanted: HashSet<Id> = ids.iter().copied().collect();
         let key = self.list_key();
@@ -1377,6 +1441,16 @@ impl Session {
         rows
     }
 
+    /// The rows of the message list as it was last built, while they are of the list in view: what
+    /// the window shows, which a search's passes over bodies kept on disk may have added to, and
+    /// still shows when content was brought into memory since (the reading pane, drawn after the
+    /// list). For a caller that can't build them ([`Session::rows`]); `None` when they are of
+    /// another list.
+    pub fn rows_in_view(&self) -> Option<Arc<Vec<Row>>> {
+        let shown = self.shown_key();
+        self.list_cache.as_ref().filter(|c| c.key.split_once('|').is_some_and(|(_, key)| key == shown)).map(|c| c.rows.clone())
+    }
+
     /// What the message list is built from, but for the content brought into memory or let go of.
     fn list_state(&self) -> String {
         format!(
@@ -1402,7 +1476,18 @@ impl Session {
 
     /// The key the message list is kept under ([`Session::rows`]).
     fn list_key(&self) -> String {
-        format!("{}|{}", self.loads, self.list_state())
+        format!("{}|{}", self.loads, self.shown_key())
+    }
+
+    /// [`Session::list_key`] but for the content brought into memory or let go of. Which
+    /// conversations are open (#503) isn't in the view's settings, and opening one in a search's
+    /// list lists what was found again, without searching again. They are in it by a hash: up to
+    /// 1,000 subjects, on every call.
+    fn shown_key(&self) -> String {
+        use std::hash::{Hash, Hasher};
+        let mut open = std::hash::DefaultHasher::new();
+        self.view.open.hash(&mut open);
+        format!("{}|{}:{:x}", self.list_state(), self.view.open.len(), open.finish())
     }
 
     /// Keep the word index of the mailbox file ([`crate::words`]) while [`Session::index_words`]
@@ -1992,13 +2077,99 @@ impl Session {
         self.search_pass.as_ref().map(|(_, hits)| hits.clone()).unwrap_or_default()
     }
 
-    /// What is selected is in the folder in view, or where its search looks (#485): one gone,
-    /// taken elsewhere by a run, or left in a folder the view has left, is let go of.
+    /// What is selected is in the folder in view, or where its search looks (#485), or listed under
+    /// its open conversation there (#503): one gone, taken elsewhere by a run, or left in a folder
+    /// the view has left, is let go of.
     fn select_in_view(&mut self) {
-        self.sel.messages = {
+        let outside: HashSet<Id> = {
             let in_view = crate::list::in_view(self);
-            self.sel.messages.iter().copied().filter(|id| self.mailbox.message(*id).is_some_and(&in_view)).collect()
+            self.sel.messages.iter().copied().filter(|id| !self.mailbox.message(*id).is_some_and(&in_view)).collect()
         };
+        if outside.is_empty() {
+            return;
+        }
+        // (Only a message that is here may be listed anywhere.)
+        let under: HashSet<Id> = if self.view.open.is_empty() || outside.iter().all(|id| self.mailbox.message(*id).is_none()) {
+            HashSet::new()
+        } else {
+            self.rows().iter().filter(|r| r.under.is_some() && outside.contains(&r.id)).map(|r| r.id).collect()
+        };
+        self.sel.messages.retain(|id| !outside.contains(id) || under.contains(id));
+    }
+
+    /// What Delete and Move take of the selection (#503): each selected message, and for one
+    /// selected by its conversation's row, every message that row stands for in the list. A closed
+    /// conversation's row is that row whichever way its message came to be selected: it is drawn
+    /// selected, and what is drawn is what is taken. Not the conversation's messages in other
+    /// folders (a reply in Sent Items): those go only when they are selected themselves, under the
+    /// open conversation, as in Outlook.
+    pub fn acting_on(&mut self) -> Vec<Id> {
+        if !self.view.conversations || self.sel.messages.is_empty() {
+            return self.sel.messages.clone();
+        }
+        let rows = self.rows();
+        self.acting_on_in(&rows)
+    }
+
+    /// [`Session::acting_on`] for a caller that can't fill the list's cache, such as the question
+    /// put to the owner about an agent's Delete or Move: what it would take now.
+    pub fn acting_on_now(&self) -> Vec<Id> {
+        if !self.view.conversations || self.sel.messages.is_empty() {
+            return self.sel.messages.clone();
+        }
+        self.acting_on_in(&crate::list::rows(self))
+    }
+
+    /// What the list's `rows` draw selected (#503), worked out once for them and the selection, so
+    /// that a row drawn asks a set and nothing more ([`Drawn::shows`]).
+    pub fn drawn(&self, rows: &[Row]) -> Drawn {
+        let messages: HashSet<Id> = self.sel.messages.iter().copied().collect();
+        // The messages a conversation's row was picked by, as the conversation.
+        let picked: HashSet<Id> = self.sel.whole.iter().copied().filter(|id| messages.contains(id)).collect();
+        let whole = match picked.is_empty() {
+            true => HashSet::new(),
+            false => rows.iter().filter(|r| r.under.is_none() && r.members.iter().any(|m| picked.contains(m))).map(|r| r.id).collect(),
+        };
+        // Rows under a conversation are listed only while one is open.
+        let taken = match self.view.open.is_empty() {
+            true => HashSet::new(),
+            false => self.acting_on_in(rows).into_iter().collect(),
+        };
+        Drawn { messages, whole, taken }
+    }
+
+    /// Whether the list's row `row` was picked as the conversation (#503): by one of its messages,
+    /// which needn't be the one on top of it now (a newer one came, or another tab lists the
+    /// conversation with another message on top).
+    pub fn picked_whole(&self, row: &Row) -> bool {
+        row.under.is_none() && self.sel.whole.iter().any(|id| row.members.contains(id) && self.sel.messages.contains(id))
+    }
+
+    /// [`Session::acting_on`], with the list's `rows`.
+    pub fn acting_on_in(&self, rows: &[Row]) -> Vec<Id> {
+        let whole: HashSet<Id> = self.sel.whole.iter().copied().collect();
+        // The row each selected message is on top of, and the row of a message it was picked as
+        // the conversation by, which another may be on top of now (looked for only then).
+        let tops = rows.iter().filter(|r| r.under.is_none());
+        let mut rows_of: HashMap<Id, &Row> = tops.clone().map(|r| (r.id, r)).collect();
+        if whole.iter().any(|id| !rows_of.contains_key(id)) {
+            for r in tops.filter(|r| r.conversation()) {
+                for m in r.members.iter().filter(|m| whole.contains(m)) {
+                    rows_of.entry(*m).or_insert(r);
+                }
+            }
+        }
+        let mut seen = HashSet::new();
+        let mut out = Vec::new();
+        for id in &self.sel.messages {
+            let members = rows_of.get(id).filter(|r| r.conversation() && (whole.contains(id) || (!r.open && r.id == *id)));
+            for x in members.map_or_else(|| std::slice::from_ref(id), |r| r.members.as_slice()) {
+                if seen.insert(*x) {
+                    out.push(*x);
+                }
+            }
+        }
+        out
     }
 
     /// Keep the view and the selection pointing at things that exist.
@@ -2081,6 +2252,8 @@ impl Session {
         self.compose = None;
         self.view.folder = 0;
         self.view.search.clear();
+        // Another mailbox starts with every conversation closed, though its folder has the same id.
+        self.view.open.clear();
         self.dirty = false;
         self.rev += 1;
         self.normalize();
@@ -2320,9 +2493,17 @@ impl Session {
                 {
                     c.owner_changed = true;
                 }
-                // Another list (a folder, a tab, a search) keeps selected only what it shows (#485).
+                // Another list (a folder, a tab, a search) keeps selected only what it shows (#485),
+                // with every conversation closed (#503).
                 if list_before != self.list_of() {
+                    self.view.open.clear();
                     self.keep_shown();
+                }
+                // A message is picked as its conversation only while it is selected: let go of in
+                // any way (another folder, a search), it isn't when it is picked again (#503).
+                if !self.sel.whole.is_empty() {
+                    let messages: HashSet<Id> = self.sel.messages.iter().copied().collect();
+                    self.sel.whole.retain(|id| messages.contains(id));
                 }
                 // The working hours of an account just removed go with it (#325): here, once
                 // nothing can turn the removal back, as preferences aren't put back with the mailbox.

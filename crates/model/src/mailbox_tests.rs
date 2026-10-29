@@ -1085,3 +1085,15 @@ fn a_file_with_too_many_items_is_refused_while_it_is_read() {
     // The budget is not left set for the next read.
     assert_eq!(serde_json::from_str::<Mailbox>(&json).map(|m| m.messages.len()).ok(), Some(2000));
 }
+
+#[test]
+fn a_switch_to_ask_before_deleting_a_conversation_this_version_cant_read_still_opens_the_mailbox() {
+    // As its neighbours: written as nothing this version reads, it is "nothing was said" (#503).
+    for written in ["null", "\"yes\"", "1", "{\"ask\": false}"] {
+        let json = format!(r#"{{"id": 3, "email": "noor@example.org", "skipConversationQuestion": {written}}}"#);
+        let read = serde_json::from_str::<Account>(&json);
+        assert!(read.as_ref().is_ok_and(|a| !a.skip_conversation_question), "{written}: {read:?}");
+    }
+    let said: Account = serde_json::from_str(r#"{"id": 3, "email": "noor@example.org", "skipConversationQuestion": true}"#).unwrap();
+    assert!(said.skip_conversation_question);
+}

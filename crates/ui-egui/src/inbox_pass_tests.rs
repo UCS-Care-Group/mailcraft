@@ -477,7 +477,7 @@ impl crate::SecretStore for Store {
 fn a_check_that_gives_way_keeps_the_sign_in_it_renewed_and_the_round_goes_with_it() {
     let (mut app, owner, _, host) = checked_window();
     let store = Store::default();
-    app.services.secrets = Some(Box::new(store.clone()));
+    app.services.secrets = Some(std::sync::Arc::new(store.clone()));
     app.ui.remember_sign_in = true;
     host.lock().unwrap().hold = true;
     at(&mut app, T0 + 60);

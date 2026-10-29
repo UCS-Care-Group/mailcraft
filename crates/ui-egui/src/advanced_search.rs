@@ -217,8 +217,9 @@ pub(crate) fn command(app: &mut MailApp, p: &Value) -> Result<Value, String> {
 
 /// Closes the panel when what it was opened for has gone: the search or where it looks changed
 /// under it (a command, an agent, typing in the box), Mail left the front, File or a dialog
-/// opened, another mailbox was opened, or the window became too narrow for the search box. Once
-/// a frame, before anything is drawn.
+/// opened, another mailbox was opened, or the window became too narrow for the search box. An
+/// agent's question leaves it, and what was typed in it, as it is (#503). Once a frame, before
+/// anything is drawn.
 pub(crate) fn follow(app: &mut MailApp) {
     let Some(panel) = &app.advanced_search else { return };
     let gone = panel.reading.query() != app.session.view.search
@@ -226,7 +227,8 @@ pub(crate) fn follow(app: &mut MailApp) {
         || !app.search_box_shown
         || panel.openings != app.session.openings()
         || app.session.view.module != Module::Mail
-        || !crate::keys::takes_commands(app);
+        || app.ui.backstage
+        || app.dialog.is_some();
     if gone {
         app.advanced_search = None;
     }

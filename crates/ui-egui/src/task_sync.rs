@@ -396,6 +396,7 @@ impl MailApp {
             note: None,
             // Closing it is the same as Not now (`tasks_ask_tick`), so there is no other Cancel.
             cancel: Some(tl!("Not now").to_string()),
+            tick: None,
         };
         for id in accounts.iter().skip(1) {
             ask.more.push((label(*id), json!({"account": id})));
@@ -433,6 +434,7 @@ impl MailApp {
             more: Vec::new(),
             note: None,
             cancel: None,
+            tick: None,
         };
         self.tasks.perm.insert(account, Permission::Asking);
         self.dialog = Some(Dialog::Confirm { command: "ui.allowTasks".to_string(), params: json!({"account": account}), ask });

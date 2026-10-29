@@ -17,6 +17,10 @@
 //! The formatting keys (Ctrl+B, I, U, K, Z, Y; Cmd on a Mac) are the body's only while it has the
 //! keyboard: elsewhere Ctrl+U marks a message unread and Ctrl+Z undoes what was done to the
 //! mailbox (`keys::global_shortcuts` leaves them to the body, [`owns_chord`]).
+//!
+//! On Linux and the BSDs it has the primary selection as egui's text fields do: what the owner
+//! selects goes there once it settles ([`settle`]), and a middle click pastes it where the pointer
+//! is, as plain text.
 
 use std::sync::{Arc, Mutex};
 
@@ -476,6 +480,11 @@ struct State {
     preedit: String,
     /// A picture's corner being dragged: its id and the width it has so far.
     resizing: Option<(u32, f32)>,
+    /// The selection as the body last saw it, and whether the owner made it here ([`own`]).
+    seen: Option<Selection>,
+    mine: bool,
+    /// What was last put in the primary selection, `[from, to)`; `None` once nothing is selected.
+    told: Option<(usize, usize)>,
 }
 
 /// What the keyboard and the pointer do to the text, as the command that does it.
@@ -558,6 +567,9 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
     let origin = rect.min;
     let state_id = id.with("state");
     let mut st: State = ctx.data(|d| d.get_temp(state_id)).unwrap_or_default();
+    // Changed since the last frame, by a command from elsewhere (an agent's or a script's
+    // `compose.select`, the ribbon's): not selected by the owner here.
+    own(app, which, &mut st, None);
     if editable && (take_focus || (which == Which::Message && std::mem::take(&mut app.body_focus_wanted))) {
         resp.request_focus();
     }
@@ -624,7 +636,29 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
         if let Some(Ask { command, params }) = asked {
             let _ = app.execute(command, params);
             st.column = None;
+            own(app, which, &mut st, Some(command));
         }
+    }
+    // A middle click on X11 and Wayland pastes the primary selection where the pointer is, as
+    // plain text (egui-winit gives the event; elsewhere there is none), through the commands a
+    // paste of text takes: its limits, and one step back.
+    if editable
+        && resp.contains_pointer()
+        && let Some((pos, text)) = ui.input(|i| {
+            i.events.iter().find_map(|e| match e {
+                Event::MiddleClickPaste { pos, text } => Some((*pos, text.clone())),
+                _ => None,
+            })
+        })
+    {
+        let pos = ctx.layer_transform_from_global(ui.layer_id()).map_or(pos, |from_global| from_global * pos);
+        resp.request_focus();
+        if app.execute("compose.select", json!({"from": layout.hit(pos - origin)})).is_ok() {
+            let _ = app.run("edit.paste", json!({"text": text}));
+        }
+        resync(&mut layout, app);
+        (st.anchor, st.column, reveal) = (None, None, true);
+        own(app, which, &mut st, Some("edit.paste"));
     }
     if resp.hovered() && editable {
         ctx.set_cursor_icon(egui::CursorIcon::Text);
@@ -747,13 +781,18 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
             };
             if let Some(Ask { command, params }) = asked {
                 reveal = true;
-                // `run`: the link's dialog opens from Ctrl+K, and what goes wrong is said.
+                // `run`: the link's dialog opens from Ctrl+K, and what goes wrong is said. A
+                // picture pasted into a signature goes as Paste Picture's does: made smaller when
+                // it is too big as it is.
                 let enabled = app.enabled(command);
-                if enabled
+                if command == "signature.picture.add" {
+                    crate::signatures::add_picture(app, params);
+                } else if enabled
                     || !matches!(command, "compose.undo" | "compose.redo" | "format.bold" | "format.italic" | "format.underline" | "compose.link")
                 {
                     let _ = app.run(command, params);
                 }
+                own(app, which, &mut st, Some(command));
             }
         }
         resync(&mut layout, app);
@@ -866,7 +905,54 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
         ui.scroll_to_rect(caret.expand2(vec2(2.0, 6.0)), None);
     }
     drop(layout);
+    if editable {
+        own(app, which, &mut st, None);
+        settle(app, ui, which, &mut st);
+    }
     ctx.data_mut(|d| d.insert_temp(state_id, st));
+}
+
+/// Whose the selection is, after the body ran `command` for the pointer or the keys (`None`:
+/// nothing, it only looks). What the owner selects (`compose.select`, in a frame whose input is
+/// theirs) is theirs, and is told again even when it is what was selected; anything else that
+/// changes it is not: what undo or redo brings back, a command from elsewhere, the control
+/// channel's input.
+fn own(app: &MailApp, which: Which, st: &mut State, command: Option<&str>) {
+    let sel = now(app, which).map(|(sel, _)| sel);
+    if command == Some("compose.select") && !app.driven {
+        (st.mine, st.told) = (true, None);
+    } else if sel != st.seen {
+        st.mine = false;
+    }
+    st.seen = sel;
+}
+
+/// What is selected, once it has settled (no button is down), goes to the primary selection of
+/// Linux and the BSDs: `TextSelectionSettled`, which egui-winit puts there and the other systems
+/// and the browser leave alone. As a text field does it: the text a copy has, once, and again
+/// only when the selection changes or the owner selects it again. Only what the owner selected
+/// here ([`own`]): what an agent or a script did through the control channel, or undo brought
+/// back, is not told to every other program.
+fn settle(app: &MailApp, ui: &Ui, which: Which, st: &mut State) {
+    let Some((body, _)) = body(app, which) else { return };
+    let sel = body.selection();
+    let span = (!sel.is_empty()).then(|| (sel.start(), sel.end()));
+    if span == st.told || ui.input(|i| i.pointer.any_down()) {
+        return;
+    }
+    let Some((from, to)) = span else {
+        st.told = None;
+        return;
+    };
+    if !st.mine {
+        return;
+    }
+    let Ok(part) = body.text().slice(from, to) else { return };
+    st.told = span;
+    let text = part.to_plain();
+    if !text.is_empty() {
+        ui.ctx().send_cmd(egui::OutputCommand::TextSelectionSettled(text));
+    }
 }
 
 /// The selection's part of a paragraph, behind its text.
