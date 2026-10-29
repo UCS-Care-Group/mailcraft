@@ -44,7 +44,7 @@ fn buttons_stand_side_by_side_and_wrap_when_the_line_is_full() {
             let (left, right) = (a.rect.min.x, 800.0 - c.rect.max.x);
             assert!((left - right).abs() < 60.0, "{left} {right}");
             // In a narrow pane the line is full: the last wraps to the next one.
-            let narrow = lay_out(ctx, &m, 240.0);
+            let narrow = lay_out(ctx, &m, 160.0);
             check(&narrow, &Tokens::get(ctx), "buttons, narrow");
             let [a, c] = ["Register", "Lift"].map(|t| find_exact(&narrow, t));
             assert!(c.rect.min.y > a.rect.max.y - 1.0, "{:?} {:?}", a.rect, c.rect);
