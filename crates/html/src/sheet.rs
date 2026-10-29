@@ -89,6 +89,9 @@ const MAX_NOT_LIST: usize = 32;
 /// Most different sets of rules whose look is kept for the elements that match the same ones.
 const MAX_CACHED: usize = 2_048;
 
+/// Most elements whose answer is kept by number once something looks ahead of the build.
+const MAX_KEPT: usize = 16_384;
+
 /// Most declarations, and most bytes of them, one element takes from the sheet on each side of
 /// its `style` attribute; and most declarations looked at to find them.
 const MAX_DECLARATIONS: usize = 40;
@@ -1431,6 +1434,11 @@ pub(crate) struct Sheet {
     /// Per property (colour, background) of the last element looked at: whether the declaration
     /// that wins is from a rule for dark windows, and is `!important`.
     dark_slots: [Option<(bool, bool)>; 2],
+    /// What was said of elements already asked about, by number, with their `dark_slots`: kept
+    /// once [`Sheet::keep_answers`] is called, so that a second ask (the build comes to what a
+    /// look ahead of it read) spends nothing.
+    kept: HashMap<usize, (Option<Rc<Applied>>, [Option<(bool, bool)>; 2])>,
+    keep: bool,
     /// What the message was given to spend.
     #[cfg(test)]
     budget: u32,
@@ -1578,6 +1586,8 @@ impl Sheet {
             has_dark: rules.iter().any(|r| r.dark),
             dark_hit: false,
             dark_slots: [None; 2],
+            kept: HashMap::new(),
+            keep: false,
             #[cfg(test)]
             budget: steps_for(html.len()),
             #[cfg(test)]
@@ -1669,6 +1679,11 @@ impl Sheet {
         // (Nothing is left of the element before, whichever way this returns.)
         self.dark_hit = false;
         self.dark_slots = [None; 2];
+        if let Some((applied, slots)) = self.kept.get(&ordinal) {
+            self.dark_slots = *slots;
+            self.dark_hit = slots.iter().flatten().any(|(dark, _)| *dark);
+            return applied.clone();
+        }
         let at = ordinal.checked_add(1)?;
         let el = self.dom.get(at)?;
         if self.steps_left == 0 {
@@ -1744,7 +1759,22 @@ impl Sheet {
             spent += (a.before.len() + a.after.len()) as u64 / 4;
         }
         self.steps_left = self.steps_left.saturating_sub(u32::try_from(spent).unwrap_or(u32::MAX));
+        if self.keep && self.kept.len() < MAX_KEPT {
+            self.kept.insert(ordinal, (applied.clone(), self.dark_slots));
+        }
         applied
+    }
+
+    /// Keep what is said of each element from now on (within bounds), because something reads
+    /// ahead of the one who builds the blocks: the same element is asked about again.
+    pub fn keep_answers(&mut self) {
+        self.keep = true;
+    }
+
+    /// How many answers are kept, for the tests.
+    #[cfg(test)]
+    pub fn kept(&self) -> usize {
+        self.kept.len()
     }
 
     /// Whether a colour or a background the rules `found` (by specificity and order) give is the

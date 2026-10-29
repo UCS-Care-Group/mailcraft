@@ -557,3 +557,41 @@ fn a_box_a_dark_rule_gave_colours_to_is_a_shown_element_of_the_design() {
         assert!(!crate::parse_in(&format!("{css}{body}"), &Env::for_pane(900.0, false)).dark_design, "{body}");
     }
 }
+
+#[test]
+fn what_a_sheet_said_of_a_start_tag_is_kept_for_the_looks_that_come_after() {
+    use crate::look::{Holder, Look};
+    use crate::media::Env;
+    use crate::tokenizer::{Token, Tokenizer};
+    let html = "<style>.c{display:inline-block;width:10px}</style><div><div class='c'>a</div><div class='c'>b</div></div>";
+    let mut look = Look::new(html, &Env::default());
+    let mut tokens = Tokenizer::new(html);
+    let Some(Token::Open(mut first)) = tokens.next() else { panic!("a start tag") };
+    look.apply(0, &mut first);
+    assert_eq!(look.kept(), 0);
+    let holder = Holder { id: tokens.pos(), at: (tokens.pos(), 1), name: "div" };
+    assert!(look.only_boxes(&holder));
+    assert_eq!(look.kept(), 2);
+    // The build comes to those tags: what was said is still there, and not asked for again.
+    let Some(Token::Open(mut second)) = tokens.next() else { panic!("a start tag") };
+    look.apply(1, &mut second);
+    assert!(second.sheet.as_ref().is_some_and(|a| a.css.inline_block));
+    assert_eq!(look.kept(), 2);
+}
+
+#[test]
+fn a_look_ahead_does_not_spend_the_sheets_steps_twice() {
+    // Many rules every element has to be tried against, two columns of many paragraphs that the
+    // look reads before the build does, and a copy for phones that a rule hides after them.
+    // (Twelve rules is about as many as the sheet's steps allow when each element is asked about
+    // once; asked about twice, the rule that hides the copy for phones is not reached.)
+    let rules: String = (0..12).map(|n| format!("[data-k{n}]{{color:#111111}}")).collect();
+    let column = format!("<div class='b'>{}</div>", "<p>words</p>".repeat(400));
+    let html = format!(
+        "<style>{rules}.b{{display:inline-block;width:280px}}.mob{{display:none}}</style><div>{column}{column}</div><div class='mob'>MOBILE COPY</div>"
+    );
+    let blocks = parse(&html);
+    let all: String = blocks.iter().map(|b| format!("{b:?}")).collect();
+    assert!(!all.contains("MOBILE COPY"), "the hidden copy shows");
+    assert!(all.contains("words"));
+}

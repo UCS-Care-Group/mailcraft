@@ -76,6 +76,12 @@ impl<'a> Look<'a> {
         self.sheet.as_ref().is_some_and(|s| s.dark_design)
     }
 
+    /// How many answers of the sheet are kept.
+    #[cfg(test)]
+    pub fn kept(&self) -> usize {
+        self.sheet.as_ref().map_or(0, Sheet::kept)
+    }
+
     /// Whether the holder holds nothing but boxes and white space.
     pub fn only_boxes(&mut self, holder: &Holder) -> bool {
         if let Some(verdict) = self.verdicts.get(&holder.id) {
@@ -87,6 +93,9 @@ impl<'a> Look<'a> {
     }
 
     fn read(&mut self, holder: &Holder) -> bool {
+        if let Some(sheet) = self.sheet.as_mut() {
+            sheet.keep_answers();
+        }
         let Some(rest) = self.html.get(holder.at.0..) else { return false };
         let tokens = Tokenizer::new(rest);
         let mut ordinal = holder.at.1;
