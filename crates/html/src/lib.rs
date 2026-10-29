@@ -14,8 +14,9 @@
 //! There is no CSS engine here. A short whitelist of presentational facts is read from inline
 //! `style` attributes and old-style attributes (`style.rs`): text and background colour, bold,
 //! italic, underline, strike, alignment, font size, whether something is hidden, and whether a
-//! paragraph has a margin or a table cell a border at all. `<style>` blocks are dropped and
-//! classes are never resolved.
+//! paragraph has a margin or a table cell a border at all. The message's `<style>` blocks are
+//! read for the same whitelist and nothing else (`sheet.rs`: selectors, specificity, order,
+//! `!important`, within caps); they are never run and nothing in them is fetched.
 //!
 //! Every function takes any string, never panics, and is bounded: input over [`MAX_INPUT`] bytes is
 //! cut, nesting is capped, tables are capped ([`MAX_TABLE_ROWS`], [`MAX_TABLE_COLUMNS`],
@@ -29,6 +30,7 @@ mod data;
 mod entities;
 mod preview;
 mod quote;
+mod sheet;
 mod style;
 mod text;
 mod tokenizer;
@@ -41,6 +43,19 @@ pub use entities::{escape, unescape};
 pub use preview::{MAX_PREVIEW_CHARS, preview, text_preview};
 pub use quote::quotable;
 pub use text::{blocks_to_text, from_text, text_blocks, to_text};
+
+/// How many rules a style sheet's text gives, as the reading of a message's `<style>` blocks reads
+/// it ([`MAX_SHEET_BYTES`] of it, [`MAX_SHEET_RULES`] rules). For the fuzz target.
+#[doc(hidden)]
+pub fn style_sheet_rules(text: &str) -> usize {
+    sheet::rules(text).len()
+}
+
+/// Most bytes of style sheet read from one message; the rest is ignored.
+pub const MAX_SHEET_BYTES: usize = sheet::MAX_SHEET;
+
+/// Most rules read from one message's style sheets.
+pub const MAX_SHEET_RULES: usize = sheet::MAX_RULES;
 
 /// Longest input [`parse`], [`to_text`], [`text_blocks`], [`from_text`], [`preview`],
 /// [`text_preview`] and [`quotable`] read, in bytes; the rest is ignored. [`parse`] and

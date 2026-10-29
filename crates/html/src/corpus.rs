@@ -50,6 +50,12 @@ pub const STYLE_CARD: &str = include_str!("../corpus/style_card.html");
 /// with a line under each row (#71).
 pub const STYLE_BOXES: &str = include_str!("../corpus/style_boxes.html");
 
+/// A coffee roaster's letter whose whole look is in a `<style>` block (#598): reset rules, a
+/// hidden preheader, descendant, child, adjacent, attribute and structural selectors,
+/// `!important`, `:visited` and `:hover` rules that must not apply, `@import`, `@font-face`
+/// and `@media` that must do nothing, and mobile and desktop copies of one line.
+pub const STYLE_SHEET_NEWSLETTER: &str = include_str!("../corpus/style_sheet_newsletter.html");
+
 /// An order confirmation: a grid of order facts, and a data table with a header row, right-aligned
 /// amounts, spanning total rows and lines under the rows.
 pub const RECEIPT: &str = include_str!("../corpus/receipt.html");
@@ -110,6 +116,7 @@ pub fn messages() -> Vec<(&'static str, &'static str)> {
         ("style width table", STYLE_WIDTH_TABLE),
         ("style card", STYLE_CARD),
         ("style boxes", STYLE_BOXES),
+        ("style sheet newsletter", STYLE_SHEET_NEWSLETTER),
     ]
 }
 
@@ -166,8 +173,159 @@ pub fn hostile() -> Vec<(&'static str, String)> {
         ),
         ("many rules", "<hr>text".repeat(100_000)),
         ("strange text", strange),
+        (
+            "sheet deep selectors",
+            format!(
+                "<style>{}{{color:red}}{}{{color:red}}</style>{}x",
+                vec!["div"; 16].join(" "),
+                vec!["div.a"; 17].join(" > "),
+                "<div class=a>".repeat(20_000)
+            ),
+        ),
+        (
+            "sheet many rules",
+            format!(
+                "<style>{}</style>{}",
+                (0..9_000).map(|i| format!("p.c{i} span, .x{i}:not(.y) + b{{color:#{:06x}}}", i * 4099)).collect::<String>(),
+                "<p class=c1><span>s</span></p>".repeat(30_000)
+            ),
+        ),
+        (
+            "sheet siblings",
+            format!(
+                "<style>.a ~ .b ~ .c ~ .d ~ .e, .a + .a + .a + .z, :not(.q):nth-child(2n+1){{color:red}}</style><p>SIBLINGS</p>{}",
+                "<i class=a></i>".repeat(100_000)
+            ),
+        ),
+        (
+            "sheet not list",
+            format!("<style>*:not({}){{color:#f00}}</style><p>VISIBLE</p>{}", vec![".a"; 20_000].join(","), "<b>x</b>".repeat(150_000)),
+        ),
+        (
+            "sheet not list at the cap",
+            format!("<style>*:not({}){{color:#f00}}</style><p>VISIBLE</p>{}", vec![".a"; 32].join(","), "<b>x</b>".repeat(150_000)),
+        ),
+        (
+            "sheet many simples",
+            format!(
+                "<style>*:not({}){{color:#f00}}</style><p>VISIBLE</p>{}",
+                (0..9_000).map(|i| format!(".z{i}")).collect::<Vec<_>>().join(","),
+                "<i class='a b c d e f g h i j k l m n o p'>x</i>".repeat(40_000)
+            ),
+        ),
+        (
+            "sheet attribute fold",
+            format!(
+                "<style>{}</style><p>VISIBLE</p>{}",
+                (0..2_000).map(|i| format!("[title*=q{i} i]{{color:#f00}}")).collect::<String>(),
+                format!("<i title='{}'>x</i>", "AbCdEfGh".repeat(12)).repeat(20_000)
+            ),
+        ),
+        ("sheet stray ends", format!("<style>p{{color:#f00}}</style><p>VISIBLE</p>{}{}", "<i>".repeat(600), "</b>".repeat(450_000))),
+        (
+            "sheet two long rules",
+            format!(
+                "<style>*{{{}}} i{{{}}}</style><p>VISIBLE</p>{}",
+                (0..40).map(|i| format!("margin-left:{i}px;")).collect::<String>(),
+                (0..40).map(|i| format!("padding-top:{i}px !important;")).collect::<String>(),
+                "<i>x</i>".repeat(285_000)
+            ),
+        ),
+        (
+            "sheet not walls",
+            format!(
+                "<style>{}</style><p>VISIBLE</p>{}",
+                (0..20)
+                    .map(|k| format!(
+                        "*:not({}){{color:#f00}}",
+                        (0..32).map(|i| format!(".a.b.c.d.e.f.g.h.i.j.k.l.m.n.o.p.z{k}x{i}")).collect::<Vec<_>>().join(",")
+                    ))
+                    .collect::<String>(),
+                "<i class='a b c d e f g h i j k l m n o p'>x</i>".repeat(20_000)
+            ),
+        ),
+        (
+            "sheet many looks",
+            format!(
+                "<style>{}{{{}}}</style><p>VISIBLE</p>{}",
+                (0..4_000).map(|i| format!(".c{i}")).collect::<Vec<_>>().join(","),
+                ["margin-top", "margin-left", "margin-bottom", "margin-right", "padding-top", "padding-left", "padding-right", "padding-bottom"]
+                    .iter()
+                    .flat_map(|p| (0..5).map(move |i| format!("{p}:{i}.5px;")))
+                    .collect::<String>()
+                    + &format!("font-family:{};", "abcdefghij".repeat(5)),
+                (0..40_000).map(|i| format!("<i class=c{}>x</i>", i % 4_000)).collect::<String>()
+            ),
+        ),
+        ("sheet look per element", look_per_element()),
+        ("sheet many properties", many_properties()),
+        ("sheet junk", format!("<style>{}</style><p>x</p>", "{([\\\"'/*@:,>+~!;".repeat(8_000))),
         ("preformatted", format!("<pre>{}</pre>", "    indented\tcode line with    spaces\n".repeat(20_000))),
     ]
+}
+
+/// Newsletters of the kind a mailing builder writes, with the style sheet such builders write:
+/// resets, `#templateBodyN .mcnTextContent p`, `a[x-apple-data-detectors]`, `u + #body a`,
+/// `[owa] .x`, `*[class="mcnTextContent"]`, utility classes, `@media`, nested tables, and a
+/// `.mobile-only{display:none}` line near the end. About 65, 105 and 145 KB, with 160 to 300
+/// rules and 1,000 to 2,300 elements. Every word is invented (`.example` and `example.org`).
+pub fn realistic_newsletters() -> Vec<(&'static str, String)> {
+    vec![
+        ("builder newsletter, small", builder_newsletter(65, 20)),
+        ("builder newsletter, medium", builder_newsletter(100, 30)),
+        ("builder newsletter, large", builder_newsletter(140, 45)),
+    ]
+}
+
+/// What [`realistic_newsletters`] hides with its sheet, and what it shows after it.
+pub const BUILDER_HIDDEN: &str = "MOBILE ONLY COPY";
+pub const BUILDER_FOOTER: &str = "FOOTER STAYS VISIBLE";
+
+fn builder_newsletter(sections: usize, groups: usize) -> String {
+    let mut sheet = String::from(
+        "body,table,td,p,a,li,blockquote{-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%}\n\
+         table,td{mso-table-lspace:0pt;mso-table-rspace:0pt}\nimg{-ms-interpolation-mode:bicubic;border:0}\n\
+         body{margin:0;padding:0;background-color:#f2efe9;color:#3a3330}\n\
+         a[x-apple-data-detectors]{color:inherit !important;text-decoration:none !important}\n\
+         u + #body a{color:inherit;text-decoration:none}\n[owa] .x{display:block}\n\
+         *[class=\"mcnTextContent\"]{font-family:Georgia,serif}\n.mobile-only{display:none}\n\
+         table.wrap{width:600px;margin:0 auto;background-color:#fff}\n",
+    );
+    for i in 0..40 {
+        sheet.push_str(&format!(".p-{i}{{padding:{}px}} .t-{i}{{font-size:{}px;line-height:1.4}}\n", i % 24, 12 + i % 8));
+    }
+    for i in 0..groups {
+        sheet.push_str(&format!(
+            "#templateBody{i} .mcnTextContent,#templateBody{i} .mcnTextContent p{{color:#{:06x};text-align:left}}\n\
+             #templateBody{i} .mcnTextContent a{{color:#8a3b12;font-weight:bold}}\n\
+             #templateBody{i} td.btn{{background-color:#8a3b12;padding:10px 20px;text-align:center}}\n\
+             table.section{i} > tbody > tr > td{{padding:8px 16px}}\n",
+            (i * 7919) % 0x00ff_ffff
+        ));
+    }
+    sheet.push_str("@media only screen and (max-width:480px){table.wrap{width:100% !important}.mobile-only{display:block !important}.desktop-only{display:none !important}}\n");
+    let mut html = format!(
+        "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>The Harbour Lane letter</title><style type=\"text/css\">{sheet}</style></head>\
+         <body id=\"body\"><table class=\"wrap\" role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" width=\"100%\"><tr><td>"
+    );
+    for i in 0..sections {
+        let g = i % groups;
+        html.push_str(&format!(
+            "<table class=\"section{g} p-{p}\" role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\"><tbody><tr>\
+             <td id=\"templateBody{g}\" class=\"p-{p}\"><table role=\"presentation\" width=\"100%\"><tbody><tr><td class=\"mcnTextContent t-{t}\">\
+             <p>Harbour Lane Bakery, loaf {i}: a long-rise sourdough with rye, scored by hand and baked at dawn on the quay. \
+             <a href=\"https://bakery.example.org/loaf/{i}\">Read about loaf {i}</a>, or <a href=\"https://bakery.example.org/order/{i}\">order it</a>.</p>\
+             <p class=\"t-{t}\">Collect from the counter before nine, or have it left in the box by the gate. <span class=\"x\">Fresh daily.</span></p></td></tr></tbody></table>\
+             <table role=\"presentation\" align=\"center\"><tbody><tr><td class=\"btn\"><a href=\"https://bakery.example.org/buy/{i}\">Buy loaf {i}</a></td></tr></tbody></table>\
+             </td></tr></tbody></table>",
+            p = i % 40,
+            t = (i * 3) % 40
+        ));
+    }
+    html.push_str(&format!(
+        "<p class=\"mobile-only\">{BUILDER_HIDDEN}</p><p class=\"desktop-only\">Read on a computer.</p><p>{BUILDER_FOOTER}</p></td></tr></table></body></html>"
+    ));
+    html
 }
 
 /// A newsletter of about `bytes` bytes, built the way mailing services build them: nested layout
@@ -210,3 +368,68 @@ pub fn large_newsletter(bytes: usize) -> String {
 
 #[cfg(test)]
 mod tests;
+
+/// 4 rules, each a list of 1,000 short classes, with 40 `margin-left` declarations each, and about
+/// 9,000 elements of 16 of the 4,000 classes each: every element gets a look of its own to build.
+fn look_per_element() -> String {
+    let decls: String = (0..40).map(|i| format!("margin-left:{i}px;")).collect();
+    let mut html = String::from("<style>");
+    for r in 0..4 {
+        let list = (0..1_000).map(|i| format!(".k{}", r * 1_000 + i)).collect::<Vec<_>>().join(",");
+        html.push_str(&format!("{list}{{{decls}}}"));
+    }
+    html.push_str("</style><p>VISIBLE</p>");
+    let mut seed = 0x2545_f491_4f6c_dd1du64;
+    for _ in 0..9_000 {
+        html.push_str("<i class='");
+        for _ in 0..16 {
+            seed = seed.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1_442_695_040_888_963_407);
+            html.push_str(&format!("k{} ", (seed >> 33) % 4_000));
+        }
+        html.push_str("'>x</i>");
+    }
+    html
+}
+
+/// 20 rules, each a list of 150 short classes with one declaration of a property of its own, and
+/// elements of 16 of the 3,000 classes each: every look says about 16 declarations.
+fn many_properties() -> String {
+    let props = [
+        "margin-top:3px",
+        "margin-left:4px",
+        "margin-right:5px",
+        "margin-bottom:6px",
+        "padding-top:3px",
+        "padding-left:4px",
+        "padding-right:5px",
+        "padding-bottom:6px",
+        "color:#336699",
+        "background-color:#eeeeee",
+        "border-top:1px solid #333",
+        "border-left:1px solid #333",
+        "border-right:1px solid #333",
+        "border-bottom:1px solid #333",
+        "font-size:13px",
+        "line-height:1.4",
+        "text-align:center",
+        "font-weight:bold",
+        "text-decoration:underline",
+        "width:50%",
+    ];
+    let mut html = String::from("<style>");
+    for (r, prop) in props.iter().enumerate() {
+        let list = (0..150).map(|i| format!(".m{}", r * 150 + i)).collect::<Vec<_>>().join(",");
+        html.push_str(&format!("{list}{{{prop}}}"));
+    }
+    html.push_str("</style><p>VISIBLE</p>");
+    let mut seed = 0x9e37_79b9_7f4a_7c15u64;
+    for _ in 0..10_500 {
+        html.push_str("<i class='");
+        for _ in 0..16 {
+            seed = seed.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1_442_695_040_888_963_407);
+            html.push_str(&format!("m{} ", (seed >> 33) % 3_000));
+        }
+        html.push_str("'>x</i>");
+    }
+    html
+}

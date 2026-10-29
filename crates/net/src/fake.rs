@@ -285,6 +285,9 @@ pub(crate) struct ImapWorld {
     pub(crate) refuse: Vec<String>,
     /// Hang up instead of answering a command whose line has this in it.
     pub(crate) hang_up_on: Option<String>,
+    /// Once, keep a message put in a mailbox by an APPEND whose line has this in it, and hang up
+    /// instead of saying so.
+    pub(crate) hang_up_after: Option<String>,
     /// Hang up half way through the download of this UID.
     pub(crate) cut_at_uid: Option<u32>,
     /// Say nothing more, and keep the connection open, from a command whose line has this in it.
@@ -460,6 +463,16 @@ fn words(args: &str) -> Vec<String> {
         }
     }
     out
+}
+
+/// Whether the header of `message` has a field `field` with `text` in it, whatever the case.
+fn header_has(message: &[u8], field: &str, text: &str) -> bool {
+    let message = String::from_utf8_lossy(message);
+    let header = message.split("\r\n\r\n").next().unwrap_or_default().replace("\r\n ", " ").replace("\r\n\t", " ");
+    header
+        .split("\r\n")
+        .filter_map(|line| line.split_once(':'))
+        .any(|(name, value)| name.trim().eq_ignore_ascii_case(field) && value.to_ascii_lowercase().contains(&text.to_ascii_lowercase()))
 }
 
 /// Whether `uid` is in a set like `1:*` or `5,9,12:20`.
@@ -652,9 +665,13 @@ fn serve_imap(stream: TcpStream, shared: Arc<Mutex<ImapWorld>>) {
                 reply.extend(format!("{tag} OK done\r\n").bytes());
             }
             "APPEND" => {
-                // `"name" (flags) {size}`: the message follows the go-ahead.
+                // `"name" (flags) "date" {size}`, flags and date as the client likes: the message
+                // follows the go-ahead.
                 let name = words(args).into_iter().next().unwrap_or_default();
                 let flags = args.split_once('(').and_then(|(_, rest)| rest.split_once(')')).map_or("", |(flags, _)| flags).to_string();
+                let before_size = args.rsplit_once('{').map_or(args, |(head, _)| head);
+                let date = words(before_size).into_iter().skip(1).find(|w| w.len() == 26 && w.contains(':'));
+                let internal_date = date.unwrap_or_else(|| " 1-Jul-2003 09:52:37 +0000".to_string());
                 let size: usize = args.rsplit_once('{').and_then(|(_, n)| n.trim_end_matches('}').parse().ok()).unwrap_or(0);
                 if !world.mailboxes.iter().any(|m| m.raw == name) {
                     reply.extend(format!("{tag} NO [TRYCREATE] no such mailbox\r\n").bytes());
@@ -671,7 +688,11 @@ fn serve_imap(stream: TcpStream, shared: Arc<Mutex<ImapWorld>>) {
                     let mailbox = world.mailbox(&name);
                     let uid = mailbox.take_uid();
                     let code = if uidplus { format!("[APPENDUID {} {uid}] ", mailbox.uid_validity) } else { String::new() };
-                    mailbox.messages.push(FakeMessage { uid, flags, internal_date: " 1-Jul-2003 09:52:37 +0000".into(), body, claimed_size: None });
+                    mailbox.messages.push(FakeMessage { uid, flags, internal_date, body, claimed_size: None });
+                    if world.hang_up_after.as_ref().is_some_and(|text| line.contains(text.as_str())) {
+                        world.hang_up_after = None;
+                        return;
+                    }
                     drop(world);
                     let _ = reader.get_mut().write_all(format!("{tag} OK {code}kept\r\n").as_bytes());
                     continue;
@@ -685,6 +706,24 @@ fn serve_imap(stream: TcpStream, shared: Arc<Mutex<ImapWorld>>) {
                 }
                 None => reply.extend(format!("{tag} NO [READ-ONLY] nothing is open to be changed\r\n").bytes()),
             },
+            // `UID SEARCH UNDELETED HEADER <field> <text>`: the one search asked of a server.
+            "UID" if args.to_ascii_uppercase().starts_with("SEARCH ") => {
+                let said = words(args);
+                let asked = |at: usize, word: &str| said.get(at).is_some_and(|w| w.eq_ignore_ascii_case(word));
+                match open.and_then(|i| world.mailboxes.get(i)) {
+                    _ if said.len() != 5 || !asked(1, "UNDELETED") || !asked(2, "HEADER") => reply.extend(format!("{tag} BAD what\r\n").bytes()),
+                    None => reply.extend(format!("{tag} NO nothing is open\r\n").bytes()),
+                    Some(mailbox) => {
+                        let found: String = mailbox
+                            .messages
+                            .iter()
+                            .filter(|m| !m.has("\\Deleted") && header_has(&m.body, &said[3], &said[4]))
+                            .map(|m| format!(" {}", m.uid))
+                            .collect();
+                        reply.extend(format!("* SEARCH{found}\r\n{tag} OK found\r\n").bytes());
+                    }
+                }
+            }
             "UID" if !args.to_ascii_uppercase().starts_with("FETCH ") => {
                 let mut parts = args.splitn(3, ' ');
                 let (what, set, rest) = (parts.next().unwrap_or("").to_ascii_uppercase(), parts.next().unwrap_or(""), parts.next().unwrap_or(""));

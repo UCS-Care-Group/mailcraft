@@ -38,11 +38,30 @@ pub use mailto::{Mailto, is_mailto, parse_mailto};
 /// opening the file again finds it. MailCraft's own: never read from a message (a sender could
 /// write one) and never written into one.
 pub const OPENED_FILE_HEADER: &str = "X-MailCraft-Opened-File-SHA256";
+
+/// The header in which the copy that MailCraft puts on a mail server, of a message moved or
+/// copied there from elsewhere, carries that copy's marker (#451): what tells it that copy from
+/// the server's own messages, which may look the same. Written into that copy alone
+/// ([`write_placed`]), never from a message's kept headers into anything else.
+pub const PLACE_HEADER: &str = "X-MailCraft-Place";
+
+/// `message` as [`write()`] writes it, with [`PLACE_HEADER`] carrying `marker` first.
+pub fn write_placed(message: &mailcraft_model::Message, opts: &WriteOptions, marker: &str) -> Vec<u8> {
+    let mut out = Vec::new();
+    header::write_field(&mut out, PLACE_HEADER, marker);
+    out.extend(write(message, opts));
+    out
+}
+
+/// Whether the header block `header` has [`PLACE_HEADER`] carrying `marker`.
+pub fn carries_place(header: &[u8], marker: &str) -> bool {
+    !marker.is_empty() && header::split(header, true).0.0.iter().any(|f| f.name.eq_ignore_ascii_case(PLACE_HEADER) && f.value == marker)
+}
 pub use mbox::{MboxMessages, mbox_messages, parse_mbox, write_mbox};
 pub use media::media_type_for;
 pub use parse::{MAX_CATEGORIES, MAX_RECIPIENTS, parse};
 pub use words::{decode_words, encode_words};
-pub use write::write;
+pub use write::{write, written_message_id};
 
 /// How [`write()`] and [`write_mbox`] write a message.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]

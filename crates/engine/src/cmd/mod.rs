@@ -57,6 +57,8 @@ mod keyboard_selection_tests;
 mod leave_compose_tests;
 pub mod mail;
 #[cfg(test)]
+mod moves_between_accounts_tests;
+#[cfg(test)]
 mod newer_account_tests;
 pub mod offline;
 #[cfg(test)]

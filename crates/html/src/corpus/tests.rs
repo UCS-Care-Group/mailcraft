@@ -925,3 +925,57 @@ fn a_bulletin_keeps_its_padding_margins_lines_corners_and_line_height() {
     assert!(leaders.rows.iter().flat_map(|r| &r.cells).all(|c| c.padding == Some(Insets { top: 10, right: 14, bottom: 10, left: 14 })));
     assert!(leaders.outline && leaders.radius == 6);
 }
+
+/// #598: a letter whose look is all in its `<style>` block is shown styled, and what its rules
+/// hide is not shown.
+#[test]
+fn a_letter_styled_by_its_style_block_looks_as_the_block_says() {
+    let blocks = parse(STYLE_SHEET_NEWSLETTER);
+    let text = text_of(&blocks);
+    // The preheader and the mobile copy are hidden by a rule; the `@media` block that would swap
+    // the two copies is not read yet.
+    assert!(!text.contains("Preview:") && !text.contains("phone"), "{text}");
+    assert!(text.contains("Reading on a computer"), "{text}");
+    // Nothing a rule says is text; nothing in the head is.
+    for never in ["tracking", "Tidewater Serif", "woff", "tracker.example", "@media"] {
+        assert!(!text.contains(never), "{never:?}\n{text}");
+    }
+    // Rules by id, descendant, child and class.
+    assert_eq!(span(&blocks, "Tidewater Roasters").color, Some(Rgb(0xf7, 0xef, 0xe3)));
+    assert_eq!(block(&blocks, "Tidewater Roasters").align, Align::Center);
+    assert_eq!(span(&blocks, "The October letter").color, Some(Rgb(0x1f, 0x3a, 0x4d)));
+    assert_eq!(span(&blocks, "Harbour Blend").color, Some(Rgb(0x8a, 0x3b, 0x12)));
+    // An attribute selector, with its own bold and colour.
+    let new = span(&blocks, "New");
+    assert!(new.bold && new.color == Some(Rgb(0xb3, 0x26, 0x1e)), "{new:?}");
+    let back = span(&blocks, "Back");
+    assert!(back.color != Some(Rgb(0xb3, 0x26, 0x1e)), "{back:?}");
+    // Structural selectors: the first cell of the grid is tinted by `:first-child`; the second
+    // row by `:nth-child(2)`, which is the more specific of the two.
+    let grid = table_with(&blocks, "Brew guides");
+    let tints: Vec<Option<Rgb>> = grid.rows.iter().flat_map(|r| &r.cells).map(|c| c.background).collect();
+    assert_eq!(tints, [Some(Rgb(0xfa, 0xf6, 0xef)), None, Some(Rgb(0xf1, 0xec, 0xe4)), Some(Rgb(0xf1, 0xec, 0xe4))]);
+    // `:last-child` and `:not()`.
+    let last = span(&blocks, "You are reading this");
+    assert!(last.italic, "{last:?}");
+    assert!(span(&blocks, "Bring a cup").bold && !span(&blocks, "Roast dates").bold);
+    // `a:visited` and `a:hover` never apply.
+    let link = span(&blocks, "Unsubscribe");
+    assert!(link.color != Some(Rgb(0xff, 0, 0xff)) && link.color != Some(Rgb(0, 0xff, 0)), "{link:?}");
+}
+
+/// #598: hostile style sheets cost little: each of the generated ones is parsed, fast.
+#[test]
+fn hostile_style_sheets_are_bounded() {
+    for (name, html) in hostile().into_iter().filter(|(name, _)| name.starts_with("sheet")) {
+        let started = std::time::Instant::now();
+        let blocks = parse(&html);
+        assert!(blocks.len() <= MAX_BLOCKS + 1, "{name}");
+        let parsed = started.elapsed();
+        let started = std::time::Instant::now();
+        let _ = to_text(&html);
+        println!("{name}: parse {parsed:?}, to_text {:?}", started.elapsed());
+        // (Well under a second each in a release build; the bound is for a loaded debug one.)
+        assert!(parsed.as_secs() < 4 && started.elapsed().as_secs() < 4, "{name}: {parsed:?}");
+    }
+}

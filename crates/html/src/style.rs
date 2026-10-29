@@ -2,9 +2,12 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! The little of CSS that is read.
 //!
-//! There is no CSS engine: no selectors, no cascade, no `<style>` blocks, no classes, nothing
-//! fetched. [`Css::parse`] reads one `style` attribute for a whitelist of presentational facts and
-//! ignores every other declaration:
+//! There is no CSS engine and nothing is fetched. [`Css::parse`] reads one `style` attribute for a
+//! whitelist of presentational facts and ignores every other declaration. The message's own
+//! `<style>` blocks give the same whitelist more declarations (`sheet.rs` works out which rules
+//! apply to an element and hands them over in the order of the cascade, with the element's own
+//! `style` among them): a style sheet is one more source of the same values, never a new kind of
+//! presentation.
 //!
 //! | Read | From |
 //! |---|---|
@@ -16,7 +19,7 @@
 //! | font size | `font-size`, the size in `font` |
 //! | font family | `font-family`, `<font face>`: the first family's name only, for pasting into the composer (the reading pane draws in its own font) |
 //! | hidden | `display:none`, `visibility:hidden`, `opacity:0`, `max-height:0`, `max-width:0`, a zero `height` or `width` with `overflow:hidden` |
-//! | text too small to read | a font size of 2 pixels or less: the text at that size is not shown; what is inside at a size of its own is, and so are pictures, and so is the text of an element with a `class` or an `id` (or inside one that asks for the size and has one): its size is given in a style sheet, and style sheets are not read |
+//! | text too small to read | a font size of 2 pixels or less: the text at that size is not shown; what is inside at a size of its own is, and so are pictures, and so is the text of an element with a `class` or an `id` (or inside one that asks for the size and has one) when the message has no style sheet to say otherwise |
 //! | margins | `margin` and its sides: a size in `px`, `pt`, `em` or `%` (of 600 px), 0 to 64 pixels a side, negative is 0; `auto` is read for centring only |
 //! | padding | `padding` and its sides: the same units, 0 to 64 pixels a side |
 //! | lines round a box | `border` and its sides, `border-width`, `border-style`, `border-color`: a width of 1 to 4 pixels (`thin`, `medium` and `thick` too), solid, dashed or dotted (every other style is drawn solid), and a colour a UI adjusts to its paper |
@@ -40,9 +43,10 @@
 //! size of nothing around pictures and columns (`font-size:0`, to close the gaps between them)
 //! hides the text written at that size, not the pictures and not the text inside that names a
 //! size of its own. Nor the text inside that gets its size from a style sheet: a builder sets
-//! nothing on every cell and the sizes that count by class, in a `<style>` block that is not
-//! read here, so an element with a `class` or an `id` is not held to the nothing around it
-//! (without that, such a message showed no text at all).
+//! nothing on every cell and the sizes that count by class, in a `<style>` block. Where the
+//! message's style sheets were read, that size is known; where they were not (a message with
+//! none, or none that could be read), an element with a `class` or an `id` is not held to the
+//! nothing around it (without that, such a message showed no text at all).
 
 use crate::{
     Align, Insets, Length, Line, LineHeight, LineStyle, MAX_BOX_PX, MAX_FONT_PX, MAX_LINE_HEIGHT, MAX_LINE_PX, MAX_RADIUS_PX, MAX_SPACING_PX,
@@ -50,10 +54,10 @@ use crate::{
 };
 
 /// Longest `style` attribute read, in bytes; the rest is ignored.
-const MAX_STYLE: usize = 4096;
+pub(crate) const MAX_STYLE: usize = 4096;
 
 /// Most declarations read from one `style` attribute.
-const MAX_DECLARATIONS: usize = 64;
+pub(crate) const MAX_DECLARATIONS: usize = 64;
 
 /// Longest value looked at, in bytes; a longer one is ignored.
 const MAX_VALUE: usize = 1024;
@@ -153,17 +157,27 @@ impl Css {
     /// Read a `style` attribute. Unknown properties, unreadable values and everything past the
     /// caps are ignored; a later declaration of a property replaces an earlier one.
     pub fn parse(style: &str) -> Css {
+        Css::parse_limited(style, MAX_STYLE, MAX_DECLARATIONS)
+    }
+
+    /// [`Css::parse`] with caps of its own: for a `style` attribute with the rules of a style
+    /// sheet round it, which may have more to say than an attribute alone.
+    pub(crate) fn parse_limited(style: &str, max_bytes: usize, max_declarations: usize) -> Css {
         let mut css = Css::default();
-        let mut clipped = false;
-        let mut zero_box = false;
+        // What hides, where a later declaration (a style after a style sheet's rule) takes back
+        // an earlier one: `display:none` and then `display:block` shows.
+        let (mut display_none, mut visibility_hidden, mut max_height_zero) = (false, false, false);
+        let (mut opacity_zero, mut max_width_zero, mut height_zero, mut width_zero) = (false, false, false, false);
+        // Clipped on the way across and on the way down: it takes both to unclip.
+        let (mut clip_x, mut clip_y) = (false, false);
         let mut raw = [RawLine::default(); 4];
-        for (property, value) in declarations(truncate(style, MAX_STYLE)).take(MAX_DECLARATIONS) {
+        for (property, value) in declarations(truncate(style, max_bytes)).take(max_declarations) {
             if value.len() > MAX_VALUE || property.len() > 32 {
                 continue;
             }
             let property = property.to_ascii_lowercase();
             let value = value.to_ascii_lowercase();
-            let value = value.trim_end_matches("!important").trim();
+            let value = strip_important(&value).0;
             match property.as_str() {
                 "color" => {
                     if let Some(c) = color(value) {
@@ -205,24 +219,34 @@ impl Css {
                 "text-align" => css.align = align(value).or(css.align),
                 "font-size" => css.size = font_size(value).or(css.size),
                 "font-family" => css.font = family(value).or(css.font.take()),
-                "display" => css.hidden |= value == "none",
-                "visibility" => css.hidden |= matches!(value, "hidden" | "collapse"),
-                "opacity" => css.hidden |= number(value.trim_end_matches('%')).is_some_and(|n| n <= 0.0),
+                "display" => display_none = value == "none",
+                "visibility" => visibility_hidden = matches!(value, "hidden" | "collapse"),
+                "opacity" => opacity_zero = number(value.trim_end_matches('%')).is_some_and(|n| n <= 0.0),
                 // (`mso-hide:all` hides nothing here: see the notes at the top.)
-                "max-height" => css.hidden |= is_zero(value) == Some(true),
+                "max-height" => max_height_zero = is_zero(value) == Some(true),
                 "max-width" => {
-                    css.hidden |= is_zero(value) == Some(true);
+                    max_width_zero = is_zero(value) == Some(true);
                     css.max_width = css_length(value).or(css.max_width);
                 }
-                "overflow" | "overflow-x" | "overflow-y" => clipped |= tokens(value).any(|t| matches!(t, "hidden" | "clip")),
+                "overflow" | "overflow-x" | "overflow-y" => {
+                    let clips = |t: Option<&str>| t.is_some_and(|t| matches!(t, "hidden" | "clip"));
+                    let mut words = tokens(value);
+                    let (first, second) = (words.next(), words.next());
+                    let (x, y) = (clips(first), clips(second.or(first)));
+                    match property.as_str() {
+                        "overflow-x" => clip_x = x,
+                        "overflow-y" => clip_y = x,
+                        _ => (clip_x, clip_y) = (x, y),
+                    }
+                }
                 "height" => {
                     css.height = length_px(value).or(css.height);
-                    zero_box |= is_zero(value) == Some(true);
+                    height_zero = is_zero(value) == Some(true);
                 }
                 "width" => {
                     css.width = length_px(value).or(css.width);
                     css.layout_width = css_length(value).or(css.layout_width);
-                    zero_box |= is_zero(value) == Some(true);
+                    width_zero = is_zero(value) == Some(true);
                 }
                 "margin" => {
                     let parts: Vec<&str> = tokens(value).take(4).collect();
@@ -341,7 +365,12 @@ impl Css {
         }
         // (A font size too small to read hides the text written at it, and nothing else: that is
         // seen to where the size is resolved, [`Size::resolve`].)
-        css.hidden |= zero_box && clipped;
+        css.hidden |= ((height_zero || width_zero) && (clip_x || clip_y))
+            || max_height_zero
+            || max_width_zero
+            || opacity_zero
+            || display_none
+            || visibility_hidden;
         for ((line, raw), border) in css.lines.iter_mut().zip(raw).zip(&mut css.borders) {
             *line = raw.finish();
             *border = line.is_set();
@@ -625,7 +654,7 @@ fn line_height(value: &str) -> Option<Option<LineHeight>> {
 
 /// The `property: value` pairs of a `style` attribute. A `;` inside parentheses or quotes (a
 /// `url(data:…;base64,…)`) doesn't end a declaration.
-fn declarations(style: &str) -> impl Iterator<Item = (&str, &str)> {
+pub(crate) fn declarations(style: &str) -> impl Iterator<Item = (&str, &str)> {
     let bytes = style.as_bytes();
     let mut start = 0;
     std::iter::from_fn(move || {
@@ -655,6 +684,23 @@ fn declarations(style: &str) -> impl Iterator<Item = (&str, &str)> {
         }
         None
     })
+}
+
+/// A value without its `!important` marks (a `!`, white space, `important` in any letter case, as
+/// often as it is written), and whether it had one.
+pub(crate) fn strip_important(value: &str) -> (&str, bool) {
+    let mut value = value.trim();
+    let mut marked = false;
+    while let Some(at) = value.len().checked_sub("important".len()) {
+        let Some(tail) = value.get(at..) else { break };
+        let Some(head) = value.get(..at).map(str::trim_end).and_then(|h| h.strip_suffix('!')) else { break };
+        if !tail.eq_ignore_ascii_case("important") {
+            break;
+        }
+        value = head.trim_end();
+        marked = true;
+    }
+    (value, marked)
 }
 
 /// The parts of a value separated by white space; white space inside parentheses separates nothing.

@@ -7,7 +7,7 @@ use std::sync::Arc;
 use mailcraft_model::{Address, Attachment, Body, FlagStatus, Importance, Message};
 use proptest::prelude::*;
 
-use crate::{WriteOptions, parse, parse_mbox, write, write_mbox};
+use crate::{WriteOptions, parse, parse_mbox, write, write_mbox, written_message_id};
 
 fn a(name: &str, email: &str) -> Address {
     Address { name: name.into(), email: email.into() }
@@ -533,6 +533,8 @@ fn message() -> impl Strategy<Value = Message> {
             unfetched: false,
             attachments_on_server: false,
             moving_out: None,
+            returned: 0,
+            placed: String::new(),
             incomplete: false,
             server_draft: None,
             held: String::new(),
@@ -719,5 +721,15 @@ proptest! {
         prop_assert!(m.to.len() + m.cc.len() + m.bcc.len() <= crate::MAX_RECIPIENTS);
         prop_assert!(m.reply_to.len() <= crate::MAX_RECIPIENTS);
         prop_assert!(m.categories.len() <= crate::MAX_CATEGORIES);
+    }
+}
+
+#[test]
+fn the_message_id_said_to_be_written_is_the_one_written() {
+    for raw in ["abc.123@example.org", "<abc@example.org>", "id@example.org>\r\nX-Evil: 1\r\n<x", "< >", ""] {
+        let m = Message { message_id: raw.into(), ..base() };
+        let out = String::from_utf8(write(&m, &WriteOptions::default())).unwrap();
+        let field = out.lines().find_map(|line| line.strip_prefix("Message-ID: ")).map(str::to_string);
+        assert_eq!(written_message_id(raw), field, "{raw:?}");
     }
 }

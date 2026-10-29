@@ -5,10 +5,13 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
-use mailcraft_model::{FlagStatus, FolderKind, Id, Rgb};
+use mailcraft_model::{FlagStatus, FolderKind, Id, Queued, Rgb};
 use serde_json::{Value, json};
 
-use super::{bad, deliver, done, fail, message_json, message_summary, needs_message, needs_movable, select_after_removal, targets, targets_whole};
+use super::{
+    bad, deliver, done, fail, message_json, message_summary, needs_message, needs_movable, select_after_removal, targets, targets_strict,
+    targets_whole,
+};
 use crate::list::{Row, listed, position, position_of};
 use crate::{CmdResult, CommandSpec, Session, p};
 
@@ -44,11 +47,11 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("mail.archive", "Archive", "Home › Delete", archive).key("Backspace").params(IDS_WHOLE).selection(needs_movable),
         CommandSpec::new("mail.move", "Move to Folder", "Home › Move", move_to)
             .key("Mod+Shift+V")
-            .params(r#"{"folder": number, "ids"?: [number]}"#)
+            .params(MOVE)
             .selection(needs_movable),
         CommandSpec::new("mail.copy", "Copy to Folder", "Home › Move", copy_to)
             .key("Mod+Shift+Y")
-            .params(r#"{"folder": number, "ids"?: [number]}"#)
+            .params(MOVE)
             .selection(needs_message),
         CommandSpec::new("mail.markRead", "Mark as Read", "Home › Tags", mark_read).key("Mod+Q").params(IDS).selection(needs_message),
         CommandSpec::new("mail.markUnread", "Mark as Unread", "Home › Tags", mark_unread).key("Mod+U").params(IDS).selection(needs_message),
@@ -96,6 +99,8 @@ pub fn specs() -> Vec<CommandSpec> {
 }
 
 const IDS: &str = r#"{"ids"?: [number]} (default: the selected messages)"#;
+/// Move and copy reach another account's server (#451): what they are given is read strictly.
+const MOVE: &str = r#"{"folder": number, "id"?: number} | {"folder": number, "ids"?: [number]} (default: the selected messages; for a conversation's row selected (closed) or picked as the conversation (open), the messages it shows). An id of another kind or null, or both, is refused"#;
 /// For Delete and Move: a closed conversation's row selected stands for the messages it shows (#503).
 const IDS_WHOLE: &str = r#"{"ids"?: [number]} (default: the selected messages; for a conversation's row selected (closed) or picked as the conversation (open), the messages it shows)"#;
 const EXTEND: &str = r#"{"extend"?: bool} — with `extend` (Shift), the selection runs from its anchor to the message moved to, as Shift-click does"#;
@@ -693,24 +698,44 @@ fn move_to(s: &mut Session, v: &Value) -> CmdResult {
     let ids = targets_whole(s, v)?;
     let before = s.rows();
     let mut moved = Vec::new();
-    for id in &ids {
-        if s.mailbox.message(*id).is_some_and(|m| m.folder != folder) {
-            s.mailbox.move_message(*id, folder)?;
-            moved.push(*id);
+    let mut crossed = Vec::new();
+    for (id, account) in s.mailbox.move_messages(&ids, folder)? {
+        moved.push(id);
+        if s.mailbox.message(id).is_some_and(|m| m.account != account) {
+            crossed.push(id);
         }
     }
+    let waiting = waiting_for_microsoft(s);
+    let into_microsoft = crossed.iter().filter(|id| waiting.contains(id)).count();
     select_after_removal(s, &before, &moved);
-    Ok(json!({"moved": moved.len(), "folder": folder}))
+    Ok(json!({"moved": moved.len(), "folder": folder, "intoMicrosoft": into_microsoft}))
 }
 
 fn copy_to(s: &mut Session, v: &Value) -> CmdResult {
     let folder = p::req_id(v, "folder")?;
-    let ids = targets(s, v)?;
+    let ids = targets_strict(s, v)?;
     let mut copies = Vec::new();
     for id in &ids {
         copies.push(s.mailbox.copy_message_marked(*id, folder, u64::try_from(s.now()).unwrap_or_default())?);
     }
-    Ok(json!({"copies": copies, "folder": folder}))
+    let waiting = waiting_for_microsoft(s);
+    let into_microsoft = copies.iter().filter(|c| waiting.contains(c)).count();
+    Ok(json!({"copies": copies, "folder": folder, "intoMicrosoft": into_microsoft}))
+}
+
+/// The messages that wait to be made on a Microsoft server, put into its account from elsewhere:
+/// Graph makes them as received mail, without most of the original's headers (#451), and the
+/// window says so. Gathered once for a whole command.
+fn waiting_for_microsoft(s: &Session) -> HashSet<Id> {
+    let graph: HashSet<Id> = s.mailbox.accounts.iter().filter(|a| s.mailbox.is_graph(a.id)).map(|a| a.id).collect();
+    s.mailbox
+        .queued
+        .iter()
+        .filter_map(|q| match q {
+            Queued::PlaceMessage { account, message, .. } if graph.contains(account) => Some(*message),
+            _ => None,
+        })
+        .collect()
 }
 
 /// Apply `change` to each target; answers how many messages it changed.
