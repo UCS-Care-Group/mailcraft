@@ -443,7 +443,7 @@ const HASH_BUDGET: u64 = 256 << 20;
 
 /// What a message holds in memory (what hashing it costs).
 fn in_memory(m: &Message) -> u64 {
-    let body = m.body.text.len() as u64 + m.body.html.as_ref().map_or(0, |h| h.len() as u64);
+    let body = m.body.text.len() as u64 + m.body.html.as_ref().map_or(0, |h| h.len() as u64) + m.hidden_text.len() as u64;
     body.saturating_add(m.attachments.iter().map(|a| a.data.len() as u64).sum::<u64>())
 }
 

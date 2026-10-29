@@ -42,6 +42,8 @@ const EVICT_TRIES: usize = 16;
 pub enum Part {
     Text,
     Html,
+    /// The words the sender hid (`Message::hidden_text`).
+    Hidden,
     /// An attachment, by its index in `Message::attachments`.
     Attachment(usize),
 }
@@ -1678,6 +1680,10 @@ impl Session {
                 Some(r) => self.fetch(&r),
                 None => Ok(Arc::new(m.body.html.as_deref().unwrap_or("").as_bytes().to_vec())),
             },
+            Part::Hidden => match kept.and_then(|k| k.hidden).filter(|_| m.hidden_text.is_empty()) {
+                Some(r) => self.fetch(&r),
+                None => Ok(Arc::new(m.hidden_text.as_bytes().to_vec())),
+            },
             Part::Attachment(i) => {
                 let a = m.attachments.get(i).ok_or_else(|| failed!("the message has no attachment {index}", index = i))?;
                 match a.kept.filter(|_| a.data.is_empty()) {
@@ -1730,7 +1736,8 @@ impl Session {
         }
         let text = kept.text.filter(|_| m.body.text.is_empty());
         let html = kept.html.filter(|_| m.body.html.is_none());
-        text.into_iter().chain(html).all(|r| self.fetch(&r).is_ok()) && self.files_readable(m)
+        let hidden = kept.hidden.filter(|_| m.hidden_text.is_empty());
+        text.into_iter().chain(html).chain(hidden).all(|r| self.fetch(&r).is_ok()) && self.files_readable(m)
     }
 
     /// Whether every attachment of `m` that isn't in memory can be read back whole.
@@ -1795,7 +1802,8 @@ impl Session {
             let Some(kept) = m.kept.as_deref().copied() else { continue };
             let text = body.text.filter(|(r, _)| kept.text == Some(*r) && m.body.text.is_empty());
             let html = body.html.filter(|(r, _)| kept.html == Some(*r) && m.body.html.is_none());
-            if text.is_none() && html.is_none() {
+            let hidden = body.hidden.filter(|(r, _)| kept.hidden == Some(*r) && m.hidden_text.is_empty());
+            if text.is_none() && html.is_none() && hidden.is_none() {
                 continue;
             }
             let mut copy = Message::clone(m);
@@ -1807,6 +1815,10 @@ impl Session {
             if let Some((_, bytes)) = html {
                 copy.body.html = Some(text_of(&bytes));
                 kept.html = None;
+            }
+            if let Some((_, bytes)) = hidden {
+                copy.hidden_text = text_of(&bytes);
+                kept.hidden = None;
             }
             // (The kept HTML goes with the text as it now reads.)
             kept.text_hash = mailcraft_model::text_hash(&copy.body.text);
@@ -1835,7 +1847,12 @@ impl Session {
             .messages
             .iter()
             .filter(|(_, m)| {
-                m.kept.as_deref().is_some_and(|k| !k.failed && ((gone(k.text) && m.body.text.is_empty()) || (gone(k.html) && m.body.html.is_none())))
+                m.kept.as_deref().is_some_and(|k| {
+                    !k.failed
+                        && ((gone(k.text) && m.body.text.is_empty())
+                            || (gone(k.html) && m.body.html.is_none())
+                            || (gone(k.hidden) && m.hidden_text.is_empty()))
+                })
             })
             .map(|(id, _)| *id)
             .collect();
@@ -2618,6 +2635,10 @@ fn loaded_into(m: &mut Message, fetch: impl Fn(Part) -> Result<Arc<Vec<u8>>, Cmd
     {
         let text = kept.text.filter(|_| m.body.text.is_empty()).map(|_| fetch(Part::Text)).transpose()?;
         let html = kept.html.filter(|_| m.body.html.is_none()).map(|_| fetch(Part::Html)).transpose()?;
+        let hidden = kept.hidden.filter(|_| m.hidden_text.is_empty()).map(|_| fetch(Part::Hidden)).transpose()?;
+        if let Some(hidden) = hidden {
+            m.hidden_text = text_of(&hidden);
+        }
         if let Some(text) = text {
             m.body.text = text_of(&text);
         }
@@ -2642,7 +2663,7 @@ fn loaded_into(m: &mut Message, fetch: impl Fn(Part) -> Result<Arc<Vec<u8>>, Cmd
 
 /// How many bytes of a message's body and attachments are in memory.
 fn in_memory(m: &Message) -> u64 {
-    let body = m.body.text.len().saturating_add(m.body.html.as_ref().map_or(0, String::len));
+    let body = m.body.text.len().saturating_add(m.body.html.as_ref().map_or(0, String::len)).saturating_add(m.hidden_text.len());
     m.attachments.iter().fold(body as u64, |n, a| n.saturating_add(a.data.len() as u64))
 }
 
@@ -2653,6 +2674,7 @@ pub struct BodyLater {
     pub id: Id,
     pub text: Option<ContentRef>,
     pub html: Option<ContentRef>,
+    pub hidden: Option<ContentRef>,
 }
 
 /// A [`BodyLater`] read: each part with its bytes, or left out when it couldn't be read
@@ -2662,6 +2684,7 @@ pub struct BodyRead {
     pub id: Id,
     pub text: Option<(ContentRef, Vec<u8>)>,
     pub html: Option<(ContentRef, Vec<u8>)>,
+    pub hidden: Option<(ContentRef, Vec<u8>)>,
 }
 
 /// The content files an opening for a window left unlooked for, looked for once it shows

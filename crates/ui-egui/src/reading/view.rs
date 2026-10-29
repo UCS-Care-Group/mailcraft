@@ -8,10 +8,10 @@
 //! frames ([`FRAME_BUDGET`]), so opening a very long message does not stall the window.
 //!
 //! The look of a message depends on the pane it is read in when its style sheet has `@media`: the
-//! blocks are made for a class of pane width and a theme ([`Env`]), kept with the message, and made
-//! again only when the pane crosses into another class or the theme changes, never per frame; the
-//! last few classes seen stay at hand, so a pane dragged back and forth across a break costs
-//! nothing the second time.
+//! blocks are made for the width the body is laid out at and the theme ([`Env`]), kept with the
+//! message by what its own `@media` lists say of them ([`Look`]), and made again only when the
+//! pane changes in a way one of them notices, never per frame; the last few looks seen stay at
+//! hand, so a pane dragged back and forth across a break costs nothing the second time.
 //!
 //! A message can be on screen in more than one place (the reading pane, a window of its own),
 //! each as wide as it likes: every [`Place`] has its own layout, and they share the parsed body.
@@ -41,7 +41,7 @@ const KEPT: usize = 4;
 /// How many layouts are kept for windows: one each, and a few that outlive theirs for a moment.
 const KEPT_IN_WINDOWS: usize = 16;
 
-/// How many other width classes and themes of a message's blocks are kept besides the one in use.
+/// How many other looks of a message's blocks are kept besides the one in use.
 const KEPT_CLASSES: usize = 3;
 
 /// The width a message is laid out at is a multiple of this many points.
@@ -62,8 +62,10 @@ pub struct Doc {
     /// Per block: `Some` when it goes on in the paragraph of the block before, which was cut for
     /// its length, with what was dropped at the cut. Empty when nothing was cut.
     pub cuts: Arc<[Option<Glue>]>,
-    /// The message's style sheets have `@media`, so another class of pane or the other theme can
-    /// make another look of it; else the blocks are the same in all of them.
+    /// The message's media lists (`@media` and `<style media>`): what its look can change with.
+    pub lists: Arc<[String]>,
+    /// It has some, so another pane width or the other theme can make another look of it; else
+    /// the blocks are the same in all of them.
     pub responsive: bool,
     /// The window is dark and the message brings its own design for dark windows.
     pub sender_dark: bool,
@@ -84,10 +86,11 @@ impl Doc {
         Doc::of_in(message, can_download, Env::default())
     }
 
-    /// The same for a pane of a width class and a theme (`env`): the message's `@media` is
-    /// tested against it.
+    /// The same for a body of a width and a theme (`env`): the message's `@media` is tested
+    /// against it.
     pub fn of_in(message: &Message, can_download: bool, env: Env) -> Doc {
-        let responsive = message.body.html.as_deref().is_some_and(mailcraft_html::depends_on_pane);
+        let lists: Arc<[String]> = message.body.html.as_deref().map(mailcraft_html::media_lists).unwrap_or_default().into();
+        let responsive = !lists.is_empty();
         let parsed = message.body.html.as_deref().map(|html| mailcraft_html::parse_in(html, &env));
         let (blocks, sender_dark) = match parsed {
             // HTML that came to nothing (only scripts, only pictures that can't be shown) falls back to the text.
@@ -95,7 +98,7 @@ impl Doc {
                 (read.blocks, read.dark_design)
             }
             Some(read) if can_download => {
-                let doc = Doc { responsive, sender_dark: read.dark_design, ..Doc::from_blocks(read.blocks) };
+                let doc = Doc { lists: lists.clone(), responsive, sender_dark: read.dark_design, ..Doc::from_blocks(read.blocks) };
                 if !doc.remote.is_empty() {
                     return doc;
                 }
@@ -103,7 +106,7 @@ impl Doc {
             }
             _ => (mailcraft_html::text_blocks(&message.body.text), false),
         };
-        Doc { responsive, sender_dark, ..Doc::from_blocks(blocks) }
+        Doc { lists, responsive, sender_dark, ..Doc::from_blocks(blocks) }
     }
 
     /// The blocks as a body, with what is known of their pictures on the web.
@@ -185,6 +188,33 @@ fn in_pieces(blocks: Vec<Block>) -> (Vec<Block>, Vec<Option<Glue>>) {
     (out, cuts)
 }
 
+/// What a message's look is kept by: what each of its media lists says for the body's width and
+/// the theme. Two widths with the same verdicts give the same blocks, so a pane dragged about
+/// makes a new look only where one of the message's own conditions turns.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct Look {
+    verdicts: Vec<bool>,
+    dark: bool,
+}
+
+impl Look {
+    /// The window is dark.
+    #[cfg(test)]
+    pub fn dark(&self) -> bool {
+        self.dark
+    }
+
+    /// What each media list said, for tests.
+    #[cfg(test)]
+    pub fn verdicts(&self) -> &[bool] {
+        &self.verdicts
+    }
+
+    fn of(lists: &[String], env: Env) -> Look {
+        Look { verdicts: mailcraft_html::media_verdicts(lists, &env), dark: env.dark() }
+    }
+}
+
 /// What a layout was made for: when any of it changes, it is made again.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct Key {
@@ -205,12 +235,12 @@ struct Entry {
     message: Arc<Message>,
     place: Place,
     doc: Arc<Doc>,
-    /// The class of pane and the theme `doc` is for (a message whose look is the same in two classes
-    /// keeps the one `doc` for both).
+    /// The body width and theme last looked at, and the look `doc` has for them (a look that
+    /// comes out the same in two widths keeps the one `doc` for both).
     env: Env,
-    /// The blocks made for other classes of pane and the other theme, most recent first: at most
-    /// [`KEPT_CLASSES`].
-    others: Vec<(Env, Arc<Doc>)>,
+    look: Look,
+    /// The blocks made for other looks, most recent first: at most [`KEPT_CLASSES`].
+    others: Vec<(Look, Arc<Doc>)>,
     key: Option<Key>,
     laid: Laid,
     /// A layout in the making that takes the place of `laid` once it is done: pictures came, and
@@ -257,7 +287,8 @@ impl Store {
             Some(index) => index,
             None => {
                 // The body may be known from the other place it is shown in.
-                let doc = self.entries.iter().find(|e| shows(e) && (!e.doc.responsive || e.env == env)).map(|e| e.doc.clone());
+                let doc =
+                    self.entries.iter().find(|e| shows(e) && (!e.doc.responsive || e.look == Look::of(&e.doc.lists, env))).map(|e| e.doc.clone());
                 // What was kept here of this message before it changed is of no use any more.
                 self.entries.retain(|e| e.place != place || e.message.id != message.id || message.id == 0);
                 let (kept, room) = match place {
@@ -278,11 +309,14 @@ impl Store {
                 {
                     self.made += usize::from(doc.is_none());
                 }
+                let doc = doc.unwrap_or_else(|| Arc::new(Doc::of_in(message, can_download, env)));
+                let look = Look::of(&doc.lists, env);
                 self.entries.push(Entry {
                     message: message.clone(),
                     place,
-                    doc: doc.unwrap_or_else(|| Arc::new(Doc::of_in(message, can_download, env))),
+                    doc,
                     env,
+                    look,
                     others: Vec::new(),
                     key: None,
                     laid: Laid::default(),
@@ -314,16 +348,60 @@ pub fn doc_where(ctx: &egui::Context, message: &Arc<Message>, place: Place, can_
     doc_in(ctx, message, place, can_download, Env::default())
 }
 
-/// The class of pane and the theme of the room `ui` has: what a message's `@media` is tested
-/// against. The width is the one the body is laid out at ([`show`]).
+/// A first guess at the width and theme the body will be laid out at in the room `ui` has, for a
+/// message whose blocks are made before the body is: the room less the body's margins. [`show`]
+/// then fits the blocks to the width it really lays out at.
 pub fn env_of(ui: &Ui) -> Env {
-    let width = ui.available_width().min(super::MAX_TEXT_WIDTH);
+    let width = (ui.available_width() - BODY_MARGINS).min(super::MAX_TEXT_WIDTH);
     Env::for_pane(width, Tokens::get(ui.ctx()).dark)
 }
 
-/// The message's blocks for the pane and theme `env`, kept from one frame to the next. They are
-/// made again only when the message has `@media` and `env` is another class of pane or the other
-/// theme than the blocks in use were made for; the last [`KEPT_CLASSES`] others are kept.
+/// The left and right margins of the body, which the room it is laid out in is less than the pane.
+const BODY_MARGINS: f32 = 40.0;
+
+impl Entry {
+    /// Make the blocks fit the body width and theme `env`: another look of the message when one
+    /// of its media lists says something else for it. Another look is taken from those kept, or
+    /// made (and the look in use is kept); one that has the same blocks as the one in use leaves
+    /// them, and the layout, as they are. How many times blocks were made.
+    fn fit(&mut self, message: &Arc<Message>, can_download: bool, env: Env) -> usize {
+        if !self.doc.responsive || self.env == env {
+            self.env = env;
+            return 0;
+        }
+        self.env = env;
+        let look = Look::of(&self.doc.lists, env);
+        if look == self.look {
+            return 0;
+        }
+        let mut made = 0;
+        let found = self.others.iter().position(|(l, _)| *l == look).map(|at| self.others.remove(at).1);
+        let next = match found {
+            Some(doc) => doc,
+            None => {
+                made = 1;
+                let fresh = Arc::new(Doc::of_in(message, can_download, env));
+                // A look that has the blocks of the one in use keeps them, and what is laid out
+                // and selected in them.
+                if fresh.blocks == self.doc.blocks && fresh.sender_dark == self.doc.sender_dark { self.doc.clone() } else { fresh }
+            }
+        };
+        // The layout was made from the blocks that are gone.
+        if !Arc::ptr_eq(&next, &self.doc) {
+            self.key = None;
+            self.next = None;
+        }
+        let old_look = std::mem::replace(&mut self.look, look);
+        let old = std::mem::replace(&mut self.doc, next);
+        self.others.insert(0, (old_look, old));
+        self.others.truncate(KEPT_CLASSES);
+        made
+    }
+}
+
+/// The message's blocks for the body width and theme `env`, kept from one frame to the next, fitted
+/// to it ([`Entry::fit`]).
+#[cfg(test)]
 pub fn doc_in(ctx: &egui::Context, message: &Arc<Message>, place: Place, can_download: bool, env: Env) -> Arc<Doc> {
     let store = Store::of(ctx);
     let mut store = store.lock().unwrap_or_else(|e| e.into_inner());
@@ -331,39 +409,22 @@ pub fn doc_in(ctx: &egui::Context, message: &Arc<Message>, place: Place, can_dow
     let Some(entry) = store.entry(message, place, images::frame(ctx), can_download, env) else {
         return Arc::new(Doc::of_in(message, can_download, env));
     };
-    #[cfg(test)]
-    let mut made = 0;
-    if entry.doc.responsive && entry.env != env {
-        let found = entry.others.iter().position(|(e, _)| *e == env).map(|at| entry.others.remove(at).1);
-        let next = match found {
-            Some(doc) => doc,
-            None => {
-                #[cfg(test)]
-                {
-                    made += 1;
-                }
-                let fresh = Arc::new(Doc::of_in(message, can_download, env));
-                // A class whose look is the one in use (its `@media` says the same for both) keeps
-                // the blocks, and what is laid out and selected in them.
-                if fresh.blocks == entry.doc.blocks && fresh.sender_dark == entry.doc.sender_dark { entry.doc.clone() } else { fresh }
-            }
-        };
-        // The layout was made from the blocks that are gone.
-        if !Arc::ptr_eq(&next, &entry.doc) {
-            entry.key = None;
-            entry.next = None;
-        }
-        let old_env = std::mem::replace(&mut entry.env, env);
-        let old = std::mem::replace(&mut entry.doc, next);
-        entry.others.insert(0, (old_env, old));
-        entry.others.truncate(KEPT_CLASSES);
-    }
+    let made = entry.fit(message, can_download, env);
     let doc = entry.doc.clone();
-    #[cfg(test)]
-    {
-        store.made += made;
-    }
+    store.made += made;
     doc
+}
+
+/// The message's blocks as they are kept, for what the header says of its pictures: made, when
+/// there are none, for a guess at the body's width ([`env_of`]), and not changed to another look
+/// here, which [`show`] does once it knows the width it lays out at.
+pub fn doc_shown(ctx: &egui::Context, message: &Arc<Message>, place: Place, can_download: bool, env: Env) -> Arc<Doc> {
+    let store = Store::of(ctx);
+    let mut store = store.lock().unwrap_or_else(|e| e.into_inner());
+    match store.entry(message, place, images::frame(ctx), can_download, env) {
+        Some(entry) => entry.doc.clone(),
+        None => Arc::new(Doc::of_in(message, can_download, env)),
+    }
 }
 
 /// Paint the body of `message` in the width there is. Links open in the browser and its text can
@@ -383,7 +444,20 @@ pub fn show(app: &mut MailApp, ui: &mut Ui, message: &Arc<Message>, place: Place
     let mut store = store.lock().unwrap_or_else(|e| e.into_inner());
     #[cfg(test)]
     let mut begun = 0;
-    let Some(entry) = store.entry(message, place, images::frame(&ctx), super::remote::available(app), env_of(ui)) else { return };
+    // The width the body is laid out at, to the pixel, tests the message's `@media`: it is the
+    // room this `ui` has (the body's margins are already outside it), in the steps above.
+    let env = Env::for_pane(width, t.dark);
+    let can_download = super::remote::available(app);
+    let Some(made) = store.entry(message, place, images::frame(&ctx), can_download, env).map(|entry| entry.fit(message, can_download, env)) else {
+        return;
+    };
+    #[cfg(test)]
+    {
+        store.made += made;
+    }
+    #[cfg(not(test))]
+    let _ = made;
+    let Some(entry) = store.entry(message, place, images::frame(&ctx), can_download, env) else { return };
     if entry.doc.blocks.is_empty() {
         ui.label(egui::RichText::new(tl!("This message has no text.")).color(t.text_dim));
         if let Some(state) = app.text_selection.state(place) {
@@ -482,12 +556,12 @@ pub fn kept_count(ctx: &egui::Context) -> usize {
     Store::of(ctx).lock().unwrap().entries.len()
 }
 
-/// The class of pane and theme the blocks in use for a message shown at `place` are for, for tests.
+/// The look of the blocks in use for a message shown at `place`, for tests.
 #[cfg(test)]
-pub fn current_env(ctx: &egui::Context, place: Place, message: mailcraft_model::Id) -> Option<Env> {
+pub fn current_look(ctx: &egui::Context, place: Place, message: mailcraft_model::Id) -> Option<Look> {
     let store = Store::of(ctx);
     let store = store.lock().unwrap();
-    store.entries.iter().find(|e| e.place == place && e.message.id == message).map(|e| e.env)
+    store.entries.iter().find(|e| e.place == place && e.message.id == message).map(|e| e.look.clone())
 }
 
 /// The blocks in use for a message shown at `place`, for tests.

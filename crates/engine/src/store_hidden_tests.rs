@@ -1,0 +1,100 @@
+// SPDX-FileCopyrightText: MailCraft contributors
+// SPDX-License-Identifier: MIT OR Apache-2.0
+//! What a sender hid in a message (#599) goes outside the mailbox file with the body when it is
+//! long, comes back with it, counts as content, is found by search, and goes when the message is
+//! thinned.
+
+use super::*;
+
+const NEEDLE: &str = "zorblax";
+
+fn long_hidden() -> String {
+    format!("{NEEDLE} {}", "preheader words ".repeat(200))
+}
+
+/// A mailbox with `hidden` on one message with a long text; its id.
+fn with_hidden(hidden: &str) -> (Mailbox, Id) {
+    let mut mb = mailbox(24);
+    let id = first_with(&mb, |m| m.body.text.len() > INLINE_MAX);
+    let mut m = Message::clone(mb.message(id).unwrap());
+    m.hidden_text = hidden.to_string();
+    mb.messages.insert(id, Arc::new(m));
+    (mb, id)
+}
+
+#[test]
+fn a_long_hidden_text_leaves_the_record_comes_back_and_goes_with_a_thinned_message() {
+    let (mb, id) = with_hidden(&long_hidden());
+    assert!(long_hidden().len() > INLINE_MAX);
+    let tmp = Temp::new("hidden-outside");
+    let path = tmp.file();
+    save(&path, &mb).unwrap();
+    clear_cache();
+    // The record the mailbox file keeps has none of it, and names the content file.
+    let record = prepare(id, mb.messages.get(&id).unwrap(), &mut HashMap::new()).unwrap();
+    assert!(!String::from_utf8_lossy(&record.json).contains(NEEDLE));
+    assert_eq!(record.parts.hidden.map(|p| p.r.len), Some(long_hidden().len() as u64));
+    assert!(blob_file(&path, long_hidden().as_bytes()).is_file());
+
+    // Opened with no room for bodies: not in memory, named, and the body is "kept".
+    let mut s = session_without_bodies(&path);
+    let m = s.mailbox.message(id).unwrap();
+    assert!(m.hidden_text.is_empty() && m.kept.as_deref().is_some_and(|k| k.hidden.is_some()) && m.body_is_kept());
+    assert!(m.size() >= long_hidden().len() as u64);
+    // Read back with the body, counted in what is in memory and in the bytes of content.
+    let before = crate::cmd::offline::content_bytes(m);
+    assert_eq!(s.load_for_display(id), Ok(true));
+    let m = s.mailbox.message(id).unwrap();
+    assert_eq!(m.hidden_text, long_hidden());
+    assert!(!m.body_is_kept());
+    assert!(crate::cmd::offline::content_bytes(m) >= before);
+    assert_eq!(s.content(id, crate::Part::Hidden).unwrap().as_slice(), long_hidden().as_bytes());
+
+    // Let go of again when it is safely on disk, and it is named once more.
+    let lean = evictable(&path, id, m);
+    if let Some(lean) = lean {
+        assert!(lean.hidden_text.is_empty() && lean.kept.as_deref().is_some_and(|k| k.hidden.is_some()));
+    }
+
+    // The save of a message that was never loaded writes what the file already named.
+    let mut again = session_without_bodies(&path);
+    let was_read = again.mailbox.message(id).unwrap().read;
+    again.mailbox.message_mut(id).unwrap().read = !was_read;
+    save(&path, &again.mailbox).unwrap();
+    clear_cache();
+    assert_eq!(whole(&path).message(id).unwrap().hidden_text, long_hidden());
+
+    // Rules and search see it as they see the text kept on disk.
+    let s = session_without_bodies(&path);
+    assert!(s.mailbox.message(id).unwrap().hidden_text.is_empty());
+    let loaded = s.loaded_message_where(id, |_| false).unwrap();
+    assert!(mailcraft_model::search::Query::parse(NEEDLE).matches(&loaded, 0));
+    assert!(mailcraft_model::Condition::BodyContains(NEEDLE.into()).matches(&loaded));
+
+    // Thinned: it goes with the body, and the content file is no longer named by the message.
+    let mut thin = Message::clone(whole(&path).message(id).unwrap());
+    let names_before = content_names(id, &Arc::new(thin.clone()));
+    crate::cmd::graph_down::thin_message(&mut thin, "preview".into());
+    assert!(thin.hidden_text.is_empty() && thin.kept.is_none());
+    let names_after = content_names(id, &Arc::new(thin));
+    let hidden_ref = ContentRef { sha256: Digest::of(long_hidden().as_bytes()).0, len: long_hidden().len() as u64 };
+    assert!(names_before.contains(&hidden_ref) && !names_after.contains(&hidden_ref));
+}
+
+#[test]
+fn a_short_hidden_text_stays_in_the_record_and_old_files_load() {
+    let (mb, id) = with_hidden("a short preheader");
+    let record = prepare(id, mb.messages.get(&id).unwrap(), &mut HashMap::new()).unwrap();
+    assert!(record.parts.hidden.is_none() && String::from_utf8_lossy(&record.json).contains("a short preheader"));
+    let tmp = Temp::new("hidden-inline");
+    let path = tmp.file();
+    save(&path, &mb).unwrap();
+    clear_cache();
+    assert_eq!(whole(&path).message(id).unwrap().hidden_text, "a short preheader");
+    // A file with no `hidden` among its content names (every file before this) opens.
+    let (plain, id) = (mailbox(24), 0);
+    let _ = id;
+    save(&path, &plain).unwrap();
+    clear_cache();
+    assert!(whole(&path) == plain);
+}

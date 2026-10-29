@@ -2021,3 +2021,6 @@ fn a_json_file_of_empty_messages_is_refused_while_it_is_read() {
 
 #[path = "store_launch_tests.rs"]
 mod launch;
+
+#[path = "store_hidden_tests.rs"]
+mod hidden;

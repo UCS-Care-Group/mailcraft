@@ -39,12 +39,12 @@ fn text(harness: &Window, id: u64) -> String {
     mailcraft_html::blocks_to_text(&doc.blocks)
 }
 
-/// Run `n` frames, noting after each the class of pane and theme the message's blocks are for.
-fn frames(harness: &mut Window, id: u64, n: usize, seen: &mut std::collections::HashSet<mailcraft_html::Env>) {
+/// Run `n` frames, noting after each the look of the message in use.
+fn frames(harness: &mut Window, id: u64, n: usize, seen: &mut std::collections::HashSet<view::Look>) {
     for _ in 0..n {
         harness.step();
-        if let Some(env) = view::current_env(&harness.ctx, Place::Pane, id) {
-            seen.insert(env);
+        if let Some(look) = view::current_look(&harness.ctx, Place::Pane, id) {
+            seen.insert(look);
         }
     }
 }
@@ -65,32 +65,31 @@ fn the_look_is_worked_out_once_per_message_width_class_and_theme() {
     frames(&mut harness, responsive, 100, &mut seen);
     assert_eq!(view::docs_made(&harness.ctx), made);
     let begun = view::layouts_begun(&harness.ctx);
-    let wide = view::current_env(&harness.ctx, Place::Pane, responsive).unwrap();
+    let wide = view::current_look(&harness.ctx, Place::Pane, responsive).unwrap();
 
     // Panes of other widths, and back, again and again: a class is made once.
     let mut classes = std::collections::HashSet::from([wide]);
-    for w in [700.0, 1400.0, 700.0, 520.0, 1400.0, 700.0, 520.0] {
+    for w in [900.0, 1400.0, 1100.0, 700.0, 1400.0, 900.0, 700.0, 1100.0] {
         harness.set_size(egui::vec2(w, 900.0));
         frames(&mut harness, responsive, 12, &mut seen);
-        classes.insert(view::current_env(&harness.ctx, Place::Pane, responsive).unwrap());
+        classes.insert(view::current_look(&harness.ctx, Place::Pane, responsive).unwrap());
         assert_eq!(view::docs_made(&harness.ctx), seen.len(), "{seen:?}");
     }
     assert!(classes.len() >= 3, "{classes:?}");
-    assert!(classes.iter().any(|e| e.width() < wide.width()));
     // Dragging the edge by a few points, inside one class, makes nothing.
     let before = view::docs_made(&harness.ctx);
-    let class = view::current_env(&harness.ctx, Place::Pane, responsive).unwrap();
-    for w in [521.0, 523.0, 524.0, 522.0] {
+    let class = view::current_look(&harness.ctx, Place::Pane, responsive).unwrap();
+    for w in [1101.0, 1103.0, 1104.0, 1102.0] {
         harness.set_size(egui::vec2(w, 900.0));
         frames(&mut harness, responsive, 4, &mut seen);
     }
-    assert_eq!(view::current_env(&harness.ctx, Place::Pane, responsive).unwrap(), class);
+    assert_eq!(view::current_look(&harness.ctx, Place::Pane, responsive).unwrap(), class);
     assert_eq!(view::docs_made(&harness.ctx), before);
 
     // The other theme is another look, made once.
     harness.state_mut().execute("ui.theme", json!({"value": "dark"})).unwrap();
     frames(&mut harness, responsive, 12, &mut seen);
-    assert!(view::current_env(&harness.ctx, Place::Pane, responsive).unwrap().dark());
+    assert!(view::current_look(&harness.ctx, Place::Pane, responsive).unwrap().dark());
     assert_eq!(view::docs_made(&harness.ctx), before + 1);
     frames(&mut harness, responsive, 100, &mut seen);
     assert_eq!(view::docs_made(&harness.ctx), before + 1);
@@ -182,4 +181,43 @@ fn the_senders_dark_design_is_adjusted_only_where_it_falls_short() {
     // A pair that falls short is changed.
     let (ink, paper) = (c32(Rgb(0x30, 0x30, 0x40)), Paper::of(Rgb(0x1f, 0x23, 0x29), &own));
     assert!(readable(ink, paper.fill) != ink && contrast(readable(ink, paper.fill), paper.fill) >= MIN_CONTRAST);
+}
+
+/// The look is for the width the body is laid out at, not the pane's (#599 review): a message
+/// with a condition at every few pixels finds its edge within a few pixels of the layout's width,
+/// whatever the spacing of its `media` attribute.
+#[test]
+fn the_look_is_for_the_width_the_body_is_laid_out_at() {
+    let (mut mailbox, id) = {
+        let mut mailbox = Mailbox::with_local_account("Avery Quinn", "avery@lumen-works.example");
+        served_by_example_org(&mut mailbox);
+        let inbox = mailbox.inbox().unwrap();
+        let lists: String = (0..390).map(|i| format!("@media (max-width:{}px){{p{{color:#036}}}}", 100 + i * 3)).collect();
+        let html = format!("<style>{lists}</style><style media = \"(max-width: 5000px)\">p{{margin:0}}</style><p>Wide enough to see</p>");
+        let mut m = html_message(0, ("Saltmarsh Dairy", "news@saltmarsh.example"), "Lists", &html);
+        m.folder = inbox;
+        let id = mailbox.add_message(m).unwrap();
+        (mailbox, id)
+    };
+    mailbox.repair();
+    let mut app = MailApp::new(Session::at(mailbox, NOW, 0), Services::default());
+    app.autosave = false;
+    app.auto_sync = false;
+    let mut harness = window(app, (1100.0, 900.0));
+    for w in [1100.0, 900.0, 700.0, 1000.0] {
+        harness.set_size(egui::vec2(w, 900.0));
+        select(&mut harness, id);
+        harness.run_steps(12);
+        let look = view::current_look(&harness.ctx, Place::Pane, id).unwrap();
+        let laid = view::kept(&harness.ctx, id, |laid, _| laid.width()).unwrap();
+        // The first list that holds is the narrowest `max-width` at or above the width.
+        let first = look.verdicts().iter().position(|v| *v).expect("a list holds");
+        let edge = (100 + first * 3) as f32;
+        assert!(edge >= laid - 0.5 && edge - laid <= 3.5, "window {w}: lists say {edge}, body is {laid}");
+    }
+    // `<style media = ...>` with spaces is read again when the window changes.
+    let made = view::docs_made(&harness.ctx);
+    harness.set_size(egui::vec2(500.0, 900.0));
+    harness.run_steps(12);
+    assert!(view::docs_made(&harness.ctx) > made);
 }

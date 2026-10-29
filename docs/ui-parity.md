@@ -90,7 +90,8 @@ be shown when they can't.
 
 | Date | Change | Summary |
 |---|---|---|
-| 2026-10-29 | minor | #599: the reading pane tests a message's `@media` against the pane's width class and the theme, and uses a sender's palette for dark windows |
+| 2026-10-29 | minor | #599: the reading pane tests a message's `@media` against the body's width and the theme, and uses a sender's palette for dark windows |
+| 2026-10-29 | patch | #599 review: the reading pane tests a message's `@media` against the exact width the body is laid out at |
 | 2026-10-24 | minor | #70: the Calendar Listed Twice question (Hide the Copy, Keep Both), Show the Copy under Shared Calendars and Hide This Copy in the calendar list's menu; "Calendars: allowed, reading them…" in File › Info |
 | 2026-10-24 | minor | Open Shared Calendar dialog (File › Open & Export, Home › Manage Calendars), Remove Shared Calendar in the folder pane's menu, Open this calendar bar on sharing invitations |
 | 2026-10-11 | major | First version |

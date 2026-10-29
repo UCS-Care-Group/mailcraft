@@ -499,6 +499,9 @@ pub fn take_fetched_as(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, i
 pub fn thin_message(m: &mut Message, preview: String) {
     m.attachments_on_server = m.has_attachments();
     m.body = Body { text: preview, html: None };
+    // What the sender hid goes with the text it came from: search and agents don't see it
+    // for a message that is no longer here in full.
+    m.hidden_text = String::new();
     m.attachments.clear();
     m.kept = None;
     m.unfetched = true;
@@ -756,3 +759,7 @@ Content-Type: text/html; charset=windows-1250\r\nContent-Transfer-Encoding: quot
         assert!(m.size() > 4000);
     }
 }
+
+#[cfg(test)]
+#[path = "graph_down_hidden_tests.rs"]
+mod hidden_tests;

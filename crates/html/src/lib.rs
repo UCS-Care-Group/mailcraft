@@ -38,10 +38,17 @@ mod tokenizer;
 
 use serde::{Deserialize, Serialize};
 
-pub use blocks::{MAX_HIDDEN_TEXT, Read, depends_on_pane, parse, parse_in, parse_text};
+pub use blocks::{MAX_HIDDEN_TEXT, Read, parse, parse_in, parse_text};
 pub use data::{MAX_DATA_PICTURE_BYTES, MAX_DATA_PICTURES, MAX_DATA_PICTURES_BYTES, Picture};
 pub use entities::{escape, unescape};
-pub use media::Env;
+pub use media::{Env, verdicts as media_verdicts};
+
+/// The media lists of a message's style sheets and `<style media>` attributes, each once, in the
+/// order they are met (inside `@media` too, to its depth): what its look can change with. A
+/// message with none looks the same in every pane and theme. At most 400.
+pub fn media_lists(html: &str) -> Vec<String> {
+    sheet::media_lists(html)
+}
 pub use preview::{MAX_PREVIEW_CHARS, preview, text_preview};
 pub use quote::quotable;
 pub use text::{blocks_to_text, from_text, text_and_hidden, text_blocks, to_text};

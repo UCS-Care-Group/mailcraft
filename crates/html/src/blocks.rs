@@ -82,17 +82,6 @@ pub struct Read {
 /// The most text of what a message hides that is kept, in bytes.
 pub const MAX_HIDDEN_TEXT: usize = 16 * 1024;
 
-/// Whether a message's style sheets have `@media` that can make it differ from one pane width
-/// or theme to another, so that it is worth reading again when the pane changes class.
-pub fn depends_on_pane(html: &str) -> bool {
-    let b = html.as_bytes();
-    b.windows(6).any(|w| w.eq_ignore_ascii_case(b"@media")) || {
-        // A `<style media="…">` too.
-        let lower = html.get(..html.len().min(MAX_INPUT)).unwrap_or("").to_ascii_lowercase();
-        lower.contains("<style") && lower.contains("media=")
-    }
-}
-
 /// [`parse`], without decoding the pictures written into the message: for when only the text
 /// and the look are wanted (plain text, an HTML draft or a paste in the composer).
 pub fn parse_text(html: &str) -> Vec<Block> {
@@ -114,7 +103,6 @@ pub(crate) fn build(html: &str, decode: bool, env: &Env, keep_hidden: bool) -> B
     // The message's style sheets, read once for the whole message; the nth start tag below is
     // the nth element of the tree they were matched against.
     let mut sheet = Sheet::read_in(html, env);
-    let dark_design = sheet.as_ref().is_some_and(|s| s.dark_design);
     let mut opened = 0usize;
     let mut tokens = Tokenizer::new(html);
     // The text of the pictures written into the message, which isn't counted against MAX_INPUT.
@@ -145,6 +133,7 @@ pub(crate) fn build(html: &str, decode: bool, env: &Env, keep_hidden: bool) -> B
         }
         builder.token(token);
     }
+    let dark_design = sheet.as_ref().is_some_and(|s| s.dark_design);
     let hidden = builder.unseen.take().unwrap_or_default();
     Built { blocks: builder.finish(), dark_design, hidden }
 }
@@ -498,6 +487,8 @@ struct Builder {
     hidden: usize,
     /// The text of what is hidden, when it is wanted: only the owner's search and agents read it.
     unseen: Option<String>,
+    /// A space is due before the next hidden word.
+    unseen_gap: bool,
     /// Open tables that a stray `<tr>` or `<td>` started.
     implied: usize,
     quote: usize,
@@ -543,6 +534,7 @@ impl Builder {
             inline_overflow: 0,
             hidden: 0,
             unseen: None,
+            unseen_gap: false,
             implied: 0,
             quote: 0,
             lists: 0,
@@ -569,6 +561,7 @@ impl Builder {
             }
             Token::Open(tag) => {
                 self.pre_start = false;
+                self.note_boundary(&tag.name);
                 if tag.name == "template" {
                     self.template = self.template.saturating_add(1);
                 } else if self.template == 0 {
@@ -577,6 +570,7 @@ impl Builder {
             }
             Token::Close(name) => {
                 self.pre_start = false;
+                self.note_boundary(&name);
                 if name == "template" {
                     self.template = self.template.saturating_sub(1);
                 } else if self.template == 0 {
@@ -615,26 +609,48 @@ impl Builder {
 
     // ---- text ----
 
-    /// Keep the words of text the message hides, when they are wanted: spaces and the invisible
-    /// characters that pad a preheader are dropped, and a word follows the one before with a space.
+    /// An element that is not inline ends the word before it: what is hidden on both sides of it
+    /// is two words, as the visible text of two paragraphs is.
+    fn note_boundary(&mut self, name: &str) {
+        const INLINE: [&str; 22] = [
+            "span", "a", "b", "i", "u", "em", "strong", "font", "small", "big", "sub", "sup", "code", "abbr", "cite", "s", "strike", "mark", "q",
+            "tt", "del", "ins",
+        ];
+        if self.unseen.is_some() && !INLINE.contains(&name) {
+            self.unseen_gap = true;
+        }
+    }
+
+    /// Keep the words of text the message hides, when they are wanted. Invisible characters that
+    /// pad a preheader are dropped; text in two inline elements that touch (`<span>Hel</span>
+    /// <span>lo</span>`) is one word, as it is when it is shown; white space, a line break or a
+    /// block element between two is a space.
     fn note_unseen(&mut self, raw: &str) {
         let Some(buf) = self.unseen.as_mut() else { return };
         if buf.len() >= MAX_HIDDEN_TEXT {
             return;
         }
         let text = unescape(truncate(raw, MAX_HIDDEN_TEXT));
-        let visible =
-            text.chars().filter(|c| !c.is_control() && !matches!(c, '\u{AD}' | '\u{34F}' | '\u{200B}'..='\u{200F}' | '\u{2060}' | '\u{FEFF}'));
-        let text: String = visible.collect();
-        for word in text.split_whitespace() {
-            if buf.len() + word.len() + 1 > MAX_HIDDEN_TEXT {
-                break;
+        let text: String = text
+            .chars()
+            .filter(|c| c.is_whitespace() || !c.is_control())
+            .filter(|c| !matches!(c, '\u{AD}' | '\u{34F}' | '\u{200B}'..='\u{200F}' | '\u{2060}' | '\u{FEFF}'))
+            .collect();
+        if text.starts_with(char::is_whitespace) {
+            self.unseen_gap = true;
+        }
+        for (n, word) in text.split_whitespace().enumerate() {
+            let space = usize::from(!buf.is_empty());
+            if buf.len() + space + word.len() > MAX_HIDDEN_TEXT {
+                return;
             }
-            if !buf.is_empty() {
+            if (n > 0 || self.unseen_gap) && !buf.is_empty() {
                 buf.push(' ');
             }
+            self.unseen_gap = false;
             buf.push_str(word);
         }
+        self.unseen_gap = text.ends_with(char::is_whitespace) || self.unseen_gap;
     }
 
     fn text(&mut self, raw: &str) {

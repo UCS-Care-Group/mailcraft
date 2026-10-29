@@ -30,11 +30,14 @@ Writes any bytes into a message: crafted MIME, HTML, headers, attachments, pictu
   steps; fuzzed). A style sheet is one more source of the same values, never a new kind of
   presentation, and nothing in it is run or fetched: `@import`, `@font-face`, other at-rules,
   `url()` and `content` are ignored, and `:visited` never matches. `@media` and a `<style media>`
-  are tested against the width class of the reading pane and the window's theme and nothing else
+  are tested against the width the body is laid out at and the window's theme and nothing else
   (`crates/html/src/media.rs`: a list is read to 512 bytes, 8 queries and 8 parts a query, nested
   to 3 levels and 400 lists a message; what is not understood is false), so no media query can
   ask the system anything or cause a fetch; the work is the same budget as without it, at one
-  width class and theme, and is done again only when the pane changes class or the theme changes.
+  width and theme, and is done again only when the width or theme flips one of the message's own
+  conditions. The width and theme are never sent, but a picture a `@media` shows only for a dark
+  window or a narrow pane is, once pictures are allowed, fetched when that look is shown, so the
+  picture's server can tell which was asked for from its address (PRIVACY.md).
 - **What a sender hides is kept for search and agents, and only there.** The reading pane, the
   plain-text view and a reply's quoted original leave out what a message hides; the words of it
   (`Message::hidden_text`, 16 KB at most, worked out when the message is read) are in the owner's
@@ -485,6 +488,7 @@ settings files (`crates/engine/src/store.rs`); commands from the control channel
 | Date | Change | Summary |
 |---|---|---|
 | 2026-10-29 | minor | #599: a message's `@media` is tested against the pane's width class and the theme only, within caps; what a sender hid is kept apart from the text for search, rules and agents, and not shown or quoted |
+| 2026-10-29 | patch | #599 review: `@media` is tested against the width the body is laid out at, to the pixel; a picture shown only under a dark or narrow `@media` is fetched when that look is shown, which tells its server the theme or width |
 | 2026-10-27 | minor | #508: the sender-warning banner can be dismissed by the owner only (`mail.dismissWarnings`, class settings); a new kind of warning shows it again |
 | 2026-10-26 | minor | #533: pictures written into a message (`data:` PNG, JPEG, GIF or WebP, checked by their bytes, capped per picture and per message) are shown as attached ones are; `data:` stays refused in links and backgrounds |
 | 2026-10-26 | patch | Authentication results, and every other trace or authentication header, are read as the receiving server wrote them: encoded-words are decoded only where RFC 2047 allows them (`Subject`, `Comments`, `Organization`, `Thread-Topic`, `Keywords`, the names of addresses and of attachments) |

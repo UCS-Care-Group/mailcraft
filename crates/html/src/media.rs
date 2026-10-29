@@ -5,7 +5,7 @@
 //! A message is written for any screen, so its style sheet says what to do on a narrow one
 //! (`@media (max-width: 480px)`) and in a dark window (`@media (prefers-color-scheme: dark)`).
 //! Two facts are known here, and nothing else: the width of the reading pane, as one of a small
-//! number of classes ([`Env::for_pane`]), and whether the window is dark. Nothing is asked of the
+//! width the body of the message is laid out at ([`Env::for_pane`]), and whether the window is dark. Nothing is asked of the
 //! system and nothing is fetched.
 //!
 //! What is understood: the media types `all` and `screen` (true) and `print` and every other
@@ -33,16 +33,14 @@ pub(crate) const MAX_NESTING: usize = 3;
 /// Most media lists tested in one message; the blocks after them are left out.
 pub(crate) const MAX_LISTS: usize = 400;
 
-/// The widths at which the class of a pane changes. A message's breakpoints sit at the common
-/// ones; a pane one pixel either side of such a width is in different classes, so `max-width:
-/// 600px` and `min-width: 601px` are decided as a browser would decide them.
-const BREAKS: [u16; 19] = [320, 360, 375, 414, 480, 540, 568, 600, 620, 640, 667, 700, 720, 768, 800, 900, 992, 1024, 1200];
-
-/// The widest pane there is any need to tell from another.
+/// The width of a pane that [`Env::default`] stands for, and the widest one told from another.
 const WIDEST: u16 = 1280;
 
-/// What the media queries are tested against: how wide the reading pane is, as a class, and the
-/// window's theme.
+/// The widest pane there is any need to tell from another.
+const MAX_WIDTH: f32 = 16_384.0;
+
+/// What the media queries are tested against: how wide the body of the message is laid out, in
+/// pixels, and the window's theme.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct Env {
     width: u16,
@@ -57,16 +55,14 @@ impl Default for Env {
 }
 
 impl Env {
-    /// The class of a pane `points` wide (a point is a CSS pixel here), in a dark window or a
-    /// light one. The class is named by the least width in it: each break and the width just
-    /// above it are classes of their own, and every width from [`WIDEST`] up is one class.
+    /// A body `points` wide (a point is a CSS pixel here), in a dark window or a light one. The
+    /// width is whole pixels, rounded down; a width that is not a number is a wide pane's.
     pub fn for_pane(points: f32, dark: bool) -> Env {
-        let px = if points.is_finite() { points.clamp(0.0, f32::from(WIDEST)) as u16 } else { WIDEST };
-        let width = if px >= WIDEST { WIDEST } else { BREAKS.iter().flat_map(|b| [*b, b + 1]).rfind(|edge| *edge <= px).unwrap_or(0) };
+        let width = if points.is_finite() { points.clamp(0.0, MAX_WIDTH) as u16 } else { WIDEST };
         Env { width, dark }
     }
 
-    /// The width the queries are tested against, in pixels: the least width of the class.
+    /// The width the queries are tested against, in pixels.
     pub fn width(&self) -> u16 {
         self.width
     }
@@ -75,6 +71,13 @@ impl Env {
     pub fn dark(&self) -> bool {
         self.dark
     }
+}
+
+/// What each of a message's media lists ([`crate::media_lists`]) says for `env`, in order. Two
+/// panes with the same verdicts (and the same theme) give a message the same look, whatever
+/// their widths: this is what a message's look is kept by.
+pub fn verdicts(lists: &[String], env: &Env) -> Vec<bool> {
+    lists.iter().map(|list| test(list, env).holds).collect()
 }
 
 /// What a media query list came to.
@@ -88,6 +91,14 @@ pub(crate) struct Verdict {
 
 /// Test a media query list (the text between `@media` and `{`, or a `media` attribute).
 pub(crate) fn test(list: &str, env: &Env) -> Verdict {
+    // A comment is white space.
+    let without;
+    let list = if list.contains("/*") {
+        without = strip_comments(list);
+        without.as_str()
+    } else {
+        list
+    };
     let list = list.trim();
     let mut verdict = Verdict::default();
     // An empty list is `all`.
@@ -109,6 +120,25 @@ pub(crate) fn test(list: &str, env: &Env) -> Verdict {
     verdict
 }
 
+/// `text` with each `/* … */` (or one that is not closed, to the end) as a space.
+fn strip_comments(text: &str) -> String {
+    let mut out = String::with_capacity(text.len().min(MAX_QUERY_BYTES + 1));
+    let mut rest = text;
+    while let Some(at) = rest.find("/*") {
+        out.push_str(rest.get(..at).unwrap_or(""));
+        out.push(' ');
+        rest = match rest.get(at + 2..).and_then(|r| r.find("*/").map(|e| (r, e))) {
+            Some((r, e)) => r.get(e + 2..).unwrap_or(""),
+            None => "",
+        };
+        if out.len() > MAX_QUERY_BYTES * 4 {
+            break;
+        }
+    }
+    out.push_str(rest);
+    out
+}
+
 /// Whether one query holds and whether it asks for the dark theme; `None` when it is not understood.
 fn query_holds(query: &str, env: &Env) -> Option<(bool, bool)> {
     let lower = query.to_ascii_lowercase();
@@ -119,6 +149,10 @@ fn query_holds(query: &str, env: &Env) -> Option<(bool, bool)> {
         negate = first == "not";
         words.next();
         first = words.peek()?;
+        // `only` (and `not`) stands before a media type; `only (max-width: 600px)` is not CSS.
+        if first.starts_with('(') && !negate {
+            return None;
+        }
     }
     let (mut holds, mut dark) = (true, false);
     let mut features = 0usize;

@@ -130,30 +130,163 @@ fn the_list_and_the_query_are_capped() {
 }
 
 #[test]
-fn the_classes_are_few_and_decide_the_common_breakpoints() {
-    let classes: std::collections::HashSet<u16> = (0..=4000).map(|w| Env::for_pane(w as f32, false).width()).collect();
-    assert!(classes.len() <= 45, "{} classes", classes.len());
-    assert!(classes.len() >= 20);
-    // Every width of a class has its least width as the class, which never exceeds it.
-    for w in 0..=2000u16 {
-        let e = Env::for_pane(f32::from(w), false);
-        assert!(e.width() <= w || w >= 1280);
-    }
-    // A pane's class never moves for a fraction of a point, and wider is never narrower.
-    assert_eq!(Env::for_pane(600.4, false), Env::for_pane(600.0, false));
-    let mut last = 0;
-    for w in 0..3000 {
-        let now = Env::for_pane(w as f32, false).width();
-        assert!(now >= last);
-        last = now;
-    }
-    // The theme is part of the class.
+fn the_width_is_the_width_of_the_body_to_the_pixel() {
+    assert_eq!(Env::for_pane(600.4, false).width(), 600);
+    assert_eq!(Env::for_pane(0.0, false).width(), 0);
     assert_ne!(Env::for_pane(600.0, true), Env::for_pane(600.0, false));
     // Hostile widths.
     for w in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY, -5.0, 1e30, 0.0] {
         let _ = Env::for_pane(w, true);
     }
     assert_eq!(Env::for_pane(f32::NAN, false), Env::default());
+    assert_eq!(Env::for_pane(1e30, false).width(), 16_384);
+}
+
+/// The copy shown between the usual breakpoints is the one for the width (#599 review): a width
+/// is tested as it is, not as the class it falls in.
+#[test]
+fn a_query_is_tested_against_the_width_there_is() {
+    let copy = |breakpoint: &str, width: f32| {
+        let html = format!(
+            "<style>.m{{display:none}} @media ({breakpoint}){{.m{{display:block}} .d{{display:none}}}}</style><p class=d>Desktop</p><p class=m>Mobile</p>"
+        );
+        parse_in(&html, &at(width, false)).blocks.iter().map(|b| b.text()).collect::<Vec<_>>().join("+")
+    };
+    // `max-width:596px` is Mobile up to 596 and Desktop from 597 (it was Mobile to 599).
+    for w in [500.0, 596.0] {
+        assert_eq!(copy("max-width:596px", w), "Mobile", "{w}");
+    }
+    for w in [597.0, 598.0, 599.0, 600.0, 640.0] {
+        assert_eq!(copy("max-width:596px", w), "Desktop", "{w}");
+    }
+    // `max-width:520px`: not Mobile at 521 to 539.
+    for w in [521.0, 530.0, 539.0] {
+        assert_eq!(copy("max-width:520px", w), "Desktop", "{w}");
+    }
+    assert_eq!(copy("max-width:520px", 520.0), "Mobile");
+    // `min-width:660px` applies at 665 (it was not applied between 641 and 667 at that width).
+    assert_eq!(copy("min-width:660px", 665.0), "Mobile");
+    assert_eq!(copy("min-width:660px", 659.0), "Desktop");
+    assert_eq!(copy("min-width:660px", 660.0), "Mobile");
+}
+
+/// A message's look is kept by what its own conditions say: widths that turn none of them give
+/// the same look and need no new blocks.
+#[test]
+fn panes_with_the_same_verdicts_have_the_same_look() {
+    let html = "<style>.m{display:none} @media (max-width:596px){.m{display:block}} @media (min-width:660px){p{color:#00f}} @media (max-width:520px){h1{font-size:12px}}</style><h1>T</h1><p class=m>M</p><p>D</p>";
+    let lists = crate::media_lists(html);
+    assert_eq!(lists, ["(max-width:596px)", "(min-width:660px)", "(max-width:520px)"]);
+    let v = |w: f32| crate::media_verdicts(&lists, &at(w, false));
+    for w in [521.0, 560.0, 596.0] {
+        assert_eq!(v(w), v(521.0), "{w}");
+    }
+    for w in [597.0, 600.0, 659.0] {
+        assert_eq!(v(w), v(597.0), "{w}");
+    }
+    assert_ne!(v(596.0), v(597.0));
+    assert_ne!(v(659.0), v(660.0));
+    assert_ne!(v(520.0), v(521.0));
+    // Same verdicts, same blocks.
+    assert_eq!(parse_in(html, &at(661.0, false)).blocks, parse_in(html, &at(2000.0, false)).blocks);
+    assert_eq!(parse_in(html, &at(100.0, false)).blocks, parse_in(html, &at(300.0, false)).blocks);
+    assert_ne!(parse_in(html, &at(596.0, false)).blocks, parse_in(html, &at(597.0, false)).blocks);
+    // The theme is a verdict of a list that asks for it.
+    let dark = "<style>@media (prefers-color-scheme: dark){p{color:#eee}}</style><p>x</p>";
+    let lists = crate::media_lists(dark);
+    assert_ne!(crate::media_verdicts(&lists, &at(700.0, true)), crate::media_verdicts(&lists, &at(700.0, false)));
+}
+
+/// What can change a message's look is found the way the reader finds it, whatever the spacing
+/// of the markup (#599 review).
+#[test]
+fn media_lists_are_found_as_the_reader_finds_them() {
+    for html in [
+        "<style media = \"(max-width: 600px)\">p{color:red}</style>",
+        "<style media\n=\n\"(prefers-color-scheme: dark)\">p{color:red}</style>",
+        "<STYLE MEDIA='(max-width:1px)'>p{}</STYLE>",
+        "<style media=print>p{}</style>",
+        "<style>@MEDIA (max-width:1px){p{color:red}}</style>",
+        "<style>@media/*x*/(max-width:1px){p{color:red}}</style>",
+        "<style>p{color:red} @media screen{@media (max-width:1px){p{color:red}}}</style>",
+    ] {
+        assert!(!crate::media_lists(html).is_empty(), "{html}");
+    }
+    for html in [
+        "<style>p{color:red}</style><p>x</p>",
+        "<p style='color:red'>x</p>",
+        "<style media=''>p{}</style>",
+        "<template><style>@media print{p{}}</style></template>",
+        "<style>@font-face{font-family:x} @import 'a.css';</style>",
+        "<p>@media (max-width:1px)</p>",
+    ] {
+        assert!(crate::media_lists(html).is_empty(), "{html}");
+    }
+    // Each once, and capped.
+    assert_eq!(crate::media_lists("<style>@media print{} @media print{} @media  print {}</style>"), ["print"]);
+    let many: String = (0..2000).map(|i| format!("@media (max-width:{i}px){{}}")).collect();
+    assert_eq!(crate::media_lists(&format!("<style>{many}</style>")).len(), MAX_LISTS);
+    // And the style that has its `media` in spaces is read by the pane's width.
+    let html = "<style media = \"(max-width: 600px)\">p{color:#00f}</style><p>x</p>";
+    assert_eq!(parse_in(html, &at(500.0, false)).blocks[0].spans[0].color, Some(Rgb(0, 0, 255)));
+    assert_eq!(parse_in(html, &at(700.0, false)).blocks[0].spans[0].color, None);
+}
+
+/// A dark design is one that gives a colour or a background to something shown (#599 review).
+#[test]
+fn the_dark_design_needs_a_dark_rule_that_gives_colours_to_something_shown() {
+    let dark = |html: &str| parse_in(html, &at(700.0, true)).dark_design;
+    // A logo swap is no design for dark windows.
+    assert!(!dark(
+        "<style>.d{display:none} @media (prefers-color-scheme: dark){.d{display:block !important} .l{display:none !important}}</style><p class=l>x</p><p class=d>y</p>"
+    ));
+    // Rules for the dark modes of mail programs that never match.
+    assert!(!dark(
+        "<style>[data-ogsc] p{color:#fff !important} [data-ogsb] td{background-color:#111 !important} @media (prefers-color-scheme: dark){[data-ogsc] .x{color:#fff}}</style><p>x</p>"
+    ));
+    // A dark rule for something that is not there, or not shown.
+    assert!(!dark("<style>@media (prefers-color-scheme: dark){.nope{color:#fff}}</style><p>x</p>"));
+    assert!(!dark("<style>@media (prefers-color-scheme: dark){.h{color:#fff}}</style><p class=h style='display:none'>x</p><p>y</p>"));
+    // A colour, a background or a background colour given to what is shown is one.
+    for rule in ["color:#eee", "background:#111", "background-color:#111"] {
+        assert!(dark(&format!("<style>@media (prefers-color-scheme: dark){{p{{{rule}}}}}</style><p>x</p>")), "{rule}");
+    }
+    // `<style media>` counts as `@media`.
+    assert!(dark("<style media='(prefers-color-scheme: dark)'>p{color:#eee}</style><p>x</p>"));
+    assert!(dark("<style media='screen and (prefers-color-scheme: dark)'>p{background-color:#111}</style><p>x</p>"));
+    assert!(!dark("<style media='(prefers-color-scheme: dark)'>p{display:none}</style><p>x</p>"));
+    // Never in a light window.
+    assert!(!parse_in("<style>@media (prefers-color-scheme: dark){p{color:#eee}}</style><p>x</p>", &at(700.0, false)).dark_design);
+}
+
+#[test]
+fn a_comment_in_a_prelude_is_white_space_and_only_needs_a_type() {
+    assert!(holds("/*x*/ screen /* y */ and /**/ (max-width:600px)", 500.0, false));
+    assert!(holds("screen/**/and/**/(max-width:600px)", 500.0, false));
+    assert!(!holds("screen and (max-width:600px) /* never closed", 700.0, false));
+    assert!(holds("screen and (max-width:600px) /* never closed", 500.0, false));
+    // `only` and `not` stand before a type.
+    assert!(!holds("only (max-width:600px)", 500.0, false));
+    assert!(holds("only screen and (max-width:600px)", 500.0, false));
+    assert!(holds("not (max-width:600px)", 700.0, false));
+    let html = "<style>@media /*x*/ screen and (max-width:600px){p{color:#00f}}</style><p>x</p>";
+    assert_eq!(parse_in(html, &at(500.0, false)).blocks[0].spans[0].color, Some(Rgb(0, 0, 255)));
+    let html = "<style>@media only (max-width:600px){p{color:#00f}}</style><p>x</p>";
+    assert_eq!(parse_in(html, &at(500.0, false)).blocks[0].spans[0].color, None);
+}
+
+/// Hidden text is joined as visible text is (#599 review).
+#[test]
+fn hidden_words_are_joined_as_shown_text_is() {
+    let hidden = |html: &str| text_and_hidden(&format!("<div style='display:none'>{html}</div><p>x</p>")).1;
+    assert_eq!(hidden("<span>Hel</span><span>lo</span>"), "Hello");
+    assert_eq!(hidden("<b>Hel</b>lo <i>wor</i>ld"), "Hello world");
+    assert_eq!(hidden("<span>Hello</span> <span>world</span>"), "Hello world");
+    assert_eq!(hidden("<span>Hello </span><span>world</span>"), "Hello world");
+    assert_eq!(hidden("<p>one</p><p>two</p>"), "one two");
+    assert_eq!(hidden("one<br>two"), "one two");
+    assert_eq!(hidden("line\nbreak"), "line break");
+    assert_eq!(hidden("Pre&zwnj;header&nbsp;&nbsp;text"), "Preheader text");
 }
 
 #[test]
@@ -224,15 +357,6 @@ fn the_dark_design_is_found_only_in_a_dark_window() {
 }
 
 #[test]
-fn depends_on_pane_finds_media() {
-    assert!(crate::depends_on_pane("<style>@media (max-width:1px){p{color:red}}</style>"));
-    assert!(crate::depends_on_pane("<style>@MEDIA screen{}</style>"));
-    assert!(crate::depends_on_pane("<style media=print>p{}</style>"));
-    assert!(!crate::depends_on_pane("<style>p{color:red}</style><p>x</p>"));
-    assert!(!crate::depends_on_pane("<p style='color:red'>x</p>"));
-}
-
-#[test]
 fn what_the_sender_hid_is_kept_apart_from_the_text() {
     let html = "<style>.pre{display:none} .gone{visibility:hidden}</style>\
         <div class=pre>Preheader&nbsp;&zwnj;&nbsp;&zwnj; words</div>\
@@ -290,12 +414,11 @@ proptest::proptest! {
     }
 
     #[test]
-    fn any_width_is_a_class_that_never_exceeds_it(w in proptest::num::f32::ANY, dark in proptest::bool::ANY) {
+    fn any_width_is_a_whole_number_of_pixels(w in proptest::num::f32::ANY, dark in proptest::bool::ANY) {
         let e = Env::for_pane(w, dark);
-        proptest::prop_assert!(e.width() <= 1280);
         proptest::prop_assert_eq!(e.dark(), dark);
-        if (0.0..1280.0).contains(&w) {
-            proptest::prop_assert!(f32::from(e.width()) <= w);
+        if (0.0..16_384.0).contains(&w) {
+            proptest::prop_assert_eq!(e.width(), w as u16);
         }
     }
 }

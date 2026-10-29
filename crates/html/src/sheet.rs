@@ -862,6 +862,9 @@ pub(crate) struct Rule {
     /// combinators) have to have among their ids, classes and tags, hashed: an element none of
     /// whose ancestors could have them cannot match, and is not looked at further.
     ancestors: Vec<u64>,
+    /// It is in a block for dark windows (`@media (prefers-color-scheme: dark)`, or a `<style>`
+    /// whose `media` says so) that holds for this window.
+    dark: bool,
 }
 
 fn hash_key(kind: u8, name: &str) -> u64 {
@@ -1097,8 +1100,6 @@ fn read_declaration(text: &str, out: &mut Vec<Decl>) {
 pub(crate) struct Media {
     /// Media lists tested so far, against [`media::MAX_LISTS`].
     lists: usize,
-    /// A block for the dark theme applies, and added rules: the sender designed this for a dark window.
-    pub dark: bool,
 }
 
 /// The rules of a style sheet for a wide pane in the light theme, at most [`MAX_RULES`], from at
@@ -1122,6 +1123,86 @@ fn media_prelude(prelude: &str) -> Option<&str> {
     match rest.bytes().next() {
         Some(c) if c.is_ascii_alphanumeric() || c == b'-' || c == b'_' => None,
         _ => Some(rest),
+    }
+}
+
+/// The media lists of a message's style sheets, each once: the `media` of each `<style>` that has
+/// one, and the lists of its `@media` blocks, nested ones too (to [`media::MAX_NESTING`] levels),
+/// at most [`media::MAX_LISTS`]. Read the way [`Sheet::read_in`] finds the sheets, so that a
+/// message has a list here exactly when its look can depend on the pane or the theme.
+pub(crate) fn media_lists(html: &str) -> Vec<String> {
+    let mut lists = Lists::default();
+    if !has_style(html.as_bytes()) {
+        return lists.out;
+    }
+    let mut tokens = Tokenizer::new(html);
+    let mut template = 0usize;
+    let mut size = 0usize;
+    let mut take = |tokens: &mut Tokenizer<'_>, template: usize, lists: &mut Lists| {
+        for (media, css) in std::mem::take(&mut tokens.styles) {
+            if template == 0 {
+                lists.add(&media);
+                let css = truncate(css, MAX_SHEET.saturating_sub(size));
+                size += css.len();
+                collect_lists(css, 1, lists);
+            }
+        }
+    };
+    while let Some(token) = tokens.next() {
+        take(&mut tokens, template, &mut lists);
+        match token {
+            Token::Open(tag) if tag.name == "template" => template = template.saturating_add(1),
+            Token::Close(name) if name == "template" => template = template.saturating_sub(1),
+            _ => {}
+        }
+    }
+    take(&mut tokens, template, &mut lists);
+    lists.out
+}
+
+#[derive(Default)]
+struct Lists {
+    out: Vec<String>,
+    seen: std::collections::HashSet<String>,
+}
+
+impl Lists {
+    fn add(&mut self, list: &str) {
+        let list = list.trim();
+        if !list.is_empty() && self.out.len() < media::MAX_LISTS && self.seen.insert(list.to_string()) {
+            self.out.push(list.to_string());
+        }
+    }
+}
+
+/// Add the media lists of the `@media` blocks of `text` (all of them, whatever they say).
+fn collect_lists(text: &str, level: usize, lists: &mut Lists) {
+    let b = text.as_bytes();
+    let mut i = 0;
+    while i < b.len() && lists.out.len() < media::MAX_LISTS {
+        i = skip_trivia(b, i);
+        match b.get(i) {
+            None => break,
+            Some(b'}') => i += 1,
+            Some(b'@') => match scan_to(b, i, b";{") {
+                None => break,
+                Some(end) if b.get(end) == Some(&b'{') => {
+                    let close = block_end(b, end);
+                    if let Some(list) = media_prelude(text.get(i..end).unwrap_or(""))
+                        && level <= media::MAX_NESTING
+                    {
+                        lists.add(list);
+                        collect_lists(text.get(end + 1..close).unwrap_or(""), level + 1, lists);
+                    }
+                    i = close + 1;
+                }
+                Some(end) => i = end + 1,
+            },
+            Some(_) => match scan_to(b, i, b"{") {
+                Some(open) => i = block_end(b, open) + 1,
+                None => break,
+            },
+        }
     }
 }
 
@@ -1151,7 +1232,9 @@ fn read_rules(text: &str, env: &Env, media: &mut Media, level: usize, out: &mut 
                             if verdict.holds {
                                 let before = out.len();
                                 read_rules(text.get(end + 1..close).unwrap_or(""), env, media, level + 1, out);
-                                media.dark |= verdict.dark && out.len() > before;
+                                if verdict.dark {
+                                    out.iter_mut().skip(before).for_each(|r| r.dark = true);
+                                }
                             }
                         }
                         i = close + 1;
@@ -1177,7 +1260,7 @@ fn read_rules(text: &str, env: &Env, media: &mut Media, level: usize, out: &mut 
                         break;
                     }
                     let ancestors = ancestor_keys(&selector);
-                    out.push(Rule { selector, decls: decls.clone(), ancestors });
+                    out.push(Rule { selector, decls: decls.clone(), ancestors, dark: false });
                 }
             }
         }
@@ -1324,8 +1407,13 @@ pub(crate) struct Sheet {
     /// Per element, what its ancestors have (empty when no rule asks for ancestors).
     blooms: Vec<Bloom>,
     steps_left: u32,
-    /// A block of the sheet for the dark theme applies: the sender designed this for a dark window.
+    /// A rule from a block for dark windows gave a colour or a background to an element that is
+    /// shown: the sender designed this for a dark window, and its colours are its own.
     pub dark_design: bool,
+    /// Some rule is from a block for dark windows.
+    has_dark: bool,
+    /// The last element looked at got a colour or a background from a rule for dark windows.
+    dark_hit: bool,
     /// What the message was given to spend.
     #[cfg(test)]
     budget: u32,
@@ -1398,7 +1486,9 @@ impl Sheet {
         if !has_style(html.as_bytes()) {
             return None;
         }
-        let mut text = String::new();
+        // The style sheets, each with whether it is for dark windows (its `media` says so).
+        let mut sheets: Vec<(String, bool)> = Vec::new();
+        let mut size = 0usize;
         let mut tree = TreeBuilder::new();
         let mut tokens = Tokenizer::new(html);
         // A `<style>` in a `<template>` is never shown, nor read.
@@ -1407,10 +1497,11 @@ impl Sheet {
         let mut take = |tokens: &mut Tokenizer<'_>, template: usize| {
             for (media, css) in std::mem::take(&mut tokens.styles) {
                 // (A `<style media>` that is not for this pane is not read.)
-                if template == 0 && media::test(&media, env).holds {
-                    let room = MAX_SHEET.saturating_sub(text.len());
-                    text.push_str(truncate(css, room));
-                    text.push('\n');
+                let verdict = media::test(&media, env);
+                if template == 0 && verdict.holds {
+                    let css = truncate(css, MAX_SHEET.saturating_sub(size));
+                    size += css.len();
+                    sheets.push((css.to_string(), verdict.dark));
                 }
             }
         };
@@ -1442,7 +1533,14 @@ impl Sheet {
         // (A style at the very end has no token after it.)
         take(&mut tokens, template);
         let mut queried = Media::default();
-        let rules = rules_in(&text, env, &mut queried);
+        let mut rules = Vec::new();
+        for (css, dark) in &sheets {
+            let before = rules.len();
+            read_rules(css, env, &mut queried, 1, &mut rules);
+            if *dark {
+                rules.iter_mut().skip(before).for_each(|r| r.dark = true);
+            }
+        }
         if rules.is_empty() {
             return None;
         }
@@ -1461,7 +1559,9 @@ impl Sheet {
             dom,
             blooms: Vec::new(),
             steps_left: steps_for(html.len()),
-            dark_design: queried.dark,
+            dark_design: false,
+            has_dark: rules.iter().any(|r| r.dark),
+            dark_hit: false,
             #[cfg(test)]
             budget: steps_for(html.len()),
             #[cfg(test)]
@@ -1508,6 +1608,12 @@ impl Sheet {
     /// Put what the sheet says about the `ordinal`th start tag of the message on `tag`.
     pub fn apply(&mut self, ordinal: usize, tag: &mut Tag<'_>) {
         tag.sheet = self.style_for(ordinal, tag.has("style"));
+        if self.dark_hit
+            && let Some(applied) = &tag.sheet
+            && !css_with(applied, tag.attr("style").as_deref()).hidden
+        {
+            self.dark_design = true;
+        }
     }
 
     /// What the sheet says about the `ordinal`th start tag of the message, counted from 0, for
@@ -1555,6 +1661,13 @@ impl Sheet {
         found.sort_unstable();
         let mut spent = u64::from(start - steps) + found.len() as u64;
         let key: Vec<u32> = found.iter().map(|(_, n)| *n).collect();
+        let dark_hit = self.has_dark
+            && !self.dark_design
+            && found.iter().any(|(_, n)| {
+                self.rules
+                    .get(*n as usize)
+                    .is_some_and(|r| r.dark && r.decls.iter().any(|d| matches!(d.property.as_str(), "color" | "background" | "background-color")))
+            });
         let applied = if let Some(hit) = self.cache.get(&key) {
             hit.clone()
         } else {
@@ -1577,6 +1690,8 @@ impl Sheet {
             }
             made
         };
+        // (Whether the element is shown is for [`Sheet::apply`], which sees its own `style`.)
+        self.dark_hit = dark_hit && applied.as_ref().is_some_and(|a| !a.css.hidden);
         if inline && let Some(a) = &applied {
             // Read again with the element's own style, which a hit saves nothing of.
             spent += (a.before.len() + a.after.len()) as u64 / 4;
