@@ -134,10 +134,14 @@ pub(crate) fn build(html: &str, decode: bool, env: &Env, keep_hidden: bool) -> B
             }
             break;
         }
+        let took = builder.took;
         builder.token(token);
-        // Shown: neither it nor an element around it is hidden.
+        // Shown: the builder took the element, and neither it nor an element around it is hidden
+        // (nor is it in a `<template>`).
         if dark_hit
+            && builder.took > took
             && builder.hidden == 0
+            && builder.template == 0
             && let Some(sheet) = &mut sheet
         {
             sheet.designed_for_dark();
@@ -475,6 +479,9 @@ struct Builder {
     frames: Vec<Frame>,
     /// Blocks made so far, in every frame.
     count: usize,
+    /// Elements the builder has taken so far: opened as a node, or drawn as a picture or a rule.
+    /// Not the ones it skips (in a `<template>`, past [`MAX_DEPTH`], hidden, in the head).
+    took: usize,
     /// Table cells made so far.
     cells: usize,
     /// The block being built; empty when none is.
@@ -531,6 +538,7 @@ impl Builder {
             root: Frame::default(),
             frames: Vec::new(),
             count: 0,
+            took: 0,
             cells: 0,
             spans: Vec::new(),
             kind: BlockKind::Paragraph,
@@ -931,6 +939,7 @@ impl Builder {
         if left_out(tag, &css) {
             return;
         }
+        self.took = self.took.saturating_add(1);
         let px = |name: &str| tag.attr(name).and_then(|v| style::attr_px(&v));
         let (width, height) = (px("width"), px("height"));
         let alt = tag.attr("alt").unwrap_or_default();
@@ -983,6 +992,7 @@ impl Builder {
             self.hidden = self.hidden.saturating_add(1);
         }
         self.nodes.push(Node { name, kind, delta, style, hidden });
+        self.took = self.took.saturating_add(1);
         self.fresh = true;
         true
     }
@@ -1909,6 +1919,7 @@ impl Builder {
                 self.close_paragraph();
                 let css = css_of(tag);
                 if !left_out(tag, &css) {
+                    self.took = self.took.saturating_add(1);
                     // (An `hr` is drawn by its own look, a border of its own makes it neither thicker nor coloured.)
                     self.rule(Line::default());
                 }
@@ -2032,8 +2043,6 @@ fn sized(css: &Css, attr: Option<Length>) -> Option<Length> {
     }
 }
 
-/// What an element's style sheet rules and its `style` attribute say, in the order of the
-/// cascade (`sheet::css_with`).
 /// Whether the element is one the blocks leave out: hidden by its style or its `hidden`
 /// attribute, or a picture of two pixels or less in either direction (a tracker, not something to
 /// show). The one test of it, for the blocks and for a message's design for dark windows.
@@ -2049,6 +2058,8 @@ pub(crate) fn left_out(tag: &Tag<'_>, css: &Css) -> bool {
     tiny(px("width")) || tiny(px("height")) || tiny(css.width) || tiny(css.height)
 }
 
+/// What an element's style sheet rules and its `style` attribute say, in the order of the
+/// cascade (`sheet::css_with`).
 pub(crate) fn css_of(tag: &Tag<'_>) -> Css {
     match &tag.sheet {
         None => tag.attr("style").map(|s| Css::parse(&s)).unwrap_or_default(),

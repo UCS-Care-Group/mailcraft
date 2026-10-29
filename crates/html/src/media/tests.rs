@@ -427,6 +427,16 @@ fn the_dark_design_is_for_the_element_itself_shown_and_winning() {
     assert!(!dark(&format!("{rule}</style><hr class=h hidden><p>y</p>")));
     assert!(!dark(&format!("{rule}</style><img class=h width=1 height=1 src='https://x.example/p.gif'><p>y</p>")));
     assert!(!dark(&format!("{rule}</style><div hidden><p class=h>x</p></div><p>y</p>")));
+    // Nor is what the builder skips: a template, the head, the depth it stops at.
+    assert!(!dark(&format!("{rule}</style><template><p class=h>x</p></template><p>y</p>")));
+    assert!(!dark(&format!("{rule}</style><template class=h><p>x</p></template><p>y</p>")));
+    assert!(!dark(&format!("{rule}</style><head class=h><meta class=h></head><p>y</p>")));
+    let deep = "<div>".repeat(200);
+    assert!(!dark(&format!("{rule}</style>{deep}<p class=h>x</p>")));
+    assert!(dark(&format!("{rule}</style><div><p class=h>x</p></div>")));
+    // A wrapper that shows nothing itself but holds pictures, and an empty box, are left as they are.
+    assert!(dark(&format!("{rule}</style><div class=h style='font-size:0'><img src='https://x.example/a.png' alt=a></div>")));
+    assert!(dark(&format!("{rule}</style><div class=h></div><p>y</p>")));
     // Nothing is carried over from the last element styled when the sheet stops styling.
     let many = "<i></i>".repeat(59_998);
     assert!(!dark(&format!("{rule}</style>{many}<div style='display:none'><b class=h>x</b></div><p>y</p>")));
