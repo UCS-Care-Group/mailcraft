@@ -522,21 +522,38 @@ fn boxes_that_hold_paragraphs_are_paragraphs_in_the_text_and_one_line_boxes_are_
 }
 
 #[test]
-fn what_a_sheet_said_of_a_start_tag_is_kept_for_the_looks_that_come_after() {
-    use crate::look::{Holder, Look};
-    use crate::tokenizer::{Token, Tokenizer};
-    let html = "<style>.c{display:inline-block;width:10px}</style><div><div class='c'>a</div><div class='c'>b</div></div>";
-    let mut look = Look::new(html);
-    let mut tokens = Tokenizer::new(html);
-    let Some(Token::Open(mut first)) = tokens.next() else { panic!("a start tag") };
-    look.apply(0, &mut first);
-    assert_eq!(look.kept(), 0);
-    let holder = Holder { id: tokens.pos(), at: (tokens.pos(), 1), name: "div" };
-    assert!(look.only_boxes(&holder));
-    assert_eq!(look.kept(), 2);
-    // The build comes to those tags: what was said is still there, and not asked for again.
-    let Some(Token::Open(mut second)) = tokens.next() else { panic!("a start tag") };
-    look.apply(1, &mut second);
-    assert!(second.sheet.as_ref().is_some_and(|a| a.css.inline_block));
-    assert_eq!(look.kept(), 2);
+fn the_look_reads_the_sheet_for_the_same_pane_as_the_build() {
+    use crate::media::Env;
+    let html = "<style>@media (max-width:480px){.c{display:inline-block;padding:4px;background:#eeeeee}}</style>\
+                <div><span class='c'>a</span> <span class='c'>b</span></div>";
+    // In a narrow pane the rule applies to both: they are boxes, and the holder holds nothing else.
+    let narrow = crate::parse_in(html, &Env::for_pane(400.0, false)).blocks;
+    assert_eq!(boxes(&narrow).len(), 2, "{narrow:?}");
+    // In a wide one it does not: they are words.
+    let wide = crate::parse_in(html, &Env::for_pane(900.0, false)).blocks;
+    assert!(boxes(&wide).is_empty(), "{wide:?}");
+    assert_eq!(wide.iter().map(Block::text).collect::<Vec<_>>(), ["a b"]);
+    // Something the sheet hides for the pane is not in the line.
+    let hid = "<style>@media (max-width:480px){.gone{display:none}}</style><div><span style='display:inline-block;padding:4px'>a</span><span class='gone'>words</span></div>";
+    assert_eq!(boxes(&crate::parse_in(hid, &Env::for_pane(400.0, false)).blocks).len(), 1);
+    assert!(boxes(&crate::parse_in(hid, &Env::for_pane(900.0, false)).blocks).is_empty());
+}
+
+#[test]
+fn a_box_a_dark_rule_gave_colours_to_is_a_shown_element_of_the_design() {
+    use crate::media::Env;
+    let css = "<style>.c{display:inline-block;padding:4px;background:#ffffff;color:#000000}\
+               @media (prefers-color-scheme:dark){.c{background:#202020;color:#eeeeee}}</style>";
+    let dark = Env::for_pane(900.0, true);
+    for body in [
+        // A box of the holder, a span, a div, a table; and the same where the look leaves it in the line.
+        "<div><span class='c'>a</span></div>",
+        "<div><div class='c'>a</div></div>",
+        "<div>words <span class='c'>a</span></div>",
+        "<div><table class='c'><tr><td>a</td></tr></table></div>",
+    ] {
+        let read = crate::parse_in(&format!("{css}{body}"), &dark);
+        assert!(read.dark_design, "{body}: {:?}", read.blocks);
+        assert!(!crate::parse_in(&format!("{css}{body}"), &Env::for_pane(900.0, false)).dark_design, "{body}");
+    }
 }

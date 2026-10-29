@@ -4924,6 +4924,11 @@ msgstr ""
 msgid "Newest on top"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/reading/remote.rs
+msgid "Next"
+msgstr ""
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid ""
@@ -5789,6 +5794,11 @@ msgid "Page Up"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/reading/remote.rs
+msgid "Page {page} of {pages}"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/attachment_open.rs
 msgid "Pages like this open in the browser, where scripts in them run. Open it only if you know who sent it and expect it."
 msgstr ""
@@ -5920,7 +5930,7 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
-msgid "Pictures are always downloaded from:"
+msgid "Pictures are always downloaded from ({n}):"
 msgstr ""
 
 #. interface
@@ -6006,6 +6016,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "Preview lines in the message list"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/remote.rs
+msgid "Previous"
 msgstr ""
 
 #. command label

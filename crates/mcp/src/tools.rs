@@ -48,6 +48,8 @@ const CONTENT: &[&str] = &[
 const TEXT_KEYS: &[&str] = &[
     "subject",
     "body",
+    // What the sender hid in the message, kept for search and agents (#599): message text too.
+    "hiddenText",
     "snippet",
     "from",
     "to",

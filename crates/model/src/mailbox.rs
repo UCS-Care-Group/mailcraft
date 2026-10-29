@@ -2899,7 +2899,18 @@ impl Mailbox {
         // its folder, and the flags the server is said to have are those of that UID.
         let mut on_server: HashSet<(Id, u32)> = HashSet::new();
         let mut untied = 0;
+        let mut cut_hidden = 0;
         for m in self.messages.values_mut() {
+            // What the sender hid is kept to a few KB; a hostile file's is cut at a character.
+            if m.hidden_text.len() > crate::MAX_HIDDEN_TEXT {
+                let m = Arc::make_mut(m);
+                let mut end = crate::MAX_HIDDEN_TEXT;
+                while end > 0 && !m.hidden_text.is_char_boundary(end) {
+                    end -= 1;
+                }
+                m.hidden_text.truncate(end);
+                cut_hidden += 1;
+            }
             let twice = m.uid != 0 && !on_server.insert((m.folder, m.uid));
             if twice || m.synced.is_some_and(|s| s.uid != m.uid) {
                 let m = Arc::make_mut(m);
@@ -2909,6 +2920,9 @@ impl Mailbox {
                 m.synced = None;
                 untied += 1;
             }
+        }
+        if cut_hidden > 0 {
+            fixed.push(format!("{cut_hidden} message(s) with too much hidden text cut"));
         }
         if untied > 0 {
             fixed.push(format!("{untied} message(s) untied from the mail server's copy"));

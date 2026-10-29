@@ -1375,3 +1375,11 @@ fn a_table_keeps_the_gap_between_its_cells_clamped() {
     assert_eq!(spacing("<table cellspacing='2' style='border-spacing:10px 4px'><tr><td>a</td><td>b</td></tr></table>"), Some(10));
     assert_eq!(spacing("<table><tr><td>a</td><td>b</td></tr></table>"), None);
 }
+
+#[test]
+fn an_hr_with_the_hidden_attribute_is_not_drawn() {
+    let rules = |html: &str| parse(html).iter().filter(|b| matches!(b.kind, BlockKind::Rule)).count();
+    assert_eq!(rules("<p>a</p><hr><p>b</p>"), 1);
+    assert_eq!(rules("<p>a</p><hr hidden><p>b</p>"), 0);
+    assert_eq!(rules("<p>a</p><hr style='display:none'><p>b</p>"), 0);
+}

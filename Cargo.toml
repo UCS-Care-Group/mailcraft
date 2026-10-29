@@ -38,7 +38,7 @@ log = "0.4"
 proptest = "1"
 # Runtime-generated loopback certificates for tests only.
 rcgen = { version = "0.14.10", default-features = false, features = ["crypto", "ring"] }
-base64 = "0.22"
+base64 = "0.23"
 # Character sets by the WHATWG Encoding Standard, for mail in any of the sets it names
 # (windows-1250, iso-8859-2, koi8-r, shift_jis, iso-2022-jp…), and vCard files: `mailcraft-charset`.
 # (Apache-2.0 OR MIT) AND BSD-3-Clause, Rust throughout, builds for the browser.
@@ -87,7 +87,7 @@ eframe = { version = "0.37", default-features = false }
 egui_kittest = "0.37"
 # The font reader egui uses, at egui's version: a system font is opened with it before egui is
 # given it, so that egui never meets one it cannot open (#217). Already in the tree through epaint.
-skrifa = "0.44"
+skrifa = "0.48"
 rfd = "0.17"
 arboard = { version = "3.7", default-features = false }
 

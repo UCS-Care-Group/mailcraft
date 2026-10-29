@@ -15,12 +15,12 @@
 //! of many boxes is read once. Past a bound the answer is no.
 
 use std::collections::HashMap;
-use std::rc::Rc;
 
-use crate::blocks::{block_name, canon, css_of, has_box_look};
+use crate::blocks::{block_name, canon, css_of, has_box_look, left_out};
 use crate::entities::unescape;
 use crate::is_blank;
-use crate::sheet::{Applied, Sheet};
+use crate::media::Env;
+use crate::sheet::Sheet;
 use crate::style::Css;
 use crate::tokenizer::{Tag, Token, Tokenizer};
 
@@ -29,9 +29,6 @@ const MAX_TOKENS: usize = 8_192;
 
 /// Most that the looks of a message read together, in tokens and in sixteens of bytes of text.
 const MAX_LOOKED: usize = 1 << 20;
-
-/// Most start tags whose sheet rules are kept, for the looks and the build that come after.
-const MAX_KEPT: usize = 16_384;
 
 /// Deepest nesting a look follows.
 const MAX_NESTING: usize = 64;
@@ -49,40 +46,34 @@ pub(crate) struct Holder {
 pub(crate) struct Look<'a> {
     html: &'a str,
     sheet: Option<Sheet>,
-    /// What the sheet said of start tags, by number, once a look has been made.
-    applied: HashMap<usize, Option<Rc<Applied>>>,
     verdicts: HashMap<usize, bool>,
     left: usize,
-    /// A look has been made.
-    looked: bool,
 }
 
 impl<'a> Look<'a> {
-    pub fn new(html: &'a str) -> Look<'a> {
-        Look { html, sheet: Sheet::read(html), applied: HashMap::new(), verdicts: HashMap::new(), left: MAX_LOOKED, looked: false }
+    /// `env`: the pane and theme the `@media` of the sheets are tested against, for the look as
+    /// for the build.
+    pub fn new(html: &'a str, env: &Env) -> Look<'a> {
+        Look { html, sheet: Sheet::read_in(html, env), verdicts: HashMap::new(), left: MAX_LOOKED }
     }
 
-    /// Put what the sheet says about the `ordinal`th start tag on `tag`.
-    pub fn apply(&mut self, ordinal: usize, tag: &mut Tag<'_>) {
-        let Some(sheet) = self.sheet.as_mut() else { return };
-        tag.sheet = match self.applied.get(&ordinal) {
-            Some(applied) => applied.clone(),
-            None => {
-                let applied = sheet.style_for(ordinal, tag.has("style"));
-                // Once a look has been made, what the sheet said is kept (within bounds), so a look
-                // behind the build does not spend the sheet's steps again.
-                if self.looked && self.applied.len() < MAX_KEPT {
-                    self.applied.insert(ordinal, applied.clone());
-                }
-                applied
-            }
-        };
+    /// Put what the sheet says about the `ordinal`th start tag on `tag`. Whether a rule for dark
+    /// windows gave it colours (`Sheet::dark_hit`), to be asked before anything else is.
+    pub fn apply(&mut self, ordinal: usize, tag: &mut Tag<'_>) -> bool {
+        let Some(sheet) = self.sheet.as_mut() else { return false };
+        sheet.apply(ordinal, tag);
+        sheet.dark_hit()
     }
 
-    /// How many start tags' sheet rules are kept.
-    #[cfg(test)]
-    pub fn kept(&self) -> usize {
-        self.applied.len()
+    /// The sender designed the message for dark windows (`Sheet::designed_for_dark`).
+    pub fn designed_for_dark(&mut self) {
+        if let Some(sheet) = self.sheet.as_mut() {
+            sheet.designed_for_dark();
+        }
+    }
+
+    pub fn dark_design(&self) -> bool {
+        self.sheet.as_ref().is_some_and(|s| s.dark_design)
     }
 
     /// Whether the holder holds nothing but boxes and white space.
@@ -96,7 +87,6 @@ impl<'a> Look<'a> {
     }
 
     fn read(&mut self, holder: &Holder) -> bool {
-        self.looked = true;
         let Some(rest) = self.html.get(holder.at.0..) else { return false };
         let tokens = Tokenizer::new(rest);
         let mut ordinal = holder.at.1;
@@ -122,19 +112,9 @@ impl<'a> Look<'a> {
                     }
                 }
                 Token::Open(tag) => {
+                    // (The same sheet and pane as the build's; its answers are kept by the sheet.)
                     if let Some(sheet) = self.sheet.as_mut() {
-                        let applied = match self.applied.get(&ordinal) {
-                            Some(applied) => applied.clone(),
-                            None => {
-                                let applied = sheet.style_for(ordinal, tag.has("style"));
-                                // (What is ahead of the build is kept until the build is there.)
-                                if self.applied.len() < MAX_KEPT {
-                                    self.applied.insert(ordinal, applied.clone());
-                                }
-                                applied
-                            }
-                        };
-                        tag.sheet = applied;
+                        tag.sheet = sheet.style_for(ordinal, tag.has("style"));
                     }
                     ordinal = ordinal.saturating_add(1);
                     let name = tag.name.as_str();
@@ -156,7 +136,7 @@ impl<'a> Look<'a> {
                             return true;
                         }
                         let css = css_of(tag);
-                        let hidden = css.hidden || tag.has("hidden");
+                        let hidden = left_out(tag, &css);
                         if !hidden && holds_more(name) {
                             return false;
                         }
@@ -212,7 +192,7 @@ fn is_white_space(text: &str) -> bool {
 /// Whether an element with this style is a box on a line: what the build makes of one that has
 /// `display: inline-block` and something to show of its own.
 pub(crate) fn is_box(tag: &Tag<'_>, css: &Css) -> bool {
-    if !css.inline_block || css.hidden || tag.has("hidden") {
+    if !css.inline_block || left_out(tag, css) {
         return false;
     }
     match tag.name.as_str() {

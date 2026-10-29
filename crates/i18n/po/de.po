@@ -5779,6 +5779,12 @@ msgstr "Neue Regel"
 msgid "Newest on top"
 msgstr "Neueste oben"
 
+#. interface
+#: crates/ui-egui/src/reading/remote.rs
+#, fuzzy
+msgid "Next"
+msgstr "Weiter"
+
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -6786,6 +6792,12 @@ msgid "Page Up"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/reading/remote.rs
+#, fuzzy
+msgid "Page {page} of {pages}"
+msgstr "Seite {page} von {pages}"
+
+#. interface
 #: crates/ui-egui/src/attachment_open.rs
 #, fuzzy
 msgid "Pages like this open in the browser, where scripts in them run. Open it only if you know who sent it and expect it."
@@ -6935,8 +6947,8 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
 #, fuzzy
-msgid "Pictures are always downloaded from:"
-msgstr "Bilder werden immer heruntergeladen von:"
+msgid "Pictures are always downloaded from ({n}):"
+msgstr "Bilder werden immer heruntergeladen von ({n}):"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -7036,6 +7048,12 @@ msgstr "Vorschau"
 #, fuzzy
 msgid "Preview lines in the message list"
 msgstr "Vorschauzeilen in der Nachrichtenliste"
+
+#. interface
+#: crates/ui-egui/src/reading/remote.rs
+#, fuzzy
+msgid "Previous"
+msgstr "Zurück"
 
 #. command label
 #: crates/engine/src/cmd/mail.rs
@@ -14430,6 +14448,10 @@ msgstr "„{subject}“ war zu groß zum Herunterladen: nur die Kopfzeilen sind 
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "„{subject}“ wurde auf seinem Server nicht gefunden, daher kann die Nachricht nicht als Anlage weitergeleitet werden"
+
+#, fuzzy
+#~ msgid "Pictures are always downloaded from:"
+#~ msgstr "Bilder werden immer heruntergeladen von:"
 
 #, fuzzy
 #~ msgid "Only a meeting you organize has a Scheduling Assistant"

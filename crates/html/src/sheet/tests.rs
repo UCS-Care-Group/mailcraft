@@ -151,14 +151,15 @@ fn only_the_whitelist_is_kept() {
 }
 
 #[test]
-fn imports_fonts_and_media_do_nothing() {
+fn imports_and_fonts_do_nothing_and_a_media_block_for_another_pane_is_left_out() {
     let sheet = "@charset \"utf-8\"; @import url(https://t.example/a.css); @import 'b.css';\
         @font-face{font-family:x;src:url(https://t.example/f.woff)}\
         @media (max-width:600px){p{color:#00f}}\
         @keyframes k{from{color:#00f}to{color:#00f}}\
         p{color:#f00}";
     assert_eq!(colour(&format!("<style>{sheet}</style><p>x</p>")), RED);
-    assert_eq!(colour("<style>@media screen{p{color:#00f}}</style><p>x</p>"), None);
+    // (A wide pane in the light theme: the default.)
+    assert_eq!(colour("<style>@media screen{p{color:#f00}}</style><p>x</p>"), RED);
     assert_eq!(colour("<style media='print'>p{color:#00f}</style><p>x</p>"), None);
     assert_eq!(colour("<style media='(max-width:600px)'>p{color:#00f}</style><p>x</p>"), None);
     assert_eq!(colour("<style media='screen'>p{color:#f00}</style><p>x</p>"), RED);
@@ -616,8 +617,13 @@ fn the_first_class_and_id_count_and_a_template_has_no_sheet() {
 
 /// What a hostile message may spend on its look, in steps: matching, and the looks it builds.
 fn assert_within_budget(name: &str, html: &str) {
+    assert_within_budget_in(name, html, &Env::default());
+}
+
+/// The same for a pane and a theme.
+pub(super) fn assert_within_budget_in(name: &str, html: &str, env: &Env) {
     let started = std::time::Instant::now();
-    let Some(mut sheet) = Sheet::read(html) else { panic!("{name}: no sheet") };
+    let Some(mut sheet) = Sheet::read_in(html, env) else { panic!("{name}: no sheet") };
     for n in 0..sheet.dom.len().saturating_sub(1) {
         sheet.style_for(n, false);
     }
