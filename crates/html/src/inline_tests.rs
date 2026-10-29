@@ -182,7 +182,51 @@ fn a_badge_in_a_sentence_stays_in_the_sentence() {
     assert_eq!(blocks[0].text(), "See the page now.");
     assert!(boxes(&parse("<a href='https://example.org/x' style='display:inline-block;padding:0 0 0 0'>x</a>")).is_empty());
     // Standing alone, with something to show, it is a box.
-    assert_eq!(boxes(&parse("<span style='display:inline-block;padding:0 4px;background:#ffeeaa'>#1234</span> has shipped.")).len(), 1);
+    assert_eq!(boxes(&parse("<div><span style='display:inline-block;padding:0 4px;background:#ffeeaa'>#1234</span></div>")).len(), 1);
+}
+
+#[test]
+fn a_box_that_opens_a_line_of_text_stays_in_the_line() {
+    let badge = "<p><span style='display:inline-block;padding:0 4px;background:#ffeeaa'>NEW</span> Your order has shipped.</p>";
+    let blocks = parse(badge);
+    assert_eq!(blocks.len(), 1, "{blocks:?}");
+    assert_eq!(blocks[0].text(), "NEW Your order has shipped.");
+    assert!(blocks[0].spans.iter().any(|s| s.text.contains("NEW") && s.background.is_some()), "{blocks:?}");
+    assert_eq!(crate::to_text(badge).trim(), "NEW Your order has shipped.");
+    let quoted = crate::quotable(badge);
+    let between = quoted.split("NEW").nth(1).and_then(|r| r.split("Your order").next()).unwrap_or("<p>");
+    assert!(quoted.contains("Your order has shipped.") && !quoted.contains("<table"), "{quoted}");
+    assert!(!between.contains("<p") && !between.contains("</p") && !between.contains("<br") && !between.contains("<div"), "{quoted}");
+    // A row of links with bars between them.
+    let a = "<a href='https://example.org/x' style='display:inline-block;padding:4px;background:#eee'>";
+    let nav = format!("<p>{a}A</a> | {a}B</a></p>");
+    let blocks = parse(&nav);
+    assert_eq!(blocks.len(), 1, "{blocks:?}");
+    assert_eq!(blocks[0].text(), "A | B");
+    assert_eq!(crate::to_text(&nav).trim(), "A <https://example.org/x> | B <https://example.org/x>");
+    let quoted = crate::quotable(&nav);
+    let words = quoted.split("</a>").nth(1).unwrap_or("<p>");
+    assert!(words.trim_start().starts_with('|') && !words.contains("<p") && !words.contains("<div"), "{quoted}");
+    // The words keep their links.
+    assert_eq!(blocks[0].spans.iter().filter(|s| s.link.is_some()).count(), 2, "{blocks:?}");
+    // Standing alone, or with only other boxes beside it, it is still a box; so is one that is
+    // followed by a line of its own.
+    assert_eq!(boxes(&parse(&format!("<p>{a}A</a></p>"))).len(), 1);
+    assert_eq!(boxes(&parse(&format!("<p>{a}A</a> {a}B</a></p>"))).len(), 2);
+    assert_eq!(boxes(&parse(&format!("<p>{a}A</a><br>after</p>"))).len(), 1);
+    assert_eq!(boxes(&parse(&format!("<div>{a}A</a></div><p>after</p>"))).len(), 1);
+}
+
+#[test]
+fn hidden_boxes_do_not_count_and_a_no_break_space_between_boxes_is_a_gap() {
+    let hidden = "<table style='display:inline-block;visibility:hidden;width:100px'><tr><td>x</td></tr></table>".repeat(MAX_INLINE_BOXES * 2);
+    let blocks = parse(&format!("{hidden}<div style='display:inline-block;width:100px'>real</div>"));
+    assert_eq!(boxes(&blocks).len(), 1, "{}", blocks.len());
+    let b = "<div style='display:inline-block;width:300px'>x</div>";
+    let spaced: Vec<bool> = boxes(&parse(&format!("{b}&nbsp;{b}"))).iter().map(|t| t.spaced).collect();
+    assert_eq!(spaced, [false, true]);
+    // And the no-break space is not a paragraph of its own.
+    assert_eq!(parse(&format!("{b}&nbsp;{b}")).len(), 2);
 }
 
 #[test]

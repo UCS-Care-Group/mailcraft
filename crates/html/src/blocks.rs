@@ -593,7 +593,7 @@ impl Builder {
             return;
         }
         let text = unescape(raw);
-        if self.frame().after_box && text.contains([' ', '\t', '\n', '\r', '\x0C']) {
+        if self.frame().after_box && text.contains([' ', '\t', '\n', '\r', '\x0C', '\u{a0}']) {
             self.frame().box_space = true;
         }
         if self.pre > 0 {
@@ -629,8 +629,58 @@ impl Builder {
         }
     }
 
+    /// Text comes on the line of a box that stood alone on it: it was not a box on a line but a
+    /// run of the sentence (a badge at its start, a link of a row of links with a bar between).
+    /// The box goes back into the line as the highlighted text it holds, as it would have been
+    /// without `display: inline-block`. A box that follows others, or holds more than a line of
+    /// text, stays a box.
+    fn demote_box(&mut self) {
+        let frame = self.frame();
+        frame.after_box = false;
+        let spaced = std::mem::take(&mut frame.box_space);
+        let simple = match frame.blocks.last() {
+            Some(Block { kind: BlockKind::Table(t), beside: false, .. }) if t.inline => match t.rows.as_slice() {
+                [Row { cells }] => match cells.as_slice() {
+                    [cell] => match cell.blocks.as_slice() {
+                        [inner] => {
+                            matches!(inner.kind, BlockKind::Paragraph) && !inner.spans.is_empty() && inner.line == Line::default() && inner.quote == 0
+                        }
+                        _ => false,
+                    },
+                    _ => false,
+                },
+                _ => false,
+            },
+            _ => false,
+        };
+        if !simple {
+            return;
+        }
+        let Some(Block { kind: BlockKind::Table(mut table), space, gap, quote, align, .. }) = frame.blocks.pop() else { return };
+        frame.space = frame.space.max(space);
+        frame.gap = frame.gap.max(gap);
+        let Some(mut cell) = table.rows.pop().and_then(|mut r| r.cells.pop()) else { return };
+        let Some(inner) = cell.blocks.pop() else { return };
+        self.count = self.count.saturating_sub(1);
+        self.kind = inner.kind;
+        self.align = if inner.align == Align::Left { align } else { inner.align };
+        self.line_height = inner.line_height;
+        let _ = quote;
+        self.spans = inner.spans;
+        for span in &mut self.spans {
+            span.background = span.background.or(cell.background);
+        }
+        self.fresh = true;
+        if spaced {
+            self.space();
+        }
+    }
+
     /// One visible character of the current block.
     fn push(&mut self, c: char) {
+        if self.spans.is_empty() && !is_blank(c) && self.frame().after_box {
+            self.demote_box();
+        }
         if self.spans.is_empty() {
             self.settle();
             self.kind = if self.pre > 0 {
@@ -1045,7 +1095,7 @@ impl Builder {
     /// message has not had too many, and there is room to nest one. Only a box that was made
     /// counts ([`Builder::made_box`]).
     fn can_box(&self, css: &Css) -> bool {
-        css.inline_block && self.inline_boxes < MAX_INLINE_BOXES && self.frames.len() < MAX_TABLE_DEPTH && self.hidden == 0
+        css.inline_block && !css.hidden && self.inline_boxes < MAX_INLINE_BOXES && self.frames.len() < MAX_TABLE_DEPTH && self.hidden == 0
     }
 
     fn made_box(&mut self) {
@@ -1620,6 +1670,9 @@ impl Builder {
         // A box on a line, with something to show of its own: it becomes a block of its own.
         // (Not in the middle of a sentence: there it is a run of text with a highlight, as before.)
         if has_box_look(&css) && !hidden && self.can_box(&css) && self.line_is_blank() {
+            if self.frame().after_box {
+                self.spans.clear();
+            }
             self.flush();
             self.after_picture = false;
             let margins = css.margin_insets();
@@ -1718,6 +1771,10 @@ impl Builder {
     /// A `<div>`, a `<p>`, `<body>` and the like: a new line, and a style of its own.
     fn open_block(&mut self, name: &'static str, tag: &Tag<'_>) {
         let blank_line = self.line_is_blank();
+        if blank_line && self.frame().after_box {
+            // (White space between boxes is not a paragraph of its own.)
+            self.spans.clear();
+        }
         self.close_paragraph();
         self.flush();
         let line_before = std::mem::take(&mut self.frame().after_box);

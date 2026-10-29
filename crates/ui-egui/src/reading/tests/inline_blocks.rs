@@ -177,6 +177,21 @@ fn a_badge_in_a_sentence_is_laid_out_in_the_sentence() {
 }
 
 #[test]
+fn a_badge_that_opens_a_sentence_and_links_with_bars_between_stay_in_their_line() {
+    let a = "<a href='https://example.org/x' style='display:inline-block;padding:4px;background:#eeeeee'>";
+    let badge = "<p><span style='display:inline-block;padding:0 4px;background:#ffeeaa'>NEW</span> Your order has shipped.</p>";
+    let nav = format!("<p>{a}A</a> | {a}B</a></p>");
+    in_frame(false, |ctx| {
+        let texts = |html: &str| {
+            let laid = lay_out(ctx, &message(html), 600.0);
+            laid.items.iter().map(super::text_of).filter(|t| !t.is_empty()).map(str::to_string).collect::<Vec<_>>()
+        };
+        assert_eq!(texts(badge), ["NEW Your order has shipped."]);
+        assert_eq!(texts(&nav), ["A | B"]);
+    });
+}
+
+#[test]
 fn the_open_day_notice_lays_out_in_both_themes_and_hostile_boxes_stay_bounded() {
     for (name, m) in super::corpus_messages().into_iter().filter(|(n, _)| ["style inline", "many inline boxes", "deep inline boxes"].contains(n)) {
         for dark in [false, true] {
