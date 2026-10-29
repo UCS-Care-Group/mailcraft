@@ -1,0 +1,1 @@
+- On a Microsoft account, the Safe and Blocked Senders lists now sort all new mail that comes in after a busy while. Before, only the first 100 changes were sorted, and the rest stayed where it arrived ([#567](https://github.com/GITHUB_REPOSITORY/issues/567)).

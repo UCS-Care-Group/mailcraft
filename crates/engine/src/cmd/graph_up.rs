@@ -33,9 +33,11 @@ use crate::Session;
 pub fn message_changes(s: &Session, account: Id, limit: usize) -> (Vec<MessageChange>, usize) {
     let mb = &s.mailbox;
     let (mut changes, mut count) = (Vec::new(), 0usize);
-    let mut note = |change: &dyn Fn() -> MessageChange| {
+    // (`None`: it can't go after all, which is looked at only for one that is spelled out.)
+    let mut note = |change: &dyn Fn() -> Option<MessageChange>| {
         if changes.len() < limit {
-            changes.push(change());
+            let Some(change) = change() else { return };
+            changes.push(change);
         }
         count += 1;
     };
@@ -46,10 +48,10 @@ pub fn message_changes(s: &Session, account: Id, limit: usize) -> (Vec<MessageCh
     for m in mb.messages.values().filter(|m| m.account == account && Some(m.folder) != outbox) {
         let Some(server) = m.server.as_ref().filter(|server| !server.gone && !server.id.is_empty()) else { continue };
         if let Some(update) = update_of(m, server, today, now) {
-            note(&|| update.clone());
+            note(&|| Some(update.clone()));
         }
         if let Some((to, to_folder)) = destination(mb, account, m.folder).filter(|(to, _)| *to != server.folder) {
-            note(&|| MessageChange::Move { message: m.id, id: server.id.clone(), to: to.clone(), to_folder });
+            note(&|| Some(MessageChange::Move { message: m.id, id: server.id.clone(), to: to.clone(), to_folder }));
         }
     }
     for queued in mb.queued.iter().filter(|q| q.account() == account) {
@@ -62,9 +64,9 @@ pub fn message_changes(s: &Session, account: Id, limit: usize) -> (Vec<MessageCh
                     None if here.account == account => (to.clone(), None),
                     None => continue,
                 };
-                note(&|| MessageChange::Copy { copy: *copy, id: id.clone(), to: to.clone(), to_folder, marker: marker.clone() });
+                note(&|| Some(MessageChange::Copy { copy: *copy, id: id.clone(), to: to.clone(), to_folder, marker: marker.clone() }));
             }
-            Queued::DeleteMessage { id, .. } => note(&|| MessageChange::Delete { id: id.clone() }),
+            Queued::DeleteMessage { id, .. } => note(&|| Some(MessageChange::Delete { id: id.clone() })),
             // (Made by the run with the whole message: `graph_place`.)
             Queued::DeleteFolder { .. } | Queued::PlaceMessage { .. } => {}
         }
@@ -74,13 +76,10 @@ pub fn message_changes(s: &Session, account: Id, limit: usize) -> (Vec<MessageCh
     let current = s.file_is_current();
     for m in mb.messages.values() {
         let Some(out) = m.moving_out.as_ref().filter(|out| out.account == account) else { continue };
-        let safe = if mb.is_graph(m.account) {
-            m.server.as_ref().is_some_and(|server| !server.gone && !server.id.is_empty())
-        } else {
-            !m.unfetched && !m.incomplete && (current || s.saved_whole.contains(&m.id))
-        };
-        if safe {
-            note(&|| MessageChange::MovedOut { message: m.id, id: out.id.clone() });
+        // Every part of one on this computer is read back only when it goes into the request: not
+        // for a count, nor for what waits past the limit.
+        if super::graph_place::safe_here(s, m, current, false) {
+            note(&|| super::graph_place::safe_here(s, m, current, true).then(|| MessageChange::MovedOut { message: m.id, id: out.id.clone() }));
         }
     }
     (changes, count)
@@ -396,7 +395,15 @@ pub fn message_done(mb: &mut Mailbox, account: Id, done: &MessageChangeDone, ref
         MessageChange::MovedOut { message, id } => {
             let Ok(m) = mb.message_mut(*message) else { return false };
             if !m.moving_out.as_ref().is_some_and(|out| out.account == account && out.id == *id) {
-                return false;
+                // Moved back into the account (or the move undone) while the server's copy was
+                // being removed: it is gone there, and is put on the server again from here (#451).
+                let back = m.account == account && m.server.as_ref().is_some_and(|s| s.id == *id);
+                if !back || matches!(done.outcome, MessageOutcome::Refused { .. }) {
+                    return false;
+                }
+                (m.server, m.uid, m.synced) = (None, 0, None);
+                mb.place_again(*message);
+                return true;
             }
             // Removed, gone already, or refused: either way the copy here is the one there is.
             m.moving_out = None;

@@ -211,6 +211,15 @@ pub fn to_text(html: &str) -> String {
     blocks_to_text(&crate::blocks::parse_text(html))
 }
 
+/// [`to_text`], and with it the words of what the message hides (`display:none`, a style sheet's
+/// `visibility:hidden`, a font size of nothing and the other tricks `style.rs` lists), as one line
+/// of words. What is hidden is not in the text: it is not shown, nor quoted in a reply. It is for
+/// the owner's search and for agents, who must still treat it as data, never as instructions.
+pub fn text_and_hidden(html: &str) -> (String, String) {
+    let built = crate::blocks::build(html, false, &crate::media::Env::default(), true);
+    (blocks_to_text(&built.blocks), built.hidden)
+}
+
 /// Display blocks as plain text, the way [`to_text`] writes them. Every block is a paragraph of
 /// its own, whatever its `space`. A data table is a line per row with ` | ` between the cells; a
 /// layout table is what its cells hold, one after the other.

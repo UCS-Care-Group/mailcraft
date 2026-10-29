@@ -14,8 +14,9 @@
 //! There is no CSS engine here. A short whitelist of presentational facts is read from inline
 //! `style` attributes and old-style attributes (`style.rs`): text and background colour, bold,
 //! italic, underline, strike, alignment, font size, whether something is hidden, and whether a
-//! paragraph has a margin or a table cell a border at all. `<style>` blocks are dropped and
-//! classes are never resolved.
+//! paragraph has a margin or a table cell a border at all. The message's `<style>` blocks are
+//! read for the same whitelist and nothing else (`sheet.rs`: selectors, specificity, order,
+//! `!important`, within caps); they are never run and nothing in them is fetched.
 //!
 //! Every function takes any string, never panics, and is bounded: input over [`MAX_INPUT`] bytes is
 //! cut, nesting is capped, tables are capped ([`MAX_TABLE_ROWS`], [`MAX_TABLE_COLUMNS`],
@@ -27,20 +28,43 @@ mod blocks;
 pub mod corpus;
 mod data;
 mod entities;
+mod media;
 mod preview;
 mod quote;
+mod sheet;
 mod style;
 mod text;
 mod tokenizer;
 
 use serde::{Deserialize, Serialize};
 
-pub use blocks::{parse, parse_text};
+pub use blocks::{MAX_HIDDEN_TEXT, Read, parse, parse_in, parse_text};
 pub use data::{MAX_DATA_PICTURE_BYTES, MAX_DATA_PICTURES, MAX_DATA_PICTURES_BYTES, Picture};
 pub use entities::{escape, unescape};
+pub use media::{Env, verdicts as media_verdicts};
+
+/// The media lists of a message's style sheets and `<style media>` attributes, each once, in the
+/// order they are met (inside `@media` too, to its depth): what its look can change with. A
+/// message with none looks the same in every pane and theme. At most 400.
+pub fn media_lists(html: &str) -> Vec<String> {
+    sheet::media_lists(html)
+}
 pub use preview::{MAX_PREVIEW_CHARS, preview, text_preview};
 pub use quote::quotable;
-pub use text::{blocks_to_text, from_text, text_blocks, to_text};
+pub use text::{blocks_to_text, from_text, text_and_hidden, text_blocks, to_text};
+
+/// How many rules a style sheet's text gives, as the reading of a message's `<style>` blocks reads
+/// it ([`MAX_SHEET_BYTES`] of it, [`MAX_SHEET_RULES`] rules). For the fuzz target.
+#[doc(hidden)]
+pub fn style_sheet_rules(text: &str) -> usize {
+    sheet::rules(text).len()
+}
+
+/// Most bytes of style sheet read from one message; the rest is ignored.
+pub const MAX_SHEET_BYTES: usize = sheet::MAX_SHEET;
+
+/// Most rules read from one message's style sheets.
+pub const MAX_SHEET_RULES: usize = sheet::MAX_RULES;
 
 /// Longest input [`parse`], [`to_text`], [`text_blocks`], [`from_text`], [`preview`],
 /// [`text_preview`] and [`quotable`] read, in bytes; the rest is ignored. [`parse`] and
@@ -87,6 +111,18 @@ pub enum Align {
     Center,
     Right,
 }
+
+/// Where a cell's content sits in the height of its row, when the source says (`valign`,
+/// `vertical-align`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum VAlign {
+    Top,
+    Middle,
+    Bottom,
+}
+
+/// The widest gap between cells read from `cellspacing` or `border-spacing`, in pixels.
+pub const MAX_SPACING_PX: u8 = 16;
 
 /// A width a table or a cell asks for.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -371,6 +407,10 @@ pub struct Table {
     /// Rounded corners, in pixels.
     #[serde(default, skip_serializing_if = "is_zero_u8")]
     pub radius: u8,
+    /// The gap between its cells (`cellspacing`, `border-spacing`), in pixels, where the source
+    /// gives one; `None` leaves it to the UI.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub spacing: Option<u8>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -400,6 +440,9 @@ pub struct Cell {
     /// Rounded corners, in pixels.
     #[serde(default, skip_serializing_if = "is_zero_u8")]
     pub radius: u8,
+    /// Where its content sits in the row, its own or its row's; `None` when the source says nothing.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub valign: Option<VAlign>,
 }
 
 impl Default for Cell {
@@ -415,6 +458,7 @@ impl Default for Cell {
             lines: [Line::default(); 4],
             padding: None,
             radius: 0,
+            valign: None,
         }
     }
 }

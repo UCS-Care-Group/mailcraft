@@ -662,7 +662,7 @@ fn the_system_remembers_passwords_and_sign_ins_only_when_wanted() {
             tx.send(Ok(tokens)).unwrap();
             rx
         }));
-        a.services.secrets = Some(Box::new(store.clone()));
+        a.services.secrets = Some(std::sync::Arc::new(store.clone()));
         a
     };
 
@@ -679,6 +679,7 @@ fn the_system_remembers_passwords_and_sign_ins_only_when_wanted() {
     assert_eq!(kept("password:avery@mail.example|imap=imap.mail.example:0|smtp=none").as_deref(), Some("pw-one"));
     // A sign-in is remembered as its refresh token; the access token is not kept anywhere.
     a.execute("ui.sync", json!({"account": signed})).unwrap();
+    crate::secret_read_tests::settle(&mut a);
     a.poll_sign_in();
     a.poll_sync();
     assert_eq!(kept("refresh:quinn@mail.example|imap=imap.mail.example:0|smtp=none").as_deref(), Some("ref-kept"));
@@ -689,11 +690,14 @@ fn the_system_remembers_passwords_and_sign_ins_only_when_wanted() {
 
     // The next start: nobody is asked for the password, and the sign-in renews without a browser.
     let mut b = start(a.session.mailbox.clone());
-    assert_eq!(b.execute("ui.sync", json!({"account": plain})).unwrap()["started"], true);
-    assert!(b.dialog.is_none());
+    // (The store is asked again first, off the window's thread, and the run goes on with the answer.)
+    assert_eq!(b.execute("ui.sync", json!({"account": plain})).unwrap()["pending"], "secrets");
+    crate::secret_read_tests::settle(&mut b);
+    assert!(b.syncing() && b.dialog.is_none());
     b.poll_sync();
     assert_eq!(synced.lock().unwrap().last().unwrap().0, "pw-one");
     b.execute("ui.sync", json!({"account": signed})).unwrap();
+    crate::secret_read_tests::settle(&mut b);
     assert_eq!(renewals.lock().unwrap().last().unwrap(), "ref-kept");
     b.poll_sign_in();
     b.poll_sync();
@@ -704,7 +708,9 @@ fn the_system_remembers_passwords_and_sign_ins_only_when_wanted() {
     b.poll_sync();
     refuse.store(false, Ordering::Relaxed);
     assert_eq!(kept("password:avery@mail.example|imap=imap.mail.example:0|smtp=none"), None);
-    assert_eq!(b.execute("ui.sync", json!({"account": plain})).unwrap()["pending"], "password");
+    assert_eq!(b.execute("ui.sync", json!({"account": plain})).unwrap()["pending"], "secrets");
+    crate::secret_read_tests::settle(&mut b);
+    assert_eq!(b.dialog.as_ref().map(|d| d.name()), Some("password"));
     b.dialog = None;
 
     // Switched off: what was kept goes, and nothing new is kept.
@@ -772,7 +778,7 @@ fn a_sign_in_as_somebody_else_is_never_taken_for_an_account_that_exists() {
         tx.send(Ok(tokens)).unwrap();
         rx
     }));
-    a.services.secrets = Some(Box::new(store.clone()));
+    a.services.secrets = Some(std::sync::Arc::new(store.clone()));
     let id = a.execute(
         "account.add",
         json!({"email": "quinn@mail.example", "auth": "oauth2", "provider": "microsoft", "incoming": {"host": "outlook.office365.com"}}),
@@ -783,6 +789,7 @@ fn a_sign_in_as_somebody_else_is_never_taken_for_an_account_that_exists() {
 
     // Send/Receive signs in for mail: refused, said, and no run with the other one's token.
     a.execute("ui.sync", json!({"account": id})).unwrap();
+    crate::secret_read_tests::settle(&mut a);
     a.poll_sign_in();
     assert!(nothing_kept(&a) && synced.lock().unwrap().is_empty() && !a.syncing());
     assert_eq!(a.status_msg.as_ref().map(|(m, _)| m.as_str()), Some(said));
@@ -802,6 +809,7 @@ fn a_sign_in_as_somebody_else_is_never_taken_for_an_account_that_exists() {
     // The account's own address, whatever its case: used and remembered as before.
     *who.lock().unwrap() = "Quinn@Mail.Example".into();
     a.execute("ui.sync", json!({"account": id})).unwrap();
+    crate::secret_read_tests::settle(&mut a);
     a.poll_sign_in();
     assert_eq!(a.tokens.get(&id).map(|t| t.access.as_str()), Some("tok-other"));
     assert_eq!(
@@ -815,6 +823,7 @@ fn a_sign_in_as_somebody_else_is_never_taken_for_an_account_that_exists() {
     store.0.lock().unwrap().clear();
     who.lock().unwrap().clear();
     a.execute("ui.sync", json!({"account": id})).unwrap();
+    crate::secret_read_tests::settle(&mut a);
     a.poll_sign_in();
     assert!(a.tokens.contains_key(&id));
     a.poll_sync();
@@ -823,6 +832,7 @@ fn a_sign_in_as_somebody_else_is_never_taken_for_an_account_that_exists() {
     a.execute("account.edit", json!({"id": id, "username": "q.admin@mail.example"})).unwrap();
     *who.lock().unwrap() = "Q.Admin@mail.example".into();
     a.execute("ui.sync", json!({"account": id})).unwrap();
+    crate::secret_read_tests::settle(&mut a);
     a.poll_sign_in();
     assert!(a.tokens.contains_key(&id));
 }
@@ -870,7 +880,7 @@ fn a_store_that_cant_be_used_is_said_once_and_the_next_start_asks() {
             tx.send(SyncResult { account: req.account.id, ..Default::default() }).unwrap();
             rx
         }));
-        a.services.secrets = Some(Box::new(store.clone()));
+        a.services.secrets = Some(std::sync::Arc::new(store.clone()));
         a
     };
 
@@ -903,7 +913,9 @@ fn a_store_that_cant_be_used_is_said_once_and_the_next_start_asks() {
 
     // The next start asks for the password, as on a system without a store, and tells again.
     let mut b = start(a.session.mailbox.clone());
-    assert_eq!(b.execute("ui.sync", json!({"account": plain})).unwrap()["pending"], "password");
+    assert_eq!(b.execute("ui.sync", json!({"account": plain})).unwrap()["pending"], "secrets");
+    crate::secret_read_tests::settle(&mut b);
+    assert_eq!(b.dialog.as_ref().map(|d| d.name()), Some("password"));
     b.check_secret_store();
     assert_eq!(b.secrets_trouble, Some(StoreTrouble::Unavailable));
 
@@ -1974,10 +1986,10 @@ fn opening_a_damaged_mailbox_file_says_what_was_left_out() {
     assert_eq!(said(json!({"lostSaves": 0, "unfinished": 0, "unavailable": 0})), None);
 }
 
-/// R3 spec S30: mail imported for a Microsoft account goes to a local folder, and moving it into
-/// the account's folders is refused, with the reason in the status bar.
+/// R3 spec S30: mail imported for a Microsoft account goes to a local folder, and the status bar
+/// says how it gets into the account: moved there, it is put on the server by the next run (#451).
 #[test]
-fn imported_mail_for_a_microsoft_account_stays_in_a_local_folder_and_says_why() {
+fn imported_mail_for_a_microsoft_account_goes_to_a_local_folder_and_says_how_it_gets_there() {
     let mut a = app();
     let account = a.run("account.add", json!({"email": "owner@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
     let inbox = a.session.mailbox.folder_of_kind(account, mailcraft_model::FolderKind::Inbox).unwrap();
@@ -1985,13 +1997,34 @@ fn imported_mail_for_a_microsoft_account_stays_in_a_local_folder_and_says_why() 
     let eml = a.execute("file.exportMessage", json!({"id": id})).unwrap();
     let r = a.run("file.import", json!({"name": "in.eml", "data": eml["data"], "folder": inbox})).unwrap();
     let said = a.status_msg.as_ref().map(|(text, _)| text.clone()).unwrap_or_default();
-    assert_eq!(said, "Imported 1 message into a local folder: Microsoft doesn't let a mail program put received mail into your mailbox");
+    assert_eq!(said, "Imported 1 message into a local folder: move it into the account to put it on Microsoft's server");
     let imported = r["ids"][0].as_u64().unwrap();
     assert_ne!(a.session.mailbox.message(imported).unwrap().folder, inbox);
-    assert!(a.run("mail.move", json!({"ids": [imported], "folder": inbox})).is_err());
+    a.run("mail.move", json!({"ids": [imported], "folder": inbox})).unwrap();
+    assert_eq!(a.session.mailbox.message(imported).unwrap().folder, inbox);
+    let waits = |q: &mailcraft_model::Queued| matches!(q, mailcraft_model::Queued::PlaceMessage { message, .. } if *message == imported);
+    assert!(a.session.mailbox.queued.iter().any(waits));
+    // What Microsoft's server leaves out of it is said, not hidden.
     let said = a.status_msg.as_ref().map(|(text, _)| text.clone()).unwrap_or_default();
-    assert_eq!(said, "Microsoft doesn't let a mail program put received mail into your mailbox; it stays in a local folder.");
-    assert_ne!(a.session.mailbox.message(imported).unwrap().folder, inbox);
+    assert_eq!(said, "1 message moved into the account: Send/Receive puts it on Microsoft's server, without most of its headers (such as Received)");
+}
+
+/// Mail moved or copied into a Microsoft account from elsewhere: the status bar says that
+/// Microsoft's server makes it without most of its headers (#451). Other moves say nothing.
+#[test]
+fn mail_put_into_a_microsoft_account_says_its_headers_stay_behind() {
+    let said = |id: &str, v: Value| crate::feedback(id, &v);
+    let moved = said("mail.move", json!({"moved": 2, "folder": 9, "intoMicrosoft": 2})).unwrap();
+    assert!(moved.starts_with("2 messages moved into the account") && moved.contains("without most of their headers"), "{moved}");
+    let copied = said("mail.copy", json!({"copies": [5], "folder": 9, "intoMicrosoft": 1})).unwrap();
+    assert!(copied.starts_with("1 message copied into the account") && copied.contains("without most of its headers"), "{copied}");
+    assert_eq!(said("mail.move", json!({"moved": 1, "folder": 9, "intoMicrosoft": 0})), None);
+    assert_eq!(said("mail.copy", json!({"copies": [5], "folder": 9, "intoMicrosoft": 0})), None);
+    // Drafts imported for a Microsoft account aren't told to go into it: a draft stays here.
+    let drafts = said("file.import", json!({"messages": 2, "local": true, "drafts": true})).unwrap();
+    assert_eq!(drafts, "Imported 2 messages into Drafts on this computer: a draft stays on this computer until it is sent");
+    let mail = said("file.import", json!({"messages": 2, "local": true, "drafts": false})).unwrap();
+    assert!(mail.ends_with("move it into the account to put it on Microsoft's server"), "{mail}");
 }
 
 /// A search says so over the list: how many it found and where; ✕ or Esc ends it (#115).
@@ -2212,7 +2245,7 @@ fn a_jmap_account_is_left_out_of_send_receive_until_one_can_be_run() {
 }
 
 /// A noisy PNG far over a signature picture's cap.
-fn big_png(side: u32) -> Vec<u8> {
+pub(crate) fn big_png(side: u32) -> Vec<u8> {
     use image::ImageEncoder as _;
     let mut x = 0x9E37_79B9_u32;
     let raw: Vec<u8> = (0..side * side * 3)

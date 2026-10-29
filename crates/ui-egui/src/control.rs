@@ -221,6 +221,29 @@ pub fn commands(app: &MailApp) -> Value {
 }
 
 pub fn handle(app: &mut MailApp, ctx: &egui::Context, req: &ControlRequest) -> Outcome {
+    // What a request does is the control channel's doing, as the input it injects is.
+    let was = std::mem::replace(&mut app.driven, true);
+    let driven = Driven { app, was };
+    dispatch(driven.app, ctx, req)
+}
+
+/// The window marked as driven while a request is handled; as it was again however the handling
+/// ends, a panic in it too.
+struct Driven<'a> {
+    app: &'a mut MailApp,
+    was: bool,
+}
+
+impl Drop for Driven<'_> {
+    fn drop(&mut self) {
+        self.app.driven = self.was;
+    }
+}
+
+#[cfg(test)]
+mod tests;
+
+fn dispatch(app: &mut MailApp, ctx: &egui::Context, req: &ControlRequest) -> Outcome {
     if let Some(allow) = &req.agent
         && let Some(settled) = crate::agent_gate::screen(app, req, allow)
     {

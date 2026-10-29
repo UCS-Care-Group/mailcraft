@@ -5,8 +5,8 @@
 use super::*;
 use crate::blocks::tests::check_block;
 use crate::{
-    Align, Block, BlockKind, Insets, Length, LineHeight, LineStyle, MAX_BLOCKS, MAX_CELLS, MAX_INPUT, MAX_TABLE_DEPTH, Marker, Rgb, Span, Table,
-    has_text, images, is_embedded, parse, text_blocks, to_text,
+    Align, Block, BlockKind, Env, Insets, Length, LineHeight, LineStyle, MAX_BLOCKS, MAX_CELLS, MAX_INPUT, MAX_TABLE_DEPTH, Marker, Rgb, Span, Table,
+    has_text, images, is_embedded, parse, parse_in, text_and_hidden, text_blocks, to_text,
 };
 
 /// Every block, looking inside tables, in reading order.
@@ -395,8 +395,16 @@ fn built_newsletter() {
         assert!(!kept.contains(gone), "{gone} survived");
     }
     // The cell that has the background picture keeps its colour, and the light text on it.
-    let over = table_with(&blocks, "The evenings are drawing in");
-    assert_eq!(over.rows.first().and_then(|r| r.cells.first()).and_then(|c| c.background), Some(Rgb(0x3b, 0x2f, 0x2a)));
+    // (The column's `max-width:100%` in its `@media` block, true for a wide pane, gives the title
+    // a box of its own inside that cell.)
+    assert!(
+        tables(&blocks)
+            .iter()
+            .flat_map(|t| t.rows.iter().flat_map(|r| &r.cells))
+            .any(|c| { c.background == Some(Rgb(0x3b, 0x2f, 0x2a)) && text_of(&c.blocks).contains("The evenings are drawing in") }),
+        "{}",
+        show(&blocks)
+    );
     let title = span(&blocks, "The evenings are drawing in");
     assert_eq!(
         (title.color, title.size, block(&blocks, "The evenings are drawing in").align),
@@ -924,4 +932,139 @@ fn a_bulletin_keeps_its_padding_margins_lines_corners_and_line_height() {
     let leaders = table_with(&blocks, "Priya Raman");
     assert!(leaders.rows.iter().flat_map(|r| &r.cells).all(|c| c.padding == Some(Insets { top: 10, right: 14, bottom: 10, left: 14 })));
     assert!(leaders.outline && leaders.radius == 6);
+}
+
+/// #598: a letter whose look is all in its `<style>` block is shown styled, and what its rules
+/// hide is not shown.
+#[test]
+fn a_letter_styled_by_its_style_block_looks_as_the_block_says() {
+    let blocks = parse(STYLE_SHEET_NEWSLETTER);
+    let text = text_of(&blocks);
+    // The preheader and the mobile copy are hidden by a rule; the `@media` block that would swap
+    // the two copies is not read yet.
+    assert!(!text.contains("Preview:") && !text.contains("phone"), "{text}");
+    assert!(text.contains("Reading on a computer"), "{text}");
+    // Nothing a rule says is text; nothing in the head is.
+    for never in ["tracking", "Tidewater Serif", "woff", "tracker.example", "@media"] {
+        assert!(!text.contains(never), "{never:?}\n{text}");
+    }
+    // Rules by id, descendant, child and class.
+    assert_eq!(span(&blocks, "Tidewater Roasters").color, Some(Rgb(0xf7, 0xef, 0xe3)));
+    assert_eq!(block(&blocks, "Tidewater Roasters").align, Align::Center);
+    assert_eq!(span(&blocks, "The October letter").color, Some(Rgb(0x1f, 0x3a, 0x4d)));
+    assert_eq!(span(&blocks, "Harbour Blend").color, Some(Rgb(0x8a, 0x3b, 0x12)));
+    // An attribute selector, with its own bold and colour.
+    let new = span(&blocks, "New");
+    assert!(new.bold && new.color == Some(Rgb(0xb3, 0x26, 0x1e)), "{new:?}");
+    let back = span(&blocks, "Back");
+    assert!(back.color != Some(Rgb(0xb3, 0x26, 0x1e)), "{back:?}");
+    // Structural selectors: the first cell of the grid is tinted by `:first-child`; the second
+    // row by `:nth-child(2)`, which is the more specific of the two.
+    let grid = table_with(&blocks, "Brew guides");
+    let tints: Vec<Option<Rgb>> = grid.rows.iter().flat_map(|r| &r.cells).map(|c| c.background).collect();
+    assert_eq!(tints, [Some(Rgb(0xfa, 0xf6, 0xef)), None, Some(Rgb(0xf1, 0xec, 0xe4)), Some(Rgb(0xf1, 0xec, 0xe4))]);
+    // `:last-child` and `:not()`.
+    let last = span(&blocks, "You are reading this");
+    assert!(last.italic, "{last:?}");
+    assert!(span(&blocks, "Bring a cup").bold && !span(&blocks, "Roast dates").bold);
+    // `a:visited` and `a:hover` never apply.
+    let link = span(&blocks, "Unsubscribe");
+    assert!(link.color != Some(Rgb(0xff, 0, 0xff)) && link.color != Some(Rgb(0, 0xff, 0)), "{link:?}");
+}
+
+/// #598: hostile style sheets cost little: each of the generated ones is parsed, fast.
+#[test]
+fn hostile_style_sheets_are_bounded() {
+    for (name, html) in hostile().into_iter().filter(|(name, _)| name.starts_with("sheet")) {
+        let started = std::time::Instant::now();
+        let blocks = parse(&html);
+        assert!(blocks.len() <= MAX_BLOCKS + 1, "{name}");
+        let parsed = started.elapsed();
+        let started = std::time::Instant::now();
+        let _ = to_text(&html);
+        println!("{name}: parse {parsed:?}, to_text {:?}", started.elapsed());
+        // (Well under a second each in a release build; the bound is for a loaded debug one.)
+        assert!(parsed.as_secs() < 4 && started.elapsed().as_secs() < 4, "{name}: {parsed:?}");
+    }
+}
+
+/// #599: a newsletter with a desktop copy and a mobile copy shows the one for the pane.
+#[test]
+fn a_responsive_newsletter_shows_the_copy_for_the_pane() {
+    let read = |width: f32| {
+        let blocks = parse_in(RESPONSIVE_NEWSLETTER, &Env::for_pane(width, false)).blocks;
+        let text = text_of(&blocks);
+        (blocks, text)
+    };
+    // The default, and a wide pane.
+    for (blocks, text) in [(parse(RESPONSIVE_NEWSLETTER), text_of(&parse(RESPONSIVE_NEWSLETTER))), read(1100.0)] {
+        assert!(text.contains("Desktop copy") && !text.contains("Mobile copy"), "{text}");
+        assert!(text.contains("Wide-pane note") && !text.contains("Narrow note"), "{text}");
+        assert_eq!(span(&blocks, "The autumn cheeses are here").size, Some(26));
+        assert_eq!(span(&blocks, "6.40").color, Some(Rgb(0x8a, 0x3b, 0x12)));
+    }
+    // A phone.
+    let (blocks, text) = read(390.0);
+    assert!(text.contains("Mobile copy") && !text.contains("Desktop copy"), "{text}");
+    assert!(text.contains("Narrow note") && !text.contains("Wide-pane note"), "{text}");
+    assert_eq!(span(&blocks, "The autumn cheeses are here").size, Some(22));
+    // The columns take the whole width of the pane on a phone and half of it beside each other.
+    let widths =
+        |blocks: &[Block]| tables(blocks).iter().flat_map(|t| t.rows.iter().flat_map(|r| &r.cells)).filter_map(|c| c.width).collect::<Vec<_>>();
+    assert!(widths(&blocks).contains(&Length::Percent(100)), "{:?}", widths(&blocks));
+    assert!(widths(&read(1100.0).0).contains(&Length::Percent(50)), "{:?}", widths(&read(1100.0).0));
+    // A tablet: 640 is 40em, and 600 and under is narrow.
+    let (_, text) = read(640.0);
+    assert!(text.contains("Desktop copy") && text.contains("Wide-pane note") && !text.contains("Narrow note"), "{text}");
+    let (_, text) = read(600.0);
+    assert!(text.contains("Desktop copy") && !text.contains("Wide-pane note") && text.contains("Narrow note"), "{text}");
+    // What `print` and `tv` say, and the hidden preheader, are never on screen, wide or narrow.
+    for width in [390.0, 1100.0] {
+        let (blocks, text) = read(width);
+        assert!(!text.contains("Print copy") && !text.contains("Preview:"), "{text}");
+        assert_eq!(span(&blocks, "6.40").color, Some(Rgb(0x8a, 0x3b, 0x12)));
+    }
+}
+
+/// #599: a newsletter with a palette for dark windows uses it in a dark window, and says so.
+#[test]
+fn a_newsletter_with_a_dark_palette_uses_it_in_a_dark_window() {
+    let light = parse_in(DARK_NEWSLETTER, &Env::for_pane(700.0, false));
+    let dark = parse_in(DARK_NEWSLETTER, &Env::for_pane(700.0, true));
+    assert!(!light.dark_design && dark.dark_design);
+    let (lt, dt) = (text_of(&light.blocks), text_of(&dark.blocks));
+    assert!(lt.contains("light edition") && !lt.contains("dark edition"), "{lt}");
+    assert!(dt.contains("dark edition") && !dt.contains("light edition"), "{dt}");
+    assert!(span(&light.blocks, "Set in italics").italic && !span(&dark.blocks, "Set in italics").italic);
+    // The sender's own colours, in each theme: sheet over the inline style by `!important`.
+    assert_eq!(span(&light.blocks, "Friday").color, Some(Rgb(0xb3, 0x26, 0x1e)));
+    assert_eq!(span(&dark.blocks, "Friday").color, Some(Rgb(0xff, 0x8a, 0x80)));
+    assert_eq!(span(&dark.blocks, "on the web").color, Some(Rgb(0x8a, 0xb4, 0xf8)));
+    let cell_backgrounds =
+        |blocks: &[Block]| tables(blocks).iter().flat_map(|t| t.rows.iter().flat_map(|r| &r.cells)).map(|c| c.background).collect::<Vec<_>>();
+    assert!(cell_backgrounds(&light.blocks).contains(&Some(Rgb(0xf4, 0xf1, 0xea))), "{:?}", cell_backgrounds(&light.blocks));
+    assert!(cell_backgrounds(&dark.blocks).contains(&Some(Rgb(0x1f, 0x23, 0x29))), "{:?}", cell_backgrounds(&dark.blocks));
+    assert!(cell_backgrounds(&dark.blocks).contains(&Some(Rgb(0x0b, 0x3d, 0x75))));
+    assert!(!cell_backgrounds(&dark.blocks).contains(&Some(Rgb(0xf4, 0xf1, 0xea))));
+}
+
+/// #599: what the sender hid is kept for search and agents, and only there.
+#[test]
+fn the_preheader_is_in_the_hidden_text_and_not_in_the_text() {
+    for html in [RESPONSIVE_NEWSLETTER, NEWSLETTER, BUILT_NEWSLETTER, STYLE_SHEET_NEWSLETTER] {
+        let (text, hidden) = text_and_hidden(html);
+        assert_eq!(text, to_text(html));
+        assert!(!hidden.is_empty());
+        assert!(hidden.len() <= crate::MAX_HIDDEN_TEXT);
+        // Nothing of the head, the sheets or the markup.
+        for never in ["font-family", "{", "}", "<", "@media", "\u{200c}"] {
+            assert!(!hidden.contains(never), "{never:?} in {hidden:?}");
+        }
+    }
+    let (text, hidden) = text_and_hidden(RESPONSIVE_NEWSLETTER);
+    assert!(!text.contains("Preview:") && hidden.contains("Preview: three new cheeses"), "{hidden}");
+    // The wide default has the mobile copy hidden by its rule: it is hidden text, not text.
+    assert!(!text.contains("Mobile copy") && hidden.contains("Mobile copy"), "{hidden}");
+    let (_, hidden) = text_and_hidden(STYLE_SHEET_NEWSLETTER);
+    assert!(hidden.contains("Preview: the autumn roast"), "{hidden}");
 }

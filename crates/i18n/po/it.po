@@ -1151,6 +1151,12 @@ msgid "Ask again"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "Ask before deleting a conversation"
+msgstr "Chiedi prima di eliminare una conversazione"
+
+#. interface
 #: crates/ui-egui/src/reading/remote.rs
 #, fuzzy
 msgid "Ask before downloading pictures from this domain's senders again"
@@ -1982,6 +1988,12 @@ msgid "Closes this window. Nothing is kept."
 msgstr "Chiude questa finestra. Non viene conservato nulla."
 
 #. command label
+#: crates/engine/src/cmd/mail.rs
+#, fuzzy
+msgid "Collapse Conversation"
+msgstr "Comprimi conversazione"
+
+#. command label
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Collapse the Ribbon"
@@ -2431,6 +2443,12 @@ msgstr "Elimina categoria"
 msgid "Delete Contact"
 msgstr "Elimina contatto"
 
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Delete Conversation"
+msgstr "Elimina conversazione"
+
 #. command label, interface
 #: crates/engine/src/cmd/folder.rs crates/ui-egui/src/dialogs.rs
 #, fuzzy
@@ -2498,6 +2516,12 @@ msgid "Delete meeting requests from the Inbox after responding"
 msgstr "Elimina le convocazioni di riunione da Posta in arrivo dopo aver risposto"
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "Delete on a conversation's row that takes more than one message asks first."
+msgstr "Eliminare sulla riga di una conversazione chiede prima conferma quando elimina più di un messaggio."
+
+#. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Delete this category"
@@ -2514,6 +2538,12 @@ msgstr "Elimina questa regola"
 #, fuzzy
 msgid "Deleted Items"
 msgstr "Posta eliminata"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+#, fuzzy
+msgid "Deleting"
+msgstr "Eliminazione"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -2678,6 +2708,18 @@ msgstr "Non inviare una risposta"
 #, fuzzy
 msgid "Don't Send, Keep on This Computer"
 msgstr "Non inviare, conserva su questo computer"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Don't ask again for these accounts"
+msgstr "Non chiedere più per questi account"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Don't ask again for this account"
+msgstr "Non chiedere più per questo account"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -3101,6 +3143,12 @@ msgstr "Tutto il contenuto di «{folder}» verrà eliminato definitivamente."
 #, fuzzy
 msgid "Everything the interface does is a command: {commands} of them, covering {percent}% of the feature catalog. The command line, the control channel and the MCP server run the same commands."
 msgstr "Tutto ciò che fa l'interfaccia è un comando: {commands} in tutto, che coprono il {percent}% del catalogo delle funzionalità. La riga di comando, il canale di controllo e il server MCP eseguono gli stessi comandi."
+
+#. command label
+#: crates/engine/src/cmd/mail.rs
+#, fuzzy
+msgid "Expand Conversation"
+msgstr "Espandi conversazione"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -3853,6 +3901,12 @@ msgid "Hide the folder pane"
 msgstr "Nascondi il riquadro delle cartelle"
 
 #. interface
+#: crates/ui-egui/src/mail_view.rs
+#, fuzzy
+msgid "Hide the messages of this conversation"
+msgstr "Nascondi i messaggi di questa conversazione"
+
+#. interface
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
 msgid "Hide this calendar"
@@ -4036,8 +4090,14 @@ msgstr "Importato {what}"
 #. interface
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
-msgid "Imported {what} into a local folder: Microsoft doesn't let a mail program put received mail into your mailbox"
-msgstr "Importato {what} in una cartella locale: Microsoft non consente a un programma di posta di inserire posta ricevuta nella cassetta postale"
+msgid "Imported {what} into Drafts on this computer: a draft stays on this computer until it is sent"
+msgstr "Importazione di {what} completata in Bozze su questo computer: una bozza resta su questo computer finché non viene inviata"
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Imported {what} into a local folder: move it into the account to put it on Microsoft's server"
+msgstr "Importazione di {what} completata in una cartella locale: sposta la posta nell'account per metterla sul server di Microsoft"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -4309,6 +4369,12 @@ msgstr "La sua posta può essere letta qui. Le modifiche apportate vengono conse
 #, fuzzy
 msgid "Its mail is kept in step through Microsoft Graph, without mail servers"
 msgstr "La sua posta è sincronizzata tramite Microsoft Graph, senza server di posta"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Its messages in other folders stay where they are."
+msgstr "I suoi messaggi in altre cartelle restano dove sono."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -4718,12 +4784,6 @@ msgstr ""
 msgid "Mail can't be imported into an Outbox: it would be sent. Choose another folder."
 msgstr ""
 
-#. what a command says
-#: crates/model/src/mailbox.rs
-#, fuzzy
-msgid "Mail can't be moved or copied into a Microsoft account from another account or a local folder yet: this version can't put a message on Microsoft's server"
-msgstr "Non è ancora possibile spostare o copiare posta in un account Microsoft da un altro account o da una cartella locale: questa versione non può inserire un messaggio nel server di Microsoft"
-
 #. interface
 #: crates/ui-egui/src/folder_properties.rs
 msgid "Mail folder"
@@ -4733,6 +4793,12 @@ msgstr ""
 #: crates/ui-egui/src/folder_properties.rs
 msgid "Mail folder: the account's {folder}"
 msgstr ""
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "Mail from another mailbox can't go into an Outbox: the next Send/Receive would send it"
+msgstr "La posta di un'altra casella non può andare in Posta in uscita: il prossimo Invia/Ricevi la invierebbe"
 
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
@@ -5220,12 +5286,6 @@ msgstr "Risposta di Microsoft: {words}"
 #, fuzzy
 msgid "Microsoft application ID"
 msgstr "ID applicazione Microsoft"
-
-#. what a command says
-#: crates/model/src/mailbox.rs
-#, fuzzy
-msgid "Microsoft doesn't let a mail program put received mail into your mailbox; it stays in a local folder."
-msgstr "Microsoft non consente a un programma di posta di inserire posta ricevuta nella cassetta postale; resta in una cartella locale."
 
 #. name
 #: crates/model/src/sync.rs
@@ -8613,6 +8673,12 @@ msgid "Show the folder pane"
 msgstr "Mostra il riquadro delle cartelle"
 
 #. interface
+#: crates/ui-egui/src/mail_view.rs
+#, fuzzy
+msgid "Show the messages of this conversation"
+msgstr "Mostra i messaggi di questa conversazione"
+
+#. interface
 #: crates/ui-egui/src/reading/remote.rs
 #, fuzzy
 msgid "Show this message's pictures, this once. Whoever sent it can then tell that you opened it."
@@ -9643,6 +9709,12 @@ msgid "The contacts you picked"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "The conversations' messages in other folders stay where they are."
+msgstr "I messaggi delle conversazioni in altre cartelle restano dove sono."
+
+#. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "The day after"
@@ -10337,6 +10409,54 @@ msgstr "Questa copia di MailCraft non si aggiorna da sola."
 #: crates/ui-egui/src/report_problem.rs
 msgid "This copy of MailCraft has no address to send reports to."
 msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "This deletes the conversation from {folder}: its {n} message there goes to Deleted Items."
+msgid_plural "This deletes the conversation from {folder}: its {n} messages there go to Deleted Items."
+msgstr[0] "Questo elimina la conversazione da {folder}: il suo {n} messaggio lì va in Posta eliminata."
+msgstr[1] "Questo elimina la conversazione da {folder}: i suoi {n} messaggi lì vanno in Posta eliminata."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "This deletes the {n} message of this conversation that is listed here. It goes to Deleted Items."
+msgid_plural "This deletes the {n} messages of this conversation that are listed here. They go to Deleted Items."
+msgstr[0] "Questo elimina il {n} messaggio di questa conversazione elencato qui. Va in Posta eliminata."
+msgstr[1] "Questo elimina i {n} messaggi di questa conversazione elencati qui. Vanno in Posta eliminata."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "This deletes {n} message in {folder}, every message of the conversation there included. It goes to Deleted Items."
+msgid_plural "This deletes {n} messages in {folder}, every message of the conversation there included. They go to Deleted Items."
+msgstr[0] "Questo elimina {n} messaggio in {folder}, compresi tutti i messaggi della conversazione lì. Va in Posta eliminata."
+msgstr[1] "Questo elimina {n} messaggi in {folder}, compresi tutti i messaggi della conversazione lì. Vanno in Posta eliminata."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "This deletes {n} message in {folder}, every message of the conversations there included. It goes to Deleted Items."
+msgid_plural "This deletes {n} messages in {folder}, every message of the conversations there included. They go to Deleted Items."
+msgstr[0] "Questo elimina {n} messaggio in {folder}, compresi tutti i messaggi delle conversazioni lì. Va in Posta eliminata."
+msgstr[1] "Questo elimina {n} messaggi in {folder}, compresi tutti i messaggi delle conversazioni lì. Vanno in Posta eliminata."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "This deletes {n} message, including the conversation's messages listed here. It goes to Deleted Items."
+msgid_plural "This deletes {n} messages, including the conversation's messages listed here. They go to Deleted Items."
+msgstr[0] "Questo elimina {n} messaggio, compresi i messaggi della conversazione elencati qui. Va in Posta eliminata."
+msgstr[1] "Questo elimina {n} messaggi, compresi i messaggi della conversazione elencati qui. Vanno in Posta eliminata."
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "This deletes {n} message, including the conversations' messages listed here. It goes to Deleted Items."
+msgid_plural "This deletes {n} messages, including the conversations' messages listed here. They go to Deleted Items."
+msgstr[0] "Questo elimina {n} messaggio, compresi i messaggi delle conversazioni elencati qui. Va in Posta eliminata."
+msgstr[1] "Questo elimina {n} messaggi, compresi i messaggi delle conversazioni elencati qui. Vanno in Posta eliminata."
 
 #. name
 #: crates/ui-egui/src/account_setup.rs
@@ -11893,6 +12013,12 @@ msgid "a rule can't move mail to an Outbox: that would send it"
 msgstr ""
 
 #. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "a shared mailbox asks before deleting a conversation as the account it is opened through does: change that account's"
+msgstr "una cassetta postale condivisa chiede prima di eliminare una conversazione come l'account con cui è aperta: modificare l'impostazione di quell'account"
+
+#. what a command says
 #: crates/model/src/mailbox.rs
 #, fuzzy
 msgid "a shared mailbox can't open another one: name the account it is opened through"
@@ -12015,6 +12141,12 @@ msgstr "calendario"
 #: crates/engine/src/import_tree.rs
 msgid "cancelled"
 msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/mail.rs
+#, fuzzy
+msgid "close a conversation first: each of the 1,000 open has a message selected"
+msgstr "chiudere prima una conversazione: ognuna delle 1.000 aperte ha un messaggio selezionato"
 
 #. what a command says
 #: crates/engine/src/cmd/people.rs
@@ -12349,7 +12481,7 @@ msgid "no event with id {id}"
 msgstr "nessun evento con id {id}"
 
 #. what a command says
-#: crates/engine/src/cmd/folder.rs
+#: crates/engine/src/cmd/folder.rs crates/engine/src/cmd/mail.rs
 #, fuzzy
 msgid "no folder \"{path}\""
 msgstr "nessuna cartella «{path}»"
@@ -12591,6 +12723,12 @@ msgstr "salvare prima la cassetta postale in un file: il passaggio ne conserva u
 msgid "select a contact first"
 msgstr "selezionare prima un contatto"
 
+#. why a command can't run
+#: crates/engine/src/cmd/mail.rs
+#, fuzzy
+msgid "select a conversation in conversation view first"
+msgstr "seleziona prima una conversazione nella visualizzazione per conversazioni"
+
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/tasks.rs
 #, fuzzy
@@ -12706,6 +12844,18 @@ msgstr "la verifica si è interrotta in modo imprevisto"
 #, fuzzy
 msgid "the contact is gone"
 msgstr "il contatto non c'è più"
+
+#. why a command can't run
+#: crates/engine/src/cmd/mail.rs
+#, fuzzy
+msgid "the conversation is closed"
+msgstr "la conversazione è compressa"
+
+#. why a command can't run
+#: crates/engine/src/cmd/mail.rs
+#, fuzzy
+msgid "the conversation is open"
+msgstr "la conversazione è espansa"
 
 #. interface
 #: crates/ui-egui/src/reading/images.rs
@@ -13865,6 +14015,14 @@ msgstr[0] "{n} messaggio modificato"
 msgstr[1] "{n} messaggi modificati"
 
 #. interface
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "{n} message copied into the account: Send/Receive puts it on Microsoft's server, without most of its headers (such as Received)"
+msgid_plural "{n} messages copied into the account: Send/Receive puts them on Microsoft's server, without most of their headers (such as Received)"
+msgstr[0] "{n} messaggio copiato nell'account: Invia/Ricevi lo mette sul server di Microsoft, senza la maggior parte delle sue intestazioni (come Received)"
+msgstr[1] "{n} messaggi copiati nell'account: Invia/Ricevi li mette sul server di Microsoft, senza la maggior parte delle loro intestazioni (come Received)"
+
+#. interface
 #: crates/ui-egui/src/reading.rs
 #, fuzzy
 msgid "{n} message in this conversation:"
@@ -13886,6 +14044,14 @@ msgid "{n} message matched"
 msgid_plural "{n} messages matched"
 msgstr[0] "{n} messaggio corrispondente"
 msgstr[1] "{n} messaggi corrispondenti"
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "{n} message moved into the account: Send/Receive puts it on Microsoft's server, without most of its headers (such as Received)"
+msgid_plural "{n} messages moved into the account: Send/Receive puts them on Microsoft's server, without most of their headers (such as Received)"
+msgstr[0] "{n} messaggio spostato nell'account: Invia/Ricevi lo mette sul server di Microsoft, senza la maggior parte delle sue intestazioni (come Received)"
+msgstr[1] "{n} messaggi spostati nell'account: Invia/Ricevi li mette sul server di Microsoft, senza la maggior parte delle loro intestazioni (come Received)"
 
 #. interface
 #: crates/ui-egui/src/folder_properties.rs
@@ -14334,6 +14500,18 @@ msgstr "«{subject}» non è stato trovato sul suo server, quindi non può esser
 #, fuzzy
 #~ msgid "this message was too large to download: only its header is here, so it can't be forwarded as an attachment"
 #~ msgstr "questo messaggio era troppo grande per essere scaricato: qui c'è solo la sua intestazione, quindi non può essere inoltrato come allegato"
+
+#, fuzzy
+#~ msgid "Imported {what} into a local folder: Microsoft doesn't let a mail program put received mail into your mailbox"
+#~ msgstr "Importato {what} in una cartella locale: Microsoft non consente a un programma di posta di inserire posta ricevuta nella cassetta postale"
+
+#, fuzzy
+#~ msgid "Mail can't be moved or copied into a Microsoft account from another account or a local folder yet: this version can't put a message on Microsoft's server"
+#~ msgstr "Non è ancora possibile spostare o copiare posta in un account Microsoft da un altro account o da una cartella locale: questa versione non può inserire un messaggio nel server di Microsoft"
+
+#, fuzzy
+#~ msgid "Microsoft doesn't let a mail program put received mail into your mailbox; it stays in a local folder."
+#~ msgstr "Microsoft non consente a un programma di posta di inserire posta ricevuta nella cassetta postale; resta in una cartella locale."
 
 #, fuzzy
 #~ msgid "Close (the draft stays as last saved)"

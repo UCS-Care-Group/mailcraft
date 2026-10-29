@@ -637,10 +637,10 @@ pub(crate) fn drop_repeats(i: &mut egui::InputState, keys: &[Key]) {
     i.events.retain(|e| !matches!(e, egui::Event::Key { key, pressed: true, repeat: true, .. } if keys.contains(key)));
 }
 
-/// Whether the window takes command keys now: not while File (backstage) or a dialog is open. The
-/// menu bar asks the same, so its items are greyed then.
+/// Whether the window takes command keys now: not while File (backstage), a dialog or an agent's
+/// question is open (#503). The menu bar asks the same, so its items are greyed then.
 pub fn takes_commands(app: &MailApp) -> bool {
-    !app.ui.backstage && app.dialog.is_none()
+    !app.ui.backstage && app.dialog.is_none() && app.asking.is_empty()
 }
 
 /// What the window runs for a command asked for by a key or from the menu bar: nothing when the
@@ -719,6 +719,10 @@ pub fn global_shortcuts(app: &mut MailApp, ctx: &egui::Context) {
     // Ctrl too: the message list doesn't move under it (#329).
     let list = egui::Popup::is_any_open(ctx);
     for e in events {
+        // A key that opened a dialog (Delete's question) leaves the frame's other keys to it (#503).
+        if !takes_commands(app) {
+            break;
+        }
         let egui::Event::Key { key, pressed: true, modifiers, .. } = e else { continue };
         // Escape alone is handed out above (an open menu keeps it, to close).
         if key == Key::Escape && modifiers.is_none() {

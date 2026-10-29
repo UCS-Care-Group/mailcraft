@@ -3661,7 +3661,7 @@ fn pictures_that_arrive_and_a_new_width_keep_what_is_selected() {
     let (mut app, ids) = corpus_app(false);
     let _host = Host::answering(&mut app, newsletter_picture);
     let id = id_of(&ids, "newsletter");
-    let mut harness = window(app, (1280.0, 1600.0));
+    let mut harness = window(app, (1500.0, 1600.0));
     select(&mut harness, id);
     assert_eq!(shown(&harness, id), (0, 8, 8));
     let (from, to) = (gap(&harness, id, "The first frost", 4), gap(&harness, id, "Members get first pick", 7));
@@ -3674,8 +3674,9 @@ fn pictures_that_arrive_and_a_new_width_keep_what_is_selected() {
     harness.run_steps(16);
     assert_eq!(shown(&harness, id), (8, 0, 0));
     assert_eq!((selection(&harness, Place::Pane), copy_key(&mut harness)), (taken, Some(text.clone())));
-    // So are they at another width, where the lines break elsewhere.
-    harness.set_size(egui::vec2(820.0, 1600.0));
+    // So are they at another width, where the lines break elsewhere. (A width on the same side of every
+    // condition of the newsletter's `@media`: across one the look is another, and nothing goes over.)
+    harness.set_size(egui::vec2(1800.0, 1600.0));
     harness.run_steps(6);
     assert_eq!((selection(&harness, Place::Pane), copy_key(&mut harness)), (taken, Some(text)));
     // All of it, with and without its pictures: their descriptions are copied only while they
@@ -3824,7 +3825,9 @@ fn the_selection_commands_take_anything_and_never_panic() {
 // ---- meetings that arrive as mail ----
 
 mod invitation;
+mod primary;
 mod remote_server;
+mod responsive;
 mod written_pictures;
 
 /// The original under a reply to HTML mail is laid out as the reading pane lays it out (its
@@ -4095,4 +4098,45 @@ fn a_link_tip_shows_the_host_of_addresses_written_to_mislead() {
     // A full stop of another script is no full stop, and the name is not shown as ours.
     assert_eq!(super::view::link_tip("https://paypal\u{3002}com/"), "https://paypal\u{3002}com/");
     assert!(goes_to("https://\u{1f4a9}.example/").contains("xn--"));
+}
+
+// ---- #596: where a cell sits in its row, and the gaps between cells ----
+
+#[test]
+fn a_cell_sits_where_the_source_puts_it_in_its_row() {
+    let tall = "<p>one</p><p>two</p><p>three</p><p>four</p><p>five</p>";
+    let html = format!(
+        "<table role='presentation' width='600'><tr><td width='150'>{tall}</td><td width='150' valign='top'>Top</td>\
+         <td width='150' style='vertical-align:middle'>Middle</td><td width='150' valign='bottom'>Bottom</td></tr></table>"
+    );
+    let m = html_message(51, ("Digest", "digest@bellweather.example"), "Cells", &html);
+    for dark in [false, true] {
+        in_frame(dark, |ctx| {
+            let laid = lay_out(ctx, &m, 800.0);
+            check(&laid, &Tokens::get(ctx), "valign");
+            let (first, last) = (find_exact(&laid, "one"), find_exact(&laid, "five"));
+            let (top, mid, bottom) = (find_exact(&laid, "Top"), find_exact(&laid, "Middle"), find_exact(&laid, "Bottom"));
+            assert!((top.rect.min.y - first.rect.min.y).abs() < 1.0, "{:?} {:?}", top.rect, first.rect);
+            assert!((middle(mid) - (first.rect.min.y + last.rect.max.y) / 2.0).abs() < 2.0, "{:?}", mid.rect);
+            assert!((bottom.rect.max.y - last.rect.max.y).abs() < 1.0, "{:?} {:?}", bottom.rect, last.rect);
+        });
+    }
+}
+
+#[test]
+fn cellspacing_is_the_gap_between_cells() {
+    let html = |spacing: &str| {
+        format!("<table role='presentation' {spacing}><tr><td bgcolor='#eeeeee'>Left</td><td bgcolor='#eeeeee'>Right</td></tr></table>")
+    };
+    in_frame(false, |ctx| {
+        let apart = |attr: &str| {
+            let m = html_message(52, ("Digest", "digest@bellweather.example"), "Gaps", &html(attr));
+            let laid = lay_out(ctx, &m, 800.0);
+            let fills: Vec<egui::Rect> = laid.items.iter().filter(|i| matches!(i.kind, ItemKind::Fill { .. })).map(|i| i.rect).collect();
+            assert_eq!(fills.len(), 2, "{fills:?}");
+            fills[1].min.x - fills[0].max.x
+        };
+        assert!(apart("cellspacing='0'").abs() < 0.5);
+        assert!((apart("cellspacing='10'") - 10.0).abs() < 0.5);
+    });
 }

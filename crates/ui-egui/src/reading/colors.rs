@@ -5,7 +5,10 @@
 //! A message is written for a white page; the window may be dark, and the message may be out to
 //! hide text. Two rules keep it readable, in both themes:
 //!
-//! 1. **Backgrounds.** In the light theme a background the message asks for is painted as asked.
+//! 1. **Backgrounds.** In the light theme a background the message asks for is painted as asked,
+//!    and so it is in the dark theme for a message whose style sheet brings its own design for
+//!    dark windows (`@media (prefers-color-scheme: dark)`, [`Tokens::sender_dark`]): the sender's
+//!    palette is used, and only text whose contrast falls short (rule 2) is adjusted.
 //!    In the dark theme a light one (lightness over a half) is turned dark by inverting its
 //!    lightness, keeping its hue and muting it a little, so a white card becomes the window's own
 //!    surface and a pale band a slightly lighter one; a dark or strongly coloured one stays.
@@ -143,7 +146,8 @@ impl Paper {
     /// A background the message asks for, as it is painted in this theme.
     pub fn of(asked: Rgb, t: &Tokens) -> Paper {
         let asked = c32(asked);
-        if !t.dark {
+        // (A message with its own design for dark windows has its backgrounds as it asks.)
+        if !t.dark || t.sender_dark {
             return Paper { fill: asked, own: true };
         }
         let (h, s, l) = hsl(asked);

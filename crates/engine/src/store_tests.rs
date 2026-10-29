@@ -1572,6 +1572,8 @@ fn forwarding_exporting_and_sending_carry_what_is_on_disk() {
     imap.mailbox.accounts.iter_mut().for_each(|a| a.kind = mailcraft_model::AccountKind::Imap);
     let outbox_folder = imap.mailbox.folder_of_kind(was.account, mailcraft_model::FolderKind::Outbox).unwrap();
     imap.mailbox.move_message(id, outbox_folder).unwrap();
+    // (A message moved into an Outbox is held, not sent, until Send Again: #607.)
+    imap.mailbox.message_mut(id).unwrap().held.clear();
     let request = crate::cmd::account::sync_request(&imap, was.account).unwrap();
     assert!(request.outbox.len() == 1 && request.outbox[0].id == id && request.outbox[0].is_loaded());
 
@@ -2019,3 +2021,6 @@ fn a_json_file_of_empty_messages_is_refused_while_it_is_read() {
 
 #[path = "store_launch_tests.rs"]
 mod launch;
+
+#[path = "store_hidden_tests.rs"]
+mod hidden;

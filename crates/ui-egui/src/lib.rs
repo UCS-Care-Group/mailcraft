@@ -41,6 +41,8 @@ mod advanced_search;
 pub mod agent_gate;
 #[cfg(test)]
 mod agent_leaves_tests;
+#[cfg(test)]
+mod agent_names_tests;
 pub mod alerts;
 pub mod approval;
 mod attachment_open;
@@ -52,6 +54,8 @@ mod clicks;
 #[cfg(test)]
 mod clicks_tests;
 pub mod compose;
+#[cfg(test)]
+mod confirm_ids_tests;
 pub mod control;
 pub mod credits;
 pub mod data_removal;
@@ -115,6 +119,10 @@ mod search_suggest;
 mod secret_field;
 #[cfg(test)]
 mod secret_field_tests;
+mod secret_read;
+#[cfg(test)]
+#[path = "secret_read_tests.rs"]
+mod secret_read_tests;
 #[cfg(test)]
 #[path = "secrets_bound_tests.rs"]
 mod secrets_bound_tests;
@@ -240,7 +248,7 @@ pub struct Services {
     /// keychain, the Secret Service on Linux and FreeBSD), where a password or a refresh token is
     /// remembered between runs when the owner wants that. Never the mailbox file, the settings or
     /// a log.
-    pub secrets: Option<Box<dyn SecretStore>>,
+    pub secrets: Option<std::sync::Arc<dyn SecretStore>>,
     /// The application (client) id this build presents to Microsoft when neither the account nor
     /// the settings name one; empty when the build has none.
     pub microsoft_client_id: String,
@@ -421,13 +429,14 @@ pub type Inbox = std::sync::Arc<std::sync::Mutex<Vec<(String, Vec<u8>)>>>;
 
 /// The operating system's credential store ([`Services::secrets`]). Keys are `password:<address>`
 /// and `refresh:<address>`.
-pub trait SecretStore {
+pub trait SecretStore: Send + Sync {
     fn get(&self, key: &str) -> Option<String>;
     fn set(&self, key: &str, secret: &str) -> Result<(), String>;
     fn delete(&self, key: &str);
     /// Why the store itself couldn't be used the last time something was asked of it (none is
     /// running, or it is locked), as opposed to there being nothing kept under a key. Taking it
-    /// clears it.
+    /// clears it. (`get` may wait for the owner to unlock the store: the window never calls it
+    /// itself, only a background thread does, [`secret_read`].)
     fn take_trouble(&self) -> Option<StoreTrouble> {
         None
     }
@@ -1192,6 +1201,10 @@ pub struct MailApp {
     pub(crate) input_trail: std::collections::VecDeque<String>,
     /// The message list should scroll to the selected row (after a keyboard move).
     pub(crate) reveal_selection: bool,
+    /// The rows the message list was last drawn from, the selection then (its messages, and those
+    /// picked as their conversation) and what the rows drew selected: worked out again only when
+    /// one of them changes, not at every frame (#503).
+    pub(crate) drawn: Option<(std::sync::Arc<Vec<mailcraft_engine::list::Row>>, Vec<Id>, Vec<Id>, std::sync::Arc<mailcraft_engine::Drawn>)>,
     /// The rows of the message list that fit in it as last drawn: what Page Up and Page Down move
     /// by (#426).
     pub(crate) list_page_rows: usize,
@@ -1200,6 +1213,15 @@ pub struct MailApp {
     /// [`mailcraft_engine::Session::openings`] when the secrets in memory were last checked
     /// against the mailbox they belong to.
     secrets_opening: u64,
+    /// What the credential store gave back for each key this session, read in the background
+    /// ([`secret_read`]); only what was found. The window asks this, never the store.
+    secret_cache: std::collections::HashMap<String, String>,
+    /// The background read of the store under way, with the opening it was started for.
+    secret_read: Option<(u64, std::sync::mpsc::Receiver<secret_read::SecretRead>)>,
+    /// The opening, and whether remembering was on, when the store was last read by itself.
+    secrets_asked: Option<(u64, bool)>,
+    /// Send/Receive the owner asked for, held until the store has answered.
+    sync_after_secrets: Vec<Value>,
     /// The open mailbox came from a file whose servers nobody has confirmed: nothing of it
     /// reaches a server ([`unconfirmed`]).
     pub(crate) unconfirmed: bool,
@@ -1354,8 +1376,9 @@ pub struct MailApp {
     /// The window is drawn for headless screenshots (`examples/ui_shot`): a password shown with
     /// its eye is drawn as dots all the same, as while `ui.screenshot` waits for a frame (#438).
     pub headless_shots: bool,
-    /// This frame's input came from the control channel (`synthetic`): a password's eye doesn't
-    /// answer it (#438).
+    /// This frame's input came from the control channel (`synthetic`), or a request from it is
+    /// being handled: a password's eye doesn't answer it (#438), and what it selects in a message
+    /// isn't put in the primary selection (`reading::select::settle`, `compose::editor`).
     driven: bool,
     /// When the last round that started by itself began (milliseconds; 0 before the first).
     last_auto_sync: f64,
@@ -1495,9 +1518,14 @@ impl MailApp {
             signature_note: None,
             input_trail: std::collections::VecDeque::new(),
             reveal_selection: false,
+            drawn: None,
             list_page_rows: 10,
             passwords: Default::default(),
             secrets_opening: 0,
+            secret_cache: Default::default(),
+            secret_read: None,
+            secrets_asked: None,
+            sync_after_secrets: Vec::new(),
             unconfirmed: false,
             settings_unread: None,
             held: Default::default(),
@@ -1730,6 +1758,9 @@ impl MailApp {
             && let Some(ask) = reading::invitation_question(self, id, &params).unwrap_or_else(|| dialogs::confirmation(self, id, &params))
         {
             let params = if params.is_object() { params } else { json!({}) };
+            // What the question named is what goes ahead, though the selection changes while it
+            // is open (#620).
+            let params = dialogs::pin_targets(self, id, params);
             self.dialog = Some(dialogs::Dialog::Confirm { command: id.to_string(), params, ask });
             return Ok(json!({"pending": "confirm"}));
         }
@@ -1769,7 +1800,8 @@ impl MailApp {
                 }
             }
         }
-        if keys::MOVES_IN_LIST.contains(&id) {
+        // And closing a conversation, which may select its row (#503).
+        if keys::MOVES_IN_LIST.contains(&id) || id == "mail.collapseConversation" {
             self.reveal_selection = true;
         }
         // What was done to the text being written leaves the keyboard in it.
@@ -2264,8 +2296,9 @@ impl MailApp {
         if !self.ui.remember_sign_in {
             return None;
         }
-        let key = Self::secret_key(kind, self.account_at(address)?);
-        self.services.secrets.as_ref()?.get(&key).filter(|secret| !secret.is_empty())
+        // (What the background read brought, never the store itself: it may be locked, and then
+        // asking blocks until the owner answers.)
+        self.secret_cache.get(&Self::secret_key(kind, self.account_at(address)?)).cloned()
     }
 
     /// Have the operating system remember a secret for `address`, when the owner wants that.
@@ -2277,7 +2310,10 @@ impl MailApp {
         let key = Self::secret_key(kind, account);
         let Some(store) = &self.services.secrets else { return };
         match store.set(&key, secret) {
-            Ok(()) => self.index_secret_key(key),
+            Ok(()) => {
+                self.secret_cache.insert(key.clone(), secret.to_string());
+                self.index_secret_key(key);
+            }
             Err(e) => log::warn!("couldn't keep the sign-in for next time: {e}"),
         }
     }
@@ -2312,6 +2348,7 @@ impl MailApp {
             }
         }
         self.ui.remembered_keys = left.clone();
+        self.secret_cache.clear();
         left
     }
 
@@ -2346,41 +2383,14 @@ impl MailApp {
                 }
             }
         }
+        for key in &gone {
+            self.secret_cache.remove(key);
+        }
         // (Taken here, the owner hears of it as `check_secret_store` would have said it.)
         match store.take_trouble() {
             Some(trouble) => self.note_secret_trouble(trouble),
             None => self.ui.remembered_keys.retain(|key| !gone.contains(key)),
         }
-    }
-
-    /// Secrets kept before they were bound to servers move, once, to the name made from the
-    /// servers of the account in this mailbox, and the old name goes. Only for a mailbox the
-    /// owner has not been asked to confirm; the owner's setting says when it has been done.
-    pub(crate) fn migrate_secrets(&mut self) {
-        if self.ui.sign_ins_bound {
-            return;
-        }
-        let mut moved = Vec::new();
-        if let Some(store) = &self.services.secrets {
-            for a in &self.session.mailbox.accounts {
-                for kind in ["password", "refresh"] {
-                    let old = Self::legacy_secret_key(kind, &a.email);
-                    if let Some(secret) = store.get(&old).filter(|s| !s.is_empty()) {
-                        let new = Self::secret_key(kind, a);
-                        if let Err(e) = store.set(&new, &secret) {
-                            log::warn!("couldn't move a remembered sign-in: {e}");
-                            continue;
-                        }
-                        store.delete(&old);
-                        moved.push(new);
-                    }
-                }
-            }
-        }
-        for key in moved {
-            self.index_secret_key(key);
-        }
-        self.ui.sign_ins_bound = true;
     }
 
     /// The sign-in settings as the host should use them: an account that names no application id
@@ -2529,6 +2539,11 @@ impl MailApp {
             return Err(cant_connect());
         }
         let quiet = p.get("quiet").and_then(Value::as_bool).unwrap_or(false);
+        // Send/Receive the owner asked for is the time to ask the store again (it may have been
+        // locked, or refused): the run goes on when it has answered ([`secret_read`]).
+        if !quiet && self.hold_for_secrets(p) {
+            return Ok(json!({"pending": "secrets"}));
+        }
         // Never two jobs for one account at once: the calendar's job (a short one, but the
         // wide stretch every quarter of an hour is not) finishes first.
         let target = p.get("account").and_then(Value::as_u64).or_else(|| self.server_accounts().first().copied());
@@ -2732,7 +2747,7 @@ impl MailApp {
         mb.accounts.iter().all(|a| a.email.trim().is_empty()) && mb.messages.is_empty()
     }
 
-    fn server_accounts(&self) -> Vec<Id> {
+    pub(crate) fn server_accounts(&self) -> Vec<Id> {
         // A JMAP account where the host runs JMAP (without, every run of it would end in a
         // refusal); the others where it opens mail connections, or, when it reaches no server
         // at all, to be told so.
@@ -2771,7 +2786,18 @@ impl MailApp {
         let opening = self.session.openings();
         if opening != self.secrets_opening {
             self.secrets_opening = opening;
+            // A question about the mailbox that was open goes with it: it names messages and
+            // accounts by ids, which the other mailbox may have too (#503).
+            if matches!(self.dialog, Some(dialogs::Dialog::Confirm { .. })) {
+                self.dialog = None;
+            }
+            // An agent's too.
+            agent_gate::forget(self);
             self.passwords.clear();
+            self.secret_cache.clear();
+            self.secret_read = None;
+            self.secrets_asked = None;
+            self.sync_after_secrets.clear();
             self.tokens.clear();
             self.graph_tokens.clear();
             self.jmap_refused.clear();
@@ -3482,7 +3508,9 @@ impl MailApp {
                 // next try renews it (the refresh token stays for that).
                 self.passwords.remove(&account);
                 if let (Some(store), Some(a)) = (&self.services.secrets, self.account_at(&address)) {
-                    store.delete(&Self::secret_key("password", a));
+                    let key = Self::secret_key("password", a);
+                    store.delete(&key);
+                    self.secret_cache.remove(&key);
                 }
                 if let Some(tokens) = self.tokens.get_mut(&account) {
                     tokens.access.clear();
@@ -3650,9 +3678,7 @@ impl MailApp {
         self.sweep_admin_consent();
         self.drop_secrets_if_replaced();
         // The mailbox the window started with: secrets kept the old way are filed under its servers.
-        if self.session.openings() == 0 && !self.unconfirmed {
-            self.migrate_secrets();
-        }
+        self.secrets_tick();
         self.poll_graph();
         self.drive_fetch();
         self.offline_tick();
@@ -4334,6 +4360,22 @@ fn feedback(id: &str, v: &Value) -> Option<String> {
     let n = |k: &str| v.get(k).and_then(Value::as_u64);
     match id {
         "compose.send" if v.get("queued").and_then(Value::as_bool) == Some(true) => Some(tl!("In the Outbox: it is on its way").to_string()),
+        // Mail put into a Microsoft account from elsewhere: Microsoft's server makes it without
+        // most of the original's headers, which is said rather than hidden (#451).
+        "mail.move" => n("intoMicrosoft").filter(|c| *c > 0).map(|c| {
+            tln!(
+                c,
+                "{n} message moved into the account: Send/Receive puts it on Microsoft's server, without most of its headers (such as Received)",
+                "{n} messages moved into the account: Send/Receive puts them on Microsoft's server, without most of their headers (such as Received)"
+            )
+        }),
+        "mail.copy" => n("intoMicrosoft").filter(|c| *c > 0).map(|c| {
+            tln!(
+                c,
+                "{n} message copied into the account: Send/Receive puts it on Microsoft's server, without most of its headers (such as Received)",
+                "{n} messages copied into the account: Send/Receive puts them on Microsoft's server, without most of their headers (such as Received)"
+            )
+        }),
         // A mailbox whose content folder lost something still opens; say how much is missing. A
         // mailbox file damaged part of the way opens as far as it can be read: that is said first.
         "file.open" => {
@@ -4396,10 +4438,19 @@ fn feedback(id: &str, v: &Value) -> Option<String> {
                 }
             }
             let what = parts.join(", ");
-            // Mail meant for a Microsoft account went to a local folder (R3 spec S30).
-            if v.get("local").and_then(Value::as_bool) == Some(true) {
+            // Mail meant for a Microsoft account went to a local folder (R3 spec S30); moved into
+            // the account from there, it is put on the server (#451). Drafts stay in their own
+            // mailbox, this computer's.
+            let local = v.get("local").and_then(Value::as_bool) == Some(true);
+            if local && v.get("drafts").and_then(Value::as_bool) == Some(true) {
                 return Some(i18n::fmt(
-                    tl!("Imported {what} into a local folder: Microsoft doesn't let a mail program put received mail into your mailbox"),
+                    tl!("Imported {what} into Drafts on this computer: a draft stays on this computer until it is sent"),
+                    &[("what", &what)],
+                ));
+            }
+            if local {
+                return Some(i18n::fmt(
+                    tl!("Imported {what} into a local folder: move it into the account to put it on Microsoft's server"),
                     &[("what", &what)],
                 ));
             }

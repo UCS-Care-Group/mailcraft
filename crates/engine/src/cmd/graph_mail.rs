@@ -401,6 +401,13 @@ pub fn apply_graph_mail(s: &mut Session, result: GraphMailResult) -> CmdResult {
         graph_down::take_page(&mut s.mailbox, &mut index, account, page, &mut down);
     }
     s.graph_index = index;
+    // A rule moved new mail out of the account (#567). An undo of a step from before goes back to
+    // a mailbox that never had it, and keeps only the Microsoft accounts' mail as it is now: once
+    // the server's copy is removed, the mail would be gone for good. Until an undo leaves alone
+    // what arrived after its step (#605), there is no going back past it.
+    if down.left > 0 {
+        s.forget_history();
+    }
     // (Not after a listing cut short: what left a folder may be in one it missed, #305.)
     if result.whole && !result.inbox_pass && !s.graph_listed_short.contains(&account) {
         graph_down::sweep(&mut s.mailbox, account, &mut down);
@@ -434,6 +441,9 @@ pub fn apply_graph_mail(s: &mut Session, result: GraphMailResult) -> CmdResult {
     let folders = result.progress.as_ref().map(|p| (p.number, p.folders));
     // (The Inbox pass is never the end of the account's part of the run.)
     let last = !result.partial && !result.inbox_pass;
+    if last {
+        errors.extend(super::graph_place::unreadable_waiting(s, account));
+    }
     let piece = Piece { step, folders, new: down.new, sent, problems: &errors, last, stopped: result.stopped, timings: Some(&result.timings) };
     s.sync_progress.take(account, piece);
     // Full messages: counting them goes through every message, so a run's pages are counted at
@@ -527,6 +537,7 @@ fn change_done(mb: &mut Mailbox, account: Id, change: &FolderChange, outcome: &C
                 parent: there.parent.clone(),
                 delta: String::new(),
                 caught_up: false,
+                round_ended: false,
                 counts: None,
             });
             taken.pushed += 1;
@@ -618,6 +629,9 @@ pub(super) fn take_listing(mb: &mut Mailbox, account: Id, listing: &FolderListin
             .map(|f| f.id)
             .collect();
         taken.removed += gone.len();
+        // Mail moved in that the server wasn't given yet isn't in the folder there: it goes back
+        // to where it came from, not with the folder (#451).
+        super::graph_place::put_back_waiting(mb, |mb, a, message| a == account && mb.message(message).is_some_and(|m| gone.contains(&m.folder)));
         mb.remove_folders(&gone);
         taken.removed += super::graph_switch::sweep_unlisted(mb, account);
     }
@@ -695,6 +709,7 @@ fn update(mb: &mut Mailbox, id: Id, there: &GraphFolder, name: &str, parent_here
         parent: there.parent.clone(),
         delta: last.delta,
         caught_up: last.caught_up,
+        round_ended: last.round_ended,
         counts: last.counts,
     });
     *f != before

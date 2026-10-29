@@ -151,6 +151,9 @@ pub fn size_label_in(lang: mailcraft_i18n::Lang, bytes: u64) -> String {
     mailcraft_i18n::fmt(template, &[("n", &n.to_string()), ("tenth", &tenth.to_string())])
 }
 
+/// The most text of what a sender hid ([`Message::hidden_text`]) that is kept, in bytes.
+pub const MAX_HIDDEN_TEXT: usize = 16 * 1024;
+
 /// A message body. `text` is always there (readers derive it from the HTML when a message has no
 /// plain part); `html` is the original HTML when the message has one.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -187,6 +190,14 @@ pub struct Message {
     /// When it arrived here.
     pub received: Timestamp,
     pub body: Body,
+    /// The words of what the sender hid in the HTML (`display:none`, a style sheet's
+    /// `visibility:hidden`, a font size of nothing: preheaders, the other copy of a desktop and
+    /// mobile pair), as one line of at most 16 KB. It is not in `body.text` and is never shown,
+    /// quoted in a reply or sent: it is for the owner's search, rules and agents, who read it as
+    /// data, never as instructions. Empty for a message read before it was kept, until the
+    /// message is read again from its source.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub hidden_text: String,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub attachments: Vec<Attachment>,
     pub read: bool,
@@ -252,6 +263,18 @@ pub struct Message {
     /// whole and the mailbox file holding it is saved. `None` for every other message.
     #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
     pub moving_out: Option<MovingOut>,
+    /// Put back as its server's message when a copy of it in another account was refused (#451):
+    /// how many more times that server is to list its folder with it still there before it is
+    /// the server's message as any other ([`RETURNED_LISTINGS`] at first, since the first listing
+    /// may have been asked for before it was put back). Should the server say meanwhile that it
+    /// is gone (deleted elsewhere), it is kept on this computer instead of going with it.
+    #[serde(skip_serializing_if = "none_left")]
+    pub returned: u8,
+    /// The marker of the copy of it put on its account's IMAP server from elsewhere, while that
+    /// server hasn't said where the copy is (#451): only a message there that carries it is
+    /// taken for that copy. Empty for every other message.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub placed: String,
     /// The server's copy was gone before it could be fetched: only the headers and preview it
     /// had are here, kept as they are, and nothing will fetch the rest (R3 spec S19).
     #[serde(skip_serializing_if = "is_false")]
@@ -295,6 +318,14 @@ pub struct Answers {
     pub also: Vec<Answers>,
 }
 
+/// How many listings of its folder a message put back after a refused copy waits for
+/// ([`Message::returned`]).
+pub const RETURNED_LISTINGS: u8 = 2;
+
+fn none_left(n: &u8) -> bool {
+    *n == 0
+}
+
 fn is_false(b: &bool) -> bool {
     !*b
 }
@@ -307,6 +338,9 @@ fn is_false(b: &bool) -> bool {
 pub struct KeptBody {
     pub text: Option<ContentRef>,
     pub html: Option<ContentRef>,
+    /// The words the sender hid ([`Message::hidden_text`]) when they are over the size kept in
+    /// the mailbox file (#599): `hidden_text` is empty until they are brought in with the body.
+    pub hidden: Option<ContentRef>,
     /// Bringing it in was tried and failed (the file is missing or damaged): the text says so,
     /// and nothing tries again until the mailbox is opened anew.
     pub failed: bool,
@@ -317,7 +351,7 @@ pub struct KeptBody {
 
 impl KeptBody {
     pub fn is_empty(&self) -> bool {
-        self.text.is_none() && self.html.is_none()
+        self.text.is_none() && self.html.is_none() && self.hidden.is_none()
     }
 
     /// Whether `text` is the text the mailbox was opened with.
@@ -327,7 +361,7 @@ impl KeptBody {
 
     /// How many bytes the kept text and HTML come to.
     pub fn len(&self) -> u64 {
-        self.text.map_or(0, |r| r.len).saturating_add(self.html.map_or(0, |r| r.len))
+        self.text.map_or(0, |r| r.len).saturating_add(self.html.map_or(0, |r| r.len)).saturating_add(self.hidden.map_or(0, |r| r.len))
     }
 }
 
@@ -407,16 +441,20 @@ impl Message {
             Some(h) => h.len() as u64,
             None => kept.and_then(|k| k.html).map_or(0, |r| r.len),
         };
-        self.attachments.iter().map(|a| a.size() as u64).fold(text.saturating_add(html), u64::saturating_add)
+        let hidden = if self.hidden_text.is_empty() { kept.and_then(|k| k.hidden).map_or(0, |r| r.len) } else { self.hidden_text.len() as u64 };
+        self.attachments.iter().map(|a| a.size() as u64).fold(text.saturating_add(html).saturating_add(hidden), u64::saturating_add)
     }
 
     /// Whether some of the body is kept outside memory and not brought in yet ([`Message::kept`]):
     /// its text is empty, or its HTML missing, until it is. Not so once bringing it in failed
     /// (the text says so then).
     pub fn body_is_kept(&self) -> bool {
-        self.kept
-            .as_ref()
-            .is_some_and(|k| !k.failed && ((k.text.is_some() && self.body.text.is_empty()) || (k.html.is_some() && self.body.html.is_none())))
+        self.kept.as_ref().is_some_and(|k| {
+            !k.failed
+                && ((k.text.is_some() && self.body.text.is_empty())
+                    || (k.html.is_some() && self.body.html.is_none())
+                    || (k.hidden.is_some() && self.hidden_text.is_empty()))
+        })
     }
 
     /// Whether everything of the message is in memory: its body and every attachment.

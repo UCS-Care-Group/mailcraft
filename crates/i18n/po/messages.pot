@@ -981,6 +981,11 @@ msgid "Ask again"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Ask before deleting a conversation"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/reading/remote.rs
 msgid "Ask before downloading pictures from this domain's senders again"
 msgstr ""
@@ -1695,6 +1700,11 @@ msgid "Closes this window. Nothing is kept."
 msgstr ""
 
 #. command label
+#: crates/engine/src/cmd/mail.rs
+msgid "Collapse Conversation"
+msgstr ""
+
+#. command label
 #: crates/ui-egui/src/lib.rs
 msgid "Collapse the Ribbon"
 msgstr ""
@@ -2075,6 +2085,11 @@ msgstr ""
 msgid "Delete Contact"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "Delete Conversation"
+msgstr ""
+
 #. command label, interface
 #: crates/engine/src/cmd/folder.rs crates/ui-egui/src/dialogs.rs
 msgid "Delete Folder"
@@ -2131,6 +2146,11 @@ msgid "Delete meeting requests from the Inbox after responding"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Delete on a conversation's row that takes more than one message asks first."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/forms.rs
 msgid "Delete this category"
 msgstr ""
@@ -2143,6 +2163,11 @@ msgstr ""
 #. name
 #: crates/model/src/mailbox.rs
 msgid "Deleted Items"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Deleting"
 msgstr ""
 
 #. interface
@@ -2283,6 +2308,16 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 msgid "Don't Send, Keep on This Computer"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "Don't ask again for these accounts"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "Don't ask again for this account"
 msgstr ""
 
 #. interface
@@ -2639,6 +2674,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "Everything the interface does is a command: {commands} of them, covering {percent}% of the feature catalog. The command line, the control channel and the MCP server run the same commands."
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/mail.rs
+msgid "Expand Conversation"
 msgstr ""
 
 #. command label
@@ -3277,6 +3317,11 @@ msgid "Hide the folder pane"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/mail_view.rs
+msgid "Hide the messages of this conversation"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/calendar_view.rs
 msgid "Hide this calendar"
 msgstr ""
@@ -3438,7 +3483,12 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/lib.rs
-msgid "Imported {what} into a local folder: Microsoft doesn't let a mail program put received mail into your mailbox"
+msgid "Imported {what} into Drafts on this computer: a draft stays on this computer until it is sent"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+msgid "Imported {what} into a local folder: move it into the account to put it on Microsoft's server"
 msgstr ""
 
 #. interface
@@ -3674,6 +3724,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 msgid "Its mail is kept in step through Microsoft Graph, without mail servers"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "Its messages in other folders stay where they are."
 msgstr ""
 
 #. interface
@@ -4026,11 +4081,6 @@ msgstr ""
 msgid "Mail can't be imported into an Outbox: it would be sent. Choose another folder."
 msgstr ""
 
-#. what a command says
-#: crates/model/src/mailbox.rs
-msgid "Mail can't be moved or copied into a Microsoft account from another account or a local folder yet: this version can't put a message on Microsoft's server"
-msgstr ""
-
 #. interface
 #: crates/ui-egui/src/folder_properties.rs
 msgid "Mail folder"
@@ -4039,6 +4089,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/folder_properties.rs
 msgid "Mail folder: the account's {folder}"
+msgstr ""
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+msgid "Mail from another mailbox can't go into an Outbox: the next Send/Receive would send it"
 msgstr ""
 
 #. interface
@@ -4456,11 +4511,6 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "Microsoft application ID"
-msgstr ""
-
-#. what a command says
-#: crates/model/src/mailbox.rs
-msgid "Microsoft doesn't let a mail program put received mail into your mailbox; it stays in a local folder."
 msgstr ""
 
 #. name
@@ -7335,6 +7385,11 @@ msgid "Show the folder pane"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/mail_view.rs
+msgid "Show the messages of this conversation"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/reading/remote.rs
 msgid "Show this message's pictures, this once. Whoever sent it can then tell that you opened it."
 msgstr ""
@@ -8233,6 +8288,11 @@ msgid "The contacts you picked"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "The conversations' messages in other folders stay where they are."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/forms.rs
 msgid "The day after"
 msgstr ""
@@ -8846,6 +8906,48 @@ msgstr ""
 #: crates/ui-egui/src/report_problem.rs
 msgid "This copy of MailCraft has no address to send reports to."
 msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "This deletes the conversation from {folder}: its {n} message there goes to Deleted Items."
+msgid_plural "This deletes the conversation from {folder}: its {n} messages there go to Deleted Items."
+msgstr[0] ""
+msgstr[1] ""
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "This deletes the {n} message of this conversation that is listed here. It goes to Deleted Items."
+msgid_plural "This deletes the {n} messages of this conversation that are listed here. They go to Deleted Items."
+msgstr[0] ""
+msgstr[1] ""
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "This deletes {n} message in {folder}, every message of the conversation there included. It goes to Deleted Items."
+msgid_plural "This deletes {n} messages in {folder}, every message of the conversation there included. They go to Deleted Items."
+msgstr[0] ""
+msgstr[1] ""
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "This deletes {n} message in {folder}, every message of the conversations there included. It goes to Deleted Items."
+msgid_plural "This deletes {n} messages in {folder}, every message of the conversations there included. They go to Deleted Items."
+msgstr[0] ""
+msgstr[1] ""
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "This deletes {n} message, including the conversation's messages listed here. It goes to Deleted Items."
+msgid_plural "This deletes {n} messages, including the conversation's messages listed here. They go to Deleted Items."
+msgstr[0] ""
+msgstr[1] ""
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "This deletes {n} message, including the conversations' messages listed here. It goes to Deleted Items."
+msgid_plural "This deletes {n} messages, including the conversations' messages listed here. They go to Deleted Items."
+msgstr[0] ""
+msgstr[1] ""
 
 #. name
 #: crates/ui-egui/src/account_setup.rs
@@ -10176,6 +10278,11 @@ msgid "a rule can't move mail to an Outbox: that would send it"
 msgstr ""
 
 #. what a command says
+#: crates/engine/src/cmd/account.rs
+msgid "a shared mailbox asks before deleting a conversation as the account it is opened through does: change that account's"
+msgstr ""
+
+#. what a command says
 #: crates/model/src/mailbox.rs
 msgid "a shared mailbox can't open another one: name the account it is opened through"
 msgstr ""
@@ -10284,6 +10391,11 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/import_tree.rs
 msgid "cancelled"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/mail.rs
+msgid "close a conversation first: each of the 1,000 open has a message selected"
 msgstr ""
 
 #. what a command says
@@ -10575,7 +10687,7 @@ msgid "no event with id {id}"
 msgstr ""
 
 #. what a command says
-#: crates/engine/src/cmd/folder.rs
+#: crates/engine/src/cmd/folder.rs crates/engine/src/cmd/mail.rs
 msgid "no folder \"{path}\""
 msgstr ""
 
@@ -10779,6 +10891,11 @@ msgstr ""
 msgid "select a contact first"
 msgstr ""
 
+#. why a command can't run
+#: crates/engine/src/cmd/mail.rs
+msgid "select a conversation in conversation view first"
+msgstr ""
+
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/tasks.rs
 msgid "select a message first"
@@ -10877,6 +10994,16 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs
 msgid "the contact is gone"
+msgstr ""
+
+#. why a command can't run
+#: crates/engine/src/cmd/mail.rs
+msgid "the conversation is closed"
+msgstr ""
+
+#. why a command can't run
+#: crates/engine/src/cmd/mail.rs
+msgid "the conversation is open"
 msgstr ""
 
 #. interface
@@ -11879,6 +12006,13 @@ msgstr[0] ""
 msgstr[1] ""
 
 #. interface
+#: crates/ui-egui/src/lib.rs
+msgid "{n} message copied into the account: Send/Receive puts it on Microsoft's server, without most of its headers (such as Received)"
+msgid_plural "{n} messages copied into the account: Send/Receive puts them on Microsoft's server, without most of their headers (such as Received)"
+msgstr[0] ""
+msgstr[1] ""
+
+#. interface
 #: crates/ui-egui/src/reading.rs
 msgid "{n} message in this conversation:"
 msgid_plural "{n} messages in this conversation:"
@@ -11896,6 +12030,13 @@ msgstr[1] ""
 #: crates/ui-egui/src/forms.rs
 msgid "{n} message matched"
 msgid_plural "{n} messages matched"
+msgstr[0] ""
+msgstr[1] ""
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+msgid "{n} message moved into the account: Send/Receive puts it on Microsoft's server, without most of its headers (such as Received)"
+msgid_plural "{n} messages moved into the account: Send/Receive puts them on Microsoft's server, without most of their headers (such as Received)"
 msgstr[0] ""
 msgstr[1] ""
 

@@ -55,7 +55,7 @@ fn has_imap_microsoft(s: &Session) -> Option<&'static str> {
 pub fn waiting(s: &Session, account: Id) -> usize {
     let mb = &s.mailbox;
     let outbox = mb.folder_of_kind(account, FolderKind::Outbox).map_or(0, |f| mb.messages_in(f).filter(|m| m.held.is_empty()).count());
-    outbox.saturating_add(super::account::unpushed(s, account))
+    outbox.saturating_add(left_behind(s, account))
 }
 
 fn graph_switch(s: &mut Session, v: &Value) -> CmdResult {
@@ -110,9 +110,10 @@ fn graph_switch(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 /// How many changes made in `account` would never reach its IMAP server if it switched now
-/// (flags, moves and deletions not pushed); the Outbox isn't among them, it goes through Graph.
+/// (flags, moves and deletions not pushed, and the originals of mail moved out of it that wait to
+/// go, #451); the Outbox isn't among them, it goes through Graph.
 pub fn left_behind(s: &Session, account: Id) -> usize {
-    super::account::unpushed(s, account)
+    super::account::unpushed(s, account).saturating_add(super::account::originals_waiting(s, account))
 }
 
 /// Write the whole mailbox, as it is now, as one file beside the mailbox file, with today's date
