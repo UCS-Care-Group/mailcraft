@@ -468,6 +468,7 @@ pub fn take_fetched_as(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, i
         m.date = read.date;
     }
     m.body = read.body;
+    m.hidden_text = read.hidden_text;
     m.attachments = read.attachments;
     m.headers = read.headers;
     // What it is now is all of it: nothing the mailbox kept on disk of its preview is its body.

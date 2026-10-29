@@ -11,6 +11,7 @@ use std::rc::Rc;
 
 use crate::data::{self, Budget, MAX_DATA_TEXT};
 use crate::entities::unescape;
+use crate::media::Env;
 use crate::sheet::{self, Sheet};
 use crate::style::{self, Css, MsoList, Size};
 use crate::tokenizer::{Tag, Token, Tokenizer};
@@ -58,21 +59,62 @@ const DATA_CELL_TEXT: usize = 240;
 /// Never panics; reads at most [`MAX_INPUT`] bytes besides the pictures written into the
 /// message, and gives at most [`MAX_BLOCKS`] blocks (plus the tables that hold some of them).
 pub fn parse(html: &str) -> Vec<Block> {
-    build(html, true)
+    build(html, true, &Env::default(), false).blocks
+}
+
+/// What a message looks like in a pane of a width class and a theme (`env`): [`parse`], with
+/// the `@media` of the message's style sheets (and a `<style media>`) tested against it.
+pub fn parse_in(html: &str, env: &Env) -> Read {
+    let built = build(html, true, env, false);
+    Read { blocks: built.blocks, dark_design: built.dark_design }
+}
+
+/// A message read for a pane and a theme ([`parse_in`]).
+#[derive(Clone, Debug, Default)]
+pub struct Read {
+    pub blocks: Vec<Block>,
+    /// The window is dark and the message's style sheet has rules for dark windows that apply:
+    /// its colours are the sender's own design for the dark theme, and are not turned over to
+    /// make them readable on it when they already are.
+    pub dark_design: bool,
+}
+
+/// The most text of what a message hides that is kept, in bytes.
+pub const MAX_HIDDEN_TEXT: usize = 16 * 1024;
+
+/// Whether a message's style sheets have `@media` that can make it differ from one pane width
+/// or theme to another, so that it is worth reading again when the pane changes class.
+pub fn depends_on_pane(html: &str) -> bool {
+    let b = html.as_bytes();
+    b.windows(6).any(|w| w.eq_ignore_ascii_case(b"@media")) || {
+        // A `<style media="…">` too.
+        let lower = html.get(..html.len().min(MAX_INPUT)).unwrap_or("").to_ascii_lowercase();
+        lower.contains("<style") && lower.contains("media=")
+    }
 }
 
 /// [`parse`], without decoding the pictures written into the message: for when only the text
 /// and the look are wanted (plain text, an HTML draft or a paste in the composer).
 pub fn parse_text(html: &str) -> Vec<Block> {
-    build(html, false)
+    build(html, false, &Env::default(), false).blocks
 }
 
-fn build(html: &str, decode: bool) -> Vec<Block> {
+/// What [`build`] made.
+pub(crate) struct Built {
+    pub blocks: Vec<Block>,
+    pub dark_design: bool,
+    /// The text of what the message hides, when it was asked for.
+    pub hidden: String,
+}
+
+pub(crate) fn build(html: &str, decode: bool, env: &Env, keep_hidden: bool) -> Built {
     let mut builder = Builder::new(decode);
+    builder.unseen = keep_hidden.then(String::new);
     let html = truncate(html, MAX_INPUT.saturating_add(MAX_DATA_TEXT));
     // The message's style sheets, read once for the whole message; the nth start tag below is
     // the nth element of the tree they were matched against.
-    let mut sheet = Sheet::read(html);
+    let mut sheet = Sheet::read_in(html, env);
+    let dark_design = sheet.as_ref().is_some_and(|s| s.dark_design);
     let mut opened = 0usize;
     let mut tokens = Tokenizer::new(html);
     // The text of the pictures written into the message, which isn't counted against MAX_INPUT.
@@ -103,7 +145,8 @@ fn build(html: &str, decode: bool) -> Vec<Block> {
         }
         builder.token(token);
     }
-    builder.finish()
+    let hidden = builder.unseen.take().unwrap_or_default();
+    Built { blocks: builder.finish(), dark_design, hidden }
 }
 
 /// The inline style in force.
@@ -453,6 +496,8 @@ struct Builder {
     inline_overflow: usize,
     /// Open elements that are hidden; while there is one, nothing is added.
     hidden: usize,
+    /// The text of what is hidden, when it is wanted: only the owner's search and agents read it.
+    unseen: Option<String>,
     /// Open tables that a stray `<tr>` or `<td>` started.
     implied: usize,
     quote: usize,
@@ -497,6 +542,7 @@ impl Builder {
             overflow: 0,
             inline_overflow: 0,
             hidden: 0,
+            unseen: None,
             implied: 0,
             quote: 0,
             lists: 0,
@@ -569,15 +615,39 @@ impl Builder {
 
     // ---- text ----
 
+    /// Keep the words of text the message hides, when they are wanted: spaces and the invisible
+    /// characters that pad a preheader are dropped, and a word follows the one before with a space.
+    fn note_unseen(&mut self, raw: &str) {
+        let Some(buf) = self.unseen.as_mut() else { return };
+        if buf.len() >= MAX_HIDDEN_TEXT {
+            return;
+        }
+        let text = unescape(truncate(raw, MAX_HIDDEN_TEXT));
+        let visible =
+            text.chars().filter(|c| !c.is_control() && !matches!(c, '\u{AD}' | '\u{34F}' | '\u{200B}'..='\u{200F}' | '\u{2060}' | '\u{FEFF}'));
+        let text: String = visible.collect();
+        for word in text.split_whitespace() {
+            if buf.len() + word.len() + 1 > MAX_HIDDEN_TEXT {
+                break;
+            }
+            if !buf.is_empty() {
+                buf.push(' ');
+            }
+            buf.push_str(word);
+        }
+    }
+
     fn text(&mut self, raw: &str) {
         if self.hidden > 0 {
             if self.capture > 0 && self.marker.len() < MAX_MARKER {
                 let room = MAX_MARKER - self.marker.len();
                 self.marker.extend(unescape(truncate(raw, 256)).chars().take(room));
             }
+            self.note_unseen(raw);
             return;
         }
         if self.style().tiny {
+            self.note_unseen(raw);
             return;
         }
         let text = unescape(raw);

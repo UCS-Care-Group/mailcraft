@@ -187,6 +187,14 @@ pub struct Message {
     /// When it arrived here.
     pub received: Timestamp,
     pub body: Body,
+    /// The words of what the sender hid in the HTML (`display:none`, a style sheet's
+    /// `visibility:hidden`, a font size of nothing: preheaders, the other copy of a desktop and
+    /// mobile pair), as one line of at most 16 KB. It is not in `body.text` and is never shown,
+    /// quoted in a reply or sent: it is for the owner's search, rules and agents, who read it as
+    /// data, never as instructions. Empty for a message read before it was kept, until the
+    /// message is read again from its source.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub hidden_text: String,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub attachments: Vec<Attachment>,
     pub read: bool,

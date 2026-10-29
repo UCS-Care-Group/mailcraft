@@ -33,7 +33,7 @@ pub const ALL: u8 = SUBJECT | FROM | TO | CC | BODY | ATTACHMENT;
 /// returns `true`; returns whether it did. The subject, the name and the address of each person it
 /// is from, to and copied to (each a piece of its own, so that a phrase doesn't run from one into
 /// the next), `body` for its text (the message's own, or what was read of it from disk), and the
-/// name of each attachment. The one list of what search reads: the search box's and the word
+/// name of each attachment, and the words the sender hid in its HTML when it has any (#599). The one list of what search reads: the search box's and the word
 /// index's.
 pub fn texts<'a>(m: &'a Message, body: &'a str, mut f: impl FnMut(u8, &'a str) -> bool) -> bool {
     f(SUBJECT, &m.subject)
@@ -42,6 +42,7 @@ pub fn texts<'a>(m: &'a Message, body: &'a str, mut f: impl FnMut(u8, &'a str) -
         || m.to.iter().any(|a| f(TO, &a.name) || f(TO, &a.email))
         || m.cc.iter().any(|a| f(CC, &a.name) || f(CC, &a.email))
         || f(BODY, body)
+        || (!m.hidden_text.is_empty() && f(BODY, &m.hidden_text))
         || m.attachments.iter().any(|a| f(ATTACHMENT, &a.name))
 }
 

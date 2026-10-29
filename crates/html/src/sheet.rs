@@ -32,6 +32,7 @@
 use std::collections::HashMap;
 use std::rc::Rc;
 
+use crate::media::{self, Env};
 use crate::style::Css;
 
 use crate::tokenizer::{Tag, Token, Tokenizer};
@@ -1091,11 +1092,42 @@ fn read_declaration(text: &str, out: &mut Vec<Decl>) {
     out.push(Decl { property, value: value.to_string(), important });
 }
 
-/// The rules of a style sheet, at most [`MAX_RULES`], from at most [`MAX_SHEET`] bytes.
+/// What reading the media queries of a sheet came to.
+#[derive(Debug, Default)]
+pub(crate) struct Media {
+    /// Media lists tested so far, against [`media::MAX_LISTS`].
+    lists: usize,
+    /// A block for the dark theme applies, and added rules: the sender designed this for a dark window.
+    pub dark: bool,
+}
+
+/// The rules of a style sheet for a wide pane in the light theme, at most [`MAX_RULES`], from at
+/// most [`MAX_SHEET`] bytes.
 pub(crate) fn rules(text: &str) -> Vec<Rule> {
-    let text = truncate(text, MAX_SHEET);
+    rules_in(text, &Env::default(), &mut Media::default())
+}
+
+/// The rules of a style sheet that hold for `env`: those outside `@media`, and those inside a
+/// block whose media queries are true for it. At most [`MAX_RULES`], from at most [`MAX_SHEET`] bytes.
+pub(crate) fn rules_in(text: &str, env: &Env, media: &mut Media) -> Vec<Rule> {
+    let mut out = Vec::new();
+    read_rules(truncate(text, MAX_SHEET), env, media, 1, &mut out);
+    out
+}
+
+/// The text after `@media`, when the at-rule's prelude is one.
+fn media_prelude(prelude: &str) -> Option<&str> {
+    let rest = prelude.get(..6).filter(|name| name.eq_ignore_ascii_case("@media")).and_then(|_| prelude.get(6..))?;
+    // `@media(…)` and `@media screen`, not `@mediaquery`.
+    match rest.bytes().next() {
+        Some(c) if c.is_ascii_alphanumeric() || c == b'-' || c == b'_' => None,
+        _ => Some(rest),
+    }
+}
+
+/// Read the rules in `text` into `out`; `level` is how many `@media` blocks deep this text is, from 1.
+fn read_rules(text: &str, env: &Env, media: &mut Media, level: usize, out: &mut Vec<Rule>) {
     let b = text.as_bytes();
-    let mut out: Vec<Rule> = Vec::new();
     let mut i = 0;
     while i < b.len() && out.len() < MAX_RULES {
         i = skip_trivia(b, i);
@@ -1103,11 +1135,27 @@ pub(crate) fn rules(text: &str) -> Vec<Rule> {
             None => break,
             Some(b'}') => i += 1,
             Some(b'@') => {
-                // An at-rule: `@import`, `@charset` and the rest end at a `;`; `@media`,
-                // `@font-face`, `@keyframes`, `@supports` have a block. None is read here.
+                // An at-rule: `@import`, `@charset` and the rest end at a `;`; `@font-face`,
+                // `@keyframes` and `@supports` have a block, which is skipped. `@media` has one
+                // whose rules count when its queries hold for `env`.
                 match scan_to(b, i, b";{") {
                     None => break,
-                    Some(end) if b.get(end) == Some(&b'{') => i = block_end(b, end) + 1,
+                    Some(end) if b.get(end) == Some(&b'{') => {
+                        let close = block_end(b, end);
+                        if let Some(list) = media_prelude(text.get(i..end).unwrap_or(""))
+                            && level <= media::MAX_NESTING
+                            && media.lists < media::MAX_LISTS
+                        {
+                            media.lists += 1;
+                            let verdict = media::test(list, env);
+                            if verdict.holds {
+                                let before = out.len();
+                                read_rules(text.get(end + 1..close).unwrap_or(""), env, media, level + 1, out);
+                                media.dark |= verdict.dark && out.len() > before;
+                            }
+                        }
+                        i = close + 1;
+                    }
                     Some(end) => i = end + 1,
                 }
             }
@@ -1134,7 +1182,6 @@ pub(crate) fn rules(text: &str) -> Vec<Rule> {
             }
         }
     }
-    out
 }
 
 // ---- matching ----
@@ -1277,6 +1324,8 @@ pub(crate) struct Sheet {
     /// Per element, what its ancestors have (empty when no rule asks for ancestors).
     blooms: Vec<Bloom>,
     steps_left: u32,
+    /// A block of the sheet for the dark theme applies: the sender designed this for a dark window.
+    pub dark_design: bool,
     /// What the message was given to spend.
     #[cfg(test)]
     budget: u32,
@@ -1340,6 +1389,12 @@ impl Sheet {
     /// The sheet of a message, when it has any rules. Reads `html` once to find its `<style>`
     /// blocks and to keep the shape of its elements.
     pub fn read(html: &str) -> Option<Sheet> {
+        Sheet::read_in(html, &Env::default())
+    }
+
+    /// The same for a pane and a theme: the rules in `@media` blocks, and in a `<style media>`,
+    /// that are true for `env` count, and the rest are left out.
+    pub fn read_in(html: &str, env: &Env) -> Option<Sheet> {
         if !has_style(html.as_bytes()) {
             return None;
         }
@@ -1350,8 +1405,9 @@ impl Sheet {
         let mut template = 0usize;
         let mut capped = false;
         let mut take = |tokens: &mut Tokenizer<'_>, template: usize| {
-            for css in std::mem::take(&mut tokens.styles) {
-                if template == 0 {
+            for (media, css) in std::mem::take(&mut tokens.styles) {
+                // (A `<style media>` that is not for this pane is not read.)
+                if template == 0 && media::test(&media, env).holds {
                     let room = MAX_SHEET.saturating_sub(text.len());
                     text.push_str(truncate(css, room));
                     text.push('\n');
@@ -1385,7 +1441,8 @@ impl Sheet {
         }
         // (A style at the very end has no token after it.)
         take(&mut tokens, template);
-        let rules = rules(&text);
+        let mut queried = Media::default();
+        let rules = rules_in(&text, env, &mut queried);
         if rules.is_empty() {
             return None;
         }
@@ -1404,6 +1461,7 @@ impl Sheet {
             dom,
             blooms: Vec::new(),
             steps_left: steps_for(html.len()),
+            dark_design: queried.dark,
             #[cfg(test)]
             budget: steps_for(html.len()),
             #[cfg(test)]
@@ -1585,3 +1643,6 @@ fn has_style(b: &[u8]) -> bool {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod media_tests;

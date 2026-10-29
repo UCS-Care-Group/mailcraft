@@ -129,6 +129,8 @@ pub(crate) mod b64 {
 #[cfg(test)]
 mod calendar_rights_tests;
 #[cfg(test)]
+mod hidden_text_tests;
+#[cfg(test)]
 mod junk_tests;
 #[cfg(test)]
 mod mailbox_tests;

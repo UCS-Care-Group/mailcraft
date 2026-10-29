@@ -57,10 +57,13 @@ pub fn parse(bytes: &[u8]) -> Message {
     read_headers(&headers, &mut message);
     let mut walk = Walk::default();
     walk.part(&headers, body, 0, Parent::None);
-    message.body.text = match (walk.text, &walk.html) {
-        (Some(text), Some(html)) if text.trim().is_empty() => mailcraft_html::to_text(html),
+    // The HTML is read once: its text (when there is no plain part to use) and the words it hides.
+    let (html_text, hidden) = walk.html.as_deref().map(mailcraft_html::text_and_hidden).unzip();
+    message.hidden_text = hidden.unwrap_or_default();
+    message.body.text = match (walk.text, html_text) {
+        (Some(text), Some(html)) if text.trim().is_empty() => html,
         (Some(text), _) => text,
-        (None, Some(html)) => mailcraft_html::to_text(html),
+        (None, Some(html)) => html,
         (None, None) => String::new(),
     };
     message.body.html = walk.html;

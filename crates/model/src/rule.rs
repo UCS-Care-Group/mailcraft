@@ -25,7 +25,7 @@ impl Condition {
             Condition::FromContains(t) => contains_ci(&m.from.name, t) || contains_ci(&m.from.email, t),
             Condition::ToContains(t) => m.to.iter().chain(&m.cc).any(|a| contains_ci(&a.name, t) || contains_ci(&a.email, t)),
             Condition::SubjectContains(t) => contains_ci(&m.subject, t),
-            Condition::BodyContains(t) => contains_ci(&m.body.text, t),
+            Condition::BodyContains(t) => contains_ci(&m.body.text, t) || contains_ci(&m.hidden_text, t),
             Condition::HasAttachment => m.has_attachments(),
             Condition::Importance(i) => m.importance == *i,
         }

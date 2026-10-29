@@ -3616,8 +3616,9 @@ fn pictures_that_arrive_and_a_new_width_keep_what_is_selected() {
     harness.run_steps(16);
     assert_eq!(shown(&harness, id), (8, 0, 0));
     assert_eq!((selection(&harness, Place::Pane), copy_key(&mut harness)), (taken, Some(text.clone())));
-    // So are they at another width, where the lines break elsewhere.
-    harness.set_size(egui::vec2(820.0, 1600.0));
+    // So are they at another width, where the lines break elsewhere. (A width on the same side of
+    // the newsletter's 600 px `@media`: across it the look is another, and nothing goes over.)
+    harness.set_size(egui::vec2(1500.0, 1600.0));
     harness.run_steps(6);
     assert_eq!((selection(&harness, Place::Pane), copy_key(&mut harness)), (taken, Some(text)));
     // All of it, with and without its pictures: their descriptions are copied only while they
@@ -3768,6 +3769,7 @@ fn the_selection_commands_take_anything_and_never_panic() {
 mod invitation;
 mod primary;
 mod remote_server;
+mod responsive;
 mod written_pictures;
 
 /// The original under a reply to HTML mail is laid out as the reading pane lays it out (its
