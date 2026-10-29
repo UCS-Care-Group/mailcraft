@@ -262,6 +262,15 @@ fn a_box_with_anything_else_in_its_block_is_drawn_in_the_line_as_it_was() {
         format!("<p>{a}A</a><br>after</p>"),
         format!("<div>{b}{picture}</div>"),
         format!("<div>{picture}{b}</div>"),
+        // A `<p>` that a block ends, and the box after it: the box is in the line of the text after it.
+        format!("<p>intro<div>x</div>{b} sale</p>"),
+        format!("<p>intro{table}{b} sale</p>"),
+        format!("<p>intro<h2>x</h2>{b} sale</p>"),
+        format!("<p>intro<ul><li>x</li></ul>{b} sale</p>"),
+        format!("<div><p>intro<div>x</div>{b} sale</p></div>"),
+        format!("<table><tr><td><p>intro<div>x</div>{b} sale</p></td></tr></table>"),
+        // A link that a link ends.
+        format!("<div>{a}A<a href='https://example.org/y'>B</a></a></div>"),
         // Where a holder is more than blocks of text: list items, headings, preformatted text,
         // quotes. A box would cost them their marker, their size or their line.
         format!("<ul><li>{b}</li><li>second</li></ul>"),
@@ -289,6 +298,11 @@ fn a_box_with_anything_else_in_its_block_is_drawn_in_the_line_as_it_was() {
         assert_eq!(found, as_before(&html), "{html}");
         assert!(boxes(&found).is_empty(), "{html}: {found:?}");
     }
+    // The box before the block that ends the paragraph is a box of its own; the one after is in its line.
+    let html = format!("<p>{a}A</a><div>x</div>{b} more</p>");
+    let found = parse(&html);
+    assert_eq!(boxes(&found).len(), 1, "{found:?}");
+    assert!(found.iter().any(|b| b.text() == "NEW more"), "{found:?}");
     // The gaps and the marks of those lines are the ones the text has.
     let blocks = parse(&format!("<ol><li>{b}&nbsp;</li><li>second</li></ol>"));
     let marks: Vec<_> =
@@ -334,6 +348,10 @@ fn a_holder_that_holds_boxes_and_nothing_else_makes_boxes() {
     assert_eq!(boxes(&blocks).len(), 3, "{blocks:?}");
     assert_eq!(boxes(&blocks).iter().map(|t| text_of(t)).collect::<Vec<_>>(), ["Home", "Orders", "Help"]);
     assert_eq!(blocks.iter().map(|b| b.beside).collect::<Vec<_>>(), [false, true, true]);
+    // Boxes that stand in one line come out in one line of text, as the words did.
+    let text = crate::to_text(&nav);
+    assert!(!text.trim().contains('\n'), "{text:?}");
+    assert_eq!(text, crate::to_text(&nav.replace("display:inline-block", "display:inline")));
     assert_eq!(boxes(&blocks).iter().map(|t| t.spaced).collect::<Vec<_>>(), [false, true, true]);
     // A row of buttons under a paragraph of its own, and with blocks after it, are boxes.
     assert_eq!(count(&format!("<div><p>Pick one</p>{a}Yes</a> {a}No</a><p>Thanks</p></div>")), 2);

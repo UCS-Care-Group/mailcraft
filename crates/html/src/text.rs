@@ -260,8 +260,13 @@ fn pieces_of(blocks: &[Block], quote: usize, out: &mut Vec<Piece>) {
     for block in blocks {
         let count = out.len();
         // What stands in the line of the block before goes on in its paragraph.
-        if block.beside && before.1 > before.0 && !matches!(block.kind, BlockKind::Table(_)) {
-            let body = block_body(block);
+        // (A box on a line stands in the line of the box before it, and its text goes on in that line.)
+        let box_beside = matches!(&block.kind, BlockKind::Table(t) if t.inline);
+        if block.beside && before.1 > before.0 && (box_beside || !matches!(block.kind, BlockKind::Table(_))) {
+            let body = match &block.kind {
+                BlockKind::Table(table) => table_text(table),
+                _ => block_body(block),
+            };
             if let Some(last) = out.last_mut().filter(|_| !body.is_empty()) {
                 last.body.push(' ');
                 last.body.push_str(&body);

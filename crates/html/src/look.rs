@@ -30,7 +30,7 @@ const MAX_TOKENS: usize = 8_192;
 /// Most that the looks of a message read together, in tokens and in sixteens of bytes of text.
 const MAX_LOOKED: usize = 1 << 20;
 
-/// Most start tags whose sheet rules are kept for the build that comes after.
+/// Most start tags whose sheet rules are kept, for the looks and the build that come after.
 const MAX_KEPT: usize = 16_384;
 
 /// Deepest nesting a look follows.
@@ -49,23 +49,33 @@ pub(crate) struct Holder {
 pub(crate) struct Look<'a> {
     html: &'a str,
     sheet: Option<Sheet>,
-    /// What the sheet said of start tags that a look read ahead of the build, by number.
+    /// What the sheet said of start tags, by number, once a look has been made.
     applied: HashMap<usize, Option<Rc<Applied>>>,
     verdicts: HashMap<usize, bool>,
     left: usize,
+    /// A look has been made.
+    looked: bool,
 }
 
 impl<'a> Look<'a> {
     pub fn new(html: &'a str) -> Look<'a> {
-        Look { html, sheet: Sheet::read(html), applied: HashMap::new(), verdicts: HashMap::new(), left: MAX_LOOKED }
+        Look { html, sheet: Sheet::read(html), applied: HashMap::new(), verdicts: HashMap::new(), left: MAX_LOOKED, looked: false }
     }
 
     /// Put what the sheet says about the `ordinal`th start tag on `tag`.
     pub fn apply(&mut self, ordinal: usize, tag: &mut Tag<'_>) {
         let Some(sheet) = self.sheet.as_mut() else { return };
-        tag.sheet = match self.applied.remove(&ordinal) {
-            Some(applied) => applied,
-            None => sheet.style_for(ordinal, tag.has("style")),
+        tag.sheet = match self.applied.get(&ordinal) {
+            Some(applied) => applied.clone(),
+            None => {
+                let applied = sheet.style_for(ordinal, tag.has("style"));
+                // Once a look has been made, what the sheet said is kept (within bounds), so a look
+                // behind the build does not spend the sheet's steps again.
+                if self.looked && self.applied.len() < MAX_KEPT {
+                    self.applied.insert(ordinal, applied.clone());
+                }
+                applied
+            }
         };
     }
 
@@ -80,6 +90,7 @@ impl<'a> Look<'a> {
     }
 
     fn read(&mut self, holder: &Holder) -> bool {
+        self.looked = true;
         let Some(rest) = self.html.get(holder.at.0..) else { return false };
         let tokens = Tokenizer::new(rest);
         let mut ordinal = holder.at.1;
@@ -121,6 +132,21 @@ impl<'a> Look<'a> {
                     }
                     ordinal = ordinal.saturating_add(1);
                     let name = tag.name.as_str();
+                    // What the build ends at this tag it ends here, in a box or out of one: a
+                    // `<p>` at a block, a link at a link.
+                    let ends = if ends_holder("p", name) {
+                        "p"
+                    } else if name == "a" {
+                        "a"
+                    } else {
+                        ""
+                    };
+                    if let Some(index) = open_at(&open, ends) {
+                        open.truncate(index);
+                        if skipping.is_some_and(|level| index <= level) {
+                            skipping = None;
+                        }
+                    }
                     if skipping.is_none() {
                         if ends_holder(holder.name, name) {
                             return true;
@@ -158,6 +184,19 @@ impl<'a> Look<'a> {
         // The input ended: so did the holder.
         true
     }
+}
+
+/// Where the nearest open element of this name is, short of a table: where the build finds it too.
+fn open_at(open: &[String], name: &str) -> Option<usize> {
+    for (index, open) in open.iter().enumerate().rev() {
+        if open == name {
+            return Some(index);
+        }
+        if matches!(open.as_str(), "td" | "th" | "tr" | "table") {
+            return None;
+        }
+    }
+    None
 }
 
 /// Text that is nothing to see: white space, no-break spaces and the zero-width characters.
