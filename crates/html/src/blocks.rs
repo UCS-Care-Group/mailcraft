@@ -596,8 +596,17 @@ impl Builder {
             return;
         }
         let text = unescape(raw);
-        if self.frame().after_box && text.contains([' ', '\t', '\n', '\r', '\x0C', '\u{a0}']) {
-            self.frame().box_space = true;
+        if self.frame().after_box {
+            // White space at the start of what follows a box is the gap after it; anywhere else it is
+            // not (`NEW, and more` has none).
+            for c in text.chars() {
+                if matches!(c, ' ' | '\t' | '\n' | '\r' | '\x0C' | '\u{a0}') {
+                    self.frame().box_space = true;
+                }
+                if !is_blank(c) {
+                    break;
+                }
+            }
         }
         if self.pre > 0 {
             let mut chars = text.chars().peekable();
@@ -681,14 +690,23 @@ impl Builder {
             span.background = span.background.or(cell.background);
         }
         self.fresh = true;
-        if spaced && self.pre == 0 {
+        if spaced && self.pre == 0 && !started {
             self.space();
         }
         true
     }
 
+    /// A list item that has had nothing written yet and begins with a box on its own: the box is
+    /// the item's first line, which has the item's marker (and its number), as any text would.
+    fn item_takes_box(&mut self) {
+        if self.frame().after_box && self.item.is_some() && self.line_is_blank() && self.demote_box(false) {
+            self.flush();
+        }
+    }
+
     /// The line a box may stand in ends: a block of another kind opens or closes.
     fn end_line(&mut self) {
+        self.item_takes_box();
         let frame = self.frame();
         frame.after_box = false;
         frame.box_space = false;
@@ -1189,7 +1207,7 @@ impl Builder {
             }
             Kind::Block(block) => {
                 self.flush();
-                self.frame().after_box = false;
+                self.end_line();
                 if block.mso {
                     self.item = None;
                     self.mso_item = false;
@@ -1855,6 +1873,9 @@ impl Builder {
         let inline = asks && name != "body" && blank_line && self.can_box(&css);
         if inline {
             self.frame().after_box = line_before;
+        } else if line_before && self.item.is_some() {
+            self.frame().after_box = true;
+            self.item_takes_box();
         }
         let margin_above = !inline && css.margin_top_zero.map_or(paragraph, |zero| !zero);
         let margin_below = !inline && css.margin_bottom_zero.map_or(paragraph, |zero| !zero);

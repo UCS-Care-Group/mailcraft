@@ -264,10 +264,10 @@ fn a_box_alone_in_a_block_does_not_follow_the_block_that_ends_into_the_next() {
     };
     // The next item, heading or paragraph is its own, whatever the box before it.
     let blocks = parse(&format!("<ul><li>{b}</li><li>second</li></ul>"));
-    assert_eq!(items(&blocks), [(Marker::Bullet, "second".to_string())], "{blocks:?}");
-    assert_eq!(boxes(&blocks).len(), 1);
+    assert_eq!(items(&blocks), [(Marker::Bullet, "NEW".to_string()), (Marker::Bullet, "second".to_string())], "{blocks:?}");
+    assert_eq!(boxes(&blocks).len(), 0);
     let blocks = parse(&format!("<ol><li>{b}</li><li>second</li></ol>"));
-    assert_eq!(items(&blocks), [(Marker::Number(2), "second".to_string())], "{blocks:?}");
+    assert_eq!(items(&blocks), [(Marker::Number(1), "NEW".to_string()), (Marker::Number(2), "second".to_string())], "{blocks:?}");
     let blocks = parse(&format!("<h2>{b}</h2><h3>sub</h3>"));
     assert!(blocks.iter().any(|b| b.kind == BlockKind::Heading(3) && b.text() == "sub"), "{blocks:?}");
     assert_eq!(boxes(&blocks).len(), 1);
@@ -275,17 +275,34 @@ fn a_box_alone_in_a_block_does_not_follow_the_block_that_ends_into_the_next() {
         (format!("<h2>{b}</h2>after heading"), "after heading"),
         (format!("<blockquote>{b}</blockquote>after quote"), "after quote"),
         (format!("<pre>{b}</pre>after pre"), "after pre"),
-        (format!("<ul><li>{b}</li></ul>after list"), "after list"),
     ] {
         let blocks = parse(&html);
         assert_eq!(texts(&blocks).last().map(String::as_str), Some(last), "{html}: {blocks:?}");
         assert_eq!(blocks.last().map(|b| (b.kind == BlockKind::Paragraph, b.quote)), Some((true, 0)), "{html}");
         assert_eq!(boxes(&blocks).len(), 1, "{html}");
     }
-    // Boxes in two items are in a line of their own each.
+    let blocks = parse(&format!("<ul><li>{b}</li></ul>after list"));
+    assert_eq!(items(&blocks), [(Marker::Bullet, "NEW".to_string())], "{blocks:?}");
+    assert_eq!(texts(&blocks).last().map(String::as_str), Some("after list"), "{blocks:?}");
+    // Boxes in two items are an item each, with a marker each.
     let blocks = parse(&format!("<ul><li>{b}</li><li>{b}</li></ul>"));
-    assert_eq!(boxes(&blocks).len(), 2, "{blocks:?}");
-    assert!(boxes(&blocks).len() == 2 && blocks.iter().all(|b| !b.beside), "{blocks:?}");
+    assert_eq!(items(&blocks), [(Marker::Bullet, "NEW".to_string()), (Marker::Bullet, "NEW".to_string())], "{blocks:?}");
+    assert!(blocks.iter().all(|b| !b.beside), "{blocks:?}");
+    // The marker belongs to the item's first line only.
+    for rest in ["<br>next line", "<div>x</div>"] {
+        let blocks = parse(&format!("<ul><li>{b}{rest}</li></ul>"));
+        assert_eq!(items(&blocks).iter().filter(|(m, _)| *m != Marker::None).count(), 1, "{rest}: {blocks:?}");
+        assert!(texts(&blocks).iter().any(|t| t.contains('x') || t.contains("next line")), "{rest}: {blocks:?}");
+    }
+    // Something that opens inside the line ends it: the box is the item's, the rest is not.
+    let blocks = parse(&format!("<ul><li>{b}<ul><li>nested</li></ul></li></ul>"));
+    assert_eq!(items(&blocks).iter().map(|(_, t)| t.as_str()).collect::<Vec<_>>(), ["NEW", "nested"], "{blocks:?}");
+    let blocks = parse(&format!("<p>{b}<ol><li>one</li></ol></p>"));
+    assert!(items(&blocks).contains(&(Marker::Number(1), "one".to_string())), "{blocks:?}");
+    assert!(!blocks.iter().any(|b| b.text().contains("NEWone")), "{blocks:?}");
+    // And text that follows the item's close does not join the box.
+    let blocks = parse(&format!("<ul><li>{b}</li>text between</ul>"));
+    assert!(blocks.iter().any(|b| b.text() == "text between"), "{blocks:?}");
     // A no-break space in front of the box, or between two, does not cost the item its marker.
     let blocks = parse(&format!("<ul><li>&nbsp;{b} text</li></ul>"));
     assert_eq!(blocks.len(), 1, "{blocks:?}");
@@ -379,4 +396,17 @@ fn boxes_share_a_line_only_when_nothing_ends_it_between_them() {
     assert_eq!(beside(&format!("<div>{d}\n{d}</div>")), [false, true]);
     assert_eq!(beside(&format!("{b}<br>{b}")), [false, false]);
     assert_eq!(beside(&format!("{b}<p>text</p>{b}")), [false, false]);
+}
+
+#[test]
+fn only_white_space_in_front_of_what_follows_a_box_is_a_gap() {
+    let b = "<span style='display:inline-block;padding:0 4px;background:#ffeeaa'>NEW</span>";
+    let texts = |html: &str| parse(html).iter().map(Block::text).collect::<Vec<_>>();
+    assert_eq!(texts(&format!("<p>{b}, and more</p>")), ["NEW, and more"]);
+    assert_eq!(texts(&format!("<p>{b}'s new</p>")), ["NEW's new"]);
+    assert_eq!(texts(&format!("<p><a href='https://example.org/'>{b}</a>after link</p>")), ["NEWafter link"]);
+    assert_eq!(texts(&format!("<p>{b} offer</p>")), ["NEW offer"]);
+    // One gap, not two, when the white space is a no-break space.
+    assert_eq!(texts(&format!("<p>{b}&nbsp;Summer sale</p>")), ["NEW\u{a0}Summer sale"]);
+    assert_eq!(texts(&format!("<p>{b} Summer sale</p>")), ["NEW Summer sale"]);
 }
