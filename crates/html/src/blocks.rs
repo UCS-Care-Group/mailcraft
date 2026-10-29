@@ -2062,23 +2062,17 @@ impl Builder {
     }
 
     fn end(&mut self, name: &str) {
+        let name = canon(name);
         match name {
-            "b" | "strong" => self.end_format("b"),
-            "i" | "em" => self.end_format("i"),
-            "cite" | "var" | "dfn" => self.end_format("cite"),
-            "u" | "ins" => self.end_format("u"),
-            "s" | "strike" | "del" => self.end_format("s"),
-            "code" | "tt" | "kbd" | "samp" => self.end_format("code"),
-            "small" | "big" | "mark" | "font" | "a" => self.end_format(name),
-            "sub" | "sup" => self.end_format("sub"),
+            "b" | "i" | "cite" | "u" | "s" | "code" | "sub" | "small" | "big" | "mark" | "font" | "a" => self.end_format(name),
             "span" | "label" | "abbr" | "acronym" | "q" | "time" | "bdi" | "bdo" | "data" | "nobr" => self.end_inline(name),
             // Browsers read `</br>` as `<br>`.
             "br" => self.line_break(),
-            "h1" | "h2" | "h3" | "h4" | "h5" | "h6" => self.end_structure(|k| matches!(k, Kind::Heading(_)), false),
-            "ul" | "ol" | "menu" | "dir" => self.end_structure(|k| matches!(k, Kind::List { .. }), false),
+            "h" => self.end_structure(|k| matches!(k, Kind::Heading(_)), false),
+            "ul" => self.end_structure(|k| matches!(k, Kind::List { .. }), false),
             "li" => self.end_structure(|k| matches!(k, Kind::Item(_)), true),
             "blockquote" => self.end_structure(|k| matches!(k, Kind::Quote { .. }), false),
-            "pre" | "xmp" | "listing" => self.end_structure(|k| matches!(k, Kind::Pre), false),
+            "pre" => self.end_structure(|k| matches!(k, Kind::Pre), false),
             "table" => self.end_table_tag(),
             "tr" => self.end_row_tag(),
             "td" | "th" => self.end_cell_tag(),
@@ -2271,6 +2265,24 @@ fn inline_name(name: &str) -> &'static str {
 }
 
 /// Elements that start on a new line and carry no meaning of their own here.
+/// The name the build keeps an element under: the end tag of any of the elements that are read as
+/// one closes the one that is open (`</b>` ends a `<strong>`, `</ol>` a `<ul>`, `</h3>` an `<h2>`).
+pub(crate) fn canon(name: &str) -> &str {
+    match name {
+        "strong" => "b",
+        "em" => "i",
+        "var" | "dfn" => "cite",
+        "ins" => "u",
+        "strike" | "del" => "s",
+        "tt" | "kbd" | "samp" => "code",
+        "sup" => "sub",
+        "h1" | "h2" | "h3" | "h4" | "h5" | "h6" => "h",
+        "ol" | "menu" | "dir" => "ul",
+        "xmp" | "listing" => "pre",
+        name => name,
+    }
+}
+
 pub(crate) fn block_name(name: &str) -> Option<&'static str> {
     const BLOCKS: [&str; 25] = [
         "p",

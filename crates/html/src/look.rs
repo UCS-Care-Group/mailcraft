@@ -17,7 +17,7 @@
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use crate::blocks::{block_name, css_of, has_box_look};
+use crate::blocks::{block_name, canon, css_of, has_box_look};
 use crate::entities::unescape;
 use crate::is_blank;
 use crate::sheet::{Applied, Sheet};
@@ -79,6 +79,12 @@ impl<'a> Look<'a> {
         };
     }
 
+    /// How many start tags' sheet rules are kept.
+    #[cfg(test)]
+    pub fn kept(&self) -> usize {
+        self.applied.len()
+    }
+
     /// Whether the holder holds nothing but boxes and white space.
     pub fn only_boxes(&mut self, holder: &Holder) -> bool {
         if let Some(verdict) = self.verdicts.get(&holder.id) {
@@ -134,14 +140,12 @@ impl<'a> Look<'a> {
                     let name = tag.name.as_str();
                     // What the build ends at this tag it ends here, in a box or out of one: a
                     // `<p>` at a block, a link at a link.
-                    let ends = if ends_holder("p", name) {
-                        "p"
-                    } else if name == "a" {
-                        "a"
-                    } else {
-                        ""
-                    };
-                    if let Some(index) = open_at(&open, ends) {
+                    // (A heading does not nest in a heading: the build ends one that is the last open.)
+                    let heading = open.len().checked_sub(1).filter(|i| canon(name) == "h" && open.get(*i).is_some_and(|n| n == "h"));
+                    let paragraph = if ends_holder("p", name) { open_at(&open, "p") } else { None };
+                    let link = if name == "a" { open_at(&open, "a") } else { None };
+                    let ends = [heading, paragraph, link].into_iter().flatten().min();
+                    if let Some(index) = ends {
                         open.truncate(index);
                         if skipping.is_some_and(|level| index <= level) {
                             skipping = None;
@@ -166,10 +170,11 @@ impl<'a> Look<'a> {
                         if open.len() >= MAX_NESTING {
                             return false;
                         }
-                        open.push(tag.name.clone());
+                        open.push(canon(&tag.name).to_string());
                     }
                 }
                 Token::Close(name) => {
+                    let name = canon(name);
                     if let Some(index) = open.iter().rposition(|n| n == name) {
                         open.truncate(index);
                         if skipping.is_some_and(|level| index <= level) {

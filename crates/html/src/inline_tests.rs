@@ -269,6 +269,13 @@ fn a_box_with_anything_else_in_its_block_is_drawn_in_the_line_as_it_was() {
         format!("<p>intro<ul><li>x</li></ul>{b} sale</p>"),
         format!("<div><p>intro<div>x</div>{b} sale</p></div>"),
         format!("<table><tr><td><p>intro<div>x</div>{b} sale</p></td></tr></table>"),
+        // An element that its end tag closes under another name, as the build does.
+        "<div><strong style='display:inline-block;padding:0 4px;background:#ffeeaa'>NEW</b> sale</div>".to_string(),
+        "<div><em style='display:inline-block;padding:0 4px;background:#ffeeaa'>NEW</i> sale</div>".to_string(),
+        format!("<div><h2>x</h3>{b} sale</div>"),
+        format!("<div><h2>x<h3>y</h3>{b} sale</div>"),
+        format!("<div><ul><li>a</ol>{b} sale</div>"),
+        format!("<div><pre>a</xmp>{b} sale</div>"),
         // A link that a link ends.
         format!("<div>{a}A<a href='https://example.org/y'>B</a></a></div>"),
         // Where a holder is more than blocks of text: list items, headings, preformatted text,
@@ -474,4 +481,44 @@ fn boxes_share_a_line_only_when_nothing_ends_it_between_them() {
     assert_eq!(beside(&format!("<div>{d}\n{d}</div>")), [false, true]);
     assert_eq!(beside(&format!("{b}<br>{b}")), []);
     assert_eq!(beside(&format!("{b}<p>text</p>{b}")), [false, false]);
+}
+
+#[test]
+fn boxes_that_hold_paragraphs_are_paragraphs_in_the_text_and_one_line_boxes_are_a_line() {
+    let col = |inner: &str| format!("<div style='display:inline-block;width:300px;font-size:14px'>{inner}</div>");
+    let plain = |html: &str| html.replace("display:inline-block;width:300px", "width:300px");
+    for (one, two) in [
+        ("<p>Para one</p><p>Para two</p>", "<p>Para three</p><p>Para four</p>"),
+        ("<h2>Head A</h2><p>x</p><ul><li>y</li></ul>", "<h2>Head B</h2><p>Para three</p>"),
+        ("<blockquote>quoted</blockquote>", "<p>Para</p>"),
+        ("first<br>second", "third<br>fourth"),
+        ("<img src='cid:a@example.org' alt='pic'>words", "<table><tr><td>cell</td><td>cell two</td></tr></table>"),
+        ("<p>Para one</p><p>Para two</p>", "one line"),
+        ("one line", "<p>Para three</p><p>Para four</p>"),
+    ] {
+        let html = format!("<table><tr><td>{}{}</td></tr></table>", col(one), col(two));
+        assert_eq!(crate::to_text(&html), crate::to_text(&plain(&html)), "{html}");
+    }
+    let html = format!("<div>{}{}</div>", col("<p>Para one</p><p>Para two</p>"), col("<p>Para three</p><p>Para four</p>"));
+    assert_eq!(crate::to_text(&html).trim(), "Para one\n\nPara two\n\nPara three\n\nPara four");
+}
+
+#[test]
+fn what_a_sheet_said_of_a_start_tag_is_kept_for_the_looks_that_come_after() {
+    use crate::look::{Holder, Look};
+    use crate::tokenizer::{Token, Tokenizer};
+    let html = "<style>.c{display:inline-block;width:10px}</style><div><div class='c'>a</div><div class='c'>b</div></div>";
+    let mut look = Look::new(html);
+    let mut tokens = Tokenizer::new(html);
+    let Some(Token::Open(mut first)) = tokens.next() else { panic!("a start tag") };
+    look.apply(0, &mut first);
+    assert_eq!(look.kept(), 0);
+    let holder = Holder { id: tokens.pos(), at: (tokens.pos(), 1), name: "div" };
+    assert!(look.only_boxes(&holder));
+    assert_eq!(look.kept(), 2);
+    // The build comes to those tags: what was said is still there, and not asked for again.
+    let Some(Token::Open(mut second)) = tokens.next() else { panic!("a start tag") };
+    look.apply(1, &mut second);
+    assert!(second.sheet.as_ref().is_some_and(|a| a.css.inline_block));
+    assert_eq!(look.kept(), 2);
 }

@@ -259,14 +259,23 @@ fn pieces_of(blocks: &[Block], quote: usize, out: &mut Vec<Piece>) {
     let mut before = (usize::MAX, usize::MAX);
     for block in blocks {
         let count = out.len();
-        // What stands in the line of the block before goes on in its paragraph.
-        // (A box on a line stands in the line of the box before it, and its text goes on in that line.)
-        let box_beside = matches!(&block.kind, BlockKind::Table(t) if t.inline);
-        if block.beside && before.1 > before.0 && (box_beside || !matches!(block.kind, BlockKind::Table(_))) {
-            let body = match &block.kind {
-                BlockKind::Table(table) => table_text(table),
-                _ => block_body(block),
-            };
+        // What stands in the line of the block before goes on in its paragraph. So does a box on a
+        // line, when it and the box before it are each a single line of text; boxes that hold
+        // paragraphs, lists or more are paragraphs of their own.
+        let joined = if block.beside && before.1 > before.0 {
+            match &block.kind {
+                BlockKind::Table(table) if table.inline => {
+                    let single =
+                        before.1 == before.0.saturating_add(1) && out.last().is_some_and(|p| !p.list && !p.body.contains('\n') && p.quote == 0);
+                    single.then(|| one_line(table)).flatten()
+                }
+                BlockKind::Table(_) => None,
+                _ => Some(block_body(block)),
+            }
+        } else {
+            None
+        };
+        if let Some(body) = joined {
             if let Some(last) = out.last_mut().filter(|_| !body.is_empty()) {
                 last.body.push(' ');
                 last.body.push_str(&body);
@@ -295,6 +304,18 @@ fn pieces_of(blocks: &[Block], quote: usize, out: &mut Vec<Piece>) {
             }
         }
         before = (count, out.len());
+    }
+}
+
+/// The text of a box that holds a single line, and nothing else: no paragraphs, list, quote or break.
+fn one_line(table: &Table) -> Option<String> {
+    let [row] = table.rows.as_slice() else { return None };
+    let [cell] = row.cells.as_slice() else { return None };
+    let mut pieces = Vec::new();
+    pieces_of(&cell.blocks, 0, &mut pieces);
+    match pieces.as_slice() {
+        [piece] if !piece.list && piece.quote == 0 && !piece.body.contains('\n') => Some(piece.body.clone()),
+        _ => None,
     }
 }
 
