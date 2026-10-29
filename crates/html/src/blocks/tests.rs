@@ -717,10 +717,13 @@ fn nesting_of_tables_and_boxes_is_capped() {
 fn scripts_styles_head_and_comments_are_dropped() {
     let html = "<html><head><title>T</title><style>p{color:red}</style><meta charset=utf-8></head>\
                 <body><!-- hidden --><script>alert('x')</script><p>Shown</p><template><p>never</p></template></body></html>";
-    assert_eq!(parse(html), [para("Shown")]);
+    // (The style sheet is read: see `sheet/tests.rs`.)
+    let mut shown = para("Shown");
+    shown.spans[0].color = Some(Rgb(255, 0, 0));
+    assert_eq!(parse(html), [shown]);
     assert_eq!(dump("<p onclick=\"alert(1)\">x</p><iframe src=x>inner</iframe><object>fallback</object>"), ["p|x", "p|fallback"]);
-    // A style sheet is never read: a class means nothing, whatever the sheet says about it.
-    assert_eq!(dump("<style>.x{display:none;color:red;font-size:40px}</style><p class=x>shown</p>"), ["p|shown"]);
+    // A style sheet is read, and what it hides is not shown.
+    assert_eq!(dump("<style>.x{display:none;color:red;font-size:40px}</style><p class=x>gone</p><p>kept</p>"), ["p|kept"]);
 }
 
 #[test]

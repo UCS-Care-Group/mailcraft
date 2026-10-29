@@ -1986,10 +1986,10 @@ fn opening_a_damaged_mailbox_file_says_what_was_left_out() {
     assert_eq!(said(json!({"lostSaves": 0, "unfinished": 0, "unavailable": 0})), None);
 }
 
-/// R3 spec S30: mail imported for a Microsoft account goes to a local folder, and moving it into
-/// the account's folders is refused, with the reason in the status bar.
+/// R3 spec S30: mail imported for a Microsoft account goes to a local folder, and the status bar
+/// says how it gets into the account: moved there, it is put on the server by the next run (#451).
 #[test]
-fn imported_mail_for_a_microsoft_account_stays_in_a_local_folder_and_says_why() {
+fn imported_mail_for_a_microsoft_account_goes_to_a_local_folder_and_says_how_it_gets_there() {
     let mut a = app();
     let account = a.run("account.add", json!({"email": "owner@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
     let inbox = a.session.mailbox.folder_of_kind(account, mailcraft_model::FolderKind::Inbox).unwrap();
@@ -1997,13 +1997,34 @@ fn imported_mail_for_a_microsoft_account_stays_in_a_local_folder_and_says_why() 
     let eml = a.execute("file.exportMessage", json!({"id": id})).unwrap();
     let r = a.run("file.import", json!({"name": "in.eml", "data": eml["data"], "folder": inbox})).unwrap();
     let said = a.status_msg.as_ref().map(|(text, _)| text.clone()).unwrap_or_default();
-    assert_eq!(said, "Imported 1 message into a local folder: Microsoft doesn't let a mail program put received mail into your mailbox");
+    assert_eq!(said, "Imported 1 message into a local folder: move it into the account to put it on Microsoft's server");
     let imported = r["ids"][0].as_u64().unwrap();
     assert_ne!(a.session.mailbox.message(imported).unwrap().folder, inbox);
-    assert!(a.run("mail.move", json!({"ids": [imported], "folder": inbox})).is_err());
+    a.run("mail.move", json!({"ids": [imported], "folder": inbox})).unwrap();
+    assert_eq!(a.session.mailbox.message(imported).unwrap().folder, inbox);
+    let waits = |q: &mailcraft_model::Queued| matches!(q, mailcraft_model::Queued::PlaceMessage { message, .. } if *message == imported);
+    assert!(a.session.mailbox.queued.iter().any(waits));
+    // What Microsoft's server leaves out of it is said, not hidden.
     let said = a.status_msg.as_ref().map(|(text, _)| text.clone()).unwrap_or_default();
-    assert_eq!(said, "Microsoft doesn't let a mail program put received mail into your mailbox; it stays in a local folder.");
-    assert_ne!(a.session.mailbox.message(imported).unwrap().folder, inbox);
+    assert_eq!(said, "1 message moved into the account: Send/Receive puts it on Microsoft's server, without most of its headers (such as Received)");
+}
+
+/// Mail moved or copied into a Microsoft account from elsewhere: the status bar says that
+/// Microsoft's server makes it without most of its headers (#451). Other moves say nothing.
+#[test]
+fn mail_put_into_a_microsoft_account_says_its_headers_stay_behind() {
+    let said = |id: &str, v: Value| crate::feedback(id, &v);
+    let moved = said("mail.move", json!({"moved": 2, "folder": 9, "intoMicrosoft": 2})).unwrap();
+    assert!(moved.starts_with("2 messages moved into the account") && moved.contains("without most of their headers"), "{moved}");
+    let copied = said("mail.copy", json!({"copies": [5], "folder": 9, "intoMicrosoft": 1})).unwrap();
+    assert!(copied.starts_with("1 message copied into the account") && copied.contains("without most of its headers"), "{copied}");
+    assert_eq!(said("mail.move", json!({"moved": 1, "folder": 9, "intoMicrosoft": 0})), None);
+    assert_eq!(said("mail.copy", json!({"copies": [5], "folder": 9, "intoMicrosoft": 0})), None);
+    // Drafts imported for a Microsoft account aren't told to go into it: a draft stays here.
+    let drafts = said("file.import", json!({"messages": 2, "local": true, "drafts": true})).unwrap();
+    assert_eq!(drafts, "Imported 2 messages into Drafts on this computer: a draft stays on this computer until it is sent");
+    let mail = said("file.import", json!({"messages": 2, "local": true, "drafts": false})).unwrap();
+    assert!(mail.ends_with("move it into the account to put it on Microsoft's server"), "{mail}");
 }
 
 /// A search says so over the list: how many it found and where; ✕ or Esc ends it (#115).

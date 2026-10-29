@@ -66,3 +66,16 @@ fn text_and_names_are_still_decoded() {
     assert_eq!(kept(&m, "Thread-Topic"), Some("café"));
     assert_eq!(m.attachments.first().map(|a| a.name.as_str()), Some("nóte.txt"));
 }
+
+#[test]
+fn who_got_a_blind_copy_of_a_resend_is_written_only_with_the_bcc() {
+    let m = mailcraft_model::Message {
+        bcc: vec![mailcraft_model::Address::new("", "eve@example.net")],
+        headers: vec![("Resent-To".into(), "carol@example.org".into()), ("resent-BCC".into(), "mallory@example.net".into())],
+        ..Default::default()
+    };
+    let sent = String::from_utf8(write(&m, &WriteOptions::default())).unwrap();
+    assert!(sent.contains("Resent-To: carol@example.org\r\n") && !sent.contains("example.net"), "{sent}");
+    let draft = String::from_utf8(write(&m, &WriteOptions { include_bcc: true, offset_minutes: 0 })).unwrap();
+    assert!(draft.contains("eve@example.net") && draft.contains("resent-BCC: mallory@example.net\r\n"), "{draft}");
+}

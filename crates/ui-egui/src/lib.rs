@@ -4360,6 +4360,22 @@ fn feedback(id: &str, v: &Value) -> Option<String> {
     let n = |k: &str| v.get(k).and_then(Value::as_u64);
     match id {
         "compose.send" if v.get("queued").and_then(Value::as_bool) == Some(true) => Some(tl!("In the Outbox: it is on its way").to_string()),
+        // Mail put into a Microsoft account from elsewhere: Microsoft's server makes it without
+        // most of the original's headers, which is said rather than hidden (#451).
+        "mail.move" => n("intoMicrosoft").filter(|c| *c > 0).map(|c| {
+            tln!(
+                c,
+                "{n} message moved into the account: Send/Receive puts it on Microsoft's server, without most of its headers (such as Received)",
+                "{n} messages moved into the account: Send/Receive puts them on Microsoft's server, without most of their headers (such as Received)"
+            )
+        }),
+        "mail.copy" => n("intoMicrosoft").filter(|c| *c > 0).map(|c| {
+            tln!(
+                c,
+                "{n} message copied into the account: Send/Receive puts it on Microsoft's server, without most of its headers (such as Received)",
+                "{n} messages copied into the account: Send/Receive puts them on Microsoft's server, without most of their headers (such as Received)"
+            )
+        }),
         // A mailbox whose content folder lost something still opens; say how much is missing. A
         // mailbox file damaged part of the way opens as far as it can be read: that is said first.
         "file.open" => {
@@ -4422,10 +4438,19 @@ fn feedback(id: &str, v: &Value) -> Option<String> {
                 }
             }
             let what = parts.join(", ");
-            // Mail meant for a Microsoft account went to a local folder (R3 spec S30).
-            if v.get("local").and_then(Value::as_bool) == Some(true) {
+            // Mail meant for a Microsoft account went to a local folder (R3 spec S30); moved into
+            // the account from there, it is put on the server (#451). Drafts stay in their own
+            // mailbox, this computer's.
+            let local = v.get("local").and_then(Value::as_bool) == Some(true);
+            if local && v.get("drafts").and_then(Value::as_bool) == Some(true) {
                 return Some(i18n::fmt(
-                    tl!("Imported {what} into a local folder: Microsoft doesn't let a mail program put received mail into your mailbox"),
+                    tl!("Imported {what} into Drafts on this computer: a draft stays on this computer until it is sent"),
+                    &[("what", &what)],
+                ));
+            }
+            if local {
+                return Some(i18n::fmt(
+                    tl!("Imported {what} into a local folder: move it into the account to put it on Microsoft's server"),
                     &[("what", &what)],
                 ));
             }

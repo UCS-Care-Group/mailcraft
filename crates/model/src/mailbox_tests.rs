@@ -397,24 +397,41 @@ fn deleting_mail_the_server_has_waits_to_be_pushed() {
 }
 
 #[test]
-fn mail_moved_to_another_account_stays_on_its_own_server() {
+fn mail_moved_to_another_imap_account_waits_to_be_put_on_its_server_and_its_original_with_it() {
     let (mut mb, account, a) = synced_mailbox();
-    let archive = mb.folder_of_kind(account, FolderKind::Archive).unwrap();
-    let other = mb.add_account(Account { email: "work@example.org".into(), ..Default::default() });
+    mb.accounts[0].kind = AccountKind::Imap;
+    let (inbox, archive) = (mb.inbox().unwrap(), mb.folder_of_kind(account, FolderKind::Archive).unwrap());
+    let other = mb.add_account(Account { email: "work@example.org".into(), kind: AccountKind::Imap, ..Default::default() });
     let other_inbox = mb.folder_of_kind(other, FolderKind::Inbox).unwrap();
     mb.folder_mut(other_inbox).unwrap().remote = "INBOX".into();
-    // A server can't hand a message to another one.
+    // Put on the other server by its own run; the original stays on its own until it is there
+    // (#451). The other account's INBOX is not the one it came from.
     mb.move_message(a, other_inbox).unwrap();
-    assert!(mb.pending.is_empty());
     assert_eq!(mb.message(a).map(|m| (m.account, m.uid, m.synced)), Some((other, 0, None)));
-    // Nor when a move within its own account was still waiting; and the other account's INBOX
-    // is not the one it came from.
-    let b = mb.add_message(Message { uid: 45, synced: Some(unread(45)), ..mail(mb.inbox().unwrap(), "Two", 2) }).unwrap();
+    let moved_out = |to: Id| Pending::Move { account, message: a, from: "INBOX".into(), uid: 44, synced: Some(unread(44)), to };
+    assert_eq!(mb.pending, [moved_out(other_inbox)]);
+    assert!(
+        matches!(mb.queued.as_slice(), [Queued::PlaceMessage { account: to, message, copy: false, from: None, .. }] if *to == other && *message == a)
+    );
+    // A move within its own account that was still waiting goes on into the other account.
+    let b = mb.add_message(Message { uid: 45, synced: Some(unread(45)), ..mail(inbox, "Two", 2) }).unwrap();
     mb.move_message(b, archive).unwrap();
-    assert_eq!(mb.pending.len(), 1);
     mb.move_message(b, other_inbox).unwrap();
-    assert!(mb.pending.is_empty());
+    assert_eq!(mb.pending.len(), 2);
     assert_eq!(mb.message(b).map(|m| (m.account, m.uid)), Some((other, 0)));
+    assert!(mb.repair().is_empty());
+    // On to this computer before the other server has it: nothing is put there, and the
+    // original goes once it is safe here.
+    let local = mb.local_account();
+    let kept = mb.add_folder(local, None, "Kept").unwrap();
+    mb.move_message(b, kept).unwrap();
+    assert!(!mb.queued.iter().any(|q| matches!(q, Queued::PlaceMessage { message, .. } if *message == b)));
+    assert!(mb.pending.iter().any(|p| matches!(p, Pending::Move { account: owner, message, .. } if *owner == account && *message == b)));
+    // Back where its server has it: nothing is put anywhere, and nothing goes.
+    mb.move_message(a, inbox).unwrap();
+    assert_eq!(mb.message(a).map(|m| (m.account, m.uid, m.synced)), Some((account, 44, Some(unread(44)))));
+    assert!(!mb.pending.iter().any(|p| matches!(p, Pending::Move { message, .. } if *message == a)));
+    assert!(!mb.queued.iter().any(|q| matches!(q, Queued::PlaceMessage { message, .. } if *message == a)));
     assert!(mb.repair().is_empty());
 }
 
@@ -430,6 +447,7 @@ fn removing_a_folder_or_an_account_drops_what_waited_for_it() {
     let b = mb.add_message(Message { uid: 5, ..mail(old, "From the old folder", 2) }).unwrap();
     let c = mb.add_message(Message { uid: 6, ..mail(old, "Deleted there", 3) }).unwrap();
     let d = mb.add_message(Message { uid: 45, ..mail(inbox, "Stays", 4) }).unwrap();
+    let first = mb.message(a).map(|m| m.uid).unwrap();
     mb.move_message(a, projects).unwrap();
     mb.move_message(b, archive).unwrap();
     mb.remove_message(c).unwrap();
@@ -439,11 +457,16 @@ fn removing_a_folder_or_an_account_drops_what_waited_for_it() {
     assert_eq!(mb.delete_folder(projects), Ok(false));
     assert_eq!(mb.pending.len(), 4);
     assert_eq!(mb.delete_folder(projects), Ok(true));
-    assert_eq!(mb.pending.len(), 3);
+    assert_eq!(mb.pending.len(), 4);
     assert_eq!((mb.delete_folder(old), mb.delete_folder(old)), (Ok(false), Ok(true)));
-    // What was to go into Projects, and what was to leave Old or be deleted there, is forgotten;
-    // the rest waits on.
-    assert_eq!(mb.pending, [Pending::Move { account, message: d, from: "INBOX".into(), uid: 45, synced: None, to: archive }]);
+    // What was to leave Old or be deleted there is forgotten: the server's folder goes with it.
+    // What was to go into Projects goes for good with it, deleted where the server has it, as a
+    // message deleted for good is (#451); the rest waits on.
+    assert!(
+        matches!(&mb.pending[..], [Pending::Delete { from, uid, .. }, Pending::Move { message, .. }] if from == "INBOX" && *uid == first && *message == d),
+        "{:?}",
+        mb.pending
+    );
     assert!(mb.message(a).is_none() && mb.message(b).is_some());
     assert!(mb.repair().is_empty());
 

@@ -12,6 +12,9 @@ use crate::entities::unescape;
 /// Most attributes kept per tag; the rest are read and dropped.
 const MAX_ATTRS: usize = 32;
 
+/// Most `<style>` texts held between two tokens.
+const MAX_STYLES: usize = 256;
+
 /// Longest tag name kept; a longer one is an unknown tag.
 const MAX_TAG_NAME: usize = 24;
 
@@ -28,6 +31,9 @@ pub(crate) struct Tag<'a> {
     pub name: String,
     /// Names and values as written.
     attrs: Vec<(&'a str, &'a str)>,
+    /// What the message's style sheets say about the element, set by the one who reads them
+    /// (`sheet.rs`).
+    pub sheet: Option<std::rc::Rc<crate::sheet::Applied>>,
 }
 
 impl Tag<'_> {
@@ -67,11 +73,14 @@ pub(crate) struct Tokenizer<'a> {
     pos: usize,
     /// Set after the start tag of a raw-text element: its content comes next.
     raw: Option<&'static str>,
+    /// The text of the `<style>` elements skipped over since the last token was given, those for
+    /// the screen only (at most [`MAX_STYLES`]): the one who reads style sheets takes them.
+    pub styles: Vec<&'a str>,
 }
 
 impl<'a> Tokenizer<'a> {
     pub fn new(src: &'a str) -> Tokenizer<'a> {
-        Tokenizer { src, pos: 0, raw: None }
+        Tokenizer { src, pos: 0, raw: None, styles: Vec::new() }
     }
 
     /// How far into the input the tokens given so far go, in bytes.
@@ -217,7 +226,7 @@ impl<'a> Tokenizer<'a> {
             }
         }
         self.pos = i.min(b.len());
-        Tag { name, attrs }
+        Tag { name, attrs, sheet: None }
     }
 }
 
@@ -256,6 +265,9 @@ impl<'a> Iterator for Tokenizer<'a> {
                     if DROPPED.contains(&tag.name.as_str()) {
                         // Skip the content and the end tag.
                         let end = find_end_tag(b, self.pos, &tag.name).unwrap_or(b.len());
+                        if tag.name == "style" && self.styles.len() < MAX_STYLES && for_screen(&tag) {
+                            self.styles.push(self.slice(self.pos, end));
+                        }
                         self.pos = find_byte(b, end, b'>').map_or(b.len(), |i| i + 1);
                         continue;
                     }
@@ -265,6 +277,15 @@ impl<'a> Iterator for Tokenizer<'a> {
             }
         }
     }
+}
+
+/// Whether a `<style>` is a style sheet for the screen: text/css, and no media query (those
+/// are for `@media`, which is not read yet) but `all` or `screen`.
+fn for_screen(tag: &Tag<'_>) -> bool {
+    let kind = tag.raw_attr("type").unwrap_or("").trim();
+    let media = tag.raw_attr("media").unwrap_or("").trim();
+    (kind.is_empty() || kind.eq_ignore_ascii_case("text/css"))
+        && (media.is_empty() || media.eq_ignore_ascii_case("all") || media.eq_ignore_ascii_case("screen"))
 }
 
 /// A tag name in lower case; empty when it is too long to be a real element.

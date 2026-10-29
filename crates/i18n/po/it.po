@@ -4090,8 +4090,14 @@ msgstr "Importato {what}"
 #. interface
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
-msgid "Imported {what} into a local folder: Microsoft doesn't let a mail program put received mail into your mailbox"
-msgstr "Importato {what} in una cartella locale: Microsoft non consente a un programma di posta di inserire posta ricevuta nella cassetta postale"
+msgid "Imported {what} into Drafts on this computer: a draft stays on this computer until it is sent"
+msgstr "Importazione di {what} completata in Bozze su questo computer: una bozza resta su questo computer finché non viene inviata"
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Imported {what} into a local folder: move it into the account to put it on Microsoft's server"
+msgstr "Importazione di {what} completata in una cartella locale: sposta la posta nell'account per metterla sul server di Microsoft"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -4778,12 +4784,6 @@ msgstr ""
 msgid "Mail can't be imported into an Outbox: it would be sent. Choose another folder."
 msgstr ""
 
-#. what a command says
-#: crates/model/src/mailbox.rs
-#, fuzzy
-msgid "Mail can't be moved or copied into a Microsoft account from another account or a local folder yet: this version can't put a message on Microsoft's server"
-msgstr "Non è ancora possibile spostare o copiare posta in un account Microsoft da un altro account o da una cartella locale: questa versione non può inserire un messaggio nel server di Microsoft"
-
 #. interface
 #: crates/ui-egui/src/folder_properties.rs
 msgid "Mail folder"
@@ -4793,6 +4793,12 @@ msgstr ""
 #: crates/ui-egui/src/folder_properties.rs
 msgid "Mail folder: the account's {folder}"
 msgstr ""
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "Mail from another mailbox can't go into an Outbox: the next Send/Receive would send it"
+msgstr "La posta di un'altra casella non può andare in Posta in uscita: il prossimo Invia/Ricevi la invierebbe"
 
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
@@ -5280,12 +5286,6 @@ msgstr "Risposta di Microsoft: {words}"
 #, fuzzy
 msgid "Microsoft application ID"
 msgstr "ID applicazione Microsoft"
-
-#. what a command says
-#: crates/model/src/mailbox.rs
-#, fuzzy
-msgid "Microsoft doesn't let a mail program put received mail into your mailbox; it stays in a local folder."
-msgstr "Microsoft non consente a un programma di posta di inserire posta ricevuta nella cassetta postale; resta in una cartella locale."
 
 #. name
 #: crates/model/src/sync.rs
@@ -13997,6 +13997,14 @@ msgstr[0] "{n} messaggio modificato"
 msgstr[1] "{n} messaggi modificati"
 
 #. interface
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "{n} message copied into the account: Send/Receive puts it on Microsoft's server, without most of its headers (such as Received)"
+msgid_plural "{n} messages copied into the account: Send/Receive puts them on Microsoft's server, without most of their headers (such as Received)"
+msgstr[0] "{n} messaggio copiato nell'account: Invia/Ricevi lo mette sul server di Microsoft, senza la maggior parte delle sue intestazioni (come Received)"
+msgstr[1] "{n} messaggi copiati nell'account: Invia/Ricevi li mette sul server di Microsoft, senza la maggior parte delle loro intestazioni (come Received)"
+
+#. interface
 #: crates/ui-egui/src/reading.rs
 #, fuzzy
 msgid "{n} message in this conversation:"
@@ -14018,6 +14026,14 @@ msgid "{n} message matched"
 msgid_plural "{n} messages matched"
 msgstr[0] "{n} messaggio corrispondente"
 msgstr[1] "{n} messaggi corrispondenti"
+
+#. interface
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "{n} message moved into the account: Send/Receive puts it on Microsoft's server, without most of its headers (such as Received)"
+msgid_plural "{n} messages moved into the account: Send/Receive puts them on Microsoft's server, without most of their headers (such as Received)"
+msgstr[0] "{n} messaggio spostato nell'account: Invia/Ricevi lo mette sul server di Microsoft, senza la maggior parte delle sue intestazioni (come Received)"
+msgstr[1] "{n} messaggi spostati nell'account: Invia/Ricevi li mette sul server di Microsoft, senza la maggior parte delle loro intestazioni (come Received)"
 
 #. interface
 #: crates/ui-egui/src/folder_properties.rs
@@ -14462,6 +14478,18 @@ msgstr "«{subject}» non è stato trovato sul suo server, quindi non può esser
 #, fuzzy
 #~ msgid "this message was too large to download: only its header is here, so it can't be forwarded as an attachment"
 #~ msgstr "questo messaggio era troppo grande per essere scaricato: qui c'è solo la sua intestazione, quindi non può essere inoltrato come allegato"
+
+#, fuzzy
+#~ msgid "Imported {what} into a local folder: Microsoft doesn't let a mail program put received mail into your mailbox"
+#~ msgstr "Importato {what} in una cartella locale: Microsoft non consente a un programma di posta di inserire posta ricevuta nella cassetta postale"
+
+#, fuzzy
+#~ msgid "Mail can't be moved or copied into a Microsoft account from another account or a local folder yet: this version can't put a message on Microsoft's server"
+#~ msgstr "Non è ancora possibile spostare o copiare posta in un account Microsoft da un altro account o da una cartella locale: questa versione non può inserire un messaggio nel server di Microsoft"
+
+#, fuzzy
+#~ msgid "Microsoft doesn't let a mail program put received mail into your mailbox; it stays in a local folder."
+#~ msgstr "Microsoft non consente a un programma di posta di inserire posta ricevuta nella cassetta postale; resta in una cartella locale."
 
 #, fuzzy
 #~ msgid "Close (the draft stays as last saved)"

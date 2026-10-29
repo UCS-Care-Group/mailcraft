@@ -23,7 +23,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target: [mime, html, ical, vcard, charset, link, imap, smtp, po, jmap_address, jmap_discovery, jmap_session, jmap_response]
+        target: [mime, html, sheet, ical, vcard, charset, link, imap, smtp, po, jmap_address, jmap_discovery, jmap_session, jmap_response]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

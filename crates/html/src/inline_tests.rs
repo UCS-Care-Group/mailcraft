@@ -70,9 +70,27 @@ fn only_inline_block_makes_a_box_and_only_one_with_something_to_show() {
     assert!(!boxed("<span style='display:inline-table;padding:4px'>x</span>"));
     // The last word on it is the one that counts.
     assert!(!boxed("<div style='display:inline-block;display:block;padding:4px'>x</div>"));
-    // Hidden stays hidden; a style sheet is not read here.
-    assert!(!boxed("<span style='display:none;display:inline-block;padding:4px'>x</span>"));
-    assert!(!boxed("<style>span{display:inline-block;padding:4px}</style><span>x</span>"));
+    // Hidden stays hidden: the last word counts, as for anything hidden.
+    assert!(!boxed("<span style='display:inline-block;display:none;padding:4px'>x</span>"));
+    assert!(boxed("<span style='display:none;display:inline-block;padding:4px'>x</span>"));
+    // A style sheet's rule makes a box as a style does.
+    assert!(boxed("<style>span{display:inline-block;padding:4px}</style><span>x</span>"));
+}
+
+#[test]
+fn a_class_rule_in_a_style_sheet_makes_columns_that_stand_side_by_side() {
+    let blocks = parse(
+        "<style>.col{display:inline-block;width:300px;vertical-align:top;background:#eef3fb}</style>\
+         <div><div class='col'>Left</div><div class='col'>Right</div></div>",
+    );
+    let found = boxes(&blocks);
+    assert_eq!(found.len(), 2, "{blocks:?}");
+    assert_eq!(found[0].width, Some(Length::Px(300)));
+    assert_eq!(text_of(found[1]), "Right");
+    assert_eq!(blocks.iter().filter(|b| b.beside).count(), 1, "{blocks:?}");
+    // An inline style still wins over the rule.
+    let blocks = parse("<style>.col{display:inline-block;width:300px}</style><div class='col' style='display:block'>x</div>");
+    assert!(boxes(&blocks).is_empty(), "{blocks:?}");
 }
 
 #[test]

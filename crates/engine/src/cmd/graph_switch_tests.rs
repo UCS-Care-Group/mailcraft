@@ -157,6 +157,36 @@ fn switching_waits_while_anything_waits_for_the_imap_server() {
 }
 
 #[test]
+fn switching_waits_for_the_original_of_mail_moved_out_until_it_is_gone() {
+    let (mut s, ids) = mailbox();
+    let dir = scratch("moved-out");
+    s.path = Some(dir.join("mailbox.mailcraft"));
+    let recipes = s.mailbox.message(ids.local_message).unwrap().folder;
+    // Moved to this computer and not saved yet: its original stays on the server until it is,
+    // and no Send/Receive could delete it now (#451).
+    s.run("mail.move", &json!({"ids": [ids.on_server], "folder": recipes})).unwrap();
+    // Beside a move within the account, which can go now.
+    s.run("mail.move", &json!({"ids": [ids.server_draft], "folder": ids.old})).unwrap();
+    assert_eq!(crate::cmd::account::unpushed(&s, ids.account), 1);
+    // One the server can't be told of (its mailbox is no longer followed, or it has no UID
+    // there) never holds it up.
+    for (from, uid) in [("Gone", 9), ("INBOX", 0)] {
+        s.mailbox.pending.push(Pending::Move { account: ids.account, message: ids.local_message, from: from.into(), uid, synced: None, to: recipes });
+    }
+    let said = answer(&mut s, ids.account, "switch").unwrap();
+    assert_eq!((said["switched"].clone(), said["waiting"].clone()), (json!(false), json!(2)));
+    assert_eq!(left_behind(&s, ids.account), 2, "switching without them leaves both behind");
+    // Saved: the deletion can go now too, and each is counted once.
+    s.run("file.save", &json!({})).unwrap();
+    assert_eq!((crate::cmd::account::unpushed(&s, ids.account), waiting(&s, ids.account)), (2, 2));
+    assert_eq!(answer(&mut s, ids.account, "switch").unwrap()["waiting"], json!(2));
+    // The server did both: the switch goes ahead.
+    s.mailbox.pending.clear();
+    assert_eq!(answer(&mut s, ids.account, "switch").unwrap()["switched"], json!(true));
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
 fn switch_without_them_leaves_what_waits_in_the_backup() {
     let (mut s, ids) = mailbox();
     let dir = scratch("without");
