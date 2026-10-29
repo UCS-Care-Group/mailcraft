@@ -532,6 +532,7 @@ fn message() -> impl Strategy<Value = Message> {
             server: Some(mailcraft_model::sync::ServerMessage { id: "AAMkAGI2-not-carried".into(), ..Default::default() }),
             unfetched: false,
             attachments_on_server: false,
+            server_attachments: Some(true),
             moving_out: None,
             incomplete: false,
             server_draft: None,
