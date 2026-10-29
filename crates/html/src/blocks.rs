@@ -308,6 +308,9 @@ struct BoxBuild {
     margin: [u8; 2],
     /// `display: inline-block`: a box on a line.
     inline: bool,
+    /// Blank text that was written in the line before the box (a no-break space), and the kind of
+    /// block it began: held while the box is open, and given back after it.
+    held: Option<(Vec<Span>, BlockKind)>,
 }
 
 #[derive(Debug)]
@@ -684,6 +687,13 @@ impl Builder {
         true
     }
 
+    /// The line a box may stand in ends: a block of another kind opens or closes.
+    fn end_line(&mut self) {
+        let frame = self.frame();
+        frame.after_box = false;
+        frame.box_space = false;
+    }
+
     /// The kind of block that text written now starts.
     fn start_kind(&mut self) -> BlockKind {
         if self.pre > 0 {
@@ -702,7 +712,8 @@ impl Builder {
 
     /// One visible character of the current block.
     fn push(&mut self, c: char) {
-        if !is_blank(c) && self.frame().after_box && self.line_is_blank() {
+        let ended = self.pre > 0 && self.spans.iter().any(|s| s.text.contains('\n'));
+        if !is_blank(c) && self.frame().after_box && self.line_is_blank() && !ended {
             // Text on the line of a box that stood alone on it: the box is part of the line.
             // (What was written between them, a no-break space, goes after it.)
             let blanks = std::mem::take(&mut self.spans);
@@ -741,7 +752,7 @@ impl Builder {
         if self.hidden > 0 || self.style().tiny {
             return;
         }
-        self.frame().after_box = false;
+        self.end_line();
         if self.pre > 0 {
             self.push('\n');
             return;
@@ -1199,12 +1210,18 @@ impl Builder {
                     self.want_space(1);
                 }
             }
-            Kind::InlineBox(boxed, _) => {
+            Kind::InlineBox(mut boxed, _) => {
+                let held = boxed.held.take();
                 let blocks = self.exit_frame();
                 self.end_box(*boxed, blocks);
+                if let Some((spans, kind)) = held {
+                    self.spans = spans;
+                    self.kind = kind;
+                }
             }
             Kind::List { margin, .. } => {
                 self.flush();
+                self.end_line();
                 self.lists = self.lists.saturating_sub(1);
                 if self.lists == 0 && margin {
                     self.want_space(1);
@@ -1212,10 +1229,12 @@ impl Builder {
             }
             Kind::Item(_) => {
                 self.flush();
+                self.end_line();
                 self.item = None;
             }
             Kind::Quote { margin } => {
                 self.flush();
+                self.end_line();
                 self.quote = self.quote.saturating_sub(1);
                 if margin {
                     self.want_space(1);
@@ -1223,11 +1242,13 @@ impl Builder {
             }
             Kind::Pre => {
                 self.flush();
+                self.end_line();
                 self.pre = self.pre.saturating_sub(1);
                 self.want_space(1);
             }
             Kind::Heading(_) => {
                 self.flush();
+                self.end_line();
                 self.heading = self.nodes.iter().rev().find_map(|n| match n.kind {
                     Kind::Heading(level) => Some(level),
                     _ => None,
@@ -1692,10 +1713,10 @@ impl Builder {
         // A box on a line, with something to show of its own: it becomes a block of its own.
         // (Not in the middle of a sentence: there it is a run of text with a highlight, as before.)
         if has_box_look(&css) && !hidden && self.can_box(&css) && self.line_is_blank() {
-            if self.frame().after_box {
-                self.spans.clear();
+            // (Blank text in front of it, a no-break space, stays: it holds the block's kind.)
+            if self.spans.is_empty() {
+                self.flush();
             }
-            self.flush();
             self.after_picture = false;
             let margins = css.margin_insets();
             let background = css.background.filter(|bg| !(near_white(*bg) && !self.tinted()) && Some(*bg) != self.backdrop());
@@ -1710,10 +1731,17 @@ impl Builder {
                 radius: if background.is_some() || outline { css.radius } else { 0 },
                 margin: [margins.left, margins.right],
                 inline: true,
+                held: None,
             };
             delta.background = None;
             if self.push_node(name, Kind::InlineBox(Box::new(boxed), format), delta, false) {
                 self.made_box();
+                if !self.spans.is_empty() {
+                    let held = Some((std::mem::take(&mut self.spans), std::mem::replace(&mut self.kind, BlockKind::Paragraph)));
+                    if let Some(Node { kind: Kind::InlineBox(boxed, _), .. }) = self.nodes.last_mut() {
+                        boxed.held = held;
+                    }
+                }
                 self.enter_frame();
             } else {
                 self.inline_overflow = self.inline_overflow.saturating_add(1);
@@ -1860,6 +1888,7 @@ impl Builder {
                 width: if inline { box_width(&css) } else { capped.or(Some(Length::Percent(100))) },
                 align: if css.centred() && capped.is_some() { Align::Center } else { Align::Left },
                 inline,
+                held: None,
                 padding: css.padding_insets(),
                 lines: if outline { css.lines } else { [Line::default(); 4] },
                 radius: if background.is_some() || outline { css.radius } else { 0 },
@@ -1926,6 +1955,7 @@ impl Builder {
     }
 
     fn open_structure(&mut self, name: &'static str, kind: Kind, tag: &Tag<'_>) -> bool {
+        self.end_line();
         let css = css_of(tag);
         let mut delta = Delta { hooked: hooked(tag), ..Delta::of(&css) };
         delta.align = delta.align.or_else(|| tag.attr("align").and_then(|a| style::attr_align(&a)));

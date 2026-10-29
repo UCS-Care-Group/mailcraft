@@ -245,9 +245,62 @@ fn a_box_taken_back_into_its_line_keeps_the_kind_of_block_the_line_is_in() {
     let heading = format!("<h2>{badge}&nbsp;Summer</h2>");
     let blocks = parse(&heading);
     assert_eq!((blocks.len(), &blocks[0].kind), (1, &BlockKind::Heading(2)), "{blocks:?}");
-    // The blocks that were made are counted once each: a thousand taken back leave room for more.
-    let many = format!("<p>{badge} x</p>").repeat(2_000);
-    assert_eq!(parse(&many).len(), 2_000);
+    // The blocks that were made are counted once each: as many as the message may have, all taken
+    // back, are all there (a drift of one each would stop them at half).
+    let small = "<p><span style='display:inline-block;padding:4px'>N</span> x</p>";
+    let reps = crate::MAX_BLOCKS - 50;
+    assert_eq!(parse(&small.repeat(reps)).len(), reps);
+}
+
+#[test]
+fn a_box_alone_in_a_block_does_not_follow_the_block_that_ends_into_the_next() {
+    let b = "<span style='display:inline-block;padding:0 4px;background:#ffeeaa'>NEW</span>";
+    let texts = |blocks: &[Block]| blocks.iter().map(Block::text).collect::<Vec<_>>();
+    let items = |blocks: &[Block]| {
+        blocks
+            .iter()
+            .filter_map(|b| if let BlockKind::ListItem { marker, .. } = &b.kind { Some((marker.clone(), b.text())) } else { None })
+            .collect::<Vec<_>>()
+    };
+    // The next item, heading or paragraph is its own, whatever the box before it.
+    let blocks = parse(&format!("<ul><li>{b}</li><li>second</li></ul>"));
+    assert_eq!(items(&blocks), [(Marker::Bullet, "second".to_string())], "{blocks:?}");
+    assert_eq!(boxes(&blocks).len(), 1);
+    let blocks = parse(&format!("<ol><li>{b}</li><li>second</li></ol>"));
+    assert_eq!(items(&blocks), [(Marker::Number(2), "second".to_string())], "{blocks:?}");
+    let blocks = parse(&format!("<h2>{b}</h2><h3>sub</h3>"));
+    assert!(blocks.iter().any(|b| b.kind == BlockKind::Heading(3) && b.text() == "sub"), "{blocks:?}");
+    assert_eq!(boxes(&blocks).len(), 1);
+    for (html, last) in [
+        (format!("<h2>{b}</h2>after heading"), "after heading"),
+        (format!("<blockquote>{b}</blockquote>after quote"), "after quote"),
+        (format!("<pre>{b}</pre>after pre"), "after pre"),
+        (format!("<ul><li>{b}</li></ul>after list"), "after list"),
+    ] {
+        let blocks = parse(&html);
+        assert_eq!(texts(&blocks).last().map(String::as_str), Some(last), "{html}: {blocks:?}");
+        assert_eq!(blocks.last().map(|b| (b.kind == BlockKind::Paragraph, b.quote)), Some((true, 0)), "{html}");
+        assert_eq!(boxes(&blocks).len(), 1, "{html}");
+    }
+    // Boxes in two items are in a line of their own each.
+    let blocks = parse(&format!("<ul><li>{b}</li><li>{b}</li></ul>"));
+    assert_eq!(boxes(&blocks).len(), 2, "{blocks:?}");
+    assert!(boxes(&blocks).len() == 2 && blocks.iter().all(|b| !b.beside), "{blocks:?}");
+    // A no-break space in front of the box, or between two, does not cost the item its marker.
+    let blocks = parse(&format!("<ul><li>&nbsp;{b} text</li></ul>"));
+    assert_eq!(blocks.len(), 1, "{blocks:?}");
+    assert!(
+        matches!(&blocks[0].kind, BlockKind::ListItem { marker: Marker::Bullet, .. })
+            && blocks[0].text().contains("NEW")
+            && blocks[0].text().contains("text"),
+        "{blocks:?}"
+    );
+    let blocks = parse(&format!("<ul><li>{b}&nbsp;{b} text</li></ul>"));
+    assert!(items(&blocks).iter().any(|(m, t)| *m == Marker::Bullet && t.contains("text")), "{blocks:?}");
+    // A line ended in preformatted text ends the box's line.
+    let blocks = parse(&format!("<pre>{b}\nnext</pre>"));
+    assert_eq!(boxes(&blocks).len(), 1, "{blocks:?}");
+    assert!(blocks.iter().any(|b| b.kind == BlockKind::Preformatted && b.text().contains("next") && !b.text().contains("NEW")), "{blocks:?}");
 }
 
 #[test]
