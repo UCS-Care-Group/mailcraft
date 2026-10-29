@@ -4371,6 +4371,18 @@ msgstr "También se quita del servidor de correo, y eso no se puede deshacer."
 msgid "It is the same for an installed and a portable copy. MailCraft quits afterwards."
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "It runs on this computer, while MailCraft is open."
+msgstr "Se ejecuta en este equipo, mientras MailCraft está abierto."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "It runs there whether MailCraft is open or not, and shows in Outlook on the web and on your phone."
+msgstr "Se ejecuta allí tanto si MailCraft está abierto como si no, y aparece en Outlook en la web y en su teléfono."
+
 #. command label, ribbon
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -4603,12 +4615,6 @@ msgstr "Se guarda en el almacenamiento de este navegador a medida que trabaja. U
 #, fuzzy
 msgid "Kept in {path}, saved as you go."
 msgstr "Se guarda en {path} a medida que trabaja."
-
-#. interface
-#: crates/ui-egui/src/forms.rs
-#, fuzzy
-msgid "Kept on the server, where it runs whether MailCraft is open or not."
-msgstr "Se guarda en el servidor, donde se ejecuta esté MailCraft abierto o no."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -10228,12 +10234,6 @@ msgid "The sender's name shows {shown}, but the message came from {real}."
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/forms.rs
-#, fuzzy
-msgid "The server can't flag mail, so this rule will be kept on this computer."
-msgstr "El servidor no puede marcar el correo, así que esta regla se guardará en este equipo."
-
-#. interface
 #: crates/ui-egui/src/scheduling.rs
 #, fuzzy
 msgid "The server didn't say when other people are busy"
@@ -10556,6 +10556,12 @@ msgstr "Los Favoritos de esta cuenta proceden de Outlook y se cambian allí (en 
 #, fuzzy
 msgid "This account's calendar can't be asked yet: Send/Receive signs it in first."
 msgstr "Todavía no se puede consultar el calendario de esta cuenta: Enviar y recibir inicia sesión primero."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "This account's server doesn't keep rules: the rule runs on this computer, while MailCraft is open."
+msgstr "El servidor de esta cuenta no guarda reglas: la regla se ejecuta en este equipo, mientras MailCraft está abierto."
 
 #. interface
 #: crates/ui-egui/src/scheduling.rs
@@ -11045,6 +11051,12 @@ msgstr "Esta imagen se descargó, pero no se puede mostrar."
 #: crates/ui-egui/src/data_removal.rs
 msgid "This removes everything MailCraft keeps on this computer: every account's mail, attachments, contacts, calendar and settings, the sign-ins remembered in the system's credential store, downloaded pictures, opened attachments and logs."
 msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "This rule can't be kept on the server: {why}. It runs on this computer, while MailCraft is open."
+msgstr "Esta regla no se puede guardar en el servidor: {why}. Se ejecuta en este equipo, mientras MailCraft está abierto."
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
@@ -13887,7 +13899,7 @@ msgid "{folders} will be made under a new folder called {name} on this computer,
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/lib.rs crates/ui-egui/src/nav.rs
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/nav.rs
 #, fuzzy
 msgid "{folder} - {mailbox}"
 msgstr "{folder} - {mailbox}"
@@ -14868,6 +14880,14 @@ msgstr "«{subject}» era demasiado grande para descargarlo: solo está aquí su
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "«{subject}» no se encontró en su servidor, así que no se puede reenviar como datos adjuntos"
+
+#, fuzzy
+#~ msgid "Kept on the server, where it runs whether MailCraft is open or not."
+#~ msgstr "Se guarda en el servidor, donde se ejecuta esté MailCraft abierto o no."
+
+#, fuzzy
+#~ msgid "The server can't flag mail, so this rule will be kept on this computer."
+#~ msgstr "El servidor no puede marcar el correo, así que esta regla se guardará en este equipo."
 
 #, fuzzy
 #~ msgid "Only a meeting you organize has a Scheduling Assistant"

@@ -4371,6 +4371,18 @@ msgstr "Il est aussi supprimé du serveur de messagerie, et c'est irréversible.
 msgid "It is the same for an installed and a portable copy. MailCraft quits afterwards."
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "It runs on this computer, while MailCraft is open."
+msgstr "Elle s'exécute sur cet ordinateur, tant que MailCraft est ouvert."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "It runs there whether MailCraft is open or not, and shows in Outlook on the web and on your phone."
+msgstr "Elle s'y exécute que MailCraft soit ouvert ou non, et apparaît dans Outlook sur le web et sur votre téléphone."
+
 #. command label, ribbon
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -4603,12 +4615,6 @@ msgstr "Conservé dans le stockage de ce navigateur, enregistré au fur et à me
 #, fuzzy
 msgid "Kept in {path}, saved as you go."
 msgstr "Conservé dans {path}, enregistré au fur et à mesure."
-
-#. interface
-#: crates/ui-egui/src/forms.rs
-#, fuzzy
-msgid "Kept on the server, where it runs whether MailCraft is open or not."
-msgstr "Conservée sur le serveur, où elle s'exécute que MailCraft soit ouvert ou non."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -10228,12 +10234,6 @@ msgid "The sender's name shows {shown}, but the message came from {real}."
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/forms.rs
-#, fuzzy
-msgid "The server can't flag mail, so this rule will be kept on this computer."
-msgstr "Le serveur ne peut pas marquer le courrier d'un indicateur : cette règle sera donc conservée sur cet ordinateur."
-
-#. interface
 #: crates/ui-egui/src/scheduling.rs
 #, fuzzy
 msgid "The server didn't say when other people are busy"
@@ -10556,6 +10556,12 @@ msgstr "Les favoris de ce compte proviennent d'Outlook et se modifient là-bas (
 #, fuzzy
 msgid "This account's calendar can't be asked yet: Send/Receive signs it in first."
 msgstr "Le calendrier de ce compte ne peut pas encore être interrogé : Envoyer/Recevoir le connecte d'abord."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "This account's server doesn't keep rules: the rule runs on this computer, while MailCraft is open."
+msgstr "Le serveur de ce compte ne conserve pas de règles : la règle s'exécute sur cet ordinateur, tant que MailCraft est ouvert."
 
 #. interface
 #: crates/ui-egui/src/scheduling.rs
@@ -11045,6 +11051,12 @@ msgstr "Cette image a été téléchargée, mais ne peut pas être affichée."
 #: crates/ui-egui/src/data_removal.rs
 msgid "This removes everything MailCraft keeps on this computer: every account's mail, attachments, contacts, calendar and settings, the sign-ins remembered in the system's credential store, downloaded pictures, opened attachments and logs."
 msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "This rule can't be kept on the server: {why}. It runs on this computer, while MailCraft is open."
+msgstr "Cette règle ne peut pas être conservée sur le serveur : {why}. Elle s'exécute sur cet ordinateur, tant que MailCraft est ouvert."
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
@@ -13887,7 +13899,7 @@ msgid "{folders} will be made under a new folder called {name} on this computer,
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/lib.rs crates/ui-egui/src/nav.rs
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/nav.rs
 #, fuzzy
 msgid "{folder} - {mailbox}"
 msgstr "{folder} - {mailbox}"
@@ -14868,6 +14880,14 @@ msgstr "« {subject} » était trop volumineux pour être téléchargé : seul s
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "« {subject} » est introuvable sur son serveur, il ne peut donc pas être transféré en tant que pièce jointe"
+
+#, fuzzy
+#~ msgid "Kept on the server, where it runs whether MailCraft is open or not."
+#~ msgstr "Conservée sur le serveur, où elle s'exécute que MailCraft soit ouvert ou non."
+
+#, fuzzy
+#~ msgid "The server can't flag mail, so this rule will be kept on this computer."
+#~ msgstr "Le serveur ne peut pas marquer le courrier d'un indicateur : cette règle sera donc conservée sur cet ordinateur."
 
 #, fuzzy
 #~ msgid "Only a meeting you organize has a Scheduling Assistant"

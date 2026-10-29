@@ -3726,6 +3726,16 @@ msgstr ""
 msgid "It is the same for an installed and a portable copy. MailCraft quits afterwards."
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "It runs on this computer, while MailCraft is open."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "It runs there whether MailCraft is open or not, and shows in Outlook on the web and on your phone."
+msgstr ""
+
 #. command label, ribbon
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
 msgid "Italic"
@@ -3924,11 +3934,6 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "Kept in {path}, saved as you go."
-msgstr ""
-
-#. interface
-#: crates/ui-egui/src/forms.rs
-msgid "Kept on the server, where it runs whether MailCraft is open or not."
 msgstr ""
 
 #. interface
@@ -8733,11 +8738,6 @@ msgid "The sender's name shows {shown}, but the message came from {real}."
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/forms.rs
-msgid "The server can't flag mail, so this rule will be kept on this computer."
-msgstr ""
-
-#. interface
 #: crates/ui-egui/src/scheduling.rs
 msgid "The server didn't say when other people are busy"
 msgstr ""
@@ -9025,6 +9025,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs
 msgid "This account's calendar can't be asked yet: Send/Receive signs it in first."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "This account's server doesn't keep rules: the rule runs on this computer, while MailCraft is open."
 msgstr ""
 
 #. interface
@@ -9442,6 +9447,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/data_removal.rs
 msgid "This removes everything MailCraft keeps on this computer: every account's mail, attachments, contacts, calendar and settings, the sign-ins remembered in the system's credential store, downloaded pictures, opened attachments and logs."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "This rule can't be kept on the server: {why}. It runs on this computer, while MailCraft is open."
 msgstr ""
 
 #. what a command says
@@ -11874,7 +11884,7 @@ msgid "{folders} will be made under a new folder called {name} on this computer,
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/lib.rs crates/ui-egui/src/nav.rs
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/nav.rs
 msgid "{folder} - {mailbox}"
 msgstr ""
 

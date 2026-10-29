@@ -5560,11 +5560,11 @@ mod junk_tests;
 pub(crate) mod rules {
     use egui::{Align2, Rect, Sense, Ui, pos2, vec2};
     use mailcraft_engine::Session;
-    use mailcraft_engine::cmd::rules::{NotOnServer, server_cannot};
+    use mailcraft_engine::cmd::rules::{NotOnServer, server_cannot, server_cannot_draft};
     use mailcraft_model::{Action, FolderKind, Id, Importance, Keep, Mailbox, Rule};
     use serde_json::{Value, json};
 
-    use super::kit::{Pass, body, close_button, error, row, shown};
+    use super::kit::{Pass, body, close_button, error, row, shown, tall_row};
     use crate::MailApp;
     use crate::theme::{paint_clipped, regular, semibold};
     use crate::widgets::icon_button;
@@ -5741,6 +5741,20 @@ pub(crate) mod rules {
         out
     }
 
+    /// The folders a new rule of `account` can move mail to: the account's own, then those of the
+    /// owner's other accounts, named with their account (a rule moving mail there is kept on this
+    /// computer).
+    pub fn move_choices(mb: &Mailbox, account: Id) -> Vec<(Id, String)> {
+        let mut out = folder_choices(mb, account);
+        for (other, name) in rule_accounts(mb).into_iter().filter(|(id, _)| *id != account) {
+            let theirs = folder_choices(mb, other);
+            out.extend(
+                theirs.into_iter().map(|(id, path)| (id, crate::i18n::fmt(tl!("{folder} - {mailbox}"), &[("folder", &path), ("mailbox", &name)]))),
+            );
+        }
+        out
+    }
+
     /// The rule in words, naming the folder a move goes to:
     /// `When from contains "x": move it to Inbox/Projects, flag it`.
     pub fn describe(mb: &Mailbox, r: &Rule) -> String {
@@ -5750,7 +5764,12 @@ pub(crate) mod rules {
             .actions
             .iter()
             .map(|a| match a {
-                Action::MoveTo(f) if mb.folder(*f).is_some() => format!("move it to {}", crate::nav::folder_path(mb, *f)),
+                Action::MoveTo(f) if mb.folder(*f).is_some_and(|f| f.account == r.account || r.account == 0) => {
+                    format!("move it to {}", crate::nav::folder_path(mb, *f))
+                }
+                Action::MoveTo(f) if let Some(other) = mb.folder(*f).and_then(|f| mb.account(f.account)) => {
+                    format!("move it to {} - {}", crate::nav::folder_path(mb, *f), other.email)
+                }
                 Action::MoveTo(_) => "move it to a folder that is gone".to_string(),
                 other => other.describe(),
             })
@@ -5894,6 +5913,9 @@ pub(crate) mod rules {
         conds: Vec<Cond>,
         acts: Vec<Act>,
         stop: bool,
+        /// Keep on the server: ticked when the builder starts, the owner's to untick; while the
+        /// server can't do the rule it is greyed and the rule stays here.
+        server: bool,
         /// The folders a move can go to: id and path.
         folders: Vec<(Id, String)>,
         /// The folder and category a fresh action starts with.
@@ -5918,7 +5940,7 @@ pub(crate) mod rules {
         /// Show the rules of `account`: a new rule is for its mail, and moves it to its folders.
         fn choose(&mut self, mb: &Mailbox, account: Id) {
             self.account = account;
-            self.folders = folder_choices(mb, account);
+            self.folders = move_choices(mb, account);
             self.first_folder = mb.folder_of_kind(account, FolderKind::Archive).or(self.folders.first().map(|f| f.0)).unwrap_or(0);
             let (folders, first) = (&self.folders, self.first_folder);
             for a in &mut self.acts {
@@ -5932,6 +5954,7 @@ pub(crate) mod rules {
         fn reset(&mut self) {
             self.name.clear();
             self.stop = false;
+            self.server = true;
             self.conds = vec![Cond::default()];
             self.acts = vec![self.fresh_action()];
         }
@@ -5966,6 +5989,9 @@ pub(crate) mod rules {
             let mut params = json!({"name": self.name, "conditions": conditions, "actions": actions, "stop": self.stop});
             if self.account != 0 {
                 params["account"] = json!(self.account);
+                if !self.server {
+                    params["server"] = json!(false);
+                }
             }
             ("rules.add", params)
         }
@@ -6001,6 +6027,12 @@ pub(crate) mod rules {
             let categories: Vec<String> = mb.categories.iter().map(|c| c.name.clone()).collect();
             let folder_in_view = crate::nav::folder_path(mb, app.session.view.folder);
             let marks: Vec<(Id, String)> = there.iter().chain(&here).map(|r| (r.id, mark(app, r, account))).collect();
+            // Whether the rule being made could be kept on the server, and why not (an account on
+            // this computer alone has none).
+            let place = mb
+                .account(account)
+                .filter(|a| self.open && a.kind != mailcraft_model::AccountKind::Local)
+                .map(|a| (a.email.clone(), server_cannot_draft(&app.session, &self.command().1)));
             let mut run: Option<(&'static str, Value)> = None;
             let mut chosen = None;
             let mut add = false;
@@ -6070,7 +6102,7 @@ pub(crate) mod rules {
                     self.focus = self.open;
                 }
                 if self.open {
-                    add = self.builder(ui, &mut pass, &categories, on_server);
+                    add = self.builder(ui, &mut pass, &categories, on_server, place.as_ref());
                 }
             });
             if let Some(id) = chosen {
@@ -6099,7 +6131,14 @@ pub(crate) mod rules {
         }
 
         /// The New rule builder. Returns `true` when Add was asked for and can run.
-        fn builder(&mut self, ui: &mut Ui, pass: &mut Pass, categories: &[String], on_server: bool) -> bool {
+        fn builder(
+            &mut self,
+            ui: &mut Ui,
+            pass: &mut Pass,
+            categories: &[String],
+            on_server: bool,
+            place: Option<&(String, Option<NotOnServer>)>,
+        ) -> bool {
             let t = pass.t;
             row(ui, tl!("Name"), |ui| {
                 let resp = pass.text(ui, "rule_name", &mut self.name, f32::INFINITY, "");
@@ -6200,16 +6239,36 @@ pub(crate) mod rules {
             row(ui, "", |ui| {
                 ui.checkbox(&mut self.stop, tl!("Stop processing more rules"));
             });
-            // Where it will be kept: a Microsoft account's server, unless it does what the server can't.
-            if on_server {
-                let flags = self.acts.iter().any(|a| a.kind == Do::Flag);
-                let said = if flags {
-                    tl!("The server can't flag mail, so this rule will be kept on this computer.")
-                } else {
-                    tl!("Kept on the server, where it runs whether MailCraft is open or not.")
-                };
+            // Where it is kept: the owner says, while the server can do all of it; greyed, with why,
+            // when it can't.
+            if let Some((address, cannot)) = place {
+                let can = cannot.is_none();
+                let mut ticked = self.server && can;
+                let label = crate::i18n::fmt(tl!("Keep on the server of {address}"), &[("address", address)]);
                 row(ui, "", |ui| {
-                    ui.label(egui::RichText::new(said).color(if flags { t.orange } else { t.text_dim }).size(11.5));
+                    if ui.add_enabled(can, egui::Checkbox::new(&mut ticked, label)).changed() {
+                        self.server = ticked;
+                    }
+                });
+                let (said, warn) = match cannot {
+                    Some(NotOnServer::NoServer) => {
+                        (tl!("This account's server doesn't keep rules: the rule runs on this computer, while MailCraft is open.").to_string(), false)
+                    }
+                    Some(why) => (
+                        crate::i18n::fmt(
+                            tl!("This rule can't be kept on the server: {why}. It runs on this computer, while MailCraft is open."),
+                            &[("why", tl!(why.said()))],
+                        ),
+                        true,
+                    ),
+                    None if ticked => {
+                        (tl!("It runs there whether MailCraft is open or not, and shows in Outlook on the web and on your phone.").to_string(), false)
+                    }
+                    None => (tl!("It runs on this computer, while MailCraft is open.").to_string(), false),
+                };
+                // Wrapped within the dialog: a reason can be long.
+                tall_row(ui, "", |ui| {
+                    ui.label(egui::RichText::new(said).color(if warn { t.orange } else { t.text_dim }).size(11.5));
                 });
             }
             row(ui, "", |ui| {
@@ -6376,6 +6435,47 @@ pub(crate) mod rules {
             let rule = s.mailbox.rules.iter().find(|r| r.id == id).cloned().unwrap();
             assert!(rule.name.chars().count() <= mailcraft_model::MAX_NAME);
             assert!(shown(&describe(&s.mailbox, &rule), 600).chars().count() <= 601);
+        }
+
+        #[test]
+        fn the_owner_says_where_a_new_rule_is_kept() {
+            let mut s = session();
+            let noor = s.run("account.add", &json!({"email": "noor@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+            let mut f = RulesForm::new(&s);
+            f.choose(&s.mailbox, noor);
+            let fill = |f: &mut RulesForm, kind: Do, folder: Option<Id>| {
+                f.name = "Club".into();
+                f.conds[0].text = "news@club.example".into();
+                f.acts[0] = Act { kind, folder: folder.unwrap_or(f.first_folder), ..f.fresh_action() };
+            };
+            // Ticked to start with, and the server can keep it: the command leaves it there.
+            fill(&mut f, Do::MarkRead, None);
+            assert!(f.server);
+            let params = f.command().1;
+            assert!(params.get("server").is_none());
+            assert_eq!(server_cannot_draft(&s, &params), None);
+            // Unticked, it stays on this computer.
+            f.server = false;
+            let (command, params) = f.command();
+            assert_eq!(params["server"], false);
+            assert_eq!(s.run(command, &params).unwrap()["keep"], "here");
+            f.reset();
+            assert!(f.server);
+            // What the server can't do greys it, and the rule is made here: a flag, or a move to
+            // another account's folder, which the list names with its account.
+            fill(&mut f, Do::Flag, None);
+            assert_eq!(server_cannot_draft(&s, &f.command().1), Some(NotOnServer::Flag));
+            assert!(f.folders.first().is_some_and(|(id, _)| s.mailbox.folder(*id).is_some_and(|x| x.account == noor)));
+            let (elsewhere, label) = f.folders.iter().find(|(id, _)| s.mailbox.folder(*id).is_some_and(|x| x.account != noor)).cloned().unwrap();
+            let theirs = s.mailbox.account(s.mailbox.folder(elsewhere).unwrap().account).unwrap().email.clone();
+            assert!(label.ends_with(&format!(" - {theirs}")), "{label}");
+            fill(&mut f, Do::Move, Some(elsewhere));
+            assert!(server_cannot_draft(&s, &f.command().1).is_some());
+            let (command, params) = f.command();
+            let made = s.run(command, &params).unwrap();
+            assert_eq!(made["keep"], "here");
+            let rule = s.mailbox.rules.iter().find(|r| r.id == made["id"].as_u64().unwrap()).unwrap();
+            assert!(describe(&s.mailbox, rule).ends_with(&format!(" - {theirs}")), "{}", describe(&s.mailbox, rule));
         }
     }
 }

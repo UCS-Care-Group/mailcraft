@@ -483,3 +483,58 @@ fn always_move_messages_from_a_sender_of_a_microsoft_account_goes_to_its_server(
     assert_eq!(upload.ops.len(), 1);
     assert_eq!(upload.ops[0].body.as_ref().unwrap().move_to, "news");
 }
+
+#[test]
+fn the_owner_says_whether_a_new_rule_is_kept_on_the_server_and_is_told_why_it_cant_be() {
+    let (mut s, account, local, news) = session();
+    let digest = json!([{"type": "fromContains", "value": "digest"}]);
+    // Kept on this computer, though the server could keep it: nothing of it is sent.
+    let made = run(
+        &mut s,
+        "rules.add",
+        json!({"name": "News", "account": account, "server": false, "conditions": digest, "actions": [{"type": "moveTo", "value": news}]}),
+    );
+    assert_eq!(made["keep"], "here");
+    let id = made["id"].as_u64().unwrap();
+    assert_eq!((rule(&s, id).keep, rule(&s, id).waiting()), (Keep::Here, false));
+    assert!(rule_upload(&s.mailbox, account).unwrap().ops.is_empty());
+    let listed = run(&mut s, "rules.list", json!({"account": account}));
+    let entry = listed["rules"].as_array().unwrap().iter().find(|r| r["id"] == id).unwrap();
+    assert_eq!((entry["kept"].as_str(), entry.get("why")), (Some("here"), None));
+    // Asked for the server, a rule it can't keep is refused, saying why; left out, it stays here.
+    let flag = json!({"name": "Boss", "account": account, "server": true, "conditions": digest, "actions": [{"type": "flag"}]});
+    let refused = s.run("rules.add", &flag).unwrap_err().to_string();
+    assert!(refused.contains("can't flag"), "{refused}");
+    let mut left_out = flag.clone();
+    left_out.as_object_mut().unwrap().remove("server");
+    assert_eq!(run(&mut s, "rules.add", left_out)["keep"], "here");
+    // So is a move out of the account (to one on this computer alone), and a server for a rule of every account or of an account
+    // whose server keeps none.
+    let inbox_here = s.mailbox.folder_of_kind(local, FolderKind::Inbox).unwrap();
+    let out = json!({"name": "Out", "account": account, "server": true, "conditions": digest, "actions": [{"type": "moveTo", "value": inbox_here}]});
+    assert!(s.run("rules.add", &out).unwrap_err().to_string().contains("on this computer"));
+    assert!(s.run("rules.add", &json!({"name": "All", "server": true, "conditions": digest, "actions": [{"type": "markRead"}]})).is_err());
+    assert!(
+        s.run("rules.add", &json!({"name": "Here", "account": local, "server": true, "conditions": digest, "actions": [{"type": "markRead"}]}))
+            .is_err()
+    );
+    assert_eq!(
+        run(&mut s, "rules.add", json!({"name": "Here", "account": local, "server": false, "conditions": digest, "actions": [{"type": "markRead"}]}))
+            ["keep"],
+        "here"
+    );
+    // What a form says before the rule is made, unfinished parts left out.
+    let draft = |actions: Value| {
+        super::rules::server_cannot_draft(&s, &json!({"account": account, "conditions": [{"type": "fromContains", "value": ""}], "actions": actions}))
+    };
+    assert_eq!(draft(json!([{"type": "moveTo", "value": news}])), None);
+    assert_eq!(draft(json!([{"type": "moveTo", "value": 0}])), None);
+    assert_eq!(draft(json!([{"type": "markRead"}, {"type": "flag"}])), Some(super::rules::NotOnServer::Flag));
+    assert_eq!(draft(json!([{"type": "moveTo", "value": inbox_here}])), Some(super::rules::NotOnServer::FolderHere));
+    assert_eq!(
+        super::rules::server_cannot_draft(&s, &json!({"account": local, "actions": [{"type": "markRead"}]})),
+        Some(super::rules::NotOnServer::NoServer)
+    );
+    assert_eq!(super::rules::server_cannot_draft(&s, &json!({"account": 9_999})), None);
+    assert_eq!(super::rules::server_cannot_draft(&s, &json!("junk")), None);
+}

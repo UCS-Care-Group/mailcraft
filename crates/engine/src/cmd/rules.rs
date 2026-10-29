@@ -20,7 +20,7 @@ use mailcraft_model::MAX_RULES;
 pub fn specs() -> Vec<CommandSpec> {
     vec![
         CommandSpec::new("rules.add", "Create Rule", "Home › Move", add).params(
-            r#"{"name": string, "conditions": [{"type": "fromContains"|"toContains"|"subjectContains"|"bodyContains", "value": string} | {"type": "hasAttachment"} | {"type": "importance", "value": "high"|"normal"|"low"}], "actions": [{"type": "moveTo", "value": folder id} | {"type": "categorize", "value": string} | {"type": "flag"} | {"type": "markRead"} | {"type": "setImportance", "value": string} | {"type": "delete"}], "stop"?: bool, "account"?: number (whose arriving mail it is for; without it, every account's, and kept on this computer)} — on a Microsoft account the rule is kept on its server when the server can do all of it (it then runs there, whether MailCraft is open or not; the sender's and recipients' words are looked for in their addresses alone, as the server does); answers {"id", "keep": "server"|"here"}"#,
+            r#"{"name": string, "conditions": [{"type": "fromContains"|"toContains"|"subjectContains"|"bodyContains", "value": string} | {"type": "hasAttachment"} | {"type": "importance", "value": "high"|"normal"|"low"}], "actions": [{"type": "moveTo", "value": folder id} | {"type": "categorize", "value": string} | {"type": "flag"} | {"type": "markRead"} | {"type": "setImportance", "value": string} | {"type": "delete"}], "stop"?: bool, "account"?: number (whose arriving mail it is for; without it, every account's, and kept on this computer), "server"?: bool (false keeps it on this computer; true refuses a rule the server can't keep; default: on the server when it can)} — on a Microsoft account the rule is kept on its server when the server can do all of it (it then runs there, whether MailCraft is open or not; the sender's and recipients' words are looked for in their addresses alone, as the server does); answers {"id", "keep": "server"|"here"}"#,
         ),
         CommandSpec::new("rules.remove", "Delete Rule", "Home › Move", remove).params(r#"{"id": number} — a rule its server has is deleted there too"#),
         CommandSpec::new("rules.enable", "Enable Rule", "Home › Move", enable).params(r#"{"id": number, "value"?: bool (default: toggle)}"#),
@@ -221,11 +221,29 @@ pub(crate) fn rule_from_params(s: &Session, v: &Value) -> Result<Rule, CmdError>
     }
     let account = rule_account(s, v)?;
     let mut rule = Rule { id: 0, name, enabled: true, conditions, actions, stop: p::bool(v, "stop").unwrap_or(false), account, ..Default::default() };
-    // On a server that can do all of it, as Outlook keeps an Exchange account's rules.
-    if account != 0 && server_cannot(&s.mailbox, &rule, account).is_none() {
-        rule.keep = Keep::Server;
+    // On a server that can do all of it, as Outlook keeps an Exchange account's rules, unless the
+    // owner keeps it on this computer.
+    let cannot = if account == 0 { None } else { server_cannot(&s.mailbox, &rule, account) };
+    match (p::bool(v, "server"), cannot) {
+        (Some(false), _) => {}
+        (Some(true), _) if account == 0 => return Err(bad("say which account's server is to keep it (`account`)")),
+        (Some(true), Some(why)) => return Err(CmdError::Failed(why.said().to_string())),
+        (_, None) if account != 0 => rule.keep = Keep::Server,
+        _ => {}
     }
     Ok(rule)
+}
+
+/// Why the rule `v` describes (the params of `rules.add`, finished or not) couldn't be kept on
+/// its account's server, or `None` when it could: what the New rule form says before the rule
+/// is made. Parts not filled in yet are left out.
+pub fn server_cannot_draft(s: &Session, v: &Value) -> Option<NotOnServer> {
+    let account = p::id(v, "account").filter(|a| s.mailbox.account(*a).is_some())?;
+    let parts = |key: &str| v.get(key).and_then(Value::as_array).map(|a| a.iter().take(20).collect::<Vec<_>>()).unwrap_or_default();
+    let conditions = parts("conditions").into_iter().filter_map(|c| condition(c).ok()).collect();
+    let actions = parts("actions").into_iter().filter_map(|a| action(s, a).ok()).collect();
+    let rule = Rule { conditions, actions, account, ..Default::default() };
+    server_cannot(&s.mailbox, &rule, account)
 }
 
 fn add(s: &mut Session, v: &Value) -> CmdResult {

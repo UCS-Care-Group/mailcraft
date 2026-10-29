@@ -4505,6 +4505,18 @@ msgstr "Het wordt ook van de e-mailserver verwijderd, en dat kan niet ongedaan w
 msgid "It is the same for an installed and a portable copy. MailCraft quits afterwards."
 msgstr "Het is hetzelfde voor een geïnstalleerde en een draagbare kopie. MailCraft sluit daarna af."
 
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "It runs on this computer, while MailCraft is open."
+msgstr "Hij wordt op deze computer uitgevoerd, zolang MailCraft open is."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "It runs there whether MailCraft is open or not, and shows in Outlook on the web and on your phone."
+msgstr "Hij wordt daar uitgevoerd, of MailCraft nu open is of niet, en verschijnt in Outlook op het web en op uw telefoon."
+
 #. command label, ribbon
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -4744,12 +4756,6 @@ msgstr "Bewaard in de opslag van deze browser, opgeslagen terwijl u werkt. Gebru
 #, fuzzy
 msgid "Kept in {path}, saved as you go."
 msgstr "Bewaard in {path}, opgeslagen terwijl u werkt."
-
-#. interface
-#: crates/ui-egui/src/forms.rs
-#, fuzzy
-msgid "Kept on the server, where it runs whether MailCraft is open or not."
-msgstr "Bewaard op de server, waar hij wordt uitgevoerd of MailCraft nu open is of niet."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -10566,12 +10572,6 @@ msgid "The sender's name shows {shown}, but the message came from {real}."
 msgstr "De naam van de afzender toont {shown}, maar het bericht kwam van {real}."
 
 #. interface
-#: crates/ui-egui/src/forms.rs
-#, fuzzy
-msgid "The server can't flag mail, so this rule will be kept on this computer."
-msgstr "De server kan e-mail niet markeren, dus deze regel wordt op deze computer bewaard."
-
-#. interface
 #: crates/ui-egui/src/scheduling.rs
 #, fuzzy
 msgid "The server didn't say when other people are busy"
@@ -10918,6 +10918,12 @@ msgstr "De favorieten van dit account komen uit Outlook en worden daar gewijzigd
 #, fuzzy
 msgid "This account's calendar can't be asked yet: Send/Receive signs it in first."
 msgstr "De agenda van dit account kan nog niet worden bevraagd: Verzenden/ontvangen meldt deze eerst aan."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "This account's server doesn't keep rules: the rule runs on this computer, while MailCraft is open."
+msgstr "De server van dit account bewaart geen regels: de regel wordt op deze computer uitgevoerd, zolang MailCraft open is."
 
 #. interface
 #: crates/ui-egui/src/scheduling.rs
@@ -11416,6 +11422,12 @@ msgstr "Deze afbeelding is gedownload, maar kan niet worden weergegeven."
 #, fuzzy
 msgid "This removes everything MailCraft keeps on this computer: every account's mail, attachments, contacts, calendar and settings, the sign-ins remembered in the system's credential store, downloaded pictures, opened attachments and logs."
 msgstr "Hiermee verwijdert u alles wat MailCraft op deze computer bewaart: de e-mail, bijlagen, contactpersonen, agenda en instellingen van elk account, de aanmeldingen die in de referentieopslag van het systeem zijn onthouden, gedownloade afbeeldingen, geopende bijlagen en logboeken."
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "This rule can't be kept on the server: {why}. It runs on this computer, while MailCraft is open."
+msgstr "Deze regel kan niet op de server worden bewaard: {why}. Hij wordt op deze computer uitgevoerd, zolang MailCraft open is."
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
@@ -14350,7 +14362,7 @@ msgid "{folders} will be made under a new folder called {name} on this computer,
 msgstr "{folders} worden aangemaakt onder een nieuwe map met de naam {name} op deze computer, met {messages}."
 
 #. interface
-#: crates/ui-egui/src/lib.rs crates/ui-egui/src/nav.rs
+#: crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/nav.rs
 #, fuzzy
 msgid "{folder} - {mailbox}"
 msgstr "{folder} - {mailbox}"
@@ -15356,6 +15368,14 @@ msgstr "„{subject}” was te groot om te downloaden: alleen de koptekst is hie
 #, fuzzy
 msgid "“{subject}” wasn't found on its server, so it can't be forwarded as an attachment"
 msgstr "„{subject}” is niet op de server gevonden, dus het kan niet als bijlage worden doorgestuurd"
+
+#, fuzzy
+#~ msgid "Kept on the server, where it runs whether MailCraft is open or not."
+#~ msgstr "Bewaard op de server, waar hij wordt uitgevoerd of MailCraft nu open is of niet."
+
+#, fuzzy
+#~ msgid "The server can't flag mail, so this rule will be kept on this computer."
+#~ msgstr "De server kan e-mail niet markeren, dus deze regel wordt op deze computer bewaard."
 
 #, fuzzy
 #~ msgid "Only a meeting you organize has a Scheduling Assistant"
