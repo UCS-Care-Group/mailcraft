@@ -260,7 +260,7 @@ impl Run<'_> {
 }
 
 /// A message's subject for an error line: one line, not too long.
-fn subject_of(message: &Message) -> String {
+pub(crate) fn subject_of(message: &Message) -> String {
     let words: Vec<&str> = message.subject.split(|c: char| c.is_whitespace() || c.is_control()).filter(|w| !w.is_empty()).collect();
     let subject = words.join(" ");
     if subject.is_empty() {
@@ -660,7 +660,7 @@ fn has(flags: &[String], flag: &str) -> bool {
     flags.iter().any(|f| f.eq_ignore_ascii_case(flag))
 }
 
-fn remote_flags(message: &Fetched) -> RemoteFlags {
+pub(crate) fn remote_flags(message: &Fetched) -> RemoteFlags {
     let flags = &message.flags;
     RemoteFlags {
         uid: message.uid,
@@ -927,6 +927,19 @@ impl FolderSync<'_> {
             }
         }
     }
+}
+
+/// `ts` as an IMAP `date-time` in UTC (`01-Jul-2003 09:52:37 +0000`), for the time a message put
+/// on the server arrived; `None` for no time, or one whose year IMAP can't write.
+pub(crate) fn imap_date_time(ts: Timestamp) -> Option<String> {
+    if ts <= 0 {
+        return None;
+    }
+    let t = DateTime::from_timestamp(ts, 0);
+    let month = mailcraft_time::month_name(t.date.month).get(..3)?;
+    (1..=9999)
+        .contains(&t.date.year)
+        .then(|| format!("{:02}-{month}-{:04} {:02}:{:02}:{:02} +0000", t.date.day, t.date.year, t.hour, t.minute, t.second))
 }
 
 /// The instant of an IMAP `INTERNALDATE`: `17-Jul-1996 02:44:25 -0700` (the day may be padded with a space).
