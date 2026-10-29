@@ -55,7 +55,7 @@ not yet run against any other server.
 
 | Area | Where it stands |
 |---|---|
-| **Reading and triage** | Virtualised list measured against Outlook's, date groups, sort, filters, conversations, pin, flags with due dates, categories, importance, junk, archive, two-step delete, full undo, drag onto folders, Send/Receive Progress. Missing: column view, Focused Inbox, Sweep, Ignore and Clean Up Conversation; conversations are grouped by subject ([gaps](docs/gaps.md) 17 and rough edges) |
+| **Reading and triage** | Virtualised list measured against Outlook's, date groups, sort, filters, conversations, pin, flags with due dates, categories, importance, junk, archive, two-step delete, full undo, drag onto folders, Send/Receive Progress. Optional configurable columns with sortable headings (#344). Missing: Focused Inbox, Sweep, Ignore and Clean Up Conversation; conversations are grouped by subject ([gaps](docs/gaps.md) 17 and rough edges) |
 | **Search** | A query language with field keywords, negation and dates, answered from a word index beside the mailbox (0.16 s at 200,000 messages); More results on the server for Microsoft accounts. Missing: search folders, searching on an IMAP server |
 | **Rendering mail** | Display blocks of our own: tables, colours, alignment, lists and pictures (the message's own shown, the web's on the owner's say-so), adjusted for the dark theme, nothing run. Missing: style rules, background pictures, right-to-left text (gap 6) |
 | **Writing mail** | A rich-text editor; HTML with a plain-text part; a reply or forward carries the original's look without what runs or tracks; rich signatures with a logo, and HTML signatures sent as written; drafts, attachments, name checking. Missing: pictures in the body, spell check, templates, Delay Delivery and Undo Send, receipts (gaps 7, 17) |
@@ -187,6 +187,7 @@ follows:
 
 | Date | What landed |
 |---|---|
+| 2026-10-27 | #344: an optional message-list column view, with a choice of fields, saved widths and order, and sortable headings. Local messages and server search results share the column layout; attachment and follow-up flag sorting are available. |
 | 2026-10-28 | M6 (#226): JMAP accounts are read in the browser build, which reaches them over `fetch`; [docs/jmap.md](docs/jmap.md) says what works, how an account comes in, what its server has to allow, and how a site that serves MailCraft names accounts and holds their credential. Read only: nothing goes up and nothing is sent yet. The four JMAP commands are in the control protocol |
 | 2026-10-28 | #567: new mail in the Inbox of a Microsoft account kept in step through Microsoft Graph goes through the rules, as IMAP mail does: after the Safe and Blocked Senders lists (mail a list sends to Junk E-mail isn't the rules' to file, and a safe sender's taken out of Junk E-mail goes through them), only once the folder's first round has ended (never its first download, nor a folder read afresh) and then on every page of a later round, which each folder now remembers (`ServerFolder::round_ended`, read from `caught_up` in a file from before), and a rule's move or change goes up to the server as the owner's own does. A shared mailbox's mail stays as its server has it, as the lists leave it. Before, only Run Rules Now ran them on that mail. A rule that moves new mail out of the account (into a folder of another account) clears the undo history, as an IMAP Send/Receive that moved mail on the server does: an undo of an earlier step would otherwise lose that mail for good once the server's copy is removed, until undo leaves alone what arrived after its step (#605). Also fixed: the Safe and Blocked Senders lists sorted only the first page of a later round (100 changes), so after a busy while the rest of a Microsoft account's new mail stayed where it arrived. Tests in `junk_tests.rs` |
 | 2026-10-27 | #512: Forward and Forward as Attachment refuse an `id` or `ids` of `null`, which an agent's look-up that found nothing gives, instead of forwarding the selected messages. Only leaving both out takes the selection. |
@@ -381,6 +382,7 @@ follows:
 
 | Date | Change |
 |---|---|
+| 2026-10-27 | #344: the message list in columns, to choose and sort by (progress log) |
 | 2026-10-28 | M6: JMAP accounts read in the browser build (the browser build, M6, progress log) |
 | 2026-10-28 | #567: rules run on new mail that comes through Microsoft Graph (progress log) |
 | 2026-10-28 | #451 review: the copy on an IMAP server is known by MailCraft's own line; rules into another account (progress log) |
