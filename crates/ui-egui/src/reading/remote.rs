@@ -553,7 +553,8 @@ fn remembered(app: &mut MailApp, ui: &mut Ui, senders: Vec<String>, domains: Vec
             });
         }
         if pages > 1 {
-            ui.horizontal(|ui| {
+            // Under each other when the page is too narrow for them side by side.
+            ui.horizontal_wrapped(|ui| {
                 if ui.add_enabled(page > 0, egui::Button::new(tl!("Previous")).small()).clicked() {
                     page = page.saturating_sub(1);
                 }

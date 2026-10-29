@@ -1366,6 +1366,27 @@ fn a_long_list_of_remembered_senders_is_folded_and_paged() {
     assert!(says(&harness, "Pictures are always downloaded from (40):") && says(&harness, "Page 2 of 2"));
 }
 
+/// The smallest window: File › Options is laid out in the room on screen, its text wrapped there
+/// rather than cut off at the window's edge, and Previous and Next can be clicked.
+#[test]
+fn the_list_of_remembered_senders_pages_in_a_narrow_window() {
+    let (mut app, _) = app_with(vec![]);
+    app.ui.picture_senders = (0..45).map(|i| format!("sender{i:02}@shop.example")).collect();
+    let mut harness = window(app, (760.0, 2400.0));
+    harness.state_mut().execute("ui.backstage", json!({"value": true, "page": "options"})).unwrap();
+    harness.run_steps(3);
+    harness.get_by_label_contains("Pictures are always downloaded from").click();
+    harness.run_steps(3);
+    let screen = harness.ctx.content_rect();
+    for text in ["Gravatar is asked for", "Previous", "Next"] {
+        let r = harness.get_by_label_contains(text).rect();
+        assert!(r.min.x >= screen.min.x && r.max.x <= screen.max.x + 0.5, "{text}: {r:?} in {screen:?}");
+    }
+    harness.get_by_label("Next").click();
+    harness.run_steps(3);
+    assert!(says(&harness, "Page 2 of 3"));
+}
+
 /// (A8-9) A long display name is cut short, never the address after it.
 #[test]
 fn a_long_name_does_not_squeeze_the_address_out_of_the_header() {
