@@ -31,7 +31,7 @@ use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::sync::Arc;
 
 use mailcraft_model::sync::{DraftState, MovingOut, ServerMessage, same_category};
-use mailcraft_model::{AccountKind, Folder, FolderKind, Id, Mailbox, Message, Pending, Queued};
+use mailcraft_model::{AccountKind, Folder, FolderKind, Id, Mailbox, Message, Pending, Queued, RETURNED_LISTINGS};
 
 /// What a change did to the mail of the Microsoft accounts: the messages and folders it changed,
 /// as they were right after it (`None`: it took them away). Nothing for a mailbox without one.
@@ -171,6 +171,7 @@ impl Said {
 pub(crate) fn keep_in_step(mut out: Mailbox, touched: &Touched, now: &Mailbox) -> (Mailbox, Vec<String>) {
     // Ids are never given out twice, whatever the undo brings back.
     out.ids_after(now);
+    returned(&mut out, now);
     let g: BTreeSet<Id> = graph_accounts(now).intersection(&graph_accounts(&out)).copied().collect();
     leave_alone(&mut out, touched, now, &g);
     if g.is_empty() {
@@ -198,6 +199,22 @@ pub(crate) fn keep_in_step(mut out: Mailbox, touched: &Touched, now: &Mailbox) -
     out.outlook_categories = now.outlook_categories.clone();
     out.favorites_from_server = now.favorites_from_server.clone();
     (out, said.lines())
+}
+
+/// A message the undo puts back into the IMAP account it was being moved out of, while the run
+/// that deletes its original there may be on its way: should that run's answer be lost, it is kept
+/// here rather than forgotten when the server no longer lists it, as when it is moved back (#451).
+fn returned(out: &mut Mailbox, now: &Mailbox) {
+    for p in &now.pending {
+        let Pending::Move { account, message, uid, .. } = p else { continue };
+        let back = out.message(*message).is_some_and(|m| m.account == *account && m.uid == *uid && *uid != 0);
+        if back
+            && now.message(*message).is_some_and(|m| m.account != *account)
+            && let Ok(m) = out.message_mut(*message)
+        {
+            m.returned = RETURNED_LISTINGS;
+        }
+    }
 }
 
 /// Everything but the Microsoft accounts' mail (the rest of `keep_in_step`'s work) stays as it is
@@ -451,12 +468,13 @@ fn fields(t: &Message, a: &Message, c: &Arc<Message>, now: &Mailbox, g: &BTreeSe
                 message: c.id,
                 marker: format!("mailcraft-place-{:x}-u-{source:016x}", c.id),
                 copy: false,
+                from: None,
             });
-            m.moving_out = Some(MovingOut { account: c.account, id: placed.id.clone(), folder: placed.folder.clone() });
+            m.moving_out = Some(MovingOut { account: c.account, id: placed.id.clone(), folder: placed.folder.clone(), ..Default::default() });
             (m.server, m.uid, m.synced) = (None, 0, None);
         } else if g.contains(&t.account) {
             // Moved out of a Microsoft account: back while the server's copy is still there.
-            let Some(out) = c.moving_out.clone().filter(|out| out.account == t.account) else {
+            let Some(out) = c.moving_out.clone().filter(|out| out.account == t.account && !out.left) else {
                 said.moved_out.push(t.subject.clone());
                 return Some(c.clone());
             };
@@ -476,14 +494,21 @@ fn fields(t: &Message, a: &Message, c: &Arc<Message>, now: &Mailbox, g: &BTreeSe
                 })
             });
             (m.moving_out, m.uid, m.synced) = (None, 0, None);
+            // Its run may be removing the server's copy: should that answer be lost, it is kept
+            // here rather than forgotten.
+            m.returned = RETURNED_LISTINGS;
         } else {
             // Moved back into the account it was being moved out of: out of it again.
             m.moving_out = c
                 .server
                 .as_ref()
                 .filter(|s| !s.gone)
-                .map(|s| MovingOut { account: c.account, id: s.id.clone(), folder: s.folder.clone() })
-                .or_else(|| t.moving_out.clone());
+                .map(|s| MovingOut { account: c.account, id: s.id.clone(), folder: s.folder.clone(), ..Default::default() })
+                // What is known now of the same original (where it is, whether it left) stands.
+                .or_else(|| match (&t.moving_out, &c.moving_out) {
+                    (Some(then), Some(now)) if now.account == then.account && now.id == then.id => Some(now.clone()),
+                    (then, _) => then.clone(),
+                });
             (m.server, m.uid, m.synced) = (None, t.uid, t.synced);
         }
         m.account = t.account;

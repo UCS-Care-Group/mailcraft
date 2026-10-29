@@ -439,8 +439,8 @@ pub fn import(s: &mut Session, name: &str, bytes: &[u8], folder: Option<Id>) -> 
             if messages.is_empty() {
                 return Err(failed!("{name} has no messages", name));
             }
-            // Graph can't put received mail into a Microsoft account's folders: a local folder
-            // has it instead, and is shown (R3 spec S30).
+            // Mail imported for a Microsoft account goes to a local folder, which is shown (R3
+            // spec S30); moved into the account from there, it is put on the server (#451).
             let microsoft = s.mailbox.folder(folder).and_then(|f| s.mailbox.account(f.account)).is_some_and(|a| a.kind == AccountKind::Microsoft);
             let folder = if microsoft {
                 let drafts = s.mailbox.folder(folder).is_some_and(|f| f.kind == FolderKind::Drafts);
@@ -475,7 +475,7 @@ pub fn import(s: &mut Session, name: &str, bytes: &[u8], folder: Option<Id>) -> 
                 s.show_selected();
             }
             Ok(
-                json!({"format": if format == Format::Eml { "eml" } else { "mbox" }, "messages": ids.len(), "ids": ids, "folder": folder, "local": microsoft, "stoppedAfter": stopped.then_some(ids.len())}),
+                json!({"format": if format == Format::Eml { "eml" } else { "mbox" }, "messages": ids.len(), "ids": ids, "folder": folder, "local": microsoft, "drafts": drafts, "stoppedAfter": stopped.then_some(ids.len())}),
             )
         }
         Format::Ics => {

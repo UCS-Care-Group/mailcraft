@@ -1719,6 +1719,25 @@ impl Session {
         self.loaded_message_where(id, |_| true)
     }
 
+    /// Whether every part of `m` can be read here: what is in memory, and what the mailbox keeps
+    /// outside it read back whole (checked against its length and SHA-256). The server's copy of
+    /// a message moved to this computer goes only then (#451): a body or a file whose content
+    /// went missing would be lost everywhere.
+    pub(crate) fn readable_whole(&self, m: &Message) -> bool {
+        let Some(kept) = m.kept.as_deref() else { return self.files_readable(m) };
+        if kept.failed {
+            return false;
+        }
+        let text = kept.text.filter(|_| m.body.text.is_empty());
+        let html = kept.html.filter(|_| m.body.html.is_none());
+        text.into_iter().chain(html).all(|r| self.fetch(&r).is_ok()) && self.files_readable(m)
+    }
+
+    /// Whether every attachment of `m` that isn't in memory can be read back whole.
+    fn files_readable(&self, m: &Message) -> bool {
+        m.attachments.iter().filter_map(|a| a.kept.filter(|_| a.data.is_empty())).all(|r| self.fetch(&r).is_ok())
+    }
+
     /// Bring the body of message `id` and the attachments `pick` chooses into memory, in the
     /// mailbox itself, so that everything that reads the message finds them. Not a change to the
     /// mailbox (nothing to undo or save), though caches that read bodies see it. Returns whether
@@ -2217,14 +2236,16 @@ impl Session {
     }
 
     /// The mailbox file holds the mailbox as it is now (it was just saved, or nothing changed
-    /// since it was opened or saved): the messages being moved out of a Microsoft account that
-    /// are whole are whole in the file, and the server's copies may go (R3 spec S19). A host
-    /// that saves by other means than `file.save` calls this when a save of the mailbox as it is
-    /// now succeeded; the engine also notes it whenever it sees nothing unsaved.
+    /// since it was opened or saved): the messages being moved out of a server (a Microsoft
+    /// account's, R3 spec S19, or an IMAP account's, #451) that are whole are whole in the file,
+    /// and the server's copies may go. A host that saves by other means than `file.save` calls
+    /// this when a save of the mailbox as it is now succeeded; the engine also notes it whenever
+    /// it sees nothing unsaved.
     pub fn note_saved(&mut self) {
-        let whole = self.mailbox.messages.values().filter(|m| m.moving_out.is_some() && !m.unfetched).map(|m| m.id);
-        self.saved_whole.extend(whole);
-        self.saved_whole.retain(|id| self.mailbox.messages.get(id).is_some_and(|m| m.moving_out.is_some()));
+        let out = self.mailbox.moving_out_of_servers();
+        let whole = out.iter().copied().filter(|id| self.mailbox.message(*id).is_some_and(|m| !m.unfetched));
+        self.saved_whole.extend(whole.collect::<Vec<_>>());
+        self.saved_whole.retain(|id| out.contains(id));
     }
 
     /// Whether the mailbox file is known to hold the mailbox as it is now.

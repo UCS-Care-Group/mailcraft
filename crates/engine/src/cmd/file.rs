@@ -22,7 +22,7 @@ pub fn specs() -> Vec<CommandSpec> {
             .pure()
             .params(r#"{"path": string} — everything in one self-contained file; a copy, unless the mailbox wasn't kept anywhere yet"#),
         CommandSpec::new("file.import", "Import", "File › Open & Export", import)
-            .params(r#"{"path": string} | {"name": string, "data": base64}, "folder"?: number — .eml, .mbox, .ics, .vcf; messages meant for a Microsoft account go to the local folder Imported (`local`); `"opened": true` (a message file the system asked to open) puts one .eml into the local folder Imported as a received message, or finds the one already there (`opened`, `already`), whatever `folder` says"#),
+            .params(r#"{"path": string} | {"name": string, "data": base64}, "folder"?: number — .eml, .mbox, .ics, .vcf; messages meant for a Microsoft account go to the local folder Imported (`local`), or into its Drafts to this computer's Drafts, as drafts (`drafts`); `"opened": true` (a message file the system asked to open) puts one .eml into the local folder Imported as a received message, or finds the one already there (`opened`, `already`), whatever `folder` says"#),
         CommandSpec::new("file.importFolderTree", "Import a Folder of Mailboxes", "File › Open & Export", import_tree).params(
             r#"{"path": string (a folder) | "entries": [{"path": "Mail/Inbox.sbd/Sent", "data": base64}], "name"?: string (the new top folder; default the folder's name), "dryRun"?: bool (only say what would come in)} — every mbox file under the folder, found by its first bytes, into subfolders of one folder On this computer; a second import adds nothing already there (Message-ID)"#,
         ),
