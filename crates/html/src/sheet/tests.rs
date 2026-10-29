@@ -894,3 +894,19 @@ fn a_style_after_the_element_cap_is_still_read() {
     let late = format!("<style>.u{{display:none}}</style>{}<p class=u>late</p>", "<i>x</i>".repeat(MAX_ELEMENTS + 1_000));
     assert!(to_text(&late).contains("late"));
 }
+
+#[test]
+fn a_look_of_many_properties_is_charged_for_each_it_says() {
+    let html = crate::corpus::hostile().into_iter().find(|(n, _)| *n == "sheet many properties").map(|(_, h)| h).unwrap_or_default();
+    assert!(html.len() > 900_000 && html.len() < 1_200_000, "{} bytes", html.len());
+    assert_within_budget("sheet many properties", &html);
+    let (sheet, _) = styled(&html);
+    // Each look says about 16 declarations (and reads as many), so costs 200 + 4 x 16 + 20 x 16 or more.
+    assert!(sheet.builds > 500 && sheet.builds < 8_000, "{} looks", sheet.builds);
+    assert!(
+        u64::from(sheet.work()) >= u64::from(sheet.builds) * 400 || sheet.work() == sheet.budget,
+        "{} looks, {} steps",
+        sheet.builds,
+        sheet.work()
+    );
+}

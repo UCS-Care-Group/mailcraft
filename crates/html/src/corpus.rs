@@ -258,6 +258,7 @@ pub fn hostile() -> Vec<(&'static str, String)> {
             ),
         ),
         ("sheet look per element", look_per_element()),
+        ("sheet many properties", many_properties()),
         ("sheet junk", format!("<style>{}</style><p>x</p>", "{([\\\"'/*@:,>+~!;".repeat(8_000))),
         ("preformatted", format!("<pre>{}</pre>", "    indented\tcode line with    spaces\n".repeat(20_000))),
     ]
@@ -384,6 +385,49 @@ fn look_per_element() -> String {
         for _ in 0..16 {
             seed = seed.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1_442_695_040_888_963_407);
             html.push_str(&format!("k{} ", (seed >> 33) % 4_000));
+        }
+        html.push_str("'>x</i>");
+    }
+    html
+}
+
+/// 20 rules, each a list of 150 short classes with one declaration of a property of its own, and
+/// elements of 16 of the 3,000 classes each: every look says about 16 declarations.
+fn many_properties() -> String {
+    let props = [
+        "margin-top:3px",
+        "margin-left:4px",
+        "margin-right:5px",
+        "margin-bottom:6px",
+        "padding-top:3px",
+        "padding-left:4px",
+        "padding-right:5px",
+        "padding-bottom:6px",
+        "color:#336699",
+        "background-color:#eeeeee",
+        "border-top:1px solid #333",
+        "border-left:1px solid #333",
+        "border-right:1px solid #333",
+        "border-bottom:1px solid #333",
+        "font-size:13px",
+        "line-height:1.4",
+        "text-align:center",
+        "font-weight:bold",
+        "text-decoration:underline",
+        "width:50%",
+    ];
+    let mut html = String::from("<style>");
+    for (r, prop) in props.iter().enumerate() {
+        let list = (0..150).map(|i| format!(".m{}", r * 150 + i)).collect::<Vec<_>>().join(",");
+        html.push_str(&format!("{list}{{{prop}}}"));
+    }
+    html.push_str("</style><p>VISIBLE</p>");
+    let mut seed = 0x9e37_79b9_7f4a_7c15u64;
+    for _ in 0..10_500 {
+        html.push_str("<i class='");
+        for _ in 0..16 {
+            seed = seed.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1_442_695_040_888_963_407);
+            html.push_str(&format!("m{} ", (seed >> 33) % 3_000));
         }
         html.push_str("'>x</i>");
     }

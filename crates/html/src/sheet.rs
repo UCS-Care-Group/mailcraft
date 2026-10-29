@@ -63,6 +63,8 @@ const MIN_STEPS: u32 = 50_000;
 const MIN_BUILD_STEPS: u64 = 200;
 /// What building a look costs more for each declaration it considers.
 const BUILD_STEPS_PER_DECL: u64 = 4;
+/// And for each declaration the look says (each is parsed again, and kept once per property).
+const BUILD_STEPS_PER_OUTPUT: u64 = 20;
 
 /// The steps a message of `len` bytes gets.
 pub(crate) fn steps_for(len: usize) -> u32 {
@@ -1505,9 +1507,13 @@ impl Sheet {
             }
             // Working out a look costs about as much as reading what it says.
             // (It reads, sorts and de-duplicates every declaration it considers.)
-            spent += made
-                .as_ref()
-                .map_or(0, |a| MIN_BUILD_STEPS + BUILD_STEPS_PER_DECL * considered as u64 + (a.before.len() + a.after.len()) as u64 * 3 / 2);
+            spent += made.as_ref().map_or(0, |a| {
+                let output = [&a.before, &a.after].iter().map(|p| if p.is_empty() { 0 } else { p.matches(';').count() + 1 }).sum::<usize>();
+                MIN_BUILD_STEPS
+                    + BUILD_STEPS_PER_DECL * considered as u64
+                    + BUILD_STEPS_PER_OUTPUT * output as u64
+                    + (a.before.len() + a.after.len()) as u64 * 3 / 2
+            });
             if self.cache.len() < MAX_CACHED {
                 self.cache.insert(key, made.clone());
             }
