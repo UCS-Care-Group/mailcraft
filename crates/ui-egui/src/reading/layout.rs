@@ -244,6 +244,8 @@ pub struct Laid {
     /// The message brings its own design for a dark window, which this theme is: its colours
     /// are the sender's, and not turned over unless they cannot be read.
     sender_dark: bool,
+    /// In the light theme's colours whatever the window's: on a light page.
+    light: bool,
     /// Top-level blocks laid out.
     next: usize,
     y: f32,
@@ -274,6 +276,12 @@ impl Laid {
         Laid { sender_dark, ..self }
     }
 
+    /// The same, in the light theme's colours on a light page when `light`, whatever the window's
+    /// theme: for an owner who reads mail as it was made in the dark theme too.
+    pub fn on_light_page(self, light: bool) -> Laid {
+        Laid { light, ..self }
+    }
+
     /// The same, knowing which of the top-level blocks are parts of one paragraph that was cut
     /// for its length, and what was dropped at each cut: a copy puts them together again.
     pub fn cut(self, cuts: Arc<[Option<Glue>]>) -> Laid {
@@ -296,7 +304,8 @@ impl Laid {
         if self.done {
             return;
         }
-        let t = Tokens { sender_dark: self.sender_dark && Tokens::get(ctx).dark, ..Tokens::get(ctx) };
+        let base = if self.light { Tokens::light() } else { Tokens::get(ctx) };
+        let t = Tokens { sender_dark: self.sender_dark && base.dark, ..base };
         let cuts = self.cuts.clone();
         let mut cx = Cx {
             ctx,
