@@ -68,14 +68,15 @@ fn a_one_file_mailbox_opens_and_is_written_as_a_log_on_the_next_save() {
 }
 
 #[test]
-fn a_one_file_mailbox_over_the_limit_is_refused_and_left_alone() {
+fn a_one_file_mailbox_over_the_limit_that_is_not_a_mailbox_is_refused_and_left_alone() {
     let tmp = Temp::new("over");
     let path = tmp.file();
+    // (Past the limit a file is read as a stream, which says what is wrong with it.)
     let mut bytes = br#"{"version":1,"pad":""#.to_vec();
     bytes.resize(usize::try_from(MAX_MAILBOX_JSON).unwrap() + 10, b'x');
     fs::write(&path, &bytes).unwrap();
     let e = open(&path).unwrap_err();
-    assert!(e.contains("larger than 16 MB"), "{e}");
+    assert!(e.contains("isn't a MailCraft mailbox") || e.contains("too large"), "{e}");
     assert_eq!(fs::read(&path).unwrap(), bytes);
 }
 
@@ -151,7 +152,7 @@ fn an_append_that_would_pass_the_limit_compacts_instead_of_refusing() {
 }
 
 #[test]
-fn a_one_file_mailbox_too_large_for_the_memory_is_refused_before_it_is_read() {
+fn a_one_file_mailbox_too_large_for_the_memory_is_read_as_a_stream() {
     assert!(json_needs_too_much_memory(3 << 30, Some(8 << 30)));
     assert!(!json_needs_too_much_memory(1 << 30, Some(8 << 30)));
     assert!(json_needs_too_much_memory(UNMEASURED_JSON_MAX + 1, None));
@@ -161,28 +162,24 @@ fn a_one_file_mailbox_too_large_for_the_memory_is_refused_before_it_is_read() {
     fs::write(&path, crate::io::write_mailbox(&mailbox(20, 100)).unwrap()).unwrap();
     let len = fs::metadata(&path).unwrap().len();
     TEST_AVAILABLE.set(len * 2);
-    let e = open(&path).err();
+    let opened = open(&path);
     TEST_AVAILABLE.set(0);
-    let e = e.unwrap();
-    assert!(e.contains("too large for this computer's memory"), "{e}");
-    assert_eq!(open(&path).unwrap().mailbox.messages.len(), 20);
+    // Not refused (#649): the file is read a piece at a time, whatever the memory.
+    assert_eq!(opened.unwrap().mailbox.messages.len(), 20);
 }
 
 #[test]
-fn where_memory_cannot_be_measured_a_fixed_cap_stands_in() {
+fn where_memory_cannot_be_measured_a_big_file_is_read_as_a_stream() {
     let tmp = Temp::new("unmeasured");
     let path = tmp.file();
-    // Under the cap: opens. Over it (and under the limit): refused, without claiming a measurement.
     fs::write(&path, crate::io::write_mailbox(&mailbox(20, 100)).unwrap()).unwrap();
     TEST_AVAILABLE.set(u64::MAX);
     let small = open(&path).map(|o| o.mailbox.messages.len());
     fs::write(&path, crate::io::write_mailbox(&mailbox(1_000, 10_000)).unwrap()).unwrap();
     let len = fs::metadata(&path).unwrap().len();
-    let big = open(&path).err();
+    let big = open(&path).map(|o| o.mailbox.messages.len());
     TEST_AVAILABLE.set(0);
     assert_eq!(small.unwrap(), 20);
     assert!(len > UNMEASURED_JSON_MAX && len < MAX_MAILBOX_JSON, "{len}");
-    let e = big.unwrap();
-    assert!(e.contains("can't measure"), "{e}");
-    assert!(!e.contains("too large for this computer's memory"), "{e}");
+    assert_eq!(big.unwrap(), 1_000);
 }

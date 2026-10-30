@@ -31,7 +31,8 @@
 //!   form before this one (format 2, with the same content folder), or this form. Either of the
 //!   first two becomes this form the first time a changed mailbox is saved, written whole and
 //!   renamed over (until then the old file is the mailbox), and the old file is kept beside it as
-//!   `mailbox.mailcraft.format1` or `.format2`. Everything read back is hostile: a content file is
+//!   `mailbox.mailcraft.format1` or `.format2`. A format 1 file too large to hold in memory whole is read as a stream
+//!   (`store_stream.rs`, #649): its content goes to the content folder as each message is read. Everything read back is hostile: a content file is
 //!   taken only when it is a plain file of the length and SHA-256 the mailbox file names; names
 //!   are 64 hex digits or nothing; sizes are capped; a record counts only whole, with its
 //!   checksum, and closed by a commit. Bytes after the last commit (a save cut short, or damage)
@@ -77,6 +78,8 @@ use crate::io::{BackgroundSave, ContentSource, MAX_FILE, MAX_MAILBOX_JSON, OpenP
 
 #[path = "store_index.rs"]
 mod index;
+#[path = "store_stream.rs"]
+mod stream;
 
 use index::{Coll, Fp, Key, Tail};
 
@@ -1563,6 +1566,13 @@ fn open_locked(st: &mut State, path: &Path, progress: &OpenProgress, launch: Lau
     // (zeros left by a write the system cut short, another program's file) is not "too large".
     if !starts_like_json(&file).map_err(|e| format!("{show}: {e}"))? {
         return Err(format!("{show} isn't a MailCraft mailbox (it doesn't start like one; it may be damaged, and it is left as it is)"));
+    }
+    // A file that would not fit in memory whole (or is more than is read whole) is read as a
+    // stream, its content going to the content folder as it is read (#649).
+    if (len > MAX_MAILBOX_JSON || json_needs_too_much_memory(len, available_memory()))
+        && let Some(opened) = stream::open(st, &file, len, progress).map_err(|e| e.to_string())?
+    {
+        return Ok((opened, true));
     }
     if len > MAX_MAILBOX_JSON {
         return Err(format!("{show} is larger than {} MB", MAX_MAILBOX_JSON >> 20));
@@ -3770,3 +3780,7 @@ mod bench_tests;
 #[cfg(test)]
 #[path = "store_large_tests.rs"]
 mod large_tests;
+
+#[cfg(test)]
+#[path = "store_stream_tests.rs"]
+mod stream_tests;
