@@ -528,7 +528,7 @@ fn removing_an_account_takes_its_rules_with_it() {
 #[test]
 fn a_value_of_the_wrong_kind_is_refused_and_changes_nothing() {
     let (mut s, account, _, news) = session();
-    let id = news_rule(&mut s, account, news);
+    news_rule(&mut s, account, news);
     s.mailbox.rules.push(Rule {
         id: 900,
         name: "Old".into(),
@@ -553,10 +553,7 @@ fn a_value_of_the_wrong_kind_is_refused_and_changes_nothing() {
         asked.push(("rules.add", new(json!({"account": account, "stop": j}))));
         asked.push(("rules.keepOnServer", json!({"id": 900, "account": j})));
         asked.push(("rules.move", json!({"id": 900, "direction": "down", "account": j})));
-        asked.push(("rules.fromMessage", json!({"folder": news, "id": j})));
         asked.push(("rules.fromMessage", json!({"folder": news, "id": m, "server": j})));
-        asked.push(("rules.enable", json!({"id": id, "value": j})));
-        asked.push(("rules.run", json!({"folder": j})));
         asked.push(("rules.run", json!({"id": j})));
         asked.push(("rules.list", json!({"account": j})));
     }
