@@ -98,7 +98,19 @@ pub(crate) struct Built {
 }
 
 pub(crate) fn build(html: &str, decode: bool, env: &Env, keep_hidden: bool) -> Built {
+    build_with(html, decode, env, keep_hidden, None)
+}
+
+/// [`parse_text`] for HTML the owner wrote (a draft of this program's): a link's address is
+/// judged by `accept` (which gives the address to keep, or `None` for no link) instead of the
+/// reading rule ([`is_safe_url`]). Never for received mail.
+pub fn parse_text_own(html: &str, accept: fn(&str) -> Option<String>) -> Vec<Block> {
+    build_with(html, false, &Env::default(), false, Some(accept)).blocks
+}
+
+fn build_with(html: &str, decode: bool, env: &Env, keep_hidden: bool, own_link: Option<fn(&str) -> Option<String>>) -> Built {
     let mut builder = Builder::new(decode);
+    builder.own_link = own_link;
     builder.unseen = keep_hidden.then(String::new);
     let html = truncate(html, MAX_INPUT.saturating_add(MAX_DATA_TEXT));
     // The message's style sheets, read once for the whole message; the nth start tag below is
@@ -528,6 +540,8 @@ struct Builder {
     hidden: usize,
     /// The text of what is hidden, when it is wanted: only the owner's search and agents read it.
     unseen: Option<String>,
+    /// How a link's address is judged, when the HTML is the owner's own ([`parse_text_own`]).
+    own_link: Option<fn(&str) -> Option<String>>,
     /// A space is due before the next hidden word.
     unseen_gap: bool,
     /// Open tables that a stray `<tr>` or `<td>` started.
@@ -583,6 +597,7 @@ impl Builder {
             inline_overflow: 0,
             hidden: 0,
             unseen: None,
+            own_link: None,
             unseen_gap: false,
             implied: 0,
             quote: 0,
@@ -2070,7 +2085,11 @@ impl Builder {
                 if let Some(index) = self.find(|n| n.name == "a", |k| matches!(k, Kind::Cell(_) | Kind::Row(_) | Kind::Table(_))) {
                     self.close_format(index);
                 }
-                let link: Option<Rc<str>> = safe_url(tag.attr("href")).map(Rc::from);
+                let link: Option<Rc<str>> = match self.own_link {
+                    Some(accept) => own_url(tag.attr("href"), accept),
+                    None => safe_url(tag.attr("href")),
+                }
+                .map(Rc::from);
                 // A link has the reader's link colour unless it names one itself.
                 let color = link.is_some().then_some(None);
                 self.open_inline("a", true, tag, Delta { link: Some(link), color, ..Delta::default() });
@@ -2255,6 +2274,12 @@ fn safe_url(raw: Option<String>) -> Option<String> {
     let url: String = raw?.chars().filter(|c| !matches!(c, '\t' | '\n' | '\r')).collect();
     let url = url.trim();
     is_safe_url(url).then(|| url.to_string())
+}
+
+/// [`safe_url`] for the owner's own HTML: tabs and line breaks removed as there, then `accept`.
+fn own_url(raw: Option<String>, accept: fn(&str) -> Option<String>) -> Option<String> {
+    let url: String = raw?.chars().filter(|c| !matches!(c, '\t' | '\n' | '\r')).collect();
+    accept(url.trim())
 }
 
 /// The address of a picture, when it may be used: [`safe_url`], and besides an address that

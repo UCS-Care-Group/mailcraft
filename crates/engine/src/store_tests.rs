@@ -362,6 +362,29 @@ fn an_old_single_file_opens_and_becomes_the_split_form_on_the_next_save() {
     assert!(crate::io::read_mailbox(br#"{"version":3}"#).unwrap_err().contains("newer MailCraft"));
 }
 
+/// #649: Save As onto the file the mailbox is kept in (the dialog suggests its name) must be a
+/// save, not the one-file form written over it.
+#[test]
+fn save_as_onto_the_mailbox_in_use_never_writes_the_one_file_form() {
+    let tmp = Temp::new("saveas-home");
+    let home = tmp.file();
+    let mut s = Session::new(mailbox(12));
+    s.run("file.save", &json!({"path": home})).unwrap();
+    assert!(blob_dir(&home).is_dir());
+    // The same file under another spelling, too.
+    let dotted = tmp.0.join(".").join(home.file_name().unwrap());
+    for target in [home.clone(), dotted] {
+        let r = s.run("file.saveAs", &json!({"path": target})).unwrap();
+        assert_eq!((r["copy"].as_bool(), s.path.as_deref()), (Some(false), Some(home.as_path())));
+        let head = fs::read(&home).unwrap();
+        assert!(!head.starts_with(b"{"), "the one-file form was written over the mailbox");
+        assert!(blob_dir(&home).is_dir());
+        let mut t = Session::empty();
+        t.run("file.open", &json!({"path": home})).unwrap();
+        assert!(t.loaded_mailbox().unwrap() == s.mailbox);
+    }
+}
+
 #[test]
 fn one_self_contained_file_still_works_everywhere() {
     // What the browser keeps and what Save Mailbox As writes: one file, attachments inside.

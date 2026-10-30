@@ -355,7 +355,7 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
-msgid "A web address, an email address or a phone number (tel:). With nothing selected, the address is put in as it is."
+msgid "A web address, an email address, a phone number (tel:) or another address such as ms-settings:network-vpn. With nothing selected, the address is put in as it is."
 msgstr ""
 
 #. date and time, interface
@@ -1862,6 +1862,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/open_shared.rs crates/ui-egui/src/opening.rs crates/ui-egui/src/rule_sync.rs crates/ui-egui/src/shared_calendars.rs crates/ui-egui/src/shared_mailboxes.rs crates/ui-egui/src/task_sync.rs
 msgid "Continue"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading.rs
+msgid "Continue editing"
 msgstr ""
 
 #. interface
@@ -9801,6 +9806,11 @@ msgstr ""
 msgid "This message has pictures on the web. This build can't download them."
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/reading.rs
+msgid "This message hasn't been sent."
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/calendar/invitation.rs
 msgid "This message isn't an invitation that can be answered."
@@ -10964,7 +10974,7 @@ msgstr ""
 
 #. what a command says
 #: crates/model/src/rich.rs crates/model/src/rich/body.rs
-msgid "a link goes to an http, https, mailto or tel address"
+msgid "a link goes to an address like https://..., mailto:... or ms-settings:..., never javascript:, vbscript:, data: or file:"
 msgstr ""
 
 #. what a command says

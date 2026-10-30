@@ -369,7 +369,7 @@ fn write_the_corpus_as_a_mailbox() {
     std::fs::write(dir.join("corpus-ids.txt"), list).unwrap();
 }
 
-fn window(app: MailApp, size: (f32, f32)) -> egui_kittest::Harness<'static, MailApp> {
+pub(super) fn window(app: MailApp, size: (f32, f32)) -> egui_kittest::Harness<'static, MailApp> {
     let mut harness =
         egui_kittest::Harness::builder().with_accessibility_check(false).allow_missing_glyphs().with_size(egui::vec2(size.0, size.1)).build_ui_state(
             |ui, app: &mut MailApp| {
@@ -1169,8 +1169,8 @@ fn the_reading_pane_names_nothing_that_could_fetch() {
         checked += 1;
     }
     assert_eq!(
-        checked, 13,
-        "reading.rs, colors, images (and its tests), invitation, layout, remote, select, sharing (and its tests), view and warnings (and its tests)"
+        checked, 14,
+        "reading.rs, colors, header tests, images (and its tests), invitation, layout, remote, select, sharing (and its tests), view and warnings (and its tests)"
     );
 }
 
@@ -1283,7 +1283,7 @@ fn newsletter_picture(url: &str) -> Result<Vec<u8>, String> {
 }
 
 /// A message whose body is these pictures on the web, one under the other.
-fn web_message(n: usize, from: &str, subject: &str, pictures: &[String]) -> Message {
+pub(super) fn web_message(n: usize, from: &str, subject: &str, pictures: &[String]) -> Message {
     let html: String = pictures.iter().map(|src| format!("<p>Picture:</p><img src=\"{src}\" width=40 height=30 alt=\"A picture\">")).collect();
     message(n, ("A Sender", from), subject, Some(html), String::new())
 }
@@ -1293,7 +1293,7 @@ fn web_pictures(host: &str, count: usize) -> Vec<String> {
 }
 
 /// A window on a mailbox that holds `messages`, and their ids.
-fn app_with(messages: Vec<Message>) -> (MailApp, Vec<u64>) {
+pub(super) fn app_with(messages: Vec<Message>) -> (MailApp, Vec<u64>) {
     let mut mailbox = Mailbox::with_local_account("Avery Quinn", "avery@lumen-works.example");
     served_by_example_org(&mut mailbox);
     let inbox = mailbox.inbox().unwrap();
@@ -1316,7 +1316,7 @@ fn click_at(harness: &mut Window, pos: egui::Pos2) {
     harness.run_steps(2);
 }
 
-fn select(harness: &mut Window, id: u64) {
+pub(super) fn select(harness: &mut Window, id: u64) {
     harness.state_mut().execute("mail.select", json!({"id": id})).unwrap();
     harness.run_steps(6);
 }

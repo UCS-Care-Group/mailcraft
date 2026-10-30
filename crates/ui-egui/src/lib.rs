@@ -64,6 +64,8 @@ pub mod dates;
 #[cfg(test)]
 mod dialog_scrim_tests;
 pub mod dialogs;
+#[cfg(test)]
+mod draft_continue_tests;
 mod drag_pointer;
 #[cfg(test)]
 mod drag_pointer_tests;
@@ -122,6 +124,8 @@ pub mod rule_sync;
 mod rule_sync_tests;
 pub mod scheduling;
 mod search_pills;
+#[cfg(test)]
+mod search_pills_tests;
 mod search_suggest;
 mod secret_field;
 #[cfg(test)]

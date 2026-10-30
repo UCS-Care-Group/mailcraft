@@ -409,9 +409,8 @@ msgstr "Las reglas de un buzón compartido son suyas: esta versión no las crea"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
-#, fuzzy
-msgid "A web address, an email address or a phone number (tel:). With nothing selected, the address is put in as it is."
-msgstr "Una dirección web, una dirección de correo electrónico o un número de teléfono (tel:). Si no hay nada seleccionado, la dirección se inserta tal cual."
+msgid "A web address, an email address, a phone number (tel:) or another address such as ms-settings:network-vpn. With nothing selected, the address is put in as it is."
+msgstr ""
 
 #. date and time, interface
 #: crates/i18n/src/date.rs crates/ui-egui/src/calendar_view.rs
@@ -2175,6 +2174,11 @@ msgstr "Los contactos no van a Elementos eliminados."
 #, fuzzy
 msgid "Continue"
 msgstr "Continuar"
+
+#. interface
+#: crates/ui-egui/src/reading.rs
+msgid "Continue editing"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -11405,6 +11409,11 @@ msgstr "Este mensaje no tiene texto."
 msgid "This message has pictures on the web. This build can't download them."
 msgstr "Este mensaje tiene imágenes en la web. Esta compilación no puede descargarlas."
 
+#. interface
+#: crates/ui-egui/src/reading.rs
+msgid "This message hasn't been sent."
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/calendar/invitation.rs
 #, fuzzy
@@ -12764,9 +12773,8 @@ msgstr "una carpeta necesita un nombre"
 
 #. what a command says
 #: crates/model/src/rich.rs crates/model/src/rich/body.rs
-#, fuzzy
-msgid "a link goes to an http, https, mailto or tel address"
-msgstr "un vínculo lleva a una dirección http, https, mailto o tel"
+msgid "a link goes to an address like https://..., mailto:... or ms-settings:..., never javascript:, vbscript:, data: or file:"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/junk.rs
@@ -15451,41 +15459,18 @@ msgid "“{subject}” wasn't found on its server, so it can't be forwarded as a
 msgstr "«{subject}» no se encontró en su servidor, así que no se puede reenviar como datos adjuntos"
 
 #, fuzzy
-#~ msgid "On the server, still as it was: your change goes there once MailCraft may change the server's rules (File › Info › Ask again)"
-#~ msgstr "En el servidor, aún como estaba: su cambio llega allí en cuanto MailCraft pueda cambiar las reglas del servidor (Archivo › Información › Volver a preguntar)"
+#~ msgid "A web address, an email address or a phone number (tel:). With nothing selected, the address is put in as it is."
+#~ msgstr "Una dirección web, una dirección de correo electrónico o un número de teléfono (tel:). Si no hay nada seleccionado, la dirección se inserta tal cual."
 
 #, fuzzy
-#~ msgid "Rules: new ones are kept on this computer only (not allowed on the server yet)"
-#~ msgstr "Reglas: las nuevas se guardan solo en este equipo (aún no permitidas en el servidor)"
-
-#, fuzzy
-#~ msgid "Rules: the server's are shown; you're asked before the first one goes there"
-#~ msgstr "Reglas: se muestran las del servidor; se le preguntará antes de enviar allí la primera"
-
-#, fuzzy
-#~ msgid "Then run the rules over the mail in {folder}"
-#~ msgstr "Después, ejecutar las reglas en el correo de {folder}"
-
-#, fuzzy
-#~ msgid "This account's server doesn't keep rules: the rule runs on this computer, while MailCraft is open."
-#~ msgstr "El servidor de esta cuenta no guarda reglas: la regla se ejecuta en este equipo, mientras MailCraft está abierto."
-
-#, fuzzy
-#~ msgid "this account's server doesn't keep rules"
-#~ msgstr "el servidor de esta cuenta no guarda reglas"
+#~ msgid "a link goes to an http, https, mailto or tel address"
+#~ msgstr "un vínculo lleva a una dirección http, https, mailto o tel"
 
 #, fuzzy
 #~ msgid "MailCraft doesn't send mail from a JMAP account yet"
 #~ msgstr "MailCraft todavía no envía correo desde una cuenta JMAP"
 
 #, fuzzy
-#~ msgid "Kept on the server, where it runs whether MailCraft is open or not."
-#~ msgstr "Se guarda en el servidor, donde se ejecuta esté MailCraft abierto o no."
-
-#, fuzzy
-#~ msgid "The server can't flag mail, so this rule will be kept on this computer."
-#~ msgstr "El servidor no puede marcar el correo, así que esta regla se guardará en este equipo."
-
 #~ msgid "Pictures are always downloaded from:"
 #~ msgstr "Las imágenes siempre se descargan de:"
 

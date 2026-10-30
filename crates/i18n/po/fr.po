@@ -409,9 +409,8 @@ msgstr "Les règles d'une boîte aux lettres partagée lui sont propres : cette 
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
-#, fuzzy
-msgid "A web address, an email address or a phone number (tel:). With nothing selected, the address is put in as it is."
-msgstr "Une adresse web, une adresse e-mail ou un numéro de téléphone (tel:). Si rien n'est sélectionné, l'adresse est insérée telle quelle."
+msgid "A web address, an email address, a phone number (tel:) or another address such as ms-settings:network-vpn. With nothing selected, the address is put in as it is."
+msgstr "Une adresse web, une adresse e-mail, un numéro de téléphone (tel:) ou une autre adresse comme ms-settings:network-vpn. Sans sélection, l'adresse est insérée telle quelle."
 
 #. date and time, interface
 #: crates/i18n/src/date.rs crates/ui-egui/src/calendar_view.rs
@@ -2175,6 +2174,11 @@ msgstr "Les contacts ne vont pas dans Éléments supprimés."
 #, fuzzy
 msgid "Continue"
 msgstr "Continuer"
+
+#. interface
+#: crates/ui-egui/src/reading.rs
+msgid "Continue editing"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -11405,6 +11409,11 @@ msgstr "Ce message ne contient pas de texte."
 msgid "This message has pictures on the web. This build can't download them."
 msgstr "Ce message contient des images sur le web. Cette version ne peut pas les télécharger."
 
+#. interface
+#: crates/ui-egui/src/reading.rs
+msgid "This message hasn't been sent."
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/calendar/invitation.rs
 #, fuzzy
@@ -12764,9 +12773,8 @@ msgstr "un dossier doit avoir un nom"
 
 #. what a command says
 #: crates/model/src/rich.rs crates/model/src/rich/body.rs
-#, fuzzy
-msgid "a link goes to an http, https, mailto or tel address"
-msgstr "un lien mène à une adresse http, https, mailto ou tel"
+msgid "a link goes to an address like https://..., mailto:... or ms-settings:..., never javascript:, vbscript:, data: or file:"
+msgstr "un lien mène à une adresse comme https://..., mailto:... ou ms-settings:..., jamais javascript:, vbscript:, data: ou file:"
 
 #. what a command says
 #: crates/engine/src/cmd/junk.rs
@@ -15451,41 +15459,18 @@ msgid "“{subject}” wasn't found on its server, so it can't be forwarded as a
 msgstr "« {subject} » est introuvable sur son serveur, il ne peut donc pas être transféré en tant que pièce jointe"
 
 #, fuzzy
-#~ msgid "On the server, still as it was: your change goes there once MailCraft may change the server's rules (File › Info › Ask again)"
-#~ msgstr "Sur le serveur, encore telle qu'elle était : votre modification y part dès que MailCraft peut modifier les règles du serveur (Fichier › Informations › Redemander)"
+#~ msgid "A web address, an email address or a phone number (tel:). With nothing selected, the address is put in as it is."
+#~ msgstr "Une adresse web, une adresse e-mail ou un numéro de téléphone (tel:). Si rien n'est sélectionné, l'adresse est insérée telle quelle."
 
 #, fuzzy
-#~ msgid "Rules: new ones are kept on this computer only (not allowed on the server yet)"
-#~ msgstr "Règles : les nouvelles sont conservées sur cet ordinateur uniquement (pas encore autorisées sur le serveur)"
-
-#, fuzzy
-#~ msgid "Rules: the server's are shown; you're asked before the first one goes there"
-#~ msgstr "Règles : celles du serveur sont affichées ; on vous le demandera avant que la première y soit envoyée"
-
-#, fuzzy
-#~ msgid "Then run the rules over the mail in {folder}"
-#~ msgstr "Ensuite, appliquer les règles aux messages de {folder}"
-
-#, fuzzy
-#~ msgid "This account's server doesn't keep rules: the rule runs on this computer, while MailCraft is open."
-#~ msgstr "Le serveur de ce compte ne conserve pas de règles : la règle s'exécute sur cet ordinateur, tant que MailCraft est ouvert."
-
-#, fuzzy
-#~ msgid "this account's server doesn't keep rules"
-#~ msgstr "le serveur de ce compte ne conserve pas de règles"
+#~ msgid "a link goes to an http, https, mailto or tel address"
+#~ msgstr "un lien mène à une adresse http, https, mailto ou tel"
 
 #, fuzzy
 #~ msgid "MailCraft doesn't send mail from a JMAP account yet"
 #~ msgstr "MailCraft n'envoie pas encore de courrier depuis un compte JMAP"
 
 #, fuzzy
-#~ msgid "Kept on the server, where it runs whether MailCraft is open or not."
-#~ msgstr "Conservée sur le serveur, où elle s'exécute que MailCraft soit ouvert ou non."
-
-#, fuzzy
-#~ msgid "The server can't flag mail, so this rule will be kept on this computer."
-#~ msgstr "Le serveur ne peut pas marquer le courrier d'un indicateur : cette règle sera donc conservée sur cet ordinateur."
-
 #~ msgid "Pictures are always downloaded from:"
 #~ msgstr "Les images sont toujours téléchargées depuis :"
 

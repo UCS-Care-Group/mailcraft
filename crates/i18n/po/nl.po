@@ -423,9 +423,8 @@ msgstr "De regels van een gedeeld postvak zijn van dat postvak: deze versie maak
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
-#, fuzzy
-msgid "A web address, an email address or a phone number (tel:). With nothing selected, the address is put in as it is."
-msgstr "Een webadres, een e-mailadres of een telefoonnummer (tel:). Als er niets is geselecteerd, wordt het adres ingevoegd zoals het is."
+msgid "A web address, an email address, a phone number (tel:) or another address such as ms-settings:network-vpn. With nothing selected, the address is put in as it is."
+msgstr ""
 
 #. date and time, interface
 #: crates/i18n/src/date.rs crates/ui-egui/src/calendar_view.rs
@@ -2239,6 +2238,11 @@ msgstr "Contactpersonen gaan niet naar Verwijderde items."
 #, fuzzy
 msgid "Continue"
 msgstr "Doorgaan"
+
+#. interface
+#: crates/ui-egui/src/reading.rs
+msgid "Continue editing"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -11773,6 +11777,11 @@ msgstr "Dit bericht heeft geen tekst."
 msgid "This message has pictures on the web. This build can't download them."
 msgstr "Dit bericht heeft afbeeldingen op het web. Deze build kan ze niet downloaden."
 
+#. interface
+#: crates/ui-egui/src/reading.rs
+msgid "This message hasn't been sent."
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/calendar/invitation.rs
 #, fuzzy
@@ -13181,9 +13190,8 @@ msgstr "een map heeft een naam nodig"
 
 #. what a command says
 #: crates/model/src/rich.rs crates/model/src/rich/body.rs
-#, fuzzy
-msgid "a link goes to an http, https, mailto or tel address"
-msgstr "een koppeling gaat naar een http-, https-, mailto- of tel-adres"
+msgid "a link goes to an address like https://..., mailto:... or ms-settings:..., never javascript:, vbscript:, data: or file:"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/junk.rs
@@ -15939,41 +15947,18 @@ msgid "“{subject}” wasn't found on its server, so it can't be forwarded as a
 msgstr "„{subject}” is niet op de server gevonden, dus het kan niet als bijlage worden doorgestuurd"
 
 #, fuzzy
-#~ msgid "On the server, still as it was: your change goes there once MailCraft may change the server's rules (File › Info › Ask again)"
-#~ msgstr "Op de server, nog zoals hij was: uw wijziging gaat erheen zodra MailCraft de regels van de server mag wijzigen (Bestand › Info › Opnieuw vragen)"
+#~ msgid "A web address, an email address or a phone number (tel:). With nothing selected, the address is put in as it is."
+#~ msgstr "Een webadres, een e-mailadres of een telefoonnummer (tel:). Als er niets is geselecteerd, wordt het adres ingevoegd zoals het is."
 
 #, fuzzy
-#~ msgid "Rules: new ones are kept on this computer only (not allowed on the server yet)"
-#~ msgstr "Regels: nieuwe worden alleen op deze computer bewaard (nog niet toegestaan op de server)"
-
-#, fuzzy
-#~ msgid "Rules: the server's are shown; you're asked before the first one goes there"
-#~ msgstr "Regels: die van de server worden getoond; u wordt gevraagd voordat de eerste daarheen gaat"
-
-#, fuzzy
-#~ msgid "Then run the rules over the mail in {folder}"
-#~ msgstr "Daarna de regels uitvoeren op de e-mail in {folder}"
-
-#, fuzzy
-#~ msgid "This account's server doesn't keep rules: the rule runs on this computer, while MailCraft is open."
-#~ msgstr "De server van dit account bewaart geen regels: de regel wordt op deze computer uitgevoerd, zolang MailCraft open is."
-
-#, fuzzy
-#~ msgid "this account's server doesn't keep rules"
-#~ msgstr "de server van dit account bewaart geen regels"
+#~ msgid "a link goes to an http, https, mailto or tel address"
+#~ msgstr "een koppeling gaat naar een http-, https-, mailto- of tel-adres"
 
 #, fuzzy
 #~ msgid "MailCraft doesn't send mail from a JMAP account yet"
 #~ msgstr "MailCraft verzendt nog geen e-mail vanuit een JMAP-account"
 
 #, fuzzy
-#~ msgid "Kept on the server, where it runs whether MailCraft is open or not."
-#~ msgstr "Bewaard op de server, waar hij wordt uitgevoerd of MailCraft nu open is of niet."
-
-#, fuzzy
-#~ msgid "The server can't flag mail, so this rule will be kept on this computer."
-#~ msgstr "De server kan e-mail niet markeren, dus deze regel wordt op deze computer bewaard."
-
 #~ msgid "Pictures are always downloaded from:"
 #~ msgstr "Afbeeldingen worden altijd gedownload van:"
 

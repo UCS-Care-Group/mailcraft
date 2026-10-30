@@ -45,6 +45,7 @@ pub mod graph_switch;
 pub mod graph_up;
 #[cfg(test)]
 mod hidden_selection_tests;
+pub mod imap_again;
 #[cfg(test)]
 mod imap_outbox_tests;
 mod jmap_down;

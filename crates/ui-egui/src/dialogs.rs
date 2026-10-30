@@ -1104,8 +1104,10 @@ pub fn input_dialog(id: &str, params: &Value) -> Option<&'static str> {
 /// may be a link).
 pub(crate) fn link_address(typed: &str) -> String {
     let typed = typed.trim();
-    if typed.contains(':') {
+    if typed.contains(':') && !host_and_port(typed) {
         typed.to_string()
+    } else if typed.contains(':') {
+        format!("https://{typed}")
     } else if typed.contains('@') && !typed.contains('/') {
         format!("mailto:{typed}")
     } else if typed.contains('.') && !typed.contains(char::is_whitespace) {
@@ -1113,6 +1115,19 @@ pub(crate) fn link_address(typed: &str) -> String {
     } else {
         typed.to_string()
     }
+}
+
+/// A host and a port typed without a scheme (`www.example.org:8443/x`, `intranet:8080/wiki`):
+/// what follows the colon is a port number (1 to 5 digits, then the end or a `/`, `?` or `#`).
+/// Schemes whose address is a number (`tel:`, `sip:911`, `sms:12345`…) are schemes whatever follows.
+fn host_and_port(typed: &str) -> bool {
+    const NUMERIC: [&str; 9] = ["tel", "mailto", "sip", "sips", "sms", "callto", "fax", "xmpp", "im"];
+    let Some((scheme, rest)) = typed.split_once(':') else { return false };
+    if NUMERIC.iter().any(|n| scheme.eq_ignore_ascii_case(n)) {
+        return false;
+    }
+    let digits = rest.chars().take_while(char::is_ascii_digit).count();
+    (1..=5).contains(&digits) && rest.get(digits..).is_some_and(|after| after.is_empty() || after.starts_with(['/', '?', '#']))
 }
 
 /// Every command (engine and window) as `(id, label, location, shortcut, enabled)`, for search.
@@ -1486,7 +1501,7 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
                 }
                 ui.label(
                     egui::RichText::new(tl!(
-                        "A web address, an email address or a phone number (tel:). With nothing selected, the address is put in as it is."
+                        "A web address, an email address, a phone number (tel:) or another address such as ms-settings:network-vpn. With nothing selected, the address is put in as it is."
                     ))
                     .color(t.text_dim)
                     .size(11.0),
@@ -1508,7 +1523,7 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
             } else if submit {
                 match app.execute("compose.link", json!({"url": link_address(url)})) {
                     Ok(_) => close = true,
-                    Err(e) => *error = e,
+                    Err(e) => *error = tl!(&e).to_string(),
                 }
             }
             // The keyboard goes back to the text.

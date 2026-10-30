@@ -378,7 +378,9 @@ impl RichBody {
             if let Format::Link(Some(url)) = &change
                 && super::safe_link(url).is_none()
             {
-                return Err(ModelError::Invalid("a link goes to an http, https, mailto or tel address".into()));
+                return Err(ModelError::Invalid(
+                    "a link goes to an address like https://..., mailto:... or ms-settings:..., never javascript:, vbscript:, data: or file:".into(),
+                ));
             }
             let mut style = self.typing_style();
             change.apply(&mut style);
@@ -397,7 +399,12 @@ impl RichBody {
         let sel = self.selection;
         match url {
             Some(url) => {
-                let url = super::safe_link(url).ok_or_else(|| ModelError::Invalid("a link goes to an http, https, mailto or tel address".into()))?;
+                let url = super::safe_link(url).ok_or_else(|| {
+                    ModelError::Invalid(
+                        "a link goes to an address like https://..., mailto:... or ms-settings:..., never javascript:, vbscript:, data: or file:"
+                            .into(),
+                    )
+                })?;
                 if sel.is_empty() {
                     let mut style = self.typing_style();
                     style.link = Some(url.clone());
