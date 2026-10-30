@@ -642,6 +642,11 @@ impl Account {
         self.shared_of.is_some()
     }
 
+    /// Whether Microsoft keeps its to-dos: it signs in with Microsoft and is not a shared mailbox.
+    pub fn keeps_tasks(&self) -> bool {
+        !self.is_shared() && self.kind != AccountKind::Jmap && self.oauth.as_ref().is_some_and(|o| o.provider == OAuthProvider::Microsoft)
+    }
+
     /// The shared mailbox's own address, when this is one. Read here rather than at each call
     /// site so that callers hold a "mailbox" and not an address.
     pub fn shared_mailbox(&self) -> Option<String> {
@@ -954,7 +959,7 @@ pub struct Mailbox {
     #[serde(skip_serializing_if = "crate::LocalTasks::is_unasked")]
     pub local_tasks: crate::LocalTasks,
     /// Where the owner last put a new to-do: an account, or 0 for this computer. `None` until
-    /// they have put one anywhere.
+    /// they have put one anywhere or answered [`crate::LocalTasks::SendTo`].
     #[serde(skip_serializing_if = "Option::is_none")]
     pub task_place: Option<Id>,
     /// Changes to events that a server said it took and that no download has shown yet
@@ -2514,6 +2519,24 @@ impl Mailbox {
         true
     }
 
+    /// Before #632 a to-do left here went to the account of [`crate::LocalTasks::SendTo`] whenever
+    /// it was made; now that answer moves what is here when it is given. What a file from then
+    /// still has waiting goes there all the same, once: `task_place`, set here and by the answer,
+    /// says that it has been done. Whether anything moved.
+    fn migrate_waiting_tasks(&mut self) -> bool {
+        let crate::LocalTasks::SendTo(account) = self.local_tasks else { return false };
+        if self.task_place.is_some() || !self.account(account).is_some_and(Account::keeps_tasks) {
+            return false;
+        }
+        self.task_place = Some(account);
+        let mut moved = false;
+        for task in self.tasks.values_mut().filter(|t| t.only_here()) {
+            Arc::make_mut(task).origin.account = account;
+            moved = true;
+        }
+        moved
+    }
+
     /// Run the enabled rules on a message (new mail). Returns the names of the rules that ran.
     pub fn apply_rules(&mut self, id: Id) -> Vec<String> {
         let mut ran = Vec::new();
@@ -2850,6 +2873,9 @@ impl Mailbox {
             }
         }
         self.tidy_listed_twice();
+        if self.migrate_waiting_tasks() {
+            fixed.push("to-dos waiting for an earlier answer given to its account".to_string());
+        }
         let accounts: Vec<Id> = self.accounts.iter().map(|a| a.id).collect();
         let known_accounts: HashSet<Id> = accounts.iter().copied().collect();
         let before = self.folders.len();

@@ -29,7 +29,7 @@ use mailcraft_model::remote_tasks::{
     MAX_TASK_CREATES, MAX_TASK_LISTS, MAX_TASK_OPS, MAX_TASKS, RemoteTask, RemoteTaskList, TaskOp, TaskOpKind, TaskResult, TasksDownload,
     TasksUpload, TasksUploaded,
 };
-use mailcraft_model::{AccountKind, Id, LocalTasks, Mailbox, Origin, Task, TaskFields};
+use mailcraft_model::{Id, LocalTasks, Mailbox, Origin, Task, TaskFields};
 use serde_json::{Value, json};
 
 use super::remote::{Merged, owner};
@@ -58,9 +58,7 @@ pub fn specs() -> Vec<CommandSpec> {
 /// Whether the account is one whose to-dos Microsoft keeps: it signs in with Microsoft and is not
 /// a shared mailbox.
 pub fn keeps_tasks(mailbox: &Mailbox, account: Id) -> bool {
-    mailbox.account(account).is_some_and(|a| {
-        !a.is_shared() && a.kind != AccountKind::Jmap && a.oauth.as_ref().is_some_and(|o| o.provider == mailcraft_model::OAuthProvider::Microsoft)
-    })
+    mailbox.account(account).is_some_and(|a| a.keeps_tasks())
 }
 
 /// The account the owner sent their local to-dos to ([`LocalTasks::SendTo`]), if any: where they
@@ -74,7 +72,7 @@ pub fn tasks_home(mailbox: &Mailbox) -> Option<Id> {
 
 /// The to-dos that exist only on this computer and could go to an account's To Do.
 fn local_tasks(mailbox: &Mailbox) -> impl Iterator<Item = &Task> {
-    mailbox.tasks.values().map(|t| t.as_ref()).filter(|t| t.origin.is_local() && t.origin.id.is_empty() && !t.local_only && !t.kept_here)
+    mailbox.tasks.values().map(|t| t.as_ref()).filter(|t| t.only_here())
 }
 
 /// How many of them there are.
@@ -407,6 +405,7 @@ fn send_local_command(s: &mut Session, v: &Value) -> CmdResult {
     let local: Vec<Id> = local_tasks(&s.mailbox).map(|t| t.id).collect();
     let waiting = local.len();
     if let LocalTasks::SendTo(account) = answer {
+        s.mailbox.task_place.get_or_insert(account);
         for id in local {
             if let Ok(task) = s.mailbox.task_mut(id) {
                 task.origin.account = account;

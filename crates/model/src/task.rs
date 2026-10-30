@@ -248,6 +248,11 @@ impl LocalTasks {
 pub const MAX_TASK_GONE: usize = 5_000;
 
 impl Task {
+    /// Whether it exists only on this computer and could go to an account's To Do.
+    pub fn only_here(&self) -> bool {
+        self.origin.is_local() && self.origin.id.is_empty() && !self.local_only && !self.kept_here
+    }
+
     /// Whether the two would be the same to a server: what it keeps of a to-do
     /// ([`Task::fields`]), its list and what it calls it. Nothing is copied.
     pub fn same_on_server(&self, other: &Task) -> bool {

@@ -169,6 +169,43 @@ fn the_question_is_about_the_tasks_there_now_not_the_ones_to_come() {
 }
 
 #[test]
+fn what_waited_for_an_answer_given_before_goes_there_once() {
+    let (mut s, work, home) = session();
+    let waiting = local_task_count(&s.mailbox);
+    assert!(waiting > 0);
+    s.mailbox.local_tasks = LocalTasks::SendTo(work);
+    let bytes = crate::io::write_mailbox(&s.mailbox).unwrap();
+    let mut back = Session::at(crate::io::read_mailbox(&bytes).unwrap(), NOW, 0);
+    assert_eq!(going_to(&back, work).len(), waiting);
+    assert_eq!((going_to(&back, home).len(), local_task_count(&back.mailbox)), (0, 0));
+    // Once: what comes here afterwards waits for a yes of its own.
+    back.mailbox.add_task(Task { title: "From a file".into(), ..Default::default() });
+    let bytes = crate::io::write_mailbox(&back.mailbox).unwrap();
+    let again = Session::at(crate::io::read_mailbox(&bytes).unwrap(), NOW, 0);
+    assert_eq!((going_to(&again, work).len(), local_task_count(&again.mailbox)), (waiting, 1));
+}
+
+#[test]
+fn an_answer_given_now_is_not_taken_for_one_from_before() {
+    let (mut s, work, _) = session();
+    run(&mut s, "tasks.sendLocal", json!({"account": work}));
+    s.mailbox.add_task(Task { title: "From a file".into(), ..Default::default() });
+    let bytes = crate::io::write_mailbox(&s.mailbox).unwrap();
+    let back = Session::at(crate::io::read_mailbox(&bytes).unwrap(), NOW, 0);
+    assert_eq!(local_task_count(&back.mailbox), 1);
+}
+
+#[test]
+fn an_earlier_answer_for_an_account_that_keeps_no_tasks_moves_nothing() {
+    let (mut s, ..) = session();
+    let waiting = local_task_count(&s.mailbox);
+    s.mailbox.local_tasks = LocalTasks::SendTo(9_999);
+    let bytes = crate::io::write_mailbox(&s.mailbox).unwrap();
+    let back = crate::io::read_mailbox(&bytes).unwrap();
+    assert_eq!((local_task_count(&back), back.task_place), (waiting, None));
+}
+
+#[test]
 fn add_to_tasks_puts_it_in_the_messages_account() {
     let (mut s, work, home) = session();
     run(&mut s, "tasks.sendLocal", json!({"account": work}));
@@ -182,7 +219,7 @@ fn add_to_tasks_puts_it_in_the_messages_account() {
     assert_eq!(s.mailbox.task(made).unwrap().origin.account, home);
     assert_eq!(s.view.task_account, AccountChoice::Account(home));
     // It doesn't count as the place the owner last chose.
-    assert_eq!(s.mailbox.task_place, None);
+    assert_eq!(s.mailbox.task_place, Some(work));
     // An account with no To Do of its own: as with All accounts.
     let other = run(&mut s, "tasks.fromMessage", json!({"id": ids[1]}))["id"].as_u64().unwrap();
     assert_eq!(s.mailbox.task(other).unwrap().origin.account, work);
