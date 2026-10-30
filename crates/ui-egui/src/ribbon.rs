@@ -1022,10 +1022,13 @@ pub(crate) fn selected_accounts(app: &MailApp) -> Vec<Id> {
     accounts
 }
 
-/// The categories the selected messages carry.
+/// The categories the selected messages carry, each once.
 pub(crate) fn selected_categories(app: &MailApp) -> Vec<String> {
     let messages = app.session.sel.messages.iter().filter_map(|id| app.session.mailbox.message(*id));
-    messages.flat_map(|m| m.categories.iter().cloned()).collect()
+    let mut names: Vec<String> = messages.flat_map(|m| m.categories.iter().cloned()).collect();
+    names.sort_unstable();
+    names.dedup();
+    names
 }
 
 /// Most names off the list that the Categorize menu shows.

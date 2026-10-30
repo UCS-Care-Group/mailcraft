@@ -274,3 +274,23 @@ fn every_category_of_a_list_in_a_file_counts() {
     assert!(crate::from_json(&bytes, room).is_err());
     assert!(crate::from_json(&bytes, 2 * room + 1).is_ok());
 }
+
+#[test]
+fn what_isnt_a_list_costs_that_much_and_not_the_file() {
+    let (mb, a, _) = two_accounts();
+    let good = serde_json::to_value(tagged("Red", RED)).unwrap();
+    let mut value = serde_json::to_value(&mb).unwrap();
+    let file = value.as_object_mut().unwrap();
+    let id = a.to_string();
+    file.insert("serverCategories".into(), serde_json::json!({&id: ["Red", 7], "12": "x", "nonsense": ["Blue"]}));
+    file.insert("accountCategories".into(), serde_json::json!({&id: [good, {"name": "Bad", "color": [300, 0, 0]}, "x"], "12": 7}));
+    let back: Mailbox = serde_json::from_value(value.clone()).unwrap();
+    assert_eq!(back.server_categories.into_iter().collect::<Vec<_>>(), [(a, vec!["Red".to_string()])]);
+    assert_eq!(back.account_categories.into_iter().collect::<Vec<_>>(), [(a, vec![tagged("Red", RED)])]);
+
+    let file = value.as_object_mut().unwrap();
+    file.insert("serverCategories".into(), serde_json::json!("x"));
+    file.insert("accountCategories".into(), serde_json::json!(7));
+    let back: Mailbox = serde_json::from_value(value).unwrap();
+    assert!(back.server_categories.is_empty() && back.account_categories.is_empty());
+}

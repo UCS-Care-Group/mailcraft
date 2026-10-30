@@ -11,7 +11,8 @@ use std::cell::Cell;
 use std::collections::BTreeMap;
 use std::marker::PhantomData;
 
-use serde::de::{Deserialize, Deserializer, Error, MapAccess, SeqAccess, Visitor};
+use serde::de::{Deserialize, DeserializeOwned, Deserializer, Error, MapAccess, SeqAccess, Visitor};
+use serde_json::Value;
 
 use crate::{Id, Mailbox};
 
@@ -68,16 +69,22 @@ pub(crate) fn capped_vec<'de, D: Deserializer<'de>, T: Deserialize<'de>>(deseria
     deserializer.deserialize_seq(V(PhantomData))
 }
 
-/// `deserialize_with` for lists by id: the items of each list count as well as the lists.
-pub(crate) fn capped_lists<'de, D: Deserializer<'de>, T: Deserialize<'de>>(deserializer: D) -> Result<BTreeMap<Id, Vec<T>>, D::Error> {
-    struct List<T>(Vec<T>);
-    impl<'de, T: Deserialize<'de>> Deserialize<'de> for List<T> {
-        fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-            capped_vec(deserializer).map(List)
+/// `deserialize_with` for lists by id: the items of each list count as well as the lists, and what
+/// isn't such a list or such an item is left out, which never costs the owner the whole file.
+pub(crate) fn capped_lists<'de, D: Deserializer<'de>, T: DeserializeOwned>(deserializer: D) -> Result<BTreeMap<Id, Vec<T>>, D::Error> {
+    let mut out = BTreeMap::new();
+    let Value::Object(lists) = Value::deserialize(deserializer)? else { return Ok(out) };
+    for (id, list) in lists {
+        charge()?;
+        let (Ok(id), Value::Array(items)) = (id.parse::<Id>(), list) else { continue };
+        let mut kept = Vec::new();
+        for item in items {
+            charge()?;
+            kept.extend(T::deserialize(item).ok());
         }
+        out.insert(id, kept);
     }
-    let lists: BTreeMap<Id, List<T>> = capped_map(deserializer)?;
-    Ok(lists.into_iter().map(|(id, list)| (id, list.0)).collect())
+    Ok(out)
 }
 
 /// `deserialize_with` for a map by id.
