@@ -304,3 +304,147 @@ fn a_sparse_message_in_a_big_file_keeps_what_it_has() {
     assert_eq!((m.subject.as_str(), m.body.text.as_str(), m.kept.is_none()), ("Short", "hi", true));
     assert_eq!(opened.deferred, 0);
 }
+
+#[test]
+fn a_sweep_does_not_read_a_one_file_mailbox_through() {
+    let tmp = Temp::new("sweep");
+    let path = tmp.file();
+    let original = write_one_file(&path, &mailbox(40, 600_000));
+    assert!(original.len() as u64 > MAX_MAILBOX_JSON);
+    let opened = open(&path).unwrap();
+    // (Read whole, a file of this size is "too large": it is not read at all.)
+    let swept = sweep(&path, Duration::ZERO).unwrap();
+    assert_eq!(swept, Swept::default());
+    assert_eq!(forget_due(&path, 0), Swept::default());
+    // Nothing the open wrote is gone.
+    let kept = opened.mailbox.messages.values().next().unwrap().kept.as_deref().unwrap().text.unwrap();
+    assert!(fetch(&path, &kept).is_ok());
+}
+
+#[test]
+fn what_stays_in_memory_has_a_total_bound() {
+    let tmp = Temp::new("total");
+    let path = tmp.file();
+    let _scarce = Scarce::new();
+    // Each value is under the cap for an item (4 MB); together they are over what may stay (24 MB).
+    let pad = "x".repeat(3 << 20);
+    let json = format!(r#"{{"version":1,"a":"{pad}","b":"{pad}","c":"{pad}","d":"{pad}","e":"{pad}"}}"#);
+    fs::write(&path, &json).unwrap();
+    let e = open(&path).err().unwrap();
+    assert!(e.contains("memory to open"), "{e}");
+    assert_eq!(fs::read(&path).unwrap(), json.as_bytes());
+    // Messages whose JSON stays (no content to move out) count too.
+    let mut many = String::from(r#"{"version":1,"messages":{"#);
+    for i in 1..=5_000 {
+        if i > 1 {
+            many.push(',');
+        }
+        many.push_str(&format!(r#""{i}":{{"subject":"{}"}}"#, "s".repeat(6_000)));
+    }
+    many.push_str("}}");
+    fs::write(&path, &many).unwrap();
+    let e = open(&path).err().unwrap();
+    assert!(e.contains("memory to open"), "{e}");
+}
+
+#[test]
+fn a_key_that_is_in_the_file_twice_is_refused() {
+    let tmp = Temp::new("twice");
+    let path = tmp.file();
+    let _scarce = Scarce::new();
+    for json in [r#"{"version":1,"messages":{},"messages":{}}"#, r#"{"version":1,"extra":1,"extra":2}"#, r#"{"version":1,"version":1}"#] {
+        fs::write(&path, json).unwrap();
+        let e = open(&path).err().unwrap();
+        assert!(e.contains("twice"), "{e}");
+    }
+}
+
+#[test]
+fn the_original_is_kept_or_nothing_is_written() {
+    let tmp = Temp::new("keep");
+    let path = tmp.file();
+    let original = write_one_file(&path, &mailbox(3, 5_000));
+    let _scarce = Scarce::new();
+    let opened = open(&path).unwrap();
+    // Every name it could be kept under is taken: the file can't be kept.
+    let name = "mailbox.mailcraft.format1";
+    fs::write(tmp.0.join(name), b"x").unwrap();
+    for n in 2..=100 {
+        fs::write(tmp.0.join(format!("{name}-{n}")), b"x").unwrap();
+    }
+    let e = save(&path, &opened.mailbox).unwrap_err();
+    assert!(e.contains("kept aside"), "{e}");
+    assert_eq!(fs::read(&path).unwrap(), original, "the original is not written over");
+}
+
+#[test]
+fn the_newest_mail_has_its_text_read_once_the_window_shows() {
+    let tmp = Temp::new("later");
+    let path = tmp.file();
+    let mb = mailbox(5, 5_000);
+    write_one_file(&path, &mb);
+    let _scarce = Scarce::new();
+    let opened = open(&path).unwrap();
+    let later = bodies_later(&path);
+    assert_eq!(later.len(), 5);
+    let (read, failed) = read_bodies(&path, &later);
+    assert!(failed.is_empty());
+    for body in read {
+        let was = mb.messages.get(&body.id).unwrap();
+        assert_eq!(body.text.unwrap().1, was.body.text.as_bytes());
+    }
+    assert_eq!(opened.mailbox.messages.len(), 5);
+    // Once only.
+    assert!(bodies_later(&path).is_empty());
+}
+
+/// Timing of a big file (not run by default): `MC_BENCH_DIR=<folder> cargo test -p mailcraft-engine
+/// --lib stream_bench -- --ignored --nocapture`. About 1.4 GB, 50,000 messages, 100,000 files.
+#[test]
+#[ignore]
+fn stream_bench() {
+    use std::io::Write as _;
+    let dir = PathBuf::from(std::env::var("MC_BENCH_DIR").unwrap());
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("mailbox.mailcraft");
+    let mut mb = mailbox(0, 0);
+    let inbox = mb.inbox().unwrap();
+    mb.contacts.clear();
+    let json = serde_json::to_string(&mb).unwrap();
+    let (before, after) = json.split_once("\"messages\":{}").unwrap();
+    let started = Instant::now();
+    let mut out = std::io::BufWriter::new(fs::File::create(&path).unwrap());
+    write!(out, "{before}\"messages\":{{").unwrap();
+    let n = 50_000usize;
+    for i in 0..n {
+        let m = Message {
+            folder: inbox,
+            subject: format!("Synthetic message {i}"),
+            from: Address::new("Blake Rivera", "blake@example.org"),
+            date: 1_700_000_000 + i as i64,
+            body: Body { text: text(i, 8_000), html: None },
+            attachments: vec![Attachment::new("scan.bin", "application/octet-stream", noise(i, 16_000))],
+            ..Default::default()
+        };
+        if i > 0 {
+            out.write_all(b",").unwrap();
+        }
+        write!(out, "\"{}\":{}", i + 1, serde_json::to_string(&m).unwrap()).unwrap();
+    }
+    write!(out, "}}{after}").unwrap();
+    out.flush().unwrap();
+    drop(out);
+    let len = fs::metadata(&path).unwrap().len();
+    println!("written {len} bytes in {:?}", started.elapsed());
+    stream::BATCH.set((64 << 20, 4096));
+    let started = Instant::now();
+    let opened = open(&path).unwrap();
+    let took = started.elapsed();
+    println!(
+        "opened {} messages ({} files) in {took:?}: {:.1} MB/s",
+        opened.mailbox.messages.len(),
+        opened.deferred,
+        len as f64 / 1e6 / took.as_secs_f64()
+    );
+}

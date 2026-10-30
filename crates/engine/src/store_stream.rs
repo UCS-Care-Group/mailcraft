@@ -23,6 +23,7 @@
 //! capped, and nothing read is believed beyond what the mailbox model accepts.
 
 use std::cell::Cell;
+use std::collections::BTreeSet;
 use std::rc::Rc;
 
 use serde::de::{DeserializeSeed, Error as _, MapAccess, Visitor};
@@ -35,7 +36,7 @@ use super::*;
 pub(super) const MAX_ITEM: u64 = if cfg!(test) { 4 << 20 } else { 768 << 20 };
 
 /// The most messages, contacts, events and tasks together a file may hold.
-pub(super) const MAX_ITEMS: usize = if cfg!(test) { 5_000 } else { MAX_ENTRIES };
+pub(super) const MAX_ITEMS: usize = if cfg!(test) { 60_000 } else { MAX_ENTRIES };
 
 /// Bytes read from the file at a time.
 const PIECE: usize = 1 << 16;
@@ -112,8 +113,83 @@ struct Build {
     moved: usize,
     /// The content folder is there (made when the first content goes into it).
     made: bool,
+    /// Content waiting to be written, a batch at a time.
+    pending: Pending,
+    /// Top-level keys seen, to refuse one that is there twice.
+    seen: HashSet<String>,
+    /// Bytes of the file (as JSON) that stay in memory, so far, and the most that may.
+    kept: u64,
+    cap: u64,
     /// Why reading stopped, when it was not the JSON.
     failure: Option<String>,
+}
+
+/// Content waiting to be written to the content folder: written (and flushed to the disk) a batch
+/// at a time, on several threads, instead of one file after another.
+#[derive(Default)]
+struct Pending {
+    items: Vec<(Ref, Vec<u8>)>,
+    seen: HashSet<Ref>,
+    bytes: usize,
+}
+
+/// A batch is written once it holds this many bytes, or this many files (small under test).
+#[cfg(not(test))]
+fn batch_limits() -> (usize, usize) {
+    (64 << 20, 4096)
+}
+
+#[cfg(test)]
+thread_local! {
+    pub(super) static BATCH: Cell<(usize, usize)> = const { Cell::new((1 << 20, 64)) };
+}
+
+#[cfg(test)]
+fn batch_limits() -> (usize, usize) {
+    BATCH.get()
+}
+
+/// The most bytes (as JSON) of the file that stay in memory: a quarter of the memory not in use
+/// where that is known (at least 512 MB, at most 4 GB), 1 GB where it is not. 24 MB under test.
+fn kept_cap() -> u64 {
+    if cfg!(test) { 24 << 20 } else { available_memory().map_or(1 << 30, |a| a / 4).clamp(512 << 20, 4 << 30) }
+}
+
+/// The content `r` as a file under `dir`, in place only once it is whole and flushed to the disk:
+/// written to a temporary file beside it, flushed, then renamed. A file of the right length that
+/// is already there is this content (nothing else is ever written under its name): only its
+/// time is renewed.
+fn write_blob(dir: &Path, r: &Ref, bytes: &[u8]) -> std::io::Result<()> {
+    let (_, file) = blob_path(dir, &r.hash).ok_or_else(|| std::io::Error::other("no name"))?;
+    let there = |file: &Path| fs::symlink_metadata(file).is_ok_and(|m| m.file_type().is_file() && m.len() == r.len);
+    if there(&file) && fs::OpenOptions::new().write(true).open(&file).and_then(|f| f.set_modified(SystemTime::now())).is_ok() {
+        return Ok(());
+    }
+    let mut tries = 0;
+    let (tmp, mut out) = loop {
+        let tmp = temp_beside(&file);
+        match create_private(&tmp) {
+            Ok(out) => break (tmp, out),
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists && tries < 8 => tries += 1,
+            Err(e) => return Err(e),
+        }
+    };
+    let written = out.write_all(bytes).and_then(|()| out.sync_all()).and_then(|()| {
+        drop(out);
+        rename_over(&tmp, &file)
+    });
+    match written {
+        Ok(()) => Ok(()),
+        // Somebody else saving the same content at the same moment is no failure.
+        Err(_) if there(&file) => {
+            let _ = fs::remove_file(&tmp);
+            Ok(())
+        }
+        Err(e) => {
+            let _ = fs::remove_file(&tmp);
+            Err(e)
+        }
+    }
 }
 
 impl Build {
@@ -131,52 +207,107 @@ impl Build {
         Ok(())
     }
 
-    /// Move the content of `m` over [`INLINE_MAX`] to the content folder, and leave in its place
-    /// what a message opened from the form with a log of records has ([`fill`]).
-    fn move_out(&mut self, mut m: Message) -> Result<Message, String> {
-        let dir = self.dir.clone();
-        let (mut moved, mut made) = (0usize, self.made);
-        let mut outside = |bytes: &[u8]| -> Result<Option<ContentRef>, String> {
-            if bytes.len() <= INLINE_MAX {
-                return Ok(None);
-            }
-            if !made {
-                own_dir(&dir).map_err(io_error)?;
-                made = true;
-            }
-            let r = Ref::of(bytes);
-            put(&dir, &r, bytes).map_err(io_error)?;
-            moved += 1;
-            Ok(Some(r.to_model()))
-        };
-        let mut kept = KeptBody::default();
-        if let Some(r) = outside(m.body.text.as_bytes())? {
-            kept.text = Some(r);
-            m.body.text = String::new();
+    /// `n` more bytes of the file stay in memory: refused past the total allowed.
+    fn keep<E: serde::de::Error>(&mut self, n: u64) -> Result<(), E> {
+        self.kept = self.kept.saturating_add(n);
+        if self.kept > self.cap {
+            return Err(self.fail("it holds more than this computer has the memory to open".into()));
         }
-        if let Some(r) = m.body.html.as_deref().map(|h| outside(h.as_bytes())).transpose()?.flatten() {
-            kept.html = Some(r);
-            m.body.html = None;
+        Ok(())
+    }
+
+    /// Bytes of the file read since `since`.
+    fn taken_since(&self, since: u64) -> u64 {
+        self.gate.taken.get().saturating_sub(since)
+    }
+
+    /// Content to be written to the content folder; its name.
+    fn queue(&mut self, bytes: Vec<u8>) -> Result<ContentRef, String> {
+        let r = Ref::of(&bytes);
+        self.moved = self.moved.saturating_add(1);
+        if self.pending.seen.insert(r) {
+            self.pending.bytes = self.pending.bytes.saturating_add(bytes.len());
+            self.pending.items.push((r, bytes));
+        }
+        let (bytes, items) = batch_limits();
+        if self.pending.bytes >= bytes || self.pending.items.len() >= items {
+            self.flush()?;
+        }
+        Ok(r.to_model())
+    }
+
+    /// Write what is waiting: the files on several threads, each flushed to the disk before it is
+    /// renamed into place, then each folder they went into flushed once.
+    fn flush(&mut self) -> Result<(), String> {
+        let items = std::mem::take(&mut self.pending.items);
+        self.pending.seen.clear();
+        self.pending.bytes = 0;
+        if items.is_empty() {
+            return Ok(());
+        }
+        if !self.made {
+            own_dir(&self.dir).map_err(io_error)?;
+            sync_dir_of(&self.dir);
+            self.made = true;
+        }
+        let mut subs: BTreeSet<PathBuf> = BTreeSet::new();
+        for (r, _) in &items {
+            if let Some((sub, _)) = blob_path(&self.dir, &r.hash) {
+                subs.insert(sub);
+            }
+        }
+        for sub in &subs {
+            own_dir(sub).map_err(io_error)?;
+        }
+        let dir = &self.dir;
+        for done in fan_out(items.len(), |i| items.get(i).map(|(r, bytes)| write_blob(dir, r, bytes))) {
+            match done.flatten() {
+                Some(Ok(())) => {}
+                Some(Err(e)) => return Err(io_error(e)),
+                None => return Err("the content couldn't be written".into()),
+            }
+        }
+        for sub in &subs {
+            sync_dir_of(&sub.join("x"));
+        }
+        Ok(())
+    }
+
+    /// Move the content of `m` over [`INLINE_MAX`] to the content folder, and leave in its place
+    /// what a message opened from the form with a log of records has ([`fill`]). With how many
+    /// bytes of the message's JSON that no longer stay in memory.
+    fn move_out(&mut self, mut m: Message) -> Result<(Message, u64), String> {
+        let mut gone = 0u64;
+        let mut kept = KeptBody::default();
+        if m.body.text.len() > INLINE_MAX {
+            let text = std::mem::take(&mut m.body.text);
+            gone = gone.saturating_add(text.len() as u64);
+            kept.text = Some(self.queue(text.into_bytes())?);
+        }
+        if m.body.html.as_ref().is_some_and(|h| h.len() > INLINE_MAX)
+            && let Some(html) = m.body.html.take()
+        {
+            gone = gone.saturating_add(html.len() as u64);
+            kept.html = Some(self.queue(html.into_bytes())?);
         }
         // (More than a hidden text can be stays where it is, as in a mailbox opened the old way.)
-        if m.hidden_text.len() <= mailcraft_model::MAX_HIDDEN_TEXT
-            && let Some(r) = outside(m.hidden_text.as_bytes())?
-        {
-            kept.hidden = Some(r);
-            m.hidden_text = String::new();
+        if m.hidden_text.len() > INLINE_MAX && m.hidden_text.len() <= mailcraft_model::MAX_HIDDEN_TEXT {
+            let hidden = std::mem::take(&mut m.hidden_text);
+            gone = gone.saturating_add(hidden.len() as u64);
+            kept.hidden = Some(self.queue(hidden.into_bytes())?);
         }
         // (A log of records names no more attachments of a message than this.)
         for a in m.attachments.iter_mut().take(MAX_PARTS) {
-            if let Some(r) = outside(a.data.as_slice())? {
-                a.kept = Some(r);
-                a.data = Arc::default();
+            if a.data.len() > INLINE_MAX {
+                let data = std::mem::take(&mut a.data);
+                gone = gone.saturating_add((data.len() as u64).div_ceil(3).saturating_mul(4));
+                let bytes = Arc::try_unwrap(data).unwrap_or_else(|shared| shared.to_vec());
+                a.kept = Some(self.queue(bytes)?);
             }
         }
         kept.text_hash = mailcraft_model::text_hash(&m.body.text);
         m.kept = (!kept.is_empty()).then(|| Box::new(kept));
-        self.moved = self.moved.saturating_add(moved);
-        self.made = made;
-        Ok(m)
+        Ok((m, gone))
     }
 }
 
@@ -217,22 +348,29 @@ impl<'de> Visitor<'de> for Collection<'_> {
             let Some(id) = map.next_key::<Id>()? else { return Ok(()) };
             build.charge::<A::Error>()?;
             build.gate.open();
+            let start = build.gate.taken.get();
             match kind {
                 Kind::Messages => {
                     let m: Message = map.next_value()?;
                     match build.move_out(m) {
-                        Ok(m) => build.messages.insert(id, Arc::new(m)),
+                        Ok((m, gone)) => {
+                            build.keep::<A::Error>(build.taken_since(start).saturating_sub(gone))?;
+                            build.messages.insert(id, Arc::new(m));
+                        }
                         Err(why) => return Err(build.fail(why)),
                     };
                 }
                 Kind::Contacts => {
                     build.contacts.insert(id, Arc::new(map.next_value()?));
+                    build.keep::<A::Error>(build.taken_since(start))?;
                 }
                 Kind::Events => {
                     build.events.insert(id, Arc::new(map.next_value()?));
+                    build.keep::<A::Error>(build.taken_since(start))?;
                 }
                 Kind::Tasks => {
                     build.tasks.insert(id, Arc::new(map.next_value()?));
+                    build.keep::<A::Error>(build.taken_since(start))?;
                 }
             }
         }
@@ -263,6 +401,10 @@ impl<'de> Visitor<'de> for Top<'_> {
             build.gate.open();
             let Some(key) = map.next_key::<String>()? else { return Ok(()) };
             build.gate.open();
+            build.keep::<A::Error>(key.len() as u64 * 2)?;
+            if !build.seen.insert(key.clone()) {
+                return Err(build.fail(format!("{key:?} is in it twice")));
+            }
             let kind = match key.as_str() {
                 "messages" => Kind::Messages,
                 "contacts" => Kind::Contacts,
@@ -278,7 +420,10 @@ impl<'de> Visitor<'de> for Top<'_> {
                     continue;
                 }
                 _ => {
+                    let start = build.gate.taken.get();
                     let value: Value = map.next_value()?;
+                    // (A value held as JSON values comes to more than its text.)
+                    build.keep::<A::Error>(build.taken_since(start).saturating_mul(2))?;
                     build.rest.insert(key, value);
                     continue;
                 }
@@ -309,6 +454,10 @@ pub(super) fn open(st: &mut State, file: &Path, len: u64, progress: &OpenProgres
         tasks: BTreeMap::new(),
         moved: 0,
         made: false,
+        pending: Pending::default(),
+        seen: HashSet::new(),
+        kept: 0,
+        cap: kept_cap(),
         failure: None,
     };
     // (A byte order mark is skipped by hand: the parser takes none.)
@@ -348,6 +497,8 @@ pub(super) fn open(st: &mut State, file: &Path, len: u64, progress: &OpenProgres
         }
         return Err(format!("{show}: this isn't a MailCraft mailbox ({e})"));
     }
+    // The last of the content, on the disk before anything names it.
+    build.flush().map_err(|e| format!("{show}: {e}"))?;
     let Build { rest, messages, contacts, events, tasks, moved, version, .. } = build;
     let rest = serde_json::to_vec(&Value::Object(rest)).map_err(|e| format!("{show}: this isn't a MailCraft mailbox ({e})"))?;
     let mut mailbox: Mailbox =
@@ -355,6 +506,9 @@ pub(super) fn open(st: &mut State, file: &Path, len: u64, progress: &OpenProgres
     drop(rest);
     (mailbox.messages, mailbox.contacts, mailbox.events, mailbox.tasks) = (messages, contacts, events, tasks);
     mailbox.version = 1;
+    // The newest Inbox mail has its text read once the window shows, as for a mailbox opened for
+    // a window: with no body in memory, a list would show no previews.
+    st.later = Some(newest_bodies(&mailbox));
     let fixed = mailbox.repair();
     for line in &fixed {
         log::warn!("mailbox repaired: {line}");
@@ -368,6 +522,8 @@ pub(super) fn open(st: &mut State, file: &Path, len: u64, progress: &OpenProgres
     // records, so that this file isn't read through again at every start.
     st.loaded = None;
     st.legacy = Some(version.max(1));
+    // (The file is kept as it was before it is written over, or nothing is written.)
+    st.streamed = true;
     Ok(Some(Opened {
         mailbox,
         split: true,
@@ -381,4 +537,24 @@ pub(super) fn open(st: &mut State, file: &Path, len: u64, progress: &OpenProgres
         repaired: fixed.len(),
         unchecked: false,
     }))
+}
+
+/// The bodies of the Inbox's newest [`OPENING_ROWS`] messages that were left on disk, within the
+/// budget for bodies, for [`bodies_later`] to read.
+fn newest_bodies(mailbox: &Mailbox) -> Vec<crate::session::BodyLater> {
+    let inbox = mailbox.inbox();
+    let mut listed: Vec<(i64, Id)> = mailbox.messages.iter().filter(|(_, m)| Some(m.folder) == inbox).map(|(id, m)| (m.date, *id)).collect();
+    listed.sort_unstable_by(|a, b| b.cmp(a));
+    let mut budget = body_budget();
+    let mut later = Vec::new();
+    for (_, id) in listed.into_iter().take(OPENING_ROWS) {
+        let Some(kept) = mailbox.messages.get(&id).and_then(|m| m.kept.as_deref()) else { continue };
+        let len = kept.len();
+        if len > budget {
+            continue;
+        }
+        budget -= len;
+        later.push(crate::session::BodyLater { id, text: kept.text, html: kept.html, hidden: kept.hidden });
+    }
+    later
 }
