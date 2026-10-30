@@ -19,6 +19,7 @@ mailcraft-i18n = { path = "../crates/i18n" }
 mailcraft-html = { path = "../crates/html" }
 mailcraft-ical = { path = "../crates/ical" }
 mailcraft-jmap = { path = "../crates/jmap" }
+mailcraft-ews = { path = "../crates/ews" }
 mailcraft-link = { path = "../crates/link" }
 mailcraft-mime = { path = "../crates/mime" }
 mailcraft-proto = { path = "../crates/proto" }
@@ -37,6 +38,13 @@ bench = false
 [[bin]]
 name = "html"
 path = "fuzz_targets/html.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "sheet"
+path = "fuzz_targets/sheet.rs"
 test = false
 doc = false
 bench = false
@@ -112,8 +120,29 @@ doc = false
 bench = false
 
 [[bin]]
+name = "ews"
+path = "fuzz_targets/ews.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
 name = "link"
 path = "fuzz_targets/link.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "ews_autodiscover"
+path = "fuzz_targets/ews_autodiscover.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "ews_ntlm"
+path = "fuzz_targets/ews_ntlm.rs"
 test = false
 doc = false
 bench = false

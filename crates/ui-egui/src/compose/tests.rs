@@ -513,6 +513,26 @@ fn a_plain_text_message_has_no_formatting_and_ctrl_k_asks_for_a_link() {
     assert_eq!(crate::dialogs::link_address("someone@example.org"), "mailto:someone@example.org");
     assert_eq!(crate::dialogs::link_address(" www.example.org "), "https://www.example.org");
     assert_eq!(crate::dialogs::link_address("tel:+15550100"), "tel:+15550100");
+    assert_eq!(crate::dialogs::link_address("tel:5550100"), "tel:5550100");
+    assert_eq!(crate::dialogs::link_address("tel:911"), "tel:911");
+    assert_eq!(crate::dialogs::link_address("ms-settings:network-vpn"), "ms-settings:network-vpn");
+    assert_eq!(crate::dialogs::link_address("www.example.org:8443/x"), "https://www.example.org:8443/x");
+    assert_eq!(crate::dialogs::link_address("intranet:8080/wiki"), "https://intranet:8080/wiki");
+    assert_eq!(crate::dialogs::link_address("intranet:8080"), "https://intranet:8080");
+    assert_eq!(crate::dialogs::link_address("example.org:443"), "https://example.org:443");
+    assert_eq!(crate::dialogs::link_address("localhost:8080"), "https://localhost:8080");
+    assert_eq!(
+        crate::dialogs::link_address("x-apple.systempreferences:com.apple.preference.network"),
+        "x-apple.systempreferences:com.apple.preference.network"
+    );
+    assert_eq!(crate::dialogs::link_address("com.example.app://callback"), "com.example.app://callback");
+    assert_eq!(crate::dialogs::link_address("sip:1001"), "sip:1001");
+    assert_eq!(crate::dialogs::link_address("sip:911"), "sip:911");
+    assert_eq!(crate::dialogs::link_address("sms:12345"), "sms:12345");
+    assert_eq!(crate::dialogs::link_address("callto:4711"), "callto:4711");
+    assert_eq!(crate::dialogs::link_address("fax:5550100"), "fax:5550100");
+    assert_eq!(crate::dialogs::link_address("xmpp:ada@example.org"), "xmpp:ada@example.org");
+    assert_eq!(crate::dialogs::link_address("slack://channel?id=1"), "slack://channel?id=1");
     h.state_mut().run("compose.link", json!({"url": "https://www.example.org"})).unwrap();
     assert!(crate::ribbon::look_now(h.state()).link);
     h.state_mut().run("compose.formatPlain", json!({})).unwrap();

@@ -37,22 +37,27 @@ impl Authority {
 
     /// A server's settings, with a certificate for `names` that this authority issued.
     pub(crate) fn server(&self, names: &[&str]) -> Arc<ServerConfig> {
+        self.server_for(names, vec![ExtendedKeyUsagePurpose::ServerAuth]).0
+    }
+
+    /// As [`Authority::server`], with the certificate good for `uses` (and not necessarily for
+    /// servers), and the certificate's DER as well.
+    pub(crate) fn server_for(&self, names: &[&str], uses: Vec<ExtendedKeyUsagePurpose>) -> (Arc<ServerConfig>, Vec<u8>) {
         let mut params = CertificateParams::new(names.iter().map(|n| n.to_string()).collect::<Vec<_>>()).unwrap();
         params.distinguished_name.push(DnType::CommonName, names.first().copied().unwrap_or("server"));
         params.is_ca = IsCa::ExplicitNoCa;
         params.key_usages = vec![KeyUsagePurpose::DigitalSignature];
-        params.extended_key_usages = vec![ExtendedKeyUsagePurpose::ServerAuth];
+        params.extended_key_usages = uses;
         validity(&mut params);
         let key = KeyPair::generate().unwrap();
         let cert = params.signed_by(&key, &self.issuer).unwrap();
-        Arc::new(
-            ServerConfig::builder_with_provider(Arc::new(rustls::crypto::ring::default_provider()))
-                .with_safe_default_protocol_versions()
-                .unwrap()
-                .with_no_client_auth()
-                .with_single_cert(vec![cert.der().clone(), self.root()], PrivatePkcs8KeyDer::from(key.serialize_der()).into())
-                .unwrap(),
-        )
+        let config = ServerConfig::builder_with_provider(Arc::new(rustls::crypto::ring::default_provider()))
+            .with_safe_default_protocol_versions()
+            .unwrap()
+            .with_no_client_auth()
+            .with_single_cert(vec![cert.der().clone(), self.root()], PrivatePkcs8KeyDer::from(key.serialize_der()).into())
+            .unwrap();
+        (Arc::new(config), cert.der().to_vec())
     }
 }
 

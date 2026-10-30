@@ -5,7 +5,7 @@ name: Fuzz
 
 on:
   pull_request:
-    paths: [fuzz/**, crates/charset/**, crates/html/**, crates/i18n/**, crates/ical/**, crates/jmap/**, crates/link/**, crates/mime/**, crates/proto/**, crates/vcard/**]
+    paths: [fuzz/**, crates/charset/**, crates/ews/**, crates/html/**, crates/i18n/**, crates/ical/**, crates/jmap/**, crates/link/**, crates/mime/**, crates/proto/**, crates/vcard/**]
   schedule:
     - cron: '17 4 * * 1'
   workflow_dispatch:
@@ -23,7 +23,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target: [mime, html, ical, vcard, charset, link, imap, smtp, po, jmap_address, jmap_discovery, jmap_session, jmap_response]
+        target: [mime, html, sheet, ical, vcard, charset, link, imap, smtp, po, jmap_address, jmap_discovery, jmap_session, jmap_response, ews, ews_autodiscover, ews_ntlm]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -31,7 +31,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
         with:
           toolchain: nightly
-      - uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2.87.29
+      - uses: taiki-e/install-action@a4d3f3f761dcd95cce1b72cb61cb6d1963438177 # v2.87.30
         with:
           tool: cargo-fuzz@0.13.2
       - run: cargo fuzz run --target x86_64-unknown-linux-gnu "$TARGET" -- -max_total_time=60 -rss_limit_mb=2048

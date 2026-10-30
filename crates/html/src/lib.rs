@@ -14,8 +14,9 @@
 //! There is no CSS engine here. A short whitelist of presentational facts is read from inline
 //! `style` attributes and old-style attributes (`style.rs`): text and background colour, bold,
 //! italic, underline, strike, alignment, font size, whether something is hidden, and whether a
-//! paragraph has a margin or a table cell a border at all. `<style>` blocks are dropped and
-//! classes are never resolved.
+//! paragraph has a margin or a table cell a border at all. The message's `<style>` blocks are
+//! read for the same whitelist and nothing else (`sheet.rs`: selectors, specificity, order,
+//! `!important`, within caps); they are never run and nothing in them is fetched.
 //!
 //! Every function takes any string, never panics, and is bounded: input over [`MAX_INPUT`] bytes is
 //! cut, nesting is capped, tables are capped ([`MAX_TABLE_ROWS`], [`MAX_TABLE_COLUMNS`],
@@ -27,20 +28,44 @@ mod blocks;
 pub mod corpus;
 mod data;
 mod entities;
+mod look;
+mod media;
 mod preview;
 mod quote;
+mod sheet;
 mod style;
 mod text;
 mod tokenizer;
 
 use serde::{Deserialize, Serialize};
 
-pub use blocks::{parse, parse_text};
+pub use blocks::{MAX_HIDDEN_TEXT, Read, parse, parse_in, parse_text, parse_text_own};
 pub use data::{MAX_DATA_PICTURE_BYTES, MAX_DATA_PICTURES, MAX_DATA_PICTURES_BYTES, Picture};
 pub use entities::{escape, unescape};
+pub use media::{Env, verdicts as media_verdicts};
+
+/// The media lists of a message's style sheets and `<style media>` attributes, each once, in the
+/// order they are met (inside `@media` too, to its depth): what its look can change with. A
+/// message with none looks the same in every pane and theme. At most 400.
+pub fn media_lists(html: &str) -> Vec<String> {
+    sheet::media_lists(html)
+}
 pub use preview::{MAX_PREVIEW_CHARS, preview, text_preview};
 pub use quote::quotable;
-pub use text::{blocks_to_text, from_text, text_blocks, to_text};
+pub use text::{blocks_to_text, from_text, text_and_hidden, text_blocks, to_text};
+
+/// How many rules a style sheet's text gives, as the reading of a message's `<style>` blocks reads
+/// it ([`MAX_SHEET_BYTES`] of it, [`MAX_SHEET_RULES`] rules). For the fuzz target.
+#[doc(hidden)]
+pub fn style_sheet_rules(text: &str) -> usize {
+    sheet::rules(text).len()
+}
+
+/// Most bytes of style sheet read from one message; the rest is ignored.
+pub const MAX_SHEET_BYTES: usize = sheet::MAX_SHEET;
+
+/// Most rules read from one message's style sheets.
+pub const MAX_SHEET_RULES: usize = sheet::MAX_RULES;
 
 /// Longest input [`parse`], [`to_text`], [`text_blocks`], [`from_text`], [`preview`],
 /// [`text_preview`] and [`quotable`] read, in bytes; the rest is ignored. [`parse`] and
@@ -96,6 +121,10 @@ pub enum VAlign {
     Middle,
     Bottom,
 }
+
+/// The most boxes a message can lay out on lines (`display: inline-block`); past it the elements
+/// are read as they were without it.
+pub const MAX_INLINE_BOXES: usize = 256;
 
 /// The widest gap between cells read from `cellspacing` or `border-spacing`, in pixels.
 pub const MAX_SPACING_PX: u8 = 16;
@@ -387,6 +416,18 @@ pub struct Table {
     /// gives one; `None` leaves it to the UI.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub spacing: Option<u8>,
+    /// The source lays it out as a box on a line (`display: inline-block`): the boxes that follow
+    /// one another stand side by side and wrap when the line is full. Its `width` is the box's,
+    /// and `None` is as wide as what is in it.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub inline: bool,
+    /// A box on a line: the source has white space between it and the box before it on the line,
+    /// which is a gap there (none when it has not, or when it was written at a size of nothing).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub spaced: bool,
+    /// A box on a line: the room its margins keep free left and right of it, in pixels.
+    #[serde(default, skip_serializing_if = "is_no_inset")]
+    pub box_margin: [u8; 2],
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -520,6 +561,8 @@ pub(crate) fn is_blank(c: char) -> bool {
 
 #[cfg(test)]
 mod data_tests;
+#[cfg(test)]
+mod inline_tests;
 #[cfg(test)]
 mod text_link_tests;
 

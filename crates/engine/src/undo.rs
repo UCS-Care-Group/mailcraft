@@ -50,7 +50,7 @@ pub(crate) struct Touched {
 
 /// The accounts of `mb` kept in step through Graph.
 fn graph_accounts(mb: &Mailbox) -> BTreeSet<Id> {
-    mb.accounts.iter().filter(|a| a.kind == AccountKind::Microsoft).map(|a| a.id).collect()
+    mb.accounts.iter().filter(|a| matches!(a.kind, AccountKind::Microsoft | AccountKind::Exchange)).map(|a| a.id).collect()
 }
 
 /// Whether `m` is one of those accounts' (or is being moved out of one).
@@ -533,6 +533,15 @@ fn fields(t: &Message, a: &Message, c: &Arc<Message>, now: &Mailbox, g: &BTreeSe
         }
     }
     back!(subject, from, reply_to, to, cc, bcc, date, body, attachments, in_reply_to, references);
+    // With its attachments, what stood for them (#575), whether or not the change changed that:
+    // the server's answer then, if it has said otherwise since.
+    if t.attachments != a.attachments {
+        m.attachments_changed_here = match t.attachments_changed_here {
+            None if m.server_attachments != t.server_attachments => t.server_attachments,
+            kept => kept,
+        };
+    }
+    back!(attachments_on_server);
     if t.account != c.account {
         m.folder = t.folder;
     }

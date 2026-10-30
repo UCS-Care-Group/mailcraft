@@ -159,6 +159,15 @@ pub fn fingerprint(m: &Message) -> u64 {
     for a in &m.attachments {
         h = h.text(&a.name, 8);
     }
+    // What the sender hid is read by the index too (not for a message that hid nothing: its
+    // fingerprint is what it was).
+    // (By the file it is kept in, as the text is, so that it reads the same in memory or on disk.)
+    let kept_hidden = m.kept.as_deref().filter(|k| m.hidden_text.is_empty() || k.failed).and_then(|k| k.hidden);
+    if let Some(r) = kept_hidden {
+        h = h.text("hidden", 9).bytes(&r.sha256);
+    } else if !m.hidden_text.is_empty() {
+        h = h.text("hidden", 9).bytes(&sha256(m.hidden_text.as_bytes()));
+    }
     let text = match m.kept.as_deref() {
         // Kept on disk (or its reading failed, and its text says so): the file it is kept in.
         Some(k) if k.text.is_some() && (m.body.text.is_empty() || k.failed) => k.text.map(|r| r.sha256),
@@ -200,8 +209,14 @@ impl Doc {
 
     /// [`Doc::of`], with `m`'s [`fingerprint`] worked out already.
     pub fn with_fingerprint(m: &Message, body: &str, fp: u64) -> Doc {
+        Doc::with_hidden(m, body, &m.hidden_text, fp)
+    }
+
+    /// [`Doc::with_fingerprint`], with `hidden` the words the sender hid, read from disk when
+    /// they are kept there.
+    pub fn with_hidden(m: &Message, body: &str, hidden: &str, fp: u64) -> Doc {
         let mut seen: HashMap<String, u8> = HashMap::new();
-        words::texts(m, body, |field, text| {
+        words::texts_with(m, body, hidden, |field, text| {
             words::each(text, |w| {
                 let full = seen.len() >= MAX_DOC_WORDS;
                 match seen.get_mut(w) {
@@ -911,6 +926,14 @@ fn text_of(m: &Message, reader: &crate::store::Reader) -> String {
     }
 }
 
+/// The words the sender hid in `m`, from memory or from the content folder.
+fn hidden_of(m: &Message, reader: &crate::store::Reader) -> String {
+    match m.kept.as_deref().and_then(|k| k.hidden).filter(|_| m.hidden_text.is_empty()) {
+        Some(r) => reader.read(&r).map(|b| crate::store::text_of_bytes(&b)).unwrap_or_default(),
+        None => m.hidden_text.clone(),
+    }
+}
+
 impl Words {
     /// The word index of the mailbox file at `mailbox`, read from beside it in the background,
     /// and then `messages` it hasn't got as they are read into it, newest first. A file that
@@ -1062,6 +1085,12 @@ impl Words {
                 }
             } else {
                 for (m, fp) in left {
+                    // What the sender hid, kept on disk, is read by the background beside the text.
+                    if m.kept.as_deref().is_some_and(|k| k.hidden.is_some()) && m.hidden_text.is_empty() {
+                        later.push(m.clone());
+                        out.left += 1;
+                        continue;
+                    }
                     let text = match body_in_memory(m) {
                         Some(text) => std::borrow::Cow::Borrowed(text),
                         None => std::borrow::Cow::Owned(read(m).unwrap_or_default()),
@@ -1153,7 +1182,7 @@ fn build(shared: &Shared, mailbox: &Path, mut messages: Vec<Arc<Message>>, open:
             if shared.cancel.load(Ordering::Relaxed) {
                 break;
             }
-            docs.push((Doc::with_fingerprint(&m, &text_of(&m, &reader), fp), m));
+            docs.push((Doc::with_hidden(&m, &text_of(&m, &reader), &hidden_of(&m, &reader), fp), m));
         }
         {
             let mut guard = lock(&shared.index);

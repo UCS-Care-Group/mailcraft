@@ -112,6 +112,23 @@ fn the_jmap_client_sits_at_layer_3() {
 }
 
 #[test]
+fn the_ews_client_sits_at_layer_3() {
+    assert_eq!(classify("mailcraft-ews"), Some(Class::Layer(3)));
+    // It may use what is below it...
+    let below = [("mailcraft-model", Normal, true), ("mailcraft-mime", Normal, true), ("quick-xml", Normal, false)];
+    assert!(check(&[c("mailcraft-ews", &below)]).is_empty());
+    // ... and nothing at its own layer or above it, in the code or in the tests.
+    for (dep, kind, to) in
+        [("mailcraft-net", Normal, 3), ("mailcraft-jmap", Normal, 3), ("mailcraft-engine", Dev, 4), ("mailcraft-ui-egui", Normal, 6)]
+    {
+        let v = check(&[c("mailcraft-ews", &[(dep, kind, true)])]);
+        assert!(matches!(v[..], [Violation::Upward { from: 3, to: t, .. }] if t == to), "{dep}: {v:?}");
+    }
+    // The engine may use it.
+    assert!(check(&[c("mailcraft-engine", &[("mailcraft-ews", Normal, true)])]).is_empty());
+}
+
+#[test]
 fn link_uses_names_and_not_the_other_way() {
     assert_eq!(classify("mailcraft-link"), Some(Class::Layer(0)));
     assert!(check(&[c("mailcraft-link", &[("mailcraft-names", Normal, true)])]).is_empty());

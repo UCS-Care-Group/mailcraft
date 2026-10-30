@@ -129,6 +129,15 @@ impl<'a> Stream<'a> {
         tcp.set_read_timeout(io).and_then(|()| tcp.set_write_timeout(io))
     }
 
+    /// The DER of the certificate the server showed first (its end-entity certificate), on an
+    /// encrypted connection whose handshake is done: for channel binding.
+    pub(crate) fn server_certificate(&self) -> Option<Vec<u8>> {
+        match &self.io {
+            Io::Plain(_) => None,
+            Io::Tls(tls) => tls.conn.peer_certificates()?.first().map(|c| c.as_ref().to_vec()),
+        }
+    }
+
     /// What every read and write begins with: the flag, and the time the command has had.
     fn before(&mut self, writing: bool) -> std::io::Result<()> {
         if self.cancel.is_some_and(|cancel| cancel.load(Ordering::Relaxed)) {
@@ -222,11 +231,21 @@ pub(crate) fn checked_host(server: &Server) -> Result<String, NetError> {
 /// the host, for error messages and the certificate check. It waits as `patience` says, and for
 /// nothing longer than a mail server is given.
 pub(crate) fn open<'a>(server: &Server, service: Service, patience: &Patience) -> Result<(Stream<'a>, String), NetError> {
+    open_with(server, service, patience, None)
+}
+
+/// [`open`] with TLS settings of the caller's (`None`: the usual ones, `crate::tls`).
+pub(crate) fn open_with<'a>(
+    server: &Server,
+    service: Service,
+    patience: &Patience,
+    tls: Option<Arc<ClientConfig>>,
+) -> Result<(Stream<'a>, String), NetError> {
     let host = checked_host(server)?;
     log::debug!("connecting to {host}:{} ({service:?}, {})", port(server, service), server.security.code());
     let (connect, io) = (patience.connect.min(CONNECT_TIMEOUT), patience.io.min(IO_TIMEOUT));
     let tcp = dial(&host, port(server, service), server.security == Security::None, connect, io)?;
-    let mut stream = if server.security == Security::Tls { secure(tcp, &host)? } else { Stream::over(Io::Plain(tcp)) };
+    let mut stream = if server.security == Security::Tls { secure(tcp, &host, tls)? } else { Stream::over(Io::Plain(tcp)) };
     stream.patience = patience.command.min(COMMAND_TIMEOUT);
     Ok((stream, host))
 }
@@ -241,7 +260,7 @@ pub(crate) fn open_within<'a>(server: &Server, service: Service, connect: Durati
 pub(crate) fn upgrade<'a>(stream: Stream<'a>, host: &str) -> Result<Stream<'a>, NetError> {
     let Stream { io, cancel, patience, .. } = stream;
     let mut secured = match io {
-        Io::Plain(tcp) => secure(tcp, host)?,
+        Io::Plain(tcp) => secure(tcp, host, None)?,
         tls @ Io::Tls(_) => Stream::over(tls),
     };
     (secured.cancel, secured.patience) = (cancel, patience);
@@ -308,9 +327,12 @@ fn tls_config() -> Result<Arc<ClientConfig>, String> {
 }
 
 /// Shake hands over `tcp` and check the server's certificate against `host`.
-fn secure<'a>(mut tcp: TcpStream, host: &str) -> Result<Stream<'a>, NetError> {
+fn secure<'a>(mut tcp: TcpStream, host: &str, tls: Option<Arc<ClientConfig>>) -> Result<Stream<'a>, NetError> {
     let failed = |reason: String| NetError::Tls { host: host.to_string(), reason };
-    let config = tls_config().map_err(failed)?;
+    let config = match tls {
+        Some(config) => config,
+        None => tls_config().map_err(failed)?,
+    };
     let name = ServerName::try_from(host.to_string()).map_err(|_| failed("its name isn't one a certificate can be checked against".into()))?;
     let mut connection = ClientConnection::new(config, name).map_err(|e| failed(e.to_string()))?;
     // Shake hands now, so that a bad certificate is reported as one, and within a time limit: no
@@ -432,7 +454,7 @@ mod tests {
         // A name no certificate could be for is refused before anything is sent.
         let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
         let tcp = TcpStream::connect(listener.local_addr().unwrap()).unwrap();
-        assert!(matches!(secure(tcp, "not a host name"), Err(NetError::Tls { .. })));
+        assert!(matches!(secure(tcp, "not a host name", None), Err(NetError::Tls { .. })));
     }
 
     /// A server on this machine that does with its one connection what `serve` says.

@@ -167,6 +167,13 @@ pub fn has_files(m: &mailcraft_model::Message) -> bool {
     if m.draft {
         return sorts_with_files(m);
     }
+    by_parts(m)
+}
+
+/// Whether a message has files by its parts, while their bytes are here: the calendar part of
+/// meeting mail is not one (the row wears the meeting's mark for it), any other calendar file
+/// is, and a message not fetched yet goes by the server.
+pub(crate) fn by_parts(m: &mailcraft_model::Message) -> bool {
     match m.attachments.iter().position(crate::session::is_calendar_part) {
         Some(index) if is_meeting_mail(&m.attachments[index].data) => m.listed_attachments().any(|(other, _)| other != index),
         _ => m.has_attachments(),
@@ -188,11 +195,11 @@ pub fn sorts_with_files(m: &mailcraft_model::Message) -> bool {
     })
 }
 
-/// What the message's server last said of whether it has attachments, while that speaks for it:
-/// not for a draft, which is written here and goes up later, so that the server's answer lags
-/// behind its files.
+/// What the message's server last said of whether it has attachments (or, once some were removed
+/// here, what its parts said then), while that speaks for it: not for a draft, which is written
+/// here and goes up later, so that the server's answer lags behind its files.
 fn server_answer(m: &mailcraft_model::Message) -> Option<bool> {
-    m.server_attachments.filter(|_| !m.draft)
+    m.attachments_changed_here.or(m.server_attachments).filter(|_| !m.draft)
 }
 
 /// Whether a calendar part is meeting mail (a request, a counter-proposal, a cancellation or an

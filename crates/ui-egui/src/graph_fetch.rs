@@ -20,11 +20,12 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::Receiver;
 
-use mailcraft_engine::cmd::{compose, graph_mail, jmap_mail};
+use mailcraft_engine::cmd::{compose, ews_mail, graph_mail, jmap_mail};
 use mailcraft_model::sync::{GraphFetchRequest, GraphFetchResult};
 use mailcraft_model::{AccountKind, Id};
 use serde_json::{Value, json};
 
+use crate::ews_mail::EwsFetchJob;
 use crate::jmap_mail::JmapFetchJob;
 use crate::{MailApp, now_ms};
 
@@ -178,6 +179,7 @@ fn access(app: &MailApp, account: Id) -> Option<String> {
 enum Way {
     Graph(String),
     Jmap(String),
+    Ews(String),
 }
 
 fn way(app: &MailApp, account: Id) -> Option<Way> {
@@ -185,6 +187,9 @@ fn way(app: &MailApp, account: Id) -> Option<Way> {
         AccountKind::Microsoft if app.services.graph_fetch.is_some() => access(app, account).map(Way::Graph),
         // (Not with a credential its server turned down: the next Send/Receive the owner asks for first.)
         AccountKind::Jmap if app.services.jmap_fetch.is_some() && !app.jmap_refused.contains(&account) => app.jmap_secret(account).map(Way::Jmap),
+        AccountKind::Exchange if app.services.ews_fetch.is_some() && app.session.ews && !app.jmap_refused.contains(&account) => {
+            app.ews_secret(account).map(Way::Ews)
+        }
         _ => None,
     }
 }
@@ -194,6 +199,7 @@ fn fetched(app: &MailApp, kind: AccountKind) -> bool {
     match kind {
         AccountKind::Microsoft => app.services.graph_fetch.is_some(),
         AccountKind::Jmap => app.services.jmap_fetch.is_some(),
+        AccountKind::Exchange => app.services.ews_fetch.is_some() && app.session.ews,
         _ => false,
     }
 }
@@ -201,8 +207,11 @@ fn fetched(app: &MailApp, kind: AccountKind) -> bool {
 /// Take in messages fetched whole, as their account's kind is taken in (a JMAP account's are held
 /// to sizes first).
 fn take_in(app: &mut MailApp, result: GraphFetchResult) -> Result<Value, mailcraft_engine::CmdError> {
-    if app.session.mailbox.account(result.account).is_some_and(|a| a.kind == AccountKind::Jmap) {
+    let kind = app.session.mailbox.account(result.account).map(|a| a.kind);
+    if kind == Some(AccountKind::Jmap) {
         jmap_mail::apply_jmap_fetch(&mut app.session, result)
+    } else if kind == Some(AccountKind::Exchange) {
+        ews_mail::apply_ews_fetch(&mut app.session, result)
     } else {
         graph_mail::apply_graph_fetch(&mut app.session, result)
     }
@@ -366,6 +375,11 @@ impl MailApp {
                 let fetch = self.services.jmap_fetch.as_ref()?;
                 let request = asked(messages, |m| jmap_mail::jmap_fetch_request(&self.session, account, m, most).ok(), |r| &mut r.ids)?;
                 Some(fetch(JmapFetchJob { request, secret, cancel }))
+            }
+            Way::Ews(secret) => {
+                let fetch = self.services.ews_fetch.as_ref()?;
+                let request = asked(messages, |m| ews_mail::ews_fetch_request(&self.session, account, m, most).ok(), |r| &mut r.ids)?;
+                Some(fetch(EwsFetchJob { request, secret, cancel }))
             }
         }
     }

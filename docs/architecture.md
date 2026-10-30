@@ -1,6 +1,6 @@
 # MailCraft architecture
 
-> **Last reviewed:** 2026-10-11 · **Last updated:** 2026-10-28 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
+> **Last reviewed:** 2026-10-11 · **Last updated:** 2026-10-29 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
 
 How MailCraft is built today. Rules for working in the code are in [`AGENTS.md`](../AGENTS.md). The
 shape — layers, "everything is a command", the swappable egui front end, the control channel, MCP,
@@ -8,7 +8,7 @@ shape — layers, "everything is a command", the swappable egui front end, the c
 
 ## Layers
 
-17 crates, 3 apps and `xtask` (`cargo xtask stats` prints lines and tests per crate). Layering is
+18 crates, 3 apps and `xtask` (`cargo xtask stats` prints lines and tests per crate). Layering is
 enforced by `cargo xtask layers`: a crate may only depend on crates in lower layers (two exceptions:
 inside L3, `net` drives `proto`; inside L0, `link` uses `names`), and nothing below L6 depends on
 egui, eframe, winit or rfd.
@@ -28,7 +28,8 @@ egui, eframe, winit or rfd.
 | L2 | `ical` | iCalendar reader and writer: events, to-dos, recurrence rules, alarms, attendees |
 | L2 | `vcard` | vCard 2.1/3.0/4.0 reader, 3.0 writer |
 | L3 | `proto` | IMAP4rev1 and SMTP clients over any `Read + Write` stream (no sockets, so they test against scripted transcripts and build for wasm) |
-| L3 | `net` | TCP + TLS (rustls), sending through SMTP, two-way IMAP synchronisation, OAuth sign-in, MX lookup, Microsoft Graph (`graph`); empty on wasm |
+| L3 | `net` | TCP + TLS (rustls), sending through SMTP, two-way IMAP synchronisation, OAuth sign-in, MX and Autodiscover SRV lookup, Microsoft Graph (`graph`), one HTTPS exchange with an Exchange server that can trust one certificate by its fingerprint, and a held connection that carries the legs of an NTLM sign-in on one socket and names its certificate's hash for channel binding (`https`); empty on wasm |
+| L3 | `ews` | Exchange Web Services (Microsoft's public documentation only) without sockets or browser APIs: the SOAP request writer, a hostile XML reader, the response-code and `ErrorServerBusy` judgement and `GetFolder`, Autodiscover as a state machine the host drives (the order of places, redirects, the owner's say for another host, Exchange Online told apart), Basic credentials, NTLMv2 written from MS-NLMP (the three legs, MIC, channel binding; MD4, MD5 and HMAC from RustCrypto) and the choice of NTLM or Basic from what the server offers, and mail down: `SyncFolderHierarchy`, `SyncFolderItems` and `GetItem` with their answer readers, and `sync_mail`/`fetch_messages`, which run them over any `HttpExchange` and hand the run back in pieces (waiting for a busy server through a hook the host gives); the program does the exchange (`HttpExchange`); a strict in-process stand-in of Exchange Web Services and of Autodiscover for tests (`stand-in` feature). Behind `MAILCRAFT_EWS` while it is built (#252); going up: changes of messages and folders, drafts kept in the server's Drafts and found again by a marker, sending, never repeated after a lost answer (`changes`, `compose`, `up`); NTLM or Basic chosen from the server's offer (`auth`) |
 | L3 | `jmap` | JMAP (RFC 8620, 8621) without sockets or browser APIs: builds each HTTP request and judges the answer, the program does the exchange (`HttpExchange`); an in-process server for tests (`stand-in` feature). The browser build runs it over `fetch` (M6, [jmap.md](jmap.md)) |
 | L4 | `engine` | `Session` (mailbox, selection, view, the message being written, undo), the **command registry** (`cmd/*.rs`), the message list (`list.rs`), the Outlook feature catalog (`catalog.rs`), the sample mailbox, file dispatch (`io.rs`) |
 | L5 | `mcp` | MCP server: tools over the command registry; headless or bridged to the running app |
@@ -57,7 +58,25 @@ egui, eframe, winit or rfd.
    engine and the UI never touch a socket, which is why they build for the browser. A JMAP
    account goes the Graph way: `sync.jmapRequest` (pure) says what to read, the host (the browser
    build, over `fetch`) runs `mailcraft_jmap::sync_mail` and hands the run back in pieces, and
-   `sync.applyJmap` (pure) takes each in by server id ([jmap.md](jmap.md)).
+   `sync.applyJmap` (pure) takes each in by server id ([jmap.md](jmap.md)). An Exchange server
+   account (#252, Exchange Web Services) is going the same way, behind `MAILCRAFT_EWS=1` (a
+   `Session` field the host sets, never a command's params): its request and result shapes are
+   in `model`'s `sync::ews`; `sync.ewsRequest` (pure) says what to read (the folder list from its
+   sync state, each folder from its own), the desktop host runs `mailcraft_ews::sync_mail` on a
+   thread of its own over `mailcraft_net::https` (Basic over TLS, one certificate trusted by its
+   fingerprint, a certificate question stopping the run instead of a TLS error) and hands the run
+   back in pieces, and `sync.applyEws` (pure) takes each in by server id; messages are fetched whole
+   through `sync.ewsFetchRequest` and `sync.applyEwsFetch`. All refuse while the switch is off.
+   What is made here goes up and is sent through the same run. Setting one up is Add Account's
+   explicit Exchange server choice (L6, `account_setup/exchange.rs`): the page only collects, and
+   the host (`Services::ews_setup`, `apps/mailcraft/src/ews_setup.rs`, on a thread of its own once
+   the owner presses Connect) does the DNS-over-HTTPS lookups, drives `mailcraft_ews::Autodiscover`,
+   asks the owner through the job's channel before a sign-in goes to another host, tries the account
+   with one request for its Inbox through the run's own transport, and answers in kinds
+   (`ui-egui`'s `ews_setup`), never in a server's words; `account.add` with `kind: "exchange"` then
+   adds it. A certificate the system doesn't trust is shown and trusted by fingerprint only on the
+   owner's tick; File › Info shows the server, the user name, the sign-in and that certificate, with
+   Forget (`account.forgetEwsCertificate`).
 5. **Save:** the desktop app writes the mailbox file a few seconds after each change and on
    exit; the browser writes to its storage; File › Save As and the exports write other files (a
    download in the browser).
@@ -277,3 +296,13 @@ a made-up mailbox of 64,000 messages (ignored by `cargo test`).
 | 2026-10-27 | patch | #519 slice 2 review: bodies found missing are marked, the bodies the budget holds come in the background, a cut-short file has no sum |
 | 2026-10-27 | patch | #519 slice 2 review: a body whose file is damaged, read in the background, is marked and counted |
 | 2026-10-28 | minor | M6: the browser build runs `jmap` over `fetch`; a JMAP account's Send/Receive in the data flow |
+| 2026-10-29 | minor | #252: Exchange server accounts, first step: `AccountKind::Exchange`, `Account::ews`, the request and result shapes, three registered commands, the `MAILCRAFT_EWS` switch in the data flow |
+| 2026-10-29 | minor | #252 E8: `ews`, L3: Exchange Web Services requests and answers without I/O, a hostile XML reader and a strict stand-in; 18 crates |
+| 2026-10-29 | minor | #252 E3: `ews` finds a server by Autodiscover (state machine, no I/O) and builds Basic credentials; `net` looks up the Autodiscover SRV record and makes one HTTPS exchange that trusts the system's certificates or one chosen by fingerprint (never an expired or wrong-name one); nothing drives them yet |
+| 2026-10-29 | minor | #252 E5: `ews` goes up (`changes`, `compose`, and the run's `up`: `UpdateItem`, `MoveItem`, `DeleteItem` with `SoftDelete` never `HardDelete`, folder changes, drafts found by a marker, `SendItem`, `SendAndSaveCopy`), `HttpRequest::once` and `TransportError::Lost` for a request that is never sent twice; the engine takes up changes, drafts and sends with the Graph pieces and sending is built; the desktop runner signs in with NTLM or Basic from the server's offer |
+| 2026-10-29 | minor | #252 E4: mail down from an Exchange server account: `ews` reads `SyncFolderHierarchy`, `SyncFolderItems` and `GetItem` and runs them (`sync_mail`, `fetch_messages`); the engine takes the pieces in (`ews_down`, `sync.applyEws`, `sync.applyEwsFetch`); the desktop app runs it on a thread of its own (`Services::ews`); nothing goes up yet |
+| 2026-10-29 | patch | #252 E4 review: a page of an Exchange run carries the sync state it was read from and the one that goes on from it (`from`, `state`), and the engine takes a state in only after the page it followed; an answer with more changes than asked for, or one with a change that cannot be read, is no page; the states an account keeps are held to a total |
+| 2026-10-29 | patch | #252 E4 second review: an Exchange page with more changes than asked for is believed when every change is readable; a change that can not be taken in (no usable id) blocks its folder, which stays where it was and is named to the owner (`blocked`, File › Info) while the other folders go on; a lost, refused or cut page anywhere in a run keeps the end of that run from sweeping |
+| 2026-10-29 | patch | #252 E3 review: `ews` depends on `model` (L1) for the providers table; Autodiscover asks for the sign-in only on a challenge |
+| 2026-10-29 | minor | #252 E6: `ews` signs in with NTLMv2 (`ntlm`, from MS-NLMP; RustCrypto `md4`, `md-5`, `hmac`) and chooses NTLM or Basic from the server's offer (`auth`); `net`'s `https::Connection` holds one TLS connection across the legs and gives the hash of the server's certificate; nothing drives them yet |
+| 2026-10-29 | minor | #252 E7: setting up an Exchange server account (Add Account's explicit choice, the host's `ews_setup` job, the owner's questions, File › Info) |

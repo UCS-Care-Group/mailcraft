@@ -59,7 +59,7 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("format.clear", "Clear All Formatting", "Message › Basic Text", clear).pure().params(RANGE).when(needs_html),
         CommandSpec::new("compose.link", "Link", "Message › Include", link)
             .pure()
-            .params(r#"{"url"?: string (http, https, mailto or tel; none: remove the link), "from"?: number, "to"?: number}"#)
+            .params(r#"{"url"?: string (any URI scheme but javascript, vbscript, data, file and cid, e.g. https, mailto, tel, ms-settings; none: remove the link), "from"?: number, "to"?: number}"#)
             .when(needs_html),
         CommandSpec::new("format.indent", "Increase Indent", "Message › Basic Text", indent)
             .pure()

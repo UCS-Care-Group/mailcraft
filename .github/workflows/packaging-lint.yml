@@ -20,4 +20,4 @@ concurrency:
 jobs:
   lint:
     # Pinned to a full commit SHA of the shared workflow's main branch; moved by hand, after reading the change.
-    uses: storytold/craft-common-actions/.github/workflows/packaging-lint.yml@bfec7e2a70fa0bcf4e6c511f5f9c507b960a6930 # main # zizmor: ignore[ref-version-mismatch]
+    uses: storytold/craft-common-actions/.github/workflows/packaging-lint.yml@fa5ef18780cf5e7d5d3b8de068de56cffc83cac5 # main # zizmor: ignore[ref-version-mismatch]

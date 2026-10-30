@@ -38,6 +38,14 @@ mod control_server;
 mod desktop_theme;
 mod diagnostics;
 #[cfg(test)]
+mod ews_mail_flow;
+mod ews_runner;
+mod ews_setup;
+#[cfg(test)]
+mod ews_setup_flow;
+#[cfg(test)]
+mod ews_up_flow;
+#[cfg(test)]
 mod favorites_flow;
 #[cfg(test)]
 mod favorites_organisation_flow;
@@ -285,6 +293,19 @@ fn opened_files() -> Option<&'static opened_files::Opened> {
 /// Where the log files live: `logs` in the preferences folder (see `logging`).
 fn log_dir() -> Option<PathBuf> {
     Some(prefs_path()?.parent()?.join("logs"))
+}
+
+/// The switch for testing Exchange server accounts (#252): `MAILCRAFT_EWS=1`. Off, `account.add`
+/// with `kind: "exchange"` and every `sync.ews*` command refuse, and an Exchange server account
+/// already in a mailbox opens, shows its mail and isn't kept in step. (Add Account doesn't offer
+/// them either way yet: its page for them comes later, and will be shown only while this is on.)
+fn ews_switch() -> bool {
+    let on = std::env::var("MAILCRAFT_EWS").is_ok_and(|value| value.trim() == "1");
+    static SAID: std::sync::Once = std::sync::Once::new();
+    if on {
+        SAID.call_once(|| log::info!("Exchange server accounts may be added and kept in step (MAILCRAFT_EWS=1, for testing)"));
+    }
+    on
 }
 
 /// Runs without preferences (`MAILCRAFT_NO_PREFS`, agents' test runs) neither read nor write them,
@@ -1425,6 +1446,7 @@ fn services(
     let check_ctx = ctx.clone();
     let approval_ctx = ctx.clone();
     let fetch_ctx = ctx.clone();
+    let (ews_ctx, ews_fetch_ctx, ews_setup_ctx) = (ctx.clone(), ctx.clone(), ctx.clone());
     let search_ctx = ctx.clone();
     let tasks_ctx = ctx.clone();
     let ahead_ctx = ctx.clone();
@@ -1470,6 +1492,10 @@ fn services(
         graph_fetch: Some(Box::new(move |job: mailcraft_ui_egui::graph_fetch::GraphFetchJob| {
             background(&fetch_ctx, "message download", move || mailcraft_net::graph::fetch_messages(&job.access, &job.request, &job.cancel))
         })),
+        // An Exchange server account (#252): read through Exchange Web Services, and its messages fetched whole.
+        ews: Some(Box::new(move |job| ews_runner::run_mail(job, &ews_ctx))),
+        ews_fetch: Some(Box::new(move |job| ews_runner::run_fetch(job, &ews_fetch_ctx))),
+        ews_setup: Some(Box::new(move |job| ews_setup::run_setup(job, &ews_setup_ctx))),
         // A Microsoft mailbox searched on its server, a page at a time, on the owner's click (R6.2).
         graph_search: Some(Box::new(move |job: mailcraft_ui_egui::server_search::GraphSearchJob| {
             background(&search_ctx, "server search", move || mailcraft_net::graph::search_messages(&job.access, &job.request))
@@ -1848,6 +1874,7 @@ fn main() -> eframe::Result {
                 let (mailbox, path, unavailable, unchecked, damaged) =
                     (arrival.mailbox, arrival.path, arrival.unavailable, arrival.unchecked, arrival.damaged);
                 let mut session = Session::new(mailbox);
+                session.ews = ews_switch();
                 let kept = path.is_some();
                 session.path = path;
                 // Search answers from a word index kept beside the mailbox file, built in the
@@ -1893,7 +1920,9 @@ fn main() -> eframe::Result {
                 }
                 // Mail of Microsoft accounts kept with characters that couldn't be read (fetched
                 // before their character sets were) is fetched again, once (#185).
-                let again = mailcraft_engine::cmd::graph_down::refetch_unreadable(&mut app.session.mailbox);
+                // IMAP accounts' mail the same way, by UID, at the next Send/Receive (#650).
+                let again = mailcraft_engine::cmd::graph_down::refetch_unreadable(&mut app.session.mailbox)
+                    + mailcraft_engine::cmd::imap_again::mark_unreadable(&mut app.session.mailbox);
                 if again > 0 {
                     app.session.mailbox_changed();
                     app.status(format!("{again} messages with characters that couldn't be read are being downloaded again."));

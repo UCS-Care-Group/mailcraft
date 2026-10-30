@@ -72,7 +72,7 @@ fn dump_block(b: &Block) -> String {
             _ => format!("img({src})"),
         },
         BlockKind::Table(t) => {
-            let mut out = format!("{}{align}", if t.layout { "layout" } else { "data" });
+            let mut out = format!("{}{align}{}", if t.layout { "layout" } else { "data" }, if t.inline { ".inline" } else { "" });
             if t.border {
                 out.push_str("+border");
             }
@@ -717,10 +717,13 @@ fn nesting_of_tables_and_boxes_is_capped() {
 fn scripts_styles_head_and_comments_are_dropped() {
     let html = "<html><head><title>T</title><style>p{color:red}</style><meta charset=utf-8></head>\
                 <body><!-- hidden --><script>alert('x')</script><p>Shown</p><template><p>never</p></template></body></html>";
-    assert_eq!(parse(html), [para("Shown")]);
+    // (The style sheet is read: see `sheet/tests.rs`.)
+    let mut shown = para("Shown");
+    shown.spans[0].color = Some(Rgb(255, 0, 0));
+    assert_eq!(parse(html), [shown]);
     assert_eq!(dump("<p onclick=\"alert(1)\">x</p><iframe src=x>inner</iframe><object>fallback</object>"), ["p|x", "p|fallback"]);
-    // A style sheet is never read: a class means nothing, whatever the sheet says about it.
-    assert_eq!(dump("<style>.x{display:none;color:red;font-size:40px}</style><p class=x>shown</p>"), ["p|shown"]);
+    // A style sheet is read, and what it hides is not shown.
+    assert_eq!(dump("<style>.x{display:none;color:red;font-size:40px}</style><p class=x>gone</p><p>kept</p>"), ["p|kept"]);
 }
 
 #[test]
@@ -946,7 +949,7 @@ fn what_is_hidden_from_outlook_alone_is_shown() {
     // that only Outlook reads: the comment is dropped, so the other one must stay.
     let button = "<div><!--[if mso]><v:roundrect href=\"https://shop.example/sale\" fillcolor=\"#556270\"><w:anchorlock/><center>FOR-OUTLOOK</center></v:roundrect><![endif]-->\
                   <a href=\"https://shop.example/sale\" style=\"background-color:#556270;color:#ffffff;display:inline-block;mso-hide:all;\">See the sale</a></div>";
-    assert_eq!(dump(button), ["p|[#ffffff@556270:See the sale→https://shop.example/sale]"]);
+    assert_eq!(dump(button), ["layout.inline[(@556270 p|[#ffffff:See the sale→https://shop.example/sale])]"]);
     // The picture likewise: one for Outlook in its comment, one for everybody else.
     let picture = "<!--[if mso]><img src=\"https://img.example/for-outlook.png\" width=\"600\"><![endif]-->\
                    <!--[if !mso]><!--><div style=\"mso-hide:all\"><img src=\"https://img.example/hero@2x.png\" width=\"600\" alt=\"Hero\"></div><!--<![endif]-->";
@@ -1028,7 +1031,7 @@ pub(crate) fn check_block(block: &Block, context: &str) {
         None => {}
     }
     // Only a picture or text stands in the line of the block before.
-    assert!(!(block.beside && matches!(block.kind, BlockKind::Table(_) | BlockKind::Rule)), "{context}: {block:?}");
+    assert!(!(block.beside && (matches!(&block.kind, BlockKind::Table(t) if !t.inline) || block.kind == BlockKind::Rule)), "{context}: {block:?}");
     match &block.kind {
         BlockKind::Rule => assert!(block.spans.is_empty(), "{context}"),
         BlockKind::Image { src, link, data, .. } => {
@@ -1371,4 +1374,12 @@ fn a_table_keeps_the_gap_between_its_cells_clamped() {
     // A style beats the attribute.
     assert_eq!(spacing("<table cellspacing='2' style='border-spacing:10px 4px'><tr><td>a</td><td>b</td></tr></table>"), Some(10));
     assert_eq!(spacing("<table><tr><td>a</td><td>b</td></tr></table>"), None);
+}
+
+#[test]
+fn an_hr_with_the_hidden_attribute_is_not_drawn() {
+    let rules = |html: &str| parse(html).iter().filter(|b| matches!(b.kind, BlockKind::Rule)).count();
+    assert_eq!(rules("<p>a</p><hr><p>b</p>"), 1);
+    assert_eq!(rules("<p>a</p><hr hidden><p>b</p>"), 0);
+    assert_eq!(rules("<p>a</p><hr style='display:none'><p>b</p>"), 0);
 }

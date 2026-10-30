@@ -830,12 +830,23 @@ fn a_kind_that_is_any_other_word_or_cant_be_read_is_one_this_version_doesnt_know
         let mb: Mailbox = serde_json::from_value(serde_json::json!({"accounts": [{"id": 4, "email": "ada@example.org", "kind": kind}]})).unwrap();
         mb.accounts[0].kind
     };
-    for kind in
-        [serde_json::json!("exchange"), serde_json::json!("IMAP"), serde_json::json!(7), serde_json::json!({"newer": {}}), serde_json::Value::Null]
-    {
+    for kind in [
+        serde_json::json!("carrierPigeon"),
+        serde_json::json!("Exchange"),
+        serde_json::json!("IMAP"),
+        serde_json::json!(7),
+        serde_json::json!({"newer": {}}),
+        serde_json::Value::Null,
+    ] {
         assert_eq!(kind_of(kind.clone()), AccountKind::Unknown, "{kind}");
     }
-    for (word, kind) in [("local", AccountKind::Local), ("imap", AccountKind::Imap), ("microsoft", AccountKind::Microsoft)] {
+    for (word, kind) in [
+        ("local", AccountKind::Local),
+        ("imap", AccountKind::Imap),
+        ("microsoft", AccountKind::Microsoft),
+        ("jmap", AccountKind::Jmap),
+        ("exchange", AccountKind::Exchange),
+    ] {
         assert_eq!(kind_of(serde_json::json!(word)), kind);
     }
     // A file from before there were kinds says none: a local account, as always.

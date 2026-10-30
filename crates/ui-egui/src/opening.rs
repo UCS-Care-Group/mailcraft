@@ -291,6 +291,11 @@ pub(crate) fn after(app: &mut MailApp, ctx: &egui::Context) {
         for batch in batches {
             app.session.take_bodies(batch);
         }
+        // Every body an opening left for later is in: mail of IMAP accounts kept with U+FFFD in
+        // its text alone is looked at now (#650).
+        if done && mailcraft_engine::cmd::imap_again::mark_unreadable(&mut app.session.mailbox) > 0 {
+            app.session.mailbox_changed();
+        }
     }
 }
 
