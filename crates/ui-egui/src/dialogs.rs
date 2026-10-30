@@ -1092,8 +1092,10 @@ pub fn input_dialog(id: &str, params: &Value) -> Option<&'static str> {
 /// may be a link).
 pub(crate) fn link_address(typed: &str) -> String {
     let typed = typed.trim();
-    if typed.contains(':') {
+    if typed.contains(':') && !host_and_port(typed) {
         typed.to_string()
+    } else if typed.contains(':') {
+        format!("https://{typed}")
     } else if typed.contains('@') && !typed.contains('/') {
         format!("mailto:{typed}")
     } else if typed.contains('.') && !typed.contains(char::is_whitespace) {
@@ -1101,6 +1103,21 @@ pub(crate) fn link_address(typed: &str) -> String {
     } else {
         typed.to_string()
     }
+}
+
+/// A host and a port typed without a scheme (`www.example.org:8443/x`, `intranet:8080/wiki`): the
+/// would-be scheme has a dot, or what follows the colon is a port number (1 to 5 digits, then
+/// the end or a `/`, `?` or `#`). `tel:` and `mailto:` are schemes whatever follows.
+fn host_and_port(typed: &str) -> bool {
+    let Some((scheme, rest)) = typed.split_once(':') else { return false };
+    if scheme.eq_ignore_ascii_case("tel") || scheme.eq_ignore_ascii_case("mailto") {
+        return false;
+    }
+    if scheme.contains('.') {
+        return true;
+    }
+    let digits = rest.chars().take_while(char::is_ascii_digit).count();
+    (1..=5).contains(&digits) && rest.get(digits..).is_some_and(|after| after.is_empty() || after.starts_with(['/', '?', '#']))
 }
 
 /// Every command (engine and window) as `(id, label, location, shortcut, enabled)`, for search.

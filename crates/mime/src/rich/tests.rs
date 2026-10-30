@@ -462,3 +462,11 @@ proptest! {
         prop_assert!(back.pictures().iter().all(|id| id % 2 == 0));
     }
 }
+
+#[test]
+fn only_the_owners_own_draft_keeps_a_link_a_reader_would_not_follow() {
+    let html = "<div>see <a href=\"ms-settings:network-vpn\">this</a> and <a href=\"java&#9;script:x\">that</a></div>";
+    let links = |t: &RichText| t.paragraphs().iter().flat_map(|p| p.runs.iter()).filter_map(|r| r.style.link.clone()).collect::<Vec<_>>();
+    assert!(links(&super::from_html(html)).is_empty());
+    assert_eq!(links(&super::from_html_with_pictures(html, &mut |_| None)), vec!["ms-settings:network-vpn".to_string()]);
+}

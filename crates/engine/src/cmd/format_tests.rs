@@ -346,3 +346,47 @@ pub(crate) fn unmarked(t: &mailcraft_model::RichText) -> mailcraft_model::RichTe
         t.paragraphs().iter().map(|p| mailcraft_model::rich::Paragraph { signature: false, ..p.clone() }).collect(),
     )
 }
+
+#[test]
+fn a_link_to_any_scheme_survives_saving_and_reopening_the_draft() {
+    let mut s = session();
+    run(&mut s, "mail.new", json!({"to": "maya@lumen.example", "subject": "VPN", "body": "Open the network settings now"}));
+    run(&mut s, "compose.link", json!({"url": "ms-settings:network-vpn", "from": 9, "to": 25}));
+    let draft = run(&mut s, "compose.saveDraft", json!({}))["draft"].as_u64().unwrap();
+    run(&mut s, "compose.close", json!({}));
+    run(&mut s, "mail.editDraft", json!({"id": draft}));
+    assert_eq!(compose(&s).body.text().link_span(10), Some((9, 25)));
+    let link = compose(&s).body.text().paragraphs().iter().flat_map(|p| p.runs.iter()).find_map(|r| r.style.link.clone());
+    assert_eq!(link.as_deref(), Some("ms-settings:network-vpn"));
+}
+
+#[test]
+fn a_received_message_quoted_in_a_reply_is_still_read_by_the_reading_rule() {
+    let mut s = session();
+    let inbox = s.mailbox.inbox().unwrap();
+    let account = s.mailbox.accounts[0].id;
+    let m = mailcraft_model::Message {
+        account,
+        folder: inbox,
+        message_id: "settings@news.example".into(),
+        from: mailcraft_model::Address::new("Harbor", "news@news.example"),
+        to: vec![mailcraft_model::Address::new("Avery Quinn", "avery@lumen.example")],
+        subject: "Notice".into(),
+        date: 1_791_000_000,
+        body: mailcraft_model::Body {
+            text: "x".into(),
+            html: Some("<p><a href=\"ms-settings:network-vpn\">Open</a> and <a href=\"https://example.org/\">web</a></p>".into()),
+        },
+        ..Default::default()
+    };
+    let id = s.mailbox.add_message(m).unwrap();
+    run(&mut s, "mail.reply", json!({"id": id}));
+    run(&mut s, "compose.set", json!({"to": "maya@lumen.example"}));
+    let draft = run(&mut s, "compose.saveDraft", json!({}))["draft"].as_u64().unwrap();
+    run(&mut s, "compose.close", json!({}));
+    run(&mut s, "mail.editDraft", json!({"id": draft}));
+    let quote = compose(&s).quote.clone().unwrap();
+    let links: Vec<String> = mailcraft_html::parse(&quote.html).iter().flat_map(|b| b.spans.iter()).filter_map(|sp| sp.link.clone()).collect();
+    assert_eq!(links, vec!["https://example.org/".to_string()], "{}", quote.html);
+    assert!(!compose(&s).body.text().paragraphs().iter().flat_map(|p| p.runs.iter()).any(|r| r.style.link.is_some()));
+}
