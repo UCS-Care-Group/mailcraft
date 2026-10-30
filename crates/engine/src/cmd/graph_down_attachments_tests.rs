@@ -248,3 +248,215 @@ fn a_message_its_server_said_nothing_of_goes_by_its_parts() {
     let m = mb.message(pdf).unwrap();
     assert_eq!((m.server_attachments, sorts_with_files(m), has_files(m)), (None, true, true));
 }
+
+/// A PDF and a calendar file attached to a mail, one that isn't meeting mail (a published event).
+const PDF_AND_ICS: &[u8] = b"From: Kit <kit@example.org>\r\nSubject: The file\r\nMIME-Version: 1.0\r\n\
+Content-Type: multipart/mixed; boundary=\"b\"\r\n\r\n--b\r\nContent-Type: text/plain\r\n\r\nBoth attached.\r\n--b\r\n\
+Content-Type: application/pdf; name=\"figures.pdf\"\r\nContent-Disposition: attachment; filename=\"figures.pdf\"\r\n\r\n%PDF-1.4\r\n--b\r\n\
+Content-Type: text/calendar; method=PUBLISH; name=\"invite.ics\"\r\nContent-Disposition: attachment; filename=\"invite.ics\"\r\n\r\n\
+BEGIN:VCALENDAR\r\nMETHOD:PUBLISH\r\nBEGIN:VEVENT\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n--b--\r\n";
+
+/// Two files attached: one removed here leaves the other.
+const TWO_PDFS: &[u8] = b"From: Kit <kit@example.org>\r\nSubject: Figures\r\nMIME-Version: 1.0\r\n\
+Content-Type: multipart/mixed; boundary=\"b\"\r\n\r\n--b\r\nContent-Type: text/plain\r\n\r\nFigures attached.\r\n--b\r\n\
+Content-Type: application/pdf; name=\"q1.pdf\"\r\nContent-Disposition: attachment; filename=\"q1.pdf\"\r\n\r\n%PDF-1.4\r\n--b\r\n\
+Content-Type: application/pdf; name=\"q2.pdf\"\r\nContent-Disposition: attachment; filename=\"q2.pdf\"\r\n\r\n%PDF-1.4\r\n--b--\r\n";
+
+/// #575 review 3: a file removed here (Remove Attachment) takes the paperclip and the place among
+/// the messages with files with it, whatever the server, never told, says after; undone, they're
+/// back. Back to its preview, it keeps none; fetched again, the server's copy brings the file back,
+/// and its paperclip with it.
+#[test]
+fn a_file_removed_here_takes_the_paperclip_with_it_until_the_servers_copy_is_back() {
+    use serde_json::json;
+
+    let (mb, account) = mailbox();
+    let mut s = crate::session::Session::new(mb);
+    let mut index = ServerIndex::default();
+    take_page(&mut s.mailbox, &mut index, account, &page(true), &mut Down::default());
+    assert!(take_fetched(&mut s.mailbox, &mut index, account, "AAkI3", PDF_ATTACHED));
+    let pdf = index.find(&s.mailbox, account, "AAkI3").unwrap();
+    let key = |s: &crate::session::Session| {
+        let m = s.mailbox.message(pdf).unwrap();
+        (sorts_with_files(m), has_files(m), m.has_attachments())
+    };
+    assert_eq!(key(&s), (true, true, true));
+    // One that isn't there: nothing changes.
+    assert!(s.run("mail.removeAttachment", &json!({"id": pdf, "index": 5})).is_err());
+    assert_eq!(s.mailbox.message(pdf).unwrap().attachments_changed_here, None);
+
+    s.run("mail.removeAttachment", &json!({"id": pdf, "index": 0})).unwrap();
+    assert_eq!(key(&s), (false, false, false));
+    for (stage, said) in [("says it has", Some(true)), ("says it hasn't", Some(false)), ("says nothing", None)] {
+        let mut described = page(true);
+        described.messages.iter_mut().for_each(|m| m.has_attachments = said);
+        take_page(&mut s.mailbox, &mut index, account, &described, &mut Down::default());
+        assert_eq!(key(&s), (false, false, false), "the server {stage}");
+    }
+    super::super::jmap_down::take_window(&mut s.mailbox, &mut index, account, &marks(), false, &mut Down::default());
+    assert_eq!(key(&s), (false, false, false), "marks alone");
+    // What its parts said stands, whatever the server says; what it says is kept.
+    take_page(&mut s.mailbox, &mut index, account, &page(true), &mut Down::default());
+    let m = s.mailbox.message(pdf).unwrap();
+    assert_eq!((m.attachments_changed_here, m.server_attachments), (Some(false), Some(true)));
+
+    // In the mailbox file.
+    let m = s.mailbox.message(pdf).unwrap().clone();
+    let saved = serde_json::to_string(&m).unwrap();
+    assert!(saved.contains(r#""attachmentsChangedHere":false"#), "{saved}");
+    assert_eq!(serde_json::from_str::<Message>(&saved).unwrap().attachments_changed_here, Some(false));
+
+    s.run("edit.undo", &json!({})).unwrap();
+    assert_eq!(key(&s), (true, true, true), "undone");
+    assert_eq!(s.mailbox.message(pdf).unwrap().attachments_changed_here, None, "undone: what stood for them too");
+    s.run("edit.redo", &json!({})).unwrap();
+    assert_eq!(key(&s), (false, false, false), "redone");
+
+    // Back to its preview: no paperclip, and the server saying it has files doesn't put one back.
+    thin_message(s.mailbox.message_mut(pdf).unwrap(), "Preview".into());
+    assert_eq!(key(&s), (false, false, false), "thinned");
+    take_page(&mut s.mailbox, &mut index, account, &page(true), &mut Down::default());
+    assert_eq!(key(&s), (false, false, false), "thinned, described again");
+
+    // Fetched again: the server's copy, with its file.
+    assert!(take_fetched(&mut s.mailbox, &mut index, account, "AAkI3", PDF_ATTACHED));
+    let m = s.mailbox.message(pdf).unwrap();
+    assert_eq!((m.attachments_changed_here, m.server_attachments), (None, Some(true)));
+    assert_eq!(key(&s), (true, true, true), "fetched again");
+    let saved = serde_json::to_string(s.mailbox.message(pdf).unwrap()).unwrap();
+    assert!(!saved.contains("attachmentsChangedHere"), "{saved}");
+}
+
+/// A PDF and a calendar file attached: the PDF removed here, the calendar file is still a file,
+/// for the paperclip, the arrangement and the chips alike, and still once its bytes are let go
+/// of or it is back to its preview.
+#[test]
+fn a_calendar_file_left_after_a_removal_is_still_a_file() {
+    use serde_json::json;
+
+    let (mb, account) = mailbox();
+    let mut s = crate::session::Session::new(mb);
+    let mut index = ServerIndex::default();
+    take_page(&mut s.mailbox, &mut index, account, &page(true), &mut Down::default());
+    assert!(take_fetched(&mut s.mailbox, &mut index, account, "AAkI2", PDF_AND_ICS));
+    let mail = index.find(&s.mailbox, account, "AAkI2").unwrap();
+    let pdf = s.mailbox.message(mail).unwrap().attachments.iter().position(|a| a.name == "figures.pdf").unwrap();
+    s.run("mail.removeAttachment", &json!({"id": mail, "index": pdf})).unwrap();
+    let key = |s: &crate::session::Session| {
+        let m = s.mailbox.message(mail).unwrap();
+        (sorts_with_files(m), has_files(m), m.has_attachments())
+    };
+    assert_eq!(key(&s), (true, true, true));
+    for a in &mut s.mailbox.message_mut(mail).unwrap().attachments {
+        a.data = std::sync::Arc::new(Vec::new());
+    }
+    assert_eq!(key(&s), (true, true, true), "bytes on disk");
+    thin_message(s.mailbox.message_mut(mail).unwrap(), "Preview".into());
+    assert_eq!(key(&s), (true, true, true), "thinned");
+    // Fetched again, both files are back, and the server's answer, kept all along, says.
+    assert!(take_fetched(&mut s.mailbox, &mut index, account, "AAkI2", PDF_AND_ICS));
+    assert_eq!(key(&s), (true, true, true), "fetched again");
+    let mail = s.mailbox.message(mail).unwrap();
+    assert_eq!((mail.attachments.len(), mail.attachments_changed_here), (2, None));
+}
+
+/// Waiting to be fetched again (kept with characters that couldn't be read) with its parts still
+/// here: one removed meanwhile takes the paperclip with it too.
+#[test]
+fn a_file_removed_while_the_message_waits_to_be_fetched_again() {
+    use serde_json::json;
+
+    let (mb, account) = mailbox();
+    let mut s = crate::session::Session::new(mb);
+    let mut index = ServerIndex::default();
+    take_page(&mut s.mailbox, &mut index, account, &page(true), &mut Down::default());
+    assert!(take_fetched(&mut s.mailbox, &mut index, account, "AAkI3", PDF_ATTACHED));
+    let pdf = index.find(&s.mailbox, account, "AAkI3").unwrap();
+    s.mailbox.message_mut(pdf).unwrap().subject.push(char::REPLACEMENT_CHARACTER);
+    s.mailbox.redecoded = false;
+    assert_eq!(refetch_unreadable(&mut s.mailbox), 1);
+    assert!(s.mailbox.message(pdf).unwrap().unfetched);
+    s.run("mail.removeAttachment", &json!({"id": pdf, "index": 0})).unwrap();
+    let m = s.mailbox.message(pdf).unwrap();
+    assert_eq!((sorts_with_files(m), has_files(m), m.has_attachments()), (false, false, false));
+    take_page(&mut s.mailbox, &mut index, account, &page(true), &mut Down::default());
+    let m = s.mailbox.message(pdf).unwrap();
+    assert_eq!((sorts_with_files(m), has_files(m), m.has_attachments()), (false, false, false));
+}
+
+/// One of two files removed here: the other keeps the paperclip.
+#[test]
+fn one_of_two_files_removed_here_leaves_the_paperclip() {
+    use serde_json::json;
+
+    let (mb, account) = mailbox();
+    let mut s = crate::session::Session::new(mb);
+    let mut index = ServerIndex::default();
+    take_page(&mut s.mailbox, &mut index, account, &page(true), &mut Down::default());
+    assert!(take_fetched(&mut s.mailbox, &mut index, account, "AAkI3", TWO_PDFS));
+    let pdf = index.find(&s.mailbox, account, "AAkI3").unwrap();
+    s.run("mail.removeAttachment", &json!({"id": pdf, "index": 0})).unwrap();
+    let m = s.mailbox.message(pdf).unwrap();
+    assert_eq!((m.attachments.len(), sorts_with_files(m), has_files(m), m.has_attachments()), (1, true, true, true));
+    // The other removed too, the server's copy fetched again, then the second removal undone:
+    // the one file is back, and what its parts said with it.
+    s.run("mail.removeAttachment", &json!({"id": pdf, "index": 0})).unwrap();
+    assert!(take_fetched(&mut s.mailbox, &mut index, account, "AAkI3", TWO_PDFS));
+    assert_eq!(s.mailbox.message(pdf).unwrap().attachments_changed_here, None);
+    s.run("edit.undo", &json!({})).unwrap();
+    let m = s.mailbox.message(pdf).unwrap();
+    assert_eq!((m.attachments.len(), m.attachments_changed_here), (1, Some(true)));
+}
+
+/// Removed here, then on the server too, then the removal here undone: the file is back here,
+/// and wears the paperclip the server's answer gave it then, not the one it gives now.
+#[test]
+fn a_removal_undone_after_the_server_lost_the_file_too_keeps_the_paperclip() {
+    use serde_json::json;
+
+    let (mb, account) = mailbox();
+    let mut s = crate::session::Session::new(mb);
+    let mut index = ServerIndex::default();
+    take_page(&mut s.mailbox, &mut index, account, &page(true), &mut Down::default());
+    assert!(take_fetched(&mut s.mailbox, &mut index, account, "AAkI3", PDF_ATTACHED));
+    let pdf = index.find(&s.mailbox, account, "AAkI3").unwrap();
+    s.run("mail.removeAttachment", &json!({"id": pdf, "index": 0})).unwrap();
+    let mut gone = page(true);
+    gone.messages.iter_mut().for_each(|m| m.has_attachments = Some(false));
+    take_page(&mut s.mailbox, &mut index, account, &gone, &mut Down::default());
+    s.run("edit.undo", &json!({})).unwrap();
+    let m = s.mailbox.message(pdf).unwrap();
+    assert_eq!((m.attachments.len(), m.attachments_changed_here, m.server_attachments), (1, Some(true), Some(false)));
+    assert_eq!((sorts_with_files(m), has_files(m), m.has_attachments()), (true, true, true));
+}
+
+/// A JMAP account: what its server says of attachments puts the paperclip on mail not fetched
+/// yet, but isn't kept as an answer: such a server may count an invitation's own calendar part
+/// (RFC 8621 §4.1.4). Fetched, a message goes by its parts. An answer an earlier build kept goes.
+#[test]
+fn a_jmap_servers_answer_is_for_mail_not_fetched_yet() {
+    let (mut mb, account) = mailbox();
+    mb.accounts[0].kind = AccountKind::Jmap;
+    let mut index = ServerIndex::default();
+    take_page(&mut mb, &mut index, account, &page(true), &mut Down::default());
+    for (id, _, has) in MAIL {
+        let m = mb.message(index.find(&mb, account, id).unwrap()).unwrap();
+        assert_eq!((m.server_attachments, m.attachments_on_server, sorts_with_files(m)), (None, has, has), "{id} before it is fetched");
+    }
+    for (id, mime, _) in MAIL {
+        assert!(take_fetched(&mut mb, &mut index, account, id, mime));
+    }
+    let key = |mb: &Mailbox, index: &mut ServerIndex, id| {
+        let m = mb.message(index.find(mb, account, id).unwrap()).unwrap();
+        (sorts_with_files(m), has_files(m))
+    };
+    assert_eq!(key(&mb, &mut index, "AAkI1"), (false, false), "the invitation");
+    assert_eq!(key(&mb, &mut index, "AAkI3"), (true, true), "the PDF");
+    let pdf = index.find(&mb, account, "AAkI3").unwrap();
+    for said in [true, false] {
+        mb.message_mut(pdf).unwrap().server_attachments = Some(false);
+        take_page(&mut mb, &mut index, account, &page(said), &mut Down::default());
+        assert_eq!(mb.message(pdf).unwrap().server_attachments, None, "the server said: {said}");
+    }
+    assert_eq!(key(&mb, &mut index, "AAkI3"), (true, true));
+}

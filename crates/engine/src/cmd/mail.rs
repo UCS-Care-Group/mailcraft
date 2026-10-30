@@ -942,6 +942,22 @@ fn remove_attachment(s: &mut Session, v: &Value) -> CmdResult {
     let (id, index) = attachment_target(s, v)?;
     let m = s.mailbox.message_mut(id)?;
     let removed = m.attachments.remove(index);
+    // The server isn't told: what it says of whether the message has attachments no longer
+    // holds, and what its parts say now stands for it until the server's copy is fetched again
+    // (#575). One waiting to be fetched again has its parts here: they say, not the hint kept
+    // for it. A draft goes by its own files anyway.
+    if !m.draft {
+        // A calendar file left says whether it is meeting mail by its bytes; ones that can't be
+        // read are taken for a file.
+        if let Err(e) = s.load_where(id, crate::session::is_calendar_part) {
+            log::warn!("message {id}: its calendar part couldn't be read ({e})");
+        }
+        let m = s.mailbox.message_mut(id)?;
+        m.attachments_on_server = false;
+        let has = crate::columns::by_parts(m);
+        m.attachments_changed_here = Some(has);
+        m.attachments_on_server = has && m.unfetched;
+    }
     Ok(json!({"removed": removed.name}))
 }
 

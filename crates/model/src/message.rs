@@ -267,14 +267,22 @@ pub struct Message {
     /// finds it; once it is fetched its own attachments say.
     #[serde(skip_serializing_if = "is_false")]
     pub attachments_on_server: bool,
-    /// What the account's server last said of whether it has attachments (Graph's
-    /// `hasAttachments`, JMAP's `hasAttachment`), kept once it is fetched: a meeting invitation's
-    /// own calendar part isn't one, a calendar file attached to it is, as the target's Arrange By
-    /// Attachments has it (#575). `None` while no server has ever said: IMAP and local mail, mail
+    /// What a Microsoft account's server last said of whether it has attachments (Graph's
+    /// `hasAttachments`), kept once it is fetched: a meeting invitation's own calendar part isn't
+    /// one, a calendar file attached to it is, as the target's Arrange By Attachments has it
+    /// (#575). `None` while no such server has ever said: JMAP, Exchange server, IMAP and local
+    /// mail (a JMAP server may count an invitation's own calendar part, RFC 8621 §4.1.4), mail
     /// imported from a file, and mail fetched by a build from before this was kept. A message
-    /// moved or copied out of its account keeps the answer. A draft goes by its own files.
+    /// moved or copied out of its account keeps the answer. A draft goes by its own files, and
+    /// one whose attachments were removed here by [`Message::attachments_changed_here`].
     #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
     pub server_attachments: Option<bool>,
+    /// Its attachments were changed here (Remove Attachment), which its server isn't told: what
+    /// its parts said of whether it has attachments then, which stands for them instead of what
+    /// the server says ([`Message::server_attachments`]), until the server's copy is fetched
+    /// again (#575). `None` for every other message.
+    #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
+    pub attachments_changed_here: Option<bool>,
     /// It was moved here, out of a Microsoft account (into a local folder or another account),
     /// from the server's copy this names, and that copy is still on the server: it is **being
     /// moved** (R3 spec S19). The server's copy is removed only once this message is fetched
