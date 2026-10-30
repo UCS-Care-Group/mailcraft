@@ -53,12 +53,32 @@ pub struct RemoteRule {
 }
 
 impl RemoteRule {
-    /// Cut everything to the size the mailbox keeps.
+    /// Cut everything to the size the mailbox keeps. What can't be kept whole (words too long,
+    /// too many parts, a condition with no words, a category with no name, a part the server
+    /// doesn't name) is named among the parts this version doesn't know: the rule is then only
+    /// switched, moved and deleted, never made again from what was kept of it.
     pub fn tidy(&mut self) {
         self.id = key(&self.id);
         self.move_to = key(&self.move_to);
         self.name = clean_name(&line(&self.name, MAX_NAME)).unwrap_or_else(|| "(no name)".into());
-        let words = |t: &str| line(t, MAX_WORDS);
+        let mut cut: Vec<&str> = Vec::new();
+        let mut note = |part: &'static str| {
+            if !cut.contains(&part) {
+                cut.push(part);
+            }
+        };
+        if self.conditions.len() > MAX_PARTS || self.actions.len() > MAX_PARTS {
+            note(CUT_PARTS);
+        }
+        let mut words = |t: &str| {
+            let kept = line(t, MAX_WORDS);
+            if kept.is_empty() {
+                note(CUT_EMPTY);
+            } else if t.trim().chars().count() > MAX_WORDS {
+                note(CUT_WORDS);
+            }
+            kept
+        };
         let mut conditions = Vec::new();
         for condition in std::mem::take(&mut self.conditions).into_iter().take(MAX_PARTS) {
             let tidied = match condition {
@@ -78,25 +98,32 @@ impl RemoteRule {
         for action in std::mem::take(&mut self.actions).into_iter().take(MAX_PARTS) {
             match action {
                 Action::MoveTo(_) => {}
-                Action::Categorize(c) => {
-                    if let Some(c) = clean_name(&c) {
-                        actions.push(Action::Categorize(c));
-                    }
-                }
+                Action::Categorize(c) => match clean_name(&c) {
+                    Some(name) if c.trim().chars().count() <= MAX_NAME => actions.push(Action::Categorize(name)),
+                    _ => note(CUT_CATEGORY),
+                },
                 other => actions.push(other),
             }
         }
         self.actions = actions;
-        let mut unknown: Vec<String> = Vec::new();
+        let mut unknown: Vec<String> = cut.into_iter().map(String::from).collect();
         for part in std::mem::take(&mut self.unknown) {
             let part = line(&part, MAX_PART_NAME);
-            if !part.is_empty() && !unknown.contains(&part) && unknown.len() < MAX_UNKNOWN {
+            let part = if part.is_empty() { CUT_UNNAMED.to_string() } else { part };
+            if !unknown.contains(&part) && unknown.len() < MAX_UNKNOWN {
                 unknown.push(part);
             }
         }
         self.unknown = unknown;
     }
 }
+
+/// The names [`RemoteRule::tidy`] gives to what it couldn't keep whole.
+const CUT_PARTS: &str = "(more parts than are kept)";
+const CUT_WORDS: &str = "(words longer than are kept)";
+const CUT_EMPTY: &str = "(a condition with no words)";
+const CUT_CATEGORY: &str = "(a category with no name)";
+const CUT_UNNAMED: &str = "(a part with no name)";
 
 /// An account's rules, as its server has them.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]

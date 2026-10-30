@@ -1174,15 +1174,10 @@ impl Mailbox {
         self.event_checks.retain(|check| !going.contains(&check.account));
         self.task_gone.retain(|gone| !going.contains(&gone.account));
         self.rule_gone.retain(|gone| !going.contains(&gone.account));
-        // Its rules that its server has go with it; those made here stay, on this computer, for
-        // every account's mail (as rules were before they had accounts, #566).
-        self.rules.retain(|r| !(going.contains(&r.account) && r.on_server()));
-        for rule in self.rules.iter_mut().filter(|r| going.contains(&r.account)) {
-            rule.account = 0;
-            rule.keep = crate::Keep::Here;
-            rule.server = None;
-            rule.refused.clear();
-        }
+        // Its rules go with it, as Outlook keeps an account's rules in its mailbox (#566): one
+        // left behind would act on the mail of accounts it was never made for. Those for every
+        // account stay.
+        self.rules.retain(|r| !going.contains(&r.account));
         self.shared_task_lists.retain(|account, _| !going.contains(account));
         self.junk_accounts.retain(|account, _| !going.contains(account));
         // Its to-dos stay, as to-dos of this computer only.
@@ -2529,10 +2524,11 @@ impl Mailbox {
         self.account(account).is_some_and(|a| a.kind == AccountKind::Microsoft && !a.is_shared())
     }
 
-    /// Whether the rule reads the words of a sender or a recipient in their addresses alone: one of
-    /// an account whose server keeps rules does, as its server does ([`crate::Condition::matches_as`]).
+    /// Whether the rule reads the words of a sender or a recipient in their addresses alone: one
+    /// kept on its account's server does, there and here, as the server does
+    /// ([`crate::Condition::matches_as`]). One kept on this computer reads names too.
     pub fn rule_reads_addresses(&self, rule: &Rule) -> bool {
-        rule.account != 0 && self.keeps_rules(rule.account)
+        rule.account != 0 && rule.keep == crate::Keep::Server && self.keeps_rules(rule.account)
     }
 
     /// The rules for the mail of `account`, as positions in [`Mailbox::rules`], in the order they
@@ -2573,6 +2569,18 @@ impl Mailbox {
             }
         }
         ran
+    }
+
+    /// Run the one rule `rule` on a message now (a rule just made, run over the mail already in a
+    /// folder, as Outlook offers): whether it acted. A rule for another account's mail doesn't.
+    pub fn run_rule(&mut self, id: Id, rule: Id) -> bool {
+        let Some(m) = self.message(id) else { return false };
+        let Some(rule) = self.rules.iter().find(|r| r.id == rule && r.is_for(m.account)).cloned() else { return false };
+        if !rule.matches_as(m, self.rule_reads_addresses(&rule)) {
+            return false;
+        }
+        self.act(id, &rule.actions);
+        true
     }
 
     /// Do what a rule says to a message.

@@ -27,9 +27,10 @@ pub fn specs() -> Vec<CommandSpec> {
         CommandSpec::new("rules.list", "Manage Rules", "Home › Move", list).pure().params(
             r#"{"account"?: number} — the rules (of that account and those for every account, in the order they run); each says where it is kept: "server", "waiting" (to go to the server), "here" (with why when it can't go there) or "everyAccount""#,
         ),
-        CommandSpec::new("rules.run", "Run Rules Now", "Folder › Clean Up", run).params(r#"{"folder"?: number} (default: the folder in view)"#),
+        CommandSpec::new("rules.run", "Run Rules Now", "Folder › Clean Up", run)
+            .params(r#"{"folder"?: number (default: the folder in view), "id"?: number (that rule alone)} — the enabled rules for the folder's account, those its server keeps too, over the mail in it; answers {"matched"}"#),
         CommandSpec::new("rules.fromMessage", "Always Move Messages From", "Home › Move", from_message)
-            .params(r#"{"folder": number, "id"?: number, "server"?: bool (as for `rules.add`)} — a rule moving this sender's mail to the folder, run at once; the window opens the New rule builder filled in instead (`ui.dialog` "rules" with "folder")"#)
+            .params(r#"{"folder": number, "id"?: number, "server"?: bool (as for `rules.add`)} — a rule moving this sender's mail to the folder, run at once over the mail in the message's folder (not for a shared mailbox's message: its rules are its own); the window opens the New rule builder filled in instead (`ui.dialog` "rules" with "folder")"#)
             .selection(needs_message),
         CommandSpec::new("rules.move", "Move Rule", "Home › Move", move_rule).params(
             r#"{"id": number, "direction": "up"|"down", "account"?: number (the list it is moved in, for a rule for every account; default: the account of the folder in view)} — within its list: the rules its account's server keeps, or those of this computer"#,
@@ -57,6 +58,12 @@ pub enum NotOnServer {
     TwoMoves,
     TwoOfAKind,
     TwoImportances,
+    /// It looks for a name in the sender or the recipients (words with a space, say), and the
+    /// server looks at their addresses alone.
+    Names,
+    /// A Microsoft account kept in step by IMAP: its rules on the server are reached through
+    /// Microsoft Graph.
+    NotInStep,
 }
 
 impl NotOnServer {
@@ -71,6 +78,8 @@ impl NotOnServer {
             NotOnServer::TwoMoves => "it moves mail to more than one folder",
             NotOnServer::TwoOfAKind => "it has two conditions of one kind, and the server would take either of them rather than both",
             NotOnServer::TwoImportances => "it sets more than one importance",
+            NotOnServer::Names => "it looks for a name, and the server looks at addresses only",
+            NotOnServer::NotInStep => "MailCraft reaches this account's rules on the server once it switches to Microsoft Graph",
         }
     }
 }
@@ -78,11 +87,15 @@ impl NotOnServer {
 /// Why `rule` can't be kept on the server of `account`, or `None` when it can.
 pub fn server_cannot(mb: &Mailbox, rule: &Rule, account: Id) -> Option<NotOnServer> {
     if !mb.keeps_rules(account) {
-        return Some(NotOnServer::NoServer);
+        let imap = mb.account(account).is_some_and(|a| a.on_imap_with_microsoft() && !a.is_shared());
+        return Some(if imap { NotOnServer::NotInStep } else { NotOnServer::NoServer });
     }
     let kind = |c: &Condition| std::mem::discriminant(c);
     if rule.conditions.iter().enumerate().any(|(i, c)| rule.conditions.iter().skip(i + 1).any(|d| kind(c) == kind(d))) {
         return Some(NotOnServer::TwoOfAKind);
+    }
+    if rule.conditions.iter().any(|c| matches!(c, Condition::FromContains(t) | Condition::ToContains(t) if !in_an_address(t))) {
+        return Some(NotOnServer::Names);
     }
     let mut moves = 0usize;
     let mut importance: Option<Importance> = None;
@@ -112,6 +125,12 @@ pub fn server_cannot(mb: &Mailbox, rule: &Rule, account: Id) -> Option<NotOnServ
     if moves > 1 { Some(NotOnServer::TwoMoves) } else { None }
 }
 
+/// Whether `words` can be part of an address: no space, none of the marks that set a name or a
+/// comment apart from it. A rule looking for others looks for a name, which the server doesn't.
+fn in_an_address(words: &str) -> bool {
+    !words.chars().any(|c| c.is_whitespace() || "\"(),:;<>[]\\".contains(c))
+}
+
 /// Where a rule is kept, as `rules.list` says it, and why it is kept here when it could be
 /// expected on the server.
 pub fn kept(mb: &Mailbox, r: &Rule) -> (&'static str, Option<String>) {
@@ -129,7 +148,7 @@ pub fn kept(mb: &Mailbox, r: &Rule) -> (&'static str, Option<String>) {
         return ("here", Some(format!("the server didn't take it: {}", r.refused)));
     }
     match why {
-        Some(NotOnServer::NoServer) | None => ("here", None),
+        Some(NotOnServer::NoServer | NotOnServer::NotInStep) | None => ("here", None),
         Some(why) => ("here", Some(why.said().to_string())),
     }
 }
@@ -189,7 +208,7 @@ fn own_account(mb: &Mailbox, account: Id) -> Id {
 /// this computer, as rules were before they had accounts: what a script that names none asked
 /// for then).
 fn rule_account(s: &Session, v: &Value) -> Result<Id, CmdError> {
-    let Some(account) = p::id(v, "account") else { return Ok(0) };
+    let Some(account) = p::opt_id(v, "account")? else { return Ok(0) };
     let a = s.mailbox.account(account).ok_or_else(|| failed!("no account with id {id}", id = account))?;
     if a.is_shared() {
         return Err(fail("a rule is for an account's own mail, not a shared mailbox's"));
@@ -220,7 +239,8 @@ pub(crate) fn rule_from_params(s: &Session, v: &Value) -> Result<Rule, CmdError>
         return Err(bad("a rule needs at least one condition and one action"));
     }
     let account = rule_account(s, v)?;
-    let mut rule = Rule { id: 0, name, enabled: true, conditions, actions, stop: p::bool(v, "stop").unwrap_or(false), account, ..Default::default() };
+    let mut rule =
+        Rule { id: 0, name, enabled: true, conditions, actions, stop: p::opt_bool(v, "stop")?.unwrap_or(false), account, ..Default::default() };
     place(s, &mut rule, v)?;
     Ok(rule)
 }
@@ -230,7 +250,7 @@ pub(crate) fn rule_from_params(s: &Session, v: &Value) -> Result<Rule, CmdError>
 fn place(s: &Session, rule: &mut Rule, v: &Value) -> Result<(), CmdError> {
     let account = rule.account;
     let cannot = if account == 0 { None } else { server_cannot(&s.mailbox, rule, account) };
-    match (p::bool(v, "server"), cannot) {
+    match (p::opt_bool(v, "server")?, cannot) {
         (Some(false), _) => {}
         (Some(true), _) if account == 0 => return Err(bad("say which account's server is to keep it (`account`)")),
         (Some(true), Some(why)) => return Err(CmdError::Failed(why.said().to_string())),
@@ -288,15 +308,16 @@ fn remove(s: &mut Session, v: &Value) -> CmdResult {
 
 fn enable(s: &mut Session, v: &Value) -> CmdResult {
     let id = p::req_id(v, "id")?;
+    let value = p::opt_bool(v, "value")?;
     let i = changeable(s, id)?;
     let r = s.mailbox.rules.get_mut(i).ok_or_else(|| failed!("no rule with id {id}", id))?;
-    r.enabled = p::bool(v, "value").unwrap_or(!r.enabled);
+    r.enabled = value.unwrap_or(!r.enabled);
     Ok(json!({"id": id, "enabled": r.enabled}))
 }
 
 fn list(s: &mut Session, v: &Value) -> CmdResult {
     let mb = &s.mailbox;
-    let order: Vec<usize> = match p::id(v, "account") {
+    let order: Vec<usize> = match p::opt_id(v, "account")? {
         Some(account) => mb.rules_in_order(account),
         None => (0..mb.rules.len()).collect(),
     };
@@ -330,61 +351,81 @@ fn list(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 /// Run every enabled rule for the folder's account on the messages of `folder`, those its server
-/// has among them; answers how many messages a rule acted on.
-fn run_on(s: &mut Session, folder: Id) -> usize {
+/// has among them, or the rule `only` alone; answers how many messages a rule acted on.
+fn run_on(s: &mut Session, folder: Id, only: Option<Id>) -> usize {
     let ids: Vec<Id> = s.mailbox.messages_in(folder).map(|m| m.id).collect();
     let account = s.mailbox.folder(folder).map_or(0, |f| f.account);
     // A rule that reads the body reads it whole: one kept on disk is brought in first (one that
     // can't be read says so in its place, and is matched as that).
-    let reads_bodies =
-        s.mailbox.rules.iter().any(|r| r.enabled && r.is_for(account) && r.conditions.iter().any(|c| matches!(c, Condition::BodyContains(_))));
+    let reads_bodies = s.mailbox.rules.iter().any(|r| {
+        r.enabled && r.is_for(account) && only.is_none_or(|o| o == r.id) && r.conditions.iter().any(|c| matches!(c, Condition::BodyContains(_)))
+    });
     ids.into_iter()
         .filter(|id| {
             if reads_bodies {
                 let _ = s.load_where(*id, |_| false);
             }
-            !s.mailbox.run_rules(*id, true).is_empty()
+            match only {
+                Some(rule) => s.mailbox.run_rule(*id, rule),
+                None => !s.mailbox.run_rules(*id, true).is_empty(),
+            }
         })
         .count()
 }
 
 fn run(s: &mut Session, v: &Value) -> CmdResult {
-    let folder = p::id(v, "folder").unwrap_or(s.view.folder);
+    let folder = p::opt_id(v, "folder")?.unwrap_or(s.view.folder);
+    let only = p::opt_id(v, "id")?;
     if s.mailbox.folder(folder).is_none() {
         return Err(failed!("no folder with id {id}", id = folder));
     }
-    let matched = run_on(s, folder);
+    if let Some(rule) = only
+        && !s.mailbox.rules.iter().any(|r| r.id == rule)
+    {
+        return Err(failed!("no rule with id {id}", id = rule));
+    }
+    let matched = run_on(s, folder, only);
     Ok(json!({"matched": matched}))
 }
 
-fn from_message(s: &mut Session, v: &Value) -> CmdResult {
+/// The rule `rules.fromMessage` makes from `v`, with no id yet, and the folder the message is in
+/// (shared by the command and the agent's question).
+pub(crate) fn rule_from_message(s: &Session, v: &Value) -> Result<(Rule, Id), CmdError> {
     let folder = p::req_id(v, "folder")?;
     let target = s.mailbox.folder(folder).map(|f| f.name.clone()).ok_or_else(|| failed!("no folder with id {id}", id = folder))?;
     refuse_send_queue(s, folder)?;
-    let mid = p::id(v, "id").or(s.sel.focus()).ok_or_else(|| fail("select a message first"))?;
+    let mid = p::opt_id(v, "id")?.or(s.sel.focus()).ok_or_else(|| fail("select a message first"))?;
     let m = s.mailbox.message(mid).ok_or_else(|| failed!("no message with id {id}", id = mid))?;
-    let (from, source, account) = (m.from.clone(), m.folder, own_account(&s.mailbox, m.account));
-    if from.email.trim().is_empty() {
+    // A shared mailbox's mail is left alone by the rules, and one for its owner's account would
+    // move the owner's own mail into the folder it names.
+    if s.mailbox.account(m.account).is_some_and(|a| a.is_shared()) {
+        return Err(fail("a shared mailbox's rules are its own: this version doesn't make them"));
+    }
+    if m.from.email.trim().is_empty() {
         return Err(fail("the sender has no address to match"));
     }
+    let name = format!("{} to {target}", m.from.display());
+    let mut rule = Rule {
+        name: name.chars().take(mailcraft_model::MAX_NAME).collect(),
+        enabled: true,
+        conditions: vec![Condition::FromContains(m.from.email.clone())],
+        actions: vec![Action::MoveTo(folder)],
+        account: m.account,
+        ..Default::default()
+    };
+    place(s, &mut rule, v)?;
+    Ok((rule, m.folder))
+}
+
+fn from_message(s: &mut Session, v: &Value) -> CmdResult {
+    let (mut rule, source) = rule_from_message(s, v)?;
     if s.mailbox.rules.len() >= MAX_RULES {
         return Err(fail("there are too many rules"));
     }
     let id = s.mailbox.alloc_id();
-    let name = format!("{} to {target}", from.display());
-    let mut rule = Rule {
-        id,
-        name: name.chars().take(mailcraft_model::MAX_NAME).collect(),
-        enabled: true,
-        conditions: vec![Condition::FromContains(from.email)],
-        actions: vec![Action::MoveTo(folder)],
-        stop: false,
-        account,
-        ..Default::default()
-    };
-    place(s, &mut rule, v)?;
+    rule.id = id;
     s.mailbox.rules.push(rule);
-    let matched = run_on(s, source);
+    let matched = run_on(s, source, Some(id));
     Ok(json!({"id": id, "matched": matched}))
 }
 
@@ -405,7 +446,7 @@ fn move_rule(s: &mut Session, v: &Value) -> CmdResult {
     let i = changeable(s, id)?;
     let rule = s.mailbox.rules.get(i).cloned().ok_or_else(|| failed!("no rule with id {id}", id))?;
     let account = match rule.account {
-        0 => p::id(v, "account").or_else(|| s.mailbox.folder(s.view.folder).map(|f| f.account)).map_or(0, |a| own_account(&s.mailbox, a)),
+        0 => p::opt_id(v, "account")?.or_else(|| s.mailbox.folder(s.view.folder).map(|f| f.account)).map_or(0, |a| own_account(&s.mailbox, a)),
         own => own,
     };
     let server = rule.account == account && rule.keep == Keep::Server;
@@ -438,9 +479,10 @@ pub(crate) fn renumber(mb: &mut Mailbox, account: Id) {
     let on: Vec<usize> = mb.rules.iter().enumerate().filter(|(_, r)| r.account == account && r.on_server()).map(|(i, _)| i).collect();
     let mut numbers: Vec<i32> = on.iter().filter_map(|i| mb.rules.get(*i)).filter_map(|r| r.server.as_ref().map(|s| s.sequence)).collect();
     numbers.sort_unstable();
-    let distinct = numbers.windows(2).all(|w| w.first() < w.get(1));
+    // (The server's places start at 1: one below is sent as 1, and would stand with that one.)
+    let distinct = numbers.windows(2).all(|w| w.first() < w.get(1)) && numbers.first().is_none_or(|n| *n >= 1);
     if !distinct {
-        let first = numbers.first().copied().unwrap_or(1).max(0);
+        let first = numbers.first().copied().unwrap_or(1).max(1);
         numbers = (0..on.len()).map(|n| first.saturating_add(i32::try_from(n).unwrap_or(i32::MAX))).collect();
     }
     for (i, number) in on.into_iter().zip(numbers) {
@@ -457,7 +499,7 @@ fn keep_on_server(s: &mut Session, v: &Value) -> CmdResult {
     if rule.keep == Keep::Server {
         return Ok(json!({"id": id, "account": rule.account, "keep": "server"}));
     }
-    let account = match (rule.account, p::id(v, "account")) {
+    let account = match (rule.account, p::opt_id(v, "account")?) {
         (0, Some(account)) => account,
         (0, None) => {
             let servers: Vec<Id> = s.mailbox.accounts.iter().map(|a| a.id).filter(|a| s.mailbox.keeps_rules(*a)).collect();

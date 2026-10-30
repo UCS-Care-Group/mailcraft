@@ -21,11 +21,11 @@ use crate::{Id, Importance, Message, contains_ci};
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", tag = "type", content = "value")]
 pub enum Condition {
-    /// The sender's name or address contains the text (a Microsoft account's rule: the address
-    /// alone, as its server reads it).
+    /// The sender's name or address contains the text (a rule kept on a Microsoft account's
+    /// server: the address alone, as the server reads it).
     FromContains(String),
-    /// Any To/Cc recipient's name or address contains the text (a Microsoft account's rule: the
-    /// addresses alone).
+    /// Any To/Cc recipient's name or address contains the text (a rule kept on a Microsoft
+    /// account's server: the addresses alone).
     ToContains(String),
     SubjectContains(String),
     BodyContains(String),
@@ -183,6 +183,11 @@ pub struct Rule {
     /// Why the server didn't take it, when it didn't: it is kept here, and said so.
     #[serde(skip_serializing_if = "String::is_empty")]
     pub refused: String,
+    /// It went to the server to be made there and no answer came: the server may have it. It is
+    /// not sent again until the server's rules have been read whole, which either have it (and
+    /// it is taken as this one) or don't (and it is sent again).
+    #[serde(skip_serializing_if = "is_false")]
+    pub unanswered: bool,
 }
 
 impl Rule {

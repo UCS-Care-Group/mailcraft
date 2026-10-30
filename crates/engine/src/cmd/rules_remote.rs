@@ -14,6 +14,14 @@
 //! stays as it was made. A rule to go to the server and not there yet is sent whole, after those
 //! there; one the server refuses stays on this computer, and says why.
 //!
+//! **A lost answer.** A rule whose creation went out and got no answer (the connection dropped,
+//! or MailCraft was closed) may be on the server already: it is marked
+//! ([`mailcraft_model::Rule::unanswered`], from when its job starts, [`mark_sent`]) and not sent
+//! again until the server's rules have been read whole. A rule there with the same name, conditions
+//! and actions is then taken as it; when there is none, it is sent again. Only such a rule is
+//! taken for one of the server's that looks the same: a rule never sent is never taken for one
+//! made elsewhere.
+//!
 //! **Conflicts.** A download is the server's word on everything but what was changed here and not
 //! sent yet. A rule the server no longer has goes from here too, unless it was changed here
 //! since: then it is made again. A rule deleted here is remembered ([`mailcraft_model::RuleGone`])
@@ -117,12 +125,28 @@ fn upload_of(mailbox: &Mailbox, account: Id) -> Result<Vec<RuleOp>, CmdError> {
     // After every rule the server has.
     let last = mine().filter_map(|r| r.server.as_ref()).filter(|s| !s.id.is_empty()).map(|s| s.sequence.max(s.synced_sequence)).max().unwrap_or(0);
     let mut next = last.saturating_add(1);
-    for rule in mine().filter(|r| r.waiting() && server_cannot(mailbox, r, account).is_none()) {
+    for rule in mine().filter(|r| r.waiting() && !r.unanswered && server_cannot(mailbox, r, account).is_none()) {
         ops.push(RuleOp { kind: RuleOpKind::Create, rule: rule.id, body: Some(remote_of(mailbox, account, rule, next)), ..Default::default() });
         next = next.saturating_add(1);
     }
     ops.truncate(MAX_RULE_OPS);
     Ok(ops)
+}
+
+/// Mark the rules whose creation goes out with `upload` (the window calls this as their job
+/// starts): until an answer says what became of them, or the server's rules have been read
+/// whole, they aren't sent again. Not an undo step.
+pub fn mark_sent(s: &mut Session, upload: &RulesUpload) {
+    let mut marked = false;
+    for op in upload.ops.iter().filter(|op| op.kind == RuleOpKind::Create) {
+        if let Some(rule) = s.mailbox.rules.iter_mut().find(|r| r.id == op.rule && r.account == upload.account && r.waiting()) {
+            marked |= !rule.unanswered;
+            rule.unanswered = true;
+        }
+    }
+    if marked {
+        s.mailbox_changed();
+    }
 }
 
 /// What `account`'s server is to be told.
@@ -242,10 +266,11 @@ pub fn merge_rules(mailbox: &mut Mailbox, download: &RulesDownload) -> Result<Me
             continue;
         }
         // A rule made here whose answer was lost (the server made it, the word didn't come) is the
-        // same one: taken in, not made twice.
+        // same one: taken in, not made twice. Only one that went out without an answer is.
         let twin = mailbox.rules.iter().position(|r| {
             r.account == account
                 && r.waiting()
+                && r.unanswered
                 && r.name.eq_ignore_ascii_case(&remote.name)
                 && same_words(&r.conditions, &remote.conditions)
                 && same_actions(&r.actions, &actions)
@@ -256,7 +281,8 @@ pub fn merge_rules(mailbox: &mut Mailbox, download: &RulesDownload) -> Result<Me
         {
             rule.enabled = remote.enabled;
             rule.server = Some(fresh(remote.sequence));
-            merged.unchanged += 1;
+            rule.unanswered = false;
+            merged.updated += 1;
             continue;
         }
         if mailbox.rules.len() >= MAX_RULES {
@@ -275,9 +301,16 @@ pub fn merge_rules(mailbox: &mut Mailbox, download: &RulesDownload) -> Result<Me
             account,
             keep: Keep::Server,
             server: Some(server),
-            refused: String::new(),
+            ..Default::default()
         });
         merged.added += 1;
+    }
+    // Read whole, the server doesn't have the rules whose answer was lost: they are sent again.
+    if download.complete && download.rules.len() <= MAX_SERVER_RULES {
+        for rule in mailbox.rules.iter_mut().filter(|r| r.account == account && r.unanswered && r.waiting()) {
+            rule.unanswered = false;
+            merged.updated += 1;
+        }
     }
     // What the server no longer has: only when the download says it showed every rule there is.
     if download.complete && download.rules.len() <= MAX_SERVER_RULES {
@@ -338,7 +371,13 @@ pub fn apply_rule_outcomes(mailbox: &mut Mailbox, uploaded: &RulesUploaded) -> R
             }
             (RuleOpKind::Create, RuleResult::Done) => {
                 let (enabled, sequence) = (outcome.enabled.unwrap_or(true), outcome.sequence.unwrap_or(0));
-                if outcome.id.is_empty() {
+                // An id another rule here has already (a server that says so is not believed:
+                // deleting the one would delete the other there) is no answer.
+                let taken = mailbox.rules.iter().any(|r| r.account == account && r.server.as_ref().is_some_and(|s| s.id == outcome.id));
+                if outcome.id.is_empty() || taken {
+                    if let Some(rule) = at.and_then(|i| mailbox.rules.get_mut(i)) {
+                        rule.unanswered = true;
+                    }
                     failed += 1;
                 } else if let Some(rule) = at.and_then(|i| mailbox.rules.get_mut(i)) {
                     rule.server = Some(ServerRule {
@@ -349,6 +388,7 @@ pub fn apply_rule_outcomes(mailbox: &mut Mailbox, uploaded: &RulesUploaded) -> R
                         ..Default::default()
                     });
                     rule.refused.clear();
+                    rule.unanswered = false;
                     merged.added += 1;
                 } else if mailbox.rule_gone.len() < MAX_RULE_GONE {
                     // Deleted here while it was being made: the server is told to delete it.
@@ -393,13 +433,27 @@ pub fn apply_rule_outcomes(mailbox: &mut Mailbox, uploaded: &RulesUploaded) -> R
             (RuleOpKind::Create, RuleResult::Refused) => {
                 if let Some(rule) = at.and_then(|i| mailbox.rules.get_mut(i)) {
                     rule.keep = Keep::Here;
+                    rule.unanswered = false;
                     rule.refused = if outcome.error.is_empty() { "it was refused".to_string() } else { outcome.error.clone() };
                 }
                 merged.say(format!("The server didn't take the rule \"{name}\"; it is kept on this computer{why}"));
                 failed += 1;
             }
-            (_, RuleResult::Denied) => {
+            (kind, RuleResult::Denied) => {
+                // Refused before anything was made: it goes again once the account may.
+                if kind == RuleOpKind::Create
+                    && let Some(rule) = at.and_then(|i| mailbox.rules.get_mut(i))
+                {
+                    rule.unanswered = false;
+                }
                 merged.say(format!("This account may not change its rules on the server{why}"));
+                failed += 1;
+            }
+            // No answer: the server may have made it.
+            (RuleOpKind::Create, _) => {
+                if let Some(rule) = at.and_then(|i| mailbox.rules.get_mut(i)) {
+                    rule.unanswered = true;
+                }
                 failed += 1;
             }
             _ => failed += 1,
