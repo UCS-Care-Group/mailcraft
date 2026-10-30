@@ -69,7 +69,8 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
         .show(ui, |ui| {
             ui.add_space(top);
             egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
-                ui.set_max_width(760.0);
+                // Never more than is on screen: egui would lay the page out wider and cut it off.
+                ui.set_max_width(ui.available_width().min(760.0));
                 ui.spacing_mut().item_spacing = vec2(8.0, 8.0);
                 match app.ui.backstage_page.as_str() {
                     "open" => open(app, ui, &t),
@@ -122,6 +123,8 @@ pub(crate) fn account_detail(app: &MailApp, a: &mailcraft_model::Account) -> Str
         AccountKind::Microsoft => tl!("Signs in with Microsoft · folders kept in step through Microsoft Graph (testing)").to_string(),
         // A JMAP account names its server.
         AccountKind::Jmap => jmap_line(a),
+        // An Exchange server account names its server, and says why it isn't kept in step.
+        AccountKind::Exchange => ews_line(app, a),
         // Kept as its file has it: this version neither sends nor receives with it.
         AccountKind::Unknown => tl!("Added by a newer version of MailCraft: send and receive with it there").to_string(),
         AccountKind::Imap => {
@@ -145,6 +148,35 @@ pub(crate) fn jmap_line(a: &mailcraft_model::Account) -> String {
     match a.jmap.as_ref().and_then(mailcraft_model::JmapServer::host) {
         Some(host) => crate::i18n::fmt(tl!("JMAP {host}"), &[("host", host)]),
         None => tl!("JMAP · no usable server address").to_string(),
+    }
+}
+
+/// An Exchange server account's line (#252): the name of its server alone, and, while the switch
+/// is off, why it isn't kept in step. Where it connects, as whom and the certificate it trusts are
+/// under its card ([`crate::ews_setup::info_rows`]).
+pub(crate) fn ews_line(app: &MailApp, a: &mailcraft_model::Account) -> String {
+    let host = a.ews.as_ref().and_then(mailcraft_model::EwsServer::host);
+    let Some(host) = host else { return tl!("Exchange server · no usable server address").to_string() };
+    if app.session.ews {
+        let mut line = crate::i18n::fmt(tl!("Exchange server {host}"), &[("host", host)]);
+        // A certificate the system doesn't trust, which only the owner can decide about.
+        if app.ews_certificate.contains_key(&a.id) {
+            line = crate::i18n::fmt(tl!("{line} · the server's certificate needs your say"), &[("line", &line)]);
+        }
+        // The folders the last run couldn't read, as the owner knows them.
+        match app.ews_unreadable.get(&a.id).filter(|folders| !folders.is_empty()) {
+            Some(folders) => {
+                crate::i18n::fmt(tl!("{line} · couldn't be read in the last run: {folders}"), &[("line", &line), ("folders", &folders.join(", "))])
+            }
+            None => line,
+        }
+    } else {
+        crate::i18n::fmt(
+            tl!(
+                "Exchange server {host} · not kept in step: Exchange server accounts are switched off (start MailCraft with MAILCRAFT_EWS=1 to try them)"
+            ),
+            &[("host", host)],
+        )
     }
 }
 
@@ -230,6 +262,10 @@ fn info(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
                 }
             });
             ui.add_space(4.0);
+        }
+        // An Exchange server account: its server, user name, sign-in and certificate (#252).
+        if a.kind == AccountKind::Exchange {
+            crate::ews_setup::info_rows(app, ui, t, a);
         }
         // Where keeping the tasks in step with Microsoft To Do stands, with a way to ask again (#248).
         if let Some((line, again)) = app.tasks_line(a.id) {
@@ -456,6 +492,14 @@ fn options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
             }
         });
     });
+    let mut light = app.ui.light_messages;
+    if ui
+        .checkbox(&mut light, tl!("Show messages on a light background in the dark theme"))
+        .on_hover_text(tl!("Messages keep the colours their senders chose, on a white page, while the rest of the window stays dark."))
+        .changed()
+    {
+        let _ = app.run("ui.lightMessages", json!({"value": light}));
+    }
     row(ui, tl!("Language"), |ui| {
         // Each language by its own name, so the owner finds theirs whatever the window speaks.
         let name = |l: crate::i18n::Lang| l.picker_name();

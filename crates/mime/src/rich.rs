@@ -7,12 +7,13 @@
 //! font from the model's list, `<a href>`, and pictures as `<img src="cid:…">` when the text's
 //! holder says which ([`to_html_with`]), and nothing else. Every character of text and of an
 //! address is escaped, and a link is written only when its address is one the model accepts
-//! (`http`, `https`, `mailto`, `tel`). [`signature_html`] lays a signature out, its first picture
+//! (`rich::safe_link`: any scheme but `javascript`, `vbscript`, `data`, `file` and `cid`). [`signature_html`] lays a signature out, its first picture
 //! beside or above the text when it asks for that, in a two-cell table, as Outlook writes it.
 //!
 //! [`from_html`] is the way back, and the way in for anything pasted: the HTML is read by
 //! `mailcraft_html` (which never runs or fetches anything) and what it gives is reduced to the
-//! set. Tables give their cells' paragraphs in reading order; colours are kept; pictures, rules,
+//! set (a link keeps only an address a reader follows, `http`, `https`, `mailto`, `tel` or `cid`; a
+//! draft of this program's, [`from_html_with_pictures`], keeps any the model accepts). Tables give their cells' paragraphs in reading order; colours are kept; pictures, rules,
 //! fonts, alignment and everything else are dropped.
 
 use mailcraft_html::{Block, BlockKind, Marker, Span};
@@ -269,6 +270,10 @@ pub struct ImgRef {
 /// [`from_html`] for a draft of this program's: each `<img src="cid:…">` that `claim` takes (it
 /// answers the id the picture has in the text) stands in the text where it was, as a picture
 /// run. Any other picture is left out, as in [`from_html`].
+///
+/// The HTML is the owner's own, so a link keeps any address [`safe_link`] accepts (a link to
+/// `ms-settings:` they wrote comes back); [`from_html`] holds to what a reader follows. Never for
+/// received mail.
 pub fn from_html_with_pictures(html: &str, claim: &mut dyn FnMut(&ImgRef) -> Option<u32>) -> RichText {
     read(&mark_pictures(html, claim), true)
 }
@@ -371,7 +376,7 @@ fn img_ref(attrs: &str) -> Option<ImgRef> {
 
 fn read(html: &str, pictures: bool) -> RichText {
     // The look and the text only: pictures written into the HTML are not decoded for this.
-    let blocks = mailcraft_html::parse_text(html);
+    let blocks = if pictures { mailcraft_html::parse_text_own(html, safe_link) } else { mailcraft_html::parse_text(html) };
     let mut reader = Reader { out: Vec::new(), pictures };
     reader.blocks(&blocks);
     let (lead, trail) = edge_blank_lines(html);

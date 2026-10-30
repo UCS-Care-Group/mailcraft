@@ -18,6 +18,7 @@
 //! with a page that only waits: what to do next is said while the browser has the sign-in, on
 //! a page of its own, and whenever a sign-in ends without having signed anybody in (`help`).
 
+mod exchange;
 mod help;
 
 use std::sync::mpsc::{Receiver, TryRecvError};
@@ -34,6 +35,7 @@ use crate::secret_field::{self, Watch};
 use crate::theme::{Tokens, medium, paint_clipped, regular, semibold};
 use crate::{MailApp, icons};
 
+pub(crate) use exchange::grouped;
 pub(crate) use help::Help;
 
 /// The dialog's width in points.
@@ -76,6 +78,16 @@ pub enum Page {
     Done,
     /// The settings of an account that exists already.
     Settings,
+    /// An Exchange server account (#252): the password, and Server settings.
+    Exchange,
+    /// The host is searching for the Exchange server and trying the account.
+    ExchangeChecking,
+    /// The search would send the sign-in to a host outside the owner's domain: may it?
+    ExchangeConsent,
+    /// The server's certificate, which the system doesn't trust: trust it for this account?
+    ExchangeCertificate,
+    /// The mailbox is in Microsoft 365: it is added as a Microsoft account.
+    ExchangeOnline,
 }
 
 /// The kinds of account the owner can pick by hand.
@@ -90,11 +102,24 @@ pub enum Kind {
     Other,
     /// A mailbox on this device, with no server.
     Local,
+    /// An Exchange server the owner's organisation runs itself (#252): offered only while
+    /// Exchange server accounts are being tested.
+    Exchange,
 }
 
 impl Kind {
     /// The kinds that have servers, in the order of their tiles.
     const HOSTED: [Kind; 6] = [Kind::Microsoft365, Kind::OutlookCom, Kind::Google, Kind::Yahoo, Kind::ICloud, Kind::Other];
+
+    /// The tiles of the Choose page: the kinds with servers, and the Exchange server only where
+    /// Exchange server accounts are on (an explicit choice: nothing detects it).
+    fn tiles(ews: bool) -> Vec<Kind> {
+        let mut tiles = Kind::HOSTED.to_vec();
+        if ews {
+            tiles.push(Kind::Exchange);
+        }
+        tiles
+    }
 
     /// What `account.preset` calls the service; `None` for the two that aren't one.
     fn service(self) -> Option<&'static str> {
@@ -104,7 +129,7 @@ impl Kind {
             Kind::Google => Some("google"),
             Kind::Yahoo => Some("yahoo"),
             Kind::ICloud => Some("icloud"),
-            Kind::Other | Kind::Local => None,
+            Kind::Other | Kind::Local | Kind::Exchange => None,
         }
     }
 
@@ -117,6 +142,7 @@ impl Kind {
             Kind::ICloud => "iCloud",
             Kind::Other => "Other (IMAP)",
             Kind::Local => "This device only",
+            Kind::Exchange => "Exchange server (your organisation's own)",
         }
     }
 
@@ -129,6 +155,7 @@ impl Kind {
             Kind::ICloud => "icloud.com, me.com and mac.com",
             Kind::Other => "Any other mail server",
             Kind::Local => "A mailbox kept here, with no mail server",
+            Kind::Exchange => "A mail server your organisation runs itself",
         }
     }
 
@@ -137,7 +164,7 @@ impl Kind {
         match self {
             Kind::Microsoft365 => "work",
             Kind::OutlookCom | Kind::Google | Kind::Yahoo | Kind::ICloud => "mail",
-            Kind::Other => "server",
+            Kind::Other | Kind::Exchange => "server",
             Kind::Local => "device",
         }
     }
@@ -428,6 +455,10 @@ pub struct AccountSetup {
     /// The owner clicked the password's eye: it is shown until the next click, the next page, or
     /// the dialog's end (#438).
     reveal: bool,
+    /// What the Exchange server pages keep (#252).
+    exchange: exchange::Exchange,
+    /// The settings are of an Exchange server account: where it connects is shown, not changed.
+    ews: Option<mailcraft_model::EwsServer>,
 }
 
 impl Drop for AccountSetup {
@@ -500,6 +531,8 @@ impl AccountSetup {
             newer: false,
             ctx: None,
             reveal: false,
+            exchange: Default::default(),
+            ews: None,
         }
     }
 
@@ -512,7 +545,18 @@ impl AccountSetup {
             // What to do when its organisation has to approve MailCraft first, for an account
             // that exists and signs in with Microsoft (`ui.approvalHelp`).
             Some(id) if p.get("page").and_then(Value::as_str) == Some("approval") => AccountSetup::approval_for(app, id),
+            // The certificate of an Exchange server account's server, asked about again (#252).
+            Some(id) if p.get("page").and_then(Value::as_str) == Some("certificate") && app.session.ews => AccountSetup::review_certificate(app, id),
             Some(id) => app.session.mailbox.account(id).filter(|a| !a.email.is_empty() && !a.is_shared()).map(AccountSetup::edit),
+            None if p.get("page").and_then(Value::as_str) == Some("exchange")
+                && app.session.ews
+                && address(&line(p.get("email").and_then(Value::as_str).unwrap_or_default(), LINE)).is_some() =>
+            {
+                // An Exchange server account, asked for by name: straight to its page (#252).
+                let mut w = AccountSetup::new(app, p);
+                w.exchange_page_from();
+                Some(w)
+            }
             None => Some(AccountSetup::new(app, p)),
         }
     }
@@ -551,12 +595,17 @@ impl AccountSetup {
         }
         w.graph = a.kind == AccountKind::Microsoft;
         w.newer = a.kind == AccountKind::Unknown;
+        if a.kind == AccountKind::Exchange {
+            w.ews = Some(a.ews.clone().unwrap_or_default());
+        }
         w
     }
 
     /// The dialog's title, in the interface language.
     pub fn title(&self) -> String {
-        if self.edit.is_some() {
+        if self.exchange.review != 0 {
+            tl!("Server Certificate")
+        } else if self.edit.is_some() {
             tl!("Account Settings")
         } else if self.existing != 0 {
             tl!("Approval Needed")
@@ -745,6 +794,9 @@ impl AccountSetup {
 
     /// Do what the owner asked of the page in view. Returns `true` when the dialog should close.
     pub fn act(&mut self, app: &mut MailApp, action: Action) -> bool {
+        if let Some(close) = self.act_exchange(app, action) {
+            return close;
+        }
         match (self.page, action) {
             (Page::Address, Action::Go) => self.connect(app),
             (Page::Detecting, Action::Back) => {
@@ -878,6 +930,15 @@ impl AccountSetup {
     /// A tile of the Choose page.
     fn pick(&mut self, app: &mut MailApp, kind: Kind) {
         self.picked = true;
+        if kind == Kind::Exchange {
+            // (The address typed already is the account's; nothing is sent yet.)
+            if address(&self.email).is_none() {
+                self.error = self.not_an_address();
+                return;
+            }
+            self.exchange_page_from();
+            return;
+        }
         let command = if kind == Kind::Local { self.local_command() } else { self.preset_command(None, kind.service()) };
         let answer = match command {
             Some((command, params)) => app.execute(command, params),
@@ -1112,6 +1173,7 @@ impl AccountSetup {
                 }
             }
             Page::Checking => self.poll_check(app),
+            Page::ExchangeChecking | Page::ExchangeConsent => self.poll_exchange(app),
             _ => {}
         }
     }
@@ -1186,7 +1248,7 @@ impl AccountSetup {
 
     /// Whether the host owes an answer: frames keep coming until it is in.
     fn busy(&self) -> bool {
-        self.lookup.is_some() || self.check.is_some() || self.waiting || self.approval.approving
+        self.lookup.is_some() || self.check.is_some() || self.waiting || self.approval.approving || self.exchange.pending()
     }
 
     /// Whether the dialog is finished, by what one of its pages did outside a frame (a command
@@ -1209,6 +1271,7 @@ impl AccountSetup {
     /// The dialog is closing: stop what is under way and keep nothing that was typed in confidence.
     pub(crate) fn give_up(&mut self, app: &mut MailApp) {
         (self.lookup, self.check) = (None, None);
+        self.exchange_stop();
         self.stop_sign_in(app);
         // An administrator's approval that Microsoft's page is open for is given up with it.
         if std::mem::take(&mut self.approval.approving) {
@@ -1252,7 +1315,7 @@ impl AccountSetup {
         let action = match self.page {
             Page::Address => self.address_page(ui, &mut pass),
             Page::Detecting => waiting_page(ui, &pass, self.page, tl!("Finding your account settings…"), &shown(self.email.trim(), 120)),
-            Page::Choose => self.choose_page(ui, &pass),
+            Page::Choose => self.choose_page(ui, &pass, app.session.ews),
             Page::ApplicationId => self.application_id_page(ui, &mut pass),
             Page::SignIn if self.waiting => self.signing_in_page(app, ui, &pass),
             Page::SignIn => self.sign_in_ended_page(app, ui, &pass),
@@ -1265,6 +1328,11 @@ impl AccountSetup {
             }
             Page::Done => self.done_page(ui, &pass),
             Page::Settings => self.settings_page(app, ui, &mut pass),
+            Page::Exchange => self.exchange_form(app, ui, &mut pass),
+            Page::ExchangeChecking => self.exchange_checking(ui, &pass),
+            Page::ExchangeConsent => self.exchange_consent(ui, &pass),
+            Page::ExchangeCertificate => self.exchange_certificate(ui, &pass),
+            Page::ExchangeOnline => self.exchange_online(ui, &pass),
         };
         action.is_some_and(|action| self.act(app, action))
     }
@@ -1293,7 +1361,7 @@ impl AccountSetup {
         (ready && (go || pass.submit)).then_some(Action::Go)
     }
 
-    fn choose_page(&mut self, ui: &mut Ui, pass: &Pass) -> Option<Action> {
+    fn choose_page(&mut self, ui: &mut Ui, pass: &Pass, ews: bool) -> Option<Action> {
         let t = pass.t;
         let mut action = None;
         page(ui, &t, |ui| {
@@ -1302,7 +1370,7 @@ impl AccountSetup {
             ui.add_space(4.0);
             let gap = ui.spacing().item_spacing.x;
             let half = ((ui.available_width() - gap) / 2.0).max(40.0);
-            for pair in Kind::HOSTED.chunks(2) {
+            for pair in Kind::tiles(ews).chunks(2) {
                 ui.horizontal(|ui| {
                     for kind in pair {
                         if tile(ui, *kind, half, &t).clicked() {
@@ -1474,8 +1542,15 @@ impl AccountSetup {
             return self.newer_page(ui, pass);
         }
         let t = pass.t;
-        let asks = self.oauth.is_none() && (app.services.test_account.is_some() || app.services.sync.is_some());
+        let exchange = self.ews.is_some();
+        let asks = self.oauth.is_none()
+            && if exchange {
+                app.services.ews_setup.is_some() || app.services.ews.is_some()
+            } else {
+                app.services.test_account.is_some() || app.services.sync.is_some()
+            };
         let how = match &self.oauth {
+            None if exchange => tl!("Signs in to an Exchange server with a user name and password").to_string(),
             Some(oauth) => fmt(tl!("Signs in on the {provider} page in your browser"), &[("provider", oauth.provider.label())]),
             None if self.incoming.host.trim().is_empty() && self.outgoing.host.trim().is_empty() => {
                 tl!("On this device only: no mail server").to_string()
@@ -1493,7 +1568,10 @@ impl AccountSetup {
                 self.password_field(ui, pass, app.secret_watch(), tl!("Leave empty to keep the one in use"));
             }
             // (An account still on IMAP that signs in with Microsoft keeps them: it uses them.)
-            if !self.graph {
+            if exchange {
+                let server = self.ews.clone();
+                self.exchange_settings(ui, &t, server.as_ref());
+            } else if !self.graph {
                 self.settings(ui, pass);
             }
             if self.oauth.is_some() {
@@ -1805,6 +1883,8 @@ fn tile(ui: &mut Ui, kind: Kind, width: f32, t: &Tokens) -> Response {
 
 #[cfg(test)]
 mod delete_question_tests;
+#[cfg(test)]
+mod exchange_tests;
 #[cfg(test)]
 mod pop_tests;
 

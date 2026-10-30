@@ -11,11 +11,14 @@ use std::rc::Rc;
 
 use crate::data::{self, Budget, MAX_DATA_TEXT};
 use crate::entities::unescape;
+use crate::look::{Holder, Look, is_box};
+use crate::media::Env;
+use crate::sheet;
 use crate::style::{self, Css, MsoList, Size};
 use crate::tokenizer::{Tag, Token, Tokenizer};
 use crate::{
-    Align, Block, BlockKind, Cell, Insets, Length, Line, LineHeight, MAX_BLOCKS, MAX_BOX_PX, MAX_CELLS, MAX_INPUT, MAX_ROW_SPAN, MAX_TABLE_COLUMNS,
-    MAX_TABLE_DEPTH, MAX_TABLE_ROWS, Marker, Rgb, Row, Sides, Span, Table, VAlign, is_blank, is_safe_url, truncate,
+    Align, Block, BlockKind, Cell, Insets, Length, Line, LineHeight, MAX_BLOCKS, MAX_BOX_PX, MAX_CELLS, MAX_INLINE_BOXES, MAX_INPUT, MAX_ROW_SPAN,
+    MAX_TABLE_COLUMNS, MAX_TABLE_DEPTH, MAX_TABLE_ROWS, Marker, Rgb, Row, Sides, Span, Table, VAlign, is_blank, is_safe_url, truncate,
 };
 
 /// Deepest nesting of elements that is tracked; what is nested deeper keeps its text and loses its
@@ -57,21 +60,73 @@ const DATA_CELL_TEXT: usize = 240;
 /// Never panics; reads at most [`MAX_INPUT`] bytes besides the pictures written into the
 /// message, and gives at most [`MAX_BLOCKS`] blocks (plus the tables that hold some of them).
 pub fn parse(html: &str) -> Vec<Block> {
-    build(html, true)
+    build(html, true, &Env::default(), false).blocks
 }
+
+/// What a message looks like in a pane of a width class and a theme (`env`): [`parse`], with
+/// the `@media` of the message's style sheets (and a `<style media>`) tested against it.
+pub fn parse_in(html: &str, env: &Env) -> Read {
+    let built = build(html, true, env, false);
+    Read { blocks: built.blocks, dark_design: built.dark_design }
+}
+
+/// A message read for a pane and a theme ([`parse_in`]).
+#[derive(Clone, Debug, Default)]
+pub struct Read {
+    pub blocks: Vec<Block>,
+    /// The window is dark and the message's style sheet has rules for dark windows that apply:
+    /// its colours are the sender's own design for the dark theme, and are not turned over to
+    /// make them readable on it when they already are.
+    pub dark_design: bool,
+}
+
+/// The most text of what a message hides that is kept, in bytes.
+pub const MAX_HIDDEN_TEXT: usize = 16 * 1024;
 
 /// [`parse`], without decoding the pictures written into the message: for when only the text
 /// and the look are wanted (plain text, an HTML draft or a paste in the composer).
 pub fn parse_text(html: &str) -> Vec<Block> {
-    build(html, false)
+    build(html, false, &Env::default(), false).blocks
 }
 
-fn build(html: &str, decode: bool) -> Vec<Block> {
+/// What [`build`] made.
+pub(crate) struct Built {
+    pub blocks: Vec<Block>,
+    pub dark_design: bool,
+    /// The text of what the message hides, when it was asked for.
+    pub hidden: String,
+}
+
+pub(crate) fn build(html: &str, decode: bool, env: &Env, keep_hidden: bool) -> Built {
+    build_with(html, decode, env, keep_hidden, None)
+}
+
+/// [`parse_text`] for HTML the owner wrote (a draft of this program's): a link's address is
+/// judged by `accept` (which gives the address to keep, or `None` for no link) instead of the
+/// reading rule ([`is_safe_url`]). Never for received mail.
+pub fn parse_text_own(html: &str, accept: fn(&str) -> Option<String>) -> Vec<Block> {
+    build_with(html, false, &Env::default(), false, Some(accept)).blocks
+}
+
+fn build_with(html: &str, decode: bool, env: &Env, keep_hidden: bool, own_link: Option<fn(&str) -> Option<String>>) -> Built {
     let mut builder = Builder::new(decode);
-    let mut tokens = Tokenizer::new(truncate(html, MAX_INPUT.saturating_add(MAX_DATA_TEXT)));
+    builder.own_link = own_link;
+    builder.unseen = keep_hidden.then(String::new);
+    let html = truncate(html, MAX_INPUT.saturating_add(MAX_DATA_TEXT));
+    // The message's style sheets, read once for the whole message; the nth start tag below is
+    // the nth element of the tree they were matched against.
+    let mut look = Look::new(html, env);
+    let mut opened = 0usize;
+    let mut tokens = Tokenizer::new(html);
     // The text of the pictures written into the message, which isn't counted against MAX_INPUT.
     let mut pictures = 0usize;
-    while let Some(token) = tokens.next() {
+    while let Some(mut token) = tokens.next() {
+        // An element a rule for dark windows gave colours to (checked once it is open).
+        let mut dark_hit = false;
+        if let Token::Open(tag) = &mut token {
+            dark_hit = look.apply(opened, tag);
+            opened = opened.saturating_add(1);
+        }
         if builder.count >= MAX_BLOCKS {
             break;
         }
@@ -89,9 +144,34 @@ fn build(html: &str, decode: bool) -> Vec<Block> {
             }
             break;
         }
+        builder.at = (tokens.pos(), opened);
+        builder.boxed = match &token {
+            Token::Open(tag) => box_holder(&builder, &mut look, tag),
+            _ => None,
+        };
+        let took = builder.took;
         builder.token(token);
+        // Shown: the builder took the element, and neither it nor an element around it is hidden
+        // (nor is it in a `<template>`).
+        if dark_hit && builder.took > took && builder.hidden == 0 && builder.template == 0 {
+            look.designed_for_dark();
+        }
     }
-    builder.finish()
+    let dark_design = look.dark_design();
+    let hidden = builder.unseen.take().unwrap_or_default();
+    Built { blocks: builder.finish(), dark_design, hidden }
+}
+
+/// For an element that asks to be a box on a line: the id of what holds it, when everything
+/// that holder holds besides boxes is white space (`look.rs`).
+fn box_holder(builder: &Builder, look: &mut Look<'_>, tag: &Tag<'_>) -> Option<usize> {
+    let asks = tag.sheet.as_ref().is_some_and(|a| a.css.inline_block)
+        || tag.raw_attr("style").is_some_and(|s| s.as_bytes().windows(12).any(|w| w.eq_ignore_ascii_case(b"inline-block")));
+    if !asks || builder.hidden > 0 || builder.inline_boxes >= MAX_INLINE_BOXES || !is_box(tag, &css_of(tag)) {
+        return None;
+    }
+    let holder = builder.holder(&tag.name)?;
+    look.only_boxes(&holder).then_some(holder.id)
 }
 
 /// The inline style in force.
@@ -173,7 +253,7 @@ struct Delta {
     /// in a browser, and a link around a table still leads somewhere.
     cell: bool,
     /// The element carries a `class` or an `id`: the hooks by which a style sheet gives sizes.
-    /// Style sheets are not read here, so a size of nothing around such an element says nothing
+    /// Unless a style sheet gave the element a size, a size of nothing around such an element says nothing
     /// of the size its text really has (builders set nothing on every cell and the sizes that
     /// count by class), and its text is shown.
     hooked: bool,
@@ -294,6 +374,10 @@ struct BoxBuild {
     radius: u8,
     /// The room left and right of the box.
     margin: [u8; 2],
+    /// `display: inline-block`: a box on a line.
+    inline: bool,
+    /// What holds it, for telling whether a box before it is on its line ([`Frame::after_box`]).
+    parent: usize,
 }
 
 #[derive(Debug)]
@@ -324,6 +408,7 @@ struct TableBuild {
     /// The row being read is the last one this table may have.
     last_row: bool,
     spacing: Option<u8>,
+    inline: bool,
 }
 
 #[derive(Debug)]
@@ -360,6 +445,8 @@ enum Kind {
     /// Outlook's written-out list marker (`mso-list:Ignore`): not shown, read for the marker.
     Marker,
     Block(BlockNode),
+    /// An `<a>` or `<span>` laid out as a box on a line; `true` for a formatting element (`<a>`).
+    InlineBox(Box<BoxBuild>, bool),
     List {
         /// The number of the next item of an ordered list.
         next: Option<u32>,
@@ -390,6 +477,9 @@ struct Node {
     /// The style inside the element.
     style: Style,
     hidden: bool,
+    /// Where its start tag ended in the input, and the number of the next start tag: where a
+    /// look at what it holds begins ([`Look`]).
+    at: (usize, usize),
 }
 
 /// What the blocks of a frame are numbered against, saved while an inner frame is being read.
@@ -412,6 +502,10 @@ struct Frame {
     space: u8,
     /// The pixels of margin waiting for the next block.
     gap: u8,
+    /// The last thing added was a box on a line, held by the element with this id.
+    after_box: Option<usize>,
+    /// White space was written since that box.
+    box_space: bool,
     outer: Context,
 }
 
@@ -421,6 +515,9 @@ struct Builder {
     frames: Vec<Frame>,
     /// Blocks made so far, in every frame.
     count: usize,
+    /// Elements the builder has taken so far: opened as a node, or drawn as a picture or a rule.
+    /// Not the ones it skips (in a `<template>`, past [`MAX_DEPTH`], hidden, in the head).
+    took: usize,
     /// Table cells made so far.
     cells: usize,
     /// The block being built; empty when none is.
@@ -441,6 +538,12 @@ struct Builder {
     inline_overflow: usize,
     /// Open elements that are hidden; while there is one, nothing is added.
     hidden: usize,
+    /// The text of what is hidden, when it is wanted: only the owner's search and agents read it.
+    unseen: Option<String>,
+    /// How a link's address is judged, when the HTML is the owner's own ([`parse_text_own`]).
+    own_link: Option<fn(&str) -> Option<String>>,
+    /// A space is due before the next hidden word.
+    unseen_gap: bool,
     /// Open tables that a stray `<tr>` or `<td>` started.
     implied: usize,
     quote: usize,
@@ -461,6 +564,13 @@ struct Builder {
     /// The last thing added was a picture, and the line it is in goes on: what comes next in
     /// that line, before a line break or a block of its own, stands beside it.
     after_picture: bool,
+    /// Boxes on a line made so far ([`MAX_INLINE_BOXES`]).
+    inline_boxes: usize,
+    /// Where the start tag being read ended, and the number of the next one.
+    at: (usize, usize),
+    /// The element being opened may be a box on a line, held by the element with this id: all
+    /// that its holder holds, besides boxes, is white space ([`Look`]).
+    boxed: Option<usize>,
     /// Whether the pictures written into the message are decoded (not when only text is wanted).
     decode: bool,
     /// What those have taken so far.
@@ -473,6 +583,7 @@ impl Builder {
             root: Frame::default(),
             frames: Vec::new(),
             count: 0,
+            took: 0,
             cells: 0,
             spans: Vec::new(),
             kind: BlockKind::Paragraph,
@@ -485,6 +596,9 @@ impl Builder {
             overflow: 0,
             inline_overflow: 0,
             hidden: 0,
+            unseen: None,
+            own_link: None,
+            unseen_gap: false,
             implied: 0,
             quote: 0,
             lists: 0,
@@ -497,6 +611,9 @@ impl Builder {
             pre_start: false,
             template: 0,
             after_picture: false,
+            inline_boxes: 0,
+            at: (0, 0),
+            boxed: None,
             decode,
             budget: Budget::default(),
         }
@@ -511,6 +628,7 @@ impl Builder {
             }
             Token::Open(tag) => {
                 self.pre_start = false;
+                self.note_boundary(&tag.name);
                 if tag.name == "template" {
                     self.template = self.template.saturating_add(1);
                 } else if self.template == 0 {
@@ -519,6 +637,7 @@ impl Builder {
             }
             Token::Close(name) => {
                 self.pre_start = false;
+                self.note_boundary(&name);
                 if name == "template" {
                     self.template = self.template.saturating_sub(1);
                 } else if self.template == 0 {
@@ -557,18 +676,68 @@ impl Builder {
 
     // ---- text ----
 
+    /// An element that is not inline ends the word before it: what is hidden on both sides of it
+    /// is two words, as the visible text of two paragraphs is.
+    fn note_boundary(&mut self, name: &str) {
+        const INLINE: [&str; 22] = [
+            "span", "a", "b", "i", "u", "em", "strong", "font", "small", "big", "sub", "sup", "code", "abbr", "cite", "s", "strike", "mark", "q",
+            "tt", "del", "ins",
+        ];
+        if self.unseen.is_some() && !INLINE.contains(&name) {
+            self.unseen_gap = true;
+        }
+    }
+
+    /// Keep the words of text the message hides, when they are wanted. Invisible characters that
+    /// pad a preheader are dropped; text in two inline elements that touch (`<span>Hel</span>
+    /// <span>lo</span>`) is one word, as it is when it is shown; white space, a line break or a
+    /// block element between two is a space.
+    fn note_unseen(&mut self, raw: &str) {
+        let Some(buf) = self.unseen.as_mut() else { return };
+        if buf.len() >= MAX_HIDDEN_TEXT {
+            return;
+        }
+        let text = unescape(truncate(raw, MAX_HIDDEN_TEXT));
+        let text: String = text
+            .chars()
+            .filter(|c| c.is_whitespace() || !c.is_control())
+            .filter(|c| !matches!(c, '\u{AD}' | '\u{34F}' | '\u{200B}'..='\u{200F}' | '\u{2060}' | '\u{FEFF}'))
+            .collect();
+        if text.starts_with(char::is_whitespace) {
+            self.unseen_gap = true;
+        }
+        for (n, word) in text.split_whitespace().enumerate() {
+            let space = usize::from(!buf.is_empty());
+            if buf.len() + space + word.len() > MAX_HIDDEN_TEXT {
+                return;
+            }
+            if (n > 0 || self.unseen_gap) && !buf.is_empty() {
+                buf.push(' ');
+            }
+            self.unseen_gap = false;
+            buf.push_str(word);
+        }
+        self.unseen_gap = text.ends_with(char::is_whitespace) || self.unseen_gap;
+    }
+
     fn text(&mut self, raw: &str) {
         if self.hidden > 0 {
             if self.capture > 0 && self.marker.len() < MAX_MARKER {
                 let room = MAX_MARKER - self.marker.len();
                 self.marker.extend(unescape(truncate(raw, 256)).chars().take(room));
             }
+            self.note_unseen(raw);
             return;
         }
         if self.style().tiny {
+            self.note_unseen(raw);
             return;
         }
         let text = unescape(raw);
+        if self.frame().after_box.is_some() && text.chars().any(|c| matches!(c, ' ' | '\t' | '\n' | '\r' | '\x0C' | '\u{a0}')) {
+            // White space between two boxes is the gap between them.
+            self.frame().box_space = true;
+        }
         if self.pre > 0 {
             let mut chars = text.chars().peekable();
             while let Some(c) = chars.next() {
@@ -761,6 +930,7 @@ impl Builder {
         }
         self.count = self.count.saturating_add(1);
         let frame = self.frame();
+        frame.after_box = None;
         block.space = if frame.blocks.is_empty() { 0 } else { frame.space.min(MAX_SPACE) };
         block.gap = if frame.blocks.is_empty() { 0 } else { frame.gap };
         frame.space = 0;
@@ -820,13 +990,12 @@ impl Builder {
             return;
         }
         let css = css_of(tag);
-        let px = |name: &str| tag.attr(name).and_then(|v| style::attr_px(&v));
-        let (width, height) = (px("width"), px("height"));
-        // A hidden or one-pixel picture is a tracker, not something to show.
-        let tiny = |v: Option<f32>| v.is_some_and(|v| v <= 2.0);
-        if css.hidden || tag.has("hidden") || tiny(width) || tiny(height) || tiny(css.width) || tiny(css.height) {
+        if left_out(tag, &css) {
             return;
         }
+        self.took = self.took.saturating_add(1);
+        let px = |name: &str| tag.attr(name).and_then(|v| style::attr_px(&v));
+        let (width, height) = (px("width"), px("height"));
         let alt = tag.attr("alt").unwrap_or_default();
         let alt: String = alt.split_whitespace().collect::<Vec<_>>().join(" ").chars().filter(|c| !c.is_control()).collect();
         let raw = tag.attr("src");
@@ -876,7 +1045,8 @@ impl Builder {
         if hidden {
             self.hidden = self.hidden.saturating_add(1);
         }
-        self.nodes.push(Node { name, kind, delta, style, hidden });
+        self.nodes.push(Node { name, kind, delta, style, hidden, at: self.at });
+        self.took = self.took.saturating_add(1);
         self.fresh = true;
         true
     }
@@ -959,6 +1129,7 @@ impl Builder {
                 Kind::Item(depth) => return Some(*depth),
                 Kind::Cell(_) => return None,
                 Kind::Block(block) if block.boxed.is_some() => return None,
+                Kind::InlineBox(..) => return None,
                 _ => {}
             }
         }
@@ -1012,6 +1183,48 @@ impl Builder {
         }
     }
 
+    /// Whether an element with this style may be a box on a line (`display: inline-block`): the
+    /// message has not had too many, and there is room to nest one. Only a box that was made
+    /// counts ([`Builder::made_box`]).
+    /// It gives the id of what holds the box.
+    fn can_box(&self, tag: &Tag<'_>, css: &Css) -> Option<usize> {
+        let parent = self.boxed?;
+        let room = self.inline_boxes < MAX_INLINE_BOXES && self.frames.len() < MAX_TABLE_DEPTH && self.hidden == 0;
+        // (A list item's marker, a heading and preformatted text are kept as they are.)
+        let plain = self.item.is_none() && self.heading.is_none() && self.pre == 0;
+        (css.inline_block && !left_out(tag, css) && room && plain && self.line_is_blank()).then_some(parent)
+    }
+
+    /// What holds the element about to open, if a box may stand in it: the nearest element that
+    /// holds blocks (a `<p>` that the element ends is not it), with the place its start tag ended.
+    /// None where a box would lose what the holder is (a list item, a heading, `<pre>`, a quote, a
+    /// list or a table's own rows).
+    fn holder(&self, name: &str) -> Option<Holder> {
+        let ends_paragraph = block_name(name).is_some() || name == "table";
+        let mut skipped = false;
+        for node in self.nodes.iter().rev() {
+            match &node.kind {
+                Kind::Format | Kind::Inline | Kind::Marker => {}
+                Kind::Block(_) if node.name == "p" && ends_paragraph && !skipped => skipped = true,
+                Kind::Block(_) | Kind::Cell(_) | Kind::InlineBox(..) => {
+                    return Some(Holder { id: node.at.0, at: node.at, name: node.name });
+                }
+                _ => return None,
+            }
+        }
+        Some(Holder { id: 0, at: (0, 0), name: "" })
+    }
+
+    fn made_box(&mut self) {
+        self.inline_boxes = self.inline_boxes.saturating_add(1);
+    }
+
+    /// Whether what is written in this line so far is nothing (white space): a box may stand here
+    /// as one of its own. In the middle of a sentence it stays in the sentence.
+    fn line_is_blank(&self) -> bool {
+        self.spans.iter().all(|s| s.text.chars().all(is_blank))
+    }
+
     /// Start collecting blocks apart, for a cell or a block with a background.
     fn enter_frame(&mut self) {
         self.flush();
@@ -1024,7 +1237,7 @@ impl Builder {
             mso_item: std::mem::take(&mut self.mso_item),
             inset: std::mem::take(&mut self.inset),
         };
-        self.frames.push(Frame { blocks: Vec::new(), space: 0, gap: 0, outer });
+        self.frames.push(Frame { blocks: Vec::new(), space: 0, gap: 0, after_box: None, box_space: false, outer });
     }
 
     /// The blocks collected since [`Builder::enter_frame`].
@@ -1079,6 +1292,10 @@ impl Builder {
                 if block.margin {
                     self.want_space(1);
                 }
+            }
+            Kind::InlineBox(boxed, _) => {
+                let blocks = self.exit_frame();
+                self.end_box(*boxed, blocks);
             }
             Kind::List { margin, .. } => {
                 self.flush();
@@ -1147,10 +1364,23 @@ impl Builder {
             width: boxed.width,
             lines: boxed.lines,
             radius: boxed.radius,
+            box_margin: if boxed.inline { boxed.margin } else { [0, 0] },
             ..Table::default()
         };
-        let block = Block { quote: self.quote_depth(), align: boxed.align, inset: boxed.margin, ..Block::new(BlockKind::Table(table), Vec::new()) };
+        // A box on a line stands where the text-align of what holds it puts the line.
+        let align = if boxed.inline { self.style().align } else { boxed.align };
+        let table = Table { inline: boxed.inline, ..table };
+        // A box that follows another with nothing between them stands in its line.
+        let beside = boxed.inline && self.frame().after_box == Some(boxed.parent);
+        let spaced = beside && std::mem::take(&mut self.frame().box_space);
+        let table = Table { spaced, ..table };
+        // (The margins of a box on a line are the table's own: the line is placed as a whole.)
+        let inset = if boxed.inline { [0, 0] } else { boxed.margin };
+        let block = Block { quote: self.quote_depth(), align, beside, inset, ..Block::new(BlockKind::Table(table), Vec::new()) };
         self.emit(block, true);
+        let frame = self.frame();
+        frame.after_box = boxed.inline.then_some(boxed.parent);
+        frame.box_space = false;
     }
 
     fn end_cell(&mut self, cell: CellBuild, blocks: Vec<Block>) {
@@ -1255,6 +1485,7 @@ impl Builder {
             && !framed
             && !table.border
             && table.margin == [0, 0]
+            && !table.inline
             && !matches!(table.width, Some(Length::Px(_)));
         let picture = |cell: &Cell| !cell.blocks.is_empty() && cell.blocks.iter().all(|b| matches!(b.kind, BlockKind::Image { .. }));
         let slices = rows.len() >= 2 && rows.iter().all(|r| r.cells.iter().all(picture));
@@ -1283,6 +1514,8 @@ impl Builder {
             lines: table.lines,
             radius: table.radius,
             spacing: table.spacing,
+            inline: table.inline,
+            ..Table::default()
         });
         let block = Block { quote: self.quote_depth(), align: table.align, inset: table.margin, ..Block::new(kind, Vec::new()) };
         self.emit(block, true);
@@ -1309,6 +1542,7 @@ impl Builder {
             full: false,
             last_row: false,
             spacing: None,
+            inline: false,
         };
         if !self.push_node("table", Kind::Table(Box::new(build)), Delta::default(), false) {
             return None;
@@ -1323,6 +1557,7 @@ impl Builder {
         let css = css_of(tag);
         let border = tag.attr("border").is_some_and(|b| style::attr_px(&b).map_or(b.trim().is_empty(), |px| px > 0.0));
         let role = tag.attr("role").map(|r| r.trim().to_ascii_lowercase());
+        let inline = self.can_box(tag, &css).is_some();
         let build = TableBuild {
             rows: Vec::new(),
             width: sized(&css, tag.attr("width").and_then(|w| style::attr_length(&w))),
@@ -1341,11 +1576,14 @@ impl Builder {
             full: false,
             last_row: false,
             spacing: css.spacing.or_else(|| tag.attr("cellspacing").and_then(|v| style::spacing(&v))),
+            inline,
         };
         let hidden = css.hidden || tag.has("hidden");
         self.want_gap(css.margin_insets().top);
         if !self.push_node("table", Kind::Table(Box::new(build)), Delta { hooked: hooked(tag), ..Delta::of(&css) }, hidden) {
             self.overflow = self.overflow.saturating_add(1);
+        } else if inline {
+            self.made_box();
         }
     }
 
@@ -1544,6 +1782,39 @@ impl Builder {
         delta.background = css.background.or(delta.background);
         delta.hooked = hooked(tag);
         let marker = css.mso_list == Some(MsoList::Ignore);
+        let hidden = marker || css.hidden || tag.has("hidden");
+        // A box on a line, with something to show of its own: it becomes a block of its own.
+        // (Not in the middle of a sentence: there it is a run of text with a highlight, as before.)
+        let parent = if has_box_look(&css) && !hidden { self.can_box(tag, &css) } else { None };
+        if let Some(parent) = parent {
+            // (White space in front of it is not a line of its own.)
+            self.spans.clear();
+            self.flush();
+            self.after_picture = false;
+            let margins = css.margin_insets();
+            let background = css.background.filter(|bg| !(near_white(*bg) && !self.tinted()) && Some(*bg) != self.backdrop());
+            let outline = css.framed();
+            let boxed = BoxBuild {
+                background,
+                outline,
+                width: box_width(&css),
+                align: Align::Left,
+                padding: css.padding_insets(),
+                lines: if outline { css.lines } else { [Line::default(); 4] },
+                radius: if background.is_some() || outline { css.radius } else { 0 },
+                margin: [margins.left, margins.right],
+                inline: true,
+                parent,
+            };
+            delta.background = None;
+            if self.push_node(name, Kind::InlineBox(Box::new(boxed), format), delta, false) {
+                self.made_box();
+                self.enter_frame();
+            } else {
+                self.inline_overflow = self.inline_overflow.saturating_add(1);
+            }
+            return;
+        }
         let kind = if marker {
             Kind::Marker
         } else if format {
@@ -1551,7 +1822,7 @@ impl Builder {
         } else {
             Kind::Inline
         };
-        if !self.push_node(name, kind, delta, marker || css.hidden || tag.has("hidden")) {
+        if !self.push_node(name, kind, delta, hidden) {
             self.inline_overflow = self.inline_overflow.saturating_add(1);
         } else if marker {
             self.capture = self.capture.saturating_add(1);
@@ -1563,11 +1834,22 @@ impl Builder {
             self.inline_overflow -= 1;
             return;
         }
-        let Some(index) =
-            self.find(|n| n.name == name && matches!(n.kind, Kind::Format), |k| matches!(k, Kind::Cell(_) | Kind::Row(_) | Kind::Table(_)))
-        else {
+        let Some(index) = self.find(
+            |n| n.name == name && matches!(n.kind, Kind::Format | Kind::InlineBox(_, true)),
+            |k| matches!(k, Kind::Cell(_) | Kind::Row(_) | Kind::Table(_)),
+        ) else {
             return;
         };
+        self.close_format(index);
+    }
+
+    /// Close the formatting element at `index`. One that is a box has its frame, which is the
+    /// innermost, closed after what was opened inside it.
+    fn close_format(&mut self, index: usize) {
+        if self.nodes.get(index).is_some_and(|n| matches!(n.kind, Kind::InlineBox(..))) {
+            self.close_at(index, false);
+            return;
+        }
         let node = self.nodes.remove(index);
         self.leave(node);
         self.restyle(index);
@@ -1582,11 +1864,11 @@ impl Builder {
         let mut target = None;
         for (i, node) in self.nodes.iter().enumerate().rev() {
             match &node.kind {
-                Kind::Inline | Kind::Marker if node.name == name => {
+                Kind::Inline | Kind::Marker | Kind::InlineBox(_, false) if node.name == name => {
                     target = Some(i);
                     break;
                 }
-                Kind::Inline | Kind::Marker | Kind::Format => {}
+                Kind::Inline | Kind::Marker | Kind::Format | Kind::InlineBox(..) => {}
                 _ => break,
             }
         }
@@ -1605,6 +1887,10 @@ impl Builder {
 
     /// A `<div>`, a `<p>`, `<body>` and the like: a new line, and a style of its own.
     fn open_block(&mut self, name: &'static str, tag: &Tag<'_>) {
+        if self.boxed.is_some() && self.line_is_blank() {
+            // (White space between boxes is not a paragraph of its own.)
+            self.spans.clear();
+        }
         self.close_paragraph();
         self.flush();
         let css = css_of(tag);
@@ -1628,18 +1914,24 @@ impl Builder {
         // from style sheets); any other `<p>` has one unless it says it has none.
         let outlook = tag.attr("class").is_some_and(|c| c.split_whitespace().any(|c| c.starts_with("Mso")));
         let paragraph = name == "p" && !outlook;
-        let margin_above = css.margin_top_zero.map_or(paragraph, |zero| !zero);
-        let margin_below = css.margin_bottom_zero.map_or(paragraph, |zero| !zero);
+        // A box on a line (`display: inline-block`) that has something to show of its own: padding,
+        // a background, a frame or a width. Without them it is a block as any other.
+        let asks = background.is_some() || has_box_look(&css);
+        let parent = if asks && name != "body" { self.can_box(tag, &css) } else { None };
+        let inline = parent.is_some();
+        let margin_above = !inline && css.margin_top_zero.map_or(paragraph, |zero| !zero);
+        let margin_below = !inline && css.margin_bottom_zero.map_or(paragraph, |zero| !zero);
         // White on what is white anyway is no background, and neither is the colour all around.
         let background = background.filter(|bg| !(near_white(*bg) && !self.tinted()) && Some(*bg) != self.backdrop());
         let outline = css.framed();
         let [top, _, bottom, left] = css.borders;
         // (Only a `max-width` makes a block a card; automatic margins alone have nothing to centre.)
         let capped = css.max_width.filter(|_| !paragraph && name != "body");
-        let boxed = (background.is_some() || outline || capped.is_some()) && self.frames.len() < MAX_TABLE_DEPTH;
+        let boxed = (background.is_some() || outline || capped.is_some() || inline) && self.frames.len() < MAX_TABLE_DEPTH;
         let padding = css.padding_insets().unwrap_or_default();
-        let margins = css.margin_insets();
-        let quote = left && !outline;
+        // (A box on a line takes no margins above and below: the lines of boxes have their own gap.)
+        let margins = if inline { Insets { top: 0, bottom: 0, ..css.margin_insets() } } else { css.margin_insets() };
+        let quote = left && !outline && !inline;
         // A box keeps its padding inside it; any other block has it as room round what it holds.
         // (A quote has its own indent, and an Outlook list paragraph its level's.)
         let mso = matches!(css.mso_list, Some(MsoList::Level(_)));
@@ -1649,15 +1941,17 @@ impl Builder {
             margin: margin_below,
             gap: room(margins.bottom, padding.bottom, !boxed),
             quote,
-            rule: bottom && !outline,
+            rule: bottom && !outline && !inline,
             rule_line: css.lines[2],
             inset: if plain { [room(margins.left, padding.left, !quote), room(margins.right, padding.right, true)] } else { [0, 0] },
             mso,
             boxed: boxed.then_some(BoxBuild {
                 background,
                 outline,
-                width: capped.or(Some(Length::Percent(100))),
+                width: if inline { box_width(&css) } else { capped.or(Some(Length::Percent(100))) },
                 align: if css.centred() && capped.is_some() { Align::Center } else { Align::Left },
+                inline,
+                parent: parent.unwrap_or(0),
                 padding: css.padding_insets(),
                 lines: if outline { css.lines } else { [Line::default(); 4] },
                 radius: if background.is_some() || outline { css.radius } else { 0 },
@@ -1668,13 +1962,16 @@ impl Builder {
             self.want_space(1);
         }
         self.want_gap(room(margins.top, padding.top, !boxed));
-        if top && !outline {
+        if top && !outline && !inline {
             self.rule(css.lines[0]);
         }
         let (quote, mso, inset) = (node.quote, node.mso, node.inset);
         if !self.push_node(name, Kind::Block(node), delta, false) {
             self.overflow = self.overflow.saturating_add(1);
             return;
+        }
+        if inline {
+            self.made_box();
         }
         if quote {
             self.quote = self.quote.saturating_add(1);
@@ -1763,16 +2060,16 @@ impl Builder {
 
     fn open(&mut self, tag: &Tag<'_>) {
         let on = Some(true);
-        match tag.name.as_str() {
-            "b" | "strong" => self.open_inline("b", true, tag, Delta { bold: on, ..Delta::default() }),
-            "i" | "em" => self.open_inline("i", true, tag, Delta { italic: on, ..Delta::default() }),
-            "cite" | "var" | "dfn" => self.open_inline("cite", true, tag, Delta { italic: on, ..Delta::default() }),
-            "u" | "ins" => self.open_inline("u", true, tag, Delta { underline: on, ..Delta::default() }),
-            "s" | "strike" | "del" => self.open_inline("s", true, tag, Delta { strike: on, ..Delta::default() }),
-            "code" | "tt" | "kbd" | "samp" => self.open_inline("code", true, tag, Delta { code: on, ..Delta::default() }),
+        match canon(&tag.name) {
+            "b" => self.open_inline("b", true, tag, Delta { bold: on, ..Delta::default() }),
+            "i" => self.open_inline("i", true, tag, Delta { italic: on, ..Delta::default() }),
+            "cite" => self.open_inline("cite", true, tag, Delta { italic: on, ..Delta::default() }),
+            "u" => self.open_inline("u", true, tag, Delta { underline: on, ..Delta::default() }),
+            "s" => self.open_inline("s", true, tag, Delta { strike: on, ..Delta::default() }),
+            "code" => self.open_inline("code", true, tag, Delta { code: on, ..Delta::default() }),
             "small" => self.open_inline("small", true, tag, Delta { size: Some(Size::Scale(0.85)), ..Delta::default() }),
             "big" => self.open_inline("big", true, tag, Delta { size: Some(Size::Scale(1.2)), ..Delta::default() }),
-            "sub" | "sup" => self.open_inline("sub", true, tag, Delta { size: Some(Size::Scale(0.8)), ..Delta::default() }),
+            "sub" => self.open_inline("sub", true, tag, Delta { size: Some(Size::Scale(0.8)), ..Delta::default() }),
             "mark" => self.open_inline("mark", true, tag, Delta { background: Some(Rgb(0xff, 0xff, 0x00)), ..Delta::default() }),
             "font" => {
                 let delta = Delta {
@@ -1786,11 +2083,13 @@ impl Builder {
             "a" => {
                 // A link doesn't nest in a link.
                 if let Some(index) = self.find(|n| n.name == "a", |k| matches!(k, Kind::Cell(_) | Kind::Row(_) | Kind::Table(_))) {
-                    let node = self.nodes.remove(index);
-                    self.leave(node);
-                    self.restyle(index);
+                    self.close_format(index);
                 }
-                let link: Option<Rc<str>> = safe_url(tag.attr("href")).map(Rc::from);
+                let link: Option<Rc<str>> = match self.own_link {
+                    Some(accept) => own_url(tag.attr("href"), accept),
+                    None => safe_url(tag.attr("href")),
+                }
+                .map(Rc::from);
                 // A link has the reader's link colour unless it names one itself.
                 let color = link.is_some().then_some(None);
                 self.open_inline("a", true, tag, Delta { link: Some(link), color, ..Delta::default() });
@@ -1802,13 +2101,14 @@ impl Builder {
             "hr" => {
                 self.close_paragraph();
                 let css = css_of(tag);
-                if !css.hidden {
+                if !left_out(tag, &css) {
+                    self.took = self.took.saturating_add(1);
                     // (An `hr` is drawn by its own look, a border of its own makes it neither thicker nor coloured.)
                     self.rule(Line::default());
                 }
             }
             "img" => self.image(tag),
-            "h1" | "h2" | "h3" | "h4" | "h5" | "h6" => {
+            "h1" => {
                 let level = tag.name.as_bytes().get(1).map_or(1, |d| d.saturating_sub(b'0')).clamp(1, 6);
                 self.close_paragraph();
                 // A heading does not nest in a heading.
@@ -1823,7 +2123,7 @@ impl Builder {
                     self.heading = Some(level);
                 }
             }
-            "ul" | "ol" | "menu" | "dir" => {
+            "ul" => {
                 self.close_paragraph();
                 self.flush();
                 // A list has a margin above and below unless it says it has none.
@@ -1857,7 +2157,7 @@ impl Builder {
                     self.quote += 1;
                 }
             }
-            "pre" | "xmp" | "listing" => {
+            "pre" => {
                 self.close_paragraph();
                 self.flush();
                 self.want_space(1);
@@ -1880,23 +2180,17 @@ impl Builder {
     }
 
     fn end(&mut self, name: &str) {
+        let name = canon(name);
         match name {
-            "b" | "strong" => self.end_format("b"),
-            "i" | "em" => self.end_format("i"),
-            "cite" | "var" | "dfn" => self.end_format("cite"),
-            "u" | "ins" => self.end_format("u"),
-            "s" | "strike" | "del" => self.end_format("s"),
-            "code" | "tt" | "kbd" | "samp" => self.end_format("code"),
-            "small" | "big" | "mark" | "font" | "a" => self.end_format(name),
-            "sub" | "sup" => self.end_format("sub"),
+            "b" | "i" | "cite" | "u" | "s" | "code" | "sub" | "small" | "big" | "mark" | "font" | "a" => self.end_format(name),
             "span" | "label" | "abbr" | "acronym" | "q" | "time" | "bdi" | "bdo" | "data" | "nobr" => self.end_inline(name),
             // Browsers read `</br>` as `<br>`.
             "br" => self.line_break(),
-            "h1" | "h2" | "h3" | "h4" | "h5" | "h6" => self.end_structure(|k| matches!(k, Kind::Heading(_)), false),
-            "ul" | "ol" | "menu" | "dir" => self.end_structure(|k| matches!(k, Kind::List { .. }), false),
+            "h1" => self.end_structure(|k| matches!(k, Kind::Heading(_)), false),
+            "ul" => self.end_structure(|k| matches!(k, Kind::List { .. }), false),
             "li" => self.end_structure(|k| matches!(k, Kind::Item(_)), true),
             "blockquote" => self.end_structure(|k| matches!(k, Kind::Quote { .. }), false),
-            "pre" | "xmp" | "listing" => self.end_structure(|k| matches!(k, Kind::Pre), false),
+            "pre" => self.end_structure(|k| matches!(k, Kind::Pre), false),
             "table" => self.end_table_tag(),
             "tr" => self.end_row_tag(),
             "td" | "th" => self.end_cell_tag(),
@@ -1926,13 +2220,46 @@ fn sized(css: &Css, attr: Option<Length>) -> Option<Length> {
     }
 }
 
-fn css_of(tag: &Tag<'_>) -> Css {
-    tag.attr("style").map(|s| Css::parse(&s)).unwrap_or_default()
+/// The width a box on a line asks for. The whole line (`width:100%`, what column builders write
+/// on every column) is what a block has anyway, and asks for nothing.
+fn box_width(css: &Css) -> Option<Length> {
+    sized(css, None).filter(|w| *w != Length::Percent(100))
+}
+
+/// Whether a style gives an element something to show of its own as a box: a background, a frame,
+/// padding that is more than none, or a width.
+pub(crate) fn has_box_look(css: &Css) -> bool {
+    css.background.is_some() || css.framed() || css.padding_insets().is_some_and(Insets::any) || box_width(css).is_some()
+}
+
+/// Whether the element is one the blocks leave out: hidden by its style or its `hidden`
+/// attribute, or a picture of two pixels or less in either direction (a tracker, not something to
+/// show). The one test of it, for the blocks and for a message's design for dark windows.
+pub(crate) fn left_out(tag: &Tag<'_>, css: &Css) -> bool {
+    if css.hidden || tag.has("hidden") {
+        return true;
+    }
+    if tag.name != "img" {
+        return false;
+    }
+    let px = |name: &str| tag.attr(name).and_then(|v| style::attr_px(&v));
+    let tiny = |v: Option<f32>| v.is_some_and(|v| v <= 2.0);
+    tiny(px("width")) || tiny(px("height")) || tiny(css.width) || tiny(css.height)
+}
+
+/// What an element's style sheet rules and its `style` attribute say, in the order of the
+/// cascade (`sheet::css_with`).
+pub(crate) fn css_of(tag: &Tag<'_>) -> Css {
+    match &tag.sheet {
+        None => tag.attr("style").map(|s| Css::parse(&s)).unwrap_or_default(),
+        Some(applied) => sheet::css_with(applied, tag.attr("style").as_deref()),
+    }
 }
 
 /// Whether an element carries a class or an id ([`Delta::hooked`]).
 fn hooked(tag: &Tag<'_>) -> bool {
-    tag.has("class") || tag.has("id")
+    // (An element whose size a style sheet gave is held to it, as to a size of its own.)
+    (tag.has("class") || tag.has("id")) && !tag.sheet.as_ref().is_some_and(|a| a.css.size.is_some())
 }
 
 /// Whether a background is white, or as good as.
@@ -1947,6 +2274,12 @@ fn safe_url(raw: Option<String>) -> Option<String> {
     let url: String = raw?.chars().filter(|c| !matches!(c, '\t' | '\n' | '\r')).collect();
     let url = url.trim();
     is_safe_url(url).then(|| url.to_string())
+}
+
+/// [`safe_url`] for the owner's own HTML: tabs and line breaks removed as there, then `accept`.
+fn own_url(raw: Option<String>, accept: fn(&str) -> Option<String>) -> Option<String> {
+    let url: String = raw?.chars().filter(|c| !matches!(c, '\t' | '\n' | '\r')).collect();
+    accept(url.trim())
 }
 
 /// The address of a picture, when it may be used: [`safe_url`], and besides an address that
@@ -2070,8 +2403,26 @@ fn inline_name(name: &str) -> &'static str {
     }
 }
 
+/// The name the build keeps an element under: the end tag of any of the elements that are read as
+/// one closes the one that is open (`</b>` ends a `<strong>`, `</ol>` a `<ul>`, `</h3>` an `<h2>`).
+pub(crate) fn canon(name: &str) -> &str {
+    match name {
+        "strong" => "b",
+        "em" => "i",
+        "var" | "dfn" => "cite",
+        "ins" => "u",
+        "strike" | "del" => "s",
+        "tt" | "kbd" | "samp" => "code",
+        "sup" => "sub",
+        "h2" | "h3" | "h4" | "h5" | "h6" => "h1",
+        "ol" | "menu" | "dir" => "ul",
+        "xmp" | "listing" => "pre",
+        name => name,
+    }
+}
+
 /// Elements that start on a new line and carry no meaning of their own here.
-fn block_name(name: &str) -> Option<&'static str> {
+pub(crate) fn block_name(name: &str) -> Option<&'static str> {
     const BLOCKS: [&str; 25] = [
         "p",
         "div",

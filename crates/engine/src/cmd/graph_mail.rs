@@ -177,7 +177,7 @@ fn parent_on_server(mb: &Mailbox, folder: &Folder) -> Option<String> {
 
 /// The folder changes made in `account` that its server hasn't heard of, parents before what lies
 /// in them: at most `limit` spelled out, and how many there are.
-fn folder_changes(mb: &Mailbox, account: Id, limit: usize) -> (Vec<FolderChange>, usize) {
+pub(super) fn folder_changes(mb: &Mailbox, account: Id, limit: usize) -> (Vec<FolderChange>, usize) {
     let (mut changes, mut count) = (Vec::new(), 0usize);
     let mut note = |change: &dyn Fn() -> FolderChange| {
         if changes.len() < limit {
@@ -193,7 +193,7 @@ fn folder_changes(mb: &Mailbox, account: Id, limit: usize) -> (Vec<FolderChange>
         match &f.server {
             // The special folders are the server's: they are found in its listing, never made;
             // so is a folder that was on the account's IMAP server before it switched (R3.7).
-            None if f.kind != FolderKind::Custom || f.awaiting_listing => {}
+            None if (f.kind != FolderKind::Custom && !graph_up::made_on_server(mb, f)) || f.awaiting_listing => {}
             None => {
                 let parent = mb.folder(f.parent.unwrap_or(0)).filter(|p| p.account == account);
                 let (server_parent, local_parent) = match parent {
@@ -504,7 +504,7 @@ fn shown(name: &str) -> String {
 }
 
 /// Take in what became of one change. Answers what to tell the owner, when there is something.
-fn change_done(mb: &mut Mailbox, account: Id, change: &FolderChange, outcome: &ChangeOutcome, taken: &mut Taken) -> Option<String> {
+pub(super) fn change_done(mb: &mut Mailbox, account: Id, change: &FolderChange, outcome: &ChangeOutcome, taken: &mut Taken) -> Option<String> {
     let mine = |mb: &Mailbox, id: Id| mb.folder(id).is_some_and(|f| f.account == account);
     match (change, outcome) {
         (FolderChange::Delete { id }, ChangeOutcome::Done { .. } | ChangeOutcome::Gone) => {
@@ -539,6 +539,7 @@ fn change_done(mb: &mut Mailbox, account: Id, change: &FolderChange, outcome: &C
                 caught_up: false,
                 round_ended: false,
                 counts: None,
+                sync_state: String::new(),
             });
             taken.pushed += 1;
             None
@@ -670,10 +671,17 @@ fn adopt(mb: &Mailbox, account: Id, there: &GraphFolder, parent_here: Option<Id>
         return mb.folders.iter().filter(unsynced).find(|f| f.kind == there.kind).map(|f| f.id);
     }
     let name = name.to_lowercase();
+    // An Exchange server account's Archive is the folder of that name at the top, when the server
+    // has one (E8).
+    let exchange = mb.account(account).is_some_and(|a| a.kind == AccountKind::Exchange);
     mb.folders
         .iter()
         .filter(unsynced)
-        .find(|f| f.kind == FolderKind::Custom && f.parent == parent_here && f.name.to_lowercase() == name)
+        .find(|f| {
+            f.parent == parent_here
+                && f.name.to_lowercase() == name
+                && (f.kind == FolderKind::Custom || (exchange && f.kind == FolderKind::Archive && parent_here.is_none() && !f.awaiting_listing))
+        })
         .map(|f| f.id)
 }
 
@@ -711,6 +719,8 @@ fn update(mb: &mut Mailbox, id: Id, there: &GraphFolder, name: &str, parent_here
         caught_up: last.caught_up,
         round_ended: last.round_ended,
         counts: last.counts,
+        // (An Exchange server account's folder goes on from its sync state; the other kinds have none.)
+        sync_state: last.sync_state,
     });
     *f != before
 }

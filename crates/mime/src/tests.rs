@@ -511,6 +511,7 @@ fn message() -> impl Strategy<Value = Message> {
             // Not carried by the format: must not come back.
             received: date.wrapping_add(99),
             body: Body { text, html },
+            hidden_text: String::new(),
             attachments,
             read,
             flag,
@@ -531,6 +532,8 @@ fn message() -> impl Strategy<Value = Message> {
             not_downloaded: 62_914_560,
             server: Some(mailcraft_model::sync::ServerMessage { id: "AAMkAGI2-not-carried".into(), ..Default::default() }),
             unfetched: false,
+            refetch: false,
+            refetched: false,
             attachments_on_server: false,
             server_attachments: Some(true),
             moving_out: None,

@@ -501,24 +501,7 @@ pub fn options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         let none = tl!("No senders are remembered. \"Always download pictures from\" above a message adds its sender or its sender's domain here.");
         ui.label(egui::RichText::new(none).color(t.text_dim));
     } else {
-        ui.label(tl!("Pictures are always downloaded from:"));
-    }
-    for address in senders {
-        ui.horizontal(|ui| {
-            if ui.small_button(tl!("Remove")).on_hover_text(tl!("Ask before downloading this sender's pictures again")).clicked() {
-                let _ = app.run("ui.alwaysDownloadPictures", json!({"sender": address, "value": false}));
-            }
-            ui.add(egui::Label::new(address.as_str()).truncate());
-        });
-    }
-    for name in domains {
-        ui.horizontal(|ui| {
-            if ui.small_button(tl!("Remove")).on_hover_text(tl!("Ask before downloading pictures from this domain's senders again")).clicked() {
-                let _ = app.run("ui.alwaysDownloadPictures", json!({"domain": name, "value": false}));
-            }
-            let everybody = crate::i18n::fmt(tl!("everybody at @{domain}"), &[("domain", &name)]);
-            ui.add(egui::Label::new(everybody).truncate());
-        });
+        remembered(app, ui, senders, domains);
     }
     // What the host keeps of them between runs, when it keeps anything.
     let Some((count, bytes)) = app.services.picture_cache.as_ref().map(|kept| kept.usage()) else { return };
@@ -537,6 +520,52 @@ pub fn options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         if ui.add_enabled(count > 0, egui::Button::new(tl!("Clear")).small()).on_hover_text(tl!("Forget the pictures that are kept; they are downloaded again when you ask.")).clicked() {
             let _ = app.run("ui.clearPictureCache", json!({}));
         }
+    });
+}
+
+/// How many remembered senders and domains File › Options shows at a time.
+const PAGE: usize = 20;
+
+/// The remembered senders, then the domains, under a heading that folds them away, a page at a
+/// time: a long list doesn't push the rest of File › Options out of sight. It starts folded
+/// when it is longer than a page.
+fn remembered(app: &mut MailApp, ui: &mut Ui, senders: Vec<String>, domains: Vec<String>) {
+    let total = senders.len().saturating_add(domains.len());
+    let heading = crate::i18n::fmt(tl!("Pictures are always downloaded from ({n}):"), &[("n", &total.to_string())]);
+    egui::CollapsingHeader::new(heading).id_salt("pictureSenders").default_open(total <= PAGE).show(ui, |ui| {
+        let pages = total.div_ceil(PAGE).max(1);
+        let id = egui::Id::unique("pictureSendersPage");
+        // (A removal can leave the page it was on empty.)
+        let mut page = ui.data(|d| d.get_temp::<usize>(id)).unwrap_or(0).min(pages - 1);
+        let rows = senders.into_iter().map(|s| (false, s)).chain(domains.into_iter().map(|d| (true, d)));
+        for (is_domain, name) in rows.skip(page.saturating_mul(PAGE)).take(PAGE) {
+            let (label, tip, remove) = if is_domain {
+                let everybody = crate::i18n::fmt(tl!("everybody at @{domain}"), &[("domain", &name)]);
+                (everybody, tl!("Ask before downloading pictures from this domain's senders again"), json!({"domain": name, "value": false}))
+            } else {
+                (name.clone(), tl!("Ask before downloading this sender's pictures again"), json!({"sender": name, "value": false}))
+            };
+            ui.horizontal(|ui| {
+                if ui.small_button(tl!("Remove")).on_hover_text(tip).clicked() {
+                    let _ = app.run("ui.alwaysDownloadPictures", remove);
+                }
+                ui.add(egui::Label::new(label).truncate());
+            });
+        }
+        if pages > 1 {
+            // Under each other when the page is too narrow for them side by side.
+            ui.horizontal_wrapped(|ui| {
+                if ui.add_enabled(page > 0, egui::Button::new(tl!("Previous")).small()).clicked() {
+                    page = page.saturating_sub(1);
+                }
+                let at = crate::i18n::fmt(tl!("Page {page} of {pages}"), &[("page", &(page + 1).to_string()), ("pages", &pages.to_string())]);
+                ui.label(at);
+                if ui.add_enabled(page + 1 < pages, egui::Button::new(tl!("Next")).small()).clicked() {
+                    page += 1;
+                }
+            });
+        }
+        ui.data_mut(|d| d.insert_temp(id, page));
     });
 }
 

@@ -24,3 +24,11 @@ fn a_format_character_anywhere_makes_an_address_no_link() {
         }
     }
 }
+
+#[test]
+fn received_mail_still_does_not_follow_settings_and_other_schemes() {
+    for url in ["ms-settings:network-vpn", "slack://channel?id=1", "x-apple.systempreferences:com.apple.preference.network"] {
+        assert!(!is_safe_url(url), "{url}");
+    }
+    assert!(is_safe_url("https://example.org/") && is_safe_url("mailto:ada@example.org") && is_safe_url("tel:+15550100"));
+}

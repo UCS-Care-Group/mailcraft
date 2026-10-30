@@ -315,6 +315,20 @@ pub enum SendOutcome {
 /// address where the owner reads it; nothing is ever sent from another address instead.
 pub const SEND_AS_DENIED: &str = "you don't have permission to send as this shared mailbox";
 
+/// What stands for a draft of an Exchange server account in a delete that is queued when its
+/// server id is not known (its make was not answered): the draft's marker, found in Drafts by
+/// the run that deletes it (E8). Never a server id: ids do not begin so.
+pub fn marker_id(marker: &str) -> String {
+    format!("{MARKER_ID}{marker}")
+}
+
+/// The marker a [`marker_id`] stands for, or `None` for a server id.
+pub fn marker_of(id: &str) -> Option<&str> {
+    id.strip_prefix(MARKER_ID).filter(|marker| !marker.is_empty())
+}
+
+const MARKER_ID: &str = "marker:";
+
 /// A message sent and what became of it, with what became of its draft on the way.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
@@ -323,4 +337,10 @@ pub struct SendDone {
     pub outcome: SendOutcome,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub draft: Option<DraftDone>,
+    /// An Exchange server account's draft that was sent as a message of its own: its server id
+    /// when the server still has it after a send that is clear (taking it away failed), else
+    /// empty; the draft's [`marker_id`] when its id was not known and could not be found. The
+    /// takeaway is queued as an ordinary delete; the send is not made again.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub draft_left: String,
 }

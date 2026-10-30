@@ -53,6 +53,33 @@ pub(crate) fn client_config(purpose: Purpose) -> Result<Arc<ClientConfig>, Strin
     Ok(cache.get_or_init(|| config).clone())
 }
 
+/// The system's verifier, as `client_config` builds it (and with a test's own roots in a test).
+fn system_verifier(provider: &Arc<CryptoProvider>) -> Result<Arc<dyn ServerCertVerifier>, String> {
+    #[cfg(test)]
+    if let Some(roots) = crate::tls_test_support::trusted_roots() {
+        let verifier = Verifier::new_with_extra_roots(roots, provider.clone()).map_err(|e| e.to_string())?;
+        return Ok(Arc::new(verifier));
+    }
+    static SYSTEM: OnceLock<Arc<Verifier>> = OnceLock::new();
+    if let Some(verifier) = SYSTEM.get() {
+        return Ok(verifier.clone());
+    }
+    let verifier = Verifier::new(provider.clone()).map_err(|e| format!("the system's certificate check couldn't be set up ({e})"))?;
+    Ok(SYSTEM.get_or_init(|| Arc::new(verifier)).clone())
+}
+
+/// The TLS settings for a server whose owner may have chosen to trust one certificate by its
+/// fingerprint (`pin`): the system's check, and that one certificate when the system doesn't
+/// trust it but it is in date and for the server's name (`crate::pinned`). With the settings
+/// comes the verifier, which says afterwards why a certificate was refused. Built for each
+/// connection: the verifier holds what it saw.
+pub(crate) fn pinned_config(pin: Option<[u8; 32]>) -> Result<(Arc<ClientConfig>, Arc<crate::pinned::Pinned>), String> {
+    let provider = provider();
+    let verifier = Arc::new(crate::pinned::Pinned::new(system_verifier(&provider)?, pin));
+    let config = build(provider, verifier.clone(), Purpose::Mail)?;
+    Ok((config, verifier))
+}
+
 fn provider() -> Arc<CryptoProvider> {
     Arc::new(rustls::crypto::ring::default_provider())
 }

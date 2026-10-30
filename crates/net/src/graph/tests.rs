@@ -1223,7 +1223,7 @@ proptest! {
         let named = json!({"error": {"code": code, "message": format!("{TOKEN} {mail}")}}).to_string().into_bytes();
         for body in [body, named] {
             for doing in [Doing::Sending, Doing::Calendar, Doing::Contacts, Doing::Writing] {
-                let error = refusal(doing, &Reply { status, body: body.clone(), retry_after: retry_after.clone() }, &[TOKEN, mail], now);
+                let error = refusal(doing, &Reply { status, body: body.clone(), retry_after: retry_after.clone(), ..Default::default() }, &[TOKEN, mail], now);
                 let shown = error.to_string();
                 prop_assert!(!shown.contains('\r') && !shown.contains('\n') && shown.chars().count() < 200, "{}", shown);
                 // No more than a few characters in a row of the token or of the mail, ever.
