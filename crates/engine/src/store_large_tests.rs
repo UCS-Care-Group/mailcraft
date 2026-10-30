@@ -154,7 +154,8 @@ fn an_append_that_would_pass_the_limit_compacts_instead_of_refusing() {
 fn a_one_file_mailbox_too_large_for_the_memory_is_refused_before_it_is_read() {
     assert!(json_needs_too_much_memory(3 << 30, Some(8 << 30)));
     assert!(!json_needs_too_much_memory(1 << 30, Some(8 << 30)));
-    assert!(!json_needs_too_much_memory(u64::MAX, None));
+    assert!(json_needs_too_much_memory(UNMEASURED_JSON_MAX + 1, None));
+    assert!(!json_needs_too_much_memory(UNMEASURED_JSON_MAX, None));
     let tmp = Temp::new("memory");
     let path = tmp.file();
     fs::write(&path, crate::io::write_mailbox(&mailbox(20, 100)).unwrap()).unwrap();
@@ -165,4 +166,23 @@ fn a_one_file_mailbox_too_large_for_the_memory_is_refused_before_it_is_read() {
     let e = e.unwrap();
     assert!(e.contains("too large for this computer's memory"), "{e}");
     assert_eq!(open(&path).unwrap().mailbox.messages.len(), 20);
+}
+
+#[test]
+fn where_memory_cannot_be_measured_a_fixed_cap_stands_in() {
+    let tmp = Temp::new("unmeasured");
+    let path = tmp.file();
+    // Under the cap: opens. Over it (and under the limit): refused, without claiming a measurement.
+    fs::write(&path, crate::io::write_mailbox(&mailbox(20, 100)).unwrap()).unwrap();
+    TEST_AVAILABLE.set(u64::MAX);
+    let small = open(&path).map(|o| o.mailbox.messages.len());
+    fs::write(&path, crate::io::write_mailbox(&mailbox(1_000, 10_000)).unwrap()).unwrap();
+    let len = fs::metadata(&path).unwrap().len();
+    let big = open(&path).err();
+    TEST_AVAILABLE.set(0);
+    assert_eq!(small.unwrap(), 20);
+    assert!(len > UNMEASURED_JSON_MAX && len < MAX_MAILBOX_JSON, "{len}");
+    let e = big.unwrap();
+    assert!(e.contains("can't measure"), "{e}");
+    assert!(!e.contains("too large for this computer's memory"), "{e}");
 }

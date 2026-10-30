@@ -1569,8 +1569,17 @@ fn open_locked(st: &mut State, path: &Path, progress: &OpenProgress, launch: Lau
     }
     // Parsing allocates every string again: about twice the file is in memory at the peak, so a
     // file that is too large a share of the machine's memory is refused here, not by an abort.
-    if json_needs_too_much_memory(len, available_memory()) {
-        return Err(format!("{show} is too large for this computer's memory ({} MB)", len >> 20));
+    let available = available_memory();
+    if json_needs_too_much_memory(len, available) {
+        return Err(if available.is_some() {
+            format!("{show} is too large for this computer's memory ({} MB)", len >> 20)
+        } else {
+            format!(
+                "{show} is {} MB, more than MailCraft opens as one file on a computer whose free memory it can't measure ({} MB)",
+                len >> 20,
+                UNMEASURED_JSON_MAX >> 20
+            )
+        });
     }
     // (Read as `io::read_regular_file` does, its bytes counted; the room asked for first, so that
     // a machine without it says so instead of stopping.)
@@ -1854,18 +1863,27 @@ pub fn body_budget() -> u64 {
 }
 
 /// Whether reading and parsing a JSON file of `len` bytes would want more than `available` bytes
-/// of memory (three times the file: the bytes, and the strings made of them). Unknown memory
-/// refuses nothing.
+/// of memory (three times the file: the bytes, and the strings made of them). Where the memory
+/// can't be read (everywhere but Linux) a fixed cap stands in, [`UNMEASURED_JSON_MAX`].
 fn json_needs_too_much_memory(len: u64, available: Option<u64>) -> bool {
-    available.is_some_and(|a| len.saturating_mul(3) > a)
+    match available {
+        Some(a) => len.saturating_mul(3) > a,
+        None => len > UNMEASURED_JSON_MAX,
+    }
 }
 
-/// Memory not in use, where it can be read (Linux: `MemAvailable`); else the machine's own.
+/// Largest one-file (JSON) mailbox opened where the memory in use can't be measured: 1 GiB (twice
+/// the old limit; about 3 GB of memory at the peak). 8 MB under test.
+const UNMEASURED_JSON_MAX: u64 = if cfg!(test) { 8 << 20 } else { 1 << 30 };
+
+/// Memory not in use, where it can be read (Linux: `MemAvailable`); `None` elsewhere.
 fn available_memory() -> Option<u64> {
     #[cfg(test)]
     {
-        if TEST_AVAILABLE.get() > 0 {
-            return Some(TEST_AVAILABLE.get());
+        match TEST_AVAILABLE.get() {
+            0 => {}
+            u64::MAX => return None,
+            set => return Some(set),
         }
     }
     #[cfg(target_os = "linux")]
@@ -1876,11 +1894,12 @@ fn available_memory() -> Option<u64> {
         kb.checked_mul(1024)
     }
     #[cfg(not(target_os = "linux"))]
-    physical_memory()
+    None
 }
 
 #[cfg(test)]
 thread_local! {
+    /// 0: the machine's; `u64::MAX`: unknown; else the bytes available.
     pub(crate) static TEST_AVAILABLE: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
 }
 

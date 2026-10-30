@@ -18,7 +18,8 @@ pub const MAX_FILE: u64 = 512 << 20;
 /// more than that, and a real one older programs wrote (a complete sync of a large IMAP account
 /// into the one-file form) fits with room to spare. The bytes are read with an allocation that may
 /// fail, and a file wanting more than a third of the memory not in use is refused before it is
-/// read (parsing holds about twice the file), so it is an error, never an abort. The next save writes the form with a log of records and a
+/// read (parsing holds about twice the file), so it is an error, never an abort. Where that memory
+/// can't be measured (all but Linux) the limit is 1 GiB instead (`store::UNMEASURED_JSON_MAX`). The next save writes the form with a log of records and a
 /// content folder (`crate::store`), which stops at `store::MAX_INDEX` instead. Small in tests.
 pub const MAX_MAILBOX_JSON: u64 = if cfg!(test) { 16 << 20 } else { 4 << 30 };
 
