@@ -5942,7 +5942,7 @@ pub(crate) mod rules {
             f.choose(&s.mailbox, account_in_view(s));
             f.reset();
             if let Some(folder) = params.get("folder").and_then(Value::as_u64) {
-                f.from_message(s, folder, params.get("id").and_then(Value::as_u64).or(s.sel.focus()));
+                f.fill_from_message(s, folder, params.get("id").and_then(Value::as_u64).or(s.sel.focus()));
             }
             f
         }
@@ -5951,7 +5951,7 @@ pub(crate) mod rules {
         /// account the message came to (a shared mailbox's owner's, as `rules.fromMessage` makes
         /// it). Nothing for a message or folder that isn't there, a send queue or a sender with no
         /// address.
-        fn from_message(&mut self, s: &Session, folder: Id, id: Option<Id>) {
+        fn fill_from_message(&mut self, s: &Session, folder: Id, id: Option<Id>) {
             let mb = &s.mailbox;
             let Some(m) = id.and_then(|id| mb.message(id)) else { return };
             let Some(target) = mb.folder(folder).filter(|_| !mb.is_send_queue(folder)) else { return };
