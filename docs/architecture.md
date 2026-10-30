@@ -1,6 +1,6 @@
 # MailCraft architecture
 
-> **Last reviewed:** 2026-10-11 · **Last updated:** 2026-10-28 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
+> **Last reviewed:** 2026-10-11 · **Last updated:** 2026-10-29 · **Change:** minor · **Target:** Microsoft Outlook (Microsoft 365)
 
 How MailCraft is built today. Rules for working in the code are in [`AGENTS.md`](../AGENTS.md). The
 shape — layers, "everything is a command", the swappable egui front end, the control channel, MCP,
@@ -57,7 +57,12 @@ egui, eframe, winit or rfd.
    engine and the UI never touch a socket, which is why they build for the browser. A JMAP
    account goes the Graph way: `sync.jmapRequest` (pure) says what to read, the host (the browser
    build, over `fetch`) runs `mailcraft_jmap::sync_mail` and hands the run back in pieces, and
-   `sync.applyJmap` (pure) takes each in by server id ([jmap.md](jmap.md)).
+   `sync.applyJmap` (pure) takes each in by server id ([jmap.md](jmap.md)). An Exchange server
+   account (#252, Exchange Web Services) is going the same way, behind `MAILCRAFT_EWS=1` (a
+   `Session` field the host sets, never a command's params): its request and result shapes are
+   in `model`'s `sync::ews` and `sync.ewsRequest`, `sync.applyEws` and `sync.ewsFetchRequest` are
+   registered, refusing while the switch is off and saying the part is not built while it is on;
+   no host runs it yet.
 5. **Save:** the desktop app writes the mailbox file a few seconds after each change and on
    exit; the browser writes to its storage; File › Save As and the exports write other files (a
    download in the browser).
@@ -277,3 +282,4 @@ a made-up mailbox of 64,000 messages (ignored by `cargo test`).
 | 2026-10-27 | patch | #519 slice 2 review: bodies found missing are marked, the bodies the budget holds come in the background, a cut-short file has no sum |
 | 2026-10-27 | patch | #519 slice 2 review: a body whose file is damaged, read in the background, is marked and counted |
 | 2026-10-28 | minor | M6: the browser build runs `jmap` over `fetch`; a JMAP account's Send/Receive in the data flow |
+| 2026-10-29 | minor | #252: Exchange server accounts, first step: `AccountKind::Exchange`, `Account::ews`, the request and result shapes, three registered commands, the `MAILCRAFT_EWS` switch in the data flow |

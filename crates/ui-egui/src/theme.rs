@@ -134,6 +134,9 @@ impl From<InterfaceSize> for u16 {
 #[derive(Clone, Copy, Debug)]
 pub struct Tokens {
     pub dark: bool,
+    /// Set only while a message is laid out: the message brings its own design for dark windows
+    /// (`@media (prefers-color-scheme: dark)`), so its backgrounds are painted as it asks.
+    pub sender_dark: bool,
     pub title_bar: Color32,
     pub ribbon: Color32,
     pub tab_strip: Color32,
@@ -197,6 +200,7 @@ impl Tokens {
         let window = Color32::from_rgb(0xF3, 0xF3, 0xF3);
         Tokens {
             dark: false,
+            sender_dark: false,
             title_bar: window,
             ribbon: Color32::WHITE,
             tab_strip: window,
@@ -245,6 +249,7 @@ impl Tokens {
         let window = Color32::from_rgb(0x0F, 0x16, 0x1F);
         Tokens {
             dark: true,
+            sender_dark: false,
             title_bar: window,
             ribbon: Color32::from_rgb(0x29, 0x29, 0x29),
             tab_strip: window,

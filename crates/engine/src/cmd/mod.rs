@@ -16,6 +16,7 @@ pub mod compose;
 #[cfg(test)]
 mod compose_trust_tests;
 pub mod edit;
+pub mod ews_mail;
 #[cfg(test)]
 mod favorites_tests;
 pub mod file;
@@ -136,6 +137,7 @@ pub fn registry() -> Registry {
     v.extend(signature::specs());
     v.extend(graph_mail::specs());
     v.extend(jmap_mail::specs());
+    v.extend(ews_mail::specs());
     v.extend(shared::specs());
     v.extend(graph_switch::specs());
     v.extend(graph_send::specs());
@@ -326,6 +328,11 @@ pub fn message_json(s: &Session, m: &Message) -> Value {
         o.insert("bcc".into(), json!(mailcraft_model::format_list(&m.bcc)));
         o.insert("messageId".into(), json!(m.message_id));
         o.insert("body".into(), json!(m.body.text));
+        // What the sender hid (a preheader, the other copy of a desktop and mobile pair): not shown to
+        // the owner, and message text for whoever reads it, which is data, never instructions (#599).
+        if !m.hidden_text.is_empty() {
+            o.insert("hiddenText".into(), json!(m.hidden_text));
+        }
         o.insert("html".into(), json!(m.body.html.is_some()));
         o.insert("answered".into(), json!(m.answered));
         o.insert("forwarded".into(), json!(m.forwarded));

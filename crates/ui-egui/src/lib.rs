@@ -67,6 +67,8 @@ pub mod dialogs;
 mod drag_pointer;
 #[cfg(test)]
 mod drag_pointer_tests;
+#[cfg(test)]
+mod ews_info_tests;
 pub mod favorites_sync;
 #[cfg(test)]
 mod field_drag_tests;
@@ -2274,6 +2276,10 @@ impl MailApp {
             // and a bearer token is no password.)
             let (session, bearer) = a.jmap.as_ref().map_or(("none", false), |j| (j.session.trim(), j.bearer));
             format!("{kind}:{address}|jmap={session}|bearer={bearer}")
+        } else if a.kind == mailcraft_model::AccountKind::Exchange {
+            // (Its whole EWS address: another one, on the same server or not, is another server.)
+            let url = a.ews.as_ref().map_or("none", |e| e.url.trim());
+            format!("{kind}:{address}|ews={url}")
         } else {
             format!("{kind}:{address}|imap={}|smtp={}", server(&a.incoming), server(&a.outgoing))
         }
@@ -2580,6 +2586,11 @@ impl MailApp {
                 self.sync_queue.pop_front().map(|(first, _)| first).ok_or_else(none)?
             }
         };
+        // An Exchange server account is not kept in step yet (#252): the switch, then the part
+        // that is not built.
+        if self.session.mailbox.account(account).is_some_and(|a| a.kind == mailcraft_model::AccountKind::Exchange) {
+            return Err(mailcraft_engine::cmd::ews_mail::refusal_text(&self.session).to_string());
+        }
         // Nor has one kept in step over JMAP, where the host runs JMAP (M6).
         if self.services.jmap.is_some() && self.session.mailbox.account(account).is_some_and(|a| a.kind == mailcraft_model::AccountKind::Jmap) {
             return self.start_jmap_mail(account, quiet, p);
@@ -2753,6 +2764,8 @@ impl MailApp {
         // at all, to be told so.
         let runs = |a: &&mailcraft_model::Account| match a.kind {
             mailcraft_model::AccountKind::Jmap => self.services.jmap.is_some(),
+            // (Nothing runs an Exchange server account yet, #252.)
+            mailcraft_model::AccountKind::Exchange => false,
             kind => kind.has_server() && (self.services.sync.is_some() || self.services.jmap.is_none()),
         };
         self.session.mailbox.accounts.iter().filter(runs).map(|a| a.id).collect()
@@ -2833,6 +2846,9 @@ impl MailApp {
         // server turned down waits for the owner.)
         if a.kind == mailcraft_model::AccountKind::Jmap {
             return !self.jmap_refused.contains(&account) && self.jmap_secret(account).is_some();
+        }
+        if a.kind == mailcraft_model::AccountKind::Exchange {
+            return false;
         }
         if a.oauth.is_some() {
             let kept = self.tokens.get(&account).is_some_and(|t| t.fresh(mailcraft_time::now()) || !t.refresh.is_empty());

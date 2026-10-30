@@ -7,8 +7,8 @@ use mailcraft_model::rich::RichText;
 use mailcraft_model::signature::Picture;
 use mailcraft_model::sync::{DraftKind, DraftOf, DraftState, ServerDraft};
 use mailcraft_model::{
-    AccountKind, Address, Answers, Attachment, Body, FlagStatus, FolderKind, Id, Importance, Message, NOT_DOWNLOADED, NOT_DOWNLOADED_NOTE,
-    NOT_SENDING_YET, RichBody, Signature, format_list,
+    AccountKind, Address, Answers, Attachment, Body, FlagStatus, FolderKind, Id, Importance, Message, NOT_DOWNLOADED, NOT_DOWNLOADED_NOTE, RichBody,
+    Signature, format_list,
 };
 use serde_json::{Value, json};
 
@@ -1056,15 +1056,17 @@ fn send(s: &mut Session, _: &Value) -> CmdResult {
     // An account kept in step with a server that doesn't send its mail yet (JMAP) has nowhere
     // for the message: not its Outbox, where it would wait for ever, nor Sent Items, as if it had
     // gone. It stays as it is being written.
-    if account.kind.has_server() && !account.kind.sends_mail() {
+    // (An Exchange server account sends nothing either, #252, with its switch on or off, until
+    // its sending is built: `can_queue_mail` says.)
+    if account.kind.has_server() && !super::ews_mail::can_queue_mail(s, account.kind) {
         return Err(failed!(
             "{not_sending_yet}: send this message from another account, or save it as a draft",
-            not_sending_yet = mailcraft_i18n::Arg::words(NOT_SENDING_YET)
+            not_sending_yet = mailcraft_i18n::Arg::words(super::ews_mail::not_sending_text(s, account.kind))
         ));
     }
     // An account that sends its mail queues the message for the next Send/Receive; a local one
     // has nowhere to send it, so it is filed as sent (and delivered to local accounts it names).
-    let queued = account.kind.sends_mail();
+    let queued = super::ews_mail::can_queue_mail(s, account.kind);
     let kind = if queued { FolderKind::Outbox } else { FolderKind::Sent };
     m.folder = s
         .mailbox

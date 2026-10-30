@@ -2394,6 +2394,22 @@ fn hostile_params_never_panic() {
     }}));
     junk.push(json!({"result": {"account": jmap, "email": "jmap@example.org", "fetched": [{"id": "E1", "mime": []}, {"id": "\u{0}", "mime": [1]}], "missing": ["E1", ""]}}));
     junk.push(json!({"account": jmap, "message": 18446744073709551615u64, "most": 1e300, "light": "yes", "jmap": {"session": 5, "bearer": "no"}, "kind": "jmap"}));
+    // And an Exchange server account (#252), with the switch on, so that its commands get past the
+    // door too: answers that name it with nothing that makes sense, and settings that are none.
+    s.ews = true;
+    let url = "https://exchange.example.org/EWS/Exchange.asmx";
+    let ews = json!({"email": "ews@example.org", "kind": "exchange", "ews": {"url": url, "username": "CORP\\ews"}});
+    let ews = s.run("account.add", &ews).unwrap()["id"].as_u64().unwrap();
+    junk.push(json!({"result": {
+        "account": ews, "email": "ews@example.org", "url": url, "whole": true, "busyFor": 4294967295u32, "hierarchy": "x".repeat(100_000),
+        "listing": {"complete": true, "folders": [{"id": "../x", "parent": "../x", "name": "\u{0}", "kind": "outbox"}]},
+        "pages": [{"folder": "\u{0}", "afresh": true, "removed": ["E1"], "messages": [{"server": {"id": ""}}, {}]}],
+        "states": [{"folder": "\u{0}", "state": "x".repeat(100_000)}, {}, null],
+        "errors": ["\u{0}", "x".repeat(100_000)], "untrusted": 5,
+    }}));
+    junk.push(json!({"result": {"account": ews, "email": "other@example.org"}}));
+    junk.push(json!({"account": ews, "message": 18446744073709551615u64, "most": 1e300, "light": "yes", "kind": "exchange", "ews": {"url": 5, "username": [], "trusted": "zz"}}));
+    junk.push(json!({"id": ews, "ews": {"url": "http://evil.example/", "trusted": "x".repeat(200)}, "email": "ews@example.org"}));
     let ids: Vec<&'static str> = s.registry.all().iter().map(|c| c.id).collect();
     for round in 0..2 {
         for id in &ids {

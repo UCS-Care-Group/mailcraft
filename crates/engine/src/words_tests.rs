@@ -816,3 +816,15 @@ mod answered {
         }
     }
 }
+
+/// What the sender hid is part of what the index read of a message (#599): a message that gains
+/// or loses it is read again, and one that hid nothing has the fingerprint it always had.
+#[test]
+fn the_fingerprint_follows_what_the_sender_hid() {
+    let plain = Message { subject: "s".into(), body: Body { text: "t".into(), html: None }, ..Default::default() };
+    let hiding = Message { hidden_text: "preview line".into(), ..plain.clone() };
+    let other = Message { hidden_text: "another line".into(), ..plain.clone() };
+    assert_ne!(fingerprint(&plain), fingerprint(&hiding));
+    assert_ne!(fingerprint(&hiding), fingerprint(&other));
+    assert_eq!(fingerprint(&plain), fingerprint(&Message { hidden_text: String::new(), ..plain.clone() }));
+}

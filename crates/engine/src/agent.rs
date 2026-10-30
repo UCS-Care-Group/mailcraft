@@ -459,6 +459,9 @@ const NEVER: &[&str] = &[
     "sync.applyJmap",
     "sync.jmapFetchRequest",
     "sync.applyJmapFetch",
+    "sync.ewsRequest",
+    "sync.applyEws",
+    "sync.ewsFetchRequest",
     // A search of the server goes only on the owner's own click (R6.2).
     "sync.graphSearchRequest",
     "sync.applyGraphSearch",

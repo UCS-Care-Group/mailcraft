@@ -287,6 +287,19 @@ fn log_dir() -> Option<PathBuf> {
     Some(prefs_path()?.parent()?.join("logs"))
 }
 
+/// The switch for testing Exchange server accounts (#252): `MAILCRAFT_EWS=1`. Off, `account.add`
+/// with `kind: "exchange"` and every `sync.ews*` command refuse, and an Exchange server account
+/// already in a mailbox opens, shows its mail and isn't kept in step. (Add Account doesn't offer
+/// them either way yet: its page for them comes later, and will be shown only while this is on.)
+fn ews_switch() -> bool {
+    let on = std::env::var("MAILCRAFT_EWS").is_ok_and(|value| value.trim() == "1");
+    static SAID: std::sync::Once = std::sync::Once::new();
+    if on {
+        SAID.call_once(|| log::info!("Exchange server accounts may be added and kept in step (MAILCRAFT_EWS=1, for testing)"));
+    }
+    on
+}
+
 /// Runs without preferences (`MAILCRAFT_NO_PREFS`, agents' test runs) neither read nor write them,
 /// and keep their mailbox in memory only.
 fn prefs_enabled() -> bool {
@@ -1848,6 +1861,7 @@ fn main() -> eframe::Result {
                 let (mailbox, path, unavailable, unchecked, damaged) =
                     (arrival.mailbox, arrival.path, arrival.unavailable, arrival.unchecked, arrival.damaged);
                 let mut session = Session::new(mailbox);
+                session.ews = ews_switch();
                 let kept = path.is_some();
                 session.path = path;
                 // Search answers from a word index kept beside the mailbox file, built in the

@@ -13,6 +13,7 @@ pub mod auth_results;
 mod calendar;
 pub mod confusables;
 mod contact;
+mod ews_server;
 mod jmap_server;
 mod junk;
 mod load_limit;
@@ -43,6 +44,7 @@ pub use calendar::{
     OpenedCalendar, Proposal, Recurrence, Response, ResponseOptions, Rights, ShowAs,
 };
 pub use contact::{Contact, Labeled, PostalAddress};
+pub use ews_server::EwsServer;
 pub use jmap_server::JmapServer;
 pub use junk::{Added, JunkList, JunkLists, MAX_JUNK_ENTRIES, junk_entry, junk_key};
 pub use load_limit::{MIN_ITEM_BYTES, from_json};
@@ -53,8 +55,8 @@ pub use mailbox::{
 };
 pub use mailcraft_time as time;
 pub use message::{
-    Answers, Attachment, Body, ContentRef, FlagStatus, Importance, KeptBody, Message, NOT_DOWNLOADED, NOT_DOWNLOADED_NOTE, RETURNED_LISTINGS,
-    normalize_subject, size_label, size_label_in, text_hash,
+    Answers, Attachment, Body, ContentRef, FlagStatus, Importance, KeptBody, MAX_HIDDEN_TEXT, Message, NOT_DOWNLOADED, NOT_DOWNLOADED_NOTE,
+    RETURNED_LISTINGS, normalize_subject, size_label, size_label_in, text_hash,
 };
 pub use offline::{KeepOffline, OfflineWindow};
 pub use remote::Origin;
@@ -128,6 +130,8 @@ pub(crate) mod b64 {
 
 #[cfg(test)]
 mod calendar_rights_tests;
+#[cfg(test)]
+mod hidden_text_tests;
 #[cfg(test)]
 mod junk_tests;
 #[cfg(test)]

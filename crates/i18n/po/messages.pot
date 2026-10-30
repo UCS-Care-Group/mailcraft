@@ -874,6 +874,11 @@ msgid "Apply Send/Receive"
 msgstr ""
 
 #. command label
+#: crates/engine/src/cmd/ews_mail.rs
+msgid "Apply Send/Receive with Exchange Web Services"
+msgstr ""
+
+#. command label
 #: crates/engine/src/cmd/jmap_mail.rs
 msgid "Apply Send/Receive with JMAP"
 msgstr ""
@@ -2341,6 +2346,11 @@ msgid "Double-click to open {name}; right-click to save it"
 msgstr ""
 
 #. command label
+#: crates/engine/src/cmd/ews_mail.rs
+msgid "Download Exchange Messages in Full"
+msgstr ""
+
+#. command label
 #: crates/engine/src/cmd/jmap_mail.rs
 msgid "Download JMAP Messages in Full"
 msgstr ""
@@ -2674,6 +2684,31 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "Everything the interface does is a command: {commands} of them, covering {percent}% of the feature catalog. The command line, the control channel and the MCP server run the same commands."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/ews_mail.rs
+msgid "Exchange server accounts are being tested: start MailCraft with MAILCRAFT_EWS=1 to try them"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/ews_mail.rs
+msgid "Exchange server accounts can't be sent and received yet: that part is not built"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Exchange server {host} · not kept in step yet: this part is not built"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Exchange server {host} · not kept in step: Exchange server accounts are switched off (start MailCraft with MAILCRAFT_EWS=1 to try them)"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+msgid "Exchange server · no usable server address"
 msgstr ""
 
 #. command label
@@ -4181,11 +4216,6 @@ msgstr ""
 msgid "MailCraft doesn't rename or move a JMAP account's folders yet: its server wouldn't be told"
 msgstr ""
 
-#. what a command says
-#: crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/compose.rs
-msgid "MailCraft doesn't send mail from a JMAP account yet"
-msgstr ""
-
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 msgid "MailCraft doesn't support POP yet. Use your provider's IMAP server instead (usually imap.<your domain>, port 993)."
@@ -4922,6 +4952,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/mail_view.rs
 msgid "Newest on top"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/remote.rs
+msgid "Next"
 msgstr ""
 
 #. ribbon
@@ -5789,6 +5824,11 @@ msgid "Page Up"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/reading/remote.rs
+msgid "Page {page} of {pages}"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/attachment_open.rs
 msgid "Pages like this open in the browser, where scripts in them run. Open it only if you know who sent it and expect it."
 msgstr ""
@@ -5920,7 +5960,7 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
-msgid "Pictures are always downloaded from:"
+msgid "Pictures are always downloaded from ({n}):"
 msgstr ""
 
 #. interface
@@ -6006,6 +6046,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "Preview lines in the message list"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/remote.rs
+msgid "Previous"
 msgstr ""
 
 #. command label
@@ -6940,7 +6985,7 @@ msgid "Send & Receive"
 msgstr ""
 
 #. ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
 msgid "Send / Receive"
 msgstr ""
 
@@ -7091,6 +7136,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/jmap_mail.rs crates/ui-egui/src/lib.rs
 msgid "Send/Receive stopped unexpectedly"
+msgstr ""
+
+#. command label
+#: crates/engine/src/cmd/ews_mail.rs
+msgid "Send/Receive with Exchange Web Services"
 msgstr ""
 
 #. command label
@@ -10318,6 +10368,11 @@ msgid "add at least one recipient"
 msgstr ""
 
 #. what a command says
+#: crates/engine/src/cmd/account.rs
+msgid "an Exchange server account's server, address and user name can't be changed once its mail is here: remove it and add the other one"
+msgstr ""
+
+#. what a command says
 #: crates/model/src/signature.rs
 msgid "an HTML signature shows pictures from their web address only: remove this signature's pictures first"
 msgstr ""
@@ -10330,6 +10385,11 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/account.rs
 msgid "an account becomes a JMAP account, or stops being one, only by being removed and added again"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+msgid "an account becomes an Exchange server account, or stops being one, only by being removed and added again"
 msgstr ""
 
 #. what a command says
@@ -10621,6 +10681,11 @@ msgstr ""
 msgid "no Microsoft account is kept in step by IMAP"
 msgstr ""
 
+#. what a command says, why a command can't run
+#: crates/engine/src/cmd/ews_mail.rs
+msgid "no account is an Exchange server account"
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/cmd/account.rs
 msgid "no account is connected to a mail server"
@@ -10642,7 +10707,7 @@ msgid "no account is kept in step through Microsoft Graph"
 msgstr ""
 
 #. what a command says
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs
 msgid "no account with id {id}"
 msgstr ""
 
@@ -11074,6 +11139,16 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/calendar/meeting.rs
 msgid "the proposed end is not after the proposed start"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/ews_mail.rs
+msgid "the result is for another account"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/ews_mail.rs
+msgid "the result {why}"
 msgstr ""
 
 #. what a command says
@@ -11641,6 +11716,11 @@ msgid "{name} has declined this meeting."
 msgstr ""
 
 #. what a command says
+#: crates/engine/src/cmd/ews_mail.rs
+msgid "{name} has no Exchange server address that can be used"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/jmap_mail.rs
 msgid "{name} has no JMAP server address that can be used"
 msgstr ""
@@ -11713,6 +11793,11 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/shared.rs
 msgid "{name} isn't a shared mailbox: remove it with account.remove"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/ews_mail.rs
+msgid "{name} isn't an Exchange server account"
 msgstr ""
 
 #. what a command says

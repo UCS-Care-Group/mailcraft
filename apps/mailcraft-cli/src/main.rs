@@ -66,6 +66,7 @@ fn open(path: &str) -> Result<Session, String> {
     }
     let mut s = Session::new(opened.mailbox);
     s.path = Some(path.into());
+    s.ews = ews_switch();
     Ok(s)
 }
 
@@ -76,12 +77,21 @@ fn open_or_new(path: &str) -> Result<Session, String> {
     }
     let mut s = Session::new(Mailbox::with_local_account("", ""));
     s.path = Some(path.into());
+    s.ews = ews_switch();
     Ok(s)
 }
 
 fn sample() -> Session {
     let now = mailcraft_time::now();
-    Session::new(mailcraft_engine::sample::mailbox(now, mailcraft_time::local_offset_minutes(now)))
+    let mut s = Session::new(mailcraft_engine::sample::mailbox(now, mailcraft_time::local_offset_minutes(now)));
+    s.ews = ews_switch();
+    s
+}
+
+/// Exchange server accounts may be added and kept in step (#252): `MAILCRAFT_EWS=1`, for testing.
+/// Read here, by the host, and never from a command's params.
+fn ews_switch() -> bool {
+    std::env::var("MAILCRAFT_EWS").is_ok_and(|value| value.trim() == "1")
 }
 
 /// Every `--allow` value, split at commas: what the owner lets an agent do without asking.
@@ -378,6 +388,7 @@ fn run(args: &[String]) -> Result<(), Failure> {
                 (None, true) => sample(),
                 (None, false) => Session::new(Mailbox::with_local_account("", "")),
             };
+            s.ews = ews_switch();
             let print = rest.iter().any(|a| a == "--print");
             let mut i = 0;
             while let Some(a) = rest.get(i) {
@@ -415,7 +426,9 @@ fn run(args: &[String]) -> Result<(), Failure> {
                     let accounts = &s.mailbox.accounts;
                     accounts
                         .iter()
-                        .find(|a| a.kind.has_server() && a.kind != mailcraft_model::AccountKind::Jmap)
+                        .find(|a| {
+                            a.kind.has_server() && !matches!(a.kind, mailcraft_model::AccountKind::Jmap | mailcraft_model::AccountKind::Exchange)
+                        })
                         .or_else(|| accounts.iter().find(|a| a.kind.has_server()))
                         .map(|a| a.id)
                         .ok_or("sync: no account in this mailbox is connected to a mail server")?
@@ -530,11 +543,12 @@ fn run(args: &[String]) -> Result<(), Failure> {
                         .with_allow(allow.clone()),
                 ),
                 None => {
-                    let session = match (arg_value(&rest, "--file"), rest.iter().any(|a| a == "--sample")) {
+                    let mut session = match (arg_value(&rest, "--file"), rest.iter().any(|a| a == "--sample")) {
                         (Some(f), _) => open(&f)?,
                         (None, true) => sample(),
                         (None, false) => Session::empty(),
                     };
+                    session.ews = ews_switch();
                     Box::new(mailcraft_mcp::Headless::new(session, allow.clone()))
                 }
             };

@@ -539,6 +539,7 @@ fn change_done(mb: &mut Mailbox, account: Id, change: &FolderChange, outcome: &C
                 caught_up: false,
                 round_ended: false,
                 counts: None,
+                sync_state: String::new(),
             });
             taken.pushed += 1;
             None
@@ -711,6 +712,7 @@ fn update(mb: &mut Mailbox, id: Id, there: &GraphFolder, name: &str, parent_here
         caught_up: last.caught_up,
         round_ended: last.round_ended,
         counts: last.counts,
+        sync_state: String::new(),
     });
     *f != before
 }

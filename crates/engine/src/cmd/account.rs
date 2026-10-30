@@ -13,8 +13,8 @@ use mailcraft_model::sync::{
     SyncResult, SyncStage, summary_line_in,
 };
 use mailcraft_model::{
-    Account, AccountKind, Directory, FlagStatus, Folder, FolderKind, Id, JmapServer, MailIdentity, Mailbox, Message, OAuth, OAuthProvider, Pending,
-    Queued, Security, Server, clean_name,
+    Account, AccountKind, Directory, EwsServer, FlagStatus, Folder, FolderKind, Id, JmapServer, MailIdentity, Mailbox, Message, OAuth, OAuthProvider,
+    Pending, Queued, Security, Server, clean_name,
 };
 use serde_json::{Value, json};
 
@@ -40,7 +40,7 @@ pub fn specs() -> Vec<CommandSpec> {
     ]
 }
 
-const ACCOUNT: &str = r#"{"email": string, "displayName"?: string, "name"?: string, "username"?: string, "incoming"?: {"host": string, "port"?: number, "security"?: "tls"|"starttls"|"none"} | null, "outgoing"?: same | null, "auth"?: "password"|"oauth2" (oauth2: sign in on the provider's page), "provider"?: "microsoft", "clientId"?: string, "tenant"?: string, "directory"?: "organisation"|"personal" (which kind of Microsoft account signs in, when the sign-in said), "kind"?: "imap"|"local"|"microsoft"|"jmap" (microsoft: kept in step through Microsoft Graph, no mail servers; jmap: kept in step over JMAP, no mail servers), "jmap"?: {"session": string (the https:// address of the server's JMAP session resource), "bearer"?: bool (the secret is a bearer token, not the account's password)} (a JMAP account's server; the secret is never a setting)}"#;
+const ACCOUNT: &str = r#"{"email": string, "displayName"?: string, "name"?: string, "username"?: string, "incoming"?: {"host": string, "port"?: number, "security"?: "tls"|"starttls"|"none"} | null, "outgoing"?: same | null, "auth"?: "password"|"oauth2" (oauth2: sign in on the provider's page), "provider"?: "microsoft", "clientId"?: string, "tenant"?: string, "directory"?: "organisation"|"personal" (which kind of Microsoft account signs in, when the sign-in said), "kind"?: "imap"|"local"|"microsoft"|"jmap"|"exchange" (microsoft: kept in step through Microsoft Graph, no mail servers; jmap: kept in step over JMAP, no mail servers; exchange: an Exchange server account, kept in step through Exchange Web Services, no mail servers, only while Exchange server accounts are being tested: MAILCRAFT_EWS=1), "ews"?: {"url": string (the https:// address of the server's Exchange Web Services, `…/EWS/Exchange.asmx`), "username"?: string (DOMAIN\user or a UPN; default the e-mail address), "trusted"?: string (the SHA-256 fingerprint of the one certificate trusted for this account besides the system's)} (an Exchange server account's server; the password is never a setting), "jmap"?: {"session": string (the https:// address of the server's JMAP session resource), "bearer"?: bool (the secret is a bearer token, not the account's password)} (a JMAP account's server; the secret is never a setting)}"#;
 
 fn has_server(s: &Session) -> Option<&'static str> {
     if s.mailbox.accounts.iter().any(|a| a.kind.has_server()) {
@@ -221,14 +221,15 @@ fn apply_fields(a: &mut Account, v: &Value) -> Result<(), CmdError> {
         None => a.kind,
         Some(k) if k == "microsoft" || k == "graph" => AccountKind::Microsoft,
         Some(k) if k == "jmap" => AccountKind::Jmap,
+        Some(k) if k == "exchange" => AccountKind::Exchange,
         Some(k) if k == "imap" || k == "local" => AccountKind::Imap,
-        Some(_) => return Err(bad("`kind` is imap, local, microsoft or jmap")),
+        Some(_) => return Err(bad("`kind` is imap, local, microsoft, jmap or exchange")),
     };
     match kind {
         AccountKind::Microsoft => {
             // Graph and nothing else: no mail servers, and a sign-in with Microsoft.
             a.kind = AccountKind::Microsoft;
-            (a.incoming, a.outgoing, a.jmap) = (None, None, None);
+            (a.incoming, a.outgoing, a.jmap, a.ews) = (None, None, None, None);
             let o = a.oauth.get_or_insert_with(OAuth::default);
             o.provider = OAuthProvider::Microsoft;
         }
@@ -237,11 +238,19 @@ fn apply_fields(a: &mut Account, v: &Value) -> Result<(), CmdError> {
             // server's session resource is (RFC 8620 §2) and how the secret goes.
             a.jmap = Some(jmap_server(v, a.jmap.as_ref())?);
             a.kind = AccountKind::Jmap;
-            (a.incoming, a.outgoing, a.oauth) = (None, None, None);
+            (a.incoming, a.outgoing, a.oauth, a.ews) = (None, None, None, None);
+        }
+        AccountKind::Exchange => {
+            // Exchange Web Services and nothing else (#252): no mail servers and no sign-in with
+            // a provider (a mailbox in Microsoft 365 is a Microsoft account), but where the
+            // server's services are and who signs in.
+            a.ews = Some(ews_server(v, a.ews.as_ref())?);
+            a.kind = AccountKind::Exchange;
+            (a.incoming, a.outgoing, a.oauth, a.jmap) = (None, None, None, None);
         }
         _ => {
             a.kind = if a.incoming.is_some() || a.outgoing.is_some() { AccountKind::Imap } else { AccountKind::Local };
-            a.jmap = None;
+            (a.jmap, a.ews) = (None, None);
         }
     }
     if a.name.is_empty() {
@@ -277,6 +286,43 @@ fn jmap_server(v: &Value, before: Option<&JmapServer>) -> Result<JmapServer, Cmd
     }
     if given_session || before.is_none() {
         JmapServer::check_session(&server.session).map_err(|why| bad(format!("`jmap.session` {why}")))?;
+    }
+    Ok(server)
+}
+
+/// An Exchange server account's server from `ews` in a command's params, over `before` (what it
+/// has, when it has a server): `url`, the address of its Exchange Web Services, `username` and
+/// `trusted`, the fingerprint of the one certificate trusted besides the system's. What is given,
+/// or what a new server has, must be what the model takes ([`EwsServer::problem`]); nothing is
+/// sent to it. (One a mailbox file brought, and that is kept, is refused when a run is asked for,
+/// so that the account can still be put right.)
+fn ews_server(v: &Value, before: Option<&EwsServer>) -> Result<EwsServer, CmdError> {
+    let mut server = before.cloned().unwrap_or_default();
+    let mut given = false;
+    match v.get("ews") {
+        None => {}
+        Some(settings @ Value::Object(_)) => {
+            for (key, field) in [("url", &mut server.url), ("username", &mut server.username), ("trusted", &mut server.trusted)] {
+                match settings.get(key) {
+                    None => {}
+                    Some(Value::String(text)) => (*field, given) = (text.trim().to_string(), true),
+                    Some(_) => return Err(bad(format!("`ews.{key}` is a string"))),
+                }
+            }
+        }
+        Some(_) => return Err(bad("`ews` is {\"url\": string, \"username\"?: string, \"trusted\"?: string}")),
+    }
+    if (given || before.is_none())
+        && let Some(why) = server.problem()
+    {
+        let word = if EwsServer::check_url(&server.url).is_err() {
+            "url"
+        } else if EwsServer::check_username(&server.username).is_err() {
+            "username"
+        } else {
+            "trusted"
+        };
+        return Err(bad(format!("`ews.{word}` {why}")));
     }
     Ok(server)
 }
@@ -326,6 +372,12 @@ pub fn servers_text(a: &Account) -> String {
             None => "jmap, no server address that can be used".to_string(),
         };
     }
+    if a.kind == AccountKind::Exchange {
+        return match a.ews.as_ref().filter(|server| server.problem().is_none()) {
+            Some(server) => format!("exchange {}", jmap_origin(&server.url)),
+            None => "exchange, no server address that can be used".to_string(),
+        };
+    }
     let parts: Vec<String> = [one("imap", &a.incoming), one("smtp", &a.outgoing)].into_iter().flatten().collect();
     if parts.is_empty() { "no server".to_string() } else { parts.join(", ") }
 }
@@ -345,7 +397,19 @@ fn jmap_shown(a: &Account) -> Option<Value> {
     a.jmap.as_ref().map(|server| json!({"server": server.problem().is_none().then(|| jmap_origin(&server.session)), "bearer": server.bearer}))
 }
 
+/// What `account.list` says of an Exchange server account's server: where it connects and the
+/// name it signs in with, not the rest of the address.
+fn ews_shown(a: &Account) -> Option<Value> {
+    a.ews.as_ref().map(|server| {
+        json!({"server": server.problem().is_none().then(|| jmap_origin(&server.url)), "username": server.username, "trustsCertificate": !server.trusted.is_empty()})
+    })
+}
+
 fn add(s: &mut Session, v: &Value) -> CmdResult {
+    // Exchange server accounts are being tested (#252): not made while the switch is off.
+    if !s.ews && p::str(v, "kind").is_some_and(|k| k.trim().eq_ignore_ascii_case("exchange")) {
+        return Err(fail(super::ews_mail::SWITCHED_OFF));
+    }
     // A new account keeps a year of mail in full (#143); one from before keeps all of it.
     let mut a = Account { keep_offline: mailcraft_model::KeepOffline::NEW_ACCOUNT, ..Default::default() };
     apply_fields(&mut a, v)?;
@@ -382,12 +446,36 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
         return Err(added_by_newer(&a, "which keeps its settings: change them there"));
     }
     let before = a.clone();
+    // The settings of an Exchange server account (#252) are not changed while the switch is off.
+    if !s.ews && (v.get("ews").is_some() || p::str(v, "kind").is_some_and(|k| k.trim().eq_ignore_ascii_case("exchange"))) {
+        return Err(fail(super::ews_mail::SWITCHED_OFF));
+    }
     apply_fields(&mut a, v)?;
     check_address(&a, Some(&before))?;
+    // An Exchange server account is the same: its ids are the server's.
+    if (before.kind == AccountKind::Exchange) != (a.kind == AccountKind::Exchange) {
+        return Err(fail("an account becomes an Exchange server account, or stops being one, only by being removed and added again"));
+    }
     // A JMAP account's folders and mail are known to its server by the ids it hands out, and any
     // other account's by paths and UIDs, or by nobody: an account doesn't turn from one to the other.
     if (before.kind == AccountKind::Jmap) != (a.kind == AccountKind::Jmap) {
         return Err(fail("an account becomes a JMAP account, or stops being one, only by being removed and added again"));
+    }
+    // And once its mail is here, those ids are one account's at one server and mailbox.
+    if listed_ews(s, id) && a.kind == AccountKind::Exchange {
+        let url = |x: &Account| x.ews.as_ref().filter(|server| server.problem().is_none()).map(|server| server.url.trim().to_string());
+        // (The name that signs in, with the e-mail address when none is given: another name may
+        // open another mailbox, and these ids are one mailbox's.)
+        let login = |x: &Account| {
+            let name = x.ews.as_ref().map(|server| server.username.trim()).filter(|name| !name.is_empty()).unwrap_or(x.email.trim());
+            name.to_lowercase()
+        };
+        let moved = url(&before).is_some_and(|was| Some(was) != url(&a));
+        if moved || !before.email.trim().eq_ignore_ascii_case(a.email.trim()) || login(&before) != login(&a) {
+            return Err(fail(
+                "an Exchange server account's server, address and user name can't be changed once its mail is here: remove it and add the other one",
+            ));
+        }
     }
     // And once its mail is here, those ids are one account's at one session: another session
     // address, even on the same server, or another address of the owner's, may be another account
@@ -443,7 +531,7 @@ const HASH_BUDGET: u64 = 256 << 20;
 
 /// What a message holds in memory (what hashing it costs).
 fn in_memory(m: &Message) -> u64 {
-    let body = m.body.text.len() as u64 + m.body.html.as_ref().map_or(0, |h| h.len() as u64);
+    let body = m.body.text.len() as u64 + m.body.html.as_ref().map_or(0, |h| h.len() as u64) + m.hidden_text.len() as u64;
     body.saturating_add(m.attachments.iter().map(|a| a.data.len() as u64).sum::<u64>())
 }
 
@@ -536,7 +624,7 @@ fn list(s: &mut Session, _: &Value) -> CmdResult {
         .accounts
         .iter()
         .map(|a| {
-            json!({"id": a.id, "name": a.name, "email": a.email, "displayName": a.display_name, "kind": a.kind, "username": a.username, "incoming": a.incoming, "outgoing": a.outgoing, "signature": a.signature, "replySignature": a.reply_signature(), "auth": if a.oauth.is_some() { "oauth2" } else { "password" }, "oauth": a.oauth, "downloadInFull": a.download_in_full, "keepOffline": s.mailbox.keep_offline_of(a.id), "askBeforeDeletingConversation": s.mailbox.asks_before_deleting_conversation(a.id), "sharedOf": a.shared_of, "jmap": jmap_shown(a)})
+            json!({"id": a.id, "name": a.name, "email": a.email, "displayName": a.display_name, "kind": a.kind, "username": a.username, "incoming": a.incoming, "outgoing": a.outgoing, "signature": a.signature, "replySignature": a.reply_signature(), "auth": if a.oauth.is_some() { "oauth2" } else { "password" }, "oauth": a.oauth, "downloadInFull": a.download_in_full, "keepOffline": s.mailbox.keep_offline_of(a.id), "askBeforeDeletingConversation": s.mailbox.asks_before_deleting_conversation(a.id), "sharedOf": a.shared_of, "jmap": jmap_shown(a), "ews": ews_shown(a)})
         })
         .collect();
     Ok(json!({"accounts": accounts, "signatures": s.mailbox.signatures}))
@@ -559,6 +647,11 @@ pub fn sync_request(s: &Session, account: Id) -> Result<SyncRequest, CmdError> {
     // nor the command line runs yet: nothing is asked of IMAP or SMTP servers it doesn't have.
     if a.kind == AccountKind::Jmap {
         return Err(failed!("{name} is a JMAP account, and this version doesn't send and receive with one yet", name = a.name));
+    }
+    // So is an Exchange server account (`sync.ewsRequest`), where the switch is on, and it is
+    // not run at all where it is off.
+    if a.kind == AccountKind::Exchange {
+        return Err(fail(super::ews_mail::refusal_text(s)));
     }
     if a.kind != AccountKind::Imap {
         return Err(failed!("{name} isn't connected to a mail server", name = a.name));
@@ -614,6 +707,10 @@ pub fn sync_request(s: &Session, account: Id) -> Result<SyncRequest, CmdError> {
 pub fn unpushed(s: &Session, account: Id) -> usize {
     if s.mailbox.account(account).is_some_and(|a| a.kind == AccountKind::Microsoft) {
         return super::graph_mail::unpushed(s, account);
+    }
+    // (Nothing of an Exchange server account goes up yet, #252.)
+    if s.mailbox.account(account).is_some_and(|a| a.kind == AccountKind::Exchange) {
+        return 0;
     }
     remote_ops(s, account, 0).1 + place_ops(s, account, 0).1
 }
@@ -781,6 +878,10 @@ fn request(s: &mut Session, v: &Value) -> CmdResult {
         let mut req = serde_json::to_value(super::jmap_mail::jmap_mail_request(s, account, false)?).map_err(|e| fail(e.to_string()))?;
         req["jmap"] = json!(true);
         return Ok(req);
+    }
+    // So has one of an Exchange server account (`sync.ewsRequest`).
+    if s.mailbox.account(account).is_some_and(|a| a.kind == AccountKind::Exchange) {
+        return Err(fail(super::ews_mail::refusal_text(s)));
     }
     let req = sync_request(s, account)?;
     serde_json::to_value(&req).map_err(|e| fail(e.to_string()))
@@ -1725,4 +1826,9 @@ fn apply(s: &mut Session, v: &Value) -> CmdResult {
     let result: SyncResult =
         serde_json::from_value(v.get("result").cloned().ok_or_else(|| bad("`result` is required"))?).map_err(|e| bad(format!("`result`: {e}")))?;
     apply_sync(s, result)
+}
+
+/// Whether any folder of `account` is the server's already (its mail is here).
+fn listed_ews(s: &Session, account: Id) -> bool {
+    s.mailbox.folders.iter().any(|f| f.account == account && f.server.is_some())
 }

@@ -211,6 +211,15 @@ pub fn to_text(html: &str) -> String {
     blocks_to_text(&crate::blocks::parse_text(html))
 }
 
+/// [`to_text`], and with it the words of what the message hides (`display:none`, a style sheet's
+/// `visibility:hidden`, a font size of nothing and the other tricks `style.rs` lists), as one line
+/// of words. What is hidden is not in the text: it is not shown, nor quoted in a reply. It is for
+/// the owner's search and for agents, who must still treat it as data, never as instructions.
+pub fn text_and_hidden(html: &str) -> (String, String) {
+    let built = crate::blocks::build(html, false, &crate::media::Env::default(), true);
+    (blocks_to_text(&built.blocks), built.hidden)
+}
+
 /// Display blocks as plain text, the way [`to_text`] writes them. Every block is a paragraph of
 /// its own, whatever its `space`. A data table is a line per row with ` | ` between the cells; a
 /// layout table is what its cells hold, one after the other.
@@ -259,9 +268,24 @@ fn pieces_of(blocks: &[Block], quote: usize, out: &mut Vec<Piece>) {
     let mut before = (usize::MAX, usize::MAX);
     for block in blocks {
         let count = out.len();
-        // What stands in the line of the block before goes on in its paragraph.
-        if block.beside && before.1 > before.0 && !matches!(block.kind, BlockKind::Table(_)) {
-            let body = block_body(block);
+        // What stands in the line of the block before goes on in its paragraph. So does a box on a
+        // line, when it and the box before it are each a single line of text; boxes that hold
+        // paragraphs, lists or more are paragraphs of their own.
+        let own_quote = quote.saturating_add(usize::from(block.quote));
+        let joined = if block.beside && before.1 > before.0 {
+            match &block.kind {
+                BlockKind::Table(table) if table.inline => {
+                    let single = before.1 == before.0.saturating_add(1)
+                        && out.last().is_some_and(|p| !p.list && !p.body.contains('\n') && p.quote == own_quote);
+                    single.then(|| one_line(table)).flatten()
+                }
+                BlockKind::Table(_) => None,
+                _ => Some(block_body(block)),
+            }
+        } else {
+            None
+        };
+        if let Some(body) = joined {
             if let Some(last) = out.last_mut().filter(|_| !body.is_empty()) {
                 last.body.push(' ');
                 last.body.push_str(&body);
@@ -290,6 +314,18 @@ fn pieces_of(blocks: &[Block], quote: usize, out: &mut Vec<Piece>) {
             }
         }
         before = (count, out.len());
+    }
+}
+
+/// The text of a box that holds a single line, and nothing else: no paragraphs, list, quote or break.
+fn one_line(table: &Table) -> Option<String> {
+    let [row] = table.rows.as_slice() else { return None };
+    let [cell] = row.cells.as_slice() else { return None };
+    let mut pieces = Vec::new();
+    pieces_of(&cell.blocks, 0, &mut pieces);
+    match pieces.as_slice() {
+        [piece] if !piece.list && piece.quote == 0 && !piece.body.contains('\n') => Some(piece.body.clone()),
+        _ => None,
     }
 }
 
