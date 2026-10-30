@@ -917,6 +917,43 @@ fn the_theme_changes_the_colours_of_a_message_that_is_open() {
     assert!(blue.b() > blue.r() && contrast(blue, Tokens::dark().surface) >= super::colors::TARGET_CONTRAST, "{blue:?}");
 }
 
+/// In the dark theme, an owner who keeps messages light reads them in the light theme's colours,
+/// as their senders made them, laid out again when the switch is turned, while the window around
+/// them stays dark. The original under a reply being written keeps the window's colours.
+#[test]
+fn messages_can_stay_light_in_the_dark_theme() {
+    let (app, ids) = corpus_app(false);
+    let id = id_of(&ids, "outlook reply");
+    let mut harness = window(app, (1280.0, 800.0));
+    let colours = |harness: &mut egui_kittest::Harness<'static, MailApp>| {
+        harness.run_steps(4);
+        super::view::kept(&harness.ctx, id, |laid, _| {
+            let colours = laid.items.iter().filter_map(|item| match &item.kind {
+                ItemKind::Text(text) => Some((text.paper, text.job.sections.iter().map(|s| s.format.color).collect::<Vec<_>>())),
+                ItemKind::Fill { color, .. } => Some((*color, Vec::new())),
+                _ => None,
+            });
+            colours.collect::<Vec<_>>()
+        })
+        .unwrap()
+    };
+    harness.state_mut().execute("ui.theme", json!({"value": "light"})).unwrap();
+    harness.state_mut().execute("mail.select", json!({"id": id})).unwrap();
+    let light = colours(&mut harness);
+    harness.state_mut().execute("ui.theme", json!({"value": "dark"})).unwrap();
+    let dark = colours(&mut harness);
+    assert_ne!(dark, light);
+
+    assert_eq!(harness.state_mut().execute("ui.lightMessages", json!({"value": true})).unwrap()["value"], true);
+    assert_eq!(colours(&mut harness), light);
+    assert!(harness.ctx.global_style().visuals.dark_mode, "the window stays dark");
+    assert!(super::view::on_light_page(harness.state(), Place::Pane) && super::view::on_light_page(harness.state(), Place::Window(1)));
+    assert!(!super::view::on_light_page(harness.state(), Place::Quote) && !super::view::on_light_page(harness.state(), Place::Preview));
+
+    harness.state_mut().execute("ui.lightMessages", json!({"value": false})).unwrap();
+    assert_eq!(colours(&mut harness), dark);
+}
+
 /// Generous bounds: this is an unoptimised build of this crate, on whatever machine runs the
 /// tests. What it takes is printed (`--nocapture`).
 #[test]

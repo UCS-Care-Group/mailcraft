@@ -101,10 +101,13 @@ pub fn show_file_message(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place
         unreadable_line(ui, m, t);
     });
     let room = ui.available_rect_before_wrap().intersect(ui.clip_rect());
+    let page = view::page(app, place);
     ui.scope_builder(egui::UiBuilder::new().max_rect(room), |ui| {
-        egui::ScrollArea::both().auto_shrink([false, false]).id_salt(("body", place)).show(ui, |ui| {
-            egui::Frame::NONE.inner_margin(egui::Margin { left: 20, right: 20, top: 12, bottom: 24 }).show(ui, |ui| {
-                view::show(app, ui, m, place, access);
+        page.show(ui, |ui| {
+            egui::ScrollArea::both().auto_shrink([false, false]).id_salt(("body", place)).show(ui, |ui| {
+                egui::Frame::NONE.inner_margin(egui::Margin { left: 20, right: 20, top: 12, bottom: 24 }).show(ui, |ui| {
+                    view::show(app, ui, m, place, access);
+                });
             });
         });
     });
@@ -202,11 +205,14 @@ pub fn show_message(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Pla
     // The body gets the part of the pane that can be seen, whatever was laid out above it: a
     // header too wide for a narrow pane must not make the text run out of sight with it.
     let room = ui.available_rect_before_wrap().intersect(ui.clip_rect());
+    let page = view::page(app, place);
     ui.scope_builder(egui::UiBuilder::new().max_rect(room), |ui| {
-        // Sideways too: a data table is never squeezed below its words, so a wide one scrolls.
-        egui::ScrollArea::both().auto_shrink([false, false]).id_salt(("body", m.id)).show(ui, |ui| {
-            egui::Frame::NONE.inner_margin(egui::Margin { left: 20, right: 20, top: 12, bottom: 24 }).show(ui, |ui| {
-                view::show(app, ui, m, place, access);
+        page.show(ui, |ui| {
+            // Sideways too: a data table is never squeezed below its words, so a wide one scrolls.
+            egui::ScrollArea::both().auto_shrink([false, false]).id_salt(("body", m.id)).show(ui, |ui| {
+                egui::Frame::NONE.inner_margin(egui::Margin { left: 20, right: 20, top: 12, bottom: 24 }).show(ui, |ui| {
+                    view::show(app, ui, m, place, access);
+                });
             });
         });
     });

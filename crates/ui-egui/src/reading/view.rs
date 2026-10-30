@@ -433,7 +433,8 @@ pub fn doc_shown(ctx: &egui::Context, message: &Arc<Message>, place: Place, can_
 /// as they have come.
 pub fn show(app: &mut MailApp, ui: &mut Ui, message: &Arc<Message>, place: Place, access: Access) {
     let ctx = ui.ctx().clone();
-    let t = Tokens::get(&ctx);
+    let light = on_light_page(app, place);
+    let t = if light { Tokens::light() } else { Tokens::get(&ctx) };
     // In steps of a few points, so that dragging the pane's edge does not lay a long message out
     // again for every pixel.
     let width = ((ui.available_width().min(super::MAX_TEXT_WIDTH) / WIDTH_STEP).floor() * WIDTH_STEP).max(1.0);
@@ -480,7 +481,10 @@ pub fn show(app: &mut MailApp, ui: &mut Ui, message: &Arc<Message>, place: Place
     } else if entry.laid.done && entry.key.is_some_and(|old| Key { remote: key.remote, ..old } == key) {
         // Only the pictures changed: what is shown stays until the new layout is whole.
         if entry.next.as_ref().is_none_or(|(next, _)| *next != key) {
-            entry.next = Some((key, Laid::new(width).showing_remote(showing).sender_dark(entry.doc.sender_dark).cut(entry.doc.cuts.clone())));
+            entry.next = Some((
+                key,
+                Laid::new(width).showing_remote(showing).on_light_page(light).sender_dark(entry.doc.sender_dark).cut(entry.doc.cuts.clone()),
+            ));
             #[cfg(test)]
             {
                 begun += 1;
@@ -488,7 +492,7 @@ pub fn show(app: &mut MailApp, ui: &mut Ui, message: &Arc<Message>, place: Place
         }
     } else {
         entry.key = Some(key);
-        entry.laid = Laid::new(width).showing_remote(showing).sender_dark(entry.doc.sender_dark).cut(entry.doc.cuts.clone());
+        entry.laid = Laid::new(width).showing_remote(showing).on_light_page(light).sender_dark(entry.doc.sender_dark).cut(entry.doc.cuts.clone());
         entry.next = None;
         #[cfg(test)]
         {
@@ -526,6 +530,19 @@ pub fn show(app: &mut MailApp, ui: &mut Ui, message: &Arc<Message>, place: Place
     for action in due.into_iter().chain(asked) {
         select::act(app, place, action);
     }
+}
+
+/// Whether a message's body is shown on a light page in the light theme's colours, whatever the
+/// window's theme: the owner asked for it, and it is a message being read (not the original
+/// under a reply being written, nor File › Signatures' sample).
+pub fn on_light_page(app: &MailApp, place: Place) -> bool {
+    app.ui.light_messages && matches!(place, Place::Pane | Place::Window(_))
+}
+
+/// What the body scrolls on: the light theme's page when [`on_light_page`] (the edges of the
+/// scrolling fade to it too), else the window's own.
+pub fn page(app: &MailApp, place: Place) -> egui::Frame {
+    if on_light_page(app, place) { egui::Frame::NONE.fill(Tokens::light().surface) } else { egui::Frame::NONE }
 }
 
 /// Look at what is laid out of a message's body where it is shown, when it is shown there.

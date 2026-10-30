@@ -57,7 +57,7 @@ go when a row has several (files, importance, categories) is ours, the reference
 
 ## Themes, sizes, input
 
-- **Light, dark and follow-the-system** themes; every colour comes from `theme::Tokens`. Follow-the-system is the system's own answer on Windows, macOS and in the browser, and on Linux and the BSDs the desktop portal's `color-scheme`, followed live (#73); no portal means light.
+- **Light, dark and follow-the-system** themes; every colour comes from `theme::Tokens`. Follow-the-system is the system's own answer on Windows, macOS and in the browser, and on Linux and the BSDs the desktop portal's `color-scheme`, followed live (#73); no portal means light. In the dark theme, the owner may keep messages on a light page in their own colours while the rest of the window stays dark (File › Options, #634).
 - **Interface size** 80–200 % on top of the system scale.
 - **Keyboard:** the registry's shortcuts follow the target's where it has them (Ctrl+N, Ctrl+R,
   Ctrl+Shift+R, Ctrl+F, Ctrl+Q/U, Ctrl+1–4, Ctrl+E, Ctrl+Shift+A/Q/C/K, F9, Delete, arrows).
@@ -175,3 +175,4 @@ be shown when they can't.
 | 2026-10-27 | minor | #494: an agent asks the owner before it leaves a message they typed in or a form or window with their unsaved changes; People › Email asks Unsaved Message too, and so does closing a message whose saved draft is gone |
 | 2026-10-27 | minor | #513: a command that waited for a download waits for a form with unsaved changes to be closed |
 | 2026-10-27 | minor | #503: Message list: a conversation opens in place, its messages under its row, those in other folders too; Delete on a conversation's row takes the messages it shows and asks first, per account |
+| 2026-10-29 | minor | #634: in the dark theme, messages can be kept on a light page in their own colours |
