@@ -42,6 +42,10 @@ pub struct FolderState {
     pub uid_from: u32,
     /// UIDs of the messages the mailbox has in this folder (to notice deletions and flag changes).
     pub known_uids: Vec<u32>,
+    /// UIDs of messages here that are to be downloaded again, whole, to be read anew (#650:
+    /// mail kept with U+FFFD). A few at a time; the run asks for them without setting `\Seen`.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub again: Vec<u32>,
 }
 
 /// A change made here for the server to take on. Server mailboxes are named by their path
@@ -474,6 +478,14 @@ pub struct FolderDelta {
     /// the folder has been read whole once ([`crate::Folder::read_whole`]).
     #[serde(skip_serializing_if = "is_false")]
     pub complete: bool,
+    /// Messages of [`FolderState::again`] downloaded again (`uid` set): only their subject,
+    /// names and text are taken from them (#650).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub refetched: Vec<Message>,
+    /// UIDs of [`FolderState::again`] that are settled without a new copy (the message is too
+    /// large to download), so that they are not asked for at every run.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub refetch_done: Vec<u32>,
 }
 
 /// A folder of mail the server has, as its list names it ([`SyncResult::listed`]).

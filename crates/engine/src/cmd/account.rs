@@ -714,6 +714,7 @@ pub fn sync_request(s: &Session, account: Id) -> Result<SyncRequest, CmdError> {
             known.entry(f.id).or_default().push(uid);
         }
     }
+    let mut again = super::imap_again::wanted(&s.mailbox, account);
     let folders = s
         .mailbox
         .folders
@@ -727,6 +728,7 @@ pub fn sync_request(s: &Session, account: Id) -> Result<SyncRequest, CmdError> {
             uid_seen: f.uid_seen,
             uid_from: f.uid_from,
             known_uids: known.remove(&f.id).unwrap_or_default(),
+            again: again.remove(&f.id).unwrap_or_default(),
         })
         .collect();
     let (ops, _) = remote_ops(s, account, MAX_OPS);
@@ -1713,7 +1715,7 @@ fn adopt_listed(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, listed:
 }
 
 /// Take in what changed in one server mailbox.
-fn take_in(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, delta: FolderDelta, counts: &mut Counts) {
+fn take_in(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, mut delta: FolderDelta, counts: &mut Counts) {
     if delta.remote.is_empty() {
         return;
     }
@@ -1791,6 +1793,13 @@ fn take_in(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, delta: Folde
         if let Some(id) = on_server.by_uid.get(&(folder, theirs.uid)) {
             counts.updated += usize::from(merge_flags(mb, *id, *theirs));
         }
+    }
+    // Mail downloaded again to be read anew (#650); a mailbox numbered anew has no UID to find it by.
+    if reset {
+        delta.refetched.clear();
+        delta.refetch_done.clear();
+    } else {
+        super::imap_again::take_in(mb, &mut delta, |uid| on_server.by_uid.get(&(folder, uid)).copied());
     }
     let inbox = delta.kind == FolderKind::Inbox;
     let junk = delta.kind == FolderKind::Junk;

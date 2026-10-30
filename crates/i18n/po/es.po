@@ -2140,6 +2140,11 @@ msgid "Continue"
 msgstr "Continuar"
 
 #. interface
+#: crates/ui-egui/src/reading.rs
+msgid "Continue editing"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Contributors"
@@ -5388,6 +5393,18 @@ msgstr "Mensajes de la carpeta según los contó su servidor en el último Envia
 #, fuzzy
 msgid "Messages in the folder itself"
 msgstr "Mensajes de la propia carpeta"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Messages keep the colours their senders chose, on a white page, while the rest of the window stays dark."
+msgstr "Los mensajes conservan los colores que eligieron sus remitentes, sobre una página blanca, mientras el resto de la ventana sigue oscuro."
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Messages on a Light Background"
+msgstr "Mensajes sobre fondo claro"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -8842,6 +8859,12 @@ msgid "Show in the time bar"
 msgstr "Mostrar en la barra de horas"
 
 #. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Show messages on a light background in the dark theme"
+msgstr "Mostrar los mensajes sobre fondo claro en el tema oscuro"
+
+#. interface
 #: crates/ui-egui/src/secret_field.rs
 msgid "Show password"
 msgstr ""
@@ -11047,6 +11070,11 @@ msgstr "Este mensaje no tiene texto."
 #, fuzzy
 msgid "This message has pictures on the web. This build can't download them."
 msgstr "Este mensaje tiene imágenes en la web. Esta compilación no puede descargarlas."
+
+#. interface
+#: crates/ui-egui/src/reading.rs
+msgid "This message hasn't been sent."
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/invitation.rs
