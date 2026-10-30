@@ -49,10 +49,10 @@ fn mailbox(messages: usize, header_bytes: usize) -> Mailbox {
 }
 
 #[test]
-fn a_one_file_mailbox_over_the_old_limit_opens_and_is_written_as_a_log_on_the_next_save() {
+fn a_one_file_mailbox_opens_and_is_written_as_a_log_on_the_next_save() {
     let tmp = Temp::new("json");
     let path = tmp.file();
-    // Over 2 MB and under the limit: the shape of a file the old 512 MB limit refused.
+    // (That the limit is above the old 512 MB one is checked below, at compile time.)
     let mb = mailbox(300, 10_000);
     let bytes = crate::io::write_mailbox(&mb).unwrap();
     assert!(bytes.len() as u64 > 2 << 20 && (bytes.len() as u64) < MAX_MAILBOX_JSON, "{}", bytes.len());
@@ -121,4 +121,48 @@ fn the_log_form_refuses_to_grow_past_what_it_opens_and_keeps_the_file_readable()
     assert!(e.contains("more than MailCraft opens"), "{e}");
     assert_eq!(fs::read(&path).unwrap(), before);
     assert_eq!(open(&path).unwrap().mailbox.messages.len(), 2_000);
+}
+
+/// The JSON limit in a real build is above the 512 MB one that locked #649's owner out.
+const _: () = assert!((4u64 << 30) > crate::io::MAX_FILE);
+
+#[test]
+fn an_append_that_would_pass_the_limit_compacts_instead_of_refusing() {
+    let tmp = Temp::new("compact");
+    let path = tmp.file();
+    // About 37 MB: more than half the limit, so the file can reach it by appending alone.
+    let mut mb = mailbox(3_600, 10_000);
+    save(&path, &mb).unwrap();
+    let ids: Vec<_> = mb.messages.keys().copied().take(3_000).collect();
+    for id in ids {
+        mb.message_mut(id).unwrap().read = true;
+    }
+    let saved = save(&path, &mb).unwrap();
+    assert!(saved.compacted, "written whole");
+    let len = fs::metadata(&path).unwrap().len();
+    assert!(len < MAX_INDEX, "{len}");
+    let opened = open(&path).unwrap();
+    assert_eq!(opened.mailbox.messages.len(), 3_600);
+    assert_eq!(opened.mailbox.messages.values().filter(|m| m.read).count(), 3_000);
+    // And the saves after it go on.
+    let first = *mb.messages.keys().next().unwrap();
+    mb.message_mut(first).unwrap().flag = mailcraft_model::FlagStatus::Flagged;
+    save(&path, &mb).unwrap();
+}
+
+#[test]
+fn a_one_file_mailbox_too_large_for_the_memory_is_refused_before_it_is_read() {
+    assert!(json_needs_too_much_memory(3 << 30, Some(8 << 30)));
+    assert!(!json_needs_too_much_memory(1 << 30, Some(8 << 30)));
+    assert!(!json_needs_too_much_memory(u64::MAX, None));
+    let tmp = Temp::new("memory");
+    let path = tmp.file();
+    fs::write(&path, crate::io::write_mailbox(&mailbox(20, 100)).unwrap()).unwrap();
+    let len = fs::metadata(&path).unwrap().len();
+    TEST_AVAILABLE.set(len * 2);
+    let e = open(&path).err();
+    TEST_AVAILABLE.set(0);
+    let e = e.unwrap();
+    assert!(e.contains("too large for this computer's memory"), "{e}");
+    assert_eq!(open(&path).unwrap().mailbox.messages.len(), 20);
 }

@@ -80,7 +80,7 @@ mod index;
 
 use index::{Coll, Fp, Key, Tail};
 
-/// Largest mailbox file read in this form (16 GB; the JSON forms stop at [`MAX_FILE`]).
+/// Largest mailbox file read in this form (16 GB; the JSON forms stop at [`MAX_MAILBOX_JSON`]).
 pub const MAX_INDEX: u64 = if cfg!(test) { 64 << 20 } else { 16 << 30 };
 
 /// Items of a mailbox file parsed at a time when it is opened.
@@ -1352,8 +1352,6 @@ fn report(show: &std::path::Display<'_>, dir: &Path, filled: &Filled) {
     }
 }
 
-/// Whether the file at `path` begins as a mailbox file in this form does. A file that begins as
-/// one of a form a newer MailCraft writes is an error that says so.
 /// Whether the file starts like a JSON object (after a byte order mark and white space): what a
 /// mailbox of the forms before the log of records is.
 fn starts_like_json(file: &Path) -> Result<bool, String> {
@@ -1365,6 +1363,8 @@ fn starts_like_json(file: &Path) -> Result<bool, String> {
     Ok(head.iter().find(|b| !b.is_ascii_whitespace()) == Some(&b'{'))
 }
 
+/// Whether the file at `path` begins as a mailbox file in this form does. A file that begins as
+/// one of a form a newer MailCraft writes is an error that says so.
 fn is_index(file: &Path) -> Result<bool, String> {
     let mut head = [0u8; 16];
     // (Without waiting, and only a regular file: a pipe put where a mailbox was named can't hold
@@ -1566,6 +1566,11 @@ fn open_locked(st: &mut State, path: &Path, progress: &OpenProgress, launch: Lau
     }
     if len > MAX_MAILBOX_JSON {
         return Err(format!("{show} is larger than {} MB", MAX_MAILBOX_JSON >> 20));
+    }
+    // Parsing allocates every string again: about twice the file is in memory at the peak, so a
+    // file that is too large a share of the machine's memory is refused here, not by an abort.
+    if json_needs_too_much_memory(len, available_memory()) {
+        return Err(format!("{show} is too large for this computer's memory ({} MB)", len >> 20));
     }
     // (Read as `io::read_regular_file` does, its bytes counted; the room asked for first, so that
     // a machine without it says so instead of stopping.)
@@ -1846,6 +1851,37 @@ pub fn body_budget() -> u64 {
         }
     }
     physical_memory().map_or(FALLBACK_BUDGET, |m| m / 16).min(MAX_CONTENT)
+}
+
+/// Whether reading and parsing a JSON file of `len` bytes would want more than `available` bytes
+/// of memory (three times the file: the bytes, and the strings made of them). Unknown memory
+/// refuses nothing.
+fn json_needs_too_much_memory(len: u64, available: Option<u64>) -> bool {
+    available.is_some_and(|a| len.saturating_mul(3) > a)
+}
+
+/// Memory not in use, where it can be read (Linux: `MemAvailable`); else the machine's own.
+fn available_memory() -> Option<u64> {
+    #[cfg(test)]
+    {
+        if TEST_AVAILABLE.get() > 0 {
+            return Some(TEST_AVAILABLE.get());
+        }
+    }
+    #[cfg(target_os = "linux")]
+    {
+        let text = fs::read_to_string("/proc/meminfo").ok()?;
+        let line = text.lines().find(|l| l.starts_with("MemAvailable:"))?;
+        let kb: u64 = line.split_whitespace().nth(1)?.parse().ok()?;
+        kb.checked_mul(1024)
+    }
+    #[cfg(not(target_os = "linux"))]
+    physical_memory()
+}
+
+#[cfg(test)]
+thread_local! {
+    pub(crate) static TEST_AVAILABLE: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
 }
 
 /// Items a mailbox is always read with from JSON, whatever the budget (250 MB at a kilobyte each).
@@ -2465,7 +2501,7 @@ pub fn save_single(path: &Path, mailbox: &Mailbox) -> Result<u64, String> {
     // Never write a file a later open would refuse.
     if bytes.len() as u64 > MAX_MAILBOX_JSON {
         return Err(format!(
-            "the mailbox is {} MB, more than one file holds ({} MB); nothing was written. Use File › Save, which keeps its content in a folder beside the mailbox file",
+            "the mailbox is {} MB, more than one file holds ({} MB); nothing was written. A mailbox this large is kept by saving it where it is kept (content in a folder beside the mailbox file), not as one file",
             bytes.len() >> 20,
             MAX_MAILBOX_JSON >> 20
         ));
@@ -3016,12 +3052,6 @@ fn write_index_once(st: &mut State, path: &Path, mailbox: &Mailbox, progress: &P
             return Err(e);
         }
     };
-    // Never write a file a later open would refuse.
-    if d.len.saturating_add(delta.group.len() as u64) > MAX_INDEX {
-        let e = too_big_to_open(d.len.saturating_add(delta.group.len() as u64));
-        st.disk = Some(d);
-        return Err(e);
-    }
     // The content first: a mailbox file never names what isn't on disk yet.
     let mut saved = Saved::default();
     if let Err(e) = write_content(path, &delta.wanted, &mut saved, progress) {
@@ -3036,9 +3066,10 @@ fn write_index_once(st: &mut State, path: &Path, mailbox: &Mailbox, progress: &P
         saved.unchanged = saved.blobs == 0;
         return Ok(saved);
     }
-    // When what was appended outgrows what the file says, it is written whole instead.
+    // When what was appended outgrows what the file says, or would pass what is opened, it is
+    // written whole instead (which refuses only when the mailbox itself is too big to open).
     d.len = d.len.saturating_add(group.len() as u64);
-    if d.outgrown() {
+    if d.outgrown() || d.len > MAX_INDEX {
         return compact(st, path, mailbox, None, progress).map(|whole| Saved {
             blobs: saved.blobs + whole.blobs,
             blob_bytes: saved.blob_bytes + whole.blob_bytes,
@@ -3237,6 +3268,10 @@ fn named_by(path: &Path) -> Result<Option<HashSet<Digest>>, String> {
             }
         }
         return Ok(Some(named));
+    }
+    // (Only the form with a content folder names any; its head says which form this is.)
+    if crate::store_before::format_on_disk(path) != Some(SPLIT_VERSION) {
+        return Ok(None);
     }
     if len > MAX_MAILBOX_JSON {
         return Err("too large".into());
